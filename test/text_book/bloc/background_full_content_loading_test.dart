@@ -1,4 +1,6 @@
 // ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+import 'dart:collection';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -443,6 +445,183 @@ void main() {
     ],
   );
 
+  test('טווח זהה בספר מלא בודק רק את שורות הטווח', () async {
+    const lineCount = 16384;
+    const rangeSize = 640;
+    final values = List<String>.generate(
+      lineCount,
+      (line) => line.isEven ? '' : 'שורה $line',
+    );
+    final tracked = _ReadCountingLines(values);
+    bloc.emit(buildLoadedState(content: const []));
+
+    final loaded = bloc.stream.firstWhere(
+      (state) => state is TextBookLoaded && identical(state.content, tracked),
+    );
+    bloc.add(ApplyFullBookContent(bookTitle: book.title, content: tracked));
+    await loaded;
+    final full = bloc.state as TextBookLoaded;
+    expect(full.loadedLineFlags?.length, lineCount);
+
+    final start = lineCount - rangeSize;
+    final tail = values.sublist(start);
+    tracked.reads = 0;
+    bloc.add(
+      ApplyBookContentRange(
+        bookTitle: book.title,
+        startLine: start,
+        totalLines: lineCount,
+        lines: tail,
+      ),
+    );
+    await pumpEventQueue();
+
+    expect(bloc.state, same(full));
+    expect(tracked.reads, inInclusiveRange(1, rangeSize));
+    expect((bloc.state as TextBookLoaded).contentVersion, full.contentVersion);
+
+    // A genuine change must still emit, increment the revision, and keep
+    // the previously published full-content object unchanged.
+    final changed = List<String>.of(tail)..[0] = 'תוכן מעודכן';
+    final updatedFuture = bloc.stream.firstWhere(
+      (state) =>
+          state is TextBookLoaded &&
+          state.contentVersion == full.contentVersion + 1,
+    );
+    bloc.add(
+      ApplyBookContentRange(
+        bookTitle: book.title,
+        startLine: start,
+        totalLines: lineCount,
+        lines: changed,
+      ),
+    );
+    final updated = await updatedFuture as TextBookLoaded;
+    expect(updated.content[start], 'תוכן מעודכן');
+    expect(updated.contentVersion, full.contentVersion + 1);
+    expect(full.content[start], values[start]);
+    expect(updated.loadedLineFlags?.every((loaded) => loaded), isTrue);
+  });
+
+  test('טווח זהה שומר שורה, בחירה, סימון ו-revision', () async {
+    const original = ['א', 'ב', '', 'ד'];
+    bloc.emit(buildLoadedState(content: const []));
+    final fullFuture = bloc.stream.firstWhere(
+      (state) => state is TextBookLoaded && state.content.length == 4,
+    );
+    bloc.add(
+      ApplyFullBookContent(bookTitle: book.title, content: original),
+    );
+    final full = await fullFuture as TextBookLoaded;
+    final selected = full.copyWith(
+      selectedIndex: 2,
+      selectedIndices: const {2},
+      visibleIndices: const [2],
+      permanentHighlightLine: 2,
+      currentTitle: 'כותרת נבחרת',
+    );
+    bloc.emit(selected);
+
+    bloc.add(
+      ApplyBookContentRanges(
+        bookTitle: book.title,
+        ranges: const [
+          (startLine: 0, totalLines: 4, lines: ['א', 'ב']),
+          (startLine: 2, totalLines: 4, lines: ['', 'ד']),
+        ],
+      ),
+    );
+    await pumpEventQueue();
+    expect(bloc.state, same(selected));
+    expect((bloc.state as TextBookLoaded).contentVersion, full.contentVersion);
+    expect((bloc.state as TextBookLoaded).selectedIndices, {2});
+
+    final updatedFuture = bloc.stream.firstWhere(
+      (state) =>
+          state is TextBookLoaded &&
+          state.contentVersion == selected.contentVersion + 1,
+    );
+    bloc.add(
+      ApplyBookContentRange(
+        bookTitle: book.title,
+        startLine: 1,
+        totalLines: 4,
+        lines: const ['שורה מתוקנת'],
+      ),
+    );
+    final updated = await updatedFuture as TextBookLoaded;
+    expect(updated.content, ['א', 'שורה מתוקנת', '', 'ד']);
+    expect(updated.contentChanges?.fromVersion, selected.contentVersion);
+    expect(updated.contentChanges?.ranges, [(first: 1, last: 1)]);
+    expect(updated.selectedIndex, 2);
+    expect(updated.selectedIndices, {2});
+    expect(updated.visibleIndices, [2]);
+    expect(updated.permanentHighlightLine, 2);
+    expect(updated.currentTitle, 'כותרת נבחרת');
+    expect(selected.content, original);
+  });
+
+  test('שורה ריקה ללא דגל טעון עדיין מפעילה רענון', () async {
+    bloc.emit(
+      buildLoadedState(content: const ['א', '', 'ג']).copyWith(
+        selectedIndex: 1,
+        selectedIndices: const {1},
+      ),
+    );
+    final before = bloc.state as TextBookLoaded;
+    final updatedFuture = bloc.stream.firstWhere(
+      (state) =>
+          state is TextBookLoaded &&
+          state.contentVersion == before.contentVersion + 1,
+    );
+    bloc.add(
+      ApplyBookContentRange(
+        bookTitle: book.title,
+        startLine: 1,
+        totalLines: 3,
+        lines: const [''],
+      ),
+    );
+    final updated = await updatedFuture as TextBookLoaded;
+    expect(updated.content, before.content);
+    expect(updated.isContentLineLoaded(1), isTrue);
+    expect(updated.contentVersion, before.contentVersion + 1);
+    expect(updated.selectedIndices, before.selectedIndices);
+    expect(updated.contentChanges?.fromVersion, before.contentVersion);
+  });
+
+  test('אצווה שמשנה ואז משחזרת עדיין מגדילה revision', () async {
+    const original = ['א', '', 'ג'];
+    bloc.emit(buildLoadedState(content: const []));
+    final fullFuture = bloc.stream.firstWhere(
+      (state) => state is TextBookLoaded && state.content.length == 3,
+    );
+    bloc.add(
+      ApplyFullBookContent(bookTitle: book.title, content: original),
+    );
+    final full = await fullFuture as TextBookLoaded;
+    final updatedFuture = bloc.stream.firstWhere(
+      (state) =>
+          state is TextBookLoaded &&
+          state.contentVersion == full.contentVersion + 1,
+    );
+    bloc.add(
+      ApplyBookContentRanges(
+        bookTitle: book.title,
+        ranges: const [
+          (startLine: 1, totalLines: 3, lines: ['תוכן זמני']),
+          (startLine: 1, totalLines: 3, lines: ['']),
+        ],
+      ),
+    );
+    final updated = await updatedFuture as TextBookLoaded;
+    expect(updated.content, original);
+    expect(updated.contentVersion, full.contentVersion + 1);
+    // Overlapping identical ranges are coalesced in ContentLineChanges.
+    expect(updated.contentChanges?.ranges, [(first: 1, last: 1)]);
+    expect(full.content, original);
+  });
+
   test('פסקה רציפה שלא נטענה כולה מבקשת את כל טווח שורותיה', () async {
     // שורות 1..1999 בין שתי כותרות (נחתכות לפריטים); רק סביב שורה 1000 טעון.
     const lineCount = 2100;
@@ -481,6 +660,29 @@ void main() {
     expect(requested.startLine, lessThanOrEqualTo(layout.firstLineOf(item)));
     expect(requested.endLine, greaterThanOrEqualTo(layout.lastLineOf(item)));
   });
+}
+
+class _ReadCountingLines extends ListBase<String> {
+  _ReadCountingLines(this._values);
+
+  final List<String> _values;
+  int reads = 0;
+
+  @override
+  int get length => _values.length;
+
+  @override
+  set length(int value) => throw UnsupportedError('Read-only source');
+
+  @override
+  String operator [](int index) {
+    reads++;
+    return _values[index];
+  }
+
+  @override
+  void operator []=(int index, String value) =>
+      throw UnsupportedError('Read-only source');
 }
 
 class _CountingLink extends Link {

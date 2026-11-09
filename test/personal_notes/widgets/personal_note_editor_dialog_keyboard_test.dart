@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -11,6 +13,7 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
+import 'package:otzaria/widgets/dialogs/dialog_dismiss_guard.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
 
@@ -164,6 +167,42 @@ void main() {
     expect(find.byType(PersonalNoteEditorDialog), findsOneWidget);
   });
 
+  testWidgets('Escape בעורך בלי שינויים סוגר את הדיאלוג (DD-08)', (
+    tester,
+  ) async {
+    await open(tester);
+    final editor = tester.widget<quill.QuillEditor>(
+      find.byType(quill.QuillEditor),
+    );
+    expect(editor.focusNode.hasFocus, isTrue);
+    await press(tester, LogicalKeyboardKey.escape);
+    expect(result, isNull);
+    expect(find.byType(PersonalNoteEditorDialog), findsNothing);
+  });
+
+  testWidgets('Escape בעורך עם שינויים שואל על הטיוטה (DD-08)', (
+    tester,
+  ) async {
+    await open(tester);
+    final editor = tester.widget<quill.QuillEditor>(
+      find.byType(quill.QuillEditor),
+    );
+    editor.controller.replaceText(
+      0,
+      0,
+      'טיוטה ',
+      const TextSelection.collapsed(offset: 6),
+    );
+    await tester.pump();
+    expect(editor.focusNode.hasFocus, isTrue);
+    await press(tester, LogicalKeyboardKey.escape);
+    expect(result, 'pending');
+    expect(find.text('שמור טיוטה'), findsOneWidget);
+    await tester.tap(find.text('סגור בלי לשמור'));
+    await tester.pumpAndSettle();
+    expect(result, isNull);
+  });
+
   testWidgets('Escape מהכותרת מבטל', (tester) async {
     await open(tester);
     closeFocus(tester).requestFocus();
@@ -192,4 +231,50 @@ void main() {
       expect((result as PersonalNoteEditorResult).contentPlain.trim(), 'שלום');
     });
   }
+
+  for (final (button, closes) in [('ביטול', false), ('סגור בלי לשמור', true)]) {
+    testWidgets(
+      'סגירת החלון עם שינויים שואלת על הטיוטה; "$button" '
+      '${closes ? 'סוגר' : 'משאיר את החלון ואת ההערה'} (q11 Q3)',
+      (tester) async {
+        await open(tester);
+        tester
+            .widget<quill.QuillEditor>(find.byType(quill.QuillEditor))
+            .controller
+            .replaceText(
+              0,
+              0,
+              'טיוטה ',
+              const TextSelection.collapsed(offset: 6),
+            );
+        await tester.pump();
+        bool? allowed;
+        unawaited(
+          DialogDismissGuard.confirmWindowClose().then((v) => allowed = v),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('שמור טיוטה'), findsOneWidget);
+        expect(allowed, isNull, reason: 'החלון מחכה להחלטה');
+        // "ביטול" מופיע גם בעורך; שאלת הטיוטה היא העליונה.
+        await tester.tap(find.text(button).last);
+        await tester.pumpAndSettle();
+        expect(allowed, closes);
+        expect(
+          find.byType(PersonalNoteEditorDialog),
+          closes ? findsNothing : findsOneWidget,
+        );
+        expect(result, closes ? isNull : 'pending');
+      },
+    );
+  }
+
+  testWidgets('סגירת החלון בלי שינויים סוגרת בלי לשאול', (tester) async {
+    await open(tester);
+    expect(
+      await tester.runAsync(DialogDismissGuard.confirmWindowClose),
+      isTrue,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('שמור טיוטה'), findsNothing);
+  });
 }

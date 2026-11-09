@@ -157,8 +157,14 @@ Future<void> main() async {
         renderedLink.text,
         renderedLink.settings,
       );
-      expect(highlighted, contains('<span style="color: red">ודר</span>'));
-      expect(highlighted, contains('<span style="color: red">שאל</span>'));
+      expect(
+        highlighted,
+        contains('<span style="color: otzaria-search-hit">ודר</span>'),
+      );
+      expect(
+        highlighted,
+        contains('<span style="color: otzaria-search-hit">שאל</span>'),
+      );
     });
 
     testWidgets('תגית inline בתוך הביטוי אינה חוסמת אותו', (tester) async {

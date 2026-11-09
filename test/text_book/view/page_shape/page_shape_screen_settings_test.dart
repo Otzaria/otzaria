@@ -680,6 +680,42 @@ void main() {
       isNot(true),
     );
   });
+
+  testWidgets(
+    'קישורים אינם מתבקשים לפני שרשימת המפרשים נטענה (#4326)',
+    (tester) async {
+      final openSettingsNotifier = ValueNotifier<int>(0);
+      addTearDown(openSettingsNotifier.dispose);
+      await pumpScreen(
+        tester,
+        openSettingsNotifier,
+        loadedState: _loadedState(
+          availableCommentators: const [],
+          commentatorsLoaded: false,
+        ),
+        defaultsLoader: (_, _) async => (
+          commentators: const <String, String?>{'left': 'רש"י על ספר בדיקה'},
+          visibility: const <String, bool>{},
+        ),
+      );
+      await tester.pump();
+      final bloc =
+          tester.element(find.byType(PageShapeScreen)).read<TextBookBloc>()
+              as _TestTextBookBloc;
+
+      expect(bloc.events.whereType<RefreshLinksForCurrentWindow>(), isEmpty);
+
+      bloc.emitState(_loadedState());
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        bloc.events.whereType<RefreshLinksForCurrentWindow>(),
+        hasLength(1),
+      );
+    },
+  );
+
   testWidgets(
     'בורר המפרשים של צורת הדף מציע את "הערות" ולא מפרשים נדירים',
     (tester) async {
@@ -748,6 +784,7 @@ TextBookLoaded _loadedState({
   List<String> availableCommentators = const ['רש"י על ספר בדיקה'],
   Set<String> rareCommentators = const {},
   TextBook? book,
+  bool commentatorsLoaded = true,
 }) {
   return TextBookLoaded(
     rareCommentators: rareCommentators,
@@ -760,7 +797,7 @@ TextBookLoaded _loadedState({
     activeCommentators: const [],
     commentatorGroups: const [],
     availableCommentators: availableCommentators,
-    commentatorsLoaded: true,
+    commentatorsLoaded: commentatorsLoaded,
     links: const [],
     visibleLinks: const [],
     linksByLine: const {},
@@ -776,8 +813,10 @@ TextBookLoaded _loadedState({
 class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     implements TextBookBloc {
   _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
+    on<TextBookEvent>((event, emit) => events.add(event));
   }
+
+  final List<TextBookEvent> events = [];
 
   void emitState(TextBookState newState) => emit(newState);
 

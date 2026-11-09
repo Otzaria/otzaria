@@ -8,7 +8,9 @@ import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/dialogs/safer_mode_password_dialog.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
-import 'package:otzaria/widgets/layout/centered_scrollable_state.dart';
+import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
+import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 
 /// Wrapper שבודק סיסמה לפני כניסה למסך מוגן במצב סייפר
 class SaferModeGuard extends StatefulWidget {
@@ -170,40 +172,19 @@ class _SaferModeGuardState extends State<SaferModeGuard> {
     );
   }
 
+  /// מסך הנעילה: OtzariaEmptyState.large על רקע הלוח, בלי AppBar במחשב ועם
+  /// AppTopBar בטלפון, והטקסטים דרך settingsText (q10 Q8c, DD-31).
   Widget _buildLockScreen() {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'הגדרות',
-        ),
-        automaticallyImplyLeading: true,
-      ),
-      body: CenteredScrollableState(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              FluentIcons.lock_closed_24_regular,
-              size: 64,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'הנך במצב סייפר',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'נדרשת סיסמה כדי לגשת להגדרות',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 32),
+    return Builder(
+      builder: (context) {
+        final state = OtzariaEmptyState.large(
+          icon: FluentIcons.lock_closed_24_regular,
+          title: context.settingsText('הנך במצב סייפר'),
+          message: context.settingsText('נדרשת סיסמה כדי לגשת להגדרות'),
+          actions: [
             ActionButton.recommended(
               icon: FluentIcons.key_24_regular,
-              text: 'הזן סיסמה',
+              text: context.settingsText('הזן סיסמה'),
               onPressed: () {
                 setState(() {
                   _dialogShown = false;
@@ -212,8 +193,32 @@ class _SaferModeGuardState extends State<SaferModeGuard> {
               },
             ),
           ],
-        ),
-      ),
+        );
+        return Scaffold(
+          backgroundColor: AppSurfaces.panelBackground(context),
+          body: LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth >= LayoutBreakpoints.compact) {
+                return state;
+              }
+              return Column(
+                children: [
+                  AppTopBar(
+                    center: Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Text(
+                        context.settingsText('הגדרות'),
+                        style: AppTopBar.titleStyle(context),
+                      ),
+                    ),
+                  ),
+                  Expanded(child: state),
+                ],
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }

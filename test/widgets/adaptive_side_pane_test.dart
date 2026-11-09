@@ -603,14 +603,14 @@ void main() {
     'צבע הרקע של החלונית מגיע מ-AdaptiveSidePane ולא מ-paneContent (wide)',
     (tester) async {
       // בודק שה-FloatingPanel (שהוא _buildPaneShell במצב wide) מקבל את
-      // AppSurfaces.solidPanelBackground ולא נדרס על ידי תוכן פנימי.
+      // AppSurfaces.panelBackground ולא נדרס על ידי תוכן פנימי.
       await tester.pumpWidget(
         MaterialApp(
           home: Directionality(
             textDirection: TextDirection.rtl,
             child: Builder(
               builder: (context) {
-                final expectedColor = AppSurfaces.solidPanelBackground(context);
+                final expectedColor = AppSurfaces.panelBackground(context);
                 return Scaffold(
                   body: SizedBox(
                     width: 1200,
@@ -631,7 +631,7 @@ void main() {
                             panel?.color,
                             expectedColor,
                             reason:
-                                'FloatingPanel צריך לקבל את AppSurfaces.solidPanelBackground',
+                                'FloatingPanel צריך לקבל את AppSurfaces.panelBackground',
                           );
                           return const SizedBox.shrink();
                         },

@@ -37,4 +37,17 @@ void main() {
       ['test/b', 'test/new'],
     ]);
   });
+
+  test('goldens are not sharded: they run in goldens_windows', () {
+    expect(isShardedTestFile('test/widgets/foo_test.dart'), isTrue);
+    expect(
+      isShardedTestFile('test/goldens/app_dialog/app_dialog_golden_test.dart'),
+      isFalse,
+    );
+    expect(
+      isShardedTestFile('test/goldens/golden_comparator_test.dart'),
+      isFalse,
+    );
+    expect(isShardedTestFile('test/widgets/helpers.dart'), isFalse);
+  });
 }

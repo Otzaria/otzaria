@@ -10,10 +10,9 @@ import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 // הייחוס הוא אותו HTML כשהוא מוצג בכפייה ב-HtmlWidget.
 const _needle = 'ברכה';
 const _opens = [
-  '<span style="color: red">',
-  '<span style="color: red; ">',
-  '<span style="color: blue; background-color: rgba(255, 255, 0, 0.8);">',
-  '<span style="background-color: rgba(255, 255, 0, 0.8); color: black">',
+  '<span style="color: otzaria-search-hit">',
+  '<span style="color: otzaria-search-current; background-color: otzaria-search-current-bg">',
+  '<span style="background-color: otzaria-mark; color: otzaria-on-mark">',
 ];
 
 class _Rendered {
@@ -156,7 +155,7 @@ void main() {
     tester,
   ) async {
     for (final html in [
-      '${_opens[0]}א ${_opens[2]}$_needle</span></span>',
+      '${_opens[0]}א ${_opens[1]}$_needle</span></span>',
       '<span style="color: green">$_needle</span>',
     ]) {
       final fast = await _render(tester, html, expectHtmlWidget: false);

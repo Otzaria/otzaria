@@ -49,8 +49,8 @@ void main() {
     );
   }
 
-  test('הורדה חדשה כוללת את החלק הגדול בזמן חיבור', () async {
-    expect(await needed(), 120);
+  test('הורדה חדשה שומרת מקום לכל החלקים ולארכיון המחובר', () async {
+    expect(await needed(), 140);
   });
 
   test('חלק שלם וחלקי עם validator מזוכים לפי הטוקן שלהם', () async {
@@ -61,7 +61,18 @@ void main() {
       'v31|part-1|second',
       '"e"',
     );
-    expect(await needed(), 60);
+    expect(await needed(), 80);
+  });
+
+  test('חלקים מלאים נשמרים בזמן חיבור ולכן דרוש ארכיון נוסף', () async {
+    cache(PatchDownloader.splitPartPath(dest, 0), 50, 'v31|part-0|first');
+    cache(PatchDownloader.splitPartPath(dest, 1), 20, 'v31|part-1|second');
+    expect(await needed(), 70);
+  });
+
+  test('קובץ חיבור שנקטע אינו מזוכה כעותק שניתן להמשך', () async {
+    File('$dest.joining').writeAsBytesSync(List.filled(60, 0));
+    expect(await needed(), 140);
   });
 
   test('טוקן שונה, validator חלש וחלק ארוך מדי אינם מזוכים', () async {
@@ -72,9 +83,9 @@ void main() {
       'v31|part-1|second',
       'W/"e"',
     );
-    expect(await needed(), 120);
+    expect(await needed(), 140);
     cache(PatchDownloader.splitPartPath(dest, 0), 51, 'v31|part-0|first');
-    expect(await needed(), 120);
+    expect(await needed(), 140);
   });
 
   test('ארכיון מחובר מהורדה קודמת אינו דורש הורדה או חיבור שוב', () async {
@@ -84,7 +95,7 @@ void main() {
 
   test('ארכיון מחובר חלקי אינו ניתן להמשך', () async {
     cache(dest, 69, 'v31|joined:whole', '"e"');
-    expect(await needed(), 120);
+    expect(await needed(), 140);
   });
 
   test('קובץ יחיד מזוכה רק עם זהות תואמת ו-validator או גודל מלא', () async {

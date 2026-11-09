@@ -71,7 +71,7 @@ class _ErrorReportsPanelState extends State<ErrorReportsPanel> {
             ),
           ],
         ),
-        SettingsActionTile.switchTile(
+        SettingsSwitchTile(
           icon: FluentIcons.cloud_arrow_up_24_regular,
           title: context.settingsText('שמירת דיווחים אוטומטית כשאין חיבור'),
           subtitle: queueWhenOffline
@@ -260,6 +260,7 @@ class _ErrorReportsPanelState extends State<ErrorReportsPanel> {
     final confirmed = await showTwoActionsDialog(
       context: context,
       title: context.settingsText('לסמן כנשלח?'),
+      icon: FluentIcons.mail_checkmark_24_regular,
       content: context.settingsText(
         'הדיווח יעבור להיסטוריית הדיווחים שנשלחו ויוסר מהתור, ללא שליחה לשרת. '
         'השתמשו בכך אם כבר שלחתם את הדיווח בדרך אחרת.',
@@ -290,12 +291,11 @@ class _ErrorReportsPanelState extends State<ErrorReportsPanel> {
       context: context,
       title: context.settingsText('עריכת דיווח שמור'),
       icon: FluentIcons.edit_24_regular,
-      headerBand: true,
-      content: '',
+      size: AppDialogSize.medium,
       cancelText: context.settingsText('ביטול'),
       confirmText: context.settingsText('שמור'),
       handleEnterKey: false,
-      hasUnsavedChanges: hasChanges,
+      isDirty: hasChanges,
       customContent: wrapWithReportScope(
         context,
         SizedBox(

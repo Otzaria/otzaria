@@ -6,10 +6,11 @@ import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/lists/list_icon_badge.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/widgets/dialogs/reusable_items_dialog.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_state.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
+import 'package:otzaria/bookmarks/utils/bookmark_location.dart';
 import 'package:otzaria/bookmarks/models/bookmark_group.dart';
 import 'package:otzaria/bookmarks/models/bookmark_sort_mode.dart';
 import 'package:otzaria/bookmarks/view/save_group_bookmark_dialog.dart';
@@ -40,10 +41,14 @@ class BookmarksDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCustomContentDialog(
+    return AppDialogFrame(
+      size: AppDialogSize.large,
+      fitTitle: true,
+      // הגוף והריפוד כמו ב־upstream (הערת בעל הפרויקט 4.11, DD-11).
+      backgroundColor: AppSurfaces.cardDialogBackground(context),
+      padding: const EdgeInsets.all(AppTokens.spaceMD),
       title: bookFilter == null ? 'סימניות' : 'סימניות בספר זה',
       icon: FluentIcons.bookmark_multiple_24_regular,
-      scrollable: false,
       child: BookmarkView(bookFilter: bookFilter),
     );
   }
@@ -190,6 +195,21 @@ class _BookmarkViewState extends State<BookmarkView> {
     bloc.renameGroup(group.id, result);
   }
 
+  /// מחיקת סימניה מרוכזת. פעולה בלתי הפיכה ולכן מאושרת בדיאלוג אזהרה.
+  Future<void> _deleteGroup(BuildContext context, BookmarkGroup group) async {
+    final bloc = context.read<BookmarkBloc>();
+    final confirmed = await showWarningDialog(
+      context: context,
+      title: 'למחוק את הסימניה המרוכזת?',
+      content: 'הסימניה המרוכזת "${group.name}" תימחק.',
+      subtitle: 'לא ניתן לשחזר סימניה שנמחקה.',
+      confirmText: 'מחק',
+    );
+    if (confirmed != true) return;
+    bloc.removeGroup(group.id);
+    UiSnack.show(NotesMessages.groupBookmarkDeleted);
+  }
+
   Widget _buildGroupsSection(BuildContext context, List<BookmarkGroup> groups) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
@@ -208,6 +228,7 @@ class _BookmarkViewState extends State<BookmarkView> {
         ),
         ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 180),
+          // כרטיס בהיר, כמו קבוצות הסימניות שמתחת (q12, DD-11).
           child: Material(
             color: AppSurfaces.card(context),
             shape: RoundedRectangleBorder(
@@ -218,10 +239,8 @@ class _BookmarkViewState extends State<BookmarkView> {
               shrinkWrap: true,
               padding: EdgeInsets.zero,
               itemCount: groups.length,
-              separatorBuilder: (_, _) => Divider(
-                height: 1,
-                color: cs.outlineVariant.withValues(alpha: 0.5),
-              ),
+              separatorBuilder: (_, _) =>
+                  Divider(height: 1, color: AppSurfaces.subtleDivider(cs)),
               itemBuilder: (context, i) {
                 final group = groups[i];
                 final count = group.items.length;
@@ -276,12 +295,7 @@ class _BookmarkViewState extends State<BookmarkView> {
                             color: cs.onSurfaceVariant,
                           ),
                           tooltip: 'מחיקה',
-                          onPressed: () {
-                            context.read<BookmarkBloc>().removeGroup(
-                              group.id,
-                            );
-                            UiSnack.show(NotesMessages.groupBookmarkDeleted);
-                          },
+                          onPressed: () => _deleteGroup(context, group),
                         ),
                       ],
                     ),
@@ -325,7 +339,7 @@ class _BookmarkViewState extends State<BookmarkView> {
     final bloc = context.read<BookmarkBloc>();
     final current = bookmark.label?.trim().isNotEmpty == true
         ? bookmark.label!.trim()
-        : (ItemsListView.locationSubtitle(bookmark) ?? '');
+        : bookmarkLocationSubtitle(bookmark);
     final result = await showInputDialog(
       context: context,
       title: 'עריכת תיאור הסימניה',
@@ -435,13 +449,13 @@ class _BookmarkViewState extends State<BookmarkView> {
           subtitleBuilder: (item) {
             final label = (item as Bookmark).label?.trim();
             if (label != null && label.isNotEmpty) return label;
-            return ItemsListView.locationSubtitle(item);
+            return bookmarkLocationSubtitle(item);
           },
           // כשמוצג ה-label, המיקום (פרק/עמוד) זמין בריחוף כדי לא לאבד אותו.
           subtitleTooltipBuilder: (item) {
             final label = (item as Bookmark).label?.trim();
             if (label == null || label.isEmpty) return null;
-            return ItemsListView.locationSubtitle(item);
+            return bookmarkLocationSubtitle(item);
           },
         );
 

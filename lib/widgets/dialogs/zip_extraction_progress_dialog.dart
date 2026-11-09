@@ -59,9 +59,7 @@ class ZipExtractionProgressDialog {
                     builder: (context, progress, _) {
                       return Text(
                         '${(progress * 100).toInt()}%',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           color: Theme.of(context).colorScheme.primary,
                         ),
                       );

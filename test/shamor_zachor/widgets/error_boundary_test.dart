@@ -90,4 +90,45 @@ void main() {
     expect(find.text('תוכן רגיל'), findsNothing);
     expect(find.text('אירעה שגיאה לא צפויה. אנא נסה שוב.'), findsOneWidget);
   });
+
+  // לכלי אין Navigator משלו (DD-29): "איפוס" לא נוגע בניווט של החלון.
+  testWidgets('איפוס מחזיר את התוכן ולא סוגר route של החלון', (tester) async {
+    final originalHandler = FlutterError.onError;
+    FlutterError.onError = (details) {};
+    addTearDown(() => FlutterError.onError = originalHandler);
+
+    final navigatorKey = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navigatorKey,
+        home: const Scaffold(body: Text('מסך קודם')),
+      ),
+    );
+    navigatorKey.currentState!.push(
+      MaterialPageRoute<void>(
+        builder: (_) => const Scaffold(
+          body: ErrorBoundary(child: Text('תוכן רגיל')),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    FlutterError.onError!(
+      FlutterErrorDetails(
+        exception: StateError('boom'),
+        stack: StackTrace.fromString(
+          '#0      package:otzaria/tools/shamor_zachor/screens/fake_screen.dart',
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('אירעה שגיאה לא צפויה. אנא נסה שוב.'), findsOneWidget);
+
+    await tester.tap(find.text('איפוס'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('תוכן רגיל'), findsOneWidget);
+    expect(navigatorKey.currentState!.canPop(), isTrue);
+    expect(find.text('מסך קודם'), findsNothing);
+  });
 }

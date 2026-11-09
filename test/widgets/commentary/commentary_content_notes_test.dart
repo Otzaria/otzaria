@@ -36,9 +36,28 @@ void main() {
       ),
     ];
 
-    final result = commentaryNotesForLine(notes, 3);
+    final byLine = indexCommentaryNotesByLine(notes);
+    final result = commentaryNotesForLine(byLine, 3);
 
     expect(result.map((note) => note.id), <String>['current']);
+    expect(byLine.keys, <int>[3, 4]);
+  });
+
+  test('אינדקס הערות גדול נבנה פעם אחת ושומר סדר בכל שורה', () {
+    final notes = <PersonalNote>[
+      for (var i = 0; i < 10000; i++)
+        _note(id: 'n$i', lineNumber: (i % 100) + 1),
+    ];
+
+    final byLine = indexCommentaryNotesByLine(notes);
+
+    expect(byLine.length, 100);
+    expect(commentaryNotesForLine(byLine, 1).length, 100);
+    expect(
+      commentaryNotesForLine(byLine, 1).take(3).map((note) => note.id),
+      <String>['n0', 'n100', 'n200'],
+    );
+    expect(commentaryNotesForLine(byLine, 101), isEmpty);
   });
 
   testWidgets('לחיצה על סימון מפרש פותחת את תוכן ההערה', (tester) async {

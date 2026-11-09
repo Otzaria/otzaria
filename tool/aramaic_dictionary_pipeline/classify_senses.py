@@ -29,7 +29,6 @@ from common import (
     write_json,
     write_jsonl,
 )
-from normalize import TARGET_DICT
 
 PAREN_RE = re.compile(r"\(([^()]*)\)")
 MIN_AUTO_CONFIDENCE = 0.9

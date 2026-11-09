@@ -41,6 +41,8 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   intl: ^0.20.3
+  # harmonize של גוון האזהרה מול הזרע (DD-24). הגרסה נקבעת ע"י Flutter.
+  material_color_utilities: any
   # נסיגת ההגדרות כשפתיחת Hive נכשלת (SharePreferenceCache).
   shared_preferences: ^2.5.6
   hive_ce: ^2.22.0
@@ -48,12 +50,12 @@ dependencies:
   # RAM פיזי לגודל ה-cache של SQLite בעדכון הספרייה ב-mobile.
   device_info_plus: ^13.3.0
   html: ^0.15.7
-  # TODO: לחזור ל-pub.dev לאחר שחרור Pattern כללי (pdfrx#789),
-  # תיקון הרזולוציה ו-hook ניווט.
+  # TODO: לחזור ל-pub.dev אחרי שחרור תיקוני QA ו-partial-area; ללא סדרת ה-prefetch של #798.
+  # espresso3389/pdfrx#799, #800, #801, #802, #803, #804, #805, #806, #807, #808, #809, #810, #811.
   pdfrx:
     git:
       url: https://github.com/Otzaria/pdfrx
-      ref: 942e27bec86e8d480111517c2083eb52817ee032
+      ref: d898e52b1526532c8d66a5f7fee0ca6b867a77d0
       path: packages/pdfrx
   # FPDF_ImportNPagesToOne: הדפסת כמה עמודים בגיליון נשארת וקטורית.
   pdfium_dart: ^0.4.1
@@ -64,7 +66,7 @@ dependencies:
   csslib: ^1.0.2
   fwfh_svg: ^0.16.1
   fwfh_url_launcher: ^0.16.1
-  positioned_sliver_list: ^0.2.4
+  positioned_sliver_list: ^0.2.5
   flutter_svg: ^2.3.2  
   fluentui_system_icons: ^1.1.273
   # בעדכון ה-ref יש לרענן את רשימת האייקונים לתוספים
@@ -86,7 +88,12 @@ dependencies:
   # The Unicode bidi algorithm, used to order the runs of a mixed line before
   # they are placed. Already in the graph through `pdf`; declared for direct use.
   bidi: ^2.0.13
-  kosher_dart: ^2.0.20
+  # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור yakir8/kosher_dart#68, #69, #70, #71, #72, #73, #74, #75, #76, #77
+  # ו-#64 (שם הקובץ CLAUDE.md עם רווח בסוף, שמכשיל clone ב-Windows). עד אז: master של הפורק המשולב.
+  kosher_dart:
+    git:
+      url: https://github.com/Otzaria/kosher_dart
+      ref: 75938458c8c0cf5b288ce529a4fe4ab2cbec24c0
   archive: ^4.6.0
   posix: ^6.5.4
   package_info_plus: ^10.2.2
@@ -114,14 +121,14 @@ dependencies:
   otzaria_search_engine:
     git:
       url: https://github.com/Otzaria/otzaria_search_engine
-      ref: b78d36eaffcb2a5fa679d34a52133512ee55c084
+      ref: d303a03d00986c5c64243cfc6a7d84015fba5dac
   # חוזה הדיווחים מול השרת, משותף עם "עדכוני אוצריא" (Dart טהור).
   otzaria_report_contract:
     path: packages/otzaria_report_contract
   seforim_library_updater:
     git:
       url: https://github.com/Otzaria/otzaria_library_updater
-      ref: 6bfd33c3bc14392c1a6bb0887fdb23209068eab5
+      ref: effdc651635a18c719b52a79d840b5aa27b1968e
   # הפורק מסנן הודעות חלון לפי HWND, כדי שמצב החלון הראשי לא יחול על חלונות
   # נוספים, ומקבע את קצוות שינוי הגודל לפי המסך תחת RTL (#3187). ב-master של
   # upstream הקוד הזה הוסר (שכתוב לקראת 0.6.0, שטרם שוחרר).
@@ -140,7 +147,8 @@ dependencies:
   timezone: ^0.11.2
   xml: ^7.0.1
   markdown: ^7.3.1
-  flutter_markdown: ^0.7.7+1
+  # המשך מתוחזק של flutter_markdown המקורי, עם API תואם.
+  flutter_markdown_plus: ^1.0.12
   flutter_quill: ^11.6.0
   # הפורק Otzaria/flutter_inappwebview מתוחזק אצלנו (upstream אינו פעיל).
   # כל ה-overrides מוצמדים לאותו קומיט.
@@ -156,6 +164,24 @@ dependencies:
   wakelock_plus: ^1.8.2
 
 dependency_overrides:
+  # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור flutter/packages#13595–#13600.
+  # תיקוני סקירה חייבים להישמר גם בענף המשולב וגם בענפי ה-PRים באפסטרים.
+  flutter_svg:
+    git:
+      url: https://github.com/Otzaria/packages
+      ref: 1ffcf4a7842a39cf8d35ea16d39881f8edb8dea9
+      path: third_party/packages/flutter_svg
+  # תיקוני המנוע וההורדה של PDFium מהענף המשולב; ראה ה-TODO ליד pdfrx.
+  pdfrx_engine:
+    git:
+      url: https://github.com/Otzaria/pdfrx
+      ref: d898e52b1526532c8d66a5f7fee0ca6b867a77d0
+      path: packages/pdfrx_engine
+  pdfium_dart:
+    git:
+      url: https://github.com/Otzaria/pdfrx
+      ref: d898e52b1526532c8d66a5f7fee0ca6b867a77d0
+      path: packages/pdfium_dart
   # Windows clipboard history requires the CF_BITMAP reader patch; see UPSTREAM.md.
   super_native_extensions:
     path: packages/super_native_extensions
@@ -164,10 +190,12 @@ dependency_overrides:
   # בשימוש הראשון). עד אז הפורק Otzaria, ענף windows-worker-thread-lazy-library, מוצמד לקומיט.
   # בהסרה: למחוק גם את core.longpaths מ-workflows של Windows - הוא נדרש
   # רק בגלל הנתיב העמוק במונורפו הזה.
+  # כולל תיקון memory ownership (#4), helper isolates ו-native teardown (#5).
+  # נעיצה ל-SHA המדויק שנבדק ב-Windows, ללא שינוי public Dart API.
   flutter_local_notifications_windows:
     git:
       url: https://github.com/Otzaria/flutter_local_notifications
-      ref: ad21cf2cddfa7c79ea7903ad95b38a8d716b5f85
+      ref: faf17437daccb8c74a4d17e6881dc834415de6d8
       path: flutter_local_notifications_windows
   # TODO: להחזיר ל-pub.dev כשימוזגו וישוחררו getsentry/sentry-dart#4094 ו-#4126 (ה-backport ל-9.x בענף
   # fix/9.x-windows-scope-sync-worker: טעינת sentry.dll, sentry_init ועדכוני ה-scope ב-isolate עזר ב-Windows).
@@ -176,13 +204,23 @@ dependency_overrides:
       url: https://github.com/Otzaria/sentry-dart
       ref: 93e7398355e80557a342666f98b23cc9bb832848
       path: packages/flutter
-  # TODO: לחזור ל-pub.dev אחרי שחרור DavBfr/dart_pdf#1984, #1985, #1986, #1987, #1988, #1993, #1994, #1995, #1996
-  # (הדפסה ב-Windows ב-thread נפרד, PDFium עצל ופרטי, השלמת עבודה שנכשלה ב-Linux, בעלי הדיאלוג בריבוי חלונות, בעלים מפורש לכל עבודה). קומיט שילוב.
+  # TODO: לחזור ל-pub.dev (printing, pdf, pdf_widget_wrapper) אחרי מיזוג ושחרור DavBfr/dart_pdf#1976, #1984-#1988,
+  # #1993-#1996, #2005, #2008-#2027. קומיט בענף otzaria/integration.
   printing:
     git:
       url: https://github.com/Otzaria/dart_pdf
-      ref: 3cb90fb3025553f3e9f48638c79ccf93efb326af
+      ref: fb1bcbd6a43a5510462b949fcdf2526cd8abe422
       path: printing
+  pdf:
+    git:
+      url: https://github.com/Otzaria/dart_pdf
+      ref: fb1bcbd6a43a5510462b949fcdf2526cd8abe422
+      path: pdf
+  pdf_widget_wrapper:
+    git:
+      url: https://github.com/Otzaria/dart_pdf
+      ref: fb1bcbd6a43a5510462b949fcdf2526cd8abe422
+      path: widget_wrapper
   # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור daohoangson/flutter_widget_from_html#1658, #1659,
   # #1660, #1661, #1662, #1663 (מטמון CSS, מיזוג margins, מחרוזות debug עצלות, Flattener,
   # FutureBuilder, צבע hex פגום).
@@ -192,6 +230,12 @@ dependency_overrides:
       ref: 57080495ee8b89aeee156a4440b6de1c5e0f7ef2
       path: packages/core
   matcher: ^0.12.20
+  # TODO: לחזור לגרסה הרשמית לאחר מיזוג ושחרור תיקוני provider באפסטרים.
+  provider:
+    git:
+      url: https://github.com/Otzaria/provider
+      ref: bf3930e454494525017b94641632577360ca7098
+      path: packages/provider
   analyzer: ^14.7.0
   device_info_plus: ^13.3.0
   # הגרסה שב-pub.dev חסרה את תיקון גלילת הטאצ'פד.
@@ -226,6 +270,43 @@ dependency_overrides:
       url: https://github.com/Otzaria/flutter_inappwebview
       ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
       path: flutter_inappwebview_android
+
+  # TODO: לחזור לגרסה הרשמית כשיפורסמו התיקונים שנותרו; v14 כבר מכסה חלק מהם.
+  file_picker:
+    git:
+      url: https://github.com/Otzaria/flutter_file_picker
+      ref: codex/integrated-fixes
+      path: packages/file_picker
+  file_picker_platform_interface:
+    git:
+      url: https://github.com/Otzaria/flutter_file_picker
+      ref: codex/integrated-fixes
+      path: packages/file_picker_platform_interface
+  android_file_picker:
+    git:
+      url: https://github.com/Otzaria/flutter_file_picker
+      ref: codex/integrated-fixes
+      path: packages/file_picker_android
+  file_picker_darwin:
+    git:
+      url: https://github.com/Otzaria/flutter_file_picker
+      ref: codex/integrated-fixes
+      path: packages/file_picker_darwin
+  file_picker_linux:
+    git:
+      url: https://github.com/Otzaria/flutter_file_picker
+      ref: codex/integrated-fixes
+      path: packages/file_picker_linux
+  windows_file_picker:
+    git:
+      url: https://github.com/Otzaria/flutter_file_picker
+      ref: codex/integrated-fixes
+      path: packages/file_picker_windows
+  file_picker_web:
+    git:
+      url: https://github.com/Otzaria/flutter_file_picker
+      ref: codex/integrated-fixes
+      path: packages/file_picker_web
 
 flutter_launcher_icons:
   android: true
@@ -289,6 +370,7 @@ flutter:
     - lib/migration/database/sql/
     - assets/dictionary.json
     - assets/Acronyms.json
+    - assets/search_acronyms.json
     - assets/support_organizations.json
     # זהות המודל הסמנטי (model.json מ-otzaria-semantic-search)
     - assets/semantic/meivin-round2-onnx/

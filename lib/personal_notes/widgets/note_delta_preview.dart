@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:otzaria/personal_notes/widgets/personal_note_styles.dart';
 
-/// מציג עיצובים נתמכים ב-RichText, לפי סגנונות Quill וללא קלט.
+/// מציג עיצובים נתמכים ב-RichText, לפי סגנונות ההערה ([personalNoteStyles])
+/// וללא קלט.
 class NoteDeltaPreview extends StatelessWidget {
   const NoteDeltaPreview({super.key, required this.document});
 

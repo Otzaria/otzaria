@@ -1,0 +1,45 @@
+name: Regenerate goldens
+
+# מצייר מחדש את תמונות הייחוס של test/goldens/ על Windows, בגרסת Flutter
+# המוצמדת, ומעלה אותן כ-artifact. כך גם תורם בלי Windows יכול לעדכן golden:
+# מריצים על הענף, מורידים את ה-artifact ומבצעים commit לתמונות. PR שמשנה
+# תמונה צריך את התווית goldens-approved (goldens_guard.yml).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regenerate:
+    name: Regenerate goldens (Windows)
+    runs-on: windows-2025
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          git config --global core.longpaths true
+          flutter pub get --enforce-lockfile
+
+      - name: Update golden files
+        run: flutter test --update-goldens test/goldens/
+
+      - name: Upload golden files
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: goldens
+          path: test/goldens/**/goldens/*.png
+          retention-days: 7

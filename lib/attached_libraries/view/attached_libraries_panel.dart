@@ -19,6 +19,7 @@ import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
+import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:path/path.dart' as p;
 
@@ -63,21 +64,23 @@ class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
 
   Future<void> _importFile() async {
     final bloc = context.read<AttachedLibrariesBloc>();
-    final files =
-        (await withFilePickerOwner(
-          context,
-          (picker) => picker.pickFiles(
-            // בורר המערכת במובייל אינו מכיר את הסיומת db; הקובץ נבדק לפי תוכנו.
-            type: widget.supportsLinking ? FileType.custom : FileType.any,
-            allowedExtensions: widget.supportsLinking ? const ['db'] : null,
-            dialogTitle: context.settingsText('בחר קובץ מסד ספרים'),
-            windowsOptions: modalWindowsOptions(context),
-            linuxOptions: kModalLinuxOptions,
-          ),
-        )) ??
-        [];
-    final path = files.map((f) => f.path).whereType<String>().firstOrNull;
-    if (path != null) bloc.add(ImportAttachedLibraryFile(path));
+    // Only one attached library can be imported by this action. A multi-file
+    // dialog previously allowed several selections but silently discarded
+    // everything except the first, unnecessarily creating platform handles.
+    final file = await withFilePickerOwner(
+      context,
+      (picker) => picker.pickFile(
+        // בורר המערכת במובייל אינו מכיר את הסיומת db; הקובץ נבדק לפי תוכנו.
+        type: widget.supportsLinking ? FileType.custom : FileType.any,
+        allowedExtensions: widget.supportsLinking ? const ['db'] : null,
+        dialogTitle: context.settingsText('בחר קובץ מסד ספרים'),
+        windowsOptions: modalWindowsOptions(context),
+        linuxOptions: kModalLinuxOptions,
+      ),
+    );
+    if (file?.path case final String path) {
+      bloc.add(ImportAttachedLibraryFile(path));
+    }
   }
 
   Future<void> _addFolder() async {
@@ -363,7 +366,10 @@ class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
       placeholder: '',
       pinnedTrailing: Builder(
         builder: (anchor) => IconButton(
-          icon: const Icon(FluentIcons.more_vertical_24_regular, size: 18),
+          icon: const Icon(
+            FluentIcons.more_vertical_24_regular,
+            size: AppTokens.iconSM,
+          ),
           onPressed: () => _showFolderMenu(anchor, folder),
           tooltip: context.settingsText('אפשרויות'),
         ),
@@ -445,30 +451,32 @@ class _AttachedLibraryTile extends StatelessWidget {
               if (library.isOk) AttachedUpdateSourceChip(library: library),
               if (library.isOk)
                 for (final capability in library.capabilities)
-                  AttachedInfoChip(
+                  MetaChip(
+                    size: MetaChipSize.small,
                     label: _capabilityLabel(context, capability),
                   ),
               if (linksTooLarge)
-                AttachedInfoChip(
+                MetaChip(
+                  size: MetaChipSize.small,
+                  tone: MetaChipTone.error,
                   label: context.settingsText(
                     'הקישורים החיצוניים לא נטענו — יותר מדי שורות',
                   ),
-                  background: cs.errorContainer,
-                  foreground: cs.onErrorContainer,
                 ),
               if (linksBuilding)
-                AttachedInfoChip(
+                MetaChip(
+                  size: MetaChipSize.small,
                   label: context.settingsText(
                     'בונה אינדקס קישורים — המפרשים של המסד יופיעו בסיום',
                   ),
                 ),
               if (library.isOk && linksIncomplete && !linksBuilding)
-                AttachedInfoChip(
+                MetaChip(
+                  size: MetaChipSize.small,
+                  tone: MetaChipTone.error,
                   label: context.settingsText(
                     'אינדקס הקישורים לא הושלם — המפרשים של המסד אינם מוצגים',
                   ),
-                  background: cs.errorContainer,
-                  foreground: cs.onErrorContainer,
                 ),
             ],
           ),
@@ -502,7 +510,10 @@ class _AttachedLibraryTile extends StatelessWidget {
       ),
       pinnedTrailing: Builder(
         builder: (anchor) => IconButton(
-          icon: const Icon(FluentIcons.more_vertical_24_regular, size: 18),
+          icon: const Icon(
+            FluentIcons.more_vertical_24_regular,
+            size: AppTokens.iconSM,
+          ),
           onPressed: enabled ? () => onMenu(anchor) : null,
           tooltip: context.settingsText('אפשרויות'),
         ),
@@ -533,39 +544,29 @@ class _AttachedLibraryTile extends StatelessWidget {
   }
 
   Widget _statusChip(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final (label, background, foreground) = switch (library.status) {
+    final (label, tone) = switch (library.status) {
       AttachedLibraryStatus.ok => (
         context.settingsText('זמין'),
-        cs.primaryContainer,
-        cs.onPrimaryContainer,
+        MetaChipTone.primary,
       ),
       AttachedLibraryStatus.unreachable when isLoading => (
         context.settingsText('נטען'),
-        cs.surfaceContainerHighest,
-        cs.onSurfaceVariant,
+        MetaChipTone.neutral,
       ),
       AttachedLibraryStatus.unreachable => (
         context.settingsText('לא זמין'),
-        cs.surfaceContainerHighest,
-        cs.onSurfaceVariant,
+        MetaChipTone.neutral,
       ),
       AttachedLibraryStatus.duplicateSlug => (
         context.settingsText('מזהה כפול'),
-        cs.errorContainer,
-        cs.onErrorContainer,
+        MetaChipTone.error,
       ),
       AttachedLibraryStatus.invalid => (
         _problemLabel(context, library.problem),
-        cs.errorContainer,
-        cs.onErrorContainer,
+        MetaChipTone.error,
       ),
     };
-    return AttachedInfoChip(
-      label: label,
-      background: background,
-      foreground: foreground,
-    );
+    return MetaChip(size: MetaChipSize.small, tone: tone, label: label);
   }
 
   static String _problemLabel(

@@ -58,9 +58,9 @@ class _DynamicShortcutDialog extends StatelessWidget {
     return AppDialogFrame(
       title: t(isNew ? 'קיצור דינמי חדש' : 'עריכת קיצור דינמי'),
       icon: FluentIcons.flash_24_regular,
-      width: 680,
+      size: AppDialogSize.large,
       actions: [
-        ActionButton.ghost(
+        ActionButton.neutral(
           text: t('ביטול'),
           onPressed: () => Navigator.of(context).pop(false),
         ),
@@ -131,7 +131,7 @@ class _DynamicShortcutForm extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SettingsActionTile.segmentedTile<DynamicShortcutKind>(
+            SettingsSegmentedTile<DynamicShortcutKind>(
               icon: FluentIcons.flash_24_regular,
               title: t('פעולה'),
               options: [
@@ -151,7 +151,7 @@ class _DynamicShortcutForm extends StatelessWidget {
               currentValue: value.kind,
               onChanged: (v) => onChanged(value.copyWith(kind: v)),
             ),
-            SettingsActionTile.segmentedTile<TextTarget>(
+            SettingsSegmentedTile<TextTarget>(
               icon: FluentIcons.book_open_24_regular,
               title: t('יעד'),
               options: [
@@ -165,7 +165,7 @@ class _DynamicShortcutForm extends StatelessWidget {
               onChanged: (v) => onChanged(value.copyWith(target: v)),
             ),
             const Divider(),
-            SettingsActionTile.segmentedTile<DynamicMarkChange?>(
+            SettingsSegmentedTile<DynamicMarkChange?>(
               icon: OtzariaIcons.alef_niqqud_24_filled,
               title: t('ניקוד'),
               options: markOptions,
@@ -173,7 +173,7 @@ class _DynamicShortcutForm extends StatelessWidget {
               onChanged: (v) =>
                   onChanged(value.copyWith(change: change.copyWith(nikud: v))),
             ),
-            SettingsActionTile.segmentedTile<DynamicTeamimChange?>(
+            SettingsSegmentedTile<DynamicTeamimChange?>(
               icon: OtzariaIcons.alef_niqqud_taamim_24_filled,
               title: t('טעמי המקרא'),
               options: [
@@ -193,7 +193,7 @@ class _DynamicShortcutForm extends StatelessWidget {
                 value.copyWith(change: change.copyWith(teamim: v)),
               ),
             ),
-            SettingsActionTile.segmentedTile<DynamicMarkChange?>(
+            SettingsSegmentedTile<DynamicMarkChange?>(
               icon: OtzariaIcons.alef_punctuation_24_filled,
               title: t('סימני פיסוק'),
               options: markOptions,
@@ -203,7 +203,7 @@ class _DynamicShortcutForm extends StatelessWidget {
               ),
             ),
             // התפריט אינו מעביר null, לכן "ללא שינוי" מיוצג במחרוזת.
-            SettingsActionTile.dropdownTile<String>(
+            SettingsDropdownTile<String>(
               icon: OtzariaIcons.alef_lock_24_filled,
               title: t('שם הוי"ה'),
               entries: [
@@ -240,7 +240,7 @@ class _DynamicShortcutForm extends StatelessWidget {
             ),
             // ההעתקה לוקחת את הטקסט כפי שהוא מוצג, ולכן רק בשינוי תצוגה.
             if (isDisplay)
-              SettingsActionTile.segmentedTile<DivineNamesDisplay?>(
+              SettingsSegmentedTile<DivineNamesDisplay?>(
                 icon: OtzariaIcons.alef_crown_24_filled,
                 title: t('שאר שמות הקודש'),
                 options: [
@@ -260,7 +260,7 @@ class _DynamicShortcutForm extends StatelessWidget {
                 ),
               ),
             if (value.target == TextTarget.body && isDisplay)
-              SettingsActionTile.segmentedTile<DynamicMarkChange?>(
+              SettingsSegmentedTile<DynamicMarkChange?>(
                 icon: OtzariaIcons.text_font_hebrew_24_filled,
                 title: t('ציוני המפרשים'),
                 options: markOptions,
@@ -270,7 +270,7 @@ class _DynamicShortcutForm extends StatelessWidget {
                 ),
               ),
             if (!isDisplay)
-              SettingsActionTile.switchTile(
+              SettingsSwitchTile(
                 icon: FluentIcons.text_clear_formatting_24_regular,
                 title: t('ללא עיצוב'),
                 subtitle: t('העתקת טקסט פשוט בלבד, בלי גופן ועיצוב'),
@@ -278,7 +278,7 @@ class _DynamicShortcutForm extends StatelessWidget {
                 onChanged: (v) => onChanged(value.copyWith(plainTextOnly: v)),
               ),
             if (isDisplay)
-              SettingsActionTile.switchTile(
+              SettingsSwitchTile(
                 icon: FluentIcons.save_24_regular,
                 title: t('שמור גם לספר'),
                 subtitle: t(

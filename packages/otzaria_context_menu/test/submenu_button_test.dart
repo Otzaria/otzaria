@@ -19,6 +19,7 @@ Widget _host({
   required MenuController controller,
   FocusNode? focus,
   bool preserveFocus = true,
+  List<Widget>? menuChildren,
 }) => MaterialApp(
   home: Scaffold(
     body: Focus(
@@ -29,12 +30,14 @@ Widget _host({
           preserveFocus: preserveFocus,
           presentation: _presentation(),
           maxWidth: 200,
-          menuChildren: [
-            MenuItemButton(
-              onPressed: () {},
-              child: const Text('פעולה פנימית'),
-            ),
-          ],
+          menuChildren:
+              menuChildren ??
+              [
+                MenuItemButton(
+                  onPressed: () {},
+                  child: const Text('פעולה פנימית'),
+                ),
+              ],
           child: const Text('אפשרויות'),
         ),
       ),
@@ -44,7 +47,223 @@ Widget _host({
 
 void main() {
   testWidgets(
-    'hover tracking follows focus policy and is removed on disposal',
+    'global pointer tracking is active only while focusable menus are open',
+    (tester) async {
+      final controller = MenuController();
+      final router = GestureBinding.instance.pointerRouter;
+      final routes = router.debugGlobalRouteCount;
+      await tester.pumpWidget(
+        _host(controller: controller, preserveFocus: false),
+      );
+      expect(router.debugGlobalRouteCount, routes);
+
+      controller.open();
+      await tester.pumpAndSettle();
+      expect(router.debugGlobalRouteCount, routes + 1);
+      controller.close();
+      await tester.pumpAndSettle();
+      expect(router.debugGlobalRouteCount, routes);
+
+      controller.open();
+      await tester.pumpAndSettle();
+      expect(router.debugGlobalRouteCount, routes + 1);
+      await tester.pumpWidget(_host(controller: controller));
+      expect(router.debugGlobalRouteCount, routes);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      expect(router.debugGlobalRouteCount, routes);
+    },
+  );
+
+  testWidgets('many closed focusable submenus add no global pointer routes', (
+    tester,
+  ) async {
+    final router = GestureBinding.instance.pointerRouter;
+    final baseline = router.debugGlobalRouteCount;
+    final controllers = [for (var i = 0; i < 40; i++) MenuController()];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: Column(
+              children: [
+                for (var i = 0; i < controllers.length; i++)
+                  AppSubmenuButton(
+                    controller: controllers[i],
+                    presentation: _presentation(),
+                    maxWidth: 200,
+                    preserveFocus: false,
+                    menuChildren: [
+                      MenuItemButton(
+                        onPressed: () {},
+                        child: const Text('Action'),
+                      ),
+                    ],
+                    child: Text('Menu $i'),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(router.debugGlobalRouteCount, baseline);
+    controllers.first.open();
+    await tester.pumpAndSettle();
+    expect(router.debugGlobalRouteCount, baseline + 1);
+    controllers.first.close();
+    await tester.pumpAndSettle();
+    expect(router.debugGlobalRouteCount, baseline);
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(router.debugGlobalRouteCount, baseline);
+  });
+
+  for (final preserveFocus in [false, true]) {
+    testWidgets(
+      'replacing an open controller preserves pointer tracking '
+      '(preserveFocus: $preserveFocus)',
+      (tester) async {
+        final oldController = MenuController();
+        final controller = MenuController();
+        final router = GestureBinding.instance.pointerRouter;
+        final routes = router.debugGlobalRouteCount;
+        await tester.pumpWidget(
+          _host(controller: oldController, preserveFocus: preserveFocus),
+        );
+        oldController.open();
+        await tester.pumpAndSettle();
+
+        await tester.pumpWidget(
+          _host(controller: controller, preserveFocus: preserveFocus),
+        );
+        await tester.pumpAndSettle();
+        expect(oldController.isOpen, isFalse);
+        expect(controller.isOpen, isTrue);
+        expect(find.text('פעולה פנימית'), findsOneWidget);
+        expect(router.debugGlobalRouteCount, routes + (preserveFocus ? 0 : 1));
+
+        router.route(
+          PointerHoverEvent(
+            kind: PointerDeviceKind.mouse,
+            position: Offset.zero,
+            viewId: tester.view.viewId,
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 401));
+        await tester.pumpAndSettle();
+        expect(controller.isOpen, preserveFocus);
+        controller.close();
+        await tester.pumpAndSettle();
+        expect(router.debugGlobalRouteCount, routes);
+        await tester.pumpWidget(const SizedBox.shrink());
+        expect(router.debugGlobalRouteCount, routes);
+      },
+    );
+  }
+
+  testWidgets('replacing a closed controller adds no global pointer route', (
+    tester,
+  ) async {
+    final oldController = MenuController();
+    final controller = MenuController();
+    final router = GestureBinding.instance.pointerRouter;
+    final routes = router.debugGlobalRouteCount;
+    await tester.pumpWidget(
+      _host(controller: oldController, preserveFocus: false),
+    );
+    await tester.pumpWidget(
+      _host(controller: controller, preserveFocus: false),
+    );
+    expect(oldController.isOpen, isFalse);
+    expect(controller.isOpen, isFalse);
+    expect(router.debugGlobalRouteCount, routes);
+    controller.open();
+    await tester.pumpAndSettle();
+    expect(router.debugGlobalRouteCount, routes + 1);
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(router.debugGlobalRouteCount, routes);
+  });
+
+  for (final preserveFocus in [false, true]) {
+    for (final open in [false, true]) {
+      for (final replaceController in [false, true]) {
+        testWidgets(
+          'changing preserveFocus from $preserveFocus resets tracking '
+          '(open: $open, replaceController: $replaceController)',
+          (tester) async {
+            final oldController = MenuController();
+            final controller = replaceController
+                ? MenuController()
+                : oldController;
+            final router = GestureBinding.instance.pointerRouter;
+            final routes = router.debugGlobalRouteCount;
+            await tester.pumpWidget(
+              _host(controller: oldController, preserveFocus: preserveFocus),
+            );
+            if (open) {
+              oldController.open();
+              await tester.pumpAndSettle();
+            }
+            await tester.pumpWidget(
+              _host(controller: controller, preserveFocus: !preserveFocus),
+            );
+            await tester.pumpAndSettle();
+            expect(oldController.isOpen, isFalse);
+            expect(controller.isOpen, isFalse);
+            expect(router.debugGlobalRouteCount, routes);
+
+            controller.open();
+            await tester.pumpAndSettle();
+            expect(controller.isOpen, isTrue);
+            expect(
+              router.debugGlobalRouteCount,
+              routes + (preserveFocus ? 1 : 0),
+            );
+            controller.close();
+            await tester.pumpAndSettle();
+            expect(router.debugGlobalRouteCount, routes);
+            await tester.pumpWidget(const SizedBox.shrink());
+            expect(router.debugGlobalRouteCount, routes);
+          },
+        );
+      }
+    }
+  }
+
+  testWidgets('controller replacement preserves a pending pointer exit close', (
+    tester,
+  ) async {
+    final oldController = MenuController();
+    final controller = MenuController();
+    final router = GestureBinding.instance.pointerRouter;
+    final routes = router.debugGlobalRouteCount;
+    await tester.pumpWidget(
+      _host(controller: oldController, preserveFocus: false),
+    );
+    oldController.open();
+    await tester.pumpAndSettle();
+    router.route(
+      PointerHoverEvent(
+        kind: PointerDeviceKind.mouse,
+        position: Offset.zero,
+        viewId: tester.view.viewId,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpWidget(
+      _host(controller: controller, preserveFocus: false),
+    );
+    expect(controller.isOpen, isTrue);
+    expect(router.debugGlobalRouteCount, routes + 1);
+    await tester.pump(const Duration(milliseconds: 201));
+    await tester.pumpAndSettle();
+    expect(controller.isOpen, isFalse);
+    expect(router.debugGlobalRouteCount, routes);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets(
+    'disposing an open submenu cancels its pending pointer exit close',
     (
       tester,
     ) async {
@@ -54,17 +273,47 @@ void main() {
       await tester.pumpWidget(
         _host(controller: controller, preserveFocus: false),
       );
-      expect(router.debugGlobalRouteCount, routes + 1);
-      await tester.pumpWidget(_host(controller: controller));
-      expect(router.debugGlobalRouteCount, routes);
-      await tester.pumpWidget(
-        _host(controller: controller, preserveFocus: false),
+      controller.open();
+      await tester.pumpAndSettle();
+      router.route(
+        PointerHoverEvent(
+          kind: PointerDeviceKind.mouse,
+          position: Offset.zero,
+          viewId: tester.view.viewId,
+        ),
       );
-      expect(router.debugGlobalRouteCount, routes + 1);
       await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 401));
+      expect(controller.isOpen, isFalse);
       expect(router.debugGlobalRouteCount, routes);
+      expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('removing open submenu children releases pointer tracking', (
+    tester,
+  ) async {
+    final controller = MenuController();
+    final router = GestureBinding.instance.pointerRouter;
+    final routes = router.debugGlobalRouteCount;
+    await tester.pumpWidget(
+      _host(controller: controller, preserveFocus: false),
+    );
+    controller.open();
+    await tester.pumpAndSettle();
+    expect(router.debugGlobalRouteCount, routes + 1);
+    await tester.pumpWidget(
+      _host(
+        controller: controller,
+        preserveFocus: false,
+        menuChildren: const [],
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(controller.isOpen, isFalse);
+    expect(router.debugGlobalRouteCount, routes);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 
   testWidgets('shared submenu delays hover without stealing the source focus', (
     tester,

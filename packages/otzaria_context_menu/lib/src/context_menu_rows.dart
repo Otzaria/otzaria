@@ -226,19 +226,23 @@ class _AppContextMenuIconRow extends StatelessWidget {
       // Center ממרכז את שורת האייקונים בלי להפוך את ה-Row ל-mainAxisSize.max
       // (max בתוך פאנל IntrinsicWidth שבר את הבחירה בעת פתיחת התפריט).
       child: Center(
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final (i, action) in actions.indexed)
-              _IconRowButton(
-                presentation: presentation,
-                action: action,
-                metrics: metrics,
-                menuStyle: menuStyle,
-                closeMenu: closeMenu,
-                submenuController: submenuControllers[i],
-              ),
-          ],
+        child: SingleChildScrollView(
+          key: const ValueKey('context-icon-row-scroll'),
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final (i, action) in actions.indexed)
+                _IconRowButton(
+                  presentation: presentation,
+                  action: action,
+                  metrics: metrics,
+                  menuStyle: menuStyle,
+                  closeMenu: closeMenu,
+                  submenuController: submenuControllers[i],
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -348,7 +352,7 @@ class _IconRowButton extends StatelessWidget {
   }
 }
 
-class _IconRowSubmenu extends StatelessWidget {
+class _IconRowSubmenu extends StatefulWidget {
   final AppContextMenuIconAction action;
   final AppMenuMetrics metrics;
   final MenuPresentation presentation;
@@ -370,30 +374,59 @@ class _IconRowSubmenu extends StatelessWidget {
   });
 
   @override
+  State<_IconRowSubmenu> createState() => _IconRowSubmenuState();
+}
+
+class _IconRowSubmenuState extends State<_IconRowSubmenu> {
+  List<AppContextMenuSubAction>? _entries;
+
+  @override
+  void didUpdateWidget(_IconRowSubmenu oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.action != widget.action ||
+        oldWidget.controller != widget.controller) {
+      _entries = oldWidget.controller.isOpen
+          ? widget.action.submenuBuilder!()
+          : null;
+    }
+  }
+
+  void _toggle() {
+    if (widget.controller.isOpen) {
+      widget.controller.close();
+      return;
+    }
+    // Direct links and other submenu entries can perform work. Build them
+    // when requested, not once for every context-menu opening.
+    final entries = widget.action.submenuBuilder!();
+    setState(() => _entries = entries);
+    widget.controller.open();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final entries = action.submenuBuilder!();
     return MenuAnchor(
-      controller: controller,
-      style: menuStyle,
+      controller: widget.controller,
+      style: widget.menuStyle,
       menuChildren: [
-        for (final entry in entries)
+        for (final entry in _entries ?? const <AppContextMenuSubAction>[])
           MenuItemButton(
             requestFocusOnHover: false,
             style: buildAppSubmenuItemStyle(
               context,
-              metrics,
-              presentation: presentation,
+              widget.metrics,
+              presentation: widget.presentation,
             ),
             onPressed: entry.enabled
                 ? () {
-                    closeMenu();
+                    widget.closeMenu();
                     entry.onTap?.call();
                   }
                 : null,
             child: buildAppMenuRowContent(
               context,
-              metrics,
-              presentation: presentation,
+              widget.metrics,
+              presentation: widget.presentation,
               label: entry.label,
               icon: entry.icon,
               enabled: entry.enabled,
@@ -401,11 +434,9 @@ class _IconRowSubmenu extends StatelessWidget {
           ),
       ],
       builder: (context, controller, _) => InkWell(
-        onTap: enabled
-            ? () => controller.isOpen ? controller.close() : controller.open()
-            : null,
+        onTap: widget.enabled ? _toggle : null,
         borderRadius: BorderRadius.circular(8),
-        child: child,
+        child: widget.child,
       ),
     );
   }

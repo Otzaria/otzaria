@@ -661,7 +661,7 @@
             "otzaria-android"
           ],
           "outputFiles": [
-            "app-release.apk"
+            "otzaria-android.apk"
           ],
           "outputNotes": [],
           "outputSubfolder": ""
@@ -674,7 +674,7 @@
             "library-index"
           ],
           "outputFiles": [
-            "app-release.apk",
+            "otzaria-android.apk",
             "otzaria-0.10.3-library.tar.zst",
             "otzaria-0.10.3-library-index.tar.zst"
           ],
@@ -691,7 +691,7 @@
             "library-full"
           ],
           "outputFiles": [
-            "app-release.apk",
+            "otzaria-android.apk",
             "otzaria-0.10.3-library.tar.zst"
           ],
           "outputNotes": [

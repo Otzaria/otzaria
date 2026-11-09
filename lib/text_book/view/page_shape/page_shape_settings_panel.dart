@@ -10,6 +10,7 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_selection.dart';
+import 'package:otzaria/text_book/view/page_shape/page_shape_commentary_font_slider.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/book_common/utils/commentator_group_builder.dart';
@@ -17,6 +18,7 @@ import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
+import 'package:otzaria/widgets/text/app_section_label.dart';
 
 /// סוג שמירת הגדרות מפרשים
 enum CommentatorSaveScope {
@@ -76,8 +78,6 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
   String? _bottomCommentator;
   String? _bottomRightCommentator;
   String _bottomFontFamily = AppFonts.defaultFont;
-  double _commentaryFontSize =
-      PageShapeSettingsManager.defaultCommentaryFontSize;
   bool _applyTextMaxWidth = PageShapeSettingsManager.getApplyTextMaxWidth();
   List<CommentatorGroup> _groups = [];
   bool _isLoadingGroups = true;
@@ -193,7 +193,6 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
             SettingsRepository.keyPageShapeBottomFont,
           ) ??
           AppFonts.defaultFont;
-      _commentaryFontSize = PageShapeSettingsManager.getCommentaryFontSize();
       _applyTextMaxWidth = PageShapeSettingsManager.getApplyTextMaxWidth();
       _highlightRelatedCommentators =
           PageShapeSettingsManager.getHighlightSetting(
@@ -308,15 +307,6 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
     // גופן מערכת (שאינו מוטמע באפליקציה) חייב להיטען לפני השמירה,
     // אחרת העדכון החי יציג fallback במקום הגופן שנבחר.
     AppFonts.ensureFontLoaded(value).then((_) => _saveSettings());
-  }
-
-  void _onFontSizeChanged(double value) {
-    setState(() {
-      _commentaryFontSize = value;
-    });
-    PageShapeSettingsManager.saveCommentaryFontSize(
-      value,
-    ).then((_) => widget.onSettingsChanged?.call());
   }
 
   void _onApplyTextMaxWidthChanged(bool value) {
@@ -532,15 +522,7 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
                 children: [
                   _buildDisplaySettingsIcon(context),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _displaySettingsTitle,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                  ),
+                  Expanded(child: AppSectionLabel(_displaySettingsTitle)),
                 ],
               ),
               const SizedBox(height: 12),
@@ -754,51 +736,9 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
         const Divider(),
         const SizedBox(height: 12),
         // גודל גופן המפרשים
-        const Text(
-          'גודל גופן מפרשים:',
-          style: TextStyle(fontSize: 15),
-        ),
-        Row(
-          children: [
-            IconButton(
-              icon: const Icon(FluentIcons.subtract_24_regular),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-              onPressed: _commentaryFontSize > 10
-                  ? () => _onFontSizeChanged(_commentaryFontSize - 1)
-                  : null,
-            ),
-            SizedBox(
-              width: 36,
-              child: Text(
-                '${_commentaryFontSize.round()}',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 16),
-              ),
-            ),
-            IconButton(
-              icon: const Icon(FluentIcons.add_24_regular),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-              onPressed: _commentaryFontSize < 30
-                  ? () => _onFontSizeChanged(_commentaryFontSize + 1)
-                  : null,
-            ),
-            Expanded(
-              child: Slider(
-                value: _commentaryFontSize,
-                min: 10,
-                max: 30,
-                divisions: 20,
-                // בזמן גרירה מעדכנים רק את התצוגה; שמירה ועדכון
-                // חי - רק בשחרור הסליידר, כדי לא להציף בטעינות.
-                onChanged: (value) => setState(() {
-                  _commentaryFontSize = value;
-                }),
-                onChangeEnd: _onFontSizeChanged,
-              ),
-            ),
-          ],
+        PageShapeCommentaryFontSizeSlider(
+          title: 'גודל גופן מפרשים',
+          onSaved: widget.onSettingsChanged,
         ),
         const SizedBox(height: 12),
         const Text(
@@ -815,7 +755,7 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
         const SizedBox(height: 12),
         Align(
           alignment: AlignmentDirectional.centerStart,
-          child: ActionButton.warning(
+          child: ActionButton.warningSoft(
             onPressed: _resetCommentators,
             icon: FluentIcons.arrow_reset_24_regular,
             text: 'איפוס מפרשים',

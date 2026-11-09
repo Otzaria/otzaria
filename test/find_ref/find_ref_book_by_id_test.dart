@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/find_ref/repository/find_ref_visibility.dart';
-import 'package:otzaria/find_ref/view/find_ref_dialog.dart';
+import 'package:otzaria/find_ref/repository/library_book_index.dart';
 import 'package:otzaria/library/hidden/hidden_library_selection.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';

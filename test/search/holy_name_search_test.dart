@@ -167,8 +167,14 @@ Future<void> main() async {
         ),
       );
       expect(out, isNot(contains(_name)));
-      expect(out, contains('<span style="color: red">יודו</span>'));
-      expect(out, contains('<span style="color: red">חסדו</span>'));
+      expect(
+        out,
+        contains('<span style="color: otzaria-search-hit">יודו</span>'),
+      );
+      expect(
+        out,
+        contains('<span style="color: otzaria-search-hit">חסדו</span>'),
+      );
     },
     skip: engineReady ? false : searchEngineSkipReason,
   );
@@ -225,7 +231,7 @@ Future<void> main() async {
       );
       expect(
         highLight('בראשית ברא אלהים', query, isFuzzy: true),
-        contains('<span style="color: red">ברא</span>'),
+        contains('<span style="color: otzaria-search-hit">ברא</span>'),
       );
     });
 

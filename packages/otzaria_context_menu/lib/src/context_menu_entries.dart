@@ -202,6 +202,7 @@ extension _ContextMenuEntries on ContextMenuRegionState {
       maxWidth: submenuMaxWidth,
       menuStyle: _menuStyle(context, metrics),
       controller: controller,
+      onControllerUnmounted: () => _submenuControllers.remove(controller),
       onOpen: submenuControllers == null
           ? null
           : () {

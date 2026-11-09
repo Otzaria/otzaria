@@ -470,6 +470,7 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
       text: TextSpan(children: spans),
       maxLines: 1,
       textDirection: TextDirection.rtl,
+      textScaler: MediaQuery.textScalerOf(context),
     );
 
     textPainter.layout(maxWidth: double.infinity);
@@ -551,7 +552,7 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
             style: TextStyle(
               fontSize: 10, // גופן קטן יותר לקיצורים
               fontWeight: FontWeight.normal,
-              color: Theme.of(context).primaryColor,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
         );
@@ -581,7 +582,7 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.normal,
-                color: Theme.of(context).primaryColor,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
           );
@@ -610,7 +611,7 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
             style: TextStyle(
               fontSize: 10, // גופן קטן יותר לקיצורים
               fontWeight: FontWeight.normal,
-              color: Theme.of(context).primaryColor,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
         );
@@ -645,7 +646,7 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
               style: TextStyle(
                 fontSize: 14, // גופן מעט יותר גדול למספר המרווח
                 fontWeight: FontWeight.normal,
-                color: Theme.of(context).primaryColor,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
           );
@@ -688,6 +689,7 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
 
     final spans = _buildFormattedTextSpans(text, context);
     return RichText(
+      textScaler: MediaQuery.textScalerOf(context),
       text: TextSpan(children: spans),
       textAlign: TextAlign.center,
     );
@@ -722,6 +724,7 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
                     child: LayoutBuilder(
                       builder: (context, _) {
                         // וידוא שה-ScrollController מחובר לפני הצגת Scrollbar
+                        // ui-lint: allow UIL-031 — פס אופקי; הכלל עוסק בצד וברצועה של פס אנכי
                         return Scrollbar(
                           controller: _scrollController,
                           thumbVisibility: true,
@@ -789,9 +792,7 @@ class OrderOfResults extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
             child: AppDropdownField<ResultsOrder>(
               value: state.sortBy,
-              decoration: const InputDecoration(
-                labelText: 'מיון',
-              ),
+              semanticLabel: 'מיון',
               entries: _entries,
               onSelected: (value) {
                 if (value != null) {
@@ -853,9 +854,7 @@ class GroupingOfResults extends StatelessWidget {
               message: state.resultGrouping.tooltip,
               child: AppDropdownField<ResultGroupingMode>(
                 value: state.resultGrouping,
-                decoration: const InputDecoration(
-                  labelText: 'איחוד תוצאות',
-                ),
+                semanticLabel: 'איחוד תוצאות',
                 entries: _entries,
                 onSelected: (value) {
                   if (value != null) {
@@ -964,9 +963,7 @@ class ExternalResultsPositionControl extends StatelessWidget {
                 ),
                 child: AppDropdownField<bool>(
                   value: settings.externalResultsFirst,
-                  decoration: InputDecoration(
-                    labelText: 'מיקום תוצאות ${status.sourceTitle}',
-                  ),
+                  semanticLabel: 'מיקום תוצאות ${status.sourceTitle}',
                   entries: entries,
                   onSelected: (value) {
                     if (value != null) {

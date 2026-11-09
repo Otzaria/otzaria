@@ -35,7 +35,7 @@ jobs:
             echo native_macos=true >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          shared='^(tool/(download_assistant|updater|release)/|installer/assistant_art\.pin\.json$|\.github/workflows/flutter_tests\.yml$)'
+          shared='^(tool/(download_assistant|updater)/|tool/release/(download_assistant_selection|generate_release_manifest|semantic_release_components)\.dart$|installer/assistant_art\.pin\.json$|\.github/workflows/flutter_tests\.yml$)'
           macos='^(lib/utils/file/native_sha256\.dart|test/utils/file/native_sha256_test\.dart|pubspec\.lock)$'
           linux=false; mac=false
           grep -qE "$shared" <<< "$files" && linux=true && mac=true
@@ -142,6 +142,13 @@ jobs:
       # שהוולידטורים החיצוניים לא יצרכו מפרט שאינו תואם את קוד האפליקציה.
       - name: Check plugin SDK spec is fresh
         run: dart run tool/plugins/generate_plugin_spec.dart --check
+
+      # דוח ui_lint מול tool/ui_lint/baseline.json (docs/design-system/CI_ENFORCEMENT.md).
+      # ה-step הזה רק מדווח: חריגות חדשות מסומנות ב-annotations ולא מכשילות את ה-job.
+      # השער החוסם הוא test/design_system/ui_lint_test.dart, שרץ ב-shards של job ה-test.
+      - name: UI lint report
+        continue-on-error: true
+        run: dart tool/ui_lint_cli.dart --format=github
 
       # בדיקות ה־CI: analyze + test (פורמט נבדק locally ב־lint).
       - name: Analyze
@@ -467,8 +474,26 @@ jobs:
       # זה הצעד שבגללו ה-job קיים: MSBuild, רישום התוספים הנייטיביים
       # וה-build hooks. debug ולא release — הוא מפעיל את אותה שרשרת נייטיבית
       # בשבריר מהזמן, ובניית ה-release כבר מכוסה ב-build-and-announce.
+      # build hooks מורידים מ-GitHub releases (ל-sqlite3 אין retry משלו), ו-flutter build
+      # לא מדפיס איזה hook נכשל. לכן מדפיסים את פלט ה-hooks ומנסים שוב רק על כשל hooks.
       - name: Build Windows (debug)
-        run: flutter build windows --debug
+        shell: pwsh
+        run: |
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            flutter build windows --debug 2>&1 | Tee-Object -Variable output
+            $status = $LASTEXITCODE
+            if ($status -eq 0) { exit 0 }
+            if (($output | Out-String) -notmatch 'Building native assets failed') { exit $status }
+            Get-ChildItem .dart_tool/hooks_runner -Recurse -Filter stderr.txt -ErrorAction SilentlyContinue |
+              Where-Object Length -gt 0 |
+              ForEach-Object { "== $($_.FullName)"; Get-Content $_.FullName -Tail 40 }
+            if ($attempt -lt 3) {
+              Write-Output "::warning::Native asset build hooks failed (attempt $attempt of 3); retrying in 15 seconds"
+              Start-Sleep -Seconds 15
+            }
+          }
+          Write-Output "::error::Native asset build hooks failed in 3 attempts"
+          exit 1
 
       # המנוע בבניית האפליקציה בלי SQLite משלו; כשל ברישום אינו נראה בשום טסט
       # יחידה. רץ על הבנייה הנייטיבית שלמעלה, ולכן מוסיף רק קומפילציה וריצה.
@@ -548,13 +573,50 @@ jobs:
           git config --global core.longpaths true
           flutter pub get --enforce-lockfile
 
-      # ההיקף מכוון וצר: הסוללה המלאה רצה על Linux ב-4 shards. כאן רצות
+      # ההיקף מכוון וצר: הסוללה המלאה רצה על Linux ב-5 shards. כאן רצות
       # רק הקבוצות שאומתו כירוקות ב-Windows (1,073 בדיקות, ועוד 146 של
       # personal_notes), והקבוצות הידועות כתלויות-סביבה או flaky (migration,
       # installer, tools/calendar) נשארות ל-Linux בלבד. הרחבת ההיקף מחייבת אימות
       # מקומי ב-Windows קודם — אחרת ה-job נהיה רועש ומתחילים להתעלם ממנו.
       - name: Run Windows-relevant tests
         run: flutter test -j 4 test/core/ test/tabs/ test/navigation/ test/workspaces/ test/personal_notes/ test/utils/file/native_sha256_test.dart test/external_catalog/external_catalog_repository_test.dart
+
+  # Golden tests (docs/design-system/CI_ENFORCEMENT.md §5, DD-22): Windows היא
+  # פלטפורמת הייחוס, ולכן test/goldens/ מוחרג מה-shards של Linux
+  # (tool/ci/test_shards.dart). כשל מעלה את תמונות ההשוואה כ-artifact.
+  goldens_windows:
+    name: Goldens (Windows)
+    runs-on: windows-2025
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          git config --global core.longpaths true
+          flutter pub get --enforce-lockfile
+
+      - name: Run golden tests
+        run: flutter test test/goldens/
+
+      - name: Upload golden failures
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: golden-failures
+          path: test/goldens/**/failures/
+          if-no-files-found: ignore
+          retention-days: 7
 
   build_linux:
     name: Build (Linux)
@@ -635,12 +697,12 @@ jobs:
         env:
           WPE_RUNTIME_SHA256: ca7e706c0ec2f66623fede2c369e3e13339448843e125f2ccd1553f4a3c4bcaf
           WPE_RUNTIME_VERSION: 2.48.7
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           asset="wpe-runtime-${WPE_RUNTIME_VERSION}-linux-x86_64.tar.zst"
-          base="https://github.com/Otzaria/otzaria-wpe-runtime/releases/download/wpe-2.48.7-print-to-pdf"
-          curl -fSL --retry 3 --retry-delay 5 -o "/tmp/$asset" "$base/$asset"
-          printf '%s  %s\n' "$WPE_RUNTIME_SHA256" "/tmp/$asset" | sha256sum -c -
+          bash tool/ci/download_verified_wpe_sdk.sh \
+            x86_64 "$WPE_RUNTIME_VERSION" "$WPE_RUNTIME_SHA256" "/tmp/$asset"
           mkdir -p /opt
           tar -C /opt -I zstd -xf "/tmp/$asset"
           test -f "$WPE_SDK/lib/pkgconfig/wpe-webkit-2.0.pc"

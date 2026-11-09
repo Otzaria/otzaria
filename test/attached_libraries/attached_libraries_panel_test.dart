@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -11,8 +13,8 @@ import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
 import 'package:otzaria/attached_libraries/view/attached_libraries_panel.dart';
-import 'package:otzaria/attached_libraries/view/attached_library_update_view.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
+import 'package:otzaria/widgets/layout/meta_chip.dart';
 
 import '../helpers/memory_settings_cache.dart';
 
@@ -61,6 +63,47 @@ AttachedLibrary _library(
   capabilities: const {AttachedLibraryCapability.toc},
   addedAt: DateTime(2026),
 );
+
+class _RecordingSingleFilePicker extends FilePickerPlatform {
+  int singlePicks = 0;
+
+  @override
+  Future<PlatformFile?> pickFile({
+    String? dialogTitle,
+    String? initialDirectory,
+    FileType type = FileType.any,
+    List<String>? allowedExtensions,
+    Function(FilePickerStatus)? onFileLoading,
+    int compressionQuality = 0,
+    AndroidOptions androidOptions = const AndroidOptions(),
+    DarwinOptions darwinOptions = const DarwinOptions(),
+    WindowsOptions windowsOptions = const WindowsOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
+  }) async {
+    singlePicks++;
+    expect(type, FileType.custom);
+    expect(allowedExtensions, ['db']);
+    return null;
+  }
+
+  @override
+  Future<List<PlatformFile>> pickFiles({
+    String? dialogTitle,
+    String? initialDirectory,
+    FileType type = FileType.any,
+    List<String>? allowedExtensions,
+    Function(FilePickerStatus)? onFileLoading,
+    int compressionQuality = 0,
+    AndroidOptions androidOptions = const AndroidOptions(),
+    DarwinOptions darwinOptions = const DarwinOptions(),
+    WindowsOptions windowsOptions = const WindowsOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
+  }) {
+    throw StateError('Attached DB imports must use a single-file dialog');
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -256,7 +299,7 @@ void main() {
                   .first,
             );
             final tagsBottom = find
-                .byType(AttachedInfoChip)
+                .byType(MetaChip)
                 .evaluate()
                 .map(
                   (chip) => tester.getRect(find.byWidget(chip.widget)).bottom,
@@ -294,6 +337,19 @@ void main() {
     expect(find.text('לא צורפו מסדים'), findsOneWidget);
     expect(find.text('הוסף תיקיית מסדים'), findsNothing);
   });
+
+  testWidgets('יבוא מסד פותח בורר של קובץ אחד בלבד', (tester) async {
+    final previousPicker = FilePickerPlatform.instance;
+    final picker = _RecordingSingleFilePicker();
+    FilePickerPlatform.instance = picker;
+    addTearDown(() => FilePickerPlatform.instance = previousPicker);
+
+    await pumpPanel(tester, _FakeRepository(const []));
+    await tester.tap(find.text('ייבא קובץ מסד'));
+    await tester.pump();
+
+    expect(picker.singlePicks, 1);
+  }, skip: Platform.isMacOS || Platform.isWindows);
 
   testWidgets('הסרת מסד מקושר: אזהרה שהקובץ לא יימחק, ורענון הספרייה', (
     tester,

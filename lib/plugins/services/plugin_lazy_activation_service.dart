@@ -84,6 +84,8 @@ class PluginLazyActivationService {
   final Set<String> _idleTracked = {};
   final Map<String, Timer> _idleTimers = {};
   final Map<String, Timer> _immediateTeardownTimers = {};
+  // בקשת סגירה שה-RPC המקורי שלה עדיין פעיל, לפי דור תחילת העבודה.
+  final Map<String, int> _deferredImmediateTeardowns = {};
   final Set<String> _keepAlive = {};
 
   /// מונה RPC שעדיין רצים פר תוסף — כל עוד חיובי, פקיעת שעון הכיבוי רק
@@ -94,6 +96,7 @@ class PluginLazyActivationService {
   Object attachBackgroundInstance(String pluginId) {
     _idleTimers.remove(pluginId)?.cancel();
     _immediateTeardownTimers.remove(pluginId)?.cancel();
+    _deferredImmediateTeardowns.remove(pluginId);
     return _runtimes[pluginId] = _BackgroundRuntime();
   }
 
@@ -174,16 +177,45 @@ class PluginLazyActivationService {
   bool requestImmediateTeardown(String pluginId, {Object? runtimeToken}) {
     if (!_ownsRuntime(pluginId, runtimeToken)) return false;
     if (!_idleTracked.contains(pluginId)) return false;
+    final runtime = _runtimes[pluginId];
     _idleTimers.remove(pluginId)?.cancel();
+    _deferredImmediateTeardowns.remove(pluginId);
+    _scheduleImmediateTeardown(pluginId, runtime, runtime?.workRevision ?? 0);
+    return true;
+  }
+
+  void _scheduleImmediateTeardown(
+    String pluginId,
+    _BackgroundRuntime? runtime,
+    int workRevision,
+  ) {
     _immediateTeardownTimers.remove(pluginId)?.cancel();
-    // השהיה קצרה — שתשובת ה-RPC תספיק לחזור לתוסף לפני השמדת ה-WebView.
+    // מאפשרים לתשובת ה-RPC להגיע ל-JavaScript לפני הרס ה-WebView.
     _immediateTeardownTimers[pluginId] = Timer(
       const Duration(milliseconds: 300),
       () {
         _immediateTeardownTimers.remove(pluginId);
-        if (!_idleTracked.contains(pluginId)) return;
-        // עבודה חדשה החלה בינתיים (RPC פתוח או אירועים בתור) — לא קוטעים;
-        // חוזרים לשעון הרגיל.
+        if (!_idleTracked.contains(pluginId) ||
+            (runtime != null && !identical(_runtimes[pluginId], runtime))) {
+          return;
+        }
+        // RPC חדש מאז בקשת הסגירה מבטל את הקדימות: העבודה החדשה זכאית
+        // לשעון חוסר-הפעילות הרגיל.
+        if (runtime != null && runtime.workRevision != workRevision) {
+          _restartIdleTimer(pluginId);
+          return;
+        }
+        if (isBusy(pluginId)) {
+          // ה-RPC שהכריז backgroundDone עשוי להשתהות מעבר ל-300ms
+          // בהעברת התשובה ב-WebKit. ממתינים לסיומו בפועל, ללא polling.
+          // אסור להחליף כאן לשעון 3 דקות ולשכוח את בקשת הסגירה.
+          if (runtime != null) {
+            _deferredImmediateTeardowns[pluginId] = workRevision;
+          } else {
+            _restartIdleTimer(pluginId);
+          }
+          return;
+        }
         if (!canTeardown(pluginId)) {
           _restartIdleTimer(pluginId);
           return;
@@ -191,7 +223,6 @@ class PluginLazyActivationService {
         backgroundDeactivator?.call(pluginId);
       },
     );
-    return true;
   }
 
   /// האם המופע של [pluginId] בתהליך הרמה (הופעל אך טרם סיים boot).
@@ -259,6 +290,7 @@ class PluginLazyActivationService {
   VoidCallback beginWork(String pluginId, {Object? runtimeToken}) {
     if (!_ownsRuntime(pluginId, runtimeToken)) return () {};
     final runtime = _runtimes.putIfAbsent(pluginId, _BackgroundRuntime.new);
+    runtime.workRevision++;
     runtime.workCount++;
     notifyActivity(pluginId);
     var ended = false;
@@ -267,6 +299,14 @@ class PluginLazyActivationService {
       ended = true;
       runtime.workCount--;
       notifyActivity(pluginId);
+      if (runtime.workCount == 0) {
+        final deferredRevision = _deferredImmediateTeardowns.remove(pluginId);
+        if (deferredRevision != null &&
+            runtime.workRevision == deferredRevision &&
+            _idleTracked.contains(pluginId)) {
+          _scheduleImmediateTeardown(pluginId, runtime, deferredRevision);
+        }
+      }
     };
   }
 
@@ -288,6 +328,7 @@ class PluginLazyActivationService {
     _idleTracked.remove(pluginId);
     _idleTimers.remove(pluginId)?.cancel();
     _immediateTeardownTimers.remove(pluginId)?.cancel();
+    _deferredImmediateTeardowns.remove(pluginId);
     _runtimes.remove(pluginId);
   }
 
@@ -479,4 +520,5 @@ class PluginLazyActivationService {
 
 class _BackgroundRuntime {
   int workCount = 0;
+  int workRevision = 0;
 }

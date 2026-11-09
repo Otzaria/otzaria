@@ -14,7 +14,6 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/utils/reading_layout.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
-import 'package:otzaria/theme/app_colors.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/utils/file/markdown_to_otzaria.dart';
@@ -62,15 +61,17 @@ ReaderLineMarks readerLineMarks(
 
 Color? readerLineBackgroundColor(
   ReaderLineBackground background,
-  ColorScheme colorScheme,
+  ThemeData theme,
 ) => switch (background) {
   ReaderLineBackground.none => null,
-  ReaderLineBackground.permanent => AppColors.permanentHighlight,
+  ReaderLineBackground.permanent => AppSurfaces.permanentMark(
+    theme.colorScheme,
+  ),
   ReaderLineBackground.highlighted => AppSurfaces.highlightedLineBackground(
-    colorScheme,
+    theme.colorScheme,
   ),
   ReaderLineBackground.related => AppSurfaces.paragraphSelectionBackground(
-    colorScheme,
+    theme,
   ),
 };
 
@@ -289,7 +290,7 @@ ContinuousReadingParagraphLine readerParagraphLine(
   ReaderLineSpec spec,
   ReaderLineContext ctx, {
   required TextStyle baseStyle,
-  required ColorScheme colorScheme,
+  required ThemeData theme,
 }) {
   // אותו קלט כמו של SmartTextWidget, כדי שתיעוד התוכן לא ישתנה בהחלפת מצב.
   final processed = TextRendererService.processText(spec.html, spec.settings);
@@ -346,7 +347,7 @@ ContinuousReadingParagraphLine readerParagraphLine(
     htmlText: html,
     style: AppFonts.taamimSafeStyle(baseStyle, html),
     frameRanges: ranges,
-    background: readerLineBackgroundColor(spec.marks.background, colorScheme),
+    background: readerLineBackgroundColor(spec.marks.background, theme),
     selected: spec.marks.isSelected,
     heading: readerInlineHeading(spec.sectionHeadings),
   );
@@ -374,7 +375,8 @@ class ReaderParagraphRun extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final baseStyle = readerParagraphBaseStyle(lineContext, colorScheme);
     final hasSearch = specs.any((spec) => spec.settings.searchText.isNotEmpty);
     return ListenableBuilder(
@@ -396,7 +398,7 @@ class ReaderParagraphRun extends StatelessWidget {
               spec,
               lineContext,
               baseStyle: baseStyle,
-              colorScheme: colorScheme,
+              theme: theme,
             ),
         ],
         baseStyle: baseStyle,

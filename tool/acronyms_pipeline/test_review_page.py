@@ -20,7 +20,10 @@ class ReviewPage(unittest.TestCase):
             (root / 'data').mkdir()
             for name in ('merge.py', 'filters.py'):
                 shutil.copy(Path(merge.HERE) / name, root / name)
-            shutil.copy(merge.SOURCES, root / 'data/sources.json')
+            sources = json.loads(Path(merge.SOURCES).read_text(encoding='utf-8'))
+            for src in sources['sources'].values():
+                src.pop('merge_agent_checked', None)
+            (root / 'data/sources.json').write_text(json.dumps(sources), encoding='utf-8')
             merge.write_ledger([row('ב"ה', 'בית הלל', status='agent_approved', reviewer='agent:claude')],
                                root / 'data/decisions.csv')
             (root / 'data/baseline_removals.csv').write_text('key,expansion,reason\nט"ו,חמישה עשר,gematria_number\n')

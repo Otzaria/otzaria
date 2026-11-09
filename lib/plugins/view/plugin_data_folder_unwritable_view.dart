@@ -36,7 +36,7 @@ class PluginDataFolderUnwritableView extends StatelessWidget {
           children: [
             Icon(
               FluentIcons.folder_prohibited_20_regular,
-              size: 56,
+              size: AppTokens.iconXL,
               color: cs.primary,
             ),
             const SizedBox(height: 16),

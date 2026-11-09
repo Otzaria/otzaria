@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
@@ -10,11 +11,13 @@ import 'package:otzaria/settings/l10n/settings_dialog_scope.dart';
 import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/user_content_import/models/user_import_models.dart';
 import 'package:otzaria/user_content_import/services/user_import_library.dart';
 import 'package:otzaria/utils/file/save_file_with_extension.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 
 /// ניהול קובצי הייבוא: צפייה, השהיה, ייצוא ומחיקה. הרשימה מגיעה מה-bloc,
 /// כדי ששינוי כאן ירענן את אותו מקור שמזין את שאר מסך ההגדרות.
@@ -41,12 +44,13 @@ class UserImportFilesDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCustomContentDialog(
+    return AppDialogFrame(
+      size: AppDialogSize.large,
+      fitTitle: true,
       title: context.settingsText('קבצים מיובאים'),
       icon: FluentIcons.arrow_import_24_regular,
-      scrollable: false,
       actions: [
-        ActionButton.ghost(
+        ActionButton.neutral(
           text: context.settingsText('סגור'),
           onPressed: () => Navigator.of(context).pop(),
         ),
@@ -65,10 +69,11 @@ class UserImportFilesDialog extends StatelessWidget {
             );
           }
           return Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Flexible(
-                child: ListDialogCard(
+                child: AppCard(
                   child: ListView.separated(
                     shrinkWrap: true,
                     itemCount: state.importFiles.length,
@@ -141,7 +146,7 @@ class _ImportFileRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final disabledColor = Theme.of(context).disabledColor;
     final cs = Theme.of(context).colorScheme;
-    final narrow = MediaQuery.sizeOf(context).width < 520;
+    final narrow = WindowClass.of(context).isCompact;
     return ListTile(
       contentPadding: const EdgeInsetsDirectional.only(
         start: AppTokens.spaceMD,
@@ -174,7 +179,7 @@ class _ImportFileRow extends StatelessWidget {
       // ברוחב טלפון שלוש הפעולות מצמצמות את שם הקובץ לכמה אותיות — הן עוברות
       // לתפריט אחד.
       trailing: narrow
-          ? PopupMenuButton<int>(
+          ? AppPopupMenuButton<int>(
               enabled: !busy,
               tooltip: context.settingsText('פעולות'),
               onSelected: (action) {
@@ -192,23 +197,15 @@ class _ImportFileRow extends StatelessWidget {
                     _delete(context);
                 }
               },
-              itemBuilder: (_) => [
-                PopupMenuItem(
+              entries: [
+                AppMenuEntry(
                   value: 0,
-                  child: Text(
-                    file.enabled
-                        ? context.settingsText('השהה')
-                        : context.settingsText('החזר לשימוש'),
-                  ),
+                  label: file.enabled
+                      ? context.settingsText('השהה')
+                      : context.settingsText('החזר לשימוש'),
                 ),
-                PopupMenuItem(
-                  value: 1,
-                  child: Text(context.settingsText('ייצוא')),
-                ),
-                PopupMenuItem(
-                  value: 2,
-                  child: Text(context.settingsText('מחיקה')),
-                ),
+                AppMenuEntry(value: 1, label: context.settingsText('ייצוא')),
+                AppMenuEntry(value: 2, label: context.settingsText('מחיקה')),
               ],
             )
           : Row(

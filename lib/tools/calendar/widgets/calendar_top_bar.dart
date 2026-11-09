@@ -14,26 +14,25 @@
 // החיצים ותאריך תמיד בשורה עליונה, במיקום קבוע שלא זז עם שינוי אורך התאריך.
 
 import 'dart:math' as math;
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kosher_dart/kosher_dart.dart';
-import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/dialogs/jump_to_date_dialog.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_date_picker_panel.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_side_panel.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
+import 'package:otzaria/theme/app_shadows.dart';
 
 // הרוחב שמתחתיו עוברים לשורה שנייה
 const double _kTopBarNarrowBreakpoint = 540.0;
@@ -221,6 +220,7 @@ class _CalendarTopBarState extends State<CalendarTopBar>
     return FittedBox(
       fit: BoxFit.scaleDown,
       child: RichText(
+        textScaler: MediaQuery.textScalerOf(context),
         overflow: TextOverflow.visible,
         maxLines: 1,
         text: TextSpan(
@@ -409,8 +409,8 @@ class _CalendarTopBarState extends State<CalendarTopBar>
               focusNode: _dialogFocusNode,
               onKeyEvent: _handleDialogKeyEvent,
               child: Material(
-                elevation: 8,
-                shadowColor: cs.shadow,
+                elevation: AppTokens.elevation2,
+                shadowColor: AppShadows.color(cs),
                 borderRadius: AppTokens.borderRadiusAll,
                 color: cs.surfaceContainerHigh,
                 child: Padding(
@@ -499,7 +499,7 @@ class _CalendarTopBarState extends State<CalendarTopBar>
             controller: _jumpDateController,
             focusNode: _jumpDateFocusNode,
             autofocus: true,
-            slim: context.read<SettingsBloc>().state.compactMenuMode,
+            slim: AppDensity.of(context).isCompact,
             hintText: _buildCurrentDateHint(),
             onChanged: _handleJumpDateChanged,
             onSubmitted: (_) => _submitJumpDateSearch(),
@@ -601,9 +601,9 @@ class _CalendarTopBarState extends State<CalendarTopBar>
     return OverlayPortal(
       controller: _overlayPortalController,
       overlayChildBuilder: _buildDialogOverlay,
-      child: BlocBuilder<SettingsBloc, SettingsState>(
-        builder: (context, settingsState) {
-          final isCompact = settingsState.compactMenuMode;
+      child: Builder(
+        builder: (context) {
+          final isCompact = AppDensity.of(context).isCompact;
 
           // ── כפתורים משותפים ───────────────────────────────────────────────
           final prevBtn = BarButton.icon(
@@ -813,102 +813,21 @@ class _CalendarTopBarState extends State<CalendarTopBar>
   // ── View switcher ─────────────────────────────────────────────────────────
 
   Widget _buildViewSwitcher(CalendarState state) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _ViewBtn(
+    return AppSegmentedControl<CalendarView>(
+      currentValue: state.calendarView,
+      options: const [
+        SegmentOption(
+          value: CalendarView.week,
           label: 'שבוע',
-          regularIcon: FluentIcons.calendar_week_start_24_regular,
-          filledIcon: FluentIcons.calendar_week_start_24_filled,
-          selected: state.calendarView == CalendarView.week,
-          onPressed: _withClose(() => widget.onViewChanged(CalendarView.week)),
+          icon: FluentIcons.calendar_week_start_24_regular,
         ),
-        _ViewBtn(
+        SegmentOption(
+          value: CalendarView.month,
           label: 'חודש',
-          regularIcon: FluentIcons.calendar_month_24_regular,
-          filledIcon: FluentIcons.calendar_month_24_filled,
-          selected: state.calendarView == CalendarView.month,
-          onPressed: _withClose(() => widget.onViewChanged(CalendarView.month)),
+          icon: FluentIcons.calendar_month_24_regular,
         ),
       ],
-    );
-  }
-}
-
-// ── _ViewBtn ──────────────────────────────────────────────────────────────────
-
-class _ViewBtn extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onPressed;
-  final IconData regularIcon;
-  final IconData filledIcon;
-
-  const _ViewBtn({
-    required this.label,
-    required this.selected,
-    required this.onPressed,
-    required this.regularIcon,
-    required this.filledIcon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final bg = selected
-        ? Color.alphaBlend(
-            cs.secondaryContainer.withValues(alpha: 0.82),
-            cs.surfaceContainerHigh,
-          )
-        : Colors.transparent;
-    final fg = selected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
-    final borderColor = selected
-        ? cs.outlineVariant.withValues(alpha: 0.38)
-        : Colors.transparent;
-    final shadowColor = selected
-        ? cs.shadow.withValues(alpha: 0.08)
-        : Colors.transparent;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: AppTokens.borderRadiusAll,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: AppTokens.borderRadiusAll,
-            border: Border.all(color: borderColor, width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: shadowColor,
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              RtlIcon(
-                selected ? filledIcon : regularIcon,
-                size: 16,
-                color: fg,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  color: fg,
-                  fontSize: 12,
-                  fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      onChanged: (view) => _withClose(() => widget.onViewChanged(view))(),
     );
   }
 }

@@ -205,6 +205,7 @@ class _ReaderPageState extends State<ReaderPage> {
         );
         // עמוד רחב מהחלון נגלל לרוחב, כמו הגדלה בדפדפן. העטיפה קבועה גם כשאין
         // מה לגלול: עטיפה מותנית בונה את הרשימה מחדש ומאבדת את מיקום הקריאה.
+        // ui-lint: allow UIL-031 — פס אופקי; הכלל עוסק בצד וברצועה של פס אנכי
         final scrolled = Scrollbar(
           controller: _horizontal,
           thumbVisibility: true,
@@ -268,6 +269,7 @@ class _ReaderPageState extends State<ReaderPage> {
     final gaps = _gapsFor(math.max(0.0, width - horizontal * 2), metrics);
     // הפריסה נמדדת ב-TextPainter בלי גודל הטקסט של המערכת, והזום מחליף אותו;
     // בלי זה המילים מצוירות רחבות מהמדוד וגולשות מהטור.
+    // ui-lint: allow UIL-026 — טור הסת"ם נמדד בלי הגדלת טקסט, והזום מחליף אותה (JX-10)
     return MediaQuery.withNoTextScaling(
       child: ScrollablePositionedList.builder(
         physics: _zoomModifier ? const NeverScrollableScrollPhysics() : null,

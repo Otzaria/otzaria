@@ -54,6 +54,10 @@ class _RecordingPosition extends ChangeNotifier implements ScrollPosition {
   @override
   bool get hasPixels => true;
 
+  // AppMotion.scrollPosition קורא את העדפת "הפחתת אנימציות" מההקשר של הגלילה.
+  @override
+  ScrollContext get context => _NoMediaScrollContext();
+
   @override
   void jumpTo(double value) {
     if (pixels == value) return;
@@ -72,6 +76,29 @@ class _RecordingPosition extends ChangeNotifier implements ScrollPosition {
     offsets.add(value - pixels);
     pixels = value;
   }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// הקשר גלילה בלי MediaQuery מעליו: אין בקשה להפחית אנימציות.
+class _NoMediaScrollContext implements ScrollContext {
+  @override
+  BuildContext get storageContext => _NoAncestorsContext();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _NoAncestorsContext implements BuildContext {
+  @override
+  InheritedElement?
+  getElementForInheritedWidgetOfExactType<T extends InheritedWidget>() => null;
+
+  @override
+  T? dependOnInheritedWidgetOfExactType<T extends InheritedWidget>({
+    Object? aspect,
+  }) => null;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

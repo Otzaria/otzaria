@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/widgets/controls/bar_button.dart';
 import 'package:otzaria/widgets/navigation/reader_nav_center.dart';
 
 void main() {
@@ -102,6 +103,116 @@ void main() {
       final short = await prevMinorFor('הלכות גדולות');
       final long = await prevMinorFor('הלכות גדולות, הקדמה, סימן א');
       expect(long, short);
+    });
+
+    // q12 Q8, סקירה שלישית של 4.11: ארבעת החיצים קודמים לכותרת כל עוד הם
+    // נכנסים; כשלא — כולם יוצאים, והכותרת מקבלת את כל המרכז.
+    group('ההחלטה לפי הרוחב שנמדד', () {
+      const titleKey = Key('title');
+      const tooltips = ['פרק קודם', 'קטע קודם', 'קטע הבא', 'פרק הבא'];
+
+      Future<ReaderNavPlacement> pumpAt(
+        WidgetTester tester,
+        double width,
+      ) async {
+        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+        addTearDown(settingsBloc.close);
+        final placement = ReaderNavPlacement();
+        await tester.pumpWidget(
+          _buildHarness(
+            settingsBloc: settingsBloc,
+            child: SizedBox(
+              width: width,
+              child: ReaderNavCenter(
+                placement: placement,
+                title: const Text(
+                  'בראשית, פרק א',
+                  key: titleKey,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+                prevMajorTooltip: 'פרק קודם',
+                prevMinorTooltip: 'קטע קודם',
+                nextMinorTooltip: 'קטע הבא',
+                nextMajorTooltip: 'פרק הבא',
+                onPrevMajor: () {},
+                onPrevMinor: () {},
+                onNextMinor: () {},
+                onNextMajor: () {},
+              ),
+            ),
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        return placement;
+      }
+
+      // מתחת ל-240 הכפתורים compact גם בצפיפות רגילה.
+      final fourCompact = ReaderNavCenter.navButtonsWidth(compact: true);
+
+      testWidgets('נכנסים בדיוק: ארבעתם בסרגל, והכותרת נדחית ל-0', (
+        tester,
+      ) async {
+        final placement = await pumpAt(tester, fourCompact);
+        for (final tooltip in tooltips) {
+          expect(find.byTooltip(tooltip), findsOneWidget, reason: tooltip);
+        }
+        expect(placement.arrowsInBar, isTrue);
+        expect(tester.getSize(find.byKey(titleKey)).width, 0);
+      });
+
+      testWidgets('נכנסים עם עודף: הכותרת מקבלת את מה שנשאר', (tester) async {
+        final placement = await pumpAt(tester, fourCompact + 40);
+        expect(find.byTooltip('פרק קודם'), findsOneWidget);
+        expect(placement.arrowsInBar, isTrue);
+        expect(tester.getSize(find.byKey(titleKey)).width, 40);
+      });
+
+      testWidgets('חסר פיקסל: אף חץ, והכותרת מקבלת את כל המרכז', (
+        tester,
+      ) async {
+        final placement = await pumpAt(tester, fourCompact - 1);
+        for (final tooltip in tooltips) {
+          expect(find.byTooltip(tooltip), findsNothing, reason: tooltip);
+        }
+        expect(placement.arrowsInBar, isFalse);
+        expect(tester.getSize(find.byKey(titleKey)).width, fourCompact - 1);
+      });
+
+      testWidgets('לעולם לא חלק מהחיצים (#891): ארבעה או אפס בכל רוחב', (
+        tester,
+      ) async {
+        for (var width = 40.0; width <= 400; width += 8) {
+          final placement = await pumpAt(tester, width);
+          final shown = tooltips
+              .where((t) => find.byTooltip(t).evaluate().isNotEmpty)
+              .length;
+          expect(shown, placement.arrowsInBar ? 4 : 0, reason: '$width');
+          expect(
+            placement.arrowsInBar,
+            ReaderNavCenter.navFits(width, isCompact: false),
+            reason: '$width',
+          );
+        }
+      });
+    });
+
+    test('navFits: לפי רוחב הכפתורים האמיתי, בלי מספר קבוע', () {
+      final compact = ReaderNavCenter.navButtonsWidth(compact: true);
+      final regular = ReaderNavCenter.navButtonsWidth(compact: false);
+      expect(
+        compact,
+        4 * BarButton.toolbarWidth(true) + 2 * ReaderNavCenter.navGap,
+      );
+      expect(
+        regular,
+        4 * BarButton.toolbarWidth(false) + 2 * ReaderNavCenter.navGap,
+      );
+      expect(ReaderNavCenter.navFits(compact, isCompact: true), isTrue);
+      expect(ReaderNavCenter.navFits(compact - 1, isCompact: true), isFalse);
+      // בצפיפות רגילה מרכז צר מ-240 עובר ל-compact, ולכן גם בו די ב-compact.
+      expect(ReaderNavCenter.navFits(compact, isCompact: false), isTrue);
+      expect(ReaderNavCenter.navFits(regular, isCompact: false), isTrue);
     });
 
     testWidgets('afterTitle בגודל טבעי כשיש מקום ומתכווץ במרכז צר בלי לגלוש', (

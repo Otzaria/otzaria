@@ -25,7 +25,7 @@ Future<void> main() async {
 
   const query = 'ברך לחם';
   const reversed = 'לחם ואחר כך ברך עליו';
-  const red = '<span style="color: red">';
+  const red = '<span style="color: otzaria-search-hit">';
 
   String render(
     String line,

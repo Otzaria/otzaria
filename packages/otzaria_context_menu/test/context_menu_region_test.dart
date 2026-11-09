@@ -95,9 +95,7 @@ void main() {
 
   testWidgets(
     'right click opens and an action runs once without app services',
-    (
-      tester,
-    ) async {
+    (tester) async {
       var selected = 0;
       await _mount(
         tester,
@@ -128,9 +126,7 @@ void main() {
 
   testWidgets(
     'opening hook runs before the overlay and receives its position',
-    (
-      tester,
-    ) async {
+    (tester) async {
       Offset? openingPosition;
       bool? menuWasVisible;
       final key = await _mount(
@@ -153,9 +149,7 @@ void main() {
 
   testWidgets(
     'keepOpen updates children and Escape closes one level at a time',
-    (
-      tester,
-    ) async {
+    (tester) async {
       final focus = FocusNode();
       addTearDown(focus.dispose);
       var selected = false;
@@ -204,9 +198,7 @@ void main() {
 
   testWidgets(
     'hover preserves the source focus and disposal removes handlers',
-    (
-      tester,
-    ) async {
+    (tester) async {
       final focus = FocusNode();
       addTearDown(focus.dispose);
       final key = await _mount(
@@ -337,10 +329,85 @@ void main() {
       await key.currentState!.openMenuAt(const Offset(100, 100));
       await tester.pumpAndSettle();
 
-      expect(
-        Directionality.of(tester.element(find.text('פעולה'))),
-        direction,
-      );
+      expect(Directionality.of(tester.element(find.text('פעולה'))), direction);
     });
   }
+
+  testWidgets('rapid context-menu replacement leaves one overlay and handler', (
+    tester,
+  ) async {
+    final key = await _mount(
+      tester,
+      escapes: escapes,
+      entries: () => [AppContextMenuEntry(label: 'Action', onTap: () {})],
+    );
+    for (var i = 0; i < 15; i++) {
+      await key.currentState!.openMenuAt(Offset(100 + i.toDouble(), 100));
+    }
+    await tester.pumpAndSettle();
+    expect(find.text('Action'), findsOneWidget);
+    expect(escapes.handlers, hasLength(1));
+    expect(tester.takeException(), isNull);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('Action'), findsNothing);
+    expect(escapes.handlers, isEmpty);
+    expect(tester.takeException(), isNull);
+
+    await key.currentState!.openMenuAt(const Offset(100, 100));
+    await tester.pumpAndSettle();
+    expect(find.text('Action'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    expect(escapes.handlers, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('close callback releases resources on Escape and replacement', (
+    tester,
+  ) async {
+    final key = GlobalKey<ContextMenuRegionState>();
+    var closes = 0;
+    var opens = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ContextMenuRegion(
+            key: key,
+            presentation: _presentation(),
+            registerEscape: escapes.register,
+            menuBuilder: (_, _) => [
+              AppContextMenuEntry(label: 'Copy', onTap: () {}),
+            ],
+            onMenuOpening: (_, _) => opens++,
+            onMenuClosed: () => closes++,
+            child: const SizedBox.expand(),
+          ),
+        ),
+      ),
+    );
+
+    await key.currentState!.openMenuAt(const Offset(100, 100));
+    await tester.pumpAndSettle();
+    expect(opens, 1);
+    expect(closes, 0);
+
+    await key.currentState!.openMenuAt(const Offset(150, 150));
+    await tester.pumpAndSettle();
+    expect(opens, 2);
+    expect(closes, 1);
+    expect(find.text('Copy'), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(closes, 2);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(closes, 2);
+
+    await key.currentState!.openMenuAt(const Offset(100, 100));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(closes, 3);
+  });
 }

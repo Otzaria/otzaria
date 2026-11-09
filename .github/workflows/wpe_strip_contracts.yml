@@ -1,0 +1,107 @@
+name: WPE packaged strip contracts
+
+on:
+  pull_request:
+    paths:
+      - 'tool/release/strip_wpe_runtime.sh'
+      - '.github/workflows/wpe_strip_contracts.yml'
+      - '.github/workflows/build-and-announce.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  strip-contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+            asset_id: 540161229
+            sha256: ca7e706c0ec2f66623fede2c369e3e13339448843e125f2ccd1553f4a3c4bcaf
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            asset_id: 540319689
+            sha256: d59f7c7a00d2d15370afc805dfa3a2e017c04833320805f5299989865913dc3d
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install ELF tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq binutils zstd
+
+      - name: Run independent symlink, hardlink and SDK safety fixtures
+        shell: bash
+        run: bash tool/release/test_strip_wpe_runtime.sh
+
+      - name: Download checksum-pinned WPE SDK fixture
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          asset="wpe-runtime-2.48.7-linux-${{ matrix.arch }}.tar.zst"
+          url="https://api.github.com/repos/Otzaria/otzaria-wpe-runtime/releases/assets/${{ matrix.asset_id }}"
+          curl --fail --location --retry 8 --retry-all-errors --retry-delay 3 --max-time 300 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/octet-stream" \
+            "$url" -o "$RUNNER_TEMP/$asset"
+          printf '%s  %s\n' '${{ matrix.sha256 }}' "$RUNNER_TEMP/$asset" | sha256sum --check -
+          mkdir -p "$RUNNER_TEMP/sdk"
+          tar -C "$RUNNER_TEMP/sdk" -I zstd -xf "$RUNNER_TEMP/$asset"
+
+      - name: Build a bundle-shaped WPE fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk="$RUNNER_TEMP/sdk/wpe-sdk"
+          bundle="$RUNNER_TEMP/bundle/lib"
+          mkdir -p "$bundle"
+          find "$sdk/lib" -maxdepth 1 -type f \( \
+              -name 'libWPEWebKit-2.0.so*' -o \
+              -name 'libWPEPlatform-2.0.so*' -o \
+              -name 'libwpe-1.0.so*' \
+            \) -exec cp -L {} "$bundle/" \;
+          find "$sdk" -type f -name 'libWPEInjectedBundle.so' -exec cp -L {} "$bundle/" \;
+          find "$sdk" -type f \( -name 'WPEWebProcess' -o -name 'WPENetworkProcess' -o -name 'WPEGPUProcess' \) \
+            -exec cp -L {} "$bundle/" \;
+          chmod 755 "$bundle"/WPE*Process
+          # Hash original SDK objects to prove the strip process only touched copies.
+          find "$sdk" -type f \( -name 'libWPEWebKit-2.0.so.1.5.12' -o -name 'libWPEPlatform-2.0.so.0.0.0' \) \
+            -exec sha256sum {} \; > "$RUNNER_TEMP/wpe-sdk-originals.sha256"
+          echo "WPE_FIXTURE_SDK=$sdk" >> "$GITHUB_ENV"
+          echo "WPE_FIXTURE_LIB=$bundle" >> "$GITHUB_ENV"
+
+      - name: Strip production fixture and validate ABI/dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Strip contract tests keep unresolved SONAME sets stable where Ubuntu differs.
+          # Never prefer the SDK to bundle files during dependency inspection.
+          export LD_LIBRARY_PATH="$WPE_FIXTURE_LIB"
+          # Hosted Ubuntu is newer than the Debian 12 runtime build and lacks
+          # several exact SONAMEs. Require strip to preserve that missing set;
+          # production bundling keeps the default strict zero-missing policy.
+          export WPE_STRIP_ALLOW_PREEXISTING_MISSING=1
+          bash tool/release/strip_wpe_runtime.sh "$WPE_FIXTURE_LIB" | tee "$RUNNER_TEMP/strip.tsv"
+          before="$(awk -F '\t' '$1=="wpe_strip_before_bytes"{print $2}' "$RUNNER_TEMP/strip.tsv")"
+          after="$(awk -F '\t' '$1=="wpe_strip_after_bytes"{print $2}' "$RUNNER_TEMP/strip.tsv")"
+          savings="$(awk -F '\t' '$1=="wpe_strip_savings_bytes"{print $2}' "$RUNNER_TEMP/strip.tsv")"
+          test -n "$before" && test -n "$after" && test -n "$savings"
+          test "$after" -lt "$before"
+          # The measured release fixtures save 42-47 MiB. Keep the regression
+          # floor deliberately lower so toolchain noise cannot make this flaky.
+          test "$savings" -gt 30000000
+          sha256sum -c "$RUNNER_TEMP/wpe-sdk-originals.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wpe-strip-contract-${{ matrix.arch }}
+          path: ${{ runner.temp }}/strip.tsv
+          if-no-files-found: error
+          retention-days: 30

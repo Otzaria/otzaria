@@ -1,3 +1,4 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
@@ -18,6 +19,7 @@ Future<OfflineSendScriptTarget?> resolveOfflineSendTarget(
     return showSelectionDialog<OfflineSendScriptTarget>(
       context: context,
       title: context.settingsText('מערכת ההפעלה של המחשב המחובר'),
+      icon: FluentIcons.desktop_24_regular,
       searchHint: context.settingsText('חיפוש מערכת הפעלה...'),
       items: const [
         SelectionItem(label: 'Windows', value: OfflineSendScriptTarget.windows),
@@ -32,6 +34,7 @@ Future<OfflineSendScriptTarget?> resolveOfflineSendTarget(
   final proceed = await showTwoActionsDialog(
     context: context,
     title: context.settingsText('הקובץ מיועד למחשב Windows'),
+    icon: FluentIcons.desktop_24_regular,
     content: context.settingsText(
       'במכשיר זה אי אפשר להריץ את סקריפט השליחה. יורד קובץ עבור '
       'מחשב Windows מחובר — העבירו אליו את הקובץ והפעילו אותו שם.',

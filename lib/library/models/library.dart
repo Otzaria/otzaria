@@ -145,26 +145,6 @@ class Library extends Category {
   /// כל הספרים שנכנסים לאינדקס החיפוש: ספרי העץ ואחריהם [offTreeBooks].
   List<Book> getIndexableBooks() => [...getAllBooks(), ...offTreeBooks];
 
-  /// Finds a book by its title in the library.
-  ///
-  /// Searches through all books in the library and its subcategories
-  /// for a book with the specified title.
-  ///
-  /// Returns the first matching [Book] or null if no book is found.
-  Book? findBookByTitle(String title, Type? type) {
-    List<Book> allBooks = getAllBooks();
-    try {
-      if (type == null) {
-        return allBooks.firstWhere((book) => book.title == title);
-      }
-      return allBooks.firstWhere(
-        (book) => book.title == title && book.runtimeType == type,
-      );
-    } catch (e) {
-      return null;
-    }
-  }
-
   /// מחפש ספר נלווה (Companion Book) כמו גרסת PDF לגרסת טקסט או להיפך.
   /// החיפוש מתבצע תחילה תחת אותה קטגוריה בה נמצא הספר המקורי.
   /// אם לא נמצא - נופל לחיפוש גלובלי עם מניעת התנגשויות (ירושלמי <-> בבלי כדוגמה).

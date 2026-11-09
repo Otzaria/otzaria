@@ -129,7 +129,13 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   String? _cachedPageShapeTargetBookTitlesKey;
   List<String>? _cachedPageShapeTargetBookTitles;
   bool _isLoadingLinks = false;
-  bool _pendingLinksReload = false;
+  ({
+    bool force,
+    Iterable<String>? targetBookTitlesOverride,
+    String? workspaceId,
+  })?
+  _pendingLinksReload;
+  List<int>? _pendingForceLoadIndices;
   int _linksLoadGeneration = 0;
 
   /// האם הטאב שמציג את ה-bloc נראה כרגע (ראו [SetTabVisibility]).
@@ -141,8 +147,6 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   /// true רק אחרי שטעינת-טווחים הוכחה כעובדת לספר. ספרי מסלול preview/קובץ
   /// אינם ניתנים לשחזור אחרי שחרור — אסור לשחרר את תוכנם.
   bool _supportsContentRangeLoading = false;
-  List<int>? _pendingForceLoadIndices;
-  bool _pendingForceLoadAll = false;
   bool _awaitingInitialPageShapeVisibleSync = false;
 
   /// סימון אם המשתמש שינה ידנית את בחירת המפרשים. בשונה מ-`activeCommentators.isEmpty`,
@@ -1572,9 +1576,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     _loadedLinksTargetBookTitlesSignature = null;
     _activeLinksTargetBookTitlesSignature = null;
     _isLoadingLinks = false;
-    _pendingLinksReload = false;
+    _pendingLinksReload = null;
     _pendingForceLoadIndices = null;
-    _pendingForceLoadAll = false;
   }
 
   ({int start, int end}) _calculateLinksWindow(List<int> visibleIndices) {
@@ -2164,6 +2167,34 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     // טווח שהוחל בפועל = טעינת-טווחים עובדת לספר הזה (תנאי לשחרור תוכן).
     _ensureLoadedContentTrackingBook(currentState.book);
     _supportsContentRangeLoading = true;
+
+    // Repeating an already-loaded range in a full-book List must not copy the
+    // entire book. A no-op still records range coverage for tab suspension.
+    // Keep the regular path for missing flags, extensions, or changed lines.
+    final content = currentState.content;
+    final flags = _loadedContentFlags;
+    if (flags.length >= content.length &&
+        applicable.every((range) {
+          final end = range.startLine + range.lines.length;
+          if (end > content.length) return false;
+          for (var index = max(0, range.startLine); index < end; index++) {
+            if (!flags[index] ||
+                content[index] != range.lines[index - range.startLine]) {
+              return false;
+            }
+          }
+          return true;
+        })) {
+      for (final range in applicable) {
+        _markLoadedContentRange(
+          currentState.book,
+          range.startLine,
+          range.startLine + range.lines.length - 1,
+          totalLines: range.totalLines,
+        );
+      }
+      return;
+    }
 
     final nextContent = List<String>.of(currentState.content);
     final hasTrackedFlags = identical(
@@ -2790,62 +2821,58 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       return;
     }
 
-    final window = _calculateLinksWindow(visibleIndices);
-
+    // נועלים גם את פתרון היעדים; הבקשה הממתינה האחרונה שומרת את ההקשר שלה.
     if (_isLoadingLinks) {
-      _pendingLinksReload = true;
-      // שמור את ה-indices המבוקשים אם זו טעינה מאולצת (forceLoadAll)
       if (forceLoadAll) {
         _pendingForceLoadIndices = List<int>.of(visibleIndices);
-        _pendingForceLoadAll = true;
+      } else {
+        _pendingLinksReload = (
+          force: force,
+          targetBookTitlesOverride: targetBookTitlesOverride,
+          workspaceId: workspaceId,
+        );
       }
       return;
     }
-
-    List<String>? targetBookTitles;
+    _isLoadingLinks = true;
+    final window = _calculateLinksWindow(visibleIndices);
+    var loadedLinks = false;
     var targetBookTitlesSignature = _allTargetBookTitlesSignature;
-    if (forceLoadAll) {
-      // null = ללא פילטר — מחזיר את כל הקישורים כולל מפרשים
-      targetBookTitles = null;
-      targetBookTitlesSignature = _allTargetBookTitlesSignature;
-    } else if (targetBookTitlesOverride != null) {
-      targetBookTitles = _normalizeTargetBookTitles(targetBookTitlesOverride);
-      targetBookTitlesSignature = _targetBookTitlesSignature(targetBookTitles);
-    } else {
-      final runtimeState = state;
-      if (runtimeState is TextBookLoaded) {
-        targetBookTitles = await _resolveTargetBookTitlesForLinks(
-          runtimeState,
-          workspaceId,
-        );
+
+    try {
+      List<String>? targetBookTitles;
+      if (forceLoadAll) {
+        targetBookTitles = null;
+      } else if (targetBookTitlesOverride != null) {
+        targetBookTitles = _normalizeTargetBookTitles(targetBookTitlesOverride);
         targetBookTitlesSignature = _targetBookTitlesSignature(
           targetBookTitles,
         );
+      } else {
+        final runtimeState = state;
+        if (runtimeState is TextBookLoaded) {
+          targetBookTitles = await _resolveTargetBookTitlesForLinks(
+            runtimeState,
+            workspaceId,
+          );
+          targetBookTitlesSignature = _targetBookTitlesSignature(
+            targetBookTitles,
+          );
+        }
       }
-    }
 
-    if (isClosed || loadGeneration != _linksLoadGeneration) return;
+      if (isClosed || loadGeneration != _linksLoadGeneration) return;
+      if (!force &&
+          _isLinksWindowSufficient(
+            book.title,
+            window.start,
+            window.end,
+            targetBookTitlesSignature,
+          )) {
+        return;
+      }
+      add(const SetLinksLoading(true));
 
-    if (!force &&
-        _isLinksWindowSufficient(
-          book.title,
-          window.start,
-          window.end,
-          targetBookTitlesSignature,
-        )) {
-      _pendingLinksReload = false;
-      return;
-    }
-
-    _isLoadingLinks = true;
-    _pendingLinksReload = false;
-    if (isClosed) {
-      _isLoadingLinks = false;
-      return;
-    }
-    add(const SetLinksLoading(true));
-
-    try {
       final links = await repository.getBookLinksInRange(
         book,
         startIndex: window.start,
@@ -2854,30 +2881,18 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       );
 
       if (loadGeneration != _linksLoadGeneration) return;
-      if (isClosed || state is! TextBookLoaded) {
-        _isLoadingLinks = false;
-        return;
-      }
-
+      if (isClosed || state is! TextBookLoaded) return;
       final currentState = state as TextBookLoaded;
-      if (currentState.book.title != book.title) {
-        _isLoadingLinks = false;
-        return;
-      }
+      if (currentState.book.title != book.title) return;
 
       _loadedLinksBookTitle = book.title;
       _loadedLinksStart = window.start;
       _loadedLinksEnd = window.end;
       _loadedLinksTargetBookTitlesSignature = targetBookTitlesSignature;
-      _isLoadingLinks = false;
+      loadedLinks = true;
       final replaceExistingLinks =
           currentState.links.isNotEmpty &&
           _activeLinksTargetBookTitlesSignature != targetBookTitlesSignature;
-
-      if (isClosed) {
-        _isLoadingLinks = false;
-        return;
-      }
       add(
         UpdateLinks(
           links,
@@ -2885,43 +2900,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           targetBookTitlesSignature: targetBookTitlesSignature,
         ),
       );
-
-      if (!isClosed && state is TextBookLoaded) {
-        final latestState = state as TextBookLoaded;
-        final latestWindow = _calculateLinksWindow(latestState.visibleIndices);
-        final windowOutdated = !_isLinksWindowSufficient(
-          latestState.book.title,
-          latestWindow.start,
-          latestWindow.end,
-          targetBookTitlesSignature,
-        );
-        final pendingReload = _pendingLinksReload;
-        final pendingIndices = _pendingForceLoadIndices;
-        final pendingForce = _pendingForceLoadAll;
-        _clearPendingLinksReload();
-        if (pendingForce && pendingIndices != null) {
-          unawaited(
-            _loadLinksInBackground(
-              latestState.book,
-              pendingIndices,
-              force: true,
-              forceLoadAll: true,
-            ),
-          );
-        } else if (!forceLoadAll && (pendingReload || windowOutdated)) {
-          // ב-forceLoadAll אין לתקן visibleIndices: הם שייכים למסלול אחר.
-          unawaited(
-            _loadLinksInBackground(
-              latestState.book,
-              latestState.visibleIndices,
-              workspaceId: workspaceId,
-            ),
-          );
-        }
-      }
     } catch (e, stackTrace) {
       if (loadGeneration != _linksLoadGeneration) return;
-      _isLoadingLinks = false;
       if (!isClosed) {
         add(const SetLinksLoading(false));
       }
@@ -2936,42 +2916,59 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           },
         );
       } catch (_) {}
-
-      final currentState = state;
-      final pendingReload = _pendingLinksReload;
-      final pendingIndices = _pendingForceLoadIndices;
-      final pendingForce = _pendingForceLoadAll;
-      _clearPendingLinksReload();
-      if (isClosed ||
-          currentState is! TextBookLoaded ||
-          currentState.book.title != book.title) {
-        return;
-      }
-      if (pendingForce && pendingIndices != null) {
-        unawaited(
-          _loadLinksInBackground(
-            currentState.book,
-            pendingIndices,
-            force: true,
-            forceLoadAll: true,
-          ),
-        );
-      } else if (pendingReload) {
-        unawaited(
-          _loadLinksInBackground(
-            currentState.book,
-            currentState.visibleIndices,
-            workspaceId: workspaceId,
-          ),
-        );
+    } finally {
+      if (loadGeneration == _linksLoadGeneration) {
+        _isLoadingLinks = false;
+        final pending = _pendingLinksReload;
+        final pendingIndices = _pendingForceLoadIndices;
+        _pendingLinksReload = null;
+        _pendingForceLoadIndices = null;
+        final currentState = state;
+        if (!isClosed &&
+            currentState is TextBookLoaded &&
+            currentState.book.title == book.title) {
+          if (pendingIndices != null) {
+            unawaited(
+              _loadLinksInBackground(
+                currentState.book,
+                pendingIndices,
+                force: true,
+                forceLoadAll: true,
+              ),
+            );
+          } else if (pending != null && (!forceLoadAll || !loadedLinks)) {
+            unawaited(
+              _loadLinksInBackground(
+                currentState.book,
+                currentState.visibleIndices,
+                // הצלחה מספקת בקשות זהות; כשל חייב לשמר רענון מאולץ.
+                force: pending.force && !loadedLinks,
+                targetBookTitlesOverride: pending.targetBookTitlesOverride,
+                workspaceId: pending.workspaceId,
+              ),
+            );
+          } else if (loadedLinks && !forceLoadAll) {
+            final latestWindow = _calculateLinksWindow(
+              currentState.visibleIndices,
+            );
+            if (!_isLinksWindowSufficient(
+              currentState.book.title,
+              latestWindow.start,
+              latestWindow.end,
+              targetBookTitlesSignature,
+            )) {
+              unawaited(
+                _loadLinksInBackground(
+                  currentState.book,
+                  currentState.visibleIndices,
+                  workspaceId: workspaceId,
+                ),
+              );
+            }
+          }
+        }
       }
     }
-  }
-
-  void _clearPendingLinksReload() {
-    _pendingLinksReload = false;
-    _pendingForceLoadIndices = null;
-    _pendingForceLoadAll = false;
   }
 
   Future<void> _onUpdateLinks(

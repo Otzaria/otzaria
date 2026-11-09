@@ -61,7 +61,6 @@
 | טעינת `line_dh.dhDisplay` (מסד ישן בלי טבלה/עמודה → מפה ריקה) | `test/data_providers/database_library_provider_dibburim_test.dart` |
 | UserBooksDB | `test/data_providers/user_books_database_holder_test.dart` |
 | FileSystemLibraryProvider | `test/data_providers/file_system_library_provider_test.dart` |
-| ExternalCatalogMapper | `test/data_providers/external_catalog_mapper_test.dart` |
 | TantivyDataProvider (search index) | `test/data/data_providers/tantivy_data_provider_test.dart` |
 | External books scanner | `test/data/data_providers/scan_external_books_test.dart` |
 | Library book search (fuzzy + acronyms) | `test/data/repository/book_search_fuzzy_match_test.dart` |
@@ -151,9 +150,30 @@
 | Backup rotation (GFS) | `test/unit/settings/backup/backup_rotation_test.dart` |
 | Backup archive merge rules | `test/unit/settings/backup/backup_merge_test.dart` |
 | ייבוא ספרים אישיים במובייל (קבצים, ותיקייה שלמה באנדרואיד דרך SAF) | `test/settings/panels/personal_books_import_panel_test.dart`, `test/settings/services/custom_folders/personal_books_import_service_test.dart`, `…android_folder_import_channel_test.dart` |
-| SegmentedSettingsTile | `test/settings/widgets/segmented_settings_tile_test.dart` |
+| `SettingsSegmentedTile` | `test/settings/widgets/segmented_settings_tile_test.dart` |
 | נתיב ב-`SettingsActionTile.path` מוצג משמאל לימין | `test/settings/widgets/settings_action_tile_path_direction_test.dart` |
-| SwitchSettingsTile | `test/settings/widgets/switch_settings_tile_test.dart` |
+| `SettingsSwitchTile` | `test/settings/widgets/switch_settings_tile_test.dart` |
+| `SettingsPathTile` (כפתור "הגדר מיקום" כשהנתיב ריק, תפריט המיקום) | `test/settings/widgets/path_settings_tile_test.dart` |
+| `SettingsActionTile` (כפתורים ב־trailing במסך רחב, מתחת ל־subtitle במסך צר) | `test/settings/widgets/settings_action_tile_test.dart` |
+| `ExpandableSection` (לחיצה על הכותרת ועל החץ) | `test/settings/widgets/expandable_settings_tile_test.dart` |
+| `SettingsTabScrollView` (מתיחה בסוף העמוד) | `test/settings/widgets/settings_tab_scroll_view_test.dart` |
+
+**Design-system guards**
+
+בדיקות שסורקות את `lib` או נועלות חוזה של רכיב משותף. מריצים אותן בכל שינוי ב־`lib/widgets/`, בערכת הנושא, ב־`tool/ui_lint` או במסמכי ההנחיה.
+
+| Area | Test File |
+|------|-----------|
+| כללי ui_lint (UIL-xxx) ב־baseline ובחריגים: חריגה חדשה, רשומת baseline מתה, הערת allow פגומה | `test/design_system/ui_lint_test.dart` |
+| כל נתיב במסמכי ההנחיה (`AGENTS.md`, `docs/agent_*.md`, מסמכי מערכת העיצוב) קיים | `test/design_system/agent_docs_paths_test.dart` |
+| חוזי הרכיבים המשותפים: דיאלוגים, מקלדת וסגירה, נגישות, ערכת הנושא, רכיבים | `test/design_system/contracts/` |
+| Goldens של `ActionButton` ו־`AppDialog`, והסובלנות של ההשוואה (0.05%) | `test/goldens/`, `test/goldens/golden_comparator_test.dart` |
+| בחירת טקסט מציגה את תפריט אוצריא, לא את תפריט Flutter (issue #1590) | `test/widgets/text/default_context_menu_scan_test.dart` |
+| אין `Markdown` גלילתי ב־`lib`, רק `MarkdownBody` | `test/settings/no_scrollable_markdown_test.dart` |
+| כל `TextPainter` ב־`lib` מקבל `textDirection` (issue #1474) | `test/widgets/text_painter_direction_test.dart` |
+| שם אייקון מתוסף נפתר רק דרך `pluginIconFromName` | `test/plugins/utils/plugin_icon_resolver_usage_test.dart` |
+| אין צבעים קשיחים במסך ה־PDF (issue #1469) | `test/pdf_book/pdf_hardcoded_colors_test.dart` |
+| אין גלילה עצמאית ב־`PdfBookScreen` | `test/pdf_book/pdf_no_custom_scroll_test.dart` |
 
 **Widgets (shared)**
 | Area | Test File |
@@ -182,7 +202,7 @@
 | App dropdown/search menu | `test/widgets/app_dropdown_field_test.dart`, `…app_search_menu_test.dart` |
 | Search pane base | `test/widgets/search_pane_base_test.dart` |
 | כל `TextPainter` ב-`lib` מקבל `textDirection` (issue #1474) | `test/widgets/text_painter_direction_test.dart` |
-| שדות קלט RTL: סריקת שימוש, גובה וגלילה, ניווט חיצים בטקסט מעורב (issue #1470) | `test/widgets/text/bare_text_field_scan_test.dart`, `…rtl_text_field_expands_test.dart`, `…rtl_run_direction_test.dart` |
+| שדות קלט RTL: סריקת שימוש (UIL-011), גובה וגלילה, ניווט חיצים בטקסט מעורב (issue #1470) | `test/design_system/ui_lint_test.dart`, `…rtl_text_field_expands_test.dart`, `…rtl_run_direction_test.dart` |
 | חיפוש בלשונית חלונית הניווט (אייקון בכותרת, X סוגר ומנקה, חיצים לשורות) | `test/widgets/nav_panel_search_test.dart` |
 | חלונית לא נעוצה מרחפת מעל התוכן; נעיצה אינה בונה מחדש את התוכן | `test/widgets/adaptive_side_pane_test.dart` |
 | נתוני פופאפ "אוצריא מתגייסת" (`assets/support_organizations.json`) | `test/services/support_organizations_test.dart` |
@@ -215,7 +235,7 @@
 | PDF in-book search highlight pattern | `test/pdf_book/pdf_search_highlight_pattern_test.dart` |
 | צבעי סרגל הזום של ה-PDF נגזרים מערכת הצבעים (issue #1472) | `test/pdf_book/pdf_zoom_bar_colors_test.dart`, `…pdf_zoom_bar_theme_test.dart` |
 | דיאלוג המעבר לכתובת חיצונית מ-PDF (כיוון LTR לכתובת, AppDialog, ActionButton) | `test/pdf_book/open_url_confirmation_test.dart` |
-| צבעי מסך ה-PDF נגזרים מערכת הצבעים (issue #1469) | `test/pdf_book/pdf_hardcoded_colors_test.dart`, `test/pdf_book/pdf_link_hover_color_test.dart`, `test/pdf_book/pdf_theme_rendering_test.dart` |
+| צבעי מסך ה-PDF נגזרים מערכת הצבעים (issue #1469) | `test/pdf_book/pdf_hardcoded_colors_test.dart`, `test/pdf_book/pdf_link_hover_color_test.dart` |
 | ניתוב החיפוש בתוך PDF (פשוט מול מנוע) | `test/pdf_book/pdf_search_in_book_routing_test.dart` |
 | Printing models | `test/printing/print_content_models_test.dart` |
 | File sync / background sync | `test/migration/sync/file_sync_service_prune_test.dart`, `…background_db_sync_worker_test.dart`, `…background_sync_initializer_test.dart` |
@@ -255,7 +275,6 @@
 | Laaz Rashi commentary line-lookup | `test/tools/dictionary/laaz_rashi_line_lookup_test.dart` |
 | Laaz Rashi commentary sub-block widget | `test/tools/dictionary/laaz_commentary_subblock_test.dart` |
 | Laaz Rashi commentary wiring (surfaces) | `test/tools/dictionary/laaz_commentary_wiring_test.dart` |
-| Commentary reverse links | `test/text_book/commentary_reverse_links_test.dart` |
 | Dialog navigation | `test/widgets/dialogs/dialog_navigation_test.dart` |
 | Focus restore | `test/core/focus_restore_test.dart` |
 | Models (books, links) | `test/models/books_test.dart`, `…links_test.dart` |
@@ -268,7 +287,7 @@
 | Note text utils | `test/personal_notes/note_text_utils_test.dart` |
 | Shortcut validator | `test/shortcuts/shortcut_validator_test.dart` |
 | Core (activation queue/channel, error log) | `test/core/` |
-| כל הודעה ל-`UiSnack` מגיעה מקטלוג `lib/core/messages/` (issue #1473) | `test/core/messages/uisnack_literal_scan_test.dart` |
+| כל הודעה ל-`UiSnack` מגיעה מקטלוג `lib/core/messages/` (issue #1473, UIL-009) | `test/design_system/ui_lint_test.dart` |
 | תעודות ה-CA של נטפרי שנטענות בהפעלה (שלושת הבאנדלים ב-`assets/ca/`) | `test/core/netfree_ca_assets_test.dart` |
 | Error logging | `test/core/main_error_logging_test.dart`, `test/services/direct_error_report_service_test.dart` |
 | דיווח על התוכנה — מודל (חוזה, גבולות, חיתוך גוף, JSON, צירוף minidump) | `test/app_report/app_report_model_test.dart` |

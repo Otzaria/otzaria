@@ -1,0 +1,50 @@
+name: Windows personal-book scan I/O regression
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+    paths:
+      - 'lib/utils/file/document_converter.dart'
+      - 'lib/migration/services/external_book_import.dart'
+      - 'lib/data/data_providers/database_library_provider.dart'
+      - 'test/utils/file/convert_document_file_async_io_test.dart'
+      - 'test/data/data_providers/scan_external_books_db_cleanup_test.dart'
+      - 'tool/perf_probe/external_books_gc_probe.dart'
+      - 'test/tool/perf_probe/external_books_gc_probe_test.dart'
+      - '.github/workflows/windows_personal_books_io.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-io-regression:
+    name: Windows I/O and file-handle regressions
+    runs-on: windows-2025
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - name: Resolve pinned dependencies
+        shell: pwsh
+        run: |
+          git config --global core.longpaths true
+          flutter pub get --enforce-lockfile
+      - name: Check async reads and Windows DB/file cleanup
+        shell: pwsh
+        run: |
+          flutter test -j 2 test/utils/file/convert_document_file_async_io_test.dart test/data/data_providers/scan_external_books_db_cleanup_test.dart test/utils/file/convert_document_file_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Smoke-run the serial, bounded responsiveness probe
+        shell: pwsh
+        run: |
+          # The probe imports Flutter application code and needs dart:ui.
+          # A plain "dart run" has no Flutter engine; use flutter test.
+          flutter test --reporter expanded test/tool/perf_probe/external_books_gc_probe_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

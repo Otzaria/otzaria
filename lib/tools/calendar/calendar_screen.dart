@@ -11,8 +11,6 @@ import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/widgets/layout/floating_panel.dart'
-    show kMainPanelMinWidth, kSideBySideMinWidth;
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
@@ -252,9 +250,12 @@ class CalendarWidgetState extends State<CalendarWidget> {
     });
   }
 
+  /// מהפריסה האחרונה (LayoutBuilder של המסך).
+  bool _hasRoomForSideBySide = true;
+
   void _toggleSettingsPanel() {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isNarrowForOverlay = screenWidth < kSideBySideMinWidth;
+    // אותה החלטה כמו בפריסה: לפי הרוחב שהמסך קיבל, לא לפי החלון.
+    final isNarrowForOverlay = !_hasRoomForSideBySide;
 
     setState(() {
       final nextOpen = !_isSettingsPanelOpen;
@@ -396,7 +397,9 @@ class CalendarWidgetState extends State<CalendarWidget> {
                   final isMobile =
                       constraints.maxWidth < LayoutBreakpoints.compact;
                   final hasRoomForSideBySide =
-                      constraints.maxWidth >= kSideBySideMinWidth;
+                      constraints.maxWidth >=
+                      LayoutConstraints.sideBySideMinWidth;
+                  _hasRoomForSideBySide = hasRoomForSideBySide;
                   _syncSidebarVisibilityForWidth(
                     hasRoomForSideBySide,
                     isMobile: isMobile,
@@ -472,7 +475,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
           ),
           paneContent: _buildSidePanel(context, state),
           paneWidth: _sidePanelWidth,
-          minMainContentWidth: kMainPanelMinWidth,
+          minMainContentWidth: LayoutConstraints.mainContentMinWidth,
           onClose: _handleSidebarClosedByUser,
           autoHandleResponsiveVisibility: false,
           isResizable: true,
@@ -486,7 +489,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
             child: paneContent,
           ),
           narrowPaneBuilder: (context, paneContent) => Material(
-            color: AppSurfaces.solidPanelBackground(context),
+            color: AppSurfaces.panelBackground(context),
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsetsDirectional.fromSTEB(8, 4, 8, 8),
@@ -522,7 +525,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
   }
 
   Widget _buildMobileLayout(BuildContext context, CalendarState state) {
-    // במסך צר אין מקום לפריסה זה-לצד-זה (kSideBySideMinWidth=840), אז במקום
+    // במסך צר אין מקום לפריסה זה-לצד-זה (sideBySideMinWidth=840), אז במקום
     // להחביא את חלונית הצד מאחורי טוגל מוצגים אותה מתחת ללוח. חלוקה 3:2 —
     // הלוח (חלוקת התצוגה הראשית) מקבל את רוב המקום והזמנים/אירועים מתחת.
     // המשתמש עדיין יכול לכווץ את החלק התחתון דרך כפתור ה-toggle בסרגל העליון.

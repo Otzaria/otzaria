@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/widgets/navigation/search_result_navigator.dart';
 import 'package:otzaria/book_common/utils/commentary_search_utils.dart';
 import 'package:otzaria/widgets/commentary/commentary_search_results_list.dart';
 import 'package:otzaria/widgets/navigation/search_pane_base.dart';
-import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 
 /// The search tab of a commentators tab, for text and PDF books. The
 /// commentary list that runs the search reports its result count, current
@@ -57,16 +57,9 @@ class CommentarySearchPane extends StatelessWidget {
                         : 'נמצאו $total תוצאות')
                   : null,
               resultToolbar: hasQuery && total > 0
-                  ? Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        OtzariaSearchAction.prevResult(
-                          onPressed: current > 0 ? onPrevious : null,
-                        ),
-                        OtzariaSearchAction.nextResult(
-                          onPressed: current < total - 1 ? onNext : null,
-                        ),
-                      ],
+                  ? SearchResultNavigator(
+                      onPrevious: current > 0 ? onPrevious : null,
+                      onNext: current < total - 1 ? onNext : null,
                     )
                   : null,
               resultsWidget:

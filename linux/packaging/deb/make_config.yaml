@@ -11,16 +11,23 @@ section: x11
 
 installed_size: 50000
 
-# libgtk-3-0 קיים בכל דסקטופ; ההצהרה גורמת לכשל התקנה ברור בסביבה לא-תואמת
-# (למשל x86_64 על ARM דרך Rosetta) במקום קריסה שקטה בהפעלה.
+# ספריות המארח שנדרשות לקישור או לטעינה דינמית ואינן נארזות בחבילה.
 dependencies:
   - libgtk-3-0
   - libsecret-1-0
   - libharfbuzz-icu0
+  - libwayland-server0
+  - libegl1
+  - libgles2
+  - libgl1
+  - libgbm1
+  - libx11-xcb1
+  - libcurl4
+  - libxmu6
 
 essential: false
 
-icon: assets/icon/icon.png
+icon: assets/icon/icon_256.png
 
 keywords:
   - Hebrew

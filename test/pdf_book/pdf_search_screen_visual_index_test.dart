@@ -98,6 +98,31 @@ Future<void> main() async {
       );
     });
 
+    test('רשימה גדולה עם כפילויות נשארת מעבר יחיד ושומרת אינדקס', () {
+      final pages = <int>[
+        for (var page = 1; page <= 1000; page++)
+          for (var match = 0; match < 5; match++) page,
+      ];
+
+      // לפני עמוד 750 יש 749 כותרות ו-3,745 תוצאות.
+      expect(
+        PdfBookSearchView.computeTargetVisualIndexForTesting(
+          resultsPageNumbersSorted: pages,
+          currentPage: 750,
+        ),
+        4494,
+      );
+
+      // fallback אחרי כל התוצאות מצביע לכותרת עמוד 1000.
+      expect(
+        PdfBookSearchView.computeTargetVisualIndexForTesting(
+          resultsPageNumbersSorted: pages,
+          currentPage: 5000,
+        ),
+        5994,
+      );
+    });
+
     test('כמה תוצאות בעמוד יעד → קופצים לכותרת, לא לתוצאה הראשונה', () {
       // עמודים: 5 (×3), 10 (×2). currentPage = 7 → היעד = 10.
       // מבנה: [hdr5, r, r, r, hdr10, r, r]. אינדקס hdr10 = 4.

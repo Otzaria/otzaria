@@ -428,7 +428,7 @@ void main() {
           () => registry.registerPayload('marker', {
             'id': 'bad',
             'title': 'פתח',
-          'icon': 'bookmark_24_regular',
+            'icon': 'bookmark_24_regular',
             'newTab': true,
           }),
           throwsA(isA<PluginToolbarException>()),
@@ -440,7 +440,7 @@ void main() {
           () => registry.registerPayload('marker', {
             'id': 'bad',
             'title': 'פתח',
-          'icon': 'bookmark_24_regular',
+            'icon': 'bookmark_24_regular',
             'openPlugin': true,
             'newTab': 'yes',
           }),

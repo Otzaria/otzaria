@@ -22,6 +22,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -29,6 +31,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// [CacheProvider] מעל shared_preferences — נסיגה כשפתיחת [HiveCache] נכשלת.
 class SharePreferenceCache extends CacheProvider {
   SharedPreferences? _preferences;
+  final _changes = StreamController<String>.broadcast();
+
+  @override
+  Stream<String> get changes => _changes.stream;
 
   @override
   Future<void> init() async {
@@ -51,24 +57,19 @@ class SharePreferenceCache extends CacheProvider {
       _preferences?.getString(key);
 
   @override
-  Future<void> setBool(String key, bool? value) async {
-    await _preferences?.setBool(key, value ?? false);
-  }
+  Future<void> setBool(String key, bool? value) =>
+      setObject(key, value ?? false);
 
   @override
-  Future<void> setDouble(String key, double? value) async {
-    await _preferences?.setDouble(key, value!);
-  }
+  Future<void> setDouble(String key, double? value) async =>
+      setObject(key, value!);
 
   @override
-  Future<void> setInt(String key, int? value) async {
-    await _preferences?.setInt(key, value!);
-  }
+  Future<void> setInt(String key, int? value) async => setObject(key, value!);
 
   @override
-  Future<void> setString(String key, String? value) async {
-    await _preferences?.setString(key, value!);
-  }
+  Future<void> setString(String key, String? value) async =>
+      setObject(key, value!);
 
   @override
   Future<void> setObject<T>(String key, T? value) async {
@@ -83,6 +84,7 @@ class SharePreferenceCache extends CacheProvider {
     } else {
       throw Exception('SharePreferenceCache cannot store type $T');
     }
+    _changes.add(key);
   }
 
   @override
@@ -95,14 +97,19 @@ class SharePreferenceCache extends CacheProvider {
   Future<void> remove(String key) async {
     if (containsKey(key)) {
       await _preferences?.remove(key);
+      _changes.add(key);
     }
   }
 
   @override
   Future<void> removeAll() async {
+    final keys = _preferences?.getKeys() ?? <String>{};
     await _preferences?.clear();
+    keys.forEach(_changes.add);
   }
 
+  /// כמו `HiveCache.getValue`: הערך השמור אם הוא מסוג [T] (גם `bool?` וכו'),
+  /// אחרת [defaultValue].
   @override
   T? getValue<T>(String key, {T? defaultValue}) {
     final value = _preferences?.get(key);

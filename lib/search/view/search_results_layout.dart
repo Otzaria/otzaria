@@ -5,6 +5,7 @@ import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/view/full_text_settings_widgets.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/bar_button.dart';
@@ -13,6 +14,7 @@ import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/widgets/navigation/reader_nav_center.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
+import 'package:otzaria/theme/app_motion.dart';
 
 /// רוחב הסרגל שמתחתיו בוררי המיון והאיחוד מתכווצים לכפתורי אייקון.
 /// הבדיקה היא על רוחב הסרגל עצמו (ולא על גודל החלון), כדי שהכיווץ יקרה
@@ -70,17 +72,22 @@ class SearchResultsLayout extends StatefulWidget {
     required bool collapsed,
     required Widget child,
   }) {
-    return AnimatedSize(
-      duration: AppTokens.animNormal,
-      curve: Curves.easeInOut,
-      child: AnimatedSwitcher(
-        duration: AppTokens.animNormal,
-        transitionBuilder: (child, animation) => FadeTransition(
-          opacity: animation,
-          child: ScaleTransition(scale: animation, child: child),
-        ),
-        child: KeyedSubtree(key: ValueKey(collapsed), child: child),
-      ),
+    return Builder(
+      builder: (context) {
+        final duration = AppMotion.duration(context, AppTokens.animNormal);
+        return AnimatedSize(
+          duration: duration,
+          curve: Curves.easeInOut,
+          child: AnimatedSwitcher(
+            duration: duration,
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: ScaleTransition(scale: animation, child: child),
+            ),
+            child: KeyedSubtree(key: ValueKey(collapsed), child: child),
+          ),
+        );
+      },
     );
   }
 
@@ -108,7 +115,8 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 800;
+        const narrowBelow = 800.0;
+        final isNarrow = constraints.maxWidth < narrowBelow;
         if (isNarrow &&
             !_appliedNarrowLeftPaneDefault &&
             widget.tab.isLeftPaneOpen.value) {
@@ -124,10 +132,10 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
     );
   }
 
-  /// רקע חלונית הניווט מאחורי התוצאות — כך הכרטיסים בהירים ממנו, כמו בחלונית
-  /// הצד של הקורא.
+  /// התוצאות הן אזור כלים: כרטיסים על רקע הלוח (DD-18). עץ הסינון שלצדן הוא
+  /// חלונית ונשאר ברקע חלונית הניווט.
   BoxDecoration _resultsDecoration(BuildContext context) =>
-      BoxDecoration(color: AppSurfaces.navPanelBackground(context));
+      BoxDecoration(color: AppSurfaces.panelBackground(context));
 
   Widget _buildForSmallScreens(bool collapseMenus) {
     return Container(
@@ -149,7 +157,10 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
                 ValueListenableBuilder(
                   valueListenable: widget.tab.isLeftPaneOpen,
                   builder: (context, value, child) => AnimatedSize(
-                    duration: const Duration(milliseconds: 300),
+                    duration: AppMotion.duration(
+                      context,
+                      AppTokens.animPanelSlide,
+                    ),
                     child: SizedBox(
                       width: value ? 500 : 0,
                       child: Container(
@@ -281,13 +292,11 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
   /// לחצן עין לכיבוי/הפעלה קבועים של התצוגה המקדימה של תוצאות — כמו בספרייה.
   Widget _buildPreviewToggleButton() {
     return BlocBuilder<SettingsBloc, SettingsState>(
-      buildWhen: (p, c) =>
-          p.searchShowPreview != c.searchShowPreview ||
-          p.compactMenuMode != c.compactMenuMode,
+      buildWhen: (p, c) => p.searchShowPreview != c.searchShowPreview,
       builder: (context, settingsState) {
         final showPreview = settingsState.searchShowPreview;
         return BarButton.icon(
-          compact: settingsState.compactMenuMode,
+          compact: AppDensity.of(context).isCompact,
           tooltip: showPreview ? 'הסתר תצוגה מקדימה' : 'הצג תצוגה מקדימה',
           icon: showPreview
               ? FluentIcons.eye_24_filled

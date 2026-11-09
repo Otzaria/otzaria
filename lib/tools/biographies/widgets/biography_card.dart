@@ -11,6 +11,7 @@ import 'package:otzaria/widgets/layout/tool_result_card_shell.dart';
 import 'package:otzaria/widgets/text/overflow_tooltip_text.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 
 class BiographyCard extends StatefulWidget {
   final Biography biography;
@@ -42,8 +43,6 @@ final _summaryOverflowCache = newTextOverflowCache();
 class _BiographyCardState extends State<BiographyCard> {
   /// Summary lines shown before expanding.
   static const int _collapsedLines = 3;
-
-  static const EdgeInsets _padding = EdgeInsets.all(AppTokens.spaceMD);
 
   /// Width of the label column of the expanded details.
   static const double _labelWidth = 112;
@@ -121,7 +120,8 @@ class _BiographyCardState extends State<BiographyCard> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final textWidth = constraints.maxWidth - _padding.horizontal;
+        final textWidth =
+            constraints.maxWidth - AppTokens.cardPadding.horizontal;
         final summary = _bio.summary;
         final clamped =
             summary != null &&
@@ -145,9 +145,6 @@ class _BiographyCardState extends State<BiographyCard> {
     );
     return ToolResultCardShell(
       onTap: hasBody ? _toggle : null,
-      outlined: true,
-      padding: _padding,
-      bottomGap: AppTokens.spaceSM + AppTokens.spaceXS,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -206,7 +203,6 @@ class _BiographyCardState extends State<BiographyCard> {
                     MetaChip(
                       label: _bio.generation!,
                       icon: FluentIcons.people_24_regular,
-                      outlined: true,
                     ),
                 ],
               ),
@@ -239,23 +235,13 @@ class _BiographyCardState extends State<BiographyCard> {
           if (hasBody)
             Align(
               alignment: AlignmentDirectional.centerStart,
-              child: TextButton.icon(
+              child: ActionButton.ghost(
                 onPressed: _toggle,
-                icon: Icon(
-                  _expanded
-                      ? FluentIcons.chevron_up_24_regular
-                      : FluentIcons.chevron_down_24_regular,
-                  size: 18,
-                ),
+                icon: _expanded
+                    ? FluentIcons.chevron_up_24_regular
+                    : FluentIcons.chevron_down_24_regular,
                 iconAlignment: IconAlignment.end,
-                label: Text(_expanded ? 'הצג פחות' : 'הצג עוד'),
-                style: TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppTokens.spaceSM,
-                  ),
-                ),
+                text: _expanded ? 'הצג פחות' : 'הצג עוד',
               ),
             ),
         ],
@@ -304,7 +290,11 @@ class _BiographyCardState extends State<BiographyCard> {
               padding: const EdgeInsets.only(top: 2),
               child: Row(
                 children: [
-                  Icon(icon, size: 16, color: cs.onSurfaceVariant),
+                  Icon(
+                    icon,
+                    size: AppTokens.iconSM,
+                    color: cs.onSurfaceVariant,
+                  ),
                   const SizedBox(width: AppTokens.spaceXS),
                   Expanded(child: Text(label, style: labelStyle)),
                 ],
@@ -415,29 +405,11 @@ class _BiographyCardState extends State<BiographyCard> {
           ]),
         ),
       if (_bio.remember != null)
-        Container(
-          margin: const EdgeInsets.only(top: AppTokens.spaceMD),
-          padding: const EdgeInsets.all(AppTokens.spaceMD),
-          decoration: BoxDecoration(
-            color: cs.secondaryContainer.withValues(alpha: 0.5),
-            borderRadius: AppTokens.borderRadiusAll,
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                OtzariaIcons.text_citation_24_regular,
-                size: 20,
-                color: cs.onSecondaryContainer,
-              ),
-              const SizedBox(width: AppTokens.spaceSM),
-              Expanded(
-                child: Text(
-                  _bio.remember!,
-                  style: bodyStyle.copyWith(color: cs.onSecondaryContainer),
-                ),
-              ),
-            ],
+        Padding(
+          padding: const EdgeInsets.only(top: AppTokens.spaceMD),
+          child: AppInfoBanner(
+            icon: OtzariaIcons.text_citation_24_regular,
+            message: _bio.remember!,
           ),
         ),
     ];

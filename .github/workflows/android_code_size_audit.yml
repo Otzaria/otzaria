@@ -1,0 +1,81 @@
+name: Android Dart code size attribution
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/android_code_size_audit.yml'
+      - 'tool/release/audit_bundle_size.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze-size:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      RUSTUP_HOME: ${{ github.workspace }}/.rustup
+      CARGO_HOME: ${{ github.workspace }}/.cargo
+      ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/android/app/keystore/audit.jks
+      ANDROID_KEYSTORE_PASSWORD: auditpass
+      ANDROID_KEY_ALIAS: audit
+      ANDROID_KEY_PASSWORD: auditpass
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - name: Prepare Android build prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build
+          if [ ! -d "$ANDROID_SDK_ROOT/platforms/android-36" ]; then
+            "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-36"
+          fi
+          if [ ! -d "$ANDROID_SDK_ROOT/build-tools/36.0.0" ]; then
+            "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --install "build-tools;36.0.0"
+          fi
+          mkdir -p android/app/keystore
+          keytool -genkeypair -v -keystore "$ANDROID_KEYSTORE_PATH" \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD" -keypass "$ANDROID_KEY_PASSWORD" \
+            -alias "$ANDROID_KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 1 \
+            -dname "CN=Otzaria Size Audit, O=Otzaria, C=IL"
+      - name: Resolve locked dependencies and generate source catalogs
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter pub get --enforce-lockfile
+          dart run tool/generate_search_index.dart
+          dart run tool/generate_settings_l10n.dart
+      - name: Build one-ABI release with Flutter analyze-size
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/code-size"
+          flutter build apk --release \
+            --flavor direct \
+            --target-platform android-arm64 \
+            --analyze-size \
+            --code-size-directory="$RUNNER_TEMP/code-size" \
+            "--dart-define=OTZARIA_BUILD_COMMIT=$(git rev-parse --short=12 HEAD)"
+          find "$RUNNER_TEMP/code-size" -maxdepth 2 -type f -printf '%p %s bytes\n' | sort
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-arm64-dart-code-size
+          path: ${{ runner.temp }}/code-size/
+          if-no-files-found: error
+          retention-days: 30

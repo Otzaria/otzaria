@@ -41,11 +41,13 @@ void main() {
   });
 
   group('hasRoomForPluginInstance', () {
-    List<ToolTab> instances(int count, {String toolId = 'com.example.plugin'}) =>
-        [
-          for (var i = 0; i < count; i++)
-            ToolTab(toolId: toolId, title: 'א', allowMultipleInstances: true),
-        ];
+    List<ToolTab> instances(
+      int count, {
+      String toolId = 'com.example.plugin',
+    }) => [
+      for (var i = 0; i < count; i++)
+        ToolTab(toolId: toolId, title: 'א', allowMultipleInstances: true),
+    ];
 
     test('מתחת לתקרה אפשר לפתוח, ובתקרה לא', () {
       expect(

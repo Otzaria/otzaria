@@ -34,6 +34,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/utils/move_directory.dart';
 import 'package:otzaria/widgets/misc/restart_widget.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 
 class ChangeLocationResult {
   final String newPath;
@@ -386,10 +387,11 @@ Future<void> performLibraryMove({
     return;
   }
 
-  final navigator = Navigator.of(context, rootNavigator: true);
-  _showBlockingProgress(
-    context,
-    context.settingsText(
+  final closeProgress = showBlockingProgress(
+    context: context,
+    title: context.settingsText('העברת הספרייה'),
+    icon: FluentIcons.folder_swap_24_regular,
+    message: context.settingsText(
       'מעביר את הספרייה למיקום החדש…\nהתוכנה לא תהיה פעילה עד לסיום הפעולה.',
     ),
   );
@@ -599,7 +601,7 @@ Future<void> performLibraryMove({
       finalVectorsCreated: finalVectorsCreated,
     );
     SemanticSearchRepository.instance.finishLibraryMove();
-    if (navigator.canPop()) navigator.pop();
+    closeProgress();
     UiSnack.showError(SettingsMessages.libraryMoveError(e));
     return;
   } finally {
@@ -609,11 +611,12 @@ Future<void> performLibraryMove({
   }
 
   if (!context.mounted) return;
-  if (navigator.canPop()) navigator.pop();
+  closeProgress();
 
   await showSingleActionDialog(
     context: context,
     title: context.settingsText('הספרייה הועברה'),
+    icon: FluentIcons.arrow_clockwise_24_regular,
     content: context.settingsText(
       'הספרייה הועברה בהצלחה למיקום החדש. התוכנה תיטען מחדש כעת, '
       'והספרים הפתוחים ייטענו מהמיקום החדש.',
@@ -664,29 +667,6 @@ Future<void> performLibraryMove({
         UiSnack.showWarning(SettingsMessages.libraryMovedOldFilesLeft);
       }
     },
-  );
-}
-
-void _showBlockingProgress(BuildContext context, String message) {
-  showDialog<void>(
-    context: context,
-    barrierDismissible: false,
-    builder: settingsDialogBuilder(
-      context,
-      (_) => PopScope(
-        canPop: false,
-        child: AlertDialog(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 16),
-              Text(message, textAlign: TextAlign.center),
-            ],
-          ),
-        ),
-      ),
-    ),
   );
 }
 
@@ -766,7 +746,10 @@ class _ChangeLocationDialogContentState
 
   @override
   Widget build(BuildContext context) {
-    return AppCustomContentDialog(
+    return AppDialogFrame(
+      size: AppDialogSize.medium,
+      fitTitle: true,
+      scrollable: true,
       title: locationDialogTitle(
         folderName: widget.folderName,
         isSetup: widget.currentPath.isEmpty,
@@ -775,7 +758,7 @@ class _ChangeLocationDialogContentState
       onConfirm: _selectedPath != null ? _confirm : null,
       handleEnterKey: _selectedPath != null,
       actions: [
-        ActionButton.ghost(
+        ActionButton.neutral(
           text: context.settingsText('ביטול'),
           onPressed: () => Navigator.of(context).pop(null),
         ),

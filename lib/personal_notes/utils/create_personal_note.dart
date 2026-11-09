@@ -8,6 +8,7 @@ import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart
 import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor_dialog.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// פותח עורך בחלונית הערות פעילה, או דיאלוג בלי לשנות את מצב החלוניות.
 Future<void> createPersonalNote(
@@ -68,7 +69,7 @@ Future<void> createPersonalNote(
   }
 
   final notesRepository = repository ?? PersonalNotesRepository();
-  await showDialog<PersonalNoteEditorResult>(
+  await showDialogUntilTornDown<PersonalNoteEditorResult>(
     context: context,
     builder: (_) => PersonalNoteEditorDialog(
       title: title,

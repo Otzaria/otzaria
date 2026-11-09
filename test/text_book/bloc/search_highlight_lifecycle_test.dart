@@ -20,6 +20,7 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/models/book_notes.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as highlights;
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
@@ -131,11 +132,13 @@ class _FileSystem implements FileSystemData {
 
 List<String> _markedText(WidgetTester tester) {
   final marked = <String>[];
+  final hit = AppSurfaces.searchHit(
+    Theme.of(tester.element(find.byKey(_bodyKey))).colorScheme,
+  );
   void visit(InlineSpan span, TextStyle inherited) {
     if (span is! TextSpan) return;
     final style = inherited.merge(span.style);
-    // Search markup uses CSS red, not the Material red swatch.
-    if (span.text != null && style.color == const Color(0xFFFF0000)) {
+    if (span.text != null && style.color == hit) {
       marked.add(span.text!);
     }
     for (final child in span.children ?? const <InlineSpan>[]) {

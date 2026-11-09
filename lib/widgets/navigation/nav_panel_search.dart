@@ -4,6 +4,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 
 /// הגדרת שדה החיפוש של לשונית אחת בחלונית הניווט.
 class NavPanelSearchDelegate {
@@ -387,11 +388,11 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
               ),
             ),
           ),
-          IconButton(
+          AppIconButton(
             tooltip: 'סגור חיפוש',
             onPressed: _close,
-            visualDensity: VisualDensity.compact,
-            icon: const Icon(FluentIcons.dismiss_24_regular, size: 18),
+            size: AppIconButtonSize.small,
+            icon: const Icon(FluentIcons.dismiss_24_regular),
           ),
         ],
       ),
@@ -409,7 +410,7 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
         children: [
           ClipRect(
             child: AnimatedSize(
-              duration: AppTokens.animFast,
+              duration: AppMotion.duration(context, AppTokens.animFast),
               curve: Curves.easeOut,
               alignment: AlignmentDirectional.topCenter,
               child: _isOpen
@@ -429,12 +430,22 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
                   top: kNavTreeListPadding.top + AppTokens.spaceXS,
                   end: kNavTreeSideInset + 12,
                   child: AnimatedSwitcher(
-                    duration: AppTokens.animFast,
+                    duration: AppMotion.duration(context, AppTokens.animFast),
                     child: _toggleOffscreen && !_isOpen
                         ? Material(
                             color: AppSurfaces.navPanelBackground(context),
-                            shape: AppTokens.roundedShape,
-                            elevation: 1,
+                            // בצורת כפתור האייקון שעליו (#1942).
+                            shape:
+                                Theme.of(
+                                  context,
+                                ).iconButtonTheme.style?.shape?.resolve(
+                                  const {},
+                                ) ??
+                                AppTokens.roundedShape,
+                            elevation: AppTokens.elevation1,
+                            shadowColor: AppShadows.color(
+                              Theme.of(context).colorScheme,
+                            ),
                             child: _SearchToggleButton(
                               hintText: widget.delegate.hintText,
                               onPressed: _open,
@@ -529,7 +540,7 @@ class _SearchToggleButton extends StatelessWidget {
         onPressed: onPressed,
         padding: EdgeInsets.zero,
         visualDensity: VisualDensity.compact,
-        icon: const Icon(FluentIcons.search_24_regular, size: 18),
+        icon: const Icon(FluentIcons.search_24_regular, size: AppTokens.iconSM),
       ),
     );
   }

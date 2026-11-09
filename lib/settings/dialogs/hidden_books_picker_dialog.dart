@@ -10,6 +10,8 @@ import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
+import 'package:otzaria/widgets/feedback/app_scrollbar.dart';
 
 /// בוחר ספרים וקטגוריות להסתרה מתוך הספרייה.
 Future<HiddenLibrarySelection?> showHiddenBooksPickerDialog({
@@ -162,211 +164,222 @@ class _HiddenBooksPickerDialogState extends State<_HiddenBooksPickerDialog> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    return ListDialogFrame(
+    return AppDialogFrame(
       icon: OtzariaIcons.book_delete_24_regular,
       title: context.settingsText('בחירת ספרים וקטגוריות להסתרה'),
-      counter: context.settingsText(
-        'בחירות ישירות: {count}',
-        args: {
-          'count': _showCategories
-              ? _selectedCategories.length
-              : _selectedBooks.length,
-        },
-      ),
-      children: [
-        const SizedBox(height: AppTokens.spaceMD),
-        AppSegmentedControl<bool>(
-          options: [
-            SegmentOption(value: false, label: context.settingsText('ספרים')),
-            SegmentOption(
-              value: true,
-              label: context.settingsText('קטגוריות'),
-            ),
-          ],
-          currentValue: _showCategories,
-          expandToFillWidth: true,
-          onChanged: (value) {
-            _showCategories = value;
-            _search.clear();
-            _applyFilter();
-            if (_scroll.hasClients) _scroll.jumpTo(0);
+      trailing: ListDialogCounter(
+        context.settingsText(
+          'בחירות ישירות: {count}',
+          args: {
+            'count': _showCategories
+                ? _selectedCategories.length
+                : _selectedBooks.length,
           },
         ),
-        if (_showCategories)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              context.settingsText(
-                'הסתרת קטגוריה כוללת את תתי־הקטגוריות וכל הספרים שבתוכה',
+      ),
+      size: AppDialogSize.large,
+      padding: AppTokens.dialogPadding.copyWith(top: 0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: AppTokens.spaceMD),
+          AppSegmentedControl<bool>(
+            options: [
+              SegmentOption(value: false, label: context.settingsText('ספרים')),
+              SegmentOption(
+                value: true,
+                label: context.settingsText('קטגוריות'),
               ),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: cs.onSurfaceVariant,
-              ),
-            ),
-          ),
-        const SizedBox(height: AppTokens.spaceMD),
-        OtzariaSearchField(
-          controller: _search,
-          autofocus: true,
-          hintText: _showCategories
-              ? context.settingsText('חיפוש קטגוריה לפי שם או נתיב')
-              : context.settingsText('חיפוש לפי שם, מחבר או קטגוריה'),
-        ),
-        const SizedBox(height: AppTokens.spaceSM),
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: ActionButton.ghost(
-            icon: _hiddenOnly
-                ? FluentIcons.eye_off_24_regular
-                : FluentIcons.eye_24_regular,
-            text: _hiddenOnly
-                ? _showCategories
-                      ? context.settingsText('הצג את כל הקטגוריות')
-                      : context.settingsText('הצג את כל הספרים')
-                : context.settingsText('הצג רק מוסתרים'),
-            onPressed: () {
-              _hiddenOnly = !_hiddenOnly;
+            ],
+            currentValue: _showCategories,
+            expandToFillWidth: true,
+            onChanged: (value) {
+              _showCategories = value;
+              _search.clear();
               _applyFilter();
+              if (_scroll.hasClients) _scroll.jumpTo(0);
             },
           ),
-        ),
-        const SizedBox(height: 4),
-        Expanded(
-          child:
-              (_showCategories ? _visibleCategories.isEmpty : _visible.isEmpty)
-              ? OtzariaEmptyState(
-                  isCompact: true,
-                  icon: OtzariaIcons.search_in_library_24_regular,
-                  title: _showCategories
-                      ? context.settingsText('לא נמצאו קטגוריות')
-                      : context.settingsText('לא נמצאו ספרים'),
-                )
-              : ListDialogCard(
-                  child: Scrollbar(
-                    controller: _scroll,
-                    thumbVisibility: true,
-                    // שכבת Material שקופה: בלעדיה הקו התחתון של שורת הרשימה
-                    // (ListTile.shape) נצייר מחוץ לאזור הגלילה, מעל הכפתורים.
-                    child: Material(
-                      type: MaterialType.transparency,
-                      child: ListView.builder(
-                        controller: _scroll,
-                        // גובה שורה קבוע: קפיצת פס הגלילה לא בונה את כל השורות בדרך
-                        prototypeItem: const CheckboxListTile(
-                          value: false,
-                          onChanged: null,
-                          title: Text(''),
-                          subtitle: Text(''),
-                        ),
-                        itemCount: _showCategories
-                            ? _visibleCategories.length
-                            : _visible.length,
-                        itemBuilder: (_, i) {
-                          final category = _showCategories
-                              ? _visibleCategories[i]
-                              : null;
-                          final book = category == null ? _visible[i] : null;
-                          final key = category?.path ?? book!.key;
-                          final selected = category == null
-                              ? _selectedBooks
-                              : _selectedCategories;
-                          final inherited = _hidingCategory(
-                            category?.path ?? book!.categoryPath,
-                            includeSelf: category == null,
-                          );
-                          return CheckboxListTile(
-                            shape: Border(
-                              bottom: listDialogRowDivider(context),
-                            ),
-                            value: inherited != null || selected.contains(key),
-                            title: Padding(
-                              padding: EdgeInsetsDirectional.only(
-                                start: (category?.depth ?? 0) * 12.0,
+          if (_showCategories)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                context.settingsText(
+                  'הסתרת קטגוריה כוללת את תתי־הקטגוריות וכל הספרים שבתוכה',
+                ),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+            ),
+          const SizedBox(height: AppTokens.spaceMD),
+          OtzariaSearchField(
+            controller: _search,
+            autofocus: true,
+            hintText: _showCategories
+                ? context.settingsText('חיפוש קטגוריה לפי שם או נתיב')
+                : context.settingsText('חיפוש לפי שם, מחבר או קטגוריה'),
+          ),
+          const SizedBox(height: AppTokens.spaceSM),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: ActionButton.ghost(
+              icon: _hiddenOnly
+                  ? FluentIcons.eye_off_24_regular
+                  : FluentIcons.eye_24_regular,
+              text: _hiddenOnly
+                  ? _showCategories
+                        ? context.settingsText('הצג את כל הקטגוריות')
+                        : context.settingsText('הצג את כל הספרים')
+                  : context.settingsText('הצג רק מוסתרים'),
+              onPressed: () {
+                _hiddenOnly = !_hiddenOnly;
+                _applyFilter();
+              },
+            ),
+          ),
+          const SizedBox(height: 4),
+          Expanded(
+            child:
+                (_showCategories
+                    ? _visibleCategories.isEmpty
+                    : _visible.isEmpty)
+                ? OtzariaEmptyState(
+                    isCompact: true,
+                    icon: OtzariaIcons.search_in_library_24_regular,
+                    title: _showCategories
+                        ? context.settingsText('לא נמצאו קטגוריות')
+                        : context.settingsText('לא נמצאו ספרים'),
+                  )
+                : AppCard(
+                    child: AppScrollbar(
+                      controller: _scroll,
+                      thumbVisibility: true,
+                      // שכבת Material שקופה: בלעדיה הקו התחתון של שורת הרשימה
+                      // (ListTile.shape) נצייר מחוץ לאזור הגלילה, מעל הכפתורים.
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: ListView.builder(
+                          controller: _scroll,
+                          // גובה שורה קבוע: קפיצת פס הגלילה לא בונה את כל השורות בדרך
+                          prototypeItem: const CheckboxListTile(
+                            value: false,
+                            onChanged: null,
+                            title: Text(''),
+                            subtitle: Text(''),
+                          ),
+                          itemCount: _showCategories
+                              ? _visibleCategories.length
+                              : _visible.length,
+                          itemBuilder: (_, i) {
+                            final category = _showCategories
+                                ? _visibleCategories[i]
+                                : null;
+                            final book = category == null ? _visible[i] : null;
+                            final key = category?.path ?? book!.key;
+                            final selected = category == null
+                                ? _selectedBooks
+                                : _selectedCategories;
+                            final inherited = _hidingCategory(
+                              category?.path ?? book!.categoryPath,
+                              includeSelf: category == null,
+                            );
+                            return CheckboxListTile(
+                              shape: Border(
+                                bottom: listDialogRowDivider(context),
                               ),
-                              child: Text(
-                                category?.title ?? book!.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: AppTokens.fontMD + 1,
-                                  fontWeight: FontWeight.w600,
-                                  color: cs.onSurface,
+                              value:
+                                  inherited != null || selected.contains(key),
+                              title: Padding(
+                                padding: EdgeInsetsDirectional.only(
+                                  start: (category?.depth ?? 0) * 12.0,
                                 ),
-                              ),
-                            ),
-                            subtitle: Row(
-                              spacing: 12,
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    category?.path ?? book!.details,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: AppTokens.fontSM,
-                                      color: cs.onSurfaceVariant,
-                                    ),
+                                child: Text(
+                                  category?.title ?? book!.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: AppTokens.fontMD + 1,
+                                    fontWeight: FontWeight.w600,
+                                    color: cs.onSurface,
                                   ),
                                 ),
-                                if (inherited != null)
+                              ),
+                              subtitle: Row(
+                                spacing: 12,
+                                children: [
                                   Flexible(
                                     child: Text(
-                                      context.settingsText(
-                                        'מוסתר דרך {category}',
-                                        args: {'category': inherited},
-                                      ),
+                                      category?.path ?? book!.details,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
                                         fontSize: AppTokens.fontSM,
-                                        color: cs.primary,
+                                        color: cs.onSurfaceVariant,
                                       ),
                                     ),
                                   ),
-                              ],
-                            ),
-                            secondary: category == null
-                                ? const Icon(OtzariaIcons.book_24_regular)
-                                : const Icon(FluentIcons.folder_24_regular),
-                            onChanged: inherited != null
-                                ? null
-                                : (checked) {
-                                    setState(() {
-                                      if (checked == true) {
-                                        selected.add(key);
-                                      } else {
-                                        selected.remove(key);
-                                      }
-                                    });
-                                    if (_hiddenOnly) _applyFilter();
-                                  },
-                          );
-                        },
+                                  if (inherited != null)
+                                    Flexible(
+                                      child: Text(
+                                        context.settingsText(
+                                          'מוסתר דרך {category}',
+                                          args: {'category': inherited},
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: AppTokens.fontSM,
+                                          color: cs.primary,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              secondary: category == null
+                                  ? const Icon(OtzariaIcons.book_24_regular)
+                                  : const Icon(FluentIcons.folder_24_regular),
+                              onChanged: inherited != null
+                                  ? null
+                                  : (checked) {
+                                      setState(() {
+                                        if (checked == true) {
+                                          selected.add(key);
+                                        } else {
+                                          selected.remove(key);
+                                        }
+                                      });
+                                      if (_hiddenOnly) _applyFilter();
+                                    },
+                            );
+                          },
+                        ),
                       ),
                     ),
                   ),
-                ),
-        ),
-        const SizedBox(height: AppTokens.spaceMD),
-        Row(
-          children: [
-            ActionButton.recommended(
-              text: context.settingsText('שמור'),
-              onPressed: () => Navigator.of(context).pop(
-                HiddenLibrarySelection(
-                  bookKeys: _selectedBooks,
-                  categoryPaths: _selectedCategories,
+          ),
+          const SizedBox(height: AppTokens.spaceMD),
+          Row(
+            children: [
+              ActionButton.recommended(
+                text: context.settingsText('שמור'),
+                onPressed: () => Navigator.of(context).pop(
+                  HiddenLibrarySelection(
+                    bookKeys: _selectedBooks,
+                    categoryPaths: _selectedCategories,
+                  ),
                 ),
               ),
-            ),
-            const Spacer(),
-            ActionButton.ghost(
-              text: context.settingsText('ביטול'),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          ],
-        ),
-      ],
+              const Spacer(),
+              ActionButton.neutral(
+                text: context.settingsText('ביטול'),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

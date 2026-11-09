@@ -8,6 +8,7 @@ import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
+import 'package:otzaria/widgets/layout/app_card.dart';
 
 class PersonalNoteLinkTarget {
   final String label;
@@ -118,7 +119,7 @@ class _PersonalNoteLinkDialogState extends State<PersonalNoteLinkDialog> {
     return AppDialogFrame(
       title: 'הוסף קישור',
       icon: FluentIcons.link_24_regular,
-      width: 460,
+      size: AppDialogSize.medium,
       actions: [
         ActionButton.neutral(
           text: 'ביטול',
@@ -201,7 +202,7 @@ class _PersonalNoteLinkDialogState extends State<PersonalNoteLinkDialog> {
                   const SizedBox(height: AppTokens.spaceMD),
                   SizedBox(
                     height: 220,
-                    child: ListDialogCard(
+                    child: AppCard(
                       child: ListView.builder(
                         itemCount: filteredNotes.length,
                         itemBuilder: (context, index) {

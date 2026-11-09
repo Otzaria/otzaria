@@ -2,8 +2,8 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/theme/app_tokens.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/widgets/misc/expanding_chevron.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/middle_click_open.dart';
 import 'package:otzaria/models/link_types.dart';
@@ -709,14 +709,11 @@ class _LinksListViewState extends State<LinksListView> {
       shape: Border(
         bottom: BorderSide(color: Theme.of(context).dividerColor, width: 0),
       ),
-      leading: AnimatedRotation(
-        turns: isExpanded ? 0 : 0.25,
-        duration: const Duration(milliseconds: 200),
-        child: Icon(
-          FluentIcons.chevron_down_24_regular,
-          size: 20,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
+      leading: ExpandingChevron(
+        isExpanded: isExpanded,
+        style: ExpandingChevronStyle.tree,
+        size: 20,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
       title: BlocBuilder<SettingsBloc, SettingsState>(
         builder: (context, settingsState) {

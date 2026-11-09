@@ -206,13 +206,20 @@ class PersonalNotesService {
       throw StateError(NotesMessages.noteMovedToDifferentBook);
     }
 
-    final now = DateTime.now();
+    final nextContent = content?.trimRight() ?? note.content;
+    final nextContentPlain = contentPlain?.trimRight() ?? note.contentPlain;
+    final nextContentFormat = contentFormat ?? note.contentFormat;
+    final hasContentChanges =
+        nextContent != note.content ||
+        nextContentPlain != note.contentPlain ||
+        nextContentFormat != note.contentFormat;
     final updatedNote = _reconcileLocation(
       note.copyWith(
-        content: content?.trimRight() ?? note.content,
-        contentPlain: contentPlain?.trimRight() ?? note.contentPlain,
-        contentFormat: contentFormat ?? note.contentFormat,
-        updatedAt: now,
+        content: nextContent,
+        contentPlain: nextContentPlain,
+        contentFormat: nextContentFormat,
+        // פתיחה ושמירה ללא שינוי אינן עריכה ואינן משנות את מועד העדכון.
+        updatedAt: hasContentChanges ? DateTime.now() : note.updatedAt,
       ),
       splitBookContentIntoLines(bookContent),
       bookId,

@@ -223,7 +223,7 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen> {
         return AppDialogFrame(
           icon: FluentIcons.shield_keyhole_24_regular,
           title: 'ניהול הרשאות: ${currentPlugin.name}',
-          width: 620,
+          size: AppDialogSize.medium,
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -274,11 +274,11 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen> {
                           final iconColor = isCritical
                               ? colorScheme.error
                               : isSensitive
-                              ? colorScheme.tertiary
+                              ? AppSurfaces.warning(context)
                               : (isGranted
                                     ? colorScheme.primary
                                     : colorScheme.error);
-                          return SettingsActionTile.switchTile(
+                          return SettingsSwitchTile(
                             icon: iconData,
                             iconColor: iconColor,
                             title: p == pluginNewTabPagePermission
@@ -365,7 +365,7 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen> {
                           pinnedTrailing: IconButton(
                             icon: const Icon(
                               FluentIcons.dismiss_24_regular,
-                              size: 18,
+                              size: AppTokens.iconSM,
                             ),
                             tooltip: 'הסר גישה',
                             onPressed: () => _revokeUserFolder(folder),
@@ -443,16 +443,17 @@ class _PluginIdentity extends StatelessWidget {
                   ? FluentIcons.checkmark_circle_24_regular
                   : FluentIcons.dismiss_circle_24_regular,
               label: plugin.enabled ? 'פעיל' : 'מושבת',
-              outlined: !plugin.enabled,
+              tone: plugin.enabled
+                  ? MetaChipTone.success
+                  : MetaChipTone.neutral,
             ),
             Directionality(
               textDirection: TextDirection.ltr,
-              child: MetaChip(outlined: true, label: 'v${plugin.version}'),
+              child: MetaChip(label: 'v${plugin.version}'),
             ),
-            if (author.isNotEmpty) MetaChip(outlined: true, label: author),
+            if (author.isNotEmpty) MetaChip(label: author),
             if (plugin.isDevelopment)
               const MetaChip(
-                outlined: true,
                 icon: FluentIcons.code_24_regular,
                 label: 'פיתוח',
               ),

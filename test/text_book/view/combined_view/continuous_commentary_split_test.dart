@@ -221,7 +221,7 @@ void main() {
           .any(
             (container) =>
                 (container.decoration as BoxDecoration?)?.color ==
-                AppSurfaces.paragraphSelectionBackground(theme.colorScheme),
+                AppSurfaces.paragraphSelectionBackground(theme),
           ),
       isTrue,
     );
@@ -392,7 +392,10 @@ void main() {
         of: card,
         matching: find.byType(CommentaryListBase),
       );
-      expect(tester.getSize(list).width, 400);
+      // הכרטיס עצמו ברוחב העמודה. בתוכו מסגרת outlineVariant של 1px במקום
+      // הצל (DD-12, "מסגרת ולא צל"), והרשימה יושבת בתוך המסגרת: 1px מכל צד.
+      expect(tester.getSize(card).width, 400);
+      expect(tester.getSize(list).width, 400 - 2 * 1.0);
     });
   }
 

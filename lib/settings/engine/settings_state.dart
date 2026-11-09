@@ -5,6 +5,7 @@ import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/l10n/settings_language.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
+import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/theme/app_seed_colors.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' show HolyNameStyle;
 
@@ -26,6 +27,10 @@ class SettingsState extends Equatable {
   /// הצגת גופן המפרשים במשקל מודגש (בולד).
   final bool commentatorsFontBold;
   final double commentatorsFontSize;
+
+  /// גודל הטקסט בקטעי תוצאות החיפוש, נפרד מגודל הספר (#2826). כשלא נשמר
+  /// ערך, שווה ל-[fontSize]: כך התוצאות נראו לפני ההפרדה.
+  final double searchResultsFontSize;
   final double
   lineHeight; // מרווח בין שורות (1.0 = רגיל, 1.5 = מרווח וחצי, וכו')
   final bool showOtzarHachochma;
@@ -66,6 +71,10 @@ class SettingsState extends Equatable {
   final String copyHeaderFormat;
   final String libraryViewMode;
   final bool libraryShowPreview;
+
+  /// "תצוגה מקדימה" בספרייה בחלון נמוך (טלפון לרוחב), כשהמשתמש פתח או סגר
+  /// אותה שם. null: לא בחר, והיא סגורה ([libraryShowPreviewFor]).
+  final bool? libraryShowPreviewShortWindow;
   final bool searchShowPreview;
   final Map<String, String> shortcuts;
   final bool enablePerBookSettings;
@@ -79,7 +88,42 @@ class SettingsState extends Equatable {
   /// האם הוגדרה סיסמה למצב סייפר. נגזר מה-repository בטעינה ומעודכן בעת שמירה,
   /// כדי שה-UI יתרענן ריאקטיבית גם כשהמצב המוגן עצמו לא מופעל.
   final bool protectedModePasswordSet;
+
+  /// "צפיפות ממשק" שנשמרה. בלי בחירה ([compactMenuModeIsSet] כבוי) זה
+  /// false, והצפיפות בפועל לפי החלון: [compactMenuModeFor].
   final bool compactMenuMode;
+
+  /// האם המשתמש בחר "צפיפות ממשק" (יש ערך שמור, גם "רגיל").
+  final bool compactMenuModeIsSet;
+  final bool autoSync;
+
+  /// `UpdateCheckFrequency.storageValue`; ריק = ברירת המחדל.
+  final String updateCheckFrequency;
+  final bool restoreAllWindows;
+
+  /// תיקיית הגיבוי שנבחרה; ריק = ברירת המחדל.
+  final String backupPath;
+  final String autoBackupFrequency;
+
+  /// `RetentionProfile.name`; ריק = ברירת המחדל.
+  final String backupRetentionProfile;
+
+  /// מתגי סעיפי הגיבוי לפי מפתח; מפתח חסר = כלול.
+  final Map<String, bool> backupSections;
+
+  /// הצגת המפרשים בחלונית בצד ([SettingsRepository.keySplitedView]).
+  final bool splitedView;
+
+  /// תיקיית הספרים ([SettingsRepository.keyLibraryPath]); ריק = לא הוגדרה.
+  /// נכתבת מחוץ לבלוק (הגדרת הספרייה, LibraryBloc) ומגיעה דרך externalChanges.
+  final String libraryPath;
+
+  /// תיקיית ספרי היברובוקס ([SettingsRepository.keyHebrewBooksPath]); ריק = אין.
+  final String hebrewBooksPath;
+
+  bool backupIncludes(String key) => backupSections[key] ?? true;
+
+  bool get backupIncludesAllSections => backupSections.values.every((v) => v);
 
   /// מיקום כרטיסיות העיון: `top` ברצועת הכותרת, `side` בעמודה אנכית.
   final String readingTabsPlacement;
@@ -115,6 +159,7 @@ class SettingsState extends Equatable {
     this.fontBold = false,
     this.commentatorsFontBold = false,
     required this.commentatorsFontSize,
+    double? searchResultsFontSize,
     required this.lineHeight,
     required this.showOtzarHachochma,
     required this.showHebrewBooks,
@@ -135,6 +180,7 @@ class SettingsState extends Equatable {
     required this.copyHeaderFormat,
     required this.libraryViewMode,
     required this.libraryShowPreview,
+    this.libraryShowPreviewShortWindow,
     required this.searchShowPreview,
     required this.shortcuts,
     required this.enablePerBookSettings,
@@ -146,6 +192,17 @@ class SettingsState extends Equatable {
     required this.protectedModeEnabled,
     this.protectedModePasswordSet = false,
     this.compactMenuMode = false,
+    this.compactMenuModeIsSet = false,
+    this.autoSync = true,
+    this.updateCheckFrequency = '',
+    this.restoreAllWindows = false,
+    this.backupPath = '',
+    this.autoBackupFrequency = 'weekly',
+    this.backupRetentionProfile = '',
+    this.backupSections = const {},
+    this.splitedView = true,
+    this.libraryPath = '',
+    this.hebrewBooksPath = '',
     this.readingTabsPlacement = SettingsRepository.readingTabsPlacementTop,
     this.readingTabsColumnWidth =
         SettingsRepository.defaultReadingTabsColumnWidth,
@@ -156,7 +213,8 @@ class SettingsState extends Equatable {
     this.builtInToolsOrder = const <String>[],
     this.settingsLanguageCode = kDefaultSettingsLanguageCode,
     this._softwareAndBookUpdatesEnabled,
-  }) : textDisplayPolicy = textDisplayPolicy ?? TextDisplayPolicy.empty;
+  }) : textDisplayPolicy = textDisplayPolicy ?? TextDisplayPolicy.empty,
+       searchResultsFontSize = searchResultsFontSize ?? fontSize;
 
   factory SettingsState.initial() {
     return SettingsState(
@@ -166,8 +224,8 @@ class SettingsState extends Equatable {
       darkSeedColor: AppSeedColors.defaultDark,
       textMaxWidth: 0, // 0 = רוחב מלא; חיובי = רוחב יעד בפיקסלים לוגיים
       fontSize: 16,
-      fontFamily: 'FrankRuhlCLM',
-      commentatorsFontFamily: 'NotoRashiHebrew',
+      fontFamily: AppFonts.defaultFont,
+      commentatorsFontFamily: AppFonts.defaultCommentatorsFont,
       commentatorsFontSize: 22,
       lineHeight: 1.5,
       showOtzarHachochma: false,
@@ -213,6 +271,7 @@ class SettingsState extends Equatable {
     bool? fontBold,
     bool? commentatorsFontBold,
     double? commentatorsFontSize,
+    double? searchResultsFontSize,
     double? lineHeight,
     bool? showOtzarHachochma,
     bool? showHebrewBooks,
@@ -239,6 +298,7 @@ class SettingsState extends Equatable {
     String? copyHeaderFormat,
     String? libraryViewMode,
     bool? libraryShowPreview,
+    bool? libraryShowPreviewShortWindow,
     bool? searchShowPreview,
     Map<String, String>? shortcuts,
     bool? enablePerBookSettings,
@@ -250,6 +310,17 @@ class SettingsState extends Equatable {
     bool? protectedModeEnabled,
     bool? protectedModePasswordSet,
     bool? compactMenuMode,
+    bool? compactMenuModeIsSet,
+    bool? autoSync,
+    String? updateCheckFrequency,
+    bool? restoreAllWindows,
+    String? backupPath,
+    String? autoBackupFrequency,
+    String? backupRetentionProfile,
+    Map<String, bool>? backupSections,
+    bool? splitedView,
+    String? libraryPath,
+    String? hebrewBooksPath,
     String? readingTabsPlacement,
     double? readingTabsColumnWidth,
     bool? readingTabsColumnCollapsed,
@@ -295,6 +366,8 @@ class SettingsState extends Equatable {
       fontBold: fontBold ?? this.fontBold,
       commentatorsFontBold: commentatorsFontBold ?? this.commentatorsFontBold,
       commentatorsFontSize: commentatorsFontSize ?? this.commentatorsFontSize,
+      searchResultsFontSize:
+          searchResultsFontSize ?? this.searchResultsFontSize,
       lineHeight: lineHeight ?? this.lineHeight,
       showOtzarHachochma: showOtzarHachochma ?? this.showOtzarHachochma,
       showHebrewBooks: showHebrewBooks ?? this.showHebrewBooks,
@@ -316,6 +389,8 @@ class SettingsState extends Equatable {
       copyHeaderFormat: copyHeaderFormat ?? this.copyHeaderFormat,
       libraryViewMode: libraryViewMode ?? this.libraryViewMode,
       libraryShowPreview: libraryShowPreview ?? this.libraryShowPreview,
+      libraryShowPreviewShortWindow:
+          libraryShowPreviewShortWindow ?? this.libraryShowPreviewShortWindow,
       searchShowPreview: searchShowPreview ?? this.searchShowPreview,
       shortcuts: shortcuts ?? this.shortcuts,
       enablePerBookSettings:
@@ -332,6 +407,18 @@ class SettingsState extends Equatable {
       protectedModePasswordSet:
           protectedModePasswordSet ?? this.protectedModePasswordSet,
       compactMenuMode: compactMenuMode ?? this.compactMenuMode,
+      compactMenuModeIsSet: compactMenuModeIsSet ?? this.compactMenuModeIsSet,
+      autoSync: autoSync ?? this.autoSync,
+      updateCheckFrequency: updateCheckFrequency ?? this.updateCheckFrequency,
+      restoreAllWindows: restoreAllWindows ?? this.restoreAllWindows,
+      backupPath: backupPath ?? this.backupPath,
+      autoBackupFrequency: autoBackupFrequency ?? this.autoBackupFrequency,
+      backupRetentionProfile:
+          backupRetentionProfile ?? this.backupRetentionProfile,
+      backupSections: backupSections ?? this.backupSections,
+      splitedView: splitedView ?? this.splitedView,
+      libraryPath: libraryPath ?? this.libraryPath,
+      hebrewBooksPath: hebrewBooksPath ?? this.hebrewBooksPath,
       readingTabsPlacement: readingTabsPlacement ?? this.readingTabsPlacement,
       readingTabsColumnWidth:
           readingTabsColumnWidth ?? this.readingTabsColumnWidth,
@@ -350,6 +437,18 @@ class SettingsState extends Equatable {
   }
 
   /// האם כרטיסיות העיון מוצגות כעמודה אנכית בצד ולא ברצועת הכותרת.
+  /// "צפיפות ממשק" בפועל: הבחירה של המשתמש, ובלי בחירה מצומצמת בחלון קטן
+  /// (`AppDensity.isSmallWindow`; הערת בעל הפרויקט ל-q12 Q8, 4.11).
+  bool compactMenuModeFor({required bool isSmallWindow}) =>
+      compactMenuModeIsSet ? compactMenuMode : isSmallWindow;
+
+  /// "תצוגה מקדימה" בספרייה בפועל. בחלון נמוך (`WindowClass.isShortOf`,
+  /// טלפון לרוחב) היא סגורה, אלא אם המשתמש פתח אותה שם; בחירה שם לא משנה את
+  /// ההעדפה בחלון רגיל (q12 Q8, ss5).
+  bool libraryShowPreviewFor({required bool isShortWindow}) => isShortWindow
+      ? (libraryShowPreviewShortWindow ?? false)
+      : libraryShowPreview;
+
   bool get readingTabsOnSide =>
       readingTabsPlacement == SettingsRepository.readingTabsPlacementSide;
 
@@ -372,6 +471,7 @@ class SettingsState extends Equatable {
     fontBold,
     commentatorsFontBold,
     commentatorsFontSize,
+    searchResultsFontSize,
     lineHeight,
     showOtzarHachochma,
     showHebrewBooks,
@@ -392,6 +492,7 @@ class SettingsState extends Equatable {
     copyHeaderFormat,
     libraryViewMode,
     libraryShowPreview,
+    libraryShowPreviewShortWindow,
     searchShowPreview,
     shortcuts,
     enablePerBookSettings,
@@ -403,6 +504,17 @@ class SettingsState extends Equatable {
     protectedModeEnabled,
     protectedModePasswordSet,
     compactMenuMode,
+    compactMenuModeIsSet,
+    autoSync,
+    updateCheckFrequency,
+    restoreAllWindows,
+    backupPath,
+    autoBackupFrequency,
+    backupRetentionProfile,
+    backupSections,
+    splitedView,
+    libraryPath,
+    hebrewBooksPath,
     readingTabsPlacement,
     readingTabsColumnWidth,
     readingTabsColumnCollapsed,

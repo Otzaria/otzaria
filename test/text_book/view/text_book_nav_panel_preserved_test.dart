@@ -285,6 +285,19 @@ void main() {
       tester.widget<RichText>(snippet(2)).text.style!.fontFamily,
       'TaameyDavidCLM',
     );
+    // DD-26: אחרי מעבר החלונית נסגרת רק כשהיא מכסה את הטקסט. כאן היא
+    // מוצמדת לצד הטקסט (מסך רחב, נעוצה) — ולכן נשארת פתוחה.
+    state.widget.closeLeftPaneCallback();
+    await tester.pump();
+    expect((bloc.state as TextBookLoaded).showLeftPane, isTrue);
+    // לא נעוצה, צפה מעל הטקסט: הקריאה מהחלונית השמורה מגיעה לקורא וסוגרת.
+    (bloc as _TestTextBookBloc).update(
+      (bloc.state as TextBookLoaded).copyWith(pinLeftPane: false),
+    );
+    await tester.pump();
+    // מצב הפריסה מדווח ב-post-frame.
+    await tester.pump();
+    expect(tester.state(search), same(state));
     state.widget.closeLeftPaneCallback();
     await tester.pump();
     expect((bloc.state as TextBookLoaded).showLeftPane, isFalse);

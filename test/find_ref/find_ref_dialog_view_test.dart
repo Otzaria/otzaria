@@ -31,6 +31,7 @@ import 'package:otzaria/plugins/services/plugin_search_field_session_service.dar
 import 'package:otzaria/plugins/view/plugin_search_field_actions.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
 import 'package:provider/provider.dart';
 
 import '../helpers/memory_settings_cache.dart';
@@ -698,22 +699,20 @@ void main() {
     }
   });
 
-  testWidgets('הכותרת כהה מגוף הדיאלוג, והתחתית בצבע הגוף', (tester) async {
+  testWidgets('הכותרת ברצועת הדיאלוגים, והתחתית בצבע הגוף', (tester) async {
     await _pumpDialog(tester, results: [_ref('בראשית פרק א')]);
 
     final context = tester.element(find.byType(FindRefDialog));
-    final header = tester.widget<ColoredBox>(
-      find
-          .ancestor(
-            of: find.text('איתור מקורות'),
-            matching: find.byType(ColoredBox),
-          )
-          .first,
+    expect(
+      find.ancestor(
+        of: find.text('איתור מקורות'),
+        matching: find.byType(AppDialogHeader),
+      ),
+      findsOneWidget,
     );
-    expect(header.color, AppSurfaces.topBarBackground(context));
     expect(
       tester.widget<Dialog>(find.byType(Dialog)).backgroundColor,
-      AppSurfaces.solidPanelBackground(context),
+      AppSurfaces.panelBackground(context),
     );
     expect(
       find.ancestor(

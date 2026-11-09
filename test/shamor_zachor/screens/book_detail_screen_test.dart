@@ -481,7 +481,16 @@ void main() {
     expect(tester.getRect(footer).left, greaterThanOrEqualTo(0));
   });
   group('column completion dates in the header', () {
-    String hebrew(String iso) => HebrewUtils.hebrewDate(DateTime.parse(iso));
+    /// The header date of [iso]: the full Hebrew date, or day and month when
+    /// the full one does not fit the column (the test font is wide).
+    Finder dateText(String iso) {
+      final date = DateTime.parse(iso);
+      final forms = {
+        HebrewUtils.hebrewDate(date),
+        HebrewUtils.hebrewDayMonth(date),
+      };
+      return find.byWidgetPredicate((w) => w is Text && forms.contains(w.data));
+    }
 
     Future<void> pumpScreen(
       WidgetTester tester,
@@ -543,21 +552,21 @@ void main() {
       await pumpScreen(tester, service);
 
       for (final date in [
-        hebrew('2025-03-10'),
-        hebrew('2025-04-11'),
-        hebrew('2025-05-12'),
-        hebrew('2025-06-13'),
+        '2025-03-10',
+        '2025-04-11',
+        '2025-05-12',
+        '2025-06-13',
       ]) {
-        expect(find.text(date), findsOneWidget);
+        expect(dateText(date), findsOneWidget);
       }
       // Each date sits below its own column label (the label's chevron
       // shifts the label's centre by a few pixels).
       expect(
-        tester.getCenter(find.text(hebrew('2025-03-10'))).dx,
+        tester.getCenter(dateText('2025-03-10')).dx,
         closeTo(tester.getCenter(find.text('לימוד')).dx, 10),
       );
       expect(
-        tester.getCenter(find.text(hebrew('2025-06-13'))).dy,
+        tester.getCenter(dateText('2025-06-13')).dy,
         greaterThan(tester.getCenter(find.text('חזרה 3')).dy),
       );
     });
@@ -586,7 +595,7 @@ void main() {
       await pumpScreen(tester, service);
 
       expect(find.textContaining('הושלם'), findsOneWidget);
-      expect(find.text(hebrew('2025-06-13')), findsOneWidget);
+      expect(dateText('2025-06-13'), findsOneWidget);
     });
 
     testWidgets('only complete columns show a date', (tester) async {
@@ -604,9 +613,9 @@ void main() {
         };
       await pumpScreen(tester, service);
 
-      expect(find.text(hebrew('2025-03-10')), findsOneWidget);
-      expect(find.text(hebrew('2025-04-11')), findsOneWidget);
-      expect(find.text(hebrew('2025-05-12')), findsNothing);
+      expect(dateText('2025-03-10'), findsOneWidget);
+      expect(dateText('2025-04-11'), findsOneWidget);
+      expect(dateText('2025-05-12'), findsNothing);
     });
 
     testWidgets('no complete column shows no date line', (tester) async {
@@ -645,7 +654,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.text(HebrewUtils.hebrewDate(DateTime.now())),
+        dateText(DateTime.now().toIso8601String()),
         findsOneWidget,
       );
     });
@@ -671,8 +680,15 @@ void main() {
       await pumpScreen(tester, service);
 
       expect(tester.takeException(), isNull);
-      final label = hebrew('2025-10-28');
+      // Too narrow for the full date: day and month, the full date in the
+      // tooltip.
+      final date = DateTime.parse('2025-10-28');
+      final label = HebrewUtils.hebrewDayMonth(date);
       expect(find.text(label), findsNWidgets(8));
+      expect(
+        find.byTooltip('הושלם ${HebrewUtils.fullDate(date)}'),
+        findsNWidgets(8),
+      );
       for (final f in find.text(label).evaluate()) {
         final rect = tester.getRect(find.byWidget(f.widget));
         expect(rect.left, greaterThanOrEqualTo(0));

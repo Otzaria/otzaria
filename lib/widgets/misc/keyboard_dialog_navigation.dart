@@ -1,127 +1,70 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// Widget לניהול קיצורי מקלדת בדיאלוגים.
-///
-/// מספק:
-/// - חיצים ◄► למעבר בין כפתורים
-/// - Enter ללחיצה על הכפתור הממוקד
-/// - Escape לביטול
-/// - Enter בשדה טקסט → שליחת הטופס
+/// חוזה המקלדת של דיאלוג (DESIGN_SYSTEM §3.1):
+/// - Escape סוגר דרך [Navigator.maybePop], ולכן עובר בשומר שינויים שלא נשמרו
+///   ([DialogDismissGuard]) גם כשהלחיצה בחוץ חסומה.
+/// - Enter בשדה טקסט חד־שורתי מפעיל את [onConfirm]. על כפתור או פריט ממוקד
+///   Enter מפעיל אותו, ובשדה רב־שורתי מוסיף שורה.
+/// - Enter כשאין רכיב ממוקד שמגיב לו מפעיל את [onConfirm], כמו כפתור ברירת מחדל.
+/// - חיצים לא נבלעים.
 class DialogKeyboardNavigator extends StatelessWidget {
   final Widget child;
   final VoidCallback? onConfirm;
-  final VoidCallback? onCancel;
-  final int focusedIndex;
-  final ValueChanged<int> onFocusChange;
-  final FocusNode? textFieldFocusNode;
+
+  /// האם Enter מפעיל את [onConfirm]. false משאיר את Enter לרכיב הממוקד בלבד.
   final bool handleEnterKey;
+
+  /// התוצאה שהדיאלוג מחזיר כשנסגר ב-Escape.
+  final Object? dismissResult;
 
   const DialogKeyboardNavigator({
     super.key,
     required this.child,
     this.onConfirm,
-    this.onCancel,
-    required this.focusedIndex,
-    required this.onFocusChange,
-    this.textFieldFocusNode,
     this.handleEnterKey = true,
+    this.dismissResult,
   });
+
+  static bool _isEnter(LogicalKeyboardKey key) =>
+      key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.numpadEnter;
+
+  KeyEventResult _handleEnter() {
+    final focused = primaryFocus?.context;
+    if (focused == null) return KeyEventResult.ignored;
+    final editable = focused.findAncestorWidgetOfExactType<EditableText>();
+    if (editable != null) {
+      if (editable.maxLines != 1) return KeyEventResult.ignored;
+    } else if (Actions.maybeFind<ActivateIntent>(
+          focused,
+        )?.isEnabled(const ActivateIntent()) ??
+        false) {
+      return KeyEventResult.ignored;
+    }
+    if (!handleEnterKey || onConfirm == null) return KeyEventResult.ignored;
+    onConfirm!();
+    return KeyEventResult.handled;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Focus(
-      autofocus: false,
-      canRequestFocus: false,
-      skipTraversal: true,
-      onKeyEvent: (node, event) {
-        if (event is! KeyDownEvent) return KeyEventResult.ignored;
-
-        // אם הפוקוס בשדה הטקסט, Enter שולח את הטופס
-        if (textFieldFocusNode?.hasFocus ?? false) {
-          if (event.logicalKey == LogicalKeyboardKey.enter) {
-            if (!handleEnterKey) {
-              return KeyEventResult.ignored;
-            }
-            onConfirm?.call();
-            return KeyEventResult.handled;
-          }
-          return KeyEventResult.ignored;
-        }
-
-        // חיצים ◄► — מעבר בין כפתורים
-        if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
-            event.logicalKey == LogicalKeyboardKey.arrowRight) {
-          onFocusChange(focusedIndex == 0 ? 1 : 0);
-          return KeyEventResult.handled;
-        }
-
-        // Enter — לחיצה על הכפתור הממוקד
-        if (event.logicalKey == LogicalKeyboardKey.enter) {
-          if (!handleEnterKey) {
+    return Actions(
+      actions: {
+        DismissIntent: CallbackAction<DismissIntent>(
+          onInvoke: (_) => Navigator.of(context).maybePop(dismissResult),
+        ),
+      },
+      child: Focus(
+        canRequestFocus: false,
+        skipTraversal: true,
+        onKeyEvent: (node, event) {
+          if (event is! KeyDownEvent || !_isEnter(event.logicalKey)) {
             return KeyEventResult.ignored;
           }
-          if (focusedIndex == 1) {
-            onConfirm?.call();
-          } else {
-            onCancel?.call();
-          }
-          return KeyEventResult.handled;
-        }
-
-        // Escape — ביטול
-        if (event.logicalKey == LogicalKeyboardKey.escape) {
-          onCancel?.call();
-          return KeyEventResult.handled;
-        }
-
-        return KeyEventResult.ignored;
-      },
-      child: child,
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  DialogNavigationMixin
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Mixin נוח לשימוש ב-[DialogKeyboardNavigator] מתוך StatefulWidget.
-///
-/// שימוש:
-/// ```dart
-/// class _MyDialogState extends State<MyDialog>
-///     with DialogNavigationMixin<MyDialog> {
-///
-///   @override
-///   Widget build(BuildContext context) {
-///     return buildKeyboardNavigator(
-///       child: ...,
-///       onConfirm: _submit,
-///       onCancel: () => Navigator.of(context).pop(),
-///     );
-///   }
-/// }
-/// ```
-mixin DialogNavigationMixin<T extends StatefulWidget> on State<T> {
-  /// 0 = Cancel, 1 = Confirm (ברירת מחדל: Confirm ממוקד)
-  int focusedButtonIndex = 1;
-
-  Widget buildKeyboardNavigator({
-    required Widget child,
-    required VoidCallback onConfirm,
-    required VoidCallback onCancel,
-    FocusNode? textFieldFocusNode,
-    bool handleEnterKey = true,
-  }) {
-    return DialogKeyboardNavigator(
-      focusedIndex: focusedButtonIndex,
-      onFocusChange: (index) => setState(() => focusedButtonIndex = index),
-      onConfirm: onConfirm,
-      onCancel: onCancel,
-      textFieldFocusNode: textFieldFocusNode,
-      handleEnterKey: handleEnterKey,
-      child: child,
+          return _handleEnter();
+        },
+        child: child,
+      ),
     );
   }
 }

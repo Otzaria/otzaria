@@ -1,0 +1,158 @@
+name: WPE strip real released DEB smoke
+
+on:
+  pull_request:
+    paths:
+      - 'tool/release/strip_wpe_runtime.sh'
+      - '.github/workflows/build-and-announce.yml'
+      - '.github/workflows/wpe_strip_released_bundle_smoke.yml'
+      - 'linux/packaging/deb/make_config.yaml'
+      - 'test/release/wpe_released_bundle_smoke_test.dart'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  released-bundle:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+            asset_id: 703107518
+            sha256: 1e692a7268fd35f21cf190ae927bab4d118d90fc4761d852a8aea9f6bbf0a5ef
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            asset_id: 703096966
+            sha256: f60eff1be1c4aa5683d62bd8946871ec54a3d626c99059cab0f7250a28f586dc
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install ELF tools and virtual desktop
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq binutils xvfb
+
+      - name: Download and checksum-verify the immutable historical release
+        shell: bash
+        env:
+          ASSET_ID: ${{ matrix.asset_id }}
+          EXPECTED_SHA: ${{ matrix.sha256 }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 8 --retry-all-errors --retry-delay 3 --max-time 300 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/octet-stream" \
+            "https://api.github.com/repos/Otzaria/otzaria/releases/assets/$ASSET_ID" \
+            -o "$RUNNER_TEMP/released.deb"
+          printf '%s  %s\n' "$EXPECTED_SHA" "$RUNNER_TEMP/released.deb" | sha256sum --check -
+          mkdir -p "$RUNNER_TEMP/extracted"
+          dpkg-deb --extract "$RUNNER_TEMP/released.deb" "$RUNNER_TEMP/extracted"
+
+      - name: Install the verified DEB runtime dependencies and audited omissions
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Extraction does not resolve Depends as a user's apt installation does.
+          dependencies="$(dpkg-deb --field "$RUNNER_TEMP/released.deb" Depends)"
+          test -n "$dependencies"
+          # These link/dlopen providers are absent from this immutable DEB's Depends.
+          # Keep the historical payload intact; new DEBs declare them in make_config.yaml.
+          dependencies+=", libwayland-server0, libegl1, libgles2, libgl1, libgbm1, libx11-xcb1, libcurl4, libxmu6"
+          sudo apt-get satisfy -y --no-install-recommends "$dependencies"
+
+      - name: Strip WPE in the actual historical DEB payload, never in the SDK
+        shell: bash
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          bundle="$RUNNER_TEMP/extracted/opt/otzaria"
+          libdir="$bundle/lib"
+          test -f "$libdir/libWPEWebKit-2.0.so.1"
+          # Intentional: no /opt/wpe-sdk and no preexisting-missing override.
+          unset WPE_STRIP_ALLOW_PREEXISTING_MISSING
+          export LD_LIBRARY_PATH="$libdir"
+          python3 - "$RUNNER_TEMP/extracted" "$RUNNER_TEMP/before.json" <<'PY'
+          import json, pathlib, sys
+          root = pathlib.Path(sys.argv[1])
+          files = [p for p in root.rglob('*') if p.is_file() and not p.is_symlink()]
+          json.dump({'logicalPayloadBytes': sum(p.stat().st_size for p in files),
+                     'allocatedBytesOnRunner': sum(p.stat().st_blocks * 512 for p in files)}, open(sys.argv[2], 'w'))
+          PY
+          bash tool/release/strip_wpe_runtime.sh "$libdir" | tee "$RUNNER_TEMP/strip.tsv"
+          savings="$(awk -F '\t' '$1=="wpe_strip_savings_bytes"{print $2}' "$RUNNER_TEMP/strip.tsv")"
+          test -n "$savings" && test "$savings" -gt 30000000
+          # Runtime load/link smoke: resolves the shipped ELF, not an SDK copy.
+          python3 - "$libdir" <<'PY'
+          import ctypes, os, pathlib, sys
+          target = pathlib.Path(sys.argv[1]) / 'libWPEWebKit-2.0.so.1'
+          ctypes.CDLL(str(target), mode=os.RTLD_NOW)
+          print('WPE dlopen RTLD_NOW succeeded:', target)
+          PY
+          python3 - "$RUNNER_TEMP/extracted" "$RUNNER_TEMP/before.json" "$RUNNER_TEMP/strip.tsv" "$RUNNER_TEMP/report.json" <<'PY'
+          import json, os, pathlib, sys
+          root, old, tsv, out = map(pathlib.Path, sys.argv[1:])
+          pre = json.loads(old.read_text())
+          files = [p for p in root.rglob('*') if p.is_file() and not p.is_symlink()]
+          vals = dict(line.strip().split('\t', 1) for line in tsv.read_text().splitlines()
+                      if line.startswith('wpe_strip_') and line.count('\t') == 1)
+          report = {
+              'source': 'unchanged_published_deb_0.9.98.3+809',
+              'arch': os.environ['ARCH'],
+              'originalDownloadBytes': pathlib.Path(os.environ['RUNNER_TEMP'], 'released.deb').stat().st_size,
+              'originalPayloadBytes': pre['logicalPayloadBytes'],
+              'strippedExtractedPayloadBytes': sum(p.stat().st_size for p in files),
+              'originalAllocatedBytesOnRunner': pre['allocatedBytesOnRunner'],
+              'strippedAllocatedBytesOnRunner': sum(p.stat().st_blocks * 512 for p in files),
+              'wpeELFBytesBefore': int(vals['wpe_strip_before_bytes']),
+              'wpeELFBytesAfter': int(vals['wpe_strip_after_bytes']),
+              'wpeELFLogicalSavingsBytes': int(vals['wpe_strip_savings_bytes']),
+              'runtimeDlopenRTLDNOW': 'passed',
+              'newCompressedDEBDownloadBytes': None,
+              'actualInstalledSizeBytes': None,
+              'documentRenderSmoke': 'not_run',
+          }
+          out.write_text(json.dumps(report, indent=2)+'\n')
+          print(json.dumps(report, indent=2))
+          PY
+
+      - name: GUI startup smoke under Xvfb (not a document rendering test)
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="$RUNNER_TEMP/extracted/opt/otzaria/otzaria"
+          libdir="$RUNNER_TEMP/extracted/opt/otzaria/lib"
+          test -x "$app"
+          mkdir -p "$RUNNER_TEMP/home" "$RUNNER_TEMP/config"
+          set +e
+          HOME="$RUNNER_TEMP/home" XDG_CONFIG_HOME="$RUNNER_TEMP/config" \
+            LD_LIBRARY_PATH="$libdir" WEBKIT_EXEC_PATH="$libdir" \
+            WEBKIT_INJECTED_BUNDLE_PATH="$libdir" \
+            timeout --signal=TERM --kill-after=2s 15s xvfb-run -a "$app" \
+            > "$RUNNER_TEMP/launch.log" 2>&1
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
+            cat "$RUNNER_TEMP/launch.log"
+            echo "GUI startup smoke failed (exit $status)" >&2
+            exit 1
+          fi
+          echo "Historical release launch smoke returned $status; this does not validate PDF/WebView rendering."
+          cat "$RUNNER_TEMP/launch.log" | tail -30
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: real-deb-strip-smoke-${{ matrix.arch }}
+          path: |
+            ${{ runner.temp }}/report.json
+            ${{ runner.temp }}/strip.tsv
+            ${{ runner.temp }}/launch.log
+          if-no-files-found: warn
+          retention-days: 30

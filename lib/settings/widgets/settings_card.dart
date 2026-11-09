@@ -35,14 +35,9 @@ class SettingsCard extends StatelessWidget {
   bool get _hasTitle =>
       title != null && !(title is String && (title as String).isEmpty);
 
-  /// סגנון כותרת הכרטיס — מקור אמת יחיד, גם לשורות שרוצות להיראות ככותרת.
-  static TextStyle? titleStyleOf(BuildContext context) {
-    final theme = Theme.of(context);
-    return theme.textTheme.titleMedium?.copyWith(
-      fontWeight: FontWeight.bold,
-      color: theme.colorScheme.primary,
-    );
-  }
+  /// סגנון כותרת הכרטיס ([AppSectionLabel]), גם לשורות שרוצות להיראות ככותרת.
+  static TextStyle? titleStyleOf(BuildContext context) =>
+      AppSectionLabel.styleOf(context);
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +60,7 @@ class SettingsCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           title is String
-              ? Text(title as String, style: titleStyle)
+              ? AppSectionLabel(title as String)
               : DefaultTextStyle(
                   style: titleStyle ?? const TextStyle(),
                   child: title as Widget,
@@ -246,9 +241,9 @@ class _RadioIndicator extends StatelessWidget {
 /// • `SettingsActionTile.path(title: '...', path: '...', ...)` — path עם BiDi.
 ///
 /// ### factory methods (נראים כבנאים ב-call site)
-/// • `SettingsActionTile.switchTile(...)` — שורה עם [CustomSwitch], focus וניהול keyboard.
-/// • `SettingsActionTile.dropdownTile(...)` — שורה עם [AppDropdownField].
-/// • `SettingsActionTile.segmentedTile(...)` — שורה עם [AppSegmentedControl].
+/// • `SettingsSwitchTile(...)` — שורה עם [CustomSwitch], focus וניהול keyboard.
+/// • `SettingsDropdownTile(...)` — שורה עם [AppDropdownField].
+/// • `SettingsSegmentedTile(...)` — שורה עם [AppSegmentedControl].
 ///
 /// ### אייקונים
 /// • [icon] — אייקון סטטי ([Icon]), לא מתהפך ב-RTL.
@@ -349,14 +344,18 @@ class SettingsActionTile extends StatelessWidget {
     required bool selected,
     VoidCallback? onTap,
     List<Widget> actions = const [],
-  }) => SettingsActionTile.text(
+  }) => Semantics(
     key: key,
-    title: title,
-    subtitle: subtitle,
-    subtitleLtr: subtitleLtr,
-    leading: _RadioIndicator(selected: selected),
-    actions: actions,
-    onTap: onTap,
+    checked: selected,
+    inMutuallyExclusiveGroup: true,
+    child: SettingsActionTile.text(
+      title: title,
+      subtitle: subtitle,
+      subtitleLtr: subtitleLtr,
+      leading: _RadioIndicator(selected: selected),
+      actions: actions,
+      onTap: onTap,
+    ),
   );
 
   /// קונסטרקטור ייעודי לנתיבי קבצים — מאכוף LTR ומוסיף סימני U+200E אחרי מפרידים.
@@ -389,125 +388,6 @@ class SettingsActionTile extends StatelessWidget {
          (path != null && path.isNotEmpty) ? _formatPath(path) : placeholder,
          ltr: path != null && path.isNotEmpty,
        );
-
-  // ── Static factory methods ─────────────────────────────────────────────────
-  // נראים כבנאים ב-call site (SettingsActionTile.switchTile(...)) אך מחזירים
-  // widget פרטי עצמאי — מאפשר state management ללא שכפול בקוד קורא.
-
-  /// שורת ניהול נתיב תיקייה — כפתור "אפשרויות מיקום" עם תפריט פעולות.
-  /// [clearPathEnabled] — כשfalse, "הסרת מיקום שמור" מוצג בתפריט כפריט לא פעיל.
-  /// [simpleButtonWhenEmpty] — כאשר true (ברירת מחדל) ואין נתיב, מוצג כפתור "הגדר מיקום".
-  static Widget pathTile({
-    Key? key,
-    required IconData icon,
-    required String title,
-    required String currentPath,
-    String placeholder = 'לא נבחר מיקום',
-    required Future<void> Function(String newPath) onFolderChanged,
-    required VoidCallback onOpenFolder,
-    VoidCallback? onClearPath,
-    Future<void> Function(BuildContext)? requestChangeLocation,
-    bool simpleButtonWhenEmpty = true,
-    bool clearPathEnabled = true,
-    List<PathTarget>? pathTargets,
-    void Function(String path)? onOpenPath,
-    String changeLocationLabel = 'שינוי מיקום...',
-  }) => _PathTile(
-    key: key,
-    icon: icon,
-    title: title,
-    currentPath: currentPath,
-    placeholder: placeholder,
-    onFolderChanged: onFolderChanged,
-    onOpenFolder: onOpenFolder,
-    onClearPath: onClearPath,
-    requestChangeLocation: requestChangeLocation,
-    simpleButtonWhenEmpty: simpleButtonWhenEmpty,
-    clearPathEnabled: clearPathEnabled,
-    pathTargets: pathTargets,
-    onOpenPath: onOpenPath,
-    changeLocationLabel: changeLocationLabel,
-  );
-
-  /// שורת on/off עם [CustomSwitch].
-  /// tap על כל השורה, Enter ו-Space מחליפים מצב.
-  static Widget switchTile({
-    Key? key,
-    IconData? icon,
-    IconData? rtlIcon,
-    Color? iconColor,
-    required String title,
-    String? subtitle,
-    bool subtitleLtr = false,
-    Color? subtitleColor,
-    required bool value,
-    ValueChanged<bool>? onChanged,
-    bool enabled = true,
-  }) => _SwitchTile(
-    key: key,
-    icon: icon,
-    rtlIcon: rtlIcon,
-    iconColor: iconColor,
-    title: title,
-    subtitle: subtitle,
-    subtitleLtr: subtitleLtr,
-    subtitleColor: subtitleColor,
-    value: value,
-    onChanged: onChanged,
-    enabled: enabled,
-  );
-
-  /// שורה עם [AppDropdownField].
-  /// [subtitle] — כשלא סופק, נלקח אוטומטית מ-[AppMenuEntry.subtitle] של האפשרות הנבחרת.
-  static Widget dropdownTile<T>({
-    Key? key,
-    IconData? icon,
-    IconData? rtlIcon,
-    required String title,
-    String? subtitle,
-    required T? value,
-    required List<AppMenuEntry<T>> entries,
-    required ValueChanged<T?> onSelected,
-    bool enableSearch = false,
-    bool stacked = false,
-  }) => _DropdownTile<T>(
-    key: key,
-    icon: icon,
-    rtlIcon: rtlIcon,
-    title: title,
-    subtitle: subtitle,
-    value: value,
-    entries: entries,
-    onSelected: onSelected,
-    enableSearch: enableSearch,
-    stacked: stacked,
-  );
-
-  /// שורה עם [AppSegmentedControl].
-  /// במסך רחב: מוגבל ל-400px. במסך צר: מתרחב לכל הרוחב.
-  /// כשלאפשרויות ([SegmentOption.icon]) יש אייקונים, אייקון השורה עוקב
-  /// אוטומטית אחרי הבחירה הנוכחית ([icon] משמש רק כברירת מחדל).
-  static Widget segmentedTile<T>({
-    Key? key,
-    IconData? icon,
-    IconData? rtlIcon,
-    Color? iconColor,
-    required String title,
-    String? subtitle,
-    required List<SegmentOption<T>> options,
-    required T currentValue,
-    required ValueChanged<T> onChanged,
-  }) => _SegmentedTile<T>(
-    key: key,
-    icon: icon,
-    rtlIcon: rtlIcon,
-    iconColor: iconColor,
-    title: title,
-    subtitle: subtitle,
-    options: options,
-    currentValue: currentValue,
-    onChanged: onChanged,
-  );
 
   // ── Internals ──────────────────────────────────────────────────────────────
 
@@ -546,7 +426,11 @@ class SettingsActionTile extends StatelessWidget {
 
   // בודק עם TextPainter אם הטקסט יגלוש כשה-actions יהיו ב-trailing.
   // אומדן שמרני לרוחב הactions כדי להטות לצד של Column (לא ידחוס את הטקסט).
-  bool _wouldTextOverflow(double containerWidth, TextDirection textDirection) {
+  bool _wouldTextOverflow(
+    double containerWidth,
+    TextDirection textDirection,
+    TextScaler textScaler,
+  ) {
     if (_rawTitle == null) return false;
     const iconAreaWidth = 56.0;
     const hPadding = 32.0;
@@ -564,6 +448,7 @@ class SettingsActionTile extends StatelessWidget {
     final titlePainter = TextPainter(
       text: TextSpan(text: _rawTitle, style: AppTextStyles.settingTitle),
       textDirection: textDirection,
+      textScaler: textScaler,
       maxLines: 1,
     )..layout(maxWidth: textWidth);
     if (titlePainter.didExceedMaxLines) return true;
@@ -575,6 +460,7 @@ class SettingsActionTile extends StatelessWidget {
       final subtitlePainter = TextPainter(
         text: TextSpan(text: rawSubtitle, style: AppTextStyles.settingSubtitle),
         textDirection: textDirection,
+        textScaler: textScaler,
         maxLines: 2,
       )..layout(maxWidth: textWidth);
       if (subtitlePainter.didExceedMaxLines) return true;
@@ -650,6 +536,7 @@ class SettingsActionTile extends StatelessWidget {
               _wouldTextOverflow(
                 constraints.maxWidth,
                 Directionality.of(context),
+                MediaQuery.textScalerOf(context),
               )
           ? _buildColumnLayout()
           : _buildListTile(),
@@ -657,9 +544,10 @@ class SettingsActionTile extends StatelessWidget {
   }
 }
 
-// ── _SwitchTile ───────────────────────────────────────────────────────────────
+// ── SettingsSwitchTile ────────────────────────────────────────────────────────
 
-class _SwitchTile extends StatefulWidget {
+/// שורת on/off עם [CustomSwitch]: הקשה על כל השורה, Enter ו־Space מחליפים מצב.
+class SettingsSwitchTile extends StatefulWidget {
   final IconData? icon;
   final IconData? rtlIcon;
   final Color? iconColor;
@@ -671,7 +559,7 @@ class _SwitchTile extends StatefulWidget {
   final ValueChanged<bool>? onChanged;
   final bool enabled;
 
-  const _SwitchTile({
+  const SettingsSwitchTile({
     super.key,
     this.icon,
     this.rtlIcon,
@@ -686,10 +574,10 @@ class _SwitchTile extends StatefulWidget {
   });
 
   @override
-  State<_SwitchTile> createState() => __SwitchTileState();
+  State<SettingsSwitchTile> createState() => _SettingsSwitchTileState();
 }
 
-class __SwitchTileState extends State<_SwitchTile> {
+class _SettingsSwitchTileState extends State<SettingsSwitchTile> {
   late final FocusNode _focusNode;
 
   @override
@@ -756,9 +644,11 @@ class __SwitchTileState extends State<_SwitchTile> {
   }
 }
 
-// ── _DropdownTile ─────────────────────────────────────────────────────────────
+// ── SettingsDropdownTile ──────────────────────────────────────────────────────
 
-class _DropdownTile<T> extends StatelessWidget {
+/// שורה עם [AppDropdownField]. בלי [subtitle] מוצג ה־[AppMenuEntry.subtitle]
+/// של האפשרות הנבחרת.
+class SettingsDropdownTile<T> extends StatelessWidget {
   final IconData? icon;
   final IconData? rtlIcon;
   final String title;
@@ -769,7 +659,7 @@ class _DropdownTile<T> extends StatelessWidget {
   final bool enableSearch;
   final bool stacked;
 
-  const _DropdownTile({
+  const SettingsDropdownTile({
     super.key,
     this.icon,
     this.rtlIcon,
@@ -809,9 +699,11 @@ class _DropdownTile<T> extends StatelessWidget {
   }
 }
 
-// ── _SegmentedTile ────────────────────────────────────────────────────────────
+// ── SettingsSegmentedTile ─────────────────────────────────────────────────────
 
-class _SegmentedTile<T> extends StatefulWidget {
+/// שורה עם [AppSegmentedControl]: במסך רחב עד 440, במסך צר ברוחב מלא.
+/// כשלאפשרויות יש אייקונים, אייקון השורה עוקב אחרי הבחירה ([icon] ברירת מחדל).
+class SettingsSegmentedTile<T> extends StatefulWidget {
   final IconData? icon;
   final IconData? rtlIcon;
   final Color? iconColor;
@@ -821,7 +713,7 @@ class _SegmentedTile<T> extends StatefulWidget {
   final T currentValue;
   final ValueChanged<T> onChanged;
 
-  const _SegmentedTile({
+  const SettingsSegmentedTile({
     super.key,
     this.icon,
     this.rtlIcon,
@@ -834,10 +726,11 @@ class _SegmentedTile<T> extends StatefulWidget {
   });
 
   @override
-  State<_SegmentedTile<T>> createState() => __SegmentedTileState<T>();
+  State<SettingsSegmentedTile<T>> createState() =>
+      _SettingsSegmentedTileState<T>();
 }
 
-class __SegmentedTileState<T> extends State<_SegmentedTile<T>> {
+class _SettingsSegmentedTileState<T> extends State<SettingsSegmentedTile<T>> {
   final FocusNode _focusNode = FocusNode(debugLabel: 'segmented_tile');
   int _focusedIndex = 0;
 
@@ -848,7 +741,7 @@ class __SegmentedTileState<T> extends State<_SegmentedTile<T>> {
   }
 
   @override
-  void didUpdateWidget(covariant _SegmentedTile<T> oldWidget) {
+  void didUpdateWidget(covariant SettingsSegmentedTile<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.currentValue != widget.currentValue ||
         oldWidget.options != widget.options) {
@@ -1017,9 +910,12 @@ class PathTarget {
   const PathTarget({required this.label, required this.path});
 }
 
-// ── _PathTile ─────────────────────────────────────────────────────────────────
+// ── SettingsPathTile ──────────────────────────────────────────────────────────
 
-class _PathTile extends StatelessWidget {
+/// שורת נתיב תיקייה עם כפתור "אפשרויות מיקום" ותפריט פעולות.
+/// [clearPathEnabled] false: "הסרת מיקום שמור" מושבת בתפריט.
+/// [simpleButtonWhenEmpty]: בלי נתיב מוצג כפתור "הגדר מיקום".
+class SettingsPathTile extends StatelessWidget {
   final IconData icon;
   final String title;
   final String currentPath;
@@ -1034,12 +930,12 @@ class _PathTile extends StatelessWidget {
   final void Function(String path)? onOpenPath;
   final String changeLocationLabel;
 
-  const _PathTile({
+  const SettingsPathTile({
     super.key,
     required this.icon,
     required this.title,
     required this.currentPath,
-    required this.placeholder,
+    this.placeholder = 'לא נבחר מיקום',
     required this.onFolderChanged,
     required this.onOpenFolder,
     this.onClearPath,

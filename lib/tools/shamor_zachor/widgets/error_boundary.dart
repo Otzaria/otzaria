@@ -98,7 +98,7 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
                 children: [
                   Icon(
                     FluentIcons.error_circle_24_regular,
-                    size: 64,
+                    size: AppTokens.iconXL,
                     color: Theme.of(context).colorScheme.error,
                   ),
                   const SizedBox(height: 16),
@@ -142,7 +142,9 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
                           width: double.infinity,
                           padding: const EdgeInsets.all(12.0),
                           decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.05),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHighest,
                             borderRadius: AppTokens.borderRadiusAll,
                           ),
                           child: AppSelectionArea(
@@ -150,7 +152,7 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
                               'Type: ${error.type}\n\nMessage: ${error.message}\n\nDetails: ${error.details}\n\nStackTrace: ${error.stackTrace ?? 'N/A'}',
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
-                                    fontFamily: 'monospace',
+                                    fontFamily: AppTextStyles.monospaceFamily,
                                   ),
                             ),
                           ),
@@ -174,16 +176,12 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
     });
   }
 
+  /// מחזיר את התוכן. לא נוגע בניווט: ה־Navigator כאן הוא של החלון (DD-29).
   void _reset() {
     setState(() {
       _hasError = false;
       _error = null;
     });
-
-    // Navigate back to root or refresh the app
-    if (Navigator.canPop(context)) {
-      Navigator.popUntil(context, (route) => route.isFirst);
-    }
   }
 
   static void _registerBoundary(_ErrorBoundaryState boundary) {

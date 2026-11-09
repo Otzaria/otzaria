@@ -46,6 +46,25 @@ class AppContextMenuRegion extends StatefulWidget {
 class AppContextMenuRegionState extends State<AppContextMenuRegion> {
   final _menuKey = GlobalKey<menu.ContextMenuRegionState>();
   OverlayScrollAnchor? _menuOpenScrollAnchor;
+  late menu.MenuPresentation _presentation;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Recreate only when inherited presentation dependencies change.
+    // Rebuilding the reader must not rebuild an open menu's overlay merely
+    // because new callback instances were allocated for the same theme.
+    _presentation = createAppMenuPresentation(context);
+  }
+
+  // A stable instance-method tear-off avoids an unnecessary Escape handler
+  // unregister/register cycle on every unrelated reader rebuild.
+  VoidCallback _registerWindowEscape(OnKeyEventCallback handler) =>
+      _registerMenuEscape(
+        (event) => mounted && !AppWindowKeys.isActiveWindow(context)
+            ? KeyEventResult.ignored
+            : handler(event),
+      );
 
   Future<void> showMenu() async => _menuKey.currentState?.showMenu();
 
@@ -53,17 +72,19 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
       _menuKey.currentState?.openMenuAt(globalPosition);
 
   @override
+  void dispose() {
+    _menuOpenScrollAnchor = null;
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final presentation = createAppMenuPresentation(context);
+    final presentation = _presentation;
     return menu.ContextMenuRegion(
       key: _menuKey,
       presentation: presentation,
       // ESC מחלון אחר (אותו FocusManager) לא סוגר תפריט בחלון הזה.
-      registerEscape: (handler) => _registerMenuEscape(
-        (event) => mounted && !AppWindowKeys.isActiveWindow(context)
-            ? KeyEventResult.ignored
-            : handler(event),
-      ),
+      registerEscape: _registerWindowEscape,
       menuBuilder: widget.menuBuilder,
       menuItemKeysByLabel: widget.menuItemKeysByLabel,
       onSecondaryTapDown: widget.onSecondaryTapDown,
@@ -75,6 +96,8 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
         // הלכידה חייבת להקדים את ה-overlay כדי לפגוע בתוכן שמתחתיו.
         _menuOpenScrollAnchor = OverlayScrollAnchor.capture(context, position);
       },
+      // Release the retained RenderBox and ScrollPosition when the menu closes.
+      onMenuClosed: () => _menuOpenScrollAnchor = null,
       previewWrapper: (context, previewBuilder, onPinned, child) =>
           _MenuItemHoverPreview(
             previewBuilder: previewBuilder,

@@ -232,7 +232,7 @@ final class FixtureTests: XCTestCase {
         let asset = manifest.components[0].assets[0]
         XCTAssertEqual(
             Endpoints.assetURL(repository: asset.repository, tag: asset.releaseTag, name: asset.name)?.absoluteString,
-            "https://github.com/Otzaria/otzaria/releases/download/0.10.3+143/app-release.apk"
+            "https://github.com/Otzaria/otzaria/releases/download/0.10.3+143/otzaria-android.apk"
         )
     }
 

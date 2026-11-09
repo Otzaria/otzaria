@@ -19,6 +19,7 @@ import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/settings/search/settings_anchor.dart';
 import 'package:otzaria/settings/search/settings_search_index.g.dart';
@@ -39,7 +40,7 @@ class _LibraryBloc extends MockBloc<LibraryEvent, LibraryState>
 
 void main() {
   late Directory root;
-  late _SettingsBloc settings;
+  late SettingsBloc settings;
   late _LibraryBloc library;
 
   setUp(() async {
@@ -362,10 +363,19 @@ void main() {
     tester,
   ) async {
     await tester.runAsync(() async {
+      await settings.close();
       await Hive.close();
-      SharedPreferences.setMockInitialValues({});
+      SharedPreferences.setMockInitialValues({
+        SettingsRepository.keySettingsLanguage: 'he',
+      });
       await Settings.init(cacheProvider: SharePreferenceCache());
     });
+    final repository = SettingsRepository();
+    settings = SettingsBloc(
+      repository: repository,
+      initialSettings: repository.readSettings(),
+      ensureFontLoaded: (_) async {},
+    );
     await pumpTab(tester);
     await navigate(tester, 'system.advanced.backup.notes');
 
@@ -379,15 +389,17 @@ void main() {
       matching: find.byType(CustomSwitch),
     );
     await tester.tap(toggle);
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(Settings.getValue<bool>('key-backup-notes'), isFalse);
     expect(BackupService.includesAllSections, isFalse);
     await tester.tap(toggle);
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(Settings.getValue<bool>('key-backup-notes'), isTrue);
     expect(BackupService.includesAllSections, isTrue);
     expect(target, findsNothing);
     expect(Hive.isBoxOpen(HiveCache.keyName), isFalse);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
 }

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/layout/tool_results_header.dart';
+import 'package:otzaria/widgets/layout/tool_scaffold.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -11,8 +11,8 @@ import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository
 import 'package:otzaria/tools/tool_query.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
-import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
+import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
+import 'package:otzaria/shortcuts/current_window_search_activator.dart';
 
 class AcronymsDictionaryScreen extends StatefulWidget {
   const AcronymsDictionaryScreen({
@@ -38,6 +38,7 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen>
   List<AcronymCatalogEntry> _catalog = [];
   List<AcronymCatalogEntry> _filteredResults = [];
   bool _isLoading = true;
+  bool _loadFailed = false;
 
   @override
   ToolQueryInbox? get toolQueryInbox => widget.queryInbox;
@@ -68,6 +69,12 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen>
   }
 
   Future<void> _loadDictionary() async {
+    if (!_isLoading) {
+      setState(() {
+        _isLoading = true;
+        _loadFailed = false;
+      });
+    }
     try {
       await _dictionaryRepository.ensureAcronymsLoaded();
 
@@ -77,21 +84,31 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen>
         _catalog = _dictionaryRepository.getAcronymSearchCatalog();
         _isLoading = false;
       });
+      // השדה גלוי גם בטעינה, ומה שהוקלד בה מחפש עכשיו במילון הטעון.
+      _performSearch(_searchController.text);
     } catch (e) {
       if (!mounted) return;
 
       setState(() {
         _isLoading = false;
+        _loadFailed = true;
       });
       UiSnack.showError(ToolsMessages.dictionaryLoadError(e));
     }
     consumeToolQuery();
   }
 
+  // השאילתה הקודמת וההתאמות שלה, בסדר הקטלוג שבו נמצאו.
+  List<AcronymCatalogEntry> _lastCatalog = const [];
+  String _lastQuery = '';
+  String _lastNormalizedQuery = '';
+  List<AcronymCatalogEntry> _lastMatches = const [];
+
   void _performSearch(String query) {
     query = query.trim();
 
     if (query.isEmpty) {
+      _lastQuery = '';
       setState(() {
         _filteredResults = [];
       });
@@ -100,32 +117,34 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen>
 
     final normalizedQuery = _dictionaryRepository.normalizeAcronymQuery(query);
 
-    // הדירוג מחושב פעם אחת לכל תוצאה ולא בכל השוואה במיון — בשאילתה של אות
-    // אחת כמעט כל המילון תואם.
-    final ranked = <({AcronymCatalogEntry entry, int rank})>[];
-    for (final entry in _catalog) {
+    // שאילתה שמכילה את הקודמת (גם אחרי נרמול) מתאימה רק למה שהתאים לקודמת.
+    final narrows =
+        identical(_lastCatalog, _catalog) &&
+        _lastQuery.isNotEmpty &&
+        query.contains(_lastQuery) &&
+        (normalizedQuery.isEmpty ||
+            (_lastNormalizedQuery.isNotEmpty &&
+                normalizedQuery.contains(_lastNormalizedQuery)));
+    final matches = <AcronymCatalogEntry>[];
+    // הקטלוג כבר ממוין לפי שוברי השוויון של הדירוג (אורך ואז א"ב), ולכן די
+    // לקבץ לפי _matchRank (0–4) בלי למיין.
+    final byRank = List.generate(5, (_) => <AcronymCatalogEntry>[]);
+    for (final entry in narrows ? _lastMatches : _catalog) {
       if (entry.displayAcronym.contains(query) ||
           (normalizedQuery.isNotEmpty &&
               entry.normalizedKey.contains(normalizedQuery)) ||
           entry.meanings.any((meaning) => meaning.contains(query))) {
-        ranked.add((
-          entry: entry,
-          rank: _matchRank(entry, query, normalizedQuery),
-        ));
+        matches.add(entry);
+        byRank[_matchRank(entry, query, normalizedQuery)].add(entry);
       }
     }
-    ranked.sort((a, b) {
-      final rankCompare = a.rank.compareTo(b.rank);
-      if (rankCompare != 0) return rankCompare;
-      final lengthCompare = a.entry.displayAcronym.length.compareTo(
-        b.entry.displayAcronym.length,
-      );
-      if (lengthCompare != 0) return lengthCompare;
-      return a.entry.displayAcronym.compareTo(b.entry.displayAcronym);
-    });
+    _lastCatalog = _catalog;
+    _lastQuery = query;
+    _lastNormalizedQuery = normalizedQuery;
+    _lastMatches = matches;
 
     setState(() {
-      _filteredResults = [for (final match in ranked) match.entry];
+      _filteredResults = [for (final group in byRank) ...group];
     });
   }
 
@@ -149,51 +168,39 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const LoadingIndicator();
-    }
-
-    return CallbackShortcuts(
-      bindings: {
-        currentWindowSearchActivator(context): () {
-          _searchFocusNode.requestFocus();
-        },
-      },
-      child: Column(
-        children: [
-          AppTopBar(
-            center: OtzariaSearchField(
-              controller: _searchController,
-              focusNode: _searchFocusNode,
-              icon: OtzariaIcons.search_in_quote_24_regular,
-              hintText: 'חפש ראשי תיבות...',
-              autofocus: true,
-              onChanged: _performSearch,
-              onClear: () => setState(() => _filteredResults = []),
-            ),
-          ),
-          Expanded(
-            child: ToolPanelWrapper(
-              child: _buildResultsList(),
-            ),
-          ),
-        ],
+    return ToolScaffold(
+      onSearchShortcut: _searchFocusNode.requestFocus,
+      searchShortcut: currentWindowSearchActivator(context),
+      loading: _isLoading,
+      loadError: _loadFailed ? 'טעינת המילון נכשלה' : null,
+      onRetry: _loadDictionary,
+      topBar: AppTopBar(
+        center: OtzariaSearchField(
+          controller: _searchController,
+          focusNode: _searchFocusNode,
+          icon: OtzariaIcons.search_in_quote_24_regular,
+          hintText: 'חפש ראשי תיבות...',
+          autofocus: true,
+          onChanged: _performSearch,
+          onClear: () => setState(() => _filteredResults = []),
+        ),
       ),
+      body: _buildResultsList(),
     );
   }
 
   Widget _buildResultsList() {
     if (_searchController.text.isEmpty) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: FluentIcons.text_quote_24_regular,
-        message: 'הזן ראשי תיבות לחיפוש במילון',
+        title: 'הזן ראשי תיבות לחיפוש במילון',
       );
     }
 
     if (_filteredResults.isEmpty) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: OtzariaIcons.search_24_regular,
-        message: 'לא נמצאו תוצאות',
+        title: 'לא נמצאו תוצאות',
       );
     }
 

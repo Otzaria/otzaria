@@ -53,7 +53,7 @@ void main() {
       );
     });
 
-    // `findBookByTitle` משווה `runtimeType` ולא `is`, ולכן בלי העטיפה
+    // ספר-מסמך אינו `TextBook`, ולכן בלי העטיפה
     // ב-`toTextBook()` כל קישור `book://` אל ספר-מסמך היה מת — וב-HTML זו
     // הדרך המתועדת לקשר בין ספרים.
     for (final entry in const {
@@ -84,6 +84,26 @@ void main() {
         expect(resolved.categoryId, 7);
       });
     }
+
+    test('ספר טקסט ישיר עדיף על מסמך בר-המרה בעל אותו שם', () {
+      final convertible = buildBookForFileType(
+        fileType: 'html',
+        title: 'ספר',
+        path: 'C:/ספרים/ספר.html',
+        filePath: 'C:/ספרים/ספר.html',
+        categoryId: 7,
+      );
+      final direct = TextBook(
+        title: 'ספר',
+        filePath: 'C:/ספרים/ספר.txt',
+      );
+      final resolved = HtmlLinkHandler.resolveBookLinkTarget(
+        _libraryWith([convertible, direct]),
+        'ספר',
+      );
+
+      expect(resolved, same(direct));
+    });
 
     test('ספר PDF אינו יעד לקישור טקסט', () {
       final library = _libraryWith([

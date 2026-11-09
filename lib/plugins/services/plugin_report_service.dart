@@ -257,12 +257,10 @@ class PluginReportService {
     _isFlushing = true;
     final inFlight = _flushInFlight = Completer<void>();
     try {
-      final rows = await _reports.listByKind(pendingKind);
-      if (rows.isEmpty) {
-        return 0;
-      }
-
-      final rowsToAttempt = rows.take(_maxQueuedFlushPerRun).toList();
+      final rowsToAttempt = await _reports.listByKind(
+        pendingKind,
+        limit: _maxQueuedFlushPerRun,
+      );
       var sentCount = 0;
 
       for (final row in rowsToAttempt) {

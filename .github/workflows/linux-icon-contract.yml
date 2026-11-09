@@ -1,0 +1,31 @@
+name: Linux icon package contract
+
+on:
+  pull_request:
+    paths:
+      - 'linux/packaging/deb/make_config.yaml'
+      - 'linux/packaging/rpm/make_config.yaml'
+      - 'assets/icon/icon_256.png'
+      - 'tool/release/test_linux_package_icon.py'
+      - '.github/workflows/linux-icon-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s tool/release -p test_linux_package_icon.py -v

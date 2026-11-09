@@ -9,6 +9,7 @@ import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
 import 'package:otzaria/core/windowing/multiview/in_process_tab_drop.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
+import 'package:otzaria/core/windowing/window_fullscreen_top_bar.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_bloc.dart';
 import 'package:otzaria/find_ref/repository/find_ref_factory.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
@@ -233,7 +234,9 @@ class WindowScopeProviders extends StatelessWidget {
           ),
         ],
         // יעד להעברת כרטיסיה ישירה מחלון אחר בתהליך.
-        child: InProcessTabDropReceiver(child: child),
+        child: WindowFullscreenTopBarScope(
+          child: InProcessTabDropReceiver(child: child),
+        ),
       ),
     );
   }

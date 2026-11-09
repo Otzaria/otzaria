@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/models/books.dart';
@@ -24,14 +23,25 @@ import 'package:otzaria/book_common/selection/commentary_copy_guard.dart';
 import 'package:otzaria/tools/dictionary/widgets/laaz_commentary_subblock.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/widgets/commentary/panel_anchor_links.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
+
+typedef CommentaryNotesByLine = Map<int, List<PersonalNote>>;
+
+/// אינדוקס הערות לפי שורה, משותף לטעינה ולבדיקות.
+CommentaryNotesByLine indexCommentaryNotesByLine(List<PersonalNote> notes) {
+  final byLine = <int, List<PersonalNote>>{};
+  for (final note in notes) {
+    if (!note.hasLocation) continue;
+    byLine.putIfAbsent(note.lineNumber!, () => <PersonalNote>[]).add(note);
+  }
+  return byLine;
+}
 
 @visibleForTesting
 List<PersonalNote> commentaryNotesForLine(
-  List<PersonalNote> notes,
+  CommentaryNotesByLine notesByLine,
   int lineNumber,
-) => notes
-    .where((note) => note.hasLocation && note.lineNumber == lineNumber)
-    .toList();
+) => notesByLine[lineNumber] ?? const <PersonalNote>[];
 
 @visibleForTesting
 ValueChanged<int>? commentaryNoteTapHandler(
@@ -85,8 +95,9 @@ class CommentaryContent extends StatefulWidget {
   /// בהעתקה רב-שורתית של מפרשים.
   final void Function(String renderedPlainText)? onRendered;
 
-  /// הערות ספר המפרש. אותו Future משותף לכל קטעי המפרש בקבוצה.
-  final Future<List<PersonalNote>>? personalNotes;
+  /// הערות ספר המפרש, ממופתחות לפי שורה. אותו Future משותף לכל הקטעים
+  /// בקבוצה, ולכן האינדוקס נבנה פעם אחת בעת הטעינה ולא בכל קטע מרונדר.
+  final Future<CommentaryNotesByLine>? personalNotes;
   final void Function(Link link, int lineNumber)? onOpenPersonalNote;
 
   @override
@@ -241,13 +252,13 @@ class _CommentaryContentState extends State<CommentaryContent>
 
               _reportRenderedText(data, renderSettings);
 
-              return FutureBuilder<List<PersonalNote>>(
+              return FutureBuilder<CommentaryNotesByLine>(
                 future: widget.personalNotes,
                 builder: (context, snapshot) {
                   // המפרש מרונדר מיד; הסימונים נוספים כשההערות נטענות. הסתרה
                   // עד לטעינה מעלימה את המפרש כשהטעינה נכשלת או נתקעת.
                   final notesForLine = commentaryNotesForLine(
-                    snapshot.data ?? const <PersonalNote>[],
+                    snapshot.data ?? const <int, List<PersonalNote>>{},
                     widget.link.index2,
                   );
                   var displayData = buildAnnotatedLineHtml(
@@ -336,61 +347,9 @@ class _CommentaryContentState extends State<CommentaryContent>
 
   /// בניית skeleton loading לתוכן פרשנות - שלוש שורות
   Widget _buildSkeletonLoading(BuildContext context) {
-    final baseColor = Theme.of(context).colorScheme.surfaceContainerHighest;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: _SkeletonLine(width: 0.95, height: 14, color: baseColor),
-            ),
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: _SkeletonLine(width: 0.92, height: 14, color: baseColor),
-            ),
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: _SkeletonLine(width: 0.88, height: 14, color: baseColor),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Widget של שורה סטטית לשלד טעינה
-class _SkeletonLine extends StatelessWidget {
-  final double width;
-  final double height;
-  final Color color;
-
-  const _SkeletonLine({
-    required this.width,
-    required this.color,
-    this.height = 14,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      width: MediaQuery.of(context).size.width * width,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: AppTokens.borderRadiusAll,
-      ),
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 8.0),
+      child: SkeletonLines(widths: [0.95, 0.92, 0.88], lineHeight: 14),
     );
   }
 }

@@ -1,8 +1,6 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
 /// כמה משטח המגע של הידית נכנס פנימה לתוך הפאנל. בקצה הפנימי יושב גם פס
@@ -13,8 +11,7 @@ const double kPaneHandleInnerReach = 4;
 
 /// שטח המגע המלא של הידית: 24px רגיל, 18px במצב קומפקטי.
 double handleHitSize(BuildContext context) {
-  final isCompact =
-      context.read<SettingsBloc?>()?.state.compactMenuMode ?? false;
+  final isCompact = AppDensity.of(context).isCompact;
   return isCompact
       ? AppTokens.dragHandleCompactHitSize
       : AppTokens.dragHandleRegularHitSize;
@@ -41,6 +38,7 @@ class ResizableDragHandle extends StatefulWidget {
     this.onDragStart,
     this.onDragEnd,
     this.showDivider = true,
+    this.showIdleGrip,
     this.gripOffset = 0,
   });
 
@@ -51,7 +49,7 @@ class ResizableDragHandle extends StatefulWidget {
   final MouseCursor? cursor;
 
   /// Total interactive thickness (width for vertical, height for horizontal).
-  /// If null, auto-selects 24 when compactMenuMode is off, 18 when on.
+  /// If null, auto-selects 24 in regular density, 18 in compact ([AppDensity]).
   final double? hitSize;
 
   /// Called with the delta along the resize axis (dx if vertical, dy if horizontal).
@@ -62,6 +60,11 @@ class ResizableDragHandle extends StatefulWidget {
 
   /// Whether to show the divider line in idle state. If false, the line only appears on hover/drag.
   final bool showDivider;
+
+  /// האם הידית הקטנה (ה"צופציק" שבאמצע) נראית גם במנוחה. null — כמו
+  /// [showDivider]. `showDivider: false, showIdleGrip: true`: הידית גלויה
+  /// בלי הקו לכל האורך, כשקו אחר כבר יושב באותו קצה (עמודת הכרטיסיות).
+  final bool? showIdleGrip;
 
   /// הזזת הקו הנראה בפיקסלים לאורך ציר השינוי. ראה [paneHandleGripOffset].
   final double gripOffset;
@@ -87,8 +90,7 @@ class _ResizableDragHandleState extends State<ResizableDragHandle> {
   @override
   Widget build(BuildContext context) {
     final isEnabled = widget.onDragDelta != null;
-    final isCompact =
-        context.read<SettingsBloc?>()?.state.compactMenuMode ?? false;
+    final isCompact = AppDensity.of(context).isCompact;
     final effectiveHitSize =
         widget.hitSize ??
         (isCompact
@@ -142,13 +144,16 @@ class _ResizableDragHandleState extends State<ResizableDragHandle> {
               },
         child: TweenAnimationBuilder<double>(
           tween: Tween<double>(begin: 0.0, end: targetBlend),
-          duration: _isDragging ? Duration.zero : AppTokens.animFast,
+          duration: _isDragging
+              ? Duration.zero
+              : AppMotion.duration(context, AppTokens.animFast),
           curve: Curves.easeOut,
           builder: (context, blend, _) {
             final highlightColor = cs.primary.withValues(alpha: 0.22 * blend);
             final thickness = lerpDouble(3.0, 5.0, blend) ?? 3.0;
             final gripLength = lerpDouble(24.0, 32.0, blend) ?? 24.0;
-            final showGrip = widget.showDivider || blend > 0;
+            final showGrip =
+                (widget.showIdleGrip ?? widget.showDivider) || blend > 0;
             final idleOpacity = lerpDouble(0.35, 1.0, blend) ?? 0.35;
             final lineColor = showGrip
                 ? (Color.lerp(
@@ -194,7 +199,10 @@ class _ResizableDragHandleState extends State<ResizableDragHandle> {
                           ),
                         ),
                       AnimatedContainer(
-                        duration: AppTokens.animFast,
+                        duration: AppMotion.duration(
+                          context,
+                          AppTokens.animFast,
+                        ),
                         curve: Curves.easeOut,
                         width: widget.isVertical ? thickness + 10 : gripLength,
                         height: widget.isVertical ? gripLength : thickness + 10,

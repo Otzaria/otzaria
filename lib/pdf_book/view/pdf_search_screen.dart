@@ -1,11 +1,12 @@
+import 'package:otzaria/widgets/navigation/search_result_navigator.dart';
 import 'package:otzaria/data/book_identity.dart';
+import 'package:otzaria/plugins/view/plugin_search_field_actions.dart';
 import 'dart:async';
 
 import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
 import 'package:otzaria/search/view/in_book_snippet_style.dart';
 import 'package:otzaria/search/in_book_search_settings.dart';
 import 'package:flutter/material.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -37,7 +38,6 @@ import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:otzaria/search/utils/search_query_sync.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/navigation/search_pane_base.dart';
-import 'package:otzaria/widgets/navigation/search_result_nav_button.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
@@ -127,24 +127,28 @@ class PdfBookSearchView extends StatefulWidget {
     required int currentPage,
   }) {
     if (resultsPageNumbersSorted.isEmpty) return 0;
-    final pages = resultsPageNumbersSorted.toSet().toList()..sort();
-    final targetPage = pages.firstWhere(
-      (p) => p >= currentPage,
-      orElse: () => pages.last,
-    );
 
-    int visualIdx = 0;
-    int resultIdx = 0;
-    for (final page in pages) {
-      if (page == targetPage) break;
-      visualIdx++; // כותרת הדף
-      while (resultIdx < resultsPageNumbersSorted.length &&
-          resultsPageNumbersSorted[resultIdx] == page) {
-        visualIdx++;
-        resultIdx++;
-      }
+    var resultIndex = 0;
+    var visualIndex = 0;
+    var lastHeaderIndex = 0;
+
+    // הקלט כבר ממוין לפי עמוד. מעבר יחיד מספיק גם לאיתור עמוד היעד וגם
+    // לספירת כותרות/תוצאות שקודמות לו; אין צורך ב-Set, העתקה ומיון חוזר.
+    while (resultIndex < resultsPageNumbersSorted.length) {
+      final page = resultsPageNumbersSorted[resultIndex];
+      lastHeaderIndex = visualIndex;
+      if (page >= currentPage) return visualIndex;
+
+      visualIndex++; // כותרת העמוד
+      do {
+        visualIndex++;
+        resultIndex++;
+      } while (resultIndex < resultsPageNumbersSorted.length &&
+          resultsPageNumbersSorted[resultIndex] == page);
     }
-    return visualIdx;
+
+    // כל התוצאות לפני המיקום הנוכחי — כותרת העמוד האחרון.
+    return lastHeaderIndex;
   }
 
   /// הודעה כשמסלול המנוע החזיר 0 תוצאות והספר כלל אינו באינדקס —
@@ -866,35 +870,17 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
     if (_searchResults.isEmpty && !isScanning) return null;
     final current = searcher.currentIndex;
     final hasResults = _searchResults.isNotEmpty;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (isScanning) ...[
-          SearchResultNavButton(
-            icon: FluentIcons.stop_24_regular,
-            tooltip: 'עצור את החיפוש',
-            onPressed: searcher.stopTextSearch,
-          ),
-          const SizedBox(width: 4),
-        ],
-        SearchResultNavButton(
-          icon: FluentIcons.chevron_up_24_regular,
-          tooltip: 'התוצאה הקודמת',
-          onPressed: hasResults && (current ?? 0) > 0
-              ? () => navigateSearchMatch(forward: false)
-              : null,
-        ),
-        const SizedBox(width: 4),
-        SearchResultNavButton(
-          icon: FluentIcons.chevron_down_24_regular,
-          tooltip: 'התוצאה הבאה',
-          onPressed:
-              hasResults &&
-                  (current == null || current < _searchResults.length - 1)
-              ? () => navigateSearchMatch(forward: true)
-              : null,
-        ),
-      ],
+    return SearchResultNavigator(
+      previousTooltip: 'התוצאה הקודמת',
+      nextTooltip: 'התוצאה הבאה',
+      onStop: isScanning ? searcher.stopTextSearch : null,
+      onPrevious: hasResults && (current ?? 0) > 0
+          ? () => navigateSearchMatch(forward: false)
+          : null,
+      onNext:
+          hasResults && (current == null || current < _searchResults.length - 1)
+          ? () => navigateSearchMatch(forward: true)
+          : null,
     );
   }
 
@@ -1198,7 +1184,9 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
 
     return SearchPaneBase(
       searchController: widget.searchController,
-      pluginActionsField: PluginSearchField.inBook,
+      searchFieldExtraActions: const PluginSearchFieldExtraActions(
+        PluginSearchField.inBook,
+      ),
       focusNode: widget.focusNode,
       progressWidget: _isSearching
           ? LinearProgressIndicator(

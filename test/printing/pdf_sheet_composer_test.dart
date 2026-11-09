@@ -141,6 +141,35 @@ void main() {
       },
     );
 
+    for (final (name, sheet) in [
+      ('Legal', PdfPageFormat.legal),
+      ('A3', PdfPageFormat.a3),
+    ]) {
+      test('גיליון $name: שני עמודי A4 בגודל הגיליון', () async {
+        final source = await PdfDocument.openData(await _numberedPdf(4));
+        addTearDown(source.dispose);
+
+        final bytes = await composePdfSheets(
+          source,
+          firstIndex: 0,
+          lastIndex: 3,
+          rows: 2,
+          cols: 1,
+          sheetWidth: sheet.width,
+          sheetHeight: sheet.height,
+        );
+        final output = await PdfDocument.openData(bytes);
+        addTearDown(output.dispose);
+
+        expect(output.pages, hasLength(2));
+        expect(output.pages.first.width, closeTo(sheet.width, 0.5));
+        expect(output.pages.first.height, closeTo(sheet.height, 0.5));
+        final text = await output.pages[1].loadStructuredText();
+        expect(text.fullText, contains('page3'));
+        expect(text.fullText, contains('page4'));
+      });
+    }
+
     test('טווח עמודים בלי גיליון מרובה מעתיק את העמודים כמות שהם', () async {
       final source = await PdfDocument.openData(await _numberedPdf(5));
       addTearDown(source.dispose);

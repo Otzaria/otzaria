@@ -642,6 +642,7 @@ class _Scenario {
         startUs: startUs,
         endUs: endUs,
         lastFrameNumber: lastFrameNumber,
+        timeout: _deadline,
         requestFrameAfterWindow: () => submitInstalledPluginFrameFence(
           SchedulerBinding.instance,
           repaintViews: () {
@@ -1685,15 +1686,40 @@ class _Scenario {
         background,
         'window.installedPluginProbe.command("background-finish", "backgroundDone", {})',
       );
-      await wait(
-        () =>
-            dispatcher.controllerOf(
-              installedBackgroundId,
-              instanceId: PluginInstanceIds.background,
-            ) ==
-            null,
-        'Actual backgroundDone SDK teardown',
-      );
+      // Preserve native/SDK evidence on a real teardown failure. Do not
+      // accept a JS acknowledgement as proof of controller disposal.
+      try {
+        await wait(
+          () =>
+              dispatcher.controllerOf(
+                installedBackgroundId,
+                instanceId: PluginInstanceIds.background,
+              ) ==
+              null,
+          'Actual backgroundDone SDK teardown',
+        );
+      } catch (error, stack) {
+        final liveController = dispatcher.controllerOf(
+          installedBackgroundId,
+          instanceId: PluginInstanceIds.background,
+        );
+        final evidence = <String, Object?>{
+          'controllerStillRegistered': liveController != null,
+          'resources': resources(),
+          'failure': error.toString(),
+        };
+        if (liveController != null) {
+          try {
+            // Includes the real JS command ack, bridge request/reply counts,
+            // and any unhandled SDK error, not a synthetic pass condition.
+            evidence['document'] = await readController(liveController);
+          } catch (snapshotError) {
+            evidence['documentReadError'] = snapshotError.toString();
+          }
+        }
+        phaseRecord('backgroundClose')['failureEvidence'] = evidence;
+        Error.throwWithStackTrace(error, stack);
+      }
       await PluginRegistryRepository().saveEnabledChoice(
         installedBackgroundId,
         false,

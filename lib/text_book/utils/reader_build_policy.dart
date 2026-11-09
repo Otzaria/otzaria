@@ -15,6 +15,11 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 /// ב-`test/text_book/view/visible_indices_rebuild_gate_test.dart`.
 bool shouldRebuildReader(TextBookState previous, TextBookState current) {
   if (previous is! TextBookLoaded || current is! TextBookLoaded) return true;
+  // A changed revision already requires a rebuild; comparing long lists first
+  // would synchronously traverse the entire book on the UI isolate.
+  if (previous.contentVersion != current.contentVersion) return true;
+  // Preserve the legacy safeguard for callers that replace content without
+  // updating contentVersion.
   if (!listEquals(previous.content, current.content)) return true;
   return previous.copyWith(
         visibleIndices: current.visibleIndices,

@@ -177,7 +177,7 @@ my-plugin/
 | `contributes.startup` | `null` | פקדים, פריטי תפריט ונתונים שאוצריא טוענת ישירות מהמניפסט בלי להפעיל WebView. |
 | `contributes.startup.programs` | `[]` | תכניות חישוב Host מוולדות, ללא JavaScript; ראו `API_REFERENCE.md` §תכניות Host ללא WebView. |
 | `contributes.startup.searchDialogItems` | `[]` | שורות סטטיות, `checkbox` או `switch` (מגרסה 0.9.98.3); `persist: false` הופך בחירה לחד-פעמית (מגרסה 0.9.98.3); `openPluginOnSubmit` יכול לנתב את אישור החיפוש לתוסף, ו-`resultsAction` (מגרסה 0.9.98.3) מוסיף כפתור בטאב החיפוש שמעביר אליו את החיפוש אחרי שהסתיים. |
-| `contributes.startup.searchFieldActions` | `[]` | כפתורים בתוך שדות החיפוש (מגרסה 0.9.98.1). לחיצה פותחת סשן שבו התוסף כותב לשדה דרך `search.setFieldText`. מגרסה 0.9.98.3: `visibleWhen: "nonEmptyText"` (כפתור רק כשיש טקסט), הקשר חיפוש מלא באירוע (`request`, `pluginSelections`, `categoryPath`), ו-`mode: "providerBooksFilter"` לסינון ספרי התוסף באיתור הספרים. |
+| `contributes.startup.searchFieldActions` | `[]` | כפתורים בתוך שדות החיפוש (מגרסה 0.9.98.1). לחיצה פותחת סשן שבו התוסף כותב לשדה דרך `search.setFieldText`. מגרסה 0.9.98.3: `visibleWhen: "nonEmptyText"` (כפתור רק כשיש טקסט), הקשר חיפוש מלא באירוע (`request`, `pluginSelections`, `categoryPath`), ו-`mode: "providerBooksFilter"` לסינון ספרי התוסף באיתור הספרים. מגרסה 0.9.99: תווית קצרה במצבי הסינון, שהתוסף יכול לקבוע (`pluginOnlyLabel`, `libraryOnlyLabel`). |
 | `contributes.startup.externalEditions` | `[]` | קונפיגורציית מהדורות מקבילות של ספק חיצוני (טבלת מיפוי במקור DB מוכרז); ראו `API_REFERENCE.md` §מהדורות מקבילות חיצוניות. |
 | `contributes.startup.libraryBooks` | `[]` | ספק ספרים שמצטרף לאיתור הספרים במסך הספרייה. לחיצה על ספריו נמסרת לתוסף, או מבצעת `openAction` בלי להעיר את המנוע. מגרסה 0.9.98; ראו `API_REFERENCE.md` §ספרים בחיפוש הספרייה. |
 | `contributes.startup.activationEvents` | `[]` | אירועים שמעירים את מנוע הרקע בעצלנות; כל נושא דורש גם הרשאת subscribe מתאימה. |
@@ -328,8 +328,7 @@ Otzaria.on('plugin.suspended', stop);   // עצירת timers / polling / WebSock
 ב-iOS 17 וב-macOS 14 ומעלה, Apple מתעדת שמדיניות
 [`inactiveSchedulingPolicy`](https://developer.apple.com/documentation/webkit/wkpreferences/inactiveschedulingpolicy-swift.property)
 חלה על WebView שאינו בחלון, ושברירת המחדל שלה היא `suspend` בכפוף לחריגים
-שהמערכת מגדירה. אוצריא אינה משנה את המדיניות בניסוי
-[מדידת הפעילות בתוך מארחי התוספים](../../tool/perf_probe/apple_plugin_activity/README.md).
+שהמערכת מגדירה. אוצריא אינה משנה את המדיניות הזו.
 צילום מצב נייטיבי הוא תיאור של רגע הקריאה; קריאת JavaScript או פקודה אחרי
 החזרה אינן הוכחה שהקוד התקדם בזמן הרקע. יש לבדוק את מערכת ההפעלה, גרסת
 WebKit, מצב הבנייה והתרחיש הרלוונטיים, ולתכנן חידוש עבודה בטוח.

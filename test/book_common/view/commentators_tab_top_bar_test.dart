@@ -12,6 +12,7 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/widgets/controls/bar_button.dart';
+import 'package:otzaria/widgets/navigation/reader_nav_center.dart';
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 
 class _SettingsBloc extends Bloc<SettingsEvent, SettingsState>
@@ -157,5 +158,120 @@ void main() {
     );
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // q-comm-nav (סקירה שלישית של 4.11): כמו בקורא — החיצים בסרגל כל עוד
+  // ארבעתם נכנסים במרכז, וקודמים לכותרת; אחרת כולם בראש "עוד".
+  group('חיצי הניווט לפי הרוחב שנמדד', () {
+    const arrows = ['הפרק הקודם', 'הקטע הקודם', 'הקטע הבא', 'הפרק הבא'];
+
+    Future<List<String>> pumpAt(WidgetTester tester, double width) async {
+      await tester.binding.setSurfaceSize(Size(width, 600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final settings = _SettingsBloc();
+      final allExpanded = ValueNotifier(true);
+      addTearDown(() async {
+        allExpanded.dispose();
+        await settings.close();
+      });
+      final calls = <String>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BlocProvider<SettingsBloc>.value(
+            value: settings,
+            child: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Scaffold(
+                body: Align(
+                  alignment: Alignment.topCenter,
+                  child: CommentatorsTabTopBar(
+                    title: 'מפרשים על בראשית',
+                    prevMajorTooltip: 'הפרק הקודם',
+                    nextMajorTooltip: 'הפרק הבא',
+                    navPaneOpen: false,
+                    navPanePinned: false,
+                    onToggleNavPane: () {},
+                    onTogglePin: () {},
+                    onPrevMajor: () => calls.add('prevMajor'),
+                    onPrevMinor: () => calls.add('prevMinor'),
+                    onNextMinor: () => calls.add('nextMinor'),
+                    onNextMajor: () => calls.add('nextMajor'),
+                    textDisplayAction: ActionButtonData(
+                      widget: BarButton.icon(
+                        tooltip: 'תצוגה',
+                        icon: Icons.text_fields,
+                        onPressed: () {},
+                      ),
+                      icon: Icons.text_fields,
+                      tooltip: 'תצוגה',
+                      actionId: ToolbarActionId.textDisplay,
+                      onPressed: () {},
+                    ),
+                    onPrint: () {},
+                    onSearch: () {},
+                    allExpanded: allExpanded,
+                    onToggleAllExpanded: () {},
+                    onAddBookmark: () {},
+                    book: TextBook(title: 'בראשית'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      return calls;
+    }
+
+    int arrowsShown() =>
+        arrows.where((t) => find.byTooltip(t).evaluate().isNotEmpty).length;
+
+    testWidgets('צר: אין מקום לארבעה — אף חץ בסרגל, וכולם בראש "עוד"', (
+      tester,
+    ) async {
+      final calls = await pumpAt(tester, 360);
+      expect(arrowsShown(), 0);
+      expect(
+        tester.getSize(find.byType(ReaderNavCenter)).width,
+        lessThan(ReaderNavCenter.navButtonsWidth(compact: true)),
+      );
+      await tester.tap(find.byTooltip('עוד פעולות'));
+      await tester.pumpAndSettle();
+      expect(arrowsShown(), 4);
+      // שורת הראש לא סוגרת את התפריט: אפשר לדפדף כמה פעמים ברצף.
+      await tester.tap(find.byTooltip('הקטע הבא'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('הפרק הבא'));
+      await tester.pumpAndSettle();
+      expect(calls, ['nextMinor', 'nextMajor']);
+    });
+
+    testWidgets('רחב: ארבעתם בסרגל, ולא בתפריט', (tester) async {
+      await pumpAt(tester, 1200);
+      expect(arrowsShown(), 4);
+      await tester.tap(find.byTooltip('עוד פעולות'));
+      await tester.pumpAndSettle();
+      for (final tooltip in arrows) {
+        expect(find.byTooltip(tooltip), findsOneWidget, reason: tooltip);
+      }
+    });
+
+    testWidgets('בכל רוחב: ארבעה או אפס, לפי מה שהמרכז קיבל (#891)', (
+      tester,
+    ) async {
+      for (var width = 280.0; width <= 900; width += 20) {
+        await pumpAt(tester, width);
+        final shown = arrowsShown();
+        final center = tester.getSize(find.byType(ReaderNavCenter)).width;
+        expect(shown, anyOf(0, 4), reason: '$width');
+        expect(
+          shown == 4,
+          ReaderNavCenter.navFits(center, isCompact: false),
+          reason: 'bar=$width center=$center',
+        );
+      }
+    });
   });
 }

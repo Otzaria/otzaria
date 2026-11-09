@@ -2,10 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
-import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
+import 'package:otzaria/theme/app_motion.dart';
 
 /// השהיה לפני שהקלדה מפעילה חיפוש. סריקה על כל תו מקפיאה את ההקלדה
 /// בספרים גדולים; אותו ערך שבו משתמש [FindRefBloc].
@@ -26,7 +26,7 @@ class SearchPaneBase extends StatefulWidget {
     this.hintText,
     this.onAdvancedSearch,
     this.searchFieldActions,
-    this.pluginActionsField,
+    this.searchFieldExtraActions,
     this.collapsibleOnScroll = false,
     this.onSubmitted,
     this.onArrowDown,
@@ -54,8 +54,8 @@ class SearchPaneBase extends StatefulWidget {
   /// פעולות החיפוש שמתחת לשדה, לפני כפתור ההגדרות.
   final List<Widget>? searchFieldActions;
 
-  /// שדה שתוספים רשאים להוסיף בו כפתור; null = אין.
-  final PluginSearchField? pluginActionsField;
+  /// כפתורים נוספים בשדה החיפוש מבחוץ, למשל של תוספים; null = אין.
+  final OtzariaSearchFieldExtraActions? searchFieldExtraActions;
   final bool collapsibleOnScroll;
   final VoidCallback? onSubmitted;
 
@@ -158,7 +158,7 @@ class _SearchPaneBaseState extends State<SearchPaneBase> {
           isCompact: _isCompact,
           onExpand: () => setState(() => _isCompact = false),
           leading: const Icon(OtzariaIcons.search_24_regular),
-          pluginActionsField: widget.pluginActionsField,
+          extraActions: widget.searchFieldExtraActions,
           actionsBelow: true,
           trailingActions: [
             ...?widget.searchFieldActions,
@@ -193,7 +193,10 @@ class _SearchPaneBaseState extends State<SearchPaneBase> {
         if (widget.progressWidget != null) widget.progressWidget!,
         AnimatedAlign(
           key: const ValueKey('searchFieldAlign'),
-          duration: const Duration(milliseconds: 220),
+          duration: AppMotion.duration(
+            context,
+            const Duration(milliseconds: 220),
+          ),
           curve: Curves.easeInOut,
           alignment: _isCompact
               ? AlignmentDirectional.centerEnd

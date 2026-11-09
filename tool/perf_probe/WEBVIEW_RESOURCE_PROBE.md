@@ -334,7 +334,7 @@ loopback מקומי. הנתונים הם 36 רשומות בדיקה קבועות
 ### הרצה מקומית ו־CI
 
 ה־workflow `installed_plugin_probe.yml` בונה ומפעיל את האפליקציה ב־profile
-ב־Windows וב־macOS. לפניו נבדקים חוזי הדוח, בקרות הכשל וה־fixture.
+ב־Windows. לפניו נבדקים חוזי הדוח, בקרות הכשל וה־fixture.
 ה־driver שומר נתוני `reportData` גם בכשל, ובתיקיית הפלט נכתב checkpoint
 אחרי כל שלב. artifacts כוללים דוח גולמי, לוגים, SHA של מקור החנות וגרסאות
 כלים; כשל בנייה או ניתוק מוקדם עשוי להשאיר רק חלק מהם.
@@ -441,6 +441,8 @@ flutter drive --profile -d "$installedProbeDevice" --no-dds --no-pub \
   --dart-define="INSTALLED_PROBE_COMMIT=$(git rev-parse HEAD)" \
   --dart-define=INSTALLED_PROBE_IDLE_MS=3000
 ```
+
+במכשיר Android הוסף לפקודת `flutter drive` את `--flavor direct`.
 
 ההובלה משתמשת ב־gzip/JSON, עם גבולות של 256 KiB לטקסט המקודד,
 128 KiB לקלט הדחוס ו־512 KiB לתוכן המפוענח. רק חמשת הנתיבים המקובעים

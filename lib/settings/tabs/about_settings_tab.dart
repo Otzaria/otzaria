@@ -149,15 +149,16 @@ class AboutSettingsTab extends StatelessWidget {
               ],
             ),
 
-            kSettingsCardSpacing,
+            // הציטוט הוא קבוצה נפרדת מ"סיוע ללומדי תורה", ולא כרטיס שני תחת
+            // אותה כותרת. לכרטיס בלי כותרת אין את ריפוד הכותרת, ולכן המרווח
+            // כאן הוא כמו מעל כרטיס עם כותרת: 24 + שורת הכותרת + 12 (‏≈56).
+            const SizedBox(height: AppTokens.spaceLG + AppTokens.spaceXL),
 
             // ── ציטוט סיום ──
             SettingsCard(
               cardId: 'about.main',
               children: [_ClosingQuote()],
             ),
-
-            kSettingsCardSpacing,
 
             // ── תורמים ──
             SettingsCard(
@@ -179,8 +180,6 @@ class AboutSettingsTab extends StatelessWidget {
                 ),
               ],
             ),
-
-            kSettingsCardSpacing,
 
             // ── מפתחים ──
             SettingsCard(
@@ -218,8 +217,6 @@ class AboutSettingsTab extends StatelessWidget {
                 ),
               ],
             ),
-
-            kSettingsCardSpacing,
 
             // ── אודות ספריית אוצריא ──
             SettingsCard(
@@ -264,10 +261,15 @@ class AboutSettingsTab extends StatelessWidget {
               ],
             ),
 
-            kSettingsCardSpacing,
+            const SizedBox(height: AppTokens.spaceMD),
 
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            // הקרדיט במסגרת שקטה: כרטיס פנימי וטקסט קטן, בלי למשוך את העין.
+            const AppCard(
+              tone: AppCardTone.inset,
+              padding: EdgeInsets.symmetric(
+                horizontal: AppTokens.spaceMD,
+                vertical: AppTokens.spaceSM,
+              ),
               child: _ZayitCredit(),
             ),
           ],
@@ -303,7 +305,7 @@ class AboutSettingsTab extends StatelessWidget {
                   context.settingsText(
                     'מאגר תורני חינמי, רחב ומהיר לשימוש בכל מקום.',
                   ),
-                  style: kSettingsSubtitleStyle,
+                  style: AppTextStyles.settingSubtitle,
                 ),
               ],
             ),
@@ -336,7 +338,7 @@ class AboutSettingsTab extends StatelessWidget {
               Text(
                 subtitle,
                 textAlign: TextAlign.center,
-                style: kSettingsSubtitleStyle,
+                style: AppTextStyles.settingSubtitle,
               ),
             ],
           ],
@@ -409,7 +411,7 @@ class _SubtitleText extends StatelessWidget {
     child: Text(
       text,
       textAlign: TextAlign.center,
-      style: kSettingsSubtitleStyle,
+      style: AppTextStyles.settingSubtitle,
     ),
   );
 }
@@ -465,7 +467,7 @@ class _InfoChip extends StatelessWidget {
     // סגנון מפורש התואם למראה בכרטיס 'תרמו מהונם' — labelSmall (w500) של
     // ListTile.trailing עם גודל הכותרת — כך אחיד בכל מיקום ולא תלוי בהקשר.
     final nameStyle = Theme.of(context).textTheme.labelSmall?.copyWith(
-      fontSize: kSettingsTitleStyle.fontSize,
+      fontSize: AppTextStyles.settingTitle.fontSize,
       color: contentColor,
     );
 
@@ -500,7 +502,7 @@ class _InfoChip extends StatelessWidget {
           Text(name, style: nameStyle),
           if (description != null && description!.isNotEmpty) ...[
             const SizedBox(width: 4),
-            Text('(${description!})', style: kSettingsSubtitleStyle),
+            Text('(${description!})', style: AppTextStyles.settingSubtitle),
           ],
         ],
       ),
@@ -549,6 +551,7 @@ class _ClosingQuote extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return Padding(
       padding: const EdgeInsets.all(16),
       child: _SurfaceCard(
@@ -565,11 +568,9 @@ class _ClosingQuote extends StatelessWidget {
               Text(
                 'וְצִדְקָתוֹ עֹמֶדֶת לָעַד',
                 textAlign: TextAlign.center,
-                // ציטוט תורני נשאר עברי גם כשההגדרות באנגלית.
+                // ui-lint: allow UIL-010 — ציטוט תורני נשאר עברי גם כשההגדרות באנגלית
                 textDirection: TextDirection.rtl,
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   color: colorScheme.primary,
                   height: 1.6,
                 ),
@@ -578,9 +579,9 @@ class _ClosingQuote extends StatelessWidget {
               Text(
                 '(תהילים קיב, ג)',
                 textAlign: TextAlign.center,
+                // ui-lint: allow UIL-010 — ציטוט תורני נשאר עברי גם כשההגדרות באנגלית
                 textDirection: TextDirection.rtl,
-                style: TextStyle(
-                  fontSize: 12,
+                style: textTheme.bodySmall?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                 ),
               ),
@@ -616,10 +617,9 @@ class _ClosingQuote extends StatelessWidget {
               Text(
                 'זֶה הַכּוֹתֵב סְפָרִים וּמַשְׁאִילָן לַאֲחֵרִים',
                 textAlign: TextAlign.center,
+                // ui-lint: allow UIL-010 — ציטוט תורני נשאר עברי גם כשההגדרות באנגלית
                 textDirection: TextDirection.rtl,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   color: colorScheme.onSurface,
                   height: 1.6,
                 ),
@@ -628,9 +628,9 @@ class _ClosingQuote extends StatelessWidget {
               Text(
                 '(כתובות נ.)',
                 textAlign: TextAlign.center,
+                // ui-lint: allow UIL-010 — ציטוט תורני נשאר עברי גם כשההגדרות באנגלית
                 textDirection: TextDirection.rtl,
-                style: TextStyle(
-                  fontSize: 12,
+                style: textTheme.bodySmall?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                 ),
               ),
@@ -670,10 +670,13 @@ class _ZayitCreditState extends State<_ZayitCredit> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     return Text.rich(
       TextSpan(
-        style: kSettingsSubtitleStyle,
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: colorScheme.onSurfaceVariant,
+        ),
         children: [
           const TextSpan(
             text:
@@ -722,16 +725,17 @@ class _MemorialCardsGrid extends StatelessWidget {
   }
 }
 
-/// כרטיס משטח אחיד — רקע surfaceContainerHigh, פינות מעוגלות, ללא מסגרת.
+/// כרטיס פנימי בתוך כרטיס ההגדרות: [AppCard] בגוון [AppCardTone.inset], עם
+/// אותו מילוי, אותה מסגרת ואותם שוליים (4) שהיו ל־Card הגולמי (UI-064).
 class _SurfaceCard extends StatelessWidget {
   final Widget child;
   const _SurfaceCard({required this.child});
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 1,
-      color: Theme.of(context).colorScheme.surfaceContainerHigh,
+    return AppCard(
+      tone: AppCardTone.inset,
+      margin: const EdgeInsets.all(AppTokens.spaceXS),
       child: child,
     );
   }
@@ -742,27 +746,25 @@ class _MemorialCard extends StatelessWidget {
   final IconData icon;
   final bool dimIcon;
   final String title;
-  final double titleFontSize;
   final String? description;
   final bool showDonateButton;
 
   const _MemorialCard.donor({required this.title, required this.description})
     : icon = FluentIcons.fire_24_filled,
       dimIcon = false,
-      titleFontSize = 14,
       showDonateButton = false;
 
   const _MemorialCard.donation()
     : icon = FluentIcons.heart_24_regular,
       dimIcon = true,
       title = 'מקום זה יכול להיות מונצח לע"נ יקירך',
-      titleFontSize = 13,
       description = null,
       showDonateButton = true;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     final iconColor = dimIcon
         ? colorScheme.primary.withValues(alpha: 0.6)
         : colorScheme.primary;
@@ -777,8 +779,9 @@ class _MemorialCard extends StatelessWidget {
             Text(
               context.settingsText(title),
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: titleFontSize,
+              // הגודל מהתפקיד; המשקל המודגש נשאר כמו שהיה, כדי שהכרטיס ייראה
+              // כמו לפני ההסבה (q10 Q8a).
+              style: textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: colorScheme.onSurface,
               ),
@@ -788,8 +791,7 @@ class _MemorialCard extends StatelessWidget {
               Text(
                 description!,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 11,
+                style: textTheme.labelSmall?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                 ),
               ),

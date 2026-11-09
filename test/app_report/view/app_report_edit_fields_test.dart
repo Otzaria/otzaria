@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/panels/app_reports_panel.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 void main() {
@@ -117,6 +119,21 @@ void main() {
       },
     );
     expect(crash!.validate(), isNull);
+  });
+
+  testWidgets('השדות ממולאים במשטח הכרטיס, כמו בטופס הדיווח (#3448)', (
+    tester,
+  ) async {
+    await pumpAndEdit(tester, report(), () async {});
+    final fields = tester.widgetList<RtlTextField>(find.byType(RtlTextField));
+    expect(fields, hasLength(4));
+    final card = AppSurfaces.card(
+      tester.element(find.byType(RtlTextField).first),
+    );
+    for (final field in fields) {
+      expect(field.decoration?.filled, isTrue);
+      expect(field.decoration?.fillColor, card);
+    }
   });
 
   testWidgets('הסרת תמונה בעריכה מחזירה דיווח בלי התמונה', (tester) async {

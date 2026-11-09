@@ -219,7 +219,6 @@ class TextBookTab extends OpenedTab {
     final created = _attachBloc(
       TextBookBloc(
         repository: TextBookRepository(fileSystem: FileSystemData.instance),
-        // [EDITING DISABLED] overridesRepository: LocalOverridesRepository(),
         initialState: _initialState,
         readingPosition: lines.position,
       ),

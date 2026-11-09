@@ -21,9 +21,9 @@
           "kind": "single",
           "repository": "Otzaria/otzaria",
           "releaseTag": "0.10.3+143",
-          "name": "app-release.apk",
+          "name": "otzaria-android.apk",
           "size": 96,
-          "sha256": "dcc26df7745c49c5f9aaff039715b2f70bea3a20b57170b9942c3b769cea1dfe"
+          "sha256": "9458acf1c347664137f1ea5babe550ebe512e75fe7fb7ce52a709e2d57f4e148"
         }
       ]
     },

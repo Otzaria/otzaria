@@ -191,9 +191,8 @@ void main() {
       final bar = tester.getRect(
         find.ancestor(of: list, matching: find.byType(Scrollbar)).first,
       );
-      // ה-thumb בקצה הסוף של הרשימה (שמאל ב-RTL), ובראשה כל עוד לא נגללה.
-      final rtl = Directionality.of(tester.element(list)) == TextDirection.rtl;
-      final thumb = Offset(rtl ? bar.left + 4 : bar.right - 4, bar.top + 10);
+      // ה-thumb בקצה הימני הפיזי בכל כיוון (AppScrollbar), ובראש כל עוד לא נגללה.
+      final thumb = Offset(bar.right - 4, bar.top + 10);
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
       addTearDown(mouse.removePointer);
       await mouse.addPointer(location: bar.center);

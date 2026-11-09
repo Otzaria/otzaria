@@ -7,6 +7,7 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/view/pane_drop_geometry.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 
 export 'pane_drop_geometry.dart'
     show
@@ -112,8 +113,19 @@ class PaneCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final radius = BorderRadius.circular(isSplit ? AppTokens.radius : 0);
+    final duration = AppMotion.duration(
+      context,
+      const Duration(milliseconds: 160),
+    );
+    // "לבן" (#2850): כל החלוניות במסגרת הכהה הדקה, והפעילה מסומנת בטבעת
+    // בצבע הראשי שמצוירת מעל הקצה, כדי שהמעבר בין החלוניות לא ישנה את הריפוד.
+    final regionBorder = AppSurfaces.regionBorder(context);
     final border = isSplit
-        ? Border.all(color: AppSurfaces.paneCardBorder(cs, isActive: isActive))
+        ? Border.all(
+            color:
+                regionBorder ??
+                AppSurfaces.paneCardBorder(cs, isActive: isActive),
+          )
         : null;
     // המסגרת מונפשת מאחורי התוכן ולא סביבו: ריפוד מונפש היה פורס מחדש את
     // שני הספרים בכל פריים של הפיצול והפירוק.
@@ -122,7 +134,7 @@ class PaneCard extends StatelessWidget {
       children: [
         Positioned.fill(
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
+            duration: duration,
             curve: Curves.easeOut,
             decoration: BoxDecoration(
               color: isSplit
@@ -137,6 +149,22 @@ class PaneCard extends StatelessWidget {
           padding: border?.dimensions ?? EdgeInsets.zero,
           child: ClipRRect(borderRadius: radius, child: child),
         ),
+        if (isSplit && regionBorder != null)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: AnimatedContainer(
+                duration: duration,
+                curve: Curves.easeOut,
+                decoration: BoxDecoration(
+                  borderRadius: radius,
+                  border: Border.all(
+                    color: isActive ? cs.primary : Colors.transparent,
+                    width: AppTokens.focusRingWidth,
+                  ),
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -458,7 +486,9 @@ class _PaneDividerState extends State<_PaneDivider> {
             value: _percent(widget.ratio),
             increasedValue: _percent(widget.increasedRatio),
             decreasedValue: _percent(widget.decreasedRatio),
-            label: 'מפריד בין חלוניות — גרירה או חצים לצדדים, Home לאיפוס',
+            label: context.settingsText(
+              'מפריד בין חלוניות — גרירה או חצים לצדדים, Home לאיפוס',
+            ),
             onIncrease: () => widget.onNudge(false),
             onDecrease: () => widget.onNudge(true),
             child: SizedBox(
@@ -467,7 +497,10 @@ class _PaneDividerState extends State<_PaneDivider> {
                 // דהייה בצבע ולא ב-AnimatedOpacity: אטימות חיה הופכת את המפריד
                 // ל-repaint boundary, ומסגרת החלונית שמצוירת אחריו נעלמת.
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 140),
+                  duration: AppMotion.duration(
+                    context,
+                    const Duration(milliseconds: 140),
+                  ),
                   curve: Curves.easeOut,
                   width: _kDividerHandleThickness,
                   height: _kDividerHandleLength,

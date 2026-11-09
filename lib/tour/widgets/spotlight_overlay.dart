@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 
 class SpotlightOverlay extends StatelessWidget {
   final List<Rect> targetRects;
@@ -20,7 +21,7 @@ class SpotlightOverlay extends StatelessWidget {
       child: CustomPaint(
         size: Size.infinite,
         painter: _SpotlightPainter(
-          color: Theme.of(context).colorScheme.scrim.withValues(alpha: 0.62),
+          color: AppSurfaces.spotlightScrim(Theme.of(context).colorScheme),
           borderColor: Theme.of(context).colorScheme.primary,
           targetRects: targetRects,
           borderRadius: borderRadius,

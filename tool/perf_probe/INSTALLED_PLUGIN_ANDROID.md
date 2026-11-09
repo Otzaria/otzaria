@@ -39,6 +39,8 @@ application ID, real `org.otzaria.otzaria.MainActivity` launcher and debuggable
 flag before installing it. The Dart test checks the package again before
 writing probe data. The Gradle application ID suffix applies only to debug
 builds with `otzariaInstalledProbe=true`.
+The runner selects the `direct` flavor and uses
+`build/app/outputs/flutter-apk/app-direct-debug.apk` for verification and installation.
 
 The runner performs strict lockfile resolution, verifies all eight resolved
 WebView packages at `ab6953a7d69016bcfcd6d47c301ded0d2a6d5400`, and records the

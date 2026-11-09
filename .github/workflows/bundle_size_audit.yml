@@ -1,0 +1,117 @@
+name: Release bundle size audit
+
+on:
+  pull_request:
+    paths:
+      - 'tool/release/audit_bundle_size.py'
+      - 'tool/release/test_audit_bundle_size.py'
+      - '.github/workflows/bundle_size_audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bundle-size-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s tool/release -p test_audit_bundle_size.py -v
+
+  release-fixtures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: android-universal
+            asset: app-release.apk
+            asset_id: 703098241
+            sha256: d17c0bfbd84c3848cac03f35781e02fe9845d7053bb4f7b9b6bde2f2305e051b
+            format: zip
+          - target: macos-universal
+            asset: otzaria-macos.zip
+            asset_id: 703134723
+            sha256: f23d7a8e3a100a04f6239f4693c47b3721996639b0cc71e1c8a4814fb03a40d3
+            format: zip
+          - target: linux-x64
+            asset: otzaria-0.9.98%2B99803-linux.deb
+            asset_id: 703107518
+            sha256: 1e692a7268fd35f21cf190ae927bab4d118d90fc4761d852a8aea9f6bbf0a5ef
+            format: deb
+          - target: linux-arm64
+            asset: otzaria-0.9.98%2B99803-linux-arm64.deb
+            asset_id: 703096966
+            sha256: f60eff1be1c4aa5683d62bd8946871ec54a3d626c99059cab0f7250a28f586dc
+            format: deb
+    env:
+      FIXTURE_ASSET: ${{ matrix.asset }}
+      FIXTURE_ASSET_ID: ${{ matrix.asset_id }}
+      FIXTURE_SHA256: ${{ matrix.sha256 }}
+      FIXTURE_TARGET: ${{ matrix.target }}
+      FIXTURE_FORMAT: ${{ matrix.format }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch checksum-pinned release fixture (not a dev build)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/size-fixture"
+          curl --fail --location --retry 8 --retry-all-errors --retry-delay 3 \
+            --max-time 300 --max-filesize 200000000 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/octet-stream" \
+            "https://api.github.com/repos/Otzaria/otzaria/releases/assets/$FIXTURE_ASSET_ID" \
+            --output "$RUNNER_TEMP/size-fixture/package"
+          printf '%s  package\n' "$FIXTURE_SHA256" \
+            | (cd "$RUNNER_TEMP/size-fixture" && sha256sum --check -)
+      - name: Inventory without installing or executing the application
+        shell: bash
+        run: |
+          input="$RUNNER_TEMP/size-fixture/package"
+          extra=()
+          if [[ "$FIXTURE_FORMAT" == deb ]]; then
+            # Extract only; do not run package maintainer scripts or install dependencies.
+            dpkg-deb --extract "$input" "$RUNNER_TEMP/size-fixture/payload"
+            input="$RUNNER_TEMP/size-fixture/payload"
+            extra=(--duplicates)
+          fi
+          python tool/release/audit_bundle_size.py "$input" \
+            --target "$FIXTURE_TARGET" \
+            --download "$RUNNER_TEMP/size-fixture/package" \
+            --source-commit 463030539460ee49a175acb9bfaec8722b23c838 \
+            "${extra[@]}" --output "$RUNNER_TEMP/size-fixture/report.json"
+          python - "$RUNNER_TEMP/size-fixture/report.json" <<'PY'
+          import json, sys
+          from pathlib import Path
+          report = json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))
+          print(json.dumps({k: v for k, v in report.items() if k != 'files'}, ensure_ascii=False, indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}-0.9.98.3-809-size-inventory
+          path: ${{ runner.temp }}/size-fixture/report.json
+          if-no-files-found: error
+          retention-days: 14

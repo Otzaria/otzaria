@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
-import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
+import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
-import 'package:otzaria/widgets/misc/keyboard_dialog_navigation.dart';
 
-/// דיאלוג הזנת טקסט עם תמיכה באנטר וחיצים
+/// דיאלוג הזנת טקסט: Enter בשדה שומר.
 class InputDialog extends StatefulWidget {
   final String title;
   final String? subtitle;
@@ -14,9 +16,14 @@ class InputDialog extends StatefulWidget {
   final String? hintText;
   final String initialValue;
   final TextInputType? keyboardType;
-  final String cancelText;
-  final String confirmText;
+
+  /// null = תווית ברירת המחדל בשפת הממשק.
+  final String? cancelText;
+  final String? confirmText;
   final bool obscureText;
+
+  /// תג האייקון: מה מזינים. null = אייקון משפחת הקלט.
+  final IconData? icon;
 
   const InputDialog({
     super.key,
@@ -26,9 +33,10 @@ class InputDialog extends StatefulWidget {
     this.hintText,
     this.initialValue = '',
     this.keyboardType,
-    this.cancelText = 'ביטול',
-    this.confirmText = 'שמור',
+    this.cancelText,
+    this.confirmText,
     this.obscureText = false,
+    this.icon,
   });
 
   @override
@@ -39,11 +47,6 @@ class _InputDialogState extends State<InputDialog>
     with DialogFocusRestorerMixin<InputDialog> {
   late final TextEditingController _controller;
   final FocusNode _textFieldFocusNode = FocusNode();
-  final FocusNode _cancelFocusNode = FocusNode();
-  final FocusNode _confirmFocusNode = FocusNode();
-
-  // 0 = ביטול, 1 = אישור (כברירת מחדל האישור ממוקד)
-  int _focusedIndex = 1;
 
   @override
   void initState() {
@@ -60,8 +63,6 @@ class _InputDialogState extends State<InputDialog>
   void dispose() {
     _controller.dispose();
     _textFieldFocusNode.dispose();
-    _cancelFocusNode.dispose();
-    _confirmFocusNode.dispose();
     super.dispose();
   }
 
@@ -69,56 +70,45 @@ class _InputDialogState extends State<InputDialog>
     Navigator.of(context).pop(_controller.text.trim());
   }
 
-  void _moveFocus(int index) {
-    setState(() => _focusedIndex = index);
-    (index == 1 ? _confirmFocusNode : _cancelFocusNode).requestFocus();
-  }
-
   @override
   Widget build(BuildContext context) {
-    return DialogKeyboardNavigator(
-      focusedIndex: _focusedIndex,
-      onFocusChange: _moveFocus,
+    return AppDialogFrame(
+      title: widget.title,
+      icon: widget.icon ?? AppDialogIcons.input,
+      size: AppDialogSize.small,
       onConfirm: _submit,
-      onCancel: () => Navigator.of(context).pop(),
-      textFieldFocusNode: _textFieldFocusNode,
-      child: AlertDialog(
-        title: AppDialogTitle(widget.title),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (widget.subtitle != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppTokens.spaceSM),
-                child: Text(
-                  widget.subtitle!,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-            RtlTextField(
-              controller: _controller,
-              focusNode: _textFieldFocusNode,
-              keyboardType: widget.keyboardType,
-              obscureText: widget.obscureText,
-              decoration: InputDecoration(
-                labelText: widget.labelText,
-                hintText: widget.hintText,
-              ),
-              onSubmitted: (_) => _submit(),
-            ),
-          ],
+      actions: [
+        ActionButton.neutral(
+          text: widget.cancelText ?? context.settingsText('ביטול'),
+          onPressed: () => Navigator.of(context).pop(),
         ),
-        actions: [
-          ActionButton.neutral(
-            focusNode: _cancelFocusNode,
-            text: widget.cancelText,
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          ActionButton.recommended(
-            focusNode: _confirmFocusNode,
-            text: widget.confirmText,
-            onPressed: _submit,
+        ActionButton.recommended(
+          text: widget.confirmText ?? context.settingsText('שמור'),
+          onPressed: _submit,
+        ),
+      ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (widget.subtitle != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppTokens.spaceSM),
+              child: Text(
+                widget.subtitle!,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          RtlTextField(
+            controller: _controller,
+            focusNode: _textFieldFocusNode,
+            keyboardType: widget.keyboardType,
+            obscureText: widget.obscureText,
+            decoration: InputDecoration(
+              labelText: widget.labelText,
+              hintText: widget.hintText,
+            ),
+            onSubmitted: (_) => _submit(),
           ),
         ],
       ),
@@ -135,20 +125,25 @@ Future<String?> showInputDialog({
   String? hintText,
   String initialValue = '',
   TextInputType? keyboardType,
-  String cancelText = 'ביטול',
-  String confirmText = 'שמור',
+  String? cancelText,
+  String? confirmText,
+  IconData? icon,
 }) {
-  return showDialog<String>(
+  return showDialogUntilTornDown<String>(
     context: context,
-    builder: (context) => InputDialog(
-      title: title,
-      subtitle: subtitle,
-      labelText: labelText,
-      hintText: hintText,
-      initialValue: initialValue,
-      keyboardType: keyboardType,
-      cancelText: cancelText,
-      confirmText: confirmText,
+    builder: (_) => Directionality(
+      textDirection: Directionality.of(context),
+      child: InputDialog(
+        title: title,
+        subtitle: subtitle,
+        labelText: labelText,
+        hintText: hintText,
+        initialValue: initialValue,
+        keyboardType: keyboardType,
+        cancelText: cancelText,
+        confirmText: confirmText,
+        icon: icon,
+      ),
     ),
   );
 }

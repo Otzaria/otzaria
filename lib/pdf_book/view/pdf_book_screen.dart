@@ -1,3 +1,5 @@
+import 'package:otzaria/pdf_book/view/book_view_turn_button.dart';
+import 'package:otzaria/core/windowing/window_fullscreen_top_bar.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 
 import 'dart:io';
@@ -256,6 +258,26 @@ double pdfPreviewRenderingScaleFor(
 @visibleForTesting
 bool pdfNextFitIsPage({required double zoom, required double widthZoom}) =>
     (zoom - widthZoom).abs() <= widthZoom * 0.01;
+
+/// הסמל והכיתוב של כפתור ההתאמה: הפעולה שלחיצה תבצע, והקיצור אם הוגדר
+/// (§3.2).
+@visibleForTesting
+({IconData icon, String tooltip}) pdfFitButtonVisual({
+  required bool nextIsPage,
+}) {
+  final label = nextIsPage ? 'התאם לעמוד שלם' : 'התאם לרוחב';
+  final shortcut = ShortcutValidator.getShortcutValue(
+    ShortcutValidator.fitPdfViewKey,
+  );
+  return (
+    icon: nextIsPage
+        ? FluentIcons.arrow_autofit_height_24_regular
+        : FluentIcons.arrow_autofit_width_24_regular,
+    tooltip: shortcut == null || shortcut.isEmpty
+        ? label
+        : '$label (${ShortcutHelper.formatShortcutForDisplay(shortcut)})',
+  );
+}
 
 @visibleForTesting
 PdfViewerSizeDelegateProvider pdfSizeDelegateProviderForLayoutMode(
@@ -626,11 +648,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   AppLifecycleState? _appLifecycleState;
   final _snapshotBudgetEntries = <ui.Image, PdfImageCacheEntry>{};
   final _bookViewLayoutMemo = BookViewLayoutMemo();
+
+  /// האם חיצי הניווט נכנסו לסרגל בפריסה האחרונה. כשלא, הם בראש "עוד".
+  final _navPlacement = ReaderNavPlacement();
   final _thumbnailCache = createPdfThumbnailCache();
   static const int _defaultPdfLineRange = 50;
 
   /// צל העמוד — מוגדר במפורש (ולא נשען על ברירת המחדל של pdfrx) כי הצילום
   /// המורכב מראש חייב לצייר בדיוק את אותו צל, אחרת הוא צץ בסיום האנימציה.
+  // ui-lint: allow UIL-030 — צל הנייר של עמוד PDF הוא תוכן (JX-05, q10 Q11)
   static const BoxShadow _pageDropShadow = BoxShadow(
     color: Colors.black54,
     blurRadius: 4,
@@ -728,6 +754,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   // הרוחב החי מצויר בחלונית עצמה; ה-bloc מתעדכן רק בסוף הגרירה.
   double? _draggedLeftPaneWidth;
   double? _draggedRightPaneWidth;
+
+  /// מה לחיצה על כפתור ההתאמה תעשה: true = עמוד שלם, false = לרוחב. רק
+  /// הכפתור מאזין, ורק כשהערך מתחלף.
+  final ValueNotifier<bool> _nextFitIsPage = ValueNotifier(false);
 
   /// מצב יד — גרירת עכבר גוללת את הדף במקום לסמן טקסט (issue #916).
   bool _isHandMode =
@@ -1737,6 +1767,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         // שהזום החדש מקבל ממנה translation שגוי (issue #1258).
         _scrollPhysicsProvider.stop();
         _restoreViewportTopAnchor(controller, oldViewSize);
+        _updateNextFit();
       },
       enableKeyboardNavigation: false,
       scrollByArrowKey: 25.0,
@@ -2553,7 +2584,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               edgePadding: horizontalPadding,
               dragZoneWidth: dragZoneWidth,
               icon: FluentIcons.chevron_left_24_regular,
-              tooltip: 'הזוג הקודם',
+              tooltip: 'הפוך דף אחורה',
               onPressed: _goPreviousPage,
             ),
           if (canGoNext)
@@ -2566,7 +2597,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               edgePadding: horizontalPadding,
               dragZoneWidth: dragZoneWidth,
               icon: FluentIcons.chevron_right_24_regular,
-              tooltip: 'הזוג הבא',
+              tooltip: 'הפוך דף קדימה',
               onPressed: _goNextPage,
             ),
           // בזמן גרירה המצביע יוצא מרצועת האחיזה — שכבה על כל השטח שומרת
@@ -2602,7 +2633,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     required String tooltip,
     required VoidCallback onPressed,
   }) {
-    final colorScheme = Theme.of(context).colorScheme;
     final placement = bookViewTurnButtonPlacement(
       gutter: gutter,
       buttonSize: buttonSize,
@@ -2618,17 +2648,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       ignoring: !isVisible,
       child: AnimatedOpacity(
         opacity: isVisible ? 1.0 : 0.0,
-        duration: AppTokens.animFast,
+        duration: AppMotion.duration(context, AppTokens.animFast),
         // דהייה אל 0 מנתקת את הסמנטיקה באמצע אנימציה ושוברת את עץ הנגישות.
         alwaysIncludeSemantics: true,
-        child: _BookViewTurnButton(
+        child: BookViewTurnButton(
           icon: icon,
           tooltip: tooltip,
           size: buttonSize,
-          backgroundColor: colorScheme.surface.withValues(alpha: 0.78),
-          iconColor: colorScheme.onSurface,
-          borderColor: colorScheme.outline.withValues(alpha: 0.22),
-          shadowColor: colorScheme.shadow.withValues(alpha: 0.16),
           onPressed: onPressed,
         ),
       ),
@@ -4131,36 +4157,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           categoryId: textBook.categoryId,
           fileType: textBook.fileType ?? 'txt',
         );
-        ({List<otz_links.LinkTargetSummary> targets, int maxSourceLine})?
-        summary;
         if ((provider is DatabaseLibraryProvider ||
                 textBook.source.isAttached) &&
             textBook.categoryId != null) {
-          summary = await DatabaseLibraryProvider.instance
-              .getBookLinkTargetsSummary(
-                textBook.title,
-                textBook.categoryId!,
-                source: textBook.source,
-              );
-        }
-        final Set<String> commentators;
-        if (summary != null) {
           _linksTextBook = textBook;
-          // טעינת דורות מראש כדי שמיון הקישורים לפי דורות יעבוד סינכרונית
-          // (תפריט הקשר + פאנל קישורים)
-          CommentaryService.preloadEras({
-            for (final target in summary.targets)
-              if (!LinkTypes.isDependentTextLink(target.connectionType))
-                utils.getTitleFromPath(target.targetTitle),
-          });
-          commentators = {
-            for (final target in summary.targets)
-              if (LinkTypes.isDependentTextLink(target.connectionType))
-                utils.getTitleFromPath(target.targetTitle),
-          };
         } else {
-          // ספר שאינו במסד, או ששאילתת הסיכום נכשלה — הטעינה המלאה הישנה,
-          // כדי שכשל נקודתי לא ייראה כמו ספר בלי מפרשים.
           final loadedLinks = await textBook.links
             ..sort((a, b) => a.index1.compareTo(b.index1));
           widget.tab.links = loadedLinks;
@@ -4170,24 +4171,20 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                 .where((l) => !LinkTypes.isDependentTextLink(l.connectionType))
                 .map((l) => utils.getTitleFromPath(l.path2)),
           );
-          commentators = {
+          final commentators = {
             for (final link in loadedLinks)
               if (LinkTypes.isDependentTextLink(link.connectionType))
                 utils.getTitleFromPath(link.path2),
           };
-        }
-        _bookHasCommentaryLinks = commentators.isNotEmpty;
-        await _loadCommentatorGroups(
-          commentators,
-          sourceByTitle: {
-            if (summary != null)
-              for (final target in summary.targets)
-                utils.getTitleFromPath(target.targetTitle): ?target.targetSource
-            else
-              for (final link in widget.tab.links)
+          _bookHasCommentaryLinks = commentators.isNotEmpty;
+          await _loadCommentatorGroups(
+            commentators,
+            sourceByTitle: {
+              for (final link in loadedLinks)
                 utils.getTitleFromPath(link.path2): link.targetSource,
-          },
-        );
+            },
+          );
+        }
       }
 
       final currentPage = widget.tab.pdfViewerController.isReady
@@ -4235,6 +4232,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     );
     _pdfTextSelectionActions.cancel();
     WidgetsBinding.instance.removeObserver(this);
+    _nextFitIsPage.dispose();
     _pageTurnController.stop(canceled: false);
     _stopContinuousScroll();
     _disposePageTurnSnapshot();
@@ -4337,13 +4335,48 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         startIndex: window.startLine - 1,
         endIndex: window.endLine - 1,
       );
+      if (!mounted ||
+          requestId != _linksWindowRequestId ||
+          widget.tab.linksAreComplete) {
+        return;
+      }
+      // סיכום וקבוצות נשמרים יחד עם החלון הראשון; כשל משאיר את כולם לטעינה חוזרת.
+      if (_linksWindowStart == null) {
+        final summary = await DatabaseLibraryProvider.instance
+            .getBookLinkTargetsSummary(
+              textBook.title,
+              textBook.categoryId!,
+              source: textBook.source,
+            );
+        if (!mounted || requestId != _linksWindowRequestId || summary == null) {
+          return;
+        }
+        CommentaryService.preloadEras({
+          for (final target in summary.targets)
+            if (!LinkTypes.isDependentTextLink(target.connectionType))
+              utils.getTitleFromPath(target.targetTitle),
+        });
+        final commentators = {
+          for (final target in summary.targets)
+            if (LinkTypes.isDependentTextLink(target.connectionType))
+              utils.getTitleFromPath(target.targetTitle),
+        };
+        _bookHasCommentaryLinks = commentators.isNotEmpty;
+        await _loadCommentatorGroups(
+          commentators,
+          sourceByTitle: {
+            for (final target in summary.targets)
+              utils.getTitleFromPath(target.targetTitle): ?target.targetSource,
+          },
+        );
+        if (!mounted ||
+            requestId != _linksWindowRequestId ||
+            widget.tab.linksAreComplete) {
+          return;
+        }
+      }
     } catch (e, stackTrace) {
       debugPrint('Failed to load PDF links window: $e\n$stackTrace');
-      return;
-    }
-    if (!mounted ||
-        requestId != _linksWindowRequestId ||
-        widget.tab.linksAreComplete) {
       return;
     }
     // הצרכנים (פאנל מפרשים, תפריט הקשר) מסתמכים על מיון לפי index1.
@@ -4352,11 +4385,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _linksWindowStart = window.startLine;
     _linksWindowEnd = window.endLine;
     if (!shownRangeCovered) _pageDataRevision.value++;
+    _maybeRegisterPdfCommentaryOpportunity();
   }
 
   void _onPdfViewerControllerUpdate() async {
     if (!widget.tab.pdfViewerController.isReady) return;
     _refreshVisiblePersonalNotePages();
+    _updateNextFit();
 
     // Keep adjacent-spread pre-renders warm so page-turn animations can
     // open the cached snapshot instantly without waiting on goToPage + tile
@@ -4626,6 +4661,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                         valueListenable: widget.tab.pinLeftPane,
                         builder: (context, isPinned, _) => NavPanelPinButton(
                           isPinned: isPinned,
+                          isGloballyPinned:
+                              Settings.getValue<bool>(
+                                SettingsRepository.keyPinSidebar,
+                              ) ??
+                              false,
                           onToggle: () =>
                               widget.tab.pinLeftPane.value = !isPinned,
                         ),
@@ -4641,10 +4681,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                         tooltip: context.settingsText('חזרה למיקום הקודם'),
                         icon: FluentIcons.arrow_left_24_regular,
                         flipInRtl: true,
-                        compact: context
-                            .read<SettingsBloc>()
-                            .state
-                            .compactMenuMode,
+                        compact: AppDensity.of(context).isCompact,
                         onPressed: available ? _returnToPreviousLocation : null,
                       ),
                     ),
@@ -4701,6 +4738,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                           (!_isChoosingPersonalNotePoint ||
                               _leftPaneUsesPushLayout),
                       isPinned: isPinned,
+                      isGloballyPinned:
+                          Settings.getValue<bool>(
+                            SettingsRepository.keyPinSidebar,
+                          ) ??
+                          false,
                       alignment: AlignmentDirectional.centerEnd,
                       paneWidth: leftPaneWidth,
                       minMainContentWidth: 200,
@@ -5009,11 +5051,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               if (state is! PdfBookLoaded || state.showRightPane) {
                 return const SizedBox.shrink();
               }
-              return Positioned(
-                left: 0,
-                top: MediaQuery.of(context).size.height * 0.10,
-                child: PanelOpenHandle(onTap: _openCommentaryPane),
-              );
+              return PositionedPanelOpenHandle(onTap: _openCommentaryPane);
             },
           ),
           BlocBuilder<PdfBookBloc, PdfBookState>(
@@ -5278,28 +5316,46 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _bloc.add(const pdf_events.ResetZoom());
   }
 
-  void _toggleFitMode() {
+  /// העמוד (או הכפולה) המוצג, והזום שמתאים אותו לרוחב ולעמוד שלם.
+  ({Rect shown, ({double width, double page}) fits, bool toPage})?
+  _fitTargets() {
     final controller = widget.tab.pdfViewerController;
-    if (!controller.isReady) return;
+    final layout = pdfReadyLayoutOrNull(controller);
+    if (layout == null) return null;
     final page = controller.pageNumber ?? widget.tab.pageNumber;
-    final layout = controller.layout;
     final shown = _isBookViewModeActive()
         ? _spreadRectForPageLayout(layout, _spreadStartPageFor(page))
         : (page >= 1 && page <= layout.pageLayouts.length
               ? layout.pageLayouts[page - 1]
               : null);
-    if (shown == null || shown.isEmpty) return;
+    if (shown == null || shown.isEmpty) return null;
 
     final fits = pdfFitZooms(
       shown: shown,
       viewSize: controller.viewSize,
       margin: controller.params.margin,
     );
-    // לרוחב שומרים את גובה הקריאה; עמוד שלם ממורכז.
-    final toPage = pdfNextFitIsPage(
-      zoom: controller.currentZoom,
-      widthZoom: fits.width,
+    return (
+      shown: shown,
+      fits: fits,
+      toPage: pdfNextFitIsPage(
+        zoom: controller.currentZoom,
+        widthZoom: fits.width,
+      ),
     );
+  }
+
+  void _updateNextFit() {
+    final targets = _fitTargets();
+    if (targets != null) _nextFitIsPage.value = targets.toPage;
+  }
+
+  void _toggleFitMode() {
+    final targets = _fitTargets();
+    if (targets == null) return;
+    final controller = widget.tab.pdfViewerController;
+    final (:shown, :fits, :toPage) = targets;
+    // לרוחב שומרים את גובה הקריאה; עמוד שלם ממורכז.
     _bloc.add(
       pdf_events.FitZoom(
         zoom: toPage ? fits.page : fits.width,
@@ -5543,7 +5599,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   Widget _buildPdfActions(BuildContext context) {
     final tourKeys = TourTargetKeys.of(context);
     return ListenableBuilder(
-      listenable: readerPluginToolbarListenable(context),
+      // גם [_nextFitIsPage]: בחלון צר "התאם" נמצא בתפריט "עוד", ופריט התפריט
+      // הוא נתון קבוע. הוא מתחלף רק כשההתאמה הבאה מתחלפת, לא בכל פריים זום.
+      listenable: Listenable.merge([
+        readerPluginToolbarListenable(context),
+        _nextFitIsPage,
+      ]),
       builder: (context, _) => ResponsiveActionBar(
         key: const ValueKey('pdf_actions'),
         overflowMenuOffset: const Offset(0, 8),
@@ -5573,15 +5634,17 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             pluginContext: 'reader-pdf',
           ),
         ),
-        menuHeaderActions: widget.isInCombinedView
-            ? _buildNavigationActions()
-            : null,
+        // בתצוגה משולבת תמיד; אחרת רק כשארבעת החיצים לא נכנסו לסרגל.
+        menuHeaderActions: _buildNavigationActions(),
+        menuHeaderActionsVisible: widget.isInCombinedView
+            ? null
+            : () => !_navPlacement.arrowsInBar,
       ),
     );
   }
 
   List<ActionButtonData> _buildDisplayOrderPdfActions(BuildContext context) {
-    final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
+    final isCompact = AppDensity.of(context).isCompact;
     unawaited(_resolveParallelEditions());
     return [
       // מהדורה מקבילה — המובנית (מהדורת טקסט) כפעולה ראשית, ומהדורות
@@ -5652,14 +5715,37 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         compact: isCompact,
         actionId: ToolbarActionId.zoomOut,
       ),
-      ActionButtonData.simple(
-        icon: FluentIcons.page_fit_24_regular,
-        tooltip: 'התאם לרוחב / לעמוד שלם',
-        onPressed: _toggleFitMode,
-        compact: isCompact,
-        actionId: ToolbarActionId.fitMode,
-      ),
+      _buildFitModeAction(isCompact),
+      // מסך מלא — בטלפון בלבד (q12 Q8). גם בכרטיסייה מפוצלת: לכל חלונית
+      // סרגל משלה, ואין סרגל משותף שיציע אותה במקומן.
+      ?buildMobileFullscreenAction(context, compact: isCompact),
     ];
+  }
+
+  /// כפתור ההתאמה מציג את ההתאמה שלחיצה תבצע (#2988). הסרגל אינו נבנה מחדש
+  /// בכל שינוי זום: הכפתור מאזין ל-[_nextFitIsPage] בעצמו, והסרגל נבנה מחדש
+  /// רק כשההתאמה הבאה מתחלפת (בשביל הפריט בתפריט "עוד").
+  ActionButtonData _buildFitModeAction(bool isCompact) {
+    final current = pdfFitButtonVisual(nextIsPage: _nextFitIsPage.value);
+    return ActionButtonData(
+      widget: ValueListenableBuilder<bool>(
+        valueListenable: _nextFitIsPage,
+        builder: (context, nextIsPage, _) {
+          final visual = pdfFitButtonVisual(nextIsPage: nextIsPage);
+          return BarButton.icon(
+            compact: isCompact,
+            tooltip: visual.tooltip,
+            icon: visual.icon,
+            onPressed: _toggleFitMode,
+          );
+        },
+      ),
+      icon: current.icon,
+      tooltip: current.tooltip,
+      onPressed: _toggleFitMode,
+      toolbarWidth: BarButton.toolbarWidth(isCompact),
+      actionId: ToolbarActionId.fitMode,
+    );
   }
 
   /// פריטי תפריט "עוד פעולות" עם משקל מיון קבוע לכל פריט, כדי שפריטי
@@ -5667,7 +5753,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   List<(int, ActionButtonData)> _buildAlwaysInMenuPdfActions(
     BuildContext context,
   ) {
-    final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
+    final isCompact = AppDensity.of(context).isCompact;
     return [
       (
         10,
@@ -5820,8 +5906,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     ];
   }
 
-  /// פעולות הניווט לשורה שבראש תפריט ה-"..." — בתצוגה מפוצלת בלבד.
-  /// בתצוגה רגילה הניווט מוצג במרכז הסרגל דרך [_buildPdfCenter].
+  /// פעולות הניווט לשורה שבראש תפריט ה-"..." — בתצוגה מפוצלת, וכשארבעת
+  /// החיצים לא נכנסים במרכז הסרגל ([_buildPdfCenter], [ReaderNavPlacement]).
   List<ActionButtonData> _buildNavigationActions() {
     return buildBookViewNavigationActions(
       firstAction: buildBookViewFirstNavigationAction(
@@ -5875,6 +5961,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     }
 
     return ReaderNavCenter(
+      placement: _navPlacement,
       title: title,
       prevMajorTooltip:
           'תחילת הספר (${ShortcutHelper.formatShortcutForDisplay('ctrl+home')})',
@@ -5913,7 +6000,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   ActionButtonData _buildParallelEditionsAction(BuildContext context) =>
       buildParallelEditionsAction(
         editions: _parallelEditions,
-        compact: context.read<SettingsBloc>().state.compactMenuMode,
+        compact: AppDensity.of(context).isCompact,
         companionIcon: OtzariaIcons.document_column_24_regular,
         companionTooltip: 'פתח בתצוגת טקסט',
         companionMenuSuffix: 'מהדורת טקסט (אוצריא)',
@@ -6191,7 +6278,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     start: 12,
     end: 12,
     child: Center(
-      child: Card(
+      child: AppCard(
+        margin: const EdgeInsets.all(AppTokens.spaceXS),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           child: Wrap(
@@ -6245,6 +6333,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                 );
               }
 
+              // ui-lint: allow UIL-021 — עוגן ההערה מחושב בקואורדינטות הפיזיות של דף ה-PDF, ללא תלות בשפת הממשק (DD-20, §6.1).
               return Positioned(
                 key: ValueKey('pdf-note-${note.id}'),
                 left: offset.dx - 12,
@@ -6271,7 +6360,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                       ),
                       child: Icon(
                         FluentIcons.note_24_regular,
-                        size: 16,
+                        size: AppTokens.iconSM,
                         color: selected
                             ? colors.onPrimary
                             : colors.onPrimaryContainer,
@@ -6425,7 +6514,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                   const Spacer(),
                   Icon(
                     FluentIcons.checkmark_24_regular,
-                    size: 16,
+                    size: AppTokens.iconSM,
                     color: primaryColor,
                   ),
                 ],
@@ -7161,62 +7250,6 @@ class _BookPageTurnPainter extends CustomPainter {
       oldDelegate.pageBackColor != pageBackColor ||
       oldDelegate.shadowColor != shadowColor ||
       oldDelegate.edgeColor != edgeColor;
-}
-
-class _BookViewTurnButton extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final double size;
-  final Color backgroundColor;
-  final Color iconColor;
-  final Color borderColor;
-  final Color shadowColor;
-  final VoidCallback onPressed;
-
-  const _BookViewTurnButton({
-    required this.icon,
-    required this.tooltip,
-    required this.size,
-    required this.backgroundColor,
-    required this.iconColor,
-    required this.borderColor,
-    required this.shadowColor,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final compactSize = size * 0.7;
-    return Container(
-      width: compactSize,
-      height: compactSize,
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        shape: BoxShape.circle,
-        border: Border.all(color: borderColor, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: shadowColor,
-            blurRadius: 6,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: AppTokens.borderRadiusAll,
-          child: Center(
-            child: Tooltip(
-              message: tooltip,
-              child: Icon(icon, color: iconColor, size: compactSize * 0.5),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 /// Listener variant that registers with [PointerSignalResolver] only for

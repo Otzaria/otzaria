@@ -6,6 +6,7 @@ import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/tabs/text_settings_tab.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
+import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -14,9 +15,12 @@ import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 /// פאנל הגדרות תצוגת הספרים — משמש גם כ-overlay צף וגם כתוכן הדיאלוג
 /// ([showReadingSettingsDialog]). הגלילה מטופלת בתוך [TextSettingsTab].
 ///
-/// מזהה אם הטאב הפעיל מוצג במצב "צורת הדף" — ובמקרה זה מסתיר את סליידר
-/// "גודל גופן מפרשים", שכן בצורת הדף גודל גופן המפרשים נשלט בהגדרה ייעודית
-/// נפרדת (בדיאלוג צורת הדף) ולא בהגדרה הכללית.
+/// מזהה אם הטאב הפעיל מוצג במצב "צורת הדף" — ובמקרה זה מחוון "גודל גופן
+/// מפרשים" הוא של צורת הדף, כי שם הגודל הוא הגדרה ייעודית נפרדת.
+///
+/// בכרטיסיית תוצאות חיפוש מוצגות רק ההגדרות שחלות על התוצאות או על התצוגה
+/// המקדימה ([TextSettingsScope.searchResults], #2826), ובכרטיסיית ספר — בלי
+/// גודל התוצאות.
 class ReadingSettingsPanel extends StatelessWidget {
   const ReadingSettingsPanel({super.key});
 
@@ -27,7 +31,7 @@ class ReadingSettingsPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<TabsBloc, TabsState>(
       builder: (context, tabsState) {
-        final currentTab = tabsState.currentTab;
+        final currentTab = tabsState.activePane;
         if (currentTab is TextBookTab) {
           return BlocBuilder<TextBookBloc, TextBookState>(
             bloc: currentTab.bloc,
@@ -39,12 +43,25 @@ class ReadingSettingsPanel extends StatelessWidget {
             builder: (context, textState) => _isPageShape(textState)
                 ? const TextSettingsTab(
                     isDialog: true,
-                    hideCommentaryFontSize: true,
+                    pageShapeCommentaryFontSize: true,
+                    scope: TextSettingsScope.book,
                   )
-                : const TextSettingsTab(isDialog: true),
+                : const TextSettingsTab(
+                    isDialog: true,
+                    scope: TextSettingsScope.book,
+                  ),
           );
         }
-        return const TextSettingsTab(isDialog: true);
+        if (currentTab is SearchingTab) {
+          return const TextSettingsTab(
+            isDialog: true,
+            scope: TextSettingsScope.searchResults,
+          );
+        }
+        return const TextSettingsTab(
+          isDialog: true,
+          scope: TextSettingsScope.book,
+        );
       },
     );
   }
@@ -64,7 +81,7 @@ void showReadingSettingsDialog() {
       (context) => AppDialog.singleAction(
         title: context.settingsText('הגדרות תצוגת הספרים'),
         icon: FluentIcons.text_font_24_regular,
-        headerBand: true,
+        size: AppDialogSize.large,
         confirmText: context.settingsText('סגור'),
         customContent: SizedBox(
           width: 650,

@@ -42,12 +42,8 @@ Future<int> additionalDownloadBytes({
     split.size,
   );
   if (joined == split.size) return 0;
-  var needed =
-      split.size +
-      split.parts.fold<int>(
-        0,
-        (largest, p) => p.size > largest ? p.size : largest,
-      );
+  // Verified parts stay available for retry until the joined archive commits.
+  var needed = split.size * 2;
   for (var i = 0; i < split.parts.length; i++) {
     final part = split.parts[i];
     needed -= await reusableDownloadBytes(

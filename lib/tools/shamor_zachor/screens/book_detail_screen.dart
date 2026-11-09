@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
@@ -21,7 +22,10 @@ import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
+import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
+import 'package:otzaria/widgets/feedback/app_info_banner.dart';
+import 'package:otzaria/widgets/layout/app_card.dart';
+import 'package:otzaria/widgets/lists/tree_section_header.dart';
 
 /// Screen for displaying and managing progress for a specific book
 class BookDetailScreen extends StatefulWidget {
@@ -219,10 +223,10 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             _logger.warning(
               'BookDetails not found for ${widget.bookName} in category ${widget.topLevelCategoryKey}',
             );
-            return ToolEmptyState(
+            return OtzariaEmptyState(
               icon: OtzariaIcons.book_24_regular,
-              message: 'פרטי הספר "${widget.bookName}" לא נמצאו',
-              subtitle: 'קטגוריה: ${widget.topLevelCategoryKey}',
+              title: 'פרטי הספר "${widget.bookName}" לא נמצאו',
+              message: 'קטגוריה: ${widget.topLevelCategoryKey}',
             );
           }
 
@@ -253,9 +257,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     final learnableItems = bookDetails.learnableItems;
 
     if (learnableItems.isEmpty) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: OtzariaIcons.book_24_regular,
-        message: 'אין פריטים ללימוד בספר זה',
+        title: 'אין פריטים ללימוד בספר זה',
       );
     }
 
@@ -366,13 +370,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
               const SizedBox(height: AppTokens.spaceMD),
               // ── טבלת הסימונים: כותרות העמודות נשארות גלויות בגלילה ───────
               Expanded(
-                child: Material(
-                  color: AppSurfaces.card(context),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: AppTokens.borderRadiusAll,
-                    side: BorderSide(color: cs.outlineVariant),
-                  ),
-                  clipBehavior: Clip.antiAlias,
+                child: AppCard(
                   child: Column(
                     children: [
                       _buildHeader(context, bookDetails, progressProvider),
@@ -389,7 +387,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                         ),
                       ),
                       if (bookCompletionDate != null)
-                        _buildCompletionFooter(cs, bookCompletionDate),
+                        _buildCompletionFooter(bookCompletionDate),
                     ],
                   ),
                 ),
@@ -402,31 +400,13 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   }
 
   /// שורת סיום בתחתית הטבלה: מתי הושלם הלימוד.
-  Widget _buildCompletionFooter(ColorScheme cs, DateTime completedAt) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppTokens.spaceMD,
-        vertical: AppTokens.spaceSM,
-      ),
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: cs.outlineVariant)),
-      ),
-      child: Row(
-        children: [
-          Icon(FluentIcons.checkmark_24_regular, size: 18, color: cs.primary),
-          const SizedBox(width: AppTokens.spaceSM),
-          Flexible(
-            child: Text(
-              'הושלם ${HebrewUtils.fullDate(completedAt)}',
-              softWrap: true,
-              style: TextStyle(
-                fontSize: AppTokens.fontMD,
-                color: cs.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ],
+  Widget _buildCompletionFooter(DateTime completedAt) {
+    return Padding(
+      padding: const EdgeInsets.all(AppTokens.spaceSM),
+      child: AppInfoBanner(
+        tone: AppInfoBannerTone.success,
+        icon: FluentIcons.checkmark_24_regular,
+        message: 'הושלם ${HebrewUtils.fullDate(completedAt)}',
       ),
     );
   }
@@ -498,6 +478,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                   ? IconButton.filledTonal(
                       tooltip: 'הוסף עמודה',
                       visualDensity: VisualDensity.compact,
+                      style: IconButton.styleFrom(
+                        shape: AppTokens.roundedShape,
+                      ),
                       icon: const Icon(FluentIcons.add_24_regular),
                       onPressed: () => _addColumn(progressProvider),
                     )
@@ -543,7 +526,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                           }
                         },
                         tristate: true,
-                        activeColor: theme.primaryColor,
+                        activeColor: theme.colorScheme.primary,
                       ),
                       _buildColumnHeaderLabel(
                         progressProvider,
@@ -564,29 +547,44 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     );
   }
 
-  /// מתי הושלמה העמודה, מתחת לשמה: התאריך העברי, ובתא רחב גם הלועזי.
+  /// מתי הושלמה העמודה, מתחת לשמה: התאריך העברי, ובתא רחב גם הלועזי. בתא
+  /// שהתאריך המלא לא נכנס בו — יום וחודש בלי שנה; המלא תמיד ב-tooltip.
   Widget _buildColumnCompletionDate(ThemeData theme, DateTime completedAt) {
-    final style = TextStyle(
-      fontSize: AppTokens.fontSM - 1,
+    final style = theme.textTheme.labelSmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
+    final hebrew = HebrewUtils.hebrewDate(completedAt);
     return Tooltip(
       message: 'הושלם ${HebrewUtils.fullDate(completedAt)}',
       child: Padding(
         // Keeps neighbouring dates apart when narrow cells shrink them.
-        padding: const EdgeInsets.symmetric(horizontal: 3),
+        padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceXS),
         child: LayoutBuilder(
-          builder: (context, constraints) => FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(HebrewUtils.hebrewDate(completedAt), style: style),
-                if (constraints.maxWidth >= _kGregorianDateMinWidth)
-                  Text(HebrewUtils.gregorianDate(completedAt), style: style),
-              ],
-            ),
-          ),
+          builder: (context, constraints) {
+            final painter = TextPainter(
+              text: TextSpan(text: hebrew, style: style),
+              textDirection: Directionality.of(context),
+              textScaler: MediaQuery.textScalerOf(context),
+              maxLines: 1,
+            )..layout();
+            final fits = painter.width <= constraints.maxWidth;
+            painter.dispose();
+            // FittedBox רק כגיבוי, כשגם התאריך הקצר לא נכנס.
+            return FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    fits ? hebrew : HebrewUtils.hebrewDayMonth(completedAt),
+                    style: style,
+                  ),
+                  if (constraints.maxWidth >= _kGregorianDateMinWidth)
+                    Text(HebrewUtils.gregorianDate(completedAt), style: style),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
@@ -600,76 +598,62 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     int columnCount,
   ) {
     final theme = Theme.of(context);
-    return PopupMenuButton<String>(
-      tooltip: 'אפשרויות עמודה',
-      padding: EdgeInsets.zero,
-      onSelected: (value) {
-        if (value == 'range') {
-          _markRange(progressProvider, bookDetails, column);
-        } else if (value == 'rename') {
-          _renameColumn(progressProvider, column);
-        } else if (value == 'remove') {
-          _removeColumn(progressProvider, column);
-        }
-      },
-      itemBuilder: (_) => [
-        const PopupMenuItem<String>(
-          value: 'range',
-          child: Row(
-            children: [
-              Icon(FluentIcons.checkbox_checked_24_regular, size: 18),
-              SizedBox(width: 8),
-              Text('סימון טווח'),
-            ],
+    return Tooltip(
+      message: 'אפשרויות עמודה',
+      child: AppPopupMenuButton<String>(
+        onSelected: (value) {
+          if (value == 'range') {
+            _markRange(progressProvider, bookDetails, column);
+          } else if (value == 'rename') {
+            _renameColumn(progressProvider, column);
+          } else if (value == 'remove') {
+            _removeColumn(progressProvider, column);
+          }
+        },
+        entries: [
+          const AppMenuEntry(
+            value: 'range',
+            label: 'סימון טווח',
+            icon: FluentIcons.checkbox_checked_24_regular,
           ),
-        ),
-        const PopupMenuItem<String>(
-          value: 'rename',
-          child: Row(
-            children: [
-              Icon(FluentIcons.rename_24_regular, size: 18),
-              SizedBox(width: 8),
-              Text('שנה שם'),
-            ],
+          const AppMenuEntry(
+            value: 'rename',
+            label: 'שנה שם',
+            icon: FluentIcons.rename_24_regular,
           ),
-        ),
-        if (columnCount > 1)
-          const PopupMenuItem<String>(
-            value: 'remove',
-            child: Row(
-              children: [
-                Icon(FluentIcons.delete_24_regular, size: 18),
-                SizedBox(width: 8),
-                Text('הסר עמודה'),
-              ],
+          if (columnCount > 1)
+            const AppMenuEntry(
+              value: 'remove',
+              label: 'הסר עמודה',
+              icon: FluentIcons.delete_24_regular,
             ),
-          ),
-      ],
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                column.label,
-                style: TextStyle(
-                  fontSize: AppTokens.fontSM,
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.onSurface,
+        ],
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  column.label,
+                  style: TextStyle(
+                    fontSize: AppTokens.fontSM,
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                overflow: TextOverflow.ellipsis,
               ),
             ),
-          ),
-          const SizedBox(width: 2),
-          Icon(
-            FluentIcons.chevron_down_24_regular,
-            size: 14,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ],
+            const SizedBox(width: 2),
+            Icon(
+              FluentIcons.chevron_down_24_regular,
+              size: 14,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -959,125 +943,83 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       );
     }
 
-    // Parent
-    // Material and not ColoredBox, so the tile's ink is painted above the tint.
+    // Parent: TreeSectionHeader במקום ExpansionTile עם Theme מקומי (q10 Q8d).
+    // השורה כולה פותחת וסוגרת, החץ יושב ברוחב שההלכות משאירות ריק בתחילתן,
+    // ולכן העמודות מיושרות. התיבות בצפיפות של שורת הלכה מקוננת.
+    // Material ולא ColoredBox, כדי שהדיו של השורה ייצבע מעל הגוון.
     return Material(
       color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.4),
-      child: Theme(
-        data: theme.copyWith(
-          // צמצום מרווחי ה-ListTile של ה-ExpansionTile
-          listTileTheme: const ListTileThemeData(
-            dense: true,
-            minVerticalPadding: 0,
-            horizontalTitleGap: 0,
-            minLeadingWidth: 0,
-            contentPadding: EdgeInsets.zero,
-          ),
-          // צמצום tap-target של Checkbox
-          checkboxTheme: const CheckboxThemeData(
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            visualDensity: VisualDensity(horizontal: -4, vertical: -4),
-          ),
-          dividerColor: Colors.transparent,
+      child: TreeSectionHeader(
+        key: ValueKey(section.id),
+        isExpanded: isExpanded,
+        onToggle: () =>
+            setState(() => _expandedSections[section.id] = !isExpanded),
+        leadingExtent: _chevronReserve + _titleGutter,
+        padding: const EdgeInsets.symmetric(
+          horizontal: _gridHPad,
+          vertical: AppTokens.space2XS,
         ),
-        child: ExpansionTile(
-          key: ValueKey(section.id),
-          initiallyExpanded: isExpanded,
-          onExpansionChanged: (expanded) {
-            setState(() => _expandedSections[section.id] = expanded);
-          },
-          tilePadding: const EdgeInsetsDirectional.only(
-            end: _gridHPad + _titleGutter,
-          ),
-          childrenPadding: EdgeInsets.zero,
-          controlAffinity: ListTileControlAffinity.trailing,
-          title: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: _gridHPad,
-              vertical: 3,
-            ),
-            child: Row(
-              children: [
-                // קודם כותרת, כמו ב־Header
-                Expanded(
-                  flex: _titleFlex,
-                  child: Padding(
-                    // הזחה ביחס ל־RTL מהימין פנימה - רק לכותרת!
-                    padding: EdgeInsetsDirectional.only(
-                      start: _levelIndent * level,
-                    ),
-                    child: Text(
-                      section.title,
-                      style: _headingStyle.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: theme.colorScheme.onSurface,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      softWrap: false,
-                    ),
-                  ),
+        child: Row(
+          children: [
+            Expanded(
+              flex: _titleFlex,
+              child: Padding(
+                padding: EdgeInsetsDirectional.only(
+                  start: _levelIndent * level,
                 ),
-                Expanded(
-                  flex: _gridFlex,
-                  child: Row(
-                    children: _columnsOf(progressProvider).map((col) {
-                      final columnId = col.id;
-
-                      // אם אין bookId, נחזיר checkbox ריק
-                      if (widget.bookId == null) {
-                        return Expanded(
-                          child: SizedBox(
-                            height: 24,
-                            child: Center(
-                              child: Checkbox(
-                                value: false,
-                                tristate: true,
-                                onChanged: null, // disabled
-                              ),
-                            ),
-                          ),
+                child: Text(
+                  section.title,
+                  style: _headingStyle.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                ),
+              ),
+            ),
+            Expanded(
+              flex: _gridFlex,
+              child: Row(
+                children: _columnsOf(progressProvider).map((col) {
+                  final bookId = widget.bookId;
+                  final state = bookId == null
+                      ? false
+                      : progressProvider.getSectionColumnStateById(
+                          bookId,
+                          bookDetails,
+                          section.id,
+                          col.id,
                         );
-                      }
-
-                      final state = progressProvider.getSectionColumnStateById(
-                        widget.bookId!,
-                        bookDetails,
-                        section.id,
-                        columnId,
-                      );
-                      return Expanded(
-                        child: SizedBox(
-                          height: 24,
-                          child: Center(
-                            child: Checkbox(
-                              value: state,
-                              tristate: true,
-                              onChanged: (value) async {
-                                if (_isCurrentBook(bookDetails) &&
-                                    widget.bookId != null) {
-                                  await progressProvider
-                                      .toggleSectionColumnById(
-                                        widget.bookId!,
-                                        bookDetails,
-                                        section.id,
-                                        columnId,
-                                        value == true,
-                                      );
-                                }
+                  return Expanded(
+                    child: Tooltip(
+                      message: col.label,
+                      child: Checkbox(
+                        visualDensity: VisualDensity.compact,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        value: state,
+                        tristate: true,
+                        // בלי bookId אין לאן לשמור, ולכן התיבה מושבתת.
+                        onChanged: bookId == null
+                            ? null
+                            : (value) async {
+                                if (!_isCurrentBook(bookDetails)) return;
+                                await progressProvider.toggleSectionColumnById(
+                                  bookId,
+                                  bookDetails,
+                                  section.id,
+                                  col.id,
+                                  value == true,
+                                );
                               },
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
             ),
-          ),
-          // הילדים נבנים כשורות נפרדות ברשימה השטוחה.
-          children: const [],
+          ],
         ),
       ),
     );

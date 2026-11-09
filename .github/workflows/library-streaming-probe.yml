@@ -6,6 +6,10 @@ on:
     branches: [main, dev]
     paths:
       - '.github/workflows/library-streaming-probe.yml'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - 'lib/utils/file/download_space.dart'
+      - 'test/utils/file/download_space_test.dart'
       - 'lib/utils/file/zstd_library.dart'
       - 'lib/utils/file/tar_stream_extractor.dart'
       - 'lib/utils/file/zstd_stream_decoder.dart'
@@ -59,6 +63,7 @@ jobs:
         run: |
           set -o pipefail
           flutter test --reporter expanded \
+            test/utils/file/download_space_test.dart \
             test/utils/file/zstd_stream_extractor_adversarial_test.dart \
             test/utils/file/zstd_patch_decoder_safety_test.dart \
             test/utils/file/zstd_patch_decoder_verified_test.dart \

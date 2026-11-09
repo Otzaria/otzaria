@@ -363,6 +363,42 @@ FULL אינם רכיב: הם להורדה ידנית מעמוד השחרור, ו
 הספרייה עצמם. לכל חבילה מלאה יש גם תבנית `split`, כמו ל-Windows FULL, כדי שלא
 תיעלם מהמניפסט ביום שתחצה את הסף.
 
+### הפצת תוכנת Android ועדכונים
+
+בנייה ישירה משתמשת ב-`flutter build apk --release --flavor direct`. ה-APK
+מתפרסם בשם `otzaria-android.apk`, באותו שם גם בתוך FULL. בניית Google Play
+משתמשת ב-`--flavor play` ומעלה את `app-play-release.aab`. לשני הערוצים אותו
+`applicationId`; אימות החתימה של החבילה המותקנת עדיין נדרש במעבר ביניהם.
+מסייעי ההורדה קוראים את שם ה-APK מהמניפסט ותומכים גם ב-`app-release.apk`
+מהפצות ישנות. הם מכינים APK להתקנה ואינם דורשים קובץ מטא־נתונים לצדו.
+
+לצד ה-APK הישיר ובתוך FULL מתפרסם `otzaria-android.json`. מחולל המטא־נתונים
+(`tool/release/android_release_metadata.py`) מאמת חתימה ב-`apksigner`, קורא את
+מניפסט ה-APK ב-`aapt` ומחשב גודל ו-SHA-256 מהקובץ עצמו. אין בו הסקת גרסת
+Android ממספר תג השחרור. החוזה הוא:
+
+```json
+{
+  "schemaVersion": 1,
+  "applicationId": "org.otzaria.otzaria",
+  "versionCode": 99803,
+  "versionName": "0.9.98",
+  "minSdk": 24,
+  "targetSdk": 36,
+  "abis": ["arm64-v8a", "armeabi-v7a", "x86_64"],
+  "apk": {"name": "otzaria-android.apk", "size": 123, "sha256": "<64 lowercase hex characters>"},
+  "signingCertificateSha256": ["<64 lowercase hex characters>"]
+}
+```
+
+המספרים בדוגמה אינם מקור למטא־נתונים. ה-sidecar אינו חתום בנפרד: צרכן מאמת
+את הבתים ואת זהות החבילה, ו-Android מאמת שהחותם רשאי לעדכן את ההתקנה הקיימת.
+SHA-256 של תעודה מתאר את החותם בפועל ואינו מוכיח תאימות למפתח של Google Play.
+ה-CI `android_app_updates.yml` בונה את שני ה-flavors, מריץ בדיקות Kotlin ובודק
+את ההרשאות במניפסט הממוזג: הרשאת בקשת התקנת APK קיימת ב-`direct` ואינה
+נכללת ב-`play`. בפיתוח Android בוחרים במפורש `flutter run --flavor direct`;
+אין `default-flavor` כללי ב-pubspec, כדי לא לשנות את בניות iOS ו-macOS.
+
 ### בחירת היעד
 
 סדר העמודים: פלטפורמה ← ארכיטקטורה ← פורמט חבילה ← הצעות ← בחירה אישית ←

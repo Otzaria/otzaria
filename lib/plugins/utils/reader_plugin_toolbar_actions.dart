@@ -1,11 +1,11 @@
 import 'package:flutter/widgets.dart';
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/services/plugin_toolbar_registry.dart';
 import 'package:otzaria/plugins/utils/plugin_toolbar_actions.dart';
 import 'package:otzaria/plugins/utils/reader_location_resolver.dart';
-import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 
@@ -26,7 +26,7 @@ List<ActionButtonData> buildReaderPluginActions(
     viewId: View.of(context).viewId,
     windowKeys: AppWindowKeys.of(context),
     context: pluginContext,
-    compact: context.read<SettingsBloc>().state.compactMenuMode,
+    compact: AppDensity.of(context).isCompact,
     locationPayload: () async =>
         (await resolveReaderLocation(tab))?.toJson() ?? const {},
     hostActionDispatcher: context
@@ -52,7 +52,7 @@ List<(int, ActionButtonData)> buildReaderPluginOverflowActions(
     viewId: View.of(context).viewId,
     windowKeys: AppWindowKeys.of(context),
     context: pluginContext,
-    compact: context.read<SettingsBloc>().state.compactMenuMode,
+    compact: AppDensity.of(context).isCompact,
     locationPayload: () async =>
         (await resolveReaderLocation(tab))?.toJson() ?? const {},
     hostActionDispatcher: context

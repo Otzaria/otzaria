@@ -414,7 +414,7 @@ setToggle('set-israel', isInIsrael, (v) => {
 | רקע פאנל | `surfaceContainerHigh` | `ContextOverlayPanel` |
 | אנימציה | slide 300ms + fade 200ms | `animPanelSlide` / `animPanelOpacity` |
 | רדיוס כרטיס | 8px | `AppTokens.radius` (`SettingsCard`) |
-| כותרת כרטיס | בצבע `primary`, מודגשת | `SettingsCardHeader` |
+| כותרת כרטיס | בצבע `primary`, מודגשת | `SettingsCard.titleStyleOf` |
 | מפריד בין שורות | 1.5px | `AppCard.sectionSpacing` |
 | רדיוס סגמנט | 8px | `AppTokens.radius` |
 | סגמנט נבחר | רקע `secondaryContainer`, טקסט `onSecondaryContainer` | `AppSegmentedControl` |

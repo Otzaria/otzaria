@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
+import 'package:otzaria/personal_notes/utils/note_anchor_utils.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/printing/print_content_models.dart';
 
@@ -203,7 +204,18 @@ class PersonalNotesImportExportService {
     if (paragraphs.isEmpty) return const [];
 
     var dibur = note.anchorText?.trim() ?? '';
-    if (dibur.isEmpty) dibur = note.displayTitle?.trim() ?? '';
+    final displayTitle = note.displayTitle?.trim() ?? '';
+    // טקסט העוגן מנורמל לצורך חיפוש ועלול לאבד גרש וגרשיים. כשהכותרת
+    // משקפת את אותה בחירה, מייצאים את הטקסט כפי שהמשתמש בחר אותו.
+    // בהערות ישנות עם כותרת שונה מעדיפים את העוגן המדויק.
+    if (dibur.isNotEmpty && displayTitle.isNotEmpty) {
+      final normalizedAnchor = normalizeAnchorText(dibur);
+      if (normalizedAnchor.isNotEmpty &&
+          normalizeAnchorText(displayTitle) == normalizedAnchor) {
+        dibur = displayTitle;
+      }
+    }
+    if (dibur.isEmpty) dibur = displayTitle;
     if (dibur.isNotEmpty) {
       final needsPeriod = !RegExp(r'[.:,;!?]$').hasMatch(dibur);
       final suffix = needsPeriod ? '.' : '';

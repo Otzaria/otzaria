@@ -90,11 +90,16 @@ class ExternalLinkRepository {
     final future = _readCurrentOfficialVersion();
     _officialVersion = future;
     // אין מסד — לא שומרים null לתמיד; ננסה שוב בפעם הבאה.
-    future.then((version) {
-      if (version == null && identical(_officialVersion, future)) {
-        _officialVersion = null;
-      }
-    });
+    future.then<void>(
+      (version) {
+        if (version == null && identical(_officialVersion, future)) {
+          _officialVersion = null;
+        }
+      },
+      onError: (Object _) {
+        if (identical(_officialVersion, future)) _officialVersion = null;
+      },
+    );
     return future;
   }
 
@@ -104,6 +109,7 @@ class ExternalLinkRepository {
     try {
       return await _inIsolate(_readOfficialVersion, target);
     } catch (e) {
+      if (isTransientExternalLinkLock(e)) rethrow;
       debugPrint('[ExternalLinks] official version: $e');
       return null;
     }
@@ -149,7 +155,7 @@ class ExternalLinkRepository {
   };
 
   /// הקישורים החיצוניים של ספר בטווח השורות (0-based, כולל): הישירים כשהספר
-  /// ממסד מצורף, וההפוכים מכל מסד מצורף שמצביע אליו. כשל מחזיר ריק.
+  /// ממסד מצורף, וההפוכים מכל מסד מצורף שמצביע אליו. נעילה זמנית נזרקת.
   Future<List<Link>> linksInRange({
     required String title,
     required int? categoryId,
@@ -176,6 +182,7 @@ class ExternalLinkRepository {
       ];
       return _filterCommentators(links, targetBookTitles);
     } catch (e) {
+      if (isTransientExternalLinkLock(e)) rethrow;
       debugPrint('[ExternalLinks] "$title": $e');
       return const [];
     }
@@ -253,6 +260,7 @@ class ExternalLinkRepository {
         maxSourceLine: maxLine + 1,
       );
     } catch (e) {
+      if (isTransientExternalLinkLock(e)) rethrow;
       debugPrint('[ExternalLinks] summary "$title": $e');
       return empty;
     }
@@ -392,9 +400,9 @@ class ExternalLinkRepository {
     required String title,
     required int? categoryId,
     required BookSource source,
-  }) {
+  }) async {
     if (source.isUser || _withExternalLinks.isEmpty) {
-      return Future.value(const {});
+      return const {};
     }
     final key = _cacheKey([
       source.wireKey,
@@ -403,14 +411,23 @@ class ExternalLinkRepository {
       for (final entry in _servedSources(exclude: source).entries)
         '${entry.key}=${entry.value}',
     ]);
-    final cached = _commentatorSourcesCache.remove(key);
-    if (cached != null) return _commentatorSourcesCache[key] = cached;
-    final future = _readCommentatorSources(title, categoryId, source);
+    final future =
+        _commentatorSourcesCache.remove(key) ??
+        _readCommentatorSources(title, categoryId, source);
     _commentatorSourcesCache[key] = future;
     if (_commentatorSourcesCache.length > _forwardCacheSize) {
       _commentatorSourcesCache.remove(_commentatorSourcesCache.keys.first);
     }
-    return future;
+    try {
+      return await future;
+    } catch (e) {
+      if (identical(_commentatorSourcesCache[key], future)) {
+        _commentatorSourcesCache.remove(key);
+      }
+      if (isTransientExternalLinkLock(e)) rethrow;
+      debugPrint('[ExternalLinks] commentators "$title": $e');
+      return const {};
+    }
   }
 
   final Map<String, Future<Map<String, BookSource>>> _commentatorSourcesCache =
@@ -422,25 +439,21 @@ class ExternalLinkRepository {
     BookSource source,
   ) async {
     final result = <String, BookSource>{};
-    try {
-      for (final row in await _forwardBookRows(title, categoryId, source)) {
-        if (!LinkTypes.isDependentTextLink(row.connectionType)) continue;
-        final target = BookSource.tryParse(row.targetWireKey);
-        if (target != null) result.putIfAbsent(row.targetTitle, () => target);
-      }
-      for (final row in await _reverseRows(
-        title,
-        categoryId,
-        source,
-        connectionType: LinkTypes.source,
-      )) {
-        result.putIfAbsent(
-          row.sourceTitle,
-          () => BookSource.attached(row.sourceSlug),
-        );
-      }
-    } catch (e) {
-      debugPrint('[ExternalLinks] commentators "$title": $e');
+    for (final row in await _forwardBookRows(title, categoryId, source)) {
+      if (!LinkTypes.isDependentTextLink(row.connectionType)) continue;
+      final target = BookSource.tryParse(row.targetWireKey);
+      if (target != null) result.putIfAbsent(row.targetTitle, () => target);
+    }
+    for (final row in await _reverseRows(
+      title,
+      categoryId,
+      source,
+      connectionType: LinkTypes.source,
+    )) {
+      result.putIfAbsent(
+        row.sourceTitle,
+        () => BookSource.attached(row.sourceSlug),
+      );
     }
     return result;
   }
@@ -451,7 +464,10 @@ class ExternalLinkRepository {
     unawaited(
       sync().then<void>(
         (_) {},
-        onError: (Object e) => debugPrint('[ExternalLinks] sync failed: $e'),
+        onError: (Object e) {
+          if (isTransientExternalLinkLock(e)) _syncOnNextUse = true;
+          debugPrint('[ExternalLinks] sync failed: $e');
+        },
       ),
     );
   }
@@ -471,6 +487,7 @@ class ExternalLinkRepository {
   /// אחרי כשל, [incompleteSlugs] ו-[tooLargeSlugs] נשארים עם ערכם הקודם.
   Future<Set<String>> _sync({
     String? resumeSlug,
+    String? rebuildSlug,
     bool autoResume = false,
   }) async {
     final libraries = _registry.libraries;
@@ -522,6 +539,7 @@ class ExternalLinkRepository {
         progressIntervalMs: progressInterval.inMilliseconds,
         batchPauseMs: batchPause.inMilliseconds,
         resumeSlug: resumeSlug,
+        rebuildSlug: rebuildSlug,
         autoResume: autoResume,
         control: control.address,
       ), _onSyncMessage);
@@ -599,11 +617,10 @@ class ExternalLinkRepository {
   }
 
   /// בונה מחדש את אינדקס הקישורים של [slug] מאפס. רץ באותה שרשרת של [sync],
-  /// כך שמחיקת ה-meta אינה מקדימה סנכרון שכותב. הממשק משתמש ב-[requestRebuild].
+  /// והאיפוס מתחיל רק אחרי קריאת גרסאות היעד. הממשק משתמש ב-[requestRebuild].
   @visibleForTesting
   Future<void> rebuild(String slug) => _enqueue(() async {
-    await _inIsolate(_forgetIndexMeta, (await _cacheDbPath(), slug));
-    await _sync();
+    await _sync(rebuildSlug: slug);
   });
 
   /// ממשיך בנייה שנקטעה ([cancelBuild], קריסה) מהנקודה השמורה: שורות האינדקס
@@ -631,7 +648,13 @@ class ExternalLinkRepository {
             onError: (Object e) =>
                 debugPrint('[ExternalLinks] request "$slug" failed: $e'),
           )
-          .whenComplete(() => _requestedSlugs.remove(slug)),
+          .whenComplete(() {
+            _requestedSlugs.remove(slug);
+            // משחרר גם כפתורים של בקשה שנכשלה לפני הודעת ההתקדמות הראשונה.
+            if (_requestedSlugs.isEmpty && _control == null) {
+              buildingSlugs.value = {...buildingSlugs.value};
+            }
+          }),
     );
   }
 
@@ -747,6 +770,7 @@ typedef _SyncArgs = ({
   int progressIntervalMs,
   int batchPauseMs,
   String? resumeSlug,
+  String? rebuildSlug,
   bool autoResume,
   int control,
 });
@@ -853,6 +877,9 @@ String? _readOfficialVersion(ReadOnlyDbTarget target) {
   if (!file.existsSync()) return null;
   final db = openReadOnlyTarget(target);
   try {
+    db.execute(
+      'PRAGMA busy_timeout=${ExternalTargetResolver.targetBusyTimeoutMs}',
+    );
     final hasMeta = db
         .select(
           "SELECT 1 FROM sqlite_master WHERE type = 'table' "
@@ -1030,19 +1057,6 @@ bool _isCurrentOrMarked(
   }
 }
 
-/// מוחק את ה-meta של [slug], כך שהסנכרון הבא יבנה לו אינדקס מחדש.
-void _forgetIndexMeta((String, String) args) {
-  final (path, slug) = args;
-  if (!File(path).existsSync()) return;
-  final db = _openCacheDb(path);
-  try {
-    if (!_hasTable(db, _metaTable)) return;
-    db.execute('DELETE FROM $_metaTable WHERE sourceSlug = ?', [slug]);
-  } finally {
-    db.close();
-  }
-}
-
 _SyncResult _syncIndex(_SyncArgs args, SendPort progress) {
   final (
     :path,
@@ -1053,6 +1067,7 @@ _SyncResult _syncIndex(_SyncArgs args, SendPort progress) {
     :progressIntervalMs,
     :batchPauseMs,
     :resumeSlug,
+    :rebuildSlug,
     :autoResume,
     control: controlAddress,
   ) = args;
@@ -1101,6 +1116,7 @@ _SyncResult _syncIndex(_SyncArgs args, SendPort progress) {
     for (final slug in stored.keys) {
       if (!known.contains(slug)) _transaction(db, () => clear(slug));
     }
+    if (rebuildSlug != null) stored.remove(rebuildSlug);
 
     int indexRowCount(String slug) =>
         db.select(
@@ -1243,6 +1259,15 @@ _SyncResult _syncIndex(_SyncArgs args, SendPort progress) {
         batchStartedMs = clock.elapsedMilliseconds;
       }
 
+      void markStopped() => _transaction(
+        db,
+        () => writeMeta(
+          job.slug,
+          job.fingerprint,
+          _buildingMarker(signature, suffix: _stoppedSuffix),
+        ),
+      );
+
       try {
         final counts = _countExternalLinks(job.source, resumeFrom);
         total = counts.total;
@@ -1270,14 +1295,7 @@ _SyncResult _syncIndex(_SyncArgs args, SendPort progress) {
         report(force: true);
       } on _BuildCancelled {
         // השורות שנכתבו נשארות — המשך מהנקודה השמורה, רק לבקשת המשתמש.
-        _transaction(
-          db,
-          () => writeMeta(
-            job.slug,
-            job.fingerprint,
-            _buildingMarker(signature, suffix: _stoppedSuffix),
-          ),
-        );
+        markStopped();
         break jobsLoop;
       } on ExternalLinksTooLargeException {
         // הסימון נשאר — לא ננסה שוב עד שהקובץ ישתנה.
@@ -1287,6 +1305,10 @@ _SyncResult _syncIndex(_SyncArgs args, SendPort progress) {
         });
         continue;
       } catch (e, stackTrace) {
+        if (control.value & _ctlCancel != 0) {
+          markStopped();
+          break jobsLoop;
+        }
         // סימון הבנייה נשאר גם בכשל ראשון, כדי לא להציג אינדקס חלקי כמעודכן.
         debugPrint(
           '[ExternalLinks] build of "${job.slug}" failed '

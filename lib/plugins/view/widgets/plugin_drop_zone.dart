@@ -103,7 +103,7 @@ class _DropOverlay extends StatelessWidget {
           color: AppSurfaces.paneDropPreviewBorder(colorScheme),
           width: 2,
         ),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: AppTokens.borderRadiusAll,
       ),
       child: Center(
         // בחלונית צרה הטקסט היה נשבר לשורות וגולש מגובה האזור.

@@ -168,7 +168,6 @@ void main() {
                       showSearch: true,
                       shrinkWrap: false,
                       selectedCommentatorsOverride: empty ? const [] : null,
-                      onClosePane: onClose,
                       onOpenInNewTab: () {},
                     ),
             ),
@@ -214,11 +213,7 @@ void main() {
                   ? 36.0
                   : 40.0;
               final targetHeight = isMobile ? 48.0 : visualHeight;
-              final searchRowHeight = !pdf && isMobile
-                  ? 48.0
-                  : compact
-                  ? 36.0
-                  : 48.0;
+              final searchRowHeight = compact ? 36.0 : 48.0;
               final content = find.textContaining('זהו פירוש לבדיקה');
               expect(content, findsOneWidget);
               final before = tester.getTopLeft(content).dy;
@@ -227,7 +222,7 @@ void main() {
                 'חיפוש',
                 'בחירת מפרשים',
                 'כווץ את כל המפרשים',
-                'פתח כרטסיית מפרשים',
+                'פתח כרטיסיית מפרשים',
               ]) {
                 final finder = find.byTooltip(tooltip);
                 expect(
@@ -321,9 +316,12 @@ void main() {
       await tester.tap(find.byTooltip('חזרה למפרשים'));
       await tester.pumpAndSettle();
       expect(find.byTooltip('חיפוש'), findsOneWidget);
-      await tester.tap(find.byIcon(FluentIcons.dismiss_24_regular));
-      await tester.pumpAndSettle();
-      expect(closed, 1);
+      // לרשימת המפרשים בקורא הטקסט אין כפתור סגירה; החלונית נסגרת מהכותרת.
+      if (pdf) {
+        await tester.tap(find.byIcon(FluentIcons.dismiss_24_regular));
+        await tester.pumpAndSettle();
+        expect(closed, 1);
+      }
       expect(tester.takeException(), isNull);
     }, variant: platforms);
     testWidgets('ללא בחירת מפרשים ${pdf ? 'PDF' : 'טקסט'}', (tester) async {

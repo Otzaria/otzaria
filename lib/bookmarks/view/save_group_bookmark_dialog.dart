@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
+import 'package:otzaria/bookmarks/utils/bookmark_location.dart';
 import 'package:otzaria/bookmarks/models/bookmark_group.dart';
 import 'package:otzaria/bookmarks/utils/bookmark_from_tab.dart';
 import 'package:otzaria/core/messages/notes_messages.dart';
@@ -11,9 +12,9 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
-import 'package:otzaria/widgets/lists/items_list_view.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 
 /// שמירת סימניה מרוכזת לכל הספרים הפתוחים: אוסף את מיקומי כל טאבי הקריאה,
 /// מציג דיאלוג בחירה, ובשמירה מזהה קבוצה דומה קיימת ומציע להחליפה.
@@ -142,10 +143,11 @@ class _SaveGroupBookmarkDialogState extends State<_SaveGroupBookmarkDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AppCustomContentDialog(
+    return AppDialogFrame(
+      size: AppDialogSize.medium,
+      fitTitle: true,
       title: 'שמירת סימניה מרוכזת',
       icon: FluentIcons.bookmark_add_24_regular,
-      scrollable: false,
       actions: [
         ActionButton.ghost(
           text: 'ביטול',
@@ -154,6 +156,7 @@ class _SaveGroupBookmarkDialogState extends State<_SaveGroupBookmarkDialog> {
         ActionButton.recommended(text: 'שמור', onPressed: _save),
       ],
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           RtlTextField(
@@ -168,8 +171,9 @@ class _SaveGroupBookmarkDialogState extends State<_SaveGroupBookmarkDialog> {
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 4),
-          Expanded(
+          Flexible(
             child: ListView.builder(
+              shrinkWrap: true,
               itemCount: widget.entries.length,
               itemBuilder: (context, i) {
                 final entry = widget.entries[i];
@@ -183,7 +187,7 @@ class _SaveGroupBookmarkDialogState extends State<_SaveGroupBookmarkDialog> {
                       : null,
                   title: Text(entry.book.title),
                   subtitle: Text(
-                    ItemsListView.locationSubtitle(entry) ?? entry.ref,
+                    bookmarkLocationSubtitle(entry),
                   ),
                 );
               },

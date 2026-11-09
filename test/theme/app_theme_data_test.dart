@@ -3,10 +3,12 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/theme/app_seed_colors.dart';
+import 'package:otzaria/theme/app_surface_colors.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_colors.dart';
 import 'package:otzaria/theme/app_theme_data.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 
 /// ניגודיות WCAG בין שני צבעים (יחס בהירות).
 double _contrastRatio(Color a, Color b) {
@@ -36,6 +38,26 @@ void main() {
     });
   }
 
+  for (final brightness in Brightness.values) {
+    test('כל סוגי התפריטים על אותו רקע ב-$brightness', () {
+      final cs = AppThemeData.createColorScheme(
+        AppSeedColors.defaultLight,
+        brightness,
+      );
+      final theme = brightness == Brightness.light
+          ? AppThemeData.light(cs, compactMenuMode: false)
+          : AppThemeData.dark(cs, compactMenuMode: false);
+      Color? background(MenuStyle? style) =>
+          style?.backgroundColor?.resolve(const <WidgetState>{});
+
+      expect(theme.popupMenuTheme.color, background(theme.menuTheme.style));
+      expect(
+        theme.popupMenuTheme.color,
+        background(theme.dropdownMenuTheme.menuStyle),
+      );
+    });
+  }
+
   test('בוחרי תאריך מצוירים באותו רדיוס כמו שאר הדיאלוגים', () {
     final theme = AppThemeData.light(
       AppThemeData.createColorScheme(Colors.deepPurple, Brightness.light),
@@ -44,6 +66,71 @@ void main() {
 
     expect(theme.datePickerTheme.shape, AppTokens.roundedShape);
     expect(theme.datePickerTheme.rangePickerShape, AppTokens.roundedShape);
+  });
+
+  // q12 Q8, ss6: הסרגל התחתון בטלפון 64 ולא 80, ותווית לכל יעד.
+  testWidgets('סרגל הניווט התחתון בגובה 64, עם תווית לכל יעד', (
+    tester,
+  ) async {
+    final theme = AppThemeData.light(
+      AppThemeData.createColorScheme(Colors.deepPurple, Brightness.light),
+      compactMenuMode: true,
+    );
+    expect(
+      theme.navigationBarTheme.height,
+      LayoutConstraints.bottomNavigationBarHeight,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: theme,
+        home: Scaffold(
+          bottomNavigationBar: NavigationBar(
+            destinations: const [
+              NavigationDestination(icon: Icon(Icons.abc), label: 'ספרייה'),
+              NavigationDestination(icon: Icon(Icons.abc), label: 'עיון'),
+            ],
+          ),
+        ),
+      ),
+    );
+    expect(
+      tester.getSize(find.byType(NavigationBar)).height,
+      LayoutConstraints.bottomNavigationBarHeight,
+    );
+    // תווית גם ליעד שלא נבחר.
+    expect(find.text('עיון').hitTestable(), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('הערכה נגזרת מהזרע ונישאת ב-ThemeData', () {
+    expect(AppThemeVariant.ofSeed(AppSeedColors.white), AppThemeVariant.white);
+    expect(
+      AppThemeVariant.ofSeed(AppSeedColors.parchment),
+      AppThemeVariant.parchment,
+    );
+    expect(
+      AppThemeVariant.ofSeed(AppSeedColors.grey),
+      AppThemeVariant.standard,
+    );
+
+    final cs = AppThemeData.createColorScheme(
+      AppSeedColors.white,
+      Brightness.light,
+    );
+    expect(
+      AppThemeVariantTheme.of(
+        AppThemeData.light(
+          cs,
+          compactMenuMode: false,
+          variant: AppThemeVariant.white,
+        ),
+      ),
+      AppThemeVariant.white,
+    );
+    expect(
+      AppThemeVariantTheme.of(AppThemeData.light(cs, compactMenuMode: false)),
+      AppThemeVariant.standard,
+    );
   });
 
   group('ערכת צבע "לבן"', () {
@@ -87,6 +174,35 @@ void main() {
       }
       expect(white.surfaceContainerLow.r, lessThan(white.surface.r));
     });
+
+    test(
+      'הסרגלים, החלוניות והדיאלוגים לבנים כמעט, ועדיין נבדלים מהקריאה (#2850)',
+      () {
+        final cs = AppThemeData.createColorScheme(
+          AppSeedColors.white,
+          Brightness.light,
+        );
+        final s = AppSurfaceColors.fromScheme(cs);
+        int level(Color c) => (c.r * 255).round();
+        // סרגל עליון, חלונית הניווט, דיאלוג ותפריט (surfaceContainerHigh).
+        for (final (name, color) in [
+          ('topBar', s.topBarBackground),
+          ('navPanel', s.navPanelBackground),
+          ('surfaceContainerHigh', cs.surfaceContainerHigh),
+          ('panel', s.panelBackground),
+        ]) {
+          expect(level(color), greaterThanOrEqualTo(0xF6), reason: name);
+          expect(level(color), lessThan(0xFF), reason: '$name נבדל מהקריאה');
+        }
+        expect(level(cs.surfaceContainerHighest), greaterThanOrEqualTo(0xF0));
+        expect(s.readerBackground, Colors.white);
+        // נייטרלי: בלי גוון.
+        for (final c in [s.topBarBackground, s.panelBackground]) {
+          expect(c.r, c.g);
+          expect(c.g, c.b);
+        }
+      },
+    );
 
     test('במצב כהה הרקע נשאר כהה', () {
       final cs = AppThemeData.createColorScheme(

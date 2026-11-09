@@ -3,7 +3,9 @@
 // Tokens משותפים לכל שדות הקלט באפליקציה.
 // מגדיר גבהים, רדיוסים, גדלי פונט ו-alpha values אחידים.
 
-import 'package:otzaria/theme/theme_exports.dart';
+import 'package:flutter/material.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 abstract class AppInputTokens {
   // ── גבהים ──────────────────────────────────────────────────────────────────
@@ -26,4 +28,12 @@ abstract class AppInputTokens {
 
   static double fontSize(bool isCompact) =>
       isCompact ? compactFontSize : regularFontSize;
+}
+
+/// שדה בתוך טופס בדיאלוג: מילוי במשטח הבהיר של הכרטיס ([AppSurfaces.card]) על
+/// גוף הדיאלוג, כך שהשדות בולטים מהרקע. אחד לכל הטפסים, כדי ששני טפסים של אותו
+/// דבר לא ייראו שונה.
+extension DialogFormFieldDecoration on InputDecoration {
+  InputDecoration filledOnDialog(BuildContext context) =>
+      copyWith(filled: true, fillColor: AppSurfaces.card(context));
 }

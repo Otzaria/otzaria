@@ -395,6 +395,29 @@ void main() {
       expect(await queue.load(), isEmpty);
     });
 
+    test('מפענח רק את המנה שנשלחת, לא את כל התור', () async {
+      final queue = _Queue(store, PluginReportService.pendingKind);
+      await queue.seed([for (var i = 0; i < 21; i++) _buildRecord('q-$i')]);
+      // שורה מעבר למנה שאינה JSON תקין: פענוחה היה מפיל את ה-flush.
+      final database = await db.database;
+      database.execute(
+        "UPDATE pending_reports SET payload_json = '{' "
+        'WHERE id = (SELECT MAX(id) FROM pending_reports WHERE kind = ?)',
+        [PluginReportService.pendingKind],
+      );
+      var calls = 0;
+      final service = buildService(
+        client: MockClient((_) async {
+          calls++;
+          throw const SocketException('down');
+        }),
+      );
+
+      expect(await service.flushPendingReports(), 0);
+      expect(calls, 1);
+      expect(await service.getPendingReportsCount(), 21);
+    });
+
     test('במצב לא-מקוון לא שולח כלום', () async {
       await Settings.setValue<bool>(SettingsRepository.keyOfflineMode, true);
       final queue = _Queue(store, PluginReportService.pendingKind);

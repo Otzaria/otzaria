@@ -4,5 +4,4 @@
 /// את הקומפילציה ל-web; דרך קובץ זה נבחר מימוש לפי הפלטפורמה.
 library;
 
-export 'sqlite3_api_stub.dart'
-    if (dart.library.io) 'sqlite3_api_io.dart';
+export 'sqlite3_api_stub.dart' if (dart.library.io) 'sqlite3_api_io.dart';

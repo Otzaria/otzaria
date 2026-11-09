@@ -219,4 +219,69 @@ void main() {
       timeout: const Timeout(Duration(minutes: 2)),
     );
   }
+
+  testWidgets('הדפסת PDF מוכן מציעה את כל גדלי הדף של הדפסת טקסט', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final settingsBloc = _MockSettingsBloc();
+    whenListen(
+      settingsBloc,
+      const Stream<SettingsState>.empty(),
+      initialState: SettingsState.initial(),
+    );
+    final source = await tester.runAsync(() async {
+      await pdfrxFlutterInitialize();
+      return _fivePagePdf();
+    });
+
+    await tester.pumpWidget(
+      RepositoryProvider<SettingsRepository>.value(
+        value: _FakeSettingsRepository(),
+        child: BlocProvider<SettingsBloc>.value(
+          value: settingsBloc,
+          child: MaterialApp(
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: const TextScaler.linear(0.5)),
+              child: child!,
+            ),
+            home: PrintingScreen(
+              data: Future.value(''),
+              bookId: 'test',
+              createPdfOverride: (_) async => source!,
+            ),
+          ),
+        ),
+      ),
+    );
+    bool previewDone() =>
+        find.byType(RawImage).evaluate().isNotEmpty &&
+        find.byType(CircularProgressIndicator).evaluate().isEmpty;
+    for (var i = 0; i < 200 && !previewDone(); i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 25)),
+      );
+      await tester.pump();
+    }
+    expect(previewDone(), isTrue);
+
+    final field = tester.widget<AppDropdownField<PdfPageFormat>>(
+      find.byType(AppDropdownField<PdfPageFormat>),
+    );
+    expect(field.entries.map((e) => e.label), [
+      'A4',
+      'Letter',
+      'Legal',
+      'A5',
+      'A3',
+    ]);
+
+    await _settle(tester, Future<void>.value());
+    await tester.pumpWidget(const SizedBox());
+    await drainPrintingRasterQueue(tester);
+  }, timeout: const Timeout(Duration(minutes: 2)));
 }

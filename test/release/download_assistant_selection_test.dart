@@ -9,6 +9,25 @@ import '../../tool/release/download_assistant_selection.dart';
 import '../../tool/release/generate_release_manifest.dart';
 
 void main() {
+  for (final apkName in ['otzaria-android.apk', 'app-release.apk']) {
+    test('המסייע שומר את שם ה-APK שבמניפסט: $apkName', () {
+      final directory = Directory.systemTemp.createTempSync('android-release');
+      addTearDown(() => directory.deleteSync(recursive: true));
+      File('${directory.path}/$apkName').writeAsStringSync('apk');
+      final manifest = buildReleaseManifest(
+        releaseTag: '0.9.98.3+809',
+        releaseVersion: '0.9.98.3',
+        directory: directory,
+      );
+      const target = AssistantTarget(platform: 'android');
+      final presets = buildPresets(manifest, target);
+      expect(presets, isNotEmpty);
+      for (final preset in presets) {
+        expect(plannedOutputFiles(manifest, preset.members, target), [apkName]);
+      }
+    });
+  }
+
   group('קובצי הייחוס של החוזה', () {
     // שלושת המסייעים נבדקים מול הקבצים האלה; קובץ מיושן היה מאשר מימוש שגוי.
     test('release-manifest.json תואם לגנרטור', () {

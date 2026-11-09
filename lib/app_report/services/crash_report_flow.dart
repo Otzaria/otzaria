@@ -7,12 +7,21 @@ import 'package:otzaria/app_report/repository/app_report_collector.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/app_report/services/crash_report_decision.dart';
 import 'package:otzaria/app_report/services/unclean_exit_detector.dart';
+import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/error_log_file.dart';
+import 'package:otzaria/core/messages/report_messages.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 /// מה שקרה בפועל עם קריסה שזוהתה בעלייה.
-enum CrashReportOutcome { ignored, throttled, prompted, sentAutomatically }
+enum CrashReportOutcome {
+  ignored,
+  throttled,
+  prompted,
+  sentAutomatically,
+  suggestedFasterDrive,
+}
 
 /// הטיפול בקריסה או בתקיעה שזוהו: לפי ההגדרה — התעלמות, שליחה אוטומטית
 /// (בכפוף למגבלה) או הצגת ההצעה למשתמש.
@@ -27,13 +36,17 @@ class CrashReportFlow {
     String Function()? savedEmail,
     this.appVersion,
     DateTime Function()? clock,
+    bool Function()? isPortable,
+    void Function()? showFasterDriveHint,
   }) : _service = service ?? AppReportService(),
        _collector = collector ?? AppReportCollector(),
        _redactor = redactor ?? AppReportRedactor.fromPlatform(),
        _throttle = throttle ?? AutoCrashReportThrottle.defaultLocation(),
        _readMode = readMode ?? currentMode,
        _savedEmail = savedEmail ?? AppReportBloc.savedSenderEmail,
-       _clock = clock ?? DateTime.now;
+       _clock = clock ?? DateTime.now,
+       _isPortable = isPortable ?? (() => AppPaths.isPortable),
+       _showFasterDriveHint = showFasterDriveHint ?? _showFasterDriveHintOnce;
 
   /// מציג את ההצעה למשתמש; מחזיר false כשאין עדיין Navigator להציג בו.
   final Future<bool> Function(CrashCandidate candidate) showPrompt;
@@ -48,6 +61,20 @@ class CrashReportFlow {
   final AppCrashReportMode Function() _readMode;
   final String Function() _savedEmail;
   final DateTime Function() _clock;
+  final bool Function() _isPortable;
+  final void Function() _showFasterDriveHint;
+
+  static bool _fasterDriveHintShown = false;
+
+  static void _showFasterDriveHintOnce() {
+    // בלי Navigator ההודעה לא מוצגת; ננסה שוב באירוע הבא.
+    if (_fasterDriveHintShown || navigatorKey.currentContext == null) return;
+    _fasterDriveHintShown = true;
+    UiSnack.showWarning(
+      ReportMessages.portableSlowDriveHint,
+      duration: const Duration(seconds: 12),
+    );
+  }
 
   /// מצב הדיווח אחרי קריסה כפי שהוא שמור בהגדרות.
   static AppCrashReportMode currentMode() {
@@ -85,6 +112,7 @@ class CrashReportFlow {
       mode: mode,
       candidate: candidate,
       throttleAllows: throttleAllows,
+      isPortable: _isPortable(),
     )) {
       case CrashReportAction.none:
         return mode == AppCrashReportMode.always
@@ -101,6 +129,9 @@ class CrashReportFlow {
           appVersion: version,
         );
         return CrashReportOutcome.sentAutomatically;
+      case CrashReportAction.suggestFasterDrive:
+        _showFasterDriveHint();
+        return CrashReportOutcome.suggestedFasterDrive;
     }
   }
 

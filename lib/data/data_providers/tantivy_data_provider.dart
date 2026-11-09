@@ -298,11 +298,7 @@ class TantivyDataProvider {
     }
   }
 
-  /// טוען אל המנוע את מילוני ההרחבה של החיפוש המתקדם — מילון התרגום
-  /// הארמי-עברי (אפשרות "תרגום ארמי") ומילון ראשי-התיבות (אפשרות
-  /// "ראשי תיבות"). המילונים הם assets מוטמעים, אך המנוע קורא רק מנתיב
-  /// קובץ — לכן הם מחולצים לדיסק תחילה. best-effort: כשל אינו שובר את
-  /// אתחול המנוע, האפשרות פשוט לא תרחיב דבר.
+  /// מחלץ את מילוני ההרחבה המוטמעים וטוען אותם למנוע החיפוש.
   Future<void> _attachSearchLexicons(SearchEngine engine) async {
     final translationPath = await _materializeBundledAsset(
       'assets/dictionary.json',
@@ -319,8 +315,8 @@ class TantivyDataProvider {
       );
     }
     final acronymsPath = await _materializeBundledAsset(
-      'assets/Acronyms.json',
-      'Acronyms.json',
+      'assets/search_acronyms.json',
+      'search_acronyms.json',
     );
     if (acronymsPath != null) {
       final loaded = await engine.setAcronymsDictionaryPath(path: acronymsPath);
@@ -332,10 +328,8 @@ class TantivyDataProvider {
     }
   }
 
-  /// מחלץ asset מוטמע לקובץ בדיסק ומחזיר את נתיבו, או null בכשל.
-  /// נכתב מחדש כשהתוכן בדיסק שונה מה-asset — השוואת בייטים מלאה, לא רק
-  /// גודל: עדכון מילון ששומר על אותו אורך (תיקון ערך בודד) חייב להתפיס.
-  /// הקריאה החוזרת זולה יחסית (המילונים 1-3MB, פעם אחת באתחול).
+  /// מחלץ asset לדיסק, או מחזיר null בכשל. השוואת בייטים מזהה
+  /// גם עדכון פירוש שאינו משנה את גודל הקובץ.
   Future<String?> _materializeBundledAsset(
     String assetKey,
     String fileName,

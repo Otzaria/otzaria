@@ -15,7 +15,6 @@ from typing import Any
 
 from common import (
     HEBREW_LETTER_RE,
-    MARKS_RE,
     load_config,
     normalize_gloss,
     normalize_key,
@@ -27,8 +26,6 @@ from common import (
     work_dir,
     write_jsonl,
 )
-
-TARGET_DICT = "מילון פשיטא"
 
 # תווים מותרים במפתח ארמי "נקי": אותיות, ניקוד, רווח, מקף, גרש/גרשיים.
 _CLEAN_KEY_RE = re.compile(r"^[א-ת֑-ׇ \-\"'׳״]+$")

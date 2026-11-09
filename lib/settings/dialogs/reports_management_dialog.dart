@@ -14,7 +14,7 @@ import 'package:otzaria/settings/panels/error_reports_panel.dart';
 import 'package:otzaria/settings/panels/plugin_reports_panel.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
-import 'package:otzaria/widgets/widgets_exports.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 
 /// A tab of the reports dialog. [name] is also the settings search section.
 enum ReportsTab { books, app, plugins }
@@ -160,7 +160,7 @@ class _ReportsManagementDialogState extends State<ReportsManagementDialog>
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 16, 4, 12),
-            child: Text(description, style: kSettingsSubtitleStyle),
+            child: Text(description, style: AppTextStyles.settingSubtitle),
           ),
           panel,
           const SizedBox(height: 16),
@@ -171,10 +171,11 @@ class _ReportsManagementDialogState extends State<ReportsManagementDialog>
 
   @override
   Widget build(BuildContext context) {
-    return AppCustomContentDialog(
+    return AppDialogFrame(
+      size: AppDialogSize.large,
+      fitTitle: true,
       title: context.settingsText('הדיווחים שלך'),
       icon: FluentIcons.bug_24_regular,
-      scrollable: false,
       child: BlocSelector<SettingsBloc, SettingsState, bool>(
         selector: (state) => state.isOfflineMode,
         builder: (context, isOfflineMode) => Column(

@@ -6,11 +6,17 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:opentype_shaper/opentype_shaper.dart';
 import 'package:otzaria/printing/shaped_text/pdf_shaped_font.dart';
+import 'package:otzaria/printing/shaped_text/shaper_font_scope.dart';
 import 'package:otzaria/printing/shaped_text/shaped_text_layout.dart';
 import 'package:otzaria/printing/shaped_text/shaped_text_widget.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
+
+// Rendering a calendar PDF formats dozens of individual days.
+// No mutable formatter settings are changed while formatting events.
+final HebrewDateFormatter _printDateFormatter = HebrewDateFormatter()
+  ..hebrewFormat = true;
 
 enum CalendarPrintLayout { month, week, day }
 
@@ -24,16 +30,15 @@ CalendarPrintLayout resolveCalendarPrintLayout(CalendarView view) {
 
 List<String> _jewishEventsForDate(DateTime date, bool inIsrael) {
   final jc = JewishCalendar.fromDateTime(date)..inIsrael = inIsrael;
-  final hdf = HebrewDateFormatter()..hebrewFormat = true;
   final List<String> result = [];
 
-  final yomTov = hdf.formatYomTov(jc);
+  final yomTov = _printDateFormatter.formatYomTov(jc);
   if (yomTov.isNotEmpty) result.addAll(yomTov.split(',').map((e) => e.trim()));
 
   if (jc.isRoshChodesh() && !result.contains('ראש חודש')) result.add('ר"ח');
 
   if (jc.getDayOfWeek() == 7) {
-    final parsha = hdf.formatParsha(jc);
+    final parsha = _printDateFormatter.formatParsha(jc);
     if (parsha.isNotEmpty) result.add(parsha);
   }
 
@@ -55,37 +60,36 @@ Future<Uint8List> createCalendarPdf(
     'fonts/NotoSerifHebrew-VariableFont_wdth,wght.ttf',
   );
   final fallbackBytes = await _loadFont('fonts/Tinos-Regular.ttf');
-  final primaryShaper = ShaperFont.register(primaryBytes);
-  final fallbackShaper = ShaperFont.register(fallbackBytes);
-  try {
-    final pdf = pw.Document();
-    final font = _CalendarText([
-      PdfShapedFont(
-        pdf.document,
-        shaper: primaryShaper,
-        fontBytes: primaryBytes,
-      ),
-      PdfShapedFont(
-        pdf.document,
-        shaper: fallbackShaper,
-        fontBytes: fallbackBytes,
-      ),
-    ]);
+  return withShaperFontPair(
+    createPrimary: () => ShaperFont.register(primaryBytes),
+    createFallback: () => ShaperFont.register(fallbackBytes),
+    action: (primaryShaper, fallbackShaper) async {
+      final pdf = pw.Document();
+      final font = _CalendarText([
+        PdfShapedFont(
+          pdf.document,
+          shaper: primaryShaper,
+          fontBytes: primaryBytes,
+        ),
+        PdfShapedFont(
+          pdf.document,
+          shaper: fallbackShaper,
+          fontBytes: fallbackBytes,
+        ),
+      ]);
 
-    switch (resolveCalendarPrintLayout(state.calendarView)) {
-      case CalendarPrintLayout.month:
-        await _addMonthPages(pdf, state, font, format, count);
-      case CalendarPrintLayout.week:
-        await _addWeekPages(pdf, state, font, format, count);
-      case CalendarPrintLayout.day:
-        await _addDayPages(pdf, state, font, format, count);
-    }
+      switch (resolveCalendarPrintLayout(state.calendarView)) {
+        case CalendarPrintLayout.month:
+          await _addMonthPages(pdf, state, font, format, count);
+        case CalendarPrintLayout.week:
+          await _addWeekPages(pdf, state, font, format, count);
+        case CalendarPrintLayout.day:
+          await _addDayPages(pdf, state, font, format, count);
+      }
 
-    return await pdf.save();
-  } finally {
-    primaryShaper.dispose();
-    fallbackShaper.dispose();
-  }
+      return await pdf.save();
+    },
+  );
 }
 
 Future<Uint8List> _loadFont(String path) async =>

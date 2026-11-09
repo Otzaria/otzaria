@@ -7,6 +7,9 @@ abstract class CacheProvider {
 
   Future<void> init();
 
+  /// שמות המפתחות שהשתנו באחסון, אם הספק תומך בהתראות.
+  Stream<String> get changes => const Stream<String>.empty();
+
   int? getInt(String key, {int? defaultValue});
 
   String? getString(String key, {String? defaultValue});
@@ -43,6 +46,10 @@ class Settings {
   static CacheProvider? _cacheProvider;
 
   static bool get isInitialized => _cacheProvider != null;
+
+  /// התראות מספק האחסון הפעיל, כולל כתיבות שלא עברו דרך SettingsBloc.
+  static Stream<String> get changes =>
+      _cacheProvider?.changes ?? const Stream<String>.empty();
 
   static void _assertInitialized() {
     assert(
