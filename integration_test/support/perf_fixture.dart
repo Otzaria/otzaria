@@ -188,6 +188,8 @@ class PerfFixture {
         SettingsRepository.keyDarkMode: false,
         'key-auto-backup-frequency': 'none',
         TourSteps.statusKey: TourSteps.completed,
+        // Non-debug builds otherwise open the ad dialog 5 s into every launch.
+        'ad_popup_dont_show_again': true,
         LiveTipStorage.resolvedTipsKey: LiveTipStorage.encode(
           LiveTipId.values.toSet(),
         ),

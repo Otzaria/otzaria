@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
+import 'package:otzaria/services/ad_popup_service.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as p;
@@ -49,6 +50,7 @@ void main() {
           for (final key in expected.keys) key: Settings.getValue<Object>(key),
         };
         expect(values(), expected);
+        expect(await AdPopupService.shouldShowAd(), isFalse);
         await SettingsRepository().loadSettings();
         expect(values(), expected);
         await SettingsRepository().loadSettings();
