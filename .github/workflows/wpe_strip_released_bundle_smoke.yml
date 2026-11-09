@@ -32,8 +32,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install Debian archive, GUI and ELF inspection dependencies
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq binutils xvfb libgtk-3-dev libegl1 libgbm1
+      - name: Install ELF tools and virtual desktop graphics
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq binutils xvfb libegl1 libgbm1
 
       - name: Download and checksum-verify the immutable historical release
         shell: bash
@@ -51,6 +51,15 @@ jobs:
           printf '%s  %s\n' "$EXPECTED_SHA" "$RUNNER_TEMP/released.deb" | sha256sum --check -
           mkdir -p "$RUNNER_TEMP/extracted"
           dpkg-deb --extract "$RUNNER_TEMP/released.deb" "$RUNNER_TEMP/extracted"
+
+      - name: Install the verified DEB's declared runtime dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Extraction does not resolve Depends as a user's apt installation does.
+          dependencies="$(dpkg-deb --field "$RUNNER_TEMP/released.deb" Depends)"
+          test -n "$dependencies"
+          sudo apt-get satisfy -y --no-install-recommends "$dependencies"
 
       - name: Strip WPE in the actual historical DEB payload, never in the SDK
         shell: bash
