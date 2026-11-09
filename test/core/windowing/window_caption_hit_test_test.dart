@@ -8,7 +8,7 @@ import 'package:otzaria/core/windowing/app_window_controller.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
 import 'package:otzaria/core/windowing/window_caption_hit_test.dart';
 import 'package:otzaria/core/windowing/window_manager_app_window_controller.dart';
-import 'package:window_manager/window_manager.dart';
+import 'package:window_manager/legacy.dart';
 
 /// DD-16 (q11 Q3 B): כפתורי החלון ואזור הגרירה פעילים מעל שכבת ההחשכה של
 /// דיאלוג. שאר האפליקציה נשארת חסומה.

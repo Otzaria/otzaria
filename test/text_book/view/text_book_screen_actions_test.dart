@@ -19,7 +19,7 @@ import 'package:otzaria/core/windowing/last_active_window.dart';
 import 'package:otzaria/core/windowing/device_chrome.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 import 'package:otzaria/shortcuts/keyboard_shortcuts.dart';
-import 'package:window_manager/window_manager.dart' show TitleBarStyle;
+import 'package:window_manager/legacy.dart' show TitleBarStyle;
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';

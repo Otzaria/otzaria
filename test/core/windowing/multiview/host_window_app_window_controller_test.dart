@@ -3,7 +3,7 @@ import 'package:otzaria/core/windowing/multiview/cocoa_view_window_native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/app_window_id.dart';
 import 'package:otzaria/core/windowing/multiview/host_window_app_window_controller.dart';
-import 'package:window_manager/window_manager.dart' show ResizeEdge;
+import 'package:window_manager/legacy.dart' show ResizeEdge;
 
 import '../../../test_helpers/fake_view_window.dart';
 import '../../../test_helpers/second_test_view.dart';
