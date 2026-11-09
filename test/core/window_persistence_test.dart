@@ -33,6 +33,51 @@ void main() {
         extent,
       );
 
+  group('WindowPersistence.physicalWorkAreaOrNull', () {
+    test('מסך משני משמאל עם DPI שונה שומר על קואורדינטות שליליות', () {
+      expect(
+        WindowPersistence.physicalWorkAreaOrNull(
+          const Rect.fromLTWH(-1600, 10, 1600, 900),
+          1.25,
+        ),
+        const Rect.fromLTWH(-2000, 12.5, 2000, 1125),
+      );
+    });
+
+    test('DPI אפס, שלילי או לא סופי מסונן', () {
+      const rect = Rect.fromLTWH(0, 0, 1920, 1080);
+      for (final scale in [0.0, -1.0, double.nan, double.infinity]) {
+        expect(
+          WindowPersistence.physicalWorkAreaOrNull(rect, scale),
+          isNull,
+        );
+      }
+    });
+
+    test('שטח מסך לא סופי או בעל ממדים לא חוקיים מסונן', () {
+      final rects = <Rect>[
+        const Rect.fromLTWH(0, 0, 0, 500),
+        const Rect.fromLTWH(0, 0, -50, 500),
+        const Rect.fromLTWH(double.nan, 0, 800, 500),
+        const Rect.fromLTWH(0, double.infinity, 800, 500),
+        const Rect.fromLTWH(1e308, 0, 1e308, 500),
+      ];
+      for (final rect in rects) {
+        expect(WindowPersistence.physicalWorkAreaOrNull(rect, 1.0), isNull);
+      }
+    });
+
+    test('גם גלישה לאחר הגדלת DPI מסוננת', () {
+      expect(
+        WindowPersistence.physicalWorkAreaOrNull(
+          const Rect.fromLTWH(1e308, 0, 500, 500),
+          4.0,
+        ),
+        isNull,
+      );
+    });
+  });
+
   group('WindowPersistence.titleStripReachableOnAnyDisplay', () {
     test('חלון בתוך המסך הראשי — נגיש', () {
       const bounds = Rect.fromLTWH(100, 100, 1280, 720);
