@@ -108,6 +108,9 @@ jobs:
     if: needs.changes.outputs.apple == 'true'
     runs-on: macos-latest
     timeout-minutes: 75
+    env:
+      # The runner is arm64: one Rust and Swift slice instead of a universal build.
+      FLUTTER_XCODE_ARCHS: arm64
     strategy:
       fail-fast: false
       matrix:
@@ -131,9 +134,31 @@ jobs:
           channel: stable
           cache: false
       - uses: dtolnay/rust-toolchain@stable
-      - name: Native iOS Simulator source targets
+      - name: Native iOS Simulator source target
         if: matrix.platform == 'ios'
-        run: rustup target add aarch64-apple-ios-sim x86_64-apple-ios
+        run: rustup target add aarch64-apple-ios-sim
+      # Pull requests restore what the base branch saved; a PR-scoped save
+      # would be invisible to other PRs and only evict shared entries.
+      - name: Restore native build hook output
+        id: hooks_cache
+        uses: actions/cache/restore@v6.1.0
+        with:
+          path: .dart_tool/hooks_runner
+          key: ${{ runner.os }}-${{ runner.arch }}-apple-hooks-v1-${{ matrix.platform }}-${{ matrix.mode }}-${{ hashFiles('pubspec.yaml', 'pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-apple-hooks-v1-${{ matrix.platform }}-${{ matrix.mode }}-
+      - name: Restore SwiftPM downloads
+        id: swiftpm_cache
+        uses: actions/cache/restore@v6.1.0
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm/artifacts
+            ~/Library/Caches/org.swift.swiftpm/repositories
+            ~/Library/Caches/org.swift.swiftpm/manifests
+          key: ${{ runner.os }}-${{ runner.arch }}-swiftpm-v1-${{ matrix.platform }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-swiftpm-v1-${{ matrix.platform }}-
+            ${{ runner.os }}-${{ runner.arch }}-swiftpm-v1-
       - name: Resolve exact dependencies
         run: flutter pub get --enforce-lockfile
       - name: Select actual runtime
@@ -190,3 +215,18 @@ jobs:
             ${{ runner.temp }}/apple-helper-controls/*.swift
           if-no-files-found: warn
           retention-days: 14
+      - name: Save native build hook output
+        if: ${{ !cancelled() && github.event_name != 'pull_request' && steps.hooks_cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v6.1.0
+        with:
+          path: .dart_tool/hooks_runner
+          key: ${{ steps.hooks_cache.outputs.cache-primary-key }}
+      - name: Save SwiftPM downloads
+        if: ${{ !cancelled() && github.event_name != 'pull_request' && steps.swiftpm_cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v6.1.0
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm/artifacts
+            ~/Library/Caches/org.swift.swiftpm/repositories
+            ~/Library/Caches/org.swift.swiftpm/manifests
+          key: ${{ steps.swiftpm_cache.outputs.cache-primary-key }}

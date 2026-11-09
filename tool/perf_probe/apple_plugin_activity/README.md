@@ -47,6 +47,14 @@ polling בזמן השקט או הבטחה שאין פעילות מערכת אח�
 ב־**debug**. Flutter אינו תומך ב־profile ב־Simulator. ה־runner אינו מחליף
 profile ב־debug בשקט ואינו מייחס תוצאת Simulator למכשיר פיזי.
 
+ב־PR, ה־job `changes` (`changes.py`) מחליט מה לרוץ: קובץ ניסוי או אפליקציה
+מתוך מסנן ה־paths מריץ הכול; קובץ בדיקה בלבד מריץ רק את `contracts` ב־Ubuntu;
+שינוי ב־`pubspec.lock` מריץ את ה־Mac רק אם השתנתה חבילה שהתרחיש מפעיל
+(`SCENARIO_PACKAGES`). ריצה לילית ו־`workflow_dispatch` מריצות הכול ושומרות
+את מטמוני ה־build hooks ו־SwiftPM לענף הבסיס. שתי הבניות הן arm64 בלבד
+(`FLUTTER_XCODE_ARCHS`), כמו ה־runner. כשל הורדה חיצוני של SwiftPM לפני
+checkpoint חוזר עד פעמיים, אחרי 15 ו־45 שניות.
+
 ב־iOS Simulator נוצר מכשיר פרטי מאותו device type ו־runtime של התבנית שנבחרה;
 התבנית עצמה אינה מופעלת או משתנה. הבנייה קודמת להפעלת בקר XCUITest.
 `simctl install/launch` מפעיל את אותו app bundle עם אותם קלטי `defines.json`.
