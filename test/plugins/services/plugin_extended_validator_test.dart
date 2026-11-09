@@ -1270,7 +1270,8 @@ void main() {
       );
       final contributes = json['contributes'] as Map<String, dynamic>;
       if (allowMultiple) {
-        (contributes['toolTab'] as Map<String, dynamic>)['allowMultipleInstances'] =
+        (contributes['toolTab']
+                as Map<String, dynamic>)['allowMultipleInstances'] =
             true;
       }
       contributes['startup'] = {

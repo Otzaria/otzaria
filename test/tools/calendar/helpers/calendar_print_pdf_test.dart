@@ -152,42 +152,45 @@ void main() {
     expect(pageCount(bytes), greaterThan(1));
   });
 
-  test('calendar PDF releases two distinct native font allocations after save', () async {
-    final primaryData = await rootBundle.load(
-      'fonts/NotoSerifHebrew-VariableFont_wdth,wght.ttf',
-    );
-    final fallbackData = await rootBundle.load('fonts/Tinos-Regular.ttf');
-    final primaryBytes = primaryData.buffer.asUint8List();
-    final fallbackBytes = fallbackData.buffer.asUint8List();
-    final state = CalendarState.initial().copyWith(
-      calendarView: CalendarView.week,
-    );
+  test(
+    'calendar PDF releases two distinct native font allocations after save',
+    () async {
+      final primaryData = await rootBundle.load(
+        'fonts/NotoSerifHebrew-VariableFont_wdth,wght.ttf',
+      );
+      final fallbackData = await rootBundle.load('fonts/Tinos-Regular.ttf');
+      final primaryBytes = primaryData.buffer.asUint8List();
+      final fallbackBytes = fallbackData.buffer.asUint8List();
+      final state = CalendarState.initial().copyWith(
+        calendarView: CalendarView.week,
+      );
 
-    for (var cycle = 0; cycle < 3; cycle++) {
-      final primary = ShaperFont.register(primaryBytes);
-      final fallback = ShaperFont.register(fallbackBytes);
-      final primaryHandle = primary.handle;
-      final fallbackHandle = fallback.handle;
-      expect(primaryHandle, isNot(fallbackHandle));
-      try {
-        final pdf = await createCalendarPdf(state, PdfPageFormat.a4);
-        expect(latin1.decode(pdf, allowInvalid: true), startsWith('%PDF-'));
-        expect(primary.shape('בדיקה').glyphCount, greaterThan(0));
-        expect(fallback.shape('test').glyphCount, greaterThan(0));
-      } finally {
-        fallback.dispose();
-        primary.dispose();
+      for (var cycle = 0; cycle < 3; cycle++) {
+        final primary = ShaperFont.register(primaryBytes);
+        final fallback = ShaperFont.register(fallbackBytes);
+        final primaryHandle = primary.handle;
+        final fallbackHandle = fallback.handle;
+        expect(primaryHandle, isNot(fallbackHandle));
+        try {
+          final pdf = await createCalendarPdf(state, PdfPageFormat.a4);
+          expect(latin1.decode(pdf, allowInvalid: true), startsWith('%PDF-'));
+          expect(primary.shape('בדיקה').glyphCount, greaterThan(0));
+          expect(fallback.shape('test').glyphCount, greaterThan(0));
+        } finally {
+          fallback.dispose();
+          primary.dispose();
+        }
+        expect(
+          _drainUnexpectedNativeReferences(fallbackHandle),
+          0,
+          reason: 'fallback native allocation retained in cycle $cycle',
+        );
+        expect(
+          _drainUnexpectedNativeReferences(primaryHandle),
+          0,
+          reason: 'primary native allocation retained in cycle $cycle',
+        );
       }
-      expect(
-        _drainUnexpectedNativeReferences(fallbackHandle),
-        0,
-        reason: 'fallback native allocation retained in cycle $cycle',
-      );
-      expect(
-        _drainUnexpectedNativeReferences(primaryHandle),
-        0,
-        reason: 'primary native allocation retained in cycle $cycle',
-      );
-    }
-  });
+    },
+  );
 }

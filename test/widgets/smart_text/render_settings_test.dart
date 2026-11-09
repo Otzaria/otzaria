@@ -42,16 +42,14 @@ void main() {
       final names = List.generate(200, (i) => 'word_$i');
       final left = RenderSettings(
         searchOptions: {
-          for (final name in names)
-            name: {'exact': true, 'fuzzy': false},
+          for (final name in names) name: {'exact': true, 'fuzzy': false},
         },
         alternativeWords: {
           for (var i = 0; i < names.length; i++)
             i: [names[i], 'alternative_$i'],
         },
         spacingValues: {
-          for (var i = 0; i < names.length; i++)
-            'distance_$i': '$i',
+          for (var i = 0; i < names.length; i++) 'distance_$i': '$i',
         },
       );
       final right = RenderSettings(
@@ -64,8 +62,7 @@ void main() {
             i: [names[i], 'alternative_$i'],
         },
         spacingValues: {
-          for (var i = names.length - 1; i >= 0; i--)
-            'distance_$i': '$i',
+          for (var i = names.length - 1; i >= 0; i--) 'distance_$i': '$i',
         },
       );
 
@@ -74,12 +71,16 @@ void main() {
     });
 
     test('alternative word order remains meaningful', () {
-      const left = RenderSettings(alternativeWords: {
-        0: ['אמר', 'ויאמר'],
-      });
-      const right = RenderSettings(alternativeWords: {
-        0: ['ויאמר', 'אמר'],
-      });
+      const left = RenderSettings(
+        alternativeWords: {
+          0: ['אמר', 'ויאמר'],
+        },
+      );
+      const right = RenderSettings(
+        alternativeWords: {
+          0: ['ויאמר', 'אמר'],
+        },
+      );
       expect(left, isNot(equals(right)));
     });
 

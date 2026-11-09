@@ -274,189 +274,204 @@ void main() {
     );
   });
 
-  test('failed PdfShapedFont construction rolls back the native owner', () async {
-    final fontBytes = File(_fontPath).readAsBytesSync();
-    final anchor = ShaperFont.register(fontBytes);
-    final handle = anchor.handle;
-    final failure = StateError('injected PDF font construction failure');
-    var builderCalls = 0;
-    try {
+  test(
+    'failed PdfShapedFont construction rolls back the native owner',
+    () async {
+      final fontBytes = File(_fontPath).readAsBytesSync();
+      final anchor = ShaperFont.register(fontBytes);
+      final handle = anchor.handle;
+      final failure = StateError('injected PDF font construction failure');
+      var builderCalls = 0;
+      try {
+        final writer = TikkunVectorPdfWriter(
+          pageFormat: PdfPageFormat.a4,
+          loadFont: (_, {required bool bold}) async => fontBytes,
+          fallbackFamilies: const [],
+          buildPdfFont: (document, shaper, bytes) {
+            builderCalls++;
+            expect(shaper.handle, handle);
+            expect(bytes, same(fontBytes));
+            throw failure;
+          },
+        );
+
+        await expectLater(
+          writer.write([_ownershipPage()], unifyScale: false),
+          throwsA(same(failure)),
+        );
+        expect(builderCalls, 1);
+        expect(anchor.shape('בדיקה').glyphCount, greaterThan(0));
+      } finally {
+        anchor.dispose();
+      }
+      expect(_drainUnexpectedNativeReferences(handle), 0);
+    },
+  );
+
+  test(
+    'failed second PDF font rolls back while first font is cached',
+    () async {
+      final fontBytes = File(_fontPath).readAsBytesSync();
+      final anchor = ShaperFont.register(fontBytes);
+      final handle = anchor.handle;
+      final failure = StateError('second PDF font construction failed');
+      var builderCalls = 0;
+      try {
+        final writer = TikkunVectorPdfWriter(
+          pageFormat: PdfPageFormat.a4,
+          loadFont: (_, {required bool bold}) async => fontBytes,
+          fallbackFamilies: const [],
+          buildPdfFont: (document, shaper, bytes) {
+            builderCalls++;
+            expect(shaper.handle, handle);
+            if (builderCalls == 2) throw failure;
+            return PdfShapedFont(
+              document,
+              shaper: shaper,
+              fontBytes: bytes,
+              textForExtraction: restoreTikkunVavKetiaText,
+            );
+          },
+        );
+        final page = TikkunVectorPage(
+          texts: [
+            _text('בְּרֵאשִׁית'),
+            TikkunTextOp(
+              text: 'בָּרָא',
+              style: const TextStyle(fontFamily: 'second-family', fontSize: 25),
+              left: 170,
+              width: 60,
+              baseline: 50,
+              rtl: true,
+            ),
+          ],
+          rects: const [],
+          width: 400,
+          height: 200,
+        );
+
+        await expectLater(
+          writer.write([page], unifyScale: false),
+          throwsA(same(failure)),
+        );
+        expect(builderCalls, 2);
+        expect(anchor.shape('בדיקה').glyphCount, greaterThan(0));
+      } finally {
+        anchor.dispose();
+      }
+      expect(_drainUnexpectedNativeReferences(handle), 0);
+    },
+  );
+
+  test(
+    'native owner survives suspended save and is freed after save throws',
+    () async {
+      final fontBytes = File(_fontPath).readAsBytesSync();
+      final anchor = ShaperFont.register(fontBytes);
+      final handle = anchor.handle;
+      final enteredSave = Completer<void>();
+      final finishSave = Completer<void>();
+      final failure = StateError('injected asynchronous pdf.save failure');
       final writer = TikkunVectorPdfWriter(
         pageFormat: PdfPageFormat.a4,
         loadFont: (_, {required bool bold}) async => fontBytes,
         fallbackFamilies: const [],
-        buildPdfFont: (document, shaper, bytes) {
-          builderCalls++;
-          expect(shaper.handle, handle);
-          expect(bytes, same(fontBytes));
+        savePdf: (_) async {
+          enteredSave.complete();
+          await finishSave.future;
           throw failure;
         },
       );
 
-      await expectLater(
-        writer.write([_ownershipPage()], unifyScale: false),
-        throwsA(same(failure)),
-      );
-      expect(builderCalls, 1);
-      expect(anchor.shape('בדיקה').glyphCount, greaterThan(0));
-    } finally {
-      anchor.dispose();
-    }
-    expect(_drainUnexpectedNativeReferences(handle), 0);
-  });
-
-  test('failed second PDF font rolls back while first font is cached', () async {
-    final fontBytes = File(_fontPath).readAsBytesSync();
-    final anchor = ShaperFont.register(fontBytes);
-    final handle = anchor.handle;
-    final failure = StateError('second PDF font construction failed');
-    var builderCalls = 0;
-    try {
-      final writer = TikkunVectorPdfWriter(
-        pageFormat: PdfPageFormat.a4,
-        loadFont: (_, {required bool bold}) async => fontBytes,
-        fallbackFamilies: const [],
-        buildPdfFont: (document, shaper, bytes) {
-          builderCalls++;
-          expect(shaper.handle, handle);
-          if (builderCalls == 2) throw failure;
-          return PdfShapedFont(
-            document,
-            shaper: shaper,
-            fontBytes: bytes,
-            textForExtraction: restoreTikkunVavKetiaText,
-          );
-        },
-      );
-      final page = TikkunVectorPage(
-        texts: [
-          _text('בְּרֵאשִׁית'),
-          TikkunTextOp(
-            text: 'בָּרָא',
-            style: const TextStyle(fontFamily: 'second-family', fontSize: 25),
-            left: 170,
-            width: 60,
-            baseline: 50,
-            rtl: true,
-          ),
-        ],
-        rects: const [],
-        width: 400,
-        height: 200,
-      );
-
-      await expectLater(
-        writer.write([page], unifyScale: false),
-        throwsA(same(failure)),
-      );
-      expect(builderCalls, 2);
-      expect(anchor.shape('בדיקה').glyphCount, greaterThan(0));
-    } finally {
-      anchor.dispose();
-    }
-    expect(_drainUnexpectedNativeReferences(handle), 0);
-  });
-
-  test('native owner survives suspended save and is freed after save throws', () async {
-    final fontBytes = File(_fontPath).readAsBytesSync();
-    final anchor = ShaperFont.register(fontBytes);
-    final handle = anchor.handle;
-    final enteredSave = Completer<void>();
-    final finishSave = Completer<void>();
-    final failure = StateError('injected asynchronous pdf.save failure');
-    final writer = TikkunVectorPdfWriter(
-      pageFormat: PdfPageFormat.a4,
-      loadFont: (_, {required bool bold}) async => fontBytes,
-      fallbackFamilies: const [],
-      savePdf: (_) async {
-        enteredSave.complete();
-        await finishSave.future;
-        throw failure;
-      },
-    );
-
-    final pending = writer.write([_ownershipPage()], unifyScale: false);
-    try {
-      await enteredSave.future.timeout(const Duration(seconds: 15));
-      // Drop the independent reference. The writer must now be the only owner
-      // keeping the native allocation available during the pending save.
-      anchor.dispose();
-      final borrowed = ShaperFont.attach(handle);
+      final pending = writer.write([_ownershipPage()], unifyScale: false);
       try {
-        expect(borrowed.shape('בדיקה').glyphCount, greaterThan(0));
+        await enteredSave.future.timeout(const Duration(seconds: 15));
+        // Drop the independent reference. The writer must now be the only owner
+        // keeping the native allocation available during the pending save.
+        anchor.dispose();
+        final borrowed = ShaperFont.attach(handle);
+        try {
+          expect(borrowed.shape('בדיקה').glyphCount, greaterThan(0));
+        } finally {
+          borrowed.dispose();
+        }
+        finishSave.complete();
+        await expectLater(pending, throwsA(same(failure)));
       } finally {
-        borrowed.dispose();
+        if (!finishSave.isCompleted) finishSave.complete();
+        anchor.dispose();
       }
-      finishSave.complete();
-      await expectLater(pending, throwsA(same(failure)));
-    } finally {
-      if (!finishSave.isCompleted) finishSave.complete();
-      anchor.dispose();
-    }
-    expect(_drainUnexpectedNativeReferences(handle), 0);
-  });
+      expect(_drainUnexpectedNativeReferences(handle), 0);
+    },
+  );
 
-  test('cancellation after font loading releases every native reference', () async {
-    final fontBytes = File(_fontPath).readAsBytesSync();
-    final anchor = ShaperFont.register(fontBytes);
-    final handle = anchor.handle;
-    var registered = false;
-    try {
-      final writer = TikkunVectorPdfWriter(
-        pageFormat: PdfPageFormat.a4,
-        loadFont: (_, {required bool bold}) async {
-          registered = true;
-          return fontBytes;
-        },
-        fallbackFamilies: const [],
-      );
-      await expectLater(
-        writer.write(
-          [_ownershipPage()],
-          unifyScale: false,
-          throwIfCancelled: () {
-            if (registered) throw const TikkunExportCancelled();
-          },
-        ),
-        throwsA(isA<TikkunExportCancelled>()),
-      );
-      expect(registered, isTrue);
-      expect(anchor.shape('בדיקה').glyphCount, greaterThan(0));
-    } finally {
-      anchor.dispose();
-    }
-    expect(_drainUnexpectedNativeReferences(handle), 0);
-  });
-
-  test('repeated successful PDF exports leave no native font allocation', () async {
-    final fontBytes = File(_fontPath).readAsBytesSync();
-    for (var cycle = 0; cycle < 8; cycle++) {
+  test(
+    'cancellation after font loading releases every native reference',
+    () async {
+      final fontBytes = File(_fontPath).readAsBytesSync();
       final anchor = ShaperFont.register(fontBytes);
       final handle = anchor.handle;
-      var loaded = 0;
+      var registered = false;
       try {
         final writer = TikkunVectorPdfWriter(
           pageFormat: PdfPageFormat.a4,
           loadFont: (_, {required bool bold}) async {
-            loaded++;
+            registered = true;
             return fontBytes;
           },
           fallbackFamilies: const [],
         );
-        final pdf = await writer.write(
-          [_ownershipPage()],
-          unifyScale: false,
+        await expectLater(
+          writer.write(
+            [_ownershipPage()],
+            unifyScale: false,
+            throwIfCancelled: () {
+              if (registered) throw const TikkunExportCancelled();
+            },
+          ),
+          throwsA(isA<TikkunExportCancelled>()),
         );
-        expect(latin1.decode(pdf, allowInvalid: true), startsWith('%PDF-'));
-        expect(loaded, 1, reason: 'registration cycle $cycle');
+        expect(registered, isTrue);
+        expect(anchor.shape('בדיקה').glyphCount, greaterThan(0));
       } finally {
         anchor.dispose();
       }
-      expect(
-        _drainUnexpectedNativeReferences(handle),
-        0,
-        reason: 'native registry leak after cycle $cycle',
-      );
-    }
-  });
+      expect(_drainUnexpectedNativeReferences(handle), 0);
+    },
+  );
+
+  test(
+    'repeated successful PDF exports leave no native font allocation',
+    () async {
+      final fontBytes = File(_fontPath).readAsBytesSync();
+      for (var cycle = 0; cycle < 8; cycle++) {
+        final anchor = ShaperFont.register(fontBytes);
+        final handle = anchor.handle;
+        var loaded = 0;
+        try {
+          final writer = TikkunVectorPdfWriter(
+            pageFormat: PdfPageFormat.a4,
+            loadFont: (_, {required bool bold}) async {
+              loaded++;
+              return fontBytes;
+            },
+            fallbackFamilies: const [],
+          );
+          final pdf = await writer.write(
+            [_ownershipPage()],
+            unifyScale: false,
+          );
+          expect(latin1.decode(pdf, allowInvalid: true), startsWith('%PDF-'));
+          expect(loaded, 1, reason: 'registration cycle $cycle');
+        } finally {
+          anchor.dispose();
+        }
+        expect(
+          _drainUnexpectedNativeReferences(handle),
+          0,
+          reason: 'native registry leak after cycle $cycle',
+        );
+      }
+    },
+  );
 }

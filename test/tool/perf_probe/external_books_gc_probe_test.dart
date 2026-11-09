@@ -33,7 +33,9 @@ void main() {
     if (requestedFolder.isNotEmpty) input = '--folder=$requestedFolder';
     if (input.isEmpty) {
       fixtureDir = await Directory.systemTemp.createTemp('book-gc-smoke-');
-      final fixture = File('${fixtureDir.path}${Platform.pathSeparator}sample.md');
+      final fixture = File(
+        '${fixtureDir.path}${Platform.pathSeparator}sample.md',
+      );
       await fixture.writeAsString('# Sample\nA short paragraph');
       input = '--file=${fixture.path}';
     }

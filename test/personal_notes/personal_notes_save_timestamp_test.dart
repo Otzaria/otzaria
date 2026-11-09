@@ -10,8 +10,7 @@ class _RecordingNotesDatabase extends Fake implements PersonalNotesDatabase {
   int writes = 0;
 
   @override
-  Future<PersonalNote?> getNote(String id) async =>
-      id == note.id ? note : null;
+  Future<PersonalNote?> getNote(String id) async => id == note.id ? note : null;
 
   @override
   Future<void> updateNote(PersonalNote updated) async {

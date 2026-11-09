@@ -39,7 +39,6 @@ Future<int> _shapeAfterResume(
   },
 );
 
-
 int _drainUnexpectedNativeReferences(int handle) {
   for (var count = 0; count < 32; count++) {
     final status = ShaperBindings.instance.releaseFont(handle);
@@ -162,9 +161,11 @@ void main() {
     final pending = Isolate.run(() => _shapeAfterResume(fontBytes, readyPort));
 
     try {
-      final (handle, resume) = await ready.first.timeout(
-        const Duration(seconds: 15),
-      ) as (int, SendPort);
+      final (handle, resume) =
+          await ready.first.timeout(
+                const Duration(seconds: 15),
+              )
+              as (int, SendPort);
       final registeredDuringWork = _isRegistered(handle);
       resume.send(null);
       expect(await pending, greaterThan(0));
@@ -175,100 +176,109 @@ void main() {
     }
   });
 
-  test('native refcount returns to baseline after fallback registration fails', () async {
-    final anchor = ShaperFont.register(bytes);
-    final handle = anchor.handle;
-    try {
-      await expectLater(
-        withShaperFontPair<void>(
-          createPrimary: () => ShaperFont.register(bytes),
-          createFallback: () => ShaperFont.register(Uint8List(0)),
-          action: (_, _) => fail('must not construct a PDF'),
-        ),
-        throwsA(isA<ShaperException>()),
-      );
-      expect(anchor.shape('בדיקה').glyphCount, greaterThan(0));
-    } finally {
-      anchor.dispose();
-    }
-    expect(_drainUnexpectedNativeReferences(handle), 0);
-  });
-
-  test('fallback constructor failure after native registration releases its ref', () async {
-    // Parseable SFNT header with missing tables: native register succeeds,
-    // but ShaperFont.register throws while reading metrics in _attach.
-    final malformed = (ByteData(12)..setUint32(0, 0x10000))
-        .buffer
-        .asUint8List();
-    final malformedHandle = using((arena) {
-      final data = arena<Uint8>(malformed.length);
-      data.asTypedList(malformed.length).setAll(0, malformed);
-      return ShaperBindings.instance.registerFont(data, malformed.length, 0);
-    });
-    expect(malformedHandle, greaterThan(0));
-
-    final validAnchor = ShaperFont.register(bytes);
-    final validHandle = validAnchor.handle;
-    try {
-      await expectLater(
-        withShaperFontPair<void>(
-          createPrimary: () => ShaperFont.register(bytes),
-          createFallback: () => ShaperFont.register(malformed),
-          action: (_, _) => fail('must not construct a PDF'),
-        ),
-        throwsA(isA<ShaperException>()),
-      );
-      expect(validAnchor.shape('בדיקה').glyphCount, greaterThan(0));
-      // Exactly one native reference should remain: our raw registration.
-      expect(
-        ShaperBindings.instance.releaseFont(malformedHandle),
-        ShaperStatus.ok,
-      );
-      expect(
-        ShaperBindings.instance.releaseFont(malformedHandle),
-        ShaperStatus.unknownHandle,
-      );
-    } finally {
-      validAnchor.dispose();
-      while (ShaperBindings.instance.releaseFont(malformedHandle) ==
-          ShaperStatus.ok) {}
-    }
-    expect(_drainUnexpectedNativeReferences(validHandle), 0);
-  });
-
-  test('native registry is freed after repeated save failures and double dispose', () async {
-    for (var cycle = 0; cycle < 16; cycle++) {
+  test(
+    'native refcount returns to baseline after fallback registration fails',
+    () async {
       final anchor = ShaperFont.register(bytes);
       final handle = anchor.handle;
-      final failure = StateError('pdf.save failed $cycle');
       try {
         await expectLater(
           withShaperFontPair<void>(
             createPrimary: () => ShaperFont.register(bytes),
-            createFallback: () => ShaperFont.register(bytes),
-            action: (primary, fallback) async {
-              expect(primary.handle, handle);
-              expect(fallback.handle, handle);
-              if (cycle.isEven) {
-                // Both owners may already be disposed by a client.
-                primary.dispose();
-                fallback.dispose();
-              }
-              await Future<void>.delayed(Duration.zero);
-              throw failure;
-            },
+            createFallback: () => ShaperFont.register(Uint8List(0)),
+            action: (_, _) => fail('must not construct a PDF'),
           ),
-          throwsA(same(failure)),
+          throwsA(isA<ShaperException>()),
         );
         expect(anchor.shape('בדיקה').glyphCount, greaterThan(0));
       } finally {
         anchor.dispose();
       }
-      expect(
-        _drainUnexpectedNativeReferences(handle),
-        0,
-        reason: 'native reference leak on failure cycle $cycle',
-      );
-    }
-  });
+      expect(_drainUnexpectedNativeReferences(handle), 0);
+    },
+  );
+
+  test(
+    'fallback constructor failure after native registration releases its ref',
+    () async {
+      // Parseable SFNT header with missing tables: native register succeeds,
+      // but ShaperFont.register throws while reading metrics in _attach.
+      final malformed = (ByteData(
+        12,
+      )..setUint32(0, 0x10000)).buffer.asUint8List();
+      final malformedHandle = using((arena) {
+        final data = arena<Uint8>(malformed.length);
+        data.asTypedList(malformed.length).setAll(0, malformed);
+        return ShaperBindings.instance.registerFont(data, malformed.length, 0);
+      });
+      expect(malformedHandle, greaterThan(0));
+
+      final validAnchor = ShaperFont.register(bytes);
+      final validHandle = validAnchor.handle;
+      try {
+        await expectLater(
+          withShaperFontPair<void>(
+            createPrimary: () => ShaperFont.register(bytes),
+            createFallback: () => ShaperFont.register(malformed),
+            action: (_, _) => fail('must not construct a PDF'),
+          ),
+          throwsA(isA<ShaperException>()),
+        );
+        expect(validAnchor.shape('בדיקה').glyphCount, greaterThan(0));
+        // Exactly one native reference should remain: our raw registration.
+        expect(
+          ShaperBindings.instance.releaseFont(malformedHandle),
+          ShaperStatus.ok,
+        );
+        expect(
+          ShaperBindings.instance.releaseFont(malformedHandle),
+          ShaperStatus.unknownHandle,
+        );
+      } finally {
+        validAnchor.dispose();
+        while (ShaperBindings.instance.releaseFont(malformedHandle) ==
+            ShaperStatus.ok) {}
+      }
+      expect(_drainUnexpectedNativeReferences(validHandle), 0);
+    },
+  );
+
+  test(
+    'native registry is freed after repeated save failures and double dispose',
+    () async {
+      for (var cycle = 0; cycle < 16; cycle++) {
+        final anchor = ShaperFont.register(bytes);
+        final handle = anchor.handle;
+        final failure = StateError('pdf.save failed $cycle');
+        try {
+          await expectLater(
+            withShaperFontPair<void>(
+              createPrimary: () => ShaperFont.register(bytes),
+              createFallback: () => ShaperFont.register(bytes),
+              action: (primary, fallback) async {
+                expect(primary.handle, handle);
+                expect(fallback.handle, handle);
+                if (cycle.isEven) {
+                  // Both owners may already be disposed by a client.
+                  primary.dispose();
+                  fallback.dispose();
+                }
+                await Future<void>.delayed(Duration.zero);
+                throw failure;
+              },
+            ),
+            throwsA(same(failure)),
+          );
+          expect(anchor.shape('בדיקה').glyphCount, greaterThan(0));
+        } finally {
+          anchor.dispose();
+        }
+        expect(
+          _drainUnexpectedNativeReferences(handle),
+          0,
+          reason: 'native reference leak on failure cycle $cycle',
+        );
+      }
+    },
+  );
 }

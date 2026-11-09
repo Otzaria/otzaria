@@ -52,80 +52,87 @@ void main() {
     if (await tempDir.exists()) await tempDir.delete(recursive: true);
   });
 
-  test('delayed storage read yields to the event loop before bytes arrive',
-      () async {
-    const path = 'held.md';
-    final file = _GatedFile(path);
-    final pending = IOOverrides.runZoned(
-      () => convertDocumentFile(path, embedImages: false),
-      createFile: (requestedPath) {
-        expect(requestedPath, path);
-        return file;
-      },
-    );
+  test(
+    'delayed storage read yields to the event loop before bytes arrive',
+    () async {
+      const path = 'held.md';
+      final file = _GatedFile(path);
+      final pending = IOOverrides.runZoned(
+        () => convertDocumentFile(path, embedImages: false),
+        createFile: (requestedPath) {
+          expect(requestedPath, path);
+          return file;
+        },
+      );
 
-    try {
+      try {
+        await file.started.future.timeout(const Duration(seconds: 5));
+        expect(file.asyncReadCount, 1);
+        expect(file.syncReadAttempted, isFalse);
+
+        // A timer on the caller isolate must execute while the read is still
+        // unresolved. The test does not rely on a slow disk or GC heuristics.
+        final heartbeat = Completer<void>();
+        Timer.run(() => heartbeat.complete());
+        await heartbeat.future.timeout(const Duration(seconds: 5));
+        expect(file.response.isCompleted, isFalse);
+      } finally {
+        if (!file.response.isCompleted) {
+          file.response.complete(
+            Uint8List.fromList(utf8.encode('# פרק\nטקסט')),
+          );
+        }
+      }
+
+      final actual = await pending.timeout(const Duration(seconds: 5));
+      expect(actual, contains('פרק'));
+    },
+  );
+
+  test(
+    'an asynchronous read failure is propagated without sync fallback',
+    () async {
+      const path = 'vanished.md';
+      final file = _GatedFile(path);
+      final pending = IOOverrides.runZoned(
+        () => convertDocumentFile(path),
+        createFile: (_) => file,
+      );
       await file.started.future.timeout(const Duration(seconds: 5));
+      final assertion = expectLater(
+        pending,
+        throwsA(isA<FileSystemException>()),
+      );
+      file.response.completeError(FileSystemException('disappeared', path));
+      await assertion;
       expect(file.asyncReadCount, 1);
       expect(file.syncReadAttempted, isFalse);
+    },
+  );
 
-      // A timer on the caller isolate must execute while the read is still
-      // unresolved. The test does not rely on a slow disk or GC heuristics.
-      final heartbeat = Completer<void>();
-      Timer.run(() => heartbeat.complete());
-      await heartbeat.future.timeout(const Duration(seconds: 5));
-      expect(file.response.isCompleted, isFalse);
-    } finally {
-      if (!file.response.isCompleted) {
-        file.response.complete(Uint8List.fromList(utf8.encode('# פרק\nטקסט')));
-      }
-    }
+  test(
+    'success and conversion failure both release the file on disk',
+    () async {
+      final good = File(p.join(tempDir.path, 'good.md'));
+      await good.writeAsString('# פרק\nטקסט');
+      expect(await convertDocumentFile(good.path), contains('פרק'));
+      await good.delete();
+      expect(await good.exists(), isFalse);
 
-    final actual = await pending.timeout(const Duration(seconds: 5));
-    expect(actual, contains('פרק'));
-  });
+      final corrupt = File(p.join(tempDir.path, 'broken.wbk'));
+      await corrupt.writeAsString('not a Word document');
+      await expectLater(
+        convertDocumentFile(corrupt.path),
+        throwsA(isA<UnsupportedDocumentFormatException>()),
+      );
+      // Explicitly check removal: swallowing a Windows tearDown lock would
+      // conceal an open file handle left by the converter.
+      await corrupt.delete();
+      expect(await corrupt.exists(), isFalse);
+    },
+  );
 
-  test('an asynchronous read failure is propagated without sync fallback',
-      () async {
-    const path = 'vanished.md';
-    final file = _GatedFile(path);
-    final pending = IOOverrides.runZoned(
-      () => convertDocumentFile(path),
-      createFile: (_) => file,
-    );
-    await file.started.future.timeout(const Duration(seconds: 5));
-    final assertion = expectLater(
-      pending,
-      throwsA(isA<FileSystemException>()),
-    );
-    file.response.completeError(FileSystemException('disappeared', path));
-    await assertion;
-    expect(file.asyncReadCount, 1);
-    expect(file.syncReadAttempted, isFalse);
-  });
-
-  test('success and conversion failure both release the file on disk',
-      () async {
-    final good = File(p.join(tempDir.path, 'good.md'));
-    await good.writeAsString('# פרק\nטקסט');
-    expect(await convertDocumentFile(good.path), contains('פרק'));
-    await good.delete();
-    expect(await good.exists(), isFalse);
-
-    final corrupt = File(p.join(tempDir.path, 'broken.wbk'));
-    await corrupt.writeAsString('not a Word document');
-    await expectLater(
-      convertDocumentFile(corrupt.path),
-      throwsA(isA<UnsupportedDocumentFormatException>()),
-    );
-    // Explicitly check removal: swallowing a Windows tearDown lock would
-    // conceal an open file handle left by the converter.
-    await corrupt.delete();
-    expect(await corrupt.exists(), isFalse);
-  });
-
-  test('multi-megabyte document retains byte conversion semantics',
-      () async {
+  test('multi-megabyte document retains byte conversion semantics', () async {
     final source = Uint8List(2 * 1024 * 1024);
     for (var i = 0; i < source.length; i++) {
       source[i] = i % 80 == 79 ? 0x0a : 0x61;

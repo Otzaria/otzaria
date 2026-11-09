@@ -50,35 +50,41 @@ void main() {
   }
 
   for (final width in [1100.0, 360.0]) {
-    testWidgets('חיפוש ארמי ($width): חיפוש בעברית בכל פירוש, לצד שני ההעתקות', (
-      tester,
-    ) async {
-      await pumpCard(tester, queryIsAramaic: true, width: width);
+    testWidgets(
+      'חיפוש ארמי ($width): חיפוש בעברית בכל פירוש, לצד שני ההעתקות',
+      (
+        tester,
+      ) async {
+        await pumpCard(tester, queryIsAramaic: true, width: width);
 
-      // הכותרת: העתקה עם התוצאה והעתקת הערך; אין חיפוש בכותרת.
-      expect(find.byTooltip(searchInAramaic), findsNothing);
-      expect(find.byTooltip(copyWithResult), findsOneWidget);
-      expect(find.byTooltip(copyEntry), findsOneWidget);
-      // כל שורת פירוש: חיפוש בעברית והעתקת הפירוש.
-      expect(find.byTooltip(searchInHebrew), findsNWidgets(2));
-      expect(find.byTooltip(copyMeaning), findsNWidgets(2));
+        // הכותרת: העתקה עם התוצאה והעתקת הערך; אין חיפוש בכותרת.
+        expect(find.byTooltip(searchInAramaic), findsNothing);
+        expect(find.byTooltip(copyWithResult), findsOneWidget);
+        expect(find.byTooltip(copyEntry), findsOneWidget);
+        // כל שורת פירוש: חיפוש בעברית והעתקת הפירוש.
+        expect(find.byTooltip(searchInHebrew), findsNWidgets(2));
+        expect(find.byTooltip(copyMeaning), findsNWidgets(2));
 
-      final header = tester.getCenter(find.byTooltip(copyEntry)).dy;
-      expect(tester.getCenter(find.byTooltip(copyWithResult)).dy, header);
-      // RTL: הראשון בשורה הוא הימני ביותר.
-      expect(
-        tester.getCenter(find.byTooltip(copyWithResult)).dx,
-        greaterThan(tester.getCenter(find.byTooltip(copyEntry)).dx),
-      );
-      final row = tester.getCenter(find.byTooltip(searchInHebrew).first);
-      expect(row.dy, tester.getCenter(find.byTooltip(copyMeaning).first).dy);
-      expect(row.dx, greaterThan(tester.getCenter(find.byTooltip(copyMeaning).first).dx));
+        final header = tester.getCenter(find.byTooltip(copyEntry)).dy;
+        expect(tester.getCenter(find.byTooltip(copyWithResult)).dy, header);
+        // RTL: הראשון בשורה הוא הימני ביותר.
+        expect(
+          tester.getCenter(find.byTooltip(copyWithResult)).dx,
+          greaterThan(tester.getCenter(find.byTooltip(copyEntry)).dx),
+        );
+        final row = tester.getCenter(find.byTooltip(searchInHebrew).first);
+        expect(row.dy, tester.getCenter(find.byTooltip(copyMeaning).first).dy);
+        expect(
+          row.dx,
+          greaterThan(tester.getCenter(find.byTooltip(copyMeaning).first).dx),
+        );
 
-      await tester.tap(find.byTooltip(searchInHebrew).first);
-      await tester.pump();
-      expect(searches, [('פירוש ראשון ארוך מאוד שממשיך לכמה מילים', true)]);
-      expect(tester.takeException(), isNull);
-    });
+        await tester.tap(find.byTooltip(searchInHebrew).first);
+        await tester.pump();
+        expect(searches, [('פירוש ראשון ארוך מאוד שממשיך לכמה מילים', true)]);
+        expect(tester.takeException(), isNull);
+      },
+    );
 
     testWidgets('חיפוש עברי ($width): חיפוש בארמית בכותרת, לצד שני ההעתקות', (
       tester,
@@ -101,7 +107,10 @@ void main() {
       );
       final row = tester.getCenter(find.byTooltip(copyWithResult).first);
       expect(row.dy, tester.getCenter(find.byTooltip(copyMeaning).first).dy);
-      expect(row.dx, greaterThan(tester.getCenter(find.byTooltip(copyMeaning).first).dx));
+      expect(
+        row.dx,
+        greaterThan(tester.getCenter(find.byTooltip(copyMeaning).first).dx),
+      );
 
       await tester.tap(find.byTooltip(searchInAramaic));
       await tester.pump();

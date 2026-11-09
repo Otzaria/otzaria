@@ -26,7 +26,11 @@ typedef TikkunFontLoader =
 
 /// Allows ownership tests to inject a failure during PDF font construction.
 typedef TikkunPdfFontBuilder =
-    PdfShapedFont Function(PdfDocument document, ShaperFont shaper, Uint8List bytes);
+    PdfShapedFont Function(
+      PdfDocument document,
+      ShaperFont shaper,
+      Uint8List bytes,
+    );
 
 /// Allows ownership tests to inject an asynchronous PDF save failure.
 typedef TikkunPdfSaver = Future<Uint8List> Function(PdfDocument document);

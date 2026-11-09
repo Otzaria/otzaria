@@ -54,13 +54,15 @@ Future<void> main(List<String> args) async {
     exitCode = 66;
     return;
   }
-  stdout.writeln(jsonEncode({
-    'probe': 'personal-books-safepoint-4532',
-    'textualFiles': paths.length,
-    'maxFileMiB': maxFileMiB,
-    'runs': passes,
-    'note': 'Run on the same slow disk; this does not time SQLite writes.',
-  }));
+  stdout.writeln(
+    jsonEncode({
+      'probe': 'personal-books-safepoint-4532',
+      'textualFiles': paths.length,
+      'maxFileMiB': maxFileMiB,
+      'runs': passes,
+      'note': 'Run on the same slow disk; this does not time SQLite writes.',
+    }),
+  );
 
   for (var pass = 0; pass < passes; pass++) {
     final modes = pass.isEven ? <bool>[false, true] : <bool>[true, false];
@@ -120,8 +122,9 @@ Future<List<String>> _collectPaths({
   if (file != null) {
     await accept(File(file));
   } else {
-    await for (final entity
-        in Directory(folder!).list(recursive: true, followLinks: false)) {
+    await for (final entity in Directory(
+      folder!,
+    ).list(recursive: true, followLinks: false)) {
       if (entity is File) await accept(entity);
       if (paths.length >= maxFiles) break;
     }
@@ -177,9 +180,8 @@ Future<Map<String, Object>> _measure(
   }
 
   gaps.sort();
-  double percentile(double proportion) => gaps.isEmpty
-      ? 0
-      : gaps[((gaps.length - 1) * proportion).round()];
+  double percentile(double proportion) =>
+      gaps.isEmpty ? 0 : gaps[((gaps.length - 1) * proportion).round()];
 
   return {
     'mode': asynchronous ? 'async-read' : 'sync-baseline',
@@ -232,16 +234,13 @@ Future<Map<String, int>> _prepareBatch(
       tocEntries += toc.length;
       // Fixed-work checksum: same strings and TOC on both paths should give
       // the same fingerprint without returning multi-MB strings to the UI.
-      fingerprint = ((fingerprint * 16777619) ^
+      fingerprint =
+          ((fingerprint * 16777619) ^
               content.length ^
               toc.length ^
               (content.isEmpty ? 0 : content.codeUnitAt(0)) ^
-              (content.isEmpty
-                  ? 0
-                  : content.codeUnitAt(content.length ~/ 2)) ^
-              (content.isEmpty
-                  ? 0
-                  : content.codeUnitAt(content.length - 1))) &
+              (content.isEmpty ? 0 : content.codeUnitAt(content.length ~/ 2)) ^
+              (content.isEmpty ? 0 : content.codeUnitAt(content.length - 1))) &
           0x7fffffff;
     } catch (_) {
       failed++;

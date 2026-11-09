@@ -82,10 +82,9 @@ int _alternativeWordsHash(Map<int, List<String>> words) =>
       ),
     );
 
-int _stringMapHash(Map<String, String> values) =>
-    Object.hashAllUnordered(
-      values.entries.map((entry) => Object.hash(entry.key, entry.value)),
-    );
+int _stringMapHash(Map<String, String> values) => Object.hashAllUnordered(
+  values.entries.map((entry) => Object.hash(entry.key, entry.value)),
+);
 
 /// הגדרות לרינדור טקסט
 ///
