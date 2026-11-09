@@ -71,7 +71,6 @@
         {"scope":"_LibraryChangesDialogState.build","fp":"8fde4718","n":1}
       ],
       "lib/pdf_book/view/pdf_book_screen.dart": [
-        {"scope":"_PdfBookScreenState._buildLeftPaneContent","fp":"8fde4718","n":1},
         {"scope":"_PdfBookScreenState._buildPdfViewerParams","fp":"8fde4718","n":1},
         {"scope":"_PdfBookScreenState._buildReaderMainContent","fp":"8fde4718","n":1}
       ],
@@ -135,9 +134,6 @@
       ],
       "lib/text_book/view/page_shape/simple_text_viewer.dart": [
         {"scope":"_SimpleTextViewerState.build","fp":"8fde4718","n":1}
-      ],
-      "lib/text_book/view/text_book_screen.dart": [
-        {"scope":"_TextBookViewerBlocState._buildReader","fp":"8fde4718","n":1}
       ],
       "lib/tools/calendar/widgets/calendar_top_bar.dart": [
         {"scope":"_CalendarTopBarState._buildGoogleSyncStatus","fp":"8fde4718","n":1}

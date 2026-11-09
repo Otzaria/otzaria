@@ -536,7 +536,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 
 | מצב | רכיב | הערות |
 |---|---|---|
-| טעינה, מסך או חלונית | `LoadingIndicator`, ועם הודעה `LoadingIndicator(message:)` | חלקי: נשארו 55 `CircularProgressIndicator` גולמיים מחוץ ל־`lib/widgets/feedback` (UIL-013), מהם 4 התקדמות מדודה (`value:`) שאין לה עדיין רכיב משותף |
+| טעינה, מסך או חלונית | `LoadingIndicator`, ועם הודעה `LoadingIndicator(message:)` | חלקי: נשארו 51 `CircularProgressIndicator` גולמיים מחוץ ל־`lib/widgets/feedback` (UIL-013), מהם 4 התקדמות מדודה (`value:`) שאין לה עדיין רכיב משותף |
 | טעינה, inline | `LoadingIndicator.inline()` (‏16px, ‏stroke 2) | |
 | טעינה, שלד (skeleton) | `SkeletonLines` (רוחב כחלק מהמקום שקיבלו) | |
 | ריק | `OtzariaEmptyState` (`isCompact` בחלונית) | |
