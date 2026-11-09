@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -5,6 +6,8 @@ import 'package:flutter/widgets.dart';
 import 'package:otzaria/core/ui_snack.dart' show navigatorKey;
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
+
+Future<void> _pendingExtensionRepair = Future<void>.value();
 
 /// שומר קובץ דרך דיאלוג המערכת ומבטיח שהנתיב מקבל את הסיומת המבוקשת.
 ///
@@ -58,16 +61,25 @@ Future<String> ensureFileExtension(String path, String extension) async {
   final suffix = '.${normalizedExtension.toLowerCase()}';
   if (path.toLowerCase().endsWith(suffix)) return path;
 
-  final file = File(path);
-  if (!await file.exists()) return path;
+  // כל החלונות באותו isolate; מקורות שונים יכולים לבחור אותו יעד ממוספר.
+  final previous = _pendingExtensionRepair;
+  final completed = Completer<void>();
+  _pendingExtensionRepair = completed.future;
+  try {
+    await previous;
+    final file = File(path);
+    if (!await file.exists()) return path;
 
-  // The system picker approved the path it returned, not a second target
-  // with an appended extension. Never silently replace that other file.
-  var target = '$path.$normalizedExtension';
-  var collisionIndex = 1;
-  while (await File(target).exists()) {
-    target = '$path (${collisionIndex++}).$normalizedExtension';
+    // The system picker approved the path it returned, not a second target
+    // with an appended extension. Never silently replace that other file.
+    var target = '$path.$normalizedExtension';
+    var collisionIndex = 1;
+    while (await File(target).exists()) {
+      target = '$path (${collisionIndex++}).$normalizedExtension';
+    }
+    await file.rename(target);
+    return target;
+  } finally {
+    completed.complete();
   }
-  await file.rename(target);
-  return target;
 }
