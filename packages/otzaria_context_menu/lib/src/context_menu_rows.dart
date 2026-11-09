@@ -379,12 +379,16 @@ class _IconRowSubmenu extends StatefulWidget {
 
 class _IconRowSubmenuState extends State<_IconRowSubmenu> {
   List<AppContextMenuSubAction>? _entries;
-  bool _opening = false;
 
   @override
   void didUpdateWidget(_IconRowSubmenu oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.action != widget.action) _entries = null;
+    if (oldWidget.action != widget.action ||
+        oldWidget.controller != widget.controller) {
+      _entries = oldWidget.controller.isOpen
+          ? widget.action.submenuBuilder!()
+          : null;
+    }
   }
 
   void _toggle() {
@@ -392,16 +396,11 @@ class _IconRowSubmenuState extends State<_IconRowSubmenu> {
       widget.controller.close();
       return;
     }
-    if (_opening) return;
-    _opening = true;
     // Direct links and other submenu entries can perform work. Build them
     // when requested, not once for every context-menu opening.
     final entries = widget.action.submenuBuilder!();
     setState(() => _entries = entries);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _opening = false;
-      if (mounted && widget.enabled) widget.controller.open();
-    });
+    widget.controller.open();
   }
 
   @override
