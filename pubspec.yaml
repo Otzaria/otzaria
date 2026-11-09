@@ -230,6 +230,12 @@ dependency_overrides:
       ref: 57080495ee8b89aeee156a4440b6de1c5e0f7ef2
       path: packages/core
   matcher: ^0.12.20
+  # TODO: לחזור לגרסה הרשמית לאחר מיזוג ושחרור תיקוני provider באפסטרים.
+  provider:
+    git:
+      url: https://github.com/Otzaria/provider
+      ref: bf3930e454494525017b94641632577360ca7098
+      path: packages/provider
   analyzer: ^14.7.0
   device_info_plus: ^13.3.0
   # הגרסה שב-pub.dev חסרה את תיקון גלילת הטאצ'פד.
