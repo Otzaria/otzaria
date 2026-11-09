@@ -169,7 +169,7 @@ dependency_overrides:
   flutter_svg:
     git:
       url: https://github.com/Otzaria/packages
-      ref: codex/flutter-svg-combined
+      ref: 1ffcf4a7842a39cf8d35ea16d39881f8edb8dea9
       path: third_party/packages/flutter_svg
   # תיקוני המנוע וההורדה של PDFium מהענף המשולב; ראה ה-TODO ליד pdfrx.
   pdfrx_engine:

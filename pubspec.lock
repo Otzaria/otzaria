@@ -747,8 +747,8 @@ packages:
     dependency: "direct main"
     description:
       path: "third_party/packages/flutter_svg"
-      ref: "codex/flutter-svg-combined"
-      resolved-ref: c4086066eede1ccc3cae15020edd6ce342f1e40f
+      ref: "1ffcf4a7842a39cf8d35ea16d39881f8edb8dea9"
+      resolved-ref: "1ffcf4a7842a39cf8d35ea16d39881f8edb8dea9"
       url: "https://github.com/Otzaria/packages"
     source: git
     version: "2.4.0"
