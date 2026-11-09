@@ -7,7 +7,6 @@ import 'package:otzaria/widgets/text/rtl_text_field.dart';
 void main() {
   setUp(() {
     AppFonts.debugResetSystemFontsCache();
-    AppFonts.debugWarmUpFuture = Future<void>.value();
     AppFonts.debugSystemFontsHebrewCache = [
       for (var i = 0; i < 200; i++)
         FontInfo(
@@ -60,7 +59,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(scrollable.position.pixels, 0);
-    final label = find.text('גופן בדיקה 181');
+    final label = find.descendant(
+      of: find.byType(SliverFixedExtentList),
+      matching: find.text('גופן בדיקה 181'),
+    );
     expect(label, findsOneWidget);
     expect(
       tester.widget<Text>(label).style?.fontFamily,
@@ -171,13 +173,15 @@ void main() {
           matching: find.byType(InkWell, skipOffstage: false),
         );
         final intersects = tester.getRect(row).overlaps(viewport);
-        final texts = tester.widgetList<Text>(
-          find.descendant(
-            of: row,
-            matching: find.byType(Text, skipOffstage: false),
-            skipOffstage: false,
-          ),
-        ).toList();
+        final texts = tester
+            .widgetList<Text>(
+              find.descendant(
+                of: row,
+                matching: find.byType(Text, skipOffstage: false),
+                skipOffstage: false,
+              ),
+            )
+            .toList();
         expect(texts, hasLength(2));
         for (final text in texts) {
           expect(
