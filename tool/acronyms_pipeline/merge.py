@@ -3,7 +3,9 @@
   py tool/acronyms_pipeline/merge.py --baseline baseline.json [--import export.csv ...] [--out assets/Acronyms.json]
   py tool/acronyms_pipeline/merge.py --baseline baseline.json --check          # verify assets/Acronyms.json = baseline + ledger
 
-Only ledger rows with status `approved`, a named human reviewer and a review date enter the dictionary.  The baseline
+Ledger rows enter the dictionary if they are `approved` (a named human reviewer and a review date), or `agent_approved`
+from a source flagged `merge_agent_checked` in data/sources.json (an AI agent checked the conversion of a human-written
+reference; the row keeps its honest `agent:` reviewer id).  The baseline
 is never rewritten: existing keys and meanings keep their order; a new meaning is appended to its key's list, a new key
 is inserted at its alphabetical position.  The output is byte-for-byte reproducible from (baseline, ledger).
 """
@@ -29,7 +31,7 @@ REMOVAL_COLUMNS = ["key", "expansion", "reason"]
 REMOVAL_REASONS = {"same_as_key", "expansion_is_acronym", "structure_chars"}
 COLUMNS = ["key", "expansion", "status", "source", "reference", "notes", "reviewer", "reviewed_at"]
 STATUSES = {"pending", "approved", "agent_approved", "rejected", "needs_review"}
-# Agent decisions remain in the review queue; only a human can approve dictionary additions.
+# Agent decisions stay in the review queue, except for sources flagged `merge_agent_checked` (see enters()).
 INCLUDED = {"approved"}
 REVIEWED = INCLUDED | {"agent_approved"}
 AGENT_REVIEWER = re.compile(r"^agent:[\w.\-]+$")
@@ -137,7 +139,17 @@ def validate(rows, sources):
     return problems
 
 
-def apply(baseline, rows, human_only=False, removals=()):
+def enters(row, sources, human_only=False):
+    """`approved` (a named human) always enters.  `agent_approved` enters only when its source is flagged
+    `merge_agent_checked` in sources.json: a published reference whose text was written by people and whose
+    conversion an AI agent checked.  The flag is per source, so every such source is a visible, reviewable decision."""
+    if row["status"] == "approved":
+        return True
+    return (row["status"] == "agent_approved" and not human_only and
+            bool((sources or {}).get(row["source"], {}).get("merge_agent_checked")))
+
+
+def apply(baseline, rows, human_only=False, removals=(), sources=None):
     """baseline: dict (ordered).  Returns (new dict, stats).
 
     `removals`: (key, meaning) pairs of the baseline to drop first; a key left without meanings is dropped too.
@@ -154,7 +166,7 @@ def apply(baseline, rows, human_only=False, removals=()):
             else:
                 removed_keys += 1
         baseline = pruned
-    approved = [r for r in rows if r["status"] in INCLUDED]
+    approved = [r for r in rows if enters(r, sources, human_only)]
     approved.sort(key=lambda r: (r["key"], filters.meaning_signature(r["expansion"])))
     keys = list(baseline)
     out = {k: list(v) for k, v in baseline.items()}
@@ -201,7 +213,7 @@ def main():
     ap.add_argument("--baseline", required=True, help="Acronyms.json as it is on the base branch (git show upstream/dev:assets/Acronyms.json)")
     ap.add_argument("--import", dest="imports", action="append", default=[], help="review-page export CSV to fold into the ledger")
     ap.add_argument("--out", help="write the merged dictionary here")
-    ap.add_argument("--human-only", action="store_true", help="compatibility option: builds are always human-only")
+    ap.add_argument("--human-only", action="store_true", help="leave out agent_approved rows even from sources that are flagged merge_agent_checked")
     ap.add_argument("--check", action="store_true", help="verify that --target equals baseline + ledger")
     ap.add_argument("--target", default=os.path.join(HERE, "..", "..", "assets", "Acronyms.json"))
     a = ap.parse_args()
@@ -220,7 +232,7 @@ def main():
         print(f"ledger updated: {len(ledger)} rows")
     with open(a.baseline, encoding="utf-8") as f:
         baseline = json.load(f)
-    merged, stats = apply(baseline, ledger, a.human_only, read_removals())
+    merged, stats = apply(baseline, ledger, a.human_only, read_removals(), load_sources())
     print(stats)
     data = dump(merged)
     if a.check:

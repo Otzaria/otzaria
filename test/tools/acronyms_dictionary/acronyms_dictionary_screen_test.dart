@@ -98,6 +98,10 @@ void main() {
         oracle.normalizeAcronymQuery(entry.displayAcronym),
       );
     }
+    // one lookup table: a linear scan per result card is quadratic on the full dictionary
+    final meaningsByAcronym = {
+      for (final entry in catalog) entry.displayAcronym: entry.meanings,
+    };
     final queries = [
       'א',
       'ש',
@@ -165,9 +169,7 @@ void main() {
           actual.add(card.acronym);
           expect(
             card.meanings,
-            catalog
-                .firstWhere((entry) => entry.displayAcronym == card.acronym)
-                .meanings,
+            meaningsByAcronym[card.acronym],
           );
         }
       }

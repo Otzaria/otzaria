@@ -47,6 +47,25 @@ class Apply(unittest.TestCase):
             self.assertNotIn(meaning, shipped.get(key, []), (key, meaning))
             self.assertTrue(filters.check_expansion(key, meaning)[0], (key, meaning))
 
+    def test_agent_rows_enter_only_from_flagged_sources(self):
+        agent = dict(status="agent_approved", reviewer="agent:claude-sonnet-5-5")
+        rows = [row('א"ח', "אורח חיים", source="stern-ref", **agent),
+                row('ב"ח', "בית חדש", source="agent-verified-reference", **agent)]
+        sources = {"stern-ref": {"merge_agent_checked": True}, "agent-verified-reference": {}}
+        merged, stats = merge.apply(BASE, rows, sources=sources)
+        self.assertIn('א"ח', merged)
+        self.assertNotIn('ב"ח', merged)
+        self.assertEqual((stats["human_approved_rows"], stats["agent_approved_rows"]), (0, 1))
+        self.assertNotIn('א"ח', merge.apply(BASE, rows, sources=None)[0])
+        self.assertNotIn('א"ח', merge.apply(BASE, rows, human_only=True, sources=sources)[0])
+
+    def test_shipped_flags_are_only_on_sources_that_exist_in_the_ledger(self):
+        flagged = {k for k, v in SOURCES.items() if v.get("merge_agent_checked")}
+        used = {r["source"] for r in merge.read_ledger() if r["status"] == "agent_approved"}
+        self.assertTrue(flagged <= used, flagged - used)
+        for k in flagged:
+            self.assertEqual(SOURCES[k]["status"], "allowed")
+
     def test_shipped_dictionary_has_no_multi_word_keys(self):
         # a Stern line like "דע\"ד בל\"ד" is two acronyms; its meaning must never be filed under the first one
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "assets", "Acronyms.json")
