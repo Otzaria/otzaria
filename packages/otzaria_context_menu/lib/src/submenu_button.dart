@@ -49,12 +49,19 @@ class _AppSubmenuButtonState extends State<AppSubmenuButton> {
   Timer? _hoverTimer;
   bool? _openToRight;
 
-  @override
-  void initState() {
-    super.initState();
-    if (!widget.preserveFocus) {
-      GestureBinding.instance.pointerRouter.addGlobalRoute(_handlePointerEvent);
+  bool _trackingPointer = false;
+
+  // Only an open, focusable submenu needs global pointer tracking. Hundreds
+  // of closed submenu items should not each process every mouse event.
+  void _setTrackingPointer(bool track) {
+    if (_trackingPointer == track) return;
+    final router = GestureBinding.instance.pointerRouter;
+    if (track) {
+      router.addGlobalRoute(_handlePointerEvent);
+    } else {
+      router.removeGlobalRoute(_handlePointerEvent);
     }
+    _trackingPointer = track;
   }
 
   @override
@@ -63,23 +70,16 @@ class _AppSubmenuButtonState extends State<AppSubmenuButton> {
     if (oldWidget.preserveFocus != widget.preserveFocus) {
       _cancelOpen();
       _focusNode.canRequestFocus = !widget.preserveFocus;
-      final router = GestureBinding.instance.pointerRouter;
-      if (widget.preserveFocus) {
-        router.removeGlobalRoute(_handlePointerEvent);
-      } else {
-        router.addGlobalRoute(_handlePointerEvent);
-      }
+      // Changing the FocusScope wrapper recreates the closed menu anchor.
+      // Controller replacement alone retains its open state and tracking.
+      _setTrackingPointer(false);
     }
   }
 
   @override
   void dispose() {
     _hoverTimer?.cancel();
-    if (!widget.preserveFocus) {
-      GestureBinding.instance.pointerRouter.removeGlobalRoute(
-        _handlePointerEvent,
-      );
-    }
+    _setTrackingPointer(false);
     _focusNode.dispose();
     super.dispose();
   }
@@ -180,10 +180,12 @@ class _AppSubmenuButtonState extends State<AppSubmenuButton> {
           onOpen: () {
             final side = _shouldOpenToRight();
             if (_openToRight != side) setState(() => _openToRight = side);
+            _setTrackingPointer(!widget.preserveFocus);
             widget.onOpen?.call();
           },
           onClose: () {
             _cancelOpen();
+            _setTrackingPointer(false);
             widget.onClose?.call();
           },
           submenuIcon: const WidgetStatePropertyAll<Widget?>(SizedBox.shrink()),
