@@ -5,6 +5,7 @@ import 'package:otzaria/data/book_identity.dart';
 // docs/guided_tour_developer_guide.md
 
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -70,8 +71,10 @@ import 'package:otzaria/tools/view/tools_launcher_panel.dart';
 import 'package:otzaria/shortcuts/keyboard_shortcuts.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
+
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:otzaria/update/my_update_widget.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/widgets/dialogs/ad_popup_dialog.dart';
@@ -255,9 +258,8 @@ LibraryPageBuildDecision resolveLibraryPageBuildDecision({
 }
 
 @visibleForTesting
-bool shouldDispatchHebrewBooksPathChange(
-  LibraryState current,
-) => current.changedHebrewBooksPath != null;
+bool shouldDispatchHebrewBooksPathChange(LibraryState current) =>
+    current.changedHebrewBooksPath != null;
 
 @visibleForTesting
 Map<String, dynamic> hebrewBooksPathSettingsChangedPayload(String path) => {
@@ -354,12 +356,13 @@ class MainWindowScreenState extends State<MainWindowScreen>
 
   // שמירת הדפים כדי שלא ייבנו מחדש
   Widget? _cachedLibraryPage;
-  Widget? _cachedReadingPage;
+  Widget? _cachedReadingScreen;
   Widget? _cachedSettingsPage;
 
   // GlobalKeys יציבים משמרים את מצב העיון וההגדרות בעת מעבר חוצה.
   final GlobalKey _readingScreenKey = GlobalKey();
   final GlobalKey _settingsScreenKey = GlobalKey();
+  final GlobalKey _toolsLauncherOverlayKey = GlobalKey();
 
   // האם LibraryBrowser האמיתי כבר נבנה (אחרי שהמשתמש ביקש את הספרייה); עד אז
   // מוצג placeholder זול.
@@ -817,9 +820,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
         lastDispatchedCity = state.selectedCity;
         PluginRuntimeDispatcher.instance.dispatchEvent(
           'calendar.city_changed',
-          {
-            'city': state.selectedCity,
-          },
+          {'city': state.selectedCity},
         );
       }
     });
@@ -2046,11 +2047,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
 
   bool _hasOpenPluginTab(String pluginId) =>
       mounted &&
-      openToolInstanceCount(
-            context.read<TabsBloc>().state.tabs,
-            pluginId,
-          ) >
-          0;
+      openToolInstanceCount(context.read<TabsBloc>().state.tabs, pluginId) > 0;
 
   void _openToolsLauncher() {
     if (!mounted || _isToolsLauncherOpen) return;
@@ -2184,12 +2181,54 @@ class MainWindowScreenState extends State<MainWindowScreen>
     return pages;
   }
 
+  Widget _buildToolsLauncher() => ContextOverlayPanel(
+    key: _toolsLauncherOverlayKey,
+    isOpen: _isToolsLauncherOpen,
+    onClose: _closeToolsLauncher,
+    alignment: AlignmentDirectional.centerStart,
+    // רחב מספיק לארבע קוביות; הריפוד נמצא בתוך פאנל הכלים.
+    width: 440,
+    contentPadding: EdgeInsets.zero,
+    deferChildBuildOnOpen: true,
+    child: ToolsLauncherPanel(
+      key: _windowKeys.tour.toolsLauncherPanel,
+      onClose: _closeToolsLauncher,
+      onToolSelected: (entry) {
+        _closeToolsLauncher();
+        openToolTab(context, entry);
+      },
+    ),
+  );
+
   /// בונה את רשימת עמודי ה-PageView לפי מצב המעבר הנוכחי (ראה
   /// [buildTransitionPages]).
-  List<Widget> _buildPagesList() {
+  List<Widget> _buildPagesList({
+    required bool showSideTabs,
+    required Widget? toolsLauncher,
+  }) {
     final pages = [
       _cachedLibraryPage!,
-      _cachedReadingPage!,
+      // גם viewport זמני בגודל אפס חייב לשמר את ה-State של תוסף פתוח.
+      KeepAlivePage(
+        key: const ValueKey('page-reading'),
+        // העמודה בתוך עמוד העיון ולפי הכרטיסיות בלבד: סביב כל ה-PageView
+        // היא מצרה גם את הספרייה בזמן המעבר (issue #4173).
+        child: ChromeDirectionality(
+          child: ReadingTabsSidePanel(
+            show: showSideTabs,
+            // מוק הגרירה נמדד מכאן: אזור התוכן שליד העמודה.
+            child: RepaintBoundary(
+              key: _windowKeys.windowContentBoundary,
+              child: Stack(
+                children: [
+                  _cachedReadingScreen!,
+                  ?toolsLauncher,
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
       _cachedSettingsPage!,
     ];
     final canonical = excludeOffscreenPagesFromFocus(pages, _currentPageIndex);
@@ -2605,11 +2644,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     focusRepository.findRefSearchController.selection =
         const TextSelection.collapsed(offset: 'בראשית'.length);
     context.read<FindRefBloc>().add(const SearchRefRequested('בראשית'));
-    _handleFindRefOpen(
-      context,
-      closeIfOpen: false,
-      transparentBarrier: true,
-    );
+    _handleFindRefOpen(context, closeIfOpen: false, transparentBarrier: true);
     _scheduleBringTourOverlayToFront(remainingFrames: 6);
   }
 
@@ -3318,10 +3353,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
                 onChooseDelta: () => context.read<LibraryUpdateBloc>().add(
                   const ConfirmHeavyDelta(),
                 ),
-                onChooseFullDownload: () =>
-                    context.read<LibraryUpdateBloc>().add(
-                      const ConfirmFullDownload(),
-                    ),
+                onChooseFullDownload: () => context
+                    .read<LibraryUpdateBloc>()
+                    .add(const ConfirmFullDownload()),
               );
               if (item == null) {
                 cubit.remove(kLibraryUpdateWorkStatusId);
@@ -3719,11 +3753,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
               _cachedLibraryPage = const SizedBox.shrink();
             }
 
-            // KeepAlivePage: בלעדיו פריים שבו ה-viewport לא בונה את העמוד
-            // (מזעור לחלון 0x0, החלפת controller) זורק את ה-State של המסך —
-            // וטאב תוסף פתוח נטען מאפס לדף הראשי שלו.
-            _cachedReadingPage ??= KeepAlivePage(
-              key: const ValueKey('page-reading'),
+            _cachedReadingScreen ??= ContentDirectionality(
               child: ReadingScreen(
                 key: _readingScreenKey,
                 onFindRefRequested: () => _handleFindRefOpen(context),
@@ -3739,8 +3769,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
                 ),
               ),
             );
-
-            _pages = _buildPagesList();
 
             if (state.hasCheckedLibrary) {
               _scheduleTourStartIfNeeded(libraryLoaded: !state.isLibraryEmpty);
@@ -3827,6 +3855,24 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                         );
                                     _handleNavAxisChange(context, wide);
 
+                                    final showSideTabs =
+                                        wide &&
+                                        !isImmersive &&
+                                        hasOpenTabs &&
+                                        context.select<SettingsBloc, bool>(
+                                          (b) => b.state.readingTabsOnSide,
+                                        );
+                                    final toolsInReadingPage =
+                                        state.currentScreen == Screen.reading ||
+                                        state.currentScreen == Screen.search;
+                                    final toolsLauncher = _buildToolsLauncher();
+                                    _pages = _buildPagesList(
+                                      showSideTabs: showSideTabs,
+                                      toolsLauncher: toolsInReadingPage
+                                          ? toolsLauncher
+                                          : null,
+                                    );
+
                                     final pageView = Stack(
                                       children: [
                                         // הכרום מתהפך לפי שפת הממשק; המסכים
@@ -3842,33 +3888,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                             children: _pages,
                                           ),
                                         ),
-                                        // צמוד לסרגל הניווט (ימין ב-RTL) ובתוך
-                                        // אזור התוכן בלבד — כך ה-scrim אינו בולע
-                                        // לחיצות בסרגל וכפתור "כלים" נשאר לחיץ
-                                        // לסגירה.
-                                        ContextOverlayPanel(
-                                          isOpen: _isToolsLauncherOpen,
-                                          onClose: _closeToolsLauncher,
-                                          alignment:
-                                              AlignmentDirectional.centerStart,
-                                          // רחב מספיק שארבע הקוביות שבשורה יהיו
-                                          // מרווחות, ועדיין לא חמש.
-                                          width: 440,
-                                          // הרצועה בראש הפאנל רחבה עד הקצוות;
-                                          // הריפוד של התוכן בתוך הפאנל עצמו.
-                                          contentPadding: EdgeInsets.zero,
-                                          deferChildBuildOnOpen: true,
-                                          child: ToolsLauncherPanel(
-                                            key: _windowKeys
-                                                .tour
-                                                .toolsLauncherPanel,
-                                            onClose: _closeToolsLauncher,
-                                            onToolSelected: (entry) {
-                                              _closeToolsLauncher();
-                                              openToolTab(context, entry);
-                                            },
-                                          ),
-                                        ),
+                                        if (!toolsInReadingPage) toolsLauncher,
                                       ],
                                     );
 
@@ -3925,30 +3945,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                                         ),
                                                 ),
                                                 Expanded(
-                                                  child: ReadingTabsSidePanel(
-                                                    show:
-                                                        isLandscape &&
-                                                        !isImmersive &&
-                                                        hasOpenTabs &&
-                                                        (state.currentScreen ==
-                                                                Screen
-                                                                    .reading ||
-                                                            state.currentScreen ==
-                                                                Screen
-                                                                    .search) &&
-                                                        context.select<
-                                                          SettingsBloc,
-                                                          bool
-                                                        >(
-                                                          (b) => b
-                                                              .state
-                                                              .readingTabsOnSide,
-                                                        ),
-                                                    child: RepaintBoundary(
-                                                      key: _windowKeys
-                                                          .windowContentBoundary,
-                                                      child: pageView,
-                                                    ),
+                                                  child: RepaintBoundary(
+                                                    child: pageView,
                                                   ),
                                                 ),
                                               ],
@@ -3981,9 +3979,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
                             deferChildBuildOnOpen: true,
                             preserveChildStateOnClose: true,
                             width: 400,
-                            title: context.settingsText(
-                              'הגדרות תצוגת הספרים',
-                            ),
+                            title: context.settingsText('הגדרות תצוגת הספרים'),
                             child: const Expanded(
                               child: ReadingSettingsPanel(),
                             ),
@@ -4261,9 +4257,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     } else if (screen == Screen.find) {
       _handleFindRefOpen(context);
     } else {
-      context.read<NavigationBloc>().add(
-        NavigateToScreen(screen),
-      );
+      context.read<NavigationBloc>().add(NavigateToScreen(screen));
     }
   }
 
@@ -4277,103 +4271,70 @@ class MainWindowScreenState extends State<MainWindowScreen>
     final isCompactRail = compact;
     // הניווט הוא כרום, כמו הסרגל: עמודה וסרגל תחתון באותו צבע (q10 Q18 A).
     return Material(
-      color: AppSurfaces.navPanelBackground(
-        context,
-      ),
+      color: AppSurfaces.navPanelBackground(context),
       surfaceTintColor: Colors.transparent,
       child: BlocBuilder<PluginSystemBloc, PluginSystemState>(
         buildWhen: _pinnedNavRailIdsChanged,
-        builder:
-            (
-              context,
-              pluginState,
-            ) {
-              final settingsState = context.select<SettingsBloc, SettingsState>(
-                (
-                  b,
-                ) => b.state,
-              );
-              final pinnedItems = _resolvePinnedItems(
-                pluginState: pluginState,
-                pinnedBuiltInIds: settingsState.builtInToolsPinnedToNavRail,
-                hiddenBuiltInIds: settingsState.hiddenBuiltInToolIds,
-                isOfflineMode: settingsState.isOfflineMode,
-                builtInToolsOrder: settingsState.builtInToolsOrder,
-              );
-              return BlocBuilder<TabsBloc, TabsState>(
-                buildWhen:
-                    (
-                      p,
-                      c,
-                    ) =>
-                        _activeToolIdOf(
-                          p,
-                        ) !=
-                        _activeToolIdOf(
-                          c,
-                        ),
-                builder:
-                    (
-                      context,
-                      tabsState,
-                    ) {
-                      final activeToolId = _activeToolIdOf(
-                        tabsState,
-                      );
-                      final hideTools = _isAllToolsHidden(
-                        settingsState,
-                        pluginState,
-                      );
-                      final isReaderScreen =
-                          state.currentScreen == Screen.reading ||
-                          state.currentScreen == Screen.search;
-                      final activePinnedIndex =
-                          isReaderScreen && activeToolId != null
-                          ? pinnedItems.indexWhere(
-                              (
-                                it,
-                              ) => it.toolId == activeToolId,
-                            )
-                          : -1;
-                      // "כלים" מודגש כל עוד פאנל המשגר פתוח
-                      final isToolsSelected =
-                          !hideTools && _isToolsLauncherOpen;
-                      final topItems = <Widget>[
-                        for (int i = 0; i < _toolsNavIndex; i++)
-                          _buildNavRailItem(
-                            context,
-                            i,
-                            state.currentScreen,
-                            compact: isCompactRail,
-                          ),
-                        if (!hideTools)
-                          _buildNavRailItem(
-                            context,
-                            _toolsNavIndex,
-                            state.currentScreen,
-                            selectedOverride: isToolsSelected,
-                            compact: isCompactRail,
-                          ),
-                        for (int i = 0; i < pinnedItems.length; i++)
-                          _buildPinnedItemNavRailItem(
-                            context,
-                            pinnedItems[i],
-                            isSelected: activePinnedIndex == i,
-                            compact: isCompactRail,
-                          ),
-                      ];
-                      return NavRailColumn(
-                        items: topItems,
-                        bottomItem: _buildNavRailItem(
-                          context,
-                          _settingsNavIndex,
-                          state.currentScreen,
-                          compact: isCompactRail,
-                        ),
-                      );
-                    },
+        builder: (context, pluginState) {
+          final settingsState = context.select<SettingsBloc, SettingsState>(
+            (b) => b.state,
+          );
+          final pinnedItems = _resolvePinnedItems(
+            pluginState: pluginState,
+            pinnedBuiltInIds: settingsState.builtInToolsPinnedToNavRail,
+            hiddenBuiltInIds: settingsState.hiddenBuiltInToolIds,
+            isOfflineMode: settingsState.isOfflineMode,
+            builtInToolsOrder: settingsState.builtInToolsOrder,
+          );
+          return BlocBuilder<TabsBloc, TabsState>(
+            buildWhen: (p, c) => _activeToolIdOf(p) != _activeToolIdOf(c),
+            builder: (context, tabsState) {
+              final activeToolId = _activeToolIdOf(tabsState);
+              final hideTools = _isAllToolsHidden(settingsState, pluginState);
+              final isReaderScreen =
+                  state.currentScreen == Screen.reading ||
+                  state.currentScreen == Screen.search;
+              final activePinnedIndex = isReaderScreen && activeToolId != null
+                  ? pinnedItems.indexWhere((it) => it.toolId == activeToolId)
+                  : -1;
+              // "כלים" מודגש כל עוד פאנל המשגר פתוח
+              final isToolsSelected = !hideTools && _isToolsLauncherOpen;
+              final topItems = <Widget>[
+                for (int i = 0; i < _toolsNavIndex; i++)
+                  _buildNavRailItem(
+                    context,
+                    i,
+                    state.currentScreen,
+                    compact: isCompactRail,
+                  ),
+                if (!hideTools)
+                  _buildNavRailItem(
+                    context,
+                    _toolsNavIndex,
+                    state.currentScreen,
+                    selectedOverride: isToolsSelected,
+                    compact: isCompactRail,
+                  ),
+                for (int i = 0; i < pinnedItems.length; i++)
+                  _buildPinnedItemNavRailItem(
+                    context,
+                    pinnedItems[i],
+                    isSelected: activePinnedIndex == i,
+                    compact: isCompactRail,
+                  ),
+              ];
+              return NavRailColumn(
+                items: topItems,
+                bottomItem: _buildNavRailItem(
+                  context,
+                  _settingsNavIndex,
+                  state.currentScreen,
+                  compact: isCompactRail,
+                ),
               );
             },
+          );
+        },
       ),
     );
   }
@@ -4393,16 +4354,11 @@ class MainWindowScreenState extends State<MainWindowScreen>
             isOfflineMode: settingsState.isOfflineMode,
             builtInToolsOrder: settingsState.builtInToolsOrder,
           );
-          final hideTools = _isAllToolsHidden(
-            settingsState,
-            pluginState,
-          );
+          final hideTools = _isAllToolsHidden(settingsState, pluginState);
           return BlocBuilder<TabsBloc, TabsState>(
             buildWhen: (p, c) => _activeToolIdOf(p) != _activeToolIdOf(c),
             builder: (context, tabsState) {
-              final activeToolId = _activeToolIdOf(
-                tabsState,
-              );
+              final activeToolId = _activeToolIdOf(tabsState);
               final destinations = _buildBarDestinations(
                 pinnedItems,
                 hideTools: hideTools,
@@ -4410,9 +4366,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
               return LayoutBuilder(
                 builder: (context, constraints) => NavigationBar(
                   // צבע הסרגל, כמו עמודת הניווט במחשב (q10 Q18 A).
-                  backgroundColor: AppSurfaces.navPanelBackground(
-                    context,
-                  ),
+                  backgroundColor: AppSurfaces.navPanelBackground(context),
                   surfaceTintColor: Colors.transparent,
                   // תווית לכל יעד; רק כשהתווית הארוכה לא נכנסת ברוחב של יעד,
                   // תווית רק לנבחר (review-r3, q-bottom-bar).
