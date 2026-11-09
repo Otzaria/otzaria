@@ -1524,6 +1524,161 @@ Future<void> main() async {
     await tester.pumpAndSettle();
     expect(tester.element(row), same(before));
   });
+
+  // #4433, #4550: לחיצה על שורה תמיד מנווטת; שורה סגורה גם נפתחת ושורה פעילה
+  // ופתוחה גם מכווצת. הגלילה האוטומטית אחרי הכותרת הפעילה לא פותחת מחדש ענף
+  // שהמשתמש כיווץ.
+  group('ניווט, פתיחה וכיווץ בלחיצה על שורה (#4433, #4550)', () {
+    late LineScrollController lines;
+    late int closeRequests;
+
+    Future<_TestTextBookBloc> pumpToc(
+      WidgetTester tester, {
+      required int active,
+    }) async {
+      // siman s ברמה 1 באינדקס s*4, ושלושת הסעיפים שלו אחריו.
+      final bloc = _TestTextBookBloc(
+        _loadedState(
+          toc: _buildLargeToc(simanim: 3, seifim: 3),
+          visibleIndices: [active],
+          selectedIndex: active,
+        ),
+      );
+      final focus = FocusNode();
+      lines = LineScrollController();
+      closeRequests = 0;
+      addTearDown(bloc.close);
+      addTearDown(focus.dispose);
+      await tester.pumpWidget(
+        _wrap(
+          TocViewer(
+            lines: lines,
+            closeLeftPaneCallback: () => closeRequests++,
+            focusNode: focus,
+          ),
+          bloc,
+        ),
+      );
+      await tester.pumpAndSettle();
+      return bloc;
+    }
+
+    void moveActive(_TestTextBookBloc bloc, int index) {
+      bloc.emitState(
+        (bloc.state as TextBookLoaded).copyWith(
+          visibleIndices: [index],
+          selectedIndex: index,
+        ),
+      );
+    }
+
+    testWidgets('לחיצה על שורה פעילה ופתוחה מנווטת וגם מכווצת, ושוב פותחת', (
+      tester,
+    ) async {
+      await pumpToc(tester, active: 4);
+      expect(find.text('seif 0'), findsNWidgets(3));
+      final epoch = lines.navigationEpoch.value;
+
+      await tester.tap(find.text('siman 1'));
+      await tester.pumpAndSettle();
+      expect(find.text('seif 0'), findsNWidgets(2));
+      expect(lines.navigationEpoch.value, epoch + 1);
+      expect(closeRequests, 1);
+
+      await tester.tap(find.text('siman 1'));
+      await tester.pumpAndSettle();
+      expect(find.text('seif 0'), findsNWidgets(3));
+      expect(lines.navigationEpoch.value, epoch + 2);
+      expect(closeRequests, 2);
+    });
+
+    testWidgets('לחיצה על שורה סגורה, פעילה או לא, פותחת אותה ומנווטת', (
+      tester,
+    ) async {
+      await pumpToc(tester, active: 4);
+      await tester.tap(find.byType(ExpandingChevron).at(1));
+      await tester.tap(find.byType(ExpandingChevron).at(2));
+      await tester.pumpAndSettle();
+      expect(find.text('seif 0'), findsNWidgets(1));
+      final epoch = lines.navigationEpoch.value;
+
+      await tester.tap(find.text('siman 1'));
+      await tester.pumpAndSettle();
+      expect(find.text('seif 0'), findsNWidgets(2));
+      expect(lines.navigationEpoch.value, epoch + 1);
+      expect(closeRequests, 1);
+
+      await tester.tap(find.text('siman 2'));
+      await tester.pumpAndSettle();
+      expect(find.text('seif 0'), findsNWidgets(3));
+      expect(lines.navigationEpoch.value, epoch + 2);
+      expect(closeRequests, 2);
+    });
+
+    testWidgets('לחיצה על שורה פתוחה שאינה פעילה מנווטת בלי לכווץ', (
+      tester,
+    ) async {
+      await pumpToc(tester, active: 4);
+      final epoch = lines.navigationEpoch.value;
+
+      await tester.tap(find.text('siman 2'));
+      await tester.pumpAndSettle();
+      expect(find.text('seif 0'), findsNWidgets(3));
+      expect(lines.navigationEpoch.value, epoch + 1);
+      expect(closeRequests, 1);
+    });
+
+    testWidgets('לחיצה על חץ הכיווץ מכווצת בלי לנווט', (tester) async {
+      await pumpToc(tester, active: 4);
+      final epoch = lines.navigationEpoch.value;
+
+      await tester.tap(find.byType(ExpandingChevron).at(1));
+      await tester.pumpAndSettle();
+      expect(find.text('seif 0'), findsNWidgets(2));
+      expect(lines.navigationEpoch.value, epoch);
+      expect(closeRequests, 0);
+    });
+
+    testWidgets('ענף שכווץ בלחיצה על השורה לא נפתח כשהכותרת הפעילה זזה בתוכו', (
+      tester,
+    ) async {
+      final bloc = await pumpToc(tester, active: 4);
+      await tester.tap(find.text('siman 1'));
+      await tester.pumpAndSettle();
+      expect(find.text('seif 0'), findsNWidgets(2));
+
+      moveActive(bloc, 6);
+      await tester.pumpAndSettle();
+      expect(find.text('seif 0'), findsNWidgets(2));
+    });
+
+    testWidgets('ענף שכווץ בחץ לא נפתח כשהכותרת הפעילה זזה בתוכו', (
+      tester,
+    ) async {
+      final bloc = await pumpToc(tester, active: 5);
+      await tester.tap(find.byType(ExpandingChevron).at(1));
+      await tester.pumpAndSettle();
+      expect(find.text('seif 0'), findsNWidgets(2));
+
+      moveActive(bloc, 6);
+      await tester.pumpAndSettle();
+      expect(find.text('seif 0'), findsNWidgets(2));
+    });
+
+    testWidgets('ענף שכווץ נפתח שוב כשהכותרת הפעילה חוזרת אליו מענף אחר', (
+      tester,
+    ) async {
+      final bloc = await pumpToc(tester, active: 5);
+      await tester.tap(find.byType(ExpandingChevron).at(1));
+      await tester.pumpAndSettle();
+
+      moveActive(bloc, 9);
+      await tester.pumpAndSettle();
+      moveActive(bloc, 5);
+      await tester.pumpAndSettle();
+      expect(find.text('seif 0'), findsNWidgets(3));
+    });
+  });
 }
 
 /// השדה בלשונית הניווט סגור עד הלחיצה על אייקון החיפוש שבכותרת.

@@ -52,6 +52,9 @@ class _TocViewerState extends State<TocViewer>
   bool _isManuallyScrolling = false;
   int? _lastScrolledTocIndex;
   final Map<int, bool> _expanded = {};
+  // ענפים שהמשתמש כיווץ: הגלילה אחרי הכותרת הפעילה לא פותחת אותם מחדש כל עוד
+  // הכותרת הפעילה נשארת בתוכם.
+  final Set<int> _collapsedByUser = {};
 
   // הסינון והספירה משתנים רק כשהספר או השאילתה משתנים.
   List<TocEntry>? _displaySource;
@@ -196,9 +199,12 @@ class _TocViewerState extends State<TocViewer>
     final path = _findPath(entries, targetIndex);
     if (path.isEmpty) return;
 
+    _collapsedByUser.retainWhere((index) => path.any((e) => e.index == index));
     var changed = false;
     for (final entry in path) {
-      if (entry.children.isNotEmpty && _expanded[entry.index] != true) {
+      if (entry.children.isNotEmpty &&
+          _expanded[entry.index] != true &&
+          !_collapsedByUser.contains(entry.index)) {
         _expanded[entry.index] = true;
         changed = true;
       }
@@ -377,21 +383,30 @@ class _TocViewerState extends State<TocViewer>
     final level = (entry.level - 1).clamp(0, 100);
 
     final hasChildren = entry.children.isNotEmpty;
+    void setExpanded(bool expand) => setState(() {
+      _expanded[entry.index] = expand;
+      if (expand) {
+        _collapsedByUser.remove(entry.index);
+      } else {
+        _collapsedByUser.add(entry.index);
+      }
+      _expandedRevision++;
+    });
+
+    // הלחיצה תמיד מנווטת; שורה סגורה גם נפתחת, ושורה פתוחה ופעילה גם מכווצת.
+    final toggleOnTap =
+        hasChildren && !showFullText && (!isExpanded || selected);
     final tile = NavTreeTile.heading(
       title: title,
       level: level,
       isSelected: selected,
       isExpanded: isExpanded,
       hasChildren: hasChildren,
-      onTap: navigateToEntry,
-      onToggleExpand: hasChildren
-          ? () {
-              setState(() {
-                _expanded[entry.index] = !isExpanded;
-                _expandedRevision++;
-              });
-            }
-          : null,
+      onTap: () {
+        if (toggleOnTap) setExpanded(!isExpanded);
+        navigateToEntry();
+      },
+      onToggleExpand: hasChildren ? () => setExpanded(!isExpanded) : null,
     );
 
     return NavTreeGroupCard(
@@ -415,6 +430,7 @@ class _TocViewerState extends State<TocViewer>
           if (_virtualScrollController.isAttached) {
             _virtualScrollController.jumpTo(index: 0);
           }
+          _collapsedByUser.clear();
           _expanded
             ..clear()
             ..addAll(expansion);
