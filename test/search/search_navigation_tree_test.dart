@@ -429,6 +429,77 @@ void main() {
       }
     });
 
+    testWidgets(
+      'סינון בשתי מילים אינו תלוי בסדר או במילת ביניים (#4464)',
+      (tester) async {
+        final library = makeLibraryFrom([
+          makeCategory(
+            'תנ"ך',
+            books: [
+              makeBook(1, 'רשב״א על ברכות', '/תנ"ך'),
+              makeBook(2, 'רשב"א על שבת', '/תנ"ך'),
+              makeBook(3, 'פירוש על ברכות', '/תנ"ך'),
+            ],
+          ),
+        ]);
+        const counts = {
+          '/תנ"ך/id:1': 2,
+          '/תנ"ך/id:2': 2,
+          '/תנ"ך/id:3': 2,
+        };
+        for (final query in [
+          'רשב"א ברכות',
+          'ברכות רשב"א',
+          'רשבא ברכות',
+          'רשב"א על ברכות',
+        ]) {
+          await pumpTree(
+            tester,
+            library: library,
+            facetCounts: counts,
+            filterQuery: query,
+          );
+          expect(find.text('רשב״א על ברכות'), findsOneWidget, reason: query);
+          expect(find.text('רשב"א על שבת'), findsNothing, reason: query);
+          expect(find.text('פירוש על ברכות'), findsNothing, reason: query);
+        }
+      },
+    );
+
+    testWidgets('סינון רב־מילי מחייב כל מילה ומכבד ספירות תוצאות', (
+      tester,
+    ) async {
+      final library = makeLibraryFrom([
+        makeCategory(
+          'תנ"ך',
+          books: [
+            makeBook(1, 'רשב״א על ברכות', '/תנ"ך'),
+            makeBook(2, 'רשב"א על ברכות מבואר', '/תנ"ך'),
+            makeBook(3, 'רשב"א על שבת', '/תנ"ך'),
+          ],
+        ),
+      ]);
+      const counts = {'/תנ"ך/id:1': 3, '/תנ"ך/id:3': 1};
+      await pumpTree(
+        tester,
+        library: library,
+        facetCounts: counts,
+        filterQuery: 'ברכ רשב',
+      );
+      expect(find.text('רשב״א על ברכות'), findsOneWidget);
+      // התאמת שם בלבד אינה מספיקה — אין תוצאות בספר.
+      expect(find.text('רשב"א על ברכות מבואר'), findsNothing);
+      expect(find.text('רשב"א על שבת'), findsNothing);
+
+      await pumpTree(
+        tester,
+        library: library,
+        facetCounts: counts,
+        filterQuery: 'רשב"א בבא',
+      );
+      expect(find.text('לא נמצאו ספרים עם תוצאות'), findsOneWidget);
+    });
+
     testWidgets('גרשיים בשאילתה מוצאים כותרת עם ״ (issue #2031)', (
       tester,
     ) async {
@@ -505,12 +576,19 @@ void main() {
           ): book.id! % 5,
       };
       String oracle(String text) => normalizeBookTitle(text).toLowerCase();
+      bool matchesQuery(String title, String query) {
+        final haystack = oracle(title);
+        final needle = oracle(query);
+        if (haystack.contains(needle)) return true;
+        final words = needle.trim().split(RegExp(r'\s+'));
+        return words.length > 1 && words.every(haystack.contains);
+      }
 
       for (var i = 0; i < 80; i++) {
         final query = randomText(3) + alphabet[random.nextInt(3)];
         final expected = [
           for (final book in books)
-            if (book.id! % 5 != 0 && oracle(book.title).contains(oracle(query)))
+            if (book.id! % 5 != 0 && matchesQuery(book.title, query))
               book.title,
         ]..sort();
         // פעמיים: הראשונה ממלאת את המטמון והשנייה קוראת ממנו.
