@@ -1,0 +1,107 @@
+name: Released install-root footprint
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/release_install_footprint.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  manifests:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: windows-x64
+            asset_id: 703117110
+            sha256: 41680cb5ee19b25278299f2c9b59117921f58eaabc244f93676267e5dae2ab7b
+          - target: windows-arm64
+            asset_id: 703122933
+            sha256: 4182fae288a1153ae7c7ecd7366b4bddd43e67932d18027ecd5ee26ef241f156
+          - target: linux-x64
+            asset_id: 703153043
+            sha256: d214683a87df11072d10538b1dfa29d2b922fffa3ac70031cde64ab04f54d7bc
+          - target: linux-arm64
+            asset_id: 703122371
+            sha256: 6cb65241ef623ca673dbea3da818cbdc316e1ab741b08f6ca68fb956f7661c92
+          - target: macos-universal
+            asset_id: 703129649
+            sha256: 1639f3a13ad9fc39572d9e97fc53261a9c6714effcbdec126aa2387138985ed3
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download checksum-pinned release manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://api.github.com/repos/Otzaria/otzaria/releases/assets/${{ matrix.asset_id }}"
+          curl --fail --location --retry 8 --retry-all-errors --retry-delay 2 --max-time 120 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/octet-stream" \
+            "$url" -o "$RUNNER_TEMP/manifest.json"
+          printf '%s  %s\n' '${{ matrix.sha256 }}' "$RUNNER_TEMP/manifest.json" | sha256sum --check -
+      - name: Validate and report installed file footprint
+        shell: bash
+        run: |
+          python - "$RUNNER_TEMP/manifest.json" "$RUNNER_TEMP/footprint.json" <<'PY'
+          import json, sys
+          from pathlib import Path
+          src, out = map(Path, sys.argv[1:])
+          manifest = json.loads(src.read_text(encoding="utf-8"))
+          files = manifest.get("files")
+          if not isinstance(files, list) or not files:
+              raise SystemExit("files must be a non-empty list")
+          total = 0
+          paths = set()
+          for item in files:
+              path = item.get("path")
+              size = item.get("size")
+              if not isinstance(path, str) or not path or path in paths:
+                  raise SystemExit(f"invalid/duplicate path: {path!r}")
+              if not isinstance(size, int) or size < 0:
+                  raise SystemExit(f"invalid size for {path!r}: {size!r}")
+              paths.add(path)
+              total += size
+          if manifest.get("fileCount") != len(files):
+              raise SystemExit("fileCount does not match files")
+          if manifest.get("installedSize") != total:
+              raise SystemExit("installedSize does not match sum(files[].size)")
+          pdfium_files = [
+              {"path": item["path"], "size": item["size"], "sha256": item.get("sha256")}
+              for item in files
+              if "pdfium" in item["path"].lower()
+          ]
+          report = {
+              "releaseTag": manifest.get("releaseTag"),
+              "releaseVersion": manifest.get("releaseVersion"),
+              "platform": manifest.get("platform"),
+              "architecture": manifest.get("architecture"),
+              "schemaVersion": manifest.get("schemaVersion"),
+              "fileCount": len(files),
+              "installRootFileBytes": total,
+              "symlinkCount": len(manifest.get("links", [])),
+              "pdfiumFiles": pdfium_files,
+              "scope": "application_install_root_files_only",
+              "excludes": [
+                  "OS/package-manager dependencies installed outside the application root",
+                  "runtime caches, user data, logs and generated files",
+                  "filesystem allocation overhead"
+              ],
+          }
+          out.write_text(json.dumps(report, ensure_ascii=False, indent=2)+"\n", encoding="utf-8")
+          print(json.dumps(report, ensure_ascii=False, indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-install-root-${{ matrix.target }}
+          path: ${{ runner.temp }}/footprint.json
+          if-no-files-found: error
+          retention-days: 30
