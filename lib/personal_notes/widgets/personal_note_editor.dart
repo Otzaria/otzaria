@@ -623,8 +623,12 @@ PersonalNoteEditorController buildPersonalNoteEditorController({
     } catch (_) {}
   }
 
-  final document = quill.Document()
-    ..insert(0, initialContent.trimRight().isEmpty ? '' : '$initialContent\n');
+  // Loading the initial plain note must not create an undoable edit.
+  // Document.insert records a change, so the first Ctrl+Z could otherwise
+  // erase the original note instead of undoing the user's first action.
+  final document = quill.Document.fromJson([
+    {'insert': initialContent.trimRight().isEmpty ? '\n' : '$initialContent\n'},
+  ]);
   return PersonalNoteEditorController(
     quillController: _PersonalNoteQuillController(document),
     initialContent: initialContent,
