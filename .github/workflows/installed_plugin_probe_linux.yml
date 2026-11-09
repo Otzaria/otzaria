@@ -94,7 +94,7 @@ jobs:
             libblkid1 libcurl4-openssl-dev libglib2.0-dev libgtk-3-dev \
             liblzma5 liblzma-dev libsecret-1-dev libsoup-3.0-dev \
             libwebkit2gtk-4.1-dev libxkbcommon-dev ninja-build \
-            openjdk-17-jdk-headless pkg-config xvfb xauth \
+            openjdk-17-jdk-headless pkg-config xvfb xauth binutils \
             dbus dbus-x11 openbox wmctrl x11-utils x11-xserver-utils \
             libgl1-mesa-dri libegl1 libglx-mesa0 mesa-utils \
             2>&1 | tee "$INSTALLED_PROBE_ROOT/apt-native.log"
@@ -166,6 +166,36 @@ jobs:
             --dart-define="INSTALLED_PROBE_COMMIT=$(git rev-parse HEAD)" \
             --dart-define=INSTALLED_PROBE_IDLE_MS=1000 \
             2>&1 | tee "$INSTALLED_PROBE_ROOT/build-profile.log"
+
+      - name: Audit PDFium 8125/5200 loader isolation in the actual bundle
+        run: |
+          set -euo pipefail
+          libdir="build/linux/x64/profile/bundle/lib"
+          public="$libdir/libpdfium.so"
+          private="$libdir/libpdfium_printing.so"
+          plugin="$libdir/libprinting_plugin.so"
+          test -f "$public" && test -f "$private" && test -f "$plugin"
+          # PDFium 8125 for pdfrx must not be replaced by the printing copy.
+          echo "1c251efce460d67437a4c76d4be9033ae2f17bf5603f5bff1af10209b94ca723  $public" \
+            | sha256sum -c -
+          cmp_status=0
+          cmp -s "$public" "$private" || cmp_status=$?
+          if [ "$cmp_status" -ne 1 ]; then
+            echo "::error::PDFium binaries must differ and both must be readable"
+            exit 1
+          fi
+          readelf -d "$plugin" | tee "$INSTALLED_PROBE_ROOT/printing-elf-dynamic.txt"
+          if readelf -d "$plugin" | grep -E 'NEEDED.*(libpdfium|libpdfium_printing)'; then
+            echo "::error::printing must not bind either PDFium in the base namespace"
+            exit 1
+          fi
+          if nm -D "$plugin" | grep -E ' U (FPDF|FPDFBitmap)'; then
+            echo "::error::printing must resolve PDFium only from dlmopen namespace"
+            exit 1
+          fi
+          sha256sum "$public" "$private" | tee "$INSTALLED_PROBE_ROOT/pdfium-sha256.txt"
+          stat -c '%n %s bytes' "$public" "$private" \
+            | tee "$INSTALLED_PROBE_ROOT/pdfium-disk-bytes.txt"
 
       - name: Run the actual installed plugin with X11, DBus and Openbox
         timeout-minutes: 25

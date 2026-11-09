@@ -195,7 +195,7 @@ dependency_overrides:
   printing:
     git:
       url: https://github.com/Otzaria/dart_pdf
-      ref: 3cb90fb3025553f3e9f48638c79ccf93efb326af
+      ref: f7f992b49370307143a4f82f59341bb1e6189792
       path: printing
   # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור daohoangson/flutter_widget_from_html#1658, #1659,
   # #1660, #1661, #1662, #1663 (מטמון CSS, מיזוג margins, מחרוזות debug עצלות, Flattener,
