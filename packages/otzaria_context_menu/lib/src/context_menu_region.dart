@@ -20,6 +20,7 @@ class ContextMenuRegion extends StatefulWidget {
   final MenuEscapeRegistrar registerEscape;
   final void Function(BuildContext context, Offset position)? onMenuOpening;
   final MenuPreviewWrapper? previewWrapper;
+  final VoidCallback? onMenuClosed;
   final Widget child;
   final List<AppContextMenuEntry> Function(BuildContext, Offset) menuBuilder;
   final Map<String, GlobalKey>? menuItemKeysByLabel;
@@ -44,6 +45,7 @@ class ContextMenuRegion extends StatefulWidget {
     required this.registerEscape,
     this.onMenuOpening,
     this.previewWrapper,
+    this.onMenuClosed,
     this.menuItemKeysByLabel,
     this.onSecondaryTapDown,
     this.onHoverEnter,
@@ -133,6 +135,7 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
   }
 
   void _removeContextMenuOverlay() {
+    final hadOpenMenu = _menuOverlayEntry != null;
     _unregisterEscape?.call();
     _unregisterEscape = null;
     _submenuControllers.clear();
@@ -145,6 +148,7 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
     _currentMenuOffset = null;
     _menuAnchorX = null;
     _isMenuVisible = false;
+    if (hadOpenMenu) widget.onMenuClosed?.call();
   }
 
   void _closeContextMenu() {
@@ -303,6 +307,8 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
     if (entries.isEmpty) return;
     _menuOpenedForEvent = trigger;
 
+    // Release old menu resources before capturing the new scroll anchor.
+    _removeContextMenuOverlay();
     widget.onMenuOpening?.call(context, globalPosition);
 
     final overlay = Overlay.of(context, rootOverlay: true);
@@ -335,7 +341,6 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
           entry: [for (final _ in actions) MenuController()],
     };
 
-    _removeContextMenuOverlay();
     _currentMenuOffset = menuOffset;
     _submenuControllers.addAll({
       for (final controller in submenuControllers.values) controller: 0,
