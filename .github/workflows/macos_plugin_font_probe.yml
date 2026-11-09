@@ -2,6 +2,8 @@ name: macOS plugin font experiment
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '47 2 * * *'
   pull_request:
     branches: [main, dev, 'y-ploni/webview-*']
     paths:
@@ -25,6 +27,9 @@ on:
       - 'test_driver/macos_plugin_fonts.dart'
       - 'tool/perf_probe/*macos_plugin_fonts*'
       - 'test/plugins/services/plugin_font*.dart'
+      - 'tool/perf_probe/apple_font_probe_changes.py'
+      - 'tool/perf_probe/test_apple_font_probe_ci.py'
+      # The changes job runs the macOS job only for Apple/font dependency changes.
       - 'pubspec.yaml'
       - 'pubspec.lock'
 
@@ -36,7 +41,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
+      - name: Decide whether this change needs a macOS runner
+        id: gate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" != pull_request ]; then
+            echo run=true >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python3 tool/perf_probe/apple_font_probe_changes.py --probe macos \
+            --workflow .github/workflows/macos_plugin_font_probe.yml \
+            --base HEAD^1 >> "$GITHUB_OUTPUT"
+
   contracts:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -48,9 +78,12 @@ jobs:
         run: |
           node --test tool/perf_probe/test_macos_plugin_fonts.mjs
           python3 -m unittest discover -s tool/perf_probe -p test_macos_plugin_fonts_report.py
+          python3 -m unittest discover -s tool/perf_probe -p test_apple_font_probe_ci.py
 
   wkwebview:
     name: WKWebView fresh processes (1, 5 and 10 views)
+    needs: [changes, contracts]
+    if: needs.changes.outputs.run == 'true'
     runs-on: macos-latest
     timeout-minutes: 75
     steps:
@@ -59,10 +92,29 @@ jobs:
         with:
           channel: stable
           flutter-version: 3.47.7
-          cache: false
-      - uses: dtolnay/rust-toolchain@stable
+          cache: true
+      # The runner image ships rustup; retry transient release-server failures.
+      - name: Install the stable Rust toolchain
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if rustup toolchain install stable --profile minimal --no-self-update; then
+              rustup default stable
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then sleep $((attempt * 30)); fi
+          done
+          exit 1
       - name: Resolve locked dependencies
         run: flutter pub get --enforce-lockfile
+      # The Git-pinned search engine has no published binary, so cargo builds it.
+      - name: Restore native build hook output
+        id: native-hooks
+        uses: actions/cache/restore@v6.1.0
+        with:
+          path: .dart_tool/hooks_runner/shared
+          key: ${{ runner.os }}-${{ runner.arch }}-macos-native-hooks-v1-${{ hashFiles('pubspec.yaml', 'pubspec.lock') }}
       - name: Build and run paired visible macOS applications
         timeout-minutes: 60
         env:
@@ -91,6 +143,13 @@ jobs:
             done
           done
           exit "$failed"
+      # Saved even when a pair fails: the build hooks finish before any launch.
+      - name: Save native build hook output
+        if: always() && steps.native-hooks.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6.1.0
+        with:
+          path: .dart_tool/hooks_runner/shared
+          key: ${{ steps.native-hooks.outputs.cache-primary-key }}
       - name: Validate paired font and CSP evidence
         if: always()
         env:
