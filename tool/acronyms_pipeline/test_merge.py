@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import merge  # noqa: E402
@@ -189,6 +190,36 @@ class AgentApproved(unittest.TestCase):
 
     def test_a_human_row_cannot_use_an_agent_reviewer_id(self):
         self.assertTrue(merge.validate([row('ב"ה', "בית הלל", reviewer="agent:claude-sonnet-5-5")], SOURCES))
+
+
+class SearchAsset(unittest.TestCase):
+    def test_search_keeps_baseline_while_dictionary_changes_and_check_covers_both(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            baseline, target, search = [os.path.join(d, name) for name in ["base.json", "dictionary.json", "search.json"]]
+            with open(baseline, "w", encoding="utf-8") as f:
+                json.dump(BASE, f, ensure_ascii=False)
+            args = ["merge.py", "--baseline", baseline, "--target", target, "--search-target", search]
+            with patch.object(merge, "read_ledger", return_value=[row('ב"ה', "בית הלל")]), \
+                    patch.object(merge, "read_removals", return_value={('א"א', "אשת איש")}), \
+                    patch("builtins.print"):
+                with patch.object(sys, "argv", args + ["--out", target, "--search-out", search]):
+                    merge.main()
+                with open(search, encoding="utf-8") as f:
+                    frozen = json.load(f)
+                self.assertEqual(list(frozen.items()), list(BASE.items()))
+                with open(target, encoding="utf-8") as f:
+                    self.assertEqual(json.load(f), {'א"א': ["אברהם אבינו"], 'ב"ד': ["בית דין"],
+                                                   'ב"ה': ["בית הלל"], 'ג"ש': ["גזירה שווה"]})
+                with patch.object(sys, "argv", args + ["--check"]), self.assertRaises(SystemExit) as result:
+                    merge.main()
+                self.assertEqual(result.exception.code, 0)
+                with open(search, "w", encoding="utf-8") as f:
+                    json.dump({}, f)
+                with patch.object(sys, "argv", args + ["--check"]), self.assertRaises(SystemExit) as result:
+                    merge.main()
+                self.assertEqual(result.exception.code, 1)
 
 
 class Imports(unittest.TestCase):

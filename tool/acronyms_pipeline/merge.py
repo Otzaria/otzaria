@@ -210,12 +210,14 @@ def dump(d):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--baseline", required=True, help="Acronyms.json as it is on the base branch (git show upstream/dev:assets/Acronyms.json)")
+    ap.add_argument("--baseline", required=True, help="pre-expansion Acronyms.json (git show 35e23e7f5:assets/Acronyms.json; see README)")
     ap.add_argument("--import", dest="imports", action="append", default=[], help="review-page export CSV to fold into the ledger")
     ap.add_argument("--out", help="write the merged dictionary here")
+    ap.add_argument("--search-out", help="write the unchanged baseline as a compact full-text search lexicon")
     ap.add_argument("--human-only", action="store_true", help="leave out agent_approved rows even from sources that are flagged merge_agent_checked")
     ap.add_argument("--check", action="store_true", help="verify that --target equals baseline + ledger")
     ap.add_argument("--target", default=os.path.join(HERE, "..", "..", "assets", "Acronyms.json"))
+    ap.add_argument("--search-target", default=os.path.join(HERE, "..", "..", "assets", "search_acronyms.json"))
     a = ap.parse_args()
 
     sys.stdout.reconfigure(encoding="utf-8")
@@ -235,15 +237,23 @@ def main():
     merged, stats = apply(baseline, ledger, a.human_only, read_removals(), load_sources())
     print(stats)
     data = dump(merged)
+    search_data = json.dumps(baseline, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     if a.check:
-        with open(a.target, "rb") as f:
-            ok = f.read() == data
-        print("target == baseline + ledger:", ok)
+        ok = True
+        for path, expected in [(a.target, data), (a.search_target, search_data)]:
+            with open(path, "rb") as f:
+                matches = f.read() == expected
+            print(path, "matches generated asset:", matches)
+            ok = ok and matches
         sys.exit(0 if ok else 1)
     if a.out:
         with open(a.out, "wb") as f:
             f.write(data)
         print("wrote", a.out)
+    if a.search_out:
+        with open(a.search_out, "wb") as f:
+            f.write(search_data)
+        print("wrote", a.search_out)
 
 
 if __name__ == "__main__":

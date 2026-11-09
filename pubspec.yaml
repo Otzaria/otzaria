@@ -370,6 +370,7 @@ flutter:
     - lib/migration/database/sql/
     - assets/dictionary.json
     - assets/Acronyms.json
+    - assets/search_acronyms.json
     - assets/support_organizations.json
     # זהות המודל הסמנטי (model.json מ-otzaria-semantic-search)
     - assets/semantic/meivin-round2-onnx/
