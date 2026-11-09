@@ -235,6 +235,31 @@ void main() {
     });
   });
 
+  group('openLibraryHomeKey', () {
+    test('רשום ב-shortcutKeys, defaultShortcuts (ריק) ו-shortcutNames', () {
+      const key = ShortcutValidator.openLibraryHomeKey;
+      expect(ShortcutValidator.shortcutKeys, contains(key));
+      expect(ShortcutValidator.defaultShortcuts[key], '');
+      expect(ShortcutValidator.shortcutNames[key], 'בית הספרייה');
+    });
+
+    test('ללא ברירת מחדל — getShortcutValue מחזיר ערך ריק כל עוד לא הוגדר', () {
+      expect(
+        ShortcutValidator.getShortcutValue(
+          ShortcutValidator.openLibraryHomeKey,
+        ),
+        '',
+      );
+    });
+
+    test('קיצור "ספרייה" הקיים נשאר ctrl+l', () {
+      expect(
+        ShortcutValidator.defaultShortcuts['key-shortcut-open-library-browser'],
+        'ctrl+l',
+      );
+    });
+  });
+
   group('copyLinkShortcutKeys', () {
     test(
       'כל מפתח רשום ב-shortcutKeys, defaultShortcuts (ריק) ו-shortcutNames',

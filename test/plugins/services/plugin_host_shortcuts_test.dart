@@ -24,6 +24,22 @@ void main() {
       expect(byId(list, 'key-shortcut-open-find-ref').codes, ['KeyO']);
     });
 
+    test('בית הספרייה מועבר לתוסף רק כשהוגדר לו קיצור', () {
+      PluginHostShortcuts.isMacForTesting = false;
+      const key = 'key-shortcut-open-library-home';
+      expect(
+        PluginHostShortcuts.build(const {}).map((s) => s.id),
+        isNot(contains(key)),
+      );
+      final home = byId(
+        PluginHostShortcuts.build({key: 'ctrl+shift+h'}),
+        key,
+      );
+      expect(home.codes, ['KeyH']);
+      expect(home.ctrl, isTrue);
+      expect(home.shift, isTrue);
+    });
+
     test('קיצורי עריכה של התוכנה אינם מועברים לתוסף', () {
       final ids = PluginHostShortcuts.build(const {}).map((s) => s.id);
       expect(ids, isNot(contains('key-shortcut-print')));
