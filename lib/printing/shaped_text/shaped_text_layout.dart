@@ -372,7 +372,15 @@ class ShapedTextLayout {
     final lineEnd = words.last.logicalEnd;
     final lineText = paragraph.substring(lineStart, lineEnd);
 
-    final paragraphs = bidi.BidiString.fromLogical(lineText).paragraphs;
+    // The package chooses its paragraph direction from the first strong
+    // character. Printed line fragments can start in English even when the
+    // paragraph is RTL (or vice versa), so explicitly seed the requested base
+    // direction. The mark is removed from visual output by the package.
+    const rtlMark = '\u200F';
+    const ltrMark = '\u200E';
+    final directionMark = rtl ? rtlMark : ltrMark;
+    final paragraphs =
+        bidi.BidiString.fromLogical('$directionMark$lineText').paragraphs;
     if (paragraphs.isEmpty) {
       return words;
     }
@@ -390,14 +398,18 @@ class ShapedTextLayout {
     }
 
     final ordered = <ShapedWord>[];
-    final seen = <int>{};
+    // Word indices are dense; a bitset-sized bool list avoids a hash set for
+    // every printed line. Account for the single directional prefix code unit.
+    final seen = List<bool>.filled(words.length, false);
     for (final paragraphPart in paragraphs) {
       for (final logical in paragraphPart.indices) {
-        if (logical < 0 || logical >= owner.length) {
+        final position = logical - 1;
+        if (position < 0 || position >= owner.length) {
           continue;
         }
-        final index = owner[logical];
-        if (index >= 0 && seen.add(index)) {
+        final index = owner[position];
+        if (index >= 0 && !seen[index]) {
+          seen[index] = true;
           ordered.add(words[index]);
         }
       }
@@ -405,7 +417,7 @@ class ShapedTextLayout {
 
     // Anything the algorithm did not report keeps its logical place.
     for (var index = 0; index < words.length; index++) {
-      if (seen.add(index)) {
+      if (!seen[index]) {
         ordered.add(words[index]);
       }
     }
