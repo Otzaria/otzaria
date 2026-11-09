@@ -334,6 +334,7 @@ class PluginExtendedValidator {
   static const String _whenConditionMinVersion = '0.9.97';
   static const String _headlessMinVersion = '0.9.98';
   static const String _searchFieldActionsMinVersion = '0.9.98.1';
+  static const String _searchFieldActionWhenMinVersion = '0.9.99';
 
   /// `newTab` בלחצן או בפריט תפריט הקשר פותח מופע נוסף של התוסף, ולכן דורש
   /// `allowMultipleInstances`. הדרישה ל-`openPlugin` ולסוג הערך נבדקת בניתוח
@@ -593,6 +594,15 @@ class PluginExtendedValidator {
             );
           }
         }
+        // תנאי פגום נדחה כבר בפרסינג; כאן רק מפתח הגדרה שחסום לתוספים, שמוערך
+        // כ-false בזמן ריצה (כמו ב-_validateWhenConditions).
+        for (final key in parsed.when?.settingKeys ?? const <String>{}) {
+          if (!PluginSettingsAccessPolicy.isReadable(key)) {
+            errors.add(
+              '$field: when קורא הגדרה שאינה זמינה לתוספים ("$key")',
+            );
+          }
+        }
         for (final name in PluginSearchFieldAction.unknownFieldNames(item)) {
           warnings.add('$field: שדה החיפוש "$name" אינו מוכר ולא יוצג');
         }
@@ -614,6 +624,14 @@ class PluginExtendedValidator {
         manifest,
         _searchUiOptionsMinVersion,
         '$field: visibleWhen, mode ו-libraryOnlyIcon',
+        errors,
+      );
+    }
+    if (startup.searchFieldActions.any((item) => item.containsKey('when'))) {
+      _requireMinVersion(
+        manifest,
+        _searchFieldActionWhenMinVersion,
+        '$field: when',
         errors,
       );
     }

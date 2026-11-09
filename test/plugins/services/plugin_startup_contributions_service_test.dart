@@ -334,6 +334,43 @@ void main() {
       expect(endReasons, ['closed']);
       expect(fieldSessions.hasSessionsFor(field), isFalse);
     });
+
+    test('מפתח האחסון של when נטען, והכפתור נרשם גם כשהתנאי כבוי', () async {
+      final evaluator = PluginConditionEvaluator.forTesting();
+      addTearDown(evaluator.dispose);
+      final conditionalService = PluginStartupContributionsService.forTesting(
+        toolbarRegistry: toolbar,
+        contextMenuRegistry: contextMenu,
+        activationService: activation,
+        searchFieldActionsRegistry: fieldActions,
+        searchFieldSessions: fieldSessions,
+        conditionEvaluator: evaluator,
+      );
+      const when = {
+        'storage': {'key': 'showDictate', 'equals': true},
+      };
+      repo.grantedByPlugin['p1'] = {
+        'app.startup_contributions',
+        'search.field_actions',
+      };
+      await conditionalService.sync([
+        _plugin(
+          startup: {
+            'searchFieldActions': [
+              {'id': 'dictate', 'title': 'דיבור', 'when': when},
+            ],
+          },
+        ),
+      ], repo);
+
+      final action = fieldActions
+          .actionsFor(PluginSearchField.library)
+          .single
+          .$2;
+      expect(evaluator.isVisible('p1', action.when), isFalse);
+      evaluator.onStorageValueChanged('p1', 'showDictate', true);
+      expect(evaluator.isVisible('p1', action.when), isTrue);
+    });
   });
 
   test('registers all contributions when permissions are granted', () async {

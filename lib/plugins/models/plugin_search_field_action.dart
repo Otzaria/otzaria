@@ -1,3 +1,5 @@
+import 'package:otzaria/plugins/models/plugin_when_condition.dart';
+
 /// שדות החיפוש שבהם תוסף יכול להוסיף כפתור פעולה. השם (`name`) הוא המזהה
 /// במניפסט ובאירועים.
 enum PluginSearchField {
@@ -73,6 +75,10 @@ class PluginSearchFieldAction {
   final PluginSearchFieldActionVisibility visibleWhen;
   final PluginSearchFieldActionMode mode;
 
+  /// תנאי הצגה על ערכי הגדרות/אחסון — null = מוצג תמיד. הכפתור נרשם תמיד
+  /// (וסופר במכסות); התנאי קובע רק אם הוא מצויר כרגע.
+  final PluginWhenCondition? when;
+
   const PluginSearchFieldAction({
     required this.id,
     required this.title,
@@ -82,6 +88,7 @@ class PluginSearchFieldAction {
     this.libraryOnlyIcon,
     this.visibleWhen = PluginSearchFieldActionVisibility.always,
     this.mode = PluginSearchFieldActionMode.session,
+    this.when,
   });
 
   bool showsIn(PluginSearchField field) => fields.contains(field);
@@ -107,6 +114,7 @@ class PluginSearchFieldAction {
       'fields',
       'visibleWhen',
       'mode',
+      'when',
     };
     if (payload.keys.any((key) => !allowedFields.contains(key))) {
       throw const PluginSearchFieldActionException(
@@ -155,6 +163,14 @@ class PluginSearchFieldAction {
         'mode must be "session" or "providerBooksFilter"',
       );
     }
+    PluginWhenCondition? when;
+    if (payload['when'] != null) {
+      try {
+        when = PluginWhenCondition.fromJson(payload['when']);
+      } on PluginWhenConditionException catch (error) {
+        throw PluginSearchFieldActionException('when is invalid: $error');
+      }
+    }
     final isFilter = mode == PluginSearchFieldActionMode.providerBooksFilter;
     if (libraryOnlyIcon != null && !isFilter) {
       throw const PluginSearchFieldActionException(
@@ -196,6 +212,7 @@ class PluginSearchFieldAction {
       fields: Set.unmodifiable(fields),
       visibleWhen: visibleWhen,
       mode: mode,
+      when: when,
     );
   }
 

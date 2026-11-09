@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/plugins/models/plugin_library_books_filter.dart';
 import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
+import 'package:otzaria/plugins/services/plugin_condition_evaluator.dart';
 import 'package:otzaria/plugins/services/plugin_library_books_registry.dart';
 import 'package:otzaria/plugins/services/plugin_search_field_actions_registry.dart';
 import 'package:otzaria/plugins/services/plugin_search_field_session_service.dart';
@@ -37,6 +38,8 @@ class PluginSearchFieldActions extends StatefulWidget {
   final PluginSearchFieldSessionService? sessions;
   @visibleForTesting
   final PluginLibraryBooksRegistry? libraryBooks;
+  @visibleForTesting
+  final PluginConditionEvaluator? conditions;
 
   const PluginSearchFieldActions({
     super.key,
@@ -50,6 +53,7 @@ class PluginSearchFieldActions extends StatefulWidget {
     this.registry,
     this.sessions,
     this.libraryBooks,
+    this.conditions,
   });
 
   @override
@@ -65,6 +69,8 @@ class _PluginSearchFieldActionsState extends State<PluginSearchFieldActions>
       widget.sessions ?? PluginSearchFieldSessionService.instance;
   PluginLibraryBooksRegistry get _libraryBooks =>
       widget.libraryBooks ?? PluginLibraryBooksRegistry.instance;
+  PluginConditionEvaluator get _conditions =>
+      widget.conditions ?? PluginConditionEvaluator.instance;
 
   // הכפתור יושב בתוך השדה, ובדסקטופ השדה מזיז את הסמן כבר ב-tap down (לפני
   // onPressed). הסשן צריך את הבחירה שהייתה ברגע הלחיצה.
@@ -124,7 +130,11 @@ class _PluginSearchFieldActionsState extends State<PluginSearchFieldActions>
       widget.invocationContext?.call() ?? const {};
 
   /// כפתור עם סשן פתוח נשאר גלוי גם כשהטקסט התרוקן, כדי שאפשר יהיה לעצור אותו.
+  ///
+  /// תנאי `when` גובר גם על סשן פתוח: כשהוא כבה הכפתור נעלם, כמו כל תרומה
+  /// אחרת, והסשן ממשיך עד שייסגר כרגיל.
   bool _isShown(String pluginId, PluginSearchFieldAction action) =>
+      _conditions.isVisible(pluginId, action.when) &&
       (action.isVisibleFor(widget.controller.text) ||
           _sessions.sessionFor(this, pluginId, action.id) != null) &&
       (!action.isProviderBooksFilter || _libraryBooks.hasProviderFor(pluginId));
@@ -142,12 +152,16 @@ class _PluginSearchFieldActionsState extends State<PluginSearchFieldActions>
       ]),
       builder: (context, _) {
         final registered = _registry.actionsFor(widget.field);
-        // האזנה לכל הקשה רק כשיש כפתור שתלוי בטקסט.
-        if (!registered.any((entry) => entry.$2.showOnlyWithText)) {
-          return _buildRow(context, registered);
-        }
+        // האזנה לכל הקשה רק כשיש כפתור שתלוי בטקסט, ולשינויי הגדרות ואחסון
+        // רק כשיש כפתור עם תנאי `when`.
+        final dependencies = [
+          if (registered.any((entry) => entry.$2.showOnlyWithText))
+            widget.controller,
+          if (registered.any((entry) => entry.$2.when != null)) _conditions,
+        ];
+        if (dependencies.isEmpty) return _buildRow(context, registered);
         return ListenableBuilder(
-          listenable: widget.controller,
+          listenable: Listenable.merge(dependencies),
           builder: (context, _) => _buildRow(context, registered),
         );
       },
