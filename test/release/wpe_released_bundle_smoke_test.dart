@@ -64,7 +64,25 @@ exit "$SMOKE_APT_STATUS"
   );
 }
 
+const _historicalMissingDependencies = [
+  'libwayland-server0',
+  'libegl1',
+  'libgl1',
+  'libgbm1',
+  'libx11-xcb1',
+  'libcurl4',
+  'libxmu6',
+];
+
 void main() {
+  test('DEB declares providers of unbundled runtime ELF dependencies', () {
+    final config =
+        loadYaml(
+              File('linux/packaging/deb/make_config.yaml').readAsStringSync(),
+            )
+            as YamlMap;
+    expect(config['dependencies'], containsAll(_historicalMissingDependencies));
+  });
   test(
     'smoke resolves the DEB dependency expression as one argument',
     () async {
@@ -76,7 +94,7 @@ void main() {
         'satisfy',
         '-y',
         '--no-install-recommends',
-        depends,
+        '$depends, ${_historicalMissingDependencies.join(', ')}',
       ]);
     },
     skip: Platform.isWindows,
