@@ -209,13 +209,22 @@
 cp dart_defines.example.json dart_defines.local.json
 ```
 
-הקובץ `dart_defines.local.json` מוחרג מגיט. אחר כך מריצים כך:
+הקובץ `dart_defines.local.json` מוחרג מגיט. במחשב או ב-iOS מריצים כך:
 
 ```bash
 flutter run --dart-define-from-file=dart_defines.local.json
 ```
 
-ב-VS Code אין צורך בדגל — תצורת ההרצה `.vscode/launch.json` שבריפו כבר כוללת אותו (F5).
+ב-Android בוחרים את מסלול ההפצה הישירה:
+
+```bash
+flutter run --flavor direct --dart-define-from-file=dart_defines.local.json
+```
+
+ב-VS Code בוחרים ב-`.vscode/launch.json` את תצורת `Android direct` או את תצורת
+`מחשב / iOS` בהתאם למכשיר, ב-debug או ב-profile. התצורות כוללות את דגל קובץ המפתחות.
+לבניית APK מקומי משתמשים ב-`flutter build apk --flavor direct`; `create.bat` כבר בוחר בו.
+מסלול Google Play נבנה עם `flutter build appbundle --release --flavor play`.
 
 ([⇧](#readme-top))
 

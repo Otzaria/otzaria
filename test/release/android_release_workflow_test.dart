@@ -130,6 +130,62 @@ void main() {
         : false,
   );
 
+  test('local Android packaging selects the direct flavor', () {
+    final commands = File('create.bat').readAsLinesSync();
+    expect(
+      commands.singleWhere((line) => line.startsWith('call flutter build apk')),
+      contains('--flavor direct'),
+    );
+    for (final platform in ['windows', 'linux']) {
+      expect(commands, contains('call flutter build $platform'));
+    }
+  });
+
+  test(
+    'local launch configurations keep Android flavors platform-specific',
+    () {
+      final launch =
+          jsonDecode(File('.vscode/launch.json').readAsStringSync()) as Map;
+      final configs = (launch['configurations'] as List).cast<Map>();
+      for (final mode in ['debug', 'profile']) {
+        final android = configs.singleWhere(
+          (entry) =>
+              (entry['name'] as String).contains('Android') &&
+              (entry['flutterMode'] ?? 'debug') == mode,
+        );
+        expect(android['toolArgs'], containsAllInOrder(['--flavor', 'direct']));
+        final other = configs.singleWhere(
+          (entry) =>
+              !(entry['name'] as String).contains('Android') &&
+              (entry['flutterMode'] ?? 'debug') == mode,
+        );
+        expect(other['toolArgs'], isNot(contains('--flavor')));
+      }
+      for (final config in configs) {
+        expect(config['program'], 'lib/main.dart');
+        expect(
+          config['toolArgs'],
+          contains('--dart-define-from-file=dart_defines.local.json'),
+        );
+      }
+      final pubspec =
+          loadYaml(File('pubspec.yaml').readAsStringSync()) as YamlMap;
+      expect(
+        (pubspec['flutter'] as YamlMap).containsKey('default-flavor'),
+        isFalse,
+      );
+    },
+  );
+
+  test('local Android instructions include the direct flavor', () {
+    expect(
+      File('README.md').readAsStringSync(),
+      contains(
+        'flutter run --flavor direct --dart-define-from-file=dart_defines.local.json',
+      ),
+    );
+  });
+
   test('Google Play consumes the output of the Play flavor', () {
     final play =
         loadYaml(
