@@ -40,7 +40,7 @@ python3 tool/acronyms_pipeline/make_review_page.py --candidates /path/to/candida
 
 ## הצעות לניקוי הקובץ הקיים
 
-`clean_baseline.py` יוצר `data/baseline_removals.csv` כרשימת הצעות לבדיקה בלבד. `merge.py` **אינו קורא אותה ואינו מוחק פירושים קיימים**. פירוש שנפסל בסינון עלול להיות שימושי, למשל ט״ו = חמישה עשר. מחיקת פירוש מחייבת שינוי נפרד ומנומק לאחר בדיקה אנושית.
+`clean_baseline.py` יוצר `data/baseline_removals.csv`: כל פירוש קיים שנפסל בסינון, עם הסיבה. `merge.py` מוחק מהקובץ הקיים רק פירושים שהסיבה שלהם `same_as_key`, `expansion_is_acronym` או `structure_chars`, כלומר הפירוש הוא המפתח עצמו (רמ״בם = רמבם) או ראשי תיבות אחרים, ואינו מפענח דבר. שורות `gematria_number` נשארות ברשימה כהצעות בלבד ואינן נמחקות, כי חלקן שימושי (ט״ו = חמישה עשר). מפתח שנשאר בלי פירושים יוצא מהקובץ. ה־baseline של `merge.py` הוא הקובץ כפי שהיה לפני השינוי הזה (`git show 35e23e7f5:assets/Acronyms.json`); בלעדיו אי אפשר לשחזר את המחיקות.
 
 ## בדיקות
 

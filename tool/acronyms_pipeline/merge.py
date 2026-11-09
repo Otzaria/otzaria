@@ -24,6 +24,9 @@ LEDGER = os.path.join(HERE, "data", "decisions.csv")
 SOURCES = os.path.join(HERE, "data", "sources.json")
 REMOVALS = os.path.join(HERE, "data", "baseline_removals.csv")
 REMOVAL_COLUMNS = ["key", "expansion", "reason"]
+# Only these reasons delete a baseline meaning: the "meaning" is the key itself (or another acronym) and decodes nothing.
+# Gematria values (ט״ו = חמישה עשר) stay listed in the CSV as suggestions; they can be useful and are not deleted.
+REMOVAL_REASONS = {"same_as_key", "expansion_is_acronym", "structure_chars"}
 COLUMNS = ["key", "expansion", "status", "source", "reference", "notes", "reviewer", "reviewed_at"]
 STATUSES = {"pending", "approved", "agent_approved", "rejected", "needs_review"}
 # Agent decisions remain in the review queue; only a human can approve dictionary additions.
@@ -70,6 +73,14 @@ def write_ledger(rows, path=LEDGER):
         w = csv.DictWriter(f, COLUMNS, lineterminator="\n", extrasaction="ignore")
         w.writeheader()
         w.writerows(rows)
+
+
+def read_removals(path=REMOVALS):
+    """(key, meaning) pairs of the baseline that are dropped: meanings that decode nothing (see clean_baseline.py)."""
+    if not os.path.exists(path):
+        return set()
+    with open(path, encoding="utf-8", newline="") as f:
+        return {(r["key"], r["expansion"]) for r in csv.DictReader(f) if r["reason"] in REMOVAL_REASONS}
 
 
 def ledger_id(row):
@@ -126,8 +137,23 @@ def validate(rows, sources):
     return problems
 
 
-def apply(baseline, rows, human_only=False):
-    """Append human-approved meanings without deleting or reordering baseline entries."""
+def apply(baseline, rows, human_only=False, removals=()):
+    """baseline: dict (ordered).  Returns (new dict, stats).
+
+    `removals`: (key, meaning) pairs of the baseline to drop first; a key left without meanings is dropped too.
+    Everything else keeps its order; a new meaning is appended, a new key is inserted alphabetically."""
+    removals = set(removals)
+    removed_pairs = removed_keys = 0
+    if removals:
+        pruned = {}
+        for k, v in baseline.items():
+            kept = [m for m in v if (k, m) not in removals]
+            removed_pairs += len(v) - len(kept)
+            if kept:
+                pruned[k] = kept
+            else:
+                removed_keys += 1
+        baseline = pruned
     approved = [r for r in rows if r["status"] in INCLUDED]
     approved.sort(key=lambda r: (r["key"], filters.meaning_signature(r["expansion"])))
     keys = list(baseline)
@@ -162,7 +188,7 @@ def apply(baseline, rows, human_only=False):
         ordered[k] = out[k]
     return ordered, {"approved_rows": len(approved), "human_approved_rows": sum(r["status"] == "approved" for r in approved),
                      "agent_approved_rows": sum(r["status"] == "agent_approved" for r in approved), "new_keys": len(new_keys), "new_meanings": new_meanings, "already_present": skipped,
-                     "removed_meanings": 0, "removed_keys": 0}
+                     "removed_meanings": removed_pairs, "removed_keys": removed_keys}
 
 
 def dump(d):
@@ -194,7 +220,7 @@ def main():
         print(f"ledger updated: {len(ledger)} rows")
     with open(a.baseline, encoding="utf-8") as f:
         baseline = json.load(f)
-    merged, stats = apply(baseline, ledger, a.human_only)
+    merged, stats = apply(baseline, ledger, a.human_only, read_removals())
     print(stats)
     data = dump(merged)
     if a.check:

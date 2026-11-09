@@ -23,6 +23,30 @@ class Apply(unittest.TestCase):
         self.assertEqual(merged, base)
         self.assertEqual((stats["removed_meanings"], stats["removed_keys"]), (0, 0))
 
+    def test_removals_drop_pairs_and_empty_keys_but_nothing_else(self):
+        base = {'א"א': ["אברהם אבינו", 'א"א'], 'רמ"בם': ["רמבם"], 'ט"ו': ["חמישה עשר"]}
+        merged, stats = merge.apply(base, [], removals={('א"א', 'א"א'), ('רמ"בם', "רמבם")})
+        self.assertEqual(merged, {'א"א': ["אברהם אבינו"], 'ט"ו': ["חמישה עשר"]})
+        self.assertEqual((stats["removed_meanings"], stats["removed_keys"]), (2, 1))
+
+    def test_gematria_suggestions_are_not_removed(self):
+        import csv, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "r.csv")
+            with open(path, "w", encoding="utf-8", newline="") as f:
+                f.write("\n".join(["key,expansion,reason", 'ט"ו,חמישה עשר,gematria_number',
+                                   'רמ"בם,רמבם,same_as_key', ""]))
+            self.assertEqual(merge.read_removals(path), {('רמ"בם', "רמבם")})
+
+    def test_shipped_removals_are_gone_from_the_dictionary_and_fail_the_filters(self):
+        import filters
+        here = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(here, "..", "..", "assets", "Acronyms.json"), encoding="utf-8") as f:
+            shipped = json.load(f)
+        for key, meaning in merge.read_removals():
+            self.assertNotIn(meaning, shipped.get(key, []), (key, meaning))
+            self.assertTrue(filters.check_expansion(key, meaning)[0], (key, meaning))
+
     def test_shipped_dictionary_has_no_multi_word_keys(self):
         # a Stern line like "דע\"ד בל\"ד" is two acronyms; its meaning must never be filed under the first one
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "assets", "Acronyms.json")
