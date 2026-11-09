@@ -12,7 +12,7 @@ import 'package:otzaria/theme/app_tokens.dart';
 /// [calendarCubit] — העברה מפורשת של CalendarCubit כדי לתקן את הבאג שבו
 /// הגדרות לוח השנה לא נשמרות כאשר ההגדרות נפתחות כ-route חדש (ה-context
 /// של המסך החדש לא מכיל את ה-CalendarCubit ממסך הניווט).
-class ToolsSettingsTab extends StatelessWidget {
+class ToolsSettingsTab extends StatefulWidget {
   /// CalendarCubit שמגיע מה-context של המסך שפתח את ההגדרות.
   /// אם null, מנסה לקרוא מה-context (תואמות לאחור).
   final CalendarCubit? calendarCubit;
@@ -20,26 +20,48 @@ class ToolsSettingsTab extends StatelessWidget {
   const ToolsSettingsTab({super.key, this.calendarCubit});
 
   @override
+  State<ToolsSettingsTab> createState() => _ToolsSettingsTabState();
+}
+
+class _ToolsSettingsTabState extends State<ToolsSettingsTab> {
+  /// בחירת התוספים. מוחזקת כאן כדי שהסרגל יישב מחוץ לאזור הגלילה.
+  final _selection = PluginSelection();
+
+  @override
+  void dispose() {
+    _selection.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final content = SettingsTabScrollView(
-      child: ToolPanelWrapper(
-        child: const Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ToolsManagementPanel(),
-            CalendarSettingsTab(),
-            GematriaSettingsTab(),
-            TikkunKorimSettingsTab(),
-            SizedBox(height: AppTokens.spaceMD),
-          ],
+    final calendarCubit = widget.calendarCubit;
+    final content = Column(
+      children: [
+        PluginSelectionBar(selection: _selection),
+        Expanded(
+          child: SettingsTabScrollView(
+            child: ToolPanelWrapper(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ToolsManagementPanel(selection: _selection),
+                  const CalendarSettingsTab(),
+                  const GematriaSettingsTab(),
+                  const TikkunKorimSettingsTab(),
+                  const SizedBox(height: AppTokens.spaceMD),
+                ],
+              ),
+            ),
+          ),
         ),
-      ),
+      ],
     );
 
     // אם קיבלנו CalendarCubit במפורש — עטוף כדי להבטיח שהשינויים יישמרו
     if (calendarCubit != null) {
       return BlocProvider<CalendarCubit>.value(
-        value: calendarCubit!,
+        value: calendarCubit,
         child: content,
       );
     }

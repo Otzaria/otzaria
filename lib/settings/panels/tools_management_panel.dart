@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -26,6 +27,8 @@ import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/built_in_tools_catalog.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/misc/animated_pin_button.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
@@ -46,7 +49,10 @@ const List<String> _networkPermissions = [
 /// - כלים מובנים — שורה מתקפלת; לכל שורה הסתרה/הצגה והצמדה לסרגל הניווט.
 /// - תוספים מותקנים — בחירה מרובה עם סרגל פעולות (הסתרה, הצמדה, השבתה, הרשאות, מחיקה).
 class ToolsManagementPanel extends StatefulWidget {
-  const ToolsManagementPanel({super.key});
+  const ToolsManagementPanel({super.key, required this.selection});
+
+  /// מוחזק מחוץ לפאנל, כדי ש-[PluginSelectionBar] יוצג מחוץ לאזור הגלילה.
+  final PluginSelection selection;
 
   /// פריטי חיפוש בהגדרות. נסרק על-ידי tool/generate_search_index.dart.
   static const List<SettingsSearchEntry> searchEntries = [
@@ -99,17 +105,17 @@ const String _builtInCardId = 'tools.management';
 const String _pluginsCardId = 'tools.plugins';
 
 class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
-  /// מזהי התוספים שנבחרו כרגע (בחירה מרובה — תוספים בלבד).
-  final Set<String> _selectedIds = <String>{};
-
-  /// האם מצב הבחירה הרב-שורתית פעיל.
-  bool _isSelectionMode = false;
+  Set<String> get _selectedIds => widget.selection.ids;
+  bool get _isSelectionMode => widget.selection.active;
 
   /// מפתחות גלובליים לעטיפות האנימציה — מאפשרים לקרוא ל-playAnimation ישירות.
   final Map<String, GlobalKey<_AnimatedPluginMoveWrapperState>>
   _moveWrapperKeys = {};
 
   bool _updateCheckRequested = false;
+
+  final TextEditingController _search = TextEditingController();
+  String _query = '';
 
   /// מצב פתיחה/סגירה של אזור הכלים המובנים — סגור כברירת מחדל.
   bool _builtInExpanded = false;
@@ -123,7 +129,10 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
     final registry = SettingsSearchRegistry.instance;
     _builtInFlash = registry.flashNotifierFor(_builtInCardId);
     _builtInFlash.addListener(_onBuiltInFlash);
+    widget.selection.addListener(_onSelectionChanged);
   }
+
+  void _onSelectionChanged() => setState(() {});
 
   /// לתוסף ללא ממשק אין כרטיסייה שבה בודקים עדכונים, ולכן בודקים כאן.
   void _requestHeadlessUpdateCheck(List<InstalledPlugin> plugins) {
@@ -138,7 +147,28 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
   @override
   void dispose() {
     _builtInFlash.removeListener(_onBuiltInFlash);
+    widget.selection.removeListener(_onSelectionChanged);
+    _search.dispose();
     super.dispose();
+  }
+
+  /// בלי ניקוד ובלי הבדל אותיות גדולות, כמו בשאר שדות הסינון.
+  static String _normalize(String text) =>
+      removeVolwels(text).toLowerCase().trim();
+
+  /// התוספים שמתאימים לחיפוש: לפי שם, תיאור או מזהה. משנה רק את התצוגה.
+  List<InstalledPlugin> _visiblePlugins(List<InstalledPlugin> plugins) {
+    final query = _normalize(_query);
+    if (query.isEmpty) return plugins;
+    return plugins
+        .where(
+          (p) => [
+            p.name,
+            p.manifest.description,
+            p.pluginId,
+          ].any((text) => _normalize(text).contains(query)),
+        )
+        .toList();
   }
 
   void _onBuiltInFlash() {
@@ -147,30 +177,8 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
     }
   }
 
-  void _toggleSelection(String id, bool? value) {
-    setState(() {
-      if (value == true) {
-        _selectedIds.add(id);
-      } else {
-        _selectedIds.remove(id);
-      }
-    });
-  }
-
-  void _enterSelectionMode() {
-    setState(() => _isSelectionMode = true);
-  }
-
-  void _exitSelectionMode() {
-    setState(() {
-      _isSelectionMode = false;
-      _selectedIds.clear();
-    });
-  }
-
-  void _selectAllPlugins(List<InstalledPlugin> plugins) {
-    setState(() => _selectedIds.addAll(plugins.map((p) => p.pluginId)));
-  }
+  void _toggleSelection(String id, bool? value) =>
+      widget.selection.toggle(id, selected: value == true);
 
   // ── פעולות כלי מובנה (לחצן בשורה) ───────────────────────────────────────────
 
@@ -197,6 +205,8 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
                 : const <InstalledPlugin>[];
             _pruneStaleSelection(plugins);
             _requestHeadlessUpdateCheck(plugins);
+            final visiblePlugins = _visiblePlugins(plugins);
+            _syncShownPlugins(plugins, visiblePlugins);
             return LayoutBuilder(
               builder: (context, constraints) {
                 final rowMaxWidth = constraints.maxWidth;
@@ -234,71 +244,45 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
                               SettingsActionTile.text(
                                 icon: FluentIcons.puzzle_piece_24_regular,
                                 title: context.settingsText('רשימת התוספים'),
-                                subtitle: _isSelectionMode
-                                    ? context.settingsText(
-                                        '{count} נבחרו',
-                                        args: {'count': _selectedIds.length},
-                                      )
-                                    : context.settingsText(
-                                        'נהל את התוספים שלך: השבתה, הסתרה, הצמדה, הרשאות ומחיקה. גרור לשינוי סדר.',
-                                      ),
+                                subtitle: context.settingsText(
+                                  'נהל את התוספים שלך: השבתה, הסתרה, הצמדה, הרשאות ומחיקה. גרור לשינוי סדר.',
+                                ),
                                 // LayoutBuilder + Tooltip(OverlayPortal) reactivation
                                 // during drag reorder crashes here.
                                 responsiveActions: false,
                                 actions: _isSelectionMode
-                                    ? [
-                                        ActionButton.ghost(
-                                          icon: FluentIcons
-                                              .checkbox_checked_24_regular,
-                                          text: context.settingsText('בחר הכל'),
-                                          onPressed:
-                                              _selectedIds.length ==
-                                                  plugins.length
-                                              ? null
-                                              : () =>
-                                                    _selectAllPlugins(plugins),
-                                        ),
-                                        ActionButton.neutral(
-                                          icon: FluentIcons
-                                              .dismiss_circle_24_regular,
-                                          text: context.settingsText('ביטול'),
-                                          onPressed: _exitSelectionMode,
-                                        ),
-                                      ]
+                                    ? const []
                                     : [
                                         ActionButton.neutral(
                                           icon: FluentIcons
                                               .multiselect_rtl_24_regular,
                                           text: context.settingsText('בחירה'),
-                                          onPressed: _enterSelectionMode,
+                                          onPressed: widget.selection.enter,
                                         ),
                                       ],
                               ),
-                              AnimatedSize(
-                                duration: AppMotion.duration(
-                                  context,
-                                  AppTokens.animNormal,
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppTokens.spaceMD,
+                                  vertical: AppTokens.spaceSM,
                                 ),
-                                curve: Curves.easeInOut,
-                                child: _isSelectionMode
-                                    ? Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Builder(
-                                            builder: (ctx) =>
-                                                AppCard.sectionDivider(ctx),
-                                          ),
-                                          _ActionBar(
-                                            selectedIds: _selectedIds.toSet(),
-                                            plugins: plugins,
-                                          ),
-                                        ],
-                                      )
-                                    : const SizedBox.shrink(),
+                                child: OtzariaSearchField(
+                                  controller: _search,
+                                  hintText: context.settingsText('חיפוש תוסף'),
+                                  onChanged: (value) =>
+                                      setState(() => _query = value),
+                                  onClear: () => setState(() => _query = ''),
+                                ),
                               ),
                             ],
                           ),
-                          ..._pluginRows(plugins, rowMaxWidth),
+                          if (visiblePlugins.isEmpty)
+                            OtzariaEmptyState(
+                              isCompact: true,
+                              icon: OtzariaIcons.search_24_regular,
+                              title: context.settingsText('לא נמצאו תוספים'),
+                            ),
+                          ..._pluginRows(visiblePlugins, plugins, rowMaxWidth),
                         ],
                       ),
                     ],
@@ -328,7 +312,13 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
     ];
   }
 
-  List<Widget> _pluginRows(List<InstalledPlugin> plugins, double rowMaxWidth) {
+  /// [plugins] הם התוספים המוצגים (אחרי סינון) ו-[all] הרשימה המלאה: הזזה
+  /// וגרירה פועלות על [all], כדי שהסדר השמור לא יושפע מהסינון.
+  List<Widget> _pluginRows(
+    List<InstalledPlugin> plugins,
+    List<InstalledPlugin> all,
+    double rowMaxWidth,
+  ) {
     return [
       for (int i = 0; i < plugins.length; i++)
         _AnimatedPluginMoveWrapper(
@@ -339,7 +329,7 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
           child: _DraggableSettingsPluginRow(
             onAcceptSource: (sourceId) => _handleReorder(
               context: context,
-              allPlugins: plugins,
+              allPlugins: all,
               sourcePluginId: sourceId,
               targetPluginId: plugins[i].pluginId,
             ),
@@ -351,10 +341,20 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
               onSelectChanged: (v) => _toggleSelection(plugins[i].pluginId, v),
               isFirst: i == 0,
               isLast: i == plugins.length - 1,
-              onMoveUp: i == 0 ? null : () => _handleMove(plugins, i, i - 1),
+              onMoveUp: i == 0
+                  ? null
+                  : () => _handleMove(
+                      all,
+                      all.indexOf(plugins[i]),
+                      all.indexOf(plugins[i - 1]),
+                    ),
               onMoveDown: i == plugins.length - 1
                   ? null
-                  : () => _handleMove(plugins, i, i + 1),
+                  : () => _handleMove(
+                      all,
+                      all.indexOf(plugins[i]),
+                      all.indexOf(plugins[i + 1]),
+                    ),
               onToggleHide: () => togglePluginShowInTools(context, plugins[i]),
               onTogglePinNavRail: () =>
                   togglePluginPinnedToNavRail(context, plugins[i]),
@@ -416,20 +416,189 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
     // plugins ריק = מצב טעינה; אל נקה את הבחירה בינתיים, כי ה-IDs עדיין תקינים.
     if (plugins.isEmpty) return;
     final validIds = <String>{for (final p in plugins) p.pluginId};
-    final stale = _selectedIds.difference(validIds);
-    if (stale.isNotEmpty) {
-      // setState אסורה ב-build; מזיזים את ההסרה לאחר ה-frame.
+    if (_selectedIds.difference(validIds).isNotEmpty) {
+      // עדכון המצב אסור ב-build; מזיזים אותו לאחר ה-frame.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        setState(() => _selectedIds.removeAll(stale));
+        widget.selection.retain(validIds);
       });
     }
+  }
+
+  /// מעדכן את הסרגל אילו תוספים מוצגים, כדי ש"בחר את המוצגים" יפעל עליהם.
+  void _syncShownPlugins(
+    List<InstalledPlugin> all,
+    List<InstalledPlugin> visible,
+  ) {
+    final shown = visible.length == all.length
+        ? null
+        : {for (final p in visible) p.pluginId};
+    if (setEquals(shown, widget.selection.shown)) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.selection.shown = shown;
+    });
   }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
 // סרגל הפעולות (תוספים בלבד)
 // ──────────────────────────────────────────────────────────────────────────────
+
+/// מצב הבחירה המרובה של התוספים. מוחזק מחוץ לאזור הגלילה, כדי שהסרגל
+/// והפאנל ישתפו אותו.
+class PluginSelection extends ChangeNotifier {
+  Set<String>? _ids;
+  Set<String>? _shown;
+
+  /// האם מצב הבחירה פעיל.
+  bool get active => _ids != null;
+
+  /// התוספים שנבחרו.
+  Set<String> get ids => _ids ?? const {};
+
+  /// התוספים שמוצגים כשיש סינון; null = כולם.
+  Set<String>? get shown => _shown;
+
+  set shown(Set<String>? value) {
+    _shown = value;
+    notifyListeners();
+  }
+
+  void enter() {
+    _ids = <String>{};
+    notifyListeners();
+  }
+
+  void exit() {
+    _ids = null;
+    notifyListeners();
+  }
+
+  void toggle(String id, {required bool selected}) {
+    final next = {...ids};
+    if (selected) {
+      next.add(id);
+    } else {
+      next.remove(id);
+    }
+    _ids = next;
+    notifyListeners();
+  }
+
+  void selectAll(Iterable<String> toSelect) {
+    _ids = {...ids, ...toSelect};
+    notifyListeners();
+  }
+
+  void retain(Set<String> valid) {
+    _ids = ids.intersection(valid);
+    notifyListeners();
+  }
+}
+
+/// סרגל הבחירה: ספירה, ביטול, "בחר הכל" ופעולות הבחירה. מוצג מעל אזור
+/// הגלילה ולא בתוך הכרטיס, כדי שיישאר נגיש גם כשהרשימה ארוכה.
+class PluginSelectionBar extends StatelessWidget {
+  const PluginSelectionBar({super.key, required this.selection});
+
+  final PluginSelection selection;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: selection,
+      builder: (context, _) {
+        final plugins = switch (context.watch<PluginSystemBloc>().state) {
+          PluginSystemLoaded(:final plugins) => plugins,
+          _ => const <InstalledPlugin>[],
+        };
+        return AnimatedSize(
+          duration: AppMotion.duration(context, AppTokens.animNormal),
+          curve: Curves.easeInOut,
+          child: !selection.active || plugins.isEmpty
+              ? const SizedBox(width: double.infinity)
+              : Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: LayoutConstraints.panelContentMaxWidth,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppTokens.spaceMD,
+                        AppTokens.spaceSM,
+                        AppTokens.spaceMD,
+                        AppTokens.spaceSM,
+                      ),
+                      child: AppCard(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _SelectionHeader(
+                              selection: selection,
+                              plugins: plugins,
+                            ),
+                            _ActionBar(
+                              selectedIds: selection.ids,
+                              plugins: plugins,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+        );
+      },
+    );
+  }
+}
+
+class _SelectionHeader extends StatelessWidget {
+  const _SelectionHeader({required this.selection, required this.plugins});
+
+  final PluginSelection selection;
+  final List<InstalledPlugin> plugins;
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = selection.shown ?? {for (final p in plugins) p.pluginId};
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(
+        start: AppTokens.spaceSM,
+        end: AppTokens.spaceMD,
+        top: AppTokens.spaceXS,
+      ),
+      child: Row(
+        children: [
+          AppIconButton(
+            icon: const Icon(FluentIcons.dismiss_24_regular),
+            tooltip: context.settingsText('ביטול'),
+            onPressed: selection.exit,
+          ),
+          Expanded(
+            child: Text(
+              context.settingsText(
+                '{count} נבחרו',
+                args: {'count': selection.ids.length},
+              ),
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+          ),
+          ActionButton.ghost(
+            icon: FluentIcons.checkbox_checked_24_regular,
+            text: context.settingsText(
+              selection.shown == null ? 'בחר הכל' : 'בחר את המוצגים',
+            ),
+            onPressed: shown.every(selection.ids.contains)
+                ? null
+                : () => selection.selectAll(shown),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _ActionBar extends StatelessWidget {
   final Set<String> selectedIds;
@@ -493,10 +662,10 @@ class _ActionBar extends StatelessWidget {
     return SizedBox(
       width: double.infinity,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
         child: Wrap(
           spacing: 8,
-          runSpacing: 8,
+          runSpacing: 0,
           children: [
             ActionButton.neutral(
               icon: _allSelectedHiddenFromTools
