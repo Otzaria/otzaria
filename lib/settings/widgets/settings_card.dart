@@ -414,14 +414,18 @@ class SettingsActionTile extends StatelessWidget {
     );
   }
 
-  Widget _buildListTile() => ListTile(
+  Widget _buildListTile() => _KeyboardFocusRow(
     focusNode: focusNode,
-    enabled: enabled,
-    onTap: onTap,
-    leading: _buildIcon(),
-    title: title,
-    subtitle: subtitle,
-    trailing: _buildTrailing(),
+    builder: (node, focusColor) => ListTile(
+      focusNode: node,
+      focusColor: focusColor,
+      enabled: enabled,
+      onTap: onTap,
+      leading: _buildIcon(),
+      title: title,
+      subtitle: subtitle,
+      trailing: _buildTrailing(),
+    ),
   );
 
   // בודק עם TextPainter אם הטקסט יגלוש כשה-actions יהיו ב-trailing.
@@ -518,10 +522,14 @@ class SettingsActionTile extends StatelessWidget {
     if (onTap == null) return content;
     // _buildListTile מעביר onTap ל-ListTile; ב-layout האנכי אין ListTile,
     // אז ה-InkWell הוא מה שמאפשר ללחוץ על השורה (למשל לפתוח ExpandableSection).
-    return InkWell(
-      onTap: enabled ? onTap : null,
+    return _KeyboardFocusRow(
       focusNode: focusNode,
-      child: content,
+      builder: (node, focusColor) => InkWell(
+        onTap: enabled ? onTap : null,
+        focusNode: node,
+        focusColor: focusColor,
+        child: content,
+      ),
     );
   }
 
@@ -540,6 +548,55 @@ class SettingsActionTile extends StatelessWidget {
               )
           ? _buildColumnLayout()
           : _buildListTile(),
+    );
+  }
+}
+
+/// שורת הגדרה שמילוי הפוקוס וטבעתו (DD-06) מופיעים רק בניווט מקלדת.
+/// ‏[ListTile] ו-[InkWell] מציירים את צבע הפוקוס גם אחרי לחיצת עכבר, כשהפוקוס
+/// נשאר על השורה (למשל ב-[SettingsSwitchTile]).
+class _KeyboardFocusRow extends StatefulWidget {
+  const _KeyboardFocusRow({this.focusNode, required this.builder});
+
+  final FocusNode? focusNode;
+  final Widget Function(FocusNode focusNode, Color focusColor) builder;
+
+  @override
+  State<_KeyboardFocusRow> createState() => _KeyboardFocusRowState();
+}
+
+class _KeyboardFocusRowState extends State<_KeyboardFocusRow> {
+  FocusNode? _ownedNode;
+
+  @override
+  void dispose() {
+    _ownedNode?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final node =
+        widget.focusNode ??
+        (_ownedNode ??= FocusNode(debugLabel: 'settings_row'));
+    final cs = Theme.of(context).colorScheme;
+    return ListenableBuilder(
+      listenable: node,
+      builder: (context, _) {
+        // נקרא גם בלי פוקוס: הקריאה הראשונה רושמת את מאזיני המקלדת.
+        final keyboardFocused =
+            AppFocusRing.isKeyboardFocusVisible && node.hasFocus;
+        return DecoratedBox(
+          position: DecorationPosition.foreground,
+          decoration: keyboardFocused
+              ? AppSurfaces.focusRingDecoration(cs)
+              : const BoxDecoration(),
+          child: widget.builder(
+            node,
+            keyboardFocused ? AppSurfaces.focusedRow(cs) : Colors.transparent,
+          ),
+        );
+      },
     );
   }
 }
