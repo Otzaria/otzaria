@@ -24,6 +24,100 @@ void main() {
   });
 
   group('TextBookLoaded equality', () {
+    test('maps compare by content, not insertion order', () {
+      final left = _loadedState(
+        searchOptions: {
+          'אמר_0': {'סיומות': true, 'כתיב': false},
+          'רבי_1': {'חילוף': true},
+        },
+        alternativeWords: {
+          0: ['אמר', 'ויאמר'],
+          1: ['רבי'],
+        },
+        spacingValues: {'0-1': '2', '1-2': '5'},
+      );
+      final right = _loadedState(
+        searchOptions: {
+          'רבי_1': {'חילוף': true},
+          'אמר_0': {'כתיב': false, 'סיומות': true},
+        },
+        alternativeWords: {
+          1: ['רבי'],
+          0: ['אמר', 'ויאמר'],
+        },
+        spacingValues: {'1-2': '5', '0-1': '2'},
+      );
+
+      expect(left, equals(right));
+      expect(left.hashCode, right.hashCode);
+    });
+
+    test('alternative word list order remains significant', () {
+      final left = _loadedState(
+        alternativeWords: const {
+          0: ['אמר', 'ויאמר'],
+        },
+      );
+      final right = _loadedState(
+        alternativeWords: const {
+          0: ['ויאמר', 'אמר'],
+        },
+      );
+      expect(left, isNot(equals(right)));
+    });
+
+    test('large search maps compare without sorting thousands of keys', () {
+      final names = List.generate(1000, (index) => 'word_$index');
+      final optionsA = {
+        for (final name in names) name: {'exact': true, 'fuzzy': false},
+      };
+      final optionsB = {
+        for (final name in names.reversed)
+          name: {'fuzzy': false, 'exact': true},
+      };
+      final first = _loadedState(searchOptions: optionsA);
+      final second = _loadedState(searchOptions: optionsB);
+
+      expect(first, equals(second));
+      expect(first.hashCode, second.hashCode);
+    });
+
+    test('TextBookInitial uses the same unordered map comparison', () {
+      final book = TextBook(title: 'ספר בדיקה');
+      final first = TextBookInitial.named(
+        book,
+        0,
+        false,
+        const [],
+        searchOptions: {
+          'a': {'x': true, 'y': false},
+          'b': {'z': true},
+        },
+        alternativeWords: {
+          0: ['one', 'two'],
+          1: ['three'],
+        },
+        spacingValues: {'a': '1', 'b': '2'},
+      );
+      final reversed = TextBookInitial.named(
+        book,
+        0,
+        false,
+        const [],
+        searchOptions: {
+          'b': {'z': true},
+          'a': {'y': false, 'x': true},
+        },
+        alternativeWords: {
+          1: ['three'],
+          0: ['one', 'two'],
+        },
+        spacingValues: {'b': '2', 'a': '1'},
+      );
+      expect(first, equals(reversed));
+      expect(first.hashCode, reversed.hashCode);
+    });
+
     test('changes when spacing values change', () {
       final withSpacing = _loadedState(
         spacingValues: const {'0-1': '1'},
