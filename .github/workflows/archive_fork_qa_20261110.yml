@@ -17,6 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         archive_branch:
+          - fix/extraction-callbacks-only-written-files
           - qa/archive-integrated-20261110
     steps:
       - name: Checkout archive branch
