@@ -55,7 +55,8 @@ String? _text(Object? value) {
   return trimmed.isEmpty ? null : trimmed;
 }
 
-bool _isTransientSqliteLock(Object error) =>
+/// נעילה זמנית, כולל קודי שגיאה מורחבים; אינה תוצאה ריקה שאפשר לשמור.
+bool isTransientExternalLinkLock(Object error) =>
     error is sqlite3.SqliteException &&
     (error.resultCode == sqlite3.SqlError.SQLITE_BUSY ||
         error.resultCode == sqlite3.SqlError.SQLITE_LOCKED);
@@ -122,10 +123,8 @@ class ExternalTargetResolver {
         _open[target.wireKey] = (db, DbCapabilities.probe(db));
       } catch (e) {
         db?.close();
-        // נעילה רגעית אינה נשמרת — השורה הבאה תנסה לפתוח שוב.
-        if (!_isTransientSqliteLock(e)) {
-          _open[target.wireKey] = null;
-        }
+        if (isTransientExternalLinkLock(e)) rethrow;
+        _open[target.wireKey] = null;
       }
     }
     final connection = _open[target.wireKey];
@@ -157,6 +156,10 @@ class ExternalTargetResolver {
     _readClock.reset();
   }
 
+  void _releaseExpiredReads() {
+    if (_readClock.elapsed >= readHold) releaseReads();
+  }
+
   /// תקרת הכותרות שנשמרות בזיכרון — מסד עוין עם מיליוני יעדים שונים.
   static const maxCachedTitles = 4096;
 
@@ -165,15 +168,13 @@ class ExternalTargetResolver {
     final cached = _books[key];
     if (cached != null) return cached;
     final books = _queryBooks(target, title);
-    // נעילה זמנית אינה נשמרת — אחרת הכותרת נשמטת עד סוף הבנייה.
-    if (books == null) return const [];
     if (_books.length >= maxCachedTitles) _books.clear();
     return _books[key] = books;
   }
 
-  List<(int, int?)>? _queryBooks(ExternalTargetDb target, String title) {
+  List<(int, int?)> _queryBooks(ExternalTargetDb target, String title) {
     final connection = _connection(target);
-    if (connection == null) return null;
+    if (connection == null) return const [];
     final (db, caps) = connection;
     if (!caps.hasBooks) return const [];
     final category = caps.hasBookCategories ? 'categoryId' : 'NULL';
@@ -188,8 +189,9 @@ class ExternalTargetResolver {
             (row['id'] as int, _int(row['categoryId'])),
       ];
     } catch (e) {
+      if (isTransientExternalLinkLock(e)) rethrow;
       // כשל קבוע נשמר כדי שמסד פגום לא יישאל מחדש לכל שורה.
-      return _isTransientSqliteLock(e) ? null : const [];
+      return const [];
     }
   }
 
@@ -237,13 +239,14 @@ class ExternalTargetResolver {
     required String? targetRef,
     required int? targetLineIndex,
   }) {
-    if (_readClock.elapsed >= readHold) releaseReads();
+    _releaseExpiredReads();
     // הספר נמצא במסד הראשון — לא ממשיכים למסד אחר גם אם השורה לא נפתרה.
     final target = bookDatabase(targetSource, targetTitle);
     if (target == null) return null;
     try {
       return _resolveIn(target, targetTitle, targetRef, targetLineIndex);
-    } catch (_) {
+    } catch (e) {
+      if (isTransientExternalLinkLock(e)) rethrow;
       return null;
     }
   }
@@ -484,6 +487,7 @@ ResolvedExternalLink? _resolveRow(
       sourceLine == null ||
       sourceTitle == null ||
       targetTitle == null) {
+    resolver._releaseExpiredReads();
     return null;
   }
   final resolved = resolver.resolve(

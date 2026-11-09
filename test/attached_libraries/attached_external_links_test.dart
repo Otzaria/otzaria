@@ -3,7 +3,25 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+// ignore: depend_on_referenced_packages
+import 'package:material_ui/material_ui.dart' as mui;
+import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
+import 'package:otzaria/settings/engine/settings_bloc.dart';
+import 'package:otzaria/settings/engine/settings_event.dart';
+import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/tabs/bloc/tabs_state.dart';
+import 'package:otzaria/tabs/models/pdf_tab.dart';
+import 'package:otzaria/tabs/tabs_repository.dart';
+import 'package:otzaria/tour/bloc/tour_cubit.dart';
+import 'package:otzaria/widgets/misc/app_menu_exports.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_probe.dart';
@@ -23,6 +41,7 @@ import 'package:otzaria/migration/database/untrusted_database.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentary_panel.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -33,6 +52,7 @@ import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
 import '../helpers/seforim_fixture_db.dart';
 import '../test_helpers/memory_cache_provider.dart';
+import '../test_helpers/pdf_document_dispose.dart';
 
 /// כותרות גנריות לספרי המסד המצורף — שלא יתנגשו בכותרות הספרייה הרשמית.
 const _commentaryTitle = 'ספר א';
@@ -170,6 +190,25 @@ void main() {
     }
   }
 
+  Future<void> withLockedOfficial(Future<void> Function() action) async {
+    final ready = ReceivePort();
+    final writer = _holdExclusiveWriter(officialPath, ready.sendPort);
+    SendPort? release;
+    try {
+      release = await Future.any<SendPort>([
+        ready.first.then((message) => message as SendPort),
+        writer.then<SendPort>(
+          (_) => throw StateError('writer exited before acquiring the lock'),
+        ),
+      ]);
+      await action();
+    } finally {
+      release?.send(null);
+      ready.close();
+      await writer;
+    }
+  }
+
   /// שינוי תוכן הקובץ עם זמן שינוי חדש — כמו עדכון של המסד מבחוץ.
   void touch(String path) {
     final file = File(path);
@@ -238,6 +277,171 @@ void main() {
     try {
       await tempDir.delete(recursive: true);
     } catch (_) {}
+  });
+
+  testWidgets('קישורי PDF חוזרים בדפדוף אחרי שחרור נעילת יעד באותו טאב', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    const channel = MethodChannel('plugins.flutter.io/path_provider');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (_) async => tempDir.path);
+    final previousLibrary = await tester.runAsync(
+      () async =>
+          (value: DataRepository.instance.cachedLibraryFutureForTesting),
+    );
+    addTearDown(() {
+      if (previousLibrary!.value == null) {
+        DataRepository.instance.invalidateLibraryCache();
+      } else {
+        DataRepository.instance.library = previousLibrary.value!;
+      }
+    });
+    final modulePath = Pdfrx.pdfiumModulePath;
+    final moduleName = Platform.isWindows
+        ? 'pdfium.dll'
+        : Platform.isMacOS
+        ? 'libpdfium.dylib'
+        : 'libpdfium.so';
+    Pdfrx.pdfiumModulePath = File(
+      'build/native_assets/${Platform.operatingSystem}/$moduleName',
+    ).absolute.path;
+    addTearDown(() {
+      Pdfrx.pdfiumModulePath = modulePath;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+    late TextBook book;
+    final file = File(p.join(tempDir.path, 'book.pdf'));
+    await tester.runAsync(() async {
+      final library = await attach(
+        attachedDb(
+          'pdf-lock',
+          rows: [
+            _row(1, targetLineIndex: 1, connectionType: LinkTypes.commentary),
+          ],
+        ),
+      );
+      await links.sync();
+      book = await bookOf(BookSource.attached(library.slug), _commentaryTitle);
+      DataRepository.instance.library = buildCatalog();
+      await DataRepository.instance.library;
+      await pdfrxFlutterInitialize();
+      final pdf = pw.Document();
+      for (var page = 0; page < 3; page++) {
+        pdf.addPage(pw.Page(build: (_) => pw.Text('page ${page + 1}')));
+      }
+      await file.writeAsBytes(await pdf.save());
+    });
+    final tab = PdfBookTab(
+      pageNumber: 1,
+      book: PdfBook(
+        title: book.title,
+        path: file.path,
+        categoryId: book.categoryId,
+        source: book.source,
+      ),
+    );
+    final tabs = TabsBloc(repository: _PdfTabsRepository());
+    // ignore: invalid_use_of_visible_for_testing_member
+    tabs.emit(TabsState(tabs: [tab], currentTabIndex: 0));
+    final settings = _PdfSettingsBloc();
+    final tour = TourCubit();
+    addTearDown(tabs.close);
+    addTearDown(settings.close);
+    addTearDown(tour.close);
+    final ready = ReceivePort();
+    late Future<void> writer;
+    SendPort? release;
+    await tester.runAsync(() async {
+      writer = _holdExclusiveWriter(officialPath, ready.sendPort);
+      release = await ready.first as SendPort;
+    });
+    addTearDown(() async {
+      release?.send(null);
+      ready.close();
+      await writer;
+    });
+    Future<void> pumpUntil(bool Function() condition) async {
+      for (var attempt = 0; attempt < 200 && !condition(); attempt++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      expect(condition(), isTrue);
+    }
+
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: const [
+          mui.DefaultMaterialLocalizations.delegate,
+        ],
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<SettingsBloc>.value(value: settings),
+            BlocProvider<TabsBloc>.value(value: tabs),
+            BlocProvider<TourCubit>.value(value: tour),
+          ],
+          child: PdfBookScreen(tab: tab),
+        ),
+      ),
+    );
+    await pumpUntil(
+      () => tab.pdfViewerController.isReady && !tab.linksLoadingNotifier.value,
+    );
+    final screen = tester.state(find.byType(PdfBookScreen));
+    final document = tab.pdfViewerController.document;
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await disposePdfDocument(tester, document);
+    });
+    expect(
+      tab.links.where((link) => link.targetSource != book.source),
+      isEmpty,
+    );
+    await tester.runAsync(() async {
+      release!.send(null);
+      release = null;
+      await writer;
+      await tab.pdfViewerController.goToPage(
+        pageNumber: 2,
+        duration: Duration.zero,
+      );
+    });
+    await pumpUntil(
+      () => tab.links.any((link) => link.targetSource == BookSource.official),
+    );
+    final viewer = find.byType(PdfViewer);
+    final menu = tester.widget<AppContextMenuRegion>(
+      find.descendant(of: viewer, matching: find.byType(AppContextMenuRegion)),
+    );
+    final commentators = menu
+        .menuBuilder(tester.element(viewer), tester.getCenter(viewer))
+        .firstWhere((entry) => entry.label == 'מפרשים')
+        .children!;
+    expect(
+      commentators.map((entry) => entry.label),
+      contains(SeforimFixtureIds.bereshitTitle),
+    );
+    expect(
+      commentators.where(
+        (entry) =>
+            entry.label?.startsWith('הצג את כל ') == true &&
+            entry.label != 'הצג את כל המפרשים',
+      ),
+      hasLength(1),
+    );
+    expect(tour.hasRegisteredCommentaryOpportunity, isTrue);
+    expect(tester.state(find.byType(PdfBookScreen)), same(screen));
+    expect(tab.pageNumber, 2);
+    expect(tab.linksAreComplete, isFalse);
+    expect(
+      tab.links.where((link) => link.targetSource == BookSource.official),
+      hasLength(1),
+    );
   });
 
   test('מפרשי PDF משני מסדים בעלי אותה כותרת נשארים נפרדים', () async {
@@ -698,6 +902,67 @@ void main() {
       expect(await window(5), isEmpty);
     });
 
+    test('נעילת יעד זמנית אינה נשמרת כתוצאת כיוון ישיר ריקה', () async {
+      final library = await attach(
+        attachedDb('ext', rows: [_row(0, targetLineIndex: 1)]),
+      );
+      await links.sync();
+      Future<List<Link>> read() => links.linksInRange(
+        title: _commentaryTitle,
+        categoryId: null,
+        source: BookSource.attached(library.slug),
+        startLineIndex: 0,
+        endLineIndex: 10,
+      );
+
+      await withLockedOfficial(() async {
+        await expectLater(read(), throwsA(isA<sqlite3.SqliteException>()));
+      });
+      expect(await read(), hasLength(1));
+      expect(await read(), hasLength(1));
+    });
+
+    test('נעילת יעד זמנית אינה נשמרת כסיכום קישורים ריק', () async {
+      final library = await attach(
+        attachedDb('ext', rows: [_row(0, targetLineIndex: 1)]),
+      );
+      await links.sync();
+      Future<int> read() async => (await links.targetsSummary(
+        title: _commentaryTitle,
+        categoryId: null,
+        source: BookSource.attached(library.slug),
+      )).targets.fold<int>(0, (sum, target) => sum + target.linkCount);
+
+      await withLockedOfficial(() async {
+        await expectLater(read(), throwsA(isA<sqlite3.SqliteException>()));
+      });
+      expect(await read(), 1);
+    });
+
+    test('נעילת יעד זמנית אינה נשמרת כמפת מפרשים ריקה', () async {
+      final library = await attach(
+        attachedDb(
+          'ext',
+          rows: [
+            _row(0, targetLineIndex: 1, connectionType: 'COMMENTARY'),
+          ],
+        ),
+      );
+      await links.sync();
+      Future<Map<String, BookSource>> read() => links.commentatorSources(
+        title: _commentaryTitle,
+        categoryId: null,
+        source: BookSource.attached(library.slug),
+      );
+
+      await withLockedOfficial(() async {
+        await expectLater(read(), throwsA(isA<sqlite3.SqliteException>()));
+      });
+      expect(await read(), {
+        SeforimFixtureIds.bereshitTitle: BookSource.official,
+      });
+    });
+
     test('מסד רשמי שלא היה זמין נקלט כשהוא נפתח', () async {
       final library = await attach(
         attachedDb('ext', rows: [_row(0, targetLineIndex: 1)]),
@@ -891,6 +1156,192 @@ void main() {
       expect(indexRows(library.slug), 5);
       expect(metaSignature(library.slug), isNot(startsWith('!')));
       expect(links.tooLargeSlugs.value, isEmpty);
+    });
+
+    test('נעילת יעד בשורה היחידה אינה מסיימת אינדקס ריק', () async {
+      final library = await attach(
+        attachedDb('ext', rows: [_row(0, targetLineIndex: 1)]),
+      );
+      await links.sync();
+      final full = indexSnapshot(library.slug);
+      expect(full, hasLength(1));
+
+      await withLockedOfficial(() => links.rebuild(library.slug));
+      expect(links.incompleteSlugs.value, {library.slug});
+      expect(metaSignature(library.slug), startsWith('!building:'));
+      expect(indexRows(library.slug), 0);
+
+      links.requestResume(library.slug);
+      await links.sync();
+      expect(links.incompleteSlugs.value, isEmpty);
+      expect(metaSignature(library.slug), isNot(startsWith('!')));
+      expect(indexSnapshot(library.slug), full);
+    });
+
+    test('נעילת גרסת היעד אינה מוחקת אינדקס תקין או בוחרת מסד חלופי', () async {
+      final fallbackPath = attachedDb('fallback');
+      final fallback = sqlite3.sqlite3.open(fallbackPath);
+      try {
+        fallback.execute('UPDATE book SET title = ? WHERE id = ?', [
+          SeforimFixtureIds.bereshitTitle,
+          SeforimFixtureIds.bereshitId,
+        ]);
+      } finally {
+        fallback.close();
+      }
+      await attach(fallbackPath);
+      final library = await attach(
+        attachedDb(
+          'ext',
+          rows: [_row(0, targetSource: null, targetLineIndex: 1)],
+        ),
+      );
+      await links.sync();
+      final signature = metaSignature(library.slug);
+      final full = indexSnapshot(library.slug);
+      final reopened = ExternalLinkRepository(
+        registry: registry,
+        cacheDbPath: () async => cachePath(),
+        officialTarget: () => trustedDbTarget(officialPath),
+      );
+
+      await withLockedOfficial(() async {
+        await expectLater(
+          reopened.sync(),
+          throwsA(
+            isA<sqlite3.SqliteException>().having(
+              (e) => e.resultCode,
+              'resultCode',
+              sqlite3.SqlError.SQLITE_BUSY,
+            ),
+          ),
+        );
+        expect(metaSignature(library.slug), signature);
+        expect(indexSnapshot(library.slug), full);
+        await expectLater(
+          reopened.rebuild(library.slug),
+          throwsA(isA<sqlite3.SqliteException>()),
+        );
+        expect(metaSignature(library.slug), signature);
+        expect(indexSnapshot(library.slug), full);
+      });
+      expect(await reopened.sync(), isEmpty);
+      expect(indexSnapshot(library.slug), full);
+      final resolved = await reopened.linksInRange(
+        title: _commentaryTitle,
+        categoryId: null,
+        source: BookSource.attached(library.slug),
+        startLineIndex: 0,
+        endLineIndex: 10,
+      );
+      expect(resolved.single.targetSource, BookSource.official);
+    });
+
+    for (final resume in [false, true]) {
+      test(
+        'בקשת ${resume ? 'המשך' : 'בנייה מחדש'} שנכשלת לפני תחילת הבנייה '
+        'מדווחת סיום ומאפשרת בקשה חוזרת',
+        () async {
+          final library = await attach(attachedDb('ext', rows: fiveRows()));
+          await links.sync();
+          final full = indexSnapshot(library.slug);
+          if (resume) {
+            final db = sqlite3.sqlite3.open(cachePath());
+            try {
+              db.execute('BEGIN');
+              db.execute(
+                "UPDATE attached_external_link_meta SET targetsSignature = "
+                "'!building:' || targetsSignature || ? WHERE sourceSlug = ?",
+                ['\u0001stop', library.slug],
+              );
+              db.execute(
+                'DELETE FROM attached_external_link_target WHERE sourceSlug = ?',
+                [library.slug],
+              );
+              db.execute('COMMIT');
+            } finally {
+              db.close();
+            }
+          }
+          final signature = metaSignature(library.slug);
+          final reopened = ExternalLinkRepository(
+            registry: registry,
+            cacheDbPath: () async => cachePath(),
+            officialTarget: () => trustedDbTarget(officialPath),
+          );
+          Future<void> requestAndWait() async {
+            final completed = Completer<void>();
+            void observe() {
+              if (reopened.buildingSlugs.value.isEmpty &&
+                  !completed.isCompleted) {
+                completed.complete();
+              }
+            }
+
+            reopened.buildingSlugs.addListener(observe);
+            try {
+              if (resume) {
+                reopened.requestResume(library.slug);
+              } else {
+                reopened.requestRebuild(library.slug);
+              }
+              await completed.future.timeout(const Duration(seconds: 5));
+            } finally {
+              reopened.buildingSlugs.removeListener(observe);
+            }
+          }
+
+          await withLockedOfficial(() async {
+            await requestAndWait();
+            expect(metaSignature(library.slug), signature);
+            expect(indexSnapshot(library.slug), full);
+          });
+          await requestAndWait();
+          expect(reopened.incompleteSlugs.value, isEmpty);
+          expect(metaSignature(library.slug), isNot(startsWith('!')));
+          expect(indexSnapshot(library.slug), full);
+        },
+      );
+    }
+
+    test('כשל נעילה אחרי רענון מניע סנכרון אוטומטי בשימוש הבא', () async {
+      final library = await attach(
+        attachedDb('ext', rows: [_row(0, targetLineIndex: 1)]),
+      );
+      await links.sync();
+      final previousSignature = metaSignature(library.slug);
+      final updated = sqlite3.sqlite3.open(officialPath);
+      try {
+        updated.execute(
+          "UPDATE schema_meta SET value = '2' WHERE key = 'db_version'",
+        );
+      } finally {
+        updated.close();
+      }
+      links.resetRuntime();
+      Future<int> targetCount() async => (await links.targetsSummary(
+        title: SeforimFixtureIds.bereshitTitle,
+        categoryId: null,
+        source: BookSource.official,
+      )).targets.length;
+
+      await withLockedOfficial(() async {
+        await expectLater(
+          targetCount(),
+          throwsA(isA<sqlite3.SqliteException>()),
+        );
+        await Future<void>.delayed(Duration.zero);
+      });
+      final deadline = Stopwatch()..start();
+      var count = await targetCount();
+      while (count == 0 && deadline.elapsed < const Duration(seconds: 5)) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        count = await targetCount();
+      }
+      expect(count, 1);
+      expect(metaSignature(library.slug), isNot(previousSignature));
+      expect(metaSignature(library.slug), isNot(startsWith('!')));
+      expect(indexRows(library.slug), 1);
     });
 
     test('תקרה שנחצית אחרי שמנות נכתבו — הכל נמחק והמסד מסומן', () async {
@@ -1177,6 +1628,35 @@ void main() {
       }
     });
 
+    test('נעילת יעד אחרי מנה שמורה מתחדשת ללא אובדן או כפילות', () async {
+      smallBatches();
+      final library = await attach(attachedDb('ext', rows: fiveRows()));
+      await links.sync();
+      final full = indexSnapshot(library.slug);
+      onNextBuild(links.pauseBuild);
+      final done = links.rebuild(library.slug);
+      try {
+        await waitForProgress(library.slug, 1, done);
+        expect(indexRows(library.slug), 1);
+        await withLockedOfficial(() async {
+          links.resumeBuild();
+          await done;
+        });
+      } finally {
+        links.cancelBuild();
+        await done;
+      }
+      expect(links.incompleteSlugs.value, {library.slug});
+      expect(metaSignature(library.slug), startsWith('!building:'));
+      expect(indexRows(library.slug), 1);
+
+      links.requestResume(library.slug);
+      await links.sync();
+      expect(links.incompleteSlugs.value, isEmpty);
+      expect(indexSnapshot(library.slug), full);
+      expect(indexRows(library.slug), 5);
+    });
+
     test('ביטול בזמן נעילת יעד אינו ממתין לכל המנה', () async {
       smallBatches(batchSize: 10);
       final library = await attach(
@@ -1186,6 +1666,9 @@ void main() {
         ),
       );
       await links.sync();
+      final nextLibrary = await attach(
+        attachedDb('after-cancel', rows: [_row(0, targetLineIndex: 2)]),
+      );
       final ready = ReceivePort();
       final writer = _holdExclusiveWriter(officialPath, ready.sendPort);
       SendPort? release;
@@ -1205,9 +1688,12 @@ void main() {
         ]);
         onNextBuild(links.cancelBuild);
         await links.rebuild(library.slug);
-        expect(scanned, [1]);
+        expect(scanned, isEmpty);
         expect(indexRows(library.slug), 0);
         expect(links.incompleteSlugs.value, {library.slug});
+        expect(metaSignature(library.slug), endsWith('\u0001stop'));
+        expect(metaSignature(nextLibrary.slug), isNull);
+        expect(indexRows(nextLibrary.slug), 0);
       } finally {
         links.cancelBuild();
         release?.send(null);
@@ -1215,6 +1701,12 @@ void main() {
         links.buildProgress.removeListener(record);
         await writer;
       }
+      links.requestResume(library.slug);
+      await links.sync();
+      expect(links.incompleteSlugs.value, isEmpty);
+      expect(indexRows(library.slug), 30);
+      expect(indexSnapshot(library.slug).toSet(), hasLength(30));
+      expect(indexRows(nextLibrary.slug), 1);
     });
 
     test('עצירה בזמן השהיה מסיימת את הסנכרון ושומרת התקדמות', () async {
@@ -1596,4 +2088,23 @@ void main() {
       expect(await externalIn(book), hasLength(1));
     });
   });
+}
+
+class _PdfTabsRepository implements TabsRepository {
+  @override
+  dynamic noSuchMethod(Invocation invocation) {
+    if (invocation.memberName == #loadTabs) return [];
+    if (invocation.memberName == #loadCurrentTabIndex) return 0;
+    return Future<void>.value();
+  }
+}
+
+class _PdfSettingsBloc extends Bloc<SettingsEvent, SettingsState>
+    implements SettingsBloc {
+  _PdfSettingsBloc() : super(SettingsState.initial()) {
+    on<SettingsEvent>((_, _) {});
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
