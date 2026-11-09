@@ -28,6 +28,27 @@ export 'package:otzaria_context_menu/otzaria_context_menu.dart'
         calculateAppMenuPreferredWidth,
         calculateAppMenuPreferredWidthAsync;
 
+/// מאפשר לתצוגה מקדימה יקרה לדחות פריסה מחוץ לתחום הציור של התפריט.
+class AppMenuItemVisibility extends InheritedWidget {
+  final bool isVisible;
+
+  const AppMenuItemVisibility({
+    super.key,
+    required this.isVisible,
+    required super.child,
+  });
+
+  static bool isVisibleOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<AppMenuItemVisibility>()
+          ?.isVisible ??
+      true;
+
+  @override
+  bool updateShouldNotify(AppMenuItemVisibility oldWidget) =>
+      isVisible != oldWidget.isVisible;
+}
+
 class AppPopupMenuButton<T> extends StatefulWidget {
   final List<AppMenuEntry<T>>? entries;
   final List<PopupMenuEntry<T>> Function(BuildContext context)? itemBuilder;
@@ -588,6 +609,7 @@ Future<T?> showAnchoredAppSearchMenu<T>({
   required List<AppMenuEntry<T>> entries,
   T? initialValue,
   String searchHint = 'חיפוש',
+  bool trackItemVisibility = false,
   PopupMenuPosition position = PopupMenuPosition.under,
   Offset offset = const Offset(0, 4),
   List<String>? filterLabels,
@@ -685,6 +707,7 @@ Future<T?> showAnchoredAppSearchMenu<T>({
       entries: entries,
       initialValue: initialValue,
       searchHint: searchHint,
+      trackItemVisibility: trackItemVisibility,
       metrics: metrics,
       textDirection: textDirection,
       filterLabels: filterLabels,
@@ -699,6 +722,7 @@ class _AnchoredSearchMenuRoute<T> extends PopupRoute<T> {
   final List<AppMenuEntry<T>> entries;
   final T? initialValue;
   final String searchHint;
+  final bool trackItemVisibility;
   final AppMenuMetrics metrics;
   final TextDirection textDirection;
   final List<String>? filterLabels;
@@ -710,6 +734,7 @@ class _AnchoredSearchMenuRoute<T> extends PopupRoute<T> {
     required this.entries,
     required this.initialValue,
     required this.searchHint,
+    required this.trackItemVisibility,
     required this.metrics,
     required this.textDirection,
     this.filterLabels,
@@ -743,6 +768,7 @@ class _AnchoredSearchMenuRoute<T> extends PopupRoute<T> {
         entries: entries,
         initialValue: initialValue,
         searchHint: searchHint,
+        trackItemVisibility: trackItemVisibility,
         metrics: metrics,
         animation: animation,
         filterLabels: filterLabels,
@@ -758,6 +784,7 @@ class _AnchoredSearchMenuContent<T> extends StatefulWidget {
   final List<AppMenuEntry<T>> entries;
   final T? initialValue;
   final String searchHint;
+  final bool trackItemVisibility;
   final AppMenuMetrics metrics;
   final Animation<double> animation;
   final List<String>? filterLabels;
@@ -769,6 +796,7 @@ class _AnchoredSearchMenuContent<T> extends StatefulWidget {
     required this.entries,
     required this.initialValue,
     required this.searchHint,
+    required this.trackItemVisibility,
     required this.metrics,
     required this.animation,
     this.filterLabels,
@@ -972,50 +1000,95 @@ class _AnchoredSearchMenuContentState<T>
                                             widget.metrics.itemHeight)
                                         .clamp(0.0, maxOffset),
                               );
-                              return ListView.builder(
-                                controller: _scrollController,
-                                padding: widget.metrics.menuPadding,
-                                // בלי גובה קבוע, קפיצה לערך הנבחר בונה כל שורה בדרך.
-                                itemExtent: widget.metrics.itemHeight,
-                                itemCount: filtered.length,
-                                itemBuilder: (ctx, i) {
-                                  final entry = filtered[i];
-                                  final isSelected =
-                                      widget.initialValue != null &&
-                                      entry.value == widget.initialValue;
-                                  return InkWell(
-                                    onTap: entry.enabled
-                                        ? () => Navigator.of(
+                              Widget buildRow(BuildContext ctx, int i) {
+                                final entry = filtered[i];
+                                final isSelected =
+                                    widget.initialValue != null &&
+                                    entry.value == widget.initialValue;
+                                return InkWell(
+                                  onTap: entry.enabled
+                                      ? () => Navigator.of(
+                                          context,
+                                        ).pop(entry.value)
+                                      : null,
+                                  child: SizedBox(
+                                    width: double.infinity,
+                                    height: widget.metrics.itemHeight,
+                                    child: LayoutBuilder(
+                                      // חישוב רוחב התווית כבר מחסיר את ריפוד השורה.
+                                      builder: (ctx, constraints) =>
+                                          buildAppMenuRowContent(
                                             context,
-                                          ).pop(entry.value)
-                                        : null,
-                                    child: SizedBox(
-                                      width: double.infinity,
-                                      height: widget.metrics.itemHeight,
-                                      child: LayoutBuilder(
-                                        // חישוב רוחב התווית כבר מחסיר את ריפוד השורה.
-                                        builder: (ctx, constraints) =>
-                                            buildAppMenuRowContent(
-                                              context,
-                                              widget.metrics,
-                                              label: entry.label,
-                                              labelWidget: entry.labelWidget,
-                                              maxWidth: constraints.maxWidth,
-                                              icon: entry.icon,
-                                              trailing: entry.trailing,
-                                              isSelected: isSelected,
-                                              isDestructive:
-                                                  entry.isDestructive,
-                                              enabled: entry.enabled,
-                                              reserveTrailingGap:
-                                                  entry.reserveTrailingGap,
-                                              trailingReservedWidth:
-                                                  entry.trailingReservedWidth,
-                                            ),
-                                      ),
+                                            widget.metrics,
+                                            label: entry.label,
+                                            labelWidget: entry.labelWidget,
+                                            maxWidth: constraints.maxWidth,
+                                            icon: entry.icon,
+                                            trailing: entry.trailing,
+                                            isSelected: isSelected,
+                                            isDestructive: entry.isDestructive,
+                                            enabled: entry.enabled,
+                                            reserveTrailingGap:
+                                                entry.reserveTrailingGap,
+                                            trailingReservedWidth:
+                                                entry.trailingReservedWidth,
+                                          ),
                                     ),
-                                  );
-                                },
+                                  ),
+                                );
+                              }
+
+                              // גובה קבוע מאפשר קפיצה לנבחר בלי לבנות את השורות שבדרך.
+                              if (!widget.trackItemVisibility) {
+                                return ListView.builder(
+                                  controller: _scrollController,
+                                  padding: widget.metrics.menuPadding,
+                                  itemExtent: widget.metrics.itemHeight,
+                                  itemCount: filtered.length,
+                                  itemBuilder: buildRow,
+                                );
+                              }
+                              (int, int)? visibleRange;
+                              Widget? list;
+                              return CustomScrollView(
+                                controller: _scrollController,
+                                semanticChildCount: filtered.length,
+                                slivers: [
+                                  SliverPadding(
+                                    padding: widget.metrics.menuPadding,
+                                    sliver: SliverLayoutBuilder(
+                                      builder: (context, constraints) {
+                                        final height =
+                                            widget.metrics.itemHeight;
+                                        final first =
+                                            (constraints.scrollOffset / height)
+                                                .floor();
+                                        final end =
+                                            ((constraints.scrollOffset +
+                                                        constraints
+                                                            .remainingPaintExtent) /
+                                                    height)
+                                                .ceil();
+                                        // רק מעבר בין שורות מחליף את תצוגות הגופנים, לא כל פיקסל גלילה.
+                                        if (visibleRange == (first, end)) {
+                                          return list!;
+                                        }
+                                        visibleRange = (first, end);
+                                        return list =
+                                            SliverFixedExtentList.builder(
+                                              itemExtent: height,
+                                              itemCount: filtered.length,
+                                              itemBuilder: (ctx, i) =>
+                                                  AppMenuItemVisibility(
+                                                    isVisible:
+                                                        i >= first && i < end,
+                                                    child: buildRow(ctx, i),
+                                                  ),
+                                            );
+                                      },
+                                    ),
+                                  ),
+                                ],
                               );
                             },
                           ),
