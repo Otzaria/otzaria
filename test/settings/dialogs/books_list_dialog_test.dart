@@ -21,6 +21,20 @@ void main() {
     ),
   );
 
+  int naiveCount(List<Book> books, String query) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return books.length;
+    return books.where((b) {
+      final category = (b.categoryPath ?? '').replaceFirst(RegExp(r'^/+'), '');
+      return [
+        b.title,
+        b.author ?? '',
+        category,
+        b.fileType ?? '',
+      ].any((f) => f.toLowerCase().contains(q));
+    }).length;
+  }
+
   Future<void> openDialog(WidgetTester tester, List<Book> books) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -172,26 +186,58 @@ void main() {
       final query = word();
       await tester.enterText(field, query);
       await tester.pump();
-      final q = query.trim().toLowerCase();
-      final expected = q.isEmpty
-          ? books.length
-          : books.where((b) {
-              final category = (b.categoryPath ?? '').replaceFirst(
-                RegExp(r'^/+'),
-                '',
-              );
-              return [
-                b.title,
-                b.author ?? '',
-                category,
-                b.fileType ?? '',
-              ].any((f) => f.toLowerCase().contains(q));
-            }).length;
       expect(
-        find.text('$expected / ${books.length}'),
+        find.text('${naiveCount(books, query)} / ${books.length}'),
         findsOneWidget,
         reason: query,
       );
+    }
+  });
+
+  testWidgets('הקלדה ומחיקה אות אחר אות ומעבר בין הרשימות: אותו סינון', (
+    tester,
+  ) async {
+    const letters = ['א', 'ב', 'ג', 'A', 'b', ' '];
+    final random = Random(7);
+    String word(int length) => [
+      for (var k = 0; k < length; k++) letters[random.nextInt(letters.length)],
+    ].join();
+    final books = [
+      for (var i = 0; i < 300; i++)
+        TextBook(
+          title: word(4),
+          author: word(3),
+          categoryPath: '/${word(3)}',
+          source: i % 3 == 0 ? BookSource.user : BookSource.official,
+        ),
+    ];
+    final library = books.where((b) => !b.isPersonalBook).toList();
+    final personal = books.where((b) => b.isPersonalBook).toList();
+    await openDialog(tester, books);
+    final field = find.byType(TextField);
+    for (var n = 0; n < 12; n++) {
+      final shown = n.isEven ? library : personal;
+      if (n > 0) {
+        await tester.tap(find.text(n.isEven ? 'ספרייה 200' : 'אישיים 100'));
+        await tester.pumpAndSettle();
+      }
+      final text = word(5);
+      final steps = [
+        for (var k = 1; k <= text.length; k++) text.substring(0, k),
+        for (var k = text.length - 1; k >= 0; k--) text.substring(0, k),
+        // השאילתה מתארכת גם בתחילתה.
+        text.substring(2),
+        text,
+      ];
+      for (final query in steps) {
+        await tester.enterText(field, query);
+        await tester.pump();
+        expect(
+          find.text('${naiveCount(shown, query)} / ${shown.length}'),
+          findsOneWidget,
+          reason: '$n "$query"',
+        );
+      }
     }
   });
 
@@ -348,7 +394,8 @@ void main() {
         'קובץ pdf': OtzariaIcons.book_pdf_24_regular,
         'html מצורף': OtzariaIcons.document_html_24_regular,
       };
-      for (final MapEntry(key: title, value: expectedIcon) in expected.entries) {
+      for (final MapEntry(key: title, value: expectedIcon)
+          in expected.entries) {
         expect(await icon(title), expectedIcon, reason: title);
       }
     });
