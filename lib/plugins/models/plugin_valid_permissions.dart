@@ -93,6 +93,20 @@ const pluginClipboardReadPermission = 'clipboard.read';
 /// כבויה מציג בורר גופנים חסר בלי שהמשתמש יבין למה.
 const pluginLocalFontsPermission = 'fonts.local.read';
 
+/// הרשאת דפדפן לבקש את מיקום המכשיר מתוך WebView של התוסף
+/// (`navigator.geolocation`); כבויה כברירת מחדל.
+///
+/// נאכפת בשער ההרשאות של ה-WebView ולא ב-RPC: בווינדוס ובלינוקס כבקשת
+/// `GEOLOCATION` ב-`onPermissionRequest`, ובאנדרואיד ב-
+/// `onGeolocationPermissionsShowPrompt` (ושם גם אישור המערכת
+/// `ACCESS_COARSE_LOCATION`, מיקום משוער בלבד). ב-iOS וב-macOS ה-WebView אינו
+/// מעביר בקשות מיקום לאפליקציה, ולכן ההרשאה אינה נתמכת שם.
+///
+/// **מה ההרשאה אינה מבטיחה.** היא נותנת לדף את הקואורדינטות; מה הדף עושה בהן
+/// נקבע לפי הרשאות הרשת שלו. תוסף שמצהיר גם על `network.access` יכול לשלוח
+/// אותן לכל כתובת שבהצהרת הרשת שלו, ולכן מסך ההרשאות אומר זאת במפורש.
+const pluginGeolocationPermission = 'device.geolocation';
+
 /// הרשאות בסיס — מוענקות לכל תוסף אוטומטית, בלי הצהרה במניפסט ובלי הצגה
 /// למשתמש. הצהרה קיימת נסבלת לתאימות לאחור (הוולידטור רק ממליץ להסירה).
 const pluginBaselinePermissions = <String>{
@@ -236,6 +250,10 @@ const pluginValidPermissions = <String>[
   /// מנייה של הגופנים המותקנים מתוך דף התוסף, עם השם המלא של כל face
   /// והבייטים שלו (`queryLocalFonts()`)
   pluginLocalFontsPermission,
+
+  // ===== מיקום =====
+  /// בקשת מיקום המכשיר מתוך דף התוסף (`navigator.geolocation`)
+  pluginGeolocationPermission,
 
   // ===== קבצים אישיים =====
   /// בחירה וקריאה של קבצים אישיים שהמשתמש בוחר במפורש (PDF/טקסט וכו').

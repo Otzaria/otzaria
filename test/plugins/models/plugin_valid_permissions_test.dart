@@ -30,6 +30,8 @@ void main() {
         pluginRunOnStartupPermission,
         'notifications.system',
         'history.read',
+        pluginClipboardReadPermission,
+        pluginGeolocationPermission,
       ]) {
         expect(pluginBaselinePermissions, isNot(contains(sensitive)));
       }

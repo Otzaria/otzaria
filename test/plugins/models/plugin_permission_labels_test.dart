@@ -15,6 +15,19 @@ PluginManifest _manifest({Map<String, dynamic>? startup}) =>
       'contributes': {'startup': ?startup},
     });
 
+PluginManifest _networkManifest({
+  required bool networkEnabled,
+  List<String> allowlist = const [],
+}) => PluginManifest.fromJson({
+  'schemaVersion': 1,
+  'id': 'test.geo',
+  'name': 'Test',
+  'version': '1.0.0',
+  'entrypoint': 'index.html',
+  'permissions': const [pluginGeolocationPermission],
+  'network': {'enabled': networkEnabled, 'allowlist': allowlist},
+});
+
 const _bannedJargon = [
   'sqlite',
   'localhost',
@@ -190,6 +203,104 @@ void main() {
         'ui.feedback',
       ],
     );
+  });
+
+  test('מיקום כבוי כברירת מחדל, וממוקם מיד אחרי לוח ההעתקה', () {
+    expect(
+      pluginPermissionDefaultGrant(
+        pluginGeolocationPermission,
+        isOfflineMode: false,
+      ),
+      isFalse,
+    );
+    expect(
+      orderedPluginPermissions(
+        const [
+          'notes.read',
+          pluginGeolocationPermission,
+          pluginClipboardReadPermission,
+        ],
+        isOfflineMode: false,
+      ),
+      const [
+        pluginClipboardReadPermission,
+        pluginGeolocationPermission,
+        'notes.read',
+      ],
+    );
+  });
+
+  test('מיקום: תוסף עם רשת מקבל אזהרה שמונה את השרתים שאליהם יוכל לשלוח', () {
+    final info = getPermissionInfo(
+      pluginGeolocationPermission,
+      manifest: _networkManifest(
+        networkEnabled: true,
+        allowlist: const [
+          'https://nominatim.openstreetmap.org/reverse',
+          'https://nominatim.openstreetmap.org/search',
+          'https://get.geojs.io/v1/ip/geo.json',
+        ],
+      ),
+    );
+    expect(info.description, contains('לשלוח את המיקום'));
+    expect(info.description, contains('nominatim.openstreetmap.org'));
+    expect(info.description, contains('get.geojs.io'));
+    // כל שרת מופיע פעם אחת, גם כשיש לו כמה כתובות.
+    expect(
+      'nominatim.openstreetmap.org'.allMatches(info.description),
+      hasLength(1),
+    );
+  });
+
+  test('מיקום: תוסף בלי רשת — אין אזהרת שליחה', () {
+    final plain = getPermissionInfo(pluginGeolocationPermission).description;
+    for (final manifest in [
+      _networkManifest(networkEnabled: false),
+      _networkManifest(
+        networkEnabled: false,
+        allowlist: const ['https://example.com'],
+      ),
+    ]) {
+      expect(
+        getPermissionInfo(
+          pluginGeolocationPermission,
+          manifest: manifest,
+        ).description,
+        plain,
+      );
+    }
+    expect(plain, isNot(contains('לשלוח')));
+  });
+
+  test('מיקום: רשת בלי שרת בר-הצגה — האזהרה נשארת, בלי רשימה', () {
+    // כתובות מקומיות לא יוצאות מהמחשב; כתובת ללא סכימה אינה נפרסת לשרת.
+    for (final allowlist in [
+      const <String>[],
+      const ['http://localhost:11434', 'http://127.0.0.1:1234'],
+      const ['example.com'],
+    ]) {
+      final description = getPermissionInfo(
+        pluginGeolocationPermission,
+        manifest: _networkManifest(networkEnabled: true, allowlist: allowlist),
+      ).description;
+      expect(description, contains('לשלוח את המיקום לשרתים באינטרנט'));
+      expect(description, isNot(contains('localhost')));
+      expect(description, isNot(contains('127.0.0.1')));
+    }
+  });
+
+  test('מיקום: רשימת השרתים מוגבלת, והשאר נספרים', () {
+    final description = getPermissionInfo(
+      pluginGeolocationPermission,
+      manifest: _networkManifest(
+        networkEnabled: true,
+        allowlist: [for (var i = 1; i <= 7; i++) 'https://s$i.example.com'],
+      ),
+    ).description;
+    expect(description, contains('s1.example.com'));
+    expect(description, contains('s4.example.com'));
+    expect(description, isNot(contains('s5.example.com')));
+    expect(description, contains('ועוד 3'));
   });
 
   test('host contributions wording also covers actions without WebView', () {

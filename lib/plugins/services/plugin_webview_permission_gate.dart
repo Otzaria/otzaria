@@ -5,6 +5,8 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
+import 'package:otzaria/plugins/services/plugin_asset_scheme.dart';
+import 'package:otzaria/plugins/services/plugin_os_location_permission.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 
 /// שער בקשות ההרשאה של WebView התוספים.
@@ -18,7 +20,22 @@ class PluginWebViewPermissionGate {
   static const Map<String, String> requirements = {
     'CLIPBOARD_READ': pluginClipboardReadPermission,
     'LOCAL_FONTS': pluginLocalFontsPermission,
+    'GEOLOCATION': pluginGeolocationPermission,
   };
+
+  /// הרשאות שמוענקות רק לדף של התוסף עצמו, לא למסגרת אחרת שהוא טוען.
+  ///
+  /// מיקום הוא נתון אישי, ו-`<iframe allow="geolocation">` של אתר שבהצהרת
+  /// הרשת של התוסף היה נהנה אחרת מההענקה שהמשתמש נתן לתוסף.
+  static const Set<String> _ownOriginOnly = {pluginGeolocationPermission};
+
+  // לא `const`: ראו ההערה במבחנים — `PermissionResourceType` אינו const.
+  static final List<PermissionResourceType> _geolocationResources = [
+    PermissionResourceType.GEOLOCATION,
+  ];
+  static final String _geolocationResourceName = PermissionResourceType
+      .GEOLOCATION
+      .toValue();
 
   /// התשובה לבקשה של [request], אחרי בדיקת המניפסט וההענקה שנשמרה.
   ///
@@ -29,9 +46,11 @@ class PluginWebViewPermissionGate {
     required PermissionRequest request,
     required PluginRegistryRepository registry,
   }) async {
+    final resources = request.resources.map((r) => r.toValue()).join(', ');
     try {
       final decision = await _decide(
         resources: request.resources,
+        origin: request.origin.toString(),
         plugin: plugin,
         registry: registry,
       );
@@ -41,7 +60,7 @@ class PluginWebViewPermissionGate {
           action: PermissionResponseAction.GRANT,
         );
       }
-      _logDenial(plugin, request, decision.missingPermission);
+      _logDenial(plugin, resources, request.origin.toString(), decision);
     } catch (e) {
       debugPrint(
         'PluginWebViewPermissionGate: החלטה נכשלה לתוסף '
@@ -54,22 +73,77 @@ class PluginWebViewPermissionGate {
     );
   }
 
+  /// התשובה לבקשת מיקום באנדרואיד.
+  ///
+  /// ה-WebView של אנדרואיד אינו מבקש מיקום דרך `onPermissionRequest` אלא דרך
+  /// `onGeolocationPermissionsShowPrompt`, ולכן הוא מקבל כניסה משלו לאותה
+  /// החלטה. מעבר להצהרה ולהענקה צריך גם אישור מערכת — `ACCESS_COARSE_LOCATION`
+  /// — וה-WebView מחזיר לדף שגיאה אם הוא חסר, גם כשההיתר ניתן כאן.
+  ///
+  /// ההיתר אינו נשמר ([GeolocationPermissionShowPromptResponse.retain]):
+  /// כל בקשה נבדקת מחדש, כך שכיבוי ההרשאה במסך ההגדרות חל מיד. אינה זורקת.
+  static Future<GeolocationPermissionShowPromptResponse> respondGeolocation({
+    required InstalledPlugin plugin,
+    required String origin,
+    required PluginRegistryRepository registry,
+    Future<bool> Function()? ensureOsPermission,
+  }) async {
+    var allow = false;
+    try {
+      var denial = await _decide(
+        resources: _geolocationResources,
+        origin: origin,
+        plugin: plugin,
+        registry: registry,
+      );
+      if (denial.granted) {
+        allow =
+            await (ensureOsPermission ?? PluginOsLocationPermission.ensure)();
+        denial = allow
+            ? denial
+            : const _Decision.denied(
+                reason: 'המשתמש לא אישר מיקום במערכת ההפעלה',
+              );
+      }
+      if (!allow) _logDenial(plugin, _geolocationResourceName, origin, denial);
+    } catch (e) {
+      allow = false;
+      debugPrint(
+        'PluginWebViewPermissionGate: החלטת מיקום נכשלה לתוסף '
+        '${plugin.pluginId} — נדחה. $e',
+      );
+    }
+    return GeolocationPermissionShowPromptResponse(
+      origin: origin,
+      allow: allow,
+      retain: false,
+    );
+  }
+
   static Future<_Decision> _decide({
     required List<PermissionResourceType> resources,
+    required String? origin,
     required InstalledPlugin plugin,
     required PluginRegistryRepository registry,
   }) async {
     // בקשה בלי משאבים אינה "הכול מותר" אלא בקשה שאין מה לאשר בה.
-    if (resources.isEmpty) return const _Decision.denied(null);
+    if (resources.isEmpty) return const _Decision.denied();
 
     for (final resource in resources) {
       final permission = requiredPermissionFor(resource);
-      if (permission == null) return _Decision.denied(resource.toValue());
+      if (permission == null) {
+        return _Decision.denied(missingPermission: resource.toValue());
+      }
+      if (_ownOriginOnly.contains(permission) && !isPluginOwnOrigin(origin)) {
+        return _Decision.denied(
+          reason: 'הבקשה אינה מדף של התוסף עצמו, ו-$permission ניתנת רק לו',
+        );
+      }
       if (!declaresPermission(plugin, permission)) {
-        return _Decision.denied(permission);
+        return _Decision.denied(missingPermission: permission);
       }
       if (await registry.getPermission(plugin.pluginId, permission) != true) {
-        return _Decision.denied(permission);
+        return _Decision.denied(missingPermission: permission);
       }
     }
     return const _Decision.granted();
@@ -79,6 +153,27 @@ class PluginWebViewPermissionGate {
   @visibleForTesting
   static String? requiredPermissionFor(PermissionResourceType resource) {
     return requirements[resource.toValue()];
+  }
+
+  /// האם [origin] הוא דף של התוסף עצמו: קובץ מקומי, הסכימה הייעודית שלו או
+  /// שרת הקבצים המקומי. כתובת אינטרנט, וגם מקור חסר או לא תקין, אינם.
+  ///
+  /// באנדרואיד ה-origin של דף `file://` מגיע כ-`file://` בלי נתיב, ולכן
+  /// הבדיקה היא לפי הסכימה בלבד.
+  @visibleForTesting
+  static bool isPluginOwnOrigin(String? origin) {
+    if (origin == null || origin.isEmpty) return false;
+    final uri = Uri.tryParse(origin);
+    if (uri == null) return false;
+    return switch (uri.scheme) {
+      'file' || pluginAssetScheme => true,
+      'http' => const {
+        '127.0.0.1',
+        'localhost',
+        '::1',
+      }.contains(uri.host.toLowerCase()),
+      _ => false,
+    };
   }
 
   /// האם המניפסט הצהיר על [permission].
@@ -95,15 +190,17 @@ class PluginWebViewPermissionGate {
 
   static void _logDenial(
     InstalledPlugin plugin,
-    PermissionRequest request,
-    String? missing,
+    String resources,
+    String? origin,
+    _Decision decision,
   ) {
-    final resources = request.resources.map((r) => r.toValue()).join(', ');
-    final reason = missing == null
-        ? 'היכולת אינה נפתחת לתוספים'
-        : 'חסרה ההרשאה $missing';
-    final message =
-        'בקשת הרשאת WebView נדחתה [$resources] מ-${request.origin}: $reason';
+    final missing = decision.missingPermission;
+    final reason =
+        decision.reason ??
+        (missing == null
+            ? 'היכולת אינה נפתחת לתוספים'
+            : 'חסרה ההרשאה $missing');
+    final message = 'בקשת הרשאת WebView נדחתה [$resources] מ-$origin: $reason';
     debugPrint('PluginWebViewPermissionGate [${plugin.pluginId}]: $message');
     // fire-and-forget, כמו כל כתיבה ללוג הריצה.
     unawaited(
@@ -118,7 +215,14 @@ class _Decision {
   /// ההרשאה שחסרה, או `null` כשהיכולת עצמה אינה ממופה.
   final String? missingPermission;
 
-  const _Decision.granted() : granted = true, missingPermission = null;
+  /// סיבת דחייה מפורשת כשאין הרשאה אחת שחסרה (למשל מקור זר).
+  final String? reason;
 
-  const _Decision.denied(this.missingPermission) : granted = false;
+  const _Decision.granted()
+    : granted = true,
+      missingPermission = null,
+      reason = null;
+
+  const _Decision.denied({this.missingPermission, this.reason})
+    : granted = false;
 }

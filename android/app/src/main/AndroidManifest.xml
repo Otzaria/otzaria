@@ -15,6 +15,12 @@
     <!-- Foreground service that keeps library downloads alive with the screen off -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- ACCESS_COARSE_LOCATION: approximate location only, requested at runtime when a plugin that
+         the user allowed to use it calls navigator.geolocation. Never requested at startup. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Location hardware is optional: keeps the app installable on devices without it. -->
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+    <uses-feature android:name="android.hardware.location.network" android:required="false" />
     <!-- Add queries for URL launcher -->
     <queries>
         <!-- For email support -->

@@ -12,6 +12,7 @@ class MainActivity : FlutterActivity() {
     private var appExitInfoChannel: AppExitInfoChannel? = null
     private var foregroundWorkChannel: ForegroundWorkChannel? = null
     private var androidUpdateChannel: AndroidUpdateChannel? = null
+    private var locationPermissionChannel: LocationPermissionChannel? = null
     private var dartActivationListenerReady = false
     private val pendingActivationUris = mutableListOf<String>()
 
@@ -40,6 +41,7 @@ class MainActivity : FlutterActivity() {
         appExitInfoChannel = AppExitInfoChannel(this, flutterEngine.dartExecutor.binaryMessenger)
         foregroundWorkChannel = ForegroundWorkChannel(this, flutterEngine.dartExecutor.binaryMessenger)
         androidUpdateChannel = AndroidUpdateChannel(this, flutterEngine.dartExecutor.binaryMessenger)
+        locationPermissionChannel = LocationPermissionChannel(this, flutterEngine.dartExecutor.binaryMessenger)
 
         enqueueIntentUriIfNeeded(intent)
     }
@@ -48,6 +50,15 @@ class MainActivity : FlutterActivity() {
         if (androidUpdateChannel?.onActivityResult(requestCode, resultCode, data) == true) return
         if (folderImportChannel?.onActivityResult(requestCode, resultCode, data) == true) return
         super.onActivityResult(requestCode, resultCode, data)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray,
+    ) {
+        if (locationPermissionChannel?.onRequestPermissionsResult(requestCode, permissions, grantResults) == true) return
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
     }
 
     override fun onResume() {
@@ -87,6 +98,8 @@ class MainActivity : FlutterActivity() {
         foregroundWorkChannel = null
         androidUpdateChannel?.dispose()
         androidUpdateChannel = null
+        locationPermissionChannel?.dispose()
+        locationPermissionChannel = null
         dartActivationListenerReady = false
         super.cleanUpFlutterEngine(flutterEngine)
     }

@@ -27,11 +27,10 @@ InstalledPlugin _plugin({List<String> permissions = const []}) =>
       updatedAt: DateTime(2026),
     );
 
-PermissionRequest _request(List<PermissionResourceType> resources) =>
-    PermissionRequest(
-      origin: WebUri('file:///C:/plugins/p1/index.html'),
-      resources: resources,
-    );
+PermissionRequest _request(
+  List<PermissionResourceType> resources, {
+  String origin = 'file:///C:/plugins/p1/index.html',
+}) => PermissionRequest(origin: WebUri(origin), resources: resources);
 
 class _FakeRegistry implements PluginRegistryRepository {
   _FakeRegistry({this.grants = const {}, this.throwOnRead = false});
@@ -58,10 +57,11 @@ Future<PermissionResponseAction?> _ask({
   List<String> manifest = const [],
   Map<String, bool> grants = const {},
   bool throwOnRead = false,
+  String origin = 'file:///C:/plugins/p1/index.html',
 }) async {
   final response = await PluginWebViewPermissionGate.respond(
     plugin: _plugin(permissions: manifest),
-    request: _request(resources),
+    request: _request(resources, origin: origin),
     registry: _FakeRegistry(grants: grants, throwOnRead: throwOnRead),
   );
   return response.action;
@@ -91,11 +91,19 @@ void main() {
       );
     });
 
+    test('מיקום דורש את ההרשאה שהמשתמש מאשר', () {
+      expect(
+        PluginWebViewPermissionGate.requiredPermissionFor(
+          PermissionResourceType.GEOLOCATION,
+        ),
+        pluginGeolocationPermission,
+      );
+    });
+
     test('יכולת שאינה ממופה אינה נפתחת לתוספים', () {
       for (final resource in [
         PermissionResourceType.CAMERA,
         PermissionResourceType.MICROPHONE,
-        PermissionResourceType.GEOLOCATION,
         PermissionResourceType.FILE_READ_WRITE,
         PermissionResourceType.UNKNOWN,
       ]) {
@@ -242,6 +250,181 @@ void main() {
         ),
       );
       expect(response.resources, clipboard);
+    });
+  });
+
+  group('respond: מיקום (GEOLOCATION)', () {
+    final geolocation = [PermissionResourceType.GEOLOCATION];
+    const manifest = [pluginGeolocationPermission];
+    const granted = {pluginGeolocationPermission: true};
+
+    test('הוצהר והוענק — מאושר', () async {
+      expect(
+        await _ask(resources: geolocation, manifest: manifest, grants: granted),
+        PermissionResponseAction.GRANT,
+      );
+    });
+
+    test('הוצהר אבל לא הוחלט או כובה — נדחה (כבוי כברירת מחדל)', () async {
+      expect(
+        await _ask(resources: geolocation, manifest: manifest),
+        PermissionResponseAction.DENY,
+      );
+      expect(
+        await _ask(
+          resources: geolocation,
+          manifest: manifest,
+          grants: const {pluginGeolocationPermission: false},
+        ),
+        PermissionResponseAction.DENY,
+      );
+    });
+
+    test('הוענק אך לא הוצהר — נדחה', () async {
+      expect(
+        await _ask(resources: geolocation, grants: granted),
+        PermissionResponseAction.DENY,
+      );
+    });
+
+    test('הענקת לוח ההעתקה אינה פותחת מיקום', () async {
+      expect(
+        await _ask(
+          resources: geolocation,
+          manifest: const [pluginClipboardReadPermission],
+          grants: const {pluginClipboardReadPermission: true},
+        ),
+        PermissionResponseAction.DENY,
+      );
+    });
+
+    test('מסגרת של אתר חיצוני לא נהנית מההענקה של התוסף', () async {
+      for (final origin in [
+        'https://nominatim.openstreetmap.org/ui/',
+        'http://evil.example:8080/',
+        'about:blank',
+        '',
+      ]) {
+        expect(
+          await _ask(
+            resources: geolocation,
+            manifest: manifest,
+            grants: granted,
+            origin: origin,
+          ),
+          PermissionResponseAction.DENY,
+          reason: origin,
+        );
+      }
+    });
+
+    test('כשל בקריאת ההענקה נדחה, ואינו זורק', () async {
+      expect(
+        await _ask(
+          resources: geolocation,
+          manifest: manifest,
+          throwOnRead: true,
+        ),
+        PermissionResponseAction.DENY,
+      );
+    });
+  });
+
+  group('isPluginOwnOrigin', () {
+    test('דף של התוסף: קובץ מקומי, סכימה ייעודית ושרת הקבצים המקומי', () {
+      for (final origin in [
+        'file:///C:/plugins/p1/index.html',
+        'file:///home/u/plugins/p1/index.html',
+        'file://', // כך Android מדווח על דף file://
+        'otzaria-plugin://p1/index.html',
+        'http://127.0.0.1:5123/f/p1/index.html',
+        'http://localhost:5123/f/p1/index.html',
+      ]) {
+        expect(
+          PluginWebViewPermissionGate.isPluginOwnOrigin(origin),
+          isTrue,
+          reason: origin,
+        );
+      }
+    });
+
+    test('אתר, מקור חסר או לא תקין — אינם דף של התוסף', () {
+      for (final origin in [
+        null,
+        '',
+        'https://localhost/',
+        'https://example.com/',
+        'http://localhost.evil.example/',
+        'about:blank',
+        'data:text/html,x',
+        'blob:null/1',
+        ':::',
+      ]) {
+        expect(
+          PluginWebViewPermissionGate.isPluginOwnOrigin(origin),
+          isFalse,
+          reason: '$origin',
+        );
+      }
+    });
+  });
+
+  group('respondGeolocation (Android)', () {
+    const manifest = [pluginGeolocationPermission];
+    const granted = {pluginGeolocationPermission: true};
+    const origin = 'file://';
+
+    Future<GeolocationPermissionShowPromptResponse> ask({
+      List<String> declared = manifest,
+      Map<String, bool> grants = granted,
+      String requestOrigin = origin,
+      Future<bool> Function()? os,
+      bool throwOnRead = false,
+    }) => PluginWebViewPermissionGate.respondGeolocation(
+      plugin: _plugin(permissions: declared),
+      origin: requestOrigin,
+      registry: _FakeRegistry(grants: grants, throwOnRead: throwOnRead),
+      ensureOsPermission: os ?? () async => true,
+    );
+
+    test('הוצהר, הוענק ואושר במערכת — מותר, ולא נשמר מעבר לדף', () async {
+      final response = await ask();
+      expect(response.allow, isTrue);
+      expect(response.retain, isFalse, reason: 'כל בקשה נבדקת מחדש');
+      expect(response.origin, origin);
+    });
+
+    test('אישור המערכת מתבקש רק אחרי שהשער אישר', () async {
+      var asked = 0;
+      Future<bool> os() async {
+        asked++;
+        return true;
+      }
+
+      await ask(grants: const {}, os: os);
+      await ask(declared: const [], os: os);
+      await ask(requestOrigin: 'https://example.com/', os: os);
+      expect(asked, 0, reason: 'תוסף שנדחה לא מקפיץ חלון מערכת למשתמש');
+
+      await ask(os: os);
+      expect(asked, 1);
+    });
+
+    test('המשתמש סירב במערכת — נדחה', () async {
+      expect((await ask(os: () async => false)).allow, isFalse);
+    });
+
+    test('כשל באישור המערכת או בקריאת ההענקה נדחה, ואינו זורק', () async {
+      expect(
+        (await ask(os: () async => throw StateError('no activity'))).allow,
+        isFalse,
+      );
+      expect((await ask(throwOnRead: true)).allow, isFalse);
+    });
+
+    test('בלי הענקה או בלי הצהרה — נדחה', () async {
+      expect((await ask(grants: const {})).allow, isFalse);
+      expect((await ask(declared: const [])).allow, isFalse);
     });
   });
 

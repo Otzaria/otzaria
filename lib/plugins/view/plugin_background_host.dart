@@ -490,6 +490,13 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner>
             request: request,
             registry: pluginRegistryRepository,
           ),
+      // אנדרואיד מבקש מיקום כאן ולא ב-onPermissionRequest.
+      onGeolocationPermissionsShowPrompt: (controller, origin) =>
+          PluginWebViewPermissionGate.respondGeolocation(
+            plugin: widget.plugin,
+            origin: origin,
+            registry: pluginRegistryRepository,
+          ),
       onWebViewCreated: (controller) {
         if (!attachPluginController(controller, _entrypointUri)) {
           _onInstanceFailed();

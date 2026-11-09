@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
+import 'package:otzaria/plugins/models/plugin_network_allowlist.dart';
 import 'package:otzaria/plugins/models/plugin_startup_contributions.dart';
 import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
 
@@ -69,12 +70,44 @@ PluginPermissionInfo getPermissionInfo(
       );
     }
   }
+  if (permissionKey == pluginGeolocationPermission && manifest != null) {
+    final base = _permissionLabels[permissionKey]!;
+    if (manifest.networkEnabled) {
+      final servers = _networkServersSentence(manifest);
+      return PluginPermissionInfo(
+        label: base.label,
+        icon: base.icon,
+        description:
+            '${base.description}. התוסף מצהיר על גישה לאינטרנט, ולכן אם תאשר '
+            'גם אותה הוא יוכל לשלוח את המיקום $servers',
+      );
+    }
+  }
   return _permissionLabels[permissionKey] ??
       PluginPermissionInfo(
         label: permissionKey,
         icon: FluentIcons.shield_24_regular,
         description: 'גישה לפונקציונליות: $permissionKey',
       );
+}
+
+/// כמה שרתים מוצגים באזהרת המיקום לפני „ועוד N”.
+const int _maxListedServers = 4;
+
+/// ההמשך של משפט האזהרה: לאילו שרתים התוסף יכול לשלוח, לפי
+/// `network.allowlist`. כתובות מקומיות אינן נחשבות — הן לא יוצאות מהמחשב.
+/// כשאין שם שרת בר-הצגה (כתובת ללא סכימה, למשל) המשפט נשאר כללי, כדי
+/// שהאזהרה לא תיעלם בגלל פורמט.
+String _networkServersSentence(PluginManifest manifest) {
+  final hosts = <String>{};
+  for (final entry in manifest.networkAllowlist) {
+    final host = Uri.tryParse(entry.trim())?.host ?? '';
+    if (host.isNotEmpty && !isLoopbackHost(host)) hosts.add(host);
+  }
+  if (hosts.isEmpty) return 'לשרתים באינטרנט';
+  final shown = hosts.take(_maxListedServers).join(', ');
+  final more = hosts.length - _maxListedServers;
+  return more > 0 ? 'לשרתים: $shown ועוד $more' : 'לשרתים: $shown';
 }
 
 /// מחזיר תיאור ידידותי של האירועים שעשויים להפעיל את מנוע התוסף ברקע.
@@ -135,7 +168,8 @@ bool pluginPermissionDefaultGrant(
   if (permission == pluginRunOnStartupPermission ||
       permission == pluginStartupContributionsPermission ||
       permission == pluginBackgroundKeepAlivePermission ||
-      permission == pluginClipboardReadPermission) {
+      permission == pluginClipboardReadPermission ||
+      permission == pluginGeolocationPermission) {
     return false;
   }
   return !(isOfflineMode && permission == pluginNetworkAccessPermission);
@@ -152,7 +186,8 @@ List<String> orderedPluginPermissions(
     pluginBackgroundKeepAlivePermission => 2,
     pluginNetworkAccessPermission when isOfflineMode => 3,
     pluginClipboardReadPermission => 4,
-    _ => 5,
+    pluginGeolocationPermission => 5,
+    _ => 6,
   };
   final indexed = permissions.indexed.toList();
   indexed.sort((a, b) {
@@ -411,6 +446,16 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
         'התוסף יכול לראות את רשימת הגופנים (סוגי האותיות) שמותקנים במחשב '
         'שלך, ולהציג כל גופן בצורתו האמיתית, למשל בבורר גופנים. הוא אינו '
         'רואה קבצים אחרים ואינו יכול לכתוב למחשב',
+  ),
+
+  // ===== מיקום =====
+  'device.geolocation': PluginPermissionInfo(
+    label: 'מיקום המכשיר',
+    icon: FluentIcons.my_location_24_regular,
+    description:
+        'התוסף יכול לבקש את מיקומך המשוער, למשל כדי לחשב כיוון או זמנים '
+        'לפי המקום שבו אתה נמצא. המערכת עשויה לבקש אישור נוסף לכך. בלי '
+        'ההרשאה אפשר להמשיך לבחור מקום ידנית',
   ),
 
   // ===== לוח העתקה =====

@@ -809,6 +809,13 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
             request: request,
             registry: pluginRegistryRepository,
           ),
+      // אנדרואיד מבקש מיקום כאן ולא ב-onPermissionRequest.
+      onGeolocationPermissionsShowPrompt: (controller, origin) =>
+          PluginWebViewPermissionGate.respondGeolocation(
+            plugin: widget.plugin,
+            origin: origin,
+            registry: pluginRegistryRepository,
+          ),
       // WebView2 מריץ otzaria:// דרך מטפל הפרוטוקול של המערכת אם האירוע אינו
       // מבוטל — עקיפה של המדיניות כאן. הביטול הוא רשת ביטחון בלבד: ההחלטה
       // מתקבלת ב-shouldOverrideUrlLoading, שנורה לפניו.
