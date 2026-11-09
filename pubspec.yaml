@@ -192,13 +192,23 @@ dependency_overrides:
       url: https://github.com/Otzaria/sentry-dart
       ref: 93e7398355e80557a342666f98b23cc9bb832848
       path: packages/flutter
-  # TODO: לחזור ל-pub.dev אחרי שחרור DavBfr/dart_pdf#1984, #1985, #1986, #1987, #1988, #1993, #1994, #1995, #1996
-  # (הדפסה ב-Windows ב-thread נפרד, PDFium עצל ופרטי, השלמת עבודה שנכשלה ב-Linux, בעלי הדיאלוג בריבוי חלונות, בעלים מפורש לכל עבודה). קומיט שילוב.
+  # TODO: לחזור ל-pub.dev (printing, pdf, pdf_widget_wrapper) אחרי מיזוג ושחרור DavBfr/dart_pdf#1976, #1984-#1988,
+  # #1993-#1996, #2005, #2008-#2027. קומיט בענף otzaria/integration.
   printing:
     git:
       url: https://github.com/Otzaria/dart_pdf
-      ref: f7f992b49370307143a4f82f59341bb1e6189792
+      ref: fb1bcbd6a43a5510462b949fcdf2526cd8abe422
       path: printing
+  pdf:
+    git:
+      url: https://github.com/Otzaria/dart_pdf
+      ref: fb1bcbd6a43a5510462b949fcdf2526cd8abe422
+      path: pdf
+  pdf_widget_wrapper:
+    git:
+      url: https://github.com/Otzaria/dart_pdf
+      ref: fb1bcbd6a43a5510462b949fcdf2526cd8abe422
+      path: widget_wrapper
   # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור daohoangson/flutter_widget_from_html#1658, #1659,
   # #1660, #1661, #1662, #1663 (מטמון CSS, מיזוג margins, מחרוזות debug עצלות, Flattener,
   # FutureBuilder, צבע hex פגום).
