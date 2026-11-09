@@ -8,6 +8,7 @@ class _LazyAppSubmenuButton extends StatefulWidget {
   final double maxWidth;
   final MenuStyle menuStyle;
   final MenuController? controller;
+  final VoidCallback onControllerUnmounted;
   final VoidCallback? onOpen;
   final List<Widget> Function(
     List<AppContextMenuEntry> entries,
@@ -25,6 +26,7 @@ class _LazyAppSubmenuButton extends StatefulWidget {
     required this.maxWidth,
     required this.menuStyle,
     required this.buildChildren,
+    required this.onControllerUnmounted,
     this.controller,
     this.onOpen,
   });
@@ -60,6 +62,7 @@ class _LazyAppSubmenuButtonState extends State<_LazyAppSubmenuButton>
   @override
   void dispose() {
     _refreshSubscription?.cancel();
+    widget.onControllerUnmounted();
     super.dispose();
   }
 
@@ -104,6 +107,9 @@ class _LazyAppSubmenuButtonState extends State<_LazyAppSubmenuButton>
   @override
   void didUpdateWidget(_LazyAppSubmenuButton oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.controller, widget.controller)) {
+      oldWidget.onControllerUnmounted();
+    }
     if (oldWidget.entry.childrenRefreshStream !=
         widget.entry.childrenRefreshStream) {
       _refreshSubscription?.cancel();

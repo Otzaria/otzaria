@@ -98,6 +98,9 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
 
   final _submenuControllers = <MenuController, int>{};
 
+  @visibleForTesting
+  int get debugTrackedSubmenuControllerCount => _submenuControllers.length;
+
   @override
   void dispose() {
     _removeContextMenuOverlay();
