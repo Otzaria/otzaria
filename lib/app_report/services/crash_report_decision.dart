@@ -19,7 +19,7 @@ enum AppCrashReportMode {
 }
 
 /// הפעולה שההפעלה הנוכחית תבצע בעקבות קריסה של ההפעלה הקודמת.
-enum CrashReportAction { none, prompt, sendAutomatically }
+enum CrashReportAction { none, prompt, sendAutomatically, suggestFasterDrive }
 
 /// ההכרעה מה לעשות עם קריסה שזוהתה: מצב ההגדרה × המועמד × המגבלה.
 abstract class CrashReportDecision {
@@ -29,9 +29,13 @@ abstract class CrashReportDecision {
     required AppCrashReportMode mode,
     required CrashCandidate? candidate,
     required bool throttleAllows,
+    bool isPortable = false,
   }) {
     if (candidate == null || mode == AppCrashReportMode.never) {
       return CrashReportAction.none;
+    }
+    if (isPortable && isLikelySlowDrive(candidate)) {
+      return CrashReportAction.suggestFasterDrive;
     }
     if (mode == AppCrashReportMode.always) {
       return throttleAllows
@@ -40,6 +44,16 @@ abstract class CrashReportDecision {
     }
     return CrashReportAction.prompt;
   }
+
+  /// 0xc0000006 מעיד על כשל בקריאת דף מהדיסק. תקיעה לבדה אינה ראיה לכשל בכונן.
+  static bool isLikelySlowDrive(CrashCandidate candidate) =>
+      _isInPageError(candidate.signature) ||
+      _isInPageError(candidate.minidumpSignature);
+
+  static bool _isInPageError(CrashSignature? signature) =>
+      signature?.exceptionType.startsWith(_inPageError) ?? false;
+
+  static const String _inPageError = '0xc0000006';
 
   /// האתר מוסיף "[קריסה]" לכל דיווח אוטומטי, ולכן הכותרת אומרת שזו תקיעה.
   static const String hangTitle = 'התוכנה נתקעה';

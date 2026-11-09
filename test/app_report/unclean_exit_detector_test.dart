@@ -335,6 +335,30 @@ void main() {
       expect(candidate.signature!.exceptionType, 'StateError');
     });
 
+    test('0xc0000006 ב-dump מזוהה גם כשראיה של Dart קובעת את החתימה', () async {
+      final now = DateTime.now();
+      final start = now.subtract(const Duration(minutes: 5));
+      writeLock(startedAt: start);
+      writeErrors(
+        entry(
+          'Unhandled Error',
+          start.add(const Duration(minutes: 1)),
+          body:
+              'Exception: StateError: Bad state\nStack:\n'
+              '#0      A.b (package:otzaria/a.dart:1:2)\n',
+        ),
+      );
+      dump('new.dmp', code: 0xc0000006);
+
+      final candidate = await freshDetector().detectPreviousCrash();
+      expect(candidate!.signature!.exceptionType, 'StateError');
+      expect(
+        candidate.minidumpSignature!.exceptionType,
+        startsWith('0xc0000006'),
+      );
+      expect(CrashReportDecision.isLikelySlowDrive(candidate), isTrue);
+    });
+
     test(
       'ARM64 (breakpad): ה-dump רק בתוך envelope ב-*.run — חתימה וקובץ (#3206)',
       () async {
