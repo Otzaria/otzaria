@@ -42,6 +42,8 @@ jobs:
         run: flutter pub get --enforce-lockfile
 
       - name: Build macOS app (debug, with retry)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           # xcodebuild נכשל לפעמים ב-"never received target ended message"; ניסיון חוזר פותר.
           for attempt in 1 2 3; do
@@ -54,6 +56,8 @@ jobs:
           exit 1
 
       - name: Run RunnerTests (XCTest)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -o pipefail
           xcodebuild test \
