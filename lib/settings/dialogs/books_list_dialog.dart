@@ -45,6 +45,7 @@ class _BooksListDialogState extends State<_BooksListDialog> {
   late final List<_BookRow> _libraryRows;
   late final List<_BookRow> _personalRows;
   late List<_BookRow> _visibleRows;
+  String _visibleQuery = '';
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _showPersonal = false;
@@ -74,10 +75,15 @@ class _BooksListDialogState extends State<_BooksListDialog> {
 
   void _applyFilter() {
     final query = _searchController.text.trim().toLowerCase();
+    // שאילתה שמכילה את הקודמת מתאימה רק לשורות שכבר מוצגות.
+    final source = _visibleQuery.isNotEmpty && query.contains(_visibleQuery)
+        ? _visibleRows
+        : _rows;
     setState(() {
+      _visibleQuery = query;
       _visibleRows = query.isEmpty
           ? _rows
-          : _rows.where((r) => r.matches(query)).toList();
+          : source.where((r) => r.matches(query)).toList();
     });
   }
 
