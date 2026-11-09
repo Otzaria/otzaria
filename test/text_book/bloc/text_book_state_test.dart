@@ -53,20 +53,23 @@ void main() {
     });
 
     test('alternative word list order remains significant', () {
-      final left = _loadedState(alternativeWords: const {
-        0: ['אמר', 'ויאמר'],
-      });
-      final right = _loadedState(alternativeWords: const {
-        0: ['ויאמר', 'אמר'],
-      });
+      final left = _loadedState(
+        alternativeWords: const {
+          0: ['אמר', 'ויאמר'],
+        },
+      );
+      final right = _loadedState(
+        alternativeWords: const {
+          0: ['ויאמר', 'אמר'],
+        },
+      );
       expect(left, isNot(equals(right)));
     });
 
     test('large search maps compare without sorting thousands of keys', () {
       final names = List.generate(1000, (index) => 'word_$index');
       final optionsA = {
-        for (final name in names)
-          name: {'exact': true, 'fuzzy': false},
+        for (final name in names) name: {'exact': true, 'fuzzy': false},
       };
       final optionsB = {
         for (final name in names.reversed)
