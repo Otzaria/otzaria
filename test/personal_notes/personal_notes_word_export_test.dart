@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/services/personal_notes_import_export_service.dart';
+import 'package:otzaria/personal_notes/services/personal_notes_service.dart';
+import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
 import 'package:otzaria/printing/print_content_models.dart';
 
 PersonalNote _note({
@@ -32,6 +34,15 @@ PersonalNote _note({
     createdAt: createdAt ?? DateTime(2025, 1, 1),
     updatedAt: updatedAt ?? DateTime(2025, 3, 7),
   );
+}
+
+class _CapturedNotesDatabase extends Fake implements PersonalNotesDatabase {
+  PersonalNote? inserted;
+
+  @override
+  Future<void> insertNote(PersonalNote note) async {
+    inserted = note;
+  }
 }
 
 void main() {
@@ -220,6 +231,65 @@ void main() {
     });
   });
 
+  group('QA: יצירה עד ייצוא דיבור המתחיל', () {
+    test('גרש, גרשיים, מרכאות ASCII וניקוד עוברים יצירה וייצוא', () async {
+      for (final (selected, expectedTitle, expectedAnchor) in [
+        ('רש"י', 'רש"י', 'רשי'),
+        ('רש״י', 'רש״י', 'רשי'),
+        ('ר׳', 'ר׳', 'ר'),
+        ('רַשּׁ״י', 'רש״י', 'רשי'),
+      ]) {
+        final database = _CapturedNotesDatabase();
+        final note = await PersonalNotesService(database: database).createNote(
+          bookId: 'ספר בדיקה',
+          bookContent: 'פירוש $selected כאן',
+          lineNumber: 1,
+          selectedText: selected,
+          sourceSelectedText: selected,
+          content: 'פירוט',
+          contentPlain: 'פירוט',
+          contentFormat: PersonalNoteContentFormat.plain,
+        );
+
+        expect(database.inserted, note);
+        expect(note.anchorText, expectedAnchor, reason: selected);
+        expect(note.displayTitle, expectedTitle, reason: selected);
+        final blocks = service.buildWordExportBlocks(
+          notes: [note],
+          locationRef: (_) => null,
+        );
+        expect(
+          blocks.last.text,
+          '<b>$expectedTitle.</b> פירוט',
+          reason: selected,
+        );
+      }
+    });
+
+    test('כותרת שונה בשל החלפה בתצוגה אינה גוברת על עוגן המקור', () async {
+      final database = _CapturedNotesDatabase();
+      final note = await PersonalNotesService(database: database).createNote(
+        bookId: 'ספר בדיקה',
+        bookContent: 'פתיחה מקור ארוך ומסקנה',
+        lineNumber: 1,
+        selectedText: 'תצוגה',
+        sourceSelectedText: 'מקור',
+        sourceSelectionOffset: 7,
+        content: 'פירוט',
+        contentPlain: 'פירוט',
+        contentFormat: PersonalNoteContentFormat.plain,
+      );
+
+      expect(note.anchorText, 'מקור');
+      expect(note.displayTitle, 'תצוגה');
+      final blocks = service.buildWordExportBlocks(
+        notes: [note],
+        locationRef: (_) => null,
+      );
+      expect(blocks.last.text, '<b>מקור.</b> פירוט');
+    });
+  });
+
   group('buildWordExportBlocks - דיבור המתחיל', () {
     test('כותרת הערת שורה נשמרת כשאין בחירת מילים', () {
       for (final anchor in [null, '', '   ']) {
@@ -242,6 +312,42 @@ void main() {
           '<b>כותרת &lt;שלמה&gt; &amp; מקור.</b> תוכן ההערה',
         );
       }
+    });
+
+    test('גרשיים בבחירה נשמרים בייצוא כשהעוגן המנורמל תואם', () {
+      final blocks = service.buildWordExportBlocks(
+        notes: [
+          _note(
+            id: 'quote',
+            bookId: 'ספר בדיקה',
+            lineNumber: 1,
+            displayTitle: 'אב״ג',
+            anchorText: 'אבג',
+            content: 'פירוט',
+          ),
+        ],
+        locationRef: (_) => null,
+      );
+
+      expect(blocks.last.text, '<b>אב״ג.</b> פירוט');
+    });
+
+    test('גרש בבחירה נשמר אף שהעוגן המנורמל חסר אותו', () {
+      final blocks = service.buildWordExportBlocks(
+        notes: [
+          _note(
+            id: 'geresh',
+            bookId: 'ספר בדיקה',
+            lineNumber: 1,
+            displayTitle: "ג׳",
+            anchorText: 'ג',
+            content: 'פירוט',
+          ),
+        ],
+        locationRef: (_) => null,
+      );
+
+      expect(blocks.last.text, '<b>ג׳.</b> פירוט');
     });
 
     test('בחירת המילים עדיפה על כותרת התצוגה', () {

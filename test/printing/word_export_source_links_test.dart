@@ -275,6 +275,22 @@ void main() {
     });
   });
 
+    test('selection punctuation survives all the way to document.xml', () {
+      final note = _note('quoted').copyWith(
+        displayTitle: 'אב״ג',
+        anchorText: 'אבג',
+      );
+      final blocks = PersonalNotesImportExportService().buildWordExportBlocks(
+        notes: [note],
+        locationRef: (_) => null,
+      );
+      final archive = _document(blocks);
+      final document = _xml(archive, 'word/document.xml');
+
+      expect(document.innerText, contains('אב״ג.'));
+      expect(document.innerText, isNot(contains('אבג.')));
+    });
+
   group('Personal-note export grouping', () {
     test('identical labels group only notes at the same linked location', () {
       final notes = [
