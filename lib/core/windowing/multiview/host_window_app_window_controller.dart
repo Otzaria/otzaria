@@ -7,7 +7,7 @@ import 'package:otzaria/core/windowing/app_window_id.dart';
 import 'package:otzaria/core/windowing/multiview/cocoa_view_window_native.dart';
 import 'package:otzaria/core/windowing/multiview/multiview_flag.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_native.dart';
-import 'package:window_manager/window_manager.dart'
+import 'package:window_manager/legacy.dart'
     show ResizeEdge, TitleBarStyle;
 
 /// החלון של חלון Dart: המצב מהבקר של המסגרת, המיקום דרך [ViewWindowNative].
