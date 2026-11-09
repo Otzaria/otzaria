@@ -77,6 +77,16 @@ class DecisionTests(unittest.TestCase):
         self.assertEqual(decide(["pubspec.lock", "pubspec.yaml", "lib/main.dart"], head),
                          (False, False, []))
 
+    def test_native_hook_package_change_runs_every_job(self):
+        base = lock(flutter_inappwebview_ios="1.2.0", sentry_flutter="9.30.1",
+                    window_manager="0.5.0", markdown="7.3.0", googleapis="17.0.0",
+                    opentype_shaper="0.1.0")
+        head = base.replace('version: "0.1.0"', 'version: "0.2.0"')
+        result = changes.decide({"pubspec.lock"}, WORKFLOW,
+                                {"pubspec.lock": base, "pubspec.yaml": PUBSPEC}.__getitem__,
+                                {"pubspec.lock": head, "pubspec.yaml": PUBSPEC}.__getitem__)
+        self.assertEqual(result[:2], (True, True))
+
     def test_scenario_dependency_change_runs_every_job(self):
         for changed in [dict(flutter_inappwebview_ios="1.2.1"), dict(sentry_flutter="9.31.0"),
                         dict(window_manager=None), dict(pdfium_flutter="0.4.2")]:

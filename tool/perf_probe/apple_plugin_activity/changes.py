@@ -24,6 +24,13 @@ SCENARIO_PACKAGES = (
     "package_info_plus*",
     "sqlite3",
     "vm_service",
+    # Native build hooks compile for the Apple targets during the app build.
+    "otzaria_search_engine",
+    "opentype_shaper",
+    "objective_c",
+    "hooks",
+    "code_assets",
+    "native_toolchain_c",
 )
 
 # Checked by the Ubuntu contracts job; the Mac jobs add nothing for these.
