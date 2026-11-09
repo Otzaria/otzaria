@@ -12,6 +12,7 @@ on:
       - 'test/utils/file/convert_document_file_async_io_test.dart'
       - 'test/data/data_providers/scan_external_books_db_cleanup_test.dart'
       - 'tool/perf_probe/external_books_gc_probe.dart'
+      - 'test/tool/perf_probe/external_books_gc_probe_test.dart'
       - '.github/workflows/windows_personal_books_io.yml'
   workflow_dispatch:
 
@@ -43,7 +44,7 @@ jobs:
       - name: Smoke-run the serial, bounded responsiveness probe
         shell: pwsh
         run: |
-          $fixture = Join-Path $env:RUNNER_TEMP 'gc-probe-sample.txt'
-          Set-Content -Path $fixture -Value 'Sample book' -Encoding utf8
-          dart run tool/perf_probe/external_books_gc_probe.dart "--file=$fixture" --runs=1
+          # The probe imports Flutter application code and needs dart:ui.
+          # A plain "dart run" has no Flutter engine; use flutter test.
+          flutter test --reporter expanded test/tool/perf_probe/external_books_gc_probe_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

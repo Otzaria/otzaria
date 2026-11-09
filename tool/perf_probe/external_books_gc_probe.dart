@@ -85,9 +85,10 @@ Future<void> main(List<String> args) async {
 
 void _usage() {
   stderr.writeln(
-    'Usage: dart run tool/perf_probe/external_books_gc_probe.dart '
-    '--folder=<books-dir> OR --file=<book-path> '
-    '[--runs=2] [--max-files=20000] [--max-file-mib=128]',
+    'Run using flutter test test/tool/perf_probe/external_books_gc_probe_test.dart '
+    'with --dart-define=OTZARIA_GC_PROBE_FOLDER=<books-dir> or '
+    '--dart-define=OTZARIA_GC_PROBE_FILE=<book-path>; '
+    'see tool/perf_probe/EXTERNAL_BOOKS_GC_PROBE.md.',
   );
 }
 

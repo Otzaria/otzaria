@@ -16,14 +16,28 @@ From the repository root, with Flutter dependencies installed:
 
 ```powershell
 flutter pub get
-dart run tool/perf_probe/external_books_gc_probe.dart --folder="D:\\MyBooks" --runs=2 --max-files=20000 --max-file-mib=128 | Tee-Object -FilePath personal-books-gc-results.jsonl
+flutter test --reporter expanded `
+  "--dart-define=OTZARIA_GC_PROBE_FOLDER=D:\\MyBooks" `
+  --dart-define=OTZARIA_GC_PROBE_RUNS=2 `
+  --dart-define=OTZARIA_GC_PROBE_MAX_FILES=20000 `
+  --dart-define=OTZARIA_GC_PROBE_MAX_FILE_MIB=128 `
+  test/tool/perf_probe/external_books_gc_probe_test.dart |
+    Tee-Object -FilePath personal-books-gc-results.log
 ```
 
 For a single problem file on a slow/cloud/network volume:
 
 ```powershell
-dart run tool/perf_probe/external_books_gc_probe.dart --file="D:\\MyBooks\\very-slow.docx" --runs=2 --max-file-mib=512
+flutter test --reporter expanded `
+  "--dart-define=OTZARIA_GC_PROBE_FILE=D:\\MyBooks\\very-slow.docx" `
+  --dart-define=OTZARIA_GC_PROBE_RUNS=2 `
+  --dart-define=OTZARIA_GC_PROBE_MAX_FILE_MIB=512 `
+  test/tool/perf_probe/external_books_gc_probe_test.dart
 ```
+
+Run the probe via the **Flutter test engine**, not `dart run`: production
+document converters transitively import `dart:ui`, which is not provided by a
+standalone Dart VM. Omitting file/folder defines runs one synthetic smoke book.
 
 The limit is **per book**, not total corpus size. Use the same source files
 for both modes; do not copy them to a fast SSD before measurement.
@@ -67,5 +81,6 @@ slow-storage reproduction while collecting a VM/native hang trace.
 
 ```powershell
 flutter test test/utils/file/convert_document_file_async_io_test.dart test/data/data_providers/scan_external_books_db_cleanup_test.dart test/utils/file/convert_document_file_test.dart test/data/data_providers/scan_external_books_test.dart
+flutter test test/tool/perf_probe/external_books_gc_probe_test.dart
 flutter analyze
 ```
