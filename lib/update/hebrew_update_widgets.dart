@@ -3,7 +3,7 @@ import 'package:otzaria/theme/app_tokens.dart';
 
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'updat_compat.dart';
