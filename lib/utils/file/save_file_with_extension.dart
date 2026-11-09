@@ -51,7 +51,7 @@ Future<String?> saveFileWithExtension({
 ///
 /// מחזיר את הנתיב הסופי של הקובץ (המקורי אם הסיומת כבר קיימת).
 Future<String> ensureFileExtension(String path, String extension) async {
-  final normalizedExtension = extension.replaceFirst(RegExp(r'^\\.+'), '');
+  final normalizedExtension = extension.replaceFirst(RegExp(r'^\.+'), '');
   if (normalizedExtension.isEmpty) {
     throw ArgumentError.value(extension, 'extension', 'Must not be empty');
   }
