@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:otzaria/core/error_log_file.dart';
+import 'package:otzaria/utils/file/windows_library_preload.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter/foundation.dart';
@@ -28,6 +30,22 @@ class NotificationService {
   /// כל אתחול ממתין לשער הזה (חשיפת החלון הראשי), כדי שלא ייכנס לנתיב העלייה.
   /// ⚠️ ב-Windows ה-COM רץ ב-thread של הפורק; אסור לחזור לגרסה שמריצה אותו כאן (#1192).
   static Future<void> Function()? startupGate;
+
+  /// טוען את ה-DLL של ההתראות ב-Windows לפני `initialize` של התוסף.
+  @visibleForTesting
+  static Future<void> Function() windowsLibraryPreload = _preloadWindowsLibrary;
+
+  static Future<void> _preloadWindowsLibrary() async {
+    if (!Platform.isWindows) return;
+    try {
+      await Isolate.run(
+        () => preloadWindowsLibrary('flutter_local_notifications_windows.dll'),
+      );
+    } catch (error) {
+      // אופטימיזציה בלבד: אם ה-DLL באמת חסר, initialize ידווח על כך.
+      debugPrint('Notifications DLL preload failed: $error');
+    }
+  }
 
   @visibleForTesting
   void resetForTesting() {
@@ -123,6 +141,12 @@ class NotificationService {
           linux: initializationSettingsLinux,
           windows: initializationSettingsWindows,
         );
+
+    // ה-DynamicLibrary.open של התוסף רץ על ה-UI, וסריקת אנטי-וירוס בו תוקעת אותו;
+    // אחרי טעינה ב-isolate עזר המודול כבר טעון, וה-open חוזר מיד.
+    if (defaultTargetPlatform == TargetPlatform.windows) {
+      await windowsLibraryPreload();
+    }
 
     await flutterLocalNotificationsPlugin.initialize(
       settings: initializationSettings,
