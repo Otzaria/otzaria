@@ -2073,6 +2073,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
             searchOptions: updated.searchOptions,
             anyOrder: updated.matchPolicy.anyOrder,
           ),
+          querySemantics: updated.matchPolicy.querySemantics,
         );
       }
     }
