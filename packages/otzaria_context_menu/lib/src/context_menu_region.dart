@@ -379,23 +379,39 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
                       maintainSize: false,
                       maintainAnimation: false,
                       maintainState: true,
-                      child: _AppContextMenuPanel(
-                        presentation: presentation,
-                        key: _menuPanelKey,
-                        entries: orderedEntries,
-                        metrics: metrics,
-                        menuStyle: menuStyle,
-                        maxWidth: maxMenuWidth,
-                        maxHeight: maxMenuHeight,
-                        buildChildren: (panelContext, panelEntries) =>
-                            _buildMenuPanelChildren(
-                              panelContext,
-                              panelEntries,
-                              metrics,
-                              maxMenuWidth,
-                              submenuControllers,
-                              iconRowControllers,
-                            ),
+                      // MenuAnchor מאזין לגלילה האופקית בשורת האייקונים בלבד;
+                      // גלילת הפאנל צריכה לסגור גם היא את תתי־התפריטים שלה.
+                      child: NotificationListener<ScrollStartNotification>(
+                        onNotification: (notification) {
+                          if (notification.depth == 0 &&
+                              notification.metrics.axis == Axis.vertical) {
+                            for (final controller
+                                in iconRowControllers.values.expand(
+                                  (row) => row,
+                                )) {
+                              if (controller.isOpen) controller.close();
+                            }
+                          }
+                          return false;
+                        },
+                        child: _AppContextMenuPanel(
+                          presentation: presentation,
+                          key: _menuPanelKey,
+                          entries: orderedEntries,
+                          metrics: metrics,
+                          menuStyle: menuStyle,
+                          maxWidth: maxMenuWidth,
+                          maxHeight: maxMenuHeight,
+                          buildChildren: (panelContext, panelEntries) =>
+                              _buildMenuPanelChildren(
+                                panelContext,
+                                panelEntries,
+                                metrics,
+                                maxMenuWidth,
+                                submenuControllers,
+                                iconRowControllers,
+                              ),
+                        ),
                       ),
                     ),
                   ),
