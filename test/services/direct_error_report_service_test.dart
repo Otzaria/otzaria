@@ -230,6 +230,30 @@ void main() {
     });
   });
 
+  group('DirectErrorReportService.lookupReportStatus', () {
+    test(
+      'דיווח בתור ואחר כך נשלח: queued ואז sent, ולא ידוע כשאינו קיים',
+      () async {
+        final repository = _Queue(store, DirectErrorReportService.pendingKind);
+        await repository.overwrite([
+          _buildReport(
+            id: 'plugin:queued-1',
+            queueType: DirectErrorReportQueueType.automaticRetry,
+          ),
+        ]);
+        final service = DirectErrorReportService(
+          client: MockClient((_) async => http.Response('', 200)),
+          reportStore: store,
+          sentCounter: SentReportsCounter.inMemory(),
+        );
+        expect(await service.lookupReportStatus('plugin:queued-1'), 'queued');
+        expect(await service.lookupReportStatus('plugin:other'), 'unknown');
+        await service.flushPendingReports();
+        expect(await service.lookupReportStatus('plugin:queued-1'), 'sent');
+      },
+    );
+  });
+
   group('DirectErrorReportService.flushPendingReports', () {
     test('automatic flush sends only retryable queued reports', () async {
       final repository = _Queue(store, DirectErrorReportService.pendingKind);

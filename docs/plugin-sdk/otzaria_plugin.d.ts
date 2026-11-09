@@ -2553,6 +2553,23 @@ export interface SubmitBookCorrectionParams {
   requireTextCorrection?: boolean;
 }
 
+export interface GetBookCorrectionStatusParams {
+  /** The `reportId` that was passed to `feedback.submitBookCorrection`. */
+  reportId: string;
+}
+
+export interface GetBookCorrectionStatusResult {
+  /**
+   * `queued`: still in Otzaria's local queue. `sent`: delivered. `rejected`:
+   * permanently rejected by the server. `unknown`: not found (deleted, trimmed
+   * from the sent history, restored from a backup, or caught between the queue
+   * and the history). `unknown` is not final: keep the previous state.
+   */
+  status: 'queued' | 'sent' | 'rejected' | 'unknown';
+  reportId: string;
+  nativeReportId: string;
+}
+
 export interface SubmitBookCorrectionResult {
   /** `sent`: delivered now. `queued`: stored in Otzaria's local queue. */
   status: 'sent' | 'queued';
@@ -2700,6 +2717,7 @@ export type OtzariaMethod =
   | 'publishedData.listOwn'
   | 'feedback.sendEmail'
   | 'feedback.submitBookCorrection'
+  | 'feedback.getBookCorrectionStatus'
   | 'feedback.report'
   | 'feedback.hasReporterEmail'
   | 'history.list'
@@ -2947,6 +2965,15 @@ export interface OtzariaGlobal {
     method: 'feedback.submitBookCorrection',
     payload: SubmitBookCorrectionParams
   ): Promise<OtzariaResponse<SubmitBookCorrectionResult>>;
+
+  /**
+   * State of a correction report this plugin submitted (`queued` reports are
+   * sent later by Otzaria's own queue). Read-only, own reports only.
+   */
+  call(
+    method: 'feedback.getBookCorrectionStatus',
+    payload: GetBookCorrectionStatusParams
+  ): Promise<OtzariaResponse<GetBookCorrectionStatusResult>>;
 
   /**
    * Call a Host API method.

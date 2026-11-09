@@ -163,6 +163,17 @@ class DirectErrorReportService {
     );
   }
 
+  /// מצב דיווח לפי מזהה: `queued` בתור, `sent` נשלח, `rejected` נדחה סופית
+  /// על ידי השרת, או `unknown` (לא נמצא: נמחק, נחתך מהיסטוריית הנשלחים,
+  /// שוחזר מגיבוי, או שהמזהה הוחלף אחרי התנגשות). `unknown` אינו סופי: בזמן
+  /// ההעברה מהתור להיסטוריה אפשר לראות רגע אחד שהדיווח אינו בשום רשימה.
+  Future<String> lookupReportStatus(String reportId) async {
+    if (await _rowOf(pendingKind, reportId) != null) return 'queued';
+    final sent = await _rowOf(sentKind, reportId);
+    if (sent == null) return 'unknown';
+    return sent.payload['rejectionReason'] != null ? 'rejected' : 'sent';
+  }
+
   Future<int> getPendingReportsCount() => _reports.countByKind(pendingKind);
 
   Future<List<DirectErrorReport>> getPendingReports() async {

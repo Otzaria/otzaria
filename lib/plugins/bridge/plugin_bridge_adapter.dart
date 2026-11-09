@@ -6968,6 +6968,8 @@ class PluginBridgeAdapter {
     switch (action) {
       case 'submitBookCorrection':
         return _submitBookCorrection(args);
+      case 'getBookCorrectionStatus':
+        return _getBookCorrectionStatus(args);
       case 'sendEmail':
         final to = args['to'] as String?;
         final subject = args['subject'] as String?;
@@ -7073,6 +7075,24 @@ class PluginBridgeAdapter {
           'error.unknown_method: Unknown action in feedback: $action',
         );
     }
+  }
+
+  /// מצב דיווח תיקון שהתוסף עצמו שלח. המזהה המקומי של אוצריא נבנה כאן מהמזהה
+  /// של התוסף, ולכן תוסף יכול לשאול רק על דיווחים שלו, ושום תוכן אינו נחשף.
+  Future<Map<String, dynamic>> _getBookCorrectionStatus(
+    Map<String, dynamic> args,
+  ) async {
+    final id = args['reportId'];
+    if (id is! String || !RegExp(r'^[a-zA-Z0-9_.:-]{1,160}$').hasMatch(id)) {
+      throw Exception('error.invalid_params: מזהה הדיווח אינו תקין.');
+    }
+    final nativeId = '${plugin.pluginId}:$id';
+    final direct = _directBookReportService ??= DirectErrorReportService();
+    return {
+      'status': await direct.lookupReportStatus(nativeId),
+      'reportId': id,
+      'nativeReportId': nativeId,
+    };
   }
 
   Future<Map<String, dynamic>> _submitBookCorrection(

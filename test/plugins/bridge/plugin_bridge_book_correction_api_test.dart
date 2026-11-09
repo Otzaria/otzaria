@@ -151,6 +151,23 @@ void main() {
         _codedError(code),
       );
 
+  group('feedback.getBookCorrectionStatus', () {
+    for (final args in <Map<String, dynamic>>[
+      {},
+      {'reportId': 42},
+      {'reportId': ''},
+      {'reportId': 'יש רווח'},
+      {'reportId': 'x' * 161},
+    ]) {
+      test('דוחה מזהה לא תקין: $args', () {
+        return expectLater(
+          adapter.execute('feedback', 'getBookCorrectionStatus', args),
+          _codedError('error.invalid_params'),
+        );
+      });
+    }
+  });
+
   group('feedback.submitBookCorrection identity', () {
     for (final args in <Map<String, dynamic>>[
       {},
