@@ -1403,6 +1403,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'עדכוני תוכנה וספרים פעילים': 'System and library updates are on',
     'עדכן': 'Update',
     'עדכן חיפוש': 'Update search',
+    'עדכן לפי הבחירה הנוכחית': 'Update from current selection',
     'עוד פעולות': 'More Actions',
     'עודכן לגרסה {version}': 'Updated to version {version}',
     'עותק ספרייה ישן שאינו בשימוש': 'Unused Old Library Copy',

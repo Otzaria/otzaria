@@ -208,6 +208,14 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
     if (mounted) setState(() => _savedScopes = next);
   }
 
+  Future<void> _updateSavedScope(String name) async {
+    final next = await SearchScopePreferences.addSavedScope(
+      name,
+      Set<String>.from(widget.selected),
+    );
+    if (mounted) setState(() => _savedScopes = next);
+  }
+
   Future<void> _deleteSavedScope(String name) async {
     final next = await SearchScopePreferences.removeSavedScope(name);
     if (mounted) setState(() => _savedScopes = next);
@@ -525,6 +533,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
               onKeepFocus: () => _fieldFocus.requestFocus(),
               savedScopes: _savedScopes,
               onSaveCurrent: () => unawaited(_saveCurrentScope()),
+              onUpdateSaved: (name) => unawaited(_updateSavedScope(name)),
               onDeleteSaved: (name) => unawaited(_deleteSavedScope(name)),
             ),
           ),
@@ -608,6 +617,7 @@ class _MenuItem {
 
   /// פעולת "רק" — בחירת השורה הזו בלבד תוך ניקוי כל שאר הבחירה.
   final VoidCallback? onOnly;
+  final VoidCallback? onUpdate;
   final VoidCallback? onDelete;
   final bool isHeader;
 
@@ -623,6 +633,7 @@ class _MenuItem {
     this.onTap,
     this.onDrill,
     this.onOnly,
+    this.onUpdate,
     this.onDelete,
   }) : isHeader = false;
 
@@ -635,6 +646,7 @@ class _MenuItem {
       onTap = null,
       onDrill = null,
       onOnly = null,
+      onUpdate = null,
       onDelete = null,
       isHeader = true;
 }
@@ -650,6 +662,7 @@ class _ScopeMenuPanel extends StatefulWidget {
   final VoidCallback onKeepFocus;
   final List<SavedSearchScope> savedScopes;
   final VoidCallback onSaveCurrent;
+  final ValueChanged<String> onUpdateSaved;
   final ValueChanged<String> onDeleteSaved;
 
   const _ScopeMenuPanel({
@@ -664,6 +677,7 @@ class _ScopeMenuPanel extends StatefulWidget {
     required this.onKeepFocus,
     required this.savedScopes,
     required this.onSaveCurrent,
+    required this.onUpdateSaved,
     required this.onDeleteSaved,
   });
 
@@ -1004,6 +1018,22 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
     return out;
   }
 
+  _MenuItem _savedScopeItem(SavedSearchScope scope, {required bool canUpdate}) {
+    final isCurrent =
+        scope.facets.length == _selection.length &&
+        scope.facets.containsAll(_selection);
+    return _MenuItem(
+      label: scope.name,
+      icon: FluentIcons.bookmark_24_regular,
+      check: isCurrent,
+      onToggle: (v) => v ? _apply(Set.of(scope.facets)) : _clearAll(),
+      onUpdate: canUpdate && !isCurrent
+          ? () => widget.onUpdateSaved(scope.name)
+          : null,
+      onDelete: () => widget.onDeleteSaved(scope.name),
+    );
+  }
+
   List<_MenuItem> _rootItems() {
     final categoryPart = _categoryPart;
     // "נקה הכל" מוצג רק כשיש צמצום כלשהו (קטגוריה או ממד).
@@ -1051,15 +1081,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
       if (widget.savedScopes.isNotEmpty || !isEverything)
         _MenuItem.header(context.settingsText('היקפים שמורים')),
       for (final scope in widget.savedScopes)
-        _MenuItem(
-          label: scope.name,
-          icon: FluentIcons.bookmark_24_regular,
-          check:
-              scope.facets.length == _selection.length &&
-              scope.facets.containsAll(_selection),
-          onToggle: (v) => v ? _apply(Set.of(scope.facets)) : _clearAll(),
-          onDelete: () => widget.onDeleteSaved(scope.name),
-        ),
+        _savedScopeItem(scope, canUpdate: !isEverything),
       if (!isEverything)
         _MenuItem(
           label: context.settingsText('שמור את הבחירה הנוכחית…'),
@@ -1392,6 +1414,17 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
                     },
                   ),
                 ),
+              ),
+            if (item.onUpdate != null)
+              AppIconButton(
+                size: AppIconButtonSize.small,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                icon: const Icon(FluentIcons.arrow_sync_24_regular),
+                tooltip: context.settingsText('עדכן לפי הבחירה הנוכחית'),
+                onPressed: () {
+                  item.onUpdate!();
+                  widget.onKeepFocus();
+                },
               ),
             if (item.onDelete != null)
               AppIconButton(

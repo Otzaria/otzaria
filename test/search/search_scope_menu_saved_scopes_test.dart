@@ -143,6 +143,32 @@ Future<void> main() async {
       // המחיקה אינה משנה את הבחירה שכבר הוחלה.
       expect(selection, {'/ראשונים', '/קבלה'});
     });
+
+    testWidgets('עדכון היקף שמור לפי הבחירה הנוכחית משאיר שם ומיקום '
+        '(issue #3852)', (tester) async {
+      await SearchScopePreferences.addSavedScope('מאגר', {'/ראשונים'});
+      await SearchScopePreferences.addSavedScope('אחר', {'/קבלה'});
+      await pumpMenu(tester, {'/ראשונים', '/אחרונים'});
+
+      final update = find.byTooltip('עדכן לפי הבחירה הנוכחית');
+      expect(update, findsNWidgets(2));
+      await tester.tap(
+        find.descendant(of: rowOf('מאגר'), matching: update),
+      );
+      await tester.pumpAndSettle();
+
+      final saved = SearchScopePreferences.loadSavedScopes();
+      expect([for (final s in saved) s.name], ['מאגר', 'אחר']);
+      expect(saved.first.facets, {'/ראשונים', '/אחרונים'});
+      expect(saved.last.facets, {'/קבלה'});
+
+      // אחרי העדכון ההיקף זהה לבחירה, ולכן אין עוד מה לעדכן בו.
+      final checkbox = tester.widget<Checkbox>(
+        find.descendant(of: rowOf('מאגר'), matching: find.byType(Checkbox)),
+      );
+      expect(checkbox.value, isTrue);
+      expect(update, findsOneWidget);
+    });
   }, skip: engineReady ? false : searchEngineSkipReason);
 }
 
