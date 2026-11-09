@@ -4,6 +4,7 @@ import 'dart:isolate';
 import 'package:archive/archive_io.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:otzaria/utils/file/archive_extractor.dart';
+import 'package:otzaria/utils/file/zip_entry_io.dart';
 import 'package:otzaria/utils/text/byte_size_text.dart';
 import 'package:path/path.dart' as path;
 import 'package:logging/logging.dart';
@@ -174,13 +175,19 @@ class ZipExtractorService {
     String targetDir,
     SendPort progressPort,
   ) async {
-    final bytes = await File(zipPath).readAsBytes();
-    final archive = ZipDecoder().decodeBytes(bytes);
-    await _extractArchiveManually(
-      archive,
-      targetDir,
-      (progress, message) => progressPort.send([progress, message]),
-    );
+    // The fallback must not retain the full ZIP in memory while processing
+    // large library updates. Keep the input handle open for lazy entry reads.
+    final input = openZipInput(zipPath);
+    try {
+      final archive = ZipDecoder().decodeStream(input);
+      await _extractArchiveManually(
+        archive,
+        targetDir,
+        (progress, message) => progressPort.send([progress, message]),
+      );
+    } finally {
+      await input.close();
+    }
   }
 
   /// חילוץ ידני של ארכיון (fallback)
@@ -205,59 +212,31 @@ class ZipExtractorService {
 
     onProgress?.call(0.22, 'מחלץ ${formatMegabytesLtr(totalBytes)}...');
 
-    for (final file in archive) {
-      final filename = file.name;
+    final root = path.canonicalize(directoryPath);
+    await Directory(root).create(recursive: true);
+    for (final entry in archive) {
+      final target = path.canonicalize(path.join(root, entry.name));
+      if (!path.isWithin(root, target)) {
+        throw FormatException(
+          'נתיב חולץ מקובץ ZIP באופן לא חוקי: ${entry.name}',
+        );
+      }
 
-      if (file.isFile) {
-        final data = file.content as List<int>;
-        final outputFile = File(path.join(directoryPath, filename));
-
-        // יצירת תיקיות אם צריך
-        await outputFile.parent.create(recursive: true);
-
-        // כתיבת הקובץ עם חיווי התקדמות
-        final fileSize = data.length;
-        if (fileSize > 1024 * 1024) {
-          // קובץ גדול מ-1MB - נכתוב בחלקים
-          final sink = outputFile.openWrite();
-          const chunkSize = 1024 * 1024; // 1MB chunks
-          var written = 0;
-
-          while (written < fileSize) {
-            final end = (written + chunkSize < fileSize)
-                ? written + chunkSize
-                : fileSize;
-            sink.add(data.sublist(written, end));
-            final chunkWritten = end - written;
-            written = end;
-            processedBytes += chunkWritten;
-
-            // עדכון התקדמות
-            final bytesProgress = totalBytes > 0
-                ? processedBytes / totalBytes
-                : 0.0;
-            final filesProgress = totalFiles > 0
-                ? extractedFiles / totalFiles
-                : 0.0;
-            final progress =
-                0.25 + (0.65 * ((bytesProgress + filesProgress) / 2));
-            onProgress?.call(
-              progress,
-              'מחלץ: ${path.basename(filename)}\n'
-              '${formatMegabytesProgressHebrew(processedBytes, totalBytes)}',
-            );
-          }
-
-          await sink.close();
-        } else {
-          // קובץ קטן - נכתוב בבת אחת
-          await outputFile.writeAsBytes(data);
-          processedBytes += fileSize;
+      if (entry.isFile) {
+        // writeZipEntry decompresses into a bounded buffer and writes it
+        // asynchronously. Splitting a fully decompressed byte array into
+        // 1 MiB chunks still retains the entire array in memory.
+        final written = await writeZipEntry(entry, target);
+        if (written != entry.size) {
+          await File(target).delete();
+          throw ArchiveException(
+            'ZIP entry ${entry.name} declared ${entry.size} bytes '
+            'but extracted $written bytes',
+          );
         }
+        processedBytes += written;
       } else {
-        // יצירת תיקייה
-        final dir = Directory(path.join(directoryPath, filename));
-        await dir.create(recursive: true);
+        await Directory(target).create(recursive: true);
       }
 
       extractedFiles++;
@@ -265,7 +244,8 @@ class ZipExtractorService {
         final progress = 0.25 + (0.65 * extractedFiles / totalFiles);
         onProgress?.call(
           progress,
-          'מחלץ קבצים... ($extractedFiles מתוך $totalFiles)',
+          'מחלץ קבצים... ($extractedFiles מתוך $totalFiles)\\n'
+          '${formatMegabytesProgressHebrew(processedBytes, totalBytes)}',
         );
       }
     }
