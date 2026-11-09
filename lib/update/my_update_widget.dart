@@ -832,7 +832,8 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
     UiSnack.showError(LibraryMessages.smallUpdateGaveUp);
   }
 
-  Future<void> _checkForUpdate() async {
+  /// התוצאה, או null כשהבדיקה לא נתנה תשובה (חסומה, או נכשלה).
+  Future<UpdatStatus?> _checkForUpdate() async {
     if (updateCheckBlocked(
       isOfflineMode:
           Settings.getValue<bool>(SettingsRepository.keyOfflineMode) ?? false,
@@ -846,7 +847,7 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
       setState(() {
         _status = UpdatStatus.upToDate;
       });
-      return;
+      return null;
     }
 
     setState(() {
@@ -858,7 +859,7 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
       final currentVersion = appReleaseVersion(packageInfo);
       final latestVersion = await _getLatestVersion(currentVersion);
 
-      if (!mounted) return;
+      if (!mounted) return null;
       // הבדיקה עברה — ניתוק עתידי יקבל שוב מכסת ניסיונות מלאה.
       _offlineRecheckAttempt = 0;
       unawaited(
@@ -872,7 +873,7 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
           _currentVersion = currentVersion;
           _status = UpdatStatus.upToDate;
         });
-        return;
+        return _status;
       }
 
       if (isNewerReleaseVersion(
@@ -880,14 +881,14 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
         currentVersion: currentVersion,
       )) {
         final changelog = await _getChangelog(latestVersion, currentVersion);
-        if (!mounted) return;
+        if (!mounted) return null;
         setState(() {
           _currentVersion = currentVersion;
           _latestVersion = latestVersion;
           _changelog = changelog;
           _status = UpdatStatus.availableWithChangelog;
         });
-        return;
+        return _status;
       }
 
       setState(() {
@@ -895,6 +896,7 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
         _latestVersion = latestVersion;
         _status = UpdatStatus.upToDate;
       });
+      return _status;
     } catch (e, st) {
       debugPrint('[Update] update check failed: $e\n$st');
       // כשל רשת ≠ כשל parsing של תשובת GitHub — הודעת 'רשת' על באג parsing
@@ -909,15 +911,16 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
         isNetworkError: isNetwork,
         isSourceReachable: await isUpdateSourceReachable(),
       );
-      if (!mounted) return;
+      if (!mounted) return null;
       if (message == null) {
         setState(() {
           _status = UpdatStatus.upToDate;
         });
         _scheduleOfflineRecheck();
-        return;
+        return null;
       }
       _showUpdateError(message);
+      return null;
     }
   }
 
@@ -1464,7 +1467,7 @@ class ManagedUpdateScope extends InheritedWidget {
 
   /// ההתקנה החלה והתהליך עוד חי — ראה `_awaitingCloseForUpdate`.
   final bool awaitingClose;
-  final VoidCallback checkForUpdate;
+  final Future<UpdatStatus?> Function() checkForUpdate;
   final VoidCallback startUpdate;
   final Future<void> Function() launchInstaller;
   final VoidCallback dismissUpdate;

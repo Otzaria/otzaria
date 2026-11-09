@@ -34,12 +34,14 @@ import 'package:otzaria/settings/panels/reports_card.dart';
 import 'package:otzaria/settings/panels/search_feedback_panel.dart';
 import 'package:otzaria/settings/panels/semantic_data_panel.dart';
 import 'package:otzaria/settings/services/backup_service.dart';
+import 'package:otzaria/settings/services/manual_update_check.dart';
 import 'package:otzaria/settings/services/backup/backup_import_merge.dart';
 import 'package:otzaria/settings/services/backup/backup_maintenance.dart';
 import 'package:otzaria/settings/services/backup/backup_rotation.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
+import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
 import 'package:otzaria/library_update/changes_notes/library_changes_notes.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
@@ -57,6 +59,7 @@ import 'package:otzaria/utils/file/save_file_with_extension.dart';
 import 'package:otzaria/plugins/view/webview_environment_holder.dart';
 import 'package:otzaria/widgets/misc/restart_widget.dart';
 import 'package:otzaria/update/app_release_version.dart';
+import 'package:otzaria/update/my_update_widget.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/settings/widgets/settings_tab_scroll_view.dart';
 import 'package:otzaria/theme/app_motion.dart';
@@ -368,6 +371,8 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   String? _libraryVersion;
   ({int library, int personal})? _bookCounts;
   bool _hasLibraryChanges = false;
+  bool _checkingSoftwareUpdate = false;
+  bool _checkingLibraryUpdate = false;
   static const _backupFolderName = 'תיקיית גיבוי';
 
   String _resolvedBackupPath = '';
@@ -460,6 +465,17 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     if (mounted && has != _hasLibraryChanges) {
       setState(() => _hasLibraryChanges = has);
     }
+  }
+
+  Future<void> _checkUpdatesNow(
+    Future<String?> Function() check,
+    void Function(bool checking) setChecking,
+  ) async {
+    setState(() => setChecking(true));
+    final message = await check();
+    if (!mounted) return;
+    setState(() => setChecking(false));
+    if (message != null) UiSnack.show(message);
   }
 
   @override
@@ -784,6 +800,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     BuildContext context,
     SettingsState state,
   ) {
+    final managedUpdate = ManagedUpdateScope.maybeOf(context);
     return SettingsCard(
       cardId: 'system.versions',
       title: context.settingsText('מערכת אוצריא'),
@@ -794,6 +811,20 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
           subtitle: _appVersion ?? context.settingsText('טוען...'),
           subtitleLtr: _appVersion != null,
           actions: [
+            if (state.canUseSoftwareAndBookUpdates && managedUpdate != null)
+              ActionButton.ghost(
+                icon: FluentIcons.arrow_sync_24_regular,
+                text: context.settingsText('בדוק עדכונים'),
+                isLoading: _checkingSoftwareUpdate,
+                onPressed: _checkingSoftwareUpdate
+                    ? null
+                    : () => _checkUpdatesNow(
+                        () => softwareUpdateCheckMessage(
+                          managedUpdate.checkForUpdate,
+                        ),
+                        (v) => _checkingSoftwareUpdate = v,
+                      ),
+              ),
             ActionButton.ghost(
               icon: FluentIcons.history_24_regular,
               text: context.settingsText('יומן שינויים'),
@@ -821,6 +852,20 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 ].join(' · ')
               : context.settingsText('טוען...'),
           actions: [
+            if (state.canUseSoftwareAndBookUpdates)
+              ActionButton.ghost(
+                icon: FluentIcons.arrow_sync_24_regular,
+                text: context.settingsText('בדוק עדכונים'),
+                isLoading: _checkingLibraryUpdate,
+                onPressed: _checkingLibraryUpdate
+                    ? null
+                    : () => _checkUpdatesNow(
+                        () => libraryUpdateCheckMessage(
+                          context.read<LibraryUpdateBloc>(),
+                        ),
+                        (v) => _checkingLibraryUpdate = v,
+                      ),
+              ),
             if (_hasLibraryChanges)
               ActionButton.ghost(
                 icon: FluentIcons.sparkle_24_regular,
