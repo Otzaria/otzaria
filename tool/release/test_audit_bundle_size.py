@@ -3,6 +3,9 @@ import hashlib
 import io
 import json
 import os
+import shutil
+import subprocess
+import textwrap
 from pathlib import Path
 import tempfile
 import stat
@@ -280,6 +283,63 @@ class BundleSizeTest(unittest.TestCase):
             archive.write_bytes(original.replace(b'a-b', raw_name))
             with self.subTest(raw_name=raw_name), self.assertRaises(ValueError):
                 audit.zip_inventory(archive)
+
+
+@unittest.skipUnless(shutil.which('bash'), 'workflow requires bash')
+class AndroidAuditWorkflowTest(unittest.TestCase):
+    def test_native_build_failures_propagate_without_cache_seeding(self):
+        workflow = (Path(__file__).resolve().parents[2] /
+                    '.github/workflows/android_code_size_audit.yml').read_text()
+        steps = ('Resolve locked dependencies and generate source catalogs',
+                 'Build one-ABI release with Flutter analyze-size')
+        for step in steps:
+            block = workflow.split(f'      - name: {step}\n', 1)[1]
+            block = block.split('\n      - ', 1)[0].split('        run: |\n', 1)[1]
+            script = textwrap.dedent(block)
+            for status, message in ((42, 'PDFium checksum mismatch'),
+                                    (17, 'compiler failure')):
+                with self.subTest(step=step, failure=message), tempfile.TemporaryDirectory() as folder:
+                    cache = Path(folder) / '.dart_tool/hooks_runner/shared/pdfium_dart/build/root'
+                    cache.mkdir(parents=True)
+                    stubs = f'''flutter() {{
+  if [ "$1" = pub ]; then return 0; fi
+  printf '%s\\n' '{message}' >&2
+  return {status}
+}}
+dart() {{ printf '%s\\n' '{message}' >&2; return {status}; }}
+curl() {{ printf 'unexpected PDFium download' >&2; return 99; }}
+git() {{ printf fixture; }}
+export RUNNER_TEMP="$PWD" GH_TOKEN=fixture
+'''
+                    result = subprocess.run([shutil.which('bash'), '-c', stubs + script],
+                                            cwd=folder, capture_output=True, text=True, timeout=10)
+                    self.assertEqual(result.returncode, status, result.stderr)
+                    self.assertIn(message, result.stderr)
+                    self.assertNotIn('unexpected PDFium download', result.stderr)
+                    self.assertEqual(list(cache.iterdir()), [])
+
+    def test_direct_flavor_preserves_arm64_size_artifact(self):
+        workflow = (Path(__file__).resolve().parents[2] /
+                    '.github/workflows/android_code_size_audit.yml').read_text()
+        block = workflow.split('      - name: Build one-ABI release with Flutter analyze-size\n', 1)[1]
+        block = block.split('\n      - ', 1)[0].split('        run: |\n', 1)[1]
+        with tempfile.TemporaryDirectory() as folder:
+            stubs = '''flutter() { printf '%s\\n' "$@" > "$RUNNER_TEMP/arguments"; }
+git() { printf fixture; }
+find() { return 0; }
+export RUNNER_TEMP="$PWD"
+printf '%s' "$RUNNER_TEMP/code-size"
+'''
+            result = subprocess.run([shutil.which('bash'), '-c', stubs + textwrap.dedent(block)],
+                                    cwd=folder, capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((Path(folder) / 'arguments').read_text().splitlines(), [
+                'build', 'apk', '--release', '--flavor', 'direct',
+                '--target-platform', 'android-arm64', '--analyze-size',
+                f'--code-size-directory={result.stdout}',
+                '--dart-define=OTZARIA_BUILD_COMMIT=fixture'])
+        self.assertIn('name: android-arm64-dart-code-size', workflow)
+        self.assertIn('path: ${{ runner.temp }}/code-size/', workflow)
 
 
 if __name__ == '__main__':

@@ -55,76 +55,23 @@ jobs:
             -alias "$ANDROID_KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 1 \
             -dname "CN=Otzaria Size Audit, O=Otzaria, C=IL"
       - name: Resolve locked dependencies and generate source catalogs
-        env:
-          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
           flutter pub get --enforce-lockfile
-          if ! dart run tool/generate_search_index.dart; then
-            # pdfium_dart's browser-download endpoint currently returns 504 on
-            # hosted runners. The failed hook has already materialized its
-            # deterministic shared output directory. Seed the exact pinned
-            # Chromium 8125 asset through the GitHub API, then rerun the
-            # unchanged hook; it accepts an existing output file.
-            release_url='https://api.github.com/repos/bblanchon/pdfium-binaries/releases/tags/chromium%2F8125'
-            release_json="$(curl --fail --location --retry 8 --retry-all-errors --retry-delay 2 \
-              -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "$release_url")"
-            asset_url="$(jq -r '.assets[] | select(.name == "pdfium-linux-x64.tgz") | .url' <<<"$release_json")"
-            test -n "$asset_url" && test "$asset_url" != null
-            curl --fail --location --retry 8 --retry-all-errors --retry-delay 2 --max-time 300 \
-              -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/octet-stream' \
-              "$asset_url" -o "$RUNNER_TEMP/pdfium-8125.tgz"
-            mapfile -t roots < <(find .dart_tool/hooks_runner/shared/pdfium_dart/build -mindepth 1 -maxdepth 1 -type d | sort)
-            test "${#roots[@]}" -gt 0
-            for root in "${roots[@]}"; do
-              out="$root/chromium_8125/linux-x64"
-              mkdir -p "$out"
-              tar -xzf "$RUNNER_TEMP/pdfium-8125.tgz" -C "$RUNNER_TEMP" lib/libpdfium.so
-              cp "$RUNNER_TEMP/lib/libpdfium.so" "$out/libpdfium.so"
-            done
-            printf '%s  %s\n' \
-              '1c251efce460d67437a4c76d4be9033ae2f17bf5603f5bff1af10209b94ca723' \
-              "$RUNNER_TEMP/lib/libpdfium.so" | sha256sum --check -
-            dart run tool/generate_search_index.dart
-          fi
+          dart run tool/generate_search_index.dart
           dart run tool/generate_settings_l10n.dart
       - name: Build one-ABI release with Flutter analyze-size
-        env:
-          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/code-size"
-          build() {
-            flutter build apk --release \
-              --target-platform android-arm64 \
-              --analyze-size \
-              --code-size-directory="$RUNNER_TEMP/code-size" \
-              "--dart-define=OTZARIA_BUILD_COMMIT=$(git rev-parse --short=12 HEAD)"
-          }
-          if ! build; then
-            # A separate native-assets invocation may request Android PDFium
-            # even after the Linux generator used its local x64 binary.
-            release_url='https://api.github.com/repos/bblanchon/pdfium-binaries/releases/tags/chromium%2F8125'
-            release_json="$(curl --fail --location --retry 8 --retry-all-errors --retry-delay 2 \
-              -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "$release_url")"
-            asset_url="$(jq -r '.assets[] | select(.name == "pdfium-android-arm64.tgz") | .url' <<<"$release_json")"
-            test -n "$asset_url" && test "$asset_url" != null
-            curl --fail --location --retry 8 --retry-all-errors --retry-delay 2 --max-time 300 \
-              -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/octet-stream' \
-              "$asset_url" -o "$RUNNER_TEMP/pdfium-android-8125.tgz"
-            mkdir -p "$RUNNER_TEMP/pdfium-android"
-            tar -xzf "$RUNNER_TEMP/pdfium-android-8125.tgz" -C "$RUNNER_TEMP/pdfium-android" lib/libpdfium.so
-            mapfile -t roots < <(find .dart_tool/hooks_runner/shared/pdfium_dart/build -mindepth 1 -maxdepth 1 -type d | sort)
-            test "${#roots[@]}" -gt 0
-            for root in "${roots[@]}"; do
-              out="$root/chromium_8125/android-arm64"
-              mkdir -p "$out"
-              cp "$RUNNER_TEMP/pdfium-android/lib/libpdfium.so" "$out/libpdfium.so"
-            done
-            build
-          fi
+          flutter build apk --release \
+            --flavor direct \
+            --target-platform android-arm64 \
+            --analyze-size \
+            --code-size-directory="$RUNNER_TEMP/code-size" \
+            "--dart-define=OTZARIA_BUILD_COMMIT=$(git rev-parse --short=12 HEAD)"
           find "$RUNNER_TEMP/code-size" -maxdepth 2 -type f -printf '%p %s bytes\n' | sort
       - uses: actions/upload-artifact@v4
         with:

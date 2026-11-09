@@ -1,6 +1,12 @@
 # Audit תלויות וביצועים — מצב פעולה, 8 בנובמבר 2026
 
-> בסיס: `dev@46b4af5313c8c550ace1b72f90aa26fa9455a320`. מסמך המקור מ־4 בנובמבר סקר 61 מאגרים, 70 תלויות runtime ישירות (כולל SDK) ו־274 רשומות lock. מסמך זה מעדכן את **מצב הביצוע** מול GitHub ולא מתיימר להציג סקירה מחדש של כל 274 החבילות. ה־PRים החדשים שנפתחו ב־audit נשארים Draft; אין למזג אוטומטית.
+> בסיס: `dev@46b4af5313c8c550ace1b72f90aa26fa9455a320`. מסמך המקור מ־4 בנובמבר סקר 61 מאגרים, 70 תלויות runtime ישירות (כולל SDK) ו־274 רשומות lock. מסמך זה מעדכן את **מצב הביצוע** מול GitHub ולא מתיימר להציג סקירה מחדש של כל 274 החבילות. הסטטוסים, ה־pins ותוצאות ה־CI להלן הם תמונות מצב היסטוריות מ־8 בנובמבר, אלא אם נאמר אחרת. אין להסיק מהם מצב PR או אישור מיזוג נוכחי.
+
+## עדכון מאומת — 9 בנובמבר 2026
+
+- בבסיס `dev@049247dc2af92af8c38e04cac9af3a36980d2f10`, חבילות pdfrx נעולות ל־`d898e52b1526532c8d66a5f7fee0ca6b867a77d0`: ה־hook כולל fallback דרך GitHub API ואימות SHA-256 לפני חילוץ. Otzaria/pdfrx #3 ו־app #4516 מוזגו; #4517 נסגר ללא מיזוג. #4482 פתוח לביקורת ואינו Draft.
+- הוסרה מ־workflow המדידה שתילה ידנית של PDFium ב־hook cache, גם בגנרטור Linux וגם בבניית Android. כשל build, לרבות כשל checksum, חייב לעצור את המדידה. לא שונו כלי המדידה או המספרים ההיסטוריים. לאחר הוספת flavors ב־#4500, המדידה בוחרת `direct`; יעד ARM64, דגל `analyze-size` ו־artifact ה־JSON ללא שינוי.
+- מדידת ARM64 המוצלחת שלהלן היא תוצאת הריצה ההיסטורית, שבה היה מסלול השתילה. היא אינה אישור לבנייה עם ה־workflow המתוקן; בנייה מלאה שלו טרם אומתה.
 
 ## סיכום מנהל
 
@@ -121,7 +127,7 @@ WPE מדידה נפרדת: x64 ‏172,907,408→130,320,608 (24.63%), ARM64 ‏1
 - GitHub release CDN החזיר 504 בהורדות `pdfium-linux-x64` ו־WPE SDK. במדידת WPE עברנו להורדת asset דרך GitHub API ואימות SHA, והבדיקה ירוקה. מעבר מקביל ב־bundle size audit נשלח ל־CI חוזר.
 - Windows/macOS native asset hooks קיבלו checksum שגוי ל־`sqlite3` מהורדה חיצונית; הקוד לא שינה את sqlite3.
 - Android Gradle wrapper נכשל בהורדת הפצה חיצונית גם בבדיקות fork notifications; Windows unit tests עברו.
-- `flutter build --analyze-size` של Android עדיין חסום מפני ש־build hook של PDFium 8125 מבצע download לדומיין שמחזיר 504. אין נתוני attribution אמינים עד שבנייה מלאה תעבור.
+- חסימת `flutter build --analyze-size` של Android בגלל PDFium 504 הייתה היסטורית: ריצה 42478124363 השלימה בנייה ושמרה attribution, כמפורט לעיל. יש לאמת בנפרד בנייה עם ה־workflow המתוקן ללא שתילת cache.
 - מדידת `flutter test` בריפו הראשי עלולה להיות אדומה בגלל network; יש להפריד failure בגנרטור/הורדה מ־assertion שהגיע למסלול הקוד ששונה.
 
 ## סדר סגירה
@@ -129,7 +135,7 @@ WPE מדידה נפרדת: x64 ‏172,907,408→130,320,608 (24.63%), ARM64 ‏1
 1. להעביר CI מחדש לאחר תיקוני format/download, ולתעד לכל PR את ה־HEAD שנבדק. Draft נשאר עד סקירה עצמאית.
 2. לקשור תיקוני fork → PR צרכן רק אחרי passing native/test/lockfile, כולל גרסה מוחתמת ושמירת שינויי המתחזק.
 3. לבצע mixed-PDFium integration/stress לפני שינוי loader/SONAME; לא לשלב עם #4522.
-4. להשלים Android analyze-size על ABI אמיתי, ו־Tesseract worker reuse רק עם parity ו־memory plateau.
+4. לחזור על Android analyze-size ללא שתילת cache; מדידת ARM64 היסטורית כבר הושלמה. ניסוי Tesseract worker reuse דורש parity ו־memory plateau.
 5. למזג לפי סדר נקודתי ובאישור המתחזק; לא לפתוח שינויים כפולים בתחומי #4307, #4416, #4475, #4301 או #4315.
 
 ## QA follow-up — 8.11.2026, מעקב לקראת review
