@@ -77,8 +77,10 @@ class SimulatorDriver:
                 matches[0][1].get('deviceTypeIdentifier') == seed['deviceTypeIdentifier'] and
                 matches[0][1].get('state') == 'Booted', 'The private Simulator OS identity differs from its creation request')
         self.actual_runtime, self.actual_device = matches[0]
+        self.device = self.actual_device['udid']
+        self.ownership['device'] = self.device
         self.run('simulator-visible', ['open', '-a', 'Simulator'], self.remaining(30))
-        return created
+        return self.device
 
     def start(self, application, dart, entrypoint):
         require(self.ownership['created'] and self.ownership['booted'], 'The application requires an owned private Simulator')

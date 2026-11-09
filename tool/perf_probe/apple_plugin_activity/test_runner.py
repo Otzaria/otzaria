@@ -1181,6 +1181,7 @@ class BuildOrderingTests(unittest.TestCase):
                     calls.append(command)
                     self.command = command
                     if command[0] == 'xcodebuild':
+                        assert command[command.index('-destination') + 1] == 'platform=iOS Simulator,id=AAAAAAAA-BBBB-4CCC-8DDD-EEEEEEEEEEEE'
                         coordinator.control_session = 'controller-A'
                         coordinator.control_ready.set()
                     elif uninstall_on_exit and str(command[-1]).endswith('/test_driver/apple_plugin_activity.dart'):
@@ -1207,12 +1208,12 @@ class BuildOrderingTests(unittest.TestCase):
             class DirectDriver:
                 def __init__(self, *args):
                     self.coordinator = coordinator
-                    self.ownership = {'seed': 'device-A', 'device': 'private-device-A', 'created': True}
-                    self.actual_device = {'udid': 'private-device-A', 'name': 'Actual private iPhone', 'state': 'Booted', 'deviceTypeIdentifier': 'iPhone-type'}
+                    self.ownership = {'seed': 'device-A', 'device': 'AAAAAAAA-BBBB-4CCC-8DDD-EEEEEEEEEEEE', 'created': True}
+                    self.actual_device = {'udid': 'AAAAAAAA-BBBB-4CCC-8DDD-EEEEEEEEEEEE', 'name': 'Actual private iPhone', 'state': 'Booted', 'deviceTypeIdentifier': 'iPhone-type'}
                     self.actual_runtime = 'com.apple.CoreSimulator.SimRuntime.iOS-26-5'
                 def prepare(self, seed, runtime):
                     calls.append(['simctl-create', seed['udid'], runtime])
-                    return 'private-device-A'
+                    return 'AAAAAAAA-BBBB-4CCC-8DDD-EEEEEEEEEEEE'
                 def start(self, bundle, dart, entrypoint):
                     self_bundle = str(bundle)
                     calls.append(['simctl-launch', self_bundle])
@@ -1258,7 +1259,7 @@ class BuildOrderingTests(unittest.TestCase):
         launch = next(i for i, command in enumerate(calls) if command[0] == 'simctl-launch')
         drive = next(i for i, command in enumerate(calls) if str(command[-1]).endswith('/test_driver/apple_plugin_activity.dart'))
         self.assertLess(build, control)
-        self.assertIn('platform=iOS Simulator,id=private-device-A', calls[control])
+        self.assertIn('platform=iOS Simulator,id=AAAAAAAA-BBBB-4CCC-8DDD-EEEEEEEEEEEE', calls[control])
         self.assertLess(control, launch)
         self.assertLess(launch, drive)
         self.assertEqual(calls[drive][0], '/pinned/flutter/bin/cache/dart-sdk/bin/dart')
