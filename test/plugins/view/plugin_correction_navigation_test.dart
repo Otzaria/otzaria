@@ -94,6 +94,28 @@ void main() {
     await finish(tester, service);
   });
 
+  testWidgets('חץ מטה ומעלה שומר על אותו מקום אופקי בפסקה הסמוכה', (
+    tester,
+  ) async {
+    final service = await begin(tester);
+    await pump(tester, service);
+    await activateCorrectionParagraph(tester, find.text('קריאה 0'));
+    await tester.pump();
+    EditableText editor() =>
+        tester.widget<EditableText>(find.byType(EditableText));
+    editor().controller.selection = const TextSelection.collapsed(offset: 3);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+    expect(editor().controller.text, sources[1]);
+    expect(editor().controller.selection.baseOffset, 3);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.pumpAndSettle();
+    expect(editor().controller.text, sources[0]);
+    expect(editor().controller.selection.baseOffset, 3);
+    await finish(tester, service);
+  });
+
   testWidgets('חיפוש מודגש בעורך כמו בפסקה הרגילה', (tester) async {
     final service = await begin(tester);
     await pump(tester, service, searchText: 'ראשונה');

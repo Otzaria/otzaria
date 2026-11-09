@@ -35,7 +35,19 @@ class PluginCorrectionParagraph extends StatefulWidget {
       _PluginCorrectionParagraphState();
 }
 
+/// מיקום אופקי של הסמן בעת מעבר בין פסקאות בחיצים, כדי שהסמן ינחת באותו מקום
+/// בשורה הסמוכה ולא בסוף השורה.
+class _CaretHandoff {
+  final double dx;
+  final bool movedDown;
+  final DateTime at = DateTime.now();
+  _CaretHandoff(this.dx, this.movedDown);
+  bool get fresh =>
+      DateTime.now().difference(at) < const Duration(milliseconds: 800);
+}
+
 class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
+  static _CaretHandoff? _handoff;
   bool _editable = false;
   bool _corrected = false;
   bool _showEditor = false;
@@ -87,7 +99,26 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   }
 
   void _focusChanged() {
-    if (mounted) setState(() => _showEditor = _focus!.hasFocus);
+    if (!mounted) return;
+    setState(() => _showEditor = _focus!.hasFocus);
+    final handoff = _handoff;
+    if (!_focus!.hasFocus || handoff == null) return;
+    _handoff = null;
+    if (!handoff.fresh) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final context = _focus?.context;
+      if (!mounted || _controller == null || context == null) return;
+      if (!context.mounted) return;
+      final editor = context.findAncestorStateOfType<EditableTextState>();
+      if (editor == null) return;
+      final render = editor.renderEditable;
+      final half = render.preferredLineHeight / 2;
+      final y = handoff.movedDown ? half : render.size.height - half;
+      final point = render.localToGlobal(Offset(0, y));
+      _controller!.selection = TextSelection.fromPosition(
+        render.getPositionForPoint(Offset(handoff.dx, point.dy)),
+      );
+    });
   }
 
   void _activationFocusChanged() {
@@ -135,9 +166,12 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     final caret = render.getLocalRectForCaret(controller.selection.extent);
     final atEdge = up ? caret.top < 1 : caret.bottom > render.size.height - 1;
     if (!atEdge) return KeyEventResult.ignored;
+    final point = render.localToGlobal(caret.center);
+    _handoff = _CaretHandoff(point.dx, !up);
     final moved = FocusScope.of(node.context!).focusInDirection(
       up ? TraversalDirection.up : TraversalDirection.down,
     );
+    if (!moved) _handoff = null;
     return moved ? KeyEventResult.handled : KeyEventResult.ignored;
   }
 
