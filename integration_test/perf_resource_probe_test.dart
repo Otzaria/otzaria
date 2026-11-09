@@ -672,7 +672,11 @@ class _Scenario {
     await phase('notes.caret', () async {
       for (var i = 0; i < 12; i++) {
         final before = controller.selection;
-        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+        // Profile builds strip debugName, which the default physical-key lookup needs.
+        await tester.sendKeyEvent(
+          LogicalKeyboardKey.arrowRight,
+          physicalKey: PhysicalKeyboardKey.arrowRight,
+        );
         await tester.pump();
         if (controller.selection == before) {
           throw StateError('The caret did not move.');
