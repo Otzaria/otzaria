@@ -59,33 +59,33 @@ bool _stringMapEquals(
   return true;
 }
 
-int _searchOptionsHash(Map<String, Map<String, bool>> options) {
-  final keys = options.keys.toList()..sort();
-  return Object.hashAll(
-    keys.map((key) {
-      final inner = options[key]!;
-      final innerKeys = inner.keys.toList()..sort();
-      return Object.hash(
-        key,
-        Object.hashAll(
-          innerKeys.map((innerKey) => Object.hash(innerKey, inner[innerKey])),
+// ההשוואה בין המפות אינה תלויה בסדר ההכנסה. שימוש ב-hash לא מסודר
+// שומר על החוזה של == בלי הקצאת רשימות ומיון בכל hashCode.
+int _searchOptionsHash(Map<String, Map<String, bool>> options) =>
+    Object.hashAllUnordered(
+      options.entries.map(
+        (entry) => Object.hash(
+          entry.key,
+          Object.hashAllUnordered(
+            entry.value.entries.map(
+              (option) => Object.hash(option.key, option.value),
+            ),
+          ),
         ),
-      );
-    }),
-  );
-}
+      ),
+    );
 
-int _alternativeWordsHash(Map<int, List<String>> words) {
-  final keys = words.keys.toList()..sort();
-  return Object.hashAll(
-    keys.map((key) => Object.hash(key, Object.hashAll(words[key]!))),
-  );
-}
+int _alternativeWordsHash(Map<int, List<String>> words) =>
+    Object.hashAllUnordered(
+      words.entries.map(
+        (entry) => Object.hash(entry.key, Object.hashAll(entry.value)),
+      ),
+    );
 
-int _stringMapHash(Map<String, String> values) {
-  final keys = values.keys.toList()..sort();
-  return Object.hashAll(keys.map((key) => Object.hash(key, values[key])));
-}
+int _stringMapHash(Map<String, String> values) =>
+    Object.hashAllUnordered(
+      values.entries.map((entry) => Object.hash(entry.key, entry.value)),
+    );
 
 /// הגדרות לרינדור טקסט
 ///
