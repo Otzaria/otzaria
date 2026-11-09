@@ -271,7 +271,7 @@ dependency_overrides:
       ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
       path: flutter_inappwebview_android
 
-  # TODO: לחזור לגרסה הרשמית אחרי מיזוג ושחרור תיקוני file_picker ב-upstream.
+  # TODO: לחזור לגרסה הרשמית כשיפורסמו התיקונים שנותרו; v14 כבר מכסה חלק מהם.
   file_picker:
     git:
       url: https://github.com/Otzaria/flutter_file_picker
