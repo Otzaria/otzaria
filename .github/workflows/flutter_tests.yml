@@ -474,8 +474,26 @@ jobs:
       # זה הצעד שבגללו ה-job קיים: MSBuild, רישום התוספים הנייטיביים
       # וה-build hooks. debug ולא release — הוא מפעיל את אותה שרשרת נייטיבית
       # בשבריר מהזמן, ובניית ה-release כבר מכוסה ב-build-and-announce.
+      # build hooks מורידים מ-GitHub releases (ל-sqlite3 אין retry משלו), ו-flutter build
+      # לא מדפיס איזה hook נכשל. לכן מדפיסים את פלט ה-hooks ומנסים שוב רק על כשל hooks.
       - name: Build Windows (debug)
-        run: flutter build windows --debug
+        shell: pwsh
+        run: |
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            flutter build windows --debug 2>&1 | Tee-Object -Variable output
+            $status = $LASTEXITCODE
+            if ($status -eq 0) { exit 0 }
+            if (($output | Out-String) -notmatch 'Building native assets failed') { exit $status }
+            Get-ChildItem .dart_tool/hooks_runner -Recurse -Filter stderr.txt |
+              Where-Object Length -gt 0 |
+              ForEach-Object { "== $($_.FullName)"; Get-Content $_.FullName -Tail 40 }
+            if ($attempt -lt 3) {
+              Write-Output "::warning::Native asset build hooks failed (attempt $attempt of 3); retrying in 15 seconds"
+              Start-Sleep -Seconds 15
+            }
+          }
+          Write-Output "::error::Native asset build hooks failed in 3 attempts"
+          exit 1
 
       # המנוע בבניית האפליקציה בלי SQLite משלו; כשל ברישום אינו נראה בשום טסט
       # יחידה. רץ על הבנייה הנייטיבית שלמעלה, ולכן מוסיף רק קומפילציה וריצה.

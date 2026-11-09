@@ -23,6 +23,7 @@ import 'package:super_clipboard/super_clipboard.dart';
 
 import '../test/test_helpers/memory_cache_provider.dart';
 import 'support/report_native_keyboard.dart';
+import 'support/windows_clipboard_holder.dart';
 
 class _KeyboardReportCollector extends AppReportCollector {
   @override
@@ -61,7 +62,9 @@ void main() {
   });
 
   tearDownAll(() async {
-    await Clipboard.setData(const ClipboardData(text: ''));
+    await retryClipboard(
+      () => Clipboard.setData(const ClipboardData(text: '')),
+    );
     final evidence = <String, Object?>{
       'renderer': 'Native Flutter Windows integration test',
       'hostPlatform': Platform.operatingSystem,
@@ -96,11 +99,18 @@ void main() {
     'native Flutter text is readable by the reporting clipboard provider',
     (tester) async {
       const text = 'טקסט רגיל בעברית + English 😀';
-      await Clipboard.setData(const ClipboardData(text: text));
-      final reader = await clipboard.read();
-      expect(await reader.readValue(Formats.plainText), text);
-      expect(await sources.readClipboard(skipIfText: true), isEmpty);
-      expect((await Clipboard.getData(Clipboard.kTextPlain))?.text, text);
+      await retryClipboard(
+        () => Clipboard.setData(const ClipboardData(text: text)),
+      );
+      final value = await retryClipboard(
+        () async => (await clipboard.read()).readValue(Formats.plainText),
+      );
+      expect(value, text);
+      expect(
+        await retryClipboard(() => sources.readClipboard(skipIfText: true)),
+        isEmpty,
+      );
+      expect(await _clipboardText(), text);
       passed.add('Flutter text -> native provider -> unchanged Flutter text');
     },
   );
@@ -110,9 +120,11 @@ void main() {
   ) async {
     final item = DataWriterItem(suggestedName: 'native.png')
       ..add(Formats.png(png));
-    await clipboard.write([item]);
+    await retryClipboard(() => clipboard.write([item]));
     for (final skipIfText in [false, true]) {
-      final images = await sources.readClipboard(skipIfText: skipIfText);
+      final images = await retryClipboard(
+        () => sources.readClipboard(skipIfText: skipIfText),
+      );
       expect(images, hasLength(1));
       expect(images.single.mimeType, 'image/png');
       expect(images.single.bytes, png);
@@ -126,8 +138,8 @@ void main() {
       final item = DataWriterItem(suggestedName: 'animated.gif')
         ..add(Formats.gif(gif))
         ..add(Formats.png(png));
-      await clipboard.write([item]);
-      final images = await sources.readClipboard();
+      await retryClipboard(() => clipboard.write([item]));
+      final images = await retryClipboard(() => sources.readClipboard());
       expect(images, hasLength(1));
       expect(images.single.mimeType, 'image/gif');
       expect(images.single.bytes, gif);
@@ -148,12 +160,15 @@ void main() {
     final item = DataWriterItem()
       ..add(Formats.png(png))
       ..add(Formats.plainText(text));
-    await clipboard.write([item]);
-    expect(await sources.readClipboard(skipIfText: true), isEmpty);
-    expect((await Clipboard.getData(Clipboard.kTextPlain))?.text, text);
-    final explicit = await sources.readClipboard();
+    await retryClipboard(() => clipboard.write([item]));
+    expect(
+      await retryClipboard(() => sources.readClipboard(skipIfText: true)),
+      isEmpty,
+    );
+    expect(await _clipboardText(), text);
+    final explicit = await retryClipboard(() => sources.readClipboard());
     expect(explicit.single.bytes, png);
-    expect((await Clipboard.getData(Clipboard.kTextPlain))?.text, text);
+    expect(await _clipboardText(), text);
     passed.add(
       'Native text + PNG -> ordinary text precedence without changing clipboard',
     );
@@ -165,10 +180,12 @@ void main() {
     final item = DataWriterItem()
       ..add(Formats.png(png))
       ..add(Formats.plainText(''));
-    await clipboard.write([item]);
-    final reader = await clipboard.read();
+    await retryClipboard(() => clipboard.write([item]));
+    final reader = await retryClipboard(() => clipboard.read());
     expect(reader.canProvide(Formats.plainText), isTrue);
-    final images = await sources.readClipboard(skipIfText: true);
+    final images = await retryClipboard(
+      () => sources.readClipboard(skipIfText: true),
+    );
     expect(images, hasLength(1));
     expect(images.single.bytes, png);
     passed.add(
@@ -295,7 +312,7 @@ void main() {
               if (!imagePayload) {
                 item.add(Formats.plainText(text));
               }
-              await clipboard.write([item]);
+              await retryClipboard(() => clipboard.write([item]));
               bool applied() => imagePayload
                   ? (bloc.state as AppReportEditing).images.length == 1
                   : editor.controller.text == expectedTitle;
@@ -318,10 +335,7 @@ void main() {
                 expect(images.single.mimeType, 'image/png');
               } else {
                 expect(images, isEmpty);
-                expect(
-                  (await Clipboard.getData(Clipboard.kTextPlain))?.text,
-                  text,
-                );
+                expect(await _clipboardText(), text);
               }
               expect(editor.focusNode.hasFocus, textFocus);
               expect(await service.getPendingReports(), isEmpty);
@@ -371,3 +385,6 @@ void main() {
     }
   }
 }
+
+Future<String?> _clipboardText() async =>
+    (await retryClipboard(() => Clipboard.getData(Clipboard.kTextPlain)))?.text;
