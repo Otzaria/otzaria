@@ -181,6 +181,7 @@ void main() {
       'error.section_too_large',
     );
   });
+
   test('preserves overlapping occurrences in repeated text', () {
     final result = service.find(
       bookId: 'book',
@@ -213,7 +214,10 @@ void main() {
 
   test('checks grapheme rather than UTF-16 length for oversized text', () {
     final text = List.filled(25001, 'א\\u05B0').join();
-    expect(text.length, greaterThan(PluginTextOccurrenceService.maxSectionGraphemes));
+    expect(
+      text.length,
+      greaterThan(PluginTextOccurrenceService.maxSectionGraphemes),
+    );
 
     final result = service.find(
       bookId: 'book',
