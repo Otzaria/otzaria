@@ -59,7 +59,7 @@ const aboutTopEditors = <Map<String, String>>[
   {
     'name': 'י. ח. מ.', // יום חדש מתחיל
     'url':
-        'https://forum.otzaria.org/user/%D7%99%D7%95%D7%9D-%D7%97%D%93%D7%A9-%D7%9E%D7%AA%D7%97%D7%99%D7%9C',
+        'https://forum.otzaria.org/user/%D7%99%D7%95%D7%9D-%D7%97%D7%93%D7%A9-%D7%9E%D7%AA%D7%97%D7%99%D7%9C',
   },
   {
     'name': 'ס. כב.', // sivan22
