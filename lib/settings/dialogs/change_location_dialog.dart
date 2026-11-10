@@ -610,8 +610,8 @@ Future<void> performLibraryMove({
     }
   }
 
-  if (!context.mounted) return;
   closeProgress();
+  if (!context.mounted) return;
 
   await showSingleActionDialog(
     context: context,
