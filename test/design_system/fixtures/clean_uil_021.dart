@@ -14,3 +14,17 @@ Widget h(Widget child) => Positioned.directional(
   child: child,
 );
 const pw.EdgeInsets paper = pw.EdgeInsets.only(left: 20);
+const Alignment i = Alignment(0, -1);
+Alignment j(double x) => Alignment(x, 0);
+const BorderRadius k = BorderRadius.only(
+  topLeft: Radius.circular(8),
+  topRight: Radius.circular(8),
+);
+const BorderRadius l = BorderRadius.horizontal(
+  left: Radius.circular(8),
+  right: Radius.circular(8),
+);
+const BorderRadius m = BorderRadius.vertical(top: Radius.circular(8));
+const BorderRadiusGeometry n = BorderRadiusDirectional.only(
+  topStart: Radius.circular(8),
+);
