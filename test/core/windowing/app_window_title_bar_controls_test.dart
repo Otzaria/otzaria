@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -166,6 +168,35 @@ void main() {
     expect(find.byTooltip('שחזר'), findsOneWidget);
   });
 
+  testWidgets('a late answer from the previous window cannot change a new caption', (
+    tester,
+  ) async {
+    final oldWindow = _RecordingWindow()
+      ..delayedMaximized = Completer<bool>();
+    final newWindow = _RecordingWindow();
+    addTearDown(oldWindow.changes.dispose);
+    addTearDown(newWindow.changes.dispose);
+
+    Future<void> show(_RecordingWindow window) => tester.pumpWidget(
+      MaterialApp(
+        home: AppWindowScope(
+          controller: window,
+          geometry: const WindowManagerAppWindowController(),
+          child: Scaffold(body: caption()),
+        ),
+      ),
+    );
+
+    await show(oldWindow);
+    await show(newWindow);
+    await tester.pumpAndSettle();
+    oldWindow.delayedMaximized!.complete(true);
+    await tester.pump();
+
+    expect(find.byTooltip('הגדל'), findsOneWidget);
+    expect(find.byTooltip('שחזר'), findsNothing);
+  });
+
   test('stateChanges של windowManager נרשם רק כשיש מאזינים', () {
     const controller = WindowManagerAppWindowController();
     final before = windowManager.listeners.length;
@@ -187,6 +218,7 @@ class _RecordingWindow extends Fake implements AppWindowController {
   final calls = <String>[];
   final changes = _Changes();
   bool maximized = false;
+  Completer<bool>? delayedMaximized;
 
   @override
   Listenable get stateChanges => changes;
@@ -197,6 +229,8 @@ class _RecordingWindow extends Fake implements AppWindowController {
   @override
   Future<bool> isMaximized() async {
     calls.add('isMaximized');
+    final pending = delayedMaximized;
+    if (pending != null) return pending.future;
     return maximized;
   }
 
