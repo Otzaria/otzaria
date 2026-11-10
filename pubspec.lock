@@ -969,8 +969,8 @@ packages:
     dependency: "direct overridden"
     description:
       path: "engine_context/dart"
-      ref: "7847f85bd81322dc241b955a7e96b9088102a1bb"
-      resolved-ref: "7847f85bd81322dc241b955a7e96b9088102a1bb"
+      ref: "4afdd8dc3ff29d119b9f9c4ddce3b001be961d51"
+      resolved-ref: "4afdd8dc3ff29d119b9f9c4ddce3b001be961d51"
       url: "https://github.com/Otzaria/irondash"
     source: git
     version: "0.5.5"
