@@ -54,6 +54,10 @@ void main() {
     expect(items.last.order, 55);
     expect(items.first.placement, 'primary');
     expect(items.first.order, PluginToolbarItem.defaultOrder);
+    // גם bookTypes: פקד קשור מסונן לפי הספר של כל סרגל, כמו פקד רגיל.
+    expect(items.last.bookTypes, ['text', 'pdf']);
+    expect(items.last.bookSources, ['library']);
+    expect(items.first.bookTypes, isEmpty);
   });
 
   test(
@@ -348,6 +352,8 @@ List<Map<String, dynamic>> _templateJson() => [
     'icon': 'book_24_regular',
     'placement': 'overflow',
     'order': 55,
+    'bookTypes': ['text', 'pdf'],
+    'bookSources': ['library'],
     'binding': {
       'program': 'book-links',
       'visibleOutput': 'editions',

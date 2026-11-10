@@ -247,7 +247,10 @@ export type BookType =
   | 'wbk'
   | 'xml'
   | 'rtf'
-  | 'odt';
+  | 'odt'
+  | 'html'
+  | 'htm'
+  | 'xhtml';
 
 export interface BookMeta {
   id?: number | null;
@@ -1446,6 +1449,8 @@ export interface TextSourceMap {
 
 export interface GetSectionTextMapArgs extends RawDivineNamesOption {
   bookId: string;
+  /** Stable identity; takes precedence over the book title. */
+  bookUid?: string;
   sectionIndex: number;
   layer?: 'source' | 'rendered' | 'both';
   includeWords?: boolean;
@@ -1654,6 +1659,16 @@ export interface ContextMenuItem {
    * click path of the item; inherited by children. Available from 0.9.98.
    * ⚠️ See the warning on `RawDivineNamesOption`. */
   rawDivineNames?: boolean;
+  /** Top-level items only: show the item only when the clicked book's
+   * identity `type` (the `type` in the click payload) is listed — `'text'`,
+   * `'pdf'`, `'external'`, or a document extension such as `'docx'`. In a
+   * commentary this is the commentary book, not `mainBook`. Empty or omitted
+   * = every book. Older hosts ignore it. Available from 0.9.99. */
+  bookTypes?: BookType[];
+  /** Top-level items only, combined with `bookTypes` (AND): show the item
+   * only when the clicked book's identity `source` is listed. Empty or
+   * omitted = every source. Older hosts ignore it. Available from 0.9.99. */
+  bookSources?: Array<'library' | 'user' | 'attached' | 'external'>;
 }
 
 /**
@@ -1723,6 +1738,17 @@ export interface ToolbarItem {
   newTab?: boolean;
   /** Free-form value echoed back as `param` in the click event payload. */
   param?: unknown;
+  /** Top-level items only: show the item only in the toolbar of a book whose
+   * identity `type` is listed (`'text'`, `'pdf'`, `'external'`, or a document
+   * extension such as `'docx'`). Checked against each toolbar's own book, so
+   * every pane of a split view decides on its own. Empty or omitted = every
+   * book. Older hosts ignore it. Available from 0.9.99. */
+  bookTypes?: BookType[];
+  /** Top-level items only, combined with `bookTypes` (AND): show the item only
+   * for a book whose identity `source` is listed (`'library'`, `'user'`,
+   * `'attached'`, `'external'`). Empty or omitted = every source. Older hosts
+   * ignore it. Available from 0.9.99. */
+  bookSources?: Array<'library' | 'user' | 'attached' | 'external'>;
 }
 
 export interface UpdateToolbarItemArgs {
