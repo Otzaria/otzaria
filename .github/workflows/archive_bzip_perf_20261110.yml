@@ -1,0 +1,60 @@
+name: Archive bzip2 member benchmark
+on:
+  push:
+    branches:
+      - qa/archive-fork-20261110
+permissions:
+  contents: read
+jobs:
+  bzip:
+    name: Bzip2 ${{ matrix.ref }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        ref:
+          - main
+          - perf/bzip2-reuse-block-table-across-members
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: Otzaria/archive
+          ref: ${{ matrix.ref }}
+          persist-credentials: false
+      - uses: dart-lang/setup-dart@v1
+      - run: dart pub get
+      - name: Write benchmark
+        run: |
+          cat > bzip_bench.dart <<'DART'
+          import 'dart:io';
+          import 'dart:typed_data';
+          
+          import 'package:archive/archive_io.dart';
+          
+          void main() {
+            final source = Uint8List.fromList(
+                List<int>.generate(1024, (i) => (i * 71 + (i ~/ 29)) & 255));
+            final frame = BZip2Encoder().encodeBytes(source);
+            final many = Uint8List.fromList([
+              for (var i = 0; i < 400; i++) ...frame,
+            ]);
+            final times = <double>[];
+            final decoder = BZip2Decoder();
+            for (var i = 0; i < 8; i++) {
+              final clock = Stopwatch()..start();
+              final result = decoder.decodeBytes(many, verify: true, throwOnError: true);
+              clock.stop();
+              if (result.length != source.length * 400) {
+                throw StateError('Wrong decoded size');
+              }
+              if (i > 0) times.add(clock.elapsedMicroseconds / 1000);
+            }
+            times.sort();
+            stdout.writeln('RESULT bzip2_400_members_p50_ms ${times[3]}');
+            stdout.writeln('RESULT bzip2_400_members_min_ms ${times.first}');
+            stdout.writeln('RESULT bzip2_400_members_max_ms ${times.last}');
+          }
+          DART
+      - name: Measure decoded bzip2 members
+        run: dart run bzip_bench.dart
