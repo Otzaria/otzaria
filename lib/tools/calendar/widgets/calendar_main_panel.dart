@@ -15,6 +15,7 @@ import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart'
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_day_cell.dart';
 import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 class CalendarMainPanel extends StatelessWidget {
   final CalendarState state;
@@ -59,8 +60,8 @@ class CalendarMainPanel extends StatelessWidget {
                           context,
                           const Duration(milliseconds: 280),
                         ),
-                        switchInCurve: Curves.easeOutCubic,
-                        switchOutCurve: Curves.easeInCubic,
+                        switchInCurve: AppTokens.curveEnter,
+                        switchOutCurve: AppTokens.curveExit,
                         transitionBuilder: (child, animation) {
                           final slideAnimation = Tween<Offset>(
                             begin: const Offset(0.03, 0),

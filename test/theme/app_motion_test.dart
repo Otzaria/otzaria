@@ -11,6 +11,30 @@ Widget _host({required bool disableAnimations, required Widget child}) =>
     );
 
 void main() {
+  group('AppMotion.tabSwitch', () {
+    testWidgets('בלי העדפה: animPanelSlide, כמו ברירת המחדל של TabController', (
+      tester,
+    ) async {
+      expect(AppMotion.tabSwitch, AppTokens.animPanelSlide);
+      expect(AppMotion.tabSwitch, kTabScrollDuration);
+    });
+
+    testWidgets('המערכת מבקשת להפחית אנימציות: אפס', (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      expect(AppMotion.tabSwitch, Duration.zero);
+    });
+  });
+
+  test('טוקני העקומה הם העקומות שהיו בשימוש (DD-21)', () {
+    expect(AppTokens.curveStandard, same(Curves.easeInOut));
+    expect(AppTokens.curveEnter, same(Curves.easeOutCubic));
+    expect(AppTokens.curveExit, same(Curves.easeInCubic));
+  });
+
   group('AppMotion.duration', () {
     Future<Duration> resolve(
       WidgetTester tester, {

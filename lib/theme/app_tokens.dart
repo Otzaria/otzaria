@@ -83,6 +83,16 @@ class AppTokens {
   static const Duration animPanelOpacity = Duration(milliseconds: 200);
   static const Duration animPanelSlide = Duration(milliseconds: 300);
 
+  // ── Animation Curves (DD-21) ————————————————
+  /// תנועה בתוך המסך: גלילה, החלפת עמוד.
+  static const Curve curveStandard = Curves.easeInOut;
+
+  /// כניסה: מהיר בהתחלה ונרגע.
+  static const Curve curveEnter = Curves.easeOutCubic;
+
+  /// יציאה: איטי בהתחלה ומאיץ.
+  static const Curve curveExit = Curves.easeInCubic;
+
   /// השהיה לפני תצוגה מקדימה ברפרוף (לא תנועה, ולכן לא עוברת דרך AppMotion).
   static const Duration hoverPreviewDelay = Duration(milliseconds: 280);
 

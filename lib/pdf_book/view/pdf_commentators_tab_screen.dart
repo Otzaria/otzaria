@@ -212,7 +212,11 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
     super.initState();
     _focus = FocusRepository.of(context);
     _displayOverride.addListener(() => setState(() {}));
-    _navTabController = TabController(length: 3, vsync: this);
+    _navTabController = TabController(
+      length: 3,
+      vsync: this,
+      animationDuration: AppMotion.tabSwitch,
+    );
     _navTabController.addListener(_handleTabChanged);
     _initHeadings();
     widget.tab.sourceTab.currentTitle.addListener(_syncWithSourceTab);

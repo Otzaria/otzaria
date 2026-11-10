@@ -2,6 +2,7 @@ import 'package:otzaria/text_book/view/reader_export_actions.dart';
 import 'package:otzaria/text_book/view/reader_print_actions.dart';
 import 'package:otzaria/text_book/view/reader_shamor_zachor_actions.dart';
 import 'package:otzaria/theme/app_density.dart';
+import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'dart:io';
@@ -339,6 +340,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       length: 3, // ברירת מחדל, יעודכן ב-_checkAltTitles
       vsync: this,
       initialIndex: initialIndex,
+      animationDuration: AppMotion.tabSwitch,
     );
     tabController.addListener(_handleTabChange);
     // ה-listener נורה רק על שינוי, ובלי סימון מיידי סרגל החיפוש מושבת
@@ -533,6 +535,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             length: newLength,
             vsync: this,
             initialIndex: newIndex,
+            animationDuration: AppMotion.tabSwitch,
           );
           tabController.addListener(_handleTabChange);
           _syncSearchHostActiveTab();

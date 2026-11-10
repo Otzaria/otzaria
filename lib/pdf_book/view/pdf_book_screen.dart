@@ -1097,6 +1097,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       length: 3, // חזרה ל-3: ניווט, חיפוש, דפים (ללא מפרשים)
       vsync: this,
       initialIndex: _currentLeftPaneTabIndex,
+      animationDuration: AppMotion.tabSwitch,
     );
     // ה-listener נורה רק על שינוי, ובלי סימון מיידי סרגל החיפוש מושבת
     // (issue #1063). לשונית אוטומטית נסמכת ב-didChangeDependencies, שם ידוע הרוחב.

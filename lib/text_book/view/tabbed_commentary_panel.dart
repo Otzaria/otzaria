@@ -30,6 +30,7 @@ import 'package:otzaria/text_book/models/commentary_scroll_request.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
+import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 
 /// אינדקסי הלשוניות ב-[TabbedCommentaryPanel]
@@ -118,6 +119,7 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
       length: kSidebarTabCount, // מפרשים, קישורים והערות אישיות
       vsync: this,
       initialIndex: validInitialIndex,
+      animationDuration: AppMotion.tabSwitch,
     );
 
     // מאזין לשינויים בטאב ושומר אותם
