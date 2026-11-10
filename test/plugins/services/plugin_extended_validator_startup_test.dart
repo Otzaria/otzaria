@@ -304,6 +304,98 @@ void main() {
       expect(report.errors, contains(contains('visibleWhen')));
     });
 
+    group('when', () {
+      const storageWhen = {
+        'storage': {'key': 'showDictate', 'equals': true},
+      };
+
+      test('תנאי תקף עובר מ-0.9.99 ושגוי על גרסה ישנה', () {
+        final items = [
+          {'id': 'a', 'title': 'א', 'when': storageWhen},
+        ];
+        expect(
+          _run(
+            tempDir,
+            actionsManifest(minAppVersion: '0.9.99', items: items),
+          ).errors,
+          isEmpty,
+        );
+        final old = _run(
+          tempDir,
+          actionsManifest(minAppVersion: '0.9.98.3', items: items),
+        );
+        expect(old.errors, contains(contains('searchFieldActions: when')));
+        expect(old.errors, contains(contains('0.9.99')));
+      });
+
+      test('כפתור סינון ספרי תוסף עם when תקף', () {
+        final report = _run(
+          tempDir,
+          _manifest(
+            permissions: const [
+              'app.startup_contributions',
+              'search.field_actions',
+              'library.books.provide',
+            ],
+            minAppVersion: '0.9.99',
+            startup: {
+              'libraryBooks': [
+                {'id': 'books', 'provider': 'mylib', 'title': 'הספרייה שלי'},
+              ],
+              'searchFieldActions': [
+                {
+                  'id': 'source',
+                  'title': 'מקור',
+                  'mode': 'providerBooksFilter',
+                  'when': storageWhen,
+                },
+              ],
+            },
+          ),
+        );
+        expect(report.errors, isEmpty);
+      });
+
+      test('תנאי פגום נדחה פעם אחת באותה הודעה כמו תרומות אחרות', () {
+        final report = _run(
+          tempDir,
+          actionsManifest(
+            minAppVersion: '0.9.99',
+            items: [
+              {
+                'id': 'a',
+                'title': 'א',
+                'when': {'maybe': true},
+              },
+            ],
+          ),
+        );
+        expect(
+          report.errors.where((e) => e.contains('when is invalid')),
+          hasLength(1),
+        );
+      });
+
+      test('הגדרת תוכנה חסומה לתוספים — שגיאה', () {
+        final report = _run(
+          tempDir,
+          actionsManifest(
+            minAppVersion: '0.9.99',
+            items: [
+              {
+                'id': 'a',
+                'title': 'א',
+                'when': {
+                  'setting': {'key': 'key-bookmarks', 'exists': true},
+                },
+              },
+            ],
+          ),
+        );
+        expect(report.errors, contains(contains('key-bookmarks')));
+      });
+    });
+
     test('mode בלבד דורש minAppVersion 0.9.98.3', () {
       final items = [
         {'id': 'a', 'title': 'א', 'mode': 'session'},
