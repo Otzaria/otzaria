@@ -225,6 +225,8 @@ Future<bool> openLibraryBookPerTalmudBavliFormat(
   int index, {
   bool? forcePdf,
   bool navigateToPositionIfReused = false,
+  bool navigate = true,
+  bool captureHistory = true,
 }) async {
   if (book is! TextBook) return false;
   final coordinator = bookOpenCoordinatorOf(context);
@@ -245,12 +247,20 @@ Future<bool> openLibraryBookPerTalmudBavliFormat(
       explicitIndex: true,
       requiresStableLayout: page != null,
       navigateToPositionIfReused: true,
+      navigate: navigate,
+      captureHistory: captureHistory,
     );
     return true;
   }
   if (index <= 0) {
     // אין מיקום מפורש — פתיחה רגילה של ה-PDF, כולל שחזור מיקום מההיסטוריה.
-    coordinator.openBook(target.pdfBook, 1, '');
+    coordinator.openBook(
+      target.pdfBook,
+      1,
+      '',
+      navigate: navigate,
+      captureHistory: captureHistory,
+    );
     return true;
   }
   coordinator.openTab(
@@ -266,6 +276,8 @@ Future<bool> openLibraryBookPerTalmudBavliFormat(
         requiresStableLayout: true,
       ),
     ),
+    navigate: navigate,
+    captureHistory: captureHistory,
   );
   return true;
 }
