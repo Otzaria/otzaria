@@ -135,6 +135,10 @@ class TextBookRepository {
   /// כל שורות הספר מאותו מקור שממנו הקורא מציג אותן, כך שמספרי השורות
   /// תואמים. בספר אישי הקובץ שבדיסק יכול להיות שונה מהשורות שבמסד.
   Future<List<String>> getBookLines(TextBook book) async {
+    // בספר רשמי זה אותו מקור; טווח של ספר שלם היה תופס את ערוץ הגלילה.
+    if (!book.source.isUser) {
+      return splitContentLines(await getBookContent(book));
+    }
     final range = await getBookContentRange(
       book,
       startLine: 0,

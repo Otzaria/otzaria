@@ -1,13 +1,18 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
 
 void main() {
-  final book = TextBook(title: 'בישול ראשונים', fileType: 'txt');
+  final book = TextBook(
+    title: 'בישול ראשונים',
+    fileType: 'txt',
+    source: BookSource.user,
+  );
 
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
@@ -33,6 +38,12 @@ void main() {
     final repository = _FakeRepository(range: null, fileText: 'א\nב');
 
     expect(await repository.getBookLines(book), ['א', 'ב']);
+  });
+
+  test('ספר רשמי נטען כטקסט מלא, בלי טווח של כל הספר', () async {
+    final repository = _FakeRepository(range: const ['טווח'], fileText: 'א\nב');
+
+    expect(await repository.getBookLines(TextBook(title: 'משנה')), ['א', 'ב']);
   });
 }
 
