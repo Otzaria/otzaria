@@ -79,7 +79,10 @@ class WindowPersistence {
   /// reports finite, usable geometry. Invalid monitor data must not make a
   /// previously reachable window appear off-screen during restoration.
   @visibleForTesting
-  static Rect? physicalWorkAreaOrNull(Rect logicalWorkArea, double scaleFactor) {
+  static Rect? physicalWorkAreaOrNull(
+    Rect logicalWorkArea,
+    double scaleFactor,
+  ) {
     if (!scaleFactor.isFinite ||
         scaleFactor <= 0 ||
         logicalWorkArea.width <= 0 ||
@@ -400,7 +403,7 @@ class WindowPersistenceBinding {
   // כשל דיסק בשמירת הגבולות נרשם ליומן ואינו יוצא כשגיאה לא מטופלת.
   void _logSaveFailure(Object error, StackTrace stackTrace) {
     try {
-      ErrorLogFile.append(
+      ErrorLogFile.appendInBackground(
         title: 'שמירת גבולות החלון נכשלה',
         error: error,
         stackTrace: stackTrace,

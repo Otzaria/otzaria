@@ -406,7 +406,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       // בלי רישום ליומן, כשל חיפוש (כמו אחרי יציאה משינה, issue #1012)
       // אינו משאיר עקבות לאבחון — errors.txt נשאר ריק.
       try {
-        ErrorLogFile.append(
+        ErrorLogFile.appendInBackground(
           title: 'כשל חיפוש',
           error: e,
           stackTrace: stackTrace,

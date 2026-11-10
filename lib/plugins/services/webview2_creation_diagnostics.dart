@@ -174,7 +174,7 @@ $r.events = Section {
             '(elevated or another user)';
       }
       final redactor = AppReportRedactor.fromPlatform();
-      ErrorLogFile.append(
+      ErrorLogFile.appendInBackground(
         title: logTitle,
         error: redactor.redactText(
           'WebView2 creation failed: ${_firstLine(trigger)}',

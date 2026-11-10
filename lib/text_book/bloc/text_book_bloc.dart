@@ -2919,7 +2919,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         add(const SetLinksLoading(false));
       }
       try {
-        ErrorLogFile.append(
+        ErrorLogFile.appendInBackground(
           title: 'כשל בטעינת קישורי ספר',
           error: e,
           stackTrace: stackTrace,
@@ -3278,7 +3278,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     if (_loggedCommentatorsFailure == key) return;
     _loggedCommentatorsFailure = key;
     try {
-      ErrorLogFile.append(
+      ErrorLogFile.appendInBackground(
         title: 'כשל בטעינת רשימת המפרשים',
         error: error,
         stackTrace: stackTrace,

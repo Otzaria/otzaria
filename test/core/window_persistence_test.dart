@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart'
     show Listenable, debugDefaultTargetPlatformOverride, TargetPlatform;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/core/user_state/user_state_database.dart';
 import 'package:otzaria/core/user_state/window_bounds.dart';
 import 'package:otzaria/core/user_state/window_session_store.dart';
@@ -341,6 +342,7 @@ void main() {
       }, (error, _) => unhandled.add(error));
 
       expect(unhandled, isEmpty);
+      await ErrorLogFile.flushPending(timeout: const Duration(seconds: 30));
       final log = File('${tmp.path}/logs/errors.txt').readAsStringSync();
       expect(log, contains('שמירת גבולות החלון נכשלה'));
       expect(log, contains('disk I/O error'));

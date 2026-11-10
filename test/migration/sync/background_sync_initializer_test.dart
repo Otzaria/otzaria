@@ -169,6 +169,7 @@ void main() {
         BackgroundSyncInitializer.waitForCompletion(),
         throwsA(isA<TimeoutException>()),
       );
+      await ErrorLogFile.flushPending(timeout: const Duration(seconds: 30));
       expect(
         ErrorLogFile.resolveFile().readAsStringSync(),
         contains('Background sync failed'),

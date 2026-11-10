@@ -573,7 +573,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
   ) {
     if (drifted.isEmpty) return;
     try {
-      ErrorLogFile.append(
+      ErrorLogFile.appendInBackground(
         title: 'Library Update: content drift in untouched tables',
         error: 'tables: ${drifted.join(', ')}',
       );
@@ -622,7 +622,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     } catch (error, stackTrace) {
       debugPrint('Deferred table verification failed: $error\n$stackTrace');
       try {
-        ErrorLogFile.append(
+        ErrorLogFile.appendInBackground(
           title: 'Library Update: deferred verification failed',
           error: error,
           stackTrace: stackTrace,
@@ -1214,7 +1214,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
   // נחסמה בזמן העדכון (נסיגה לסגירת חיבור ה-RO).
   void _logJournalModeFailure(String mode, String reason) {
     try {
-      ErrorLogFile.append(
+      ErrorLogFile.appendInBackground(
         title: 'Library Update: journal_mode=$mode failed',
         error: reason,
       );

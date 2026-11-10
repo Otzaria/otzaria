@@ -31,26 +31,28 @@ void main() {
   File errorsFile() =>
       File(p.join(tempDir.path, 'logs', ErrorLogFile.fileName));
 
-  test('כשל נרשם ל-errors.txt עם הכותרת והפרטים', () {
+  test('כשל נרשם ל-errors.txt עם הכותרת והפרטים', () async {
     logPluginWebViewFailure(
       'WebView2 environment init failed',
       StateError('boom'),
       details: const {'UserDataFolder': r'C:\data\webview2'},
     );
 
+    await ErrorLogFile.flushPending(timeout: const Duration(seconds: 30));
     final content = errorsFile().readAsStringSync();
     expect(content, contains('WebView2 environment init failed'));
     expect(content, contains('Bad state: boom'));
     expect(content, contains(r'UserDataFolder: C:\data\webview2'));
   });
 
-  test('פרטים ריקים מושמטים מהרשומה', () {
+  test('פרטים ריקים מושמטים מהרשומה', () async {
     logPluginWebViewFailure(
       'Plugin WebView2 process failed',
       'RENDER_PROCESS_EXITED',
       details: const {'Plugin': 'my-plugin', 'ExitCode': null},
     );
 
+    await ErrorLogFile.flushPending(timeout: const Duration(seconds: 30));
     final content = errorsFile().readAsStringSync();
     expect(content, contains('Plugin: my-plugin'));
     expect(content, isNot(contains('ExitCode')));
@@ -85,6 +87,7 @@ void main() {
       logPluginWebViewHwndFallback(fallback);
       logPluginWebViewHwndFallback(fallback);
       await Future<void>.delayed(const Duration(milliseconds: 50));
+      await ErrorLogFile.flushPending(timeout: const Duration(seconds: 30));
 
       final content = errorsFile().readAsStringSync();
       expect('Plugin WebView HWND fallback'.allMatches(content), hasLength(1));
@@ -105,6 +108,7 @@ void main() {
         const WindowsWebViewHwndFallback(stage: 'forced'),
       );
       await Future<void>.delayed(const Duration(milliseconds: 50));
+      await ErrorLogFile.flushPending(timeout: const Duration(seconds: 30));
 
       expect(errorsFile().readAsStringSync(), contains('Stage: forced'));
       expect(diagnosticsRuns, 0);

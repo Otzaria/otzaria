@@ -1623,6 +1623,9 @@ void main() {
           // מאפיין "קריאה בלבד" של Windows נעצר כבר לפני ההורדה.
           expect(downloaded, !(beforeDownload && Platform.isWindows));
           if (downloaded) {
+            await ErrorLogFile.flushPending(
+              timeout: const Duration(seconds: 30),
+            );
             final log = ErrorLogFile.resolveFile().readAsStringSync();
             expect(log, contains('journal_mode=WAL failed'));
             expect(log, contains('readonly database'));
@@ -1661,6 +1664,7 @@ void main() {
           repository.applyDeltaPlan(_deltaPlan()),
           throwsA(anything),
         );
+        await ErrorLogFile.flushPending(timeout: const Duration(seconds: 30));
         final log = ErrorLogFile.resolveFile().readAsStringSync();
         expect(log, contains('journal_mode=WAL failed'));
         expect(log, contains('database is locked'));
@@ -1709,6 +1713,7 @@ void main() {
         );
         expect(release, isNotNull);
         expect(modesAtApply.single, 'wal');
+        await ErrorLogFile.flushPending(timeout: const Duration(seconds: 30));
         final log = ErrorLogFile.resolveFile();
         expect(
           log.existsSync() ? log.readAsStringSync() : '',
@@ -2311,6 +2316,7 @@ void main() {
         // העדכון עצמו הוחל ורוענן — הסטייה אינה rollback.
         expect(_readSourceName(dbPath), 'new');
         expect(refresh.called, isTrue);
+        await ErrorLogFile.flushPending(timeout: const Duration(seconds: 30));
         expect(
           ErrorLogFile.resolveFile().readAsStringSync(),
           contains('Library Update: content drift in untouched tables'),

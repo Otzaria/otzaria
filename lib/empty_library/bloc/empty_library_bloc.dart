@@ -128,7 +128,11 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   static void _appendToErrorLog(String title, Object error, StackTrace st) {
     debugPrint('[EmptyLibrary] $title: $error');
     try {
-      ErrorLogFile.append(title: title, error: error, stackTrace: st);
+      ErrorLogFile.appendInBackground(
+        title: title,
+        error: error,
+        stackTrace: st,
+      );
     } catch (_) {}
   }
 

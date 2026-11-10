@@ -114,7 +114,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
   void _logSaveFailure(Object error, StackTrace stackTrace) {
     try {
-      ErrorLogFile.append(
+      ErrorLogFile.appendInBackground(
         title: 'שמירת הכרטיסיות הפתוחות נכשלה',
         error: error,
         stackTrace: stackTrace,

@@ -44,7 +44,7 @@ Future<bool> printPdfWithSaferMode({
   FutureOr<Uint8List> layout(PdfPageFormat printerFormat) {
     if (isUsablePageFormat(printerFormat)) return onLayout(printerFormat);
     try {
-      ErrorLogFile.append(
+      ErrorLogFile.appendInBackground(
         title: 'Printer page size',
         error: 'The printer reported an unusable page size: $printerFormat',
         details: {'Used instead': '$requestedFormat'},

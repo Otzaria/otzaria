@@ -99,17 +99,15 @@ class ErrorLogFile {
       tempPath: tempPath,
     );
 
+    // רשומות הרקע שעוד לא נשלחו נכתבות קודם, כדי שלא יאבדו אם התהליך מת.
+    final pending = _takeQueuedFor(file);
     ensureExists(
       environment: environment,
       platform: platform,
       tempPath: tempPath,
     );
 
-    file.writeAsStringSync(
-      formattedMessage,
-      mode: FileMode.append,
-      flush: true,
-    );
+    _writeSync(file, pending + formattedMessage);
   }
 
   /// מוסיפה רשומת שגיאה לקובץ הלוג המקומי.
@@ -137,6 +135,107 @@ class ErrorLogFile {
       platform: platform,
       tempPath: tempPath,
     );
+  }
+
+  static final List<({File file, String text})> _queued = [];
+  static Future<void>? _drain;
+  static ({File file, String text})? _inFlight;
+
+  /// כמו [append], בלי לחסום את ה-UI כשהדיסק עמוס. רשומה שעוד בתור אובדת
+  /// בקריסה, ולכן מסלולי קריסה, יציאה ואינדוקס נשארים ב-[append].
+  static void appendInBackground({
+    required String title,
+    required Object error,
+    StackTrace? stackTrace,
+    DateTime? timestamp,
+    Map<String, String?> details = const {},
+    String? version,
+    Map<String, String>? environment,
+    ErrorLogPlatform? platform,
+    String? tempPath,
+  }) {
+    _queued.add((
+      file: resolveFile(
+        environment: environment,
+        platform: platform,
+        tempPath: tempPath,
+      ),
+      text: formatEntry(
+        title: title,
+        error: error,
+        stackTrace: stackTrace,
+        timestamp: timestamp,
+        details: details,
+        version: version,
+      ),
+    ));
+    _drain ??= _drainQueue();
+  }
+
+  /// מסתיים כשכל רשומות הרקע נכתבו, או אחרי [timeout] אם הדיסק תקוע.
+  static Future<void> flushPending({
+    Duration timeout = const Duration(seconds: 2),
+  }) async {
+    final drain = _drain;
+    if (drain == null) return;
+    await drain.timeout(timeout, onTimeout: () {});
+  }
+
+  static Future<void> _drainQueue() async {
+    try {
+      while (_queued.isNotEmpty) {
+        final entry = _queued.removeAt(0);
+        _inFlight = entry;
+        try {
+          await entry.file.parent.create(recursive: true);
+          await entry.file.writeAsString(
+            entry.text,
+            mode: FileMode.append,
+            flush: true,
+          );
+        } catch (_) {
+          // כמו בקוראים של append: כשל ברישום אינו משנה את הפעולה עצמה.
+        } finally {
+          _inFlight = null;
+        }
+      }
+    } finally {
+      _drain = null;
+    }
+  }
+
+  /// מוציא את רשומות התור: אלה של [file] מוחזרות כטקסט אחד, והשאר נכתבות.
+  static String _takeQueuedFor(File file) {
+    if (_queued.isEmpty) return '';
+    final pending = List.of(_queued);
+    _queued.clear();
+    final same = StringBuffer();
+    for (final entry in pending) {
+      if (_samePath(entry.file, file)) {
+        same.write(entry.text);
+        continue;
+      }
+      try {
+        entry.file.parent.createSync(recursive: true);
+        _writeSync(entry.file, entry.text);
+      } catch (_) {
+        // כשל ברשומה של קובץ אחר אינו נזרק לקורא של appendText.
+      }
+    }
+    return same.toString();
+  }
+
+  static bool _samePath(File a, File b) =>
+      p.equals(a.absolute.path, b.absolute.path);
+
+  static void _writeSync(File file, String text) {
+    // append של Dart כותב בסוף שנקבע בפתיחה, וכתיבת רקע שבדרך דורסת את מה
+    // שנכתב כאן; כשהטקסט מתחיל בבתים שלה, הדריסה זהה ולכל היותר יש כפילות.
+    final inFlight = _inFlight;
+    if (inFlight != null && _samePath(inFlight.file, file)) {
+      text = inFlight.text + text;
+    }
+    file.writeAsStringSync(text, mode: FileMode.append, flush: true);
   }
 
   /// בונה את תוכן הרשומה שתישמר בקובץ הלוג.
