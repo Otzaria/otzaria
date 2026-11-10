@@ -164,12 +164,12 @@ dependencies:
   wakelock_plus: ^1.8.2
 
 dependency_overrides:
-  # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור dart-lang/core#1042–#1045.
+  # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור dart-lang/core#1043, #1044.
   # ענף characters-integrated כולל את כל התיקונים; מוצמד לקומיט שנבדק.
   characters:
     git:
       url: https://github.com/Otzaria/core
-      ref: 7ad4f4708c223668fb6c3a05170d436431c69e26
+      ref: 3c153cc0a9bd4327331870b4d6ee0ca8a35435f1
       path: pkgs/characters
   # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור flutter/packages#13595–#13600.
   # תיקוני סקירה חייבים להישמר גם בענף המשולב וגם בענפי ה-PRים באפסטרים.
