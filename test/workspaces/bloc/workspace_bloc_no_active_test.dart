@@ -34,13 +34,18 @@ void main() {
     final target = Workspace(name: 'יעד', tabs: const []);
     final repo = _Repo([target]);
     final bloc = await loaded(repo);
+    final moving = tab('ספר מועבר');
 
     bloc.add(
       MoveTabsToWorkspace(
-        tabs: [tab('ספר מועבר')],
+        sourceWorkspaceId: null,
+        tabs: [moving],
         targetWorkspaceId: target.id,
-        currentTabs: const [],
-        currentTabIndex: 0,
+        readCurrentTabs: () => (
+          tabs: [moving],
+          activeTabIndex: 0,
+          activePane: null,
+        ),
       ),
     );
     await bloc.stream.first.timeout(const Duration(seconds: 2));
@@ -57,9 +62,13 @@ void main() {
 
     bloc.add(
       SwitchToWorkspace(
+        sourceWorkspaceId: null,
         targetWorkspaceId: target.id,
-        currentTabsToSave: [tab('ספר פתוח בחלון')],
-        currentTabIndexToSave: 0,
+        readCurrentTabs: () => (
+          tabs: [tab('ספר פתוח בחלון')],
+          activeTabIndex: 0,
+          activePane: null,
+        ),
       ),
     );
     await bloc.stream.firstWhere((s) => s.activeWorkspaceId == target.id);

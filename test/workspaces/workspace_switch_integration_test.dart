@@ -102,9 +102,13 @@ void main() {
       );
       bloc.add(
         SwitchToWorkspace(
+          sourceWorkspaceId: bloc.state.activeWorkspaceId,
           targetWorkspaceId: other.id,
-          currentTabsToSave: [leaf('זמני')],
-          currentTabIndexToSave: 0,
+          readCurrentTabs: () => (
+            tabs: [leaf('זמני')],
+            activeTabIndex: 0,
+            activePane: null,
+          ),
         ),
       );
       await switched;
@@ -133,7 +137,11 @@ void main() {
         (s) => s.workspaces.first.tabs.single.title == 'חדש',
       );
       bloc.add(
-        UpdateCurrentWorkspaceTabs(tabs: [leaf('חדש')], activeTabIndex: 0),
+        UpdateCurrentWorkspaceTabs(
+          sourceWorkspaceId: fixed.id,
+          tabs: [leaf('חדש')],
+          activeTabIndex: 0,
+        ),
       );
       await done;
       done = bloc.stream.firstWhere((s) => !s.workspaces.first.isPinned);
@@ -142,9 +150,13 @@ void main() {
       done = bloc.stream.firstWhere((s) => s.activeWorkspaceId == other.id);
       bloc.add(
         SwitchToWorkspace(
+          sourceWorkspaceId: bloc.state.activeWorkspaceId,
           targetWorkspaceId: other.id,
-          currentTabsToSave: [leaf('אחרי ביטול')],
-          currentTabIndexToSave: 0,
+          readCurrentTabs: () => (
+            tabs: [leaf('אחרי ביטול')],
+            activeTabIndex: 0,
+            activePane: null,
+          ),
         ),
       );
       await done;
@@ -184,18 +196,26 @@ void main() {
       );
       bloc.add(
         SwitchToWorkspace(
+          sourceWorkspaceId: bloc.state.activeWorkspaceId,
           targetWorkspaceId: second.id,
-          currentTabsToSave: [live],
-          currentTabIndexToSave: 0,
+          readCurrentTabs: () => (
+            tabs: [live],
+            activeTabIndex: 0,
+            activePane: null,
+          ),
         ),
       );
       await switched;
       switched = bloc.stream.firstWhere((s) => s.activeWorkspaceId == first.id);
       bloc.add(
         SwitchToWorkspace(
+          sourceWorkspaceId: bloc.state.activeWorkspaceId,
           targetWorkspaceId: first.id,
-          currentTabsToSave: const [],
-          currentTabIndexToSave: 0,
+          readCurrentTabs: () => (
+            tabs: const [],
+            activeTabIndex: 0,
+            activePane: null,
+          ),
         ),
       );
       await switched;
@@ -222,12 +242,17 @@ void main() {
       final moved = bloc.stream.firstWhere(
         (s) => s.workspaces.last.tabs.length == 2,
       );
+      final moving = leaf('מועבר');
       bloc.add(
         MoveTabsToWorkspace(
-          tabs: [leaf('מועבר')],
+          sourceWorkspaceId: fixed.id,
+          tabs: [moving],
           targetWorkspaceId: other.id,
-          currentTabs: [],
-          currentTabIndex: 0,
+          readCurrentTabs: () => (
+            tabs: [moving],
+            activeTabIndex: 0,
+            activePane: null,
+          ),
         ),
       );
       await moved;
@@ -260,9 +285,13 @@ void main() {
       );
       bloc.add(
         SwitchToWorkspace(
+          sourceWorkspaceId: bloc.state.activeWorkspaceId,
           targetWorkspaceId: other.id,
-          currentTabsToSave: [leaf('זמני')],
-          currentTabIndexToSave: 0,
+          readCurrentTabs: () => (
+            tabs: [leaf('זמני')],
+            activeTabIndex: 0,
+            activePane: null,
+          ),
         ),
       );
       await switched;
@@ -280,9 +309,10 @@ void main() {
     List<OpenedTab> liveTabs = const [],
     Screen screen = Screen.library,
     Completer<void>? replaceGate,
+    Completer<void>? afterReplaceGate,
   }) async {
     await repository.replaceWorkspaces(workspaces, workspaces.first.id);
-    final harness = _DialogHarness(repository, replaceGate);
+    final harness = _DialogHarness(repository, replaceGate, afterReplaceGate);
     addTearDown(harness.close);
     if (liveTabs.isNotEmpty) {
       final loaded = harness.tabs.stream.firstWhere((s) => s.tabs.isNotEmpty);
@@ -541,6 +571,138 @@ void main() {
     expect(find.text('פתח'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  for (final pinned in [false, true]) {
+    testWidgets(
+      'snapshot capture is disabled while a move waits behind another write: pinned=$pinned',
+      (tester) async {
+        final source = Workspace(
+          name: 'מקור',
+          tabs: [leaf('תמונה קבועה')],
+          isPinned: pinned,
+        );
+        final target = Workspace(name: 'יעד', tabs: []);
+        final moving = leaf('מועבר');
+        final remaining = leaf('נשאר');
+        final harness = await openDialog(
+          tester,
+          workspaces: [source, target],
+          liveTabs: [moving, remaining],
+        );
+        final gate = Completer<void>();
+        addTearDown(() {
+          if (!gate.isCompleted) gate.complete();
+        });
+        repository.nextWriteGate = gate;
+        harness.workspace.add(
+          RenameWorkspace(workspaceId: target.id, newName: 'יעד חדש'),
+        );
+        await tester.pump();
+        expect(harness.workspace.state.isChangingTabs, isFalse);
+        final moved = Completer<bool>();
+        harness.workspace.add(
+          MoveTabsToWorkspace(
+            sourceWorkspaceId: source.id,
+            tabs: [moving],
+            targetWorkspaceId: target.id,
+            readCurrentTabs: () => (
+              tabs: harness.tabs.state.tabs,
+              activeTabIndex: harness.tabs.state.currentTabIndex,
+              activePane: harness.tabs.state.activePaneSide,
+            ),
+            onTabsMoved: () async {
+              final removed = harness.tabs.stream.firstWhere(
+                (state) => !state.tabs.contains(moving),
+              );
+              harness.tabs.add(RemoveTab(moving));
+              await removed;
+            },
+            onCompleted: moved.complete,
+          ),
+        );
+        expect(harness.workspace.state.isChangingTabs, isTrue);
+        await tester.pumpAndSettle();
+        final captureButton = find
+            .byWidgetPredicate(
+              (widget) =>
+                  widget is IconButton &&
+                  widget.tooltip ==
+                      (pinned
+                          ? 'שמור את הספרים הפתוחים כעת בשולחן המקובע'
+                          : 'קבע: בכל כניסה ייפתחו רק הספרים שנשמרו'),
+            )
+            .first;
+        expect(tester.widget<IconButton>(captureButton).onPressed, isNull);
+        await tester.tap(captureButton);
+        gate.complete();
+        await tester.pumpAndSettle();
+        expect(await moved.future, isTrue);
+        expect(harness.workspace.state.isChangingTabs, isFalse);
+        final saved = (await repository.loadWorkspaces()).$1;
+        expect(saved.first.isPinned, pinned);
+        expect(
+          saved.first.tabs.map((tab) => tab.title),
+          pinned ? ['תמונה קבועה'] : ['נשאר'],
+        );
+        expect(saved.last.tabs.map((tab) => tab.title), ['מועבר']);
+        expect(harness.tabs.state.tabs, [remaining]);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+  }
+
+  testWidgets(
+    'an external switch disables capture while live tabs and workspace id differ',
+    (tester) async {
+      final source = Workspace(
+        name: 'מקור',
+        tabs: [leaf('קבוע')],
+        isPinned: true,
+      );
+      final target = Workspace(name: 'יעד', tabs: [leaf('טאבי יעד')]);
+      final gate = Completer<void>();
+      final harness = await openDialog(
+        tester,
+        workspaces: [source, target],
+        liveTabs: [leaf('חי')],
+        afterReplaceGate: gate,
+      );
+      addTearDown(() {
+        if (!gate.isCompleted) gate.complete();
+      });
+      final completed = Completer<bool?>();
+      harness.workspace.add(
+        SwitchToWorkspace(
+          sourceWorkspaceId: source.id,
+          targetWorkspaceId: target.id,
+          readCurrentTabs: () => (
+            tabs: harness.tabs.state.tabs,
+            activeTabIndex: 0,
+            activePane: null,
+          ),
+          onCompleted: completed.complete,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(harness.workspace.state.activeWorkspaceId, source.id);
+      expect(harness.tabs.state.tabs.single.title, 'טאבי יעד');
+      final capture = find.byWidgetPredicate(
+        (widget) =>
+            widget is IconButton &&
+            widget.tooltip == 'שמור את הספרים הפתוחים כעת בשולחן המקובע',
+      );
+      expect(tester.widget<IconButton>(capture).onPressed, isNull);
+      await tester.tap(capture);
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(await completed.future, isTrue);
+      expect(harness.workspace.state.isChangingTabs, isFalse);
+      final saved = (await repository.loadWorkspaces()).$1;
+      expect(saved.first.tabs.single.title, 'קבוע');
+      expect(saved.last.tabs.single.title, 'טאבי יעד');
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 }
 
 Finder _tile(String name) => find
@@ -551,7 +713,11 @@ Finder _tile(String name) => find
     .first;
 
 class _DialogHarness {
-  _DialogHarness(WorkspaceRepository repository, Completer<void>? replaceGate) {
+  _DialogHarness(
+    WorkspaceRepository repository,
+    Completer<void>? replaceGate,
+    Completer<void>? afterReplaceGate,
+  ) {
     final tabsRepository = _TabsRepository();
     tabs = TabsBloc(repository: tabsRepository);
     navigation = NavigationBloc(
@@ -567,6 +733,7 @@ class _DialogHarness {
         final done = tabs.stream.firstWhere((s) => identical(s.tabs, restored));
         tabs.add(ReplaceAllTabs(restored, index, activePane: pane));
         await done;
+        if (afterReplaceGate != null) await afterReplaceGate.future;
       },
     );
   }
@@ -607,11 +774,15 @@ class _DialogHarness {
 class _ControlledWorkspaceRepository extends WorkspaceRepository {
   _ControlledWorkspaceRepository({super.store, super.sessions, super.slot});
   bool failWrite = false;
+  Completer<void>? nextWriteGate;
 
   @override
   Future<List<Workspace>> mutateWorkspaces(
     List<Workspace> Function(List<Workspace> current) apply,
-  ) {
+  ) async {
+    final gate = nextWriteGate;
+    nextWriteGate = null;
+    if (gate != null) await gate.future;
     if (failWrite) throw StateError('write failed');
     return super.mutateWorkspaces(apply);
   }
