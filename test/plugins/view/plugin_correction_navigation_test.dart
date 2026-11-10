@@ -352,6 +352,51 @@ void main() {
     await tester.runAsync(() => service.flushAll());
   });
 
+  testWidgets('לחיצה על פסקה בקצה התחתון של התצוגה אינה גוללת את הדף', (
+    tester,
+  ) async {
+    final service = await begin(tester);
+    final scroll = ScrollController(initialScrollOffset: 100);
+    addTearDown(scroll.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Scaffold(
+            body: SingleChildScrollView(
+              controller: scroll,
+              child: Column(
+                children: [
+                  const SizedBox(height: 670),
+                  PluginCorrectionParagraph(
+                    tabId: 'tab',
+                    sectionIndex: 0,
+                    sourceText: sources[0],
+                    settings: const RenderSettings(fontSize: 14),
+                    original: const SizedBox(
+                      height: 28,
+                      child: Text('קריאה 0'),
+                    ),
+                    service: service,
+                    sessionActive: true,
+                  ),
+                  const SizedBox(height: 900),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    // הפסקה תופסת את 28 הפיקסלים האחרונים בתצוגה (גובה 600, גלילה 100).
+    expect(tester.getRect(find.text('קריאה 0')).bottom, lessThanOrEqualTo(600));
+    await tester.tap(find.text('קריאה 0'));
+    await tester.pumpAndSettle();
+    expect(find.byType(EditableText), findsOneWidget);
+    expect(scroll.offset, 100);
+    await finish(tester, service);
+  });
+
   testWidgets('חיפוש מודגש בעורך כמו בפסקה הרגילה', (tester) async {
     final service = await begin(tester);
     await pump(tester, service, searchText: 'ראשונה');

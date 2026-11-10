@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -49,6 +52,20 @@ class _CaretHandoff {
 
 class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   static _CaretHandoff? _handoff;
+
+  /// הפסקה היחידה שפתוחה כרגע לעריכה בלי שתוקנה. מצב העריכה הוא דגל ולא שיקוף
+  /// של הפוקוס: אזור הבחירה של הקורא לוקח פוקוס באמצע כל לחיצה ממושכת, ואילו
+  /// העורך היה נסגר איתו אי אפשר היה לסמן טקסט בעכבר, להדביק מתפריט או לחזור
+  /// מחלון אחר.
+  static _PluginCorrectionParagraphState? _active;
+  Timer? _tapTimer;
+
+  /// הפעלה בלחיצת עכבר: השורה שנלחצה כבר גלויה, ולכן השדה אינו גולל את עצמו
+  /// "כדי לחשוף את הסמן" (20 פיקסלים מכל קצה) והדף אינו זז מתחת לעכבר.
+  Timer? _revealTimer;
+  bool _suppressReveal = false;
+  Offset? _lastTapUp;
+  Offset? _downAt;
   bool _editable = false;
   bool _corrected = false;
   bool _showEditor = false;
@@ -93,6 +110,8 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   }
 
   void _disposeEditor() {
+    _cancelTimers();
+    if (_active == this) _active = null;
     _controller?.dispose();
     _focus?.dispose();
     _activationFocus?.dispose();
@@ -104,10 +123,73 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     _showEditor = false;
   }
 
+  void _claimActive() {
+    if (_active == this) return;
+    _active?._stopEditing();
+    _active = this;
+  }
+
+  void _cancelTimers() {
+    _clearTap();
+    _revealTimer?.cancel();
+    _revealTimer = null;
+    _suppressReveal = false;
+  }
+
+  void _clearTap() {
+    _tapTimer?.cancel();
+    _tapTimer = null;
+    _lastTapUp = null;
+  }
+
+  /// סוגר עורך של פסקה שלא תוקנה ומחזיר את התצוגה הרגילה. פסקה שתוקנה נשארת
+  /// עורך בכל מקרה.
+  void _stopEditing({bool refocusReader = false}) {
+    _clearTap();
+    if (_active == this) _active = null;
+    if (!_showEditor) return;
+    if (!mounted) {
+      _showEditor = false;
+      return;
+    }
+    setState(() => _showEditor = false);
+    if (!refocusReader || _corrected) return;
+    // הפוקוס חוזר לקורא (ולא לפסקה), כדי שחצים וגלילה ימשיכו לעבוד.
+    final reader = Focus.maybeOf(context, createDependency: false);
+    if (reader == null || reader is FocusScopeNode) {
+      _focus?.unfocus(disposition: UnfocusDisposition.scope);
+    } else {
+      reader.requestFocus();
+    }
+  }
+
+  void _editorPointerDown(PointerDownEvent event) {
+    _downAt = null;
+    if (_corrected || event.buttons != kPrimaryButton) return;
+    final last = _lastTapUp;
+    if (_tapTimer?.isActive == true &&
+        last != null &&
+        (event.position - last).distance <= kDoubleTapSlop) {
+      // לחיצה כפולה על פסקה שלא תוקנה יוצאת ממצב העריכה.
+      _stopEditing(refocusReader: true);
+      return;
+    }
+    _downAt = event.position;
+  }
+
+  void _editorPointerUp(PointerUpEvent event) {
+    final down = _downAt;
+    _downAt = null;
+    _clearTap();
+    // גרירה (סימון טקסט) אינה לחיצה.
+    if (down == null || (event.position - down).distance > kTouchSlop) return;
+    _lastTapUp = event.position;
+    _tapTimer = Timer(kDoubleTapTimeout, _clearTap);
+  }
+
   void _focusChanged() {
     if (!mounted) return;
-    if (_focus!.hasFocus && !_showEditor) _lockOriginalHeight();
-    setState(() => _showEditor = _focus!.hasFocus);
+    if (_focus!.hasFocus) _claimActive();
     final handoff = _handoff;
     if (!_focus!.hasFocus || handoff == null) return;
     _handoff = null;
@@ -138,6 +220,14 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   }
 
   void _startEditing({Offset? position}) {
+    _claimActive();
+    if (position != null) {
+      _suppressReveal = true;
+      _revealTimer?.cancel();
+      _revealTimer = Timer(const Duration(milliseconds: 300), () {
+        _suppressReveal = false;
+      });
+    }
     _lockOriginalHeight();
     setState(() => _showEditor = true);
     _focus!.requestFocus();
@@ -351,7 +441,12 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
         constraints: BoxConstraints(
           minHeight: _corrected ? 0 : (_lockedHeight ?? 0),
         ),
-        child: _buildEditor(),
+        child: Listener(
+          onPointerDown: _editorPointerDown,
+          onPointerUp: _editorPointerUp,
+          onPointerCancel: (_) => _downAt = null,
+          child: _buildEditor(),
+        ),
       ),
     );
   }
@@ -361,7 +456,8 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   /// ובפסקה ארוכה ומיושרת מילים עוברות שורה והטקסט זז מתחת לעין.
   static const double _caretMargin = 2.0;
 
-  Widget _matchReadingWidth(Widget editor) => _CaretRoom(child: editor);
+  Widget _matchReadingWidth(Widget editor) =>
+      _CaretRoom(suppressReveal: () => _suppressReveal, child: editor);
 
   Widget _buildEditor() {
     final settings = widget.settings;
@@ -380,6 +476,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
         controller: _controller!,
         focusNode: _focus!,
         highlightText: settings.searchText,
+        scrollPadding: EdgeInsets.zero,
         maxLines: null,
         minLines: 1,
         textInputAction: TextInputAction.newline,
@@ -409,6 +506,8 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
 
   @override
   void dispose() {
+    _cancelTimers();
+    if (_active == this) _active = null;
     _registry.removeListener(_changed);
     _controller?.dispose();
     _focus?.dispose();
@@ -421,13 +520,41 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
 /// וגודלו כלפי ההורה נשאר רוחב ההורה. התוספת חורגת ימינה (הטקסט מצויר מקצה
 /// שמאל), ולכן אזור הטקסט רוחבו בדיוק כמו בתצוגה הרגילה.
 class _CaretRoom extends SingleChildRenderObjectWidget {
-  const _CaretRoom({required super.child});
+  const _CaretRoom({required this.suppressReveal, required super.child});
+
+  final bool Function() suppressReveal;
 
   @override
-  RenderObject createRenderObject(BuildContext context) => _RenderCaretRoom();
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderCaretRoom(suppressReveal);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderCaretRoom renderObject) {
+    renderObject.suppressReveal = suppressReveal;
+  }
 }
 
 class _RenderCaretRoom extends RenderProxyBox {
+  _RenderCaretRoom(this.suppressReveal);
+
+  bool Function() suppressReveal;
+
+  @override
+  void showOnScreen({
+    RenderObject? descendant,
+    Rect? rect,
+    Duration duration = Duration.zero,
+    Curve curve = Curves.ease,
+  }) {
+    if (suppressReveal()) return;
+    super.showOnScreen(
+      descendant: descendant,
+      rect: rect,
+      duration: duration,
+      curve: curve,
+    );
+  }
+
   @override
   void performLayout() {
     final child = this.child;

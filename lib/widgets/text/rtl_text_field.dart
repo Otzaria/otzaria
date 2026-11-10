@@ -36,6 +36,9 @@ class RtlTextField extends StatefulWidget {
   /// ממלא את הגובה הזמין. מחייב `maxLines: null` ו-`minLines: null`.
   final bool expands;
 
+  /// שוליים שהשדה דורש סביב הסמן כשהוא גולל את עצמו לתוך התצוגה.
+  final EdgeInsets scrollPadding;
+
   const RtlTextField({
     super.key,
     this.controller,
@@ -57,6 +60,7 @@ class RtlTextField extends StatefulWidget {
     this.cursorColor,
     this.scrollController,
     this.expands = false,
+    this.scrollPadding = const EdgeInsets.all(20.0),
   });
 
   @override
@@ -382,6 +386,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
           : widget.inputFormatters,
       obscureText: widget.obscureText,
       cursorWidth: 1.0, // דק יותר מברירת המחדל (2.0)
+      scrollPadding: widget.scrollPadding,
       // שקוף בשלב ה"כבוי" של ההבהוב ולאחר שנעצר (ראו ניהול ההבהוב למעלה)
       cursorColor: _cursorVisible ? widget.cursorColor : Colors.transparent,
       // ברירת המחדל max מציירת בטקסט RTL רב-שורתי כל בחירה עד הקצה השמאלי.

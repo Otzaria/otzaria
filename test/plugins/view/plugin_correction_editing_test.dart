@@ -78,6 +78,15 @@ double _textStartX(WidgetTester tester) {
   return render.localToGlobal(Offset(caret.right, 0)).dx;
 }
 
+/// לחיצה כפולה בתוך העורך: יציאה ממצב עריכה בפסקה שלא תוקנה.
+Future<void> _doubleTapEditor(WidgetTester tester) async {
+  final point = tester.getCenter(find.byType(EditableText));
+  await tester.tapAt(point);
+  await tester.pump(const Duration(milliseconds: 50));
+  await tester.tapAt(point);
+  await tester.pumpAndSettle();
+}
+
 EditableText _editor(WidgetTester tester) =>
     tester.widget<EditableText>(find.byType(EditableText));
 
@@ -640,7 +649,7 @@ void main() {
     await _finish(tester, service);
   });
 
-  testWidgets('המקור נשמר לפני עריכה וחוזר אחרי יציאה ממיקוד ואיפוס', (
+  testWidgets('המקור נשמר לפני עריכה וחוזר בלחיצה כפולה, גם אחרי איפוס', (
     tester,
   ) async {
     const source = '<span style="color: red">אב</span>';
@@ -651,8 +660,7 @@ void main() {
     await activateCorrectionParagraph(tester, find.text('קריאה'));
     await tester.pump();
     await tester.showKeyboard(find.byType(EditableText));
-    _editor(tester).focusNode.unfocus();
-    await tester.pumpAndSettle();
+    await _doubleTapEditor(tester);
     expect(find.text('קריאה'), findsOneWidget);
     expect(find.byType(EditableText), findsNothing);
     expect(service.isCorrected('tab', 0, source), isFalse);
@@ -671,10 +679,120 @@ void main() {
     await tester.pump();
     expect(service.isCorrected('tab', 0, source), isFalse);
     expect(_editor(tester).controller.text, 'אב');
-    _editor(tester).focusNode.unfocus();
-    await tester.pumpAndSettle();
+    await _doubleTapEditor(tester);
     expect(find.text('קריאה'), findsOneWidget);
     expect(find.byType(EditableText), findsNothing);
+    await _finish(tester, service);
+  });
+
+  testWidgets(
+    'אובדן מיקוד אינו סוגר את העורך, ולחיצה ממושכת וגרירה מסמנות טקסט',
+    (
+      tester,
+    ) async {
+      const source = 'אבגד הוזח טיכל';
+      final service = await _begin(tester, [source]);
+      // כמו בקורא: הפסקה בתוך SelectionArea, שלוקח מיקוד 100 אלפיות שנייה
+      // אחרי תחילת כל לחיצת עכבר. העורך נשאר פתוח.
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(
+              body: SelectionArea(
+                child: PluginCorrectionParagraph(
+                  tabId: 'tab',
+                  sectionIndex: 0,
+                  sourceText: source,
+                  settings: const RenderSettings(fontSize: 20),
+                  original: const Text('קריאה'),
+                  service: service,
+                  sessionActive: true,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await activateCorrectionParagraph(tester, find.text('קריאה'));
+      expect(find.byType(EditableText), findsOneWidget);
+      final box = tester.getRect(find.byType(EditableText));
+      final gesture = await tester.startGesture(
+        Offset(box.right - 5, box.center.dy),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(find.byType(EditableText), findsOneWidget);
+      await gesture.moveBy(const Offset(-60, 0));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(find.byType(EditableText), findsOneWidget);
+      expect(_editor(tester).controller.selection.isCollapsed, isFalse);
+      expect(_editor(tester).focusNode.hasFocus, isTrue);
+      // שתי לחיצות רחוקות בזמן אינן לחיצה כפולה.
+      await tester.tapAt(box.center);
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.tapAt(box.center);
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byType(EditableText), findsOneWidget);
+      expect(service.isCorrected('tab', 0, source), isFalse);
+      await _finish(tester, service);
+    },
+  );
+
+  testWidgets('לחיצה כפולה על פסקה שתוקנה אינה סוגרת את העורך', (tester) async {
+    const source = 'אבגד';
+    final service = await _begin(tester, [source]);
+    await _pumpEditor(tester, service, source);
+    await tester.showKeyboard(find.byType(EditableText));
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: 'אבגה',
+        selection: TextSelection.collapsed(offset: 4),
+      ),
+    );
+    await tester.pump();
+    expect(service.isCorrected('tab', 0, source), isTrue);
+    await _doubleTapEditor(tester);
+    expect(find.byType(EditableText), findsOneWidget);
+    await _finish(tester, service);
+  });
+
+  testWidgets('הפעלת פסקה אחרת סוגרת עורך פתוח של פסקה שלא תוקנה', (
+    tester,
+  ) async {
+    const sources = ['פסקה אחת', 'פסקה שתיים'];
+    final service = await _begin(tester, sources);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Scaffold(
+            body: Column(
+              children: [
+                for (var i = 0; i < sources.length; i++)
+                  PluginCorrectionParagraph(
+                    tabId: 'tab',
+                    sectionIndex: i,
+                    sourceText: sources[i],
+                    settings: const RenderSettings(fontSize: 20),
+                    original: Text('קריאה $i'),
+                    service: service,
+                    sessionActive: true,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await activateCorrectionParagraph(tester, find.text('קריאה 0'));
+    expect(_editor(tester).controller.text, sources[0]);
+    await activateCorrectionParagraph(tester, find.text('קריאה 1'));
+    expect(find.byType(EditableText), findsOneWidget);
+    expect(_editor(tester).controller.text, sources[1]);
+    expect(find.text('קריאה 0'), findsOneWidget);
     await _finish(tester, service);
   });
 
