@@ -29,6 +29,8 @@ import 'package:otzaria/library/view/library_breadcrumb_bar.dart';
 import 'package:otzaria/library/view/library_daf_yomi.dart';
 import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/widgets/feedback/edge_scrollbar_behavior.dart';
+import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
+import 'package:positioned_sliver_list/positioned_list.dart';
 import 'package:otzaria/widgets/lists/filter_chips_widget.dart';
 import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
@@ -3020,7 +3022,7 @@ class _LoadingDotsTextState extends State<_LoadingDotsText>
   }
 }
 
-class _LibraryBrowserList extends StatelessWidget {
+class _LibraryBrowserList extends StatefulWidget {
   const _LibraryBrowserList({
     this.children,
     this.itemCount,
@@ -3034,36 +3036,53 @@ class _LibraryBrowserList extends StatelessWidget {
 
   final List<Widget>? children;
   final int? itemCount;
-  final NullableIndexedWidgetBuilder? itemBuilder;
+  final IndexedWidgetBuilder? itemBuilder;
 
   /// פריט קבוע בראש הרשימה (למשל צ'יפי סינון) — נגלל יחד עם התוצאות.
   final Widget? header;
   final bool forPanel;
 
   @override
+  State<_LibraryBrowserList> createState() => _LibraryBrowserListState();
+}
+
+class _LibraryBrowserListState extends State<_LibraryBrowserList> {
+  final ItemScrollController _itemScrollController = ItemScrollController();
+
+  @override
   Widget build(BuildContext context) {
-    final padding = forPanel
+    final padding = widget.forPanel
         ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8)
         : const EdgeInsets.symmetric(horizontal: 16, vertical: 8);
 
+    final children = widget.children;
     if (children != null) {
       return ListView(
         padding: padding,
         children: [
-          ?header,
-          ...children!,
+          ?widget.header,
+          ...children,
         ],
       );
     }
 
+    // ListView בונה בקפיצה של פס הגלילה כל שורה שבדרך (אלפי תוצאות) ומפרק את
+    // כולן; ScrollablePositionedList בונה רק את שורות היעד.
+    final header = widget.header;
     final hasHeader = header != null;
-    return ListView.builder(
-      padding: padding,
-      itemCount: itemCount! + (hasHeader ? 1 : 0),
-      itemBuilder: (context, index) {
-        if (hasHeader && index == 0) return header!;
-        return itemBuilder!(context, hasHeader ? index - 1 : index);
-      },
+    final itemCount = widget.itemCount! + (hasHeader ? 1 : 0);
+    return ScrollablePositionedListScrollbar(
+      scrollController: _itemScrollController,
+      itemCount: itemCount,
+      child: ScrollablePositionedList.builder(
+        itemScrollController: _itemScrollController,
+        padding: padding,
+        itemCount: itemCount,
+        itemBuilder: (context, index) {
+          if (hasHeader && index == 0) return header;
+          return widget.itemBuilder!(context, hasHeader ? index - 1 : index);
+        },
+      ),
     );
   }
 }

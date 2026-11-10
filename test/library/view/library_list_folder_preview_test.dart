@@ -22,6 +22,7 @@ import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
+import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 import 'package:provider/provider.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
@@ -45,6 +46,19 @@ class _StubCalendarCubit extends Cubit<CalendarState> implements CalendarCubit {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// ספר שסופר כמה פעמים נקרא המחבר שלו: כל שורת רשימה שנבנית קוראת אותו.
+class _CountingBook extends TextBook {
+  _CountingBook(this.counter, {required super.title}) : super(author: 'מחבר');
+
+  final List<int> counter;
+
+  @override
+  String? get author {
+    counter[0]++;
+    return super.author;
+  }
 }
 
 Category _folder(
@@ -155,6 +169,42 @@ void main() {
 
     verify(() => libraryBloc.add(SelectCategoryForPreview(folder))).called(1);
     expect(find.text('ספר פנימי'), findsOneWidget, reason: 'התיקייה נפתחת');
+  });
+
+  testWidgets('גרירת פס הגלילה לסוף אלפי תוצאות איתור בונה רק את שורות היעד '
+      '(issue #4766)', (tester) async {
+    final authorReads = [0];
+    final books = [
+      for (var i = 0; i < 3000; i++)
+        _CountingBook(authorReads, title: 'אברהם $i'),
+    ];
+    final folder = _folder('תיקייה', books: books);
+    final library = Library(categories: [folder]);
+    folder.parent = library;
+
+    final libraryBloc = _MockLibraryBloc();
+    whenListen(
+      libraryBloc,
+      const Stream<LibraryState>.empty(),
+      initialState: LibraryState(
+        library: library,
+        currentCategory: library,
+        searchResults: books,
+      ),
+    );
+    await _pumpBrowser(tester, libraryBloc);
+    expect(find.text('אברהם 0'), findsOneWidget);
+    authorReads[0] = 0;
+
+    await tester.drag(
+      find.byKey(ScrollablePositionedListScrollbar.thumbKey),
+      const Offset(0, 2000),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('אברהם 2999'), findsOneWidget);
+    // ListView בונה בקפיצה כזו כל שורה שבדרך: אלפי קריאות.
+    expect(authorReads[0], lessThan(200));
   });
 
   group('כניסה לתת-תיקייה מהתצוגה המקדימה (issue #1983)', () {
