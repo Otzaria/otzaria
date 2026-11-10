@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/models/plugin_context_menu_item.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
+import 'package:otzaria/plugins/services/plugin_condition_evaluator.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 
 void main() {
   group('ContextMenuRegistry', () {
@@ -639,7 +641,7 @@ void main() {
         );
       });
 
-      test('findRootItem מחזיר את הפריט העליון, שמסנן גם את ילדיו', () {
+      test('findVisibleItem מחזיר את הפריט ואת השורש שמסנן אותו', () {
         registry.registerPayload('word', {
           'id': 'menu',
           'type': 'submenu',
@@ -649,18 +651,130 @@ void main() {
             {'id': 'export', 'title': 'ייצוא'},
           ],
         });
-        final root = registry.findRootItem('word', 'export');
-        expect(root?.id, 'menu');
-        expect(registry.findRootItem('word', 'menu')?.id, 'menu');
-        expect(registry.findRootItem('word', 'missing'), isNull);
-        expect(registry.findRootItem('other', 'export'), isNull);
+        final resolved = registry.findVisibleItem('word', 'export')!;
+        expect(resolved.item.id, 'export');
+        expect(resolved.root.id, 'menu');
+        expect(registry.findVisibleItem('word', 'menu')?.root.id, 'menu');
+        expect(registry.findVisibleItem('word', 'missing'), isNull);
+        expect(registry.findVisibleItem('other', 'export'), isNull);
         // הילד עצמו אינו נושא מסנן — הבדיקה חייבת להיעשות על השורש.
         expect(
           registry.findItem('word', 'export')!.showsForBook(bookType: 'text'),
           isTrue,
         );
-        expect(root!.showsForBook(bookType: 'text'), isFalse);
-        expect(root.showsForBook(bookType: 'docx'), isTrue);
+        expect(resolved.root.showsForBook(bookType: 'text'), isFalse);
+        expect(resolved.root.showsForBook(bookType: 'docx'), isTrue);
+      });
+
+      for (final (field, restricted) in [
+        ('bookTypes', ['docx']),
+        ('bookSources', ['library']),
+      ]) {
+        for (final child in [false, true]) {
+          test('$field מתעדכן ברישום החי גם מעל startup — ילד: $child', () {
+            Map<String, dynamic> payload(String origin) => {
+              'id': 'menu',
+              'title': 'פעולה',
+              field: restricted,
+              if (child) ...{
+                'type': 'submenu',
+                'children': [
+                  {'id': 'act', 'title': 'פעולה', 'param': origin},
+                ],
+              } else
+                'param': origin,
+            };
+            registry.registerPayload('p', payload('startup'));
+            registry.registerPayload('p', payload('live'), instanceId: 'live');
+            final target = child ? 'act' : 'menu';
+
+            registry.update('p', 'menu', {field: []}, instanceId: 'live');
+            final cleared = registry.findVisibleItem('p', target)!;
+            expect(cleared.item.param, 'live');
+            expect(
+              cleared.root.showsForBook(bookType: 'text', bookSource: 'user'),
+              isTrue,
+            );
+
+            registry.update('p', 'menu', {field: []});
+            registry.update('p', 'menu', {
+              field: restricted,
+            }, instanceId: 'live');
+            final narrowed = registry.findVisibleItem('p', target)!;
+            expect(narrowed.item.param, 'live');
+            expect(
+              narrowed.root.showsForBook(bookType: 'text', bookSource: 'user'),
+              isFalse,
+            );
+
+            registry.removeInstance((pluginId: 'p', instanceId: 'live'));
+            final fallback = registry.findVisibleItem('p', target)!;
+            expect(fallback.item.param, 'startup');
+            expect(
+              fallback.root.showsForBook(bookType: 'text', bookSource: 'user'),
+              isTrue,
+            );
+          });
+        }
+      }
+
+      test('when בוחר את הפריט ואת מסנן השורש מאותו רישום גלוי', () {
+        Object? dark = false;
+        final evaluator = PluginConditionEvaluator.forTesting(
+          settingReader: (_) => dark,
+        );
+        final filtered = ContextMenuRegistry.forTesting(evaluator: evaluator);
+        addTearDown(evaluator.dispose);
+        addTearDown(filtered.dispose);
+        for (final (instanceId, value, source) in [
+          ('plugin', false, 'library'),
+          ('live', true, 'user'),
+        ]) {
+          filtered.registerPayload('p', {
+            'id': 'menu',
+            'type': 'submenu',
+            'title': 'פעולות',
+            'bookSources': [source],
+            'when': {
+              'setting': {
+                'key': SettingsRepository.keyDarkMode,
+                'equals': value,
+              },
+            },
+            'children': [
+              {'id': 'act', 'title': 'פעולה', 'param': instanceId},
+            ],
+          }, instanceId: instanceId);
+        }
+
+        var resolved = filtered.findVisibleItem('p', 'act')!;
+        expect(resolved.item.param, 'plugin');
+        expect(resolved.root.bookSources, ['library']);
+        dark = true;
+        resolved = filtered.findVisibleItem('p', 'act')!;
+        expect(resolved.item.param, 'live');
+        expect(resolved.root.bookSources, ['user']);
+        dark = null;
+        expect(filtered.getAll(), isEmpty);
+        expect(filtered.findVisibleItem('p', 'act'), isNull);
+      });
+
+      test('ילד שהוסר ברישום החי אינו נשלף מהעותק הדקלרטיבי', () {
+        for (final (instanceId, childId) in [
+          ('plugin', 'removed'),
+          ('live', 'current'),
+        ]) {
+          registry.registerPayload('p', {
+            'id': 'menu',
+            'type': 'submenu',
+            'title': 'פעולות',
+            'children': [
+              {'id': childId, 'title': 'פעולה'},
+            ],
+          }, instanceId: instanceId);
+        }
+        expect(registry.findVisibleItem('p', 'removed'), isNull);
+        expect(registry.findVisibleItem('p', 'current')?.item.id, 'current');
       });
 
       test('ערך לא מוכר, או מסנן על ילד — נדחה', () {

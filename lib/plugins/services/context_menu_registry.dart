@@ -52,14 +52,15 @@ class ContextMenuRegistry extends PluginItemRegistry<PluginContextMenuItem> {
     return null;
   }
 
-  /// הפריט העליון שבעץ שלו נמצא [itemId] (הפריט עצמו אם הוא עליון). מסנני
-  /// הספר (`bookTypes`/`bookSources`) מוצהרים רק עליו וחלים על כל העץ.
-  PluginContextMenuItem? findRootItem(String pluginId, String itemId) {
-    for (final entry in items.entries) {
-      if (entry.key.pluginId != pluginId) continue;
-      for (final item in entry.value) {
-        if (_findInTree(item, itemId) != null) return item;
-      }
+  /// הפריט ושורשו מאותו רישום שמוצג בתפריט, אחרי קדימות המופעים ו-when.
+  ({PluginContextMenuItem root, PluginContextMenuItem item})? findVisibleItem(
+    String pluginId,
+    String itemId,
+  ) {
+    for (final (id, root) in getAll()) {
+      if (id != pluginId) continue;
+      final item = _findInTree(root, itemId);
+      if (item != null) return (root: root, item: item);
     }
     return null;
   }
