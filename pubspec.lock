@@ -101,10 +101,11 @@ packages:
   bloc_concurrency:
     dependency: "direct main"
     description:
-      name: bloc_concurrency
-      sha256: "86b7b17a0a78f77fca0d7c030632b59b593b22acea2d96972588f40d4ef53a94"
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/bloc_concurrency"
+      ref: "6e4061e34e8062ba3b72f3fb005fbae1278742b4"
+      resolved-ref: "6e4061e34e8062ba3b72f3fb005fbae1278742b4"
+      url: "https://github.com/Otzaria/bloc"
+    source: git
     version: "0.3.0"
   bloc_test:
     dependency: "direct dev"
