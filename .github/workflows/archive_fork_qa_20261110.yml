@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         archive_branch:
-          - perf/chunked-stream-copy-without-eager-materialization
+          - fix/lzma2-truncated-uncompressed-chunks
     steps:
       - name: Checkout archive branch
         uses: actions/checkout@v4
