@@ -678,8 +678,7 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
       spans.add(
         TextSpan(
           text: ' …',
-          style: TextStyle(
-            fontSize: 16,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
             fontWeight: FontWeight.bold,
             color: Theme.of(context).colorScheme.onSurface,
           ),
