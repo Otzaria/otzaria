@@ -581,6 +581,9 @@ jobs:
       - name: Run Windows-relevant tests
         run: flutter test -j 4 test/core/ test/tabs/ test/navigation/ test/workspaces/ test/personal_notes/ test/utils/file/native_sha256_test.dart test/external_catalog/external_catalog_repository_test.dart
 
+      - name: Test plugin ZIP extraction paths (Windows)
+        run: flutter test test/plugins/services/plugin_archive_extractor_test.dart
+
   # Golden tests (docs/design-system/CI_ENFORCEMENT.md §5, DD-22): Windows היא
   # פלטפורמת הייחוס, ולכן test/goldens/ מוחרג מה-shards של Linux
   # (tool/ci/test_shards.dart). כשל מעלה את תמונות ההשוואה כ-artifact.
