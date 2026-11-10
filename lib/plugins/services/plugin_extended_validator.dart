@@ -85,6 +85,8 @@ const Set<String> _knownEvents = {
   'plugin.permissions_changed',
   'app.command',
   'search.requested',
+  // אירוע שידור: חיפוש טקסט מלא באוצריא הסתיים, עם המונה הסופי.
+  'search.completed',
   // אירוע ממוקד מ-PluginExternalSearchService: בקשת חיפוש חיצוני ממסך
   // החיפוש המובנה. תוסף-ספק מצהיר עליו ב-activationEvents כדי שהבקשה
   // תעיר מנוע רקע במקום לפתוח את דף התוסף.
@@ -266,6 +268,18 @@ class PluginExtendedValidator {
       }
     }
 
+    // האירוע search.completed נוסף ב-0.9.99; באוצריא ישנה ההרשאה אינה מוכרת
+    // והאירוע לא יגיע, ולכן הוא נאכף מול minAppVersion.
+    if (eventUsage.containsKey('search.completed') ||
+        declaredPermissions.contains('events.subscribe:search.completed')) {
+      _requireMinVersion(
+        manifest,
+        _searchCompletedMinVersion,
+        'האירוע search.completed',
+        errors,
+      );
+    }
+
     final design = _checkDesignCompliance(files);
 
     return PluginValidationReport(
@@ -328,6 +342,7 @@ class PluginExtendedValidator {
   static const String _searchResultsActionMinVersion = '0.9.98.3';
   static const String _searchUiOptionsMinVersion = '0.9.98.3';
   static const String _searchFilterLabelsMinVersion = '0.9.99';
+  static const String _searchCompletedMinVersion = '0.9.99';
   static const String _boundToolbarOpenPluginMinVersion = '0.9.98.1';
   static const String _externalEditionsMinVersion = '0.9.97';
   static const String _libraryBooksMinVersion = '0.9.98';
