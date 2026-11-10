@@ -167,6 +167,23 @@ class SearchingTab extends OpenedTab {
   /// האם להריץ אוטומטית שאילתה ממתינה בפתיחה הראשונה של הטאב.
   final bool autoRunInitialSearch;
 
+  static int _pluginTabCounter = 0;
+
+  /// מזהה הטאב ב-`search.completed`. נוצר בכל יצירה של טאב (גם שכפול), ואינו
+  /// נשמר: הוא תקף כל עוד הטאב חי בתהליך הזה.
+  final String pluginTabId =
+      'search-${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}'
+      '-${(_pluginTabCounter++).toRadixString(36)}';
+
+  int? _publishedSearchRequestId;
+
+  /// החלפת בעלות החלון אינה משדרת שוב השלמה שכבר נמסרה.
+  bool claimSearchCompletion(int requestId) {
+    if (_publishedSearchRequestId == requestId) return false;
+    _publishedSearchRequestId = requestId;
+    return true;
+  }
+
   /// מפנה לקונסטרוקטור [SearchingTab.clone], שהוא המקום היחיד שיודע אילו
   /// שדות חיפוש להעתיק. `OpenedTab.from` קורא לקונסטרוקטור ישירות.
   @override

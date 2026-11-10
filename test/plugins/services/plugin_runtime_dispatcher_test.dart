@@ -641,6 +641,192 @@ void main() {
     });
   });
 
+  group('search.completed לפי חלון', () {
+    const pluginId = 'window-search.test';
+    const topic = 'search.completed';
+    const payload = {'windowId': 'source', 'tabId': 'search-1', 'requestId': 1};
+    final lazy = PluginLazyActivationService.instance;
+
+    setUp(() {
+      _d.repositoryForTesting = _FakeRegistryRepo();
+      _d.invalidatePlugin(pluginId);
+    });
+
+    tearDown(() {
+      lazy.removePlugin(pluginId);
+      lazy.backgroundActivator = null;
+      for (final id in ['source', 'other', 'background']) {
+        _d.unregisterController(pluginId, instanceId: id);
+      }
+      _d.resetVisibilityForTesting();
+      _d.repositoryForTesting = PluginRegistryRepository();
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    test('מסירה רק למקור; שידור קיים ממשיך להגיע לכל החלונות', () async {
+      final source = _LifecycleFakeController();
+      final other = _LifecycleFakeController();
+      _d.registerController(pluginId, source, instanceId: 'source', viewId: 7);
+      _d.registerController(pluginId, other, instanceId: 'other', viewId: 8);
+
+      await _d.dispatchEvent(topic, payload, viewId: 7);
+      expect(source.jsEvents.single, contains('search.completed'));
+      expect(other.jsEvents, isEmpty);
+      await _d.dispatchEvent('navigation.changed', {'screen': 'reading'});
+      expect(source.jsEvents, hasLength(2));
+      expect(other.jsEvents.single, contains('navigation.changed'));
+    });
+
+    test('קדמי בחלון אחר אינו גונב מסירה ממנוע הרקע', () async {
+      final other = _LifecycleFakeController();
+      final background = _LifecycleFakeController();
+      _d.registerController(pluginId, other, instanceId: 'other', viewId: 8);
+      _d.registerController(pluginId, background, instanceId: 'background');
+      await _d.dispatchEvent(topic, payload, viewId: 7);
+      expect(other.jsEvents, isEmpty);
+      expect(background.jsEvents.single, contains('"windowId":"source"'));
+    });
+
+    test(
+      'קדמי בחלון אחר אינו חוסם lazy boot; המקור נשמר בשתי מסירות',
+      () async {
+        final other = _LifecycleFakeController();
+        final background = _LifecycleFakeController();
+        var activations = 0;
+        lazy.syncPlugin(
+          pluginId,
+          broadcastTopics: {topic},
+          scheduleStartup: false,
+        );
+        lazy.backgroundActivator = (_) async => activations++;
+        _d.registerController(pluginId, other, instanceId: 'other', viewId: 8);
+
+        await _d.dispatchEvent(topic, payload, viewId: 7);
+        expect(activations, 1);
+        _d.registerController(pluginId, background, instanceId: 'background');
+        await _d.dispatchEvent(topic, {...payload, 'requestId': 2}, viewId: 7);
+        expect(background.jsEvents, isEmpty, reason: 'ה-SDK עדיין לא מוכן');
+        await lazy.onBackgroundInstanceReady(pluginId);
+        expect(other.jsEvents, isEmpty);
+        expect(background.jsEvents, hasLength(2));
+        expect(
+          background.jsEvents.every((js) => js.contains('"windowId":"source"')),
+          isTrue,
+        );
+      },
+    );
+
+    test('הרשאה שנשללה בזמן lazy boot נבדקת שוב לפני המסירה', () async {
+      final background = _LifecycleFakeController();
+      lazy.syncPlugin(
+        pluginId,
+        broadcastTopics: {topic},
+        scheduleStartup: false,
+      );
+      lazy.backgroundActivator = (_) async {};
+      await _d.dispatchEvent(topic, payload, viewId: 7);
+      _d.registerController(pluginId, background, instanceId: 'background');
+      _d.repositoryForTesting = _FakeRegistryRepo(permission: false);
+      _d.invalidatePlugin(pluginId);
+      await lazy.onBackgroundInstanceReady(pluginId);
+      expect(background.jsEvents, isEmpty);
+    });
+
+    test('טאב שנסגר בזמן lazy boot אינו מפעיל חיפוש מאוחר בתוסף', () async {
+      final background = _LifecycleFakeController();
+      var current = true;
+      lazy.syncPlugin(
+        pluginId,
+        broadcastTopics: {topic},
+        scheduleStartup: false,
+      );
+      lazy.backgroundActivator = (_) async {};
+      await _d.dispatchEvent(
+        topic,
+        payload,
+        viewId: 7,
+        isCurrent: () => current,
+      );
+      current = false;
+      _d.registerController(pluginId, background, instanceId: 'background');
+      await lazy.onBackgroundInstanceReady(pluginId);
+      expect(background.jsEvents, isEmpty);
+    });
+
+    test('סגירת המקור בזמן בדיקת הרשאה מבטלת את המסירה', () async {
+      final source = _LifecycleFakeController();
+      final gated = _EnabledGateRepo();
+      var current = true;
+      _d.repositoryForTesting = gated;
+      _d.registerController(pluginId, source, instanceId: 'source', viewId: 7);
+      final dispatch = _d.dispatchEvent(
+        topic,
+        payload,
+        viewId: 7,
+        isCurrent: () => current,
+      );
+      await gated.entered.future;
+      current = false;
+      gated.result.complete(true);
+      await dispatch;
+      expect(source.jsEvents, isEmpty);
+    });
+
+    for (final closeSource in [false, true]) {
+      test(
+        'תוסף מושהה: ${closeSource ? 'מקור שנסגר נשמט' : 'מסירה אחת ב-resume'}',
+        () async {
+          debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+          final source = _LifecycleFakeController();
+          final other = _LifecycleFakeController();
+          var current = true;
+          var activations = 0;
+          lazy.syncPlugin(
+            pluginId,
+            broadcastTopics: {topic},
+            scheduleStartup: false,
+          );
+          lazy.backgroundActivator = (_) async => activations++;
+          _d.registerController(
+            pluginId,
+            source,
+            instanceId: 'source',
+            viewId: 7,
+          );
+          _d.registerController(
+            pluginId,
+            other,
+            instanceId: 'other',
+            viewId: 8,
+          );
+          _d.setVisiblePluginInstances({_fg(pluginId, 'source')}, viewId: 7);
+          _d.setVisiblePluginInstances({_fg(pluginId, 'other')}, viewId: 8);
+          await pumpEventQueue();
+          _d.setVisiblePluginInstances({}, viewId: 7);
+          await pumpEventQueue();
+          source.jsEvents.clear();
+          other.jsEvents.clear();
+
+          await _d.dispatchEvent(
+            topic,
+            payload,
+            viewId: 7,
+            isCurrent: () => current,
+          );
+          expect(other.jsEvents, isEmpty);
+          expect(activations, 0, reason: 'אין תור נוסף לרקע לצד התור המקומי');
+          current = !closeSource;
+          _d.setVisiblePluginInstances({_fg(pluginId, 'source')}, viewId: 7);
+          await pumpEventQueue();
+          expect(
+            source.jsEvents.where((js) => js.contains(topic)),
+            hasLength(closeSource ? 0 : 1),
+          );
+        },
+      );
+    }
+  });
+
   group('event routing policy', () {
     const pluginId = 'routing.test.plugin';
 

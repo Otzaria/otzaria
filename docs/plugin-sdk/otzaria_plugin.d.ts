@@ -1863,6 +1863,39 @@ export interface OtzariaEventMap {
    * `plugin.openOther` — in which case `openedBy` holds that plugin's id.
    */
   'plugin.page_opened': { param: unknown; openedBy?: string };
+  /**
+   * A full-text search in an Otzaria search tab finished successfully (from
+   * 0.9.99). Broadcast, read-only. Requires permission:
+   * events.subscribe:search.completed; may also be listed in
+   * `contributes.startup.activationEvents`.
+   *
+   * Fired once per search, after the final count is known. Not fired for an
+   * empty query, no selected categories, a cancelled or superseded search, an
+   * error, or "load more" results. Changing a setting that re-runs the search
+   * (sort, result limit, distance) is a new search and fires again.
+   */
+  'search.completed': {
+    /** Identifies the search tab; valid while the tab lives in this session. */
+    tabId: string;
+    /** Source window in this session, including delivery to the shared background. */
+    windowId: string;
+    /** Increases with every search in that tab; `tabId` + `requestId` is unique. */
+    requestId: number;
+    query: string;
+    mode: SearchMode;
+    /** The search as run, in the same shape as `search.requested` carries.
+     * `facets` are the categories actually searched. */
+    request: SearchQueryParams;
+    /** The count shown above the results. */
+    total: number;
+    /** What `total` counts: `groups` when result grouping is on, else `matches`. */
+    totalKind: 'matches' | 'groups';
+    /** True when the engine stopped counting early: `total` is then a lower bound,
+     * so `total < N` does not prove fewer than N results exist. */
+    truncated: boolean;
+    /** How many results were loaded into the list (at most the result limit). */
+    returned: number;
+  };
   /** A checked static search row routed submission to its owning plugin. */
   'search.requested': { itemId: string; request: SearchQueryParams };
   /** External-search page request sent only to the plugin owning `provider`. */
