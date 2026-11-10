@@ -1,0 +1,69 @@
+name: Archive paired bzip2 QA benchmark
+on:
+  push:
+    branches:
+      - qa/archive-fork-20261110
+permissions:
+  contents: read
+jobs:
+  paired:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: Otzaria/archive
+          ref: main
+          path: baseline
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: Otzaria/archive
+          ref: perf/bzip2-reuse-block-table-across-members
+          path: optimized
+          persist-credentials: false
+      - uses: dart-lang/setup-dart@v1
+      - name: Install dependencies
+        run: |
+          cd baseline && dart pub get && cd ..
+          cd optimized && dart pub get && cd ..
+      - name: Write paired benchmark
+        run: |
+          cat > baseline/paired_bzip.dart <<'DART'
+          import 'dart:io';
+          import 'dart:typed_data';
+          import 'package:archive/archive_io.dart';
+          
+          void main() {
+            final payload = Uint8List.fromList(
+                List<int>.generate(1024, (i) => (i * 71 + i ~/ 29) & 255));
+            final member = BZip2Encoder().encodeBytes(payload);
+            final input = Uint8List.fromList([
+              for (var i = 0; i < 400; i++) ...member,
+            ]);
+            final decoder = BZip2Decoder();
+            final runs = <double>[];
+            for (var i = 0; i < 9; i++) {
+              final sw = Stopwatch()..start();
+              final output = decoder.decodeBytes(input, verify: true, throwOnError: true);
+              sw.stop();
+              if (output.length != 400 * payload.length) {
+                throw StateError('Corrupt benchmark output');
+              }
+              if (i > 0) runs.add(sw.elapsedMicroseconds / 1000);
+            }
+            runs.sort();
+            print('P50=${(runs[3] + runs[4]) / 2} MIN=${runs.first} MAX=${runs.last}');
+          }
+          DART
+          cp baseline/paired_bzip.dart optimized/paired_bzip.dart
+      - name: Run both variants in alternating order on one runner
+        run: |
+          echo "BASELINE_FIRST"
+          (cd baseline && dart run paired_bzip.dart)
+          echo "OPTIMIZED_FIRST"
+          (cd optimized && dart run paired_bzip.dart)
+          echo "OPTIMIZED_SECOND"
+          (cd optimized && dart run paired_bzip.dart)
+          echo "BASELINE_SECOND"
+          (cd baseline && dart run paired_bzip.dart)
