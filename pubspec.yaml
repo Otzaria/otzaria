@@ -271,7 +271,8 @@ dependency_overrides:
       ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
       path: flutter_inappwebview_android
 
-  # TODO: לחזור לגרסה הרשמית כשיפורסמו התיקונים שנותרו; v14 כבר מכסה חלק מהם.
+  # TODO: להישאר במזלג עד שחרור V14 ב-pub.dev ואימות כיסוי כל השיפורים ובדיקות המעבר; 13.3.3 אינה מספיקה.
+  # לפני הסרת ה-overrides יש לאמת URI מלא באנדרואיד (#2316) וקריאה עצלה ב-Web שמייתרת הגבלת מקביליות (#2325–#2326).
   file_picker:
     git:
       url: https://github.com/Otzaria/flutter_file_picker
