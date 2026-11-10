@@ -60,7 +60,7 @@ void scrollToolContentByPage(
   AppMotion.scrollPosition(
     position,
     target,
-    const Duration(milliseconds: 180),
+    AppTokens.animPanelOpacity,
     curve: Curves.easeOut,
   );
 }

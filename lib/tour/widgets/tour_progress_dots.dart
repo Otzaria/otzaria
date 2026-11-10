@@ -31,7 +31,7 @@ class TourProgressDots extends StatelessWidget {
             child: AnimatedContainer(
               duration: AppMotion.duration(
                 context,
-                const Duration(milliseconds: 180),
+                AppTokens.animPanelOpacity,
               ),
               width: i == currentIndex ? 20 : 8,
               height: 8,

@@ -571,7 +571,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                                     return AnimatedPadding(
                                       duration: AppMotion.duration(
                                         context,
-                                        const Duration(milliseconds: 180),
+                                        AppTokens.animPanelOpacity,
                                       ),
                                       curve: Curves.easeOut,
                                       padding: EdgeInsets.only(

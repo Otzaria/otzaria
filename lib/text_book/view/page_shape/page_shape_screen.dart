@@ -2669,7 +2669,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     unawaited(
       _scrollOffsetController.animateScroll(
         offset: delta,
-        duration: const Duration(milliseconds: 120),
+        duration: AppTokens.animFast,
         curve: Curves.easeOut,
       ),
     );

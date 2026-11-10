@@ -144,7 +144,8 @@ void main() {
       isCurrent: isCurrent,
     );
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+    // יותר מ-AppTokens.animPanelSlide, משך הגלילה לעוגן.
+    await tester.pump(const Duration(milliseconds: 400));
     await tester.pump();
     await navigation;
     expect(

@@ -919,7 +919,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
     AppMotion.scrollPosition(
       _scrollController.position,
       (target - _rowHeight).clamp(min, max),
-      const Duration(milliseconds: 120),
+      AppTokens.animFast,
       curve: Curves.easeOut,
     );
   }
