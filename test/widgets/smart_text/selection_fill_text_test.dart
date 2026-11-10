@@ -442,6 +442,39 @@ void main() {
     }
   });
 
+  // לקוד-יחידה בודד מאות מנוקדת אין תיבה, ובגבול רצף LTR שני הצדדים שונים.
+  testWidgets('הסמן בשורה שלפני \\n תואם גם בניקוד ובטקסט דו-כיווני', (
+    tester,
+  ) async {
+    const line = 'בְּרֵאשִׁית בָּרָא abc def 123 אֵת לְךָ';
+    await tester.pumpWidget(
+      _wrap(
+        const SelectionFillText.rich(
+          TextSpan(text: '$line\n$line'),
+          style: _baseStyle,
+        ),
+      ),
+    );
+    final paragraph = tester.renderObject<RenderParagraph>(
+      find.byType(SelectionFillRichText),
+    );
+    const n = line.length;
+    const caret = Rect.fromLTWH(0, 0, 2, 20);
+    Offset at(int offset, TextAffinity affinity) => paragraph.getOffsetForCaret(
+      TextPosition(offset: offset, affinity: affinity),
+      caret,
+    );
+    for (var i = 0; i <= n; i++) {
+      for (final affinity in TextAffinity.values) {
+        expect(
+          at(i, affinity).dx,
+          closeTo(at(i + n + 1, affinity).dx, 0.01),
+          reason: 'offset=$i ${affinity.name}',
+        );
+      }
+    }
+  });
+
   // issue #3761: פסקה שהבחירה עוברת עליה במלואה מקבלת את הפינה הוויזואלית שלה,
   // ובשורה שמתחילה או מסתיימת באנגלית הפינה אינה תחילת הטקסט או סופו.
   testWidgets('בחירה בגרירה כוללת פסקאות מעורבות שמתחילות או נגמרות באנגלית', (
