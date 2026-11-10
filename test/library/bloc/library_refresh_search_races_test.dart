@@ -181,6 +181,70 @@ void main() {
     expect(bloc.state.isSearching, isFalse);
   });
 
+  test('stale failure after editing query keeps search results', () async {
+    final previousResults = bloc.state.searchResults;
+    final previousCategories = bloc.state.searchCategoryResults;
+    final previousPreview = bloc.state.previewBook;
+    expect(previousResults, isNotNull);
+    expect(previousCategories, isNotNull);
+
+    final failure = repo.staleFailureGate = Completer<void>();
+    repo.staleFailureQuery = 'חיפוש ישן';
+
+    final started = bloc.stream.firstWhere(
+      (state) => state.searchQuery == 'חיפוש ישן' && state.isSearching,
+    );
+    bloc.add(const UpdateSearchQuery('חיפוש ישן'));
+    bloc.add(const SearchBooks(showLocalHebrewBooks: false));
+    await started.timeout(const Duration(seconds: 2));
+
+    final edited = bloc.stream.firstWhere(
+      (state) => state.searchQuery == 'שאילתה חדשה' && state.isSearching,
+    );
+    bloc.add(const UpdateSearchQuery('שאילתה חדשה'));
+    await edited.timeout(const Duration(seconds: 2));
+    expect(repo.searches, 2);
+
+    final stopped = bloc.stream.firstWhere(
+      (state) => state.searchQuery == 'שאילתה חדשה' && !state.isSearching,
+    );
+    failure.complete();
+    final state = await stopped.timeout(const Duration(seconds: 2));
+
+    expect(state.error, isNull);
+    expect(state.searchQuery, 'שאילתה חדשה');
+    expect(state.searchResults, same(previousResults));
+    expect(state.searchCategoryResults, same(previousCategories));
+    expect(state.previewBook, same(previousPreview));
+    expect(repo.searches, 2);
+  });
+
+  test('failure from the current search still reports an error', () async {
+    final failure = repo.staleFailureGate = Completer<void>();
+    repo.staleFailureQuery = 'חיפוש נכשל';
+
+    final started = bloc.stream.firstWhere(
+      (state) => state.searchQuery == 'חיפוש נכשל' && state.isSearching,
+    );
+    bloc.add(const UpdateSearchQuery('חיפוש נכשל'));
+    bloc.add(const SearchBooks(showLocalHebrewBooks: false));
+    await started.timeout(const Duration(seconds: 2));
+
+    final failed = bloc.stream.firstWhere(
+      (state) =>
+          state.searchQuery == 'חיפוש נכשל' &&
+          !state.isSearching &&
+          state.error != null,
+    );
+    failure.complete();
+    final state = await failed.timeout(const Duration(seconds: 2));
+
+    expect(state.searchQuery, 'חיפוש נכשל');
+    expect(state.error, isNotNull);
+    expect(state.searchResults, isNull);
+    expect(state.searchCategoryResults, isNull);
+  });
+
   test('איתור שהוחלף באיתור חדש אינו מציג שגיאה', () async {
     final states = <LibraryState>[];
     final sub = bloc.stream.listen(states.add);

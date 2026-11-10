@@ -796,7 +796,13 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
           state.searchQuery != query ||
           state.currentCategory != category) {
         if (searchGeneration == _searchGeneration) {
-          emit(state.copyWith(isSearching: false));
+          emit(
+            state.copyWith(
+              isSearching: false,
+              searchResults: state.searchResults,
+              searchCategoryResults: state.searchCategoryResults,
+            ),
+          );
         }
         return;
       }
