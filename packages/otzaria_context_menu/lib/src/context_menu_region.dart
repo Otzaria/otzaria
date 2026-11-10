@@ -175,10 +175,10 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
     double overlayWidth,
     AppMenuMetrics metrics,
   ) {
+    // On very narrow windows, the available viewport takes precedence over
+    // the normal menu minimum. Do not render a menu wider than its overlay.
     final availableWidth = overlayWidth - (_contextMenuScreenPadding * 2);
-    return availableWidth
-        .clamp(metrics.menuMinWidth, _contextMenuMaxWidth)
-        .toDouble();
+    return availableWidth.clamp(0.0, _contextMenuMaxWidth).toDouble();
   }
 
   bool _isPointerInsideMenu(Offset globalPosition) {
@@ -217,11 +217,12 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
     final spaceBelow = overlayRenderBox.size.height - overlayPosition.dy;
     final shouldOpenAbove =
         spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
+    final maxAnchorX = (overlayRenderBox.size.width -
+            _contextMenuScreenPadding)
+        .clamp(_contextMenuScreenPadding, double.infinity)
+        .toDouble();
     final dx = overlayPosition.dx
-        .clamp(
-          _contextMenuScreenPadding,
-          overlayRenderBox.size.width - _contextMenuScreenPadding,
-        )
+        .clamp(_contextMenuScreenPadding, maxAnchorX)
         .toDouble();
     final rawDy = shouldOpenAbove
         ? overlayPosition.dy - estimatedHeight
