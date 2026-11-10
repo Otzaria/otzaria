@@ -10,6 +10,7 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/widgets/add_books_to_tracking_dialog.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 
 class _MockLibraryBloc extends MockBloc<LibraryEvent, LibraryState>
     implements LibraryBloc {}
@@ -158,5 +159,13 @@ void main() {
       ),
     );
     expect(categoryRow, findsOneWidget);
+  });
+
+  // DD-07: רשימה עם שורת חיפוש היא large בגובה 85% קבוע (UIL-001).
+  testWidgets('הדיאלוג על AppDialogFrame בגודל large', (tester) async {
+    await _pumpDialog(tester);
+    final frame = tester.widget<AppDialogFrame>(find.byType(AppDialogFrame));
+    expect(frame.size, AppDialogSize.large);
+    expect(frame.height, isNotNull);
   });
 }

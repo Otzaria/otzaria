@@ -1,17 +1,6 @@
 {
   "version": 1,
   "rules": {
-    "UIL-001": {
-      "lib/app_report/view/app_report_dialog.dart": [
-        {"scope":"_AppReportDialogState.build","fp":"26be3ad9","n":1}
-      ],
-      "lib/app_report/view/crash_prompt_dialog.dart": [
-        {"scope":"_CrashPromptDialogState.build","fp":"26be3ad9","n":1}
-      ],
-      "lib/tools/shamor_zachor/widgets/add_books_to_tracking_dialog.dart": [
-        {"scope":"_AddBooksToTrackingDialogState.build","fp":"26be3ad9","n":1}
-      ]
-    },
     "UIL-003": {
       "lib/core/diagnostics/frame_stats_overlay.dart": [
         {"scope":"_FrameStatsPanelState._buildToolbar","fp":"5ba189c4","n":1}
@@ -39,12 +28,6 @@
       ]
     },
     "UIL-013": {
-      "lib/app_report/view/app_report_dialog.dart": [
-        {"scope":"_AppReportDialogState.build","fp":"8fde4718","n":1}
-      ],
-      "lib/app_report/view/crash_prompt_dialog.dart": [
-        {"scope":"_CrashPromptDialogState._buildBody","fp":"8fde4718","n":1}
-      ],
       "lib/book_common/view/book_source_dialog.dart": [
         {"scope":"_BookDetailsDialogContentState.build","fp":"8fde4718","n":1}
       ],
