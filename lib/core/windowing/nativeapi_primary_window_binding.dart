@@ -22,7 +22,8 @@ Future<int?> bindNativeapiPrimaryWindow({
 }) async {
   final handle = await (nativeHandleProvider ?? _runnerHandle)();
   if (handle == null || handle == 0) return null;
-  final window = (windowFactory ??
+  final window =
+      (windowFactory ??
       (int address) => nativeapi.Window.createWithNativeWindow(
         Pointer<Void>.fromAddress(address),
       ))(handle);

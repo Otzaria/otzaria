@@ -131,29 +131,23 @@ void main() {
   }
 
   test('מסגרת: נקודות גלובליות מה-runner, גם ב-Retina', () async {
-    expect(
-      await native.windowRect(7),
-      const Rect.fromLTWH(100, 50, 800, 600),
-    );
+    expect(await native.windowRect(7), const Rect.fromLTWH(100, 50, 800, 600));
     expect(runner.methods, ['frame']);
     expect(runner.calls.first.arguments, {'handle': 7});
   });
 
-  test(
-    'setWindowRect: נקודות ללא המרה לפי המסך הנוכחי',
-    () async {
-      await native.setWindowRect(7, const Rect.fromLTWH(100, 50, 800, 600));
-      final setFrame = runner.calls.last;
-      expect(setFrame.method, 'setFrame');
-      expect(setFrame.arguments, {
-        'handle': 7,
-        'x': 100.0,
-        'y': 50.0,
-        'width': 800.0,
-        'height': 600.0,
-      });
-    },
-  );
+  test('setWindowRect: נקודות ללא המרה לפי המסך הנוכחי', () async {
+    await native.setWindowRect(7, const Rect.fromLTWH(100, 50, 800, 600));
+    final setFrame = runner.calls.last;
+    expect(setFrame.method, 'setFrame');
+    expect(setFrame.arguments, {
+      'handle': 7,
+      'x': 100.0,
+      'y': 50.0,
+      'width': 800.0,
+      'height': 600.0,
+    });
+  });
 
   test('אזור עבודה ומיקום: באותו מרחב נקודות, DPI 96 להיסט', () async {
     expect(await native.workArea(7), const Rect.fromLTWH(0, 25, 1440, 875));

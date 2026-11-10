@@ -451,11 +451,7 @@ Widget Function(Widget app) smallScreenProviders(
   );
   final tabsBloc = _TabsBloc(TabsState(tabs: tabs, currentTabIndex: 0));
   final libraryBloc = _LibraryBloc(
-    LibraryState(
-      library: library,
-      currentCategory: library,
-      isLoading: false,
-    ),
+    LibraryState(library: library, currentCategory: library, isLoading: false),
   );
   final workStatus = WorkStatusCubit();
   final indexing = _IndexingBloc();

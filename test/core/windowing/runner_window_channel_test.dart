@@ -11,12 +11,15 @@ void main() {
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     const handle = 0x123456789;
-    messenger.setMockMethodCallHandler(RunnerWindowChannel.channel, (call) async {
+    messenger.setMockMethodCallHandler(RunnerWindowChannel.channel, (
+      call,
+    ) async {
       expect(call.method, 'mainWindowHandle');
       return handle;
     });
     addTearDown(
-      () => messenger.setMockMethodCallHandler(RunnerWindowChannel.channel, null),
+      () =>
+          messenger.setMockMethodCallHandler(RunnerWindowChannel.channel, null),
     );
 
     expect(await const RunnerWindowChannel().mainWindowHandle(), handle);

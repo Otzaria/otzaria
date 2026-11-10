@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+
 import 'package:otzaria/navigation/view/tab_visuals.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -52,6 +53,7 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_state.dart';
 import 'package:window_manager/legacy.dart' show WindowCaptionButton;
+
 import '../helpers/memory_settings_cache.dart';
 import '../test_helpers/fake_view_window.dart';
 import '../test_helpers/second_test_view.dart';
@@ -66,17 +68,13 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   for (final kind in [PointerDeviceKind.touch, PointerDeviceKind.stylus]) {
-    testWidgets('גרירה קצרה מסדרת כרטיסיות אופקיות ב־$kind', (
-      tester,
-    ) async {
+    testWidgets('גרירה קצרה מסדרת כרטיסיות אופקיות ב־$kind', (tester) async {
       final tabs = [
         _makeTextTab('ספר א'),
         _makeTextTab('ספר ב'),
         _makeTextTab('ספר ג'),
       ];
-      final tabsBloc = _TestTabsBloc(
-        TabsState(tabs: tabs, currentTabIndex: 0),
-      );
+      final tabsBloc = _TestTabsBloc(TabsState(tabs: tabs, currentTabIndex: 0));
       final navigationBloc = _TestNavigationBloc(
         const NavigationState(currentScreen: Screen.reading),
       );
@@ -113,59 +111,55 @@ void main() {
   }
 
   for (final split in [false, true]) {
-    testWidgets(
-      'לחיצה ארוכה במגע על ה-X פותחת את תפריט הכרטיסיה'
-      '${split ? ' — חצי של כרטיסיה מפוצלת' : ''} (issue #2518)',
-      (tester) async {
-        // כרטיסיה עם מיקום: ה-tooltip של הכותרת עוטף את כל הכרטיסיה, כולל ה-X.
-        final OpenedTab tab = split
-            ? CombinedTab(
-                rightTab: _makeTextTab('ימין', currentTitle: 'פרק א'),
-                leftTab: _makeTextTab('שמאל', currentTitle: 'פרק ב'),
-              )
-            : _makeTextTab('ספר א', currentTitle: 'פרק א');
-        final tabsBloc = _TestTabsBloc(
-          TabsState(tabs: [tab], currentTabIndex: 0),
-        );
-        final navigationBloc = _TestNavigationBloc(
-          const NavigationState(currentScreen: Screen.reading),
-        );
-        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
-        final workspaceBloc = _TestWorkspaceBloc();
-        addTearDown(() async {
-          tab.dispose();
-          await tabsBloc.close();
-          await navigationBloc.close();
-          await settingsBloc.close();
-          await workspaceBloc.close();
-        });
-        await _setSurfaceSize(tester, const Size(1200, 800));
-        await _pumpTitleBar(
-          tester,
-          tabsBloc: tabsBloc,
-          navigationBloc: navigationBloc,
-          settingsBloc: settingsBloc,
-          workspaceBloc: workspaceBloc,
-        );
+    testWidgets('לחיצה ארוכה במגע על ה-X פותחת את תפריט הכרטיסיה'
+        '${split ? ' — חצי של כרטיסיה מפוצלת' : ''} (issue #2518)', (
+      tester,
+    ) async {
+      // כרטיסיה עם מיקום: ה-tooltip של הכותרת עוטף את כל הכרטיסיה, כולל ה-X.
+      final OpenedTab tab = split
+          ? CombinedTab(
+              rightTab: _makeTextTab('ימין', currentTitle: 'פרק א'),
+              leftTab: _makeTextTab('שמאל', currentTitle: 'פרק ב'),
+            )
+          : _makeTextTab('ספר א', currentTitle: 'פרק א');
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final workspaceBloc = _TestWorkspaceBloc();
+      addTearDown(() async {
+        tab.dispose();
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+        await workspaceBloc.close();
+      });
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+        workspaceBloc: workspaceBloc,
+      );
 
-        final closeButton = split
-            ? find.byTooltip('סגור חלונית').first
-            : find.byIcon(FluentIcons.dismiss_24_regular);
-        final gesture = await tester.startGesture(
-          tester.getCenter(closeButton),
-          kind: PointerDeviceKind.touch,
-        );
-        await tester.pump(
-          kLongPressTimeout + const Duration(milliseconds: 100),
-        );
-        await gesture.up();
-        await tester.pumpAndSettle();
+      final closeButton = split
+          ? find.byTooltip('סגור חלונית').first
+          : find.byIcon(FluentIcons.dismiss_24_regular);
+      final gesture = await tester.startGesture(
+        tester.getCenter(closeButton),
+        kind: PointerDeviceKind.touch,
+      );
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
+      await gesture.up();
+      await tester.pumpAndSettle();
 
-        expect(find.text('סגור הכל'), findsOneWidget);
-        expect(tabsBloc.addedEvents.whereType<RemoveTab>(), isEmpty);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.windows),
-    );
+      expect(find.text('סגור הכל'), findsOneWidget);
+      expect(tabsBloc.addedEvents.whereType<RemoveTab>(), isEmpty);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
   }
 
   setUp(() async {
@@ -293,9 +287,7 @@ void main() {
     tester,
   ) async {
     final tab = _makeTextTab('ספר א', currentTitle: 'פרק א');
-    final tabsBloc = _TestTabsBloc(
-      TabsState(tabs: [tab], currentTabIndex: 0),
-    );
+    final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
     final navigationBloc = _TestNavigationBloc(
       const NavigationState(currentScreen: Screen.reading),
     );
@@ -323,9 +315,7 @@ void main() {
     tester,
   ) async {
     final tab = _makeTextTab('ספר א');
-    final tabsBloc = _TestTabsBloc(
-      TabsState(tabs: [tab], currentTabIndex: 0),
-    );
+    final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
     final navigationBloc = _TestNavigationBloc(
       const NavigationState(currentScreen: Screen.reading),
     );
@@ -548,10 +538,7 @@ void main() {
               searchIconInStrip(),
               iconShown ? findsOneWidget : findsNothing,
             );
-            expect(
-              find.text(iconShown ? 'קקק' : 'חיפוש: קקק'),
-              findsWidgets,
-            );
+            expect(find.text(iconShown ? 'קקק' : 'חיפוש: קקק'), findsWidgets);
           }
 
           expectStable();
@@ -624,9 +611,7 @@ void main() {
     // הריפודים לא נותר בה מקום לתוכן.
     Future<_TestTabsBloc> pumpCrowdedStrip(WidgetTester tester) async {
       final tabs = [for (var i = 0; i < 200; i++) _makeTextTab('ספר $i')];
-      final tabsBloc = _TestTabsBloc(
-        TabsState(tabs: tabs, currentTabIndex: 0),
-      );
+      final tabsBloc = _TestTabsBloc(TabsState(tabs: tabs, currentTabIndex: 0));
       final navigationBloc = _TestNavigationBloc(
         const NavigationState(currentScreen: Screen.reading),
       );
@@ -796,10 +781,7 @@ void main() {
               ? lessThan(settingsX)
               : greaterThan(settingsX),
         );
-        expect(
-          tester.getCenter(button).dy,
-          tester.getCenter(settings).dy,
-        );
+        expect(tester.getCenter(button).dy, tester.getCenter(settings).dy);
         await tester.tap(button);
         // אזור הגרירה מזהה גם לחיצה כפולה: הלחיצה הבודדת מוכרעת אחריה.
         await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
@@ -824,9 +806,7 @@ void main() {
   testWidgets('אייקון pin מוצג כשהכרטיסיה מוצמדת', (tester) async {
     final tab = _makeTextTab('ספר א');
     tab.isPinned = true;
-    final tabsBloc = _TestTabsBloc(
-      TabsState(tabs: [tab], currentTabIndex: 0),
-    );
+    final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
     final navigationBloc = _TestNavigationBloc(
       const NavigationState(currentScreen: Screen.reading),
     );
@@ -926,9 +906,7 @@ void main() {
     addTearDown(() => ShortcutHelper.isMacForTesting = null);
 
     final tab = _makeTextTab('ספר א');
-    final tabsBloc = _TestTabsBloc(
-      TabsState(tabs: [tab], currentTabIndex: 0),
-    );
+    final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
     final navigationBloc = _TestNavigationBloc(
       const NavigationState(currentScreen: Screen.reading),
     );
@@ -957,9 +935,7 @@ void main() {
   testWidgets('אייקון pin מוסתר כשהכרטיסיה אינה מוצמדת', (tester) async {
     final tab = _makeTextTab('ספר א');
     // isPinned = false כברירת מחדל
-    final tabsBloc = _TestTabsBloc(
-      TabsState(tabs: [tab], currentTabIndex: 0),
-    );
+    final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
     final navigationBloc = _TestNavigationBloc(
       const NavigationState(currentScreen: Screen.reading),
     );
@@ -1141,9 +1117,7 @@ void main() {
   ) async {
     const longTitle = 'ספר עם שם ארוך מאוד שנמשך הרחק אל מעבר לרוחב הטאב';
     final tab = _makeTextTab(longTitle);
-    final tabsBloc = _TestTabsBloc(
-      TabsState(tabs: [tab], currentTabIndex: 0),
-    );
+    final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
     final navigationBloc = _TestNavigationBloc(
       const NavigationState(currentScreen: Screen.reading),
     );
@@ -1187,9 +1161,7 @@ void main() {
   testWidgets('CommentatorsTab לא מפיל את שורת הכותרת', (tester) async {
     final sourceTab = _makeTextTab('ספר א', currentTitle: 'פרק א');
     final tab = CommentatorsTab(sourceTab: sourceTab);
-    final tabsBloc = _TestTabsBloc(
-      TabsState(tabs: [tab], currentTabIndex: 0),
-    );
+    final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
     final navigationBloc = _TestNavigationBloc(
       const NavigationState(currentScreen: Screen.reading),
     );
@@ -1220,9 +1192,7 @@ void main() {
 
   testWidgets('טאב PDF רחב מציג אייקון PDF ליד שם הספר', (tester) async {
     final tab = _makePdfTab('ספר PDF');
-    final tabsBloc = _TestTabsBloc(
-      TabsState(tabs: [tab], currentTabIndex: 0),
-    );
+    final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
     final navigationBloc = _TestNavigationBloc(
       const NavigationState(currentScreen: Screen.reading),
     );
@@ -1249,9 +1219,7 @@ void main() {
   testWidgets('טאב PDF צר (רוחב < 100) מסתיר את אייקון ה-PDF', (tester) async {
     // הרבה טאבים ב-surface צר מצמצמים כל טאב מתחת ל-100px — האייקון נעלם.
     final tabs = List.generate(10, (i) => _makePdfTab('ספר $i'));
-    final tabsBloc = _TestTabsBloc(
-      TabsState(tabs: tabs, currentTabIndex: 0),
-    );
+    final tabsBloc = _TestTabsBloc(TabsState(tabs: tabs, currentTabIndex: 0));
     final navigationBloc = _TestNavigationBloc(
       const NavigationState(currentScreen: Screen.reading),
     );
@@ -1283,9 +1251,7 @@ void main() {
     final right = _makeTextTab('תרגום אונקלוס על שמות');
     final left = _makeTextTab('רש"י על בראשית פרשת ויחי');
     final tab = CombinedTab(rightTab: right, leftTab: left);
-    final tabsBloc = _TestTabsBloc(
-      TabsState(tabs: [tab], currentTabIndex: 0),
-    );
+    final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
     final navigationBloc = _TestNavigationBloc(
       const NavigationState(currentScreen: Screen.reading),
     );
@@ -1780,80 +1746,70 @@ void main() {
       expect(events.whereType<SetCurrentTab>(), isEmpty);
     });
 
-    testWidgets(
-      'בדסקטופ הטאבים עטופים ב-listener מיידי (גרירה מסדרת מיד)',
-      (tester) async {
-        final tab = _makeTextTab('ספר א');
-        final tabsBloc = _TestTabsBloc(
-          TabsState(tabs: [tab], currentTabIndex: 0),
-        );
-        final navigationBloc = _TestNavigationBloc(
-          const NavigationState(currentScreen: Screen.reading),
-        );
-        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    testWidgets('בדסקטופ הטאבים עטופים ב-listener מיידי (גרירה מסדרת מיד)', (
+      tester,
+    ) async {
+      final tab = _makeTextTab('ספר א');
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
 
-        addTearDown(() async {
-          tab.dispose();
-          await tabsBloc.close();
-          await navigationBloc.close();
-          await settingsBloc.close();
-        });
+      addTearDown(() async {
+        tab.dispose();
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+      });
 
-        await _setSurfaceSize(tester, const Size(1200, 800));
-        await _pumpTitleBar(
-          tester,
-          tabsBloc: tabsBloc,
-          navigationBloc: navigationBloc,
-          settingsBloc: settingsBloc,
-        );
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+      );
 
-        // בדסקטופ הגרירה מיידית בעכבר, ללא LongPressDraggable.
-        expect(
-          find.byWidgetPredicate((w) => w is Draggable<OpenedTab>),
-          findsOneWidget,
-        );
-        expect(
-          find.byType(LongPressDraggable<OpenedTab>),
-          findsNothing,
-        );
-      },
-      variant: TargetPlatformVariant.desktop(),
-    );
+      // בדסקטופ הגרירה מיידית בעכבר, ללא LongPressDraggable.
+      expect(
+        find.byWidgetPredicate((w) => w is Draggable<OpenedTab>),
+        findsOneWidget,
+      );
+      expect(find.byType(LongPressDraggable<OpenedTab>), findsNothing);
+    }, variant: TargetPlatformVariant.desktop());
 
-    testWidgets(
-      'בנייד הטאבים עטופים ב-listener מושהה (long-press)',
-      (tester) async {
-        final tab = _makeTextTab('ספר א');
-        final tabsBloc = _TestTabsBloc(
-          TabsState(tabs: [tab], currentTabIndex: 0),
-        );
-        final navigationBloc = _TestNavigationBloc(
-          const NavigationState(currentScreen: Screen.reading),
-        );
-        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    testWidgets('בנייד הטאבים עטופים ב-listener מושהה (long-press)', (
+      tester,
+    ) async {
+      final tab = _makeTextTab('ספר א');
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
 
-        addTearDown(() async {
-          tab.dispose();
-          await tabsBloc.close();
-          await navigationBloc.close();
-          await settingsBloc.close();
-        });
+      addTearDown(() async {
+        tab.dispose();
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+      });
 
-        await _setSurfaceSize(tester, const Size(1200, 800));
-        await _pumpTitleBar(
-          tester,
-          tabsBloc: tabsBloc,
-          navigationBloc: navigationBloc,
-          settingsBloc: settingsBloc,
-        );
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+      );
 
-        expect(
-          find.byType(LongPressDraggable<OpenedTab>),
-          findsOneWidget,
-        );
-      },
-      variant: TargetPlatformVariant.mobile(),
-    );
+      expect(find.byType(LongPressDraggable<OpenedTab>), findsOneWidget);
+    }, variant: TargetPlatformVariant.mobile());
 
     testWidgets('הרבה טאבים מצטמצמים והכפתור X מתחבא בטאב צר, ללא חיצי גלילה', (
       tester,
@@ -1861,9 +1817,7 @@ void main() {
       // ביטול הגלילה: הרבה טאבים מתכווצים, וכשהם צרים מ-80px כפתור ה-X מתחבא
       // (מופיע ב-hover/בנבחר) כדי שהם ימשיכו להצטמצם ויישארו נגישים.
       final tabs = List.generate(10, (i) => _makeTextTab('ספר מספר $i'));
-      final tabsBloc = _TestTabsBloc(
-        TabsState(tabs: tabs, currentTabIndex: 0),
-      );
+      final tabsBloc = _TestTabsBloc(TabsState(tabs: tabs, currentTabIndex: 0));
       final navigationBloc = _TestNavigationBloc(
         const NavigationState(currentScreen: Screen.reading),
       );
@@ -1923,9 +1877,7 @@ void main() {
       // בטאב צר שאינו נבחר ה-X מוצג רק בריחוף. כשמצב הריחוף לא שרד בנייה מחדש
       // של השורה, ה-IconButton נמחק מתחת לסמן ולחיצה עליו לא סגרה את הטאב.
       final tabs = List.generate(10, (i) => _makeTextTab('ספר מספר $i'));
-      final tabsBloc = _TestTabsBloc(
-        TabsState(tabs: tabs, currentTabIndex: 0),
-      );
+      final tabsBloc = _TestTabsBloc(TabsState(tabs: tabs, currentTabIndex: 0));
       final navigationBloc = _TestNavigationBloc(
         const NavigationState(currentScreen: Screen.reading),
       );
@@ -2203,24 +2155,20 @@ void main() {
       expect(tabsBloc.addedEvents.whereType<SetCurrentTab>(), isEmpty);
     });
 
-    testWidgets(
-      'במק: Command+לחיצה שולחת ToggleTabSelection',
-      (tester) async {
-        await pumpWithTabs(tester);
+    testWidgets('במק: Command+לחיצה שולחת ToggleTabSelection', (tester) async {
+      await pumpWithTabs(tester);
 
-        await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
-        await tester.tap(find.text('ספר ב'), warnIfMissed: false);
-        await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
-        await tester.pumpAndSettle();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.tap(find.text('ספר ב'), warnIfMissed: false);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      await tester.pumpAndSettle();
 
-        final toggles = tabsBloc.addedEvents
-            .whereType<ToggleTabSelection>()
-            .toList();
-        expect(toggles, hasLength(1));
-        expect(toggles.single.tab, same(second));
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+      final toggles = tabsBloc.addedEvents
+          .whereType<ToggleTabSelection>()
+          .toList();
+      expect(toggles, hasLength(1));
+      expect(toggles.single.tab, same(second));
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
     testWidgets('לחיצה רגילה מנקה בחירה קיימת ומחליפה טאב', (tester) async {
       await pumpWithTabs(tester);
@@ -2236,14 +2184,8 @@ void main() {
       await tester.tap(find.text('ספר ג'), warnIfMissed: false);
       await tester.pumpAndSettle();
 
-      expect(
-        tabsBloc.addedEvents.whereType<ClearTabSelection>(),
-        hasLength(1),
-      );
-      expect(
-        tabsBloc.addedEvents.whereType<SetCurrentTab>().last.index,
-        2,
-      );
+      expect(tabsBloc.addedEvents.whereType<ClearTabSelection>(), hasLength(1));
+      expect(tabsBloc.addedEvents.whereType<SetCurrentTab>().last.index, 2);
     });
 
     testWidgets('לחיצה על ה-X של כרטיסיה נבחרת סוגרת את כל הקבוצה', (
@@ -2322,9 +2264,7 @@ void main() {
     /// צייר בהיסט 0 — כלומר אימתה את החשבון שלה מול עצמו.
     testWidgets('הכרטיסיה הפעילה מגיעה בציור עד תחתית הסרגל', (tester) async {
       final tabs = [_makeTextTab('ספר א'), _makeTextTab('ספר ב')];
-      final tabsBloc = _TestTabsBloc(
-        TabsState(tabs: tabs, currentTabIndex: 0),
-      );
+      final tabsBloc = _TestTabsBloc(TabsState(tabs: tabs, currentTabIndex: 0));
       final navigationBloc = _TestNavigationBloc(
         const NavigationState(currentScreen: Screen.reading),
       );
@@ -2380,15 +2320,11 @@ void main() {
       );
     });
 
-    testWidgets('הגבהת שטח הציור אינה מזיזה את כותרת הכרטיסיה', (
-      tester,
-    ) async {
+    testWidgets('הגבהת שטח הציור אינה מזיזה את כותרת הכרטיסיה', (tester) async {
       // ⚠️ ה-widget קיבל את כל גובה הסרגל כדי שהציור לא ייחתך, והתוכן
       // ממורכז בנפרד. בלי המירכוז הכותרת הייתה יורדת ארבעה פיקסלים.
       final tabs = [_makeTextTab('ספר א'), _makeTextTab('ספר ב')];
-      final tabsBloc = _TestTabsBloc(
-        TabsState(tabs: tabs, currentTabIndex: 0),
-      );
+      final tabsBloc = _TestTabsBloc(TabsState(tabs: tabs, currentTabIndex: 0));
       final navigationBloc = _TestNavigationBloc(
         const NavigationState(currentScreen: Screen.reading),
       );
@@ -2540,10 +2476,7 @@ void main() {
       );
 
       final closeButton = find.descendant(
-        of: find.ancestor(
-          of: find.text('ספר ב'),
-          matching: find.byType(Tab),
-        ),
+        of: find.ancestor(of: find.text('ספר ב'), matching: find.byType(Tab)),
         matching: find.byIcon(FluentIcons.dismiss_24_regular),
       );
       expect(closeButton, findsOneWidget);
@@ -2905,7 +2838,9 @@ void main() {
       await _doubleTapAt(tester, tester.getCenter(find.text('ספר ב')));
 
       expect(
-        spyWindow.calls.where((call) => call == 'maximize' || call == 'unmaximize'),
+        spyWindow.calls.where(
+          (call) => call == 'maximize' || call == 'unmaximize',
+        ),
         isEmpty,
         reason: 'לחיצה כפולה על טאב לא צריכה לשנות את גודל החלון',
       );
@@ -3140,9 +3075,9 @@ void main() {
     ) async {
       final tabs = await pumpTabs(tester, 4, size: const Size(1200, 800));
 
-      final coloredBefore = dividers(
-        tester,
-      ).where((c) => c.color != null).length;
+      final coloredBefore = dividers(tester)
+          .where((c) => c.color != null)
+          .length;
       expect(coloredBefore, greaterThan(0));
       final neighborBefore = tester.getTopLeft(find.text(tabs[3].title));
 
@@ -3165,9 +3100,7 @@ void main() {
     tester,
   ) async {
     final tab = _makeTextTab('ספר א');
-    final tabsBloc = _TestTabsBloc(
-      TabsState(tabs: [tab], currentTabIndex: 0),
-    );
+    final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
     final navigationBloc = _TestNavigationBloc(
       const NavigationState(currentScreen: Screen.reading),
     );
@@ -3201,9 +3134,7 @@ void main() {
 
   testWidgets('כפתורי החלון המותאמים מוצגים גם במק', (tester) async {
     final tab = _makeTextTab('ספר א');
-    final tabsBloc = _TestTabsBloc(
-      TabsState(tabs: [tab], currentTabIndex: 0),
-    );
+    final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
     final navigationBloc = _TestNavigationBloc(
       const NavigationState(currentScreen: Screen.reading),
     );
@@ -3229,9 +3160,7 @@ void main() {
 
   testWidgets('בחלון Dart כפתורי החלון פועלים על החלון שלו', (tester) async {
     final tab = _makeTextTab('ספר א');
-    final tabsBloc = _TestTabsBloc(
-      TabsState(tabs: [tab], currentTabIndex: 0),
-    );
+    final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
     final navigationBloc = _TestNavigationBloc(
       const NavigationState(currentScreen: Screen.reading),
     );
@@ -3465,10 +3394,8 @@ Future<void> _pumpTitleBar(
             BlocProvider<WindowFullscreenCubit>.value(value: fullscreenCubit)
           else
             BlocProvider<WindowFullscreenCubit>(
-              create: (_) => WindowFullscreenCubit(
-                initial: false,
-                persist: (_) async {},
-              ),
+              create: (_) =>
+                  WindowFullscreenCubit(initial: false, persist: (_) async {}),
             ),
           if (historyBloc != null)
             BlocProvider<HistoryBloc>.value(value: historyBloc),
@@ -3482,9 +3409,7 @@ Future<void> _pumpTitleBar(
           home: Scaffold(
             body: SizedBox(
               width: 900,
-              child: CustomTitleBar(
-                onReadingSettingsPressed: () {},
-              ),
+              child: CustomTitleBar(onReadingSettingsPressed: () {}),
             ),
           ),
           theme: theme,
@@ -3523,11 +3448,7 @@ TextBookTab _makeTextTab(String title, {String currentTitle = ''}) {
     ),
   );
 
-  final tab = TextBookTab(
-    book: book,
-    index: 0,
-    blocOverride: bloc,
-  );
+  final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
   tab.currentTitle.value = currentTitle;
   return tab;
 }
