@@ -271,6 +271,64 @@ void main() {
     expect(find.byIcon(OtzariaIcons.document_alef_24_regular), findsNothing);
   });
 
+  // LQ-6: בכרטיס נבחר תג האייקון לא נבלע ברקע הבחירה (selectedRow).
+  testWidgets('בכרטיס נבחר תג התיקייה ותג הספר נבדלים מרקע הבחירה', (
+    tester,
+  ) async {
+    final category = Category(
+      title: 'קטגוריה',
+      description: '',
+      shortDescription: '',
+      order: 0,
+      subCategories: [],
+      books: [],
+      parent: null,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Material(
+          child: Column(
+            children: [
+              SizedBox(
+                width: 260,
+                child: CategoryGridItem(
+                  category: category,
+                  onCategoryClickCallback: () {},
+                  isSelected: true,
+                ),
+              ),
+              SizedBox(
+                width: 260,
+                height: 120,
+                child: BookGridItem(
+                  book: TextBook(title: 'ברכות'),
+                  onBookClickCallback: () {},
+                  isSelected: true,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final cs = Theme.of(
+      tester.element(find.byType(CategoryGridItem)),
+    ).colorScheme;
+    for (final icon in [
+      FluentIcons.folder_24_regular,
+      bookFormatIcon(TextBook(title: 'ברכות')),
+    ]) {
+      final badge = tester.widget<Container>(
+        find
+            .ancestor(of: find.byIcon(icon), matching: find.byType(Container))
+            .first,
+      );
+      final color = (badge.decoration! as BoxDecoration).color;
+      expect(color, isNot(cs.secondaryContainer), reason: '$icon');
+    }
+  });
+
   group('מידע קטגוריה', () {
     Category category({
       String shortDescription = '',
