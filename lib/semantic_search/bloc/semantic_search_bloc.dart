@@ -22,6 +22,8 @@ class SemanticSearchBloc
         SemanticSearchState(
           availability: repository.availability,
           quantization: repository.quantization,
+          modelChoice: repository.modelChoice,
+          activeModelChoice: repository.activeModelChoice,
         ),
       ) {
     on<SemanticSearchStarted>(_onStarted);
@@ -32,9 +34,26 @@ class SemanticSearchBloc
       (event, emit) => repository.cancelDownload(),
     );
     on<SemanticQuantizationChanged>(_onQuantizationChanged);
+    on<SemanticModelChoiceChanged>((event, emit) async {
+      emit(state.copyWith(modelChoice: event.modelChoice));
+      await repository.setModelChoice(event.modelChoice);
+      emit(
+        state.copyWith(
+          modelChoice: repository.modelChoice,
+          activeModelChoice: repository.activeModelChoice,
+          availability: repository.availability,
+        ),
+      );
+    });
     on<SemanticDataRemovalRequested>(_onRemovalRequested);
     on<SemanticAvailabilityUpdated>(
-      (event, emit) => emit(state.copyWith(availability: event.availability)),
+      (event, emit) => emit(
+        state.copyWith(
+          availability: event.availability,
+          modelChoice: repository.modelChoice,
+          activeModelChoice: repository.activeModelChoice,
+        ),
+      ),
     );
   }
 

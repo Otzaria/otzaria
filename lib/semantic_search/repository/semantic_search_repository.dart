@@ -83,12 +83,13 @@ class SemanticSearchRepository {
     String? Function()? onnxRuntimePath,
     bool Function()? isPlatformSupported,
     Future<DiskSpaceInfo> Function(String path)? diskSpace,
-    this._modelReleases = kSemanticModelReleases,
+    Map<SemanticQuantization, SemanticModelRelease?>? modelReleases,
     this._busyRetryDelay = const Duration(minutes: 2),
   }) : _backend = backend ?? createSemanticEngineBackend(),
        _consentFactory = consent ?? (() => SearchFeedbackService.instance),
        _settings = settings ?? const SettingsSemanticSettingsStore(),
-       _paths = paths ?? _defaultPaths,
+       _basePaths = paths ?? _defaultPaths,
+       _modelReleaseOverrides = modelReleases,
        _identityLoader =
            identityLoader ??
            ((family) => rootBundle.loadString(family.identityAsset)),
@@ -120,7 +121,7 @@ class SemanticSearchRepository {
   final SemanticEngineBackend _backend;
   final SearchFeedbackConsentStore Function() _consentFactory;
   final SemanticSettingsStore _settings;
-  final Future<SemanticPaths> Function() _paths;
+  final Future<SemanticPaths> Function() _basePaths;
   final Future<String> Function(SemanticVectorsFamily family) _identityLoader;
   final SemanticVectorsReleaseLocator _locator;
   final SemanticFileDownloader _download;
@@ -128,7 +129,62 @@ class SemanticSearchRepository {
   final String? Function() _onnxRuntimePath;
   final bool Function() _isPlatformSupported;
   final Future<DiskSpaceInfo> Function(String path) _diskSpace;
-  final Map<SemanticQuantization, SemanticModelRelease?> _modelReleases;
+  final Map<SemanticQuantization, SemanticModelRelease?>?
+  _modelReleaseOverrides;
+
+  SemanticModelChoice get modelChoice =>
+      _modelReleaseOverrides?[SemanticQuantization.int8]?.family ==
+          SemanticVectorsFamily.pardesWindows
+      ? SemanticModelChoice.pardesQa491
+      : _settings.modelChoice;
+
+  SemanticModelChoice get activeModelChoice => _vectors?.present == true
+      ? (_vectors?.modelFamilyId == kCompactPardesModelFamilyId
+            ? SemanticModelChoice.pardesQa491
+            : SemanticModelChoice.meivin)
+      : modelChoice;
+
+  Map<SemanticQuantization, SemanticModelRelease?> _releasesForModel(
+    SemanticModelChoice choice,
+  ) {
+    final overridden = _modelReleaseOverrides;
+    if (overridden != null &&
+        (overridden[SemanticQuantization.int8]?.family ==
+                SemanticVectorsFamily.pardesWindows) ==
+            (choice == SemanticModelChoice.pardesQa491)) {
+      return overridden;
+    }
+    return choice == SemanticModelChoice.pardesQa491
+        ? kPardesModelReleases
+        : kSemanticModelReleases;
+  }
+
+  Map<SemanticQuantization, SemanticModelRelease?> get _modelReleases =>
+      _releasesForModel(activeModelChoice);
+  Map<SemanticQuantization, SemanticModelRelease?>
+  get _requestedModelReleases => _releasesForModel(modelChoice);
+
+  Future<SemanticPaths> _paths({SemanticModelChoice? model}) async =>
+      (await _basePaths()).forModel(model ?? activeModelChoice);
+
+  /// הבקשה נשמרת, אך המודל הקיים ממשיך לעבוד עד התקנת וקטורים תואמים.
+  Future<void> setModelChoice(SemanticModelChoice value) async {
+    if (value == modelChoice) return;
+    _jobCancel.cancel();
+    await _job;
+    await _settings.setModelChoice(value);
+    await _settings.setSkippedVectorsRelease(null);
+    _lastFailure = null;
+    _unpublishedVersion = null;
+    if (_settings.dataEnabled &&
+        !_settings.downloadPaused &&
+        _isConsentGranted()) {
+      await _runJob(userInitiated: true);
+    } else {
+      await refresh();
+    }
+  }
+
   final Duration _busyRetryDelay;
 
   final StreamController<SemanticAvailability> _changes =
@@ -196,6 +252,11 @@ class SemanticSearchRepository {
   /// משדר כל שינוי במצב.
   Stream<SemanticAvailability> get availabilityChanges => _changes.stream;
 
+  List<SemanticModelChoice> get availableModels => [
+    SemanticModelChoice.meivin,
+    if (_backend.supportsLongLineWindows) SemanticModelChoice.pardesQa491,
+  ];
+
   /// הדיוקים שיש להם release להורדה; הממשק מציע רק אותם.
   List<SemanticQuantization> get availableQuantizations => [
     for (final quantization in SemanticQuantization.values)
@@ -211,7 +272,16 @@ class SemanticSearchRepository {
   /// טקסט רישיון המודל שהורד, או `null` כשהמודל לא הורד.
   Future<String?> readModelLicense() async {
     final file = File((await _paths()).licenseFile);
-    return await file.exists() ? file.readAsString() : null;
+    if (!await file.exists()) return null;
+    final license = await file.readAsString();
+    final notice = _modelReleases[quantization]?.notice;
+    if (notice == null) return license;
+    final attribution = File(
+      p.join((await _paths()).modelDirectory, notice.name),
+    );
+    return await attribution.exists()
+        ? '${await attribution.readAsString()}\n\n$license'
+        : license;
   }
 
   /// מחשב מחדש את מצב הזמינות. לעולם אינו זורק.
@@ -321,7 +391,8 @@ class SemanticSearchRepository {
       final paths = await _paths();
       // רק תיקיות שלנו: תיקיית vectors של המשתמש באותו שם לא נמחקת.
       for (final dir in [
-        paths.modelDirectory,
+        for (final choice in SemanticModelChoice.values)
+          paths.forModel(choice).modelDirectory,
         paths.vectorsDirectory,
         paths.vectorsDownloadDirectory,
         ...paths.legacyModelDirectories,
@@ -525,17 +596,16 @@ class SemanticSearchRepository {
   }
 
   Future<bool> _isInstalled() async {
-    final paths = await _paths();
-    final quantization = this.quantization;
-    if (!await File(paths.modelFile(quantization)).exists() ||
-        !await File(paths.tokenizerFile).exists()) {
-      return false;
-    }
     try {
+      final base = await _basePaths();
       final vectors = _vectors = await _backend.vectorsInfo(
-        paths.vectorsDirectory,
+        base.vectorsDirectory,
       );
-      // סט שנפסל בפתיחה אינו מותקן עד שיוחלף; אחרת "מוכן" ונכשל שוב בחיפוש.
+      final paths = await _paths();
+      if (!await File(paths.modelFile(quantization)).exists() ||
+          !await File(paths.tokenizerFile).exists()) {
+        return false;
+      }
       return !_needsRepair && await _hasCurrentModel(vectors);
     } on SemanticFailure catch (failure) {
       if (failure.kind != SemanticFailureKind.artifactCorrupt) rethrow;
@@ -1024,8 +1094,11 @@ class SemanticSearchRepository {
     if (_moveInProgress) return _skipOrThrow(SemanticFailureKind.libraryMoving);
     if ((await _safeStatus()).state == SemanticBackendState.notInBuild) return;
 
-    final paths = await _paths();
-    final modelIdentity = await _loadIdentity(SemanticVectorsFamily.anchor);
+    final paths = await _paths(model: modelChoice);
+    final modelIdentity = await _loadIdentity(
+      _requestedModelReleases[quantization]?.family ??
+          SemanticVectorsFamily.anchor,
+    );
     final version = await _libraryVersion();
     if (version == null) {
       throw const SemanticFailure(SemanticFailureKind.libraryVersionUnknown);
@@ -1078,7 +1151,12 @@ class SemanticSearchRepository {
         }
       }
     }
-    if (release == null && !installedModelMatches) return;
+    if (release == null &&
+        (!installedModelMatches ||
+            (_requestedModelReleases[quantization]?.family != null &&
+                installedFamily != _preferredFamily))) {
+      return;
+    }
 
     // deltas רק מהרשת: נתונים מוכנים של מסייע ההורדה הם base, והוא גובר.
     final chain =
@@ -1192,6 +1270,8 @@ class SemanticSearchRepository {
       await _closeSession();
     }
     // לפני ההתקנה: קריסה אחריה לא תשאיר סט חלונות בלי סימון.
+    // Pardes is identified by its distinct model family. Its failed installation
+    // must not overwrite the marker of a still-installed legacy Meivin set.
     if (family == SemanticVectorsFamily.windows &&
         release.identityDigest.isNotEmpty) {
       await markSemanticDirectory(paths.vectorsDirectory);
@@ -1308,7 +1388,7 @@ class SemanticSearchRepository {
     SemanticPaths paths,
     SemanticQuantization quantization,
   ) async {
-    final release = _modelReleases[quantization];
+    final release = _releasesForModel(paths.modelChoice)[quantization];
     if (release == null) {
       throw SemanticFailure(
         SemanticFailureKind.modelSourceNotConfigured,
@@ -1319,6 +1399,8 @@ class SemanticSearchRepository {
       (file: release.graph, dest: paths.modelFile(quantization)),
       (file: release.tokenizer, dest: paths.tokenizerFile),
       (file: release.license, dest: paths.licenseFile),
+      if (release.notice case final notice?)
+        (file: notice, dest: p.join(paths.modelDirectory, notice.name)),
       if (!await File(paths.identityFile).exists())
         (file: release.identity, dest: paths.identityFile),
     ];
@@ -1643,11 +1725,16 @@ class SemanticSearchRepository {
       vectors != null &&
       vectors.present &&
       vectors.modelFamilyId ==
-          (await _loadIdentity(await _installedFamily(vectors))).familyId;
+          (await _loadIdentity(
+            _modelReleases[quantization]?.family ??
+                await _installedFamily(vectors),
+          )).familyId;
 
-  SemanticVectorsFamily get _preferredFamily => _backend.supportsLongLineWindows
-      ? SemanticVectorsFamily.windows
-      : SemanticVectorsFamily.anchor;
+  SemanticVectorsFamily get _preferredFamily =>
+      _requestedModelReleases[quantization]?.family ??
+      (_backend.supportsLongLineWindows
+          ? SemanticVectorsFamily.windows
+          : SemanticVectorsFamily.anchor);
 
   /// המשפחות שמחפשים להן release, המועדפת ראשונה. מי שכבר מחזיק סט של
   /// המשפחה המועדפת ממתין לה, ולא יורד בינתיים לסט הישן.
@@ -1655,8 +1742,11 @@ class SemanticSearchRepository {
     SemanticVectorsFamily? installed,
   ) async => [
     for (final family in {
-      _preferredFamily,
-      if (installed != _preferredFamily) SemanticVectorsFamily.anchor,
+      if (!_preferredFamily.isWindowed || _backend.supportsLongLineWindows)
+        _preferredFamily,
+      if (_requestedModelReleases[quantization]?.family == null &&
+          installed != _preferredFamily)
+        SemanticVectorsFamily.anchor,
     })
       (
         family: family,
@@ -1676,6 +1766,12 @@ class SemanticSearchRepository {
   ) async {
     if (vectors == null || vectors.identityDigest.isEmpty) {
       return SemanticVectorsFamily.anchor;
+    }
+    final selectedFamily = _modelReleases[quantization]?.family;
+    if (selectedFamily != null &&
+        vectors.modelFamilyId ==
+            (await _loadIdentity(selectedFamily)).familyId) {
+      return selectedFamily;
     }
     final marker = File(_windowsIdentityFile(await _paths()));
     final windows =

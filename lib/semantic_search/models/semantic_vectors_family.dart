@@ -1,5 +1,12 @@
 /// משפחת סט הוקטורים: לפיה נבחרים ה-`model.json` וה-release.
 enum SemanticVectorsFamily {
+  /// פרדס QA491 המכווץ; מחייב וקטורים ייעודיים לאותה משפחה.
+  pardesWindows(
+    identityAsset: 'assets/semantic/pardesqa491-windows-onnx/model.json',
+    releaseTagPrefix: 'vectors-pardesqa491-windows-',
+    deltaReleaseTagPrefix: 'vectors-pardesqa491-windows-delta-',
+  ),
+
   /// שורה ארוכה מוטמעת בכמה חלונות; נפתחת רק במנוע שפותר אותם.
   windows(
     identityAsset: 'assets/semantic/meivin-qa491-windows-onnx/model.json',
@@ -18,6 +25,8 @@ enum SemanticVectorsFamily {
     required this.releaseTagPrefix,
     this.deltaReleaseTagPrefix,
   });
+
+  bool get isWindowed => this != anchor;
 
   /// נתיב ה-`model.json` של המשפחה באפליקציה.
   final String identityAsset;

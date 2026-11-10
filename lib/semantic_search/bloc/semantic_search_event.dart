@@ -48,3 +48,12 @@ class SemanticAvailabilityUpdated extends SemanticSearchEvent {
   @override
   List<Object?> get props => [availability];
 }
+
+/// המשתמש בחר משפחת מודל אחרת; ההחלפה בפועל ממתינה לוקטורים תואמים.
+class SemanticModelChoiceChanged extends SemanticSearchEvent {
+  final SemanticModelChoice modelChoice;
+  const SemanticModelChoiceChanged(this.modelChoice);
+
+  @override
+  List<Object?> get props => [modelChoice];
+}
