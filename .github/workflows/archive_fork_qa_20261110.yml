@@ -17,8 +17,8 @@ jobs:
       fail-fast: false
       matrix:
         archive_branch:
+          - fix/zip-file-encoder-error-cleanup
           - qa/archive-all14-20261110
-          - perf/chunked-sink-append-in-place
     steps:
       - name: Checkout archive branch
         uses: actions/checkout@v4
