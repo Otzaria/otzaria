@@ -213,7 +213,9 @@ class AppDialogFrame extends StatelessWidget {
         ?tabs,
         Flexible(
           fit: fixedHeight ? FlexFit.tight : FlexFit.loose,
-          child: body,
+          child: scrollable && actions != null && actions!.isNotEmpty
+              ? _MoreBelowLine(child: body)
+              : body,
         ),
         if (actions != null && actions!.isNotEmpty)
           Padding(
@@ -282,6 +284,63 @@ class AppDialogFrame extends StatelessWidget {
         dismissResult: dismissResult,
         child: dialog,
       ),
+    );
+  }
+}
+
+/// גוף גולל ומתחתיו קו `outlineVariant` דק, שמוצג רק כשיש עוד תוכן מתחת
+/// לחלק הגלוי: הקו מסמן שהתוכן נחתך מעל הכפתורים (q9).
+class _MoreBelowLine extends StatefulWidget {
+  const _MoreBelowLine({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_MoreBelowLine> createState() => _MoreBelowLineState();
+}
+
+class _MoreBelowLineState extends State<_MoreBelowLine> {
+  bool _moreBelow = false;
+
+  bool _track(int depth, ScrollMetrics metrics) {
+    // רק הגלילה של הגוף עצמו, לא רשימה פנימית או גלילה אופקית.
+    if (depth != 0 || metrics.axis != Axis.vertical) return false;
+    final moreBelow = metrics.extentAfter > 0.5;
+    if (moreBelow != _moreBelow) setState(() => _moreBelow = moreBelow);
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // הקו מצויר מעל הקצה התחתון של הגוף ולא תופס גובה: פריסת הדיאלוג זהה
+    // לזו שבלי הקו, והכפתורים לא זזים כשהוא מופיע או נעלם.
+    return Stack(
+      fit: StackFit.passthrough,
+      children: [
+        NotificationListener<ScrollMetricsNotification>(
+          onNotification: (n) => _track(n.depth, n.metrics),
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (n) => _track(n.depth, n.metrics),
+            child: widget.child,
+          ),
+        ),
+        PositionedDirectional(
+          start: 0,
+          end: 0,
+          bottom: 0,
+          child: IgnorePointer(
+            // ColoredBox ולא Divider: הקו שייך למסגרת, ובדיקות שסופרות את
+            // ה-Divider בגוף הדיאלוג לא צריכות להכיר אותו.
+            child: ColoredBox(
+              key: const ValueKey('app-dialog-more-below-line'),
+              color: _moreBelow
+                  ? Theme.of(context).colorScheme.outlineVariant
+                  : Colors.transparent,
+              child: const SizedBox(height: AppTokens.borderThin),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

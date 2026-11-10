@@ -480,4 +480,68 @@ void main() {
       expect(size.height, lessThan(600));
     });
   });
+
+  // q9 B: קו מעל הכפתורים רק כשהגוף הגולל ממשיך מתחת לחלק הגלוי.
+  group('קו מעל שורת הפעולות', () {
+    Future<void> pumpFrame(
+      WidgetTester tester, {
+      required bool scrollable,
+      int lines = 40,
+    }) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Material(
+            child: AppDialogFrame(
+              title: 'כותרת',
+              icon: FluentIcons.list_24_regular,
+              scrollable: scrollable,
+              actions: [ActionButton.neutral(text: 'סגור', onPressed: () {})],
+              child: Column(
+                children: [
+                  for (var i = 0; i < lines; i++)
+                    SizedBox(height: 30, child: Text('שורה $i')),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Color? lineColor(WidgetTester tester) => tester
+        .widget<ColoredBox>(
+          find.byKey(const ValueKey('app-dialog-more-below-line')),
+        )
+        .color;
+
+    testWidgets('מוצג כשיש עוד תוכן, ונעלם בסוף הגלילה', (tester) async {
+      await pumpFrame(tester, scrollable: true);
+      final cs = Theme.of(
+        tester.element(find.byType(AppDialogFrame)),
+      ).colorScheme;
+      expect(lineColor(tester), cs.outlineVariant);
+
+      await tester.drag(find.text('שורה 2'), const Offset(0, -3000));
+      await tester.pumpAndSettle();
+      expect(lineColor(tester), Colors.transparent);
+    });
+
+    testWidgets('גוף שנכנס כולו: הקו שקוף', (tester) async {
+      await pumpFrame(tester, scrollable: true, lines: 3);
+      expect(lineColor(tester), Colors.transparent);
+    });
+
+    testWidgets('דיאלוג שלא גולל: אין קו', (tester) async {
+      await pumpFrame(tester, scrollable: false, lines: 3);
+      expect(
+        find.byKey(const ValueKey('app-dialog-more-below-line')),
+        findsNothing,
+      );
+    });
+  });
 }
