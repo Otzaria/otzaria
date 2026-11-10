@@ -115,6 +115,16 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<SearchBloc, SearchState>(
+      // Search status/results can change frequently while the engine streams.
+      // None of them affect these numeric controls, so avoid rebuilding them.
+      buildWhen: (previous, current) =>
+          previous.proximityScope != current.proximityScope ||
+          previous.wordMatchMode != current.wordMatchMode ||
+          previous.isAdvancedSearchEnabled != current.isAdvancedSearchEnabled ||
+          previous.configuration.searchMode !=
+              current.configuration.searchMode ||
+          previous.distance != current.distance ||
+          previous.wordMatchCount != current.wordMatchCount,
       builder: (context, state) {
         // טווח קרבה "פסקה"/"כותרת" מייתר את מגבלת המרווח — השדה מושבת
         // ומציג את שם הטווח במקומה. גם התאמה חלקית (לא "כל המילים")

@@ -62,7 +62,9 @@ void main() {
     addTearDown(tab.searchBloc.close);
     await tester.pumpWidget(harness(bloc, tab));
 
-    tester.widget<SpinBox>(find.byType(SpinBox)).onChanged!(5);
+    tester.widget<SpinBox>(find.byType(SpinBox)).onChanged!(
+      (bloc.state.distance + 1).toDouble(),
+    );
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 500));
 
@@ -95,9 +97,27 @@ void main() {
 
     final field = tester.widget<SpinBox>(find.byType(SpinBox));
     final initialValue = bloc.state.distance;
-    field.onChanged!(initialValue + 1.0);
+    field.onChanged!((initialValue + 1).toDouble());
     field.onChanged!(initialValue.toDouble());
     await tester.pump(const Duration(milliseconds: 500));
     expect(bloc.recorded.whereType<UpdateDistance>(), isEmpty);
   });
+  testWidgets('unrelated search state updates do not rebuild the spinbox',
+      (tester) async {
+    final tab = SearchingTab('חיפוש', null);
+    final bloc = _RecordingSearchBloc();
+    addTearDown(bloc.close);
+    addTearDown(tab.searchBloc.close);
+    await tester.pumpWidget(harness(bloc, tab));
+
+    final spinBox = tester.widget<SpinBox>(find.byType(SpinBox));
+    bloc.add(UpdateFilterQuery('test'));
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<SpinBox>(find.byType(SpinBox)), same(spinBox));
+    bloc.add(UpdateDistanceWithoutSearch(7));
+    await tester.pumpAndSettle();
+    expect(tester.widget<SpinBox>(find.byType(SpinBox)).value, 7);
+  });
+
 }
