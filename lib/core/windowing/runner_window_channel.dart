@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/windowing/drag_preview_colors.dart';
 import 'package:otzaria/core/windowing/multiview/multiview_flag.dart';
+import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 
@@ -80,7 +81,13 @@ class RunnerWindowChannel {
   static bool? debugSupportedOverride;
 
   /// מביא את החלון הראשי לחזית, ומציג אותו אם הוסתר.
-  Future<void> raiseSelf() => _send(_hasRunner, 'raiseSelf');
+  Future<void> raiseSelf() async {
+    final raised = await _guarded(_hasRunner, 'raiseSelf', false, () async {
+      await channel.invokeMethod<void>('raiseSelf');
+      return true;
+    });
+    if (raised) _reportMainWindowShown();
+  }
 
   /// מתחיל להציג את הכרטיסיה הנגררת **מחוץ** לחלון.
   ///
@@ -176,13 +183,27 @@ class RunnerWindowChannel {
   Future<void> endTabDrag() => _send(canDragTabsOut, 'endTabDrag');
 
   /// מציג שוב את החלון הראשי אם Dart הסתיר אותו. true אם היה מוסתר.
-  Future<bool> restoreLastClosedWindow() => _guarded(
-    _hasRunner,
-    'restoreLastClosedWindow',
-    false,
-    () async =>
-        await channel.invokeMethod<bool>('restoreLastClosedWindow') ?? false,
-  );
+  Future<bool> restoreLastClosedWindow() async {
+    final restored = await _guarded(
+      _hasRunner,
+      'restoreLastClosedWindow',
+      false,
+      () async =>
+          await channel.invokeMethod<bool>('restoreLastClosedWindow') ?? false,
+    );
+    if (restored) _reportMainWindowShown();
+    return restored;
+  }
+
+  /// ה-runner הציג את הראשי בעצמו, ולא דרך `windowManager.show()`.
+  ///
+  /// ⚠️ window_manager 0.5.2 פלט `show` גם על הצגה נייטיבית (`WM_SHOWWINDOW`,
+  /// אותות GTK); 0.6 פולט אותו רק מ-`show()` של Dart. בלי הדיווח כאן התוספים
+  /// של ראשי שנסגר ושוחזר נשארים מושהים עד אירוע פוקוס, שב-Windows אינו
+  /// מובטח כשהמערכת חוסמת את `SetForegroundWindow`. ההסתרה מדווחת ב-Dart
+  /// לפני [closeSelf] (`AppWindowListener`). הדיווח אידמפוטנטי.
+  static void _reportMainWindowShown() =>
+      PluginRuntimeDispatcher.instance.setWindowShown(true);
 
   /// ממיר נקודת מסך לקואורדינטות אזור-הלקוח של החלון, בפיקסלים לוגיים.
   ///
