@@ -11,7 +11,7 @@ import 'package:flutter/material.dart';
 //
 //  **מה שאינו שייך לכאן:**
 //    • primary, secondary, surface וכו' — אלו נגזרים מ-ColorScheme.fromSeed
-//      ב-AppTheme ו-app.dart, ואין צורך לדעת את ערכם הספציפי
+//      ב-AppThemeData.createColorScheme, ואין צורך לדעת את ערכם הספציפי
 //    • צבעים הדורשים BuildContext (כגון Theme.of(context).colorScheme.xxx)
 //      — הם שייכים ל-AppSurfaces
 // ════════════════════════════════════════════════════════════════════════════
