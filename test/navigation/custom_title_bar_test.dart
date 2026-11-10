@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:otzaria/navigation/view/tab_visuals.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -3216,6 +3217,50 @@ void main() {
     expect((searchX - bookmarkX).sign, (tabX - bookmarkX).sign);
     expect((searchX - bookmarkX).abs(), lessThan((tabX - bookmarkX).abs()));
   });
+
+  for (final (screen, title) in [
+    (Screen.settings, 'הגדרות'),
+    (Screen.reading, 'עיון'),
+  ]) {
+    testWidgets('בהגדלת טקסט ×2 הכותרת "$title" נכנסת בגובה השורה', (
+      tester,
+    ) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final tabsBloc = _TestTabsBloc(TabsState(tabs: [], currentTabIndex: 0));
+      final navigationBloc = _TestNavigationBloc(
+        NavigationState(currentScreen: screen),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      addTearDown(() async {
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+      });
+
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+      );
+
+      // גודל ה-RenderParagraph מוגבל לגובה השורה גם כשהטקסט חורג ממנו.
+      final paragraph = tester.renderObject<RenderParagraph>(find.text(title));
+      expect(
+        paragraph.textSize.height,
+        lessThanOrEqualTo(paragraph.size.height),
+      );
+      final bar = tester.getRect(find.byType(CustomTitleBar));
+      final text = tester.getRect(find.text(title));
+      expect(text.top, greaterThanOrEqualTo(bar.top));
+      expect(
+        text.bottom,
+        lessThanOrEqualTo(bar.top + LayoutConstraints.windowCaptionHeight),
+      );
+    });
+  }
 
   testWidgets('כפתורי החלון המותאמים מוצגים גם במק', (tester) async {
     final tab = _makeTextTab('ספר א');
