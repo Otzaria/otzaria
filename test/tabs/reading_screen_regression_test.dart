@@ -11,7 +11,6 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
-import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
@@ -23,6 +22,7 @@ import 'package:provider/provider.dart';
 
 import '../helpers/memory_settings_cache.dart';
 import '../test_helpers/stub_settings_bloc.dart';
+import '../test_helpers/stub_tabs_bloc.dart';
 
 /// טסטי רגרסיה ל-`ReadingScreen`: פריסת תצוגה זה-לצד-זה ומסך ריק.
 void main() {
@@ -53,7 +53,7 @@ void main() {
         );
         addTearDown(combined.dispose);
 
-        final tabsBloc = _FakeTabsBloc(
+        final tabsBloc = StubTabsBloc(
           TabsState(tabs: [combined], currentTabIndex: 0),
         );
         addTearDown(tabsBloc.close);
@@ -142,7 +142,7 @@ void main() {
 
   testWidgets('כפתור איתור במסך ריק פותח את חלונית האיתור', (tester) async {
     var findRequests = 0;
-    final tabsBloc = _FakeTabsBloc(TabsState.initial());
+    final tabsBloc = StubTabsBloc(TabsState.initial());
     addTearDown(tabsBloc.close);
 
     await tester.pumpWidget(
@@ -177,15 +177,6 @@ class _FakePersonalNotesBloc
         ),
       ) {
     on<PersonalNotesEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _FakeTabsBloc extends Bloc<TabsEvent, TabsState> implements TabsBloc {
-  _FakeTabsBloc(super.initial) {
-    on<TabsEvent>((_, _) {});
   }
 
   @override

@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
-import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
@@ -13,7 +12,6 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
-import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -22,8 +20,10 @@ import 'package:otzaria/text_book/view/page_shape/page_shape_screen.dart';
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_navigation_bloc.dart';
 import '../../../test_helpers/stub_personal_notes_bloc.dart';
 import '../../../test_helpers/stub_settings_bloc.dart';
+import '../../../test_helpers/stub_tabs_bloc.dart';
 import '../../../test_helpers/stub_text_book_bloc.dart';
 
 /// הגדרת "רוחב הטקסט" חלה בצורת הדף רק כשהמתג בהגדרות צורת הדף דלוק —
@@ -68,10 +68,10 @@ void main() {
       SettingsState.initial().copyWith(textMaxWidth: textMaxWidth),
     );
     final tab = TextBookTab(book: book, index: 0, blocOverride: textBookBloc);
-    final navigationBloc = _TestNavigationBloc(
+    final navigationBloc = StubNavigationBloc(
       const NavigationState(currentScreen: Screen.reading),
     );
-    final tabsBloc = _TestTabsBloc(
+    final tabsBloc = StubTabsBloc(
       const TabsState(tabs: [], currentTabIndex: 0).copyWith(tabs: [tab]),
     );
 
@@ -153,22 +153,3 @@ TextBookLoaded _loadedState(TextBook book) => TextBookLoaded(
   searchText: '',
   searchMode: SearchMode.exact,
 );
-
-class _TestNavigationBloc extends Bloc<NavigationEvent, NavigationState>
-    implements NavigationBloc {
-  _TestNavigationBloc(super.initialState) {
-    on<NavigationEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestTabsBloc extends Bloc<TabsEvent, TabsState> implements TabsBloc {
-  _TestTabsBloc(super.initialState) {
-    on<TabsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}

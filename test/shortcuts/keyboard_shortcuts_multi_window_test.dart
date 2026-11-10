@@ -24,8 +24,6 @@ import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
-import 'package:otzaria/navigation/bloc/navigation_event.dart';
-import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
@@ -40,6 +38,7 @@ import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:provider/provider.dart';
 
 import '../helpers/memory_settings_cache.dart';
+import '../test_helpers/stub_navigation_bloc.dart';
 
 class _MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
     implements SettingsBloc {}
@@ -48,17 +47,6 @@ class _StubHistoryBloc extends Bloc<HistoryEvent, HistoryState>
     implements HistoryBloc {
   _StubHistoryBloc() : super(HistoryInitial()) {
     on<HistoryEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _StubNavigationBloc extends Bloc<NavigationEvent, NavigationState>
-    implements NavigationBloc {
-  _StubNavigationBloc()
-    : super(NavigationState(currentScreen: Screen.reading)) {
-    on<NavigationEvent>((_, _) {});
   }
 
   @override
@@ -133,7 +121,7 @@ class _Window {
   final AppWindowKeys keys;
   final TabsBloc tabs = TabsBloc(repository: _FakeTabsRepository());
   final _StubHistoryBloc history = _StubHistoryBloc();
-  final _StubNavigationBloc navigation = _StubNavigationBloc();
+  final StubNavigationBloc navigation = StubNavigationBloc();
 
   Future<void> dispose() async {
     await tabs.close();
