@@ -117,6 +117,26 @@ void main() {
   });
 
   group('סליידר צורת הדף (#3244)', () {
+    testWidgets('ערך שמור מעל 30 מוצג כמו שהוא, וערך ישן נשאר תקף', (
+      tester,
+    ) async {
+      await PageShapeSettingsManager.saveCommentaryFontSize(36);
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: PageShapeCommentaryFontSizeSlider(title: 'צורת הדף'),
+          ),
+        ),
+      );
+      expect(tester.widget<Slider>(find.byType(Slider)).value, 36);
+      await PageShapeSettingsManager.saveCommentaryFontSize(24);
+      await tester.pump();
+      expect(tester.widget<Slider>(find.byType(Slider)).value, 24);
+      await PageShapeSettingsManager.saveCommentaryFontSize(55);
+      await tester.pump();
+      expect(tester.widget<Slider>(find.byType(Slider)).value, 40);
+    });
+
     testWidgets('שמירה באחד מעדכנת את השני ונכתבת להגדרה של צורת הדף', (
       tester,
     ) async {
@@ -141,7 +161,8 @@ void main() {
       expect(sliders, findsNWidgets(2));
       final general = tester.widget<Slider>(sliders.first);
       expect(general.min, 10);
-      expect(general.max, 30);
+      expect(general.max, 40);
+      expect(general.divisions, 30);
       general.onChangeEnd!(20);
       await tester.pump();
       await tester.pump();
