@@ -17,6 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         archive_branch:
+          - qa/archive-final-integration-20261110
           - perf/tar-gzip-direct-streaming
     steps:
       - name: Checkout archive branch
