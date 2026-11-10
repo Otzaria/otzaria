@@ -36,7 +36,7 @@ tool/ui_lint/
   ui_lint.dart            # API: runUiLint(root, config), ה-baseline וההשוואה
   ast_helpers.dart        # ctorCallsNamed, scopeOf
   rules/                  # קובץ לכל כלל, RecursiveAstVisitor; rules.dart מרשם אותם
-  config.yaml             # החרגות לפי נתיב, כל אחת עם reason
+  config.yaml             # החרגות לפי נתיב, כל אחת עם reason; strict; max_allows
   baseline.json           # חוב קיים, ממוין, נסקר ב-PR
 tool/ui_lint_cli.dart     # dart tool/ui_lint_cli.dart --format=md|github|json [--update-baseline [--allow-growth]]
 test/design_system/
@@ -124,8 +124,8 @@ const _hebcalBlue = Color(0xFF1565C0);
 2. נימוק אחרי `—` או `--`, באורך 12 תווים לפחות. רצוי לציין את ה־DD או ה־JX שמתיר אותו.
 3. אין צורה של "כל הקובץ".
 4. הערת allow שלא השתיקה כלום מכשילה את הבדיקה.
-5. כל ה־allow מופיעים בדוח עם הנימוק. היום יש 45 בקוד, מהם 25 של UIL-021. הוספת allow אינה דורשת תווית: היא גלויה ב־diff ונסקרת כקוד.
-6. **מתוכנן, לא מומש:** תקרה לכל כלל (`max_allows`) ושדות בעלים ומעקב (issue) לכל החרגה. היום החרגה נושאת נימוק בלבד, והבעלות היא של מי שאישר את ה־PR.
+5. כל ה־allow מופיעים בדוח עם הנימוק. היום (10.11) יש 46 בקוד, מהם 26 של UIL-021. הוספת allow אינה דורשת תווית: היא גלויה ב־diff ונסקרת כקוד.
+6. **תקרה לכל כלל (`max_allows` ב־`config.yaml`, 10.11):** מספר הערות ה־allow של כל כלל ב־lib, וכלל שלא מופיע שם: 0. ‏`ui_lint_test` נכשל כשיש יותר הערות מהתקרה, וגם כשיש פחות (להוריד את התקרה, כמו baseline מת). כך כל allow חדש מעלה מספר ב־`config.yaml` שנראה ב־diff. הדוח מציג `allow/תקרה` לכל כלל. **לא מומש:** שדות בעלים ומעקב (issue) לכל החרגה. היום החרגה נושאת נימוק בלבד, והבעלות היא של מי שאישר את ה־PR.
 
 **לפי נתיב או הקשר:** רק ב־`config.yaml`, ותמיד עם `reason:` (היום 60 החרגות). שם נרשמים גם עוטפים מורשים, כמו `RtlTextField` שבונה `TextField`. החרגה בלי `reason` היא שגיאת קונפיגורציה.
 
@@ -248,7 +248,7 @@ const _hebcalBlue = Color(0xFF1565C0);
 | UIL-027 (`Brightness.dark`/`isDark`) לא מומש | החלטת צבע לפי בהירות בקוד פיצ'ר לא נתפסת | שיעור התראות השווא בזיהוי לפי שם גבוה מ־10% (§3.3) |
 | `LinearProgressIndicator`, ‏`CupertinoAlertDialog`, ‏`focusColor`/`highlightColor` | מחוץ להיקף של UIL-013/001/007 | הקטלוג לא אוסר אותם. ‏`LinearProgressIndicator` (כ־9 מופעים) מחכה לרכיב התקדמות מדודה משותף |
 | `Border(left:/right:)`, ‏`FractionalOffset(x, y)`, ‏`Alignment(x, y)` עם x ממשתנה | כיוון פיזי בצורות האלה לא נתפס ב־UIL-021 | נדיר; `Alignment(-1, 0)` ליטרלי ו־`BorderRadius.only`/`horizontal` נסגרו ב־10.11 |
-| הערת allow | מוסיפים בלי תווית, בלי תקרה ובלי בעלים | מכוון: הנימוק גלוי ב־diff ונסקר. התקרה (`max_allows`) מתוכננת (§3.5) |
+| הערת allow | מוסיפים בלי תווית ובלי בעלים. העלאת `max_allows` (§3.5) נראית ב־diff, אבל `ui_baseline_guard` לא דורש עליה תווית | מכוון: הנימוק גלוי ב־diff ונסקר. תווית להעלאת התקרה היא הכרעה של בעל הפרויקט |
 | החלפת חוב באותו `scope` | תיקון חריגה אחת והוספת אחרת באותה מתודה, עם `--allow-growth`, לא נספר כגידול | ה־guard סופר לפי כלל, קובץ ו־`scope` בלי `fp`, כדי ששינוי ביטוי לא ייחשב גידול (§3.4). ה־diff של `baseline.json` עדיין נסקר |
 | golden: מה שמחוץ ל־`test/goldens/` | `goldens_guard` (מ־10.11 כל קובץ תחת `test/goldens/`) לא רואה את `test/support/golden_fonts.dart`, את ה־job ‏`goldens_windows` ואת ההחרגה ב־`tool/ci/test_shards.dart` | שינוי בגופנים משנה פיקסלים ואז נכשל או משנה PNG; שינוי ב־workflow נסקר כקוד |
 | בדיקות סריקה ישנות (נספח) | regex על שורות, בלי AST: למשל `ActionButton.warning (` עם רווח, או בתוך הערה (התרעת שווא) | עוברות למנוע אחת אחרי השנייה (§6) |
