@@ -278,6 +278,9 @@ class _LinksListViewState extends State<LinksListView> {
   String _searchQuery = '';
   final Map<String, Future<String>> _contentCache = {};
   final Set<String> _failedContentKeys = {};
+  // תוצאת ה-Future שב-_contentCache, ולא link.loadedContent: המפתח כאן אינו
+  // כולל את סוף הטווח, והמטמון הזה אינו מתנקה ברענון מסד.
+  final Map<String, String> _loadedContent = {};
   final Map<String, bool> _expanded = {};
   bool _searchInContent = false;
   Future<List<Link>>? _filteredLinksFuture;
@@ -868,6 +871,9 @@ class _LinksListViewState extends State<LinksListView> {
             ),
             child: AppFutureBuilder<String>(
               future: _contentCache[contentKey],
+              // קישור פתוח שנבנה מחדש בגלילה: שלד טעינה מקצר אותו לפריים אחד,
+              // והגדילה אחריו דוחפת את הרשימה.
+              initialData: _loadedContent[contentKey],
               builder: (context, content) => _buildLinkContent(content, link),
               errorBuilder: (context, error) =>
                   BlocBuilder<SettingsBloc, SettingsState>(
@@ -890,6 +896,7 @@ class _LinksListViewState extends State<LinksListView> {
   void _cacheLinkContent(String key, Link link) {
     final pending = link.content;
     _failedContentKeys.remove(key);
+    _loadedContent.remove(key);
     _contentCache[key] = pending;
     void failed() {
       if (identical(_contentCache[key], pending)) _failedContentKeys.add(key);
@@ -897,6 +904,7 @@ class _LinksListViewState extends State<LinksListView> {
 
     // פינוי מיידי היה מציג future=null אם הכשל הקדים את פריים ההרחבה.
     pending.then<void>((value) {
+      if (identical(_contentCache[key], pending)) _loadedContent[key] = value;
       if (value.startsWith('שגיאה')) failed();
     }, onError: (Object _) => failed());
   }
