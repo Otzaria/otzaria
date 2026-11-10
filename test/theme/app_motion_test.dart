@@ -29,6 +29,31 @@ void main() {
     });
   });
 
+  group('AppMotion.controller', () {
+    testWidgets('בלי העדפה: המשך כמו שהוא', (tester) async {
+      const d = Duration(milliseconds: 450);
+      expect(AppMotion.controller(d), d);
+    });
+
+    testWidgets('בהפחתת אנימציות: אפס, ו-forward מגיע מיד לסוף', (
+      tester,
+    ) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      final c = AnimationController(
+        vsync: const TestVSync(),
+        duration: AppMotion.controller(const Duration(milliseconds: 450)),
+      );
+      addTearDown(c.dispose);
+      c.forward(from: 0);
+      expect(c.value, 1);
+      expect(c.status, AnimationStatus.completed);
+    });
+  });
+
   test('טוקני העקומה הם העקומות שהיו בשימוש (DD-21)', () {
     expect(AppTokens.curveStandard, same(Curves.easeInOut));
     expect(AppTokens.curveEnter, same(Curves.easeOutCubic));

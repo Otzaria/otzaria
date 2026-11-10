@@ -1401,7 +1401,7 @@ class _AnimatedPluginMoveWrapperState extends State<_AnimatedPluginMoveWrapper>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-      duration: const Duration(milliseconds: 450),
+      duration: AppMotion.controller(const Duration(milliseconds: 450)),
       vsync: this,
       value: 1.0,
     );

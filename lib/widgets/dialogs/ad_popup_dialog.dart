@@ -1,5 +1,6 @@
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -79,7 +80,7 @@ class _AdPopupDialogState extends State<AdPopupDialog>
 
     // כניסת הדיאלוג: scale עדין מ-0.92 ל-1 יחד עם fade
     _entryController = AnimationController(
-      duration: const Duration(milliseconds: 350),
+      duration: AppMotion.controller(const Duration(milliseconds: 350)),
       vsync: this,
     );
     _entryScale = Tween<double>(begin: 0.92, end: 1.0).animate(
@@ -92,7 +93,7 @@ class _AdPopupDialogState extends State<AdPopupDialog>
 
     // הופעת הטקסט ליד הלוגו
     _textController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: AppMotion.controller(const Duration(milliseconds: 600)),
       vsync: this,
     );
     _textReveal = CurvedAnimation(
@@ -102,7 +103,7 @@ class _AdPopupDialogState extends State<AdPopupDialog>
 
     // כיווץ הכותרת למעלה והופעת הרשימה
     _collapseController = AnimationController(
-      duration: const Duration(milliseconds: 650),
+      duration: AppMotion.controller(const Duration(milliseconds: 650)),
       vsync: this,
     );
     _collapse = CurvedAnimation(
@@ -110,6 +111,13 @@ class _AdPopupDialogState extends State<AdPopupDialog>
       curve: Curves.easeInOutCubic,
     );
 
+    // בהפחתת אנימציות: מצב הסיום מיד, בלי ההשהיות שבין השלבים.
+    if (AppMotion.reducedByPlatform) {
+      _entryController.value = 1;
+      _textController.value = 1;
+      _collapseController.value = 1;
+      return;
+    }
     _entryController.forward();
     _startAnimationSequence();
   }

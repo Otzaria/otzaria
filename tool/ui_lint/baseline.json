@@ -1026,23 +1026,6 @@
     "UIL-023": {
       "lib/library/view/library_browser.dart": [
         {"scope":"_LoadingDotsTextState.initState","fp":"c71467c1","n":1}
-      ],
-      "lib/settings/panels/tools_management_panel.dart": [
-        {"scope":"_AnimatedPluginMoveWrapperState.initState","fp":"da8151f8","n":1}
-      ],
-      "lib/settings/search/settings_anchor.dart": [
-        {"scope":"_SettingsAnchorState.initState","fp":"c983d11b","n":1}
-      ],
-      "lib/tools/shamor_zachor/widgets/completion_animation_overlay.dart": [
-        {"scope":"_CompletionAnimationState.initState","fp":"bbc6f2f1","n":1}
-      ],
-      "lib/tools/view/tools_launcher_panel.dart": [
-        {"scope":"_MovePulseState._controller","fp":"e24b323e","n":1}
-      ],
-      "lib/widgets/dialogs/ad_popup_dialog.dart": [
-        {"scope":"_AdPopupDialogState.initState","fp":"52e2825f","n":1},
-        {"scope":"_AdPopupDialogState.initState","fp":"7e966d82","n":1},
-        {"scope":"_AdPopupDialogState.initState","fp":"d6b3a3a1","n":1}
       ]
     },
     "UIL-024": {
