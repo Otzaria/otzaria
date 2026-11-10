@@ -718,9 +718,9 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       return;
     }
 
+    final query = state.searchQuery!;
+    final category = state.currentCategory;
     try {
-      final query = state.searchQuery!;
-      final category = state.currentCategory;
       final includeOtzar = event.showOtzarHachochma ?? false;
       final includeHebrewBooks = event.showHebrewBooks ?? false;
       final includeLocalHebrewBooks = event.showLocalHebrewBooks ?? true;
@@ -790,6 +790,22 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     } on BookSearchSupersededException {
       // החיפוש החדש שהחליף אותו הוא שיעדכן את המצב.
     } catch (e, stackTrace) {
+      // An outdated request must not clear a newer search, nor record a
+      // misleading failure for a query the user is no longer viewing.
+      if (searchGeneration != _searchGeneration ||
+          state.searchQuery != query ||
+          state.currentCategory != category) {
+        if (searchGeneration == _searchGeneration) {
+          emit(
+            state.copyWith(
+              isSearching: false,
+              searchResults: state.searchResults,
+              searchCategoryResults: state.searchCategoryResults,
+            ),
+          );
+        }
+        return;
+      }
       // בלי רישום ליומן, כשל בחיפוש הספרייה (issue #1012) אינו משאיר
       // עקבות לאבחון — errors.txt נשאר ריק.
       try {
@@ -797,7 +813,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
           title: 'כשל חיפוש בספרייה',
           error: e,
           stackTrace: stackTrace,
-          details: {'query': state.searchQuery},
+          details: {'query': query},
         );
       } catch (_) {}
       emit(
