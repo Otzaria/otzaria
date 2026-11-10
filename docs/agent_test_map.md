@@ -168,7 +168,7 @@
 | כל נתיב במסמכי ההנחיה (`AGENTS.md`, `docs/agent_*.md`, מסמכי מערכת העיצוב) קיים | `test/design_system/agent_docs_paths_test.dart` |
 | חוזי הרכיבים המשותפים: דיאלוגים, מקלדת וסגירה, נגישות, ערכת הנושא, רכיבים | `test/design_system/contracts/` |
 | Goldens של `ActionButton` ו־`AppDialog`, והסובלנות של ההשוואה (0.05%) | `test/goldens/`, `test/goldens/golden_comparator_test.dart` |
-| בחירת טקסט מציגה את תפריט אוצריא, לא את תפריט Flutter (issue #1590) | `test/widgets/text/default_context_menu_scan_test.dart` |
+| בחירת טקסט מציגה את תפריט אוצריא, לא את תפריט Flutter (issue #1590): UIL-032 | `test/design_system/ui_lint_test.dart` |
 | אין `Markdown` גלילתי ב־`lib`, רק `MarkdownBody` | `test/settings/no_scrollable_markdown_test.dart` |
 | כל `TextPainter` ב־`lib` מקבל `textDirection` (issue #1474) | `test/widgets/text_painter_direction_test.dart` |
 | שם אייקון מתוסף נפתר רק דרך `pluginIconFromName` | `test/plugins/utils/plugin_icon_resolver_usage_test.dart` |

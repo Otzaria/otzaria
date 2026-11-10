@@ -1,7 +1,7 @@
 # אכיפה ב־CI
 
 > המטרה: לזהות חריגה מהתקן ([DESIGN_SYSTEM.md](DESIGN_SYSTEM.md)) לפני מיזוג, בלי לחסום שימושים לגיטימיים ובלי להכשיל את ה־CI על חוב ישן. ההכרעות שמאחורי המנגנון: DD-22 (golden) ו־DD-23 (המנוע והתוויות) ב־[DESIGN_DECISIONS.md](DESIGN_DECISIONS.md).
-> **מצב (5.11.2026, אחרי ביקורת האכיפה):** המנוע `tool/ui_lint` פועל עם 30 כללים, ו־741 מופעים ב־baseline. כולם חוסמים חריגה חדשה מול baseline, חוץ מ־UIL-028 (שלב 4, דוח בלבד). רמת Strict (§6) קיימת, ו־16 כללים נעולים. כלל אחד מהקטלוג (§3.3) עוד לא מומש: UIL-027 (צריך הכרעה על הזיהוי). כל כלל עבר בדיקת מוטציה על קובץ אמיתי ב־`lib`; מה שהיא לא תופסת מפורט ב־§8. golden tests רצים על Windows, ושני guards בודקים גידול ב־baseline ושינוי בתמונות ה־golden. יש בדיקות `meetsGuideline`, חוזה הגדלת טקסט ומדידת ביצועים (§4). ה־workflows לא הורצו עדיין על GitHub.
+> **מצב (5.11.2026, אחרי ביקורת האכיפה):** המנוע `tool/ui_lint` פועל עם 31 כללים, ו־741 מופעים ב־baseline. כולם חוסמים חריגה חדשה מול baseline, חוץ מ־UIL-028 (שלב 4, דוח בלבד). רמת Strict (§6) קיימת, ו־17 כללים נעולים. כלל אחד מהקטלוג (§3.3) עוד לא מומש: UIL-027 (צריך הכרעה על הזיהוי). כל כלל עבר בדיקת מוטציה על קובץ אמיתי ב־`lib`; מה שהיא לא תופסת מפורט ב־§8. golden tests רצים על Windows, ושני guards בודקים גידול ב־baseline ושינוי בתמונות ה־golden. יש בדיקות `meetsGuideline`, חוזה הגדלת טקסט ומדידת ביצועים (§4). ה־workflows לא הורצו עדיין על GitHub.
 
 ## 1. איך זה רץ היום
 
@@ -93,6 +93,7 @@ prefix של ייבוא Flutter (`import 'package:flutter/material.dart' as m;`) 
 | UIL-028 | `showDialog(` רק דרך `showDialogUntilTornDown`/`settingsDialogBuilder` והעזרים שעוטפים אותם | invocation | `lib/widgets/dialogs/**` | 54 (showDialog שה־builder שלו אינו settingsDialogBuilder) | 4 · **דוח בלבד** |
 | UIL-029 | **גודל אייקון מטוקן (DD-03):** אין `size:` ליטרלי ב־`Icon(`/`IconThemeData(`, אין `iconSize:` ליטרלי, ואין `AppTokens.font*` כגודל אייקון. התחליף: `AppTokens.icon*` | ctor + named arg: `size:` ב־`Icon`/`RtlIcon`/`ImageIcon`/`IconThemeData`, ו־`iconSize:` בכל מקום | `CustomPainter`, ‏`pw.*`, ייצוא, מעבדי תוכן (`smart_text`, `reader_line`, JX-19); ביטוי מחושב | 105 (ראשון 223). 18 עבר ל־`iconSM` ‏(16), ‏22 ל־`iconMD` ‏(20), ו־56/64 ל־`iconXL` ‏(48) (q10 Q9, סקירת 4.11 סבב רביעי); נשארו ערכים בגודל של טוקן שעוד לא הוסבו, ו־15, 44 ואחרים. ‏`IconThemeData(size:)` נוסף ב־10.11; שני האתרים (תג האייקון ברשימה, שכבת האבחון) הוסבו ל־`iconMD`/`iconSM`, בלי גידול | 3 · **חוסם** |
 | UIL-030 | **הגבהה וצל מהטוקנים (DD-12):** `elevation:` רק `0` או `AppTokens.elevation*`, ואין `BoxShadow(` מחוץ ל־`lib/theme/` | named arg + ctor | נייר PDF (JX-05), `CustomPainter`, גובה גאוגרפי שאינו ארגומנט של Widget (JX-16) | 4 `BoxShadow`: אנימציות הדגשה וחגיגת סיום. שני צללי הנייר של עמוד PDF ב־allow כתוכן (JX-05, q10 Q11). הגבהה ליטרלית: 0. שקיפות בתוך `BoxShadow` נספרת כאן ולא ב־UIL-016 | 3 · **חוסם** |
+| UIL-032 | **בחירת טקסט עם תפריט אוצריא (issue #1590):** אין `SelectableText`/`SelectableText.rich`, ואין `SelectionArea`/`SelectableRegion` בלי `contextMenuBuilder:`. התחליף: `Text` בתוך `AppSelectionArea` | ctor + named arg של הבנאי עצמו (לא חלון שורות) | — (`AppSelectionArea` עצמו מעביר `contextMenuBuilder`) | 0. הועבר מ־`default_context_menu_scan_test` (10.11) | 1 · **חוסם**, נעול (`strict`) |
 | UIL-031 | **פס גלילה רק דרך `AppScrollbar` (הכרעת בעל הפרויקט 4.11):** אין `Scrollbar(`/`RawScrollbar(`/`CupertinoScrollbar(` גולמי. פס גולמי קובע את הצד לפי הכיוון (שמאל בעברית) ומצויר מעל התוכן | ctor | `lib/widgets/feedback/app_scrollbar.dart` (הרכיב עצמו). פס אופקי ב־allow | 0. שמונת הפסים האנכיים הוסבו ל־`AppScrollbar`; שני הפסים האופקיים (תצוגת הטקסט בהגדרות החיפוש, תיקון קוראים) ב־allow | 2 · **חוסם**, נעול (`strict`) |
 
 **כלל חדש לא נכנס לשלב 1** אם שיעור ההתראות השגויות שלו בהרצה ראשונה גבוה מ־10%. כלל כזה נשאר בדוח עד שהוא משתפר.
@@ -111,7 +112,7 @@ prefix של ייבוא Flutter (`import 'package:flutter/material.dart' as m;`) 
 - **`--update-baseline`** רק מוחק רשומות. הוספה דורשת `--allow-growth`.
 - **`ui_baseline_guard.yml`** מכשיל PR שמוסיף מופעים לכלל באותו קובץ ובאותו `scope`, אלא אם יש עליו התווית **`ui-baseline`** (DD-23), שמתחזק מוסיף. ההשוואה היא לפי כלל, קובץ ו־`scope`, בלי `fp`, כך ששינוי ביטוי או גרסת מנוע אינם נספרים כגידול. כשב־base אין `baseline.json` בכלל, ה־PR הוא זה שמכניס את ui_lint, ואין מול מה למדוד גידול. לכן ה־guard עובר.
 - **החרגת נתיב** חדשה או מורחבת ב־`config.yaml` משתיקה חריגות בלי רשומת baseline, ולכן אותו guard מכשיל גם אותה בלי התווית `ui-baseline`: כל שורת `path:` שנוספה או שונתה מול הבסיס (git diff). הזזת שורה בלי שינוי נספרת גם היא (התרעת שווא נדירה). PR שמכניס כלל חדש עם החרגות צריך את התווית.
-- **מה חוסם:** `ui_lint_test` מכשיל חריגה חדשה בכל כלל שהשלב שלו (`UiLintRule.stage`) עד `blockingStage` (היום 3), ובכל כלל נעול (`strict`) בכל שלב. 28 מ־30 הכללים בשלבים 1–3. בשלב 4: ‏UIL-025, שחוסם כי הוא נעול, ו־UIL-028, שמופיע בדוח בלבד. baseline מת והערת allow פגומה מכשילים בכל כלל.
+- **מה חוסם:** `ui_lint_test` מכשיל חריגה חדשה בכל כלל שהשלב שלו (`UiLintRule.stage`) עד `blockingStage` (היום 3), ובכל כלל נעול (`strict`) בכל שלב. 29 מ־31 הכללים בשלבים 1–3. בשלב 4: ‏UIL-025, שחוסם כי הוא נעול, ו־UIL-028, שמופיע בדוח בלבד. baseline מת והערת allow פגומה מכשילים בכל כלל.
 - הקובץ נשמר עם סוף שורה LF (`.gitattributes`), כי הבדיקה משווה אותו לפלט של הכלי בייט בבייט.
 
 ### 3.5 חריגים מתועדים
@@ -224,7 +225,7 @@ const _hebcalBlue = Color(0xFF1565C0);
 | **1. Report** | `ui_lint_cli --format=github` עם `continue-on-error`: טבלה ל־`$GITHUB_STEP_SUMMARY` ו־annotations לחריגות חדשות (GitHub מציג עד ~10 בכל step) | לא | קיים |
 | **2. New violations** | `test/design_system/ui_lint_test.dart` חוסם חריגה חדשה מול ה־baseline, ו־`ui_baseline_guard.yml` חוסם גידול ב־baseline בלי תווית | כן, לחריגות חדשות | קיים |
 | **3. כללי טוקנים** | UIL-015…023, ‏UIL-029, ‏UIL-030, עם ההחרגות של §3.6, כל אחד עם baseline של החוב שלו | כן, לחריגות חדשות | קיים |
-| **4. Strict** | כלל שה־baseline שלו התרוקן ננעל, כך שגם `--allow-growth` עם תווית לא יכול להוסיף לו | כן | **קיים:** `strict: true` ב־`config.yaml`. כלל נעול חוסם בכל שלב, ו־`--allow-growth` לא כותב לו רשומות. ‏ui_lint_test דורש strict לכל כלל בלי רשומות baseline, ואוסר רשומות בכלל נעול. נעולים (16): UIL-002, 004, 005, 006, 007, 008, 009, 010, 011, 015, 018, 019, 022, 025, 026, 031 |
+| **4. Strict** | כלל שה־baseline שלו התרוקן ננעל, כך שגם `--allow-growth` עם תווית לא יכול להוסיף לו | כן | **קיים:** `strict: true` ב־`config.yaml`. כלל נעול חוסם בכל שלב, ו־`--allow-growth` לא כותב לו רשומות. ‏ui_lint_test דורש strict לכל כלל בלי רשומות baseline, ואוסר רשומות בכלל נעול. נעולים (17): UIL-002, 004, 005, 006, 007, 008, 009, 010, 011, 015, 018, 019, 022, 025, 026, 031, 032 |
 
 **הבדיקות הקיימות** עוברות למנוע אחת אחרי השנייה. כל העברה נעשית ב־commit נפרד, שמוכיח שהכלל החדש מוצא כל מה שהישן מצא, ובנוסף את הצורות שהישן פספס. בדיקות exact-set (`quit_application_call_sites`, ‏`flutter_internal_imports`) נשארות כמות שהן.
 
@@ -242,6 +243,8 @@ const _hebcalBlue = Color(0xFF1565C0);
 ## 8. פערים ידועים (ביקורת 5.11.2026)
 מה שהאכיפה **לא** תופסת היום. כל פער כאן הוא החלטה מודעת או משימה פתוחה, לא באג נסתר.
 
+נסגרו ב־10.11 (כל אחד עם בדיקת מוטציה על קובץ ב־`lib`): `IconThemeData(size:)` ‏(UIL-029), `apply(fontSizeDelta:/fontSizeFactor:)` ‏(UIL-017), `SizedBox.square(dimension:)` ‏(UIL-020), `Alignment(x, y)` ו־`BorderRadius.only`/`horizontal` ‏(UIL-021), שינוי בקוד ה־golden בלי PNG (`goldens_guard`), תקרת allow (`max_allows`, §3.5), ו־`default_context_menu_scan_test` (UIL-032).
+
 | פער | השפעה | למה לא נסגר |
 |---|---|---|
 | UIL-028 (`showDialog` גולמי) בשלב 4, לא נעול | `showDialog` חדש עובר את ה־CI; מסומן רק ב־annotation של הדוח | 54 מופעים בחוב, והכלל בדוח עד שההמרה מתקדמת. הפיכה לחוסם = להוריד אותו לשלב 3 |
@@ -251,7 +254,7 @@ const _hebcalBlue = Color(0xFF1565C0);
 | הערת allow | מוסיפים בלי תווית ובלי בעלים. העלאת `max_allows` (§3.5) נראית ב־diff, אבל `ui_baseline_guard` לא דורש עליה תווית | מכוון: הנימוק גלוי ב־diff ונסקר. תווית להעלאת התקרה היא הכרעה של בעל הפרויקט |
 | החלפת חוב באותו `scope` | תיקון חריגה אחת והוספת אחרת באותה מתודה, עם `--allow-growth`, לא נספר כגידול | ה־guard סופר לפי כלל, קובץ ו־`scope` בלי `fp`, כדי ששינוי ביטוי לא ייחשב גידול (§3.4). ה־diff של `baseline.json` עדיין נסקר |
 | golden: מה שמחוץ ל־`test/goldens/` | `goldens_guard` (מ־10.11 כל קובץ תחת `test/goldens/`) לא רואה את `test/support/golden_fonts.dart`, את ה־job ‏`goldens_windows` ואת ההחרגה ב־`tool/ci/test_shards.dart` | שינוי בגופנים משנה פיקסלים ואז נכשל או משנה PNG; שינוי ב־workflow נסקר כקוד |
-| בדיקות סריקה ישנות (נספח) | regex על שורות, בלי AST: למשל `ActionButton.warning (` עם רווח, או בתוך הערה (התרעת שווא) | עוברות למנוע אחת אחרי השנייה (§6) |
+| בדיקות סריקה ישנות (נספח) | regex על שורות, בלי AST: למשל `ActionButton.warning (` עם רווח, או בתוך הערה (התרעת שווא) | עוברות למנוע אחת אחרי השנייה (§6). ב־10.11: `default_context_menu_scan_test` עבר ל־UIL-032 |
 | הגנת ענף | אי אפשר לראות מתוך המאגר אם ה־jobs (`Test (shard n/5)`, ‏`ui_lint baseline growth`, ‏`Golden image changes`, ‏`Goldens (Windows)`) מוגדרים כ־required ב־GitHub | נבדק רק ב־YAML; ה־workflows לא הורצו עדיין על GitHub |
 
 ## נספח — בדיקות הסריקה הקיימות
@@ -259,7 +262,7 @@ const _hebcalBlue = Color(0xFF1565C0);
 |---|---|---|
 | ~~`test/widgets/text/bare_text_field_scan_test.dart`~~ | אין `TextField(` גולמי | **הועברה ל־UIL-011**, שתופס גם `TextFormField`/`EditableText` |
 | ~~`test/core/messages/uisnack_literal_scan_test.dart`~~ | אין ליטרל בארגומנט הראשון של `UiSnack` | **הועברה ל־UIL-009**, שתופס גם ארגומנט בשם |
-| `test/widgets/text/default_context_menu_scan_test.dart` | `SelectionArea` עם `contextMenuBuilder` | חלון של 15 שורות |
+| ~~`test/widgets/text/default_context_menu_scan_test.dart`~~ | `SelectionArea` עם `contextMenuBuilder`, אין `SelectableText` | **הועברה ל־UIL-032** (10.11). חלון 15 השורות פספס `contextMenuBuilder` של ווידג'ט מקונן ו־`SelectableText (` עם רווח, ותפס בטעות builder שרחוק יותר מ־15 שורות |
 | ~~`test/widgets/rtl_icon_registered_usage_test.dart`~~ | `RtlIcon` רק לאייקונים רשומים | **הועברה ל־UIL-006**, שתופס גם `Transform.flip`/`Transform.scale(scaleX: -n)` סביב אייקון. משתנים עדיין לא נבדקים |
 | `test/plugins/utils/plugin_icon_resolver_usage_test.dart` | resolver יחיד | כוללת בדיקה שהסורק אכן מוצא משהו |
 | `test/settings/no_scrollable_markdown_test.dart` | `MarkdownBody` | כוללת בדיקה שהסורק תופס `Markdown(` ולא `MarkdownBody(` |
