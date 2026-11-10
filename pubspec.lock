@@ -294,11 +294,12 @@ packages:
   csslib:
     dependency: "direct main"
     description:
-      name: csslib
-      sha256: "09bad715f418841f976c77db72d5398dc1253c21fb9c0c7f0b0b985860b2d58e"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.2"
+      path: "pkgs/csslib"
+      ref: "1c4a4a2b2f4584a23b9c01ae2a7ee45c40d2fb75"
+      resolved-ref: "1c4a4a2b2f4584a23b9c01ae2a7ee45c40d2fb75"
+      url: "https://github.com/Otzaria/tools"
+    source: git
+    version: "1.0.3-wip"
   cupertino_icons:
     dependency: transitive
     description:
