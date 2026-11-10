@@ -106,7 +106,7 @@ String _markdown(
   UiLintConfig config,
 ) {
   final buffer = StringBuffer('## ui_lint (מצב דוח)\n\n')
-    ..writeln('| כלל | תיאור | סה"כ | ב-baseline | חדשות | allow |')
+    ..writeln('| כלל | תיאור | סה"כ | ב-baseline | חדשות | allow/תקרה |')
     ..writeln('|---|---|---|---|---|---|');
   for (final rule in uiLintRules) {
     final total = result.findings.where((f) => f.rule == rule.id).length;
@@ -114,7 +114,8 @@ String _markdown(
     final allows = result.allows.where((a) => a.rule == rule.id).length;
     buffer.writeln(
       '| ${rule.id}${config.isStrict(rule.id) ? ' (strict)' : ''} | '
-      '${rule.title} | $total | ${total - fresh} | $fresh | $allows |',
+      '${rule.title} | $total | ${total - fresh} | $fresh | '
+      '$allows/${config.maxAllowsFor(rule.id)} |',
     );
   }
   if (comparison.newFindings.isNotEmpty) {

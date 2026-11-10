@@ -6,6 +6,20 @@
 # חריגה בו חוסמת, בכל שלב, ו־--allow-growth לא כותב לו רשומות baseline.
 # ui_lint_test דורש strict לכל כלל שאין לו רשומות baseline.
 
+# max_allows: תקרת הערות allow לכל כלל ב־lib (§3.5). כלל שלא מופיע כאן: 0.
+# ui_lint_test נכשל כשיש יותר הערות מהתקרה, וגם כשיש פחות (להוריד את התקרה),
+# כך שכל allow חדש מופיע ב־diff של הקובץ הזה.
+max_allows:
+  UIL-003: 1
+  UIL-010: 5
+  UIL-015: 4
+  UIL-017: 3
+  UIL-019: 2
+  UIL-021: 26
+  UIL-026: 1
+  UIL-030: 2
+  UIL-031: 2
+
 exclude:
   - path: "**/*.g.dart"
     reason: קוד שנוצר אוטומטית

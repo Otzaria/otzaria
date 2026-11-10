@@ -315,6 +315,45 @@ const top = TextStyle(fontSize: 11);
     });
   });
 
+  group('תקרת הערות allow (max_allows)', () {
+    final allows = [
+      UiLintAllow('lib/a.dart', 3, 'UIL-021', 'נימוק ארוך מספיק'),
+      UiLintAllow('lib/b.dart', 7, 'UIL-021', 'נימוק ארוך מספיק'),
+      UiLintAllow('lib/b.dart', 9, 'UIL-015', 'נימוק ארוך מספיק'),
+    ];
+    const ids = {'UIL-015', 'UIL-021', 'UIL-030'};
+
+    List<String> problems(String yaml) => [
+      for (final p in allowCapProblems(allows, UiLintConfig.parse(yaml), ids))
+        p.message.split(':').first,
+    ];
+
+    test('בדיוק בתקרה: אין בעיה', () {
+      expect(problems('max_allows:\n  UIL-021: 2\n  UIL-015: 1\n'), isEmpty);
+    });
+
+    test('מעל התקרה, וכלל שאינו ברשימה (תקרה 0), נכשלים', () {
+      expect(problems('max_allows:\n  UIL-021: 1\n'), ['UIL-015', 'UIL-021']);
+    });
+
+    test('תקרה גבוהה מהמספר בפועל נכשלת (ratchet)', () {
+      expect(
+        problems('max_allows:\n  UIL-021: 2\n  UIL-015: 1\n  UIL-030: 1\n'),
+        ['UIL-030'],
+      );
+    });
+
+    test('ערך שאינו מספר שלם אי־שלילי הוא שגיאת קונפיגורציה', () {
+      for (final yaml in [
+        'max_allows:\n  UIL-021: -1\n',
+        'max_allows:\n  UIL-021: many\n',
+        'max_allows: 3\n',
+      ]) {
+        expect(() => UiLintConfig.parse(yaml), throwsFormatException);
+      }
+    });
+  });
+
   test('הערות allow פגומות או מיותרות מדווחות ולא משתיקות', () {
     final result = _lint('bad_allows');
     expect(result.allows.where((a) => a.used), isEmpty);
