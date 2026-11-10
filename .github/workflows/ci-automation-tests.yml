@@ -1,0 +1,26 @@
+name: CI Automation Tests
+
+on:
+  pull_request:
+    paths:
+      - '.github/scripts/**'
+      - '.github/workflows/auto-draft-failed-ci.yml'
+      - '.github/workflows/ci-automation-tests.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-automation-tests-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test auto-draft decisions and notifications
+        run: node --test .github/scripts/auto-draft-failed-ci.test.cjs
