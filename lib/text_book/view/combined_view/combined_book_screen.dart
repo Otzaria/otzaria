@@ -275,7 +275,11 @@ class SelectionLineCache {
 }
 
 @visibleForTesting
-({String text, Link? link, Future<CommentaryCopyGuard?> Function()? copyGuard})?
+({
+  String text,
+  Link? link,
+  Future<CommentaryCopyGuard?> Function()? copyGuard,
+})?
 commentarySelectionForCopy({
   required SelectionSyncController? controller,
   required Object mainTextOwner,
@@ -1152,14 +1156,18 @@ class _CombinedViewState extends State<CombinedView> {
     try {
       if (book.isUserBook) {
         marks = await DatabaseLibraryProvider.instance
-            .getUserInlineSectionMarks(book, _loadedLineAt);
+            .getUserInlineSectionMarks(
+              book,
+              _loadedLineAt,
+            );
       } else {
         if (book.source.isOfficial &&
             LibraryProviderManager.instance.getProviderForBook(
-              book.title,
-              categoryId: book.categoryId,
-              fileType: book.fileType,
-            ) is! DatabaseLibraryProvider) {
+                  book.title,
+                  categoryId: book.categoryId,
+                  fileType: book.fileType,
+                )
+                is! DatabaseLibraryProvider) {
           return;
         }
         marks = await DatabaseLibraryProvider.instance
@@ -2504,11 +2512,9 @@ class _CombinedViewState extends State<CombinedView> {
       crossAxisPadding: padding.horizontal,
       builder: (estimateExtent, estimationKey, columnWidth) =>
           ScrollablePositionedList.builder(
-            key: ValueKey((
-              widget.tab,
-              _textBookBloc,
-              state.continuousReadingMode,
-            )),
+            key: ValueKey(
+              (widget.tab, _textBookBloc, state.continuousReadingMode),
+            ),
             initialScrollIndex: clampedInitial,
             initialAlignment: anchor.alignment,
             initialTargetRectResolver: _initialReadingTargetResolver(
