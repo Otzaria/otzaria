@@ -207,6 +207,42 @@ void main() {
     expect(authorReads[0], lessThan(200));
   });
 
+  testWidgets('פתיחת תיקייה שמעבירה את העץ את סף השיטוח שומרת את הגלילה '
+      '(issue #4766)', (tester) async {
+    final folders = [
+      for (var f = 0; f < 10; f++)
+        _folder(
+          'תיקייה $f',
+          books: [for (var b = 0; b < 40; b++) TextBook(title: 'ספר $f-$b')],
+        ),
+    ];
+    final library = Library(categories: folders)
+      ..books.addAll([
+        for (var b = 0; b < 480; b++) TextBook(title: 'שורש $b'),
+      ]);
+    for (final folder in folders) {
+      folder.parent = library;
+    }
+
+    final libraryBloc = _MockLibraryBloc();
+    whenListen(
+      libraryBloc,
+      const Stream<LibraryState>.empty(),
+      initialState: LibraryState(library: library, currentCategory: library),
+    );
+    await _pumpBrowser(tester, libraryBloc);
+
+    await tester.drag(find.text('תיקייה 0'), const Offset(0, -150));
+    await tester.pumpAndSettle();
+    final before = tester.getTopLeft(find.text('תיקייה 6')).dy;
+
+    await tester.tap(find.text('תיקייה 6'));
+    await tester.pumpAndSettle();
+
+    expect(tester.getTopLeft(find.text('תיקייה 6')).dy, before);
+    expect(find.text('ספר 6-0'), findsOneWidget, reason: 'התיקייה נפתחה');
+  });
+
   group('כניסה לתת-תיקייה מהתצוגה המקדימה (issue #1983)', () {
     late Category tanach;
     late Category torah;

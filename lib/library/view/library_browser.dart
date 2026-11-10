@@ -3055,22 +3055,13 @@ class _LibraryBrowserListState extends State<_LibraryBrowserList> {
         ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8)
         : const EdgeInsets.symmetric(horizontal: 16, vertical: 8);
 
-    final children = widget.children;
-    if (children != null) {
-      return ListView(
-        padding: padding,
-        children: [
-          ?widget.header,
-          ...children,
-        ],
-      );
-    }
-
     // ListView בונה בקפיצה של פס הגלילה כל שורה שבדרך (אלפי תוצאות) ומפרק את
-    // כולן; ScrollablePositionedList בונה רק את שורות היעד.
+    // כולן. גם רשימת children עוברת כאן, כדי שחציית סף השיטוח לא תאפס את הגלילה.
+    final children = widget.children;
     final header = widget.header;
     final hasHeader = header != null;
-    final itemCount = widget.itemCount! + (hasHeader ? 1 : 0);
+    final itemCount =
+        (children?.length ?? widget.itemCount!) + (hasHeader ? 1 : 0);
     return ScrollablePositionedListScrollbar(
       scrollController: _itemScrollController,
       itemCount: itemCount,
@@ -3080,7 +3071,10 @@ class _LibraryBrowserListState extends State<_LibraryBrowserList> {
         itemCount: itemCount,
         itemBuilder: (context, index) {
           if (hasHeader && index == 0) return header;
-          return widget.itemBuilder!(context, hasHeader ? index - 1 : index);
+          final i = hasHeader ? index - 1 : index;
+          return children != null
+              ? children[i]
+              : widget.itemBuilder!(context, i);
         },
       ),
     );
