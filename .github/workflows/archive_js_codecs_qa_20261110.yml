@@ -17,8 +17,7 @@ jobs:
       matrix:
         archive_branch:
           - main
-          - perf/chunked-stream-copy-without-eager-materialization
-          - test/codec-corruption-regressions
+          - qa/archive-comprehensive-20261110
     name: JS codecs (${{ matrix.archive_branch }})
     steps:
       - uses: actions/checkout@v4
