@@ -22,8 +22,26 @@
 #include "hang_monitor.h"
 #include "startup_watchdog.h"
 #include "utils.h"
+#include "window_centering.h"
 
 namespace {
+
+bool CenterWindowOnCursorMonitor(HWND hwnd) {
+  POINT cursor{};
+  if (!hwnd || !GetCursorPos(&cursor)) return false;
+  HMONITOR monitor = MonitorFromPoint(cursor, MONITOR_DEFAULTTOPRIMARY);
+  MONITORINFO info{};
+  info.cbSize = sizeof(info);
+  if (!monitor || !GetMonitorInfo(monitor, &info)) return false;
+
+  return otzaria::CenterWindowInWorkArea(
+      info.rcWork,
+      [hwnd](RECT* bounds) { return GetWindowRect(hwnd, bounds) != FALSE; },
+      [hwnd](int x, int y) {
+        return SetWindowPos(hwnd, nullptr, x, y, 0, 0,
+                            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE) != FALSE;
+      });
+}
 
 // ── דיאגנוסטיקה של סיום סשן (כיבוי / יציאת משתמש) ────────────────────────
 //
@@ -539,6 +557,15 @@ bool FlutterWindow::OnCreate() {
           const HWND self = GetHandle();
           if (self) ::PostMessageW(self, kMsgDeferredDestroy, 0, 0);
           result->Success();
+          return;
+        }
+        if (call.method_name() == "centerMainWindow") {
+          if (CenterWindowOnCursorMonitor(GetHandle())) {
+            result->Success();
+          } else {
+            result->Error("centerMainWindowFailed",
+                          "Unable to center the main window.");
+          }
           return;
         }
         // איזה חלון אוצריא נמצא תחת הסמן, אם בכלל.

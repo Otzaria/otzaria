@@ -51,6 +51,10 @@ class RunnerWindowChannel {
 
   static const MethodChannel channel = MethodChannel('otzaria/multiwindow');
 
+  /// ממרכז את הראשי ב-Windows בפיקסלים פיזיים, בלי המרות DPI של הספרייה.
+  Future<void> centerMainWindow() =>
+      channel.invokeMethod<void>('centerMainWindow');
+
   /// האם אפשר לפתוח חלונות נוספים: ריבוי תצוגות פעיל. בלעדיו (macOS בלי
   /// handshake, בלי בעלים) התוכנה בחלון יחיד והאפשרויות מוסתרות.
   static bool get canOpenWindows =>

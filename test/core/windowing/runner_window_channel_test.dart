@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/runner_window_channel.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
@@ -6,6 +9,56 @@ import 'package:otzaria/tabs/models/tool_tab.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  group('centerMainWindow', () {
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+
+    tearDown(() {
+      messenger.setMockMethodCallHandler(RunnerWindowChannel.channel, null);
+    });
+
+    test('ממתין לתוצאת המרכוז של ה-runner', () async {
+      final invoked = Completer<MethodCall>();
+      final result = Completer<void>();
+      messenger.setMockMethodCallHandler(RunnerWindowChannel.channel, (
+        call,
+      ) async {
+        invoked.complete(call);
+        await result.future;
+        return null;
+      });
+      var completed = false;
+      final centering = const RunnerWindowChannel().centerMainWindow().then(
+        (_) => completed = true,
+      );
+      final call = await invoked.future;
+      expect(call.method, 'centerMainWindow');
+      expect(call.arguments, isNull);
+      expect(completed, isFalse);
+      result.complete();
+      await centering;
+      expect(completed, isTrue);
+    });
+
+    test('כשל נייטיבי מגיע לקורא', () async {
+      messenger.setMockMethodCallHandler(RunnerWindowChannel.channel, (
+        call,
+      ) async {
+        throw PlatformException(code: 'centerMainWindowFailed');
+      });
+      await expectLater(
+        const RunnerWindowChannel().centerMainWindow(),
+        throwsA(
+          isA<PlatformException>().having(
+            (error) => error.code,
+            'code',
+            'centerMainWindowFailed',
+          ),
+        ),
+      );
+    });
+  });
 
   group('canTransfer', () {
     test('כרטיסיית כלי ניתנת להעברה', () {

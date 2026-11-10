@@ -3,17 +3,12 @@ import 'dart:io' show Platform;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/app_window_id.dart';
+import 'package:otzaria/core/windowing/runner_window_channel.dart';
 import 'package:otzaria/core/windowing/window_manager_app_window_controller.dart';
 import 'package:window_manager/window_manager.dart' show TitleBarStyle;
 
-/// אי-אפשר להחליף את `windowManager` ב-mock — הוא singleton גלובלי מסוג
-/// `final`. במקומו מיירטים את ערוץ ה-MethodChannel שמתחתיו, בדיוק כמו
-/// ב-`test/utils/ui/fullscreen_helper_toggle_test.dart`.
-///
-/// ⚠️ `window_manager` אינו מיפוי 1:1 לערוץ. `show()` בודק מזעור ומשחזר
-/// קודם, `center()` מיושם כ-getBounds+setBounds, ו-`startDragging()` הוא
-/// **no-op במסך מלא ב-Windows**. לכן הבדיקות כאן מאמתות שהפעולה הגיעה
-/// לערוץ — ולא רצף פנימי שהוא פרט מימוש של הספרייה.
+/// מיירטים את הערוצים ומאמתים שהפעולה מגיעה למימוש המתאים.
+/// רצף הקריאות הפנימי תלוי בפלטפורמה ובמצב החלון.
 const Map<String, dynamic> _display = <String, dynamic>{
   'id': 'display-1',
   'name': 'מסך בדיקה',
@@ -60,6 +55,11 @@ void main() {
           }
           return null;
         });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(RunnerWindowChannel.channel, (call) async {
+          calls.add(call);
+          return null;
+        });
 
     // `center()` שואל שלוש שאלות ברצף: היכן הסמן, מהם כל המסכים, ומהו
     // הראשי — לכל אחת צורת תשובה משלה, ורשימת מסכים ריקה זורקת.
@@ -83,6 +83,7 @@ void main() {
       const MethodChannel('window_manager'),
       null,
     );
+    messenger.setMockMethodCallHandler(RunnerWindowChannel.channel, null);
     messenger.setMockMethodCallHandler(
       const MethodChannel('dev.leanflutter.plugins/screen_retriever'),
       null,
@@ -123,8 +124,11 @@ void main() {
     // שם המתודה בערוץ נשאר `destroy` — זו הספרייה. השם אצלנו שונה כי הוא
     // מסיים את התוכנה, וההטעיה כבר עלתה בקריסת יציאה בייצור.
     await expectReachesChannel(controller.quitApplication, 'destroy');
-    // אין מתודת ערוץ בשם center — הספרייה מחשבת מיקום ומזיזה את החלון.
-    await expectReachesChannel(controller.center, 'setBounds');
+    // ב-Windows ה-runner ממרכז בפיקסלים פיזיים; בשאר המערכות הספרייה מטפלת בכך.
+    await expectReachesChannel(
+      controller.center,
+      Platform.isWindows ? 'centerMainWindow' : 'setBounds',
+    );
   });
 
   test('show משחזר חלון ממוזער לפני שהוא מציג אותו', () async {
