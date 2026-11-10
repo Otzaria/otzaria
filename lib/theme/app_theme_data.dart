@@ -9,7 +9,6 @@ import 'package:otzaria/theme/app_seed_colors.dart';
 import 'package:otzaria/theme/app_shadows.dart';
 import 'package:otzaria/theme/app_surface_colors.dart';
 import 'package:otzaria/theme/app_tokens.dart';
-import 'package:otzaria/theme/layout_tokens.dart';
 
 export 'package:otzaria_context_menu/otzaria_context_menu.dart'
     show AppMenuMetrics;
@@ -163,8 +162,11 @@ class AppThemeData {
       colorScheme: cs,
       textTheme: textTheme,
       // סרגל הניווט התחתון בטלפון: 64 ולא 80, ותווית לכל יעד (q12 Q8, ss6).
-      navigationBarTheme: const NavigationBarThemeData(
-        height: LayoutConstraints.bottomNavigationBarHeight,
+      // במצומצם 48 בלי תוויות (#4787).
+      navigationBarTheme: NavigationBarThemeData(
+        height: AppDensity(
+          isCompact: compactMenuMode,
+        ).bottomNavigationBarHeight,
       ),
       // כרטיס: מסגרת ולא צל (DD-12).
       cardTheme: CardThemeData(

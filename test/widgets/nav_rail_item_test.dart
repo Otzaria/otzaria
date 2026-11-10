@@ -59,6 +59,7 @@ void main() {
     testWidgets('קומפקטי מצר את הפריט', (tester) async {
       expect(await railWidth(tester, compact: true), NavRailItem.compactWidth);
       expect(NavRailItem.compactWidth, lessThan(NavRailItem.width));
+      expect(NavRailItem.compactWidth, 52);
     });
 
     Future<double> indicatorWidth(

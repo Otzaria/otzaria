@@ -17,19 +17,20 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/theme/app_motion.dart';
 
 class NavRailItem extends StatelessWidget {
   /// רוחב הפריט במצב רגיל ובמצב קומפקטי. ה-SizedBox העוטף את הסרגל חייב
   /// להשתמש באותו ערך, אחרת ייווצר overflow בין רוחב הסרגל לרוחב הפריטים.
-  static const double width = 74;
-  static const double compactWidth = 60;
+  static const double width = LayoutConstraints.navRailWidth;
+  static const double compactWidth = LayoutConstraints.navRailWidthCompact;
 
   /// רוחב מינימלי לאינדיקטור הבחירה (ה-pill) — מצטמצם במצב קומפקטי כדי
   /// לשמור על יחס שוליים דומה לרוחב הסרגל.
   static const double _indicatorWidth = 56;
-  static const double _compactIndicatorWidth = 44;
+  static const double _compactIndicatorWidth = 40;
 
   /// אייקון רגיל (כשלא נבחר). חובה כשלא הועבר [imageAsset].
   final IconData? icon;
@@ -125,7 +126,9 @@ class NavRailItem extends StatelessWidget {
       key: tourItemKey,
       width: compact ? compactWidth : width,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: EdgeInsets.symmetric(
+          vertical: compact ? AppTokens.space2XS : AppTokens.spaceXS,
+        ),
         // התווית שמתחת לכפתור היא שמו הנגיש; ה-tooltip הוא קיצור המקשים.
         child: MergeSemantics(
           child: Semantics(
