@@ -514,9 +514,7 @@
         {"scope":"_PageShapeScreenState._rotatedLabel","fp":"a9c1e30c","n":1}
       ],
       "lib/text_book/view/page_shape/page_shape_settings_panel.dart": [
-        {"scope":"_PageShapeSettingsPanelState._buildCommentatorDropdown","fp":"aac1e49f","n":1},
-        {"scope":"_PageShapeSettingsPanelState.build","fp":"a7c1dfe6","n":1},
-        {"scope":"_PageShapeSettingsPanelState.build","fp":"aac1e49f","n":1}
+        {"scope":"_PageShapeSettingsPanelState.build","fp":"a7c1dfe6","n":1}
       ],
       "lib/text_book/view/page_shape/simple_text_viewer.dart": [
         {"scope":"_SimpleTextViewerState.build","fp":"a9c1e30c","n":1}
@@ -1323,7 +1321,6 @@
         {"scope":"_CustomShortcutDialogState.build","fp":"fdf7b8de","n":1}
       ],
       "lib/text_book/view/page_shape/page_shape_settings_panel.dart": [
-        {"scope":"_PageShapeSettingsPanelState._buildCommentatorDropdown","fp":"f1e89b70","n":1},
         {"scope":"_PageShapeSettingsPanelState._buildDisplaySettingsIcon","fp":"f1e89b70","n":2},
         {"scope":"_PageShapeSettingsPanelState.build","fp":"89f0467d","n":1},
         {"scope":"_PageShapeSettingsPanelState.build","fp":"f1e89b70","n":1}
