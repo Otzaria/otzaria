@@ -1,0 +1,96 @@
+name: Archive paired ChunkedSink append benchmark
+on:
+  push:
+    branches:
+      - qa/archive-fork-20261110
+permissions:
+  contents: read
+jobs:
+  paired:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: Otzaria/archive
+          ref: main
+          path: before
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: Otzaria/archive
+          ref: perf/chunked-sink-append-in-place
+          path: after
+          persist-credentials: false
+      - uses: dart-lang/setup-dart@v1
+      - name: Prepare benchmark
+        run: |
+          (cd before && dart pub get)
+          (cd after && dart pub get)
+          cat > before/chunk_bench.dart <<'DART'
+          import 'dart:typed_data';
+          
+          import 'package:archive/archive.dart';
+          import 'package:archive/src/util/chunked_sink.dart';
+          
+          class _Discard implements Sink<List<int>> {
+            @override
+            void add(List<int> values) {}
+            @override
+            void close() {}
+          }
+          
+          class _Framed extends ChunkedSink {
+            _Framed() : super(_Discard());
+            int records = 0;
+            int checksum = 0;
+            @override
+            void step() {
+              while (available >= 8) {
+                checksum = (checksum + view(8)[0]) & 0xffffffff;
+                records++;
+                skip(8);
+              }
+            }
+            @override
+            void finish() {
+              if (available != 0) {
+                throw ArchiveException('Remaining bytes');
+              }
+            }
+          }
+          
+          void main() {
+            final data = Uint8List.fromList(
+                List<int>.generate(1 << 20, (i) => (i * 17 + (i >> 5)) & 255));
+            final results = <double>[];
+            for (var run = 0; run < 5; run++) {
+              final parser = _Framed();
+              final watch = Stopwatch()..start();
+              for (var i = 0; i < data.length; i += 3) {
+                final end = i + 3 < data.length ? i + 3 : data.length;
+                parser.addSlice(data, i, end, false);
+              }
+              parser.close();
+              watch.stop();
+              if (parser.records != data.length ~/ 8) {
+                throw StateError('Wrong record count');
+              }
+              if (run > 0) results.add(watch.elapsedMicroseconds / 1000);
+            }
+            results.sort();
+            print('RESULT chunked_sink_small_inputs_median_ms ${(results[1]+results[2])/2}');
+            print('RESULT chunked_sink_small_inputs_min_ms ${results.first}');
+          }
+          DART
+          cp before/chunk_bench.dart after/chunk_bench.dart
+      - name: Compare alternating on the same runner
+        run: |
+          echo BEFORE_CHUNKED_1
+          (cd before && dart run chunk_bench.dart)
+          echo AFTER_CHUNKED_1
+          (cd after && dart run chunk_bench.dart)
+          echo AFTER_CHUNKED_2
+          (cd after && dart run chunk_bench.dart)
+          echo BEFORE_CHUNKED_2
+          (cd before && dart run chunk_bench.dart)
