@@ -1,0 +1,41 @@
+name: Archive JS codec QA
+
+on:
+  push:
+    branches:
+      - qa/archive-fork-20261110
+
+permissions:
+  contents: read
+
+jobs:
+  node-codecs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        archive_branch:
+          - main
+          - perf/chunked-stream-copy-without-eager-materialization
+          - test/codec-corruption-regressions
+    name: JS codecs (${{ matrix.archive_branch }})
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: Otzaria/archive
+          ref: ${{ matrix.archive_branch }}
+          persist-credentials: false
+      - uses: dart-lang/setup-dart@v1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: dart pub get
+      - name: Run browser-compatible codec regressions via dart2js/Node
+        run: >
+          dart test -p node
+          test/zstd_web_test.dart
+          test/xz_web_test.dart
+          test/web_test.dart
+          test/converters_web_test.dart
+          test/stream_write_memory_test.dart
