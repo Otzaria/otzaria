@@ -616,6 +616,9 @@ class _LinksListViewState extends State<LinksListView> {
           itemCount: filteredLinks.length,
           child: ScrollablePositionedList.builder(
             itemScrollController: _itemScrollController,
+            // נבנית מחדש בכל קטע ואין בה scrollTo, ולכן די בחצי מסך. רשימות הקריאה
+            // צריכות יותר, כדי ש-scrollTo ליעד קרוב יגיע בגלילה חלקה.
+            cacheExtentScreens: 0.5,
             itemCount: filteredLinks.length,
             itemBuilder: (context, index) {
               final link = filteredLinks[index];
