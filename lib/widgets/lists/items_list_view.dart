@@ -11,6 +11,7 @@ import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.da
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/lists/list_search_match.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 
 /// שורה ברשימה המוצגת: כותרת קבוצה או פריט. הרשימה משוטחת כדי לאפשר
 /// וירטואליזציה — נבנות רק השורות הנראות.
@@ -255,7 +256,7 @@ class _ItemsListViewState extends State<ItemsListView> {
             ),
             AppIconButton(
               icon: const Icon(FluentIcons.delete_24_regular),
-              tooltip: 'מחק',
+              tooltip: context.settingsText('מחק'),
               onPressed: () => widget.onDelete(context, originalIndex),
             ),
           ],
@@ -271,12 +272,12 @@ class _ItemsListViewState extends State<ItemsListView> {
     return AppContextMenuRegion(
       menuBuilder: (menuContext, _) => [
         AppContextMenuEntry(
-          label: 'ערוך תיאור',
+          label: context.settingsText('ערוך תיאור'),
           icon: FluentIcons.edit_24_regular,
           onTap: () => onEdit(menuContext, item, originalIndex),
         ),
         AppContextMenuEntry(
-          label: 'מחק',
+          label: context.settingsText('מחק'),
           icon: FluentIcons.delete_24_regular,
           isDestructive: true,
           onTap: () => widget.onDelete(menuContext, originalIndex),

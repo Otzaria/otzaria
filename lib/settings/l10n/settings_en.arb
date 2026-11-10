@@ -1805,10 +1805,13 @@
   "הורדות ממתינות לחיבור WiFi": "Downloads wait for a WiFi connection",
   "ממתין לחיבור WiFi": "Waiting for WiFi",
   "חל על הורדת קבצים, גם מתוספים; לא על גלישה בתוספים או עדכוני Google Play.": "Applies to file downloads, including plugins; not to browsing in plugins or Google Play updates.",
-  "סגור חיפוש": "Close search",
   "החלונית נעוצה לפי ההגדרות": "The panel is pinned in the settings",
   "בטל נעיצה": "Unpin",
   "נעץ את החלונית": "Pin the panel",
   "הסתר ניווט": "Hide navigation",
-  "הצג ניווט": "Show navigation"
+  "הצג ניווט": "Show navigation",
+  "הזנת סיסמה": "Enter password",
+  "ערוך תיאור": "Edit description",
+  "נקה סינון": "Clear filter",
+  "שגיאה: {error}": "Error: {error}"
 }
