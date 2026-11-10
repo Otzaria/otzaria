@@ -169,6 +169,7 @@ extension _ContextMenuEntries on ContextMenuRegionState {
     if (!enabled) {
       return MenuItemButton(
         key: key,
+        overflowAxis: Axis.vertical,
         requestFocusOnHover: false,
         style: buildAppSubmenuItemStyle(
           context,
@@ -236,6 +237,7 @@ extension _ContextMenuEntries on ContextMenuRegionState {
       metrics,
       MenuItemButton(
         key: key,
+        overflowAxis: Axis.vertical,
         requestFocusOnHover: false,
         closeOnActivate: !keepOpen,
         style: buildAppSubmenuItemStyle(
