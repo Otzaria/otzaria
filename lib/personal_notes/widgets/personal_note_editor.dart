@@ -517,6 +517,7 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
                           controller: widget.controller.quillController,
                           focusNode: widget.focusNode,
                           scrollController: widget.scrollController,
+                          // TODO(#2531): הסמן עבה מבשאר השדות עד ש-flutter_quill יחשוף cursorWidth (singerdmx/flutter-quill#2759).
                           config: quill.QuillEditorConfig(
                             editorKey: widget.editorKey,
                             customStyles: personalNoteStyles(context),
