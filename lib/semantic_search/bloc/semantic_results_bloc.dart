@@ -472,13 +472,9 @@ class SemanticResultsBloc
       }
     }
 
+    final workerCount = math.min(items.length, _maxUserBookChecksInFlight);
     await Future.wait([
-      for (
-        var i = 0;
-        i < math.min(items.length, _maxUserBookChecksInFlight);
-        i++
-      )
-        worker(),
+      for (var i = 0; i < workerCount; i++) worker(),
     ]);
     return flags;
   }
