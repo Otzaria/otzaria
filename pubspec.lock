@@ -384,10 +384,11 @@ packages:
   equatable:
     dependency: "direct main"
     description:
-      name: equatable
-      sha256: ea36e500cbf0ec18361deabca755434f73e42fe53c5130021c7e2d6b5ebe1702
-      url: "https://pub.dev"
-    source: hosted
+      path: "."
+      ref: "integration/equatable-20261110-performance-qa"
+      resolved-ref: c2b2d6c6c8510436f99829ce6aacd383b5d7a71d
+      url: "https://github.com/Otzaria/equatable.git"
+    source: git
     version: "3.0.0"
   fake_async:
     dependency: "direct dev"
