@@ -83,11 +83,7 @@ void showReadingSettingsDialog() {
         icon: FluentIcons.text_font_24_regular,
         size: AppDialogSize.large,
         confirmText: context.settingsText('סגור'),
-        customContent: SizedBox(
-          width: 650,
-          height: MediaQuery.of(context).size.height * 0.7,
-          child: const ReadingSettingsPanel(),
-        ),
+        customContent: const ReadingSettingsPanel(),
       ),
     ),
   );
