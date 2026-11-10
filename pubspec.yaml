@@ -253,6 +253,12 @@ dependency_overrides:
       url: https://github.com/Otzaria/dart_pdf
       ref: fb1bcbd6a43a5510462b949fcdf2526cd8abe422
       path: widget_wrapper
+  # TODO: להחזיר ל-pub.dev אחרי מיזוג ושחרור olutter/bidi#11–#19.
+  # הענף המשולב כולל גם את תיקוני מיפוי המקור הנדרשים להדפסה.
+  bidi:
+    git:
+      url: https://github.com/Otzaria/bidi
+      ref: codex/bidi-combined-20261110
   # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור daohoangson/flutter_widget_from_html#1658, #1659,
   # #1660, #1661, #1662, #1663 (מטמון CSS, מיזוג margins, מחרוזות debug עצלות, Flattener,
   # FutureBuilder, צבע hex פגום).

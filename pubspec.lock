@@ -86,10 +86,11 @@ packages:
   bidi:
     dependency: "direct main"
     description:
-      name: bidi
-      sha256: "77f475165e94b261745cf1032c751e2032b8ed92ccb2bf5716036db79320637d"
-      url: "https://pub.dev"
-    source: hosted
+      path: "."
+      ref: "codex/bidi-combined-20261110"
+      resolved-ref: "206e0913adb23de002d20d725f21ea9063392564"
+      url: "https://github.com/Otzaria/bidi"
+    source: git
     version: "2.0.13"
   bloc:
     dependency: "direct main"
