@@ -21,6 +21,21 @@ class AppTokens {
     vertical: spaceMD,
   );
 
+  /// ריפוד שורה ברשימה, כמו שורת הגדרה.
+  static const EdgeInsets listRowPadding = EdgeInsets.symmetric(
+    horizontal: spaceMD,
+    vertical: spaceSMD,
+  );
+
+  /// בין מקטעים, כמו בין כרטיסי ההגדרות.
+  static const double sectionGap = spaceLG;
+
+  /// בין כותרת מקטע לתוכן שמתחתיה.
+  static const double titleContentGap = spaceSMD;
+
+  /// בין תווית לשדה שמתחתיה.
+  static const double labelFieldGap = spaceXS;
+
   // ── Icon Sizes ———————————————————————————————
   static const double iconXS = 14;
   static const double iconSM = 16;
