@@ -5,7 +5,12 @@ import '../ui_lint.dart';
 class RawDialogRule extends UiLintRule {
   const RawDialogRule();
 
-  static const _types = {'AlertDialog', 'Dialog', 'SimpleDialog'};
+  static const _types = {
+    'AlertDialog',
+    'Dialog',
+    'SimpleDialog',
+    'CupertinoAlertDialog',
+  };
 
   @override
   String get id => 'UIL-001';
@@ -14,7 +19,8 @@ class RawDialogRule extends UiLintRule {
   int get stage => 1;
 
   @override
-  String get title => 'AlertDialog/Dialog/SimpleDialog גולמי';
+  String get title =>
+      'AlertDialog/Dialog/SimpleDialog/CupertinoAlertDialog גולמי';
 
   @override
   String get hint => 'AppDialog / AppDialogFrame (DESIGN_SYSTEM.md §3.1)';

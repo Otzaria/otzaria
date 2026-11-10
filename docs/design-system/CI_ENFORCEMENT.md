@@ -63,13 +63,13 @@ prefix של ייבוא Flutter (`import 'package:flutter/material.dart' as m;`) 
 
 | ID | כלל | זיהוי | החרגות מובנות (config) | baseline | שלב · מצב |
 |---|---|---|---|---|---|
-| UIL-001 | אין `AlertDialog`/`Dialog`/`SimpleDialog` מחוץ ל־`lib/widgets/dialogs/` | ctor | `lib/widgets/dialogs/**` | 3 (ראשון 18) | 1 · **חוסם** |
+| UIL-001 | אין `AlertDialog`/`Dialog`/`SimpleDialog`/`CupertinoAlertDialog` (מ־10.11) מחוץ ל־`lib/widgets/dialogs/` | ctor | `lib/widgets/dialogs/**` | 3 (ראשון 18) | 1 · **חוסם** |
 | UIL-002 | אין `TextButton`/`FilledButton`/`OutlinedButton`/`ElevatedButton` מחוץ ל־`lib/widgets/controls/` | ctor (כולל `.icon`/`.tonal`/`.tonalIcon`, ‏`const`, ‏collection-if). ‏`X.styleFrom` אינו בנאי ומותר | `lib/widgets/controls/**`, ‏`app_dropdown_field.dart` | 0. תשעת הכפתורים האחרונים הוסבו (q10 Q7): `ActionButton.inline`, ‏`iconAlignment:`, ‏`ghost`, ‏`neutral`, ‏`AppIconButton`. המופע היחיד (`app_dropdown_field.dart`) מוחרג | 1 · **חוסם**, נעול (`strict`) מהיום הראשון (5.11) |
 | UIL-003 | לכל `IconButton` יש `tooltip:` | ctor + named arg | `IconButton.styleFrom` (לא בנאי) | 8 (ראשון 25) | 1 · **חוסם** |
 | UIL-004 | אין `Theme.of(…).primaryColor` / `theme.primaryColor` | PropertyAccess | — | 0 (ראשון 5) | 1 · **חוסם**, נעול (strict) |
 | UIL-005 | אין `Icons.`/`CupertinoIcons.` | identifier prefix, גם `m.Icons.x` דרך prefix של Flutter | — | 0 | 1 · **חוסם**, נעול (strict) |
 | UIL-006 | `RtlIcon` רק לאייקון כיווני שרשום ב־`rtl_icon.dart` (אף פעם לא `OtzariaIcons`), ואין `Transform.flip`/`Transform.scale(scaleX: -n)` שעוטף `Icon` | ctor + ילד + הרשימה ב־`rtl_icon.dart` | `rtl_icon.dart` | 0 | 1 · **חוסם**, נעול (strict) |
-| UIL-007 | אין `hoverColor`/`splashColor`/`overlayColor` מחוץ ל־`lib/theme/` | named arg | ערך מ־`AppSurfaces.*` (למשל `hoverRow`); `hoverColor: Colors.transparent` ב־`ListTile` שיש לו `onTap:` וגם `trailing:` (JX-14). ב־`ListTile` בלי `onTap` אין ריחוף, ולכן `transparent` שם נתפס כקוד מת | 0 | 1 · **חוסם**, נעול (strict) |
+| UIL-007 | אין `hoverColor`/`splashColor`/`overlayColor`/`focusColor`/`highlightColor` (השניים האחרונים מ־10.11) מחוץ ל־`lib/theme/` | named arg | ערך מ־`AppSurfaces.*` (למשל `hoverRow`); `hoverColor: Colors.transparent` ב־`ListTile` שיש לו `onTap:` וגם `trailing:` (JX-14). ב־`ListTile` בלי `onTap` אין ריחוף, ולכן `transparent` שם נתפס כקוד מת | 0. ‏`focusColor: Colors.transparent` בכרטיס התוצאה של הכלים (`tool_result_card_shell.dart`) ב־allow עד הכרעה | 1 · **חוסם**, נעול (strict) |
 | UIL-008 | אין `ScaffoldMessenger`/`SnackBar(` | identifier/ctor | `lib/core/ui_snack.dart` | 0 | 1 · **חוסם**, נעול (strict) |
 | UIL-009 | `UiSnack.*` מקבל מחרוזת מקטלוג, גם בארגומנט בשם | ארגומנט ליטרלי, גם בענף של תנאי (`ok ? 'נשמר' : 'נכשל'`) | — | 0 | 1 · **חוסם**, נעול (strict) |
 | UIL-010 | אין `textDirection: TextDirection.rtl` ב־`Text`/`Text.rich`/`SelectableText` | ctor + named arg | חלונות `ContentDirectionality` (פסוקים בעברית במצב אנגלית), עם allow (JX-09) | 0 (5 חריגים ב־allow: ארבעת הציטוטים במסך "אודות" ומסך שגיאת האתחול) | 1 · **חוסם**, נעול (strict) |
@@ -249,7 +249,7 @@ const _hebcalBlue = Color(0xFF1565C0);
 | פער | השפעה | למה לא נסגר |
 |---|---|---|
 | UIL-027: צבע דרך משתנה | `isDark ? a : b` כש־a ו־b משתנים מסוג `Color`, או `if` שבענף שלו יותר מהצבה אחת, לא נתפסים (AST לא מפוענח) | הזיהוי לפי צורה; חיפוש טיפוסים יחייב analyzer מלא |
-| `LinearProgressIndicator`, ‏`CupertinoAlertDialog`, ‏`focusColor`/`highlightColor` | מחוץ להיקף של UIL-013/001/007 | הקטלוג לא אוסר אותם. ‏`LinearProgressIndicator` (כ־9 מופעים) מחכה לרכיב התקדמות מדודה משותף |
+| `LinearProgressIndicator` | מחוץ להיקף של UIL-013 | 11 מופעים (10.11); מחכה לרכיב התקדמות מדודה משותף (הכרעת בעל הפרויקט 10.11: להשאיר). `CupertinoAlertDialog` ו־`focusColor`/`highlightColor` נכנסו ל־UIL-001/007 |
 | `Border(left:/right:)`, ‏`FractionalOffset(x, y)`, ‏`Alignment(x, y)` עם x ממשתנה | כיוון פיזי בצורות האלה לא נתפס ב־UIL-021 | נדיר; `Alignment(-1, 0)` ליטרלי ו־`BorderRadius.only`/`horizontal` נסגרו ב־10.11 |
 | הערת allow | מוסיפים בלי תווית ובלי בעלים. העלאת `max_allows` (§3.5) נראית ב־diff, אבל `ui_baseline_guard` לא דורש עליה תווית | מכוון: הנימוק גלוי ב־diff ונסקר. תווית להעלאת התקרה היא הכרעה של בעל הפרויקט |
 | החלפת חוב באותו `scope` | תיקון חריגה אחת והוספת אחרת באותה מתודה, עם `--allow-growth`, לא נספר כגידול | ה־guard סופר לפי כלל, קובץ ו־`scope` בלי `fp`, כדי ששינוי ביטוי לא ייחשב גידול (§3.4). ה־diff של `baseline.json` עדיין נסקר |

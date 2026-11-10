@@ -11,6 +11,7 @@
 # כך שכל allow חדש מופיע ב־diff של הקובץ הזה.
 max_allows:
   UIL-003: 1
+  UIL-007: 1
   UIL-010: 5
   UIL-015: 4
   UIL-017: 3

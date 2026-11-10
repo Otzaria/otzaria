@@ -4,7 +4,8 @@ import 'package:analyzer/dart/ast/visitor.dart';
 import '../ast_helpers.dart';
 import '../ui_lint.dart';
 
-/// UIL-007: `hoverColor:`/`splashColor:`/`overlayColor:` מקומי מחוץ ל־lib/theme.
+/// UIL-007: `hoverColor:`/`splashColor:`/`overlayColor:`/`focusColor:`/
+/// `highlightColor:` מקומי מחוץ ל־lib/theme.
 ///
 /// צבעי המצב באים מערכת הנושא (`_hoverButtonStyle`, DD-06). מותר:
 /// - ערך מ־`AppSurfaces.*` (הבעלים של צבעי המצב, למשל `hoverRow`), גם בענף
@@ -17,7 +18,13 @@ import '../ui_lint.dart';
 class StateColorOverrideRule extends UiLintRule {
   const StateColorOverrideRule();
 
-  static const _names = {'hoverColor', 'splashColor', 'overlayColor'};
+  static const _names = {
+    'hoverColor',
+    'splashColor',
+    'overlayColor',
+    'focusColor',
+    'highlightColor',
+  };
 
   @override
   String get id => 'UIL-007';
@@ -26,7 +33,8 @@ class StateColorOverrideRule extends UiLintRule {
   int get stage => 1;
 
   @override
-  String get title => 'hoverColor/splashColor/overlayColor מקומי';
+  String get title =>
+      'hoverColor/splashColor/overlayColor/focusColor/highlightColor מקומי';
 
   @override
   String get hint =>
