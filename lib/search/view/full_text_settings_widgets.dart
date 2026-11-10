@@ -327,6 +327,11 @@ class WordOrderCheckbox extends StatelessWidget {
     return ValueListenableBuilder<int>(
       valueListenable: tab.spacingValuesChanged,
       builder: (context, _, _) => BlocBuilder<SearchBloc, SearchState>(
+        buildWhen: (previous, current) =>
+            previous.isAdvancedSearchEnabled != current.isAdvancedSearchEnabled ||
+            previous.wordMatchMode != current.wordMatchMode ||
+            previous.proximityScope != current.proximityScope ||
+            previous.anyOrder != current.anyOrder,
         builder: (context, state) => _build(context, state),
       ),
     );

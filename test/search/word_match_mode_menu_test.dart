@@ -169,6 +169,28 @@ void main() {
       expect(checkboxEnabled(tester), isFalse);
     });
 
+    testWidgets('סטטוס חיפוש שאינו רלוונטי לא בונה שוב את תיבת הסדר', (
+      tester,
+    ) async {
+      final tab = SearchingTab('חיפוש', null);
+      final bloc = tab.searchBloc;
+      addTearDown(bloc.close);
+
+      await tester.pumpWidget(harness(bloc, tab));
+      final before = tester.widget<InkWell>(checkbox);
+
+      bloc.add(UpdateFilterQuery('new filter'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<InkWell>(checkbox), same(before));
+
+      bloc.add(UpdateWordOrderWithoutSearch(true));
+      await tester.pumpAndSettle();
+      final current = tester.widget<Checkbox>(
+        find.descendant(of: checkbox, matching: find.byType(Checkbox)),
+      );
+      expect(current.value, isFalse);
+    });
+
     testWidgets('במקורב אינו מוצג', (tester) async {
       final tab = SearchingTab('חיפוש', null);
       final bloc = tab.searchBloc;
