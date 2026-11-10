@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
-import 'package:archive/archive_io.dart';
+import 'package:otzaria/plugins/services/plugin_archive_extractor.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
@@ -79,7 +79,7 @@ class PluginInstallerService {
     try {
       // 1. Extract zip to temp on a worker isolate to avoid blocking the UI.
       await Isolate.run(
-        () => _extractPluginArchiveSync(archivePath, tempDir.path),
+        () => extractPluginArchive(archivePath, tempDir.path),
       );
 
       // 2. Read manifest
@@ -336,24 +336,3 @@ class PluginInstallerService {
   }
 }
 
-void _extractPluginArchiveSync(String archivePath, String tempDirPath) {
-  final bytes = File(archivePath).readAsBytesSync();
-  final archive = ZipDecoder().decodeBytes(bytes);
-
-  for (final file in archive) {
-    final filename = file.name;
-    final targetPath = p.normalize(p.join(tempDirPath, filename));
-    if (!p.isWithin(tempDirPath, targetPath)) {
-      throw Exception('נתיב חולץ מקובץ ZIP באופן לא חוקי: $filename');
-    }
-
-    if (file.isFile) {
-      final data = file.content as List<int>;
-      File(targetPath)
-        ..createSync(recursive: true)
-        ..writeAsBytesSync(data);
-    } else {
-      Directory(targetPath).createSync(recursive: true);
-    }
-  }
-}
