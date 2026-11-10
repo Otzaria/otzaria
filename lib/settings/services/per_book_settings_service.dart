@@ -7,6 +7,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/services/nikud_display_service.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
@@ -139,7 +140,8 @@ class PerBookSettings {
       final json = jsonDecode(raw) as Map<String, dynamic>;
       final cleaned = Map<String, dynamic>.of(json);
       if (cleaned['fontSize'] ==
-          (Settings.getValue<double>('key-font-size') ?? 25.0)) {
+          (Settings.getValue<double>('key-font-size') ??
+              AppFonts.defaultReadingSize)) {
         cleaned.remove('fontSize');
       }
       final policy = SettingsRepository().loadTextDisplayPolicy();
