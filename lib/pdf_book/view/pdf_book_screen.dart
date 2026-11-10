@@ -6303,7 +6303,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             spacing: 8,
             children: [
               const Text(NotesMessages.choosePdfNotePoint),
-              ActionButton.ghost(
+              ActionButton.neutral(
                 text: 'ביטול',
                 icon: FluentIcons.dismiss_24_regular,
                 onPressed: _cancelPersonalNotePointSelection,
