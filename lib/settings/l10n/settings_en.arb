@@ -1813,5 +1813,7 @@
   "הזנת סיסמה": "Enter password",
   "ערוך תיאור": "Edit description",
   "נקה סינון": "Clear filter",
-  "שגיאה: {error}": "Error: {error}"
+  "שגיאה: {error}": "Error: {error}",
+  "לבטל את כל ההסתרות?": "Unhide everything?",
+  "כל הספרים והקטגוריות המוסתרים יחזרו להיראות בממשק.": "All hidden books and categories will be shown again."
 }
