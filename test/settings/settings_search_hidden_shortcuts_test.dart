@@ -21,6 +21,7 @@ import 'package:otzaria/shortcuts/dynamic/dynamic_shortcut_registry.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/shortcuts/view/custom_shortcut_dialog.dart';
 import 'package:otzaria/shortcuts/view/shortcut_dropdown_tile.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
 import 'package:otzaria/tour/bloc/tour_state.dart';
 import 'package:otzaria/tour/models/live_tip.dart';
@@ -383,7 +384,10 @@ void main() {
         );
         cache.writes.clear();
         await tester.pump();
-        await tester.pump(const Duration(milliseconds: 300));
+        // הגלילה הראשונה (animPanelSlide) מסתיימת, והשנייה מתחילה.
+        await tester.pump(
+          AppTokens.animPanelSlide + const Duration(milliseconds: 20),
+        );
         await tester.pump();
 
         final scrollable = tester.state<ScrollableState>(

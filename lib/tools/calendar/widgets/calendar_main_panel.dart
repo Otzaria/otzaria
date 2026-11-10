@@ -58,7 +58,7 @@ class CalendarMainPanel extends StatelessWidget {
                       child: AnimatedSwitcher(
                         duration: AppMotion.duration(
                           context,
-                          const Duration(milliseconds: 280),
+                          AppTokens.animPanelSlide,
                         ),
                         switchInCurve: AppTokens.curveEnter,
                         switchOutCurve: AppTokens.curveExit,
