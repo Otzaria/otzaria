@@ -1079,7 +1079,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                     ),
                     highlightStyle: TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: settingsState.searchResultsFontSize + 2,
+                      fontSize: settingsState.searchResultsFontSize,
                       fontFamily: AppFonts.renderFontFamily(
                         settingsState.fontFamily,
                       ),

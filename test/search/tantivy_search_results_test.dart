@@ -475,6 +475,15 @@ void main() {
         _highlightedTextFromInlineSpan(highlightedResultText.text),
         'טקסט',
       );
+      // q10 B: מילת החיפוש מודגשת ואדומה, בגודל הטקסט ולא גדולה ממנו.
+      final sizes = <double?>{};
+      highlightedResultText.text.visitChildren((span) {
+        if (span is TextSpan && (span.text ?? '').isNotEmpty) {
+          sizes.add(span.style?.fontSize);
+        }
+        return true;
+      });
+      expect(sizes, hasLength(1));
     });
 
     testWidgets('תוצאה שהמנוע לא קרא את הטקסט שלה מציגה הודעה ולא שורה ריקה', (
