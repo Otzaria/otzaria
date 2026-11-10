@@ -13,13 +13,13 @@ import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -52,7 +52,7 @@ void main() {
     ) async {
       final bloc = _TestTextBookBloc(_stateWithoutLinks());
       addTearDown(() async => bloc.close());
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
       addTearDown(() async => settingsBloc.close());
 
       await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
@@ -67,7 +67,7 @@ void main() {
       (tester) async {
         final bloc = _TestTextBookBloc(_stateWithIrrelevantLinks());
         addTearDown(() async => bloc.close());
-        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+        final settingsBloc = StubSettingsBloc(SettingsState.initial());
         addTearDown(() async => settingsBloc.close());
 
         await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
@@ -83,7 +83,7 @@ void main() {
       (tester) async {
         final bloc = _TestTextBookBloc(_stateWithLinksNoActiveCommentators());
         addTearDown(() async => bloc.close());
-        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+        final settingsBloc = StubSettingsBloc(SettingsState.initial());
         addTearDown(() async => settingsBloc.close());
 
         await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
@@ -225,16 +225,6 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     implements TextBookBloc {
   _TestTextBookBloc(super.initialState) {
     on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
   }
 
   @override

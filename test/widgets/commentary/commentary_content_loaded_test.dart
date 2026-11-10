@@ -8,25 +8,15 @@ import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
 import 'package:otzaria/widgets/commentary/commentary_content.dart';
+
+import '../../test_helpers/stub_settings_bloc.dart';
 
 class _Provider extends Fake implements LibraryProvider {
   @override
   Future<String> getLinkContent(Link link) async =>
       List.filled(40, 'מילה ארוכה בפירוש').join(' ');
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 void main() {
@@ -59,7 +49,7 @@ void main() {
       connectionType: LinkTypes.commentary,
     );
     await link.content;
-    final settings = _TestSettingsBloc();
+    final settings = StubSettingsBloc();
     addTearDown(settings.close);
 
     await tester.pumpWidget(

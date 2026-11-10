@@ -16,7 +16,6 @@ import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -29,6 +28,8 @@ import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provide
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
 import 'package:provider/provider.dart';
+
+import '../../test_helpers/stub_settings_bloc.dart';
 
 /// רגרסיה ל-issue #891: "Right overflowed by" בשורת הכפתורים במסך צר.
 /// סורק רוחבי חלון ומוודא שאף רוחב לא זורק שגיאת RenderFlex overflow.
@@ -74,7 +75,7 @@ void main() {
     final tabsBloc = _TestTabsBloc(
       TabsState(tabs: [tab], currentTabIndex: 0),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final navigationBloc = _TestNavigationBloc();
 
     addTearDown(() async {
@@ -221,16 +222,6 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     implements TextBookBloc {
   _TestTextBookBloc(super.initialState) {
     on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
   }
 
   @override

@@ -12,6 +12,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 
 import '../helpers/memory_settings_cache.dart';
+import '../test_helpers/stub_settings_bloc.dart';
 
 void main() {
   // PdfBookTab (חלונית הדוגמה של ידית הגרירה) קורא הגדרות בבנייתו.
@@ -23,7 +24,7 @@ void main() {
     testWidgets(
       'does not update height notifier synchronously when visibility notifier instance changes',
       (tester) async {
-        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+        final settingsBloc = StubSettingsBloc(SettingsState.initial());
         addTearDown(settingsBloc.close);
 
         final totalHeightNotifier = ValueNotifier<double>(0);
@@ -59,7 +60,7 @@ void main() {
     testWidgets(
       'center ממורכז גאומטרית בסרגל גם כשהצדדים לא סימטריים',
       (tester) async {
-        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+        final settingsBloc = StubSettingsBloc(SettingsState.initial());
         addTearDown(settingsBloc.close);
 
         const centerKey = Key('center');
@@ -87,7 +88,7 @@ void main() {
     testWidgets(
       'במסך מלא מוזרק לחצן יציאה כפריט בסרגל',
       (tester) async {
-        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+        final settingsBloc = StubSettingsBloc(SettingsState.initial());
         addTearDown(settingsBloc.close);
 
         const trailingKey = Key('trailing');
@@ -118,7 +119,7 @@ void main() {
     testWidgets(
       'ללא מסך מלא לא מוצג לחצן יציאה',
       (tester) async {
-        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+        final settingsBloc = StubSettingsBloc(SettingsState.initial());
         addTearDown(settingsBloc.close);
 
         await tester.pumpWidget(
@@ -135,7 +136,7 @@ void main() {
     testWidgets(
       'לחצן היציאה עוקב אחרי קוביט החלון, ובלעדיו הסרגל נבנה כלא-מסך-מלא',
       (tester) async {
-        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+        final settingsBloc = StubSettingsBloc(SettingsState.initial());
         addTearDown(settingsBloc.close);
         final cubit = WindowFullscreenCubit(
           initial: false,
@@ -188,7 +189,7 @@ void main() {
     testWidgets(
       'בתוך scope פעיל של חלונית מפוצלת מוזרקת ידית גרירה',
       (tester) async {
-        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+        final settingsBloc = StubSettingsBloc(SettingsState.initial());
         addTearDown(settingsBloc.close);
         final pane = _pane();
 
@@ -209,7 +210,7 @@ void main() {
       'במגע, לחיצה ארוכה על הידית בסרגל מתחילה גרירה ולא הסבר (#2635)',
       (tester) async {
         final semantics = tester.ensureSemantics();
-        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+        final settingsBloc = StubSettingsBloc(SettingsState.initial());
         addTearDown(settingsBloc.close);
         final pane = _pane();
 
@@ -247,7 +248,7 @@ void main() {
     testWidgets(
       'scope כבוי (טאב שאינו מפוצל) אינו מזריק ידית',
       (tester) async {
-        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+        final settingsBloc = StubSettingsBloc(SettingsState.initial());
         addTearDown(settingsBloc.close);
         final pane = _pane();
 
@@ -267,7 +268,7 @@ void main() {
     testWidgets(
       'ללא scope אין ידית גרירה',
       (tester) async {
-        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+        final settingsBloc = StubSettingsBloc(SettingsState.initial());
         addTearDown(settingsBloc.close);
 
         await tester.pumpWidget(
@@ -284,7 +285,7 @@ void main() {
     testWidgets(
       'center רחב לא גולש ולא חוסם לחיצות על trailing',
       (tester) async {
-        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+        final settingsBloc = StubSettingsBloc(SettingsState.initial());
         addTearDown(settingsBloc.close);
 
         var tapped = false;
@@ -410,14 +411,4 @@ class _TestApp extends StatelessWidget {
       ),
     );
   }
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

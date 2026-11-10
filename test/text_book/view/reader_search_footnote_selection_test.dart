@@ -20,7 +20,6 @@ import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/services/target_line_links_service.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
@@ -36,6 +35,7 @@ import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
 import 'package:otzaria/widgets/misc/app_context_menu.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -60,7 +60,7 @@ void main() {
         const shownSuffix = 'הודאתו\u20663963\u2069';
         final book = TextBook(title: 'ספר בדיקה');
         final bloc = _TextBookBloc(_loaded(book, source, combined));
-        final settings = _SettingsBloc(
+        final settings = StubSettingsBloc(
           SettingsState.initial().copyWith(copyWithHeaders: 'none'),
         );
         final notes = _PersonalNotesBloc(const PersonalNotesState.initial());
@@ -298,15 +298,6 @@ class _TextBookRepository implements TextBookRepository {
     required int endIndex,
     Iterable<String>? targetBookTitles,
   }) async => [];
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _SettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _SettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

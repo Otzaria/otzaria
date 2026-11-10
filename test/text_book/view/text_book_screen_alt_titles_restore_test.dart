@@ -25,7 +25,6 @@ import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -45,6 +44,7 @@ import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
 import '../../helpers/seforim_fixture_db.dart';
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
 
 /// טאב שמשוחזר מהסשן נבנה לפני שטעינת התוכן מיפתה את הספר לספק המסד.
 /// לשונית 'כותרות' של ספר שיש לו רק דיבורי המתחיל חייבת להופיע בכל זאת.
@@ -119,7 +119,7 @@ void main() {
     final bloc = _TestTextBookBloc(TextBookLoading(book, 0, false, const []));
     final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
     final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final bookmarkBloc = _TestBookmarkBloc();
     final tourCubit = TourCubit();
     final historyBloc = _TestHistoryBloc();
@@ -239,16 +239,6 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
   }
 
   void emitStateForTest(TextBookState state) => emit(state);
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

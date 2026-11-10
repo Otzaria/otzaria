@@ -9,8 +9,6 @@ import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/widgets/commentary/links_list_view.dart';
 import 'package:otzaria/widgets/commentary/panel_anchor_links.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
@@ -19,19 +17,11 @@ import 'package:otzaria/widgets/lists/filter_chips_widget.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 
 import '../../helpers/memory_settings_cache.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
 
 /// [LinksListView] חולץ מ-`SelectedLineLinksView` כדי שכרטיסיית הטקסט וחלונית
 /// ה-PDF יציגו את אותה רשימת קישורים. הטסטים כאן נועלים את התכונה שמאפשרת
 /// זאת: הווידג'ט חייב להישאר חסר-תלות ב-`TextBookBloc`.
-class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _FakeSettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
-}
 
 Link _link({
   required String path2,
@@ -79,7 +69,7 @@ Future<Set<String>?> _pumpWithoutTextBookBloc(
   await tester.pumpWidget(
     MaterialApp(
       home: BlocProvider<SettingsBloc>.value(
-        value: _FakeSettingsBloc(),
+        value: StubSettingsBloc(),
         child: Scaffold(
           body: LinksListView(
             displayProfile: TextDisplayProfile.defaults,
@@ -135,7 +125,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: BlocProvider<SettingsBloc>.value(
-            value: _FakeSettingsBloc(),
+            value: StubSettingsBloc(),
             child: Scaffold(
               body: LinksListView(
                 displayProfile: TextDisplayProfile.defaults,
@@ -186,7 +176,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: BlocProvider<SettingsBloc>.value(
-            value: _FakeSettingsBloc(),
+            value: StubSettingsBloc(),
             child: Scaffold(
               body: LinksListView(
                 displayProfile: TextDisplayProfile.defaults,
@@ -241,7 +231,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: BlocProvider<SettingsBloc>.value(
-            value: _FakeSettingsBloc(),
+            value: StubSettingsBloc(),
             child: Scaffold(
               body: LinksListView(
                 displayProfile: TextDisplayProfile.defaults,
@@ -341,7 +331,7 @@ void main() {
 
     Widget view(String scopeKey) => MaterialApp(
       home: BlocProvider<SettingsBloc>.value(
-        value: _FakeSettingsBloc(),
+        value: StubSettingsBloc(),
         child: Scaffold(
           body: LinksListView(
             displayProfile: TextDisplayProfile.defaults,
@@ -403,7 +393,7 @@ void main() {
           // האפליקציה כולה RTL (locale he_IL); בלי זה הצד נמדד הפוך.
           textDirection: TextDirection.rtl,
           child: BlocProvider<SettingsBloc>.value(
-            value: _FakeSettingsBloc(),
+            value: StubSettingsBloc(),
             child: Scaffold(
               body: LinksListView(
                 displayProfile: TextDisplayProfile.defaults,
@@ -457,7 +447,7 @@ void main() {
         home: Directionality(
           textDirection: TextDirection.rtl,
           child: BlocProvider<SettingsBloc>.value(
-            value: _FakeSettingsBloc(),
+            value: StubSettingsBloc(),
             child: Scaffold(
               body: LinksListView(
                 displayProfile: TextDisplayProfile.defaults,
@@ -569,7 +559,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: BlocProvider<SettingsBloc>.value(
-            value: _FakeSettingsBloc(),
+            value: StubSettingsBloc(),
             child: Scaffold(
               body: StatefulBuilder(
                 builder: (context, setState) {

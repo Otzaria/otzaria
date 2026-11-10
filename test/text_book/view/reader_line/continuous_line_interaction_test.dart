@@ -19,7 +19,6 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor_dialog.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -37,6 +36,7 @@ import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_settings_bloc.dart';
 
 // פסקה אחת של חמש שורות; "מילה" מופיעה גם בשורה הראשונה וגם בשלישית.
 const _lines = [
@@ -634,7 +634,7 @@ Future<_Harness> _pump(
   );
   if (adjust != null) state = adjust(state);
   final bloc = _TextBookBloc(state);
-  final settingsBloc = _SettingsBloc(settings ?? SettingsState.initial());
+  final settingsBloc = StubSettingsBloc(settings ?? SettingsState.initial());
   final notes = _PersonalNotesBloc(const PersonalNotesState.initial());
   final bookmarks = _BookmarkBloc();
   final h = _Harness(bloc, notes, bookmarks);
@@ -810,16 +810,6 @@ class _PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState>
   }
 
   final List<PersonalNotesEvent> received = [];
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _SettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _SettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

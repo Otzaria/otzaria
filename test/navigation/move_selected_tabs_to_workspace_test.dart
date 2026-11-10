@@ -21,7 +21,6 @@ import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
 import 'package:otzaria/plugins/services/plugin_unsaved_changes_registry.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -36,6 +35,7 @@ import 'package:otzaria/workspaces/workspace.dart';
 import 'package:otzaria/workspaces/workspace_repository.dart';
 
 import '../helpers/memory_settings_cache.dart';
+import '../test_helpers/stub_settings_bloc.dart';
 
 /// "העבר לשולחן עבודה" מתפריט ההקשר, דרך הרצועה וה-blocs האמיתיים.
 void main() {
@@ -285,7 +285,7 @@ Future<_Env> _pumpStrip(
     ..add(LoadWorkspaces());
   await workspaceBloc.stream.firstWhere((s) => !s.isLoading);
 
-  final settingsBloc = _StubSettingsBloc(
+  final settingsBloc = StubSettingsBloc(
     SettingsState.initial().copyWith(
       readingTabsPlacement: onSide
           ? SettingsRepository.readingTabsPlacementSide
@@ -399,16 +399,6 @@ class _MemoryWorkspaceRepository extends WorkspaceRepository {
 
   @override
   Future<void> saveActiveWorkspaceId(String? id) async {}
-}
-
-class _StubSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _StubSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _StubHistoryBloc extends Cubit<HistoryState> implements HistoryBloc {

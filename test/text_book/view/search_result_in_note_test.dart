@@ -10,7 +10,6 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
@@ -30,6 +29,7 @@ import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 
 import '../../support/search_engine_test_init.dart';
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
 
 /// תוצאת חיפוש בהערה נחשפת ומודגשת דרך המסך האמיתי.
 /// ההדגשה דורשת מנוע נייטיבי; בלעדיו הבדיקות מדולגות.
@@ -125,7 +125,7 @@ Future<void> main() async {
       final personalNotesBloc = _TestPersonalNotesBloc(
         const PersonalNotesState.initial(),
       );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
       tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
       final tabsBloc = _TestTabsBloc(
         TabsState(tabs: [tab], currentTabIndex: 0),
@@ -456,7 +456,7 @@ Future<void> main() async {
           searchText: query,
         ),
       );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
       final highlight = ValueNotifier<String>(query);
       addTearDown(() async {
         await tester.pumpWidget(const SizedBox.shrink());
@@ -548,16 +548,6 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
       ),
     );
     on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
   }
 
   @override

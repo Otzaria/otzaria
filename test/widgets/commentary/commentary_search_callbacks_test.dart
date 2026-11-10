@@ -4,13 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
 import 'package:otzaria/widgets/commentary/commentary_content.dart';
 
 import '../../helpers/memory_settings_cache.dart';
 import '../../support/search_engine_test_init.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
 
 Future<void> main() async {
   final engineReady = await tryInitSearchEngine();
@@ -20,7 +19,7 @@ Future<void> main() async {
   testWidgets('דיווח ממתין נשאר עם השאילתה וה-callback שבנו אותו', (
     tester,
   ) async {
-    final settings = _SettingsBloc();
+    final settings = StubSettingsBloc();
     addTearDown(settings.close);
     final link = _Link();
     final oldCounts = <int>[];
@@ -90,14 +89,4 @@ class _Link extends Link {
 
   @override
   Future<String> get displayReference => Future.value(heRef);
-}
-
-class _SettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _SettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

@@ -17,18 +17,8 @@ import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/widgets/misc/app_dropdown_field.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 
+import '../../../test_helpers/stub_settings_bloc.dart';
 import '../support/tikkun_fakes.dart';
-
-/// SettingsBloc מזויף — AppTopBar קורא ממנו את מצב ה-compact.
-class _StubSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _StubSettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
 
 void main() {
   late FakeTikkunEngine engine;
@@ -70,7 +60,7 @@ void main() {
           textDirection: TextDirection.rtl,
           child: MultiBlocProvider(
             providers: [
-              BlocProvider<SettingsBloc>(create: (_) => _StubSettingsBloc()),
+              BlocProvider<SettingsBloc>(create: (_) => StubSettingsBloc()),
               BlocProvider<TikkunKorimBloc>.value(value: bloc),
             ],
             child: TikkunKorimView(data: data),

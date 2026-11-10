@@ -11,7 +11,6 @@ import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
@@ -20,6 +19,7 @@ import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/widgets/commentary/commentary_content.dart';
 
 import '../../support/search_engine_test_init.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
 
 Future<void> main() async {
   // הקוד הנבדק קורא ל-sanitizeQuery/splitQueryWords שמאצילים למנוע ה-Rust;
@@ -29,7 +29,7 @@ Future<void> main() async {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late _TestTextBookBloc textBookBloc;
-  late _TestSettingsBloc settingsBloc;
+  late StubSettingsBloc settingsBloc;
 
   setUp(() {
     LibraryProviderManager.instance.resetForTesting();
@@ -45,7 +45,7 @@ Future<void> main() async {
     );
 
     textBookBloc = _TestTextBookBloc(_loadedState());
-    settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    settingsBloc = StubSettingsBloc(SettingsState.initial());
   });
 
   tearDown(() async {
@@ -680,16 +680,6 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
   }
 
   void replaceState(TextBookLoaded next) => emit(next);
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

@@ -12,6 +12,7 @@ import 'package:otzaria/tools/measurement_converter/measurement_converter_screen
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
 import '../test_helpers/memory_cache_provider.dart';
+import '../test_helpers/stub_settings_bloc.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -110,7 +111,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    final compactBloc = _TestSettingsBloc(
+    final compactBloc = StubSettingsBloc(
       SettingsState.initial().copyWith(compactMenuMode: true),
     );
     addTearDown(compactBloc.close);
@@ -167,15 +168,4 @@ void main() {
     expect(sizeWithout.height, 36.0);
     expect(sizeWithout, equals(sizeWith));
   });
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc([SettingsState? initialState])
-    : super(initialState ?? SettingsState.initial()) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

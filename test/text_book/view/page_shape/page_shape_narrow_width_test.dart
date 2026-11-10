@@ -12,7 +12,6 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
@@ -27,6 +26,7 @@ import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_settings_bloc.dart';
 
 /// כשחלוניות הצד פתוחות, הדף מקבל רק חלק מרוחב החלון; טורי המפרשים
 /// חייבים להיכנס ברוחב הזה ולא לגלוש (issue #1844).
@@ -69,7 +69,7 @@ void main() {
     final personalNotesBloc = _TestPersonalNotesBloc(
       const PersonalNotesState.initial(),
     );
-    final settingsBloc = _TestSettingsBloc(
+    final settingsBloc = StubSettingsBloc(
       SettingsState.initial().copyWith(textMaxWidth: textMaxWidth),
     );
     final tab = TextBookTab(book: book, index: 0, blocOverride: textBookBloc);
@@ -315,16 +315,6 @@ class _TestPersonalNotesBloc
     implements PersonalNotesBloc {
   _TestPersonalNotesBloc(super.initialState) {
     on<PersonalNotesEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
   }
 
   @override

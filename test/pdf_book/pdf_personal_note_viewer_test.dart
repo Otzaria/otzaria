@@ -24,9 +24,7 @@ import 'package:otzaria/personal_notes/widgets/note_tile.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -39,6 +37,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdfrx/pdfrx.dart';
 
 import '../test_helpers/memory_cache_provider.dart';
+import '../test_helpers/stub_settings_bloc.dart';
 
 class _NotesRepository extends PersonalNotesRepository {
   @override
@@ -53,16 +52,6 @@ class _TabsRepository implements TabsRepository {
     if (invocation.memberName == #loadCurrentTabIndex) return 0;
     return Future<void>.value();
   }
-}
-
-class _SettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _SettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 void main() {
@@ -193,7 +182,7 @@ void main() {
     final tabs = TabsBloc(repository: _TabsRepository());
     // ignore: invalid_use_of_visible_for_testing_member
     tabs.emit(TabsState(tabs: [tab], currentTabIndex: 0));
-    final settings = _SettingsBloc();
+    final settings = StubSettingsBloc();
     final notes = PersonalNotesBloc(repository: _NotesRepository());
     final tour = TourCubit();
     addTearDown(tabs.close);

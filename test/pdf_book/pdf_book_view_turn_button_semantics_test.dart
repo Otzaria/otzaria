@@ -14,8 +14,6 @@ import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart' as events;
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -27,6 +25,7 @@ import 'package:pdfrx/pdfrx.dart';
 import '../test_helpers/pdf_document_dispose.dart';
 
 import '../helpers/memory_settings_cache.dart';
+import '../test_helpers/stub_settings_bloc.dart';
 
 void main() {
   testWidgets(
@@ -70,7 +69,7 @@ void main() {
       final tabsBloc = TabsBloc(repository: _TabsRepository());
       // ignore: invalid_use_of_visible_for_testing_member
       tabsBloc.emit(TabsState(tabs: [tab], currentTabIndex: 0));
-      final settings = _SettingsBloc();
+      final settings = StubSettingsBloc();
       final tour = TourCubit();
       addTearDown(tabsBloc.close);
       addTearDown(settings.close);
@@ -136,14 +135,4 @@ class _TabsRepository implements TabsRepository {
     if (invocation.memberName == #loadCurrentTabIndex) return 0;
     return Future<void>.value();
   }
-}
-
-class _SettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _SettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

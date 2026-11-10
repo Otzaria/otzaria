@@ -6,29 +6,18 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/external_uri_router.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tools/gematria/gematria_search_screen.dart';
 import 'package:otzaria/tools/gematria/widgets/gematria_result_card.dart';
 import 'package:otzaria/tools/tool_query.dart';
 
 import '../../helpers/memory_settings_cache.dart';
-
-class _SettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _SettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
+import '../../test_helpers/stub_settings_bloc.dart';
 
 void main() {
   late Directory directory;
   late ToolQueryInbox inbox;
-  late _SettingsBloc bloc;
+  late StubSettingsBloc bloc;
 
   setUp(() async {
     await Settings.init(cacheProvider: MemorySettingsCache());
@@ -40,7 +29,7 @@ void main() {
     await Settings.setValue(SettingsRepository.keyLibraryFolderName, '');
     await Settings.setValue(SettingsRepository.keyDbEffectivePath, '');
     inbox = ToolQueryInbox();
-    bloc = _SettingsBloc();
+    bloc = StubSettingsBloc();
   });
 
   tearDown(() async {

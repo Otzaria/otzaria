@@ -6,22 +6,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tools/aramaic_dictionary/aramaic_dictionary_screen.dart';
 import 'package:otzaria/tools/aramaic_dictionary/widgets/aramaic_result_card.dart';
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
 import 'package:otzaria/tools/dictionary/widgets/aramaic_dictionary_entry_view.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 
-class _Settings extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _Settings() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
+import '../../test_helpers/stub_settings_bloc.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -30,7 +21,7 @@ void main() {
   ).entries;
 
   Future<void> screen(WidgetTester tester) async {
-    final settings = _Settings();
+    final settings = StubSettingsBloc();
     addTearDown(settings.close);
     await tester.pumpWidget(
       MaterialApp(

@@ -13,8 +13,6 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -22,6 +20,7 @@ import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
 
 /// מספר המפרשים בכל שורה. חייב להיות גדול דיו כדי שהרשימה תהיה גלילה,
 /// ושקפיצה למעלה תהיה מבחינה מהמיקום הגלול.
@@ -365,7 +364,7 @@ Future<_TestTextBookBloc> _pump(
       await bloc.close();
     });
   }
-  final settingsBloc = _existingSettingsBloc ?? _TestSettingsBloc.initial();
+  final settingsBloc = _existingSettingsBloc ?? StubSettingsBloc();
   if (_existingSettingsBloc == null) {
     _existingSettingsBloc = settingsBloc;
     addTearDown(() async {
@@ -411,7 +410,7 @@ Future<_TestTextBookBloc> _pump(
 /// ה-bloc משותף בין קריאות `_pump` באותה בדיקה, כדי שהחלפת `indexes` תשמור
 /// על אותו State של הווידג'ט (בדיוק כמו rebuild מההורה באפליקציה).
 _TestTextBookBloc? _existingBloc;
-_TestSettingsBloc? _existingSettingsBloc;
+StubSettingsBloc? _existingSettingsBloc;
 
 void _noopOpenBook(_) {}
 
@@ -517,19 +516,6 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
 
   /// דוחף מצב חדש לווידג'ט, כדי לדמות מעבר לקטע אחר.
   void emitState(TextBookState state) => emit(state);
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  factory _TestSettingsBloc.initial() =>
-      _TestSettingsBloc(SettingsState.initial());
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

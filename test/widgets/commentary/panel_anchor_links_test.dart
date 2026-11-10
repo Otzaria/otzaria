@@ -16,7 +16,6 @@ import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/services/target_line_links_service.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/text_book/models/book_notes.dart';
@@ -29,6 +28,7 @@ import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
 
 /// הקישור שהקטע שלו מוצג בחלונית: שורה 3 בספר "רש״י".
 Link _displayed() => Link(
@@ -79,7 +79,7 @@ Future<void> _pumpPanel(
   );
   await tester.pumpWidget(
     BlocProvider<SettingsBloc>.value(
-      value: _TestSettingsBloc(SettingsState.initial()),
+      value: StubSettingsBloc(SettingsState.initial()),
       child: MaterialApp(
         home: PanelAnchoredText(
           link: displayed ?? _displayed(),
@@ -116,7 +116,7 @@ String _renderedHtml(WidgetTester tester) =>
 Future<void> _removePanel(WidgetTester tester) async {
   await tester.pumpWidget(
     BlocProvider<SettingsBloc>.value(
-      value: _TestSettingsBloc(SettingsState.initial()),
+      value: StubSettingsBloc(SettingsState.initial()),
       child: const MaterialApp(home: SizedBox()),
     ),
   );
@@ -333,7 +333,7 @@ void main() {
         _anchored(index1: 3, charStart: 2, charEnd: 6),
       ],
     );
-    final settings = _TestSettingsBloc(SettingsState.initial());
+    final settings = StubSettingsBloc(SettingsState.initial());
     addTearDown(settings.close);
 
     await tester.pumpWidget(
@@ -528,7 +528,7 @@ void main() {
     TargetLineLinksService.instance = TargetLineLinksService(
       loader: (_, _, _) async => [_footnote(index1: 2500)],
     );
-    final settings = _TestSettingsBloc(SettingsState.initial());
+    final settings = StubSettingsBloc(SettingsState.initial());
     addTearDown(settings.close);
     addTearDown(LinkPreviewOverlay.dismiss);
 
@@ -592,7 +592,7 @@ void main() {
 
         await tester.pumpWidget(
           BlocProvider<SettingsBloc>.value(
-            value: _TestSettingsBloc(SettingsState.initial()),
+            value: StubSettingsBloc(SettingsState.initial()),
             child: const MaterialApp(home: SizedBox()),
           ),
         );
@@ -745,16 +745,6 @@ void main() {
       expect(smartText.text, isNot(contains('book-note')));
     });
   });
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _TestLibraryProvider extends Fake implements LibraryProvider {

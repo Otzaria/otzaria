@@ -4,21 +4,10 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
 import 'package:otzaria/tools/dictionary/widgets/laaz_commentary_subblock.dart';
 import '../../helpers/memory_settings_cache.dart';
-
-class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _FakeSettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
-}
+import '../../test_helpers/stub_settings_bloc.dart';
 
 Link _link({
   required String path2,
@@ -70,7 +59,7 @@ Future<DictionaryLookupRepository> _repositoryWith({
 
 Widget _wrap(Widget child) => MaterialApp(
   home: BlocProvider<SettingsBloc>.value(
-    value: _FakeSettingsBloc(),
+    value: StubSettingsBloc(),
     child: Scaffold(body: SingleChildScrollView(child: child)),
   ),
 );

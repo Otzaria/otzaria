@@ -15,7 +15,6 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/widgets/commentary_notes_section.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
@@ -30,6 +29,7 @@ import 'package:otzaria/widgets/layout/floating_panel.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_settings_bloc.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -71,7 +71,7 @@ void main() {
               ),
             ),
             BlocProvider<SettingsBloc>.value(
-              value: _TestSettingsBloc(SettingsState.initial()),
+              value: StubSettingsBloc(SettingsState.initial()),
             ),
           ],
           child: PageShapeScreen(
@@ -150,7 +150,7 @@ void main() {
                 ),
               ),
               BlocProvider<SettingsBloc>.value(
-                value: _TestSettingsBloc(SettingsState.initial()),
+                value: StubSettingsBloc(SettingsState.initial()),
               ),
             ],
             child: PageShapeScreen(
@@ -310,7 +310,7 @@ void main() {
               ),
             ),
             BlocProvider<SettingsBloc>.value(
-              value: _TestSettingsBloc(SettingsState.initial()),
+              value: StubSettingsBloc(SettingsState.initial()),
             ),
           ],
           child: PageShapeScreen(
@@ -374,7 +374,7 @@ void main() {
               ),
             ),
             BlocProvider<SettingsBloc>.value(
-              value: _TestSettingsBloc(SettingsState.initial()),
+              value: StubSettingsBloc(SettingsState.initial()),
             ),
           ],
           child: PageShapeScreen(
@@ -585,7 +585,7 @@ void main() {
               ),
             ),
             BlocProvider<SettingsBloc>.value(
-              value: _TestSettingsBloc(SettingsState.initial()),
+              value: StubSettingsBloc(SettingsState.initial()),
             ),
           ],
           child: PageShapeScreen(
@@ -659,7 +659,7 @@ void main() {
               ),
             ),
             BlocProvider<SettingsBloc>.value(
-              value: _TestSettingsBloc(SettingsState.initial()),
+              value: StubSettingsBloc(SettingsState.initial()),
             ),
           ],
           child: PageShapeScreen(openBookCallback: (_) {}),
@@ -751,7 +751,7 @@ void main() {
                 ),
               ),
               BlocProvider<SettingsBloc>.value(
-                value: _TestSettingsBloc(SettingsState.initial()),
+                value: StubSettingsBloc(SettingsState.initial()),
               ),
             ],
             child: PageShapeScreen(
@@ -844,16 +844,6 @@ class _TestPersonalNotesBloc
   }
 
   final List<PersonalNotesEvent> events = [];
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

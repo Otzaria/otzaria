@@ -13,7 +13,6 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -22,6 +21,7 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 import '../../../test_helpers/memory_cache_provider.dart';
 import '../../../test_helpers/reading_toc.dart';
+import '../../../test_helpers/stub_settings_bloc.dart';
 
 // מבנה בסגנון מסכת שבת: כותרת לכל עמוד ושורות גמרא אחריה.
 const int _firstDaf = 2;
@@ -81,7 +81,7 @@ Future<void> _openAtDafAndWarm(WidgetTester tester, bool continuous) async {
   );
   final bloc = _TestTextBookBloc(partial);
   final notes = _TestPersonalNotesBloc(const PersonalNotesState.initial());
-  final settings = _TestSettingsBloc(SettingsState.initial());
+  final settings = StubSettingsBloc(SettingsState.initial());
   // מסך שאינו הקריאה: התצוגה לא מבקשת פוקוס ואינה נזקקת ל-TabsBloc.
   final navigation = _TestNavigationBloc(
     const NavigationState(currentScreen: Screen.library),
@@ -194,15 +194,6 @@ class _TestPersonalNotesBloc
     implements PersonalNotesBloc {
   _TestPersonalNotesBloc(super.initialState) {
     on<PersonalNotesEvent>((event, emit) {});
-  }
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
   }
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
