@@ -1742,5 +1742,6 @@
   "נעץ את החלונית": "Pin the panel",
   "הסתר ניווט": "Hide navigation",
   "הצג ניווט": "Show navigation",
-  "שגיאה: {error}": "Error: {error}"
+  "שגיאה: {error}": "Error: {error}",
+  "בטל": "Undo"
 }

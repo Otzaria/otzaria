@@ -24,6 +24,8 @@ import 'package:otzaria/search/utils/foundational_book_classifier.dart';
 import 'package:otzaria/search/utils/scope_tree.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/core/messages/library_messages.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/app_icon_button.dart';
@@ -209,8 +211,18 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   }
 
   Future<void> _deleteSavedScope(String name) async {
+    final before = SearchScopePreferences.loadSavedScopes();
     final next = await SearchScopePreferences.removeSavedScope(name);
-    if (mounted) setState(() => _savedScopes = next);
+    if (!mounted) return;
+    setState(() => _savedScopes = next);
+    UiSnack.showWithAction(
+      message: LibraryMessages.savedScopeDeleted(name),
+      actionLabel: context.settingsText('בטל'),
+      onAction: () async {
+        await SearchScopePreferences.saveSavedScopes(before);
+        if (mounted) setState(() => _savedScopes = before);
+      },
+    );
   }
 
   Future<void> _loadBaseBookIds() async {

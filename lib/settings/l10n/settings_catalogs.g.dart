@@ -222,6 +222,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'בחר תיקייה קיימת': 'Select an Existing Folder',
     'בחר תיקייה שמכילה את {file} — הקבצים יישארו במקומם ולא יועתקו': 'Select a folder that contains {file} — the files will stay in place and will not be copied',
     'בחר תיקייה שקיימים בה קובצי הספרייה — גם קבצים שהוכנו במסייע ההורדה': 'Select a folder that contains the library files — including files prepared with the Download Assistant',
+    'בטל': 'Undo',
     'בטל הורדה': 'Cancel download',
     'בטל הכול': 'Unhide all',
     'בטל הסתרה': 'Unhide',

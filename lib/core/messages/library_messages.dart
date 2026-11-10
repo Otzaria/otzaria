@@ -31,6 +31,8 @@ abstract class LibraryMessages {
       'שגיאה בהורדת הספר: $error';
 
   // ===== חיפוש =====
+  static String savedScopeDeleted(String name) => 'ההיקף "$name" נמחק';
+
   static String distanceSetAsDefault(int distance) =>
       'מרווח $distance נקבע כברירת מחדל לחיפוש רגיל';
 
