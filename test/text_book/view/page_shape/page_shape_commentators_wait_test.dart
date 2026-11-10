@@ -20,7 +20,6 @@ import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
@@ -38,6 +37,7 @@ import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_se
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_personal_notes_bloc.dart';
 import '../../../test_helpers/stub_settings_bloc.dart';
 
 const _content = ['שורה א', 'שורה ב'];
@@ -100,7 +100,7 @@ void main() {
       _state(book, names, available, commentatorsLoaded),
     );
     final settings = StubSettingsBloc(SettingsState.initial());
-    final notes = _TestPersonalNotesBloc(const PersonalNotesState.initial());
+    final notes = StubPersonalNotesBloc(const PersonalNotesState.initial());
     final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
     final tabs = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
     final navigation = _TestNavigationBloc(
@@ -415,17 +415,6 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
 
   _TestTextBookBloc(super.initialState) {
     on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestPersonalNotesBloc
-    extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _TestPersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
   }
 
   @override

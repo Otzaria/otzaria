@@ -44,7 +44,6 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/models/search_results.dart';
 import 'package:otzaria/text_book/utils/section_search_utils.dart';
@@ -62,6 +61,7 @@ import 'package:provider/provider.dart';
 
 import '../test_helpers/memory_cache_provider.dart';
 import '../test_helpers/stub_settings_bloc.dart';
+import '../test_helpers/stub_text_book_bloc.dart';
 
 const _runs = 5;
 
@@ -147,7 +147,7 @@ void main() {
       addTearDown(tester.view.reset);
       final focusRepository = FocusRepository()..resetForTesting();
       final book = TextBook(title: 'ספר בדיקה');
-      final bloc = _TestTextBookBloc(_readerState(book));
+      final bloc = StubTextBookBloc(_readerState(book));
       final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
       final tabsBloc = _TestTabsBloc(
         TabsState(tabs: [tab], currentTabIndex: 0),
@@ -221,7 +221,7 @@ void main() {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(1400, 900);
       addTearDown(tester.view.reset);
-      final textBookBloc = _TestTextBookBloc(_searchState());
+      final textBookBloc = StubTextBookBloc(_searchState());
       final settingsBloc = StubSettingsBloc(SettingsState.initial());
       final focusNode = FocusNode();
       addTearDown(textBookBloc.close);
@@ -499,16 +499,6 @@ TextBookLoaded _searchState() => TextBookLoaded(
   pinLeftPane: false,
   searchText: '',
 );
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
 
 class _TestNavigationBloc extends Bloc<NavigationEvent, NavigationState>
     implements NavigationBloc {

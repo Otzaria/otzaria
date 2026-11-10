@@ -1,16 +1,14 @@
 import 'package:flutter/widgets.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
-import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 
 import '../../helpers/memory_settings_cache.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 /// `OpenedTab.from` הוא מסלול השכפול: שחזור טאב שנסגר, שכפול טאב והחלפת
 /// שולחן עבודה. שלושת שדות ההדגשה הם קשורי-מקור — הם מגיעים מקישור עומק
@@ -51,7 +49,7 @@ void main() {
       highlightText: 'ישן',
       permanentHighlightLine: 7,
       initialSearchResultLines: {3, 5, 8},
-      blocOverride: _LoadedTextBookBloc(
+      blocOverride: StubTextBookBloc(
         _loadedState(
           highlightText: 'מעודכן',
           permanentHighlightLine: 21,
@@ -106,16 +104,6 @@ void main() {
     expect(original.initialSearchResultLines, isNull);
     expect(clone.initialSearchResultLines, isNull);
   });
-}
-
-class _LoadedTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _LoadedTextBookBloc(super.state) {
-    on<TextBookEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 TextBookLoaded _loadedState({

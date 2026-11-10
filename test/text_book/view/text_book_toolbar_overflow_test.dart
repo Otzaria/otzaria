@@ -21,7 +21,6 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/text_book_screen.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
@@ -30,6 +29,7 @@ import 'package:otzaria/tour/bloc/tour_cubit.dart';
 import 'package:provider/provider.dart';
 
 import '../../test_helpers/stub_settings_bloc.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 /// רגרסיה ל-issue #891: "Right overflowed by" בשורת הכפתורים במסך צר.
 /// סורק רוחבי חלון ומוודא שאף רוחב לא זורק שגיאת RenderFlex overflow.
@@ -68,7 +68,7 @@ void main() {
     bool showPageShapeView = false,
   }) async {
     final book = TextBook(title: 'ספר בדיקה');
-    final bloc = _TestTextBookBloc(
+    final bloc = StubTextBookBloc(
       _loadedState(book, showPageShapeView: showPageShapeView),
     );
     final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
@@ -216,16 +216,6 @@ TextBookLoaded _loadedState(TextBook book, {bool showPageShapeView = false}) {
     currentTitle: 'סימן א',
     searchMode: SearchMode.exact,
   );
-}
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _TestNavigationBloc extends Bloc<NavigationEvent, NavigationState>

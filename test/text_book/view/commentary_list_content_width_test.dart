@@ -10,13 +10,13 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 import '../../test_helpers/fake_commentary_library_provider.dart';
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 // רגרסיה: הגבלת רוחב הטקסט (textMaxWidth) עטפה את פס הגלילה מבחוץ, ולכן הפס
 // נדחק פנימה עם הטקסט (5% מרוחב החלון ויותר) במקום להישאר צמוד לדופן.
@@ -27,7 +27,7 @@ void main() {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
-  late _TestTextBookBloc textBookBloc;
+  late StubTextBookBloc textBookBloc;
   late _TestSettingsBloc settingsBloc;
 
   setUp(() {
@@ -43,7 +43,7 @@ void main() {
       providers: [FakeCommentaryLibraryProvider()],
     );
 
-    textBookBloc = _TestTextBookBloc(_loadedState());
+    textBookBloc = StubTextBookBloc(_loadedState());
     settingsBloc = _TestSettingsBloc(SettingsState.initial());
   });
 
@@ -138,16 +138,6 @@ TextBookLoaded _loadedState() {
     pinLeftPane: false,
     searchText: '',
   );
-}
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>

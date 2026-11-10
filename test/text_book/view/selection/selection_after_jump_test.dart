@@ -10,45 +10,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_personal_notes_bloc.dart';
 import '../../../test_helpers/stub_settings_bloc.dart';
+import '../../../test_helpers/stub_text_book_bloc.dart';
 
 const _title = 'ספר בדיקה';
 
 final _content = <String>[
   for (var i = 0; i < 80; i++) 'פסקה$i ${List.filled(6, 'מילה$i').join(' ')}',
 ];
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestPersonalNotesBloc
-    extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _TestPersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -82,8 +61,8 @@ void main() {
       pinLeftPane: false,
       searchText: '',
     );
-    final textBookBloc = _TestTextBookBloc(state);
-    final personalNotesBloc = _TestPersonalNotesBloc(
+    final textBookBloc = StubTextBookBloc(state);
+    final personalNotesBloc = StubPersonalNotesBloc(
       const PersonalNotesState.initial(),
     );
     final settingsBloc = StubSettingsBloc(SettingsState.initial());

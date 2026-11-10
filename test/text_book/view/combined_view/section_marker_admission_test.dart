@@ -22,7 +22,6 @@ import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
@@ -33,6 +32,7 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_personal_notes_bloc.dart';
 import '../../../test_helpers/stub_settings_bloc.dart';
 
 const _content = [
@@ -49,17 +49,6 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
 
   @override
   final TextBookRepository repository = _Repository();
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestPersonalNotesBloc
-    extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _TestPersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
-  }
-
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -85,7 +74,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late Directory temporary;
   late StubSettingsBloc settings;
-  late _TestPersonalNotesBloc notes;
+  late StubPersonalNotesBloc notes;
   late _TestTextBookBloc bloc;
   final tabs = <TextBookTab>[];
 
@@ -133,7 +122,7 @@ void main() {
       fileType: 'txt',
     );
     settings = StubSettingsBloc(SettingsState.initial());
-    notes = _TestPersonalNotesBloc(const PersonalNotesState.initial());
+    notes = StubPersonalNotesBloc(const PersonalNotesState.initial());
     bloc = _TestTextBookBloc(
       TextBookLoaded(
         book: TextBook(id: 1, title: 'ספר', categoryId: 7),

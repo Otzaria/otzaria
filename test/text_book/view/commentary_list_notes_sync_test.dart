@@ -12,13 +12,13 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 
 import '../../test_helpers/fake_commentary_library_provider.dart';
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 /// רשימת המפרשים (גם בצורת הדף) שומרת את הערות כל מפרש פעם אחת לכל הקטעים.
 /// רגרסיה: הערה שנמחקה מחלונית ההערות המשיכה להיות מודגשת ברשימה.
@@ -29,7 +29,7 @@ void main() {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
-  late _TestTextBookBloc textBookBloc;
+  late StubTextBookBloc textBookBloc;
   late _TestSettingsBloc settingsBloc;
   late Map<String, List<PersonalNote>> store;
   late List<String> loads;
@@ -46,7 +46,7 @@ void main() {
       },
       providers: [FakeCommentaryLibraryProvider()],
     );
-    textBookBloc = _TestTextBookBloc(_loadedState());
+    textBookBloc = StubTextBookBloc(_loadedState());
     settingsBloc = _TestSettingsBloc(SettingsState.initial());
     store = {
       'מפרש בדיקה': [_note()],
@@ -196,16 +196,6 @@ TextBookLoaded _loadedState() {
     pinLeftPane: false,
     searchText: '',
   );
-}
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>

@@ -14,13 +14,13 @@ import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 import '../../test_helpers/stub_settings_bloc.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 /// מספר המפרשים בכל שורה. חייב להיות גדול דיו כדי שהרשימה תהיה גלילה,
 /// ושקפיצה למעלה תהיה מבחינה מהמיקום הגלול.
@@ -351,12 +351,12 @@ Future<void> _scrollDown(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-Future<_TestTextBookBloc> _pump(
+Future<EmittingStubTextBookBloc> _pump(
   WidgetTester tester,
   TextBookLoaded state, {
   List<int>? indexes,
 }) async {
-  final bloc = _existingBloc ?? _TestTextBookBloc(state);
+  final bloc = _existingBloc ?? EmittingStubTextBookBloc(state);
   if (_existingBloc == null) {
     _existingBloc = bloc;
     addTearDown(() async {
@@ -409,7 +409,7 @@ Future<_TestTextBookBloc> _pump(
 
 /// ה-bloc משותף בין קריאות `_pump` באותה בדיקה, כדי שהחלפת `indexes` תשמור
 /// על אותו State של הווידג'ט (בדיוק כמו rebuild מההורה באפליקציה).
-_TestTextBookBloc? _existingBloc;
+EmittingStubTextBookBloc? _existingBloc;
 StubSettingsBloc? _existingSettingsBloc;
 
 void _noopOpenBook(_) {}
@@ -507,19 +507,6 @@ TextBookLoaded _visibleWindowState(List<int> visibleIndices) => _state(
   visibleIndices: visibleIndices,
   selectedIndices: const {},
 );
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  /// דוחף מצב חדש לווידג'ט, כדי לדמות מעבר לקטע אחר.
-  void emitState(TextBookState state) => emit(state);
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
 
 class _FakeLibraryProvider implements LibraryProvider {
   @override

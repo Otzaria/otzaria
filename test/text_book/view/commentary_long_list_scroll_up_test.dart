@@ -15,13 +15,13 @@ import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 import '../../test_helpers/stub_settings_bloc.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 /// כמו אצל המדווח: כל המפרשים מסומנים, 29 מפרשים לפסקה.
 final List<String> _commentators = [
@@ -103,7 +103,7 @@ void main() {
 }
 
 Future<void> _pump(WidgetTester tester) async {
-  final bloc = _TestTextBookBloc(_state());
+  final bloc = StubTextBookBloc(_state());
   final settingsBloc = StubSettingsBloc();
   addTearDown(bloc.close);
   addTearDown(settingsBloc.close);
@@ -167,16 +167,6 @@ TextBookLoaded _state() {
     pinLeftPane: false,
     searchText: '',
   );
-}
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _FakeLibraryProvider implements LibraryProvider {

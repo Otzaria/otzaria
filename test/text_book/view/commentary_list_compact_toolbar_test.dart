@@ -12,11 +12,11 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import '../../test_helpers/fake_commentary_library_provider.dart';
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 import 'package:otzaria/theme/app_theme_data.dart';
 
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -32,7 +32,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  late _TestTextBookBloc textBookBloc;
+  late StubTextBookBloc textBookBloc;
   late _TestSettingsBloc settingsBloc;
   late Directory backupDir;
 
@@ -74,7 +74,7 @@ void main() {
       },
       providers: [provider],
     );
-    textBookBloc = _TestTextBookBloc(_loadedState());
+    textBookBloc = StubTextBookBloc(_loadedState());
     settingsBloc = _TestSettingsBloc(SettingsState.initial());
   });
 
@@ -365,16 +365,6 @@ TextBookLoaded _loadedState() {
     pinLeftPane: false,
     searchText: '',
   );
-}
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>

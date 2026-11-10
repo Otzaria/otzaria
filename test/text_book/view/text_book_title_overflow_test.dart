@@ -20,7 +20,6 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/text_book_screen.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
@@ -36,6 +35,7 @@ import 'package:provider/provider.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
 import '../../test_helpers/stub_settings_bloc.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 /// כותרת ארוכה כמו שנוצרת מספר Word אישי: פסקת גוף שלמה שסומנה ב-Word
 /// בסגנון "heading 3", ולכן הפכה לערך בתוכן העניינים.
@@ -83,7 +83,7 @@ void main() {
     Size size = const Size(1400, 900),
   }) async {
     final book = TextBook(title: bookTitle, author: author);
-    final bloc = _TestTextBookBloc(_loadedState(book, currentTitle));
+    final bloc = StubTextBookBloc(_loadedState(book, currentTitle));
     final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
     final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
     final settingsBloc = StubSettingsBloc(SettingsState.initial());
@@ -416,16 +416,6 @@ TextBookLoaded _loadedState(TextBook book, String currentTitle) {
     currentTitle: currentTitle,
     searchMode: SearchMode.exact,
   );
-}
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _TestTabsBloc extends Cubit<TabsState> implements TabsBloc {

@@ -4,7 +4,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -12,7 +11,6 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/theme/app_tokens.dart';
@@ -22,7 +20,9 @@ import 'package:otzaria/widgets/misc/smooth_wheel_scroll.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
 import '../../../test_helpers/reading_toc.dart';
+import '../../../test_helpers/stub_personal_notes_bloc.dart';
 import '../../../test_helpers/stub_settings_bloc.dart';
+import '../../../test_helpers/stub_text_book_bloc.dart';
 
 const _lines = ['פסקה ראשונה', 'פסקה שניה', 'פסקה שלישית'];
 const _bookTitle = 'ספר בדיקה';
@@ -108,12 +108,12 @@ PersonalNotesState _notesState(List<PersonalNote> notes) => PersonalNotesState(
   filteredMissingNotes: const [],
 );
 
-Future<_PersonalNotesBloc> _pumpView(
+Future<StubPersonalNotesBloc> _pumpView(
   WidgetTester tester,
   PersonalNotesState notesState,
 ) async {
   final book = TextBook(title: _bookTitle);
-  final bloc = _TextBookBloc(
+  final bloc = StubTextBookBloc(
     TextBookLoaded(
       book: book,
       showLeftPane: false,
@@ -138,7 +138,7 @@ Future<_PersonalNotesBloc> _pumpView(
     ),
   );
   final settingsBloc = StubSettingsBloc(SettingsState.initial());
-  final notesBloc = _PersonalNotesBloc(notesState);
+  final notesBloc = StubPersonalNotesBloc(notesState);
   final tab = TextBookTab(book: book, index: 0);
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox.shrink());
@@ -176,24 +176,4 @@ Future<_PersonalNotesBloc> _pumpView(
   );
   await tester.pump();
   return notesBloc;
-}
-
-class _TextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _PersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
