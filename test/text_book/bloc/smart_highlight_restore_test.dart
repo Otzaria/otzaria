@@ -49,8 +49,12 @@ Future<void> main() async {
       AppPaths.debugOverrideDataRootPath(temporary.path);
       addTearDown(() async {
         AppPaths.debugOverrideDataRootPath(null);
-        if (!Platform.isWindows) {
+        if (Platform.isWindows) return;
+        // תהליכוני המיזוג של המנוע עשויים עוד לכתוב לתיקייה.
+        try {
           await temporary.delete(recursive: true);
+        } on FileSystemException {
+          // ignore
         }
       });
       await Directory('${temporary.path}/index').create();
