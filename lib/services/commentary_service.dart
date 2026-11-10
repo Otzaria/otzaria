@@ -282,6 +282,13 @@ class CommentaryService {
     }
   }
 
+  /// האם דורות כל יעדי הקישורים נטענו, גם אם סווגו כ"שאר מפרשים".
+  static bool hasCachedErasForLinks(Iterable<Link> links) => links.every(
+    (link) => _eraCache.containsKey(
+      _eraKey(utils.getTitleFromPath(link.path2), link.targetSource),
+    ),
+  );
+
   /// ממיין קבוצות מפרשים לפי דורות מתוך המטמון בלבד (סינכרוני)
   ///
   /// יש לקרוא ל-[preloadEras] מראש; ספר שאינו במטמון ימוין כ"שאר מפרשים".

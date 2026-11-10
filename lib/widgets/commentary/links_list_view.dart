@@ -634,14 +634,22 @@ class _LinksListViewState extends State<LinksListView> {
 
   /// סדר הדורות אינו תלוי בשאילתה: ממיינים פעם אחת לרשימה ולא בכל הקשה.
   Future<List<Link>> _sortedByEra(List<Link> links) async {
+    if (links.length <= 1) return links;
     final eraVersion = CommentaryService.eraCacheVersion;
     if (identical(links, _sortedSource) && eraVersion == _sortedEraVersion) {
       return _sortedLinks;
     }
-    final sorted = await CommentaryService.sortLinksByEra(links);
-    _sortedSource = links;
-    _sortedEraVersion = eraVersion;
-    return _sortedLinks = sorted;
+    await CommentaryService.preloadErasForLinks(links);
+    // מיון ללא דורות הוא זמני. בלי await בין המיון לבדיקה, שניהם רואים
+    // אותו מטמון גם כשפאנל אחר משלים טעינת דורות במקביל.
+    final sorted = CommentaryService.sortLinksByEraSync(links);
+    if (eraVersion == CommentaryService.eraCacheVersion &&
+        CommentaryService.hasCachedErasForLinks(links)) {
+      _sortedSource = links;
+      _sortedEraVersion = eraVersion;
+      _sortedLinks = sorted;
+    }
+    return sorted;
   }
 
   /// הכותרת ושם הספר של כל קישור, מוקטנים — פעם אחת לרשימה ממוינת.
