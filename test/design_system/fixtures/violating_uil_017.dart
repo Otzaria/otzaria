@@ -10,3 +10,8 @@ class AppTokens {
   static const double fontSM = 12;
   static const double fontMD = 14;
 }
+
+TextStyle? bigger(BuildContext context) =>
+    Theme.of(context).textTheme.bodySmall?.apply(fontSizeDelta: 2); // LINT
+TextTheme scaledTheme(TextTheme theme) =>
+    theme.apply(fontSizeFactor: 1.1); // LINT
