@@ -10,6 +10,7 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 class MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
@@ -96,6 +97,9 @@ void main() {
   ) async {
     await _pumpResults(tester, truncated: true);
     expect(find.textContaining(_bannerNeedle), findsOneWidget);
+    // UI-012: הבאנר הוא AppInfoBanner בטון אזהרה, לא Container ידני.
+    final banner = tester.widget<AppInfoBanner>(find.byType(AppInfoBanner));
+    expect(banner.tone, AppInfoBannerTone.warning);
   });
 
   testWidgets('הבאנר אינו מוצג כשהתוצאות מלאות', (WidgetTester tester) async {
