@@ -217,10 +217,10 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
     final spaceBelow = overlayRenderBox.size.height - overlayPosition.dy;
     final shouldOpenAbove =
         spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
-    final maxAnchorX = (overlayRenderBox.size.width -
-            _contextMenuScreenPadding)
-        .clamp(_contextMenuScreenPadding, double.infinity)
-        .toDouble();
+    final maxAnchorX =
+        (overlayRenderBox.size.width - _contextMenuScreenPadding)
+            .clamp(_contextMenuScreenPadding, double.infinity)
+            .toDouble();
     final dx = overlayPosition.dx
         .clamp(_contextMenuScreenPadding, maxAnchorX)
         .toDouble();
