@@ -4,10 +4,10 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' show Rect, Size;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart' show WidgetsBinding;
-import 'dart:ui' show Rect, Size;
 import 'package:otzaria/core/messages/window_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/user_state/window_bounds.dart';
