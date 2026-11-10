@@ -6,9 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
-import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
-import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
@@ -26,6 +24,7 @@ import 'package:otzaria/utils/ui/context_menu_utils.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
+import '../../test_helpers/fake_commentary_library_provider.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 
 AppContextMenuIconAction iconAction(
@@ -51,9 +50,9 @@ void main() {
           title: 'מפרש בדיקה',
           categoryId: 1,
           fileType: 'txt',
-        ): _FakeLibraryProvider(),
+        ): FakeCommentaryLibraryProvider(),
       },
-      providers: [_FakeLibraryProvider()],
+      providers: [FakeCommentaryLibraryProvider()],
     );
     textBookBloc = _TestTextBookBloc(_loadedState());
     settingsBloc = _TestSettingsBloc(SettingsState.initial());
@@ -723,83 +722,4 @@ class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _FakeLibraryProvider implements LibraryProvider {
-  @override
-  String get displayName => 'Fake';
-
-  @override
-  bool get isInitialized => true;
-
-  @override
-  int get priority => 0;
-
-  @override
-  String get providerId => 'fake';
-
-  @override
-  String get sourceIndicator => 'T';
-
-  @override
-  Future<Library> buildLibraryCatalog(
-    Map<String, Map<String, dynamic>> metadata,
-    String rootPath,
-  ) async {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<List<Link>> getAllLinksForBook(
-    String title,
-    int categoryId,
-    String fileType,
-  ) async {
-    return const [];
-  }
-
-  @override
-  Future<Set<String>> getAvailableBookTitles() async {
-    return {'מפרש בדיקה|1|txt'};
-  }
-
-  @override
-  Future<String?> getBookText(
-    String title,
-    int categoryId,
-    String fileType, {
-    BookSource preferSource = BookSource.official,
-  }) async {
-    return null;
-  }
-
-  @override
-  Future<List<TocEntry>?> getBookToc(
-    String title,
-    int categoryId,
-    String fileType, {
-    BookSource preferSource = BookSource.official,
-  }) async {
-    return const [];
-  }
-
-  @override
-  Future<String> getLinkContent(Link link) async {
-    return 'זהו פירוש לבדיקה עם טקסט שניתן לבחור';
-  }
-
-  @override
-  Future<bool> hasBook(String title, int categoryId, String fileType) async {
-    return title == 'מפרש בדיקה';
-  }
-
-  @override
-  Future<void> initialize() async {}
-
-  @override
-  Future<Map<String, List<Book>>> loadBooks(
-    Map<String, Map<String, dynamic>> metadata,
-  ) async {
-    return const {};
-  }
 }
