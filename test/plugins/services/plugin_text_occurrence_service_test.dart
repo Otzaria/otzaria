@@ -181,4 +181,72 @@ void main() {
       'error.section_too_large',
     );
   });
+
+  test('preserves overlapping occurrences in repeated text', () {
+    final result = service.find(
+      bookId: 'book',
+      sectionIndex: 0,
+      layer: 'source',
+      text: 'אאאא',
+      textHash: 'hash',
+      query: 'אא',
+      normalize: options(PluginNormalizationProfile.strict),
+    );
+
+    expect(result.totalCount, 3);
+    expect(result.results.map((item) => item.range.start.grapheme), [0, 1, 2]);
+  });
+
+  test('handles repeated-prefix searches with no match', () {
+    final result = service.find(
+      bookId: 'book',
+      sectionIndex: 0,
+      layer: 'source',
+      text: '${List.filled(5000, 'א').join()}ב',
+      textHash: 'hash',
+      query: '${List.filled(300, 'א').join()}ג',
+      normalize: options(PluginNormalizationProfile.strict),
+    );
+
+    expect(result.totalCount, 0);
+    expect(result.results, isEmpty);
+  });
+
+  test('checks grapheme rather than UTF-16 length for oversized text', () {
+    final text = List.filled(25001, 'א\u05B0').join();
+    expect(
+      text.length,
+      greaterThan(PluginTextOccurrenceService.maxSectionGraphemes),
+    );
+
+    final result = service.find(
+      bookId: 'book',
+      sectionIndex: 0,
+      layer: 'source',
+      text: text,
+      textHash: 'hash',
+      query: 'ת',
+      normalize: options(PluginNormalizationProfile.strict),
+    );
+
+    expect(result.totalCount, 0);
+  });
+
+  test('accepts exactly the grapheme limit', () {
+    final text = List.filled(
+      PluginTextOccurrenceService.maxSectionGraphemes,
+      'א',
+    ).join();
+    final result = service.find(
+      bookId: 'book',
+      sectionIndex: 0,
+      layer: 'source',
+      text: text,
+      textHash: 'hash',
+      query: 'ת',
+      normalize: options(PluginNormalizationProfile.strict),
+    );
+    expect(result.totalCount, 0);
+  });
+
 }
