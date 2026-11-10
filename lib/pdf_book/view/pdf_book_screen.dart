@@ -6509,63 +6509,30 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
         _bloc.add(pdf_events.SetLayoutMode(layoutMode));
       },
-      itemBuilder: (context) {
-        final primaryColor = Theme.of(context).colorScheme.primary;
-
-        PopupMenuItem<PdfLayoutMode> buildItem({
-          required PdfLayoutMode value,
-          required String text,
-          required IconData icon,
-          required bool isSelected,
-        }) {
-          final style = isSelected ? TextStyle(color: primaryColor) : null;
-          return PopupMenuItem<PdfLayoutMode>(
-            value: value,
-            child: Row(
-              children: [
-                Icon(icon, color: isSelected ? primaryColor : null),
-                const SizedBox(width: 12),
-                Text(text, style: style),
-                if (isSelected) ...[
-                  const Spacer(),
-                  Icon(
-                    FluentIcons.checkmark_24_regular,
-                    size: AppTokens.iconSM,
-                    color: primaryColor,
-                  ),
-                ],
-              ],
-            ),
-          );
-        }
-
-        return [
-          buildItem(
-            value: PdfLayoutMode.regularView,
-            text: 'תצוגה רגילה',
-            icon: OtzariaIcons.book_24_regular,
-            isSelected: !isBookViewMode,
+      initialValue: state.layoutMode,
+      entries: [
+        const AppMenuEntry(
+          value: PdfLayoutMode.regularView,
+          label: 'תצוגה רגילה',
+          icon: OtzariaIcons.book_24_regular,
+        ),
+        AppMenuEntry(
+          // בחירה חוזרת בתצוגת ספר משמרת את כיוון הזוגות שנבחר.
+          value: isBookViewMode ? state.layoutMode : PdfLayoutMode.bookView,
+          label: 'תצוגת ספר',
+          icon: OtzariaIcons.book_open_medium_lines_24_regular,
+        ),
+        if (isBookViewMode)
+          AppMenuEntry(
+            value: state.layoutMode.hasCoverPage
+                ? PdfLayoutMode.bookViewNoCover
+                : PdfLayoutMode.bookView,
+            label: state.layoutMode.hasCoverPage
+                ? 'היפוך כיוון: התחלת הספר מימין (ללא עמוד ריק)'
+                : 'היפוך כיוון: התחלת הספר משמאל (עם עמוד ריק)',
+            icon: FluentIcons.arrow_swap_24_regular,
           ),
-          buildItem(
-            // בחירה חוזרת בתצוגת ספר משמרת את כיוון הזוגות שנבחר.
-            value: isBookViewMode ? state.layoutMode : PdfLayoutMode.bookView,
-            text: 'תצוגת ספר',
-            icon: OtzariaIcons.book_open_medium_lines_24_regular,
-            isSelected: isBookViewMode,
-          ),
-          if (isBookViewMode)
-            buildItem(
-              value: state.layoutMode.hasCoverPage
-                  ? PdfLayoutMode.bookViewNoCover
-                  : PdfLayoutMode.bookView,
-              text: state.layoutMode.hasCoverPage
-                  ? 'היפוך כיוון: התחלת הספר מימין (ללא עמוד ריק)'
-                  : 'היפוך כיוון: התחלת הספר משמאל (עם עמוד ריק)',
-              icon: FluentIcons.arrow_swap_24_regular,
-              isSelected: false,
-            ),
-        ];
-      },
+      ],
     );
   }
 }
