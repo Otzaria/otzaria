@@ -1,0 +1,82 @@
+name: Archive paired TAR GZip benchmark
+on:
+  push:
+    branches:
+      - qa/archive-fork-20261110
+permissions:
+  contents: read
+jobs:
+  tar-gzip-paired:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: Otzaria/archive
+          ref: main
+          path: before
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: Otzaria/archive
+          ref: perf/tar-gzip-direct-streaming
+          path: after
+          persist-credentials: false
+      - uses: dart-lang/setup-dart@v1
+      - name: Set up benchmarks
+        run: |
+          (cd before && dart pub get)
+          (cd after && dart pub get)
+          cat > before/tgz_bench.dart <<'DART'
+          import 'dart:io';
+          import 'dart:typed_data';
+          import 'package:archive/archive_io.dart';
+          
+          Future<void> main() async {
+            final base = Directory.systemTemp.createTempSync('tar-gzip-benchmark-');
+            try {
+              final dir = Directory('${base.path}/source')..createSync();
+              const size = 24 * 1024 * 1024;
+              final content = Uint8List(size);
+              var value = 0x12345678;
+              for (var i = 0; i < content.length; i++) {
+                value = (value * 1664525 + 1013904223) & 0xffffffff;
+                content[i] = (value >> 16) & 255;
+              }
+              File('${dir.path}/dataset.bin').writeAsBytesSync(content);
+              for (var i = 0; i < 300; i++) {
+                File('${dir.path}/${i.toString().padLeft(4,'0')}.txt')
+                    .writeAsBytesSync(Uint8List.fromList([i & 255, (i>>8)&255]));
+              }
+              final output = '${base.path}/data.tar.gz';
+              final times = <double>[];
+              for (var n = 0; n < 4; n++) {
+                final sw = Stopwatch()..start();
+                await TarFileEncoder().tarDirectory(dir,
+                    compression: TarFileEncoder.gzip, filename: output, level: 1);
+                sw.stop();
+                final bytes = File(output).readAsBytesSync();
+                if (bytes.length < 100 || bytes[0] != 31 || bytes[1] != 139) {
+                  throw StateError('Not a gzip archive');
+                }
+                times.add(sw.elapsedMicroseconds / 1000);
+              }
+              times.sort();
+              print('RESULT tar_gzip_24mb_p50_ms ${(times[1]+times[2])/2}');
+              print('RESULT tar_gzip_24mb_min_ms ${times.first}');
+            } finally {
+              base.deleteSync(recursive:true);
+            }
+          }
+          DART
+          cp before/tgz_bench.dart after/tgz_bench.dart
+      - name: Run alternating paired comparisons
+        run: |
+          echo "BEFORE_1"
+          (cd before && dart run tgz_bench.dart)
+          echo "AFTER_1"
+          (cd after && dart run tgz_bench.dart)
+          echo "AFTER_2"
+          (cd after && dart run tgz_bench.dart)
+          echo "BEFORE_2"
+          (cd before && dart run tgz_bench.dart)
