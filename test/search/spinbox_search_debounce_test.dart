@@ -69,6 +69,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(bloc.recorded.whereType<UpdateDistance>(), isEmpty);
+    final saved = bloc.recorded.whereType<UpdateDistanceWithoutSearch>().toList();
+    expect(saved, hasLength(1));
+    expect(saved.single.distance, 1);
   });
 
   testWidgets('silent mode keeps immediate state-only updates',

@@ -39,6 +39,17 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
 
   final FocusNode _focusNode = FocusNode();
   Timer? _pendingSearchTimer;
+  VoidCallback? _pendingSilentCommit;
+
+  void _cancelPendingSearch({bool preserveValue = false}) {
+    _pendingSearchTimer?.cancel();
+    _pendingSearchTimer = null;
+    final commit = _pendingSilentCommit;
+    _pendingSilentCommit = null;
+    // Closing a settings panel should retain an edited value without
+    // starting a search for a widget that is no longer visible.
+    if (preserveValue) commit?.call();
+  }
 
   void _queueSearchChange({
     required SearchEvent searchEvent,
@@ -46,7 +57,7 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
     required bool unchanged,
   }) {
     final bloc = context.read<SearchBloc>();
-    _pendingSearchTimer?.cancel();
+    _cancelPendingSearch();
 
     // Keep the existing immediate state-only behavior for consumers that
     // explicitly suppress searches (e.g. the query settings tests).
@@ -58,8 +69,14 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
 
     final configuration = bloc.state.configuration;
     final query = bloc.state.searchQuery;
+    _pendingSilentCommit = () {
+      if (!bloc.isClosed && bloc.state.configuration == configuration) {
+        bloc.add(silentEvent);
+      }
+    };
     _pendingSearchTimer = Timer(_searchDebounce, () {
       _pendingSearchTimer = null;
+      _pendingSilentCommit = null;
       if (!mounted || bloc.isClosed) return;
       // Do not replay stale options after the user has changed search mode,
       // another search option, or the query while editing the number.
@@ -85,16 +102,16 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
     if (!identical(oldWidget.tab, widget.tab)) {
       oldWidget.tab.spacingValuesChanged.removeListener(_onSpacingChanged);
       widget.tab.spacingValuesChanged.addListener(_onSpacingChanged);
-      _pendingSearchTimer?.cancel();
+      _cancelPendingSearch(preserveValue: true);
     }
     if (oldWidget.triggerSearch && !widget.triggerSearch) {
-      _pendingSearchTimer?.cancel();
+      _cancelPendingSearch(preserveValue: true);
     }
   }
 
   @override
   void dispose() {
-    _pendingSearchTimer?.cancel();
+    _cancelPendingSearch(preserveValue: true);
     widget.tab.spacingValuesChanged.removeListener(_onSpacingChanged);
     _focusNode.removeListener(_onFocusChanged);
     _focusNode.dispose();
@@ -102,7 +119,7 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
   }
 
   void _onSpacingChanged() {
-    _pendingSearchTimer?.cancel();
+    _cancelPendingSearch(preserveValue: true);
     setState(() {
       // עדכון התצוגה כשמשתמש משנה מרווחים
     });
