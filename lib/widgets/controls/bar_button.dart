@@ -1,6 +1,8 @@
 // lib/widgets/controls/bar_button.dart
 // כפתורי סרגל (BarButton) — פריטים בסגנון M3 המשמשים ב-AppTopBar בכל האפליקציה.
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
@@ -17,9 +19,18 @@ class BarButton extends StatelessWidget {
   static const double regularIconButtonSize = 40.0;
   static const double outerHorizontalPadding = 2.0;
 
-  static double toolbarWidth(bool compact) =>
-      (compact ? compactIconButtonSize : regularIconButtonSize) +
+  /// רוחב כפתור אייקון בסרגל. [touch] — שטח המגע של ערכת הנושא 48
+  /// ([isTouch]), והכפתור תופס אותו גם כשהעיגול נשאר 40 או 36.
+  static double toolbarWidth(bool compact, {bool touch = false}) =>
+      math.max(
+        compact ? compactIconButtonSize : regularIconButtonSize,
+        touch ? kMinInteractiveDimension : 0.0,
+      ) +
       outerHorizontalPadding * 2;
+
+  /// האם ערכת הנושא במגע: כפתורי אייקון תופסים 48 (שאלה פתוחה 1).
+  static bool isTouch(BuildContext context) =>
+      Theme.of(context).materialTapTargetSize == MaterialTapTargetSize.padded;
 
   final _Variant _variant;
 
@@ -171,11 +182,14 @@ class BarButton extends StatelessWidget {
         tooltip: tooltip,
         padding: const EdgeInsets.all(8.0),
         constraints: BoxConstraints(minWidth: minSize, minHeight: minSize),
+        // הרקע של מצב נבחר על הכפתור עצמו: במגע הוא נשאר עיגול 40 בתוך
+        // שטח המגע 48.
         style: IconButton.styleFrom(
-          backgroundColor: Colors.transparent,
+          backgroundColor: bg,
+          animationDuration: AppMotion.duration(context, AppTokens.animFast),
           foregroundColor: fg,
           shape: const CircleBorder(),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          // שטח המגע של ערכת הנושא: 48 במגע, צמוד במחשב (שאלה פתוחה 1).
         ),
       );
     }
@@ -189,7 +203,7 @@ class BarButton extends StatelessWidget {
         curve: Curves.easeInOut,
         // עם תווית: פינות 8. אייקון בלבד: עיגול, כמו IconButton (DD-04).
         decoration: BoxDecoration(
-          color: bg,
+          color: label != null ? bg : Colors.transparent,
           shape: label != null ? BoxShape.rectangle : BoxShape.circle,
           borderRadius: label != null ? AppTokens.borderRadiusAll : null,
         ),

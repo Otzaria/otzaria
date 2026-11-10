@@ -26,6 +26,9 @@ const _all = [
 ];
 const _more = 'עוד פעולות';
 
+/// הכמויות בסרגל נקבעו לכפתורים של מחשב; במגע כל כפתור תופס 48.
+final _desktop = TargetPlatformVariant.only(TargetPlatform.windows);
+
 /// כפתורי הכלים בסרגל, בלי כפתור "עוד" (שגם הוא BarButton).
 Finder _toolbarButtons() => find.byWidgetPredicate(
   (w) => w is BarButton && w.tooltip != _more,
@@ -167,7 +170,7 @@ void main() {
       lessThan(tester.getTopLeft(find.text('ציטוט')).dy),
       reason: 'התפריט שומר על סדר הסרגל',
     );
-  });
+  }, variant: _desktop);
 
   testWidgets('בדיאלוג בצפיפות קומפקטית: כל 12 הכלים, בלי "עוד"', (
     tester,
@@ -180,7 +183,7 @@ void main() {
       (e) => tester.getRect(find.byWidget(e.widget)).center.dy,
     );
     expect(rows.toSet().length, 1);
-  });
+  }, variant: _desktop);
 
   testWidgets('ברוחב צר עוד כלים עוברים ל"עוד", מהנדיר לנפוץ', (tester) async {
     await _pumpBody(tester, width: 300);
@@ -199,6 +202,27 @@ void main() {
     await tester.pumpAndSettle();
     for (final t in _all.where((t) => !visible.contains(t))) {
       expect(find.text(t), findsOneWidget, reason: '$t בתפריט');
+    }
+  }, variant: _desktop);
+
+  testWidgets('במגע בדיאלוג: שורה אחת עם "עוד", בלי גלישה', (tester) async {
+    await _pumpDialog(tester);
+
+    expect(tester.takeException(), isNull);
+    _expectOneRow(tester);
+    final visible = _visibleTools(tester);
+    expect(visible.first, 'מודגש');
+    expect(visible.length, lessThan(10), reason: 'כפתורים של 48');
+    for (final t in visible) {
+      expect(
+        tester
+            .getSize(
+              find.byWidgetPredicate((w) => w is BarButton && w.tooltip == t),
+            )
+            .width,
+        greaterThanOrEqualTo(kMinInteractiveDimension),
+        reason: t,
+      );
     }
   });
 

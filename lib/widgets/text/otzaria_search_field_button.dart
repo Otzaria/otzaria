@@ -136,8 +136,12 @@ class OtzariaSearchFieldButton extends StatelessWidget {
             OtzariaSearchActionScope.labelBudgetOf(context)) {
       return _buildLabeled(context, cs, size, label);
     }
+    // ה-X של הניקוי: במגע 48, כמו ערכת הנושא (שאלה פתוחה 1).
+    final touchClear =
+        clearGlyph &&
+        Theme.of(context).materialTapTargetSize == MaterialTapTargetSize.padded;
     return SizedBox.square(
-      dimension: size.button,
+      dimension: touchClear ? kMinInteractiveDimension : size.button,
       child: IconButton(
         icon: busy
             ? SizedBox.square(
