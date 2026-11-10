@@ -36,8 +36,8 @@ void main() {
     const flag = '\u{1F1EE}\u{1F1F1}';
     final twoFlags = [flag, flag].join();
     expect(
-      insertGraphemeBreakOpportunities(twoFlags + 'ג', 2),
-      twoFlags + '\u200Bג',
+      insertGraphemeBreakOpportunities('$twoFlagsג', 2),
+      '$twoFlags\u200Bג',
     );
   });
 
