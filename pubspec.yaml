@@ -133,11 +133,11 @@ dependencies:
   # main = upstream leanflutter 0.6.1 + the fork's merged PRs. Review fixes go
   # both to that branch (then bump the ref here) and to the upstream PR branches.
   # TODO: return to the official pub.dev release once these upstream PRs are merged:
-  #   leanflutter/window_manager#598 #599 #600 #601 #602 #603 #604 #605 #606
+  #   leanflutter/window_manager#598 #599 #600 #601 #602 #603 #604 #605 #606 #607
   window_manager:
     git:
       url: https://github.com/Otzaria/window_manager
-      ref: 09dd9791e453cb153fd91f1c9ba49d81339c66f6
+      ref: e5140090cefc48d06534bdd31f43c55d1f1a5bcb
   screen_retriever: ^0.2.2
   flutter_spinbox: ^0.13.1
   logging: ^1.3.0
