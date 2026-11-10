@@ -458,7 +458,11 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
   void initState() {
     super.initState();
     _focus = FocusRepository.of(context);
-    _navTabController = TabController(length: 3, vsync: this);
+    _navTabController = TabController(
+      length: 3,
+      vsync: this,
+      animationDuration: AppMotion.tabSwitch,
+    );
     _navTabController.addListener(() {
       _searchHost.activeTab = _navTabController.index;
       if (_navTabController.indexIsChanging) return;

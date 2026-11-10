@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// משכי התנועה של הממשק, בכפוף להעדפת "הפחתת אנימציות" של המערכת.
 ///
@@ -15,6 +16,18 @@ class AppMotion {
   /// האם המערכת מבקשת להפחית אנימציות.
   static bool reduced(BuildContext context) =>
       MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+
+  /// משך החלפת לשונית ל-`TabController.animationDuration`. הבקר נבנה
+  /// ב-initState, לפני שאפשר לקרוא את MediaQuery, ולכן ההעדפה נקראת ישירות
+  /// מהמערכת (המקור של `MediaQueryData.disableAnimations`).
+  static Duration get tabSwitch =>
+      WidgetsBinding
+          .instance
+          .platformDispatcher
+          .accessibilityFeatures
+          .disableAnimations
+      ? Duration.zero
+      : AppTokens.animPanelSlide;
 
   /// גלילה מונפשת (DD-21): [animate] במשך [token], או [jump] כשהמערכת מבקשת
   /// להפחית אנימציות. `animateTo`/`scrollTo` לא מקבלים משך 0, ולכן הקפיצה
@@ -37,7 +50,7 @@ class AppMotion {
     ScrollPosition position,
     double offset,
     Duration token, {
-    Curve curve = Curves.easeInOut,
+    Curve curve = AppTokens.curveStandard,
   }) => scroll(
     position.context.storageContext,
     token,
