@@ -395,6 +395,10 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
             );
 
             if (!stackedTabs) return topBar;
+            // טלפון לאורך: שורה אחת במקום שתיים (כותרת + כרטיסיות).
+            if (!DeviceChrome.hasWindowCaption) {
+              return _buildPhoneChromeRow(context, useReaderStyle);
+            }
 
             return Column(
               mainAxisSize: MainAxisSize.min,
@@ -866,6 +870,96 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       icon: const Icon(FluentIcons.full_screen_maximize_24_regular),
       tooltip: context.settingsText('מסך מלא'),
       onPressed: () => FullscreenHelper.toggleFullscreen(context, true),
+    );
+  }
+
+  /// טלפון לאורך: הכרטיסיות, חיפוש הכרטיסיות ו"עוד" בשורה אחת. ב"עוד":
+  /// היסטוריה, סימניות, שולחנות עבודה, הגדרות התצוגה ומסך מלא, שבמחשב
+  /// ובחלון רחב יושבים בשורת הכותרת עצמה.
+  Widget _buildPhoneChromeRow(BuildContext context, bool useReaderStyle) {
+    final regionBorder = AppSurfaces.regionBorder(context);
+    return Container(
+      height: _topBarHeight,
+      decoration: BoxDecoration(
+        color: useReaderStyle
+            ? AppSurfaces.readerBackground(context)
+            : AppSurfaces.panelBackground(context),
+        border: useReaderStyle && regionBorder == null
+            ? null
+            : Border(
+                bottom: BorderSide(
+                  color:
+                      regionBorder ??
+                      AppSurfaces.subtleDivider(Theme.of(context).colorScheme),
+                ),
+              ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: BlocBuilder<TabsBloc, TabsState>(
+              buildWhen: TabsState.changedBesidesActivePane,
+              builder: (context, state) => state.hasOpenTabs
+                  ? _buildScrollableTabsArea(state)
+                  : Center(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          context.settingsText('עיון'),
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+          const TabSearchButton(
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          if (!kIsWeb && Platform.isAndroid) const AndroidUpdateIndicator(),
+          _buildPhoneMoreMenu(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPhoneMoreMenu(BuildContext context) {
+    final canEnterFullscreen =
+        FullscreenHelper.isAllowedInContext(context) &&
+        !context.select((WindowFullscreenCubit cubit) => cubit.state);
+    return AppPopupMenuButton<VoidCallback>(
+      // הסיור מצביע על הגדרות התצוגה, שבטלפון נמצאות כאן.
+      key: TourTargetKeys.of(context).readingSettingsButton,
+      iconData: FluentIcons.more_vertical_24_regular,
+      tooltip: context.settingsText('עוד פעולות'),
+      entries: [
+        AppMenuEntry(
+          value: () => _showHistoryDialog(context),
+          label: context.settingsText('היסטוריה'),
+          icon: FluentIcons.history_24_regular,
+        ),
+        AppMenuEntry(
+          value: () => _showBookmarksDialog(context),
+          label: context.settingsText('סימניות'),
+          icon: FluentIcons.bookmark_24_regular,
+        ),
+        AppMenuEntry(
+          value: () => _showSaveWorkspaceDialog(context),
+          label: context.settingsText('החלף שולחן עבודה'),
+          icon: FluentIcons.add_square_24_regular,
+        ),
+        AppMenuEntry(
+          value: widget.onReadingSettingsPressed ?? showReadingSettingsDialog,
+          label: context.settingsText('הגדרות תצוגת הספרים'),
+          icon: FluentIcons.settings_24_regular,
+        ),
+        if (canEnterFullscreen)
+          AppMenuEntry(
+            value: () => FullscreenHelper.toggleFullscreen(context, true),
+            label: context.settingsText('מסך מלא'),
+            icon: FluentIcons.full_screen_maximize_24_regular,
+          ),
+      ],
+      onSelected: (action) => action(),
     );
   }
 

@@ -782,7 +782,41 @@ void main() {
       return cubit;
     }
 
-    for (final size in const [Size(360, 640), Size(844, 390)]) {
+    // טלפון לאורך: שורת כרום אחת, והפעולות של שורת הכותרת ב"עוד".
+    testWidgets('360×640: שורה אחת — הכרטיסיות ו"עוד", ובו כל הפעולות', (
+      tester,
+    ) async {
+      final cubit = await pumpPhone(tester, const Size(360, 640));
+      expect(
+        tester.getSize(find.byType(CustomTitleBar)).height,
+        AppDensity.of(
+          tester.element(find.byType(CustomTitleBar)),
+        ).captionHeight,
+        reason: 'שורה אחת ולא שתיים',
+      );
+      expect(find.text('ספר א'), findsOneWidget);
+      for (final moved in ['הגדרות תצוגת הספרים', 'מסך מלא']) {
+        expect(find.byTooltip(moved), findsNothing, reason: moved);
+      }
+      expect(find.byTooltip(RegExp('הצג היסטוריה')), findsNothing);
+
+      await tester.tap(find.byTooltip('עוד פעולות'));
+      await tester.pumpAndSettle();
+      for (final item in [
+        'היסטוריה',
+        'סימניות',
+        'החלף שולחן עבודה',
+        'הגדרות תצוגת הספרים',
+        'מסך מלא',
+      ]) {
+        expect(find.text(item), findsOneWidget, reason: item);
+      }
+      await tester.tap(find.text('מסך מלא'));
+      await tester.pumpAndSettle();
+      expect(cubit.state, isTrue);
+    });
+
+    for (final size in const [Size(844, 390)]) {
       testWidgets('${size.width.toInt()}×${size.height.toInt()}: הכפתור משמאל '
           'להגדרות, ונכנס למסך מלא', (tester) async {
         final cubit = await pumpPhone(tester, size);
