@@ -6,6 +6,8 @@ import '../ui_lint.dart';
 
 /// UIL-017: `fontSize:` ליטרלי בסגנון טקסט של ממשק, וגם `AppTokens.font*` או
 /// חשבון עליו (`AppTokens.fontSM - 1`): הטוקנים האלה שייכים לשכבת ה־Theme (DD-02).
+/// גם שינוי גודל ליטרלי ב־`.apply(fontSizeDelta:/fontSizeFactor:)` של
+/// `TextStyle`/`TextTheme` הוא גודל מספרי בקוד פיצ'ר.
 class LiteralFontSizeRule extends UiLintRule {
   const LiteralFontSizeRule();
 
@@ -43,12 +45,20 @@ class _Visitor extends RecursiveAstVisitor<void> {
         call.importPrefix == null;
   }
 
+  static bool _isApply(AstNode? invocation) =>
+      invocation is MethodInvocation &&
+      invocation.target != null &&
+      invocation.methodName.name == 'apply';
+
   @override
   void visitNamedArgument(NamedArgument node) {
     final value = node.argumentExpression;
-    if (node.name.lexeme == 'fontSize' &&
-        (isNumericLiteral(value) || _usesFontToken(value)) &&
-        _isTextStyle(node.parent?.parent)) {
+    final name = node.name.lexeme;
+    final owner = node.parent?.parent;
+    if ((isNumericLiteral(value) || _usesFontToken(value)) &&
+        ((name == 'fontSize' && _isTextStyle(owner)) ||
+            ((name == 'fontSizeDelta' || name == 'fontSizeFactor') &&
+                _isApply(owner)))) {
       file.report(rule, node);
     }
     super.visitNamedArgument(node);
