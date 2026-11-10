@@ -25,15 +25,14 @@ import 'contracts/contract_harness.dart';
 void _noop() {}
 
 /// רכיב לבדיקה. [touch] — הרכיב משמש גם במגע (אנדרואיד), ולכן נבדק גם
-/// androidTapTargetGuideline (48×48). [knownTapTarget] / [knownContrast] —
-/// כשל ידוע: הסיבה והמספרים שנמדדו.
+/// androidTapTargetGuideline (48×48). [knownTapTarget] — כשל ידוע: הסיבה
+/// והמספרים שנמדדו.
 class _Case {
   final String name;
   final Widget Function() build;
   final bool dialog;
   final bool touch;
   final String? knownTapTarget;
-  final String? knownContrast;
 
   const _Case(
     this.name,
@@ -41,7 +40,6 @@ class _Case {
     this.dialog = false,
     this.touch = true,
     this.knownTapTarget,
-    this.knownContrast,
   });
 }
 
@@ -106,10 +104,6 @@ final List<_Case> _cases = [
         isSelected: selected,
         onTap: _noop,
       ),
-      knownContrast:
-          'בבהיר נמדד 2.78:1 בגופן 11 (כהה ‎#9E968D על ‎#FFF8F4). צבע התווית '
-          'עצמו ‎#4F4539 (נבחר ‎#56442A) הוא 8.9:1, ונבדק ישירות למטה; '
-          'הסיבה לפער במדידת הפיקסלים לא אומתה',
     ),
   for (final value in [false, true])
     _Case(
@@ -197,20 +191,12 @@ void main() {
             handle.dispose();
           });
 
-          final contrastKnown =
-              c.knownContrast != null && brightness == Brightness.light;
-          testWidgets(
-            contrastKnown
-                ? 'textContrastGuideline — ידוע: ${c.knownContrast}'
-                : 'textContrastGuideline',
-            skip: contrastKnown,
-            (tester) async {
-              final handle = tester.ensureSemantics();
-              await _pump(tester, c, brightness);
-              await expectLater(tester, meetsGuideline(textContrastGuideline));
-              handle.dispose();
-            },
-          );
+          testWidgets('textContrastGuideline', (tester) async {
+            final handle = tester.ensureSemantics();
+            await _pump(tester, c, brightness);
+            await expectLater(tester, meetsGuideline(textContrastGuideline));
+            handle.dispose();
+          });
 
           if (c.touch) {
             testWidgets(
@@ -232,8 +218,9 @@ void main() {
         });
       }
 
-      // המדידה בפיקסלים של NavRailItem מערבבת אייקון ותווית (ראו knownContrast),
-      // ולכן צבע התווית נבדק מול הרקע שהעמודה יושבת עליו בפועל.
+      // textContrastGuideline מודד מול רקע ה-Scaffold, ולוקח כ"צבע הטקסט" את
+      // הפיקסל הכהה השכיח ליד התווית. כאן צבע התווית עצמו נבדק מול הרקע
+      // שהעמודה יושבת עליו בפועל.
       for (final selected in [false, true]) {
         testWidgets('NavRailItem${selected ? '.selected' : ''}: תווית ≥4.5:1', (
           tester,
