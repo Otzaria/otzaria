@@ -20,6 +20,16 @@ void main() {
     for (final current in windowManager.listeners) {
       if (!windowManager.listeners.contains(current)) continue;
       current.onWindowEvent(event);
+      // The nativeapi bridge dispatches dedicated callbacks as well as the
+      // generic event. Tests must reproduce both halves of that contract.
+      switch (event) {
+        case kWindowEventMinimize:
+          current.onWindowMinimize();
+        case kWindowEventRestore:
+          current.onWindowRestore();
+        case kWindowEventMaximize:
+          current.onWindowMaximize();
+      }
     }
   }
 
