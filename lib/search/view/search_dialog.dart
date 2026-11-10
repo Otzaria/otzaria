@@ -195,6 +195,9 @@ enum _ModeChoice {
 }
 
 class _SearchDialogState extends State<SearchDialog> {
+  /// מתחת לגובה חלון זה הדיאלוג ממלא את החלון; מעליו 84% ממנו (DD-15).
+  static const double _fillWindowBelowHeight = 560;
+
   /// מאגר הפוקוס של החלון; נשמר כאן כי ב-dispose אסור לחפש ב-context.
   late final FocusRepository _focus;
 
@@ -1902,7 +1905,7 @@ class _SearchDialogState extends State<SearchDialog> {
     final screenHeight = MediaQuery.sizeOf(context).height;
     final isCompact = WindowClass.of(context).isCompact;
     // גובה קבוע: פתיחת "אפשרויות נוספות" או מעבר מצב לא מקפיצים את החלון.
-    final dialogHeight = screenHeight < 560
+    final dialogHeight = screenHeight < _fillWindowBelowHeight
         ? screenHeight - 24
         : (screenHeight * 0.84).clamp(500.0, 720.0);
     final horizontalPadding = isCompact ? 16.0 : 24.0;

@@ -118,6 +118,12 @@ class _CommentatorEntry {
 }
 
 class _FindRefDialogState extends State<FindRefDialog> {
+  /// מתחת לגובה דיאלוג זה כרטיס השאילתה והתחתית מצטמצמים (DD-15).
+  static const double _shortBelowHeight = 470;
+
+  /// מתחת לגובה דיאלוג זה התחתית נסגרת לטובת שדה ההקלדה.
+  static const double _tinyBelowHeight = 300;
+
   /// מאגר הפוקוס של החלון; נשמר כאן כי ב-dispose אסור לחפש ב-context.
   late final FocusRepository _focus;
 
@@ -1526,10 +1532,10 @@ class _FindRefDialogState extends State<FindRefDialog> {
     );
 
     final isCompact = WindowClass.of(context).isCompact;
-    final isShort = dialogHeight < 470;
+    final isShort = dialogHeight < _shortBelowHeight;
     // מסך לרוחב בטלפון עם מקלדת פתוחה משאיר פחות מ-300: שם התחתית נסגרת
     // לטובת שדה ההקלדה (הסגירה זמינה ב-X שבכותרת ובלחיצה מחוץ לדיאלוג).
-    final isTiny = dialogHeight < 300;
+    final isTiny = dialogHeight < _tinyBelowHeight;
     final horizontalPadding = isCompact ? 12.0 : 16.0;
 
     // הפאנל בגובה קבוע, ולכן הגדלת גופן מעבר לכך הייתה דוחקת את הכותרת

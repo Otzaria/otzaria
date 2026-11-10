@@ -312,6 +312,9 @@ bool shouldResyncMainPage({
 
 final _mainWindowScreenKeys = Expando<GlobalKey<MainWindowScreenState>>();
 
+/// רוחב חלונית הכלים: ארבע קוביות בשורה; הריפוד בתוך פאנל הכלים.
+const double _kToolsLauncherWidth = 440;
+
 extension MainWindowScreenKeyX on AppWindowKeys {
   /// מפתח המסך הראשי של החלון. נוצר בגישה הראשונה וקבוע לחיי ה-[AppWindowKeys].
   GlobalKey<MainWindowScreenState> get mainWindowScreen =>
@@ -2186,8 +2189,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     isOpen: _isToolsLauncherOpen,
     onClose: _closeToolsLauncher,
     alignment: AlignmentDirectional.centerStart,
-    // רחב מספיק לארבע קוביות; הריפוד נמצא בתוך פאנל הכלים.
-    width: 440,
+    width: _kToolsLauncherWidth,
     contentPadding: EdgeInsets.zero,
     deferChildBuildOnOpen: true,
     child: ToolsLauncherPanel(
@@ -3978,7 +3980,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
                             onClose: _toggleReadingSettingsPanel,
                             deferChildBuildOnOpen: true,
                             preserveChildStateOnClose: true,
-                            width: 400,
                             title: context.settingsText('הגדרות תצוגת הספרים'),
                             child: const Expanded(
                               child: ReadingSettingsPanel(),
