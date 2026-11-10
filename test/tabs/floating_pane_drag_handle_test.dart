@@ -222,6 +222,35 @@ void main() {
     expect(opacity(tester), 0);
   });
 
+  testWidgets('במחשב: גרירה משאירה את הידית גם כשהעכבר יוצא מהחלונית', (
+    tester,
+  ) async {
+    await tester.pumpWidget(app());
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: const Offset(400, 400));
+    await tester.pump();
+    final pageRect = tester.getRect(find.byType(_CountBuilds));
+    await mouse.moveTo(pageRect.topRight + const Offset(-20, 20));
+    await tester.pumpAndSettle();
+    await mouse.moveTo(tester.getCenter(handle));
+    await tester.pumpAndSettle();
+    expect(opacity(tester), 1);
+
+    await mouse.down(tester.getCenter(handle));
+    await tester.pump();
+    await mouse.moveBy(const Offset(-30, 40));
+    await tester.pump();
+    expect(find.text('מקבילות'), findsOneWidget, reason: 'הגרירה התחילה');
+    await mouse.moveTo(const Offset(-10, -10));
+    await tester.pumpAndSettle();
+    expect(opacity(tester), 1, reason: 'בזמן גרירה הידית נשארת');
+
+    await mouse.up();
+    await tester.pumpAndSettle();
+    expect(opacity(tester), 0, reason: 'בסוף הגרירה, מחוץ לרצועה, נעלמת');
+  });
+
   testWidgets('במחשב, ריחוף על הידית מציג את ההסבר', (tester) async {
     await tester.pumpWidget(app());
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
