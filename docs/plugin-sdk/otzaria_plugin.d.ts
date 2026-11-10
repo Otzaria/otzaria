@@ -946,6 +946,16 @@ export interface UiSetUnsavedChangesArgs {
   message?: string;
 }
 
+/**
+ * ארגומנטים ל-`ui.setFullscreen` (מ-0.9.99).
+ *
+ * `true` נכנס למסך מלא של אוצריא — רק מפעולת משתמש, ורק במסך העיון. `false`
+ * יוצא. Escape ו"חזור" יוצאים תמיד, בלי לשאול את התוסף.
+ */
+export interface UiSetFullscreenArgs {
+  fullscreen: boolean;
+}
+
 /** ארגומנטים ל-`bookmarks.add`. הספר מזוהה ב-`id` או ב-`bookId`. */
 export interface BookmarkAddArgs extends BookIdentity {
   index?: number;
@@ -2632,6 +2642,7 @@ export type OtzariaMethod =
   | 'ui.printFile'
   | 'ui.exportPdf'
   | 'ui.setUnsavedChanges'
+  | 'ui.setFullscreen'
   | 'fs.extractZip'
   | 'fs.deleteFile'
   | 'fs.pickUserFile'

@@ -371,6 +371,7 @@ if (response.success) {
 | `ui.printFile` | 0.9.98.1 |
 | `ui.exportPdf` | 0.9.97 |
 | `ui.setUnsavedChanges` | 0.9.97 |
+| `ui.setFullscreen` | 0.9.99 |
 | `fs.extractZip` | 0.9.93 |
 | `fs.deleteFile` | 0.9.93 |
 | `fs.pickUserFile` | 0.9.94 |
@@ -3772,6 +3773,29 @@ async function save() {
   await persist();
   await Otzaria.call('ui.setUnsavedChanges', { hasChanges: false });
 }
+```
+
+### `ui.setFullscreen`
+**הרשאה:** (אין — המשתמש תמיד יכול לצאת, ב-Escape, ב"חזור" או בכפתור היציאה)
+
+מכניסה את אוצריא למסך מלא, כמו F11, או מוציאה ממנו. במסך מלא שורת הכותרת,
+הכרטיסיות וסרגלי הניווט מוסתרים, וכרטיסיית התוסף ממלאת את החלון (בטלפון גם
+שורת המצב של המערכת מוסתרת).
+
+- `fullscreen` (חובה, בוליאני): `true` נכנס, `false` יוצא.
+- **כניסה רק מפעולת משתמש**, כמו `ui.print`: קריאה מטעינת הדף, מטיימר או
+  אחרי שרשרת `await` ארוכה מוחזרת ב-`error.forbidden`.
+- כניסה רק כשמסך מלא מותר: במסך העיון, עם כרטיסיה פתוחה. אחרת `error.forbidden`.
+- **אף פעם לא דביק:** Escape (גם כשהפוקוס בתוך התוסף), "חזור" באנדרואיד,
+  וכפתור היציאה שבסרגל יוצאים ממסך מלא בכל מקרה, ובלי לשאול את התוסף. גם מעבר
+  למסך אחר יוצא. אל תניחו שאתם עדיין במסך מלא: קראו למצב מחדש אם צריך.
+- יציאה (`false`) תמיד מותרת, גם בלי פעולת משתמש, וכשכבר לא במסך מלא אינה
+  עושה דבר.
+
+```javascript
+fullscreenButton.addEventListener('click', () => {
+  Otzaria.call('ui.setFullscreen', { fullscreen: true });
+});
 ```
 
 > **`ui.print`, `ui.printFile` ו-`ui.exportPdf` דורשות פעולת משתמש מפורשת.** אוצריא בודקת ישירות ב-WebView
