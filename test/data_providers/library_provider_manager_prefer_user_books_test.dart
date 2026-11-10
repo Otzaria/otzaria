@@ -209,7 +209,7 @@ void main() {
 
     test(
       'getBookText: אותם title+categoryId+fileType בשני וריאנטים → '
-      'preferUserBooks=true מחזיר את ה-user_books, false את ה-seforim',
+      'preferSource=user מחזיר את ה-user_books, official את ה-seforim',
       () async {
         // אותו 3-tuple (title, categoryId, fileType) רשום פעמיים, פעם עם
         // isUserBook=true ופעם false. ה-resolver של המנהל חייב להחזיר את
@@ -262,10 +262,10 @@ void main() {
     );
 
     test(
-      'getBookText: כשרשום רק וריאנט user_books, preferUserBooks=false עדיין מוצא אותו',
+      'getBookText: כשרשום רק וריאנט user_books, preferSource=official עדיין מוצא אותו',
       () async {
         // אם הקורא לא ביקש user_books, אבל מה שיש זה רק user_books — המנהל
-        // צריך עדיין למצוא את הספר במעבר השני (fallback ל-!preferUserBooks).
+        // צריך עדיין למצוא את הספר במעבר השני (fallback ל-BookSource.user).
         final userBookKey = BookCompositeKey.create(
           title: 'רק-משתמש',
           categoryId: 9,
@@ -300,7 +300,7 @@ void main() {
     );
 
     test(
-      'getBookText: כשרשום רק וריאנט רשמי, preferUserBooks=true עדיין מוצא אותו',
+      'getBookText: כשרשום רק וריאנט רשמי, preferSource=user עדיין מוצא אותו',
       () async {
         final officialKey = BookCompositeKey.create(
           title: 'רק-רשמי',
@@ -336,7 +336,7 @@ void main() {
     );
 
     test(
-      'getBookText: ללא categoryId — preferUserBooks מעדיף וריאנט user_books לפי כותרת בלבד',
+      'getBookText: ללא categoryId — preferSource=user מעדיף וריאנט user_books לפי כותרת בלבד',
       () async {
         // נכניס שני מפתחות עם categoryId שונה: אחד isUserBook=true, אחד false.
         // ה-manager צריך לבחור את ה-user_books כשמבוקש.
@@ -380,15 +380,14 @@ void main() {
           preferSource: BookSource.user,
         );
 
-        // בלי categoryId, ה-resolver עובר ב-findIn לפי הסדר — וכש-preferUserBooks
-        // אמת, הוא מסנן רק user_books בקריאה הראשונה.
+        // בלי categoryId, ה-resolver עובר ב-findIn לפי הסדר — ועם
+        // preferSource=user הוא מסנן רק user_books בקריאה הראשונה.
         expect(
           userBook,
           'תוכן משתמש',
-          reason:
-              'preferUserBooks=true בוחר את הוריאנט המתאים גם בלי categoryId',
+          reason: 'preferSource=user בוחר את הוריאנט המתאים גם בלי categoryId',
         );
-        // ולהפך — בלי preferUserBooks, יכול לחזור כל מפתח שתואם. כאן עם
+        // ולהפך — עם preferSource=official, יכול לחזור כל מפתח שתואם. כאן עם
         // findIn((_) => true) המעבר עובר על המפתחות לפי סדר המפה — בלי דרישה
         // מי הראשון. הנקודה היא שלפחות אחד מהם חוזר ולא null.
         expect(

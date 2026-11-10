@@ -183,7 +183,7 @@ Future<void> main() async {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 50));
 
-        // facet של ספר הוא מפתח catalogueOrderKey מורכב — נבנה כמו ברכיב.
+        // facet של ספר הוא מפתח BookIdentity.keyOf מורכב — נבנה כמו ברכיב.
         final expectedFacet = FacetHelper.buildBookFacet(
           '/תנ״ך/תורה',
           TextBook(title: 'בראשית', categoryPath: '/תנ״ך/תורה'),

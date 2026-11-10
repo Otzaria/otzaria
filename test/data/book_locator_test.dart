@@ -126,7 +126,7 @@ void main() {
     );
 
     test(
-      'עם category שהיא "ספרים אישיים" → preferUserBooks=true בחיפוש',
+      'עם category שהיא "ספרים אישיים" → preferSource=user בחיפוש',
       () async {
         // מכניסים ספר בשני ה-DBs באותה כותרת — צריך לבחור ב-user_books.
         final userBooksRepo = await UserBooksDatabaseHolder.instance.repository;

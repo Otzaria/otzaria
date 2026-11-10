@@ -244,7 +244,7 @@ void main() {
     });
   });
 
-  group('מפתח הספר ב-facet זהה ל-catalogueOrderKey', () {
+  group('מפתח הספר ב-facet זהה ל-BookIdentity.keyOf', () {
     String facetPathOf(Book book) => BookFacet.buildFacetPath(
       title: book.title,
       topics: book.topics,

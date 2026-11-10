@@ -122,9 +122,9 @@ void main() {
     });
 
     test(
-      'preferUserBooks=true מאתר את הספר ב-user_books.db ולא ב-seforim',
+      'preferSource=user מאתר את הספר ב-user_books.db ולא ב-seforim',
       () async {
-        // אותו שם ספר בשני ה-DBs עם headings שונים. preferUserBooks=true חייב
+        // אותו שם ספר בשני ה-DBs עם headings שונים. preferSource=user חייב
         // לבחור את ה-user_books.
         await insertBookWithToc(
           repo: seforimRepo,
