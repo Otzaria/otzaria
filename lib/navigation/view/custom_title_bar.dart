@@ -553,10 +553,14 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       children: [
         Expanded(
           child: AppDragToMoveArea(
+            // גובה השורה קבוע (כפתורי החלון): בהגדלת טקסט הכותרת מצטמצמת.
             child: Center(
-              child: Text(
-                subtitle != null ? '$title: $subtitle' : title,
-                style: textStyle,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  subtitle != null ? '$title: $subtitle' : title,
+                  style: textStyle,
+                ),
               ),
             ),
           ),
@@ -572,9 +576,12 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         if (!state.hasOpenTabs) {
           return AppDragToMoveArea(
             child: Center(
-              child: Text(
-                context.settingsText('עיון'),
-                style: Theme.of(context).textTheme.titleMedium,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  context.settingsText('עיון'),
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
               ),
             ),
           );
