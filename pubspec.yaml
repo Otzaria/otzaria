@@ -325,6 +325,8 @@ flutter_launcher_icons:
     icon_size: 256 # min:48, max:256, default: 48
 
 dev_dependencies:
+  # Test doubles for window_manager 0.6's nativeapi-backed window bridge.
+  nativeapi: ^0.5.10
   sentry_dart_plugin: ^3.4.0
   # מחולל spec.json של התוספים (tool/plugins) מפרסר AST של קוד המקור.
   # מוצמד ל-major: צורת ה-AST משתנה בין גרסאות ראשיות ושוברת את המחולל.
