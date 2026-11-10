@@ -1,5 +1,6 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
@@ -149,8 +150,8 @@ class _SaveGroupBookmarkDialogState extends State<_SaveGroupBookmarkDialog> {
       title: 'שמירת סימניה מרוכזת',
       icon: FluentIcons.bookmark_add_24_regular,
       actions: [
-        ActionButton.ghost(
-          text: 'ביטול',
+        ActionButton.neutral(
+          text: context.settingsText('ביטול'),
           onPressed: () => Navigator.of(context).pop(),
         ),
         ActionButton.recommended(text: 'שמור', onPressed: _save),

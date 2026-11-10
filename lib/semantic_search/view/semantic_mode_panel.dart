@@ -218,7 +218,7 @@ class SemanticModePanel extends StatelessWidget {
         icon: FluentIcons.arrow_clockwise_24_regular,
         onPressed: onDownload,
       ),
-      SemanticAvailabilityPhase.downloading => ActionButton.ghost(
+      SemanticAvailabilityPhase.downloading => ActionButton.neutral(
         key: const ValueKey('semantic-status-cancel'),
         text: context.settingsText('ביטול'),
         onPressed: onCancelDownload,
