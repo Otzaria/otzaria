@@ -83,6 +83,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'אין מספיק מקום פנוי (נדרשים {size})': 'Not enough free space ({size} needed)',
     'אין מספיק מקום פנוי בכונן לנתוני {name}.': 'There is not enough free disk space for the {name} data.',
     'אין מקור עדכונים': 'No update source',
+    'אין סימניות לספר בודד': 'No single-book bookmarks',
     'אין פריטים להצגה בתיקייה זו': 'Nothing to show in this folder',
     'אין רשומות ביומן השגיאות': 'The error log has no entries',
     'אין תוצאות': 'No results',

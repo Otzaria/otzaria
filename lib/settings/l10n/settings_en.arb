@@ -1743,5 +1743,6 @@
   "הסתר ניווט": "Hide navigation",
   "הצג ניווט": "Show navigation",
   "שגיאה: {error}": "Error: {error}",
-  "בטל": "Undo"
+  "בטל": "Undo",
+  "אין סימניות לספר בודד": "No single-book bookmarks"
 }
