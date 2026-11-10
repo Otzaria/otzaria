@@ -11,7 +11,7 @@
 | **הבדיקה החוסמת** | `test/design_system/ui_lint_test.dart` מריץ את כל הכללים על `lib/`, משווה ל־`tool/ui_lint/baseline.json` ונכשל על חריגה חדשה, על baseline מת ועל הערת allow פגומה | ה־shards של Linux. `tool/ci/test_shards.dart` מכניס אוטומטית כל `*_test.dart` חוץ מ־`test/goldens/` |
 | דוח ui_lint | `dart tool/ui_lint_cli.dart --format=github`: טבלה ל־`$GITHUB_STEP_SUMMARY` ו־annotations לחריגות חדשות. `continue-on-error`, כלומר דוח בלבד | step ‏"UI lint report" ב־job ‏`analyze` |
 | golden tests | `flutter test test/goldens/` על Windows. כשל מעלה את `failures/` כ־artifact | job ‏`goldens_windows` ב־`flutter_tests.yml` |
-| גידול ב־baseline והחרגות | מכשיל PR שמוסיף מופעים ל־baseline, או מוסיף/מרחיב החרגת נתיב (`path:`) ב־`tool/ui_lint/config.yaml`, אלא אם יש עליו התווית `ui-baseline` | `.github/workflows/ui_baseline_guard.yml` |
+| גידול ב־baseline והחרגות | מכשיל PR שמוסיף מופעים ל־baseline, מוסיף/מרחיב החרגת נתיב (`path:`) ב־`tool/ui_lint/config.yaml`, או מעלה תקרת `max_allows` (מ־10.11), אלא אם יש עליו התווית `ui-baseline` | `.github/workflows/ui_baseline_guard.yml` |
 | שינוי ב־golden | מכשיל PR שמשנה קובץ תחת `test/goldens/` (PNG, בדיקה, `skip`, ה־harness וסף ה־comparator), אלא אם יש עליו התווית `goldens-approved` | `.github/workflows/goldens_guard.yml` |
 | עדכון golden בלי Windows | `workflow_dispatch` שמצייר מחדש ומעלה את התמונות כ־artifact | `.github/workflows/regenerate_goldens.yml` |
 | בדיקות סריקה ישנות | בדיקות שסורקות את `lib/` ולא עברו למנוע (נספח) | `test/**` |
@@ -113,6 +113,7 @@ prefix של ייבוא Flutter (`import 'package:flutter/material.dart' as m;`) 
 - **`--update-baseline`** רק מוחק רשומות. הוספה דורשת `--allow-growth`.
 - **`ui_baseline_guard.yml`** מכשיל PR שמוסיף מופעים לכלל באותו קובץ ובאותו `scope`, אלא אם יש עליו התווית **`ui-baseline`** (DD-23), שמתחזק מוסיף. ההשוואה היא לפי כלל, קובץ ו־`scope`, בלי `fp`, כך ששינוי ביטוי או גרסת מנוע אינם נספרים כגידול. כשב־base אין `baseline.json` בכלל, ה־PR הוא זה שמכניס את ui_lint, ואין מול מה למדוד גידול. לכן ה־guard עובר.
 - **החרגת נתיב** חדשה או מורחבת ב־`config.yaml` משתיקה חריגות בלי רשומת baseline, ולכן אותו guard מכשיל גם אותה בלי התווית `ui-baseline`: כל שורת `path:` שנוספה או שונתה מול הבסיס (git diff). הזזת שורה בלי שינוי נספרת גם היא (התרעת שווא נדירה). PR שמכניס כלל חדש עם החרגות צריך את התווית.
+- **העלאת `max_allows`** (§3.5) מכשילה את אותו guard בלי התווית `ui-baseline` (הכרעת בעל הפרויקט 10.11.2026): כל כלל שהתקרה שלו ב־PR גבוהה מזו שב־base, כשכלל שלא מופיע הוא 0. כשב־base אין `max_allows` בכלל, ה־PR הוא זה שמכניס את התקרות, ואין מה להשוות.
 - **מה חוסם:** `ui_lint_test` מכשיל חריגה חדשה בכל כלל שהשלב שלו (`UiLintRule.stage`) עד `blockingStage` (היום 3), ובכל כלל נעול (`strict`) בכל שלב. 32 מ־33 הכללים בשלבים 1–3. בשלב 4: ‏UIL-025, שחוסם כי הוא נעול. baseline מת והערת allow פגומה מכשילים בכל כלל.
 - הקובץ נשמר עם סוף שורה LF (`.gitattributes`), כי הבדיקה משווה אותו לפלט של הכלי בייט בבייט.
 
@@ -127,7 +128,7 @@ const _hebcalBlue = Color(0xFF1565C0);
 3. אין צורה של "כל הקובץ".
 4. הערת allow שלא השתיקה כלום מכשילה את הבדיקה.
 5. כל ה־allow מופיעים בדוח עם הנימוק. היום (10.11) יש 46 בקוד, מהם 26 של UIL-021. הוספת allow אינה דורשת תווית: היא גלויה ב־diff ונסקרת כקוד.
-6. **תקרה לכל כלל (`max_allows` ב־`config.yaml`, 10.11):** מספר הערות ה־allow של כל כלל ב־lib, וכלל שלא מופיע שם: 0. ‏`ui_lint_test` נכשל כשיש יותר הערות מהתקרה, וגם כשיש פחות (להוריד את התקרה, כמו baseline מת). כך כל allow חדש מעלה מספר ב־`config.yaml` שנראה ב־diff. הדוח מציג `allow/תקרה` לכל כלל. **לא מומש:** שדות בעלים ומעקב (issue) לכל החרגה. היום החרגה נושאת נימוק בלבד, והבעלות היא של מי שאישר את ה־PR.
+6. **תקרה לכל כלל (`max_allows` ב־`config.yaml`, 10.11):** מספר הערות ה־allow של כל כלל ב־lib, וכלל שלא מופיע שם: 0. ‏`ui_lint_test` נכשל כשיש יותר הערות מהתקרה, וגם כשיש פחות (להוריד את התקרה, כמו baseline מת). כך כל allow חדש מעלה מספר ב־`config.yaml` שנראה ב־diff, ו־`ui_baseline_guard` דורש עליו את התווית `ui-baseline` (§3.4). הדוח מציג `allow/תקרה` לכל כלל. **לא מומש:** שדות בעלים ומעקב (issue) לכל החרגה. היום החרגה נושאת נימוק בלבד, והבעלות היא של מי שאישר את ה־PR.
 
 **לפי נתיב או הקשר:** רק ב־`config.yaml`, ותמיד עם `reason:` (היום 60 החרגות). שם נרשמים גם עוטפים מורשים, כמו `RtlTextField` שבונה `TextField`. החרגה בלי `reason` היא שגיאת קונפיגורציה.
 
@@ -251,7 +252,7 @@ const _hebcalBlue = Color(0xFF1565C0);
 | UIL-027: צבע דרך משתנה | `isDark ? a : b` כש־a ו־b משתנים מסוג `Color`, או `if` שבענף שלו יותר מהצבה אחת, לא נתפסים (AST לא מפוענח) | הזיהוי לפי צורה; חיפוש טיפוסים יחייב analyzer מלא |
 | `LinearProgressIndicator` | מחוץ להיקף של UIL-013 | 11 מופעים (10.11); מחכה לרכיב התקדמות מדודה משותף (הכרעת בעל הפרויקט 10.11: להשאיר). `CupertinoAlertDialog` ו־`focusColor`/`highlightColor` נכנסו ל־UIL-001/007 |
 | `Border(left:/right:)`, ‏`FractionalOffset(x, y)`, ‏`Alignment(x, y)` עם x ממשתנה | כיוון פיזי בצורות האלה לא נתפס ב־UIL-021 | נדיר; `Alignment(-1, 0)` ליטרלי ו־`BorderRadius.only`/`horizontal` נסגרו ב־10.11 |
-| הערת allow | מוסיפים בלי תווית ובלי בעלים. העלאת `max_allows` (§3.5) נראית ב־diff, אבל `ui_baseline_guard` לא דורש עליה תווית | מכוון: הנימוק גלוי ב־diff ונסקר. תווית להעלאת התקרה היא הכרעה של בעל הפרויקט |
+| הערת allow | אין שדות בעלים ומעקב (issue) לכל החרגה | התקרה (`max_allows`) והתווית על העלאתה קיימות מ־10.11; בעלים ו־issue לא מומשו |
 | החלפת חוב באותו `scope` | תיקון חריגה אחת והוספת אחרת באותה מתודה, עם `--allow-growth`, לא נספר כגידול | ה־guard סופר לפי כלל, קובץ ו־`scope` בלי `fp`, כדי ששינוי ביטוי לא ייחשב גידול (§3.4). ה־diff של `baseline.json` עדיין נסקר |
 | golden: מה שמחוץ ל־`test/goldens/` | `goldens_guard` (מ־10.11 כל קובץ תחת `test/goldens/`) לא רואה את `test/support/golden_fonts.dart`, את ה־job ‏`goldens_windows` ואת ההחרגה ב־`tool/ci/test_shards.dart` | שינוי בגופנים משנה פיקסלים ואז נכשל או משנה PNG; שינוי ב־workflow נסקר כקוד |
 | בדיקות סריקה ישנות (נספח) | regex על שורות, בלי AST, ב־`plugin_icon_resolver_usage_test`, ‏`image_decode_size_test` ו־`pdf_hardcoded_colors_test` | עוברות למנוע אחת אחרי השנייה (§6). ב־10.11: `default_context_menu_scan_test` עבר ל־UIL-032, הסריקה של `settings_dialog_scope_test` ל־UIL-028 החוסם, והסריקות של `Markdown` ושל `ActionButton.warning` עברו ל־AST |
