@@ -8,7 +8,6 @@ import 'package:otzaria/theme/app_focus_ring.dart';
 import 'package:otzaria/theme/app_seed_colors.dart';
 import 'package:otzaria/theme/app_shadows.dart';
 import 'package:otzaria/theme/app_surface_colors.dart';
-import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/theme/layout_tokens.dart';
 
@@ -230,7 +229,7 @@ class AppThemeData {
     );
     return theme.copyWith(
       dialogTheme: DialogThemeData(
-        barrierColor: AppSurfaces.scrim(cs),
+        barrierColor: scrim(cs),
         backgroundColor: cs.surfaceContainerHigh,
         // "לבן": מסגרת דקה סביב הדיאלוג (#2850).
         shape: raisedShape(regionBorder),
@@ -272,6 +271,9 @@ class AppThemeData {
     required bool compactMenuMode,
     AppThemeVariant variant = AppThemeVariant.standard,
   }) => light(cs, compactMenuMode: compactMenuMode, variant: variant);
+
+  /// ההחשכה מאחורי דיאלוג וחלונית צפה (DD-12). קוראים דרך `AppSurfaces.scrim`.
+  static Color scrim(ColorScheme cs) => cs.scrim.withAlpha(0x22);
 
   /// צורת משטח מוגבה (דיאלוג, תפריט): פינות 8, וב"לבן" בבהיר מסגרת בקו
   /// האזורים ([AppSurfaceColors.regionBorder], ‏#2850). [regionBorder] null —

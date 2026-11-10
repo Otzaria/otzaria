@@ -78,11 +78,13 @@ class AppDialogFrame extends StatelessWidget {
     this.onClose,
     this.isDirty,
     this.onDismissRequest,
+    this.confirmDiscard,
     this.onConfirm,
     this.handleEnterKey = true,
     this.dismissResult,
     this.surfaceKey,
-  }) : assert(isDirty == null || onDismissRequest == null);
+  }) : assert(isDirty == null || onDismissRequest == null),
+       assert(isDirty == null || confirmDiscard != null);
 
   final String title;
 
@@ -143,6 +145,9 @@ class AppDialogFrame extends StatelessWidget {
   /// במקום [isDirty], לטופס ששואל שאלת סגירה משלו: X, Escape, לחיצה בחוץ
   /// וחזרה קוראים לו, והדיאלוג נסגר רק כשהקורא סוגר אותו.
   final DialogDismissRequest? onDismissRequest;
+
+  /// השאלה של [isDirty]: `confirmDiscardChanges` (מ-`app_dialogs.dart`).
+  final DialogDiscardConfirm? confirmDiscard;
 
   /// הפעולה הראשית: Enter בשדה חד־שורתי, או כשאין רכיב ממוקד שמגיב ל-Enter.
   final VoidCallback? onConfirm;
@@ -270,6 +275,7 @@ class AppDialogFrame extends StatelessWidget {
       canDismiss: closeEnabled,
       isDirty: isDirty,
       onDismissRequest: onDismissRequest,
+      confirmDiscard: confirmDiscard,
       child: DialogKeyboardNavigator(
         onConfirm: onConfirm,
         handleEnterKey: handleEnterKey,
