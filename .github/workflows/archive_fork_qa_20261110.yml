@@ -17,8 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         archive_branch:
-          - test/codec-corruption-regressions
-          - perf/chunked-stream-copy-without-eager-materialization
+          - perf/zlib-stream-reuse-input-buffer
     steps:
       - name: Checkout archive branch
         uses: actions/checkout@v4
