@@ -418,6 +418,28 @@ void main() {
         reason: 'x=$x',
       );
     }
+    // הסמן בשורה שלפני `\n` נמצא באותו מקום כמו באותה שורה בסוף הפסקה.
+    const caret = Rect.fromLTWH(0, 0, 2, 20);
+    final lineTop = paragraph
+        .getOffsetForCaret(const TextPosition(offset: n), caret)
+        .dy;
+    for (var i = n; i >= 0; i--) {
+      final atLine = paragraph.getOffsetForCaret(
+        TextPosition(offset: i),
+        caret,
+      );
+      if (atLine.dy != lineTop) break;
+      expect(
+        atLine.dx,
+        closeTo(
+          paragraph
+              .getOffsetForCaret(TextPosition(offset: i + n + 1), caret)
+              .dx,
+          0.01,
+        ),
+        reason: 'offset=$i',
+      );
+    }
   });
 
   // issue #3761: פסקה שהבחירה עוברת עליה במלואה מקבלת את הפינה הוויזואלית שלה,

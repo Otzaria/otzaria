@@ -264,8 +264,8 @@ class _RenderSelectionFillParagraph extends RenderParagraph {
     );
   }
 
-  /// הבחירה מבקשת מיקום מחוץ לפסקה בפינה הוויזואלית (`adjustDragOffset`), ובשורה
-  /// שמתחילה או מסתיימת ברצף בכיוון ההפוך הפינה אינה תחילת הטקסט או סופו (flutter#196327).
+  /// בחירה מבקשת מיקום בפינת הפסקה, ובשורה שמתחילה ברצף בכיוון ההפוך זו אינה
+  /// תחילת הטקסט. TODO: להסיר כש-flutter#196327 יתוקן.
   @override
   TextPosition getPositionForOffset(Offset offset) {
     if (textDirection != TextDirection.rtl) {
@@ -282,11 +282,38 @@ class _RenderSelectionFillParagraph extends RenderParagraph {
     return super.getPositionForOffset(offset.translate(dx, 0));
   }
 
+  /// בשורה המוזזת המנוע מזיז רק חלק ממיקומי הסמן, ולכן הסמן נגזר מתיבת האות
+  /// הסמוכה המתוקנת. TODO: להסיר כש-flutter#196326 יתוקן.
+  @override
+  Offset getOffsetForCaret(TextPosition position, Rect caretPrototype) {
+    final offset = super.getOffsetForCaret(position, caretPrototype);
+    final shift = _shifts.isEmpty ? null : _shiftAt(offset.dy + 1);
+    if (shift == null) return offset;
+    final plain = text.toPlainText(includeSemanticsLabels: false);
+    ui.TextBox? boxOnLine(int i) {
+      if (i < 0 || i >= plain.length || plain[i] == '\n') return null;
+      final box = _glyphBoxesForSelection(
+        TextSelection(baseOffset: i, extentOffset: i + 1),
+      ).firstOrNull;
+      final y = box?.toRect().center.dy;
+      return y != null && y >= shift.top && y < shift.bottom ? box : null;
+    }
+
+    final beforeBox = boxOnLine(position.offset - 1);
+    final box = beforeBox ?? boxOnLine(position.offset);
+    if (box == null) return offset;
+    final before = beforeBox != null;
+    final rtl = box.direction == TextDirection.rtl;
+    final edge = before == rtl ? box.left : box.right;
+    final dx = rtl ? edge - caretPrototype.width : edge;
+    return Offset(dx.clamp(0, size.width), offset.dy);
+  }
+
   List<ui.TextBox> _glyphBoxesForSelection(TextSelection selection) =>
       _unshiftBoxes(super.getBoxesForSelection(selection));
 
   /// skparagraph מודד שורת RTL שמסתיימת ב-`\n` כאילו ל-`\n` רוחב בקצה השמאלי,
-  /// ולכן התיבות והמיקומים בה זזים ימינה ממה שצויר (flutter#196326).
+  /// והתיבות בה זזות ימינה ממה שצויר. TODO: להסיר כש-flutter#196326 יתוקן.
   List<_LineShift>? _hardBreakShifts;
 
   List<_LineShift> get _shifts =>
