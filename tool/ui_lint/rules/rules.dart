@@ -1,4 +1,5 @@
 import '../ui_lint.dart';
+import 'deprecated_component_rule.dart';
 import 'elevation_shadow_rule.dart';
 import 'hardcoded_color_rule.dart';
 import 'icon_button_tooltip_rule.dart';
@@ -64,4 +65,5 @@ const List<UiLintRule> uiLintRules = [
   ElevationShadowRule(),
   RawScrollbarRule(),
   SelectionContextMenuRule(),
+  DeprecatedComponentRule(),
 ];

@@ -42,6 +42,13 @@ rules:
   UIL-032:
     strict: true
 
+  UIL-033:
+    exclude:
+      - path: lib/widgets/controls/toggle_pill.dart
+        reason: AppTogglePill בונה את המתג מ־CustomSwitch עד שהוא יוסר (DESIGN_SYSTEM §3.3)
+      - path: lib/settings/widgets/settings_card.dart
+        reason: SettingsSwitchTile בונה את המתג מ־CustomSwitch עד שהוא יוסר (DESIGN_SYSTEM §3.3)
+
   UIL-001:
     exclude:
       - path: lib/widgets/dialogs/**
