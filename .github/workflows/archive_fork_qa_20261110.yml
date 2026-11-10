@@ -17,6 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         archive_branch:
+          - perf/tar-gzip-direct-streaming
           - perf/bzip2-reuse-block-table-across-members
     steps:
       - name: Checkout archive branch
