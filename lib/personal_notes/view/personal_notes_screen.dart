@@ -441,6 +441,37 @@ class _PersonalNotesManagerScreenState
     return Builder(
       builder: (context) {
         final isCompact = AppDensity.of(context).isCompact;
+        // בחלון צר (טלפון) הרענון וחמש פעולות הקבצים עוברים לתפריט "עוד":
+        // שבעה כפתורים של 48 במגע לא נכנסים ליד שדה החיפוש.
+        final narrow = WindowClass.of(context).isCompact;
+        final fileActions =
+            <({String tooltip, IconData icon, VoidCallback? onPressed})>[
+              (
+                tooltip: 'רענן',
+                icon: FluentIcons.arrow_clockwise_24_regular,
+                onPressed: _loadBooks,
+              ),
+              (
+                tooltip: 'גיבוי הערות',
+                icon: FluentIcons.arrow_download_24_regular,
+                onPressed: _canExportNotes ? _exportNotes : null,
+              ),
+              (
+                tooltip: 'ייצוא לטקסט',
+                icon: OtzariaIcons.document_download_24_regular,
+                onPressed: _canExportNotes ? _exportNotesToText : null,
+              ),
+              (
+                tooltip: 'ייצוא לוורד',
+                icon: OtzariaIcons.document_word_24_regular,
+                onPressed: _canExportNotes ? _exportNotesToWord : null,
+              ),
+              (
+                tooltip: 'ייבוא הערות',
+                icon: FluentIcons.arrow_upload_24_regular,
+                onPressed: _importNotes,
+              ),
+            ];
         return AppTopBar(
           leadingItems: [
             AppTopBarItem(
@@ -493,46 +524,33 @@ class _PersonalNotesManagerScreenState
                 onPressed: _pickDateRange,
               ),
             ),
-            AppTopBarItem(
-              widget: BarButton.icon(
-                compact: isCompact,
-                tooltip: 'רענן',
-                icon: FluentIcons.arrow_clockwise_24_regular,
-                onPressed: _loadBooks,
-              ),
-            ),
-            AppTopBarItem(
-              widget: BarButton.icon(
-                compact: isCompact,
-                tooltip: 'גיבוי הערות',
-                icon: FluentIcons.arrow_download_24_regular,
-                onPressed: _canExportNotes ? _exportNotes : null,
-              ),
-            ),
-            AppTopBarItem(
-              widget: BarButton.icon(
-                compact: isCompact,
-                tooltip: 'ייצוא לטקסט',
-                icon: OtzariaIcons.document_download_24_regular,
-                onPressed: _canExportNotes ? _exportNotesToText : null,
-              ),
-            ),
-            AppTopBarItem(
-              widget: BarButton.icon(
-                compact: isCompact,
-                tooltip: 'ייצוא לוורד',
-                icon: OtzariaIcons.document_word_24_regular,
-                onPressed: _canExportNotes ? _exportNotesToWord : null,
-              ),
-            ),
-            AppTopBarItem(
-              widget: BarButton.icon(
-                compact: isCompact,
-                tooltip: 'ייבוא הערות',
-                icon: FluentIcons.arrow_upload_24_regular,
-                onPressed: _importNotes,
-              ),
-            ),
+            if (narrow)
+              AppTopBarItem(
+                widget: AppPopupMenuButton<VoidCallback>(
+                  iconData: FluentIcons.more_horizontal_24_regular,
+                  tooltip: context.settingsText('עוד פעולות'),
+                  entries: [
+                    for (final action in fileActions)
+                      AppMenuEntry(
+                        value: action.onPressed ?? () {},
+                        label: action.tooltip,
+                        icon: action.icon,
+                        enabled: action.onPressed != null,
+                      ),
+                  ],
+                  onSelected: (action) => action(),
+                ),
+              )
+            else
+              for (final action in fileActions)
+                AppTopBarItem(
+                  widget: BarButton.icon(
+                    compact: isCompact,
+                    tooltip: action.tooltip,
+                    icon: action.icon,
+                    onPressed: action.onPressed,
+                  ),
+                ),
           ],
         );
       },

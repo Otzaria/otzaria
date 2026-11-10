@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -203,9 +205,10 @@ partitionToolbarActionsForWidth({
   required double overflowButtonWidth,
   required bool overflowAlreadyRequired,
   int? maxVisibleButtons,
+  double minButtonWidth = 0,
 }) {
   double widthOf(ActionButtonData action) =>
-      action.toolbarWidth ?? standardButtonWidth;
+      math.max(action.toolbarWidth ?? standardButtonWidth, minButtonWidth);
 
   // Validation מפורש: כל action חייב actionId לפני כל לוגיקה. // validate
   for (final action in actions) {
@@ -400,7 +403,12 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
       builder: (context, constraints) {
         final isCompact = AppDensity.of(context).isCompact;
 
-        final standardButtonWidth = BarButton.toolbarWidth(isCompact);
+        // במגע כל כפתור תופס 48 לפחות (שאלה פתוחה 1), ולכן פחות נכנסים.
+        final touch = BarButton.isTouch(context);
+        final standardButtonWidth = BarButton.toolbarWidth(
+          isCompact,
+          touch: touch,
+        );
 
         final partition = partitionToolbarActionsForWidth(
           actions: widget.actions,
@@ -412,6 +420,7 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
           overflowAlreadyRequired:
               widget.alwaysInMenu!.isNotEmpty || _headerActions.isNotEmpty,
           maxVisibleButtons: widget.maxVisibleButtons,
+          minButtonWidth: touch ? standardButtonWidth : 0,
         );
 
         final visibleActions = partition.visible;

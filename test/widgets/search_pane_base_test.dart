@@ -125,7 +125,9 @@ void main() {
         );
         expect(handleRects, hasLength(2));
         // Only the normal prefix, clear action and field padding use width.
-        expect(field.width, greaterThanOrEqualTo(width - 110));
+        // flutter_test runs as Android (touch), where the clear X is 48
+        // instead of 42 (open question 1), hence 116 and not 110.
+        expect(field.width, greaterThanOrEqualTo(width - 116));
         for (final tooltip in [
           'מילים שלמות',
           'קטע נוכחי',

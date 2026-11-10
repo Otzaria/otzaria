@@ -600,7 +600,7 @@
 
 ## שאלות פתוחות לבעל הפרויקט
 
-1. **שטחי מגע מתחת ל־48×48** (`test/design_system/a11y_guidelines_test.dart`, רשומים כ־skip): ‏`BarButton.icon` ב־`AppTopBar` ‏(40×40), ‏`AppTogglePill` (גובה 24), ‏`StatusChip` (גובה 32), וכפתור הניקוי של `OtzariaSearchField` ‏(32×32). להגדיל במגע, או לאשר כחריג?
+1. **שטחי מגע מתחת ל־48×48** — **הוכרע (10.11.2026, בעל הפרויקט): B, ‏48 במגע בלבד.** ‏`BarButton.icon`, ‏`AppTogglePill`, ‏`StatusChip` וכפתור הניקוי של `OtzariaSearchField` תופסים 48 כשערכת הנושא במגע (`MaterialTapTargetSize.padded`), באותו מראה; במחשב אין שינוי. ה־skip ב־`test/design_system/a11y_guidelines_test.dart` הוסרו. החלופה שלא נבחרה: A, לאשר כחריג.
 2. ~~**UIL-027 (`isDark` להחלטת צבע)**~~: הוכרע 10.11.2026 (בעל הפרויקט): A, תנאי שענפיו צבעים. מומש, ראו DD-23.
 3. ~~**משכים 120/180/280 ms**~~: הוכרע 10.11.2026 (בעל הפרויקט): B, עיגול לטוקן הקרוב. מומש.
 4. ~~**8 `AnimationController` ב־baseline של UIL-023**~~: הוכרע 10.11.2026 (בעל הפרויקט): A, כולם דרך `AppMotion`, ובהפחתת תנועה מצב הסיום מיד. מומש.

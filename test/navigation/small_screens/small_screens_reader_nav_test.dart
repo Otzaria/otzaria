@@ -3,6 +3,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -10,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/controls/bar_button.dart';
 import 'package:otzaria/widgets/navigation/reader_nav_center.dart';
 import 'package:pdfrx/pdfrx.dart';
 
@@ -154,12 +156,15 @@ Future<bool> _arrowsInBar(WidgetTester tester, List<String> arrows) async {
       .length;
   expect(inBar, anyOf(0, arrows.length), reason: 'כל החיצים או אף אחד');
   final center = tester.getSize(find.byType(ReaderNavCenter)).width;
-  final isCompact = AppDensity.of(
-    tester.element(find.byType(ReaderNavCenter)),
-  ).isCompact;
+  final element = tester.element(find.byType(ReaderNavCenter));
+  final isCompact = AppDensity.of(element).isCompact;
   expect(
     inBar > 0,
-    ReaderNavCenter.navFits(center, isCompact: isCompact),
+    ReaderNavCenter.navFits(
+      center,
+      isCompact: isCompact,
+      touch: BarButton.isTouch(element),
+    ),
     reason: 'center=$center',
   );
 
@@ -190,8 +195,22 @@ void main() {
     );
   }
 
-  // חלון 675 עם פס הניווט: סרגל של 600. ארבעת החיצים נכנסים, וקודמים לכותרת.
-  for (final size in const [Size(675, 640), Size(844, 390), Size(1024, 600)]) {
+  // חלון 675 עם פס הניווט: סרגל של 600. במחשב ארבעת החיצים נכנסים וקודמים
+  // לכותרת; במגע כל כפתור 48 (שאלה פתוחה 1), והם עוברים ל"עוד".
+  testWidgets(
+    'קורא 675×640: במחשב החיצים בסרגל, במגע ב"עוד"',
+    (tester) async {
+      await _pumpReader(tester, const Size(675, 640));
+      final touch = defaultTargetPlatform == TargetPlatform.android;
+      expect(await _arrowsInBar(tester, _readerArrows), !touch);
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{
+      TargetPlatform.android,
+      TargetPlatform.windows,
+    }),
+  );
+
+  for (final size in const [Size(844, 390), Size(1024, 600)]) {
     testWidgets(
       'קורא ${size.width.toInt()}×${size.height.toInt()}: החיצים נכנסים — בסרגל',
       (tester) async {

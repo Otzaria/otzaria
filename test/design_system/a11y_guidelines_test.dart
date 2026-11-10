@@ -5,6 +5,7 @@
 // הכרעה של בעל הפרויקט. אחרי שינוי ברכיבים (ערכת הנושא, גדלים, צבעים) מריצים
 // את הקובץ מחדש, ומסירים skip שעבר.
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
@@ -25,21 +26,18 @@ import 'contracts/contract_harness.dart';
 void _noop() {}
 
 /// רכיב לבדיקה. [touch] — הרכיב משמש גם במגע (אנדרואיד), ולכן נבדק גם
-/// androidTapTargetGuideline (48×48). [knownTapTarget] — כשל ידוע: הסיבה
-/// והמספרים שנמדדו.
+/// androidTapTargetGuideline (48×48).
 class _Case {
   final String name;
   final Widget Function() build;
   final bool dialog;
   final bool touch;
-  final String? knownTapTarget;
 
   const _Case(
     this.name,
     this.build, {
     this.dialog = false,
     this.touch = true,
-    this.knownTapTarget,
   });
 }
 
@@ -93,7 +91,6 @@ final List<_Case> _cases = [
         center: const Text('כותרת'),
       ),
     ),
-    knownTapTarget: 'BarButton.icon בסרגל בצפיפות מגע: 40×40 (נדרש 48×48)',
   ),
   for (final selected in [false, true])
     _Case(
@@ -110,7 +107,6 @@ final List<_Case> _cases = [
       'AppTogglePill.${value ? 'on' : 'off'}',
       () =>
           AppTogglePill(label: 'מילים שלמות', value: value, onChanged: (_) {}),
-      knownTapTarget: 'גובה הגלולה 24 (188.8×24; נדרש 48×48)',
     ),
   _Case(
     'StatusChip',
@@ -120,7 +116,6 @@ final List<_Case> _cases = [
       onPressed: _noop,
       tooltip: 'עדכון',
     ),
-    knownTapTarget: 'גובה 32 (shrinkWrap; 191×32; נדרש 48×48)',
   ),
   _Case(
     'OtzariaSearchField',
@@ -132,7 +127,6 @@ final List<_Case> _cases = [
         onClear: _noop,
       ),
     ),
-    knownTapTarget: 'כפתור הניקוי "נקה" 32×32 (נדרש 48×48)',
   ),
   _Case(
     'AppDialog.twoActions',
@@ -200,10 +194,7 @@ void main() {
 
           if (c.touch) {
             testWidgets(
-              c.knownTapTarget != null
-                  ? 'androidTapTargetGuideline — ידוע: ${c.knownTapTarget}'
-                  : 'androidTapTargetGuideline',
-              skip: c.knownTapTarget != null,
+              'androidTapTargetGuideline',
               (tester) async {
                 final handle = tester.ensureSemantics();
                 await _pump(tester, c, brightness);
@@ -262,4 +253,57 @@ void main() {
       }
     });
   }
+
+  // שאלה פתוחה 1 (הוכרע B): 48 רק במגע. במחשב השטחים צמודים כמו קודם.
+  testWidgets('במחשב שטחי המגע נשארים צמודים', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    await pumpInApp(
+      tester,
+      Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            BarButton.icon(
+              tooltip: 'חזרה',
+              icon: FluentIcons.arrow_right_24_regular,
+              onPressed: _noop,
+            ),
+            AppTogglePill(label: 'מילים שלמות', value: true, onChanged: (_) {}),
+            const StatusChip(
+              icon: Icon(FluentIcons.arrow_download_24_regular),
+              label: 'עדכון זמין',
+              onPressed: _noop,
+              tooltip: 'עדכון',
+            ),
+            SizedBox(
+              width: 400,
+              child: OtzariaSearchField(
+                controller: TextEditingController(text: 'בראשית'),
+                hintText: 'חיפוש',
+                onClear: _noop,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    double height(Finder f) => tester.getSize(f).height;
+    expect(
+      height(
+        find.descendant(
+          of: find.byType(BarButton),
+          matching: find.byType(IconButton),
+        ),
+      ),
+      40,
+    );
+    expect(
+      height(find.byType(AppTogglePill)),
+      lessThan(kMinInteractiveDimension),
+    );
+    expect(height(find.byType(StatusChip)), lessThan(kMinInteractiveDimension));
+    expect(tester.getSize(find.byTooltip('נקה')), const Size.square(32));
+    debugDefaultTargetPlatformOverride = null;
+  });
 }
