@@ -3,7 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
+import 'package:otzaria/personal_notes/widgets/inline_note_editor.dart';
 import 'package:otzaria/personal_notes/widgets/note_tile.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 
 void main() {
@@ -227,5 +229,53 @@ void main() {
       await draftService.loadDraft(bookId: note.bookId, noteId: note.id),
       isNull,
     );
+  });
+
+  testWidgets('עורך פתוח: הרווח לכרטיס שמעליו כמו בין שני כרטיסים', (
+    tester,
+  ) async {
+    NoteTile tile(String id) => NoteTile(
+      key: ValueKey(id),
+      note: buildNote().copyWith(id: id),
+      defaultExpanded: false,
+      bookId: 'ספר מבחן',
+      linkableNotes: const [],
+      backgroundColor: Colors.grey,
+      onSave: (_) {},
+      onDelete: () {},
+      onLinkTap: (_) {},
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: Column(children: [tile('a'), tile('b')]),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('עריכה').last);
+    await tester.pumpAndSettle();
+
+    final card = tester.getRect(
+      find
+          .descendant(
+            of: find.byKey(const ValueKey('a')),
+            matching: find.byType(Material),
+          )
+          .first,
+    );
+    final editor = tester.getRect(
+      find
+          .descendant(
+            of: find.byType(InlineNoteEditorCard),
+            matching: find.byType(DecoratedBox),
+          )
+          .first,
+    );
+    expect(editor.top - card.bottom, AppTokens.spaceSM);
+    expect(editor.left, card.left);
+    expect(editor.right, card.right);
   });
 }
