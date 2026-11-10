@@ -21,6 +21,7 @@ import 'raw_scrollbar_rule.dart';
 import 'raw_show_dialog_rule.dart';
 import 'raw_text_field_rule.dart';
 import 'rtl_icon_rule.dart';
+import 'selection_context_menu_rule.dart';
 import 'shared_density_rule.dart';
 import 'shared_feature_import_rule.dart';
 import 'snack_bar_rule.dart';
@@ -62,4 +63,5 @@ const List<UiLintRule> uiLintRules = [
   RawShowDialogRule(),
   ElevationShadowRule(),
   RawScrollbarRule(),
+  SelectionContextMenuRule(),
 ];

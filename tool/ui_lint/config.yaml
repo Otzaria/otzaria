@@ -39,6 +39,9 @@ rules:
   UIL-022:
     strict: true
 
+  UIL-032:
+    strict: true
+
   UIL-001:
     exclude:
       - path: lib/widgets/dialogs/**
