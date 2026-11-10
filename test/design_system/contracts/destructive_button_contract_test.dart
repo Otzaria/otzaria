@@ -1,9 +1,11 @@
 import 'dart:io';
 
+import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 
+import '../../../tool/ui_lint/ast_helpers.dart';
 import 'contract_harness.dart';
 
 /// כפתור הרסני: אדום מלא בדיאלוג, אדום רך על מסך הגדרות (DESIGN_SYSTEM.md,
@@ -96,9 +98,30 @@ void main() {
   });
 
   test('הסורק: warning נתפס, warningSoft לא', () {
-    expect(_usesFullWarning('ActionButton.warning(text: x)'), isTrue);
-    expect(_usesFullWarning('const ActionButton.warning(text: x)'), isTrue);
-    expect(_usesFullWarning('ActionButton.warningSoft(text: x)'), isFalse);
+    expect(
+      _usesFullWarning('final b = ActionButton.warning(text: x);'),
+      isTrue,
+    );
+    expect(
+      _usesFullWarning('final b = const ActionButton.warning(text: x);'),
+      isTrue,
+    );
+    expect(
+      _usesFullWarning('final b = ActionButton.warningSoft(text: x);'),
+      isFalse,
+    );
+    expect(
+      _usesFullWarning('final b = ActionButton.warning (text: x);'),
+      isTrue,
+    );
+    expect(
+      _usesFullWarning('final b = ActionButton\n.warning(text: x);'),
+      isTrue,
+    );
+    expect(
+      _usesFullWarning('// final b = ActionButton.warning(text: x);'),
+      isFalse,
+    );
     // הכפתור המלא קיים בדיאלוגים של ההגדרות, ולכן הסורק מוצא בהם משהו.
     expect(
       _usesFullWarning(
@@ -111,5 +134,8 @@ void main() {
   });
 }
 
-bool _usesFullWarning(String source) =>
-    source.contains('ActionButton.warning(');
+/// `ActionButton.warning(...)` ב־AST: גם עם רווח או שבירת שורה, ולא בהערה.
+bool _usesFullWarning(String source) => ctorCallsNamed(
+  parseString(content: source, throwIfDiagnostics: false).unit,
+  {'ActionButton'},
+).any((call) => call.constructor == 'warning');

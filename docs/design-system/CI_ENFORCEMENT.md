@@ -243,7 +243,7 @@ const _hebcalBlue = Color(0xFF1565C0);
 ## 8. פערים ידועים (ביקורת 5.11.2026)
 מה שהאכיפה **לא** תופסת היום. כל פער כאן הוא החלטה מודעת או משימה פתוחה, לא באג נסתר.
 
-נסגרו ב־10.11 (כל אחד עם בדיקת מוטציה על קובץ ב־`lib`): `IconThemeData(size:)` ‏(UIL-029), `apply(fontSizeDelta:/fontSizeFactor:)` ‏(UIL-017), `SizedBox.square(dimension:)` ‏(UIL-020), `Alignment(x, y)` ו־`BorderRadius.only`/`horizontal` ‏(UIL-021), שינוי בקוד ה־golden בלי PNG (`goldens_guard`), תקרת allow (`max_allows`, §3.5), ו־`default_context_menu_scan_test` (UIL-032).
+נסגרו ב־10.11 (כל אחד עם בדיקת מוטציה על קובץ ב־`lib`): `IconThemeData(size:)` ‏(UIL-029), `apply(fontSizeDelta:/fontSizeFactor:)` ‏(UIL-017), `SizedBox.square(dimension:)` ‏(UIL-020), `Alignment(x, y)` ו־`BorderRadius.only`/`horizontal` ‏(UIL-021), שינוי בקוד ה־golden בלי PNG (`goldens_guard`), תקרת allow (`max_allows`, §3.5), ושלוש בדיקות סריקה מהנספח.
 
 | פער | השפעה | למה לא נסגר |
 |---|---|---|
@@ -254,7 +254,7 @@ const _hebcalBlue = Color(0xFF1565C0);
 | הערת allow | מוסיפים בלי תווית ובלי בעלים. העלאת `max_allows` (§3.5) נראית ב־diff, אבל `ui_baseline_guard` לא דורש עליה תווית | מכוון: הנימוק גלוי ב־diff ונסקר. תווית להעלאת התקרה היא הכרעה של בעל הפרויקט |
 | החלפת חוב באותו `scope` | תיקון חריגה אחת והוספת אחרת באותה מתודה, עם `--allow-growth`, לא נספר כגידול | ה־guard סופר לפי כלל, קובץ ו־`scope` בלי `fp`, כדי ששינוי ביטוי לא ייחשב גידול (§3.4). ה־diff של `baseline.json` עדיין נסקר |
 | golden: מה שמחוץ ל־`test/goldens/` | `goldens_guard` (מ־10.11 כל קובץ תחת `test/goldens/`) לא רואה את `test/support/golden_fonts.dart`, את ה־job ‏`goldens_windows` ואת ההחרגה ב־`tool/ci/test_shards.dart` | שינוי בגופנים משנה פיקסלים ואז נכשל או משנה PNG; שינוי ב־workflow נסקר כקוד |
-| בדיקות סריקה ישנות (נספח) | regex על שורות, בלי AST: למשל `ActionButton.warning (` עם רווח, או בתוך הערה (התרעת שווא) | עוברות למנוע אחת אחרי השנייה (§6). ב־10.11: `default_context_menu_scan_test` עבר ל־UIL-032 |
+| בדיקות סריקה ישנות (נספח) | regex על שורות, בלי AST, ב־`settings_dialog_scope_test` (חלון 8 שורות), ‏`plugin_icon_resolver_usage_test`, ‏`image_decode_size_test` ו־`pdf_hardcoded_colors_test` | עוברות למנוע אחת אחרי השנייה (§6). ב־10.11: `default_context_menu_scan_test` עבר ל־UIL-032, והסריקות של `Markdown` ושל `ActionButton.warning` עברו ל־AST |
 | הגנת ענף | אי אפשר לראות מתוך המאגר אם ה־jobs (`Test (shard n/5)`, ‏`ui_lint baseline growth`, ‏`Golden image changes`, ‏`Goldens (Windows)`) מוגדרים כ־required ב־GitHub | נבדק רק ב־YAML; ה־workflows לא הורצו עדיין על GitHub |
 
 ## נספח — בדיקות הסריקה הקיימות
@@ -265,10 +265,11 @@ const _hebcalBlue = Color(0xFF1565C0);
 | ~~`test/widgets/text/default_context_menu_scan_test.dart`~~ | `SelectionArea` עם `contextMenuBuilder`, אין `SelectableText` | **הועברה ל־UIL-032** (10.11). חלון 15 השורות פספס `contextMenuBuilder` של ווידג'ט מקונן ו־`SelectableText (` עם רווח, ותפס בטעות builder שרחוק יותר מ־15 שורות |
 | ~~`test/widgets/rtl_icon_registered_usage_test.dart`~~ | `RtlIcon` רק לאייקונים רשומים | **הועברה ל־UIL-006**, שתופס גם `Transform.flip`/`Transform.scale(scaleX: -n)` סביב אייקון. משתנים עדיין לא נבדקים |
 | `test/plugins/utils/plugin_icon_resolver_usage_test.dart` | resolver יחיד | כוללת בדיקה שהסורק אכן מוצא משהו |
-| `test/settings/no_scrollable_markdown_test.dart` | `MarkdownBody` | כוללת בדיקה שהסורק תופס `Markdown(` ולא `MarkdownBody(` |
+| `test/settings/no_scrollable_markdown_test.dart` | `MarkdownBody` | ב־AST דרך `ctorCallsNamed` (10.11): תופסת גם `Markdown (` ו־`md.Markdown(`, ולא הערה. כוללת בדיקה של הסורק עצמו |
 | `test/settings/l10n/settings_dialog_scope_test.dart` | `settingsDialogBuilder` | חלון של 8 שורות |
 | `test/core/windowing/quit_application_call_sites_test.dart` | exact set | נשארת |
 | `test/widgets/text_painter_direction_test.dart` | `TextPainter.textDirection` | דרך `ctorCallsNamed` (§3.2), ולכן מוצאת גם `TextPainter(...)` בלי `new` |
 | ~~`test/pdf_book/pdf_hardcoded_colors_test.dart`~~ | אין `Colors.<hue>` בשני קבצים | **הועברה ל־UIL-015** |
 | `test/utils/ui/image_decode_size_test.dart` | `cacheWidth` | נשארת |
+| `test/design_system/contracts/destructive_button_contract_test.dart` (הסריקה) | אין `ActionButton.warning` במסכי ההגדרות | ב־AST דרך `ctorCallsNamed` (10.11): תופסת גם `ActionButton.warning (` ושבירת שורה, ולא הערה |
 | `test/design_system/agent_docs_paths_test.dart` | כל נתיב ב־`AGENTS.md`, בתבנית ה־PR, ב־`agent_ui_reference.md`, ב־`agent_test_map.md` ובמסמכי התקן קיים | קטע מחוק `~~…~~` מתעד קובץ שהוסר ולא נבדק |
