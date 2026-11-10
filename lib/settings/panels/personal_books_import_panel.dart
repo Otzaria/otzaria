@@ -286,44 +286,49 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
             _isCopying ||
             state.isSyncing ||
             DatabaseLibraryProvider.operationQueue.isBusy;
-        return ExpandableSection(
-          icon: FluentIcons.book_add_24_regular,
-          title: context.settingsText('הספרים שלי'),
-          subtitle: _importedFiles.isEmpty
-              ? context.settingsText('ייבוא קובצי ספרים לספרייה')
-              : context.settingsText(
-                  '{count} ספרים מיובאים',
-                  args: {'count': _importedFiles.length},
-                ),
-          trailing: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              ActionButton.recommended(
-                text: context.settingsText('ייבוא ספרים'),
-                icon: FluentIcons.book_add_24_regular,
-                onPressed: _importBooks,
-                isLoading: isBusy,
-              ),
-              if (_isCopyingFolder)
-                ActionButton.warningSoft(
-                  text: context.settingsText('בטל ייבוא'),
-                  icon: FluentIcons.dismiss_24_regular,
-                  onPressed: _folderImport.cancelCopy,
-                )
-              else if (widget.showFolderImport ?? Platform.isAndroid)
-                ActionButton.neutral(
-                  text: context.settingsText('ייבוא תיקייה'),
-                  icon: FluentIcons.folder_add_24_regular,
-                  onPressed: _importFolder,
+        return ExpandableCard(
+          wrapInCard: false,
+          isExpanded: _isExpanded && _importedFiles.isNotEmpty,
+          header: ExpandableSettingsTile(
+            icon: FluentIcons.book_add_24_regular,
+            title: context.settingsText('הספרים שלי'),
+            subtitle: _importedFiles.isEmpty
+                ? context.settingsText('ייבוא קובצי ספרים לספרייה')
+                : context.settingsText(
+                    '{count} ספרים מיובאים',
+                    args: {'count': _importedFiles.length},
+                  ),
+            trailing: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ActionButton.recommended(
+                  text: context.settingsText('ייבוא ספרים'),
+                  icon: FluentIcons.book_add_24_regular,
+                  onPressed: _importBooks,
                   isLoading: isBusy,
                 ),
-            ],
+                if (_isCopyingFolder)
+                  ActionButton.warningSoft(
+                    text: context.settingsText('בטל ייבוא'),
+                    icon: FluentIcons.dismiss_24_regular,
+                    onPressed: _folderImport.cancelCopy,
+                  )
+                else if (widget.showFolderImport ?? Platform.isAndroid)
+                  ActionButton.neutral(
+                    text: context.settingsText('ייבוא תיקייה'),
+                    icon: FluentIcons.folder_add_24_regular,
+                    onPressed: _importFolder,
+                    isLoading: isBusy,
+                  ),
+              ],
+            ),
+            isExpanded: _isExpanded,
+            onTap: _importedFiles.isNotEmpty
+                ? () => setState(() => _isExpanded = !_isExpanded)
+                : null,
           ),
-          isExpanded: _isExpanded,
-          onTap: () => setState(() => _isExpanded = !_isExpanded),
-          hasContent: _importedFiles.isNotEmpty,
-          // ExpandableSection מתעלם מהילדים כשהוא סגור; בונים שורה לכל ספר
+          // ExpandableCard לא בונה את הילדים כשהוא סגור; בונים שורה לכל ספר
           // רק כשהרשימה פתוחה.
           children: [
             if (_isExpanded)

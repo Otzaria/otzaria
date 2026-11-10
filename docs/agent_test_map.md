@@ -155,7 +155,7 @@
 | `SettingsSwitchTile` | `test/settings/widgets/switch_settings_tile_test.dart` |
 | `SettingsPathTile` (כפתור "הגדר מיקום" כשהנתיב ריק, תפריט המיקום) | `test/settings/widgets/path_settings_tile_test.dart` |
 | `SettingsActionTile` (כפתורים ב־trailing במסך רחב, מתחת ל־subtitle במסך צר) | `test/settings/widgets/settings_action_tile_test.dart` |
-| `ExpandableSection` (לחיצה על הכותרת ועל החץ) | `test/settings/widgets/expandable_settings_tile_test.dart` |
+| `ExpandableCard` בהגדרות (לחיצה על הכותרת ועל החץ) | `test/settings/widgets/expandable_settings_tile_test.dart` |
 | `SettingsTabScrollView` (מתיחה בסוף העמוד) | `test/settings/widgets/settings_tab_scroll_view_test.dart` |
 
 **Design-system guards**

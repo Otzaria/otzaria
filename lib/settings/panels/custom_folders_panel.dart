@@ -378,24 +378,29 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
             'הוסף תיקיות עם ספרים או קבצים, בהוספת/הסרת קבצים יש לסרוק את התיקיה מחדש.',
           ),
           children: [
-            ExpandableSection(
-              icon: FluentIcons.folder_add_24_regular,
-              title: context.settingsText('הוסף תיקייה'),
-              subtitle: folders.isEmpty
-                  ? context.settingsText('לחץ להוספת תיקיות אישיות')
-                  : context.settingsText(
-                      '{count} תיקיות',
-                      args: {'count': folders.length},
-                    ),
-              trailing: ActionButton.recommended(
-                text: context.settingsText('הוסף תיקייה'),
+            ExpandableCard(
+              wrapInCard: false,
+              isExpanded: _isExpanded && folders.isNotEmpty,
+              header: ExpandableSettingsTile(
                 icon: FluentIcons.folder_add_24_regular,
-                onPressed: _addFolder,
-                isLoading: isSyncing,
+                title: context.settingsText('הוסף תיקייה'),
+                subtitle: folders.isEmpty
+                    ? context.settingsText('לחץ להוספת תיקיות אישיות')
+                    : context.settingsText(
+                        '{count} תיקיות',
+                        args: {'count': folders.length},
+                      ),
+                trailing: ActionButton.recommended(
+                  text: context.settingsText('הוסף תיקייה'),
+                  icon: FluentIcons.folder_add_24_regular,
+                  onPressed: _addFolder,
+                  isLoading: isSyncing,
+                ),
+                isExpanded: _isExpanded,
+                onTap: folders.isNotEmpty
+                    ? () => setState(() => _isExpanded = !_isExpanded)
+                    : null,
               ),
-              isExpanded: _isExpanded,
-              onTap: () => setState(() => _isExpanded = !_isExpanded),
-              hasContent: folders.isNotEmpty,
               children: [
                 ..._buildStorageLegendTiles(context, isSyncing),
                 ...folders.map(

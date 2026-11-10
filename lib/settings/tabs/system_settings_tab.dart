@@ -1323,45 +1323,49 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
         ),
 
         // ── גיבוי אוטומטי ──
-        ExpandableSection(
-          headerKey: _backupHeaderKey,
-          icon: FluentIcons.calendar_clock_24_regular,
-          title: context.settingsText('גיבוי אוטומטי'),
-          subtitle: _buildAutoBackupSubtitle(autoFrequency),
-          trailing: AppDropdownField<String>(
-            value: autoFrequency,
-            entries: [
-              AppMenuEntry(
-                value: 'none',
-                label: context.settingsText('ללא'),
-                subtitle: context.settingsText('גיבוי אוטומטי מושבת'),
-              ),
-              AppMenuEntry(
-                value: 'daily',
-                label: context.settingsText('יומי'),
-                subtitle: context.settingsText('יתבצע גיבוי בכל יום'),
-              ),
-              AppMenuEntry(
-                value: 'weekly',
-                label: context.settingsText('שבועי'),
-                subtitle: context.settingsText('יתבצע גיבוי כל שבוע'),
-              ),
-              AppMenuEntry(
-                value: 'monthly',
-                label: context.settingsText('חודשי'),
-                subtitle: context.settingsText('יתבצע גיבוי כל חודש'),
-              ),
-            ],
-            onSelected: (value) {
-              if (value == null) return;
-              context.read<SettingsBloc>().add(
-                UpdateAutoBackupFrequency(value),
-              );
-            },
-            isExpanded: false,
-          ),
-          onTap: () => setState(() => _isBackupExpanded = !_isBackupExpanded),
+        ExpandableCard(
+          wrapInCard: false,
           isExpanded: _isBackupExpanded,
+          header: ExpandableSettingsTile(
+            headerKey: _backupHeaderKey,
+            icon: FluentIcons.calendar_clock_24_regular,
+            title: context.settingsText('גיבוי אוטומטי'),
+            subtitle: _buildAutoBackupSubtitle(autoFrequency),
+            trailing: AppDropdownField<String>(
+              value: autoFrequency,
+              entries: [
+                AppMenuEntry(
+                  value: 'none',
+                  label: context.settingsText('ללא'),
+                  subtitle: context.settingsText('גיבוי אוטומטי מושבת'),
+                ),
+                AppMenuEntry(
+                  value: 'daily',
+                  label: context.settingsText('יומי'),
+                  subtitle: context.settingsText('יתבצע גיבוי בכל יום'),
+                ),
+                AppMenuEntry(
+                  value: 'weekly',
+                  label: context.settingsText('שבועי'),
+                  subtitle: context.settingsText('יתבצע גיבוי כל שבוע'),
+                ),
+                AppMenuEntry(
+                  value: 'monthly',
+                  label: context.settingsText('חודשי'),
+                  subtitle: context.settingsText('יתבצע גיבוי כל חודש'),
+                ),
+              ],
+              onSelected: (value) {
+                if (value == null) return;
+                context.read<SettingsBloc>().add(
+                  UpdateAutoBackupFrequency(value),
+                );
+              },
+              isExpanded: false,
+            ),
+            isExpanded: _isBackupExpanded,
+            onTap: () => setState(() => _isBackupExpanded = !_isBackupExpanded),
+          ),
           children: [
             // במובייל dart:io לא יכול לכתוב לתיקייה שנבחרת דרך SAF —
             // הגיבוי נשאר בתיקייה הפנימית והייצוא נעשה דרך "ייצא קובץ".
