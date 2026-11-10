@@ -114,7 +114,7 @@ class _ImportFileRow extends StatelessWidget {
     if (!context.mounted) return;
     final saved = await saveFileWithExtension(
       fileName: file.name,
-      extension: file.name.toLowerCase().endsWith('.json') ? '.json' : '.csv',
+      extension: file.name.toLowerCase().endsWith('.json') ? 'json' : 'csv',
       bytes: utf8.encode(content),
       dialogTitle: '$dialogTitle: ${file.name}',
       context: context,
