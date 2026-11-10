@@ -8,7 +8,12 @@ import 'package:otzaria/search/models/search_completion.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/tabs/bloc/tabs_event.dart';
+import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 import '../test_helpers/memory_cache_provider.dart';
@@ -31,6 +36,7 @@ SearchResult _result(int id) => SearchResult(
 /// שהטסט קובע מתי החיפוש מסתיים, ואם הוא נכשל.
 class _ScriptedRepository extends SearchRepository {
   final List<StreamController<SearchStreamUpdate>> streams = [];
+  final List<SearchEngineRequest> requests = [];
   int loadMoreCalls = 0;
 
   StreamController<SearchStreamUpdate> get last => streams.last;
@@ -40,6 +46,7 @@ class _ScriptedRepository extends SearchRepository {
     SearchEngineRequest request, {
     int chunkSize = 50,
   }) {
+    requests.add(request);
     final controller = StreamController<SearchStreamUpdate>();
     streams.add(controller);
     return controller.stream;
@@ -50,6 +57,13 @@ class _ScriptedRepository extends SearchRepository {
     loadMoreCalls++;
     return const [];
   }
+}
+
+class _TabsRepository extends TabsRepository {
+  @override
+  Future<void> saveTabs(List<OpenedTab> tabs, int index) async {}
+  @override
+  Future<void> flushPendingWrites() async {}
 }
 
 /// מסיים חיפוש: מונה סופי ותוצאות, ואז סוגר את הזרם.
@@ -252,16 +266,24 @@ Future<void> main() async {
     late _ScriptedRepository repository;
     late List<(String, Map<String, dynamic>)> sent;
     late PluginSearchCompletedPublisher publisher;
+    late List<SearchingTab> tabs;
 
     setUp(() {
       repository = _ScriptedRepository();
       sent = [];
+      tabs = [];
       publisher = PluginSearchCompletedPublisher(
+        viewId: 7,
+        windowId: 'window-source',
         sink: (topic, payload) async => sent.add((topic, payload)),
       );
+      addTearDown(publisher.dispose);
     });
 
-    SearchingTab buildTab({SearchConfiguration? configuration}) {
+    SearchingTab buildTab({
+      SearchConfiguration? configuration,
+      bool attach = true,
+    }) {
       final tab = SearchingTab(
         'חיפוש',
         null,
@@ -269,8 +291,9 @@ Future<void> main() async {
           initialConfiguration: configuration ?? config(),
           repository: repository,
         ),
-        completedPublisher: publisher,
       );
+      tabs.add(tab);
+      if (attach) publisher.updateTabs(tabs);
       // הבדיקה 'סגירת הטאב' סוגרת אותו בעצמה, ולכן ה-teardown סלחני.
       addTearDown(() {
         try {
@@ -290,6 +313,7 @@ Future<void> main() async {
       final (topic, payload) = sent.single;
       expect(topic, 'search.completed');
       expect(payload['tabId'], tab.pluginTabId);
+      expect(payload['windowId'], 'window-source');
       expect(payload['query'], 'מיל');
       expect(payload['mode'], 'advanced');
       expect(payload['total'], 12);
@@ -319,8 +343,11 @@ Future<void> main() async {
 
     test('כשל במסירה לתוסף אינו מפיל את החיפוש', () async {
       final failing = PluginSearchCompletedPublisher(
+        viewId: 7,
+        windowId: 'window-source',
         sink: (_, _) async => throw StateError('plugin down'),
       );
+      addTearDown(failing.dispose);
       final tab = SearchingTab(
         'חיפוש',
         null,
@@ -328,8 +355,8 @@ Future<void> main() async {
           initialConfiguration: config(),
           repository: repository,
         ),
-        completedPublisher: failing,
       );
+      failing.updateTabs([tab]);
       addTearDown(tab.dispose);
       tab.searchBloc.add(UpdateSearchQuery('מיל'));
       await pumpEventQueue();
@@ -337,6 +364,167 @@ Future<void> main() async {
 
       expect(tab.searchBloc.state.isLoading, isFalse);
       expect(tab.searchBloc.state.errorMessage, isNull);
+    });
+
+    test(
+      'הבקשה נלקחת מהריצה, גם אם האפשרויות והמצב נערכו לפני סיומה',
+      () async {
+        final tab = buildTab();
+        final alternatives = <int, List<String>>{
+          0: ['הליכה'],
+        };
+        final options = <String, Map<String, bool>>{
+          'מיל_0': {'קידומות דקדוקיות': true},
+        };
+        tab.searchBloc.add(
+          UpdateSearchQuery(
+            'מיל',
+            alternativeWords: alternatives,
+            searchOptions: options,
+          ),
+        );
+        await pumpEventQueue();
+        alternatives[0]!.clear();
+        options['מיל_0']!.clear();
+        tab.alternativeWords[0] = ['אחר'];
+        tab.searchBloc
+          ..add(UpdateDistanceWithoutSearch(7))
+          ..add(SetSearchModeWithoutSearch(SearchMode.fuzzy));
+        await pumpEventQueue();
+        await _finish(repository.last, total: 0);
+
+        final payload = sent.single.$2;
+        final request = payload['request'] as Map<String, dynamic>;
+        expect(payload['mode'], 'advanced');
+        expect(request['distance'], 0);
+        expect(request['alternativeWords'], {
+          '0': ['הליכה'],
+        });
+        expect(request['wordOptions'], {
+          'מיל_0': {'קידומות דקדוקיות': true},
+        });
+        expect(repository.requests.single.alternativeWords[0], ['הליכה']);
+      },
+    );
+
+    test('סיום לפני הוספת הטאב נמסר פעם אחת, גם אחרי החלפת בעלות', () async {
+      final tab = buildTab();
+      publisher.updateTabs([]);
+      tab.searchBloc.add(UpdateSearchQuery('מיל'));
+      await pumpEventQueue();
+      await _finish(repository.last, total: 0);
+      expect(sent, isEmpty);
+
+      publisher.updateTabs([tab]);
+      await pumpEventQueue();
+      expect(sent, hasLength(1));
+      publisher.updateTabs([]);
+      publisher.updateTabs([tab]);
+      final secondWindow = PluginSearchCompletedPublisher(
+        viewId: 8,
+        windowId: 'window-second',
+        sink: (topic, payload) async => sent.add((topic, payload)),
+      );
+      addTearDown(secondWindow.dispose);
+      publisher.updateTabs([]);
+      secondWindow.updateTabs([tab]);
+      await pumpEventQueue();
+      expect(sent, hasLength(1));
+
+      tab.searchBloc.add(UpdateSearchQuery('חדש'));
+      await pumpEventQueue();
+      await _finish(repository.last, total: 0);
+      expect(sent, hasLength(2));
+      expect(sent.last.$2['windowId'], 'window-second');
+    });
+
+    test('סגירה מפסיקה מסירה לפני dispose המושהה של הטאב', () async {
+      final tab = buildTab();
+      tab.searchBloc.add(UpdateSearchQuery('מיל'));
+      await pumpEventQueue();
+      publisher.updateTabs([]);
+      await _finish(repository.last, total: 0);
+      expect(sent, isEmpty);
+    });
+
+    test('publisher שנסגר אינו נרשם מחדש מאירוע טאב ממתין', () async {
+      final tab = buildTab();
+      publisher.dispose();
+      publisher.updateTabs([tab]);
+      tab.searchBloc.add(UpdateSearchQuery('מיל'));
+      await pumpEventQueue();
+      await _finish(repository.last, total: 0);
+      expect(sent, isEmpty);
+    });
+
+    testWidgets('מסירה אינה משאירה Timer לאחר פירוק החלון', (tester) async {
+      final tab = buildTab();
+      tab.searchBloc.add(UpdateSearchQuery('מיל'));
+      await tester.pump();
+      repository.last.add(
+        SearchStreamUpdate(totalCount: 0, results: [], truncated: false),
+      );
+      unawaited(repository.last.close());
+      await tester.pump();
+      expect(sent, hasLength(1));
+      publisher.dispose();
+    });
+
+    testWidgets('TabsBloc מנהל בעלות גם בחלוניות ובקליטת טאב שהסתיים', (
+      tester,
+    ) async {
+      final first = buildTab(attach: false);
+      final second = buildTab(attach: false);
+      final bloc = TabsBloc(
+        repository: _TabsRepository(),
+        searchCompletedPublisher: publisher,
+      );
+      addTearDown(bloc.close);
+
+      Future<void> finish(SearchingTab tab, String query) async {
+        tab.searchBloc.add(UpdateSearchQuery(query));
+        await tester.pump();
+        repository.last.add(
+          SearchStreamUpdate(totalCount: 0, results: [], truncated: false),
+        );
+        unawaited(repository.last.close());
+        await tester.pump();
+      }
+
+      await finish(first, 'לפני חיבור');
+      expect(sent, isEmpty);
+      expect(bloc.receiveTransferredTab(first), isTrue);
+      expect(bloc.receiveTransferredTab(second), isTrue);
+      await tester.pump();
+      expect(sent, hasLength(1));
+
+      bloc.add(CreateCombinedTab(rightTab: first, leftTab: second));
+      await tester.pump();
+      expect(bloc.state.tabs.single, isA<CombinedTab>());
+      expect(sent, hasLength(1));
+      await finish(second, 'בחלונית');
+      expect(sent, hasLength(2));
+
+      first.searchBloc.add(UpdateSearchQuery('בזמן סגירה'));
+      await tester.pump();
+      final closingSearch = repository.last;
+      bloc.add(ClosePane(first));
+      await tester.pump();
+      expect(bloc.state.tabs.single, same(second));
+      expect(first.searchBloc.isClosed, isFalse);
+      closingSearch.add(
+        SearchStreamUpdate(totalCount: 0, results: [], truncated: false),
+      );
+      unawaited(closingSearch.close());
+      await tester.pump();
+      expect(sent, hasLength(2));
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(first.searchBloc.isClosed, isTrue);
+
+      await finish(second, 'חיפוש שני');
+      expect(sent, hasLength(3));
+      expect(sent.last.$2['requestId'], 2);
+      expect(sent.last.$2['tabId'], second.pluginTabId);
     });
   });
 }

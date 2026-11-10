@@ -1877,6 +1877,8 @@ export interface OtzariaEventMap {
   'search.completed': {
     /** Identifies the search tab; valid while the tab lives in this session. */
     tabId: string;
+    /** Source window in this session, including delivery to the shared background. */
+    windowId: string;
     /** Increases with every search in that tab; `tabId` + `requestId` is unique. */
     requestId: number;
     query: string;

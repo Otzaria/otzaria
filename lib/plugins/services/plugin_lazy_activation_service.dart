@@ -70,7 +70,17 @@ class PluginLazyActivationService {
   final Map<String, Map<String, PluginWhenCondition>> _activationConditions =
       {};
 
-  final Map<String, List<({String topic, Map<String, dynamic> payload})>>
+  final Map<
+    String,
+    List<
+      ({
+        String topic,
+        Map<String, dynamic> payload,
+        bool requireSubscription,
+        bool Function()? isCurrent,
+      })
+    >
+  >
   _pending = {};
   final Map<String, int> _activating = {};
   final Map<String, int> _activationGenerations = {};
@@ -264,7 +274,12 @@ class PluginLazyActivationService {
     if (!isBootPending(pluginId)) return false;
     final list = _pending.putIfAbsent(pluginId, () => []);
     if (list.length >= _maxPendingPerPlugin) list.removeAt(0);
-    list.add((topic: topic, payload: payload));
+    list.add((
+      topic: topic,
+      payload: payload,
+      requireSubscription: false,
+      isCurrent: null,
+    ));
     return true;
   }
 
@@ -350,14 +365,22 @@ class PluginLazyActivationService {
   bool queueTargetedEvent(
     String pluginId,
     String topic,
-    Map<String, dynamic> payload,
-  ) {
+    Map<String, dynamic> payload, {
+    bool requireSubscription = false,
+    bool Function()? isCurrent,
+  }) {
+    if (!(isCurrent?.call() ?? true)) return false;
     if (!_activatable.contains(pluginId)) return false;
     if (!_activationAllowed(pluginId, topic)) return false;
     if (_failureBlocked.contains(pluginId)) return false;
     final list = _pending.putIfAbsent(pluginId, () => []);
     if (list.length >= _maxPendingPerPlugin) list.removeAt(0);
-    list.add((topic: topic, payload: payload));
+    list.add((
+      topic: topic,
+      payload: payload,
+      requireSubscription: requireSubscription,
+      isCurrent: isCurrent,
+    ));
     _activate(pluginId);
     return true;
   }
@@ -368,11 +391,19 @@ class PluginLazyActivationService {
     String topic,
     Map<String, dynamic> payload, {
     required bool Function(String pluginId) hasUsableInstance,
+    bool requireSubscription = false,
+    bool Function()? isCurrent,
   }) {
     for (final entry in _broadcastTopics.entries) {
       if (!entry.value.contains(topic)) continue;
       if (hasUsableInstance(entry.key)) continue;
-      queueTargetedEvent(entry.key, topic, payload);
+      queueTargetedEvent(
+        entry.key,
+        topic,
+        payload,
+        requireSubscription: requireSubscription,
+        isCurrent: isCurrent,
+      );
     }
   }
 
@@ -420,6 +451,7 @@ class PluginLazyActivationService {
     if (pending == null) return;
     for (final event in pending) {
       if (stale()) return;
+      if (!(event.isCurrent?.call() ?? true)) continue;
       final deliver = deliverOverride;
       if (deliver != null) {
         await deliver(pluginId, event.topic, event.payload);
@@ -429,7 +461,8 @@ class PluginLazyActivationService {
           event.topic,
           event.payload,
           instanceId: PluginInstanceIds.background,
-          isCurrent: () => !stale(),
+          requireSubscription: event.requireSubscription,
+          isCurrent: () => !stale() && (event.isCurrent?.call() ?? true),
         );
       }
     }

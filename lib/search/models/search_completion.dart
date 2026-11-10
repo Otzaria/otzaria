@@ -1,4 +1,5 @@
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/search_engine_gateway.dart';
 
 /// סיכום חיפוש טקסט מלא שהסתיים בהצלחה. נפלט פעם אחת לכל ריצה של
 /// `UpdateSearchQuery` שלא בוטלה, לא הוחלפה ולא נכשלה — ראו
@@ -10,6 +11,7 @@ class SearchCompletion {
     required this.negativeQuery,
     required this.facets,
     required this.configuration,
+    required this.request,
     required this.total,
     required this.countsGroups,
     required this.truncated,
@@ -27,6 +29,9 @@ class SearchCompletion {
 
   /// הגדרות החיפוש כפי שהיו בעת הריצה.
   final SearchConfiguration configuration;
+
+  /// צילום הבקשה שנשלחה למנוע; אינו קורא אפשרויות שנערכו בינתיים בטאב.
+  final SearchEngineRequest request;
 
   /// המונה שהמשתמש רואה בראש התוצאות: קבוצות כשהאיחוד פעיל, אחרת התאמות.
   final int total;

@@ -70,12 +70,18 @@ abstract interface class PluginInstanceHost {
 
 /// אירוע שהגיע בזמן השהיה וממתין ל-resume.
 class _QueuedEvent {
-  const _QueuedEvent(this.topic, this.json, {required this.targeted});
+  const _QueuedEvent(
+    this.topic,
+    this.json, {
+    required this.targeted,
+    this.isCurrent,
+  });
   final String topic;
   final String json;
 
   /// אירוע ממוקד אינו דורש הרשאת subscribe.
   final bool targeted;
+  final bool Function()? isCurrent;
 }
 
 /// מופע ריצה יחיד של תוסף — כל המצב שהיה מפוזר במפות per-plugin חי כאן.
@@ -1322,7 +1328,9 @@ class PluginRuntimeDispatcher {
     instance.clearQueue();
     final allowed = <_QueuedEvent>[];
     for (final event in events) {
-      if (event.targeted || await _canReceiveEvent(key.pluginId, event.topic)) {
+      if ((event.isCurrent?.call() ?? true) &&
+          (event.targeted ||
+              await _canReceiveEvent(key.pluginId, event.topic))) {
         allowed.add(event);
       }
     }
@@ -1330,6 +1338,8 @@ class PluginRuntimeDispatcher {
         !_ownsLifecycle(key, instance, controller, generation)) {
       return;
     }
+    allowed.removeWhere((event) => !(event.isCurrent?.call() ?? true));
+    if (allowed.isEmpty) return;
     final batch = allowed
         .map((e) => '[${jsonEncode(e.topic)},${e.json}]')
         .join(',');
@@ -1355,6 +1365,7 @@ class PluginRuntimeDispatcher {
     String topic,
     String json, {
     bool targeted = false,
+    bool Function()? isCurrent,
   }) {
     final key = queueKey ?? '#${_oneShotSequence++}';
     if (queueKey == null) {
@@ -1373,7 +1384,12 @@ class PluginRuntimeDispatcher {
     } else {
       instance.queued.remove(key);
     }
-    instance.queued[key] = _QueuedEvent(topic, json, targeted: targeted);
+    instance.queued[key] = _QueuedEvent(
+      topic,
+      json,
+      targeted: targeted,
+      isCurrent: isCurrent,
+    );
   }
 
   Future<void> _dispatchLifecycleEvent(
@@ -1782,9 +1798,19 @@ class PluginRuntimeDispatcher {
   }
 
   /// משדר אירוע לכל התוספים שנרשמו לו (הרשאת events.subscribe).
-  Future<void> dispatchEvent(String topic, Map<String, dynamic> payload) {
+  Future<void> dispatchEvent(
+    String topic,
+    Map<String, dynamic> payload, {
+    int? viewId,
+    bool Function()? isCurrent,
+  }) {
     if (topic == _selectionTopic) return _throttleSelection(payload);
-    return _dispatchBroadcast(topic, payload);
+    return _dispatchBroadcast(
+      topic,
+      payload,
+      viewId: viewId,
+      isCurrent: isCurrent,
+    );
   }
 
   /// אירוע מצב לתוסף אחד, עם בדיקת subscribe ותור למופעים מושהים.
@@ -1818,8 +1844,11 @@ class PluginRuntimeDispatcher {
     String topic,
     Map<String, dynamic> payload, {
     String? onlyPluginId,
+    int? viewId,
+    bool Function()? isCurrent,
   }) async {
     await PluginSafeMode.ready;
+    if (!(isCurrent?.call() ?? true)) return;
     if (PluginSafeMode.isActive) return;
     if (_shutdownMode != _PluginRuntimeShutdownMode.idle) return;
     // הנקודה היחידה שדרכה עוברות כל הודעות שינוי ההגדרות — תנאי `when`
@@ -1851,15 +1880,19 @@ class PluginRuntimeDispatcher {
           json,
           preferBackground: preferBackground,
           queueKey: queueKey,
+          viewId: viewId,
+          isCurrent: isCurrent,
         ),
     ]);
-    if (onlyPluginId != null) return;
+    if (onlyPluginId != null || !(isCurrent?.call() ?? true)) return;
 
     // הערה עצלה: תוסף עם contributes.startup שהצהיר על הנושא ואין לו מופע
     // שמסוגל לקבל אותו — מקבל מנוע רק עכשיו, כשהאירוע באמת קרה.
     PluginLazyActivationService.instance.onBroadcast(
       topic,
       payload,
+      requireSubscription: viewId != null,
+      isCurrent: isCurrent,
       hasUsableInstance: (pluginId) {
         final keys = _instancesByPlugin[pluginId];
         if (keys == null || keys.isEmpty) return false;
@@ -1873,7 +1906,8 @@ class PluginRuntimeDispatcher {
           if (inst != null &&
               !inst.isBackground &&
               inst.controller != null &&
-              !inst.eventsPaused) {
+              (viewId == null || (inst.viewId ?? mainViewId) == viewId) &&
+              (!inst.eventsPaused || viewId != null)) {
             return true;
           }
         }
@@ -1890,6 +1924,8 @@ class PluginRuntimeDispatcher {
     String? Function({required bool raw}) json, {
     required bool preferBackground,
     required String? queueKey,
+    int? viewId,
+    bool Function()? isCurrent,
   }) async {
     try {
       // בחירה לפני ה-await, סינון אחריו: כך מופע שנרשם בינתיים לא גונב את
@@ -1898,9 +1934,11 @@ class PluginRuntimeDispatcher {
         pluginId,
         preferBackground: preferBackground,
         isState: queueKey != null,
+        viewId: viewId,
       );
       if (selection.now.isEmpty && selection.queue.isEmpty) return;
       if (!await _canReceiveEvent(pluginId, topic)) return;
+      if (!(isCurrent?.call() ?? true)) return;
       final targets = <(InAppWebViewController, String)>[];
       for (final target in [...selection.now, ...selection.queue]) {
         if (!ownsController(
@@ -1911,12 +1949,17 @@ class PluginRuntimeDispatcher {
           continue;
         }
         final instance = _instances[_keyOf(pluginId, target.instanceId)]!;
+        if (viewId != null &&
+            !instance.isBackground &&
+            (instance.viewId ?? mainViewId) != viewId) {
+          continue;
+        }
         final encoded = json(
           raw: instance.rawDivineNamesTopics.contains(topic),
         );
         if (encoded == null) continue;
         if (instance.eventsPaused && !instance.isBackground) {
-          _enqueue(instance, queueKey, topic, encoded);
+          _enqueue(instance, queueKey, topic, encoded, isCurrent: isCurrent);
         } else {
           targets.add((target.controller, encoded));
         }
@@ -1973,11 +2016,14 @@ class PluginRuntimeDispatcher {
     int? viewId,
     AppWindowKeys? windowKeys,
     bool Function()? isCurrent,
+    bool requireSubscription = false,
   }) async {
     await PluginSafeMode.ready;
     if (isCurrent != null && !isCurrent()) return;
     if (PluginSafeMode.isActive) return;
     if (_shutdownMode != _PluginRuntimeShutdownMode.idle) return;
+    if (requireSubscription && !await _canReceiveEvent(pluginId, topic)) return;
+    if (!(isCurrent?.call() ?? true)) return;
     if (instanceId != null) {
       await _dispatchEventToInstance(
         pluginId,
@@ -2312,6 +2358,7 @@ class PluginRuntimeDispatcher {
     String pluginId, {
     required bool preferBackground,
     required bool isState,
+    int? viewId,
   }) {
     final keys = _instancesByPlugin[pluginId] ?? const <PluginInstanceKey>{};
     _EventTarget? background;
@@ -2321,6 +2368,12 @@ class PluginRuntimeDispatcher {
       final instance = _instances[key];
       final controller = instance?.controller;
       if (instance == null || controller == null) continue;
+      if (viewId != null &&
+          (instance.isBackground
+              ? PluginLazyActivationService.instance.isBootPending(pluginId)
+              : (instance.viewId ?? mainViewId) != viewId)) {
+        continue;
+      }
       if (instance.eventsPaused && !instance.isBackground) {
         suspended.add(_EventTarget(key.instanceId, controller));
         continue;
