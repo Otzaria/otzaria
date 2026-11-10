@@ -74,12 +74,6 @@ String getHebrewDateFormattedAsString(DateTime dateTime) {
   return _hebrewDateFormatter.format(hebrewCalendar);
 }
 
-/// מחזיר חותמת זמן עברית (תאריך + שעה)
-String getHebrewTimeStamp() {
-  final now = DateTime.now();
-  return '${getHebrewDateFormattedAsString(now)} ${now.hour}:${now.minute}:${now.second}';
-}
-
 /// מעצב מספר עמוד לאותיות עבריות ללא גרשיים
 String formatAmud(int amud) {
   return _plainNumberFormatter
