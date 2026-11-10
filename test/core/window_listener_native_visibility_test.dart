@@ -1,3 +1,7 @@
+// Intentional use of window_manager 0.6's legacy facade during the
+// staged nativeapi migration; remove after moving these callers to Window.
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/window_listener.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';

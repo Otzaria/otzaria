@@ -1,3 +1,7 @@
+// Intentional use of window_manager 0.6's legacy facade during the
+// staged nativeapi migration; remove after moving these callers to Window.
+// ignore_for_file: deprecated_member_use
+
 /// This is the main entry point for the Otzaria application.
 ///
 /// The application is a Flutter-based digital library system that supports
