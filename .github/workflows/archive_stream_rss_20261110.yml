@@ -1,0 +1,61 @@
+name: Archive paired lazy stream peak-RSS benchmark
+on:
+  push:
+    branches:
+      - qa/archive-fork-20261110
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: Otzaria/archive
+          ref: main
+          path: main
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: Otzaria/archive
+          ref: perf/chunked-stream-copy-without-eager-materialization
+          path: optimized
+          persist-credentials: false
+      - uses: dart-lang/setup-dart@v1
+      - name: Install dependencies and benchmark source
+        run: |
+          (cd main && dart pub get)
+          (cd optimized && dart pub get)
+          cat > main/rss_benchmark.dart <<'DART'
+          import 'dart:typed_data';
+          
+          import 'package:archive/archive.dart';
+          
+          void main() {
+            // A compact, highly compressible 64 MiB payload forces the old
+            // writeStream implementation to materialize the entire lazy output.
+            final encoded = GZipEncoder().encodeBytes(Uint8List(64 * 1024 * 1024),
+                level: 1);
+            final decoded = GZipDecoder().decodeLazy(InputMemoryStream(encoded));
+            final output = OutputMemoryStream();
+            final clock = Stopwatch()..start();
+            output.writeStream(decoded);
+            clock.stop();
+            if (output.length != 64 * 1024 * 1024 || output.getBytes().last != 0) {
+              throw StateError('Bad decompression');
+            }
+            print('RESULT size=${output.length} time_ms=${clock.elapsedMicroseconds / 1000}');
+          }
+          DART
+          cp main/rss_benchmark.dart optimized/rss_benchmark.dart
+      - name: Compare compressed input to lazy output peak memory
+        run: |
+          echo BASELINE_RSS
+          (cd main && /usr/bin/time -f 'PEAK_RSS_KIB %M ELAPSED_S %e' dart run rss_benchmark.dart)
+          echo OPTIMIZED_RSS
+          (cd optimized && /usr/bin/time -f 'PEAK_RSS_KIB %M ELAPSED_S %e' dart run rss_benchmark.dart)
+          echo OPTIMIZED_RSS_AGAIN
+          (cd optimized && /usr/bin/time -f 'PEAK_RSS_KIB %M ELAPSED_S %e' dart run rss_benchmark.dart)
+          echo BASELINE_RSS_AGAIN
+          (cd main && /usr/bin/time -f 'PEAK_RSS_KIB %M ELAPSED_S %e' dart run rss_benchmark.dart)
