@@ -61,9 +61,10 @@ void main() {
   testWidgets('סרגל הניווט התחתון בגובה 64, עם תווית לכל יעד', (
     tester,
   ) async {
+    // בצפיפות רגילה. במצומצם הסרגל 48 (#4787), ראו app_density_test.
     final theme = AppThemeData.light(
       AppThemeData.createColorScheme(Colors.deepPurple, Brightness.light),
-      compactMenuMode: true,
+      compactMenuMode: false,
     );
     expect(
       theme.navigationBarTheme.height,

@@ -37,6 +37,21 @@ class AppDensity extends ThemeExtension<AppDensity> {
   /// גובה שדה קלט.
   double get fieldHeight => AppInputTokens.height(isCompact);
 
+  /// שורת הכותרת של החלון, ושורת הכרטיסיות שמתחתיה בחלון צר.
+  double get captionHeight => isCompact
+      ? LayoutConstraints.windowCaptionHeightCompact
+      : LayoutConstraints.windowCaptionHeight;
+
+  /// גוף הכרטיסיה בשורת הכותרת.
+  double get tabBodyHeight => isCompact
+      ? LayoutConstraints.tabBodyHeightCompact
+      : LayoutConstraints.tabBodyHeight;
+
+  /// סרגל הניווט התחתון. במצומצם בלי תוויות ([BottomNavLabels]).
+  double get bottomNavigationBarHeight => isCompact
+      ? LayoutConstraints.bottomNavigationBarHeightCompact
+      : LayoutConstraints.bottomNavigationBarHeight;
+
   @override
   AppDensity copyWith({bool? isCompact}) =>
       AppDensity(isCompact: isCompact ?? this.isCompact);

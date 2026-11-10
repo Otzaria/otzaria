@@ -4,6 +4,7 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
@@ -163,7 +164,7 @@ class AppDialogFrame extends StatelessWidget {
 
   /// בדסקטופ "מסך מלא" מתחיל מתחת לשורת הכותרת של החלון, כדי שהיא תישאר
   /// גלויה; בטלפון הוא ממלא את המסך.
-  static EdgeInsets get _fullscreenInset =>
+  static EdgeInsets _fullscreenInset(BuildContext context) =>
       !kIsWeb &&
           switch (defaultTargetPlatform) {
             TargetPlatform.windows ||
@@ -171,7 +172,7 @@ class AppDialogFrame extends StatelessWidget {
             TargetPlatform.macOS => true,
             _ => false,
           }
-      ? const EdgeInsets.only(top: LayoutConstraints.windowCaptionHeight)
+      ? EdgeInsets.only(top: AppDensity.of(context).captionHeight)
       : EdgeInsets.zero;
 
   @override
@@ -237,7 +238,7 @@ class AppDialogFrame extends StatelessWidget {
         : MediaQuery.sizeOf(context).height * AppDialogSize.maxHeightFactor;
     final dialog = Dialog(
       insetPadding: fullscreen
-          ? _fullscreenInset
+          ? _fullscreenInset(context)
           : compact
           ? AppDialogSize.compactInset
           : AppDialogSize.inset,

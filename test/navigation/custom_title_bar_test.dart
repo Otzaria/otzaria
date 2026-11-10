@@ -3262,6 +3262,55 @@ void main() {
     });
   }
 
+  for (final compact in [false, true]) {
+    testWidgets('גובה השורה והכרטיסיה לפי הצפיפות (#4787): '
+        '${compact ? 'מצומצם' : 'רגיל'}', (tester) async {
+      final tab = _makeTextTab('ספר א');
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      addTearDown(() async {
+        tab.dispose();
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+      });
+
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+        theme: AppThemeData.light(
+          AppThemeData.createColorScheme(
+            AppSeedColors.defaultLight,
+            Brightness.light,
+          ),
+          compactMenuMode: compact,
+        ),
+      );
+
+      final density = compact ? AppDensity.compact : AppDensity.regular;
+      expect(
+        tester.getSize(find.byType(CustomTitleBar)).height,
+        density.captionHeight,
+      );
+      expect(density.captionHeight, compact ? 32 : 40);
+      final tabBody = find.ancestor(
+        of: find.byType(Tab),
+        matching: find.byWidgetPredicate(
+          (w) => w is SizedBox && w.height == density.tabBodyHeight,
+        ),
+      );
+      expect(tabBody, findsOneWidget);
+    });
+  }
+
   testWidgets('כפתורי החלון המותאמים מוצגים גם במק', (tester) async {
     final tab = _makeTextTab('ספר א');
     final tabsBloc = _TestTabsBloc(
