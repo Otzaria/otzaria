@@ -1,0 +1,83 @@
+name: Archive paired TAR Zstd benchmark
+on:
+  push:
+    branches:
+      - qa/archive-fork-20261110
+permissions:
+  contents: read
+jobs:
+  tar-zstd-paired:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: Otzaria/archive
+          ref: main
+          path: before
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: Otzaria/archive
+          ref: perf/tar-gzip-direct-streaming
+          path: after
+          persist-credentials: false
+      - uses: dart-lang/setup-dart@v1
+      - name: Set up paired zstd workloads
+        run: |
+          (cd before && dart pub get)
+          (cd after && dart pub get)
+          cat > before/zstd_bench.dart <<'DART'
+          import 'dart:io';
+          import 'dart:typed_data';
+          import 'package:archive/archive_io.dart';
+          
+          Future<void> main() async {
+            final root = Directory.systemTemp.createTempSync('archive-zstd-benchmark-');
+            try {
+              final source = Directory('${root.path}/source')..createSync();
+              const size = 12 * 1024 * 1024;
+              final bytes = Uint8List(size);
+              var seed = 0x12345678;
+              for (var i = 0; i < bytes.length; i++) {
+                seed = (seed * 1664525 + 1013904223) & 0xffffffff;
+                bytes[i] = seed >> 16 & 0xff;
+              }
+              File('${source.path}/large.bin').writeAsBytesSync(bytes);
+              for (var i = 0; i < 100; i++) {
+                File('${source.path}/${i.toString().padLeft(4,'0')}.txt')
+                    .writeAsBytesSync(Uint8List.fromList([i & 0xff, 66, 67]));
+              }
+              final output = '${root.path}/out.tar.zst';
+              final timings = <double>[];
+              for (var n = 0; n < 4; n++) {
+                final watch = Stopwatch()..start();
+                await TarFileEncoder().tarDirectory(source,
+                  compression:TarFileEncoder.zstd,filename:output,level:1);
+                watch.stop();
+                final result = File(output).readAsBytesSync();
+                if (result.length < 10 || result[0] != 0x28 ||
+                    result[1] != 0xb5 || result[2] != 0x2f || result[3] != 0xfd) {
+                  throw StateError('Invalid zstd frame');
+                }
+                timings.add(watch.elapsedMicroseconds / 1000);
+              }
+              timings.sort();
+              print('RESULT tar_zstd_12mb_p50_ms ${(timings[1] + timings[2]) / 2}');
+              print('RESULT tar_zstd_12mb_min_ms ${timings.first}');
+            } finally {
+              root.deleteSync(recursive:true);
+            }
+          }
+          DART
+          cp before/zstd_bench.dart after/zstd_bench.dart
+      - name: Run same-machine comparison
+        run: |
+          echo BEFORE_ZSTD_1
+          (cd before && dart run zstd_bench.dart)
+          echo AFTER_ZSTD_1
+          (cd after && dart run zstd_bench.dart)
+          echo AFTER_ZSTD_2
+          (cd after && dart run zstd_bench.dart)
+          echo BEFORE_ZSTD_2
+          (cd before && dart run zstd_bench.dart)
