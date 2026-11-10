@@ -292,7 +292,6 @@ class UiSnack {
   // ── קבועי טקסט — הערכים מרוכזים ב-CommonMessages ────────────────────────────
   static const String textCopied = CommonMessages.textCopied;
   static const String sectionNotFound = CommonMessages.sectionNotFound;
-  static const String savedSuccessfully = CommonMessages.savedSuccessfully;
 }
 
 /// ההודעה המוצגת בחלון אחד — הודעה בחלון אחד אינה מסירה הודעה בחלון אחר.

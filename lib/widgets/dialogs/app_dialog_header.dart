@@ -228,37 +228,3 @@ class AppDialogIconBadge extends StatelessWidget {
     );
   }
 }
-
-/// כותרת של דיאלוג פשוט (AlertDialog): אותו סגנון כמו [AppDialogHeader],
-/// עם תג אייקון כשיש משמעות לאייקון — למשל אזהרה.
-class AppDialogTitle extends StatelessWidget {
-  const AppDialogTitle(
-    this.title, {
-    super.key,
-    this.icon,
-    this.tone = AppDialogHeaderTone.primary,
-    this.textDirection,
-  });
-
-  final String title;
-  final IconData? icon;
-  final AppDialogHeaderTone tone;
-  final TextDirection? textDirection;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = Text(
-      title,
-      textDirection: textDirection,
-      style: Theme.of(context).textTheme.titleLarge,
-    );
-    if (icon == null) return text;
-    return Row(
-      children: [
-        AppDialogIconBadge(icon: icon!, tone: tone),
-        const SizedBox(width: AppTokens.spaceMD),
-        Expanded(child: text),
-      ],
-    );
-  }
-}
