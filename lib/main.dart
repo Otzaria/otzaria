@@ -11,6 +11,7 @@ library;
 
 import 'dart:async';
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show FrameCallback;
@@ -90,6 +91,7 @@ import 'package:otzaria/core/windowing/multiview/linux_webview_host.dart';
 import 'package:otzaria/core/windowing/multiview/multiview_flag.dart';
 import 'package:otzaria/core/windowing/app_quit.dart';
 import 'package:otzaria/core/windowing/dialog_owner.dart';
+import 'package:otzaria/core/windowing/main_window_binding.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_opener.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_scope.dart';
 import 'package:otzaria/core/windowing/dock_progress_listener.dart';
@@ -513,8 +515,7 @@ Future<void> _initializeSentry() async {
         // Use environment variable for DSN, with fallback to default
         options.dsn = const String.fromEnvironment(
           'SENTRY_DSN',
-          defaultValue:
-              'https://79d3003f822fa62bce0c928656308121@o4510914530902016.ingest.us.sentry.io/4510914532868096',
+          defaultValue: 'https://79d3003f822fa62bce0c928656308121@o4510914530902016.ingest.us.sentry.io/4510914532868096',
         );
         options.release =
             '${info.appName}@${canonicalAppVersion(info)}+${info.buildNumber}';
@@ -588,13 +589,9 @@ Future<void> _runAppBootstrap() async {
       windowManager.ensureInitialized,
     );
     if (Platform.isWindows) {
-      // בעלי דיאלוגי הקבצים מהחלון הראשי; בלי לעכב את העלייה.
-      unawaited(
-        const RunnerWindowChannel().mainWindowHandle().then<void>(
-          (hwnd) => DialogOwner.mainWindowHwnd = hwnd,
-          onError: (Object e) => debugPrint('main window hwnd failed: $e'),
-        ),
-      );
+      // ה-HWND האמיתי של הראשי: window_manager נצמד אליו לפני המאזין ו-
+      // setPreventClose (ראו bindMainWindowHandle), ודיאלוגי הקבצים בבעלותו.
+      DialogOwner.mainWindowHwnd = await bindMainWindowHandle();
     }
     WindowPersistence.splashMode = true;
     // WindowPersistence היא static ואין לה BuildContext — היא מקבלת את
