@@ -64,7 +64,7 @@ List<Map<String, dynamic>> _filterTocHierarchically(
     return result;
   }
 
-  // מחזיר את הטוקן + טרנספוזיציה (כמו _hebrewTokenAlternatives ב-seforim_repository)
+  // מחזיר את הטוקן + טרנספוזיציה (כמו hebrewTokenAlternatives ב-text_manipulation)
   List<String> alts(String token) {
     if (token.length == 2) {
       final c0 = token.codeUnitAt(0);
@@ -2138,7 +2138,7 @@ void main() {
     group('FindRef — חיפוש בכותרות-משנה (AltToc)', () {
       // AltToc references נשמרים ב-DB יחסיים לספר (ללא שם הספר).
       // ה-repository מצרף את שם הספר ב-prefix כך שהתוצאה הסופית כוללת אותו —
-      // ראה _qualifyAltTocReference.
+      // ראה qualifyAltTocReference.
       //   רמה 1: "פרשת לך לך"           (segment=100)
       //   רמה 2: "פרשת לך לך עליה א"   (segment=110)
       //          "פרשת לך לך עליה ו"   (segment=160)

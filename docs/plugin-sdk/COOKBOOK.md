@@ -562,7 +562,7 @@ body { overflow: hidden; }          /* הגלילה בתוכן, לא בעמוד 
 | פריט | ערך | מקור באוצריא |
 |------|-----|--------------|
 | רקע הפס | `surfaceContainerHigh` | `AppSurfaces.topBarBackground` |
-| גובה הפס | 56px · 44px במסך צר | `AppTopBar` (`_kTouchHeight` / `_kCompactHeight`) |
+| גובה הפס | 56px · 44px במסך צר | `AppTopBar.barHeight` (`AppDensity.topBarHeight`) |
 | כותרת | 16px, `w600`, `onSurface` | `AppTopBar.titleStyle` |
 | כותרת משנה / מחבר | 12px, `w400`, `onSurfaceVariant` | `AppTopBar.subtitleStyle` |
 | pill ניווט פעיל | `secondaryContainer` / `onSecondaryContainer` | סרגל הניווט הצדי |

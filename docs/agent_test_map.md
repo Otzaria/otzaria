@@ -198,7 +198,7 @@
 | Smart text ↔ plugin section sync gate | `test/widgets/smart_text/smart_text_section_sync_gate_test.dart` |
 | קיבוע מדויק של גובה השורה (סימוני הערות, `<big>`) בשלושת מסלולי הרינדור | `test/widgets/smart_text/exact_line_height_test.dart` |
 | אותיות העוגן של המפרשים — חוזה התצוגה מקצה לקצה, בדיקה לכל רגרסיה (issue #2075) | `test/widgets/smart_text/anchor_marker_display_contract_test.dart` |
-| Work/indexing status overlays | `test/widgets/work_status_overlay_test.dart`, `…indexing_status_overlay_test.dart` |
+| Work/indexing status overlays | `test/widgets/work_status_overlay_test.dart`, `test/indexing/indexing_work_status_test.dart` |
 | App dropdown/search menu | `test/widgets/app_dropdown_field_test.dart`, `…app_search_menu_test.dart` |
 | Search pane base | `test/widgets/search_pane_base_test.dart` |
 | כל `TextPainter` ב-`lib` מקבל `textDirection` (issue #1474) | `test/widgets/text_painter_direction_test.dart` |
@@ -246,7 +246,7 @@
 | גרסה אישית של ספר רשמי/ממסד מצורף (קישור לפי כותרת, ראשי שלא נמצא, בורר הנוסחאות, מהדורה מקבילה, קריאה; שדרוג הטבלה) | `test/user_content_import/user_book_versions_catalog_test.dart`, `test/migration/user_books_schema_extensions_test.dart`, `test/user_content_import/user_import_parser_test.dart` |
 | DB migration / generator | `test/migration/generator_create_and_process_book_test.dart`, `test/migration/dao/daos/database_locked_test.dart` |
 | Indexing repository | `test/indexing/repository/indexing_repository_test.dart` |
-| External catalog | `test/external_catalog/external_catalog_repository_test.dart`, `…settings_helper_test.dart` |
+| External catalog | `test/external_catalog/external_catalog_repository_test.dart` |
 | Plugins | `test/plugins/utils/reader_location_resolver_test.dart`, `…plugin_store_link_parser_test.dart`, `…plugin_bridge_adapter_test.dart` |
 | Plugin links API (`getLinks`, `getRawLinks`, `getCommentators`, `getLinkContent`) | `test/plugins/bridge/plugin_bridge_links_api_test.dart` |
 | דגל שינויים שלא נשמרו בתוסף (`ui.setUnsavedChanges`, רגיסטרי, שומר סגירת כרטיסיה) | `test/plugins/bridge/plugin_bridge_set_unsaved_changes_test.dart`, `test/plugins/services/plugin_unsaved_changes_registry_test.dart`, `test/tabs/utils/confirm_close_tabs_test.dart` |

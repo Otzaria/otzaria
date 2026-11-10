@@ -80,7 +80,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // מאתר את ה-FocusNode הפנימי של _SegmentedTile לפי debugLabel
+      // מאתר את ה-FocusNode הפנימי של SettingsSegmentedTile לפי debugLabel
       final focusNode = tester
           .widgetList<Focus>(find.byType(Focus))
           .firstWhere((w) => w.focusNode?.debugLabel == 'segmented_tile')
