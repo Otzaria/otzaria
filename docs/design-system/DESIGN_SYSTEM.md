@@ -410,7 +410,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 
 ### 3.1 דיאלוגים
 
-**המסגרות:** `AppDialog` (שאלות קצרות, מאחורי `showTwoActionsDialog`/`showWarningDialog`/`showSingleActionDialog`), `AppDialogFrame(size:)` לכל השאר, ו־`InputDialog`/`SelectionDialog` מאחורי `showInputDialog`/`showSelectionDialog`. `AppCustomContentDialog` ו־`ListDialogFrame` הוסרו לטובת `AppDialogFrame`. נשארו 3 דיאלוגים גולמיים, ב־baseline של UIL-001, ו־54 קריאות `showDialog` ישירות (UIL-028, דוח בלבד).
+**המסגרות:** `AppDialog` (שאלות קצרות, מאחורי `showTwoActionsDialog`/`showWarningDialog`/`showSingleActionDialog`), `AppDialogFrame(size:)` לכל השאר, ו־`InputDialog`/`SelectionDialog` מאחורי `showInputDialog`/`showSelectionDialog`. `AppCustomContentDialog` ו־`ListDialogFrame` הוסרו לטובת `AppDialogFrame`. נשארו 3 דיאלוגים גולמיים, ב־baseline של UIL-001, ו־51 קריאות `showDialog` ישירות (UIL-028, 10.11).
 
 #### משפחות הדיאלוג [מחייב] (DD-07 B, DD-16 A) · קיים
 
@@ -465,7 +465,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 | אייקון אחרי הטקסט ("הבא", "הצג עוד") | `iconAlignment: IconAlignment.end` בכל וריאנט חוץ מ־`inline` (q10 Q7.4, Q7.6) | ברירת המחדל `start` |
 | מסוכן (אישור מחיקה) | `ActionButton.warning`: כפתור מלא, רקע `error` וטקסט `onError` (DD-09, השלמה 3.11) | רק בתוך דיאלוג אזהרה או אחרי אישור. כפתור "מחק" ראשוני ברשימה הוא `neutral` או אייקון. גם ״דרוס״ בייבוא ההערות, ליד שלושה כפתורי `neutral` (השלמה 3.11) |
 | מסוכן על מסך הגדרות (לא בדיאלוג): "נקה הכל", "הסר", "מחק" | `ActionButton.warningSoft`: רקע `errorContainer` וטקסט `onErrorContainer` (DD-09, הערה 4.11) | **[מחייב]** אדום מלא רק בדיאלוג. על מסך או חלונית הגדרות הכפתור ההרסני רך, וכפתור האישור בדיאלוג שהוא פותח הוא `ActionButton.warning`. נאכף ב־`destructive_button_contract_test` (‏`lib/settings/tabs`, ‏`lib/settings/panels`) |
-| אייקון בלבד, כללי | `AppIconButton(size: small\|medium\|large)`: עטיפה דקה על `IconButton` שמחייבת `tooltip`. אייקון 16/20/24 מ־`AppTokens.icon*`, ריבוע האייקון ועוד 16 (ועוד 12 בצפיפות קומפקטית), עגול (DD-04). `isSelected` צובע ב־`primary`. ‏`small`: אייקון 16 בריבוע 32 (השלמה 3.11) | חלקי: השכבה המשותפת, שורת הכותרת ועמודת הכרטיסיות הוסבו. בפיצ'רים נשארו כ־90 `IconButton` גולמיים |
+| אייקון בלבד, כללי | `AppIconButton(size: small\|medium\|large)`: עטיפה דקה על `IconButton` שמחייבת `tooltip`. אייקון 16/20/24 מ־`AppTokens.icon*`, ריבוע האייקון ועוד 16 (ועוד 12 בצפיפות קומפקטית), עגול (DD-04). `isSelected` צובע ב־`primary`. ‏`small`: אייקון 16 בריבוע 32 (השלמה 3.11) | חלקי: השכבה המשותפת, שורת הכותרת ועמודת הכרטיסיות הוסבו. בפיצ'רים (מחוץ ל־`lib/widgets`) נשארו 83 `IconButton` גולמיים (10.11) |
 | אייקון בתוך שדה / בסרגל צר | `SquareIconButton.field` / `.toolbar` | קיים |
 | פעולת סרגל | `BarButton.icon` / `.text` | צורה 8, בלי גלולה (DD-04) |
 | פעולה מפוצלת | `BarSplitButton` | צורה: גלולה, חריג מאושר ל־״8 בלבד״ (DD-04, השלמה 2.11) |
@@ -918,7 +918,7 @@ final band = Color(markerArgb);
 | גבהים | `AppInputTokens` + `AppDensity` | קיים | — |
 | גדלי אייקון | `AppTokens.icon*` (DD-03) | חלקי | גדלים מספריים (UIL-029) |
 | אנימציות | `AppTokens.anim*` + `AppMotion` (DD-21) | חלקי | 8 `AnimationController` עם משך ליטרלי (UIL-023), משכים בלי טוקן, עקומות ביעד |
-| הגדרות דיאלוג | `lib/widgets/dialogs/` (`AppDialog`, `AppDialogFrame(size: AppDialogSize)`) | חלקי | 3 דיאלוגים גולמיים (UIL-001) ו־54 `showDialog` ישירים (UIL-028) |
+| הגדרות דיאלוג | `lib/widgets/dialogs/` (`AppDialog`, `AppDialogFrame(size: AppDialogSize)`) | חלקי | 3 דיאלוגים גולמיים (UIL-001) ו־51 `showDialog` ישירים (UIL-028, 10.11) |
 | פריסות מסך | `lib/widgets/layout/`, `navigation/`, `ToolScaffold` | חלקי | מעטפות מקומיות |
 | רכיבי ניווט | `NavSidePanel`, `NavRailItem`, `NavTreeTile`; רוחב חלונית `LayoutConstraints.sidePaneWidth` (DD-28) | קיים | — |
 | רספונסיביות | `LayoutBreakpoints` + `WindowClass` (DD-15) | קיים | — |
