@@ -265,9 +265,12 @@ class _RenderSelectionFillParagraph extends RenderParagraph {
   }
 
   /// הבחירה מבקשת מיקום מחוץ לפסקה בפינה הוויזואלית (`adjustDragOffset`), ובשורה
-  /// שמתחילה או מסתיימת ברצף בכיוון ההפוך הפינה אינה תחילת הטקסט או סופו.
+  /// שמתחילה או מסתיימת ברצף בכיוון ההפוך הפינה אינה תחילת הטקסט או סופו (flutter#196327).
   @override
   TextPosition getPositionForOffset(Offset offset) {
+    if (textDirection != TextDirection.rtl) {
+      return super.getPositionForOffset(offset);
+    }
     if (offset.dy <= 0) return const TextPosition(offset: 0);
     if (offset.dy >= size.height) {
       return TextPosition(
@@ -283,7 +286,7 @@ class _RenderSelectionFillParagraph extends RenderParagraph {
       _unshiftBoxes(super.getBoxesForSelection(selection));
 
   /// skparagraph מודד שורת RTL שמסתיימת ב-`\n` כאילו ל-`\n` רוחב בקצה השמאלי,
-  /// ולכן התיבות והמיקומים בה זזים ימינה ממה שצויר. נמדד פעם אחת לכל פריסה.
+  /// ולכן התיבות והמיקומים בה זזים ימינה ממה שצויר (flutter#196326).
   List<_LineShift>? _hardBreakShifts;
 
   List<_LineShift> get _shifts =>
