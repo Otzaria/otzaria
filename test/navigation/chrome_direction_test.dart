@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
-import 'package:otzaria/widgets/dialogs/dialog_dismiss_guard.dart';
 import 'package:otzaria/widgets/dialogs/input_dialog.dart';
 import 'package:otzaria/widgets/dialogs/selection_dialog.dart';
 import 'package:otzaria/widgets/layout/floating_panel.dart';

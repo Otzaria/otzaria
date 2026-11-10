@@ -1523,6 +1523,7 @@ class _TabbedReportDialogState extends State<TabbedReportDialog> {
       padding: EdgeInsets.zero,
       closeEnabled: !_leaving,
       isDirty: widget.draft == null ? _regularTabDirty : null,
+      confirmDiscard: confirmDiscardChanges,
       onDismissRequest: widget.draft == null ? null : _leave,
       child: AbsorbPointer(
         absorbing: _leaving,

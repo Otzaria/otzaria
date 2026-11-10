@@ -95,7 +95,7 @@ class AppSurfaces {
       AppThemeData.raisedShape(regionBorder(context));
 
   /// ההחשכה מאחורי דיאלוג וחלונית צפה (DD-12): אחת, עדינה.
-  static Color scrim(ColorScheme cs) => cs.scrim.withAlpha(0x22);
+  static Color scrim(ColorScheme cs) => AppThemeData.scrim(cs);
 
   /// ההחשכה של סיור ההיכרות. כהה מ-[scrim], כי היא שמבליטה את האזור המואר.
   static Color spotlightScrim(ColorScheme cs) =>
