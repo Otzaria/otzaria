@@ -1,3 +1,4 @@
+import 'package:otzaria/work_status/work_status_cubit.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -312,6 +313,7 @@ Future<_Env> _pumpStrip(
       geometry: const WindowManagerAppWindowController(),
       child: MultiBlocProvider(
         providers: [
+          BlocProvider<WorkStatusCubit>(create: (_) => WorkStatusCubit()),
           BlocProvider<TabsBloc>.value(value: tabsBloc),
           BlocProvider<WorkspaceBloc>.value(value: workspaceBloc),
           BlocProvider<SettingsBloc>.value(value: settingsBloc),

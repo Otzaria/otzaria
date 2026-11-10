@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:otzaria/work_status/work_status_cubit.dart';
 import 'package:otzaria/navigation/view/tab_visuals.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -3476,6 +3477,7 @@ Future<void> _pumpTitleBar(
       role: role,
       child: MultiBlocProvider(
         providers: [
+          BlocProvider<WorkStatusCubit>(create: (_) => WorkStatusCubit()),
           BlocProvider<TabsBloc>.value(value: tabsBloc),
           BlocProvider<NavigationBloc>.value(value: navigationBloc),
           BlocProvider<SettingsBloc>.value(value: settingsBloc),

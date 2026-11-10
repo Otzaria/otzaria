@@ -10,6 +10,9 @@ class LoadingIndicator extends StatelessWidget {
   final double? size;
   final Color? color;
 
+  /// התקדמות מדודה (0..1); `null` = ספינר מסתובב.
+  final double? value;
+
   /// הודעה מתחת לספינר, למשל "טוען מפרשים...".
   final String? message;
 
@@ -23,10 +26,12 @@ class LoadingIndicator extends StatelessWidget {
     this.color,
     this.message,
     this.icon,
+    this.value,
   });
 
-  /// ספינר קטן בתוך שורה: 16 על 16, עובי 2, לא ממורכז.
-  const LoadingIndicator.inline({super.key, this.color})
+  /// ספינר קטן בתוך שורה: 16 על 16, עובי 2, לא ממורכז. עם [value] הוא טבעת
+  /// התקדמות.
+  const LoadingIndicator.inline({super.key, this.color, this.value})
     : size = inlineSize,
       strokeWidth = inlineStrokeWidth,
       message = null,
@@ -38,6 +43,7 @@ class LoadingIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final indicator = CircularProgressIndicator(
+      value: value,
       strokeWidth: strokeWidth ?? 4.0,
       valueColor: color != null ? AlwaysStoppedAnimation<Color>(color!) : null,
     );
