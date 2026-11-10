@@ -615,10 +615,15 @@ class _LibrarySetupDialogContentState
             scrollable: true,
             icon: FluentIcons.checkmark_circle_24_regular,
             title: context.settingsText('הספרייה הותקנה'),
+            // ההתקנה כבר הצליחה: גם X ו-Escape מחזירים true.
+            onClose: close,
+            dismissResult: true,
             onConfirm: close,
             handleEnterKey: true,
             actions: [
+              // הפוקוס נשאר בדיאלוג כשהגוף שלו מתחלף, כדי ש-Escape יגיע אליו.
               ActionButton.recommended(
+                autofocus: true,
                 text: context.settingsText('סגור'),
                 onPressed: close,
               ),

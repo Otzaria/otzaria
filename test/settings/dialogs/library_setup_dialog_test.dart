@@ -54,6 +54,7 @@ Widget _host(void Function(BuildContext) onOpen) => MaterialApp(
 Future<void> _openSetup(
   WidgetTester tester, {
   String defaultTargetPath = '/default/library',
+  ValueChanged<bool>? onResult,
 }) async {
   await tester.binding.setSurfaceSize(const Size(1200, 900));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -62,7 +63,7 @@ Future<void> _openSetup(
       (ctx) => showLibrarySetupDialog(
         context: ctx,
         defaultTargetPath: defaultTargetPath,
-      ),
+      ).then((result) => onResult?.call(result)),
     ),
   );
   await tester.tap(find.text('פתח'));
@@ -798,9 +799,17 @@ void main() {
       await temp.delete(recursive: true);
     });
 
-    Future<void> pickFolder(WidgetTester tester, PackageFolder folder) async {
+    Future<void> pickFolder(
+      WidgetTester tester,
+      PackageFolder folder, {
+      ValueChanged<bool>? onResult,
+    }) async {
       debugPickAndroidSourceFolder = () async => folder;
-      await _openSetup(tester, defaultTargetPath: p.join(temp.path, 'lib'));
+      await _openSetup(
+        tester,
+        defaultTargetPath: p.join(temp.path, 'lib'),
+        onResult: onResult,
+      );
       await _select(tester, 'בחירת תיקייה מהמחשב');
       await tester.ensureVisible(find.text('בחר תיקייה'));
       await tester.runAsync(() async {
@@ -988,6 +997,51 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('הספרייה הותקנה'), findsNothing);
     });
+
+    for (final exit in ['Escape', 'X']) {
+      testWidgets('סגירת הסיכום ב-$exit מחזירה שההתקנה הצליחה', (tester) async {
+        EmptyLibraryBloc.tempRootOverride = temp.path;
+        debugCreateLibrarySetupBloc = () => EmptyLibraryBloc(
+          verifyDatabase: verifyFixtureDatabase,
+          downloadSpaceChecker: (_) async => null,
+          packageImporter: LibraryPackageImporter(
+            rawRunner: (job, {required onProgress, required cancel}) =>
+                extractRawAssetJob(
+                  job,
+                  openZstd: () => throw StateError('אין נכס דחוס'),
+                  onProgress: onProgress,
+                ),
+            diskSpace: (_) async => DiskSpaceInfo.unknown,
+          ),
+        );
+        bool? result;
+        await pickFolder(
+          tester,
+          _MemoryFolder('x', {
+            DatabaseConstants.databaseFileName: utf8.encode('db'),
+          }),
+          onResult: (value) => result = value,
+        );
+        await tester.tap(find.text('אישור'));
+        for (var i = 0; i < 300; i++) {
+          if (find.text('הספרייה הותקנה').evaluate().isNotEmpty) break;
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+          await tester.pump(const Duration(milliseconds: 10));
+        }
+        expect(find.text('הספרייה הותקנה'), findsOneWidget);
+
+        if (exit == 'Escape') {
+          await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        } else {
+          await tester.tap(find.byTooltip('סגור'));
+        }
+        await tester.pumpAndSettle();
+        expect(find.text('הספרייה הותקנה'), findsNothing);
+        expect(result, isTrue);
+      });
+    }
   });
 
   group('קובצי מסייע ההורדה', () {
