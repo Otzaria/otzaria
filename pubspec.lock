@@ -182,8 +182,8 @@ packages:
     dependency: "direct main"
     description:
       path: "pkgs/characters"
-      ref: "7ad4f4708c223668fb6c3a05170d436431c69e26"
-      resolved-ref: "7ad4f4708c223668fb6c3a05170d436431c69e26"
+      ref: "3c153cc0a9bd4327331870b4d6ee0ca8a35435f1"
+      resolved-ref: "3c153cc0a9bd4327331870b4d6ee0ca8a35435f1"
       url: "https://github.com/Otzaria/core"
     source: git
     version: "1.4.2-wip"
