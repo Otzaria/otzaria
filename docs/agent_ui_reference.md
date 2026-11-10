@@ -259,7 +259,7 @@ return switch (state) {
 };
 ```
 
-- Loading: `LoadingIndicator()`, `LoadingIndicator(message:)`, inside a row `LoadingIndicator.inline()`, skeleton `SkeletonLines(widths:)`. Raw `CircularProgressIndicator` fails UIL-013. Only the content area loads; the search field and toolbar stay.
+- Loading: `LoadingIndicator()`, `LoadingIndicator(message:)`, `LoadingIndicator(icon:)` (an `OtzariaIcons` glyph inside the ring; used by the library and book loading screens), inside a row `LoadingIndicator.inline()`, skeleton `SkeletonLines(widths:)`. Raw `CircularProgressIndicator` fails UIL-013. Only the content area loads; the search field and toolbar stay.
 - Empty: `OtzariaEmptyState` (`isCompact: true` in a panel); a whole empty screen is `OtzariaEmptyState.large`.
 - Error: `OtzariaErrorState(title:, actions:)`, never red `Text`.
 - Banner inside a screen: `AppInfoBanner(message:, title:, tone: AppInfoBannerTone.info/warning/error/success)`.
