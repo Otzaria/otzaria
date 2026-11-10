@@ -5,7 +5,8 @@ name: UI Baseline Guard
 # `dart tool/ui_lint_cli.dart --update-baseline` מוחק רשומות שתוקנו. PR שמוסיף
 # מופע לכלל באותו קובץ ובאותו scope צריך את התווית ui-baseline, שמתחזק מוסיף.
 # גם החרגת נתיב חדשה או מורחבת ב־tool/ui_lint/config.yaml משתיקה חריגות בלי
-# baseline, ולכן גם היא צריכה את אותה תווית.
+# baseline, ולכן גם היא צריכה את אותה תווית. כך גם העלאה של max_allows (תקרת
+# הערות allow לכלל, §3.5; הכרעת בעל הפרויקט 10.11.2026).
 
 on:
   pull_request:
@@ -72,8 +73,28 @@ jobs:
           git diff --unified=0 "$BASE_SHA" HEAD -- "$config" \
             | { grep -E '^\+[[:space:]]*(-[[:space:]]*)?path:' || true; } \
             | sed -E 's/^\+[[:space:]]*(-[[:space:]]*)?/exclude /' > /tmp/excludes.txt
-          if [ ! -s /tmp/growth.txt ] && [ ! -s /tmp/excludes.txt ]; then
-            echo "The ui_lint baseline did not grow, and no path exclusion was added."
+          # A raised max_allows cap lets more allow comments in. A rule that is
+          # not listed has a cap of 0. A base without max_allows predates the
+          # caps, so the pull request that introduces them is not growth.
+          git show "$BASE_SHA:$config" > /tmp/base_config.yaml 2>/dev/null || : > /tmp/base_config.yaml
+          python3 - /tmp/base_config.yaml "$config" > /tmp/allows.txt <<'PY'
+          import re, sys
+
+          def caps(path):
+              text = open(path, encoding="utf-8").read()
+              block = re.search(r"^max_allows:[ \t]*\n((?:[ \t]+.*\n?)*)", text, re.M)
+              if block is None:
+                  return None
+              return {rule: int(n) for rule, n in re.findall(r"^[ \t]+(UIL-\d{3}):[ \t]*(\d+)", block.group(1), re.M)}
+
+          base, head = caps(sys.argv[1]), caps(sys.argv[2])
+          if base is not None:
+              for rule, n in sorted((head or {}).items()):
+                  if n > base.get(rule, 0):
+                      print(f"max_allows {rule}: {base.get(rule, 0)} -> {n}")
+          PY
+          if [ ! -s /tmp/growth.txt ] && [ ! -s /tmp/excludes.txt ] && [ ! -s /tmp/allows.txt ]; then
+            echo "The ui_lint baseline did not grow, no path exclusion was added, and no max_allows cap was raised."
             exit 0
           fi
           if [ -s /tmp/growth.txt ]; then
@@ -84,8 +105,12 @@ jobs:
             echo "Path exclusions added or changed in $config:"
             cat /tmp/excludes.txt
           fi
+          if [ -s /tmp/allows.txt ]; then
+            echo "Allow-comment caps raised in $config:"
+            cat /tmp/allows.txt
+          fi
           if [ "$BASELINE_LABEL" = "true" ]; then
-            echo "Baseline growth and exclusions approved with the 'ui-baseline' label."
+            echo "Baseline growth, exclusions and raised caps approved with the 'ui-baseline' label."
             exit 0
           fi
           if [ -s /tmp/growth.txt ]; then
@@ -93,5 +118,8 @@ jobs:
           fi
           if [ -s /tmp/excludes.txt ]; then
             echo "::error file=$config::This pull request adds or widens a path exclusion in the ui_lint config, which silences findings without a baseline entry. Prefer '// ui-lint: allow UIL-xxx — reason' on the single node, or ask a maintainer to add the 'ui-baseline' label."
+          fi
+          if [ -s /tmp/allows.txt ]; then
+            echo "::error file=$config::This pull request raises a max_allows cap, so more '// ui-lint: allow' comments are accepted for that rule. Fix the violation instead, or ask a maintainer to add the 'ui-baseline' label."
           fi
           exit 1
