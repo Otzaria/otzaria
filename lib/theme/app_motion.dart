@@ -17,17 +17,21 @@ class AppMotion {
   static bool reduced(BuildContext context) =>
       MediaQuery.maybeDisableAnimationsOf(context) ?? false;
 
-  /// משך החלפת לשונית ל-`TabController.animationDuration`. הבקר נבנה
-  /// ב-initState, לפני שאפשר לקרוא את MediaQuery, ולכן ההעדפה נקראת ישירות
-  /// מהמערכת (המקור של `MediaQueryData.disableAnimations`).
-  static Duration get tabSwitch =>
-      WidgetsBinding
-          .instance
-          .platformDispatcher
-          .accessibilityFeatures
-          .disableAnimations
-      ? Duration.zero
-      : AppTokens.animPanelSlide;
+  /// הפחתת אנימציות לפי המערכת, לקוד שרץ ב-initState לפני שאפשר לקרוא
+  /// MediaQuery (המקור של `MediaQueryData.disableAnimations`).
+  static bool get reducedByPlatform => WidgetsBinding
+      .instance
+      .platformDispatcher
+      .accessibilityFeatures
+      .disableAnimations;
+
+  /// משך של `AnimationController` שנבנה ב-initState: [duration], או אפס
+  /// בהפחתת אנימציות, ואז `forward`/`reverse` מגיעים מיד למצב הסיום.
+  static Duration controller(Duration duration) =>
+      reducedByPlatform ? Duration.zero : duration;
+
+  /// משך החלפת לשונית ל-`TabController.animationDuration`.
+  static Duration get tabSwitch => controller(AppTokens.animPanelSlide);
 
   /// גלילה מונפשת (DD-21): [animate] במשך [token], או [jump] כשהמערכת מבקשת
   /// להפחית אנימציות. `animateTo`/`scrollTo` לא מקבלים משך 0, ולכן הקפיצה
