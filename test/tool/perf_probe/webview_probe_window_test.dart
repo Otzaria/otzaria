@@ -96,14 +96,17 @@ void main() {
   }
 
   test('app-owned splash close requires native visibility', () async {
-    window.appearAfterReads = 2;
+    // windowManager.show checks visibility immediately after showing.
+    // Requiring three reads ensures that the readiness loop observes at
+    // least one further unsuccessful poll before accepting the window.
+    window.appearAfterReads = 3;
     final state = await prepareWebViewProbeWindow(
       platform: 'windows',
       pumpFrame: pumpFrame,
       closeNativeSplash: false,
     );
     expect(state['ready'], isTrue);
-    expect(window.visibilityReads, 2);
+    expect(window.visibilityReads, 3);
     expect(events, isNot(contains('splash.close')));
     expect(events.where((event) => event == 'show'), hasLength(1));
     expect(events.where((event) => event == 'focus'), hasLength(1));
