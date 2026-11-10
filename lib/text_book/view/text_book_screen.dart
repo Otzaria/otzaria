@@ -1,3 +1,4 @@
+import 'package:otzaria/widgets/layout/chrome_auto_hide.dart';
 import 'package:otzaria/text_book/view/reader_export_actions.dart';
 import 'package:otzaria/text_book/view/reader_print_actions.dart';
 import 'package:otzaria/text_book/view/reader_shamor_zachor_actions.dart';
@@ -1020,8 +1021,14 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                 child: Scaffold(
                   body: Column(
                     children: [
-                      _buildAppBar(context, state),
-                      Expanded(child: _buildBody(context, state)),
+                      // בטלפון הסרגל נעלם בגלילה למטה וחוזר בגלילה למעלה
+                      // או בהקשה (ChromeAutoHideScope בחלון הראשי).
+                      ChromeAutoHide(child: _buildAppBar(context, state)),
+                      Expanded(
+                        child: ChromeAutoHideScrollListener(
+                          child: _buildBody(context, state),
+                        ),
+                      ),
                     ],
                   ),
                 ),
