@@ -318,6 +318,17 @@ dependency_overrides:
       ref: codex/integrated-fixes
       path: packages/file_picker_web
 
+  # TODO: לחזור לגרסה הרשמית לאחר מיזוג ושחרור תיקוני renggli/dart-xml.
+  xml:
+    git:
+      url: https://github.com/Otzaria/dart-xml.git
+      ref: codex/integrated-xml-fixes
+  # TODO: להסיר לאחר שחרור petitparser שתומך ב-ParseIterator וב-ParseDecoderSink.
+  petitparser:
+    git:
+      url: https://github.com/petitparser/dart-petitparser.git
+      ref: c5eb8c0349a02142fc7577f784ebdf01a1d1daf8
+
 flutter_launcher_icons:
   android: true
   ios: true

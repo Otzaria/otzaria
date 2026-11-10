@@ -1358,12 +1358,13 @@ packages:
     source: git
     version: "0.9.1"
   petitparser:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: petitparser
-      sha256: "2f1564aadb14215e478563b5406cb80729d022158c01dc50c96013c2f7eb4790"
-      url: "https://pub.dev"
-    source: hosted
+      path: "."
+      ref: c5eb8c0349a02142fc7577f784ebdf01a1d1daf8
+      resolved-ref: c5eb8c0349a02142fc7577f784ebdf01a1d1daf8
+      url: "https://github.com/petitparser/dart-petitparser.git"
+    source: git
     version: "7.1.0"
   pinenacl:
     dependency: "direct main"
@@ -2114,11 +2115,12 @@ packages:
   xml:
     dependency: "direct main"
     description:
-      name: xml
-      sha256: "67f0aff7be013d107995e9b75bf4e7f2c3ef2dfdb2c8e68024bba0a7fd5756a4"
-      url: "https://pub.dev"
-    source: hosted
-    version: "7.0.1"
+      path: "."
+      ref: "codex/integrated-xml-fixes"
+      resolved-ref: "87a1ea400e1b8f812a8216c6fb99844c57d6d8f1"
+      url: "https://github.com/Otzaria/dart-xml.git"
+    source: git
+    version: "7.1.0"
   yaml:
     dependency: "direct dev"
     description:
