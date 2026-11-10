@@ -4500,25 +4500,32 @@ class PluginBridgeAdapter {
     );
   }
 
-  /// מעבר לשולחן [id] באותו רצף שהדיאלוג מבצע
-  /// (`lib/workspaces/view/workspace_switcher_dialog.dart`): הטאבים הנוכחיים
-  /// נמסרים לאירוע כי ה-UI הוא מקור האמת עליהם — בלעדיהם המעבר מוחק אותם.
-  /// נמסרת רשימת הטאבים **המלאה**, כולל `ToolTab`, ולא הרשימה שהתוסף רואה.
+  /// הכרטיסיות נקראות מהחלון בעת ביצוע המעבר, כולל כרטיסיות כלי ותוסף.
+  /// תוצאת האירוע מפורשת גם כשהוא נדחה בלי שינוי state.
   Future<bool> _switchWorkspace(String id) async {
     final bloc = _windowDependencies.workspaceBloc;
     if (bloc.state.activeWorkspaceId == id) return true;
-    final tabsState = _windowDependencies.tabsBloc.state;
-    final state = await _awaitWorkspaceState(
-      (workspaceState) => workspaceState.activeWorkspaceId == id,
-      () => bloc.add(
-        SwitchToWorkspace(
-          targetWorkspaceId: id,
-          currentTabsToSave: tabsState.tabs,
-          currentTabIndexToSave: tabsState.currentTabIndex,
-        ),
+    final completed = Completer<bool>();
+    bloc.add(
+      SwitchToWorkspace(
+        sourceWorkspaceId: bloc.state.activeWorkspaceId,
+        targetWorkspaceId: id,
+        readCurrentTabs: () {
+          final state = _windowDependencies.tabsBloc.state;
+          return (
+            tabs: state.tabs,
+            activeTabIndex: state.currentTabIndex,
+            activePane: state.activePaneSide,
+          );
+        },
+        onCompleted: (hasTabs) => completed.complete(hasTabs != null),
       ),
     );
-    return state != null;
+    try {
+      return await completed.future.timeout(_workspaceActionTimeout);
+    } on TimeoutException {
+      return false;
+    }
   }
 
   /// מפעיל [trigger] וממתין למצב הראשון שמקיים [test]. פעולות שולחן עבודה

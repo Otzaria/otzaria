@@ -16,6 +16,7 @@ import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/utils/confirm_close_tabs.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/core/messages/notes_messages.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
@@ -212,6 +213,7 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
     bool isActive,
   ) {
     final cs = Theme.of(context).colorScheme;
+    final switching = context.read<WorkspaceBloc>().state.isChangingTabs;
     // הפעיל: מסגרת הבחירה, ורק אזור התצוגה המקדימה בצבע "נבחר" (q9 שאלה 7).
     return AppCard(
       key: ValueKey<String>(workspace.id),
@@ -223,6 +225,11 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
         // הכרטיסיות נשמרות לשולחן, אך מצב ה-JS של תוסף אינו נשמר איתן.
         final tabsBloc = context.read<TabsBloc>();
         final workspaceBloc = context.read<WorkspaceBloc>();
+        final sourceWorkspaceId = workspaceBloc.state.activeWorkspaceId;
+        if (workspaceBloc.state.isChangingTabs) {
+          _switchPending = false;
+          return;
+        }
         final navigationBloc = context.read<NavigationBloc>();
         final navigator = Navigator.of(context);
         final route = ModalRoute.of(context);
@@ -230,16 +237,25 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
           _switchPending = false;
           return;
         }
-        if (!context.mounted || route?.isCurrent != true) return;
-        final tabsState = tabsBloc.state;
+        if (!context.mounted ||
+            route?.isCurrent != true ||
+            workspaceBloc.state.isChangingTabs ||
+            workspaceBloc.state.activeWorkspaceId != sourceWorkspaceId) {
+          _switchPending = false;
+          return;
+        }
         workspaceBloc.add(
           SwitchToWorkspace(
+            sourceWorkspaceId: sourceWorkspaceId,
             targetWorkspaceId: workspace.id,
-            currentTabsToSave: tabsState.tabs,
-            currentTabIndexToSave: tabsState.currentTabIndex,
-            // החלונית הפעילה נשמרת כצד: שולחן עבודה משכפל את
-            // הטאבים, וזהות האובייקט אובדת ממילא.
-            currentActivePaneToSave: tabsState.activePaneSide,
+            readCurrentTabs: () {
+              final state = tabsBloc.state;
+              return (
+                tabs: state.tabs,
+                activeTabIndex: state.currentTabIndex,
+                activePane: state.activePaneSide,
+              );
+            },
             onCompleted: (hasTabs) {
               _switchPending = false;
               if (hasTabs == null ||
@@ -299,7 +315,9 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                       FluentIcons.save_24_regular,
                       size: AppTokens.iconSM,
                     ),
-                    onPressed: () => _saveSnapshot(context),
+                    onPressed: switching
+                        ? null
+                        : () => _saveSnapshot(context, workspace.id),
                   ),
                 IconButton(
                   tooltip: workspace.isPinned
@@ -314,7 +332,9 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                     FluentIcons.pin_24_filled,
                     size: AppTokens.iconSM,
                   ),
-                  onPressed: () => _togglePinned(context, workspace, isActive),
+                  onPressed: isActive && switching
+                      ? null
+                      : () => _togglePinned(context, workspace),
                 ),
               ],
             ),
@@ -340,34 +360,59 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
     UiSnack.show(NotesMessages.workspaceDeleted);
   }
 
-  void _togglePinned(BuildContext context, Workspace workspace, bool isActive) {
+  void _togglePinned(BuildContext context, Workspace workspace) {
+    final bloc = context.read<WorkspaceBloc>();
+    final windowKeys = AppWindowKeys.of(context);
+    final isActive = bloc.state.activeWorkspaceId == workspace.id;
+    if (isActive && bloc.state.isChangingTabs) return;
     final pin = !workspace.isPinned;
     // בקיבוע השולחן הפעיל, התמונה הקבועה היא מה שפתוח כעת ולא השמירה הקודמת.
     final tabsState = pin && isActive ? context.read<TabsBloc>().state : null;
-    context.read<WorkspaceBloc>().add(
+    bloc.add(
       SetWorkspacePinned(
         workspaceId: workspace.id,
         isPinned: pin,
         tabsToSave: tabsState?.tabs,
         tabIndexToSave: tabsState?.currentTabIndex ?? 0,
         activePaneToSave: tabsState?.activePaneSide,
+        onCompleted: (saved) {
+          if (saved) {
+            UiSnack.show(
+              pin
+                  ? NotesMessages.workspacePinned
+                  : NotesMessages.workspaceUnpinned,
+              window: windowKeys,
+            );
+          }
+        },
       ),
-    );
-    UiSnack.show(
-      pin ? NotesMessages.workspacePinned : NotesMessages.workspaceUnpinned,
     );
   }
 
-  void _saveSnapshot(BuildContext context) {
+  void _saveSnapshot(BuildContext context, String workspaceId) {
+    final bloc = context.read<WorkspaceBloc>();
+    final windowKeys = AppWindowKeys.of(context);
+    if (bloc.state.isChangingTabs ||
+        bloc.state.activeWorkspaceId != workspaceId) {
+      return;
+    }
     final tabsState = context.read<TabsBloc>().state;
-    context.read<WorkspaceBloc>().add(
+    bloc.add(
       UpdateCurrentWorkspaceTabs(
+        sourceWorkspaceId: workspaceId,
         tabs: tabsState.tabs,
         activeTabIndex: tabsState.currentTabIndex,
         activePane: tabsState.activePaneSide,
+        onCompleted: (saved) {
+          if (saved) {
+            UiSnack.show(
+              NotesMessages.workspaceSnapshotSaved,
+              window: windowKeys,
+            );
+          }
+        },
       ),
     );
-    UiSnack.show(NotesMessages.workspaceSnapshotSaved);
   }
 
   Widget _buildWorkspacePreview(

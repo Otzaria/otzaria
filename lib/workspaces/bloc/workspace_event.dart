@@ -1,5 +1,25 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:equatable/equatable.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+
+typedef WorkspaceTabs = ({
+  List<OpenedTab> tabs,
+  int activeTabIndex,
+  String? activePane,
+});
+
+String _captureTabs(List<OpenedTab> tabs) =>
+    jsonEncode(tabs.map((tab) => tab.toJson()).toList(growable: false));
+
+List<OpenedTab> _restoreTabs(String snapshot) => (jsonDecode(snapshot) as List)
+    .map(
+      (json) => OpenedTab.fromJson(
+        OpenedTab.withNewRuntimeIdentity(json as Map<String, dynamic>),
+      ),
+    )
+    .toList(growable: false);
 
 /// Base class for all workspace events.
 abstract class WorkspaceEvent extends Equatable {
@@ -40,38 +60,30 @@ class RemoveWorkspace extends WorkspaceEvent {
 
 /// Event to switch to a different workspace.
 ///
-/// This event carries the current tabs data to save before switching,
-/// ensuring the UI is the source of truth (not another Bloc).
+/// ה-UI נשאר מקור האמת; הכרטיסיות נקראות רק כשמגיע תורו של המעבר.
 class SwitchToWorkspace extends WorkspaceEvent {
+  final String? sourceWorkspaceId;
+
   /// The ID of the workspace to switch to
   final String targetWorkspaceId;
 
-  /// Current tabs to save in the active workspace before switching
-  final List<OpenedTab> currentTabsToSave;
-
-  /// Current tab index to save
-  final int currentTabIndexToSave;
-
-  /// צד החלונית הפעילה לשמירה — ראו [Workspace.activePane].
-  final String? currentActivePaneToSave;
+  final WorkspaceTabs Function() readCurrentTabs;
 
   /// נקרא בסיום: האם נפתחו כרטיסיות, או null אם המעבר לא הצליח.
   final void Function(bool? hasTabs)? onCompleted;
 
   const SwitchToWorkspace({
+    required this.sourceWorkspaceId,
     required this.targetWorkspaceId,
-    required this.currentTabsToSave,
-    required this.currentTabIndexToSave,
-    this.currentActivePaneToSave,
+    required this.readCurrentTabs,
     this.onCompleted,
   });
 
   @override
   List<Object?> get props => [
+    sourceWorkspaceId,
     targetWorkspaceId,
-    currentTabsToSave,
-    currentTabIndexToSave,
-    currentActivePaneToSave,
+    readCurrentTabs,
     onCompleted,
   ];
 }
@@ -91,74 +103,96 @@ class RenameWorkspace extends WorkspaceEvent {
 ///
 /// Used for auto-save or explicit save operations.
 class UpdateCurrentWorkspaceTabs extends WorkspaceEvent {
-  final List<OpenedTab> tabs;
+  final String? sourceWorkspaceId;
+  final String _tabsSnapshot;
   final int activeTabIndex;
 
   /// צד החלונית הפעילה — ראו [Workspace.activePane].
   final String? activePane;
+  final void Function(bool saved)? onCompleted;
 
-  const UpdateCurrentWorkspaceTabs({
-    required this.tabs,
+  UpdateCurrentWorkspaceTabs({
+    required this.sourceWorkspaceId,
+    required List<OpenedTab> tabs,
     required this.activeTabIndex,
     this.activePane,
-  });
+    this.onCompleted,
+  }) : _tabsSnapshot = _captureTabs(tabs);
+
+  // אין תלות בטאב החי: מעבר קודם בתור יכול כבר לשחרר את מצב התוסף שלו.
+  List<OpenedTab> restoreTabs() => _restoreTabs(_tabsSnapshot);
 
   @override
-  List<Object?> get props => [tabs, activeTabIndex, activePane];
+  List<Object?> get props => [
+    sourceWorkspaceId,
+    _tabsSnapshot,
+    activeTabIndex,
+    activePane,
+    onCompleted,
+  ];
 }
 
 /// מעביר כרטיסיות — אחת או בחירה מרובה — מהשולחן הנוכחי לשולחן אחר.
 class MoveTabsToWorkspace extends WorkspaceEvent {
+  final String? sourceWorkspaceId;
   final List<OpenedTab> tabs;
   final String targetWorkspaceId;
-  final List<OpenedTab> currentTabs;
-  final int currentTabIndex;
+  final WorkspaceTabs Function() readCurrentTabs;
 
-  /// צד החלונית הפעילה בשולחן העבודה שממנו הטאבים יוצאים.
-  final String? currentActivePane;
+  /// נקרא רק אחרי שמירה; ההסרה החיה מסתיימת לפני האירוע הבא בתור.
+  final FutureOr<void> Function()? onTabsMoved;
+  final void Function(bool moved)? onCompleted;
 
   const MoveTabsToWorkspace({
+    required this.sourceWorkspaceId,
     required this.tabs,
     required this.targetWorkspaceId,
-    required this.currentTabs,
-    required this.currentTabIndex,
-    this.currentActivePane,
+    required this.readCurrentTabs,
+    this.onTabsMoved,
+    this.onCompleted,
   });
 
   @override
   List<Object?> get props => [
+    sourceWorkspaceId,
     tabs,
     targetWorkspaceId,
-    currentTabs,
-    currentTabIndex,
-    currentActivePane,
+    readCurrentTabs,
+    onTabsMoved,
+    onCompleted,
   ];
 }
 
 /// מקבע או משחרר שולחן עבודה — ראו [Workspace.isPinned].
 ///
-/// בקיבוע השולחן הפעיל, [tabsToSave] הם הכרטיסיות החיות שיהפכו לתמונה הקבועה.
+/// בקיבוע השולחן הפעיל, הכרטיסיות מוקפאות לפני שהאירוע ממתין בתור.
 class SetWorkspacePinned extends WorkspaceEvent {
   final String workspaceId;
   final bool isPinned;
-  final List<OpenedTab>? tabsToSave;
+  final String? _tabsSnapshot;
   final int tabIndexToSave;
   final String? activePaneToSave;
+  final void Function(bool saved)? onCompleted;
 
-  const SetWorkspacePinned({
+  SetWorkspacePinned({
     required this.workspaceId,
     required this.isPinned,
-    this.tabsToSave,
+    List<OpenedTab>? tabsToSave,
     this.tabIndexToSave = 0,
     this.activePaneToSave,
-  });
+    this.onCompleted,
+  }) : _tabsSnapshot = tabsToSave == null ? null : _captureTabs(tabsToSave);
+
+  List<OpenedTab>? restoreTabsToSave() =>
+      _tabsSnapshot == null ? null : _restoreTabs(_tabsSnapshot);
 
   @override
   List<Object?> get props => [
     workspaceId,
     isPinned,
-    tabsToSave,
+    _tabsSnapshot,
     tabIndexToSave,
     activePaneToSave,
+    onCompleted,
   ];
 }

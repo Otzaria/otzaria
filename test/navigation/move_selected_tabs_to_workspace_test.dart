@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -41,6 +43,45 @@ import '../test_helpers/stub_settings_bloc.dart';
 void main() {
   setUp(() async {
     await Settings.init(cacheProvider: MemorySettingsCache());
+  });
+
+  testWidgets('הכרטיסיות נשארות חיות עד שהעברתן נשמרה', (tester) async {
+    final env = await _pumpStrip(tester, onSide: false);
+    final gate = Completer<void>();
+    addTearDown(() {
+      if (!gate.isCompleted) gate.complete();
+    });
+    env.workspaces.nextMutationGate = gate;
+    await env.chooseTarget(tester, rightClickOn: 'ספר א');
+    expect(env.tabsBloc.state.tabs.map((tab) => tab.title), [
+      'ספר א',
+      'ספר ב',
+      'ספר ג',
+    ]);
+    expect(env.targetTitles(), ['ספר ביעד']);
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(env.tabsBloc.state.tabs.map((tab) => tab.title), ['ספר ב', 'ספר ג']);
+    expect(env.targetTitles(), ['ספר ביעד', 'ספר א']);
+    await tester.pump(const Duration(seconds: 10));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('כשל שמירה אינו מסיר כרטיסיות חיות ואינו מציג הצלחת העברה', (
+    tester,
+  ) async {
+    final env = await _pumpStrip(tester, onSide: false);
+    env.workspaces.failMutation = true;
+    await env.chooseTarget(tester, rightClickOn: 'ספר א');
+    expect(env.tabsBloc.state.tabs.map((tab) => tab.title), [
+      'ספר א',
+      'ספר ב',
+      'ספר ג',
+    ]);
+    expect(env.targetTitles(), ['ספר ביעד']);
+    expect(find.text('הכרטיסיה הועברה לשולחן העבודה "יעד"'), findsNothing);
+    await tester.pump(const Duration(seconds: 10));
+    await tester.pumpAndSettle();
   });
 
   for (final onSide in [false, true]) {
@@ -384,6 +425,8 @@ class _MemoryWorkspaceRepository extends WorkspaceRepository {
 
   List<Workspace> workspaces;
   final String _activeId;
+  bool failMutation = false;
+  Completer<void>? nextMutationGate;
 
   @override
   Future<(List<Workspace>, String?)> loadWorkspaces() async =>
@@ -393,6 +436,10 @@ class _MemoryWorkspaceRepository extends WorkspaceRepository {
   Future<List<Workspace>> mutateWorkspaces(
     List<Workspace> Function(List<Workspace> current) apply,
   ) async {
+    final gate = nextMutationGate;
+    nextMutationGate = null;
+    if (gate != null) await gate.future;
+    if (failMutation) throw StateError('write failed');
     workspaces = List.of(apply(List.of(workspaces)));
     return List.of(workspaces);
   }

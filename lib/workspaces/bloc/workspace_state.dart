@@ -8,6 +8,9 @@ import 'package:otzaria/workspaces/workspace.dart';
 class WorkspaceState extends Equatable {
   final List<Workspace> workspaces;
   final bool isLoading;
+
+  /// לכידת תמונה ממתינה עד שהשינוי במאגר ובכרטיסיות החיות הסתיים.
+  final bool isChangingTabs;
   final String? error;
 
   /// The ID of the currently active workspace (instead of index)
@@ -16,6 +19,7 @@ class WorkspaceState extends Equatable {
   const WorkspaceState({
     required this.workspaces,
     this.isLoading = false,
+    this.isChangingTabs = false,
     this.error,
     this.activeWorkspaceId,
   });
@@ -49,6 +53,7 @@ class WorkspaceState extends Equatable {
   WorkspaceState copyWith({
     List<Workspace>? workspaces,
     bool? isLoading,
+    bool? isChangingTabs,
     String? error,
     bool clearError = false,
     String? activeWorkspaceId,
@@ -57,6 +62,7 @@ class WorkspaceState extends Equatable {
     return WorkspaceState(
       workspaces: workspaces ?? this.workspaces,
       isLoading: isLoading ?? this.isLoading,
+      isChangingTabs: isChangingTabs ?? this.isChangingTabs,
       error: clearError ? null : (error ?? this.error),
       activeWorkspaceId: clearActiveWorkspaceId
           ? null
@@ -65,5 +71,11 @@ class WorkspaceState extends Equatable {
   }
 
   @override
-  List<Object?> get props => [workspaces, isLoading, error, activeWorkspaceId];
+  List<Object?> get props => [
+    workspaces,
+    isLoading,
+    isChangingTabs,
+    error,
+    activeWorkspaceId,
+  ];
 }
