@@ -275,11 +275,7 @@ class SelectionLineCache {
 }
 
 @visibleForTesting
-({
-  String text,
-  Link? link,
-  Future<CommentaryCopyGuard?> Function()? copyGuard,
-})?
+({String text, Link? link, Future<CommentaryCopyGuard?> Function()? copyGuard})?
 commentarySelectionForCopy({
   required SelectionSyncController? controller,
   required Object mainTextOwner,
@@ -847,6 +843,7 @@ class _CombinedViewState extends State<CombinedView> {
   bool _didRequestInitialFocus = false;
 
   bool _isSelectionPointerDown = false;
+  bool _pointerDownInCommentaryCard = false;
   bool _needsSelectionAreaRefreshOnPointerUp = false;
   bool _pendingSelectionClear = false;
 
@@ -1148,18 +1145,14 @@ class _CombinedViewState extends State<CombinedView> {
     try {
       if (book.isUserBook) {
         marks = await DatabaseLibraryProvider.instance
-            .getUserInlineSectionMarks(
-              book,
-              _loadedLineAt,
-            );
+            .getUserInlineSectionMarks(book, _loadedLineAt);
       } else {
         if (book.source.isOfficial &&
             LibraryProviderManager.instance.getProviderForBook(
-                  book.title,
-                  categoryId: book.categoryId,
-                  fileType: book.fileType,
-                )
-                is! DatabaseLibraryProvider) {
+              book.title,
+              categoryId: book.categoryId,
+              fileType: book.fileType,
+            ) is! DatabaseLibraryProvider) {
           return;
         }
         marks = await DatabaseLibraryProvider.instance
@@ -2021,9 +2014,11 @@ class _CombinedViewState extends State<CombinedView> {
               child: RtlSelectionShortcuts(
                 child: Listener(
                   onPointerDown: (event) {
-                    if (event.buttons == kPrimaryMouseButton) {
+                    if (event.buttons == kPrimaryMouseButton &&
+                        !_pointerDownInCommentaryCard) {
                       _isSelectionPointerDown = true;
                     }
+                    _pointerDownInCommentaryCard = false;
                   },
                   onPointerUp: (_) => _endSelectionPointer(takeFocus: true),
                   onPointerCancel: (_) =>
@@ -2502,9 +2497,11 @@ class _CombinedViewState extends State<CombinedView> {
       crossAxisPadding: padding.horizontal,
       builder: (estimateExtent, estimationKey, columnWidth) =>
           ScrollablePositionedList.builder(
-            key: ValueKey(
-              (widget.tab, _textBookBloc, state.continuousReadingMode),
-            ),
+            key: ValueKey((
+              widget.tab,
+              _textBookBloc,
+              state.continuousReadingMode,
+            )),
             initialScrollIndex: clampedInitial,
             initialAlignment: anchor.alignment,
             initialTargetRectResolver: _initialReadingTargetResolver(
@@ -3105,17 +3102,21 @@ class _CombinedViewState extends State<CombinedView> {
             state.book.versionTitle,
             lineIndex,
           )),
-          child: SelectionContainer.disabled(
-            child: _CommentaryCard(
-              key: ValueKey('commentary_card_$lineIndex'),
-              index: lineIndex,
-              textSize: widget.textSize,
-              openBookCallback: widget.openBookCallback,
-              viewportHeight: _viewportHeight,
-              selectionSyncController: widget.selectionSyncController,
-              searchText: state.searchText,
-              scrollTargetListenable: _anchorScrollTargetNotifier,
-              onOpenPersonalNote: widget.onOpenCommentaryPersonalNote,
+          // לכרטיס אזור בחירה משלו; מיקוד הקורא בשחרור העכבר היה מנקה אותו.
+          child: Listener(
+            onPointerDown: (_) => _pointerDownInCommentaryCard = true,
+            child: SelectionContainer.disabled(
+              child: _CommentaryCard(
+                key: ValueKey('commentary_card_$lineIndex'),
+                index: lineIndex,
+                textSize: widget.textSize,
+                openBookCallback: widget.openBookCallback,
+                viewportHeight: _viewportHeight,
+                selectionSyncController: widget.selectionSyncController,
+                searchText: state.searchText,
+                scrollTargetListenable: _anchorScrollTargetNotifier,
+                onOpenPersonalNote: widget.onOpenCommentaryPersonalNote,
+              ),
             ),
           ),
         ),
