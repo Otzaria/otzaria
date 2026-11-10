@@ -138,7 +138,8 @@ for tag in "${candidates[@]}"; do
     continue
   fi
 
-  if ! dart run tool/release/generate_update_package.dart \
+  # הגנרטור הוא Dart בלבד; dart run מפעיל גם build hooks של האפליקציה.
+  if ! dart tool/release/generate_update_package.dart \
     --old-manifest "$base/$manifest_asset" --old-dir "$old_root" \
     --new-manifest "$new_manifest" --new-dir "$new_root" \
     --out-dir "$out_dir" --verify; then
