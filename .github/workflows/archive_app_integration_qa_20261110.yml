@@ -31,3 +31,22 @@ jobs:
           flutter test -j 2
           test/plugins/services/plugin_archive_extractor_test.dart
           test/utils/file/zip_extractor_service_test.dart
+  windows-extraction:
+    runs-on: windows-2025
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          channel: stable
+          cache: true
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          git config --global core.longpaths true
+          flutter pub get --enforce-lockfile
+      - name: Run plugin and library ZIP tests on Windows
+        shell: pwsh
+        run: flutter test -j 2 test/plugins/services/plugin_archive_extractor_test.dart test/utils/file/zip_extractor_service_test.dart
