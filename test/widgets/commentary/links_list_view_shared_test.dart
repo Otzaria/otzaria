@@ -545,6 +545,70 @@ void main() {
       expect(_CountingLink.index2EndReads, lessThan(count));
     },
   );
+
+  testWidgets('הקלדה בחיפוש אינה ממיינת מחדש ואינה סורקת את כל הקישורים (perf)', (
+    tester,
+  ) async {
+    const count = 300;
+    final links = [
+      for (var i = 1; i <= count; i++)
+        _PathCountingLink(
+          heRef: 'הפניה $i',
+          index1: 5,
+          path2: 'ספר $i',
+          index2: i,
+          connectionType: LinkTypes.quotation,
+        ),
+    ];
+    CommentaryService.seedEraCache({
+      for (var i = 1; i <= count; i++) 'ספר $i': CommentaryEra.other,
+    });
+    addTearDown(CommentaryService.clearEraCache);
+    await _pumpWithoutTextBookBloc(tester, links: links);
+    final field = find.byType(TextField);
+    await tester.enterText(field, 'ספר 1');
+    await tester.pumpAndSettle();
+
+    _PathCountingLink.reads = 0;
+    await tester.enterText(field, 'ספר 12');
+    await tester.pumpAndSettle();
+
+    expect(find.text('ספר 12'), findsWidgets);
+    expect(find.text('ספר 13'), findsNothing);
+    // מיון, מפתחות וטקסטי חיפוש נגזרים פעם אחת לרשימה; רק הפריטים הבנויים קוראים.
+    expect(_PathCountingLink.reads, lessThan(count));
+  });
+
+  testWidgets('אחרי ניקוי מטמון הדורות ההקשה הבאה ממיינת לפי הדורות החדשים', (
+    tester,
+  ) async {
+    CommentaryService.seedEraCache(const {
+      'ספר א': CommentaryEra.rishonim,
+      'ספר ב': CommentaryEra.acharonim,
+    });
+    addTearDown(CommentaryService.clearEraCache);
+    await _pumpWithoutTextBookBloc(
+      tester,
+      links: [
+        _link(path2: 'ספר ב', connectionType: LinkTypes.quotation),
+        _link(path2: 'ספר א', connectionType: LinkTypes.quotation),
+      ],
+    );
+    final field = find.byType(TextField);
+    double top(String title) => tester.getTopLeft(find.text(title)).dy;
+    await tester.enterText(field, 'ספר');
+    await tester.pumpAndSettle();
+    expect(top('ספר א'), lessThan(top('ספר ב')));
+
+    CommentaryService.clearEraCache();
+    CommentaryService.seedEraCache(const {
+      'ספר א': CommentaryEra.acharonim,
+      'ספר ב': CommentaryEra.rishonim,
+    });
+    await tester.enterText(field, 'ספר ');
+    await tester.pumpAndSettle();
+    expect(top('ספר ב'), lessThan(top('ספר א')));
+  });
 }
 
 /// סופר קריאות של [index2End], שמפתחות הקישור נגזרים ממנו.
@@ -563,5 +627,24 @@ class _CountingLink extends Link {
   int? get index2End {
     index2EndReads++;
     return super.index2End;
+  }
+}
+
+/// סופר קריאות של [path2], שממנו נגזרים שם הספר, סדר הדורות ומפתחות הקישור.
+class _PathCountingLink extends Link {
+  _PathCountingLink({
+    required super.heRef,
+    required super.index1,
+    required super.path2,
+    required super.index2,
+    required super.connectionType,
+  });
+
+  static int reads = 0;
+
+  @override
+  String get path2 {
+    reads++;
+    return super.path2;
   }
 }
