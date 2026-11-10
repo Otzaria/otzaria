@@ -108,8 +108,7 @@
         {"scope":"_SemanticFacetFilteringState.build","fp":"8fde4718","n":1}
       ],
       "lib/settings/panels/custom_folders_panel.dart": [
-        {"scope":"_CustomFoldersPanelState._buildFolderItem","fp":"8fde4718","n":1},
-        {"scope":"_CustomFoldersPanelState._buildStorageLegendTiles","fp":"8fde4718","n":1}
+        {"scope":"_CustomFoldersPanelState._buildFolderItem","fp":"8fde4718","n":1}
       ],
       "lib/settings/services/safer_mode_guard.dart": [
         {"scope":"_SaferModeGuardState._buildContent","fp":"8fde4718","n":1}
