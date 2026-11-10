@@ -57,8 +57,8 @@ void main() {
 
 class _BlockedLoadRepository extends WorkspaceRepository {
   _BlockedLoadRepository(Workspace workspace)
-      : _workspaces = [workspace],
-        _activeId = workspace.id;
+    : _workspaces = [workspace],
+      _activeId = workspace.id;
 
   List<Workspace> _workspaces;
   String? _activeId;
