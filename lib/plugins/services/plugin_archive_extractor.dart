@@ -7,15 +7,22 @@ import 'package:path/path.dart' as p;
 /// Extracts a plugin package without buffering the compressed archive or
 /// individual decompressed files in memory. Run from a worker isolate, since
 /// ZIP directory parsing and some codecs can still use synchronous CPU work.
-Future<void> extractPluginArchive(String archivePath, String tempDirPath) async {
-  final root = p.canonicalize(tempDirPath);
+Future<void> extractPluginArchive(
+  String archivePath,
+  String tempDirPath,
+) async {
+  final root = p.normalize(p.absolute(tempDirPath));
   final input = openZipInput(archivePath);
   try {
     final archive = ZipDecoder().decodeStream(input, throwOnError: true);
 
     for (final entry in archive) {
-      final targetPath = p.canonicalize(p.join(root, entry.name));
-      if (!p.isWithin(root, targetPath)) {
+      final relativePath = p.normalize(entry.name);
+      final targetPath = p.normalize(p.join(root, relativePath));
+      // ב-Windows isWithin מתעלם מרישיות גם בתיקיות שרגישות לה.
+      if (p.isAbsolute(relativePath) ||
+          p.split(relativePath).first == '..' ||
+          !p.isWithin(root, targetPath)) {
         throw FormatException(
           'נתיב חולץ מקובץ ZIP באופן לא חוקי: ${entry.name}',
         );

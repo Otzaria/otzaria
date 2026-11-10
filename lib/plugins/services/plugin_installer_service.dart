@@ -335,4 +335,3 @@ class PluginInstallerService {
     if (await dir.exists()) await dir.delete(recursive: true);
   }
 }
-
