@@ -13,20 +13,9 @@ import 'package:pdfrx/pdfrx.dart';
 import '../../test_helpers/pdf_document_dispose.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 
 import '../../helpers/memory_settings_cache.dart';
-
-class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _FakeSettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
+import '../../test_helpers/stub_settings_bloc.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -75,7 +64,7 @@ void main() {
   ) async {
     await tester.binding.setSurfaceSize(const Size(900, 760));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    final settingsBloc = _FakeSettingsBloc();
+    final settingsBloc = StubSettingsBloc();
     addTearDown(settingsBloc.close);
 
     final documentListenable = PdfFontFallback.documentRef(

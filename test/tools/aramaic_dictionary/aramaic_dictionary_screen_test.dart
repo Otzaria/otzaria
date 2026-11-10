@@ -2,21 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tools/aramaic_dictionary/aramaic_dictionary_screen.dart';
 import 'package:otzaria/tools/aramaic_dictionary/widgets/aramaic_result_card.dart';
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
 
-class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _FakeSettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
-}
+import '../../test_helpers/stub_settings_bloc.dart';
 
 DictionaryLookupRepository _repository() {
   return DictionaryLookupRepository(
@@ -54,7 +44,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   Future<void> pumpScreen(WidgetTester tester) async {
-    final bloc = _FakeSettingsBloc();
+    final bloc = StubSettingsBloc();
     addTearDown(bloc.close);
     await tester.pumpWidget(
       _wrap(AramaicDictionaryScreen(repository: _repository()), bloc),

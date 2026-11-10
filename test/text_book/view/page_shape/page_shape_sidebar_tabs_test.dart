@@ -14,7 +14,6 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
@@ -31,6 +30,7 @@ import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_settings_bloc.dart';
 
 /// חלונית הצד של צורת הדף מציגה את אותן שלוש לשוניות כמו "מפרשים בצד".
 /// לפני כן היו בה "קישורים" ו"הערות" בלבד, בלי מפרשים.
@@ -78,7 +78,7 @@ void main() {
     final personalNotesBloc = _TestPersonalNotesBloc(
       const PersonalNotesState.initial(),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final tab = TextBookTab(book: book, index: 0, blocOverride: textBookBloc);
     final navigationBloc = _TestNavigationBloc(
       const NavigationState(currentScreen: Screen.reading),
@@ -308,16 +308,6 @@ class _TestPersonalNotesBloc
     implements PersonalNotesBloc {
   _TestPersonalNotesBloc(super.initialState) {
     on<PersonalNotesEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
   }
 
   @override

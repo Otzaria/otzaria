@@ -12,7 +12,6 @@ import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
@@ -21,6 +20,7 @@ import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/widgets/commentary/commentary_content.dart';
 
 import '../../support/search_engine_test_init.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
 import '../../test_helpers/text_occurrence_visibility.dart';
 
 const _commentator = 'מטמון בכותרת מפרש ארוך 2534';
@@ -87,7 +87,7 @@ Future<void> main() async {
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.reset);
         final textBookBloc = _TestTextBookBloc(_loadedState());
-        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+        final settingsBloc = StubSettingsBloc(SettingsState.initial());
         addTearDown(textBookBloc.close);
         addTearDown(settingsBloc.close);
         var fontSize = 18.0;
@@ -224,16 +224,6 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     implements TextBookBloc {
   _TestTextBookBloc(super.initialState) {
     on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
   }
 
   @override

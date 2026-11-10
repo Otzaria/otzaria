@@ -14,7 +14,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/settings/panels/reading_settings_panel.dart';
 import 'package:otzaria/settings/tabs/text_settings_tab.dart';
@@ -30,6 +29,7 @@ import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_mana
 import 'package:otzaria/widgets/misc/app_dropdown_field.dart';
 
 import '../test_helpers/memory_cache_provider.dart';
+import '../test_helpers/stub_settings_bloc.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -48,7 +48,7 @@ void main() {
       return MaterialApp(
         home: Scaffold(
           body: BlocProvider<SettingsBloc>.value(
-            value: _TestSettingsBloc(SettingsState.initial()),
+            value: StubSettingsBloc(SettingsState.initial()),
             child: TextSettingsTab(
               isDialog: true,
               pageShapeCommentaryFontSize: hide,
@@ -160,7 +160,7 @@ void main() {
           body: MultiBlocProvider(
             providers: [
               BlocProvider<SettingsBloc>.value(
-                value: _TestSettingsBloc(SettingsState.initial()),
+                value: StubSettingsBloc(SettingsState.initial()),
               ),
               BlocProvider<TabsBloc>.value(value: tabsBloc),
             ],
@@ -307,16 +307,6 @@ TextBookLoaded _loaded({required bool showPageShapeView}) => TextBookLoaded(
   pinLeftPane: false,
   searchText: '',
 );
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
 
 class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     implements TextBookBloc {

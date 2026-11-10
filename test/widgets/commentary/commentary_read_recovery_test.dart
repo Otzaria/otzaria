@@ -8,8 +8,6 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/repository/book_notes_repository.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
 import 'package:otzaria/widgets/commentary/commentary_content.dart';
@@ -18,18 +16,9 @@ import 'package:otzaria/widgets/commentary/panel_anchor_links.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 
 import '../../helpers/memory_settings_cache.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
 
 const _profile = TextDisplayProfile(anchorMarkers: MarkVisibility.hide);
-
-class _SettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _SettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
 
 /// Each explicit read stays unresolved until the test releases it. This tests
 /// widget recovery without opening SQLite or starting worker isolates.
@@ -69,7 +58,7 @@ class _ImmediatelyBusyLink extends _ControlledLink {
   }
 }
 
-Widget _host(_SettingsBloc settings, Widget child) => MaterialApp(
+Widget _host(StubSettingsBloc settings, Widget child) => MaterialApp(
   home: BlocProvider<SettingsBloc>.value(
     value: settings,
     child: Scaffold(body: child),
@@ -133,7 +122,7 @@ void main() {
     testWidgets('commentary retries $failureKind on the next parent update', (
       tester,
     ) async {
-      final settings = _SettingsBloc();
+      final settings = StubSettingsBloc();
       addTearDown(settings.close);
       final link = _ControlledLink('מפרש מתאושש');
       await tester.pumpWidget(_host(settings, _commentary(link)));
@@ -171,7 +160,7 @@ void main() {
       (
         tester,
       ) async {
-        final settings = _SettingsBloc();
+        final settings = StubSettingsBloc();
         addTearDown(settings.close);
         final link = _ControlledLink('קישור מתאושש');
         CommentaryService.seedEraCache({link.path2: CommentaryEra.other});
@@ -223,7 +212,7 @@ void main() {
   testWidgets('immediate rejection stays visible until the next expansion', (
     tester,
   ) async {
-    final settings = _SettingsBloc();
+    final settings = StubSettingsBloc();
     addTearDown(settings.close);
     final link = _ImmediatelyBusyLink('קישור עמוס');
     CommentaryService.seedEraCache({link.path2: CommentaryEra.other});
@@ -261,7 +250,7 @@ void main() {
     (
       tester,
     ) async {
-      final settings = _SettingsBloc();
+      final settings = StubSettingsBloc();
       addTearDown(settings.close);
       final oldLink = _ControlledLink('מפרש קודם');
       final currentLink = _ControlledLink('מפרש חדש');

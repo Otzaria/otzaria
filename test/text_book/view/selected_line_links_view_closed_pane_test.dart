@@ -7,12 +7,13 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/selected_line_links_view.dart';
+
+import '../../test_helpers/stub_settings_bloc.dart';
 
 final _first = [_link('ספר א'), _link('ספר ב')];
 final _second = [_link('ספר ג')];
@@ -57,7 +58,7 @@ Future<(_TestTextBookBloc, void Function(bool))> _pump(
 }) async {
   final bloc = _TestTextBookBloc(_state(_first));
   addTearDown(bloc.close);
-  final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+  final settingsBloc = StubSettingsBloc(SettingsState.initial());
   addTearDown(settingsBloc.close);
   var open = isPaneOpen;
   late StateSetter setOuter;
@@ -119,16 +120,6 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
   }
 
   void emitState(TextBookState state) => emit(state);
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

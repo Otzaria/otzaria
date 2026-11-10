@@ -18,7 +18,6 @@ import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
 import 'package:otzaria/personal_notes/services/personal_notes_service.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
@@ -27,6 +26,7 @@ import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_settings_bloc.dart';
 
 /// רגרסיה: בצורת הדף, הערה על מפרש שנמחקה מחלונית ההערות השאירה את הטקסט
 /// מודגש — טור המפרש החזיק עותק של ההערות שנטען רק בפתיחה ואחרי יצירה.
@@ -39,12 +39,12 @@ void main() {
 
   late _TestTextBookBloc textBookBloc;
   late _TestPersonalNotesBloc personalNotesBloc;
-  late _TestSettingsBloc settingsBloc;
+  late StubSettingsBloc settingsBloc;
 
   setUp(() {
     textBookBloc = _TestTextBookBloc(_loadedState());
     personalNotesBloc = _TestPersonalNotesBloc(_notesState('ספר בדיקה', []));
-    settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    settingsBloc = StubSettingsBloc(SettingsState.initial());
   });
 
   tearDown(() async {
@@ -469,16 +469,6 @@ class _TestPersonalNotesBloc
     implements PersonalNotesBloc {
   _TestPersonalNotesBloc(super.initialState) {
     on<PersonalNotesEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
   }
 
   @override

@@ -8,25 +8,18 @@ import 'package:otzaria/widgets/navigation/reader_nav_center.dart';
 import 'package:otzaria/widgets/navigation/search_pane_base.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 
+import '../test_helpers/stub_settings_bloc.dart';
+
 /// חלונית החיפוש בתוך PDF (`PdfBookSearchView`) בנויה מ-[SearchPaneBase] בתוך
 /// חלונית הניווט של מסך ה-PDF, מתחת לסרגל העליון. השדה יושב בחלונית בכל רוחב,
 /// ולא בסרגל — שם הוא חלק את הרוחב עם הכותרת והפעולות ונדחס בטלפון.
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
 
 Future<void> _pumpPdfSearchPane(WidgetTester tester, Size screen) async {
   tester.view.physicalSize = screen;
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 
-  final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+  final settingsBloc = StubSettingsBloc(SettingsState.initial());
   addTearDown(settingsBloc.close);
 
   final host = NavPanelSearchHost();

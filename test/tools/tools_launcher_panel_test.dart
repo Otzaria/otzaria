@@ -25,6 +25,8 @@ import 'package:otzaria/tools/view/tools_launcher_panel.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 
+import '../test_helpers/stub_settings_bloc.dart';
+
 class _MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
     implements SettingsBloc {}
 
@@ -189,7 +191,7 @@ void main() {
     tester,
   ) async {
     final key = GlobalKey<_ToolsLauncherOverlayHarnessState>();
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final pluginSystemBloc = _TestPluginSystemBloc(PluginSystemInitial());
     final tabsBloc = _TestTabsBloc(TabsState.initial());
     addTearDown(() async {
@@ -224,7 +226,7 @@ void main() {
   ) async {
     final key = GlobalKey<_ToolsLauncherOverlayHarnessState>();
     final backgroundFocusNode = FocusNode();
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final pluginSystemBloc = _TestPluginSystemBloc(PluginSystemInitial());
     final tabsBloc = _TestTabsBloc(TabsState.initial());
     addTearDown(() async {
@@ -2207,16 +2209,6 @@ class _RecordingPluginSystemBloc
   void add(PluginSystemEvent event) {
     recorded.add(event);
     super.add(event);
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
   }
 
   @override

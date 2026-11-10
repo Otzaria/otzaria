@@ -15,7 +15,6 @@ import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/misc/link_context_menu_entry.dart';
@@ -23,6 +22,7 @@ import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
 
 import '../test_helpers/memory_cache_provider.dart';
+import '../test_helpers/stub_settings_bloc.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -58,7 +58,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: BlocProvider<SettingsBloc>.value(
-          value: _TestSettingsBloc(SettingsState.initial()),
+          value: StubSettingsBloc(SettingsState.initial()),
           child: Scaffold(
             body: Align(
               alignment: alignment,
@@ -146,7 +146,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: BlocProvider<SettingsBloc>.value(
-          value: _TestSettingsBloc(SettingsState.initial()),
+          value: StubSettingsBloc(SettingsState.initial()),
           child: Scaffold(
             body: Center(
               child: SizedBox(
@@ -202,7 +202,7 @@ void main() {
       // החלונית יושבת ב-overlay של האפליקציה — הספק חייב להיות מעליה.
       await tester.pumpWidget(
         BlocProvider<SettingsBloc>.value(
-          value: _TestSettingsBloc(SettingsState.initial()),
+          value: StubSettingsBloc(SettingsState.initial()),
           child: MaterialApp(
             home: Builder(
               builder: (context) {
@@ -284,7 +284,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: BlocProvider<SettingsBloc>.value(
-          value: _TestSettingsBloc(SettingsState.initial()),
+          value: StubSettingsBloc(SettingsState.initial()),
           child: Scaffold(
             body: SizedBox(
               width: 240,
@@ -325,7 +325,7 @@ void main() {
     late BuildContext host;
     await tester.pumpWidget(
       BlocProvider<SettingsBloc>.value(
-        value: _TestSettingsBloc(SettingsState.initial()),
+        value: StubSettingsBloc(SettingsState.initial()),
         child: MaterialApp(
           home: Builder(
             builder: (context) {
@@ -510,7 +510,7 @@ void main() {
           mapping: const {},
           providers: [provider],
         );
-        final settings = _TestSettingsBloc(
+        final settings = StubSettingsBloc(
           SettingsState.initial().copyWith(commentatorsFontSize: 40),
         );
         addTearDown(settings.close);
@@ -609,16 +609,6 @@ void main() {
       });
     }
   });
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 /// ספק שמחזיר תוכן קבוע לכל קישור.

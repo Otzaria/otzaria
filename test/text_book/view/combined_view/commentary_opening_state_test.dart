@@ -11,7 +11,6 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -21,6 +20,7 @@ import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_settings_bloc.dart';
 
 const _title = 'ספר בדיקה';
 String _note(String content) =>
@@ -71,7 +71,7 @@ Future<({_TextBookBloc bloc, TextBookTab tab})> _pumpView(
     ),
   );
   final notesBloc = _PersonalNotesBloc(const PersonalNotesState.initial());
-  final settingsBloc = _SettingsBloc(SettingsState.initial());
+  final settingsBloc = StubSettingsBloc(SettingsState.initial());
   final tab = TextBookTab(book: book, index: 0);
   addTearDown(bloc.close);
   addTearDown(notesBloc.close);
@@ -556,15 +556,6 @@ class _PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState>
     implements PersonalNotesBloc {
   _PersonalNotesBloc(super.initialState) {
     on<PersonalNotesEvent>((event, emit) {});
-  }
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _SettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _SettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
   }
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

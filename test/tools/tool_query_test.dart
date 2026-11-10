@@ -5,8 +5,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tools/acronyms_dictionary/acronyms_dictionary_screen.dart';
 import 'package:otzaria/tools/acronyms_dictionary/widgets/acronym_result_card.dart';
 import 'package:otzaria/tools/aramaic_dictionary/aramaic_dictionary_screen.dart';
@@ -22,16 +20,7 @@ import 'package:otzaria/tools/tool_query.dart';
 import 'package:otzaria/widgets/controls/bar_button.dart';
 
 import '../helpers/memory_settings_cache.dart';
-
-class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _FakeSettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
-}
+import '../test_helpers/stub_settings_bloc.dart';
 
 class _FakeBiographiesRepository extends BiographiesRepository {
   _FakeBiographiesRepository({this.gate});
@@ -74,7 +63,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   Future<void> pumpScreen(WidgetTester tester, Widget screen) async {
-    final bloc = _FakeSettingsBloc();
+    final bloc = StubSettingsBloc();
     addTearDown(bloc.close);
     await tester.pumpWidget(
       MaterialApp(
@@ -234,7 +223,7 @@ void main() {
     final loaded = Completer<void>();
     final inbox = ToolQueryInbox();
     addTearDown(inbox.dispose);
-    final bloc = _FakeSettingsBloc();
+    final bloc = StubSettingsBloc();
     addTearDown(bloc.close);
 
     await tester.pumpWidget(

@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tools/biographies/biographies_screen.dart';
 import 'package:otzaria/tools/biographies/models/biographies_bundle.dart';
 import 'package:otzaria/tools/biographies/models/biography.dart';
@@ -13,15 +11,7 @@ import 'package:otzaria/tools/biographies/repository/biographies_repository.dart
 import 'package:otzaria/tools/biographies/widgets/biography_card.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 
-class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _FakeSettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
-}
+import '../test_helpers/stub_settings_bloc.dart';
 
 class _FakeRepository extends BiographiesRepository {
   @override
@@ -103,7 +93,7 @@ void main() {
     WidgetTester tester, {
     BiographiesRepository? repository,
   }) async {
-    final bloc = _FakeSettingsBloc();
+    final bloc = StubSettingsBloc();
     addTearDown(bloc.close);
     await tester.pumpWidget(
       MaterialApp(

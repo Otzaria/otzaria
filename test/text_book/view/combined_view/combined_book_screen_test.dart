@@ -17,7 +17,6 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_content_view.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -40,6 +39,7 @@ import '../../../support/search_engine_test_init.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import '../../../test_helpers/memory_cache_provider.dart';
 import '../../../test_helpers/activate_correction_paragraph.dart';
+import '../../../test_helpers/stub_settings_bloc.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -101,7 +101,7 @@ void main() {
               blocOverride: blocs[index],
             ),
           );
-          final settings = _TestSettingsBloc(SettingsState.initial());
+          final settings = StubSettingsBloc(SettingsState.initial());
           final notes = _TestPersonalNotesBloc(
             const PersonalNotesState.initial(),
           );
@@ -400,7 +400,7 @@ void main() {
           ),
         );
         final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
-        final settings = _TestSettingsBloc(SettingsState.initial());
+        final settings = StubSettingsBloc(SettingsState.initial());
         final notes = _TestPersonalNotesBloc(
           const PersonalNotesState.initial(),
         );
@@ -678,7 +678,7 @@ void main() {
               locatedNotes: notes,
             ),
           );
-          final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+          final settingsBloc = StubSettingsBloc(SettingsState.initial());
           addTearDown(notesBloc.close);
           addTearDown(settingsBloc.close);
           await tester.pumpWidget(
@@ -951,7 +951,7 @@ void main() {
               ),
             ),
             BlocProvider<SettingsBloc>.value(
-              value: _TestSettingsBloc(SettingsState.initial()),
+              value: StubSettingsBloc(SettingsState.initial()),
             ),
           ],
           child: Scaffold(
@@ -982,7 +982,7 @@ void main() {
       final controller = SelectionSyncController();
       addTearDown(controller.dispose);
       final textBookBloc = _ClosedTextBookBloc(_loadedState());
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
       final personalNotesBloc = _TestPersonalNotesBloc(
         PersonalNotesState(
           isLoading: false,
@@ -1146,7 +1146,7 @@ void main() {
               ),
             ),
             BlocProvider<SettingsBloc>.value(
-              value: _TestSettingsBloc(SettingsState.initial()),
+              value: StubSettingsBloc(SettingsState.initial()),
             ),
           ],
           child: Scaffold(
@@ -1184,7 +1184,7 @@ void main() {
         filteredMissingNotes: const [],
       ),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final tab = TextBookTab(
       book: TextBook(title: 'ספר בדיקה'),
       index: 0,
@@ -1247,7 +1247,7 @@ void main() {
     final personalNotesBloc = _TestPersonalNotesBloc(
       const PersonalNotesState.initial(),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final tab = TextBookTab(book: TextBook(title: 'ספר בדיקה'), index: 0);
     addTearDown(textBookBloc.close);
     addTearDown(personalNotesBloc.close);
@@ -1337,7 +1337,7 @@ void main() {
         const PersonalNotesState.initial(),
       );
       addTearDown(personalNotesBloc.close);
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
       addTearDown(settingsBloc.close);
       final tab = TextBookTab(book: TextBook(title: 'ספר בדיקה'), index: 0);
       addTearDown(tab.dispose);
@@ -1740,16 +1740,6 @@ class _TestPersonalNotesBloc
     implements PersonalNotesBloc {
   _TestPersonalNotesBloc(super.initialState) {
     on<PersonalNotesEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
   }
 
   @override
