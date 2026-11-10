@@ -152,7 +152,7 @@ void main() {
     });
 
     test(
-      'categoryPath של "ספרים אישיים" → preferUserBooks → topics מ-user_books',
+      'ספר שקיים רק ב-user_books → topics מ-user_books (בלי categoryPath)',
       () async {
         final userBooksRepo = await UserBooksDatabaseHolder.instance.repository;
         final personalId = await userBooksRepo.insertCategory(
