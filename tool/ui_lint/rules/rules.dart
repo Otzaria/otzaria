@@ -1,4 +1,5 @@
 import '../ui_lint.dart';
+import 'brightness_color_rule.dart';
 import 'deprecated_component_rule.dart';
 import 'elevation_shadow_rule.dart';
 import 'hardcoded_color_rule.dart';
@@ -61,6 +62,7 @@ const List<UiLintRule> uiLintRules = [
   SharedFeatureImportRule(),
   SharedDensityRule(),
   TextScalingRule(),
+  BrightnessColorRule(),
   RawShowDialogRule(),
   ElevationShadowRule(),
   RawScrollbarRule(),

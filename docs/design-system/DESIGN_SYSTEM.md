@@ -143,7 +143,7 @@ AlertDialog(...) / TextButton(...) / Card()  // showTwoActionsDialog / ActionBut
 - `.withValues(alpha:)`, `.withAlpha(` ו־`.withOpacity(` על צבעי ממשק (UIL-016; 86 מופעים ב־baseline).
 - `Theme.of(context).primaryColor`. זהו באג מוכח: במצב כהה Flutter מחזיר דרכו את `surface`, ולכן טקסט ותיבות סימון נעלמו.
 - `hoverColor`, `splashColor` ו־`overlayColor` (UIL-007). חריג אחד: `hoverColor: Colors.transparent` ב־`ListTile` שיש לו `onTap` וגם כפתורים ב־`trailing`, כדי שהריחוף של השורה לא יתחרה בהם. ערך מ־`AppSurfaces` (למשל `hoverRow`) אינו עקיפה, גם בתנאי שכל ענפיו `AppSurfaces` או `null`.
-- ענף `brightness == Brightness.dark` לבחירת צבע. ההחלטה שייכת ל־`AppSurfaceColors`. בדיקה לפי שם מצאה 31 אתרים מחוץ ל־`lib/theme`, ורובם אינם החלטת צבע (בניית הערכה, פלטפורמה, תוכן). הכלל (UIL-027) עוד לא מומש.
+- ענף `brightness == Brightness.dark` לבחירת צבע. ההחלטה שייכת ל־`AppSurfaceColors`. UIL-027 חוסם תנאי בהירות שהענפים שלו צבעים (הכרעת בעל הפרויקט 10.11); שלושה אתרים ב־baseline.
 
 `Colors.transparent` מותר. החריגים המותרים מפורטים בסעיף 2.1.3.
 
