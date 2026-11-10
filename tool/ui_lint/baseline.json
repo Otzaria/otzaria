@@ -22,11 +22,6 @@
         {"scope":"_HoverableDayCellState._buildAddButton","fp":"65815792","n":1}
       ]
     },
-    "UIL-012": {
-      "lib/widgets/dialogs/ad_popup_dialog.dart": [
-        {"scope":"_ExpandableOrgCardState.build","fp":"0855387f","n":1}
-      ]
-    },
     "UIL-013": {
       "lib/book_common/view/book_source_dialog.dart": [
         {"scope":"_BookDetailsDialogContentState.build","fp":"8fde4718","n":1}
@@ -155,9 +150,6 @@
         {"scope":"_SearchDialogState._buildDefaultsMenu","fp":"a5034eeb","n":1},
         {"scope":"_SearchDialogState._buildHistoryButton","fp":"a5034eeb","n":1}
       ],
-      "lib/widgets/dialogs/ad_popup_dialog.dart": [
-        {"scope":"_AdPopupDialogState._buildBottomButtons","fp":"3efca7da","n":1}
-      ],
       "lib/widgets/text/rtl_text_field.dart": [
         {"scope":"_RtlTextFieldState._showContextMenu","fp":"d8481033","n":1}
       ]
@@ -276,7 +268,6 @@
         {"scope":"_LinksListViewState._buildLinkContent","fp":"2409bf30","n":1}
       ],
       "lib/widgets/dialogs/ad_popup_dialog.dart": [
-        {"scope":"_AdPopupDialogState.build","fp":"12f1a54c","n":1},
         {"scope":"_ExpandableOrgCardState.build","fp":"2c874cf5","n":1},
         {"scope":"_ExpandableOrgCardState.build","fp":"ecba9957","n":1},
         {"scope":"_OrganizationsList._buildSectionTitle","fp":"0959be04","n":1},
@@ -571,10 +562,6 @@
       "lib/widgets/commentary/commentary_search_results_list.dart": [
         {"scope":"_CommentarySearchResultsListState._highlightSpans","fp":"a9c1e30c","n":1},
         {"scope":"_CommentarySearchResultsListState._highlightSpans","fp":"abc1e632","n":1}
-      ],
-      "lib/widgets/dialogs/ad_popup_dialog.dart": [
-        {"scope":"_ExpandableOrgCardState._buildDetailsText","fp":"a8c1e179","n":1},
-        {"scope":"_ExpandableOrgCardState.build","fp":"a9c1e30c","n":3}
       ],
       "lib/widgets/dialogs/details_info_section.dart": [
         {"scope":"DetailsCard.build","fp":"4642f6a0","n":1},
@@ -960,10 +947,6 @@
       "lib/tools/tikkun_korim/view/widgets/stam_word.dart": [
         {"scope":"tikkunWordText","fp":"f7030732","n":1}
       ],
-      "lib/widgets/dialogs/ad_popup_dialog.dart": [
-        {"scope":"_AdPopupDialogState._buildBottomButtons","fp":"d9adeea4","n":1},
-        {"scope":"_AdPopupDialogState.build","fp":"0faa7316","n":1}
-      ],
       "lib/widgets/feedback/scrollbar_target_label.dart": [
         {"scope":"ScrollbarTargetLabelController._buildLabel","fp":"720d7210","n":1},
         {"scope":"ScrollbarTargetLabelController._buildLabel","fp":"a336ff9d","n":1}
@@ -1317,11 +1300,6 @@
       "lib/widgets/controls/bar_split_button.dart": [
         {"scope":"_BarSplitButtonState.build","fp":"87f04357","n":1},
         {"scope":"_BarSplitButtonState.build","fp":"f1e89b70","n":1}
-      ],
-      "lib/widgets/dialogs/ad_popup_dialog.dart": [
-        {"scope":"_AdPopupDialogState._buildBottomButtons","fp":"f1e89b70","n":3},
-        {"scope":"_ExpandableOrgCardState.build","fp":"89f0467d","n":1},
-        {"scope":"_ExpandableOrgCardState.build","fp":"f7eae379","n":1}
       ],
       "lib/widgets/dialogs/details_info_section.dart": [
         {"scope":"DetailsCard.build","fp":"fdc90bff","n":1},
