@@ -25,5 +25,7 @@
 `python3 tool/verify_vendored_packages.py --package irondash_engine_context`
 מאמת את הארכיון ואת כל הקבצים המנוהלים, ומרשה שינוי רק בקובץ שלעיל.
 
-לאחר שחרור יציב של גרסה עם native assets, אפשר להסיר את ה־override, העותק,
-החרגת הניתוח והאימות, ולעדכן את ה־lockfile.
+`super_native_extensions 0.9.1` דורש `irondash_engine_context ^0.5.5`, ולכן הסרת
+ה־override לבדו תחזיר את 0.5.5 השבורה מ־Pub. מסירים אותו רק יחד עם המעבר ל־
+`super_native_extensions` / `super_clipboard` ‏0.10 יציבה (תלויה ב־irondash ‏^0.6),
+כולל העותק, החרגת הניתוח והאימות, ומעדכנים את ה־lockfile.

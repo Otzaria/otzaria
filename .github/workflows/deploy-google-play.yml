@@ -202,7 +202,7 @@ jobs:
           kotlin.incremental=true
           EOF
 
-      - name: Ensure Android SDK Platform 36
+      - name: Ensure Android SDK Platform 37
         run: |
           set -e
           if [ ! -d "${ANDROID_SDK_ROOT}/platforms/android-37.0" ]; then
