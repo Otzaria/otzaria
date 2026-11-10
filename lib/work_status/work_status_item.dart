@@ -53,6 +53,14 @@ class WorkStatusItem {
   /// משך שאחריו הפריט יורד מעצמו; `null` = נשאר עד סגירה ידנית.
   final Duration? autoDismissAfter;
 
+  /// שם קצר לגלולה בשורת הכותרת. `null` = אין גלולה: סגירת הכרטיס מסתירה את
+  /// הפריט, והוא אינו מצטמצם.
+  final String? chipLabel;
+
+  /// משך שאחריו הכרטיס מצטמצם לגלולה ([chipLabel]) מעצמו; `null` = נשאר פתוח
+  /// עד סגירה ידנית (פריט שנכשל או ממתין להחלטה).
+  final Duration? collapseAfter;
+
   const WorkStatusItem({
     required this.id,
     required this.title,
@@ -63,6 +71,8 @@ class WorkStatusItem {
     this.onTap,
     this.actions = const [],
     this.autoDismissAfter,
+    this.chipLabel,
+    this.collapseAfter,
   });
 
   @override
@@ -78,7 +88,9 @@ class WorkStatusItem {
           kind == other.kind &&
           onTap == other.onTap &&
           listEquals(actions, other.actions) &&
-          autoDismissAfter == other.autoDismissAfter;
+          autoDismissAfter == other.autoDismissAfter &&
+          chipLabel == other.chipLabel &&
+          collapseAfter == other.collapseAfter;
 
   @override
   int get hashCode =>
@@ -90,5 +102,7 @@ class WorkStatusItem {
       kind.hashCode ^
       onTap.hashCode ^
       Object.hashAll(actions) ^
-      autoDismissAfter.hashCode;
+      autoDismissAfter.hashCode ^
+      chipLabel.hashCode ^
+      collapseAfter.hashCode;
 }

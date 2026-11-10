@@ -49,4 +49,31 @@ void main() {
     await tester.tap(find.text('מוכן להתקנה'));
     expect(taps, 1);
   });
+
+  testWidgets('tone error: צבעי השגיאה של ערכת הנושא', (tester) async {
+    await pump(
+      tester,
+      StatusChip(
+        icon: const Icon(Icons.error),
+        label: 'נכשל',
+        tooltip: 'לחץ לפרטים',
+        tone: StatusChipTone.error,
+        onPressed: () {},
+      ),
+    );
+    final cs = Theme.of(tester.element(find.text('נכשל'))).colorScheme;
+    final text = tester.widget<RichText>(
+      find.descendant(of: find.text('נכשל'), matching: find.byType(RichText)),
+    );
+    expect(text.text.style?.color, cs.onErrorContainer);
+    final material = tester.widget<Material>(
+      find
+          .descendant(
+            of: find.byType(StatusChip),
+            matching: find.byType(Material),
+          )
+          .first,
+    );
+    expect(material.color, cs.errorContainer);
+  });
 }

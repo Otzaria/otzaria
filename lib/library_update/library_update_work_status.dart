@@ -10,7 +10,16 @@ const kLibraryUpdateWorkStatusId = 'library_update';
 /// משך הצגת כשל בדיקת העדכונים לפני סגירה אוטומטית.
 const kCheckFailureAutoDismiss = Duration(seconds: 8);
 
+/// משך הצגת כרטיס העדכון לפני שהוא מצטמצם לגלולה בשורת הכותרת.
+const kLibraryCardCollapseAfter = Duration(seconds: 6);
+
+/// שם העבודה בגלולת שורת הכותרת.
+const _kChipLabel = 'ספרייה';
+
 /// פריט חיווי העבודה לעדכון הספרייה, או `null` כשאין מה להציג.
+///
+/// [collapsible] — יש שורת כותרת להציג בה גלולה (דסקטופ). בלעדיו הכרטיס אינו
+/// מצטמצם, ואין לאן לחזור אחרי סגירה.
 ///
 /// [LibraryUpdateStatus.checking] שקט; עבודה ממשית ממופה למצבים הפעילים.
 ///
@@ -21,7 +30,9 @@ WorkStatusItem? libraryUpdateWorkStatusItem(
   required VoidCallback onRetry,
   required VoidCallback onChooseDelta,
   required VoidCallback onChooseFullDownload,
+  bool collapsible = false,
 }) {
+  final chipLabel = collapsible ? _kChipLabel : null;
   // שתי אפשרויות שקולות — אין המלצה: הבחירה תלויה במהירות הרשת של המשתמש.
   if (state.status == LibraryUpdateStatus.needsRouteChoice) {
     return WorkStatusItem(
@@ -30,6 +41,7 @@ WorkStatusItem? libraryUpdateWorkStatusItem(
       message: state.message,
       detail: 'בחר כיצד לעדכן',
       kind: WorkStatusKind.awaitingInput,
+      chipLabel: chipLabel,
       actions: [
         WorkStatusAction(
           label: 'עדכון דלתא',
@@ -51,6 +63,8 @@ WorkStatusItem? libraryUpdateWorkStatusItem(
       title: 'עדכון ספרייה',
       message: state.message,
       progress: _busyProgress(state),
+      chipLabel: chipLabel,
+      collapseAfter: collapsible ? kLibraryCardCollapseAfter : null,
     );
   }
 
@@ -65,6 +79,7 @@ WorkStatusItem? libraryUpdateWorkStatusItem(
           ? LibraryMessages.tapToResumeDownload
           : 'לחץ לניסיון חוזר',
       kind: WorkStatusKind.failed,
+      chipLabel: chipLabel,
       onTap: onRetry,
       autoDismissAfter: state.isCheckFailure ? kCheckFailureAutoDismiss : null,
     );

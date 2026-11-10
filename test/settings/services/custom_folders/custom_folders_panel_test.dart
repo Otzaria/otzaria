@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -9,8 +12,10 @@ import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_blo
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/settings/panels/custom_folders_panel.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
 import 'package:otzaria/widgets/text/app_section_label.dart';
@@ -166,6 +171,67 @@ void main() {
     expect(find.text('הסרת תיקייה'), findsOneWidget);
   });
 
+  group('כפתורי הכרטיס', () {
+    testWidgets('מידע נוסף וסריקה מחדש הם AppIconButton עם tooltip', (
+      tester,
+    ) async {
+      final bloc = buildBloc();
+      addTearDown(bloc.close);
+      await pumpTile(tester, bloc);
+
+      for (final tooltip in ['מידע נוסף', 'סרוק מחדש תיקיות אישיות']) {
+        final button = find.ancestor(
+          of: find.byTooltip(tooltip),
+          matching: find.byType(AppIconButton),
+        );
+        expect(button, findsOneWidget, reason: tooltip);
+        expect(
+          tester.widget<AppIconButton>(button).size,
+          AppIconButtonSize.small,
+        );
+      }
+    });
+
+    testWidgets('בזמן סריקה הכפתור מושבת ומציג LoadingIndicator של הקטלוג', (
+      tester,
+    ) async {
+      final sync = Completer<FileSyncResult>();
+      final bloc = CustomFoldersBloc(
+        addLibraryEvent: (_) {},
+        loadFolders: () => [
+          CustomFolder(path: folderPath, addedAt: DateTime(2026, 5, 7)),
+        ],
+        saveFolders: (_) async {},
+        syncFolders: (_, {String? onlyFolderPath}) => sync.future,
+        deleteFolderFromDb: (_) async {},
+      )..add(const LoadCustomFolders());
+      addTearDown(bloc.close);
+      await pumpTile(tester, bloc);
+
+      await tester.tap(find.byTooltip('סרוק מחדש תיקיות אישיות'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final button = find.ancestor(
+        of: find.byTooltip('סרוק מחדש תיקיות אישיות'),
+        matching: find.byType(AppIconButton),
+      );
+      expect(tester.widget<AppIconButton>(button).onPressed, isNull);
+      final spinner = find.descendant(
+        of: button,
+        matching: find.byType(LoadingIndicator),
+      );
+      expect(spinner, findsOneWidget);
+      expect(
+        tester.getSize(spinner),
+        const Size.square(LoadingIndicator.inlineSize),
+      );
+
+      sync.complete(const FileSyncResult());
+      await tester.pumpAndSettle();
+    });
+  });
+
   group('דיאלוג "הצגה או הוספה של הקבצים"', () {
     Future<void> openInfo(WidgetTester tester) async {
       final bloc = buildBloc();
@@ -265,13 +331,123 @@ void main() {
         of: find.byType(PanelScrollableContent),
         matching: find.byType(Text),
       );
-      // שתי כותרות מקטע, וכותרת והסבר לכל אחד מחמשת הפריטים.
-      expect(texts, findsNWidgets(12));
+      // שתי כותרות מקטע, כותרת והסבר לכל אחד מחמשת הפריטים, וקובץ בכל שורה:
+      // שלושה תיאורים וארבעה שמות.
+      expect(texts, findsNWidgets(19));
       for (final element in texts.evaluate()) {
         final rect = tester.getRect(find.byWidget(element.widget));
         expect(rect.left, greaterThanOrEqualTo(body.left + inset));
         expect(rect.right, lessThanOrEqualTo(body.right - inset));
       }
+    });
+
+    // שמות הקבצים הם טקסט LTR בתוך פסקה עברית. בלי בידוד, שם עם כמה מקטעים
+    // עבריים ("<שם הספר>.כותרות.csv") מצויר בסדר הפוך, והנקודות והסוגריים
+    // עוברים למקום שגוי.
+    group('שמות הקבצים', () {
+      final rli = String.fromCharCode(0x2067);
+      final pdi = String.fromCharCode(0x2069);
+
+      Finder fileNameTexts() => find.byWidgetPredicate(
+        (w) =>
+            w is Text &&
+            w.textDirection == TextDirection.ltr &&
+            (w.data ?? '').contains(RegExp(r'\.(csv|json)')),
+        description: 'Text עם שם קובץ LTR',
+      );
+
+      testWidgets('כל שם קובץ מוצג כיחידת LTR משלו, ולא בתוך פסקה', (
+        tester,
+      ) async {
+        await openInfo(tester);
+
+        final names = tester
+            .widgetList<Text>(fileNameTexts())
+            .map((t) => t.data!.replaceAll(rli, '').replaceAll(pdi, ''))
+            .toList();
+        expect(names, [
+          '<שם הספר>.כותרות.csv',
+          'גרסאות.csv',
+          '<שם הספר>.links.csv',
+          '<שם הספר>_links.json',
+        ]);
+
+        // אף פסקת הסבר אינה נושאת שם קובץ בתוכה.
+        final texts = tester.widgetList<Text>(
+          find.descendant(
+            of: find.byType(PanelScrollableContent),
+            matching: find.byType(Text),
+          ),
+        );
+        for (final text in texts) {
+          if (text.textDirection == TextDirection.ltr) continue;
+          expect(text.data, isNot(contains('_links.json')));
+          expect(text.data, isNot(contains('.links.csv')));
+          expect(text.data, isNot(contains('גרסאות.csv')));
+        }
+      });
+
+      testWidgets('כל רצף עברית בשם קובץ מבודד, והסדר החזותי הוא הלוגי', (
+        tester,
+      ) async {
+        await openInfo(tester);
+
+        final name = tester
+            .widgetList<Text>(fileNameTexts())
+            .map((t) => t.data!)
+            .firstWhere((data) => data.contains('כותרות'));
+        expect(name, '<$rliשם הספר$pdi>.$rliכותרות$pdi.csv');
+        expect(
+          tester.widget<Text>(find.text(name)).style?.fontFamily,
+          AppTextStyles.monospaceFamily,
+        );
+
+        // "שם הספר" משמאל ל"כותרות", ואחריו הסיומת, כמו בקריאה משמאל לימין.
+        final paragraph = tester.renderObject<RenderParagraph>(find.text(name));
+        double leftOf(String word) {
+          final start = name.indexOf(word);
+          return paragraph
+              .getBoxesForSelection(
+                TextSelection(
+                  baseOffset: start,
+                  extentOffset: start + word.length,
+                ),
+              )
+              .first
+              .left;
+        }
+
+        expect(leftOf('שם הספר'), lessThan(leftOf('כותרות')));
+        expect(leftOf('כותרות'), lessThan(leftOf('csv')));
+      });
+
+      testWidgets('שם הקובץ בשורה משלו, ומתחתיו מה שהקובץ עושה', (
+        tester,
+      ) async {
+        await openInfo(tester);
+
+        final names = fileNameTexts();
+        final headings = tester.getRect(names.first);
+        final description = tester.getRect(
+          find.textContaining('ליד ספר טקסט: מוסיף לו את לשונית'),
+        );
+        expect(description.top, greaterThanOrEqualTo(headings.bottom));
+
+        // שני שמות הקישורים זה מתחת לזה, ותיאור אחד מתחתם.
+        final links = tester.getRect(names.at(2));
+        final linksJson = tester.getRect(names.at(3));
+        expect(linksJson.top, greaterThanOrEqualTo(links.bottom));
+        expect(
+          tester.getRect(find.text('מוסיף קישורים.')).top,
+          greaterThanOrEqualTo(linksJson.bottom),
+        );
+
+        // השם בתחילת השורה, באותו קו עם הכותרת שמעליו (בבדיקה הכיוון LTR).
+        final title = tester.getRect(
+          find.text('קישורים, כותרות וגרסאות בתיקייה'),
+        );
+        expect(headings.left, title.left);
+      });
     });
 
     testWidgets('"סגור" ו-Escape סוגרים את הדיאלוג', (tester) async {

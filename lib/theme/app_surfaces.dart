@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_surface_colors.dart';
-import 'package:otzaria/theme/app_seed_colors.dart';
 import 'package:otzaria/theme/app_theme_data.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 
@@ -149,15 +148,10 @@ class AppSurfaces {
   /// מסגרת כרטיסייה בבחירה מרובה ([AppTokens.multiSelectedBorderWidth]).
   static Color multiSelectedBorder(ColorScheme cs) => cs.primary;
 
-  /// רקע הפסקה הנבחרת במסך העיון — השורה הפעילה בספר.
-  ///
-  /// ברירת מחדל: 8% primary — רמז עדין של הצבע הראשי. בערכת "לבן" במצב
-  /// בהיר הרקע בהיר יותר — F8FAFC — כדי שהבחירה תהיה עדינה וקרובה ללבן.
-  static Color paragraphSelectionBackground(ThemeData theme) =>
-      theme.brightness == Brightness.light &&
-          AppThemeVariantTheme.of(theme) == AppThemeVariant.white
-      ? const Color(0xFFF8FAFC)
-      : theme.colorScheme.primary.withValues(alpha: 0.08);
+  /// סמן הצד של שורת מפרש הקשורה לשורה הנבחרת, בצורת הדף: אותו סמן כמו
+  /// בשורה הנבחרת בטקסט הראשי (`primary`), בעוצמה מופחתת.
+  static Color relatedLineMarker(ColorScheme cs) =>
+      cs.primary.withValues(alpha: 0.5);
 
   /// פס בצד תחילת השורה לפסקה שתוקנה מקומית בסשן תיקון של תוסף.
   static Color correctedParagraphMarker(ColorScheme cs) => cs.tertiary;

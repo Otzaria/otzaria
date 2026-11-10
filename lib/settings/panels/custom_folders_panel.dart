@@ -19,6 +19,7 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/dialogs/zip_extraction_progress_dialog.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/utils/file/document_format.dart';
@@ -525,19 +526,17 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
           'הוספה: מוסיף את התוכן הקיים לתוכנה, תוכן הקבצים ישתנה רק בסריקה מחדש, (קבצים שאינם טקסט רק יוצגו בתוכנה)',
         ),
         actions: [
-          IconButton(
+          AppIconButton(
             icon: const Icon(FluentIcons.info_24_regular),
+            size: AppIconButtonSize.small,
             onPressed: _showStorageInfoDialog,
             tooltip: context.settingsText('מידע נוסף'),
           ),
-          IconButton(
+          AppIconButton(
             icon: isSyncing
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
+                ? const LoadingIndicator.inline()
                 : const Icon(FluentIcons.arrow_clockwise_24_regular),
+            size: AppIconButtonSize.small,
             onPressed: isSyncing
                 ? null
                 : () => context.read<CustomFoldersBloc>().add(
@@ -614,13 +613,31 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
                 icon: OtzariaIcons.books_stacked_high_24_regular,
                 title: context.settingsText('קישורים, כותרות וגרסאות בתיקייה'),
                 description: context.settingsText(
-                  'קובץ "<שם הקובץ>.כותרות.csv" ליד ספר טקסט מוסיף לו את '
-                  'לשונית "כותרות" (עמודות: מבנה, רמה, כותרת, שורה או טקסט). '
-                  'קובץ "גרסאות.csv" בתיקייה מאחד כמה קבצים לספר אחד (עמודות: '
-                  'ראשי, גרסה, שם). קובץ "<שם הספר>.links.csv" או '
-                  '"<שם הספר>_links.json" מוסיף קישורים. הקבצים נקלטים בסריקת '
-                  'התיקייה.',
+                  'הקבצים הבאים נקלטים בסריקת התיקייה:',
                 ),
+                files: [
+                  _StorageInfoFile(
+                    names: [context.settingsText('<שם הספר>.כותרות.csv')],
+                    description: context.settingsText(
+                      'ליד ספר טקסט: מוסיף לו את לשונית "כותרות". עמודות: '
+                      'מבנה, רמה, כותרת, שורה או טקסט.',
+                    ),
+                  ),
+                  _StorageInfoFile(
+                    names: const ['גרסאות.csv'],
+                    description: context.settingsText(
+                      'בתיקייה: מאחד כמה קבצים לספר אחד. עמודות: ראשי, גרסה, '
+                      'שם.',
+                    ),
+                  ),
+                  _StorageInfoFile(
+                    names: [
+                      context.settingsText('<שם הספר>.links.csv'),
+                      context.settingsText('<שם הספר>_links.json'),
+                    ],
+                    description: context.settingsText('מוסיף קישורים.'),
+                  ),
+                ],
               ),
             ],
           ),
@@ -649,17 +666,19 @@ class _StorageInfoSection extends StatelessWidget {
 }
 
 /// פריט בדיאלוג "הצגה או הוספה של הקבצים": אייקון בתחילת השורה, כותרת
-/// ומתחתיה הסבר.
+/// ומתחתיה הסבר, ואם יש — קבצים, כל אחד בשורה משלו.
 class _StorageInfoItem extends StatelessWidget {
   const _StorageInfoItem({
     required this.icon,
     required this.title,
     required this.description,
+    this.files = const [],
   });
 
   final IconData icon;
   final String title;
   final String description;
+  final List<Widget> files;
 
   @override
   Widget build(BuildContext context) {
@@ -682,10 +701,62 @@ class _StorageInfoItem extends StatelessWidget {
                   color: cs.onSurfaceVariant,
                 ),
               ),
+              if (files.isNotEmpty) ...[
+                const SizedBox(height: AppTokens.spaceXS),
+                for (final file in files) file,
+              ],
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+/// קובץ בתוך [_StorageInfoItem]: שם או שמות הקובץ כיחידות LTR, ומתחתם מה
+/// הקובץ עושה.
+class _StorageInfoFile extends StatelessWidget {
+  const _StorageInfoFile({required this.names, required this.description});
+
+  final List<String> names;
+  final String description;
+
+  /// RLI..PDI סביב כל רצף עברית: בלי זה, שם עם כמה מקטעים עבריים
+  /// ("<שם הספר>.כותרות.csv") נקרא בסדר הפוך גם בתוך טקסט LTR.
+  static final RegExp _hebrewRun = RegExp(
+    r'[\u0590-\u05FF]+(?: [\u0590-\u05FF]+)*',
+  );
+
+  static String isolateHebrew(String name) =>
+      name.replaceAllMapped(_hebrewRun, (m) => '\u2067${m[0]}\u2069');
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(bottom: AppTokens.spaceSM),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: AppTokens.space2XS,
+        children: [
+          for (final name in names)
+            Text(
+              isolateHebrew(name),
+              textDirection: TextDirection.ltr,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontFamily: AppTextStyles.monospaceFamily,
+                color: cs.onSurface,
+              ),
+            ),
+          Text(
+            description,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

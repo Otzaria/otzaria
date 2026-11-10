@@ -94,6 +94,7 @@ import 'package:otzaria/workspaces/bloc/workspace_state.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/work_status/work_status_cubit.dart';
 import 'package:otzaria/work_status/work_status_overlay.dart';
+import 'package:otzaria/core/windowing/device_chrome.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/view/history_screen.dart';
@@ -3356,6 +3357,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
                 onChooseFullDownload: () => context
                     .read<LibraryUpdateBloc>()
                     .add(const ConfirmFullDownload()),
+                collapsible: DeviceChrome.hasWindowCaption,
               );
               if (item == null) {
                 cubit.remove(kLibraryUpdateWorkStatusId);
@@ -3964,7 +3966,11 @@ class MainWindowScreenState extends State<MainWindowScreen>
                               ),
                             ],
                           ),
-                          const WorkStatusOverlay(),
+                          WorkStatusOverlay(
+                            showCollapsed:
+                                isImmersive ||
+                                WindowClass.of(context).isCompact,
+                          ),
                           // host נסתר לתוספים שביקשו לרוץ ברקע עם עליית
                           // האפליקציה. הוא חי כל זמן שה-MainWindowScreen קיים,
                           // ולא תלוי במסך "כלים".

@@ -204,28 +204,38 @@ void main() {
     });
   }
 
-  testWidgets('מפרש בצורת הדף שומר הדגשה מקומית בלי סמן בחירה ראשי', (
-    tester,
-  ) async {
-    await _pumpContinuousView(
-      tester,
-      _continuousState(selectedIndex: 1),
-      simple: true,
-      isMainText: false,
-    );
-    expect(_selectionMarkers(), findsNothing);
-    final theme = Theme.of(tester.element(find.byType(SimpleTextViewer)));
-    expect(
-      tester
-          .widgetList<Container>(find.byType(Container))
-          .any(
-            (container) =>
-                (container.decoration as BoxDecoration?)?.color ==
-                AppSurfaces.paragraphSelectionBackground(theme),
-          ),
-      isTrue,
-    );
-  });
+  for (final continuous in [false, true]) {
+    testWidgets('מפרש בצורת הדף מסמן שורה קשורה בסמן צד שקט ובלי רקע, '
+        'רציף=$continuous (issue #4664)', (tester) async {
+      await _pumpContinuousView(
+        tester,
+        _continuousState(selectedIndex: 1).copyWith(
+          continuousReadingMode: continuous,
+        ),
+        simple: true,
+        isMainText: false,
+      );
+      expect(_selectionMarkers(), findsOneWidget);
+      final marker = tester.widget(_selectionMarkers());
+      final theme = Theme.of(tester.element(find.byType(SimpleTextViewer)));
+      final color = switch (marker) {
+        ReaderLineGutter() => marker.color,
+        CustomPaint() =>
+          (marker.foregroundPainter! as SelectionGutterPainter).color,
+        _ => null,
+      };
+      expect(color, AppSurfaces.relatedLineMarker(theme.colorScheme));
+      expect(
+        tester
+            .widgetList<Container>(find.byType(Container))
+            .where(
+              (container) =>
+                  (container.decoration as BoxDecoration?)?.color != null,
+            ),
+        isEmpty,
+      );
+    });
+  }
 
   // issue #2554 — הקו צויר בתוך רוחב הטקסט, על האותיות שבקצה השורה.
   // issue #3446 — כשרוחב הטקסט מוגבל, הקו צויר בקצה הפריט ליד פס הגלילה.

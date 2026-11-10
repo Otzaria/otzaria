@@ -47,9 +47,7 @@ class _StubCalendarCubit extends Cubit<CalendarState> implements CalendarCubit {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-final _loadingOverlay = find.byWidgetPredicate(
-  (widget) => widget.runtimeType.toString() == '_LoadingDotsText',
-);
+final _loadingOverlay = find.text('טוען את הספרייה');
 
 void main() {
   setUpAll(() async {

@@ -181,7 +181,7 @@ AlertDialog(...) / TextButton(...) / Card()  // showTwoActionsDialog / ActionBut
 | הדגשת חיפוש וסימון | `AppSurfaces.searchHit`, `searchHitCurrent`, `permanentMark`, ו־CSS role tokens בתוך ה־HTML (`SearchHighlightCss`, כמו `otzaria-reader-link`) | הרקעים שקופים 80%, כדי שסימון בעכבר ייראה גם בתוכם (DD-17, השלמה 2.11) | | קיים (DD-17 A) | קורא, PDF |
 | הדגשה בקטעי תוצאות החיפוש | `cs.error` | | | קיים, **נשאר** (DD-17) | קטעי תוצאה |
 | קישור בספר | `AppSurfaces.readerLink` | `primary` (אפור בערכה נייטרלית) | | קיים | תוכן |
-| בחירת פסקה / שורה מודגשת | `paragraphSelectionBackground`, `highlightedLineBackground` | | | קיים | קורא |
+| בחירת פסקה / שורה מודגשת | `highlightedLineBackground`; שורת מפרש קשורה בצורת הדף: `relatedLineMarker` (סמן צד, בלי רקע) | | | קיים | קורא |
 | scrim | `AppSurfaces.scrim`, אחד לדיאלוגים ולחלוניות | `cs.scrim` עדין (`0x22`) | כנ"ל | קיים (DD-12 A). לסיור ההיכרות החשכה כהה יותר, בשם משלה | — |
 | צל | `AppShadows` | `cs.shadow` 22% | | קיים (DD-12 A). כרטיסים בלי צל | תפריט, חלונית צפה, כפתור צף |
 
@@ -471,7 +471,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 | פעולה מפוצלת | `BarSplitButton` | צורה: גלולה, חריג מאושר ל־״8 בלבד״ (DD-04, השלמה 2.11) |
 | פעולת רשימה / שורה | `AppIconButton(size: small)`. בשורת הגדרה: `SettingsActionTile` actions | אין hover כפול על השורה. גם כפתורי הפעולה בכרטיס הערה, ליד הספר ובמסך הניהול (השלמה 3.11, q10 Q25) |
 | "הרחב הכל / כווץ הכל" בכותרת עץ ניווט | `NavTreeCollapseAllButton(isCollapsed:, onCollapseAll:, onExpandAll:)` על `AppIconButton(small)` (DD-27, q12 Q4, #3103) | **[מחייב]** כלל אחד בתוכן העניינים ובעץ החיפוש: כשהכל מכווץ "הרחב הכל", כשמשהו פתוח "כווץ הכל". "מכווץ" = אין ענף גלוי פתוח מעבר למצב המכווץ, גם כשענף (או השורש) נסגר ביד. אין כפתור כשאין ענף שאפשר לפתוח |
-| גלולת מצב בשורת הכותרת (עדכון זמין, מוריד, מוכן להתקנה) | `StatusChip`. מצב פעיל שאינו פעולה ("מוריד…"): `StatusChip.busy(icon:, label:, tooltip:)` (q10 Q6) | משטח `primaryContainer` עם מסגרת `primary`, אייקון ותווית `labelLarge` w700. `onPressed: null` מושבת. `busy` באותם צבעים כמו הלחיץ, בלי ריחוף, וקורא מסך קורא אותו כטקסט |
+| גלולת מצב בשורת הכותרת (עדכון זמין, מוריד, מוכן להתקנה) | `StatusChip`. מצב פעיל שאינו פעולה ("מוריד…"): `StatusChip.busy(icon:, label:, tooltip:)` (q10 Q6) | משטח `primaryContainer` עם מסגרת `primary`, אייקון ותווית `labelLarge` w700. `onPressed: null` מושבת. `busy` באותם צבעים כמו הלחיץ, בלי ריחוף, וקורא מסך קורא אותו כטקסט. `tone: StatusChipTone.error` (משטח `errorContainer`, מסגרת `error`) לכשל. כרטיס עבודה ברקע שמצטמצם (`WorkStatusItem.chipLabel` + `collapseAfter`, #2082) מוצג בשורת הכותרת כ־`StatusChip` לחיץ (`WorkStatusTitleChips`) שפותח את הכרטיס מחדש |
 | קומפקטי | אותם רכיבים עם `AppDensity` | אין רכיב "קומפקטי" נפרד |
 
 **מצבים [מחייב]:**
@@ -536,8 +536,8 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 
 | מצב | רכיב | הערות |
 |---|---|---|
-| טעינה, מסך או חלונית | `LoadingIndicator`, ועם הודעה `LoadingIndicator(message:)` | חלקי: נשארו 55 `CircularProgressIndicator` גולמיים מחוץ ל־`lib/widgets/feedback` (UIL-013), מהם 4 התקדמות מדודה (`value:`) שאין לה עדיין רכיב משותף |
-| טעינה, inline | `LoadingIndicator.inline()` (‏16px, ‏stroke 2) | |
+| טעינה, מסך או חלונית | `LoadingIndicator`, ועם הודעה `LoadingIndicator(message:)`, ועם אייקון `otzaria_icons` במרכז הטבעת `LoadingIndicator(icon:)` (מסכי טעינת ספרייה וספר: `strokeWidth: 3`) | חלקי: נשארו 51 `CircularProgressIndicator` גולמיים מחוץ ל־`lib/widgets/feedback` (UIL-013), מהם 4 התקדמות מדודה (`value:`) שיש לה רכיב משותף רק ב־inline |
+| טעינה, inline | `LoadingIndicator.inline()` (‏16px, ‏stroke 2); עם `value:` טבעת התקדמות מדודה | |
 | טעינה, שלד (skeleton) | `SkeletonLines` (רוחב כחלק מהמקום שקיבלו) | |
 | ריק | `OtzariaEmptyState` (`isCompact` בחלונית) | |
 | ריק "גדול" (ספרייה ריקה, הגדרה ראשונית) | `OtzariaEmptyState.large` (DD-31d) | גם מסך הנעילה של מצב סייפר (q10 Q8c) |
@@ -669,6 +669,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 
   בתוך הכרום כל מחרוזת עוברת דרך `context.settingsText` (מחוץ לעץ: `resolveSettingsText`), והפריסה ב־Directional APIs בלבד. הכרום עטוף ב־`ChromeDirectionality`, ותוכן המסכים ב־`ContentDirectionality`. תווית ברירת מחדל של דיאלוג היא `null` בפרמטר ונפתרת בבנייה, כדי שטקסט שהקורא מסר לא יתורגם. ברירת המחדל של שפת הממשק **נשארת "לפי מערכת ההפעלה"**.
 - **טקסט מעורב:** שם ספר עם מספרים, או אנגלית בתוך עברית. משתמשים בכיוון הבסיס של הפסקה ולא כופים כיוון. לנתיב או מזהה בתוך משפט עברי עוטפים את הקטע ב־`Text.rich` עם `TextSpan` שבו `textDirection: ltr`, או משתמשים בתווי בידוד (`⁦…⁩`).
+  - **שם קובץ בתבנית** (`<שם הספר>.כותרות.csv`): שם קובץ שיש בו כמה מקטעים עבריים נקרא הפוך גם ב־`Text(textDirection: ltr)`, כי הנייטרליים שבין שני מקטעים עבריים מקבלים כיוון RTL. עוטפים כל רצף עברית בשם ב־RLI…PDI (`U+2067…U+2069`) ומציגים את השם ב־`Text` נפרד, ב־`textDirection: ltr` וב־`AppTextStyles.monospaceFamily`, ומתחתיו ההסבר. לא משלבים את השם בתוך משפט. הדוגמה: `_StorageInfoFile` ב־`custom_folders_panel.dart`.
 - **מספרים:** ספרות מערביות בכל המקומות. גימטריה ואותיות עבריות לפי ההקשר.
 - **קיצורי מקשים:** תמיד LTR, ובצורה אחידה `Ctrl+Shift+P` דרך `ShortcutHelper`.
 - **אייקונים כיווניים:** ראו 2.5.1.

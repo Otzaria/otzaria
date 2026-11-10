@@ -112,6 +112,10 @@ abstract class SettingsMessages {
 
   // ── מערכת וגיבויים (system_settings_tab) ───────────────────────────────
 
+  static const String softwareUpToDate = 'התוכנה מעודכנת';
+  static const String softwareUpdateFound = 'נמצא עדכון חדש לתוכנה';
+  static const String libraryUpToDate = 'הספרייה מעודכנת';
+
   static String booksListLoadError(Object error) =>
       'שגיאה בטעינת רשימת הספרים: $error';
 

@@ -104,6 +104,7 @@ import 'package:otzaria/settings/services/nikud_display_service.dart';
 import 'package:otzaria/utils/link_helpers.dart';
 import 'package:otzaria/text_book/utils/link_processing.dart'
     show splitContentLines;
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
@@ -928,8 +929,12 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const Expanded(
-                      child: Center(child: CircularProgressIndicator()),
+                    Expanded(
+                      child: LoadingIndicator(
+                        strokeWidth: 3,
+                        icon: OtzariaIcons.book_open_medium_24_regular,
+                        message: context.settingsText('טוען את הספר'),
+                      ),
                     ),
                   ],
                 ),
