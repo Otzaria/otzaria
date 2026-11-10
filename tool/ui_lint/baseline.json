@@ -301,10 +301,6 @@
         {"scope":"_LinksListViewState._buildExpansionTile","fp":"513e1515","n":2},
         {"scope":"_LinksListViewState._buildLinkContent","fp":"2409bf30","n":1}
       ],
-      "lib/widgets/controls/custom_switch.dart": [
-        {"scope":"CustomSwitch.build","fp":"14414a5d","n":1},
-        {"scope":"CustomSwitch.build","fp":"9b2b545b","n":1}
-      ],
       "lib/widgets/dialogs/ad_popup_dialog.dart": [
         {"scope":"_AdPopupDialogState.build","fp":"12f1a54c","n":1},
         {"scope":"_ExpandableOrgCardState.build","fp":"2c874cf5","n":1},
@@ -1429,11 +1425,6 @@
       ],
       "lib/tools/view/tools_launcher_panel.dart": [
         {"scope":"_MovePulseState.build","fp":"ce1f078a","n":1}
-      ]
-    },
-    "UIL-033": {
-      "lib/printing/view/widgets/printing_widgets.dart": [
-        {"scope":"PrintingSwitchRow.build","fp":"04b7bfd6","n":1}
       ]
     }
   }

@@ -91,6 +91,27 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  test('switchTheme: צבעי המתג M3 של המערכת (היו ב-CustomSwitch)', () {
+    final cs = AppThemeData.createColorScheme(
+      AppSeedColors.defaultLight,
+      Brightness.light,
+    );
+    final sw = AppThemeData.light(cs, compactMenuMode: false).switchTheme;
+    const on = {WidgetState.selected};
+    const off = <WidgetState>{};
+    const disabled = {WidgetState.disabled};
+    expect(sw.thumbColor!.resolve(on), cs.onPrimary);
+    expect(sw.thumbColor!.resolve(off), cs.outline);
+    expect(
+      sw.thumbColor!.resolve(disabled),
+      cs.onSurface.withValues(alpha: 0.38),
+    );
+    expect(sw.trackColor!.resolve(on), cs.primary);
+    expect(sw.trackColor!.resolve(off), cs.surfaceContainerHighest);
+    expect(sw.trackOutlineColor!.resolve(on), Colors.transparent);
+    expect(sw.trackOutlineColor!.resolve(off), cs.outline);
+  });
+
   test('הערכה נגזרת מהזרע ונישאת ב-ThemeData', () {
     expect(AppThemeVariant.ofSeed(AppSeedColors.white), AppThemeVariant.white);
     expect(

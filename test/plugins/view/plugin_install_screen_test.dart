@@ -16,7 +16,6 @@ import 'package:otzaria/plugins/models/plugin_permission_grant.dart';
 import 'package:otzaria/plugins/services/plugin_installer_service.dart';
 import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/widgets/controls/custom_switch.dart';
 
 // ────────────────────────────────────────────────
 // Fakes & helpers
@@ -473,8 +472,8 @@ void main() {
       of: find.text('מניעת כיבוי התוסף ברקע'),
       matching: find.byType(ListTile),
     );
-    final sw = tester.widget<CustomSwitch>(
-      find.descendant(of: rowFinder, matching: find.byType(CustomSwitch)),
+    final sw = tester.widget<Switch>(
+      find.descendant(of: rowFinder, matching: find.byType(Switch)),
     );
     expect(sw.value, isFalse);
   });
@@ -520,8 +519,8 @@ void main() {
       of: find.text('הוספת רכיבים לתוכנה'),
       matching: find.byType(ListTile),
     );
-    final sw = tester.widget<CustomSwitch>(
-      find.descendant(of: rowFinder, matching: find.byType(CustomSwitch)),
+    final sw = tester.widget<Switch>(
+      find.descendant(of: rowFinder, matching: find.byType(Switch)),
     );
     expect(sw.value, isFalse);
   });
@@ -541,8 +540,8 @@ void main() {
       matching: find.byType(ListTile),
     );
     expect(rowFinder, findsOneWidget);
-    final sw = tester.widget<CustomSwitch>(
-      find.descendant(of: rowFinder, matching: find.byType(CustomSwitch)),
+    final sw = tester.widget<Switch>(
+      find.descendant(of: rowFinder, matching: find.byType(Switch)),
     );
     expect(sw.value, isFalse);
   });
@@ -559,8 +558,8 @@ void main() {
       matching: find.byType(ListTile),
     );
     expect(rowFinder, findsOneWidget);
-    final sw = tester.widget<CustomSwitch>(
-      find.descendant(of: rowFinder, matching: find.byType(CustomSwitch)),
+    final sw = tester.widget<Switch>(
+      find.descendant(of: rowFinder, matching: find.byType(Switch)),
     );
     expect(sw.value, isTrue);
   });
@@ -579,8 +578,8 @@ void main() {
       matching: find.byType(ListTile),
     );
     expect(rowFinder, findsOneWidget);
-    final sw = tester.widget<CustomSwitch>(
-      find.descendant(of: rowFinder, matching: find.byType(CustomSwitch)),
+    final sw = tester.widget<Switch>(
+      find.descendant(of: rowFinder, matching: find.byType(Switch)),
     );
     expect(sw.value, isTrue);
   });
@@ -600,8 +599,8 @@ void main() {
       matching: find.byType(ListTile),
     );
     expect(rowFinder, findsOneWidget);
-    final sw = tester.widget<CustomSwitch>(
-      find.descendant(of: rowFinder, matching: find.byType(CustomSwitch)),
+    final sw = tester.widget<Switch>(
+      find.descendant(of: rowFinder, matching: find.byType(Switch)),
     );
     expect(sw.value, isFalse);
   });
@@ -732,8 +731,8 @@ void main() {
       of: find.text('צפייה בהערות'),
       matching: find.byType(ListTile),
     );
-    final sw = tester.widget<CustomSwitch>(
-      find.descendant(of: rowFinder, matching: find.byType(CustomSwitch)),
+    final sw = tester.widget<Switch>(
+      find.descendant(of: rowFinder, matching: find.byType(Switch)),
     );
     expect(sw.value, isFalse);
   });
@@ -785,8 +784,8 @@ void main() {
         of: find.text('גישה לאינטרנט'),
         matching: find.byType(ListTile),
       );
-      final sw = tester.widget<CustomSwitch>(
-        find.descendant(of: rowFinder, matching: find.byType(CustomSwitch)),
+      final sw = tester.widget<Switch>(
+        find.descendant(of: rowFinder, matching: find.byType(Switch)),
       );
       expect(sw.value, isFalse);
       expect(sw.onChanged, isNull);

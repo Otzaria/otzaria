@@ -501,7 +501,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 | מתג קטן בתוך שורה | `AppTogglePill` | קיים. תווית `labelMedium` (12), כמו הצ'יפים שלידה (q10 Q1). גם מתג שתוסף מוסיף לדיאלוג החיפוש (q10 Q8e) |
 | בחירה מרובה (פילטר) | `FilterChip` של Material + `chipTheme` (DD-13: פינות 8, תווית `labelMedium` 12) | `FilterChipsSelector` / `compactFilterChips`; `ChoiceChip` לבחירה אחת. גם תיבת סימון שתוסף מוסיף לדיאלוג החיפוש (q10 Q8e) |
 | Checkbox | `Checkbox` של Material | יעד: `checkboxTheme`. השורה כולה לחיצה (`CheckboxListTile` או `InkWell`) |
-| Switch | `SettingsSwitchTile`. מחוץ להגדרות: `Switch` | יעד: `switchTheme`. `CustomSwitch` (4 קוראים) יוסר באותו שינוי, כדי שלא יישארו שני מתגים |
+| Switch | `SettingsSwitchTile`. מחוץ להגדרות: `Switch` | `switchTheme` אחד בערכת הנושא. `CustomSwitch` הוסר, ו־UIL-033 חוסם את החזרה שלו |
 | Slider | `SettingsSliderTile` | `SliderTheme` מקומי אסור |
 | תאריך | `showDatePicker` + `datePickerTheme` | קיים |
 | שגיאת אימות | `InputDecoration.errorText` | לא טקסט אדום שנבנה ידנית מתחת לשדה |

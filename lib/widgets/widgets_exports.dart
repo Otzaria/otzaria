@@ -38,7 +38,6 @@ export 'package:otzaria/widgets/controls/app_icon_button.dart';
 export 'package:otzaria/widgets/controls/bar_button.dart';
 export 'package:otzaria/widgets/controls/bar_split_button.dart';
 export 'package:otzaria/widgets/controls/contained_tooltip.dart';
-export 'package:otzaria/widgets/controls/custom_switch.dart';
 export 'package:otzaria/widgets/controls/segmented_control.dart';
 export 'package:otzaria/widgets/controls/status_chip.dart';
 export 'package:otzaria/widgets/layout/app_card.dart';
