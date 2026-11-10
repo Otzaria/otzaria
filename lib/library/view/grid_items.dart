@@ -200,52 +200,23 @@ class LibraryOverflowTooltipText extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final resolvedStyle = style ?? DefaultTextStyle.of(context).style;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final hasOverflow =
-            constraints.maxWidth.isFinite &&
-            constraints.maxWidth > 0 &&
-            textOverflows(
-              context: context,
-              text: text,
-              style: resolvedStyle,
-              maxLines: maxLines,
-              maxWidth: constraints.maxWidth,
-              textAlign: textAlign,
-              cache: _libraryOverflowCache,
-            );
-
-        final child = Text(
-          text,
-          maxLines: maxLines,
-          overflow: TextOverflow.ellipsis,
-          textAlign: textAlign,
-          style: resolvedStyle,
-        );
-
-        if (!hasOverflow) {
-          return child;
-        }
-
-        return Tooltip(
-          message: text,
-          waitDuration: const Duration(milliseconds: 300),
-          preferBelow: false,
-          verticalOffset: 18,
-          textAlign: TextAlign.right,
-          textStyle: _libraryTooltipTextStyle(context),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          margin: const EdgeInsets.all(12),
-          constraints: const BoxConstraints(maxWidth: 260),
-          decoration: _libraryTooltipDecoration(context),
-          child: child,
-        );
-      },
-    );
-  }
+  Widget build(BuildContext context) => OverflowTooltipText(
+    text: text,
+    style: style,
+    maxLines: maxLines,
+    textAlign: textAlign,
+    cache: _libraryOverflowCache,
+    tooltipTheme: TooltipTheme.of(context).copyWith(
+      preferBelow: false,
+      verticalOffset: 18,
+      textAlign: TextAlign.right,
+      textStyle: _libraryTooltipTextStyle(context),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: const EdgeInsets.all(12),
+      constraints: const BoxConstraints(maxWidth: 260),
+      decoration: _libraryTooltipDecoration(context),
+    ),
+  );
 }
 
 class LibraryItemTitle extends StatelessWidget {

@@ -106,9 +106,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(Tooltip), findsOneWidget);
-    final tooltip = tester.widget<Tooltip>(find.byType(Tooltip));
-    expect(tooltip.preferBelow, isFalse);
-    expect(tooltip.verticalOffset, 18);
+    // הסגנון מגיע מ-TooltipTheme ש-OverflowTooltipText עוטף בו את ה-Tooltip.
+    final theme = TooltipTheme.of(tester.element(find.byType(Tooltip)));
+    expect(theme.preferBelow, isFalse);
+    expect(theme.verticalOffset, 18);
   });
 
   testWidgets('בתוצאות חיפוש מוצג נתיב הקטגוריות, לא הנושאים', (
