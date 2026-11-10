@@ -9,6 +9,7 @@ import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/divine_names/models/divine_name_spans.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
+import 'package:otzaria/theme/app_fonts.dart';
 
 // עטיפות פרטיות ל-Equatable: השוואה לפי תוכן מפה ללא מיון ובניית
 // מחרוזות חתימה בכל פליטת state. כשהמפה זהה (המסלול הרגיל), O(1).
@@ -480,7 +481,7 @@ class TextBookLoaded extends TextBookState {
       book: book,
       content: const [],
       contentVersion: 0,
-      fontSize: 25.0, // Default font size
+      fontSize: AppFonts.defaultReadingSize,
       showLeftPane: showLeftPane,
       showSplitView: splitView,
       showPageShapeView: false,

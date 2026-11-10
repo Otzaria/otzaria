@@ -2,6 +2,7 @@ import 'package:otzaria/text_book/view/reader_export_actions.dart';
 import 'package:otzaria/text_book/view/reader_print_actions.dart';
 import 'package:otzaria/text_book/view/reader_shamor_zachor_actions.dart';
 import 'package:otzaria/theme/app_density.dart';
+import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
@@ -2760,7 +2761,7 @@ bool _handleGlobalKeyEvent(
   );
   if (zoomResetShortcut != null &&
       ShortcutHelper.matchesShortcut(event, zoomResetShortcut)) {
-    _setFontSize(context, state, 25.0);
+    _setFontSize(context, state, AppFonts.defaultReadingSize);
     return true;
   }
 

@@ -232,7 +232,8 @@ Map<String, dynamic> buildThemePayloadFromScheme(
       Settings.getValue<String>(SettingsRepository.keyCommentatorsFontFamily) ??
       AppFonts.defaultCommentatorsFont;
   final fontSize =
-      Settings.getValue<double>(SettingsRepository.keyFontSize) ?? 25.0;
+      Settings.getValue<double>(SettingsRepository.keyFontSize) ??
+      AppFonts.defaultReadingSize;
   final commentatorsFontSize =
       Settings.getValue<double>(SettingsRepository.keyCommentatorsFontSize) ??
       22.0;
