@@ -212,11 +212,19 @@ class ZipExtractorService {
 
     onProgress?.call(0.22, 'מחלץ ${formatMegabytesLtr(totalBytes)}...');
 
-    final root = path.canonicalize(directoryPath);
+    // canonicalize() lowercases paths on Windows. That would change both
+    // the requested destination and ZIP entry names in case-sensitive trees.
+    final root = path.normalize(path.absolute(directoryPath));
     await Directory(root).create(recursive: true);
     for (final entry in archive) {
-      final target = path.canonicalize(path.join(root, entry.name));
-      if (!path.isWithin(root, target)) {
+      final relative = path.normalize(entry.name);
+      final target = path.normalize(path.join(root, relative));
+      // Reject a parent traversal before isWithin: the Windows path context
+      // compares case-insensitively, even for directories configured to use
+      // case-sensitive names.
+      if (path.isAbsolute(relative) ||
+          path.split(relative).first == '..' ||
+          !path.isWithin(root, target)) {
         throw FormatException(
           'נתיב חולץ מקובץ ZIP באופן לא חוקי: ${entry.name}',
         );
