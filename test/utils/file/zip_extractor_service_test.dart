@@ -84,6 +84,21 @@ void main() {
         'content');
     expect(File(p.join(target, 'Assets', 'Resolved.TXT')).readAsStringSync(),
         'resolved');
+    // A normal case-insensitive Windows directory would also open a file
+    // written under a lowercased path. Check the actual on-disk casing.
+    final extracted = Directory(target)
+        .listSync(recursive: true)
+        .map((entry) =>
+            p.relative(entry.path, from: target).replaceAll('\\', '/'))
+        .toList();
+    expect(
+      extracted,
+      unorderedEquals([
+        'Assets',
+        'Assets/Index.HTML',
+        'Assets/Resolved.TXT',
+      ]),
+    );
     expect(Directory(p.join(tmp.path, 'outputroot')).existsSync(), isFalse);
   });
 
