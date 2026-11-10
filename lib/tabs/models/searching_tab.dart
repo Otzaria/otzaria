@@ -1,4 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:otzaria/plugins/services/plugin_search_completed_publisher.dart';
+import 'package:otzaria/search/models/search_completion.dart';
+import 'package:otzaria/search/search_dialog_query.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/models/external_search_status.dart';
 import 'package:otzaria/search/models/external_search_summary.dart';
@@ -111,6 +116,10 @@ class SearchingTab extends OpenedTab {
     /// לראשונה. תוספים יכולים לפתוח טאב עם הטקסט בשדה בלי להריץ חיפוש
     /// (reader.openSearchTab עם autoSearch: false) — אז המשתמש מריץ ידנית.
     this.autoRunInitialSearch = true,
+
+    /// מוסר `search.completed` לתוספים; ברירת המחדל שולחת דרך
+    /// [PluginRuntimeDispatcher] (לבדיקות).
+    this._completedPublisher,
   }) {
     // בלי configuration מפורשת זה טאב חיפוש חדש — הוא נפתח עם המיון ומצב
     // האיחוד שהמשתמש בחר לאחרונה.
@@ -124,6 +133,9 @@ class SearchingTab extends OpenedTab {
     if (searchText != null && title == 'חיפוש: ${searchText.trim()}') {
       title = titleForQuery(searchText);
     }
+    _completionSubscription = this.searchBloc.completions.listen(
+      _publishCompletion,
+    );
     titleNotifier = ValueNotifier(title);
     if (searchText != null) {
       queryController.text = searchText;
@@ -166,6 +178,42 @@ class SearchingTab extends OpenedTab {
 
   /// האם להריץ אוטומטית שאילתה ממתינה בפתיחה הראשונה של הטאב.
   final bool autoRunInitialSearch;
+
+  static int _pluginTabCounter = 0;
+
+  /// מזהה הטאב ב-`search.completed`. נוצר בכל יצירה של טאב (גם שכפול), ואינו
+  /// נשמר: הוא תקף כל עוד הטאב חי בתהליך הזה.
+  final String pluginTabId =
+      'search-${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}'
+      '-${(_pluginTabCounter++).toRadixString(36)}';
+
+  final PluginSearchCompletedPublisher? _completedPublisher;
+  StreamSubscription<SearchCompletion>? _completionSubscription;
+
+  void _publishCompletion(SearchCompletion completion) {
+    (_completedPublisher ?? PluginSearchCompletedPublisher()).publish(
+      tabId: pluginTabId,
+      completion: completion,
+      buildRequest: () {
+        final (positive, negative) = normalizedSearchParameters(
+          completion.query,
+          completion.negativeQuery,
+        );
+        final configuration = completion.configuration;
+        return pluginSearchRequest(
+          query: completion.query,
+          negativeQuery: completion.negativeQuery,
+          mode: configuration.searchMode,
+          distance: configuration.distance,
+          proximityScope: configuration.proximityScope,
+          facets: completion.facets,
+          configuration: configuration,
+          normalizedParameters: positive,
+          normalizedNegativeParameters: negative,
+        );
+      },
+    );
+  }
 
   /// מפנה לקונסטרוקטור [SearchingTab.clone], שהוא המקום היחיד שיודע אילו
   /// שדות חיפוש להעתיק. `OpenedTab.from` קורא לקונסטרוקטור ישירות.
@@ -309,6 +357,7 @@ class SearchingTab extends OpenedTab {
 
   @override
   void dispose() {
+    _completionSubscription?.cancel();
     titleNotifier.dispose();
     queryController.dispose();
     negativeQueryController.dispose();

@@ -743,6 +743,52 @@ void main() {
     expect(supportedVersion.errors, isEmpty);
   });
 
+  group('search.completed', () {
+    Map<String, dynamic> completedManifest(String minAppVersion) => _manifest(
+      minAppVersion: minAppVersion,
+      permissions: const [
+        'app.startup_contributions',
+        'reader.toolbar',
+        'events.subscribe:search.completed',
+      ],
+      startup: {
+        'toolbarItems': [
+          {'id': 'b1', 'title': 'כפתור', 'icon': 'apps_24_regular'},
+        ],
+        'activationEvents': ['search.completed'],
+      },
+    );
+
+    test('דורש minAppVersion 0.9.99, ומארח שמכיר אותו עובר', () {
+      final oldVersion = _run(tempDir, completedManifest('0.9.98.3'));
+      expect(oldVersion.errors, contains(contains('search.completed')));
+      expect(oldVersion.errors, contains(contains('0.9.99')));
+
+      final supported = _run(tempDir, completedManifest('0.9.99'));
+      expect(supported.errors, isEmpty);
+      expect(
+        supported.warnings,
+        isNot(contains(contains('נושא לא מוכר'))),
+        reason: 'האירוע מוכר ל-activationEvents',
+      );
+    });
+
+    test('activationEvents בלי ההרשאה — אזהרה, כמו שאר האירועים', () {
+      final json = completedManifest('0.9.99');
+      json['permissions'] = const [
+        'app.startup_contributions',
+        'reader.toolbar',
+      ];
+      final report = _run(tempDir, json);
+
+      expect(report.errors, isEmpty);
+      expect(
+        report.warnings,
+        contains(contains('events.subscribe:search.completed')),
+      );
+    });
+  });
+
   group('searchDialogItems: type switch ו-persist', () {
     Map<String, dynamic> dialogManifest(
       Map<String, dynamic> item, {

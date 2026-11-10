@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
+import 'package:otzaria/search/models/search_completion.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -57,6 +58,15 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
 
   /// מקור הפרמטרים המתקדמים בחיפוש-מחדש פנימי — הם חיים באירוע בלבד.
   UpdateSearchQuery? _lastUserSearch;
+
+  final StreamController<SearchCompletion> _completions =
+      StreamController<SearchCompletion>.broadcast();
+
+  /// חיפושים שהסתיימו בהצלחה, פעם אחת לכל חיפוש: אחרי שהתוצאות והמונה
+  /// הסופיים נכנסו ל-state. חיפוש שבוטל, הוחלף או נכשל אינו נפלט, וגם לא
+  /// "טען עוד" — אלה המשך של אותו חיפוש. שינוי הגדרה שמריץ חיפוש מחדש
+  /// (מיון, מספר תוצאות, מרווח) הוא חיפוש חדש ונפלט שוב.
+  Stream<SearchCompletion> get completions => _completions.stream;
 
   @visibleForTesting
   SearchRepository get repositoryForTesting => _repository;
@@ -366,6 +376,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
           isCounting: false,
         ),
       );
+      _announceCompletion(requestId, requestedFacets, allResults.length);
     } catch (e, stackTrace) {
       if (requestId != _searchRequestId) return;
       if (isSearchCancelledError(e)) {
@@ -398,6 +409,31 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     }
   }
 
+  /// מודיע למאזינים שהחיפוש [requestId] הסתיים. נקרא רק מהמסלול המוצלח של
+  /// [_onUpdateSearchQuery], אחרי בדיקת מזהה הבקשה: ביטול, החלפה, שגיאה,
+  /// שאילתה ריקה ו"טען עוד" אינם מגיעים לכאן.
+  void _announceCompletion(
+    int requestId,
+    List<String> facets,
+    int returned,
+  ) {
+    if (_completions.isClosed || requestId != _searchRequestId) return;
+    final current = state;
+    _completions.add(
+      SearchCompletion(
+        requestId: requestId,
+        query: current.searchQuery,
+        negativeQuery: current.negativeQuery,
+        facets: List.unmodifiable(facets),
+        configuration: current.configuration,
+        total: current.displayTotal,
+        countsGroups: current.totalGroups != null,
+        truncated: current.resultsTruncated,
+        returned: returned,
+      ),
+    );
+  }
+
   void _cancelEngineSearch() {
     final id = _engineRequestId;
     if (id == null) return;
@@ -413,6 +449,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   Future<void> close() {
     _searchRequestId++;
     _cancelEngineSearch();
+    unawaited(_completions.close());
     return super.close();
   }
 
