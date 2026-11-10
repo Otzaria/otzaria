@@ -231,6 +231,7 @@ rules:
 
 
   UIL-012:
+    strict: true
     exclude:
       - path: lib/widgets/layout/**
         reason: רכיבי הכרטיס המשותפים (AppCard, ResultCardFrame)

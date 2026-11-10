@@ -71,6 +71,9 @@ void main() {
     expect(find.text('למשך שבוע'), findsOneWidget);
     expect(find.text('למשך חודש'), findsOneWidget);
     expect(find.text('לעולם'), findsOneWidget);
+    // UI-047: התפריט והכרטיסים מהרכיבים המשותפים.
+    expect(find.byType(PopupMenuButton<String>), findsNothing);
+    expect(find.byType(Card), findsNothing);
   });
 
   group('תצוגה מקובץ הנתונים', () {
