@@ -9,7 +9,6 @@ import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
@@ -20,13 +19,14 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_personal_notes_bloc.dart';
 import '../../../test_helpers/stub_settings_bloc.dart';
+import '../../../test_helpers/stub_text_book_bloc.dart';
 
 /// רגרסיה: בצורת הדף, הערה על מפרש שנמחקה מחלונית ההערות השאירה את הטקסט
 /// מודגש — טור המפרש החזיק עותק של ההערות שנטען רק בפתיחה ואחרי יצירה.
@@ -37,13 +37,13 @@ void main() {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
-  late _TestTextBookBloc textBookBloc;
-  late _TestPersonalNotesBloc personalNotesBloc;
+  late StubTextBookBloc textBookBloc;
+  late StubPersonalNotesBloc personalNotesBloc;
   late StubSettingsBloc settingsBloc;
 
   setUp(() {
-    textBookBloc = _TestTextBookBloc(_loadedState());
-    personalNotesBloc = _TestPersonalNotesBloc(_notesState('ספר בדיקה', []));
+    textBookBloc = StubTextBookBloc(_loadedState());
+    personalNotesBloc = StubPersonalNotesBloc(_notesState('ספר בדיקה', []));
     settingsBloc = StubSettingsBloc(SettingsState.initial());
   });
 
@@ -452,25 +452,4 @@ TextBookLoaded _loadedState() {
     pinLeftPane: false,
     searchText: '',
   );
-}
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestPersonalNotesBloc
-    extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _TestPersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

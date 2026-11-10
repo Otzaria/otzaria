@@ -13,7 +13,6 @@ import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_defaults.dart';
@@ -35,6 +34,7 @@ import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
 import 'package:otzaria/widgets/misc/app_context_menu.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_personal_notes_bloc.dart';
 import '../../test_helpers/stub_settings_bloc.dart';
 
 void main() {
@@ -63,7 +63,7 @@ void main() {
         final settings = StubSettingsBloc(
           SettingsState.initial().copyWith(copyWithHeaders: 'none'),
         );
-        final notes = _PersonalNotesBloc(const PersonalNotesState.initial());
+        final notes = StubPersonalNotesBloc(const PersonalNotesState.initial());
         final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
         final tabs = _TabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
         final history = _HistoryBloc();
@@ -298,15 +298,6 @@ class _TextBookRepository implements TextBookRepository {
     required int endIndex,
     Iterable<String>? targetBookTitles,
   }) async => [];
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _PersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
-  }
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

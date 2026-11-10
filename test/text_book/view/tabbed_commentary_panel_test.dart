@@ -15,7 +15,6 @@ import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/widgets/note_tile.dart';
@@ -34,6 +33,7 @@ import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 import '../../test_helpers/reading_toc.dart';
+import '../../test_helpers/stub_personal_notes_bloc.dart';
 import '../../test_helpers/stub_settings_bloc.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 
@@ -62,7 +62,7 @@ void main() {
         _TestTextBookBloc(
           _loadedState(activeCommentators: activeCommentators),
         );
-    final personalNotesBloc = _TestPersonalNotesBloc(notesState);
+    final personalNotesBloc = StubPersonalNotesBloc(notesState);
     final settingsBloc = StubSettingsBloc(SettingsState.initial());
 
     return MaterialApp(
@@ -708,7 +708,7 @@ class _TabSwitcherWrapperState extends State<_TabSwitcherWrapper> {
   @override
   Widget build(BuildContext context) {
     final textBookBloc = _TestTextBookBloc(_loadedState());
-    final personalNotesBloc = _TestPersonalNotesBloc(
+    final personalNotesBloc = StubPersonalNotesBloc(
       const PersonalNotesState.initial(),
     );
     final settingsBloc = StubSettingsBloc(SettingsState.initial());
@@ -770,17 +770,6 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
   }
 
   void emitState(TextBookState next) => emit(next);
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestPersonalNotesBloc
-    extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _TestPersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
-  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

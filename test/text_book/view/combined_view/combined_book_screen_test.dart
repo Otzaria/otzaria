@@ -12,7 +12,6 @@ import 'package:otzaria/plugins/repository/plugin_correction_draft_repository.da
 import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
 import 'package:otzaria/plugins/view/plugin_correction_paragraph.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_content_view.dart';
@@ -39,6 +38,7 @@ import '../../../support/search_engine_test_init.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import '../../../test_helpers/memory_cache_provider.dart';
 import '../../../test_helpers/activate_correction_paragraph.dart';
+import '../../../test_helpers/stub_personal_notes_bloc.dart';
 import '../../../test_helpers/stub_settings_bloc.dart';
 
 void main() {
@@ -102,7 +102,7 @@ void main() {
             ),
           );
           final settings = StubSettingsBloc(SettingsState.initial());
-          final notes = _TestPersonalNotesBloc(
+          final notes = StubPersonalNotesBloc(
             const PersonalNotesState.initial(),
           );
           addTearDown(settings.close);
@@ -401,7 +401,7 @@ void main() {
         );
         final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
         final settings = StubSettingsBloc(SettingsState.initial());
-        final notes = _TestPersonalNotesBloc(
+        final notes = StubPersonalNotesBloc(
           const PersonalNotesState.initial(),
         );
         final external = FocusNode();
@@ -672,7 +672,7 @@ void main() {
             updatedAt: DateTime(2026),
           );
           final notes = [note('first', 'ראשונה'), note('second', 'שנייה')];
-          final notesBloc = _TestPersonalNotesBloc(
+          final notesBloc = StubPersonalNotesBloc(
             const PersonalNotesState.initial().copyWith(
               bookId: loaded.book.title,
               locatedNotes: notes,
@@ -946,7 +946,7 @@ void main() {
           providers: [
             BlocProvider<TextBookBloc>.value(value: textBookBloc),
             BlocProvider<PersonalNotesBloc>.value(
-              value: _TestPersonalNotesBloc(
+              value: StubPersonalNotesBloc(
                 const PersonalNotesState.initial(),
               ),
             ),
@@ -983,7 +983,7 @@ void main() {
       addTearDown(controller.dispose);
       final textBookBloc = _ClosedTextBookBloc(_loadedState());
       final settingsBloc = StubSettingsBloc(SettingsState.initial());
-      final personalNotesBloc = _TestPersonalNotesBloc(
+      final personalNotesBloc = StubPersonalNotesBloc(
         PersonalNotesState(
           isLoading: false,
           bookId: 'ספר בדיקה',
@@ -1133,7 +1133,7 @@ void main() {
           providers: [
             BlocProvider<TextBookBloc>.value(value: textBookBloc),
             BlocProvider<PersonalNotesBloc>.value(
-              value: _TestPersonalNotesBloc(
+              value: StubPersonalNotesBloc(
                 PersonalNotesState(
                   isLoading: false,
                   bookId: 'ספר בדיקה',
@@ -1173,7 +1173,7 @@ void main() {
 
   testWidgets('לחיצה על פסקה לא שולחת event ל-bloc סגור', (tester) async {
     final textBookBloc = _ClosedTextBookBloc(_loadedState());
-    final personalNotesBloc = _TestPersonalNotesBloc(
+    final personalNotesBloc = StubPersonalNotesBloc(
       PersonalNotesState(
         isLoading: false,
         bookId: 'ספר בדיקה',
@@ -1244,7 +1244,7 @@ void main() {
         },
       ),
     );
-    final personalNotesBloc = _TestPersonalNotesBloc(
+    final personalNotesBloc = StubPersonalNotesBloc(
       const PersonalNotesState.initial(),
     );
     final settingsBloc = StubSettingsBloc(SettingsState.initial());
@@ -1333,7 +1333,7 @@ void main() {
         ),
       );
       addTearDown(textBookBloc.close);
-      final personalNotesBloc = _TestPersonalNotesBloc(
+      final personalNotesBloc = StubPersonalNotesBloc(
         const PersonalNotesState.initial(),
       );
       addTearDown(personalNotesBloc.close);
@@ -1730,17 +1730,6 @@ class _TestTextBookRepository implements TextBookRepository {
         connectionType: 'commentary',
       ),
   ];
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestPersonalNotesBloc
-    extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _TestPersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
-  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

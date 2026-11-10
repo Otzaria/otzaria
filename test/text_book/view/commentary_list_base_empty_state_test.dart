@@ -15,11 +15,11 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 import '../../test_helpers/stub_settings_bloc.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -50,7 +50,7 @@ void main() {
     testWidgets('אין קישורי מפרשים בכלל לקטע - מוצג טקסט ידידותי ולא שגיאה', (
       tester,
     ) async {
-      final bloc = _TestTextBookBloc(_stateWithoutLinks());
+      final bloc = StubTextBookBloc(_stateWithoutLinks());
       addTearDown(() async => bloc.close());
       final settingsBloc = StubSettingsBloc(SettingsState.initial());
       addTearDown(() async => settingsBloc.close());
@@ -65,7 +65,7 @@ void main() {
     testWidgets(
       'יש קישורי מפרשים אך אף אחד לא תואם למפרשים הנבחרים - מוצג טקסט ידידותי ולא שגיאה',
       (tester) async {
-        final bloc = _TestTextBookBloc(_stateWithIrrelevantLinks());
+        final bloc = StubTextBookBloc(_stateWithIrrelevantLinks());
         addTearDown(() async => bloc.close());
         final settingsBloc = StubSettingsBloc(SettingsState.initial());
         addTearDown(() async => settingsBloc.close());
@@ -81,7 +81,7 @@ void main() {
     testWidgets(
       'יש קישורי מפרשים אך לא נבחרו מפרשים כלל - נפתחת בחירת מפרשים ולא שגיאה',
       (tester) async {
-        final bloc = _TestTextBookBloc(_stateWithLinksNoActiveCommentators());
+        final bloc = StubTextBookBloc(_stateWithLinksNoActiveCommentators());
         addTearDown(() async => bloc.close());
         final settingsBloc = StubSettingsBloc(SettingsState.initial());
         addTearDown(() async => settingsBloc.close());
@@ -219,16 +219,6 @@ TextBookLoaded _stateWithLinksNoActiveCommentators() {
     pinLeftPane: false,
     searchText: '',
   );
-}
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _FakeLibraryProvider implements LibraryProvider {

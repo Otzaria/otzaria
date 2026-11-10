@@ -13,7 +13,6 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/widgets/misc/app_context_menu.dart';
@@ -23,6 +22,7 @@ import '../../test_helpers/context_menu_description.dart';
 import '../../test_helpers/fake_commentary_library_provider.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 import '../../test_helpers/plugin_menu_click_recorder.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -74,7 +74,7 @@ void main() {
       targetCategoryId: 1,
       targetFileType: 'txt',
     );
-    final bloc = _TestTextBookBloc(_loadedState(links: [link]));
+    final bloc = StubTextBookBloc(_loadedState(links: [link]));
     addTearDown(() async => bloc.close());
     addTearDown(() async {
       await tester.pumpWidget(const SizedBox.shrink());
@@ -177,16 +177,6 @@ TextBookLoaded _loadedState({required List<Link> links}) => TextBookLoaded(
   pinLeftPane: false,
   searchText: '',
 );
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
 
 class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
     implements SettingsBloc {

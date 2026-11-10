@@ -5,7 +5,6 @@ import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -29,6 +28,7 @@ import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 
 import '../../support/search_engine_test_init.dart';
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_personal_notes_bloc.dart';
 import '../../test_helpers/stub_settings_bloc.dart';
 
 /// תוצאת חיפוש בהערה נחשפת ומודגשת דרך המסך האמיתי.
@@ -122,7 +122,7 @@ Future<void> main() async {
     }) async {
       final bloc = _TestTextBookBloc(initial ?? loadedState());
       final book = (bloc.state as TextBookLoaded).book;
-      final personalNotesBloc = _TestPersonalNotesBloc(
+      final personalNotesBloc = StubPersonalNotesBloc(
         const PersonalNotesState.initial(),
       );
       final settingsBloc = StubSettingsBloc(SettingsState.initial());
@@ -548,17 +548,6 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
       ),
     );
     on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestPersonalNotesBloc
-    extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _TestPersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
   }
 
   @override

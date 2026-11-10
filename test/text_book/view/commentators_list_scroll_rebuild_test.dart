@@ -18,16 +18,7 @@ import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 
 import '../../helpers/memory_settings_cache.dart';
-
-class _FakeTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _FakeTextBookBloc(super.initialState) {
-    on<TextBookEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 class _RangeRepository extends TextBookRepository {
   _RangeRepository() : super(fileSystem: FileSystemData.instance);
@@ -66,11 +57,11 @@ void main() {
     link(30, 'נדיר'),
   ];
 
-  Future<_FakeTextBookBloc> pumpList(WidgetTester tester) async {
+  Future<StubTextBookBloc> pumpList(WidgetTester tester) async {
     tester.view.physicalSize = const Size(800, 1600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    final bloc = _FakeTextBookBloc(
+    final bloc = StubTextBookBloc(
       TextBookLoaded(
         book: TextBook(title: 'ברכות'),
         showLeftPane: false,
