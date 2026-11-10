@@ -218,9 +218,12 @@ class _RecordingReaderCoordinator extends BookOpenCoordinator {
     bool insertAdjacent = false,
     bool navigateToPositionIfReused = false,
     bool inSidePane = false,
+    bool navigate = true,
+    bool captureHistory = true,
   }) {
     opened = tab;
-    navigate = navigateToPositionIfReused;
+    // הפרמטר navigate מסתיר את השדה באותו שם.
+    this.navigate = navigateToPositionIfReused;
   }
 }
 

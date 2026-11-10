@@ -22,7 +22,10 @@ import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/bookmarks/models/bookmark.dart' show bookIdentity;
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/library/models/library_book_selection.dart';
+import 'package:otzaria/library/view/library_selection_bar.dart';
 import 'package:otzaria/tools/calendar/helpers/daf_yomi_navigation.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
 import 'package:otzaria/library/view/library_breadcrumb_bar.dart';
@@ -52,6 +55,7 @@ import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
+import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -79,6 +83,13 @@ const int _kLibraryTreeFlattenThreshold = 500;
 
 /// מכסת הספרים המוצגים לקטגוריה; מעבר לה מופיעה שורת "הצג עוד".
 const int _kCategoryBooksCap = 500;
+
+/// מכסת הספרים ברשת תוצאות החיפוש.
+const int _kSearchGridBooksCap = 100;
+
+/// כמה זמן אחרי לחיצת עכבר נחשבים מקשי הבחירה שהיו לחוצים בה. ארוך מחלון
+/// הלחיצה הכפולה, שעד סגירתו ה-onTap של הספר מתעכב.
+const Duration _kSelectionModifiersGrace = Duration(milliseconds: 700);
 
 /// הסמל בכפתור עדכון הספרייה. מצב מנותק מקבל סמל משלו — כך המשתמש יודע
 /// שהעדכון לא רץ, בלי הודעת שגיאה קופצת שאין לו מה לעשות איתה.
@@ -356,6 +367,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   Book? _tourPreviewBook;
   Rect? _lastTourBookCardRect;
   final Set<String> _expandedCategories = {};
+
+  /// ספרים שנבחרו לפתיחה בבת אחת (Ctrl/Cmd/Shift+לחיצה); נפרד מהתצוגה המקדימה.
+  final _selection = LibraryBookSelection();
+  bool _escapeHandlerRegistered = false;
   final _settingsPanelOpen = ValueNotifier<bool>(false);
 
   /// סריקת תיקיות אישיות שהתחילה מ"טעינה מחדש" ועוד לא הסתיימה.
@@ -407,6 +422,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     _secondaryRowVisible = ValueNotifier<bool>(true);
     _topBarTotalHeight = ValueNotifier<double>(0);
     context.read<LibraryBloc>().add(LoadLibrary());
+    _selection.addListener(_syncSelectionEscapeHandler);
     final pluginBooks = PluginLibraryBooksRegistry.instance;
     pluginBooks.addListener(_onPluginBooksChanged);
     pluginBooks.sourceFilter.addListener(_onPluginBooksChanged);
@@ -431,6 +447,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     _topBarTotalHeight.dispose();
     _settingsPanelOpen.dispose();
     _reloadScanPending.dispose();
+    _selection.dispose();
+    if (_escapeHandlerRegistered) {
+      HardwareKeyboard.instance.removeHandler(_handleSelectionEscape);
+    }
     super.dispose();
   }
 
@@ -476,6 +496,18 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   Widget _buildScaffold(BuildContext context) {
     return MultiBlocListener(
       listeners: [
+        // רענון או הסתרה בונים מופעי ספר חדשים; הבחירה עוברת אליהם, וספר שנמחק
+        // יוצא ממנה.
+        BlocListener<LibraryBloc, LibraryState>(
+          listenWhen: (p, c) => p.library != c.library && _selection.isNotEmpty,
+          listener: (_, state) {
+            final books = {
+              for (final book in state.library?.getIndexableBooks() ?? <Book>[])
+                bookIdentity(book): book,
+            };
+            _selection.reconcile((book) => books[bookIdentity(book)]);
+          },
+        ),
         BlocListener<LibraryBloc, LibraryState>(
           listenWhen: (previous, current) =>
               previous.isLoading &&
@@ -1066,11 +1098,24 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                     fieldFocusNode: context
                         .read<FocusRepository>()
                         .librarySearchFocusNode,
-                    hint: context.settingsText('לחיצה תחליף את הטקסט שהוקלד'),
+                    hint: context.settingsText(
+                      'לחיצה תחליף את הטקסט שהוקלד',
+                    ),
                     onApplied: _applyLibraryLayoutFix,
                   ),
                   ?_buildBreadcrumbBar(context, state, settingsState),
                   Expanded(child: _buildContent(state)),
+                  // בתחתית ולא מעל הרשימה: הכרטיסים נשארים במקומם (הרשימה
+                  // מעוגנת למעלה), והסרגל לא מכסה את השורה האחרונה בגלילה.
+                  Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 560),
+                      child: LibrarySelectionBar(
+                        selection: _selection,
+                        onOpen: _openSelectedBooks,
+                      ),
+                    ),
+                  ),
                 ],
               );
 
@@ -1081,9 +1126,13 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           // פס הגלילה של הספרייה בקצה ימין: ברירת המחדל בעברית היא הקצה
           // השמאלי, שם נפגש התוכן עם חלונית התצוגה המקדימה.
           mainContent: RepaintBoundary(
-            child: ScrollConfiguration(
-              behavior: const EdgeScrollbarBehavior.right(),
-              child: mainContent,
+            child: Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: _recordPointerDownModifiers,
+              child: ScrollConfiguration(
+                behavior: const EdgeScrollbarBehavior.right(),
+                child: mainContent,
+              ),
             ),
           ),
           paneContent: _buildPreviewPane(settingsState),
@@ -1510,7 +1559,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               categories,
               state.selectedTopics,
             );
-            final displayLimit = min(displayBooks.length, 100);
+            final displayLimit = min(
+              displayBooks.length,
+              _kSearchGridBooksCap,
+            );
             final topicsHeader = _buildTopicsSelection(context, state);
             return SingleChildScrollView(
               key: PageStorageKey(state.currentCategory),
@@ -1623,7 +1675,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     if (book is ExternalLibraryBook) {
       return BookGridItem(
         book: book,
-        onBookClickCallback: () => _openExternalBook(book),
+        onBookClickCallback: () => _openExternalBookUnlessSelecting(book),
         showTopics: showTopics,
         focusNode: focusNode,
       );
@@ -1638,37 +1690,51 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               (p.previewBook != c.previewBook) &&
               (p.previewBook == book || c.previewBook == book),
           builder: (ctx, libState) {
-            final isSelected =
+            final isPreviewed =
                 _isPreviewPanelVisible(settingsState) &&
                 libState.previewBook == book;
-            return _withTalmudFormatMenu(
-              book,
-              book is PdfBook ? 1 : 0,
-              GestureDetector(
-                onDoubleTap: () =>
-                    _openBookInReader(book, book is PdfBook ? 1 : 0),
-                child: BookGridItem(
-                  book: book,
-                  showTopics: showTopics,
-                  isSelected: isSelected,
-                  focusNode: focusNode,
-                  onFocused: _isPreviewPanelVisible(settingsState)
-                      ? () => _showBookPreview(book)
-                      : null,
-                  onBookClickCallback: () {
-                    if (_isPreviewPanelVisible(settingsState)) {
-                      _showBookPreview(book);
-                    } else {
+            return ListenableBuilder(
+              listenable: _selection,
+              builder: (ctx, _) {
+                final isChecked = _selection.contains(book);
+                return _withBookContextMenu(
+                  book,
+                  book is PdfBook ? 1 : 0,
+                  GestureDetector(
+                    onDoubleTap: () {
+                      if (_inSelectionGesture) return;
                       _openBookInReader(book, book is PdfBook ? 1 : 0);
-                    }
-                  },
-                  onBookDeleted: () {
-                    if (ctx.mounted) {
-                      ctx.read<LibraryBloc>().add(RefreshLibrary());
-                    }
-                  },
-                ),
-              ),
+                    },
+                    child: BookGridItem(
+                      book: book,
+                      showTopics: showTopics,
+                      isSelected: isPreviewed || isChecked,
+                      isChecked: isChecked,
+                      focusNode: focusNode,
+                      // הלחיצה מעבירה פוקוס לפני שמוחלט אם היא בחירה; בזמן
+                      // איסוף ספרים התצוגה המקדימה נשארת במקומה.
+                      onFocused: _isPreviewPanelVisible(settingsState)
+                          ? () {
+                              if (!_inSelectionGesture) _showBookPreview(book);
+                            }
+                          : null,
+                      onBookClickCallback: () {
+                        if (_handleBookSelectionTap(book)) return;
+                        if (_isPreviewPanelVisible(settingsState)) {
+                          _showBookPreview(book);
+                        } else {
+                          _openBookInReader(book, book is PdfBook ? 1 : 0);
+                        }
+                      },
+                      onBookDeleted: () {
+                        if (ctx.mounted) {
+                          ctx.read<LibraryBloc>().add(RefreshLibrary());
+                        }
+                      },
+                    ),
+                  ),
+                );
+              },
             );
           },
         );
@@ -1678,6 +1744,137 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
   void _showBookPreview(Book book) =>
       context.read<LibraryBloc>().add(SelectBookForPreview(book));
+
+  // ── בחירה מרובה לפתיחה בבת אחת ─────────────────────────────────────────────
+
+  /// ה-onTap של ספר מתעכב עד שנסגר חלון הלחיצה הכפולה (~300ms), ובינתיים
+  /// המשתמש כבר שחרר את המקש. לכן המקשים נקלטים ברגע הלחיצה ([Listener] סביב
+  /// התוכן) ונשמרים לאותה לחיצה.
+  ({bool shift, bool additive}) _pointerDownModifiers = (
+    shift: false,
+    additive: false,
+  );
+  DateTime? _pointerDownAt;
+
+  void _recordPointerDownModifiers(PointerDownEvent _) {
+    final keyboard = HardwareKeyboard.instance;
+    _pointerDownModifiers = (
+      shift: keyboard.isShiftPressed,
+      additive: keyboard.isControlPressed || keyboard.isMetaPressed,
+    );
+    _pointerDownAt = DateTime.now();
+  }
+
+  /// מקשי הבחירה של הלחיצה הנוכחית: מה שלחוץ עכשיו (גם לחיצה במקלדת, בלי
+  /// עכבר), או מה שהיה לחוץ בלחיצת העכבר שזה עתה הסתיימה.
+  ({bool shift, bool additive}) get _selectionModifiers {
+    final keyboard = HardwareKeyboard.instance;
+    var shift = keyboard.isShiftPressed;
+    var additive = keyboard.isControlPressed || keyboard.isMetaPressed;
+    final at = _pointerDownAt;
+    if (at != null &&
+        DateTime.now().difference(at) < _kSelectionModifiersGrace) {
+      shift = shift || _pointerDownModifiers.shift;
+      additive = additive || _pointerDownModifiers.additive;
+    }
+    return (shift: shift, additive: additive);
+  }
+
+  /// מקש בחירה לחוץ, או שכבר יש ספרים שנבחרו: לחיצה על ספר היא בחירה ולא פתיחה.
+  bool get _inSelectionGesture {
+    final modifiers = _selectionModifiers;
+    return _selection.isNotEmpty || modifiers.shift || modifiers.additive;
+  }
+
+  /// מטפל בלחיצה על [book] כבחירה: Shift מוסיף טווח, ו-Ctrl/Cmd (או בחירה
+  /// קיימת) מחליפים את מצב הספר. מחזיר false כשזו לחיצה רגילה.
+  bool _handleBookSelectionTap(Book book) {
+    if (!_inSelectionGesture) return false;
+    if (_selectionModifiers.shift) {
+      _selection.selectRange(book, _visibleBookOrder());
+    } else {
+      _selection.toggle(book);
+    }
+    return true;
+  }
+
+  /// הספרים המוצגים עכשיו, לפי סדר התצוגה — הבסיס לבחירת טווח.
+  List<Book> _visibleBookOrder() {
+    final state = context.read<LibraryBloc>().state;
+    final isGrid = context.read<SettingsBloc>().state.libraryViewMode == 'grid';
+    final results = state.searchResults;
+    if (results != null) {
+      final books = _filterByTopics(
+        _visibleBooks(results),
+        state.selectedTopics,
+      );
+      return isGrid ? books.take(_kSearchGridBooksCap).toList() : books;
+    }
+    final category = state.currentCategory;
+    if (category == null) return const [];
+    if (isGrid) return _displayedContent(category).books;
+    return [
+      for (final row in _buildFlatTreeRows(category))
+        if (row.book != null) row.book!,
+    ];
+  }
+
+  /// Esc מבטל את הבחירה גם כשהפוקוס לא על הספרייה (לחיצה על שורה ברשימה לא
+  /// מעבירה אליה פוקוס), ולכן המאזין נרשם רק כל עוד יש בחירה.
+  void _syncSelectionEscapeHandler() {
+    if (_selection.isNotEmpty == _escapeHandlerRegistered) return;
+    _escapeHandlerRegistered = _selection.isNotEmpty;
+    if (_escapeHandlerRegistered) {
+      HardwareKeyboard.instance.addHandler(_handleSelectionEscape);
+    } else {
+      HardwareKeyboard.instance.removeHandler(_handleSelectionEscape);
+    }
+  }
+
+  bool _handleSelectionEscape(KeyEvent event) {
+    if (event is! KeyDownEvent ||
+        event.logicalKey != LogicalKeyboardKey.escape ||
+        !mounted) {
+      return false;
+    }
+    // הספרייה נשארת חיה מאחורי מסך הקריאה; Esc בדיאלוג סוגר את הדיאלוג בלבד;
+    // ו-Esc בשדה טקסט שייך לשדה, חוץ משדה החיפוש של הספרייה שאינו משתמש בו.
+    final onLibraryScreen =
+        context.read<NavigationBloc>().state.currentScreen == Screen.library;
+    final searchFocused = context
+        .read<FocusRepository>()
+        .librarySearchFocusNode
+        .hasFocus;
+    if (!onLibraryScreen ||
+        !AppWindowKeys.isActiveWindow(context) ||
+        !(ModalRoute.isCurrentOf(context) ?? true) ||
+        (isEditableTextFocusTarget() && !searchFocused)) {
+      return false;
+    }
+    _selection.clear();
+    return true;
+  }
+
+  /// פותח את הספרים שנבחרו לפי סדר הבחירה: כל ספר עובר באותו מסלול כמו פתיחה
+  /// בודדת (פורמט בבלי, היסטוריה, טאב קיים), ורק בסוף עוברים למסך הקריאה.
+  Future<void> _openSelectedBooks() async {
+    final books = _selection.books;
+    if (books.isEmpty) return;
+    // מנקים מיד, כדי שלחיצה כפולה על הכפתור לא תפתח את הספרים פעמיים.
+    _selection.clear();
+    final coordinator = bookOpenCoordinatorOf(context);
+    for (final (i, book) in books.indexed) {
+      if (!mounted) return;
+      await _openBookInReader(
+        book,
+        book is PdfBook ? 1 : 0,
+        navigate: false,
+        // רק הטאב שעוזבים נשמר להיסטוריה, לא טאבים שנפתחו בתוך אותה פעולה.
+        captureHistory: i == 0,
+      );
+    }
+    if (mounted) coordinator.showReadingScreen();
+  }
 
   Widget _buildSearchListView(
     List<Book> books,
@@ -2279,6 +2476,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     required bool isSelected,
     required VoidCallback onTap,
     required VoidCallback onDoubleTap,
+    bool isChecked = false,
     FocusNode? focusNode,
     VoidCallback? onBookDeleted,
   }) {
@@ -2286,15 +2484,22 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     const double iconSize = 14.0;
     final cs = Theme.of(context).colorScheme;
 
+    // ספר שנבחר לפתיחה מרובה מציג וי במקום סמל הפורמט.
     final leadingWidget = Container(
       width: iconBoxSize,
       height: iconBoxSize,
       decoration: BoxDecoration(
-        color: cs.secondaryContainer,
+        color: isChecked ? cs.primary : cs.secondaryContainer,
         borderRadius: AppTokens.borderRadiusAll,
       ),
       child: Center(
-        child: _buildListRowIconChild(book, cs, iconSize),
+        child: isChecked
+            ? Icon(
+                FluentIcons.checkmark_24_regular,
+                color: cs.onPrimary,
+                size: iconSize,
+              )
+            : _buildListRowIconChild(book, cs, iconSize),
       ),
     );
 
@@ -2429,34 +2634,44 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               (p.previewBook != c.previewBook) &&
               (p.previewBook == book || c.previewBook == book),
           builder: (ctx, libState) {
-            final isSelected =
+            final isPreviewed =
                 _isPreviewPanelVisible(settingsState) &&
                 libState.previewBook == book;
-            return _withTalmudFormatMenu(
-              book,
-              book is PdfBook ? 1 : 0,
-              _buildBookListRow(
-                context: ctx,
-                book: book,
-                level: level,
-                itemStyle: itemStyle,
-                isSelected: isSelected,
-                focusNode: focusNode,
-                onTap: () {
-                  if (_isPreviewPanelVisible(settingsState)) {
-                    _showBookPreview(book);
-                  } else {
-                    _openBookInReader(book, book is PdfBook ? 1 : 0);
-                  }
-                },
-                onDoubleTap: () =>
-                    _openBookInReader(book, book is PdfBook ? 1 : 0),
-                onBookDeleted: () {
-                  if (ctx.mounted) {
-                    ctx.read<LibraryBloc>().add(RefreshLibrary());
-                  }
-                },
-              ),
+            return ListenableBuilder(
+              listenable: _selection,
+              builder: (ctx, _) {
+                final isChecked = _selection.contains(book);
+                return _withBookContextMenu(
+                  book,
+                  book is PdfBook ? 1 : 0,
+                  _buildBookListRow(
+                    context: ctx,
+                    book: book,
+                    level: level,
+                    itemStyle: itemStyle,
+                    isSelected: isPreviewed || isChecked,
+                    isChecked: isChecked,
+                    focusNode: focusNode,
+                    onTap: () {
+                      if (_handleBookSelectionTap(book)) return;
+                      if (_isPreviewPanelVisible(settingsState)) {
+                        _showBookPreview(book);
+                      } else {
+                        _openBookInReader(book, book is PdfBook ? 1 : 0);
+                      }
+                    },
+                    onDoubleTap: () {
+                      if (_inSelectionGesture) return;
+                      _openBookInReader(book, book is PdfBook ? 1 : 0);
+                    },
+                    onBookDeleted: () {
+                      if (ctx.mounted) {
+                        ctx.read<LibraryBloc>().add(RefreshLibrary());
+                      }
+                    },
+                  ),
+                );
+              },
             );
           },
         );
@@ -2477,7 +2692,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       level: level,
       itemStyle: itemStyle,
       focusNode: focusNode,
-      onTap: () => _openExternalBook(book),
+      onTap: () => _openExternalBookUnlessSelecting(book),
     );
   }
 
@@ -2504,10 +2719,14 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         .toList();
   }
 
+  /// [navigate] ו-[captureHistory] כבויים כשהספר נפתח כחלק מפתיחת כמה ספרים
+  /// ([_openSelectedBooks]).
   Future<void> _openBookInReader(
     Book book,
     int index, {
     bool? forcePdf,
+    bool navigate = true,
+    bool captureHistory = true,
   }) async {
     // אין לספר חיצוני טאב קריאה; "פתח" בתצוגה המקדימה מגיע גם לכאן.
     if (book is ExternalLibraryBook) {
@@ -2519,13 +2738,21 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       book,
       index,
       forcePdf: forcePdf,
+      navigate: navigate,
+      captureHistory: captureHistory,
     );
     if (handled || !mounted) return;
     // בקשה מפורשת ל-PDF שלא נענתה = אין מהדורת PDF למסכת; נפתח הטקסט.
     if (forcePdf == true) {
       UiSnack.showError(LibraryMessages.talmudPdfEditionMissing(book.title));
     }
-    openBook(context, book, index, '');
+    bookOpenCoordinatorOf(context).openBook(
+      book,
+      index,
+      '',
+      navigate: navigate,
+      captureHistory: captureHistory,
+    );
   }
 
   /// האם ל-[book] רלוונטית בחירת פורמט פתיחה — מסכת בבלי רשמית, שקיימת לה
@@ -2533,25 +2760,59 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   bool _offersTalmudFormatChoice(Book book) =>
       book is TextBook && book.source.isOfficial && isTalmudBavliBook(book);
 
-  /// עוטף פריט ספר בתפריט הקשר לבחירת פורמט הפתיחה של מסכת בבלי.
-  Widget _withTalmudFormatMenu(Book book, int index, Widget child) {
-    if (!_offersTalmudFormatChoice(book)) return child;
+  /// עוטף פריט ספר בתפריט הקשר: הוספה לבחירה המרובה (גם בלי מקלדת, ובמגע
+  /// בלחיצה ארוכה), ולמסכת בבלי גם בחירת פורמט הפתיחה.
+  Widget _withBookContextMenu(Book book, int index, Widget child) {
+    // Ctrl/Cmd+Enter או Ctrl+Space מחליפים מצב, ו-Shift+Enter מוסיף טווח, גם
+    // בלי עכבר; Enter רגיל נשאר הפעלה רגילה של הכרטיס.
+    void toggle() => _selection.toggle(book);
+    void range() => _selection.selectRange(book, _visibleBookOrder());
+    return CallbackShortcuts(
+      bindings: {
+        for (final key in const [
+          LogicalKeyboardKey.enter,
+          LogicalKeyboardKey.numpadEnter,
+          LogicalKeyboardKey.space,
+        ]) ...{
+          SingleActivator(key, control: true): toggle,
+          SingleActivator(key, meta: true): toggle,
+        },
+        const SingleActivator(LogicalKeyboardKey.enter, shift: true): range,
+        const SingleActivator(LogicalKeyboardKey.numpadEnter, shift: true):
+            range,
+      },
+      child: _buildBookContextMenuRegion(book, index, child),
+    );
+  }
+
+  Widget _buildBookContextMenuRegion(Book book, int index, Widget child) {
     return AppContextMenuRegion(
       // בלי isSelected: אייקון מוביל יחד עם סימון-נבחר מאפס את תקציב הרוחב
       // של הלייבל, וה-Spacer שבשורת הפריט נופל על רוחב לא-חסום.
       menuBuilder: (_, _) => [
         AppContextMenuEntry(
-          label: context.settingsText('פתיחה כטקסט'),
-          icon: OtzariaIcons.book_alef_24_regular,
-          onTap: () => _openBookInReader(book, index, forcePdf: false),
+          label: context.settingsText(
+            _selection.contains(book) ? 'הסר מהבחירה' : 'הוסף לבחירה',
+          ),
+          icon: _selection.contains(book)
+              ? FluentIcons.checkbox_checked_24_regular
+              : FluentIcons.checkbox_unchecked_24_regular,
+          onTap: () => _selection.toggle(book),
         ),
-        AppContextMenuEntry(
-          label: context.settingsText('פתיחה כ-PDF'),
-          icon: OtzariaIcons.book_pdf_24_regular,
-          onTap: () => _openBookInReader(book, index, forcePdf: true),
-        ),
+        if (_offersTalmudFormatChoice(book)) ...[
+          AppContextMenuEntry(
+            label: context.settingsText('פתיחה כטקסט'),
+            icon: OtzariaIcons.book_alef_24_regular,
+            onTap: () => _openBookInReader(book, index, forcePdf: false),
+          ),
+          AppContextMenuEntry(
+            label: context.settingsText('פתיחה כ-PDF'),
+            icon: OtzariaIcons.book_pdf_24_regular,
+            onTap: () => _openBookInReader(book, index, forcePdf: true),
+          ),
+        ],
       ],
-      child: child,
+      child: Semantics(selected: _selection.contains(book), child: child),
     );
   }
 
@@ -2669,6 +2930,14 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   void _openCategory(Category category) {
     context.read<LibraryBloc>().add(NavigateToCategory(category));
     _refocusSearchBar();
+  }
+
+  /// ספר חיצוני (אוצר החכמה, היברובוקס מקוון, ספק מתוסף) נפתח בדיאלוג או
+  /// בפעולת התוסף ואינו טאב קריאה, ולכן אינו נבחר; בזמן בחירה הלחיצה עליו
+  /// לא פותחת דיאלוג באמצע איסוף הספרים.
+  void _openExternalBookUnlessSelecting(ExternalLibraryBook book) {
+    if (_inSelectionGesture) return;
+    _openExternalBook(book);
   }
 
   void _openExternalBook(ExternalLibraryBook book) {

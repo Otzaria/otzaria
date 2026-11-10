@@ -394,6 +394,9 @@ class CategoryGridItem extends StatelessWidget {
 class BookGridItem extends StatelessWidget {
   final bool showTopics;
   final bool isSelected;
+
+  /// הספר נבחר לפתיחה מרובה: וי במקום סמל הפורמט.
+  final bool isChecked;
   final Book book;
   final VoidCallback onBookClickCallback;
   final VoidCallback? onBookDeleted;
@@ -406,6 +409,7 @@ class BookGridItem extends StatelessWidget {
     required this.onBookClickCallback,
     this.showTopics = false,
     this.isSelected = false,
+    this.isChecked = false,
     this.onBookDeleted,
     this.focusNode,
     this.onFocused,
@@ -439,7 +443,7 @@ class BookGridItem extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   mainAxisSize: MainAxisSize.max,
                   children: [
-                    _BookGridMediaColumn(book: book),
+                    _BookGridMediaColumn(book: book, isChecked: isChecked),
                     _BookGridActionColumn(
                       book: book,
                       onBookDeleted: onBookDeleted,
@@ -457,8 +461,9 @@ class BookGridItem extends StatelessWidget {
 
 class _BookGridMediaColumn extends StatelessWidget {
   final Book book;
+  final bool isChecked;
 
-  const _BookGridMediaColumn({required this.book});
+  const _BookGridMediaColumn({required this.book, this.isChecked = false});
 
   @override
   Widget build(BuildContext context) {
@@ -471,11 +476,17 @@ class _BookGridMediaColumn extends StatelessWidget {
       width: iconBoxSize,
       height: iconBoxSize,
       decoration: BoxDecoration(
-        color: cs.secondaryContainer,
+        color: isChecked ? cs.primary : cs.secondaryContainer,
         borderRadius: AppTokens.borderRadiusAll,
       ),
       child: Center(
-        child: _buildBookIconChild(book, cs, iconSize),
+        child: isChecked
+            ? Icon(
+                FluentIcons.checkmark_24_regular,
+                color: cs.onPrimary,
+                size: iconSize,
+              )
+            : _buildBookIconChild(book, cs, iconSize),
       ),
     );
 
