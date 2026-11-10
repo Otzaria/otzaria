@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:otzaria/search_feedback/semantic_search_strings.dart';
+import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria/semantic_search/models/semantic_model_identity.dart';
 import 'package:otzaria/semantic_search/models/semantic_model_release.dart';
 import 'package:otzaria/settings/l10n/settings_catalogs.g.dart';
@@ -17,34 +18,39 @@ import '../../tool/release/semantic_release_components.dart';
 
 const _api = 'https://api.github.test/repos';
 const _tag = 'v30-20260930165019';
-const _vectorsTag = 'vectors-qa491-$_tag';
+const _vectorsTag = 'vectors-pardesqa491-windows-$_tag';
 const _segment = 'otzaria-vectors-0c3f95be-v30-base.oxv.zst';
 const _manifestName = 'otzaria-vectors-0c3f95be-v30-base.manifest.json';
 
 String _sha(String text) => sha256.convert(utf8.encode(text)).toString();
 
 String _identityJson() =>
-    File('assets/semantic/meivin-qa491-onnx/model.json').readAsStringSync();
+    File(kSemanticModelBundledIdentity).readAsStringSync();
 
-String _vectorsManifest({String? familyId}) {
-  final identity = SemanticModelIdentity.parse(_identityJson());
+String _vectorsManifest({
+  String? familyId,
+  String? chunkingIdentity,
+  String kind = 'base',
+  int fromVersion = 0,
+}) {
+  var identity = _identityJson();
+  if (familyId != null) {
+    identity = identity.replaceFirst(kCompactPardesModelFamilyId, familyId);
+  }
+  if (chunkingIdentity != null) {
+    identity = identity.replaceFirst('13334152532150206612', chunkingIdentity);
+  }
   return jsonEncode({
-    'kind': 'base',
-    'identity': {
-      'model': {
-        'family_id': familyId ?? identity.familyId,
-        'tokenizer_checksum': identity.tokenizerChecksum,
-        'chunking_identity': identity.chunkingIdentity,
-      },
-    },
-    'fromLibraryVersion': 0,
+    'kind': kind,
+    'identity': {'model': '__MODEL_IDENTITY__'},
+    'fromLibraryVersion': fromVersion,
     'toLibraryVersion': 30,
     'libraryReleaseTag': _tag,
     'segment': {'sha256': 'cd' * 32, 'size': 1779752972},
     'files': [
       {'file': _segment, 'sha256': 'ab' * 32, 'size': 1642517351},
     ],
-  });
+  }).replaceFirst('"__MODEL_IDENTITY__"', identity);
 }
 
 final SemanticModelRelease _model =
@@ -54,12 +60,15 @@ class _GitHub {
   bool vectorsPublished = true;
   String manifest = _vectorsManifest();
   int graphSize = _model.graph.size;
+  final missingModelFiles = <String>{};
+  final requests = <String>[];
 
   static http.Response _json(Object? body) =>
       http.Response.bytes(utf8.encode(jsonEncode(body)), 200);
 
   http.Client client() => MockClient((request) async {
     final url = request.url.toString();
+    requests.add(url);
     if (url == '$_api/Otzaria/SeforimLibrary/releases/tags/$_vectorsTag') {
       if (!vectorsPublished) return http.Response('{}', 404);
       return _json({
@@ -86,21 +95,23 @@ class _GitHub {
     }
     if (url ==
         '$_api/Otzaria/otzaria-semantic-search/releases/tags/'
-            'model-meivin-qa491-int8-v1') {
+            'model-pardes-qa491-int8-v1') {
       return _json({
         'assets': [
           for (final file in [
             _model.graph,
-            _model.tokenizer.zipped!,
+            _model.tokenizer,
             _model.identity,
             _model.license,
+            if (_model.notice != null) _model.notice!,
             if (_model.passageGraph != null) _model.passageGraph!,
           ])
-            {
-              'name': file.name,
-              'size': file == _model.graph ? graphSize : file.size,
-              'digest': 'sha256:${file.sha256}',
-            },
+            if (!missingModelFiles.contains(file.name))
+              {
+                'name': file.name,
+                'size': file == _model.graph ? graphSize : file.size,
+                'digest': 'sha256:${file.sha256}',
+              },
         ],
       });
     }
@@ -132,28 +143,27 @@ void main() {
       expect(model['type'], kSemanticModelComponentType);
       expect(model['origin'], 'imported');
       expect(model['required'], isFalse);
-      expect(model['outputFolder'], 'semantic-import/meivin-qa491-onnx');
+      expect(model['outputFolder'], 'semantic-import/pardesqa491-onnx');
       expect(
         (model['assets'] as List).map((a) => (a as Map)['repository']).toSet(),
         {'Otzaria/otzaria-semantic-search'},
       );
       expect(
         (model['assets'] as List).first,
-        containsPair('releaseTag', 'model-meivin-qa491-int8-v1'),
+        containsPair('releaseTag', 'model-pardes-qa491-int8-v1'),
       );
-      // tokenizer.json נחסם במסנני תוכן; האפליקציה פורסת את ה-zip המוכן.
       expect((model['assets'] as List).map((a) => (a as Map)['name']), [
-        _model.graph.name,
-        'tokenizer.json.zip',
-        _model.identity.name,
-        _model.license.name,
-        'document.fp32.onnx',
+        'model.onnx',
+        'tokenizer.json',
+        'model.json',
+        'LICENSE-AGPL-3.0.txt',
+        'Pardes_NOTICE.txt',
       ]);
       final modelAssets = (model['assets'] as List).cast<Map>();
-      expect(modelAssets.last['size'], 168145648);
+      expect(modelAssets.last['size'], 1995);
       expect(
         modelAssets.last['sha256'],
-        '46ba402ce20693d0a3b65aa557a368a3535bbb2a5a1f559d848e803788f7b667',
+        'd69c76d2efd180cf34cc8007fa3e50d50c261f2c0eb009b5da740464ac4c18e1',
       );
       expect(
         model['downloadSize'],
@@ -179,29 +189,50 @@ void main() {
       expect(assets.last['sha256'], _sha(_vectorsManifest()));
     });
 
-    test('מודל ללא גרף פסקאות שומר בדיוק את ארבעת קובצי ההתקנה', () async {
-      final legacy = SemanticModelRelease(
-        baseUrl: _model.baseUrl,
-        graph: _model.graph,
-        tokenizer: _model.tokenizer,
-        identity: _model.identity,
-        license: _model.license,
+    test('קובץ ייחוס חסר — חבילת פרדס אינה נארזת', () async {
+      final github = _GitHub()..missingModelFiles.add('Pardes_NOTICE.txt');
+      await expectLater(
+        github.resolve(),
+        throwsA(
+          isA<SemanticComponentsOmitted>().having(
+            (e) => e.reason,
+            'reason',
+            contains('Pardes_NOTICE.txt'),
+          ),
+        ),
       );
-      final component = (await _GitHub().resolve(model: legacy)).first;
-      final assets = (component['assets'] as List).cast<Map>();
-      expect(assets.map((a) => a['name']), [
-        legacy.graph.name,
-        'tokenizer.json.zip',
-        legacy.identity.name,
-        legacy.license.name,
-      ]);
-      expect(
-        component['downloadSize'],
-        legacy.graph.size +
-            legacy.tokenizer.zipped!.size +
-            legacy.identity.size +
-            legacy.license.size,
+    });
+
+    test('זהות חלוקה UInt64 סמוכה אינה נארזת בגלל עיגול', () async {
+      final github = _GitHub()
+        ..manifest = _vectorsManifest(chunkingIdentity: '13334152532150206613');
+      await expectLater(
+        github.resolve(),
+        throwsA(
+          isA<SemanticFailure>().having(
+            (e) => e.field,
+            'field',
+            'model.chunking_identity',
+          ),
+        ),
       );
+    });
+
+    test('זהות מודל ישנה אינה נארזת גם כשהמודל החדש פורסם', () async {
+      final github = _GitHub();
+      await expectLater(
+        resolveSemanticComponents(
+          libraryTag: _tag,
+          modelIdentityJson: _identityJson().replaceFirst(
+            kCompactPardesModelFamilyId,
+            'retired/Meivin',
+          ),
+          clientFactory: github.client,
+          apiBase: _api,
+        ),
+        throwsA(isA<SemanticComponentsOmitted>()),
+      );
+      expect(github.requests, isEmpty);
     });
 
     test('שם, תיאור והסבר באנגלית לכל רכיב', () async {
@@ -268,10 +299,13 @@ void main() {
           isA<SemanticComponentsOmitted>().having(
             (e) => e.reason,
             'reason',
-            contains('vectors-qa491-$_tag'),
+            contains(_vectorsTag),
           ),
         ),
       );
+      expect(github.requests, [
+        '$_api/Otzaria/SeforimLibrary/releases/tags/$_vectorsTag',
+      ]);
     });
 
     test(
@@ -295,11 +329,7 @@ void main() {
         expect(jsonEncode(vectors), contains(_manifestName));
         expect(requested.where((u) => u.contains('delta')), isEmpty);
 
-        github.manifest = jsonEncode(
-          jsonDecode(_vectorsManifest())
-            ..['kind'] = 'delta'
-            ..['fromLibraryVersion'] = 29,
-        );
+        github.manifest = _vectorsManifest(kind: 'delta', fromVersion: 29);
         await expectLater(github.resolve(), throwsA(anything));
         client.close();
       },
@@ -429,10 +459,11 @@ void main() {
         'semantic-vectors-windows',
       ], target);
       expect(files, [
-        'semantic-import/meivin-qa491-onnx/query.int8.onnx',
-        'semantic-import/meivin-qa491-onnx/tokenizer.json',
-        'semantic-import/meivin-qa491-onnx/model.json',
-        'semantic-import/meivin-qa491-onnx/LICENSE',
+        'semantic-import/pardesqa491-onnx/model.onnx',
+        'semantic-import/pardesqa491-onnx/tokenizer.json',
+        'semantic-import/pardesqa491-onnx/model.json',
+        'semantic-import/pardesqa491-onnx/LICENSE-AGPL-3.0.txt',
+        'semantic-import/pardesqa491-onnx/Pardes_NOTICE.txt',
         'semantic-import/vectors/$_segment',
         'semantic-import/vectors/$_manifestName',
       ]);

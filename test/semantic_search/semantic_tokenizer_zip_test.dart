@@ -108,11 +108,9 @@ void main() {
       .where((name) => name.contains('.part') || name.endsWith('.zip'))
       .toList();
 
-  test('the published tokenizer.json.zip is the one pinned', () {
+  test('the Pardes release does not assume unpublished zipped artifacts', () {
     final published = kSemanticModelReleases[SemanticQuantization.int8]!;
-    expect(published.tokenizer.zipped, isNotNull);
-    expect(published.tokenizer.zipped!.name, 'tokenizer.json.zip');
-    expect(published.tokenizer.zipped!.zipped, isNull);
+    expect(published.tokenizer.zipped, isNull);
     expect(published.graph.zipped, isNull);
     expect(published.license.zipped, isNull);
     expect(published.identity.zipped, isNull);

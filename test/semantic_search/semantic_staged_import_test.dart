@@ -40,7 +40,7 @@ SemanticModelFile _modelFile(String name, String content) => SemanticModelFile(
 /// release מודל קטן, כדי שקבצים מוכנים יתאימו לו בבדיקה.
 final Map<SemanticQuantization, SemanticModelRelease?> _smallModel = {
   SemanticQuantization.int8: SemanticModelRelease(
-    baseUrl: 'https://models.test/meivin',
+    baseUrl: 'https://models.test/pardes',
     graph: _modelFile(SemanticQuantization.int8.modelFileName, 'graph'),
     tokenizer: _modelFile(kSemanticTokenizerFileName, 'tokenizer'),
     identity: _modelFile(kSemanticModelIdentityFileName, bundledModelJson()),
@@ -52,49 +52,51 @@ final Map<SemanticQuantization, SemanticModelRelease?> _smallModel = {
 int _chunkingOf(SemanticVectorsFamily family) =>
     SemanticModelIdentity.parse(bundledModelJson(family)).chunkingIdentity;
 
-final List<SemanticVectorsCandidate> _anchorOnly = [
+final List<SemanticVectorsCandidate> _currentOnly = [
   (
-    family: SemanticVectorsFamily.anchor,
+    family: SemanticVectorsFamily.pardesWindows,
     modelFamilyId: kTestModelFamilyId,
-    chunkingIdentity: _chunkingOf(SemanticVectorsFamily.anchor),
+    chunkingIdentity: _chunkingOf(SemanticVectorsFamily.pardesWindows),
   ),
 ];
 
-final List<SemanticVectorsCandidate> _windowsFirst = [
+final List<SemanticVectorsCandidate> _mixedCandidates = [
   (
     family: SemanticVectorsFamily.windows,
-    modelFamilyId: kTestModelFamilyId,
+    modelFamilyId: SemanticModelIdentity.parse(
+      bundledModelJson(SemanticVectorsFamily.windows),
+    ).familyId,
     chunkingIdentity: _chunkingOf(SemanticVectorsFamily.windows),
   ),
-  ..._anchorOnly,
+  ..._currentOnly,
 ];
 
-/// מניפסט וקטורים בצורה שמתפרסמת ב-SeforimLibrary.
+/// מניפסט וקטורים בצורה שמתפרסמת ב-SeforimLibrary, עם UInt64 מדויק.
 String _manifest({
   String segment = 'segment',
   int version = 30,
-  SemanticVectorsFamily family = SemanticVectorsFamily.anchor,
-}) => const JsonEncoder.withIndent('  ').convert({
-  'format': 'otzaria-vectors-release',
-  'kind': 'base',
-  'identity': {
-    'model': {
-      'family_id': kTestModelFamilyId,
-      'chunking_identity': _chunkingOf(family),
-    },
-  },
-  'fromLibraryVersion': 0,
-  'toLibraryVersion': version,
-  'libraryReleaseTag': 'v$version-20260930165019',
-  'segment': {'sha256': 'cd' * 32, 'size': 99},
-  'files': [
-    {
-      'file': _segmentName,
-      'sha256': _sha(utf8.encode(segment)),
-      'size': utf8.encode(segment).length,
-    },
-  ],
-});
+  SemanticVectorsFamily family = SemanticVectorsFamily.pardesWindows,
+  String? identityDigest,
+  int? fileSize,
+}) => const JsonEncoder.withIndent('  ')
+    .convert({
+      'format': 'otzaria-vectors-release',
+      'kind': 'base',
+      'identity': {'model': '__model__'},
+      'identityDigest': ?identityDigest,
+      'fromLibraryVersion': 0,
+      'toLibraryVersion': version,
+      'libraryReleaseTag': 'v$version-20260930165019',
+      'segment': {'sha256': 'cd' * 32, 'size': 99},
+      'files': [
+        {
+          'file': _segmentName,
+          'sha256': _sha(utf8.encode(segment)),
+          'size': fileSize ?? utf8.encode(segment).length,
+        },
+      ],
+    })
+    .replaceFirst('"__model__"', bundledModelJson(family));
 
 class _UnreachableLocator extends SemanticVectorsReleaseLocator {
   int lookups = 0;
@@ -420,10 +422,7 @@ void main() {
       () async {
         final digest = 'ab' * 32;
         installModelFiles(root);
-        final manifest = jsonEncode(
-          jsonDecode(_manifest(family: SemanticVectorsFamily.windows))
-            ..['identityDigest'] = digest,
-        );
+        final manifest = _manifest(identityDigest: digest);
         write(
           staged(kSemanticImportVectorsFolderName, _segmentName),
           'segment',
@@ -443,10 +442,10 @@ void main() {
             libraryReleaseTag: 'v29-20260930165019',
           );
         final chunking = SemanticModelIdentity.parse(
-          bundledModelJson(SemanticVectorsFamily.windows),
+          bundledModelJson(SemanticVectorsFamily.pardesWindows),
         ).chunkingIdentity;
         final online = releaseV30(
-          family: SemanticVectorsFamily.windows,
+          family: SemanticVectorsFamily.pardesWindows,
           identityDigest: digest,
           chunkingIdentity: chunking,
         );
@@ -477,7 +476,7 @@ void main() {
     final release = SemanticStagedImport.parseStagedManifest(
       utf8.encode(_manifest()),
       30,
-      _anchorOnly,
+      _currentOnly,
     )!;
     final backend = FakeBackend();
     final downloads = FakeDownloads();
@@ -564,11 +563,9 @@ void main() {
         _smallModel[SemanticQuantization.int8]!.graph.name,
       ),
     ).deleteSync();
-    final manifest = jsonDecode(_manifest()) as Map<String, dynamic>;
-    (manifest['files'] as List).first['size'] = 1800000000;
     write(
       staged(kSemanticImportVectorsFolderName, _manifestName),
-      jsonEncode(manifest),
+      _manifest(fileSize: 1800000000),
     );
     final gate = Completer<void>();
     final downloads = FakeDownloads()..gate = gate;
@@ -680,7 +677,7 @@ void main() {
       SemanticStagedImport.parseStagedManifest(
         utf8.encode(_manifest(version: 29)),
         30,
-        _anchorOnly,
+        _currentOnly,
       ),
       isNull,
     );
@@ -692,7 +689,7 @@ void main() {
           '"size":1,"sha256":"aa"}],"segment":{"size":1}}',
         ),
         30,
-        _anchorOnly,
+        _currentOnly,
       ),
       throwsFormatException,
     );
@@ -706,7 +703,7 @@ void main() {
       SemanticStagedImport.parseStagedManifest(
         utf8.encode(jsonEncode(delta)),
         30,
-        _windowsFirst,
+        _mixedCandidates,
       ),
       isNull,
     );
@@ -719,7 +716,7 @@ void main() {
     final release = SemanticStagedImport.parseStagedManifest(
       bytes,
       30,
-      _windowsFirst,
+      _mixedCandidates,
     )!;
     expect(release.family, SemanticVectorsFamily.windows);
     expect(release.releaseTag, 'vectors-qa491-windows-$_tag');
@@ -732,21 +729,21 @@ void main() {
       ),
     );
     expect(
-      SemanticStagedImport.parseStagedManifest(bytes, 30, _anchorOnly),
+      SemanticStagedImport.parseStagedManifest(bytes, 30, _currentOnly),
       isNull,
     );
   });
 
-  test('מנוע עם חלונות: נתונים מוכנים של הסט הישן גוברים על הרשת', () async {
-    final manifest = stageAll();
-    final backend = FakeBackend()..supportsLongLineWindows = true;
-    final downloads = FakeDownloads();
-    final locator = FakeLocator(
-      releaseV30(
-        family: SemanticVectorsFamily.windows,
-        chunkingIdentity: _chunkingOf(SemanticVectorsFamily.windows),
-      ),
+  test('נתונים מוכנים של מייבין אינם גוברים על פרסום פרדס', () async {
+    stageAll();
+    write(
+      staged(kSemanticImportVectorsFolderName, _manifestName),
+      _manifest(family: SemanticVectorsFamily.windows),
     );
+    final backend = FakeBackend();
+    final downloads = FakeDownloads();
+    final published = releaseV30();
+    final locator = FakeLocator(published);
     final repository = buildRepository(
       root: root,
       backend: backend,
@@ -757,11 +754,15 @@ void main() {
 
     await repository.enableAndDownload();
 
-    expect(locator.lookups, isEmpty);
-    expect(downloads.urls, isEmpty);
+    expect(locator.lookups, [30]);
+    expect(downloads.urls, [published.files.single.downloadUrl]);
     final install = backend.installRequests.single;
-    expect(install.manifestJson, manifest);
+    expect(install.manifestJson, published.manifestJson);
     expect(install.modelIdentityJson, bundledModelJson());
+    expect(
+      File(staged(kSemanticImportVectorsFolderName, _segmentName)).existsSync(),
+      isTrue,
+    );
   });
 
   for (final payload in <String?>[null, 'short']) {
@@ -779,14 +780,14 @@ void main() {
       final windows = SemanticStagedImport.parseStagedManifest(
         utf8.encode(_manifest(family: SemanticVectorsFamily.windows)),
         30,
-        _windowsFirst,
+        _mixedCandidates,
       )!;
       var onlineCalled = false;
 
       final release = await importer.locate(
         30,
         offline: false,
-        candidates: _windowsFirst,
+        candidates: _mixedCandidates,
         online: () async {
           onlineCalled = true;
           return windows;
@@ -812,7 +813,7 @@ void main() {
       await importer.locate(
         30,
         offline: false,
-        candidates: _windowsFirst,
+        candidates: _mixedCandidates,
         online: () async {
           onlineCalled = true;
           return null;
@@ -823,13 +824,13 @@ void main() {
     expect(onlineCalled, isTrue);
   });
 
-  test('מנוע בלי חלונות: הרשת נבדקת קודם, כמו תמיד', () async {
+  test('נתוני פרדס מוכנים: נבדק הפרסום העדכני לפני האימוץ', () async {
     stageAll();
     final locator = FakeLocator(
       SemanticStagedImport.parseStagedManifest(
         utf8.encode(_manifest()),
         30,
-        _anchorOnly,
+        _currentOnly,
       ),
     );
     final repository = buildRepository(

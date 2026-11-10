@@ -34,13 +34,11 @@ class OtzariaCapabilities {
     'libraryDbPath': libraryDbPath,
     'reportsQueueFormat': kReportsQueueFormat,
     'pluginInstallResults': PluginInstallResultsLog.formatVersion,
-    // סדר ה-enum הוא סדר ההעדפה; בלי המקף הסוגר של התחילית.
     'semanticVectorFamilies': [
-      for (final family in SemanticVectorsFamily.values)
-        family.releaseTagPrefix.substring(
-          0,
-          family.releaseTagPrefix.length - 1,
-        ),
+      SemanticVectorsFamily.pardesWindows.releaseTagPrefix.substring(
+        0,
+        SemanticVectorsFamily.pardesWindows.releaseTagPrefix.length - 1,
+      ),
     ],
   };
 

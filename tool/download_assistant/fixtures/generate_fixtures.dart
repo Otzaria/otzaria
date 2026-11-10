@@ -9,7 +9,9 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:otzaria/semantic_search/models/semantic_model_identity.dart';
 import 'package:otzaria/semantic_search/models/semantic_model_release.dart';
+import 'package:otzaria/semantic_search/models/semantic_vectors_family.dart';
 import 'package:otzaria/semantic_search/models/semantic_vectors_release.dart';
 
 import '../../release/download_assistant_selection.dart';
@@ -158,17 +160,21 @@ List<Map<String, Object?>> buildFixtureSemanticComponents() {
   const manifest = '{"kind":"base"}';
   return buildSemanticComponents(
     model: SemanticModelRelease(
+      family: SemanticVectorsFamily.pardesWindows,
       baseUrl:
-          'https://github.com/Otzaria/otzaria-semantic-search/releases/download/model-meivin-qa491-int8-v1',
-      graph: _fakeModelFile('query.int8.onnx', 42),
+          'https://github.com/Otzaria/otzaria-semantic-search/releases/download/model-pardes-qa491-int8-v1',
+      graph: _fakeModelFile('model.onnx', 167),
       tokenizer: _fakeModelFile('tokenizer.json', 2),
       identity: _fakeModelFile('model.json', 1),
-      license: _fakeModelFile('LICENSE', 1),
+      license: _fakeModelFile('LICENSE-AGPL-3.0.txt', 1),
+      notice: _fakeModelFile('Pardes_NOTICE.txt', 1),
     ),
-    modelFamilyId: 'ArieLLL123/judaic-semantic-round2-onnx-zayit@1ec8dc68',
+    modelFamilyId: kCompactPardesModelFamilyId,
     vectors: SemanticVectorsRelease(
+      family: SemanticVectorsFamily.pardesWindows,
+      modelFamilyId: kCompactPardesModelFamilyId,
       libraryTag: 'v30-20260930165019',
-      releaseTag: 'vectors-qa491-v30-20260930165019',
+      releaseTag: 'vectors-pardesqa491-windows-v30-20260930165019',
       toLibraryVersion: 30,
       kind: 'base',
       manifestJson: manifest,

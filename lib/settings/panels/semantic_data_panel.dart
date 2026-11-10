@@ -17,7 +17,7 @@ import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/feedback/app_scrollbar.dart';
 
-/// כרטיס נתוני החיפוש הסמנטי: מצב ההורדה, בחירת המודל ומחיקת הנתונים.
+/// כרטיס נתוני החיפוש הסמנטי: מצב ההורדה, דיוק המודל ומחיקת הנתונים.
 /// מוסתר כשהפלטפורמה או המנוע אינם תומכים בחיפוש סמנטי.
 class SemanticDataPanel extends StatelessWidget {
   const SemanticDataPanel({super.key, this.repository, this.platformSupported});
@@ -64,40 +64,9 @@ class _SemanticDataCard extends StatelessWidget {
               key: const ValueKey('semantic-data-status'),
               icon: FluentIcons.arrow_download_24_regular,
               title: context.settingsText('מצב הנתונים'),
-              subtitle:
-                  state.modelChoice != state.activeModelChoice &&
-                      availability.phase == SemanticAvailabilityPhase.ready
-                  ? context.settingsText(
-                      state.modelChoice == SemanticModelChoice.pardesQa491
-                          ? 'ממתין לנתוני פרדס; החיפוש הנוכחי ממשיך להשתמש במייבין.'
-                          : 'ממתין לנתוני מייבין; החיפוש הנוכחי ממשיך להשתמש בפרדס.',
-                    )
-                  : _statusText(context, availability),
+              subtitle: _statusText(context, availability),
               actions: _statusActions(context, bloc, availability),
             ),
-            if (bloc.repository.availableModels.length > 1)
-              SettingsSegmentedTile<SemanticModelChoice>(
-                key: const ValueKey('semantic-data-model-choice'),
-                icon: FluentIcons.brain_circuit_24_regular,
-                title: context.settingsText('מודל החיפוש'),
-                options: [
-                  SegmentOption(
-                    value: SemanticModelChoice.meivin,
-                    label: context.settingsText('מייבין'),
-                    subtitle: context.settingsText('קל יותר, ברירת המחדל'),
-                  ),
-                  SegmentOption(
-                    value: SemanticModelChoice.pardesQa491,
-                    label: context.settingsText('פרדס (ניסיוני)'),
-                    subtitle: context.settingsText(
-                      'כ-167MB; דורש נתוני חיפוש תואמים',
-                    ),
-                  ),
-                ],
-                currentValue: state.modelChoice,
-                onChanged: (value) =>
-                    bloc.add(SemanticModelChoiceChanged(value)),
-              ),
             if (bloc.repository.availableQuantizations.length > 1)
               SettingsSegmentedTile<SemanticQuantization>(
                 key: const ValueKey('semantic-data-quantization'),
@@ -107,13 +76,13 @@ class _SemanticDataCard extends StatelessWidget {
                   SegmentOption(
                     value: SemanticQuantization.int8,
                     label: context.settingsText('מהיר'),
-                    subtitle: context.settingsText('כ-42MB, ברירת המחדל'),
+                    subtitle: context.settingsText('משקולות מכווצות'),
                   ),
                   SegmentOption(
                     value: SemanticQuantization.fp32,
                     label: context.settingsText('מלא'),
                     subtitle: context.settingsText(
-                      'כ-168MB, תוצאות כמעט זהות וזיכרון רב יותר',
+                      'משקולות בדיוק מלא, דורש יותר זיכרון',
                     ),
                   ),
                 ],
@@ -129,9 +98,7 @@ class _SemanticDataCard extends StatelessWidget {
                   args: _nameArgs(context),
                 ),
                 subtitle: context.settingsText(
-                  state.activeModelChoice == SemanticModelChoice.pardesQa491
-                      ? 'רכיב החיפוש מופץ ברישיון AGPL-3.0'
-                      : 'רכיב החיפוש מופץ ברישיון לשימוש אישי בלבד',
+                  'רכיב החיפוש מופץ ברישיון AGPL-3.0',
                 ),
                 actions: [
                   ActionButton.ghost(
@@ -230,7 +197,8 @@ class _SemanticDataCard extends StatelessWidget {
           onPressed: () => bloc.add(const SemanticDownloadRequested()),
         ),
       ],
-      SemanticAvailabilityPhase.failed => [
+      SemanticAvailabilityPhase.failed ||
+      SemanticAvailabilityPhase.vectorsNotPublished => [
         ActionButton.recommended(
           key: const ValueKey('semantic-data-retry'),
           text: context.settingsText(
@@ -257,7 +225,6 @@ class _SemanticDataCard extends StatelessWidget {
   static bool _modelInstalled(SemanticAvailability availability) =>
       switch (availability.phase) {
         SemanticAvailabilityPhase.ready ||
-        SemanticAvailabilityPhase.vectorsNotPublished ||
         SemanticAvailabilityPhase.installing => true,
         SemanticAvailabilityPhase.downloading =>
           availability.progress?.item != SemanticDownloadItem.model,

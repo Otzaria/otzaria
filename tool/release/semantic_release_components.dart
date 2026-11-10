@@ -35,7 +35,7 @@ const int kSemanticModelInstallOrder = 40;
 const int kSemanticVectorsInstallOrder = 41;
 
 const String kSemanticModelBundledIdentity =
-    'assets/semantic/meivin-qa491-onnx/model.json';
+    'assets/semantic/pardesqa491-windows-onnx/model.json';
 
 /// התיקיות היחסיות בתיקיית הפלט, לפי `semantic_import_layout.dart`.
 const String kSemanticModelOutputFolder =
@@ -106,6 +106,7 @@ List<SemanticModelFile> _offlineModelFiles(SemanticModelRelease model) => [
     model.tokenizer,
     model.identity,
     model.license,
+    if (model.notice != null) model.notice!,
     if (model.passageGraph != null) model.passageGraph!,
   ])
     file.zipped ?? file,
@@ -119,6 +120,14 @@ List<Map<String, Object?>> buildSemanticComponents({
   required String vectorsManifestName,
   List<String> platforms = kSemanticComponentPlatforms,
 }) {
+  if (model.family != SemanticVectorsFamily.pardesWindows ||
+      vectors.family != SemanticVectorsFamily.pardesWindows ||
+      modelFamilyId != kCompactPardesModelFamilyId ||
+      vectors.modelFamilyId != modelFamilyId) {
+    throw SemanticComponentsOmitted(
+      'only matching Pardes QA491 data is supported',
+    );
+  }
   final source = _modelBaseUrl.firstMatch(model.baseUrl);
   if (source == null) {
     throw SemanticComponentsOmitted(
@@ -260,7 +269,14 @@ Future<List<Map<String, Object?>>> resolveSemanticComponents({
     throw SemanticComponentsOmitted('library tag $libraryTag has no version');
   }
   final identity = SemanticModelIdentity.parse(modelIdentityJson);
-  // המסייע אורז את המשפחה הישנה: כל גרסת מנוע פותחת אותה.
+  const family = SemanticVectorsFamily.pardesWindows;
+  if (release.family != family ||
+      identity.familyId != kCompactPardesModelFamilyId) {
+    throw SemanticComponentsOmitted(
+      'only Pardes QA491 model data is supported',
+    );
+  }
+  final vectorsTag = '${family.releaseTagPrefix}$libraryTag';
   final SemanticVectorsRelease? vectors;
   try {
     vectors =
@@ -272,7 +288,7 @@ Future<List<Map<String, Object?>>> resolveSemanticComponents({
           libraryTag: libraryTag,
           candidates: [
             (
-              family: SemanticVectorsFamily.anchor,
+              family: family,
               modelFamilyId: identity.familyId,
               chunkingIdentity: identity.chunkingIdentity,
             ),
@@ -284,13 +300,13 @@ Future<List<Map<String, Object?>>> resolveSemanticComponents({
       rethrow;
     }
     throw SemanticComponentsOmitted(
-      'vectors-qa491-$libraryTag was built for another model than the bundled '
+      '$vectorsTag was built for another model than the bundled '
       '${identity.familyId}',
     );
   }
   if (vectors == null) {
     throw SemanticComponentsOmitted(
-      '$kSemanticVectorsRepository has no release vectors-qa491-$libraryTag',
+      '$kSemanticVectorsRepository has no release $vectorsTag',
     );
   }
 
@@ -323,7 +339,7 @@ Future<List<Map<String, Object?>>> resolveSemanticComponents({
         builtModel['family_id'] != identity.familyId ||
         builtModel['tokenizer_checksum'] != identity.tokenizerChecksum) {
       throw SemanticComponentsOmitted(
-        'vectors-qa491-$libraryTag was built for another model than the bundled '
+        '$vectorsTag was built for another model than the bundled '
         '${identity.familyId}',
       );
     }

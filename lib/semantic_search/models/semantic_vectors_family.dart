@@ -1,24 +1,23 @@
 /// משפחת סט הוקטורים: לפיה נבחרים ה-`model.json` וה-release.
-/// סדר הערכים הוא סדר ההעדפה שמתפרסם למעדכן ב-`otzaria_capabilities.json`.
 enum SemanticVectorsFamily {
-  /// שורה ארוכה מוטמעת בכמה חלונות; נפתחת רק במנוע שפותר אותם.
+  /// פרדס QA491 המכווץ; מחייב וקטורים ייעודיים לאותה משפחה.
+  pardesWindows(
+    identityAsset: 'assets/semantic/pardesqa491-windows-onnx/model.json',
+    releaseTagPrefix: 'vectors-pardesqa491-windows-',
+    deltaReleaseTagPrefix: 'vectors-pardesqa491-windows-delta-',
+  ),
+
+  /// סט מייבין ישן עם חלונות; לזיהוי נתונים שדורשים החלפה בלבד.
   windows(
     identityAsset: 'assets/semantic/meivin-qa491-windows-onnx/model.json',
     releaseTagPrefix: 'vectors-qa491-windows-',
     deltaReleaseTagPrefix: 'vectors-qa491-windows-delta-',
   ),
 
-  /// חלון אחד לכל שורה.
+  /// סט מייבין ישן עם חלון לשורה; לזיהוי נתונים שדורשים החלפה בלבד.
   anchor(
     identityAsset: 'assets/semantic/meivin-qa491-onnx/model.json',
     releaseTagPrefix: 'vectors-qa491-',
-  ),
-
-  /// פרדס QA491 המכווץ; מחייב וקטורים ייעודיים לאותה משפחה.
-  pardesWindows(
-    identityAsset: 'assets/semantic/pardesqa491-windows-onnx/model.json',
-    releaseTagPrefix: 'vectors-pardesqa491-windows-',
-    deltaReleaseTagPrefix: 'vectors-pardesqa491-windows-delta-',
   );
 
   const SemanticVectorsFamily({
