@@ -1097,6 +1097,15 @@
         {"scope":"<top>","fp":"cff68829","n":1}
       ]
     },
+    "UIL-027": {
+      "lib/text_book/view/error_report_dialog.dart": [
+        {"scope":"_RegularReportTabState.build","fp":"830ee01f","n":1},
+        {"scope":"_RegularReportTabState.build","fp":"e85ce32c","n":1}
+      ],
+      "lib/text_book/view/text_correction_editor.dart": [
+        {"scope":"_TextCorrectionEditorState.build","fp":"66b33325","n":1}
+      ]
+    },
     "UIL-028": {
       "lib/app_report/view/app_report_dialog.dart": [
         {"scope":"showAppReportDialog","fp":"3e6ca19c","n":1}
