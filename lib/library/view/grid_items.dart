@@ -251,6 +251,12 @@ class LibraryItemTitle extends StatelessWidget {
   }
 }
 
+/// רקע תג האייקון בכרטיס. בכרטיס נבחר הרקע הוא [AppSurfaces.selectedRow],
+/// אותו גוון כמו התג, ולכן התג בצבע הכרטיס.
+Color _iconBadgeColor(BuildContext context, bool cardSelected) => cardSelected
+    ? AppSurfaces.card(context)
+    : Theme.of(context).colorScheme.secondaryContainer;
+
 class CategoryGridItem extends StatelessWidget {
   final Category category;
   final VoidCallback onCategoryClickCallback;
@@ -281,7 +287,7 @@ class CategoryGridItem extends StatelessWidget {
       width: 32,
       height: 32,
       decoration: BoxDecoration(
-        color: cs.secondaryContainer,
+        color: _iconBadgeColor(context, isSelected),
         borderRadius: AppTokens.borderRadiusAll,
       ),
       child: Icon(
@@ -410,7 +416,7 @@ class BookGridItem extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   mainAxisSize: MainAxisSize.max,
                   children: [
-                    _BookGridMediaColumn(book: book),
+                    _BookGridMediaColumn(book: book, isSelected: isSelected),
                     _BookGridActionColumn(
                       book: book,
                       onBookDeleted: onBookDeleted,
@@ -428,8 +434,9 @@ class BookGridItem extends StatelessWidget {
 
 class _BookGridMediaColumn extends StatelessWidget {
   final Book book;
+  final bool isSelected;
 
-  const _BookGridMediaColumn({required this.book});
+  const _BookGridMediaColumn({required this.book, required this.isSelected});
 
   @override
   Widget build(BuildContext context) {
@@ -442,7 +449,7 @@ class _BookGridMediaColumn extends StatelessWidget {
       width: iconBoxSize,
       height: iconBoxSize,
       decoration: BoxDecoration(
-        color: cs.secondaryContainer,
+        color: _iconBadgeColor(context, isSelected),
         borderRadius: AppTokens.borderRadiusAll,
       ),
       child: Center(
