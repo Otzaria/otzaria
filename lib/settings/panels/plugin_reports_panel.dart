@@ -51,16 +51,21 @@ class _PluginReportsPanelState extends State<PluginReportsPanel> {
             final pendingCount = pendingRecords.length;
             final hasReports = pendingCount > 0;
 
-            return ExpandableSection(
-              icon: OtzariaIcons.task_list_24_regular,
-              title: context.settingsText('ניהול דיווחים שמורים'),
-              subtitle: pendingReportsSubtitle(context, count: pendingCount),
-              hasContent: hasReports,
-              onTap: () => setState(
-                () => _isPluginPendingReportsExpanded =
-                    !_isPluginPendingReportsExpanded,
+            return ExpandableCard(
+              wrapInCard: false,
+              isExpanded: _isPluginPendingReportsExpanded && hasReports,
+              header: ExpandableSettingsTile(
+                icon: OtzariaIcons.task_list_24_regular,
+                title: context.settingsText('ניהול דיווחים שמורים'),
+                subtitle: pendingReportsSubtitle(context, count: pendingCount),
+                isExpanded: _isPluginPendingReportsExpanded,
+                onTap: hasReports
+                    ? () => setState(
+                        () => _isPluginPendingReportsExpanded =
+                            !_isPluginPendingReportsExpanded,
+                      )
+                    : null,
               ),
-              isExpanded: _isPluginPendingReportsExpanded,
               children: [
                 if (hasReports)
                   buildPendingQueueToolbar(
@@ -95,20 +100,26 @@ class _PluginReportsPanelState extends State<PluginReportsPanel> {
             final sentRecords =
                 snapshot.data?.$1 ?? const <PluginReportRecord>[];
 
-            return ExpandableSection(
-              icon: FluentIcons.checkmark_circle_24_regular,
-              title: context.settingsText('דיווחים שנשלחו'),
-              hasContent: sentRecords.isNotEmpty,
-              subtitle: sentReportsSubtitle(
-                context,
-                shown: sentRecords.length,
-                total: snapshot.data?.$2 ?? 0,
+            return ExpandableCard(
+              wrapInCard: false,
+              isExpanded:
+                  _isPluginSentReportsExpanded && sentRecords.isNotEmpty,
+              header: ExpandableSettingsTile(
+                icon: FluentIcons.checkmark_circle_24_regular,
+                title: context.settingsText('דיווחים שנשלחו'),
+                subtitle: sentReportsSubtitle(
+                  context,
+                  shown: sentRecords.length,
+                  total: snapshot.data?.$2 ?? 0,
+                ),
+                isExpanded: _isPluginSentReportsExpanded,
+                onTap: sentRecords.isNotEmpty
+                    ? () => setState(
+                        () => _isPluginSentReportsExpanded =
+                            !_isPluginSentReportsExpanded,
+                      )
+                    : null,
               ),
-              onTap: () => setState(
-                () => _isPluginSentReportsExpanded =
-                    !_isPluginSentReportsExpanded,
-              ),
-              isExpanded: _isPluginSentReportsExpanded,
               children: [
                 buildClearSentHistoryButton(
                   context,

@@ -3,6 +3,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/misc/expanding_chevron.dart';
 import 'package:otzaria/settings/widgets/expandable_settings_tile.dart';
+import 'package:otzaria/widgets/layout/expandable_card.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -21,14 +22,17 @@ void main() {
         body: Center(
           child: SizedBox(
             width: width,
-            child: ExpandableSection(
-              icon: FluentIcons.folder_add_24_regular,
-              title: title,
-              subtitle: subtitle,
-              trailing: trailing,
-              isExpanded: isExpanded,
-              onTap: onTap,
-              hasContent: hasContent,
+            child: ExpandableCard(
+              wrapInCard: false,
+              isExpanded: isExpanded && hasContent,
+              header: ExpandableSettingsTile(
+                icon: FluentIcons.folder_add_24_regular,
+                title: title,
+                subtitle: subtitle,
+                trailing: trailing,
+                isExpanded: isExpanded,
+                onTap: hasContent ? onTap : null,
+              ),
               children: const [
                 ListTile(title: Text('פריט בתוך הכרטיס')),
               ],
@@ -39,7 +43,7 @@ void main() {
     );
   }
 
-  group('ExpandableSection — לחיצה', () {
+  group('ExpandableSettingsTile ב-ExpandableCard — לחיצה', () {
     testWidgets('לחיצה על הכותרת קוראת ל-onTap', (tester) async {
       var tapped = false;
       await tester.pumpWidget(
@@ -82,7 +86,7 @@ void main() {
       expect(tapped, isFalse);
     });
 
-    testWidgets('isExpanded=true מציג את children, isExpanded=false מסתיר', (
+    testWidgets('isExpanded=false לא בונה את children, isExpanded=true מציג', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -99,7 +103,7 @@ void main() {
     });
   });
 
-  group('ExpandableSection — הצ\'בֺרן תמיד לצד הטקסט', () {
+  group('ExpandableSettingsTile — הצ\'בֺרן תמיד לצד הטקסט', () {
     // trailing רחב שגורם ל-SettingsActionTile הפנימי ליפול ל-layout אנכי
     // (trailing מתחת לטקסט) — הצ'בֺרן לא אמור ליפול איתו, ותמיד יישאר
     // לצד הכותרת.

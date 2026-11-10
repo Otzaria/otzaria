@@ -8,7 +8,7 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/settings/tabs/text_display_settings_section.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' show HolyNameStyle;
-import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
+import 'package:otzaria/widgets/layout/expandable_card.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
 
@@ -306,10 +306,12 @@ void main() {
       expect(find.text('כמו במפרשים'), findsOneWidget);
 
       // הפרופיל הפתור לחריץ הוא "הסתר" (מהמפרשים הכלליים); "הצג" נכתב כסטייה.
-      final picker = find.ancestor(
-        of: find.text('התאמה מתקדמת...'),
-        matching: find.byType(ExpandableSection),
-      );
+      final picker = find
+          .ancestor(
+            of: find.text('התאמה מתקדמת...'),
+            matching: find.byType(ExpandableCard),
+          )
+          .first;
       await tapVisible(
         tester,
         find.descendant(of: picker, matching: find.text('הצג')).first,

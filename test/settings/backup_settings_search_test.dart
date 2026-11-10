@@ -131,7 +131,8 @@ void main() {
   }
 
   Finder backupSection() => find.byWidgetPredicate(
-    (widget) => widget is ExpandableSection && widget.title == 'גיבוי אוטומטי',
+    (widget) =>
+        widget is ExpandableSettingsTile && widget.title == 'גיבוי אוטומטי',
   );
 
   Future<void> startBackupNavigation(
@@ -149,7 +150,7 @@ void main() {
     await tester.pump();
     await navigation;
     expect(
-      tester.widget<ExpandableSection>(backupSection()).isExpanded,
+      tester.widget<ExpandableSettingsTile>(backupSection()).isExpanded,
       isTrue,
       reason: 'הבדיקה צריכה להגיע להמתנה שאחרי פתיחת הגיבוי',
     );
@@ -180,7 +181,7 @@ void main() {
     await tester.pumpAndSettle();
     await navigation;
     expect(
-      tester.widget<ExpandableSection>(backupSection()).isExpanded,
+      tester.widget<ExpandableSettingsTile>(backupSection()).isExpanded,
       isFalse,
     );
   });
@@ -294,14 +295,14 @@ void main() {
         Hive.box<dynamic>(HiveCache.keyName).toMap(),
       );
       expect(
-        tester.widget<ExpandableSection>(backupSection()).isExpanded,
+        tester.widget<ExpandableSettingsTile>(backupSection()).isExpanded,
         isFalse,
       );
 
       await navigate(tester, 'system.advanced.backup.$option');
 
       expect(
-        tester.widget<ExpandableSection>(backupSection()).isExpanded,
+        tester.widget<ExpandableSettingsTile>(backupSection()).isExpanded,
         isTrue,
       );
       final target = find.byWidgetPredicate(
@@ -325,7 +326,7 @@ void main() {
     await navigate(tester, 'system.advanced.backup.retention');
 
     expect(
-      tester.widget<ExpandableSection>(backupSection()).isExpanded,
+      tester.widget<ExpandableSettingsTile>(backupSection()).isExpanded,
       isTrue,
     );
     final mode = find.byWidgetPredicate(
@@ -354,7 +355,7 @@ void main() {
     await pumpTab(tester);
     await navigate(tester, 'system.advanced.cypher');
     expect(
-      tester.widget<ExpandableSection>(backupSection()).isExpanded,
+      tester.widget<ExpandableSettingsTile>(backupSection()).isExpanded,
       isFalse,
     );
   });

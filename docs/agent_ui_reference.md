@@ -194,7 +194,7 @@ A first "delete" button in a list or card is `neutral` or an icon button; the ir
 | Group of rows in one card | `AppCard.section(children:)`; rows are separated by a 1.5 transparent gap | same |
 | Search or tool result | `ResultCardFrame(child:)`; in tools `ToolResultCardShell(child:, onTap:)`; above the results `ToolResultsHeader(label:)` | `lib/widgets/layout/` |
 | History, bookmarks, short repeated data | `ItemsListView`, plain rows without cards | `lib/widgets/lists/items_list_view.dart` |
-| Expanding card | `ExpandableCard(header:, isExpanded:, children:)`; in settings `ExpandableSection` | `lib/widgets/layout/expandable_card.dart`, `lib/settings/widgets/expandable_settings_tile.dart` |
+| Expanding card | `ExpandableCard(header:, isExpanded:, children:)`, also in settings | `lib/widgets/layout/expandable_card.dart`, `lib/settings/widgets/expandable_settings_tile.dart` |
 | Expand arrow | `ExpandingChevron(isExpanded:, style: ExpandingChevronStyle.accordion/tree)` | `lib/widgets/misc/expanding_chevron.dart` |
 | Read-only tag or counter | `MetaChip(label:, tone: MetaChipTone.…, size: MetaChipSize.regular/small)` | `lib/widgets/layout/meta_chip.dart` |
 | Icon badge in a row | `ListIconBadge(icon:)` | `lib/widgets/lists/list_icon_badge.dart` |

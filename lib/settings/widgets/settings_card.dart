@@ -265,7 +265,7 @@ class SettingsActionTile extends StatelessWidget {
   final Widget title;
   final Widget? subtitle;
   final List<Widget> actions;
-  // ווידג'ט שנשאר צמוד לטקסט תמיד (לדוגמה: צ'בֺרן של ExpandableSection) —
+  // ווידג'ט שנשאר צמוד לטקסט תמיד (לדוגמה: צ'בֺרן של ExpandableSettingsTile) —
   // בניגוד ל-actions, לא גולש מתחת לטקסט ב-layout האנכי.
   final Widget? pinnedTrailing;
   final VoidCallback? onTap;
