@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/dialogs/safer_mode_password_dialog.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
@@ -152,5 +153,27 @@ void main() {
       expect(cleared, isFalse);
       expect(find.byType(SaferModeSetPasswordDialog), findsOneWidget);
     });
+  });
+
+  testWidgets('Enter בשדה הסיסמה עובר לשדה האימות, ו-Enter שם שומר', (
+    tester,
+  ) async {
+    String? saved;
+    await _openSetPasswordDialog(
+      tester,
+      onSetPassword: (password) async => saved = password,
+    );
+    final fields = find.byType(EditableText);
+
+    await tester.enterText(fields.first, '1234');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(saved, isNull);
+    expect(tester.widget<EditableText>(fields.last).focusNode.hasFocus, isTrue);
+
+    await tester.enterText(fields.last, '1234');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(saved, '1234');
   });
 }

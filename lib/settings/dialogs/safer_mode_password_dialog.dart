@@ -280,7 +280,14 @@ class _SaferModeSetPasswordDialogState extends State<SaferModeSetPasswordDialog>
       size: AppDialogSize.small,
       title: context.settingsText('הגדרת סיסמה'),
       icon: FluentIcons.lock_closed_24_regular,
-      onConfirm: _handleSave,
+      // Enter בשדה הראשון עובר לאימות, כמו onSubmitted שלו (במקלדת מגע).
+      onConfirm: () {
+        if (_passwordFocusNode.hasFocus) {
+          _confirmFocusNode.requestFocus();
+        } else {
+          _handleSave();
+        }
+      },
       dismissResult: false,
       closeEnabled: !_isSaving,
       actions: [
