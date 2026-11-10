@@ -1,0 +1,79 @@
+name: Archive zlib stream benchmark
+
+on:
+  push:
+    branches:
+      - qa/archive-fork-20261110
+
+permissions:
+  contents: read
+
+jobs:
+  zlib-benchmark:
+    name: ZLib stream ${{ matrix.archive_branch }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        archive_branch:
+          - main
+          - perf/zlib-stream-reuse-input-buffer
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: Otzaria/archive
+          ref: ${{ matrix.archive_branch }}
+          persist-credentials: false
+      - uses: dart-lang/setup-dart@v1
+      - run: dart pub get
+      - name: Write benchmark
+        run: |
+          cat > zlib_bench.dart <<'DART'
+          import 'dart:io';
+          import 'dart:typed_data';
+          
+          import 'package:archive/archive_io.dart';
+          
+          void main() {
+            const size = 8 * 1024 * 1024;
+            var state = 0x2f51a993;
+            final source = Uint8List.fromList(List<int>.generate(size, (_) {
+              state = (state * 1664525 + 1013904223) & 0xffffffff;
+              return (state >> 16) & 255;
+            }));
+            final compressed = ZLibEncoder().encodeBytes(source);
+            final dir = Directory.systemTemp.createTempSync('archive-zlib-bench-');
+            try {
+              final path = '${dir.path}/data.zlib';
+              File(path).writeAsBytesSync(compressed);
+              final times = <double>[];
+              for (var i = 0; i < 6; i++) {
+                final input = InputFileStream(path);
+                final out = OutputMemoryStream();
+                final watch = Stopwatch()..start();
+                try {
+                  if (!ZLibDecoder().decodeStream(input, out, throwOnError: true)) {
+                    throw StateError('decompression failed');
+                  }
+                } finally {
+                  watch.stop();
+                  input.closeSync();
+                }
+                if (out.length != source.length || out.getBytes()[0] != source[0] ||
+                    out.getBytes().last != source.last) {
+                  throw StateError('output mismatch');
+                }
+                if (i > 0) times.add(watch.elapsedMicroseconds / 1000);
+              }
+              times.sort();
+              stdout.writeln('RESULT zlib_stream_8mb_p50_ms ${times[2]}');
+              stdout.writeln('RESULT zlib_stream_8mb_min_ms ${times[0]}');
+              stdout.writeln('RESULT zlib_stream_8mb_max_ms ${times.last}');
+            } finally {
+              dir.deleteSync(recursive: true);
+            }
+          }
+          DART
+      - name: Measure native zlib decoding
+        run: dart run zlib_bench.dart
