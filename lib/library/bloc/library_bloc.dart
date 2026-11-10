@@ -842,6 +842,13 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       state.copyWith(
         selectedTopics: event.topics,
         previewBook: firstBook,
+        // A nonempty filter with no matching result must not keep showing
+        // a preview of a book that is no longer in the filtered list.
+        clearPreviewBook:
+            results != null &&
+            results.isNotEmpty &&
+            event.topics.isNotEmpty &&
+            firstBook == null,
         searchResults: state.searchResults,
         searchCategoryResults: state.searchCategoryResults,
       ),
