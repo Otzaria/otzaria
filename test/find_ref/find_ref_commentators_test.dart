@@ -150,7 +150,7 @@ void main() {
     });
 
     test('מיון לפי דורות: עם injection של [getBookEras]', () async {
-      // ה-loader מחזיר 4 מפרשים בסדר שרירותי. ה-eraResolver ממפה כל אחד לדור
+      // ה-loader מחזיר 4 מפרשים בסדר שרירותי. ה-`era` ממפה כל אחד לדור
       // אחר. אנו מאמתים שהמיון הוא: chazal → rishonim → acharonim → modern.
       // השמות לא ממוינים אלפביתית — לכן אם המיון נשבר, הסדר ישתנה.
       final repo = _repoWith(

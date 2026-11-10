@@ -1402,7 +1402,7 @@ void main() {
   );
 
   group('applyDisplayTextPreferences', () {
-    // קמץ (ניקוד) — נמצא ב-vowelsAndCantillation אך לא ב-cantillationOnly
+    // קמץ (ניקוד) — ב-U+0591–U+05C7 (ניקוד וטעמים), לא ב-U+0591–U+05AF (טעמים)
     const niqqud = 'ָ';
     // אתנחתא (טעם) — נמצא בשתי הקבוצות
     const taam = '֑';

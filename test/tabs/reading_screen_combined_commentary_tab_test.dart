@@ -22,9 +22,8 @@ import 'package:otzaria/tabs/reading_screen.dart';
 import 'package:provider/provider.dart';
 import '../helpers/memory_settings_cache.dart';
 
-/// רגרסיה: כרטסיית מפרשים עצמאית בתצוגה מפוצלת (`CombinedTab`) הוצגה ריקה,
-/// כי `_buildSingleTabContent` (נתיב ה-side-by-side) טיפל רק ב-Pdf/Text/Search
-/// ולא ב-`CommentatorsTab`/`PdfCommentatorsTab` כפי ש-`_buildTabView` עושה.
+/// רגרסיה: כרטסיית מפרשים עצמאית (`CommentatorsTab`/`PdfCommentatorsTab`)
+/// בתצוגה מפוצלת (`CombinedTab`) הוצגה ריקה.
 class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
     implements SettingsBloc {
   _FakeSettingsBloc() : super(SettingsState.initial()) {

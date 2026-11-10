@@ -441,7 +441,7 @@ class _FakeWorkspaceRepository extends WorkspaceRepository {
   List<Workspace> _workspaces;
   String? _activeWorkspaceId;
 
-  /// `mutateWorkspaces` זורק — כמו `SharedHiveUnavailable` בחלון משני.
+  /// `mutateWorkspaces` זורק — כמו כתיבה שנכשלה ל-`user_state.db`.
   bool failMutate = false;
 
   /// מה שיהיה ברשימה ברגע ה-`mutate`, גם אם הטעינה החזירה ריק.

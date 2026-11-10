@@ -820,7 +820,7 @@ Future<void> main() async {
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFB85C38)),
       );
-      // מדמה את ה-tempTab שבונה מסך החיפוש בתוך הספר בפתיחה חוזרת: מפת פר-מילה
+      // מדמה את הטאב ש-createInBookSearchDialogTab בונה בפתיחה חוזרת: מפת פר-מילה
       // עם האפשרות שנבחרה, ו-useGlobalSearchOptions=false (התיקון).
       final tab = SearchingTab('חיפוש', 'חכמה');
       tab.searchOptions.addAll({

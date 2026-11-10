@@ -343,8 +343,7 @@ void main() {
             // עובי המפריד (וממילא השוליים) רחב יותר במגע; כאן נבדק דסקטופ.
             theme: ThemeData(platform: TargetPlatform.windows),
             home: Directionality(
-              // כמו באפליקציה האמיתית (locale he) — כדי שהחלפת start/end
-              // בשוליי SplitPaneContentInset תתגלה בכיוון הייצור.
+              // כמו באפליקציה האמיתית (locale he): הפריסה נבדקת בכיוון הייצור.
               textDirection: TextDirection.rtl,
               child: MultiBlocProvider(
                 providers: [
@@ -391,7 +390,7 @@ void main() {
           reason: 'המסגור סימטרי בשני צדי החלון',
         );
 
-        // תוכן הקריאה (AdaptiveSidePane) מוזרק 12px פנימה מדופן החלון.
+        // תוכן הקריאה (AdaptiveSidePane) ממלא את כרטיס החלונית.
         final content = find.byType(AdaptiveSidePane);
         expect(content, findsNWidgets(2));
         final contentRects = [
