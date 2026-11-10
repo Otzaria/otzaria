@@ -44,10 +44,7 @@ class CommentaryPanelToolbar extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          CommentatorsFilterButton(
-            isActive: false,
-            onPressed: onOpenFilter,
-          ),
+          CommentatorsFilterButton(onPressed: onOpenFilter),
           if (onToggleAllExpanded != null) ...[
             gap,
             IconButton(
