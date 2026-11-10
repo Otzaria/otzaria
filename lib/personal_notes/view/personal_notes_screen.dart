@@ -72,6 +72,12 @@ class PersonalNotesManagerScreen extends StatefulWidget {
       _PersonalNotesManagerScreenState();
 }
 
+/// גובה שורת כרטיסי ההערות במחשב.
+const double _noteCardHeight = 170;
+
+/// במגע: שלושה כפתורים של 48 בטור נכנסים בכרטיס (שאלה פתוחה 5).
+const double _noteCardHeightTouch = 188;
+
 class _PersonalNotesManagerScreenState
     extends State<PersonalNotesManagerScreen> {
   late final PersonalNotesRepository _repository;
@@ -1268,7 +1274,11 @@ class _PersonalNotesManagerScreenState
               builder: (context, tocSnapshot) => Padding(
                 padding: EdgeInsets.only(top: start == 0 ? 0 : spacing),
                 child: SizedBox(
-                  height: 170,
+                  height:
+                      Theme.of(context).materialTapTargetSize ==
+                          MaterialTapTargetSize.padded
+                      ? _noteCardHeightTouch
+                      : _noteCardHeight,
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -1445,15 +1455,14 @@ class _PersonalNotesManagerScreenState
             ),
           ),
           const SizedBox(width: 8),
-          // אותם כפתורים כמו בכרטיס ההערה ליד הספר (q10 שאלה 25). הטור בגובה
-          // הכרטיס, ולכן אזור המגע בגודל הכפתור, כמו קודם.
+          // אותם כפתורים כמו בכרטיס ההערה ליד הספר (q10 שאלה 25). שטח המגע של
+          // ערכת הנושא: 48 במגע (הכרטיס גבוה יותר), צמוד במחשב.
           Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 AppIconButton(
                   size: AppIconButtonSize.small,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   tooltip: 'עריכה',
                   icon: const Icon(FluentIcons.edit_24_regular),
                   onPressed: () => _editNote(note),
@@ -1462,7 +1471,6 @@ class _PersonalNotesManagerScreenState
                 if (isMissing)
                   AppIconButton(
                     size: AppIconButtonSize.small,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     tooltip: note.pdfAnchor != null
                         ? 'פתח PDF לשינוי המיקום'
                         : 'מיקום מחדש',
@@ -1472,7 +1480,6 @@ class _PersonalNotesManagerScreenState
                 else
                   AppIconButton(
                     size: AppIconButtonSize.small,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     tooltip: 'פתח ספר בשורה',
                     icon: const Icon(
                       OtzariaIcons.otzaria_icon_2_page_24_regular,
@@ -1482,7 +1489,6 @@ class _PersonalNotesManagerScreenState
                 const SizedBox(height: 6),
                 AppIconButton(
                   size: AppIconButtonSize.small,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   tooltip: 'מחיקה',
                   icon: const Icon(FluentIcons.delete_24_regular),
                   onPressed: () => _deleteNote(note),
