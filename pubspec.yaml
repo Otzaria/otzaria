@@ -36,7 +36,13 @@ dependencies:
     path: packages/otzaria_context_menu
   flutter_bloc: ^9.1.1
   bloc: ^9.2.1
-  bloc_concurrency: ^0.3.0
+  # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור felangel/bloc#4829, #4894, #4913–#4916.
+  # ענף master בפורק Otzaria/bloc הוא הענף המשולב; תיקוני סקירה נדחפים אליו וגם לענפי ה-PRים.
+  bloc_concurrency:
+    git:
+      url: https://github.com/Otzaria/bloc
+      ref: 6e4061e34e8062ba3b72f3fb005fbae1278742b4
+      path: packages/bloc_concurrency
   equatable: ^3.0.0
   flutter_localizations:
     sdk: flutter
