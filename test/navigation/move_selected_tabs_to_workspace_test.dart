@@ -31,6 +31,7 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria/tabs/utils/confirm_close_tabs.dart';
+import 'package:otzaria/work_status/work_status_cubit.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_event.dart';
 import 'package:otzaria/workspaces/workspace.dart';
@@ -353,6 +354,7 @@ Future<_Env> _pumpStrip(
       geometry: const WindowManagerAppWindowController(),
       child: MultiBlocProvider(
         providers: [
+          BlocProvider<WorkStatusCubit>(create: (_) => WorkStatusCubit()),
           BlocProvider<TabsBloc>.value(value: tabsBloc),
           BlocProvider<WorkspaceBloc>.value(value: workspaceBloc),
           BlocProvider<SettingsBloc>.value(value: settingsBloc),

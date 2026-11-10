@@ -5,6 +5,7 @@ import 'package:otzaria/android_update/view/android_update_view.dart';
 
 import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/plugins/view/safe_mode_controls.dart';
+import 'package:otzaria/work_status/work_status_title_chips.dart';
 import 'package:otzaria/core/windowing/app_drag_to_move_area.dart';
 import 'package:otzaria/core/windowing/app_window_caption.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
@@ -346,6 +347,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
+                                const WorkStatusTitleChips(),
                                 const SafeModeTitleBarIndicator(),
                                 const ManagedUpdateTitleBarIndicator(),
                                 _buildFullscreenCaptionButton(

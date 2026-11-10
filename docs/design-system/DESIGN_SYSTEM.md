@@ -471,7 +471,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 | פעולה מפוצלת | `BarSplitButton` | צורה: גלולה, חריג מאושר ל־״8 בלבד״ (DD-04, השלמה 2.11) |
 | פעולת רשימה / שורה | `AppIconButton(size: small)`. בשורת הגדרה: `SettingsActionTile` actions | אין hover כפול על השורה. גם כפתורי הפעולה בכרטיס הערה, ליד הספר ובמסך הניהול (השלמה 3.11, q10 Q25) |
 | "הרחב הכל / כווץ הכל" בכותרת עץ ניווט | `NavTreeCollapseAllButton(isCollapsed:, onCollapseAll:, onExpandAll:)` על `AppIconButton(small)` (DD-27, q12 Q4, #3103) | **[מחייב]** כלל אחד בתוכן העניינים ובעץ החיפוש: כשהכל מכווץ "הרחב הכל", כשמשהו פתוח "כווץ הכל". "מכווץ" = אין ענף גלוי פתוח מעבר למצב המכווץ, גם כשענף (או השורש) נסגר ביד. אין כפתור כשאין ענף שאפשר לפתוח |
-| גלולת מצב בשורת הכותרת (עדכון זמין, מוריד, מוכן להתקנה) | `StatusChip`. מצב פעיל שאינו פעולה ("מוריד…"): `StatusChip.busy(icon:, label:, tooltip:)` (q10 Q6) | משטח `primaryContainer` עם מסגרת `primary`, אייקון ותווית `labelLarge` w700. `onPressed: null` מושבת. `busy` באותם צבעים כמו הלחיץ, בלי ריחוף, וקורא מסך קורא אותו כטקסט |
+| גלולת מצב בשורת הכותרת (עדכון זמין, מוריד, מוכן להתקנה) | `StatusChip`. מצב פעיל שאינו פעולה ("מוריד…"): `StatusChip.busy(icon:, label:, tooltip:)` (q10 Q6) | משטח `primaryContainer` עם מסגרת `primary`, אייקון ותווית `labelLarge` w700. `onPressed: null` מושבת. `busy` באותם צבעים כמו הלחיץ, בלי ריחוף, וקורא מסך קורא אותו כטקסט. `tone: StatusChipTone.error` (משטח `errorContainer`, מסגרת `error`) לכשל. כרטיס עבודה ברקע שמצטמצם (`WorkStatusItem.chipLabel` + `collapseAfter`, #2082) מוצג בשורת הכותרת כ־`StatusChip` לחיץ (`WorkStatusTitleChips`) שפותח את הכרטיס מחדש |
 | קומפקטי | אותם רכיבים עם `AppDensity` | אין רכיב "קומפקטי" נפרד |
 
 **מצבים [מחייב]:**
@@ -536,8 +536,8 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 
 | מצב | רכיב | הערות |
 |---|---|---|
-| טעינה, מסך או חלונית | `LoadingIndicator`, ועם הודעה `LoadingIndicator(message:)`, ועם אייקון `otzaria_icons` במרכז הטבעת `LoadingIndicator(icon:)` (מסכי טעינת ספרייה וספר: `strokeWidth: 3`) | חלקי: נשארו 51 `CircularProgressIndicator` גולמיים מחוץ ל־`lib/widgets/feedback` (UIL-013), מהם 4 התקדמות מדודה (`value:`) שאין לה עדיין רכיב משותף |
-| טעינה, inline | `LoadingIndicator.inline()` (‏16px, ‏stroke 2) | |
+| טעינה, מסך או חלונית | `LoadingIndicator`, ועם הודעה `LoadingIndicator(message:)`, ועם אייקון `otzaria_icons` במרכז הטבעת `LoadingIndicator(icon:)` (מסכי טעינת ספרייה וספר: `strokeWidth: 3`) | חלקי: נשארו 51 `CircularProgressIndicator` גולמיים מחוץ ל־`lib/widgets/feedback` (UIL-013), מהם 4 התקדמות מדודה (`value:`) שיש לה רכיב משותף רק ב־inline |
+| טעינה, inline | `LoadingIndicator.inline()` (‏16px, ‏stroke 2); עם `value:` טבעת התקדמות מדודה | |
 | טעינה, שלד (skeleton) | `SkeletonLines` (רוחב כחלק מהמקום שקיבלו) | |
 | ריק | `OtzariaEmptyState` (`isCompact` בחלונית) | |
 | ריק "גדול" (ספרייה ריקה, הגדרה ראשונית) | `OtzariaEmptyState.large` (DD-31d) | גם מסך הנעילה של מצב סייפר (q10 Q8c) |

@@ -1,5 +1,6 @@
 // בחירה בחלונית אחרת של טאב מפוצל אינה משנה את שורת הכרטיסיות, ולכן אינה
 // בונה אותה מחדש; שינוי ברשימת הכרטיסיות עדיין מתעדכן בה.
+import 'package:otzaria/work_status/work_status_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -70,6 +71,7 @@ void main() {
         geometry: const WindowManagerAppWindowController(),
         child: MultiBlocProvider(
           providers: [
+            BlocProvider<WorkStatusCubit>(create: (_) => WorkStatusCubit()),
             BlocProvider<TabsBloc>.value(value: tabsBloc),
             BlocProvider<NavigationBloc>.value(value: navigationBloc),
             BlocProvider<SettingsBloc>.value(value: settingsBloc),

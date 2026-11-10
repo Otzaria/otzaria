@@ -11,8 +11,10 @@ void main() {
     VoidCallback? onRetry,
     VoidCallback? onChooseDelta,
     VoidCallback? onChooseFullDownload,
+    bool collapsible = false,
   }) => libraryUpdateWorkStatusItem(
     state,
+    collapsible: collapsible,
     onRetry: onRetry ?? () {},
     onChooseDelta: onChooseDelta ?? () {},
     onChooseFullDownload: onChooseFullDownload ?? () {},
@@ -287,6 +289,40 @@ void main() {
         )!.progress,
         isNull,
       );
+    });
+  });
+
+  group('כיווץ לגלולה בשורת הכותרת', () {
+    const running = LibraryUpdateState(
+      status: LibraryUpdateStatus.downloading,
+      bytesDownloaded: 42,
+      bytesTotal: 100,
+    );
+    const choice = LibraryUpdateState(
+      status: LibraryUpdateStatus.needsRouteChoice,
+    );
+    const failed = LibraryUpdateState(status: LibraryUpdateStatus.error);
+
+    test('בלי שורת כותרת (מובייל) הפריט לא מצטמצם לעולם', () {
+      for (final state in [running, choice, failed]) {
+        final result = item(state)!;
+        expect(result.chipLabel, isNull);
+        expect(result.collapseAfter, isNull);
+      }
+    });
+
+    test('עבודה רצה מצטמצמת אחרי kLibraryCardCollapseAfter', () {
+      final result = item(running, collapsible: true)!;
+      expect(result.chipLabel, 'ספרייה');
+      expect(result.collapseAfter, kLibraryCardCollapseAfter);
+    });
+
+    test('בחירת מסלול וכשל נשארים כרטיס פתוח (אין כיווץ אוטומטי)', () {
+      for (final state in [choice, failed]) {
+        final result = item(state, collapsible: true)!;
+        expect(result.chipLabel, 'ספרייה');
+        expect(result.collapseAfter, isNull);
+      }
     });
   });
 }
