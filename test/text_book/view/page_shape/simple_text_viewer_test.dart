@@ -2316,6 +2316,137 @@ void main() {
     });
   });
 
+  testWidgets('Shift+חץ אחרי גרירה במפרש משנה את בחירת המפרש (issue #2367)', (
+    tester,
+  ) async {
+    final controller = SelectionSyncController();
+    addTearDown(controller.dispose);
+    final textBookBloc = _TestTextBookBloc(_loadedState());
+    final personalNotesBloc = _TestPersonalNotesBloc(
+      PersonalNotesState(
+        isLoading: false,
+        bookId: 'ספר בדיקה',
+        locatedNotes: const [],
+        missingNotes: const [],
+        errorMessage: null,
+        filteredLocatedNotes: const [],
+        filteredMissingNotes: const [],
+      ),
+    );
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
+    final mainKey = GlobalKey();
+    final commentaryKey = GlobalKey();
+    final mainLines = LineScrollController();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<TextBookBloc>.value(value: textBookBloc),
+            BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
+            BlocProvider<SettingsBloc>.value(value: settingsBloc),
+          ],
+          child: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(
+              body: Row(
+                children: [
+                  Expanded(
+                    child: KeyedSubtree(
+                      key: mainKey,
+                      child: SimpleTextViewer(
+                        content: const ['שורה א'],
+                        fontSize: 18,
+                        openBookCallback: (_) {},
+                        isMainText: true,
+                        lines: mainLines,
+                        selectionSyncController: controller,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: KeyedSubtree(
+                      key: commentaryKey,
+                      child: SimpleTextViewer(
+                        content: List.generate(
+                          30,
+                          (i) => 'פירוש ארוך מאוד על הפסוק הזה מספר $i',
+                        ),
+                        fontSize: 18,
+                        openBookCallback: (_) {},
+                        isMainText: false,
+                        bookTitle: 'רש"י',
+                        selectionSyncController: controller,
+                        scrollOffsetController: ScrollOffsetController(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    SelectableRegionState regionIn(GlobalKey key) => tester.state(
+      find.descendant(
+        of: find.byKey(key),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is SelectableRegion &&
+              w.key is GlobalKey<SelectableRegionState>,
+        ),
+      ),
+    );
+
+    final line = find.descendant(
+      of: find.byKey(commentaryKey),
+      matching: find.textContaining('מספר 1', findRichText: true),
+    );
+    final rect = tester.getRect(line.first);
+    final y = rect.center.dy;
+    final gesture = await tester.startGesture(
+      Offset(rect.right - 4, y),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    await gesture.moveTo(Offset(rect.center.dx, y));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    final commentary = regionIn(commentaryKey);
+    final before = commentary.selectionEndpoints.map((e) => e.point).toList();
+    expect(before, isNotEmpty, reason: 'הגרירה לא יצרה בחירה במפרש');
+    final mainAnchorBefore = mainLines.captureAnchor();
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    for (var i = 0; i < 3; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+    }
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pumpAndSettle();
+
+    final after = commentary.selectionEndpoints.map((e) => e.point).toList();
+    expect(
+      after,
+      isNot(equals(before)),
+      reason: 'Shift+חץ לא שינה את בחירת המפרש',
+    );
+    // בלי בחירה selectionEndpoints זורק — הטקסט הראשי לא אמור להיבחר.
+    expect(() => regionIn(mainKey).selectionEndpoints, throwsA(anything));
+    final mainAnchorAfter = mainLines.captureAnchor();
+    expect(mainAnchorAfter?.line, mainAnchorBefore?.line);
+    expect(
+      mainAnchorAfter?.intraLineFraction,
+      mainAnchorBefore?.intraLineFraction,
+    );
+    await tester.pump(const Duration(milliseconds: 500));
+  });
+
   testWidgets('Home/End לבד קופצים לקצות הספר בצורת הדף (issue #2140)', (
     tester,
   ) async {
