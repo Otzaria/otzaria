@@ -55,7 +55,12 @@ class SettingsCard extends StatelessWidget {
 
     final header = Container(
       width: double.infinity,
-      padding: const EdgeInsets.only(right: 16, left: 16, top: 24, bottom: 12),
+      padding: const EdgeInsetsDirectional.only(
+        start: AppTokens.spaceMD,
+        end: AppTokens.spaceMD,
+        top: AppTokens.sectionGap,
+        bottom: AppTokens.titleContentGap,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -472,7 +477,7 @@ class SettingsActionTile extends StatelessWidget {
   Widget _buildColumnLayout() {
     final iconWidget = _buildIcon();
     final content = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: AppTokens.listRowPadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,

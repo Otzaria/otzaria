@@ -272,7 +272,7 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
           Padding(
             padding: const EdgeInsetsDirectional.only(
               start: AppTokens.spaceXS,
-              bottom: AppTokens.spaceXS,
+              bottom: AppTokens.labelFieldGap,
             ),
             child: Text(
               label,
