@@ -201,9 +201,6 @@
         {"scope":"_TantivyFullTextSearchState._buildFacetFilterBanner","fp":"70836f0d","n":1},
         {"scope":"_TantivyFullTextSearchState._buildFacetFilterBanner","fp":"c1ad859d","n":1}
       ],
-      "lib/semantic_search/view/semantic_search_results_screen.dart": [
-        {"scope":"_NarrowScopeBanner.build","fp":"70836f0d","n":1}
-      ],
       "lib/settings/panels/tools_management_panel.dart": [
         {"scope":"_AnimatedPluginMoveWrapperState.build","fp":"0997b441","n":1}
       ],
@@ -432,12 +429,9 @@
         {"scope":"EngineResultCard.build","fp":"a8c1e179","n":1},
         {"scope":"EngineResultCard.build","fp":"aac1e49f","n":1},
         {"scope":"EngineResultCard.build","fp":"abc1e632","n":1},
-        {"scope":"_MergedSiblingsSectionState.build","fp":"a8c1e179","n":3},
-        {"scope":"_TantivySearchResultsState._buildTruncatedBanner","fp":"a8c1e179","n":1}
+        {"scope":"_MergedSiblingsSectionState.build","fp":"a8c1e179","n":3}
       ],
       "lib/semantic_search/view/semantic_search_results_screen.dart": [
-        {"scope":"_NarrowScopeBanner.build","fp":"a8c1e179","n":1},
-        {"scope":"_OnlyLexicalBanner.build","fp":"a8c1e179","n":1},
         {"scope":"_SemanticSearchResultsScreenState._buildResultCounts","fp":"a9c1e30c","n":1}
       ],
       "lib/semantic_search/view/widgets/semantic_result_card.dart": [
@@ -717,12 +711,7 @@
       ],
       "lib/search/view/tantivy_search_results.dart": [
         {"scope":"_MergedSiblingsSectionState.build","fp":"d1a84c0b","n":1},
-        {"scope":"_MergedSiblingsSectionState.build","fp":"d5f7a13f","n":1},
-        {"scope":"_TantivySearchResultsState._buildTruncatedBanner","fp":"47a98955","n":1}
-      ],
-      "lib/semantic_search/view/semantic_search_results_screen.dart": [
-        {"scope":"_NarrowScopeBanner.build","fp":"ebe52bba","n":1},
-        {"scope":"_OnlyLexicalBanner.build","fp":"ebe52bba","n":1}
+        {"scope":"_MergedSiblingsSectionState.build","fp":"d5f7a13f","n":1}
       ],
       "lib/settings/panels/report_panel_widgets.dart": [
         {"scope":"buildReportActions","fp":"536c166d","n":1}
@@ -1262,10 +1251,6 @@
       ],
       "lib/search/view/tantivy_search_results.dart": [
         {"scope":"_MergedSiblingsSectionState.build","fp":"89f0467d","n":2}
-      ],
-      "lib/semantic_search/view/semantic_search_results_screen.dart": [
-        {"scope":"_NarrowScopeBanner.build","fp":"89f0467d","n":1},
-        {"scope":"_OnlyLexicalBanner.build","fp":"89f0467d","n":1}
       ],
       "lib/semantic_search/view/widgets/semantic_result_card.dart": [
         {"scope":"SemanticResultCard._buildContent","fp":"89f0467d","n":2},

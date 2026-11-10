@@ -4,8 +4,8 @@ import 'package:otzaria/search/view/search_result_rank_badge.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 import 'package:flutter/rendering.dart';
-import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -1195,30 +1195,18 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
   }
 
   Widget _buildTruncatedBanner(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      color: AppSurfaces.warningContainer(context),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          Icon(
-            FluentIcons.warning_24_regular,
-            size: AppTokens.iconSM,
-            color: AppSurfaces.warning(context),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'ייתכן שהתוצאות חלקיות: החיפוש רחב מדי ולכן הוצגו רק חלק '
-              'מההתאמות. צמצמו את החיפוש (למשל הוסיפו אות או מילה).',
-              style: TextStyle(
-                fontSize: 13,
-                color: AppSurfaces.onWarningContainer(context),
-              ),
-              textAlign: TextAlign.right,
-            ),
-          ),
-        ],
+    return const Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppTokens.spaceSM,
+        AppTokens.spaceSM,
+        AppTokens.spaceSM,
+        0,
+      ),
+      child: AppInfoBanner(
+        tone: AppInfoBannerTone.warning,
+        message:
+            'ייתכן שהתוצאות חלקיות: החיפוש רחב מדי ולכן הוצגו רק חלק '
+            'מההתאמות. צמצמו את החיפוש (למשל הוסיפו אות או מילה).',
       ),
     );
   }
