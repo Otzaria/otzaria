@@ -38,4 +38,8 @@ jobs:
           test/xz_web_test.dart
           test/web_test.dart
           test/converters_web_test.dart
-          test/stream_write_memory_test.dart
+      - name: Run streaming-copy tests when that branch provides them
+        run: |
+          if [ -f test/stream_write_memory_test.dart ]; then
+            dart test -p node test/stream_write_memory_test.dart
+          fi
