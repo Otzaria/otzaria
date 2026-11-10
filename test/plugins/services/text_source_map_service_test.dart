@@ -25,6 +25,38 @@ void main() {
     expect(map.mappings.single.sourceEnd.utf16, 4);
   });
 
+  test('ניקוד ורצפי אימוג׳י נשארים גרפמות שלמות במיפוי דו־כיווני', () {
+    const raw = 'אָב👩‍👩‍👧‍👦🇮🇱גְד';
+    final map = service.build(
+      bookId: 'book',
+      sectionIndex: 0,
+      rawText: raw,
+      settings: const RenderSettings(
+        removeNikud: true,
+        removeTeamim: true,
+        formatParentheses: false,
+      ),
+    );
+
+    expect(map.sourceText, raw);
+    expect(map.renderedText, 'אב👩‍👩‍👧‍👦🇮🇱גד');
+    expect(map.sourceGraphemeLength, 6);
+    expect(map.renderedGraphemeLength, 6);
+    expect(map.mappings.last.sourceEnd.toJson(), {
+      'grapheme': 6,
+      'codePoint': 15,
+      'utf16': 21,
+    });
+    expect(map.mappings.last.renderedEnd.toJson(), {
+      'grapheme': 6,
+      'codePoint': 13,
+      'utf16': 19,
+    });
+    for (var boundary = 0; boundary <= 6; boundary++) {
+      expect(service.sourceBoundaryToRendered(map, boundary), boundary);
+      expect(service.renderedBoundaryToSource(map, boundary), boundary);
+    }
+  });
   test('תגי HTML אינם חלק משכבת המקור הטקסטואלית', () {
     final map = service.build(
       bookId: 'book',

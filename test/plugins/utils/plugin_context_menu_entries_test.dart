@@ -406,4 +406,49 @@ void main() {
       expect(navigated, [pid]);
     });
   });
+
+  test('bookTypes/bookSources מסננים לפי type ו-source שב-payload', () {
+    const wordOnly = PluginContextMenuItem(
+      id: 'edit',
+      label: 'Edit in Word',
+      contexts: ['reader-book'],
+      bookTypes: ['docx'],
+    );
+    const officialOnly = PluginContextMenuItem(
+      id: 'report',
+      label: 'Report',
+      contexts: ['reader-book'],
+      bookSources: ['library'],
+    );
+    const everywhere = PluginContextMenuItem(
+      id: 'note',
+      label: 'Note',
+      contexts: ['reader-book'],
+    );
+
+    List<String?> labelsFor(Map<String, dynamic> selection) =>
+        buildPluginContextMenuEntries(
+              records: const [
+                ('word', wordOnly),
+                ('report', officialOnly),
+                ('notes', everywhere),
+              ],
+              selection: selection,
+              context: 'reader-book',
+            )
+            .where((entry) => !entry.isDivider)
+            .map((entry) => entry.label)
+            .toList();
+
+    expect(labelsFor({'type': 'docx', 'source': 'user'}), [
+      'Edit in Word',
+      'Note',
+    ]);
+    expect(labelsFor({'type': 'text', 'source': 'library'}), [
+      'Report',
+      'Note',
+    ]);
+    // payload בלי זהות ספר מציג רק פריטים שאינם מסננים.
+    expect(labelsFor(const {}), ['Note']);
+  });
 }

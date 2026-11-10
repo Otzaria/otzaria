@@ -2029,7 +2029,7 @@ jobs:
           echo "Disk space after cleanup:"
           df -h
 
-      # ברירת המחדל ב-ubuntu-26.04 היא JDK 25, ו-Gradle 8.x אינו רץ עליו.
+      # ברירת המחדל ב-ubuntu-26.04 היא JDK 25; בניית Android נבדקת עם JDK 17.
       - name: Set up Java
         uses: actions/setup-java@v6.1.0
         with:
@@ -2163,11 +2163,11 @@ jobs:
           kotlin.incremental=true
           EOF
 
-      - name: Ensure Android SDK Platform 36
+      - name: Ensure Android SDK Platform 37
         run: |
           set -e
-          if [ ! -d "${ANDROID_SDK_ROOT}/platforms/android-36" ]; then
-            ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-36"
+          if [ ! -d "${ANDROID_SDK_ROOT}/platforms/android-37.0" ]; then
+            ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-37.0"
           fi
           if [ ! -d "${ANDROID_SDK_ROOT}/build-tools/36.0.0" ]; then
             ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager --install "build-tools;36.0.0"

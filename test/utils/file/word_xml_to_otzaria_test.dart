@@ -6,6 +6,7 @@ import 'package:otzaria/utils/file/docx_to_otzaria.dart';
 import 'package:otzaria/utils/file/document_conversion_exceptions.dart';
 import 'package:otzaria/utils/file/document_format.dart';
 import 'package:otzaria/utils/file/word_xml_to_otzaria.dart';
+import 'package:xml/xml.dart';
 
 import '../../../tool/src/document_fixtures/ooxml_builder.dart';
 
@@ -115,6 +116,19 @@ void main() {
   });
 
   group('Flat OPC', () {
+    test('pretty-printed XML preserves Hebrew typography spaces', () {
+      const text = 'אב\u00a0\u00a0גד\u2003הו';
+      final document = _body('<w:p><w:r><w:t>$text</w:t></w:r></w:p>');
+      final flat = _flatOpc({'/word/document.xml': document});
+      final pretty = XmlDocument.parse(
+        utf8.decode(flat),
+      ).toXmlString(pretty: true);
+      final output = _convert(Uint8List.fromList(utf8.encode(pretty)));
+
+      expect(output, contains(text));
+      expect(output, docxToText(buildOoxmlPackage(document: document), 'ספר'));
+    });
+
     test('פלט זהה לחבילת DOCX עם אותו תוכן', () {
       const document =
           '<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr>'

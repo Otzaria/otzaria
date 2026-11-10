@@ -181,11 +181,12 @@ packages:
   characters:
     dependency: "direct main"
     description:
-      name: characters
-      sha256: faf38497bda5ead2a8c7615f4f7939df04333478bf32e4173fcb06d428b5716b
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.4.1"
+      path: "pkgs/characters"
+      ref: "7ad4f4708c223668fb6c3a05170d436431c69e26"
+      resolved-ref: "7ad4f4708c223668fb6c3a05170d436431c69e26"
+      url: "https://github.com/Otzaria/core"
+    source: git
+    version: "1.4.2-wip"
   charcode:
     dependency: transitive
     description:
@@ -701,8 +702,8 @@ packages:
     dependency: "direct overridden"
     description:
       path: flutter_local_notifications_windows
-      ref: faf17437daccb8c74a4d17e6881dc834415de6d8
-      resolved-ref: faf17437daccb8c74a4d17e6881dc834415de6d8
+      ref: "29ca6d58a08e81711c5e9e0fad8b73a0b185ba86"
+      resolved-ref: "29ca6d58a08e81711c5e9e0fad8b73a0b185ba86"
       url: "https://github.com/Otzaria/flutter_local_notifications"
     source: git
     version: "3.1.1"
@@ -974,12 +975,13 @@ packages:
     source: hosted
     version: "1.1.0"
   irondash_engine_context:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: irondash_engine_context
-      sha256: "2bb0bc13dfda9f5aaef8dde06ecc5feb1379f5bb387d59716d799554f3f305d7"
-      url: "https://pub.dev"
-    source: hosted
+      path: "engine_context/dart"
+      ref: "4afdd8dc3ff29d119b9f9c4ddce3b001be961d51"
+      resolved-ref: "4afdd8dc3ff29d119b9f9c4ddce3b001be961d51"
+      url: "https://github.com/Otzaria/irondash"
+    source: git
     version: "0.5.5"
   irondash_message_channel:
     dependency: transitive
@@ -1234,8 +1236,8 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: d303a03d00986c5c64243cfc6a7d84015fba5dac
-      resolved-ref: d303a03d00986c5c64243cfc6a7d84015fba5dac
+      ref: "5babbce643d69cb20e2e9d4592b6ece120f2723d"
+      resolved-ref: "5babbce643d69cb20e2e9d4592b6ece120f2723d"
       url: "https://github.com/Otzaria/otzaria_search_engine"
     source: git
     version: "7.0.1"
@@ -1381,12 +1383,13 @@ packages:
     source: git
     version: "0.9.1"
   petitparser:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: petitparser
-      sha256: "2f1564aadb14215e478563b5406cb80729d022158c01dc50c96013c2f7eb4790"
-      url: "https://pub.dev"
-    source: hosted
+      path: "."
+      ref: c5eb8c0349a02142fc7577f784ebdf01a1d1daf8
+      resolved-ref: c5eb8c0349a02142fc7577f784ebdf01a1d1daf8
+      url: "https://github.com/petitparser/dart-petitparser.git"
+    source: git
     version: "7.1.0"
   pinenacl:
     dependency: "direct main"
@@ -2137,11 +2140,12 @@ packages:
   xml:
     dependency: "direct main"
     description:
-      name: xml
-      sha256: "67f0aff7be013d107995e9b75bf4e7f2c3ef2dfdb2c8e68024bba0a7fd5756a4"
-      url: "https://pub.dev"
-    source: hosted
-    version: "7.0.1"
+      path: "."
+      ref: "codex/integrated-xml-fixes"
+      resolved-ref: "87a1ea400e1b8f812a8216c6fb99844c57d6d8f1"
+      url: "https://github.com/Otzaria/dart-xml.git"
+    source: git
+    version: "7.1.0"
   yaml:
     dependency: "direct dev"
     description:

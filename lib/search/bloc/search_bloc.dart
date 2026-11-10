@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
+import 'package:otzaria/search/models/search_completion.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -57,6 +58,19 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
 
   /// מקור הפרמטרים המתקדמים בחיפוש-מחדש פנימי — הם חיים באירוע בלבד.
   UpdateSearchQuery? _lastUserSearch;
+
+  final StreamController<SearchCompletion> _completions =
+      StreamController<SearchCompletion>.broadcast();
+
+  /// חיפושים שהסתיימו בהצלחה, פעם אחת לכל חיפוש: אחרי שהתוצאות והמונה
+  /// הסופיים נכנסו ל-state. חיפוש שבוטל, הוחלף או נכשל אינו נפלט, וגם לא
+  /// "טען עוד" — אלה המשך של אותו חיפוש. שינוי הגדרה שמריץ חיפוש מחדש
+  /// (מיון, מספר תוצאות, מרווח) הוא חיפוש חדש ונפלט שוב.
+  Stream<SearchCompletion> get completions => _completions.stream;
+
+  /// מאפשר לחלון להירשם גם כשהחיפוש הסתיים לפני שהטאב נוסף לרשימה.
+  SearchCompletion? get lastCompletion => _lastCompletion;
+  SearchCompletion? _lastCompletion;
 
   @visibleForTesting
   SearchRepository get repositoryForTesting => _repository;
@@ -143,6 +157,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     Emitter<SearchState> emit,
   ) async {
     final requestId = ++_searchRequestId;
+    _lastCompletion = null;
     _cancelEngineSearch();
     _searchSnapshot = null;
     final query = event.query;
@@ -184,6 +199,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
 
     final engineRequestId = _engineRequestId = LexicalSearchRequestIds.next();
     final requestedFacets = List<String>.from(state.currentFacets);
+    final configuration = state.configuration;
     final shouldPreserveFacetCounts =
         state.searchQuery == query && state.facetCounts.isNotEmpty;
     // הצילום והחתימה נבנים באותו בלוק סינכרוני — בלי await ביניהם — כדי
@@ -249,33 +265,38 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
 
       // stream משולב: האירוע הראשון נושא ספירה כוללת + ספירה לפי ספר
       // מאותו מעבר אינדקס, ואחריו chunks של תוצאות.
-      final stream = _repository.searchTextsStreamWithCounts(
-        SearchEngineRequest(
-          query: SearchQueryBuilder.engineQuery(query),
-          facets: requestedFacets,
-          limit: state.numResults,
-          distance: state.distance,
-          negativeQuery: SearchQueryBuilder.sanitizeQuery(negativeQuery),
-          negativeDistance: state.distance,
-          scope: state.proximityScope,
-          negativeScope: state.proximityScope,
-          searchMode: state.configuration.searchMode,
-          order: state.sortBy,
-          customSpacing: event.customSpacing ?? const {},
-          alternativeWords: event.alternativeWords ?? const {},
-          searchOptions: event.searchOptions ?? const {},
-          negativeCustomSpacing: event.negativeCustomSpacing ?? const {},
-          negativeAlternativeWords: event.negativeAlternativeWords ?? const {},
-          negativeSearchOptions: event.negativeSearchOptions ?? const {},
-          grouping: state.configuration.resultGrouping.engineGrouping,
-          wordMatchMode: state.wordMatchMode,
-          wordMatchCount: state.wordMatchCount,
-          anyOrder: state.configuration.appliesAnyOrder(
-            customSpacing: event.customSpacing ?? const {},
-            query: state.searchQuery,
-          ),
-          cancelRequestId: engineRequestId,
+      final request = SearchEngineRequest(
+        query: SearchQueryBuilder.engineQuery(query),
+        facets: List.unmodifiable(requestedFacets),
+        limit: state.numResults,
+        distance: state.distance,
+        negativeQuery: SearchQueryBuilder.sanitizeQuery(negativeQuery),
+        negativeDistance: state.distance,
+        scope: state.proximityScope,
+        negativeScope: state.proximityScope,
+        searchMode: state.configuration.searchMode,
+        order: state.sortBy,
+        customSpacing: Map.unmodifiable(event.customSpacing ?? const {}),
+        alternativeWords: _snapshotAlternatives(event.alternativeWords),
+        searchOptions: _snapshotOptions(event.searchOptions),
+        negativeCustomSpacing: Map.unmodifiable(
+          event.negativeCustomSpacing ?? const {},
         ),
+        negativeAlternativeWords: _snapshotAlternatives(
+          event.negativeAlternativeWords,
+        ),
+        negativeSearchOptions: _snapshotOptions(event.negativeSearchOptions),
+        grouping: state.configuration.resultGrouping.engineGrouping,
+        wordMatchMode: state.wordMatchMode,
+        wordMatchCount: state.wordMatchCount,
+        anyOrder: state.configuration.appliesAnyOrder(
+          customSpacing: event.customSpacing ?? const {},
+          query: state.searchQuery,
+        ),
+        cancelRequestId: engineRequestId,
+      );
+      final stream = _repository.searchTextsStreamWithCounts(
+        request,
         chunkSize: 50,
       );
 
@@ -366,6 +387,14 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
           isCounting: false,
         ),
       );
+      _announceCompletion(
+        requestId,
+        query,
+        negativeQuery,
+        configuration,
+        request,
+        allResults.length,
+      );
     } catch (e, stackTrace) {
       if (requestId != _searchRequestId) return;
       if (isSearchCancelledError(e)) {
@@ -398,6 +427,49 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     }
   }
 
+  /// מודיע למאזינים שהחיפוש [requestId] הסתיים. נקרא רק מהמסלול המוצלח של
+  /// [_onUpdateSearchQuery], אחרי בדיקת מזהה הבקשה: ביטול, החלפה, שגיאה,
+  /// שאילתה ריקה ו"טען עוד" אינם מגיעים לכאן.
+  void _announceCompletion(
+    int requestId,
+    String query,
+    String negativeQuery,
+    SearchConfiguration configuration,
+    SearchEngineRequest request,
+    int returned,
+  ) {
+    if (_completions.isClosed || requestId != _searchRequestId) return;
+    final current = state;
+    final completion = SearchCompletion(
+      requestId: requestId,
+      query: query,
+      negativeQuery: negativeQuery,
+      facets: request.facets,
+      configuration: configuration,
+      request: request,
+      total: current.displayTotal,
+      countsGroups: current.totalGroups != null,
+      truncated: current.resultsTruncated,
+      returned: returned,
+    );
+    _lastCompletion = completion;
+    _completions.add(completion);
+  }
+
+  static Map<int, List<String>> _snapshotAlternatives(
+    Map<int, List<String>>? values,
+  ) => Map.unmodifiable({
+    for (final entry in (values ?? const <int, List<String>>{}).entries)
+      entry.key: List<String>.unmodifiable(entry.value),
+  });
+
+  static Map<String, Map<String, bool>> _snapshotOptions(
+    Map<String, Map<String, bool>>? values,
+  ) => Map.unmodifiable({
+    for (final entry in (values ?? const <String, Map<String, bool>>{}).entries)
+      entry.key: Map<String, bool>.unmodifiable(entry.value),
+  });
+
   void _cancelEngineSearch() {
     final id = _engineRequestId;
     if (id == null) return;
@@ -412,7 +484,9 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   @override
   Future<void> close() {
     _searchRequestId++;
+    _lastCompletion = null;
     _cancelEngineSearch();
+    unawaited(_completions.close());
     return super.close();
   }
 
@@ -1032,6 +1106,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     Emitter<SearchState> emit,
   ) {
     _searchRequestId++;
+    _lastCompletion = null;
     _cancelEngineSearch();
     _facetCountsSignature = null;
     _searchSnapshot = null;

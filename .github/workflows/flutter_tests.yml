@@ -92,8 +92,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      # cnativeapi's 0.6 desktop bridge runs pkg-config from Dart build hooks
-      # even in an analyzer run. These are build-time (not runtime) headers.
+      # NativeAPI build hooks need GTK, X11 and Xi headers even for analysis.
       - name: Install nativeapi Linux build headers
         run: sudo apt-get update -qq && sudo apt-get install -y libgtk-3-dev libx11-dev libxi-dev pkg-config
 
@@ -588,6 +587,9 @@ jobs:
       # מקומי ב-Windows קודם — אחרת ה-job נהיה רועש ומתחילים להתעלם ממנו.
       - name: Run Windows-relevant tests
         run: flutter test -j 4 test/core/ test/tabs/ test/navigation/ test/workspaces/ test/personal_notes/ test/utils/file/native_sha256_test.dart test/external_catalog/external_catalog_repository_test.dart
+
+      - name: Test plugin ZIP extraction paths (Windows)
+        run: flutter test test/plugins/services/plugin_archive_extractor_test.dart
 
   # Golden tests (docs/design-system/CI_ENFORCEMENT.md §5, DD-22): Windows היא
   # פלטפורמת הייחוס, ולכן test/goldens/ מוחרג מה-shards של Linux

@@ -62,6 +62,12 @@ class FakeConsentStore implements SearchFeedbackConsentStore {
 
 class FakeSettingsStore implements SemanticSettingsStore {
   @override
+  SemanticModelChoice modelChoice = SemanticModelChoice.meivin;
+  @override
+  Future<void> setModelChoice(SemanticModelChoice value) async =>
+      modelChoice = value;
+
+  @override
   SemanticQuantization quantization = SemanticQuantization.int8;
   @override
   bool dataEnabled = false;

@@ -21,6 +21,8 @@ import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/reading_tab_search_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/plugins/services/plugin_text_reader_registry.dart';
+import 'package:otzaria/plugins/services/plugin_search_completed_publisher.dart';
+import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -48,6 +50,7 @@ class _ClosedTabEntry {
 
 class TabsBloc extends Bloc<TabsEvent, TabsState> {
   final TabsRepository _repository;
+  final PluginSearchCompletedPublisher? _searchCompletedPublisher;
   final Duration _disposeDelay;
   Future<void>? _closeFuture;
   int _pendingEvents = 0;
@@ -226,6 +229,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     required this._repository,
     this._disposeDelay = const Duration(milliseconds: 350),
     this._withCompanion = withCompanionPane,
+    this._searchCompletedPublisher,
     WindowTabsSession? session,
   }) : _session = session ?? WindowTabsSession.current,
        _sessionGeneration = (session ?? WindowTabsSession.current)
@@ -304,6 +308,15 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   }
 
   @override
+  void onChange(Change<TabsState> change) {
+    super.onChange(change);
+    if (identical(change.currentState.tabs, change.nextState.tabs)) return;
+    _searchCompletedPublisher?.updateTabs(
+      change.nextState.tabs.expand(leafPanes).whereType<SearchingTab>(),
+    );
+  }
+
+  @override
   void onEvent(TabsEvent event) {
     super.onEvent(event);
     _pendingEvents++;
@@ -328,6 +341,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
   @override
   Future<void> close() => _closeFuture ??= Future<void>.sync(() async {
+    _searchCompletedPublisher?.dispose();
     PreCloseRegistry.unregister(_preCloseCallback);
     try {
       do {

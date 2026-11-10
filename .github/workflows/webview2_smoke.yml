@@ -35,7 +35,9 @@ jobs:
   smoke:
     name: Live WebView2 lifecycle
     runs-on: windows-2025
-    timeout-minutes: 25
+    # בנייה קרה ושמירת ה-cache בסיום דורשות זמן מעבר להרצת הבדיקה.
+    # מגבלת ה-lifecycle עצמה נשארת 3 דקות בפקודת flutter test.
+    timeout-minutes: 35
 
     steps:
       - name: Checkout code

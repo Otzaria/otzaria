@@ -87,7 +87,16 @@ class SearchingTab extends OpenedTab {
     if (trimmedQuery.isEmpty) {
       return 'חיפוש';
     }
-    return 'חיפוש: $trimmedQuery';
+    return 'חיפוש: ${shortenQueryForTitle(trimmedQuery)}';
+  }
+
+  /// הכותרת נמדדת ומצוירת בשורה אחת ברוחב לא מוגבל; שאילתה של ספר שלם
+  /// שהודבק תוקעת את ה-UI לשניות.
+  static String shortenQueryForTitle(String query) {
+    const maxChars = 100;
+    final runes = query.runes;
+    if (runes.length <= maxChars) return query;
+    return '${String.fromCharCodes(runes.take(maxChars))}…';
   }
 
   SearchingTab(
@@ -111,6 +120,10 @@ class SearchingTab extends OpenedTab {
           initialConfiguration:
               initialConfiguration ?? SearchDefaults.withResultPreferences(),
         );
+    // מקצרים כותרת נגזרת גם בשחזור, בלי להחליף כותרת מפורשת אחרת.
+    if (searchText != null && title == 'חיפוש: ${searchText.trim()}') {
+      title = titleForQuery(searchText);
+    }
     titleNotifier = ValueNotifier(title);
     if (searchText != null) {
       queryController.text = searchText;
@@ -153,6 +166,23 @@ class SearchingTab extends OpenedTab {
 
   /// האם להריץ אוטומטית שאילתה ממתינה בפתיחה הראשונה של הטאב.
   final bool autoRunInitialSearch;
+
+  static int _pluginTabCounter = 0;
+
+  /// מזהה הטאב ב-`search.completed`. נוצר בכל יצירה של טאב (גם שכפול), ואינו
+  /// נשמר: הוא תקף כל עוד הטאב חי בתהליך הזה.
+  final String pluginTabId =
+      'search-${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}'
+      '-${(_pluginTabCounter++).toRadixString(36)}';
+
+  int? _publishedSearchRequestId;
+
+  /// החלפת בעלות החלון אינה משדרת שוב השלמה שכבר נמסרה.
+  bool claimSearchCompletion(int requestId) {
+    if (_publishedSearchRequestId == requestId) return false;
+    _publishedSearchRequestId = requestId;
+    return true;
+  }
 
   /// מפנה לקונסטרוקטור [SearchingTab.clone], שהוא המקום היחיד שיודע אילו
   /// שדות חיפוש להעתיק. `OpenedTab.from` קורא לקונסטרוקטור ישירות.

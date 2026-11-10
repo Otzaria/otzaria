@@ -45,7 +45,11 @@ class PluginTextOccurrenceService {
         'sectionIndex or limit is invalid',
       );
     }
-    if (text.characters.length > maxSectionGraphemes) {
+    // A UTF-16 code unit contains at most one grapheme. Avoid segmentation
+    // entirely for short inputs; stop after the first over-limit grapheme
+    // when a larger input must be checked.
+    if (text.length > maxSectionGraphemes &&
+        text.characters.iterator.moveNext(maxSectionGraphemes + 1)) {
       throw const PluginTextOccurrenceException(
         'error.section_too_large',
         'section exceeds the supported size',
@@ -134,17 +138,31 @@ class PluginTextOccurrenceService {
   }
 
   List<int> _findMatches(List<String> haystack, List<String> needle) {
-    if (needle.length > haystack.length) return const [];
-    final matches = <int>[];
-    for (var start = 0; start <= haystack.length - needle.length; start++) {
-      var matchesNeedle = true;
-      for (var index = 0; index < needle.length; index++) {
-        if (haystack[start + index] != needle[index]) {
-          matchesNeedle = false;
-          break;
-        }
+    if (needle.isEmpty || needle.length > haystack.length) return const [];
+
+    // KMP prefix table: repeated Hebrew passages and long search terms would
+    // otherwise rescan the same candidate prefix at every source position.
+    final prefix = List<int>.filled(needle.length, 0);
+    for (var i = 1, matched = 0; i < needle.length; i++) {
+      while (matched > 0 && needle[i] != needle[matched]) {
+        matched = prefix[matched - 1];
       }
-      if (matchesNeedle) matches.add(start);
+      if (needle[i] == needle[matched]) matched++;
+      prefix[i] = matched;
+    }
+
+    final matches = <int>[];
+    var matched = 0;
+    for (var i = 0; i < haystack.length; i++) {
+      while (matched > 0 && haystack[i] != needle[matched]) {
+        matched = prefix[matched - 1];
+      }
+      if (haystack[i] == needle[matched]) matched++;
+      if (matched == needle.length) {
+        matches.add(i + 1 - matched);
+        // Preserve overlapping occurrences, as the previous scan did.
+        matched = prefix[matched - 1];
+      }
     }
     return matches;
   }

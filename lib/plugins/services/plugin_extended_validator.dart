@@ -85,6 +85,8 @@ const Set<String> _knownEvents = {
   'plugin.permissions_changed',
   'app.command',
   'search.requested',
+  // אירוע שידור: חיפוש טקסט מלא באוצריא הסתיים, עם המונה הסופי.
+  'search.completed',
   // אירוע ממוקד מ-PluginExternalSearchService: בקשת חיפוש חיצוני ממסך
   // החיפוש המובנה. תוסף-ספק מצהיר עליו ב-activationEvents כדי שהבקשה
   // תעיר מנוע רקע במקום לפתוח את דף התוסף.
@@ -266,6 +268,18 @@ class PluginExtendedValidator {
       }
     }
 
+    // האירוע search.completed נוסף ב-0.9.99; באוצריא ישנה ההרשאה אינה מוכרת
+    // והאירוע לא יגיע, ולכן הוא נאכף מול minAppVersion.
+    if (eventUsage.containsKey('search.completed') ||
+        declaredPermissions.contains('events.subscribe:search.completed')) {
+      _requireMinVersion(
+        manifest,
+        _searchCompletedMinVersion,
+        'האירוע search.completed',
+        errors,
+      );
+    }
+
     final design = _checkDesignCompliance(files);
 
     return PluginValidationReport(
@@ -328,7 +342,17 @@ class PluginExtendedValidator {
   static const String _searchResultsActionMinVersion = '0.9.98.3';
   static const String _searchUiOptionsMinVersion = '0.9.98.3';
   static const String _searchFilterLabelsMinVersion = '0.9.99';
+  static const String _searchCompletedMinVersion = '0.9.99';
   static const String _boundToolbarOpenPluginMinVersion = '0.9.98.1';
+
+  /// `bookTypes`/`bookSources` בפקדי הסרגל ובפריטי תפריט ההקשר.
+  static const String _toolbarBookFiltersMinVersion = '0.9.99';
+
+  /// פריט שמסנן בפועל: `null` או `[]` אינם משנים דבר גם במארח ישן.
+  static bool _declaresBookFilter(Map<String, dynamic> item) => [
+    item['bookTypes'],
+    item['bookSources'],
+  ].any((value) => value != null && !(value is List && value.isEmpty));
   static const String _externalEditionsMinVersion = '0.9.97';
   static const String _libraryBooksMinVersion = '0.9.98';
   static const String _storageReferenceMinVersion = '0.9.98';
@@ -961,6 +985,18 @@ class PluginExtendedValidator {
         startup.toolbarItems,
         errors,
       );
+      // אוצריא ישנה מתעלמת מ-bookTypes/bookSources ומציגה את הפקד על כל ספר —
+      // בדיוק מה שהשדות נועדו למנוע — ולכן ההצהרה מחייבת גרסה שמכבדת אותם.
+      if (startup.toolbarItems.any(
+        (item) => _declaresBookFilter(item),
+      )) {
+        _requireMinVersion(
+          manifest,
+          _toolbarBookFiltersMinVersion,
+          'toolbarItems: המסנן bookTypes/bookSources',
+          errors,
+        );
+      }
       final registry = PluginToolbarRegistry.detached();
       for (final item in startup.toolbarItems.where(
         (item) => !DeclarativeToolbarTemplateCompiler.isDeclarative(item),
@@ -986,6 +1022,16 @@ class PluginExtendedValidator {
         startup.contextMenuItems,
         errors,
       );
+      if (startup.contextMenuItems.any(
+        (item) => _declaresBookFilter(item),
+      )) {
+        _requireMinVersion(
+          manifest,
+          _toolbarBookFiltersMinVersion,
+          'contextMenuItems: המסנן bookTypes/bookSources',
+          errors,
+        );
+      }
       final registry = ContextMenuRegistry.detached();
       for (final item in startup.contextMenuItems) {
         try {

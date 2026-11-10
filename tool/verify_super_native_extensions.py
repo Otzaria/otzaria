@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep the Dart/build/platform baseline exact while patching the Windows reader."""
+"""Keep the Dart/build/platform baseline exact while patching the Windows reader and Gradle 9 build."""
 
 import argparse
 import hashlib
@@ -16,6 +16,8 @@ PREFIX = "packages/super_native_extensions/"
 PATCHED = {
     "rust/src/win32/reader.rs",
     "rust/src/win32/image_conversion.rs",
+    # compileSdk "android-37.0" and Gradle 9 (no Project.exec); see UPSTREAM.md.
+    "cargokit/gradle/plugin.gradle",
 }
 ADDED = {"rust/src/win32/bitmap_reader_tests.rs", "UPSTREAM.md"}
 
@@ -88,7 +90,7 @@ def main():
     upstream = archive_sources(data)
     root = Path(__file__).resolve().parent.parent
     verify_sources(upstream, tracked_sources(root))
-    print(f"Verified {len(upstream)} upstream files and modes; only the two Windows reader sources may differ.")
+    print(f"Verified {len(upstream)} upstream files and modes; only the reviewed Windows reader and Cargokit Gradle sources may differ.")
 
 
 if __name__ == "__main__":

@@ -29,7 +29,7 @@ environment:
   sdk: ">=3.13.0 <4.0.0"
 
 dependencies:
-  # Wrap the existing Flutter runner window for the 0.6 nativeapi bridge.
+  # Wrap the existing Flutter runner window for the nativeapi 0.6 bridge.
   nativeapi: ^0.5.10
   sentry_flutter: ^9.30.1
   flutter:
@@ -123,7 +123,7 @@ dependencies:
   otzaria_search_engine:
     git:
       url: https://github.com/Otzaria/otzaria_search_engine
-      ref: d303a03d00986c5c64243cfc6a7d84015fba5dac
+      ref: 5babbce643d69cb20e2e9d4592b6ece120f2723d
   # חוזה הדיווחים מול השרת, משותף עם "עדכוני אוצריא" (Dart טהור).
   otzaria_report_contract:
     path: packages/otzaria_report_contract
@@ -131,9 +131,8 @@ dependencies:
     git:
       url: https://github.com/Otzaria/otzaria_library_updater
       ref: effdc651635a18c719b52a79d840b5aa27b1968e
-  # 0.6.0 uses nativeapi. The exact QA commit is protected by a
-  # permanent review snapshot branch to remain reachable during PR rebases.
-  # After package release, update the dependency to the hosted version.
+  # nativeapi-based 0.6: explicit runner-window binding keeps startup and
+  # multiview behavior. Switch to a hosted version after publication.
   window_manager:
     git:
       url: https://github.com/Otzaria/window_manager
@@ -164,6 +163,13 @@ dependencies:
   wakelock_plus: ^1.8.2
 
 dependency_overrides:
+  # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור dart-lang/core#1042–#1045.
+  # ענף characters-integrated כולל את כל התיקונים; מוצמד לקומיט שנבדק.
+  characters:
+    git:
+      url: https://github.com/Otzaria/core
+      ref: 7ad4f4708c223668fb6c3a05170d436431c69e26
+      path: pkgs/characters
   # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור flutter/packages#13595–#13600.
   # תיקוני סקירה חייבים להישמר גם בענף המשולב וגם בענפי ה-PRים באפסטרים.
   flutter_svg:
@@ -182,20 +188,28 @@ dependency_overrides:
       url: https://github.com/Otzaria/pdfrx
       ref: d898e52b1526532c8d66a5f7fee0ca6b867a77d0
       path: packages/pdfium_dart
-  # Windows clipboard history requires the CF_BITMAP reader patch; see UPSTREAM.md.
+  # TODO: להסיר יחד עם ה-override של super_native_extensions כשתשוחרר 0.10 יציבה
+  # (native assets, תלויה ב-irondash ^0.6). עד אז הפורק Otzaria: 0.5.5 עם תיקון Cargokit
+  # ל-AGP 9 ו-Gradle 9 (irondash/irondash#95), תג irondash_engine_context-v0.5.5+otzaria.1.
+  irondash_engine_context:
+    git:
+      url: https://github.com/Otzaria/irondash
+      ref: 4afdd8dc3ff29d119b9f9c4ddce3b001be961d51
+      path: engine_context/dart
+  # Windows clipboard history requires the CF_BITMAP reader patch; also Cargokit for
+  # AGP 9 / Gradle 9 (superlistapp/super_native_extensions#565). See UPSTREAM.md.
   super_native_extensions:
     path: packages/super_native_extensions
-  # TODO: להחזיר ל-pub.dev כשיתמזג וישוחרר MaikuB/flutter_local_notifications#2826
-  # (קריאות WinRT ב-thread ייעודי, כולל תיקון ה-deadlock ב-invoke) ו-#2862 (טעינת ה-DLL
-  # בשימוש הראשון). עד אז הפורק Otzaria, ענף windows-worker-thread-lazy-library, מוצמד לקומיט.
+  # TODO: להחזיר ל-pub.dev כשימוזגו וישוחררו MaikuB/flutter_local_notifications#2826 (WinRT
+  # ב-thread ייעודי), #2869, #2870, #2871, #2872, #2873 ו-#2874 (שאילתות ב-isolate עזר).
+  # החזרה מחייבת גם 23.x (AGP 9.1.1, compileSdk 37). עד אז: הפורק Otzaria, הענף המשולב
+  # windows-worker-thread-lazy-library (בסיס 3.1.1), מוצמד לקומיט.
   # בהסרה: למחוק גם את core.longpaths מ-workflows של Windows - הוא נדרש
   # רק בגלל הנתיב העמוק במונורפו הזה.
-  # כולל תיקון memory ownership (#4), helper isolates ו-native teardown (#5).
-  # נעיצה ל-SHA המדויק שנבדק ב-Windows, ללא שינוי public Dart API.
   flutter_local_notifications_windows:
     git:
       url: https://github.com/Otzaria/flutter_local_notifications
-      ref: faf17437daccb8c74a4d17e6881dc834415de6d8
+      ref: 29ca6d58a08e81711c5e9e0fad8b73a0b185ba86
       path: flutter_local_notifications_windows
   # TODO: להחזיר ל-pub.dev כשימוזגו וישוחררו getsentry/sentry-dart#4094 ו-#4126 (ה-backport ל-9.x בענף
   # fix/9.x-windows-scope-sync-worker: טעינת sentry.dll, sentry_init ועדכוני ה-scope ב-isolate עזר ב-Windows).
@@ -271,7 +285,8 @@ dependency_overrides:
       ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
       path: flutter_inappwebview_android
 
-  # TODO: לחזור לגרסה הרשמית כשיפורסמו התיקונים שנותרו; v14 כבר מכסה חלק מהם.
+  # TODO: להישאר במזלג עד שחרור V14 ב-pub.dev ואימות כיסוי כל השיפורים ובדיקות המעבר; 13.3.3 אינה מספיקה.
+  # לפני הסרת ה-overrides יש לאמת URI מלא באנדרואיד (#2316) וקריאה עצלה ב-Web שמייתרת הגבלת מקביליות (#2325–#2326).
   file_picker:
     git:
       url: https://github.com/Otzaria/flutter_file_picker
@@ -307,6 +322,17 @@ dependency_overrides:
       url: https://github.com/Otzaria/flutter_file_picker
       ref: codex/integrated-fixes
       path: packages/file_picker_web
+
+  # TODO: לחזור לגרסה הרשמית לאחר מיזוג ושחרור תיקוני renggli/dart-xml.
+  xml:
+    git:
+      url: https://github.com/Otzaria/dart-xml.git
+      ref: codex/integrated-xml-fixes
+  # TODO: להסיר לאחר שחרור petitparser שתומך ב-ParseIterator וב-ParseDecoderSink.
+  petitparser:
+    git:
+      url: https://github.com/petitparser/dart-petitparser.git
+      ref: c5eb8c0349a02142fc7577f784ebdf01a1d1daf8
 
 flutter_launcher_icons:
   android: true
@@ -377,6 +403,7 @@ flutter:
     - assets/semantic/meivin-round2-windows-onnx/
     - assets/semantic/meivin-qa491-onnx/
     - assets/semantic/meivin-qa491-windows-onnx/
+    - assets/semantic/pardesqa491-windows-onnx/
 
   fonts:
     # החבילה מספקת את הגופן אך אינה מצהירה עליו, ולכן שני אייקוני ה-light

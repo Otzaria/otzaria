@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:bloc_test/bloc_test.dart';
@@ -133,6 +134,32 @@ void main() {
       expect(await ensureFileExtension(file.path, 'pdf'), file.path);
     });
 
+    test('סיומת עם נקודה — לא מוסיף סיומת כפולה', () async {
+      final file = File('${tempDir.path}${Platform.pathSeparator}book.json');
+      await file.writeAsBytes([1, 2, 3]);
+      final result = await ensureFileExtension(file.path, '.json');
+      expect(result, file.path);
+      expect(await file.readAsBytes(), [1, 2, 3]);
+    });
+
+    test('סיומת עם נקודה וקובץ חסר סיומת — מוסיף נקודה אחת', () async {
+      final file = File('${tempDir.path}${Platform.pathSeparator}book');
+      await file.writeAsBytes([4, 5]);
+      final result = await ensureFileExtension(file.path, '.csv');
+      expect(result, '${file.path}.csv');
+      expect(await File(result).readAsBytes(), [4, 5]);
+      expect(await file.exists(), isFalse);
+    });
+
+    test('דחיית סיומת ריקה', () async {
+      final file = File('${tempDir.path}${Platform.pathSeparator}book');
+      await file.writeAsBytes([1]);
+      await expectLater(
+        ensureFileExtension(file.path, '.'),
+        throwsArgumentError,
+      );
+    });
+
     test('סיומת אחרת — מוסיף את המבוקשת בסוף', () async {
       final file = File('${tempDir.path}${Platform.pathSeparator}doc.txt');
       await file.writeAsBytes([1]);
@@ -141,7 +168,7 @@ void main() {
       expect(result, '${file.path}.pdf');
     });
 
-    test('יעד קיים — נדרס בשם החדש', () async {
+    test('יעד קיים — נשמר תחת שם חדש בלי לדרוס קובץ אחר', () async {
       final source = File('${tempDir.path}${Platform.pathSeparator}calendar');
       await source.writeAsBytes([7, 7]);
       final existing = File(
@@ -151,9 +178,113 @@ void main() {
 
       final result = await ensureFileExtension(source.path, 'pdf');
 
-      expect(result, existing.path);
+      expect(result, '${source.path} (1).pdf');
       expect(await File(result).readAsBytes(), [7, 7]);
+      expect(await existing.readAsBytes(), [1]);
     });
+
+    test('יעד קיים כמה פעמים — משתמש במספר הפנוי הבא', () async {
+      final source = File('${tempDir.path}${Platform.pathSeparator}report');
+      await source.writeAsBytes([5, 6]);
+      await File('${source.path}.pdf').writeAsBytes([1]);
+      await File('${source.path} (1).pdf').writeAsBytes([2]);
+
+      final result = await ensureFileExtension(source.path, 'pdf');
+
+      expect(result, '${source.path} (2).pdf');
+      expect(await File(result).readAsBytes(), [5, 6]);
+      expect(await File('${source.path}.pdf').readAsBytes(), [1]);
+      expect(await File('${source.path} (1).pdf').readAsBytes(), [2]);
+    });
+
+    test('שמירות ממקורות שונים אינן דורסות יעד ממוספר משותף', () async {
+      final sourceA = File('${tempDir.path}${Platform.pathSeparator}report');
+      final sourceB = File('${sourceA.path} (1)');
+      final existing = File('${sourceA.path}.pdf');
+      await sourceA.writeAsBytes([1, 2]);
+      await sourceB.writeAsBytes([3, 4]);
+      await existing.writeAsBytes([9]);
+      final renameStarted = Completer<void>();
+      final resumeRename = Completer<void>();
+      final pausedA = _ObservedFile(
+        sourceA,
+        beforeRename: () {
+          renameStarted.complete();
+          return resumeRename.future;
+        },
+      );
+      final observedB = _ObservedFile(sourceB);
+      final files = <String, File>{
+        sourceA.path: pausedA,
+        sourceB.path: observedB,
+        existing.path: existing,
+        '${sourceA.path} (1).pdf': File('${sourceA.path} (1).pdf'),
+        '${sourceB.path} (1).pdf': File('${sourceB.path} (1).pdf'),
+      };
+
+      final paths = await IOOverrides.runZoned(() async {
+        final first = ensureFileExtension(sourceA.path, 'pdf');
+        late Future<String> second;
+        try {
+          await renameStarted.future.timeout(const Duration(seconds: 5));
+          second = ensureFileExtension(sourceB.path, 'pdf');
+          // בלי תור, B כבר נכנסה ל-exists לפני ה-await הראשון שלה.
+          // משלימים אותה לפני A כדי לחשוף דריסה בלי תלות בתזמון הדיסק.
+          if (observedB.existsCalled) await second;
+        } finally {
+          resumeRename.complete();
+        }
+        return Future.wait([first, second]);
+      }, createFile: (path) => files[path]!);
+
+      expect(paths.toSet(), hasLength(2));
+      expect(await File(paths[0]).readAsBytes(), [1, 2]);
+      expect(await File(paths[1]).readAsBytes(), [3, 4]);
+      expect(await existing.readAsBytes(), [9]);
+      expect(await sourceA.exists(), isFalse);
+      expect(await sourceB.exists(), isFalse);
+    });
+
+    for (final failOnRename in [false, true]) {
+      test(
+        'כשל ${failOnRename ? 'שינוי שם' : 'בדיקת מקור'} אינו חוסם שמירה נוספת',
+        () async {
+          final source = File('${tempDir.path}${Platform.pathSeparator}failed');
+          final next = File('${tempDir.path}${Platform.pathSeparator}next');
+          await source.writeAsBytes([1]);
+          await next.writeAsBytes([2]);
+          final failure = FileSystemException('injected failure', source.path);
+          Future<void> fail() async => throw failure;
+          final files = <String, File>{
+            source.path: _ObservedFile(
+              source,
+              beforeExists: failOnRename ? null : fail,
+              beforeRename: failOnRename ? fail : null,
+            ),
+            '${source.path}.pdf': File('${source.path}.pdf'),
+            next.path: next,
+            '${next.path}.pdf': File('${next.path}.pdf'),
+          };
+
+          final result = await IOOverrides.runZoned(() async {
+            await expectLater(
+              ensureFileExtension(source.path, 'pdf'),
+              throwsA(same(failure)),
+            );
+            return ensureFileExtension(
+              next.path,
+              'pdf',
+            ).timeout(const Duration(seconds: 5));
+          }, createFile: (path) => files[path]!);
+
+          expect(await source.readAsBytes(), [1]);
+          expect(await File('${source.path}.pdf').exists(), isFalse);
+          expect(result, '${next.path}.pdf');
+          expect(await File(result).readAsBytes(), [2]);
+          expect(await next.exists(), isFalse);
+        },
+      );
+    }
 
     test('הקובץ לא קיים — הנתיב מוחזר בלי שינוי', () async {
       final missing = '${tempDir.path}${Platform.pathSeparator}ghost';
@@ -221,6 +352,28 @@ void main() {
       },
     );
   });
+}
+
+class _ObservedFile extends Fake implements File {
+  _ObservedFile(this.file, {this.beforeExists, this.beforeRename});
+
+  final File file;
+  final Future<void> Function()? beforeExists;
+  final Future<void> Function()? beforeRename;
+  bool existsCalled = false;
+
+  @override
+  Future<bool> exists() async {
+    existsCalled = true;
+    if (beforeExists != null) await beforeExists!();
+    return file.exists();
+  }
+
+  @override
+  Future<File> rename(String newPath) async {
+    if (beforeRename != null) await beforeRename!();
+    return file.rename(newPath);
+  }
 }
 
 class _MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>

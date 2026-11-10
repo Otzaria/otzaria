@@ -158,7 +158,7 @@ void main() {
 
     test('continuousReadingMode=false שורד round-trip', () {
       // toJson משמיט רק null (לא false). אם בעתיד מישהו ירצה לשמור
-      // false במפורש — הוא חייב לעבוד. _savePerBookSettingsDirectly
+      // false במפורש — הוא חייב לעבוד. savePerBookDisplaySettings
       // הוא זה שמחליט אם להמיר false ל-null (אופטימיזציה של אחסון),
       // לא ה-JSON עצמו.
       final settings = TextBookPerBookSettings(continuousReadingMode: false);

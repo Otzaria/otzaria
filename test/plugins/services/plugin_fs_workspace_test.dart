@@ -36,7 +36,10 @@ void main() {
   late PluginFsService service;
 
   setUp(() async {
-    tempDir = await Directory.systemTemp.createTemp('plugin_ws_test_');
+    // ב-macOS התיקייה הזמנית היא symlink (/var → /private/var), והשירות מבצע stat
+    // על הנתיב הקנוני; בלי זה ה-IOOverrides שלפי נתיב לא מזהים את הקובץ.
+    final created = await Directory.systemTemp.createTemp('plugin_ws_test_');
+    tempDir = Directory(await created.resolveSymbolicLinks());
     root = p.join(tempDir.path, 'plugins', 'data', 'my.plugin', 'files');
     service = PluginFsService(
       maxWorkspaceBytes: 1024,

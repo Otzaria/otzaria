@@ -1,0 +1,17 @@
+{
+  "family_id": "otzaria/Pardes-QA491-int8-384",
+  "tokenizer_checksum": "d491690794a1abea341790598b8d55d581c2d33b1e3e282d2666641f1b4e35ac",
+  "embedding_dim": 384,
+  "pooling": "in-graph",
+  "max_tokens": 512,
+  "query_max_tokens": 128,
+  "embedding_text_version": 3,
+  "normalization_version": 2,
+  "chunking_identity": 13334152532150206612,
+  "query_packages": [
+    {
+      "checksum": "edb0b74909ef0ae63ddaa1f47e909c18dc1584908a926471636f759e2de43365",
+      "quantization": "int8"
+    }
+  ]
+}

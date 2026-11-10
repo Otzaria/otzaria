@@ -56,7 +56,7 @@ class _SemanticDataCard extends StatelessWidget {
           cardId: 'system.semanticData',
           title: context.settingsText('נתוני {name}', args: _nameArgs(context)),
           subtitle: context.settingsText(
-            'הנתונים ש{name} משתמש בהם, כ-1.8GB בכונן. אחרי ההורדה הם מתעדכנים ברקע עם עדכוני הספרייה.',
+            'הנתונים ש{name} משתמש בהם. אחרי ההורדה הם מתעדכנים ברקע עם עדכוני הספרייה.',
             args: _nameArgs(context),
           ),
           children: [
@@ -64,9 +64,40 @@ class _SemanticDataCard extends StatelessWidget {
               key: const ValueKey('semantic-data-status'),
               icon: FluentIcons.arrow_download_24_regular,
               title: context.settingsText('מצב הנתונים'),
-              subtitle: _statusText(context, availability),
+              subtitle:
+                  state.modelChoice != state.activeModelChoice &&
+                      availability.phase == SemanticAvailabilityPhase.ready
+                  ? context.settingsText(
+                      state.modelChoice == SemanticModelChoice.pardesQa491
+                          ? 'ממתין לנתוני פרדס; החיפוש הנוכחי ממשיך להשתמש במייבין.'
+                          : 'ממתין לנתוני מייבין; החיפוש הנוכחי ממשיך להשתמש בפרדס.',
+                    )
+                  : _statusText(context, availability),
               actions: _statusActions(context, bloc, availability),
             ),
+            if (bloc.repository.availableModels.length > 1)
+              SettingsSegmentedTile<SemanticModelChoice>(
+                key: const ValueKey('semantic-data-model-choice'),
+                icon: FluentIcons.brain_circuit_24_regular,
+                title: context.settingsText('מודל החיפוש'),
+                options: [
+                  SegmentOption(
+                    value: SemanticModelChoice.meivin,
+                    label: context.settingsText('מייבין'),
+                    subtitle: context.settingsText('קל יותר, ברירת המחדל'),
+                  ),
+                  SegmentOption(
+                    value: SemanticModelChoice.pardesQa491,
+                    label: context.settingsText('פרדס QA491 (ניסיוני)'),
+                    subtitle: context.settingsText(
+                      'כ-167MB; דורש נתוני חיפוש תואמים',
+                    ),
+                  ),
+                ],
+                currentValue: state.modelChoice,
+                onChanged: (value) =>
+                    bloc.add(SemanticModelChoiceChanged(value)),
+              ),
             if (bloc.repository.availableQuantizations.length > 1)
               SettingsSegmentedTile<SemanticQuantization>(
                 key: const ValueKey('semantic-data-quantization'),
@@ -98,7 +129,9 @@ class _SemanticDataCard extends StatelessWidget {
                   args: _nameArgs(context),
                 ),
                 subtitle: context.settingsText(
-                  'רכיב החיפוש מופץ ברישיון לשימוש אישי בלבד',
+                  state.activeModelChoice == SemanticModelChoice.pardesQa491
+                      ? 'רכיב החיפוש מופץ ברישיון AGPL-3.0'
+                      : 'רכיב החיפוש מופץ ברישיון לשימוש אישי בלבד',
                 ),
                 actions: [
                   ActionButton.ghost(

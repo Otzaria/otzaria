@@ -1,10 +1,12 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 import '../../support/search_engine_test_init.dart';
+import '../../test_helpers/memory_cache_provider.dart';
 
 Future<void> main() async {
   // הקוד הנבדק קורא ל-sanitizeQuery/splitQueryWords שמאצילים למנוע ה-Rust;
@@ -14,6 +16,48 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   group('SearchingTab persistence', () {
+    test('fromJson מקצר כותרת ישנה בלי לקצר שאילתה או אפשרויות', () {
+      final query = List.filled(5000, 'בראשית').join(' ');
+      final restored = SearchingTab.fromJson({
+        'title': 'חיפוש: $query',
+        'searchText': query,
+        'searchOptions': {
+          'בראשית_4999': {'חלק ממילה': true},
+        },
+        'alternativeWords': {
+          '4999': ['תחילה'],
+        },
+        'spacingValues': {'4998-4999': '3'},
+      });
+      addTearDown(restored.dispose);
+
+      expect(restored.title.runes.length, lessThan(120));
+      expect(restored.title, SearchingTab.titleForQuery(query));
+      expect(restored.titleNotifier.value, restored.title);
+      expect(restored.queryController.text, query);
+      expect(restored.toJson()['searchText'], query);
+      expect(restored.searchOptions['בראשית_4999'], {'חלק ממילה': true});
+      expect(restored.alternativeWords[4999], ['תחילה']);
+      expect(restored.spacingValues['4998-4999'], '3');
+    });
+
+    test('כותרת מפורשת ושאילתה שונה נשמרות בבנייה, שכפול ושחזור', () {
+      final title = 'חיפוש: ${List.filled(200, 'כותרת').join(' ')}';
+      const query = 'טיוטה אחרת';
+      final source = SearchingTab(title, query);
+      addTearDown(source.dispose);
+      final cloned = SearchingTab.clone(source);
+      addTearDown(cloned.dispose);
+      final restored = SearchingTab.fromJson(source.toJson());
+      addTearDown(restored.dispose);
+
+      for (final tab in [source, cloned, restored]) {
+        expect(tab.title, title);
+        expect(tab.titleNotifier.value, title);
+        expect(tab.queryController.text, query);
+      }
+    });
+
     test('toJson/fromJson משחזר distance מיד ב-state של ה-Bloc, '
         'בלי תלות בעיבוד events', () {
       final source = SearchingTab(
@@ -264,6 +308,46 @@ Future<void> main() async {
       addTearDown(tab.dispose);
 
       expect(tab.titleNotifier.value, 'חיפוש: התחלתי');
+    });
+
+    test('שאילתה ארוכה מאוד מקוצרת בכותרת', () {
+      final query = List.filled(5000, 'בראשית').join(' ');
+
+      final title = SearchingTab.titleForQuery(query);
+
+      expect(title, startsWith('חיפוש: בראשית'));
+      expect(title, endsWith('…'));
+      expect(title.length, lessThan(120));
+      expect(SearchingTab.titleForQuery('צדיק גאולה'), 'חיפוש: צדיק גאולה');
+    });
+
+    test('בנייה וחיפוש חדש מקצרים כותרת נגזרת ומשמרים רווחי שאילתה', () async {
+      await Settings.init(cacheProvider: MemoryCacheProvider());
+      final query = '  ${List.filled(5000, 'בראשית').join(' ')}  ';
+      final title = 'חיפוש: ${query.trim()}';
+      final source = SearchingTab(title, query);
+      addTearDown(source.dispose);
+      final fresh = SearchingTab.newSearch(title, query);
+      addTearDown(fresh.dispose);
+      final cloned = SearchingTab.clone(source);
+      addTearDown(cloned.dispose);
+
+      for (final tab in [source, fresh, cloned]) {
+        expect(tab.title.runes.length, lessThan(120));
+        expect(tab.title, SearchingTab.titleForQuery(query));
+        expect(tab.titleNotifier.value, tab.title);
+        expect(tab.queryController.text, query);
+      }
+    });
+
+    test('גבול הכותרת שומר תו Unicode שלם ולא מוסיף קיצור בלי צורך', () {
+      final firstHundred = '${List.filled(99, 'א').join()}𝄞';
+
+      expect(SearchingTab.titleForQuery(firstHundred), 'חיפוש: $firstHundred');
+      expect(
+        SearchingTab.titleForQuery('$firstHundredב'),
+        'חיפוש: $firstHundred…',
+      );
     });
   });
 

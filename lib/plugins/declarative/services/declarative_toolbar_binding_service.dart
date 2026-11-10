@@ -132,6 +132,8 @@ class DeclarativeToolbarBindingService {
         openPlugin: template.openPlugin,
         placement: base.placement,
         order: base.order,
+        bookTypes: base.bookTypes,
+        bookSources: base.bookSources,
       );
     }
 
@@ -187,6 +189,8 @@ class DeclarativeToolbarBindingService {
       hostAction: primaryAction,
       placement: base.placement,
       order: base.order,
+      bookTypes: base.bookTypes,
+      bookSources: base.bookSources,
     );
     PluginToolbarRegistry.detached().registerPayload(
       registration.plugin.pluginId,

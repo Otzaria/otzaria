@@ -432,7 +432,8 @@ class PluginLibraryBooksRegistry extends ChangeNotifier {
       a.id == b.id &&
       a.title == b.title &&
       a.author == b.author &&
-      a.categoryPath == b.categoryPath;
+      a.categoryPath == b.categoryPath &&
+      a.description == b.description;
 
   static bool _sameEntries(
     List<PluginLibraryBookEntry>? previous,

@@ -154,7 +154,10 @@ jobs:
           cache: true
       - uses: dtolnay/rust-toolchain@stable
       - name: Resolve pinned dependencies
-        run: flutter pub get --enforce-lockfile
+        shell: pwsh
+        run: |
+          git config --global core.longpaths true
+          flutter pub get --enforce-lockfile
       - name: Run isolated measurements
         shell: pwsh
         env:

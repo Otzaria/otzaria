@@ -13,6 +13,8 @@ class PluginToolbarRegistry extends PluginItemRegistry<PluginToolbarItem> {
       PluginItemRegistry.maxTopLevelItemsPerPlugin;
   static const int maxMenuChildren = 20;
 
+  static const int maxBookFilterValues = PluginItemRegistry.maxBookFilterValues;
+
   static final PluginToolbarRegistry instance = PluginToolbarRegistry._();
   PluginToolbarRegistry._()
     : super(evaluator: PluginConditionEvaluator.instance);
@@ -203,6 +205,7 @@ class PluginToolbarRegistry extends PluginItemRegistry<PluginToolbarItem> {
       );
     }
 
+    final bookFilters = parseBookFilters(json, isChild: isChild);
     return PluginToolbarItem(
       id: id,
       type: type,
@@ -217,6 +220,8 @@ class PluginToolbarRegistry extends PluginItemRegistry<PluginToolbarItem> {
       placement: placement,
       order: rawOrder as int? ?? PluginToolbarItem.defaultOrder,
       when: parseWhen(json['when'], nested: isChild),
+      bookTypes: bookFilters.types,
+      bookSources: bookFilters.sources,
     );
   }
 }

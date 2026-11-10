@@ -743,6 +743,52 @@ void main() {
     expect(supportedVersion.errors, isEmpty);
   });
 
+  group('search.completed', () {
+    Map<String, dynamic> completedManifest(String minAppVersion) => _manifest(
+      minAppVersion: minAppVersion,
+      permissions: const [
+        'app.startup_contributions',
+        'reader.toolbar',
+        'events.subscribe:search.completed',
+      ],
+      startup: {
+        'toolbarItems': [
+          {'id': 'b1', 'title': 'כפתור', 'icon': 'apps_24_regular'},
+        ],
+        'activationEvents': ['search.completed'],
+      },
+    );
+
+    test('דורש minAppVersion 0.9.99, ומארח שמכיר אותו עובר', () {
+      final oldVersion = _run(tempDir, completedManifest('0.9.98.3'));
+      expect(oldVersion.errors, contains(contains('search.completed')));
+      expect(oldVersion.errors, contains(contains('0.9.99')));
+
+      final supported = _run(tempDir, completedManifest('0.9.99'));
+      expect(supported.errors, isEmpty);
+      expect(
+        supported.warnings,
+        isNot(contains(contains('נושא לא מוכר'))),
+        reason: 'האירוע מוכר ל-activationEvents',
+      );
+    });
+
+    test('activationEvents בלי ההרשאה — אזהרה, כמו שאר האירועים', () {
+      final json = completedManifest('0.9.99');
+      json['permissions'] = const [
+        'app.startup_contributions',
+        'reader.toolbar',
+      ];
+      final report = _run(tempDir, json);
+
+      expect(report.errors, isEmpty);
+      expect(
+        report.warnings,
+        contains(contains('events.subscribe:search.completed')),
+      );
+    });
+  });
+
   group('searchDialogItems: type switch ו-persist', () {
     Map<String, dynamic> dialogManifest(
       Map<String, dynamic> item, {
@@ -1817,6 +1863,160 @@ void main() {
       final report = _run(tempDir, eventManifest({'when': true}));
 
       expect(report.errors, contains(contains('activationEvents')));
+    });
+  });
+
+  group('toolbarItems — bookTypes', () {
+    Map<String, dynamic> withBookTypes(
+      Object? bookTypes, {
+      String minAppVersion = '0.9.99',
+    }) => _manifest(
+      minAppVersion: minAppVersion,
+      startup: {
+        'toolbarItems': [
+          {
+            'id': 'edit-in-word',
+            'title': 'ערוך ב-Word',
+            'icon': 'document_edit_24_regular',
+            'contexts': ['reader-text'],
+            'bookTypes': bookTypes,
+          },
+        ],
+      },
+    );
+
+    test('הצהרה תקינה עוברת', () {
+      final report = _run(tempDir, withBookTypes(['docx', 'docm']));
+      expect(report.errors, isEmpty);
+    });
+
+    test('minAppVersion ישן מדי — שגיאה חוסמת', () {
+      final report = _run(
+        tempDir,
+        withBookTypes(['docx'], minAppVersion: '0.9.98.3'),
+      );
+      expect(
+        report.errors,
+        contains(contains('bookSources נתמך החל מגרסה 0.9.99')),
+      );
+    });
+
+    test('bookSources לבדו — אותה דרישת גרסה', () {
+      Map<String, dynamic> withSources(String minAppVersion) => _manifest(
+        minAppVersion: minAppVersion,
+        startup: {
+          'toolbarItems': [
+            {
+              'id': 'official-only',
+              'title': 'רק בספרייה',
+              'icon': 'book_24_regular',
+              'bookSources': ['library'],
+            },
+          ],
+        },
+      );
+      expect(_run(tempDir, withSources('0.9.99')).errors, isEmpty);
+      expect(
+        _run(tempDir, withSources('0.9.98.3')).errors,
+        contains(contains('bookSources נתמך החל מגרסה 0.9.99')),
+      );
+    });
+
+    test('גם בפריטי תפריט ההקשר — אותה דרישת גרסה ואותה בדיקת ערכים', () {
+      Map<String, dynamic> menu(Object? bookTypes, String minAppVersion) =>
+          _manifest(
+            minAppVersion: minAppVersion,
+            startup: {
+              'contextMenuItems': [
+                {
+                  'id': 'send',
+                  'title': 'שלח',
+                  'contexts': ['reader-selection'],
+                  'bookTypes': bookTypes,
+                },
+              ],
+            },
+          );
+      expect(_run(tempDir, menu(['text'], '0.9.99')).errors, isEmpty);
+      expect(
+        _run(tempDir, menu(['text'], '0.9.98.3')).errors,
+        contains(
+          contains(
+            'contextMenuItems: המסנן bookTypes/bookSources נתמך החל מגרסה',
+          ),
+        ),
+      );
+      expect(_run(tempDir, menu(['word'], '0.9.99')).errors, isNotEmpty);
+      // null או [] אינם מסננים, ולכן אינם מחייבים גרסה.
+      for (final noFilter in [null, <String>[]]) {
+        expect(
+          _run(tempDir, menu(noFilter, '0.9.98.3')).errors,
+          isNot(contains(contains('bookTypes'))),
+        );
+      }
+    });
+
+    test('סוג לא מוכר — שגיאה חוסמת', () {
+      final report = _run(tempDir, withBookTypes(['word']));
+      expect(
+        report.errors,
+        contains(contains('unknown value "word" in bookTypes')),
+      );
+    });
+
+    test('בפקד קשור לתכנית — אותה דרישת גרסה ואותה בדיקת ערכים', () {
+      Map<String, dynamic> bound(Object? bookTypes, String minAppVersion) =>
+          _manifest(
+            permissions: const ['app.startup_contributions', 'reader.toolbar'],
+            minAppVersion: minAppVersion,
+            startup: {
+              'programs': [
+                {
+                  'id': 'word-book',
+                  'version': 1,
+                  'triggers': ['reader.activeBookChanged'],
+                  'commands': [
+                    {
+                      'id': 'isWord',
+                      'type': 'data.choose',
+                      'args': {
+                        'condition': {
+                          'op': 'equals',
+                          'left': {r'$context': 'reader.book.type'},
+                          'right': 'docx',
+                        },
+                        'whenTrue': true,
+                        'whenFalse': null,
+                      },
+                    },
+                  ],
+                  'outputs': {
+                    'isWord': {r'$result': 'isWord'},
+                  },
+                },
+              ],
+              'toolbarItems': [
+                {
+                  'id': 'edit-in-word',
+                  'title': 'ערוך ב-Word',
+                  'icon': 'document_edit_24_regular',
+                  'bookTypes': bookTypes,
+                  'binding': {
+                    'program': 'word-book',
+                    'visibleOutput': 'isWord',
+                  },
+                  'openPlugin': true,
+                },
+              ],
+            },
+          );
+
+      expect(_run(tempDir, bound(['docx'], '0.9.99')).errors, isEmpty);
+      expect(
+        _run(tempDir, bound(['docx'], '0.9.98.3')).errors,
+        contains(contains('bookSources נתמך החל מגרסה 0.9.99')),
+      );
+      expect(_run(tempDir, bound(['word'], '0.9.99')).errors, isNotEmpty);
     });
   });
 }

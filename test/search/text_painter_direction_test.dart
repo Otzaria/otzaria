@@ -122,6 +122,39 @@ Future<void> main() async {
         await tester.pump();
         expect(tester.takeException(), isNull);
       });
+
+      testWidgets('שאילתה ארוכה מאוד מוצגת מקוצרת', (tester) async {
+        final words = List.generate(5000, (i) => 'מילה$i');
+        searchBloc.emitState(SearchState(searchQuery: words.join(' ')));
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: BlocProvider<SearchBloc>.value(
+                value: searchBloc,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SearchTermsDisplay(tab: tab),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final shown = tester
+            .widget<RichText>(
+              find.descendant(
+                of: find.byType(SearchTermsDisplay),
+                matching: find.byType(RichText),
+              ),
+            )
+            .text
+            .toPlainText();
+        expect(shown, contains('מילה59'));
+        expect(shown, isNot(contains('מילה60')));
+        expect(shown, endsWith('…'));
+      });
     }, skip: engineReady ? false : searchEngineSkipReason);
 
     group('SearchFacetFiltering - category tile', () {
