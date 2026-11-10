@@ -2861,33 +2861,13 @@ void main() {
   });
 
   group('לחיצה כפולה: על טאב נבלעת, על האזור הריק עושה maximize', () {
-    // AppDragToMoveArea עושה maximize/restore ב-onDoubleTap, וכברירת מחדל דרך
-    // ה-MethodChannel 'window_manager' (isMaximized → maximize/unmaximize).
-    // תופסים את הקריאות כדי לוודא שלחיצה כפולה על טאב אינה מגיעה לשם.
-    // אוספים רק את פעולות שינוי-הגודל (maximize/unmaximize). את isMaximized
-    // מתעלמים: AppWindowCaption (כפתורי החלון) קורא לו בכל build לבחירת האייקון,
-    // והוא אינו מעיד על לחיצה כפולה.
-    late List<String> resizeCalls;
+    // window_manager 0.6 no longer has a MethodChannel. Observe the
+    // per-window controller instead of relying on removed platform messages.
+    late _RecordingWindow spyWindow;
 
-    void installWindowChannelSpy(WidgetTester tester) {
-      resizeCalls = [];
-      const channel = MethodChannel('window_manager');
-      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        channel,
-        (call) async {
-          if (call.method == 'maximize' || call.method == 'unmaximize') {
-            resizeCalls.add(call.method);
-          }
-          if (call.method == 'isMaximized') return false;
-          return null;
-        },
-      );
-      addTearDown(
-        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-          channel,
-          null,
-        ),
-      );
+    void installWindowControllerSpy() {
+      spyWindow = _RecordingWindow();
+      addTearDown(spyWindow.changes.dispose);
     }
 
     testWidgets('לחיצה כפולה על טאב אינה משנה את גודל החלון', (tester) async {
@@ -2912,19 +2892,20 @@ void main() {
         await settingsBloc.close();
       });
 
-      installWindowChannelSpy(tester);
+      installWindowControllerSpy();
       await _setSurfaceSize(tester, const Size(1200, 800));
       await _pumpTitleBar(
         tester,
         tabsBloc: tabsBloc,
         navigationBloc: navigationBloc,
         settingsBloc: settingsBloc,
+        controller: spyWindow,
       );
 
       await _doubleTapAt(tester, tester.getCenter(find.text('ספר ב')));
 
       expect(
-        resizeCalls,
+        spyWindow.calls.where((call) => call == 'maximize' || call == 'unmaximize'),
         isEmpty,
         reason: 'לחיצה כפולה על טאב לא צריכה לשנות את גודל החלון',
       );
@@ -2951,13 +2932,14 @@ void main() {
         await settingsBloc.close();
       });
 
-      installWindowChannelSpy(tester);
+      installWindowControllerSpy();
       await _setSurfaceSize(tester, const Size(1200, 800));
       await _pumpTitleBar(
         tester,
         tabsBloc: tabsBloc,
         navigationBloc: navigationBloc,
         settingsBloc: settingsBloc,
+        controller: spyWindow,
       );
 
       // נקודה ריקה: בקצה ה-ListView שרחוק מהטאב (עמיד לכיווניות LTR/RTL).
@@ -2969,7 +2951,7 @@ void main() {
       await _doubleTapAt(tester, Offset(emptyX, listRect.center.dy));
 
       expect(
-        resizeCalls,
+        spyWindow.calls,
         contains('maximize'),
         reason: 'לחיצה כפולה על אזור ריק צריכה לשנות את גודל החלון',
       );
