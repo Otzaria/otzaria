@@ -143,10 +143,10 @@ void main() {
     );
   });
 
-  test('המנוע המקובע דורש סכמה 10', () async {
+  test('המנוע המקובע דורש סכמה 11', () async {
     final root = Directory.systemTemp.createTempSync('script_schema_');
     addTearDown(() => root.deleteSync(recursive: true));
     final compatibility = await engine.checkIndexCompatibility(path: root.path);
-    expect(compatibility.requiredSchemaVersion, 10);
+    expect(compatibility.requiredSchemaVersion, 11);
   });
 }

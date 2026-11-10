@@ -345,6 +345,7 @@ class SettingsRepository {
     keyAppCrashReportMode,
     keySearchFeedbackConsent,
     keySearchFeedbackConsentVersion,
+    keySemanticModelChoice,
     keySemanticModelQuantization,
     keySemanticDataEnabled,
     keySemanticDownloadPaused,

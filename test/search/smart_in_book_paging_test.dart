@@ -1,142 +1,124 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/search/search_engine_gateway.dart';
+import 'package:otzaria/search/in_book_search_settings.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_repository.dart';
-import 'package:otzaria/search/utils/smart_lexical_in_book_search.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
+import '../support/recording_search_engine.dart';
 import '../support/search_engine_test_init.dart';
 
-class _PagedEngine extends SearchEngineOperations {
-  final calls = <({String stream, int offset, int limit})>[];
-  final Future<List<SearchResult>> Function(String, int, int) fetch;
+class _SmartEngine extends RecordingSearchEngine {
+  final smartRequests = <SearchEngineRequest>[];
+  Object? failure;
 
-  _PagedEngine(this.fetch);
-
-  Future<List<SearchResult>> _fetch(
-    String stream,
+  @override
+  Future<List<SearchResult>> searchSmartLexical(
     SearchEngineRequest request,
-  ) {
-    calls.add((stream: stream, offset: request.offset, limit: request.limit));
-    return fetch(stream, request.offset, request.limit);
+  ) async {
+    smartRequests.add(request);
+    if (failure case final error?) throw error;
+    return const [];
   }
-
-  @override
-  Future<List<SearchResult>> searchInlineExact(SearchEngineRequest request) =>
-      _fetch(request.query, request);
-
-  @override
-  Future<List<SearchResult>> searchFuzzy(SearchEngineRequest request) =>
-      _fetch('fuzzy', request);
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
-
-SearchResult _result(int id, {String path = 'book'}) => SearchResult(
-  title: 'ספר',
-  reference: 'שורה',
-  text: 'ברא אלהים הארץ',
-  id: BigInt.from(id),
-  segment: BigInt.from(100 - id),
-  isPdf: false,
-  filePath: path,
-  mergedCount: 1,
-  merged: const [],
-  textStatus: TextStatus.ok,
-  continuesToNextLine: false,
-);
-
-Future<List<SearchResult>> _search(
-  _PagedEngine engine, {
-  int limit = 2,
-  Map<String, int> bookOrder = const {},
-}) => searchSmartLexicalInBook(
-  SearchRepository(engineProvider: () async => engine),
-  query: '"ברא אלהים" "הארץ"',
-  bookPath: '/book',
-  limit: limit,
-  distance: 0,
-  phrases: const ['ברא אלהים', 'הארץ'],
-  bookOrder: bookOrder,
-);
 
 Future<void> main() async {
   final ready = await tryInitSearchEngine();
-  group('חיתוך ציטוטים מדופדף', () {
-    test('מפסיק לקרוא עמודים ברגע שמגבלת התוצאות הושגה', () async {
-      final engine = _PagedEngine(
-        (stream, offset, limit) async => [
-          for (var id = offset; id < offset + limit; id++) _result(id),
-        ],
+  const smart = InBookSearchSettings(
+    searchMode: SearchMode.fuzzy,
+    distance: 2,
+    matchPolicy: SearchMatchPolicy.smart,
+  );
+
+  group('שליפה חכמה בסדר הספר', () {
+    test('ציטוט מלא, חלקי וללא ציטוט מועברים למנוע עם גבול הקטלוג', () async {
+      final engine = _SmartEngine();
+      final repository = SearchRepository(engineProvider: () async => engine);
+      for (final query in ['יקוק טוב', '"יקוק טוב"', '"יקוק טוב" ידוד']) {
+        await searchBookWithEngine(
+          repository,
+          query: query,
+          bookPath: '/book',
+          limit: 5000,
+          settings: smart,
+        );
+        final request = engine.smartRequests.last;
+        expect(request.query, query);
+        expect(request.facets, ['/book']);
+        expect(request.order, ResultsOrder.catalogue);
+        expect(request.limit, 5000);
+        expect(request.offset, 0);
+        expect(request.distance, 2);
+      }
+      expect(engine.smartRequests, hasLength(3));
+      expect(engine.lastRequest, isNull);
+    });
+
+    test('מגבלה ריקה אינה מפעילה שליפה', () async {
+      final engine = _SmartEngine();
+      final repository = SearchRepository(engineProvider: () async => engine);
+      for (final limit in [0, -1]) {
+        expect(
+          await searchBookWithEngine(
+            repository,
+            query: 'יקוק',
+            bookPath: '/book',
+            limit: limit,
+            settings: smart,
+          ),
+          isEmpty,
+        );
+      }
+      expect(engine.smartRequests, isEmpty);
+    });
+
+    test('offset שאחרי 5000 אינו מוחלף בחלון דירוג', () async {
+      final engine = _SmartEngine();
+      final repository = SearchRepository(engineProvider: () async => engine);
+      await repository.searchSmartLexical(
+        const SearchEngineRequest(
+          query: '"יקוק טוב" ידוד',
+          facets: ['/book'],
+          limit: 17,
+          offset: 7000,
+          order: ResultsOrder.catalogue,
+          searchMode: SearchMode.fuzzy,
+        ),
       );
-      final results = await _search(engine);
-      expect(results.map((r) => r.id.toInt()), [0, 1]);
-      expect(engine.calls.every((call) => call.limit == 2), isTrue);
-      expect(engine.calls.where((call) => call.offset > 2), isEmpty);
-      final callsAtCompletion = engine.calls.length;
-      await Future<void>.delayed(Duration.zero);
-      expect(engine.calls, hasLength(callsAtCompletion));
+      expect(engine.smartRequests.single.offset, 7000);
+      expect(engine.smartRequests.single.limit, 17);
+      expect(engine.smartRequests.single.order, ResultsOrder.catalogue);
     });
 
-    test('חיתוך ריק סוגר זרמים לפני שנטען fuzzy', () async {
-      final engine = _PagedEngine((stream, offset, limit) async => []);
-      expect(await _search(engine), isEmpty);
-      expect(engine.calls, [(stream: 'ברא אלהים', offset: 0, limit: 2)]);
-    });
-
-    test('שגיאה אינה גורמת להמשך שליפה מהזרמים האחרים', () async {
-      final error = StateError('paging failure');
-      final engine = _PagedEngine((stream, offset, limit) async {
-        if (stream == 'הארץ') throw error;
-        return [for (var id = offset; id < offset + limit; id++) _result(id)];
-      });
-      await expectLater(_search(engine), throwsA(same(error)));
-      final callsAtFailure = engine.calls.length;
-      await Future<void>.delayed(Duration.zero);
-      expect(engine.calls, hasLength(callsAtFailure));
-      expect(engine.calls.where((call) => call.stream == 'fuzzy'), isEmpty);
-    });
-
-    test('קבוצת id שווה שחוצה עמודים ממוינת לפני החיתוך', () async {
-      final engine = _PagedEngine((stream, offset, limit) async {
-        final source = stream == 'fuzzy'
-            ? [_result(1, path: 'b'), _result(1, path: 'a'), _result(2)]
-            : [_result(1, path: 'a')];
-        return source.skip(offset).take(limit).toList();
-      });
-      final results = await _search(engine, limit: 1);
-      expect(results.map((r) => r.filePath), ['a']);
-      expect(engine.calls.every((call) => call.limit == 1), isTrue);
-    });
-
-    // מספרי הספרים נקבעים בסדר הכתיבה; המנוע ממיין לפי מיפוי הקטלוג.
-    test('ספרים שחולקים נתיב נחתכים בסדר המיפוי ולא בסדר המספרים', () async {
-      final late = _result((1 << 32) + 5, path: 'late');
-      final early = _result((2 << 32) + 7, path: 'early');
-      final engine = _PagedEngine((stream, offset, limit) async {
-        // בסדר הקטלוג: 'early' (מספר 2) לפני 'late' (מספר 1).
-        final source = [early, late];
-        return source.skip(offset).take(limit).toList();
-      });
-      final results = await _search(
-        engine,
-        bookOrder: const {'early': 0, 'late': 1},
+    test('שגיאת המנוע אינה מפעילה שליפה רגילה חלופית', () async {
+      final error = StateError('smart search failure');
+      final engine = _SmartEngine()..failure = error;
+      final repository = SearchRepository(engineProvider: () async => engine);
+      await expectLater(
+        searchBookWithEngine(
+          repository,
+          query: '"יקוק טוב" ידוד',
+          bookPath: '/book',
+          limit: 2,
+          settings: smart,
+        ),
+        throwsA(same(error)),
       );
-      expect(results.map((r) => r.filePath), ['early', 'late']);
+      expect(engine.smartRequests, hasLength(1));
+      expect(engine.lastRequest, isNull);
     });
 
-    test('ספר שאינו במיפוי אחרי כל הממופים — גם אחרי ספרים אישיים', () async {
-      final personal = _result((9 << 32) + 1, path: 'uid:5');
-      final unmapped = _result((1 << 32) + 1, path: 'new');
-      final engine = _PagedEngine((stream, offset, limit) async {
-        // המנוע ממיין ספר שאינו במיפוי אחרי כל הספרים שבו.
-        return [personal, unmapped].skip(offset).take(limit).toList();
-      });
-      final results = await _search(
-        engine,
-        bookOrder: const {'uid:5': (1 << 23) + 5},
+    test('חיפוש fuzzy רגיל ממשיך במסלול הקיים', () async {
+      final engine = _SmartEngine();
+      await searchBookWithEngine(
+        SearchRepository(engineProvider: () async => engine),
+        query: '"יקוק טוב"',
+        bookPath: '/book',
+        limit: 2,
+        settings: const InBookSearchSettings(searchMode: SearchMode.fuzzy),
       );
-      expect(results.map((r) => r.filePath), ['uid:5', 'new']);
+      expect(engine.smartRequests, isEmpty);
+      expect(engine.lastRequest!.query, '"יקוק טוב"');
+      expect(engine.lastRequest!.order, ResultsOrder.catalogue);
     });
   }, skip: ready ? false : searchEngineSkipReason);
 }

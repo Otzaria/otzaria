@@ -88,7 +88,7 @@ class _SemanticDataCard extends StatelessWidget {
                   ),
                   SegmentOption(
                     value: SemanticModelChoice.pardesQa491,
-                    label: context.settingsText('פרדס QA491 (ניסיוני)'),
+                    label: context.settingsText('פרדס (ניסיוני)'),
                     subtitle: context.settingsText(
                       'כ-167MB; דורש נתוני חיפוש תואמים',
                     ),
