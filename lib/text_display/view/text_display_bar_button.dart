@@ -136,10 +136,10 @@ class TextDisplayPopupPanel extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(FluentIcons.dismiss_24_regular, size: 20),
+                  AppIconButton(
+                    size: AppIconButtonSize.small,
+                    icon: const Icon(FluentIcons.dismiss_24_regular),
                     tooltip: 'סגור',
-                    visualDensity: VisualDensity.compact,
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],

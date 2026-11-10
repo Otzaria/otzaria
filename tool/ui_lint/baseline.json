@@ -1325,9 +1325,6 @@
         {"scope":"_PageShapeSettingsPanelState.build","fp":"89f0467d","n":1},
         {"scope":"_PageShapeSettingsPanelState.build","fp":"f1e89b70","n":1}
       ],
-      "lib/text_display/view/text_display_bar_button.dart": [
-        {"scope":"TextDisplayPopupPanel.build","fp":"f1e89b70","n":1}
-      ],
       "lib/tools/calendar/widgets/calendar_top_bar.dart": [
         {"scope":"_CalendarTopBarState._buildGoogleSyncStatus","fp":"87f04357","n":1}
       ],
