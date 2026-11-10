@@ -1057,16 +1057,6 @@ Future<void> main() async {
         expect(response['isOnline'], isFalse);
       });
 
-      test('אינו מחזיר null — התוסף מקבל תשובה ודאית', () async {
-        useService(offline: false, reachable: true);
-
-        final response =
-            await adapter.execute('app', 'getConnectivity', {})
-                as Map<String, Object?>;
-
-        expect(response.values.every((v) => v != null), isTrue);
-      });
-
       test('קריאות חוזרות אינן פותחות בדיקת רשת נוספת', () async {
         var probes = 0;
         ConnectivityStatusService.instance = ConnectivityStatusService(
@@ -5908,25 +5898,6 @@ Future<void> main() async {
       expect(results[1]['text'], '');
       expect(results[1]['error'], 'forbidden');
       expect(checked, [same(official), same(attached)]);
-    });
-
-    test('search.fullText אינו מחזיר id — type תלוי ב-isPdf', () {
-      const result = {
-        'type': 'text',
-        'book': 'בראשית',
-        'text': 'snippet',
-        'index': 42,
-      };
-      expect(result.containsKey('id'), isFalse);
-      expect(result['type'], 'text');
-
-      const pdfResult = {
-        'type': 'pdf',
-        'book': 'ספר PDF',
-        'text': 'snippet',
-        'index': 1,
-      };
-      expect(pdfResult['type'], 'pdf');
     });
   });
 

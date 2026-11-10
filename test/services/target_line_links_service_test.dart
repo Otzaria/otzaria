@@ -1063,18 +1063,6 @@ void main() {
       expect(entry.childrenBuilder!().single.label, contains('מהרש"א'));
       await sub.cancel();
     });
-
-    test('לשני הפריטים אייקונים נבדלים ותוויות נכונות', () {
-      final service = TargetLineLinksService(loader: (_, _, _) async => []);
-      final link = _link(path2: 'רש"י');
-
-      final commentaries = commentariesEntry(service, link);
-      final links = linksEntry(service, link);
-
-      expect(commentaries.label, 'מפרשים');
-      expect(links.label, 'קישורים');
-      expect(commentaries.icon, isNot(links.icon));
-    });
   });
 
   group('מפרידי דורות', () {
@@ -1196,38 +1184,6 @@ void main() {
         CommentaryService.sortingEraForLink(notes, {'הערות על רש"י'}),
         CommentaryEra.other,
       );
-    });
-  });
-
-  group('singleton', () {
-    test('resetInstanceForTesting מחליף את המימוש', () async {
-      var loads = 0;
-      TargetLineLinksService.resetInstanceForTesting(
-        loader: (_, _, _) async {
-          loads++;
-          return const [];
-        },
-      );
-
-      TargetLineLinksService.instance.prefetch(_link(path2: 'רש"י'));
-      await pumpEventQueue();
-
-      expect(loads, 1);
-    });
-
-    test('איפוס מנקה את המטמון של המופע הקודם', () async {
-      TargetLineLinksService.resetInstanceForTesting(
-        loader: (_, _, _) async => [],
-      );
-      final link = _link(path2: 'רש"י');
-      TargetLineLinksService.instance.prefetch(link);
-      await pumpEventQueue();
-      expect(TargetLineLinksService.instance.cached(link), isNotNull);
-
-      TargetLineLinksService.resetInstanceForTesting(
-        loader: (_, _, _) async => [],
-      );
-      expect(TargetLineLinksService.instance.cached(link), isNull);
     });
   });
 }

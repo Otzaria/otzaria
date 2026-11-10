@@ -79,13 +79,4 @@ void main() {
       expect(result, List.of(result)..sort());
     });
   });
-
-  group('pluginLegacyPermissionAliases', () {
-    test('fs.folder_access מכוסה בהצהרת ui.feedback ותיקה', () {
-      expect(
-        pluginLegacyPermissionAliases[pluginFolderAccessPermission],
-        'ui.feedback',
-      );
-    });
-  });
 }

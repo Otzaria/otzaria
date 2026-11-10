@@ -172,7 +172,6 @@
 | אין `Markdown` גלילתי ב־`lib`, רק `MarkdownBody` | `test/settings/no_scrollable_markdown_test.dart` |
 | כל `TextPainter` ב־`lib` מקבל `textDirection` (issue #1474) | `test/widgets/text_painter_direction_test.dart` |
 | שם אייקון מתוסף נפתר רק דרך `pluginIconFromName` | `test/plugins/utils/plugin_icon_resolver_usage_test.dart` |
-| אין צבעים קשיחים במסך ה־PDF (issue #1469) | `test/pdf_book/pdf_hardcoded_colors_test.dart` |
 | אין גלילה עצמאית ב־`PdfBookScreen` | `test/pdf_book/pdf_no_custom_scroll_test.dart` |
 
 **Widgets (shared)**
@@ -233,11 +232,10 @@
 | טקסט מעוצב ב-PDF (גופן Type0 עם גליפים מ-shaper, פריסה ויישור, bidi) | `test/printing/shaped_text/pdf_shaped_font_test.dart`, `…shaped_text_layout_test.dart` |
 | גופן לא מוטמע ב-PDF (עברית נעלמת מתצוגה/חיפוש/אינדוקס — `PdfFontFallback`) | `test/pdf_book/pdf_font_fallback_test.dart` |
 | PDF in-book search highlight pattern | `test/pdf_book/pdf_search_highlight_pattern_test.dart` |
-| צבעי סרגל הזום של ה-PDF נגזרים מערכת הצבעים (issue #1472) | `test/pdf_book/pdf_zoom_bar_colors_test.dart`, `…pdf_zoom_bar_theme_test.dart` |
+| צבעי סרגל הזום של ה-PDF נגזרים מערכת הצבעים (issue #1472) | `test/pdf_book/pdf_zoom_bar_theme_test.dart` |
 | דיאלוג המעבר לכתובת חיצונית מ-PDF (כיוון LTR לכתובת, AppDialog, ActionButton) | `test/pdf_book/open_url_confirmation_test.dart` |
-| צבעי מסך ה-PDF נגזרים מערכת הצבעים (issue #1469) | `test/pdf_book/pdf_hardcoded_colors_test.dart`, `test/pdf_book/pdf_link_hover_color_test.dart` |
+| צבעי מסך ה-PDF נגזרים מערכת הצבעים (issue #1469) | `test/pdf_book/pdf_link_hover_color_test.dart` |
 | ניתוב החיפוש בתוך PDF (פשוט מול מנוע) | `test/pdf_book/pdf_search_in_book_routing_test.dart` |
-| Printing models | `test/printing/print_content_models_test.dart` |
 | File sync / background sync | `test/migration/sync/file_sync_service_prune_test.dart`, `…background_db_sync_worker_test.dart`, `…background_sync_initializer_test.dart` |
 | כותרות וגרסאות לספרים אישיים — פענוח, בניית העץ ואיתור לפי טקסט | `test/user_content_import/user_headings_import_test.dart` |
 | קליטת `<ספר>.כותרות.csv` / `גרסאות.csv` מתיקיית הספרים והייבוא מההגדרות, ניקוי במחיקת ספר | `test/user_content_import/user_sidecar_sync_test.dart` |
@@ -270,7 +268,7 @@
 | Tool tab dedupe / focus-existing | `test/tabs/bloc/tool_tab_dedupe_test.dart` |
 | `readingPane` (plugin reader API context) | `test/tabs/reading_pane_test.dart` |
 
-| Shamor Zachor | `test/shamor_zachor/shamor_zachor_test.dart` (+ 4 more in that dir) |
+| Shamor Zachor | `test/shamor_zachor/` |
 | Dictionary lookup | `test/tools/dictionary/dictionary_lookup_repository_test.dart` |
 | Laaz Rashi commentary line-lookup | `test/tools/dictionary/laaz_rashi_line_lookup_test.dart` |
 | Laaz Rashi commentary sub-block widget | `test/tools/dictionary/laaz_commentary_subblock_test.dart` |

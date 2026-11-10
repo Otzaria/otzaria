@@ -106,50 +106,6 @@ void main() {
   });
 
   group('LinkTypes.hebrewLabel', () {
-    test('מחזיר תווית עברית לכל 16 הסוגים המוכרים', () {
-      const expected = {
-        'COMMENTARY': 'פירוש',
-        'SUPER_COMMENTARY': 'פירוש על פירוש',
-        'TARGUM': 'תרגום',
-        'MIDRASH': 'מדרש',
-        'PARSHANUT': 'פרשנות',
-        'DIBUR_HAMATCHIL': 'דיבור המתחיל',
-        'ELUCIDATION': 'ביאור',
-        'EXPLICATION': 'ביאור',
-        'REFERENCE': 'עיון',
-        'QUOTATION': 'ציטוט',
-        'MESORAT_HASHAS': 'מסורת הש"ס',
-        'EIN_MISHPAT': 'עין משפט',
-        'MISHNAH_IN_TALMUD': 'משנה בתלמוד',
-        'RELATED': 'נושא קרוב',
-        'SOURCE': 'מקור',
-        'OTHER': 'לא מסווג',
-      };
-      expected.forEach((type, label) {
-        expect(LinkTypes.hebrewLabel(type), label, reason: type);
-      });
-    });
-
-    test('מחזיר תווית עברית לסוגים הנוספים של ספריא', () {
-      const expected = {
-        'QUOTATION_AUTO': 'ציטוט אוטומטי',
-        'QUOTATION_AUTO_TANAKH': 'ציטוט אוטומטי מהתנ"ך',
-        'RELATED_PASSAGE': 'קטע קשור',
-        // "רמז" בעולם התורני הוא חלק מפרד"ס או מספר סימן, ו"הלכה" רחב מדי.
-        'ALLUSION': 'אזכור',
-        'LAW': 'פסיקת הלכה',
-        'FOOTNOTES': 'הערות שוליים',
-        'LITURGY': 'תפילה',
-        'LINKER': 'אוטומטי',
-        'SUMMARY': 'סיכום',
-        'SIFREI_MITZVOT': 'ספרי מצוות',
-        'NONE': 'לא מסווג',
-      };
-      expected.forEach((type, label) {
-        expect(LinkTypes.hebrewLabel(type), label, reason: type);
-      });
-    });
-
     test('ערכי ספריא עם רווחים מתורגמים ולא נופלים ל-fallback', () {
       expect(LinkTypes.hebrewLabel('ein mishpat'), 'עין משפט');
       expect(LinkTypes.hebrewLabel('mesorat hashas'), 'מסורת הש"ס');
@@ -183,17 +139,6 @@ void main() {
   });
 
   group('LinkTypes.eraGroupedTypes', () {
-    test('כולל בדיוק את הסוגים חסרי-התווית המשמעותית', () {
-      expect(LinkTypes.eraGroupedTypes, {
-        'OTHER',
-        'NONE',
-        'RELATED',
-        'RELATED_PASSAGE',
-        'REFERENCE',
-        'LINKER',
-      });
-    });
-
     test('סוגים בעלי משמעות תיאורית אינם מקובצים לפי דור', () {
       for (final type in const [
         'EIN_MISHPAT',

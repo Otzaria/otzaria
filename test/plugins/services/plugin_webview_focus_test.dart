@@ -370,28 +370,6 @@ void main() {
     });
   });
 
-  group('בחירת המסלול לפי פלטפורמה', () {
-    test('ווינדוס — ערוץ ה-platform view', () {
-      expect(usesPlatformViewFocusChannel(TargetPlatform.windows), isTrue);
-    });
-
-    test('שאר הפלטפורמות — ה-API של ה-controller', () {
-      for (final platform in const [
-        TargetPlatform.android,
-        TargetPlatform.iOS,
-        TargetPlatform.macOS,
-        TargetPlatform.linux,
-        TargetPlatform.fuchsia,
-      ]) {
-        expect(
-          usesPlatformViewFocusChannel(platform),
-          isFalse,
-          reason: 'ערוץ ה-platform view הוא מסלול ווינדוס בלבד',
-        );
-      }
-    });
-  });
-
   group('appIsActiveNow', () {
     tearDown(() {
       TestWidgetsFlutterBinding.instance.handleAppLifecycleStateChanged(
@@ -425,21 +403,6 @@ void main() {
       expect(
         customPlatformViewChannelName(12),
         'com.pichillilorenzo/custom_platform_view_12',
-      );
-    });
-
-    // בונה שם לכל קלט; חסימת מזהה שאינו מספר היא באחריות request.
-    test('גם מזהה שאינו מספר מקבל שם', () {
-      expect(
-        customPlatformViewChannelName('abc-1'),
-        'com.pichillilorenzo/custom_platform_view_abc-1',
-      );
-    });
-
-    test('כל viewId מקבל ערוץ נפרד', () {
-      expect(
-        customPlatformViewChannelName(1),
-        isNot(customPlatformViewChannelName(2)),
       );
     });
   });

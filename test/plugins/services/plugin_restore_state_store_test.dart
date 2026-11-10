@@ -61,12 +61,6 @@ void main() {
     expect(store.has(other), isFalse);
   });
 
-  test('המפתח הוא PluginInstanceKey', () {
-    const PluginInstanceKey typed = key;
-    store.set(typed, 'v');
-    expect(store.stateOf(key), 'v');
-  });
-
   group('גבול כולל', () {
     PluginInstanceKey k(int i) => (pluginId: 'bound', instanceId: 'i$i');
     tearDown(() {

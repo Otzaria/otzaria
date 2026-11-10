@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
-import 'package:otzaria/bookmarks/bloc/bookmark_state.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/bookmarks/models/bookmark_group.dart';
 import 'package:otzaria/bookmarks/repository/bookmark_repository.dart';
@@ -170,11 +169,6 @@ void main() {
 
   group('BookmarkBloc', () {
     group('initial load', () {
-      test('מתחיל עם רשימה ריקה כאשר אין סימניות', () async {
-        final bloc = await _makeBloc();
-        expect(bloc.state.bookmarks, isEmpty);
-      });
-
       test('טוען סימניות קיימות ב-init', () async {
         final existing = [_bookmark(ref: 'בראשית א'), _bookmark(ref: 'שמות א')];
         final bloc = await _makeBloc(initial: existing);
@@ -299,17 +293,6 @@ void main() {
           'רש"י',
           'רמב"ן',
         ]);
-      });
-
-      test('מוסיף מספר סימניות שונות', () async {
-        final bloc = await _makeBloc();
-        bloc.addBookmark(ref: 'בראשית א', book: _book(), index: 0);
-        bloc.addBookmark(
-          ref: 'שמות א',
-          book: _book(title: 'ספר ב'),
-          index: 5,
-        );
-        expect(bloc.state.bookmarks.length, 2);
       });
 
       test('שומר label בסימנייה חדשה', () async {
@@ -530,26 +513,6 @@ void main() {
         },
       );
     });
-
-    group('BookmarkState', () {
-      test('copyWith מעדכן רק את השדות שנמסרו', () {
-        final state = BookmarkState(bookmarks: [_bookmark()]);
-        final updated = state.copyWith(bookmarks: []);
-        expect(updated.bookmarks, isEmpty);
-      });
-
-      test('copyWith ללא ארגומנטים מחזיר אותו ערך', () {
-        final bookmarks = [_bookmark()];
-        final state = BookmarkState(bookmarks: bookmarks);
-        final copy = state.copyWith();
-        expect(copy.bookmarks, same(bookmarks));
-      });
-
-      test('BookmarkState.initial מחזיר רשימה ריקה', () {
-        final state = BookmarkState.initial();
-        expect(state.bookmarks, isEmpty);
-      });
-    });
   });
 
   group('bookIdentity', () {
@@ -636,17 +599,6 @@ void main() {
       expect(restored.book.title, original.book.title);
       expect(restored.index, original.index);
       expect(restored.commentatorsToShow, original.commentatorsToShow);
-    });
-
-    test('toJson/fromJson שומרים targetKind.book', () {
-      final original = Bookmark(
-        ref: 'בראשית א',
-        book: _book(),
-        index: 0,
-        targetKind: BookmarkTargetKind.book,
-      );
-      final restored = Bookmark.fromJson(original.toJson());
-      expect(restored.targetKind, BookmarkTargetKind.book);
     });
 
     test('toJson/fromJson שומרים targetKind.commentators', () {

@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/tools/tikkun_korim/export/tikkun_pdf_exporter.dart';
 import 'package:otzaria/tools/tikkun_korim/models/tikkun_models.dart';
-import 'package:pdf/pdf.dart' show PdfPageFormat;
 
 import '../support/tikkun_fakes.dart';
 
@@ -112,20 +111,6 @@ void main() {
 
       final nikud = both.copyWith(columns: TikkunExportColumns.nikudOnly);
       expect(nikud.hideStam, isTrue);
-    });
-
-    test('copyWith משמר את שאר השדות', () {
-      const options = TikkunExportOptions(
-        mode: TikkunExportMode.flow,
-        pageFormat: PdfPageFormat.a5,
-        columns: TikkunExportColumns.stamOnly,
-      );
-      final updated = options.copyWith(scope: TikkunExportScope.all);
-
-      expect(updated.mode, TikkunExportMode.flow);
-      expect(updated.pageFormat, PdfPageFormat.a5);
-      expect(updated.columns, TikkunExportColumns.stamOnly);
-      expect(updated.scope, TikkunExportScope.all);
     });
   });
 

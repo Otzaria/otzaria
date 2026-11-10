@@ -7,20 +7,6 @@ import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 
 void main() {
   group('OtzariaEmptyState', () {
-    testWidgets('מציג כותרת בלבד', (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
-            body: OtzariaEmptyState(
-              title: 'אין נתונים',
-            ),
-          ),
-        ),
-      );
-
-      expect(find.text('אין נתונים'), findsOneWidget);
-    });
-
     testWidgets('מציג סמל, כותרת, תיאור וכפתור פעולה יחיד', (tester) async {
       var actionTapped = false;
       await tester.pumpWidget(

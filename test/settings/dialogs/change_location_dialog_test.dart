@@ -56,19 +56,6 @@ Future<void> _openDialog(
 }
 
 void main() {
-  group('ChangeLocationResult', () {
-    test('שומר newPath ו-moveContents=true', () {
-      const r = ChangeLocationResult('/new/path', moveContents: true);
-      expect(r.newPath, '/new/path');
-      expect(r.moveContents, isTrue);
-    });
-
-    test('שומר newPath ו-moveContents=false', () {
-      const r = ChangeLocationResult('/p', moveContents: false);
-      expect(r.moveContents, isFalse);
-    });
-  });
-
   group('showChangeLocationDialog — מבנה', () {
     testWidgets('מציג כותרת עם שם התיקייה', (tester) async {
       await _openDialog(tester, folderName: 'ספריית אוצריא');

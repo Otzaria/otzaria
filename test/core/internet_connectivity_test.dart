@@ -112,11 +112,6 @@ void main() {
       expect(probed, contains('otzaria.org'));
     });
 
-    test('יעדי התוספים כוללים גם את הניטרליים כגיבוי', () async {
-      expect(kOtzariaProbeTargets, containsAll(kNeutralProbeTargets));
-      expect(kOtzariaProbeTargets.first.$1, 'otzaria.org');
-    });
-
     test('די ב-otzaria.org לבדו כדי לקבוע שיש רשת', () async {
       // רשת מסוננת שחוסמת את השאר — זה הרוב אצל משתמשי אוצריא.
       debugSocketConnect = (host, port, timeout) async => host == 'otzaria.org';

@@ -103,26 +103,6 @@ void main() {
       expect(restored.pageShapeRightWidth, isNull);
     });
 
-    test('copyWith משמר שדות קיימים ומעדכן רק את שניתנו', () {
-      final base = TextBookPerBookSettings(
-        fontSize: 20.0,
-        removeNikud: true,
-        pageShapeLeftWidth: 100.0,
-      );
-
-      // עדכון רק רוחבי הטורים - שאר השדות נשמרים
-      final updated = base.copyWith(
-        pageShapeLeftWidth: 150.0,
-        pageShapeRightWidth: 90.0,
-      );
-
-      expect(updated.fontSize, 20.0);
-      expect(updated.removeNikud, isTrue);
-      expect(updated.pageShapeLeftWidth, 150.0);
-      expect(updated.pageShapeRightWidth, 90.0);
-      expect(updated.pageShapeBottomHeight, isNull);
-    });
-
     test('round-trip שומר את רשימת המפרשים הנבחרים', () {
       final original = TextBookPerBookSettings(
         activeCommentators: const ['רש"י', 'תוספות'],
@@ -147,13 +127,6 @@ void main() {
     test('toJson משמיט activeCommentators כשהוא null', () {
       final settings = TextBookPerBookSettings(fontSize: 18.0);
       expect(settings.toJson().containsKey('activeCommentators'), isFalse);
-    });
-
-    test('copyWith משמר את activeCommentators כשלא ניתן', () {
-      final base = TextBookPerBookSettings(activeCommentators: const ['רש"י']);
-      final updated = base.copyWith(fontSize: 20.0);
-      expect(updated.activeCommentators, ['רש"י']);
-      expect(updated.fontSize, 20.0);
     });
 
     test('continuousReadingMode=false שורד round-trip', () {

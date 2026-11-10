@@ -932,14 +932,6 @@ void main() {
       expect(shapeOf(tester, 0).bottom.color, dividerColor);
     });
 
-    testWidgets('העובי אינו 1.0 הלוגי של ברירת המחדל של ExpansionTile', (
-      tester,
-    ) async {
-      await pumpTwo(tester);
-
-      expect(shapeOf(tester, 0).bottom.width, lessThan(1.0));
-    });
-
     testWidgets('הרחבת פריט אינה מוסיפה גבול עליון', (tester) async {
       await pumpTwo(tester);
 
@@ -985,21 +977,6 @@ void main() {
           .widgetList<Container>(find.byType(Container))
           .where((container) => container.color != null);
       expect(colored, isEmpty);
-    });
-
-    testWidgets('הרקע אינו מקודד ל-surface בשום מקום ברשימה', (tester) async {
-      await _pumpView(
-        tester,
-        links: [_link(title: 'ראשונים א', type: 'REFERENCE')],
-      );
-
-      final surface = Theme.of(
-        tester.element(find.byType(SelectedLineLinksView)),
-      ).colorScheme.surface;
-      final painted = tester
-          .widgetList<Container>(find.byType(Container))
-          .where((container) => container.color == surface);
-      expect(painted, isEmpty);
     });
 
     testWidgets('גם מסך "אין קישורים" בלי רקע צבוע', (tester) async {

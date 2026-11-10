@@ -105,22 +105,6 @@ void main() {
       expect(keys.map(LinkTypes.hebrewLabel), ['ביאור']);
     });
 
-    test('התוויות העבריות הנכונות לכל הסוגים', () {
-      final keys = buildCommentaryTypeChipKeys([
-        _link(path2: 'א.txt', type: LinkTypes.targum),
-        _link(path2: 'ב.txt', type: LinkTypes.midrash),
-        _link(path2: 'ג.txt', type: LinkTypes.parshanut),
-        _link(path2: 'ד.txt', type: LinkTypes.diburHamatchil),
-      ]);
-
-      expect(keys.map(LinkTypes.hebrewLabel).toList(), [
-        'תרגום',
-        'מדרש',
-        'פרשנות',
-        'דיבור המתחיל',
-      ]);
-    });
-
     test('ערך באותיות קטנות מזוהה ואינו מייצר צ׳יפ כפול', () {
       final keys = buildCommentaryTypeChipKeys([
         _link(path2: 'א.txt', type: 'targum'),

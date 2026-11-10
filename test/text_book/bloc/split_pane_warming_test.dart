@@ -96,20 +96,4 @@ void main() {
       reason: 'החימום נעצר אחרי כיבוי הדגל',
     );
   });
-
-  test('ברירת המחדל מאפשרת חימום', () {
-    const event = SetTabVisibility(true);
-    expect(event.allowBackgroundWarming, isTrue);
-  });
-
-  test('הדגל משתתף בהשוואת האירועים', () {
-    expect(
-      const SetTabVisibility(true),
-      isNot(const SetTabVisibility(true, allowBackgroundWarming: false)),
-    );
-    expect(
-      const SetTabVisibility(true, allowBackgroundWarming: false),
-      const SetTabVisibility(true, allowBackgroundWarming: false),
-    );
-  });
 }

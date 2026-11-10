@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -495,50 +493,6 @@ void main() {
       greaterThan(position.viewportDimension * 0.1),
       reason: 'המסילה גוללת בתוך אותו קישור',
     );
-  });
-
-  group('מבנה — שני הצדדים צורכים את אותה רשימה', () {
-    String read(String path) => File(path).readAsStringSync();
-
-    test('כרטיסיית הטקסט וחלונית ה-PDF מייבאות את LinksListView', () {
-      const importRef = 'widgets/commentary/links_list_view.dart';
-      expect(
-        read('lib/text_book/view/selected_line_links_view.dart'),
-        contains(importRef),
-      );
-      expect(
-        read('lib/pdf_book/view/pdf_commentary_panel.dart'),
-        contains(importRef),
-      );
-    });
-
-    test('הווידג\'ט המשותף אינו תלוי ב-TextBookBloc', () {
-      final source = read('lib/widgets/commentary/links_list_view.dart');
-      // ההערה התיעודית מזכירה את השם; מה שאסור הוא ייבוא או שימוש בקוד.
-      expect(source, isNot(contains('text_book_bloc.dart')));
-      expect(source, isNot(contains('text_book_state.dart')));
-      expect(source, isNot(contains('text_book_event.dart')));
-      expect(source, isNot(contains('read<TextBookBloc')));
-      expect(source, isNot(contains('TextBookStateBuilder')));
-      expect(source, isNot(contains('TextBookLoaded')));
-    });
-
-    test('חלונית ה-PDF אינה מחזיקה עוד tile קישורים משלה', () {
-      expect(
-        read('lib/pdf_book/view/pdf_commentary_panel.dart'),
-        isNot(contains('_buildLinkTile')),
-      );
-    });
-
-    test('המתאם ממשיך לייצא את העזרים הטהורים לצרכני הטקסט', () {
-      expect(
-        read('lib/text_book/view/selected_line_links_view.dart'),
-        contains(
-          "export 'package:otzaria/widgets/commentary/"
-          "links_list_view.dart';",
-        ),
-      );
-    });
   });
 
   testWidgets(

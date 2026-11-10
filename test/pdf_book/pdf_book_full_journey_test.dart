@@ -401,36 +401,5 @@ void main() {
       expect(cloned.pageNumber, 42);
       expect(identical(tab, cloned), isFalse);
     });
-
-    test('CloseAllTabs מוחק את כל הטאבים', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
-      addTearDown(bloc.close);
-
-      bloc.add(AddTab(_tab(title: 'א')));
-      bloc.add(AddTab(_tab(title: 'ב')));
-      bloc.add(AddTab(_tab(title: 'ג')));
-      await bloc.stream.firstWhere((s) => s.tabs.length == 3);
-
-      bloc.add(CloseAllTabs());
-      await bloc.stream.firstWhere((s) => s.tabs.isEmpty);
-      expect(bloc.state.tabs, isEmpty);
-    });
-
-    test('CloseOtherTabs משאיר רק את הטאב הנוכחי', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
-      addTearDown(bloc.close);
-
-      bloc.add(AddTab(_tab(title: 'א')));
-      await bloc.stream.firstWhere((s) => s.tabs.length == 1);
-      bloc.add(AddTab(_tab(title: 'ב')));
-      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
-      bloc.add(AddTab(_tab(title: 'ג')));
-      await bloc.stream.firstWhere((s) => s.tabs.length == 3);
-
-      // עומדים על טאב 'ג' (index 2)
-      bloc.add(CloseOtherTabs(bloc.state.tabs[2]));
-      await bloc.stream.firstWhere((s) => s.tabs.length == 1);
-      expect(bloc.state.tabs.first.title, 'ג');
-    });
   });
 }

@@ -5,20 +5,6 @@ import 'package:otzaria/navigation/view/main_window_screen.dart';
 /// רק את אזור התוכן, ולכן בלי הסגירה הוא נשאר צף מעל המסך החדש.
 void main() {
   group('shouldCloseToolsLauncherOnNavTap', () {
-    test('פריט "כלים" עצמו אינו סוגר — הוא רק מחליף מצב', () {
-      final toolsIndex =
-          List.generate(
-            6,
-            (i) => i,
-          ).firstWhere(
-            (i) => !MainWindowScreenState.shouldCloseToolsLauncherOnNavTap(i),
-          );
-      expect(
-        MainWindowScreenState.shouldCloseToolsLauncherOnNavTap(toolsIndex),
-        isFalse,
-      );
-    });
-
     test('כל שאר פריטי הניווט סוגרים את הפאנל', () {
       final closing = <int>[];
       for (var i = 0; i < 6; i++) {

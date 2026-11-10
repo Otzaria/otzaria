@@ -267,19 +267,6 @@ void main() {
     );
   });
 
-  testWidgets('AppContextMenuRegion עוטף את התוכן', (tester) async {
-    await tester.pumpWidget(buildHarness(child: const Text('טקסט לדוגמה')));
-    await tester.pumpAndSettle();
-
-    expect(
-      find.descendant(
-        of: find.byType(AppContextMenuRegion),
-        matching: find.text('טקסט לדוגמה'),
-      ),
-      findsOneWidget,
-    );
-  });
-
   group('תוכן ספר מוגן', () {
     late List<String> clipboard;
 

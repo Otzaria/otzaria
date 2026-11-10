@@ -204,7 +204,7 @@ void main() {
   });
 
   group('PdfHeadings.buildHeadingsMapFromTocEntries', () {
-    test('שומר את ה-lineIndex המינימלי כשיש כפילויות כותרת', () {
+    test('שומר את ה-lineIndex המינימלי לכפילויות ומקצץ רווחים', () {
       final entries = <migration_models.TocEntry>[
         const migration_models.TocEntry(
           bookId: 1,
@@ -220,7 +220,7 @@ void main() {
         ),
         const migration_models.TocEntry(
           bookId: 1,
-          text: 'יחיד',
+          text: '  יחיד  ',
           level: 1,
           lineIndex: 100,
         ),

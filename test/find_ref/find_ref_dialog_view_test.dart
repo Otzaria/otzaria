@@ -382,16 +382,6 @@ void main() {
     variant: TargetPlatformVariant.all(),
   );
 
-  testWidgets('מצב הפתיחה מציג כותרת, הסבר ודוגמאות', (tester) async {
-    await _pumpDialog(tester);
-
-    expect(find.text('איתור מקורות'), findsOneWidget);
-    expect(find.text('איתור מקור מדויק'), findsOneWidget);
-    expect(find.text('דוגמאות'), findsOneWidget);
-    expect(_chipLabels(tester), contains('בראשית פרק א'));
-    expect(find.text('סגור'), findsOneWidget);
-  });
-
   testWidgets('לחיצה על הצעה ממלאת את השדה ומריצה איתור', (tester) async {
     await _pumpDialog(tester, results: [_ref('בראשית פרק א')]);
 

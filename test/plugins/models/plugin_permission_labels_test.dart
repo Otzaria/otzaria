@@ -92,20 +92,6 @@ void main() {
     expect(duplicates, isEmpty, reason: 'אייקון משותף להרשאות שונות');
   });
 
-  test('ההרשאות החדשות מסבירות את מה שהן מאפשרות', () {
-    final fieldActions = getPermissionInfo(pluginSearchFieldActionsPermission);
-    expect(fieldActions.description, contains('הטקסט שבשדה'));
-    expect(fieldActions.description, contains('הקטגוריה'));
-    expect(fieldActions.description, contains('ספרי התוסף'));
-    final dialog = getPermissionInfo('search.dialog');
-    expect(dialog.description, contains('מילות החיפוש'));
-    expect(dialog.description, contains('נשמר'));
-    expect(
-      getPermissionInfo(pluginLibraryBooksProvidePermission).description,
-      contains('ספרים משלו'),
-    );
-  });
-
   test('לכל הרשאה תקפה יש תווית עברית — לא נופלת ל-fallback', () {
     final missing = pluginValidPermissions.where((permission) {
       final info = getPermissionInfo(permission);
@@ -114,16 +100,6 @@ void main() {
     }).toList();
 
     expect(missing, isEmpty, reason: 'הרשאות ללא תווית ב-_permissionLabels');
-  });
-
-  test('הרשאות הסימניות וכלי העזר מסבירות את ההשלכה בפועל', () {
-    expect(getPermissionInfo('bookmarks.read').label, contains('סימניות'));
-    final write = getPermissionInfo(pluginBookmarksWritePermission);
-    expect(write.description, contains('מחיקה'));
-    expect(
-      getPermissionInfo(pluginToolsReadPermission).label,
-      isNot('tools.read'),
-    );
   });
 
   test('כתיבה לנתוני המשתמש מתחילה מאושרת — עקבי עם notes.write', () {

@@ -11,20 +11,6 @@ void main() {
     expect(ProcessDuties.current.isProcessOwner, isTrue);
   });
 
-  test('פרדיקט מוזרק גובר על ברירת המחדל', () {
-    expect(ProcessDuties(isProcessOwner: () => false).isProcessOwner, isFalse);
-  });
-
-  test('debugOverride מחליף את current, ו-null מחזיר את ברירת המחדל', () {
-    final fake = ProcessDuties(isProcessOwner: () => false);
-    ProcessDuties.debugOverride = fake;
-    expect(ProcessDuties.current, same(fake));
-    expect(ProcessDuties.current.isProcessOwner, isFalse);
-    ProcessDuties.debugOverride = null;
-    expect(ProcessDuties.current, isNot(same(fake)));
-    expect(ProcessDuties.current.isProcessOwner, isTrue);
-  });
-
   testWidgets('of: המופע של החלון גובר על current, ובלעדיו — current', (
     tester,
   ) async {

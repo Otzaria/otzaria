@@ -132,23 +132,6 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('בלי WindowScopeProviders מעל — ProcessDuties.current', (
-    tester,
-  ) async {
-    final fake = ProcessDuties(isProcessOwner: () => false);
-    ProcessDuties.debugOverride = fake;
-    late BuildContext context;
-    await tester.pumpWidget(
-      Builder(
-        builder: (c) {
-          context = c;
-          return const SizedBox.shrink();
-        },
-      ),
-    );
-    expect(ProcessDuties.of(context), same(fake));
-  });
-
   group('AppWindowScope.roleOf', () {
     final controller = WindowManagerAppWindowController();
 

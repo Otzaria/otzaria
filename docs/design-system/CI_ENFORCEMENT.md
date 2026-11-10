@@ -267,6 +267,6 @@ const _hebcalBlue = Color(0xFF1565C0);
 | `test/settings/l10n/settings_dialog_scope_test.dart` | `settingsDialogBuilder` | חלון של 8 שורות |
 | `test/core/windowing/quit_application_call_sites_test.dart` | exact set | נשארת |
 | `test/widgets/text_painter_direction_test.dart` | `TextPainter.textDirection` | דרך `ctorCallsNamed` (§3.2), ולכן מוצאת גם `TextPainter(...)` בלי `new` |
-| `test/pdf_book/pdf_hardcoded_colors_test.dart` | אין `Colors.<hue>` בשני קבצים | יוחלף ב־UIL-015 |
+| ~~`test/pdf_book/pdf_hardcoded_colors_test.dart`~~ | אין `Colors.<hue>` בשני קבצים | **הועברה ל־UIL-015** |
 | `test/utils/ui/image_decode_size_test.dart` | `cacheWidth` | נשארת |
 | `test/design_system/agent_docs_paths_test.dart` | כל נתיב ב־`AGENTS.md`, בתבנית ה־PR, ב־`agent_ui_reference.md`, ב־`agent_test_map.md` ובמסמכי התקן קיים | קטע מחוק `~~…~~` מתעד קובץ שהוסר ולא נבדק |

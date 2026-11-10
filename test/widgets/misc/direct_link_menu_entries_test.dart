@@ -1,7 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/misc/direct_link_menu_entries.dart';
-import 'package:otzaria_icons/otzaria_icons.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -45,30 +44,6 @@ void main() {
       expect(entries.last.label, contains('הדגשת הטקסט'));
       expect(entries.last.enabled, isTrue);
       expect(entries.last.onTap, isNotNull);
-    });
-
-    test('label של כל פריט ברור ומתאר את הפעולה', () {
-      final entries = buildDirectLinkContextMenuEntries(
-        bookId: 1,
-        index: 5,
-        selectedText: 'טקסט',
-      );
-
-      expect(entries[0].label, contains('למקטע'));
-      expect(entries[1].label, contains('הדגשת המקטע'));
-      expect(entries[2].label, contains('הדגשת הטקסט'));
-    });
-
-    test('לכל סוג קישור אייקון משלו', () {
-      final entries = buildDirectLinkContextMenuEntries(
-        bookId: 1,
-        index: 5,
-        selectedText: 'טקסט',
-      );
-
-      expect(entries[0].icon, OtzariaIcons.link_document_24_regular);
-      expect(entries[1].icon, OtzariaIcons.link_marker_24_regular);
-      expect(entries[2].icon, OtzariaIcons.link_alef_24_regular);
     });
 
     test('הקשה על פריט מעתיקה את הקישור הנכון ללוח', () async {

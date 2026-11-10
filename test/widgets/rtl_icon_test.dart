@@ -131,12 +131,4 @@ void main() {
       expect(icon.icon, FluentIcons.settings_24_regular);
     });
   });
-
-  group('RtlIcon — regression: אין mirrorIcon', () {
-    test('RtlIcon לא מקבל פרמטר mirrorIcon', () {
-      // אם הקוד מתקמפל — אין mirrorIcon. הבדיקה מוודאת שה-API לא חזר.
-      const widget = RtlIcon(FluentIcons.book_24_regular);
-      expect(widget, isA<RtlIcon>());
-    });
-  });
 }

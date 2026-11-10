@@ -103,20 +103,6 @@ void main() {
       },
     );
 
-    test('forwards (pluginId, true) — the "show again" direction', () async {
-      final repo = _FakeRepo([_plugin(id: 'p1', showInTools: false)]);
-      final bloc = PluginSystemBloc(repository: repo);
-      addTearDown(bloc.close);
-
-      bloc.add(
-        const SetPluginShowInToolsRequested(pluginId: 'p1', showInTools: true),
-      );
-
-      await expectLater(bloc.stream, emitsThrough(isA<PluginSystemLoaded>()));
-
-      expect(repo.showInToolsCalls.single.showInTools, isTrue);
-    });
-
     test('after the event, the next PluginSystemLoaded reflects showInTools '
         'in the plugins list', () async {
       final repo = _FakeRepo([

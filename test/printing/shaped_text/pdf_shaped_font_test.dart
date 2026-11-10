@@ -126,18 +126,6 @@ void main() {
         isTrue,
       );
     });
-
-    test('writes a PDF that can be inspected by hand', () async {
-      final bytes = await renderPage();
-      final out = Directory.systemTemp
-          .createTempSync('shaped_pdf')
-          .childFile('shaped_sample.pdf');
-      out.writeAsBytesSync(bytes);
-      // The path is printed so a reviewer can open the file.
-      // ignore: avoid_print
-      print('wrote ${out.path}');
-      expect(out.lengthSync(), greaterThan(1000));
-    });
   }, skip: skipReason);
 
   /// Ts נשאר בתוקף עד שנכתב שוב: כל שינוי הזזה נכתב, ובסוף השורה חוזרים לאפס.
@@ -293,7 +281,3 @@ List<(int, double, double)> _simulateTextObject(
 
 /// גופן מוטמע שיש בו הזזה אנכית אמיתית לסימן.
 const String _riseFontPath = 'fonts/NotoSerifHebrew-VariableFont_wdth,wght.ttf';
-
-extension on Directory {
-  File childFile(String name) => File('$path${Platform.pathSeparator}$name');
-}

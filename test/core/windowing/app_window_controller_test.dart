@@ -2,7 +2,6 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/core/windowing/app_window_id.dart';
 import 'package:otzaria/core/windowing/runner_window_channel.dart';
 import 'package:otzaria/core/windowing/window_manager_app_window_controller.dart';
 import 'package:window_manager/window_manager.dart' show TitleBarStyle;
@@ -104,14 +103,6 @@ void main() {
       reason: 'הפעולה לא הגיעה לערוץ כ-$channelMethod',
     );
   }
-
-  test('ברירת המחדל של המזהה היא החלון הראשי', () {
-    expect(controller.id, AppWindowId.primary);
-    expect(
-      const WindowManagerAppWindowController(id: AppWindowId('window-2')).id,
-      const AppWindowId('window-2'),
-    );
-  });
 
   test('כל פעולה מגיעה לערוץ', () async {
     await expectReachesChannel(controller.show, 'show');

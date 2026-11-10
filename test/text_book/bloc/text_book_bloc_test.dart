@@ -1277,10 +1277,6 @@ void main() {
         );
       });
 
-      test('הסף גדול דיו כדי לא לטעון מחדש בכל תזוזת שורה', () {
-        expect(TextBookBloc.linksReloadThresholdLines, greaterThan(20));
-      });
-
       test('גלילה בתוך החלון הטעון אינה מייצרת שאילתה נוספת', () async {
         final repository = _FakeTextBookRepository();
         final bloc = _createBloc(

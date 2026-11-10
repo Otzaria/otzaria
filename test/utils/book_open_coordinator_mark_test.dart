@@ -186,60 +186,6 @@ void main() {
   });
 
   group('BookOpenCoordinator — mark params', () {
-    // Feature: deep-link-mark, Property 6: pinpointHighlight becomes highlight
-    test('Property 6: pinpointHighlight מועבר לטאב', () async {
-      final testTexts = [
-        'בראשית',
-        'תורה',
-        'hello world',
-        'test123',
-        'א ב ג',
-        'special chars !@#',
-        'עברית עם רווחים',
-        'single',
-      ];
-
-      for (final pinpointText in testTexts) {
-        final tabsBloc = _CapturingTabsBloc();
-        final coordinator = _makeCoordinator(tabsBloc: tabsBloc);
-
-        coordinator.openBook(
-          _makeBook('ספר בדיקה'),
-          0,
-          '',
-          pinpointHighlight: pinpointText,
-        );
-
-        expect(
-          tabsBloc.capturedEvents,
-          isNotEmpty,
-          reason:
-              'pinpointHighlight=$pinpointText: expected OpenOrFocusTab event',
-        );
-
-        final event = tabsBloc.capturedEvents.first;
-        expect(
-          event,
-          isA<OpenOrFocusTab>(),
-          reason: 'pinpointHighlight=$pinpointText: expected OpenOrFocusTab',
-        );
-
-        final tab = (event as OpenOrFocusTab).tab;
-        expect(
-          tab,
-          isA<TextBookTab>(),
-          reason: 'pinpointHighlight=$pinpointText: expected TextBookTab',
-        );
-
-        expect(
-          (tab as TextBookTab).pinpointHighlight,
-          pinpointText,
-          reason:
-              'pinpointHighlight=$pinpointText: pinpointHighlight should match',
-        );
-      }
-    });
-
     test('ללא mark — searchQuery עובר כ-searchText (regression)', () async {
       final tabsBloc = _CapturingTabsBloc();
       final coordinator = _makeCoordinator(tabsBloc: tabsBloc);

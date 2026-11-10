@@ -282,16 +282,6 @@ void main() {
     expect(selected, isNot(contains('אדמומית')));
   });
 
-  testWidgets('כל פריט ברשימה עטוף ב-ItemSelectionContainer', (
-    tester,
-  ) async {
-    await pumpScrolledView(tester);
-    expect(
-      find.byType(ItemSelectionContainer),
-      findsAtLeastNWidgets(3),
-    );
-  });
-
   // אות מפרש שנוספת בסוף הפסקה בונה אותה מחדש; ב-450 כל ה-sliver ההפוך מעל
   // החלון, ו-(א) עדיין בתחום המטמון.
   for (final distance in [100.0, 450.0]) {

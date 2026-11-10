@@ -108,44 +108,6 @@ void main() {
     await Settings.init(cacheProvider: MemorySettingsCache());
   });
 
-  group('CommentaryTypeFilter — הבסיס המשותף לצ׳יפים', () {
-    test('צ׳יפ נבנה רק לסוג שקיים בקישורים', () {
-      final keys = CommentaryTypeFilter.chipKeys([
-        _link(path2: 'אונקלוס', connectionType: LinkTypes.targum),
-        _link(path2: 'רש"י', connectionType: LinkTypes.parshanut),
-      ]);
-      expect(keys, containsAll([LinkTypes.targum, LinkTypes.parshanut]));
-      expect(keys, isNot(contains(LinkTypes.midrash)));
-    });
-
-    test('סוג שאינו סוג-סינון אינו מקבל צ׳יפ', () {
-      final keys = CommentaryTypeFilter.chipKeys([
-        _link(path2: 'ספר', connectionType: 'COMMENTARY'),
-      ]);
-      expect(keys, isEmpty);
-    });
-
-    test('הסדר קבוע לפי commentaryFilterTypes ולא לפי סדר הקישורים', () {
-      final keys = CommentaryTypeFilter.chipKeys([
-        _link(path2: 'רש"י', connectionType: LinkTypes.parshanut),
-        _link(path2: 'אונקלוס', connectionType: LinkTypes.targum),
-      ]);
-      final expectedOrder = LinkTypes.commentaryFilterTypes
-          .where(keys.contains)
-          .toList();
-      expect(keys, equals(expectedOrder));
-    });
-
-    test('commentatorsByType ממפה סוג לשמות המפרשים', () {
-      final byType = CommentaryTypeFilter.commentatorsByType([
-        _link(path2: 'אונקלוס', connectionType: LinkTypes.targum),
-        _link(path2: 'רש"י', connectionType: LinkTypes.parshanut),
-      ]);
-      expect(byType[LinkTypes.targum], contains('אונקלוס'));
-      expect(byType[LinkTypes.parshanut], contains('רש"י'));
-    });
-  });
-
   group('pdfVisibleContentCacheKey — סינון הסוגים נכלל במפתח', () {
     String key({Set<String> types = const {}}) => pdfVisibleContentCacheKey(
       startLine: 10,

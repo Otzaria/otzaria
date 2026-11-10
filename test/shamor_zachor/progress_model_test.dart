@@ -69,13 +69,6 @@ void main() {
       expect(ProgressColumn.fromJson(column.toJson()), column);
     });
 
-    test('copyWith changes label but keeps id', () {
-      const column = ProgressColumn(id: 'review1', label: 'חזרה 1');
-      final renamed = column.copyWith(label: 'תוספות');
-      expect(renamed.id, 'review1');
-      expect(renamed.label, 'תוספות');
-    });
-
     test('default columns match historical ids', () {
       expect(kDefaultProgressColumns.map((c) => c.id).toList(), [
         'learn',

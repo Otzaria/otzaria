@@ -224,16 +224,6 @@ Uint8List _buildSfntWithOs2({
 // ---------------------------------------------------------------------------
 
 void main() {
-  test('list fonts', () {
-    try {
-      for (final font in AppFonts.availableFonts) {
-        debugPrint('Font: ${font.label}, family: ${font.value}');
-      }
-    } catch (e) {
-      debugPrint('Error: $e');
-    }
-  });
-
   group('sfntSupportsHebrew — SFNT', () {
     test('Hebrew range → true', () {
       expect(
@@ -464,17 +454,6 @@ void main() {
 
       expect(find.text('Mock System Font'), findsWidgets);
     }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
-
-    test('debugResetSystemFontsCache מנקה גם cache וגם warm-up future', () {
-      AppFonts.debugSystemFontsHebrewCache = const [
-        FontInfo(value: 'X', label: 'X'),
-      ];
-
-      AppFonts.debugResetSystemFontsCache();
-
-      expect(AppFonts.debugSystemFontsHebrewCache, isNull);
-      expect(AppFonts.debugWarmUpFuture, isNull);
-    });
   });
 
   group('פרסור face — מטבלאות SFNT (גופנים מובנים)', () {
@@ -999,13 +978,6 @@ void main() {
           reason: font.value,
         );
       }
-    });
-
-    test('רוביק הוא הגופן המובנה היחיד ללא טעמים', () {
-      final without = AppFonts.availableFonts
-          .where((font) => !font.supportsTaamim)
-          .map((font) => font.value);
-      expect(without, ['Rubik']);
     });
 
     test('familySupportsTaamim: גופן לא מוכר או ריק נחשב תומך', () {

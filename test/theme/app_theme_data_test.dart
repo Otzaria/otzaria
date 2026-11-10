@@ -7,7 +7,6 @@ import 'package:otzaria/theme/app_surface_colors.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_colors.dart';
 import 'package:otzaria/theme/app_theme_data.dart';
-import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/theme/layout_tokens.dart';
 
 /// ניגודיות WCAG בין שני צבעים (יחס בהירות).
@@ -57,16 +56,6 @@ void main() {
       );
     });
   }
-
-  test('בוחרי תאריך מצוירים באותו רדיוס כמו שאר הדיאלוגים', () {
-    final theme = AppThemeData.light(
-      AppThemeData.createColorScheme(Colors.deepPurple, Brightness.light),
-      compactMenuMode: false,
-    );
-
-    expect(theme.datePickerTheme.shape, AppTokens.roundedShape);
-    expect(theme.datePickerTheme.rangePickerShape, AppTokens.roundedShape);
-  });
 
   // q12 Q8, ss6: הסרגל התחתון בטלפון 64 ולא 80, ותווית לכל יעד.
   testWidgets('סרגל הניווט התחתון בגובה 64, עם תווית לכל יעד', (

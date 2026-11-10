@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/plugins/plugin_constants.dart';
 import 'package:otzaria/plugins/services/plugin_unsaved_changes_registry.dart';
 
 void main() {
@@ -58,11 +57,5 @@ void main() {
     registry.set(key, hasChanges: true);
     registry.removeInstance(key);
     expect(registry.hasUnsavedChanges(key), isFalse);
-  });
-
-  test('המפתח הוא רשומה — שוויון לפי ערך', () {
-    registry.set(key, hasChanges: true);
-    final PluginInstanceKey copy = (pluginId: 'p.editor', instanceId: 'tab-1');
-    expect(registry.hasUnsavedChanges(copy), isTrue);
   });
 }

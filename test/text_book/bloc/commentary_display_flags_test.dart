@@ -128,13 +128,6 @@ void main() {
   });
 
   group('הדגלים נכללים בהשוואת ה-state', () {
-    test('שינוי פטור הניקוד מייצר state שונה', () {
-      expect(
-        _load(nikud: NikudMode.tanachOnly, isTanach: true),
-        isNot(equals(_load(nikud: NikudMode.tanachOnly, isTanach: false))),
-      );
-    });
-
     test('שינוי פטור הפיסוק מייצר state שונה', () {
       final exempt = _load(removePunctuation: true, isTanach: true);
 

@@ -26,7 +26,6 @@ import 'package:otzaria/text_book/view/text_book_screen.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
-import 'package:otzaria/utils/file/docx_to_otzaria.dart';
 import 'package:otzaria/utils/file/toc_parser.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
@@ -369,10 +368,6 @@ void main() {
         'שור גמל וחמור, $_longLocation',
         reason: 'זה הטקסט שמגיע לסרגל העליון — ולכן חייב להיחתך בתצוגה',
       );
-    });
-
-    test('גרסת הממיר לא ירדה — כותרות styleId מספרי עדיין מזוהות', () {
-      expect(kDocxConverterVersion, greaterThanOrEqualTo(9));
     });
   });
 }

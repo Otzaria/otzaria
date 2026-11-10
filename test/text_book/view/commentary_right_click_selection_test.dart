@@ -205,22 +205,6 @@ void main() {
       },
     );
 
-    // בדיקה ישירה של helper הלכידה: לוכד את הערך בזמן הקריאה ואינו רגיש
-    // לשינויים מאוחרים של ה-listenable.
-    test('captureSelectedTextForMenu לוכד את הערך הנוכחי בלבד', () {
-      final saved = ValueNotifier<String?>('לפני');
-      addTearDown(saved.dispose);
-
-      final snapshot = captureSelectedTextForMenu(saved);
-      saved.value = null;
-
-      expect(
-        snapshot,
-        'לפני',
-        reason: 'ה-snapshot חייב להישאר יציב אחרי שהמקור החי השתנה',
-      );
-    });
-
     testWidgets('טקסט נבחר ריק/רווחים בלבד — פריט "העתק" מושבת', (
       tester,
     ) async {

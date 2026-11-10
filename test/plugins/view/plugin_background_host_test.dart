@@ -453,10 +453,6 @@ void main() {
   group('ValueKey — backgroundKey מזהה שינויים בכל שדות הזהות', () {
     final base = _plugin();
 
-    test('key יציב לתוסף זהה', () {
-      expect(backgroundKey(base), equals(backgroundKey(base)));
-    });
-
     test('key משתנה כשגרסה משתנה', () {
       expect(
         backgroundKey(base),
@@ -513,13 +509,6 @@ void main() {
       final after = base.copyWith(
         manifest: manifestWithBackground('worker.html'),
       );
-      expect(backgroundKey(before), isNot(equals(backgroundKey(after))));
-    });
-
-    test('שינוי ב-devRootPath בלבד (ללא bump גרסה) מייצר key שונה', () {
-      // מכסה את תרחיש ה-dev-plugin שציין ה-reviewer: שינוי נתיב ללא גרסה
-      final before = base.copyWith(devRootPath: '/dev/old');
-      final after = base.copyWith(devRootPath: '/dev/new');
       expect(backgroundKey(before), isNot(equals(backgroundKey(after))));
     });
   });

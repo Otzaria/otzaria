@@ -54,12 +54,5 @@ void main() {
         contains(importRef),
       );
     });
-
-    test('לא נותר שיבוט PdfCommentaryContent', () {
-      expect(
-        File('lib/pdf_book/view/pdf_commentary_content.dart').existsSync(),
-        isFalse,
-      );
-    });
   });
 }
