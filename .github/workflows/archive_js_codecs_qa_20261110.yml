@@ -17,8 +17,8 @@ jobs:
       matrix:
         archive_branch:
           - main
+          - qa/archive-all14-20261110
           - perf/chunked-sink-append-in-place
-          - qa/archive-final-integration-20261110
     name: JS codecs (${{ matrix.archive_branch }})
     steps:
       - uses: actions/checkout@v4
@@ -42,4 +42,7 @@ jobs:
         run: |
           if [ -f test/stream_write_memory_test.dart ]; then
             dart test -p node test/stream_write_memory_test.dart
+          fi
+          if [ -f test/chunked_sink_append_test.dart ]; then
+            dart test -p node test/chunked_sink_append_test.dart
           fi

@@ -17,8 +17,8 @@ jobs:
       fail-fast: false
       matrix:
         archive_branch:
+          - qa/archive-all14-20261110
           - perf/chunked-sink-append-in-place
-          - qa/archive-final-integration-20261110
     steps:
       - name: Checkout archive branch
         uses: actions/checkout@v4

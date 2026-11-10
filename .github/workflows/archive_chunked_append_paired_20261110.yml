@@ -1,8 +1,6 @@
 name: Archive paired ChunkedSink append benchmark
 on:
-  push:
-    branches:
-      - qa/archive-fork-20261110
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:

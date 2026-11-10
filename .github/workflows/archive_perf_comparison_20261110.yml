@@ -1,8 +1,6 @@
 name: Archive performance comparison
 on:
-  push:
-    branches:
-      - qa/archive-fork-20261110
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
