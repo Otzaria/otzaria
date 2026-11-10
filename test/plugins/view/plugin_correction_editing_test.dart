@@ -70,6 +70,14 @@ Future<void> _pumpEditor(
   }
 }
 
+double _textStartX(WidgetTester tester) {
+  final render = tester
+      .state<EditableTextState>(find.byType(EditableText))
+      .renderEditable;
+  final caret = render.getLocalRectForCaret(const TextPosition(offset: 0));
+  return render.localToGlobal(Offset(caret.right, 0)).dx;
+}
+
 EditableText _editor(WidgetTester tester) =>
     tester.widget<EditableText>(find.byType(EditableText));
 
@@ -607,8 +615,10 @@ void main() {
     await _pumpEditor(tester, service, source);
     expect(_editor(tester).controller.text, '  אב  גד  ');
     expect(_renderedSpan(tester).toPlainText(), '  אב  גד  ');
+    // תחילת הטקסט (קצה ימין ב-RTL) צמודה לקצה הפסקה, בלי הזחה מלאכותית.
+    // תיבת העורך עצמה רחבה ב-2 פיקסלים מימין, מקום לסמן.
     expect(
-      tester.getTopRight(find.byType(EditableText)).dx,
+      _textStartX(tester),
       tester.getTopRight(find.byType(PluginCorrectionParagraph)).dx,
     );
     await tester.showKeyboard(find.byType(EditableText));
@@ -621,8 +631,10 @@ void main() {
     await tester.pump();
     expect(_renderedSpan(tester).toPlainText(), '  אם  גד  ');
     expect(service.editableText('tab', 0, source), '   אם  גד   ');
+    // תחילת הטקסט (קצה ימין ב-RTL) צמודה לקצה הפסקה, בלי הזחה מלאכותית.
+    // תיבת העורך עצמה רחבה ב-2 פיקסלים מימין, מקום לסמן.
     expect(
-      tester.getTopRight(find.byType(EditableText)).dx,
+      _textStartX(tester),
       tester.getTopRight(find.byType(PluginCorrectionParagraph)).dx,
     );
     await _finish(tester, service);

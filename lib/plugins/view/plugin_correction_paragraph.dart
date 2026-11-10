@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/plugin_messages.dart';
@@ -355,37 +356,54 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     );
   }
 
+  /// שדה טקסט שומר לסמן [_caretMargin] פיקסלים בקצה השורה (רווח של 1 ועובי
+  /// הסמן של [RtlTextField], 1). בלי פיצוי השורות בעורך צרות מהתצוגה הרגילה,
+  /// ובפסקה ארוכה ומיושרת מילים עוברות שורה והטקסט זז מתחת לעין.
+  static const double _caretMargin = 2.0;
+
+  Widget _matchReadingWidth(Widget editor) => _CaretRoom(child: editor);
+
   Widget _buildEditor() {
     final settings = widget.settings;
+    // הגופן נבחר לפי הטקסט המוצג (בלי ניקוד וטעמים כשהם מוסתרים), כמו בתצוגה
+    // הרגילה, ולא לפי המקור הגולמי: אחרת נבחר גופן אחר והשורות נשברות אחרת.
     final family = AppFonts.taamimSafeFontFamily(
       settings.fontFamily,
-      widget.sourceText,
+      _controller!.text,
     );
-    return RtlTextField(
-      controller: _controller!,
-      focusNode: _focus!,
-      highlightText: settings.searchText,
-      maxLines: null,
-      minLines: 1,
-      textInputAction: TextInputAction.newline,
-      textAlign: settings.justifyText ? TextAlign.justify : TextAlign.right,
-      decoration: const InputDecoration(
-        border: InputBorder.none,
-        isDense: true,
-        contentPadding: EdgeInsets.zero,
-      ),
-      style: TextStyle(
-        fontSize: settings.fontSize,
-        fontFamily: AppFonts.renderFontFamily(family),
-        fontWeight: settings.fontWeight,
-        fontVariations: AppFonts.boldFontVariations(
-          family,
-          settings.fontWeight ?? FontWeight.normal,
+    // שדה טקסט ממזג מתחת לסגנון את bodyLarge של ערכת הנושא (ריווח אותיות 0.5),
+    // והתצוגה הרגילה יורשת את סגנון ברירת המחדל של הקורא. ריווח שונה מזיז כל
+    // מילה ושובר שורות אחרת, ולכן הריווח נלקח במפורש מאותו מקור.
+    final inherited = DefaultTextStyle.of(context).style;
+    return _matchReadingWidth(
+      RtlTextField(
+        controller: _controller!,
+        focusNode: _focus!,
+        highlightText: settings.searchText,
+        maxLines: null,
+        minLines: 1,
+        textInputAction: TextInputAction.newline,
+        textAlign: settings.justifyText ? TextAlign.justify : TextAlign.right,
+        decoration: const InputDecoration(
+          border: InputBorder.none,
+          isDense: true,
+          contentPadding: EdgeInsets.zero,
         ),
-        height: settings.lineHeight,
+        style: TextStyle(
+          fontSize: settings.fontSize,
+          fontFamily: AppFonts.renderFontFamily(family),
+          fontWeight: settings.fontWeight,
+          fontVariations: AppFonts.boldFontVariations(
+            family,
+            settings.fontWeight ?? FontWeight.normal,
+          ),
+          height: settings.lineHeight,
+          letterSpacing: inherited.letterSpacing ?? 0,
+          wordSpacing: inherited.wordSpacing ?? 0,
+        ),
+        inputFormatters: [TextInputFormatter.withFunction(_validate)],
+        onChanged: _applyText,
       ),
-      inputFormatters: [TextInputFormatter.withFunction(_validate)],
-      onChanged: _applyText,
     );
   }
 
@@ -396,5 +414,33 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     _focus?.dispose();
     _activationFocus?.dispose();
     super.dispose();
+  }
+}
+
+/// מניח את העורך ברוחב ההורה ועוד [_PluginCorrectionParagraphState._caretMargin],
+/// וגודלו כלפי ההורה נשאר רוחב ההורה. התוספת חורגת ימינה (הטקסט מצויר מקצה
+/// שמאל), ולכן אזור הטקסט רוחבו בדיוק כמו בתצוגה הרגילה.
+class _CaretRoom extends SingleChildRenderObjectWidget {
+  const _CaretRoom({required super.child});
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderCaretRoom();
+}
+
+class _RenderCaretRoom extends RenderProxyBox {
+  @override
+  void performLayout() {
+    final child = this.child;
+    if (child == null || !constraints.hasBoundedWidth) {
+      super.performLayout();
+      return;
+    }
+    final width =
+        constraints.maxWidth + _PluginCorrectionParagraphState._caretMargin;
+    child.layout(
+      constraints.copyWith(minWidth: width, maxWidth: width),
+      parentUsesSize: true,
+    );
+    size = constraints.constrain(Size(constraints.maxWidth, child.size.height));
   }
 }

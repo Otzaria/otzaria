@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart';
@@ -267,6 +268,88 @@ void main() {
     await tester.pumpAndSettle();
     expect(editor().controller.text, texts[1]);
     await finish(tester, service);
+  });
+
+  testWidgets('העורך שובר שורות בדיוק כמו התצוגה הרגילה ברוחב צמוד', (
+    tester,
+  ) async {
+    // בגופן הבדיקות כל תו ברוחב גודל הגופן; 4 מילים (19 תווים) עם ריווח 0.25 הן
+    // 194.75 פיקסלים: נכנסות ב-196, אבל לא עם ריווח 0.5 או בלי 2 פיקסלי הסמן.
+    final words = List.filled(20, 'אבגד').join(' ');
+    final db = sqlite3.openInMemory();
+    addTearDown(db.close);
+    final service = PluginCorrectionSessionService()
+      ..draftRepository = PluginCorrectionDraftRepository.direct(db);
+    addTearDown(service.dispose);
+    await tester.runAsync(
+      () => service.begin(
+        owner: 'owner',
+        tabId: 'tab',
+        bookId: 'ספר',
+        bookUid: 'id:1',
+        libraryVersion: '1',
+        loadSource: (_) async => words,
+      ),
+    );
+    const settings = RenderSettings(fontSize: 10, lineHeight: 1.5);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Scaffold(
+            body: Align(
+              alignment: Alignment.topRight,
+              child: SizedBox(
+                width: 196,
+                child: PluginCorrectionParagraph(
+                  tabId: 'tab',
+                  sectionIndex: 0,
+                  sourceText: words,
+                  settings: settings,
+                  original: Text(
+                    words,
+                    textAlign: TextAlign.justify,
+                    style: const TextStyle(fontSize: 10, height: 1.5),
+                  ),
+                  service: service,
+                  sessionActive: true,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    final before = tester.getSize(find.byType(PluginCorrectionParagraph));
+    final paragraph = tester.renderObject<RenderParagraph>(find.text(words));
+    // תחילת כל שורה: ההיסט הראשון שבו הסמן יורד לשורה חדשה.
+    List<int> lineStarts(double Function(int) top) {
+      final starts = <int>[0];
+      for (var i = 1; i < words.length; i++) {
+        if (top(i) > top(i - 1) + 1) starts.add(i);
+      }
+      return starts;
+    }
+
+    final originalStarts = lineStarts(
+      (i) => paragraph.getOffsetForCaret(TextPosition(offset: i), Rect.zero).dy,
+    );
+    expect(originalStarts.length, greaterThan(2));
+    await tester.tap(find.text(words));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump();
+    expect(find.byType(EditableText), findsOneWidget);
+    final render = tester
+        .state<EditableTextState>(find.byType(EditableText))
+        .renderEditable;
+    final editorStarts = lineStarts(
+      (i) => render.getLocalRectForCaret(TextPosition(offset: i)).top,
+    );
+    expect(editorStarts, originalStarts);
+    expect(tester.getSize(find.byType(PluginCorrectionParagraph)), before);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
+    await tester.runAsync(() => service.flushAll());
   });
 
   testWidgets('חיפוש מודגש בעורך כמו בפסקה הרגילה', (tester) async {
