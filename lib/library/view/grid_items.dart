@@ -130,22 +130,6 @@ Widget _buildBookIconChild(Book book, ColorScheme cs, double iconSize) {
 
 final _libraryOverflowCache = newTextOverflowCache();
 
-Decoration _libraryTooltipDecoration(BuildContext context) {
-  final cs = Theme.of(context).colorScheme;
-  return BoxDecoration(
-    color: cs.surfaceContainerHigh,
-    borderRadius: AppTokens.borderRadiusAll,
-  );
-}
-
-TextStyle _libraryTooltipTextStyle(BuildContext context) {
-  final theme = Theme.of(context);
-  return (theme.textTheme.bodyMedium ?? const TextStyle()).copyWith(
-    color: theme.colorScheme.onSurface,
-    height: 1.3,
-  );
-}
-
 /// כפתור "פרטים" של פריט ברשת, עם [tooltip] מלא כשיש.
 Widget _libraryInfoButton(
   BuildContext context, {
@@ -179,8 +163,6 @@ Widget _libraryInfoButton(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     margin: const EdgeInsets.all(12),
     constraints: const BoxConstraints(maxWidth: 320),
-    textStyle: _libraryTooltipTextStyle(context),
-    decoration: _libraryTooltipDecoration(context),
     child: button,
   );
 }
@@ -210,11 +192,9 @@ class LibraryOverflowTooltipText extends StatelessWidget {
       preferBelow: false,
       verticalOffset: 18,
       textAlign: TextAlign.right,
-      textStyle: _libraryTooltipTextStyle(context),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       margin: const EdgeInsets.all(12),
       constraints: const BoxConstraints(maxWidth: 260),
-      decoration: _libraryTooltipDecoration(context),
     ),
   );
 }

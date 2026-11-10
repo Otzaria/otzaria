@@ -329,6 +329,33 @@ void main() {
     }
   });
 
+  // q11 B: ה-tooltip של כפתור הפרטים מערכת הנושא, בלי עיצוב מקומי.
+  testWidgets('tooltip כפתור הפרטים בלי decoration וסגנון טקסט מקומיים', (
+    tester,
+  ) async {
+    final category = Category(
+      title: 'תנ״ך',
+      description: 'תורה, נביאים וכתובים',
+      shortDescription: '',
+      order: 0,
+      subCategories: [],
+      books: [],
+      parent: null,
+    );
+    await tester.pumpWidget(buildCategoryTestWidget(category));
+    await tester.pumpAndSettle();
+    final tooltip = tester.widget<Tooltip>(
+      find
+          .ancestor(
+            of: find.byIcon(FluentIcons.info_24_regular),
+            matching: find.byType(Tooltip),
+          )
+          .first,
+    );
+    expect(tooltip.decoration, isNull);
+    expect(tooltip.textStyle, isNull);
+  });
+
   group('מידע קטגוריה', () {
     Category category({
       String shortDescription = '',
