@@ -1730,5 +1730,11 @@
   "חפש בעברית": "Search in Hebrew",
   "העתק פירוש": "Copy the definition",
   "הגדל": "Maximize",
-  "עצור את החיפוש": "Stop the search"
+  "עצור את החיפוש": "Stop the search",
+  "סגור חיפוש": "Close search",
+  "החלונית נעוצה לפי ההגדרות": "The panel is pinned in the settings",
+  "בטל נעיצה": "Unpin",
+  "נעץ את החלונית": "Pin the panel",
+  "הסתר ניווט": "Hide navigation",
+  "הצג ניווט": "Show navigation"
 }

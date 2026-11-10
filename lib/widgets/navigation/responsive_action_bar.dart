@@ -4,6 +4,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 
 /// זהות לוגית של פעולה שיכולה להופיע בשורת הכלים של הקורא.
 ///
@@ -526,7 +527,7 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
         final menuButton = AppPopupMenuButton<ActionButtonData>(
           key: widget.overflowButtonKey,
           iconData: FluentIcons.more_vertical_24_regular,
-          tooltip: 'עוד פעולות',
+          tooltip: context.settingsText('עוד פעולות'),
           position: PopupMenuPosition.under,
           offset: widget.overflowMenuOffset,
           onSelected: (action) {
