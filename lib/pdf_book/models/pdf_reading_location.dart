@@ -39,16 +39,44 @@ class PdfReadingLocation extends Equatable {
 /// היסטוריית קפיצות זמנית של טאב; אינה מחזיקה מסמכים או תמונות.
 class PdfLocationHistory {
   final _locations = <PdfReadingLocation>[];
+  final _forward = <PdfReadingLocation>[];
 
   bool get canGoBack => _locations.isNotEmpty;
+  bool get canGoForward => _forward.isNotEmpty;
   PdfReadingLocation? get last => _locations.lastOrNull;
+  PdfReadingLocation? get next => _forward.lastOrNull;
 
+  /// ניווט חדש: נקודת חזרה, ומסלול הקדימה מתבטל.
   void remember(PdfReadingLocation location) {
-    if (last == location) return;
-    _locations.add(location);
-    if (_locations.length > 50) _locations.removeAt(0);
+    _push(_locations, location);
+    _forward.clear();
   }
 
-  PdfReadingLocation? takePrevious() =>
-      _locations.isEmpty ? null : _locations.removeLast();
+  /// [current] נשמר לחזרה קדימה.
+  PdfReadingLocation? takePrevious([PdfReadingLocation? current]) =>
+      _travel(_locations, _forward, current);
+
+  /// [current] נשמר לחזרה אחורה.
+  PdfReadingLocation? takeNext([PdfReadingLocation? current]) =>
+      _travel(_forward, _locations, current);
+
+  static PdfReadingLocation? _travel(
+    List<PdfReadingLocation> from,
+    List<PdfReadingLocation> to,
+    PdfReadingLocation? current,
+  ) {
+    if (from.isEmpty) return null;
+    final target = from.removeLast();
+    if (current != null && current != target) _push(to, current);
+    return target;
+  }
+
+  static void _push(
+    List<PdfReadingLocation> stack,
+    PdfReadingLocation location,
+  ) {
+    if (stack.lastOrNull == location) return;
+    stack.add(location);
+    if (stack.length > 50) stack.removeAt(0);
+  }
 }

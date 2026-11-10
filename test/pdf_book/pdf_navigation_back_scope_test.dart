@@ -41,7 +41,7 @@ void main() {
       isLoading: false,
     );
     // ignore: invalid_use_of_visible_for_testing_member
-    bloc.emit(loaded.copyWith(canReturnToLocation: true));
+    bloc.emit(loaded.copyWith(locationHistory: (back: 1, forward: null)));
     final tabsBloc = _TabsBloc();
     final states = StreamController<TabsState>();
     whenListen(

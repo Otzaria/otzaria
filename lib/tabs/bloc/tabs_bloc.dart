@@ -1543,7 +1543,12 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
   void _onCloneTab(CloneTab event, Emitter<TabsState> emit) {
     if (event.tab is ToolTab && (event.tab as ToolTab).isPlugin) return;
-    add(AddTab(OpenedTab.from(event.tab), insertAdjacent: true));
+    // כמו בדפדפן: העותק אינו מוצמד, גם כשהמקור מוצמד (issue #4026).
+    final copy = OpenedTab.from(event.tab)..isPinned = false;
+    for (final pane in leafPanes(copy)) {
+      pane.isPinned = false;
+    }
+    add(AddTab(copy, insertAdjacent: true));
   }
 
   Future<void> _onMoveTab(MoveTab event, Emitter<TabsState> emit) async {

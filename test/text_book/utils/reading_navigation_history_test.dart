@@ -34,20 +34,46 @@ void main() {
     );
     await lines.goBack();
     expect(lines.captureAnchor(), initial);
-    expect(lines.canGoBack.value, isFalse);
+    expect(lines.history.value.back, isNull);
   });
+
+  test(
+    'קדימה חוזר למיקום שממנו חזרו, וניווט חדש מבטל אותו (issue #4769)',
+    () async {
+      final lines = LineScrollController(initialAnchor: initial);
+      addTearDown(lines.dispose);
+      await lines.jumpToLine(230);
+      await lines.goBack();
+      expect(lines.captureAnchor(), initial);
+      expect(lines.history.value.forward!.line, 230);
+
+      await lines.goForward();
+      expect(lines.captureAnchor()!.line, 230);
+      expect(lines.history.value, (back: initial, forward: null));
+
+      await lines.goBack();
+      await lines.goForward();
+      await lines.goBack();
+      expect(lines.captureAnchor(), initial);
+      expect(lines.history.value.forward!.line, 230);
+
+      await lines.jumpToLine(400);
+      expect(lines.history.value.forward, isNull);
+      expect(lines.history.value.back, initial);
+    },
+  );
 
   test('גלילה שוטפת אינה מייצרת היסטוריה; גרירת מסילה לוכדת פעם אחת', () async {
     final lines = LineScrollController();
     addTearDown(lines.dispose);
     lines.reportExternalLine(10);
     lines.reportExternalLine(20);
-    expect(lines.canGoBack.value, isFalse);
+    expect(lines.history.value.back, isNull);
     lines.beginUserNavigation();
     lines.reportExternalLine(200);
     await lines.goBack();
     expect(lines.captureAnchor()!.line, 20);
-    expect(lines.canGoBack.value, isFalse);
+    expect(lines.history.value.back, isNull);
   });
 
   test('היסטוריה ממושכת נשארת מוגבלת', () async {
@@ -57,7 +83,7 @@ void main() {
       await lines.jumpToLine(line);
     }
     var count = 0;
-    while (lines.canGoBack.value) {
+    while (lines.history.value.back != null) {
       await lines.goBack();
       count++;
     }
@@ -178,11 +204,55 @@ void main() {
 
       expect(await back(), 200);
       expect(await back(), beforeLink);
-      expect(lines.canGoBack.value, isFalse);
+      expect(lines.history.value.back, isNull);
       await tester.pumpWidget(const SizedBox());
       lines.dispose();
     });
   }
+
+  testWidgets(
+    'קדימה מופיע רק אחרי חזרה, והתיאורים נוקבים ביעד (#3656, #4769)',
+    (
+      tester,
+    ) async {
+      final lines = LineScrollController(initialAnchor: initial);
+      addTearDown(lines.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Center(
+            child: ReaderBackButton(
+              lines: lines,
+              describe: (anchor) => anchor.line == 5 ? 'ביצה ב.' : 'ביצה כג.',
+            ),
+          ),
+        ),
+      );
+      const back = ValueKey('reader-back-location');
+      const forward = ValueKey('reader-forward-location');
+      String tooltip(Key key) =>
+          tester.widget<BarButton>(find.byKey(key)).tooltip;
+
+      expect(tooltip(back), 'חזרה למיקום הקודם');
+      expect(find.byKey(forward), findsNothing);
+
+      await lines.jumpToLine(230);
+      await tester.pump();
+      expect(tooltip(back), 'חזרה אל ביצה ב.');
+      expect(find.byKey(forward), findsNothing);
+
+      await tester.tap(find.byKey(back));
+      await tester.pump();
+      expect(tooltip(forward), 'מעבר קדימה אל ביצה כג.');
+      expect(tooltip(back), 'חזרה למיקום הקודם');
+
+      await tester.tap(find.byKey(forward));
+      await tester.pump();
+      expect(lines.captureAnchor()!.line, 230);
+      expect(find.byKey(forward), findsNothing);
+      expect(tooltip(back), 'חזרה אל ביצה ב.');
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
   testWidgets('כפתור חזרה מופעל אחרי ניווט ומשחזר את העוגן', (tester) async {
     final lines = LineScrollController(initialAnchor: initial);
@@ -194,17 +264,29 @@ void main() {
         ),
       ),
     );
-    expect(tester.widget<BarButton>(find.byType(BarButton)).onPressed, isNull);
+    expect(
+      tester
+          .widget<BarButton>(find.byKey(const ValueKey('reader-back-location')))
+          .onPressed,
+      isNull,
+    );
     await lines.jumpToLine(500);
     await tester.pump();
     expect(
-      tester.widget<BarButton>(find.byType(BarButton)).onPressed,
+      tester
+          .widget<BarButton>(find.byKey(const ValueKey('reader-back-location')))
+          .onPressed,
       isNotNull,
     );
-    await tester.tap(find.byType(BarButton));
+    await tester.tap(find.byKey(const ValueKey('reader-back-location')));
     await tester.pump();
     expect(lines.captureAnchor(), initial);
-    expect(tester.widget<BarButton>(find.byType(BarButton)).onPressed, isNull);
+    expect(
+      tester
+          .widget<BarButton>(find.byKey(const ValueKey('reader-back-location')))
+          .onPressed,
+      isNull,
+    );
     await tester.pumpWidget(const SizedBox());
   });
 }

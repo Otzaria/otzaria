@@ -75,6 +75,43 @@ void main() {
       await _closeBlocAndAllowDeferredDispose(bloc);
     });
 
+    test('שכפול כרטיסייה מוצמדת יוצר עותק לא מוצמד (issue #4026)', () async {
+      final bloc = _newBloc(_FakeTabsRepository());
+      final text = _createTextTab('ספר טקסט')..isPinned = true;
+      final pdf = PdfBookTab(
+        book: PdfBook(title: 'ספר PDF', path: '/book.pdf'),
+        pageNumber: 3,
+        isPinned: true,
+      );
+      final combined = CombinedTab(
+        rightTab: _createTextTab('ימין')..isPinned = true,
+        leftTab: _createTextTab('שמאל'),
+      )..isPinned = true;
+
+      for (final source in [text, pdf, combined]) {
+        bloc.add(AddTab(source));
+        await bloc.stream.firstWhere((s) => s.tabs.contains(source));
+        final count = bloc.state.tabs.length;
+        bloc.add(CloneTab(source));
+        await bloc.stream.firstWhere((s) => s.tabs.length == count + 1);
+        final copy = bloc.state.tabs[bloc.state.tabs.indexOf(source) + 1];
+        expect(copy, isNot(same(source)));
+        expect(copy.runtimeType, source.runtimeType);
+        expect(
+          leafPanes(copy).map((pane) => pane.isPinned),
+          everyElement(false),
+        );
+        expect(copy.isPinned, isFalse);
+        expect(source.isPinned, isTrue);
+      }
+      expect(
+        (bloc.state.tabs.whereType<PdfBookTab>().last).pageNumber,
+        3,
+      );
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
     test('פירוק תצוגה מפוצלת מחזיר את אותן חלוניות לרשימה', () async {
       final bloc = _newBloc(_FakeTabsRepository());
       final rightTab = _createTextTab('ספר א', categoryId: 1);

@@ -1048,6 +1048,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         AppTopBarItem(
           widget: ReaderBackButton(
             lines: widget.tab.lines,
+            describe: (anchor) =>
+                refFromTocList(anchor.line, state.tableOfContents),
             compact: AppDensity.of(context).isCompact,
           ),
         ),

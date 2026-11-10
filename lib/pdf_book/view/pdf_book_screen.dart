@@ -130,6 +130,8 @@ import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/pdf_book/utils/pdf_shortcut_bindings.dart';
 import 'package:otzaria/pdf_book/models/pdf_reading_location.dart';
+import 'package:otzaria/text_book/view/widgets/reader_back_button.dart'
+    show historyTooltip;
 import 'package:otzaria/pdf_book/view/widgets/pdf_navigation_back_scope.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/utils/link_helpers.dart';
@@ -2155,16 +2157,21 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               return KeyEventResult.handled;
             }
             if (event is KeyDownEvent) _pdfTextSelectionActions.cancel();
-            if ((event is KeyDownEvent || event is KeyRepeatEvent) &&
-                ShortcutHelper.matchesShortcut(
-                  event,
-                  ShortcutValidator.getShortcutValue(
-                        ShortcutValidator.previousPdfLocationKey,
-                      ) ??
-                      '',
-                )) {
-              if (event is KeyDownEvent) _returnToPreviousLocation();
-              return KeyEventResult.handled;
+            for (final (key, travel) in [
+              (
+                ShortcutValidator.previousPdfLocationKey,
+                _returnToPreviousLocation,
+              ),
+              (ShortcutValidator.nextPdfLocationKey, _goForwardLocation),
+            ]) {
+              if ((event is KeyDownEvent || event is KeyRepeatEvent) &&
+                  ShortcutHelper.matchesShortcut(
+                    event,
+                    ShortcutValidator.getShortcutValue(key) ?? '',
+                  )) {
+                if (event is KeyDownEvent) travel();
+                return KeyEventResult.handled;
+              }
             }
             if (event is KeyDownEvent) {
               final printShortcut =
@@ -4671,21 +4678,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                         ),
                       ),
                     ),
-                  AppTopBarItem(
-                    widget: BlocSelector<PdfBookBloc, PdfBookState, bool>(
-                      bloc: _bloc,
-                      selector: (state) =>
-                          state is PdfBookLoaded && state.canReturnToLocation,
-                      builder: (context, available) => BarButton.icon(
-                        key: const ValueKey('pdf-back-location'),
-                        tooltip: context.settingsText('חזרה למיקום הקודם'),
-                        icon: FluentIcons.arrow_left_24_regular,
-                        flipInRtl: true,
-                        compact: AppDensity.of(context).isCompact,
-                        onPressed: available ? _returnToPreviousLocation : null,
-                      ),
-                    ),
-                  ),
+                  AppTopBarItem(widget: _buildHistoryButtons()),
                 ],
                 center: _buildPdfCenter(context),
                 trailingItems: [
@@ -5257,6 +5250,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         resetZoom: _resetZoom,
         fitView: _toggleFitMode,
         previousLocation: _returnToPreviousLocation,
+        nextLocation: _goForwardLocation,
         nextMatch: () => _navigateSearchMatch(forward: true),
         previousMatch: () => _navigateSearchMatch(forward: false),
       );
@@ -5295,13 +5289,81 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     unawaited(searcher.goToMatchOfIndex(index));
   }
 
-  void _returnToPreviousLocation() {
-    final location = widget.tab.navigationHistory.last;
+  void _returnToPreviousLocation() => _travelToLocation(
+    widget.tab.navigationHistory.last,
+    pdf_events.ReturnToPreviousPdfLocation.new,
+  );
+
+  void _goForwardLocation() => _travelToLocation(
+    widget.tab.navigationHistory.next,
+    pdf_events.GoForwardPdfLocation.new,
+  );
+
+  void _travelToLocation(
+    PdfReadingLocation? location,
+    pdf_events.PdfBookEvent Function(PdfReadingLocation? current) event,
+  ) {
     if (location == null || _isPageTurnInProgress) return;
     _pendingPageTurns.clear();
     _lastInitiatedTargetPage = location.pageNumber;
     _lockedSpreadStartPage = _spreadStartPageFor(location.pageNumber);
-    _bloc.add(const pdf_events.ReturnToPreviousPdfLocation());
+    _bloc.add(
+      event(PdfReadingLocation.capture(widget.tab.pdfViewerController)),
+    );
+  }
+
+  Widget _buildHistoryButtons() =>
+      BlocSelector<PdfBookBloc, PdfBookState, ({int? back, int? forward})>(
+        bloc: _bloc,
+        selector: (state) => state is PdfBookLoaded
+            ? state.locationHistory
+            : (back: null, forward: null),
+        builder: (context, history) {
+          final compact = AppDensity.of(context).isCompact;
+          final back = history.back;
+          final forward = history.forward;
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              BarButton.icon(
+                key: const ValueKey('pdf-back-location'),
+                tooltip: historyTooltip(
+                  context,
+                  back == null ? '' : _describePage(context, back),
+                  'חזרה למיקום הקודם',
+                  'חזרה אל {place}',
+                ),
+                icon: FluentIcons.arrow_left_24_regular,
+                compact: compact,
+                onPressed: back != null ? _returnToPreviousLocation : null,
+              ),
+              if (forward != null)
+                BarButton.icon(
+                  key: const ValueKey('pdf-forward-location'),
+                  tooltip: historyTooltip(
+                    context,
+                    _describePage(context, forward),
+                    'מעבר קדימה',
+                    'מעבר קדימה אל {place}',
+                  ),
+                  icon: FluentIcons.arrow_right_24_regular,
+                  compact: compact,
+                  onPressed: _goForwardLocation,
+                ),
+            ],
+          );
+        },
+      );
+
+  String _describePage(BuildContext context, int page) {
+    final heading = referenceFromPageNumber(
+      page,
+      widget.tab.outline.value ?? const <PdfOutlineNode>[],
+      widget.tab.book.title,
+    );
+    return heading.isNotEmpty
+        ? heading
+        : context.settingsText('עמוד {page}', args: {'page': page});
   }
 
   void _zoomIn() {

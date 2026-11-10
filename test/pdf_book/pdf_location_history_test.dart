@@ -49,6 +49,32 @@ void main() {
   });
 
   test(
+    'חזרה שומרת את המיקום שנעזב לקדימה; ניווט חדש מבטל אותו (issue #4769)',
+    () {
+      PdfReadingLocation at(int page) => PdfReadingLocation(
+        pageNumber: page,
+        pageOffset: Offset.zero,
+        zoom: 1,
+      );
+      final history = PdfLocationHistory()..remember(at(2));
+      expect(history.canGoForward, isFalse);
+
+      // ב-כג חוזרים ל-ב, ומשם קדימה ל-כג ושוב אחורה.
+      expect(history.takePrevious(at(23))!.pageNumber, 2);
+      expect(history.next!.pageNumber, 23);
+      expect(history.takeNext(at(2))!.pageNumber, 23);
+      expect(history.last!.pageNumber, 2);
+      expect(history.canGoForward, isFalse);
+      expect(history.takePrevious(at(23))!.pageNumber, 2);
+      expect(history.canGoForward, isTrue);
+
+      history.remember(at(2));
+      expect(history.canGoForward, isFalse);
+      expect(history.takeNext(at(40)), isNull);
+    },
+  );
+
+  test(
     'זכירה ושחזור מתבצעים דרך אירועים מפורשים',
     () async {
       final tab = PdfBookTab(
@@ -80,7 +106,12 @@ void main() {
       await remembered;
       expect((bloc.state as PdfBookLoaded).canReturnToLocation, isTrue);
       final returned = bloc.stream.first;
-      bloc.add(const ReturnToPreviousPdfLocation());
+      const left = PdfReadingLocation(
+        pageNumber: 1,
+        pageOffset: Offset.zero,
+        zoom: 1,
+      );
+      bloc.add(const ReturnToPreviousPdfLocation(left));
       await returned;
       await pumpEventQueue();
       expect(controller.lastCenter, const Offset(225, 1080));
@@ -88,6 +119,17 @@ void main() {
       expect(controller.lastDuration, Duration.zero);
       expect(tab.navigationHistory.canGoBack, isFalse);
       expect((bloc.state as PdfBookLoaded).canReturnToLocation, isFalse);
+      expect((bloc.state as PdfBookLoaded).locationHistory.forward, 1);
+
+      final forwarded = bloc.stream.first;
+      bloc.add(GoForwardPdfLocation(saved));
+      await forwarded;
+      await pumpEventQueue();
+      expect(controller.lastZoom, 1);
+      expect((bloc.state as PdfBookLoaded).locationHistory, (
+        back: 2,
+        forward: null,
+      ));
     },
   );
 }

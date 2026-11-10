@@ -2342,7 +2342,7 @@ void main() {
 
           expect(await back(), 100);
           expect(await back(), 0);
-          expect(tab.lines.canGoBack.value, isFalse);
+          expect(tab.lines.history.value.back, isNull);
         });
       }
     }

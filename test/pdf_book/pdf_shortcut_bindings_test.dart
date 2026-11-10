@@ -61,12 +61,33 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.f7);
     expect(backs, 2);
   });
+
+  testWidgets('Alt+Right מתקדם למיקום הבא בלי להפעיל חזרה (issue #4769)', (
+    tester,
+  ) async {
+    var backs = 0;
+    var forwards = 0;
+    await tester.pumpWidget(
+      _scope(
+        onFit: () {},
+        onBack: () => backs++,
+        onForward: () => forwards++,
+      ),
+    );
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    expect(forwards, 1);
+    expect(backs, 0);
+  });
 }
 
 Widget _scope({
   required VoidCallback onFit,
   VoidCallback? onReset,
   VoidCallback? onBack,
+  VoidCallback? onForward,
 }) => Directionality(
   textDirection: TextDirection.rtl,
   child: CallbackShortcuts(
@@ -76,6 +97,7 @@ Widget _scope({
       resetZoom: onReset ?? () {},
       fitView: onFit,
       previousLocation: onBack ?? () {},
+      nextLocation: onForward ?? () {},
       nextMatch: () {},
       previousMatch: () {},
     ),
