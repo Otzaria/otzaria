@@ -54,17 +54,28 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
     _remoteChanges = _repository.remoteChanges.listen((_) {
       if (!isClosed) add(LoadWorkspaces());
     });
-    on<LoadWorkspaces>(_onLoadWorkspaces, transformer: sequential());
-    on<AddWorkspace>(_onAddWorkspace, transformer: sequential());
-    on<RemoveWorkspace>(_onRemoveWorkspace, transformer: sequential());
-    on<SwitchToWorkspace>(_onSwitchToWorkspace, transformer: sequential());
-    on<RenameWorkspace>(_onRenameWorkspace, transformer: sequential());
-    on<UpdateCurrentWorkspaceTabs>(
-      _onUpdateCurrentWorkspaceTabs,
-      transformer: sequential(),
-    );
-    on<MoveTabsToWorkspace>(_onMoveTabsToWorkspace, transformer: sequential());
-    on<SetWorkspacePinned>(_onSetWorkspacePinned, transformer: sequential());
+    // A sequential transformer is scoped to a single on<Event> handler.
+    // Use one handler for all workspace operations so loading, switching,
+    // tab snapshots and writes cannot race with another workspace event.
+    on<WorkspaceEvent>((event, emit) async {
+      if (event is LoadWorkspaces) {
+        await _onLoadWorkspaces(event, emit);
+      } else if (event is AddWorkspace) {
+        await _onAddWorkspace(event, emit);
+      } else if (event is RemoveWorkspace) {
+        await _onRemoveWorkspace(event, emit);
+      } else if (event is SwitchToWorkspace) {
+        await _onSwitchToWorkspace(event, emit);
+      } else if (event is RenameWorkspace) {
+        await _onRenameWorkspace(event, emit);
+      } else if (event is UpdateCurrentWorkspaceTabs) {
+        await _onUpdateCurrentWorkspaceTabs(event, emit);
+      } else if (event is MoveTabsToWorkspace) {
+        await _onMoveTabsToWorkspace(event, emit);
+      } else if (event is SetWorkspacePinned) {
+        await _onSetWorkspacePinned(event, emit);
+      }
+    }, transformer: sequential());
   }
 
   /// שולחן שחלון אחר עומד עליו: שני חלונות דורסים זה לזה את ה-stash, ולכן
