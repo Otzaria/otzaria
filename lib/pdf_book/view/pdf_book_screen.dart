@@ -1884,6 +1884,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         ),
       ),
       // קישורים מצוירים על הקנבס: ווידג'ט לכל קישור נבנה מחדש בכל פריים גלילה.
+      matchTextColor: AppSurfaces.pdfSearchHit(Theme.of(context).colorScheme),
+      activeMatchTextColor: AppSurfaces.pdfSearchHitCurrent(
+        Theme.of(context).colorScheme,
+      ),
       linkHandlerParams: PdfLinkHandlerParams(
         onLinkTap: _onPdfLinkTap,
         linkColor: Colors.transparent,
