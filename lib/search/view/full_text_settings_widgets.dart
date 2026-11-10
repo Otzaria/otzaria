@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -33,7 +35,41 @@ class FuzzyDistance extends StatefulWidget {
 }
 
 class _FuzzyDistanceState extends State<FuzzyDistance> {
+  static const _searchDebounce = Duration(milliseconds: 250);
+
   final FocusNode _focusNode = FocusNode();
+  Timer? _pendingSearchTimer;
+
+  void _queueSearchChange({
+    required SearchEvent searchEvent,
+    required SearchEvent silentEvent,
+    required bool unchanged,
+  }) {
+    final bloc = context.read<SearchBloc>();
+    _pendingSearchTimer?.cancel();
+
+    // Keep the existing immediate state-only behavior for consumers that
+    // explicitly suppress searches (e.g. the query settings tests).
+    if (!widget.triggerSearch) {
+      bloc.add(silentEvent);
+      return;
+    }
+    if (unchanged) return;
+
+    final configuration = bloc.state.configuration;
+    final query = bloc.state.searchQuery;
+    _pendingSearchTimer = Timer(_searchDebounce, () {
+      _pendingSearchTimer = null;
+      if (!mounted || bloc.isClosed) return;
+      // Do not replay stale options after the user has changed search mode,
+      // another search option, or the query while editing the number.
+      if (bloc.state.configuration != configuration ||
+          bloc.state.searchQuery != query) {
+        return;
+      }
+      bloc.add(searchEvent);
+    });
+  }
 
   @override
   void initState() {
@@ -44,7 +80,21 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
   }
 
   @override
+  void didUpdateWidget(covariant FuzzyDistance oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.tab, widget.tab)) {
+      oldWidget.tab.spacingValuesChanged.removeListener(_onSpacingChanged);
+      widget.tab.spacingValuesChanged.addListener(_onSpacingChanged);
+      _pendingSearchTimer?.cancel();
+    }
+    if (oldWidget.triggerSearch && !widget.triggerSearch) {
+      _pendingSearchTimer?.cancel();
+    }
+  }
+
+  @override
   void dispose() {
+    _pendingSearchTimer?.cancel();
     widget.tab.spacingValuesChanged.removeListener(_onSpacingChanged);
     _focusNode.removeListener(_onFocusChanged);
     _focusNode.dispose();
@@ -52,6 +102,7 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
   }
 
   void _onSpacingChanged() {
+    _pendingSearchTimer?.cancel();
     setState(() {
       // עדכון התצוגה כשמשתמש משנה מרווחים
     });
@@ -139,10 +190,10 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
               max: isFuzzy ? kMaxFuzzyDistance.toDouble() : 30,
               value: state.distance.toDouble(),
               onChanged: isEnabled
-                  ? (value) => context.read<SearchBloc>().add(
-                      widget.triggerSearch
-                          ? UpdateDistance(value.toInt())
-                          : UpdateDistanceWithoutSearch(value.toInt()),
+                  ? (value) => _queueSearchChange(
+                      searchEvent: UpdateDistance(value.toInt()),
+                      silentEvent: UpdateDistanceWithoutSearch(value.toInt()),
+                      unchanged: value.toInt() == state.distance,
                     )
                   : null,
             ),
@@ -169,13 +220,16 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
               min: 1,
               max: 30,
               value: state.wordMatchCount.toDouble(),
-              onChanged: (value) => context.read<SearchBloc>().add(
-                widget.triggerSearch
-                    ? UpdateWordMatchMode(wordMatchMode, count: value.toInt())
-                    : UpdateWordMatchModeWithoutSearch(
-                        wordMatchMode,
-                        count: value.toInt(),
-                      ),
+              onChanged: (value) => _queueSearchChange(
+                searchEvent: UpdateWordMatchMode(
+                  wordMatchMode,
+                  count: value.toInt(),
+                ),
+                silentEvent: UpdateWordMatchModeWithoutSearch(
+                  wordMatchMode,
+                  count: value.toInt(),
+                ),
+                unchanged: value.toInt() == state.wordMatchCount,
               ),
             ),
           ),
