@@ -24,6 +24,7 @@ import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
+import 'package:otzaria/plugins/utils/plugin_context_menu_entries.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -45,6 +46,7 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/services/parallel_editions_service.dart';
 import 'package:otzaria/library/view/book_versions_dialog.dart';
 import 'package:otzaria/models/book_version.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
@@ -247,6 +249,140 @@ void main() {
       },
     );
   }
+
+  testWidgets('קיצור תפריט הקשר משתמש במסנן ובפעולה של הרישום המוצג', (
+    tester,
+  ) async {
+    const pluginId = 'text.shortcut.book-filters';
+    final registry = ContextMenuRegistry.instance;
+    final dispatcher = PluginRuntimeDispatcher.instance;
+    final controller = _PluginController();
+    final keys = AppWindowKeys(id: const AppWindowId('shortcut-filters'));
+    AppWindowKeys.register(keys);
+    AppWindowKeys.activateWindow(keys.id);
+    dispatcher.repositoryForTesting = _PluginRepository();
+    dispatcher.registerController(
+      pluginId,
+      controller,
+      instanceId: 'live',
+      viewId: tester.view.viewId,
+    );
+    dispatcher.setVisiblePluginInstances({
+      (pluginId: pluginId, instanceId: 'live'),
+    }, viewId: tester.view.viewId);
+    ShortcutValidator.registerPluginShortcuts({
+      'key-shortcut-plugin-book-filters': (
+        pluginId: pluginId,
+        shortcutId: 'book-filters',
+        label: 'פעולה מסוננת',
+        defaultKey: 'ctrl+shift+f12',
+        command: null,
+        contextMenuItemId: 'act',
+      ),
+    });
+    final book = TextBook(title: 'ספר אישי', source: BookSource.user);
+    final bloc = _TestTextBookBloc(_loadedState(book));
+    final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
+    final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
+    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    addTearDown(() async {
+      UiSnack.hide(window: keys);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await bloc.close();
+      await tabsBloc.close();
+      await settingsBloc.close();
+      tab.dispose();
+      ShortcutValidator.registerPluginShortcuts({});
+      registry.removeAll(pluginId);
+      dispatcher.unregisterController(pluginId, instanceId: 'live');
+      dispatcher.resetVisibilityForTesting();
+      dispatcher.repositoryForTesting = PluginRegistryRepository();
+      dispatcher.invalidatePlugin(pluginId);
+      AppWindowKeys.resetForTest();
+    });
+    await _setSurfaceSize(tester, const Size(1600, 900));
+    await _pumpTextBookScreen(
+      tester,
+      tab: tab,
+      textBookBloc: bloc,
+      tabsBloc: tabsBloc,
+      settingsBloc: settingsBloc,
+      focusRepository: focusRepository,
+      shamorZachorDataProvider: shamorZachorDataProvider,
+      shamorZachorProgressProvider: shamorZachorProgressProvider,
+      bookmarkBloc: bookmarkBloc,
+      personalNotesBloc: personalNotesBloc,
+      tourCubit: tourCubit,
+      isInCombinedView: false,
+      windowKeys: keys,
+    );
+    tester
+        .widget<SplitedViewScreen>(find.byType(SplitedViewScreen))
+        .onSelectedTextChanged!('שורה א', 0, 0);
+
+    Future<void> checkShortcut({String? expectedParam}) async {
+      final entries = buildPluginContextMenuEntries(
+        records: registry.getAll(),
+        selection: const {'type': 'text', 'source': 'user', 'text': 'שורה א'},
+      );
+      expect(entries, hasLength(expectedParam == null ? 0 : 1));
+      controller.events.clear();
+      final modifier = Platform.isMacOS
+          ? LogicalKeyboardKey.metaLeft
+          : LogicalKeyboardKey.controlLeft;
+      await tester.sendKeyDownEvent(modifier);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.f12);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyUpEvent(modifier);
+      await tester.pumpAndSettle();
+      final clicks = controller.events.where(
+        (event) => event.contains('contextMenu.itemClicked'),
+      );
+      expect(clicks, hasLength(expectedParam == null ? 0 : 1));
+      if (expectedParam != null) {
+        expect(clicks.single, contains('"param":"$expectedParam"'));
+      }
+      UiSnack.hide(window: keys);
+      await tester.pumpAndSettle();
+    }
+
+    for (final (field, restricted) in [
+      ('bookTypes', ['docx']),
+      ('bookSources', ['library']),
+    ]) {
+      registry.removeAll(pluginId);
+      for (final instanceId in ['plugin', 'live']) {
+        registry.registerPayload(pluginId, {
+          'id': 'menu',
+          'type': 'submenu',
+          'title': 'פעולות',
+          field: restricted,
+          'children': [
+            {'id': 'act', 'title': 'פעולה', 'param': instanceId},
+          ],
+        }, instanceId: instanceId);
+      }
+      registry.update(pluginId, 'menu', {field: []}, instanceId: 'live');
+      await checkShortcut(expectedParam: 'live');
+
+      registry.update(pluginId, 'menu', {field: []});
+      registry.update(pluginId, 'menu', {
+        field: restricted,
+      }, instanceId: 'live');
+      await checkShortcut();
+
+      const hidden = {
+        'when': {
+          'storage': {'key': 'not-set', 'exists': true},
+        },
+      };
+      registry.update(pluginId, 'menu', hidden, instanceId: 'live');
+      await checkShortcut(expectedParam: 'plugin');
+      registry.update(pluginId, 'menu', hidden);
+      await checkShortcut();
+    }
+  });
 
   group('TextBookViewerBloc actions', () {
     testWidgets(

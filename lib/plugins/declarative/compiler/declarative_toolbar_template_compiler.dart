@@ -55,6 +55,8 @@ class DeclarativeToolbarTemplateCompiler {
       'openPlugin',
       'childrenBinding',
       'when',
+      'bookTypes',
+      'bookSources',
     }, 'toolbarItems[$index]');
     final type = json['type'] ?? 'button';
     if (type != 'button' && type != 'menu' && type != 'split') {
@@ -73,6 +75,8 @@ class DeclarativeToolbarTemplateCompiler {
         'placement',
         'order',
         'when',
+        'bookTypes',
+        'bookSources',
       ])
         if (json.containsKey(field)) field: json[field],
       if (type != 'button')

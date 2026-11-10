@@ -82,6 +82,7 @@ import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 import 'package:otzaria/widgets/navigation/book_view_actions.dart';
+import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/plugins/services/plugin_text_reader_registry.dart';
 import 'package:otzaria/plugins/utils/plugin_toolbar_actions.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
@@ -2875,11 +2876,12 @@ Future<void> _dispatchContextMenuShortcut({
 }) async {
   final window = AppWindowKeys.of(context);
   final viewId = View.of(context).viewId;
-  final item = ContextMenuRegistry.instance.findItem(
-    target.pluginId,
-    target.contextMenuItemId ?? '',
-  );
-  if (item == null) return;
+  final registry = ContextMenuRegistry.instance;
+  final itemId = target.contextMenuItemId ?? '';
+  final resolved = registry.findVisibleItem(target.pluginId, itemId);
+  if (resolved == null && registry.findItem(target.pluginId, itemId) == null) {
+    return;
+  }
 
   // נקרא לפני ה-await כדי לא להחזיק BuildContext מעבר לגבול אסינכרוני.
   final textBookBloc = context.read<TextBookBloc>();
@@ -2896,14 +2898,16 @@ Future<void> _dispatchContextMenuShortcut({
   final contextName = state.showPageShapeView
       ? 'reader-page-shape-selection'
       : 'reader-selection';
-  if (!item.contexts.contains(contextName)) {
+  if (resolved == null ||
+      !resolved.item.contexts.contains(contextName) ||
+      !resolved.root.showsForBook(
+        bookType: PluginBookIdentity.typeOf(state.book),
+        bookSource: PluginBookIdentity.sourceOf(state.book),
+      )) {
     UiSnack.showError(PluginMessages.contextMenuActionUnavailableHere);
     return;
   }
-  if (!ContextMenuRegistry.instance.isItemVisible(target.pluginId, item.id)) {
-    UiSnack.showError(PluginMessages.contextMenuActionUnavailableHere);
-    return;
-  }
+  final item = resolved.item;
 
   final selectedLineCount = text.split('\n').length;
   List<String>? fullContentLines;

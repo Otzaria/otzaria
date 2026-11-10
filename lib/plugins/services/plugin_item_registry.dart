@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/plugins/models/plugin_registry_item.dart';
 import 'package:otzaria/plugins/models/plugin_when_condition.dart';
 import 'package:otzaria/plugins/plugin_constants.dart';
@@ -9,6 +10,10 @@ import 'package:otzaria/plugins/services/plugin_condition_evaluator.dart';
 abstract class PluginItemRegistry<T extends PluginRegistryItem>
     extends ChangeNotifier {
   static const int maxTopLevelItemsPerPlugin = 2;
+
+  /// מספר הערכים המרבי ב-`bookTypes`/`bookSources` — מעל מספר הסוגים
+  /// המוכרים, כדי שרשימה מלאה תתקבל.
+  static const int maxBookFilterValues = 32;
 
   PluginItemRegistry({this.evaluator}) {
     evaluator?.addListener(notifyListeners);
@@ -165,6 +170,68 @@ abstract class PluginItemRegistry<T extends PluginRegistryItem>
   bool _treeContains(PluginRegistryItem item, String itemId) =>
       item.id == itemId ||
       item.children.any((child) => _treeContains(child, itemId));
+
+  /// `bookTypes` ו-`bookSources` של פריט — מסננים לפי זהות הספר שהפריט מוצג
+  /// עליו (`PluginBookIdentity.typeOf` / `sourceOf`). רשימה ריקה או חסרה = כל
+  /// ספר (ריקה מאפשרת לבטל מסנן בעדכון). ערך לא מוכר נדחה: שגיאת כתיב הייתה
+  /// מסתירה את הפריט מכל ספר בלי שום הודעה. על פריט עליון בלבד.
+  @protected
+  ({List<String> types, List<String> sources}) parseBookFilters(
+    Map<String, dynamic> json, {
+    required bool isChild,
+  }) => (
+    types: _parseBookFilter(
+      json['bookTypes'],
+      field: 'bookTypes',
+      known: PluginBookIdentity.knownTypes,
+      isChild: isChild,
+    ),
+    sources: _parseBookFilter(
+      json['bookSources'],
+      field: 'bookSources',
+      known: PluginBookIdentity.knownSources,
+      isChild: isChild,
+    ),
+  );
+
+  List<String> _parseBookFilter(
+    Object? raw, {
+    required String field,
+    required Set<String> known,
+    required bool isChild,
+  }) {
+    if (raw == null) return const [];
+    if (isChild) {
+      throw exception(
+        'error.invalid_params',
+        '$field is only allowed on top-level items',
+      );
+    }
+    if (raw is! List || raw.length > maxBookFilterValues) {
+      throw exception(
+        'error.invalid_params',
+        '$field must be a list of at most $maxBookFilterValues values',
+      );
+    }
+    final values = <String>[];
+    for (final value in raw) {
+      final normalized = value is String ? value.trim().toLowerCase() : null;
+      if (normalized == null || !known.contains(normalized)) {
+        throw exception(
+          'error.invalid_params',
+          'unknown value "$value" in $field',
+        );
+      }
+      if (values.contains(normalized)) {
+        throw exception(
+          'error.invalid_params',
+          'duplicate value "$normalized" in $field',
+        );
+      }
+      values.add(normalized);
+    }
+    return List.unmodifiable(values);
+  }
 
   /// contexts של פריט: ברירת מחדל מההורה או מ-[defaults], ופריט ילד מוגבל
   /// להקשרי ההורה.

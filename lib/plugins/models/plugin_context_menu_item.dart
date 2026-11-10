@@ -72,6 +72,15 @@ class PluginContextMenuItem implements PluginRegistryItem {
   /// שעדכון של ההורה יחושב מחדש בילדים שלא קבעו ערך משלהם.
   final bool? declaredRawDivineNames;
 
+  /// סוגי הספרים שהפריט מוצג עליהם (`text`, `pdf`, `docx`…), לפי `type`
+  /// שבזהות הספר של ה-payload. ריק = כל ספר. על פריט עליון בלבד. במפרש זה
+  /// ספר המפרש שנלחץ, לא הספר הראשי (`mainBook`).
+  final List<String> bookTypes;
+
+  /// מקורות הספרים שהפריט מוצג עליהם (`library`, `user`, `attached`,
+  /// `external`). ריק = כל מקור. מצטבר עם [bookTypes] (AND).
+  final List<String> bookSources;
+
   const PluginContextMenuItem({
     required this.id,
     this.type = 'item',
@@ -92,6 +101,8 @@ class PluginContextMenuItem implements PluginRegistryItem {
     this.separatorBefore = true,
     this.declaredRawDivineNames,
     bool? rawDivineNames,
+    this.bookTypes = const [],
+    this.bookSources = const [],
   }) : title = title ?? label,
        rawDivineNames = rawDivineNames ?? declaredRawDivineNames ?? false;
 
@@ -102,6 +113,12 @@ class PluginContextMenuItem implements PluginRegistryItem {
   }
 
   String get label => title ?? '';
+
+  /// האם להציג את הפריט על ספר מסוג [bookType] וממקור [bookSource], לפי
+  /// [bookTypes] ו-[bookSources].
+  bool showsForBook({String? bookType, String? bookSource}) =>
+      bookFilterAllows(bookTypes, bookType) &&
+      bookFilterAllows(bookSources, bookSource);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -126,6 +143,8 @@ class PluginContextMenuItem implements PluginRegistryItem {
     if (!separatorBefore) 'separatorBefore': false,
     if (declaredRawDivineNames != null)
       'rawDivineNames': declaredRawDivineNames,
+    if (bookTypes.isNotEmpty) 'bookTypes': bookTypes,
+    if (bookSources.isNotEmpty) 'bookSources': bookSources,
   };
 }
 

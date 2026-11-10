@@ -33,6 +33,25 @@ class PluginBookIdentity {
     return format != null && format.isDocumentBook ? format.extension : 'text';
   }
 
+  /// כל הערכים ש-[typeOf] יכול להחזיר. מסנן שתוסף מצהיר (למשל `bookTypes`
+  /// בפקד בסרגל) נבדק מולם, כדי ששגיאת כתיב תיתפס בהתקנה ולא תסתיר את הפקד
+  /// בשקט.
+  static final Set<String> knownTypes = Set.unmodifiable({
+    'text',
+    'pdf',
+    'external',
+    for (final format in DocumentFormat.values)
+      if (format.isDocumentBook) format.extension,
+  });
+
+  /// כל הערכים ש-[sourceOf] יכול להחזיר — מאותה סיבה כמו [knownTypes].
+  static const Set<String> knownSources = {
+    'library',
+    'user',
+    'attached',
+    'external',
+  };
+
   static String sourceOf(Book book) => switch (book) {
     ExternalLibraryBook() => 'external',
     _ when book.isUserBook => 'user',

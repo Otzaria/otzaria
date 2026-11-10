@@ -7,3 +7,8 @@ abstract interface class PluginRegistryItem {
   List<PluginRegistryItem> get children;
   Map<String, dynamic> toJson();
 }
+
+/// מסנן ספר של פריט (`bookTypes` / `bookSources`): רשימה ריקה = כל ספר, ואחרת
+/// הערך של הספר חייב להיות בה. ספר לא ידוע (null) עובר רק מסנן ריק.
+bool bookFilterAllows(List<String> allowed, String? value) =>
+    allowed.isEmpty || (value != null && allowed.contains(value));
