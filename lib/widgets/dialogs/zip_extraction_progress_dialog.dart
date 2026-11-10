@@ -1,7 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/utils/file/zip_extractor_service.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 
 /// ווידג'ט לטיפול בהצגת דיאלוג התקדמות חילוץ ZIP
 class ZipExtractionProgressDialog {
@@ -24,61 +27,11 @@ class ZipExtractionProgressDialog {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('מעבד תיקייה'),
-        content: ValueListenableBuilder<bool>(
-          valueListenable: isExtractingNotifier,
-          builder: (context, isExtracting, _) {
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (isExtracting) ...[
-                  SizedBox(
-                    width: 250,
-                    child: ValueListenableBuilder<double>(
-                      valueListenable: progressNotifier,
-                      builder: (context, progress, _) {
-                        return LinearProgressIndicator(
-                          value: progress,
-                          minHeight: 8,
-                          borderRadius: AppTokens.borderRadiusAll,
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ValueListenableBuilder<String>(
-                    valueListenable: messageNotifier,
-                    builder: (context, message, _) {
-                      return Text(message, textAlign: TextAlign.center);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  ValueListenableBuilder<double>(
-                    valueListenable: progressNotifier,
-                    builder: (context, progress, _) {
-                      return Text(
-                        '${(progress * 100).toInt()}%',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      );
-                    },
-                  ),
-                ] else ...[
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 16),
-                  ValueListenableBuilder<String>(
-                    valueListenable: messageNotifier,
-                    builder: (context, message, _) {
-                      return Text(message);
-                    },
-                  ),
-                ],
-              ],
-            );
-          },
-        ),
+      builder: (dialogContext) => _ZipProgressDialog(
+        title: 'מעבד תיקייה',
+        isExtracting: isExtractingNotifier,
+        progress: progressNotifier,
+        message: messageNotifier,
       ),
     );
 
@@ -115,16 +68,11 @@ class ZipExtractionProgressDialog {
             showDialog(
               context: context,
               barrierDismissible: false,
-              builder: (dialogContext) => AlertDialog(
-                title: const Text('משלים...'),
-                content: const Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('משלים חילוץ...'),
-                  ],
-                ),
+              builder: (dialogContext) => _ZipProgressDialog(
+                title: 'משלים...',
+                isExtracting: ValueNotifier(false),
+                progress: progressNotifier,
+                message: ValueNotifier('משלים חילוץ...'),
               ),
             );
           }
@@ -152,5 +100,78 @@ class ZipExtractionProgressDialog {
       messageNotifier.dispose();
       isExtractingNotifier.dispose();
     }
+  }
+}
+
+/// דיאלוג ההתקדמות (DD-07, משפחת "תהליך"): ספינר והודעה בזמן הבדיקה, ופס
+/// מדוד עם אחוזים בזמן החילוץ. אי אפשר לסגור אותו.
+class _ZipProgressDialog extends StatelessWidget {
+  const _ZipProgressDialog({
+    required this.title,
+    required this.isExtracting,
+    required this.progress,
+    required this.message,
+  });
+
+  final String title;
+  final ValueListenable<bool> isExtracting;
+  final ValueListenable<double> progress;
+  final ValueListenable<String> message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final messageText = ValueListenableBuilder<String>(
+      valueListenable: message,
+      builder: (context, text, _) =>
+          Semantics(liveRegion: true, child: Text(text)),
+    );
+    return AppDialogFrame(
+      title: title,
+      icon: AppDialogIcons.progress,
+      size: AppDialogSize.small,
+      closeEnabled: false,
+      showClose: false,
+      child: ValueListenableBuilder<bool>(
+        valueListenable: isExtracting,
+        builder: (context, extracting, _) {
+          if (!extracting) {
+            return Row(
+              children: [
+                const LoadingIndicator(size: AppTokens.iconLG, strokeWidth: 3),
+                const SizedBox(width: AppTokens.spaceMD),
+                Expanded(child: messageText),
+              ],
+            );
+          }
+          return ValueListenableBuilder<double>(
+            valueListenable: progress,
+            builder: (context, value, _) => Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                LinearProgressIndicator(
+                  value: value,
+                  minHeight: AppTokens.spaceSM,
+                  borderRadius: AppTokens.borderRadiusAll,
+                ),
+                const SizedBox(height: AppTokens.spaceMD),
+                Row(
+                  children: [
+                    Expanded(child: messageText),
+                    Text(
+                      '${(value * 100).toInt()}%',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 }

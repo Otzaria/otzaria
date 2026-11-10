@@ -157,9 +157,6 @@
       "lib/widgets/dialogs/blocking_progress_dialog.dart": [
         {"scope":"_BlockingProgressDialog.build","fp":"8fde4718","n":1}
       ],
-      "lib/widgets/dialogs/zip_extraction_progress_dialog.dart": [
-        {"scope":"ZipExtractionProgressDialog.showAndExtract","fp":"8fde4718","n":2}
-      ],
       "lib/widgets/text/otzaria_search_field_button.dart": [
         {"scope":"OtzariaSearchFieldButton.build","fp":"8fde4718","n":1}
       ],
