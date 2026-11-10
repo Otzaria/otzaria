@@ -74,6 +74,46 @@ void main() {
     expect(saved.single.distance, 1);
   });
 
+  testWidgets('actual rapid plus taps coalesce into one search',
+      (tester) async {
+    final tab = SearchingTab('חיפוש', null);
+    final bloc = _RecordingSearchBloc();
+    addTearDown(bloc.close);
+    addTearDown(tab.searchBloc.close);
+    await tester.pumpWidget(harness(bloc, tab));
+
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.byIcon(Icons.add));
+      await tester.pump(const Duration(milliseconds: 80));
+    }
+    expect(bloc.recorded.whereType<UpdateDistance>(), isEmpty);
+    await tester.pump(const Duration(milliseconds: 250));
+
+    final searches = bloc.recorded.whereType<UpdateDistance>().toList();
+    expect(searches, hasLength(1));
+    expect(searches.single.distance, 3);
+  });
+
+  testWidgets('changing tabs retains the edit without a search',
+      (tester) async {
+    final firstTab = SearchingTab('חיפוש ראשון', null);
+    final secondTab = SearchingTab('חיפוש שני', null);
+    final bloc = _RecordingSearchBloc();
+    addTearDown(bloc.close);
+    addTearDown(firstTab.searchBloc.close);
+    addTearDown(secondTab.searchBloc.close);
+    await tester.pumpWidget(harness(bloc, firstTab));
+
+    tester.widget<SpinBox>(find.byType(SpinBox)).onChanged!(4);
+    await tester.pumpWidget(harness(bloc, secondTab));
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(bloc.recorded.whereType<UpdateDistance>(), isEmpty);
+    final silent = bloc.recorded.whereType<UpdateDistanceWithoutSearch>();
+    expect(silent, hasLength(1));
+    expect(silent.single.distance, 4);
+  });
+
   testWidgets('silent mode keeps immediate state-only updates',
       (tester) async {
     final tab = SearchingTab('חיפוש', null);
