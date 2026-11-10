@@ -24,6 +24,20 @@ class _EmptyRepository implements PluginRegistryRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class _KvRepository extends _EmptyRepository {
+  final Map<String, String> values = {};
+
+  @override
+  Future<Map<String, String>> getKVMany(
+    String pluginId,
+    String namespace,
+    Iterable<String> keys,
+  ) async => {
+    for (final key in keys)
+      if (values.containsKey(key)) key: values[key]!,
+  };
+}
+
 void main() {
   group('OtzariaSearchField', () {
     tearDown(
@@ -217,6 +231,7 @@ void main() {
       PluginSearchField field = PluginSearchField.fullText,
       Map<String, dynamic> Function()? invocationContext,
       PluginLibraryBooksRegistry? libraryBooks,
+      PluginConditionEvaluator? conditions,
     }) => tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -227,6 +242,7 @@ void main() {
             registry: registry,
             sessions: sessions,
             libraryBooks: libraryBooks,
+            conditions: conditions,
           ),
         ),
       ),
@@ -253,6 +269,151 @@ void main() {
       controller.clear();
       await tester.pump();
       expect(find.byKey(_buttonKey), findsNothing);
+    });
+
+    group('when', () {
+      const storageWhen = {
+        'storage': {'key': 'showDictate', 'equals': true},
+      };
+
+      testWidgets('ערך אחסון: הכפתור מופיע ונעלם מיד כשהערך משתנה', (
+        tester,
+      ) async {
+        final repository = _KvRepository();
+        final conditions = PluginConditionEvaluator.forTesting();
+        addTearDown(conditions.dispose);
+        await conditions.registerStorageKeys('voice', {
+          'showDictate',
+        }, repository);
+        registry.registerPayload('voice', {
+          'id': 'dictate',
+          'title': 'חיפוש בדיבור',
+          'icon': 'mic_24_regular',
+          'when': storageWhen,
+        });
+        final controller = TextEditingController();
+        addTearDown(controller.dispose);
+        await pumpActions(tester, controller, conditions: conditions);
+        expect(find.byKey(_buttonKey), findsNothing);
+
+        conditions.onStorageValueChanged('voice', 'showDictate', true);
+        await tester.pump();
+        expect(find.byKey(_buttonKey), findsOneWidget);
+
+        conditions.onStorageValueChanged('voice', 'showDictate', false);
+        await tester.pump();
+        expect(find.byKey(_buttonKey), findsNothing);
+
+        conditions.onStorageRemoved('voice', 'showDictate');
+        conditions.onStorageValueChanged('voice', 'showDictate', true);
+        await tester.pump();
+        expect(find.byKey(_buttonKey), findsOneWidget);
+      });
+
+      testWidgets('הגדרת תוכנה: ההחלפה מורגשת בלי מנוע התוסף', (tester) async {
+        Object? darkMode = false;
+        final conditions = PluginConditionEvaluator.forTesting(
+          settingReader: (_) => darkMode,
+        );
+        addTearDown(conditions.dispose);
+        registry.registerPayload('voice', {
+          'id': 'dictate',
+          'title': 'חיפוש בדיבור',
+          'when': {
+            'setting': {'key': 'key-dark-mode', 'equals': true},
+          },
+        });
+        final controller = TextEditingController();
+        addTearDown(controller.dispose);
+        await pumpActions(tester, controller, conditions: conditions);
+        expect(find.byKey(_buttonKey), findsNothing);
+
+        darkMode = true;
+        conditions.notifySettingsChanged();
+        await tester.pump();
+        expect(find.byKey(_buttonKey), findsOneWidget);
+        expect(sent, isEmpty);
+      });
+
+      testWidgets('מצטרף ל-visibleWhen: שני התנאים חייבים להתקיים', (
+        tester,
+      ) async {
+        final conditions = PluginConditionEvaluator.forTesting();
+        addTearDown(conditions.dispose);
+        await conditions.registerStorageKeys('voice', {
+          'showDictate',
+        }, _KvRepository());
+        registry.registerPayload('voice', {
+          'id': 'dictate',
+          'title': 'חיפוש בדיבור',
+          'visibleWhen': 'nonEmptyText',
+          'when': storageWhen,
+        });
+        final controller = TextEditingController(text: 'ברכות');
+        addTearDown(controller.dispose);
+        await pumpActions(tester, controller, conditions: conditions);
+        expect(find.byKey(_buttonKey), findsNothing);
+
+        conditions.onStorageValueChanged('voice', 'showDictate', true);
+        await tester.pump();
+        expect(find.byKey(_buttonKey), findsOneWidget);
+
+        controller.clear();
+        await tester.pump();
+        expect(find.byKey(_buttonKey), findsNothing);
+      });
+
+      testWidgets('כפתור סינון ספרי תוסף מכבד when', (tester) async {
+        final conditions = PluginConditionEvaluator.forTesting();
+        addTearDown(conditions.dispose);
+        await conditions.registerStorageKeys('voice', {
+          'showDictate',
+        }, _KvRepository());
+        registry.removeAll('voice');
+        registry.registerPayload('voice', {
+          'id': 'source',
+          'title': 'מקור הספרים',
+          'mode': 'providerBooksFilter',
+          'when': storageWhen,
+        });
+        final books = PluginLibraryBooksRegistry.forTesting(
+          conditions: conditions,
+          repository: _EmptyRepository(),
+        );
+        addTearDown(books.dispose);
+        books.registerPayload('voice', {
+          'id': 'books',
+          'provider': 'mylib',
+          'title': 'הספרייה שלי',
+        });
+        final controller = TextEditingController();
+        addTearDown(controller.dispose);
+        await pumpActions(
+          tester,
+          controller,
+          field: PluginSearchField.library,
+          libraryBooks: books,
+          conditions: conditions,
+        );
+        expect(find.byKey(_filterKey), findsNothing);
+
+        conditions.onStorageValueChanged('voice', 'showDictate', true);
+        await tester.pump();
+        expect(find.byKey(_filterKey), findsOneWidget);
+      });
+
+      testWidgets('כפתור בלי when לא מאזין להגדרות ולאחסון', (tester) async {
+        final conditions = PluginConditionEvaluator.forTesting();
+        addTearDown(conditions.dispose);
+        final controller = TextEditingController();
+        addTearDown(controller.dispose);
+        await pumpActions(tester, controller, conditions: conditions);
+        expect(find.byKey(_buttonKey), findsOneWidget);
+
+        conditions.notifySettingsChanged();
+        await tester.pump();
+        expect(find.byKey(_buttonKey), findsOneWidget);
+      });
     });
 
     testWidgets('ההקשר של השדה מצורף לאירוע, ובחירות רק של התוסף הקורא', (

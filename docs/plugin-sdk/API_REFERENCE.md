@@ -6167,8 +6167,9 @@ async function scheduleReminder(title, body, dateTime) {
 | `libraryOnlyIcon` | לא | מגרסה 0.9.98.3, רק עם `mode: "providerBooksFilter"`: האייקון במצב "ספרי הספרייה בלבד". בלעדיו משמש `icon`. |
 | `pluginOnlyLabel` | לא | מגרסה 0.9.99, רק עם `mode: "providerBooksFilter"`: התווית הקצרה שליד האייקון במצב "ספרי התוסף בלבד", למשל `"רק בר אילן"`. בלעדיה: "רק התוסף". עד 24 תווים, לא ריקה ולא רווחים בלבד. |
 | `libraryOnlyLabel` | לא | מגרסה 0.9.99, רק עם `mode: "providerBooksFilter"`: התווית במצב "ספרי הספרייה בלבד", למשל `"רק אוצריא"`. בלעדיה: "רק הספרייה". אותן מגבלות. |
+| `when` | לא | מגרסה 0.9.99. תנאי [`when`](#when--תרומה-תלוית-הגדרה) על הגדרה או ערך אחסון של התוסף; הכפתור מוצג רק כשהתנאי מתקיים ומתעדכן עם שינוי הערך בלי להעיר את המנוע. חל גם ב־`session` וגם ב־`providerBooksFilter`, נוסף על `visibleWhen` ו־`fields`. |
 
-עד 2 כפתורים לתוסף, ועד 3 כפתורים של תוספים בשדה אחד.
+עד 2 כפתורים לתוסף, ועד 3 כפתורים של תוספים בשדה אחד. המכסות סופרות כפתורים **רשומים**, גם אם תנאי `when` שלהם אינו מתקיים כרגע; שינוי הגדרה לא דוחק כפתורים של תוספים אחרים.
 
 השדות הנתמכים:
 
@@ -6258,7 +6259,7 @@ Otzaria.on('search.fieldAction.ended', ({ sessionId, reason }) => { /* ניקו�
 שנוספו מגרסה 0.9.98.3 (`visibleWhen`, `mode`, `libraryOnlyIcon`, וגם `persist`
 ו-`type: "switch"` ב-`searchDialogItems`) דורשים `minAppVersion: "0.9.98.3"`:
 מארח ישן יותר דוחה את המניפסט על מפתח לא מוכר, ולא מתעלם ממנו.
-`pluginOnlyLabel` ו־`libraryOnlyLabel` דורשים `minAppVersion: "0.9.99"`, מאותה סיבה.
+`pluginOnlyLabel`, `libraryOnlyLabel` ו־`when` ב־`searchFieldActions` דורשים `minAppVersion: "0.9.99"`, מאותה סיבה.
 
 ### מהדורות מקבילות חיצוניות (externalEditions)
 
@@ -6583,7 +6584,7 @@ UTF-8 תקין, מציגה הודעה כללית; הצלחה בלי `message` ר
 
 ### when — תרומה תלוית-הגדרה
 
-מ-`minAppVersion: 0.9.97`. כל פריט ב-`toolbarItems`, `contextMenuItems` ו-`searchDialogItems`, וכן כל איבר ב-`activationEvents`, יכול לשאת אובייקט `when`. הפריט נרשם תמיד; הוא מוצג רק כשהתנאי מתקיים, ומופיע/נעלם מיד כשהערך משתנה — בלי לטעון את מנוע ה-JS של התוסף.
+מ-`minAppVersion: 0.9.97`. כל פריט ב-`toolbarItems`, `contextMenuItems` ו-`searchDialogItems`, וכן כל איבר ב-`activationEvents`, יכול לשאת אובייקט `when`. כפתור ב-`searchFieldActions` יכול לשאת אותו מ-`minAppVersion: 0.9.99`. הפריט נרשם תמיד; הוא מוצג רק כשהתנאי מתקיים, ומופיע/נעלם מיד כשהערך משתנה — בלי לטעון את מנוע ה-JS של התוסף.
 
 > אל תבלבלו עם ה-`when` של `startup.programs` — שם זו סכימה אחרת לגמרי (`{op, value}`) שמחליטה אם התכנית בכלל רצה. ה-`when` שמתואר כאן חל על תרומות, ומבנהו `setting`/`storage`.
 
