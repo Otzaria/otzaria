@@ -55,6 +55,7 @@ rules:
     strict: true
 
   UIL-001:
+    strict: true
     exclude:
       - path: lib/widgets/dialogs/**
         reason: הרכיבים המשותפים שבונים את הדיאלוגים
