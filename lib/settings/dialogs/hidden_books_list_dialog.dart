@@ -58,9 +58,11 @@ class _HiddenBooksListDialogState extends State<_HiddenBooksListDialog> {
   Future<void> _clearAll() async {
     final confirmed = await showWarningDialog(
       context: context,
-      title: 'לבטל את כל ההסתרות?',
-      content: 'כל הספרים והקטגוריות המוסתרים יחזרו להיראות בממשק.',
-      confirmText: 'בטל הכול',
+      title: context.settingsText('לבטל את כל ההסתרות?'),
+      content: context.settingsText(
+        'כל הספרים והקטגוריות המוסתרים יחזרו להיראות בממשק.',
+      ),
+      confirmText: context.settingsText('בטל הכול'),
     );
     if (confirmed != true) return;
     setState(() {
