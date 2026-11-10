@@ -203,9 +203,8 @@ void main() {
     testWidgets(
       'ניווט מקלדת בלבד (בלי נגיעה חיצונית) מעדכן את controller.selection הנקי מיידית',
       (tester) async {
-        // מדמה קוד קורא חיצוני (toolbar עיצוב/הוספת קישור/חיפוש-מהסמן, כמו
-        // ב-text_section_editor_dialog.dart) שקורא controller.selection
-        // ישירות אחרי שהמשתמש רק הזיז סמן, בלי להקליד.
+        // מדמה קוד קורא חיצוני שקורא controller.selection ישירות אחרי
+        // שהמשתמש רק הזיז סמן, בלי להקליד.
         const text = 'אבגדה\nוזחטיכלמנ';
         final controller = TextEditingController(text: text);
         final focusNode = FocusNode();
@@ -305,9 +304,9 @@ void main() {
     );
   });
 
-  group('מוטציה חיצונית ישירה (דפוס undo/חיפוש-והחלפה של עורך טקסט)', () {
+  group('מוטציה חיצונית ישירה של ה-controller', () {
     testWidgets(
-      'הצבת text ואז selection בנפרד (כמו _undo ב-text_section_editor_dialog) לא קורסת ונשארת מסונכרנת',
+      'הצבת text ואז selection בנפרד מבחוץ לא קורסת ונשארת מסונכרנת',
       (tester) async {
         final controller = TextEditingController(text: 'שורה א\nשורה ב');
         final changes = <String>[];
@@ -324,7 +323,6 @@ void main() {
         );
         await tester.pump();
 
-        // דפוס זהה ל-_undo()/_redo(): שתי הקצאות נפרדות, לא דרך הקלדה.
         controller.text = 'חדש\nטקסט לגמרי';
         controller.selection = const TextSelection.collapsed(offset: 4);
         await tester.pump();
