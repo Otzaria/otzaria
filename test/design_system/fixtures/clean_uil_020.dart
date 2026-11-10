@@ -14,3 +14,9 @@ const Widget box = SizedBox(width: 36, height: 36);
 const Widget fill = SizedBox(width: double.infinity);
 Widget sized(Widget child) => SizedBox(width: 6, child: child);
 const pw.EdgeInsets paper = pw.EdgeInsets.all(5);
+const Widget squareGap = SizedBox.square(dimension: 8);
+const Widget spinner = SizedBox.square(
+  dimension: 18,
+  child: CircularProgressIndicator(strokeWidth: 2),
+);
+const Widget avatar = SizedBox.square(dimension: 40);
