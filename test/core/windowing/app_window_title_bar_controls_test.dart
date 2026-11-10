@@ -129,6 +129,43 @@ void main() {
     expect(window.calls, ['isMaximized', 'unmaximize']);
   });
 
+  testWidgets('rebuilding the caption does not requery the native window', (
+    tester,
+  ) async {
+    final window = await pump(tester, caption());
+    await tester.pumpAndSettle();
+    expect(
+      window.calls.where((call) => call == 'isMaximized'),
+      hasLength(1),
+    );
+
+    // Same controller in the same position, only the parent widget rebuilt.
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AppWindowScope(
+          controller: window,
+          geometry: const WindowManagerAppWindowController(),
+          child: Scaffold(body: caption()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      window.calls.where((call) => call == 'isMaximized'),
+      hasLength(1),
+    );
+
+    // A real maximize event invalidates the cached value exactly once.
+    window.maximized = true;
+    window.changes.notifyListeners();
+    await tester.pumpAndSettle();
+    expect(
+      window.calls.where((call) => call == 'isMaximized'),
+      hasLength(2),
+    );
+    expect(find.byTooltip('שחזר'), findsOneWidget);
+  });
+
   test('stateChanges של windowManager נרשם רק כשיש מאזינים', () {
     const controller = WindowManagerAppWindowController();
     final before = windowManager.listeners.length;
