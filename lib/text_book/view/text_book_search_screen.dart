@@ -27,6 +27,10 @@ import 'package:otzaria/search/view/whole_word_search_action.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/utils/index_freshness_warner.dart';
+import 'package:otzaria/search/utils/in_book_index_notice.dart';
+import 'package:otzaria/data/book_identity.dart';
+import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
+import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'package:otzaria/search/utils/result_text_status.dart';
 import 'package:otzaria/search/utils/snippet_builder.dart';
 import 'package:otzaria/search/book_facet.dart';
@@ -597,6 +601,19 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         // בשקט, ולכן מוצגת אזהרה לא-חוסמת לצד התוצאות.
         final state = context.read<TextBookBloc>().state;
         if (state is TextBookLoaded) {
+          if (results.isEmpty) {
+            final index = TantivyDataProvider.instanceIfCreated;
+            setState(() {
+              _searchErrorMessage = inBookMissingFromIndexNotice(
+                indexedFilePath: BookIdentity.indexedFilePath(state.book),
+                indexInitialized: index?.isInitialized.value ?? false,
+                indexedFilePaths: index?.indexedFilePaths ?? const {},
+                excludedByIndexMode: !IndexUpdateMode.readStored().admits(
+                  state.book,
+                ),
+              );
+            });
+          }
           unawaited(
             IndexFreshnessWarner.instance.warnIfContentDrifted(
               state.book,
@@ -1259,16 +1276,22 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       final isAtFirstResult = (selected ?? 0) <= 0 || searchResults.isEmpty;
       final isAtLastResult =
           searchResults.isEmpty || (selected ?? 0) >= searchResults.length - 1;
-      return _buildNavigationButtons(isAtFirstResult, isAtLastResult);
+      return _buildNavigationButtons(selected, isAtFirstResult, isAtLastResult);
     },
   );
 
-  Widget _buildNavigationButtons(bool isAtFirstResult, bool isAtLastResult) {
+  Widget _buildNavigationButtons(
+    int? selected,
+    bool isAtFirstResult,
+    bool isAtLastResult,
+  ) {
     return Padding(
       padding: const EdgeInsetsDirectional.only(start: 12, end: 12, bottom: 2),
       child: Align(
         alignment: AlignmentDirectional.centerEnd,
         child: SearchResultNavigator(
+          current: selected == null ? null : selected + 1,
+          total: searchResults.length,
           previousTooltip: 'התוצאה הקודמת',
           nextTooltip: 'התוצאה הבאה',
           onPrevious: isAtFirstResult ? null : () => _moveBetweenResults(-1),

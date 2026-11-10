@@ -6,6 +6,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/navigation/search_pane_base.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
+import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
@@ -401,6 +402,33 @@ Future<void> main() async {
       expect(simpleRunnerCalls, greaterThan(0));
       expect(repository.requests, isEmpty);
     });
+
+    testWidgets(
+      'ספר שאינו באינדקס מציג הודעה ולא "אין תוצאות" (issues #4135, #4090)',
+      (tester) async {
+        SearchDefaults.saveExactDefaults(const {'קידומות דקדוקיות': true});
+        final index = TantivyDataProvider.forTesting(
+          Completer<SearchEngine>().future,
+        )..isInitialized.value = true;
+        final previous = TantivyDataProvider.instanceIfCreated;
+        TantivyDataProvider.instance = index;
+        addTearDown(() {
+          if (previous != null) TantivyDataProvider.instance = previous;
+        });
+        final repository = _RecordingSearchRepository(results: const []);
+        final harness = await pumpSearchView(
+          tester,
+          searchRepository: repository,
+        );
+
+        await harness.type('ככסף');
+        await harness.settle();
+
+        expect(repository.requests, isNotEmpty);
+        expect(find.text(LibraryMessages.bookNotInSearchIndex), findsOneWidget);
+        expect(find.text('אין תוצאות'), findsNothing);
+      },
+    );
 
     testWidgets('מרווח שנקבע כברירת מחדל חל על הקלדה בספר', (tester) async {
       SearchDefaults.saveDistanceDefault(3);

@@ -92,20 +92,21 @@ Future<void> main() async {
       expect(results, isEmpty);
     });
 
-    test('תוצאה לכל הופעה — שלמה וחלקית באותה שורה', () async {
+    test('הופעות סמוכות, שלמה וחלקית, מתאחדות לתוצאה אחת', () async {
       final results = await searchInContent(
         content: ['שמים ושמים והשמים'],
         query: 'שמים',
         wholeWord: false,
         patternSource: literalPatternSource('שמים', wholeWord: false),
       );
-      expect(results.length, 3);
+      expect(results.single.snippet, 'שמים ושמים והשמים');
+      expect(results.single.matchOffset, 0);
     });
 
     // issue #1229 — שתי הופעות צמודות ("חכם אחכם") פוצלו לקטעים קטומים:
     // ה-snippet של כל הופעה נחתך באמצע הדרך להופעה השכנה, וכך תוצאה שלמה
     // הפכה ל"אחכם!" בלבד.
-    test('הופעות צמודות באותה שורה — כל תוצאה מציגה את ההקשר המלא', () async {
+    test('הופעות צמודות באותה שורה — תוצאה אחת עם ההקשר המלא', () async {
       const line = 'קשיא גוים אגוים, קשיא חכם אחכם! לא קשיא הא במותיב פירקי';
       final results = await searchInContent(
         content: [line],
@@ -113,23 +114,18 @@ Future<void> main() async {
         wholeWord: false,
         patternSource: literalPatternSource('חכם', wholeWord: false),
       );
-      expect(results.length, 2);
-      for (final result in results) {
-        expect(result.snippet, contains('קשיא חכם אחכם! לא קשיא'));
-      }
+      expect(results.single.snippet, contains('קשיא חכם אחכם! לא קשיא'));
     });
 
-    test('גבול באמצע מילה בין הופעות — כל תוצאה מציגה הקשר מלא', () async {
+    // issue #3083 — הופעות סמוכות הציגו את אותו קטע פעם לכל הופעה.
+    test('הופעות סמוכות אינן מציגות את אותו קטע פעמיים', () async {
       const line = 'אבג מילה אבג';
       final results = await searchInContent(
         content: [line],
         query: 'אבג',
         patternSource: literalPatternSource('אבג'),
       );
-      expect(results.length, 2);
-      for (final result in results) {
-        expect(result.snippet, line);
-      }
+      expect(results.single.snippet, line);
     });
 
     test('היסט ההתאמה מצביע על הופעה בתוך המילה', () async {
@@ -301,9 +297,13 @@ Future<void> main() async {
   });
 
   group('searchInContent - הופעות מרובות באותה שורה', () {
-    test('שתי הופעות באותה שורה — שתי תוצאות על אותו אינדקס', () async {
+    // רחוקות זו מזו יותר מההקשר של snippet, ולכן אינן מתאחדות.
+    final padding = List.generate(30, (i) => 'מלל$i').join(' ');
+    final farLine = 'אמר רבי יהודה דבר אחד $padding ועוד אמר יהודה בן גרוש';
+
+    test('שתי הופעות רחוקות באותה שורה — שתי תוצאות על אותו אינדקס', () async {
       final results = await searchInContent(
-        content: ['אמר רבי יהודה דבר אחד ועוד אמר יהודה בן גרוש דבר אחר'],
+        content: [farLine],
         query: 'יהודה',
         patternSource: literalPatternSource('יהודה'),
       );
@@ -313,7 +313,7 @@ Future<void> main() async {
     });
 
     test('כל תוצאה נושאת את אורך השורה הנקייה לגלילה בלי התוכן', () async {
-      const line = 'אמר רבי יהודה דבר אחד ועוד אמר יהודה בן גרוש דבר אחר';
+      final line = farLine;
       final results = await searchInContent(
         content: [line],
         query: 'יהודה',
@@ -337,9 +337,20 @@ Future<void> main() async {
       }
     });
 
-    test('הופעות קרובות — כל snippet מכיל רק את ההופעה שלו', () async {
+    test('הופעות קרובות — תוצאה אחת שמציגה את שתיהן', () async {
+      const line = 'אמר רבי יהודה דבר אחד ועוד אמר יהודה בן גרוש דבר אחר';
       final results = await searchInContent(
-        content: ['אמר רבי יהודה דבר אחד ועוד אמר יהודה בן גרוש דבר אחר'],
+        content: [line],
+        query: 'יהודה',
+        patternSource: literalPatternSource('יהודה'),
+      );
+      expect(results.single.snippet, line);
+      expect(results.single.matchOffset, 8);
+    });
+
+    test('הופעות רחוקות — כל snippet מכיל רק את ההופעה שלו', () async {
+      final results = await searchInContent(
+        content: [farLine],
         query: 'יהודה',
         patternSource: literalPatternSource('יהודה'),
       );
@@ -367,13 +378,13 @@ Future<void> main() async {
 
     test('כל תוצאה נושאת את היסט ההופעה שלה בשורה', () async {
       final results = await searchInContent(
-        content: ['אמר רבי יהודה דבר אחד ועוד אמר יהודה בן גרוש דבר אחר'],
+        content: [farLine],
         query: 'יהודה',
         patternSource: literalPatternSource('יהודה'),
       );
       expect(results.length, 2);
       expect(results[0].matchOffset, 8);
-      expect(results[1].matchOffset, 31);
+      expect(results[1].matchOffset, farLine.lastIndexOf('יהודה'));
     });
 
     test('שורה קצרה — ה-snippet הוא השורה המלאה', () async {
@@ -386,7 +397,7 @@ Future<void> main() async {
     });
 
     test('תקרת 1000 התוצאות נאכפת גם על הופעות באותה שורה', () async {
-      final line = List.filled(1005, 'שמע').join(' ');
+      final line = List.filled(1005, 'שמע $padding').join(' ');
       final results = await searchInContent(
         content: [line],
         query: 'שמע',
@@ -550,7 +561,7 @@ Future<void> main() async {
       final results = await searchInContent(
         content: [
           ...List.filled(999, 'שמע ישראל'),
-          'שמע ואחר כך שמע ושוב שמע',
+          'שמע ${List.filled(30, 'ואחר').join(' ')} שמע',
         ],
         query: 'שמע',
         patternSource: literalPatternSource('שמע'),
@@ -584,6 +595,23 @@ Future<void> main() async {
       expect(result.snippet, isNot(contains('(ג)')));
       expect(result.matchOffset, content[1].indexOf('ובין'));
     });
+
+    test(
+      'בשורות ארוכות נבדק רק המעבר, וההיסט נשאר יחסי לשורה (issue #4498)',
+      () async {
+        final padding = List.generate(600, (i) => 'מלל$i').join(' ');
+        final line = '$padding ובין המים';
+        final nextLine = 'ויאמר אלהים $padding';
+        final results = await searchInContent(
+          content: [line, nextLine],
+          query: 'ובין המים ויאמר אלהים',
+          patternSource: literalPatternSource('ובין המים ויאמר אלהים'),
+        );
+        expect(results.single.continuesToNextLine, isTrue);
+        expect(results.single.matchOffset, line.indexOf('ובין'));
+        expect(results.single.snippet, contains('ובין המים\nויאמר אלהים'));
+      },
+    );
 
     test('הופעה בתוך שורה אינה מסומנת כנמשכת', () async {
       final results = await searchInContent(
@@ -652,14 +680,13 @@ Future<void> main() async {
       );
     }
 
-    test('מילה בסוף שורה ובתחילת הבאה — תוצאה לכל הופעה, בלי המשך', () async {
+    test('מילה בסוף שורה ובתחילת הבאה — תוצאה לכל שורה, בלי המשך', () async {
       final results = await searchInContent(
         content: content,
         query: 'המים',
         patternSource: literalPatternSource('המים'),
       );
       expect(results.map((r) => (r.index, r.continuesToNextLine)), [
-        (1, false),
         (1, false),
         (2, false),
       ]);

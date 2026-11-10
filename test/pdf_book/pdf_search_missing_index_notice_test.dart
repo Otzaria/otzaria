@@ -1,39 +1,39 @@
 import 'package:otzaria/data/book_identity.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/core/messages/pdf_messages.dart';
+import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
-import 'package:otzaria/pdf_book/view/pdf_search_screen.dart';
+import 'package:otzaria/search/utils/in_book_index_notice.dart';
 
 void main() {
-  group('PdfBookSearchView.missingFromIndexNotice', () {
+  group('inBookMissingFromIndexNotice', () {
     const path = r'C:\books\pdf\ספר.pdf';
 
     test('מחזיר את ההודעה כשהאינדקס נטען והספר אינו בו', () {
       expect(
-        PdfBookSearchView.missingFromIndexNotice(
+        inBookMissingFromIndexNotice(
           indexedFilePath: path,
           indexInitialized: true,
           indexedFilePaths: {r'C:\books\pdf\אחר.pdf'},
         ),
-        PdfMessages.bookNotInSearchIndex,
+        LibraryMessages.bookNotInSearchIndex,
       );
     });
 
     test('ספר אישי שהוחרג במצב "בלי ספרים אישיים" — הודעה שמפנה להגדרה', () {
       expect(
-        PdfBookSearchView.missingFromIndexNotice(
+        inBookMissingFromIndexNotice(
           indexedFilePath: path,
           indexInitialized: true,
           indexedFilePaths: const {},
           excludedByIndexMode: true,
         ),
-        PdfMessages.personalBookNotInSearchIndex,
+        LibraryMessages.personalBookNotInSearchIndex,
       );
     });
 
     test('לא מחזיר הודעה כשהספר נמצא באינדקס', () {
       expect(
-        PdfBookSearchView.missingFromIndexNotice(
+        inBookMissingFromIndexNotice(
           indexedFilePath: path,
           indexInitialized: true,
           indexedFilePaths: {path},
@@ -44,7 +44,7 @@ void main() {
 
     test('לא מסיק "חסר" לפני שקריאת מצב האינדקס הסתיימה', () {
       expect(
-        PdfBookSearchView.missingFromIndexNotice(
+        inBookMissingFromIndexNotice(
           indexedFilePath: path,
           indexInitialized: false,
           indexedFilePaths: const {},
@@ -56,7 +56,7 @@ void main() {
     test('לא מחזיר הודעה כשאין מפתח אינדקס לספר', () {
       for (final missingPath in [null, '']) {
         expect(
-          PdfBookSearchView.missingFromIndexNotice(
+          inBookMissingFromIndexNotice(
             indexedFilePath: missingPath,
             indexInitialized: true,
             indexedFilePaths: const {},
@@ -69,7 +69,7 @@ void main() {
     test('מסכת מצורפת נמצאת באינדקס לפי המזהה היציב ולא לפי הנתיב', () {
       const stableKey = 'ext:talmud-pdf:ברכות';
       expect(
-        PdfBookSearchView.missingFromIndexNotice(
+        inBookMissingFromIndexNotice(
           indexedFilePath: BookIdentity.indexedPdfFilePath(
             externalLibraryId:
                 DatabaseConstants.talmudBavliPdfExternalLibraryId('ברכות'),

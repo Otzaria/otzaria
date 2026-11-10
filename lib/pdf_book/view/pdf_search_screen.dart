@@ -16,6 +16,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/indexing/models/index_update_mode.dart';
+import 'package:otzaria/search/utils/in_book_index_notice.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
@@ -149,23 +150,6 @@ class PdfBookSearchView extends StatefulWidget {
 
     // כל התוצאות לפני המיקום הנוכחי — כותרת העמוד האחרון.
     return lastHeaderIndex;
-  }
-
-  /// הודעה כשמסלול המנוע החזיר 0 תוצאות והספר כלל אינו באינדקס —
-  /// בלעדיה "אין תוצאות" הגנרי מסתיר מהמשתמש את הסיבה האמיתית.
-  @visibleForTesting
-  static String? missingFromIndexNotice({
-    required String? indexedFilePath,
-    required bool indexInitialized,
-    required Set<String> indexedFilePaths,
-    bool excludedByIndexMode = false,
-  }) {
-    if (indexedFilePath == null || indexedFilePath.isEmpty) return null;
-    if (!indexInitialized) return null;
-    if (indexedFilePaths.contains(indexedFilePath)) return null;
-    return excludedByIndexMode
-        ? PdfMessages.personalBookNotInSearchIndex
-        : PdfMessages.bookNotInSearchIndex;
   }
 
   /// אותיות עבריות ואנגליות — שכבת טקסט עם ספרות ופיסוק בלבד אינה שמישה.
@@ -1129,7 +1113,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
         _resultsTruncated = truncated;
         _isSearching = false;
         if (results.isEmpty) {
-          _searchErrorMessage = PdfBookSearchView.missingFromIndexNotice(
+          _searchErrorMessage = inBookMissingFromIndexNotice(
             indexedFilePath: _indexedFilePath,
             indexInitialized: TantivyDataProvider.instance.isInitialized.value,
             indexedFilePaths: TantivyDataProvider.instance.indexedFilePaths,
