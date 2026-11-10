@@ -86,8 +86,7 @@ class SemanticResultsBloc
   /// כמה תוצאות בכל קריאה לסימון — כך חיפוש חדש לא ממתין לרשימה ארוכה.
   static const int highlightBatchSize = 6;
 
-  // A page can contain many results; avoid issuing a DB lookup for every
-  // result at once (and stop queuing them when the search is superseded).
+  // מגבילים בדיקות מקור במקביל כדי שלא להתחיל את כל העמוד לפני שאפשר לבטלו.
   static const int _maxUserBookChecksInFlight = 8;
 
   final int pageSize;

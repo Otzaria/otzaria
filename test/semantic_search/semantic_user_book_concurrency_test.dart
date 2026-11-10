@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/search_feedback/search_feedback_api.dart';
 import 'package:otzaria/semantic_search/bloc/semantic_results_bloc.dart';
+import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 
 import 'semantic_ui_test_support.dart';
 
@@ -51,7 +51,7 @@ void main() {
     final loaded = bloc.stream.firstWhere(
       (state) => state.status == SemanticResultsStatus.loaded,
     );
-    for (var i = 0; i < gates.length; i++) {
+    for (var i = gates.length - 1; i >= 0; i--) {
       gates[i].complete(i.isEven);
     }
     await loaded.timeout(const Duration(seconds: 2));
