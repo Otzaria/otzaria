@@ -17,7 +17,7 @@ jobs:
       matrix:
         archive_branch:
           - main
-          - qa/archive-all14-20261110
+          - qa/archive-all15-20261110
           - perf/chunked-sink-append-in-place
     name: JS codecs (${{ matrix.archive_branch }})
     steps:
