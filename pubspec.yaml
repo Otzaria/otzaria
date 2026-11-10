@@ -129,12 +129,13 @@ dependencies:
     git:
       url: https://github.com/Otzaria/otzaria_library_updater
       ref: effdc651635a18c719b52a79d840b5aa27b1968e
-  # 0.6.0 uses nativeapi. Until publication, pin the reviewed event bridge.
+  # 0.6.0 uses nativeapi. The exact QA commit is protected by a
+  # permanent review snapshot branch to remain reachable during PR rebases.
   # After package release, update the dependency to the hosted version.
   window_manager:
     git:
       url: https://github.com/Otzaria/window_manager
-      ref: 2e8b51f84e172fb72c7843c09597f12a95c2a948
+      ref: eb580deb1856c8514c96f1bcacabbc0e575d292f
   screen_retriever: ^0.2.2
   flutter_spinbox: ^0.13.1
   logging: ^1.3.0
