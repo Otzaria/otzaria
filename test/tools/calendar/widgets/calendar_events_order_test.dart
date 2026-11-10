@@ -359,6 +359,45 @@ void main() {
       expect(dot.style?.color, colorScheme.onPrimaryContainer);
     });
 
+    testWidgets('ר"ח טבת בחנוכה: אירוע משתמש נשאר גלוי בתא (issue #4820)', (
+      tester,
+    ) async {
+      var day = DateTime(2026, 12, 1);
+      JewishCalendar jc() => JewishCalendar.fromDateTime(day)..inIsrael = true;
+      while (!(jc().isRoshChodesh() &&
+          jc().getJewishMonth() == JewishDate.TEVES &&
+          jc().getYomTovIndex() == JewishCalendar.CHANUKAH)) {
+        day = day.add(const Duration(days: 1));
+      }
+      await cubit.addEvent(
+        title: 'אירוע בר"ח טבת',
+        baseGregorianDate: day,
+        recurrenceType: RecurrenceType.none,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BlocProvider.value(
+            value: cubit,
+            child: Scaffold(
+              body: SizedBox(
+                width: 200,
+                child: DayExtras(jewishCalendar: jc(), date: day),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('אירוע בר"ח טבת', findRichText: true),
+        findsOneWidget,
+      );
+      expect(find.textContaining('ר"ח · נר'), findsOneWidget);
+      expect(find.textContaining('דחנוכה'), findsOneWidget);
+    });
+
     testWidgets('כשיש יותר אירועים מהמקום — מוצגים המוקדמים בזמן', (
       tester,
     ) async {

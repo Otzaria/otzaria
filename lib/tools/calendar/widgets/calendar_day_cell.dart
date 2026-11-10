@@ -235,7 +235,17 @@ class DayExtras extends StatelessWidget {
     final jewishEvents = _calcJewishEvents(jewishCalendar);
     final visibleItems = <Widget>[];
 
-    for (final e in jewishEvents.take(maxVisibleItems)) {
+    // בתא עם 2 מקומות לפחות נשמר מקום לאירוע משתמש, והאירועים העבריים
+    // שלא נכנסים מחוברים בשורה אחרונה אחת (ר"ח בחנוכה לא מסתיר אף אחד).
+    final reserveForUser = events.isNotEmpty && maxVisibleItems >= 2;
+    final jewishLimit = reserveForUser ? maxVisibleItems - 1 : maxVisibleItems;
+    final jewishLines = reserveForUser && jewishEvents.length > jewishLimit
+        ? [
+            ...jewishEvents.take(jewishLimit - 1),
+            jewishEvents.skip(jewishLimit - 1).join(' · '),
+          ]
+        : jewishEvents.take(jewishLimit).toList();
+    for (final e in jewishLines) {
       visibleItems.add(
         Text(
           e,
