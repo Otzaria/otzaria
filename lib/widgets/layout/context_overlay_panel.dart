@@ -52,7 +52,7 @@ class ContextOverlayPanel extends StatefulWidget {
   /// תוכן הפאנל
   final Widget child;
 
-  /// רוחב הפאנל (ברירת מחדל: 400)
+  /// רוחב הפאנל ([LayoutConstraints.overlayPanelWidth]).
   final double width;
 
   /// יישור הפאנל (ברירת מחדל: start - ימין בעברית)
@@ -99,7 +99,7 @@ class ContextOverlayPanel extends StatefulWidget {
     required this.isOpen,
     required this.onClose,
     required this.child,
-    this.width = 400,
+    this.width = LayoutConstraints.overlayPanelWidth,
     this.alignment = AlignmentDirectional.centerEnd,
     this.backgroundColor,
     this.contentPadding = const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16),

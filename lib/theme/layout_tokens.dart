@@ -61,6 +61,10 @@ class LayoutConstraints {
   /// רוחב ברירת המחדל של חלונית צד (DD-28).
   static const double sidePaneWidth = 340.0;
 
+  /// רוחב ברירת המחדל של חלונית צפה (`ContextOverlayPanel`), כמו הגדרות
+  /// המסך (DD-28).
+  static const double overlayPanelWidth = 400.0;
+
   /// רוחב מינימלי של התוכן הראשי לצד חלונית צד.
   static const double mainContentMinWidth = 500.0;
 
