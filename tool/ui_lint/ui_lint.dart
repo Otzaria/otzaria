@@ -617,3 +617,81 @@ class BaselineComparison {
   /// רשומות baseline (מפתח → כמות) שכבר לא מנוצלות.
   final Map<String, int> dead;
 }
+
+// ── מצב לפי מודול ────────────────────────────────────────────────────────────
+
+/// שורה בטבלת המצב לפי מודול: תיקייה ראשית תחת `lib/` (קובץ שיושב ישירות
+/// ב־`lib/` נספר תחת [rootModule]).
+class ModuleStatus {
+  ModuleStatus(this.module, this.baselineByRule, this.allows);
+
+  static const rootModule = 'lib';
+
+  final String module;
+
+  /// מופעי baseline לכל כלל, ממוין לפי הכלל.
+  final Map<String, int> baselineByRule;
+  final int allows;
+
+  int get baseline => baselineByRule.values.fold(0, (sum, n) => sum + n);
+
+  /// "נקי" בלי baseline ובלי allow; אחרת הסכום שלהם.
+  String get status => baseline + allows == 0 ? 'נקי' : '${baseline + allows}';
+}
+
+String moduleOf(String path) {
+  final parts = path.split('/');
+  return parts.length > 2 && parts.first == 'lib'
+      ? parts[1]
+      : ModuleStatus.rootModule;
+}
+
+/// הטבלה לפי מודול, נגזרת מה־baseline ומהערות ה־allow בלבד, בלי תחזוקה
+/// ידנית. [modules] הם כל התיקיות הראשיות ב־lib, כדי שגם מודול נקי יופיע.
+List<ModuleStatus> moduleStatuses(
+  UiLintBaseline baseline,
+  List<UiLintAllow> allows,
+  Iterable<String> modules,
+) {
+  final debt = <String, Map<String, int>>{};
+  for (final MapEntry(:key, :value) in baseline.counts.entries) {
+    final [rule, path, ...] = key.split('|');
+    debt
+        .putIfAbsent(moduleOf(path), () => {})
+        .update(rule, (n) => n + value, ifAbsent: () => value);
+  }
+  final allowCounts = <String, int>{};
+  for (final allow in allows) {
+    allowCounts.update(moduleOf(allow.path), (n) => n + 1, ifAbsent: () => 1);
+  }
+  final names = {...modules, ...debt.keys, ...allowCounts.keys}.toList()
+    ..sort();
+  return [
+    for (final name in names)
+      ModuleStatus(
+        name,
+        Map.fromEntries(
+          (debt[name] ?? const {}).entries.toList()
+            ..sort((a, b) => a.key.compareTo(b.key)),
+        ),
+        allowCounts[name] ?? 0,
+      ),
+  ];
+}
+
+/// טבלת Markdown של [moduleStatuses], ל־`$GITHUB_STEP_SUMMARY`.
+String moduleStatusMarkdown(List<ModuleStatus> rows) {
+  final buffer = StringBuffer('## ui_lint לפי מודול\n\n')
+    ..writeln('| מודול | מצב | baseline | לפי כלל | allow |')
+    ..writeln('|---|---|---|---|---|');
+  for (final row in rows) {
+    final rules = row.baselineByRule.entries
+        .map((e) => '${e.key}: ${e.value}')
+        .join(', ');
+    buffer.writeln(
+      '| `${row.module}` | ${row.status} | ${row.baseline} | '
+      '${rules.isEmpty ? '—' : rules} | ${row.allows} |',
+    );
+  }
+  return buffer.toString();
+}

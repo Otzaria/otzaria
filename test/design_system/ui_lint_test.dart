@@ -354,6 +354,53 @@ const top = TextStyle(fontSize: 11);
     });
   });
 
+  group('מצב לפי מודול (--format=modules)', () {
+    final baseline = UiLintBaseline({
+      'UIL-017|lib/search/view/a.dart|A.build|11111111': 2,
+      'UIL-017|lib/search/b.dart|B.build|22222222': 1,
+      'UIL-020|lib/search/view/a.dart|A.build|33333333': 1,
+      'UIL-029|lib/main.dart|<top>|44444444': 1,
+    });
+    final allows = [
+      UiLintAllow('lib/search/c.dart', 4, 'UIL-021', 'נימוק ארוך מספיק'),
+      UiLintAllow('lib/tools/d.dart', 9, 'UIL-015', 'נימוק ארוך מספיק'),
+    ];
+    final rows = {
+      for (final row in moduleStatuses(baseline, allows, [
+        'search',
+        'tools',
+        'theme',
+      ]))
+        row.module: row,
+    };
+
+    test('baseline לפי כלל ו־allow, מצורפים לתיקייה הראשית', () {
+      expect(rows['search']!.baselineByRule, {'UIL-017': 3, 'UIL-020': 1});
+      expect(rows['search']!.allows, 1);
+      expect(rows['search']!.status, '5');
+      expect(rows['tools']!.baseline, 0);
+      expect(rows['tools']!.status, '1');
+    });
+
+    test(
+      'מודול בלי baseline ובלי allow "נקי", וקובץ ישירות ב־lib נספר כ־lib',
+      () {
+        expect(rows['theme']!.status, 'נקי');
+        expect(rows['lib']!.baselineByRule, {'UIL-029': 1});
+        expect(rows.keys.toList(), ['lib', 'search', 'theme', 'tools']);
+      },
+    );
+
+    test('הטבלה: שורה לכל מודול', () {
+      final table = moduleStatusMarkdown(rows.values.toList());
+      expect(table, contains('| `theme` | נקי | 0 | — | 0 |'));
+      expect(
+        table,
+        contains('| `search` | 5 | 4 | UIL-017: 3, UIL-020: 1 | 1 |'),
+      );
+    });
+  });
+
   test('הערות allow פגומות או מיותרות מדווחות ולא משתיקות', () {
     final result = _lint('bad_allows');
     expect(result.allows.where((a) => a.used), isEmpty);
