@@ -9,7 +9,7 @@
 |---|---|---|
 | `flutter analyze` | `flutter_lints` | job ‏`analyze` ב־`.github/workflows/flutter_tests.yml` |
 | **הבדיקה החוסמת** | `test/design_system/ui_lint_test.dart` מריץ את כל הכללים על `lib/`, משווה ל־`tool/ui_lint/baseline.json` ונכשל על חריגה חדשה, על baseline מת ועל הערת allow פגומה | ה־shards של Linux. `tool/ci/test_shards.dart` מכניס אוטומטית כל `*_test.dart` חוץ מ־`test/goldens/` |
-| דוח ui_lint | `dart tool/ui_lint_cli.dart --format=github`: טבלה ל־`$GITHUB_STEP_SUMMARY` ו־annotations לחריגות חדשות. `continue-on-error`, כלומר דוח בלבד | step ‏"UI lint report" ב־job ‏`analyze` |
+| דוח ui_lint | `dart tool/ui_lint_cli.dart --format=github`: טבלה ל־`$GITHUB_STEP_SUMMARY` ו־annotations לחריגות חדשות. באותו summary גם **טבלת מצב לפי מודול** (תיקייה ראשית ב־`lib`: מופעי baseline לפי כלל, הערות allow, ו"נקי" כששניהם 0), שנגזרת מה־baseline ומה־allow בלי תחזוקה ידנית; מקומית: `--format=modules` (הכרעת בעל הפרויקט 10.11, q18). `continue-on-error`, כלומר דוח בלבד | step ‏"UI lint report" ב־job ‏`analyze` |
 | golden tests | `flutter test test/goldens/` על Windows. כשל מעלה את `failures/` כ־artifact | job ‏`goldens_windows` ב־`flutter_tests.yml` |
 | גידול ב־baseline והחרגות | מכשיל PR שמוסיף מופעים ל־baseline, מוסיף/מרחיב החרגת נתיב (`path:`) ב־`tool/ui_lint/config.yaml`, או מעלה תקרת `max_allows` (מ־10.11), אלא אם יש עליו התווית `ui-baseline` | `.github/workflows/ui_baseline_guard.yml` |
 | שינוי ב־golden | מכשיל PR שמשנה קובץ תחת `test/goldens/` (PNG, בדיקה, `skip`, ה־harness וסף ה־comparator), אלא אם יש עליו התווית `goldens-approved` | `.github/workflows/goldens_guard.yml` |
