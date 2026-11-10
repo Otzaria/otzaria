@@ -221,7 +221,7 @@ class SemanticStagedImport {
     if (files is! List || files.isEmpty || segmentSize is! int) {
       throw const FormatException('manifest files/segment missing');
     }
-    final identity = SemanticVectorsRelease.identityOf(manifest);
+    final identity = SemanticVectorsRelease.identityOf(manifest, rawJson: text);
     final parsedFiles = [
       for (final entry in files)
         if (entry case {

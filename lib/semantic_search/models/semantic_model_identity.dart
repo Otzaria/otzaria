@@ -4,10 +4,10 @@ import 'package:equatable/equatable.dart';
 
 /// דיוק המשקלות של מודל השאילתות. אותו סט וקטורים משרת את שניהם.
 enum SemanticQuantization {
-  /// ברירת המחדל: קובץ של כ-42MB.
+  /// ברירת המחדל של דיוק המשקולות.
   int8,
 
-  /// אופציונלי: קובץ של כ-168MB, ותוצאות כמעט זהות.
+  /// דיוק נוסף, רק כאשר פורסמה חבילה תואמת.
   fp32;
 
   /// שם הגרף בחבילת המודל, למשל `query.int8.onnx`.
@@ -83,7 +83,10 @@ class SemanticModelIdentity extends Equatable {
       familyId: _string(decoded, 'family_id'),
       embeddingDim: _int(decoded, 'embedding_dim'),
       tokenizerChecksum: _string(decoded, 'tokenizer_checksum'),
-      chunkingIdentity: _int(decoded, 'chunking_identity'),
+      chunkingIdentity: readSemanticChunkingIdentity(
+        decoded['chunking_identity'],
+        rawJson,
+      ),
       queryPackages: [
         for (final package in packages)
           if (package is Map<String, dynamic>)
@@ -126,3 +129,33 @@ class SemanticModelIdentity extends Equatable {
     rawJson,
   ];
 }
+
+/// Dart VM מחזיק int חתום, אבל זהות החלוקה היא UInt64. ערך גדול מוחזק כאן
+/// כדפוס הסיביות החתום שלו, להשוואה בלבד; ה-JSON המקורי נשלח למנוע ללא שינוי.
+/// לא ממירים מ-double: שני UInt64 סמוכים עלולים לקבל בדיוק אותו double.
+int readSemanticChunkingIdentity(Object? decoded, String rawJson) {
+  if (decoded is int && decoded >= 0) return decoded;
+  if (decoded is double && decoded.isFinite) {
+    final matches = RegExp(
+      r'"chunking_identity"\s*:\s*(0|[1-9][0-9]*)(?=\s*[,}])',
+    ).allMatches(rawJson).toList();
+    if (matches.length == 1) {
+      final exact = BigInt.parse(matches.single.group(1)!);
+      if (exact.bitLength == 64 && decoded == exact.toDouble()) {
+        return exact.toSigned(64).toInt();
+      }
+    }
+  }
+  throw const FormatException('chunking_identity אינו UInt64 תקין');
+}
+
+/// בחירת מודל: Meivin נשאר ברירת המחדל; פרדס דורש סט וקטורים נפרד.
+enum SemanticModelChoice {
+  meivin,
+  pardesQa491;
+
+  static SemanticModelChoice parse(String? value) =>
+      values.asNameMap()[value] ?? meivin;
+}
+
+const String kCompactPardesModelFamilyId = 'otzaria/Pardes-QA491-int8-384';

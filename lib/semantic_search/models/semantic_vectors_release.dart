@@ -1,3 +1,4 @@
+import 'semantic_model_identity.dart';
 import 'package:equatable/equatable.dart';
 import 'package:otzaria/semantic_search/models/semantic_vectors_family.dart';
 
@@ -86,8 +87,9 @@ class SemanticVectorsRelease extends Equatable {
   /// פרטי הזהות כפי שהם במניפסט [manifest].
   static ({String identityDigest, String modelFamilyId, int? chunkingIdentity})
   identityOf(
-    Map<String, dynamic> manifest,
-  ) => (
+    Map<String, dynamic> manifest, {
+    String rawJson = '',
+  }) => (
     identityDigest: switch (manifest['identityDigest']) {
       final String digest => digest,
       _ => '',
@@ -97,7 +99,8 @@ class SemanticVectorsRelease extends Equatable {
       _ => '',
     },
     chunkingIdentity: switch (manifest['identity']) {
-      {'model': {'chunking_identity': final int chunking}} => chunking,
+      {'model': {'chunking_identity': final num chunking}} =>
+        readSemanticChunkingIdentity(chunking, rawJson),
       _ => null,
     },
   );

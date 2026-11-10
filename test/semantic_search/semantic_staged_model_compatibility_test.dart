@@ -89,7 +89,10 @@ void main() {
     expect(repository.availability.phase, SemanticAvailabilityPhase.ready);
   });
 
-  for (final family in SemanticVectorsFamily.values) {
+  for (final family in const [
+    SemanticVectorsFamily.windows,
+    SemanticVectorsFamily.anchor,
+  ]) {
     test(
       'נתונים מוכנים ממודל קודם אינם נצרכים במצב לא מקוון: $family',
       () async {
