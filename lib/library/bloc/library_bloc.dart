@@ -814,32 +814,41 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     SelectTopics event,
     Emitter<LibraryState> emit,
   ) {
-    // כשמשנים את הנושאים, צריך לעדכן את הספר המוצג
-    // אם יש תוצאות חיפוש, נבחר את הספר הראשון מהרשימה המסוננת
+    // The preview only needs the first matching book, preferring text over
+    // PDF. Avoid allocating an entire filtered result list and a topic set for
+    // every book when the library search returns thousands of results.
     Book? firstBook;
-    if (state.searchResults != null && state.searchResults!.isNotEmpty) {
-      final filteredResults = event.topics.isEmpty
-          ? state.searchResults!
-          : state.searchResults!.where((book) {
-              final bookTopics = book.topics
-                  .split(',')
-                  .map((t) => t.trim())
-                  .toSet();
-              return event.topics.any(bookTopics.contains);
-            }).toList();
-
-      if (filteredResults.isNotEmpty) {
-        firstBook = filteredResults.firstWhere(
-          (book) => book is TextBook,
-          orElse: () => filteredResults.first,
-        );
+    final results = state.searchResults;
+    if (results != null && results.isNotEmpty) {
+      final selected = event.topics.toSet();
+      Book? firstMatch;
+      for (final book in results) {
+        if (selected.isNotEmpty &&
+            !book.topics.split(',').any(
+              (topic) => selected.contains(topic.trim()),
+            )) {
+          continue;
+        }
+        firstMatch ??= book;
+        if (book is TextBook) {
+          firstBook = book;
+          break;
+        }
       }
+      firstBook ??= firstMatch;
     }
 
     emit(
       state.copyWith(
         selectedTopics: event.topics,
         previewBook: firstBook,
+        // A nonempty filter with no matching result must not keep showing
+        // a preview of a book that is no longer in the filtered list.
+        clearPreviewBook:
+            results != null &&
+            results.isNotEmpty &&
+            event.topics.isNotEmpty &&
+            firstBook == null,
         searchResults: state.searchResults,
         searchCategoryResults: state.searchCategoryResults,
       ),

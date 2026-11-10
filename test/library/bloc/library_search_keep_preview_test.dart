@@ -86,4 +86,59 @@ void main() {
     final state = await search(const SearchBooks(keepPreview: true));
     expect(state.previewBook, same(libraryBook));
   });
+
+  Future<LibraryState> selectTopics(List<String> topics) {
+    final selected = bloc.stream.firstWhere(
+      (state) => identical(state.selectedTopics, topics),
+    );
+    bloc.add(SelectTopics(topics));
+    return selected;
+  }
+
+  test('topic preview prefers the first matching text book', () async {
+    final ignoredText = TextBook(title: 'Other topic', topics: 'אגדה');
+    final matchingPdf = PdfBook(
+      title: 'PDF',
+      path: 'book.pdf',
+      topics: 'מדרש, הלכה',
+    );
+    final matchingText = TextBook(
+      title: 'Matching text',
+      topics: 'אגדה, הלכה ',
+    );
+    bloc.emit(
+      bloc.state.copyWith(
+        searchResults: [ignoredText, matchingPdf, matchingText],
+        previewBook: ignoredText,
+      ),
+    );
+
+    final selected = await selectTopics(['הלכה']);
+    expect(selected.previewBook, same(matchingText));
+  });
+
+  test('topic preview falls back to the first matching PDF', () async {
+    final ignored = PdfBook(title: 'Other', path: 'a.pdf', topics: 'אגדה');
+    final matching = PdfBook(title: 'Match', path: 'b.pdf', topics: 'הלכה');
+    bloc.emit(
+      bloc.state.copyWith(
+        searchResults: [ignored, matching],
+        previewBook: ignored,
+      ),
+    );
+
+    final selected = await selectTopics(['הלכה']);
+    expect(selected.previewBook, same(matching));
+  });
+
+  test('no matching topic clears a stale search preview', () async {
+    final existing = TextBook(title: 'Book', topics: 'אגדה');
+    bloc.emit(
+      bloc.state.copyWith(searchResults: [existing], previewBook: existing),
+    );
+
+    final selected = await selectTopics(['הלכה']);
+    expect(selected.previewBook, isNull);
+    expect(selected.selectedTopics, ['הלכה']);
+  });
 }
