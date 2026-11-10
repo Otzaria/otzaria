@@ -2876,11 +2876,12 @@ Future<void> _dispatchContextMenuShortcut({
 }) async {
   final window = AppWindowKeys.of(context);
   final viewId = View.of(context).viewId;
-  final item = ContextMenuRegistry.instance.findItem(
-    target.pluginId,
-    target.contextMenuItemId ?? '',
-  );
-  if (item == null) return;
+  final registry = ContextMenuRegistry.instance;
+  final itemId = target.contextMenuItemId ?? '';
+  final resolved = registry.findVisibleItem(target.pluginId, itemId);
+  if (resolved == null && registry.findItem(target.pluginId, itemId) == null) {
+    return;
+  }
 
   // נקרא לפני ה-await כדי לא להחזיק BuildContext מעבר לגבול אסינכרוני.
   final textBookBloc = context.read<TextBookBloc>();
@@ -2897,25 +2898,16 @@ Future<void> _dispatchContextMenuShortcut({
   final contextName = state.showPageShapeView
       ? 'reader-page-shape-selection'
       : 'reader-selection';
-  // קיצור עוקף את בונה התפריט, ולכן בודק כאן את אותו מסנן ספר — על הפריט
-  // העליון, כי קיצור יכול להפנות גם לילד בתוך תת-תפריט מסונן.
-  final root = ContextMenuRegistry.instance.findRootItem(
-    target.pluginId,
-    item.id,
-  );
-  if (!item.contexts.contains(contextName) ||
-      !(root?.showsForBook(
-            bookType: PluginBookIdentity.typeOf(state.book),
-            bookSource: PluginBookIdentity.sourceOf(state.book),
-          ) ??
-          false)) {
+  if (resolved == null ||
+      !resolved.item.contexts.contains(contextName) ||
+      !resolved.root.showsForBook(
+        bookType: PluginBookIdentity.typeOf(state.book),
+        bookSource: PluginBookIdentity.sourceOf(state.book),
+      )) {
     UiSnack.showError(PluginMessages.contextMenuActionUnavailableHere);
     return;
   }
-  if (!ContextMenuRegistry.instance.isItemVisible(target.pluginId, item.id)) {
-    UiSnack.showError(PluginMessages.contextMenuActionUnavailableHere);
-    return;
-  }
+  final item = resolved.item;
 
   final selectedLineCount = text.split('\n').length;
   List<String>? fullContentLines;
