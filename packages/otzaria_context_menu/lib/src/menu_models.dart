@@ -205,5 +205,25 @@ class AppContextMenuEntry {
 }
 
 bool hasEnabledAppContextMenuEntries(List<AppContextMenuEntry> entries) {
-  return entries.any((entry) => !entry.isDivider && entry.enabled);
+  for (final entry in entries) {
+    if (entry.isDivider || !entry.enabled) continue;
+    // Action rows are containers, not actions in their own right. Inactive
+    // buttons must not make a parent submenu appear actionable.
+    if (entry.iconRowActions case final actions?) {
+      if (actions.any(
+        (action) =>
+            action.enabled &&
+            (action.onTap != null || action.submenuBuilder != null),
+      )) {
+        return true;
+      }
+      continue;
+    }
+    if (entry.colorRowActions case final actions?) {
+      if (actions.any((action) => action.onTap != null)) return true;
+      continue;
+    }
+    return true;
+  }
+  return false;
 }
