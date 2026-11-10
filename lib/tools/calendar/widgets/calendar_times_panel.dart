@@ -807,135 +807,138 @@ class _ZmanCard extends StatelessWidget {
         ? AppSurfaces.onCalendarSpecialDayCardVariant(scheme)
         : scheme.onSurfaceVariant;
 
-    return Card(
-      elevation: 0,
-      color: bgColor,
-      surfaceTintColor: Colors.transparent,
-      // minHeight במקום height קבוע: כרטיסי composite עם שתי אפשרויות התראה
-      // צריכים ~133px (Row של שני _buildCompositeSegment עם כפתור התראה),
-      // ולכן height: 118 גרם ל-overflow של 11-15px בתחתית. הגבלה מינימלית
-      // שומרת על אחידות חזותית עבור הכרטיסים הרגילים ומאפשרת לכרטיסים
-      // עם תוכן עשיר לגדול כדי הצורך.
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 118),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Builder(
-                builder: (context) {
-                  final nameStyle = Theme.of(context).textTheme.titleMedium
-                      ?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: primaryTextColor,
-                      );
-                  // כרטיס בודד עם תת-כותרת: שורת כותרת + שורת פירוט קטנה.
-                  final showSubtitle =
-                      !timeData.isComposite && timeData.subtitle.isNotEmpty;
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: double.infinity,
-                        child: FittedBox(
-                          alignment: Alignment.center,
-                          fit: BoxFit.scaleDown,
-                          child: _OverflowAwareTooltipText(
-                            text: timeData.name,
-                            style: nameStyle,
-                            maxLines: 2,
+    return Padding(
+      padding: const EdgeInsets.all(AppTokens.spaceXS),
+      child: Material(
+        color: bgColor,
+        shape: AppCard.shape(scheme),
+        clipBehavior: Clip.antiAlias,
+        // minHeight במקום height קבוע: כרטיסי composite עם שתי אפשרויות התראה
+        // צריכים ~133px (Row של שני _buildCompositeSegment עם כפתור התראה),
+        // ולכן height: 118 גרם ל-overflow של 11-15px בתחתית. הגבלה מינימלית
+        // שומרת על אחידות חזותית עבור הכרטיסים הרגילים ומאפשרת לכרטיסים
+        // עם תוכן עשיר לגדול כדי הצורך.
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 118),
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Builder(
+                  builder: (context) {
+                    final nameStyle = Theme.of(context).textTheme.titleMedium
+                        ?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: primaryTextColor,
+                        );
+                    // כרטיס בודד עם תת-כותרת: שורת כותרת + שורת פירוט קטנה.
+                    final showSubtitle =
+                        !timeData.isComposite && timeData.subtitle.isNotEmpty;
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: double.infinity,
+                          child: FittedBox(
+                            alignment: Alignment.center,
+                            fit: BoxFit.scaleDown,
+                            child: _OverflowAwareTooltipText(
+                              text: timeData.name,
+                              style: nameStyle,
+                              maxLines: 2,
+                            ),
                           ),
                         ),
-                      ),
-                      if (showSubtitle)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(
-                            timeData.subtitle,
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  fontSize: 11,
-                                  color: secondaryTextColor,
-                                ),
-                          ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-              // כרטיס composite עם 2 אפשרויות התראה — אייקון ליד כל שעה
-              if (timeData.isComposite && timeData.alertOptions.length >= 2)
-                _buildAlertedCompositeRow(
-                  context: context,
-                  trailingLabel: timeData.trailingLabel,
-                  leadingLabel: timeData.leadingLabel,
-                  alertOptions: timeData.alertOptions,
-                  textColor: secondaryTextColor,
-                )
-              else
-                // כרטיס רגיל או composite ללא 2 אפשרויות — אייקון אחד בסוף
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: timeData.isComposite
-                          ? Row(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                if (timeData.trailingLabel != null)
-                                  Expanded(
-                                    child: _CompositeLabelValue(
-                                      text: _display(timeData.trailingLabel!),
-                                      textColor: secondaryTextColor,
-                                      titleAtStart: true,
-                                    ),
-                                  ),
-                                if (timeData.trailingLabel != null &&
-                                    timeData.leadingLabel != null)
-                                  const SizedBox(width: 12),
-                                if (timeData.leadingLabel != null)
-                                  Expanded(
-                                    child: _CompositeLabelValue(
-                                      text: _display(timeData.leadingLabel!),
-                                      textColor: secondaryTextColor,
-                                      titleAtStart: false,
-                                    ),
-                                  ),
-                              ],
-                            )
-                          : Text(
-                              _display(timeData.time),
+                        if (showSubtitle)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              timeData.subtitle,
                               textAlign: TextAlign.center,
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
-                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11,
                                     color: secondaryTextColor,
                                   ),
                             ),
-                    ),
-                    if (timeData.canAlert) ...[
-                      const SizedBox(width: 8),
-                      _AlertControl(
-                        hasAlert: hasAlert,
-                        existingAlert: existingAlert,
-                        tooltip: _tooltipForAlert(
-                          existingAlert,
-                          'הפעל התראה לזמן זה',
-                        ),
-                        foregroundColor: primaryTextColor,
-                        // כאן יש תמיד אפשרות אחת — פותחים ישר את חלון ההתראה
-                        onPressed: () => _openAlertDialogForOption(
-                          context,
-                          timeData.alertOptions.single,
-                        ),
-                      ),
-                    ],
-                  ],
+                          ),
+                      ],
+                    );
+                  },
                 ),
-            ],
+                // כרטיס composite עם 2 אפשרויות התראה — אייקון ליד כל שעה
+                if (timeData.isComposite && timeData.alertOptions.length >= 2)
+                  _buildAlertedCompositeRow(
+                    context: context,
+                    trailingLabel: timeData.trailingLabel,
+                    leadingLabel: timeData.leadingLabel,
+                    alertOptions: timeData.alertOptions,
+                    textColor: secondaryTextColor,
+                  )
+                else
+                  // כרטיס רגיל או composite ללא 2 אפשרויות — אייקון אחד בסוף
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: timeData.isComposite
+                            ? Row(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  if (timeData.trailingLabel != null)
+                                    Expanded(
+                                      child: _CompositeLabelValue(
+                                        text: _display(timeData.trailingLabel!),
+                                        textColor: secondaryTextColor,
+                                        titleAtStart: true,
+                                      ),
+                                    ),
+                                  if (timeData.trailingLabel != null &&
+                                      timeData.leadingLabel != null)
+                                    const SizedBox(width: 12),
+                                  if (timeData.leadingLabel != null)
+                                    Expanded(
+                                      child: _CompositeLabelValue(
+                                        text: _display(timeData.leadingLabel!),
+                                        textColor: secondaryTextColor,
+                                        titleAtStart: false,
+                                      ),
+                                    ),
+                                ],
+                              )
+                            : Text(
+                                _display(timeData.time),
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: secondaryTextColor,
+                                    ),
+                              ),
+                      ),
+                      if (timeData.canAlert) ...[
+                        const SizedBox(width: 8),
+                        _AlertControl(
+                          hasAlert: hasAlert,
+                          existingAlert: existingAlert,
+                          tooltip: _tooltipForAlert(
+                            existingAlert,
+                            'הפעל התראה לזמן זה',
+                          ),
+                          foregroundColor: primaryTextColor,
+                          // כאן יש תמיד אפשרות אחת — פותחים ישר את חלון ההתראה
+                          onPressed: () => _openAlertDialogForOption(
+                            context,
+                            timeData.alertOptions.single,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+              ],
+            ),
           ),
         ),
       ),

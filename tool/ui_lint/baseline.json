@@ -34,9 +34,6 @@
       ]
     },
     "UIL-012": {
-      "lib/tools/calendar/widgets/calendar_times_panel.dart": [
-        {"scope":"_ZmanCard.build","fp":"0855387f","n":1}
-      ],
       "lib/widgets/dialogs/ad_popup_dialog.dart": [
         {"scope":"_ExpandableOrgCardState.build","fp":"0855387f","n":1}
       ]
