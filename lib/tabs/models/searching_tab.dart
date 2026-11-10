@@ -1,9 +1,4 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:otzaria/plugins/services/plugin_search_completed_publisher.dart';
-import 'package:otzaria/search/models/search_completion.dart';
-import 'package:otzaria/search/search_dialog_query.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/models/external_search_status.dart';
 import 'package:otzaria/search/models/external_search_summary.dart';
@@ -107,10 +102,6 @@ class SearchingTab extends OpenedTab {
     /// לראשונה. תוספים יכולים לפתוח טאב עם הטקסט בשדה בלי להריץ חיפוש
     /// (reader.openSearchTab עם autoSearch: false) — אז המשתמש מריץ ידנית.
     this.autoRunInitialSearch = true,
-
-    /// מוסר `search.completed` לתוספים; ברירת המחדל שולחת דרך
-    /// [PluginRuntimeDispatcher] (לבדיקות).
-    this._completedPublisher,
   }) {
     // בלי configuration מפורשת זה טאב חיפוש חדש — הוא נפתח עם המיון ומצב
     // האיחוד שהמשתמש בחר לאחרונה.
@@ -120,9 +111,6 @@ class SearchingTab extends OpenedTab {
           initialConfiguration:
               initialConfiguration ?? SearchDefaults.withResultPreferences(),
         );
-    _completionSubscription = this.searchBloc.completions.listen(
-      _publishCompletion,
-    );
     titleNotifier = ValueNotifier(title);
     if (searchText != null) {
       queryController.text = searchText;
@@ -174,32 +162,13 @@ class SearchingTab extends OpenedTab {
       'search-${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}'
       '-${(_pluginTabCounter++).toRadixString(36)}';
 
-  final PluginSearchCompletedPublisher? _completedPublisher;
-  StreamSubscription<SearchCompletion>? _completionSubscription;
+  int? _publishedSearchRequestId;
 
-  void _publishCompletion(SearchCompletion completion) {
-    (_completedPublisher ?? PluginSearchCompletedPublisher()).publish(
-      tabId: pluginTabId,
-      completion: completion,
-      buildRequest: () {
-        final (positive, negative) = normalizedSearchParameters(
-          completion.query,
-          completion.negativeQuery,
-        );
-        final configuration = completion.configuration;
-        return pluginSearchRequest(
-          query: completion.query,
-          negativeQuery: completion.negativeQuery,
-          mode: configuration.searchMode,
-          distance: configuration.distance,
-          proximityScope: configuration.proximityScope,
-          facets: completion.facets,
-          configuration: configuration,
-          normalizedParameters: positive,
-          normalizedNegativeParameters: negative,
-        );
-      },
-    );
+  /// החלפת בעלות החלון אינה משדרת שוב השלמה שכבר נמסרה.
+  bool claimSearchCompletion(int requestId) {
+    if (_publishedSearchRequestId == requestId) return false;
+    _publishedSearchRequestId = requestId;
+    return true;
   }
 
   /// מפנה לקונסטרוקטור [SearchingTab.clone], שהוא המקום היחיד שיודע אילו
@@ -344,7 +313,6 @@ class SearchingTab extends OpenedTab {
 
   @override
   void dispose() {
-    _completionSubscription?.cancel();
     titleNotifier.dispose();
     queryController.dispose();
     negativeQueryController.dispose();
