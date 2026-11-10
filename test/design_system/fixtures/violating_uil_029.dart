@@ -12,3 +12,8 @@ Widget c(VoidCallback f) => IconButton(
   onPressed: f,
   icon: const Icon(IconData(0xe000)),
 );
+const IconThemeData theme = IconThemeData(size: 18); // LINT
+Widget merged(Widget child, Color color) => IconTheme.merge(
+  data: IconThemeData(color: color, size: 20), // LINT
+  child: child,
+);

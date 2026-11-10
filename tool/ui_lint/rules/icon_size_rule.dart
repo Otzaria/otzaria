@@ -5,13 +5,14 @@ import '../ast_helpers.dart';
 import '../ui_lint.dart';
 
 /// UIL-029: גודל אייקון שאינו טוקן (DD-03): `size:` ליטרלי ב־`Icon`/`RtlIcon`/
-/// `ImageIcon`, `iconSize:` ליטרלי בכל מקום, ו־`AppTokens.font*` כגודל אייקון.
+/// `ImageIcon`/`IconThemeData`, `iconSize:` ליטרלי בכל מקום, ו־`AppTokens.font*`
+/// כגודל אייקון.
 ///
 /// ביטוי מחושב (`size * 0.8`) לא נתפס. CustomPainter ו־`pw.*` מוחרגים.
 class IconSizeRule extends UiLintRule {
   const IconSizeRule();
 
-  static const _icons = {'Icon', 'RtlIcon', 'ImageIcon'};
+  static const _icons = {'Icon', 'RtlIcon', 'ImageIcon', 'IconThemeData'};
 
   @override
   String get id => 'UIL-029';
