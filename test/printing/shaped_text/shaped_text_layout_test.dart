@@ -55,10 +55,12 @@ void main() {
       ShapedTextAlign align = ShapedTextAlign.start,
       double? heightFactor,
       double fontSize = 14,
+      bool rtl = true,
     }) => ShapedTextLayout(
       fonts: [shaper],
       fontSize: fontSize,
       align: align,
+      rtl: rtl,
       heightFactor: heightFactor,
     );
 
@@ -120,6 +122,32 @@ void main() {
       expect(segments.length, 2);
       // Base direction is right-to-left, so the Latin run sits on the left.
       expect(segments.first.run.text, 'Otzaria');
+    });
+
+    test('mixed print line uses RTL base even when Latin comes first', () {
+      final block = layoutWith(rtl: true).layout(
+        'Otzaria שָׁלוֹם',
+        maxWidth: 300,
+      );
+      final segments = block.lines.single.segments;
+      expect(segments, hasLength(2));
+      // In an RTL paragraph the Hebrew word appears visually leftmost.
+      expect(segments.first.run.text, 'שָׁלוֹם');
+      expect(segments.last.run.text, 'Otzaria');
+      expect(segments.first.x, lessThan(segments.last.x));
+    });
+
+    test('mixed print line uses LTR base even when Hebrew comes first', () {
+      final block = layoutWith(rtl: false).layout(
+        'שָׁלוֹם Otzaria',
+        maxWidth: 300,
+      );
+      final segments = block.lines.single.segments;
+      expect(segments, hasLength(2));
+      // In an LTR paragraph the Hebrew run occupies the left edge.
+      expect(segments.first.run.text, 'שָׁלוֹם');
+      expect(segments.last.run.text, 'Otzaria');
+      expect(segments.first.x, lessThan(segments.last.x));
     });
 
     test('keeps the digits of a number in reading order', () {

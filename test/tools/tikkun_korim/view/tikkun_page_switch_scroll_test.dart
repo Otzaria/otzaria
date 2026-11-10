@@ -14,17 +14,8 @@ import 'package:otzaria/tools/tikkun_korim/view/tikkun_korim_screen.dart';
 import 'package:otzaria/tools/tikkun_korim/view/widgets/reader_page.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 
+import '../../../test_helpers/stub_settings_bloc.dart';
 import '../support/tikkun_fakes.dart';
-
-class _StubSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _StubSettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
 
 const _linesPerPage = 40;
 const _noachLine = 10;
@@ -110,7 +101,7 @@ void main() {
           textDirection: TextDirection.rtl,
           child: MultiBlocProvider(
             providers: [
-              BlocProvider<SettingsBloc>(create: (_) => _StubSettingsBloc()),
+              BlocProvider<SettingsBloc>(create: (_) => StubSettingsBloc()),
               BlocProvider<TikkunKorimBloc>.value(value: bloc),
             ],
             child: TikkunKorimView(data: data),

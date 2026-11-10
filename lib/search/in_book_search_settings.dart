@@ -4,7 +4,6 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/search_repository.dart';
-import 'package:otzaria/search/utils/smart_lexical_in_book_search.dart';
 import 'package:otzaria/search/utils/in_book_search_routing.dart';
 import 'package:otzaria/search/utils/user_regex_query.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
@@ -197,18 +196,19 @@ Future<List<SearchResult>> searchBookWithEngine(
   required InBookSearchSettings settings,
 }) async {
   if (settings.searchMode == SearchMode.fuzzy &&
-      settings.matchPolicy.querySemantics == SearchQuerySemantics.smart) {
-    final phrases = smartSearchQuotedPhrases(query);
-    if (phrases.isNotEmpty) {
-      return searchSmartLexicalInBook(
-        repository,
+      settings.matchPolicy.querySemantics == SearchQuerySemantics.smart &&
+      !UserRegexQuery.isValid(query)) {
+    if (limit <= 0) return const [];
+    return repository.searchSmartLexical(
+      SearchEngineRequest(
         query: query,
-        bookPath: bookPath,
+        facets: [bookPath],
         limit: limit,
+        searchMode: SearchMode.fuzzy,
         distance: settings.distance,
-        phrases: phrases,
-      );
-    }
+        order: ResultsOrder.catalogue,
+      ),
+    );
   }
   final parameters = settings.activeParameters;
   final policy = settings.requestedMatchPolicy.forQuery(query);

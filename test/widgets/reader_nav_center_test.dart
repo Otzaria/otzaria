@@ -6,12 +6,14 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/widgets/controls/bar_button.dart';
 import 'package:otzaria/widgets/navigation/reader_nav_center.dart';
 
+import '../test_helpers/stub_settings_bloc.dart';
+
 void main() {
   group('ReaderNavCenter', () {
     testWidgets('מציג כותרת וארבעה כפתורי ניווט שמפעילים את ה-callbacks', (
       tester,
     ) async {
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
       addTearDown(settingsBloc.close);
 
       final pressed = <String>[];
@@ -41,7 +43,7 @@ void main() {
     });
 
     testWidgets('במרכז צר הכותרת מתכווצת ואין overflow', (tester) async {
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
       addTearDown(settingsBloc.close);
 
       await tester.pumpWidget(
@@ -72,7 +74,7 @@ void main() {
     });
 
     testWidgets('מיקום החיצים אינו תלוי באורך הכותרת (#1863)', (tester) async {
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
       addTearDown(settingsBloc.close);
 
       Future<Offset> prevMinorFor(String title) async {
@@ -115,7 +117,7 @@ void main() {
         WidgetTester tester,
         double width,
       ) async {
-        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+        final settingsBloc = StubSettingsBloc(SettingsState.initial());
         addTearDown(settingsBloc.close);
         final placement = ReaderNavPlacement();
         await tester.pumpWidget(
@@ -218,7 +220,7 @@ void main() {
     testWidgets('afterTitle בגודל טבעי כשיש מקום ומתכווץ במרכז צר בלי לגלוש', (
       tester,
     ) async {
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
       addTearDown(settingsBloc.close);
 
       // רוחב 100 — גדול מ-PageNumberDisplay טיפוסי, כדי לא להניח רוחב מסוים.
@@ -274,7 +276,7 @@ void main() {
         IconData? prevMajorIcon,
         IconData? nextMajorIcon,
       }) async {
-        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+        final settingsBloc = StubSettingsBloc(SettingsState.initial());
         addTearDown(settingsBloc.close);
         final center = prevMajorIcon == null
             ? ReaderNavCenter(
@@ -363,14 +365,4 @@ Widget _buildHarness({
       ),
     ),
   );
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

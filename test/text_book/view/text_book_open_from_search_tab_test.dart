@@ -13,7 +13,6 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -29,6 +28,7 @@ import 'package:otzaria/tour/bloc/tour_cubit.dart';
 import 'package:provider/provider.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
 
 /// issue #1063 — ספר שנפתח מתוצאת חיפוש נפתח ישירות בלשונית "חיפוש",
 /// אבל ה-listener של בקר הלשוניות נורה רק על *שינוי* — ולכן הלשונית
@@ -76,7 +76,7 @@ void main() {
       blocOverride: bloc,
     );
     final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
 
     addTearDown(() async {
       await tester.pumpWidget(const SizedBox.shrink());
@@ -193,16 +193,6 @@ class _FakeTextBookRepository extends TextBookRepository {
 
   @override
   Future<String> getBookContent(TextBook book) async => 'שורה א\nשורה ב';
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _TestTabsBloc extends Cubit<TabsState> implements TabsBloc {

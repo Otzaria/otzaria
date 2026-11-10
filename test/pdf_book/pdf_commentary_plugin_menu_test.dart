@@ -18,8 +18,6 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
 import 'package:otzaria/widgets/misc/app_context_menu.dart';
@@ -28,6 +26,7 @@ import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import '../helpers/memory_settings_cache.dart';
 import '../test_helpers/context_menu_description.dart';
 import '../test_helpers/plugin_menu_click_recorder.dart';
+import '../test_helpers/stub_settings_bloc.dart';
 
 const _kCommentator = 'מפרש בדיקת תפריט PDF';
 const _kContent = 'פירוש לבדיקת תפריט התוספים';
@@ -97,7 +96,7 @@ void main() {
       MaterialApp(
         home: MultiBlocProvider(
           providers: [
-            BlocProvider<SettingsBloc>.value(value: _FakeSettingsBloc()),
+            BlocProvider<SettingsBloc>.value(value: StubSettingsBloc()),
             BlocProvider<PersonalNotesBloc>.value(
               value: _FakePersonalNotesBloc(),
             ),
@@ -168,16 +167,6 @@ void main() {
     final payload = await recorder.click(tester, menu.last);
     expect(payload['selectedText'], contains(_kContent));
   });
-}
-
-class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _FakeSettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
 
 class _FakePersonalNotesBloc

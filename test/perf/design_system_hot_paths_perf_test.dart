@@ -61,6 +61,7 @@ import 'package:otzaria/widgets/navigation/sidebar_nav_item.dart';
 import 'package:provider/provider.dart';
 
 import '../test_helpers/memory_cache_provider.dart';
+import '../test_helpers/stub_settings_bloc.dart';
 
 const _runs = 5;
 
@@ -151,7 +152,7 @@ void main() {
       final tabsBloc = _TestTabsBloc(
         TabsState(tabs: [tab], currentTabIndex: 0),
       );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
       final navigationBloc = _TestNavigationBloc();
       addTearDown(() async {
         await tester.pumpWidget(const SizedBox.shrink());
@@ -221,7 +222,7 @@ void main() {
       tester.view.physicalSize = const Size(1400, 900);
       addTearDown(tester.view.reset);
       final textBookBloc = _TestTextBookBloc(_searchState());
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
       final focusNode = FocusNode();
       addTearDown(textBookBloc.close);
       addTearDown(settingsBloc.close);
@@ -503,16 +504,6 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     implements TextBookBloc {
   _TestTextBookBloc(super.initialState) {
     on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
   }
 
   @override

@@ -92,9 +92,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      # NativeAPI build hooks need GTK, X11 and Xi headers even for analysis.
+      # NativeAPI's build hooks need GTK, X11 and Xi headers on Linux hosts.
       - name: Install nativeapi Linux build headers
         run: sudo apt-get update -qq && sudo apt-get install -y libgtk-3-dev libx11-dev libxi-dev pkg-config
+
+      - name: Test physical Windows centering
+        run: |
+          c++ -std=c++17 -Wall -Wextra -Werror -I windows/runner \
+            test/windows/window_centering_test.cpp -o "$RUNNER_TEMP/window_centering_test"
+          "$RUNNER_TEMP/window_centering_test"
 
       # שימוש ב-channel stable + flutter-version קבוע, אחיד עם build-and-announce.yml.
       # הגרסה ננעלת מפני שדרוגים אוטומטיים של pub/CI אחרי שחרור גרסת flutter יציבה חדשה.
@@ -586,7 +592,7 @@ jobs:
       # installer, tools/calendar) נשארות ל-Linux בלבד. הרחבת ההיקף מחייבת אימות
       # מקומי ב-Windows קודם — אחרת ה-job נהיה רועש ומתחילים להתעלם ממנו.
       - name: Run Windows-relevant tests
-        run: flutter test -j 4 test/core/ test/tabs/ test/navigation/ test/workspaces/ test/personal_notes/ test/utils/file/native_sha256_test.dart test/external_catalog/external_catalog_repository_test.dart
+        run: flutter test -j 4 test/core/ test/tabs/ test/navigation/ test/workspaces/ test/personal_notes/ test/utils/file/native_sha256_test.dart test/utils/file/zip_extractor_service_test.dart test/external_catalog/external_catalog_repository_test.dart
 
       - name: Test plugin ZIP extraction paths (Windows)
         run: flutter test test/plugins/services/plugin_archive_extractor_test.dart

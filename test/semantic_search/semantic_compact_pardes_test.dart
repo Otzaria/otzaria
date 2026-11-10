@@ -221,8 +221,8 @@ void main() {
           find.byKey(const ValueKey('semantic-data-model-choice')),
           findsOneWidget,
         );
-        await tester.ensureVisible(find.text('פרדס QA491 (ניסיוני)'));
-        await tester.tap(find.text('פרדס QA491 (ניסיוני)'));
+        await tester.ensureVisible(find.text('פרדס (ניסיוני)'));
+        await tester.tap(find.text('פרדס (ניסיוני)'));
         await tester.runAsync(() async {
           await waitFor(
             () => settings.modelChoice == SemanticModelChoice.pardesQa491,

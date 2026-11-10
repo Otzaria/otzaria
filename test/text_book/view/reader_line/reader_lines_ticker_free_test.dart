@@ -8,7 +8,6 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -19,6 +18,7 @@ import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_settings_bloc.dart';
 
 // כל טיקר נרשם ל-notifier המשותף של TickerMode, שהסרה ממנו היא O(n). טיקר
 // לכל שורה הופך פירוק של אלפי שורות בפריים אחד לריבועי (issues #3381, #3383).
@@ -67,23 +67,13 @@ class _TestPersonalNotesBloc
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
 Future<void> _pump(WidgetTester tester, Widget viewer) async {
   tester.view.physicalSize = const Size(900, 1600);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
   final textBookBloc = _TestTextBookBloc(_state());
   final notesBloc = _TestPersonalNotesBloc(const PersonalNotesState.initial());
-  final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+  final settingsBloc = StubSettingsBloc(SettingsState.initial());
   addTearDown(textBookBloc.close);
   addTearDown(notesBloc.close);
   addTearDown(settingsBloc.close);

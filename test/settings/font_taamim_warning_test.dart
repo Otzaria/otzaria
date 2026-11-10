@@ -7,11 +7,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/settings/tabs/text_settings_tab.dart';
 
 import '../test_helpers/memory_cache_provider.dart';
+import '../test_helpers/stub_settings_bloc.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -28,7 +28,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: BlocProvider<SettingsBloc>.value(
-            value: _TestSettingsBloc(
+            value: StubSettingsBloc(
               SettingsState.initial().copyWith(fontFamily: fontFamily),
             ),
             child: const TextSettingsTab(isDialog: true),
@@ -50,14 +50,4 @@ void main() {
 
     expect(find.byIcon(FluentIcons.info_16_regular), findsNothing);
   });
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

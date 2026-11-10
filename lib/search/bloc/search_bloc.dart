@@ -1039,7 +1039,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       return false;
     }
 
-    // מבטל המשכים תלויים של החיפוש הקודם (כמו countTexts שעוד ממתין) —
+    // מבטל המשכים תלויים של החיפוש הקודם (כמו אירוע הספירות שעוד ממתין) —
     // אחרת הם היו דורסים את totalResults המסונן בספירת ההיקף הרחב.
     _searchRequestId++;
 

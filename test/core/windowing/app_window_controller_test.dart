@@ -3,9 +3,13 @@
 // window fake instead of silently exercising a channel nobody listens to.
 // ignore_for_file: deprecated_member_use
 
+import 'dart:io' show Platform;
+
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/app_window_id.dart';
+import 'package:otzaria/core/windowing/runner_window_channel.dart';
 import 'package:otzaria/core/windowing/window_manager_app_window_controller.dart';
 import 'package:window_manager/legacy.dart';
 
@@ -15,13 +19,24 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late RecordingNativeWindow native;
   const controller = WindowManagerAppWindowController();
+  final runnerCalls = <String>[];
 
   setUp(() {
+    runnerCalls.clear();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(RunnerWindowChannel.channel, (call) async {
+      runnerCalls.add(call.method);
+      return null;
+    });
     native = RecordingNativeWindow(maximized: true);
     windowManager.debugBindWindow(native);
   });
 
-  tearDown(() => windowManager.debugBindWindow(null));
+  tearDown(() {
+    windowManager.debugBindWindow(null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(RunnerWindowChannel.channel, null);
+  });
 
   test('the controller has the primary window ID by default', () {
     expect(controller.id, AppWindowId.primary);
@@ -47,6 +62,18 @@ void main() {
       'unmaximize',
       'startDragging',
     ]);
+  });
+
+  test('Windows centering uses the runner and other OSes use nativeapi',
+      () async {
+    await controller.center();
+    if (Platform.isWindows) {
+      expect(runnerCalls, ['centerMainWindow']);
+      expect(native.calls, isNot(contains('center')));
+    } else {
+      expect(native.calls, contains('center'));
+      expect(runnerCalls, isEmpty);
+    }
   });
 
   test('show restores a minimized window first', () async {

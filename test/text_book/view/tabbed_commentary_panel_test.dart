@@ -21,7 +21,6 @@ import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/widgets/note_tile.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
@@ -35,6 +34,7 @@ import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 import '../../test_helpers/reading_toc.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 
 void main() {
@@ -63,7 +63,7 @@ void main() {
           _loadedState(activeCommentators: activeCommentators),
         );
     final personalNotesBloc = _TestPersonalNotesBloc(notesState);
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
 
     return MaterialApp(
       home: MultiBlocProvider(
@@ -711,7 +711,7 @@ class _TabSwitcherWrapperState extends State<_TabSwitcherWrapper> {
     final personalNotesBloc = _TestPersonalNotesBloc(
       const PersonalNotesState.initial(),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
 
     return MaterialApp(
       home: MultiBlocProvider(
@@ -780,16 +780,6 @@ class _TestPersonalNotesBloc
     implements PersonalNotesBloc {
   _TestPersonalNotesBloc(super.initialState) {
     on<PersonalNotesEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
   }
 
   @override

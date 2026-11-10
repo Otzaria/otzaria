@@ -182,8 +182,8 @@ class _RtlTextFieldState extends State<RtlTextField> {
     _rawController = null;
   }
 
-  /// מסנכרן גם תזוזת סמן בלבד: קוראים כמו כפתורי העיצוב בעורך הספרים קוראים
-  /// את controller.selection ישירות. onChanged מופעל רק כשהטקסט השתנה.
+  /// מסנכרן גם תזוזת סמן בלבד: יש קוראים שקוראים את controller.selection
+  /// ישירות, ו-onChanged מופעל רק כשהטקסט השתנה.
   void _syncCleanFromRawLive() {
     final clean = _collapseMapper.map(
       _rawController!.value,

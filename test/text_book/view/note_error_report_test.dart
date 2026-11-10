@@ -26,7 +26,6 @@ import 'package:otzaria/reports/bloc/book_report_draft_cubit.dart';
 import 'package:otzaria/reports/repository/report_draft_store.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -47,6 +46,7 @@ import 'package:url_launcher_platform_interface/link.dart';
 import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
 
 const _title = 'חברותא על ברכות';
 const _inlineTitle = 'חברותא על שבת';
@@ -437,7 +437,7 @@ Future<void> _pumpWithBlocs(
   Widget child,
 ) async {
   final textBook = _TextBookBloc(state);
-  final settings = _SettingsBloc(SettingsState.initial());
+  final settings = StubSettingsBloc(SettingsState.initial());
   final notes = _PersonalNotesBloc(const PersonalNotesState.initial());
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox.shrink());
@@ -510,16 +510,6 @@ class _TextBookBloc extends Bloc<TextBookEvent, TextBookState>
     implements TextBookBloc {
   _TextBookBloc(super.initialState) {
     on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _SettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _SettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
   }
 
   @override

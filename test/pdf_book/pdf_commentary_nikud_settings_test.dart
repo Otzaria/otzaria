@@ -10,25 +10,16 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/widgets/commentary/commentary_content.dart';
 
 import '../helpers/memory_settings_cache.dart';
+import '../test_helpers/stub_settings_bloc.dart';
 
 /// חלונית המפרשים ב-PDF ננעלה על `removeNikud: false` כי המסך לא העביר אותו
 /// כלל, ולכן הפרה בשקט את הגדרת התצוגה של המשתמש. הטסטים כאן נועלים את
 /// המסלול: הדגלים חייבים להגיע מהפאנל אל תוכן המפרש.
-class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _FakeSettingsBloc(super.state) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
-}
 
 class _FakePersonalNotesBloc
     extends Bloc<PersonalNotesEvent, PersonalNotesState>
@@ -82,7 +73,7 @@ Future<List<CommentaryContent>> _pumpPanel(
       home: MultiBlocProvider(
         providers: [
           BlocProvider<SettingsBloc>.value(
-            value: _FakeSettingsBloc(SettingsState.initial()),
+            value: StubSettingsBloc(SettingsState.initial()),
           ),
           BlocProvider<PersonalNotesBloc>.value(
             value: _FakePersonalNotesBloc(),

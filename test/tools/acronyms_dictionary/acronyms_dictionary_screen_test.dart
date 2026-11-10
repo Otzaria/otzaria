@@ -6,21 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tools/acronyms_dictionary/acronyms_dictionary_screen.dart';
 import 'package:otzaria/tools/acronyms_dictionary/widgets/acronym_result_card.dart';
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
 
-class _SettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _SettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
+import '../../test_helpers/stub_settings_bloc.dart';
 
 class _CountingRepository extends DictionaryLookupRepository {
   _CountingRepository(Map<String, List<String>> entries)
@@ -131,7 +121,7 @@ void main() {
     final expected = {
       for (final query in queries) query: _legacyResults(oracle, query),
     };
-    final settings = _SettingsBloc();
+    final settings = StubSettingsBloc();
     addTearDown(settings.close);
     await tester.pumpWidget(
       MaterialApp(
@@ -185,7 +175,7 @@ void main() {
     WidgetTester tester,
     DictionaryLookupRepository repository,
   ) async {
-    final settings = _SettingsBloc();
+    final settings = StubSettingsBloc();
     addTearDown(settings.close);
     await tester.pumpWidget(
       MaterialApp(

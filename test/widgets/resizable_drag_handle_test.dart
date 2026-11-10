@@ -8,20 +8,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
 
-class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _FakeSettingsBloc(super.initialState) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
-}
+import '../test_helpers/stub_settings_bloc.dart';
 
 Widget _wrap(Widget child, {bool? compactMenuMode}) {
   final content = SizedBox(height: 300, child: child);
@@ -30,7 +21,7 @@ Widget _wrap(Widget child, {bool? compactMenuMode}) {
   }
   return MaterialApp(
     home: BlocProvider<SettingsBloc>.value(
-      value: _FakeSettingsBloc(
+      value: StubSettingsBloc(
         SettingsState.initial().copyWith(compactMenuMode: compactMenuMode),
       ),
       child: Scaffold(body: content),

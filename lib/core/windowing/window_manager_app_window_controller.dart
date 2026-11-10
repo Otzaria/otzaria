@@ -1,13 +1,15 @@
-// Intentional use of window_manager 0.6's legacy facade during the
-// staged nativeapi migration; remove after moving these callers to Window.
+// Intentionally use window_manager 0.6's legacy façade while existing
+// AppWindowController callers migrate to nativeapi's per-window interface.
 // ignore_for_file: deprecated_member_use
 
+import 'dart:io' show Platform;
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
 import 'package:otzaria/core/windowing/app_window_controller.dart';
 import 'package:otzaria/core/windowing/app_window_id.dart';
+import 'package:otzaria/core/windowing/runner_window_channel.dart';
 import 'package:window_manager/legacy.dart';
 
 /// המימוש של החלון הראשי: מאציל ל-singleton הגלובלי `windowManager`.
@@ -37,7 +39,9 @@ final class WindowManagerAppWindowController
   Future<void> unmaximize() => windowManager.unmaximize();
 
   @override
-  Future<void> center() => windowManager.center();
+  Future<void> center() => Platform.isWindows
+      ? const RunnerWindowChannel().centerMainWindow()
+      : windowManager.center();
 
   @override
   Future<void> startDragging() => windowManager.startDragging();

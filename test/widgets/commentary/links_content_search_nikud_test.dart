@@ -5,8 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
 import 'package:otzaria/widgets/commentary/links_list_view.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
@@ -15,6 +13,7 @@ import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
 import '../../helpers/memory_settings_cache.dart';
 import '../../support/search_engine_test_init.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
 
 /// תוכן הקישורים הוא הטקסט המנוקד ביותר בספרייה (פסוקים, משניות, ציטוטים).
 /// הסינון חייב להתעלם מניקוד כמו כל שאר משטחי החיפוש באפליקציה.
@@ -37,21 +36,11 @@ class _ContentLink extends Link {
   Future<String> get displayReference => Future.value(fallbackDisplayReference);
 }
 
-class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _FakeSettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
-}
-
 Future<void> _pump(WidgetTester tester, List<Link> links) async {
   await tester.pumpWidget(
     MaterialApp(
       home: BlocProvider<SettingsBloc>.value(
-        value: _FakeSettingsBloc(),
+        value: StubSettingsBloc(),
         child: Scaffold(
           body: LinksListView(
             displayProfile: TextDisplayProfile.defaults,

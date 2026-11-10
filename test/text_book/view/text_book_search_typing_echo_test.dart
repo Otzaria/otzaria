@@ -11,7 +11,6 @@ import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
@@ -20,6 +19,7 @@ import 'package:otzaria/text_book/view/text_book_search_screen.dart';
 import 'package:otzaria/widgets/navigation/search_pane_base.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 
 void main() {
@@ -43,7 +43,7 @@ void main() {
     required String existingQuery,
   }) async {
     final textBookBloc = _EchoTextBookBloc(_loadedState(existingQuery));
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final focusNode = FocusNode();
 
     addTearDown(() async {
@@ -162,16 +162,6 @@ class _EchoTextBookBloc extends Bloc<TextBookEvent, TextBookState>
       emit(current.copyWith(searchText: event.text));
     });
     on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
   }
 
   @override

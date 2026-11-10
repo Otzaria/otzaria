@@ -9,6 +9,8 @@ import 'package:otzaria/tools/biographies/biographies_screen.dart';
 import 'package:otzaria/tools/biographies/repository/biographies_repository.dart';
 import 'package:otzaria/tools/biographies/widgets/biography_card.dart';
 
+import '../test_helpers/stub_settings_bloc.dart';
+
 /// Runs the biographies screen on a real release file. Manual only:
 /// `flutter test test/tools/biographies_screen_test.dart --tags manual`
 /// `--dart-define=BIO_FILE=<path of biographies-app.json.gz>`
@@ -19,7 +21,7 @@ void main() {
     home: Directionality(
       textDirection: TextDirection.rtl,
       child: BlocProvider<SettingsBloc>(
-        create: (_) => _TestSettingsBloc(SettingsState.initial()),
+        create: (_) => StubSettingsBloc(SettingsState.initial()),
         child: Scaffold(body: BiographiesScreen(repository: repository)),
       ),
     ),
@@ -57,14 +59,4 @@ void main() {
     await tester.pump();
     expect(find.text('לא נמצאו תוצאות'), findsOneWidget);
   }, skip: path.isEmpty);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
@@ -16,6 +15,7 @@ import 'package:otzaria/text_book/view/text_book_search_screen.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
 
 /// מעבר לתוצאה הבאה/הקודמת משנה רק את הבחירה, ולכן אינו אמור לחתוך
 /// ולהדגיש מחדש את הקטע של כל שורה גלויה.
@@ -28,7 +28,7 @@ Future<void> main() async {
 
   Future<void> pumpWithResults(WidgetTester tester) async {
     final textBookBloc = _TestTextBookBloc(_loadedState());
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final focusNode = FocusNode();
     addTearDown(textBookBloc.close);
     addTearDown(settingsBloc.close);
@@ -136,16 +136,6 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     implements TextBookBloc {
   _TestTextBookBloc(super.initialState) {
     on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
   }
 
   @override

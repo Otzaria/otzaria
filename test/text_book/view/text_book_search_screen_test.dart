@@ -6,7 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/widgets/navigation/search_pane_base.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/core/messages/text_book_messages.dart';
 import 'package:otzaria/models/books.dart';
@@ -19,6 +18,7 @@ import 'package:otzaria/text_book/utils/section_search_utils.dart';
 import 'package:otzaria/text_book/view/text_book_search_screen.dart';
 import '../../support/search_engine_test_init.dart';
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 
 Future<void> main() async {
@@ -39,7 +39,7 @@ Future<void> main() async {
     addTearDown(() => InBookSearchPreferences.saveWholeWord(false));
 
     final textBookBloc = _TestTextBookBloc(_loadedState());
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final focusNode = FocusNode();
 
     addTearDown(textBookBloc.close);
@@ -93,7 +93,7 @@ Future<void> main() async {
     addTearDown(() => InBookSearchPreferences.saveWholeWord(false));
 
     final textBookBloc = _TestTextBookBloc(_loadedState());
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final focusNode = FocusNode();
 
     addTearDown(textBookBloc.close);
@@ -154,7 +154,7 @@ Future<void> main() async {
     tester,
   ) async {
     final textBookBloc = _TestTextBookBloc(_loadedState());
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final focusNode = FocusNode();
 
     addTearDown(textBookBloc.close);
@@ -231,7 +231,7 @@ Future<void> main() async {
     tester,
   ) async {
     final textBookBloc = _TestTextBookBloc(_loadedState());
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final focusNode = FocusNode();
 
     addTearDown(textBookBloc.close);
@@ -273,7 +273,7 @@ Future<void> main() async {
     'didUpdateWidget מונע חיפוש כפול בהד הקלדה אך מריץ על שינוי חיצוני',
     (tester) async {
       final textBookBloc = _TestTextBookBloc(_loadedState());
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
       final focusNode = FocusNode();
 
       addTearDown(textBookBloc.close);
@@ -371,7 +371,7 @@ Future<void> main() async {
 
   testWidgets('חיפוש ישן לא דורס תוצאות של חיפוש חדש יותר', (tester) async {
     final textBookBloc = _TestTextBookBloc(_loadedState());
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final focusNode = FocusNode();
 
     addTearDown(textBookBloc.close);
@@ -448,7 +448,7 @@ Future<void> main() async {
     final textBookBloc = _TestTextBookBloc(
       _loadedState(visibleIndices: visibleIndices),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final focusNode = FocusNode();
 
     addTearDown(textBookBloc.close);
@@ -590,7 +590,7 @@ Future<void> main() async {
       final textBookBloc = _TestTextBookBloc(
         _loadedState(visibleIndices: const [0]),
       );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
       final focusNode = FocusNode();
 
       addTearDown(textBookBloc.close);
@@ -852,7 +852,7 @@ Future<void> main() async {
     'שימור בחירה מבחין בין הופעות באותה שורה לפי matchOffset',
     (tester) async {
       final textBookBloc = _TestTextBookBloc(_loadedState());
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
       final focusNode = FocusNode();
 
       addTearDown(textBookBloc.close);
@@ -978,7 +978,7 @@ Future<void> main() async {
       final textBookBloc = _TestTextBookBloc(
         _loadedState(visibleIndices: const [1000]),
       );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
       final focusNode = FocusNode();
 
       addTearDown(textBookBloc.close);
@@ -1111,16 +1111,6 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
 
   _TestTextBookBloc(super.initialState) {
     on<TextBookEvent>((event, emit) => events.add(event));
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
   }
 
   @override

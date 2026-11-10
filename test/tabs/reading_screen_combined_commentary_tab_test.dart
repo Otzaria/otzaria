@@ -10,8 +10,6 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentators_tab_screen.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -21,18 +19,10 @@ import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/reading_screen.dart';
 import 'package:provider/provider.dart';
 import '../helpers/memory_settings_cache.dart';
+import '../test_helpers/stub_settings_bloc.dart';
 
 /// רגרסיה: כרטסיית מפרשים עצמאית (`CommentatorsTab`/`PdfCommentatorsTab`)
 /// בתצוגה מפוצלת (`CombinedTab`) הוצגה ריקה.
-class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _FakeSettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
 
 class _FakePersonalNotesBloc
     extends Bloc<PersonalNotesEvent, PersonalNotesState>
@@ -110,7 +100,7 @@ void main() {
         MaterialApp(
           home: MultiBlocProvider(
             providers: [
-              BlocProvider<SettingsBloc>.value(value: _FakeSettingsBloc()),
+              BlocProvider<SettingsBloc>.value(value: StubSettingsBloc()),
               BlocProvider<PersonalNotesBloc>.value(
                 value: _FakePersonalNotesBloc(),
               ),

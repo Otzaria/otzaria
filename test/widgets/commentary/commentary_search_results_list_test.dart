@@ -5,26 +5,17 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/book_common/utils/commentary_search_utils.dart';
 import 'package:otzaria/widgets/commentary/commentary_search_results_list.dart';
 
 import '../../helpers/memory_settings_cache.dart';
 import '../../support/search_engine_test_init.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
 
 /// רשימת קטעי תוצאות החיפוש הייתה קיימת בכרטיסיית המפרשים בטקסט בלבד; ב-PDF
 /// הוצג `SizedBox.shrink()`. הטסטים כאן נועלים את הרשימה המשותפת ואת המיפוי
 /// בין היקרות (currentIdx) לשורה המסומנת.
-class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _FakeSettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
-}
 
 CommentarySearchSnippet _snippet(String path, String text, int globalIndex) =>
     CommentarySearchSnippet(
@@ -43,7 +34,7 @@ Future<int?> _pump(
   await tester.pumpWidget(
     MaterialApp(
       home: BlocProvider<SettingsBloc>.value(
-        value: _FakeSettingsBloc(),
+        value: StubSettingsBloc(),
         child: Scaffold(
           body: CommentarySearchResultsList(
             query: query,
@@ -173,7 +164,7 @@ Future<void> main() async {
       await tester.pumpWidget(
         MaterialApp(
           home: BlocProvider<SettingsBloc>.value(
-            value: _FakeSettingsBloc(),
+            value: StubSettingsBloc(),
             child: Scaffold(
               body: CommentarySearchResultsList(
                 query: 'שבת',

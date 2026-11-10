@@ -411,21 +411,13 @@ void main() {
     },
   );
 
-  // Regression test for bug introduced in commit 72ca3b4aa:
-  // When a folder was added via UI (custom_folders_panel.dart → _scanAndAddExternalBooks),
-  // insertCategory was called without rebuildCategoryClosure.
-  // Then RefreshLibrary → _pruneRemovedCustomFoldersIfNeeded ran immediately,
-  // and _categoryBelongsToAnyConfiguredFolder returned false (empty closure table),
-  // so the newly-added folder was deleted right away.
-  // Fix: refreshSourcesAndPruneRemovedCustomFolders now calls rebuildCategoryClosure
-  // before pruneRemovedCustomFoldersFromDatabase.
+  // prune מוצא את ספרי התיקייה דרך category_closure: תיקייה שנוספה ומיד אחריה
+  // רענון נשמרת רק אם insertCategory עצמו עדכן אותו.
   test(
     'regression: refreshSourcesAndPruneRemovedCustomFolders לא מוחק תיקייה שנוספה דרך UI ללא rebuildCategoryClosure',
     () async {
       final activeFolderPath = path.join(tempDir.path, 'my-books');
 
-      // מדמה את _getOrCreateCategoryInDb ב-database_library_provider.dart:
-      // מוסיף קטגוריות עם insertCategory בלי לקרוא ל-rebuildCategoryClosure.
       final personalCategoryId = await repository.insertCategory(
         const Category(title: 'ספרים אישיים'),
       );
@@ -451,10 +443,6 @@ void main() {
           filePath: path.join(activeFolderPath, 'ספר חדש.txt'),
         ),
       );
-
-      // בכוונה לא קוראים ל-rebuildCategoryClosure לפני refreshSources,
-      // בדיוק כמו שה-UI עושה: הוסיף תיקייה ואז מיד שלח RefreshLibrary.
-      // לפני התיקון, prune היה מוחק את הקטגוריה כי category_closure ריק.
 
       final service = await FileSyncService.getInstance(
         repository,

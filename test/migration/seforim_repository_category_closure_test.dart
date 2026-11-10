@@ -278,13 +278,4 @@ void main() {
       reason: 'D שנוסף אחרי בניית העץ חייב להיות גם צאצא של A',
     );
   });
-
-  test('parentId שאינו קיים ב-closure — לא מייצר רשומות יורשות', () async {
-    // אמנם הקוד לא מוגן מפני זה, אבל חשוב לתעד את ההתנהגות: אם מישהו
-    // יקרא ל-insertCategoryWithId ישירות (עוקף את insertCategory), ל-D
-    // לא יהיו אבות. self-loop בלבד.
-    final aId = await repository.insertCategory(const Category(title: 'A'));
-    // ל-A יש self-loop כי הוכנס דרך insertCategory.
-    expect(await repository.getDescendantCategoryIds(aId), [aId]);
-  });
 }

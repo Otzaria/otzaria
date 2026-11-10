@@ -79,26 +79,33 @@ class _ZmanAlertDialogState extends State<ZmanAlertDialog> {
             Row(
               children: [
                 Expanded(
-                  child: SpinBox(
-                    min: 0,
-                    max: 23,
-                    value: hours.toDouble(),
-                    decimals: 0,
-                    step: 1,
-                    decoration: const InputDecoration(labelText: 'שעות'),
-                    onChanged: (v) => setState(() => hours = v.toInt()),
+                  // SpinBox needs value updates to keep its blur cache in sync.
+                  child: StatefulBuilder(
+                    builder: (context, setSpinBoxState) => SpinBox(
+                      min: 0,
+                      max: 23,
+                      value: hours.toDouble(),
+                      decimals: 0,
+                      step: 1,
+                      decoration: const InputDecoration(labelText: 'שעות'),
+                      onChanged: (v) =>
+                          setSpinBoxState(() => hours = v.toInt()),
+                    ),
                   ),
                 ),
                 const SizedBox(width: AppTokens.spaceMD),
                 Expanded(
-                  child: SpinBox(
-                    min: 0,
-                    max: 59,
-                    value: minutes.toDouble(),
-                    decimals: 0,
-                    step: 1,
-                    decoration: const InputDecoration(labelText: 'דקות'),
-                    onChanged: (v) => setState(() => minutes = v.toInt()),
+                  child: StatefulBuilder(
+                    builder: (context, setSpinBoxState) => SpinBox(
+                      min: 0,
+                      max: 59,
+                      value: minutes.toDouble(),
+                      decimals: 0,
+                      step: 1,
+                      decoration: const InputDecoration(labelText: 'דקות'),
+                      onChanged: (v) =>
+                          setSpinBoxState(() => minutes = v.toInt()),
+                    ),
                   ),
                 ),
               ],

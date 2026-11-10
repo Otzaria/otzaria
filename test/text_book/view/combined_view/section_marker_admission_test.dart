@@ -25,7 +25,6 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -34,6 +33,7 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_settings_bloc.dart';
 
 const _content = [
   '(ח) ונח מצא חן בעיני ה׳',
@@ -64,16 +64,6 @@ class _TestPersonalNotesBloc
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
 class _Repository implements TextBookRepository {
   @override
   Future<List<Link>> getBookLinksInRange(
@@ -94,7 +84,7 @@ const _busyMessage =
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late Directory temporary;
-  late _TestSettingsBloc settings;
+  late StubSettingsBloc settings;
   late _TestPersonalNotesBloc notes;
   late _TestTextBookBloc bloc;
   final tabs = <TextBookTab>[];
@@ -142,7 +132,7 @@ void main() {
       categoryId: 7,
       fileType: 'txt',
     );
-    settings = _TestSettingsBloc(SettingsState.initial());
+    settings = StubSettingsBloc(SettingsState.initial());
     notes = _TestPersonalNotesBloc(const PersonalNotesState.initial());
     bloc = _TestTextBookBloc(
       TextBookLoaded(

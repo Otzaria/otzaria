@@ -14,7 +14,6 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/widgets/inline_note_editor.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -31,6 +30,7 @@ import 'package:otzaria/text_display/text_display_exports.dart';
 import '../../../reports/reporting_test_pump.dart';
 import '../../../test_helpers/memory_cache_provider.dart';
 import '../../../test_helpers/reading_toc.dart';
+import '../../../test_helpers/stub_settings_bloc.dart';
 
 const _lines = ['פסקה ראשונה', 'פסקה שניה', 'פסקה שלישית'];
 
@@ -447,7 +447,7 @@ Future<_Fixture> _pumpView(
       displayPolicy: displayPolicy,
     ),
   );
-  final settingsBloc = _SettingsBloc(SettingsState.initial());
+  final settingsBloc = StubSettingsBloc(SettingsState.initial());
   final notesBloc = _PersonalNotesBloc(const PersonalNotesState.initial());
   final fixture = _Fixture(notesBloc);
   final tab = TextBookTab(book: book, index: 0);
@@ -646,16 +646,6 @@ class _PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState>
   }
 
   final List<PersonalNotesEvent> received = [];
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _SettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _SettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
