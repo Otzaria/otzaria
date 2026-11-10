@@ -19,6 +19,7 @@ class ProvenanceTest(unittest.TestCase):
             "rust/src/linux/reader.rs": ("100644", b"upstream Linux"),
             "cargokit/run_build_tool.sh": ("100755", b"upstream build"),
             "rust/src/win32/reader.rs": ("100644", b"upstream Windows"),
+            "cargokit/gradle/plugin.gradle": ("100644", b"upstream gradle"),
             "LICENSE": ("100644", b"license"),
         }
         self.local = dict(self.upstream)
@@ -27,6 +28,10 @@ class ProvenanceTest(unittest.TestCase):
 
     def test_windows_reader_change_is_allowed(self):
         self.local["rust/src/win32/reader.rs"] = ("100644", b"patched Windows")
+        verifier.verify_sources(self.upstream, self.local)
+
+    def test_cargokit_gradle_change_is_allowed(self):
+        self.local["cargokit/gradle/plugin.gradle"] = ("100644", b"patched gradle")
         verifier.verify_sources(self.upstream, self.local)
 
     def test_dart_other_platform_build_and_license_changes_fail(self):
