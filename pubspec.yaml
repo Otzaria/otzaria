@@ -247,7 +247,7 @@ dependency_overrides:
   csslib:
     git:
       url: https://github.com/Otzaria/tools
-      ref: 16f8447c866d150ac12fb55f9d33c3e7fb251742
+      ref: 1c4a4a2b2f4584a23b9c01ae2a7ee45c40d2fb75
       path: pkgs/csslib
   matcher: ^0.12.20
   # TODO: לחזור לגרסה הרשמית לאחר מיזוג ושחרור תיקוני provider באפסטרים.
