@@ -12,7 +12,7 @@
 | דוח ui_lint | `dart tool/ui_lint_cli.dart --format=github`: טבלה ל־`$GITHUB_STEP_SUMMARY` ו־annotations לחריגות חדשות. `continue-on-error`, כלומר דוח בלבד | step ‏"UI lint report" ב־job ‏`analyze` |
 | golden tests | `flutter test test/goldens/` על Windows. כשל מעלה את `failures/` כ־artifact | job ‏`goldens_windows` ב־`flutter_tests.yml` |
 | גידול ב־baseline והחרגות | מכשיל PR שמוסיף מופעים ל־baseline, או מוסיף/מרחיב החרגת נתיב (`path:`) ב־`tool/ui_lint/config.yaml`, אלא אם יש עליו התווית `ui-baseline` | `.github/workflows/ui_baseline_guard.yml` |
-| שינוי בתמונות golden | מכשיל PR שמשנה PNG תחת `test/goldens/`, אלא אם יש עליו התווית `goldens-approved` | `.github/workflows/goldens_guard.yml` |
+| שינוי ב־golden | מכשיל PR שמשנה קובץ תחת `test/goldens/` (PNG, בדיקה, `skip`, ה־harness וסף ה־comparator), אלא אם יש עליו התווית `goldens-approved` | `.github/workflows/goldens_guard.yml` |
 | עדכון golden בלי Windows | `workflow_dispatch` שמצייר מחדש ומעלה את התמונות כ־artifact | `.github/workflows/regenerate_goldens.yml` |
 | בדיקות סריקה ישנות | בדיקות שסורקות את `lib/` ולא עברו למנוע (נספח) | `test/**` |
 | נגישות, הגדלת טקסט וביצועים | `meetsGuideline` והגדלת טקסט ברכיבים המשותפים (חוסמים), ומדידת ביצועים בלי ספים (מדפיסה בלבד) (§4) | ה־shards של Linux |
@@ -214,7 +214,7 @@ const _hebcalBlue = Color(0xFF1565C0);
 9. **עדכון:** `flutter test --update-goldens test/goldens/<component>` על Windows בלבד, עם הגרסה המוצמדת. מי שאין לו Windows מריץ את "Regenerate goldens" (`regenerate_goldens.yml`) ומוריד את ה־artifact. עדכון גרסת Flutter מחדש את כל התמונות באותו PR.
 10. **שינוי מכוון מול רגרסיה:**
     - **רגרסיה:** בדיקת golden נכשלת ב־PR שלא שינה אף PNG.
-    - **שינוי מכוון:** ה־PR משנה PNG. ‏`goldens_guard.yml` מחייב את התווית **`goldens-approved`** (DD-23), והסוקר בודק את תצוגת ה־diff של GitHub. כשב־base אין אף תמונת golden, וה־PR רק מוסיף תמונות, ה־PR הוא זה שמכניס את התשתית, וה־guard עובר. התמונות נבדקות בסקירה של אותו PR.
+    - **שינוי מכוון:** ה־PR משנה PNG. ‏`goldens_guard.yml` מחייב את התווית **`goldens-approved`** (DD-23), והסוקר בודק את תצוגת ה־diff של GitHub. אותה תווית נדרשת גם לשינוי בקוד שתחת `test/goldens/` בלי PNG (10.11): בדיקה שנמחקה או קיבלה `skip`, ‏`golden_harness.dart` וסף ה־comparator, ‏`flutter_test_config.dart`. כשב־base אין כלום תחת `test/goldens/`, וה־PR רק מוסיף, ה־PR הוא זה שמכניס את התשתית, וה־guard עובר. התמונות נבדקות בסקירה של אותו PR.
     - **אסור** לעדכן golden ב־PR שאינו שינוי ממשק.
 
 ## 6. הכנסה בהדרגה
@@ -250,7 +250,7 @@ const _hebcalBlue = Color(0xFF1565C0);
 | `Border(left:/right:)`, ‏`FractionalOffset(x, y)`, ‏`Alignment(x, y)` עם x ממשתנה | כיוון פיזי בצורות האלה לא נתפס ב־UIL-021 | נדיר; `Alignment(-1, 0)` ליטרלי ו־`BorderRadius.only`/`horizontal` נסגרו ב־10.11 |
 | הערת allow | מוסיפים בלי תווית, בלי תקרה ובלי בעלים | מכוון: הנימוק גלוי ב־diff ונסקר. התקרה (`max_allows`) מתוכננת (§3.5) |
 | החלפת חוב באותו `scope` | תיקון חריגה אחת והוספת אחרת באותה מתודה, עם `--allow-growth`, לא נספר כגידול | ה־guard סופר לפי כלל, קובץ ו־`scope` בלי `fp`, כדי ששינוי ביטוי לא ייחשב גידול (§3.4). ה־diff של `baseline.json` עדיין נסקר |
-| golden: סף, `skip` או מחיקת בדיקה | שינוי ב־`golden_harness.dart` או בבדיקה (בלי PNG) לא דורש את `goldens-approved` | הסף מקובע ב־`golden_comparator_test.dart`, ושינוי בו נראה ב־diff; מחיקת בדיקה מוחקת בדרך כלל גם PNG ואז נתפסת |
+| golden: מה שמחוץ ל־`test/goldens/` | `goldens_guard` (מ־10.11 כל קובץ תחת `test/goldens/`) לא רואה את `test/support/golden_fonts.dart`, את ה־job ‏`goldens_windows` ואת ההחרגה ב־`tool/ci/test_shards.dart` | שינוי בגופנים משנה פיקסלים ואז נכשל או משנה PNG; שינוי ב־workflow נסקר כקוד |
 | בדיקות סריקה ישנות (נספח) | regex על שורות, בלי AST: למשל `ActionButton.warning (` עם רווח, או בתוך הערה (התרעת שווא) | עוברות למנוע אחת אחרי השנייה (§6) |
 | הגנת ענף | אי אפשר לראות מתוך המאגר אם ה־jobs (`Test (shard n/5)`, ‏`ui_lint baseline growth`, ‏`Golden image changes`, ‏`Goldens (Windows)`) מוגדרים כ־required ב־GitHub | נבדק רק ב־YAML; ה־workflows לא הורצו עדיין על GitHub |
 

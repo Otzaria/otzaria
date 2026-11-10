@@ -2,8 +2,10 @@ name: Goldens Guard
 
 # תמונות הייחוס של test/goldens/ משתנות רק בשינוי ממשק מכוון
 # (docs/design-system/CI_ENFORCEMENT.md §5.10, DD-23). PR שמוסיף, משנה או
-# מוחק PNG תחת test/goldens/ צריך את התווית goldens-approved, שמתחזק מוסיף
-# אחרי שבדק את ה-diff של התמונות. golden שנכשל ב-PR שלא נגע בתמונות הוא רגרסיה.
+# מוחק קובץ תחת test/goldens/ צריך את התווית goldens-approved, שמתחזק מוסיף
+# אחרי שבדק את ה-diff. זה כולל את התמונות, וגם את קוד הבדיקות: ה־harness וסף
+# ה־comparator, ‏skip ומחיקת בדיקה מחלישים את הבדיקה בלי לגעת בתמונה.
+# golden שנכשל ב-PR שלא נגע בתמונות הוא רגרסיה.
 
 on:
   pull_request:
@@ -25,7 +27,7 @@ jobs:
     name: Golden image changes
     runs-on: ubuntu-latest
     steps:
-      - name: Check golden image changes
+      - name: Check golden changes
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -35,24 +37,37 @@ jobs:
         run: |
           set -euo pipefail
           changed=$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" \
-            --jq '.[] | select((.filename | test("^test/goldens/.*\\.png$")) or ((.previous_filename // "") | test("^test/goldens/.*\\.png$"))) | .status + " " + .filename')
+            --jq '.[] | select((.filename | startswith("test/goldens/")) or ((.previous_filename // "") | startswith("test/goldens/"))) | .status + " " + .filename')
           if [ -z "$changed" ]; then
-            echo "No golden image changed."
+            echo "Nothing under test/goldens/ changed."
             exit 0
           fi
-          echo "Changed golden images:"
-          echo "$changed"
-          # ה־PR שמכניס את תשתית ה־golden: ב־base אין אף תמונה, ולכן אין מה
-          # שהשתנה. תמונות חדשות נבדקות בסקירת ה־PR הזה עצמו.
+          images=$(echo "$changed" | { grep '\.png$' || true; })
+          code=$(echo "$changed" | { grep -v '\.png$' || true; })
+          if [ -n "$images" ]; then
+            echo "Changed golden images:"
+            echo "$images"
+          fi
+          if [ -n "$code" ]; then
+            echo "Changed golden test code (tests, skip, harness, comparator threshold):"
+            echo "$code"
+          fi
+          # ה־PR שמכניס את תשתית ה־golden: ב־base אין כלום תחת test/goldens/,
+          # וה־PR רק מוסיף. התמונות והבדיקות נבדקות בסקירה של ה־PR הזה עצמו.
           base_count=$(gh api "repos/$REPO/git/trees/$BASE_SHA?recursive=1" \
-            --jq '[.tree[].path | select(test("^test/goldens/.*\\.png$"))] | length')
+            --jq '[.tree[].path | select(startswith("test/goldens/"))] | length')
           if [ "$base_count" = "0" ] && ! echo "$changed" | grep -qv '^added '; then
-            echo "The base has no golden images: this pull request introduces them."
+            echo "The base has nothing under test/goldens/: this pull request introduces the golden tests."
             exit 0
           fi
           if [ "$APPROVED_LABEL" = "true" ]; then
             echo "Golden changes approved with the 'goldens-approved' label."
             exit 0
           fi
-          echo "::error::This pull request changes golden images under test/goldens/. Golden images change only with an intended UI change. A maintainer reviews the image diff and adds the 'goldens-approved' label."
+          if [ -n "$images" ]; then
+            echo "::error::This pull request changes golden images under test/goldens/. Golden images change only with an intended UI change. A maintainer reviews the image diff and adds the 'goldens-approved' label."
+          fi
+          if [ -n "$code" ]; then
+            echo "::error::This pull request changes golden test code under test/goldens/ (a test, a skip, the harness or the comparator threshold). A maintainer reviews it and adds the 'goldens-approved' label."
+          fi
           exit 1
