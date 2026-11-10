@@ -134,7 +134,7 @@ dependencies:
   window_manager:
     git:
       url: https://github.com/Otzaria/window_manager
-      ref: 5e33e8a0750bd41200cb07b3b9e3edda8f0d389a
+      ref: 2e8b51f84e172fb72c7843c09597f12a95c2a948
   screen_retriever: ^0.2.2
   flutter_spinbox: ^0.13.1
   logging: ^1.3.0
