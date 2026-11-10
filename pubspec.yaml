@@ -183,9 +183,13 @@ dependency_overrides:
       ref: d898e52b1526532c8d66a5f7fee0ca6b867a77d0
       path: packages/pdfium_dart
   # TODO: להסיר יחד עם ה-override של super_native_extensions כשתשוחרר 0.10 יציבה
-  # (native assets, תלויה ב-irondash ^0.6); 0.5.5 נכשלת ב-Gradle 9 (irondash/irondash#95).
+  # (native assets, תלויה ב-irondash ^0.6). עד אז הפורק Otzaria: 0.5.5 עם תיקון Cargokit
+  # ל-AGP 9 ו-Gradle 9 (irondash/irondash#95), ענף otzaria/engine-context-0.5.5-gradle9.
   irondash_engine_context:
-    path: packages/irondash_engine_context
+    git:
+      url: https://github.com/Otzaria/irondash
+      ref: 7847f85bd81322dc241b955a7e96b9088102a1bb
+      path: engine_context/dart
   # Windows clipboard history requires the CF_BITMAP reader patch; also Cargokit for
   # AGP 9 / Gradle 9 (superlistapp/super_native_extensions#565). See UPSTREAM.md.
   super_native_extensions:

@@ -20,10 +20,9 @@ on:
       - 'lib/widgets/misc/reporting_numbers_widget.dart'
       - 'lib/services/*report*'
       - 'packages/otzaria_report_contract/**'
-      - 'packages/irondash_engine_context/**'
       - 'packages/super_native_extensions/**'
-      - 'tool/verify_vendored_packages.py'
-      - 'tool/tests/test_verify_vendored_packages.py'
+      - 'tool/verify_super_native_extensions.py'
+      - 'tool/tests/test_verify_super_native_extensions.py'
       - 'test/reports/**'
       - 'pubspec.yaml'
       - 'pubspec.lock'
@@ -69,10 +68,10 @@ jobs:
       - name: Prepare evidence directory
         run: mkdir -p build/report-forms-qa build/reporting_qa
 
-      - name: Verify the vendored packages against their pinned Pub archives
+      - name: Verify the vendored clipboard source against its pinned Pub archive
         run: |
-          python3 tool/verify_vendored_packages.py
-          python3 -m unittest discover -s tool/tests -p test_verify_vendored_packages.py
+          python3 tool/verify_super_native_extensions.py
+          python3 -m unittest discover -s tool/tests -p test_verify_super_native_extensions.py
 
       - name: Install locked dependencies
         shell: bash
@@ -204,8 +203,8 @@ jobs:
             git fetch --no-tags --depth=2 origin "$GITHUB_SHA"
             base_ref="$(git rev-parse HEAD^)"
           fi
-          # Keep the verified upstream Dart byte-for-byte; see tool/verify_vendored_packages.py.
-          mapfile -d '' changed < <(git diff --name-only -z --diff-filter=ACMRT "$base_ref" HEAD -- '*.dart' ':!packages/super_native_extensions/**' ':!packages/irondash_engine_context/**')
+          # Keep the verified upstream Dart byte-for-byte; only the Windows Rust reader is patched.
+          mapfile -d '' changed < <(git diff --name-only -z --diff-filter=ACMRT "$base_ref" HEAD -- '*.dart' ':!packages/super_native_extensions/**')
           format_status=0
           if [ "${#changed[@]}" -gt 0 ]; then
             dart format "${changed[@]}" 2>&1 | tee build/reporting_qa/format.log || format_status=$?

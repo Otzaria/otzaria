@@ -968,9 +968,11 @@ packages:
   irondash_engine_context:
     dependency: "direct overridden"
     description:
-      path: "packages/irondash_engine_context"
-      relative: true
-    source: path
+      path: "engine_context/dart"
+      ref: "7847f85bd81322dc241b955a7e96b9088102a1bb"
+      resolved-ref: "7847f85bd81322dc241b955a7e96b9088102a1bb"
+      url: "https://github.com/Otzaria/irondash"
+    source: git
     version: "0.5.5"
   irondash_message_channel:
     dependency: transitive

@@ -10,7 +10,6 @@ on:
       - 'android/**'
       - 'lib/android_update/**'
       - 'lib/update/**'
-      - 'packages/irondash_engine_context/cargokit/**'
       - 'packages/super_native_extensions/cargokit/**'
       - 'test/android_update/**'
       - 'test/update/**'

@@ -27,12 +27,12 @@
 
 ## אימות ובנייה
 
-`python3 tool/verify_vendored_packages.py` מאמת את הארכיון ואת כל
+`python3 tool/verify_super_native_extensions.py` מאמת את הארכיון ואת כל
 הקבצים המנוהלים, ומרשה שינויים רק בשני קובצי המוצר שלעיל ובסקריפט ה־Gradle
 של Cargokit (בהמשך). לכן קוד Dart
 המקורי מוחרג מה־formatter ומה־analyzer של האפליקציה; קוד האפליקציה ממשיך
 לעבור אותם, וקוד Rust המתוקן עובר rustfmt ובדיקות Windows ב־CI.
-אפשר להעביר `--package super_native_extensions --archive /path/to/archive.tar.gz` לצורך אימות ללא הורדה נוספת.
+אפשר להעביר `--archive /path/to/archive.tar.gz` לצורך אימות ללא הורדה נוספת.
 
 מתוך `packages/super_native_extensions/rust`, ב־Windows:
 

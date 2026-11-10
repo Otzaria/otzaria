@@ -2,8 +2,7 @@ include: package:flutter_lints/flutter.yaml
 
 analyzer:
   exclude:
-    # Unchanged upstream Dart is checked by tool/verify_vendored_packages.py.
-    - packages/irondash_engine_context/**
+    # Unchanged upstream Dart is checked by tool/verify_super_native_extensions.py.
     - packages/super_native_extensions/**
     - otzaria_search_engine/**
     - build/**
