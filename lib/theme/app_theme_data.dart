@@ -195,6 +195,7 @@ class AppThemeData {
       tabBarTheme: _tabBarTheme(cs),
       segmentedButtonTheme: _segmentedButtonTheme(cs, surfaces.selectedBorder),
       tooltipTheme: _tooltipTheme(cs, regionBorder: regionBorder),
+      switchTheme: _switchTheme(cs),
       // פס גלילה: עובי קבוע גם בריחוף, כדי שהרצועה של AppScrollbar תכיל
       // אותו תמיד, ופינות בחצי העובי (q10 Q10).
       scrollbarTheme: const ScrollbarThemeData(
@@ -330,6 +331,30 @@ class AppThemeData {
       ),
     );
   }
+
+  /// מתג M3 (https://m3.material.io/components/switch/specs): אגודל
+  /// `onPrimary` על `primary` כשדלוק, `outline` על `surfaceContainerHighest`
+  /// עם מסגרת כשכבוי.
+  static SwitchThemeData _switchTheme(ColorScheme cs) => SwitchThemeData(
+    thumbColor: WidgetStateProperty.resolveWith((s) {
+      if (s.contains(WidgetState.disabled)) {
+        return cs.onSurface.withValues(alpha: 0.38);
+      }
+      if (s.contains(WidgetState.selected)) return cs.onPrimary;
+      return cs.outline;
+    }),
+    trackColor: WidgetStateProperty.resolveWith((s) {
+      if (s.contains(WidgetState.disabled)) {
+        return cs.surfaceContainerHighest.withValues(alpha: 0.12);
+      }
+      if (s.contains(WidgetState.selected)) return cs.primary;
+      return cs.surfaceContainerHighest;
+    }),
+    trackOutlineColor: WidgetStateProperty.resolveWith((s) {
+      if (s.contains(WidgetState.selected)) return Colors.transparent;
+      return cs.outline;
+    }),
+  );
 
   static TooltipThemeData _tooltipTheme(
     ColorScheme cs, {

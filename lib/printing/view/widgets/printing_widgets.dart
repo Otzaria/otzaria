@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:otzaria/settings/widgets/settings_card.dart';
-import 'package:otzaria/widgets/controls/custom_switch.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -195,7 +194,7 @@ class PrintingSwitchRow extends StatelessWidget {
               ),
             ),
             ExcludeFocus(
-              child: CustomSwitch(value: value, onChanged: onChanged),
+              child: Switch(value: value, onChanged: onChanged),
             ),
           ],
         ),

@@ -246,7 +246,7 @@ class _RadioIndicator extends StatelessWidget {
 /// • `SettingsActionTile.path(title: '...', path: '...', ...)` — path עם BiDi.
 ///
 /// ### factory methods (נראים כבנאים ב-call site)
-/// • `SettingsSwitchTile(...)` — שורה עם [CustomSwitch], focus וניהול keyboard.
+/// • `SettingsSwitchTile(...)` — שורה עם [Switch], focus וניהול keyboard.
 /// • `SettingsDropdownTile(...)` — שורה עם [AppDropdownField].
 /// • `SettingsSegmentedTile(...)` — שורה עם [AppSegmentedControl].
 ///
@@ -627,7 +627,7 @@ class _KeyboardFocusRowState extends State<_KeyboardFocusRow> {
 
 // ── SettingsSwitchTile ────────────────────────────────────────────────────────
 
-/// שורת on/off עם [CustomSwitch]: הקשה על כל השורה, Enter ו־Space מחליפים מצב.
+/// שורת on/off עם [Switch]: הקשה על כל השורה, Enter ו־Space מחליפים מצב.
 class SettingsSwitchTile extends StatefulWidget {
   final IconData? icon;
   final IconData? rtlIcon;
@@ -712,7 +712,7 @@ class _SettingsSwitchTileState extends State<SettingsSwitchTile> {
             : null,
         actions: [
           ExcludeFocus(
-            child: CustomSwitch(
+            child: Switch(
               value: widget.value,
               onChanged: widget.enabled && widget.onChanged != null
                   ? (_) => _toggle()

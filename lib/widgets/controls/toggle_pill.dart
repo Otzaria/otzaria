@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/widgets/controls/custom_switch.dart';
 
 /// מתג קומפקטי בגלולה: תווית ולצידה מתג קטן, ורקע מודגש כשדלוק. משמש
 /// לאפשרות בודדת ליד שדה (דיאלוג החיפוש, איתור מקורות).
@@ -52,7 +51,7 @@ class AppTogglePill extends StatelessWidget {
             SizedBox.fromSize(
               size: switchSize,
               child: FittedBox(
-                child: CustomSwitch(
+                child: Switch(
                   value: value,
                   onChanged: onChanged,
                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,

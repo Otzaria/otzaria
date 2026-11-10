@@ -27,7 +27,6 @@ import 'package:otzaria/settings/search/settings_search_registry.dart';
 import 'package:otzaria/settings/services/backup_service.dart';
 import 'package:otzaria/settings/tabs/system_settings_tab.dart';
 import 'package:otzaria/settings/widgets/expandable_settings_tile.dart';
-import 'package:otzaria/widgets/controls/custom_switch.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -386,7 +385,7 @@ void main() {
     );
     final toggle = find.descendant(
       of: target,
-      matching: find.byType(CustomSwitch),
+      matching: find.byType(Switch),
     );
     await tester.tap(toggle);
     await tester.pumpAndSettle();

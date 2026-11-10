@@ -52,11 +52,7 @@ rules:
         reason: צבע הנייר ומסנן ההיפוך של עמוד PDF (JX-05)
 
   UIL-033:
-    exclude:
-      - path: lib/widgets/controls/toggle_pill.dart
-        reason: AppTogglePill בונה את המתג מ־CustomSwitch עד שהוא יוסר (DESIGN_SYSTEM §3.3)
-      - path: lib/settings/widgets/settings_card.dart
-        reason: SettingsSwitchTile בונה את המתג מ־CustomSwitch עד שהוא יוסר (DESIGN_SYSTEM §3.3)
+    strict: true
 
   UIL-001:
     exclude:
