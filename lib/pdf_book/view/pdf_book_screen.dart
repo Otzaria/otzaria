@@ -5195,7 +5195,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                       controller: widget.tab.pdfViewerController,
                       focusNode: _navigationFieldFocusNode,
                       isPaneOpen: showLeftPane,
-                      onNavigateToPage: _jumpToPage,
+                      onNavigateToPage: _jumpFromNavPane,
                     ),
                   ),
                 ),
@@ -5230,7 +5230,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                             initialSearchTemplate: widget.tab.searchTemplate,
                             incomingSearchConfiguration:
                                 widget.tab.incomingSearchConfiguration,
-                            onSearchResultNavigated: _ensureSearchTabIsActive,
+                            onSearchResultNavigated: _onSearchResultNavigated,
                             onNavigationStarted: _preparePdfJump,
                             takeCenterMatchPage:
                                 widget.tab.takeCenterSearchMatchPage,
@@ -5250,7 +5250,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                     child: ThumbnailsView(
                       documentRef: widget.tab.documentRef.value,
                       controller: widget.tab.pdfViewerController,
-                      onNavigateToPage: _jumpToPage,
+                      onNavigateToPage: _jumpFromNavPane,
                       shownPagesFor: _spreadPageRangeFor,
                       thumbnailCache: _thumbnailCache,
                       isPaneOpen:
@@ -5350,6 +5350,21 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   Future<void> _jumpToPage(int pageNumber) {
     _rememberPdfLocation();
     return _goToPageWithSpreadLock(pageNumber);
+  }
+
+  /// מעבר מחלונית הניווט: חלונית שמכסה את הדף נסגרת, ומוצמדת נשארת (DD-26).
+  Future<void> _jumpFromNavPane(int pageNumber) {
+    final jump = _jumpToPage(pageNumber);
+    if (!_leftPaneUsesPushLayout) _setLeftPaneVisibility(false);
+    return jump;
+  }
+
+  void _onSearchResultNavigated() {
+    if (_leftPaneUsesPushLayout) {
+      _ensureSearchTabIsActive();
+    } else {
+      _setLeftPaneVisibility(false);
+    }
   }
 
   void _navigateSearchMatch({required bool forward}) {
