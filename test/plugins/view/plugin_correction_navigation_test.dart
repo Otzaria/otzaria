@@ -7,6 +7,7 @@ import 'package:otzaria/plugins/repository/plugin_correction_draft_repository.da
 import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
 import 'package:otzaria/plugins/view/plugin_correction_paragraph.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
+import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 import '../../test_helpers/activate_correction_paragraph.dart';
 
 void main() {
@@ -394,6 +395,90 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(EditableText), findsOneWidget);
     expect(scroll.offset, 100);
+    await finish(tester, service);
+  });
+
+  testWidgets('פסקה מעוצבת (סוגריים מוקטנים, מודגש) נשברת בעורך כמו בקורא', (
+    tester,
+  ) async {
+    // הקורא מקטין טקסט בסוגריים ומכבד תגיות; עורך בטקסט פשוט היה שובר שורות
+    // אחרת, וכל מה שמתחת לנקודת הלחיצה היה קופץ.
+    final source = [
+      for (var i = 0; i < 12; i++) '<b>אבגד</b> הוזח (טיכל מנסע פצקר) שתאב',
+    ].join(' ');
+    final db = sqlite3.openInMemory();
+    addTearDown(db.close);
+    final service = PluginCorrectionSessionService()
+      ..draftRepository = PluginCorrectionDraftRepository.direct(db);
+    addTearDown(service.dispose);
+    await tester.runAsync(
+      () => service.begin(
+        owner: 'owner',
+        tabId: 'tab',
+        bookId: 'ספר',
+        bookUid: 'id:1',
+        libraryVersion: '1',
+        loadSource: (_) async => source,
+      ),
+    );
+    const settings = RenderSettings(fontSize: 10, lineHeight: 1.5);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Scaffold(
+            body: Align(
+              alignment: Alignment.topRight,
+              child: SizedBox(
+                width: 300,
+                child: PluginCorrectionParagraph(
+                  tabId: 'tab',
+                  sectionIndex: 0,
+                  sourceText: source,
+                  settings: settings,
+                  original: SmartTextWidget(text: source, settings: settings),
+                  service: service,
+                  sessionActive: true,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    final reading = find.descendant(
+      of: find.byType(SmartTextWidget),
+      matching: find.byType(RichText),
+    );
+    expect(reading, findsOneWidget);
+    final paragraph = tester.renderObject<RenderParagraph>(reading);
+    final length = paragraph.text.toPlainText().length;
+    List<int> lineStarts(double Function(int) top) {
+      final starts = <int>[0];
+      for (var i = 1; i < length; i++) {
+        if (top(i) > top(i - 1) + 1) starts.add(i);
+      }
+      return starts;
+    }
+
+    final before = tester.getSize(find.byType(PluginCorrectionParagraph));
+    final originalStarts = lineStarts(
+      (i) => paragraph.getOffsetForCaret(TextPosition(offset: i), Rect.zero).dy,
+    );
+    expect(originalStarts.length, greaterThan(4));
+    await tester.tapAt(tester.getCenter(find.byType(SmartTextWidget)));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(EditableText), findsOneWidget);
+    final render = tester
+        .state<EditableTextState>(find.byType(EditableText))
+        .renderEditable;
+    expect(render.text!.toPlainText().length, length);
+    final editorStarts = lineStarts(
+      (i) => render.getLocalRectForCaret(TextPosition(offset: i)).top,
+    );
+    expect(editorStarts, originalStarts);
+    expect(tester.getSize(find.byType(PluginCorrectionParagraph)), before);
     await finish(tester, service);
   });
 

@@ -10,7 +10,9 @@ import 'package:otzaria/plugins/services/plugin_correction_session_service.dart'
 import 'package:otzaria/plugins/view/plugin_correction_controller.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/widgets/smart_text/inline_html_document.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
+import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
 /// עריכה מקומית בפסקת מקור, ללא היסטים או עוגנים של נוסח אחר.
@@ -459,14 +461,41 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   Widget _matchReadingWidth(Widget editor) =>
       _CaretRoom(suppressReveal: () => _suppressReveal, child: editor);
 
+  InlineHtmlLine? _readingLine;
+  List<TextSpan>? _readingLeaves;
+
+  /// העלים של התצוגה הרגילה (מודגש, סוגריים מוקטנים וכו') כל עוד הטקסט בעורך
+  /// זהה לטקסט שלה. כך פסקה שנפתחת לעריכה נשברת לשורות בדיוק כמו קודם, ואינה
+  /// קופצת. אחרי שינוי בטקסט העורך חוזר לטקסט פשוט.
+  List<TextSpan>? _leavesFor(String text) {
+    final line = _readingLine;
+    if (line == null || line.document.plainText != text) return null;
+    return _readingLeaves ??= [
+      for (final run in line.document.runs)
+        TextSpan(text: run.text, style: run.style),
+    ];
+  }
+
   Widget _buildEditor() {
     final settings = widget.settings;
-    // הגופן נבחר לפי הטקסט המוצג (בלי ניקוד וטעמים כשהם מוסתרים), כמו בתצוגה
-    // הרגילה, ולא לפי המקור הגולמי: אחרת נבחר גופן אחר והשורות נשברות אחרת.
-    final family = AppFonts.taamimSafeFontFamily(
-      settings.fontFamily,
-      _controller!.text,
+    // אותו עיבוד, אותו גופן ואותו סגנון שורה כמו ב-SmartTextWidget.
+    final html = TextRendererService.processText(widget.sourceText, settings);
+    final family = AppFonts.taamimSafeFontFamily(settings.fontFamily, html);
+    final textStyle = TextStyle(
+      fontSize: settings.fontSize,
+      fontFamily: AppFonts.renderFontFamily(family),
+      fontWeight: settings.fontWeight,
+      fontVariations: AppFonts.boldFontVariations(
+        family,
+        settings.fontWeight ?? FontWeight.normal,
+      ),
+      height: settings.lineHeight,
     );
+    final line = InlineHtmlDocument.parseLine(html, textStyle);
+    if (!identical(line, _readingLine)) {
+      _readingLine = line;
+      _readingLeaves = null;
+    }
     // שדה טקסט ממזג מתחת לסגנון את bodyLarge של ערכת הנושא (ריווח אותיות 0.5),
     // והתצוגה הרגילה יורשת את סגנון ברירת המחדל של הקורא. ריווח שונה מזיז כל
     // מילה ושובר שורות אחרת, ולכן הריווח נלקח במפורש מאותו מקור.
@@ -476,6 +505,8 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
         controller: _controller!,
         focusNode: _focus!,
         highlightText: settings.searchText,
+        formattedLeaves: line == null ? null : _leavesFor,
+        strutStyle: line?.strutStyle,
         scrollPadding: EdgeInsets.zero,
         maxLines: null,
         minLines: 1,
@@ -486,15 +517,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
           isDense: true,
           contentPadding: EdgeInsets.zero,
         ),
-        style: TextStyle(
-          fontSize: settings.fontSize,
-          fontFamily: AppFonts.renderFontFamily(family),
-          fontWeight: settings.fontWeight,
-          fontVariations: AppFonts.boldFontVariations(
-            family,
-            settings.fontWeight ?? FontWeight.normal,
-          ),
-          height: settings.lineHeight,
+        style: (line?.style ?? textStyle).copyWith(
           letterSpacing: inherited.letterSpacing ?? 0,
           wordSpacing: inherited.wordSpacing ?? 0,
         ),

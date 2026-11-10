@@ -39,6 +39,9 @@ class RtlTextField extends StatefulWidget {
   /// שוליים שהשדה דורש סביב הסמן כשהוא גולל את עצמו לתוך התצוגה.
   final EdgeInsets scrollPadding;
 
+  /// קו בסיס לגובה השורה, כדי שעורך יישבר לשורות בדיוק כמו התצוגה שהוא מחליף.
+  final StrutStyle? strutStyle;
+
   const RtlTextField({
     super.key,
     this.controller,
@@ -61,6 +64,7 @@ class RtlTextField extends StatefulWidget {
     this.scrollController,
     this.expands = false,
     this.scrollPadding = const EdgeInsets.all(20.0),
+    this.strutStyle,
   });
 
   @override
@@ -387,6 +391,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
       obscureText: widget.obscureText,
       cursorWidth: 1.0, // דק יותר מברירת המחדל (2.0)
       scrollPadding: widget.scrollPadding,
+      strutStyle: widget.strutStyle,
       // שקוף בשלב ה"כבוי" של ההבהוב ולאחר שנעצר (ראו ניהול ההבהוב למעלה)
       cursorColor: _cursorVisible ? widget.cursorColor : Colors.transparent,
       // ברירת המחדל max מציירת בטקסט RTL רב-שורתי כל בחירה עד הקצה השמאלי.
