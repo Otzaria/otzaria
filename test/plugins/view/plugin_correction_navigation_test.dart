@@ -178,6 +178,97 @@ void main() {
     await finish(tester, service);
   });
 
+  testWidgets('בפסקה של כמה שורות החצים נעים בין השורות ורק בקצה עוברים הלאה', (
+    tester,
+  ) async {
+    const long = 'אבגד הוזח טיכל מנסע פצקר שתאב גדהו זחטי כלמנ סעפצ קרשת';
+    final db = sqlite3.openInMemory();
+    addTearDown(db.close);
+    final service = PluginCorrectionSessionService()
+      ..draftRepository = PluginCorrectionDraftRepository.direct(db);
+    addTearDown(service.dispose);
+    final texts = [long, 'פסקה שנייה'];
+    await tester.runAsync(
+      () => service.begin(
+        owner: 'owner',
+        tabId: 'tab',
+        bookId: 'ספר',
+        bookUid: 'id:1',
+        libraryVersion: '1',
+        loadSource: (index) async => texts[index],
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Scaffold(
+            body: Align(
+              alignment: Alignment.topRight,
+              child: SizedBox(
+                width: 160,
+                child: Column(
+                  children: [
+                    for (var i = 0; i < texts.length; i++)
+                      PluginCorrectionParagraph(
+                        tabId: 'tab',
+                        sectionIndex: i,
+                        sourceText: texts[i],
+                        settings: const RenderSettings(fontSize: 14),
+                        original: Text('קריאה $i'),
+                        service: service,
+                        sessionActive: true,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('קריאה 0'));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump();
+    EditableText editor() =>
+        tester.widget<EditableText>(find.byType(EditableText));
+    final render = tester
+        .state<EditableTextState>(find.byType(EditableText))
+        .renderEditable;
+    final lines = <int>{};
+    for (var i = 0; i < long.length; i++) {
+      lines.add(render.getLineAtOffset(TextPosition(offset: i)).start);
+    }
+    expect(
+      lines.length,
+      greaterThan(2),
+      reason: 'הפסקה חייבת להתפרש על כמה שורות',
+    );
+    editor().controller.selection = const TextSelection.collapsed(offset: 1);
+    await tester.pump();
+    var offset = 1;
+    // חץ מטה בשורה הראשונה: נשארים בפסקה והסמן יורד שורה.
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    expect(editor().controller.text, long);
+    expect(editor().controller.selection.baseOffset, greaterThan(offset));
+    offset = editor().controller.selection.baseOffset;
+    // חץ מעלה מהשורה האמצעית: חוזרים לשורה הראשונה, עדיין באותה פסקה.
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.pump();
+    expect(editor().controller.text, long);
+    expect(editor().controller.selection.baseOffset, lessThan(offset));
+    // בשורה האחרונה חץ מטה עובר לפסקה הבאה.
+    editor().controller.selection = TextSelection.collapsed(
+      offset: long.length,
+    );
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+    expect(editor().controller.text, texts[1]);
+    await finish(tester, service);
+  });
+
   testWidgets('חיפוש מודגש בעורך כמו בפסקה הרגילה', (tester) async {
     final service = await begin(tester);
     await pump(tester, service, searchText: 'ראשונה');

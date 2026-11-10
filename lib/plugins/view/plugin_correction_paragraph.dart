@@ -170,14 +170,33 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
         keyboard.isControlPressed ||
         keyboard.isAltPressed ||
         keyboard.isMetaPressed ||
-        !controller.selection.isValid ||
-        !controller.selection.isCollapsed) {
+        !editor.textEditingValue.selection.isValid ||
+        !editor.textEditingValue.selection.isCollapsed) {
       return KeyEventResult.ignored;
     }
+    // הבחירה והטקסט נלקחים מהשדה עצמו (לא מהבקר החיצוני): בשדה רב-שורתי הם
+    // כוללים ירידות שורה מורחבות, וההיסטים של הבקר החיצוני אינם תואמים.
+    final value = editor.textEditingValue;
     final render = editor.renderEditable;
-    final caret = render.getLocalRectForCaret(controller.selection.extent);
-    final atEdge = up ? caret.top < 1 : caret.bottom > render.size.height - 1;
-    if (!atEdge) return KeyEventResult.ignored;
+    final extent = value.selection.extent;
+    final line = render.getLineAtOffset(extent);
+    // בתוך פסקה של כמה שורות החצים נשארים של שדה הטקסט; רק בשורה הראשונה או
+    // האחרונה של הפסקה עוברים לפסקה הסמוכה.
+    final atEdge = up ? line.start <= 0 : line.end >= value.text.length;
+    final caret = render.getLocalRectForCaret(extent);
+    if (!atEdge) {
+      // הזזת הסמן לשורה הסמוכה בתוך הפסקה נעשית כאן במפורש, באותו מקום
+      // אופקי, ולא נשארת לקיצורי העריכה הגלובליים שאינם מגיעים לשדה.
+      final step = render.preferredLineHeight * (up ? -1 : 1);
+      final target = render.getPositionForPoint(
+        render.localToGlobal(Offset(caret.center.dx, caret.center.dy + step)),
+      );
+      editor.userUpdateTextEditingValue(
+        value.copyWith(selection: TextSelection.fromPosition(target)),
+        SelectionChangedCause.keyboard,
+      );
+      return KeyEventResult.handled;
+    }
     final point = render.localToGlobal(caret.center);
     _handoff = _CaretHandoff(point.dx, !up);
     final moved = FocusScope.of(node.context!).focusInDirection(
