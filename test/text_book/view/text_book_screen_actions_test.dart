@@ -83,6 +83,8 @@ import 'package:provider/provider.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 
+import '../../test_helpers/capture_file_saves.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -711,9 +713,7 @@ void main() {
       tester,
     ) async {
       final picker = _CapturingFilePicker();
-      final previousPicker = FilePickerPlatform.instance;
-      FilePickerPlatform.instance = picker;
-      addTearDown(() => FilePickerPlatform.instance = previousPicker);
+      captureFileSaves(picker, (bytes) => picker.bytes = bytes);
       // איתור הספק האמיתי מאתחל את הספרייה מהדיסק, ותחת FakeAsync הוא נתקע.
       Future<bool> notFromDb(
         String title, {
