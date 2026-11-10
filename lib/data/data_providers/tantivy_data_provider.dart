@@ -14,6 +14,7 @@ import 'package:otzaria/search/search_engine_gateway.dart';
 import 'package:otzaria/search/magic_dictionary_downloader.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/error_log_file.dart';
 
 /// A singleton class that manages search functionality using Tantivy search engine.
 ///
@@ -468,8 +469,11 @@ class TantivyDataProvider {
       await _attachSearchLexicons(engine);
 
       return engine;
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('❌ Failed to initialize search engine: $e');
+      // בלי הרישום הזה הסיבה נשארת רק ב-debugPrint, ודוח מהתוכנה מגיע בלי
+      // שום רמז למה האינדקס לא נפתח (issue #4557).
+      _reportOpenFailure(indexPath, e, stackTrace);
 
       // הסנטינל נשאר בכוונה: גם כשל פתיחה שנתפס כחריגה (לא קריסה) חייב
       // להיצבר במונה — אחרת אינדקס שפתיחתו נכשלת שוב ושוב לעולם לא היה
@@ -484,6 +488,57 @@ class TantivyDataProvider {
         rethrow;
       }
     }
+  }
+
+  /// כותב את כשל פתיחת האינדקס ל-errors.txt; מוחלף בטסטים.
+  @visibleForTesting
+  static void Function(String? indexPath, Object error, StackTrace? stackTrace)
+  openFailureLog = _appendOpenFailureToErrorLog;
+
+  static void _reportOpenFailure(
+    String? indexPath,
+    Object error,
+    StackTrace? stackTrace,
+  ) {
+    try {
+      openFailureLog(indexPath, error, stackTrace);
+    } catch (_) {
+      // כשל בכתיבת הלוג אינו עוצר את המעבר לאינדקס הזמני.
+    }
+  }
+
+  static void _appendOpenFailureToErrorLog(
+    String? indexPath,
+    Object error,
+    StackTrace? stackTrace,
+  ) {
+    if (kDebugMode) return;
+    ErrorLogFile.append(
+      title: 'Search Index Open Failure',
+      error: error,
+      stackTrace: stackTrace,
+      details: indexOpenFailureDetails(indexPath),
+    );
+  }
+
+  /// מצב נתיב האינדקס ברגע הכשל: האם התיקייה קיימת, והאם אפילו אביה (למשל
+  /// כונן שאינו מחובר) קיים. ללא נתיב — לא ידוע.
+  @visibleForTesting
+  static Map<String, String?> indexOpenFailureDetails(String? indexPath) {
+    String? exists;
+    String? parentExists;
+    if (indexPath != null) {
+      try {
+        exists = '${Directory(indexPath).existsSync()}';
+        parentExists = '${Directory(p.dirname(indexPath)).existsSync()}';
+      } catch (_) {}
+    }
+    return {
+      'Phase': 'open index',
+      'Index path': indexPath,
+      'Index path exists': exists,
+      'Index parent exists': parentExists,
+    };
   }
 
   /// מנוע על תיקייה זמנית, כשאינדקס הדיסק אינו ניתן לפתיחה. במצב זה

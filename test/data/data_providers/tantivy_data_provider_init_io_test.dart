@@ -18,6 +18,39 @@ Future<void> main() async {
   TestWidgetsFlutterBinding.ensureInitialized();
   final engineReady = await tryInitSearchEngine();
 
+  group('TantivyDataProvider — פרטי כשל פתיחה', () {
+    late Directory root;
+
+    setUp(() => root = Directory.systemTemp.createTempSync('otzaria_open_'));
+    tearDown(() => root.deleteSync(recursive: true));
+
+    test('נתיב שלא קיים: גם האב חסר ומדווח כך (כונן שאינו מחובר)', () {
+      final details = TantivyDataProvider.indexOpenFailureDetails(
+        p.join(root.path, 'missing_drive', 'Otzaria', 'index'),
+      );
+
+      expect(details['Phase'], 'open index');
+      expect(details['Index path exists'], 'false');
+      expect(details['Index parent exists'], 'false');
+    });
+
+    test('תיקיית אינדקס חסרה ואב קיים: רק האינדקס חסר', () {
+      final details = TantivyDataProvider.indexOpenFailureDetails(
+        p.join(root.path, 'index'),
+      );
+
+      expect(details['Index path exists'], 'false');
+      expect(details['Index parent exists'], 'true');
+    });
+
+    test('בלי נתיב אין ניחוש על קיום', () {
+      final details = TantivyDataProvider.indexOpenFailureDetails(null);
+
+      expect(details['Index path exists'], isNull);
+      expect(details['Index parent exists'], isNull);
+    });
+  });
+
   group('TantivyDataProvider — פתיחת המנוע בלי IO סינכרוני', () {
     late Directory root;
     late Directory indexDir;
@@ -69,6 +102,32 @@ Future<void> main() async {
           containsAll(<String>['readAsString', 'rename', 'create']),
           reason: 'הטסט חייב לעבור במסלולי הסנטינל וההסגר',
         );
+      },
+      skip: engineReady ? false : searchEngineSkipReason,
+    );
+
+    test(
+      'אינדקס שאי אפשר ליצור נרשם ל-errors.txt ועובר לאינדקס זמני (issue #4557)',
+      () async {
+        // הטסט הקודם סגר את הסינגלטון; reopenIndex פותח אותו מחדש.
+        final provider = TantivyDataProvider.instance;
+        // קובץ במקום תיקייה: יצירת תיקיית האינדקס תחתיו נכשלת.
+        final blocker = File(p.join(root.path, 'blocker'))
+          ..writeAsStringSync('');
+        final badIndex = p.join(blocker.path, 'index');
+        await Settings.setValue(SettingsRepository.keyIndexPath, badIndex);
+        final original = TantivyDataProvider.openFailureLog;
+        addTearDown(() => TantivyDataProvider.openFailureLog = original);
+        final logged = <(String?, Object)>[];
+        TantivyDataProvider.openFailureLog = (path, error, _) =>
+            logged.add((path, error));
+
+        await provider.reopenIndex(force: true);
+        await provider.engine;
+
+        expect(logged, hasLength(1));
+        expect(logged.single.$1, badIndex);
+        expect(provider.isTempFallback, isTrue);
       },
       skip: engineReady ? false : searchEngineSkipReason,
     );

@@ -369,7 +369,9 @@ class IndexingRepository {
     await _tantivyDataProvider.engine;
     if (!_tantivyDataProvider.isTempFallback) return false;
     debugPrint('⚠️ המנוע על אינדקס זמני — האינדוקס מושהה כדי לא לאבד עבודה');
-    UiSnack.showError(LibraryMessages.searchIndexOpenFailed);
+    UiSnack.showError(
+      LibraryMessages.searchIndexOpenFailed(await _configuredIndexPath()),
+    );
     return true;
   }
 
@@ -428,6 +430,15 @@ class IndexingRepository {
     if (_activeRuns.isNotEmpty) return;
     _idle?.complete();
     _idle = null;
+  }
+
+  /// נתיב האינדקס המוגדר, להצגה בהודעת כשל. כשל בקריאתו אינו חוסם את ההודעה.
+  Future<String?> _configuredIndexPath() async {
+    try {
+      return await AppPaths.getIndexPath();
+    } catch (_) {
+      return null;
+    }
   }
 
   /// האם הספר כבר מאונדקס — לפי המסמכים החיים שנקראו מהאינדקס עצמו.

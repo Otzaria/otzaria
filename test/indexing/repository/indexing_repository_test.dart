@@ -14,7 +14,6 @@ import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/error_log_file.dart';
-import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/ui_snack.dart' show navigatorKey;
 import 'package:otzaria/data/data_providers/cache_database_holder.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
@@ -2675,9 +2674,37 @@ void main() {
         await tester.pump();
 
         expect(runs.map((run) => run.completed), everyElement(isFalse));
-        expect(find.text(LibraryMessages.searchIndexOpenFailed), findsNothing);
+        expect(find.textContaining('פתיחת אינדקס החיפוש'), findsNothing);
       },
     );
+
+    testWidgets('כשל פתיחה אמיתי מדווח למשתמש עם הנחיה לפעולה (issue #4557)', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(navigatorKey: navigatorKey, home: const SizedBox()),
+      );
+      final provider = FakeTantivyDataProvider(
+        indexedFilePaths: {},
+        requiresManualReindexValue: false,
+      )..isTempFallback = true;
+      final library = _buildLibrary(bavliBooks: const [('שבת', 1)]);
+
+      // קריאת נתיב האינדקס היא I/O אמיתי — בלי runAsync ה-future לא מסתיים
+      // בתוך ה-fake async של testWidgets והטסט נתקע.
+      final run = (await tester.runAsync(
+        () => IndexingRepository(
+          provider,
+        ).indexAllBooks(library, onProgress: (_, _) {}),
+      ))!;
+      await tester.pump();
+
+      expect(run.completed, isFalse);
+      expect(find.textContaining('הגדרות הספרייה'), findsOneWidget);
+      // ה-SnackBar מחזיק טיימר; מרוקנים אותו לפני סיום הטסט.
+      await tester.pump(const Duration(seconds: 30));
+      await tester.pumpAndSettle();
+    });
 
     test('לא מדלג ב-fast path כשנדרש manual reindex', () async {
       final library = _buildLibrary(bavliBooks: const [('שבת', 1)]);
