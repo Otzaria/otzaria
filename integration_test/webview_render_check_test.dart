@@ -248,9 +248,9 @@ void main() {
       expect(firstBounds.isEmpty, isFalse);
       expect(peerBounds.isEmpty, isFalse);
       expect(firstBounds.overlaps(peerBounds), isFalse);
-      final browsers = (await _processes(
-        environment,
-      )).values.where((process) => process.kind == 'BROWSER').toList();
+      final browsers = (await _processes(environment)).values
+          .where((process) => process.kind == 'BROWSER')
+          .toList();
       expect(
         browsers,
         hasLength(1),
@@ -264,8 +264,7 @@ void main() {
         expect(
           await view.controller
               .evaluateJavascript(
-                source:
-                    '!document.hidden && document.visibilityState === "visible"',
+                source: '!document.hidden && document.visibilityState === "visible"',
               )
               .timeout(_nativeDeadline),
           isTrue,
@@ -456,9 +455,7 @@ Future<_RenderedProbe> _renderProbe(
     );
     await nativeChannel
         .invokeMethod<Object?>('getUrl', {})
-        .timeout(
-          _nativeDeadline,
-        );
+        .timeout(_nativeDeadline);
     return (
       controller: controller,
       nativeChannel: nativeChannel,
@@ -525,9 +522,8 @@ class _IsolationProbe {
       loads++;
       if (!loaded.isCompleted) loaded.complete();
     },
-    onReceivedError: (controller, request, error) => events.add(
-      '${request.url}: ${error.type}: ${error.description}',
-    ),
+    onReceivedError: (controller, request, error) =>
+        events.add('${request.url}: ${error.type}: ${error.description}'),
     onProcessFailed: (controller, detail) => events.add(
       '${detail.kind}: ${detail.reason}, exitCode=${detail.exitCode}',
     ),
@@ -843,8 +839,7 @@ Future<void> _measureTrackedProcesses(
   _report({
     'cycle': cycle,
     'phase': phase,
-    'processScope':
-        'fixed WebView2 identities captured before host close; host and later processes excluded',
+    'processScope': 'fixed WebView2 identities captured before host close; host and later processes excluded',
     'captureListStable': tracked.captureListStable,
     'trackedProcesses': tracked.entries.length,
     'trackedAlive': alive,
@@ -967,11 +962,6 @@ Future<void> _measureResources(
 
 void _report(Map<String, Object?> values) {
   debugPrint(
-    '[WebView2 lifecycle] ${jsonEncode({
-      'schemaVersion': 1,
-      'source': 'synthetic CI/debug sample; not production savings evidence',
-      'processScope': 'host plus WebView2 environment process list',
-      ...values,
-    })}',
+    '[WebView2 lifecycle] ${jsonEncode({'schemaVersion': 1, 'source': 'synthetic CI/debug sample; not production savings evidence', 'processScope': 'host plus WebView2 environment process list', ...values})}',
   );
 }

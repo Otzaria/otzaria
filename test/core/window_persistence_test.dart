@@ -17,6 +17,7 @@ import 'package:window_manager/legacy.dart' show TitleBarStyle;
 
 import '../test_helpers/second_test_view.dart';
 import '../test_helpers/memory_cache_provider.dart';
+
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 
@@ -47,10 +48,7 @@ void main() {
     test('DPI אפס, שלילי או לא סופי מסונן', () {
       const rect = Rect.fromLTWH(0, 0, 1920, 1080);
       for (final scale in [0.0, -1.0, double.nan, double.infinity]) {
-        expect(
-          WindowPersistence.physicalWorkAreaOrNull(rect, scale),
-          isNull,
-        );
+        expect(WindowPersistence.physicalWorkAreaOrNull(rect, scale), isNull);
       }
     });
 

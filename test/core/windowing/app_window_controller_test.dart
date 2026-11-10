@@ -25,9 +25,9 @@ void main() {
     runnerCalls.clear();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(RunnerWindowChannel.channel, (call) async {
-      runnerCalls.add(call.method);
-      return null;
-    });
+          runnerCalls.add(call.method);
+          return null;
+        });
     native = RecordingNativeWindow(maximized: true);
     windowManager.debugBindWindow(native);
   });
