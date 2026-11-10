@@ -117,8 +117,7 @@ void main() {
     expect(selected.previewBook, same(matchingText));
   });
 
-  test('topic preview falls back to the first PDF when no text matches',
-      () async {
+  test('topic preview falls back to the first matching PDF', () async {
     final ignored = PdfBook(title: 'Other', path: 'a.pdf', topics: 'אגדה');
     final matching = PdfBook(title: 'Match', path: 'b.pdf', topics: 'הלכה');
     bloc.emit(
