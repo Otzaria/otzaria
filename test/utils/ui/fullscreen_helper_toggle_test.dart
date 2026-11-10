@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
+import 'package:otzaria/core/windowing/app_window_controller.dart';
+import 'package:window_manager/legacy.dart' show TitleBarStyle;
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 import 'package:otzaria/core/windowing/window_manager_app_window_controller.dart';
 import 'package:otzaria/utils/ui/fullscreen_helper.dart';
@@ -11,19 +13,13 @@ import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  late List<MethodCall> windowManagerCalls;
+  late List<String> windowManagerCalls;
   late List<MethodCall> platformCalls;
 
   setUp(() {
-    windowManagerCalls = [];
+    windowManagerCalls = _testGeometry.calls;
+    _testGeometry.calls.clear();
     platformCalls = [];
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(const MethodChannel('window_manager'), (
-          call,
-        ) async {
-          windowManagerCalls.add(call);
-          return null;
-        });
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, (call) async {
           platformCalls.add(call);
@@ -32,8 +28,6 @@ void main() {
   });
 
   tearDown(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(const MethodChannel('window_manager'), null);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, null);
   });
@@ -134,9 +128,7 @@ void main() {
 
       await toggleAsDesktop(context, true);
 
-      final methodsWhenEntering = windowManagerCalls
-          .map((c) => c.method)
-          .toList();
+      final methodsWhenEntering = List<String>.of(windowManagerCalls);
       expect(
         methodsWhenEntering.indexOf('setTitleBarStyle'),
         lessThan(methodsWhenEntering.indexOf('setFullScreen')),
@@ -147,7 +139,7 @@ void main() {
       await toggleAsDesktop(context, false);
 
       expect(
-        windowManagerCalls.map((c) => c.method),
+        windowManagerCalls,
         containsAll(['setFullScreen', 'setTitleBarStyle']),
         reason: 'גם ביציאה ממסך מלא ה-titlebar המותאם-אישית נשאר מוסתר',
       );
@@ -227,15 +219,34 @@ void main() {
   });
 }
 
-/// `FullscreenHelper.toggleFullscreen` שולף את החלון מ-[AppWindowScope],
-/// ולכן כל עץ שנבדק חייב אותו מעליו. הבקר האמיתי מנתב לאותו
-/// MethodChannel שכבר ממוקם כאן, ולכן ההנחות על `windowManagerCalls`
-/// נשארות בתוקף.
+/// FullscreenHelper delegates to AppWindowGeometry; test operation order
+/// through that interface rather than the removed 0.5 MethodChannel.
+class _RecordingFullscreenGeometry extends Fake implements AppWindowGeometry {
+  final List<String> calls = [];
+
+  @override
+  Future<void> setTitleBarStyle(
+    TitleBarStyle style, {
+    required bool windowButtonVisibility,
+  }) async {
+    expect(style, TitleBarStyle.hidden);
+    expect(windowButtonVisibility, isFalse);
+    calls.add('setTitleBarStyle');
+  }
+
+  @override
+  Future<void> setFullScreen(bool value) async {
+    calls.add('setFullScreen');
+  }
+}
+
+final _testGeometry = _RecordingFullscreenGeometry();
+
 Future<void> pumpWithAppWindow(WidgetTester tester, Widget child) =>
     tester.pumpWidget(
       AppWindowScope(
         controller: const WindowManagerAppWindowController(),
-        geometry: const WindowManagerAppWindowController(),
+        geometry: _testGeometry,
         child: child,
       ),
     );
