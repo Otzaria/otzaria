@@ -56,10 +56,7 @@ String _selectedLinkBookKey(Link link) =>
     '${link.targetSource.wireKey}_${link.targetCategoryId ?? ''}_${link.targetBookId ?? ''}';
 
 @visibleForTesting
-String buildSelectedLinkContentKey(Link link) {
-  final target = _selectedLinkBookKey(link);
-  return '${link.path2}_${link.index2}_$target';
-}
+String buildSelectedLinkContentKey(Link link) => link.contentIdentityKey;
 
 @visibleForTesting
 String buildSelectedLinkInstanceKey(Link link) {
@@ -278,8 +275,8 @@ class _LinksListViewState extends State<LinksListView> {
   String _searchQuery = '';
   final Map<String, Future<String>> _contentCache = {};
   final Set<String> _failedContentKeys = {};
-  // תוצאת ה-Future שב-_contentCache, ולא link.loadedContent: המפתח כאן אינו
-  // כולל את סוף הטווח, והמטמון הזה אינו מתנקה ברענון מסד.
+  // תוצאת ה-Future שב-_contentCache, ולא link.loadedContent: המטמון הזה אינו
+  // מתנקה ברענון מסד.
   final Map<String, String> _loadedContent = {};
   final Map<String, bool> _expanded = {};
   bool _searchInContent = false;
