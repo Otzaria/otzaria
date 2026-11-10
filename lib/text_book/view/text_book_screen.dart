@@ -929,7 +929,13 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const Expanded(child: LoadingIndicator()),
+                    Expanded(
+                      child: LoadingIndicator(
+                        strokeWidth: 3,
+                        icon: OtzariaIcons.book_open_medium_24_regular,
+                        message: context.settingsText('טוען את הספר'),
+                      ),
+                    ),
                   ],
                 ),
               );

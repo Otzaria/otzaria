@@ -5167,7 +5167,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                             takeCenterMatchPage:
                                 widget.tab.takeCenterSearchMatchPage,
                           )
-                        : const LoadingIndicator(),
+                        : LoadingIndicator(
+                            strokeWidth: 3,
+                            icon: OtzariaIcons.book_open_medium_24_regular,
+                            message: context.settingsText('טוען את הספר'),
+                          ),
                   ),
                 ),
                 NavPanelSearchSlot(

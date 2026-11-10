@@ -695,6 +695,40 @@ void main() {
       );
     });
 
+    testWidgets('icon: במרכז טבעת בגודל iconXL, וההודעה מתחתיה', (
+      tester,
+    ) async {
+      await pumpInApp(
+        tester,
+        const LoadingIndicator(
+          strokeWidth: 3,
+          icon: OtzariaIcons.book_24_regular,
+          message: 'טוען את הספר',
+        ),
+      );
+      final cs = schemeAt(tester, find.byType(LoadingIndicator));
+      final ring = tester.getRect(find.byType(CircularProgressIndicator));
+      expect(ring.size, const Size.square(AppTokens.iconXL));
+      final icon = tester.widget<Icon>(find.byType(Icon));
+      expect(icon.size, AppTokens.iconLG);
+      expect(icon.color, cs.primary);
+      expect(tester.getCenter(find.byType(Icon)), ring.center);
+      expect(
+        tester.getTopLeft(find.text('טוען את הספר')).dy,
+        greaterThan(ring.bottom),
+      );
+    });
+
+    testWidgets('icon בלי הודעה: ממורכז, ובלי icon אין אייקון', (tester) async {
+      await pumpInApp(
+        tester,
+        const LoadingIndicator(icon: OtzariaIcons.book_24_regular),
+      );
+      expect(find.byType(Icon), findsOneWidget);
+      await pumpInApp(tester, const LoadingIndicator());
+      expect(find.byType(Icon), findsNothing);
+    });
+
     testWidgets('inline: 16 על 16, עובי 2, בצבע שהועבר', (tester) async {
       await pumpInApp(
         tester,

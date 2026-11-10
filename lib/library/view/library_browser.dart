@@ -1173,13 +1173,17 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         child: Center(
           child: Container(
             width: 200,
-            height: 80,
+            height: 144,
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
               borderRadius: AppTokens.borderRadiusAll,
               boxShadow: AppShadows.floating(Theme.of(context).colorScheme),
             ),
-            child: const Center(child: _LoadingDotsText()),
+            child: LoadingIndicator(
+              strokeWidth: 3,
+              icon: OtzariaIcons.bookshelf_24_regular,
+              message: context.settingsText('טוען את הספרייה'),
+            ),
           ),
         ),
       ),
@@ -3000,57 +3004,6 @@ class _SearchingIndicator extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-// ── _LoadingDotsText ──────────────────────────────────────────────────────────
-
-class _LoadingDotsText extends StatefulWidget {
-  const _LoadingDotsText();
-
-  @override
-  State<_LoadingDotsText> createState() => _LoadingDotsTextState();
-}
-
-class _LoadingDotsTextState extends State<_LoadingDotsText>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 1500),
-      vsync: this,
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (_, _) {
-        final v = _controller.value;
-        final dots = v < 0.25
-            ? 0
-            : v < 0.5
-            ? 1
-            : v < 0.75
-            ? 2
-            : 3;
-        final label = context.settingsText('טוען ספרייה');
-        return Text(
-          '$label${'.' * dots}${' ' * (3 - dots)}',
-          style: Theme.of(context).textTheme.bodyMedium,
-        );
-      },
     );
   }
 }

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
-/// מצב טעינה: ספינר ממורכז, אופציונלית עם הודעה מתחתיו ([message]).
+/// מצב טעינה: ספינר ממורכז, אופציונלית עם הודעה מתחתיו ([message]) ואייקון
+/// מערכת במרכז הטבעת ([icon]).
 /// בתוך שורה, ליד טקסט או בכפתור: [LoadingIndicator.inline] (16, עובי 2).
 /// לתוכן שעוד לא נטען: [SkeletonLines].
 class LoadingIndicator extends StatelessWidget {
@@ -12,19 +13,24 @@ class LoadingIndicator extends StatelessWidget {
   /// הודעה מתחת לספינר, למשל "טוען מפרשים...".
   final String? message;
 
+  /// אייקון במרכז הטבעת, למשל ספרים בטעינת ספרייה. לא פועל עם [size].
+  final IconData? icon;
+
   const LoadingIndicator({
     super.key,
     this.strokeWidth,
     this.size,
     this.color,
     this.message,
+    this.icon,
   });
 
   /// ספינר קטן בתוך שורה: 16 על 16, עובי 2, לא ממורכז.
   const LoadingIndicator.inline({super.key, this.color})
     : size = inlineSize,
       strokeWidth = inlineStrokeWidth,
-      message = null;
+      message = null,
+      icon = null;
 
   static const double inlineSize = AppTokens.iconSM;
   static const double inlineStrokeWidth = 2;
@@ -44,16 +50,35 @@ class LoadingIndicator extends StatelessWidget {
       );
     }
 
-    if (message == null) return Center(child: indicator);
-
     final theme = Theme.of(context);
+    final ring = icon == null
+        ? indicator
+        : SizedBox.square(
+            dimension: AppTokens.iconXL,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                indicator,
+                Center(
+                  child: Icon(
+                    icon,
+                    size: AppTokens.iconLG,
+                    color: color ?? theme.colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+          );
+
+    if (message == null) return Center(child: ring);
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(AppTokens.spaceMD),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            indicator,
+            ring,
             const SizedBox(height: AppTokens.spaceMD),
             Text(
               message!,
