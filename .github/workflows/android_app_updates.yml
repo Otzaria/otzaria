@@ -71,7 +71,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ninja-build
           "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
-            'platforms;android-36' 'build-tools;36.0.0' 'ndk;28.2.13676358'
+            'platforms;android-37.0' 'build-tools;36.0.0' 'ndk;28.2.13676358'
       - name: Install Flutter dependencies
         run: flutter pub get --enforce-lockfile
       - name: Generate settings catalogs

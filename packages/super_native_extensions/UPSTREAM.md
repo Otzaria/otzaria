@@ -27,11 +27,12 @@
 
 ## אימות ובנייה
 
-`python3 tool/verify_super_native_extensions.py` מאמת את הארכיון ואת כל
-הקבצים המנוהלים, ומרשה שינויים רק בשני קובצי המוצר שלעיל. לכן קוד Dart
+`python3 tool/verify_vendored_packages.py` מאמת את הארכיון ואת כל
+הקבצים המנוהלים, ומרשה שינויים רק בשני קובצי המוצר שלעיל ובסקריפט ה־Gradle
+של Cargokit (בהמשך). לכן קוד Dart
 המקורי מוחרג מה־formatter ומה־analyzer של האפליקציה; קוד האפליקציה ממשיך
 לעבור אותם, וקוד Rust המתוקן עובר rustfmt ובדיקות Windows ב־CI.
-אפשר להעביר `--archive /path/to/archive.tar.gz` לצורך אימות ללא הורדה נוספת.
+אפשר להעביר `--package super_native_extensions --archive /path/to/archive.tar.gz` לצורך אימות ללא הורדה נוספת.
 
 מתוך `packages/super_native_extensions/rust`, ב־Windows:
 
@@ -42,7 +43,12 @@ cargo test --locked bitmap_reader_tests -- --test-threads=1 --nocapture
 בדיקת החלפת הלוח דורשת לוח ריק, מאמתת זאת לפני כל שינוי ומנקה את נתוני
 הבדיקה גם כשבדיקת הפיקסלים נכשלת. לוח שאינו ריק גורם לכישלון ללא החלפתו.
 
-קובצי Cargokit לא שונו. השינוי במקור Rust משנה את crate hash; בינארי מוכן
+`cargokit/gradle/plugin.gradle` תוקן עבור AGP 9 ו־Gradle 9: גרסת compileSdk
+מגיעה כ־`android-37.0`, ו־`project.exec` הוסר ב־Gradle 9 (משתמשים ב־`ExecOperations`).
+זה תואם לבעיה הפתוחה superlistapp/super_native_extensions#565; ב־upstream
+Cargokit הוחלף ב־native assets (‏#595), בגרסת 0.10.0-dev בלבד.
+
+השינוי במקור Rust משנה את crate hash; בינארי מוכן
 של 0.9.1 המקורית אינו מתאים לו. בהיעדר בינארי חתום תואם, Cargokit בונה
 מהמקור ולכן נדרש Rust toolchain גם בבניות שאר הפלטפורמות.
 

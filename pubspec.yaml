@@ -182,7 +182,12 @@ dependency_overrides:
       url: https://github.com/Otzaria/pdfrx
       ref: d898e52b1526532c8d66a5f7fee0ca6b867a77d0
       path: packages/pdfium_dart
-  # Windows clipboard history requires the CF_BITMAP reader patch; see UPSTREAM.md.
+  # TODO: לחזור ל-pub.dev כשתשוחרר גרסה יציבה עם native assets (irondash/irondash#90);
+  # עד אז תיקון Cargokit ל-AGP 9 ו-Gradle 9 (irondash/irondash#95). ראו UPSTREAM.md.
+  irondash_engine_context:
+    path: packages/irondash_engine_context
+  # Windows clipboard history requires the CF_BITMAP reader patch; also Cargokit for
+  # AGP 9 / Gradle 9 (superlistapp/super_native_extensions#565). See UPSTREAM.md.
   super_native_extensions:
     path: packages/super_native_extensions
   # TODO: להחזיר ל-pub.dev כשיתמזג וישוחרר MaikuB/flutter_local_notifications#2826
