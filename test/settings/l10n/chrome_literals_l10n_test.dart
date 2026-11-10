@@ -16,6 +16,14 @@ const _chrome = {
   'הצג ניווט': 'Show navigation',
   'סגור חיפוש': 'Close search',
   'עוד פעולות': null,
+  'הזנת סיסמה': 'Enter password',
+  'סיסמה': null,
+  'אישור': null,
+  'ביטול': null,
+  'נסה שוב': null,
+  'מחק': null,
+  'ערוך תיאור': 'Edit description',
+  'נקה סינון': 'Clear filter',
 };
 
 void main() {
@@ -33,6 +41,18 @@ void main() {
       expect(translated, isNot(hebrew), reason: hebrew);
       if (expected != null) expect(translated, expected, reason: hebrew);
     }
+  });
+
+  test('הודעת השגיאה עם ערך: זהה בעברית, מתורגמת באנגלית', () {
+    expect(
+      resolveSettingsText(
+        'שגיאה: {error}',
+        language: SettingsLanguage.hebrew,
+        args: {'error': 'x'},
+      ),
+      'שגיאה: x',
+    );
+    expect(english['שגיאה: {error}'], 'Error: {error}');
   });
 
   testWidgets('כפתור חלונית הניווט מתורגם לפי שפת הממשק', (tester) async {

@@ -556,7 +556,7 @@ class _ClearFilterButton extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  'נקה סינון',
+                  context.settingsText('נקה סינון'),
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                     color: cs.onPrimaryContainer,

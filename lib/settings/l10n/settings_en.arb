@@ -1731,10 +1731,14 @@
   "העתק פירוש": "Copy the definition",
   "הגדל": "Maximize",
   "עצור את החיפוש": "Stop the search",
+  "הזנת סיסמה": "Enter password",
+  "ערוך תיאור": "Edit description",
+  "נקה סינון": "Clear filter",
   "סגור חיפוש": "Close search",
   "החלונית נעוצה לפי ההגדרות": "The panel is pinned in the settings",
   "בטל נעיצה": "Unpin",
   "נעץ את החלונית": "Pin the panel",
   "הסתר ניווט": "Hide navigation",
-  "הצג ניווט": "Show navigation"
+  "הצג ניווט": "Show navigation",
+  "שגיאה: {error}": "Error: {error}"
 }
