@@ -23,6 +23,7 @@ class ToolResultCardShell extends StatelessWidget {
           child: InkWell(
             onTap: onTap,
             borderRadius: AppTokens.borderRadiusAll,
+            // ui-lint: allow UIL-007 — כרטיס תוצאה בלי מילוי פוקוס של InkWell; מצב קיים מלפני הרחבת UIL-007 (10.11), ממתין להכרעה אם להציג פוקוס
             focusColor: Colors.transparent,
             child: Padding(padding: AppTokens.cardPadding, child: child),
           ),
