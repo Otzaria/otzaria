@@ -296,8 +296,8 @@ packages:
     dependency: "direct main"
     description:
       path: "pkgs/csslib"
-      ref: "2dd1f09b19092e06e8b26a7ac4256df62d932bbf"
-      resolved-ref: "2dd1f09b19092e06e8b26a7ac4256df62d932bbf"
+      ref: "492ec4101cb148ff8200f219d28d1c1adb6227ec"
+      resolved-ref: "492ec4101cb148ff8200f219d28d1c1adb6227ec"
       url: "https://github.com/Otzaria/tools"
     source: git
     version: "1.0.3-wip"
@@ -895,8 +895,8 @@ packages:
     dependency: "direct main"
     description:
       path: "pkgs/html"
-      ref: "2dd1f09b19092e06e8b26a7ac4256df62d932bbf"
-      resolved-ref: "2dd1f09b19092e06e8b26a7ac4256df62d932bbf"
+      ref: "492ec4101cb148ff8200f219d28d1c1adb6227ec"
+      resolved-ref: "492ec4101cb148ff8200f219d28d1c1adb6227ec"
       url: "https://github.com/Otzaria/tools"
     source: git
     version: "0.15.8-wip"
