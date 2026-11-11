@@ -495,9 +495,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         ),
         BlocListener<CustomFoldersBloc, CustomFoldersState>(
           listenWhen: (p, c) => p.isSyncing && !c.isSyncing,
-          listener: (_, _) {
-            // רק "טעינה מחדש" מסמן את הסריקה; הסריקה כבר שלחה RefreshLibrary.
-            _reportHebrewBooksAfterReload = _reloadScanPending.value;
+          listener: (_, state) {
+            // רק "טעינה מחדש" מסמן; סריקה שנכשלה לא שולחת RefreshLibrary.
+            _reportHebrewBooksAfterReload =
+                _reloadScanPending.value && state.error == null;
             _reloadScanPending.value = false;
           },
         ),

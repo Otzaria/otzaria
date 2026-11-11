@@ -61,10 +61,16 @@ void main() {
   });
 
   // סריקה שלא התחילה מהכפתור (הוספת תיקייה, ייבוא, תוסף) לא חוסמת את הספרייה.
-  for (final (fromButton, unrecognized) in [(true, 2), (false, 2), (true, 0)]) {
+  // סריקה שנכשלה לא שולחת רענון, ולכן הדיווח לא יופיע ברענון שאינו קשור.
+  for (final (fromButton, unrecognized, scanFails) in [
+    (true, 2, false),
+    (false, 2, false),
+    (true, 0, false),
+    (true, 2, true),
+  ]) {
     testWidgets(
       '${fromButton ? 'מצב הטעינה מוצג כבר בזמן סריקת התיקיות האישיות' : 'סריקה שלא התחילה מ"טעינה מחדש" אינה מציגה מצב טעינה'}'
-      ' ($unrecognized קבצי היברובוקס לא מזוהים)',
+      ' ($unrecognized קבצי היברובוקס לא מזוהים${scanFails ? ', הסריקה נכשלה' : ''})',
       (tester) async {
         final library = Library(categories: []);
         final releaseSync = Completer<FileSyncResult>();
@@ -163,7 +169,11 @@ void main() {
         expect(foldersBloc.state.isSyncing, isTrue);
         expect(_loadingOverlay, fromButton ? findsOneWidget : findsNothing);
 
-        releaseSync.complete(const FileSyncResult());
+        if (scanFails) {
+          releaseSync.completeError(Exception('scan failed'));
+        } else {
+          releaseSync.complete(const FileSyncResult());
+        }
         await tester.pump();
         await tester.pump();
         expect(_loadingOverlay, findsNothing);
@@ -176,7 +186,9 @@ void main() {
         await tester.pump();
         expect(
           find.text(LibraryMessages.unrecognizedHebrewBooksFiles(unrecognized)),
-          fromButton && unrecognized > 0 ? findsOneWidget : findsNothing,
+          fromButton && unrecognized > 0 && !scanFails
+              ? findsOneWidget
+              : findsNothing,
         );
         await tester.pump(const Duration(seconds: 10));
       },

@@ -21,11 +21,13 @@ import 'package:otzaria/indexing/bloc/indexing_event.dart';
 import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/library/hidden/hidden_library_selection.dart';
+import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/navigation/utils/refresh_indexing_plan.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
@@ -370,6 +372,34 @@ void main() {
       expect(provider.getPersonalVersionsOf(rashi), isEmpty);
     },
   );
+
+  test('מיזוג: ספר רשמי מוסתר אינו מעלים את הספר הזהה מהמסד', () async {
+    final library = await attach(
+      attachedFixture('מוסתר', SeforimFixtureVariant.full),
+    );
+    await attached.setPlacement(
+      library,
+      AttachedLibraryPlacement.mergeIntoLibrary,
+    );
+    Book torahBook(Library catalog, String title, bool official) =>
+        _child(_child(catalog, 'תנ"ך')!, 'תורה')!.books.firstWhere(
+          (b) => b.title == title && b.source.isOfficial == official,
+        );
+    final official = torahBook(
+      await buildCatalog(),
+      SeforimFixtureIds.bereshitTitle,
+      true,
+    );
+    await const HiddenLibraryStore().save(
+      HiddenLibrarySelection(bookKeys: {PerBookSettings.bookKey(official)}),
+    );
+
+    final catalog = await buildCatalog();
+
+    final own = torahBook(catalog, SeforimFixtureIds.bereshitTitle, false);
+    expect(own.source, library.source);
+    expect(catalog.offTreeBooks.single.title, SeforimFixtureIds.rashiTitle);
+  });
 
   test('בנפרד: ספר בשם זהה לרשמי נשאר ספר רגיל', () async {
     final library = await attach(
