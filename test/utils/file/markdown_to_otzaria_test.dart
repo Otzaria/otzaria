@@ -209,6 +209,22 @@ final second = 2;
       expect(result.html, contains('<code dir="ltr">side</code>'));
     });
 
+    test('זיהוי כיווניות עוצר בתו חזק מחוץ לקוד גם בעץ מקונן', () async {
+      final result = await converter.convertSource(
+        '> `English` — **טקסט עברי**\n\n'
+        '> `עברית` — English prose',
+      );
+
+      final blocks = result.html.split('\n');
+      expect(blocks, hasLength(2));
+      expect(blocks[0], contains('<blockquote dir="rtl"'));
+      expect(blocks[1], contains('<blockquote dir="ltr"'));
+    });
+
+    test('כיוון בלוק עם קוד בלבד נשמר לפי טקסט הקוד', () async {
+      final result = await converter.convertSource('`English`');
+      expect(result.html, contains('<p dir="ltr"'));
+    });
     test('טבלה מקבלת כיווניות לפי תוכנה ולא לפי העוטף', () async {
       final result = await converter.convertSource('''
 <div dir="rtl">

@@ -277,22 +277,22 @@ bool _isEmbeddedImageUrl(String value) =>
 /// כיוון של בלוק תוכן, נגזר מהטקסט שמחוץ ל-`code`/`pre`: טוקני קוד לטיניים
 /// בפתח שורה עברית (למשל «`side` — העוגן») סיווגו אותה כ-LTR והפכו אותה.
 String _blockDirection(Element element) {
-  final buffer = StringBuffer();
-  void collect(Node node) {
-    if (node is Text) {
-      buffer.write(node.text);
-      return;
-    }
+  String? firstStrongOutsideCode(Node node) {
+    if (node is Text) return _firstStrongDirection(node.text);
     if (node is Element && const {'code', 'pre'}.contains(node.localName)) {
-      return;
+      return null;
     }
     for (final child in node.nodes) {
-      collect(child);
+      final direction = firstStrongOutsideCode(child);
+      // Stop as soon as the first strong character is known. Building the
+      // entire descendant text here was costly for long tables and lists,
+      // especially because their descendants are also checked individually.
+      if (direction != null) return direction;
     }
+    return null;
   }
 
-  collect(element);
-  return _firstStrongDirection(buffer.toString()) ??
+  return firstStrongOutsideCode(element) ??
       _firstStrongDirection(element.text) ??
       'rtl';
 }
