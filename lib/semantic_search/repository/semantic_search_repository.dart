@@ -22,6 +22,7 @@ import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria/semantic_search/models/semantic_model_identity.dart';
 import 'package:otzaria/semantic_search/models/semantic_model_release.dart';
 import 'package:otzaria/semantic_search/models/semantic_paths.dart';
+import 'package:otzaria/semantic_search/models/semantic_update_frequency.dart';
 import 'package:otzaria/semantic_search/models/semantic_vectors_family.dart';
 import 'package:otzaria/semantic_search/models/semantic_vectors_release.dart';
 import 'package:otzaria/semantic_search/onnx_runtime_locator.dart';
@@ -31,6 +32,7 @@ import 'package:otzaria/semantic_search/repository/semantic_platform_support.dar
 import 'package:otzaria/semantic_search/repository/semantic_release_locator.dart';
 import 'package:otzaria/semantic_search/repository/semantic_settings_store.dart';
 import 'package:otzaria/semantic_search/repository/semantic_staged_import.dart';
+import 'package:otzaria/semantic_search/services/semantic_data_failure_log.dart';
 import 'package:otzaria/services/data_collection_service.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/utils/file/disk_free_space.dart';
@@ -360,6 +362,35 @@ class SemanticSearchRepository {
       await refresh();
     }
   }
+
+  /// מתי הנתונים מתעדכנים ברקע אחרי עדכון ספרייה.
+  SemanticUpdateFrequency get updateFrequency => _settings.updateFrequency;
+
+  @visibleForTesting
+  SemanticDataFailureLog failureLog = SemanticDataFailureLog.shared;
+
+  /// מה שדרוש כדי להבין כשל מתוך דיווח: רכיב ההרצה והסט המותקן.
+  Map<String, String?> _failureDetails() {
+    final vectors = _vectors;
+    String? runtime;
+    try {
+      runtime = _onnxRuntimePath();
+    } catch (error) {
+      runtime = 'lookup failed: $error';
+    }
+    return {
+      'ONNX Runtime': runtime ?? 'not found next to the executable',
+      'Executable': Platform.resolvedExecutable,
+      'Quantization': quantization.name,
+      'Vectors present': vectors == null ? null : '${vectors.present}',
+      'Vectors library version': vectors?.libraryVersion.toString(),
+      'Vectors model family': vectors?.modelFamilyId,
+      'Offline mode': '${_settings.isOfflineMode}',
+    };
+  }
+
+  Future<void> setUpdateFrequency(SemanticUpdateFrequency value) =>
+      _settings.setUpdateFrequency(value);
 
   /// מוחק את המודל, הוקטורים וההורדות, ומפסיק את העדכון ברקע.
   Future<void> removeData() async {
@@ -701,6 +732,7 @@ class SemanticSearchRepository {
       }.contains(failure.kind)) {
         _repairModel = true;
       }
+      failureLog.record('open', failure, details: _failureDetails());
       if (epoch == _lifecycleEpoch) {
         _lastFailure = failure;
         await refresh();
@@ -1036,6 +1068,7 @@ class SemanticSearchRepository {
           // ביטול מפורש אינו כשל.
         } catch (error, stackTrace) {
           final failure = _failureOf(error);
+          failureLog.record('download', failure, details: _failureDetails());
           if (failure.kind == SemanticFailureKind.vectorsBusy) {
             _scheduleBusyRetry();
           } else if (failure.kind != SemanticFailureKind.cancelled) {
@@ -1086,6 +1119,13 @@ class SemanticSearchRepository {
     if (!_isConsentGranted()) {
       return _skipOrThrow(SemanticFailureKind.consentRequired);
     }
+    // בלי רכיב ההרצה הנתונים אינם שמישים; עדיף להיכשל לפני הורדה של כ-1.8GB.
+    if (_onnxRuntimePath() == null) {
+      throw const SemanticFailure(
+        SemanticFailureKind.onnxRuntimeMissing,
+        'the bundled ONNX Runtime library is missing',
+      );
+    }
     final offline = _settings.isOfflineMode;
     _jobFromStaged = await _staged.hasData();
     if (offline && !_jobFromStaged) {
@@ -1112,6 +1152,16 @@ class SemanticSearchRepository {
       _needsRepair = true;
     }
     _vectors = installed;
+    if (!_reportJobFailures &&
+        installed.libraryVersion != version &&
+        await _isRoutineUpdate(paths, installed) &&
+        !isSemanticRoutineUpdateDue(
+          frequency: _settings.updateFrequency,
+          lastUpdate: _settings.lastVectorsUpdate,
+          now: DateTime.now(),
+        )) {
+      return;
+    }
 
     // ה-release נמצא לפני הורדת המודל: בלי וקטורים לגרסה הזו אין מה להוריד.
     SemanticVectorsRelease? release;
@@ -1237,12 +1287,26 @@ class SemanticSearchRepository {
         );
       }
     }
+    await _settings.setLastVectorsUpdate(DateTime.now());
     try {
       await deleteSemanticOwnedDirectory(downloadDir.path);
     } on FileSystemException catch (error, stackTrace) {
       _log('cleanup', error, stackTrace);
     }
   }
+
+  /// סט תקין של המודל והמשפחה הנוכחיים, שרק גרסת הספרייה שלו ישנה.
+  Future<bool> _isRoutineUpdate(
+    SemanticPaths paths,
+    SemanticVectorsSummary installed,
+  ) async =>
+      installed.present &&
+      !_needsRepair &&
+      !_repairModel &&
+      await _installedFamily(installed) == _preferredFamily &&
+      await _hasCurrentModel(installed) &&
+      await File(paths.modelFile(quantization)).exists() &&
+      await File(paths.tokenizerFile).exists();
 
   /// מתקין release אחד מ-[segment]; `false` כש-delta אינו ממשיך את הסט.
   /// [before] — הבתים שנספרו לפני ההורדה של [release].

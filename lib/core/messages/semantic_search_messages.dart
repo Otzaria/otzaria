@@ -26,7 +26,7 @@ abstract class SemanticSearchMessages {
   static const String consentRequired =
       '{name} מחייב הסכמה לשליחת נתוני שימוש.';
   static const String offline =
-      'מצב לא מקוון פעיל. יש לכבות אותו כדי להוריד את נתוני {name}.';
+      'מצב לא מקוון פעיל. כדי לקבל את נתוני {name} יש לכבות אותו, או להתקין אותם בעזרת גרסה עדכנית של "עדכוני אוצריא".';
   static const String network =
       'ההורדה נכשלה בגלל בעיית רשת. נסו שוב מאוחר יותר.';
   static const String rateLimited =

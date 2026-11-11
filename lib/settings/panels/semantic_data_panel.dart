@@ -7,6 +7,7 @@ import 'package:otzaria/semantic_search/bloc/semantic_search_bloc.dart';
 import 'package:otzaria/semantic_search/models/semantic_availability.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria/semantic_search/models/semantic_model_identity.dart';
+import 'package:otzaria/semantic_search/models/semantic_update_frequency.dart';
 import 'package:otzaria/semantic_search/repository/semantic_search_repository.dart';
 import 'package:otzaria/semantic_search/view/semantic_progress_text.dart';
 import 'package:otzaria/semantic_search/repository/semantic_platform_support.dart';
@@ -56,7 +57,7 @@ class _SemanticDataCard extends StatelessWidget {
           cardId: 'system.semanticData',
           title: context.settingsText('נתוני {name}', args: _nameArgs(context)),
           subtitle: context.settingsText(
-            'הנתונים ש{name} משתמש בהם. אחרי ההורדה הם מתעדכנים ברקע עם עדכוני הספרייה.',
+            'הנתונים ש{name} משתמש בהם. אחרי ההורדה הם מתעדכנים ברקע לפי ההגדרה שנבחרה.',
             args: _nameArgs(context),
           ),
           children: [
@@ -141,6 +142,7 @@ class _SemanticDataCard extends StatelessWidget {
                   ),
                 ],
               ),
+            _UpdateFrequencyTile(bloc: bloc),
             SettingsActionTile.text(
               icon: FluentIcons.delete_24_regular,
               title: context.settingsText(
@@ -250,6 +252,13 @@ class _SemanticDataCard extends StatelessWidget {
           onPressed: () => bloc.add(const SemanticDownloadCancelRequested()),
         ),
       ],
+      SemanticAvailabilityPhase.ready => [
+        ActionButton.neutral(
+          key: const ValueKey('semantic-data-update-now'),
+          text: context.settingsText('בדוק עדכון'),
+          onPressed: () => bloc.add(const SemanticDownloadRequested()),
+        ),
+      ],
       _ => const [],
     };
   }
@@ -298,6 +307,52 @@ class _SemanticDataCard extends StatelessWidget {
       confirmText: context.settingsText('מחק'),
     );
     if (confirmed == true) bloc.add(const SemanticDataRemovalRequested());
+  }
+}
+
+/// מתי הנתונים מתעדכנים. הערך נשמר מיד, ולכן הבחירה מוחזקת כאן ולא במצב ה-bloc.
+class _UpdateFrequencyTile extends StatefulWidget {
+  const _UpdateFrequencyTile({required this.bloc});
+
+  final SemanticSearchBloc bloc;
+
+  @override
+  State<_UpdateFrequencyTile> createState() => _UpdateFrequencyTileState();
+}
+
+class _UpdateFrequencyTileState extends State<_UpdateFrequencyTile> {
+  late SemanticUpdateFrequency _frequency =
+      widget.bloc.repository.updateFrequency;
+
+  @override
+  Widget build(BuildContext context) {
+    return SettingsSegmentedTile<SemanticUpdateFrequency>(
+      key: const ValueKey('semantic-data-update-frequency'),
+      icon: FluentIcons.arrow_sync_24_regular,
+      title: context.settingsText('עדכון הנתונים'),
+      options: [
+        SegmentOption(
+          value: SemanticUpdateFrequency.withLibrary,
+          label: context.settingsText('עם הספרייה'),
+          subtitle: context.settingsText('אחרי כל עדכון ספרייה'),
+        ),
+        SegmentOption(
+          value: SemanticUpdateFrequency.monthly,
+          label: context.settingsText('פעם בחודש'),
+          subtitle: context.settingsText('לכל היותר פעם בחודש'),
+        ),
+        SegmentOption(
+          value: SemanticUpdateFrequency.manual,
+          label: context.settingsText('ידני'),
+          subtitle: context.settingsText('רק בלחיצה על "בדוק עדכון"'),
+        ),
+      ],
+      currentValue: _frequency,
+      onChanged: (value) {
+        setState(() => _frequency = value);
+        widget.bloc.add(SemanticUpdateFrequencyChanged(value));
+      },
+    );
   }
 }
 
