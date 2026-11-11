@@ -340,9 +340,8 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
       return _selectedCategoryObject;
     }
 
-    if (selectedTopLevelName == 'all_books_virtual' ||
-        selectedTopLevelName == 'search_results') {
-      return _selectedCategoryObject;
+    if (selectedTopLevelName == 'all_books_virtual') {
+      return dataProvider.allBooksCategory;
     }
 
     final topLevelCategory = dataProvider.allBookData[selectedTopLevelName];
