@@ -150,6 +150,32 @@ void main() {
       expect(f.locator.lookups, [31]);
     });
 
+    test('ידני: רכיב חיפוש חסר יורד, אבל לא הווקטורים', () async {
+      final settings = FakeSettingsStore()
+        ..dataEnabled = true
+        ..updateFrequency = SemanticUpdateFrequency.manual;
+      final locator = FakeLocator();
+      final downloads = FakeDownloads();
+      final repository = buildRepository(
+        root: root,
+        locator: locator,
+        settings: settings,
+        download: downloads.call,
+        backend: FakeBackend()..vectors = installedV30,
+        libraryVersion: 31,
+      );
+
+      repository.scheduleVectorsUpdate();
+      await repository.pendingJob;
+
+      expect(locator.lookups, isEmpty);
+      expect(downloads.urls, isNotEmpty);
+      expect(
+        downloads.urls.every((u) => u.startsWith('https://models.test/')),
+        isTrue,
+      );
+    });
+
     test('ידני לא חוסם תיקון של סט פגום', () async {
       final f = installedBehindLibrary(SemanticUpdateFrequency.manual);
       f.backend.vectorsInfoFailure = const SemanticFailure(

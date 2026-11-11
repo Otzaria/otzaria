@@ -33,7 +33,7 @@ class SemanticDataFailureLog {
   void record(
     String step,
     SemanticFailure failure, {
-    Map<String, String?> details = const {},
+    Map<String, String?> Function()? details,
   }) {
     if (_notFaults.contains(failure.kind)) return;
     final key = '$step:${failure.kind.name}';
@@ -41,7 +41,13 @@ class SemanticDataFailureLog {
     final last = _loggedAt[key];
     if (last != null && now.difference(last) < interval) return;
     _loggedAt[key] = now;
-    _write(failure, {'Step': step, ...details});
+    Map<String, String?> extra = const {};
+    try {
+      extra = details?.call() ?? const {};
+    } catch (error) {
+      extra = {'Details': 'unavailable: $error'};
+    }
+    _write(failure, {'Step': step, ...extra});
   }
 
   static void _append(SemanticFailure failure, Map<String, String?> details) {
