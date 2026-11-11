@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
@@ -21,6 +23,7 @@ class CacheDatabaseHolder {
   SeforimRepository? _repository;
   Future<SeforimRepository>? _initFuture;
   Future<void>? _closeFuture;
+  Future<void>? _reopenAfter;
 
   /// מחזיר את ה-repository הכתיב של המטמון, מאתחל אם צריך.
   ///
@@ -30,6 +33,8 @@ class CacheDatabaseHolder {
   Future<SeforimRepository> get repository => _openRepository();
 
   Future<SeforimRepository> _openRepository() {
+    final moving = _reopenAfter;
+    if (moving != null) return moving.then((_) => _openRepository());
     final closing = _closeFuture;
     if (closing != null) {
       // מאפשר להמשכי close להחליף את הקובץ לפני פתיחה חוזרת.
@@ -76,9 +81,18 @@ class CacheDatabaseHolder {
     return repo;
   }
 
-  /// סוגר את ה-DB, גם כשפתיחה עוד בדרך.
-  Future<void> close() =>
-      _closeFuture ??= _close().whenComplete(() => _closeFuture = null);
+  /// סוגר את ה-DB, גם כשפתיחה עוד בדרך. [reopenAfter] מושלם בסיום העברה.
+  Future<void> close({Future<void>? reopenAfter}) {
+    if (reopenAfter != null) {
+      _reopenAfter = reopenAfter;
+      unawaited(
+        reopenAfter.then((_) {
+          if (identical(_reopenAfter, reopenAfter)) _reopenAfter = null;
+        }),
+      );
+    }
+    return _closeFuture ??= _close().whenComplete(() => _closeFuture = null);
+  }
 
   Future<void> _close() async {
     await _initFuture?.then<void>((_) {}, onError: (Object _) {});

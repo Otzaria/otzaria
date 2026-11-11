@@ -34,6 +34,10 @@ class UserBooksDatabaseHolder {
 
   Future<SeforimRepository> _openRepository() {
     final closing = _closeFuture;
+    final moving = _reopenAfter;
+    if (moving != null && (closing == null || _releasing)) {
+      return moving.then((_) => _openRepository());
+    }
     if (_releasing && closing != null) {
       // מאפשר להמשכי close להחליף את הקובץ סינכרונית, לפני פתיחה חוזרת.
       return closing.then((_) => Future(_openRepository));
@@ -90,12 +94,13 @@ class UserBooksDatabaseHolder {
 
   final Set<Future<void>> _activeReads = {};
   Future<void>? _closeFuture;
+  Future<void>? _reopenAfter;
   bool _releasing = false;
 
   /// הסגירה ממתינה לפעולה כולה, כולל הכנת חיבור זמני לקריאה או לכתיבה.
   /// פעולה שמתחילה בזמן הסגירה מדולגת בלי לפתוח מחדש את הקובץ.
   Future<void> trackRead(Future<void> Function() read) {
-    if (_closeFuture != null) {
+    if (_closeFuture != null || _reopenAfter != null) {
       return Future.value();
     }
     final result = read();
@@ -104,11 +109,21 @@ class UserBooksDatabaseHolder {
     return result.whenComplete(() => _activeReads.remove(tracked));
   }
 
-  /// סוגר את ה-DB ומודיע ל-[addCloseListener] כדי שהקובץ ישוחרר.
-  Future<void> close() => _closeFuture ??= _close().whenComplete(() {
-    _releasing = false;
-    _closeFuture = null;
-  });
+  /// סוגר את ה-DB ומודיע למאזינים. [reopenAfter] מושלם בסיום העברה.
+  Future<void> close({Future<void>? reopenAfter}) {
+    if (reopenAfter != null) {
+      _reopenAfter = reopenAfter;
+      unawaited(
+        reopenAfter.then((_) {
+          if (identical(_reopenAfter, reopenAfter)) _reopenAfter = null;
+        }),
+      );
+    }
+    return _closeFuture ??= _close().whenComplete(() {
+      _releasing = false;
+      _closeFuture = null;
+    });
+  }
 
   Future<void> _close() async {
     // קריאה שכבר התקבלה עדיין עשויה להזדקק לפתיחת המסד.
