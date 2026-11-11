@@ -253,6 +253,9 @@ class MyDatabase {
       // נתיב קובץ הקישורים שבתיקיית הספרים שממנו הגיעה השורה; NULL = ייבוא
       // ידני מההגדרות. מפריד בין השניים כדי שכל אחד יימחק בנפרד.
       'source': 'TEXT',
+      // slug של מסד מצורף כשהצד נמצא בו; NULL = אישי/רשמי לפי הדגל.
+      'sourceDb': 'TEXT',
+      'targetDb': 'TEXT',
     };
     for (final entry in additions.entries) {
       if (!columns.contains(entry.key)) {
@@ -865,7 +868,9 @@ class MyDatabase {
           targetLineIndexEnd INTEGER,
           targetRefEnd TEXT,
           connectionType TEXT NOT NULL,
-          source TEXT
+          source TEXT,
+          sourceDb TEXT,
+          targetDb TEXT
       );
       ''',
       'CREATE INDEX IF NOT EXISTS idx_user_link_source_line ON user_link(sourceTitle, sourceIsUserBook, sourceLineIndex);',
