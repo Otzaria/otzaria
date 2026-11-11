@@ -137,4 +137,20 @@ void main() {
     expect(survivor, isNotNull);
     expect(survivor!.text, text);
   });
+
+  test('close באמצע פתיחה ממתין לה ולא משאיר חיבור פתוח', () async {
+    final holder = CacheDatabaseHolder.instance;
+    final dbPath = await CacheDatabaseHolder.resolveDbPath();
+    // קובץ קיים, כדי שההכנה ב-isolate תרוץ ותאריך את הפתיחה.
+    await (await holder.repository).database.database;
+    await holder.close();
+
+    final opening = holder.repository;
+    await holder.close();
+
+    expect(holder.repositoryIfInitialized, isNull);
+    // ב-Windows שינוי שם נכשל כשהקובץ עדיין פתוח.
+    File(dbPath).renameSync('$dbPath.moved');
+    await opening.then((_) {}, onError: (_) {});
+  });
 }

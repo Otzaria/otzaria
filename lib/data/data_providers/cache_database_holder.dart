@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
+import 'package:otzaria/migration/database/sqlite3_utils.dart';
 import 'package:otzaria/migration/database/database_compaction.dart';
 
 /// סינגלטון שמחזיק את ה-DB וה-repository הכתיבים למטמונים תפעוליים.
@@ -54,6 +55,7 @@ class CacheDatabaseHolder {
   Future<SeforimRepository> _initialize() async {
     final dbPath = await AppPaths.resolveCacheDbPath();
     debugPrint('🗂️ [CacheDB] Opening cache.db at $dbPath');
+    await prepareWritableDatabaseInBackground(dbPath);
     final db = MyDatabase.withPath(dbPath);
     final repo = SeforimRepository(db);
     try {
@@ -68,8 +70,12 @@ class CacheDatabaseHolder {
     return repo;
   }
 
-  /// סוגר את ה-DB. שימושי בעיקר לבדיקות.
+  /// סוגר את ה-DB, גם כשפתיחה עוד בדרך.
   Future<void> close() async {
+    final init = _initFuture;
+    _initFuture = null;
+    // אתחול שמסתיים אחרי הסגירה משאיר חיבור פתוח לקובץ שמעבירים או מחליפים.
+    if (init != null) await init.then((_) {}, onError: (_) {});
     _database?.close();
     _database = null;
     _repository = null;

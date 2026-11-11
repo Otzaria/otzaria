@@ -260,4 +260,74 @@ void main() {
     expect(enableWalBestEffort(db, 'test'), isFalse);
     expect(db.statements, isNot(contains('PRAGMA synchronous=NORMAL')));
   });
+
+  group('prepareWritableDatabaseInBackground', () {
+    test('ממזג WAL שנשאר מהפעלה קודמת, והנתונים נשמרים', () async {
+      final dir = Directory.systemTemp.createTempSync('prepare_wal');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final path = p.join(dir.path, 'user_books.db');
+      final wal = File('$path-wal');
+
+      // סגירה בלי מיזוג משאירה WAL מלא, כמו אחרי יציאה לא נקייה.
+      final leftover = openWritableDatabase(path, 'test');
+      leftover.config.setIntConfig(1006, 1);
+      leftover.execute('CREATE TABLE t (v TEXT)');
+      for (var i = 0; i < 200; i++) {
+        leftover.execute('INSERT INTO t VALUES (?)', ['row $i']);
+      }
+      leftover.close();
+      expect(wal.lengthSync(), greaterThan(0));
+
+      await prepareWritableDatabaseInBackground(path);
+
+      expect(!wal.existsSync() || wal.lengthSync() == 0, isTrue);
+      final db = openWritableDatabase(path, 'test');
+      addTearDown(db.close);
+      expect(db.select('PRAGMA journal_mode').first.values.first, 'wal');
+      expect(db.select('SELECT COUNT(*) FROM t').first.values.first, 200);
+    });
+
+    test('מסד ב-journal רגיל עובר ל-WAL', () async {
+      final dir = Directory.systemTemp.createTempSync('prepare_delete');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final path = p.join(dir.path, 'cache.db');
+      sqlite3.open(path)
+        ..execute('CREATE TABLE t (v TEXT)')
+        ..close();
+
+      await prepareWritableDatabaseInBackground(path);
+
+      final db = sqlite3.open(path);
+      addTearDown(db.close);
+      expect(db.select('PRAGMA journal_mode').first.values.first, 'wal');
+    });
+
+    test('אינו יוצר קובץ שלא קיים', () async {
+      final dir = Directory.systemTemp.createTempSync('prepare_missing');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final path = p.join(dir.path, 'user_books.db');
+
+      await prepareWritableDatabaseInBackground(path);
+
+      expect(File(path).existsSync(), isFalse);
+    });
+
+    test('כותב אחר שמחזיק נעילה אינו מעכב את ההכנה', () async {
+      final dir = Directory.systemTemp.createTempSync('prepare_busy');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final path = p.join(dir.path, 'user_books.db');
+      final writer = openWritableDatabase(path, 'test')
+        ..execute('CREATE TABLE t (v TEXT)')
+        ..execute('BEGIN IMMEDIATE')
+        ..execute("INSERT INTO t VALUES ('x')");
+      addTearDown(writer.close);
+
+      final watch = Stopwatch()..start();
+      await prepareWritableDatabaseInBackground(path);
+      expect(watch.elapsed, lessThan(const Duration(seconds: 3)));
+
+      writer.execute('COMMIT');
+      expect(writer.select('SELECT COUNT(*) FROM t').first.values.first, 1);
+    });
+  });
 }

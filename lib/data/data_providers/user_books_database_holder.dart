@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
+import 'package:otzaria/migration/database/sqlite3_utils.dart';
 import 'package:otzaria/search/library_line_source.dart';
 
 /// סינגלטון שמחזיק את ה-DB וה-repository של ספרי המשתמש (תיקיות
@@ -65,6 +66,7 @@ class UserBooksDatabaseHolder {
   Future<SeforimRepository> _initialize() async {
     final dbPath = await AppPaths.resolveUserBooksDbPath();
     debugPrint('📚 [UserBooksDB] Opening user_books.db at $dbPath');
+    await prepareWritableDatabaseInBackground(dbPath);
     final db = MyDatabase.withPath(dbPath);
     final repo = SeforimRepository(db);
     await repo.ensureInitialized();

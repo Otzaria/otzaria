@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart';
 
@@ -62,6 +64,21 @@ Future<void> closeWithCheckpointInBackground(Database db, String path) async {
 
 void _checkpointAndClose(String path) =>
     closeWithCheckpoint(openSecondaryWritableConnection(path, 'WalCheckpoint'));
+
+/// מעביר מסד קיים ל-WAL וממזג WAL שנשאר מהפעלה קודמת, ב-isolate. בלי זה
+/// [openWritableDatabase] עושה את קריאות הדיסק האלה על ה-thread של ה-UI.
+Future<void> prepareWritableDatabaseInBackground(String path) async {
+  try {
+    if (!await File(path).exists()) return;
+    await compute(_prepareAndClose, path, debugLabel: 'PrepareWritableDb');
+  } catch (e) {
+    debugPrint('[PrepareWritableDb] $path: $e');
+  }
+}
+
+// busy_timeout=0: כותב אחר לא מעכב את הפתיחה, וסגירה אחרונה ממזגת את ה-WAL.
+void _prepareAndClose(String path) =>
+    openWritableDatabase(path, 'PrepareWritableDb', busyTimeoutMs: 0).close();
 
 /// פותח DB כתיב עם הכוונון האחיד לכל מסדי הנתונים של האפליקציה: המתנה
 /// לנעילה, ו-WAL כשהאחסון תומך בו. [label] מזהה את הקורא בלוג.
