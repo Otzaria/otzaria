@@ -296,8 +296,8 @@ packages:
     dependency: "direct main"
     description:
       path: "pkgs/csslib"
-      ref: "492ec4101cb148ff8200f219d28d1c1adb6227ec"
-      resolved-ref: "492ec4101cb148ff8200f219d28d1c1adb6227ec"
+      ref: fa5d0169c6da3592c226c817aac8c661fe365926
+      resolved-ref: fa5d0169c6da3592c226c817aac8c661fe365926
       url: "https://github.com/Otzaria/tools"
     source: git
     version: "1.0.3-wip"
@@ -895,8 +895,8 @@ packages:
     dependency: "direct main"
     description:
       path: "pkgs/html"
-      ref: "492ec4101cb148ff8200f219d28d1c1adb6227ec"
-      resolved-ref: "492ec4101cb148ff8200f219d28d1c1adb6227ec"
+      ref: fa5d0169c6da3592c226c817aac8c661fe365926
+      resolved-ref: fa5d0169c6da3592c226c817aac8c661fe365926
       url: "https://github.com/Otzaria/tools"
     source: git
     version: "0.15.8-wip"
@@ -1070,11 +1070,12 @@ packages:
   markdown:
     dependency: "direct main"
     description:
-      name: markdown
-      sha256: ee85086ad7698b42522c6ad42fe195f1b9898e4d974a1af4576c1a3a176cada9
-      url: "https://pub.dev"
-    source: hosted
-    version: "7.3.1"
+      path: "pkgs/markdown"
+      ref: fa5d0169c6da3592c226c817aac8c661fe365926
+      resolved-ref: fa5d0169c6da3592c226c817aac8c661fe365926
+      url: "https://github.com/Otzaria/tools"
+    source: git
+    version: "7.4.1-wip"
   matcher:
     dependency: "direct overridden"
     description:
