@@ -1659,6 +1659,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'שמור לשליחה מאוחרת': 'Save for later sending',
     'שמור סימניה לכל הספרים הפתוחים': 'Save bookmark for all open books',
     'שמור על סדר המילים המקורי': 'Keep the original word order',
+    'שמות הקבצים צריכים להישאר כפי שהורדו מהיברובוקס (מספר הספר, למשל hebrewbooks_org_12345.pdf). הספרים יופיעו בחיפוש במסך הספרייה; ספרי PDF אחרים יש להוסיף דרך "ספרים אישיים".': 'File names must stay as downloaded from HebrewBooks (the sefer number, e.g. hebrewbooks_org_12345.pdf). These seforim appear in the library search; add other PDF seforim through "Personal Seforim".',
     'שמירה מצומצמת — גיבויים ישנים ממוזגים לארכיון מוקדם': 'Space-Saver — old backups merge into the archive sooner',
     'שמירת דיווחים אוטומטית כשאין חיבור': 'Save reports automatically when offline',
     'שמירת הטיוטה נכשלה. התוכן עדיין בטופס; נסו שוב.': 'The draft could not be saved. Your content is still in the form; please try again.',

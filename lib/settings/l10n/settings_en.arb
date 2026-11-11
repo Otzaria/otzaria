@@ -844,6 +844,7 @@
   "מחיקת עותק ספרייה ישן": "Delete Old Library Copy",
   "העותק הישן בנתיב {path} יימחק לצמיתות ויתפנו {size}. הספרייה הפעילה לא תושפע.": "The old copy at {path} will be permanently deleted, freeing {size}. The active library will not be affected.",
   "במידה וקיימים ברשותך ספרים ממאגר זה": "If you have seforim from this collection",
+  "שמות הקבצים צריכים להישאר כפי שהורדו מהיברובוקס (מספר הספר, למשל hebrewbooks_org_12345.pdf). הספרים יופיעו בחיפוש במסך הספרייה; ספרי PDF אחרים יש להוסיף דרך \"ספרים אישיים\".": "File names must stay as downloaded from HebrewBooks (the sefer number, e.g. hebrewbooks_org_12345.pdf). These seforim appear in the library search; add other PDF seforim through \"Personal Seforim\".",
   "מאגר הספרים וחיפוש": "Library and Search",
   "תיקיות הספרים והאינדקס ומצב האינדקס": "The seforim and index folders, and the index status",
   "ספרים אישיים": "Personal Seforim",

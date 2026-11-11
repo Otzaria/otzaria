@@ -368,6 +368,7 @@ class SettingsActionTile extends StatelessWidget {
     required String title,
     required String? path,
     required String placeholder,
+    String? description,
     this.actions = const [],
     this.pinnedTrailing,
     this.onTap,
@@ -382,12 +383,31 @@ class SettingsActionTile extends StatelessWidget {
        columnBelowWidth = null,
        stacked = false,
        _rawTitle = title,
-       _rawSubtitle = null,
+       _rawSubtitle = description,
        title = _settingTitle(title),
-       subtitle = _settingSubtitle(
-         (path != null && path.isNotEmpty) ? _formatPath(path) : placeholder,
-         ltr: path != null && path.isNotEmpty,
-       );
+       subtitle = _pathSubtitle(path, placeholder, description);
+
+  static Widget _pathSubtitle(
+    String? path,
+    String placeholder,
+    String? description,
+  ) {
+    final hasPath = path != null && path.isNotEmpty;
+    final pathText = _settingSubtitle(
+      hasPath ? _formatPath(path) : placeholder,
+      ltr: hasPath,
+    );
+    if (description == null) return pathText;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        pathText,
+        const SizedBox(height: AppTokens.spaceXS),
+        _settingSubtitle(description),
+      ],
+    );
+  }
 
   // ── Internals ──────────────────────────────────────────────────────────────
 
@@ -920,6 +940,8 @@ class SettingsPathTile extends StatelessWidget {
   final String title;
   final String currentPath;
   final String placeholder;
+  // הסבר קבוע מתחת לנתיב (או ל-placeholder).
+  final String? description;
   final Future<void> Function(String newPath) onFolderChanged;
   final VoidCallback onOpenFolder;
   final VoidCallback? onClearPath;
@@ -936,6 +958,7 @@ class SettingsPathTile extends StatelessWidget {
     required this.title,
     required this.currentPath,
     this.placeholder = 'לא נבחר מיקום',
+    this.description,
     required this.onFolderChanged,
     required this.onOpenFolder,
     this.onClearPath,
@@ -954,6 +977,7 @@ class SettingsPathTile extends StatelessWidget {
       title: title,
       path: currentPath.isNotEmpty ? currentPath : null,
       placeholder: placeholder,
+      description: description,
       actions: [
         _PathMenuButton(
           currentPath: currentPath,
