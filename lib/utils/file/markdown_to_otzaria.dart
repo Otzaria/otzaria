@@ -83,21 +83,19 @@ class MarkdownToOtzaria {
         extensionSet: markdown.ExtensionSet.gitHubWeb,
       ),
     );
-    // The sanitizer already emits normalized HTML. Parse it only once, then
-    // remove external image URLs on the same DOM rather than serializing and
-    // reparsing the entire document for every Markdown import.
     final fragment = html_parser.parseFragment(sanitized);
-    _stripExternalImages(fragment);
-    return fragment;
-  }
-
-  void _stripExternalImages(DocumentFragment fragment) {
+    var removedImageSource = false;
     for (final image in fragment.querySelectorAll('img')) {
       final src = image.attributes['src']?.trim() ?? '';
       if (!_isRelativeUrl(src) && !_isEmbeddedImageUrl(src)) {
         image.attributes.remove('src');
+        removedImageSource = true;
       }
     }
+    final serialized = fragment.outerHtml;
+    // סבב נוסף עשוי לשנות את הפלט, למשל ב־pre בתוך תא טבלה.
+    if (!removedImageSource && serialized == sanitized) return fragment;
+    return html_parser.parseFragment(serialized);
   }
 
   /// הנרמול המשותף לכל מסלולי ההמרה. כל שינוי כאן מחייב העלאת

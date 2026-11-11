@@ -72,6 +72,20 @@ final value = 1;
       expect(html, isNot(contains('https://example.com')));
     });
 
+    test('שומר על נרמול HTML של בלוק pre בתא טבלה', () async {
+      const source = '<table><tr><td><pre>\nx</pre></td></tr></table>';
+      const expected =
+          '<table dir="ltr" class="md-block"><tbody><tr>'
+          '<td dir="ltr"><pre dir="ltr">&#10;&#10;&#10;&#10;x</pre></td>'
+          '</tr></tbody></table>';
+
+      expect((await converter.convertSource(source)).html, expected);
+      expect(
+        markdownBytesToHtml(Uint8List.fromList(utf8.encode(source)), 'ספר'),
+        expected,
+      );
+    });
+
     test('שומר תמונת data URI שאינה דורשת רשת', () {
       final html = markdownBytesToHtml(
         Uint8List.fromList(
