@@ -82,19 +82,24 @@ jobs:
           export PROBE_RECEIPT="$RUNNER_TEMP/apple-webview-ios/simulator-id.txt"
           python3 - <<'PY'
           import json, os, pathlib, subprocess
-          data = json.loads(subprocess.check_output(['xcrun','simctl','list','-j','runtimes']))
-          ios = [r for r in data['runtimes'] if r.get('isAvailable')
-                 and r['identifier'].startswith('com.apple.CoreSimulator.SimRuntime.iOS-')]
-          if not ios:
-              raise SystemExit('No available iOS simulator runtime — native test NOT_RUN')
-          def key(r):
-              return tuple(int(x) for x in r.get('version','0').split('.') if x.isdigit())
-          runtime = max(ios,key=key)['identifier']
-          types=json.loads(subprocess.check_output(['xcrun','simctl','list','-j','devicetypes']))['devicetypes']
-          phones=[t for t in types if t['name'].startswith('iPhone')]
-          if not phones:
-              raise SystemExit('No iPhone simulator device type — native test NOT_RUN')
-          device=phones[-1]['identifier']
+          runtimes = json.loads(subprocess.check_output(['xcrun','simctl','list','-j','runtimes']))['runtimes']
+          available = [r for r in runtimes if r.get('isAvailable') and
+                       r['identifier'].startswith('com.apple.CoreSimulator.SimRuntime.iOS-')]
+          installed = json.loads(subprocess.check_output(['xcrun','simctl','list','-j','devices']))['devices']
+          compatible = []
+          for runtime_info in available:
+              runtime_id = runtime_info['identifier']
+              for entry in installed.get(runtime_id, []):
+                  kind = entry.get('deviceTypeIdentifier', '')
+                  if entry.get('isAvailable') and kind.startswith('com.apple.CoreSimulator.SimDeviceType.iPhone-'):
+                      compatible.append((runtime_info, entry))
+          if not compatible:
+              raise SystemExit('No iOS runtime with a known-compatible iPhone device — NOT_RUN')
+          def version(entry):
+              return tuple(int(x) for x in entry[0].get('version', '0').split('.') if x.isdigit())
+          selected, prototype = max(compatible, key=version)
+          runtime = selected['identifier']
+          device = prototype['deviceTypeIdentifier']
           name='otzaria-webview-' + os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT']
           sim=subprocess.check_output(['xcrun','simctl','create',name,device,runtime],text=True).strip()
           pathlib.Path(os.environ['PROBE_RECEIPT']).write_text(sim+'\n')
