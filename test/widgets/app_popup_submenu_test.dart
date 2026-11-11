@@ -17,6 +17,7 @@ Future<_MenuLog> _pumpMenu(
   TextDirection direction = TextDirection.rtl,
   Alignment alignment = Alignment.center,
   bool withDivider = false,
+  String submenuLabel = 'אפשרויות',
   List<PopupMenuEntry<String>>? children,
 }) async {
   final log = _MenuLog();
@@ -36,7 +37,7 @@ Future<_MenuLog> _pumpMenu(
                   buildAppSubmenuPopupMenuItem<String>(
                     context: context,
                     metrics: metrics,
-                    label: 'אפשרויות',
+                    label: submenuLabel,
                     menuChildren:
                         children ??
                         [
@@ -539,6 +540,115 @@ void main() {
     expect(second.dy - first.dy, metrics.itemHeight);
   });
 
+  group('הדגשת העתק קישור ישיר', () {
+    const label = 'העתק קישור ישיר';
+
+    setUp(() {
+      final manager = FocusManager.instance;
+      final previous = manager.highlightStrategy;
+      manager.highlightStrategy = FocusHighlightStrategy.alwaysTraditional;
+      addTearDown(() => manager.highlightStrategy = previous);
+    });
+
+    for (final direction in TextDirection.values) {
+      testWidgets('ריחוף חולף והחזרה מסירים ומחזירים הדגשה: $direction', (
+        tester,
+      ) async {
+        await _pumpMenu(tester, direction: direction, submenuLabel: label);
+        final parent = find.text(label);
+        final mouse = await _mouseOver(tester, parent);
+        expect(_submenuRowHighlighted(tester, label), isTrue);
+
+        await mouse.moveTo(tester.getCenter(find.text('פעולה אחרת')));
+        await tester.pumpAndSettle();
+        expect(find.text('פעולה פנימית'), findsNothing);
+        expect(_submenuRowHighlighted(tester, label), isFalse);
+
+        await mouse.moveTo(tester.getCenter(parent));
+        await tester.pumpAndSettle();
+        expect(_submenuRowHighlighted(tester, label), isTrue);
+      });
+
+      testWidgets('ילד נסגר בלי הדגשה אחרי יציאת המצביע: $direction', (
+        tester,
+      ) async {
+        await _pumpMenu(tester, direction: direction, submenuLabel: label);
+        final mouse = await _mouseOver(tester, find.text(label));
+        final child = find.text('פעולה פנימית');
+        await tester.pump(const Duration(milliseconds: 600));
+        await tester.pumpAndSettle();
+        expect(child, findsOneWidget);
+
+        await mouse.moveTo(tester.getCenter(child));
+        await tester.pumpAndSettle();
+        expect(child, findsOneWidget);
+
+        await mouse.moveTo(tester.getCenter(find.text('פעולה אחרת')));
+        await tester.pump(const Duration(milliseconds: 600));
+        await tester.pumpAndSettle();
+        expect(child, findsNothing);
+        expect(_submenuRowHighlighted(tester, label), isFalse);
+      });
+
+      testWidgets('Shift+Tab מחזיר מיקוד שהזזת המצביע אינה שוללת: $direction', (
+        tester,
+      ) async {
+        await _pumpMenu(tester, direction: direction, submenuLabel: label);
+        final mouse = await _mouseOver(tester, find.text(label));
+        final node = tester
+            .widget<SubmenuButton>(_submenuButton(label))
+            .focusNode!;
+        expect(node.hasPrimaryFocus, isTrue);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+        expect(node.hasPrimaryFocus, isFalse);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.pumpAndSettle();
+        expect(node.hasPrimaryFocus, isTrue);
+
+        await mouse.moveTo(tester.getCenter(find.text('פעולה אחרת')));
+        await tester.pumpAndSettle();
+        expect(node.hasPrimaryFocus, isTrue);
+        expect(_submenuRowHighlighted(tester, label), isTrue);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(find.text('פעולה פנימית'), findsOneWidget);
+      });
+
+      testWidgets('סגירה בעכבר מחזירה מיקוד לפתיחה במקלדת: $direction', (
+        tester,
+      ) async {
+        await _pumpMenu(tester, direction: direction, submenuLabel: label);
+        final parent = find.text(label);
+        final child = find.text('פעולה פנימית');
+        final mouse = await _mouseOver(tester, parent);
+        final node = tester
+            .widget<SubmenuButton>(_submenuButton(label))
+            .focusNode!;
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(child, findsOneWidget);
+
+        await tester.sendKeyEvent(
+          tester.getCenter(child).dx > tester.getCenter(parent).dx
+              ? LogicalKeyboardKey.arrowRight
+              : LogicalKeyboardKey.arrowLeft,
+        );
+        await tester.pumpAndSettle();
+        expect(node.hasPrimaryFocus, isFalse);
+
+        await mouse.moveTo(tester.getCenter(find.text('פעולה אחרת')));
+        await tester.pump(const Duration(milliseconds: 600));
+        await tester.pumpAndSettle();
+        expect(child, findsNothing);
+        expect(node.hasPrimaryFocus, isTrue);
+        expect(_submenuRowHighlighted(tester, label), isTrue);
+      });
+    }
+  });
+
   for (final direction in TextDirection.values) {
     for (final alignment in [Alignment.centerLeft, Alignment.centerRight]) {
       testWidgets('תת-תפריט נשאר בגבולות חלון צר: $direction, $alignment', (
@@ -577,4 +687,14 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+}
+
+Finder _submenuButton(String label) =>
+    find.ancestor(of: find.text(label), matching: find.byType(SubmenuButton));
+
+bool _submenuRowHighlighted(WidgetTester tester, String label) {
+  final ink = tester.widget<InkWell>(
+    find.descendant(of: _submenuButton(label), matching: find.byType(InkWell)),
+  );
+  return (ink.overlayColor?.resolve(ink.statesController!.value)?.a ?? 0) > 0;
 }
