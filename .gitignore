@@ -49,6 +49,8 @@ windows/runner/*
 !windows/runner/startup_watchdog.h
 !windows/runner/hang_monitor.cpp
 !windows/runner/hang_monitor.h
+!windows/runner/native_exception_log.cpp
+!windows/runner/native_exception_log.h
 !windows/runner/phantom_mouse_button_filter.cpp
 !windows/runner/phantom_mouse_button_filter.h
 !windows/runner/shift_key_normalizer.cpp

@@ -27,8 +27,14 @@ void Stop();
 bool CaptureMainStack(std::vector<ULONG_PTR>* frames);
 // כמו CaptureMainStack ל-thread אחר; ה-handle צריך SUSPEND_RESUME ו-GET_CONTEXT.
 bool CaptureThreadStack(HANDLE thread, std::vector<ULONG_PTR>* frames);
+// אפסים שחייבים לבוא אחרי עותק מחסנית: פרישת המסגרת האחרונה קוראת מעבר לקצהו.
+constexpr size_t kStackCopyPaddingBytes = 64 * 1024;
+// פורש עותק של [copied] בתים שהועתקו מ-[sp]; נוטל נעילות loader.
+void UnwindStackCopy(CONTEXT* context, ULONG_PTR sp, ULONG_PTR* copy,
+                     size_t copied, std::vector<ULONG_PTR>* frames);
 // קורא זיכרון ומפת מודולים — רק אחרי שה-thread חודש.
 bool IsDartFrame(ULONG_PTR address);
+std::string DescribeFrame(ULONG_PTR address);
 // מתרגם לשמות מודולים — רק אחרי ש-CaptureMainStack חידש את ה-thread.
 void AppendStack(const std::vector<ULONG_PTR>& frames, std::string* report);
 // commit הבנייה ו-build-id של app.so — מזהים את קובצי הסמלים לפענוח.

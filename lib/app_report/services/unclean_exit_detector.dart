@@ -225,7 +225,10 @@ class UncleanExitDetector {
       hasMinidump: dump.found,
       minidump: newestDump,
       minidumpSignature: dumpSignature,
-      kind: evidence.isNotEmpty && evidence.last.isAppHang
+      kind:
+          evidence.isNotEmpty &&
+              evidence.last.isAppHang &&
+              !evidence.last.isStuckInExceptionHandler
           ? CrashIncidentKind.hang
           : CrashIncidentKind.crash,
     );
@@ -237,7 +240,7 @@ class UncleanExitDetector {
     final hangs = blocks.where((b) => b.isAppHang);
     if (hangs.isEmpty) return null;
     return CrashCandidate.hang(
-      signature: hangs.last.signature,
+      signature: hangs.last.hangSignature,
       hangDuration: duration,
       entries: blocks,
     );

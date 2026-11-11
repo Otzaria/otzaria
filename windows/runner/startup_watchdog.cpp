@@ -34,8 +34,6 @@ constexpr size_t kTopFrames = 48;
 constexpr size_t kBottomFrames = 32;
 // כל מחסנית ה-thread הראשי (1MB, ברירת המחדל של ה-linker); מועתק רק החלק שבשימוש.
 constexpr size_t kMaxStackCopyBytes = 1024 * 1024;
-// אפסים אחרי העותק: פרישת המסגרת האחרונה קוראת מעבר לקצהו.
-constexpr size_t kStackCopyPaddingBytes = 64 * 1024;
 
 struct ModuleRange {
   ULONG_PTR base = 0;
@@ -387,6 +385,33 @@ void Relocate(ULONG_PTR* value, ULONG_PTR from, size_t size, ULONG_PTR to) {
   if (*value >= from && *value - from < size) *value = *value - from + to;
 }
 
+// [copy] מכיל [copied] בתים מ-[sp] ואחריהם kStackCopyPaddingBytes אפסים.
+void UnwindStackCopyImpl(CONTEXT* context, ULONG_PTR sp, ULONG_PTR* copy,
+                         size_t copied, std::vector<ULONG_PTR>* frames) {
+  if (copied == 0) {
+    frames->push_back(static_cast<ULONG_PTR>(WD_PC(*context)));
+    return;
+  }
+  const ULONG_PTR to = reinterpret_cast<ULONG_PTR>(copy);
+  for (size_t i = 0; i < copied / sizeof(ULONG_PTR); ++i) {
+    Relocate(&copy[i], sp, copied, to);
+  }
+#if defined(_M_X64)
+  for (DWORD64* reg : {&context->Rbp, &context->Rbx, &context->Rsi,
+                       &context->Rdi, &context->R12, &context->R13,
+                       &context->R14, &context->R15}) {
+    Relocate(reinterpret_cast<ULONG_PTR*>(reg), sp, copied, to);
+  }
+#else
+  for (int i = 19; i <= 28; ++i) {
+    Relocate(reinterpret_cast<ULONG_PTR*>(&context->X[i]), sp, copied, to);
+  }
+  Relocate(reinterpret_cast<ULONG_PTR*>(&context->Fp), sp, copied, to);
+#endif
+  WD_SP(*context) = to;
+  UnwindCopiedStack(context, to, to + copied, frames);
+}
+
 // בזמן ההשהיה רק syscalls ו-memcpy: thread מושהה שמחזיק נעילה שה-watcher
 // צריך היה נשאר מושהה לתמיד.
 bool CaptureSuspendedStack(HANDLE thread, std::vector<ULONG_PTR>* frames) {
@@ -412,33 +437,14 @@ bool CaptureSuspendedStack(HANDLE thread, std::vector<ULONG_PTR>* frames) {
   }
   ::ResumeThread(thread);
   if (!got_context) return false;
-  if (copied == 0) {
-    frames->push_back(static_cast<ULONG_PTR>(WD_PC(context)));
-    return true;
-  }
-
-  const ULONG_PTR to = reinterpret_cast<ULONG_PTR>(copy.data());
-  for (size_t i = 0; i < copied / sizeof(ULONG_PTR); ++i) {
-    Relocate(&copy[i], sp, copied, to);
-  }
-#if defined(_M_X64)
-  for (DWORD64* reg : {&context.Rbp, &context.Rbx, &context.Rsi, &context.Rdi,
-                       &context.R12, &context.R13, &context.R14,
-                       &context.R15}) {
-    Relocate(reinterpret_cast<ULONG_PTR*>(reg), sp, copied, to);
-  }
-#else
-  for (int i = 19; i <= 28; ++i) {
-    Relocate(reinterpret_cast<ULONG_PTR*>(&context.X[i]), sp, copied, to);
-  }
-  Relocate(reinterpret_cast<ULONG_PTR*>(&context.Fp), sp, copied, to);
-#endif
-  WD_SP(context) = to;
-  UnwindCopiedStack(&context, to, to + copied, frames);
+  UnwindStackCopyImpl(&context, sp, copy.data(), copied, frames);
   return true;
 }
 
 #else  // ארכיטקטורה בלי פרישת מחסנית מבוססת-טבלאות (x86)
+
+void UnwindStackCopyImpl(CONTEXT*, ULONG_PTR, ULONG_PTR*, size_t,
+                         std::vector<ULONG_PTR>*) {}
 
 bool CaptureSuspendedStack(HANDLE, std::vector<ULONG_PTR>*) { return false; }
 
@@ -606,7 +612,14 @@ bool CaptureThreadStack(HANDLE thread, std::vector<ULONG_PTR>* frames) {
   return CaptureSuspendedStack(thread, frames);
 }
 
+void UnwindStackCopy(CONTEXT* context, ULONG_PTR sp, ULONG_PTR* copy,
+                     size_t copied, std::vector<ULONG_PTR>* frames) {
+  UnwindStackCopyImpl(context, sp, copy, copied, frames);
+}
+
 bool IsDartFrame(ULONG_PTR address) { return DartImageBase(address) != 0; }
+
+std::string DescribeFrame(ULONG_PTR address) { return DescribeAddress(address); }
 
 void AppendStack(const std::vector<ULONG_PTR>& frames, std::string* report) {
   AppendStackSection(frames, report);

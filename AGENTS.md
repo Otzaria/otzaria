@@ -248,6 +248,11 @@ missed it.
 After reveal, `windows/runner/hang_monitor.cpp` polls `IsHungAppWindow` once a second (no WM_TIMER,
 which floods starve) and writes `=== App hang` / `=== App hang recovered`; Dart offers a report
 under the crash-report setting (`lib/app_report/services/app_hang_report.dart`).
+`windows/runner/native_exception_log.cpp` is a vectored exception handler, registered first in `wWinMain`,
+that copies crash-type exceptions (code, address, stack bytes) into a static ring and never writes to disk.
+It runs before Sentry's unhandled-exception filter, but crashpad's own heap-corruption VEH (registered later
+with First) runs before it. A hang record gets `--- Native exception` sections for the UI thread's exceptions;
+when the hung stack is inside exception dispatch, Dart signs it as a crash from the first section, like a minidump.
 
 **Reading a hang stack.** Every Dart-code hang ends in the same engine frames (`DartEntry::Invoke*`
 called from `BeginFrame` or a platform message). The cause is in the `app.so+0x…` frames above them.
