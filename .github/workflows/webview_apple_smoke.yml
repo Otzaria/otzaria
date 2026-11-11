@@ -40,7 +40,7 @@ jobs:
       DART_SUPPRESS_ANALYTICS: 'true'
       CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
       GH_TOKEN: ${{ github.token }}
-      WEBVIEW_PROBE_REPORTS: ${{ runner.temp }}/apple-webview-${{ matrix.platform }}/host
+      WEBVIEW_PROBE_REPORTS: ${{ github.workspace }}/apple-webview-reports-${{ matrix.platform }}
       WEBVIEW_PROBE_DEVICE_OUTPUT: ''
       PROBE_PLATFORM: ${{ matrix.platform }}
       PROBE_MODE: ${{ matrix.mode }}
@@ -175,4 +175,6 @@ jobs:
           name: apple-webview-${{ matrix.platform }}-${{ matrix.mode }}
           if-no-files-found: warn
           retention-days: 14
-          path: ${{ runner.temp }}/apple-webview-${{ matrix.platform }}/
+          path: |
+            ${{ runner.temp }}/apple-webview-${{ matrix.platform }}/
+            ${{ github.workspace }}/apple-webview-reports-${{ matrix.platform }}/
