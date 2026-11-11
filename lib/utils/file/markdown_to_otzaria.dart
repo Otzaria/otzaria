@@ -76,26 +76,28 @@ class MarkdownToOtzaria {
     return _renderBookLines(fragment);
   }
 
-  DocumentFragment _parseMarkdown(String body) => html_parser.parseFragment(
-    _stripExternalImages(
-      _sanitizer.sanitize(
-        markdown.markdownToHtml(
-          body,
-          extensionSet: markdown.ExtensionSet.gitHubWeb,
-        ),
+  DocumentFragment _parseMarkdown(String body) {
+    final sanitized = _sanitizer.sanitize(
+      markdown.markdownToHtml(
+        body,
+        extensionSet: markdown.ExtensionSet.gitHubWeb,
       ),
-    ),
-  );
+    );
+    // The sanitizer already emits normalized HTML. Parse it only once, then
+    // remove external image URLs on the same DOM rather than serializing and
+    // reparsing the entire document for every Markdown import.
+    final fragment = html_parser.parseFragment(sanitized);
+    _stripExternalImages(fragment);
+    return fragment;
+  }
 
-  String _stripExternalImages(String source) {
-    final fragment = html_parser.parseFragment(source);
+  void _stripExternalImages(DocumentFragment fragment) {
     for (final image in fragment.querySelectorAll('img')) {
       final src = image.attributes['src']?.trim() ?? '';
       if (!_isRelativeUrl(src) && !_isEmbeddedImageUrl(src)) {
         image.attributes.remove('src');
       }
     }
-    return fragment.outerHtml;
   }
 
   /// הנרמול המשותף לכל מסלולי ההמרה. כל שינוי כאן מחייב העלאת
