@@ -40,6 +40,7 @@ class BookOpenCoordinator {
     String? pinpointHighlight,
     bool markSection = false,
     String? markText,
+    bool selectLine = false,
     bool insertAdjacent = false,
     List<String>? initialCommentators,
     bool navigateToPositionIfReused = false,
@@ -56,6 +57,7 @@ class BookOpenCoordinator {
       pinpointHighlight: pinpointHighlight,
       markSection: markSection,
       markText: markText,
+      selectLine: selectLine,
       initialCommentators: initialCommentators,
       externalMatches: externalMatches,
     );
@@ -112,6 +114,7 @@ class BookOpenCoordinator {
     String? pinpointHighlight,
     bool markSection = false,
     String? markText,
+    bool selectLine = false,
     List<String>? initialCommentators,
     String? dedupeKey,
     ExternalBookMatches? externalMatches,
@@ -196,6 +199,7 @@ class BookOpenCoordinator {
           : null,
       dedupeKey: dedupeKey,
       externalMatches: externalMatches,
+      linkSelectedLine: selectLine ? initialIndex : null,
     )..historySlot = latestEntry?.historySlot;
   }
 }

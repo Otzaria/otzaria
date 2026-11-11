@@ -188,6 +188,13 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   // pinpoint highlight ממתין להחלה כשה-bloc יגיע ל-Loaded
   ({String text, int? sectionIndex})? _pendingPinpoint;
 
+  /// Line a deep link asked to select. It waits for the reader to show the
+  /// line, because a selection far from the visible window is dropped.
+  int? _pendingLinkSelection;
+
+  @visibleForTesting
+  int? get pendingLinkSelectionForTesting => _pendingLinkSelection;
+
   /// גודל גופן שהגיע (דרך `UpdateFontSize`) לפני שהטעינה הסתיימה. בעליית
   /// התוכנה ההגדרות נטענות מהר יותר מתוכן הספר, כך שעדכון הגופן עלול להגיע
   /// בזמן `Loading`. נשמר כאן ויוחל ב-`_onLoadContent` במעבר ל-`Loaded`.
@@ -207,7 +214,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     Future<BookNotes> Function(TextBook book)? bookNotesLoader,
     required TextBookInitial initialState,
     this.readingPosition,
-  }) : _quickPreviewLoader =
+    int? linkSelectedLine,
+  }) : _pendingLinkSelection = linkSelectedLine,
+       _quickPreviewLoader =
            quickPreviewLoader ??
            SqliteDataProvider.instance.getBookQuickPreview,
        _protectionLoader =
@@ -231,6 +240,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<HighlightLine>(_onHighlightLine);
     on<ClearHighlightedLine>(_onClearHighlightedLine);
     on<ApplyMarkHighlight>(_onApplyMarkHighlight);
+    on<SelectLineWhenVisible>(_onSelectLineWhenVisible);
     on<TogglePinLeftPane>(_onTogglePinLeftPane);
     on<UpdateSearchText>(_onUpdateSearchText);
     on<UpdateSearchResultLines>(_onUpdateSearchResultLines);
@@ -1810,6 +1820,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   void _onReadingPosition() {
     final currentState = state;
     if (currentState is! TextBookLoaded) return;
+    _applyPendingLinkSelection();
     final visibleIndicesNow = _currentVisibleLines();
     if (visibleIndicesNow.isEmpty ||
         !_hasMeaningfulVisibleIndicesChange(
@@ -1883,10 +1894,29 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         currentIndices.last != nextIndices.last;
   }
 
+  void _onSelectLineWhenVisible(
+    SelectLineWhenVisible event,
+    Emitter<TextBookState> emit,
+  ) {
+    _pendingLinkSelection = event.line;
+    _applyPendingLinkSelection();
+  }
+
+  /// Sends the click's own event, so a link and a click end in the same state.
+  void _applyPendingLinkSelection() {
+    final line = _pendingLinkSelection;
+    if (line == null || state is! TextBookLoaded) return;
+    if (!_currentVisibleLines().contains(line)) return;
+    _pendingLinkSelection = null;
+    add(UpdateSelectedIndex(line));
+  }
+
   void _onUpdateSelectedIndex(
     UpdateSelectedIndex event,
     Emitter<TextBookState> emit,
   ) {
+    // Any selection, including the reader's own click, ends the wait.
+    _pendingLinkSelection = null;
     if (state is! TextBookLoaded) return;
     final currentState = state as TextBookLoaded;
 
