@@ -1,10 +1,5 @@
-// מקבע את **הצימוד** בין פלט הממיר לגרסת הממיר.
-//
-// הרגרסיה שהבדיקה מונעת: תוקן באג, הפלט השתנה, וגרסת הממיר נשארה מאחור.
-// מפתח-התוקף של המטמון כולל את הגרסה, ולכן כל ספר שנפתח פעם אחת ממשיך
-// להגיש את הפלט **הבאגי** לצמיתות — גם אחרי שהקוד תוקן.
-//
-// שינוי מכוון בפלט מחייב שני עדכונים באותה עריכה: הטביעה כאן והגרסה בממיר.
+// שינוי מכוון בפלט מחייב עדכון של הטביעה והעלאת גרסת הממיר יחד.
+// בלי העלאת גרסה, ספר שכבר נפתח ימשיך לקבל את הפלט הישן מהמטמון.
 
 import 'dart:convert';
 import 'dart:typed_data';
@@ -33,9 +28,9 @@ const Map<String, ({int version, String fingerprint})> _pinned = {
   'odt': (version: 7, fingerprint: 'e7114c864beedc1d'),
   'rtf': (version: 8, fingerprint: 'cfa322a43935a572'),
   'legacy-word': (version: 9, fingerprint: 'e39829bc7e2dd94f'),
-  'epub': (version: 16, fingerprint: 'a999c6001cd8c4f4'),
-  'markdown': (version: 8, fingerprint: 'e0ac8348b37de4b8'),
-  'html': (version: 3, fingerprint: '022fd0030315b79f'),
+  'epub': (version: 17, fingerprint: '6f3e13896d87f359'),
+  'markdown': (version: 9, fingerprint: 'ad247106734a7bbb'),
+  'html': (version: 4, fingerprint: 'db93f8a61442b68b'),
 };
 
 /// `sha256` ולא `hashCode` — הטביעה חייבת להיות זהה בין הרצות ובין גרסאות
@@ -189,10 +184,17 @@ Uint8List _sampleEpub() => _zip({
       '<?xml version="1.0"?>'
       '<html xmlns="http://www.w3.org/1999/xhtml"><body>'
       '<h1>כותרת</h1><p><b>מודגש</b> ורגיל</p>'
+      '<p>לפני</p><svg><text>ציור</text></p>אחרי הציור</svg>'
       '</body></html>',
 });
 
-Uint8List _sampleMarkdown() => _utf8('# כותרת\n\n**מודגש** ורגיל\n');
+Uint8List _sampleMarkdown() => _utf8(
+  '# כותרת\n\n**מודגש** ורגיל\n\n'
+  'https://example.com/%40foo\n\n'
+  'עברית[^ראשון] ושוב[^שני].\n\n'
+  '[^שני]: תוכן שני\n\n'
+  '[^ראשון]: תוכן ראשון\n',
+);
 
 /// מסמך HTML שנוגע בכל שורה בחוזה — כולל מה שחייב להימחק (סקריפט, מטפל
 /// אירועים, `javascript:`, עיצוב שאינו נתמך) ומה שחייב להישמר לצדו.
@@ -225,6 +227,7 @@ Uint8List _sampleHtml() => _utf8(
   '<img src="https://tracker.example/p.png">'
   '<div style="border:1px solid #8b0000; padding:10px">תיבה</div>'
   '<div id="יעד" dir="ltr"><p>English</p></div>'
+  '<p>לפני</p><svg><text>ציור</text></p>אחרי הציור</svg>'
   '</body></html>',
 );
 
