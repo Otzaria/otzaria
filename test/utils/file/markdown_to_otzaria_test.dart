@@ -130,6 +130,31 @@ final value = 1;
       expect(result.html, isNot(contains('missing.png')));
     });
 
+    test('מטמיע תמונות מרובות ומשאיר נתיבי חוץ חסומים', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'markdown-images-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final image = File(
+        '${directory.path}${Platform.pathSeparator}image.png',
+      );
+      await image.writeAsBytes(Uint8List.fromList([137, 80, 78, 71]));
+
+      final input = [
+        for (var i = 0; i < 12; i++) '![תמונה $i](image.png)',
+        '![חיצונית](https://example.com/remote.png)',
+      ].join('\n\n');
+      final result = await converter.convertSource(
+        input,
+        baseDirectory: directory.path,
+      );
+
+      expect(
+        'src="data:image/png;base64,'.allMatches(result.html),
+        hasLength(12),
+      );
+      expect(result.html, isNot(contains('https://example.com/remote.png')));
+    });
     test('קלט Markdown חלקי מוצג במאמץ מיטבי', () async {
       final result = await converter.convertSource(
         '# כותרת\n\n**מודגש ללא סוגר\n\n```dart\nfinal x = 1;',
