@@ -881,6 +881,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       final tocFuture = requiresRenderedToc
           ? null
           : repository.getTableOfContents(book);
+      // אם טעינת התוכן נכשלת לפני ההמתנה לו, שגיאתו לא תיזרק כלא-מטופלת.
+      tocFuture?.ignore();
 
       List<String>? contentLines;
       List<bool>? loadedLineFlags;
