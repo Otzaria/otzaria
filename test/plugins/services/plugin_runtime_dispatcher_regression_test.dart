@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/plugin_constants.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/plugin_discard_policy.dart';
 import 'package:otzaria/plugins/services/plugin_in_book_search_service.dart';
+import 'package:otzaria/plugins/services/plugin_runtime.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/services/plugin_restore_state_store.dart';
 
@@ -18,28 +18,46 @@ class _Repo extends Fake implements PluginRegistryRepository {
       gate == null ? true : await gate!.future;
 }
 
-class _Controller extends Fake implements InAppWebViewController {
+class _Runtime implements PluginRuntime {
   bool paused = false;
   final List<String> whilePaused = [];
   final List<String> delivered = [];
-  @override
-  Future<void> pause() async {
-    paused = true;
-  }
 
   @override
-  Future<void> resume() async {
-    paused = false;
-  }
+  bool get freezesWhenSuspended => true;
 
   @override
-  Future<dynamic> evaluateJavascript({
-    required String source,
-    ContentWorld? contentWorld,
+  Future<bool> setSuspended(
+    bool suspended, {
+    required bool Function() isCurrent,
+    required bool Function() isShown,
   }) async {
-    (paused ? whilePaused : delivered).add(source);
-    return null;
+    paused = suspended;
+    return true;
   }
+
+  @override
+  Future<void> cancelPendingSuspend() async => paused = false;
+
+  @override
+  Future<void> evaluate(String source) async =>
+      (paused ? whilePaused : delivered).add(source);
+
+  @override
+  Future<Object?> dispatchEventWithAck(String topic, String detailJson) async {
+    (paused ? whilePaused : delivered).add(topic);
+    return true;
+  }
+
+  @override
+  Future<void> reload() async {}
+
+  @override
+  Future<void> unload() async {}
+
+  @override
+  Future<bool> requestKeyboardFocus({required bool trustPageFocus}) async =>
+      false;
 }
 
 class _Host implements PluginInstanceHost {
@@ -64,7 +82,7 @@ void main() {
   setUp(() async {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
     await d.prepareForAppRestart();
-    d.registerController('__reset', _Controller());
+    d.registerRuntime('__reset', _Runtime());
     d.unregisterController('__reset');
     d.resetVisibilityForTesting();
     repo = _Repo();
@@ -89,7 +107,7 @@ void main() {
   });
   test('legacy tabs keep their state under memory pressure', () async {
     final host = _Host();
-    d.registerController(pid, _Controller(), instanceId: 'a');
+    d.registerRuntime(pid, _Runtime(), instanceId: 'a');
     d.registerInstanceHost(pid, host, instanceId: 'a');
     d.setVisiblePluginInstances({key('a')});
     await d.onForegroundInstanceReady(pid, instanceId: 'a');
@@ -101,10 +119,10 @@ void main() {
   test(
     'preserve one engine for an active provider during a batch discard',
     () async {
-      final a = _Controller(), b = _Controller();
+      final a = _Runtime(), b = _Runtime();
       final ha = _Host(), hb = _Host();
-      d.registerController(pid, a, instanceId: 'a');
-      d.registerController(pid, b, instanceId: 'b');
+      d.registerRuntime(pid, a, instanceId: 'a');
+      d.registerRuntime(pid, b, instanceId: 'b');
       d.registerInstanceHost(pid, ha, instanceId: 'a');
       d.registerInstanceHost(pid, hb, instanceId: 'b');
       d.setVisiblePluginInstances({key('a'), key('b')});
@@ -127,8 +145,8 @@ void main() {
   test(
     'a state broadcast awaiting permission must queue if its target suspends',
     () async {
-      final c = _Controller();
-      d.registerController(pid, c, instanceId: 'a');
+      final c = _Runtime();
+      d.registerRuntime(pid, c, instanceId: 'a');
       d.setVisiblePluginInstances({key('a')});
       await d.onForegroundInstanceReady(pid, instanceId: 'a');
       c.delivered.clear();
@@ -153,7 +171,7 @@ void main() {
   test(
     'permission checks do not deliver a queued event to a replacement page',
     () async {
-      d.registerController(pid, _Controller(), instanceId: 'a');
+      d.registerRuntime(pid, _Runtime(), instanceId: 'a');
       d.setVisiblePluginInstances({key('a')});
       await d.onForegroundInstanceReady(pid, instanceId: 'a');
       d.setVisiblePluginInstances({});
@@ -166,8 +184,8 @@ void main() {
         instanceId: 'a',
         reason: PluginRestoreReason.crashed,
       );
-      final next = _Controller();
-      d.registerController(pid, next, instanceId: 'a');
+      final next = _Runtime();
+      d.registerRuntime(pid, next, instanceId: 'a');
       repo.gate!.complete(true);
       await dispatch;
       expect(next.delivered, isEmpty);
@@ -177,9 +195,9 @@ void main() {
     test(
       'an old RPC cannot finish work in its replacement: $replacement',
       () async {
-        final oldController = _Controller();
+        final oldRuntime = _Runtime();
         final host = _Host();
-        d.registerController(pid, oldController, instanceId: 'a');
+        d.registerRuntime(pid, oldRuntime, instanceId: 'a');
         d.registerInstanceHost(pid, host, instanceId: 'a');
         d.setVisiblePluginInstances({key('a')});
         await d.onForegroundInstanceReady(pid, instanceId: 'a');
@@ -193,7 +211,7 @@ void main() {
         } else if (replacement == 'unregister') {
           d.unregisterController(pid, instanceId: 'a');
         }
-        d.registerController(pid, _Controller(), instanceId: 'a');
+        d.registerRuntime(pid, _Runtime(), instanceId: 'a');
         d.registerInstanceHost(pid, host, instanceId: 'a');
         await d.onForegroundInstanceReady(pid, instanceId: 'a');
         final endNewWork = d.beginInstanceWork(pid, instanceId: 'a');

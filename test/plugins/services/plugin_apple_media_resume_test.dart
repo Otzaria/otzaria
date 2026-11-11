@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/plugin_constants.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
+import 'package:otzaria/plugins/services/plugin_webview_runtime.dart';
 
 class _Repository extends Fake implements PluginRegistryRepository {
   @override

@@ -24,6 +24,7 @@ import 'package:otzaria/plugins/services/plugin_fonts.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
+import 'package:otzaria/plugins/services/plugin_webview_runtime.dart';
 import 'package:otzaria/plugins/view/plugin_tab_page.dart';
 import 'package:otzaria/plugins/view/plugin_webview_host.dart';
 import 'package:package_info_plus/package_info_plus.dart';

@@ -263,7 +263,7 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
     final dispatcher = PluginRuntimeDispatcher.instance;
     // דף שמחליף דף חי של אותו מופע (עדכון התוסף) הוא טעינה חוזרת, לא חדשה.
     _bootedOnce =
-        dispatcher.controllerOf(pluginId, instanceId: instanceId) != null;
+        dispatcher.runtimeOf(pluginId, instanceId: instanceId) != null;
     initPluginHost(
       onReload: _reloadFromDisk,
       readerTab: widget.readerTab,
