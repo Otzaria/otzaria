@@ -315,6 +315,60 @@ void main() {
       expect(sidebarSelected('סדר נשים'), isTrue);
     });
 
+    for (final libraryChange in [
+      'הוספת ספר למעקב',
+      'החלפת ספרייה',
+    ]) {
+      testWidgets(
+        '"כל הספרים" שנבחר בסרגל מציג את הנתונים שנטענו אחרי $libraryChange',
+        (tester) async {
+          final dataProvider = _ReloadingDataProvider();
+          await pumpMainScreen(tester, dataProvider, width: 1200);
+          final allBooksHeader = find.widgetWithText(
+            NavTreeHeader,
+            'כל הספרים',
+          );
+          await tester.tap(find.text('כפולים'));
+          await tester.pumpAndSettle();
+          await tester.tap(allBooksHeader);
+          await tester.pumpAndSettle();
+          expect(find.text('ספר פעיל'), findsOneWidget);
+
+          final switchesLibrary = libraryChange == 'החלפת ספרייה';
+          dataProvider.nextLibrary = switchesLibrary
+              ? {
+                  'ספרייה אחרת': _ReloadingDataProvider._category(
+                    'ספרייה אחרת',
+                    {'ספר מספרייה אחרת': _ReloadingDataProvider._book(6)},
+                  ),
+                }
+              : {
+                  ..._FakeShamorZachorDataProvider._categories,
+                  'בדיקה': _ReloadingDataProvider._category('בדיקה', {
+                    'ספר פעיל': _FakeShamorZachorDataProvider._activeBook,
+                    'ספר הושלם': _FakeShamorZachorDataProvider._completedBook,
+                    'ספר שנוסף': _ReloadingDataProvider._book(5),
+                  }),
+                };
+          await dataProvider.loadAllData();
+          await tester.pumpAndSettle();
+
+          expect(
+            find.text(switchesLibrary ? 'ספר מספרייה אחרת' : 'ספר שנוסף'),
+            findsOneWidget,
+          );
+          expect(
+            find.text('ספר פעיל'),
+            switchesLibrary ? findsNothing : findsOneWidget,
+          );
+          expect(
+            tester.widget<NavTreeHeader>(allBooksHeader).isSelected,
+            isTrue,
+          );
+        },
+      );
+    }
+
     testWidgets('space key is not swallowed while typing in search field', (
       tester,
     ) async {
@@ -729,6 +783,51 @@ class _ManyBooksDataProvider extends _FakeShamorZachorDataProvider {
 
   @override
   bool isBookTrackedById(int bookId) => true;
+}
+
+/// כמו הספק האמיתי: כל טעינה בונה עץ קטגוריות חדש ([nextLibrary]).
+class _ReloadingDataProvider extends _FakeShamorZachorDataProvider {
+  static BookDetails _book(int id) => BookDetails(
+    id: id,
+    contentType: 'text',
+    parts: const [BookPart(name: 'ראשי', startPage: 1, endPage: 1)],
+  );
+
+  static BookCategory _category(String name, Map<String, BookDetails> books) =>
+      BookCategory(
+        name: name,
+        contentType: 'text',
+        books: books,
+        defaultStartPage: 1,
+        isCustom: false,
+        sourceFile: 'test',
+        schemaVersion: 1,
+      );
+
+  Map<String, BookCategory> _library =
+      _FakeShamorZachorDataProvider._categories;
+  Map<String, BookCategory> nextLibrary = const {};
+  bool _loading = false;
+
+  @override
+  Map<String, BookCategory> get allBookData => _library;
+
+  @override
+  bool get isLoading => _loading;
+
+  /// הספרים החדשים נוספו ידנית ולכן מוצגים תחת "בתהליך".
+  @override
+  bool isBookTrackedById(int bookId) => bookId >= 5;
+
+  @override
+  Future<void> loadAllData() async {
+    _loading = true;
+    notifyListeners();
+    await Future<void>.value();
+    _library = nextLibrary;
+    _loading = false;
+    notifyListeners();
+  }
 }
 
 class _FakeShamorZachorProgressProvider extends ShamorZachorProgressProvider {
