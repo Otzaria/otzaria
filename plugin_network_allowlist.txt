@@ -123,3 +123,6 @@ http://hiruv.com
 # תוסף אורייתא יומי — חומרי העזר והבחינות של תוכנית אורייתא (עמוד וחזרה)
 https://oraysa-media.s3.amazonaws.com
 https://moodle.oraysa.org
+
+# תוסף הערות הקהילה (community-notes)
+https://community-notes.otzaria-notes.workers.dev
