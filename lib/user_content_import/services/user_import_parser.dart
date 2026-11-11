@@ -169,6 +169,7 @@ class UserImportParser {
       'priority': ['עדיפות'],
       'primarySource': ['מקור_ראשי'],
       'primaryCategory': ['קטגוריית_ראשי'],
+      'versionDb': ['מסד_גרסה', 'versionDb'],
     });
     final primaryCol = header['primary'];
     final versionCol = header['version'];
@@ -215,9 +216,21 @@ class UserImportParser {
         );
         continue;
       }
+      final versionDbRaw = _at(cells, header['versionDb']);
+      final versionDb = parseAttachedSlug(versionDbRaw);
+      if (versionDbRaw.isNotEmpty && versionDb == null) {
+        errors.add(
+          ImportRowError(
+            record.lineNumber,
+            'מזהה מסד לא חוקי: "$versionDbRaw"',
+          ),
+        );
+        continue;
+      }
       rows.add(
         ParsedBookVersion(
           rowNumber: record.lineNumber,
+          versionDb: versionDb,
           primary: primary,
           version: version,
           label: _nullable(_at(cells, header['label'])),
