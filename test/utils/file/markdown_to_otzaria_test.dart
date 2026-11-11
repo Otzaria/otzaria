@@ -43,12 +43,47 @@ final value = 1;
       expect(result.html, isNot(contains('title: ספר בדיקה')));
     });
 
+    test('סריקת תמונות אינה משנה קישורים ותוכן מסמך', () {
+      final html = markdownBytesToHtml(
+        Uint8List.fromList(
+          utf8.encode(
+            '# כותרת\n\n'
+            '![מקומית](images/a.png) '
+            '![חיצונית](https://example.com/b.png)\n\n'
+            '| א | ב |\n|---|---|\n| 1 | 2 |\n\n'
+            '[קישור](https://example.com/page)',
+          ),
+        ),
+        'ספר',
+      );
+
+      expect(html, contains('<h1 id="כותרת"'));
+      expect(html, contains('src="images/a.png"'));
+      expect(html, isNot(contains('src="https://example.com/b.png"')));
+      expect(html, contains('href="https://example.com/page"'));
+      expect(html, contains('<table'));
+    });
+
     test('מסלול bytes מסיר תמונות חיצוניות', () {
       final html = markdownBytesToHtml(
         Uint8List.fromList(utf8.encode('![מעקב](https://example.com/a.png)')),
         'ספר',
       );
       expect(html, isNot(contains('https://example.com')));
+    });
+
+    test('שומר על נרמול HTML של בלוק pre בתא טבלה', () async {
+      const source = '<table><tr><td><pre>\nx</pre></td></tr></table>';
+      const expected =
+          '<table dir="ltr" class="md-block"><tbody><tr>'
+          '<td dir="ltr"><pre dir="ltr">&#10;&#10;&#10;&#10;x</pre></td>'
+          '</tr></tbody></table>';
+
+      expect((await converter.convertSource(source)).html, expected);
+      expect(
+        markdownBytesToHtml(Uint8List.fromList(utf8.encode(source)), 'ספר'),
+        expected,
+      );
     });
 
     test('שומר תמונת data URI שאינה דורשת רשת', () {

@@ -76,26 +76,26 @@ class MarkdownToOtzaria {
     return _renderBookLines(fragment);
   }
 
-  DocumentFragment _parseMarkdown(String body) => html_parser.parseFragment(
-    _stripExternalImages(
-      _sanitizer.sanitize(
-        markdown.markdownToHtml(
-          body,
-          extensionSet: markdown.ExtensionSet.gitHubWeb,
-        ),
+  DocumentFragment _parseMarkdown(String body) {
+    final sanitized = _sanitizer.sanitize(
+      markdown.markdownToHtml(
+        body,
+        extensionSet: markdown.ExtensionSet.gitHubWeb,
       ),
-    ),
-  );
-
-  String _stripExternalImages(String source) {
-    final fragment = html_parser.parseFragment(source);
+    );
+    final fragment = html_parser.parseFragment(sanitized);
+    var removedImageSource = false;
     for (final image in fragment.querySelectorAll('img')) {
       final src = image.attributes['src']?.trim() ?? '';
       if (!_isRelativeUrl(src) && !_isEmbeddedImageUrl(src)) {
         image.attributes.remove('src');
+        removedImageSource = true;
       }
     }
-    return fragment.outerHtml;
+    final serialized = fragment.outerHtml;
+    // סבב נוסף עשוי לשנות את הפלט, למשל ב־pre בתוך תא טבלה.
+    if (!removedImageSource && serialized == sanitized) return fragment;
+    return html_parser.parseFragment(serialized);
   }
 
   /// הנרמול המשותף לכל מסלולי ההמרה. כל שינוי כאן מחייב העלאת
