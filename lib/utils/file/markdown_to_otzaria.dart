@@ -13,7 +13,7 @@ import 'package:otzaria/utils/file/text_encoding.dart';
 import 'package:otzaria/utils/text/heading_slug.dart';
 
 /// גרסת הממיר. שינוי בפלט פוסל רק רשומות Cache של Markdown.
-const int kMarkdownConverterVersion = 8;
+const int kMarkdownConverterVersion = 9;
 
 /// מסומן על כל בלוק שנוצר מהמרת Markdown, כדי שהעיצוב הייעודי לא יחול על
 /// ספרי אוצריא רגילים שחולקים את אותו מנוע תצוגה.

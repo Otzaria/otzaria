@@ -19,7 +19,7 @@ import 'package:otzaria/utils/text/otzaria_markup.dart';
 
 /// גרסת ממיר ה-HTML — **חובה להעלות בכל שינוי שמשפיע על הפלט**: הגרסה היא
 /// חלק ממפתח-התוקף של מטמון ההמרות, והעלאתה פוסלת רשומות ישנות.
-const int kHtmlConverterVersion = 3;
+const int kHtmlConverterVersion = 4;
 
 /// מגבלות משאבים על מסמך HTML.
 ///
