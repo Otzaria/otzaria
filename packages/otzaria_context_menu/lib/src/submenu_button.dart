@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'menu_presentation.dart';
 import 'menu_rows.dart';
@@ -51,6 +52,7 @@ class _AppSubmenuButtonState extends State<AppSubmenuButton> {
 
   bool _trackingPointer = false;
   bool _hovered = false;
+  bool _pointerFocus = false;
 
   // Only an open, focusable submenu needs global pointer tracking. Hundreds
   // of closed submenu items should not each process every mouse event.
@@ -70,6 +72,7 @@ class _AppSubmenuButtonState extends State<AppSubmenuButton> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.preserveFocus != widget.preserveFocus) {
       _cancelOpen();
+      _clearPointerFocus();
       _focusNode.canRequestFocus = !widget.preserveFocus;
       // Changing the FocusScope wrapper recreates the closed menu anchor.
       // Controller replacement alone retains its open state and tracking.
@@ -81,6 +84,7 @@ class _AppSubmenuButtonState extends State<AppSubmenuButton> {
   void dispose() {
     _hoverTimer?.cancel();
     _setTrackingPointer(false);
+    _clearPointerFocus();
     _focusNode.dispose();
     super.dispose();
   }
@@ -121,19 +125,35 @@ class _AppSubmenuButtonState extends State<AppSubmenuButton> {
     _hoverTimer = null;
   }
 
-  // A focusable row takes focus when it is hovered, and the button style
-  // paints focus like hover. Nothing else takes that focus back when the
-  // pointer moves on, so the row would stay highlighted beside the one now
-  // under the pointer.
-  void _releasePointerFocus() {
-    if (!mounted ||
+  void _handleHover(bool hovered) {
+    // Flutter requests focus just after onHover if the row does not have it.
+    if (!hovered ||
         widget.preserveFocus ||
-        _hovered ||
-        widget.controller.isOpen ||
-        !_focusNode.hasFocus) {
+        _focusNode.hasPrimaryFocus ||
+        _pointerFocus) {
+      return;
+    }
+    _pointerFocus = true;
+    FocusManager.instance.addEarlyKeyEventHandler(_handleKeyEvent);
+  }
+
+  KeyEventResult _handleKeyEvent(KeyEvent event) {
+    if (event is KeyDownEvent || event is KeyRepeatEvent) _clearPointerFocus();
+    return KeyEventResult.ignored;
+  }
+
+  void _clearPointerFocus() {
+    if (!_pointerFocus) return;
+    _pointerFocus = false;
+    FocusManager.instance.removeEarlyKeyEventHandler(_handleKeyEvent);
+  }
+
+  void _releasePointerFocus() {
+    if (!mounted || !_pointerFocus || _hovered || widget.controller.isOpen) {
       return;
     }
     _focusNode.unfocus();
+    _clearPointerFocus();
   }
 
   bool _containsPointer(BuildContext context, Offset position) {
@@ -170,10 +190,6 @@ class _AppSubmenuButtonState extends State<AppSubmenuButton> {
     } else {
       _hoverTimer ??= Timer(const Duration(milliseconds: 400), () {
         widget.controller.close();
-        // Closing hands focus back to this row once the frame is built.
-        WidgetsBinding.instance.addPostFrameCallback(
-          (_) => _releasePointerFocus(),
-        );
       });
     }
   }
@@ -202,6 +218,10 @@ class _AppSubmenuButtonState extends State<AppSubmenuButton> {
           controller: widget.controller,
           focusNode: _focusNode,
           hoverOpenDelay: _hoverDelay,
+          onHover: _handleHover,
+          onFocusChange: (focused) {
+            if (!focused && !widget.controller.isOpen) _clearPointerFocus();
+          },
           onOpen: () {
             final side = _shouldOpenToRight();
             if (_openToRight != side) setState(() => _openToRight = side);
@@ -211,6 +231,12 @@ class _AppSubmenuButtonState extends State<AppSubmenuButton> {
           onClose: () {
             _cancelOpen();
             _setTrackingPointer(false);
+            if (_pointerFocus) {
+              // Flutter may restore the parent focus after removing the panel.
+              WidgetsBinding.instance.addPostFrameCallback(
+                (_) => _releasePointerFocus(),
+              );
+            }
             widget.onClose?.call();
           },
           submenuIcon: const WidgetStatePropertyAll<Widget?>(SizedBox.shrink()),
