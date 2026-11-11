@@ -1886,10 +1886,11 @@ packages:
   timezone:
     dependency: "direct main"
     description:
-      name: timezone
-      sha256: "9f4e5a1a0e4fef7dd3424842c0575db01bfb7a11730e8d55753fcd5c5c98767b"
-      url: "https://pub.dev"
-    source: hosted
+      path: "pkgs/timezone"
+      ref: f48be9ede26c06e433a186bd1aca2876fb4de143
+      resolved-ref: f48be9ede26c06e433a186bd1aca2876fb4de143
+      url: "https://github.com/Otzaria/labs.git"
+    source: git
     version: "0.11.2"
   typed_data:
     dependency: transitive
