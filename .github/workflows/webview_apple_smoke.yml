@@ -10,6 +10,8 @@ on:
       - 'integration_test/webview_resource_probe_test.dart'
       - 'integration_test/support/webview_probe_*.dart'
       - 'tool/perf_probe/WEBVIEW_RESOURCE_PROBE.md'
+      - 'tool/perf_probe/validate_webview_apple_smoke.py'
+      - 'tool/perf_probe/test_webview_apple_smoke_validator.py'
       - '.github/workflows/webview_apple_smoke.yml'
   workflow_dispatch:
 
@@ -21,7 +23,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  report-contracts:
+    name: Fail-closed Apple report contract tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Verify accepted and rejected native report shapes
+        run: python3 -m unittest -v tool/perf_probe/test_webview_apple_smoke_validator.py
+
   portable-webview:
+    needs: report-contracts
     name: Actual WKWebView / ${{ matrix.platform }} / ${{ matrix.mode }}
     strategy:
       fail-fast: false
@@ -136,31 +148,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import json,os,pathlib
-          root=pathlib.Path(os.environ['WEBVIEW_PROBE_REPORTS'])
-          reports=list(root.glob('run-*/report.json'))
-          if len(reports)!=1:
-              raise SystemExit(f'Expected one fresh native driver report; observed {len(reports)}')
-          wrapper=json.loads(reports[0].read_text())
-          report=wrapper.get('webviewResourceProbe')
-          if not isinstance(report,dict):
-              raise SystemExit('Missing real WebView scenario report')
-          phases=report.get('phases')
-          expected={'environment','firstOpen','visibleIdle','multipleOpen','multipleIdle',
-                    'scroll','activeHeartbeat','hide','hiddenIdle','resume','discardWidget',
-                    'recreateAndRestore','backgroundOpen','backgroundIdle','closeWidgets','closedIdle'}
-          if report.get('scenarioStatus')!='completed' or not isinstance(phases,dict) or set(phases)!=expected:
-              raise SystemExit('Native scenario incomplete or phase schema changed: '+str(report.get('error')))
-          if any(value!='passed' for value in phases.values()):
-              raise SystemExit('Native scenario has failed, skipped, or unsupported phases: '+str(phases))
-          meta=[r for r in report.get('records',[]) if r.get('type')=='meta']
-          if len(meta)!=1 or meta[0].get('os')!=os.environ['PROBE_PLATFORM'] or meta[0].get('appCommit')!=os.environ['GITHUB_SHA']:
-              raise SystemExit('Native report provenance mismatch')
-          print(json.dumps({'status':'passed','platform':os.environ['PROBE_PLATFORM'],
-                            'mode':os.environ['PROBE_MODE'],'phases':len(phases),
-                            'commit':meta[0]['appCommit'],'limitations':meta[0].get('limitations')},ensure_ascii=False))
-          PY
+          python3 tool/perf_probe/validate_webview_apple_smoke.py \
+            --root "$WEBVIEW_PROBE_REPORTS" \
+            --platform "$PROBE_PLATFORM" \
+            --mode "$PROBE_MODE" \
+            --commit "$GITHUB_SHA"
 
       - name: Cleanup only the Simulator created by this job
         if: always() && matrix.platform == 'ios'
