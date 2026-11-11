@@ -10,7 +10,7 @@ class DocxTextCacheEntry {
   final int fileSize;
   final int lastModified;
 
-  /// גרסת הממיר שיצרה את הרשומה (`kDocxConverterVersion`). חלק ממפתח-התוקף:
+  /// גרסת הממיר שיצרה את הרשומה. חלק ממפתח-התוקף:
   /// שדרוג הממיר פוסל רשומות ישנות גם אם הקובץ עצמו לא השתנה.
   final int converterVersion;
 
