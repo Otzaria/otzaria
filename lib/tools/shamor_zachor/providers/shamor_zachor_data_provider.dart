@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'dart:convert';
+import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
@@ -50,6 +51,18 @@ class ShamorZachorDataProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   ShamorZachorError? get error => _error;
   bool get hasData => _allBookData.isNotEmpty;
+
+  /// הקטגוריה הווירטואלית "כל הספרים": קטגוריות העל של [allBookData], בסדרן.
+  BookCategory get allBooksCategory => BookCategory(
+    name: 'כל הספרים',
+    books: {},
+    subcategories: allBookData.values.toList(),
+    isCustom: false,
+    sourceFile: 'virtual',
+    schemaVersion: 1,
+    contentType: 'text',
+    defaultStartPage: 1,
+  );
 
   /// מזהי הספרים שהמשתמש הוסיף ידנית למעקב (להבדיל מספרי בסיס שמוצגים תמיד)
   Set<int> get trackedBookIds => Set.unmodifiable(_trackedBookIds);
@@ -702,14 +715,11 @@ class ShamorZachorDataProvider with ChangeNotifier {
     if (id != null) {
       return repository.getBook(id);
     }
-    if (categoryId != null) {
-      final byCategory = await repository.getBookByTitleAndCategory(
-        title,
-        categoryId,
-      );
-      if (byCategory != null) return byCategory;
-    }
-    return repository.getBookByTitle(title);
+    return BookDatabaseResolver.findBookInRepository(
+      repository,
+      title,
+      categoryId: categoryId,
+    );
   }
 
   /// מסיר ספר מרשימת המעקב לפי מזהה, ללא תלות בהיותו ספר בסיס.
