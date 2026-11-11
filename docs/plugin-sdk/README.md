@@ -522,7 +522,8 @@ Otzaria.on('plugin.boot', (payload) => {
 |--------|-------|----------|-------|
 | `notes.list` | `notes.read` | `{ bookId }` | `Note[]` |
 | `notes.getBookNotesSummary` | `notes.read` | — | `{ bookId, noteCount, lastModified }[]` |
-| `notes.add` | `notes.write` | `{ bookId, lineNumber, content }` | `boolean` |
+| `notes.add` | `notes.write` | `{ bookId, lineNumber?, content, scope?, endLineNumber?, range?, text?, occurrence?, returnNote? }` | `boolean` / `Note` |
+| `notes.setLocation` | `notes.write` | `{ bookId, noteId, scope?, lineNumber?, endLineNumber?, range?, text?, occurrence? }` | `Note` |
 | `notes.update` | `notes.write` | `{ bookId, noteId, content }` | `boolean` |
 | `notes.delete` | `notes.write` | `{ bookId, noteId }` | `boolean` |
 

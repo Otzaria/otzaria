@@ -44,6 +44,7 @@ import 'package:otzaria/migration/models/alt_toc_structure.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
+import 'package:otzaria/personal_notes/utils/note_text_utils.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/core/connectivity_status_service.dart';
@@ -170,6 +171,7 @@ import 'package:otzaria/plugins/services/plugin_network_fetch_service.dart';
 import 'package:otzaria/plugins/services/reader_selection_service.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_reveal_service.dart';
+import 'package:otzaria/plugins/services/plugin_note_location.dart';
 import 'package:otzaria/plugins/models/plugin_text_normalization.dart';
 import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/plugins/declarative/services/declarative_library_book_access.dart';
@@ -4657,16 +4659,7 @@ class PluginBridgeAdapter {
           throw Exception("error.invalid_params: bookId required");
         }
         final notes = await repo.loadNotes(bookId);
-        return notes
-            .map(
-              (n) => {
-                'id': n.id,
-                'lineNumber': n.lineNumber,
-                'content': n.content,
-                'contentPlain': n.contentPlain,
-              },
-            )
-            .toList();
+        return notes.map(pluginNoteJson).toList();
       case 'getBookNotesSummary':
         final summaries = await repo.listBooksWithNotes();
         return summaries
@@ -4680,19 +4673,73 @@ class PluginBridgeAdapter {
             .toList();
       case 'add':
         final bookId = await _notesBookKey(args);
-        final lineNumber = args['lineNumber'] as int?;
         final content = args['content'] as String?;
-        if (bookId == null || lineNumber == null || content == null) {
+        if (bookId == null ||
+            content == null ||
+            (args['lineNumber'] == null && args['scope'] == null)) {
           throw Exception("error.invalid_params: Missing arguments");
         }
-        await repo.addNote(
-          bookId: bookId,
-          lineNumber: lineNumber,
-          content: content,
-          contentPlain: content,
-          contentFormat: PersonalNoteContentFormat.plain,
+        final location = await parsePluginNoteLocation(
+          args,
+          () async =>
+              splitBookContentIntoLines(await repo.loadBookContent(bookId)),
         );
-        return true;
+        final anchor = location.anchor;
+        final PersonalNote note;
+        try {
+          note = await repo.createNote(
+            bookId: bookId,
+            lineNumber: location.lineNumber,
+            endLineNumber: location.endLineNumber,
+            content: content,
+            contentPlain: content,
+            contentFormat: PersonalNoteContentFormat.plain,
+            selectedText: anchor?.text,
+            sourceSelectedText: anchor != null && anchor.fromSource
+                ? anchor.text
+                : null,
+            sourceSelectionOffset: anchor?.offset,
+            occurrenceIndex: anchor?.occurrence,
+            requireWordAnchor: anchor != null,
+          );
+        } on ArgumentError {
+          throw Exception('error.not_found: text was not found in the line');
+        }
+        return args['returnNote'] == true ? pluginNoteJson(note) : true;
+      case 'setLocation':
+        final bookId = await _notesBookKey(args);
+        final noteId = args['noteId'];
+        if (bookId == null || noteId is! String || noteId.isEmpty) {
+          throw Exception('error.invalid_params: bookId and noteId required');
+        }
+        final location = await parsePluginNoteLocation(
+          args,
+          () async =>
+              splitBookContentIntoLines(await repo.loadBookContent(bookId)),
+        );
+        final anchor = location.anchor;
+        try {
+          return pluginNoteJson(
+            await repo.setNoteLocation(
+              bookId: bookId,
+              noteId: noteId,
+              scope: location.scope,
+              lineNumber: location.lineNumber,
+              endLineNumber: location.endLineNumber,
+              sourceText: anchor?.text,
+              sourceOffset: anchor?.offset,
+              occurrenceIndex: anchor?.occurrence,
+            ),
+          );
+        } on StateError {
+          throw Exception('error.not_found: note was not found in this book');
+        } on ArgumentError catch (error) {
+          throw Exception(
+            error.name == 'sourceText'
+                ? 'error.not_found: text was not found in the line'
+                : 'error.invalid_params: lineNumber is outside the book',
+          );
+        }
       case 'update':
         final bookId = await _notesBookKey(args);
         final noteId = args['noteId'] as String?;

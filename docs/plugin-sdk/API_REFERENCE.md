@@ -361,6 +361,7 @@ if (response.success) {
 | `notes.add` | 0.9.89 |
 | `notes.update` | 0.9.89 |
 | `notes.delete` | 0.9.89 |
+| `notes.setLocation` | 0.9.99 |
 | `ui.showMessage` | 0.9.89 |
 | `ui.showSuccess` | 0.9.89 |
 | `ui.showError` | 0.9.89 |
@@ -3438,6 +3439,17 @@ Otzaria.linkify(document.getElementById('note'));
 
 ## notes.* - הערות אישיות
 
+להערה יש אחד משלושה סוגי מיקום (`scope`, מגרסה 0.9.99):
+
+| `scope` | ההערה חלה על | שדות המיקום |
+|---------|--------------|-------------|
+| `'book'` | הספר כולו, בלי מיקום | — |
+| `'lines'` | שורה אחת, או השורות `lineNumber`–`endLineNumber` | `lineNumber`, `endLineNumber` |
+| `'words'` | מילים מסוימות בשורה אחת | `lineNumber`, `anchorText` |
+
+`lineNumber` מתחיל מ-1, כלומר `sectionIndex + 1`. בספר PDF `lineNumber` הוא מספר
+עמוד, ואין בו `'words'` ולא `endLineNumber`.
+
 ### `notes.list`
 **הרשאה:** `notes.read`
 
@@ -3447,8 +3459,19 @@ Otzaria.linkify(document.getElementById('note'));
 const { data } = await Otzaria.call('notes.list', {
   bookId: 'בראשית'
 });
-// [{ id: "123", lineNumber: 5, content: "הערה...", contentPlain: "הערה..." }, ...]
+// [{
+//   id: "pn_...", bookId: "בראשית",
+//   scope: "words", status: "located",
+//   lineNumber: 5, endLineNumber: null, anchorText: "ויאמר אלהים",
+//   content: "הערה...", contentPlain: "הערה...",
+//   createdAt: "2026-11-11T10:30:00.000", updatedAt: "2026-11-11T10:30:00.000"
+// }, ...]
 ```
+
+מגרסה 0.9.99 נוספו `bookId`, `scope`, `status`, `endLineNumber`, `anchorText`,
+`createdAt` ו-`updatedAt`; במארח ישן הם חסרים. `status` הוא `'located'`,
+`'missing'` (ההערה איבדה את מקומה כי הספר השתנה, ו-`lineNumber` הוא `null`) או
+`'book'`. `anchorText` הן המילים בלי ניקוד ופיסוק, ו-`null` כשההערה אינה על מילים.
 
 ### `notes.getBookNotesSummary`
 **הרשאה:** `notes.read`
@@ -3473,6 +3496,69 @@ const { data } = await Otzaria.call('notes.add', {
 });
 // true
 ```
+
+**מיקום ההערה (מגרסה 0.9.99).** בלי הפרמטרים האלה ההערה חלה על השורה `lineNumber`
+כולה, כמו קודם.
+
+| פרמטר | פירוש |
+|-------|-------|
+| `scope` | `'book'` להערה על הספר כולו, בלי `lineNumber`. `'lines'` / `'words'` אופציונליים: הסוג נקבע לפי שאר הפרמטרים |
+| `endLineNumber` | הערה על השורות `lineNumber`–`endLineNumber` |
+| `range` | הערה על מילים: עוגן בשכבת `source`, כמו ב-`reader.setHighlight` — `sourceRange` של `reader.getSelection`, או `range` של `reader.findTextOccurrences` עם `layer: 'source'` |
+| `text` | הערה על מילים: המילים עצמן. ההתאמה מתעלמת מניקוד, מטעמים ומפיסוק |
+| `occurrence` | עם `text` בלבד: איזה מופע בשורה, מ-0. ברירת המחדל: הראשון |
+| `returnNote` | `true` — מחזיר את ההערה שנוצרה (כמו ב-`notes.list`, כולל `id`) במקום `true` |
+
+```javascript
+const selection = (await Otzaria.call('reader.getSelection')).data;
+const { data: note } = await Otzaria.call('notes.add', {
+  bookId: selection.bookId,
+  lineNumber: selection.sectionIndex + 1,
+  content: 'הערה על המילים שנבחרו',
+  range: selection.sourceRange,
+  returnNote: true
+});
+// note.id, note.scope === 'words'
+
+await Otzaria.call('notes.add', {
+  bookId: 'בראשית', lineNumber: 1, content: 'על המופע השני', text: 'את', occurrence: 1
+});
+await Otzaria.call('notes.add', {
+  bookId: 'בראשית', lineNumber: 3, endLineNumber: 5, content: 'על שלוש שורות'
+});
+await Otzaria.call('notes.add', {
+  bookId: 'בראשית', scope: 'book', content: 'על הספר כולו'
+});
+```
+
+שגיאות: `error.invalid_params` כשהפרמטרים סותרים (`range` וגם `text`, `scope: 'book'`
+עם שורה, `endLineNumber` עם מילים או קטן מ-`lineNumber`), `range` לא תקין או בשכבה
+אחרת, או שורה שאינה בספר. `error.not_found` כשהמילים אינן בשורה; ההערה לא נוצרת.
+מארח ישן מתעלם מהפרמטרים ויוצר הערה על השורה כולה (או נכשל בלי `lineNumber`),
+ולכן תוסף שתלוי בהם צריך `minAppVersion` של `0.9.99`.
+
+### `notes.setLocation`
+**הרשאה:** `notes.write`
+
+**זמין מגרסה:** `0.9.99`
+
+שינוי המיקום של הערה קיימת: העברה לשורות אחרות, למילים אחרות, או לספר כולו. התוכן
+אינו משתנה. הפרמטרים כמו ב-`notes.add`, ובלי `scope` הסוג נקבע לפיהם. מחזיר את
+ההערה המעודכנת, כמו ב-`notes.list`.
+
+```javascript
+const { data } = await Otzaria.call('notes.setLocation', {
+  bookId: 'בראשית',
+  noteId: 'pn_...',
+  lineNumber: 4,
+  text: 'ויאמר אלהים'
+});
+// { id: "pn_...", scope: "words", lineNumber: 4, anchorText: "ויאמר אלהים", ... }
+
+await Otzaria.call('notes.setLocation', { bookId: 'בראשית', noteId: 'pn_...', scope: 'book' });
+```
+
+שגיאות: כמו ב-`notes.add`, ובנוסף `error.not_found` כשאין הערה כזו בספר.
 
 ### `notes.update`
 **הרשאה:** `notes.write`

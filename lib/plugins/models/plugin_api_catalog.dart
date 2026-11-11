@@ -426,6 +426,7 @@ const Map<String, PluginApiMethod> pluginApiMethods = {
   'notes.add': PluginApiMethod('notes.write', '0.9.89'),
   'notes.update': PluginApiMethod('notes.write', '0.9.89'),
   'notes.delete': PluginApiMethod('notes.write', '0.9.89'),
+  'notes.setLocation': PluginApiMethod('notes.write', '0.9.99'),
   'ui.showMessage': PluginApiMethod('ui.feedback', '0.9.89'),
   'ui.showSuccess': PluginApiMethod('ui.feedback', '0.9.89'),
   'ui.showError': PluginApiMethod('ui.feedback', '0.9.89'),
