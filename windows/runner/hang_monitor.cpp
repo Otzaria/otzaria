@@ -31,9 +31,7 @@ constexpr int kMaxExtraSamples = 3;
 constexpr ULONGLONG kSampleIntervalMs = 2000;
 constexpr int kMaxOtherThreads = 32;
 constexpr DWORD kCpuWindowMs = 250;
-// חריגה שגרמה לתקיעה קרתה סמוך לתחילתה, שנקבעת ברזולוציה של דגימה.
 constexpr ULONGLONG kExceptionLeadMs = 10000;
-constexpr size_t kMaxExceptions = 4;
 
 HWND g_window = nullptr;
 HANDLE g_stop_event = nullptr;
@@ -223,99 +221,16 @@ void AppendMemory(std::string* report) {
   *report += line;
 }
 
-// מטפל חריגות במחסנית התקועה: ה-thread נתקע בטיפול בחריגה (למשל ב-Sentry).
-bool InExceptionDispatch(const std::vector<ULONG_PTR>& frames) {
-  const ULONG_PTR targets[] = {
-      reinterpret_cast<ULONG_PTR>(::GetProcAddress(
-          ::GetModuleHandleW(L"ntdll.dll"), "KiUserExceptionDispatcher")),
-      reinterpret_cast<ULONG_PTR>(::GetProcAddress(
-          ::GetModuleHandleW(L"kernelbase.dll"), "UnhandledExceptionFilter")),
-  };
-  for (const ULONG_PTR frame : frames) {
-    DWORD64 image_base = 0;
-    const auto function =
-        ::RtlLookupFunctionEntry(frame - 1, &image_base, nullptr);
-    if (function == nullptr) continue;
-    const ULONG_PTR begin =
-        static_cast<ULONG_PTR>(image_base + function->BeginAddress);
-    for (const ULONG_PTR target : targets) {
-      if (target != 0 && begin == target) return true;
-    }
-  }
-  return false;
-}
-
-// חריגות ה-thread הראשי מסביב לתחילת התקיעה ועד [detected_at], שנמדד לפני
-// הלכידה: AV מוגן של ה-watcher עצמו אינו נכלל. הראשונה היא זו שהחתימה ממנה.
-std::vector<native_exception_log::Record> ExceptionsBeforeHang(
-    DWORD main_thread, ULONGLONG hang_started_at, ULONGLONG detected_at,
-    const std::vector<ULONG_PTR>& hung_frames) {
-  std::vector<native_exception_log::Record> chosen;
-  for (auto& record : native_exception_log::Snapshot()) {
-    if (record.thread_id == main_thread && record.awake_ms <= detected_at &&
-        record.awake_ms + kExceptionLeadMs >= hang_started_at) {
-      chosen.push_back(std::move(record));
-    }
-  }
-  if (chosen.size() > kMaxExceptions) {
-    chosen.erase(chosen.begin(), chosen.end() - kMaxExceptions);
-  }
-  if (chosen.empty()) return chosen;
-  // החריגה שהמטפל התקוע מטפל בה מופיעה במחסנית התקועה; מקוננות אחריה נזרקו
-  // מתוכו. בלעדיה — האחרונה, ולא AV מטופל שקדם לה.
-  auto primary = std::find_if(
-      chosen.begin(), chosen.end(), [&](const native_exception_log::Record& r) {
-        return std::find(hung_frames.begin(), hung_frames.end(), r.address) !=
-               hung_frames.end();
-      });
-  if (primary == chosen.end()) primary = chosen.end() - 1;
-  std::rotate(chosen.begin(), primary, primary + 1);
-  return chosen;
-}
-
-// מהסעיף הראשון נגזרת חתימת הקריסה (error_log_blocks.dart).
-void AppendExceptions(const std::vector<native_exception_log::Record>& records,
-                      ULONGLONG detected_at, std::string* report) {
-  for (size_t i = 0; i < records.size(); ++i) {
-    const native_exception_log::Record& record = records[i];
-    char text[256];
-    snprintf(text, sizeof(text),
-             "--- Native exception %zu/%zu, thread %lu, %llums before "
-             "detection ---\nCode: 0x%08lx %s\nAddress: ",
-             i + 1, records.size(), record.thread_id,
-             detected_at - (std::min)(detected_at, record.awake_ms),
-             record.code, native_exception_log::CodeName(record.code));
-    *report += text;
-    *report += startup_watchdog::DescribeFrame(record.address) + "\n";
-    if (record.has_access) {
-      snprintf(text, sizeof(text), "Access: %s 0x%llx\n",
-               record.access_type == 0   ? "read"
-               : record.access_type == 1 ? "write"
-               : record.access_type == 8 ? "execute"
-                                         : "unknown",
-               static_cast<unsigned long long>(record.access_address));
-      *report += text;
-    }
-    startup_watchdog::AppendStack(record.frames, report);
-  }
-}
-
 void ReportHang(const std::vector<ULONG_PTR>& frames, bool with_threads,
                 ULONGLONG hang_started_at, ULONGLONG detected_at) {
-  const bool in_dispatch = InExceptionDispatch(frames);
-  // לפני CaptureOtherThreads: קריאות הזיכרון המוגנות שלו עלולות לדחוק מהטבעת.
-  const std::vector<native_exception_log::Record> exceptions =
-      ExceptionsBeforeHang(::GetWindowThreadProcessId(g_window, nullptr),
-                           hang_started_at, detected_at, frames);
+  const auto exception = native_exception_log::FindStackMatch(
+      native_exception_log::ReadRecent(), frames,
+      hang_started_at > kExceptionLeadMs ? hang_started_at - kExceptionLeadMs : 0,
+      detected_at);
   // רק בדוח הראשון: הרשימה ארוכה, ודוחות נוספים היו דוחקים רשומות קודמות.
   const std::vector<OtherThread> threads =
       with_threads ? CaptureOtherThreads() : std::vector<OtherThread>();
   std::vector<ULONG_PTR> all_frames = frames;
-  for (const native_exception_log::Record& record : exceptions) {
-    all_frames.push_back(record.address);
-    all_frames.insert(all_frames.end(), record.frames.begin(),
-                      record.frames.end());
-  }
   for (const OtherThread& thread : threads) {
     all_frames.insert(all_frames.end(), thread.frames.begin(),
                       thread.frames.end());
@@ -326,14 +241,7 @@ void ReportHang(const std::vector<ULONG_PTR>& frames, bool with_threads,
   report += std::string("Version: ") + FLUTTER_VERSION + "\n";
 #endif
   // בלי מספרים בשורה: ממנה נגזר סוג החתימה (AppHang).
-  if (in_dispatch) {
-    report += "Message: AppHang: UI thread stuck in exception handler\n";
-  } else if (!exceptions.empty()) {
-    report += "Message: AppHang: UI thread not responding after native "
-              "exception\n";
-  } else {
-    report += "Message: AppHang: UI thread not responding\n";
-  }
+  report += "Message: AppHang: UI thread not responding\n";
   char detected[64];
   snprintf(detected, sizeof(detected), "Detected: %llums after launch\n",
            MsSinceLaunch());
@@ -341,7 +249,16 @@ void ReportHang(const std::vector<ULONG_PTR>& frames, bool with_threads,
   AppendMemory(&report);
   startup_watchdog::AppendBuildIdentity(all_frames, &report);
   startup_watchdog::AppendStack(frames, &report);
-  AppendExceptions(exceptions, detected_at, &report);
+  if (exception) {
+    char header[160];
+    snprintf(header, sizeof(header),
+             "--- Recent UI exception matching stack (%llums before detection) ---\n"
+             "Code: 0x%08x\nAddress: ",
+             static_cast<unsigned long long>(detected_at - exception->awake_ms),
+             static_cast<unsigned int>(exception->code));
+    report += header;
+    report += startup_watchdog::DescribeFrame(exception->address) + "\n";
+  }
   AppendOtherThreads(threads, &report);
   startup_watchdog::AppendReport(report);
 }
@@ -390,6 +307,7 @@ void ReportProcessStall(ULONGLONG gap_ms) {
 }
 
 void WatcherLoop() {
+  native_exception_log::Install(::GetWindowThreadProcessId(g_window, nullptr));
   ULONGLONG last_tick = ::GetTickCount64();
   ULONGLONG last_awake = AwakeMs();
   ULONGLONG grace_until = 0;

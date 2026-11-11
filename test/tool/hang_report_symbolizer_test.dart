@@ -130,28 +130,6 @@ void main() {
     );
   });
 
-  test('פריימי Dart בסעיף החריגה הנייטיבית מקבלים שמות', () {
-    final symbols = DartSymbols.parse(debugElf());
-    final output = symbolizeHangReport(
-      '=== App hang 2026-11-09T16:06:21Z ===\n'
-      'Message: AppHang: UI thread stuck in exception handler\n'
-      'Dart build-id: deadbeef\n'
-      'Stack (module+RVA):\n'
-      '  sentry.dll+0x3fc58\n'
-      '--- Native exception 1/1, thread 7044, 9480ms before detection ---\n'
-      'Code: 0xc0000005 EXCEPTION_ACCESS_VIOLATION\n'
-      'Address: flutter_windows.dll+0xdc5d6c\n'
-      'Stack (module+RVA):\n'
-      '  flutter_windows.dll+0xdc5d6c\n'
-      '  app.so+0x204f\n',
-      symbols,
-    );
-    expect(
-      const LineSplitter().convert(output).last,
-      '  app.so+0x204f  _InactiveElements._unmount+0x4f',
-    );
-  });
-
   test('שורת ההשמטה נשארת כמו שהיא, ופריימי התחתית מקבלים שמות', () {
     final symbols = DartSymbols.parse(debugElf());
     final output = symbolizeHangReport(

@@ -24,42 +24,6 @@ String hangEntry(DateTime at, {List<String>? frames}) =>
     'Stack (module+RVA):\n'
     '${(frames ?? const ['ntdll.dll+0x9f4e4', 'win32u.dll+0x1234', 'KERNELBASE.dll+0x55', '0x1f8e8b92bbc', 'otzaria.exe+0x1a2b', 'flutter_windows.dll+0x81bb05', 'flutter_windows.dll+0x10', 'flutter_windows.dll+0x20']).map((f) => '  $f').join('\n')}\n';
 
-/// התקיעה של #4858: AV ב-flutter_windows.dll, ומטפל Sentry שנתקע בחריגה מקוננת.
-String stuckInHandlerEntry(
-  DateTime at, {
-  String message = 'AppHang: UI thread stuck in exception handler',
-}) =>
-    '\n=== App hang ${at.toIso8601String()} ===\n'
-    'Version: 0.9.98+99802\n'
-    'Message: $message\n'
-    'Detected: 9195879ms after launch\n'
-    'Dart build-id: e2afd1836a21b5000e7d82caed166b98\n'
-    'Stack (module+RVA):\n'
-    '  ntdll.dll+0x1384\n'
-    '  KERNELBASE.dll+0x10938c\n'
-    '  sentry.dll+0x3fc58\n'
-    '  ntdll.dll+0x1137e8\n'
-    '  ucrtbase.dll+0x20314\n'
-    '  sentry.dll+0x230a8\n'
-    '  KERNELBASE.dll+0x189ce8\n'
-    '  ntdll.dll+0x168154\n'
-    '  flutter_windows.dll+0xdc5d6c\n'
-    '  app.so+0x226b07c\n'
-    '--- Native exception 1/2, thread 7044, 9480ms before detection ---\n'
-    'Code: 0xc0000005 EXCEPTION_ACCESS_VIOLATION\n'
-    'Address: flutter_windows.dll+0xdc5d6c\n'
-    'Access: read 0x10\n'
-    'Stack (module+RVA):\n'
-    '  flutter_windows.dll+0xdc5d6c\n'
-    '  flutter_windows.dll+0x3e5ac\n'
-    '  app.so+0x226b07c\n'
-    '--- Native exception 2/2, thread 7044, 9479ms before detection ---\n'
-    'Code: 0xc0000374 STATUS_HEAP_CORRUPTION\n'
-    'Address: ntdll.dll+0x1137e8\n'
-    'Stack (module+RVA):\n'
-    '  ntdll.dll+0x1137e8\n'
-    '  sentry.dll+0x230a8\n';
-
 String recoveredEntry(DateTime at, {int ms = 7400}) =>
     '\n=== App hang recovered ${at.toIso8601String()} ===\n'
     'Duration: ${ms}ms\n';
@@ -194,6 +158,22 @@ void main() {
       expect(rich.signature, plain.signature);
     });
 
+    test('פרטי חריגה נייטיבית נשמרים בלי לשנות את חתימת התקיעה', () {
+      final entry = hangEntry(DateTime.utc(2026, 10, 18, 10));
+      final plain = parseErrorLogBlocks(entry).single;
+      final enriched = parseErrorLogBlocks(
+        '$entry'
+        '--- Recent UI exception matching stack (9480ms before detection) ---\n'
+        'Code: 0xc0000005\n'
+        'Address: flutter_windows.dll+0x81bb05\n',
+      ).single;
+
+      expect(enriched.text, contains('Code: 0xc0000005'));
+      expect(enriched.stackText, plain.stackText);
+      expect(enriched.signature, plain.signature);
+      expect(enriched.isCrashEvidence, isFalse);
+    });
+
     test('מחסנית של מערכת ההפעלה בלבד — נשארים הפריימים המקוריים', () {
       final signature = parseErrorLogBlocks(
         hangEntry(
@@ -202,45 +182,6 @@ void main() {
         ),
       ).single.signature;
       expect(signature.frames, ['ntdll.dll+0x1', 'user32.dll+0x2']);
-    });
-  });
-
-  group('ErrorLogBlock — תקיעה בתוך מטפל חריגות', () {
-    final at = DateTime.utc(2026, 11, 9, 16, 6, 21);
-
-    test('החתימה מהחריגה המקורית, כמו ב-minidump, ולא מ-sentry.dll', () {
-      final block = parseErrorLogBlocks(stuckInHandlerEntry(at)).single;
-      expect(block.isAppHang, isTrue);
-      expect(block.isStuckInExceptionHandler, isTrue);
-      expect(
-        block.signature.exceptionType,
-        '0xc0000005 flutter_windows.dll+0xdc5d6c',
-      );
-      expect(block.signature.frames, ['flutter_windows.dll+0xdc5d6c']);
-      expect(block.stackText, contains('sentry.dll+0x3fc58'));
-      expect(block.stackText, isNot(contains('Native exception')));
-    });
-
-    test('חריגה שאינה בתוך מטפל — נשארת חתימת תקיעה', () {
-      final block = parseErrorLogBlocks(
-        stuckInHandlerEntry(
-          at,
-          message: 'AppHang: UI thread not responding after native exception',
-        ),
-      ).single;
-      expect(block.isStuckInExceptionHandler, isFalse);
-      expect(block.signature.exceptionType, 'AppHang');
-    });
-
-    test('כתובת בלי מודול — רק קוד החריגה', () {
-      final block = parseErrorLogBlocks(
-        stuckInHandlerEntry(at).replaceFirst(
-          'Address: flutter_windows.dll+0xdc5d6c',
-          'Address: 0x1f8e8b92bbc',
-        ),
-      ).single;
-      expect(block.signature.exceptionType, '0xc0000005');
-      expect(block.signature.frames, isEmpty);
     });
   });
 
@@ -297,24 +238,6 @@ void main() {
       );
     });
 
-    test('תקיעה בתוך מטפל חריגות שלא השתחררה → מועמד מסוג קריסה', () async {
-      writeLock();
-      writeErrors(
-        stuckInHandlerEntry(previousStart.add(const Duration(hours: 1))),
-      );
-      final candidate = await detector().detectPreviousCrash();
-      expect(candidate!.isHang, isFalse);
-      expect(
-        candidate.signature!.exceptionType,
-        '0xc0000005 flutter_windows.dll+0xdc5d6c',
-      );
-      expect(
-        CrashReportDecision.titleFor(candidate),
-        '0xc0000005 flutter_windows.dll+0xdc5d6c',
-      );
-      expect(CrashReportDecision.reportTypeFor(candidate), AppReportType.crash);
-    });
-
     test('תקיעה שהשתחררה כבר דווחה — אינה ראיה בהפעלה הבאה', () async {
       writeLock();
       final at = previousStart.add(const Duration(hours: 1));
@@ -357,23 +280,6 @@ void main() {
       expect(candidate.occurredInPreviousRun, isFalse);
       expect(candidate.signature!.frames, ['otzaria.exe+0x99']);
       expect(CrashReportDecision.titleFor(candidate), 'התוכנה נתקעה (7 שניות)');
-    });
-
-    test('detectRecoveredHang: בתוך מטפל חריגות — נשארת חתימת תקיעה', () async {
-      final at = thisStart.add(const Duration(minutes: 5));
-      writeErrors(
-        stuckInHandlerEntry(at) +
-            recoveredEntry(at.add(const Duration(seconds: 7))),
-      );
-      final candidate = await detector().detectRecoveredHang(
-        duration: const Duration(milliseconds: 7400),
-      );
-      expect(candidate!.isHang, isTrue);
-      expect(candidate.signature!.exceptionType, 'AppHang');
-      expect(
-        candidate.signature!.frames.join(' '),
-        isNot(contains('flutter_windows.dll+0xdc5d6c')),
-      );
     });
 
     test(

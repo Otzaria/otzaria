@@ -78,7 +78,7 @@ void main() {
     }
     expect(
       source.substring(source.indexOf('::ResumeThread(thread);', captureStart)),
-      contains('UnwindStackCopyImpl('),
+      contains('UnwindCopiedStack('),
     );
 
     final watcher = source.substring(source.indexOf('void WatcherLoop()'));
@@ -86,7 +86,7 @@ void main() {
     final reportCall = watcher.indexOf('ReportStall(');
     expect(captureCall, greaterThanOrEqualTo(0));
     expect(reportCall, greaterThan(captureCall));
-    // הגדרה, AppendStackSection ו-DescribeFrame — כולם רצים רק אחרי החידוש.
+    // ההגדרה ושתי הקריאות בעת הרכבת הדוח, אחרי חידוש ה-thread.
     expect(RegExp(r'\bDescribeAddress\(').allMatches(source), hasLength(3));
     final section = source.substring(
       source.indexOf('void AppendStackSection('),
@@ -326,96 +326,6 @@ void main() {
     expect(failureBlock, contains('startup_watchdog::Stop();'));
     expect(failureBlock, contains('splash::Close();'));
     expect(failureBlock, contains('::CoUninitialize();'));
-  });
-
-  group('native_exception_log', () {
-    final log = File(
-      'windows/runner/native_exception_log.cpp',
-    ).readAsStringSync().replaceAll('\r\n', '\n');
-    final hang = File(
-      'windows/runner/hang_monitor.cpp',
-    ).readAsStringSync().replaceAll('\r\n', '\n');
-
-    test('ה-handler רק מעתיק לחוצץ סטטי ותמיד ממשיך בחיפוש', () {
-      final handler = log.substring(
-        log.indexOf('Slot* ClaimSlot('),
-        log.indexOf('}  // namespace\n'),
-      );
-      for (final forbidden in [
-        'std::vector',
-        'std::string',
-        'new ',
-        'malloc',
-        'push_back',
-        'resize',
-        'Unwind',
-        'RtlLookupFunctionEntry',
-        'DescribeFrame',
-        'printf',
-        'CreateFile',
-        'AppendReport',
-        'CriticalSection',
-        'Tls',
-        'SRWLock',
-        'EXCEPTION_CONTINUE_EXECUTION',
-        'EXCEPTION_EXECUTE_HANDLER',
-      ]) {
-        expect(handler, isNot(contains(forbidden)), reason: forbidden);
-      }
-      expect(handler, contains('return EXCEPTION_CONTINUE_SEARCH;'));
-      expect(log, contains('::AddVectoredExceptionHandler(1, OnException)'));
-      expect(log, isNot(contains('thread_local')));
-      // שני כותבים לאותו תא קורעים רשומה: התא נתפס ב-CAS.
-      expect(
-        handler,
-        contains('::InterlockedCompareExchange(&slot.owner, thread_id, 0)'),
-      );
-    });
-
-    test('נרשם בתחילת wWinMain, לפני כל אתחול אחר', () {
-      final main = mainSource.substring(
-        mainSource.indexOf('int APIENTRY wWinMain('),
-      );
-      expect(
-        main.indexOf('native_exception_log::Install();'),
-        allOf(greaterThanOrEqualTo(0), lessThan(main.indexOf('AttachConsole'))),
-      );
-    });
-
-    test('רק חריגות ה-thread הראשי, עד רגע הזיהוי, בלי fallback', () {
-      final choose = hang.substring(
-        hang.indexOf('ExceptionsBeforeHang(\n'),
-        hang.indexOf('void AppendExceptions('),
-      );
-      expect(choose, contains('record.thread_id == main_thread'));
-      expect(choose, contains('record.awake_ms <= detected_at'));
-      expect(choose, isNot(contains('in_dispatch')));
-      expect(choose, contains('hung_frames'));
-    });
-
-    test('הטבעת נקראת לפני לכידת threads אחרים, והסעיף אחרי המחסנית', () {
-      final report = hang.substring(
-        hang.indexOf('void ReportHang('),
-        hang.indexOf('void ReportSample('),
-      );
-      expect(
-        report.indexOf('ExceptionsBeforeHang('),
-        lessThan(report.indexOf('CaptureOtherThreads()')),
-      );
-      expect(
-        report.indexOf('AppendStack(frames, &report);'),
-        lessThan(report.indexOf('AppendExceptions(exceptions')),
-      );
-      // error_log_blocks.dart מזהה לפי ההודעה ולפי `--- Native exception`.
-      expect(
-        hang,
-        contains(
-          '"Message: AppHang: UI thread stuck in exception handler\\n"',
-        ),
-      );
-      expect(hang, contains('"--- Native exception %zu/%zu, thread %lu'));
-      expect(hang, contains('"detection ---\\nCode: 0x%08lx %s\\nAddress: "'));
-    });
   });
 
   test('מחסנית עמוקה: ראש, שורת השמטה שמתחילה ב-"..." ותחתית', () {

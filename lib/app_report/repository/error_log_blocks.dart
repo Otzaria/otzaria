@@ -22,36 +22,6 @@ class ErrorLogBlock {
   bool get isAppHang => title == 'App hang';
   bool get isAppHangRecovered => title == 'App hang recovered';
 
-  /// ה-thread נתקע בתוך מטפל חריגות (למשל של Sentry) אחרי חריגה נייטיבית:
-  /// זו קריסה, וחתימתה מהחריגה ולא מהמחסנית התקועה.
-  bool get isStuckInExceptionHandler =>
-      isAppHang &&
-      exceptionMessage == _stuckInHandlerMessage &&
-      _nativeException != null;
-
-  static const String _stuckInHandlerMessage =
-      'AppHang: UI thread stuck in exception handler';
-
-  /// `Code:` ו-`Address:` מהסעיף `--- Native exception` הראשון (החריגה המקורית).
-  ({String code, String address})? get _nativeException {
-    String? code;
-    var inSection = false;
-    for (final line in const LineSplitter().convert(text)) {
-      if (line.startsWith('--- Native exception')) {
-        inSection = true;
-      } else if (!inSection) {
-        continue;
-      } else if (line.startsWith('---')) {
-        return null;
-      } else if (line.startsWith('Code:')) {
-        code = line.substring(5).trim().split(' ').first.toLowerCase();
-      } else if (line.startsWith('Address:') && code != null) {
-        return (code: code, address: line.substring(8).trim());
-      }
-    }
-    return null;
-  }
-
   /// שגיאה לא מטופלת או תקיעה — ראיה לקריסה, בניגוד לאזהרות כמו `Slow startup`.
   bool get isCrashEvidence =>
       isStartupStall || title == 'FlutterError' || title == 'Unhandled Error';
@@ -86,15 +56,6 @@ class ErrorLogBlock {
 
   /// חתימה לפי ההודעה וה-stack; לרשומה בלי הודעה — לפי הכותרת.
   CrashSignature get signature {
-    final native = isStuckInExceptionHandler ? _nativeException : null;
-    if (native != null) {
-      return _nativeCrashSignature(native.code, native.address);
-    }
-    return hangSignature;
-  }
-
-  /// [signature] בלי החלפה בחתימת החריגה — לתקיעה שהשתחררה, שאינה קריסה.
-  CrashSignature get hangSignature {
     final message = exceptionMessage ?? title;
     if (!isAppHang) {
       return CrashSignature.fromLogText(
@@ -107,18 +68,6 @@ class ErrorLogBlock {
       frames: _hangSignatureFrames(stackText),
     );
   }
-}
-
-/// כמו `readMinidumpSignature`, כדי שהתקיעה תתקבץ עם ה-dump של אותה קריסה.
-CrashSignature _nativeCrashSignature(String code, String address) {
-  final frame = address.startsWith('0x') ? null : address;
-  final type = frame == null ? code : '$code $frame';
-  return CrashSignature(
-    exceptionType: type.length <= CrashSignature.maxExceptionTypeLength
-        ? type
-        : type.substring(0, CrashSignature.maxExceptionTypeLength),
-    frames: [?frame],
-  );
 }
 
 /// בתקיעה הפריימים העליונים הם המתנה של מערכת ההפעלה, זהה לכל התקיעות.
