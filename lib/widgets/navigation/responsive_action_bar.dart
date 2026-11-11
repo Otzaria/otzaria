@@ -12,6 +12,7 @@ import 'package:otzaria/widgets/misc/rtl_icon.dart';
 enum ToolbarActionId {
   plugin,
   search,
+  forwardLocation,
   handMode,
   zoomOut,
   zoomIn,
@@ -60,6 +61,7 @@ enum ToolbarActionId {
 const List<ToolbarActionId> toolbarOverflowOrder = [
   ToolbarActionId.plugin,
   ToolbarActionId.search,
+  ToolbarActionId.forwardLocation,
   ToolbarActionId.handMode,
   ToolbarActionId.zoomOut,
   ToolbarActionId.zoomIn,

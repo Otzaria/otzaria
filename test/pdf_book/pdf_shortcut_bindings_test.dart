@@ -3,12 +3,17 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/pdf_book/utils/pdf_shortcut_bindings.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 
 import '../helpers/memory_settings_cache.dart';
 
 void main() {
-  setUp(() => Settings.init(cacheProvider: MemorySettingsCache()));
+  setUp(() {
+    ShortcutHelper.isMacForTesting = false;
+    return Settings.init(cacheProvider: MemorySettingsCache());
+  });
+  tearDown(() => ShortcutHelper.isMacForTesting = null);
 
   testWidgets(
     'קיצור התאמת PDF מפעיל את פעולת ההתאמה בלי לשנות את קיצור איפוס הזום',
@@ -61,12 +66,56 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.f7);
     expect(backs, 2);
   });
+
+  testWidgets('קיצור קדימה מותאם מתקדם בלי להפעיל חזרה', (tester) async {
+    await Settings.setValue(
+      ShortcutValidator.nextPdfLocationKey,
+      'alt+arrowright',
+    );
+    var backs = 0;
+    var forwards = 0;
+    await tester.pumpWidget(
+      _scope(
+        onFit: () {},
+        onBack: () => backs++,
+        onForward: () => forwards++,
+      ),
+    );
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    expect(forwards, 1);
+    expect(backs, 0);
+  });
+
+  testWidgets('קיצור קדימה אופציונלי שומר על Alt+Right שהוקצה להתאמת PDF', (
+    tester,
+  ) async {
+    await Settings.setValue(ShortcutValidator.fitPdfViewKey, 'alt+arrowright');
+    var fits = 0;
+    var forwards = 0;
+    await tester.pumpWidget(
+      _scope(onFit: () => fits++, onForward: () => forwards++),
+    );
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    expect(fits, 1);
+    expect(forwards, 0);
+    expect(
+      ShortcutValidator.hasConflict(ShortcutValidator.fitPdfViewKey),
+      isFalse,
+    );
+  });
 }
 
 Widget _scope({
   required VoidCallback onFit,
   VoidCallback? onReset,
   VoidCallback? onBack,
+  VoidCallback? onForward,
 }) => Directionality(
   textDirection: TextDirection.rtl,
   child: CallbackShortcuts(
@@ -76,6 +125,7 @@ Widget _scope({
       resetZoom: onReset ?? () {},
       fitView: onFit,
       previousLocation: onBack ?? () {},
+      nextLocation: onForward ?? () {},
       nextMatch: () {},
       previousMatch: () {},
     ),

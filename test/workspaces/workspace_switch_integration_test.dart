@@ -20,7 +20,9 @@ import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
+import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
+import 'package:otzaria/text_book/utils/reading_position.dart';
 import 'package:otzaria/plugins/services/plugin_restore_state_store.dart';
 import 'package:otzaria/plugins/services/plugin_unsaved_changes_registry.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
@@ -120,6 +122,52 @@ void main() {
       expect(restored.splitRatio, 0.3);
       expect((restored.rightTab as PdfBookTab).savedZoom, 1.4);
       expect((restored.leftTab as PdfBookTab).pageNumber, 1);
+    },
+  );
+
+  test(
+    'SQLite: אותו ספר בשני שולחנות שומר מיקום נפרד בכל מעבר (issue #2818)',
+    () async {
+      TextBookTab beitza(int line) => TextBookTab(
+        book: TextBook(title: 'ביצה'),
+        index: line,
+        initialReadingAnchor: ReadingAnchor(line: line),
+      );
+      final first = Workspace(name: 'סדר א', tabs: [beitza(25)]);
+      final second = Workspace(name: 'סדר ב', tabs: [beitza(3)]);
+      await repository.replaceWorkspaces([first, second], first.id);
+      var open = <OpenedTab>[beitza(25)];
+      final bloc = WorkspaceBloc(
+        repository: repository,
+        onWorkspaceTabsChanged: (tabs, _, _) async => open = tabs,
+      )..add(LoadWorkspaces());
+      addTearDown(bloc.close);
+      await bloc.stream.firstWhere((s) => !s.isLoading);
+
+      Future<int> switchTo(Workspace target, {required int navigateTo}) async {
+        await (open.single as TextBookTab).lines.jumpToLine(navigateTo);
+        final switched = bloc.stream.firstWhere(
+          (s) => s.activeWorkspaceId == target.id,
+        );
+        bloc.add(
+          SwitchToWorkspace(
+            sourceWorkspaceId: bloc.state.activeWorkspaceId,
+            targetWorkspaceId: target.id,
+            readCurrentTabs: () => (
+              tabs: open,
+              activeTabIndex: 0,
+              activePane: null,
+            ),
+          ),
+        );
+        await switched;
+        return (open.single as TextBookTab).lines.captureAnchor()!.line;
+      }
+
+      expect(await switchTo(second, navigateTo: 26), 3);
+      expect(await switchTo(first, navigateTo: 4), 26);
+      expect(await switchTo(second, navigateTo: 27), 4);
+      expect(await switchTo(first, navigateTo: 5), 27);
     },
   );
 

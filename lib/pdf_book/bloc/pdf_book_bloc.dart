@@ -8,6 +8,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
+import 'package:otzaria/pdf_book/models/pdf_reading_location.dart';
 import 'package:otzaria/pdf_book/utils/pdf_viewer_activity.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -84,7 +85,18 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
 
     // Navigation events
     on<RememberPdfLocation>(_onRememberPdfLocation);
-    on<ReturnToPreviousPdfLocation>(_onReturnToPreviousPdfLocation);
+    on<ReturnToPreviousPdfLocation>(
+      (event, emit) => _travelToPdfLocation(
+        emit,
+        (history) => history.takePrevious(event.current),
+      ),
+    );
+    on<GoForwardPdfLocation>(
+      (event, emit) => _travelToPdfLocation(
+        emit,
+        (history) => history.takeNext(event.current),
+      ),
+    );
 
     // Zoom events
     on<UpdateZoom>(_onUpdateZoom);
@@ -308,7 +320,6 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
         documentRef: event.documentRef,
         outline: event.outline,
         currentPageNumber: tab.pageNumber,
-        canReturnToLocation: tab.navigationHistory.canGoBack,
         totalPages: event.totalPages,
         showLeftPane: showLeftPane,
         pinLeftPane: pinLeftPane,
@@ -419,26 +430,20 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     final current = state;
     if (current is! PdfBookLoaded) return;
     tab.navigationHistory.remember(event.location);
-    emit(current.copyWith(canReturnToLocation: true));
   }
 
-  Future<void> _onReturnToPreviousPdfLocation(
-    ReturnToPreviousPdfLocation event,
+  Future<void> _travelToPdfLocation(
     Emitter<PdfBookState> emit,
+    PdfReadingLocation? Function(PdfLocationHistory history) take,
   ) async {
     final current = state;
     if (current is! PdfBookLoaded || !pdfController.isReady) return;
     final pages = pdfController.layout.pageLayouts;
     if (pages.isEmpty) return;
-    final location = tab.navigationHistory.takePrevious();
+    final location = take(tab.navigationHistory);
     if (location == null) return;
     final page = location.pageNumber.clamp(1, pages.length);
-    emit(
-      current.copyWith(
-        canReturnToLocation: tab.navigationHistory.canGoBack,
-        zoom: location.zoom,
-      ),
-    );
+    emit(current.copyWith(zoom: location.zoom));
     await pdfController.goTo(
       pdfController.calcMatrixFor(
         location.centerIn(pages[page - 1], pdfController.viewSize),

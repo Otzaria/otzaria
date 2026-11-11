@@ -461,7 +461,7 @@ void main() {
       );
       expect(measuredHeight, closeTo(textRect.height, 4));
       expect(sourceExtent.bottom, lessThan(1));
-      expect(result.tab.lines.canGoBack.value, isTrue);
+      expect(result.tab.lines.history.value.back, isNotNull);
       final back = result.tab.lines.goBack();
       await tester.pumpAndSettle();
       await back;

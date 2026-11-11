@@ -167,7 +167,7 @@ void main() {
 
         expect(await back(), 200);
         expect(await back(), beforeLink);
-        expect(lines.canGoBack.value, isFalse);
+        expect(lines.history.value.back, isNull);
         await tester.pumpWidget(const SizedBox());
       });
     }

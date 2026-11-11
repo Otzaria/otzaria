@@ -881,10 +881,11 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       final targetPdf = _resolvePdfBookTab(existingTab, incomingTab);
       if (targetPdf == null) return;
       final targetPage = incomingTab.pageNumber;
+      final noteAnchor = incomingTab.takePersonalNoteNavigationRequest();
+      if (noteAnchor == null) targetPdf.rememberLocationForJump();
       // עדכון pageNumber בטאב כך שיישמר ל-restore עתידי וכך שאם המסך עוד
       // לא הצטרף ל-controller, הטעינה הבאה תיפתח בעמוד הנכון.
       targetPdf.pageNumber = targetPage;
-      final noteAnchor = incomingTab.takePersonalNoteNavigationRequest();
       if (noteAnchor != null) {
         targetPdf.requestPersonalNoteNavigation(noteAnchor);
         return;
@@ -1543,7 +1544,12 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
   void _onCloneTab(CloneTab event, Emitter<TabsState> emit) {
     if (event.tab is ToolTab && (event.tab as ToolTab).isPlugin) return;
-    add(AddTab(OpenedTab.from(event.tab), insertAdjacent: true));
+    // כמו בדפדפן: העותק אינו מוצמד, גם כשהמקור מוצמד (issue #4026).
+    final copy = OpenedTab.from(event.tab)..isPinned = false;
+    for (final pane in leafPanes(copy)) {
+      pane.isPinned = false;
+    }
+    add(AddTab(copy, insertAdjacent: true));
   }
 
   Future<void> _onMoveTab(MoveTab event, Emitter<TabsState> emit) async {

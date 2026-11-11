@@ -87,7 +87,8 @@ String? openPluginToolInstanceById(
       if (entry.plugin?.manifest.allowMultipleInstances != true) return null;
       tab = cloneOf == null
           ? newToolTabInstance(entry)
-          : cloneOf.clone(allowMultipleInstances: true) as ToolTab;
+          : (cloneOf.clone(allowMultipleInstances: true) as ToolTab
+              ..isPinned = false);
     case ToolUnavailable(reason: ToolUnavailableReason.loading):
       if (cloneOf != null) return null;
       tab = ToolTab(

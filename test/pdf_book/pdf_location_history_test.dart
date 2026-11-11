@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
@@ -49,6 +51,32 @@ void main() {
   });
 
   test(
+    'חזרה שומרת את המיקום שנעזב לקדימה; ניווט חדש מבטל אותו (issue #4769)',
+    () {
+      PdfReadingLocation at(int page) => PdfReadingLocation(
+        pageNumber: page,
+        pageOffset: Offset.zero,
+        zoom: 1,
+      );
+      final history = PdfLocationHistory()..remember(at(2));
+      expect(history.canGoForward, isFalse);
+
+      // ב-כג חוזרים ל-ב, ומשם קדימה ל-כג ושוב אחורה.
+      expect(history.takePrevious(at(23))!.pageNumber, 2);
+      expect(history.next!.pageNumber, 23);
+      expect(history.takeNext(at(2))!.pageNumber, 23);
+      expect(history.last!.pageNumber, 2);
+      expect(history.canGoForward, isFalse);
+      expect(history.takePrevious(at(23))!.pageNumber, 2);
+      expect(history.canGoForward, isTrue);
+
+      history.remember(at(2));
+      expect(history.canGoForward, isFalse);
+      expect(history.takeNext(at(40)), isNull);
+    },
+  );
+
+  test(
     'זכירה ושחזור מתבצעים דרך אירועים מפורשים',
     () async {
       final tab = PdfBookTab(
@@ -75,19 +103,35 @@ void main() {
       );
       expect(tab.navigationHistory.canGoBack, isFalse);
       final saved = PdfReadingLocation.capture(controller)!;
-      final remembered = bloc.stream.first;
+      final changed = Completer<void>();
+      tab.navigationHistory.addListener(() {
+        if (!changed.isCompleted) changed.complete();
+      });
       bloc.add(RememberPdfLocation(saved));
-      await remembered;
-      expect((bloc.state as PdfBookLoaded).canReturnToLocation, isTrue);
+      await changed.future;
+      expect(tab.navigationHistory.last, saved);
       final returned = bloc.stream.first;
-      bloc.add(const ReturnToPreviousPdfLocation());
+      const left = PdfReadingLocation(
+        pageNumber: 1,
+        pageOffset: Offset.zero,
+        zoom: 1,
+      );
+      bloc.add(const ReturnToPreviousPdfLocation(left));
       await returned;
       await pumpEventQueue();
       expect(controller.lastCenter, const Offset(225, 1080));
       expect(controller.lastZoom, 2);
       expect(controller.lastDuration, Duration.zero);
       expect(tab.navigationHistory.canGoBack, isFalse);
-      expect((bloc.state as PdfBookLoaded).canReturnToLocation, isFalse);
+      expect(tab.navigationHistory.next, left);
+
+      final forwarded = bloc.stream.first;
+      bloc.add(GoForwardPdfLocation(saved));
+      await forwarded;
+      await pumpEventQueue();
+      expect(controller.lastZoom, 1);
+      expect(tab.navigationHistory.last, saved);
+      expect(tab.navigationHistory.canGoForward, isFalse);
     },
   );
 }

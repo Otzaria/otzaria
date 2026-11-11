@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 /// עוגן קריאה בתוך עמוד, שאינו תלוי בגודל החלון או במיקום העמוד בפריסה.
@@ -37,18 +38,50 @@ class PdfReadingLocation extends Equatable {
 }
 
 /// היסטוריית קפיצות זמנית של טאב; אינה מחזיקה מסמכים או תמונות.
-class PdfLocationHistory {
+class PdfLocationHistory extends ChangeNotifier {
   final _locations = <PdfReadingLocation>[];
+  final _forward = <PdfReadingLocation>[];
 
   bool get canGoBack => _locations.isNotEmpty;
+  bool get canGoForward => _forward.isNotEmpty;
   PdfReadingLocation? get last => _locations.lastOrNull;
+  PdfReadingLocation? get next => _forward.lastOrNull;
 
-  void remember(PdfReadingLocation location) {
-    if (last == location) return;
-    _locations.add(location);
-    if (_locations.length > 50) _locations.removeAt(0);
+  /// ניווט חדש: נקודת חזרה, ומסלול הקדימה מתבטל.
+  void remember(PdfReadingLocation? location) {
+    final previous = last;
+    final hadForward = canGoForward;
+    if (location != null) _push(_locations, location);
+    _forward.clear();
+    if (last != previous || hadForward) notifyListeners();
   }
 
-  PdfReadingLocation? takePrevious() =>
-      _locations.isEmpty ? null : _locations.removeLast();
+  /// [current] נשמר לחזרה קדימה.
+  PdfReadingLocation? takePrevious([PdfReadingLocation? current]) =>
+      _travel(_locations, _forward, current);
+
+  /// [current] נשמר לחזרה אחורה.
+  PdfReadingLocation? takeNext([PdfReadingLocation? current]) =>
+      _travel(_forward, _locations, current);
+
+  PdfReadingLocation? _travel(
+    List<PdfReadingLocation> from,
+    List<PdfReadingLocation> to,
+    PdfReadingLocation? current,
+  ) {
+    if (from.isEmpty) return null;
+    final target = from.removeLast();
+    if (current != null && current != target) _push(to, current);
+    notifyListeners();
+    return target;
+  }
+
+  static void _push(
+    List<PdfReadingLocation> stack,
+    PdfReadingLocation location,
+  ) {
+    if (stack.lastOrNull == location) return;
+    stack.add(location);
+    if (stack.length > 50) stack.removeAt(0);
+  }
 }

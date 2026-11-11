@@ -54,6 +54,7 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 import 'package:otzaria/text_book/view/widgets/reader_back_button.dart';
+import 'package:otzaria/book_common/view/reading_history_tooltip.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
@@ -1048,6 +1049,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         AppTopBarItem(
           widget: ReaderBackButton(
             lines: widget.tab.lines,
+            describe: (anchor) =>
+                refFromTocList(anchor.line, state.tableOfContents),
             compact: AppDensity.of(context).isCompact,
           ),
         ),
@@ -1233,7 +1236,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   Widget _buildActions(BuildContext context, TextBookLoaded state) {
     final tourKeys = TourTargetKeys.of(context);
     return ListenableBuilder(
-      listenable: readerPluginToolbarListenable(context),
+      listenable: Listenable.merge([
+        readerPluginToolbarListenable(context),
+        widget.tab.lines.history,
+      ]),
       builder: (context, _) => Consumer<ShamorZachorDataProvider>(
         builder: (context, _, _) => ResponsiveActionBar(
           key: const ValueKey('responsive_actions'),
@@ -1251,6 +1257,20 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                 }
               : null,
           actions: [
+            if (widget.tab.lines.history.value.forward case final forward?)
+              ActionButtonData.simple(
+                key: const ValueKey('reader-forward-location'),
+                icon: FluentIcons.arrow_right_24_regular,
+                tooltip: historyTooltip(
+                  context,
+                  refFromTocList(forward.line, state.tableOfContents),
+                  'מעבר קדימה',
+                  'מעבר קדימה אל {place}',
+                ),
+                onPressed: () => unawaited(widget.tab.lines.goForward()),
+                compact: AppDensity.of(context).isCompact,
+                actionId: ToolbarActionId.forwardLocation,
+              ),
             ..._buildDisplayOrderActions(context, state),
             ...buildReaderPluginActions(
               context,

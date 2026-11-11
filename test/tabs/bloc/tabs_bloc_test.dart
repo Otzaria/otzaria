@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:bloc/bloc.dart';
 import 'package:flutter/foundation.dart' show FlutterError;
+import 'package:otzaria/pdf_book/models/pdf_reading_location.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
@@ -71,6 +72,43 @@ void main() {
       await _afterDeferredDispose();
       expect(rightTab.bloc.isClosed, isFalse);
       expect(leftTab.bloc.isClosed, isFalse);
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('שכפול כרטיסייה מוצמדת יוצר עותק לא מוצמד (issue #4026)', () async {
+      final bloc = _newBloc(_FakeTabsRepository());
+      final text = _createTextTab('ספר טקסט')..isPinned = true;
+      final pdf = PdfBookTab(
+        book: PdfBook(title: 'ספר PDF', path: '/book.pdf'),
+        pageNumber: 3,
+        isPinned: true,
+      );
+      final combined = CombinedTab(
+        rightTab: _createTextTab('ימין')..isPinned = true,
+        leftTab: _createTextTab('שמאל'),
+      )..isPinned = true;
+
+      for (final source in [text, pdf, combined]) {
+        bloc.add(AddTab(source));
+        await bloc.stream.firstWhere((s) => s.tabs.contains(source));
+        final count = bloc.state.tabs.length;
+        bloc.add(CloneTab(source));
+        await bloc.stream.firstWhere((s) => s.tabs.length == count + 1);
+        final copy = bloc.state.tabs[bloc.state.tabs.indexOf(source) + 1];
+        expect(copy, isNot(same(source)));
+        expect(copy.runtimeType, source.runtimeType);
+        expect(
+          leafPanes(copy).map((pane) => pane.isPinned),
+          everyElement(false),
+        );
+        expect(copy.isPinned, isFalse);
+        expect(source.isPinned, isTrue);
+      }
+      expect(
+        (bloc.state.tabs.whereType<PdfBookTab>().last).pageNumber,
+        3,
+      );
 
       await _closeBlocAndAllowDeferredDispose(bloc);
     });
@@ -597,6 +635,22 @@ void main() {
         book: PdfBook(title: 'ספר PDF שמאל', path: 'left.pdf'),
         pageNumber: 10,
       );
+      final history = targetPane.navigationHistory;
+      const before = PdfReadingLocation(
+        pageNumber: 10,
+        pageOffset: Offset.zero,
+        zoom: 1,
+      );
+      const later = PdfReadingLocation(
+        pageNumber: 12,
+        pageOffset: Offset.zero,
+        zoom: 1,
+      );
+      history.remember(before);
+      expect(history.takePrevious(later), before);
+      expect(history.next, later);
+      var historyChanges = 0;
+      history.addListener(() => historyChanges++);
       final combinedTab = CombinedTab(
         rightTab: PdfBookTab(
           book: PdfBook(title: 'ספר PDF ימין', path: 'right.pdf'),
@@ -624,6 +678,8 @@ void main() {
       expect(bloc.state.currentTab, same(combinedTab));
       expect(bloc.state.activePane, same(targetPane));
       expect(targetPane.pageNumber, 25);
+      expect(history.canGoForward, isFalse);
+      expect(historyChanges, 1);
 
       await _closeBlocAndAllowDeferredDispose(bloc);
     });
