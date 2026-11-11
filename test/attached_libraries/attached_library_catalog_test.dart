@@ -215,6 +215,53 @@ void main() {
     },
   );
 
+  test(
+    'book_version_link במסד מצורף: הגרסה מוסתרת ומוצגת אצל הראשי (#4392)',
+    () async {
+      final path = attachedFixture('מוטמע', SeforimFixtureVariant.full);
+      final raw = sqlite3.sqlite3.open(path);
+      raw.execute(
+        'CREATE TABLE book_version_link (versionBookId INTEGER, '
+        'primarySource TEXT, primaryTitle TEXT, primaryCategoryPath TEXT, '
+        'versionTitle TEXT, versionNotes TEXT, priority REAL)',
+      );
+      raw.execute(
+        'INSERT INTO book_version_link VALUES '
+        "(?, 'official', ?, 'תורה', 'כתר', 'הערה', 2), "
+        "(999, 'official', ?, NULL, 'יתום', NULL, NULL)",
+        [
+          SeforimFixtureIds.bereshitId,
+          SeforimFixtureIds.bereshitTitle,
+          SeforimFixtureIds.bereshitTitle,
+        ],
+      );
+      raw.close();
+      final library = await attach(path);
+
+      final catalog = await buildCatalog();
+
+      final root = _child(
+        _child(catalog, _personalRoot)!,
+        library.displayName,
+      )!;
+      final torah = _child(_child(root, 'תנ"ך')!, 'תורה')!;
+      expect(
+        [for (final b in torah.books) b.title],
+        [
+          SeforimFixtureIds.rashiTitle,
+        ],
+      );
+      final official = _child(_child(catalog, 'תנ"ך')!, 'תורה')!.books
+          .firstWhere(
+            (b) => b.title == SeforimFixtureIds.bereshitTitle,
+          );
+      final versions = provider.getPersonalVersionsOf(official);
+      expect(versions.single.displayTitle, 'כתר');
+      expect(versions.single.separateBook?.source, library.source);
+      expect(versions.single.separateBook?.id, SeforimFixtureIds.bereshitId);
+    },
+  );
+
   test('נתיב הקטגוריה והנושאים מחושבים פעם אחת לקטגוריה', () async {
     final library = await attach(
       attachedFixture('ספרייה', SeforimFixtureVariant.full),
