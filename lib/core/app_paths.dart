@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/core/directory_writability.dart';
 
 enum InstallMode { systemWide, perUser }
 
@@ -976,7 +977,7 @@ class AppPaths {
   /// [getDatabasesPath] מעדיף אותה, וכל המסדים נשארים יחד.
   static Future<String> _writableDatabasesDirectory() async {
     final preferred = await getDatabasesPath();
-    if (await _isDirectoryWritable(preferred)) return preferred;
+    if (await isDirectoryWritable(preferred)) return preferred;
 
     final internal = p.join(await getDataRootPath(), 'databases');
     if (p.equals(internal, preferred)) return preferred;
@@ -984,20 +985,6 @@ class AppPaths {
     debugPrint('[AppPaths] תיקיית המסדים $preferred אינה כתיבה — $internal');
     await _copyPersonalDatabases(preferred, internal);
     return internal;
-  }
-
-  /// האם ניתן ליצור קבצים ב-[dirPath]. יוצר את התיקייה אם אינה קיימת.
-  static Future<bool> _isDirectoryWritable(String dirPath) async {
-    try {
-      final dir = Directory(dirPath);
-      if (!await dir.exists()) await dir.create(recursive: true);
-      final probe = File(p.join(dirPath, '.otzaria_write_probe'));
-      await probe.writeAsString('', flush: true);
-      await probe.delete();
-      return true;
-    } catch (_) {
-      return false;
-    }
   }
 
   /// מעתיק את המסדים האישיים שעוד קריאים, כדי שהערות, ספרים אישיים

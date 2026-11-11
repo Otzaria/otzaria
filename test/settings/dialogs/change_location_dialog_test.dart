@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -5,7 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/data/data_providers/cache_database_holder.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart' as migration_models;
 import 'package:otzaria/migration/models/category.dart' as migration_models;
 import 'package:otzaria/models/book_source.dart';
@@ -289,69 +292,92 @@ void main() {
       );
     });
 
-    test('מעדכן נתיב PDF אישי שהועבר יחד עם הספרייה', () async {
-      final tempDir = await Directory.systemTemp.createTemp(
-        'otzaria-move-user-pdf-',
+    for (final movesDatabase in [false, true]) {
+      test(
+        'מעדכן נתיב PDF אישי שהועבר יחד עם הספרייה (מסד: $movesDatabase)',
+        () async {
+          final tempDir = await Directory.systemTemp.createTemp(
+            'otzaria-move-user-pdf-',
+          );
+          final previousDataRoot = AppPaths.cachedDataRootPath;
+          final dataRoot = p.join(tempDir.path, 'data-root');
+          final from = p.join(tempDir.path, 'old', 'books');
+          final to = p.join(tempDir.path, 'new', 'books');
+          final oldPath = p.join(from, 'אישי', 'ספר.pdf');
+          final newPath = p.join(to, 'אישי', 'ספר.pdf');
+
+          addTearDown(() async {
+            await UserBooksDatabaseHolder.instance.close();
+            AppPaths.debugOverrideDataRootPath(previousDataRoot);
+            if (await tempDir.exists()) {
+              await tempDir.delete(recursive: true);
+            }
+          });
+
+          await Settings.init(cacheProvider: MemoryCacheProvider());
+          AppPaths.debugOverrideDataRootPath(dataRoot);
+          await UserBooksDatabaseHolder.instance.close();
+
+          await Directory(p.dirname(oldPath)).create(recursive: true);
+          await Directory(p.dirname(newPath)).create(recursive: true);
+          await File(oldPath).writeAsBytes([1, 2]);
+          await File(newPath).writeAsBytes([1, 2, 3]);
+
+          final repository = await UserBooksDatabaseHolder.instance.repository;
+          final sourceId = await repository.insertSource('user-test', -20);
+          final categoryId = await repository.insertCategory(
+            const migration_models.Category(title: 'אישי'),
+          );
+          final bookId = await repository.insertBook(
+            migration_models.Book(
+              categoryId: categoryId,
+              sourceId: sourceId,
+              title: 'ספר',
+              filePath: oldPath,
+              fileType: 'pdf',
+              isPersonal: true,
+            ),
+          );
+
+          String? movedDatabase;
+          if (movesDatabase) {
+            await UserBooksDatabaseHolder.instance.close();
+            final copiedDirectory = await tempDir.createTemp('copied-');
+            movedDatabase = p.join(copiedDirectory.path, 'user_books.db');
+            await File(repository.database.path).copy(movedDatabase);
+          }
+          await remapMovedFileBookPaths(
+            [
+              PdfBook(
+                id: bookId,
+                title: 'ספר',
+                path: oldPath,
+                source: BookSource.user,
+              ),
+            ],
+            from,
+            to,
+            movedUserBooksDbPath: movedDatabase,
+          );
+
+          if (movedDatabase != null) {
+            final source = await UserBooksDatabaseHolder.instance.repository;
+            expect(await source.getExternalBookByFilePath(oldPath), isNotNull);
+            await UserBooksDatabaseHolder.instance.close();
+            await Settings.setValue(
+              SettingsRepository.keyDatabasesPath,
+              p.dirname(movedDatabase),
+            );
+          }
+          final active = await UserBooksDatabaseHolder.instance.repository;
+          expect(await active.getExternalBookByFilePath(oldPath), isNull);
+
+          final updated = await active.getExternalBookByFilePath(newPath);
+          expect(updated, isNotNull);
+          expect(updated!.fileSize, 3);
+        },
       );
-      final previousDataRoot = AppPaths.cachedDataRootPath;
-      final dataRoot = p.join(tempDir.path, 'data-root');
-      final from = p.join(tempDir.path, 'old', 'books');
-      final to = p.join(tempDir.path, 'new', 'books');
-      final oldPath = p.join(from, 'אישי', 'ספר.pdf');
-      final newPath = p.join(to, 'אישי', 'ספר.pdf');
-
-      addTearDown(() async {
-        await UserBooksDatabaseHolder.instance.close();
-        AppPaths.debugOverrideDataRootPath(previousDataRoot);
-        if (await tempDir.exists()) {
-          await tempDir.delete(recursive: true);
-        }
-      });
-
-      await Settings.init(cacheProvider: MemoryCacheProvider());
-      AppPaths.debugOverrideDataRootPath(dataRoot);
-      await UserBooksDatabaseHolder.instance.close();
-
-      await Directory(p.dirname(oldPath)).create(recursive: true);
-      await Directory(p.dirname(newPath)).create(recursive: true);
-      await File(oldPath).writeAsBytes([1, 2]);
-      await File(newPath).writeAsBytes([1, 2, 3]);
-
-      final repository = await UserBooksDatabaseHolder.instance.repository;
-      final sourceId = await repository.insertSource('user-test', -20);
-      final categoryId = await repository.insertCategory(
-        const migration_models.Category(title: 'אישי'),
-      );
-      final bookId = await repository.insertBook(
-        migration_models.Book(
-          categoryId: categoryId,
-          sourceId: sourceId,
-          title: 'ספר',
-          filePath: oldPath,
-          fileType: 'pdf',
-          isPersonal: true,
-        ),
-      );
-
-      await remapMovedFileBookPaths(
-        [
-          PdfBook(
-            id: bookId,
-            title: 'ספר',
-            path: oldPath,
-            source: BookSource.user,
-          ),
-        ],
-        from,
-        to,
-      );
-
-      expect(await repository.getExternalBookByFilePath(oldPath), isNull);
-
-      final updated = await repository.getExternalBookByFilePath(newPath);
-      expect(updated, isNotNull);
-      expect(updated!.fileSize, 3);
-    });
+    }
   });
 
   group('shouldCopyIndexDuringLibraryMove', () {
@@ -475,6 +501,77 @@ void main() {
       expect(await Directory(newVectors).exists(), isFalse);
     });
   });
+
+  for (final commits in [true, false]) {
+    test(
+      'מסדי הספרים והמטמון ממתינים לסיום ההעברה (הצלחה: $commits)',
+      () async {
+        final root = await Directory.systemTemp.createTemp('otzaria-db-move-');
+        final oldDatabases = await root.createTemp('old-');
+        final newDatabases = await root.createTemp('new-');
+        final previousDataRoot = AppPaths.cachedDataRootPath;
+        final userBooks = UserBooksDatabaseHolder.instance;
+        final cache = CacheDatabaseHolder.instance;
+        final moveDone = Completer<void>();
+        Future<SeforimRepository>? pendingUser;
+        Future<SeforimRepository>? pendingCache;
+        await Settings.init(cacheProvider: MemoryCacheProvider());
+        AppPaths.debugOverrideDataRootPath(p.join(root.path, 'data'));
+        await Settings.setValue(
+          SettingsRepository.keyDatabasesPath,
+          oldDatabases.path,
+        );
+        addTearDown(() async {
+          if (!moveDone.isCompleted) moveDone.complete();
+          await pendingUser?.then<void>((_) {}, onError: (Object _) {});
+          await pendingCache?.then<void>((_) {}, onError: (Object _) {});
+          await userBooks.close();
+          await cache.close();
+          AppPaths.debugOverrideDataRootPath(previousDataRoot);
+          await root.delete(recursive: true);
+        });
+
+        final oldUser = await userBooks.repository;
+        final oldCache = await cache.repository;
+        final resumeRead = Completer<void>();
+        final tracked = userBooks.trackRead(() async {
+          await resumeRead.future;
+          expect(await userBooks.repository, same(oldUser));
+        });
+        userBooks.addCloseListener(() {
+          pendingUser ??= userBooks.repository;
+        });
+        final closing = closeUserDatabasesForMove(moveDone.future);
+        pendingCache = cache.repository;
+        resumeRead.complete();
+        await tracked;
+        await closing;
+
+        await File(
+          oldUser.database.path,
+        ).copy(p.join(newDatabases.path, 'user_books.db'));
+        await File(
+          oldCache.database.path,
+        ).copy(p.join(newDatabases.path, 'cache.db'));
+        expect(userBooks.openDbPath, isNull);
+        expect(cache.repositoryIfInitialized, isNull);
+        expect(oldUser.database.isOpen, isFalse);
+        expect(oldCache.database.isOpen, isFalse);
+
+        final destination = commits ? newDatabases : oldDatabases;
+        await Settings.setValue(
+          SettingsRepository.keyDatabasesPath,
+          destination.path,
+        );
+        moveDone.complete();
+        final reopened = await Future.wait([pendingUser!, pendingCache]);
+        expect(
+          reopened.map((repo) => p.dirname(repo.database.path)),
+          everyElement(destination.path),
+        );
+      },
+    );
+  }
 
   test('host DB ממתין לנתיב החדש עד להעתקה ולשחרור נעילת ההעברה', () async {
     final tempDir = await Directory.systemTemp.createTemp(

@@ -28,6 +28,16 @@ void main() {
       expect(root.listSync(), isEmpty);
     });
 
+    test(
+      'בדיקות במקביל באותה תיקייה אינן מוחקות זו לזו את קובץ הבדיקה',
+      () async {
+        final checks = List.generate(4, (_) => isDirectoryWritable(root.path));
+
+        expect(await Future.wait(checks), everyElement(isTrue));
+        expect(root.listSync(), isEmpty);
+      },
+    );
+
     test('נתיב שתפוס ע"י קובץ אינו כתיב', () async {
       final path = p.join(root.path, 'busy');
       File(path).writeAsStringSync('');

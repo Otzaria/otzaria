@@ -17,6 +17,9 @@ class _UnsupportedSqlite3 implements CommonSqlite3 {
 
 const CommonSqlite3 sqlite3 = _UnsupportedSqlite3();
 
+Future<Database> openSqliteInBackground(Database Function() open) =>
+    Future.sync(open);
+
 /// `releaseMemory` קיים רק ב-Database הנייטיבי.
 extension DatabaseReleaseMemory on Database {
   void releaseMemory() =>
