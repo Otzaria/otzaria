@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
-import 'package:otzaria/migration/database/sqlite3_utils.dart';
 import 'package:otzaria/search/library_line_source.dart';
 
 /// סינגלטון שמחזיק את ה-DB וה-repository של ספרי המשתמש (תיקיות
@@ -34,13 +33,12 @@ class UserBooksDatabaseHolder {
   Future<SeforimRepository> get repository => _openRepository();
 
   Future<SeforimRepository> _openRepository() {
-    if (_repository != null) return Future.value(_repository!);
-    // פתיחה בזמן המיזוג ברקע הייתה מחזיקה את הקובץ אחרי שהסגירה הסתיימה.
     final closing = _closeFuture;
     if (_releasing && closing != null) {
       // מאפשר להמשכי close להחליף את הקובץ סינכרונית, לפני פתיחה חוזרת.
       return closing.then((_) => Future(_openRepository));
     }
+    if (_repository != null) return Future.value(_repository!);
     return _initFuture ??= _initialize().onError<Object>((error, stackTrace) {
       _initFuture = null;
       throw error;
@@ -66,12 +64,16 @@ class UserBooksDatabaseHolder {
   Future<SeforimRepository> _initialize() async {
     final dbPath = await AppPaths.resolveUserBooksDbPath();
     debugPrint('📚 [UserBooksDB] Opening user_books.db at $dbPath');
-    await prepareWritableDatabaseInBackground(dbPath);
-    final db = MyDatabase.withPath(dbPath);
+    final db = await MyDatabase.openWritableInBackground(dbPath);
     final repo = SeforimRepository(db);
-    await repo.ensureInitialized();
-    // ספרים אישיים שנוצרו לפני אינדקס ההפניות — בנייה חד-פעמית.
-    await repo.backfillMissingLineRefIndexes();
+    try {
+      await repo.ensureInitialized();
+      // ספרים אישיים שנוצרו לפני אינדקס ההפניות — בנייה חד-פעמית.
+      await repo.backfillMissingLineRefIndexes();
+    } catch (_) {
+      await db.retireInBackground();
+      rethrow;
+    }
     _database = db;
     _repository = repo;
     _dbPath = dbPath;
@@ -103,11 +105,15 @@ class UserBooksDatabaseHolder {
   }
 
   /// סוגר את ה-DB ומודיע ל-[addCloseListener] כדי שהקובץ ישוחרר.
-  Future<void> close() =>
-      _closeFuture ??= _close().whenComplete(() => _closeFuture = null);
+  Future<void> close() => _closeFuture ??= _close().whenComplete(() {
+    _releasing = false;
+    _closeFuture = null;
+  });
 
   Future<void> _close() async {
+    // קריאה שכבר התקבלה עדיין עשויה להזדקק לפתיחת המסד.
     await Future.wait(_activeReads);
+    _releasing = true;
     // אתחול שהתחיל לפני הסגירה לא יפרסם חיבור אחרי שהיא הסתיימה.
     await _initFuture?.then<void>((_) {}, onError: (Object _) {});
     // המנוע מחזיק את הקובץ פתוח לקריאה; בלי זה החלפתו נכשלת ב-Windows.
@@ -120,12 +126,6 @@ class UserBooksDatabaseHolder {
     _repository = null;
     _dbPath = null;
     _initFuture = null;
-    if (database == null) return;
-    _releasing = true;
-    try {
-      await database.retireInBackground();
-    } finally {
-      _releasing = false;
-    }
+    await database?.retireInBackground();
   }
 }

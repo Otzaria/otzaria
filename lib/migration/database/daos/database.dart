@@ -114,6 +114,15 @@ class MyDatabase {
        _untrusted = false,
        _immutable = false;
 
+  /// פותח חיבור כתיב ומכין את הסכמה ב-isolate לפני מסירת החיבור לקורא.
+  static Future<MyDatabase> openWritableInBackground(String path) async {
+    await QueryLoader.initialize();
+    final db = await sqlite3.openSqliteInBackground(
+      () => MyDatabase.withPath(path)._initDatabase(),
+    );
+    return MyDatabase.withPath(path).._database = db;
+  }
+
   /// מסד ספרים מצורף: read-only ומוקשח; [immutable] — ראה
   /// [openUntrustedReadOnlyDatabase].
   MyDatabase.untrusted(String path, {this._immutable = false})
@@ -168,23 +177,26 @@ class MyDatabase {
 
     final db = openWritableDatabase(_path, 'MyDatabase');
 
-    // Ensure schema exists (all scripts use CREATE TABLE/INDEX IF NOT EXISTS).
-    for (final script in _getCreateScripts()) {
-      db.execute(script);
-      if (script.contains('CREATE TABLE IF NOT EXISTS generation')) {
-        _ensureGenerationSchema(db);
-      } else if (script.contains('CREATE TABLE IF NOT EXISTS author')) {
-        _ensureAuthorSchema(db);
-      } else if (script.contains('CREATE TABLE IF NOT EXISTS user_link')) {
-        _ensureUserLinkSchema(db);
-      } else if (script.contains(
-        'CREATE TABLE IF NOT EXISTS user_book_version',
-      )) {
-        _ensureUserBookVersionSchema(db);
+    try {
+      for (final script in _getCreateScripts()) {
+        db.execute(script);
+        if (script.contains('CREATE TABLE IF NOT EXISTS generation')) {
+          _ensureGenerationSchema(db);
+        } else if (script.contains('CREATE TABLE IF NOT EXISTS author')) {
+          _ensureAuthorSchema(db);
+        } else if (script.contains('CREATE TABLE IF NOT EXISTS user_link')) {
+          _ensureUserLinkSchema(db);
+        } else if (script.contains(
+          'CREATE TABLE IF NOT EXISTS user_book_version',
+        )) {
+          _ensureUserBookVersionSchema(db);
+        }
       }
+      return db;
+    } catch (_) {
+      db.close();
+      rethrow;
     }
-
-    return db;
   }
 
   void _ensureGenerationSchema(sqlite3.Database db) {
