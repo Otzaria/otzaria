@@ -1,0 +1,269 @@
+name: WKWebView iOS old/new pin A/B (diagnostic)
+
+# Never change product defaults. Exact historic and candidate app commits differ
+# ONLY in WebView dependency pins. A failed real native scenario is not waived.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/webview_ios_pin_ab.yml'
+      - 'tool/perf_probe/compare_ios_webview_pin_ab.py'
+      - 'tool/perf_probe/test_compare_ios_webview_pin_ab.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wkwebview-pin-ab-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  report-contracts:
+    name: Fail-closed old/new comparator controls
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Validate pass, failure, stale identity and cleanup contracts
+        run: python3 -m unittest -v tool/perf_probe/test_compare_ios_webview_pin_ab.py
+
+  native-abba:
+    name: Actual iOS WKWebView old/new/new/old (debug simulator)
+    needs: report-contracts
+    runs-on: macos-latest
+    timeout-minutes: 160
+    env:
+      BOT: 'true'
+      CI: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      DART_SUPPRESS_ANALYTICS: 'true'
+      CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+      GH_TOKEN: ${{ github.token }}
+      AB_OLD_SHA: ea1f00d20edb723d69cd099c95e5db4304b9394b
+      AB_NEW_SHA: 63fbb8b3592226f1ffe9c40941962ca127664cce
+      AB_OLD_PIN: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      AB_NEW_PIN: ca04f1e7139f03e39577d940aa0fd33b2e59b664
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: false
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Prepare isolated exact app sources and immutable provenance
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/ios-pin-ab-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          old="$RUNNER_TEMP/ios-pin-ab-old-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          new="$RUNNER_TEMP/ios-pin-ab-new-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          for path in "$root" "$old" "$new"; do
+            if [ -e "$path" ]; then echo "::error::Not a fresh isolated path: $path"; exit 1; fi
+          done
+          mkdir -p "$root"
+          { echo "AB_ROOT=$root"; echo "AB_OLD_DIR=$old"; echo "AB_NEW_DIR=$new"; } >> "$GITHUB_ENV"
+          git cat-file -e "$AB_OLD_SHA^{commit}"
+          git cat-file -e "$AB_NEW_SHA^{commit}"
+          git diff --name-only "$AB_OLD_SHA" "$AB_NEW_SHA" > "$root/source-diff.txt"
+          python3 - "$root/source-diff.txt" <<'PY'
+          from pathlib import Path
+          import sys
+          changed = set(Path(sys.argv[1]).read_text().splitlines())
+          if changed != {'pubspec.yaml', 'pubspec.lock'}:
+              raise SystemExit(f'Source difference is not pin-only: {changed}')
+          PY
+          git worktree add --detach "$old" "$AB_OLD_SHA"
+          git worktree add --detach "$new" "$AB_NEW_SHA"
+          git -C "$old" rev-parse HEAD > "$root/old-commit.txt"
+          git -C "$new" rev-parse HEAD > "$root/new-commit.txt"
+          sw_vers > "$root/macos-version.txt"
+          xcodebuild -version > "$root/xcode.txt"
+          flutter --version --machine > "$root/flutter.json"
+          python3 - "$old" "$new" "$AB_OLD_PIN" "$AB_NEW_PIN" <<'PY'
+          from pathlib import Path
+          import re, sys
+          names = ['flutter_inappwebview'+suffix for suffix in (
+              '', '_android', '_ios', '_linux', '_macos', '_platform_interface',
+              '_web', '_windows')]
+          for root, pin in ((Path(sys.argv[1]),sys.argv[3]),
+                            (Path(sys.argv[2]),sys.argv[4])):
+              manifest = (root/'pubspec.yaml').read_text()
+              lock = (root/'pubspec.lock').read_text()
+              refs = re.findall(r'(?m)^      ref: ([0-9a-f]{40})\r?\n      path: (flutter_inappwebview(?:_[a-z_]+)?)$',manifest)
+              if len(refs)!=7 or any(sha != pin for sha,_ in refs) or len({p for _,p in refs})!=7:
+                  raise SystemExit(f'Invalid seven explicit Git pins at {root}')
+              for name in names:
+                  m=re.search(rf'(?ms)^  {name}:\r?\n(.*?)(?=^  [A-Za-z0-9_]+:\r?\n|\Z)',lock)
+                  if m is None:
+                      raise SystemExit(f'Missing package {name}')
+                  section=m.group(1)
+                  for line in (f'      ref: {pin}',f'      resolved-ref: {pin}',
+                               f'      path: {name}',
+                               '      url: "https://github.com/Otzaria/flutter_inappwebview"',
+                               '    source: git'):
+                      if line not in section.splitlines():
+                          raise SystemExit(f'Invalid source or pin for {name} at {root}')
+          PY
+
+      - name: Resolve locked dependencies separately without changing source
+        run: |
+          set -euo pipefail
+          for label in old new; do
+            source="$AB_OLD_DIR"; [ "$label" = new ] && source="$AB_NEW_DIR"
+            (cd "$source" && flutter pub get --enforce-lockfile) \
+              2>&1 | tee "$AB_ROOT/$label-pub-get.log"
+            (cd "$source" && git diff --name-only) > "$AB_ROOT/$label-after-pub.txt"
+            python3 - "$AB_ROOT/$label-after-pub.txt" <<'PY'
+          from pathlib import Path
+          import sys
+          paths=set(Path(sys.argv[1]).read_text().splitlines())
+          allowed={'linux/flutter/generated_plugin_registrant.h',
+                   'windows/flutter/generated_plugin_registrant.h',
+                   'ios/Runner/GeneratedPluginRegistrant.m',
+                   'ios/Runner/GeneratedPluginRegistrant.h'}
+          if not paths.issubset(allowed):
+              raise SystemExit(f'Unapproved tracked source changed during pub get: {paths-allowed}')
+          PY
+          done
+          # Baseline/candidate generated registrants must match exactly.
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          old=Path(os.environ['AB_OLD_DIR'])
+          new=Path(os.environ['AB_NEW_DIR'])
+          for name in ('linux/flutter/generated_plugin_registrant.h',
+                       'windows/flutter/generated_plugin_registrant.h',
+                       'ios/Runner/GeneratedPluginRegistrant.m'):
+              a,b=old/name,new/name
+              if a.exists() != b.exists() or (a.exists() and a.read_bytes()!=b.read_bytes()):
+                  raise SystemExit(f'Different generated plugin registration: {name}')
+          PY
+
+      - name: Prebuild both real iOS apps with their pinned native dependencies
+        timeout-minutes: 80
+        run: |
+          set -euo pipefail
+          for label in old new; do
+            source="$AB_OLD_DIR"; [ "$label" = new ] && source="$AB_NEW_DIR"
+            (cd "$source" && flutter build ios --debug --simulator --no-pub \
+              --target=integration_test/webview_resource_probe_test.dart) \
+              2>&1 | tee "$AB_ROOT/$label-build-ios.log"
+          done
+
+      - name: Select one OS-verified compatible iPhone Simulator type
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,pathlib,subprocess
+          runtimes=json.loads(subprocess.check_output(['xcrun','simctl','list','-j','runtimes']))['runtimes']
+          devices=json.loads(subprocess.check_output(['xcrun','simctl','list','-j','devices']))['devices']
+          compatible=[]
+          for runtime in runtimes:
+              rid=runtime.get('identifier','')
+              if not runtime.get('isAvailable') or not rid.startswith('com.apple.CoreSimulator.SimRuntime.iOS-'):
+                  continue
+              for device in devices.get(rid,[]):
+                  typ=device.get('deviceTypeIdentifier','')
+                  if device.get('isAvailable') and typ.startswith('com.apple.CoreSimulator.SimDeviceType.iPhone-'):
+                      compatible.append((runtime,typ))
+          if not compatible:
+              raise SystemExit('No known compatible iOS/iPhone simulator pair; NOT_RUN')
+          def key(x):
+              return tuple(int(p) for p in x[0].get('version','0').split('.') if p.isdigit())
+          selected,kind=max(compatible,key=key)
+          root=pathlib.Path(os.environ['AB_ROOT'])
+          (root/'runtime.txt').write_text(selected['identifier']+'\n')
+          (root/'device-type.txt').write_text(kind+'\n')
+          (root/'selected-device.json').write_text(json.dumps({'runtime':selected,'deviceType':kind},indent=2))
+          print('Selected compatible simulator:',selected['identifier'],kind)
+          PY
+
+      - name: Run four native WKWebView trials on fresh owned Simulators
+        timeout-minutes: 75
+        run: |
+          set -euo pipefail
+          runtime="$(cat "$AB_ROOT/runtime.txt")"
+          kind="$(cat "$AB_ROOT/device-type.txt")"
+          labels=(old new new old)
+          active=""
+          cleanup_active() {
+            if [ -n "$active" ]; then
+              xcrun simctl shutdown "$active" >/dev/null 2>&1 || true
+              xcrun simctl delete "$active" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup_active EXIT
+          for i in 0 1 2 3; do
+            index=$((i+1))
+            label="${labels[$i]}"
+            printf -v prefix '%02d-%s' "$index" "$label"
+            dir="$AB_ROOT/$prefix"
+            mkdir "$dir"
+            source="$AB_OLD_DIR"; sha="$AB_OLD_SHA"
+            if [ "$label" = new ]; then source="$AB_NEW_DIR"; sha="$AB_NEW_SHA"; fi
+            name="otzaria-ios-pin-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$index"
+            active="$(xcrun simctl create "$name" "$kind" "$runtime")"
+            echo "$active" > "$dir/simulator-id.txt"
+            xcrun simctl boot "$active"
+            xcrun simctl bootstatus "$active" -b
+            set +e
+            (cd "$source" && \
+              WEBVIEW_PROBE_REPORTS="$dir/host" WEBVIEW_PROBE_DEVICE_OUTPUT="" \
+              flutter drive --debug -d "$active" --no-pub \
+                --driver=test_driver/webview_resource_probe.dart \
+                --target=integration_test/webview_resource_probe_test.dart \
+                "--dart-define=WEBVIEW_PROBE_COMMIT=$sha" \
+                --dart-define=WEBVIEW_PROBE_FLUTTER_VERSION=3.47.7 \
+                --dart-define=WEBVIEW_PROBE_TABS=3 \
+                --dart-define=WEBVIEW_PROBE_IDLE_MS=3000) \
+              > "$dir/drive.log" 2>&1
+            code=$?
+            set -e
+            cleanup=failed
+            xcrun simctl shutdown "$active" >/dev/null 2>&1 || true
+            if xcrun simctl delete "$active" >/dev/null 2>&1; then cleanup=deleted; fi
+            trial_dir="$dir" trial_index="$index" trial_label="$label" \
+              trial_sha="$sha" trial_sim="$active" trial_runtime="$runtime" \
+              trial_kind="$kind" trial_cleanup="$cleanup" trial_exit="$code" \
+              python3 - <<'PY'
+          import json,os,pathlib
+          row={ 'index':int(os.environ['trial_index']),
+                'label':os.environ['trial_label'],
+                'commit':os.environ['trial_sha'],
+                'simulatorId':os.environ['trial_sim'],
+                'runtime':os.environ['trial_runtime'],
+                'deviceType':os.environ['trial_kind'],
+                'cleanup':os.environ['trial_cleanup'],
+                'driveExitCode':int(os.environ['trial_exit']) }
+          dest=pathlib.Path(os.environ['trial_dir'])/'trial.json'
+          dest.write_text(json.dumps(row,indent=2)+'\n')
+          PY
+            echo "Native trial $prefix: driver exit $code, cleanup=$cleanup"
+            active=""
+            if [ "$cleanup" != deleted ]; then
+              echo "::error::Owned simulator cleanup failed; refusing further execution"
+              exit 1
+            fi
+          done
+
+      - name: Preserve strict A/B result and fail on native failure
+        run: |
+          set -euo pipefail
+          python3 tool/perf_probe/compare_ios_webview_pin_ab.py \
+            --root "$AB_ROOT" --old "$AB_OLD_SHA" --new "$AB_NEW_SHA" \
+            2>&1 | tee "$AB_ROOT/validation.log"
+
+      - name: Upload all partial and complete raw evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: wkwebview-ios-pinned-ab-debug
+          retention-days: 14
+          if-no-files-found: warn
+          path: ${{ env.AB_ROOT }}/
