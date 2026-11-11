@@ -111,74 +111,66 @@ class MarkdownToOtzaria {
     String baseDirectory,
   ) async {
     var embeddedBytes = 0;
-    String? realBase;
-    var baseUnavailable = false;
+    var tryDirectPath =
+        !Platform.isWindows &&
+        path.isAbsolute(baseDirectory) &&
+        path.normalize(baseDirectory) == baseDirectory;
+
     for (final image in fragment.querySelectorAll('img')) {
       final source = image.attributes['src'];
-      if (source == null || !_isRelativeUrl(source)) {
-        // Data images are already embedded. Other non-relative URLs must not
-        // cause network requests in the offline reader.
-        if (source == null || !_isEmbeddedImageUrl(source)) {
+      if (source == null || _isEmbeddedImageUrl(source)) continue;
+      if (!_isRelativeUrl(source)) {
+        image.attributes.remove('src');
+        continue;
+      }
+      try {
+        final decoded = Uri.decodeComponent(source.split('#').first);
+        String? resolved;
+        if (tryDirectPath && !path.isAbsolute(decoded)) {
+          final candidate = path.normalize(path.join(baseDirectory, decoded));
+          if (path.isWithin(baseDirectory, candidate)) {
+            try {
+              final canonical = await File(candidate).resolveSymbolicLinks();
+              // הקידומת של הנתיב הקנוני מאשרת שגם הבסיס קנוני.
+              if (path.isWithin(baseDirectory, canonical)) resolved = canonical;
+            } on FileSystemException {
+              // בסיס שהוא קישור עשוי להניב נתיב אחר במסלול הרגיל.
+            }
+            tryDirectPath = resolved != null;
+          }
+        }
+        if (resolved == null) {
+          final realBase = await Directory(
+            baseDirectory,
+          ).resolveSymbolicLinks();
+          final candidate = path.normalize(path.join(realBase, decoded));
+          resolved = await File(candidate).resolveSymbolicLinks();
+          if (!path.isWithin(realBase, resolved)) {
+            image.attributes.remove('src');
+            continue;
+          }
+        }
+        final file = File(resolved);
+        final stat = await file.stat();
+        final mime = imageMimeForPath(resolved);
+        if (stat.type != FileSystemEntityType.file ||
+            stat.size > _maxInlineImageSize ||
+            stat.size > EmbeddedMediaLimits.maxImageBytes ||
+            mime == null ||
+            mime == 'image/svg+xml' ||
+            embeddedBytes + stat.size >
+                EmbeddedMediaLimits.maxTotalImageBytes) {
           image.attributes.remove('src');
+          continue;
         }
-        continue;
-      }
-      if (realBase == null && !baseUnavailable) {
-        try {
-          // Resolve the import directory once, not once per image. The
-          // destination file is still independently resolved and checked.
-          realBase = await Directory(baseDirectory).resolveSymbolicLinks();
-        } on FileSystemException {
-          baseUnavailable = true;
-        }
-      }
-      if (realBase == null) {
+        final bytes = await file.readAsBytes();
+        image.attributes['src'] = 'data:$mime;base64,${base64Encode(bytes)}';
+        embeddedBytes += bytes.length;
+      } on FormatException {
         image.attributes.remove('src');
-        continue;
-      }
-      embeddedBytes += await _resolveLocalImage(
-        image,
-        realBase,
-        embeddedBytes: embeddedBytes,
-      );
-    }
-  }
-
-  Future<int> _resolveLocalImage(
-    Element image,
-    String realBase, {
-    required int embeddedBytes,
-  }) async {
-    final source = image.attributes['src']!;
-    try {
-      final decoded = Uri.decodeComponent(source.split('#').first);
-      final candidate = path.normalize(path.join(realBase, decoded));
-      final resolved = await File(candidate).resolveSymbolicLinks();
-      if (!path.isWithin(realBase, resolved)) {
+      } on FileSystemException {
         image.attributes.remove('src');
-        return 0;
       }
-      final file = File(resolved);
-      final stat = await file.stat();
-      final mime = imageMimeForPath(resolved);
-      if (stat.type != FileSystemEntityType.file ||
-          stat.size > _maxInlineImageSize ||
-          stat.size > EmbeddedMediaLimits.maxImageBytes ||
-          mime == null ||
-          mime == 'image/svg+xml' ||
-          embeddedBytes + stat.size > EmbeddedMediaLimits.maxTotalImageBytes) {
-        image.attributes.remove('src');
-        return 0;
-      }
-      final bytes = await file.readAsBytes();
-      image.attributes['src'] = 'data:$mime;base64,${base64Encode(bytes)}';
-      return bytes.length;
-    } on FormatException {
-      image.attributes.remove('src');
-      return 0;
-    } on FileSystemException {
-      image.attributes.remove('src');
-      return 0;
     }
   }
 
