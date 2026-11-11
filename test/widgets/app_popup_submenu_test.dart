@@ -97,6 +97,11 @@ Future<TestGesture> _mouseOver(
   return mouse;
 }
 
+/// Whether the submenu parent row is painted highlighted: it holds primary
+/// focus, which the menu button style paints like hover.
+bool _submenuRowHighlighted() =>
+    FocusManager.instance.primaryFocus?.debugLabel == 'AppSubmenuButton';
+
 void _expectArrowPointsToChild(WidgetTester tester) {
   final parent = tester.getRect(find.text('אפשרויות'));
   final child = tester.getRect(find.text('פעולה פנימית'));
@@ -537,6 +542,49 @@ void main() {
     final second = tester.getCenter(find.text('פעולה מושבתת'));
 
     expect(second.dy - first.dy, metrics.itemHeight);
+  });
+
+  testWidgets('ריחוף על שורה אחרת מסיר את ההדגשה משורת תת-התפריט', (
+    tester,
+  ) async {
+    await _pumpMenu(tester);
+    final mouse = await _mouseOver(tester, find.text('אפשרויות'));
+    expect(_submenuRowHighlighted(), isTrue, reason: 'ריחוף מדגיש את השורה');
+
+    await mouse.moveTo(tester.getCenter(find.text('פעולה אחרת')));
+    await tester.pumpAndSettle();
+    expect(find.text('פעולה פנימית'), findsNothing);
+    expect(
+      _submenuRowHighlighted(),
+      isFalse,
+      reason: 'המצביע עזב את השורה, ההדגשה צריכה לרדת',
+    );
+  });
+
+  testWidgets('תת-תפריט שנפתח בריחוף ונסגר כשהמצביע עוזב לא משאיר הדגשה', (
+    tester,
+  ) async {
+    await _pumpMenu(tester);
+    final mouse = await _mouseOver(tester, find.text('אפשרויות'));
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+    expect(find.text('פעולה פנימית'), findsOneWidget);
+
+    await mouse.moveTo(tester.getCenter(find.text('פעולה אחרת')));
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+    expect(find.text('פעולה פנימית'), findsNothing);
+    expect(_submenuRowHighlighted(), isFalse);
+  });
+
+  testWidgets('חזרה לשורת תת-התפריט מדגישה אותה שוב', (tester) async {
+    await _pumpMenu(tester);
+    final mouse = await _mouseOver(tester, find.text('אפשרויות'));
+    await mouse.moveTo(tester.getCenter(find.text('פעולה אחרת')));
+    await tester.pumpAndSettle();
+    await mouse.moveTo(tester.getCenter(find.text('אפשרויות')));
+    await tester.pumpAndSettle();
+    expect(_submenuRowHighlighted(), isTrue);
   });
 
   for (final direction in TextDirection.values) {
