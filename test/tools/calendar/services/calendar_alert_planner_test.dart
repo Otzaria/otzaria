@@ -41,6 +41,46 @@ void main() {
       'sunrise': ZmanAlertPreference(minutesBefore: 15, displayName: 'הנץ'),
     };
 
+    test('multiple alert types share one selected calculation per date', () {
+      final callsByDay = <int, int>{};
+      final selectedIds = <Set<String>>[];
+      Map<String, String> fakeDailyTimes(
+        DateTime date,
+        String city, {
+        Set<String>? only,
+      }) {
+        expect(city, 'ירושלים');
+        selectedIds.add(Set<String>.of(only!));
+        callsByDay.update(date.millisecondsSinceEpoch, (value) => value + 1,
+            ifAbsent: () => 1);
+        return {
+          'first': '\u206608:00.\u2069',
+          'second': '\u206618:00:\u2069',
+        };
+      }
+
+      final plan = CalendarAlertPlanner.planZmanAlerts(
+        alerts: const {
+          'first': ZmanAlertPreference(minutesBefore: 0, displayName: 'First'),
+          'second': ZmanAlertPreference(minutesBefore: 0, displayName: 'Second'),
+        },
+        city: 'ירושלים',
+        now: DateTime(2026, 1, 1),
+        dailyTimesProvider: fakeDailyTimes,
+      ).toList();
+
+      expect(plan, hasLength(2 * (CalendarAlertPlanner.zmanScheduleDaysAhead + 1)));
+      expect(callsByDay.length, CalendarAlertPlanner.zmanScheduleDaysAhead + 1);
+      expect(callsByDay.values.every((count) => count == 1), isTrue);
+      expect(selectedIds.every((ids) =>
+          ids.length == 2 && ids.contains('first') && ids.contains('second')), isTrue);
+      expect(plan.first.body, contains('(08:00)'));
+      expect(
+        plan[CalendarAlertPlanner.zmanScheduleDaysAhead + 1].body,
+        contains('(18:00)'),
+      );
+    });
+
     test('every calendar day of the window is planned once', () {
       final plan = CalendarAlertPlanner.planZmanAlerts(
         alerts: alerts,
