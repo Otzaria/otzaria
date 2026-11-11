@@ -96,7 +96,7 @@ class LibraryAccessGate {
     StackTrace? stackTrace,
   ) {
     try {
-      ErrorLogFile.append(
+      ErrorLogFile.appendInBackground(
         title: 'Library access gate: $title',
         error: error,
         stackTrace: stackTrace,

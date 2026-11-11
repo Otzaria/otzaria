@@ -26,7 +26,7 @@ void logPluginWebViewFailure(
     return;
   }
   try {
-    ErrorLogFile.append(
+    ErrorLogFile.appendInBackground(
       title: title,
       error: error,
       stackTrace: stackTrace,

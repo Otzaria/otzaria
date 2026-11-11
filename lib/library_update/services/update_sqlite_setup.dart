@@ -85,7 +85,7 @@ class LibraryUpdateSqliteSetup {
     } catch (error, stackTrace) {
       // בלי תיקייה ה-updater נשאר ב-temp_store של ה-build (זיכרון).
       try {
-        ErrorLogFile.append(
+        ErrorLogFile.appendInBackground(
           title: 'Library Update: sqlite temp directory unavailable',
           error: error,
           stackTrace: stackTrace,
@@ -103,7 +103,7 @@ class LibraryUpdateSqliteSetup {
       }
     } catch (error, stackTrace) {
       try {
-        ErrorLogFile.append(
+        ErrorLogFile.appendInBackground(
           title: 'Library Update: sqlite temp directory unavailable',
           error: error,
           stackTrace: stackTrace,

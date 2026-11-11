@@ -1,7 +1,12 @@
+import 'dart:convert';
+import 'dart:ffi';
 import 'dart:io';
+import 'dart:isolate';
 
+import 'package:ffi/ffi.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:path/path.dart' as p;
+import 'package:win32/win32.dart' as win32;
 
 enum ErrorLogPlatform {
   windows,
@@ -99,16 +104,16 @@ class ErrorLogFile {
       tempPath: tempPath,
     );
 
-    ensureExists(
-      environment: environment,
-      platform: platform,
-      tempPath: tempPath,
-    );
-
-    file.writeAsStringSync(
-      formattedMessage,
-      mode: FileMode.append,
-      flush: true,
+    // מצרפים רשומות שעוד בתור באותו קובץ כדי לשמור אותן גם במסלול קריסה.
+    final pending = StringBuffer();
+    for (final entry in _queued) {
+      if (p.equals(entry.file.absolute.path, file.absolute.path)) {
+        pending.write(entry.text);
+      }
+    }
+    _writeSync(file.path, (pending..write(formattedMessage)).toString());
+    _queued.removeWhere(
+      (entry) => p.equals(entry.file.absolute.path, file.absolute.path),
     );
   }
 
@@ -137,6 +142,82 @@ class ErrorLogFile {
       platform: platform,
       tempPath: tempPath,
     );
+  }
+
+  static final List<({File file, String text})> _queued = [];
+  static Future<void>? _drain;
+
+  /// כמו [append], בלי לחסום את ה-UI כשהדיסק עמוס. רשומה שעוד בתור אובדת
+  /// בקריסה, ולכן מסלולי קריסה, יציאה ואינדוקס נשארים ב-[append].
+  static void appendInBackground({
+    required String title,
+    required Object error,
+    StackTrace? stackTrace,
+    DateTime? timestamp,
+    Map<String, String?> details = const {},
+    String? version,
+    Map<String, String>? environment,
+    ErrorLogPlatform? platform,
+    String? tempPath,
+  }) {
+    _queued.add((
+      file: resolveFile(
+        environment: environment,
+        platform: platform,
+        tempPath: tempPath,
+      ),
+      text: formatEntry(
+        title: title,
+        error: error,
+        stackTrace: stackTrace,
+        timestamp: timestamp,
+        details: details,
+        version: version,
+      ),
+    ));
+    _drain ??= Future<void>(_drainQueue);
+  }
+
+  /// מסתיים כשכל רשומות הרקע נכתבו, או אחרי [timeout] אם הדיסק תקוע.
+  static Future<void> flushPending({
+    Duration timeout = const Duration(seconds: 2),
+  }) async {
+    final drain = _drain;
+    if (drain == null) return;
+    await drain.timeout(timeout, onTimeout: () {});
+  }
+
+  static Future<void> _drainQueue() async {
+    try {
+      while (_queued.isNotEmpty) {
+        final entry = _queued.removeAt(0);
+        try {
+          await _writeInBackground(entry.file.path, entry.text);
+        } catch (_) {
+          // כמו בקוראים של append: כשל ברישום אינו משנה את הפעולה עצמה.
+        }
+      }
+    } finally {
+      _drain = null;
+    }
+  }
+
+  static Future<void> _writeInBackground(String path, String text) =>
+      Isolate.run(() => _writeSync(path, text));
+
+  static void _writeSync(String path, String text) {
+    File(path).parent.createSync(recursive: true);
+    final bytes = utf8.encode(text);
+    // FileMode.append ממקם את הסמן בפתיחה, לפני שכותב אחר עשוי להוסיף רשומה.
+    using((arena) {
+      final buffer = arena<Uint8>(bytes.length)
+        ..asTypedList(bytes.length).setAll(0, bytes);
+      if (Platform.isWindows) {
+        _appendWindows(path, buffer, bytes.length, arena);
+      } else {
+        _appendPosix(path, buffer, bytes.length, arena);
+      }
+    });
   }
 
   /// בונה את תוכן הרשומה שתישמר בקובץ הלוג.
@@ -261,3 +342,85 @@ class ErrorLogFile {
     return p.join(base, part1, part2);
   }
 }
+
+void _appendWindows(
+  String path,
+  Pointer<Uint8> buffer,
+  int length,
+  Arena arena,
+) {
+  final name = _windowsLogPath(path).toNativeUtf16(allocator: arena);
+  final opened = win32.CreateFile(
+    win32.PCWSTR(name),
+    win32.FILE_APPEND_DATA,
+    win32.FILE_SHARE_READ | win32.FILE_SHARE_WRITE,
+    null,
+    win32.OPEN_ALWAYS,
+    win32.FILE_FLAG_WRITE_THROUGH,
+    null,
+  );
+  if (opened.value == win32.INVALID_HANDLE_VALUE) {
+    throw FileSystemException('CreateFileW', path, OSError('', opened.error));
+  }
+  try {
+    final written = arena<Uint32>();
+    final result = win32.WriteFile(opened.value, buffer, length, written, null);
+    if (!result.value) {
+      throw FileSystemException('WriteFile', path, OSError('', result.error));
+    }
+    if (written.value != length) {
+      throw FileSystemException('Incomplete log write', path);
+    }
+  } finally {
+    win32.CloseHandle(opened.value);
+  }
+}
+
+String _windowsLogPath(String path) {
+  if (path.startsWith(r'\\?\') || path.startsWith(r'\\.\')) return path;
+  final absolute = p.normalize(p.absolute(path));
+  if (absolute.length < win32.MAX_PATH) return absolute;
+  return absolute.startsWith(r'\\')
+      ? r'\\?\UNC\' + absolute.substring(2)
+      : r'\\?\' + absolute;
+}
+
+void _appendPosix(String path, Pointer<Uint8> buffer, int length, Arena arena) {
+  final file = _fopen(
+    path.toNativeUtf8(allocator: arena),
+    'ab'.toNativeUtf8(allocator: arena),
+  );
+  if (file == nullptr) throw FileSystemException('fopen', path);
+  try {
+    final fd = _fileno(file);
+    if (_write(fd, buffer, length) != length) {
+      throw FileSystemException('Incomplete log write', path);
+    }
+    if (_fsync(fd) != 0) throw FileSystemException('fsync', path);
+  } finally {
+    _fclose(file);
+  }
+}
+
+final _libc = DynamicLibrary.process();
+final _fopen = _libc
+    .lookupFunction<
+      Pointer<Void> Function(Pointer<Utf8>, Pointer<Utf8>),
+      Pointer<Void> Function(Pointer<Utf8>, Pointer<Utf8>)
+    >('fopen');
+final _fileno = _libc
+    .lookupFunction<Int Function(Pointer<Void>), int Function(Pointer<Void>)>(
+      'fileno',
+    );
+final _write = _libc
+    .lookupFunction<
+      IntPtr Function(Int, Pointer<Uint8>, Size),
+      int Function(int, Pointer<Uint8>, int)
+    >('write');
+final _fsync = _libc.lookupFunction<Int Function(Int), int Function(int)>(
+  'fsync',
+);
+final _fclose = _libc
+    .lookupFunction<Int Function(Pointer<Void>), int Function(Pointer<Void>)>(
+      'fclose',
+    );

@@ -153,7 +153,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         name: 'LibraryBloc',
       );
       try {
-        ErrorLogFile.append(
+        ErrorLogFile.appendInBackground(
           title: 'כשל טעינת הספרייה',
           error: e,
           stackTrace: stackTrace,
@@ -400,7 +400,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       _announceCatalogChanged();
     } catch (e, stackTrace) {
       try {
-        ErrorLogFile.append(
+        ErrorLogFile.appendInBackground(
           title: 'כשל רענון הספרייה',
           error: e,
           stackTrace: stackTrace,
@@ -809,7 +809,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       // בלי רישום ליומן, כשל בחיפוש הספרייה (issue #1012) אינו משאיר
       // עקבות לאבחון — errors.txt נשאר ריק.
       try {
-        ErrorLogFile.append(
+        ErrorLogFile.appendInBackground(
           title: 'כשל חיפוש בספרייה',
           error: e,
           stackTrace: stackTrace,
@@ -840,9 +840,11 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       Book? firstMatch;
       for (final book in results) {
         if (selected.isNotEmpty &&
-            !book.topics.split(',').any(
-              (topic) => selected.contains(topic.trim()),
-            )) {
+            !book.topics
+                .split(',')
+                .any(
+                  (topic) => selected.contains(topic.trim()),
+                )) {
           continue;
         }
         firstMatch ??= book;

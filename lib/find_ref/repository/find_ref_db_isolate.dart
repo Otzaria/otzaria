@@ -662,7 +662,7 @@ class FindRefDbIsolate {
   void _handleWorkerError(dynamic message) {
     _failAllPending(StateError('find_ref DB isolate error: $message'));
     if (kReleaseMode) {
-      ErrorLogFile.append(
+      ErrorLogFile.appendInBackground(
         title: 'FindRef DB Isolate Error',
         error: message?.toString() ?? 'unknown',
         stackTrace: StackTrace.current,

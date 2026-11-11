@@ -90,7 +90,11 @@ class NotificationService {
       return;
     }
     try {
-      ErrorLogFile.append(title: title, error: error, stackTrace: stackTrace);
+      ErrorLogFile.appendInBackground(
+        title: title,
+        error: error,
+        stackTrace: stackTrace,
+      );
     } catch (_) {
       // רישום הוא best-effort.
     }

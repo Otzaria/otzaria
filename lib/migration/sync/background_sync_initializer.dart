@@ -135,7 +135,7 @@ class BackgroundSyncInitializer {
     } catch (e, stackTrace) {
       _log.severe('Error during background sync', e, stackTrace);
       try {
-        ErrorLogFile.append(
+        ErrorLogFile.appendInBackground(
           title: 'Background sync failed',
           error: e,
           stackTrace: stackTrace,

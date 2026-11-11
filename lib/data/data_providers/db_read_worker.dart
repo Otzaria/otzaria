@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:collection';
-import 'dart:io' show FileMode;
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart'
@@ -582,7 +581,7 @@ class DbReadWorker {
       return;
     }
     try {
-      ErrorLogFile.append(
+      ErrorLogFile.appendInBackground(
         title: 'DB read worker failure',
         error: error.message,
         stackTrace: error.stack,
@@ -615,8 +614,7 @@ class DbReadWorker {
         !_loggedFailures.add('$method|stalled')) {
       return;
     }
-    final file = ErrorLogFile.resolveFile();
-    final entry = ErrorLogFile.formatEntry(
+    ErrorLogFile.appendInBackground(
       title: 'DB read worker stalled',
       error:
           '"$method" did not answer within ${stallTimeout.inSeconds}s; '
@@ -626,19 +624,6 @@ class DbReadWorker {
         'Connection': connection,
         'Args': _describeArgs(args),
       },
-    );
-    // הדיסק כנראה כבר איטי, וכתיבה סינכרונית עם flush הייתה תוקעת את ה-UI.
-    unawaited(
-      file.parent
-          .create(recursive: true)
-          .then(
-            (_) => file.writeAsString(
-              entry,
-              mode: FileMode.append,
-              flush: true,
-            ),
-          )
-          .then<void>((_) {}, onError: (_) {}),
     );
   }
 
