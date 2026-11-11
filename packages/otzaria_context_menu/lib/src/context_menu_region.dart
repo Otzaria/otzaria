@@ -171,10 +171,7 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
   Future<void> openMenuAt(Offset globalPosition) =>
       _openContextMenu(globalPosition);
 
-  double _resolveContextMenuMaxWidth(
-    double overlayWidth,
-    AppMenuMetrics metrics,
-  ) {
+  double _resolveContextMenuMaxWidth(double overlayWidth) {
     // On very narrow windows, the available viewport takes precedence over
     // the normal menu minimum. Do not render a menu wider than its overlay.
     final availableWidth = overlayWidth - (_contextMenuScreenPadding * 2);
@@ -351,10 +348,9 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
     _menuOverlayEntry = OverlayEntry(
       builder: (overlayContext) {
         final metrics = presentation.metrics;
-        final menuStyle = _menuStyle(context, metrics);
+        final menuStyle = _menuStyle(context);
         final maxMenuWidth = _resolveContextMenuMaxWidth(
           overlayRenderObject.size.width,
-          metrics,
         );
         final maxMenuHeight =
             (overlayRenderObject.size.height - _contextMenuScreenPadding * 2)
@@ -444,7 +440,7 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
     });
   }
 
-  MenuStyle _menuStyle(BuildContext context, AppMenuMetrics metrics) {
+  MenuStyle _menuStyle(BuildContext context) {
     final themeStyle = Theme.of(context).menuTheme.style;
     return (themeStyle ?? const MenuStyle()).copyWith(
       alignment: Alignment.topLeft,
