@@ -487,7 +487,8 @@ class _PageShapeScreenState extends State<PageShapeScreen>
     );
   }
 
-  List<String> _displayedCommentators(TextBookLoaded state) => [
+  // אותו מפרש יכול להופיע בשני טורים; ההערות שלו יוצגו פעם אחת.
+  List<String> _displayedCommentators(TextBookLoaded state) => {
     for (final (column, commentator) in [
       ('left', _leftCommentator),
       ('bottom', _bottomCommentator),
@@ -498,7 +499,7 @@ class _PageShapeScreenState extends State<PageShapeScreen>
     ..._selectedRightPaneCommentators(
       state,
     ).where((commentator) => _isCommentatorVisible('right', commentator)),
-  ];
+  }.toList();
 
   bool _isCommentatorVisible(String column, String? commentator) {
     if (commentator == null) return _columnVisibility[column] == true;
