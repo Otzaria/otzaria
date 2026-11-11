@@ -53,6 +53,7 @@ import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
+import 'package:otzaria/personal_notes/utils/note_collection_utils.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
 import 'package:otzaria/personal_notes/utils/personal_note_source_selection.dart';
 import 'package:otzaria/bookmarks/utils/section_bookmark.dart';
@@ -2276,20 +2277,14 @@ class _CombinedViewState extends State<CombinedView> {
                                                 current.locatedNotes,
                                         builder: (context, notesState) {
                                           final noteMap =
-                                              <int, List<PersonalNote>>{};
-                                          if (notesState.bookId ==
-                                              personalNotesBookKey(
-                                                state.book,
-                                              )) {
-                                            for (final note
-                                                in notesState.locatedNotes) {
-                                              final line = note.lineNumber;
-                                              if (line == null) continue;
-                                              noteMap
-                                                  .putIfAbsent(line, () => [])
-                                                  .add(note);
-                                            }
-                                          }
+                                              notesState.bookId ==
+                                                  personalNotesBookKey(
+                                                    state.book,
+                                                  )
+                                              ? indexPersonalNotesByLine(
+                                                  notesState.locatedNotes,
+                                                )
+                                              : <int, List<PersonalNote>>{};
                                           return SmoothWheelScroll(
                                             child: ScrollPositionReanchor(
                                               layoutKey: context.select(

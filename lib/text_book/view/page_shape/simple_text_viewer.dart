@@ -55,6 +55,7 @@ import 'package:otzaria/utils/ui/context_menu_utils.dart' show ContextMenuUtils;
 import 'package:otzaria/core/messages/text_book_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
+import 'package:otzaria/personal_notes/utils/note_collection_utils.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
 import 'package:otzaria/personal_notes/utils/personal_note_source_selection.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_changes.dart';
@@ -2796,19 +2797,13 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                     (previous.bookId != current.bookId ||
                         previous.locatedNotes != current.locatedNotes),
                 builder: (context, notesState) {
-                  final noteMap = <int, List<PersonalNote>>{};
-                  final visibleNotes = widget.isMainText
-                      ? (notesState.bookId == personalNotesBookKey(state.book)
-                            ? notesState.locatedNotes
-                            : const <PersonalNote>[])
-                      : _commentaryNotes;
-                  for (final note in visibleNotes) {
-                    if (note.hasLocation) {
-                      final line = note.lineNumber;
-                      if (line == null) continue;
-                      noteMap.putIfAbsent(line, () => []).add(note);
-                    }
-                  }
+                  final noteMap = indexPersonalNotesByLine(
+                    widget.isMainText
+                        ? (notesState.bookId == personalNotesBookKey(state.book)
+                              ? notesState.locatedNotes
+                              : const <PersonalNote>[])
+                        : _commentaryNotes,
+                  );
                   final continuous =
                       widget.isMainText && state.continuousReadingMode;
                   final segments = widget.isMainText

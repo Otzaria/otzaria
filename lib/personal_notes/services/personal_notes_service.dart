@@ -48,7 +48,7 @@ class PersonalNotesService {
   Future<List<PersonalNote>> addNote({
     required String bookId,
     required String bookContent,
-    required int lineNumber,
+    required int? lineNumber,
     required String content,
     required String contentPlain,
     required PersonalNoteContentFormat contentFormat,
@@ -58,6 +58,9 @@ class PersonalNotesService {
     int? sourceSelectionOffset,
     bool punctuationHidden = false,
     PdfNoteAnchor? pdfAnchor,
+    int? occurrenceIndex,
+    bool requireWordAnchor = false,
+    int? endLineNumber,
   }) async {
     await createNote(
       bookId: bookId,
@@ -72,15 +75,24 @@ class PersonalNotesService {
       sourceSelectionOffset: sourceSelectionOffset,
       punctuationHidden: punctuationHidden,
       pdfAnchor: pdfAnchor,
+      occurrenceIndex: occurrenceIndex,
+      requireWordAnchor: requireWordAnchor,
+      endLineNumber: endLineNumber,
     );
     return _database.loadNotes(bookId);
   }
 
   /// אישור השמירה תלוי בכתיבה בלבד; כשל ברענון אינו מצדיק הוספה חוזרת.
+  ///
+  /// [lineNumber] null — הערה על הספר כולו. [endLineNumber] — הערה על השורות
+  /// [lineNumber]..[endLineNumber]; בחירה שחוצה שורות מזוהה גם בלעדיו.
+  /// [occurrenceIndex] בוחר מופע של [selectedText] בשורה (מ-0). עם
+  /// [requireWordAnchor] בחירה שלא אותרה בשורה זורקת [ArgumentError] במקום
+  /// ליצור הערה על השורה כולה.
   Future<PersonalNote> createNote({
     required String bookId,
     required String bookContent,
-    required int lineNumber,
+    required int? lineNumber,
     required String content,
     required String contentPlain,
     required PersonalNoteContentFormat contentFormat,
@@ -90,7 +102,19 @@ class PersonalNotesService {
     int? sourceSelectionOffset,
     bool punctuationHidden = false,
     PdfNoteAnchor? pdfAnchor,
+    int? occurrenceIndex,
+    bool requireWordAnchor = false,
+    int? endLineNumber,
   }) async {
+    if (lineNumber == null) {
+      return _insertNew(
+        bookId: bookId,
+        status: PersonalNoteStatus.book,
+        content: content,
+        contentPlain: contentPlain,
+        contentFormat: contentFormat,
+      );
+    }
     final lines = splitBookContentIntoLines(bookContent);
     // ספר ללא תוכן טקסטואלי (PDF): lineNumber הוא מספר עמוד ונשמר כפי שהוא,
     // אחרת כיווץ ל-1 היה מאחד את כל ההערות לעמוד הראשון.
@@ -105,7 +129,39 @@ class PersonalNotesService {
     final trimmedSelectedText = selectedText?.trim();
     final hasSelection =
         trimmedSelectedText != null && trimmedSelectedText.isNotEmpty;
-    final displayTitle = hasSelection
+
+    // עיגון לפי מילים: כשנבחר טקסט ספציפי, מחשבים offset והקשר בשורה הגולמית.
+    // ללא בחירה — ההערה נחשבת הערת-שורה-שלמה (anchorText = null).
+    final anchor = hasSelection && lines.isNotEmpty && pdfAnchor == null
+        ? _wordAnchor(
+            lines[normalizedLineNumber - 1],
+            selectedText: sourceSelectedText ?? trimmedSelectedText,
+            fromSource: sourceSelectedText != null,
+            selectionColumn: selectionColumn,
+            sourceSelectionOffset: sourceSelectionOffset,
+            punctuationHidden: punctuationHidden,
+            occurrenceIndex: occurrenceIndex,
+          )
+        : null;
+    if (requireWordAnchor && anchor == null) {
+      throw ArgumentError.value(selectedText, 'selectedText', 'not found');
+    }
+    final canSpan = lines.isNotEmpty && pdfAnchor == null && anchor == null;
+    var lastLine = canSpan && endLineNumber != null
+        ? endLineNumber.clamp(normalizedLineNumber, lines.length)
+        : null;
+    if (canSpan && lastLine == null && hasSelection) {
+      lastLine = _selectionEndLine(
+        lines,
+        normalizedLineNumber,
+        sourceSelectedText ?? trimmedSelectedText,
+      );
+    }
+    final isRange = lastLine != null && lastLine > normalizedLineNumber;
+
+    // כותרת של הערה על כמה שורות היא תחילת השורה הראשונה: לפיה ההערה מאותרת
+    // מחדש כשהספר משתנה, וכל הבחירה אינה נמצאת בשורה אחת.
+    final displayTitle = hasSelection && !isRange
         ? removeHebrewDiacritics(trimmedSelectedText)
         : pdfAnchor != null
         ? ''
@@ -115,50 +171,47 @@ class PersonalNotesService {
             excludeBookTitle: _bookTitle(bookId),
           );
 
-    // עיגון לפי מילים: כשנבחר טקסט ספציפי, מחשבים offset והקשר בשורה הגולמית.
-    // ללא בחירה — ההערה נחשבת הערת-שורה-שלמה (anchorText = null).
-    String? anchorText;
-    String? anchorPrefix;
-    String? anchorSuffix;
-    int? anchorStart;
-    int? anchorEnd;
-    if (hasSelection && lines.isNotEmpty && pdfAnchor == null) {
-      final rawLine = lines[normalizedLineNumber - 1];
-      final computed = computeAnchorForSelection(
-        rawLine: rawLine,
-        selectedText: sourceSelectedText ?? trimmedSelectedText,
-        selectionColumnHint: selectionColumn,
-        sourceSelectionOffset: sourceSelectionOffset,
-        sourceSelectionText: sourceSelectedText == null
-            ? null
-            : text_utils.stripHtmlIfNeeded(rawLine),
-        punctuationHidden: punctuationHidden,
-      );
-      if (computed != null) {
-        anchorText = normalizeAnchorText(
-          sourceSelectedText ?? trimmedSelectedText,
-        );
-        anchorPrefix = computed.prefix;
-        anchorSuffix = computed.suffix;
-        anchorStart = computed.start;
-        anchorEnd = computed.end;
-      }
-    }
+    return _insertNew(
+      bookId: bookId,
+      status: PersonalNoteStatus.located,
+      lineNumber: normalizedLineNumber,
+      endLineNumber: isRange ? lastLine : null,
+      displayTitle: displayTitle,
+      anchor: anchor,
+      pdfAnchor: pdfAnchor,
+      content: content,
+      contentPlain: contentPlain,
+      contentFormat: contentFormat,
+    );
+  }
 
+  Future<PersonalNote> _insertNew({
+    required String bookId,
+    required PersonalNoteStatus status,
+    int? lineNumber,
+    int? endLineNumber,
+    String? displayTitle,
+    _WordAnchor? anchor,
+    PdfNoteAnchor? pdfAnchor,
+    required String content,
+    required String contentPlain,
+    required PersonalNoteContentFormat contentFormat,
+  }) async {
     final now = DateTime.now();
     final newNote = PersonalNote(
       id: _generateId(),
       bookId: bookId,
-      lineNumber: normalizedLineNumber,
+      lineNumber: lineNumber,
+      endLineNumber: endLineNumber,
       displayTitle: displayTitle,
-      anchorText: anchorText,
-      anchorPrefix: anchorPrefix,
-      anchorSuffix: anchorSuffix,
-      anchorStart: anchorStart,
-      anchorEnd: anchorEnd,
+      anchorText: anchor?.text,
+      anchorPrefix: anchor?.prefix,
+      anchorSuffix: anchor?.suffix,
+      anchorStart: anchor?.start,
+      anchorEnd: anchor?.end,
       pdfAnchor: pdfAnchor,
       lastKnownLineNumber: null,
-      status: PersonalNoteStatus.located,
+      status: status,
       content: content.trimRight(),
       contentPlain: contentPlain.trimRight(),
       contentFormat: contentFormat,
@@ -168,6 +221,24 @@ class PersonalNotesService {
 
     await _database.insertNote(newNote);
     return newNote;
+  }
+
+  /// השורה האחרונה של בחירה שמתחילה בשורה [start] וממשיכה בשורות הבאות.
+  int? _selectionEndLine(List<String> lines, int start, String selected) {
+    final needle = normalizeAnchorText(selected);
+    if (needle.isEmpty) return null;
+    final first = projectLine(lines[start - 1]).normalized.trim();
+    final joined = StringBuffer(first);
+    for (var end = start + 1; end <= lines.length; end++) {
+      joined
+        ..write(' ')
+        ..write(projectLine(lines[end - 1]).normalized.trim());
+      final text = joined.toString();
+      final at = text.indexOf(needle);
+      if (at >= 0) return at < first.length ? end : null;
+      if (text.length - first.length > needle.length + 1) return null;
+    }
+    return null;
   }
 
   Future<List<PersonalNote>> updateNote({
@@ -296,6 +367,7 @@ class PersonalNotesService {
       displayTitle: newDisplayTitle,
       // מיקום ידני מחדש הופך את ההערה להערת-שורה-שלמה (אין עוד מילים מעוגנות).
       clearAnchor: true,
+      clearEndLineNumber: true,
       pdfAnchor: pdfAnchor,
       clearPdfAnchor: pdfAnchor == null,
       clearLastKnownLineNumber: true,
@@ -307,6 +379,120 @@ class PersonalNotesService {
     return updatedNote;
   }
 
+  /// משנה את מיקום [noteId] ל-[scope]: book — הספר כולו; lines — השורות
+  /// [lineNumber]..[endLineNumber]; words — המילים [sourceText] בשורה
+  /// [lineNumber], במיקום [sourceOffset] (utf16 בשורה בלי HTML) או במופע
+  /// [occurrenceIndex]. מיקום שאינו בספר או מילים שלא אותרו: [ArgumentError].
+  Future<PersonalNote> setNoteLocation({
+    required String bookId,
+    required String bookContent,
+    required String noteId,
+    required PersonalNoteScope scope,
+    int? lineNumber,
+    int? endLineNumber,
+    String? sourceText,
+    int? sourceOffset,
+    int? occurrenceIndex,
+  }) async {
+    final note = await _database.getNote(noteId);
+    if (note == null) {
+      throw StateError(NotesMessages.noteNoLongerExists);
+    }
+    if (note.bookId != bookId) {
+      throw StateError(NotesMessages.noteMovedToDifferentBook);
+    }
+    final cleared = note.copyWith(
+      clearAnchor: true,
+      clearPdfAnchor: true,
+      clearLastKnownLineNumber: true,
+      clearEndLineNumber: true,
+      updatedAt: DateTime.now(),
+    );
+    final PersonalNote updated;
+    if (scope == PersonalNoteScope.book) {
+      updated = cleared.copyWith(
+        status: PersonalNoteStatus.book,
+        clearLineNumber: true,
+        clearDisplayTitle: true,
+      );
+    } else {
+      final lines = splitBookContentIntoLines(bookContent);
+      final line = lineNumber ?? 0;
+      final last = endLineNumber ?? line;
+      if (line < 1 ||
+          line > lines.length ||
+          last < line ||
+          last > lines.length) {
+        throw ArgumentError.value(lineNumber, 'lineNumber', 'outside the book');
+      }
+      final text = sourceText?.trim() ?? '';
+      final words = scope == PersonalNoteScope.words;
+      final anchor = words && text.isNotEmpty
+          ? _wordAnchor(
+              lines[line - 1],
+              selectedText: text,
+              fromSource: occurrenceIndex == null,
+              sourceSelectionOffset: sourceOffset,
+              occurrenceIndex: occurrenceIndex,
+            )
+          : null;
+      if (words && anchor == null) {
+        throw ArgumentError.value(sourceText, 'sourceText', 'not found');
+      }
+      updated = cleared.copyWith(
+        status: PersonalNoteStatus.located,
+        lineNumber: line,
+        endLineNumber: !words && last > line ? last : null,
+        displayTitle: anchor != null
+            ? removeHebrewDiacritics(text)
+            : extractDisplayTextFromLines(
+                lines,
+                line,
+                excludeBookTitle: _bookTitle(bookId),
+              ),
+        anchorText: anchor?.text,
+        anchorPrefix: anchor?.prefix,
+        anchorSuffix: anchor?.suffix,
+        anchorStart: anchor?.start,
+        anchorEnd: anchor?.end,
+      );
+    }
+    await _database.updateNote(updated);
+    return updated;
+  }
+
+  /// העוגן של [selectedText] ב-[rawLine], או null כשלא אותר. [fromSource] —
+  /// הטקסט ו-[sourceSelectionOffset] נלקחו מהשורה בלי HTML ולא מהתצוגה.
+  _WordAnchor? _wordAnchor(
+    String rawLine, {
+    required String selectedText,
+    required bool fromSource,
+    int? selectionColumn,
+    int? sourceSelectionOffset,
+    bool punctuationHidden = false,
+    int? occurrenceIndex,
+  }) {
+    final computed = computeAnchorForSelection(
+      rawLine: rawLine,
+      selectedText: selectedText,
+      selectionColumnHint: selectionColumn,
+      sourceSelectionOffset: sourceSelectionOffset,
+      sourceSelectionText: fromSource
+          ? text_utils.stripHtmlIfNeeded(rawLine)
+          : null,
+      punctuationHidden: punctuationHidden,
+      occurrenceIndex: occurrenceIndex,
+    );
+    if (computed == null) return null;
+    return (
+      text: normalizeAnchorText(selectedText),
+      prefix: computed.prefix,
+      suffix: computed.suffix,
+      start: computed.start,
+      end: computed.end,
+    );
+  }
+
   PersonalNote _reconcileLocation(
     PersonalNote note,
     List<String> lines,
@@ -314,7 +500,7 @@ class PersonalNotesService {
   ) {
     // ספר ללא תוכן טקסטואלי (PDF): אין שורות לעגן אליהן — ה-lineNumber הוא
     // מספר עמוד ונשאר תקף, בלי לסמן 'חסר'.
-    if (lines.isEmpty || note.pdfAnchor != null) {
+    if (lines.isEmpty || note.pdfAnchor != null || note.isBookNote) {
       return note;
     }
 
@@ -367,9 +553,13 @@ class PersonalNotesService {
       bookId,
     );
     if (match != null) {
-      // Found the note in a new location - update line number but keep displayTitle
+      // הערה על כמה שורות זזה כולה, באותו מספר שורות.
+      final end = note.endLineNumber;
       return note.copyWith(
         lineNumber: match.line,
+        endLineNumber: end == null
+            ? null
+            : min(end + match.line - note.lineNumber!, lines.length),
         lastKnownLineNumber: note.lineNumber,
         status: PersonalNoteStatus.located,
       );
@@ -509,6 +699,14 @@ class PersonalNotesService {
     return 'pn_$timestamp$randomPart';
   }
 }
+
+typedef _WordAnchor = ({
+  String text,
+  String prefix,
+  String suffix,
+  int start,
+  int end,
+});
 
 class _LineMatch {
   final int line;

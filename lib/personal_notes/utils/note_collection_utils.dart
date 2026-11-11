@@ -22,6 +22,20 @@ PersonalNotesPartition partitionAndSortPersonalNotes(List<PersonalNote> notes) {
   return (located: located, missing: missing);
 }
 
+/// ההערות לפי שורה (1-based). הערה על כמה שורות מופיעה בכל אחת מהן.
+Map<int, List<PersonalNote>> indexPersonalNotesByLine(
+  Iterable<PersonalNote> notes,
+) {
+  final byLine = <int, List<PersonalNote>>{};
+  for (final note in notes) {
+    if (!note.hasLocation) continue;
+    for (var line = note.lineNumber!; line <= note.lastLineNumber!; line++) {
+      byLine.putIfAbsent(line, () => <PersonalNote>[]).add(note);
+    }
+  }
+  return byLine;
+}
+
 List<PersonalNote> sortPersonalNotes(List<PersonalNote> notes) {
   final partition = partitionAndSortPersonalNotes(notes);
   return [...partition.located, ...partition.missing];

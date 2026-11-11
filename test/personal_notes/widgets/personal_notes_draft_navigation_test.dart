@@ -64,7 +64,7 @@ class _PendingRepository extends PersonalNotesRepository {
   @override
   Future<PersonalNote> createNote({
     required String bookId,
-    required int lineNumber,
+    required int? lineNumber,
     required String content,
     required String contentPlain,
     required PersonalNoteContentFormat contentFormat,
@@ -75,6 +75,9 @@ class _PendingRepository extends PersonalNotesRepository {
     bool punctuationHidden = false,
     PdfNoteAnchor? pdfAnchor,
     int? categoryId,
+    int? endLineNumber,
+    int? occurrenceIndex,
+    bool requireWordAnchor = false,
   }) async {
     creates++;
     await pendingCreate?.future;

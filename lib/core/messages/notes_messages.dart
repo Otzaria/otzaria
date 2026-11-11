@@ -23,6 +23,11 @@ abstract class NotesMessages {
   static const String noteRepositioned = 'מיקום ההערה עודכן';
   static String noteRepositionFailed(Object error) =>
       'שינוי מיקום ההערה נכשל: $error';
+  static const String noteAnchorUnavailable =
+      'אפשר לבחור מילים רק להערה שנמצאת בשורה של ספר טקסט';
+  static const String noteLineUnavailable =
+      'לא ניתן לקרוא את השורה שההערה עליה';
+  static const String noteAnchorSaveFailed = 'שמירת המילים שההערה עליהן נכשלה';
   static const String libraryNotLoadedYet = 'הספרייה לא נטענה עדיין';
   static const String backupCompleted = 'הגיבוי הושלם בהצלחה';
   static const String textExportCompleted = 'הייצוא לטקסט הושלם בהצלחה';

@@ -140,8 +140,12 @@ class PersonalNotesImportExportService {
       ..sort((a, b) {
         final byBook = a.bookId.compareTo(b.bookId);
         if (byBook != 0) return byBook;
-        int line(PersonalNote n) =>
-            n.hasLocation ? (n.lineNumber ?? 0) : 1 << 30;
+        // הערות על הספר כולו בראש הספר, וחסרות המיקום בסופו.
+        int line(PersonalNote n) => n.isBookNote
+            ? -1
+            : n.hasLocation
+            ? (n.lineNumber ?? 0)
+            : 1 << 30;
         final byLine = line(a).compareTo(line(b));
         if (byLine != 0) return byLine;
         final byTime = a.hasLocation
@@ -174,6 +178,8 @@ class PersonalNotesImportExportService {
       final ref = note.hasLocation ? locationRef(note)?.trim() : null;
       final refLabel = (ref?.isNotEmpty ?? false)
           ? ref
+          : note.isBookNote
+          ? 'על הספר כולו'
           : (note.hasLocation ? null : 'הערות ללא מיקום');
       final link = note.hasLocation ? sourceLink?.call(note) : null;
       if (refLabel != null &&

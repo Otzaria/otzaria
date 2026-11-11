@@ -10,7 +10,14 @@ enum PersonalNoteStatus {
 
   /// The note lost its anchor and awaits manual reposition.
   missing,
+
+  /// הערה על הספר כולו, בלי מיקום. נשמרת כ-missing עם `scope: 'book'`, כדי
+  /// שגרסה ישנה תציג אותה כחסרת מיקום ולא תיכשל בקריאתה.
+  book,
 }
+
+/// על מה הערה חלה.
+enum PersonalNoteScope { book, lines, words }
 
 /// Supported formats for note content.
 enum PersonalNoteContentFormat {
@@ -31,6 +38,9 @@ class PersonalNote extends Equatable {
 
   /// Line number in the book (1-based). `null` when [status] is [PersonalNoteStatus.missing].
   final int? lineNumber;
+
+  /// השורה האחרונה (1-based) בהערה על כמה שורות; null בהערה על שורה אחת.
+  final int? endLineNumber;
 
   /// Display title for the note - the text from the beginning of the line.
   /// Used for display and for matching when the book content changes.
@@ -84,6 +94,7 @@ class PersonalNote extends Equatable {
     required this.id,
     required this.bookId,
     required this.lineNumber,
+    this.endLineNumber,
     this.displayTitle,
     this.anchorText,
     this.anchorPrefix,
@@ -106,6 +117,7 @@ class PersonalNote extends Equatable {
       id: json['id'] as String,
       bookId: json['bookId'] as String,
       lineNumber: json['lineNumber'] as int?,
+      endLineNumber: json['endLineNumber'] as int?,
       displayTitle: json['displayTitle'] as String?,
       anchorText: json['anchorText'] as String?,
       anchorPrefix: json['anchorPrefix'] as String?,
@@ -118,7 +130,7 @@ class PersonalNote extends Equatable {
               Map<String, dynamic>.from(json['pdfAnchor'] as Map),
             ),
       lastKnownLineNumber: json['lastKnownLineNumber'] as int?,
-      status: PersonalNoteStatus.values.byName(json['status'] as String),
+      status: storedStatus(json['status'] as String, json['scope']),
       content: json['content'] as String,
       contentPlain:
           (json['contentPlain'] as String?) ?? (json['content'] as String),
@@ -136,6 +148,7 @@ class PersonalNote extends Equatable {
       'id': id,
       'bookId': bookId,
       'lineNumber': lineNumber,
+      if (endLineNumber != null) 'endLineNumber': endLineNumber,
       'displayTitle': displayTitle,
       'anchorText': anchorText,
       'anchorPrefix': anchorPrefix,
@@ -144,7 +157,8 @@ class PersonalNote extends Equatable {
       'anchorEnd': anchorEnd,
       'pdfAnchor': pdfAnchor?.toJson(),
       'lastKnownLineNumber': lastKnownLineNumber,
-      'status': status.name,
+      'status': storedStatusName,
+      if (isBookNote) 'scope': PersonalNoteScope.book.name,
       'content': content,
       'contentPlain': contentPlain,
       'contentFormat': contentFormat.name,
@@ -156,16 +170,49 @@ class PersonalNote extends Equatable {
   /// `true` כאשר ההערה מעוגנת למילים ספציפיות בשורה (ולא לשורה כולה).
   bool get isWordAnchored => anchorText != null && anchorText!.isNotEmpty;
 
+  bool get isBookNote => status == PersonalNoteStatus.book;
+
+  PersonalNoteScope get scope => isBookNote
+      ? PersonalNoteScope.book
+      : isWordAnchored
+      ? PersonalNoteScope.words
+      : PersonalNoteScope.lines;
+
+  /// השורה האחרונה שההערה חלה עליה (1-based), או null כשאין לה מיקום.
+  int? get lastLineNumber => hasLocation ? (endLineNumber ?? lineNumber) : null;
+
+  /// האם ההערה חלה על השורה [line] (1-based).
+  bool coversLine(int line) =>
+      hasLocation && line >= lineNumber! && line <= lastLineNumber!;
+
+  /// הסטטוס כפי שהוא נשמר: הערת ספר נשמרת כ-missing (ראו [PersonalNoteStatus.book]).
+  String get storedStatusName =>
+      isBookNote ? PersonalNoteStatus.missing.name : status.name;
+
+  /// הסטטוס מהשמירה, לפי [storedStatusName] ו-`scope`.
+  static PersonalNoteStatus storedStatus(String name, Object? scope) =>
+      scope == PersonalNoteScope.book.name
+      ? PersonalNoteStatus.book
+      : PersonalNoteStatus.values.byName(name);
+
   bool get hasLocation =>
       status == PersonalNoteStatus.located && lineNumber != null;
 
   /// Get the title to display
-  String get title => displayTitle ?? '';
+  /// להערה על הספר אין מילים בספר, ולכן כותרתה היא תחילת התוכן.
+  String get title {
+    if (displayTitle case final title?) return title;
+    if (!isBookNote) return '';
+    final line = contentPlain.trimLeft().split('\n').first.trim();
+    return line.length > 60 ? '${line.substring(0, 60)}…' : line;
+  }
 
   PersonalNote copyWith({
     String? id,
     int? lineNumber,
     bool clearLineNumber = false,
+    int? endLineNumber,
+    bool clearEndLineNumber = false,
     String? displayTitle,
     bool clearDisplayTitle = false,
     String? anchorText,
@@ -189,6 +236,9 @@ class PersonalNote extends Equatable {
       id: id ?? this.id,
       bookId: bookId,
       lineNumber: clearLineNumber ? null : (lineNumber ?? this.lineNumber),
+      endLineNumber: clearEndLineNumber
+          ? null
+          : (endLineNumber ?? this.endLineNumber),
       displayTitle: clearDisplayTitle
           ? null
           : (displayTitle ?? this.displayTitle),
@@ -215,6 +265,7 @@ class PersonalNote extends Equatable {
     id,
     bookId,
     lineNumber,
+    endLineNumber,
     displayTitle,
     anchorText,
     anchorPrefix,
