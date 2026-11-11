@@ -1121,6 +1121,14 @@ class MainWindowScreenState extends State<MainWindowScreen>
         },
         waitForIndexing: () =>
             mounted ? _startupWorkGate.indexingSettled : Future<void>.value(),
+        previewIndexStatus: () async {
+          // בדיקה זולה בזיכרון; ההחלטה להתחיל אינדוקס נשארת אחרי העדכונים.
+          // חלון משני אינו מעדכן, וההחלטה שלו באה מיד.
+          if (!_duties.isProcessOwner) return;
+          final freshLibrary = await DataRepository.instance.library;
+          if (!mounted || !context.mounted) return;
+          context.read<IndexingBloc>().add(CheckIndexStatus(freshLibrary));
+        },
         runUpdates: () async {
           try {
             await runStartupUpdatesBeforeIndexing(

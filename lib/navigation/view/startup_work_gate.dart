@@ -119,17 +119,28 @@ Future<void> resolveStartupIndexingNonFatal({
 
 /// בזמן סיור החיפוש צריך לקבל אינדקס לפני שהעדכונים המושהים מתחילים.
 /// [onFinished] רץ בסוף הרצף גם כשאחד השלבים נכשל.
+///
+/// בלי סיור ההחלטה מגיעה רק אחרי העדכונים, שכוללים הורדת ספרייה ארוכה. עד אז
+/// חיווי האינדקס נשאר במצב ההתחלתי ("לא מעודכן") בלי שנבדק דבר (#4461), ולכן
+/// [previewIndexStatus] מרענן אותו מראש; כשל בו אינו עוצר את הרצף.
 Future<void> runStartupIndexingSequence({
   required bool tourActive,
   required Future<void> Function() resolveIndexing,
   required Future<void> Function() waitForIndexing,
   required Future<void> Function() runUpdates,
+  Future<void> Function()? previewIndexStatus,
   VoidCallback? onFinished,
 }) async {
   try {
     if (tourActive) {
       await resolveIndexing();
       await waitForIndexing();
+    } else if (previewIndexStatus != null) {
+      try {
+        await previewIndexStatus();
+      } catch (error, stackTrace) {
+        debugPrint('Startup index status preview failed: $error\n$stackTrace');
+      }
     }
     await runUpdates();
     if (!tourActive) await resolveIndexing();
