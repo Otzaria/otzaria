@@ -661,7 +661,8 @@ void main() {
       );
     }
 
-    Future<({String path, List<String> skipped})> createPluginsBackup({
+    Future<({String path, List<String> skipped, List<String> oversized})>
+    createPluginsBackup({
       bool isAutoBackup = false,
     }) async {
       final result = await BackupService.createBackup(
@@ -675,7 +676,11 @@ void main() {
         includePlugins: true,
         isAutoBackup: isAutoBackup,
       );
-      return (path: result.path, skipped: result.skippedSections);
+      return (
+        path: result.path,
+        skipped: result.skippedSections,
+        oversized: result.oversizedPlugins,
+      );
     }
 
     /// יוצר תוסף מותקן עם קובץ התקנה וקובץ נתונים, ומחזיר את הנתיבים.
@@ -957,18 +962,45 @@ void main() {
       expect(data.keys.any((k) => k.contains('secret')), isFalse);
     });
 
-    test('תוסף שחורג מתקרת הארכיון מדולג ומדווח כחלקי', () async {
+    test('תוסף שחורג מתקרת הארכיון מדולג ומדווח כגדול מדי, לא ככשל '
+        '(issue #4402)', () async {
       await installTestPlugin('small.plugin');
       BackupService.debugMaxPluginBytesOverride = 1; // כל תוסף חורג
       addTearDown(() => BackupService.debugMaxPluginBytesOverride = null);
 
       final backup = await createPluginsBackup();
 
-      expect(backup.skipped, contains('plugins'));
+      expect(backup.oversized, ['small.plugin']);
+      expect(backup.skipped, isEmpty);
       final json =
           jsonDecode(await File(backup.path).readAsString())
               as Map<String, dynamic>;
       expect(json['plugins'], isEmpty);
+      // הקובץ עצמו מצהיר שחסרים בו תוספים, כדי שהשחזור ידווח על כך.
+      expect(json['partial_sections'], ['plugins']);
+    });
+
+    test('גיבוי אוטומטי עם תוסף גדול מדי נחשב מלא: בלי ניסיון חוזר '
+        '(issue #4402)', () async {
+      await installTestPlugin('small.plugin');
+      BackupService.debugMaxPluginBytesOverride = 1;
+      addTearDown(() => BackupService.debugMaxPluginBytesOverride = null);
+      await Settings.setValue<String?>('key-last-auto-backup', null);
+      await Settings.setValue<String?>('key-last-partial-auto-backup', null);
+
+      await BackupService.performAutoBackup();
+
+      expect(
+        Settings.getValue<String>('key-last-auto-backup'),
+        isNotNull,
+        reason: 'הגיבוי נרשם כהצלחה',
+      );
+      expect(
+        Settings.getValue<String>('key-last-partial-auto-backup'),
+        isNull,
+        reason: 'לא נרשם כחלקי שמנסים שוב בכל עלייה',
+      );
+      expect(await BackupService.shouldPerformAutoBackup(), isFalse);
     });
 
     test(

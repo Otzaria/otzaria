@@ -885,12 +885,18 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       if (!mounted) return;
       if (exists) {
         _loadBackupStatus();
-        final partial = result.skippedSections.isNotEmpty;
+        final oversized = result.oversizedPlugins;
+        final partial =
+            result.skippedSections.isNotEmpty || oversized.isNotEmpty;
         final sizeStr = '${(size / 1024).toStringAsFixed(1)} KB';
         final message = partial
             ? SettingsMessages.partialBackupSaved(
                 sizeStr,
-                result.skippedSections.join(", "),
+                [
+                  ...result.skippedSections,
+                  if (oversized.isNotEmpty)
+                    SettingsMessages.backupPluginsTooLarge(oversized),
+                ].join(", "),
               )
             : SettingsMessages.backupSaved(sizeStr);
         // במובייל תיקיית הגיבוי פנימית ונמחקת עם האפליקציה — הפעולה
