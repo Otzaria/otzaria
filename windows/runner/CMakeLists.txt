@@ -12,6 +12,7 @@ add_executable(${BINARY_NAME} WIN32
   "drag_preview_window.cpp"
   "jump_list_manager.cpp"
   "main.cpp"
+  "native_exception_log.cpp"
   "phantom_mouse_button_filter.cpp"
   "shift_key_normalizer.cpp"
   "splash_window.cpp"

@@ -248,6 +248,8 @@ missed it.
 After reveal, `windows/runner/hang_monitor.cpp` polls `IsHungAppWindow` once a second (no WM_TIMER,
 which floods starve) and writes `=== App hang` / `=== App hang recovered`; Dart offers a report
 under the crash-report setting (`lib/app_report/services/app_hang_report.dart`).
+`native_exception_log.cpp` records only the UI thread’s exception code, address and time in a fixed buffer.
+The hang report includes the metadata when the captured stack contains that address.
 
 **Reading a hang stack.** Every Dart-code hang ends in the same engine frames (`DartEntry::Invoke*`
 called from `BeginFrame` or a platform message). The cause is in the `app.so+0x…` frames above them.

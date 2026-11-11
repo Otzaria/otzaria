@@ -29,7 +29,9 @@ bool CaptureMainStack(std::vector<ULONG_PTR>* frames);
 bool CaptureThreadStack(HANDLE thread, std::vector<ULONG_PTR>* frames);
 // קורא זיכרון ומפת מודולים — רק אחרי שה-thread חודש.
 bool IsDartFrame(ULONG_PTR address);
+
 // מתרגם לשמות מודולים — רק אחרי ש-CaptureMainStack חידש את ה-thread.
+std::string DescribeFrame(ULONG_PTR address);
 void AppendStack(const std::vector<ULONG_PTR>& frames, std::string* report);
 // commit הבנייה ו-build-id של app.so — מזהים את קובצי הסמלים לפענוח.
 void AppendBuildIdentity(const std::vector<ULONG_PTR>& frames,
