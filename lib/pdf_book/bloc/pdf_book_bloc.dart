@@ -320,7 +320,6 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
         documentRef: event.documentRef,
         outline: event.outline,
         currentPageNumber: tab.pageNumber,
-        locationHistory: _locationHistory,
         totalPages: event.totalPages,
         showLeftPane: showLeftPane,
         pinLeftPane: pinLeftPane,
@@ -431,13 +430,7 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     final current = state;
     if (current is! PdfBookLoaded) return;
     tab.navigationHistory.remember(event.location);
-    emit(current.copyWith(locationHistory: _locationHistory));
   }
-
-  ({int? back, int? forward}) get _locationHistory => (
-    back: tab.navigationHistory.last?.pageNumber,
-    forward: tab.navigationHistory.next?.pageNumber,
-  );
 
   Future<void> _travelToPdfLocation(
     Emitter<PdfBookState> emit,
@@ -450,12 +443,7 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     final location = take(tab.navigationHistory);
     if (location == null) return;
     final page = location.pageNumber.clamp(1, pages.length);
-    emit(
-      current.copyWith(
-        locationHistory: _locationHistory,
-        zoom: location.zoom,
-      ),
-    );
+    emit(current.copyWith(zoom: location.zoom));
     await pdfController.goTo(
       pdfController.calcMatrixFor(
         location.centerIn(pages[page - 1], pdfController.viewSize),

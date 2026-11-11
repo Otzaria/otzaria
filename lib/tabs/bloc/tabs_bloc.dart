@@ -881,10 +881,11 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       final targetPdf = _resolvePdfBookTab(existingTab, incomingTab);
       if (targetPdf == null) return;
       final targetPage = incomingTab.pageNumber;
+      final noteAnchor = incomingTab.takePersonalNoteNavigationRequest();
+      if (noteAnchor == null) targetPdf.rememberLocationForJump();
       // עדכון pageNumber בטאב כך שיישמר ל-restore עתידי וכך שאם המסך עוד
       // לא הצטרף ל-controller, הטעינה הבאה תיפתח בעמוד הנכון.
       targetPdf.pageNumber = targetPage;
-      final noteAnchor = incomingTab.takePersonalNoteNavigationRequest();
       if (noteAnchor != null) {
         targetPdf.requestPersonalNoteNavigation(noteAnchor);
         return;

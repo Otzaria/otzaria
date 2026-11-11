@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:bloc/bloc.dart';
 import 'package:flutter/foundation.dart' show FlutterError;
+import 'package:otzaria/pdf_book/models/pdf_reading_location.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
@@ -634,6 +635,22 @@ void main() {
         book: PdfBook(title: 'ספר PDF שמאל', path: 'left.pdf'),
         pageNumber: 10,
       );
+      final history = targetPane.navigationHistory;
+      const before = PdfReadingLocation(
+        pageNumber: 10,
+        pageOffset: Offset.zero,
+        zoom: 1,
+      );
+      const later = PdfReadingLocation(
+        pageNumber: 12,
+        pageOffset: Offset.zero,
+        zoom: 1,
+      );
+      history.remember(before);
+      expect(history.takePrevious(later), before);
+      expect(history.next, later);
+      var historyChanges = 0;
+      history.addListener(() => historyChanges++);
       final combinedTab = CombinedTab(
         rightTab: PdfBookTab(
           book: PdfBook(title: 'ספר PDF ימין', path: 'right.pdf'),
@@ -661,6 +678,8 @@ void main() {
       expect(bloc.state.currentTab, same(combinedTab));
       expect(bloc.state.activePane, same(targetPane));
       expect(targetPane.pageNumber, 25);
+      expect(history.canGoForward, isFalse);
+      expect(historyChanges, 1);
 
       await _closeBlocAndAllowDeferredDispose(bloc);
     });

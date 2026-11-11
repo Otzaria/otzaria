@@ -210,49 +210,34 @@ void main() {
     });
   }
 
-  testWidgets(
-    'קדימה מופיע רק אחרי חזרה, והתיאורים נוקבים ביעד (#3656, #4769)',
-    (
-      tester,
-    ) async {
-      final lines = LineScrollController(initialAnchor: initial);
-      addTearDown(lines.dispose);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Center(
-            child: ReaderBackButton(
-              lines: lines,
-              describe: (anchor) => anchor.line == 5 ? 'ביצה ב.' : 'ביצה כג.',
-            ),
+  testWidgets('תיאור כפתור החזרה מתעדכן לפי יעד ההיסטוריה', (tester) async {
+    final lines = LineScrollController(initialAnchor: initial);
+    addTearDown(lines.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Center(
+          child: ReaderBackButton(
+            lines: lines,
+            describe: (anchor) => anchor.line == 5 ? 'ביצה ב.' : 'ביצה כג.',
           ),
         ),
-      );
-      const back = ValueKey('reader-back-location');
-      const forward = ValueKey('reader-forward-location');
-      String tooltip(Key key) =>
-          tester.widget<BarButton>(find.byKey(key)).tooltip;
+      ),
+    );
+    final back = find.byKey(const ValueKey('reader-back-location'));
+    String tooltip() => tester.widget<BarButton>(back).tooltip;
 
-      expect(tooltip(back), 'חזרה למיקום הקודם');
-      expect(find.byKey(forward), findsNothing);
-
-      await lines.jumpToLine(230);
-      await tester.pump();
-      expect(tooltip(back), 'חזרה אל ביצה ב.');
-      expect(find.byKey(forward), findsNothing);
-
-      await tester.tap(find.byKey(back));
-      await tester.pump();
-      expect(tooltip(forward), 'מעבר קדימה אל ביצה כג.');
-      expect(tooltip(back), 'חזרה למיקום הקודם');
-
-      await tester.tap(find.byKey(forward));
-      await tester.pump();
-      expect(lines.captureAnchor()!.line, 230);
-      expect(find.byKey(forward), findsNothing);
-      expect(tooltip(back), 'חזרה אל ביצה ב.');
-      await tester.pumpWidget(const SizedBox());
-    },
-  );
+    expect(tooltip(), 'חזרה למיקום הקודם');
+    await lines.jumpToLine(230);
+    await tester.pump();
+    expect(tooltip(), 'חזרה אל ביצה ב.');
+    await lines.jumpToLine(240);
+    await tester.pump();
+    expect(tooltip(), 'חזרה אל ביצה כג.');
+    await tester.tap(back);
+    await tester.pump();
+    expect(tooltip(), 'חזרה אל ביצה ב.');
+    await tester.pumpWidget(const SizedBox());
+  });
 
   testWidgets('כפתור חזרה מופעל אחרי ניווט ומשחזר את העוגן', (tester) async {
     final lines = LineScrollController(initialAnchor: initial);

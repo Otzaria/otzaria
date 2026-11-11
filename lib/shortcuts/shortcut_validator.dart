@@ -288,7 +288,7 @@ class ShortcutValidator {
     zoomResetKey: 'ctrl+0',
     fitPdfViewKey: 'ctrl+shift+0',
     previousPdfLocationKey: 'alt+arrowleft',
-    nextPdfLocationKey: 'alt+arrowright',
+    nextPdfLocationKey: '',
     findNextKey: 'f3',
     findPreviousKey: 'shift+f3',
     'key-shortcut-calendar-toggle-times': 'ctrl+t',

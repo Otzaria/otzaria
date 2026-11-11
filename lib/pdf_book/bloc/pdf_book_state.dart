@@ -148,10 +148,6 @@ class PdfBookLoaded extends PdfBookState {
   final int currentPageNumber;
   final int totalPages;
 
-  /// עמודי היעד של חזרה ושל התקדמות בהיסטוריית הקפיצות.
-  final ({int? back, int? forward}) locationHistory;
-  bool get canReturnToLocation => locationHistory.back != null;
-
   // Zoom
   final double zoom;
   final bool showZoomBar;
@@ -183,7 +179,6 @@ class PdfBookLoaded extends PdfBookState {
     this.outline,
     required this.currentPageNumber,
     this.totalPages = 1,
-    this.locationHistory = (back: null, forward: null),
     this.zoom = 1.0,
     this.showZoomBar = false,
     this.layoutMode = PdfLayoutMode.regularView,
@@ -210,7 +205,6 @@ class PdfBookLoaded extends PdfBookState {
     List<PdfOutlineNode>? outline,
     int? currentPageNumber,
     int? totalPages,
-    ({int? back, int? forward})? locationHistory,
     double? zoom,
     bool? showZoomBar,
     PdfLayoutMode? layoutMode,
@@ -238,7 +232,6 @@ class PdfBookLoaded extends PdfBookState {
       outline: clearOutline ? null : (outline ?? this.outline),
       currentPageNumber: currentPageNumber ?? this.currentPageNumber,
       totalPages: totalPages ?? this.totalPages,
-      locationHistory: locationHistory ?? this.locationHistory,
       zoom: zoom ?? this.zoom,
       showZoomBar: showZoomBar ?? this.showZoomBar,
       layoutMode: layoutMode ?? this.layoutMode,
@@ -263,7 +256,6 @@ class PdfBookLoaded extends PdfBookState {
   List<Object?> get props => [
     book.title,
     currentPageNumber,
-    locationHistory,
     zoom,
     showZoomBar,
     layoutMode,

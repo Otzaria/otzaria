@@ -61,6 +61,8 @@ import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/tabs/view/pane_drag_handle.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
@@ -115,6 +117,74 @@ void main() {
     await tourCubit.close();
     focusRepository.resetForTesting();
   });
+
+  for (final (size, seed, brightness) in [
+    (const Size(300, 800), AppSeedColors.defaultLight, Brightness.light),
+    (const Size(360, 800), AppSeedColors.defaultLight, Brightness.dark),
+    (const Size(1200, 800), AppSeedColors.white, Brightness.light),
+  ]) {
+    testWidgets('קדימה זמין בחלונית RTL ברוחב ${size.width}', (tester) async {
+      final book = TextBook(title: 'ביצה');
+      final bloc = _TestTextBookBloc(
+        _loadedState(book, content: List.generate(150, (i) => 'שורה $i')),
+      );
+      final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await bloc.close();
+        await tabsBloc.close();
+        await settingsBloc.close();
+        tab.dispose();
+      });
+      await _setSurfaceSize(tester, size);
+      tab.lines.reportExternalLine(0);
+      await tab.lines.jumpToLine(60);
+      await tab.lines.goBack();
+      await _pumpTextBookScreen(
+        tester,
+        tab: tab,
+        textBookBloc: bloc,
+        tabsBloc: tabsBloc,
+        settingsBloc: settingsBloc,
+        focusRepository: focusRepository,
+        shamorZachorDataProvider: shamorZachorDataProvider,
+        shamorZachorProgressProvider: shamorZachorProgressProvider,
+        bookmarkBloc: bookmarkBloc,
+        personalNotesBloc: personalNotesBloc,
+        tourCubit: tourCubit,
+        isInCombinedView: true,
+        textDirection: TextDirection.rtl,
+        withPaneDragHandle: true,
+        textScaler: TextScaler.linear(1.3),
+        theme: AppThemeData.light(
+          AppThemeData.createColorScheme(seed, brightness),
+          compactMenuMode: false,
+          variant: AppThemeVariant.ofSeed(seed),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      final toolbarForward = find.byKey(
+        const ValueKey('reader-forward-location'),
+      );
+      if (size.width <= 360) {
+        expect(toolbarForward, findsNothing);
+        await tester.tap(find.byTooltip('עוד פעולות'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('מעבר קדימה'));
+        await tester.pumpAndSettle();
+      } else {
+        await tester.tap(toolbarForward);
+        await tester.pumpAndSettle();
+      }
+      expect(tab.lines.captureAnchor()?.line, 60);
+      expect(tab.lines.history.value.forward, isNull);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   for (final contextMenu in [false, true]) {
     testWidgets(
@@ -2572,6 +2642,9 @@ Future<void> _pumpTextBookScreen(
   AppWindowGeometry? geometry,
   WindowFullscreenCubit? fullscreenCubit,
   bool withGlobalShortcuts = false,
+  bool withPaneDragHandle = false,
+  ThemeData? theme,
+  TextScaler? textScaler,
 }) async {
   // openBook (מסלול פתיחת נוסח) קורא גם ל-HistoryBloc ול-NavigationBloc.
   final historyBloc = _TestHistoryBloc();
@@ -2581,11 +2654,14 @@ Future<void> _pumpTextBookScreen(
     await navigationBloc.close();
   });
 
-  final Widget viewer = TextBookViewerBloc(
+  Widget viewer = TextBookViewerBloc(
     tab: tab,
     isInCombinedView: isInCombinedView,
     openBookCallback: (_) {},
   );
+  if (withPaneDragHandle) {
+    viewer = PaneDragHandleScope(pane: tab, enabled: true, child: viewer);
+  }
   final screen = withGlobalShortcuts
       ? KeyboardShortcuts(onFindRefRequested: () {}, child: viewer)
       : viewer;
@@ -2617,8 +2693,21 @@ Future<void> _pumpTextBookScreen(
         ],
         child: MaterialApp(
           navigatorKey: windowKeys?.navigator,
-          builder: (context, child) =>
-              Directionality(textDirection: textDirection, child: child!),
+          theme: theme,
+          builder: (context, child) {
+            final directed = Directionality(
+              textDirection: textDirection,
+              child: child!,
+            );
+            return textScaler == null
+                ? directed
+                : MediaQuery(
+                    data: MediaQuery.of(
+                      context,
+                    ).copyWith(textScaler: textScaler),
+                    child: directed,
+                  );
+          },
           home: windowKeys == null
               ? screen
               : AppWindowScope(

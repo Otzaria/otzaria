@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 /// עוגן קריאה בתוך עמוד, שאינו תלוי בגודל החלון או במיקום העמוד בפריסה.
@@ -37,7 +38,7 @@ class PdfReadingLocation extends Equatable {
 }
 
 /// היסטוריית קפיצות זמנית של טאב; אינה מחזיקה מסמכים או תמונות.
-class PdfLocationHistory {
+class PdfLocationHistory extends ChangeNotifier {
   final _locations = <PdfReadingLocation>[];
   final _forward = <PdfReadingLocation>[];
 
@@ -47,9 +48,12 @@ class PdfLocationHistory {
   PdfReadingLocation? get next => _forward.lastOrNull;
 
   /// ניווט חדש: נקודת חזרה, ומסלול הקדימה מתבטל.
-  void remember(PdfReadingLocation location) {
-    _push(_locations, location);
+  void remember(PdfReadingLocation? location) {
+    final previous = last;
+    final hadForward = canGoForward;
+    if (location != null) _push(_locations, location);
     _forward.clear();
+    if (last != previous || hadForward) notifyListeners();
   }
 
   /// [current] נשמר לחזרה קדימה.
@@ -60,7 +64,7 @@ class PdfLocationHistory {
   PdfReadingLocation? takeNext([PdfReadingLocation? current]) =>
       _travel(_forward, _locations, current);
 
-  static PdfReadingLocation? _travel(
+  PdfReadingLocation? _travel(
     List<PdfReadingLocation> from,
     List<PdfReadingLocation> to,
     PdfReadingLocation? current,
@@ -68,6 +72,7 @@ class PdfLocationHistory {
     if (from.isEmpty) return null;
     final target = from.removeLast();
     if (current != null && current != target) _push(to, current);
+    notifyListeners();
     return target;
   }
 

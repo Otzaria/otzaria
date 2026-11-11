@@ -98,7 +98,7 @@ class ShortcutHelper {
   /// בודק אם האירוע [event] תואם להגדרת הקיצור [shortcutSetting].
   ///
   /// [shortcutSetting] הוא מחרוזת כגון `'ctrl+shift+f'`, `'f11'`, `'ctrl+comma'`.
-  /// הפרמטרים האופציונליים מאפשרים בדיקות יחידה מבלי להסתמך על מצב חומרה אמיתי.
+  /// [includeRepeats] מתאים גם החזקת מקש; מצב החומרה ניתן להזרקה בבדיקות.
   static bool matchesShortcut(
     KeyEvent event,
     String shortcutSetting, {
@@ -107,8 +107,12 @@ class ShortcutHelper {
     bool? isAltPressed,
     bool? isAltGrPressed,
     bool? isMetaPressed,
+    bool includeRepeats = false,
   }) {
-    if (event is! KeyDownEvent) return false;
+    if (event is! KeyDownEvent &&
+        !(includeRepeats && event is KeyRepeatEvent)) {
+      return false;
+    }
 
     final normalized = normalizeShortcut(shortcutSetting);
     if (normalized == null || normalized.isEmpty) return false;

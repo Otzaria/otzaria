@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
@@ -101,10 +103,13 @@ void main() {
       );
       expect(tab.navigationHistory.canGoBack, isFalse);
       final saved = PdfReadingLocation.capture(controller)!;
-      final remembered = bloc.stream.first;
+      final changed = Completer<void>();
+      tab.navigationHistory.addListener(() {
+        if (!changed.isCompleted) changed.complete();
+      });
       bloc.add(RememberPdfLocation(saved));
-      await remembered;
-      expect((bloc.state as PdfBookLoaded).canReturnToLocation, isTrue);
+      await changed.future;
+      expect(tab.navigationHistory.last, saved);
       final returned = bloc.stream.first;
       const left = PdfReadingLocation(
         pageNumber: 1,
@@ -118,18 +123,15 @@ void main() {
       expect(controller.lastZoom, 2);
       expect(controller.lastDuration, Duration.zero);
       expect(tab.navigationHistory.canGoBack, isFalse);
-      expect((bloc.state as PdfBookLoaded).canReturnToLocation, isFalse);
-      expect((bloc.state as PdfBookLoaded).locationHistory.forward, 1);
+      expect(tab.navigationHistory.next, left);
 
       final forwarded = bloc.stream.first;
       bloc.add(GoForwardPdfLocation(saved));
       await forwarded;
       await pumpEventQueue();
       expect(controller.lastZoom, 1);
-      expect((bloc.state as PdfBookLoaded).locationHistory, (
-        back: 2,
-        forward: null,
-      ));
+      expect(tab.navigationHistory.last, saved);
+      expect(tab.navigationHistory.canGoForward, isFalse);
     },
   );
 }

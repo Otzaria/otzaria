@@ -151,9 +151,13 @@ void main() {
         );
         bloc.add(
           SwitchToWorkspace(
+            sourceWorkspaceId: bloc.state.activeWorkspaceId,
             targetWorkspaceId: target.id,
-            currentTabsToSave: open,
-            currentTabIndexToSave: 0,
+            readCurrentTabs: () => (
+              tabs: open,
+              activeTabIndex: 0,
+              activePane: null,
+            ),
           ),
         );
         await switched;
