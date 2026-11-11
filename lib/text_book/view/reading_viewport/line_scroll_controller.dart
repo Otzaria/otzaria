@@ -410,9 +410,8 @@ class LineScrollController {
   }
 
   Future<void> _run(_Target target) async {
-    final binding = _binding;
     final segments = _segments;
-    if (binding == null || segments == null || segments.isEmpty) return;
+    if (segments == null || segments.isEmpty) return;
     final token = ++_token;
     _navigating++;
     _activeTarget = target;
@@ -423,7 +422,6 @@ class LineScrollController {
         segments: segments,
         latestSegments: () => _segments ?? segments,
         lineIndex: target.line,
-        viewportExtent: binding.viewportExtent(),
         alignment: target.alignment,
         intraLineFraction: target.intraLineFraction,
         duration: target.duration,

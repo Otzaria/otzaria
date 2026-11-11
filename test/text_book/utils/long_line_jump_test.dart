@@ -100,7 +100,6 @@ void main() {
             positionsListener: positionsListener,
             segments: segments,
             lineIndex: 10,
-            viewportExtent: 600,
             alignment: kSearchResultAnchorAlignment,
             intraLineFraction: fraction,
             duration: const Duration(milliseconds: 300),
@@ -170,7 +169,6 @@ void main() {
       positionsListener: null,
       segments: segments,
       lineIndex: 0,
-      viewportExtent: 600,
       intraLineFraction: 0.85,
       duration: Duration.zero,
       isCurrent: () => current,
@@ -230,7 +228,6 @@ void main() {
       positionsListener: null,
       segments: segments,
       lineIndex: 20,
-      viewportExtent: 600,
       duration: Duration.zero,
     ).then((_) => finished = true);
     for (var i = 0; i < 6; i++) {

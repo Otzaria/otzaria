@@ -64,7 +64,6 @@ void main() {
         positionsListener: positionsListener,
         segments: segments,
         lineIndex: 0,
-        viewportExtent: 400,
         duration: Duration.zero,
         intraLineFraction: 0.5,
       );
@@ -118,7 +117,6 @@ void main() {
         positionsListener: positionsListener,
         segments: segments,
         lineIndex: 7,
-        viewportExtent: 400,
         duration: const Duration(milliseconds: 250),
       );
 
@@ -177,7 +175,6 @@ void main() {
         positionsListener: positionsListener,
         segments: segments,
         lineIndex: 0,
-        viewportExtent: 400,
         duration: const Duration(milliseconds: 250),
         intraLineFraction: 0.5,
       );
@@ -281,7 +278,6 @@ void main() {
         segments: partial,
         latestSegments: () => segments,
         lineIndex: targetLine,
-        viewportExtent: 400,
         duration: const Duration(milliseconds: 250),
       );
       // באמצע האנימציה הפרק הראשון נטען.
