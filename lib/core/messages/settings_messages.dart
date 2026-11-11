@@ -120,8 +120,8 @@ abstract class SettingsMessages {
 
   static String backupSaved(String size) => 'הגיבוי נשמר! גודל: $size';
 
-  static String backupPluginTooLarge(String pluginId) =>
-      'התוסף "$pluginId" גדול מדי ולא נכלל בגיבוי';
+  static String backupPluginsTooLarge(List<String> pluginIds) =>
+      'תוספים גדולים מדי שלא נכללו בגיבוי: ${pluginIds.join(", ")}';
 
   static String backupCreateError(Object error) =>
       'שגיאה ביצירת הגיבוי: $error';
