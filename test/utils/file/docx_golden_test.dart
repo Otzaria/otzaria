@@ -11,7 +11,7 @@ import 'docx_golden_fixtures.dart';
 /// כל תרחיש מקובע כאן כ**פלט מלא ומדויק**, ולא כ-`contains` — זו הנקודה:
 /// refactor שמכליל את המנוע ל-DOCM/DOTX/ODT חייב להשאיר את הפלט של DOCX
 /// זהה בייט-בבייט. שינוי מכוון בפלט מחייב עדכון golden כאן **וגם** העלאת
-/// `kDocxConverterVersion`, אחרת המטמון יגיש פלט ישן.
+/// `kOoxmlWordConverterVersion`, אחרת המטמון יגיש פלט ישן.
 void main() {
   const title = 'ספר';
   const table =
