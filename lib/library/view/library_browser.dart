@@ -945,6 +945,15 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               onSubmitted: (value) async {
                 if (await _tryHandleDeepLink(context, value)) return;
                 if (!context.mounted) return;
+                // Enter על תוצאה מסומנת פותח אותה; החיפוש כבר רץ בהקלדה (#4468).
+                final marked = _markedSearchResult(
+                  context.read<LibraryBloc>().state,
+                  settingsState,
+                );
+                if (marked != null) {
+                  _openBookInReader(marked, marked is PdfBook ? 1 : 0);
+                  return;
+                }
                 context.read<LibraryBloc>().add(const SelectTopics([]));
                 _scheduleSearchWithSettings(context, settingsState);
               },
@@ -1641,32 +1650,36 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             final isSelected =
                 _isPreviewPanelVisible(settingsState) &&
                 libState.previewBook == book;
-            return _withTalmudFormatMenu(
+            return _withBookEnterShortcut(
               book,
-              book is PdfBook ? 1 : 0,
-              GestureDetector(
-                onDoubleTap: () =>
-                    _openBookInReader(book, book is PdfBook ? 1 : 0),
-                child: BookGridItem(
-                  book: book,
-                  showTopics: showTopics,
-                  isSelected: isSelected,
-                  focusNode: focusNode,
-                  onFocused: _isPreviewPanelVisible(settingsState)
-                      ? () => _showBookPreview(book)
-                      : null,
-                  onBookClickCallback: () {
-                    if (_isPreviewPanelVisible(settingsState)) {
-                      _showBookPreview(book);
-                    } else {
-                      _openBookInReader(book, book is PdfBook ? 1 : 0);
-                    }
-                  },
-                  onBookDeleted: () {
-                    if (ctx.mounted) {
-                      ctx.read<LibraryBloc>().add(RefreshLibrary());
-                    }
-                  },
+              _isPreviewPanelVisible(settingsState),
+              _withTalmudFormatMenu(
+                book,
+                book is PdfBook ? 1 : 0,
+                GestureDetector(
+                  onDoubleTap: () =>
+                      _openBookInReader(book, book is PdfBook ? 1 : 0),
+                  child: BookGridItem(
+                    book: book,
+                    showTopics: showTopics,
+                    isSelected: isSelected,
+                    focusNode: focusNode,
+                    onFocused: _isPreviewPanelVisible(settingsState)
+                        ? () => _showBookPreview(book)
+                        : null,
+                    onBookClickCallback: () {
+                      if (_isPreviewPanelVisible(settingsState)) {
+                        _showBookPreview(book);
+                      } else {
+                        _openBookInReader(book, book is PdfBook ? 1 : 0);
+                      }
+                    },
+                    onBookDeleted: () {
+                      if (ctx.mounted) {
+                        ctx.read<LibraryBloc>().add(RefreshLibrary());
+                      }
+                    },
+                  ),
                 ),
               ),
             );
@@ -1678,6 +1691,34 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
   void _showBookPreview(Book book) =>
       context.read<LibraryBloc>().add(SelectBookForPreview(book));
+
+  /// הספר המסומן בתוצאות החיפוש, אם Enter בשדה החיפוש אמור לפתוח אותו. null
+  /// כשאין תצוגה מקדימה, כשהחיפוש עוד לא הסתיים (הסימון של תוצאות קודמות), או
+  /// כשהספר המסומן אינו בתוצאות.
+  Book? _markedSearchResult(LibraryState state, SettingsState settings) {
+    final marked = state.previewBook;
+    if (marked == null ||
+        _searchDebounce != null ||
+        state.isSearching ||
+        !_isPreviewPanelVisible(settings)) {
+      return null;
+    }
+    return (state.searchResults?.contains(marked) ?? false) ? marked : null;
+  }
+
+  /// Enter על ספר בתצוגה מקדימה פותח אותו, כמו בקטגוריה. בלי זה Enter מפעיל את
+  /// ה-tap, שרק מסמן שוב את אותה תצוגה מקדימה (#4468).
+  Widget _withBookEnterShortcut(Book book, bool previewVisible, Widget child) {
+    if (!previewVisible) return child;
+    void open() => _openBookInReader(book, book is PdfBook ? 1 : 0);
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.enter): open,
+        const SingleActivator(LogicalKeyboardKey.numpadEnter): open,
+      },
+      child: child,
+    );
+  }
 
   Widget _buildSearchListView(
     List<Book> books,
@@ -2432,30 +2473,34 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             final isSelected =
                 _isPreviewPanelVisible(settingsState) &&
                 libState.previewBook == book;
-            return _withTalmudFormatMenu(
+            return _withBookEnterShortcut(
               book,
-              book is PdfBook ? 1 : 0,
-              _buildBookListRow(
-                context: ctx,
-                book: book,
-                level: level,
-                itemStyle: itemStyle,
-                isSelected: isSelected,
-                focusNode: focusNode,
-                onTap: () {
-                  if (_isPreviewPanelVisible(settingsState)) {
-                    _showBookPreview(book);
-                  } else {
-                    _openBookInReader(book, book is PdfBook ? 1 : 0);
-                  }
-                },
-                onDoubleTap: () =>
-                    _openBookInReader(book, book is PdfBook ? 1 : 0),
-                onBookDeleted: () {
-                  if (ctx.mounted) {
-                    ctx.read<LibraryBloc>().add(RefreshLibrary());
-                  }
-                },
+              _isPreviewPanelVisible(settingsState),
+              _withTalmudFormatMenu(
+                book,
+                book is PdfBook ? 1 : 0,
+                _buildBookListRow(
+                  context: ctx,
+                  book: book,
+                  level: level,
+                  itemStyle: itemStyle,
+                  isSelected: isSelected,
+                  focusNode: focusNode,
+                  onTap: () {
+                    if (_isPreviewPanelVisible(settingsState)) {
+                      _showBookPreview(book);
+                    } else {
+                      _openBookInReader(book, book is PdfBook ? 1 : 0);
+                    }
+                  },
+                  onDoubleTap: () =>
+                      _openBookInReader(book, book is PdfBook ? 1 : 0),
+                  onBookDeleted: () {
+                    if (ctx.mounted) {
+                      ctx.read<LibraryBloc>().add(RefreshLibrary());
+                    }
+                  },
+                ),
               ),
             );
           },
