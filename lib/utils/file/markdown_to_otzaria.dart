@@ -111,10 +111,34 @@ class MarkdownToOtzaria {
     String baseDirectory,
   ) async {
     var embeddedBytes = 0;
+    String? realBase;
+    var baseUnavailable = false;
     for (final image in fragment.querySelectorAll('img')) {
+      final source = image.attributes['src'];
+      if (source == null || !_isRelativeUrl(source)) {
+        // Data images are already embedded. Other non-relative URLs must not
+        // cause network requests in the offline reader.
+        if (source == null || !_isEmbeddedImageUrl(source)) {
+          image.attributes.remove('src');
+        }
+        continue;
+      }
+      if (realBase == null && !baseUnavailable) {
+        try {
+          // Resolve the import directory once, not once per image. The
+          // destination file is still independently resolved and checked.
+          realBase = await Directory(baseDirectory).resolveSymbolicLinks();
+        } on FileSystemException {
+          baseUnavailable = true;
+        }
+      }
+      if (realBase == null) {
+        image.attributes.remove('src');
+        continue;
+      }
       embeddedBytes += await _resolveLocalImage(
         image,
-        baseDirectory,
+        realBase,
         embeddedBytes: embeddedBytes,
       );
     }
@@ -122,22 +146,12 @@ class MarkdownToOtzaria {
 
   Future<int> _resolveLocalImage(
     Element image,
-    String baseDirectory, {
+    String realBase, {
     required int embeddedBytes,
   }) async {
-    final source = image.attributes['src'];
-    if (source == null) {
-      image.attributes.remove('src');
-      return 0;
-    }
-    if (_isEmbeddedImageUrl(source)) return 0;
-    if (!_isRelativeUrl(source)) {
-      image.attributes.remove('src');
-      return 0;
-    }
+    final source = image.attributes['src']!;
     try {
       final decoded = Uri.decodeComponent(source.split('#').first);
-      final realBase = await Directory(baseDirectory).resolveSymbolicLinks();
       final candidate = path.normalize(path.join(realBase, decoded));
       final resolved = await File(candidate).resolveSymbolicLinks();
       if (!path.isWithin(realBase, resolved)) {
