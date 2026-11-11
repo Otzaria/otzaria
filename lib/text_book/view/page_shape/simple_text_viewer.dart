@@ -95,6 +95,11 @@ import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
 import 'package:otzaria/text_book/utils/numbered_note_markers.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
+import 'package:otzaria/text_book/utils/inline_section_marks_loader.dart';
+import 'package:otzaria/text_book/utils/inline_section_markers.dart';
+import 'package:otzaria/data/data_providers/database_library_provider.dart'
+    show InlineSectionMarks;
+import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/text_book/view/reader_line/reader_line_item.dart';
 import 'package:otzaria/text_book/view/reader_line/reader_line_render.dart';
 import 'package:otzaria/text_book/view/reader_line/reader_line_spec.dart';
@@ -553,6 +558,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   Timer? _previewHoverTimer;
   List<PersonalNote> _commentaryNotes = const [];
   int _commentaryNotesLoadGeneration = 0;
+
+  Map<int, String> _sectionMarkersByLine = const {};
+  Map<int, List<String>> _sectionHeadingsByLine = const {};
+  int _sectionMarksGeneration = 0;
   StreamSubscription<String>? _notesChangesSubscription;
 
   /// מזהה הריחוף הממתין. טעינה אסינכרונית שהתחילה בודקת אותו לאחר ה-await —
@@ -1128,6 +1137,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         );
       }
       _attachViewport();
+      _loadSectionMarks();
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
@@ -1348,7 +1358,58 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       // ה-State עלול להישמר במעבר ספר — מטמון ה"מפרשים הנוספים" ממופה לפי
       // שורה בלבד, ולכן חייב להתאפס כדי לא להחזיר מפרשים של הספר הקודם.
       _siblingController?.clear();
+      _sectionMarkersByLine = const {};
+      _sectionHeadingsByLine = const {};
+      _loadSectionMarks();
     }
+  }
+
+  /// סמני החלוקה וכותרות הפרשה/הנושא של הטקסט הראשי, כמו בתצוגה הרגילה.
+  Future<void> _loadSectionMarks({bool retryAfterBusy = true}) async {
+    final generation = ++_sectionMarksGeneration;
+    final tab = widget.tab;
+    if (!widget.isMainText || tab is! TextBookTab) return;
+    bool isCurrent() =>
+        mounted &&
+        generation == _sectionMarksGeneration &&
+        identical(tab, widget.tab);
+    final InlineSectionMarks? loaded;
+    try {
+      loaded = await loadInlineSectionMarks(
+        tab.book,
+        (line) => line >= 0 && line < widget.content.length
+            ? widget.content[line]
+            : null,
+      );
+    } on DbReadWorkerBusy {
+      if (!isCurrent()) return;
+      if (retryAfterBusy) {
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        if (isCurrent()) unawaited(_loadSectionMarks(retryAfterBusy: false));
+      } else {
+        UiSnack.showError(
+          TextBookMessages.sectionMarkersBusy,
+          window: _previewWindow,
+          duration: const Duration(seconds: 10),
+          onTap: () {
+            if (isCurrent()) unawaited(_loadSectionMarks());
+          },
+        );
+      }
+      return;
+    }
+    if (loaded == null || !isCurrent()) return;
+    final marks = loaded;
+    if (marks.markers.isEmpty &&
+        marks.headings.isEmpty &&
+        _sectionMarkersByLine.isEmpty &&
+        _sectionHeadingsByLine.isEmpty) {
+      return;
+    }
+    setState(() {
+      _sectionMarkersByLine = marks.markers;
+      _sectionHeadingsByLine = marks.headings;
+    });
   }
 
   Future<void> _loadCommentaryNotes() async {
@@ -1584,6 +1645,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
               layout: readingLayoutOf(textBookState),
               lines: widget.content,
               baseIndex: baseIndex,
+              sectionHeadings: _sectionHeadingsByLine,
             )
           : null,
     );
@@ -3188,9 +3250,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       ),
     );
 
+    final sectionHeadings = isMultiLine
+        ? null
+        : _sectionHeadingsByLine[primaryLineIndex];
     // EnhancedGestureDetector ולא GestureDetector רגיל: לחיצה משולשת לבחירת
     // פסקה ב-SelectableRegion חייבת לא לזלוג ל-onTap שמאפס את הבחירה.
-    return Builder(
+    final item = Builder(
       builder: (itemContext) => EnhancedGestureDetector(
         behavior: HitTestBehavior.translucent,
         onSingleTap: widget.isMainText
@@ -3343,7 +3408,28 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         ),
       ),
     );
+    if (sectionHeadings == null) return item;
+    // הכותרת אינה חלק מהשורה: מחוץ לרקע הבחירה ולמחוות שלה.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [_sectionHeadingsText(state, sectionHeadings), item],
+    );
   }
+
+  /// כותרות נושא/פרשה שמוזרקות מעל השורה.
+  Widget _sectionHeadingsText(TextBookLoaded state, List<String> headings) =>
+      BlocBuilder<SettingsBloc, SettingsState>(
+        builder: (context, settingsState) => SmartTextWidget(
+          text: sectionHeadingsHtml(headings),
+          settings: RenderSettings.fromProfile(
+            _displayProfile(state),
+            fontSize: widget.fontSize,
+            fontFamily: widget.fontFamily ?? settingsState.fontFamily,
+            fontWeight: settingsState.fontBold ? FontWeight.bold : null,
+            lineHeight: settingsState.lineHeight,
+          ),
+        ),
+      );
 
   ReaderLineContext _readerLineContext(
     TextBookLoaded state,
@@ -3363,6 +3449,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         ? FontWeight.bold
         : null,
     lineHeight: settingsState.lineHeight,
+    sectionHeadings: _sectionHeadingsByLine,
     isRelated: widget.isMainText
         ? null
         : (line) => widget.highlightedIndices?.contains(line) ?? false,
@@ -3404,6 +3491,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         lineIndex,
         state,
       );
+      // סמן חלוקה (אות/סעיף) — תוכן גלוי, אחרי סמני העוגן.
+      data = prependSectionMarker(data, _sectionMarkersByLine[lineIndex]);
     } else if (widget.anchorLinksByLine != null) {
       data = _injectOwnAnchorMarkers(data, lineIndex, state);
     }
@@ -3479,6 +3568,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       state,
       noteMap[spec.lineIndex + 1] ?? const <PersonalNote>[],
     ),
+    blockHeadings: (headings) => _sectionHeadingsText(state, headings),
     onTapUrl: (url) => handleReaderParagraphUrl(
       context,
       url,
