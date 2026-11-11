@@ -2382,6 +2382,155 @@ Future<void> main() async {
 
       expect(result, '');
     });
+
+    group('טעינת ספר שלם בקריאות מקבילות', () {
+      late _CountingTextBookRepository repository;
+      late List<TextBook> books;
+      late PluginBridgeAdapter boundedAdapter;
+
+      PluginBridgeAdapter buildAdapter(TextBookRepository textBooks) {
+        final adapter = PluginBridgeAdapter(
+          _buildInstalledPlugin(permissions: const ['library.read']),
+          dependencies: PluginBridgeDependencies(
+            historyBloc: _MockHistoryBloc(),
+            tabsBloc: _StubTabsBloc(),
+            navigationBloc: _MockNavigationBloc(),
+            calendarCubit: _StubCalendarCubit(
+              _buildCalendarState(DateTime(2026, 1, 1), inIsrael: true),
+            ),
+            workspaceBloc: _MockWorkspaceBloc(),
+            searchRepository: _MockSearchRepository(),
+            personalNotesRepository: _MockPersonalNotesRepository(),
+            bookOpenCoordinator: _MockBookOpenCoordinator(),
+            themePayloadBuilder: () => <String, dynamic>{},
+            showConfirmDialog: ({required title, required content}) async =>
+                true,
+            showWarningDialog:
+                ({required title, required content, required subtitle}) async =>
+                    true,
+            bookProtectionResolver: (_) async => BookProtection.none,
+            textBookRepository: textBooks,
+          ),
+          pluginRepository: _StubPluginRegistryRepository(),
+        );
+        addTearDown(adapter.dispose);
+        return adapter;
+      }
+
+      setUp(() {
+        books = [
+          for (var i = 0; i < 40; i++)
+            TextBook(title: 'ספר מקביל $i', categoryId: 700, fileType: 'txt'),
+        ];
+        DataRepository.instance.library = Future.value(
+          Library(
+            categories: [
+              Category(
+                title: 'מקביל',
+                description: '',
+                shortDescription: '',
+                order: 0,
+                subCategories: const [],
+                books: books,
+                parent: null,
+              ),
+            ],
+          ),
+        );
+        repository = _CountingTextBookRepository();
+        boundedAdapter = buildAdapter(repository);
+      });
+
+      test('ספרים רבים במקביל — מספר הספרים השלמים בזיכרון חסום', () async {
+        final results = await Future.wait([
+          for (final book in books)
+            boundedAdapter.execute('library', 'getBookContent', {
+              'bookId': book.title,
+              'limit': 20,
+            }),
+        ]);
+
+        expect(results.first, 'תוכן של ספר מקביל 0');
+        expect(results.last, 'תוכן של ספר מקביל 39');
+        expect(repository.loads, books.length);
+        expect(repository.maxInFlight, lessThanOrEqualTo(4));
+      });
+
+      test('חתיכות מקבילות של אותו ספר — טעינה אחת', () async {
+        final chunks = await Future.wait([
+          for (var i = 0; i < 20; i++)
+            boundedAdapter.execute('library', 'getBookContent', {
+              'bookId': books.first.title,
+              'offset': i,
+              'limit': 1,
+            }),
+        ]);
+
+        expect(chunks.join(), 'תוכן של ספר מקביל 0');
+        expect(repository.loads, 1);
+      });
+
+      test('טעינות שנכשלו משחררות את מקומן בתור', () async {
+        repository.failures = 6;
+        for (var i = 0; i < 6; i++) {
+          await expectLater(
+            boundedAdapter.execute('library', 'getBookContent', {
+              'bookId': books[i].title,
+            }),
+            throwsA(isA<StateError>()),
+          );
+        }
+
+        final result = await boundedAdapter
+            .execute('library', 'getBookContent', {'bookId': books.first.title})
+            .timeout(const Duration(seconds: 5));
+        expect(result, 'תוכן של ספר מקביל 0');
+      });
+
+      test('טעינות תקועות של תוסף אחד אינן מעכבות תוסף אחר', () async {
+        final gate = Completer<void>();
+        repository.gate = gate.future;
+        final stuck = [
+          for (var i = 0; i < 6; i++)
+            boundedAdapter
+                .execute('library', 'getBookContent', {
+                  'bookId': books[i].title,
+                })
+                .then<Object?>((value) => value, onError: (Object e) => e),
+        ];
+        await pumpEventQueue();
+
+        final other = buildAdapter(_CountingTextBookRepository());
+        final result = await other
+            .execute('library', 'getBookContent', {'bookId': books[10].title})
+            .timeout(const Duration(seconds: 5));
+        expect(result, 'תוכן של ספר מקביל 10');
+
+        gate.complete();
+        await Future.wait(stuck);
+      });
+
+      test('סגירת התוסף מבטלת טעינות שממתינות בתור', () async {
+        final gate = Completer<void>();
+        repository.gate = gate.future;
+        final pending = [
+          for (var i = 0; i < 6; i++)
+            boundedAdapter
+                .execute('library', 'getBookContent', {
+                  'bookId': books[i].title,
+                })
+                .then<Object?>((value) => value, onError: (Object e) => e),
+        ];
+        await pumpEventQueue();
+
+        boundedAdapter.dispose();
+        gate.complete();
+        final outcomes = await Future.wait(pending);
+
+        expect(repository.loads, 4);
+        expect(outcomes.whereType<StateError>(), hasLength(2));
+      });
+    });
   });
 
   group('PluginBridgeAdapter.library.resolveCategoryPaths', () {
@@ -7912,6 +8061,33 @@ class _TocTextBook extends TextBook {
   Future<List<TocEntry>> get tableOfContents async => [
     TocEntry(text: 'שם יהוה', index: 0),
   ];
+}
+
+/// סופר טעינות ספר שלם, ואת המקסימום שרץ בו-זמנית.
+class _CountingTextBookRepository extends Fake implements TextBookRepository {
+  int loads = 0;
+  int inFlight = 0;
+  int maxInFlight = 0;
+  int failures = 0;
+  Future<void>? gate;
+
+  @override
+  Future<String> getBookContent(TextBook book) async {
+    loads++;
+    inFlight++;
+    if (inFlight > maxInFlight) maxInFlight = inFlight;
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await gate;
+      if (failures > 0) {
+        failures--;
+        throw StateError('read failed');
+      }
+      return 'תוכן של ${book.title}';
+    } finally {
+      inFlight--;
+    }
+  }
 }
 
 /// תוכן לפי ספר, למהדורות חלופיות שאינן עוברות דרך הספקים.

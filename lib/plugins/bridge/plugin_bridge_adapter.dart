@@ -757,10 +757,15 @@ class PluginBridgeAdapter {
       _networkFetchService ??= PluginNetworkFetchService();
 
   // LRU קצר לכל תוסף; bookUid מפריד ספרים זהים ממסדים מצורפים שונים.
-  final Map<String, String> _bookContentCache = {};
+  final Map<String, Future<String>> _bookContentCache = {};
   final List<({String raw, Object key, Future<String> content})>
   _filteredContents = [];
   static const int _bookContentCacheMaxEntries = 4;
+  // כל טעינה מחזיקה ספר שלם בזיכרון; תוסף שמבקש אלפי ספרים במקביל מגיע ל-GBs.
+  // הגבול לכל תוסף, כדי שטעינות תקועות של תוסף אחד לא יעכבו תוסף אחר.
+  static const int _maxConcurrentBookLoads = 4;
+  int _activeBookLoads = 0;
+  final List<Completer<void>> _bookLoadWaiters = [];
   static int _bookContentRevision = 0;
   int _seenBookContentRevision = 0;
 
@@ -847,6 +852,10 @@ class PluginBridgeAdapter {
     _networkFetchService?.dispose();
     _fileDownloadService?.dispose();
     _bookContentCache.clear();
+    for (final waiter in _bookLoadWaiters) {
+      waiter.completeError(StateError('plugin adapter disposed'));
+    }
+    _bookLoadWaiters.clear();
     _filteredContents.clear();
     unawaited(_directBookReportService?.closeHttpClient());
     _bookIndexLibrary = null;
@@ -907,23 +916,49 @@ class PluginBridgeAdapter {
       _bookContentCache[key] = cached; // רענון מיקום ב-LRU
       return cached;
     }
-    // ה-TextBook מהקטלוג שומר categoryId/fileType נכונים גם בספרים השמורים רק ב-DB.
-    final String rawText;
-    if (book is TextBook) {
-      rawText =
-          await (_dependencies.textBookRepository ??
-                  TextBookRepository(
-                    fileSystem: FileSystemData.instance,
-                  ))
-              .getBookContent(book);
-    } else {
-      rawText = await DataRepository.instance.getBookText(book.title);
-    }
-    _bookContentCache[key] = rawText;
+    // קריאות מקבילות לאותו ספר (חתיכות ב-Promise.all) חולקות טעינה אחת.
+    final load = _withBookLoadSlot(() => _readBookRawText(book));
+    _bookContentCache[key] = load;
     if (_bookContentCache.length > _bookContentCacheMaxEntries) {
       _bookContentCache.remove(_bookContentCache.keys.first);
     }
-    return rawText;
+    try {
+      return await load;
+    } catch (_) {
+      if (identical(_bookContentCache[key], load)) {
+        _bookContentCache.remove(key);
+      }
+      rethrow;
+    }
+  }
+
+  Future<String> _readBookRawText(Book book) async {
+    // ה-TextBook מהקטלוג שומר categoryId/fileType נכונים גם בספרים השמורים רק ב-DB.
+    if (book is TextBook) {
+      return (_dependencies.textBookRepository ??
+              TextBookRepository(fileSystem: FileSystemData.instance))
+          .getBookContent(book);
+    }
+    return DataRepository.instance.getBookText(book.title);
+  }
+
+  Future<String> _withBookLoadSlot(Future<String> Function() load) async {
+    if (_activeBookLoads < _maxConcurrentBookLoads) {
+      _activeBookLoads++;
+    } else {
+      final waiter = Completer<void>();
+      _bookLoadWaiters.add(waiter);
+      await waiter.future; // המשבצת מועברת ישירות מהטעינה שהסתיימה
+    }
+    try {
+      return await load();
+    } finally {
+      if (_bookLoadWaiters.isNotEmpty) {
+        _bookLoadWaiters.removeAt(0).complete();
+      } else {
+        _activeBookLoads--;
+      }
+    }
   }
 
   /// [request] כפי שהתוסף מקבל אותו. המרת הספר כולו רצה מחוץ ל-UI, ובקשות
@@ -1549,7 +1584,9 @@ class PluginBridgeAdapter {
         await _ensureBookTextAvailable(book ?? TextBook(title: bookId!));
         final rawNames = _rawDivineNamesArg(args);
         final rawText = book == null
-            ? await DataRepository.instance.getBookText(bookId!)
+            ? await _withBookLoadSlot(
+                () => DataRepository.instance.getBookText(bookId!),
+              )
             : await _loadBookRawText(book);
         final contentBook = book ?? TextBook(title: bookId!);
         TextDisplayProfile? displayProfile;
