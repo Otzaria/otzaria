@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   paired-windows:
-    name: A/B/A/B native WebView2 / Windows profile
+    name: ABBA native WebView2 / Windows profile
     runs-on: windows-2025
     timeout-minutes: 150
     env:
@@ -93,7 +93,13 @@ jobs:
               if (git status --porcelain --untracked-files=no) { throw 'Tracked source is dirty' }
               flutter pub get --enforce-lockfile
               if ($LASTEXITCODE -ne 0) { throw 'Strict dependency resolution failed' }
-              if (git status --porcelain --untracked-files=no) { throw 'Dependency resolution changed tracked source' }
+              $modified = @(git status --porcelain --untracked-files=no)
+              if ($modified.Count -gt 0) {
+                $label = if ($entry.pin -eq $env:AB_OLD_PIN) { 'baseline' } else { 'candidate' }
+                $modified | Out-File -LiteralPath (Join-Path $env:AB_OUT "$label-after-pub-status.txt") -Encoding utf8
+                git diff --name-status | Out-File -LiteralPath (Join-Path $env:AB_OUT "$label-after-pub-files.txt") -Encoding utf8
+                throw "Dependency resolution changed tracked source in $label (see uploaded status)"
+              }
             } finally { Pop-Location }
           }
 
