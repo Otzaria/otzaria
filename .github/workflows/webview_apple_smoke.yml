@@ -111,6 +111,7 @@ jobs:
           flutter devices --machine > "$RUNNER_TEMP/apple-webview-ios/devices.json"
 
       - name: Run real native WebView scenario (no mocks, no threshold waivers)
+        timeout-minutes: 35
         shell: bash
         run: |
           set -euo pipefail
