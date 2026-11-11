@@ -7,6 +7,8 @@ on:
   pull_request:
     paths:
       - '.github/workflows/webview_fork_paired_probe.yml'
+      - 'tool/perf_probe/compare_webview_fork_ab.py'
+      - 'tool/perf_probe/test_compare_webview_fork_ab.py'
   workflow_dispatch:
 
 permissions:
@@ -17,7 +19,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  comparator-contracts:
+    name: Comparator acceptance/negative tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.15'
+      - name: Fail-closed ABBA report contracts
+        run: python3 -m unittest -v tool/perf_probe/test_compare_webview_fork_ab.py
+
   paired-windows:
+    needs: comparator-contracts
     name: ABBA native WebView2 / Windows profile
     runs-on: windows-2025
     timeout-minutes: 150

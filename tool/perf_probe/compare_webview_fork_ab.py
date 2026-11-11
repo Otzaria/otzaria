@@ -6,6 +6,7 @@ metric is not zero; incomplete process enumeration is not complete coverage.
 """
 import argparse
 import json
+import math
 from pathlib import Path
 import statistics
 import sys
@@ -16,6 +17,7 @@ PHASES = {
     "discardWidget", "recreateAndRestore", "backgroundOpen", "backgroundIdle",
     "closeWidgets", "closedIdle",
 }
+NOT_RUN_PHASES = {"windowMinimize", "applicationBackground", "realPluginDiscard"}
 MEASURED = ("firstOpen", "multipleOpen", "hiddenIdle", "resume", "closedIdle")
 ORDER = ("baseline", "candidate", "candidate", "baseline")
 
@@ -33,11 +35,20 @@ def read_trial(root, index, mode, sha):
     report = wrapper.get("webviewResourceProbe")
     need(isinstance(report, dict), "Missing native webviewResourceProbe")
     need(report.get("scenarioStatus") == "completed", f"Native scenario failed: {report.get('error')}")
-    phases = report.get("phases")
-    need(isinstance(phases, dict) and all(phases.get(x) == "passed" for x in PHASES),
-         "Failed or missing native workload phase")
     records = report.get("records")
     need(isinstance(records, list), "Missing raw records")
+    phases = report.get("phases")
+    need(isinstance(phases, dict) and set(phases) == (PHASES | NOT_RUN_PHASES) and
+         all(phases.get(x) == "passed" for x in PHASES) and
+         all(phases.get(x) == "notRun" for x in NOT_RUN_PHASES),
+         "Failed, unexpected, or missing native workload phase")
+    skipped = [r for r in records if r.get("type") == "phase" and
+               r.get("name") in NOT_RUN_PHASES]
+    need(len(skipped) == len(NOT_RUN_PHASES) and
+         {r["name"] for r in skipped} == NOT_RUN_PHASES and
+         all(r.get("status") == "skipped" and isinstance(r.get("reason"), str)
+             and r["reason"].strip() for r in skipped),
+         "Expected explicit reason for each out-of-scope phase")
     meta = [r for r in records if r.get("type") == "meta"]
     need(len(meta) == 1, "Expected one metadata record")
     meta = meta[0]
@@ -45,6 +56,12 @@ def read_trial(root, index, mode, sha):
                           ("idleMs", 3000)):
         need(meta.get(key) == expected, f"Native provenance mismatch: {key}")
     need(meta.get("fixtureSha256"), "Missing immutable workload identity")
+    need(isinstance(meta.get("osVersion"), str) and meta["osVersion"].strip(),
+         "Missing exact host OS version")
+    need(isinstance(meta.get("flutterVersion"), str) and meta["flutterVersion"].strip(),
+         "Missing exact Flutter version")
+    need(type(meta.get("cores")) is int and meta["cores"] > 0,
+         "Missing host CPU count")
     view_records = [r.get("backend") for r in records if r.get("type") == "webviewBackend"]
     need(len(view_records) >= 3 and all(
         isinstance(v, dict) and v.get("verified") is True
@@ -77,10 +94,22 @@ def read_trial(root, index, mode, sha):
         }
     need(phases_data["multipleOpen"]["engineObservedPrivateCommitMiB"] is not None,
          "No usable native WebView2 memory sample for multipleOpen")
-    durations = {r.get("name"): r.get("elapsedMs")
-                 for r in records if r.get("type") == "phase" and r.get("name") in PHASES}
+    durations = {}
+    for phase in PHASES:
+        observed_phases = [r for r in records if r.get("type") == "phase" and r.get("name") == phase]
+        need(len(observed_phases) == 1 and observed_phases[0].get("status") == "passed",
+             f"Expected exactly one passed native phase: {phase}")
+        duration = observed_phases[0].get("durationMs")
+        need(type(duration) in (int, float) and math.isfinite(duration) and duration >= 0,
+             f"Missing or invalid native phase duration: {phase}")
+        durations[phase] = float(duration)
     return {"label": mode, "position": index, "commit": sha,
-            "workloadSha256": meta["fixtureSha256"], "phases": phases_data,
+            "workloadSha256": meta["fixtureSha256"],
+            "runtimeEnvironment": {
+                "osVersion": meta.get("osVersion"),
+                "flutterVersion": meta.get("flutterVersion"),
+                "cores": meta.get("cores"),
+            }, "phases": phases_data,
             "elapsedMs": durations, "frameSummaries": report.get("flutterFrameSummary", {})}
 
 
@@ -98,6 +127,8 @@ def compare(root, baseline, candidate):
               for i, mode in enumerate(ORDER)]
     need(len({x["workloadSha256"] for x in trials}) == 1,
          "Different fixture sources: invalid before/after")
+    need(len({json.dumps(x["runtimeEnvironment"], sort_keys=True) for x in trials}) == 1,
+         "OS, Flutter or CPU count changed between ABBA trials")
     result = {
         "schemaVersion": 1,
         "status": "descriptiveOnly",
