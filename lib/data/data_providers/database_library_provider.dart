@@ -2123,6 +2123,9 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   /// גרסאות שהמסדים המצורפים מצהירים עליהן בטבלת book_version_link.
   final List<AttachedBookVersionRecord> _attachedDbVersions = [];
 
+  /// ספרי מסד ממוזג שזהים לספר רשמי באותה קטגוריה; הצהרה מפורשת גוברת.
+  final List<AttachedVersionMember> _attachedDuplicateVersions = [];
+
   /// ספרי המסדים המצורפים לפי slug ומזהה במסד.
   final Map<String, Map<int, Book>> _attachedBooksById = {};
 
@@ -2325,8 +2328,9 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   /// ספר: קובצי המשתמש קודמים להצהרות המסד עצמו.
   void _resolveAttachedVersions(Map<String, List<Book>> catalogByTitle) {
     final records = [..._userAttachedVersions, ..._attachedDbVersions];
-    if (records.isEmpty) return;
+    if (records.isEmpty && _attachedDuplicateVersions.isEmpty) return;
     final members = Map<Book, AttachedVersionMember>.identity();
+    final declared = Set<Book>.identity();
     for (final record in records) {
       final slug = record.versionDb;
       final id = record.versionBookId;
@@ -2340,7 +2344,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
               title: title,
               catalogByTitle: catalogByTitle,
             );
-      if (version == null || members.containsKey(version)) continue;
+      if (version == null || !declared.add(version)) continue;
       final primary = resolveCatalogPrimary(record, catalogByTitle);
       if (primary == null || identical(primary, version)) continue;
       members[version] = (
@@ -2350,6 +2354,10 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         versionNotes: record.versionNotes,
         priority: record.priority,
       );
+    }
+    for (final duplicate in _attachedDuplicateVersions) {
+      if (declared.contains(duplicate.version)) continue;
+      members[duplicate.version] = duplicate;
     }
     // גרסה של ספר שהוא עצמו גרסה הייתה יוצרת קבוצה בלי ראשי בעץ.
     for (final member in members.values) {
@@ -4198,6 +4206,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     _attachedCategoryPaths.clear();
     _attachedBooksById.clear();
     _attachedDbVersions.clear();
+    _attachedDuplicateVersions.clear();
     final attachedLibraries = [
       for (final attached in AttachedLibraryRegistry.instance.visibleLibraries)
         if (attached.source != null) attached,
@@ -4431,6 +4440,12 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     final slug = build.source.slug;
     // כל הספרים כאן באותה קטגוריה — הנתיב מחושב פעם אחת ולא לכל ספר.
     final categoryPathInfo = _categoryPathInfo(category);
+    final officialByTitle = <(String, bool), Book>{
+      if (build.library.placement == AttachedLibraryPlacement.mergeIntoLibrary)
+        for (final book in category.books)
+          if (book.source.isOfficial)
+            (normalizeVersionTitle(book.title), book is PdfBook): book,
+    };
     for (final row in rows) {
       final id = row['id'] as int? ?? 0;
       final book = _convertMinimalBookMapToBook(
@@ -4453,6 +4468,17 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       category.books.add(book);
       final byId = _attachedBooksById.putIfAbsent(slug, () => {});
       if (book is! PdfBook || !byId.containsKey(id)) byId[id] = book;
+      final official =
+          officialByTitle[(normalizeVersionTitle(book.title), book is PdfBook)];
+      if (official != null) {
+        _attachedDuplicateVersions.add((
+          version: book,
+          primary: official,
+          versionTitle: build.library.displayName,
+          versionNotes: null,
+          priority: null,
+        ));
+      }
       _attachedCachedKeys.add(
         BookCompositeKey.create(
           title: book.title,

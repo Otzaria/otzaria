@@ -46,7 +46,8 @@ lib/migration/database/
   גרסת הספרייה הרשמית משתנים. מגבלה: 5,000,000 שורות למסד (נבנה בזרם, במנות), חיתוך כותרת/הפניה ב-512.
 - **גרסאות של ספר מצורף** — לפי קדימות: `user_attached_book_version` ב-user_books.db
   (קובץ גרסאות של המשתמש, slug+כותרת), ו-`book_version_link` שבמסד (נקרא עם הקטלוג
-  ב-`readAttachedCatalogSync`). כולם נפתרים ב-`_resolveAttachedVersions` דרך
+  ב-`readAttachedCatalogSync`), ובמיזוג — ספר זהה לרשמי באותה קטגוריה (מפת כותרות של
+  הקטגוריה ב-`_addAttachedBooks`, בלי שאילתות). כולם נפתרים ב-`_resolveAttachedVersions` דרך
   `resolveCatalogPrimary`, וספר הגרסה יורד מהעץ ל-`offTreeBooks`.
 - **קישורי משתמש (`user_link`)** — צד במסד מצורף נשמר ב-`sourceDb`/`targetDb` (slug)
   וכותרת, בלי קטגוריה. הייבוא פותח את המסדים ב-isolate דרך `AttachedLinkBooks`.
