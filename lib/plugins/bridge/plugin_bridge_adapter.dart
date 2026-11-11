@@ -756,16 +756,13 @@ class PluginBridgeAdapter {
   PluginNetworkFetchService get _fetchService =>
       _networkFetchService ??= PluginNetworkFetchService();
 
-  // LRU קצר לכל תוסף; bookUid מפריד ספרים זהים ממסדים מצורפים שונים.
-  final Map<String, Future<String>> _bookContentCache = {};
+  // LRU קצר לכל מופע; bookUid מפריד ספרים זהים ממסדים מצורפים שונים.
+  final Map<String, String> _bookContentCache = {};
+  final Map<String, ({Future<String> result, Timer expiry})> _pendingBookLoads =
+      {};
   final List<({String raw, Object key, Future<String> content})>
   _filteredContents = [];
   static const int _bookContentCacheMaxEntries = 4;
-  // כל טעינה מחזיקה ספר שלם בזיכרון; תוסף שמבקש אלפי ספרים במקביל מגיע ל-GBs.
-  // הגבול לכל תוסף, כדי שטעינות תקועות של תוסף אחד לא יעכבו תוסף אחר.
-  static const int _maxConcurrentBookLoads = 4;
-  int _activeBookLoads = 0;
-  final List<Completer<void>> _bookLoadWaiters = [];
   static int _bookContentRevision = 0;
   int _seenBookContentRevision = 0;
 
@@ -844,6 +841,7 @@ class PluginBridgeAdapter {
     }
     _activeNetworkFetchStreams.clear();
     _pendingNetworkFetchCancellations.clear();
+    _clearPendingBookLoads();
   }
 
   void dispose({bool removeRegistrations = true}) {
@@ -852,10 +850,6 @@ class PluginBridgeAdapter {
     _networkFetchService?.dispose();
     _fileDownloadService?.dispose();
     _bookContentCache.clear();
-    for (final waiter in _bookLoadWaiters) {
-      waiter.completeError(StateError('plugin adapter disposed'));
-    }
-    _bookLoadWaiters.clear();
     _filteredContents.clear();
     unawaited(_directBookReportService?.closeHttpClient());
     _bookIndexLibrary = null;
@@ -904,31 +898,55 @@ class PluginBridgeAdapter {
     }
   }
 
-  /// LRU מונע טעינה חוזרת של ספר בקריאות מקוטעות; UID שומר על הפרדת המקורות.
-  Future<String> _loadBookRawText(Book book) async {
-    if (_seenBookContentRevision != _bookContentRevision) {
+  void _clearPendingBookLoads() {
+    for (final load in _pendingBookLoads.values) {
+      load.expiry.cancel();
+    }
+    _pendingBookLoads.clear();
+  }
+
+  /// משתף טעינות מקבילות לפי UID ושומר טעינות שהסתיימו ב-LRU קצר.
+  Future<String> _loadBookRawText(
+    Book book, {
+    Duration shareFor = kPluginDefaultRpcTimeout,
+  }) async {
+    final revision = _bookContentRevision;
+    if (_seenBookContentRevision != revision) {
       _bookContentCache.clear();
-      _seenBookContentRevision = _bookContentRevision;
+      _clearPendingBookLoads();
+      _seenBookContentRevision = revision;
     }
     final key = PluginBookIdentity.uidOf(book);
     final cached = _bookContentCache.remove(key);
     if (cached != null) {
-      _bookContentCache[key] = cached; // רענון מיקום ב-LRU
+      _bookContentCache[key] = cached;
       return cached;
     }
-    // קריאות מקבילות לאותו ספר (חתיכות ב-Promise.all) חולקות טעינה אחת.
-    final load = _withBookLoadSlot(() => _readBookRawText(book));
-    _bookContentCache[key] = load;
-    if (_bookContentCache.length > _bookContentCacheMaxEntries) {
-      _bookContentCache.remove(_bookContentCache.keys.first);
-    }
+    final pending = _pendingBookLoads[key];
+    if (pending != null) return pending.result;
+    if (shareFor <= Duration.zero) return _readBookRawText(book);
+
+    final load = _readBookRawText(book);
+    // ניסיון חוזר אחרי timeout יכול לטעון גם כשהקריאה הקודמת עדיין תקועה.
+    final expiry = Timer(shareFor, () {
+      _pendingBookLoads.remove(key);
+    });
+    _pendingBookLoads[key] = (result: load, expiry: expiry);
     try {
-      return await load;
-    } catch (_) {
-      if (identical(_bookContentCache[key], load)) {
-        _bookContentCache.remove(key);
+      final text = await load;
+      if (identical(_pendingBookLoads[key]?.result, load) &&
+          revision == _bookContentRevision) {
+        _bookContentCache[key] = text;
+        if (_bookContentCache.length > _bookContentCacheMaxEntries) {
+          _bookContentCache.remove(_bookContentCache.keys.first);
+        }
       }
-      rethrow;
+      return text;
+    } finally {
+      expiry.cancel();
+      if (identical(_pendingBookLoads[key]?.result, load)) {
+        _pendingBookLoads.remove(key);
+      }
     }
   }
 
@@ -940,25 +958,6 @@ class PluginBridgeAdapter {
           .getBookContent(book);
     }
     return DataRepository.instance.getBookText(book.title);
-  }
-
-  Future<String> _withBookLoadSlot(Future<String> Function() load) async {
-    if (_activeBookLoads < _maxConcurrentBookLoads) {
-      _activeBookLoads++;
-    } else {
-      final waiter = Completer<void>();
-      _bookLoadWaiters.add(waiter);
-      await waiter.future; // המשבצת מועברת ישירות מהטעינה שהסתיימה
-    }
-    try {
-      return await load();
-    } finally {
-      if (_bookLoadWaiters.isNotEmpty) {
-        _bookLoadWaiters.removeAt(0).complete();
-      } else {
-        _activeBookLoads--;
-      }
-    }
   }
 
   /// [request] כפי שהתוסף מקבל אותו. המרת הספר כולו רצה מחוץ ל-UI, ובקשות
@@ -1336,6 +1335,9 @@ class PluginBridgeAdapter {
     String action,
     Map<String, dynamic> args,
   ) async {
+    final bookContentClock = action == 'getBookContent'
+        ? (Stopwatch()..start())
+        : null;
     final library = await DataRepository.instance.library;
     switch (action) {
       case 'refreshUserBooks':
@@ -1584,10 +1586,11 @@ class PluginBridgeAdapter {
         await _ensureBookTextAvailable(book ?? TextBook(title: bookId!));
         final rawNames = _rawDivineNamesArg(args);
         final rawText = book == null
-            ? await _withBookLoadSlot(
-                () => DataRepository.instance.getBookText(bookId!),
-              )
-            : await _loadBookRawText(book);
+            ? await DataRepository.instance.getBookText(bookId!)
+            : await _loadBookRawText(
+                book,
+                shareFor: kPluginDefaultRpcTimeout - bookContentClock!.elapsed,
+              );
         final contentBook = book ?? TextBook(title: bookId!);
         TextDisplayProfile? displayProfile;
         TextBookLoaded? readerState;
