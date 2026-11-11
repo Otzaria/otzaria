@@ -64,6 +64,10 @@ jobs:
           git rev-parse HEAD > "$RUNNER_TEMP/apple-webview-$PROBE_PLATFORM/source-commit.txt"
           git rev-parse HEAD^{tree} > "$RUNNER_TEMP/apple-webview-$PROBE_PLATFORM/source-tree.txt"
 
+      - name: Validate original browser fixture, including unchanged failure semantics
+        shell: bash
+        run: node --test tool/perf_probe/test_webview_probe_fixture.mjs
+
       - name: Resolve locked dependencies and validate the portable fixture
         shell: bash
         run: |

@@ -6,19 +6,25 @@ import vm from 'node:vm';
 const dart = readFileSync(new URL('../../integration_test/support/webview_probe_fixture.dart', import.meta.url), 'utf8');
 const source = dart.match(/<script>([\s\S]*?)<\/script>/)[1];
 
-function page() {
+function page({ scrollToApplies = true } = {}) {
   const frames = new Map(), intervals = new Map(), events = new Map(), replies = [];
   const draft = { value: '' };
   let next = 0;
   const context = {
-    document: { getElementById: () => draft, visibilityState: 'visible' },
+    document: {
+      getElementById: () => draft, visibilityState: 'visible', readyState: 'complete',
+      body: { scrollHeight: 12000 },
+      documentElement: { scrollHeight: 12032 },
+      scrollingElement: { tagName: 'HTML', scrollHeight: 12032, clientHeight: 700 },
+    },
+    innerHeight: 700,
     navigator: { userAgent: 'fixture-test' },
     requestAnimationFrame: (f) => { frames.set(++next, f); return next; },
     cancelAnimationFrame: (id) => frames.delete(id),
     setInterval: (f) => { intervals.set(++next, f); return next; },
     clearInterval: (id) => intervals.delete(id),
     scrollY: 0,
-    scrollTo: (_, y) => context.scrollY = y,
+    scrollTo: (_, y) => { if (scrollToApplies) context.scrollY = y; },
     scrollBy: (_, y) => context.scrollY += y,
     addEventListener: (name, f) => events.set(name, f),
     flutter_inappwebview: { callHandler(name, json) {
@@ -78,6 +84,24 @@ test('a new page restores a Hebrew draft, revision and scroll', () => {
     assert.deepEqual(fresh.replies[0].value[key], saved[key]);
   }
   assert.equal(fresh.replies[0].value.ticks, 0);
+});
+
+test('restore diagnostics distinguish applied scroll from a native delayed/ignored scroll', () => {
+  const snapshot = { schemaVersion: 1, draft: 'טיוטה', revision: 2, scrollY: 1440 };
+  for (const applies of [true, false]) {
+    const p = page({ scrollToApplies: applies });
+    p.command(5, 'restore', snapshot);
+    p.framesAfter(2);
+    assert.equal(p.replies.length, 1);
+    const result = p.replies[0].value;
+    assert.equal(result.scrollY, applies ? 1440 : 0);
+    assert.equal(result.restoreDiagnostics.expectedScrollY, 1440);
+    assert.equal(result.restoreDiagnostics.immediateScrollY, applies ? 1440 : 0);
+    assert.equal(result.restoreDiagnostics.scrollHeight, 12032);
+    assert.equal(result.restoreDiagnostics.innerHeight, 700);
+    assert.equal(result.restoreDiagnostics.documentReadyState, 'complete');
+    assert.equal(result.draft, snapshot.draft);
+  }
 });
 
 test('bad snapshot versions and values fail without changing the draft', () => {
