@@ -50,11 +50,8 @@ void main() {
     LibraryProviderManager.instance.seedMappingsForTesting(
       mapping: {
         for (final title in _commentators)
-          BookCompositeKey.create(
-            title: title,
-            categoryId: 1,
-            fileType: 'txt',
-          ): _FakeLibraryProvider(),
+          BookCompositeKey.create(title: title, categoryId: 1, fileType: 'txt'):
+              _FakeLibraryProvider(),
       },
       providers: [_FakeLibraryProvider()],
     );
@@ -108,6 +105,49 @@ void main() {
     );
     expect(innerScrollable(), same(scrollableBefore));
     expect(innerScrollable().position.pixels, pixels);
+  });
+
+  // issue #3720: שחרור העכבר מיקד את הקורא הראשי ומחק את הבחירה בכרטיס.
+  testWidgets('בחירה בגרירה בכרטיס המפרשים נשמרת אחרי שחרור העכבר', (
+    tester,
+  ) async {
+    // אזור בחירה מנקה את הבחירה באובדן פוקוס רק כשהאפליקציה פעילה.
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await _pumpCombinedView(tester);
+    final card = find.byType(CommentaryListBase);
+    expect(card, findsOneWidget);
+    final region = find.descendant(
+      of: card,
+      matching: find.byType(SelectableRegion),
+    );
+    final text = find
+        .descendant(
+          of: card,
+          matching: find.textContaining('קטע 1 של', findRichText: true),
+        )
+        .first;
+    final rect = tester.getRect(text);
+    final gesture = await tester.startGesture(
+      rect.centerRight - const Offset(4, 0),
+      kind: PointerDeviceKind.mouse,
+      buttons: kPrimaryMouseButton,
+    );
+    for (var i = 1; i <= 5; i++) {
+      await gesture.moveTo(Offset.lerp(rect.centerRight, rect.center, i / 5)!);
+      await tester.pump();
+    }
+    expect(
+      tester.state<SelectableRegionState>(region.first).selectionEndpoints,
+      isNotEmpty,
+      reason: 'הגרירה לא בחרה טקסט בכרטיס',
+    );
+    await gesture.up();
+    await _settle(tester);
+
+    expect(
+      tester.state<SelectableRegionState>(region.first).selectionEndpoints,
+      isNotEmpty,
+    );
   });
 
   testWidgets('כרטיסים נבחרים מחוץ למטמון משתחררים ומשחזרים כיווץ וגלילה', (
