@@ -1007,6 +1007,47 @@ void main() {
       });
     }
 
+    testWidgets('סגירה משחררת פוקוס שנשאר בחלונית, גם מתוך FocusScope', (
+      tester,
+    ) async {
+      final paneScope = FocusScopeNode();
+      addTearDown(paneScope.dispose);
+      Widget build(bool isOpen) => MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 1200,
+            height: 700,
+            child: AdaptiveSidePane(
+              isOpen: isOpen,
+              alignment: AlignmentDirectional.centerEnd,
+              paneWidth: 300,
+              minMainContentWidth: 420,
+              onClose: () {},
+              floatOverContent: true,
+              mainContent: const _CounterPane(key: ValueKey('main')),
+              paneContent: FocusScope(
+                node: paneScope,
+                child: const _CounterPane(key: ValueKey('pane')),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(build(true));
+      await tester.pumpAndSettle();
+      Focus.of(
+        tester.element(inPane('pane', find.text('increment'))),
+      ).requestFocus();
+      await tester.pump();
+      expect(paneScope.hasFocus, isTrue);
+
+      // שורת עץ שנלחצה וסגרה את החלונית: החיצים לא יגיעו אליה יותר.
+      await tester.pumpWidget(build(false));
+      await tester.pump();
+      expect(paneScope.hasFocus, isFalse);
+    });
+
     testWidgets('נעיצה וביטולה אינם בונים מחדש את החלונית ואת התוכן', (
       tester,
     ) async {
