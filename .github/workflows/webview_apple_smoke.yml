@@ -1,0 +1,174 @@
+name: WebView Apple native smoke (portable fixture)
+
+# Targeted native coverage for WebView dependency changes. This is a
+# functional scenario; it does not claim representative CPU/GPU/RAM savings.
+on:
+  pull_request:
+    paths:
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - 'integration_test/webview_resource_probe_test.dart'
+      - 'integration_test/support/perf_recorder.dart'
+      - 'integration_test/support/webview_probe_*.dart'
+      - 'test_driver/webview_resource_probe.dart'
+      - 'tool/perf_probe/validate_webview_apple_smoke.py'
+      - 'tool/perf_probe/test_webview_apple_smoke_validator.py'
+      - '.github/workflows/webview_apple_smoke.yml'
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform to test (iOS runs on a Simulator)
+        type: choice
+        options: [ios, macos]
+        default: ios
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apple-webview-smoke-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  report-contracts:
+    name: Fail-closed Apple report contract tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Verify accepted and rejected native report shapes
+        run: python3 -m unittest -v tool/perf_probe/test_webview_apple_smoke_validator.py
+
+  portable-webview:
+    needs: report-contracts
+    name: Actual WKWebView / ${{ inputs.platform || 'macos' }}
+    runs-on: macos-latest
+    timeout-minutes: 90
+    env:
+      CI: 'true'
+      BOT: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      DART_SUPPRESS_ANALYTICS: 'true'
+      CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+      GH_TOKEN: ${{ github.token }}
+      WEBVIEW_PROBE_REPORTS: ${{ github.workspace }}/apple-webview-reports
+      WEBVIEW_PROBE_DEVICE_OUTPUT: ''
+      # iOS stays manual while intermittent scroll restoration is investigated.
+      PROBE_PLATFORM: ${{ inputs.platform || 'macos' }}
+      PROBE_MODE: ${{ inputs.platform == 'ios' && 'debug' || 'profile' }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Capture exact host and source provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/apple-webview-$PROBE_PLATFORM"
+          sw_vers > "$RUNNER_TEMP/apple-webview-$PROBE_PLATFORM/os.txt"
+          uname -a >> "$RUNNER_TEMP/apple-webview-$PROBE_PLATFORM/os.txt"
+          xcodebuild -version > "$RUNNER_TEMP/apple-webview-$PROBE_PLATFORM/xcode.txt"
+          flutter --version --machine > "$RUNNER_TEMP/apple-webview-$PROBE_PLATFORM/flutter.json"
+          git rev-parse HEAD > "$RUNNER_TEMP/apple-webview-$PROBE_PLATFORM/source-commit.txt"
+          git rev-parse 'HEAD^{tree}' > "$RUNNER_TEMP/apple-webview-$PROBE_PLATFORM/source-tree.txt"
+
+      - name: Resolve locked dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter pub get --enforce-lockfile 2>&1 | tee "$RUNNER_TEMP/apple-webview-$PROBE_PLATFORM/pub-get.log"
+
+      - name: Create only an owned iOS Simulator
+        if: env.PROBE_PLATFORM == 'ios'
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PROBE_RECEIPT="$RUNNER_TEMP/apple-webview-ios/simulator-id.txt"
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess
+          runtimes = json.loads(subprocess.check_output(['xcrun','simctl','list','-j','runtimes']))['runtimes']
+          available = [r for r in runtimes if r.get('isAvailable') and
+                       r['identifier'].startswith('com.apple.CoreSimulator.SimRuntime.iOS-')]
+          installed = json.loads(subprocess.check_output(['xcrun','simctl','list','-j','devices']))['devices']
+          compatible = []
+          for runtime_info in available:
+              runtime_id = runtime_info['identifier']
+              for entry in installed.get(runtime_id, []):
+                  kind = entry.get('deviceTypeIdentifier', '')
+                  if entry.get('isAvailable') and kind.startswith('com.apple.CoreSimulator.SimDeviceType.iPhone-'):
+                      compatible.append((runtime_info, entry))
+          if not compatible:
+              raise SystemExit('No iOS runtime with a known-compatible iPhone device — NOT_RUN')
+          def version(entry):
+              return tuple(int(x) for x in entry[0].get('version', '0').split('.') if x.isdigit())
+          selected, prototype = max(compatible, key=version)
+          runtime = selected['identifier']
+          device = prototype['deviceTypeIdentifier']
+          name='otzaria-webview-' + os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT']
+          sim=subprocess.check_output(['xcrun','simctl','create',name,device,runtime],text=True).strip()
+          pathlib.Path(os.environ['PROBE_RECEIPT']).write_text(sim+'\n')
+          print('Created owned simulator',sim,'runtime',runtime,'device type',device)
+          PY
+          sim="$(cat "$PROBE_RECEIPT")"
+          xcrun simctl boot "$sim"
+          xcrun simctl bootstatus "$sim" -b
+          flutter devices --machine > "$RUNNER_TEMP/apple-webview-ios/devices.json"
+
+      - name: Run real native WebView scenario (no mocks, no threshold waivers)
+        timeout-minutes: 35
+        shell: bash
+        run: |
+          set -euo pipefail
+          target=macos
+          if [ "$PROBE_PLATFORM" = ios ]; then
+            target="$(cat "$RUNNER_TEMP/apple-webview-ios/simulator-id.txt")"
+          fi
+          flutter drive --"$PROBE_MODE" -d "$target" --no-pub \
+            --driver=test_driver/webview_resource_probe.dart \
+            --target=integration_test/webview_resource_probe_test.dart \
+            --dart-define=WEBVIEW_PROBE_FLUTTER_VERSION=3.47.7 \
+            --dart-define=WEBVIEW_PROBE_COMMIT=${{ github.sha }} \
+            --dart-define=WEBVIEW_PROBE_TABS=3 \
+            --dart-define=WEBVIEW_PROBE_IDLE_MS=3000 \
+            2>&1 | tee "$RUNNER_TEMP/apple-webview-$PROBE_PLATFORM/run.log"
+
+      - name: Validate complete real device report
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tool/perf_probe/validate_webview_apple_smoke.py \
+            --root "$WEBVIEW_PROBE_REPORTS" \
+            --platform "$PROBE_PLATFORM" \
+            --mode "$PROBE_MODE" \
+            --commit "$GITHUB_SHA"
+
+      - name: Cleanup only the Simulator created by this job
+        if: always() && env.PROBE_PLATFORM == 'ios'
+        shell: bash
+        run: |
+          receipt="$RUNNER_TEMP/apple-webview-ios/simulator-id.txt"
+          if [ -f "$receipt" ]; then
+            sim="$(cat "$receipt")"
+            if [[ "$sim" =~ ^[0-9A-Fa-f-]{36}$ ]]; then
+              xcrun simctl shutdown "$sim" || true
+              xcrun simctl delete "$sim" || true
+            else
+              echo "::error::Refusing cleanup of invalid owned simulator receipt"
+              exit 1
+            fi
+          fi
+
+      - name: Preserve full raw and partial evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: apple-webview-${{ env.PROBE_PLATFORM }}-${{ env.PROBE_MODE }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            ${{ runner.temp }}/apple-webview-${{ env.PROBE_PLATFORM }}/
+            ${{ env.WEBVIEW_PROBE_REPORTS }}/
