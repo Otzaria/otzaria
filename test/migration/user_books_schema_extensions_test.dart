@@ -40,6 +40,16 @@ void main() {
       expect(tables, contains('user_link'));
     });
 
+    test('מסד קיים בלי user_attached_book_version מקבל אותה בפתיחה', () async {
+      await database.database;
+      database.close();
+      final setupDb = sqlite3.sqlite3.open(dbPath);
+      setupDb.execute('DROP TABLE user_attached_book_version');
+      setupDb.close();
+      database = MyDatabase.withPath(dbPath);
+      expect(await tableNames(), contains('user_attached_book_version'));
+    });
+
     test(
       'user_link מכילה את העמודות הנדרשות לזיהוי מקור+יעד חוצה-DB',
       () async {

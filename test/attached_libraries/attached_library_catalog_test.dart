@@ -163,6 +163,58 @@ void main() {
     expect(officialTorah.books.every((b) => b.source.isOfficial), isTrue);
   });
 
+  test(
+    'גרסה מקובץ המשתמש שספרה במסד מצורף: מוסתרת ומוצגת כגרסה (#4392)',
+    () async {
+      final library = await attach(
+        attachedFixture('נוסחים', SeforimFixtureVariant.full),
+      );
+      final userDb =
+          (await UserBooksDatabaseHolder.instance.repository).database;
+      (await userDb.database).execute(
+        'INSERT INTO user_attached_book_version (versionDb, versionBookTitle, '
+        'primarySource, primaryTitle, versionTitle, source) '
+        "VALUES (?, ?, 'o', ?, 'נוסח המסד', 'import')",
+        [
+          library.slug,
+          SeforimFixtureIds.bereshitTitle,
+          SeforimFixtureIds.bereshitTitle,
+        ],
+      );
+
+      final catalog = await buildCatalog();
+
+      final root = _child(
+        _child(catalog, _personalRoot)!,
+        library.displayName,
+      )!;
+      final torah = _child(_child(root, 'תנ"ך')!, 'תורה')!;
+      expect(
+        [for (final b in torah.books) b.title],
+        [
+          SeforimFixtureIds.rashiTitle,
+        ],
+      );
+      final version = catalog.offTreeBooks.single;
+      expect(version.source, library.source);
+      final official = _child(_child(catalog, 'תנ"ך')!, 'תורה')!.books
+          .firstWhere(
+            (b) => b.title == SeforimFixtureIds.bereshitTitle,
+          );
+      final ofOfficial = provider.getPersonalVersionsOf(official);
+      expect(ofOfficial.single.displayTitle, 'נוסח המסד');
+      expect(identical(ofOfficial.single.separateBook, version), isTrue);
+      final group = provider.getPersonalVersionsOf(version);
+      expect(
+        [for (final v in group) v.separateBook?.source],
+        [
+          BookSource.official,
+          library.source,
+        ],
+      );
+    },
+  );
+
   test('נתיב הקטגוריה והנושאים מחושבים פעם אחת לקטגוריה', () async {
     final library = await attach(
       attachedFixture('ספרייה', SeforimFixtureVariant.full),
