@@ -52,24 +52,7 @@ const webViewProbeHtml = r'''<!doctype html>
             }
             draft.value = value.draft; revision = value.revision;
             window.scrollTo(0, value.scrollY);
-            const immediateScrollY = window.scrollY;
-            requestAnimationFrame(() => requestAnimationFrame(() => {
-              const scroller = document.scrollingElement;
-              const result = snapshot();
-              result.restoreDiagnostics = {
-                immediateScrollY,
-                expectedScrollY: value.scrollY,
-                afterFramesScrollY: window.scrollY,
-                innerHeight: window.innerHeight,
-                scrollHeight: scroller ? scroller.scrollHeight : null,
-                scrollClientHeight: scroller ? scroller.clientHeight : null,
-                bodyScrollHeight: document.body ? document.body.scrollHeight : null,
-                documentScrollHeight: document.documentElement.scrollHeight,
-                documentReadyState: document.readyState,
-                documentVisibility: document.visibilityState
-              };
-              reply(id, result);
-            }));
+            requestAnimationFrame(() => requestAnimationFrame(() => reply(id, snapshot())));
             return;
           case 'scroll': {
             let remaining = 60;

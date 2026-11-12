@@ -453,16 +453,6 @@ void main() {
       await phase('recreateAndRestore', () async {
         active = await open();
         final restored = await active.command('restore', saved);
-        recorder.write({
-          'type': 'restoreObservation',
-          'platform': Platform.operatingSystem,
-          'expectedScrollY': saved['scrollY'],
-          'restoredScrollY': restored['scrollY'],
-          'restoreDiagnostics': restored['restoreDiagnostics'],
-          'sameDraft': restored['draft'] == saved['draft'],
-          'sameRevision': restored['revision'] == saved['revision'],
-          'acceptance': 'pendingAssertions',
-        });
         expect(restored['schemaVersion'], saved['schemaVersion']);
         expect(restored['draft'], saved['draft']);
         expect(restored['revision'], saved['revision']);
