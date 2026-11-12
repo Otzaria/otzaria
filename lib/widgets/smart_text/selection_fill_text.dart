@@ -5,6 +5,7 @@
 /// התצוגה, שנוגעת בשורה שאחריה, כמו בדפדפן ובוורד.
 library;
 
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart';
@@ -236,6 +237,7 @@ class _RenderSelectionFillParagraph extends RenderParagraph {
   @override
   void performLayout() {
     super.performLayout();
+    _hardBreakShifts = null;
     final pending = _pendingRegistrar;
     if (pending != null) {
       _pendingRegistrar = null;
@@ -251,17 +253,100 @@ class _RenderSelectionFillParagraph extends RenderParagraph {
     ui.BoxHeightStyle boxHeightStyle = ui.BoxHeightStyle.tight,
     ui.BoxWidthStyle boxWidthStyle = ui.BoxWidthStyle.tight,
   }) {
-    return super.getBoxesForSelection(
-      selection,
-      boxHeightStyle: boxHeightStyle == ui.BoxHeightStyle.tight
-          ? ui.BoxHeightStyle.max
-          : boxHeightStyle,
-      boxWidthStyle: boxWidthStyle,
+    return _unshiftBoxes(
+      super.getBoxesForSelection(
+        selection,
+        boxHeightStyle: boxHeightStyle == ui.BoxHeightStyle.tight
+            ? ui.BoxHeightStyle.max
+            : boxHeightStyle,
+        boxWidthStyle: boxWidthStyle,
+      ),
     );
   }
 
+  /// הבחירה מבקשת מיקום מחוץ לפסקה בפינה הוויזואלית (`adjustDragOffset`), ובשורה
+  /// שמתחילה או מסתיימת ברצף בכיוון ההפוך הפינה אינה תחילת הטקסט או סופו.
+  @override
+  TextPosition getPositionForOffset(Offset offset) {
+    if (offset.dy <= 0) return const TextPosition(offset: 0);
+    if (offset.dy >= size.height) {
+      return TextPosition(
+        offset: text.toPlainText(includeSemanticsLabels: false).length,
+        affinity: TextAffinity.upstream,
+      );
+    }
+    final dx = _shiftAt(offset.dy)?.dx ?? 0;
+    return super.getPositionForOffset(offset.translate(dx, 0));
+  }
+
   List<ui.TextBox> _glyphBoxesForSelection(TextSelection selection) =>
-      super.getBoxesForSelection(selection);
+      _unshiftBoxes(super.getBoxesForSelection(selection));
+
+  /// skparagraph מודד שורת RTL שמסתיימת ב-`\n` כאילו ל-`\n` רוחב בקצה השמאלי,
+  /// ולכן התיבות והמיקומים בה זזים ימינה ממה שצויר. נמדד פעם אחת לכל פריסה.
+  List<_LineShift>? _hardBreakShifts;
+
+  List<_LineShift> get _shifts =>
+      _hardBreakShifts ??= _measureHardBreakShifts();
+
+  List<_LineShift> _measureHardBreakShifts() {
+    if (textDirection != TextDirection.rtl) return const [];
+    final plain = text.toPlainText(includeSemanticsLabels: false);
+    final shifts = <_LineShift>[];
+    var start = 0;
+    for (var i = plain.indexOf('\n'); i >= 0; i = plain.indexOf('\n', i + 1)) {
+      final lineStart = start;
+      start = i + 1;
+      final breakBoxes = super.getBoxesForSelection(
+        TextSelection(baseOffset: i, extentOffset: i + 1),
+        boxHeightStyle: ui.BoxHeightStyle.max,
+      );
+      if (i == lineStart || breakBoxes.isEmpty) continue;
+      final line = breakBoxes.first;
+      var left = double.infinity;
+      for (final box in super.getBoxesForSelection(
+        TextSelection(baseOffset: lineStart, extentOffset: i),
+      )) {
+        if (box.bottom > line.top && box.top < line.bottom) {
+          left = math.min(left, box.left);
+        }
+      }
+      final dx = left - line.left;
+      if (dx.isFinite && dx > 0.5) {
+        shifts.add((
+          top: line.top,
+          bottom: line.bottom,
+          left: line.left,
+          dx: dx,
+        ));
+      }
+    }
+    return shifts;
+  }
+
+  _LineShift? _shiftAt(double dy) {
+    for (final shift in _shifts) {
+      if (dy >= shift.top && dy < shift.bottom) return shift;
+    }
+    return null;
+  }
+
+  List<ui.TextBox> _unshiftBoxes(List<ui.TextBox> boxes) {
+    if (_shifts.isEmpty) return boxes;
+    return [
+      for (final box in boxes)
+        if (_shiftAt((box.top + box.bottom) / 2) case final shift?)
+          ui.TextBox.fromLTRBD(
+            math.max(box.left - shift.dx, shift.left),
+            box.top,
+            math.max(box.right - shift.dx, shift.left),
+            box.bottom,
+            box.direction,
+          )
+        else
+          box,
+    ];
+  }
 }
 
 /// תיבות בגובה הגליף (`tight`) גם בפסקה שמילוי הבחירה ממפה בה `tight` ל-`max` —
@@ -272,3 +357,5 @@ List<ui.TextBox> glyphBoxesForSelection(
 ) => paragraph is _RenderSelectionFillParagraph
     ? paragraph._glyphBoxesForSelection(selection)
     : paragraph.getBoxesForSelection(selection);
+
+typedef _LineShift = ({double top, double bottom, double left, double dx});

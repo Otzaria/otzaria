@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -379,6 +380,100 @@ void main() {
         .selectAll();
     await tester.pump();
     expect(selected, contains('שורה שנוספה מחוץ לתצוגה'));
+  });
+
+  // issue #4458: skparagraph מזיז את מדידות שורת RTL שלפני `\n` ימינה ברוחב
+  // ה-`\n`, בעוד האותיות מצוירות במקומן.
+  testWidgets('השורה שלפני \\n נמדדת כמו אותה שורה בסוף הפסקה', (tester) async {
+    await tester.pumpWidget(
+      _wrap(
+        const SelectionFillText.rich(
+          TextSpan(text: '$_longText\n$_longText'),
+          style: _baseStyle,
+          textAlign: TextAlign.justify,
+        ),
+      ),
+    );
+    final paragraph = tester.renderObject<RenderParagraph>(
+      find.byType(SelectionFillRichText),
+    );
+    const n = _longText.length;
+    ui.TextBox glyph(int offset) => glyphBoxesForSelection(
+      paragraph,
+      TextSelection(baseOffset: offset, extentOffset: offset + 1),
+    ).single;
+
+    for (final box in _paintedBoxes(paragraph)) {
+      expect(box.right, lessThanOrEqualTo(paragraph.size.width + 0.5));
+    }
+    // שתי המחציות זהות, ולכן האות האחרונה לפני `\n` זהה לאחרונה בפסקה.
+    expect(glyph(n - 1).left, closeTo(glyph(2 * n).left, 0.01));
+    expect(glyph(n - 1).right, closeTo(glyph(2 * n).right, 0.01));
+    final lineY = glyph(n - 1).toRect().center.dy;
+    final lastY = glyph(2 * n).toRect().center.dy;
+    for (var x = glyph(2 * n).left; x < paragraph.size.width; x += 3) {
+      expect(
+        paragraph.getPositionForOffset(Offset(x, lineY)).offset + n + 1,
+        paragraph.getPositionForOffset(Offset(x, lastY)).offset,
+        reason: 'x=$x',
+      );
+    }
+  });
+
+  // issue #3761: פסקה שהבחירה עוברת עליה במלואה מקבלת את הפינה הוויזואלית שלה,
+  // ובשורה שמתחילה או מסתיימת באנגלית הפינה אינה תחילת הטקסט או סופו.
+  testWidgets('בחירה בגרירה כוללת פסקאות מעורבות שמתחילות או נגמרות באנגלית', (
+    tester,
+  ) async {
+    const mixed = [
+      'Question twenty six people ספרד meaning they say',
+      'אומרים תחנון At say it as twenty',
+      'Answer:',
+    ];
+    String? selected;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Scaffold(
+            body: SelectionArea(
+              onSelectionChanged: (content) => selected = content?.plainText,
+              child: SizedBox(
+                width: 260,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final text in ['שורה ראשונה', ...mixed, 'שורה אחרונה'])
+                      SelectionFillText.rich(
+                        TextSpan(text: text),
+                        style: _baseStyle,
+                        textAlign: TextAlign.justify,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final paragraphs = find.byType(SelectionFillRichText);
+    final gesture = await tester.startGesture(
+      tester.getTopRight(paragraphs.first) + const Offset(-10, 10),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    await gesture.moveTo(
+      tester.getTopRight(paragraphs.last) + const Offset(-40, 10),
+    );
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    for (final text in mixed) {
+      expect(selected, contains(text));
+    }
   });
 
   // issue #1402: מי שממקם ציור ביחס לאותיות (סימונים מורמים, הדגשות תוספים)
