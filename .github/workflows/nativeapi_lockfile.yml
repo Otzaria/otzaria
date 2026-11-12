@@ -1,0 +1,35 @@
+name: Generate NativeAPI migration lockfile
+
+on:
+  pull_request:
+    paths:
+      - pubspec.yaml
+      - .github/workflows/nativeapi_lockfile.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate-lockfile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          channel: stable
+          cache: true
+      - name: Regenerate lockfile
+        run: flutter pub get
+      - name: Emit lockfile as text for migration review
+        run: |
+          echo 'BEGIN_OTZARIA_NATIVEAPI_LOCKFILE'
+          base64 -w 0 pubspec.lock
+          echo
+          echo 'END_OTZARIA_NATIVEAPI_LOCKFILE'
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: nativeapi-resolved-lockfile
+          path: pubspec.lock
