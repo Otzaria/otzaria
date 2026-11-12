@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/app_drag_to_move_area.dart';
+import 'package:otzaria/core/windowing/app_window_controller.dart';
 import 'package:otzaria/core/windowing/app_virtual_window_frame.dart';
 import 'package:otzaria/core/windowing/app_window_id.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
@@ -115,6 +118,38 @@ void main() {
     await tester.pump(kDoubleTapTimeout);
   });
 
+  testWidgets('out-of-order maximize replies cannot hide active resize edges', (
+    tester,
+  ) async {
+    final first = Completer<bool>();
+    final second = Completer<bool>();
+    final window = _DelayedResizeWindow([first.future, second.future]);
+    addTearDown(window.changes.dispose);
+
+    await tester.pumpWidget(
+      AppWindowScope(
+        controller: window,
+        geometry: const WindowManagerAppWindowController(),
+        child: const Directionality(
+          textDirection: TextDirection.rtl,
+          child: AppVirtualWindowFrame(child: SizedBox.expand()),
+        ),
+      ),
+    );
+    expect(window.reads, 1);
+
+    window.changes.fire();
+    expect(window.reads, 2);
+    second.complete(false); // Most recent state: normal, resizable.
+    await tester.pump();
+    first.complete(true); // Stale result: maximized, must be ignored.
+    await tester.pump();
+
+    await tester.dragFrom(const Offset(400, 2), const Offset(0, 60));
+    expect(window.resizeEdges, [ResizeEdge.top]);
+    await tester.pump(kDoubleTapTimeout);
+  });
+
   testWidgets('חלון בלי שינוי גודל משלו מקבל את התוכן כמו שהוא', (
     tester,
   ) async {
@@ -148,4 +183,38 @@ class _Counter extends StatefulWidget {
 class _CounterState extends State<_Counter> {
   @override
   Widget build(BuildContext context) => const SizedBox.expand();
+}
+
+class _DelayedResizeWindow extends Fake
+    implements AppWindowController, AppWindowResizing {
+  _DelayedResizeWindow(this.maximizedReplies);
+
+  final List<Future<bool>> maximizedReplies;
+  final changes = _TestWindowStateChanges();
+  final resizeEdges = <ResizeEdge>[];
+  int reads = 0;
+
+  @override
+  Listenable get stateChanges => changes;
+
+  @override
+  Future<bool> isMaximized() {
+    reads++;
+    return maximizedReplies.removeAt(0);
+  }
+
+  @override
+  Future<bool> isFullScreen() async => false;
+
+  @override
+  Future<void> startResizing(ResizeEdge edge) async {
+    resizeEdges.add(edge);
+  }
+
+  @override
+  Future<void> maximizeVertically() async {}
+}
+
+class _TestWindowStateChanges extends ChangeNotifier {
+  void fire() => notifyListeners();
 }
