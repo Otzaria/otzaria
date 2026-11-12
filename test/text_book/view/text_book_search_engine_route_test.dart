@@ -248,7 +248,7 @@ Future<void> main() async {
       );
       final marker = spans.singleWhere((span) => span.text == '12');
       expect(marker.style!.fontSize, 12);
-    }, skip: engineReady ? false : searchEngineSkipReason);
+    }, skip: !engineReady);
   }
 
   testWidgets('שאילתה חיצונית מעדכנת ניתוב בשני הכיוונים בלי שינוי בהגדרות', (
