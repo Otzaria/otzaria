@@ -1,0 +1,22 @@
+{
+  "original_qa_archive": [
+    {
+      "archive_file": "qa_windows_reader_original_8b1bcfd5.py",
+      "base_commit": "f05cbf270cba7c7815b965b4a67f2d07cdf12be3",
+      "original_repo_path": "tool/perf_probe/results/pr4307_review_20261112/repro/qa_windows_reader.py",
+      "git_blob": "9486eac2143f1da6ae1c15fc53e2de8e23386bef",
+      "bytes": 48516,
+      "sha256": "8b1bcfd52f774a0f5a87cf3b084f89e833d2c1128ea4946fdc28d9443da09060"
+    },
+    {
+      "archive_file": "windows-qa-input-contract_original.json",
+      "base_commit": "f05cbf270cba7c7815b965b4a67f2d07cdf12be3",
+      "original_repo_path": "tool/perf_probe/results/pr4307_review_20261112/repro/windows-qa-input-contract.json",
+      "git_blob": "19c25b99ba9cf1f7f1ca089156842d833117b935",
+      "bytes": 4645,
+      "sha256": "4a9f57e6aa845826acba04761000ffcadfb07a0c6e2e0989503f41d80004241c"
+    }
+  ],
+  "observations_changed": false,
+  "purpose": "Keep the original QA program and contract that produced the initial report; the reviewed QA source and report are separately included. No artifact data was changed to resolve availability classifications."
+}

@@ -1,0 +1,19 @@
+{
+  "run_id": 43289584496,
+  "run_attempt": 1,
+  "job_id": 131431946281,
+  "source": "Full decoded job-log content returned by the GitHub connector; UTF-8 serialization preserves all characters and line endings.",
+  "source_json_sha256": "6e6a65d2c6b3097833472e7a54d9125636190f3773c3d3aa971d334d87cfb061",
+  "decoded_utf8_bytes": 497345,
+  "decoded_utf8_sha256": "668769efe799d0fc9d43dde7a9c01994c3d8826d03cd9a353e819af7905a771b",
+  "gzip_bytes": 79934,
+  "gzip_sha256": "4771f5466b8333708930052e11fa79646d3d270a2d06e195ed7e7d636cc27d3a",
+  "compression": {
+    "algorithm": "gzip",
+    "level": 9,
+    "mtime": 0,
+    "filename": ""
+  },
+  "gzip_round_trip_verified": true,
+  "filtered_or_normalized": false
+}

@@ -1,0 +1,21 @@
+{
+  "run_id": 43276783432,
+  "run_attempt": 1,
+  "job_id": 131387187813,
+  "artifact_id": 13978305619,
+  "connector": "github_download_workflow_artifact",
+  "account": "palmoni5",
+  "mime_type": "application/zip",
+  "host_domain": "sdmntprnortheu.oaiusercontent.com",
+  "expected_sha256": "39ba138234ff546e9556fa9826aa51ac47e212f1f327b5227d28ee870a494d01",
+  "api_size_in_bytes": 58694388,
+  "started_at_utc": "2026-11-12T19:41:37.327649+00:00",
+  "http_status": 200,
+  "bytes": 58694388,
+  "sha256": "39ba138234ff546e9556fa9826aa51ac47e212f1f327b5227d28ee870a494d01",
+  "digest_matches": true,
+  "api_size_matches": true,
+  "completed_at_utc": "2026-11-12T19:41:40.875430+00:00",
+  "original_zip": "/workspace/scratch/03d201536b5d/pr4307-windows-full-run43276783432/reader-profile-43276783432-1-artifact-13978305619.zip",
+  "success": true
+}

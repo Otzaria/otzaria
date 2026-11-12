@@ -1,0 +1,7 @@
+{
+  "verify_and_extract_zip": "python3 repro/verify_extract.py --zip failure-v2/original-artifact-13977237642.zip --destination /new/extraction-directory --receipt /new/receipt.json --run-id 43289584496 --run-attempt 1 --job-id 131431946281 --artifact-id 13977237642 --expected-sha256 5445a94dccce6fc6b27c384d4ad47adb4fee7c1f1b0b9769f9ac670256ec8545",
+  "read_full_job_log": "gzip -dc failure-v2/job-log.decoded.log.gz",
+  "workflow_schema": "actionlint v3/workflow.yml",
+  "path_calculation": "For each root in path-length-diagnosis.json, concatenate the recorded observed_suffix; count the resulting characters and add one for the terminating NUL. The exact same suffix is used for every counterfactual path.",
+  "diagnosis_scope": "LNK1104 plus a 263-character input path strongly suggests a path-length issue, but is not conclusive. The shortened Windows run must validate this mitigation. No product change, dependency change, test exclusion or performance result is implied."
+}

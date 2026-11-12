@@ -1,0 +1,13 @@
+{
+  "job_id": 131387187813,
+  "run_id": 43276783432,
+  "run_attempt": 1,
+  "source": "github_fetch_workflow_job_logs",
+  "account": "palmoni5",
+  "encoding": "UTF-8 text as decoded by connector",
+  "path": "/workspace/scratch/03d201536b5d/pr4307-windows-full-run43276783432/metadata/job131387187813.log",
+  "bytes": 245101,
+  "sha256": "af7f549b4fea8b5b5a5a402d80c615bf7aea8ff7d6383aae8bfd5f0e8a92fa83",
+  "url_count": 117,
+  "signed_or_credential_query_urls_count": 0
+}

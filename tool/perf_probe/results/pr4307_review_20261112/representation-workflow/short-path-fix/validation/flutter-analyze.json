@@ -1,0 +1,13 @@
+{
+  "command": [
+    "flutter",
+    "analyze",
+    "--no-pub"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 11.428,
+  "workflow_sha256": "bab73977e857298b3b1f684a5a8d55027e1fc3523ceec7dba0f85eeb759cacb4",
+  "pubspec_lock_sha256": "1a716b4ffe7bc77506b550db9f185a2a6ff3de8882941f8f2752ca2cfadc5397",
+  "candidate_sha": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+  "control_sha": "764abeeec8a81a0e081d951261c37dc15dbadec3"
+}

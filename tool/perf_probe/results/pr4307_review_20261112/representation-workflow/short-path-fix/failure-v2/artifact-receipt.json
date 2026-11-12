@@ -1,0 +1,160 @@
+{
+  "verified_at_utc": "2026-11-12T19:40:20.547984+00:00",
+  "run_id": 43289584496,
+  "run_attempt": 1,
+  "job_id": 131431946281,
+  "artifact_id": 13977237642,
+  "original_zip": "/workspace/scratch/03d201536b5d/isolated4307-run43289584496/original-artifact-13977237642.zip",
+  "zip_bytes": 117575,
+  "zip_sha256": "5445a94dccce6fc6b27c384d4ad47adb4fee7c1f1b0b9769f9ac670256ec8545",
+  "declared_artifact_sha256": "5445a94dccce6fc6b27c384d4ad47adb4fee7c1f1b0b9769f9ac670256ec8545",
+  "declared_digest_matches": true,
+  "all_zip_member_crcs_valid": true,
+  "all_zip_paths_checked_before_extraction": true,
+  "member_count": 20,
+  "uncompressed_bytes": 587251,
+  "extracted_root": "/workspace/scratch/03d201536b5d/isolated4307-run43289584496/extracted-attempt1-artifact13977237642",
+  "all_members_preserved": true,
+  "members": [
+    {
+      "path": "reader-representation-validation/candidate-text_book_bloc.dart",
+      "bytes": 124060,
+      "compressed_bytes": 26996,
+      "zip_crc32": "09301ecf",
+      "sha256": "73c4de182c83f68a284718a4e5ace0301ceec2b2ac3da2ab2476c1051161c88a"
+    },
+    {
+      "path": "reader-representation-validation/common-tests.log",
+      "bytes": 238390,
+      "compressed_bytes": 33722,
+      "zip_crc32": "1d1e8a41",
+      "sha256": "fe59ea034c6a1875c690efc6f1c9784e9d8bd5132f4498f8074ff2ead0277fb0"
+    },
+    {
+      "path": "reader-representation-validation/analyze.log",
+      "bytes": 99,
+      "compressed_bytes": 86,
+      "zip_crc32": "98b21312",
+      "sha256": "5905e7b49a5b79f484d149b245ffc41a3788be30c2e9c89465745637e81ae711"
+    },
+    {
+      "path": "reader-representation-validation/comparison-contracts.log",
+      "bytes": 246,
+      "compressed_bytes": 186,
+      "zip_crc32": "f7e7249b",
+      "sha256": "8728cef4c33c22156c49d6f27f5ec20558a4d046cc869d3dbd8c6ad58218d007"
+    },
+    {
+      "path": "reader-representation-validation/control-text_book_bloc.dart",
+      "bytes": 124166,
+      "compressed_bytes": 27006,
+      "zip_crc32": "b96a0242",
+      "sha256": "a31fa2dbc8b9ac2410775407a45c56862098a5c4f334b4264ab70d31da30a6ee"
+    },
+    {
+      "path": "reader-representation-validation/control-validation-failure.log",
+      "bytes": 274,
+      "compressed_bytes": 172,
+      "zip_crc32": "d4c7faad",
+      "sha256": "08a773c6bd883185285d0e7bec2ec8534f766e938f7e467f7bd5f33b8e38858c"
+    },
+    {
+      "path": "reader-representation-validation/control-validation.json",
+      "bytes": 5226,
+      "compressed_bytes": 1216,
+      "zip_crc32": "9d7f2eb6",
+      "sha256": "1ff838a49ac4bd42d51eab692edbfbce00c9f9a604e3668ff3d9abf567da76aa"
+    },
+    {
+      "path": "reader-representation-validation/dart-version.log",
+      "bytes": 85,
+      "compressed_bytes": 87,
+      "zip_crc32": "fa50c430",
+      "sha256": "70e166671107918bed7d345fd4f1c926bf3a95940c5d097ba7b9ff546b5cee88"
+    },
+    {
+      "path": "reader-representation-validation/executed-workflow.yml",
+      "bytes": 21535,
+      "compressed_bytes": 5921,
+      "zip_crc32": "6718fe97",
+      "sha256": "5632c94c368dfa4a701af700a06b4b1c7f66ef73d912c9122efaf08270339de5"
+    },
+    {
+      "path": "reader-representation-validation/experiment-plan.json",
+      "bytes": 665,
+      "compressed_bytes": 415,
+      "zip_crc32": "a2f12b6a",
+      "sha256": "0daad6dd73acbb448db47122a041a36b7ca1b8d4626d7912622602e3ee5e3a3a"
+    },
+    {
+      "path": "reader-representation-validation/flutter-version.log",
+      "bytes": 784,
+      "compressed_bytes": 422,
+      "zip_crc32": "177d8eb3",
+      "sha256": "09139758ec02863b10a451370134646ec097e21d9d82d7465eda9ba224be10eb"
+    },
+    {
+      "path": "reader-representation-validation/format.log",
+      "bytes": 47,
+      "compressed_bytes": 49,
+      "zip_crc32": "91b91d1a",
+      "sha256": "c751a5a119f17c4391d8b9ee94f3b4c832831c6bfa5f725139097ca4c229ee76"
+    },
+    {
+      "path": "reader-representation-validation/generated-long_book_snapshot_regression_flat_control_validation_test.dart",
+      "bytes": 26631,
+      "compressed_bytes": 6089,
+      "zip_crc32": "68076d22",
+      "sha256": "586b42792cabf70f3709f2eabbb6c5507d915c9d0e508af91954133a2e312ed7"
+    },
+    {
+      "path": "reader-representation-validation/lockfile-quoting.json",
+      "bytes": 396,
+      "compressed_bytes": 190,
+      "zip_crc32": "d91ff175",
+      "sha256": "ff9b9c7910cb7d775ec61db81c07500a1318ec132a35484fff7b8d952b6e1596"
+    },
+    {
+      "path": "reader-representation-validation/original-long_book_snapshot_regression_test.dart",
+      "bytes": 26711,
+      "compressed_bytes": 6104,
+      "zip_crc32": "97cf48f2",
+      "sha256": "9eeea22effd110ba786a64ccb00bebcffa2621997e071ba9616c580ff1c21356"
+    },
+    {
+      "path": "reader-representation-validation/pub-get.log",
+      "bytes": 6406,
+      "compressed_bytes": 1594,
+      "zip_crc32": "5eb01ad4",
+      "sha256": "c8956481a953c4ef17507708c7da908619bd189aaf79cfb79e28fa949ed515b5"
+    },
+    {
+      "path": "reader-representation-validation/representation-only.patch",
+      "bytes": 9300,
+      "compressed_bytes": 2117,
+      "zip_crc32": "e5759e22",
+      "sha256": "8d9eda326ecd863c376f697b9887f1642e6d8e155131f3ccfd95631e7737d5ff"
+    },
+    {
+      "path": "reader-representation-validation/rust-version.log",
+      "bytes": 38,
+      "compressed_bytes": 40,
+      "zip_crc32": "6336b985",
+      "sha256": "3addf411ab77d40fbf38fc2d8b96d64db7682023c80172c17177574fc0693914"
+    },
+    {
+      "path": "reader-representation-validation/sampler-contracts.log",
+      "bytes": 107,
+      "compressed_bytes": 95,
+      "zip_crc32": "1182a32f",
+      "sha256": "5aeef3ad2db66c0df11302fb91393090e9abfe3c85a4afdddbe00e91f4fdd5b0"
+    },
+    {
+      "path": "reader-representation-validation/source-provenance.json",
+      "bytes": 2085,
+      "compressed_bytes": 920,
+      "zip_crc32": "c786022f",
+      "sha256": "4ece48a31981a4765de82f5c4b3ff3da2710a5ba6b52b259939ca482d1f0826f"
+    }
+  ]
+}

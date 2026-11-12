@@ -1,0 +1,155 @@
+{
+  "runId": "43276783432",
+  "attempt": 1,
+  "selectionIsDiagnosticOnly": true,
+  "notSufficientForFullTraceQA": true,
+  "fullArchiveSha256": "39ba138234ff546e9556fa9826aa51ac47e212f1f327b5227d28ee870a494d01",
+  "traces": [
+    {
+      "path": "step-00-baseline/launch-000/reader_trace_reader_38.json",
+      "sha256": "1d98aeff670a59d0590f3f5bcf7d44be5349f0f785ba57b10aba84fb3ba7435f",
+      "bytes": 3731326,
+      "selectionReason": "long jump duration > 500 ms",
+      "side": "baseline",
+      "name": "book.long.jump_forward",
+      "launchIndex": 0,
+      "iteration": 0,
+      "durationMs": 665.285
+    },
+    {
+      "path": "step-00-baseline/launch-000/reader_trace_reader_101.json",
+      "sha256": "d017872e94b28e05b189bc9560d94822725a1b33b1a4036b17b6f6054656cacc",
+      "bytes": 3743756,
+      "selectionReason": "long jump duration > 500 ms",
+      "side": "baseline",
+      "name": "book.long.jump_forward",
+      "launchIndex": 0,
+      "iteration": 3,
+      "durationMs": 770.348
+    },
+    {
+      "path": "step-00-baseline/launch-000/reader_trace_reader_102.json",
+      "sha256": "84774caeb52caf8a3d0d29141812fbbf6a3699d07eb89d9fafedcf1a6833b650",
+      "bytes": 3740245,
+      "selectionReason": "long jump duration > 500 ms",
+      "side": "baseline",
+      "name": "book.long.jump_backward",
+      "launchIndex": 0,
+      "iteration": 3,
+      "durationMs": 712.763
+    },
+    {
+      "path": "step-07-baseline/launch-003/reader_trace_reader_39.json",
+      "sha256": "9f4c4167c5a88c5b586cf67fd666b8e4554669c6d81ecf1a009b64df59a909ec",
+      "bytes": 3722721,
+      "selectionReason": "long jump duration > 500 ms",
+      "side": "baseline",
+      "name": "book.long.jump_backward",
+      "launchIndex": 3,
+      "iteration": 0,
+      "durationMs": 642.24
+    },
+    {
+      "path": "step-02-candidate/launch-001/reader_trace_reader_81.json",
+      "sha256": "ba1471c25036506c8baf0370caf7c25774f07ea527ec7858b68c51b7d4433093",
+      "bytes": 3838460,
+      "selectionReason": "long jump duration > 500 ms",
+      "side": "candidate",
+      "name": "book.long.jump_backward",
+      "launchIndex": 1,
+      "iteration": 2,
+      "durationMs": 749.68
+    },
+    {
+      "path": "step-02-candidate/launch-001/reader_trace_reader_102.json",
+      "sha256": "0080b0e39f7ac5b9ae4513ef2b038af4f6cf69b6aed3a512d57022c7529814f1",
+      "bytes": 3829181,
+      "selectionReason": "long jump duration > 500 ms",
+      "side": "candidate",
+      "name": "book.long.jump_backward",
+      "launchIndex": 1,
+      "iteration": 3,
+      "durationMs": 690.031
+    },
+    {
+      "path": "step-05-candidate/launch-002/reader_trace_reader_38.json",
+      "sha256": "6e8c6a67c55dc79c6e986059d369bf3ab4c4cf0c9fc51a5ecd9d0d28c87f480f",
+      "bytes": 3823262,
+      "selectionReason": "long jump duration > 500 ms",
+      "side": "candidate",
+      "name": "book.long.jump_forward",
+      "launchIndex": 2,
+      "iteration": 0,
+      "durationMs": 700.714
+    },
+    {
+      "path": "step-06-candidate/launch-003/reader_trace_reader_102.json",
+      "sha256": "9d3992f33a94b0431498ec400246919049b3644c1d356c4383705f806fae11dc",
+      "bytes": 3816194,
+      "selectionReason": "long jump duration > 500 ms",
+      "side": "candidate",
+      "name": "book.long.jump_backward",
+      "launchIndex": 3,
+      "iteration": 3,
+      "durationMs": 756.449
+    },
+    {
+      "path": "step-00-baseline/launch-000/reader_trace_reader_100.json",
+      "sha256": "c2066a45210ff8cb437191a80ce0ee7fac11ef6b238fd7165cc23a322ce5f618",
+      "bytes": 1848975,
+      "selectionReason": "maximum long initial scroll duration on this side",
+      "side": "baseline",
+      "name": "book.long.scroll",
+      "launchIndex": 0,
+      "iteration": 3,
+      "durationMs": 1315.564
+    },
+    {
+      "path": "step-05-candidate/launch-002/reader_trace_reader_79.json",
+      "sha256": "58842c26464a04170acf4a7f42bfcb2884af252247d164476938113b7414aacb",
+      "bytes": 2744400,
+      "selectionReason": "maximum long initial scroll duration on this side",
+      "side": "candidate",
+      "name": "book.long.scroll",
+      "launchIndex": 2,
+      "iteration": 2,
+      "durationMs": 1684.734
+    },
+    {
+      "path": "step-00-baseline/launch-000/reader_trace_reader_40.json",
+      "sha256": "f9b7f6bd9d944da090a78f350545c584a469cdcd21884ca03dc118bf245f4de5",
+      "bytes": 5781333,
+      "selectionReason": "first measured long warmup of launch 0, same deterministic choice on both sides; illustrates incomplete retained timeline",
+      "side": "baseline",
+      "name": "book.long.warmup_complete",
+      "launchIndex": 0,
+      "iteration": 0,
+      "markerCounts": {
+        "reader.phase.begin": 0,
+        "reader.phase.end": 1
+      },
+      "phaseStartTimelineUs": 3533430344,
+      "phaseEndTimelineUs": 3564440263,
+      "traceTimeOriginMicros": 3559924011,
+      "traceTimeExtentMicros": 4794061
+    },
+    {
+      "path": "step-01-candidate/launch-000/reader_trace_reader_40.json",
+      "sha256": "07c75e0550b96980bd0845faa798c25925a6afa7eb9f9fde89e20050efd0839a",
+      "bytes": 5752233,
+      "selectionReason": "first measured long warmup of launch 0, same deterministic choice on both sides; illustrates incomplete retained timeline",
+      "side": "candidate",
+      "name": "book.long.warmup_complete",
+      "launchIndex": 0,
+      "iteration": 0,
+      "markerCounts": {
+        "reader.phase.begin": 0,
+        "reader.phase.end": 1
+      },
+      "phaseStartTimelineUs": 3806692287,
+      "phaseEndTimelineUs": 3834312659,
+      "traceTimeOriginMicros": 3830251199,
+      "traceTimeExtentMicros": 4337627
+    }
+  ]
+}

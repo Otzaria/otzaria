@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "scope": "Preserve the failed v2 native-build attempt and the v3 path-only mitigation, separately from any future Windows samples.",
+  "candidate_sha": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+  "control_sha": "764abeeec8a81a0e081d951261c37dc15dbadec3",
+  "v2_workflow_sha": "64f296e5bd0fd1451a893c5c809648f5b8da8f2a",
+  "v2_run_id": 43289584496,
+  "v2_attempt": 1,
+  "v2_artifact_id": 13977237642,
+  "v3_workflow_sha": "951a94a9334e818f2dae1431ab19974b7ced9d3a",
+  "v3_run_id": 43294899743,
+  "v3_attempt": 1,
+  "v3_final_result_included": false,
+  "v2_performance_samples_produced": false,
+  "samples_filtered_or_combined": false,
+  "validation": "V2 source guards, pub get, format and full analyze passed; Rust/MSVC native linking failed before the common test suite could run. Cleanup removed the generated sibling and confirmed clean source. V3 local actionlint, six PowerShell parsers, setup contract, diff check and full Flutter analyze passed.",
+  "path_change": {
+    "validation_worktree": "r4307v",
+    "comparison_root": "r4307p",
+    "validation_logs_root_unchanged": true
+  },
+  "constraints": [
+    "Source pins, all tests, paired ordering and 16 samples per action and side are unchanged.",
+    "Original ZIP is retained exactly; all members were CRC/path checked before separate extraction.",
+    "Full decoded job log is losslessly gzipped; no SDK, extra extracted product copies, signed download URL or hosted-file/Library receipt is included.",
+    "V3 setup-plan is from a local setup contract; actual run metadata is in v3/run.json."
+  ],
+  "files": [
+    {
+      "path": "failure-v2/artifact-metadata.json",
+      "bytes": 1139,
+      "sha256": "cea36c301091e5b72d63d549ac63ea62a65432cbb3bbbb4ff3b307b256cc98ae",
+      "git_blob_sha": "789bd2592d2b849ce68ecdc0e4c868bddaac0227",
+      "source_sha256": "c529d9617207edf577a7ab678f216020423d3759c4285e8c723013b593ab44cd"
+    },
+    {
+      "path": "failure-v2/artifact-receipt.json",
+      "bytes": 5917,
+      "sha256": "0cc9a40343f64900c17f21f448640c00397ea7e3f247f64a630d6db6a2df45fe",
+      "git_blob_sha": "e731cd14d6e6c66cb895dc165237d19b878cf517",
+      "source_sha256": "0cc9a40343f64900c17f21f448640c00397ea7e3f247f64a630d6db6a2df45fe"
+    },
+    {
+      "path": "failure-v2/job-log-provenance.json",
+      "bytes": 711,
+      "sha256": "5d3b4cc4dfc96257f2baf4474d366d6289e7590b7d9ed46f6914a0f6f0e149a9",
+      "git_blob_sha": "346f369f192d326f12b718c3bdf4912cec36d0e1"
+    },
+    {
+      "path": "failure-v2/job-log.decoded.log.gz",
+      "bytes": 79934,
+      "sha256": "4771f5466b8333708930052e11fa79646d3d270a2d06e195ed7e7d636cc27d3a",
+      "git_blob_sha": "4e438704c3b6347109f17ad6e2a77a439382b61e",
+      "source_sha256": "6e6a65d2c6b3097833472e7a54d9125636190f3773c3d3aa971d334d87cfb061"
+    },
+    {
+      "path": "failure-v2/original-artifact-13977237642.zip",
+      "bytes": 117575,
+      "sha256": "5445a94dccce6fc6b27c384d4ad47adb4fee7c1f1b0b9769f9ac670256ec8545",
+      "git_blob_sha": "a06e2fa3823a58804843eae79b41df241dfaaba6",
+      "source_sha256": "5445a94dccce6fc6b27c384d4ad47adb4fee7c1f1b0b9769f9ac670256ec8545"
+    },
+    {
+      "path": "failure-v2/path-length-diagnosis.json",
+      "bytes": 4223,
+      "sha256": "b5c5e73d56abe15f40445b1ba9495622dcfb31bcbd2e60315ea1273d8b9a65a6",
+      "git_blob_sha": "dedc552797b4274f41c2f26863629d0791092b7e",
+      "source_sha256": "b5c5e73d56abe15f40445b1ba9495622dcfb31bcbd2e60315ea1273d8b9a65a6"
+    },
+    {
+      "path": "failure-v2/run-status.json",
+      "bytes": 4610,
+      "sha256": "3eba55d79b4f0d95f60ce3517fb6f9bfbbd8ea9b558bb32cc4e5ce40bc3cb420",
+      "git_blob_sha": "0c76731b1232a20174fb12cd92b234b7c032e7f1",
+      "source_sha256": "3eba55d79b4f0d95f60ce3517fb6f9bfbbd8ea9b558bb32cc4e5ce40bc3cb420"
+    },
+    {
+      "path": "repro/instructions.json",
+      "bytes": 984,
+      "sha256": "8df0d6cd780d483fbbf0f6ede096e47157681074abdf5ca3ef2312a14afe85d5",
+      "git_blob_sha": "1cfcfb4cd82cd7fc7aaff33700335a9a898332d8"
+    },
+    {
+      "path": "repro/verify_extract.py",
+      "bytes": 5930,
+      "sha256": "7259018d70d7cf35705c8d7df082248545011a3fe9a11d2b0fe993cd0d0562e9",
+      "git_blob_sha": "bcbc70ae36333c437a90dc8f5a54ab65546d42be",
+      "source_sha256": "7259018d70d7cf35705c8d7df082248545011a3fe9a11d2b0fe993cd0d0562e9"
+    },
+    {
+      "path": "v3/publication-manifest.json",
+      "bytes": 7907,
+      "sha256": "f72a45c7ff83786f9dc2f55a1fd7401817fe3f5ab0ae567e9b45da9f884ff8b2",
+      "git_blob_sha": "97514b48954446d0504c5517c15d80aca84fe4ea",
+      "source_sha256": "80bd35ca6e7d7e8377c247aac976bc1e8cd8c2fa8400731cd3d99d3c55302f10"
+    },
+    {
+      "path": "v3/publication-result.json",
+      "bytes": 727,
+      "sha256": "e279fd19df9ed65a9c6729a7673487fd355b78950750da82c87b2e50471ede1e",
+      "git_blob_sha": "37a2ae91ce457d84181ae123138bab541c4ed553",
+      "source_sha256": "e279fd19df9ed65a9c6729a7673487fd355b78950750da82c87b2e50471ede1e"
+    },
+    {
+      "path": "v3/run.json",
+      "bytes": 191,
+      "sha256": "31523256d4b1b79857c159b0bc0c617b0d9d9e90311919dc5e56760e12b40e8f",
+      "git_blob_sha": "b8c1c1197afaf91a30e76113f83a8f27fc508ada",
+      "source_sha256": "31523256d4b1b79857c159b0bc0c617b0d9d9e90311919dc5e56760e12b40e8f"
+    },
+    {
+      "path": "v3/workflow.patch",
+      "bytes": 2966,
+      "sha256": "77435c3005a100d1cae2e83d14df185abdaa25d1892a2595f8adc074b953b291",
+      "git_blob_sha": "8b6d9c34e5ccd250b188171e83c899560515efee",
+      "source_sha256": "77435c3005a100d1cae2e83d14df185abdaa25d1892a2595f8adc074b953b291"
+    },
+    {
+      "path": "v3/workflow.yml",
+      "bytes": 20920,
+      "sha256": "bab73977e857298b3b1f684a5a8d55027e1fc3523ceec7dba0f85eeb759cacb4",
+      "git_blob_sha": "ddba0a9657a6dda449d8118049d7c0b3aba7fef0",
+      "source_sha256": "80bd35ca6e7d7e8377c247aac976bc1e8cd8c2fa8400731cd3d99d3c55302f10"
+    },
+    {
+      "path": "validation/actionlint.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "source_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "validation/flutter-analyze.json",
+      "bytes": 421,
+      "sha256": "6f79be392b1ef16b4d1198fa5590d2c661fb4a505364c04a10b221afee23ecd5",
+      "git_blob_sha": "6a26552f28fa4c3564540546ef7261af9c85391c",
+      "source_sha256": "6f79be392b1ef16b4d1198fa5590d2c661fb4a505364c04a10b221afee23ecd5"
+    },
+    {
+      "path": "validation/flutter-analyze.log",
+      "bytes": 97,
+      "sha256": "2004a59463b22a716cecb84919468ad47de4c54abc2a04b7655abda58dcb5446",
+      "git_blob_sha": "d8086b95d016500e26f1400b0b04789a13ed21ae",
+      "source_sha256": "2004a59463b22a716cecb84919468ad47de4c54abc2a04b7655abda58dcb5446"
+    },
+    {
+      "path": "validation/powershell-blocks.json",
+      "bytes": 1516,
+      "sha256": "cde72840b440f1869318a3448add04f46b4142950902c631966044fa53ddd1a2",
+      "git_blob_sha": "08a69c4d8bb15e8a38c1d462e4275bf14f94e9de",
+      "source_sha256": "cde72840b440f1869318a3448add04f46b4142950902c631966044fa53ddd1a2"
+    },
+    {
+      "path": "validation/powershell.log",
+      "bytes": 38,
+      "sha256": "8f60ac350f324b537621275d794eafbec768e31aa46e10751909374ec83d9b47",
+      "git_blob_sha": "08d63c91b693cc8c890dd5e4b5bd026d73852316",
+      "source_sha256": "8f60ac350f324b537621275d794eafbec768e31aa46e10751909374ec83d9b47"
+    },
+    {
+      "path": "validation/schema-setup.json",
+      "bytes": 376,
+      "sha256": "ccb6fe1c0d017d31b1d74bc6134193481b51cf35a55b167492020f34ce1542de",
+      "git_blob_sha": "1c746e9272c01f3a1bab39544ef5a7334fb72bb5",
+      "source_sha256": "ccb6fe1c0d017d31b1d74bc6134193481b51cf35a55b167492020f34ce1542de"
+    },
+    {
+      "path": "validation/setup-github-env.txt",
+      "bytes": 264,
+      "sha256": "e4fe4e6e9f9fe39a85888620056881960db46fe2d114dd713dd0879b82cffabb",
+      "git_blob_sha": "c813f8e55704591a92645675899623dadb1a33cb",
+      "source_sha256": "e4fe4e6e9f9fe39a85888620056881960db46fe2d114dd713dd0879b82cffabb"
+    },
+    {
+      "path": "validation/setup-plan.json",
+      "bytes": 647,
+      "sha256": "4240b0a70f18c9fd36e1746c9875d5aaf76eb0abe0888d4a19a3bc46f3fc9b64",
+      "git_blob_sha": "2517d9b01a124b4cb52bd39830c848b38e8c594b",
+      "source_sha256": "4240b0a70f18c9fd36e1746c9875d5aaf76eb0abe0888d4a19a3bc46f3fc9b64"
+    },
+    {
+      "path": "validation/setup.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "source_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

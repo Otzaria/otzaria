@@ -1,0 +1,122 @@
+{
+  "script": "repro/qa_windows_reader.py",
+  "artifact_root": "Directory containing provenance.json (preserve the uploaded relative directory tree).",
+  "required_files": [
+    "provenance.json",
+    "{baseline,candidate}/manifest.json",
+    "{baseline,candidate}/phases.jsonl",
+    "{baseline,candidate}/samples.csv",
+    "{baseline,candidate}/report.json",
+    "build-{baseline,candidate}/manifest.json",
+    "{baseline,candidate}-head.txt",
+    "{baseline,candidate}-status.txt",
+    "{baseline,candidate}-diff.patch",
+    "step-{00..07}-{baseline|candidate}/manifest.json",
+    "step-{00..07}-{baseline|candidate}/phases.jsonl",
+    "step-{00..07}-{baseline|candidate}/samples.csv",
+    "step-*/launch-{000..003}/launch.json",
+    "step-*/launch-{000..003}/completion.json",
+    "step-*/launch-{000..003}/phases.jsonl",
+    "step-*/launch-{000..003}/samples.csv",
+    "step-*/launch-{000..003}/samples.csv.status.json",
+    "step-*/launch-{000..003}/reader_trace_*.json (every file named by reader_phase.timelineFile)"
+  ],
+  "optional_but_checked_if_present": [
+    "**/samples.csv.errors.jsonl"
+  ],
+  "preserve_for_diagnostics": [
+    "*.runner.log",
+    "build-*/build.log",
+    "step-*/launch-*/stdout.log",
+    "step-*/launch-*/stderr.log",
+    "step-*/prepare-data-*/completion.json"
+  ],
+  "not_needed": [
+    "bundle/**",
+    "data/**",
+    "worktrees/**",
+    "report.md"
+  ],
+  "expected_run_design": {
+    "launch_order": [
+      "baseline",
+      "candidate",
+      "candidate",
+      "baseline",
+      "baseline",
+      "candidate",
+      "candidate",
+      "baseline"
+    ],
+    "measured_processes_total": 8,
+    "processes_per_side": 4,
+    "warmups_per_process": 1,
+    "measured_repetitions_per_process": 4,
+    "measured_samples_per_action_per_side": 16,
+    "expected_reader_actions": 21
+  },
+  "command_template": [
+    "python3",
+    "repro/qa_windows_reader.py",
+    "ARTIFACT_ROOT",
+    "--expected-candidate",
+    "PUBLISHED_FULL_SHA",
+    "--expected-baseline",
+    "8d24d26f6b7eef04ad9eda1f30eb9ea0e53cf546",
+    "--comparison-design",
+    "whole-pr",
+    "--repo",
+    "REPOSITORY_ROOT",
+    "--expected-hardware-id",
+    "github-hosted-RUN_ID-RUN_ATTEMPT",
+    "--output",
+    "windows-whole-pr-qa-RUN_ID-ATTEMPT.json"
+  ],
+  "exit_status": {
+    "0": "Structural/statistical checks passed; still inspect manual validity warnings.",
+    "1": "Missing/mismatching/incomplete evidence or invalid measurements; JSON includes errors.",
+    "2": "Invalid CLI usage."
+  },
+  "preparation_validation": [
+    "Python syntax compiled.",
+    "Synthetic primitive tests for nearest-rank quantiles, retained extreme observation, overlapping timeline union and phase-boundary exclusion passed.",
+    "Empty-artifact smoke test returns incomplete evidence rather than a successful measurement.",
+    "Source-graph primitive checks cover valid upstream/direct-child designs and reject reversed ancestry, merge/missing/wrong parents, extra paths, mode changes and identical blobs."
+  ],
+  "new_windows_measurements_available": false,
+  "command_template_note": "Run from the evidence bundle directory; REPOSITORY_ROOT is a Git checkout containing the pinned candidate commit. The checkout itself need not be on that commit.",
+  "comparison_designs": {
+    "whole-pr": {
+      "default": true,
+      "source_graph": "Pinned baseline must be an ancestor of candidate; no reverse-topology exception."
+    },
+    "representation-only": {
+      "default": false,
+      "source_graph": "Flat control baseline must have exactly one parent, equal to candidate; candidate must be its merge-base.",
+      "changed_files": [
+        "lib/text_book/bloc/text_book_bloc.dart"
+      ],
+      "unchanged_file_modes": "100644",
+      "requires_repo": true
+    }
+  },
+  "representation_only_command_template": [
+    "python3",
+    "repro/qa_windows_reader.py",
+    "ARTIFACT_ROOT",
+    "--expected-candidate",
+    "PUBLISHED_FULL_SHA",
+    "--expected-baseline",
+    "FLAT_CONTROL_FULL_SHA",
+    "--comparison-design",
+    "representation-only",
+    "--repo",
+    "REPOSITORY_ROOT",
+    "--expected-hardware-id",
+    "github-hosted-RUN_ID-RUN_ATTEMPT",
+    "--output",
+    "windows-representation-only-qa-RUN_ID-ATTEMPT.json"
+  ],
+  "run_separation": "Supply the exact hardwareId for this run and attempt; each output file is new and must be kept separate. Existing output files are rejected. Do not pool observations or ratios across runs.",
+  "recorded_source_evidence": "Source graph, both tree IDs and changed-file blob IDs; representation-only also records the exact production diff in baseline-to-candidate direction and its SHA-256."
+}

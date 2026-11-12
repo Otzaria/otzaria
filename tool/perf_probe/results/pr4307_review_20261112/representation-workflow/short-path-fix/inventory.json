@@ -1,0 +1,250 @@
+{
+  "base_coordination_pending": true,
+  "git_tree_frozen": false,
+  "prefix": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix",
+  "files": [
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/bundle.json",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/bundle.json",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "utf-8",
+      "bytes": 8760,
+      "sha256": "8afb7f02a64b459a13501903d63e05033964ea537ccdd77874a126b9fefb16ec",
+      "git_blob_sha": "76bc42cf38abfa010170d5a2b2c5e8fba67b0232"
+    },
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/failure-v2/artifact-metadata.json",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/failure-v2/artifact-metadata.json",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "utf-8",
+      "bytes": 1139,
+      "sha256": "cea36c301091e5b72d63d549ac63ea62a65432cbb3bbbb4ff3b307b256cc98ae",
+      "git_blob_sha": "789bd2592d2b849ce68ecdc0e4c868bddaac0227"
+    },
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/failure-v2/artifact-receipt.json",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/failure-v2/artifact-receipt.json",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "utf-8",
+      "bytes": 5917,
+      "sha256": "0cc9a40343f64900c17f21f448640c00397ea7e3f247f64a630d6db6a2df45fe",
+      "git_blob_sha": "e731cd14d6e6c66cb895dc165237d19b878cf517"
+    },
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/failure-v2/job-log-provenance.json",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/failure-v2/job-log-provenance.json",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "utf-8",
+      "bytes": 711,
+      "sha256": "5d3b4cc4dfc96257f2baf4474d366d6289e7590b7d9ed46f6914a0f6f0e149a9",
+      "git_blob_sha": "346f369f192d326f12b718c3bdf4912cec36d0e1"
+    },
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/failure-v2/job-log.decoded.log.gz",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/failure-v2/job-log.decoded.log.gz",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "base64",
+      "bytes": 79934,
+      "sha256": "4771f5466b8333708930052e11fa79646d3d270a2d06e195ed7e7d636cc27d3a",
+      "git_blob_sha": "4e438704c3b6347109f17ad6e2a77a439382b61e"
+    },
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/failure-v2/original-artifact-13977237642.zip",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/failure-v2/original-artifact-13977237642.zip",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "base64",
+      "bytes": 117575,
+      "sha256": "5445a94dccce6fc6b27c384d4ad47adb4fee7c1f1b0b9769f9ac670256ec8545",
+      "git_blob_sha": "a06e2fa3823a58804843eae79b41df241dfaaba6"
+    },
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/failure-v2/path-length-diagnosis.json",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/failure-v2/path-length-diagnosis.json",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "utf-8",
+      "bytes": 4223,
+      "sha256": "b5c5e73d56abe15f40445b1ba9495622dcfb31bcbd2e60315ea1273d8b9a65a6",
+      "git_blob_sha": "dedc552797b4274f41c2f26863629d0791092b7e"
+    },
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/failure-v2/run-status.json",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/failure-v2/run-status.json",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "utf-8",
+      "bytes": 4610,
+      "sha256": "3eba55d79b4f0d95f60ce3517fb6f9bfbbd8ea9b558bb32cc4e5ce40bc3cb420",
+      "git_blob_sha": "0c76731b1232a20174fb12cd92b234b7c032e7f1"
+    },
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/repro/instructions.json",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/repro/instructions.json",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "utf-8",
+      "bytes": 984,
+      "sha256": "8df0d6cd780d483fbbf0f6ede096e47157681074abdf5ca3ef2312a14afe85d5",
+      "git_blob_sha": "1cfcfb4cd82cd7fc7aaff33700335a9a898332d8"
+    },
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/repro/verify_extract.py",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/repro/verify_extract.py",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "utf-8",
+      "bytes": 5930,
+      "sha256": "7259018d70d7cf35705c8d7df082248545011a3fe9a11d2b0fe993cd0d0562e9",
+      "git_blob_sha": "bcbc70ae36333c437a90dc8f5a54ab65546d42be"
+    },
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/v3/publication-manifest.json",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/v3/publication-manifest.json",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "utf-8",
+      "bytes": 7907,
+      "sha256": "f72a45c7ff83786f9dc2f55a1fd7401817fe3f5ab0ae567e9b45da9f884ff8b2",
+      "git_blob_sha": "97514b48954446d0504c5517c15d80aca84fe4ea"
+    },
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/v3/publication-result.json",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/v3/publication-result.json",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "utf-8",
+      "bytes": 727,
+      "sha256": "e279fd19df9ed65a9c6729a7673487fd355b78950750da82c87b2e50471ede1e",
+      "git_blob_sha": "37a2ae91ce457d84181ae123138bab541c4ed553"
+    },
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/v3/run.json",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/v3/run.json",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "utf-8",
+      "bytes": 191,
+      "sha256": "31523256d4b1b79857c159b0bc0c617b0d9d9e90311919dc5e56760e12b40e8f",
+      "git_blob_sha": "b8c1c1197afaf91a30e76113f83a8f27fc508ada"
+    },
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/v3/workflow.patch",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/v3/workflow.patch",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "utf-8",
+      "bytes": 2966,
+      "sha256": "77435c3005a100d1cae2e83d14df185abdaa25d1892a2595f8adc074b953b291",
+      "git_blob_sha": "8b6d9c34e5ccd250b188171e83c899560515efee"
+    },
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/v3/workflow.yml",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/v3/workflow.yml",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "utf-8",
+      "bytes": 20920,
+      "sha256": "bab73977e857298b3b1f684a5a8d55027e1fc3523ceec7dba0f85eeb759cacb4",
+      "git_blob_sha": "ddba0a9657a6dda449d8118049d7c0b3aba7fef0"
+    },
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/validation/actionlint.log",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/validation/actionlint.log",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "utf-8",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+    },
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/validation/flutter-analyze.json",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/validation/flutter-analyze.json",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "utf-8",
+      "bytes": 421,
+      "sha256": "6f79be392b1ef16b4d1198fa5590d2c661fb4a505364c04a10b221afee23ecd5",
+      "git_blob_sha": "6a26552f28fa4c3564540546ef7261af9c85391c"
+    },
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/validation/flutter-analyze.log",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/validation/flutter-analyze.log",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "utf-8",
+      "bytes": 97,
+      "sha256": "2004a59463b22a716cecb84919468ad47de4c54abc2a04b7655abda58dcb5446",
+      "git_blob_sha": "d8086b95d016500e26f1400b0b04789a13ed21ae"
+    },
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/validation/powershell-blocks.json",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/validation/powershell-blocks.json",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "utf-8",
+      "bytes": 1516,
+      "sha256": "cde72840b440f1869318a3448add04f46b4142950902c631966044fa53ddd1a2",
+      "git_blob_sha": "08a69c4d8bb15e8a38c1d462e4275bf14f94e9de"
+    },
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/validation/powershell.log",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/validation/powershell.log",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "utf-8",
+      "bytes": 38,
+      "sha256": "8f60ac350f324b537621275d794eafbec768e31aa46e10751909374ec83d9b47",
+      "git_blob_sha": "08d63c91b693cc8c890dd5e4b5bd026d73852316"
+    },
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/validation/schema-setup.json",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/validation/schema-setup.json",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "utf-8",
+      "bytes": 376,
+      "sha256": "ccb6fe1c0d017d31b1d74bc6134193481b51cf35a55b167492020f34ce1542de",
+      "git_blob_sha": "1c746e9272c01f3a1bab39544ef5a7334fb72bb5"
+    },
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/validation/setup-github-env.txt",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/validation/setup-github-env.txt",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "utf-8",
+      "bytes": 264,
+      "sha256": "e4fe4e6e9f9fe39a85888620056881960db46fe2d114dd713dd0879b82cffabb",
+      "git_blob_sha": "c813f8e55704591a92645675899623dadb1a33cb"
+    },
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/validation/setup-plan.json",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/validation/setup-plan.json",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "utf-8",
+      "bytes": 647,
+      "sha256": "4240b0a70f18c9fd36e1746c9875d5aaf76eb0abe0888d4a19a3bc46f3fc9b64",
+      "git_blob_sha": "2517d9b01a124b4cb52bd39830c848b38e8c594b"
+    },
+    {
+      "repo_path": "tool/perf_probe/results/pr4307_review_20261112/representation-workflow/short-path-fix/validation/setup.log",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-short-path-evidence/payload/validation/setup.log",
+      "mode": "100644",
+      "type": "blob",
+      "encoding": "utf-8",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+    }
+  ],
+  "total_bytes": 265853,
+  "file_count": 24,
+  "remote_writes": false
+}

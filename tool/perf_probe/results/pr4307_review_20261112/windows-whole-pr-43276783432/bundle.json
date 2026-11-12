@@ -1,0 +1,176 @@
+{
+  "purpose": "Whole PR against its frozen dev baseline; separate from the representation-only experiment.",
+  "run_id": 43276783432,
+  "run_attempt": 1,
+  "job_id": 131387187813,
+  "run_conclusion": "success",
+  "run_url": "https://github.com/Otzaria/otzaria/actions/runs/43276783432",
+  "artifact": {
+    "id": 13978305619,
+    "name": "reader-profile-43276783432-1",
+    "url": "https://github.com/Otzaria/otzaria/actions/runs/43276783432/artifacts/13978305619",
+    "api_metadata_url": "https://api.github.com/repos/Otzaria/otzaria/actions/artifacts/13978305619",
+    "zip_bytes": 58694388,
+    "zip_sha256": "39ba138234ff546e9556fa9826aa51ac47e212f1f327b5227d28ee870a494d01",
+    "member_count": 1012,
+    "uncompressed_bytes": 1163270067,
+    "created_at": "2026-11-12T19:39:25Z",
+    "expires_at": "2026-11-26T19:39:11Z",
+    "retention_days": 14,
+    "full_zip": "Original verified ZIP retained separately by the owner; not duplicated as a Git blob."
+  },
+  "source": {
+    "baselineSourceCommit": "8d24d26f6b7eef04ad9eda1f30eb9ea0e53cf546",
+    "candidateSourceCommit": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+    "harnessSourceCommit": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+    "harnessSha256": "c704ee4c0b66f60631c186dd44fb08bc0b3809970d04d9b879435a79a2caa214",
+    "harnessEntries": [
+      "100644 blob 0aa339d0386e51fbe88503d7bf6e4af5b1679291\ttool/perf_probe/sample_resources.ps1",
+      "100644 blob 3580c99c8ea9b1845e114e90d25de7eeb7cf2efb\ttool/perf_probe/runner.ps1",
+      "100644 blob 3e14e03d1b6522e2275fdb762a77761d9d07b2ba\tintegration_test/support/perf_reader_probe.dart",
+      "100644 blob 460ef0192babe80a3fb7a492350514a70731e0ed\tintegration_test/perf_resource_probe_test.dart",
+      "100644 blob 521b71142ac35be774ab9d34c36fd10c6b1b4796\ttest/helpers/seforim_fixture_db.dart",
+      "100644 blob 71c2a95d5ed3ef98e0fc4dc8928860b2b0ddb8c6\tintegration_test/support/perf_fixture.dart",
+      "100644 blob 83dade6febd4af1761419e2e09564cab82268162\tintegration_test/support/perf_recorder.dart",
+      "100644 blob 9556a752ada371f35bd99396c251ec44efb8ac00\ttool/perf_probe/analyze.dart",
+      "100644 blob e1c10fc630f57b3c9d5fde8516895b6bdb49d5b4\ttool/perf_probe/run_perf_probe.ps1",
+      "100644 blob ea84e60d67ffd4919f9fd4a6d610ee054c16dd5e\ttool/perf_probe/run_reader_comparison.ps1",
+      "100644 blob eab1ce07d4d9dd09f901bac141e44ba2aee3792f\tintegration_test/support/perf_reader_scroll.dart",
+      "100644 blob ed3d0b499719ce873e3c04ad078bd813663f8f99\ttool/perf_probe/src/report.dart",
+      "100644 blob f652e6b48381b89dc8aa3ffd7cad57a67689aa6f\ttool/perf_probe/lockfile_quoting.ps1"
+    ],
+    "launchOrder": [
+      {
+        "side": "baseline",
+        "launchIndex": 0,
+        "cycle": 0
+      },
+      {
+        "side": "candidate",
+        "launchIndex": 0,
+        "cycle": 0
+      },
+      {
+        "side": "candidate",
+        "launchIndex": 1,
+        "cycle": 0
+      },
+      {
+        "side": "baseline",
+        "launchIndex": 1,
+        "cycle": 0
+      },
+      {
+        "side": "baseline",
+        "launchIndex": 2,
+        "cycle": 1
+      },
+      {
+        "side": "candidate",
+        "launchIndex": 2,
+        "cycle": 1
+      },
+      {
+        "side": "candidate",
+        "launchIndex": 3,
+        "cycle": 1
+      },
+      {
+        "side": "baseline",
+        "launchIndex": 3,
+        "cycle": 1
+      }
+    ],
+    "cycles": 2,
+    "bookLines": "2000,50000,1000000",
+    "status": "passed",
+    "coldDefinition": "fresh application data; OS file cache is not flushed",
+    "buildTiming": "both builds and all fixture preparation precede their measured process launches",
+    "baselineMeasuredCommit": "7cd6ff40821eab4f1488d05158912f589fabb541",
+    "candidateMeasuredCommit": "6aa411d774f453331d6821dbb5a68f1c3b78bd78"
+  },
+  "preservation": {
+    "all_non_trace_artifact_members_included": true,
+    "all_phase_files_included": true,
+    "all_csv_files_included": true,
+    "all_artifact_logs_included": true,
+    "phase_file_count": 28,
+    "csv_file_count": 20,
+    "error_jsonl_file_count": 12,
+    "artifact_log_file_count": 44,
+    "empty_member_count": 16,
+    "all_samples_warmups_outliers_and_errors_retained": true,
+    "all_duplicate_aggregate_step_and_launch_phase_and_csv_files_retained": true,
+    "existing_empty_artifact_files_retained": true,
+    "source_outputs_absent_from_original_archive": [
+      "reader-profile/baseline-status.txt",
+      "reader-profile/baseline-diff.patch",
+      "reader-profile/candidate-status.txt",
+      "reader-profile/candidate-diff.patch"
+    ],
+    "missing_outputs_not_synthesized": true,
+    "source_guard_proof": "Consult the independent QA, full job log and unchanged harness guards. Missing raw status/diff output is explicitly a transport-evidence limitation.",
+    "selected_trace_count": 12,
+    "selected_trace_paths": [
+      "reader-profile/step-00-baseline/launch-000/reader_trace_reader_100.json",
+      "reader-profile/step-00-baseline/launch-000/reader_trace_reader_101.json",
+      "reader-profile/step-00-baseline/launch-000/reader_trace_reader_102.json",
+      "reader-profile/step-00-baseline/launch-000/reader_trace_reader_38.json",
+      "reader-profile/step-00-baseline/launch-000/reader_trace_reader_40.json",
+      "reader-profile/step-01-candidate/launch-000/reader_trace_reader_40.json",
+      "reader-profile/step-02-candidate/launch-001/reader_trace_reader_102.json",
+      "reader-profile/step-02-candidate/launch-001/reader_trace_reader_81.json",
+      "reader-profile/step-05-candidate/launch-002/reader_trace_reader_38.json",
+      "reader-profile/step-05-candidate/launch-002/reader_trace_reader_79.json",
+      "reader-profile/step-06-candidate/launch-003/reader_trace_reader_102.json",
+      "reader-profile/step-07-baseline/launch-003/reader_trace_reader_39.json"
+    ],
+    "omitted_trace_count": 836,
+    "all_1012_hashes_and_exact_omission_list": "artifact-member-index.json.gz",
+    "trace_replay_limitation": "Re-running the audit of all 848 traces requires the full original ZIP. This reduced public bundle preserves every phase/resource observation and selected diagnostic traces, not every trace payload.",
+    "interim_poll_snapshots": "Retained locally; public bundle includes final provider metadata only. No measurements are stored only in polling snapshots.",
+    "private_owner_storage_receipt": "Not included in the public Git bundle."
+  },
+  "compression": {
+    "format": "gzip",
+    "level": 9,
+    "mtime": 0,
+    "header_filename": "",
+    "zlib_version": "1.3.2",
+    "zlib_runtime_version": "1.3.2",
+    "verification": "Each compressed output was decompressed and compared byte-for-byte with its complete input; source/stored hashes are in content-manifest.json.gz.",
+    "replay": "Decompress each .gz file and remove its final .gz suffix, retaining its directory. Do not filter rows or reclassify unavailable metrics as zero."
+  },
+  "qa": {
+    "final_review_received": true,
+    "files": [
+      "observer-timing-qa.json",
+      "qa-history-provenance.json",
+      "qa_windows_reader.py",
+      "qa_windows_reader_original_8b1bcfd5.py",
+      "summarize_windows_reader.py",
+      "windows-qa-input-contract.json",
+      "windows-qa-input-contract_original.json",
+      "windows-whole-pr-diagnostic-trace-catalog-43276783432-1.json",
+      "windows-whole-pr-diagnostic-trace-paths-43276783432-1.json",
+      "windows-whole-pr-diagnostics-43276783432-1.json",
+      "windows-whole-pr-interpretation-43276783432-1.json",
+      "windows-whole-pr-qa-43276783432-1-reviewed.json",
+      "windows-whole-pr-qa-43276783432-1.json"
+    ],
+    "report_statuses": [
+      {
+        "file": "windows-whole-pr-qa-43276783432-1-reviewed.json",
+        "evidence_status": "partial_evidence",
+        "error_count": 0,
+        "warnings_by_code": {
+          "final_cleanliness_raw_output_absent": 4,
+          "pipeline_unavailable_incomplete_trace": 40
+        }
+      }
+    ],
+    "history": "The first report, original QA source and contract are retained unchanged. The reviewed report is the current validation: it distinguishes declared nonreader skips, missing transport metadata and unavailable timeline metrics from invalid samples. No artifact observations were changed.",
+    "scope": "Descriptive integrity/statistics audit; no physical-GPU proof and no representation-only app claim."
+  },
+  "excluded_experiment": "No isolated flat/chunked Windows run data is included."
+}

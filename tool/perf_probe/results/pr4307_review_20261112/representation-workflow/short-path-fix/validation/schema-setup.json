@@ -1,0 +1,11 @@
+{
+  "actionlint_exit_code": 0,
+  "powershell_blocks": 6,
+  "powershell_exit_code": 0,
+  "setup_contract_exit_code": 0,
+  "source_and_sampling_pins_unchanged": true,
+  "only_two_path_literal_substitutions": true,
+  "short_comparison_root_exported": true,
+  "artifact_globs_updated": 11,
+  "workflow_sha256": "bab73977e857298b3b1f684a5a8d55027e1fc3523ceec7dba0f85eeb759cacb4"
+}

@@ -1,0 +1,57 @@
+{
+  "run_id": 43289584496,
+  "run_attempt": 1,
+  "job_id": 131431946281,
+  "artifact_id": 13977237642,
+  "native_error": "LNK1104: cannot open file",
+  "observed_path": "D:\\a\\_temp\\reader-flat-control-validation-source\\.dart_tool\\hooks_runner\\shared\\otzaria_search_engine\\build\\target\\x86_64-pc-windows-msvc\\release\\build\\unicode-normalization-alignments\\a32c9ebf3cf5f0d2\\out\\libunicode_normalization_alignments-a32c9ebf3cf5f0d2.rlib",
+  "observed_path_characters": 263,
+  "observed_suffix": "\\.dart_tool\\hooks_runner\\shared\\otzaria_search_engine\\build\\target\\x86_64-pc-windows-msvc\\release\\build\\unicode-normalization-alignments\\a32c9ebf3cf5f0d2\\out\\libunicode_normalization_alignments-a32c9ebf3cf5f0d2.rlib",
+  "suffix_characters": 215,
+  "paths": {
+    "observed_v2_validation": {
+      "path": "D:\\a\\_temp\\reader-flat-control-validation-source\\.dart_tool\\hooks_runner\\shared\\otzaria_search_engine\\build\\target\\x86_64-pc-windows-msvc\\release\\build\\unicode-normalization-alignments\\a32c9ebf3cf5f0d2\\out\\libunicode_normalization_alignments-a32c9ebf3cf5f0d2.rlib",
+      "characters": 263,
+      "characters_with_nul": 264
+    },
+    "proposed_v3_validation": {
+      "path": "D:\\a\\_temp\\r4307v\\.dart_tool\\hooks_runner\\shared\\otzaria_search_engine\\build\\target\\x86_64-pc-windows-msvc\\release\\build\\unicode-normalization-alignments\\a32c9ebf3cf5f0d2\\out\\libunicode_normalization_alignments-a32c9ebf3cf5f0d2.rlib",
+      "characters": 232,
+      "characters_with_nul": 233
+    },
+    "v2_comparison_baseline": {
+      "path": "D:\\a\\_temp\\reader-representation-profile\\worktrees\\baseline\\.dart_tool\\hooks_runner\\shared\\otzaria_search_engine\\build\\target\\x86_64-pc-windows-msvc\\release\\build\\unicode-normalization-alignments\\a32c9ebf3cf5f0d2\\out\\libunicode_normalization_alignments-a32c9ebf3cf5f0d2.rlib",
+      "characters": 274,
+      "characters_with_nul": 275
+    },
+    "v2_comparison_candidate": {
+      "path": "D:\\a\\_temp\\reader-representation-profile\\worktrees\\candidate\\.dart_tool\\hooks_runner\\shared\\otzaria_search_engine\\build\\target\\x86_64-pc-windows-msvc\\release\\build\\unicode-normalization-alignments\\a32c9ebf3cf5f0d2\\out\\libunicode_normalization_alignments-a32c9ebf3cf5f0d2.rlib",
+      "characters": 275,
+      "characters_with_nul": 276
+    },
+    "proposed_v3_comparison_baseline": {
+      "path": "D:\\a\\_temp\\r4307p\\worktrees\\baseline\\.dart_tool\\hooks_runner\\shared\\otzaria_search_engine\\build\\target\\x86_64-pc-windows-msvc\\release\\build\\unicode-normalization-alignments\\a32c9ebf3cf5f0d2\\out\\libunicode_normalization_alignments-a32c9ebf3cf5f0d2.rlib",
+      "characters": 251,
+      "characters_with_nul": 252
+    },
+    "proposed_v3_comparison_candidate": {
+      "path": "D:\\a\\_temp\\r4307p\\worktrees\\candidate\\.dart_tool\\hooks_runner\\shared\\otzaria_search_engine\\build\\target\\x86_64-pc-windows-msvc\\release\\build\\unicode-normalization-alignments\\a32c9ebf3cf5f0d2\\out\\libunicode_normalization_alignments-a32c9ebf3cf5f0d2.rlib",
+      "characters": 252,
+      "characters_with_nul": 253
+    },
+    "original_whole_pr_comparison_baseline": {
+      "path": "D:\\a\\_temp\\reader-profile\\worktrees\\baseline\\.dart_tool\\hooks_runner\\shared\\otzaria_search_engine\\build\\target\\x86_64-pc-windows-msvc\\release\\build\\unicode-normalization-alignments\\a32c9ebf3cf5f0d2\\out\\libunicode_normalization_alignments-a32c9ebf3cf5f0d2.rlib",
+      "characters": 259,
+      "characters_with_nul": 260
+    }
+  },
+  "diagnosis": "Strong path-length hypothesis: the linker cannot open the observed 263-character path. LNK1104 alone does not prove MAX_PATH; successful Windows execution with shorter directories must confirm the mitigation.",
+  "not_a_performance_result": true,
+  "source_changes_required": false,
+  "validation_logs_root_unchanged": true,
+  "evidence_log_sha256": "fe59ea034c6a1875c690efc6f1c9784e9d8bd5132f4498f8074ff2ead0277fb0",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation",
+    "https://learn.microsoft.com/en-us/cpp/error-messages/tool-errors/linker-tools-error-lnk1104?view=msvc-170"
+  ]
+}

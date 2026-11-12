@@ -1,0 +1,224 @@
+The Dart VM service is listening on http://127.0.0.1:58647/YuL-LJDSfQQ=/
+00:00 +0: reproducible resource probe
+Setting PdfrxEntryFunctions instance: Instance of 'PdfiumPreloadGate'
+Pdfrx cache directory set to: C:\Users\RUNNER~1\AppData\Local\Temp
+💾 DatabaseLibraryProvider initialized
+✅ Initialized provider: מסד נתונים
+📁 FileSystemLibraryProvider initialized
+✅ Initialized provider: קבצים
+📚 LibraryProviderManager initialized with 2 providers
+Library providers initialized in FileSystemData
+⏱️ Metadata + providers init: 4ms
+📚 Building catalog from מסד נתונים
+💾 Building library catalog from database...
+⏱️ Transaction (books+categories): 1ms (3 books, 1 categories)
+💾 Loaded 1 categories
+💾 Found 1 root categories
+⏱️ Category tree build: 0ms
+🔎 תאימות אינדקס: missing_index (נמצא: null, נדרש: 11)
+💾 Database catalog built with 1 categories and 3 books from DB
+✅ Library catalog built with 1 top-level categories
+⏱️ Total getLibrary: 36ms
+[GenerationCache] Loaded generations for 0 books (+0 user books)
+[BooksCache] Loaded 3 books into shared cache
+[AcronymsCache] Loaded 0 acronyms for 0 books
+[ReferenceBooksCache] Ready with 3 DB books + 0 FS PDF books
+PluginRuntimeDispatcher: Dispatching calendar.date_changed
+PluginRuntimeDispatcher: Dispatching workspace.changed
+🗂️ [CacheDB] Opening cache.db at D:\a\_temp\reader-profile\step-03-baseline\data\cold-1\databases\cache.db
+DEBUG: הוספת טאב חדש - מדידה קצרה
+PluginRuntimeDispatcher: Dispatching navigation.changed
+PluginRuntimeDispatcher: Dispatching reader.current_book_changed
+🔤 מילון מורפולוגי נטען לחיפוש המקורב: D:\a\_temp\reader-profile\step-03-baseline\data\cold-1\library\lexical.db
+🔤 מילון תרגום ארמי נטען: D:\a\_temp\reader-profile\step-03-baseline\data\cold-1\app-data\dictionaries\dictionary.json
+📁 Looking for file: D:\a\_temp\reader-profile\step-03-baseline\data\cold-1\app-data\per_book_settings/settings_94fb41687e2ecfe6cd6969d47767701185ca933b.json
+📁 File does not exist
+DEBUG: saved: null, returning: 0
+🔤 מילון ראשי-תיבות נטען: D:\a\_temp\reader-profile\step-03-baseline\data\cold-1\app-data\dictionaries\search_acronyms.json
+📚 נקראו 0 ספרים מאונדקסים מהאינדקס
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching navigation.changed
+DEBUG: הוספת טאב חדש - מדידה קצרה
+PluginRuntimeDispatcher: Dispatching navigation.changed
+PluginRuntimeDispatcher: Dispatching reader.current_book_changed
+DEBUG: saved: null, returning: 0
+📁 Looking for file: D:\a\_temp\reader-profile\step-03-baseline\data\cold-1\app-data\per_book_settings/settings_94fb41687e2ecfe6cd6969d47767701185ca933b.json
+📁 File does not exist
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching navigation.changed
+DEBUG: הוספת טאב חדש - מדידה בינונית
+PluginRuntimeDispatcher: Dispatching navigation.changed
+PluginRuntimeDispatcher: Dispatching reader.current_book_changed
+DEBUG: saved: null, returning: 0
+📁 Looking for file: D:\a\_temp\reader-profile\step-03-baseline\data\cold-1\app-data\per_book_settings/settings_5552c8f329b2976db5f277ab87226677081ae34b.json
+📁 File does not exist
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching navigation.changed
+DEBUG: הוספת טאב חדש - מדידה ארוכה
+PluginRuntimeDispatcher: Dispatching navigation.changed
+PluginRuntimeDispatcher: Dispatching reader.current_book_changed
+DEBUG: saved: null, returning: 0
+📁 Looking for file: D:\a\_temp\reader-profile\step-03-baseline\data\cold-1\app-data\per_book_settings/settings_574d15f32a0c1b9c030206de588724bd36e3dfa5.json
+📁 File does not exist
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching navigation.changed
+DEBUG: הוספת טאב חדש - מדידה קצרה
+PluginRuntimeDispatcher: Dispatching navigation.changed
+PluginRuntimeDispatcher: Dispatching reader.current_book_changed
+DEBUG: saved: null, returning: 0
+📁 Looking for file: D:\a\_temp\reader-profile\step-03-baseline\data\cold-1\app-data\per_book_settings/settings_94fb41687e2ecfe6cd6969d47767701185ca933b.json
+📁 File does not exist
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching navigation.changed
+DEBUG: הוספת טאב חדש - מדידה בינונית
+PluginRuntimeDispatcher: Dispatching navigation.changed
+PluginRuntimeDispatcher: Dispatching reader.current_book_changed
+DEBUG: saved: null, returning: 0
+📁 Looking for file: D:\a\_temp\reader-profile\step-03-baseline\data\cold-1\app-data\per_book_settings/settings_5552c8f329b2976db5f277ab87226677081ae34b.json
+📁 File does not exist
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching navigation.changed
+DEBUG: הוספת טאב חדש - מדידה ארוכה
+PluginRuntimeDispatcher: Dispatching navigation.changed
+PluginRuntimeDispatcher: Dispatching reader.current_book_changed
+DEBUG: saved: null, returning: 0
+📁 Looking for file: D:\a\_temp\reader-profile\step-03-baseline\data\cold-1\app-data\per_book_settings/settings_574d15f32a0c1b9c030206de588724bd36e3dfa5.json
+📁 File does not exist
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching navigation.changed
+DEBUG: הוספת טאב חדש - מדידה קצרה
+PluginRuntimeDispatcher: Dispatching navigation.changed
+PluginRuntimeDispatcher: Dispatching reader.current_book_changed
+DEBUG: saved: null, returning: 0
+📁 Looking for file: D:\a\_temp\reader-profile\step-03-baseline\data\cold-1\app-data\per_book_settings/settings_94fb41687e2ecfe6cd6969d47767701185ca933b.json
+📁 File does not exist
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching navigation.changed
+DEBUG: הוספת טאב חדש - מדידה בינונית
+PluginRuntimeDispatcher: Dispatching navigation.changed
+PluginRuntimeDispatcher: Dispatching reader.current_book_changed
+DEBUG: saved: null, returning: 0
+📁 Looking for file: D:\a\_temp\reader-profile\step-03-baseline\data\cold-1\app-data\per_book_settings/settings_5552c8f329b2976db5f277ab87226677081ae34b.json
+📁 File does not exist
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching navigation.changed
+DEBUG: הוספת טאב חדש - מדידה ארוכה
+PluginRuntimeDispatcher: Dispatching navigation.changed
+PluginRuntimeDispatcher: Dispatching reader.current_book_changed
+DEBUG: saved: null, returning: 0
+📁 Looking for file: D:\a\_temp\reader-profile\step-03-baseline\data\cold-1\app-data\per_book_settings/settings_574d15f32a0c1b9c030206de588724bd36e3dfa5.json
+📁 File does not exist
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching navigation.changed
+DEBUG: הוספת טאב חדש - מדידה קצרה
+PluginRuntimeDispatcher: Dispatching navigation.changed
+PluginRuntimeDispatcher: Dispatching reader.current_book_changed
+DEBUG: saved: null, returning: 0
+📁 Looking for file: D:\a\_temp\reader-profile\step-03-baseline\data\cold-1\app-data\per_book_settings/settings_94fb41687e2ecfe6cd6969d47767701185ca933b.json
+📁 File does not exist
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching navigation.changed
+DEBUG: הוספת טאב חדש - מדידה בינונית
+PluginRuntimeDispatcher: Dispatching navigation.changed
+PluginRuntimeDispatcher: Dispatching reader.current_book_changed
+DEBUG: saved: null, returning: 0
+📁 Looking for file: D:\a\_temp\reader-profile\step-03-baseline\data\cold-1\app-data\per_book_settings/settings_5552c8f329b2976db5f277ab87226677081ae34b.json
+📁 File does not exist
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching navigation.changed
+DEBUG: הוספת טאב חדש - מדידה ארוכה
+PluginRuntimeDispatcher: Dispatching navigation.changed
+PluginRuntimeDispatcher: Dispatching reader.current_book_changed
+DEBUG: saved: null, returning: 0
+📁 Looking for file: D:\a\_temp\reader-profile\step-03-baseline\data\cold-1\app-data\per_book_settings/settings_574d15f32a0c1b9c030206de588724bd36e3dfa5.json
+📁 File does not exist
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching navigation.changed
+DEBUG: הוספת טאב חדש - מדידה קצרה
+PluginRuntimeDispatcher: Dispatching navigation.changed
+PluginRuntimeDispatcher: Dispatching reader.current_book_changed
+DEBUG: saved: null, returning: 0
+📁 Looking for file: D:\a\_temp\reader-profile\step-03-baseline\data\cold-1\app-data\per_book_settings/settings_94fb41687e2ecfe6cd6969d47767701185ca933b.json
+📁 File does not exist
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching navigation.changed
+DEBUG: הוספת טאב חדש - מדידה בינונית
+PluginRuntimeDispatcher: Dispatching navigation.changed
+PluginRuntimeDispatcher: Dispatching reader.current_book_changed
+DEBUG: saved: null, returning: 0
+📁 Looking for file: D:\a\_temp\reader-profile\step-03-baseline\data\cold-1\app-data\per_book_settings/settings_5552c8f329b2976db5f277ab87226677081ae34b.json
+📁 File does not exist
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching navigation.changed
+DEBUG: הוספת טאב חדש - מדידה ארוכה
+PluginRuntimeDispatcher: Dispatching navigation.changed
+PluginRuntimeDispatcher: Dispatching reader.current_book_changed
+DEBUG: saved: null, returning: 0
+📁 Looking for file: D:\a\_temp\reader-profile\step-03-baseline\data\cold-1\app-data\per_book_settings/settings_574d15f32a0c1b9c030206de588724bd36e3dfa5.json
+📁 File does not exist
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching reader.current_ref_changed
+PluginRuntimeDispatcher: Dispatching navigation.changed
+04:03 +1: (tearDownAll)
+04:03 +2: All tests passed!
+04:03 +2: reproducible resource probe
+⚠️ UiSnack: navigatorKey.currentContext is null

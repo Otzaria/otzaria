@@ -1,0 +1,32 @@
+[
+  {
+    "name": "Preserve source bytes and the fixed experiment plan",
+    "path": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v3-block-00.ps1",
+    "sha256": "21b98ae6592ce6901d6eb1d48a866d7dc6a0e0ecab723991d210be10476612a5"
+  },
+  {
+    "name": "Verify pinned topology, product diff and identical harness",
+    "path": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v3-block-02.ps1",
+    "sha256": "99d0c093efb86f1f5f247f5d8a001f1b9f78dc266c81a8f4b14c300ba10c01f4"
+  },
+  {
+    "name": "Validate runner and source-overlay contracts",
+    "path": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v3-block-03.ps1",
+    "sha256": "5a0a9d9725b7fd83c929dc3e272e04bc35b4ad790fa79f562247ef7231bc7e45"
+  },
+  {
+    "name": "Validate the flat control in a temporary worktree",
+    "path": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v3-block-06.ps1",
+    "sha256": "237c85b9015460a045d30314ee34ea74b8d1989a9982af9818a5c2a757e9a6bc"
+  },
+  {
+    "name": "Build both pinned sides and measure in ABBA order",
+    "path": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v3-block-07.ps1",
+    "sha256": "d3e6b5ec15dbf8644a30f0f05cda52c9a544ff0fff382cb6272ca38f451c14db"
+  },
+  {
+    "name": "Summarize observed representation comparison",
+    "path": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v3-block-08.ps1",
+    "sha256": "5dbeac44bd73dec8c8c684804b76aad40a8ecbeb21b6d2d1c51699d4a2c15376"
+  }
+]

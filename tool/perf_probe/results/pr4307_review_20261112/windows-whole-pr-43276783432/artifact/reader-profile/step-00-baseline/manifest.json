@@ -1,0 +1,556 @@
+{
+  "launchIndexOffset": 0,
+  "lockfileQuoting": {
+    "restoredQuotingOnly": false,
+    "originalSha256": "1a716b4ffe7bc77506b550db9f185a2a6ff3de8882941f8f2752ca2cfadc5397",
+    "resolvedSha256": "1a716b4ffe7bc77506b550db9f185a2a6ff3de8882941f8f2752ca2cfadc5397",
+    "restoredSha256": "1a716b4ffe7bc77506b550db9f185a2a6ff3de8882941f8f2752ca2cfadc5397",
+    "rule": "Only matching quotes around unchanged full ref/resolved-ref SHAs may differ."
+  },
+  "commit": "7cd6ff40821eab4f1488d05158912f589fabb541",
+  "binarySha256": "8395c98760605ef43c05d7710d7912d38a8c3ae619d2a7e0cb021305fd5b7483",
+  "endedAtUtc": "2026-11-12T19:09:18.0737032Z",
+  "startupOrigin": "Dart main; fixture preparation and native pre-main are excluded",
+  "schemaVersion": 2,
+  "warmup": 1,
+  "buildMode": "profile",
+  "dirty": false,
+  "launchCount": 1,
+  "hardwareId": "github-hosted-43276783432-1",
+  "os": "windows-10.0.26100-26100",
+  "cacheState": "cold",
+  "status": "passed",
+  "coldDefinition": "fresh application data; OS file cache is not flushed",
+  "repetitions": 4,
+  "flutterVersion": "abaf9c523780a608bd46686fd5e53740a07077f8",
+  "sampling": {
+    "heap": true,
+    "intervalMs": 500,
+    "treeRefreshMs": 2000,
+    "heapAggregation": "unique-application-isolate-groups"
+  },
+  "startedAtUtc": "2026-11-12T19:04:44.0135575Z",
+  "reusedBuild": "D:\\a\\_temp\\reader-profile\\build-baseline",
+  "bundleHashes": [
+    {
+      "path": "crashpad_handler.exe",
+      "sha256": "4cb75fd0ee3293b266af8a483eb736642adddf8307db8190dca9e3948b29901c"
+    },
+    {
+      "path": "crashpad_wer.dll",
+      "sha256": "c45ecb43be139ab523e98f8413528cad001f3a9c0312a4976ec7d3e5dabe9e04"
+    },
+    {
+      "path": "dartjni.dll",
+      "sha256": "52c64544bf0444ecf8d3799f62a00a1169fb22b90b4dae69715cbc0760144a5c"
+    },
+    {
+      "path": "data\\app.so",
+      "sha256": "864c064cf9e0e1beefe8fe688c70170868587b237c6e2a4613f995008e74f5dd"
+    },
+    {
+      "path": "data\\flutter_assets\\AssetManifest.bin",
+      "sha256": "07c8ef4d600475dec146281546173bb3121563b46533ef4f7ad50af8e45cc51c"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\%D7%99%D7%95%D7%9E%D7%9F%20%D7%A9%D7%99%D7%A0%D7%95%D7%99%D7%99%D7%9D.md",
+      "sha256": "b412eee2535c68f0476b571602ce201495526920788aca868d16f596cd4e5f57"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\Acronyms.json",
+      "sha256": "1054c5e57e1d6e6c4311f048f07dd2d5afe2f3082dfbd29323633c43c29187a2"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\bio\\.gitkeep",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\bundled_plugins\\.gitkeep",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\ca\\netfree_cas.pem",
+      "sha256": "90be155df5769affc851f68d6b3a8a7b9b1f9a53a0e5a8ee70a36a4ff54160d6"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\ca\\netfree_root_ca_unified_v1.pem",
+      "sha256": "cd13de8b565b3898545b1c4f0351f504f443e1e4da170cb45cfb71df31b93035"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\ca\\netfree_root_ca_x2.pem",
+      "sha256": "1b440ba39b2f6f02ba8090fc724125e1adef49fe411c5174add1795593daea26"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\dictionary.json",
+      "sha256": "65ec2606de9e1475a585d8eb37b538349ab9baa59f676b3b0dd5432d4bdd49b3"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\icon\\icon_256.png",
+      "sha256": "0291913fb51357981d12f6586331e817b3986f49832a6af9379fac01f7df0215"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\icon\\icon.png",
+      "sha256": "28e0cc52fbb756b1ebbdc278fabb0f9d43217d086e233520cdd8496a5068ed89"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\icon\\otzplugin_file_icon.png",
+      "sha256": "56a4861704eb8500db71bea66ecb4bd5f7b276d7b19eadf379cb97668287879c"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logo_books\\dicta.svg",
+      "sha256": "7233009d07b26cc636890b3370d65581254b01ecc093ac088a92c6f4dd8d932c"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logo_books\\friedberg.svg",
+      "sha256": "a7aace841ed4e9d320d4563cffca897dc50ded629c64eaf3b16184ee5ddd187d"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logo_books\\JewishBook.svg",
+      "sha256": "2f2d8605d5c8179bd34117be9da56c0d1e89a591e8aaf1e59de020eadbe320c9"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logo_books\\machonso.svg",
+      "sha256": "c48aef899df3fe4c18dee0d514cd5cff9ad60d6c19310856fbc7c524fcf75c1e"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logo_books\\mikrapedia_talmudit.svg",
+      "sha256": "90ff9dfc0294d51c9914a8b5692a4c9c4f93d93b2b2041a6c0489727ebdf58bd"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logo_books\\national_library_il.svg",
+      "sha256": "02908dec3f55e81e8026c4e4b662d18c72c75938520da7a9a5ba4b3bd7f7a988"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logo_books\\OnYourWay.svg",
+      "sha256": "92a30f551057da1915b4061bc2535198b46a2ec79a7732b05f1dcf751162035b"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logo_books\\Orayta.svg",
+      "sha256": "029105523d843b72542c890d13f1c85a2ade72ea7ee29c21bf17e43f500b72f1"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logo_books\\pi_yesharim.svg",
+      "sha256": "b0caddddf55cfc03157fe26a19a47440db5d3dd752ddd664e1a3c333a8bd4b2f"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logo_books\\pninim.svg",
+      "sha256": "8420dbc53c3f86471f2c421836007fd8bd60aa9cf4a4ac79e2545f705d9601ea"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logo_books\\safria.svg",
+      "sha256": "e85c8ac5734207b19a699602a0109f15d3a3c976841266577999a88e791e0d38"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logo_books\\tashma.svg",
+      "sha256": "cd4007774c34f0ef732db68d280c1d2cf56dad3f3adffb8925e0614ad6605f17"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logo_books\\ToratEmet.svg",
+      "sha256": "8a5b2ec2ea0dd80bc8dc1a245b3cb7bf8a17ad77addfc6ce3da2081ce6fab77f"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logo_books\\wikisource.svg",
+      "sha256": "211b332af6138a7c2d5fce0b58586c63e03ea418060539dd315e61c0c0e49e95"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logo_books\\yam_hahachma.svg",
+      "sha256": "6e4ab46ae144c766df9e3aeeedadd0c415294f5de004e01da63026b4ef168e11"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logos\\achim_anachnu.png",
+      "sha256": "84687975c2127133cec113105cce1bd81e4e02c82e25462bb9d36c0ca40622ac"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logos\\agudat_bnei_yeshivot.png",
+      "sha256": "d1a3f5f61dc6350c04364876926f55e68f345a50009a82b81672e3968a5c1690"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logos\\am_kadosh.jpg",
+      "sha256": "595b076933c6ad657d7957f044d611a0a52cf63591d83551890a369fcbccca2e"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logos\\ezram_maginam.png",
+      "sha256": "f7557173380ec2ab924a19d2b838ebffe80f021b8f08304672bfb3cd1686b01e"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logos\\ezram.jpg",
+      "sha256": "6567c405aebcb1454f0cfb821bc0b7b38d8bfe146493cc3c86e1b1a98ec0a8d4"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logos\\hachotfim_higiu.jpg",
+      "sha256": "249a8aa030eb8fe418e249eefcc7ede3246e089e24b70618caf5d284ffd914b9"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logos\\hatzala_leachim.png",
+      "sha256": "3a21c2724272e901804ba026c01d4b683911be4ad7212cd8dfd239eca9760aac"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logos\\hebrew_books.png",
+      "sha256": "61ae5793b20e80affb0a2ef0919f1db03235e57b471f647d931aacf15c7d6c57"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logos\\kele_1000.png",
+      "sha256": "4fa7b37173be4c0e001ff0fdb42f6a3cf2956442ea7ea1d989702ccd74423e99"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logos\\magen_umoshia.png",
+      "sha256": "c7cdad85025c201c0cd4d0bf69910b7110c0e7b7f81c9549fcc64a966f0ffa23"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logos\\notnim_gav.png",
+      "sha256": "8f4a50de6177aa4a19f605a6b75a0cd8cb83a6167f9c4fbb9923f366fa0f18cc"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logos\\otzar.ico",
+      "sha256": "02c5ea76e61ebec82c81414ac6956dc6cb5e6685dd0b9479845adc78a0367875"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\logos\\tzeva_shahor.png",
+      "sha256": "bb46f3d4d10fa9f136f522ef9374461b4d4fa5f3c110273c61f55bfb60ae8a2b"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\search_acronyms.json",
+      "sha256": "bea6b34a6dce8fef7cbfa00509a75bbd4557b8b33af8b82890c4bfe007db1633"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\semantic\\meivin-qa491-onnx\\model.json",
+      "sha256": "58227b5df294a2c20a706482de5d431875941f22ee5007cf20ddc84536801fad"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\semantic\\meivin-qa491-windows-onnx\\model.json",
+      "sha256": "c3a0f03b6ef1de629f6cc04d2f9f3edfd47961d7d860b460da860996f91a8e93"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\semantic\\meivin-round2-onnx\\model.json",
+      "sha256": "a27b103ea5dc50be674e6e6696d8f8ea09639ac3808cd1a48dcf2d70a0b47d1c"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\semantic\\meivin-round2-windows-onnx\\model.json",
+      "sha256": "2b8726e48e9379aa5682f9110b0d71c358c0f1aebf5681f870fed2783f248157"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\semantic\\pardesqa491-windows-onnx\\model.json",
+      "sha256": "317b75deb75b1158a327934173cf55dab63843002688746e9aa54bd09b383a76"
+    },
+    {
+      "path": "data\\flutter_assets\\assets\\support_organizations.json",
+      "sha256": "eed5bebc176575e4b428693e47aa6cb9d2f2f04c87524be52ad22269b8caa8aa"
+    },
+    {
+      "path": "data\\flutter_assets\\FontManifest.json",
+      "sha256": "bb3cffd6f67746899b4826b6eaaf6fc09a42ab7f1d4183cf0395d55b8c0cc88a"
+    },
+    {
+      "path": "data\\flutter_assets\\fonts\\FrankRuehlCLM-Bold.ttf",
+      "sha256": "430876278510bee884b0a11437038d568fa593243e64b71fcc81482013f9b09b"
+    },
+    {
+      "path": "data\\flutter_assets\\fonts\\FrankRuehlCLM-Medium.ttf",
+      "sha256": "3e01dfd842ff9939271d2dee58db26a27467ef418a78ea270fe0cb043ea1057c"
+    },
+    {
+      "path": "data\\flutter_assets\\fonts\\KeterYG-Medium.ttf",
+      "sha256": "328aa43cead4928874aca69e3c594967c668ab14d6f475d9e403c81090985244"
+    },
+    {
+      "path": "data\\flutter_assets\\fonts\\MaterialIcons-Regular.otf",
+      "sha256": "3950bd4321892dbdee9c058c081600666abbd40d8d6f52a4ffdc658e8bde1818"
+    },
+    {
+      "path": "data\\flutter_assets\\fonts\\NotoRashiHebrew-VariableFont_wght.ttf",
+      "sha256": "56488ee889f123dbf4abdb74c7ca17a5fb78d86efa960c89582f67d543fe0f9a"
+    },
+    {
+      "path": "data\\flutter_assets\\fonts\\NotoSerifHebrew-VariableFont_wdth,wght.ttf",
+      "sha256": "4a76d07f2f671273d0219e51dc63459323be0c7b7d8106267f0f68af4227a3b5"
+    },
+    {
+      "path": "data\\flutter_assets\\fonts\\Rubik-VariableFont_wght.ttf",
+      "sha256": "7604615c681d3594432cb7f1b592657d1cac98acdb60c7e95619cddda19b265f"
+    },
+    {
+      "path": "data\\flutter_assets\\fonts\\ShofarRegular.ttf",
+      "sha256": "7913fdd35fa1446d836f1cb9bc119a922ff075ec2fee7fa0eb39f43a89fc17c5"
+    },
+    {
+      "path": "data\\flutter_assets\\fonts\\TaameyAshkenaz-Medium.ttf",
+      "sha256": "a182e8405501e532ca5907fd31059916901ce4d1db9fba3955565e0e14c7b7e2"
+    },
+    {
+      "path": "data\\flutter_assets\\fonts\\TaameyDavidCLM-Medium.ttf",
+      "sha256": "2f668ae127a2bd17e9f312d8c9908daeb2298b79f84bce42711a0095bc5263b6"
+    },
+    {
+      "path": "data\\flutter_assets\\fonts\\tikkun_korim\\Ashkenazi-Stam.ttf",
+      "sha256": "4f17d92b388713ce298651c59018357b881fc6ab0c83a855e9b5a77d0143c691"
+    },
+    {
+      "path": "data\\flutter_assets\\fonts\\tikkun_korim\\Sefardi-Stam.ttf",
+      "sha256": "ce18557046a74f3c06d79aaf772b011551d3839d9ed773c7640dd16b4a1c2164"
+    },
+    {
+      "path": "data\\flutter_assets\\fonts\\Tinos-Regular.ttf",
+      "sha256": "054f3f97a338070c3558a9ce7e302565be85c7436b10bb0a01cf6a41f0782e61"
+    },
+    {
+      "path": "data\\flutter_assets\\lib\\migration\\database\\sql\\AuthorQueries.sq",
+      "sha256": "28b302dd6705cf9bc681230fff8b403529125f0396869088ad40d931d6e79253"
+    },
+    {
+      "path": "data\\flutter_assets\\lib\\migration\\database\\sql\\BookQueries.sq",
+      "sha256": "b90cac1060fb1493367ca364a3229803fc5dbb1348628ba3dadf56decab544b5"
+    },
+    {
+      "path": "data\\flutter_assets\\lib\\migration\\database\\sql\\CategoryQueries.sq",
+      "sha256": "0c1ed43edc372a08219115a4f1cf12fc5a7b5b8a8d19ba9c1aaa535a3ad2b541"
+    },
+    {
+      "path": "data\\flutter_assets\\lib\\migration\\database\\sql\\Database.sq",
+      "sha256": "24b622578c9cbb816affccef951b9f3cdeb9b2ff6b413138b5ceed06b37268c8"
+    },
+    {
+      "path": "data\\flutter_assets\\lib\\migration\\database\\sql\\DocxTextCacheQueries.sq",
+      "sha256": "36e59f7c186a1f4c178c6597496d3b802f9b0f4e2e64a34a34b78ff4f2f9fc49"
+    },
+    {
+      "path": "data\\flutter_assets\\lib\\migration\\database\\sql\\LineQueries.sq",
+      "sha256": "05ede038ae1a8cd47c1a41531d36390b800a360b9118ea4d5594445d4fdf00bd"
+    },
+    {
+      "path": "data\\flutter_assets\\lib\\migration\\database\\sql\\LinkQueries.sq",
+      "sha256": "1905018869acf309fec59e36ab96fd2a68e98c76b861d19bfc75fd22064eb573"
+    },
+    {
+      "path": "data\\flutter_assets\\lib\\migration\\database\\sql\\PdfAnchorCacheQueries.sq",
+      "sha256": "43ac66c5dbddad15f0e516c2d4e27da40bfedc8cdd43ee446e1190b1f3894332"
+    },
+    {
+      "path": "data\\flutter_assets\\lib\\migration\\database\\sql\\PdfOutlineCacheQueries.sq",
+      "sha256": "055d3c93b2fd3e71f71ff10d9659494d73a8c480e73ecfc8bcb7df3f4ebb8fd3"
+    },
+    {
+      "path": "data\\flutter_assets\\lib\\migration\\database\\sql\\PubDateQueries.sq",
+      "sha256": "5f3fca18bd46edc2095adaf19307852a4a3f245f059a2409482ff7fad69971cd"
+    },
+    {
+      "path": "data\\flutter_assets\\lib\\migration\\database\\sql\\PubPlaceQueries.sq",
+      "sha256": "b0ba1ca7433fd3f3bba72a695d1191867bc4c5aed4f77eb98d477a6a979d1c47"
+    },
+    {
+      "path": "data\\flutter_assets\\lib\\migration\\database\\sql\\TocQueries.sq",
+      "sha256": "47f99ef9748fbad3fe56a7980158cc9ae671ccece3e74844205bd88b2cb35c3a"
+    },
+    {
+      "path": "data\\flutter_assets\\lib\\migration\\database\\sql\\TocTextQueries.sq",
+      "sha256": "38e35092d4ef7ec6a6b6c11d6422d3bbe2d7333637a8879bdc27ba06d2939d5b"
+    },
+    {
+      "path": "data\\flutter_assets\\lib\\migration\\database\\sql\\TopicQueries.sq",
+      "sha256": "9d7104c6a854a250f31ffc6da8a176c54ed5b14316d6cb40bb8fa4b9920db61e"
+    },
+    {
+      "path": "data\\flutter_assets\\NativeAssetsManifest.json",
+      "sha256": "c13819d86229f521f81757f274c7e4fefdd2dc8c1921744af659d27f0efa58fa"
+    },
+    {
+      "path": "data\\flutter_assets\\NOTICES.Z",
+      "sha256": "8b0343c3ad1446e6d1ac89a2edc5f67bc1078c8d77e8ef477945cda112127bcd"
+    },
+    {
+      "path": "data\\flutter_assets\\packages\\cupertino_icons\\assets\\CupertinoIcons.ttf",
+      "sha256": "67c44fe9183b002e79dde7f6977e2988661c9a3e4a3c5fce968787efdbed823c"
+    },
+    {
+      "path": "data\\flutter_assets\\packages\\fluentui_system_icons\\fonts\\FluentSystemIcons-Filled.ttf",
+      "sha256": "608de4dac17040c03a880e08b2f1a199c284afa198b6c0a5232300db04948836"
+    },
+    {
+      "path": "data\\flutter_assets\\packages\\fluentui_system_icons\\fonts\\FluentSystemIcons-Light.ttf",
+      "sha256": "b12f34038924b4fe2f4064b436cb0e2eb6140aeb507599abe71aef7ec033f574"
+    },
+    {
+      "path": "data\\flutter_assets\\packages\\fluentui_system_icons\\fonts\\FluentSystemIcons-Regular.ttf",
+      "sha256": "86b053b9af2f09653c604e5dc7883dbbc6b887fd6666afbfc623050de9884596"
+    },
+    {
+      "path": "data\\flutter_assets\\packages\\flutter_inappwebview_web\\assets\\web\\web_support.js",
+      "sha256": "24a628f5e9e2fc5ec4f82f77c3059aa5f3a1e4ff7b5d986b43b50a9623109f38"
+    },
+    {
+      "path": "data\\flutter_assets\\packages\\flutter_inappwebview\\assets\\t_rex_runner\\t-rex.css",
+      "sha256": "2e563220bd855e11f230dc27a0d6f2fd5b839a2996f86edc8025aab45e6fa5c3"
+    },
+    {
+      "path": "data\\flutter_assets\\packages\\flutter_inappwebview\\assets\\t_rex_runner\\t-rex.html",
+      "sha256": "dc72cfc1f1d2a5013bb9de34f8cacf5e26e542d7d713fcbe09b865b4aaca6ddf"
+    },
+    {
+      "path": "data\\flutter_assets\\packages\\flutter_local_notifications_web\\web\\notifications_service_worker.js",
+      "sha256": "566f47dccc0f417f0164a3d0852334c340d0941472af43fc65ee50a314555058"
+    },
+    {
+      "path": "data\\flutter_assets\\packages\\flutter_widget_from_html_core\\test\\images\\44px.png",
+      "sha256": "2e8d6da0091a8b15ef1f55218fd40f577fb4df3778c03e5ad68236de76d89f9b"
+    },
+    {
+      "path": "data\\flutter_assets\\packages\\flutter_widget_from_html_core\\test\\images\\logo.png",
+      "sha256": "a06b296dbacd911e64f0166f48bc0769529b3b33475cd0e9cf6447d0f9ac461a"
+    },
+    {
+      "path": "data\\flutter_assets\\packages\\material_ui\\shaders\\ink_sparkle.frag",
+      "sha256": "1fe8436a743884cb65078fe8c7b38e18f5365f2a2961270916f426fd13c604af"
+    },
+    {
+      "path": "data\\flutter_assets\\packages\\otzaria_ashurit\\OtzariaAshurit-Bold.otf",
+      "sha256": "cfa32df116bbe7d3c388073902a1b41d1277ebb1a788da2f57852827687796cf"
+    },
+    {
+      "path": "data\\flutter_assets\\packages\\otzaria_ashurit\\OtzariaAshurit-Regular.otf",
+      "sha256": "49bea51ea4a8b28a9703553d3372a2bf0b9be3534ec33606931e31026ccd3c69"
+    },
+    {
+      "path": "data\\flutter_assets\\packages\\otzaria_ashurit\\OtzariaAshuritNikud-Bold.otf",
+      "sha256": "eb61e4c2a2db4fc8f2a92573ad53fc25aa6fbf8f27211597f296a6a226b2d524"
+    },
+    {
+      "path": "data\\flutter_assets\\packages\\otzaria_ashurit\\OtzariaAshuritNikud-Regular.otf",
+      "sha256": "0f362560efb8133b5f11b929b0ac1c221506396e77070d80688a83c269e88f2a"
+    },
+    {
+      "path": "data\\flutter_assets\\packages\\otzaria_icons\\lib\\fonts\\otzaria_icons.otf",
+      "sha256": "b84a6ed2fa65086710ebe88625c3c3a77ac2775541cf39362003bf21391dddc2"
+    },
+    {
+      "path": "data\\flutter_assets\\shaders\\ink_sparkle.frag",
+      "sha256": "1fe8436a743884cb65078fe8c7b38e18f5365f2a2961270916f426fd13c604af"
+    },
+    {
+      "path": "data\\flutter_assets\\shaders\\stretch_effect.frag",
+      "sha256": "bc7599dbbbaab310efe41520574138d21fb18a88c8fe4495ed79315309336f6f"
+    },
+    {
+      "path": "data\\icudtl.dat",
+      "sha256": "325a86063d26334c2eabe1743cea073b612540fbf3d8fc2ef0b5708e3763a8c7"
+    },
+    {
+      "path": "file_selector_windows_plugin.dll",
+      "sha256": "5c26c4f16727f7905fa86db1042d32787ac047171573774987c80693c816a656"
+    },
+    {
+      "path": "flutter_inappwebview_windows_plugin.dll",
+      "sha256": "0566ba28e38eb5c72aa45e8e6fcc80f9a80eacedb11fe4c5423d44dfad9969d8"
+    },
+    {
+      "path": "flutter_local_notifications_windows.dll",
+      "sha256": "f438219261edc45150b5d9b11456bdf54b4efb3adb4e446eb271ab5d6e8239cb"
+    },
+    {
+      "path": "flutter_windows.dll",
+      "sha256": "77393529200771ae00edc8c2c39b110fbf583f6ca6e7f3b2855109e7099fc253"
+    },
+    {
+      "path": "irondash_engine_context_plugin.dll",
+      "sha256": "c89c59b35f2378d368a72f4265e70dffd3fa4875cbe3cc941dea47fd0e783ed9"
+    },
+    {
+      "path": "onnxruntime\\LICENSE",
+      "sha256": "c250d6278f0b47a6439fb7592b08b58a55eb9f535aa49a1db63211c3f982b674"
+    },
+    {
+      "path": "onnxruntime\\onnxruntime.dll",
+      "sha256": "18370c375f07357fa5874344a9d9ac17e6b6fe1eb18b1dd209d79483b4470257"
+    },
+    {
+      "path": "onnxruntime\\ThirdPartyNotices.txt",
+      "sha256": "fb0af774b4d7cffc5b9d046f2aaeade2f37df2f80abf8033c95dfffcc77a8866"
+    },
+    {
+      "path": "opentype_shaper.dll",
+      "sha256": "f935973cbeaa22b1b7a097609da006f6bff991500c5802525bc91c641490319f"
+    },
+    {
+      "path": "otzaria_launcher.exe",
+      "sha256": "27080eb14fc566dd95d01634080f70c77423513844ae15e7cf054f234ba69015"
+    },
+    {
+      "path": "otzaria.exe",
+      "sha256": "8395c98760605ef43c05d7710d7912d38a8c3ae619d2a7e0cb021305fd5b7483"
+    },
+    {
+      "path": "pdfium_printing.dll",
+      "sha256": "019b6ee6e54e5508002e43c5199b00f6caca26d32dd23c7bb229ff6855cd5394"
+    },
+    {
+      "path": "pdfium.dll",
+      "sha256": "4b0dec92555d69437bef0df37be630181ab3e83a6823ca264ede355a4f2ef994"
+    },
+    {
+      "path": "pdfrx_pdfium_gate.dll",
+      "sha256": "6dd8aa736569e24756e6e4580f68eb848eff4fb69408867aa62b33e945a142a4"
+    },
+    {
+      "path": "printing_plugin.dll",
+      "sha256": "ceecf97ddb753b290a675f875fa2e9c976371a537db8ff87dc18ebc6f996108a"
+    },
+    {
+      "path": "screen_retriever_windows_plugin.dll",
+      "sha256": "00efe1439ed211e30414adab493f3b03bf21a8fa7df0ddbe72ab68118bb342af"
+    },
+    {
+      "path": "search_engine.dll",
+      "sha256": "ceac0b61f6627052ff2961f6ae378903823ee792316a56bee8781c1ca5f13c22"
+    },
+    {
+      "path": "sentry.dll",
+      "sha256": "4613ab42c4c7d4cd1fd5fb40bdc80dc94ae4e0076ba4fcbded446b7820e32da7"
+    },
+    {
+      "path": "sqlite3.dll",
+      "sha256": "3a29878d0936510af0f563dfc7668c561c92f7ebe1d9fef95975f721dc01b590"
+    },
+    {
+      "path": "super_native_extensions_plugin.dll",
+      "sha256": "ba58378806c27a165eb977ea0a088aa83c8b97f4f363977694df4d62407fc58e"
+    },
+    {
+      "path": "super_native_extensions.dll",
+      "sha256": "84bb02729ca2b550e6d72d594a6f66896f778d9396a789beda208318b8726bc5"
+    },
+    {
+      "path": "url_launcher_windows_plugin.dll",
+      "sha256": "416962118670f7bb0f2cf35002c63ed6660b6b80563dc19c008580eeab15bfab"
+    },
+    {
+      "path": "WebView2Loader.dll",
+      "sha256": "239a9d6614a6cfade62b47cdb0be36e3069eedc438c3e0647a9e7b7c84ef6ea0"
+    },
+    {
+      "path": "window_manager_plugin.dll",
+      "sha256": "5a3913b5ddf055d6986492535a50bad99b691ffbdd41abfbd716d59be80c1615"
+    },
+    {
+      "path": "zstandard_windows_plugin.dll",
+      "sha256": "d85c83d1490eec630cde5fff334ef0b0c2e34732c7e17cc1d7a46623a5c310e2"
+    },
+    {
+      "path": "zstandard_windows.dll",
+      "sha256": "c05023ffdaa70f14a9c1ccbed7f69c775b91d5626b1059bcc734f4044d39de62"
+    }
+  ],
+  "protocolVersion": 2,
+  "machine": {
+    "gpu": [
+      {
+        "name": "Microsoft Hyper-V Video",
+        "driverVersion": "10.0.26100.1150"
+      }
+    ],
+    "memoryBytes": 17174360064,
+    "cpu": [
+      {
+        "name": "AMD EPYC 7763 64-Core Processor                ",
+        "logicalProcessors": 4
+      }
+    ]
+  }
+}

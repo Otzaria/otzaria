@@ -1,0 +1,124 @@
+{
+  "embedded_content_file": "v3/workflow.yml",
+  "reconstruction": "Restore manifest.files[0].content from embedded_content_file; serialize with indent=2, ensure_ascii=False and one final newline.",
+  "original_json_sha256": "80bd35ca6e7d7e8377c247aac976bc1e8cd8c2fa8400731cd3d99d3c55302f10",
+  "original_json_bytes": 28624,
+  "manifest": {
+    "branch": "palmoni5/pr4307-isolated-profile-20261112",
+    "parent_sha": "64f296e5bd0fd1451a893c5c809648f5b8da8f2a",
+    "base_tree_sha": "64de43bcda7291a9face4067846e56880cae7902",
+    "expected_tree": "3dcede120fd136e071bdb24020d9babc6e1aff7e",
+    "candidate_source_sha": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+    "control_source_sha": "764abeeec8a81a0e081d951261c37dc15dbadec3",
+    "commit_message": "fix(ci): shorten reader experiment worktree paths on Windows",
+    "files": [
+      {
+        "repo_path": ".github/workflows/reader-representation-4307.yml",
+        "local_path": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow/.github/workflows/reader-representation-4307.yml",
+        "mode": "100644",
+        "type": "blob",
+        "git_blob_sha": "ddba0a9657a6dda449d8118049d7c0b3aba7fef0",
+        "bytes": 20920,
+        "sha256": "bab73977e857298b3b1f684a5a8d55027e1fc3523ceec7dba0f85eeb759cacb4"
+      }
+    ],
+    "validation": {
+      "schema_and_setup": {
+        "actionlint_exit_code": 0,
+        "powershell_blocks": 6,
+        "powershell_exit_code": 0,
+        "setup_contract_exit_code": 0,
+        "source_and_sampling_pins_unchanged": true,
+        "only_two_path_literal_substitutions": true,
+        "short_comparison_root_exported": true,
+        "artifact_globs_updated": 11,
+        "workflow_sha256": "bab73977e857298b3b1f684a5a8d55027e1fc3523ceec7dba0f85eeb759cacb4"
+      },
+      "full_flutter_analyze": {
+        "command": [
+          "flutter",
+          "analyze",
+          "--no-pub"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 11.428,
+        "workflow_sha256": "bab73977e857298b3b1f684a5a8d55027e1fc3523ceec7dba0f85eeb759cacb4",
+        "pubspec_lock_sha256": "1a716b4ffe7bc77506b550db9f185a2a6ff3de8882941f8f2752ca2cfadc5397",
+        "candidate_sha": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+        "control_sha": "764abeeec8a81a0e081d951261c37dc15dbadec3"
+      },
+      "git_diff_check_passed": true,
+      "only_workflow_changed": true,
+      "all_product_tests_and_source_and_sampling_pins_unchanged": true,
+      "windows_confirmation_pending": true
+    },
+    "path_length_diagnosis": {
+      "run_id": 43289584496,
+      "run_attempt": 1,
+      "job_id": 131431946281,
+      "artifact_id": 13977237642,
+      "native_error": "LNK1104: cannot open file",
+      "observed_path": "D:\\a\\_temp\\reader-flat-control-validation-source\\.dart_tool\\hooks_runner\\shared\\otzaria_search_engine\\build\\target\\x86_64-pc-windows-msvc\\release\\build\\unicode-normalization-alignments\\a32c9ebf3cf5f0d2\\out\\libunicode_normalization_alignments-a32c9ebf3cf5f0d2.rlib",
+      "observed_path_characters": 263,
+      "observed_suffix": "\\.dart_tool\\hooks_runner\\shared\\otzaria_search_engine\\build\\target\\x86_64-pc-windows-msvc\\release\\build\\unicode-normalization-alignments\\a32c9ebf3cf5f0d2\\out\\libunicode_normalization_alignments-a32c9ebf3cf5f0d2.rlib",
+      "suffix_characters": 215,
+      "paths": {
+        "observed_v2_validation": {
+          "path": "D:\\a\\_temp\\reader-flat-control-validation-source\\.dart_tool\\hooks_runner\\shared\\otzaria_search_engine\\build\\target\\x86_64-pc-windows-msvc\\release\\build\\unicode-normalization-alignments\\a32c9ebf3cf5f0d2\\out\\libunicode_normalization_alignments-a32c9ebf3cf5f0d2.rlib",
+          "characters": 263,
+          "characters_with_nul": 264
+        },
+        "proposed_v3_validation": {
+          "path": "D:\\a\\_temp\\r4307v\\.dart_tool\\hooks_runner\\shared\\otzaria_search_engine\\build\\target\\x86_64-pc-windows-msvc\\release\\build\\unicode-normalization-alignments\\a32c9ebf3cf5f0d2\\out\\libunicode_normalization_alignments-a32c9ebf3cf5f0d2.rlib",
+          "characters": 232,
+          "characters_with_nul": 233
+        },
+        "v2_comparison_baseline": {
+          "path": "D:\\a\\_temp\\reader-representation-profile\\worktrees\\baseline\\.dart_tool\\hooks_runner\\shared\\otzaria_search_engine\\build\\target\\x86_64-pc-windows-msvc\\release\\build\\unicode-normalization-alignments\\a32c9ebf3cf5f0d2\\out\\libunicode_normalization_alignments-a32c9ebf3cf5f0d2.rlib",
+          "characters": 274,
+          "characters_with_nul": 275
+        },
+        "v2_comparison_candidate": {
+          "path": "D:\\a\\_temp\\reader-representation-profile\\worktrees\\candidate\\.dart_tool\\hooks_runner\\shared\\otzaria_search_engine\\build\\target\\x86_64-pc-windows-msvc\\release\\build\\unicode-normalization-alignments\\a32c9ebf3cf5f0d2\\out\\libunicode_normalization_alignments-a32c9ebf3cf5f0d2.rlib",
+          "characters": 275,
+          "characters_with_nul": 276
+        },
+        "proposed_v3_comparison_baseline": {
+          "path": "D:\\a\\_temp\\r4307p\\worktrees\\baseline\\.dart_tool\\hooks_runner\\shared\\otzaria_search_engine\\build\\target\\x86_64-pc-windows-msvc\\release\\build\\unicode-normalization-alignments\\a32c9ebf3cf5f0d2\\out\\libunicode_normalization_alignments-a32c9ebf3cf5f0d2.rlib",
+          "characters": 251,
+          "characters_with_nul": 252
+        },
+        "proposed_v3_comparison_candidate": {
+          "path": "D:\\a\\_temp\\r4307p\\worktrees\\candidate\\.dart_tool\\hooks_runner\\shared\\otzaria_search_engine\\build\\target\\x86_64-pc-windows-msvc\\release\\build\\unicode-normalization-alignments\\a32c9ebf3cf5f0d2\\out\\libunicode_normalization_alignments-a32c9ebf3cf5f0d2.rlib",
+          "characters": 252,
+          "characters_with_nul": 253
+        },
+        "original_whole_pr_comparison_baseline": {
+          "path": "D:\\a\\_temp\\reader-profile\\worktrees\\baseline\\.dart_tool\\hooks_runner\\shared\\otzaria_search_engine\\build\\target\\x86_64-pc-windows-msvc\\release\\build\\unicode-normalization-alignments\\a32c9ebf3cf5f0d2\\out\\libunicode_normalization_alignments-a32c9ebf3cf5f0d2.rlib",
+          "characters": 259,
+          "characters_with_nul": 260
+        }
+      },
+      "diagnosis": "Strong path-length hypothesis: the linker cannot open the observed 263-character path. LNK1104 alone does not prove MAX_PATH; successful Windows execution with shorter directories must confirm the mitigation.",
+      "not_a_performance_result": true,
+      "source_changes_required": false,
+      "validation_logs_root_unchanged": true,
+      "evidence_log_sha256": "fe59ea034c6a1875c690efc6f1c9784e9d8bd5132f4498f8074ff2ead0277fb0",
+      "official_references": [
+        "https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation",
+        "https://learn.microsoft.com/en-us/cpp/error-messages/tool-errors/linker-tools-error-lnk1104?view=msvc-170"
+      ]
+    },
+    "evidence_paths": {
+      "actionlint": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v3-actionlint.log",
+      "powershell": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v3-powershell.log",
+      "setup": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v3-schema-setup-validation.json",
+      "flutter": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v3-flutter-validation.json",
+      "analyze_log": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v3-analyze.log",
+      "patch": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/workflow-v3.patch",
+      "artifact_metadata": "/workspace/scratch/03d201536b5d/isolated4307-run43289584496/artifact-metadata.json",
+      "artifact_receipt": "/workspace/scratch/03d201536b5d/isolated4307-run43289584496/artifact-receipt.json"
+    },
+    "remote_writes": false
+  }
+}
