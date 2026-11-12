@@ -90,6 +90,7 @@ class _AttachedCatalogBuild {
     required this.categoryRows,
     required this.authors,
     required this.metadata,
+    this.versionLinks = const [],
   });
 
   final AttachedLibrary library;
@@ -98,6 +99,7 @@ class _AttachedCatalogBuild {
   final List<Map<String, dynamic>> categoryRows;
   final Map<int, String> authors;
   final Map<String, Map<String, dynamic>> metadata;
+  final List<Map<String, dynamic>> versionLinks;
   final Map<int, List<Map<String, dynamic>>> booksByCategory = {};
   final Map<int?, List<db_models.Category>> categoriesByParent = {};
 
@@ -119,13 +121,23 @@ typedef AttachedCatalogRows = ({
   List<Map<String, dynamic>> books,
   List<Map<String, dynamic>> categories,
   Map<int, String> authors,
+  List<Map<String, dynamic>> versionLinks,
 });
+
+/// תקרת שורות book_version_link שנקראות ממסד מצורף אחד.
+const kMaxAttachedVersionLinks = 100000;
 
 /// קורא את הקטלוג של מסד מצורף על חיבור מוקשח משלו — רץ ב-isolate, כך
 /// שקובץ איטי או כונן רשת מת אינם חוסמים את בניית העץ.
 AttachedCatalogRows readAttachedCatalogSync(ReadOnlyDbTarget target) {
   if (!File(target.path).existsSync()) {
-    return (missing: true, books: const [], categories: const [], authors: {});
+    return (
+      missing: true,
+      books: const [],
+      categories: const [],
+      authors: {},
+      versionLinks: const [],
+    );
   }
   final db = openReadOnlyTarget(target);
   try {
@@ -133,6 +145,7 @@ AttachedCatalogRows readAttachedCatalogSync(ReadOnlyDbTarget target) {
     late final List<Map<String, dynamic>> books;
     late final List<Map<String, dynamic>> categories;
     late final Map<int, String> authors;
+    var versionLinks = const <Map<String, dynamic>>[];
     withTransaction(db, () {
       books = [
         for (final row in BookDao.selectBooksMinimal(
@@ -144,12 +157,25 @@ AttachedCatalogRows readAttachedCatalogSync(ReadOnlyDbTarget target) {
       ];
       categories = CategoryDao.selectCategoryRows(db, capabilities);
       authors = BookDao.selectBookAuthorsMap(db, capabilities);
+      if (capabilities.hasBookVersionLinks) {
+        String column(String name) =>
+            capabilities.column('book_version_link', name);
+        versionLinks = db
+            .select(
+              'SELECT versionBookId, ${column('primarySource')}, primaryTitle, '
+              '${column('primaryCategoryPath')}, ${column('versionTitle')}, '
+              '${column('versionNotes')}, ${column('priority')} '
+              'FROM book_version_link LIMIT $kMaxAttachedVersionLinks',
+            )
+            .toMapList();
+      }
     });
     return (
       missing: false,
       books: books,
       categories: categories,
       authors: authors,
+      versionLinks: versionLinks,
     );
   } finally {
     db.close();
@@ -2079,6 +2105,9 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   /// גרסאות שספרן במסד מצורף, מקובצי הגרסאות של המשתמש.
   List<AttachedBookVersionRecord> _userAttachedVersions = const [];
 
+  /// גרסאות שהמסדים המצורפים מצהירים עליהן בטבלת book_version_link.
+  final List<AttachedBookVersionRecord> _attachedDbVersions = [];
+
   /// ספרי המסדים המצורפים לפי slug ומזהה במסד.
   final Map<String, Map<int, Book>> _attachedBooksById = {};
 
@@ -2280,7 +2309,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   /// מקשר כל ספר-גרסה במסד מצורף לראשי שלו ומוריד אותו מהעץ. רשומה אחת לכל
   /// ספר: קובצי המשתמש קודמים להצהרות המסד עצמו.
   void _resolveAttachedVersions(Map<String, List<Book>> catalogByTitle) {
-    final records = _userAttachedVersions;
+    final records = [..._userAttachedVersions, ..._attachedDbVersions];
     if (records.isEmpty) return;
     final members = Map<Book, AttachedVersionMember>.identity();
     for (final record in records) {
@@ -4156,6 +4185,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     _attachedCachedKeys.clear();
     _attachedCategoryPaths.clear();
     _attachedBooksById.clear();
+    _attachedDbVersions.clear();
     final attachedLibraries = [
       for (final attached in AttachedLibraryRegistry.instance.visibleLibraries)
         if (attached.source != null) attached,
@@ -4178,6 +4208,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
             categoryRows: rows.categories,
             authors: rows.authors,
             metadata: metadata,
+            versionLinks: rows.versionLinks,
           ),
         );
       } catch (e, stackTrace) {
@@ -4326,6 +4357,14 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         _sortedByOrder(looseBooks),
         build,
       );
+    }
+    for (final row in build.versionLinks) {
+      final record = _attachedBookVersionFromRow(
+        row,
+        versionDb: build.source.slug,
+        defaultPrimarySource: BookSource.official,
+      );
+      if (record != null) _attachedDbVersions.add(record);
     }
   }
 

@@ -41,6 +41,7 @@ const Set<String> kKnownSeforimTables = {
   'default_targum',
   'book_version',
   'version_line',
+  'book_version_link',
   'schema_meta',
   'db_meta',
   'external_link',
@@ -147,6 +148,12 @@ class DbCapabilities {
   /// מהדורות: book_version בלי version_line (או להפך) אינה שמישה.
   bool get hasBookVersions =>
       hasBooks && has('book_version') && has('version_line');
+
+  /// ספר במסד כגרסה של ספר אחר (רשמי, אישי או במסד אחר), לפי כותרת הראשי.
+  bool get hasBookVersionLinks =>
+      hasBooks &&
+      hasColumn('book_version_link', 'versionBookId') &&
+      hasColumn('book_version_link', 'primaryTitle');
   bool get hasLineRef => hasLines && has('line_ref');
   bool get hasLineDhDisplay => hasBooks && hasColumn('line_dh', 'dhDisplay');
 

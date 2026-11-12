@@ -50,6 +50,7 @@ const Set<String> kValidatorKnownTables = {
   'default_targum',
   'book_version',
   'version_line',
+  'book_version_link',
   'schema_meta',
   'db_meta',
   'external_link',
@@ -83,6 +84,7 @@ const Map<String, List<String>> kValidatorCoreColumns = {
   'line_ref': ['bookId', 'lineIndex', 'refKeyHash'],
   'schema_meta': ['key', 'value'],
   'external_link': ['sourceBookId', 'sourceLineIndex', 'targetTitle'],
+  'book_version_link': ['versionBookId', 'primaryTitle'],
 };
 
 enum Severity { error, warning, info }
@@ -169,6 +171,10 @@ class _Caps {
       'hasLinkRanges': links && has('link_range') && has('link_coverage'),
       'hasLinkSuppressedSide': links && has('link_suppressed_side'),
       'hasBookVersions': books && has('book_version') && has('version_line'),
+      'hasBookVersionLinks':
+          books &&
+          col('book_version_link', 'versionBookId') &&
+          col('book_version_link', 'primaryTitle'),
       'hasLineRef': lines && has('line_ref'),
       'hasLineDhDisplay': books && col('line_dh', 'dhDisplay'),
       'hasDivineNames':
@@ -399,6 +405,7 @@ PersonalDbReport validatePersonalDb(String path, {bool checkFiles = true}) {
     }
     _checkFilePaths(db, caps, report, checkFiles: checkFiles);
     _checkExternalLinks(db, caps, report);
+    _checkVersionLinks(db, caps, report);
   } on SqliteException catch (e) {
     report._add(Severity.error, 'sqlite_error', e.message);
   } finally {
@@ -801,6 +808,73 @@ void _checkExternalLinks(Database db, _Caps caps, PersonalDbReport report) {
         Severity.warning,
         'external_link_bad_target_source',
         'targetSource value(s) that match no database: ${invalid.join(', ')}.',
+      );
+    }
+  }
+}
+
+/// עותק של כללי `primarySource` ב-book_version_link: ריק = רשמי.
+bool validatorIsVersionPrimarySource(String raw) {
+  final value = raw.trim();
+  if (const {
+    '',
+    'official',
+    'user',
+    'רשמי',
+    'אישי',
+    'o',
+    'u',
+  }.contains(value.toLowerCase())) {
+    return true;
+  }
+  final separator = value.indexOf(':');
+  if (separator <= 0) return false;
+  final prefix = value.substring(0, separator).trim().toLowerCase();
+  if (!const {'db', 'מסד', 'd'}.contains(prefix)) return false;
+  return BookSource.isValidSlug(value.substring(separator + 1).trim());
+}
+
+void _checkVersionLinks(Database db, _Caps caps, PersonalDbReport report) {
+  if (caps.has('book_version_link') &&
+      report.capabilities['hasBookVersionLinks'] != true) {
+    report._add(
+      Severity.warning,
+      'incomplete_group',
+      'Table "book_version_link" is ignored: it needs versionBookId and '
+          'primaryTitle.',
+    );
+    return;
+  }
+  if (report.capabilities['hasBookVersionLinks'] != true) return;
+  final orphans = _count(
+    db,
+    'SELECT COUNT(*) FROM book_version_link v '
+    'WHERE NOT EXISTS (SELECT 1 FROM book b WHERE b.id = v.versionBookId) '
+    "OR COALESCE(TRIM(v.primaryTitle), '') = ''",
+  );
+  if (orphans > 0) {
+    report._add(
+      Severity.warning,
+      'book_version_link_invalid_rows',
+      '$orphans row(s) have no matching version book or an empty '
+          'primaryTitle; they are ignored.',
+    );
+  }
+  if (caps.col('book_version_link', 'primarySource')) {
+    final invalid = [
+      for (final row in db.select(
+        'SELECT DISTINCT primarySource AS s FROM book_version_link LIMIT 50',
+      ))
+        if (row['s'] case final value?
+            when !validatorIsVersionPrimarySource(value.toString()))
+          value.toString(),
+    ];
+    if (invalid.isNotEmpty) {
+      report._add(
+        Severity.warning,
+        'book_version_link_bad_primary_source',
+        'primarySource value(s) that are not official, user or db:<id>: '
+            '${invalid.join(', ')}.',
       );
     }
   }
