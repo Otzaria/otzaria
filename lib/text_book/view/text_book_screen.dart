@@ -170,6 +170,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   // נפתח (false→true) ולא בכל rebuild - אחרת היה גונב פוקוס מתוכן הספר.
   bool _wasLeftPaneShown = false;
 
+  // חלונית שנפתחה לבד עם הספר לא לוקחת את הפוקוס לחיפוש בעץ: החיצים שייכים לקריאה.
+  bool _leftPaneSeenClosed = false;
+
   /// לשונית החיפוש נבחרה בפתיחת הספר (מתוצאת חיפוש) ולא בהקשה של המשתמש.
   bool _searchTabAutoSelected = false;
   FocusRepository? _focusRepository; // שמירת הפניה לשימוש ב-dispose
@@ -551,18 +554,21 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     _searchTabAutoSelected = false;
     _searchHost.activeTab = tabController.index;
     if (tabController.indexIsChanging) return;
-    _focusActiveTabSearchField();
+    _focusActiveTabSearchField(userAction: true);
   }
 
-  /// מבקש פוקוס לשדה של לשונית 'חיפוש' כשהיא הפעילה. בשאר הלשוניות השדה
-  /// סגור עד שהמשתמש פותח אותו. לא עושה דבר כשהפאנל סגור.
-  void _focusActiveTabSearchField() {
+  /// ממקד את שדה החיפוש של הלשונית הפעילה; ב'ניווט' וב'כותרות' גם פותח אותו.
+  /// לא עושה דבר כשהפאנל סגור.
+  void _focusActiveTabSearchField({bool userAction = false}) {
     // במסך צר מיקוד יזום פותח את מקלדת המערכת על ספר שרק רצו לקרוא.
     if (!NavPanelSearch.isWide(context)) return;
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded || !state.showLeftPane) return;
-    if (tabController.index == (_hasAltTitles ? 2 : 1)) {
+    final index = tabController.index;
+    if (index == (_hasAltTitles ? 2 : 1)) {
       textSearchFocusNode.requestFocus();
+    } else if (userAction || _leftPaneSeenClosed) {
+      _searchHost.openCollapsibleSearch(index);
     }
   }
 
@@ -1877,8 +1883,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   void _scrollToNextLine(TextBookLoaded state) => _scrollByLines(state, 1);
 
-  /// שורת מקור אחת בכל לחיצה, בשני המצבים. המיקום מתעדכן ליעד מיד, ולכן
-  /// לחיצות רצופות ממשיכות ממנו גם לפני שהגלילה נחתה.
+  /// שורת מקור אחת בכל לחיצה, והיעד נבחר (המפרשים נפתחים עליו). המיקום
+  /// מתעדכן ליעד מיד, ולכן לחיצות רצופות ממשיכות ממנו גם לפני שהגלילה נחתה.
   void _scrollByLines(TextBookLoaded state, int delta) {
     if (PluginTextReaderRegistry.instance.usesPlugin(widget.tab)) {
       PluginTextReaderRegistry.instance.command(
@@ -1892,6 +1898,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     final current = widget.tab.index;
     final target = (current + delta).clamp(0, state.content.length - 1);
     if (target == current) return;
+    context.read<TextBookBloc>().add(UpdateSelectedIndex(target));
     unawaited(
       widget.tab.lines.scrollToLine(
         target,
@@ -2339,6 +2346,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       wasShown: _wasLeftPaneShown,
     );
     _wasLeftPaneShown = focusDecision.wasShownNext;
+    if (!state.showLeftPane) _leftPaneSeenClosed = true;
     if (focusDecision.shouldFocus) {
       // microtask: אזור הקריאה מבקש פוקוס ראשוני ב-post-frame של אותו פריים,
       // ובקשה שקודמת לו נדרסת.

@@ -461,4 +461,39 @@ void main() {
       expect(tocRootsBelowTitle(leaf, 'סנהדרין'), same(leaf));
     });
   });
+
+  group('tocExpansionToDepth / tocTreeDepth (#3236)', () {
+    List<TocEntry> tree() => [
+      _e(
+        'א',
+        0,
+        1,
+        children: [
+          _e('א1', 1, 2, children: [_e('א1א', 2, 3)]),
+          _e('א2', 3, 2),
+        ],
+      ),
+      _e('ב', 4, 1, children: [_e('ב1', 5, 2)]),
+    ];
+
+    test('עד רמה 2: השורשים פתוחים והרמה השנייה סגורה', () {
+      final expansion = tocExpansionToDepth(tree(), 2);
+      expect(expansion, {0: true, 1: false, 4: true});
+      final visible = flattenVisibleToc(tree(), expansion);
+      expect(visible.map((i) => i.entry.text), ['א', 'א1', 'א2', 'ב', 'ב1']);
+    });
+
+    test('רמה 1 זהה ל"כווץ הכל"', () {
+      expect(tocExpansionToDepth(tree(), 1), collapsedTocExpansion(tree()));
+    });
+
+    test('שרשרת של שורש יחיד פתוחה ואינה נספרת ברמות', () {
+      final rooted = [_e('שער', 10, 1, children: tree())];
+      expect(tocTreeDepth(rooted), 3);
+      final expansion = tocExpansionToDepth(rooted, 2);
+      expect(expansion[10], isTrue);
+      expect(expansion[0], isTrue);
+      expect(expansion[1], isFalse);
+    });
+  });
 }

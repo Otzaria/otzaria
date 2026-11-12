@@ -46,34 +46,37 @@ class _HostState extends State<_Host> {
   Widget build(BuildContext context) {
     return NavPanelSearchScope(
       host: host,
-      child: NavPanelCollapsibleSearch(
-        delegate: NavPanelSearchDelegate(
-          controller: controller,
-          focusNode: focus,
-          hintText: 'איתור כותרת...',
-          onClear: widget.onClear,
-          onArrowDown: widget.onArrowDown,
-          onArrowUp: widget.onArrowUp,
-        ),
-        child: NavTreeFocusGroup(
-          child: ListView(
-            children: [
-              const NavTreeHeader(
-                title: 'בראשית',
-                trailing: NavPanelSearchToggle(),
-              ),
-              for (var i = 0; i < widget.rowCount; i++)
-                NavTreeGroupCard(
-                  isGroupStart: i == 0,
-                  isGroupEnd: i == widget.rowCount - 1,
-                  child: NavTreeTile.category(
-                    title: 'שורה $i',
-                    level: 0,
-                    isSelected: i == 1,
-                    onTap: () {},
-                  ),
+      child: NavPanelSearchSlot(
+        index: 0,
+        child: NavPanelCollapsibleSearch(
+          delegate: NavPanelSearchDelegate(
+            controller: controller,
+            focusNode: focus,
+            hintText: 'איתור כותרת...',
+            onClear: widget.onClear,
+            onArrowDown: widget.onArrowDown,
+            onArrowUp: widget.onArrowUp,
+          ),
+          child: NavTreeFocusGroup(
+            child: ListView(
+              children: [
+                const NavTreeHeader(
+                  title: 'בראשית',
+                  trailing: NavPanelSearchToggle(),
                 ),
-            ],
+                for (var i = 0; i < widget.rowCount; i++)
+                  NavTreeGroupCard(
+                    isGroupStart: i == 0,
+                    isGroupEnd: i == widget.rowCount - 1,
+                    child: NavTreeTile.category(
+                      title: 'שורה $i',
+                      level: 0,
+                      isSelected: i == 1,
+                      onTap: () {},
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -114,6 +117,22 @@ void main() {
         ),
         findsOneWidget,
       );
+    });
+
+    testWidgets('ה-host פותח וממקד את השדה של הלשונית שלו (#4467)', (
+      tester,
+    ) async {
+      await tester.pumpWidget(wrap(const _Host()));
+      await tester.pumpAndSettle();
+      final host = tester.state<_HostState>(find.byType(_Host)).host;
+
+      expect(host.openCollapsibleSearch(1), isFalse, reason: 'אין לשונית 1');
+      expect(find.byType(OtzariaSearchField), findsNothing);
+
+      expect(host.openCollapsibleSearch(0), isTrue);
+      await tester.pumpAndSettle();
+      expect(find.byType(OtzariaSearchField), findsOneWidget);
+      expect(_fieldHasFocus(tester), isTrue);
     });
 
     testWidgets('לחיצה על האייקון פותחת שדה ממוקד ומסתירה את האייקון', (

@@ -28,6 +28,7 @@ import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/utils/section_search_utils.dart'
     show bracketMarkerFractionInLine;
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
+import 'package:otzaria/widgets/navigation/nav_tree_collapse_all_button.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 import 'package:otzaria/theme/app_motion.dart';
@@ -111,6 +112,12 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
   // Expanded state
   // StructureID -> bool
   final Map<int, bool> _structureExpanded = {};
+
+  // כשיש כמה מבנים מוצג אחד בכל פעם, לפי שבב (#4204). עד שהמשתמש בוחר שבב,
+  // נבחר המבנה של מיקום הקריאה.
+  int? _selectedStructureId;
+  bool _structurePickedByUser = false;
+  bool get _usesStructureChips => _structures.length > 1;
   // EntryID -> bool
   final Map<int, bool> _entryExpanded = {};
 
@@ -167,6 +174,16 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
     );
     if (_hasDibburimEntries) {
       _structures.add(dibburimStructure);
+    }
+    if (_usesStructureChips &&
+        !_structures.any((s) => s.id == _selectedStructureId)) {
+      final shown = _structures.firstWhere(
+        (s) => _structureExpanded[s.id] == true,
+        orElse: () => _structures.first,
+      );
+      _selectedStructureId = shown.id;
+      _structureExpanded[shown.id] = true;
+      _loadEntriesForStructure(shown.id);
     }
   }
 
@@ -319,7 +336,9 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
           _isLoading = false;
         });
 
-        if (_structures.length == 1) {
+        if (_usesStructureChips) {
+          _selectStructure(_structures.first.id);
+        } else if (_structures.length == 1) {
           final structure = _structures.single;
           if (structure.id == kDibburimStructureId) {
             await _loadEntriesForStructure(structure.id);
@@ -407,6 +426,34 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
         _structureParents[structureId]![entry.id] = entry.parentId!;
       }
     }
+  }
+
+  /// מציג את המבנה [structureId] בלבד; שאר המבנים נחשבים סגורים.
+  void _selectStructure(int structureId) {
+    setState(() {
+      _selectedStructureId = structureId;
+      for (final structure in _structures) {
+        _structureExpanded[structure.id] = structure.id == structureId;
+      }
+    });
+    _loadEntriesForStructure(structureId);
+  }
+
+  Future<void> _onStructureChipSelected(AltTocStructure structure) async {
+    _structurePickedByUser = true;
+    final id = structure.id;
+    if (_selectedStructureId == id) return;
+    _selectStructure(id);
+    _lastScrolledEntryIds.remove(id);
+    await _loadEntriesForStructure(id);
+    if (!mounted || _selectedStructureId != id) return;
+    // המיקום הפעיל של המבנה ידוע כבר, ולכן העדכון מהמיקום לא ישנה דבר: חושפים ישירות.
+    final active = _activeEntryIds[id];
+    if (active != null && id != kDibburimStructureId) {
+      setState(() => _expandParents(id, active));
+      _scrollToActiveItem(id, active);
+    }
+    _updateActiveItemFromBloc();
   }
 
   void _toggleStructure(AltTocStructure structure) {
@@ -512,13 +559,26 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
 
     // שומרים את התנהגות המבנים הקיימים: רק המבנה הראשון המתאים נפתח
     // אוטומטית. דיבורי-המתחיל נשארים מכווצים עד בחירת המשתמש.
+    // עם שבבים קודם המבנה המוצג, כדי שהוא ייפתח לפי הקריאה גם אחרי בחירת המשתמש.
     final databaseMatch = matches.firstWhere(
-      (match) => match.structureId != kDibburimStructureId,
-      orElse: () => (structureId: kDibburimStructureId, entryId: 0),
+      (match) =>
+          _usesStructureChips &&
+          match.structureId == _selectedStructureId &&
+          match.structureId != kDibburimStructureId,
+      orElse: () => matches.firstWhere(
+        (match) => match.structureId != kDibburimStructureId,
+        orElse: () => (structureId: kDibburimStructureId, entryId: 0),
+      ),
     );
+    // עם שבבים, מבנה שאינו המוצג נפתח רק כל עוד המשתמש לא בחר שבב.
+    final opensDatabaseMatch =
+        databaseMatch.structureId != kDibburimStructureId &&
+        (!_usesStructureChips ||
+            !_structurePickedByUser ||
+            databaseMatch.structureId == _selectedStructureId);
     final needsRebuild =
         _searchController.text.isNotEmpty ||
-        (databaseMatch.structureId != kDibburimStructureId &&
+        (opensDatabaseMatch &&
             !_isRevealed(databaseMatch.structureId, databaseMatch.entryId));
     for (final match in changed) {
       _selectionTicks[_activeEntryIds[match.structureId]]?.value++;
@@ -530,7 +590,14 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
         _activeEntryIds[match.structureId] = match.entryId;
       }
 
-      if (databaseMatch.structureId != kDibburimStructureId) {
+      if (opensDatabaseMatch) {
+        if (_usesStructureChips) {
+          _selectedStructureId = databaseMatch.structureId;
+          for (final structure in _structures) {
+            _structureExpanded[structure.id] =
+                structure.id == databaseMatch.structureId;
+          }
+        }
         if (!_structureRoots.containsKey(databaseMatch.structureId)) {
           _structureExpanded[databaseMatch.structureId] = true;
           _loadEntriesForStructure(databaseMatch.structureId).then((_) {
@@ -868,8 +935,11 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
       onArrowUp: isSearching ? () => _moveHighlightedMatch(-1) : null,
     );
 
+    final collapseToggle = isSearching ? null : _buildCollapseToggle();
+
     return NavPanelCollapsibleSearch(
       delegate: delegate,
+      floatingActions: [?collapseToggle],
       child: isSearching
           ? _buildSearchResults()
           : BlocListener<TextBookBloc, TextBookState>(
@@ -941,13 +1011,30 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
                     controller: _sidebarScrollController,
                     padding: kNavTreeListPadding,
                     // +1 עבור הכותרת הראשית, שנגללת עם הרשימה.
-                    itemCount: _structures.length + 1,
-                    itemBuilder: (context, index) => index == 0
-                        ? NavTreeHeader(
-                            title: widget.book.title,
-                            trailing: const NavPanelSearchToggle(),
-                          )
-                        : _buildStructureItem(_structures[index - 1]),
+                    itemCount: _usesStructureChips ? 2 : _structures.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index == 0) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            NavTreeHeader(
+                              title: widget.book.title,
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  ?collapseToggle,
+                                  const NavPanelSearchToggle(),
+                                ],
+                              ),
+                            ),
+                            if (_usesStructureChips) _buildStructureChips(),
+                          ],
+                        );
+                      }
+                      return _usesStructureChips
+                          ? _buildSelectedStructureEntries()
+                          : _buildStructureItem(_structures[index - 1]);
+                    },
                   ),
                 ),
               ),
@@ -993,11 +1080,96 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
               title: entry.text ?? '',
               level: 0,
               isSelected: isSelected,
-              onTap: () => _handleEntryTap(structureId, entry),
+              onTap: () {
+                setState(() => _highlightedMatchPos = index - 1);
+                _handleEntryTap(structureId, entry);
+              },
             ),
           );
         },
       ),
+    );
+  }
+
+  String _structureTitle(AltTocStructure structure) =>
+      structure.heTitle ?? structure.title ?? structure.key;
+
+  Widget _buildStructureChips() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        kNavTreeSideInset,
+        0,
+        kNavTreeSideInset,
+        AppTokens.spaceSM,
+      ),
+      child: Wrap(
+        spacing: AppTokens.spaceSM,
+        runSpacing: AppTokens.spaceXS,
+        children: [
+          for (final structure in _structures)
+            ChoiceChip(
+              label: Text(_structureTitle(structure)),
+              selected: structure.id == _selectedStructureId,
+              onSelected: (_) => _onStructureChipSelected(structure),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSelectedStructureEntries() {
+    final structureId = _selectedStructureId;
+    final roots = structureId == null
+        ? const <AltTocEntry>[]
+        : _structureRoots[structureId] ?? const <AltTocEntry>[];
+    if (roots.isEmpty && _structureRoots.containsKey(structureId)) {
+      return const OtzariaEmptyState(
+        isCompact: true,
+        scrollable: false,
+        icon: OtzariaIcons.text_bullet_list_tree_24_regular,
+        title: 'אין כותרות במבנה זה',
+      );
+    }
+    return Column(
+      children: [
+        for (final root in roots)
+          _buildEntryItem(structureId!, root, isGroupStart: true),
+      ],
+    );
+  }
+
+  /// "הרחב הכל / כווץ הכל" של המבנה המוצג (#4607), או null כשאין בו ענפים.
+  Widget? _buildCollapseToggle() {
+    final structureId = _usesStructureChips
+        ? _selectedStructureId
+        : _structures.singleOrNull?.id;
+    // הדיבורים נשארים מכווצים, ו"הרחב הכל" היה בונה אלפי שורות בבת אחת.
+    if (structureId == null ||
+        structureId == kDibburimStructureId ||
+        _structureExpanded[structureId] != true) {
+      return null;
+    }
+    final children = _structureChildren[structureId] ?? const {};
+    final branches = [
+      for (final entry in _flattenEntries(structureId))
+        if (children[entry.id]?.isNotEmpty ?? false) entry.id,
+    ];
+    if (branches.isEmpty) return null;
+    void setAll(bool expanded) {
+      setState(() {
+        for (final id in branches) {
+          _entryExpanded[id] = expanded;
+        }
+      });
+      _updateActiveItemFromBloc();
+    }
+
+    return NavTreeCollapseAllButton(
+      isCollapsed: !branches.any(
+        (id) => _entryExpanded[id] == true && _isRevealed(structureId, id),
+      ),
+      onCollapseAll: () => setAll(false),
+      onExpandAll: () => setAll(true),
     );
   }
 
@@ -1017,7 +1189,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
           isGroupStart: true,
           isGroupEnd: true,
           child: NavTreeTile.category(
-            title: structure.heTitle ?? structure.title ?? structure.key,
+            title: _structureTitle(structure),
             level: 0,
             isExpanded: isExpanded,
             hasChildren: hasChildren,
@@ -1061,6 +1233,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
         hasChildren: hasChildren,
         onTap: () =>
             _handleEntryTap(structureId, entry, toggleIfLinkless: hasChildren),
+        focusOnTap: true,
         onToggleExpand: hasChildren
             ? () => _toggleEntryExpanded(entry.id)
             : null,

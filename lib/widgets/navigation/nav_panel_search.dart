@@ -87,6 +87,16 @@ class NavPanelSearchHost {
     return true;
   }
 
+  final Map<int, VoidCallback> _searchOpeners = {};
+
+  /// פותח וממקד את החיפוש המוסתר ([NavPanelCollapsibleSearch]) של הלשונית
+  /// [tab]. מחזיר שקר כשאין בה חיפוש כזה.
+  bool openCollapsibleSearch(int tab) {
+    final open = _searchOpeners[tab];
+    open?.call();
+    return open != null;
+  }
+
   void dispose() => paneFocusScope.dispose();
 }
 
@@ -234,10 +244,14 @@ class NavPanelCollapsibleSearch extends StatefulWidget {
   final NavPanelSearchDelegate delegate;
   final Widget child;
 
+  /// פעולות מכותרת הרשימה שצפות לצד אייקון החיפוש כשהכותרת נגללה החוצה.
+  final List<Widget> floatingActions;
+
   const NavPanelCollapsibleSearch({
     super.key,
     required this.delegate,
     required this.child,
+    this.floatingActions = const [],
   });
 
   @override
@@ -311,6 +325,29 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
     widget.delegate.controller.addListener(_onTextChanged);
   }
 
+  NavPanelSearchHost? _host;
+  int? _slot;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final host = NavPanelSearchScope.hostOf(context);
+    final slot = NavPanelSearchSlot.indexOf(context);
+    if (host == _host && slot == _slot) return;
+    _unregisterOpener();
+    _host = host;
+    _slot = slot;
+    if (host != null && slot != null) host._searchOpeners[slot] = _open;
+  }
+
+  void _unregisterOpener() {
+    final host = _host;
+    final slot = _slot;
+    if (host != null && slot != null && host._searchOpeners[slot] == _open) {
+      host._searchOpeners.remove(slot);
+    }
+  }
+
   @override
   void didUpdateWidget(NavPanelCollapsibleSearch oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -323,6 +360,7 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
 
   @override
   void dispose() {
+    _unregisterOpener();
     widget.delegate.controller.removeListener(_onTextChanged);
     _ownFocusNode?.dispose();
     super.dispose();
@@ -435,20 +473,28 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
                         ? Material(
                             color: AppSurfaces.navPanelBackground(context),
                             // בצורת כפתור האייקון שעליו (#1942).
-                            shape:
-                                Theme.of(
-                                  context,
-                                ).iconButtonTheme.style?.shape?.resolve(
-                                  const {},
-                                ) ??
-                                AppTokens.roundedShape,
+                            // צורת כפתור יחיד היא עיגול, ולכמה כפתורים — מלבן מעוגל.
+                            shape: widget.floatingActions.isNotEmpty
+                                ? AppTokens.roundedShape
+                                : Theme.of(
+                                        context,
+                                      ).iconButtonTheme.style?.shape?.resolve(
+                                        const {},
+                                      ) ??
+                                      AppTokens.roundedShape,
                             elevation: AppTokens.elevation1,
                             shadowColor: AppShadows.color(
                               Theme.of(context).colorScheme,
                             ),
-                            child: _SearchToggleButton(
-                              hintText: widget.delegate.hintText,
-                              onPressed: _open,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ...widget.floatingActions,
+                                _SearchToggleButton(
+                                  hintText: widget.delegate.hintText,
+                                  onPressed: _open,
+                                ),
+                              ],
                             ),
                           )
                         : const SizedBox.shrink(),
