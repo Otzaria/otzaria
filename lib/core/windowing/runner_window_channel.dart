@@ -199,13 +199,8 @@ class RunnerWindowChannel {
     return restored;
   }
 
-  /// ה-runner הציג את הראשי בעצמו, ולא דרך `windowManager.show()`.
-  ///
-  /// ⚠️ window_manager 0.5.2 פלט `show` גם על הצגה נייטיבית (`WM_SHOWWINDOW`,
-  /// אותות GTK); 0.6 פולט אותו רק מ-`show()` של Dart. בלי הדיווח כאן התוספים
-  /// של ראשי שנסגר ושוחזר נשארים מושהים עד אירוע פוקוס, שב-Windows אינו
-  /// מובטח כשהמערכת חוסמת את `SetForegroundWindow`. ההסתרה מדווחת ב-Dart
-  /// לפני [closeSelf] (`AppWindowListener`). הדיווח אידמפוטנטי.
+  /// ה-runner הציג את הראשי בלי אירוע show של window_manager.
+  /// הדיווח מחזיר את נראות התוספים גם כש-Windows מסרב להעביר פוקוס.
   static void _reportMainWindowShown() =>
       PluginRuntimeDispatcher.instance.setWindowShown(true);
 
@@ -219,10 +214,11 @@ class RunnerWindowChannel {
     double devicePixelRatio, {
     int? hwnd,
   }) => _guarded(canDragTabsOut, 'screenToClient', null, () async {
-    final p = await channel.invokeMapMethod<String, dynamic>(
-      'screenToClient',
-      {'x': x, 'y': y, 'hwnd': ?hwnd},
-    );
+    final p = await channel.invokeMapMethod<String, dynamic>('screenToClient', {
+      'x': x,
+      'y': y,
+      'hwnd': ?hwnd,
+    });
     if (p == null) return null;
     return Offset(
       ((p['x'] as int?) ?? 0) / devicePixelRatio,
@@ -325,9 +321,7 @@ class RunnerWindowChannel {
         return false;
       }
       if (tab is CombinedTab && restored is! CombinedTab) {
-        debugPrint(
-          'canTransfer: טאב מפוצל איבד חלונית בסריאליזציה — לא מועבר',
-        );
+        debugPrint('canTransfer: טאב מפוצל איבד חלונית בסריאליזציה — לא מועבר');
         return false;
       }
       return true;

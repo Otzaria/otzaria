@@ -3,9 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/runner_window_channel.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 
-/// window_manager 0.6 reports `show` only for its own `show()`. A main window
-/// that the runner shows again (restore after close, raise) must still resume
-/// the main window's plugins, as 0.5.2's native `show` event did.
+/// Runner restore/raise must resume main-window plugins without changing
+/// visibility of other windows or the separate minimized state.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final dispatcher = PluginRuntimeDispatcher.instance;
