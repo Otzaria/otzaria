@@ -98,15 +98,14 @@ void main() {
     await tester.tap(buttons.at(1));
     await tester.tap(buttons.at(2));
 
-    expect(
-      window.calls.where((c) => c != 'isMaximized'),
-      ['minimize', 'maximize', 'close'],
-    );
+    expect(window.calls.where((c) => c != 'isMaximized'), [
+      'minimize',
+      'maximize',
+      'close',
+    ]);
   });
 
-  testWidgets('לכל כפתור חלון tooltip, ובמסך מלא אין maximize', (
-    tester,
-  ) async {
+  testWidgets('לכל כפתור חלון tooltip, ובמסך מלא אין maximize', (tester) async {
     await pump(tester, caption());
     await tester.pumpAndSettle();
     for (final tip in ['מזער', 'הגדל', 'סגור']) {

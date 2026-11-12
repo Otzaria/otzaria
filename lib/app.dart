@@ -73,9 +73,7 @@ class App extends StatelessWidget {
                   GlobalMaterialLocalizations.delegate,
                   GlobalWidgetsLocalizations.delegate,
                 ],
-                supportedLocales: const [
-                  Locale("he", "IL"),
-                ],
+                supportedLocales: const [Locale("he", "IL")],
                 locale: const Locale("he", "IL"),
                 title: 'אוצריא',
                 // פס הגלילה בימין הפיזי, ברצועה משלו, בכל האפליקציה (AppScrollbar).
@@ -152,9 +150,7 @@ class App extends StatelessWidget {
                     return AppVirtualWindowFrame(child: content);
                   }
 
-                  return VirtualWindowFrame(
-                    child: content,
-                  );
+                  return VirtualWindowFrame(child: content);
                 },
                 home: MainWindowScreen(
                   key: AppWindowKeys.of(context).mainWindowScreen,

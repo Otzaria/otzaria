@@ -146,44 +146,39 @@ void main() {
     },
   );
 
-  testWidgets(
-    'קריאה חוזרת עם אותו מצב אינה פולטת ואינה שומרת שוב',
-    (tester) async {
-      final fullscreenCubit = buildCubit();
-      late BuildContext context;
+  testWidgets('קריאה חוזרת עם אותו מצב אינה פולטת ואינה שומרת שוב', (
+    tester,
+  ) async {
+    final fullscreenCubit = buildCubit();
+    late BuildContext context;
 
-      await pumpWithAppWindow(
-        tester,
-        BlocProvider<WindowFullscreenCubit>.value(
-          value: fullscreenCubit,
-          child: MaterialApp(
-            home: Builder(
-              builder: (c) {
-                context = c;
-                return const SizedBox();
-              },
-            ),
+    await pumpWithAppWindow(
+      tester,
+      BlocProvider<WindowFullscreenCubit>.value(
+        value: fullscreenCubit,
+        child: MaterialApp(
+          home: Builder(
+            builder: (c) {
+              context = c;
+              return const SizedBox();
+            },
           ),
         ),
-      );
+      ),
+    );
 
-      final emitted = <bool>[];
-      final subscription = fullscreenCubit.stream.listen(emitted.add);
-      addTearDown(subscription.cancel);
+    final emitted = <bool>[];
+    final subscription = fullscreenCubit.stream.listen(emitted.add);
+    addTearDown(subscription.cancel);
 
-      await toggleAsDesktop(context, true);
-      await tester.pump();
-      await toggleAsDesktop(context, true);
-      await tester.pump();
+    await toggleAsDesktop(context, true);
+    await tester.pump();
+    await toggleAsDesktop(context, true);
+    await tester.pump();
 
-      expect(
-        emitted,
-        [true],
-        reason: 'אין emit כפול כשהמצב לא באמת השתנה',
-      );
-      expect(persisted, [true]);
-    },
-  );
+    expect(emitted, [true], reason: 'אין emit כפול כשהמצב לא באמת השתנה');
+    expect(persisted, [true]);
+  });
 
   testWidgets('במובייל toggleFullscreen מפעיל את SystemChrome', (tester) async {
     final fullscreenCubit = buildCubit();

@@ -40,9 +40,7 @@ void main() {
         role: const AppWindowRole.view(),
         child: Directionality(
           textDirection: TextDirection.rtl,
-          child: AppVirtualWindowFrame(
-            child: child ?? _Counter(key: childKey),
-          ),
+          child: AppVirtualWindowFrame(child: child ?? _Counter(key: childKey)),
         ),
       ),
     );

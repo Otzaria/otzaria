@@ -14,8 +14,15 @@ import '../../test_helpers/recording_native_window.dart';
 
 class _ProbeWindow extends RecordingNativeWindow {
   _ProbeWindow()
-      : super(visible: false,
-              initialBounds: const nativeapi.Rectangle(x: 10, y: 10, width: 240, height: 240));
+    : super(
+        visible: false,
+        initialBounds: const nativeapi.Rectangle(
+          x: 10,
+          y: 10,
+          width: 240,
+          height: 240,
+        ),
+      );
 
   // Replaced by the real native Rectangle below during initialization.
   int appearAfterReads = 1;
@@ -88,10 +95,15 @@ void main() {
       expect(events.indexOf('setSize'), lessThan(events.indexOf('show')));
       expect(events.indexOf('show'), lessThan(events.indexOf('frame')));
       expect(events.indexOf('frame'), lessThan(events.indexOf('splash.close')));
-      expect(events.indexOf('splash.close'), lessThan(events.indexOf('getBounds')));
+      expect(
+        events.indexOf('splash.close'),
+        lessThan(events.indexOf('getBounds')),
+      );
       expect(events.where((event) => event == 'splash.close'), hasLength(1));
-      expect(events.where((event) => event == 'frame').length,
-          greaterThanOrEqualTo(2));
+      expect(
+        events.where((event) => event == 'frame').length,
+        greaterThanOrEqualTo(2),
+      );
     });
   }
 
@@ -134,7 +146,10 @@ void main() {
     expect(window.opacityReads, 3);
     expect(state['opacity'], 1);
     expect(state['ready'], isTrue);
-    expect(events.indexOf('splash.close'), lessThan(events.indexOf('getBounds')));
+    expect(
+      events.indexOf('splash.close'),
+      lessThan(events.indexOf('getBounds')),
+    );
   });
 
   test('hidden, minimized or empty host is not ready', () async {
@@ -145,7 +160,12 @@ void main() {
     window.minimized = true;
     expect((await readWebViewProbeWindow('windows'))['ready'], isFalse);
     window.minimized = false;
-    window.nativeBounds = const nativeapi.Rectangle(x: 0, y: 0, width: 0, height: 0);
+    window.nativeBounds = const nativeapi.Rectangle(
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+    );
     expect((await readWebViewProbeWindow('windows'))['ready'], isFalse);
     expect(events.where((event) => event == 'show'), hasLength(1));
   });
@@ -179,27 +199,37 @@ void main() {
     expect(window.opacityReads, 0);
   });
 
-  test('native errors propagate rather than masquerading as readiness', () async {
-    window.rejectShow = true;
-    await expectLater(
-      prepareWebViewProbeWindow(platform: 'windows', pumpFrame: pumpFrame),
-      throwsA(isA<PlatformException>()
-          .having((error) => error.code, 'code', 'show-failed')),
-    );
-    expect(events, isNot(contains('splash.close')));
-  });
+  test(
+    'native errors propagate rather than masquerading as readiness',
+    () async {
+      window.rejectShow = true;
+      await expectLater(
+        prepareWebViewProbeWindow(platform: 'windows', pumpFrame: pumpFrame),
+        throwsA(
+          isA<PlatformException>().having(
+            (error) => error.code,
+            'code',
+            'show-failed',
+          ),
+        ),
+      );
+      expect(events, isNot(contains('splash.close')));
+    },
+  );
 
   for (final platform in ['android', 'ios', 'web']) {
-    test('$platform skips desktop windows and makes no visibility claim',
-        () async {
-      final state = await prepareWebViewProbeWindow(
-        platform: platform,
-        pumpFrame: pumpFrame,
-      );
-      expect(state['availability'], 'unsupported');
-      expect(state.containsKey('ready'), isFalse);
-      expect(state.containsKey('visible'), isFalse);
-      expect(events, isEmpty);
-    });
+    test(
+      '$platform skips desktop windows and makes no visibility claim',
+      () async {
+        final state = await prepareWebViewProbeWindow(
+          platform: platform,
+          pumpFrame: pumpFrame,
+        );
+        expect(state['availability'], 'unsupported');
+        expect(state.containsKey('ready'), isFalse);
+        expect(state.containsKey('visible'), isFalse);
+        expect(events, isEmpty);
+      },
+    );
   }
 }
