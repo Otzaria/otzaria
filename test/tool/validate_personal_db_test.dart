@@ -65,6 +65,7 @@ void main() {
         CREATE TABLE link_range(id INTEGER);
         CREATE TABLE author(id INTEGER);
         CREATE TABLE book_version(id INTEGER);
+        CREATE TABLE book_version_link(versionBookId INTEGER, primaryTitle TEXT);
         CREATE TABLE line_dh(bookId INTEGER, dhDisplay TEXT);
         CREATE TABLE line_note(lineId INTEGER, noteIndex INTEGER, charPos INTEGER, hasMarker INTEGER NOT NULL, body TEXT);
         CREATE TABLE line_note_divine_name(lineId INTEGER, noteIndex INTEGER, charStart INTEGER, span INTEGER);
@@ -94,6 +95,7 @@ void main() {
         'hasLinkRanges': caps.hasLinkRanges,
         'hasLinkSuppressedSide': caps.hasLinkSuppressedSide,
         'hasBookVersions': caps.hasBookVersions,
+        'hasBookVersionLinks': caps.hasBookVersionLinks,
         'hasLineRef': caps.hasLineRef,
         'hasLineDhDisplay': caps.hasLineDhDisplay,
         'hasDivineNames': caps.hasDivineNames,
@@ -117,6 +119,7 @@ void main() {
       expect(caps.hasBookBanners, isTrue);
       expect(caps.hasBookProtection, isTrue);
       expect(caps.hasBookNoteDivineNames, isTrue);
+      expect(caps.hasBookVersionLinks, isTrue);
       expect(report.capabilities, expected);
       expect(report.impostors, {'connection_type'});
     });
@@ -224,6 +227,40 @@ void main() {
     expect(rejected.message, contains('2 book(s)'));
     expect(codes(report), contains('file_missing'));
     expect(report.hasErrors, isTrue);
+  });
+
+  test('book_version_link: bad rows and primarySource values are reported', () {
+    final path = build('versions.db', '''
+      CREATE TABLE book(id INTEGER PRIMARY KEY, title TEXT);
+      INSERT INTO book VALUES (1, 'A');
+      CREATE TABLE book_version_link(versionBookId INTEGER,
+        primarySource TEXT, primaryTitle TEXT, versionTitle TEXT);
+      INSERT INTO book_version_link VALUES (1, 'official', 'B', 'x'),
+        (1, 'db:other-db', 'B', NULL), (1, NULL, 'B', NULL),
+        (9, 'user', 'B', NULL), (1, 'somewhere', 'B', NULL);
+    ''');
+    final report = validatePersonalDb(path);
+    expect(report.capabilities['hasBookVersionLinks'], isTrue);
+    expect(codes(report), contains('book_version_link_invalid_rows'));
+    final bad = report.issues.singleWhere(
+      (i) => i.code == 'book_version_link_bad_primary_source',
+    );
+    expect(bad.message, contains('somewhere'));
+    expect(bad.message, isNot(contains('other-db')));
+    expect(report.hasErrors, isFalse);
+  });
+
+  test('book_version_link without primaryTitle is ignored with a warning', () {
+    final path = build('versions_bad.db', '''
+      CREATE TABLE book(id INTEGER PRIMARY KEY, title TEXT);
+      CREATE TABLE book_version_link(versionBookId INTEGER);
+    ''');
+    final report = validatePersonalDb(path);
+    expect(report.capabilities['hasBookVersionLinks'], isFalse);
+    expect(
+      report.issues.where((i) => i.message.contains('book_version_link')),
+      isNotEmpty,
+    );
   });
 
   test('external_link over the row limit is fatal', () {

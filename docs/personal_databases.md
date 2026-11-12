@@ -73,6 +73,7 @@
 | `line_ref` | אינדקס הפניות | איתור מקור עד השורה המדויקת |
 | `book_acronym` | ראשי תיבות | לחיפוש ספרים ולאיתור |
 | `book_version` + `version_line` | מהדורות | **חייבות לבוא יחד** |
+| `book_version_link` | ספר במסד כגרסה של ספר אחר | ראו בהמשך |
 | `schema_meta` | מטא-דאטה של המסד | ראו למעלה |
 | `external_link` | קישורים בין מסדים | ראו בהמשך |
 
@@ -174,6 +175,40 @@ VALUES
 ספר א,ספר א - מהדורה שלי,מהדורה מתוקנת,,1,רשמי,
 ספר ב,ספר ב - העתק,,,2,db:my-library,קטגוריה א
 ```
+
+### גרסאות מוטמעות במסד — `book_version_link`
+
+מסד יכול להצהיר בעצמו שספר שלו הוא גרסה של ספר אחר, כך שמי שמצרף אותו מקבל את
+הגרסאות בלי לייבא `גרסאות.csv`. השם `book_version` תפוס (מהדורות ברמת השורה), ולכן
+זו טבלה נפרדת:
+
+| עמודה | טיפוס | משמעות |
+|---|---|---|
+| `versionBookId` | INTEGER | `book.id` של ספר הגרסה במסד הזה (חובה) |
+| `primarySource` | TEXT | `'official'` (גם NULL/ריק), `'user'`, או `'db:<library_id>'` |
+| `primaryTitle` | TEXT | כותרת הספר הראשי (חובה) |
+| `primaryCategoryPath` | TEXT | נתיב קטגוריה לפירוק כותרת כפולה, למשל `'תורה'` |
+| `versionTitle` | TEXT | שם הגרסה לתצוגה; ריק ← כותרת ספר הגרסה |
+| `versionNotes` | TEXT | הערות |
+| `priority` | REAL | סדר בין הגרסאות (גבוה קודם) |
+
+```sql
+CREATE TABLE book_version_link (
+  versionBookId INTEGER NOT NULL,
+  primarySource TEXT,
+  primaryTitle TEXT NOT NULL,
+  primaryCategoryPath TEXT,
+  versionTitle TEXT,
+  versionNotes TEXT,
+  priority REAL
+);
+INSERT INTO book_version_link VALUES (1, 'official', 'בראשית', 'תורה', 'נוסח הכתר', NULL, 1);
+```
+
+- ספר גרסה שהראשי שלו נמצא מוסתר מהעץ ומופיע בגרסאות הראשי. ראשי שלא נמצא ← הספר נשאר
+  בעץ כרגיל.
+- קובץ `גרסאות.csv` של המשתמש על אותו ספר גובר על הטבלה.
+- נקראות עד 100,000 שורות למסד.
 
 ## מה נתמך בספרי מסד מצורף
 
