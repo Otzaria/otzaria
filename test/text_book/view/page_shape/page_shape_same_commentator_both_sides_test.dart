@@ -19,6 +19,7 @@ import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
+import 'package:otzaria/personal_notes/widgets/commentary_notes_section.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
@@ -31,6 +32,7 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_screen.dart';
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
+import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
 import '../../../test_helpers/stub_personal_notes_bloc.dart';
@@ -96,6 +98,7 @@ void main() {
     final navigation = _TestNavigationBloc(
       const NavigationState(currentScreen: Screen.reading),
     );
+    final sidebarTab = ValueNotifier<int?>(null);
     addTearDown(() async {
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
@@ -105,6 +108,7 @@ void main() {
       await tabs.close();
       await navigation.close();
       tab.dispose();
+      sidebarTab.dispose();
     });
 
     await tester.pumpWidget(
@@ -118,7 +122,11 @@ void main() {
         ],
         child: MaterialApp(
           home: Scaffold(
-            body: PageShapeScreen(openBookCallback: (_) {}, tab: tab),
+            body: PageShapeScreen(
+              openBookCallback: (_) {},
+              tab: tab,
+              sidebarTabNotifier: sidebarTab,
+            ),
           ),
         ),
       ),
@@ -136,6 +144,15 @@ void main() {
     expect(find.text('בחר מפרש'), findsNothing);
     // תווית אנכית לכל טור צד.
     expect(find.text(shared), findsNWidgets(2));
+    // ההערות על המפרשים המוצגים: המפרש המשותף פעם אחת.
+    sidebarTab.value = kNotesTabIndex;
+    await tester.pump();
+    final panel = find.byType(TabbedCommentaryPanel);
+    expect(panel, findsOneWidget);
+    final notesFooter =
+        tester.widget<TabbedCommentaryPanel>(panel).notesFooter!
+            as CommentaryNotesSection;
+    expect(notesFooter.bookIds, [shared]);
   });
 }
 
