@@ -45,6 +45,7 @@ SAME_BUILD = ("commit", "binarySha256", "buildMode", "hardwareId", "os",
               "flutterVersion", "warmup", "repetitions", "sampling",
               "machine", "bundleHashes")
 FRAME_KEYS = ("buildMs", "rasterMs", "totalMs")
+FLAT_CONTROL_PATH = "lib/text_book/bloc/text_book_bloc.dart"
 
 
 def number(v):
@@ -93,6 +94,28 @@ def at(value, path):
 
 def phase_key(row):
     return (row.get("launchIndex"), row.get("name"), row.get("warmup"), row.get("iteration"))
+
+
+def source_graph_violations(design, baseline, candidate, merge_base, baseline_parents, changed_files):
+    """Validate the two explicitly supported experiment topologies."""
+    errors = []
+    if baseline == candidate:
+        errors.append("identical_source_commits")
+    if design == "whole-pr":
+        if merge_base != baseline:
+            errors.append("candidate_does_not_include_expected_base")
+    elif design == "representation-only":
+        if merge_base != candidate or baseline_parents != [candidate]:
+            errors.append("flat_control_not_direct_child_of_candidate")
+        if (len(changed_files) != 1 or changed_files[0].get("path") != FLAT_CONTROL_PATH or
+                changed_files[0].get("status") != "M" or
+                changed_files[0].get("old_mode") != "100644" or
+                changed_files[0].get("new_mode") != "100644" or
+                changed_files[0].get("old_blob") == changed_files[0].get("new_blob")):
+            errors.append("flat_control_changed_unexpected_files")
+    else:
+        errors.append("unsupported_comparison_design")
+    return errors
 
 
 def pipeline_from_trace(trace, reader_id, start, end):
@@ -164,6 +187,7 @@ class Audit:
         self.launch_count = args.cycles * 2
         self.records, self.manifests, self.reports = {}, {}, {}
         self.timeline, self.launches, self.metrics = {}, [], {}
+        self.source_comparison = {}
 
     def check(self, ok, code, **detail):
         if not ok:
@@ -274,14 +298,36 @@ class Audit:
         self.same(digest, p.get("harnessSha256"), "harness_digest")
         if self.args.repo:
             try:
-                actual = subprocess.check_output(["git", "-C", self.args.repo, "ls-tree",
-                                                  self.args.expected_candidate, "--", *HARNESS],
-                                                 text=True, stderr=subprocess.PIPE).splitlines()
+                def git(*args):
+                    return subprocess.check_output(["git", "-C", self.args.repo, *args],
+                                                   text=True, stderr=subprocess.PIPE)
+                actual = git("ls-tree", self.args.expected_candidate, "--", *HARNESS).splitlines()
                 self.same(entries, sorted(actual), "harness_vs_candidate_git_objects")
-                merge_base = subprocess.check_output(["git", "-C", self.args.repo, "merge-base",
-                                                       self.args.expected_baseline, self.args.expected_candidate],
-                                                      text=True, stderr=subprocess.PIPE).strip()
-                self.same(merge_base, self.args.expected_baseline, "candidate_does_not_include_expected_base")
+                merge_base = git("merge-base", self.args.expected_baseline, self.args.expected_candidate).strip()
+                parents = git("show", "-s", "--format=%P", self.args.expected_baseline).split()
+                raw_diff = git("diff", "--raw", "--no-abbrev", "--no-renames", "--no-ext-diff",
+                               self.args.expected_baseline, self.args.expected_candidate, "--")
+                files = []
+                for line in raw_diff.splitlines():
+                    fields, path = line.split("\t", 1)
+                    old_mode, new_mode, old_blob, new_blob, status = fields.lstrip(":").split()
+                    files.append({"path": path, "status": status, "old_mode": old_mode,
+                                  "new_mode": new_mode, "old_blob": old_blob, "new_blob": new_blob})
+                self.source_comparison = {
+                    "direction": "baseline-to-candidate", "merge_base": merge_base,
+                    "baseline_parents": parents,
+                    "baseline_tree": git("rev-parse", self.args.expected_baseline + "^{tree}").strip(),
+                    "candidate_tree": git("rev-parse", self.args.expected_candidate + "^{tree}").strip(),
+                    "changed_files": files,
+                }
+                if self.args.comparison_design == "representation-only":
+                    diff = git("diff", "--no-ext-diff", "--no-color", self.args.expected_baseline,
+                               self.args.expected_candidate, "--", FLAT_CONTROL_PATH)
+                    self.source_comparison["production_diff"] = diff
+                    self.source_comparison["production_diff_sha256"] = hashlib.sha256(diff.encode()).hexdigest()
+                for error in source_graph_violations(self.args.comparison_design, self.args.expected_baseline,
+                                                     self.args.expected_candidate, merge_base, parents, files):
+                    self.check(False, error, comparison_design=self.args.comparison_design)
             except subprocess.CalledProcessError as e:
                 self.check(False, "candidate_git_objects_unavailable", error=e.stderr)
         else:
@@ -595,9 +641,21 @@ class Audit:
         for side in SIDES:
             self.side(side)
         self.comparisons()
+        hardware_id = self.manifests["candidate"].get("hardwareId")
+        run_match = re.fullmatch(r"github-hosted-(\d+)-(\d+)", str(hardware_id))
         return {"audited_at_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
             "artifact_root": str(self.root), "expected_baseline": self.args.expected_baseline,
-            "expected_candidate": self.args.expected_candidate, "passed_structural_and_statistical_checks": not self.errors,
+            "expected_candidate": self.args.expected_candidate,
+            "comparison_design": self.args.comparison_design,
+            "run_identity": {"expected_hardware_id": self.args.expected_hardware_id,
+                "baseline_hardware_id": self.manifests["baseline"].get("hardwareId"),
+                "candidate_hardware_id": hardware_id,
+                "github_run_id": run_match.group(1) if run_match else None,
+                "github_run_attempt": run_match.group(2) if run_match else None,
+                "os": self.manifests["candidate"].get("os"),
+                "flutter_revision": self.manifests["candidate"].get("flutterVersion")},
+            "source_comparison": self.source_comparison,
+            "passed_structural_and_statistical_checks": not self.errors,
             "errors": self.errors, "warnings": self.warnings,
             "design": {"cycles": self.args.cycles, "launches_per_side": self.launch_count,
                        "warmups_per_launch": self.args.warmup, "measured_repetitions_per_launch": self.args.repetitions,
@@ -609,7 +667,9 @@ class Audit:
             "limitations": [
                 "16 latency samples per action are descriptive; p95 and p99 are both the observed maximum.",
                 "Four processes on one machine are not independent machines; individual repetitions share process state.",
-                "The candidate is the integrated PR, not only the representation change.",
+                ("This comparison measures the integrated PR against its upstream baseline."
+                 if self.args.comparison_design == "whole-pr" else
+                 "This comparison uses a flat control derived from the candidate; interpretation is representation-only subject to independent review of the recorded production diff."),
                 "Candidate harness blobs are independently checked with --repo. Baseline overlay identity relies on runner assertions and preserved provenance; its local commit object is not packaged.",
                 "Binary and bundle declared hashes are cross-checked, not independently recomputed: build bundles are excluded from the artifact.",
                 "Latency and frame quantiles are independently recalculated. CPU and process-tree derived resource summaries are not recalculated here.",
@@ -633,6 +693,23 @@ def self_test():
     assert p["layoutTotalMs"] == .5 and p["paintTotalMs"] is None and all(markers.values())
     assert difference(10, 15)["deltaPercent"] == 50
     assert not equivalent([1, 2, 100], [1, 2])
+    base, candidate = "a" * 40, "b" * 40
+    change = {"path": FLAT_CONTROL_PATH, "status": "M", "old_mode": "100644",
+              "new_mode": "100644", "old_blob": "c" * 40, "new_blob": "d" * 40}
+    assert source_graph_violations("whole-pr", base, candidate, base, [], [change]) == []
+    assert "candidate_does_not_include_expected_base" in source_graph_violations(
+        "whole-pr", base, candidate, candidate, [candidate], [change])
+    assert source_graph_violations("representation-only", base, candidate, candidate, [candidate], [change]) == []
+    for wrong_parents in ([], [base], [candidate, base]):
+        assert "flat_control_not_direct_child_of_candidate" in source_graph_violations(
+            "representation-only", base, candidate, candidate, wrong_parents, [change])
+    assert "flat_control_not_direct_child_of_candidate" in source_graph_violations(
+        "representation-only", base, candidate, base, [candidate], [change])
+    for wrong_changes in ([], [change, {**change, "path": "lib/unrelated.dart"}],
+                          [{**change, "new_mode": "100755"}], [{**change, "new_blob": change["old_blob"]}]):
+        assert "flat_control_changed_unexpected_files" in source_graph_violations(
+            "representation-only", base, candidate, candidate, [candidate], wrong_changes)
+    assert "identical_source_commits" in source_graph_violations("whole-pr", base, base, base, [], [])
     print(json.dumps({"self_test": "passed", "uses_measurement_results": False}))
 
 
@@ -641,6 +718,7 @@ def main():
     p.add_argument("artifact_root", nargs="?", help="Directory containing provenance.json, baseline/, candidate/, build-*/, step-*/")
     p.add_argument("--expected-candidate")
     p.add_argument("--expected-baseline", default=BASELINE)
+    p.add_argument("--comparison-design", choices=("whole-pr", "representation-only"), default="whole-pr")
     p.add_argument("--repo", help="Read-only local repository with the exact expected candidate commit")
     p.add_argument("--expected-hardware-id")
     p.add_argument("--expected-flutter-revision")
@@ -648,7 +726,7 @@ def main():
     p.add_argument("--warmup", type=int, default=1)
     p.add_argument("--repetitions", type=int, default=4)
     p.add_argument("--book-lines", default="2000,50000,1000000")
-    p.add_argument("--output", help="JSON evidence destination outside the artifact input directory")
+    p.add_argument("--output", help="New JSON evidence file outside the artifact input directory; use a distinct filename per run")
     p.add_argument("--self-test", action="store_true")
     args = p.parse_args()
     if args.self_test:
@@ -661,14 +739,21 @@ def main():
             p.error("Expected SHAs must be full lowercase 40-character commit IDs")
     if args.cycles < 1 or args.warmup < 0 or args.repetitions < 1:
         p.error("Invalid repetition design")
+    if args.comparison_design == "representation-only" and not args.repo:
+        p.error("representation-only requires --repo to verify the direct-child control and exact changed-file inventory")
     destination = Path(args.output).resolve()
     if destination.is_relative_to(Path(args.artifact_root).resolve()):
         p.error("Keep QA output outside the raw artifact directory")
+    if destination.exists():
+        p.error("QA output already exists; choose a new filename for this run")
     audit = Audit(args)
     try:
         result = audit.run()
     except (ValueError, TypeError, KeyError, OSError, IndexError, AttributeError) as error:
         result = {"passed_structural_and_statistical_checks": False,
+                  "comparison_design": args.comparison_design,
+                  "expected_baseline": args.expected_baseline,
+                  "expected_candidate": args.expected_candidate,
                   "errors": audit.errors + [{"code": "audit_could_not_complete", "error": repr(error)}],
                   "warnings": audit.warnings, "input_file_sha256": audit.hashes}
     destination.parent.mkdir(parents=True, exist_ok=True)

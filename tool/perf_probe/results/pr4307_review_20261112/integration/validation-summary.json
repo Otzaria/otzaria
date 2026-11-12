@@ -49,5 +49,16 @@
     "status": "running",
     "result_available": false
   },
-  "source_note": "The local executor was replaced after validation and publication. The focused-test log hash was recorded before replacement; its raw local log is not included in this archive. Published source and the independent core measurement bundle were preserved in GitHub."
+  "source_note": "The local executor was replaced after validation and publication. The focused-test log hash was recorded before replacement; its raw local log is not included in this archive. Published source and the independent core measurement bundle were preserved in GitHub.",
+  "regular_ci": {
+    "checked_at_utc": "2026-11-12T18:41:39Z",
+    "head_sha": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+    "passed_checks": 26,
+    "skipped_checks": 3,
+    "failed_checks": 0,
+    "successful_workflows": 11,
+    "reader_profile_excluded": true,
+    "flutter_tests_url": "https://github.com/Otzaria/otzaria/actions/runs/43276783932",
+    "last_completed_job_url": "https://github.com/Otzaria/otzaria/actions/runs/43276783611/job/131387185715"
+  }
 }
