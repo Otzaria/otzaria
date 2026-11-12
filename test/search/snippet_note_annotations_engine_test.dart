@@ -12,8 +12,6 @@ import '../support/search_engine_test_init.dart';
 
 Future<void> main() async {
   final ready = await tryInitSearchEngine();
-  final mode = Platform.environment['OTZARIA_EXPECT_NOTE_ANNOTATIONS'] ?? '0';
-  final expectAnnotations = mode == '1';
   const topic = '/books/note-annotation-3292';
   const path = '/notes-3292-fixture.txt';
   // קטע סינתטי; ספר זה אינו מתחזה לפסקה המקורית שבמסד הספרים.
@@ -25,7 +23,6 @@ Future<void> main() async {
   late SearchRepository repository;
 
   setUpAll(() async {
-    expect(mode, isIn(['0', '1']));
     if (!ready) return;
     directory = await Directory.systemTemp.createTemp('snippet-note-3292-');
     engine = await SearchEngine.newInstance(path: directory.path);
@@ -70,11 +67,8 @@ Future<void> main() async {
         final result = results.single;
         expect(result.filePath, path);
         expect(result.textStatus, TextStatus.ok);
-        expect(result.text.contains('<otzaria-note>'), expectAnnotations);
-        expect(
-          result.text.contains('<otzaria-note-marker>'),
-          expectAnnotations,
-        );
+        expect(result.text, contains('<otzaria-note>'));
+        expect(result.text, contains('<otzaria-note-marker>'));
         expect(
           SnippetBuilder.htmlToPlainText(result.text),
           'גוף 12 מפורשת סוף',
@@ -89,7 +83,7 @@ Future<void> main() async {
         ).cast<TextSpan>();
         expect(
           spans.map((span) => span.text).join(),
-          expectAnnotations ? 'גוף 12 [הערה: מפורשת] סוף' : 'גוף 12 מפורשת סוף',
+          'גוף 12 [הערה: מפורשת] סוף',
         );
         final matched = spans
             .where((span) => span.style?.fontWeight == FontWeight.bold)
@@ -97,14 +91,12 @@ Future<void> main() async {
         expect(matched.map((span) => span.text).join(), query);
         expect(
           matched.every((span) => span.style?.fontStyle == FontStyle.italic),
-          expectAnnotations && query == 'מפורשת',
+          query == 'מפורשת',
         );
-        if (expectAnnotations) {
-          expect(
-            spans.singleWhere((span) => span.text == '12').style!.fontSize,
-            15,
-          );
-        }
+        expect(
+          spans.singleWhere((span) => span.text == '12').style!.fontSize,
+          15,
+        );
       }, skip: ready ? false : searchEngineSkipReason);
     }
   }
