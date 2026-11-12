@@ -13,6 +13,7 @@ class _WindowsNotifications extends FlutterLocalNotificationsPlatform
   _WindowsNotifications(this.calls);
 
   final List<String> calls;
+  bool initializationResult = true;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -53,7 +54,7 @@ class _WindowsNotifications extends FlutterLocalNotificationsPlatform
     DidReceiveNotificationResponseCallback? onDidReceiveNotificationResponse,
   }) async {
     calls.add('initialize');
-    return true;
+    return initializationResult;
   }
 }
 
@@ -61,15 +62,19 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final calls = <String>[];
   final originalPreload = NotificationService.windowsLibraryPreload;
+  final originalGate = NotificationService.startupGate;
+  late _WindowsNotifications plugin;
 
   setUp(() {
     calls.clear();
     NotificationService().resetForTesting();
-    FlutterLocalNotificationsPlatform.instance = _WindowsNotifications(calls);
+    plugin = _WindowsNotifications(calls);
+    FlutterLocalNotificationsPlatform.instance = plugin;
   });
   tearDown(() {
     debugDefaultTargetPlatformOverride = null;
     NotificationService.windowsLibraryPreload = originalPreload;
+    NotificationService.startupGate = originalGate;
   });
 
   test('ב-Windows ה-DLL נטען לפני initialize של התוסף', () async {
@@ -101,6 +106,47 @@ void main() {
     };
 
     await NotificationService().init();
+    expect(calls, ['initialize']);
+  });
+
+  test('כשל רישום ב-Windows אינו מסמן הצלחה ומאפשר ניסיון נוסף', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    NotificationService.windowsLibraryPreload = () async {};
+    plugin.initializationResult = false;
+    final notifications = NotificationService();
+
+    expect(await notifications.ensureInitialized(), isFalse);
+    expect(notifications.isInitialized, isFalse);
+
+    plugin.initializationResult = true;
+    expect(await notifications.ensureInitialized(), isTrue);
+    expect(notifications.isInitialized, isTrue);
+    expect(calls, ['initialize', 'initialize']);
+  });
+
+  test('קריאות מקבילות חולקות רישום כושל וממתינות לחשיפת החלון', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    NotificationService.windowsLibraryPreload = () async {};
+    plugin.initializationResult = false;
+    final reveal = Completer<void>();
+    NotificationService.startupGate = () => reveal.future;
+    final notifications = NotificationService();
+    final first = notifications.ensureInitialized();
+    final second = notifications.ensureInitialized();
+    await Future<void>.delayed(Duration.zero);
+    expect(calls, isEmpty);
+
+    reveal.complete();
+    expect(await Future.wait([first, second]), [false, false]);
+    expect(calls, ['initialize']);
+    expect(notifications.isInitialized, isFalse);
+  });
+
+  test('false בפלטפורמה אחרת משמר את חוזה האתחול הקיים', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    plugin.initializationResult = false;
+
+    expect(await NotificationService().ensureInitialized(), isTrue);
     expect(calls, ['initialize']);
   });
 }
