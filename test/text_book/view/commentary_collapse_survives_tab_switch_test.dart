@@ -145,8 +145,6 @@ TextBookLoaded _loadedStateA() {
   );
 }
 
-// אותו תוכן ("ספר בדיקה"), אבל מפרש חדש בשורה השנייה - כותרת ספר שונה, כך
-// שנוצר מפתח-קבוצה (groupKey) חדש שלא היה קודם ב-_expansionStates.
 class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     implements TextBookBloc {
   _TestTextBookBloc(super.initialState) {

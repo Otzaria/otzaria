@@ -624,7 +624,7 @@ Otzaria.on('plugin.boot', (payload) => {
 
 | type | תיאור |
 |------|--------|
-| `calendar.event` | אירוע לוח שנה — יוצג ב-`CalendarScreen` |
+| `calendar.event` | אירוע לוח שנה — יוצג בלוח השנה |
 | `saved.query` | שאילתת חיפוש שמורה |
 | `note.draft` | טיוטת הערה |
 | `reference.link` | קישור להפניה |

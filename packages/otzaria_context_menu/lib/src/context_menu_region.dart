@@ -465,7 +465,7 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
         behavior: HitTestBehavior.translucent,
         gestures: <Type, GestureRecognizerFactory>{
           // recognizer שזוכה באופן מיידי בכפתור הימני כשיש בחירה פעילה, כדי
-          // למנוע מ-SelectableRegion לשחרר את הבחירה (ראו תיעוד השדה).
+          // למנוע מ-SelectableRegion לשחרר את הבחירה.
           _PreserveSelectionSecondaryTapRecognizer:
               GestureRecognizerFactoryWithHandlers<
                 _PreserveSelectionSecondaryTapRecognizer
