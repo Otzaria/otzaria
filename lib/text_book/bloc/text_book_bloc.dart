@@ -2204,23 +2204,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     _ensureLoadedContentTrackingBook(currentState.book);
     _supportsContentRangeLoading = true;
 
-    // Repeating an already-loaded range in a full-book List must not copy the
-    // entire book. A no-op still records range coverage for tab suspension.
-    // Keep the regular path for missing flags, extensions, or changed lines.
-    final content = currentState.content;
-    final flags = _loadedContentFlags;
-    if (flags.length >= content.length &&
-        applicable.every((range) {
-          final end = range.startLine + range.lines.length;
-          if (end > content.length) return false;
-          for (var index = max(0, range.startLine); index < end; index++) {
-            if (!flags[index] ||
-                content[index] != range.lines[index - range.startLine]) {
-              return false;
-            }
-          }
-          return true;
-        })) {
+    void markAllRanges() {
       for (final range in applicable) {
         _markLoadedContentRange(
           currentState.book,
@@ -2229,6 +2213,26 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           totalLines: range.totalLines,
         );
       }
+    }
+
+    // תוכן מלא עשוי עדיין להיות רשימה רגילה. ב-no-op אין snapshot חדש,
+    // ולכן המרה לפני בדיקת הטווח הייתה חוזרת על כל הספר בכל אירוע זהה.
+    if ((currentState.content is! ChunkedList<String> ||
+            _loadedContentFlags is! ChunkedList<bool>) &&
+        _loadedContentFlags.length >= currentState.content.length &&
+        applicable.every((range) {
+          final end = range.startLine + range.lines.length;
+          if (end > currentState.content.length) return false;
+          for (var index = max(0, range.startLine); index < end; index++) {
+            if (!_loadedContentFlags[index] ||
+                currentState.content[index] !=
+                    range.lines[index - range.startLine]) {
+              return false;
+            }
+          }
+          return true;
+        })) {
+      markAllRanges();
       return;
     }
 
@@ -2266,17 +2270,6 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           first - range.startLine,
         );
         nextLoadedFlags.fillRange(first, targetLength, true);
-      }
-    }
-
-    void markAllRanges() {
-      for (final range in applicable) {
-        _markLoadedContentRange(
-          currentState.book,
-          range.startLine,
-          range.startLine + range.lines.length - 1,
-          totalLines: range.totalLines,
-        );
       }
     }
 

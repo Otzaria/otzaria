@@ -110,6 +110,55 @@ _Snapshot _pagedApply(_Snapshot current, List<_Range> ranges) {
       : current;
 }
 
+// Mirrors production's conversion-before-change-check path, including a flat
+// snapshot returned unchanged when every incoming value was already loaded.
+_Snapshot _pagedApplyWithConversion(
+  _Snapshot current,
+  List<_Range> ranges, {
+  bool preflightFlat = false,
+}) {
+  final applicable = ranges.where((range) => range.lines.isNotEmpty).toList();
+  if (applicable.isEmpty) return current;
+  if (preflightFlat &&
+      (current.content is! ChunkedList<String> ||
+          current.flags is! ChunkedList<bool>) &&
+      current.flags.length >= current.content.length &&
+      applicable.every((range) {
+        final end = range.start + range.lines.length;
+        if (end > current.content.length) return false;
+        for (var index = max(0, range.start); index < end; index++) {
+          if (!current.flags[index] ||
+              current.content[index] != range.lines[index - range.start]) {
+            return false;
+          }
+        }
+        return true;
+      })) {
+    return current;
+  }
+  final content = ChunkedList<String>.from(
+    current.content,
+    defaultValue: '',
+  ).edit();
+  final flags = ChunkedList<bool>.from(
+    current.flags,
+    defaultValue: false,
+  ).edit();
+  if (flags.length < content.length) flags.length = content.length;
+  for (final range in applicable) {
+    final end = range.start + range.lines.length;
+    if (content.length < end) content.length = end;
+    if (flags.length < end) flags.length = end;
+    final start = max(0, range.start);
+    if (start < end) {
+      content.setRange(start, end, range.lines, start - range.start);
+      flags.fillRange(start, end, true);
+    }
+  }
+  if (!content.changed && !flags.changed) return current;
+  return _Snapshot(content.build(), flags.build(), current.version + 1);
+}
+
 bool _listEquals<T>(List<T> a, List<T> b) {
   if (a.length != b.length) return false;
   if (identical(a, b)) return true;
@@ -431,6 +480,104 @@ void _runFlatConversion(int length, int sampleCount) {
   }
 }
 
+void _runFlatNoop(
+  int length,
+  int sampleCount, {
+  bool reverse = false,
+  bool distinctEqualStrings = false,
+}) {
+  final flat = _Snapshot(
+    List<String>.filled(length, _payloads[0][0]),
+    List<bool>.unmodifiable(List<bool>.filled(length, true)),
+    17,
+  );
+  final rangeLines = min(length, 640);
+  final ranges = <_Range>[
+    (
+      start: length - rangeLines,
+      lines: List<String>.generate(
+        rangeLines,
+        (_) => distinctEqualStrings
+            ? String.fromCharCodes(_payloads[0][0].codeUnits)
+            : _payloads[0][0],
+        growable: false,
+      ),
+    ),
+  ];
+  if (distinctEqualStrings &&
+      ranges.single.lines.any((line) => identical(line, flat.content.last))) {
+    throw StateError(
+      'The value-equal fixture must use distinct string objects',
+    );
+  }
+  final paged = _Snapshot(
+    ChunkedList<String>.from(flat.content, defaultValue: ''),
+    ChunkedList<bool>.from(flat.flags, defaultValue: false),
+    flat.version,
+  );
+  final cases = <String, ({_Snapshot source, _Snapshot Function() apply})>{
+    'flat_from_flat_full_noop_1x640': (
+      source: flat,
+      apply: () => _flatApply(flat, ranges),
+    ),
+    'paged_from_flat_full_noop_without_preflight_1x640': (
+      source: flat,
+      apply: () => _pagedApplyWithConversion(flat, ranges),
+    ),
+    'paged_from_flat_full_noop_preflight_1x640': (
+      source: flat,
+      apply: () => _pagedApplyWithConversion(flat, ranges, preflightFlat: true),
+    ),
+    'paged_existing_full_noop_1x640': (
+      source: paged,
+      apply: () =>
+          _pagedApplyWithConversion(paged, ranges, preflightFlat: true),
+    ),
+  };
+  for (final entry in cases.entries) {
+    final source = entry.value.source;
+    for (var repeat = 0; repeat < 3; repeat++) {
+      final result = entry.value.apply();
+      if (!identical(result, source) ||
+          result.version != 17 ||
+          !_listEquals(result.content, flat.content) ||
+          !_listEquals(result.flags, flat.flags)) {
+        throw StateError('Full-resident no-op changed snapshot identity/data');
+      }
+    }
+  }
+  final entries = reverse ? cases.entries.toList().reversed : cases.entries;
+  for (final entry in entries) {
+    _measure(
+      entry.key,
+      length,
+      entry.value.apply,
+      sampleCount: sampleCount,
+      operations: length < 10000 ? 8 : 1,
+      extra: {
+        'resident_lines_before': length,
+        'range_lines': rangeLines,
+        'changed_lines': 0,
+        'distinct_equal_strings': distinctEqualStrings,
+        'source_is_flat': identical(entry.value.source, flat),
+        'returns_original_snapshot': true,
+        'revision_unchanged': true,
+        'conversion_included':
+            entry.key == 'paged_from_flat_full_noop_without_preflight_1x640',
+        'preflight_guard_enabled':
+            entry.key == 'paged_from_flat_full_noop_preflight_1x640' ||
+            entry.key == 'paged_existing_full_noop_1x640',
+        'preflight_scan_performed':
+            entry.key == 'paged_from_flat_full_noop_preflight_1x640',
+        if (entry.key == 'flat_from_flat_full_noop_1x640')
+          'copied_reference_slots': 2 * length,
+        'scope':
+            'identical range after full-content flat publication; repeated no-op keeps original source representation; excludes tracking metadata and Bloc emission',
+      },
+    );
+  }
+}
+
 Future<void> _allocationWorker() async {
   final service = await Service.getInfo();
   stdout.writeln(
@@ -490,6 +637,9 @@ Future<void> main(List<String> args) async {
   final samples = sampleOption == null
       ? 31
       : int.parse(sampleOption.split('=').last);
+  final flatNoopOnly = args.contains('--flat-noop-only');
+  final reverseCases = args.contains('--reverse-cases');
+  final distinctEqualStrings = args.contains('--distinct-equal-strings');
   stdout.writeln(
     jsonEncode({
       'metadata': true,
@@ -499,17 +649,28 @@ Future<void> main(List<String> args) async {
       'chunk_length': ChunkedList.chunkLength,
       'samples': samples,
       'sizes': [2000, 50000, 1000000],
-      'case_set': args.contains('--conversion-only')
+      'case_set': flatNoopOnly
+          ? 'flat_full_noop'
+          : args.contains('--conversion-only')
           ? 'flat_conversion'
           : 'standard',
+      if (flatNoopOnly) 'case_order': reverseCases ? 'reverse' : 'forward',
       'scope':
           'in-memory reference-array copies, immutable snapshot operations, and list reads; excludes layout, rendering, notes scanning, state construction and I/O',
-      'payload':
-          'preallocated Hebrew combining marks; same string references reused; string allocation excluded',
+      'payload': flatNoopOnly && distinctEqualStrings
+          ? 'preallocated equal Hebrew strings with combining marks; source and incoming string identities differ; string allocation excluded'
+          : 'preallocated Hebrew combining marks; same string references reused; string allocation excluded',
     }),
   );
   for (final size in [2000, 50000, 1000000]) {
-    if (args.contains('--conversion-only')) {
+    if (flatNoopOnly) {
+      _runFlatNoop(
+        size,
+        samples,
+        reverse: reverseCases,
+        distinctEqualStrings: distinctEqualStrings,
+      );
+    } else if (args.contains('--conversion-only')) {
       _runFlatConversion(size, samples);
     } else {
       _runSize(size, samples);
