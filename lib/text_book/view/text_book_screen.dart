@@ -1877,8 +1877,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   void _scrollToNextLine(TextBookLoaded state) => _scrollByLines(state, 1);
 
-  /// שורת מקור אחת בכל לחיצה, בשני המצבים. המיקום מתעדכן ליעד מיד, ולכן
-  /// לחיצות רצופות ממשיכות ממנו גם לפני שהגלילה נחתה.
+  /// שורת מקור אחת בכל לחיצה, והיעד נבחר (המפרשים נפתחים עליו). המיקום
+  /// מתעדכן ליעד מיד, ולכן לחיצות רצופות ממשיכות ממנו גם לפני שהגלילה נחתה.
   void _scrollByLines(TextBookLoaded state, int delta) {
     if (PluginTextReaderRegistry.instance.usesPlugin(widget.tab)) {
       PluginTextReaderRegistry.instance.command(
@@ -1892,6 +1892,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     final current = widget.tab.index;
     final target = (current + delta).clamp(0, state.content.length - 1);
     if (target == current) return;
+    context.read<TextBookBloc>().add(UpdateSelectedIndex(target));
     unawaited(
       widget.tab.lines.scrollToLine(
         target,
