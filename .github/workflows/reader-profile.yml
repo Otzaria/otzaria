@@ -25,14 +25,18 @@ jobs:
   paired-profile:
     name: Reader baseline and candidate on one Windows runner
     runs-on: windows-2025
-    timeout-minutes: 90
+    timeout-minutes: 120
     defaults:
       run:
         shell: pwsh
     env:
       EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
       CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+      EXPECTED_BASELINE_SHA: ${{ github.event.pull_request.number == 4307 && '8d24d26f6b7eef04ad9eda1f30eb9ea0e53cf546' || '' }}
       PAIR_HARDWARE_ID: github-hosted-${{ github.run_id }}-${{ github.run_attempt }}
+      READER_CYCLES: '2'
+      READER_WARMUP: '1'
+      READER_REPETITIONS: '4'
     steps:
       - name: Preserve source bytes and long paths
         run: |
@@ -55,6 +59,9 @@ jobs:
           $sourceBase = (& git merge-base $env:EVENT_BASE_SHA $env:CANDIDATE_SHA | Out-String).Trim()
           if ($LASTEXITCODE -ne 0 -or $sourceBase -notmatch '^[0-9a-f]{40}$' -or $sourceBase -eq $env:CANDIDATE_SHA) {
             throw 'Cannot identify a distinct shared source base for this candidate.'
+          }
+          if (-not [string]::IsNullOrEmpty($env:EXPECTED_BASELINE_SHA) -and $sourceBase -ne $env:EXPECTED_BASELINE_SHA) {
+            throw "Expected baseline $env:EXPECTED_BASELINE_SHA; got $sourceBase. Update the pin only after validating a new rebase."
           }
           "BASELINE_SHA=$sourceBase" | Add-Content -LiteralPath $env:GITHUB_ENV
 
@@ -96,7 +103,9 @@ jobs:
         run: |
           ./tool/perf_probe/run_reader_comparison.ps1 `
             -BaselineRef $env:BASELINE_SHA -CandidateRef $env:CANDIDATE_SHA `
-            -Cycles 1 -Warmup 1 -Repetitions 2 -BookLines '2000,50000,1000000' `
+            -Cycles ([int]$env:READER_CYCLES) -Warmup ([int]$env:READER_WARMUP) `
+            -Repetitions ([int]$env:READER_REPETITIONS) -BookLines '2000,50000,1000000' `
+            -TimeoutSeconds 1800 `
             -HardwareId $env:PAIR_HARDWARE_ID `
             -OutputDirectory (Join-Path $env:RUNNER_TEMP 'reader-profile')
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -106,15 +115,17 @@ jobs:
         run: |
           $root = Join-Path $env:RUNNER_TEMP 'reader-profile'
           $report = Join-Path $root 'candidate/report.md'
+          $launchesPerSide = [int]$env:READER_CYCLES * 2
+          $samplesPerSide = $launchesPerSide * [int]$env:READER_REPETITIONS
           @(
             '## Reader profile comparison', '',
             "Pull-request event base: $env:EVENT_BASE_SHA",
             "Shared baseline source: $env:BASELINE_SHA", "Candidate source: $env:CANDIDATE_SHA", '',
             'One Windows runner, Flutter 3.47.7/profile, identical committed measurement harness.',
-            'Launch order: baseline, candidate, candidate, baseline. Each launch has 1 warmup and 2 measured repetitions.',
+            "Launch order: baseline, candidate, candidate, baseline; $env:READER_CYCLES cycles. Each launch has $env:READER_WARMUP warmup and $env:READER_REPETITIONS measured repetitions.",
             'Books: 2,000 / 50,000 / 1,000,000 lines. Builds and fixture preparation are outside action timings.',
             'Cold means fresh application data; operating-system caches are not cleared.',
-            'Four latency samples per action and side are descriptive; p95/p99 are not stable tail estimates.',
+            "$samplesPerSide latency samples per action and side across $launchesPerSide processes are descriptive; p95/p99 are not stable tail estimates.",
             'No performance threshold or automatic retry is used.', ''
           ) | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
           if (Test-Path -LiteralPath $report) {
