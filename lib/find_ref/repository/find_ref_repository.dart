@@ -26,6 +26,7 @@ import 'package:otzaria/library/hidden/hidden_library_selection.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/migration/database/daos/line_dh_dao.dart';
+import 'package:otzaria/migration/database/db_capabilities.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/search/utils/foundational_book_classifier.dart';
@@ -647,7 +648,7 @@ class FindRefRepository {
       _revalidateUserBooks(path);
       return cached;
     }
-    return _awaitCurrent(_refreshUserBooks(path, background: false));
+    return _awaitCurrent(_refreshUserBooks(path));
   }
 
   /// בדיקת רקע אם user_books.db השתנה; כשל אינו נוגע באינדקס הקיים.
@@ -663,20 +664,19 @@ class FindRefRepository {
           await running.then<void>((_) {}, onError: report);
         }
         if (epoch != _userBooksEpoch || _disposed) return;
-        await _refreshUserBooks(
-          path,
-          background: true,
-          afterWrite: afterWrite,
-        );
+        await _refreshUserBooks(path, afterWrite: afterWrite);
       }().then<void>((_) {}, onError: report),
     );
   }
+
+  /// זמן הקריאה המרבי של קטלוג הספרים האישיים — אלפי ספרים במחשב איטי.
+  @visibleForTesting
+  static Duration userBooksCatalogTimeout = const Duration(minutes: 1);
 
   /// קורא מה-worker את הספרים האישיים אם התוכן השתנה, ובונה את האינדקס.
   /// האינדקס נשמר גם כשהחיפוש שהתחיל את הקריאה כבר בוטל.
   Future<_SecondaryIndex> _refreshUserBooks(
     String path, {
-    required bool background,
     bool afterWrite = false,
   }) {
     final running = _userBooksRefresh;
@@ -691,7 +691,10 @@ class FindRefRepository {
           immutable: false,
           version: '$_userBooksVersion',
           job: _userBooksJob(known),
-          background: background,
+          // קריאה איטית של מסד תקין אינה סיבה להשבית את הספרים האישיים.
+          background: true,
+          trusted: true,
+          timeout: userBooksCatalogTimeout,
         );
         final afterRead = debugAfterUserBooksRead;
         if (afterRead != null) await afterRead();
@@ -2210,6 +2213,7 @@ class FindRefRepository {
         ],
         searchScope: _secondaryScope,
         searchEpoch: currentSearchGeneration,
+        trusted: true,
       );
     } on FindRefQueryCancelled {
       rethrow;
@@ -2281,7 +2285,10 @@ class FindRefRepository {
     final version = (
       connection: connection,
       dataVersion: dataVersion,
-      signature: _userBooksSignature(db),
+      signature: _userBooksSignature(
+        db,
+        await repository.database.capabilities,
+      ),
     );
     if (known != null && known.signature == version.signature) {
       return (version: version, books: null);
@@ -2289,13 +2296,28 @@ class FindRefRepository {
     return (version: version, books: await _readSecondaryBooksFrom(repository));
   };
 
-  /// FNV-1a על כל שורות `book` ו-`category` — משתנה בכל הוספה, מחיקה או
-  /// שינוי שם, בלי לבנות את רשימת הספרים.
-  static int _userBooksSignature(sqlite3.Database db) {
+  /// FNV-1a על העמודות ש-[_readSecondaryBooksFrom] קורא בלבד — משתנה בכל
+  /// שינוי שמשפיע על האינדקס (הוספה, מחיקה, שינוי שם, העברת תיקייה).
+  static int _userBooksSignature(
+    sqlite3.Database db,
+    DbCapabilities capabilities,
+  ) {
     var hash = 0x811c9dc5;
-    for (final table in const ['book', 'category']) {
-      for (final row in db.select('SELECT * FROM $table ORDER BY id')) {
-        for (final value in row.values) {
+    for (final (table, columns) in const [
+      (
+        'book',
+        ['id', 'categoryId', 'title', 'filePath', 'fileType', 'orderIndex'],
+      ),
+      ('category', ['id', 'parentId', 'title']),
+    ]) {
+      if (!capabilities.has(table)) continue;
+      final present = [
+        for (final column in columns)
+          if (capabilities.hasColumn(table, column)) column,
+      ].join(', ');
+      for (final row
+          in db.select('SELECT $present FROM $table ORDER BY id').rows) {
+        for (final value in row) {
           for (final unit in '$value\u0001'.codeUnits) {
             hash = ((hash ^ unit) * 0x01000193) & 0xffffffff;
           }
