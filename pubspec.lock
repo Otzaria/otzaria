@@ -2123,8 +2123,8 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: d56403f29dd700d878a9151f03aca2a51b4b9310
-      resolved-ref: d56403f29dd700d878a9151f03aca2a51b4b9310
+      ref: 5e33e8a0750bd41200cb07b3b9e3edda8f0d389a
+      resolved-ref: 5e33e8a0750bd41200cb07b3b9e3edda8f0d389a
       url: "https://github.com/Otzaria/window_manager"
     source: git
     version: "0.6.0"
