@@ -365,9 +365,12 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
     if (metrics.axis != Axis.horizontal) return false;
     final overflows = metrics.maxScrollExtent > 0;
     if (overflows != _textOverflows) {
+      _textOverflows = overflows;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _textOverflows = overflows);
+        if (mounted) setState(() {});
       });
+      // מדדי גלילה מגיעים גם אחרי frame; ה-callback לבדו לא מזמין frame חדש.
+      WidgetsBinding.instance.ensureVisualUpdate();
     }
     return false;
   }

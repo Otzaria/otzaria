@@ -1087,10 +1087,14 @@ Future<void> main() async {
     final textBookBloc = _TestTextBookBloc(_loadedState());
     final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final focusNode = FocusNode();
+    final navigatedLines = <int>[];
+    final lines = LineScrollController()
+      ..externalNavigator = (line) async => navigatedLines.add(line);
 
     addTearDown(textBookBloc.close);
     addTearDown(settingsBloc.close);
     addTearDown(focusNode.dispose);
+    addTearDown(lines.dispose);
     addTearDown(resetSectionSearchWorkerForTesting);
 
     Future<List<TextSearchResult>> simpleSearchRunner(
@@ -1116,7 +1120,7 @@ Future<void> main() async {
           child: Scaffold(
             body: TextBookSearchView(
               contentLoader: () async => ['שורה'],
-              lines: LineScrollController(),
+              lines: lines,
               focusNode: focusNode,
               closeLeftPaneCallback: () {},
               initialQuery: '',
@@ -1136,9 +1140,19 @@ Future<void> main() async {
 
     await tester.tap(find.byTooltip('התוצאה הבאה'));
     await tester.pump();
-    tester.takeException();
-
+    expect(tester.takeException(), isNull);
     expect(find.text('2/3'), findsOneWidget);
+    expect(navigatedLines, [7]);
+
+    await tester.tap(find.byTooltip('התוצאה הבאה'));
+    await tester.pump();
+    expect(find.text('3/3'), findsOneWidget);
+    expect(navigatedLines, [7, 9]);
+
+    await tester.tap(find.byTooltip('התוצאה הקודמת'));
+    await tester.pump();
+    expect(find.text('2/3'), findsOneWidget);
+    expect(navigatedLines, [7, 9, 7]);
   });
 }
 

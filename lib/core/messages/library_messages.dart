@@ -43,11 +43,6 @@ abstract class LibraryMessages {
   static const String searchIndexMissing =
       'אינדקס לא קיים, לא ניתן לבצע חיפוש זה ללא אינדקס.';
 
-  static const String bookNotInSearchIndex =
-      'הספר אינו נמצא באינדקס החיפוש, ולכן חיפוש מתקדם אינו זמין בו. עדכון האינדקס מתבצע בהגדרות הספרייה.';
-  static const String personalBookNotInSearchIndex =
-      'ספרים אישיים אינם נכללים באינדקס החיפוש לפי הגדרת "עדכון אינדקס אוטומטי", ולכן חיפוש מתקדם אינו זמין בספר זה.';
-
   static const String searchIndexOpenFailed =
       'פתיחת אינדקס החיפוש נכשלה — האינדוקס הושהה. נסה להפעיל מחדש את התוכנה';
 

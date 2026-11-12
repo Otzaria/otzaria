@@ -23,9 +23,6 @@ const int _searchChunkSize = 128;
 // שוב סביב ההופעה הראשונה ותעלים הופעות מאוחרות באותה שורה.
 const int _snippetContextChars = 90;
 
-/// כמה תווים מכל צד של מעבר השורה נבדקים לביטוי שנמשך לשורה הבאה.
-const int _crossLineWindowChars = 1024;
-
 /// חלון טקסט סביב [match] בגבולות מילים, תחום ב-[lowerBound]..[upperBound]
 /// (חצי הדרך להופעות השכנות) — כך שכל תוצאה מציגה ומדגישה רק את ההופעה שלה.
 String _snippetAroundMatch(
@@ -66,26 +63,6 @@ String _snippetAroundMatch(
     end = space == -1 || space > upperBound ? upperBound : space;
   }
   return line.substring(start, end).trim();
-}
-
-/// הופעות שכולן בהקשר של הראשונה שבהן מתאחדות לטווח אחד, כדי שאותו קטע
-/// לא יוצג כמה פעמים (issue #3083). לכל היותר [maxGroups] טווחים.
-List<({int start, int end})> _groupNearbyMatches(
-  Iterable<Match> matches, {
-  required int maxGroups,
-}) {
-  final groups = <({int start, int end})>[];
-  for (final match in matches) {
-    if (match.end <= match.start) continue;
-    if (groups.isNotEmpty &&
-        match.end - groups.last.start <= _snippetContextChars) {
-      groups.last = (start: groups.last.start, end: match.end);
-      continue;
-    }
-    if (groups.length == maxGroups) break;
-    groups.add((start: match.start, end: match.end));
-  }
-  return groups;
 }
 
 /// האם בקטע שבין הגבול להופעה יש מילה שלמה, ולא רק חלק ממילה שנחתך בגבול.
@@ -187,20 +164,10 @@ RegExp crossLinePattern(String source) =>
       _isHeadingLine(rawNextLine)) {
     return null;
   }
-  // רק זנב השורה וראש הבאה: חיבור שורות מלאות בכל הקשה העתיק את כל הספר,
-  // וה-GC של ה-worker עצר גם את ה-UI (issue #4498).
-  final contentEnd = utils.crossLineContentRange(line).end;
+  final lineEnd = utils.crossLineContentRange(line).end;
   final nextStart = utils.crossLineContentRange(nextLine).start;
-  final cut = contentEnd <= _crossLineWindowChars
-      ? 0
-      : line.lastIndexOf(' ', contentEnd - _crossLineWindowChars) + 1;
-  final headEnd = nextStart + _crossLineWindowChars >= nextLine.length
-      ? -1
-      : nextLine.indexOf(' ', nextStart + _crossLineWindowChars);
-  final lineEnd = contentEnd - cut;
   final joined =
-      '${line.substring(cut, contentEnd)}\n'
-      '${nextLine.substring(nextStart, headEnd == -1 ? null : headEnd)}';
+      '${line.substring(0, lineEnd)}\n${nextLine.substring(nextStart)}';
   for (final (matchStart, matchEnd) in find(joined)) {
     if (matchStart >= lineEnd) break;
     if (matchEnd <= lineEnd + 1) continue;
@@ -213,10 +180,7 @@ RegExp crossLinePattern(String source) =>
       final space = joined.indexOf(' ', end);
       end = space == -1 ? joined.length : space;
     }
-    return (
-      offset: cut + matchStart,
-      snippet: joined.substring(start, end).trim(),
-    );
+    return (offset: matchStart, snippet: joined.substring(start, end).trim());
   }
   return null;
 }
@@ -784,13 +748,15 @@ class SectionSearchWorkerRuntime {
               nextHeading++;
             }
 
-            // תוצאה לכל קבוצת הופעות בשורה, כך שהופעות רחוקות מופיעות כל אחת
-            // ברשימה. קבוצה עודפת אחת משמשת רק כגבול ל-snippet.
+            // תוצאה לכל הופעה בשורה — לא אחת לשורה — כדי ששתי הופעות
+            // באותו קטע יופיעו שתיהן ברשימת התוצאות. המטריאליזציה מוגבלת
+            // לקיבולת שנותרה, עם התאמה עודפת אחת שמשמשת רק כגבול ל-snippet.
             final remainingCapacity = _maxSearchResults - results.length;
-            final lineMatches = _groupNearbyMatches(
-              pattern.allMatches(line),
-              maxGroups: remainingCapacity + 1,
-            );
+            final lineMatches = pattern
+                .allMatches(line)
+                .where((m) => m.end > m.start)
+                .take(remainingCapacity + 1)
+                .toList(growable: false);
             String? cleanAddress;
             for (int m = 0; m < lineMatches.length; m++) {
               final match = lineMatches[m];
@@ -801,7 +767,7 @@ class SectionSearchWorkerRuntime {
                 'index': i,
                 'snippet': _snippetAroundMatch(
                   line,
-                  match,
+                  (start: match.start, end: match.end),
                   lowerBound: m > 0
                       ? (lineMatches[m - 1].end + match.start) ~/ 2
                       : 0,

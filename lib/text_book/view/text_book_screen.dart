@@ -2450,7 +2450,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     _searchViewInputs = inputs;
     return _searchView = TextBookSearchView(
       focusNode: textSearchFocusNode,
-      contentLoader: () => repository.getBookLines(book),
+      contentLoader: () async =>
+          splitContentLines(await repository.getBookContent(book)),
       lines: widget.tab.lines,
       // הוא מעביר את טקסט החיפוש מה-state הנוכחי אל תוך רכיב החיפוש
       initialQuery: state.searchText,

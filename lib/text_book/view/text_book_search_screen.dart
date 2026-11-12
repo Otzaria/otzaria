@@ -27,10 +27,6 @@ import 'package:otzaria/search/view/whole_word_search_action.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/utils/index_freshness_warner.dart';
-import 'package:otzaria/search/utils/in_book_index_notice.dart';
-import 'package:otzaria/data/book_identity.dart';
-import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
-import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'package:otzaria/search/utils/result_text_status.dart';
 import 'package:otzaria/search/utils/snippet_builder.dart';
 import 'package:otzaria/search/book_facet.dart';
@@ -601,19 +597,6 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         // בשקט, ולכן מוצגת אזהרה לא-חוסמת לצד התוצאות.
         final state = context.read<TextBookBloc>().state;
         if (state is TextBookLoaded) {
-          if (results.isEmpty) {
-            final index = TantivyDataProvider.instanceIfCreated;
-            setState(() {
-              _searchErrorMessage = inBookMissingFromIndexNotice(
-                indexedFilePath: BookIdentity.indexedFilePath(state.book),
-                indexInitialized: index?.isInitialized.value ?? false,
-                indexedFilePaths: index?.indexedFilePaths ?? const {},
-                excludedByIndexMode: !IndexUpdateMode.readStored().admits(
-                  state.book,
-                ),
-              );
-            });
-          }
           unawaited(
             IndexFreshnessWarner.instance.warnIfContentDrifted(
               state.book,

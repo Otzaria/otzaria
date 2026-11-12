@@ -90,14 +90,15 @@ void main() {
         'type': 'result',
         'requestId': 1,
         'results': [
-          {
-            'index': 2,
-            'snippet': clean,
-            'address': ' פרק א ',
-            'query': 'אור',
-            'matchOffset': 0,
-            'lineLength': clean.length,
-          },
+          for (final offset in [0, clean.lastIndexOf('אור')])
+            {
+              'index': 2,
+              'snippet': clean,
+              'address': ' פרק א ',
+              'query': 'אור',
+              'matchOffset': offset,
+              'lineLength': clean.length,
+            },
         ],
         'truncated': false,
       });
@@ -121,7 +122,7 @@ void main() {
       expect(harness.cleanedRawLines, content.sublist(2));
 
       final full = await harness.search(requestId: 4, contentId: 1);
-      expect(full['results'] as List, hasLength(2));
+      expect(full['results'] as List, hasLength(3));
       expect(harness.cleanedRawLines, unorderedEquals(content));
       await harness.search(requestId: 5, contentId: 1, query: 'ברכה');
       expect(harness.cleanedRawLines, unorderedEquals(content));
