@@ -1,5 +1,6 @@
 import 'package:bidi/bidi.dart' as bidi;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pdf/src/pdf/font/bidi_utils.dart' as pdf_bidi;
 
 void main() {
   test('mixed printing lines retain UTF-16 word ownership after emoji', () {
@@ -16,5 +17,11 @@ void main() {
     expect(mark, isNonNegative);
     expect(paragraph.indices[mark], 1);
     expect(paragraph.indices[paragraph.bidiText.indexOf(0x58)], 3);
+  });
+
+  test('PDF titles keep each Hebrew mark over its original base glyph', () {
+    expect(pdf_bidi.logicalToVisual('אְבֱג'), 'גֱבְא');
+    expect(pdf_bidi.logicalToVisual('אְֱב'), 'בְֱא');
+    expect(pdf_bidi.logicalToVisual('אָבֶג'), 'גֶבאָ');
   });
 }

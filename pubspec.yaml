@@ -258,7 +258,7 @@ dependency_overrides:
   bidi:
     git:
       url: https://github.com/Otzaria/bidi
-      ref: codex/bidi-combined-20261110
+      ref: eab19a79d6aff662e135b65c2d95cf6d00c1d600
   # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור daohoangson/flutter_widget_from_html#1658, #1659,
   # #1660, #1661, #1662, #1663 (מטמון CSS, מיזוג margins, מחרוזות debug עצלות, Flattener,
   # FutureBuilder, צבע hex פגום).

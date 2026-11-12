@@ -87,8 +87,8 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "codex/bidi-combined-20261110"
-      resolved-ref: "206e0913adb23de002d20d725f21ea9063392564"
+      ref: eab19a79d6aff662e135b65c2d95cf6d00c1d600
+      resolved-ref: eab19a79d6aff662e135b65c2d95cf6d00c1d600
       url: "https://github.com/Otzaria/bidi"
     source: git
     version: "2.0.13"
