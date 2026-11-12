@@ -1160,7 +1160,7 @@ packages:
     source: hosted
     version: "0.19.5"
   nativeapi:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: nativeapi
       sha256: "118045bb549cb6fabad472a3a22a537e7310bbf20097350f5027808b4a5853ce"
@@ -2123,8 +2123,8 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: eb580deb1856c8514c96f1bcacabbc0e575d292f
-      resolved-ref: eb580deb1856c8514c96f1bcacabbc0e575d292f
+      ref: 09dd9791e453cb153fd91f1c9ba49d81339c66f6
+      resolved-ref: 09dd9791e453cb153fd91f1c9ba49d81339c66f6
       url: "https://github.com/Otzaria/window_manager"
     source: git
     version: "0.6.0"

@@ -96,6 +96,7 @@ import 'package:otzaria/core/windowing/dock_progress_listener.dart';
 import 'package:otzaria/core/windowing/runner_window_channel.dart';
 import 'package:otzaria/core/windowing/window_opener.dart';
 import 'package:otzaria/core/windowing/window_manager_app_window_controller.dart';
+import 'package:otzaria/core/windowing/nativeapi_primary_window_binding.dart';
 import 'package:otzaria/settings/services/backup_service.dart';
 import 'package:otzaria/core/http_client_registry.dart';
 import 'package:otzaria/plugins/services/plugin_report_service.dart';
@@ -582,20 +583,26 @@ Future<void> _runAppBootstrap() async {
 
   // הגדרת window_manager לפני runApp.
   if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-    // נשאר על ה-singleton: אתחול ה-backend קודם לקיומו של כל חלון.
+    // The Flutter runner creates this window before Dart starts. An
+    // initially hidden HWND cannot be selected by nativeapi's foreground
+    // lookup; bind its exact native handle before the first state query.
+    await StartupTimeline.instance.phase('nativeWindowBinding', () async {
+      try {
+        final handle = await bindNativeapiPrimaryWindow();
+        if (Platform.isWindows) DialogOwner.mainWindowHwnd = handle;
+        if (handle == null) {
+          debugPrint('nativeapi primary Flutter window handle unavailable');
+        }
+      } catch (error, stackTrace) {
+        _logNonFatalInitializationError(
+          'nativeapi primary host binding', error, stackTrace,
+        );
+      }
+    });
     await StartupTimeline.instance.phase(
       'windowManager',
       windowManager.ensureInitialized,
     );
-    if (Platform.isWindows) {
-      // בעלי דיאלוגי הקבצים מהחלון הראשי; בלי לעכב את העלייה.
-      unawaited(
-        const RunnerWindowChannel().mainWindowHandle().then<void>(
-          (hwnd) => DialogOwner.mainWindowHwnd = hwnd,
-          onError: (Object e) => debugPrint('main window hwnd failed: $e'),
-        ),
-      );
-    }
     WindowPersistence.splashMode = true;
     // WindowPersistence היא static ואין לה BuildContext — היא מקבלת את
     // אותו מופע שנכנס ל-AppWindowScope, כדי שיהיה מקור אמת אחד.

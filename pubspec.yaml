@@ -29,6 +29,8 @@ environment:
   sdk: ">=3.13.0 <4.0.0"
 
 dependencies:
+  # Wrap the existing Flutter runner window for the 0.6 nativeapi bridge.
+  nativeapi: ^0.5.10
   sentry_flutter: ^9.30.1
   flutter:
     sdk: flutter
@@ -141,7 +143,7 @@ dependencies:
   window_manager:
     git:
       url: https://github.com/Otzaria/window_manager
-      ref: eb580deb1856c8514c96f1bcacabbc0e575d292f
+      ref: 09dd9791e453cb153fd91f1c9ba49d81339c66f6
   screen_retriever: ^0.2.2
   # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור ubuntu-flutter-community/flutter_spinbox#102–#114.
   # תיקוני סקירה חייבים להישמר גם בענף המשולב (main של הפורק) וגם בענפי ה-PRים באפסטרים.
@@ -398,8 +400,6 @@ flutter_launcher_icons:
     icon_size: 256 # min:48, max:256, default: 48
 
 dev_dependencies:
-  # Test doubles for window_manager 0.6's nativeapi-backed window bridge.
-  nativeapi: ^0.5.10
   sentry_dart_plugin: ^3.4.0
   # מחולל spec.json של התוספים (tool/plugins) מפרסר AST של קוד המקור.
   # מוצמד ל-major: צורת ה-AST משתנה בין גרסאות ראשיות ושוברת את המחולל.
