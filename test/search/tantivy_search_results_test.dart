@@ -180,9 +180,7 @@ void main() {
       );
     }
 
-    testWidgets('מציג מקטע ראשון בחיפוש חדש לפני סיום הטעינה', (
-      tester,
-    ) async {
+    testWidgets('מציג מקטע ראשון בחיפוש חדש לפני סיום הטעינה', (tester) async {
       await tester.pumpWidget(buildWidget());
       await tester.pump();
       final results = searchBloc.state.results.take(1).toList();
@@ -451,6 +449,59 @@ void main() {
       expect(copiedText, isNot(contains('<font')));
       expect(copiedText, contains('טקסט'));
       expect(copiedText, contains('HTML'));
+    });
+
+    testWidgets('כרטיס כללי מציג ומעתיק הערה בנפרד מגוף הספר', (tester) async {
+      String? copiedText;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copiedText = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      searchBloc.emitState(
+        searchBloc.state.copyWith(
+          totalResults: 1,
+          results: [
+            SearchResult(
+              id: BigInt.one,
+              title: 'ספר בדיקת הערות',
+              reference: 'פרק א',
+              text:
+                  'גוף <otzaria-note-marker>12</otzaria-note-marker> '
+                  '<otzaria-note><font>מפורשת</font></otzaria-note> סוף',
+              segment: BigInt.zero,
+              isPdf: false,
+              filePath: 'notes-fixture.txt',
+              mergedCount: 1,
+              merged: const [],
+              textStatus: TextStatus.ok,
+              continuesToNextLine: false,
+            ),
+          ],
+        ),
+      );
+      await tester.pumpWidget(buildWidget());
+      await tester.pump();
+      final rendered = tester
+          .widgetList<RichText>(find.byType(RichText))
+          .singleWhere(
+            (widget) => widget.text.toPlainText().startsWith('גוף 12'),
+          );
+      expect(rendered.text.toPlainText(), 'גוף 12 [הערה: מפורשת] סוף');
+      expect(_highlightedTextFromInlineSpan(rendered.text), 'מפורשת');
+      await tester.tap(find.byTooltip('העתק טקסט'));
+      await tester.pump();
+      expect(copiedText, 'גוף 12 [הערה: מפורשת] סוף');
     });
 
     testWidgets('מציג הדגשת HTML שמגיעה ממנוע החיפוש', (tester) async {

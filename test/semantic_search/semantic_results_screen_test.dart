@@ -598,6 +598,53 @@ void main() {
     await tester.pump(const Duration(seconds: 7));
   });
 
+  testWidgets('כרטיס חכם מציג ומעתיק תווית הערה עם התאמה בתוכה', (
+    tester,
+  ) async {
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String?;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    final source = FakeResultsSource(
+      items: [
+        resultItem(
+          1,
+          source: SemanticResultSource.lexical,
+          html:
+              'גוף <otzaria-note-marker>12</otzaria-note-marker> '
+              '<otzaria-note><font>מפורשת</font></otzaria-note> סוף',
+        ),
+      ],
+    );
+    await pumpScreen(tester, injectedSource: source);
+    final card = tester.widget<SemanticResultCard>(
+      find.byKey(const ValueKey('semantic-result-0')),
+    );
+    final spans = card.snippetSpans.cast<TextSpan>();
+    expect(spans.map((span) => span.text).join(), 'גוף 12 [הערה: מפורשת] סוף');
+    final highlighted = spans.singleWhere(
+      (span) => span.style?.fontWeight == FontWeight.bold,
+    );
+    expect(highlighted.text, 'מפורשת');
+    expect(highlighted.style!.fontStyle, FontStyle.italic);
+    card.onCopy();
+    await settle(tester);
+    expect(copied, 'גוף 12 [הערה: מפורשת] סוף');
+    await tester.pump(const Duration(seconds: 7));
+  });
+
   group('העתקה מחליפה שמות קודש לפי ההגדרה (issue #3954)', () {
     // השם בן ארבע האותיות נבנה מקודי תווים, כדי שלא ייכתב בקובץ.
     final name = String.fromCharCodes(const [0x05D9, 0x05D4, 0x05D5, 0x05D4]);
@@ -639,13 +686,10 @@ void main() {
         ];
         // הרביעי מוצג מהקטע שסומן לפי עניין, לא מהגזיר.
         final source = FakeResultsSource(items: items)
-          ..highlighter = (items, _) async => markAll(
-            [
-              for (final item in items)
-                if (item.segment == 4) item,
-            ],
-            clause: name,
-          );
+          ..highlighter = (items, _) async => markAll([
+            for (final item in items)
+              if (item.segment == 4) item,
+          ], clause: name);
         await pumpScreen(
           tester,
           injectedSource: source,
@@ -845,9 +889,7 @@ void main() {
     expect(find.text('ספר 1, א'), findsOneWidget);
     expect(harness.recorder.searches, hasLength(1));
   });
-  testWidgets('תצוגה מקדימה מושהית מתבטלת כשהחיפוש מתחלף', (
-    tester,
-  ) async {
+  testWidgets('תצוגה מקדימה מושהית מתבטלת כשהחיפוש מתחלף', (tester) async {
     tester.view.physicalSize = const Size(1000, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -884,9 +926,7 @@ void main() {
     );
   });
 
-  testWidgets('פתיחה מושהית אינה מיוחסת לתוצאה מהחיפוש החדש', (
-    tester,
-  ) async {
+  testWidgets('פתיחה מושהית אינה מיוחסת לתוצאה מהחיפוש החדש', (tester) async {
     final items = [resultItem(1), resultItem(2)];
     final source = FakeResultsSource(items: items);
     final harness = await pumpScreen(tester, injectedSource: source);
@@ -946,9 +986,7 @@ void main() {
     expect(harness.source.fetches, hasLength(3));
     expect(harness.recorder.shown.map((page) => page.offset), [0, 30]);
   });
-  testWidgets('רשימה גדולה בונה רק כרטיסים הנראים במסך', (
-    tester,
-  ) async {
+  testWidgets('רשימה גדולה בונה רק כרטיסים הנראים במסך', (tester) async {
     final harness = await pumpScreen(
       tester,
       injectedSource: FakeResultsSource(total: 10000),
@@ -959,20 +997,19 @@ void main() {
     expect(harness.source.fetches, hasLength(1));
   });
 
-  testWidgets(
-    'חלונית desktop ברוחב 300 מציגה את הכרטיסים ללא גלישה',
-    (tester) async {
-      tester.view.physicalSize = const Size(1000, 900);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      final loader = FontLoader('Roboto')
-        ..addFont(rootBundle.load('fonts/Rubik-VariableFont_wght.ttf'));
-      await loader.load();
-      await pumpScreen(tester, paneWidth: 300);
-      expect(tester.takeException(), isNull);
-    },
-  );
+  testWidgets('חלונית desktop ברוחב 300 מציגה את הכרטיסים ללא גלישה', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final loader = FontLoader('Roboto')
+      ..addFont(rootBundle.load('fonts/Rubik-VariableFont_wght.ttf'));
+    await loader.load();
+    await pumpScreen(tester, paneWidth: 300);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('הסרגל מציג את מספר התוצאות שמוצגות כעת', (tester) async {
     tester.view.physicalSize = const Size(1200, 900);
@@ -985,10 +1022,7 @@ void main() {
       tester.widget<SearchTermsDisplay>(find.byType(SearchTermsDisplay)).query,
       'כבוד אב',
     );
-    expect(
-      find.textContaining('כבוד', findRichText: true),
-      findsWidgets,
-    );
+    expect(find.textContaining('כבוד', findRichText: true), findsWidgets);
     expect(find.byKey(const ValueKey('semantic-results-query')), findsNothing);
   });
 
