@@ -244,17 +244,6 @@ class InfoSectionFields {
       isBlock: true,
       isPath: true,
     ),
-    InfoField(
-      'indexPathExists',
-      'תיקיית האינדקס קיימת',
-      format: (value, _) => InfoValueFormat.yesNo(value),
-    ),
-    InfoField(
-      'indexFreeSpaceBytes',
-      'מקום פנוי בכונן האינדקס',
-      isLtr: true,
-      format: (value, _) => InfoValueFormat.bytes(value),
-    ),
   ];
 
   static final List<InfoField> folders = [

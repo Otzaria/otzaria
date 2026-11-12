@@ -2678,33 +2678,50 @@ void main() {
       },
     );
 
-    testWidgets('כשל פתיחה אמיתי מדווח למשתמש עם הנחיה לפעולה (issue #4557)', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        MaterialApp(navigatorKey: navigatorKey, home: const SizedBox()),
+    for (final configuredPath in <String?>[null, r'F:\Otzaria\index']) {
+      testWidgets(
+        'כשל פתיחה מדווח בלי בדיקת כונן (issue #4557): $configuredPath',
+        (
+          tester,
+        ) async {
+          await Settings.init(cacheProvider: MemoryCacheProvider());
+          addTearDown(Settings.clearCache);
+          if (configuredPath != null) {
+            await Settings.setValue(
+              SettingsRepository.keyIndexPath,
+              configuredPath,
+            );
+          }
+          await tester.pumpWidget(
+            MaterialApp(navigatorKey: navigatorKey, home: const SizedBox()),
+          );
+          final provider = FakeTantivyDataProvider(
+            indexedFilePaths: {},
+            requiresManualReindexValue: false,
+          )..isTempFallback = true;
+          final library = _buildLibrary(bavliBooks: const [('שבת', 1)]);
+
+          final spy = _IndexFailureIoSpy();
+          final run = await io.IOOverrides.runWithIOOverrides(
+            () => IndexingRepository(
+              provider,
+            ).indexAllBooks(library, onProgress: (_, _) {}),
+            spy,
+          );
+          await tester.pump();
+
+          expect(run.completed, isFalse);
+          expect(spy.paths, isEmpty);
+          expect(find.textContaining('הגדרות הספרייה'), findsOneWidget);
+          if (configuredPath != null) {
+            expect(find.textContaining(configuredPath), findsOneWidget);
+          }
+          // ה-SnackBar מחזיק טיימר; מרוקנים אותו לפני סיום הטסט.
+          await tester.pump(const Duration(seconds: 30));
+          await tester.pumpAndSettle();
+        },
       );
-      final provider = FakeTantivyDataProvider(
-        indexedFilePaths: {},
-        requiresManualReindexValue: false,
-      )..isTempFallback = true;
-      final library = _buildLibrary(bavliBooks: const [('שבת', 1)]);
-
-      // קריאת נתיב האינדקס היא I/O אמיתי — בלי runAsync ה-future לא מסתיים
-      // בתוך ה-fake async של testWidgets והטסט נתקע.
-      final run = (await tester.runAsync(
-        () => IndexingRepository(
-          provider,
-        ).indexAllBooks(library, onProgress: (_, _) {}),
-      ))!;
-      await tester.pump();
-
-      expect(run.completed, isFalse);
-      expect(find.textContaining('הגדרות הספרייה'), findsOneWidget);
-      // ה-SnackBar מחזיק טיימר; מרוקנים אותו לפני סיום הטסט.
-      await tester.pump(const Duration(seconds: 30));
-      await tester.pumpAndSettle();
-    });
+    }
 
     test('לא מדלג ב-fast path כשנדרש manual reindex', () async {
       final library = _buildLibrary(bavliBooks: const [('שבת', 1)]);
@@ -4631,6 +4648,22 @@ void main() {
       expect(provider.indexedFilePaths, {'uid:1', 'uid:99'});
     });
   });
+}
+
+final class _IndexFailureIoSpy extends io.IOOverrides {
+  final paths = <String>[];
+
+  @override
+  io.File createFile(String path) {
+    paths.add(path);
+    return super.createFile(path);
+  }
+
+  @override
+  io.Directory createDirectory(String path) {
+    paths.add(path);
+    return super.createDirectory(path);
+  }
 }
 
 class FakeTantivyDataProvider implements TantivyDataProvider {

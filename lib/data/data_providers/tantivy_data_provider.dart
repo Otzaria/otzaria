@@ -471,13 +471,10 @@ class TantivyDataProvider {
       return engine;
     } catch (e, stackTrace) {
       debugPrint('❌ Failed to initialize search engine: $e');
-      // בלי הרישום הזה הסיבה נשארת רק ב-debugPrint, ודוח מהתוכנה מגיע בלי
-      // שום רמז למה האינדקס לא נפתח (issue #4557).
       _reportOpenFailure(indexPath, e, stackTrace);
 
-      // הסנטינל נשאר בכוונה: גם כשל פתיחה שנתפס כחריגה (לא קריסה) חייב
-      // להיצבר במונה — אחרת אינדקס שפתיחתו נכשלת שוב ושוב לעולם לא היה
-      // מגיע לסף שני הכשלונות ולא היה מוזז הצידה.
+      // כשל פתיחה חייב להצטבר בסנטינל, כדי שאינדקס שנכשל שוב ושוב
+      // יגיע לסף ההסגר ולא יישאר תקוע בכל הפעלה.
 
       // Recover by falling back to temp memory index
       debugPrint('⚠️ Falling back to temporary in-memory index');
@@ -513,7 +510,7 @@ class TantivyDataProvider {
     StackTrace? stackTrace,
   ) {
     if (kDebugMode) return;
-    ErrorLogFile.append(
+    ErrorLogFile.appendInBackground(
       title: 'Search Index Open Failure',
       error: error,
       stackTrace: stackTrace,
@@ -521,25 +518,12 @@ class TantivyDataProvider {
     );
   }
 
-  /// מצב נתיב האינדקס ברגע הכשל: האם התיקייה קיימת, והאם אפילו אביה (למשל
-  /// כונן שאינו מחובר) קיים. ללא נתיב — לא ידוע.
+  /// פרטים שכבר ידועים בזמן הכשל, בלי לפנות שוב לכונן שנכשל.
   @visibleForTesting
-  static Map<String, String?> indexOpenFailureDetails(String? indexPath) {
-    String? exists;
-    String? parentExists;
-    if (indexPath != null) {
-      try {
-        exists = '${Directory(indexPath).existsSync()}';
-        parentExists = '${Directory(p.dirname(indexPath)).existsSync()}';
-      } catch (_) {}
-    }
-    return {
-      'Phase': 'open index',
-      'Index path': indexPath,
-      'Index path exists': exists,
-      'Index parent exists': parentExists,
-    };
-  }
+  static Map<String, String?> indexOpenFailureDetails(String? indexPath) => {
+    'Phase': 'open index',
+    'Index path': indexPath,
+  };
 
   /// מנוע על תיקייה זמנית, כשאינדקס הדיסק אינו ניתן לפתיחה. במצב זה
   /// האינדוקס חסום ([isTempFallback]) כדי שכתיבות לא ילכו לתיקייה שנזרקת.

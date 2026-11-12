@@ -188,7 +188,6 @@ class AppInfoService {
     final databaseExists = await databaseFile.exists();
     final stat = databaseExists ? await databaseFile.stat() : null;
 
-    final indexPath = await AppPaths.getIndexPath();
     final books = await _loadBooks();
     final personalBooks = books?.where((book) => book.isPersonalBook).length;
     final attached = await _collectAttachedLibraries();
@@ -199,11 +198,7 @@ class AppInfoService {
       // תאריך העדכון האחרון בפועל.
       'lastUpdatedAt': _utc(stat?.modified),
       'path': libraryPath,
-      'indexPath': indexPath,
-      // קיום התיקייה והמקום הפנוי בכונן שלה — אינדקס על כונן שאינו מחובר
-      // נראה אחרת כ"אינדקס לא קיים" וכ"נכשל בפתיחה" (issue #4557).
-      'indexPathExists': await Directory(indexPath).exists(),
-      'indexFreeSpaceBytes': await libraryFreeSpaceBytes(indexPath),
+      'indexPath': await AppPaths.getIndexPath(),
       'databasePath': databasePath,
       'databaseExists': databaseExists,
       'databaseSizeBytes': stat?.size,

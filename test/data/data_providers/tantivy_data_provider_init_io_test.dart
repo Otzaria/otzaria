@@ -24,23 +24,19 @@ Future<void> main() async {
     setUp(() => root = Directory.systemTemp.createTempSync('otzaria_open_'));
     tearDown(() => root.deleteSync(recursive: true));
 
-    test('נתיב שלא קיים: גם האב חסר ומדווח כך (כונן שאינו מחובר)', () {
-      final details = TantivyDataProvider.indexOpenFailureDetails(
-        p.join(root.path, 'missing_drive', 'Otzaria', 'index'),
+    test('אבחון כשל אינו נוגע בכונן שכבר נכשל', () {
+      final badIndex = p.join(root.path, 'missing_drive', 'Otzaria', 'index');
+      final spy = _SyncIoSpy(root.path);
+      final details = IOOverrides.runWithIOOverrides(
+        () => TantivyDataProvider.indexOpenFailureDetails(badIndex),
+        spy,
       );
 
       expect(details['Phase'], 'open index');
-      expect(details['Index path exists'], 'false');
-      expect(details['Index parent exists'], 'false');
-    });
-
-    test('תיקיית אינדקס חסרה ואב קיים: רק האינדקס חסר', () {
-      final details = TantivyDataProvider.indexOpenFailureDetails(
-        p.join(root.path, 'index'),
-      );
-
-      expect(details['Index path exists'], 'false');
-      expect(details['Index parent exists'], 'true');
+      expect(details['Index path'], badIndex);
+      expect(spy.unsupported, isEmpty);
+      expect(spy.syncCalls, isEmpty);
+      expect(spy.asyncCalls, isEmpty);
     });
 
     test('בלי נתיב אין ניחוש על קיום', () {
@@ -106,31 +102,41 @@ Future<void> main() async {
       skip: engineReady ? false : searchEngineSkipReason,
     );
 
-    test(
-      'אינדקס שאי אפשר ליצור נרשם ל-errors.txt ועובר לאינדקס זמני (issue #4557)',
-      () async {
-        // הטסט הקודם סגר את הסינגלטון; reopenIndex פותח אותו מחדש.
-        final provider = TantivyDataProvider.instance;
-        // קובץ במקום תיקייה: יצירת תיקיית האינדקס תחתיו נכשלת.
-        final blocker = File(p.join(root.path, 'blocker'))
-          ..writeAsStringSync('');
-        final badIndex = p.join(blocker.path, 'index');
-        await Settings.setValue(SettingsRepository.keyIndexPath, badIndex);
-        final original = TantivyDataProvider.openFailureLog;
-        addTearDown(() => TantivyDataProvider.openFailureLog = original);
-        final logged = <(String?, Object)>[];
-        TantivyDataProvider.openFailureLog = (path, error, _) =>
-            logged.add((path, error));
+    for (final loggerFails in [false, true]) {
+      test(
+        'כשל פתיחה מדווח ועובר לאינדקס זמני גם כשהלוג נכשל: $loggerFails',
+        () async {
+          final provider = TantivyDataProvider.instance;
+          final blocker = File(p.join(root.path, 'blocker'))
+            ..writeAsStringSync('');
+          final badIndex = p.join(blocker.path, 'index');
+          await Settings.setValue(SettingsRepository.keyIndexPath, badIndex);
+          final original = TantivyDataProvider.openFailureLog;
+          addTearDown(() => TantivyDataProvider.openFailureLog = original);
+          final logged = <(String?, Object, StackTrace?)>[];
+          TantivyDataProvider.openFailureLog = (path, error, stackTrace) {
+            logged.add((path, error, stackTrace));
+            if (loggerFails) throw const FileSystemException('log unavailable');
+          };
+          final spy = _SyncIoSpy(root.path);
 
-        await provider.reopenIndex(force: true);
-        await provider.engine;
+          await IOOverrides.runWithIOOverrides(
+            () => provider.reopenIndex(force: true),
+            spy,
+          );
+          await provider.engine;
 
-        expect(logged, hasLength(1));
-        expect(logged.single.$1, badIndex);
-        expect(provider.isTempFallback, isTrue);
-      },
-      skip: engineReady ? false : searchEngineSkipReason,
-    );
+          expect(logged, hasLength(1));
+          expect(logged.single.$1, badIndex);
+          expect(logged.single.$2, isA<FileSystemException>());
+          expect(logged.single.$3, isNotNull);
+          expect(spy.unsupported, isEmpty);
+          expect(spy.syncCalls, isEmpty);
+          expect(provider.isTempFallback, isTrue);
+        },
+        skip: engineReady ? false : searchEngineSkipReason,
+      );
+    }
   });
 }
 
