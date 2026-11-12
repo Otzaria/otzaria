@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/windowing/app_window_controller.dart';
 import 'package:otzaria/core/windowing/app_window_id.dart';
 import 'package:otzaria/core/windowing/runner_window_channel.dart';
-import 'package:window_manager/window_manager.dart';
+import 'package:window_manager/legacy.dart';
 
 /// המימוש של החלון הראשי: מאציל ל-singleton הגלובלי `windowManager`.
 ///
