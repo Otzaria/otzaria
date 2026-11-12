@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -10,6 +11,9 @@ import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:otzaria/widgets/navigation/nav_tree_collapse_all_button.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/text_book/view/toc_expansion_settings.dart';
+import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/view/toc_filter.dart';
 import 'package:otzaria/text_book/view/toc_navigator_internals.dart';
@@ -69,6 +73,11 @@ class _TocViewerState extends State<TocViewer>
 
   List<TocEntry>? _collapsedSource;
   Map<int, bool> _collapsedExpansion = const {};
+  int _treeDepth = 0;
+
+  // רמת הפתיחה השמורה חלה על כל ספר פעם אחת, לפני שהמשתמש פתח או סגר בו ענף.
+  int? _expandLevel = TocExpansionSettings.loadLevel();
+  List<TocEntry>? _levelAppliedSource;
 
   // הסינון רץ על השאילתה שהוחלה, ולא על כל תו בזמן ההקלדה.
   Timer? _searchDebounce;
@@ -85,6 +94,7 @@ class _TocViewerState extends State<TocViewer>
   @override
   void initState() {
     super.initState();
+    TocExpansionSettings.autoExpand.addListener(_onAutoExpandChanged);
     // הפאנל בונה את TocViewer רק כשהוא נפתח, כלומר showLeftPane כבר true
     // וה-BlocListener לא יירה על ה-state ההתחלתי. גלילה ראשונית למיקום הפעיל.
     SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -96,9 +106,17 @@ class _TocViewerState extends State<TocViewer>
 
   @override
   void dispose() {
+    TocExpansionSettings.autoExpand.removeListener(_onAutoExpandChanged);
     _searchDebounce?.cancel();
     searchController.dispose();
     super.dispose();
+  }
+
+  void _onAutoExpandChanged() {
+    if (!mounted) return;
+    setState(() => _lastScrolledTocIndex = null);
+    final state = context.read<TextBookBloc>().state;
+    if (state is TextBookLoaded) _scrollToActiveItem(state);
   }
 
   /// מחיל את השאילתה בהשהיה, כדי שההקלדה עצמה לא תחכה לסינון.
@@ -193,6 +211,7 @@ class _TocViewerState extends State<TocViewer>
   }
 
   void _ensureParentsOpen(List<TocEntry> entries, int targetIndex) {
+    if (!TocExpansionSettings.autoExpand.value) return;
     final path = _findPath(entries, targetIndex);
     if (path.isEmpty) return;
 
@@ -231,6 +250,22 @@ class _TocViewerState extends State<TocViewer>
         : closestTocEntryIndex(state.tableOfContents, line);
   }
 
+  /// הכותרת שמסמנים עבור [activeIndex]: היא עצמה, וכשהפתיחה האוטומטית כבויה
+  /// והיא בתוך ענף סגור — האב הגלוי הקרוב.
+  int? _visibleActiveIndex(int? activeIndex, _TocDisplayData display) {
+    if (activeIndex == null ||
+        display.isSearching ||
+        TocExpansionSettings.autoExpand.value) {
+      return activeIndex;
+    }
+    _flatItemsFor(display);
+    final path = _findPath(display.entries, activeIndex);
+    for (final entry in path.reversed) {
+      if (_flatEntryIndices.containsKey(entry.index)) return entry.index;
+    }
+    return activeIndex;
+  }
+
   void _scrollToActiveItem(TextBookLoaded state) {
     if (_isManuallyScrolling) return;
     // כשהפאנל סגור הגלילה נכשלת (רוחב 0) אך משבשת את _lastScrolledTocIndex
@@ -247,7 +282,7 @@ class _TocViewerState extends State<TocViewer>
       if (!mounted || _isManuallyScrolling) return;
       final display = _displayDataFor(state);
       if (_scrollEntryIntoView(
-        activeIndex,
+        _visibleActiveIndex(activeIndex, display)!,
         display: display,
       )) {
         _lastScrolledTocIndex = activeIndex;
@@ -317,6 +352,14 @@ class _TocViewerState extends State<TocViewer>
     if (!identical(_displaySource, tableOfContents) || _displayQuery != query) {
       final isSearching = query.isNotEmpty;
       final roots = tocRootsBelowTitle(tableOfContents, state.book.title);
+      final level = _expandLevel;
+      if (!identical(_levelAppliedSource, tableOfContents)) {
+        _levelAppliedSource = tableOfContents;
+        if (level != null && _expanded.isEmpty) {
+          _expanded.addAll(_expansionForLevel(roots, level));
+          _expandedRevision++;
+        }
+      }
       final entries = isSearching
           ? filterTocEntriesForSearch(roots, query)
           : roots;
@@ -407,40 +450,92 @@ class _TocViewerState extends State<TocViewer>
     );
   }
 
-  /// כותרת העץ עם הכפתור המשותף "הרחב הכל / כווץ הכל"
-  /// ([NavTreeCollapseAllButton]), שמוצג רק כשיש בעץ ענף שאפשר לכווץ.
-  Widget _buildTreeHeader(String title, _TocDisplayData display) {
-    Widget? toggle;
-    if (!display.isSearching) {
-      if (!identical(_collapsedSource, display.entries)) {
-        _collapsedSource = display.entries;
-        _collapsedExpansion = collapsedTocExpansion(display.entries);
-      }
-      if (_collapsedExpansion.containsValue(false)) {
-        void apply(Map<int, bool> expansion) => setState(() {
+  Map<int, bool> _expansionForLevel(List<TocEntry> roots, int level) =>
+      level == TocExpansionSettings.expandAll
+      ? expandedTocExpansion(roots)
+      : tocExpansionToDepth(roots, level);
+
+  static const int _autoExpandMenuValue = -1;
+
+  /// תפריט ההרחבה והכיווץ (#3236), או null כשאין בעץ ענף שאפשר לכווץ.
+  /// מוצג בכותרת העץ, וצף כשהכותרת נגללה מחוץ לתחום (#4607).
+  Widget? _buildExpandMenu(_TocDisplayData display) {
+    if (display.isSearching) return null;
+    if (!identical(_collapsedSource, display.entries)) {
+      _collapsedSource = display.entries;
+      _collapsedExpansion = collapsedTocExpansion(display.entries);
+      _treeDepth = tocTreeDepth(display.entries);
+    }
+    if (!_collapsedExpansion.containsValue(false)) return null;
+
+    final isCollapsed = isTocCollapsed(
+      _flatItemsFor(display),
+      _collapsedExpansion,
+    );
+    final autoExpand = TocExpansionSettings.autoExpand.value;
+    return AppPopupMenuButton<int>(
+      tooltip: context.settingsText('הרחבה וכיווץ של הכותרות'),
+      icon: Icon(
+        isCollapsed
+            ? NavTreeCollapseAllButton.expandIcon
+            : NavTreeCollapseAllButton.collapseIcon,
+        size: AppTokens.iconSM,
+      ),
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+      initialValue: _expandLevel,
+      entries: [
+        AppMenuEntry(value: 1, label: context.settingsText('כווץ הכל')),
+        for (var level = 2; level < _treeDepth && level <= 5; level++)
+          AppMenuEntry(
+            value: level,
+            label: context.settingsText(
+              'הצג עד רמה {level}',
+              args: {'level': '$level'},
+            ),
+          ),
+        AppMenuEntry(
+          value: TocExpansionSettings.expandAll,
+          label: context.settingsText('הרחב הכל'),
+        ),
+        AppMenuEntry(
+          value: _autoExpandMenuValue,
+          label: context.settingsText('פתיחה אוטומטית לפי מיקום הקריאה'),
+          trailing: autoExpand
+              ? const Icon(
+                  FluentIcons.checkmark_24_regular,
+                  size: AppTokens.iconSM,
+                )
+              : null,
+        ),
+      ],
+      onSelected: (value) {
+        if (value == _autoExpandMenuValue) {
+          unawaited(TocExpansionSettings.saveAutoExpand(!autoExpand));
+          return;
+        }
+        setState(() {
           if (_virtualScrollController.isAttached) {
             _virtualScrollController.jumpTo(index: 0);
           }
           _expanded
             ..clear()
-            ..addAll(expansion);
+            ..addAll(_expansionForLevel(display.entries, value));
           _expandedRevision++;
+          _expandLevel = value;
         });
-        toggle = NavTreeCollapseAllButton(
-          isCollapsed: isTocCollapsed(
-            _flatItemsFor(display),
-            _collapsedExpansion,
-          ),
-          onCollapseAll: () => apply(_collapsedExpansion),
-          onExpandAll: () => apply(expandedTocExpansion(display.entries)),
-        );
-      }
-    }
+        unawaited(TocExpansionSettings.saveLevel(value));
+      },
+    );
+  }
+
+  /// כותרת העץ עם תפריט ההרחבה ([_buildExpandMenu]) ואייקון החיפוש.
+  Widget _buildTreeHeader(String title, _TocDisplayData display) {
     return NavTreeHeader(
       title: title,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
-        children: [?toggle, const NavPanelSearchToggle()],
+        children: [?_buildExpandMenu(display), const NavPanelSearchToggle()],
       ),
     );
   }
@@ -527,10 +622,13 @@ class _TocViewerState extends State<TocViewer>
         },
         builder: (context, state) {
           if (state is! TextBookLoaded) return const Center();
-          // מחושב פעם אחת ומועבר לכל הפריטים, כדי שהבנייה לא תהיה O(n²).
-          final int? activeIndex = _activeTocIndex(state);
-
           final display = _displayDataFor(state);
+          // מחושב פעם אחת ומועבר לכל הפריטים, כדי שהבנייה לא תהיה O(n²).
+          final int? activeIndex = _visibleActiveIndex(
+            _activeTocIndex(state),
+            display,
+          );
+          final expandMenu = _buildExpandMenu(display);
 
           final delegate = NavPanelSearchDelegate(
             controller: searchController,
@@ -547,6 +645,7 @@ class _TocViewerState extends State<TocViewer>
           );
           return NavPanelCollapsibleSearch(
             delegate: delegate,
+            floatingActions: [?expandMenu],
             child: display.isSearching && display.entries.isEmpty
                 ? const OtzariaEmptyState(
                     isCompact: true,

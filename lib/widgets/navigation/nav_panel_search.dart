@@ -244,10 +244,14 @@ class NavPanelCollapsibleSearch extends StatefulWidget {
   final NavPanelSearchDelegate delegate;
   final Widget child;
 
+  /// פעולות מכותרת הרשימה שצפות לצד אייקון החיפוש כשהכותרת נגללה החוצה.
+  final List<Widget> floatingActions;
+
   const NavPanelCollapsibleSearch({
     super.key,
     required this.delegate,
     required this.child,
+    this.floatingActions = const [],
   });
 
   @override
@@ -469,20 +473,28 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
                         ? Material(
                             color: AppSurfaces.navPanelBackground(context),
                             // בצורת כפתור האייקון שעליו (#1942).
-                            shape:
-                                Theme.of(
-                                  context,
-                                ).iconButtonTheme.style?.shape?.resolve(
-                                  const {},
-                                ) ??
-                                AppTokens.roundedShape,
+                            // צורת כפתור יחיד היא עיגול, ולכמה כפתורים — מלבן מעוגל.
+                            shape: widget.floatingActions.isNotEmpty
+                                ? AppTokens.roundedShape
+                                : Theme.of(
+                                        context,
+                                      ).iconButtonTheme.style?.shape?.resolve(
+                                        const {},
+                                      ) ??
+                                      AppTokens.roundedShape,
                             elevation: AppTokens.elevation1,
                             shadowColor: AppShadows.color(
                               Theme.of(context).colorScheme,
                             ),
-                            child: _SearchToggleButton(
-                              hintText: widget.delegate.hintText,
-                              onPressed: _open,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ...widget.floatingActions,
+                                _SearchToggleButton(
+                                  hintText: widget.delegate.hintText,
+                                  onPressed: _open,
+                                ),
+                              ],
                             ),
                           )
                         : const SizedBox.shrink(),
