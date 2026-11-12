@@ -957,6 +957,67 @@ void main() {
       expect(await repository.getHebrewBooksByIds(const []), isEmpty);
     });
 
+    void createMappingTable(Database db) => db.execute(
+      'CREATE TABLE otzaria_hebrew_books (hb_id INTEGER NOT NULL, '
+      'otzaria_id INTEGER NOT NULL, otzaria_title TEXT NOT NULL, '
+      'is_best INTEGER NOT NULL DEFAULT 0, confidence TEXT NOT NULL, '
+      'PRIMARY KEY (hb_id, otzaria_id))',
+    );
+
+    test(
+      'מיפוי היברובוקס מחזיר מזהים לפי איכות ההתאמה, בשני הכיוונים',
+      () async {
+        final db = sqlite3.open(repository.databasePath);
+        createMappingTable(db);
+        db.execute(
+          "INSERT INTO otzaria_hebrew_books VALUES (10, 1, 'א', 0, 'high'), "
+          "(11, 1, 'א', 1, 'low'), (12, 1, 'א', 0, 'medium'), "
+          "(10, 2, 'ב', 1, 'high')",
+        );
+        db.close();
+
+        expect(await repository.getHebrewBookIdsForOtzariaId(1), [11, 12, 10]);
+        expect(await repository.getOtzariaIdsForHebrewBookId(10), [2, 1]);
+        expect(await repository.getHebrewBookIdsForOtzariaId(99), isEmpty);
+      },
+    );
+
+    test('שאילתת מיפוי איטית לא חוסמת את ה-isolate הראשי', () async {
+      // אלפי התאמות לאותו ספר: המיון לפני LIMIT קורא את כולן.
+      const rowCount = 300000;
+      final db = sqlite3.open(repository.databasePath);
+      createMappingTable(db);
+      db.execute('BEGIN');
+      final insert = db.prepare(
+        "INSERT INTO otzaria_hebrew_books VALUES (?, 1, 'א', 0, ?)",
+      );
+      for (var i = 0; i < rowCount; i++) {
+        insert.execute([i, 'c$i']);
+      }
+      insert.close();
+      db.execute('COMMIT');
+      db.close();
+
+      var maxGap = Duration.zero;
+      final gapWatch = Stopwatch()..start();
+      final ticker = Timer.periodic(const Duration(milliseconds: 2), (_) {
+        if (gapWatch.elapsed > maxGap) maxGap = gapWatch.elapsed;
+        gapWatch.reset();
+      });
+      final total = Stopwatch()..start();
+      final ids = await repository.getHebrewBookIdsForOtzariaId(1);
+      total.stop();
+      ticker.cancel();
+      if (gapWatch.elapsed > maxGap) maxGap = gapWatch.elapsed;
+
+      expect(ids, hasLength(20));
+      expect(
+        maxGap.inMicroseconds,
+        lessThan(total.elapsedMicroseconds ~/ 2),
+        reason: 'max gap $maxGap of total ${total.elapsed}',
+      );
+    });
+
     test('טעינת קטלוג גדול לא חוסמת את ה-isolate הראשי (perf)', () async {
       const rowCount = 80000;
       final db = sqlite3.open(repository.databasePath);

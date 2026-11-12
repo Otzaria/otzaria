@@ -120,9 +120,22 @@ class ExternalCatalogRepository {
     required int argument,
   }) async {
     if (!await databaseExists()) return const [];
+    final dbPath = databasePath;
+    // נקרא בכל פתיחת ספר; בדיסק איטי הפתיחה והקריאה חסמו את ה-UI עשרות שניות.
+    return Isolate.run(
+      () => _queryMappingColumn(dbPath, select, where, argument),
+    );
+  }
+
+  static List<int> _queryMappingColumn(
+    String dbPath,
+    String select,
+    String where,
+    int argument,
+  ) {
     sqlite3.Database? db;
     try {
-      db = sqlite3.sqlite3.open(databasePath, mode: sqlite3.OpenMode.readOnly);
+      db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
       final rows = db.select(
         'SELECT $select FROM otzaria_hebrew_books WHERE $where '
         'ORDER BY is_best DESC, confidence DESC LIMIT 20',
