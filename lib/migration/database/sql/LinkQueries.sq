@@ -2,7 +2,7 @@
 
 -- הקישורים נספרים לכל ספר יעד לפני הצירוף, כדי שהספר והמחברים לא ייקראו לכל קישור.
 selectCommentatorsByBook:
-SELECT DISTINCT g.targetBookId, b.title AS targetBookTitle, a.name AS author, SUM(g.linkCount) AS linkCount
+SELECT DISTINCT g.targetBookId, b.title AS targetBookTitle, b.collectiveTitleHe AS collectiveTitleHe, a.name AS author, SUM(g.linkCount) AS linkCount
 FROM (
   SELECT l.targetBookId, COUNT(*) AS linkCount
   FROM link l

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:bloc/bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/book_common/utils/commentator_name_matching.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/models/book_source.dart';
@@ -130,6 +131,58 @@ void main() {
         expect((bloc.state as TextBookLoaded).visibleIndices.first, 25);
       },
     );
+
+    test('טעינה מחדש עם preserveState שומרת את זהויות המפרשים', () async {
+      final bloc = _createBloc(
+        repository: _FakeTextBookRepository(),
+        showPageShapeView: false,
+      );
+      addTearDown(bloc.close);
+      const loadEvent = LoadContent(
+        fontSize: 20,
+        showSplitView: false,
+        removeNikud: false,
+        loadCommentators: false,
+      );
+      bloc.add(loadEvent);
+      await _waitFor(
+        () => bloc.state is TextBookLoaded,
+        description: 'TextBookLoaded',
+      );
+      final identities = {
+        'רי"ף ברכות': CommentatorIdentity(collectiveTitle: 'רי"ף'),
+      };
+      bloc.add(
+        UpdateAvailableCommentators(
+          const ['רי"ף ברכות'],
+          const [],
+          const {},
+          identities,
+        ),
+      );
+      await _waitFor(
+        () =>
+            (bloc.state as TextBookLoaded).commentatorIdentities == identities,
+        description: 'identities',
+      );
+
+      bloc.add(
+        const LoadContent(
+          preserveState: true,
+          fontSize: 22,
+          showSplitView: false,
+          removeNikud: false,
+          loadCommentators: false,
+        ),
+      );
+      await _waitFor(
+        () =>
+            bloc.state is TextBookLoaded &&
+            (bloc.state as TextBookLoaded).fontSize == 22,
+        description: 'font reload',
+      );
+      expect((bloc.state as TextBookLoaded).commentatorIdentities, identities);
+    });
 
     test('במפרשים למטה טוען קישורים מיד עבור הטווח הגלוי', () async {
       final repository = _FakeTextBookRepository();

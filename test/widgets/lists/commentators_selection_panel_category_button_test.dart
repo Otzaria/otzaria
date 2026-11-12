@@ -78,7 +78,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      CategoryCommentatorsService.loadBaseNames('אוצריא, תלמוד, תלמוד בבלי'),
+      CategoryCommentatorsService.loadKeys('אוצריא, תלמוד, תלמוד בבלי'),
       ['רש"י'],
     );
     expect(clearedPerBook, isTrue);
@@ -93,7 +93,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      CategoryCommentatorsService.loadBaseNames('אוצריא, תלמוד, תלמוד בבלי'),
+      CategoryCommentatorsService.loadKeys('אוצריא, תלמוד, תלמוד בבלי'),
       isNull,
     );
   });
@@ -114,7 +114,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      CategoryCommentatorsService.loadBaseNames('אוצריא, תלמוד, תלמוד בבלי'),
+      CategoryCommentatorsService.loadKeys('אוצריא, תלמוד, תלמוד בבלי'),
       isNull,
     );
   });
