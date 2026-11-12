@@ -482,12 +482,19 @@ class _PageShapeScreenState extends State<PageShapeScreen>
     if (state is! TextBookLoaded) return;
     final generation = ++_superDiscoveryGeneration;
     final available = _availableCommentators(state);
-    final parents = [
-      ?_leftCommentator,
-      ?_bottomCommentator,
-      ?_bottomRightCommentator,
-      ..._selectedRightPaneCommentators(state),
-    ].where(available.contains).toSet().toList();
+    final parents =
+        [
+              ?_leftCommentator,
+              ?_bottomCommentator,
+              ?_bottomRightCommentator,
+              ..._selectedRightPaneCommentators(state),
+            ]
+            .where(
+              (title) =>
+                  title != kNotesCommentatorTitle && available.contains(title),
+            )
+            .toSet()
+            .toList();
     final provider = LibraryProviderManager.instance.databaseProvider;
     final cachePrefix = '${state.book.title}|';
     for (final parent in parents) {
