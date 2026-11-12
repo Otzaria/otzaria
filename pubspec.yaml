@@ -137,9 +137,10 @@ dependencies:
     git:
       url: https://github.com/Otzaria/otzaria_library_updater
       ref: effdc651635a18c719b52a79d840b5aa27b1968e
-  # nativeapi-based window_manager 0.6; use the actual Flutter runner window
-  # instead of assuming the current foreground window is the primary one.
-  # Promote to the hosted release after platform QA completes.
+  # 0.6 (nativeapi) from the combined branch of our fork: Otzaria/window_manager
+  # main = upstream leanflutter 0.6.1 + the fork's merged PRs. Review fixes go
+  # both to that branch (then bump the ref here) and to the upstream PR branches.
+  # TODO: return to the official pub.dev release once these upstream PRs are merged: UPSTREAM_PRS_PLACEHOLDER
   window_manager:
     git:
       url: https://github.com/Otzaria/window_manager
