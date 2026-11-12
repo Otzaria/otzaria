@@ -250,8 +250,8 @@ packages:
     dependency: "direct main"
     description:
       path: "pkgs/collection"
-      ref: "75d7cbe88f1fb339e39b2a2d0553e2e060407b88"
-      resolved-ref: "75d7cbe88f1fb339e39b2a2d0553e2e060407b88"
+      ref: a87587cca3b208ee26cf0879af506dbae697c799
+      resolved-ref: a87587cca3b208ee26cf0879af506dbae697c799
       url: "https://github.com/Otzaria/core"
     source: git
     version: "1.20.0-wip"
