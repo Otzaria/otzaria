@@ -230,6 +230,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.3"
+  cnativeapi:
+    dependency: transitive
+    description:
+      name: cnativeapi
+      sha256: c43703998995e132b0656d2b8a95ed2bedc6b22ccee2c827bcdc075e0330e319
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.5.10"
   code_assets:
     dependency: transitive
     description:
@@ -1151,6 +1159,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.19.5"
+  nativeapi:
+    dependency: transitive
+    description:
+      name: nativeapi
+      sha256: "118045bb549cb6fabad472a3a22a537e7310bbf20097350f5027808b4a5853ce"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.5.10"
+  nativeapi_flutter:
+    dependency: transitive
+    description:
+      name: nativeapi_flutter
+      sha256: "357a405c69212f5157da1bd3be183a53c2b841d0de0eb51f4a3947913712aec4"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.5.10"
   nested:
     dependency: transitive
     description:
@@ -2098,12 +2122,12 @@ packages:
   window_manager:
     dependency: "direct main"
     description:
-      path: "packages/window_manager"
-      ref: "88a433a7be43ed0213da12b561bf0d8d070c6d68"
-      resolved-ref: "88a433a7be43ed0213da12b561bf0d8d070c6d68"
+      path: "."
+      ref: d56403f29dd700d878a9151f03aca2a51b4b9310
+      resolved-ref: d56403f29dd700d878a9151f03aca2a51b4b9310
       url: "https://github.com/Otzaria/window_manager"
     source: git
-    version: "0.5.2"
+    version: "0.6.0"
   windows_file_picker:
     dependency: "direct main"
     description:
