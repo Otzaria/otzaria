@@ -22,7 +22,7 @@ import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/widgets/feedback/edge_scrollbar_behavior.dart';
 import 'package:otzaria/widgets/misc/middle_click_autoscroll.dart';
-import 'package:window_manager/window_manager.dart';
+import 'package:window_manager/legacy.dart';
 
 // AppColors הועבר ל-lib/theme/app_colors.dart
 
@@ -73,9 +73,7 @@ class App extends StatelessWidget {
                   GlobalMaterialLocalizations.delegate,
                   GlobalWidgetsLocalizations.delegate,
                 ],
-                supportedLocales: const [
-                  Locale("he", "IL"),
-                ],
+                supportedLocales: const [Locale("he", "IL")],
                 locale: const Locale("he", "IL"),
                 title: 'אוצריא',
                 // פס הגלילה בימין הפיזי, ברצועה משלו, בכל האפליקציה (AppScrollbar).
@@ -152,9 +150,7 @@ class App extends StatelessWidget {
                     return AppVirtualWindowFrame(child: content);
                   }
 
-                  return VirtualWindowFrame(
-                    child: content,
-                  );
+                  return VirtualWindowFrame(child: content);
                 },
                 home: MainWindowScreen(
                   key: AppWindowKeys.of(context).mainWindowScreen,

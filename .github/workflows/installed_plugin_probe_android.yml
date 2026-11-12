@@ -40,6 +40,8 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v7.0.1
+      - name: Install nativeapi Linux headers
+        run: sudo apt-get update -qq && sudo apt-get install -y libgtk-3-dev libx11-dev libxi-dev pkg-config
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -69,6 +71,8 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7.0.1
+      - name: Install nativeapi Linux headers
+        run: sudo apt-get update -qq && sudo apt-get install -y libgtk-3-dev libx11-dev libxi-dev pkg-config
       - name: Free hosted runner space for the emulator and native engine
         run: |
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"

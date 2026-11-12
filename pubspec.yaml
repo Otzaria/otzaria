@@ -26,9 +26,11 @@ msix_config:
 version: 0.9.98+99803
 
 environment:
-  sdk: ">=3.12.0 <4.0.0"
+  sdk: ">=3.13.0 <4.0.0"
 
 dependencies:
+  # Wrap the existing Flutter runner host for the 0.6 nativeapi bridge.
+  nativeapi: ^0.5.10
   sentry_flutter: ^9.30.1
   flutter:
     sdk: flutter
@@ -135,15 +137,13 @@ dependencies:
     git:
       url: https://github.com/Otzaria/otzaria_library_updater
       ref: effdc651635a18c719b52a79d840b5aa27b1968e
-  # הפורק מסנן הודעות חלון לפי HWND, כדי שמצב החלון הראשי לא יחול על חלונות
-  # נוספים, ומקבע את קצוות שינוי הגודל לפי המסך תחת RTL (#3187). ב-master של
-  # upstream הקוד הזה הוסר (שכתוב לקראת 0.6.0, שטרם שוחרר).
-  # TODO: לחזור לגרסה הרשמית מ-pub.dev אחרי שחרור 0.6.0 (תמיכה בריבוי חלונות).
+  # nativeapi-based window_manager 0.6; use the actual Flutter runner window
+  # instead of assuming the current foreground window is the primary one.
+  # Promote to the hosted release after platform QA completes.
   window_manager:
     git:
       url: https://github.com/Otzaria/window_manager
-      ref: 88a433a7be43ed0213da12b561bf0d8d070c6d68
-      path: packages/window_manager
+      ref: 09dd9791e453cb153fd91f1c9ba49d81339c66f6
   screen_retriever: ^0.2.2
   # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור ubuntu-flutter-community/flutter_spinbox#102–#114.
   # תיקוני סקירה חייבים להישמר גם בענף המשולב (main של הפורק) וגם בענפי ה-PRים באפסטרים.

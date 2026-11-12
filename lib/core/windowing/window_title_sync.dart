@@ -1,10 +1,14 @@
+// Intentional use of window_manager 0.6's legacy facade during the
+// staged nativeapi migration; remove after moving these callers to Window.
+// ignore_for_file: deprecated_member_use
+
 import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart' show BuildContext;
 import 'package:otzaria/core/windowing/app_window_keys.dart';
-import 'package:window_manager/window_manager.dart';
+import 'package:window_manager/legacy.dart';
 
 /// מעדכן את כותרת החלון לפי הכרטיסיה הפעילה בו, כמו בדפדפן. הכותרת אינה
 /// נראית בחלון עצמו (סרגל כותרת מותאם), אלא בשורת המשימות וב-Alt+Tab.

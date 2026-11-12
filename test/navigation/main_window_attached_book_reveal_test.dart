@@ -60,9 +60,11 @@ import 'package:otzaria/workspaces/bloc/workspace_event.dart';
 import 'package:otzaria/workspaces/bloc/workspace_state.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 import 'package:timezone/data/latest.dart' as tz;
-import 'package:window_manager/window_manager.dart' show TitleBarStyle;
+// ignore_for_file: deprecated_member_use
+import 'package:window_manager/legacy.dart' show TitleBarStyle, windowManager;
 
 import '../test_helpers/memory_cache_provider.dart';
+import '../test_helpers/recording_native_window.dart';
 
 void main() {
   tz.initializeTimeZones();
@@ -129,17 +131,12 @@ void main() {
             return repository;
           });
         });
-        final calls = <String>[];
+        // nativeapi 0.6 has no window_manager MethodChannel. Observe the
+        // real facade against an in-memory window to preserve reveal ordering.
+        final nativeWindow = RecordingNativeWindow();
+        windowManager.debugBindWindow(nativeWindow);
+        final calls = nativeWindow.calls;
         final messenger = tester.binding.defaultBinaryMessenger;
-        messenger.setMockMethodCallHandler(
-          const MethodChannel('window_manager'),
-          (call) async {
-            calls.add(call.method);
-            if (call.method == 'isVisible') return true;
-            if (call.method.startsWith('is')) return false;
-            return null;
-          },
-        );
         messenger.setMockMethodCallHandler(
           const MethodChannel('otzaria/splash'),
           (call) async {
@@ -239,10 +236,7 @@ void main() {
             await registry.closeAll();
           });
           AttachedLibraryRegistry.startupGate = previousGate;
-          messenger.setMockMethodCallHandler(
-            const MethodChannel('window_manager'),
-            null,
-          );
+          windowManager.debugBindWindow(null);
           messenger.setMockMethodCallHandler(
             const MethodChannel('otzaria/splash'),
             null,

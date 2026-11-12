@@ -3,7 +3,7 @@ import 'dart:ui' show Rect;
 
 import 'package:ffi/ffi.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_native.dart';
-import 'package:window_manager/window_manager.dart' show ResizeEdge;
+import 'package:window_manager/legacy.dart' show ResizeEdge;
 
 /// Linux: GTK3 ב-FFI מתוך התהליך. GTK עובד ביחידות לוגיות, וכאן מכפילים בקנה
 /// המידה של החלון כדי שהממשק יישאר בפיקסלים פיזיים, כמו ב-Windows.

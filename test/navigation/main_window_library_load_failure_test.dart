@@ -61,7 +61,7 @@ import 'package:otzaria/workspaces/bloc/workspace_event.dart';
 import 'package:otzaria/workspaces/bloc/workspace_state.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 import 'package:timezone/data/latest.dart' as tz;
-import 'package:window_manager/window_manager.dart' show TitleBarStyle;
+import 'package:window_manager/legacy.dart' show TitleBarStyle;
 
 import '../test_helpers/memory_cache_provider.dart';
 
@@ -105,9 +105,8 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    verify(
-      () => harness.indexing.add(any(that: isA<ReconcileHiddenIndex>())),
-    ).called(1);
+    verify(() => harness.indexing.add(any(that: isA<ReconcileHiddenIndex>())))
+        .called(1);
   });
 
   testWidgets('החלטת האינדוקס בעלייה שואלת את ProcessDuties', (tester) async {
@@ -123,9 +122,8 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    verify(
-      () => harness.indexing.add(any(that: isA<CheckIndexStatus>())),
-    ).called(1);
+    verify(() => harness.indexing.add(any(that: isA<CheckIndexStatus>())))
+        .called(1);
   });
 
   testWidgets('סוף רצף העלייה מכבה את סימון ההמתנה כשהאינדוקס מתחיל (#2646)', (
@@ -348,87 +346,76 @@ void main() {
     verify(() => tabs.add(const SetCurrentTab(1))).called(1);
     await mouse.removePointer();
   }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
-  testWidgets(
-    'פאנל כלים יחיד שומר מצב בזמן סגירה ומעבר בין עמודים',
-    (tester) async {
-      final harness = await _pumpMainWindow(
-        tester,
-        Future.value(Library(categories: [])),
-        isLoading: false,
-        size: const Size(1400, 900),
-        tabsPlacement: SettingsRepository.readingTabsPlacementSide,
-        openTabs: [_StubTab('ספר א')],
-      );
-      await tester.pumpAndSettle();
-      final keys = AppWindowKeys.of(
-        tester.element(find.byType(MainWindowScreen)),
-      );
-      State? overlayState;
-      for (final screen in [
-        Screen.library,
-        Screen.settings,
-        Screen.reading,
-        Screen.search,
-      ]) {
-        ToolsLauncherController.instance.open(windowKeys: keys);
-        await tester.pumpAndSettle();
-        final tools = find.byType(ToolsLauncherPanel);
-        final overlay = find.ancestor(
-          of: tools,
-          matching: find.byType(ContextOverlayPanel),
-        );
-        final key = tester.widget<ContextOverlayPanel>(overlay).key!;
-        final keyedOverlay = find.byKey(key, skipOffstage: false);
-        overlayState ??= tester.state(overlay);
-        expect(tester.state(overlay), same(overlayState));
-        final contentState = tester.state(tools);
-        final search = find
-            .descendant(of: tools, matching: find.byType(EditableText))
-            .first;
-        await tester.enterText(search, 'לוח');
-        harness.navigationChanges.add(NavigationState(currentScreen: screen));
-        await tester.pump();
-        await tester.pump();
-        expect(keyedOverlay, findsOneWidget);
-        expect(tester.state(keyedOverlay), same(overlayState));
-        expect(
-          tester.widget<ContextOverlayPanel>(keyedOverlay).isOpen,
-          isFalse,
-        );
-        final closingTools = find.byType(
-          ToolsLauncherPanel,
-          skipOffstage: false,
-        );
-        expect(tester.state(closingTools), same(contentState));
-        final closingSearch = find
-            .descendant(
-              of: closingTools,
-              matching: find.byType(EditableText, skipOffstage: false),
-              skipOffstage: false,
-            )
-            .first;
-        final editable = tester.widget<EditableText>(closingSearch);
-        expect(editable.controller.text, 'לוח');
-        expect(editable.focusNode.hasFocus, isFalse);
-        await tester.pumpAndSettle();
-        expect(
-          find.byType(ToolsLauncherPanel, skipOffstage: false),
-          findsNothing,
-        );
-        expect(tester.takeException(), isNull);
-      }
+  testWidgets('פאנל כלים יחיד שומר מצב בזמן סגירה ומעבר בין עמודים', (
+    tester,
+  ) async {
+    final harness = await _pumpMainWindow(
+      tester,
+      Future.value(Library(categories: [])),
+      isLoading: false,
+      size: const Size(1400, 900),
+      tabsPlacement: SettingsRepository.readingTabsPlacementSide,
+      openTabs: [_StubTab('ספר א')],
+    );
+    await tester.pumpAndSettle();
+    final keys = AppWindowKeys.of(
+      tester.element(find.byType(MainWindowScreen)),
+    );
+    State? overlayState;
+    for (final screen in [
+      Screen.library,
+      Screen.settings,
+      Screen.reading,
+      Screen.search,
+    ]) {
       ToolsLauncherController.instance.open(windowKeys: keys);
       await tester.pumpAndSettle();
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      final tools = find.byType(ToolsLauncherPanel);
+      final overlay = find.ancestor(
+        of: tools,
+        matching: find.byType(ContextOverlayPanel),
+      );
+      final key = tester.widget<ContextOverlayPanel>(overlay).key!;
+      final keyedOverlay = find.byKey(key, skipOffstage: false);
+      overlayState ??= tester.state(overlay);
+      expect(tester.state(overlay), same(overlayState));
+      final contentState = tester.state(tools);
+      final search = find
+          .descendant(of: tools, matching: find.byType(EditableText))
+          .first;
+      await tester.enterText(search, 'לוח');
+      harness.navigationChanges.add(NavigationState(currentScreen: screen));
+      await tester.pump();
+      await tester.pump();
+      expect(keyedOverlay, findsOneWidget);
+      expect(tester.state(keyedOverlay), same(overlayState));
+      expect(tester.widget<ContextOverlayPanel>(keyedOverlay).isOpen, isFalse);
+      final closingTools = find.byType(ToolsLauncherPanel, skipOffstage: false);
+      expect(tester.state(closingTools), same(contentState));
+      final closingSearch = find
+          .descendant(
+            of: closingTools,
+            matching: find.byType(EditableText, skipOffstage: false),
+            skipOffstage: false,
+          )
+          .first;
+      final editable = tester.widget<EditableText>(closingSearch);
+      expect(editable.controller.text, 'לוח');
+      expect(editable.focusNode.hasFocus, isFalse);
       await tester.pumpAndSettle();
       expect(
         find.byType(ToolsLauncherPanel, skipOffstage: false),
         findsNothing,
       );
       expect(tester.takeException(), isNull);
-    },
-    variant: TargetPlatformVariant.only(TargetPlatform.windows),
-  );
+    }
+    ToolsLauncherController.instance.open(windowKeys: keys);
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byType(ToolsLauncherPanel, skipOffstage: false), findsNothing);
+    expect(tester.takeException(), isNull);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 }
 
 class _StubTab extends OpenedTab {

@@ -69,7 +69,7 @@ import 'package:otzaria/workspaces/bloc/workspace_state.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:provider/provider.dart';
 import 'package:timezone/data/latest.dart' as tz;
-import 'package:window_manager/window_manager.dart' show TitleBarStyle;
+import 'package:window_manager/legacy.dart' show TitleBarStyle;
 
 /// הגדלים שנבדקים: מחשב 10" (כולל חצי מסך), טלפון לאורך ולרוחב.
 const kSmallScreenSizes = <String, Size>{
@@ -451,11 +451,7 @@ Widget Function(Widget app) smallScreenProviders(
   );
   final tabsBloc = _TabsBloc(TabsState(tabs: tabs, currentTabIndex: 0));
   final libraryBloc = _LibraryBloc(
-    LibraryState(
-      library: library,
-      currentCategory: library,
-      isLoading: false,
-    ),
+    LibraryState(library: library, currentCategory: library, isLoading: false),
   );
   final workStatus = WorkStatusCubit();
   final indexing = _IndexingBloc();

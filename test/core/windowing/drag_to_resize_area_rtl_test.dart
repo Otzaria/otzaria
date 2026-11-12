@@ -1,38 +1,31 @@
 import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:window_manager/window_manager.dart';
+
+/// The 0.6 nativeapi drag widget addresses an explicit native window rather
+/// than invoking the removed window_manager MethodChannel.
+class _TrackingWindow extends Window {
+  _TrackingWindow() : super.borrowed(0);
+
+  final resizedEdges = <ResizeEdge>[];
+
+  @override
+  void startResizing(ResizeEdge edge) => resizedEdges.add(edge);
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  final resizedEdges = <String>[];
-
-  setUp(() {
-    resizedEdges.clear();
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(const MethodChannel('window_manager'), (
-          call,
-        ) async {
-          if (call.method == 'startResizing') {
-            resizedEdges.add((call.arguments as Map)['resizeEdge'] as String);
-          }
-          return false;
-        });
-  });
-
-  tearDown(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(const MethodChannel('window_manager'), null);
-  });
-
-  // #3187: תחת RTL של האפליקציה, גרירת הקצה השמאלי שינתה את הקצה הימני.
-  testWidgets('קצוות שינוי הגודל לפי המסך גם תחת RTL', (tester) async {
+  // #3187: physical screen edges must remain stable under RTL.
+  testWidgets('resizing still targets physical edges under RTL', (
+    tester,
+  ) async {
+    final window = _TrackingWindow();
     await tester.pumpWidget(
-      const Directionality(
+      Directionality(
         textDirection: TextDirection.rtl,
-        child: DragToResizeArea(child: SizedBox.expand()),
+        child: DragToResizeArea(window: window, child: const SizedBox.expand()),
       ),
     );
     final size = tester.view.physicalSize / tester.view.devicePixelRatio;
@@ -50,6 +43,11 @@ void main() {
 
     await tester.pump(kDoubleTapTimeout);
 
-    expect(resizedEdges, ['left', 'right', 'topLeft', 'bottomRight']);
+    expect(window.resizedEdges, [
+      ResizeEdge.left,
+      ResizeEdge.right,
+      ResizeEdge.topLeft,
+      ResizeEdge.bottomRight,
+    ]);
   });
 }

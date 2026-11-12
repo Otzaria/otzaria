@@ -1,3 +1,7 @@
+// Intentional use of window_manager 0.6's legacy facade during the
+// staged nativeapi migration; remove after moving these callers to Window.
+// ignore_for_file: deprecated_member_use
+
 /// This is the main entry point for the Otzaria application.
 ///
 /// The application is a Flutter-based digital library system that supports
@@ -7,12 +11,13 @@ library;
 
 import 'dart:async';
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show FrameCallback;
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
-import 'package:window_manager/window_manager.dart';
+import 'package:window_manager/legacy.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
@@ -92,6 +97,7 @@ import 'package:otzaria/core/windowing/dock_progress_listener.dart';
 import 'package:otzaria/core/windowing/runner_window_channel.dart';
 import 'package:otzaria/core/windowing/window_opener.dart';
 import 'package:otzaria/core/windowing/window_manager_app_window_controller.dart';
+import 'package:otzaria/core/windowing/nativeapi_primary_window_binding.dart';
 import 'package:otzaria/settings/services/backup_service.dart';
 import 'package:otzaria/core/http_client_registry.dart';
 import 'package:otzaria/plugins/services/plugin_report_service.dart';
@@ -305,10 +311,7 @@ void _logNonFatalInitializationError(
     title: 'Initialization Warning',
     error: error,
     stackTrace: stackTrace,
-    details: {
-      'Phase': 'initialize',
-      'Component': component,
-    },
+    details: {'Phase': 'initialize', 'Component': component},
   );
 }
 
@@ -468,10 +471,7 @@ void _installGlobalErrorHandlers() {
     // Log all other errors normally
     if (kDebugMode) {
       FlutterError.dumpErrorToConsole(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stack,
-        ),
+        FlutterErrorDetails(exception: error, stack: stack),
       );
     } else {
       _appendUnhandledErrorToLocalLog(
@@ -504,35 +504,32 @@ Future<void> _initializeSentry() async {
     StartupTimeline.instance.mark('sentry:init');
     final currentBuild = int.tryParse(info.buildNumber.trim()) ?? 0;
 
-    await SentryFlutter.init(
-      (options) {
-        // Use environment variable for DSN, with fallback to default
-        options.dsn = const String.fromEnvironment(
-          'SENTRY_DSN',
-          defaultValue:
-              'https://79d3003f822fa62bce0c928656308121@o4510914530902016.ingest.us.sentry.io/4510914532868096',
-        );
-        options.release =
-            '${info.appName}@${canonicalAppVersion(info)}+${info.buildNumber}';
-        options.nativeDatabasePath = UncleanExitDetector.sentryDatabasePath();
-        // Privacy: Do not collect IP addresses and request headers
-        options.sendDefaultPii = false;
-        // Sentry משמש לדיווח שגיאות בלבד; עסקאות ביצועים אינן נשלחות.
-        options.tracesSampleRate = 0.0;
+    await SentryFlutter.init((options) {
+      // Use environment variable for DSN, with fallback to default
+      options.dsn = const String.fromEnvironment(
+        'SENTRY_DSN',
+        defaultValue: 'https://79d3003f822fa62bce0c928656308121@o4510914530902016.ingest.us.sentry.io/4510914532868096',
+      );
+      options.release =
+          '${info.appName}@${canonicalAppVersion(info)}+${info.buildNumber}';
+      options.nativeDatabasePath = UncleanExitDetector.sentryDatabasePath();
+      // Privacy: Do not collect IP addresses and request headers
+      options.sendDefaultPii = false;
+      // Sentry משמש לדיווח שגיאות בלבד; עסקאות ביצועים אינן נשלחות.
+      options.tracesSampleRate = 0.0;
 
-        options.beforeSend = (event, hint) {
-          // כל החלונות ב-isolate אחד; החלון הפעיל האחרון מקרב את המקור.
-          event.tags = {...?event.tags, 'window': LastActiveWindow.id.value};
-          return shouldReportSentryEvent(
-                event: event,
-                currentBuild: currentBuild,
-                latestReleasedBuildNumber: _latestReleasedBuildNumber,
-              )
-              ? event
-              : null;
-        };
-      },
-    );
+      options.beforeSend = (event, hint) {
+        // כל החלונות ב-isolate אחד; החלון הפעיל האחרון מקרב את המקור.
+        event.tags = {...?event.tags, 'window': LastActiveWindow.id.value};
+        return shouldReportSentryEvent(
+              event: event,
+              currentBuild: currentBuild,
+              latestReleasedBuildNumber: _latestReleasedBuildNumber,
+            )
+            ? event
+            : null;
+      };
+    });
     StartupTimeline.instance.mark('sentry:initDone');
   } catch (error, stackTrace) {
     if (kDebugMode) {
@@ -578,27 +575,32 @@ Future<void> _runAppBootstrap() async {
 
   // הגדרת window_manager לפני runApp.
   if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-    // נשאר על ה-singleton: אתחול ה-backend קודם לקיומו של כל חלון.
+    // The Flutter runner creates this window before Dart starts. An
+    // initially hidden HWND cannot be selected by nativeapi's foreground
+    // lookup; bind its exact native handle before the first state query.
+    await StartupTimeline.instance.phase('nativeWindowBinding', () async {
+      try {
+        final handle = await bindNativeapiPrimaryWindow();
+        if (Platform.isWindows) DialogOwner.mainWindowHwnd = handle;
+        if (handle == null) {
+          debugPrint('nativeapi primary Flutter window handle unavailable');
+        }
+      } catch (error, stackTrace) {
+        _logNonFatalInitializationError(
+          'nativeapi primary host binding',
+          error,
+          stackTrace,
+        );
+      }
+    });
     await StartupTimeline.instance.phase(
       'windowManager',
       windowManager.ensureInitialized,
     );
-    if (Platform.isWindows) {
-      // בעלי דיאלוגי הקבצים מהחלון הראשי; בלי לעכב את העלייה.
-      unawaited(
-        windowManager.getId().then<void>(
-          (hwnd) => DialogOwner.mainWindowHwnd = hwnd,
-          onError: (Object e) => debugPrint('main window hwnd failed: $e'),
-        ),
-      );
-    }
     WindowPersistence.splashMode = true;
     // WindowPersistence היא static ואין לה BuildContext — היא מקבלת את
     // אותו מופע שנכנס ל-AppWindowScope, כדי שיהיה מקור אמת אחד.
-    WindowPersistence.bindWindow(
-      controller: _appWindow,
-      geometry: _appWindow,
-    );
+    WindowPersistence.bindWindow(controller: _appWindow, geometry: _appWindow);
 
     await StartupTimeline.instance.phase(
       'windowCloseHandling',
@@ -619,11 +621,7 @@ Future<void> _runAppBootstrap() async {
       controller: _appWindow,
       geometry: _appWindow,
       keys: AppWindowKeys.current,
-      child: SentryWidget(
-        child: RestartWidget(
-          child: const AppBootstrap(),
-        ),
-      ),
+      child: SentryWidget(child: RestartWidget(child: const AppBootstrap())),
     ),
   );
 }
@@ -1472,9 +1470,7 @@ Future<void> _enqueueExternalActivationArgs(List<String> args) async {
         title: 'External Activation Queue Error',
         error: error,
         stackTrace: stackTrace,
-        details: {
-          'Uri': uriString,
-        },
+        details: {'Uri': uriString},
       );
     }
   }

@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_native.dart';
-import 'package:window_manager/window_manager.dart' show ResizeEdge;
+import 'package:window_manager/legacy.dart' show ResizeEdge;
 
 /// macOS: ערוץ `otzaria/view_window` של ה-runner. הידית היא `NSWindow*`.
 /// הגאומטריה נשארת בנקודות מסך גלובליות, גם בין מסכים בעלי קנה מידה שונה.

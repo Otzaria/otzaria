@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/multiview/multiview_flag.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_native.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_registry.dart';
-import 'package:window_manager/window_manager.dart' show ResizeEdge;
+import 'package:window_manager/legacy.dart' show ResizeEdge;
 
 import 'second_test_view.dart';
 
@@ -121,11 +121,7 @@ class FakeViewWindowNative implements ViewWindowNative {
   ({Rect normal, bool maximized, int dpi})? placement(int hwnd) {
     final rect = rects[hwnd];
     if (rect == null) return null;
-    return (
-      normal: rect,
-      maximized: maximizedWindows.contains(hwnd),
-      dpi: dpi,
-    );
+    return (normal: rect, maximized: maximizedWindows.contains(hwnd), dpi: dpi);
   }
 
   @override

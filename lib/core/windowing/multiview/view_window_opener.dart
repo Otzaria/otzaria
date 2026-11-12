@@ -1,8 +1,12 @@
+// Intentional use of window_manager 0.6's legacy facade during the
+// staged nativeapi migration; remove after moving these callers to Window.
+// ignore_for_file: deprecated_member_use
+
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' show Rect, Size;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' show WidgetsBinding;
 import 'package:otzaria/core/messages/window_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -19,7 +23,7 @@ import 'package:otzaria/core/windowing/new_window_placement.dart';
 import 'package:otzaria/core/windowing/runner_window_channel.dart';
 import 'package:otzaria/core/windowing/window_opener.dart';
 import 'package:otzaria/tabs/models/tab.dart';
-import 'package:window_manager/window_manager.dart';
+import 'package:window_manager/legacy.dart';
 
 /// מסגרת מסך: macOS בנקודות גלובליות; Windows/Linux בפיקסלים פיזיים.
 typedef PhysicalBounds = ({int left, int top, int width, int height});
@@ -111,13 +115,9 @@ class ViewWindowOpener implements WindowOpener {
   static Future<int?> _windowManagerHwnd() async {
     if (Platform.isMacOS) return implicitViewWindowHandle();
     try {
-      // ל-window_manager אין getId ב-Linux; ה-runner מחזיר את ה-GtkWindow*.
-      if (Platform.isLinux) {
-        return await const MethodChannel(
-          'otzaria/multiwindow',
-        ).invokeMethod<int>('mainWindowHandle');
-      }
-      return await windowManager.getId();
+      // nativeapi Window.id is not an HWND/GtkWindow*. Ask the runner
+      // for the raw handle used to parent secondary desktop windows.
+      return await const RunnerWindowChannel().mainWindowHandle();
     } catch (e) {
       debugPrint('main window hwnd failed: $e');
       return null;
@@ -344,10 +344,8 @@ class ViewWindowOpener implements WindowOpener {
 
   /// החלון הראשי נספר תמיד, גם מוסתר: הוא חי ותופס מקום בתקרה.
   @override
-  Future<({int count, int max})?> windowCount() async => (
-    count: registry.windows.length + 1,
-    max: ViewWindowRegistry.maxWindows,
-  );
+  Future<({int count, int max})?> windowCount() async =>
+      (count: registry.windows.length + 1, max: ViewWindowRegistry.maxWindows);
 
   @override
   Future<void> reportOpenWindowFailure() async {

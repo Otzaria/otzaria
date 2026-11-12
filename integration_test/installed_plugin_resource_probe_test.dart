@@ -1,3 +1,7 @@
+// Intentional use of window_manager 0.6's legacy facade during the
+// staged nativeapi migration; remove after moving these callers to Window.
+// ignore_for_file: deprecated_member_use
+
 // Opt-in real-app scenario; see tool/perf_probe/WEBVIEW_RESOURCE_PROBE.md.
 import 'dart:async';
 import 'dart:convert';
@@ -43,7 +47,7 @@ import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:path/path.dart' as p;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:window_manager/window_manager.dart';
+import 'package:window_manager/legacy.dart';
 
 import '../tool/perf_probe/src/installed_plugin_contract.dart';
 import 'support/installed_plugin_android_control.dart';
@@ -90,10 +94,8 @@ void main() {
       ),
     ),
     'physicalDeviceAcceptance': false,
-    'acceptanceScope':
-        'Controlled installed-plugin integration; no resource-saving threshold or default-policy tuning.',
-    'cacheState':
-        'fresh isolated app data; OS, engine and filesystem caches are not cleared',
+    'acceptanceScope': 'Controlled installed-plugin integration; no resource-saving threshold or default-policy tuning.',
+    'cacheState': 'fresh isolated app data; OS, engine and filesystem caches are not cleared',
     'platformMatrix': <String, Object?>{
       for (final os in installedPluginPlatforms)
         os: <String, Object?>{
@@ -203,10 +205,7 @@ void main() {
     final errors = report['errors'] as List<String>;
     Object? failure;
     StackTrace? failureStack;
-    Future<void> cleanup(
-      String name,
-      FutureOr<void> Function() action,
-    ) async {
+    Future<void> cleanup(String name, FutureOr<void> Function() action) async {
       try {
         await action();
       } catch (error, stack) {
@@ -266,9 +265,8 @@ void main() {
       Directory? temporary;
       if (dataPath.isEmpty || outputPath.isEmpty || sourcePath.isEmpty) {
         final canonicalTemp = await Directory.systemTemp.resolveSymbolicLinks();
-        temporary = await Directory(
-          canonicalTemp,
-        ).createTemp('otzaria-installed-probe-');
+        temporary = await Directory(canonicalTemp)
+            .createTemp('otzaria-installed-probe-');
       }
       final root = Directory(
         dataPath.isEmpty ? p.join(temporary!.path, 'data') : dataPath,
@@ -288,8 +286,7 @@ void main() {
             ? 'verified-gzip-json-build-input'
             : 'verified-local-directory',
         'output': output.path,
-        'retention':
-            'Fixture files remain for diagnosis while the app owns open database handles; remove only after process exit.',
+        'retention': 'Fixture files remain for diagnosis while the app owns open database handles; remove only after process exit.',
       };
       for (final a in [root.path, source.path, output.path]) {
         if (!p.isAbsolute(a)) {
@@ -333,8 +330,7 @@ void main() {
           ...androidControl!.identity,
           'transport':
               'Loopback push stream through one explicit-serial ADB forward',
-          'hostObservations':
-              'Setup, requested Home/resume boundaries and final retrieval only; no host polling during any quiet window.',
+          'hostObservations': 'Setup, requested Home/resume boundaries and final retrieval only; no host polling during any quiet window.',
           'physicalProfileRelease': 'notRun',
         };
         await androidControl!.connected();
@@ -348,30 +344,22 @@ void main() {
         'commit': installedStoreCommit,
         'version': '2.13.0',
         'sha256': fixture.sourceHashes,
-        'catalogSelection':
-            'Store selected from the public download-ranked catalog; downloads are not active users.',
-        'catalogFreshness':
-            'No live catalog read during this run; requests use fixed inert service fixtures.',
-        'workload':
-            'Read-only filters, sort, local preference, scrolling and restore; no install/update/delete actions.',
+        'catalogSelection': 'Store selected from the public download-ranked catalog; downloads are not active users.',
+        'catalogFreshness': 'No live catalog read during this run; requests use fixed inert service fixtures.',
+        'workload': 'Read-only filters, sort, local preference, scrolling and restore; no install/update/delete actions.',
         'otherCommonPlugins': {
           'status': 'notRun',
-          'reason':
-              'This runner executes only the pinned store and the controlled guard fixture.',
+          'reason': 'This runner executes only the pinned store and the controlled guard fixture.',
         },
       };
       report['observer'] = {
         'developerDiagnosticsCollecting':
             DeveloperDiagnostics.instance.isCollecting,
-        'consolePolicy':
-            'Unchanged production policy; this runner never enables DeveloperDiagnostics collection.',
+        'consolePolicy': 'Unchanged production policy; this runner never enables DeveloperDiagnostics collection.',
         'boundaryReadsCanWakeWebViews': true,
-        'quietWindows':
-            'No probe JS/bridge polling, window queries or process enumeration during timed quiet windows.',
-        'productionTimers':
-            'Unchanged. Absence of probe calls is not absence of production bridge/native work.',
-        'frames':
-            'Passive Flutter FrameTiming callback only; not native WebView compositor or interaction latency.',
+        'quietWindows': 'No probe JS/bridge polling, window queries or process enumeration during timed quiet windows.',
+        'productionTimers': 'Unchanged. Absence of probe calls is not absence of production bridge/native work.',
+        'frames': 'Passive Flutter FrameTiming callback only; not native WebView compositor or interaction latency.',
       };
       if (DeveloperDiagnostics.instance.isCollecting) {
         throw StateError(
@@ -428,14 +416,10 @@ void main() {
           'maxLiveSuspended': 100,
           'maxSuspendedAgeMs': _assemblyLimits.maxSuspendedAge.inMilliseconds,
         },
-        'pressure':
-            'Explicit checkDiscard(memoryPressure: true) after actual hidden candidates and first blockers exist.',
-        'count':
-            'Actual platform count limit; controlled long age while assembling above the limit.',
-        'age':
-            'Actual platform age limit; dispatcher clock advanced only for this labeled case.',
-        'timers':
-            'Production lifecycle, discard and background timers are not disabled.',
+        'pressure': 'Explicit checkDiscard(memoryPressure: true) after actual hidden candidates and first blockers exist.',
+        'count': 'Actual platform count limit; controlled long age while assembling above the limit.',
+        'age': 'Actual platform age limit; dispatcher clock advanced only for this labeled case.',
+        'timers': 'Production lifecycle, discard and background timers are not disabled.',
       };
       await active.run();
       final errorsAfter = await errorsFile.exists()
@@ -757,8 +741,7 @@ class _Scenario {
       'nativeProcessObservations': observedProcesses == null
           ? {
               'availability': 'unavailable',
-              'reason':
-                  'No native WebView process-list response in this boundary sample.',
+              'reason': 'No native WebView process-list response in this boundary sample.',
             }
           : {
               'collection': observedProcesses!.collection.toJson(),
@@ -773,8 +756,7 @@ class _Scenario {
                   },
               ],
               'detailsTruncated': observedProcesses!.processes.length > 128,
-              'identityScope':
-                  'Observed PID at this boundary only; process start time and PID reuse identity are not available from this API.',
+              'identityScope': 'Observed PID at this boundary only; process start time and PID reuse identity are not available from this API.',
             },
       'cpu': probeMetric(
         availability: ProbeAvailability.unavailable,
@@ -1079,13 +1061,11 @@ class _Scenario {
       'receivedBootRestore': store
           ? {
               'availability': 'unavailable',
-              'reason':
-                  'Unmodified store does not expose boot payload; fresh document, real SDK and restored DOM are observed.',
+              'reason': 'Unmodified store does not expose boot payload; fresh document, real SDK and restored DOM are observed.',
             }
           : (js['boot'] as Map?)?['restore'],
       'resumeMs': elapsed.elapsedMicroseconds / 1000,
-      'resumeEndpoint':
-          'Actual selected host, new controller, SDK boot and observed DOM state; boundary JS read included.',
+      'resumeEndpoint': 'Actual selected host, new controller, SDK boot and observed DOM state; boundary JS read included.',
     };
     (report['restorations'] as List).add(proof);
     expect(installedRestoreErrors(proof), isEmpty);
@@ -1097,8 +1077,7 @@ class _Scenario {
   }
 
   Map<String, Object?> _fixtureTraffic(Map<String, Object?> js) => {
-    'scope':
-        'Only controlled-fixture SDK calls in this document; excludes SDK internals, host bridge traffic and the unmodified store.',
+    'scope': 'Only controlled-fixture SDK calls in this document; excludes SDK internals, host bridge traffic and the unmodified store.',
     for (final field in [
       'requests',
       'replies',
@@ -1151,8 +1130,7 @@ class _Scenario {
           'availability': WebView2CreationDiagnostics.runtimeVersion == null
               ? 'unavailable'
               : 'collected',
-          'source':
-              'WebViewEnvironment.getAvailableVersion cached during real app initialization',
+          'source': 'WebViewEnvironment.getAvailableVersion cached during real app initialization',
           'value': WebView2CreationDiagnostics.runtimeVersion,
         },
       };
@@ -1302,8 +1280,7 @@ class _Scenario {
     final os = Platform.operatingSystem;
     phaseRecord('osBackground').addAll({
       'status': 'notRun',
-      'reason':
-          'No mobile OS task-switch or background automation in this runner; Offstage and desktop minimize are recorded separately.',
+      'reason': 'No mobile OS task-switch or background automation in this runner; Offstage and desktop minimize are recorded separately.',
     });
     if (!_desktop.contains(os)) {
       for (final name in ['minimize', 'hide']) {

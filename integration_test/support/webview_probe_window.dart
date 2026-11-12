@@ -1,7 +1,11 @@
+// Intentional use of window_manager 0.6's legacy facade during the
+// staged nativeapi migration; remove after moving these callers to Window.
+// ignore_for_file: deprecated_member_use
+
 import 'dart:async';
 
 import 'package:flutter/services.dart';
-import 'package:window_manager/window_manager.dart';
+import 'package:window_manager/legacy.dart';
 
 const _desktopPlatforms = {'windows', 'linux', 'macos'};
 const _windowSize = Size(1000, 700);

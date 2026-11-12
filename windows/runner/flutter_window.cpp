@@ -553,6 +553,15 @@ bool FlutterWindow::OnCreate() {
         // ⚠️ `windowManager.destroy()` קורא ל-`DestroyWindow` מתוך טיפול
         // בערוץ, כלומר מתוך ריצת ה-Dart של החלון — הריסת המנוע משם היא
         // ריאנטרנטית ומפילה את התהליך. ראו `kMsgDeferredDestroy`.
+        // NativeAPI Window.id is not HWND; obtain the actual runner handle.
+        if (call.method_name() == "mainWindowHandle") {
+          const HWND self = GetHandle();
+          result->Success(
+              self ? flutter::EncodableValue(static_cast<int64_t>(
+                         reinterpret_cast<intptr_t>(self)))
+                   : flutter::EncodableValue());
+          return;
+        }
         if (call.method_name() == "closeSelf") {
           const HWND self = GetHandle();
           if (self) ::PostMessageW(self, kMsgDeferredDestroy, 0, 0);

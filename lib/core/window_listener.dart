@@ -1,8 +1,13 @@
+// Intentional use of window_manager 0.6's legacy facade during the
+// staged nativeapi migration; remove after moving these callers to Window.
+// ignore_for_file: deprecated_member_use
+
 import 'dart:async';
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:window_manager/window_manager.dart';
+import 'package:window_manager/legacy.dart';
 import 'package:otzaria/plugins/services/startup_crash_counter.dart';
 import 'package:otzaria/app_report/services/app_crash_session.dart';
 import 'package:otzaria/app_report/services/app_hang_report.dart';

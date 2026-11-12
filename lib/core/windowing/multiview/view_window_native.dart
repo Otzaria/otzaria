@@ -8,7 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:otzaria/core/windowing/multiview/cocoa_view_window_native.dart';
 import 'package:otzaria/core/windowing/multiview/gtk_view_window_native.dart';
 import 'package:win32/win32.dart';
-import 'package:window_manager/window_manager.dart' show ResizeEdge;
+import 'package:window_manager/legacy.dart' show ResizeEdge;
 
 /// מה שחלון Dart צריך מהמערכת ואין לו בבקר של המסגרת. ב-Windows/Linux בפיקסלים פיזיים; ב-macOS בנקודות מסך.
 /// `hwnd` הוא `ViewWindowHandle.nativeHandle`: HWND ב-Windows, `GtkWindow*` ב-Linux,
@@ -212,10 +212,9 @@ class Win32ViewWindowNative implements ViewWindowNative {
   Future<void> installViewHooks(int hwnd) async {
     if (!Platform.isWindows) return;
     try {
-      final installed = await _channel.invokeMethod<bool>(
-        'installViewHooks',
-        {'hwnd': hwnd},
-      );
+      final installed = await _channel.invokeMethod<bool>('installViewHooks', {
+        'hwnd': hwnd,
+      });
       if (installed != true) debugPrint('installViewHooks: not installed');
     } catch (e) {
       // החלון עובד גם בלי התיקונים; רק מגע ו-Shift תקוע חוזרים.

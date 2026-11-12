@@ -51,6 +51,11 @@ class RunnerWindowChannel {
 
   static const MethodChannel channel = MethodChannel('otzaria/multiwindow');
 
+  /// The real top-level runner pointer. NativeAPI Window.id is not an HWND.
+  /// On Linux this is GtkWindow*; on Windows it is HWND.
+  Future<int?> mainWindowHandle() =>
+      channel.invokeMethod<int>('mainWindowHandle');
+
   /// ממרכז את הראשי ב-Windows בפיקסלים פיזיים, בלי המרות DPI של הספרייה.
   Future<void> centerMainWindow() =>
       channel.invokeMethod<void>('centerMainWindow');

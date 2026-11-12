@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/multiview/cocoa_view_window_native.dart';
-import 'package:window_manager/window_manager.dart' show ResizeEdge;
+import 'package:window_manager/legacy.dart' show ResizeEdge;
 
 /// ה-runner של macOS לפי החוזה של `otzaria/view_window` (ViewWindowChannel.swift).
 class _FakeRunner {
@@ -131,29 +131,23 @@ void main() {
   }
 
   test('מסגרת: נקודות גלובליות מה-runner, גם ב-Retina', () async {
-    expect(
-      await native.windowRect(7),
-      const Rect.fromLTWH(100, 50, 800, 600),
-    );
+    expect(await native.windowRect(7), const Rect.fromLTWH(100, 50, 800, 600));
     expect(runner.methods, ['frame']);
     expect(runner.calls.first.arguments, {'handle': 7});
   });
 
-  test(
-    'setWindowRect: נקודות ללא המרה לפי המסך הנוכחי',
-    () async {
-      await native.setWindowRect(7, const Rect.fromLTWH(100, 50, 800, 600));
-      final setFrame = runner.calls.last;
-      expect(setFrame.method, 'setFrame');
-      expect(setFrame.arguments, {
-        'handle': 7,
-        'x': 100.0,
-        'y': 50.0,
-        'width': 800.0,
-        'height': 600.0,
-      });
-    },
-  );
+  test('setWindowRect: נקודות ללא המרה לפי המסך הנוכחי', () async {
+    await native.setWindowRect(7, const Rect.fromLTWH(100, 50, 800, 600));
+    final setFrame = runner.calls.last;
+    expect(setFrame.method, 'setFrame');
+    expect(setFrame.arguments, {
+      'handle': 7,
+      'x': 100.0,
+      'y': 50.0,
+      'width': 800.0,
+      'height': 600.0,
+    });
+  });
 
   test('אזור עבודה ומיקום: באותו מרחב נקודות, DPI 96 להיסט', () async {
     expect(await native.workArea(7), const Rect.fromLTWH(0, 25, 1440, 875));
