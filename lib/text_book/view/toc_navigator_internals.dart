@@ -75,23 +75,50 @@ List<TocFlatItem> flattenVisibleToc(
 
 /// מצב ההרחבה של "כווץ הכל": כל ערך עם ילדים סגור, חוץ משרשרת של שורש
 /// יחיד (כותרת הספר שמעל השערים) - אחרת לא היה נשאר דבר גלוי.
-Map<int, bool> collapsedTocExpansion(List<TocEntry> entries) {
+Map<int, bool> collapsedTocExpansion(List<TocEntry> entries) =>
+    tocExpansionToDepth(entries, 1);
+
+/// מצב ההרחבה של "הצג עד רמה [depth]": ענף פתוח כשעומקו קטן מ-[depth], והשורשים
+/// בעומק 1. שרשרת של שורש יחיד פתוחה ואינה נספרת, כמו ב-[collapsedTocExpansion].
+Map<int, bool> tocExpansionToDepth(List<TocEntry> entries, int depth) {
   final result = <int, bool>{};
-  var level = entries;
-  while (level.length == 1 && level.first.children.isNotEmpty) {
-    result[level.first.index] = true;
-    level = level.first.children;
-  }
-  void collapse(List<TocEntry> list) {
+  final level = _belowSingleRootChain(entries, result);
+  void visit(List<TocEntry> list, int entryDepth) {
     for (final entry in list) {
       if (entry.children.isEmpty) continue;
-      result.putIfAbsent(entry.index, () => false);
-      collapse(entry.children);
+      result.putIfAbsent(entry.index, () => entryDepth < depth);
+      visit(entry.children, entryDepth + 1);
     }
   }
 
-  collapse(level);
+  visit(level, 1);
   return result;
+}
+
+/// מספר רמות הכותרות שמתחת לשרשרת השורש היחיד: העומק המרבי של [tocExpansionToDepth].
+int tocTreeDepth(List<TocEntry> entries) {
+  int depthOf(List<TocEntry> list) {
+    var max = 0;
+    for (final entry in list) {
+      final depth = 1 + depthOf(entry.children);
+      if (depth > max) max = depth;
+    }
+    return max;
+  }
+
+  return depthOf(_belowSingleRootChain(entries, <int, bool>{}));
+}
+
+List<TocEntry> _belowSingleRootChain(
+  List<TocEntry> entries,
+  Map<int, bool> expansion,
+) {
+  var level = entries;
+  while (level.length == 1 && level.first.children.isNotEmpty) {
+    expansion[level.first.index] = true;
+    level = level.first.children;
+  }
+  return level;
 }
 
 /// מצב ההרחבה של "הרחב הכל": כל ערך עם ילדים פתוח.
