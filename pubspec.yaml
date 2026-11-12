@@ -111,6 +111,12 @@ dependencies:
       url: https://github.com/palmoni5/otzaria-ashurit.git
       ref: v1.005
       path: package
+  # גופן מקורות (Mekorot) לבחירה בהגדרות; הגרסה ננעלת ב-pubspec.lock.
+  otzaria_mekorot:
+    git:
+      url: https://github.com/palmoni5/mekorot.git
+      ref: v1.2.10
+      path: package
   # ed25519 לאימות עדכוני מסדים מצורפים — Dart טהור, בלי תלויות.
   pinenacl: ^0.6.0
   path: ^1.9.1
@@ -483,6 +489,11 @@ flutter:
     - family: NotoRashiHebrew
       fonts:
         - asset: fonts/NotoRashiHebrew-VariableFont_wght.ttf
+    - family: Mekorot
+      fonts:
+        - asset: packages/otzaria_mekorot/Mekorot-Light.ttf
+        - asset: packages/otzaria_mekorot/Mekorot-Bold.ttf
+          weight: 700
     - family: TaameyDavidCLM
       fonts:
         - asset: fonts/TaameyDavidCLM-Medium.ttf
