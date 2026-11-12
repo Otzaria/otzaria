@@ -96,7 +96,7 @@ void main() {
         locator: locator,
         download: downloads.call,
         libraryVersion: () async => version,
-        onnxRuntimePath: () => null,
+        onnxRuntimePath: () => '/app/onnxruntime/onnxruntime.dll',
         isPlatformSupported: () => true,
         diskSpace: (_) async =>
             const DiskSpaceInfo(volumeId: 'audit', freeBytes: -1),

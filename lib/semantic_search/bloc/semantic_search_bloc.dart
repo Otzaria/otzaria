@@ -27,6 +27,9 @@ class SemanticSearchBloc
         ),
       ) {
     on<SemanticSearchStarted>(_onStarted);
+    on<SemanticUpdateFrequencyChanged>(
+      (event, emit) => repository.setUpdateFrequency(event.frequency),
+    );
     on<SemanticDownloadRequested>(
       (event, emit) => repository.enableAndDownload(),
     );

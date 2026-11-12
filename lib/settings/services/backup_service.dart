@@ -345,6 +345,7 @@ class BackupService {
     SettingsRepository.keySemanticDataEnabled,
     SettingsRepository.keySemanticDownloadPaused,
     SettingsRepository.keySemanticSkippedVectorsRelease,
+    SettingsRepository.keySemanticLastVectorsUpdate,
     // דגל פנימי שמסמן שברירות המחדל נכתבו לדיסק.
     'settings_initialized',
   };
