@@ -479,13 +479,22 @@ void main() {
       final first = await attach(
         fixture(
           'ראשון',
-          tamper: (db) => db.execute(
-            "INSERT INTO category VALUES (3, 1, 'קטגוריה חדשה', 1, 0, NULL, "
-            'NULL)',
-          ),
+          tamper: (db) {
+            db.execute(
+              "INSERT INTO category VALUES (3, 1, 'קטגוריה חדשה', 1, 0, NULL, "
+              'NULL)',
+            );
+            // שם זהה לספר רשמי באותה קטגוריה היה הופך לגרסה ויוצא מהעץ.
+            db.execute("UPDATE book SET title = title || ' א'");
+          },
         ),
       );
-      final second = await attach(fixture('שני'));
+      final second = await attach(
+        fixture(
+          'שני',
+          tamper: (db) => db.execute("UPDATE book SET title = title || ' ב'"),
+        ),
+      );
       for (final library in [first, second]) {
         await attached.setPlacement(
           library,
