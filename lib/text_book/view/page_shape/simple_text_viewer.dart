@@ -417,6 +417,9 @@ class SimpleTextViewer extends StatefulWidget {
   /// פתיחת לשונית המפרשים עם חלונית בחירת המפרשים פרושה.
   final VoidCallback? onOpenCommentatorsPaneWithFilter;
 
+  /// מפרש בודד שנבחר מתפריט הפסקה [sourceLine], לגלילה אליו בחלונית.
+  final void Function(String title, int sourceLine)? onCommentatorPicked;
+
   /// קישורי העוגן של ספר המפרש עצמו (מפתח: מספר שורה 1-based) — סמני אותיות
   /// שער הציון וכד' וציטוטי הלינקר בעמודת מפרש.
   /// בטקסט הראשי נשאר null: העוגנים שם נקראים מ-state.linksByLine.
@@ -456,6 +459,7 @@ class SimpleTextViewer extends StatefulWidget {
     this.isLinksTabActive = false,
     this.onOpenCommentatorsPane,
     this.onOpenCommentatorsPaneWithFilter,
+    this.onCommentatorPicked,
     this.anchorLinksByLine,
     this.anchorBookNotes = BookNotes.empty,
   });
@@ -2315,6 +2319,9 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         context.read<TextBookBloc>().add(UpdateCommentators(commentators));
         if (isAdding) widget.onOpenCommentatorsPane?.call();
       },
+      onCommentatorPicked: widget.onCommentatorPicked == null
+          ? null
+          : (title) => widget.onCommentatorPicked!(title, index),
     );
   }
 
