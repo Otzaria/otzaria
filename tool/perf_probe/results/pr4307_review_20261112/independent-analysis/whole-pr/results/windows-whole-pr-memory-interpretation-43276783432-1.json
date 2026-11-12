@@ -1,0 +1,211 @@
+{
+  "runIdentity": {
+    "expected_hardware_id": "github-hosted-43276783432-1",
+    "baseline_hardware_id": "github-hosted-43276783432-1",
+    "candidate_hardware_id": "github-hosted-43276783432-1",
+    "github_run_id": "43276783432",
+    "github_run_attempt": "1",
+    "os": "windows-10.0.26100-26100",
+    "flutter_revision": "abaf9c523780a608bd46686fd5e53740a07077f8"
+  },
+  "comparisonDesign": "whole-pr",
+  "sourceReport": "windows-whole-pr-memory-43276783432-1.json",
+  "sourceReportSha256": "1092650420d8ca9d0bdeab1818d7aef059b460c2c3ae74f690628c5f89e16fbe",
+  "fullLoadCurrentHeap": {
+    "afterMiB": {
+      "baseline": {
+        "count": 16,
+        "min": 463.21421813964844,
+        "median": 468.32238006591797,
+        "max": 475.23321533203125,
+        "mean": 469.50288677215576
+      },
+      "candidate": {
+        "count": 16,
+        "min": 448.4569854736328,
+        "median": 459.5370330810547,
+        "max": 461.40745544433594,
+        "mean": 457.05118465423584
+      }
+    },
+    "beforeMiB": {
+      "baseline": {
+        "count": 16,
+        "min": 500.8180389404297,
+        "median": 557.6564483642578,
+        "max": 574.7241058349609,
+        "mean": 554.1617393493652
+      },
+      "candidate": {
+        "count": 16,
+        "min": 486.3597717285156,
+        "median": 543.4418029785156,
+        "max": 548.7468109130859,
+        "mean": 538.4798917770386
+      }
+    },
+    "processAfterMediansMiB": {
+      "baseline": [
+        465.74388122558594,
+        466.733154296875,
+        472.8961715698242,
+        468.9879913330078
+      ],
+      "candidate": [
+        459.54551696777344,
+        457.29437255859375,
+        460.34703826904297,
+        455.1894989013672
+      ]
+    },
+    "processAfterRatios": [
+      0.986691474633007,
+      0.9797769203850526,
+      0.9734632376931215,
+      0.9705781540537508
+    ],
+    "interpretation": "Slightly lower observed current heap after steady scrolling in all four process medians on this VM; no forced GC, retained-live-object or representation-only attribution. Both sides show large before/after drops, so GC timing and ongoing instrumentation matter."
+  },
+  "fullLoadWindowsSamples": {
+    "coverage": {
+      "baseline": {
+        "actions": 16,
+        "samples": 30
+      },
+      "candidate": {
+        "actions": 16,
+        "samples": 30
+      }
+    },
+    "actionObservedMaximaMiB": {
+      "baseline": {
+        "csv.workingSetObservedMaxMiB": {
+          "count": 16,
+          "min": 847.9375,
+          "median": 905.564453125,
+          "max": 986.8515625,
+          "mean": 906.2939453125
+        },
+        "csv.privateObservedMaxMiB": {
+          "count": 16,
+          "min": 743.75,
+          "median": 767.123046875,
+          "max": 859.91796875,
+          "mean": 777.73681640625
+        }
+      },
+      "candidate": {
+        "csv.workingSetObservedMaxMiB": {
+          "count": 16,
+          "min": 849.05078125,
+          "median": 878.177734375,
+          "max": 963.35546875,
+          "mean": 889.96337890625
+        },
+        "csv.privateObservedMaxMiB": {
+          "count": 16,
+          "min": 728.80859375,
+          "median": 739.39453125,
+          "max": 835.234375,
+          "mean": 752.465576171875
+        }
+      }
+    },
+    "processMedianRatios": {
+      "csv.workingSetObservedMaxMiB": [
+        0.963527739118687,
+        0.9817681902495363,
+        0.9755275454307949,
+        0.9749688995316885
+      ],
+      "csv.privateObservedMaxMiB": [
+        0.9456684582927946,
+        0.9785786479241684,
+        0.9677708191982809,
+        0.9703666587330418
+      ]
+    },
+    "interpretation": "Lower medians of within-action observed maxima in all four process pairs. Only 1–2 external samples per action; values overlap. These are sampled whole-process working set/private memory, not exact peaks, retained Dart objects or a proven memory-saving amount."
+  },
+  "partialOpen": {
+    "afterCurrentHeapMiB": {
+      "baseline": {
+        "count": 16,
+        "min": 137.3033905029297,
+        "median": 175.1792221069336,
+        "max": 197.90228271484375,
+        "mean": 170.6884069442749
+      },
+      "candidate": {
+        "count": 16,
+        "min": 120.11122131347656,
+        "median": 131.2941131591797,
+        "max": 147.3930206298828,
+        "mean": 131.46170043945312
+      }
+    },
+    "afterCurrentHeapProcessRatios": [
+      0.7613537288358297,
+      0.7646518080732717,
+      0.744020472634379,
+      0.741342925469829
+    ],
+    "phaseRssEndMiB": {
+      "baseline": {
+        "count": 16,
+        "min": 562.51953125,
+        "median": 628.498046875,
+        "max": 646.95703125,
+        "mean": 616.64599609375
+      },
+      "candidate": {
+        "count": 16,
+        "min": 539.4296875,
+        "median": 547.90625,
+        "max": 556.96484375,
+        "mean": 548.06982421875
+      }
+    },
+    "csvCoverage": {
+      "baseline": {
+        "actions": 11,
+        "samples": 11
+      },
+      "candidate": {
+        "actions": 6,
+        "samples": 6
+      }
+    },
+    "interpretation": "Current heap and end-of-phase RSS are lower at these partially loaded open checkpoints. Open durations differ, and collection/drain changes background progress. External 500 ms sampling covers 11/16 baseline but only 6/16 candidate actions; candidate process 0 has no in-window sample for any of its four opens. External open samples cannot support a balanced process comparison, and missing samples are never zero."
+  },
+  "measurementBoundaries": {
+    "heap": "Current usage/capacity/external usage summed once per application isolate group, without forced GC. Before is before action setup; after follows the profile frame-delivery drain. Snapshot timestamps within that sampling call are not recorded.",
+    "phaseRss": "ProcessInfo.currentRss start/end plus an in-process 250 ms Timer sampled maximum. Event-loop delays can delay samples; this is not an exact peak. This timer differs from the separate 250 ms frame-delivery drain.",
+    "csvWorkingSet": "Windows Process.WorkingSet64 / 1MB from the external nominal 500 ms sampler. Includes the whole application process, native/runtime/profiling state.",
+    "csvPrivate": "Windows Process.PrivateMemorySize64 / 1MB, private committed process memory; not equivalent to resident working set or Dart heap.",
+    "csvWindow": "Exact root PID plus creation ticks and launchIndex, startMs <= epoch_ms < endMs. No halo/nearest sample or interpolation. Per-action observed maxima are summarized with equal action weights where available."
+  },
+  "sampling": {
+    "baseline": {
+      "heap": true,
+      "intervalMs": 500,
+      "treeRefreshMs": 2000,
+      "heapAggregation": "unique-application-isolate-groups"
+    },
+    "candidate": {
+      "treeRefreshMs": 2000,
+      "heapAggregation": "unique-application-isolate-groups",
+      "intervalMs": 500,
+      "heap": true
+    }
+  },
+  "limitations": [
+    "No allocation-throughput, retained-object, live-object-after-GC or exact process peak claim.",
+    "Heap differences and deltas include natural GC timing, prior action history and instrumentation; negative deltas are retained.",
+    "Long open is a partial-load state; steady_scroll follows verified full load of one million logical lines and no active content I/O.",
+    "Open actions shorter than the external sampler interval may have no in-window CSV sample; absence is not zero and coverage differs by side.",
+    "Repeated actions share process state. Four paired process medians describe one VM, not independent hardware replications.",
+    "All raw observations are retained. Do not pool runs or attribute the whole-PR comparison solely to representation."
+  ],
+  "conclusion": "Report observed snapshot values and sparse sample coverage with units. Do not claim retained memory, allocation throughput, exact peak reduction, cross-machine generality or memory savings caused by ChunkedList."
+}

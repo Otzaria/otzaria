@@ -1,0 +1,623 @@
+{
+  "design": "whole-pr",
+  "run_id": "43276783432",
+  "baseline": "8d24d26f6b7eef04ad9eda1f30eb9ea0e53cf546",
+  "candidate": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+  "phase_files": {
+    "baseline": {
+      "sha256": "17ff6429dcab9fcb6e70d2a461e4830649e9927ed58e146b7e9aed7fab3093f4",
+      "bytes": 16348934
+    },
+    "candidate": {
+      "sha256": "61188e5d320e50676887b2c04f8e7843aa8b910c7aec1c099ffcd253b2c23b6c",
+      "bytes": 16394550
+    }
+  },
+  "actions": {
+    "open": {
+      "baseline": [
+        {
+          "launch_index": 0,
+          "duration_ms": [
+            358.317,
+            326.149,
+            345.232,
+            453.596
+          ],
+          "arithmetic_median_ms": 351.7745
+        },
+        {
+          "launch_index": 1,
+          "duration_ms": [
+            368.408,
+            356.661,
+            337.88,
+            385.084
+          ],
+          "arithmetic_median_ms": 362.5345
+        },
+        {
+          "launch_index": 2,
+          "duration_ms": [
+            377.405,
+            352.874,
+            358.885,
+            375.726
+          ],
+          "arithmetic_median_ms": 367.3055
+        },
+        {
+          "launch_index": 3,
+          "duration_ms": [
+            367.814,
+            352.733,
+            389.031,
+            369.678
+          ],
+          "arithmetic_median_ms": 368.746
+        }
+      ],
+      "candidate": [
+        {
+          "launch_index": 0,
+          "duration_ms": [
+            183.828,
+            190.049,
+            190.663,
+            192.176
+          ],
+          "arithmetic_median_ms": 190.356
+        },
+        {
+          "launch_index": 1,
+          "duration_ms": [
+            195.08,
+            176.738,
+            175.784,
+            182.938
+          ],
+          "arithmetic_median_ms": 179.838
+        },
+        {
+          "launch_index": 2,
+          "duration_ms": [
+            179.798,
+            176.14,
+            175.821,
+            175.124
+          ],
+          "arithmetic_median_ms": 175.9805
+        },
+        {
+          "launch_index": 3,
+          "duration_ms": [
+            194.095,
+            195.407,
+            191.882,
+            182.436
+          ],
+          "arithmetic_median_ms": 192.9885
+        }
+      ]
+    },
+    "scroll": {
+      "baseline": [
+        {
+          "launch_index": 0,
+          "duration_ms": [
+            934.767,
+            946.052,
+            952.783,
+            1315.564
+          ],
+          "arithmetic_median_ms": 949.4175
+        },
+        {
+          "launch_index": 1,
+          "duration_ms": [
+            932.784,
+            972.443,
+            956.477,
+            968.664
+          ],
+          "arithmetic_median_ms": 962.5705
+        },
+        {
+          "launch_index": 2,
+          "duration_ms": [
+            939.873,
+            939.456,
+            953.929,
+            941.406
+          ],
+          "arithmetic_median_ms": 940.6395
+        },
+        {
+          "launch_index": 3,
+          "duration_ms": [
+            1044.056,
+            932.881,
+            995.239,
+            1007.297
+          ],
+          "arithmetic_median_ms": 1001.268
+        }
+      ],
+      "candidate": [
+        {
+          "launch_index": 0,
+          "duration_ms": [
+            967.206,
+            938.718,
+            1561.798,
+            992.488
+          ],
+          "arithmetic_median_ms": 979.847
+        },
+        {
+          "launch_index": 1,
+          "duration_ms": [
+            1477.138,
+            932.622,
+            964.392,
+            959.811
+          ],
+          "arithmetic_median_ms": 962.1015
+        },
+        {
+          "launch_index": 2,
+          "duration_ms": [
+            941.555,
+            962.392,
+            1684.734,
+            996.707
+          ],
+          "arithmetic_median_ms": 979.5495000000001
+        },
+        {
+          "launch_index": 3,
+          "duration_ms": [
+            961.446,
+            999.316,
+            983.158,
+            944.499
+          ],
+          "arithmetic_median_ms": 972.302
+        }
+      ]
+    },
+    "jump_forward": {
+      "baseline": [
+        {
+          "launch_index": 0,
+          "duration_ms": [
+            665.285,
+            230.5,
+            136.647,
+            770.348
+          ],
+          "arithmetic_median_ms": 447.8925
+        },
+        {
+          "launch_index": 1,
+          "duration_ms": [
+            107.26,
+            108.991,
+            113.503,
+            132.603
+          ],
+          "arithmetic_median_ms": 111.247
+        },
+        {
+          "launch_index": 2,
+          "duration_ms": [
+            133.111,
+            130.147,
+            127.964,
+            139.698
+          ],
+          "arithmetic_median_ms": 131.629
+        },
+        {
+          "launch_index": 3,
+          "duration_ms": [
+            127.044,
+            119.668,
+            101.9,
+            115.811
+          ],
+          "arithmetic_median_ms": 117.7395
+        }
+      ],
+      "candidate": [
+        {
+          "launch_index": 0,
+          "duration_ms": [
+            85.074,
+            102.297,
+            109.12,
+            79.995
+          ],
+          "arithmetic_median_ms": 93.68549999999999
+        },
+        {
+          "launch_index": 1,
+          "duration_ms": [
+            95.949,
+            79.663,
+            84.913,
+            73.092
+          ],
+          "arithmetic_median_ms": 82.288
+        },
+        {
+          "launch_index": 2,
+          "duration_ms": [
+            700.714,
+            80.287,
+            86.393,
+            85.355
+          ],
+          "arithmetic_median_ms": 85.874
+        },
+        {
+          "launch_index": 3,
+          "duration_ms": [
+            85.183,
+            80.955,
+            82.949,
+            58.245
+          ],
+          "arithmetic_median_ms": 81.952
+        }
+      ]
+    },
+    "jump_backward": {
+      "baseline": [
+        {
+          "launch_index": 0,
+          "duration_ms": [
+            120.995,
+            99.929,
+            115.52,
+            712.763
+          ],
+          "arithmetic_median_ms": 118.2575
+        },
+        {
+          "launch_index": 1,
+          "duration_ms": [
+            117.608,
+            116.43,
+            125.004,
+            127.77
+          ],
+          "arithmetic_median_ms": 121.30600000000001
+        },
+        {
+          "launch_index": 2,
+          "duration_ms": [
+            122.827,
+            117.18,
+            112.815,
+            123.011
+          ],
+          "arithmetic_median_ms": 120.0035
+        },
+        {
+          "launch_index": 3,
+          "duration_ms": [
+            642.24,
+            105.142,
+            113.008,
+            117.839
+          ],
+          "arithmetic_median_ms": 115.42349999999999
+        }
+      ],
+      "candidate": [
+        {
+          "launch_index": 0,
+          "duration_ms": [
+            84.045,
+            85.012,
+            62.753,
+            73.094
+          ],
+          "arithmetic_median_ms": 78.5695
+        },
+        {
+          "launch_index": 1,
+          "duration_ms": [
+            95.17,
+            81.284,
+            749.68,
+            690.031
+          ],
+          "arithmetic_median_ms": 392.60049999999995
+        },
+        {
+          "launch_index": 2,
+          "duration_ms": [
+            99.002,
+            78.442,
+            65.322,
+            98.704
+          ],
+          "arithmetic_median_ms": 88.573
+        },
+        {
+          "launch_index": 3,
+          "duration_ms": [
+            91.978,
+            120.306,
+            88.507,
+            756.449
+          ],
+          "arithmetic_median_ms": 106.142
+        }
+      ]
+    },
+    "warmup_complete": {
+      "baseline": [
+        {
+          "launch_index": 0,
+          "duration_ms": [
+            31009.958,
+            30943.482,
+            35484.112,
+            33384.739
+          ],
+          "arithmetic_median_ms": 32197.3485
+        },
+        {
+          "launch_index": 1,
+          "duration_ms": [
+            30821.374,
+            30841.099,
+            30863.669,
+            30827.79
+          ],
+          "arithmetic_median_ms": 30834.444499999998
+        },
+        {
+          "launch_index": 2,
+          "duration_ms": [
+            30946.061,
+            31051.802,
+            30942.672,
+            30951.234
+          ],
+          "arithmetic_median_ms": 30948.6475
+        },
+        {
+          "launch_index": 3,
+          "duration_ms": [
+            30814.255,
+            30812.439,
+            30840.652,
+            30855.856
+          ],
+          "arithmetic_median_ms": 30827.4535
+        }
+      ],
+      "candidate": [
+        {
+          "launch_index": 0,
+          "duration_ms": [
+            27620.495,
+            27536.347,
+            27781.399,
+            27525.111
+          ],
+          "arithmetic_median_ms": 27578.421000000002
+        },
+        {
+          "launch_index": 1,
+          "duration_ms": [
+            27736.923,
+            27681.533,
+            27460.538,
+            27430.941
+          ],
+          "arithmetic_median_ms": 27571.035499999998
+        },
+        {
+          "launch_index": 2,
+          "duration_ms": [
+            27485.729,
+            27625.684,
+            27769.466,
+            27621.084
+          ],
+          "arithmetic_median_ms": 27623.384
+        },
+        {
+          "launch_index": 3,
+          "duration_ms": [
+            27534.592,
+            27495.399,
+            27538.069,
+            27370.582
+          ],
+          "arithmetic_median_ms": 27514.9955
+        }
+      ]
+    },
+    "steady_scroll": {
+      "baseline": [
+        {
+          "launch_index": 0,
+          "duration_ms": [
+            935.171,
+            930.063,
+            972.378,
+            979.723
+          ],
+          "arithmetic_median_ms": 953.7745
+        },
+        {
+          "launch_index": 1,
+          "duration_ms": [
+            941.846,
+            942.075,
+            931.603,
+            930.774
+          ],
+          "arithmetic_median_ms": 936.7245
+        },
+        {
+          "launch_index": 2,
+          "duration_ms": [
+            936.506,
+            926.361,
+            926.692,
+            936.193
+          ],
+          "arithmetic_median_ms": 931.4425
+        },
+        {
+          "launch_index": 3,
+          "duration_ms": [
+            928.589,
+            932.593,
+            928.098,
+            942.276
+          ],
+          "arithmetic_median_ms": 930.591
+        }
+      ],
+      "candidate": [
+        {
+          "launch_index": 0,
+          "duration_ms": [
+            934.416,
+            934.213,
+            947.541,
+            939.211
+          ],
+          "arithmetic_median_ms": 936.8135
+        },
+        {
+          "launch_index": 1,
+          "duration_ms": [
+            935.016,
+            953.433,
+            956.662,
+            932.597
+          ],
+          "arithmetic_median_ms": 944.2245
+        },
+        {
+          "launch_index": 2,
+          "duration_ms": [
+            940.774,
+            928.482,
+            946.065,
+            939.388
+          ],
+          "arithmetic_median_ms": 940.081
+        },
+        {
+          "launch_index": 3,
+          "duration_ms": [
+            928.839,
+            932.548,
+            927.015,
+            933.713
+          ],
+          "arithmetic_median_ms": 930.6935000000001
+        }
+      ]
+    },
+    "close": {
+      "baseline": [
+        {
+          "launch_index": 0,
+          "duration_ms": [
+            363.057,
+            354.919,
+            352.481,
+            356.566
+          ],
+          "arithmetic_median_ms": 355.74249999999995
+        },
+        {
+          "launch_index": 1,
+          "duration_ms": [
+            367.67,
+            368.13,
+            368.282,
+            365.689
+          ],
+          "arithmetic_median_ms": 367.9
+        },
+        {
+          "launch_index": 2,
+          "duration_ms": [
+            354.189,
+            363.371,
+            364.961,
+            366.242
+          ],
+          "arithmetic_median_ms": 364.166
+        },
+        {
+          "launch_index": 3,
+          "duration_ms": [
+            354.444,
+            367.065,
+            365.922,
+            352.341
+          ],
+          "arithmetic_median_ms": 360.183
+        }
+      ],
+      "candidate": [
+        {
+          "launch_index": 0,
+          "duration_ms": [
+            367.686,
+            361.821,
+            358.738,
+            364.673
+          ],
+          "arithmetic_median_ms": 363.247
+        },
+        {
+          "launch_index": 1,
+          "duration_ms": [
+            366.181,
+            358.25,
+            368.019,
+            355.624
+          ],
+          "arithmetic_median_ms": 362.2155
+        },
+        {
+          "launch_index": 2,
+          "duration_ms": [
+            365.157,
+            363.155,
+            360.917,
+            361.975
+          ],
+          "arithmetic_median_ms": 362.565
+        },
+        {
+          "launch_index": 3,
+          "duration_ms": [
+            361.288,
+            363.714,
+            365.417,
+            367.907
+          ],
+          "arithmetic_median_ms": 364.5655
+        }
+      ]
+    }
+  },
+  "method": "All16 observations per side per action;4 process groups;arithmetic process medians;no filtering;no pooling across runs",
+  "figure_sha256": "0a53cd748a9059079950fb51cffacd5c5f2eff333dd9562c4d45cec2e8b15469",
+  "observation_count": 224
+}

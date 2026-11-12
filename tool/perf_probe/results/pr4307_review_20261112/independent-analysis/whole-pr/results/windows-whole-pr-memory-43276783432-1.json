@@ -1,0 +1,4264 @@
+{
+  "runIdentity": {
+    "expected_hardware_id": "github-hosted-43276783432-1",
+    "baseline_hardware_id": "github-hosted-43276783432-1",
+    "candidate_hardware_id": "github-hosted-43276783432-1",
+    "github_run_id": "43276783432",
+    "github_run_attempt": "1",
+    "os": "windows-10.0.26100-26100",
+    "flutter_revision": "abaf9c523780a608bd46686fd5e53740a07077f8"
+  },
+  "comparisonDesign": "whole-pr",
+  "baseline": "8d24d26f6b7eef04ad9eda1f30eb9ea0e53cf546",
+  "candidate": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+  "unit": "MiB = 1,048,576 bytes; PowerShell 1MB divisor is binary MiB",
+  "sampling": {
+    "baseline": {
+      "heap": true,
+      "intervalMs": 500,
+      "treeRefreshMs": 2000,
+      "heapAggregation": "unique-application-isolate-groups"
+    },
+    "candidate": {
+      "treeRefreshMs": 2000,
+      "heapAggregation": "unique-application-isolate-groups",
+      "intervalMs": 500,
+      "heap": true
+    }
+  },
+  "observedExternalSamplerIntervalsMsByProcess": {
+    "baseline": {
+      "0": {
+        "count": 505,
+        "min": 274,
+        "median": 501,
+        "max": 816,
+        "mean": 504.0950495049505
+      },
+      "1": {
+        "count": 485,
+        "min": 367,
+        "median": 501,
+        "max": 608,
+        "mean": 500.85154639175255
+      },
+      "2": {
+        "count": 487,
+        "min": 370,
+        "median": 501,
+        "max": 579,
+        "mean": 501.0082135523614
+      },
+      "3": {
+        "count": 488,
+        "min": 367,
+        "median": 501.0,
+        "max": 572,
+        "mean": 501.05737704918033
+      }
+    },
+    "candidate": {
+      "0": {
+        "count": 452,
+        "min": 318,
+        "median": 501.0,
+        "max": 684,
+        "mean": 500.9137168141593
+      },
+      "1": {
+        "count": 454,
+        "min": 360,
+        "median": 501.0,
+        "max": 581,
+        "mean": 500.9537444933921
+      },
+      "2": {
+        "count": 453,
+        "min": 362,
+        "median": 501,
+        "max": 620,
+        "mean": 501.0286975717439
+      },
+      "3": {
+        "count": 449,
+        "min": 363,
+        "median": 501,
+        "max": 628,
+        "mean": 501.07795100222717
+      }
+    }
+  },
+  "definitions": {
+    "heap": "Current usage/capacity/external usage summed once per application isolate group, without forced GC. Before is before action setup; after follows the profile frame-delivery drain. Snapshot timestamps within that sampling call are not recorded.",
+    "phaseRss": "ProcessInfo.currentRss start/end plus an in-process 250 ms Timer sampled maximum. Event-loop delays can delay samples; this is not an exact peak. This timer differs from the separate 250 ms frame-delivery drain.",
+    "csvWorkingSet": "Windows Process.WorkingSet64 / 1MB from the external nominal 500 ms sampler. Includes the whole application process, native/runtime/profiling state.",
+    "csvPrivate": "Windows Process.PrivateMemorySize64 / 1MB, private committed process memory; not equivalent to resident working set or Dart heap.",
+    "csvWindow": "Exact root PID plus creation ticks and launchIndex, startMs <= epoch_ms < endMs. No halo/nearest sample or interpolation. Per-action observed maxima are summarized with equal action weights where available."
+  },
+  "limitations": [
+    "No allocation-throughput, retained-object, live-object-after-GC or exact process peak claim.",
+    "Heap differences and deltas include natural GC timing, prior action history and instrumentation; negative deltas are retained.",
+    "Long open is a partial-load state; steady_scroll follows verified full load of one million logical lines and no active content I/O.",
+    "Open actions shorter than the external sampler interval may have no in-window CSV sample; absence is not zero and coverage differs by side.",
+    "Repeated actions share process state. Four paired process medians describe one VM, not independent hardware replications.",
+    "All raw observations are retained. Do not pool runs or attribute the whole-PR comparison solely to representation."
+  ],
+  "scenarios": {
+    "book.long.open": {
+      "baseline": {
+        "pooledActionDistributions": {
+          "heapBefore.heapUsageMiB": {
+            "count": 16,
+            "min": 96.33763122558594,
+            "median": 100.67130279541016,
+            "max": 106.49299621582031,
+            "mean": 100.52787685394287
+          },
+          "heapBefore.heapCapacityMiB": {
+            "count": 16,
+            "min": 109.51953125,
+            "median": 114.84765625,
+            "max": 117.2421875,
+            "mean": 114.217529296875
+          },
+          "heapBefore.externalUsageMiB": {
+            "count": 16,
+            "min": 0.01702117919921875,
+            "median": 0.01734161376953125,
+            "max": 0.02805328369140625,
+            "mean": 0.018037796020507812
+          },
+          "heapAfter.heapUsageMiB": {
+            "count": 16,
+            "min": 137.3033905029297,
+            "median": 175.1792221069336,
+            "max": 197.90228271484375,
+            "mean": 170.6884069442749
+          },
+          "heapAfter.heapCapacityMiB": {
+            "count": 16,
+            "min": 141.84375,
+            "median": 179.626953125,
+            "max": 202.22265625,
+            "mean": 175.47998046875
+          },
+          "heapAfter.externalUsageMiB": {
+            "count": 16,
+            "min": 0.02510833740234375,
+            "median": 0.02921295166015625,
+            "max": 0.03261566162109375,
+            "mean": 0.02883625030517578
+          },
+          "heapUsageAfterMinusBeforeMiB": {
+            "count": 16,
+            "min": 38.29396057128906,
+            "median": 74.28069305419922,
+            "max": 99.4952392578125,
+            "mean": 70.16053009033203
+          },
+          "phase.rssStartMiB": {
+            "count": 16,
+            "min": 500.30859375,
+            "median": 533.91015625,
+            "max": 547.29296875,
+            "mean": 531.6171875
+          },
+          "phase.rssEndMiB": {
+            "count": 16,
+            "min": 562.51953125,
+            "median": 628.498046875,
+            "max": 646.95703125,
+            "mean": 616.64599609375
+          },
+          "phase.rssPeakMiB": {
+            "count": 16,
+            "min": 562.51953125,
+            "median": 628.498046875,
+            "max": 646.95703125,
+            "mean": 620.1787109375
+          },
+          "csv.workingSetObservedMaxMiB": {
+            "count": 11,
+            "min": 496.515625,
+            "median": 546.8671875,
+            "max": 560.1015625,
+            "mean": 543.8132102272727
+          },
+          "csv.privateObservedMaxMiB": {
+            "count": 11,
+            "min": 393.4140625,
+            "median": 414.78515625,
+            "max": 457.1171875,
+            "mean": 418.9495738636364
+          }
+        },
+        "coveredActionsByCsv": 11,
+        "totalCsvSamplesInsideActions": 11,
+        "perProcess": [
+          {
+            "launchIndex": 0,
+            "csvSamplesPerIteration": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "metrics": {
+              "heapBefore.heapUsageMiB": {
+                "count": 4,
+                "min": 99.00942993164062,
+                "median": 100.5986557006836,
+                "max": 102.82717895507812,
+                "mean": 100.75848007202148
+              },
+              "heapBefore.heapCapacityMiB": {
+                "count": 4,
+                "min": 109.51953125,
+                "median": 114.875,
+                "max": 115.23046875,
+                "mean": 113.625
+              },
+              "heapBefore.externalUsageMiB": {
+                "count": 4,
+                "min": 0.01703643798828125,
+                "median": 0.01717376708984375,
+                "max": 0.01728057861328125,
+                "mean": 0.0171661376953125
+              },
+              "heapAfter.heapUsageMiB": {
+                "count": 4,
+                "min": 137.3033905029297,
+                "median": 174.5411834716797,
+                "max": 183.7637939453125,
+                "mean": 167.5373878479004
+              },
+              "heapAfter.heapCapacityMiB": {
+                "count": 4,
+                "min": 141.84375,
+                "median": 178.5859375,
+                "max": 188.3515625,
+                "mean": 171.841796875
+              },
+              "heapAfter.externalUsageMiB": {
+                "count": 4,
+                "min": 0.02513885498046875,
+                "median": 0.03127288818359375,
+                "max": 0.03261566162109375,
+                "mean": 0.0300750732421875
+              },
+              "heapUsageAfterMinusBeforeMiB": {
+                "count": 4,
+                "min": 38.29396057128906,
+                "median": 72.55203247070312,
+                "max": 83.71760559082031,
+                "mean": 66.7789077758789
+              },
+              "phase.rssStartMiB": {
+                "count": 4,
+                "min": 500.30859375,
+                "median": 536.681640625,
+                "max": 540.48046875,
+                "mean": 528.5380859375
+              },
+              "phase.rssEndMiB": {
+                "count": 4,
+                "min": 578.484375,
+                "median": 635.994140625,
+                "max": 645.25,
+                "mean": 623.9306640625
+              },
+              "phase.rssPeakMiB": {
+                "count": 4,
+                "min": 578.484375,
+                "median": 635.994140625,
+                "max": 645.25,
+                "mean": 623.9306640625
+              },
+              "csv.workingSetObservedMaxMiB": {
+                "count": 2,
+                "min": 496.515625,
+                "median": 528.30859375,
+                "max": 560.1015625,
+                "mean": 528.30859375
+              },
+              "csv.privateObservedMaxMiB": {
+                "count": 2,
+                "min": 393.4140625,
+                "median": 407.580078125,
+                "max": 421.74609375,
+                "mean": 407.580078125
+              }
+            }
+          },
+          {
+            "launchIndex": 1,
+            "csvSamplesPerIteration": [
+              1,
+              0,
+              0,
+              1
+            ],
+            "metrics": {
+              "heapBefore.heapUsageMiB": {
+                "count": 4,
+                "min": 96.33763122558594,
+                "median": 99.35868072509766,
+                "max": 101.59901428222656,
+                "mean": 99.16350173950195
+              },
+              "heapBefore.heapCapacityMiB": {
+                "count": 4,
+                "min": 110.4375,
+                "median": 115.27734375,
+                "max": 117.2421875,
+                "mean": 114.55859375
+              },
+              "heapBefore.externalUsageMiB": {
+                "count": 4,
+                "min": 0.01702117919921875,
+                "median": 0.01735687255859375,
+                "max": 0.01772308349609375,
+                "mean": 0.017364501953125
+              },
+              "heapAfter.heapUsageMiB": {
+                "count": 4,
+                "min": 145.73081970214844,
+                "median": 166.76956939697266,
+                "max": 195.83287048339844,
+                "mean": 168.77570724487305
+              },
+              "heapAfter.heapCapacityMiB": {
+                "count": 4,
+                "min": 151.92578125,
+                "median": 171.087890625,
+                "max": 200.12890625,
+                "mean": 173.5576171875
+              },
+              "heapAfter.externalUsageMiB": {
+                "count": 4,
+                "min": 0.02510833740234375,
+                "median": 0.02851104736328125,
+                "max": 0.03260040283203125,
+                "mean": 0.028682708740234375
+              },
+              "heapUsageAfterMinusBeforeMiB": {
+                "count": 4,
+                "min": 47.23426818847656,
+                "median": 65.85965728759766,
+                "max": 99.4952392578125,
+                "mean": 69.6122055053711
+              },
+              "phase.rssStartMiB": {
+                "count": 4,
+                "min": 528.9140625,
+                "median": 536.44140625,
+                "max": 546.23046875,
+                "mean": 537.0068359375
+              },
+              "phase.rssEndMiB": {
+                "count": 4,
+                "min": 606.29296875,
+                "median": 639.263671875,
+                "max": 645.21484375,
+                "mean": 632.5087890625
+              },
+              "phase.rssPeakMiB": {
+                "count": 4,
+                "min": 606.29296875,
+                "median": 639.263671875,
+                "max": 645.21484375,
+                "mean": 632.5087890625
+              },
+              "csv.workingSetObservedMaxMiB": {
+                "count": 2,
+                "min": 540.921875,
+                "median": 550.1640625,
+                "max": 559.40625,
+                "mean": 550.1640625
+              },
+              "csv.privateObservedMaxMiB": {
+                "count": 2,
+                "min": 403.0703125,
+                "median": 418.900390625,
+                "max": 434.73046875,
+                "mean": 418.900390625
+              }
+            }
+          },
+          {
+            "launchIndex": 2,
+            "csvSamplesPerIteration": [
+              1,
+              1,
+              0,
+              1
+            ],
+            "metrics": {
+              "heapBefore.heapUsageMiB": {
+                "count": 4,
+                "min": 98.51026916503906,
+                "median": 100.67130279541016,
+                "max": 100.75311279296875,
+                "mean": 100.15149688720703
+              },
+              "heapBefore.heapCapacityMiB": {
+                "count": 4,
+                "min": 113.09765625,
+                "median": 114.5703125,
+                "max": 115.08203125,
+                "mean": 114.330078125
+              },
+              "heapBefore.externalUsageMiB": {
+                "count": 4,
+                "min": 0.01725006103515625,
+                "median": 0.01769256591796875,
+                "max": 0.01773834228515625,
+                "mean": 0.0175933837890625
+              },
+              "heapAfter.heapUsageMiB": {
+                "count": 4,
+                "min": 141.19178771972656,
+                "median": 177.95406341552734,
+                "max": 186.22760009765625,
+                "mean": 170.83187866210938
+              },
+              "heapAfter.heapCapacityMiB": {
+                "count": 4,
+                "min": 144.80859375,
+                "median": 182.603515625,
+                "max": 194.03125,
+                "mean": 176.01171875
+              },
+              "heapAfter.externalUsageMiB": {
+                "count": 4,
+                "min": 0.02513885498046875,
+                "median": 0.02513885498046875,
+                "max": 0.03261566162109375,
+                "mean": 0.027008056640625
+              },
+              "heapUsageAfterMinusBeforeMiB": {
+                "count": 4,
+                "min": 40.43867492675781,
+                "median": 78.37596130371094,
+                "max": 85.53092956542969,
+                "mean": 70.68038177490234
+              },
+              "phase.rssStartMiB": {
+                "count": 4,
+                "min": 511.8984375,
+                "median": 533.37109375,
+                "max": 540.328125,
+                "mean": 529.7421875
+              },
+              "phase.rssEndMiB": {
+                "count": 4,
+                "min": 562.51953125,
+                "median": 590.53125,
+                "max": 646.2890625,
+                "mean": 597.4677734375
+              },
+              "phase.rssPeakMiB": {
+                "count": 4,
+                "min": 562.51953125,
+                "median": 598.65625,
+                "max": 646.2890625,
+                "mean": 601.5302734375
+              },
+              "csv.workingSetObservedMaxMiB": {
+                "count": 3,
+                "min": 545.76171875,
+                "median": 546.9296875,
+                "max": 560.0078125,
+                "mean": 550.8997395833334
+              },
+              "csv.privateObservedMaxMiB": {
+                "count": 3,
+                "min": 410.3984375,
+                "median": 414.31640625,
+                "max": 457.1171875,
+                "mean": 427.27734375
+              }
+            }
+          },
+          {
+            "launchIndex": 3,
+            "csvSamplesPerIteration": [
+              1,
+              1,
+              1,
+              1
+            ],
+            "metrics": {
+              "heapBefore.heapUsageMiB": {
+                "count": 4,
+                "min": 99.00822448730469,
+                "median": 101.32544708251953,
+                "max": 106.49299621582031,
+                "mean": 102.03802871704102
+              },
+              "heapBefore.heapCapacityMiB": {
+                "count": 4,
+                "min": 111.6875,
+                "median": 114.84765625,
+                "max": 116.04296875,
+                "mean": 114.3564453125
+              },
+              "heapBefore.externalUsageMiB": {
+                "count": 4,
+                "min": 0.01703643798828125,
+                "median": 0.01750946044921875,
+                "max": 0.02805328369140625,
+                "mean": 0.02002716064453125
+              },
+              "heapAfter.heapUsageMiB": {
+                "count": 4,
+                "min": 145.64410400390625,
+                "median": 179.4441146850586,
+                "max": 197.90228271484375,
+                "mean": 175.6086540222168
+              },
+              "heapAfter.heapCapacityMiB": {
+                "count": 4,
+                "min": 149.90234375,
+                "median": 184.955078125,
+                "max": 202.22265625,
+                "mean": 180.5087890625
+              },
+              "heapAfter.externalUsageMiB": {
+                "count": 4,
+                "min": 0.02513885498046875,
+                "median": 0.03028106689453125,
+                "max": 0.03261566162109375,
+                "mean": 0.02957916259765625
+              },
+              "heapUsageAfterMinusBeforeMiB": {
+                "count": 4,
+                "min": 44.71699523925781,
+                "median": 76.20372772216797,
+                "max": 97.15805053710938,
+                "mean": 73.57062530517578
+              },
+              "phase.rssStartMiB": {
+                "count": 4,
+                "min": 512.80859375,
+                "median": 532.3125,
+                "max": 547.29296875,
+                "mean": 531.181640625
+              },
+              "phase.rssEndMiB": {
+                "count": 4,
+                "min": 563.32421875,
+                "median": 620.212890625,
+                "max": 646.95703125,
+                "mean": 612.6767578125
+              },
+              "phase.rssPeakMiB": {
+                "count": 4,
+                "min": 603.59765625,
+                "median": 620.212890625,
+                "max": 646.95703125,
+                "mean": 622.7451171875
+              },
+              "csv.workingSetObservedMaxMiB": {
+                "count": 4,
+                "min": 532.36328125,
+                "median": 544.8359375,
+                "max": 550.265625,
+                "mean": 543.0751953125
+              },
+              "csv.privateObservedMaxMiB": {
+                "count": 4,
+                "min": 412.44921875,
+                "median": 417.44140625,
+                "max": 426.3203125,
+                "mean": 418.4130859375
+              }
+            }
+          }
+        ]
+      },
+      "candidate": {
+        "pooledActionDistributions": {
+          "heapBefore.heapUsageMiB": {
+            "count": 16,
+            "min": 97.28887939453125,
+            "median": 99.05408477783203,
+            "max": 105.68064880371094,
+            "mean": 100.42405128479004
+          },
+          "heapBefore.heapCapacityMiB": {
+            "count": 16,
+            "min": 109.53515625,
+            "median": 112.62109375,
+            "max": 116.40234375,
+            "mean": 112.787353515625
+          },
+          "heapBefore.externalUsageMiB": {
+            "count": 16,
+            "min": 0.01700592041015625,
+            "median": 0.01725006103515625,
+            "max": 0.02805328369140625,
+            "mean": 0.018598556518554688
+          },
+          "heapAfter.heapUsageMiB": {
+            "count": 16,
+            "min": 120.11122131347656,
+            "median": 131.2941131591797,
+            "max": 147.3930206298828,
+            "mean": 131.46170043945312
+          },
+          "heapAfter.heapCapacityMiB": {
+            "count": 16,
+            "min": 125.2578125,
+            "median": 139.5234375,
+            "max": 152.8359375,
+            "mean": 138.2314453125
+          },
+          "heapAfter.externalUsageMiB": {
+            "count": 16,
+            "min": 0.02513885498046875,
+            "median": 0.02513885498046875,
+            "max": 0.03261566162109375,
+            "mean": 0.025606155395507812
+          },
+          "heapUsageAfterMinusBeforeMiB": {
+            "count": 16,
+            "min": 18.817642211914062,
+            "median": 30.47522735595703,
+            "max": 48.77296447753906,
+            "mean": 31.037649154663086
+          },
+          "phase.rssStartMiB": {
+            "count": 16,
+            "min": 523.66796875,
+            "median": 533.587890625,
+            "max": 541.5546875,
+            "mean": 533.524169921875
+          },
+          "phase.rssEndMiB": {
+            "count": 16,
+            "min": 539.4296875,
+            "median": 547.90625,
+            "max": 556.96484375,
+            "mean": 548.06982421875
+          },
+          "phase.rssPeakMiB": {
+            "count": 16,
+            "min": 539.4296875,
+            "median": 547.90625,
+            "max": 556.96484375,
+            "mean": 548.06982421875
+          },
+          "csv.workingSetObservedMaxMiB": {
+            "count": 6,
+            "min": 523.91796875,
+            "median": 534.90625,
+            "max": 553.484375,
+            "mean": 536.5501302083334
+          },
+          "csv.privateObservedMaxMiB": {
+            "count": 6,
+            "min": 386.3984375,
+            "median": 399.697265625,
+            "max": 418.6328125,
+            "mean": 401.8079427083333
+          }
+        },
+        "coveredActionsByCsv": 6,
+        "totalCsvSamplesInsideActions": 6,
+        "perProcess": [
+          {
+            "launchIndex": 0,
+            "csvSamplesPerIteration": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "metrics": {
+              "heapBefore.heapUsageMiB": {
+                "count": 4,
+                "min": 97.57403564453125,
+                "median": 100.88013458251953,
+                "max": 102.64201354980469,
+                "mean": 100.49407958984375
+              },
+              "heapBefore.heapCapacityMiB": {
+                "count": 4,
+                "min": 109.65234375,
+                "median": 114.578125,
+                "max": 116.40234375,
+                "mean": 113.802734375
+              },
+              "heapBefore.externalUsageMiB": {
+                "count": 4,
+                "min": 0.01703643798828125,
+                "median": 0.01714324951171875,
+                "max": 0.01731109619140625,
+                "mean": 0.01715850830078125
+              },
+              "heapAfter.heapUsageMiB": {
+                "count": 4,
+                "min": 122.00831604003906,
+                "median": 132.88758087158203,
+                "max": 137.73895263671875,
+                "mean": 131.38060760498047
+              },
+              "heapAfter.heapCapacityMiB": {
+                "count": 4,
+                "min": 128.015625,
+                "median": 140.787109375,
+                "max": 142.68359375,
+                "mean": 138.068359375
+              },
+              "heapAfter.externalUsageMiB": {
+                "count": 4,
+                "min": 0.02513885498046875,
+                "median": 0.02513885498046875,
+                "max": 0.02513885498046875,
+                "mean": 0.02513885498046875
+              },
+              "heapUsageAfterMinusBeforeMiB": {
+                "count": 4,
+                "min": 19.366302490234375,
+                "median": 32.79302215576172,
+                "max": 38.59376525878906,
+                "mean": 30.88652801513672
+              },
+              "phase.rssStartMiB": {
+                "count": 4,
+                "min": 530.62109375,
+                "median": 533.11328125,
+                "max": 541.4375,
+                "mean": 534.5712890625
+              },
+              "phase.rssEndMiB": {
+                "count": 4,
+                "min": 542.62890625,
+                "median": 547.810546875,
+                "max": 554.625,
+                "mean": 548.21875
+              },
+              "phase.rssPeakMiB": {
+                "count": 4,
+                "min": 542.62890625,
+                "median": 547.810546875,
+                "max": 554.625,
+                "mean": 548.21875
+              },
+              "csv.workingSetObservedMaxMiB": {
+                "count": 0
+              },
+              "csv.privateObservedMaxMiB": {
+                "count": 0
+              }
+            }
+          },
+          {
+            "launchIndex": 1,
+            "csvSamplesPerIteration": [
+              1,
+              1,
+              1,
+              0
+            ],
+            "metrics": {
+              "heapBefore.heapUsageMiB": {
+                "count": 4,
+                "min": 97.74125671386719,
+                "median": 100.25808715820312,
+                "max": 102.18525695800781,
+                "mean": 100.11067199707031
+              },
+              "heapBefore.heapCapacityMiB": {
+                "count": 4,
+                "min": 112.16796875,
+                "median": 112.841796875,
+                "max": 116.27734375,
+                "mean": 113.5322265625
+              },
+              "heapBefore.externalUsageMiB": {
+                "count": 4,
+                "min": 0.01703643798828125,
+                "median": 0.01709747314453125,
+                "max": 0.01773834228515625,
+                "mean": 0.017242431640625
+              },
+              "heapAfter.heapUsageMiB": {
+                "count": 4,
+                "min": 124.92094421386719,
+                "median": 127.5206527709961,
+                "max": 135.10801696777344,
+                "mean": 128.7675666809082
+              },
+              "heapAfter.heapCapacityMiB": {
+                "count": 4,
+                "min": 129.64453125,
+                "median": 134.3828125,
+                "max": 141.71484375,
+                "mean": 135.03125
+              },
+              "heapAfter.externalUsageMiB": {
+                "count": 4,
+                "min": 0.02513885498046875,
+                "median": 0.02513885498046875,
+                "max": 0.02513885498046875,
+                "mean": 0.02513885498046875
+              },
+              "heapUsageAfterMinusBeforeMiB": {
+                "count": 4,
+                "min": 24.50457763671875,
+                "median": 26.777671813964844,
+                "max": 36.567657470703125,
+                "mean": 28.65689468383789
+              },
+              "phase.rssStartMiB": {
+                "count": 4,
+                "min": 531.171875,
+                "median": 535.88671875,
+                "max": 541.5546875,
+                "mean": 536.125
+              },
+              "phase.rssEndMiB": {
+                "count": 4,
+                "min": 542.49609375,
+                "median": 550.5390625,
+                "max": 554.671875,
+                "mean": 549.5615234375
+              },
+              "phase.rssPeakMiB": {
+                "count": 4,
+                "min": 542.49609375,
+                "median": 550.5390625,
+                "max": 554.671875,
+                "mean": 549.5615234375
+              },
+              "csv.workingSetObservedMaxMiB": {
+                "count": 3,
+                "min": 523.91796875,
+                "median": 526.33984375,
+                "max": 553.484375,
+                "mean": 534.5807291666666
+              },
+              "csv.privateObservedMaxMiB": {
+                "count": 3,
+                "min": 386.3984375,
+                "median": 388.37890625,
+                "max": 418.6328125,
+                "mean": 397.8033854166667
+              }
+            }
+          },
+          {
+            "launchIndex": 2,
+            "csvSamplesPerIteration": [
+              1,
+              0,
+              0,
+              0
+            ],
+            "metrics": {
+              "heapBefore.heapUsageMiB": {
+                "count": 4,
+                "min": 98.85963439941406,
+                "median": 100.12828063964844,
+                "max": 105.50607299804688,
+                "mean": 101.15556716918945
+              },
+              "heapBefore.heapCapacityMiB": {
+                "count": 4,
+                "min": 109.53515625,
+                "median": 111.224609375,
+                "max": 113.98828125,
+                "mean": 111.4931640625
+              },
+              "heapBefore.externalUsageMiB": {
+                "count": 4,
+                "min": 0.01700592041015625,
+                "median": 0.01747894287109375,
+                "max": 0.02805328369140625,
+                "mean": 0.0200042724609375
+              },
+              "heapAfter.heapUsageMiB": {
+                "count": 4,
+                "min": 120.11122131347656,
+                "median": 132.4014663696289,
+                "max": 141.3307647705078,
+                "mean": 131.56122970581055
+              },
+              "heapAfter.heapCapacityMiB": {
+                "count": 4,
+                "min": 125.2578125,
+                "median": 139.076171875,
+                "max": 149.4375,
+                "mean": 138.2119140625
+              },
+              "heapAfter.externalUsageMiB": {
+                "count": 4,
+                "min": 0.02513885498046875,
+                "median": 0.02513885498046875,
+                "max": 0.02513885498046875,
+                "mean": 0.02513885498046875
+              },
+              "heapUsageAfterMinusBeforeMiB": {
+                "count": 4,
+                "min": 18.817642211914062,
+                "median": 31.256736755371094,
+                "max": 40.291534423828125,
+                "mean": 30.405662536621094
+              },
+              "phase.rssStartMiB": {
+                "count": 4,
+                "min": 523.66796875,
+                "median": 526.1953125,
+                "max": 539.078125,
+                "mean": 528.7841796875
+              },
+              "phase.rssEndMiB": {
+                "count": 4,
+                "min": 539.4296875,
+                "median": 540.494140625,
+                "max": 552.55859375,
+                "mean": 543.244140625
+              },
+              "phase.rssPeakMiB": {
+                "count": 4,
+                "min": 539.4296875,
+                "median": 540.494140625,
+                "max": 552.55859375,
+                "mean": 543.244140625
+              },
+              "csv.workingSetObservedMaxMiB": {
+                "count": 1,
+                "min": 537.92578125,
+                "median": 537.92578125,
+                "max": 537.92578125,
+                "mean": 537.92578125
+              },
+              "csv.privateObservedMaxMiB": {
+                "count": 1,
+                "min": 402.6328125,
+                "median": 402.6328125,
+                "max": 402.6328125,
+                "mean": 402.6328125
+              }
+            }
+          },
+          {
+            "launchIndex": 3,
+            "csvSamplesPerIteration": [
+              0,
+              1,
+              1,
+              0
+            ],
+            "metrics": {
+              "heapBefore.heapUsageMiB": {
+                "count": 4,
+                "min": 97.28887939453125,
+                "median": 98.38700866699219,
+                "max": 105.68064880371094,
+                "mean": 99.93588638305664
+              },
+              "heapBefore.heapCapacityMiB": {
+                "count": 4,
+                "min": 110.2109375,
+                "median": 112.419921875,
+                "max": 114.234375,
+                "mean": 112.3212890625
+              },
+              "heapBefore.externalUsageMiB": {
+                "count": 4,
+                "min": 0.01703643798828125,
+                "median": 0.01743316650390625,
+                "max": 0.02805328369140625,
+                "mean": 0.019989013671875
+              },
+              "heapAfter.heapUsageMiB": {
+                "count": 4,
+                "min": 123.09732055664062,
+                "median": 133.02962493896484,
+                "max": 147.3930206298828,
+                "mean": 134.13739776611328
+              },
+              "heapAfter.heapCapacityMiB": {
+                "count": 4,
+                "min": 131.67578125,
+                "median": 140.97265625,
+                "max": 152.8359375,
+                "mean": 141.6142578125
+              },
+              "heapAfter.externalUsageMiB": {
+                "count": 4,
+                "min": 0.02513885498046875,
+                "median": 0.02513885498046875,
+                "max": 0.03261566162109375,
+                "mean": 0.027008056640625
+              },
+              "heapUsageAfterMinusBeforeMiB": {
+                "count": 4,
+                "min": 24.943359375,
+                "median": 31.54486083984375,
+                "max": 48.77296447753906,
+                "mean": 34.20151138305664
+              },
+              "phase.rssStartMiB": {
+                "count": 4,
+                "min": 532.00390625,
+                "median": 533.669921875,
+                "max": 539.12109375,
+                "mean": 534.6162109375
+              },
+              "phase.rssEndMiB": {
+                "count": 4,
+                "min": 545.35546875,
+                "median": 551.349609375,
+                "max": 556.96484375,
+                "mean": 551.2548828125
+              },
+              "phase.rssPeakMiB": {
+                "count": 4,
+                "min": 545.35546875,
+                "median": 551.349609375,
+                "max": 556.96484375,
+                "mean": 551.2548828125
+              },
+              "csv.workingSetObservedMaxMiB": {
+                "count": 2,
+                "min": 531.88671875,
+                "median": 538.81640625,
+                "max": 545.74609375,
+                "mean": 538.81640625
+              },
+              "csv.privateObservedMaxMiB": {
+                "count": 2,
+                "min": 396.76171875,
+                "median": 407.40234375,
+                "max": 418.04296875,
+                "mean": 407.40234375
+              }
+            }
+          }
+        ]
+      },
+      "candidateOverBaselineProcessMedians": {
+        "heapBefore.heapUsageMiB": [
+          1.002798038203149,
+          1.0090521173041127,
+          0.9946059885917511,
+          0.9709999955575397
+        ],
+        "heapBefore.heapCapacityMiB": [
+          0.9974156692056583,
+          0.9788722849107112,
+          0.9707978179338561,
+          0.9788612632223394
+        ],
+        "heapBefore.externalUsageMiB": [
+          0.998223011994669,
+          0.9850549450549451,
+          0.9879258300991807,
+          0.9956427015250545
+        ],
+        "heapAfter.heapUsageMiB": [
+          0.7613537288358297,
+          0.7646518080732717,
+          0.744020472634379,
+          0.741342925469829
+        ],
+        "heapAfter.heapCapacityMiB": [
+          0.788343759569535,
+          0.7854606892930123,
+          0.7616292128822478,
+          0.7621994360961805
+        ],
+        "heapAfter.externalUsageMiB": [
+          0.8038545986826056,
+          0.8817233074658817,
+          1.0,
+          0.8301839254220207
+        ],
+        "phase.rssStartMiB": [
+          0.9933510686692312,
+          0.9989659867908454,
+          0.9865463626842826,
+          1.0025500469648938
+        ],
+        "phase.rssEndMiB": [
+          0.8613452733018251,
+          0.8612081160270453,
+          0.9152676350743504,
+          0.8889683167007296
+        ],
+        "phase.rssPeakMiB": [
+          0.8613452733018251,
+          0.8612081160270453,
+          0.9028455655896017,
+          0.8889683167007296
+        ],
+        "csv.workingSetObservedMaxMiB": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "csv.privateObservedMaxMiB": [
+          null,
+          null,
+          null,
+          null
+        ]
+      }
+    },
+    "book.long.steady_scroll": {
+      "baseline": {
+        "pooledActionDistributions": {
+          "heapBefore.heapUsageMiB": {
+            "count": 16,
+            "min": 500.8180389404297,
+            "median": 557.6564483642578,
+            "max": 574.7241058349609,
+            "mean": 554.1617393493652
+          },
+          "heapBefore.heapCapacityMiB": {
+            "count": 16,
+            "min": 528.26171875,
+            "median": 563.4296875,
+            "max": 580.4765625,
+            "mean": 561.240234375
+          },
+          "heapBefore.externalUsageMiB": {
+            "count": 16,
+            "min": 0.02773284912109375,
+            "median": 0.02774810791015625,
+            "max": 0.02838897705078125,
+            "mean": 0.02782440185546875
+          },
+          "heapAfter.heapUsageMiB": {
+            "count": 16,
+            "min": 463.21421813964844,
+            "median": 468.32238006591797,
+            "max": 475.23321533203125,
+            "mean": 469.50288677215576
+          },
+          "heapAfter.heapCapacityMiB": {
+            "count": 16,
+            "min": 471.13671875,
+            "median": 473.94140625,
+            "max": 492.9140625,
+            "mean": 476.396240234375
+          },
+          "heapAfter.externalUsageMiB": {
+            "count": 16,
+            "min": 0.02974700927734375,
+            "median": 0.0342864990234375,
+            "max": 0.03798675537109375,
+            "mean": 0.03497791290283203
+          },
+          "heapUsageAfterMinusBeforeMiB": {
+            "count": 16,
+            "min": -105.78118896484375,
+            "median": -84.7602767944336,
+            "max": -37.60382080078125,
+            "mean": -84.65885257720947
+          },
+          "phase.rssStartMiB": {
+            "count": 16,
+            "min": 924.16796875,
+            "median": 962.18359375,
+            "max": 984.1875,
+            "mean": 955.1748046875
+          },
+          "phase.rssEndMiB": {
+            "count": 16,
+            "min": 850.13671875,
+            "median": 889.45703125,
+            "max": 913.98046875,
+            "mean": 882.50732421875
+          },
+          "phase.rssPeakMiB": {
+            "count": 16,
+            "min": 924.16796875,
+            "median": 962.18359375,
+            "max": 984.1875,
+            "mean": 955.1748046875
+          },
+          "csv.workingSetObservedMaxMiB": {
+            "count": 16,
+            "min": 847.9375,
+            "median": 905.564453125,
+            "max": 986.8515625,
+            "mean": 906.2939453125
+          },
+          "csv.privateObservedMaxMiB": {
+            "count": 16,
+            "min": 743.75,
+            "median": 767.123046875,
+            "max": 859.91796875,
+            "mean": 777.73681640625
+          }
+        },
+        "coveredActionsByCsv": 16,
+        "totalCsvSamplesInsideActions": 30,
+        "perProcess": [
+          {
+            "launchIndex": 0,
+            "csvSamplesPerIteration": [
+              2,
+              2,
+              2,
+              1
+            ],
+            "metrics": {
+              "heapBefore.heapUsageMiB": {
+                "count": 4,
+                "min": 500.8180389404297,
+                "median": 555.2584991455078,
+                "max": 561.2033538818359,
+                "mean": 543.1345977783203
+              },
+              "heapBefore.heapCapacityMiB": {
+                "count": 4,
+                "min": 528.26171875,
+                "median": 560.94921875,
+                "max": 566.83203125,
+                "mean": 554.248046875
+              },
+              "heapBefore.externalUsageMiB": {
+                "count": 4,
+                "min": 0.02774810791015625,
+                "median": 0.02774810791015625,
+                "max": 0.02838897705078125,
+                "mean": 0.0279083251953125
+              },
+              "heapAfter.heapUsageMiB": {
+                "count": 4,
+                "min": 463.21421813964844,
+                "median": 465.74388122558594,
+                "max": 474.9911651611328,
+                "mean": 467.4232864379883
+              },
+              "heapAfter.heapCapacityMiB": {
+                "count": 4,
+                "min": 471.13671875,
+                "median": 472.19140625,
+                "max": 481.375,
+                "mean": 474.2236328125
+              },
+              "heapAfter.externalUsageMiB": {
+                "count": 4,
+                "min": 0.02974700927734375,
+                "median": 0.03301239013671875,
+                "max": 0.03688812255859375,
+                "mean": 0.03316497802734375
+              },
+              "heapUsageAfterMinusBeforeMiB": {
+                "count": 4,
+                "min": -96.27656555175781,
+                "median": -84.48242950439453,
+                "max": -37.60382080078125,
+                "mean": -75.71131134033203
+              },
+              "phase.rssStartMiB": {
+                "count": 4,
+                "min": 924.16796875,
+                "median": 942.83984375,
+                "max": 968.0234375,
+                "mean": 944.4677734375
+              },
+              "phase.rssEndMiB": {
+                "count": 4,
+                "min": 850.75390625,
+                "median": 878.583984375,
+                "max": 913.98046875,
+                "mean": 880.4755859375
+              },
+              "phase.rssPeakMiB": {
+                "count": 4,
+                "min": 924.16796875,
+                "median": 942.83984375,
+                "max": 968.0234375,
+                "mean": 944.4677734375
+              },
+              "csv.workingSetObservedMaxMiB": {
+                "count": 4,
+                "min": 847.9375,
+                "median": 910.794921875,
+                "max": 939.7734375,
+                "mean": 902.3251953125
+              },
+              "csv.privateObservedMaxMiB": {
+                "count": 4,
+                "min": 754.50390625,
+                "median": 780.904296875,
+                "max": 798.98046875,
+                "mean": 778.8232421875
+              }
+            }
+          },
+          {
+            "launchIndex": 1,
+            "csvSamplesPerIteration": [
+              2,
+              2,
+              2,
+              2
+            ],
+            "metrics": {
+              "heapBefore.heapUsageMiB": {
+                "count": 4,
+                "min": 549.1379699707031,
+                "median": 549.6150360107422,
+                "max": 559.5407257080078,
+                "mean": 551.9771919250488
+              },
+              "heapBefore.heapCapacityMiB": {
+                "count": 4,
+                "min": 554.91796875,
+                "median": 555.62890625,
+                "max": 565.3984375,
+                "mean": 557.8935546875
+              },
+              "heapBefore.externalUsageMiB": {
+                "count": 4,
+                "min": 0.02773284912109375,
+                "median": 0.02773284912109375,
+                "max": 0.02773284912109375,
+                "mean": 0.02773284912109375
+              },
+              "heapAfter.heapUsageMiB": {
+                "count": 4,
+                "min": 466.71421813964844,
+                "median": 466.733154296875,
+                "max": 473.84471130371094,
+                "mean": 468.50630950927734
+              },
+              "heapAfter.heapCapacityMiB": {
+                "count": 4,
+                "min": 471.9140625,
+                "median": 472.6640625,
+                "max": 480.4140625,
+                "mean": 474.4140625
+              },
+              "heapAfter.externalUsageMiB": {
+                "count": 4,
+                "min": 0.03424835205078125,
+                "median": 0.03427886962890625,
+                "max": 0.03690338134765625,
+                "mean": 0.0349273681640625
+              },
+              "heapUsageAfterMinusBeforeMiB": {
+                "count": 4,
+                "min": -85.69601440429688,
+                "median": -82.89859008789062,
+                "max": -82.39033508300781,
+                "mean": -83.47088241577148
+              },
+              "phase.rssStartMiB": {
+                "count": 4,
+                "min": 927.54296875,
+                "median": 962.18359375,
+                "max": 965.95703125,
+                "mean": 954.466796875
+              },
+              "phase.rssEndMiB": {
+                "count": 4,
+                "min": 854.796875,
+                "median": 889.203125,
+                "max": 894.28125,
+                "mean": 881.87109375
+              },
+              "phase.rssPeakMiB": {
+                "count": 4,
+                "min": 927.54296875,
+                "median": 962.18359375,
+                "max": 965.95703125,
+                "mean": 954.466796875
+              },
+              "csv.workingSetObservedMaxMiB": {
+                "count": 4,
+                "min": 887.0546875,
+                "median": 892.90625,
+                "max": 907.03515625,
+                "mean": 894.9755859375
+              },
+              "csv.privateObservedMaxMiB": {
+                "count": 4,
+                "min": 745.65234375,
+                "median": 755.580078125,
+                "max": 789.14453125,
+                "mean": 761.4892578125
+              }
+            }
+          },
+          {
+            "launchIndex": 2,
+            "csvSamplesPerIteration": [
+              2,
+              2,
+              2,
+              2
+            ],
+            "metrics": {
+              "heapBefore.heapUsageMiB": {
+                "count": 4,
+                "min": 549.8585205078125,
+                "median": 557.6564483642578,
+                "max": 559.7124786376953,
+                "mean": 556.2209739685059
+              },
+              "heapBefore.heapCapacityMiB": {
+                "count": 4,
+                "min": 555.52734375,
+                "median": 563.4296875,
+                "max": 565.48828125,
+                "mean": 561.96875
+              },
+              "heapBefore.externalUsageMiB": {
+                "count": 4,
+                "min": 0.02774810791015625,
+                "median": 0.02774810791015625,
+                "max": 0.02774810791015625,
+                "mean": 0.02774810791015625
+              },
+              "heapAfter.heapUsageMiB": {
+                "count": 4,
+                "min": 466.7024841308594,
+                "median": 472.8961715698242,
+                "max": 474.3539581298828,
+                "mean": 471.71219635009766
+              },
+              "heapAfter.heapCapacityMiB": {
+                "count": 4,
+                "min": 472.4140625,
+                "median": 478.4140625,
+                "max": 492.9140625,
+                "mean": 480.5390625
+              },
+              "heapAfter.externalUsageMiB": {
+                "count": 4,
+                "min": 0.03427886962890625,
+                "median": 0.03733062744140625,
+                "max": 0.03798675537109375,
+                "mean": 0.036731719970703125
+              },
+              "heapUsageAfterMinusBeforeMiB": {
+                "count": 4,
+                "min": -85.3585205078125,
+                "median": -84.7602767944336,
+                "max": -83.15603637695312,
+                "mean": -84.5087776184082
+              },
+              "phase.rssStartMiB": {
+                "count": 4,
+                "min": 926.81640625,
+                "median": 961.873046875,
+                "max": 973.4921875,
+                "mean": 956.013671875
+              },
+              "phase.rssEndMiB": {
+                "count": 4,
+                "min": 854.2578125,
+                "median": 892.345703125,
+                "max": 904.22265625,
+                "mean": 885.79296875
+              },
+              "phase.rssPeakMiB": {
+                "count": 4,
+                "min": 926.81640625,
+                "median": 961.873046875,
+                "max": 973.4921875,
+                "mean": 956.013671875
+              },
+              "csv.workingSetObservedMaxMiB": {
+                "count": 4,
+                "min": 876.33984375,
+                "median": 912.05859375,
+                "max": 931.55859375,
+                "mean": 908.00390625
+              },
+              "csv.privateObservedMaxMiB": {
+                "count": 4,
+                "min": 747.84375,
+                "median": 774.361328125,
+                "max": 823.14453125,
+                "mean": 779.927734375
+              }
+            }
+          },
+          {
+            "launchIndex": 3,
+            "csvSamplesPerIteration": [
+              2,
+              2,
+              2,
+              1
+            ],
+            "metrics": {
+              "heapBefore.heapUsageMiB": {
+                "count": 4,
+                "min": 551.2863922119141,
+                "median": 567.6231384277344,
+                "max": 574.7241058349609,
+                "mean": 565.3141937255859
+              },
+              "heapBefore.heapCapacityMiB": {
+                "count": 4,
+                "min": 557.08203125,
+                "median": 572.921875,
+                "max": 580.4765625,
+                "mean": 570.8505859375
+              },
+              "heapBefore.externalUsageMiB": {
+                "count": 4,
+                "min": 0.02774810791015625,
+                "median": 0.02774810791015625,
+                "max": 0.02838897705078125,
+                "mean": 0.0279083251953125
+              },
+              "heapAfter.heapUsageMiB": {
+                "count": 4,
+                "min": 468.2698211669922,
+                "median": 468.9879913330078,
+                "max": 475.23321533203125,
+                "mean": 470.36975479125977
+              },
+              "heapAfter.heapCapacityMiB": {
+                "count": 4,
+                "min": 473.875,
+                "median": 474.94140625,
+                "max": 481.875,
+                "mean": 476.408203125
+              },
+              "heapAfter.externalUsageMiB": {
+                "count": 4,
+                "min": 0.03423309326171875,
+                "median": 0.03459930419921875,
+                "max": 0.03691864013671875,
+                "mean": 0.03508758544921875
+              },
+              "heapUsageAfterMinusBeforeMiB": {
+                "count": 4,
+                "min": -105.78118896484375,
+                "median": -95.54255676269531,
+                "max": -82.91145324707031,
+                "mean": -94.94443893432617
+              },
+              "phase.rssStartMiB": {
+                "count": 4,
+                "min": 943.16015625,
+                "median": 967.828125,
+                "max": 984.1875,
+                "mean": 965.7509765625
+              },
+              "phase.rssEndMiB": {
+                "count": 4,
+                "min": 850.13671875,
+                "median": 890.5390625,
+                "max": 896.34375,
+                "mean": 881.8896484375
+              },
+              "phase.rssPeakMiB": {
+                "count": 4,
+                "min": 943.16015625,
+                "median": 967.828125,
+                "max": 984.1875,
+                "mean": 965.7509765625
+              },
+              "csv.workingSetObservedMaxMiB": {
+                "count": 4,
+                "min": 852.578125,
+                "median": 920.02734375,
+                "max": 986.8515625,
+                "mean": 919.87109375
+              },
+              "csv.privateObservedMaxMiB": {
+                "count": 4,
+                "min": 743.75,
+                "median": 779.580078125,
+                "max": 859.91796875,
+                "mean": 790.70703125
+              }
+            }
+          }
+        ]
+      },
+      "candidate": {
+        "pooledActionDistributions": {
+          "heapBefore.heapUsageMiB": {
+            "count": 16,
+            "min": 486.3597717285156,
+            "median": 543.4418029785156,
+            "max": 548.7468109130859,
+            "mean": 538.4798917770386
+          },
+          "heapBefore.heapCapacityMiB": {
+            "count": 16,
+            "min": 513.86328125,
+            "median": 549.923828125,
+            "max": 555.05859375,
+            "mean": 546.1689453125
+          },
+          "heapBefore.externalUsageMiB": {
+            "count": 16,
+            "min": 0.02774810791015625,
+            "median": 0.02806854248046875,
+            "max": 0.03464508056640625,
+            "mean": 0.030020713806152344
+          },
+          "heapAfter.heapUsageMiB": {
+            "count": 16,
+            "min": 448.4569854736328,
+            "median": 459.5370330810547,
+            "max": 461.40745544433594,
+            "mean": 457.05118465423584
+          },
+          "heapAfter.heapCapacityMiB": {
+            "count": 16,
+            "min": 456.9765625,
+            "median": 465.7265625,
+            "max": 486.109375,
+            "mean": 464.814453125
+          },
+          "heapAfter.externalUsageMiB": {
+            "count": 16,
+            "min": 0.02980804443359375,
+            "median": 0.03733062744140625,
+            "max": 0.03798675537109375,
+            "mean": 0.03601264953613281
+          },
+          "heapUsageAfterMinusBeforeMiB": {
+            "count": 16,
+            "min": -100.28982543945312,
+            "median": -84.42112731933594,
+            "max": -26.586563110351562,
+            "mean": -81.42870712280273
+          },
+          "phase.rssStartMiB": {
+            "count": 16,
+            "min": 919.890625,
+            "median": 953.033203125,
+            "max": 966.9140625,
+            "mean": 949.27294921875
+          },
+          "phase.rssEndMiB": {
+            "count": 16,
+            "min": 849.15234375,
+            "median": 877.248046875,
+            "max": 895.046875,
+            "mean": 877.22021484375
+          },
+          "phase.rssPeakMiB": {
+            "count": 16,
+            "min": 919.890625,
+            "median": 953.033203125,
+            "max": 966.9140625,
+            "mean": 949.27294921875
+          },
+          "csv.workingSetObservedMaxMiB": {
+            "count": 16,
+            "min": 849.05078125,
+            "median": 878.177734375,
+            "max": 963.35546875,
+            "mean": 889.96337890625
+          },
+          "csv.privateObservedMaxMiB": {
+            "count": 16,
+            "min": 728.80859375,
+            "median": 739.39453125,
+            "max": 835.234375,
+            "mean": 752.465576171875
+          }
+        },
+        "coveredActionsByCsv": 16,
+        "totalCsvSamplesInsideActions": 30,
+        "perProcess": [
+          {
+            "launchIndex": 0,
+            "csvSamplesPerIteration": [
+              2,
+              2,
+              2,
+              1
+            ],
+            "metrics": {
+              "heapBefore.heapUsageMiB": {
+                "count": 4,
+                "min": 544.6360321044922,
+                "median": 547.4364166259766,
+                "max": 548.7468109130859,
+                "mean": 547.0639190673828
+              },
+              "heapBefore.heapCapacityMiB": {
+                "count": 4,
+                "min": 550.33203125,
+                "median": 553.80078125,
+                "max": 555.05859375,
+                "mean": 553.248046875
+              },
+              "heapBefore.externalUsageMiB": {
+                "count": 4,
+                "min": 0.02774810791015625,
+                "median": 0.03464508056640625,
+                "max": 0.03464508056640625,
+                "mean": 0.03292083740234375
+              },
+              "heapAfter.heapUsageMiB": {
+                "count": 4,
+                "min": 448.4569854736328,
+                "median": 459.54551696777344,
+                "max": 460.3355255126953,
+                "mean": 456.97088623046875
+              },
+              "heapAfter.heapCapacityMiB": {
+                "count": 4,
+                "min": 456.9765625,
+                "median": 465.9765625,
+                "max": 466.4765625,
+                "mean": 463.8515625
+              },
+              "heapAfter.externalUsageMiB": {
+                "count": 4,
+                "min": 0.02980804443359375,
+                "median": 0.03717803955078125,
+                "max": 0.03737640380859375,
+                "mean": 0.0353851318359375
+              },
+              "heapUsageAfterMinusBeforeMiB": {
+                "count": 4,
+                "min": -100.28982543945312,
+                "median": -87.50196075439453,
+                "max": -85.07838439941406,
+                "mean": -90.09303283691406
+              },
+              "phase.rssStartMiB": {
+                "count": 4,
+                "min": 952.5546875,
+                "median": 956.6796875,
+                "max": 966.9140625,
+                "mean": 958.20703125
+              },
+              "phase.rssEndMiB": {
+                "count": 4,
+                "min": 876.0625,
+                "median": 880.4296875,
+                "max": 884.30078125,
+                "mean": 880.3056640625
+              },
+              "phase.rssPeakMiB": {
+                "count": 4,
+                "min": 952.5546875,
+                "median": 956.6796875,
+                "max": 966.9140625,
+                "mean": 958.20703125
+              },
+              "csv.workingSetObservedMaxMiB": {
+                "count": 4,
+                "min": 875.0859375,
+                "median": 877.576171875,
+                "max": 886.23828125,
+                "mean": 879.119140625
+              },
+              "csv.privateObservedMaxMiB": {
+                "count": 4,
+                "min": 733.73828125,
+                "median": 738.4765625,
+                "max": 748.1796875,
+                "mean": 739.7177734375
+              }
+            }
+          },
+          {
+            "launchIndex": 1,
+            "csvSamplesPerIteration": [
+              2,
+              2,
+              2,
+              2
+            ],
+            "metrics": {
+              "heapBefore.heapUsageMiB": {
+                "count": 4,
+                "min": 535.9438629150391,
+                "median": 538.1398696899414,
+                "max": 544.4715728759766,
+                "mean": 539.1737937927246
+              },
+              "heapBefore.heapCapacityMiB": {
+                "count": 4,
+                "min": 541.90625,
+                "median": 546.421875,
+                "max": 550.90625,
+                "mean": 546.4140625
+              },
+              "heapBefore.externalUsageMiB": {
+                "count": 4,
+                "min": 0.02774810791015625,
+                "median": 0.02806854248046875,
+                "max": 0.02838897705078125,
+                "mean": 0.02806854248046875
+              },
+              "heapAfter.heapUsageMiB": {
+                "count": 4,
+                "min": 453.18797302246094,
+                "median": 457.29437255859375,
+                "max": 461.40745544433594,
+                "mean": 457.2960433959961
+              },
+              "heapAfter.heapCapacityMiB": {
+                "count": 4,
+                "min": 458.9765625,
+                "median": 463.357421875,
+                "max": 468.23828125,
+                "mean": 463.482421875
+              },
+              "heapAfter.externalUsageMiB": {
+                "count": 4,
+                "min": 0.03426361083984375,
+                "median": 0.03615570068359375,
+                "max": 0.03795623779296875,
+                "mean": 0.0361328125
+              },
+              "heapUsageAfterMinusBeforeMiB": {
+                "count": 4,
+                "min": -84.93089294433594,
+                "median": -82.3021240234375,
+                "max": -77.97586059570312,
+                "mean": -81.87775039672852
+              },
+              "phase.rssStartMiB": {
+                "count": 4,
+                "min": 919.890625,
+                "median": 951.263671875,
+                "max": 955.08203125,
+                "mean": 944.375
+              },
+              "phase.rssEndMiB": {
+                "count": 4,
+                "min": 849.15234375,
+                "median": 876.017578125,
+                "max": 877.9921875,
+                "mean": 869.794921875
+              },
+              "phase.rssPeakMiB": {
+                "count": 4,
+                "min": 919.890625,
+                "median": 951.263671875,
+                "max": 955.08203125,
+                "mean": 944.375
+              },
+              "csv.workingSetObservedMaxMiB": {
+                "count": 4,
+                "min": 849.05078125,
+                "median": 876.626953125,
+                "max": 882.2421875,
+                "mean": 871.13671875
+              },
+              "csv.privateObservedMaxMiB": {
+                "count": 4,
+                "min": 728.80859375,
+                "median": 739.39453125,
+                "max": 742.97265625,
+                "mean": 737.642578125
+              }
+            }
+          },
+          {
+            "launchIndex": 2,
+            "csvSamplesPerIteration": [
+              2,
+              2,
+              2,
+              2
+            ],
+            "metrics": {
+              "heapBefore.heapUsageMiB": {
+                "count": 4,
+                "min": 535.6838073730469,
+                "median": 543.9496536254883,
+                "max": 546.2640228271484,
+                "mean": 542.461784362793
+              },
+              "heapBefore.heapCapacityMiB": {
+                "count": 4,
+                "min": 541.8046875,
+                "median": 550.08203125,
+                "max": 552.51953125,
+                "mean": 548.6220703125
+              },
+              "heapBefore.externalUsageMiB": {
+                "count": 4,
+                "min": 0.02774810791015625,
+                "median": 0.02774810791015625,
+                "max": 0.03464508056640625,
+                "mean": 0.02947235107421875
+              },
+              "heapAfter.heapUsageMiB": {
+                "count": 4,
+                "min": 453.2401123046875,
+                "median": 460.34703826904297,
+                "max": 460.98077392578125,
+                "mean": 458.7287406921387
+              },
+              "heapAfter.heapCapacityMiB": {
+                "count": 4,
+                "min": 459.4765625,
+                "median": 466.79296875,
+                "max": 467.9765625,
+                "mean": 465.259765625
+              },
+              "heapAfter.externalUsageMiB": {
+                "count": 4,
+                "min": 0.03426361083984375,
+                "median": 0.03763580322265625,
+                "max": 0.03798675537109375,
+                "mean": 0.0368804931640625
+              },
+              "heapUsageAfterMinusBeforeMiB": {
+                "count": 4,
+                "min": -85.28324890136719,
+                "median": -83.60261535644531,
+                "max": -82.44369506835938,
+                "mean": -83.7330436706543
+              },
+              "phase.rssStartMiB": {
+                "count": 4,
+                "min": 941.46875,
+                "median": 950.087890625,
+                "max": 960.1328125,
+                "mean": 950.4443359375
+              },
+              "phase.rssEndMiB": {
+                "count": 4,
+                "min": 868.94921875,
+                "median": 877.927734375,
+                "max": 887.484375,
+                "mean": 878.072265625
+              },
+              "phase.rssPeakMiB": {
+                "count": 4,
+                "min": 941.46875,
+                "median": 950.087890625,
+                "max": 960.1328125,
+                "mean": 950.4443359375
+              },
+              "csv.workingSetObservedMaxMiB": {
+                "count": 4,
+                "min": 871.734375,
+                "median": 889.73828125,
+                "max": 963.35546875,
+                "mean": 903.6416015625
+              },
+              "csv.privateObservedMaxMiB": {
+                "count": 4,
+                "min": 728.81640625,
+                "median": 749.404296875,
+                "max": 835.234375,
+                "mean": 765.71484375
+              }
+            }
+          },
+          {
+            "launchIndex": 3,
+            "csvSamplesPerIteration": [
+              2,
+              1,
+              2,
+              2
+            ],
+            "metrics": {
+              "heapBefore.heapUsageMiB": {
+                "count": 4,
+                "min": 486.3597717285156,
+                "median": 535.7274856567383,
+                "max": 543.0655364990234,
+                "mean": 525.2200698852539
+              },
+              "heapBefore.heapCapacityMiB": {
+                "count": 4,
+                "min": 513.86328125,
+                "median": 541.4375,
+                "max": 548.828125,
+                "mean": 536.3916015625
+              },
+              "heapBefore.externalUsageMiB": {
+                "count": 4,
+                "min": 0.02774810791015625,
+                "median": 0.02806854248046875,
+                "max": 0.03459930419921875,
+                "mean": 0.029621124267578125
+              },
+              "heapAfter.heapUsageMiB": {
+                "count": 4,
+                "min": 450.68406677246094,
+                "median": 455.1894989013672,
+                "max": 459.77320861816406,
+                "mean": 455.20906829833984
+              },
+              "heapAfter.heapCapacityMiB": {
+                "count": 4,
+                "min": 457.515625,
+                "median": 461.515625,
+                "max": 486.109375,
+                "mean": 466.6640625
+              },
+              "heapAfter.externalUsageMiB": {
+                "count": 4,
+                "min": 0.03359222412109375,
+                "median": 0.03580474853515625,
+                "max": 0.03740692138671875,
+                "mean": 0.03565216064453125
+              },
+              "heapUsageAfterMinusBeforeMiB": {
+                "count": 4,
+                "min": -86.05873107910156,
+                "median": -83.69935607910156,
+                "max": -26.586563110351562,
+                "mean": -70.01100158691406
+              },
+              "phase.rssStartMiB": {
+                "count": 4,
+                "min": 923.25,
+                "median": 948.384765625,
+                "max": 956.2421875,
+                "mean": 944.0654296875
+              },
+              "phase.rssEndMiB": {
+                "count": 4,
+                "min": 869.34765625,
+                "median": 879.21875,
+                "max": 895.046875,
+                "mean": 880.7080078125
+              },
+              "phase.rssPeakMiB": {
+                "count": 4,
+                "min": 923.25,
+                "median": 948.384765625,
+                "max": 956.2421875,
+                "mean": 944.0654296875
+              },
+              "csv.workingSetObservedMaxMiB": {
+                "count": 4,
+                "min": 874.09765625,
+                "median": 896.998046875,
+                "max": 955.73046875,
+                "mean": 905.9560546875
+              },
+              "csv.privateObservedMaxMiB": {
+                "count": 4,
+                "min": 730.57421875,
+                "median": 756.478515625,
+                "max": 823.6171875,
+                "mean": 766.787109375
+              }
+            }
+          }
+        ]
+      },
+      "candidateOverBaselineProcessMedians": {
+        "heapBefore.heapUsageMiB": [
+          0.9859127189740117,
+          0.9791214476152423,
+          0.9754207186539762,
+          0.9438083992499949
+        ],
+        "heapBefore.heapCapacityMiB": [
+          0.9872565336378767,
+          0.98342953156966,
+          0.9763099876592853,
+          0.9450459541276898
+        ],
+        "heapBefore.externalUsageMiB": [
+          1.2485565026120429,
+          1.0121045392022008,
+          1.0,
+          1.0115479791036568
+        ],
+        "heapAfter.heapUsageMiB": [
+          0.986691474633007,
+          0.9797769203850526,
+          0.9734632376931215,
+          0.9705781540537508
+        ],
+        "heapAfter.heapCapacityMiB": [
+          0.9868382955137698,
+          0.9803102428059041,
+          0.9757091301010827,
+          0.9717317103261093
+        ],
+        "heapAfter.externalUsageMiB": [
+          1.1261844233880287,
+          1.0547518361896282,
+          1.0081749437972614,
+          1.0348401323043
+        ],
+        "phase.rssStartMiB": [
+          1.0146788914806084,
+          0.9886508957896062,
+          0.9877477009171964,
+          0.9799103178831469
+        ],
+        "phase.rssEndMiB": [
+          1.002100770282437,
+          0.9851715018714088,
+          0.9838426198506832,
+          0.9872882471115634
+        ],
+        "phase.rssPeakMiB": [
+          1.0146788914806084,
+          0.9886508957896062,
+          0.9877477009171964,
+          0.9799103178831469
+        ],
+        "csv.workingSetObservedMaxMiB": [
+          0.963527739118687,
+          0.9817681902495363,
+          0.9755275454307949,
+          0.9749688995316885
+        ],
+        "csv.privateObservedMaxMiB": [
+          0.9456684582927946,
+          0.9785786479241684,
+          0.9677708191982809,
+          0.9703666587330418
+        ]
+      }
+    }
+  },
+  "observations": [
+    {
+      "side": "baseline",
+      "name": "book.long.open",
+      "launchIndex": 0,
+      "iteration": 0,
+      "durationMs": 358.317,
+      "startMs": 1794510360368,
+      "endMs": 1794510360726,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 101.151123046875,
+        "heapBefore.heapCapacityMiB": 114.6796875,
+        "heapBefore.externalUsageMiB": 0.01728057861328125,
+        "heapAfter.heapUsageMiB": 175.35704040527344,
+        "heapAfter.heapCapacityMiB": 180.171875,
+        "heapAfter.externalUsageMiB": 0.03261566162109375,
+        "heapUsageAfterMinusBeforeMiB": 74.20591735839844,
+        "phase.rssStartMiB": 537.9765625,
+        "phase.rssEndMiB": 645.25,
+        "phase.rssPeakMiB": 645.25,
+        "csv.workingSetObservedMaxMiB": null,
+        "csv.privateObservedMaxMiB": null
+      },
+      "insideWindowSamples": []
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 0,
+      "iteration": 0,
+      "durationMs": 935.171,
+      "startMs": 1794510395970,
+      "endMs": 1794510396906,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 500.8180389404297,
+        "heapBefore.heapCapacityMiB": 528.26171875,
+        "heapBefore.externalUsageMiB": 0.02774810791015625,
+        "heapAfter.heapUsageMiB": 463.21421813964844,
+        "heapAfter.heapCapacityMiB": 472.0078125,
+        "heapAfter.externalUsageMiB": 0.02974700927734375,
+        "heapUsageAfterMinusBeforeMiB": -37.60382080078125,
+        "phase.rssStartMiB": 947.60546875,
+        "phase.rssEndMiB": 913.98046875,
+        "phase.rssPeakMiB": 947.60546875,
+        "csv.workingSetObservedMaxMiB": 939.7734375,
+        "csv.privateObservedMaxMiB": 798.98046875
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794510396367,
+          "monotonicMs": 98733,
+          "workingSetMiB": 939.7734375,
+          "privateMiB": 798.98046875,
+          "treeAgeMs": 959
+        },
+        {
+          "epochMs": 1794510396866,
+          "monotonicMs": 99233,
+          "workingSetMiB": 910.54296875,
+          "privateMiB": 770.3828125,
+          "treeAgeMs": 1459
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.open",
+      "launchIndex": 0,
+      "iteration": 1,
+      "durationMs": 326.149,
+      "startMs": 1794510409042,
+      "endMs": 1794510409368,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 99.00942993164062,
+        "heapBefore.heapCapacityMiB": 109.51953125,
+        "heapBefore.externalUsageMiB": 0.01703643798828125,
+        "heapAfter.heapUsageMiB": 137.3033905029297,
+        "heapAfter.heapCapacityMiB": 141.84375,
+        "heapAfter.externalUsageMiB": 0.02513885498046875,
+        "heapUsageAfterMinusBeforeMiB": 38.29396057128906,
+        "phase.rssStartMiB": 540.48046875,
+        "phase.rssEndMiB": 629.99609375,
+        "phase.rssPeakMiB": 629.99609375,
+        "csv.workingSetObservedMaxMiB": null,
+        "csv.privateObservedMaxMiB": null
+      },
+      "insideWindowSamples": []
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 0,
+      "iteration": 1,
+      "durationMs": 930.063,
+      "startMs": 1794510443897,
+      "endMs": 1794510444827,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 560.6869812011719,
+        "heapBefore.heapCapacityMiB": 566.4765625,
+        "heapBefore.externalUsageMiB": 0.02774810791015625,
+        "heapAfter.heapUsageMiB": 474.9911651611328,
+        "heapAfter.heapCapacityMiB": 481.375,
+        "heapAfter.externalUsageMiB": 0.03688812255859375,
+        "heapUsageAfterMinusBeforeMiB": -85.69581604003906,
+        "phase.rssStartMiB": 968.0234375,
+        "phase.rssEndMiB": 894.02734375,
+        "phase.rssPeakMiB": 968.0234375,
+        "csv.workingSetObservedMaxMiB": 912.47265625,
+        "csv.privateObservedMaxMiB": 769.84375
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794510443998,
+          "monotonicMs": 146364,
+          "workingSetMiB": 912.47265625,
+          "privateMiB": 769.84375,
+          "treeAgeMs": 965
+        },
+        {
+          "epochMs": 1794510444501,
+          "monotonicMs": 146868,
+          "workingSetMiB": 894.5078125,
+          "privateMiB": 752.39453125,
+          "treeAgeMs": 1469
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.open",
+      "launchIndex": 0,
+      "iteration": 2,
+      "durationMs": 345.232,
+      "startMs": 1794510457350,
+      "endMs": 1794510457695,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 102.82717895507812,
+        "heapBefore.heapCapacityMiB": 115.23046875,
+        "heapBefore.externalUsageMiB": 0.01709747314453125,
+        "heapAfter.heapUsageMiB": 173.72532653808594,
+        "heapAfter.heapCapacityMiB": 177.0,
+        "heapAfter.externalUsageMiB": 0.03206634521484375,
+        "heapUsageAfterMinusBeforeMiB": 70.89814758300781,
+        "phase.rssStartMiB": 535.38671875,
+        "phase.rssEndMiB": 641.9921875,
+        "phase.rssPeakMiB": 641.9921875,
+        "csv.workingSetObservedMaxMiB": 560.1015625,
+        "csv.privateObservedMaxMiB": 421.74609375
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794510457522,
+          "monotonicMs": 159888,
+          "workingSetMiB": 560.1015625,
+          "privateMiB": 421.74609375,
+          "treeAgeMs": 1963
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 0,
+      "iteration": 2,
+      "durationMs": 972.378,
+      "startMs": 1794510496730,
+      "endMs": 1794510497702,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 549.8300170898438,
+        "heapBefore.heapCapacityMiB": 555.421875,
+        "heapBefore.externalUsageMiB": 0.02774810791015625,
+        "heapAfter.heapUsageMiB": 466.56097412109375,
+        "heapAfter.heapCapacityMiB": 472.375,
+        "heapAfter.externalUsageMiB": 0.03359222412109375,
+        "heapUsageAfterMinusBeforeMiB": -83.26904296875,
+        "phase.rssStartMiB": 938.07421875,
+        "phase.rssEndMiB": 863.140625,
+        "phase.rssPeakMiB": 938.07421875,
+        "csv.workingSetObservedMaxMiB": 909.1171875,
+        "csv.privateObservedMaxMiB": 791.96484375
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794510496796,
+          "monotonicMs": 199162,
+          "workingSetMiB": 909.1171875,
+          "privateMiB": 791.96484375,
+          "treeAgeMs": 1985
+        },
+        {
+          "epochMs": 1794510497345,
+          "monotonicMs": 199711,
+          "workingSetMiB": 873.62890625,
+          "privateMiB": 761.5,
+          "treeAgeMs": 0
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.open",
+      "launchIndex": 0,
+      "iteration": 3,
+      "durationMs": 453.596,
+      "startMs": 1794510510822,
+      "endMs": 1794510511276,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 100.04618835449219,
+        "heapBefore.heapCapacityMiB": 115.0703125,
+        "heapBefore.externalUsageMiB": 0.01725006103515625,
+        "heapAfter.heapUsageMiB": 183.7637939453125,
+        "heapAfter.heapCapacityMiB": 188.3515625,
+        "heapAfter.externalUsageMiB": 0.03047943115234375,
+        "heapUsageAfterMinusBeforeMiB": 83.71760559082031,
+        "phase.rssStartMiB": 500.30859375,
+        "phase.rssEndMiB": 578.484375,
+        "phase.rssPeakMiB": 578.484375,
+        "csv.workingSetObservedMaxMiB": 496.515625,
+        "csv.privateObservedMaxMiB": 393.4140625
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794510510933,
+          "monotonicMs": 213298,
+          "workingSetMiB": 496.515625,
+          "privateMiB": 393.4140625,
+          "treeAgeMs": 951
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 0,
+      "iteration": 3,
+      "durationMs": 979.723,
+      "startMs": 1794510550443,
+      "endMs": 1794510551424,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 561.2033538818359,
+        "heapBefore.heapCapacityMiB": 566.83203125,
+        "heapBefore.externalUsageMiB": 0.02838897705078125,
+        "heapAfter.heapUsageMiB": 464.9267883300781,
+        "heapAfter.heapCapacityMiB": 471.13671875,
+        "heapAfter.externalUsageMiB": 0.03243255615234375,
+        "heapUsageAfterMinusBeforeMiB": -96.27656555175781,
+        "phase.rssStartMiB": 924.16796875,
+        "phase.rssEndMiB": 850.75390625,
+        "phase.rssPeakMiB": 924.16796875,
+        "csv.workingSetObservedMaxMiB": 847.9375,
+        "csv.privateObservedMaxMiB": 754.50390625
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794510550899,
+          "monotonicMs": 253265,
+          "workingSetMiB": 847.9375,
+          "privateMiB": 754.50390625,
+          "treeAgeMs": 1980
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.open",
+      "launchIndex": 1,
+      "iteration": 0,
+      "durationMs": 368.408,
+      "startMs": 1794511133680,
+      "endMs": 1794511134048,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 96.33763122558594,
+        "heapBefore.heapCapacityMiB": 110.4375,
+        "heapBefore.externalUsageMiB": 0.01702117919921875,
+        "heapAfter.heapUsageMiB": 195.83287048339844,
+        "heapAfter.heapCapacityMiB": 200.12890625,
+        "heapAfter.externalUsageMiB": 0.03260040283203125,
+        "heapUsageAfterMinusBeforeMiB": 99.4952392578125,
+        "phase.rssStartMiB": 534.36328125,
+        "phase.rssEndMiB": 643.890625,
+        "phase.rssPeakMiB": 643.890625,
+        "csv.workingSetObservedMaxMiB": 540.921875,
+        "csv.privateObservedMaxMiB": 403.0703125
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511133725,
+          "monotonicMs": 62688,
+          "workingSetMiB": 540.921875,
+          "privateMiB": 403.0703125,
+          "treeAgeMs": 0
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 1,
+      "iteration": 0,
+      "durationMs": 941.846,
+      "startMs": 1794511168360,
+      "endMs": 1794511169301,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 549.2884063720703,
+        "heapBefore.heapCapacityMiB": 555.30859375,
+        "heapBefore.externalUsageMiB": 0.02773284912109375,
+        "heapAfter.heapUsageMiB": 466.7186737060547,
+        "heapAfter.heapCapacityMiB": 472.9140625,
+        "heapAfter.externalUsageMiB": 0.03427886962890625,
+        "heapUsageAfterMinusBeforeMiB": -82.56973266601562,
+        "phase.rssStartMiB": 965.95703125,
+        "phase.rssEndMiB": 894.28125,
+        "phase.rssPeakMiB": 965.95703125,
+        "csv.workingSetObservedMaxMiB": 895.7109375,
+        "csv.privateObservedMaxMiB": 757.8828125
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511168831,
+          "monotonicMs": 97794,
+          "workingSetMiB": 895.7109375,
+          "privateMiB": 757.8828125,
+          "treeAgeMs": 0
+        },
+        {
+          "epochMs": 1794511169278,
+          "monotonicMs": 98241,
+          "workingSetMiB": 892.23828125,
+          "privateMiB": 754.40625,
+          "treeAgeMs": 447
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.open",
+      "launchIndex": 1,
+      "iteration": 1,
+      "durationMs": 356.661,
+      "startMs": 1794511181433,
+      "endMs": 1794511181790,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 101.59901428222656,
+        "heapBefore.heapCapacityMiB": 117.2421875,
+        "heapBefore.externalUsageMiB": 0.01772308349609375,
+        "heapAfter.heapUsageMiB": 156.21197509765625,
+        "heapAfter.heapCapacityMiB": 161.00390625,
+        "heapAfter.externalUsageMiB": 0.02510833740234375,
+        "heapUsageAfterMinusBeforeMiB": 54.61296081542969,
+        "phase.rssStartMiB": 546.23046875,
+        "phase.rssEndMiB": 606.29296875,
+        "phase.rssPeakMiB": 606.29296875,
+        "csv.workingSetObservedMaxMiB": null,
+        "csv.privateObservedMaxMiB": null
+      },
+      "insideWindowSamples": []
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 1,
+      "iteration": 1,
+      "durationMs": 942.075,
+      "startMs": 1794511216110,
+      "endMs": 1794511217053,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 559.5407257080078,
+        "heapBefore.heapCapacityMiB": 565.3984375,
+        "heapBefore.externalUsageMiB": 0.02773284912109375,
+        "heapAfter.heapUsageMiB": 473.84471130371094,
+        "heapAfter.heapCapacityMiB": 480.4140625,
+        "heapAfter.externalUsageMiB": 0.03690338134765625,
+        "heapUsageAfterMinusBeforeMiB": -85.69601440429688,
+        "phase.rssStartMiB": 961.4921875,
+        "phase.rssEndMiB": 888.44140625,
+        "phase.rssPeakMiB": 961.4921875,
+        "csv.workingSetObservedMaxMiB": 887.0546875,
+        "csv.privateObservedMaxMiB": 745.65234375
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511216380,
+          "monotonicMs": 145343,
+          "workingSetMiB": 887.0546875,
+          "privateMiB": 745.65234375,
+          "treeAgeMs": 0
+        },
+        {
+          "epochMs": 1794511216846,
+          "monotonicMs": 145808,
+          "workingSetMiB": 884.375,
+          "privateMiB": 743.76171875,
+          "treeAgeMs": 465
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.open",
+      "launchIndex": 1,
+      "iteration": 2,
+      "durationMs": 337.88,
+      "startMs": 1794511229452,
+      "endMs": 1794511229789,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 98.49655151367188,
+        "heapBefore.heapCapacityMiB": 115.5859375,
+        "heapBefore.externalUsageMiB": 0.01760101318359375,
+        "heapAfter.heapUsageMiB": 145.73081970214844,
+        "heapAfter.heapCapacityMiB": 151.92578125,
+        "heapAfter.externalUsageMiB": 0.02512359619140625,
+        "heapUsageAfterMinusBeforeMiB": 47.23426818847656,
+        "phase.rssStartMiB": 528.9140625,
+        "phase.rssEndMiB": 634.63671875,
+        "phase.rssPeakMiB": 634.63671875,
+        "csv.workingSetObservedMaxMiB": null,
+        "csv.privateObservedMaxMiB": null
+      },
+      "insideWindowSamples": []
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 1,
+      "iteration": 2,
+      "durationMs": 931.603,
+      "startMs": 1794511264152,
+      "endMs": 1794511265083,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 549.9416656494141,
+        "heapBefore.heapCapacityMiB": 555.94921875,
+        "heapBefore.externalUsageMiB": 0.02773284912109375,
+        "heapAfter.heapUsageMiB": 466.71421813964844,
+        "heapAfter.heapCapacityMiB": 471.9140625,
+        "heapAfter.externalUsageMiB": 0.03424835205078125,
+        "heapUsageAfterMinusBeforeMiB": -83.22744750976562,
+        "phase.rssStartMiB": 962.875,
+        "phase.rssEndMiB": 889.96484375,
+        "phase.rssPeakMiB": 962.875,
+        "csv.workingSetObservedMaxMiB": 890.1015625,
+        "csv.privateObservedMaxMiB": 753.27734375
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511264434,
+          "monotonicMs": 193397,
+          "workingSetMiB": 889.91796875,
+          "privateMiB": 753.23046875,
+          "treeAgeMs": 466
+        },
+        {
+          "epochMs": 1794511264935,
+          "monotonicMs": 193897,
+          "workingSetMiB": 890.1015625,
+          "privateMiB": 753.27734375,
+          "treeAgeMs": 966
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.open",
+      "launchIndex": 1,
+      "iteration": 3,
+      "durationMs": 385.084,
+      "startMs": 1794511277329,
+      "endMs": 1794511277715,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 100.22080993652344,
+        "heapBefore.heapCapacityMiB": 114.96875,
+        "heapBefore.externalUsageMiB": 0.01711273193359375,
+        "heapAfter.heapUsageMiB": 177.32716369628906,
+        "heapAfter.heapCapacityMiB": 181.171875,
+        "heapAfter.externalUsageMiB": 0.03189849853515625,
+        "heapUsageAfterMinusBeforeMiB": 77.10635375976562,
+        "phase.rssStartMiB": 538.51953125,
+        "phase.rssEndMiB": 645.21484375,
+        "phase.rssPeakMiB": 645.21484375,
+        "csv.workingSetObservedMaxMiB": 559.40625,
+        "csv.privateObservedMaxMiB": 434.73046875
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511277454,
+          "monotonicMs": 206416,
+          "workingSetMiB": 559.40625,
+          "privateMiB": 434.73046875,
+          "treeAgeMs": 959
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 1,
+      "iteration": 3,
+      "durationMs": 930.774,
+      "startMs": 1794511311981,
+      "endMs": 1794511312913,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 549.1379699707031,
+        "heapBefore.heapCapacityMiB": 554.91796875,
+        "heapBefore.externalUsageMiB": 0.02773284912109375,
+        "heapAfter.heapUsageMiB": 466.7476348876953,
+        "heapAfter.heapCapacityMiB": 472.4140625,
+        "heapAfter.externalUsageMiB": 0.03427886962890625,
+        "heapUsageAfterMinusBeforeMiB": -82.39033508300781,
+        "phase.rssStartMiB": 927.54296875,
+        "phase.rssEndMiB": 854.796875,
+        "phase.rssPeakMiB": 927.54296875,
+        "csv.workingSetObservedMaxMiB": 907.03515625,
+        "csv.privateObservedMaxMiB": 789.14453125
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511312053,
+          "monotonicMs": 241014,
+          "workingSetMiB": 907.03515625,
+          "privateMiB": 789.14453125,
+          "treeAgeMs": 471
+        },
+        {
+          "epochMs": 1794511312558,
+          "monotonicMs": 241520,
+          "workingSetMiB": 853.4765625,
+          "privateMiB": 736.125,
+          "treeAgeMs": 977
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.open",
+      "launchIndex": 2,
+      "iteration": 0,
+      "durationMs": 377.405,
+      "startMs": 1794511397587,
+      "endMs": 1794511397965,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 100.75311279296875,
+        "heapBefore.heapCapacityMiB": 114.55859375,
+        "heapBefore.externalUsageMiB": 0.01725006103515625,
+        "heapAfter.heapUsageMiB": 141.19178771972656,
+        "heapAfter.heapCapacityMiB": 144.80859375,
+        "heapAfter.externalUsageMiB": 0.02513885498046875,
+        "heapUsageAfterMinusBeforeMiB": 40.43867492675781,
+        "phase.rssStartMiB": 533.45703125,
+        "phase.rssEndMiB": 583.625,
+        "phase.rssPeakMiB": 599.875,
+        "csv.workingSetObservedMaxMiB": 546.9296875,
+        "csv.privateObservedMaxMiB": 410.3984375
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511397737,
+          "monotonicMs": 62739,
+          "workingSetMiB": 546.9296875,
+          "privateMiB": 410.3984375,
+          "treeAgeMs": 0
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 2,
+      "iteration": 0,
+      "durationMs": 936.506,
+      "startMs": 1794511432400,
+      "endMs": 1794511433337,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 557.2801818847656,
+        "heapBefore.heapCapacityMiB": 562.859375,
+        "heapBefore.externalUsageMiB": 0.02774810791015625,
+        "heapAfter.heapUsageMiB": 472.8872985839844,
+        "heapAfter.heapCapacityMiB": 478.9140625,
+        "heapAfter.externalUsageMiB": 0.03734588623046875,
+        "heapUsageAfterMinusBeforeMiB": -84.39288330078125,
+        "phase.rssStartMiB": 973.4921875,
+        "phase.rssEndMiB": 901.03515625,
+        "phase.rssPeakMiB": 973.4921875,
+        "csv.workingSetObservedMaxMiB": 900.39453125,
+        "csv.privateObservedMaxMiB": 761.30859375
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511432844,
+          "monotonicMs": 97845,
+          "workingSetMiB": 900.39453125,
+          "privateMiB": 761.30859375,
+          "treeAgeMs": 0
+        },
+        {
+          "epochMs": 1794511433300,
+          "monotonicMs": 98302,
+          "workingSetMiB": 898.23046875,
+          "privateMiB": 759.30859375,
+          "treeAgeMs": 457
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.open",
+      "launchIndex": 2,
+      "iteration": 1,
+      "durationMs": 352.874,
+      "startMs": 1794511445798,
+      "endMs": 1794511446151,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 100.64593505859375,
+        "heapBefore.heapCapacityMiB": 115.08203125,
+        "heapBefore.externalUsageMiB": 0.01773834228515625,
+        "heapAfter.heapUsageMiB": 175.00140380859375,
+        "heapAfter.heapCapacityMiB": 179.08203125,
+        "heapAfter.externalUsageMiB": 0.03261566162109375,
+        "heapUsageAfterMinusBeforeMiB": 74.35546875,
+        "phase.rssStartMiB": 540.328125,
+        "phase.rssEndMiB": 646.2890625,
+        "phase.rssPeakMiB": 646.2890625,
+        "csv.workingSetObservedMaxMiB": 545.76171875,
+        "csv.privateObservedMaxMiB": 414.31640625
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511445818,
+          "monotonicMs": 110820,
+          "workingSetMiB": 545.76171875,
+          "privateMiB": 414.31640625,
+          "treeAgeMs": 470
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 2,
+      "iteration": 1,
+      "durationMs": 926.361,
+      "startMs": 1794511480658,
+      "endMs": 1794511481584,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 559.7124786376953,
+        "heapBefore.heapCapacityMiB": 565.48828125,
+        "heapBefore.externalUsageMiB": 0.02774810791015625,
+        "heapAfter.heapUsageMiB": 474.3539581298828,
+        "heapAfter.heapCapacityMiB": 492.9140625,
+        "heapAfter.externalUsageMiB": 0.03798675537109375,
+        "heapUsageAfterMinusBeforeMiB": -85.3585205078125,
+        "phase.rssStartMiB": 965.296875,
+        "phase.rssEndMiB": 904.22265625,
+        "phase.rssPeakMiB": 965.296875,
+        "csv.workingSetObservedMaxMiB": 931.55859375,
+        "csv.privateObservedMaxMiB": 787.4140625
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511480913,
+          "monotonicMs": 145914,
+          "workingSetMiB": 931.55859375,
+          "privateMiB": 787.4140625,
+          "treeAgeMs": 465
+        },
+        {
+          "epochMs": 1794511481418,
+          "monotonicMs": 146420,
+          "workingSetMiB": 902.84765625,
+          "privateMiB": 760.109375,
+          "treeAgeMs": 971
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.open",
+      "launchIndex": 2,
+      "iteration": 2,
+      "durationMs": 358.885,
+      "startMs": 1794511494060,
+      "endMs": 1794511494419,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 100.69667053222656,
+        "heapBefore.heapCapacityMiB": 114.58203125,
+        "heapBefore.externalUsageMiB": 0.01773834228515625,
+        "heapAfter.heapUsageMiB": 186.22760009765625,
+        "heapAfter.heapCapacityMiB": 194.03125,
+        "heapAfter.externalUsageMiB": 0.02513885498046875,
+        "heapUsageAfterMinusBeforeMiB": 85.53092956542969,
+        "phase.rssStartMiB": 533.28515625,
+        "phase.rssEndMiB": 597.4375,
+        "phase.rssPeakMiB": 597.4375,
+        "csv.workingSetObservedMaxMiB": null,
+        "csv.privateObservedMaxMiB": null
+      },
+      "insideWindowSamples": []
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 2,
+      "iteration": 2,
+      "durationMs": 926.692,
+      "startMs": 1794511528830,
+      "endMs": 1794511529758,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 558.03271484375,
+        "heapBefore.heapCapacityMiB": 564.0,
+        "heapBefore.externalUsageMiB": 0.02774810791015625,
+        "heapAfter.heapUsageMiB": 472.90504455566406,
+        "heapAfter.heapCapacityMiB": 477.9140625,
+        "heapAfter.externalUsageMiB": 0.03731536865234375,
+        "heapUsageAfterMinusBeforeMiB": -85.12767028808594,
+        "phase.rssStartMiB": 958.44921875,
+        "phase.rssEndMiB": 883.65625,
+        "phase.rssPeakMiB": 958.44921875,
+        "csv.workingSetObservedMaxMiB": 876.33984375,
+        "csv.privateObservedMaxMiB": 747.84375
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511529000,
+          "monotonicMs": 194000,
+          "workingSetMiB": 876.33984375,
+          "privateMiB": 747.84375,
+          "treeAgeMs": 952
+        },
+        {
+          "epochMs": 1794511529500,
+          "monotonicMs": 194500,
+          "workingSetMiB": 875.1484375,
+          "privateMiB": 746.90625,
+          "treeAgeMs": 1452
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.open",
+      "launchIndex": 2,
+      "iteration": 3,
+      "durationMs": 375.726,
+      "startMs": 1794511542285,
+      "endMs": 1794511542660,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 98.51026916503906,
+        "heapBefore.heapCapacityMiB": 113.09765625,
+        "heapBefore.externalUsageMiB": 0.01764678955078125,
+        "heapAfter.heapUsageMiB": 180.90672302246094,
+        "heapAfter.heapCapacityMiB": 186.125,
+        "heapAfter.externalUsageMiB": 0.02513885498046875,
+        "heapUsageAfterMinusBeforeMiB": 82.39645385742188,
+        "phase.rssStartMiB": 511.8984375,
+        "phase.rssEndMiB": 562.51953125,
+        "phase.rssPeakMiB": 562.51953125,
+        "csv.workingSetObservedMaxMiB": 560.0078125,
+        "csv.privateObservedMaxMiB": 457.1171875
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511542514,
+          "monotonicMs": 207515,
+          "workingSetMiB": 560.0078125,
+          "privateMiB": 457.1171875,
+          "treeAgeMs": 1965
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 2,
+      "iteration": 3,
+      "durationMs": 936.193,
+      "startMs": 1794511577089,
+      "endMs": 1794511578025,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 549.8585205078125,
+        "heapBefore.heapCapacityMiB": 555.52734375,
+        "heapBefore.externalUsageMiB": 0.02774810791015625,
+        "heapAfter.heapUsageMiB": 466.7024841308594,
+        "heapAfter.heapCapacityMiB": 472.4140625,
+        "heapAfter.externalUsageMiB": 0.03427886962890625,
+        "heapUsageAfterMinusBeforeMiB": -83.15603637695312,
+        "phase.rssStartMiB": 926.81640625,
+        "phase.rssEndMiB": 854.2578125,
+        "phase.rssPeakMiB": 926.81640625,
+        "csv.workingSetObservedMaxMiB": 923.72265625,
+        "csv.privateObservedMaxMiB": 823.14453125
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511577129,
+          "monotonicMs": 242130,
+          "workingSetMiB": 923.72265625,
+          "privateMiB": 823.14453125,
+          "treeAgeMs": 1459
+        },
+        {
+          "epochMs": 1794511577630,
+          "monotonicMs": 242630,
+          "workingSetMiB": 861.1015625,
+          "privateMiB": 749.1328125,
+          "treeAgeMs": 1959
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.open",
+      "launchIndex": 3,
+      "iteration": 0,
+      "durationMs": 367.814,
+      "startMs": 1794512157983,
+      "endMs": 1794512158351,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 106.49299621582031,
+        "heapBefore.heapCapacityMiB": 111.6875,
+        "heapBefore.externalUsageMiB": 0.02805328369140625,
+        "heapAfter.heapUsageMiB": 197.90228271484375,
+        "heapAfter.heapCapacityMiB": 202.22265625,
+        "heapAfter.externalUsageMiB": 0.03261566162109375,
+        "heapUsageAfterMinusBeforeMiB": 91.40928649902344,
+        "phase.rssStartMiB": 532.12109375,
+        "phase.rssEndMiB": 627.0,
+        "phase.rssPeakMiB": 627.0,
+        "csv.workingSetObservedMaxMiB": 546.8671875,
+        "csv.privateObservedMaxMiB": 414.78515625
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794512158129,
+          "monotonicMs": 63674,
+          "workingSetMiB": 546.8671875,
+          "privateMiB": 414.78515625,
+          "treeAgeMs": 959
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 3,
+      "iteration": 0,
+      "durationMs": 928.589,
+      "startMs": 1794512193351,
+      "endMs": 1794512194279,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 551.2863922119141,
+        "heapBefore.heapCapacityMiB": 557.08203125,
+        "heapBefore.externalUsageMiB": 0.02838897705078125,
+        "heapAfter.heapUsageMiB": 468.37493896484375,
+        "heapAfter.heapCapacityMiB": 474.0078125,
+        "heapAfter.externalUsageMiB": 0.03423309326171875,
+        "heapUsageAfterMinusBeforeMiB": -82.91145324707031,
+        "phase.rssStartMiB": 968.40234375,
+        "phase.rssEndMiB": 896.34375,
+        "phase.rssPeakMiB": 968.40234375,
+        "csv.workingSetObservedMaxMiB": 904.09375,
+        "csv.privateObservedMaxMiB": 764.40234375
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794512193721,
+          "monotonicMs": 99266,
+          "workingSetMiB": 902.2890625,
+          "privateMiB": 762.7421875,
+          "treeAgeMs": 1462
+        },
+        {
+          "epochMs": 1794512194222,
+          "monotonicMs": 99766,
+          "workingSetMiB": 904.09375,
+          "privateMiB": 764.40234375,
+          "treeAgeMs": 1962
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.open",
+      "launchIndex": 3,
+      "iteration": 1,
+      "durationMs": 352.733,
+      "startMs": 1794512206599,
+      "endMs": 1794512206952,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 100.92710876464844,
+        "heapBefore.heapCapacityMiB": 116.04296875,
+        "heapBefore.externalUsageMiB": 0.01740264892578125,
+        "heapAfter.heapUsageMiB": 145.64410400390625,
+        "heapAfter.heapCapacityMiB": 149.90234375,
+        "heapAfter.externalUsageMiB": 0.02513885498046875,
+        "heapUsageAfterMinusBeforeMiB": 44.71699523925781,
+        "phase.rssStartMiB": 547.29296875,
+        "phase.rssEndMiB": 646.95703125,
+        "phase.rssPeakMiB": 646.95703125,
+        "csv.workingSetObservedMaxMiB": 550.265625,
+        "csv.privateObservedMaxMiB": 426.3203125
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794512206730,
+          "monotonicMs": 112275,
+          "workingSetMiB": 550.265625,
+          "privateMiB": 426.3203125,
+          "treeAgeMs": 1959
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 3,
+      "iteration": 1,
+      "durationMs": 932.593,
+      "startMs": 1794512241284,
+      "endMs": 1794512242217,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 561.1952667236328,
+        "heapBefore.heapCapacityMiB": 566.5234375,
+        "heapBefore.externalUsageMiB": 0.02774810791015625,
+        "heapAfter.heapUsageMiB": 475.23321533203125,
+        "heapAfter.heapCapacityMiB": 481.875,
+        "heapAfter.externalUsageMiB": 0.03691864013671875,
+        "heapUsageAfterMinusBeforeMiB": -85.96205139160156,
+        "phase.rssStartMiB": 967.25390625,
+        "phase.rssEndMiB": 892.12890625,
+        "phase.rssPeakMiB": 967.25390625,
+        "csv.workingSetObservedMaxMiB": 935.9609375,
+        "csv.privateObservedMaxMiB": 794.7578125
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794512241327,
+          "monotonicMs": 146871,
+          "workingSetMiB": 935.9609375,
+          "privateMiB": 794.7578125,
+          "treeAgeMs": 1458
+        },
+        {
+          "epochMs": 1794512241831,
+          "monotonicMs": 147375,
+          "workingSetMiB": 887.66015625,
+          "privateMiB": 745.484375,
+          "treeAgeMs": 1962
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.open",
+      "launchIndex": 3,
+      "iteration": 2,
+      "durationMs": 389.031,
+      "startMs": 1794512254777,
+      "endMs": 1794512255165,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 101.72378540039062,
+        "heapBefore.heapCapacityMiB": 114.75,
+        "heapBefore.externalUsageMiB": 0.01761627197265625,
+        "heapAfter.heapUsageMiB": 162.72195434570312,
+        "heapAfter.heapCapacityMiB": 168.578125,
+        "heapAfter.externalUsageMiB": 0.02794647216796875,
+        "heapUsageAfterMinusBeforeMiB": 60.9981689453125,
+        "phase.rssStartMiB": 532.50390625,
+        "phase.rssEndMiB": 613.42578125,
+        "phase.rssPeakMiB": 613.42578125,
+        "csv.workingSetObservedMaxMiB": 542.8046875,
+        "csv.privateObservedMaxMiB": 412.44921875
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794512254906,
+          "monotonicMs": 160450,
+          "workingSetMiB": 542.8046875,
+          "privateMiB": 412.44921875,
+          "treeAgeMs": 0
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 3,
+      "iteration": 2,
+      "durationMs": 928.098,
+      "startMs": 1794512289477,
+      "endMs": 1794512290405,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 574.0510101318359,
+        "heapBefore.heapCapacityMiB": 579.3203125,
+        "heapBefore.externalUsageMiB": 0.02774810791015625,
+        "heapAfter.heapUsageMiB": 468.2698211669922,
+        "heapAfter.heapCapacityMiB": 473.875,
+        "heapAfter.externalUsageMiB": 0.03429412841796875,
+        "heapUsageAfterMinusBeforeMiB": -105.78118896484375,
+        "phase.rssStartMiB": 984.1875,
+        "phase.rssEndMiB": 888.94921875,
+        "phase.rssPeakMiB": 984.1875,
+        "csv.workingSetObservedMaxMiB": 986.8515625,
+        "csv.privateObservedMaxMiB": 859.91796875
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794512289498,
+          "monotonicMs": 195041,
+          "workingSetMiB": 986.8515625,
+          "privateMiB": 859.91796875,
+          "treeAgeMs": 1992
+        },
+        {
+          "epochMs": 1794512290046,
+          "monotonicMs": 195590,
+          "workingSetMiB": 885.94921875,
+          "privateMiB": 749.79296875,
+          "treeAgeMs": 0
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.open",
+      "launchIndex": 3,
+      "iteration": 3,
+      "durationMs": 369.678,
+      "startMs": 1794512302497,
+      "endMs": 1794512302867,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 99.00822448730469,
+        "heapBefore.heapCapacityMiB": 114.9453125,
+        "heapBefore.externalUsageMiB": 0.01703643798828125,
+        "heapAfter.heapUsageMiB": 196.16627502441406,
+        "heapAfter.heapCapacityMiB": 201.33203125,
+        "heapAfter.externalUsageMiB": 0.03261566162109375,
+        "heapUsageAfterMinusBeforeMiB": 97.15805053710938,
+        "phase.rssStartMiB": 512.80859375,
+        "phase.rssEndMiB": 563.32421875,
+        "phase.rssPeakMiB": 603.59765625,
+        "csv.workingSetObservedMaxMiB": 532.36328125,
+        "csv.privateObservedMaxMiB": 420.09765625
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794512302558,
+          "monotonicMs": 208102,
+          "workingSetMiB": 532.36328125,
+          "privateMiB": 420.09765625,
+          "treeAgeMs": 0
+        }
+      ]
+    },
+    {
+      "side": "baseline",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 3,
+      "iteration": 3,
+      "durationMs": 942.276,
+      "startMs": 1794512337167,
+      "endMs": 1794512338109,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 574.7241058349609,
+        "heapBefore.heapCapacityMiB": 580.4765625,
+        "heapBefore.externalUsageMiB": 0.02774810791015625,
+        "heapAfter.heapUsageMiB": 469.6010437011719,
+        "heapAfter.heapCapacityMiB": 475.875,
+        "heapAfter.externalUsageMiB": 0.03490447998046875,
+        "heapUsageAfterMinusBeforeMiB": -105.12306213378906,
+        "phase.rssStartMiB": 943.16015625,
+        "phase.rssEndMiB": 850.13671875,
+        "phase.rssPeakMiB": 943.16015625,
+        "csv.workingSetObservedMaxMiB": 852.578125,
+        "csv.privateObservedMaxMiB": 743.75
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794512337666,
+          "monotonicMs": 243210,
+          "workingSetMiB": 852.578125,
+          "privateMiB": 743.75,
+          "treeAgeMs": 0
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.open",
+      "launchIndex": 0,
+      "iteration": 0,
+      "durationMs": 183.828,
+      "startMs": 1794510634710,
+      "endMs": 1794510634894,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 97.57403564453125,
+        "heapBefore.heapCapacityMiB": 109.65234375,
+        "heapBefore.externalUsageMiB": 0.01703643798828125,
+        "heapAfter.heapUsageMiB": 132.8650360107422,
+        "heapAfter.heapCapacityMiB": 142.26953125,
+        "heapAfter.externalUsageMiB": 0.02513885498046875,
+        "heapUsageAfterMinusBeforeMiB": 35.29100036621094,
+        "phase.rssStartMiB": 532.05859375,
+        "phase.rssEndMiB": 549.75390625,
+        "phase.rssPeakMiB": 549.75390625,
+        "csv.workingSetObservedMaxMiB": null,
+        "csv.privateObservedMaxMiB": null
+      },
+      "insideWindowSamples": []
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 0,
+      "iteration": 0,
+      "durationMs": 934.416,
+      "startMs": 1794510665817,
+      "endMs": 1794510666752,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 548.1563110351562,
+        "heapBefore.heapCapacityMiB": 554.62109375,
+        "heapBefore.externalUsageMiB": 0.03464508056640625,
+        "heapAfter.heapUsageMiB": 460.3355255126953,
+        "heapAfter.heapCapacityMiB": 465.9765625,
+        "heapAfter.externalUsageMiB": 0.03701019287109375,
+        "heapUsageAfterMinusBeforeMiB": -87.82078552246094,
+        "phase.rssStartMiB": 966.9140625,
+        "phase.rssEndMiB": 884.30078125,
+        "phase.rssPeakMiB": 966.9140625,
+        "csv.workingSetObservedMaxMiB": 879.78125,
+        "csv.privateObservedMaxMiB": 741.54296875
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794510666168,
+          "monotonicMs": 91782,
+          "workingSetMiB": 879.78125,
+          "privateMiB": 741.54296875,
+          "treeAgeMs": 1466
+        },
+        {
+          "epochMs": 1794510666668,
+          "monotonicMs": 92282,
+          "workingSetMiB": 876.6015625,
+          "privateMiB": 739.55859375,
+          "treeAgeMs": 1966
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.open",
+      "launchIndex": 0,
+      "iteration": 1,
+      "durationMs": 190.049,
+      "startMs": 1794510678826,
+      "endMs": 1794510679016,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 99.14518737792969,
+        "heapBefore.heapCapacityMiB": 112.75390625,
+        "heapBefore.externalUsageMiB": 0.01703643798828125,
+        "heapAfter.heapUsageMiB": 137.73895263671875,
+        "heapAfter.heapCapacityMiB": 142.68359375,
+        "heapAfter.externalUsageMiB": 0.02513885498046875,
+        "heapUsageAfterMinusBeforeMiB": 38.59376525878906,
+        "phase.rssStartMiB": 541.4375,
+        "phase.rssEndMiB": 554.625,
+        "phase.rssPeakMiB": 554.625,
+        "csv.workingSetObservedMaxMiB": null,
+        "csv.privateObservedMaxMiB": null
+      },
+      "insideWindowSamples": []
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 0,
+      "iteration": 1,
+      "durationMs": 934.213,
+      "startMs": 1794510709865,
+      "endMs": 1794510710799,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 548.7468109130859,
+        "heapBefore.heapCapacityMiB": 555.05859375,
+        "heapBefore.externalUsageMiB": 0.03464508056640625,
+        "heapAfter.heapUsageMiB": 448.4569854736328,
+        "heapAfter.heapCapacityMiB": 456.9765625,
+        "heapAfter.externalUsageMiB": 0.02980804443359375,
+        "heapUsageAfterMinusBeforeMiB": -100.28982543945312,
+        "phase.rssStartMiB": 955.95703125,
+        "phase.rssEndMiB": 876.0625,
+        "phase.rssPeakMiB": 955.95703125,
+        "csv.workingSetObservedMaxMiB": 875.37109375,
+        "csv.privateObservedMaxMiB": 733.73828125
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794510710287,
+          "monotonicMs": 135901,
+          "workingSetMiB": 875.37109375,
+          "privateMiB": 733.73828125,
+          "treeAgeMs": 462
+        },
+        {
+          "epochMs": 1794510710788,
+          "monotonicMs": 136402,
+          "workingSetMiB": 874.625,
+          "privateMiB": 733.28515625,
+          "treeAgeMs": 963
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.open",
+      "launchIndex": 0,
+      "iteration": 2,
+      "durationMs": 190.663,
+      "startMs": 1794510722929,
+      "endMs": 1794510723120,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 102.64201354980469,
+        "heapBefore.heapCapacityMiB": 116.40234375,
+        "heapBefore.externalUsageMiB": 0.01731109619140625,
+        "heapAfter.heapUsageMiB": 122.00831604003906,
+        "heapAfter.heapCapacityMiB": 128.015625,
+        "heapAfter.externalUsageMiB": 0.02513885498046875,
+        "heapUsageAfterMinusBeforeMiB": 19.366302490234375,
+        "phase.rssStartMiB": 530.62109375,
+        "phase.rssEndMiB": 542.62890625,
+        "phase.rssPeakMiB": 542.62890625,
+        "csv.workingSetObservedMaxMiB": null,
+        "csv.privateObservedMaxMiB": null
+      },
+      "insideWindowSamples": []
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 0,
+      "iteration": 2,
+      "durationMs": 947.541,
+      "startMs": 1794510754773,
+      "endMs": 1794510755721,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 544.6360321044922,
+        "heapBefore.heapCapacityMiB": 550.33203125,
+        "heapBefore.externalUsageMiB": 0.02774810791015625,
+        "heapAfter.heapUsageMiB": 459.5576477050781,
+        "heapAfter.heapCapacityMiB": 465.9765625,
+        "heapAfter.externalUsageMiB": 0.03737640380859375,
+        "heapUsageAfterMinusBeforeMiB": -85.07838439941406,
+        "phase.rssStartMiB": 957.40234375,
+        "phase.rssEndMiB": 883.73046875,
+        "phase.rssPeakMiB": 957.40234375,
+        "csv.workingSetObservedMaxMiB": 886.23828125,
+        "csv.privateObservedMaxMiB": 748.1796875
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794510754920,
+          "monotonicMs": 180534,
+          "workingSetMiB": 886.23828125,
+          "privateMiB": 748.1796875,
+          "treeAgeMs": 0
+        },
+        {
+          "epochMs": 1794510755371,
+          "monotonicMs": 180984,
+          "workingSetMiB": 880.91796875,
+          "privateMiB": 742.1640625,
+          "treeAgeMs": 450
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.open",
+      "launchIndex": 0,
+      "iteration": 3,
+      "durationMs": 192.176,
+      "startMs": 1794510767994,
+      "endMs": 1794510768185,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 102.61508178710938,
+        "heapBefore.heapCapacityMiB": 116.40234375,
+        "heapBefore.externalUsageMiB": 0.01725006103515625,
+        "heapAfter.heapUsageMiB": 132.91012573242188,
+        "heapAfter.heapCapacityMiB": 139.3046875,
+        "heapAfter.externalUsageMiB": 0.02513885498046875,
+        "heapUsageAfterMinusBeforeMiB": 30.2950439453125,
+        "phase.rssStartMiB": 534.16796875,
+        "phase.rssEndMiB": 545.8671875,
+        "phase.rssPeakMiB": 545.8671875,
+        "csv.workingSetObservedMaxMiB": null,
+        "csv.privateObservedMaxMiB": null
+      },
+      "insideWindowSamples": []
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 0,
+      "iteration": 3,
+      "durationMs": 939.211,
+      "startMs": 1794510799096,
+      "endMs": 1794510800035,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 546.7165222167969,
+        "heapBefore.heapCapacityMiB": 552.98046875,
+        "heapBefore.externalUsageMiB": 0.03464508056640625,
+        "heapAfter.heapUsageMiB": 459.53338623046875,
+        "heapAfter.heapCapacityMiB": 466.4765625,
+        "heapAfter.externalUsageMiB": 0.03734588623046875,
+        "heapUsageAfterMinusBeforeMiB": -87.18313598632812,
+        "phase.rssStartMiB": 952.5546875,
+        "phase.rssEndMiB": 877.12890625,
+        "phase.rssPeakMiB": 952.5546875,
+        "csv.workingSetObservedMaxMiB": 875.0859375,
+        "csv.privateObservedMaxMiB": 735.41015625
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794510799495,
+          "monotonicMs": 225108,
+          "workingSetMiB": 875.0859375,
+          "privateMiB": 735.41015625,
+          "treeAgeMs": 1967
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.open",
+      "launchIndex": 1,
+      "iteration": 0,
+      "durationMs": 195.08,
+      "startMs": 1794510881483,
+      "endMs": 1794510881678,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 98.54035949707031,
+        "heapBefore.heapCapacityMiB": 113.1953125,
+        "heapBefore.externalUsageMiB": 0.01706695556640625,
+        "heapAfter.heapUsageMiB": 135.10801696777344,
+        "heapAfter.heapCapacityMiB": 141.71484375,
+        "heapAfter.externalUsageMiB": 0.02513885498046875,
+        "heapUsageAfterMinusBeforeMiB": 36.567657470703125,
+        "phase.rssStartMiB": 536.89453125,
+        "phase.rssEndMiB": 551.16796875,
+        "phase.rssPeakMiB": 551.16796875,
+        "csv.workingSetObservedMaxMiB": 526.33984375,
+        "csv.privateObservedMaxMiB": 386.3984375
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794510881516,
+          "monotonicMs": 59163,
+          "workingSetMiB": 526.33984375,
+          "privateMiB": 386.3984375,
+          "treeAgeMs": 1459
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 1,
+      "iteration": 0,
+      "durationMs": 935.016,
+      "startMs": 1794510913287,
+      "endMs": 1794510914221,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 535.9438629150391,
+        "heapBefore.heapCapacityMiB": 541.90625,
+        "heapBefore.externalUsageMiB": 0.02774810791015625,
+        "heapAfter.heapUsageMiB": 453.18797302246094,
+        "heapAfter.heapCapacityMiB": 458.9765625,
+        "heapAfter.externalUsageMiB": 0.03426361083984375,
+        "heapUsageAfterMinusBeforeMiB": -82.75588989257812,
+        "phase.rssStartMiB": 955.08203125,
+        "phase.rssEndMiB": 877.9921875,
+        "phase.rssPeakMiB": 955.08203125,
+        "csv.workingSetObservedMaxMiB": 882.2421875,
+        "csv.privateObservedMaxMiB": 742.97265625
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794510913624,
+          "monotonicMs": 91270,
+          "workingSetMiB": 880.69140625,
+          "privateMiB": 741.3359375,
+          "treeAgeMs": 955
+        },
+        {
+          "epochMs": 1794510914123,
+          "monotonicMs": 91770,
+          "workingSetMiB": 882.2421875,
+          "privateMiB": 742.97265625,
+          "treeAgeMs": 1455
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.open",
+      "launchIndex": 1,
+      "iteration": 1,
+      "durationMs": 176.738,
+      "startMs": 1794510926507,
+      "endMs": 1794510926684,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 97.74125671386719,
+        "heapBefore.heapCapacityMiB": 112.16796875,
+        "heapBefore.externalUsageMiB": 0.01703643798828125,
+        "heapAfter.heapUsageMiB": 124.92094421386719,
+        "heapAfter.heapCapacityMiB": 129.64453125,
+        "heapAfter.externalUsageMiB": 0.02513885498046875,
+        "heapUsageAfterMinusBeforeMiB": 27.1796875,
+        "phase.rssStartMiB": 541.5546875,
+        "phase.rssEndMiB": 554.671875,
+        "phase.rssPeakMiB": 554.671875,
+        "csv.workingSetObservedMaxMiB": 553.484375,
+        "csv.privateObservedMaxMiB": 418.6328125
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794510926655,
+          "monotonicMs": 104301,
+          "workingSetMiB": 553.484375,
+          "privateMiB": 418.6328125,
+          "treeAgeMs": 1453
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 1,
+      "iteration": 1,
+      "durationMs": 953.433,
+      "startMs": 1794510957706,
+      "endMs": 1794510958660,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 544.4715728759766,
+        "heapBefore.heapCapacityMiB": 550.90625,
+        "heapBefore.externalUsageMiB": 0.02774810791015625,
+        "heapAfter.heapUsageMiB": 459.5406799316406,
+        "heapAfter.heapCapacityMiB": 465.4765625,
+        "heapAfter.externalUsageMiB": 0.03737640380859375,
+        "heapUsageAfterMinusBeforeMiB": -84.93089294433594,
+        "phase.rssStartMiB": 952.7734375,
+        "phase.rssEndMiB": 877.3671875,
+        "phase.rssPeakMiB": 952.7734375,
+        "csv.workingSetObservedMaxMiB": 873.5859375,
+        "csv.privateObservedMaxMiB": 728.80859375
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794510957805,
+          "monotonicMs": 135452,
+          "workingSetMiB": 873.5859375,
+          "privateMiB": 728.80859375,
+          "treeAgeMs": 0
+        },
+        {
+          "epochMs": 1794510958242,
+          "monotonicMs": 135889,
+          "workingSetMiB": 869.16015625,
+          "privateMiB": 725.859375,
+          "treeAgeMs": 437
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.open",
+      "launchIndex": 1,
+      "iteration": 2,
+      "durationMs": 175.784,
+      "startMs": 1794510970713,
+      "endMs": 1794510970889,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 101.97581481933594,
+        "heapBefore.heapCapacityMiB": 116.27734375,
+        "heapBefore.externalUsageMiB": 0.01773834228515625,
+        "heapAfter.heapUsageMiB": 128.35147094726562,
+        "heapAfter.heapCapacityMiB": 135.28515625,
+        "heapAfter.externalUsageMiB": 0.02513885498046875,
+        "heapUsageAfterMinusBeforeMiB": 26.375656127929688,
+        "phase.rssStartMiB": 531.171875,
+        "phase.rssEndMiB": 542.49609375,
+        "phase.rssPeakMiB": 542.49609375,
+        "csv.workingSetObservedMaxMiB": 523.91796875,
+        "csv.privateObservedMaxMiB": 388.37890625
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794510970756,
+          "monotonicMs": 148402,
+          "workingSetMiB": 523.91796875,
+          "privateMiB": 388.37890625,
+          "treeAgeMs": 463
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 1,
+      "iteration": 2,
+      "durationMs": 956.662,
+      "startMs": 1794511002452,
+      "endMs": 1794511003409,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 536.8964233398438,
+        "heapBefore.heapCapacityMiB": 542.796875,
+        "heapBefore.externalUsageMiB": 0.02838897705078125,
+        "heapAfter.heapUsageMiB": 455.0480651855469,
+        "heapAfter.heapCapacityMiB": 461.23828125,
+        "heapAfter.externalUsageMiB": 0.03493499755859375,
+        "heapUsageAfterMinusBeforeMiB": -81.84835815429688,
+        "phase.rssStartMiB": 949.75390625,
+        "phase.rssEndMiB": 874.66796875,
+        "phase.rssPeakMiB": 949.75390625,
+        "csv.workingSetObservedMaxMiB": 879.66796875,
+        "csv.privateObservedMaxMiB": 739.11328125
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511002879,
+          "monotonicMs": 180525,
+          "workingSetMiB": 873.125,
+          "privateMiB": 732.6328125,
+          "treeAgeMs": 0
+        },
+        {
+          "epochMs": 1794511003327,
+          "monotonicMs": 180973,
+          "workingSetMiB": 879.66796875,
+          "privateMiB": 739.11328125,
+          "treeAgeMs": 448
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.open",
+      "launchIndex": 1,
+      "iteration": 3,
+      "durationMs": 182.938,
+      "startMs": 1794511016142,
+      "endMs": 1794511016325,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 102.18525695800781,
+        "heapBefore.heapCapacityMiB": 112.48828125,
+        "heapBefore.externalUsageMiB": 0.01712799072265625,
+        "heapAfter.heapUsageMiB": 126.68983459472656,
+        "heapAfter.heapCapacityMiB": 133.48046875,
+        "heapAfter.externalUsageMiB": 0.02513885498046875,
+        "heapUsageAfterMinusBeforeMiB": 24.50457763671875,
+        "phase.rssStartMiB": 534.87890625,
+        "phase.rssEndMiB": 549.91015625,
+        "phase.rssPeakMiB": 549.91015625,
+        "csv.workingSetObservedMaxMiB": null,
+        "csv.privateObservedMaxMiB": null
+      },
+      "insideWindowSamples": []
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 1,
+      "iteration": 3,
+      "durationMs": 932.597,
+      "startMs": 1794511047884,
+      "endMs": 1794511048816,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 539.3833160400391,
+        "heapBefore.heapCapacityMiB": 550.046875,
+        "heapBefore.externalUsageMiB": 0.02838897705078125,
+        "heapAfter.heapUsageMiB": 461.40745544433594,
+        "heapAfter.heapCapacityMiB": 468.23828125,
+        "heapAfter.externalUsageMiB": 0.03795623779296875,
+        "heapUsageAfterMinusBeforeMiB": -77.97586059570312,
+        "phase.rssStartMiB": 919.890625,
+        "phase.rssEndMiB": 849.15234375,
+        "phase.rssPeakMiB": 919.890625,
+        "csv.workingSetObservedMaxMiB": 849.05078125,
+        "csv.privateObservedMaxMiB": 739.67578125
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511048000,
+          "monotonicMs": 225646,
+          "workingSetMiB": 849.05078125,
+          "privateMiB": 739.67578125,
+          "treeAgeMs": 0
+        },
+        {
+          "epochMs": 1794511048438,
+          "monotonicMs": 226083,
+          "workingSetMiB": 843.7734375,
+          "privateMiB": 735.296875,
+          "treeAgeMs": 437
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.open",
+      "launchIndex": 2,
+      "iteration": 0,
+      "durationMs": 179.798,
+      "startMs": 1794511659061,
+      "endMs": 1794511659242,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 98.85963439941406,
+        "heapBefore.heapCapacityMiB": 110.78515625,
+        "heapBefore.externalUsageMiB": 0.01734161376953125,
+        "heapAfter.heapUsageMiB": 139.1511688232422,
+        "heapAfter.heapCapacityMiB": 145.76953125,
+        "heapAfter.externalUsageMiB": 0.02513885498046875,
+        "heapUsageAfterMinusBeforeMiB": 40.291534423828125,
+        "phase.rssStartMiB": 523.66796875,
+        "phase.rssEndMiB": 539.94140625,
+        "phase.rssPeakMiB": 539.94140625,
+        "csv.workingSetObservedMaxMiB": 537.92578125,
+        "csv.privateObservedMaxMiB": 402.6328125
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511659210,
+          "monotonicMs": 59171,
+          "workingSetMiB": 537.92578125,
+          "privateMiB": 402.6328125,
+          "treeAgeMs": 1469
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 2,
+      "iteration": 0,
+      "durationMs": 940.774,
+      "startMs": 1794511690771,
+      "endMs": 1794511691712,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 543.8180694580078,
+        "heapBefore.heapCapacityMiB": 550.36328125,
+        "heapBefore.externalUsageMiB": 0.02774810791015625,
+        "heapAfter.heapUsageMiB": 459.7174530029297,
+        "heapAfter.heapCapacityMiB": 466.109375,
+        "heapAfter.externalUsageMiB": 0.03731536865234375,
+        "heapUsageAfterMinusBeforeMiB": -84.10061645507812,
+        "phase.rssStartMiB": 960.1328125,
+        "phase.rssEndMiB": 887.484375,
+        "phase.rssPeakMiB": 960.1328125,
+        "csv.workingSetObservedMaxMiB": 963.35546875,
+        "csv.privateObservedMaxMiB": 835.234375
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511690808,
+          "monotonicMs": 90768,
+          "workingSetMiB": 963.35546875,
+          "privateMiB": 835.234375,
+          "treeAgeMs": 473
+        },
+        {
+          "epochMs": 1794511691318,
+          "monotonicMs": 91279,
+          "workingSetMiB": 882.15234375,
+          "privateMiB": 743.45703125,
+          "treeAgeMs": 984
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.open",
+      "launchIndex": 2,
+      "iteration": 1,
+      "durationMs": 176.14,
+      "startMs": 1794511704075,
+      "endMs": 1794511704251,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 98.96298217773438,
+        "heapBefore.heapCapacityMiB": 111.6640625,
+        "heapBefore.externalUsageMiB": 0.01700592041015625,
+        "heapAfter.heapUsageMiB": 125.65176391601562,
+        "heapAfter.heapCapacityMiB": 132.3828125,
+        "heapAfter.externalUsageMiB": 0.02513885498046875,
+        "heapUsageAfterMinusBeforeMiB": 26.68878173828125,
+        "phase.rssStartMiB": 539.078125,
+        "phase.rssEndMiB": 552.55859375,
+        "phase.rssPeakMiB": 552.55859375,
+        "csv.workingSetObservedMaxMiB": null,
+        "csv.privateObservedMaxMiB": null
+      },
+      "insideWindowSamples": []
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 2,
+      "iteration": 1,
+      "durationMs": 928.482,
+      "startMs": 1794511735145,
+      "endMs": 1794511736073,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 535.6838073730469,
+        "heapBefore.heapCapacityMiB": 541.8046875,
+        "heapBefore.externalUsageMiB": 0.02774810791015625,
+        "heapAfter.heapUsageMiB": 453.2401123046875,
+        "heapAfter.heapCapacityMiB": 459.4765625,
+        "heapAfter.externalUsageMiB": 0.03426361083984375,
+        "heapUsageAfterMinusBeforeMiB": -82.44369506835938,
+        "phase.rssStartMiB": 941.46875,
+        "phase.rssEndMiB": 868.94921875,
+        "phase.rssPeakMiB": 941.46875,
+        "csv.workingSetObservedMaxMiB": 871.734375,
+        "csv.privateObservedMaxMiB": 728.81640625
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511735473,
+          "monotonicMs": 135433,
+          "workingSetMiB": 871.734375,
+          "privateMiB": 728.81640625,
+          "treeAgeMs": 0
+        },
+        {
+          "epochMs": 1794511735937,
+          "monotonicMs": 135897,
+          "workingSetMiB": 870.43359375,
+          "privateMiB": 727.81640625,
+          "treeAgeMs": 464
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.open",
+      "launchIndex": 2,
+      "iteration": 2,
+      "durationMs": 175.821,
+      "startMs": 1794511748531,
+      "endMs": 1794511748706,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 101.2935791015625,
+        "heapBefore.heapCapacityMiB": 113.98828125,
+        "heapBefore.externalUsageMiB": 0.01761627197265625,
+        "heapAfter.heapUsageMiB": 120.11122131347656,
+        "heapAfter.heapCapacityMiB": 125.2578125,
+        "heapAfter.externalUsageMiB": 0.02513885498046875,
+        "heapUsageAfterMinusBeforeMiB": 18.817642211914062,
+        "phase.rssStartMiB": 527.03515625,
+        "phase.rssEndMiB": 541.046875,
+        "phase.rssPeakMiB": 541.046875,
+        "csv.workingSetObservedMaxMiB": null,
+        "csv.privateObservedMaxMiB": null
+      },
+      "insideWindowSamples": []
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 2,
+      "iteration": 2,
+      "durationMs": 946.065,
+      "startMs": 1794511780486,
+      "endMs": 1794511781432,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 544.0812377929688,
+        "heapBefore.heapCapacityMiB": 549.80078125,
+        "heapBefore.externalUsageMiB": 0.02774810791015625,
+        "heapAfter.heapUsageMiB": 460.97662353515625,
+        "heapAfter.heapCapacityMiB": 467.4765625,
+        "heapAfter.externalUsageMiB": 0.03795623779296875,
+        "heapUsageAfterMinusBeforeMiB": -83.1046142578125,
+        "phase.rssStartMiB": 954.8125,
+        "phase.rssEndMiB": 882.921875,
+        "phase.rssPeakMiB": 954.8125,
+        "csv.workingSetObservedMaxMiB": 907.390625,
+        "csv.privateObservedMaxMiB": 766.515625
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511780571,
+          "monotonicMs": 180531,
+          "workingSetMiB": 907.390625,
+          "privateMiB": 766.515625,
+          "treeAgeMs": 0
+        },
+        {
+          "epochMs": 1794511781025,
+          "monotonicMs": 180985,
+          "workingSetMiB": 876.33984375,
+          "privateMiB": 734.953125,
+          "treeAgeMs": 454
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.open",
+      "launchIndex": 2,
+      "iteration": 3,
+      "durationMs": 175.124,
+      "startMs": 1794511793751,
+      "endMs": 1794511793926,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 105.50607299804688,
+        "heapBefore.heapCapacityMiB": 109.53515625,
+        "heapBefore.externalUsageMiB": 0.02805328369140625,
+        "heapAfter.heapUsageMiB": 141.3307647705078,
+        "heapAfter.heapCapacityMiB": 149.4375,
+        "heapAfter.externalUsageMiB": 0.02513885498046875,
+        "heapUsageAfterMinusBeforeMiB": 35.82469177246094,
+        "phase.rssStartMiB": 525.35546875,
+        "phase.rssEndMiB": 539.4296875,
+        "phase.rssPeakMiB": 539.4296875,
+        "csv.workingSetObservedMaxMiB": null,
+        "csv.privateObservedMaxMiB": null
+      },
+      "insideWindowSamples": []
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 2,
+      "iteration": 3,
+      "durationMs": 939.388,
+      "startMs": 1794511824884,
+      "endMs": 1794511825823,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 546.2640228271484,
+        "heapBefore.heapCapacityMiB": 552.51953125,
+        "heapBefore.externalUsageMiB": 0.03464508056640625,
+        "heapAfter.heapUsageMiB": 460.98077392578125,
+        "heapAfter.heapCapacityMiB": 467.9765625,
+        "heapAfter.externalUsageMiB": 0.03798675537109375,
+        "heapUsageAfterMinusBeforeMiB": -85.28324890136719,
+        "phase.rssStartMiB": 945.36328125,
+        "phase.rssEndMiB": 872.93359375,
+        "phase.rssPeakMiB": 945.36328125,
+        "csv.workingSetObservedMaxMiB": 872.0859375,
+        "csv.privateObservedMaxMiB": 732.29296875
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511825158,
+          "monotonicMs": 225117,
+          "workingSetMiB": 872.0859375,
+          "privateMiB": 732.29296875,
+          "treeAgeMs": 1954
+        },
+        {
+          "epochMs": 1794511825702,
+          "monotonicMs": 225661,
+          "workingSetMiB": 863.2578125,
+          "privateMiB": 725.0703125,
+          "treeAgeMs": 0
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.open",
+      "launchIndex": 3,
+      "iteration": 0,
+      "durationMs": 194.095,
+      "startMs": 1794511907059,
+      "endMs": 1794511907252,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 97.28887939453125,
+        "heapBefore.heapCapacityMiB": 111.67578125,
+        "heapBefore.externalUsageMiB": 0.01703643798828125,
+        "heapAfter.heapUsageMiB": 129.7231903076172,
+        "heapAfter.heapCapacityMiB": 139.7421875,
+        "heapAfter.externalUsageMiB": 0.02513885498046875,
+        "heapUsageAfterMinusBeforeMiB": 32.43431091308594,
+        "phase.rssStartMiB": 534.33203125,
+        "phase.rssEndMiB": 556.96484375,
+        "phase.rssPeakMiB": 556.96484375,
+        "csv.workingSetObservedMaxMiB": null,
+        "csv.privateObservedMaxMiB": null
+      },
+      "insideWindowSamples": []
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 3,
+      "iteration": 0,
+      "durationMs": 928.839,
+      "startMs": 1794511938021,
+      "endMs": 1794511938949,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 534.7121734619141,
+        "heapBefore.heapCapacityMiB": 540.3984375,
+        "heapBefore.externalUsageMiB": 0.02774810791015625,
+        "heapAfter.heapUsageMiB": 452.0550994873047,
+        "heapAfter.heapCapacityMiB": 458.515625,
+        "heapAfter.externalUsageMiB": 0.03426361083984375,
+        "heapUsageAfterMinusBeforeMiB": -82.65707397460938,
+        "phase.rssStartMiB": 953.29296875,
+        "phase.rssEndMiB": 875.81640625,
+        "phase.rssPeakMiB": 953.29296875,
+        "csv.workingSetObservedMaxMiB": 955.73046875,
+        "csv.privateObservedMaxMiB": 823.6171875
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511938038,
+          "monotonicMs": 89788,
+          "workingSetMiB": 955.73046875,
+          "privateMiB": 823.6171875,
+          "treeAgeMs": 1979
+        },
+        {
+          "epochMs": 1794511938580,
+          "monotonicMs": 90330,
+          "workingSetMiB": 876.9921875,
+          "privateMiB": 733.84765625,
+          "treeAgeMs": 0
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.open",
+      "launchIndex": 3,
+      "iteration": 1,
+      "durationMs": 195.407,
+      "startMs": 1794511951001,
+      "endMs": 1794511951197,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 105.68064880371094,
+        "heapBefore.heapCapacityMiB": 110.2109375,
+        "heapBefore.externalUsageMiB": 0.02805328369140625,
+        "heapAfter.heapUsageMiB": 136.3360595703125,
+        "heapAfter.heapCapacityMiB": 142.203125,
+        "heapAfter.externalUsageMiB": 0.02513885498046875,
+        "heapUsageAfterMinusBeforeMiB": 30.655410766601562,
+        "phase.rssStartMiB": 539.12109375,
+        "phase.rssEndMiB": 556.640625,
+        "phase.rssPeakMiB": 556.640625,
+        "csv.workingSetObservedMaxMiB": 545.74609375,
+        "csv.privateObservedMaxMiB": 418.04296875
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511951085,
+          "monotonicMs": 102835,
+          "workingSetMiB": 545.74609375,
+          "privateMiB": 418.04296875,
+          "treeAgeMs": 0
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 3,
+      "iteration": 1,
+      "durationMs": 932.548,
+      "startMs": 1794511982159,
+      "endMs": 1794511983091,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 536.7427978515625,
+        "heapBefore.heapCapacityMiB": 542.4765625,
+        "heapBefore.externalUsageMiB": 0.03459930419921875,
+        "heapAfter.heapUsageMiB": 450.68406677246094,
+        "heapAfter.heapCapacityMiB": 457.515625,
+        "heapAfter.externalUsageMiB": 0.03359222412109375,
+        "heapUsageAfterMinusBeforeMiB": -86.05873107910156,
+        "phase.rssStartMiB": 943.4765625,
+        "phase.rssEndMiB": 869.34765625,
+        "phase.rssPeakMiB": 943.4765625,
+        "csv.workingSetObservedMaxMiB": 874.09765625,
+        "csv.privateObservedMaxMiB": 730.57421875
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511982657,
+          "monotonicMs": 134406,
+          "workingSetMiB": 874.09765625,
+          "privateMiB": 730.57421875,
+          "treeAgeMs": 1489
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.open",
+      "launchIndex": 3,
+      "iteration": 2,
+      "durationMs": 191.882,
+      "startMs": 1794511995100,
+      "endMs": 1794511995292,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 98.62005615234375,
+        "heapBefore.heapCapacityMiB": 113.1640625,
+        "heapBefore.externalUsageMiB": 0.01725006103515625,
+        "heapAfter.heapUsageMiB": 147.3930206298828,
+        "heapAfter.heapCapacityMiB": 152.8359375,
+        "heapAfter.externalUsageMiB": 0.03261566162109375,
+        "heapUsageAfterMinusBeforeMiB": 48.77296447753906,
+        "phase.rssStartMiB": 532.00390625,
+        "phase.rssEndMiB": 546.05859375,
+        "phase.rssPeakMiB": 546.05859375,
+        "csv.workingSetObservedMaxMiB": 531.88671875,
+        "csv.privateObservedMaxMiB": 396.76171875
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794511995187,
+          "monotonicMs": 146936,
+          "workingSetMiB": 531.88671875,
+          "privateMiB": 396.76171875,
+          "treeAgeMs": 1462
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 3,
+      "iteration": 2,
+      "durationMs": 927.015,
+      "startMs": 1794512026100,
+      "endMs": 1794512027028,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 543.0655364990234,
+        "heapBefore.heapCapacityMiB": 548.828125,
+        "heapBefore.externalUsageMiB": 0.02774810791015625,
+        "heapAfter.heapUsageMiB": 458.3238983154297,
+        "heapAfter.heapCapacityMiB": 464.515625,
+        "heapAfter.externalUsageMiB": 0.03734588623046875,
+        "heapUsageAfterMinusBeforeMiB": -84.74163818359375,
+        "phase.rssStartMiB": 956.2421875,
+        "phase.rssEndMiB": 882.62109375,
+        "phase.rssPeakMiB": 956.2421875,
+        "csv.workingSetObservedMaxMiB": 876.6875,
+        "csv.privateObservedMaxMiB": 735.81640625
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794512026302,
+          "monotonicMs": 178051,
+          "workingSetMiB": 876.6875,
+          "privateMiB": 735.81640625,
+          "treeAgeMs": 0
+        },
+        {
+          "epochMs": 1794512026757,
+          "monotonicMs": 178506,
+          "workingSetMiB": 872.99609375,
+          "privateMiB": 731.8125,
+          "treeAgeMs": 455
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.open",
+      "launchIndex": 3,
+      "iteration": 3,
+      "durationMs": 182.436,
+      "startMs": 1794512039496,
+      "endMs": 1794512039679,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 98.15396118164062,
+        "heapBefore.heapCapacityMiB": 114.234375,
+        "heapBefore.externalUsageMiB": 0.01761627197265625,
+        "heapAfter.heapUsageMiB": 123.09732055664062,
+        "heapAfter.heapCapacityMiB": 131.67578125,
+        "heapAfter.externalUsageMiB": 0.02513885498046875,
+        "heapUsageAfterMinusBeforeMiB": 24.943359375,
+        "phase.rssStartMiB": 533.0078125,
+        "phase.rssEndMiB": 545.35546875,
+        "phase.rssPeakMiB": 545.35546875,
+        "csv.workingSetObservedMaxMiB": null,
+        "csv.privateObservedMaxMiB": null
+      },
+      "insideWindowSamples": []
+    },
+    {
+      "side": "candidate",
+      "name": "book.long.steady_scroll",
+      "launchIndex": 3,
+      "iteration": 3,
+      "durationMs": 933.713,
+      "startMs": 1794512071282,
+      "endMs": 1794512072216,
+      "metrics": {
+        "heapBefore.heapUsageMiB": 486.3597717285156,
+        "heapBefore.heapCapacityMiB": 513.86328125,
+        "heapBefore.externalUsageMiB": 0.02838897705078125,
+        "heapAfter.heapUsageMiB": 459.77320861816406,
+        "heapAfter.heapCapacityMiB": 486.109375,
+        "heapAfter.externalUsageMiB": 0.03740692138671875,
+        "heapUsageAfterMinusBeforeMiB": -26.586563110351562,
+        "phase.rssStartMiB": 923.25,
+        "phase.rssEndMiB": 895.046875,
+        "phase.rssPeakMiB": 923.25,
+        "csv.workingSetObservedMaxMiB": 917.30859375,
+        "csv.privateObservedMaxMiB": 777.140625
+      },
+      "insideWindowSamples": [
+        {
+          "epochMs": 1794512071429,
+          "monotonicMs": 223178,
+          "workingSetMiB": 917.30859375,
+          "privateMiB": 777.140625,
+          "treeAgeMs": 0
+        },
+        {
+          "epochMs": 1794512071883,
+          "monotonicMs": 223632,
+          "workingSetMiB": 893.40234375,
+          "privateMiB": 752.87890625,
+          "treeAgeMs": 454
+        }
+      ]
+    }
+  ],
+  "inputSha256": {
+    "baseline/phases.jsonl": "17ff6429dcab9fcb6e70d2a461e4830649e9927ed58e146b7e9aed7fab3093f4",
+    "baseline/samples.csv": "7f38eab8aea77a0f8096bdfe67f7455e6b0b3a0c61d6fcff9f89b78c80a5b83e",
+    "baseline/manifest.json": "38d9d5ea90eba3f083b8a73e7eb7fc2421a5bca056dc3281aac8deedd8834b50",
+    "candidate/phases.jsonl": "61188e5d320e50676887b2c04f8e7843aa8b910c7aec1c099ffcd253b2c23b6c",
+    "candidate/samples.csv": "a65b7b21eb446056fb14392147a653ad7cf8629b709c5dca5ee84185cd27636b",
+    "candidate/manifest.json": "1fcfbf333f35eb2fa3deac7198edb7be5b6876566477027b6eaaaafb9f9acb78",
+    "qa": "0a7f0e8aad7a934060e19a669d0c5f6c6cafe80fc65f5ab472c7d39b773e9c09",
+    "analysisSource": "4218ef69d99e36251b3ba6338712d2f1e36167b10aed72c3c6f76e4363f87e4f"
+  }
+}
