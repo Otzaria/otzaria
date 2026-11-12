@@ -70,6 +70,7 @@ import 'package:otzaria/text_book/repository/book_notes_repository.dart';
 import 'package:otzaria/personal_notes/widgets/commentary_notes_section.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
+import 'package:otzaria/text_book/models/commentary_scroll_request.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 import 'package:otzaria/text_book/view/reading_viewport/reading_scrollbar_label.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
@@ -152,6 +153,9 @@ class _PageShapeScreenState extends State<PageShapeScreen>
   );
   final ValueNotifier<int> _closeCommentatorsFilterNotifier =
       ValueNotifier<int>(0);
+  final ValueNotifier<CommentaryScrollRequest?> _commentaryScrollTarget =
+      ValueNotifier<CommentaryScrollRequest?>(null);
+  int _commentaryScrollRequestId = 0;
   final GlobalKey _mainTextViewerKey = GlobalKey();
 
   // סרגל הצד בפיקסלים; הטורים כחלק יחסי מהדף כדי לשמור על היחס בשינוי גודל.
@@ -996,6 +1000,15 @@ class _PageShapeScreenState extends State<PageShapeScreen>
     _notifyCommentatorsFilter(_closeCommentatorsFilterNotifier);
   }
 
+  /// מפרש שנבחר מתפריט הפסקה: החלונית נפתחת גלולה אליו באותה פסקה.
+  void _requestCommentaryScroll(String title, int sourceLine) {
+    _commentaryScrollTarget.value = CommentaryScrollRequest(
+      title: title,
+      sourceLine: sourceLine,
+      requestId: ++_commentaryScrollRequestId,
+    );
+  }
+
   /// פתיחת לשונית המפרשים עם חלונית בחירת המפרשים פרושה.
   void _openCommentatorsPaneWithFilter() {
     _openLeftSidebarTab(kCommentaryTabIndex);
@@ -1086,6 +1099,7 @@ class _PageShapeScreenState extends State<PageShapeScreen>
     _selectionSyncController.dispose();
     _openCommentatorsFilterNotifier.dispose();
     _closeCommentatorsFilterNotifier.dispose();
+    _commentaryScrollTarget.dispose();
     super.dispose();
   }
 
@@ -1158,6 +1172,7 @@ class _PageShapeScreenState extends State<PageShapeScreen>
     selectionSyncController: _selectionSyncController,
     openCommentatorsFilterNotifier: _openCommentatorsFilterNotifier,
     closeCommentatorsFilterNotifier: _closeCommentatorsFilterNotifier,
+    commentaryScrollTarget: _commentaryScrollTarget,
     tab: widget.tab,
     notesBookIdOverride: _notesBookIdOverride,
     notesCategoryIdOverride: _notesCategoryIdOverride,
@@ -1201,6 +1216,7 @@ class _PageShapeScreenState extends State<PageShapeScreen>
           _isLeftSidebarOpen && _leftSidebarTabIndex == kLinksTabIndex,
       onOpenCommentatorsPane: _openCommentatorsPane,
       onOpenCommentatorsPaneWithFilter: _openCommentatorsPaneWithFilter,
+      onCommentatorPicked: _requestCommentaryScroll,
       tab: widget.tab,
       labelForIndex: state.tableOfContents.isEmpty
           ? null

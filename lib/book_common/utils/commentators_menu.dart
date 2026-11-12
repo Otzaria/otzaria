@@ -28,6 +28,7 @@ typedef CommentatorsSelectionChanged =
 
 /// בונה תפריט למפרשי הפסקה או העמוד; הקבוצות מסוננות למפרשים הזמינים.
 /// [getActiveCommentators] נקרא גם בלחיצה, כדי לשמר בחירה שנטענה אחרי הפתיחה.
+/// [onCommentatorPicked] מקבל את המפרש הבודד שנבחר, כדי לגלול אליו בחלונית.
 List<AppContextMenuEntry> buildCommentatorsContextMenuChildren({
   required Iterable<String> Function() getActiveCommentators,
   required List<String> availableCommentators,
@@ -35,6 +36,7 @@ List<AppContextMenuEntry> buildCommentatorsContextMenuChildren({
   required CommentatorsSelectionChanged onCommentatorsChanged,
   VoidCallback? onOpenPane,
   VoidCallback? onSelectMultiple,
+  ValueChanged<String>? onCommentatorPicked,
   bool linksLoading = false,
   String showAllLabel = 'הצג את כל המפרשים על פסקה זו',
   bool keepPaneEntriesWithoutCommentators = false,
@@ -52,6 +54,7 @@ List<AppContextMenuEntry> buildCommentatorsContextMenuChildren({
         // לחיצה על מפרש פעיל רק פותחת את החלונית; הסרה נעשית בחלונית הסינון.
         final updated = getActiveCommentators().toSet()..add(title);
         onCommentatorsChanged(updated.toList(), isAdding: true);
+        onCommentatorPicked?.call(title);
       },
     );
   }

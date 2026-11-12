@@ -234,6 +234,23 @@ void main() {
       },
     );
 
+    test('מפרש בודד שנבחר מדווח לגלילה; קבוצה ו"הצג הכול" — לא (#4798)', () {
+      final picked = <String>[];
+      final entries = buildCommentatorsContextMenuChildren(
+        getActiveCommentators: () => const ['רש"י'],
+        availableCommentators: available,
+        commentatorGroups: groups,
+        onCommentatorsChanged: (_, {required isAdding}) {},
+        onCommentatorPicked: picked.add,
+      );
+
+      entryNamed(entries, 'רמב"ן').onTap!();
+      entryNamed(entries, 'רש"י').onTap!();
+      entryNamed(entries, 'הצג את כל ראשונים').onTap!();
+      entryNamed(entries, 'הצג את כל המפרשים על פסקה זו').onTap!();
+      expect(picked, ['רמב"ן', 'רש"י']);
+    });
+
     test('לחיצה על קבוצה פעילה מסירה את כל מפרשיה בלבד', () {
       List<String>? updated;
       bool? adding;
