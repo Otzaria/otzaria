@@ -86,8 +86,8 @@ void main() {
     final reportCall = watcher.indexOf('ReportStall(');
     expect(captureCall, greaterThanOrEqualTo(0));
     expect(reportCall, greaterThan(captureCall));
-    // הגדרה + קריאה יחידה ב-AppendStackSection, שרץ רק אחרי החידוש.
-    expect(RegExp(r'\bDescribeAddress\(').allMatches(source), hasLength(2));
+    // ההגדרה ושתי הקריאות בעת הרכבת הדוח, אחרי חידוש ה-thread.
+    expect(RegExp(r'\bDescribeAddress\(').allMatches(source), hasLength(3));
     final section = source.substring(
       source.indexOf('void AppendStackSection('),
       source.indexOf('void ReportStall('),
@@ -221,7 +221,12 @@ void main() {
       );
       expect(captureFrames, isNot(contains('AppendStack(')));
       // התרגום ב-ReportHang/ReportSample, אחרי שהלכידה חזרה.
-      expect(watcher, contains('ReportHang(CaptureFrames(), reports == 1);'));
+      expect(
+        watcher,
+        contains(
+          'ReportHang(CaptureFrames(), reports == 1, hang_started_at, awake);',
+        ),
+      );
       expect(
         watcher,
         contains(

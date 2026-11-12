@@ -278,7 +278,7 @@ function Complete-InstalledPluginCrashDiagnostics {
         })
         $symbolNames = @($modules | ForEach-Object { $_.BaseName + '.pdb'; $_.Name + '.pdb' })
         $pdbs = @()
-        foreach ($root in @('build/windows/x64/runner', 'build/windows/x64/plugins', 'windows/flutter/ephemeral')) {
+        foreach ($root in @('build/windows/x64/pdb', 'build/windows/x64/runner', 'build/windows/x64/plugins', 'windows/flutter/ephemeral')) {
             $path = Join-Path $RepositoryRoot $root
             if (Test-Path -LiteralPath $path -PathType Container) {
                 $pdbs += @(Get-ChildItem -LiteralPath $path -Filter '*.pdb' -File -Recurse |

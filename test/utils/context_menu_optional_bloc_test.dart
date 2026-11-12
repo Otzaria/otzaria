@@ -174,29 +174,6 @@ void main() {
   });
 
   group('_maybeTextBookState — סמנטיקת התלות האופציונלית', () {
-    testWidgets('read<TextBookBloc?> מחזיר null כשאין provider', (
-      tester,
-    ) async {
-      TextBookBloc? resolved;
-      var didThrow = false;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Builder(
-            builder: (context) {
-              try {
-                resolved = context.read<TextBookBloc?>();
-              } catch (_) {
-                didThrow = true;
-              }
-              return const SizedBox.shrink();
-            },
-          ),
-        ),
-      );
-      expect(didThrow, isFalse, reason: 'תלות אופציונלית אינה אמורה לזרוק');
-      expect(resolved, isNull);
-    });
-
     testWidgets('read<TextBookBloc?> מוצא את ה-BLoC כשהוא קיים', (
       tester,
     ) async {

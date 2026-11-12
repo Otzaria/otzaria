@@ -5,7 +5,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:otzaria/plugins/services/plugin_runtime.dart';
 import 'package:otzaria/plugins/plugin_constants.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/utils/plugin_safe_mode.dart';
@@ -33,19 +33,6 @@ enum _PluginRuntimeShutdownMode { idle, restart, exit }
 
 /// מזהה ייחודי לכל instance של webview (foreground/background) של אותו plugin.
 typedef PluginInstanceId = String;
-
-/// מה ה-WebView יודע לעשות כשמופע עוזב את המסך.
-@visibleForTesting
-enum PluginSuspendMode {
-  /// Windows (TrySuspend) ו-Android (onPause).
-  nativePause,
-
-  /// Linux: הדף מסומן מוסתר.
-  visibility,
-
-  /// iOS/macOS: רק האירוע, והתוסף עוצר בעצמו.
-  eventOnly,
-}
 
 enum _PluginSuspensionState {
   active,
@@ -91,7 +78,7 @@ class _PluginInstance {
   final String pluginId;
   final PluginInstanceId instanceId;
 
-  InAppWebViewController? controller;
+  PluginRuntime? runtime;
   int? viewId;
   Future<void> Function()? reloadCallback;
   Object? reloadToken;
@@ -203,9 +190,9 @@ class PluginRuntimeDispatcher {
   final Map<String, bool> _enabledCache = {};
   final Map<String, Map<String, bool?>> _permissionCache = {};
 
-  /// controllers שאירוע שידור פג להם הזמן — מודרים ממסירה עד לרישום מחדש
+  /// runtimes שאירוע שידור פג להם הזמן — מודרים ממסירה עד לרישום מחדש
   /// או להחייאה, כדי שמופע תקוע לא יעלה 3 שניות בכל אירוע.
-  final Set<InAppWebViewController> _eventTimedOutControllers = Set.identity();
+  final Set<PluginRuntime> _eventTimedOutRuntimes = Set.identity();
 
   /// Events whose work must continue in the non-suspended background host.
   /// All other broadcast events retain the legacy foreground-first behavior.
@@ -309,11 +296,11 @@ class PluginRuntimeDispatcher {
     return instance;
   }
 
-  /// מסיר מופע שאין לו עוד controller ולא reload callback.
+  /// מסיר מופע שאין לו עוד runtime ולא reload callback.
   void _removeInstanceIfEmpty(PluginInstanceKey key) {
     final instance = _instances[key];
     if (instance == null) return;
-    if (instance.controller != null || instance.reloadCallback != null) return;
+    if (instance.runtime != null || instance.reloadCallback != null) return;
     _releaseRestoreRetention(instance);
     instance.graceTimer?.cancel();
     _instances.remove(key);
@@ -322,21 +309,20 @@ class PluginRuntimeDispatcher {
     if (keys != null && keys.isEmpty) _instancesByPlugin.remove(key.pluginId);
   }
 
-  bool _hasAnyController(String pluginId) {
+  bool _hasAnyRuntime(String pluginId) {
     final keys = _instancesByPlugin[pluginId];
     if (keys == null) return false;
-    return keys.any((key) => _instances[key]?.controller != null);
+    return keys.any((key) => _instances[key]?.runtime != null);
   }
 
-  InAppWebViewController? _backgroundControllerOf(String pluginId) =>
-      _instances[_keyOf(pluginId, PluginInstanceIds.background)]?.controller;
+  PluginRuntime? _backgroundRuntimeOf(String pluginId) =>
+      _instances[_keyOf(pluginId, PluginInstanceIds.background)]?.runtime;
 
-  /// ה-WebView של מופע ריצה מסוים, או `null` אם אינו חי. משמש קריאות RPC
-  /// שפועלות על התוכן המוצג עצמו (כמו `ui.print`).
-  InAppWebViewController? controllerOf(
+  /// מנוע הריצה של מופע מסוים, או `null` אם אינו חי.
+  PluginRuntime? runtimeOf(
     String pluginId, {
     PluginInstanceId instanceId = PluginInstanceIds.defaultForeground,
-  }) => _instances[_keyOf(pluginId, instanceId)]?.controller;
+  }) => _instances[_keyOf(pluginId, instanceId)]?.runtime;
 
   /// המופע הקדמי ה"ראשי" של [pluginId]: הגלוי כרגע, ואם אין גלוי —
   /// האחרון שנרשם (סדר ההכנסה באינדקס).
@@ -348,7 +334,7 @@ class PluginRuntimeDispatcher {
       final instance = _instances[key];
       if (instance == null ||
           instance.isBackground ||
-          instance.controller == null ||
+          instance.runtime == null ||
           (viewId != null && instance.viewId != viewId)) {
         continue;
       }
@@ -381,7 +367,7 @@ class PluginRuntimeDispatcher {
       final instance = _instances[key];
       if (instance == null ||
           instance.isBackground ||
-          instance.controller == null ||
+          instance.runtime == null ||
           (viewId != null && instance.viewId != viewId)) {
         continue;
       }
@@ -394,21 +380,21 @@ class PluginRuntimeDispatcher {
     return fallback;
   }
 
-  void registerController(
+  void registerRuntime(
     String pluginId,
-    InAppWebViewController controller, {
+    PluginRuntime runtime, {
     PluginInstanceId instanceId = PluginInstanceIds.defaultForeground,
     int? viewId,
   }) {
     if (_shutdownMode == _PluginRuntimeShutdownMode.exit) {
       debugPrint(
-        'PluginRuntimeDispatcher: ignoring controller registration for '
+        'PluginRuntimeDispatcher: ignoring runtime registration for '
         '$pluginId during app exit',
       );
       return;
     }
     _shutdownMode = _PluginRuntimeShutdownMode.idle;
-    _eventTimedOutControllers.remove(controller);
+    _eventTimedOutRuntimes.remove(runtime);
     final instance = _instanceFor(pluginId, instanceId);
     instance.graceTimer?.cancel();
     instance.graceTimer = null;
@@ -416,7 +402,7 @@ class PluginRuntimeDispatcher {
     // העברת פוקוס ל-WebView שהדף בו עוד לא נטען מקדימה את ה-autofocus שלו.
     instance
       ..viewId = viewId
-      ..controller = controller
+      ..runtime = runtime
       ..suspensionState = _PluginSuspensionState.active
       ..suspendedAt = null
       ..busyCount = 0
@@ -428,9 +414,7 @@ class PluginRuntimeDispatcher {
   /// הדף הנוכחי של המופע לאפשרויות האירועים, או null כשהמופע אינו רץ.
   int? eventOptionsGeneration(String pluginId, PluginInstanceId instanceId) {
     final instance = _instances[_keyOf(pluginId, instanceId)];
-    return instance?.controller == null
-        ? null
-        : instance!.eventOptionsGeneration;
+    return instance?.runtime == null ? null : instance!.eventOptionsGeneration;
   }
 
   /// `events.setOptions`: עם [raw] המופע מקבל את [topic] עם טקסט הספר כפי
@@ -444,7 +428,7 @@ class PluginRuntimeDispatcher {
   }) {
     final instance = _instances[_keyOf(pluginId, instanceId)];
     if (instance == null ||
-        instance.controller == null ||
+        instance.runtime == null ||
         instance.eventOptionsGeneration != generation) {
       return false;
     }
@@ -465,22 +449,22 @@ class PluginRuntimeDispatcher {
     final instance = _instances[key];
     if (instance == null) return;
     instance.resetEventOptions();
-    final controller = instance.controller;
-    if (instance.isBackground || controller == null || !instance.eventsPaused) {
+    final runtime = instance.runtime;
+    if (instance.isBackground || runtime == null || !instance.eventsPaused) {
       return;
     }
-    // ניווט מחליף את דף ה-JS, לא את ה-controller הנייטיבי. מבטלים השהיה
+    // ניווט מחליף את דף ה-JS, לא את ה-runtime הנייטיבי. מבטלים השהיה
     // ישנה מיד כדי שגם boot של דף מוסתר יוכל להסתיים; onReady יקפיאו מחדש.
     final generation = instance.eventOptionsGeneration;
     instance.suspensionState = _PluginSuspensionState.resumeRequested;
     final resume = () async {
       final succeeded = await _setNativeSuspended(
-        controller,
+        runtime,
         key,
         suspended: false,
-        isCurrent: () => _ownsLifecycle(key, instance, controller, generation),
+        isCurrent: () => _ownsLifecycle(key, instance, runtime, generation),
       );
-      if (!_ownsLifecycle(key, instance, controller, generation)) return;
+      if (!_ownsLifecycle(key, instance, runtime, generation)) return;
       instance.suspensionState = succeeded
           ? _PluginSuspensionState.active
           : _PluginSuspensionState.failed;
@@ -581,15 +565,14 @@ class PluginRuntimeDispatcher {
     required String instanceId,
   }) {
     final instance = _instances[_keyOf(pluginId, instanceId)];
-    final controller = instance?.controller;
-    if (instance == null || controller == null) return () {};
+    final runtime = instance?.runtime;
+    if (instance == null || runtime == null) return () {};
     var finished = false;
     instance.busyCount++;
     return () {
       if (finished) return;
       finished = true;
-      if (identical(instance.controller, controller) &&
-          instance.busyCount > 0) {
+      if (identical(instance.runtime, runtime) && instance.busyCount > 0) {
         instance.busyCount--;
       }
     };
@@ -615,13 +598,13 @@ class PluginRuntimeDispatcher {
   }) async {
     final key = _keyOf(pluginId, instanceId);
     final instance = _instances[key];
-    final controller = instance?.controller;
+    final runtime = instance?.runtime;
     final isBackground = instanceId == PluginInstanceIds.background;
     final platformNeedsHandoff = supportsPluginKeyboardFocusHandoff(
       defaultTargetPlatform,
     );
     if (instance != null &&
-        controller != null &&
+        runtime != null &&
         shouldMoveKeyboardFocusToPlugin(
           isBackground: instance.isBackground,
           hasController: true,
@@ -634,10 +617,7 @@ class PluginRuntimeDispatcher {
         )) {
       instance.pendingKeyboardFocus = false;
       instance.pendingFocusTrustsPage = true;
-      return PluginWebViewFocus.request(
-        controller,
-        trustPageFocus: trustPageFocus,
-      );
+      return runtime.requestKeyboardFocus(trustPageFocus: trustPageFocus);
     }
     if (shouldRememberKeyboardFocusRequest(
       isBackground: isBackground,
@@ -709,10 +689,10 @@ class PluginRuntimeDispatcher {
     final instance = _instances[key];
     if (instance != null) {
       _releaseRestoreRetention(instance);
-      if (instance.controller != null) {
-        _eventTimedOutControllers.remove(instance.controller);
+      if (instance.runtime != null) {
+        _eventTimedOutRuntimes.remove(instance.runtime);
       }
-      instance.controller = null;
+      instance.runtime = null;
       instance.suspensionState = _PluginSuspensionState.active;
       instance.suspendedAt = null;
       instance.released = false;
@@ -731,10 +711,10 @@ class PluginRuntimeDispatcher {
     PluginSearchFieldSessionService.instance.onInstanceUnregistered(
       pluginId,
       instanceId,
-      pluginHasEngine: _hasAnyController(pluginId),
+      pluginHasEngine: _hasAnyRuntime(pluginId),
     );
     // ה-cache והתרומות הם ברמת ה-plugin; ננקה רק כשלא נשאר אף מופע חי.
-    if (!_hasAnyController(pluginId)) {
+    if (!_hasAnyRuntime(pluginId)) {
       _enabledCache.remove(pluginId);
       _permissionCache.remove(pluginId);
       ContextMenuRegistry.instance.removeAll(pluginId);
@@ -763,9 +743,9 @@ class PluginRuntimeDispatcher {
     instance.restoreRetentionToken ??= PluginRestoreStateStore.instance.retain(
       key,
     );
-    final controller = instance.controller;
-    if (controller != null) _eventTimedOutControllers.remove(controller);
-    instance.controller = null;
+    final runtime = instance.runtime;
+    if (runtime != null) _eventTimedOutRuntimes.remove(runtime);
+    instance.runtime = null;
     instance.released = true;
     instance.ready = false;
     instance.suspensionState = _PluginSuspensionState.active;
@@ -785,7 +765,7 @@ class PluginRuntimeDispatcher {
     PluginSearchFieldSessionService.instance.onInstanceUnregistered(
       pluginId,
       instanceId,
-      pluginHasEngine: _hasAnyController(pluginId),
+      pluginHasEngine: _hasAnyRuntime(pluginId),
     );
   }
 
@@ -873,8 +853,8 @@ class PluginRuntimeDispatcher {
   void _scheduleForegroundReconciliation() {
     for (final key in _desiredForegroundKeys) {
       final instance = _instances[key];
-      final controller = instance?.controller;
-      if (controller == null ||
+      final runtime = instance?.runtime;
+      if (runtime == null ||
           instance?.suspensionState !=
               _PluginSuspensionState.suspendRequested ||
           defaultTargetPlatform != TargetPlatform.windows) {
@@ -883,13 +863,16 @@ class PluginRuntimeDispatcher {
       // Resume מבטל TrySuspend ממתין; אין להמתין למנעול שמחזיק אותה בקשה.
       instance!.suspensionState = _PluginSuspensionState.resumeRequested;
       unawaited(
-        controller.resume().timeout(_nativeLifecycleTimeout).catchError((
-          Object e,
-        ) {
-          debugPrint(
-            'PluginRuntimeDispatcher: suspend cancellation failed: $e',
-          );
-        }),
+        runtime
+            .cancelPendingSuspend()
+            .timeout(_nativeLifecycleTimeout)
+            .catchError((
+              Object e,
+            ) {
+              debugPrint(
+                'PluginRuntimeDispatcher: suspend cancellation failed: $e',
+              );
+            }),
       );
     }
     unawaited(_serializeLifecycle(_reconcileForeground));
@@ -907,7 +890,7 @@ class PluginRuntimeDispatcher {
     };
   }
 
-  /// מאפס את מצב הנראות בלבד (בלי לגעת ב-controllers). הדיספצ'ר הוא singleton,
+  /// מאפס את מצב הנראות בלבד (בלי לגעת ב-runtimes). הדיספצ'ר הוא singleton,
   /// ובלי איפוס מפורש מצב מטסט אחד דולף לבא אחריו.
   @visibleForTesting
   void resetVisibilityForTesting() {
@@ -951,15 +934,15 @@ class PluginRuntimeDispatcher {
   }) {
     final key = _keyOf(pluginId, instanceId);
     final readyInstance = _instances[key];
-    final readyController = readyInstance?.controller;
+    final readyRuntime = readyInstance?.runtime;
     final readyGeneration = readyInstance?.eventOptionsGeneration;
     return _serializeInstanceLifecycle(key, () async {
       if (readyInstance == null ||
-          readyController == null ||
+          readyRuntime == null ||
           !_ownsLifecycle(
             key,
             readyInstance,
-            readyController,
+            readyRuntime,
             readyGeneration!,
           )) {
         return;
@@ -968,7 +951,7 @@ class PluginRuntimeDispatcher {
       // מחדש, או לטאב שפונה, נפל לדף בלי מאזינים. עכשיו, כשה-boot הסתיים,
       // מזריקים אותו שוב — הבקשות אידמפוטנטיות (אותו requestId).
       final instance = _instances[key];
-      final controller = instance?.controller;
+      final runtime = instance?.runtime;
       instance?.ready = true;
       _releaseRestoreRetention(readyInstance);
       // ה-boot נתן theme עדכני, ואת השאר התוסף שואל בעצמו.
@@ -984,7 +967,7 @@ class PluginRuntimeDispatcher {
         );
         instance.pendingRedeliveries.clear();
       }
-      if (controller != null && fresh.isNotEmpty) {
+      if (runtime != null && fresh.isNotEmpty) {
         debugPrint(
           'PluginRuntimeDispatcher: redelivering ${fresh.length} event(s) '
           'to $pluginId',
@@ -993,7 +976,7 @@ class PluginRuntimeDispatcher {
           if (!_ownsLifecycle(
             key,
             readyInstance,
-            readyController,
+            readyRuntime,
             readyGeneration,
           )) {
             return;
@@ -1001,11 +984,10 @@ class PluginRuntimeDispatcher {
           final json = _encodeFor(key, event.topic, event.payload);
           if (json == null) continue;
           try {
-            await controller
-                .evaluateJavascript(
-                  source:
-                      "window.dispatchEvent(new CustomEvent('${event.topic}', "
-                      '{ detail: $json }));',
+            await runtime
+                .evaluate(
+                  "window.dispatchEvent(new CustomEvent('${event.topic}', "
+                  '{ detail: $json }));',
                 )
                 .timeout(const Duration(seconds: 3));
           } catch (e) {
@@ -1016,15 +998,15 @@ class PluginRuntimeDispatcher {
       if (!_ownsLifecycle(
         key,
         readyInstance,
-        readyController,
+        readyRuntime,
         readyGeneration,
       )) {
         return;
       }
       if (!_desiredForegroundKeys.contains(key)) {
-        if (controller != null && fresh.isNotEmpty) {
+        if (runtime != null && fresh.isNotEmpty) {
           // זה עתה נמסרו אירועים — הקפאה מיידית הייתה קוטעת את הטיפול בהם.
-          _scheduleSuspendAfterGrace(key, controller);
+          _scheduleSuspendAfterGrace(key, runtime);
         } else {
           await _suspendForeground(key);
         }
@@ -1056,11 +1038,11 @@ class PluginRuntimeDispatcher {
   ) {
     final instance = _instances[key];
     if (instance == null) return Future.value();
-    final controller = instance.controller;
+    final runtime = instance.runtime;
     final generation = instance.eventOptionsGeneration;
     final next = instance.lifecycleLock.then((_) async {
       if (!identical(_instances[key], instance) ||
-          !identical(instance.controller, controller) ||
+          !identical(instance.runtime, runtime) ||
           instance.eventOptionsGeneration != generation) {
         return;
       }
@@ -1090,12 +1072,12 @@ class PluginRuntimeDispatcher {
             instance.host?.restoreWebView();
             return;
           }
-          final controller = instance?.controller;
+          final runtime = instance?.runtime;
           final generation = instance?.eventOptionsGeneration;
           if (!await _resumeForeground(key) &&
               instance != null &&
-              controller != null &&
-              _ownsLifecycle(key, instance, controller, generation!)) {
+              runtime != null &&
+              _ownsLifecycle(key, instance, runtime, generation!)) {
             _runningForegroundKeys = {..._runningForegroundKeys}..remove(key);
           }
         }),
@@ -1110,32 +1092,11 @@ class PluginRuntimeDispatcher {
     }
   }
 
-  /// לפי טבלת התמיכה של הפורק (`isMethodSupported` של pause, ‏setVisible
-  /// ו-setAllMediaPlaybackSuspended); אינה נשאלת בזמן ריצה כי היא דורשת
-  /// מימוש פלטפורמה רשום.
-  @visibleForTesting
-  static PluginSuspendMode get suspendMode => switch (defaultTargetPlatform) {
-    TargetPlatform.windows ||
-    TargetPlatform.android => PluginSuspendMode.nativePause,
-    TargetPlatform.linux => PluginSuspendMode.visibility,
-    _ => PluginSuspendMode.eventOnly,
-  };
-
-  static const _pauseMediaScript =
-      "document.querySelectorAll('audio,video')"
-      '.forEach(function (m) { m.pause(); });';
-
-  /// ב-Windows ההקפאה עוצרת מדיה; ב-Apple וב-Linux עוצרים אותה במפורש.
-  static bool get _suspendsMediaExplicitly => switch (defaultTargetPlatform) {
-    TargetPlatform.iOS || TargetPlatform.macOS || TargetPlatform.linux => true,
-    _ => false,
-  };
-
   Future<void> _suspendForeground(PluginInstanceKey key) async {
     final instance = _instances[key];
-    final controller = instance?.controller;
+    final runtime = instance?.runtime;
     if (instance == null ||
-        controller == null ||
+        runtime == null ||
         _desiredForegroundKeys.contains(key)) {
       return;
     }
@@ -1151,20 +1112,20 @@ class PluginRuntimeDispatcher {
     instance.pendingFocusTrustsPage = true;
     // מודיעים ל-JS לפני ההקפאה כדי שיעצור timers בעצמו — זו ההגנה היחידה
     // בפלטפורמות שבהן pause נייטיב אינו נתמך (macOS/iOS/Linux).
-    await _dispatchLifecycleEvent(controller, key.pluginId, 'plugin.suspended');
-    if (!_ownsLifecycle(key, instance, controller, generation)) return;
+    await _dispatchLifecycleEvent(runtime, key.pluginId, 'plugin.suspended');
+    if (!_ownsLifecycle(key, instance, runtime, generation)) return;
     if (_desiredForegroundKeys.contains(key)) {
       await _resumeForeground(key);
       return;
     }
     instance.suspendAttempts++;
     final succeeded = await _setNativeSuspended(
-      controller,
+      runtime,
       key,
       suspended: true,
-      isCurrent: () => _ownsLifecycle(key, instance, controller, generation),
+      isCurrent: () => _ownsLifecycle(key, instance, runtime, generation),
     );
-    if (!_ownsLifecycle(key, instance, controller, generation)) return;
+    if (!_ownsLifecycle(key, instance, runtime, generation)) return;
     if (_desiredForegroundKeys.contains(key)) {
       instance.suspendCancelled++;
       await _resumeForeground(key);
@@ -1191,76 +1152,28 @@ class PluginRuntimeDispatcher {
   bool _ownsLifecycle(
     PluginInstanceKey key,
     _PluginInstance instance,
-    InAppWebViewController controller,
+    PluginRuntime runtime,
     int generation,
   ) =>
       identical(_instances[key], instance) &&
-      identical(instance.controller, controller) &&
+      identical(instance.runtime, runtime) &&
       instance.eventOptionsGeneration == generation;
 
   static const _nativeLifecycleTimeout = Duration(seconds: 6);
 
   Future<bool> _setNativeSuspended(
-    InAppWebViewController controller,
+    PluginRuntime runtime,
     PluginInstanceKey key, {
     required bool suspended,
     required bool Function() isCurrent,
   }) async {
     if (!isCurrent()) return false;
     try {
-      switch (suspendMode) {
-        case PluginSuspendMode.nativePause:
-          if (suspended) {
-            // LOW לפני ההקפאה: renderer שכבר הוקפא אינו מקצץ את ה-working set.
-            await _setWindowsMemoryTarget(
-              controller,
-              MemoryUsageTargetLevel.LOW,
-            );
-            if (!isCurrent() || _desiredForegroundKeys.contains(key)) {
-              return false;
-            }
-            await controller.pause().timeout(_nativeLifecycleTimeout);
-          } else {
-            await controller.resume().timeout(_nativeLifecycleTimeout);
-            if (!isCurrent()) return false;
-            await _setWindowsMemoryTarget(
-              controller,
-              MemoryUsageTargetLevel.NORMAL,
-            );
-          }
-        case PluginSuspendMode.visibility:
-          await controller
-              .setVisible(visible: !suspended)
-              .timeout(_nativeLifecycleTimeout);
-        case PluginSuspendMode.eventOnly:
-          break;
-      }
-      if (!isCurrent()) return false;
-      if (_suspendsMediaExplicitly) {
-        final media = controller.setAllMediaPlaybackSuspended(
-          suspended: suspended,
-        );
-        if (!suspended &&
-            suspendMode == PluginSuspendMode.eventOnly &&
-            !_desiredForegroundKeys.contains(key)) {
-          // Hidden WebKit media replies may need one JS activity to complete.
-          // Delivery still waits for both real completions.
-          await Future.wait<void>([
-            media,
-            Future.sync(
-              () => controller.evaluateJavascript(source: 'void 0;'),
-            ).then<void>((_) {}),
-          ], eagerError: true).timeout(_nativeLifecycleTimeout);
-        } else {
-          await media.timeout(_nativeLifecycleTimeout);
-        }
-      } else if (suspended && defaultTargetPlatform == TargetPlatform.android) {
-        // onPause אינו עוצר מדיה; כמו ב-Windows, עוזבים טאב — המדיה נעצרת.
-        await controller
-            .evaluateJavascript(source: _pauseMediaScript)
-            .timeout(const Duration(seconds: 3));
-      }
-      return true;
+      return await runtime.setSuspended(
+        suspended,
+        isCurrent: isCurrent,
+        isShown: () => _desiredForegroundKeys.contains(key),
+      );
     } catch (e) {
       debugPrint(
         'PluginRuntimeDispatcher: ${suspended ? 'pause' : 'resume'} failed '
@@ -1270,35 +1183,20 @@ class PluginRuntimeDispatcher {
     }
   }
 
-  /// כשל ביעד הזיכרון לא יעצור את ה-pause/resume שסביבו.
-  static Future<void> _setWindowsMemoryTarget(
-    InAppWebViewController controller,
-    MemoryUsageTargetLevel level,
-  ) async {
-    if (defaultTargetPlatform != TargetPlatform.windows) return;
-    try {
-      await controller
-          .setMemoryUsageTargetLevel(level)
-          .timeout(_nativeLifecycleTimeout);
-    } catch (e) {
-      debugPrint('PluginRuntimeDispatcher: memory target failed: $e');
-    }
-  }
-
   Future<bool> _resumeForeground(PluginInstanceKey key) async {
     final instance = _instances[key];
-    final controller = instance?.controller;
-    if (instance == null || controller == null) return false;
+    final runtime = instance?.runtime;
+    if (instance == null || runtime == null) return false;
     final generation = instance.eventOptionsGeneration;
     final elapsed = Stopwatch()..start();
     instance.suspensionState = _PluginSuspensionState.resumeRequested;
     final succeeded = await _setNativeSuspended(
-      controller,
+      runtime,
       key,
       suspended: false,
-      isCurrent: () => _ownsLifecycle(key, instance, controller, generation),
+      isCurrent: () => _ownsLifecycle(key, instance, runtime, generation),
     );
-    if (!_ownsLifecycle(key, instance, controller, generation)) return false;
+    if (!_ownsLifecycle(key, instance, runtime, generation)) return false;
     instance.lastResumeMicros = elapsed.elapsedMicroseconds;
     if (!succeeded) {
       instance.suspensionState = _PluginSuspensionState.failed;
@@ -1306,11 +1204,11 @@ class PluginRuntimeDispatcher {
     }
     instance.suspensionState = _PluginSuspensionState.active;
     instance.suspendedAt = null;
-    _eventTimedOutControllers.remove(controller);
-    await _dispatchLifecycleEvent(controller, key.pluginId, 'plugin.resumed');
-    if (!_ownsLifecycle(key, instance, controller, generation)) return false;
-    await _flushQueued(key, controller);
-    if (!_ownsLifecycle(key, instance, controller, generation)) return false;
+    _eventTimedOutRuntimes.remove(runtime);
+    await _dispatchLifecycleEvent(runtime, key.pluginId, 'plugin.resumed');
+    if (!_ownsLifecycle(key, instance, runtime, generation)) return false;
+    await _flushQueued(key, runtime);
+    if (!_ownsLifecycle(key, instance, runtime, generation)) return false;
     await _flushPendingKeyboardFocus(key);
     return true;
   }
@@ -1319,7 +1217,7 @@ class PluginRuntimeDispatcher {
   /// שהרשאה שנשללה בזמן ההשהיה תכובד.
   Future<void> _flushQueued(
     PluginInstanceKey key,
-    InAppWebViewController controller,
+    PluginRuntime runtime,
   ) async {
     final instance = _instances[key];
     if (instance == null || instance.queued.isEmpty) return;
@@ -1335,7 +1233,7 @@ class PluginRuntimeDispatcher {
       }
     }
     if (allowed.isEmpty ||
-        !_ownsLifecycle(key, instance, controller, generation)) {
+        !_ownsLifecycle(key, instance, runtime, generation)) {
       return;
     }
     allowed.removeWhere((event) => !(event.isCurrent?.call() ?? true));
@@ -1346,12 +1244,11 @@ class PluginRuntimeDispatcher {
     try {
       // timeout: eval על WebView תקוע עלול לא להשלים לעולם, וכל שרשרת
       // ה-lifecycle (שרצה תחת מנעול) הייתה נתקעת איתו.
-      await controller
-          .evaluateJavascript(
-            source:
-                '(function(q){for(var i=0;i<q.length;i++){'
-                'window.dispatchEvent(new CustomEvent(q[i][0],'
-                '{detail:q[i][1]}));}})([$batch]);',
+      await runtime
+          .evaluate(
+            '(function(q){for(var i=0;i<q.length;i++){'
+            'window.dispatchEvent(new CustomEvent(q[i][0],'
+            '{detail:q[i][1]}));}})([$batch]);',
           )
           .timeout(const Duration(seconds: 3));
     } catch (e) {
@@ -1393,17 +1290,16 @@ class PluginRuntimeDispatcher {
   }
 
   Future<void> _dispatchLifecycleEvent(
-    InAppWebViewController controller,
+    PluginRuntime runtime,
     String pluginId,
     String topic,
   ) async {
     try {
       // timeout: ראו _flushQueued — לא נותנים ל-WebView תקוע להקפיא את מנעול
       // ה-lifecycle לצמיתות.
-      await controller
-          .evaluateJavascript(
-            source:
-                "window.dispatchEvent(new CustomEvent('$topic', { detail: null }));",
+      await runtime
+          .evaluate(
+            "window.dispatchEvent(new CustomEvent('$topic', { detail: null }));",
           )
           .timeout(const Duration(seconds: 3));
     } catch (e) {
@@ -1437,7 +1333,7 @@ class PluginRuntimeDispatcher {
         final candidates = <PluginDiscardCandidate>[
           for (final instance in _instances.values)
             if (!instance.isBackground &&
-                instance.controller != null &&
+                instance.runtime != null &&
                 instance.eventsPaused &&
                 instance.suspendedAt != null &&
                 !_desiredForegroundKeys.contains(
@@ -1529,7 +1425,7 @@ class PluginRuntimeDispatcher {
       return 'searchDialog';
     }
     final isLastEngine = !(_instancesByPlugin[pluginId] ?? const {}).any(
-      (other) => other != key && _instances[other]?.controller != null,
+      (other) => other != key && _instances[other]?.runtime != null,
     );
     if (isLastEngine) {
       if (PluginShortcutRegistry.instance.hasPlugin(pluginId)) {
@@ -1570,7 +1466,7 @@ class PluginRuntimeDispatcher {
       if (instance.isBackground) continue;
       registered++;
       final key = _keyOf(instance.pluginId, instance.instanceId);
-      final hasController = instance.controller != null;
+      final hasController = instance.runtime != null;
       final isHidden = hasController && !desired.contains(key);
       final isSuspended =
           hasController &&
@@ -1633,7 +1529,7 @@ class PluginRuntimeDispatcher {
       'failed': failed,
       'backgroundLive': _instances.values
           .where(
-            (instance) => instance.isBackground && instance.controller != null,
+            (instance) => instance.isBackground && instance.runtime != null,
           )
           .length,
       'released': released,
@@ -1657,24 +1553,24 @@ class PluginRuntimeDispatcher {
   }
 
   Future<void> prepareForAppRestart() async {
-    await _prepareControllersForTeardown(_PluginRuntimeShutdownMode.restart);
+    await _prepareRuntimesForTeardown(_PluginRuntimeShutdownMode.restart);
   }
 
   Future<void> prepareForAppShutdown() async {
-    await _prepareControllersForTeardown(_PluginRuntimeShutdownMode.exit);
+    await _prepareRuntimesForTeardown(_PluginRuntimeShutdownMode.exit);
   }
 
-  Future<void> _prepareControllersForTeardown(
+  Future<void> _prepareRuntimesForTeardown(
     _PluginRuntimeShutdownMode shutdownMode,
   ) async {
     _shutdownMode = shutdownMode;
-    final allControllers = <InAppWebViewController>[];
+    final allRuntimes = <PluginRuntime>[];
     final pluginIds = _instancesByPlugin.keys.toList(growable: false);
     for (final instance in _instances.values) {
       _releaseRestoreRetention(instance);
       instance.graceTimer?.cancel();
-      final controller = instance.controller;
-      if (controller != null) allControllers.add(controller);
+      final runtime = instance.runtime;
+      if (runtime != null) allRuntimes.add(runtime);
     }
 
     _instances.clear();
@@ -1693,30 +1589,28 @@ class PluginRuntimeDispatcher {
       PluginToolbarRegistry.instance.removeAll(pluginId);
     }
 
-    for (final controller in allControllers) {
+    for (final runtime in allRuntimes) {
       try {
-        await controller.loadUrl(
-          urlRequest: URLRequest(url: WebUri.uri(Uri.parse('about:blank'))),
-        );
+        await runtime.unload();
       } catch (e) {
         // The underlying WebView may already be tearing down.
         debugPrint(
-          'PluginRuntimeDispatcher: error during controller teardown: $e',
+          'PluginRuntimeDispatcher: error during runtime teardown: $e',
         );
       }
     }
   }
 
-  /// האם ה-controller הרשום למופע [instanceId] הוא [controller].
-  bool ownsController(
+  /// האם ה-runtime הרשום למופע [instanceId] הוא [runtime].
+  bool ownsRuntime(
     String pluginId,
-    InAppWebViewController? controller, {
+    PluginRuntime? runtime, {
     PluginInstanceId instanceId = PluginInstanceIds.defaultForeground,
   }) {
-    if (controller == null) return false;
+    if (runtime == null) return false;
     return identical(
-      _instances[_keyOf(pluginId, instanceId)]?.controller,
-      controller,
+      _instances[_keyOf(pluginId, instanceId)]?.runtime,
+      runtime,
     );
   }
 
@@ -1733,7 +1627,7 @@ class PluginRuntimeDispatcher {
     instance.reloadToken = token;
   }
 
-  /// בעלות המארח קיימת גם לפני יצירת controller ובזמן פינויו.
+  /// בעלות המארח קיימת גם לפני יצירת runtime ובזמן פינויו.
   bool ownsHostRegistration(
     String pluginId, {
     required PluginInstanceId instanceId,
@@ -1897,7 +1791,7 @@ class PluginRuntimeDispatcher {
         final keys = _instancesByPlugin[pluginId];
         if (keys == null || keys.isEmpty) return false;
         // מופע רקע באמצע boot עוד לא מסוגל לקבל אירועים.
-        if (_backgroundControllerOf(pluginId) != null &&
+        if (_backgroundRuntimeOf(pluginId) != null &&
             !PluginLazyActivationService.instance.isBootPending(pluginId)) {
           return true;
         }
@@ -1905,7 +1799,7 @@ class PluginRuntimeDispatcher {
           final inst = _instances[key];
           if (inst != null &&
               !inst.isBackground &&
-              inst.controller != null &&
+              inst.runtime != null &&
               (viewId == null || (inst.viewId ?? mainViewId) == viewId) &&
               (!inst.eventsPaused || viewId != null)) {
             return true;
@@ -1939,11 +1833,11 @@ class PluginRuntimeDispatcher {
       if (selection.now.isEmpty && selection.queue.isEmpty) return;
       if (!await _canReceiveEvent(pluginId, topic)) return;
       if (!(isCurrent?.call() ?? true)) return;
-      final targets = <(InAppWebViewController, String)>[];
+      final targets = <(PluginRuntime, String)>[];
       for (final target in [...selection.now, ...selection.queue]) {
-        if (!ownsController(
+        if (!ownsRuntime(
           pluginId,
-          target.controller,
+          target.runtime,
           instanceId: target.instanceId,
         )) {
           continue;
@@ -1961,16 +1855,16 @@ class PluginRuntimeDispatcher {
         if (instance.eventsPaused && !instance.isBackground) {
           _enqueue(instance, queueKey, topic, encoded, isCurrent: isCurrent);
         } else {
-          targets.add((target.controller, encoded));
+          targets.add((target.runtime, encoded));
         }
       }
       if (targets.isEmpty) return;
       _notifyBackgroundActivity(pluginId, [
-        for (final (controller, _) in targets) controller,
+        for (final (runtime, _) in targets) runtime,
       ]);
       await Future.wait([
-        for (final (controller, encoded) in targets)
-          _evalEvent(controller, pluginId, topic, encoded),
+        for (final (runtime, encoded) in targets)
+          _evalEvent(runtime, pluginId, topic, encoded),
       ]);
     } catch (e) {
       debugPrint('Failed to dispatch $topic to plugin $pluginId: $e');
@@ -1980,22 +1874,21 @@ class PluginRuntimeDispatcher {
   /// משגר CustomEvent ל-WebView בודד עם timeout — WebView תקוע לא מקפיא את
   /// הקוראת (ראו _dispatchLifecycleEvent).
   Future<void> _evalEvent(
-    InAppWebViewController controller,
+    PluginRuntime runtime,
     String pluginId,
     String topic,
     String jsonPayload,
   ) async {
     try {
-      await controller
-          .evaluateJavascript(
-            source:
-                "window.dispatchEvent(new CustomEvent('$topic', { detail: $jsonPayload }));",
+      await runtime
+          .evaluate(
+            "window.dispatchEvent(new CustomEvent('$topic', { detail: $jsonPayload }));",
           )
           .timeout(const Duration(seconds: 3));
     } on TimeoutException catch (e) {
       // בלי הסימון כל שידור הבא היה משלם שוב 3 שניות על אותו מופע תקוע,
       // וזרם אירועי הקריאה היה נחנק לאירוע אחד ל-3 שניות.
-      _eventTimedOutControllers.add(controller);
+      _eventTimedOutRuntimes.add(runtime);
       debugPrint('Timed out dispatching $topic to plugin $pluginId: $e');
     } catch (e) {
       debugPrint('Failed to dispatch $topic to plugin $pluginId: $e');
@@ -2043,9 +1936,9 @@ class PluginRuntimeDispatcher {
       debugPrint('PluginRuntimeDispatcher: $topic → queued (boot pending)');
       return;
     }
-    if (!_hasAnyController(pluginId) ||
+    if (!_hasAnyRuntime(pluginId) ||
         (viewId != null &&
-            _backgroundControllerOf(pluginId) == null &&
+            _backgroundRuntimeOf(pluginId) == null &&
             _primaryForegroundKey(pluginId, viewId: viewId) == null)) {
       // תנאי `when` שלא מתקיים = התוסף לא ביקש את האירוע; לא מעירים מנוע
       // וגם לא פותחים את דף התוסף.
@@ -2087,7 +1980,7 @@ class PluginRuntimeDispatcher {
       if (isCurrent != null && !isCurrent()) return;
       _enabledCache[pluginId] = isEnabled;
       if (!isEnabled) return;
-      final background = _backgroundControllerOf(pluginId);
+      final background = _backgroundRuntimeOf(pluginId);
       final primaryKey = _primaryForegroundKey(pluginId, viewId: viewId);
       final primary = primaryKey == null ? null : _instances[primaryKey];
       final primarySuspended = primary?.eventsPaused ?? false;
@@ -2102,25 +1995,24 @@ class PluginRuntimeDispatcher {
       }
       // אירועים ממוקדים (למשל לחיצה בתפריט הקשר) חייבים להגיע למנוע הפעיל.
       // המופע הקדמי עשוי להישאר רשום אך מושהה, ולכן הבחירה מתחשבת בכך.
-      InAppWebViewController? target;
+      PluginRuntime? target;
       PluginInstanceKey? targetKey;
       if ((preferBackground || primarySuspended || primary == null) &&
           background != null) {
         target = background;
         targetKey = _keyOf(pluginId, PluginInstanceIds.background);
       } else if (primary != null) {
-        target = primary.controller;
+        target = primary.runtime;
         targetKey = primaryKey;
       }
       if (target == null || targetKey == null) return;
       final json = _encodeFor(targetKey, topic, payload);
       if (json == null) return;
       _notifyBackgroundActivity(pluginId, [target]);
-      debugPrint('PluginRuntimeDispatcher: $topic → eval to 1 controller(s)');
+      debugPrint('PluginRuntimeDispatcher: $topic → eval to 1 runtime(s)');
       try {
-        await target.evaluateJavascript(
-          source:
-              "window.dispatchEvent(new CustomEvent('$topic', { detail: $json }));",
+        await target.evaluate(
+          "window.dispatchEvent(new CustomEvent('$topic', { detail: $json }));",
         );
       } catch (e) {
         debugPrint('Failed to dispatch $topic to plugin $pluginId: $e');
@@ -2141,7 +2033,7 @@ class PluginRuntimeDispatcher {
   }) async {
     final key = _keyOf(pluginId, instanceId);
     final instance = _instances[key];
-    final controller = instance?.controller;
+    final runtime = instance?.runtime;
     final queueKey = queueKeyFor(topic, payload);
     if (instance != null && instance.released) {
       // אירוע מצב מתיישן — ה-boot של הדף המשוחזר מקבל את המצב העדכני.
@@ -2150,7 +2042,7 @@ class PluginRuntimeDispatcher {
       }
       return;
     }
-    if (instance == null || controller == null) {
+    if (instance == null || runtime == null) {
       debugPrint(
         'PluginRuntimeDispatcher: $topic → dropped '
         '(instance $instanceId not registered)',
@@ -2162,7 +2054,7 @@ class PluginRuntimeDispatcher {
           _enabledCache[pluginId] ?? await _repository.getIsEnabled(pluginId);
       if (isCurrent != null && !isCurrent()) return;
       if (!identical(_instances[key], instance) ||
-          !identical(instance.controller, controller)) {
+          !identical(instance.runtime, runtime)) {
         return;
       }
       _enabledCache[pluginId] = isEnabled;
@@ -2178,11 +2070,10 @@ class PluginRuntimeDispatcher {
         _enqueue(instance, queueKey, topic, jsonPayload, targeted: true);
         return;
       }
-      _notifyBackgroundActivity(pluginId, [controller]);
-      await controller
-          .evaluateJavascript(
-            source:
-                "window.dispatchEvent(new CustomEvent('$topic', { detail: $jsonPayload }));",
+      _notifyBackgroundActivity(pluginId, [runtime]);
+      await runtime
+          .evaluate(
+            "window.dispatchEvent(new CustomEvent('$topic', { detail: $jsonPayload }));",
           )
           .timeout(const Duration(seconds: 3));
     } catch (e) {
@@ -2208,8 +2099,8 @@ class PluginRuntimeDispatcher {
     final pluginId = key.pluginId;
     return _serializeInstanceLifecycle(key, () async {
       final instance = _instances[key];
-      final controller = instance?.controller;
-      if (instance == null || controller == null) return;
+      final runtime = instance?.runtime;
+      if (instance == null || runtime == null) return;
       final generation = instance.eventOptionsGeneration;
       final jsonPayload = _encodeFor(key, topic, payload);
       if (jsonPayload == null) return;
@@ -2218,18 +2109,15 @@ class PluginRuntimeDispatcher {
       _addRedelivery(instance, topic, payload);
       try {
         if (!await _resumeForeground(key) ||
-            !_ownsLifecycle(key, instance, controller, generation)) {
+            !_ownsLifecycle(key, instance, runtime, generation)) {
           return;
         }
-        // בפלטפורמות בלי pause נייטיבי הדף מעולם לא הוקפא — מצב ה"זומבי"
-        // אינו קיים, ו-callAsyncJavaScript פחות בשל שם (Linux beta). מסלול
-        // ה-eval הרגיל מספיק.
-        if (suspendMode != PluginSuspendMode.nativePause) {
-          await controller
-              .evaluateJavascript(
-                source:
-                    "window.dispatchEvent(new CustomEvent('$topic', "
-                    "{ detail: $jsonPayload }));",
+        // דף שלא הוקפא אינו יכול להיות "זומבי" — מסלול ה-eval הרגיל מספיק.
+        if (!runtime.freezesWhenSuspended) {
+          await runtime
+              .evaluate(
+                "window.dispatchEvent(new CustomEvent('$topic', "
+                "{ detail: $jsonPayload }));",
               )
               .timeout(const Duration(seconds: 3));
           return;
@@ -2238,25 +2126,13 @@ class PluginRuntimeDispatcher {
         // אינו מוכיח שהפקודה לא טופלה או שאין במסמך מידע חי.
         Object? outcome;
         try {
-          final result = await controller
-              .callAsyncJavaScript(
-                functionBody:
-                    "if (!window.flutter_inappwebview || "
-                    "!window.flutter_inappwebview.callHandler) "
-                    "{ return 'no-bridge'; } "
-                    "if (!window.Otzaria || window.Otzaria._booted !== true) "
-                    "{ return 'no-page-world'; } "
-                    "window.dispatchEvent(new CustomEvent('$topic', "
-                    "{ detail: $jsonPayload })); "
-                    "return (await window.flutter_inappwebview"
-                    ".callHandler('otzaria_bridge_ping')) === true;",
-              )
+          outcome = await runtime
+              .dispatchEventWithAck(topic, jsonPayload)
               .timeout(const Duration(seconds: 3));
-          outcome = result?.value;
         } catch (_) {
           outcome = null;
         }
-        if (!_ownsLifecycle(key, instance, controller, generation)) return;
+        if (!_ownsLifecycle(key, instance, runtime, generation)) return;
         if (outcome != true) {
           final restoreStates = PluginRestoreStateStore.instance;
           if ((outcome != 'no-bridge' && outcome != 'no-page-world') ||
@@ -2280,7 +2156,7 @@ class PluginRuntimeDispatcher {
           instance.ready = false;
           instance.nextBootReason = PluginRestoreReason.reloaded;
           try {
-            await controller.reload().timeout(const Duration(seconds: 3));
+            await runtime.reload().timeout(const Duration(seconds: 3));
           } catch (e) {
             debugPrint('PluginRuntimeDispatcher: reload failed: $e');
           }
@@ -2288,13 +2164,13 @@ class PluginRuntimeDispatcher {
       } catch (e) {
         debugPrint('Failed to dispatch $topic to plugin $pluginId: $e');
       } finally {
-        if (_ownsLifecycle(key, instance, controller, generation) &&
+        if (_ownsLifecycle(key, instance, runtime, generation) &&
             !instance.eventsPaused) {
           if (_desiredForegroundKeys.contains(key)) {
             _runningForegroundKeys = {..._runningForegroundKeys, key};
           } else {
             // חלון חסד מאפשר לבקשה אסינכרונית להשלים לפני הקפאת ה-JS.
-            _scheduleSuspendAfterGrace(key, controller);
+            _scheduleSuspendAfterGrace(key, runtime);
           }
         }
       }
@@ -2306,7 +2182,7 @@ class PluginRuntimeDispatcher {
 
   void _scheduleSuspendAfterGrace(
     PluginInstanceKey key,
-    InAppWebViewController controller,
+    PluginRuntime runtime,
   ) {
     final instance = _instances[key];
     if (instance == null) return;
@@ -2322,7 +2198,7 @@ class PluginRuntimeDispatcher {
       unawaited(
         _serializeInstanceLifecycle(key, () async {
           final current = _instances[key];
-          final stillRegistered = identical(current?.controller, controller);
+          final stillRegistered = identical(current?.runtime, runtime);
           if (!stillRegistered ||
               _desiredForegroundKeys.contains(key) ||
               (current?.eventsPaused ?? false)) {
@@ -2338,9 +2214,9 @@ class PluginRuntimeDispatcher {
   /// אירוע שנמסר למופע הרקע נחשב פעילות — מאפס את שעון הכיבוי העצל שלו.
   void _notifyBackgroundActivity(
     String pluginId,
-    List<InAppWebViewController> targets,
+    List<PluginRuntime> targets,
   ) {
-    final background = _backgroundControllerOf(pluginId);
+    final background = _backgroundRuntimeOf(pluginId);
     if (background != null && targets.contains(background)) {
       PluginLazyActivationService.instance.notifyActivity(pluginId);
     }
@@ -2366,8 +2242,8 @@ class PluginRuntimeDispatcher {
     final suspended = <_EventTarget>[];
     for (final key in keys) {
       final instance = _instances[key];
-      final controller = instance?.controller;
-      if (instance == null || controller == null) continue;
+      final runtime = instance?.runtime;
+      if (instance == null || runtime == null) continue;
       if (viewId != null &&
           (instance.isBackground
               ? PluginLazyActivationService.instance.isBootPending(pluginId)
@@ -2375,13 +2251,13 @@ class PluginRuntimeDispatcher {
         continue;
       }
       if (instance.eventsPaused && !instance.isBackground) {
-        suspended.add(_EventTarget(key.instanceId, controller));
+        suspended.add(_EventTarget(key.instanceId, runtime));
         continue;
       }
       // מופע שאירוע קודם פג לו הזמן — כל שידור אליו עולה 3 שניות, ולכן הוא
       // מודר עד לרישום/החייאה הבאים.
-      if (_eventTimedOutControllers.contains(controller)) continue;
-      final target = _EventTarget(key.instanceId, controller);
+      if (_eventTimedOutRuntimes.contains(runtime)) continue;
+      final target = _EventTarget(key.instanceId, runtime);
       if (instance.isBackground) {
         background = target;
       } else {
@@ -2403,11 +2279,11 @@ class PluginRuntimeDispatcher {
 }
 
 /// יעד מסירה בודד — ה-instanceId נשמר כדי לאמת אחרי await שהמופע עדיין
-/// מחזיק באותו controller.
+/// מחזיק באותו runtime.
 class _EventTarget {
-  const _EventTarget(this.instanceId, this.controller);
+  const _EventTarget(this.instanceId, this.runtime);
   final PluginInstanceId instanceId;
-  final InAppWebViewController controller;
+  final PluginRuntime runtime;
 }
 
 /// מובייל: אפליקציה ברקע אינה מציגה תוספים. בכל הפלטפורמות: לחץ זיכרון

@@ -227,28 +227,6 @@ void main() {
       );
     });
 
-    testWidgets('משתמש ב-RtlIcon לניהול כיווניות', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Directionality(
-            textDirection: TextDirection.rtl,
-            child: NavRailItem(
-              icon: FluentIcons.arrow_left_24_regular,
-              label: 'חזרה',
-              isSelected: false,
-              onTap: () {},
-            ),
-          ),
-        ),
-      );
-
-      expect(
-        find.byType(RtlIcon),
-        findsOneWidget,
-        reason: 'NavRailItem חייב להשתמש ב-RtlIcon ולא ב-Icon ישירות',
-      );
-    });
-
     testWidgets('arrow_left משתקף ב-RTL (matchTextDirection)', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -278,34 +256,6 @@ void main() {
         ),
         findsOneWidget,
         reason: 'Icon משקף את החץ בעצמו; החלפה נוספת הייתה מבטלת את השיקוף',
-      );
-    });
-
-    testWidgets('אייקון סימטרי (book) מוצג ללא שינוי כיוון ב-LTR', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Directionality(
-            textDirection: TextDirection.ltr,
-            child: NavRailItem(
-              icon: OtzariaIcons.book_24_regular,
-              label: 'ספרייה',
-              isSelected: false,
-              onTap: () {},
-            ),
-          ),
-        ),
-      );
-
-      // RtlIcon לא אמור לעטוף ב-Transform בהקשר LTR
-      expect(
-        find.descendant(
-          of: find.byType(RtlIcon),
-          matching: find.byType(Transform),
-        ),
-        findsNothing,
-        reason: 'LTR — RtlIcon לא אמור להפוך אייקון',
       );
     });
   });

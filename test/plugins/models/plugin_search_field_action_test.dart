@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
 import 'package:otzaria/plugins/models/plugin_startup_contributions.dart';
+import 'package:otzaria/plugins/models/plugin_when_condition.dart';
 import 'package:otzaria/plugins/services/plugin_search_field_actions_registry.dart';
 
 void main() {
@@ -183,6 +184,113 @@ void main() {
         );
       });
     }
+  });
+
+  group('when', () {
+    test('בלי when — מוצג תמיד', () {
+      final action = PluginSearchFieldAction.fromPayload({
+        'id': 'a',
+        'title': 'א',
+      });
+      expect(action.when, isNull);
+    });
+
+    test('תנאי תקף מפורסר דרך המנוע המשותף, בשני המצבים', () {
+      final condition = {
+        'all': [
+          {
+            'storage': {'key': 'showButton', 'equals': true},
+          },
+          {
+            'setting': {'key': 'key-dark-mode', 'exists': true},
+          },
+        ],
+      };
+      final session = PluginSearchFieldAction.fromPayload({
+        'id': 'a',
+        'title': 'א',
+        'when': condition,
+      });
+      expect(session.when!.kind, PluginWhenConditionKind.all);
+      expect(session.when!.storageKeys, {'showButton'});
+      expect(session.when!.settingKeys, {'key-dark-mode'});
+      expect(session.when!.toJson(), condition);
+
+      final filter = PluginSearchFieldAction.fromPayload({
+        'id': 'f',
+        'title': 'מקור',
+        'mode': 'providerBooksFilter',
+        'when': condition,
+      });
+      expect(filter.when, isNotNull);
+      expect(filter.isProviderBooksFilter, isTrue);
+    });
+
+    for (final (name, badWhen) in <(String, Object?)>[
+      ('לא אובייקט', 'always'),
+      ('אובייקט ריק', <String, dynamic>{}),
+      ('אופרטור לא מוכר', {'maybe': true}),
+      (
+        'עלה בלי אופרטור',
+        {
+          'storage': {'key': 'k'},
+        },
+      ),
+      (
+        'שני אופרטורים בעלה',
+        {
+          'storage': {'key': 'k', 'equals': 1, 'exists': true},
+        },
+      ),
+      (
+        'מפתח ריק',
+        {
+          'setting': {'key': '', 'exists': true},
+        },
+      ),
+      ('all ריק', {'all': <Object>[]}),
+    ]) {
+      test('נדחה: when $name', () {
+        expect(
+          () => PluginSearchFieldAction.fromPayload({
+            'id': 'a',
+            'title': 'א',
+            'when': badWhen,
+          }),
+          throwsA(
+            isA<PluginSearchFieldActionException>().having(
+              (error) => error.message,
+              'message',
+              startsWith('when is invalid'),
+            ),
+          ),
+        );
+      });
+    }
+
+    test('כפתור מוסתר עדיין נרשם וסופר במכסות', () {
+      final registry = PluginSearchFieldActionsRegistry.forTesting();
+      final never = {
+        'storage': {'key': 'k', 'exists': true},
+      };
+      registry.registerPayload('p1', {'id': 'a', 'title': 'א', 'when': never});
+      registry.registerPayload('p1', {'id': 'b', 'title': 'ב', 'when': never});
+      expect(
+        () => registry.registerPayload('p1', {'id': 'c', 'title': 'ג'}),
+        throwsA(isA<PluginSearchFieldActionException>()),
+      );
+      registry.registerPayload('p2', {'id': 'a', 'title': 'א'});
+      registry.registerPayload('p3', {'id': 'a', 'title': 'א'});
+      registry.registerPayload('p4', {'id': 'a', 'title': 'א'});
+
+      // שלושת הכפתורים הראשונים תופסים את המכסה גם אם התנאי שלהם כבוי.
+      expect(
+        registry
+            .actionsFor(PluginSearchField.library)
+            .map((e) => '${e.$1}/${e.$2.id}'),
+        ['p1/a', 'p1/b', 'p2/a'],
+      );
+    });
   });
 
   test('searchFieldActions במניפסט מעיר את מנוע הרקע ונשמר בהמרה', () {

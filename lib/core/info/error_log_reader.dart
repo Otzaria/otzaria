@@ -116,6 +116,7 @@ class ErrorLogReader {
   static Future<ErrorLogReport> collect({int limit = 5}) async {
     final files = <ErrorLogFileSummary>[];
     final entries = <ErrorLogEntry>[];
+    await ErrorLogFile.flushPending();
 
     for (final candidate in _candidatePaths()) {
       final file = File(candidate.path);

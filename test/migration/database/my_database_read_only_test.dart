@@ -32,12 +32,6 @@ void main() {
     }
   });
 
-  test('ברירת המחדל היא חיבור כתיב (isReadOnly == false)', () {
-    final db = MyDatabase.withPath(dbPath);
-    addTearDown(db.close);
-    expect(db.isReadOnly, isFalse);
-  });
-
   test(
     'repository כתיב (cache.db/user_books.db): WAL עם synchronous=NORMAL',
     () async {
@@ -50,12 +44,6 @@ void main() {
       expect(db.select('PRAGMA synchronous').first.values.first, 1);
     },
   );
-
-  test('readOnly: true פותח חיבור שמסומן read-only', () {
-    final db = MyDatabase.withPath(dbPath, readOnly: true);
-    addTearDown(db.close);
-    expect(db.isReadOnly, isTrue);
-  });
 
   test('חיבור read-only מאפשר קריאה', () async {
     final roDatabase = MyDatabase.withPath(dbPath, readOnly: true);

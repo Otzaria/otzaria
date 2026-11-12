@@ -86,6 +86,9 @@ class SemanticResultsBloc
   /// כמה תוצאות בכל קריאה לסימון — כך חיפוש חדש לא ממתין לרשימה ארוכה.
   static const int highlightBatchSize = 6;
 
+  // מגבילים בדיקות מקור במקביל כדי שלא להתחיל את כל העמוד לפני שאפשר לבטלו.
+  static const int _maxUserBookChecksInFlight = 8;
+
   final int pageSize;
   final SemanticSourceResolver _resolveSource;
   final SemanticFeedbackPorts _feedback;
@@ -166,7 +169,7 @@ class SemanticResultsBloc
     if (page == null || generation != _generation) return;
 
     final engine = await _engineSnapshot(source);
-    final flags = await _userFlags(page.items);
+    final flags = await _userFlags(page.items, generation);
     if (generation != _generation) return;
     final context = _context = SemanticSearchContext(
       searchSessionId: _feedback.newId(),
@@ -239,7 +242,7 @@ class SemanticResultsBloc
       );
       return;
     }
-    final flags = await _userFlags(page.items);
+    final flags = await _userFlags(page.items, generation);
     if (generation != _generation) return;
     _userBookFlags.addAll(flags);
     emit(
@@ -449,9 +452,31 @@ class SemanticResultsBloc
     }
   }
 
-  Future<List<bool>> _userFlags(List<SemanticResultItem> items) => Future.wait([
-    for (final item in items) _isUserBook(item).catchError((Object _) => true),
-  ]);
+  Future<List<bool>> _userFlags(
+    List<SemanticResultItem> items,
+    int generation,
+  ) async {
+    // Defaults to private for failures and work abandoned by a newer search.
+    final flags = List<bool>.filled(items.length, true);
+    var next = 0;
+
+    Future<void> worker() async {
+      while (next < items.length && generation == _generation && !isClosed) {
+        final index = next++;
+        try {
+          flags[index] = await _isUserBook(items[index]);
+        } catch (_) {
+          // An unknown source must never be treated as a public book.
+        }
+      }
+    }
+
+    final workerCount = math.min(items.length, _maxUserBookChecksInFlight);
+    await Future.wait([
+      for (var i = 0; i < workerCount; i++) worker(),
+    ]);
+    return flags;
+  }
 
   void _recordShown(
     SemanticSearchContext context,

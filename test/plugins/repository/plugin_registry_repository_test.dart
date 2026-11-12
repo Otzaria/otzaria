@@ -51,7 +51,6 @@ InstalledPlugin _plugin({
 class _FakeDb implements PluginSystemDatabase {
   final List<InstalledPlugin> plugins;
   final List<Map<String, int>> userOrderCalls = [];
-  final List<({String pluginId, bool showInTools})> showInToolsCalls = [];
 
   _FakeDb(this.plugins);
 
@@ -79,14 +78,6 @@ class _FakeDb implements PluginSystemDatabase {
   @override
   Future<void> updatePluginsUserOrder(Map<String, int> ordering) async {
     userOrderCalls.add(Map.of(ordering));
-  }
-
-  @override
-  Future<void> updatePluginShowInTools(
-    String pluginId,
-    bool showInTools,
-  ) async {
-    showInToolsCalls.add((pluginId: pluginId, showInTools: showInTools));
   }
 
   @override
@@ -429,46 +420,5 @@ void main() {
 
       expect(await repo.getNextUserOrderForNewPlugin(), 6);
     });
-  });
-
-  group('PluginRegistryRepository.updateShowInTools', () {
-    test('forwards (pluginId, false) to the DB layer', () async {
-      final fake = _FakeDb([]);
-      final repo = PluginRegistryRepository(database: fake);
-
-      await repo.updateShowInTools('plugin.x', false);
-
-      expect(fake.showInToolsCalls, hasLength(1));
-      expect(fake.showInToolsCalls.single.pluginId, 'plugin.x');
-      expect(fake.showInToolsCalls.single.showInTools, isFalse);
-    });
-
-    test('forwards (pluginId, true) — used for "show again" path', () async {
-      final fake = _FakeDb([]);
-      final repo = PluginRegistryRepository(database: fake);
-
-      await repo.updateShowInTools('plugin.x', true);
-
-      expect(fake.showInToolsCalls.single.showInTools, isTrue);
-    });
-
-    test(
-      'each call appends — repository does not coalesce duplicate writes',
-      () async {
-        final fake = _FakeDb([]);
-        final repo = PluginRegistryRepository(database: fake);
-
-        await repo.updateShowInTools('a', false);
-        await repo.updateShowInTools('b', false);
-        await repo.updateShowInTools('a', true);
-
-        expect(fake.showInToolsCalls, hasLength(3));
-        expect(fake.showInToolsCalls.map((c) => c.pluginId).toList(), [
-          'a',
-          'b',
-          'a',
-        ]);
-      },
-    );
   });
 }

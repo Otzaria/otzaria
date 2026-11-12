@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+
 import 'package:otzaria/plugins/models/plugin_api_catalog.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -8,6 +9,7 @@ import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_rpc_request.dart';
 import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
 import 'package:otzaria/plugins/models/plugin_rpc_response.dart';
+import 'package:otzaria/plugins/plugin_constants.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/bridge/plugin_bridge_adapter.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
@@ -73,7 +75,7 @@ class PluginBridgeHandler {
     controller.addJavaScriptHandler(
       handlerName: 'otzaria_rpc',
       callback: (args) async {
-        return handleRpc(
+        return _handleRpc(
           args,
           eventSink: (topic, payload) async {
             await controller.evaluateJavascript(
@@ -88,7 +90,7 @@ class PluginBridgeHandler {
   }
 
   /// נקודת כניסה לבדיקות בלבד: מריצה את אותו נתיב RPC שמופעל מ-JavaScript,
-  /// כדי לבדוק את אכיפת ההרשאות וצימוד ההחרגה-מ-throttle ב-[handleRpc].
+  /// כדי לבדוק את אכיפת ההרשאות וצימוד ההחרגה-מ-throttle ב-[_handleRpc].
   /// [nonce] מוחלף כברירת מחדל ב-[bridgeNonce] התקין — העברת ערך מפורש
   /// מדמה קריאה שמקורה מחוץ ל-main frame.
   @visibleForTesting
@@ -104,7 +106,7 @@ class PluginBridgeHandler {
             ...args.skip(1),
           ]
         : args;
-    return handleRpc(stamped, eventSink: eventSink);
+    return _handleRpc(stamped, eventSink: eventSink);
   }
 
   /// ההרשאה שה-runtime אוכף בפועל עבור `domain.action`, לבדיקת התאמה מול
@@ -157,9 +159,7 @@ class PluginBridgeHandler {
       method == 'feedback.report' ||
       method == 'feedback.submitBookCorrection';
 
-  /// כניסת תעבורה לאותו שער הרשאות; זהות התוסף נקבעת בבנאי, לא בבקשה.
-  /// כל מארח חייב להעביר את ה-nonce המקורי ולתחום את חיי [eventSink] למופע.
-  Future<dynamic> handleRpc(
+  Future<dynamic> _handleRpc(
     List<dynamic> args, {
     PluginRpcEventSink? eventSink,
   }) async {
@@ -291,7 +291,7 @@ class PluginBridgeHandler {
       );
       final result = hasOwnTimeout(request.method)
           ? await execution
-          : await execution.timeout(const Duration(seconds: 30));
+          : await execution.timeout(kPluginDefaultRpcTimeout);
       return _successResp(result);
     } on PluginDatabaseException catch (e) {
       return _errorResp(e.code, e.message);

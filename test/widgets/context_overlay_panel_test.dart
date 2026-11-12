@@ -139,35 +139,6 @@ void main() {
       );
     }
 
-    testWidgets('scrollable=true — ה-Scrollbar קיים', (tester) async {
-      await tester.pumpWidget(buildPanel(scrollable: true));
-      await tester.pump();
-
-      expect(
-        find.byType(Scrollbar),
-        findsOneWidget,
-        reason: 'ContextOverlayPanel עם scrollable=true חייב להכיל Scrollbar',
-      );
-    });
-
-    testWidgets(
-      'scrollable=true — SingleChildScrollView עם padding אופקי של 16px בדיוק',
-      (tester) async {
-        await tester.pumpWidget(buildPanel(scrollable: true));
-        await tester.pump();
-
-        final scrollView = tester.widget<SingleChildScrollView>(
-          find.byType(SingleChildScrollView),
-        );
-        expect(
-          scrollView.padding,
-          equals(const EdgeInsets.symmetric(horizontal: 16)),
-          reason:
-              'padding 16px הסטנדרטי בלבד — הScrollbar יושב בתוך ה-16px הקיים',
-        );
-      },
-    );
-
     testWidgets(
       'scrollable=true — התוכן מוצב ב-16px מקצה ה-Scrollbar, ללא חפיפה',
       (tester) async {

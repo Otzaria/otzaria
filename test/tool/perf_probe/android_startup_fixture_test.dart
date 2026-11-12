@@ -512,7 +512,7 @@ void main() {
   );
 
   test(
-    'fixture readiness follows the real SDK boot and background event',
+    'fixture readiness and RPC use the real foreground and background SDK',
     () async {
       final script = RegExp(
         r'<script>([\s\S]*?)</script>',
@@ -541,9 +541,15 @@ void main() {
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
 for (const input of JSON.parse(process.argv[1])) {
-  const listeners = new Map(), frames = [];
+  const listeners = new Map(), frames = [], requests = [];
   const context = vm.createContext({console, setTimeout, clearTimeout});
   context.window = context;
+  context.flutter_inappwebview = {
+    callHandler: (name, request) => {
+      requests.push({name, ...JSON.parse(JSON.stringify(request))});
+      return Promise.resolve({success: true});
+    },
+  };
   context.CustomEvent = class {constructor(type, options) {this.type = type; this.detail = options.detail;}};
   context.addEventListener = (type, callback) => {
     if (!listeners.has(type)) listeners.set(type, []);
@@ -566,6 +572,10 @@ for (const input of JSON.parse(process.argv[1])) {
   assert.equal(state.boots, 1);
   assert.equal(state.runMode, input.mode);
   assert.equal(state.pluginId, 'org.otzaria.android-startup-fixture');
+  context.Otzaria.call('app.getConnectivity', {});
+  assert.deepEqual(requests, [{
+    name: 'otzaria_rpc', method: 'app.getConnectivity', payload: {}, nonce: 'test-nonce',
+  }]);
   if (input.mode === 'foreground') {
     assert.equal(state.twoAnimationFrames, false);
     frames.shift()();

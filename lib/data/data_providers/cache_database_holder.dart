@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
@@ -20,13 +22,24 @@ class CacheDatabaseHolder {
   MyDatabase? _database;
   SeforimRepository? _repository;
   Future<SeforimRepository>? _initFuture;
+  Future<void>? _closeFuture;
+  Future<void>? _reopenAfter;
 
   /// מחזיר את ה-repository הכתיב של המטמון, מאתחל אם צריך.
   ///
   /// אם האתחול נכשל (DB נעול, נתיב חסר הרשאות וכו'), ה-Future שנשמר
   /// מאופס כדי שקריאה חוזרת תנסה לפתוח את ה-DB מחדש במקום להחזיר את
   /// אותה שגיאה לנצח.
-  Future<SeforimRepository> get repository {
+  Future<SeforimRepository> get repository => _openRepository();
+
+  Future<SeforimRepository> _openRepository() {
+    final moving = _reopenAfter;
+    if (moving != null) return moving.then((_) => _openRepository());
+    final closing = _closeFuture;
+    if (closing != null) {
+      // מאפשר להמשכי close להחליף את הקובץ לפני פתיחה חוזרת.
+      return closing.then((_) => Future(_openRepository));
+    }
     if (_repository != null) return Future.value(_repository!);
     return _initFuture ??= _initialize().onError<Object>((error, stackTrace) {
       _initFuture = null;
@@ -54,7 +67,7 @@ class CacheDatabaseHolder {
   Future<SeforimRepository> _initialize() async {
     final dbPath = await AppPaths.resolveCacheDbPath();
     debugPrint('🗂️ [CacheDB] Opening cache.db at $dbPath');
-    final db = MyDatabase.withPath(dbPath);
+    final db = await MyDatabase.openWritableInBackground(dbPath);
     final repo = SeforimRepository(db);
     try {
       await repo.ensureInitialized();
@@ -68,9 +81,22 @@ class CacheDatabaseHolder {
     return repo;
   }
 
-  /// סוגר את ה-DB. שימושי בעיקר לבדיקות.
-  Future<void> close() async {
-    _database?.close();
+  /// סוגר את ה-DB, גם כשפתיחה עוד בדרך. [reopenAfter] מושלם בסיום העברה.
+  Future<void> close({Future<void>? reopenAfter}) {
+    if (reopenAfter != null) {
+      _reopenAfter = reopenAfter;
+      unawaited(
+        reopenAfter.then((_) {
+          if (identical(_reopenAfter, reopenAfter)) _reopenAfter = null;
+        }),
+      );
+    }
+    return _closeFuture ??= _close().whenComplete(() => _closeFuture = null);
+  }
+
+  Future<void> _close() async {
+    await _initFuture?.then<void>((_) {}, onError: (Object _) {});
+    _database?.retire();
     _database = null;
     _repository = null;
     _initFuture = null;

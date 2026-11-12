@@ -1978,6 +1978,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
 
               if (targetPage != null) {
                 if (widget.tab.pdfViewerController.isReady) {
+                  widget.tab.rememberLocationForJump();
                   widget.tab.pdfViewerController.goToPage(
                     pageNumber: targetPage,
                   );
@@ -1990,6 +1991,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
         }
 
         if (widget.tab.pdfViewerController.isReady) {
+          widget.tab.rememberLocationForJump();
           widget.tab.pdfViewerController.goToPage(pageNumber: lineNumber);
         }
       },

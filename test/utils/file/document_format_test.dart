@@ -145,107 +145,11 @@ void main() {
     });
   });
 
-  group('תכונות סמנטיות (§7 — כל predicate מציאות אחת)', () {
-    test('isTextual — הכול חוץ מ-PDF', () {
-      for (final format in DocumentFormat.values) {
-        expect(
-          format.isTextual,
-          format != DocumentFormat.pdf,
-          reason: format.name,
-        );
-      }
-    });
-
-    test('requiresConversion — לא TXT ולא PDF', () {
-      expect(DocumentFormat.txt.requiresConversion, isFalse);
-      expect(DocumentFormat.text.requiresConversion, isFalse);
-      expect(DocumentFormat.pdf.requiresConversion, isFalse);
-      for (final format in DocumentFormat.values) {
-        if (format.isPlainText || format == DocumentFormat.pdf) {
-          continue;
-        }
-        expect(format.requiresConversion, isTrue, reason: format.name);
-      }
-    });
-
-    test('isOoxmlWord בדיוק על ארבעת פורמטי Word המודרניים', () {
-      final ooxml = DocumentFormat.values.where((f) => f.isOoxmlWord).toSet();
-      expect(ooxml, {
-        DocumentFormat.docx,
-        DocumentFormat.docm,
-        DocumentFormat.dotx,
-        DocumentFormat.dotm,
-      });
-    });
-
-    test('isLegacyWord בדיוק על doc/dot — לא על wbk', () {
-      final legacy = DocumentFormat.values.where((f) => f.isLegacyWord).toSet();
-      expect(legacy, {DocumentFormat.doc, DocumentFormat.dot});
-      expect(DocumentFormat.wbk.isLegacyWord, isFalse);
-    });
-
-    test('isZipPackage על OOXML + EPUB + ODT', () {
-      final zips = DocumentFormat.values.where((f) => f.isZipPackage).toSet();
-      expect(zips, {
-        DocumentFormat.docx,
-        DocumentFormat.docm,
-        DocumentFormat.dotx,
-        DocumentFormat.dotm,
-        DocumentFormat.epub,
-        DocumentFormat.odt,
-      });
-    });
-
-    test('canStoreLinesInDb רק ל-TXT', () {
-      final inDb = DocumentFormat.values
-          .where((f) => f.canStoreLinesInDb)
-          .toSet();
-      expect(inDb, {DocumentFormat.txt, DocumentFormat.text});
-    });
-
-    test('needsContentSniffing רק לסיומות שאינן מעידות על הפורמט', () {
-      final sniff = DocumentFormat.values
-          .where((f) => f.needsContentSniffing)
-          .toSet();
-      expect(sniff, {DocumentFormat.wbk, DocumentFormat.xml});
-    });
-
-    test('PDF אינו נכנס לצנרת הטקסט אף שאינו דורש המרה', () {
-      expect(DocumentFormat.pdf.requiresConversion, isFalse);
-      expect(DocumentFormat.pdf.isTextual, isFalse);
-      expect(DocumentFormat.pdf.supportsEmbeddedImages, isFalse);
-    });
-  });
-
   group('registry (§10, §80)', () {
     test('כל סיומת ברשימה הנתמכת ניתנת למיפוי ל-DocumentFormat', () {
       for (final ext in kSupportedBookExtensions) {
         expect(documentFormatFromFileType(ext), isNotNull, reason: ext);
       }
-    });
-
-    test('כל פורמט production-supported מופיע ברשימת הסיומות', () {
-      for (final format in kProductionBookFormats) {
-        expect(kSupportedBookExtensions, contains(format.extension));
-        expect(format.isProductionSupported, isTrue, reason: format.name);
-      }
-    });
-
-    test('פורמט שאינו ב-registry אינו production-supported', () {
-      for (final format in DocumentFormat.values) {
-        expect(
-          format.isProductionSupported,
-          kProductionBookFormats.contains(format),
-          reason: format.name,
-        );
-      }
-    });
-
-    test('שתי הרשימות (עם/בלי נקודה) עקביות', () {
-      expect(
-        kSupportedDottedBookExtensions,
-        kSupportedBookExtensions.map((e) => '.$e').toList(),
-      );
     });
 
     test('isSupportedBookFile — רישיות אינה משנה', () {

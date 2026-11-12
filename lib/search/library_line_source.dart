@@ -186,7 +186,7 @@ abstract final class LibraryLineSource {
   ) {
     if (kDebugMode) return;
     try {
-      ErrorLogFile.append(
+      ErrorLogFile.appendInBackground(
         title: 'Initialization Warning',
         error: error,
         stackTrace: stackTrace,

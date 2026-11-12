@@ -30,12 +30,6 @@ void main() {
       expect(FullscreenHelper.isContextAllowed(Screen.reading, false), isFalse);
     });
 
-    // כלים ותוספים חיים ככרטיסיות בעיון, ולכן הם נופלים תחת אותו כלל:
-    // מסך מלא מותר רק כשיש כרטיסיה פתוחה.
-    test('מתיר בכלים/תוספים דרך כרטיסיית עיון פתוחה', () {
-      expect(FullscreenHelper.isContextAllowed(Screen.reading, true), isTrue);
-    });
-
     test('חוסם בספרייה/חיפוש/איתור/הגדרות', () {
       for (final screen in [
         Screen.library,

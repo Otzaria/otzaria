@@ -17,7 +17,6 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
@@ -25,6 +24,7 @@ import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
 import 'package:otzaria/widgets/misc/commentators_filter_button.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 import '../../test_helpers/stub_settings_bloc.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -103,22 +103,6 @@ void main() {
 
       expect(keys, [LinkTypes.elucidation]);
       expect(keys.map(LinkTypes.hebrewLabel), ['ביאור']);
-    });
-
-    test('התוויות העבריות הנכונות לכל הסוגים', () {
-      final keys = buildCommentaryTypeChipKeys([
-        _link(path2: 'א.txt', type: LinkTypes.targum),
-        _link(path2: 'ב.txt', type: LinkTypes.midrash),
-        _link(path2: 'ג.txt', type: LinkTypes.parshanut),
-        _link(path2: 'ד.txt', type: LinkTypes.diburHamatchil),
-      ]);
-
-      expect(keys.map(LinkTypes.hebrewLabel).toList(), [
-        'תרגום',
-        'מדרש',
-        'פרשנות',
-        'דיבור המתחיל',
-      ]);
     });
 
     test('ערך באותיות קטנות מזוהה ואינו מייצר צ׳יפ כפול', () {
@@ -583,11 +567,11 @@ TextBookLoaded _windowState(Link inSection, Link outOfSection) {
   );
 }
 
-Future<_TestTextBookBloc> _pump(
+Future<EmittingStubTextBookBloc> _pump(
   WidgetTester tester,
   TextBookLoaded state,
 ) async {
-  final bloc = _TestTextBookBloc(state);
+  final bloc = EmittingStubTextBookBloc(state);
   addTearDown(() async => bloc.close());
   final settingsBloc = StubSettingsBloc(SettingsState.initial());
   addTearDown(() async => settingsBloc.close());
@@ -704,19 +688,6 @@ TextBookLoaded _stateForLinks({
     pinLeftPane: false,
     searchText: '',
   );
-}
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  /// דוחף מצב חדש לווידג'ט, כדי לדמות מעבר לקטע אחר.
-  void emitState(TextBookState state) => emit(state);
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _FakeLibraryProvider implements LibraryProvider {

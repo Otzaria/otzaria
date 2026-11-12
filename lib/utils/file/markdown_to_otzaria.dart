@@ -13,7 +13,7 @@ import 'package:otzaria/utils/file/text_encoding.dart';
 import 'package:otzaria/utils/text/heading_slug.dart';
 
 /// גרסת הממיר. שינוי בפלט פוסל רק רשומות Cache של Markdown.
-const int kMarkdownConverterVersion = 8;
+const int kMarkdownConverterVersion = 9;
 
 /// מסומן על כל בלוק שנוצר מהמרת Markdown, כדי שהעיצוב הייעודי לא יחול על
 /// ספרי אוצריא רגילים שחולקים את אותו מנוע תצוגה.
@@ -76,26 +76,26 @@ class MarkdownToOtzaria {
     return _renderBookLines(fragment);
   }
 
-  DocumentFragment _parseMarkdown(String body) => html_parser.parseFragment(
-    _stripExternalImages(
-      _sanitizer.sanitize(
-        markdown.markdownToHtml(
-          body,
-          extensionSet: markdown.ExtensionSet.gitHubWeb,
-        ),
+  DocumentFragment _parseMarkdown(String body) {
+    final sanitized = _sanitizer.sanitize(
+      markdown.markdownToHtml(
+        body,
+        extensionSet: markdown.ExtensionSet.gitHubWeb,
       ),
-    ),
-  );
-
-  String _stripExternalImages(String source) {
-    final fragment = html_parser.parseFragment(source);
+    );
+    final fragment = html_parser.parseFragment(sanitized);
+    var removedImageSource = false;
     for (final image in fragment.querySelectorAll('img')) {
       final src = image.attributes['src']?.trim() ?? '';
       if (!_isRelativeUrl(src) && !_isEmbeddedImageUrl(src)) {
         image.attributes.remove('src');
+        removedImageSource = true;
       }
     }
-    return fragment.outerHtml;
+    final serialized = fragment.outerHtml;
+    // סבב נוסף עשוי לשנות את הפלט, למשל ב־pre בתוך תא טבלה.
+    if (!removedImageSource && serialized == sanitized) return fragment;
+    return html_parser.parseFragment(serialized);
   }
 
   /// הנרמול המשותף לכל מסלולי ההמרה. כל שינוי כאן מחייב העלאת
@@ -111,60 +111,66 @@ class MarkdownToOtzaria {
     String baseDirectory,
   ) async {
     var embeddedBytes = 0;
-    for (final image in fragment.querySelectorAll('img')) {
-      embeddedBytes += await _resolveLocalImage(
-        image,
-        baseDirectory,
-        embeddedBytes: embeddedBytes,
-      );
-    }
-  }
+    var tryDirectPath =
+        !Platform.isWindows &&
+        path.isAbsolute(baseDirectory) &&
+        path.normalize(baseDirectory) == baseDirectory;
 
-  Future<int> _resolveLocalImage(
-    Element image,
-    String baseDirectory, {
-    required int embeddedBytes,
-  }) async {
-    final source = image.attributes['src'];
-    if (source == null) {
-      image.attributes.remove('src');
-      return 0;
-    }
-    if (_isEmbeddedImageUrl(source)) return 0;
-    if (!_isRelativeUrl(source)) {
-      image.attributes.remove('src');
-      return 0;
-    }
-    try {
-      final decoded = Uri.decodeComponent(source.split('#').first);
-      final realBase = await Directory(baseDirectory).resolveSymbolicLinks();
-      final candidate = path.normalize(path.join(realBase, decoded));
-      final resolved = await File(candidate).resolveSymbolicLinks();
-      if (!path.isWithin(realBase, resolved)) {
+    for (final image in fragment.querySelectorAll('img')) {
+      final source = image.attributes['src'];
+      if (source == null || _isEmbeddedImageUrl(source)) continue;
+      if (!_isRelativeUrl(source)) {
         image.attributes.remove('src');
-        return 0;
+        continue;
       }
-      final file = File(resolved);
-      final stat = await file.stat();
-      final mime = imageMimeForPath(resolved);
-      if (stat.type != FileSystemEntityType.file ||
-          stat.size > _maxInlineImageSize ||
-          stat.size > EmbeddedMediaLimits.maxImageBytes ||
-          mime == null ||
-          mime == 'image/svg+xml' ||
-          embeddedBytes + stat.size > EmbeddedMediaLimits.maxTotalImageBytes) {
+      try {
+        final decoded = Uri.decodeComponent(source.split('#').first);
+        String? resolved;
+        if (tryDirectPath && !path.isAbsolute(decoded)) {
+          final candidate = path.normalize(path.join(baseDirectory, decoded));
+          if (path.isWithin(baseDirectory, candidate)) {
+            try {
+              final canonical = await File(candidate).resolveSymbolicLinks();
+              // הקידומת של הנתיב הקנוני מאשרת שגם הבסיס קנוני.
+              if (path.isWithin(baseDirectory, canonical)) resolved = canonical;
+            } on FileSystemException {
+              // בסיס שהוא קישור עשוי להניב נתיב אחר במסלול הרגיל.
+            }
+            tryDirectPath = resolved != null;
+          }
+        }
+        if (resolved == null) {
+          final realBase = await Directory(
+            baseDirectory,
+          ).resolveSymbolicLinks();
+          final candidate = path.normalize(path.join(realBase, decoded));
+          resolved = await File(candidate).resolveSymbolicLinks();
+          if (!path.isWithin(realBase, resolved)) {
+            image.attributes.remove('src');
+            continue;
+          }
+        }
+        final file = File(resolved);
+        final stat = await file.stat();
+        final mime = imageMimeForPath(resolved);
+        if (stat.type != FileSystemEntityType.file ||
+            stat.size > _maxInlineImageSize ||
+            stat.size > EmbeddedMediaLimits.maxImageBytes ||
+            mime == null ||
+            mime == 'image/svg+xml' ||
+            embeddedBytes + stat.size >
+                EmbeddedMediaLimits.maxTotalImageBytes) {
+          image.attributes.remove('src');
+          continue;
+        }
+        final bytes = await file.readAsBytes();
+        image.attributes['src'] = 'data:$mime;base64,${base64Encode(bytes)}';
+        embeddedBytes += bytes.length;
+      } on FormatException {
         image.attributes.remove('src');
-        return 0;
+      } on FileSystemException {
+        image.attributes.remove('src');
       }
-      final bytes = await file.readAsBytes();
-      image.attributes['src'] = 'data:$mime;base64,${base64Encode(bytes)}';
-      return bytes.length;
-    } on FormatException {
-      image.attributes.remove('src');
-      return 0;
-    } on FileSystemException {
-      image.attributes.remove('src');
-      return 0;
     }
   }
 
@@ -277,22 +283,22 @@ bool _isEmbeddedImageUrl(String value) =>
 /// כיוון של בלוק תוכן, נגזר מהטקסט שמחוץ ל-`code`/`pre`: טוקני קוד לטיניים
 /// בפתח שורה עברית (למשל «`side` — העוגן») סיווגו אותה כ-LTR והפכו אותה.
 String _blockDirection(Element element) {
-  final buffer = StringBuffer();
-  void collect(Node node) {
-    if (node is Text) {
-      buffer.write(node.text);
-      return;
-    }
+  String? firstStrongOutsideCode(Node node) {
+    if (node is Text) return _firstStrongDirection(node.text);
     if (node is Element && const {'code', 'pre'}.contains(node.localName)) {
-      return;
+      return null;
     }
     for (final child in node.nodes) {
-      collect(child);
+      final direction = firstStrongOutsideCode(child);
+      // Stop as soon as the first strong character is known. Building the
+      // entire descendant text here was costly for long tables and lists,
+      // especially because their descendants are also checked individually.
+      if (direction != null) return direction;
     }
+    return null;
   }
 
-  collect(element);
-  return _firstStrongDirection(buffer.toString()) ??
+  return firstStrongOutsideCode(element) ??
       _firstStrongDirection(element.text) ??
       'rtl';
 }

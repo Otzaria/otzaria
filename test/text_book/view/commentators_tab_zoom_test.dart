@@ -9,41 +9,18 @@ import 'package:mockito/mockito.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
-import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/text_book/view/commentators_tab_screen.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 
 import '../../helpers/memory_settings_cache.dart';
+import '../../test_helpers/stub_personal_notes_bloc.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 import '../../unit/mocks/mock_settings_repository.mocks.dart';
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestPersonalNotesBloc
-    extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _TestPersonalNotesBloc() : super(const PersonalNotesState.initial()) {
-    on<PersonalNotesEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
 
 TextBookLoaded _loaded(TextBook book) => TextBookLoaded(
   book: book,
@@ -78,8 +55,8 @@ void main() {
     addTearDown(tester.view.reset);
 
     final book = TextBook(title: 'חולין');
-    final sourceBloc = _TestTextBookBloc(_loaded(book));
-    final tabBloc = _TestTextBookBloc(_loaded(book));
+    final sourceBloc = StubTextBookBloc(_loaded(book));
+    final tabBloc = StubTextBookBloc(_loaded(book));
     final sourceTab = TextBookTab(
       book: book,
       index: 0,
@@ -94,7 +71,7 @@ void main() {
       return writes.length == 1 ? firstWrite.future : Future<void>.value();
     });
     final settings = SettingsBloc(repository: repository);
-    final notes = _TestPersonalNotesBloc();
+    final notes = StubPersonalNotesBloc();
     addTearDown(() async {
       await tester.pumpWidget(const SizedBox.shrink());
       await settings.close();
@@ -166,11 +143,11 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
     final book = TextBook(title: 'חולין');
-    final tabBloc = _TestTextBookBloc(_loaded(book));
+    final tabBloc = StubTextBookBloc(_loaded(book));
     final sourceTab = TextBookTab(book: book, index: 0);
     final tab = CommentatorsTab(sourceTab: sourceTab, blocOverride: tabBloc);
     final settings = SettingsBloc(repository: MockSettingsRepository());
-    final notes = _TestPersonalNotesBloc();
+    final notes = StubPersonalNotesBloc();
     addTearDown(() async {
       await tester.pumpWidget(const SizedBox.shrink());
       await settings.close();

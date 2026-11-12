@@ -31,6 +31,63 @@ DOCUMENT = {"pluginId": "controlled", "instanceId": "same-instance", "controller
             "nativeViewId": "9", "documentToken": "same-document"}
 LAUNCHER = "com.android.launcher3/com.android.launcher3.uioverrides.QuickstepLauncher"
 COMMIT = "c" * 40
+NATIVE_TEST_PIN = "f" * 40
+
+
+def write_native_pin_files(root, pin=NATIVE_TEST_PIN):
+    explicit = [name for name in probe.PACKAGES if name != "flutter_inappwebview_web"]
+    (root / "pubspec.yaml").write_text("dependencies:\n" + "".join(
+        f"  {name}:\n    git:\n      url: https://github.com/Otzaria/flutter_inappwebview\n"
+        f"      ref: {pin}\n      path: {name}\n" for name in explicit
+    ), encoding="utf-8")
+    (root / "pubspec.lock").write_text("packages:\n" + "".join(
+        f"  {name}:\n    dependency: direct main\n    description:\n"
+        f"      path: {name}\n      ref: {pin}\n      resolved-ref: {pin}\n"
+        "      url: \"https://github.com/Otzaria/flutter_inappwebview\"\n"
+        "    source: git\n    version: \"1.0.0\"\n" for name in probe.PACKAGES
+    ), encoding="utf-8")
+
+
+class NativePinContractTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        write_native_pin_files(self.root)
+
+    def test_matching_manifest_and_all_eight_lock_entries(self):
+        self.assertEqual(probe.read_native_pin(self.root), NATIVE_TEST_PIN)
+
+    def test_rejects_mismatched_or_missing_explicit_manifest_reference(self):
+        manifest = self.root / "pubspec.yaml"
+        original = manifest.read_text()
+        for modified in (
+            original.replace(NATIVE_TEST_PIN, "e" * 40, 1),
+            original.replace("      path: flutter_inappwebview_android\n", "", 1),
+        ):
+            with self.subTest(modified=modified[-100:]):
+                manifest.write_text(modified)
+                with self.assertRaisesRegex(ValueError, "flutter_inappwebview"):
+                    probe.read_native_pin(self.root)
+        manifest.write_text(original)
+
+    def test_rejects_stale_resolved_ref_wrong_source_and_missing_package(self):
+        lock = self.root / "pubspec.lock"
+        original = lock.read_text()
+        for altered in (
+            original.replace("resolved-ref: " + NATIVE_TEST_PIN, "resolved-ref: " + "e" * 40, 1),
+            original.replace('url: "https://github.com/Otzaria/flutter_inappwebview"',
+                             'url: "https://github.com/other/fork"', 1),
+            original.replace("    source: git\n", "    source: hosted\n", 1),
+            original.replace("  flutter_inappwebview_web:\n", "  wrong_web_package:\n", 1),
+        ):
+            with self.subTest(altered=altered[-100:]):
+                lock.write_text(altered)
+                with self.assertRaises(ValueError):
+                    probe.read_native_pin(self.root)
+        lock.write_text(original)
+
+
 
 
 def dumpsys(*, foreground=True, token="abc", task=42):
@@ -389,7 +446,7 @@ class RunnerTests(unittest.TestCase):
     def test_build_verifies_and_installs_the_direct_flavor_output(self):
         root = self.directory / "source"
         (root / ".dart_tool").mkdir(parents=True)
-        (root / "pubspec.lock").write_bytes(b"controlled lockfile\n")
+        write_native_pin_files(root)
         (root / ".dart_tool/package_config.json").write_text(json.dumps({"packages": [
             {"name": name, "rootUri": (root / "native" / name).as_uri()} for name in probe.PACKAGES
         ]}))
@@ -424,7 +481,7 @@ class RunnerTests(unittest.TestCase):
             elif argv == ["git", "rev-parse", "HEAD^{tree}"]:
                 out = b"d" * 40
             elif argv[:2] == ["git", "-C"] and argv[3:] == ["rev-parse", "HEAD"]:
-                out = (COMMIT if argv[2] == str(sdk) else probe.NATIVE_PIN).encode()
+                out = (COMMIT if argv[2] == str(sdk) else NATIVE_TEST_PIN).encode()
             elif argv[:3] == ["aapt2", "dump", "badging"]:
                 self.assertEqual(argv[3], str(apk))
                 self.assertEqual(apk.read_bytes(), payload)

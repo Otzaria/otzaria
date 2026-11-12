@@ -16,13 +16,13 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/book_common/utils/commentary_type_filter.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 import '../../test_helpers/stub_settings_bloc.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -182,12 +182,12 @@ void main() {
   });
 }
 
-Future<_TestTextBookBloc> _pump(
+Future<EmittingStubTextBookBloc> _pump(
   WidgetTester tester, {
   required CommentaryTypeSelection? selection,
   List<String> types = const ['TARGUM', 'MIDRASH', 'COMMENTARY'],
 }) async {
-  final bloc = _TestTextBookBloc(_stateWithTypes(types));
+  final bloc = EmittingStubTextBookBloc(_stateWithTypes(types));
   addTearDown(() async => bloc.close());
   final settingsBloc = StubSettingsBloc(SettingsState.initial());
   addTearDown(() async => settingsBloc.close());
@@ -266,18 +266,6 @@ TextBookLoaded _stateWithTypes(List<String> types) {
     pinLeftPane: false,
     searchText: '',
   );
-}
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  void emitState(TextBookState state) => emit(state);
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _FakeLibraryProvider implements LibraryProvider {

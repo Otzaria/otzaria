@@ -137,8 +137,20 @@ abstract final class CalendarAlertPlanner {
     required String city,
     required DateTime now,
     bool twelveHourClock = false,
+    // Optional source for deterministic testing and future integrations.
+    Map<String, String> Function(DateTime, String, {Set<String>? only})?
+    dailyTimesProvider,
   }) sync* {
     if (alerts.isEmpty) return;
+    final calculateDailyTimes =
+        dailyTimesProvider ?? zmanim_helpers.calculateDailyTimes;
+    final requestedTimeIds = alerts.keys.toSet();
+    // Keep results only for this planning session. Multiple alerts should
+    // share each day's expensive calculation without retaining data globally.
+    final perDayTimes = List<Map<String, String>?>.filled(
+      zmanScheduleDaysAhead + 1,
+      null,
+    );
     final cityData = calendar_location.getCityData(city);
     final location = tz.getLocation(
       cityData?['timezone'] as String? ?? 'Asia/Jerusalem',
@@ -154,7 +166,12 @@ abstract final class CalendarAlertPlanner {
       final pref = entry.value;
       for (int i = 0; i <= zmanScheduleDaysAhead; i++) {
         final d = DateTime(today.year, today.month, today.day + i);
-        final timeStr = zmanim_helpers.calculateDailyTimes(d, city)[timeId];
+        final daily = perDayTimes[i] ??= calculateDailyTimes(
+          d,
+          city,
+          only: requestedTimeIds,
+        );
+        final timeStr = daily[timeId];
         if (timeStr == null) continue;
         // מחלצים שעה:דקה תוך התעלמות מעטיפת ה-LTR isolate (\u2066) ומסימן
         // השניות (`.`/`:`) שבסוף.

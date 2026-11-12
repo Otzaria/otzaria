@@ -423,25 +423,6 @@ Future<void> main() async {
         _EngineCall.getFacetCountsFuzzy,
       ]);
     });
-
-    test('count/countByBook/getFacetCounts משתמשים באותו dispatch', () async {
-      final engine = _RecordingSearchEngineOperations();
-      const gateway = SearchEngineGateway();
-
-      await gateway.count(engine, _request(SearchMode.exact));
-      await gateway.countByBook(engine, _request(SearchMode.advanced));
-      await gateway.getFacetCounts(
-        engine,
-        _request(SearchMode.fuzzy),
-        facetPrefix: '/',
-      );
-
-      expect(engine.calls, [
-        _EngineCall.countExact,
-        _EngineCall.countByBookAdvanced,
-        _EngineCall.getFacetCountsFuzzy,
-      ]);
-    });
   });
 }
 

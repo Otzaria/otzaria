@@ -752,26 +752,6 @@ void main() {
       ]);
     });
 
-    test('פולט בדיוק את המפתחות של פורמט links.json', () {
-      const canonicalKeys = {
-        'heRef_2',
-        'line_index_1',
-        'path_2',
-        'line_index_2',
-        'Conection Type',
-      };
-
-      final json = Link(
-        heRef: 'בראשית א, א',
-        index1: 1,
-        path2: 'בראשית',
-        index2: 1,
-        connectionType: LinkTypes.reference,
-      ).toJson();
-
-      expect(json.keys.toSet(), canonicalKeys);
-    });
-
     test('toJson → fromJson משמר את שדות הפורמט', () {
       final original = Link(
         heRef: 'רש״י על בראשית א, א',

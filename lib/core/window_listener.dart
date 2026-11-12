@@ -11,6 +11,7 @@ import 'package:window_manager/legacy.dart';
 import 'package:otzaria/plugins/services/startup_crash_counter.dart';
 import 'package:otzaria/app_report/services/app_crash_session.dart';
 import 'package:otzaria/app_report/services/app_hang_report.dart';
+import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/core/http_client_registry.dart';
 import 'package:otzaria/core/pre_close_registry.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -554,6 +555,8 @@ class AppWindowListener extends WindowListener {
         _closeWritableDatabases,
         timeout: const Duration(seconds: 2),
       );
+      // ה-exit שבהמשך חותך רשומות לוג שעוד בתור הכתיבה ברקע.
+      await ErrorLogFile.flushPending();
 
       if (flushFailure != null) {
         // Report BEFORE Sentry.close() so the event can still be sent.

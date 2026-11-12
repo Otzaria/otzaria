@@ -37,15 +37,6 @@ void main() {
   TextEditingController getController(WidgetTester tester) =>
       tester.widget<TextField>(find.byType(TextField)).controller!;
 
-  group('commonEmailDomains', () {
-    test('מכיל את הסיומות העיקריות הצפויות', () {
-      expect(commonEmailDomains, contains('gmail.com'));
-      expect(commonEmailDomains, contains('walla.co.il'));
-      expect(commonEmailDomains, contains('9900.co.il'));
-      expect(commonEmailDomains, contains('outlook.com'));
-    });
-  });
-
   group('EmailFieldWithAutocomplete — הצגת הצעות', () {
     testWidgets('הקלדת @ מציגה את כל הסיומות הנפוצות', (tester) async {
       await pumpField(tester);

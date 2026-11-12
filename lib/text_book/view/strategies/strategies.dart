@@ -5,11 +5,9 @@
 // modifying existing code.
 //
 // Available strategies:
-// - [SplitViewStrategyImpl] - Shows commentaries in a side panel
-// - [CombinedViewStrategyImpl] - Shows commentaries below the text
+// - [SplitViewStrategyImpl] - Commentaries in a side panel or below the text
 // - [PageShapeStrategyImpl] - Traditional Talmud page layout
 
 export 'text_book_view_strategy.dart';
 export 'split_view_strategy.dart';
-export 'combined_view_strategy.dart';
 export 'page_shape_strategy.dart';

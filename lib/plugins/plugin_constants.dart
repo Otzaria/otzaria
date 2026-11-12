@@ -1,3 +1,6 @@
+/// מגבלת הזמן של RPC שאינו מגדיר חסם משלו.
+const Duration kPluginDefaultRpcTimeout = Duration(seconds: 30);
+
 /// ה-namespace שאליו נעול אחסון ה-KV של תוסף (storage.* בגשר ובמסלול
 /// הדקלרטיבי). הערך הוא מפתח קיים בדיסק של משתמשים — אסור לשנותו.
 const String kDefaultStorageNamespace = 'default';

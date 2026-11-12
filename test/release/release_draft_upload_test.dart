@@ -16,6 +16,7 @@ class _FakeRelease {
   final uploads = <String>[];
   final deleted = <String>[];
   var failUploads = 0;
+  final rejectedUploads = <String>{};
   var _nextId = 1;
   late HttpServer _server;
 
@@ -59,9 +60,9 @@ class _FakeRelease {
     } else if (request.method == 'POST' &&
         path == '/repos/$_repo/releases/$_releaseId/assets') {
       final name = request.uri.queryParameters['name']!;
-      if (failUploads > 0) {
-        failUploads--;
-        response.statusCode = 502;
+      if (failUploads > 0 || rejectedUploads.contains(name)) {
+        if (failUploads > 0) failUploads--;
+        response.statusCode = rejectedUploads.contains(name) ? 422 : 502;
       } else if (assets.values.any((a) => a['name'] == name)) {
         response.statusCode = 422;
       } else {
@@ -421,6 +422,62 @@ void main() {
       final result = await upload(['a.zip']);
       expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
       expect(release.uploads, ['a.zip']);
+    }, skip: skip);
+
+    test('כשל סמלים ברשות אינו מונע העלאת מתקין ורשומה', () async {
+      const symbols = 'otzaria-native-symbols-x64.zip';
+      const installer = 'otzaria-windows.zip';
+      file(symbols, utf8.encode('pdbs'));
+      file(installer, utf8.encode('installer'));
+      release.rejectedUploads.add(symbols);
+      final result = await upload([installer, '--best-effort', symbols]);
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+      expect(release.uploads, [installer]);
+      expect(recorded().map((asset) => asset['name']), [installer]);
+      expect(result.stdout, contains('release goes out without it'));
+    }, skip: skip);
+
+    test('סמלים שעלו בהצלחה נכללים ברשומה וסמלים חסרים מותרים', () async {
+      const symbols = 'otzaria-native-symbols-arm64.zip';
+      file(symbols, utf8.encode('pdbs'));
+      file('otzaria-windows_arm64.zip', utf8.encode('installer'));
+      final result = await upload([
+        'otzaria-windows_arm64.zip',
+        '--best-effort',
+        symbols,
+        'otzaria-native-symbols-x64.zip',
+      ]);
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+      expect(recorded().map((asset) => asset['name']), [
+        symbols,
+        'otzaria-windows_arm64.zip',
+      ]);
+      expect(release.uploads, [symbols, 'otzaria-windows_arm64.zip']);
+    }, skip: skip);
+
+    test('כשל העלאה של מתקין חובה עדיין מפיל את ההעלאה', () async {
+      file('installer.zip', utf8.encode('installer'));
+      file('symbols.zip', utf8.encode('pdbs'));
+      release.rejectedUploads.add('installer.zip');
+      final result = await upload([
+        'installer.zip',
+        '--best-effort',
+        'symbols.zip',
+      ]);
+      expect(result.exitCode, isNot(0));
+      expect(
+        File(
+          p.join(temp.path, 'release-record', kUploadRecordName),
+        ).existsSync(),
+        isFalse,
+      );
+    }, skip: skip);
+
+    test('קובץ optional קיים שנכשל בהעלאה עדיין נחשב לכשל', () async {
+      file('manifest.json', utf8.encode('{}'));
+      release.rejectedUploads.add('manifest.json');
+      final result = await upload(['--optional', 'manifest.json']);
+      expect(result.exitCode, isNot(0));
     }, skip: skip);
 
     test('FULL מעל הסף עולה כחלקים ומניפסט, בלי סקריפטי הרכבה', () async {

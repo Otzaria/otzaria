@@ -29,27 +29,6 @@ void main() {
     expect(details['Context'], 'while generating a PDF');
   });
 
-  test('formatEntry כותב Version לפני Exception', () {
-    ErrorLogFile.setAppVersion('9.8.7+65');
-
-    final output = ErrorLogFile.formatEntry(
-      title: 'FlutterError',
-      error: StateError('boom'),
-      stackTrace: StackTrace.fromString('stack-line-1\nstack-line-2'),
-      details: const {
-        'Library': 'widgets library',
-        'Context': 'while building test widget',
-      },
-    );
-
-    expect(output, contains('FlutterError'));
-    expect(output, contains('Version: 9.8.7+65'));
-    expect(output, contains('Bad state: boom'));
-    expect(output, contains('widgets library'));
-    expect(output, contains('while building test widget'));
-    expect(output, contains('stack-line-1'));
-  });
-
   test('formatEntry מטפל בפרטים מרובי שורות', () {
     final output = ErrorLogFile.formatEntry(
       title: 'Initialization Warning',

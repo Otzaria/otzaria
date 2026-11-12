@@ -57,8 +57,16 @@ class NotificationService {
   /// מאתחל את מסד אזורי הזמן וקובע את אזור הזמן המקומי.
   ///
   /// חלון משני צריך אזור זמן אך אסור לו לאתחל התראות מערכת.
+  /// האתחול הראשון כבר מתבצע ב-main; אתחול התראות מאוחר לא צריך לפרוס
+  /// ולפענח את כל ה-database מחדש.
+  static bool _timeZoneDatabaseReady = false;
+
   static void initializeTimeZones() {
-    tz.initializeTimeZones();
+    if (!_timeZoneDatabaseReady || !tz.timeZoneDatabase.isInitialized) {
+      tz.initializeTimeZones();
+      _timeZoneDatabaseReady = true;
+    }
+    // Always restore the app's configured location, even on repeated calls.
     tz.setLocalLocation(tz.getLocation('Asia/Jerusalem'));
   }
 
@@ -90,7 +98,11 @@ class NotificationService {
       return;
     }
     try {
-      ErrorLogFile.append(title: title, error: error, stackTrace: stackTrace);
+      ErrorLogFile.appendInBackground(
+        title: title,
+        error: error,
+        stackTrace: stackTrace,
+      );
     } catch (_) {
       // רישום הוא best-effort.
     }
@@ -148,10 +160,15 @@ class NotificationService {
       await windowsLibraryPreload();
     }
 
-    await flutterLocalNotificationsPlugin.initialize(
+    final initialized = await flutterLocalNotificationsPlugin.initialize(
       settings: initializationSettings,
       onDidReceiveNotificationResponse: onDidReceiveNotificationResponse,
     );
+    // ב-iOS false פירושו רק שההרשאות נדחו; ב-Windows הרישום עצמו נכשל.
+    if (initialized == false &&
+        defaultTargetPlatform == TargetPlatform.windows) {
+      throw StateError('Windows notification registration failed');
+    }
 
     _isInitialized = true;
 

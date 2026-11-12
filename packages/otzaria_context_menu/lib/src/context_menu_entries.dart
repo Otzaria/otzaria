@@ -24,7 +24,7 @@ extension _ContextMenuEntries on ContextMenuRegionState {
           presentation: presentation,
           actions: entry.iconRowActions!,
           metrics: metrics,
-          menuStyle: _menuStyle(context, metrics),
+          menuStyle: _menuStyle(context),
           closeMenu: _closeContextMenu,
           submenuControllers: iconRowControllers[entry]!,
         );
@@ -169,6 +169,7 @@ extension _ContextMenuEntries on ContextMenuRegionState {
     if (!enabled) {
       return MenuItemButton(
         key: key,
+        overflowAxis: Axis.vertical,
         requestFocusOnHover: false,
         style: buildAppSubmenuItemStyle(
           context,
@@ -200,7 +201,7 @@ extension _ContextMenuEntries on ContextMenuRegionState {
       entriesBuilder: entriesBuilder,
       metrics: metrics,
       maxWidth: submenuMaxWidth,
-      menuStyle: _menuStyle(context, metrics),
+      menuStyle: _menuStyle(context),
       controller: controller,
       onControllerUnmounted: () => _submenuControllers.remove(controller),
       onOpen: submenuControllers == null
@@ -233,9 +234,9 @@ extension _ContextMenuEntries on ContextMenuRegionState {
     final keepOpen = entry.keepOpen && rebuildSubmenu != null;
     return _wrapWithHoverPreview(
       entry,
-      metrics,
       MenuItemButton(
         key: key,
+        overflowAxis: Axis.vertical,
         requestFocusOnHover: false,
         closeOnActivate: !keepOpen,
         style: buildAppSubmenuItemStyle(
@@ -271,11 +272,7 @@ extension _ContextMenuEntries on ContextMenuRegionState {
     );
   }
 
-  Widget _wrapWithHoverPreview(
-    AppContextMenuEntry entry,
-    AppMenuMetrics metrics,
-    Widget child,
-  ) {
+  Widget _wrapWithHoverPreview(AppContextMenuEntry entry, Widget child) {
     final previewBuilder = entry.hoverPreviewBuilder;
     final wrapper = widget.previewWrapper;
     if (previewBuilder == null || wrapper == null || !entry.enabled) {

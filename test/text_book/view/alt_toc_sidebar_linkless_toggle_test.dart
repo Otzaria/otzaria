@@ -12,7 +12,6 @@ import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/alt_toc_sidebar_view.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
@@ -23,16 +22,7 @@ import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
 import '../../helpers/seforim_fixture_db.dart';
 import '../../test_helpers/memory_cache_provider.dart';
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 const _linklessParent = 'כותרת בלי שורה';
 const _linklessChild = 'בן ראשון';
@@ -111,7 +101,7 @@ void main() {
       mapping: {BookCompositeKey.fromBook(book)!: provider},
       providers: [provider],
     );
-    final bloc = _TestTextBookBloc(_loadedState(book));
+    final bloc = StubTextBookBloc(_loadedState(book));
     addTearDown(bloc.close);
     final lines = LineScrollController();
     addTearDown(lines.dispose);

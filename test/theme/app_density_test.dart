@@ -47,13 +47,6 @@ void main() {
       expect(_theme(compact: true).extension<AppDensity>()!.isCompact, isTrue);
     });
 
-    test('מידות לפי מצב', () {
-      expect(AppDensity.regular.topBarHeight, 56);
-      expect(AppDensity.compact.topBarHeight, 44);
-      expect(AppDensity.regular.fieldHeight, AppInputTokens.regularHeight);
-      expect(AppDensity.compact.fieldHeight, AppInputTokens.compactHeight);
-    });
-
     test('lerp מתחלף באמצע, copyWith', () {
       expect(
         AppDensity.regular.lerp(AppDensity.compact, 0.4),

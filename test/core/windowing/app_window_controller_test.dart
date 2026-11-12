@@ -1,6 +1,5 @@
-// The 0.6 nativeapi implementation does not install a window_manager
-// MethodChannel. Test the actual compatibility adapter with a borrowed native
-// window fake instead of silently exercising a channel nobody listens to.
+// Test the 0.6 compatibility adapter with a borrowed native window;
+// this backend does not install the window_manager MethodChannel.
 // ignore_for_file: deprecated_member_use
 
 import 'dart:io' show Platform;
@@ -8,7 +7,6 @@ import 'dart:io' show Platform;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/core/windowing/app_window_id.dart';
 import 'package:otzaria/core/windowing/runner_window_channel.dart';
 import 'package:otzaria/core/windowing/window_manager_app_window_controller.dart';
 import 'package:window_manager/legacy.dart';
@@ -38,14 +36,6 @@ void main() {
         .setMockMethodCallHandler(RunnerWindowChannel.channel, null);
   });
 
-  test('the controller has the primary window ID by default', () {
-    expect(controller.id, AppWindowId.primary);
-    expect(
-      const WindowManagerAppWindowController(id: AppWindowId('window-2')).id,
-      const AppWindowId('window-2'),
-    );
-  });
-
   test('simple actions target the borrowed native window', () async {
     await controller.show();
     await controller.focus();
@@ -64,9 +54,8 @@ void main() {
     ]);
   });
 
-  // Non-Windows window_manager.center() calculates monitor work-area
-  // alignment through nativeapi DisplayManager. That needs a real display
-  // and belongs in a desktop integration test, not a headless unit fake.
+  // Native centering needs a real display outside Windows, so only the
+  // Windows runner contract can be checked with this headless fake.
   test(
     'Windows centering delegates to the runner instead of nativeapi',
     () async {

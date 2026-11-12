@@ -129,13 +129,6 @@ void main() {
 
   // ──────────────────────────────────────────────────────────────────────────
   group('מצב ראשוני', () {
-    test('מצב ראשוני הוא PdfBookInitial', () {
-      final tab = _tab();
-      final bloc = _makeBloc(tab);
-      expect(bloc.state, isA<PdfBookInitial>());
-      bloc.close();
-    });
-
     test('המצב הראשוני מכיל את הספר הנכון', () {
       final tab = _tab();
       final bloc = _makeBloc(tab);
@@ -1301,12 +1294,6 @@ void main() {
 
   // ──────────────────────────────────────────────────────────────────────────
   group('סגירת bloc', () {
-    test('close() לא קורס', () async {
-      final bloc = _makeBloc(_tab());
-      await bloc.close();
-      expect(bloc.isClosed, isTrue);
-    });
-
     test('close() בזמן שפס הזום פעיל לא קורס', () async {
       final tab = _tab();
       final bloc = _makeBloc(tab);

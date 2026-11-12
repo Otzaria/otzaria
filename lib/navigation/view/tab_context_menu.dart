@@ -546,52 +546,63 @@ Future<void> _moveTabsToWorkspace(
 ) async {
   final tabsBloc = context.read<TabsBloc>();
   final workspaceBloc = context.read<WorkspaceBloc>();
+  final sourceWorkspaceId = workspaceBloc.state.activeWorkspaceId;
+  final windowKeys = AppWindowKeys.of(context);
+  if (workspaceBloc.state.isChangingTabs) return;
   // ההעברה סוגרת את הכרטיסיות כאן; מצב ה-JS של תוסף אינו עובר איתן.
   if (!await confirmCloseTabs(context, tabs)) return;
-  final tabsState = tabsBloc.state;
   final workspaceState = workspaceBloc.state;
+  if (sourceWorkspaceId != workspaceState.activeWorkspaceId ||
+      workspaceState.isChangingTabs) {
+    return;
+  }
 
   // שולחן היעד יכול להימחק בחלון אחר בין בניית התפריט לבחירה.
   final targetWorkspace = workspaceState.workspaces.firstWhereOrNull(
     (w) => w.id == targetWorkspaceId,
   );
   if (targetWorkspace == null) {
-    UiSnack.showError(LibraryMessages.workspaceNoLongerExists);
+    UiSnack.showError(
+      LibraryMessages.workspaceNoLongerExists,
+      window: windowKeys,
+    );
     return;
   }
 
-  tabsBloc.add(tabs.length == 1 ? RemoveTab(tabs.single) : RemoveTabs(tabs));
-
-  final currentTabs = tabsState.tabs.where((t) => !tabs.contains(t)).toList();
-  final removedBefore = tabsState.tabs
-      .take(tabsState.currentTabIndex)
-      .where(tabs.contains)
-      .length;
-  final newActiveIndex = currentTabs.isEmpty
-      ? 0
-      : (tabsState.currentTabIndex - removedBefore).clamp(
-          0,
-          currentTabs.length - 1,
-        );
-
-  // הסרת הטאבים מזיזה את האינדקס, ולכן צד החלונית הפעילה תקף רק אם הטאב
-  // הפעיל אחרי ההסרה הוא אותו טאב עצמו. אחרת הוא מתייחס לטאב אחר.
-  final newActiveTab = currentTabs.isEmpty ? null : currentTabs[newActiveIndex];
-  final activePaneToKeep = identical(newActiveTab, tabsState.currentTab)
-      ? tabsState.activePaneSide
-      : null;
-
+  final selected = tabs.toSet();
   workspaceBloc.add(
     MoveTabsToWorkspace(
+      sourceWorkspaceId: sourceWorkspaceId,
       tabs: tabs,
       targetWorkspaceId: targetWorkspaceId,
-      currentTabs: currentTabs,
-      currentTabIndex: newActiveIndex,
-      currentActivePane: activePaneToKeep,
+      readCurrentTabs: () {
+        final state = tabsBloc.state;
+        return (
+          tabs: state.tabs,
+          activeTabIndex: state.currentTabIndex,
+          activePane: state.activePaneSide,
+        );
+      },
+      onTabsMoved: () async {
+        if (!tabsBloc.state.tabs.any(selected.contains)) return;
+        final removed = tabsBloc.stream.firstWhere(
+          (state) => !state.tabs.any(selected.contains),
+        );
+        tabsBloc.add(
+          tabs.length == 1 ? RemoveTab(tabs.single) : RemoveTabs(tabs),
+        );
+        await removed;
+      },
+      onCompleted: (moved) {
+        if (!moved) return;
+        UiSnack.show(
+          LibraryMessages.tabsMovedToWorkspace(
+            tabs.length,
+            targetWorkspace.name,
+          ),
+          window: windowKeys,
+        );
+      },
     ),
-  );
-
-  UiSnack.show(
-    LibraryMessages.tabsMovedToWorkspace(tabs.length, targetWorkspace.name),
   );
 }

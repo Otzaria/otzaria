@@ -132,7 +132,7 @@ void main() {
       );
       expect(copy.index, 80);
       expect(copy.lines, isNot(same(tab.lines)));
-      expect(copy.lines.canGoBack.value, isFalse);
+      expect(copy.lines.history.value.back, isNull);
     }
     expect(tab.blocState, isA<TextBookInitial>());
   });

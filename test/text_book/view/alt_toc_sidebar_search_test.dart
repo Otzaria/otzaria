@@ -13,7 +13,6 @@ import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/view/alt_toc_sidebar_view.dart';
@@ -24,16 +23,7 @@ import 'package:path/path.dart' as p;
 
 import '../../helpers/seforim_fixture_db.dart';
 import '../../test_helpers/memory_cache_provider.dart';
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 class _RecordingLines extends LineScrollController {
   final List<int> requested = [];
@@ -110,7 +100,7 @@ void main() {
       providers: [provider],
     );
     final toc = [TocEntry(text: 'פרק א', index: 0, level: 1)];
-    final bloc = _TestTextBookBloc(_loadedState(book, toc));
+    final bloc = StubTextBookBloc(_loadedState(book, toc));
     addTearDown(bloc.close);
     final lines = _RecordingLines();
 

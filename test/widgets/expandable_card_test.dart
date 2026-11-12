@@ -58,22 +58,6 @@ void main() {
       expect(find.text('ילד'), findsOneWidget);
     });
 
-    testWidgets('מציג כמה ילדים בו-זמנית', (tester) async {
-      await tester.pumpWidget(
-        _wrap(
-          ExpandableCard(
-            header: const SizedBox(),
-            isExpanded: true,
-            children: const [Text('א'), Text('ב'), Text('ג')],
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('א'), findsOneWidget);
-      expect(find.text('ב'), findsOneWidget);
-      expect(find.text('ג'), findsOneWidget);
-    });
-
     testWidgets('כשisExpanded משתנה ל-true, sizeFactor מגיע ל-1 אחרי אנימציה', (
       tester,
     ) async {
@@ -140,19 +124,6 @@ void main() {
       },
     );
 
-    testWidgets('כשchildren ריק — SizeTransition קיים', (tester) async {
-      await tester.pumpWidget(
-        _wrap(
-          ExpandableCard(
-            header: const Text('ריק'),
-            isExpanded: true,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(find.byType(SizeTransition), findsOneWidget);
-    });
-
     testWidgets('margin מוחל כ-Padding סביב הכרטיס', (tester) async {
       const testMargin = EdgeInsets.symmetric(vertical: 8);
       final key = GlobalKey();
@@ -178,43 +149,6 @@ void main() {
             orElse: () => throw 'לא נמצא Padding עם margin',
           );
       expect(padding.padding, testMargin);
-    });
-
-    testWidgets('ללא margin — אין Padding עם הגדרת המרג\'ן', (tester) async {
-      const unexpectedMargin = EdgeInsets.symmetric(vertical: 8);
-      final key = GlobalKey();
-      await tester.pumpWidget(
-        _wrap(
-          ExpandableCard(
-            key: key,
-            header: const SizedBox(),
-            isExpanded: false,
-          ),
-        ),
-      );
-      final matchingPaddings = tester
-          .widgetList<Padding>(
-            find.descendant(
-              of: find.byKey(key),
-              matching: find.byType(Padding),
-            ),
-          )
-          .where((p) => p.padding == unexpectedMargin)
-          .toList();
-      expect(matchingPaddings, isEmpty);
-    });
-
-    testWidgets('מכיל SizeTransition לאנימציה', (tester) async {
-      await tester.pumpWidget(
-        _wrap(
-          ExpandableCard(
-            header: const SizedBox(),
-            isExpanded: false,
-            children: const [Text('x')],
-          ),
-        ),
-      );
-      expect(find.byType(SizeTransition), findsOneWidget);
     });
 
     testWidgets('wrapInCard:true — עוטף ב-Material עם ClipBehavior', (

@@ -1,5 +1,6 @@
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/data/book_identity.dart';
+import 'dart:async';
 import 'dart:io';
 import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -19,6 +20,8 @@ import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
+import 'package:otzaria/migration/database/daos/database.dart';
+import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
 import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
@@ -148,8 +151,9 @@ Future<({Set<String> include, List<Book> relocated})> _scanLibraryMove(
 Future<void> remapMovedFileBookPaths(
   Iterable<Book> books,
   String from,
-  String to,
-) async {
+  String to, {
+  String? movedUserBooksDbPath,
+}) async {
   final movedBooks = books.where((book) {
     if (book is! FileBook || book.id == null) {
       return false;
@@ -162,15 +166,24 @@ Future<void> remapMovedFileBookPaths(
   final userBooks = movedBooks.where((book) => book.isUserBook).toList();
   if (userBooks.isEmpty) return;
 
-  final repository = await UserBooksDatabaseHolder.instance.repository;
-  for (final book in userBooks) {
-    final storage = await _movedStorage(book, from, to);
-    await repository.updateBookStorage(
-      book.id!,
-      storage.path,
-      storage.fileSize,
-      storage.lastModified,
-    );
+  final movedDatabase = movedUserBooksDbPath == null
+      ? null
+      : await MyDatabase.openWritableInBackground(movedUserBooksDbPath);
+  try {
+    final repository = movedDatabase == null
+        ? await UserBooksDatabaseHolder.instance.repository
+        : SeforimRepository(movedDatabase);
+    for (final book in userBooks) {
+      final storage = await _movedStorage(book, from, to);
+      await repository.updateBookStorage(
+        book.id!,
+        storage.path,
+        storage.fileSize,
+        storage.lastModified,
+      );
+    }
+  } finally {
+    await movedDatabase?.retireInBackground();
   }
 }
 
@@ -335,9 +348,12 @@ Future<void> cleanupCreatedMoveTargetsForTesting({
   to: SemanticPaths(newLibrary).vectorsDirectory,
 );
 
-Future<void> _closeUserDatabasesForMove() async {
-  await UserBooksDatabaseHolder.instance.close();
-  await CacheDatabaseHolder.instance.close();
+@visibleForTesting
+Future<void> closeUserDatabasesForMove(Future<void> reopenAfter) async {
+  await Future.wait([
+    UserBooksDatabaseHolder.instance.close(reopenAfter: reopenAfter),
+    CacheDatabaseHolder.instance.close(reopenAfter: reopenAfter),
+  ]);
   await PersonalNotesDatabase.instance.close();
   await PluginSystemDatabase.instance.close();
 }
@@ -452,6 +468,7 @@ Future<void> performLibraryMove({
   var finalVectorsCreated = false;
   var settingsUpdated = false;
   String? correctionMoveId;
+  Completer<void>? reopenUserDatabases;
 
   try {
     await _ensureMoveTargetAvailable(newLibrary);
@@ -468,7 +485,8 @@ Future<void> performLibraryMove({
     correctionMoveId = moveId;
     await PluginSystemDatabase.instance.lockForStorageMove(moveId);
     if (databasesNeedsMove) {
-      await _closeUserDatabasesForMove();
+      reopenUserDatabases = Completer<void>();
+      await closeUserDatabasesForMove(reopenUserDatabases.future);
     }
     // עוצר הורדה/התקנה וחוסם חדשות עד סוף ההעברה; ה-session נפתח בחיפוש הבא.
     await SemanticSearchRepository.instance.releaseForLibraryMove();
@@ -513,7 +531,14 @@ Future<void> performLibraryMove({
     stagingRoot = null;
 
     // 2. עדכון נתיבי ספרי קובץ שהועברו יחד עם הספרייה.
-    await remapMovedFileBookPaths(scan.relocated, from, newLibrary);
+    await remapMovedFileBookPaths(
+      scan.relocated,
+      from,
+      newLibrary,
+      movedUserBooksDbPath: databasesNeedsMove
+          ? p.join(newDatabases, 'user_books.db')
+          : null,
+    );
     // 3. עדכון הגדרות המיקום בקבצי המשתמש.
     settingsUpdated = true;
     await Settings.setValue<String>(
@@ -605,6 +630,7 @@ Future<void> performLibraryMove({
     UiSnack.showError(SettingsMessages.libraryMoveError(e));
     return;
   } finally {
+    reopenUserDatabases?.complete();
     if (correctionMoveId != null) {
       _releaseCorrectionStorageMove(correctionMoveId);
     }

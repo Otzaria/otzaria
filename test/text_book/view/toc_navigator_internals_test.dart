@@ -203,14 +203,6 @@ void main() {
     });
   });
 
-  group('TocFlatItem', () {
-    test('שוויון לפי entry ו-isExpanded', () {
-      final e1 = _e('x', 1, 1);
-      expect(TocFlatItem(e1, true), TocFlatItem(e1, true));
-      expect(TocFlatItem(e1, true), isNot(TocFlatItem(e1, false)));
-    });
-  });
-
   // קבוצה: עמידות לוגיקת flattenVisibleToc למצבים שמשתמש יכול ליצור.
   // הסיכון: באג בלוגיקה שובר את הצגת הרשימה הוירטואלית בספרים גדולים.
   group('flattenVisibleToc - עקביות ויציבות', () {

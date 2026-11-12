@@ -114,7 +114,8 @@ void main() {
   });
 
   group('כשל בספרייה נרשם ב-errors.txt', () {
-    String errorLog() {
+    Future<String> errorLog() async {
+      await ErrorLogFile.flushPending(timeout: const Duration(seconds: 30));
       final file = ErrorLogFile.resolveFile();
       return file.existsSync() ? file.readAsStringSync() : '';
     }
@@ -128,8 +129,8 @@ void main() {
       bloc.add(LoadLibrary());
       await failed;
 
-      expect(errorLog(), contains('כשל טעינת הספרייה'));
-      expect(errorLog(), contains('logged load failure'));
+      expect(await errorLog(), contains('כשל טעינת הספרייה'));
+      expect(await errorLog(), contains('logged load failure'));
     });
 
     test('רענון שנכשל', () async {
@@ -138,8 +139,8 @@ void main() {
       );
       expect((await refresh(1)).error, isNotNull);
 
-      expect(errorLog(), contains('כשל רענון הספרייה'));
-      expect(errorLog(), contains('logged refresh failure'));
+      expect(await errorLog(), contains('כשל רענון הספרייה'));
+      expect(await errorLog(), contains('logged refresh failure'));
     });
   });
 }

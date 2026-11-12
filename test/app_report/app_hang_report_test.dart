@@ -158,6 +158,22 @@ void main() {
       expect(rich.signature, plain.signature);
     });
 
+    test('פרטי חריגה נייטיבית נשמרים בלי לשנות את חתימת התקיעה', () {
+      final entry = hangEntry(DateTime.utc(2026, 10, 18, 10));
+      final plain = parseErrorLogBlocks(entry).single;
+      final enriched = parseErrorLogBlocks(
+        '$entry'
+        '--- Recent UI exception matching stack (9480ms before detection) ---\n'
+        'Code: 0xc0000005\n'
+        'Address: flutter_windows.dll+0x81bb05\n',
+      ).single;
+
+      expect(enriched.text, contains('Code: 0xc0000005'));
+      expect(enriched.stackText, plain.stackText);
+      expect(enriched.signature, plain.signature);
+      expect(enriched.isCrashEvidence, isFalse);
+    });
+
     test('מחסנית של מערכת ההפעלה בלבד — נשארים הפריימים המקוריים', () {
       final signature = parseErrorLogBlocks(
         hangEntry(

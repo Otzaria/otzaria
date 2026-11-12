@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
+import 'package:otzaria/pdf_book/models/pdf_reading_location.dart';
 import 'package:otzaria/pdf_book/view/widgets/pdf_navigation_back_scope.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -41,7 +42,10 @@ void main() {
       isLoading: false,
     );
     // ignore: invalid_use_of_visible_for_testing_member
-    bloc.emit(loaded.copyWith(canReturnToLocation: true));
+    bloc.emit(loaded);
+    tab.navigationHistory.remember(
+      const PdfReadingLocation(pageNumber: 1, pageOffset: Offset.zero, zoom: 1),
+    );
     final tabsBloc = _TabsBloc();
     final states = StreamController<TabsState>();
     whenListen(

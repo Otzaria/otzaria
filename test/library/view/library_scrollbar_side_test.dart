@@ -11,20 +11,6 @@ void main() {
     'lib/library/view/library_browser.dart',
   ).readAsStringSync();
 
-  test('קובץ הספרייה נקרא — הנתיב תקין', () {
-    expect(source, contains('class LibraryBrowser'));
-  });
-
-  test('תוכן הספרייה עטוף בפס גלילה בקצה ימין', () {
-    expect(
-      source,
-      contains('EdgeScrollbarBehavior.right()'),
-      reason:
-          'בלי העטיפה פס הגלילה של עץ הספרייה חוזר לקצה שמאל, הקצה שנפגש '
-          'עם חלונית התצוגה המקדימה',
-    );
-  });
-
   test('העטיפה חלה על אזור התוכן הראשי (mainContent) של הספרייה', () {
     final mainContentIdx = source.indexOf('mainContent: RepaintBoundary');
     expect(mainContentIdx, greaterThan(-1), reason: 'מבנה mainContent השתנה');
@@ -40,21 +26,5 @@ void main() {
       contains('EdgeScrollbarBehavior.right()'),
       reason: 'העטיפה אינה על אזור התוכן של הספרייה',
     );
-  });
-
-  test('אין עוד מימוש פרטי מקומי של התנהגות פס הגלילה', () {
-    // ההתנהגות שוכנת ב-lib/widgets/feedback/edge_scrollbar_behavior.dart
-    // ומשותפת לחלונית הצד, לרשת הכלים ולספרייה.
-    for (final path in const [
-      'lib/library/view/library_browser.dart',
-      'lib/widgets/layout/adaptive_side_pane.dart',
-      'lib/tools/view/tools_launcher_panel.dart',
-    ]) {
-      expect(
-        File(path).readAsStringSync(),
-        isNot(contains('extends MaterialScrollBehavior')),
-        reason: '$path מגדיר התנהגות גלילה משלו במקום לחלוק את המשותפת',
-      );
-    }
   });
 }

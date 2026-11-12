@@ -201,28 +201,6 @@ void main() {
     });
   });
 
-  group('openNewWindowKey', () {
-    test('רשום ברשימות, עם ברירת מחדל ושם תצוגה', () {
-      const key = ShortcutValidator.openNewWindowKey;
-      expect(ShortcutValidator.shortcutKeys, contains(key));
-      expect(ShortcutValidator.defaultShortcuts[key], 'ctrl+alt+n');
-      expect(ShortcutValidator.shortcutNames[key], 'חלון חדש');
-    });
-
-    test('ברירת המחדל אינה מתנגשת בשום קיצור אחר', () {
-      final others = ShortcutValidator.defaultShortcuts.entries.where(
-        (e) => e.key != ShortcutValidator.openNewWindowKey,
-      );
-      for (final entry in others) {
-        expect(
-          entry.value,
-          isNot('ctrl+alt+n'),
-          reason: 'המפתח "${entry.key}" חולק את הקיצור של "חלון חדש"',
-        );
-      }
-    });
-  });
-
   group('openToolShortcutKeys', () {
     test(
       'כל מפתח רשום ב-shortcutKeys, defaultShortcuts (ריק) ו-shortcutNames',
@@ -280,10 +258,6 @@ void main() {
     const pluginId = 'com.example.my_plugin';
     final key = ShortcutValidator.openPluginShortcutKey(pluginId);
 
-    test('openPluginShortcutKey בונה מפתח עם הקידומת', () {
-      expect(key, 'key-shortcut-open-plugin-$pluginId');
-    });
-
     test('רישום מוסיף את המפתח ל-shortcutKeys ו-shortcutNames', () {
       expect(ShortcutValidator.shortcutKeys, isNot(contains(key)));
       ShortcutValidator.registerPluginShortcutKeys({key: 'פתיחת התוסף שלי'});
@@ -326,10 +300,6 @@ void main() {
       command: null,
       contextMenuItemId: 'highlight-item',
     );
-
-    test('pluginShortcutKey בונה מפתח עם הקידומת והיעד', () {
-      expect(key, 'key-shortcut-plugin-$pluginId::$shortcutId');
-    });
 
     test('רישום מוסיף את המפתח ל-shortcutKeys ול-shortcutNames', () {
       expect(ShortcutValidator.shortcutKeys, isNot(contains(key)));

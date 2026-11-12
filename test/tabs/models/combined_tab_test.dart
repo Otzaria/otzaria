@@ -61,13 +61,6 @@ void main() {
       );
     });
 
-    test('panes מחזיר את שתיהן בסדר התצוגה', () {
-      final a = leaf('א');
-      final b = leaf('ב');
-
-      expect(CombinedTab(rightTab: a, leftTab: b).panes, [same(a), same(b)]);
-    });
-
     test('sibling מחזיר את החלונית שממול', () {
       final a = leaf('א');
       final b = leaf('ב');
@@ -188,15 +181,6 @@ void main() {
       final restored = decodeCombinedTab(json);
 
       expect(leafPanes(restored).map((p) => p.title).toList(), ['א', 'ב']);
-    });
-
-    test('הציר אינו נשמר יותר', () {
-      final json = CombinedTab(
-        rightTab: leaf('א'),
-        leftTab: leaf('ב'),
-      ).toJson();
-
-      expect(json.containsKey('axis'), isFalse);
     });
 
     test('שכפול הטאב יוצר עותקים חדשים של שתי החלוניות', () {

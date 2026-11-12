@@ -43,12 +43,47 @@ final value = 1;
       expect(result.html, isNot(contains('title: ספר בדיקה')));
     });
 
+    test('סריקת תמונות אינה משנה קישורים ותוכן מסמך', () {
+      final html = markdownBytesToHtml(
+        Uint8List.fromList(
+          utf8.encode(
+            '# כותרת\n\n'
+            '![מקומית](images/a.png) '
+            '![חיצונית](https://example.com/b.png)\n\n'
+            '| א | ב |\n|---|---|\n| 1 | 2 |\n\n'
+            '[קישור](https://example.com/page)',
+          ),
+        ),
+        'ספר',
+      );
+
+      expect(html, contains('<h1 id="כותרת"'));
+      expect(html, contains('src="images/a.png"'));
+      expect(html, isNot(contains('src="https://example.com/b.png"')));
+      expect(html, contains('href="https://example.com/page"'));
+      expect(html, contains('<table'));
+    });
+
     test('מסלול bytes מסיר תמונות חיצוניות', () {
       final html = markdownBytesToHtml(
         Uint8List.fromList(utf8.encode('![מעקב](https://example.com/a.png)')),
         'ספר',
       );
       expect(html, isNot(contains('https://example.com')));
+    });
+
+    test('שומר על נרמול HTML של בלוק pre בתא טבלה', () async {
+      const source = '<table><tr><td><pre>\nx</pre></td></tr></table>';
+      const expected =
+          '<table dir="ltr" class="md-block"><tbody><tr>'
+          '<td dir="ltr"><pre dir="ltr">&#10;&#10;&#10;&#10;x</pre></td>'
+          '</tr></tbody></table>';
+
+      expect((await converter.convertSource(source)).html, expected);
+      expect(
+        markdownBytesToHtml(Uint8List.fromList(utf8.encode(source)), 'ספר'),
+        expected,
+      );
     });
 
     test('שומר תמונת data URI שאינה דורשת רשת', () {
@@ -94,6 +129,102 @@ final value = 1;
       expect(result.html, contains('alt="חסר"'));
       expect(result.html, isNot(contains('missing.png')));
     });
+
+    test('מטמיע תמונות מרובות ומשאיר נתיבי חוץ חסומים', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'markdown-images-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final image = File(
+        '${directory.path}${Platform.pathSeparator}image.png',
+      );
+      await image.writeAsBytes(Uint8List.fromList([137, 80, 78, 71]));
+
+      final input = [
+        for (var i = 0; i < 12; i++) '![תמונה $i](image.png)',
+        '![חיצונית](https://example.com/remote.png)',
+      ].join('\n\n');
+      final result = await converter.convertSource(
+        input,
+        baseDirectory: directory.path,
+      );
+
+      expect(
+        'src="data:image/png;base64,'.allMatches(result.html),
+        hasLength(12),
+      );
+      expect(result.html, isNot(contains('https://example.com/remote.png')));
+    });
+
+    for (final fromCache in [false, true]) {
+      final mode = fromCache ? 'מהמטמון' : 'מהמקור';
+      const source = '![ראשונה](first.png)\n\n![שנייה](second.png)';
+      Future<String> convertImages(String directory) async => fromCache
+          ? converter.finalizeCachedHtml(
+              markdownBytesToHtml(
+                Uint8List.fromList(utf8.encode(source)),
+                'ספר',
+              ),
+              directory,
+            )
+          : (await converter.convertSource(
+              source,
+              baseDirectory: directory,
+            )).html;
+
+      test('מנסה לפתור תמונה שנייה $mode אחרי כשל זמני בבסיס', () async {
+        final temp = await Directory.systemTemp.createTemp('markdown-retry-');
+        addTearDown(() => temp.delete(recursive: true));
+        final base = Directory('${temp.path}/book');
+        final second = File('${base.path}/second.png');
+
+        final html = await IOOverrides.runWithIOOverrides(
+          () => convertImages(base.path),
+          _ImageIo(
+            onDirectory: (directory) => directory.path == base.path
+                ? _DirectoryWithRecovery(directory, () async {
+                    await base.create();
+                    await second.writeAsBytes([4, 5, 6]);
+                  })
+                : directory,
+          ),
+        );
+
+        expect(html, contains('src="data:image/png;base64,BAUG"'));
+        expect('src="data:image/'.allMatches(html), hasLength(1));
+      });
+
+      test('טוען תמונות $mode לפי היעד העדכני של תיקיית הבסיס', () async {
+        final temp = await Directory.systemTemp.createTemp(
+          'markdown-retarget-',
+        );
+        addTearDown(() => temp.delete(recursive: true));
+        final root = await temp.resolveSymbolicLinks();
+        final original = await Directory('$root/original').create();
+        final current = await Directory('$root/current').create();
+        final first = await File('${original.path}/first.png').writeAsBytes([
+          1,
+          2,
+          3,
+        ]);
+        await File('${original.path}/second.png').writeAsBytes([4, 5, 6]);
+        await File('${current.path}/second.png').writeAsBytes([7, 8, 9]);
+        final link = await Link('$root/book').create(original.path);
+
+        final html = await IOOverrides.runWithIOOverrides(
+          () => convertImages(link.path),
+          _ImageIo(
+            onFile: (file) => file.path == first.path
+                ? _FileWithReadCallback(file, () => link.update(current.path))
+                : file,
+          ),
+        );
+
+        expect(html, contains('src="data:image/png;base64,AQID"'));
+        expect(html, contains('src="data:image/png;base64,BwgJ"'));
+        expect(html, isNot(contains('src="data:image/png;base64,BAUG"')));
+      }, skip: Platform.isWindows);
+    }
 
     test('קלט Markdown חלקי מוצג במאמץ מיטבי', () async {
       final result = await converter.convertSource(
@@ -209,6 +340,22 @@ final second = 2;
       expect(result.html, contains('<code dir="ltr">side</code>'));
     });
 
+    test('זיהוי כיווניות עוצר בתו חזק מחוץ לקוד גם בעץ מקונן', () async {
+      final result = await converter.convertSource(
+        '> `English` — **טקסט עברי**\n\n'
+        '> `עברית` — English prose',
+      );
+
+      final blocks = result.html.split('\n');
+      expect(blocks, hasLength(2));
+      expect(blocks[0], contains('<blockquote dir="rtl"'));
+      expect(blocks[1], contains('<blockquote dir="ltr"'));
+    });
+
+    test('כיוון בלוק עם קוד בלבד נשמר לפי טקסט הקוד', () async {
+      final result = await converter.convertSource('`English`');
+      expect(result.html, contains('<p dir="ltr"'));
+    });
     test('טבלה מקבלת כיווניות לפי תוכנה ולא לפי העוטף', () async {
       final result = await converter.convertSource('''
 <div dir="rtl">
@@ -295,4 +442,60 @@ final second = 2;
     expect(result.html, isNot(contains('https://example.com')));
     expect(result.html, isNot(contains('link-anchor')));
   });
+}
+
+final class _ImageIo extends IOOverrides {
+  _ImageIo({this.onDirectory, this.onFile});
+
+  final Directory Function(Directory)? onDirectory;
+  final File Function(File)? onFile;
+
+  @override
+  Directory createDirectory(String path) {
+    final directory = super.createDirectory(path);
+    return onDirectory?.call(directory) ?? directory;
+  }
+
+  @override
+  File createFile(String path) {
+    final file = super.createFile(path);
+    return onFile?.call(file) ?? file;
+  }
+}
+
+class _DirectoryWithRecovery extends Fake implements Directory {
+  _DirectoryWithRecovery(this.directory, this.recover);
+
+  final Directory directory;
+  final Future<void> Function() recover;
+
+  @override
+  Future<String> resolveSymbolicLinks() async {
+    try {
+      return await directory.resolveSymbolicLinks();
+    } on FileSystemException {
+      await recover();
+      rethrow;
+    }
+  }
+}
+
+class _FileWithReadCallback extends Fake implements File {
+  _FileWithReadCallback(this.file, this.onRead);
+
+  final File file;
+  final Future<void> Function() onRead;
+
+  @override
+  Future<String> resolveSymbolicLinks() => file.resolveSymbolicLinks();
+
+  @override
+  Future<FileStat> stat() => file.stat();
+
+  @override
+  Future<Uint8List> readAsBytes() async {
+    final bytes = await file.readAsBytes();
+    await onRead();
+    return bytes;
+  }
 }

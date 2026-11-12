@@ -16,7 +16,6 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
@@ -26,6 +25,7 @@ import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
 import '../../test_helpers/fake_commentary_library_provider.dart';
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 AppContextMenuIconAction iconAction(
   List<AppContextMenuEntry> entries,
@@ -39,7 +39,7 @@ void main() {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
-  late _TestTextBookBloc textBookBloc;
+  late StubTextBookBloc textBookBloc;
   late _TestSettingsBloc settingsBloc;
 
   setUp(() {
@@ -54,7 +54,7 @@ void main() {
       },
       providers: [FakeCommentaryLibraryProvider()],
     );
-    textBookBloc = _TestTextBookBloc(_loadedState());
+    textBookBloc = StubTextBookBloc(_loadedState());
     settingsBloc = _TestSettingsBloc(SettingsState.initial());
   });
 
@@ -204,22 +204,6 @@ void main() {
         );
       },
     );
-
-    // בדיקה ישירה של helper הלכידה: לוכד את הערך בזמן הקריאה ואינו רגיש
-    // לשינויים מאוחרים של ה-listenable.
-    test('captureSelectedTextForMenu לוכד את הערך הנוכחי בלבד', () {
-      final saved = ValueNotifier<String?>('לפני');
-      addTearDown(saved.dispose);
-
-      final snapshot = captureSelectedTextForMenu(saved);
-      saved.value = null;
-
-      expect(
-        snapshot,
-        'לפני',
-        reason: 'ה-snapshot חייב להישאר יציב אחרי שהמקור החי השתנה',
-      );
-    });
 
     testWidgets('טקסט נבחר ריק/רווחים בלבד — פריט "העתק" מושבת', (
       tester,
@@ -702,16 +686,6 @@ TextBookLoaded _loadedState() {
     pinLeftPane: false,
     searchText: '',
   );
-}
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>

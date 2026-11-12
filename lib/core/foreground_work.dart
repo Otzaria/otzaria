@@ -140,7 +140,7 @@ class ForegroundWork {
   static void _logToErrorFile(String stage, Object error, StackTrace? st) {
     debugPrint('[ForegroundWork] $stage failed: $error');
     try {
-      ErrorLogFile.append(
+      ErrorLogFile.appendInBackground(
         title: 'Foreground service ($stage) — non-fatal',
         error: error,
         stackTrace: st,

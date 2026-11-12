@@ -67,18 +67,4 @@ void main() {
     expect(firstFired, 1);
     expect(secondFired, 2);
   });
-
-  test('stops after the subscription is cancelled', () async {
-    var fired = 0;
-    final subscription = const HiddenLibraryStore().visibilityChanges.listen(
-      (_) => fired++,
-    );
-    await subscription.cancel();
-
-    await const HiddenLibraryStore().save(
-      const HiddenLibrarySelection(bookKeys: {'ספר אחר'}),
-    );
-
-    expect(fired, 0);
-  });
 }

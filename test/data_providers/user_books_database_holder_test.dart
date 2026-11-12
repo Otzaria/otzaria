@@ -193,6 +193,35 @@ void main() {
       expect(holder.repositoryIfInitialized, isNull);
     });
 
+    test('בקשת פתיחה ממאזין הסגירה משתמשת בנתיב המעודכן', () async {
+      final holder = UserBooksDatabaseHolder.instance;
+      final newRoot = await tempDir.createTemp('moved-');
+      await Settings.setValue(
+        SettingsRepository.keyDatabasesPath,
+        tempDir.path,
+      );
+      final oldPath = await UserBooksDatabaseHolder.resolveDbPath();
+      await holder.repository;
+      await holder.close();
+
+      Future<SeforimRepository>? reopening;
+      holder.addCloseListener(() {
+        reopening ??= holder.repository;
+      });
+      await holder.close();
+      await Settings.setValue(
+        SettingsRepository.keyDatabasesPath,
+        newRoot.path,
+      );
+      final newRepository = await reopening!;
+
+      expect(
+        newRepository.database.path,
+        path.join(newRoot.path, 'user_books.db'),
+      );
+      expect(holder.openDbPath, isNot(oldPath));
+    });
+
     test('repository מאותחל פעם אחת ומוחזק במטמון (אותו instance)', () async {
       final first = await UserBooksDatabaseHolder.instance.repository;
       final second = await UserBooksDatabaseHolder.instance.repository;

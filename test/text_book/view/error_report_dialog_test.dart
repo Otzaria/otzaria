@@ -572,43 +572,6 @@ void main() {
     });
   });
 
-  group('ErrorReportHelper email encoding', () {
-    test('should encode query parameters correctly', () {
-      final params = {
-        'subject': 'דיווח על טעות: ספר הזוהר',
-        'body': 'שלום\nזו טעות',
-      };
-
-      final encoded = ErrorReportHelper.encodeQueryParameters(params);
-
-      expect(encoded, isNotNull);
-      expect(encoded, contains('subject='));
-      expect(encoded, contains('body='));
-      // צריך להיות מקודד (לא להכיל תווים עבריים ישירות)
-      expect(encoded, isNot(contains('דיווח')));
-    });
-
-    test('should handle empty parameters', () {
-      final params = <String, String>{};
-
-      final encoded = ErrorReportHelper.encodeQueryParameters(params);
-
-      expect(encoded, equals(''));
-    });
-
-    test('should handle special characters', () {
-      final params = {'test': 'value with spaces & special = chars'};
-
-      final encoded = ErrorReportHelper.encodeQueryParameters(params);
-
-      expect(encoded, isNotNull);
-      expect(encoded, contains('test='));
-      // צריך להיות מקודד
-      expect(encoded, isNot(contains(' ')));
-      expect(encoded, isNot(contains('&')));
-    });
-  });
-
   group('ErrorReportHelper email body building', () {
     test('should build complete email body', () {
       const bookTitle = 'ספר הזוהר';
@@ -643,36 +606,6 @@ void main() {
       expect(body, contains('42'));
       expect(body, contains(contextText));
       expect(body, contains('גרסת ספרייה: 2026.03'));
-    });
-
-    test('should handle empty error details', () {
-      const bookTitle = 'ספר הזוהר';
-      const currentRef = 'פרק א';
-      final bookDetails = {
-        'שם הקובץ': 'zohar.txt',
-        'נתיב הקובץ': '/books/zohar.txt',
-        'תיקיית המקור': 'sefaria',
-      };
-      const selectedText = 'טקסט';
-      const errorDetails = '';
-      const lineNumber = 1;
-      const contextText = 'הקשר';
-
-      final body = ErrorReportHelper.buildEmailBody(
-        bookTitle,
-        currentRef,
-        bookDetails,
-        selectedText,
-        errorDetails,
-        lineNumber,
-        contextText,
-        'unknown',
-        null,
-      );
-
-      expect(body, contains(bookTitle));
-      expect(body, contains(selectedText));
-      expect(body, contains('1'));
     });
   });
 

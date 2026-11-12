@@ -5,12 +5,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_personal_notes_bloc.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -51,7 +51,7 @@ void main() {
   testWidgets('state של ספר אחר מציג טעינה ולא את ההערות הזרות', (
     tester,
   ) async {
-    final bloc = _SeededNotesBloc(
+    final bloc = StubPersonalNotesBloc(
       const PersonalNotesState.initial().copyWith(
         bookId: 'ספר א',
         locatedNotes: [note('ספר א')],
@@ -67,7 +67,7 @@ void main() {
   });
 
   testWidgets('state של אותו ספר מציג את ההערות כרגיל', (tester) async {
-    final bloc = _SeededNotesBloc(
+    final bloc = StubPersonalNotesBloc(
       const PersonalNotesState.initial().copyWith(
         bookId: 'ספר א',
         locatedNotes: [note('ספר א')],
@@ -80,16 +80,4 @@ void main() {
 
     expect(find.text('הערה של ספר א'), findsOneWidget);
   });
-}
-
-/// bloc זרוע שמתעלם מאירועים — משמר את ה-state כמו בחלון שבין הבנייה
-/// לסיום הטעינה של הספר הנכון.
-class _SeededNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _SeededNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

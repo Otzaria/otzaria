@@ -12,11 +12,9 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
-import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/commentators_list_screen.dart';
 import 'package:otzaria/text_book/view/splited_view/splited_view_screen.dart';
@@ -28,6 +26,8 @@ import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
 import '../../test_helpers/stub_settings_bloc.dart';
+import '../../test_helpers/stub_tabs_bloc.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 /// טוגל חלונית המפרשים חייב לעבוד גם במצב "מפרשים מתחת",
 /// שבו אותה חלונית משמשת לסינון ולבחירת מפרשים.
@@ -52,7 +52,7 @@ void main() {
     required bool showSplitView,
   }) async {
     final book = TextBook(title: bookTitle);
-    final textBookBloc = _TestTextBookBloc(
+    final textBookBloc = StubTextBookBloc(
       _loadedState(book, showSplitView: showSplitView),
     );
     final personalNotesBloc = _TestPersonalNotesBloc(
@@ -64,7 +64,7 @@ void main() {
       index: 0,
       blocOverride: textBookBloc,
     );
-    final tabsBloc = _TestTabsBloc(
+    final tabsBloc = StubTabsBloc(
       TabsState(tabs: [tab], currentTabIndex: 0),
     );
     final tourCubit = _TestTourCubit();
@@ -234,16 +234,6 @@ TextBookLoaded _loadedState(TextBook book, {required bool showSplitView}) {
   );
 }
 
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
 class _TestPersonalNotesBloc
     extends Bloc<PersonalNotesEvent, PersonalNotesState>
     implements PersonalNotesBloc {
@@ -252,15 +242,6 @@ class _TestPersonalNotesBloc
   }
 
   final List<PersonalNotesEvent> events = [];
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestTabsBloc extends Bloc<TabsEvent, TabsState> implements TabsBloc {
-  _TestTabsBloc(super.initialState) {
-    on<TabsEvent>((event, emit) {});
-  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

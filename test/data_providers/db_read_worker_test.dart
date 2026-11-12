@@ -417,6 +417,7 @@ void main() {
       );
     }
 
+    await ErrorLogFile.flushPending(timeout: const Duration(seconds: 30));
     final log = await ErrorLogFile.resolveFile().readAsString();
     expect('DB read worker failure'.allMatches(log), hasLength(2));
     expect(log, contains('Method: commentatorsByBook'));

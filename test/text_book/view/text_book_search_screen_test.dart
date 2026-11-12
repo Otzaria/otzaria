@@ -1081,6 +1081,79 @@ Future<void> main() async {
     },
     skip: !engineReady,
   );
+  testWidgets('מונה התוצאה הנבחרת ליד החיצים מתעדכן במעבר (issue #3235)', (
+    tester,
+  ) async {
+    final textBookBloc = _TestTextBookBloc(_loadedState());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
+    final focusNode = FocusNode();
+    final navigatedLines = <int>[];
+    final lines = LineScrollController()
+      ..externalNavigator = (line) async => navigatedLines.add(line);
+
+    addTearDown(textBookBloc.close);
+    addTearDown(settingsBloc.close);
+    addTearDown(focusNode.dispose);
+    addTearDown(lines.dispose);
+    addTearDown(resetSectionSearchWorkerForTesting);
+
+    Future<List<TextSearchResult>> simpleSearchRunner(
+      List<String> content,
+      String query,
+    ) async => [
+      for (final line in const [3, 7, 9])
+        TextSearchResult(
+          snippet: 'שורה $line',
+          index: line,
+          query: query,
+          address: 'א',
+        ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<TextBookBloc>.value(value: textBookBloc),
+            BlocProvider<SettingsBloc>.value(value: settingsBloc),
+          ],
+          child: Scaffold(
+            body: TextBookSearchView(
+              contentLoader: () async => ['שורה'],
+              lines: lines,
+              focusNode: focusNode,
+              closeLeftPaneCallback: () {},
+              initialQuery: '',
+              simpleSearchRunner: simpleSearchRunner,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), 'שורה');
+    await tester.pump(kSearchFieldDebounce + const Duration(milliseconds: 50));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('1/3'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('התוצאה הבאה'));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.text('2/3'), findsOneWidget);
+    expect(navigatedLines, [7]);
+
+    await tester.tap(find.byTooltip('התוצאה הבאה'));
+    await tester.pump();
+    expect(find.text('3/3'), findsOneWidget);
+    expect(navigatedLines, [7, 9]);
+
+    await tester.tap(find.byTooltip('התוצאה הקודמת'));
+    await tester.pump();
+    expect(find.text('2/3'), findsOneWidget);
+    expect(navigatedLines, [7, 9, 7]);
+  });
 }
 
 TextBookLoaded _loadedState({List<int> visibleIndices = const [0]}) {

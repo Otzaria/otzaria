@@ -3,15 +3,15 @@
 # writes <record-dir>/uploaded-assets.json ({name, size, sha256} per asset) plus a
 # copy of every JSON asset, so the publishing job never downloads the large files.
 #
-# usage: upload_release_assets.sh <release-id> <record-dir> [file...] [--optional file...]
-#   A missing required file fails the upload; a missing optional one only warns.
+# usage: upload_release_assets.sh <release-id> <record-dir> [file...] [--optional file...] [--best-effort file...]
+#   --optional tolerates missing files; --best-effort also tolerates upload failure.
 #   A FULL package above the split threshold goes up as split_oversized_assets.sh
 #   parts and manifest — the names the installers and the assistants read.
 #   env: GH_TOKEN, GITHUB_REPOSITORY; GITHUB_API_URL and RELEASE_UPLOAD_URL override
 #   the hosts. curl and jq only: build_linux runs in a container that has no gh.
 set -euo pipefail
 
-usage='usage: upload_release_assets.sh <release-id> <record-dir> [file...] [--optional file...]'
+usage='usage: upload_release_assets.sh <release-id> <record-dir> [file...] [--optional file...] [--best-effort file...]'
 release_id=${1:?$usage}
 record_dir=${2:?$usage}
 shift 2
@@ -59,7 +59,7 @@ already_uploaded() { # already_uploaded <name> <size> <sha256>
 }
 
 upload() { # upload <path> <name> <size> <sha256>
-  local attempt id name_enc
+  local attempt id name_enc failure_level=${5:-error}
   for attempt in $(seq 1 "$attempts"); do
     if already_uploaded "$2" "$3" "$4"; then
       echo "$2 is already on the release"
@@ -83,7 +83,7 @@ upload() { # upload <path> <name> <size> <sha256>
     echo "::warning::uploading $2 failed (attempt $attempt of $attempts)"
     [ "$attempt" -eq "$attempts" ] || sleep $((attempt * retry_delay))
   done
-  echo "::error::could not upload $2 to release $release_id" >&2
+  echo "::$failure_level::could not upload $2 to release $release_id" >&2
   return 1
 }
 
@@ -92,15 +92,16 @@ stage=$(mktemp -d "$PWD/.release-upload.XXXXXX")
 records=$(mktemp "$PWD/.release-upload-record.XXXXXX")
 trap 'rm -rf "$stage" "$records"' EXIT
 
-optional=false
+mode=required
 inputs=()
+best_effort=()
 for file in "$@"; do
-  if [ "$file" = --optional ]; then
-    optional=true
-    continue
-  fi
+  case "$file" in
+    --optional) mode=optional; continue ;;
+    --best-effort) mode=best_effort; continue ;;
+  esac
   if [ ! -f "$file" ]; then
-    if [ "$optional" = true ]; then
+    if [ "$mode" != required ]; then
       echo "::warning::$file is missing - the release goes out without it"
       continue
     fi
@@ -113,6 +114,7 @@ for file in "$@"; do
   # Splitting removes the staged name only, never the job's own file.
   ln "$file" "$stage/$name" 2>/dev/null || cp "$file" "$stage/$name"
   inputs+=("$name")
+  [ "$mode" != best_effort ] || best_effort+=("$name")
 done
 
 # Splitting copies a FULL package into parts; the log shows whether the disk held it.
@@ -137,7 +139,13 @@ for path in "$stage"/*; do
   name=$(basename "$path")
   size=$(file_size "$path")
   sha=$(file_sha256 "$path")
-  upload "$path" "$name" "$size" "$sha"
+  failure_level=error
+  [[ " ${best_effort[*]-} " != *" $name "* ]] || failure_level=warning
+  if ! upload "$path" "$name" "$size" "$sha" "$failure_level"; then
+    [ "$failure_level" = warning ] || exit 1
+    echo "::warning::$name upload failed - the release goes out without it"
+    continue
+  fi
   jq -n --arg name "$name" --argjson size "$size" --arg sha256 "$sha" \
     '{name: $name, size: $size, sha256: $sha256}' >>"$records"
   case "$name" in

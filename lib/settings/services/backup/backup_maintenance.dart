@@ -181,12 +181,18 @@ class BackupMaintenance {
       // מיגרציה עצלה: גיבוי v1 עם base64 מוטמע מפורק ל-blobs לפני המיזוג.
       await convertManifestToRefs(manifest, store);
 
-      archive = BackupMerge.merge(
-        archive,
-        manifest,
-        olderTimestamp: archiveTimestamp,
-        newerTimestamp: backup.timestamp,
-        now: DateTime.now(),
+      // בארכיון גדול פענוח התאריך לכל פריט נמשך שניות, ולכן מחוץ ל-UI.
+      final older = archive;
+      final olderTimestamp = archiveTimestamp;
+      final newerTimestamp = backup.timestamp;
+      archive = await Isolate.run(
+        () => BackupMerge.merge(
+          older,
+          manifest,
+          olderTimestamp: olderTimestamp,
+          newerTimestamp: newerTimestamp,
+          now: DateTime.now(),
+        ),
       );
       archiveTimestamp = backup.timestamp;
       mergedPaths.add(backup.path);

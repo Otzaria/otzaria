@@ -84,12 +84,4 @@ abstract class TextBookMessages {
 
   static String categoryCommentatorsCleared(String category) =>
       'קביעת המפרשים לקטגוריה "$category" הוסרה';
-
-  // ── עריכת טקסט (עורך הקטעים) ────────────────────────────────────────────
-
-  static const String localEditsWarning =
-      'שים לב: השינויים נשמרים מקומית בלבד, ובמקרה של עדכון הספרייה, השינויים ימחקו!';
-  static const String lineStructureLocked =
-      'בספר זה אסור לשנות מבנה שורות כדי לשמור על קישורי פרשנות';
-  static const String textNotFound = 'הטקסט לא נמצא';
 }

@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:otzaria/plugins/services/plugin_content_security_policy.dart';
 import 'package:otzaria/plugins/services/plugin_headless_shell.dart';
-import 'package:otzaria/plugins/services/plugin_font_scheme.dart';
 import 'package:path/path.dart' as p;
 
 /// הסכימה שדרכה מוגשים קובצי התוסף במקום `file://`.
@@ -53,7 +52,6 @@ Future<CustomSchemeResponse?> servePluginAsset({
   required String rootPath,
   String? headlessEntrypoint,
   String? contentSecurityPolicy,
-  PluginFontSchemeLease? fontLease,
 }) async {
   final headers = contentSecurityPolicy == null
       ? null
@@ -62,9 +60,6 @@ Future<CustomSchemeResponse?> servePluginAsset({
   if (url.scheme != pluginAssetScheme ||
       url.host != pluginAssetHost(pluginId)) {
     return null;
-  }
-  if (isPluginFontSchemeRoute(url)) {
-    return fontLease?.responseFor(url, headers: headers);
   }
   if (headlessEntrypoint != null &&
       url.path == '/$pluginHeadlessShellFileName') {

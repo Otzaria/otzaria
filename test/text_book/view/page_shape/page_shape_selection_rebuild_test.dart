@@ -4,20 +4,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
-import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
-import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/utils/reader_build_policy.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_screen.dart';
@@ -25,7 +21,11 @@ import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_navigation_bloc.dart';
+import '../../../test_helpers/stub_personal_notes_bloc.dart';
 import '../../../test_helpers/stub_settings_bloc.dart';
+import '../../../test_helpers/stub_tabs_bloc.dart';
+import '../../../test_helpers/stub_text_book_bloc.dart';
 
 /// בחירת שורה בטקסט הראשי אינה בונה מחדש את טורי המפרשים ואת שלד צורת הדף;
 /// רק הטקסט הראשי, שמסמן את השורה, נבנה מחדש.
@@ -88,7 +88,7 @@ void main() {
   testWidgets('טור מפרש אינו נבנה מחדש כשנבחרת שורה בטקסט הראשי', (
     tester,
   ) async {
-    final bloc = _TestTextBookBloc(_loadedState(TextBook(title: bookTitle)));
+    final bloc = StubTextBookBloc(_loadedState(TextBook(title: bookTitle)));
     await _pumpWithBlocs(
       tester,
       bloc,
@@ -146,12 +146,12 @@ void main() {
 
   testWidgets('שלד צורת הדף אינו נבנה מחדש כשנבחרת שורה', (tester) async {
     final book = TextBook(title: bookTitle);
-    final bloc = _TestTextBookBloc(_loadedState(book));
+    final bloc = StubTextBookBloc(_loadedState(book));
     final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
-    final navigationBloc = _TestNavigationBloc(
+    final navigationBloc = StubNavigationBloc(
       const NavigationState(currentScreen: Screen.reading),
     );
-    final tabsBloc = _TestTabsBloc(
+    final tabsBloc = StubTabsBloc(
       const TabsState(tabs: [], currentTabIndex: 0).copyWith(tabs: [tab]),
     );
     addTearDown(() async {
@@ -192,11 +192,11 @@ void main() {
 
 Future<void> _pumpWithBlocs(
   WidgetTester tester,
-  _TestTextBookBloc bloc,
+  StubTextBookBloc bloc,
   Widget child, {
   List<BlocProvider> extraProviders = const [],
 }) async {
-  final notesBloc = _TestPersonalNotesBloc(const PersonalNotesState.initial());
+  final notesBloc = StubPersonalNotesBloc(const PersonalNotesState.initial());
   final settingsBloc = StubSettingsBloc(SettingsState.initial());
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox.shrink());
@@ -243,43 +243,3 @@ TextBookLoaded _loadedState(TextBook book) => TextBookLoaded(
   pinLeftPane: false,
   searchText: '',
 );
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestPersonalNotesBloc
-    extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _TestPersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestNavigationBloc extends Bloc<NavigationEvent, NavigationState>
-    implements NavigationBloc {
-  _TestNavigationBloc(super.initialState) {
-    on<NavigationEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestTabsBloc extends Bloc<TabsEvent, TabsState> implements TabsBloc {
-  _TestTabsBloc(super.initialState) {
-    on<TabsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}

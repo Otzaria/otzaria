@@ -99,10 +99,6 @@ void main() {
         expect(display.describe(), isNot(contains('ללא עיצוב')));
       });
     });
-
-    test('settingKey נושא את הקידומת הסינתטית', () {
-      expect(shortcut.settingKey, 'key-shortcut-dynamic-abc');
-    });
   });
 
   group('DynamicShortcutRegistry', () {

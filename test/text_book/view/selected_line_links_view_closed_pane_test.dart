@@ -9,11 +9,11 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/selected_line_links_view.dart';
 
 import '../../test_helpers/stub_settings_bloc.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 final _first = [_link('ספר א'), _link('ספר ב')];
 final _second = [_link('ספר ג')];
@@ -52,11 +52,11 @@ void main() {
   });
 }
 
-Future<(_TestTextBookBloc, void Function(bool))> _pump(
+Future<(EmittingStubTextBookBloc, void Function(bool))> _pump(
   WidgetTester tester, {
   required bool isPaneOpen,
 }) async {
-  final bloc = _TestTextBookBloc(_state(_first));
+  final bloc = EmittingStubTextBookBloc(_state(_first));
   addTearDown(bloc.close);
   final settingsBloc = StubSettingsBloc(SettingsState.initial());
   addTearDown(settingsBloc.close);
@@ -112,15 +112,3 @@ TextBookLoaded _state(List<Link> visibleLinks) => TextBookLoaded(
   pinLeftPane: false,
   searchText: '',
 );
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  void emitState(TextBookState state) => emit(state);
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}

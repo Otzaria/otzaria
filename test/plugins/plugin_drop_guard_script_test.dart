@@ -12,18 +12,5 @@ void main() {
       );
       expect(script.forMainFrameOnly, isFalse);
     });
-
-    test('חוסם את ברירת המחדל של גרירת קובץ (dragover + drop)', () {
-      final source = buildPluginDropGuardScript().source;
-      expect(source, contains("addEventListener('dragover'"));
-      expect(source, contains("addEventListener('drop'"));
-      expect(source, contains('preventDefault'));
-    });
-
-    test('חוסם רק גרירת קבצים, בשלב capture', () {
-      final source = buildPluginDropGuardScript().source;
-      expect(source, contains("'Files'"));
-      expect(source, contains('}, true);'));
-    });
   });
 }

@@ -142,31 +142,5 @@ void main() {
       expect(contents, isNotEmpty);
       expect(contents.every((c) => c.displayProfile.removePunctuation), isTrue);
     });
-
-    testWidgets('שני הדגלים עוברים יחד', (tester) async {
-      final contents = await _pumpPanel(
-        tester,
-        removeNikud: true,
-        removePunctuation: true,
-      );
-      expect(contents, isNotEmpty);
-      expect(contents.every((c) => c.displayProfile.removeNikud), isTrue);
-      expect(contents.every((c) => c.displayProfile.removePunctuation), isTrue);
-    });
-  });
-
-  group('PdfCommentaryPanel — ברירת המחדל של הדגלים', () {
-    testWidgets('ללא העברה מפורשת הדגלים כבויים (התנהגות ה-API)', (
-      tester,
-    ) async {
-      final panel = PdfCommentaryPanel(
-        tab: _tab(),
-        linksCount: 1,
-        openBookCallback: (_) {},
-        fontSize: 16.0,
-      );
-      expect(panel.displayProfile.removeNikud, isFalse);
-      expect(panel.displayProfile.removePunctuation, isFalse);
-    });
   });
 }

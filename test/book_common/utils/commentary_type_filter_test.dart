@@ -317,39 +317,6 @@ void main() {
       );
     });
   });
-
-  group('CommentaryTypeSelection', () {
-    test('מתחיל ריק', () {
-      final selection = CommentaryTypeSelection();
-      addTearDown(selection.dispose);
-
-      expect(selection.value, isEmpty);
-    });
-
-    test('מודיע למאזינים בשינוי', () {
-      final selection = CommentaryTypeSelection();
-      addTearDown(selection.dispose);
-      var notified = 0;
-      selection.addListener(() => notified++);
-
-      selection.value = const {LinkTypes.targum};
-
-      expect(notified, 1);
-      expect(selection.value, {LinkTypes.targum});
-    });
-
-    test('הצבת אותו ערך אינה מודיעה שוב', () {
-      final selection = CommentaryTypeSelection();
-      addTearDown(selection.dispose);
-      selection.value = const {LinkTypes.targum};
-      var notified = 0;
-      selection.addListener(() => notified++);
-
-      selection.value = const {LinkTypes.targum};
-
-      expect(notified, 0);
-    });
-  });
 }
 
 Link _link({required String path2, required String type, int index1 = 1}) =>

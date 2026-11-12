@@ -713,7 +713,7 @@ void main() {
     });
 
     test(
-      'scanLibraryFolderAssets: קובץ קיים אך חסום לקריאה → לא נגיש',
+      'scanLibraryFolder: קובץ קיים אך חסום לקריאה → לא נגיש',
       () async {
         debugLibraryFolderReadProbe = (file) async =>
             throw PathAccessException(file.path, const OSError('EACCES', 13));

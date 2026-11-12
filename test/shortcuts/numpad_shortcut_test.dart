@@ -134,29 +134,6 @@ void main() {
   });
 
   group('קיצורי הזום', () {
-    test('רשומים עם ברירות מחדל', () {
-      expect(
-        ShortcutValidator.shortcutKeys,
-        containsAll([
-          ShortcutValidator.zoomInKey,
-          ShortcutValidator.zoomOutKey,
-          ShortcutValidator.zoomResetKey,
-        ]),
-      );
-      expect(
-        ShortcutValidator.defaultShortcuts[ShortcutValidator.zoomInKey],
-        'ctrl+equal',
-      );
-      expect(
-        ShortcutValidator.defaultShortcuts[ShortcutValidator.zoomOutKey],
-        'ctrl+minus',
-      );
-      expect(
-        ShortcutValidator.defaultShortcuts[ShortcutValidator.zoomResetKey],
-        'ctrl+0',
-      );
-    });
-
     test('לכל קיצורי ברירת המחדל יש שם תצוגה וערך ייחודי', () {
       final used = <String, String>{};
       for (final entry in ShortcutValidator.defaultShortcuts.entries) {

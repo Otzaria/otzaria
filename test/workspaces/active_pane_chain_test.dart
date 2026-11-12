@@ -87,10 +87,13 @@ void main() {
     final emptiedTabs = tabsBloc.stream.firstWhere((s) => s.tabs.isEmpty);
     workspaceBloc.add(
       SwitchToWorkspace(
+        sourceWorkspaceId: workspaceBloc.state.activeWorkspaceId,
         targetWorkspaceId: workspaceB.id,
-        currentTabsToSave: tabsBloc.state.tabs,
-        currentTabIndexToSave: tabsBloc.state.currentTabIndex,
-        currentActivePaneToSave: tabsBloc.state.activePaneSide,
+        readCurrentTabs: () => (
+          tabs: tabsBloc.state.tabs,
+          activeTabIndex: tabsBloc.state.currentTabIndex,
+          activePane: tabsBloc.state.activePaneSide,
+        ),
       ),
     );
     await workspaceBloc.stream.firstWhere(
@@ -102,10 +105,13 @@ void main() {
     final restoredTabs = tabsBloc.stream.firstWhere((s) => s.tabs.isNotEmpty);
     workspaceBloc.add(
       SwitchToWorkspace(
+        sourceWorkspaceId: workspaceBloc.state.activeWorkspaceId,
         targetWorkspaceId: workspaceA.id,
-        currentTabsToSave: tabsBloc.state.tabs,
-        currentTabIndexToSave: tabsBloc.state.currentTabIndex,
-        currentActivePaneToSave: tabsBloc.state.activePaneSide,
+        readCurrentTabs: () => (
+          tabs: tabsBloc.state.tabs,
+          activeTabIndex: tabsBloc.state.currentTabIndex,
+          activePane: tabsBloc.state.activePaneSide,
+        ),
       ),
     );
     await workspaceBloc.stream.firstWhere(
@@ -199,9 +205,13 @@ void main() {
     for (final target in [workspaceB, workspaceA]) {
       workspaceBloc.add(
         SwitchToWorkspace(
+          sourceWorkspaceId: workspaceBloc.state.activeWorkspaceId,
           targetWorkspaceId: target.id,
-          currentTabsToSave: tabsBloc.state.tabs,
-          currentTabIndexToSave: tabsBloc.state.currentTabIndex,
+          readCurrentTabs: () => (
+            tabs: tabsBloc.state.tabs,
+            activeTabIndex: tabsBloc.state.currentTabIndex,
+            activePane: null,
+          ),
         ),
       );
       await workspaceBloc.stream

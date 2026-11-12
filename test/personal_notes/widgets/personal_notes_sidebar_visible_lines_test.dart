@@ -12,10 +12,10 @@ import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 /// השורות הגלויות נשמרות בכל חלונית בנפרד, כדי ששני טאבים של אותו ספר לא
 /// ידרסו זה את סינון ההערות של זה.
@@ -58,7 +58,7 @@ void main() {
   ) async {
     final notesBloc = _RecordingNotesBloc();
     addTearDown(notesBloc.close);
-    final textBookBloc = _TestTextBookBloc(
+    final textBookBloc = EmittingStubTextBookBloc(
       _loadedState(visibleIndices: const [10, 11, 12]),
     );
     addTearDown(textBookBloc.close);
@@ -76,7 +76,7 @@ void main() {
   ) async {
     final notesBloc = _RecordingNotesBloc();
     addTearDown(notesBloc.close);
-    final textBookBloc = _TestTextBookBloc(
+    final textBookBloc = EmittingStubTextBookBloc(
       _loadedState(visibleIndices: const [3]),
     );
     addTearDown(textBookBloc.close);
@@ -125,7 +125,7 @@ void main() {
   ) async {
     final notesBloc = _RecordingNotesBloc();
     addTearDown(notesBloc.close);
-    final textBookBloc = _TestTextBookBloc(
+    final textBookBloc = EmittingStubTextBookBloc(
       _loadedState(visibleIndices: const [0]),
     );
     addTearDown(textBookBloc.close);
@@ -146,7 +146,7 @@ void main() {
   ) async {
     final notesBloc = _RecordingNotesBloc();
     addTearDown(notesBloc.close);
-    final otherBookBloc = _TestTextBookBloc(
+    final otherBookBloc = EmittingStubTextBookBloc(
       _loadedState(visibleIndices: const [0]),
     );
     addTearDown(otherBookBloc.close);
@@ -230,7 +230,7 @@ void main() {
         repository: _FakeRepository([note(1), note(5), note(50)]),
       );
       addTearDown(notesBloc.close);
-      final textBookBloc = _TestTextBookBloc(
+      final textBookBloc = EmittingStubTextBookBloc(
         _loadedState(visibleIndices: const [4]),
       );
       addTearDown(textBookBloc.close);
@@ -271,7 +271,7 @@ void main() {
         repository: _FakeRepository([note(1), note(5), note(50)]),
       );
       addTearDown(notesBloc.close);
-      final textBookBloc = _TestTextBookBloc(
+      final textBookBloc = EmittingStubTextBookBloc(
         _loadedState(visibleIndices: const [4]),
       );
       addTearDown(textBookBloc.close);
@@ -306,10 +306,10 @@ void main() {
         repository: _FakeRepository([note(1), note(5), note(50)]),
       );
       addTearDown(notesBloc.close);
-      final firstTabBloc = _TestTextBookBloc(
+      final firstTabBloc = EmittingStubTextBookBloc(
         _loadedState(visibleIndices: const [4]),
       );
-      final secondTabBloc = _TestTextBookBloc(
+      final secondTabBloc = EmittingStubTextBookBloc(
         _loadedState(visibleIndices: const [49]),
       );
       addTearDown(firstTabBloc.close);
@@ -455,18 +455,6 @@ class _RecordingNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState>
       .whereType<UpdateVisibleLines>()
       .map((e) => e.visibleLineIndices)
       .toList();
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  void emitState(TextBookState state) => emit(state);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

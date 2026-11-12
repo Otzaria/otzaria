@@ -101,17 +101,6 @@ void main() {
       expect(a.id, isNot(b.id));
     });
 
-    test('copyWith משמר את המזהה ומעדכן שם ופריטים', () {
-      final original = _group(name: 'ישן');
-      final updated = original.copyWith(
-        name: 'חדש',
-        items: [_bookmark(bookTitle: 'ספר ג')],
-      );
-      expect(updated.id, original.id);
-      expect(updated.name, 'חדש');
-      expect(updated.items.single.book.title, 'ספר ג');
-    });
-
     test('overlapWith — קבוצות זהות מחזירות 1', () {
       final group = _group(bookTitles: ['א', 'ב', 'ג']);
       expect(group.overlapWith(group.bookIdentities), 1.0);

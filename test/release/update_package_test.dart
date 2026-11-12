@@ -512,12 +512,6 @@ void main() {
       expect(validateUpdatePackageManifest(manifest), isNotEmpty);
     });
   });
-
-  group('מדיניות זוגות הגרסאות', () {
-    test('מספר הבסיסים חסום', () {
-      expect(kUpdateBaseReleaseCount, 2);
-    });
-  });
 }
 
 void _skipNoZstd() {

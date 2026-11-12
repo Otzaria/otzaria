@@ -43,7 +43,7 @@ class _AppContextMenuPanel extends StatelessWidget {
         child: IntrinsicWidth(
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              minWidth: metrics.menuMinWidth,
+              minWidth: metrics.menuMinWidth.clamp(0.0, maxWidth).toDouble(),
               maxWidth: maxWidth,
               maxHeight: maxHeight,
             ),

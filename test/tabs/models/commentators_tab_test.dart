@@ -1,4 +1,3 @@
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/widgets.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,11 +5,10 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
-import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 
 import '../../helpers/memory_settings_cache.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,7 +24,7 @@ void main() {
         final sourceTab = TextBookTab(
           book: TextBook(title: 'ספר בדיקה'),
           index: 3,
-          blocOverride: _LoadedTextBookBloc(
+          blocOverride: StubTextBookBloc(
             _loadedState(
               selectedIndex: 17,
               visibleIndices: const [17, 18],
@@ -52,7 +50,7 @@ void main() {
       final sourceTab = TextBookTab(
         book: TextBook(title: 'ספר בדיקה'),
         index: 5,
-        blocOverride: _LoadedTextBookBloc(
+        blocOverride: StubTextBookBloc(
           _loadedState(
             selectedIndex: null,
             visibleIndices: const [42, 43],
@@ -126,7 +124,7 @@ void main() {
       final sourceTab = TextBookTab(
         book: TextBook(title: 'ספר בדיקה'),
         index: 3,
-        blocOverride: _LoadedTextBookBloc(
+        blocOverride: StubTextBookBloc(
           _loadedState(
             selectedIndex: 17,
             visibleIndices: const [17],
@@ -258,7 +256,7 @@ void main() {
       final sourceTab = TextBookTab(
         book: TextBook(title: 'ספר בדיקה'),
         index: 1,
-        blocOverride: _LoadedTextBookBloc(
+        blocOverride: StubTextBookBloc(
           _loadedState(selectedIndex: 40, visibleIndices: const [40]),
         ),
       );
@@ -295,16 +293,6 @@ void main() {
       );
     });
   });
-}
-
-class _LoadedTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _LoadedTextBookBloc(super.state) {
-    on<TextBookEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 TextBookLoaded _loadedState({

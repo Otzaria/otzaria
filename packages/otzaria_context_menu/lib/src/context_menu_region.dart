@@ -171,14 +171,11 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
   Future<void> openMenuAt(Offset globalPosition) =>
       _openContextMenu(globalPosition);
 
-  double _resolveContextMenuMaxWidth(
-    double overlayWidth,
-    AppMenuMetrics metrics,
-  ) {
+  double _resolveContextMenuMaxWidth(double overlayWidth) {
+    // On very narrow windows, the available viewport takes precedence over
+    // the normal menu minimum. Do not render a menu wider than its overlay.
     final availableWidth = overlayWidth - (_contextMenuScreenPadding * 2);
-    return availableWidth
-        .clamp(metrics.menuMinWidth, _contextMenuMaxWidth)
-        .toDouble();
+    return availableWidth.clamp(0.0, _contextMenuMaxWidth).toDouble();
   }
 
   bool _isPointerInsideMenu(Offset globalPosition) {
@@ -217,11 +214,11 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
     final spaceBelow = overlayRenderBox.size.height - overlayPosition.dy;
     final shouldOpenAbove =
         spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
+    final maxAnchorX = (overlayRenderBox.size.width - _contextMenuScreenPadding)
+        .clamp(_contextMenuScreenPadding, double.infinity)
+        .toDouble();
     final dx = overlayPosition.dx
-        .clamp(
-          _contextMenuScreenPadding,
-          overlayRenderBox.size.width - _contextMenuScreenPadding,
-        )
+        .clamp(_contextMenuScreenPadding, maxAnchorX)
         .toDouble();
     final rawDy = shouldOpenAbove
         ? overlayPosition.dy - estimatedHeight
@@ -351,10 +348,9 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
     _menuOverlayEntry = OverlayEntry(
       builder: (overlayContext) {
         final metrics = presentation.metrics;
-        final menuStyle = _menuStyle(context, metrics);
+        final menuStyle = _menuStyle(context);
         final maxMenuWidth = _resolveContextMenuMaxWidth(
           overlayRenderObject.size.width,
-          metrics,
         );
         final maxMenuHeight =
             (overlayRenderObject.size.height - _contextMenuScreenPadding * 2)
@@ -444,7 +440,7 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
     });
   }
 
-  MenuStyle _menuStyle(BuildContext context, AppMenuMetrics metrics) {
+  MenuStyle _menuStyle(BuildContext context) {
     final themeStyle = Theme.of(context).menuTheme.style;
     return (themeStyle ?? const MenuStyle()).copyWith(
       alignment: Alignment.topLeft,
@@ -469,7 +465,7 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
         behavior: HitTestBehavior.translucent,
         gestures: <Type, GestureRecognizerFactory>{
           // recognizer שזוכה באופן מיידי בכפתור הימני כשיש בחירה פעילה, כדי
-          // למנוע מ-SelectableRegion לשחרר את הבחירה (ראו תיעוד השדה).
+          // למנוע מ-SelectableRegion לשחרר את הבחירה.
           _PreserveSelectionSecondaryTapRecognizer:
               GestureRecognizerFactoryWithHandlers<
                 _PreserveSelectionSecondaryTapRecognizer

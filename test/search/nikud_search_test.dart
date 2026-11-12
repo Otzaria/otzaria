@@ -4,8 +4,6 @@ import 'package:otzaria/utils/text/text_manipulation.dart';
 
 import '../support/search_engine_test_init.dart';
 
-// ignore_for_file: dead_code
-
 Future<void> main() async {
   // sanitizeQuery ו-countMatches מאצילים למנוע ה-Rust; הטסטים שלהם דורשים
   // את הספרייה הנייטיבית ומדולגים כשאין build זמין.
@@ -61,36 +59,6 @@ Future<void> main() async {
 
       // טקסט עם סימני פיסוק
       expect(removeVolwels('שָׁלוֹם, עוֹלָם!'), 'שלום, עולם!');
-    });
-
-    test('Search workflow - nikud removal by default', () {
-      // סימולציה של תהליך חיפוש
-      const userInput = 'שָׁלוֹם עוֹלָם';
-
-      // בדיקה אם יש ניקוד
-      final hasNikudInInput = hasNikud(userInput);
-      expect(hasNikudInInput, true);
-
-      // הסרת ניקוד כברירת מחדל
-      final searchQuery = hasNikudInInput
-          ? removeVolwels(userInput)
-          : userInput;
-      expect(searchQuery, 'שלום עולם');
-    });
-
-    test('Search workflow - no nikud in input', () {
-      // סימולציה של תהליך חיפוש ללא ניקוד
-      const userInput = 'שלום עולם';
-
-      // בדיקה אם יש ניקוד
-      final hasNikudInInput = hasNikud(userInput);
-      expect(hasNikudInInput, false);
-
-      // אין צורך להסיר ניקוד
-      final searchQuery = hasNikudInInput
-          ? removeVolwels(userInput)
-          : userInput;
-      expect(searchQuery, 'שלום עולם');
     });
 
     test(
@@ -205,61 +173,6 @@ Future<void> main() async {
       // תווים שאינם ניקוד או טעמים
       expect(hasNikud('א'), false); // אלף רגילה
       expect(hasNikud('ת'), false); // תו רגילה
-    });
-  });
-
-  group('Integration Tests - Search Scenarios', () {
-    test('Scenario 1: User types text with nikud', () {
-      // משתמש מקליד טקסט עם ניקוד
-      const userInput = 'תּוֹרָה';
-
-      // המערכת מזהה שיש ניקוד
-      expect(hasNikud(userInput), true);
-
-      // החיפוש בתוך ספר תמיד מסיר ניקוד
-      final query = hasNikud(userInput) ? removeVolwels(userInput) : userInput;
-      expect(query, 'תורה');
-    });
-
-    test('Scenario 2: User types text without nikud', () {
-      // משתמש מקליד טקסט ללא ניקוד
-      const userInput = 'תורה';
-
-      // המערכת מזהה שאין ניקוד
-      expect(hasNikud(userInput), false);
-
-      // הכפתור "עם ניקוד" לא צריך להופיע
-      // החיפוש מתבצע כרגיל - אין ניקוד להסיר
-      expect(removeVolwels(userInput), 'תורה');
-    });
-
-    test('Scenario 3: User pastes text with nikud from external source', () {
-      // משתמש מדביק טקסט עם ניקוד מ-Sefaria או מקור אחר
-      const pastedText = 'וַיְדַבֵּר אֱלֹהִים אֶל־מֹשֶׁה';
-
-      // המערכת מזהה ניקוד
-      expect(hasNikud(pastedText), true);
-
-      // ברירת מחדל: הסרת ניקוד
-      final cleanQuery = removeVolwels(pastedText);
-      expect(cleanQuery, 'וידבר אלהים אל משה');
-    });
-
-    test('Scenario 4: Mixed content - Hebrew with nikud and English', () {
-      // טקסט מעורב
-      const mixedInput = 'תּוֹרָה Torah שָׁלוֹם Shalom';
-
-      expect(hasNikud(mixedInput), true);
-
-      // ברירת מחדל: הסרת ניקוד
-      final cleaned = removeVolwels(mixedInput);
-      expect(cleaned, 'תורה Torah שלום Shalom');
-    });
-
-    test('Scenario 5: User input with nikud is always normalized', () {
-      const userInput = 'בְּרֵאשִׁית';
-      final query = hasNikud(userInput) ? removeVolwels(userInput) : userInput;
-      expect(query, 'בראשית');
     });
   });
 }

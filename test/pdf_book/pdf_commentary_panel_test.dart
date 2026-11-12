@@ -511,8 +511,8 @@ void main() {
         await tester.pumpWidget(_wrap(buildPanel(tab, notifierA)));
         await tester.pumpAndSettle();
 
-        // החלפה ל-notifier חדש עם value=0. בלי איפוס baseline, _lastSeen היה
-        // נשאר על 7 ופתיחות חדשות עד value=7 היו נחסמות.
+        // החלפה ל-notifier חדש עם value=0. בלי איפוס _lastSeenFilterRequest
+        // הוא היה נשאר על 7 ופתיחות חדשות עד value=7 היו נחסמות.
         await tester.pumpWidget(_wrap(buildPanel(tab, notifierB)));
         await tester.pumpAndSettle();
 

@@ -53,10 +53,11 @@ packages:
   archive:
     dependency: "direct main"
     description:
-      name: archive
-      sha256: de5ac590b8155e4e676088d714bd41ea620449a6adc0f7950c5073874b287ddb
-      url: "https://pub.dev"
-    source: hosted
+      path: "."
+      ref: "533742bcee15f1a81cecf5d38707e8f6318dcfa3"
+      resolved-ref: "533742bcee15f1a81cecf5d38707e8f6318dcfa3"
+      url: "https://github.com/Otzaria/archive"
+    source: git
     version: "4.6.0"
   args:
     dependency: transitive
@@ -85,10 +86,11 @@ packages:
   bidi:
     dependency: "direct main"
     description:
-      name: bidi
-      sha256: "77f475165e94b261745cf1032c751e2032b8ed92ccb2bf5716036db79320637d"
-      url: "https://pub.dev"
-    source: hosted
+      path: "."
+      ref: eab19a79d6aff662e135b65c2d95cf6d00c1d600
+      resolved-ref: eab19a79d6aff662e135b65c2d95cf6d00c1d600
+      url: "https://github.com/Otzaria/bidi"
+    source: git
     version: "2.0.13"
   bloc:
     dependency: "direct main"
@@ -101,10 +103,11 @@ packages:
   bloc_concurrency:
     dependency: "direct main"
     description:
-      name: bloc_concurrency
-      sha256: "86b7b17a0a78f77fca0d7c030632b59b593b22acea2d96972588f40d4ef53a94"
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/bloc_concurrency"
+      ref: "6e4061e34e8062ba3b72f3fb005fbae1278742b4"
+      resolved-ref: "6e4061e34e8062ba3b72f3fb005fbae1278742b4"
+      url: "https://github.com/Otzaria/bloc"
+    source: git
     version: "0.3.0"
   bloc_test:
     dependency: "direct dev"
@@ -182,8 +185,8 @@ packages:
     dependency: "direct main"
     description:
       path: "pkgs/characters"
-      ref: "7ad4f4708c223668fb6c3a05170d436431c69e26"
-      resolved-ref: "7ad4f4708c223668fb6c3a05170d436431c69e26"
+      ref: "3c153cc0a9bd4327331870b4d6ee0ca8a35435f1"
+      resolved-ref: "3c153cc0a9bd4327331870b4d6ee0ca8a35435f1"
       url: "https://github.com/Otzaria/core"
     source: git
     version: "1.4.2-wip"
@@ -302,11 +305,12 @@ packages:
   csslib:
     dependency: "direct main"
     description:
-      name: csslib
-      sha256: "09bad715f418841f976c77db72d5398dc1253c21fb9c0c7f0b0b985860b2d58e"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.2"
+      path: "pkgs/csslib"
+      ref: a6186923df7fb587a42af24ac04b3a9ac27d0c0d
+      resolved-ref: a6186923df7fb587a42af24ac04b3a9ac27d0c0d
+      url: "https://github.com/Otzaria/tools"
+    source: git
+    version: "1.0.3-wip"
   cupertino_icons:
     dependency: transitive
     description:
@@ -542,8 +546,8 @@ packages:
     dependency: "direct main"
     description:
       path: flutter_inappwebview
-      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
-      resolved-ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
+      resolved-ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "6.2.0-beta.3"
@@ -551,8 +555,8 @@ packages:
     dependency: "direct overridden"
     description:
       path: flutter_inappwebview_android
-      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
-      resolved-ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
+      resolved-ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "1.2.0-beta.3"
@@ -568,8 +572,8 @@ packages:
     dependency: "direct overridden"
     description:
       path: flutter_inappwebview_ios
-      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
-      resolved-ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
+      resolved-ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "1.2.0-beta.3"
@@ -577,8 +581,8 @@ packages:
     dependency: "direct main"
     description:
       path: flutter_inappwebview_linux
-      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
-      resolved-ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
+      resolved-ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "0.1.0-beta.1"
@@ -586,8 +590,8 @@ packages:
     dependency: "direct overridden"
     description:
       path: flutter_inappwebview_macos
-      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
-      resolved-ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
+      resolved-ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "1.2.0-beta.3"
@@ -595,8 +599,8 @@ packages:
     dependency: "direct overridden"
     description:
       path: flutter_inappwebview_platform_interface
-      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
-      resolved-ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
+      resolved-ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "1.4.0-beta.3"
@@ -604,8 +608,8 @@ packages:
     dependency: transitive
     description:
       path: flutter_inappwebview_web
-      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
-      resolved-ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
+      resolved-ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "1.2.0-beta.3"
@@ -613,8 +617,8 @@ packages:
     dependency: "direct main"
     description:
       path: flutter_inappwebview_windows
-      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
-      resolved-ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
+      resolved-ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "0.7.0-beta.3"
@@ -702,8 +706,8 @@ packages:
     dependency: "direct overridden"
     description:
       path: flutter_local_notifications_windows
-      ref: "27e5c765ff9552390ff4cbbfaa4e24dc46844b96"
-      resolved-ref: "27e5c765ff9552390ff4cbbfaa4e24dc46844b96"
+      ref: "327a0713ccebe2bdf981db532c5904e3b731ef16"
+      resolved-ref: "327a0713ccebe2bdf981db532c5904e3b731ef16"
       url: "https://github.com/Otzaria/flutter_local_notifications"
     source: git
     version: "4.0.0"
@@ -747,10 +751,11 @@ packages:
   flutter_spinbox:
     dependency: "direct main"
     description:
-      name: flutter_spinbox
-      sha256: "38d8c1a3a39f0fa72823d4470785f5e165f2deb53531ca7803b54ba45e4dbd46"
-      url: "https://pub.dev"
-    source: hosted
+      path: "."
+      ref: "3b7813842c7c4f1b7d019dcfe344fc8ddfdf6f7e"
+      resolved-ref: "3b7813842c7c4f1b7d019dcfe344fc8ddfdf6f7e"
+      url: "https://github.com/Otzaria/flutter_spinbox"
+    source: git
     version: "0.13.1"
   flutter_svg:
     dependency: "direct main"
@@ -900,11 +905,12 @@ packages:
   html:
     dependency: "direct main"
     description:
-      name: html
-      sha256: "43b67b8f43321ab066817dfac5619596c98bb1b61624e77203bb4351785f9699"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.15.7"
+      path: "pkgs/html"
+      ref: a6186923df7fb587a42af24ac04b3a9ac27d0c0d
+      resolved-ref: a6186923df7fb587a42af24ac04b3a9ac27d0c0d
+      url: "https://github.com/Otzaria/tools"
+    source: git
+    version: "0.15.8-wip"
   http:
     dependency: "direct main"
     description:
@@ -1075,11 +1081,12 @@ packages:
   markdown:
     dependency: "direct main"
     description:
-      name: markdown
-      sha256: ee85086ad7698b42522c6ad42fe195f1b9898e4d974a1af4576c1a3a176cada9
-      url: "https://pub.dev"
-    source: hosted
-    version: "7.3.1"
+      path: "pkgs/markdown"
+      ref: a6186923df7fb587a42af24ac04b3a9ac27d0c0d
+      resolved-ref: a6186923df7fb587a42af24ac04b3a9ac27d0c0d
+      url: "https://github.com/Otzaria/tools"
+    source: git
+    version: "7.4.1-wip"
   matcher:
     dependency: "direct overridden"
     description:
@@ -1906,10 +1913,11 @@ packages:
   timezone:
     dependency: "direct main"
     description:
-      name: timezone
-      sha256: "9f4e5a1a0e4fef7dd3424842c0575db01bfb7a11730e8d55753fcd5c5c98767b"
-      url: "https://pub.dev"
-    source: hosted
+      path: "pkgs/timezone"
+      ref: f48be9ede26c06e433a186bd1aca2876fb4de143
+      resolved-ref: f48be9ede26c06e433a186bd1aca2876fb4de143
+      url: "https://github.com/Otzaria/labs.git"
+    source: git
     version: "0.11.2"
   typed_data:
     dependency: transitive

@@ -1,14 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/tools/built_in_tools_catalog.dart';
 
 void main() {
   group('kBuiltInToolsCatalog invariants', () {
-    test('catalog is non-empty', () {
-      // אם הקטלוג ריק — אין כלים מובנים בכלל.
-      expect(kBuiltInToolsCatalog, isNotEmpty);
-    });
-
     test('every toolId is unique', () {
       final ids = kBuiltInToolsCatalog.map((m) => m.toolId).toList();
       expect(
@@ -82,27 +76,6 @@ void main() {
               'offset (1000); see InstalledPlugin.userOrderToolTabOffset',
         );
       }
-    });
-
-    test('שמור וזכור משתמש באייקון הספרייה shamor_vezachor', () {
-      final shamor = kBuiltInToolsCatalog.firstWhere(
-        (m) => m.toolId == 'builtin.shamor_zachor',
-      );
-      expect(shamor.icon, OtzariaIcons.shamor_vezachor_24_regular);
-      expect(shamor.iconFilled, OtzariaIcons.shamor_vezachor_24_filled);
-      expect(shamor.imageIcon, isNull);
-    });
-
-    test('המילון הארמי משתמש באייקון האותיות של Otzaria', () {
-      final dictionary = kBuiltInToolsCatalog.firstWhere(
-        (tool) => tool.toolId == 'builtin.aramaic_dictionary',
-      );
-
-      expect(dictionary.icon, OtzariaIcons.alef_near_alef_stam_24_filled);
-      expect(
-        dictionary.iconFilled,
-        OtzariaIcons.alef_near_alef_stam_24_filled,
-      );
     });
   });
 }

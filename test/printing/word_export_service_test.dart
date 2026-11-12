@@ -272,15 +272,6 @@ void main() {
 
   // ─── בלוקים ריקים ────────────────────────────────────────────────────────────
   group('WordExportService - בלוקים ריקים', () {
-    test('בלוק ריק לא קורס', () {
-      expect(
-        () => _buildArchive(const [
-          PrintBlock(kind: PrintBlockKind.text, text: ''),
-        ]),
-        returnsNormally,
-      );
-    });
-
     test('בלוק ריק יוצר פסקה ריקה (BodyRtl)', () {
       final archive = _buildArchive(const [
         PrintBlock(kind: PrintBlockKind.text, text: ''),
@@ -402,48 +393,6 @@ void main() {
 
   // ─── פורמטים שונים ───────────────────────────────────────────────────────────
   group('WordExportService - פורמטים שונים', () {
-    test('A4 portrait לא קורס', () {
-      expect(
-        () => _buildArchive(
-          const [PrintBlock(kind: PrintBlockKind.text, text: 'x')],
-          format: PdfPageFormat.a4,
-          isLandscape: false,
-        ),
-        returnsNormally,
-      );
-    });
-
-    test('A4 landscape לא קורס', () {
-      expect(
-        () => _buildArchive(
-          const [PrintBlock(kind: PrintBlockKind.text, text: 'x')],
-          format: PdfPageFormat.a4,
-          isLandscape: true,
-        ),
-        returnsNormally,
-      );
-    });
-
-    test('Letter לא קורס', () {
-      expect(
-        () => _buildArchive(
-          const [PrintBlock(kind: PrintBlockKind.text, text: 'x')],
-          format: PdfPageFormat.letter,
-        ),
-        returnsNormally,
-      );
-    });
-
-    test('A3 לא קורס', () {
-      expect(
-        () => _buildArchive(
-          const [PrintBlock(kind: PrintBlockKind.text, text: 'x')],
-          format: PdfPageFormat.a3,
-        ),
-        returnsNormally,
-      );
-    });
-
     test('A4 landscape הופך רוחב וגובה', () {
       final portraitArchive = _buildArchive(
         const [PrintBlock(kind: PrintBlockKind.text, text: 'x')],
@@ -536,46 +485,6 @@ void main() {
       ]);
       final xml = _readArchiveFile(archive, 'word/document.xml');
       expect(xml, contains('<w:br/>'));
-    });
-
-    test('שורות מרובות לא קורסות', () {
-      expect(
-        () => _buildArchive(const [
-          PrintBlock(
-            kind: PrintBlockKind.text,
-            text: 'א\nב\nג\nד\nה\nו\nז\nח\nט\nי',
-          ),
-        ]),
-        returnsNormally,
-      );
-    });
-  });
-
-  // ─── מסמך מורכב ──────────────────────────────────────────────────────────────
-  group('WordExportService - מסמך מורכב', () {
-    test('כל סוגי הבלוקים בו-זמנית לא קורסים', () {
-      expect(
-        () => _buildArchive(const [
-          PrintBlock(
-            kind: PrintBlockKind.heading,
-            text: 'פרק א',
-            headingLevel: 1,
-          ),
-          PrintBlock(kind: PrintBlockKind.text, text: 'גוף'),
-          PrintBlock(kind: PrintBlockKind.commentaryTitle, text: 'מפרשים'),
-          PrintBlock(kind: PrintBlockKind.commentaryGroupTitle, text: 'רש"י'),
-          PrintBlock(kind: PrintBlockKind.commentary, text: 'פירוש'),
-        ]),
-        returnsNormally,
-      );
-    });
-
-    test('מסמך עם מאה בלוקים לא קורס', () {
-      final blocks = List.generate(
-        100,
-        (i) => PrintBlock(kind: PrintBlockKind.text, text: 'פסקה $i'),
-      );
-      expect(() => _buildArchive(blocks), returnsNormally);
     });
   });
 

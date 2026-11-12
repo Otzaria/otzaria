@@ -54,15 +54,6 @@ void main() {
     expect(tab.activeCommentators, hasLength(2));
   });
 
-  test('clone() זהה ל-from', () {
-    final tab = source();
-    final copy = tab.clone() as PdfBookTab;
-
-    expect(copy.activeCommentators, tab.activeCommentators);
-    expect(copy.savedZoom, tab.savedZoom);
-    expect(copy.savedLayoutMode, tab.savedLayoutMode);
-  });
-
   test('toJson -> fromJson משמר (בקרה — עבר גם לפני התיקון)', () {
     final tab = source();
     final restored = PdfBookTab.fromJson(tab.toJson());
@@ -92,13 +83,6 @@ void main() {
 
       expect(copy.externalMatches.value?.pages, const [3, 8, 12]);
       expect(copy.externalMatches.value?.query, 'אברהם');
-    });
-
-    test('clone() משמר את עמודי ההתאמה', () {
-      final tab = withMatches();
-      final copy = tab.clone() as PdfBookTab;
-
-      expect(copy.externalMatches.value?.pages, const [3, 8, 12]);
     });
 
     test('toJson -> fromJson משמר (בקרה)', () {

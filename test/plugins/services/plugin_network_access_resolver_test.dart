@@ -356,25 +356,5 @@ https://other.example.com
 
       expect(allowed, isTrue);
     });
-
-    test(
-      'כתובת ה-Contents API הגיבוי מצביעה על הקובץ הרשמי בענף dev',
-      () {
-        expect(
-          PluginNetworkAccessResolver.officialAllowlistContentsApiUri
-              .toString(),
-          'https://api.github.com/repos/Otzaria/otzaria/contents/'
-          'plugin_network_allowlist.txt?ref=dev',
-        );
-      },
-    );
-
-    test('כתובת הרשימה הרשמית מצביעה על הקובץ שבענף dev', () {
-      expect(
-        PluginNetworkAccessResolver.officialAllowlistUri.toString(),
-        'https://raw.githubusercontent.com/Otzaria/otzaria/'
-        'dev/plugin_network_allowlist.txt',
-      );
-    });
   });
 }

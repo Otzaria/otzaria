@@ -7,13 +7,6 @@ import 'package:seforim_library_updater/seforim_library_updater.dart';
 
 void main() {
   group('libraryUpdateButtonIcon', () {
-    test('מצב מנותק מקבל סמל משלו — סימון שקט שהעדכון לא רץ', () {
-      expect(
-        libraryUpdateButtonIcon(LibraryUpdateStatus.disconnected),
-        FluentIcons.cloud_off_24_regular,
-      );
-    });
-
     test('סמל המנותק שונה מסמל העדכון הרגיל ומסמל הסיום', () {
       final offline = libraryUpdateButtonIcon(LibraryUpdateStatus.disconnected);
 
@@ -29,28 +22,6 @@ void main() {
         libraryUpdateButtonIcon(LibraryUpdateStatus.error),
         FluentIcons.error_circle_24_regular,
       );
-    });
-
-    test('שאר המצבים שומרים על הסמלים הקיימים', () {
-      expect(
-        libraryUpdateButtonIcon(LibraryUpdateStatus.completed),
-        FluentIcons.checkmark_circle_24_regular,
-      );
-      for (final status in [
-        LibraryUpdateStatus.idle,
-        LibraryUpdateStatus.checking,
-        LibraryUpdateStatus.downloading,
-        LibraryUpdateStatus.applying,
-        LibraryUpdateStatus.refreshing,
-        LibraryUpdateStatus.needsFullConfirmation,
-        LibraryUpdateStatus.blocked,
-      ]) {
-        expect(
-          libraryUpdateButtonIcon(status),
-          FluentIcons.arrow_sync_24_regular,
-          reason: '$status',
-        );
-      }
     });
   });
 

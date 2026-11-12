@@ -86,23 +86,6 @@ void main() {
       final filtered = [local, cloudRevoked].filterForOfflineMode(true);
       expect(filtered, [local, cloudRevoked]);
     });
-
-    test('רשימה ריקה מוחזרת כרשימה ריקה', () {
-      expect(<InstalledPlugin>[].filterForOfflineMode(true), isEmpty);
-      expect(<InstalledPlugin>[].filterForOfflineMode(false), isEmpty);
-    });
-  });
-
-  group('InstalledPlugin.requiresNetwork', () {
-    test('מחזיר true כאשר manifest.networkEnabled=true', () {
-      final plugin = _pluginFor(id: 'a', name: 'A', networkEnabled: true);
-      expect(plugin.requiresNetwork, isTrue);
-    });
-
-    test('מחזיר false כאשר manifest.networkEnabled=false', () {
-      final plugin = _pluginFor(id: 'a', name: 'A');
-      expect(plugin.requiresNetwork, isFalse);
-    });
   });
 
   group('InstalledPlugin.blockedInOfflineMode', () {

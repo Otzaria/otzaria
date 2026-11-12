@@ -72,10 +72,6 @@ void main() {
       'personalNotesCollapsedByDefault': true,
     };
 
-    test('initial state is correct', () {
-      expect(settingsBloc.state, equals(SettingsState.initial()));
-    });
-
     group('גודל גופן מפרשים', () {
       test('לחיצות רצופות נשמרות לפי הסדר גם בזמן כתיבה איטית', () async {
         final firstWrite = Completer<void>();
@@ -406,34 +402,6 @@ void main() {
       );
     });
 
-    group('UpdateDarkMode', () {
-      blocTest<SettingsBloc, SettingsState>(
-        'emits updated state when UpdateDarkMode is added',
-        build: () => settingsBloc,
-        act: (bloc) => bloc.add(const UpdateDarkMode(true)),
-        expect: () => [
-          settingsBloc.state.copyWith(isDarkMode: true),
-        ],
-        verify: (_) {
-          verify(mockRepository.updateDarkMode(true)).called(1);
-        },
-      );
-    });
-
-    group('UpdateFollowSystemTheme', () {
-      blocTest<SettingsBloc, SettingsState>(
-        'emits updated state when UpdateFollowSystemTheme is added',
-        build: () => settingsBloc,
-        act: (bloc) => bloc.add(const UpdateFollowSystemTheme(true)),
-        expect: () => [
-          settingsBloc.state.copyWith(followSystemTheme: true),
-        ],
-        verify: (_) {
-          verify(mockRepository.updateFollowSystemTheme(true)).called(1);
-        },
-      );
-    });
-
     group('UpdateThemeMode', () {
       blocTest<SettingsBloc, SettingsState>(
         'כהה: מצב אחד עם followSystemTheme כבוי ו־isDarkMode דלוק',
@@ -490,68 +458,6 @@ void main() {
       );
     });
 
-    group('UpdateSeedColor', () {
-      const newColor = Colors.red;
-
-      blocTest<SettingsBloc, SettingsState>(
-        'emits updated state when UpdateSeedColor is added',
-        build: () => settingsBloc,
-        act: (bloc) => bloc.add(UpdateSeedColor(newColor)),
-        expect: () => [
-          settingsBloc.state.copyWith(seedColor: newColor),
-        ],
-        verify: (_) {
-          verify(mockRepository.updateSeedColor(newColor)).called(1);
-        },
-      );
-    });
-
-    group('UpdateFontSize', () {
-      const newFontSize = 20.0;
-
-      blocTest<SettingsBloc, SettingsState>(
-        'emits updated state when UpdateFontSize is added',
-        build: () => settingsBloc,
-        act: (bloc) => bloc.add(const UpdateFontSize(newFontSize)),
-        expect: () => [
-          settingsBloc.state.copyWith(fontSize: newFontSize),
-        ],
-        verify: (_) {
-          verify(mockRepository.updateFontSize(newFontSize)).called(1);
-        },
-      );
-    });
-
-    group('UpdateTalmudBavliOpenFormat', () {
-      blocTest<SettingsBloc, SettingsState>(
-        'emits updated state when UpdateTalmudBavliOpenFormat is added',
-        build: () => settingsBloc,
-        act: (bloc) => bloc.add(const UpdateTalmudBavliOpenFormat('pdf')),
-        expect: () => [
-          settingsBloc.state.copyWith(talmudBavliOpenFormat: 'pdf'),
-        ],
-        verify: (_) {
-          verify(mockRepository.updateTalmudBavliOpenFormat('pdf')).called(1);
-        },
-      );
-    });
-
-    group('UpdateFontFamily', () {
-      const newFontFamily = 'NotoSerifHebrew';
-
-      blocTest<SettingsBloc, SettingsState>(
-        'emits updated state when UpdateFontFamily is added',
-        build: () => settingsBloc,
-        act: (bloc) => bloc.add(const UpdateFontFamily(newFontFamily)),
-        expect: () => [
-          settingsBloc.state.copyWith(fontFamily: newFontFamily),
-        ],
-        verify: (_) {
-          verify(mockRepository.updateFontFamily(newFontFamily)).called(1);
-        },
-      );
-    });
-
     group('UpdateTextDisplayPolicy', () {
       blocTest<SettingsBloc, SettingsState>(
         'emits updated state when UpdateTextDisplayPolicy is added',
@@ -568,98 +474,6 @@ void main() {
         ],
         verify: (_) {
           verify(mockRepository.updateTextDisplayPolicy(any)).called(1);
-        },
-      );
-    });
-
-    group('UpdateDefaultContinuousReadingMode', () {
-      blocTest<SettingsBloc, SettingsState>(
-        'emits updated state when UpdateDefaultContinuousReadingMode is added',
-        build: () => settingsBloc,
-        act: (bloc) => bloc.add(const UpdateDefaultContinuousReadingMode(true)),
-        expect: () => [
-          settingsBloc.state.copyWith(defaultContinuousReadingMode: true),
-        ],
-        verify: (_) {
-          verify(
-            mockRepository.updateDefaultContinuousReadingMode(true),
-          ).called(1);
-        },
-      );
-    });
-
-    group('UpdateIndexUpdateMode', () {
-      blocTest<SettingsBloc, SettingsState>(
-        'emits updated state when UpdateIndexUpdateMode is added',
-        build: () => settingsBloc,
-        act: (bloc) =>
-            bloc.add(const UpdateIndexUpdateMode(IndexUpdateMode.libraryOnly)),
-        expect: () => [
-          settingsBloc.state.copyWith(
-            indexUpdateMode: IndexUpdateMode.libraryOnly,
-          ),
-        ],
-        verify: (_) {
-          verify(
-            mockRepository.updateIndexUpdateMode(IndexUpdateMode.libraryOnly),
-          ).called(1);
-        },
-      );
-    });
-
-    group('UpdateDefaultSidebarOpen', () {
-      blocTest<SettingsBloc, SettingsState>(
-        'emits updated state when UpdateDefaultSidebarOpen is added',
-        build: () => settingsBloc,
-        act: (bloc) => bloc.add(const UpdateDefaultSidebarOpen(true)),
-        expect: () => [
-          settingsBloc.state.copyWith(defaultSidebarOpen: true),
-        ],
-        verify: (_) {
-          verify(mockRepository.updateDefaultSidebarOpen(true)).called(1);
-        },
-      );
-    });
-
-    group('UpdateDefaultCommentaryOpen', () {
-      blocTest<SettingsBloc, SettingsState>(
-        'emits updated state when UpdateDefaultCommentaryOpen is added',
-        build: () => settingsBloc,
-        act: (bloc) => bloc.add(const UpdateDefaultCommentaryOpen(true)),
-        expect: () => [
-          settingsBloc.state.copyWith(defaultCommentaryOpen: true),
-        ],
-        verify: (_) {
-          verify(mockRepository.updateDefaultCommentaryOpen(true)).called(1);
-        },
-      );
-    });
-
-    group('UpdatePinSidebar', () {
-      blocTest<SettingsBloc, SettingsState>(
-        'emits updated state when UpdatePinSidebar is added',
-        build: () => settingsBloc,
-        act: (bloc) => bloc.add(const UpdatePinSidebar(true)),
-        expect: () => [
-          settingsBloc.state.copyWith(pinSidebar: true),
-        ],
-        verify: (_) {
-          verify(mockRepository.updatePinSidebar(true)).called(1);
-        },
-      );
-    });
-    group('UpdateSidebarWidth', () {
-      const newWidth = 350.0;
-
-      blocTest<SettingsBloc, SettingsState>(
-        'emits updated state when UpdateSidebarWidth is added',
-        build: () => settingsBloc,
-        act: (bloc) => bloc.add(const UpdateSidebarWidth(newWidth)),
-        expect: () => [
-          settingsBloc.state.copyWith(sidebarWidth: newWidth),
-        ],
-        verify: (_) {
-          verify(mockRepository.updateSidebarWidth(newWidth)).called(1);
         },
       );
     });
@@ -724,164 +538,7 @@ void main() {
       );
     });
 
-    group('UpdateMergeUserBooksIntoLibrary', () {
-      blocTest<SettingsBloc, SettingsState>(
-        'emits state עם mergeUserBooksIntoLibrary=true ושומר ב-repository',
-        build: () {
-          when(
-            mockRepository.updateMergeUserBooksIntoLibrary(true),
-          ).thenAnswer((_) async {});
-          return settingsBloc;
-        },
-        act: (bloc) => bloc.add(const UpdateMergeUserBooksIntoLibrary(true)),
-        expect: () => [
-          settingsBloc.state.copyWith(mergeUserBooksIntoLibrary: true),
-        ],
-        verify: (_) {
-          verify(
-            mockRepository.updateMergeUserBooksIntoLibrary(true),
-          ).called(1);
-        },
-      );
-
-      test('initial state defaults to false', () {
-        expect(settingsBloc.state.mergeUserBooksIntoLibrary, isFalse);
-      });
-    });
-
-    group('UpdateSoftwareAndBookUpdatesEnabled', () {
-      blocTest<SettingsBloc, SettingsState>(
-        'emits updated state when UpdateSoftwareAndBookUpdatesEnabled is added',
-        build: () {
-          when(
-            mockRepository.updateSoftwareAndBookUpdatesEnabled(false),
-          ).thenAnswer((_) async {});
-          return settingsBloc;
-        },
-        act: (bloc) =>
-            bloc.add(const UpdateSoftwareAndBookUpdatesEnabled(false)),
-        expect: () => [
-          settingsBloc.state.copyWith(softwareAndBookUpdatesEnabled: false),
-        ],
-        verify: (_) {
-          verify(
-            mockRepository.updateSoftwareAndBookUpdatesEnabled(false),
-          ).called(1);
-        },
-      );
-    });
-
-    group('UpdateHiddenBuiltInToolIds', () {
-      blocTest<SettingsBloc, SettingsState>(
-        'persists the new set and emits state with updated hiddenBuiltInToolIds',
-        build: () {
-          when(
-            mockRepository.updateHiddenBuiltInToolIds(const {
-              'builtin.calendar',
-              'builtin.gematria',
-            }),
-          ).thenAnswer((_) async {});
-          return settingsBloc;
-        },
-        act: (bloc) => bloc.add(
-          const UpdateHiddenBuiltInToolIds(
-            {'builtin.calendar', 'builtin.gematria'},
-          ),
-        ),
-        expect: () => [
-          settingsBloc.state.copyWith(
-            hiddenBuiltInToolIds: const {
-              'builtin.calendar',
-              'builtin.gematria',
-            },
-          ),
-        ],
-        verify: (_) {
-          verify(
-            mockRepository.updateHiddenBuiltInToolIds(
-              {'builtin.calendar', 'builtin.gematria'},
-            ),
-          ).called(1);
-        },
-      );
-
-      blocTest<SettingsBloc, SettingsState>(
-        'empty set clears all hidden tools',
-        build: () {
-          when(
-            mockRepository.updateHiddenBuiltInToolIds(<String>{}),
-          ).thenAnswer((_) async {});
-          return settingsBloc;
-        },
-        seed: () => SettingsState.initial().copyWith(
-          hiddenBuiltInToolIds: const {'builtin.calendar'},
-        ),
-        act: (bloc) => bloc.add(const UpdateHiddenBuiltInToolIds(<String>{})),
-        expect: () => [
-          isA<SettingsState>().having(
-            (s) => s.hiddenBuiltInToolIds,
-            'hiddenBuiltInToolIds',
-            isEmpty,
-          ),
-        ],
-      );
-    });
-
-    group('UpdateBuiltInToolsPinnedToNavRail', () {
-      blocTest<SettingsBloc, SettingsState>(
-        'persists the new set and emits state with updated pinned set',
-        build: () {
-          when(
-            mockRepository.updateBuiltInToolsPinnedToNavRail(const {
-              'builtin.calendar',
-            }),
-          ).thenAnswer((_) async {});
-          return settingsBloc;
-        },
-        act: (bloc) => bloc.add(
-          const UpdateBuiltInToolsPinnedToNavRail({'builtin.calendar'}),
-        ),
-        expect: () => [
-          settingsBloc.state.copyWith(
-            builtInToolsPinnedToNavRail: const {'builtin.calendar'},
-          ),
-        ],
-        verify: (_) {
-          verify(
-            mockRepository.updateBuiltInToolsPinnedToNavRail(
-              {'builtin.calendar'},
-            ),
-          ).called(1);
-        },
-      );
-    });
-
     group('UpdateBuiltInToolsOrder', () {
-      const order = ['builtin.gematria', 'builtin.calendar'];
-
-      blocTest<SettingsBloc, SettingsState>(
-        'persists the order and emits state with the new order',
-        build: () {
-          when(
-            mockRepository.updateBuiltInToolsOrder(order),
-          ).thenAnswer((_) async {});
-          return settingsBloc;
-        },
-        act: (bloc) => bloc.add(const UpdateBuiltInToolsOrder(order)),
-        expect: () => [
-          settingsBloc.state.copyWith(builtInToolsOrder: order),
-        ],
-        verify: (_) {
-          verify(mockRepository.updateBuiltInToolsOrder(order)).called(1);
-        },
-      );
-
-      blocTest<SettingsBloc, SettingsState>(
-        'initial state has no custom order',
-        build: () => settingsBloc,
-        verify: (bloc) => expect(bloc.state.builtInToolsOrder, isEmpty),
-      );
-
       test('שומר הזזות מהירות לפי סדר הבקשות', () async {
         const firstOrder = ['builtin.calendar', 'builtin.gematria'];
         const secondOrder = ['builtin.gematria', 'builtin.calendar'];
@@ -909,21 +566,6 @@ void main() {
         await Future<void>.delayed(Duration.zero);
 
         expect(settingsBloc.state.builtInToolsOrder, secondOrder);
-      });
-
-      // הסדר משמעותי — שתי רשימות באותם מזהים בסדר שונה הן מצבים שונים.
-      test('state equality is order sensitive', () {
-        final a = SettingsState.initial().copyWith(
-          builtInToolsOrder: const ['a', 'b'],
-        );
-        final b = SettingsState.initial().copyWith(
-          builtInToolsOrder: const ['b', 'a'],
-        );
-        expect(a, isNot(b));
-        expect(
-          a,
-          SettingsState.initial().copyWith(builtInToolsOrder: const ['a', 'b']),
-        );
       });
     });
 

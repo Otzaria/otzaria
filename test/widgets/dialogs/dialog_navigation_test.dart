@@ -4,8 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 
 void main() {
-  group('ConfirmationDialog Tests', () {
-    testWidgets('ConfirmationDialog shows title and content', (
+  group('showConfirmationDialog Tests', () {
+    testWidgets('showConfirmationDialog shows title and content', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(

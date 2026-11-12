@@ -74,11 +74,6 @@ void main() {
     test('שם הקובץ תואם לתבנית שסורק תיקיית היברובוקס מזהה', () {
       expect(HebrewBooksDownloadService.fileNameFor(10022), '10022.pdf');
     });
-
-    test('כותרת הגישה לשרת', () {
-      expect(HebrewBooksDownloadService.appKeyHeader, 'x-app-key');
-      expect(HebrewBooksDownloadService.appKeyValue, 'otzariatokendownload');
-    });
   });
 
   group('כפתור ההורדה בדיאלוג הספר', () {

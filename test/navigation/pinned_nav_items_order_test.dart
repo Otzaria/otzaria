@@ -1,4 +1,3 @@
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
@@ -112,15 +111,5 @@ void main() {
       ),
       ['builtin.gematria'],
     );
-  });
-
-  // אם האייקון היה נעלם מהפריט, ה-assert בבנייה היה נופל — הבדיקה מוודאת
-  // שכלי עם לוגו (שמור וזכור) עובר את המסלול בשלום.
-  test('כלי עם נכס תמונה במקום אייקון נבנה בלי לזרוק', () {
-    expect(
-      _pinned(pinnedBuiltIns: const {'builtin.shamor_zachor'}),
-      ['builtin.shamor_zachor'],
-    );
-    expect(FluentIcons.apps_24_regular, isNotNull);
   });
 }

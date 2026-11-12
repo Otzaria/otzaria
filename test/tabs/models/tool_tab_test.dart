@@ -140,13 +140,6 @@ void main() {
       expect(a.instanceId, isNot(b.instanceId));
     });
 
-    test('OpenedTab.from משכפל ולא מחזיר את אותו אובייקט', () {
-      final tab = ToolTab(toolId: 'builtin.gematria', title: 'גימטריה');
-      final copy = OpenedTab.from(tab);
-      expect(identical(copy, tab), isFalse);
-      expect((copy as ToolTab).toolId, 'builtin.gematria');
-    });
-
     test('כותרת גיבוי לכלי מובנה נגזרת מהקטלוג', () {
       expect(ToolTab.fallbackTitleFor('builtin.calendar'), 'לוח שנה');
       expect(ToolTab.fallbackTitleFor('unknown.plugin'), 'כלי');

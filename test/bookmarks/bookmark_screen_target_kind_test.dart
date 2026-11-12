@@ -30,7 +30,7 @@ class _StubBookmarkBloc extends Cubit<BookmarkState> implements BookmarkBloc {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-/// אוסף את ה-events ש-_BookmarkView שולח כדי שנוכל לוודא את סוג ה-Tab שנפתח.
+/// אוסף את ה-events ש-BookmarkView שולח כדי שנוכל לוודא את סוג ה-Tab שנפתח.
 class _CapturingTabsBloc extends Cubit<TabsState> implements TabsBloc {
   _CapturingTabsBloc() : super(const TabsState(tabs: [], currentTabIndex: 0));
 

@@ -560,7 +560,7 @@ void main() {
 
     for (final specificBooks in [false, true]) {
       test('כשל בניקוי אצווה משליך את כל החוצץ ועוצר '
-          '(${specificBooks ? 'indexBooks' : 'indexAllBooks'})', () async {
+          '(${specificBooks ? 'runIndexing' : 'indexAllBooks'})', () async {
         final previous = TextBook(
           id: 9,
           title: 'קודם',
@@ -670,7 +670,7 @@ void main() {
       expect(jsonDecode(file.readAsStringSync()), isEmpty);
     });
 
-    test('indexBooks משתמש באותה אצווה', () async {
+    test('runIndexing עם רשימת ספרים משתמש באותה אצווה', () async {
       final books = officialBooks(2);
 
       final result = await repository.runIndexing(

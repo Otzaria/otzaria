@@ -55,6 +55,7 @@ import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/plugins/services/plugin_network_access_resolver.dart';
 import 'package:otzaria/plugins/services/plugin_page_launcher.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
+import 'package:otzaria/plugins/services/plugin_webview_runtime.dart';
 import 'package:otzaria/plugins/services/plugin_file_download_service.dart';
 import 'package:otzaria/plugins/services/plugin_fs_service.dart';
 import 'package:otzaria/plugins/services/plugin_file_server.dart';
@@ -1055,16 +1056,6 @@ Future<void> main() async {
 
         expect(response['isOfflineMode'], isTrue);
         expect(response['isOnline'], isFalse);
-      });
-
-      test('אינו מחזיר null — התוסף מקבל תשובה ודאית', () async {
-        useService(offline: false, reachable: true);
-
-        final response =
-            await adapter.execute('app', 'getConnectivity', {})
-                as Map<String, Object?>;
-
-        expect(response.values.every((v) => v != null), isTrue);
       });
 
       test('קריאות חוזרות אינן פותחות בדיקת רשת נוספת', () async {
@@ -2390,6 +2381,263 @@ Future<void> main() async {
       });
 
       expect(result, '');
+    });
+
+    group('טעינת ספר שלם בקריאות מקבילות', () {
+      late _CountingTextBookRepository repository;
+      late List<TextBook> books;
+      late PluginBridgeAdapter bookAdapter;
+
+      PluginBridgeAdapter buildAdapter(
+        TextBookRepository textBooks, {
+        String instanceId = PluginInstanceIds.defaultForeground,
+        Future<BookProtection> Function(Book)? checkProtection,
+      }) {
+        final adapter = PluginBridgeAdapter(
+          _buildInstalledPlugin(permissions: const ['library.read']),
+          instanceId: instanceId,
+          dependencies: PluginBridgeDependencies(
+            historyBloc: _MockHistoryBloc(),
+            tabsBloc: _StubTabsBloc(),
+            navigationBloc: _MockNavigationBloc(),
+            calendarCubit: _StubCalendarCubit(
+              _buildCalendarState(DateTime(2026, 1, 1), inIsrael: true),
+            ),
+            workspaceBloc: _MockWorkspaceBloc(),
+            searchRepository: _MockSearchRepository(),
+            personalNotesRepository: _MockPersonalNotesRepository(),
+            bookOpenCoordinator: _MockBookOpenCoordinator(),
+            themePayloadBuilder: () => <String, dynamic>{},
+            showConfirmDialog: ({required title, required content}) async =>
+                true,
+            showWarningDialog:
+                ({required title, required content, required subtitle}) async =>
+                    true,
+            bookProtectionResolver:
+                checkProtection ?? ((_) async => BookProtection.none),
+            textBookRepository: textBooks,
+          ),
+          pluginRepository: _StubPluginRegistryRepository(),
+        );
+        addTearDown(adapter.dispose);
+        return adapter;
+      }
+
+      setUp(() {
+        books = [
+          for (var i = 0; i < 7; i++)
+            TextBook(title: 'ספר מקביל $i', categoryId: 700, fileType: 'txt'),
+        ];
+        DataRepository.instance.library = Future.value(
+          Library(
+            categories: [
+              Category(
+                title: 'מקביל',
+                description: '',
+                shortDescription: '',
+                order: 0,
+                subCategories: const [],
+                books: books,
+                parent: null,
+              ),
+            ],
+          ),
+        );
+        repository = _CountingTextBookRepository();
+        bookAdapter = buildAdapter(repository);
+      });
+
+      Future<String> load(
+        TextBook book, {
+        int offset = 0,
+        int limit = 1000,
+        PluginBridgeAdapter? adapter,
+      }) async =>
+          (await (adapter ?? bookAdapter).execute(
+                'library',
+                'getBookContent',
+                {
+                  'bookId': book.title,
+                  'offset': offset,
+                  'limit': limit,
+                  'rawDivineNames': true,
+                },
+              ))
+              as String;
+
+      test('ספרים אחרים אינם דוחקים טעינה פעילה של אותו ספר', () async {
+        final gate = Completer<void>();
+        addTearDown(() {
+          if (!gate.isCompleted) gate.complete();
+        });
+        for (final book in books) {
+          repository.gates[book.title] = gate.future;
+        }
+        final reads = [for (final book in books) load(book)];
+        final chunks = [
+          for (var offset = 0; offset < 20; offset++)
+            load(books.first, offset: offset, limit: 1),
+        ];
+        await pumpEventQueue();
+        gate.complete();
+
+        expect(await Future.wait(reads), [
+          for (final book in books) 'תוכן של ${book.title}',
+        ]);
+        expect((await Future.wait(chunks)).join(), 'תוכן של ספר מקביל 0');
+        expect(repository.loads, books.length);
+      });
+
+      test('בקשה מהירה מתחילה גם כשארבע טעינות אחרות ממתינות', () async {
+        final gate = Completer<void>();
+        final blocked = books.take(4);
+        for (final book in blocked) {
+          repository.gates[book.title] = gate.future;
+        }
+        final pending = [for (final book in blocked) load(book)];
+        await pumpEventQueue();
+        String? fastResult;
+        final fast = load(books.last).then((result) => fastResult = result);
+        try {
+          await pumpEventQueue();
+          expect(repository.loads, 5);
+          expect(fastResult, 'תוכן של ${books.last.title}');
+        } finally {
+          gate.complete();
+          await Future.wait([...pending, fast]);
+        }
+      });
+
+      test('טעינה משותפת שנכשלה ניתנת לניסיון חוזר', () async {
+        final book = books.first;
+        final gate = Completer<void>();
+        repository.gates[book.title] = gate.future;
+        repository.failures = 1;
+        final failed = [
+          expectLater(load(book), throwsStateError),
+          expectLater(load(book), throwsStateError),
+        ];
+        await pumpEventQueue();
+        gate.complete();
+        await Future.wait(failed);
+
+        expect(repository.loads, 1);
+        expect(await load(book), 'תוכן של ${book.title}');
+        expect(repository.loads, 2);
+      });
+
+      test('כל מופע של התוסף מנהל טעינות משלו', () async {
+        final book = books.first;
+        final gate = Completer<void>();
+        final otherRepository = _CountingTextBookRepository();
+        final other = buildAdapter(otherRepository, instanceId: 'second');
+        repository.gates[book.title] = gate.future;
+        final pending = load(book);
+        await pumpEventQueue();
+        try {
+          expect(await load(book, adapter: other), 'תוכן של ${book.title}');
+          expect(otherRepository.loads, 1);
+        } finally {
+          gate.complete();
+          await pending;
+        }
+      });
+
+      test('טעינה מ-WebView ששוחרר אינה דורסת תוכן של מופע ששוחזר', () async {
+        final book = books.first;
+        final gate = Completer<void>();
+        repository.gates[book.title] = gate.future;
+        repository.contents[book.title] = 'ישן';
+        final old = load(book);
+        await pumpEventQueue();
+
+        bookAdapter.releaseRuntime();
+        repository.gates.remove(book.title);
+        repository.contents[book.title] = 'חדש';
+        final restored = load(book);
+        try {
+          await pumpEventQueue();
+          expect(repository.loads, 2);
+        } finally {
+          gate.complete();
+          await Future.wait([old, restored]);
+        }
+
+        expect(await old, 'ישן');
+        expect(await restored, 'חדש');
+        expect(await load(book), 'חדש');
+        expect(repository.loads, 2);
+      });
+
+      test('תקציב השיתוף כולל בדיקת הרשאה ומאפשר ניסיון חוזר', () async {
+        const preflightTime = Duration(milliseconds: 20);
+        final book = books.first;
+        final gate = Completer<void>();
+        final protectionStarted = Completer<void>();
+        final protection = Completer<BookProtection>();
+        bookAdapter = buildAdapter(
+          repository,
+          checkProtection: (_) {
+            if (!protectionStarted.isCompleted) protectionStarted.complete();
+            return protection.future;
+          },
+        );
+        repository.gates[book.title] = gate.future;
+        repository.contents[book.title] = 'ישן';
+        Duration? sharingBudget;
+        void Function()? expire;
+        final old = runZoned(
+          () => load(book),
+          zoneSpecification: ZoneSpecification(
+            createTimer: (self, parent, zone, duration, callback) {
+              sharingBudget = duration;
+              expire = callback;
+              return parent.createTimer(zone, duration, callback);
+            },
+          ),
+        );
+        Future<String>? retried;
+        try {
+          await protectionStarted.future;
+          await Future<void>.delayed(preflightTime);
+          protection.complete(BookProtection.none);
+          await pumpEventQueue();
+          expect(repository.loads, 1);
+          expect(
+            sharingBudget,
+            lessThanOrEqualTo(kPluginDefaultRpcTimeout - preflightTime),
+          );
+          expire!();
+
+          repository.gates.remove(book.title);
+          repository.contents[book.title] = 'חדש';
+          retried = load(book);
+          await pumpEventQueue();
+          expect(repository.loads, 2);
+        } finally {
+          gate.complete();
+          await Future.wait([old, ?retried]);
+        }
+
+        expect(await old, 'ישן');
+        expect(await retried, 'חדש');
+        expect(await load(book), 'חדש');
+        expect(repository.loads, 2);
+      });
+
+      test('המטמון שומר רק את ארבע הטעינות האחרונות', () async {
+        for (final book in books.take(4)) {
+          await load(book);
+        }
+        await load(books.first);
+        await load(books[4]);
+        expect(repository.loads, 5);
+
+        await load(books.first);
+        expect(repository.loads, 5);
+        await load(books[1]);
+        expect(repository.loads, 6);
+      });
     });
   });
 
@@ -5909,25 +6157,6 @@ Future<void> main() async {
       expect(results[1]['error'], 'forbidden');
       expect(checked, [same(official), same(attached)]);
     });
-
-    test('search.fullText אינו מחזיר id — type תלוי ב-isPdf', () {
-      const result = {
-        'type': 'text',
-        'book': 'בראשית',
-        'text': 'snippet',
-        'index': 42,
-      };
-      expect(result.containsKey('id'), isFalse);
-      expect(result['type'], 'text');
-
-      const pdfResult = {
-        'type': 'pdf',
-        'book': 'ספר PDF',
-        'text': 'snippet',
-        'index': 1,
-      };
-      expect(pdfResult['type'], 'pdf');
-    });
   });
 
   group('PluginBridgeAdapter feedback.report', () {
@@ -7940,6 +8169,25 @@ class _TocTextBook extends TextBook {
   Future<List<TocEntry>> get tableOfContents async => [
     TocEntry(text: 'שם יהוה', index: 0),
   ];
+}
+
+class _CountingTextBookRepository extends Fake implements TextBookRepository {
+  final Map<String, Future<void>> gates = {};
+  final Map<String, String> contents = {};
+  int loads = 0;
+  int failures = 0;
+
+  @override
+  Future<String> getBookContent(TextBook book) async {
+    loads++;
+    final content = contents[book.title] ?? 'תוכן של ${book.title}';
+    await gates[book.title];
+    if (failures > 0) {
+      failures--;
+      throw StateError('read failed');
+    }
+    return content;
+  }
 }
 
 /// תוכן לפי ספר, למהדורות חלופיות שאינן עוברות דרך הספקים.

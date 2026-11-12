@@ -32,6 +32,11 @@ class PdfBookTab extends OpenedTab {
   PdfViewerController pdfViewerController = PdfViewerController();
   final navigationHistory = PdfLocationHistory();
 
+  /// שומר את המיקום הנוכחי לפני קפיצה ומבטל את יעד הקדימה.
+  void rememberLocationForJump() => navigationHistory.remember(
+    PdfReadingLocation.capture(pdfViewerController),
+  );
+
   PdfNoteAnchor? _pendingPersonalNoteAnchor;
   final ValueNotifier<int> _personalNoteNavigationRequests = ValueNotifier(0);
 
@@ -276,6 +281,7 @@ class PdfBookTab extends OpenedTab {
   /// Cleanup when the tab is disposed
   @override
   void dispose() {
+    navigationHistory.dispose();
     _personalNoteNavigationRequests.dispose();
     searchController.dispose();
     outline.dispose();

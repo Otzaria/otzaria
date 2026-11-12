@@ -122,9 +122,9 @@ void main() {
     });
 
     test(
-      'preferUserBooks=true מאתר את הספר ב-user_books.db ולא ב-seforim',
+      'preferSource=user מאתר את הספר ב-user_books.db ולא ב-seforim',
       () async {
-        // אותו שם ספר בשני ה-DBs עם headings שונים. preferUserBooks=true חייב
+        // אותו שם ספר בשני ה-DBs עם headings שונים. preferSource=user חייב
         // לבחור את ה-user_books.
         await insertBookWithToc(
           repo: seforimRepo,
@@ -204,7 +204,7 @@ void main() {
   });
 
   group('PdfHeadings.buildHeadingsMapFromTocEntries', () {
-    test('שומר את ה-lineIndex המינימלי כשיש כפילויות כותרת', () {
+    test('שומר את ה-lineIndex המינימלי לכפילויות ומקצץ רווחים', () {
       final entries = <migration_models.TocEntry>[
         const migration_models.TocEntry(
           bookId: 1,
@@ -220,7 +220,7 @@ void main() {
         ),
         const migration_models.TocEntry(
           bookId: 1,
-          text: 'יחיד',
+          text: '  יחיד  ',
           level: 1,
           lineIndex: 100,
         ),

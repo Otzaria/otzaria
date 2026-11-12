@@ -20,6 +20,7 @@ import 'package:otzaria/plugins/services/plugin_lazy_activation_service.dart';
 import 'package:otzaria/plugins/services/plugin_page_launcher.dart';
 import 'package:otzaria/plugins/services/plugin_restore_state_store.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
+import 'package:otzaria/plugins/services/plugin_webview_runtime.dart';
 import 'package:otzaria/plugins/utils/plugin_safe_mode.dart';
 import 'package:otzaria/plugins/services/plugin_toolbar_registry.dart';
 
@@ -491,24 +492,10 @@ void main() {
   group('registerController / unregisterController', () {
     tearDown(_cleanupControllers);
 
-    test('מעגן controller בלי לקרוס', () {
-      _d.registerController(_kPid, _FakeController());
-      // ניקוי עצמי — אין exception
-      _d.unregisterController(_kPid);
-    });
-
     test('unregister פעמיים הוא no-op', () {
       _d.registerController(_kPid, _FakeController());
       _d.unregisterController(_kPid);
       expect(() => _d.unregisterController(_kPid), returnsNormally);
-    });
-
-    test('foreground ו-background יכולים לדור יחד', () {
-      _d.registerController(_kPid, _FakeController(), instanceId: 'default');
-      _d.registerController(_kPid, _FakeController(), instanceId: 'background');
-      // unregister סלקטיבי — כל אחד בנפרד
-      _d.unregisterController(_kPid, instanceId: 'default');
-      _d.unregisterController(_kPid, instanceId: 'background');
     });
 
     test('ניקוי מופע ישן אינו בעלים של controller חלופי', () {
@@ -993,10 +980,6 @@ void main() {
 
   group('reloadPlugin', () {
     tearDown(_cleanupCallbacks);
-
-    test('ללא callback רשום — לא קורס', () async {
-      await expectLater(_d.reloadPlugin(_kPid), completes);
-    });
 
     test(
       'reload clears stale context-menu items without an active host',

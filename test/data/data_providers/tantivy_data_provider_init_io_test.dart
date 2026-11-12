@@ -18,6 +18,35 @@ Future<void> main() async {
   TestWidgetsFlutterBinding.ensureInitialized();
   final engineReady = await tryInitSearchEngine();
 
+  group('TantivyDataProvider — פרטי כשל פתיחה', () {
+    late Directory root;
+
+    setUp(() => root = Directory.systemTemp.createTempSync('otzaria_open_'));
+    tearDown(() => root.deleteSync(recursive: true));
+
+    test('אבחון כשל אינו נוגע בכונן שכבר נכשל', () {
+      final badIndex = p.join(root.path, 'missing_drive', 'Otzaria', 'index');
+      final spy = _SyncIoSpy(root.path);
+      final details = IOOverrides.runWithIOOverrides(
+        () => TantivyDataProvider.indexOpenFailureDetails(badIndex),
+        spy,
+      );
+
+      expect(details['Phase'], 'open index');
+      expect(details['Index path'], badIndex);
+      expect(spy.unsupported, isEmpty);
+      expect(spy.syncCalls, isEmpty);
+      expect(spy.asyncCalls, isEmpty);
+    });
+
+    test('בלי נתיב אין ניחוש על קיום', () {
+      final details = TantivyDataProvider.indexOpenFailureDetails(null);
+
+      expect(details['Index path exists'], isNull);
+      expect(details['Index parent exists'], isNull);
+    });
+  });
+
   group('TantivyDataProvider — פתיחת המנוע בלי IO סינכרוני', () {
     late Directory root;
     late Directory indexDir;
@@ -72,6 +101,42 @@ Future<void> main() async {
       },
       skip: engineReady ? false : searchEngineSkipReason,
     );
+
+    for (final loggerFails in [false, true]) {
+      test(
+        'כשל פתיחה מדווח ועובר לאינדקס זמני גם כשהלוג נכשל: $loggerFails',
+        () async {
+          final provider = TantivyDataProvider.instance;
+          final blocker = File(p.join(root.path, 'blocker'))
+            ..writeAsStringSync('');
+          final badIndex = p.join(blocker.path, 'index');
+          await Settings.setValue(SettingsRepository.keyIndexPath, badIndex);
+          final original = TantivyDataProvider.openFailureLog;
+          addTearDown(() => TantivyDataProvider.openFailureLog = original);
+          final logged = <(String?, Object, StackTrace?)>[];
+          TantivyDataProvider.openFailureLog = (path, error, stackTrace) {
+            logged.add((path, error, stackTrace));
+            if (loggerFails) throw const FileSystemException('log unavailable');
+          };
+          final spy = _SyncIoSpy(root.path);
+
+          await IOOverrides.runWithIOOverrides(
+            () => provider.reopenIndex(force: true),
+            spy,
+          );
+          await provider.engine;
+
+          expect(logged, hasLength(1));
+          expect(logged.single.$1, badIndex);
+          expect(logged.single.$2, isA<FileSystemException>());
+          expect(logged.single.$3, isNotNull);
+          expect(spy.unsupported, isEmpty);
+          expect(spy.syncCalls, isEmpty);
+          expect(provider.isTempFallback, isTrue);
+        },
+        skip: engineReady ? false : searchEngineSkipReason,
+      );
+    }
   });
 }
 

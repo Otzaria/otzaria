@@ -20,6 +20,7 @@ class AppVirtualWindowFrame extends StatefulWidget {
 class _AppVirtualWindowFrameState extends State<AppVirtualWindowFrame> {
   AppWindowController? _window;
   bool _resizable = true;
+  int _refreshVersion = 0;
 
   @override
   void didChangeDependencies() {
@@ -28,11 +29,14 @@ class _AppVirtualWindowFrameState extends State<AppVirtualWindowFrame> {
     if (identical(window, _window)) return;
     _window?.stateChanges.removeListener(_refresh);
     _window = window..stateChanges.addListener(_refresh);
+    // The next window must not inherit the previous window's resize state.
+    _resizable = true;
     _refresh();
   }
 
   @override
   void dispose() {
+    _refreshVersion++;
     _window?.stateChanges.removeListener(_refresh);
     super.dispose();
   }
@@ -40,9 +44,20 @@ class _AppVirtualWindowFrameState extends State<AppVirtualWindowFrame> {
   Future<void> _refresh() async {
     final window = _window;
     if (window == null) return;
-    final fixed = await window.isMaximized() || await window.isFullScreen();
-    if (mounted && identical(window, _window) && _resizable == fixed) {
-      setState(() => _resizable = !fixed);
+    // An older, slower query can complete after a newer maximize/restore.
+    // Only the latest result may alter resize handles on this window.
+    final version = ++_refreshVersion;
+    try {
+      final fixed = await window.isMaximized() || await window.isFullScreen();
+      if (!mounted ||
+          !identical(window, _window) ||
+          version != _refreshVersion) {
+        return;
+      }
+      if (_resizable == fixed) setState(() => _resizable = !fixed);
+    } catch (_) {
+      // Closing/disposed native windows may reject queries. Retain the last
+      // stable state; the next window notification can refresh it.
     }
   }
 

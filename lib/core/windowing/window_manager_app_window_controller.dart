@@ -96,7 +96,7 @@ final class WindowManagerAppWindowController
       windowManager.setProgressBar(progress);
 }
 
-/// מתרגם את אירועי ה-maximize של `windowManager` ל-[Listenable]; נרשם
+/// מתרגם שינויי מצב תצוגה של `windowManager` ל-[Listenable]; נרשם
 /// ל-singleton רק כל עוד יש מאזינים.
 final class _WindowManagerStateChanges extends ChangeNotifier
     with WindowListener {
@@ -121,4 +121,10 @@ final class _WindowManagerStateChanges extends ChangeNotifier
 
   @override
   void onWindowUnmaximize() => notifyListeners();
+
+  @override
+  void onWindowEnterFullScreen() => notifyListeners();
+
+  @override
+  void onWindowLeaveFullScreen() => notifyListeners();
 }

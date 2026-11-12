@@ -369,7 +369,12 @@ class IndexingRepository {
     await _tantivyDataProvider.engine;
     if (!_tantivyDataProvider.isTempFallback) return false;
     debugPrint('⚠️ המנוע על אינדקס זמני — האינדוקס מושהה כדי לא לאבד עבודה');
-    UiSnack.showError(LibraryMessages.searchIndexOpenFailed);
+    final configuredPath = Settings.isInitialized
+        ? Settings.getValue<String>(SettingsRepository.keyIndexPath)
+        : null;
+    UiSnack.showError(
+      LibraryMessages.searchIndexOpenFailed(configuredPath),
+    );
     return true;
   }
 

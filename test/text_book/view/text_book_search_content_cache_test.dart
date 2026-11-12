@@ -11,7 +11,6 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/models/search_results.dart';
 import 'package:otzaria/text_book/view/text_book_search_screen.dart';
@@ -19,6 +18,7 @@ import 'package:otzaria/text_book/view/text_book_search_screen.dart';
 import '../../support/search_engine_test_init.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 import '../../test_helpers/stub_settings_bloc.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 
 /// חלונית החיפוש בטאב שיורד לרקע: התוצאות נשמרות, ועותק שורות הספר משוחרר.
@@ -51,7 +51,7 @@ Future<void> main() async {
     Future<List<TextSearchResult>> Function(List<String>, String)?
     simpleSearchRunner,
   }) async {
-    final textBookBloc = _TestTextBookBloc(_loadedState());
+    final textBookBloc = StubTextBookBloc(_loadedState());
     final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final focusNode = FocusNode();
 
@@ -350,14 +350,4 @@ TextBookLoaded _loadedState() {
     pinLeftPane: false,
     searchText: '',
   );
-}
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

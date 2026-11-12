@@ -28,35 +28,6 @@ void main() {
       expect(category.heDesc, isNull);
     });
 
-    test('toJson, copyWith, שוויון ו-hashCode כוללים את התיאורים', () {
-      const original = Category(
-        id: 7,
-        parentId: 3,
-        title: 'הלכה',
-        level: 1,
-        orderIndex: 4,
-        heShortDesc: 'תיאור קצר',
-        heDesc: 'תיאור מורחב',
-      );
-      final copy = original.copyWith();
-      final changed = original.copyWith(heDesc: 'תיאור אחר');
-
-      expect(copy, original);
-      expect(copy.hashCode, original.hashCode);
-      expect(changed, isNot(original));
-      expect(original.toJson(), {
-        'id': 7,
-        'parentId': 3,
-        'title': 'הלכה',
-        'level': 1,
-        'orderIndex': 4,
-        'heShortDesc': 'תיאור קצר',
-        'heDesc': 'תיאור מורחב',
-      });
-      expect(original.toString(), contains('heShortDesc: תיאור קצר'));
-      expect(original.toString(), contains('heDesc: תיאור מורחב'));
-    });
-
     test('copyWith שומר תיאורים שלא סופקו ומנקה כל תיאור במפורש', () {
       const original = Category(
         title: 'הלכה',

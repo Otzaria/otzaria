@@ -11,8 +11,6 @@ import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/pdf_headings.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -25,6 +23,7 @@ import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:provider/provider.dart';
 
 import '../helpers/memory_settings_cache.dart';
+import '../test_helpers/stub_personal_notes_bloc.dart';
 import '../test_helpers/stub_settings_bloc.dart';
 
 void main() {
@@ -48,7 +47,7 @@ void main() {
     addTearDown(combined.dispose);
     bloc.emit(TabsState(tabs: [combined], currentTabIndex: 0));
 
-    final rootNotesBloc = _FakePersonalNotesBloc();
+    final rootNotesBloc = StubPersonalNotesBloc();
     addTearDown(rootNotesBloc.close);
 
     await tester.pumpWidget(
@@ -115,17 +114,6 @@ class _FakeHistoryBloc extends Bloc<HistoryEvent, HistoryState>
     implements HistoryBloc {
   _FakeHistoryBloc() : super(HistoryInitial()) {
     on<HistoryEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _FakePersonalNotesBloc
-    extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _FakePersonalNotesBloc() : super(const PersonalNotesState.initial()) {
-    on<PersonalNotesEvent>((_, _) {});
   }
 
   @override

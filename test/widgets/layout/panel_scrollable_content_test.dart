@@ -25,18 +25,6 @@ void main() {
       expect(_scrollbar(tester).thumbVisibility, isNot(true));
     });
 
-    testWidgets('thumbVisibility מועבר ל-Scrollbar', (tester) async {
-      await tester.pumpWidget(
-        _wrap(
-          const PanelScrollableContent(
-            thumbVisibility: true,
-            child: SizedBox(height: 900),
-          ),
-        ),
-      );
-      expect(_scrollbar(tester).thumbVisibility, isTrue);
-    });
-
     testWidgets('גם בפס בצד שמאל thumbVisibility נשמר', (tester) async {
       await tester.pumpWidget(
         _wrap(

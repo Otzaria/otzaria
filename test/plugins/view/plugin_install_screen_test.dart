@@ -174,18 +174,6 @@ void main() {
 
   // ── מבנה ──
 
-  testWidgets('PluginInstallScreen מוצג כ-Dialog', (tester) async {
-    await _openDialog(tester, bloc, _manifest());
-
-    expect(find.byType(Dialog), findsOneWidget);
-  });
-
-  testWidgets('PluginInstallScreen מציג שם תוסף', (tester) async {
-    await _openDialog(tester, bloc, _manifest());
-
-    expect(find.textContaining('תוסף בדיקה'), findsWidgets);
-  });
-
   testWidgets('PluginInstallScreen מציג מחבר וגרסה', (tester) async {
     await _openDialog(tester, bloc, _manifest());
 
