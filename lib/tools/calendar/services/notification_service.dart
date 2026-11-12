@@ -160,10 +160,15 @@ class NotificationService {
       await windowsLibraryPreload();
     }
 
-    await flutterLocalNotificationsPlugin.initialize(
+    final initialized = await flutterLocalNotificationsPlugin.initialize(
       settings: initializationSettings,
       onDidReceiveNotificationResponse: onDidReceiveNotificationResponse,
     );
+    // ב-iOS false פירושו רק שההרשאות נדחו; ב-Windows הרישום עצמו נכשל.
+    if (initialized == false &&
+        defaultTargetPlatform == TargetPlatform.windows) {
+      throw StateError('Windows notification registration failed');
+    }
 
     _isInitialized = true;
 
