@@ -1,0 +1,20 @@
+Building flutter tool... 
+Running pub upgrade... 
+Resolving dependencies...
+Downloading packages...
+Got dependencies.
+{
+  "frameworkVersion": "3.47.7",
+  "channel": "stable",
+  "repositoryUrl": "https://github.com/flutter/flutter.git",
+  "frameworkRevision": "abaf9c523780a608bd46686fd5e53740a07077f8",
+  "frameworkCommitDate": "2026-10-08 09:51:21 -0700",
+  "engineRevision": "deb287481e3ce9468f3434937ced4240a70539ca",
+  "engineCommitDate": "2026-10-07 17:09:12.000Z",
+  "engineContentHash": "d8a2d6c768c334d53e16277f837970ffa1e2de81",
+  "engineBuildDate": "2026-10-07 17:51:44.552",
+  "dartSdkVersion": "3.13.5",
+  "devToolsVersion": "2.60.0",
+  "flutterVersion": "3.47.7",
+  "flutterRoot": "C:\\hostedtoolcache\\windows\\flutter\\stable-3.47.7-x64\\flutter"
+}

@@ -1,0 +1,30 @@
+{
+  "status": "passed",
+  "candidate": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+  "control": "764abeeec8a81a0e081d951261c37dc15dbadec3",
+  "parentTopology": "764abeeec8a81a0e081d951261c37dc15dbadec3 6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+  "controlTree": "10fca460ba42e1f0fd82bc5d09b0d7a02d9b1131",
+  "changedPaths": [
+    "M\tlib/text_book/bloc/text_book_bloc.dart"
+  ],
+  "harnessEntries": [
+    "100644 blob 0aa339d0386e51fbe88503d7bf6e4af5b1679291\ttool/perf_probe/sample_resources.ps1",
+    "100644 blob 3580c99c8ea9b1845e114e90d25de7eeb7cf2efb\ttool/perf_probe/runner.ps1",
+    "100644 blob 3e14e03d1b6522e2275fdb762a77761d9d07b2ba\tintegration_test/support/perf_reader_probe.dart",
+    "100644 blob 460ef0192babe80a3fb7a492350514a70731e0ed\tintegration_test/perf_resource_probe_test.dart",
+    "100644 blob 521b71142ac35be774ab9d34c36fd10c6b1b4796\ttest/helpers/seforim_fixture_db.dart",
+    "100644 blob 71c2a95d5ed3ef98e0fc4dc8928860b2b0ddb8c6\tintegration_test/support/perf_fixture.dart",
+    "100644 blob 83dade6febd4af1761419e2e09564cab82268162\tintegration_test/support/perf_recorder.dart",
+    "100644 blob 9556a752ada371f35bd99396c251ec44efb8ac00\ttool/perf_probe/analyze.dart",
+    "100644 blob e1c10fc630f57b3c9d5fde8516895b6bdb49d5b4\ttool/perf_probe/run_perf_probe.ps1",
+    "100644 blob ea84e60d67ffd4919f9fd4a6d610ee054c16dd5e\ttool/perf_probe/run_reader_comparison.ps1",
+    "100644 blob eab1ce07d4d9dd09f901bac141e44ba2aee3792f\tintegration_test/support/perf_reader_scroll.dart",
+    "100644 blob ed3d0b499719ce873e3c04ad078bd813663f8f99\ttool/perf_probe/src/report.dart",
+    "100644 blob f652e6b48381b89dc8aa3ffd7cad57a67689aa6f\ttool/perf_probe/lockfile_quoting.ps1"
+  ],
+  "harnessSha256": "c704ee4c0b66f60631c186dd44fb08bc0b3809970d04d9b879435a79a2caa214",
+  "candidateBlocBlob": "3fa09b7c039bc7b679361c455f70c07fa4f57c74",
+  "controlBlocBlob": "9d2025dd9762c5861ca4d3cac43241d2ad8a5dfc",
+  "sharedLockfileBlob": "ae77e567df74e683029eb65983e5ee906f8d7ef2",
+  "workflowBlob": "ddba0a9657a6dda449d8118049d7c0b3aba7fef0"
+}

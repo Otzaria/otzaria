@@ -1,0 +1,12 @@
+{
+  "run_id": 43294899743,
+  "run_attempt": 1,
+  "job_id": 131450474161,
+  "source_json_sha256": "df6c2c39569ac4092067fd258abf375276fbcbe611b0ee27f21bd9ac93cf6e89",
+  "decoded_bytes": 392752,
+  "decoded_sha256": "c1141455ad21cf14d116bf6b204930f95a781a130b0733f53958bb447a7ab7d2",
+  "encoding": "UTF-8",
+  "content_transform": "None; complete connector decoded content, original line endings preserved",
+  "signed_url_scan_matches": 0,
+  "unmasked_bearer_scan_matches": 0
+}

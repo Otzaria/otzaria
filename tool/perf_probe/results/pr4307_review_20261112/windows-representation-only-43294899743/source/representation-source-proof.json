@@ -1,0 +1,26 @@
+{
+  "comparison_design": "representation-only",
+  "control_is_single_direct_child": true,
+  "only_changed_product_path": "lib/text_book/bloc/text_book_bloc.dart",
+  "sources": {
+    "flat_control": {
+      "commit": "764abeeec8a81a0e081d951261c37dc15dbadec3",
+      "tree": "10fca460ba42e1f0fd82bc5d09b0d7a02d9b1131",
+      "path": "lib/text_book/bloc/text_book_bloc.dart",
+      "blob": "9d2025dd9762c5861ca4d3cac43241d2ad8a5dfc",
+      "bytes": 124166,
+      "sha256": "a31fa2dbc8b9ac2410775407a45c56862098a5c4f334b4264ab70d31da30a6ee"
+    },
+    "chunked_candidate": {
+      "commit": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+      "tree": "0e646d02ab2408f19f922bf011d7df35a7f6940f",
+      "path": "lib/text_book/bloc/text_book_bloc.dart",
+      "blob": "3fa09b7c039bc7b679361c455f70c07fa4f57c74",
+      "bytes": 124060,
+      "sha256": "73c4de182c83f68a284718a4e5ace0301ceec2b2ac3da2ab2476c1051161c88a"
+    }
+  },
+  "patch_direction": "chunked candidate to flat control",
+  "patch_sha256": "f27487c85a6aa18adc21cba0df2e19cc5f3b3040e38573692042f30ea26b860b",
+  "interpretation": "Integrated representation and update implementations, including immutable snapshot sharing and its effect on flag identity/contentChanges. All common guards, notes changes and harness source are shared."
+}

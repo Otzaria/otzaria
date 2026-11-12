@@ -1,0 +1,135 @@
+{
+  "status": "passed",
+  "sourceCommit": "764abeeec8a81a0e081d951261c37dc15dbadec3",
+  "commands": [
+    {
+      "name": "flutter-version",
+      "command": "flutter",
+      "arguments": [
+        "--version",
+        "--machine"
+      ],
+      "startedAtUtc": "2026-11-12T19:56:33.3781616Z",
+      "exitCode": 0,
+      "endedAtUtc": "2026-11-12T19:56:56.9483206Z"
+    },
+    {
+      "name": "dart-version",
+      "command": "dart",
+      "arguments": [
+        "--version"
+      ],
+      "startedAtUtc": "2026-11-12T19:56:56.9496925Z",
+      "exitCode": 0,
+      "endedAtUtc": "2026-11-12T19:56:56.9623716Z"
+    },
+    {
+      "name": "rust-version",
+      "command": "rustc",
+      "arguments": [
+        "--version"
+      ],
+      "startedAtUtc": "2026-11-12T19:56:56.9625625Z",
+      "exitCode": 0,
+      "endedAtUtc": "2026-11-12T19:56:57.0141136Z"
+    },
+    {
+      "name": "pub-get",
+      "command": "flutter",
+      "arguments": [
+        "pub",
+        "get",
+        "--enforce-lockfile"
+      ],
+      "startedAtUtc": "2026-11-12T19:56:57.0163253Z",
+      "exitCode": 0,
+      "endedAtUtc": "2026-11-12T19:58:43.1856531Z"
+    },
+    {
+      "name": "format",
+      "command": "dart",
+      "arguments": [
+        "format",
+        "--output=none",
+        "--set-exit-if-changed",
+        "lib/text_book/bloc/text_book_bloc.dart"
+      ],
+      "startedAtUtc": "2026-11-12T19:58:43.3319908Z",
+      "exitCode": 0,
+      "endedAtUtc": "2026-11-12T19:58:43.3974160Z"
+    },
+    {
+      "name": "analyze",
+      "command": "flutter",
+      "arguments": [
+        "analyze",
+        "--no-pub"
+      ],
+      "startedAtUtc": "2026-11-12T19:58:43.3976323Z",
+      "exitCode": 0,
+      "endedAtUtc": "2026-11-12T20:00:01.3481163Z"
+    },
+    {
+      "name": "common-tests",
+      "command": "flutter",
+      "arguments": [
+        "test",
+        "--no-pub",
+        "--reporter",
+        "expanded",
+        "--concurrency=2",
+        "test/text_book/models/chunked_list_test.dart",
+        "test/text_book/bloc/background_full_content_loading_test.dart",
+        "test/text_book/bloc/split_pane_warming_test.dart",
+        "test/text_book/bloc/per_book_continuous_initial_load_test.dart",
+        "test/text_book/bloc/continuous_reading_mode_test.dart",
+        "test/text_book/bloc/inline_notes_commentator_test.dart",
+        "test/text_book/utils/reader_content_revision_test.dart",
+        "test/text_book/utils/reading_extent_estimates_test.dart",
+        "test/text_book/utils/reading_segment_cache_test.dart",
+        "test/text_book/utils/inline_notes_utils_test.dart",
+        "test/text_book/view/page_shape/page_shape_notes_column_test.dart",
+        "test/text_book/view/combined_view/continuous_reflow_keeps_place_test.dart",
+        "test/tool/perf_probe/perf_fixture_test.dart",
+        "test/tool/perf_probe/perf_reader_probe_test.dart",
+        "test/tool/perf_probe/perf_reader_scroll_test.dart",
+        "test/tool/perf_probe/perf_recorder_test.dart",
+        "test/tool/perf_probe/report_test.dart",
+        "test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart"
+      ],
+      "startedAtUtc": "2026-11-12T20:00:01.4950744Z",
+      "exitCode": 0,
+      "endedAtUtc": "2026-11-12T20:05:32.8041846Z"
+    }
+  ],
+  "originalTest": "test/text_book/bloc/long_book_snapshot_regression_test.dart",
+  "originalSha256": "9eeea22effd110ba786a64ccb00bebcffa2621997e071ba9616c580ff1c21356",
+  "generatedTest": "test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart",
+  "generatedSha256": "586b42792cabf70f3709f2eabbb6c5507d915c9d0e508af91954133a2e312ed7",
+  "removedUniqueAssertion": "    expect(() => second.content[639] = 'מוטציה', throwsUnsupportedError);\n",
+  "removedOccurrences": 1,
+  "commonTestFiles": [
+    "test/text_book/models/chunked_list_test.dart",
+    "test/text_book/bloc/background_full_content_loading_test.dart",
+    "test/text_book/bloc/split_pane_warming_test.dart",
+    "test/text_book/bloc/per_book_continuous_initial_load_test.dart",
+    "test/text_book/bloc/continuous_reading_mode_test.dart",
+    "test/text_book/bloc/inline_notes_commentator_test.dart",
+    "test/text_book/utils/reader_content_revision_test.dart",
+    "test/text_book/utils/reading_extent_estimates_test.dart",
+    "test/text_book/utils/reading_segment_cache_test.dart",
+    "test/text_book/utils/inline_notes_utils_test.dart",
+    "test/text_book/view/page_shape/page_shape_notes_column_test.dart",
+    "test/text_book/view/combined_view/continuous_reflow_keeps_place_test.dart",
+    "test/tool/perf_probe/perf_fixture_test.dart",
+    "test/tool/perf_probe/perf_reader_probe_test.dart",
+    "test/tool/perf_probe/perf_reader_scroll_test.dart",
+    "test/tool/perf_probe/perf_recorder_test.dart",
+    "test/tool/perf_probe/report_test.dart"
+  ],
+  "generatedSuiteRunsAllRemainingAssertions": true,
+  "originalUnchanged": true,
+  "generatedRemoved": true,
+  "cleanSource": true,
+  "controlBlocSha256": "a31fa2dbc8b9ac2410775407a45c56862098a5c4f334b4264ab70d31da30a6ee"
+}

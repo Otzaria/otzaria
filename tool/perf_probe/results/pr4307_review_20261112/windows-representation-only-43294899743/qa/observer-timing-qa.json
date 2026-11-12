@@ -1,0 +1,155 @@
+{
+  "source_commit": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+  "scope": "Focused read-only review of observer costs and timing boundaries; no protocol changes, tests or measurements.",
+  "sources": [
+    {
+      "path": "integration_test/perf_resource_probe_test.dart",
+      "methods": [
+        "_wait",
+        "_Scenario.counters",
+        "_Scenario.run (warmup_complete)",
+        "_Scenario.waitText"
+      ],
+      "lines": [
+        [
+          398,
+          409
+        ],
+        [
+          432,
+          446
+        ],
+        [
+          501,
+          532
+        ],
+        [
+          602,
+          617
+        ]
+      ]
+    },
+    {
+      "path": "integration_test/support/perf_reader_probe.dart",
+      "methods": [
+        "PerfReaderProbe.snapshot",
+        "PerfReaderProbe.phase",
+        "PerfReaderProbe._read",
+        "readerPipelineMeasurements"
+      ],
+      "lines": [
+        [
+          73,
+          85
+        ],
+        [
+          88,
+          127
+        ],
+        [
+          130,
+          247
+        ],
+        [
+          305,
+          423
+        ]
+      ]
+    },
+    {
+      "path": "integration_test/support/perf_recorder.dart",
+      "methods": [
+        "PerfRecorder.phase",
+        "framesInWindow",
+        "frameBuildEpochUs",
+        "PerfHeapSampler.sample"
+      ],
+      "lines": [
+        [
+          24,
+          50
+        ],
+        [
+          90,
+          197
+        ],
+        [
+          254,
+          341
+        ]
+      ]
+    },
+    {
+      "path": "lib/text_book/bloc/text_book_state.dart",
+      "methods": [
+        "TextBookLoaded.isContentLineLoaded"
+      ],
+      "lines": [
+        [
+          313,
+          318
+        ]
+      ]
+    },
+    {
+      "path": "lib/text_book/models/chunked_list.dart",
+      "methods": [
+        "ChunkedList.operator []"
+      ],
+      "lines": [
+        [
+          35,
+          39
+        ]
+      ]
+    },
+    {
+      "path": "lib/core/diagnostics/smart_text_render_stats.dart",
+      "methods": [
+        "SmartTextRenderStats.startMicros",
+        "fullPathHtml",
+        "takeAndReset",
+        "reset"
+      ]
+    }
+  ],
+  "warmup_complete": {
+    "measured_quantity": "Remaining wait after preceding actions and recorder work, including readiness-observer cost; not total product warmup time since opening.",
+    "observer": "loadedPrefix monotonically scans every loaded logical line through isContentLineLoaded. The first unloaded flag can be reread on each 16 ms poll.",
+    "representation_dependency": "isContentLineLoaded calls flags[index]; ChunkedList adds bounds checking and a chunk-map lookup. Identical observer code therefore does not imply identical cost.",
+    "initial_ready_case": "If all content is already loaded and pendingReads is zero at entry, this phase can largely measure the readiness scan and observer overhead.",
+    "raw_diagnostic": "details.loadedPrefixAtFirstCheck shows how much was ready at the first check, not scan duration. No separate scan timer is recorded.",
+    "warning": "Do not attribute a warmup_complete difference directly to loading speed or subtract an estimated scan cost from it."
+  },
+  "snapshot": {
+    "fields": "requestsStarted, pendingReads, content.length, content/flags runtime types, contentVersion; selects the last nonclosed tracked reader.",
+    "does_not_do": "No content or flag element scan, list copy, loaded-line count, or whole-book snapshot.",
+    "boundaries": "For ordinary book phases, recorder countersBefore/countersAfter call snapshot outside the Stopwatch; the reader wrapper's before/after snapshots are inside it."
+  },
+  "timing_boundaries": {
+    "durationMs_inside": [
+      "The action itself, including _wait readiness predicates, 16 ms waits and tester.pump.",
+      "Reader before snapshot, SmartText reset, timeline markers, no-content-I/O checks, SmartText takeAndReset and reader after snapshot.",
+      "Active profiling work during the action: SmartText counters/classification, timeline instrumentation, RSS timer and delivered frame callbacks."
+    ],
+    "durationMs_outside": [
+      "heapBefore and recorder countersBefore; initial RSS read/timer construction.",
+      "verifyAction, final RSS read and recorder countersAfter.",
+      "The profile 250 ms frame-delivery drain (release uses 1200 ms), heapAfter, JSON journal encoding/writing/flush.",
+      "Trace setup/retrieval around recorder.phase, trace serialization/file write and pipeline postprocessing."
+    ],
+    "frames": "Engine build/raster/total durations for frames whose build-start wall time is in [startUs,endUs). Preparations before that interval are excluded by attribution. A frame may finish after the Stopwatch stops; its full duration is still reported if delivered during collection. The drain is not added to action latency.",
+    "layout_paint": "Pipeline totals use the narrower reader timeline window: after before-snapshot/SmartText reset, and before takeAndReset/after-snapshot. Only complete LAYOUT/PAINT intervals inside it are included, unioned per thread. They are not additive with latency, repository waits or FrameTiming.",
+    "repository_reads": "durationUs encloses await repository.action; wrapper record construction is outside that individual read timer but can occur inside action latency. The read duration includes queueing, decoding, IPC and scheduling; it is not physical-disk time.",
+    "memory": "Heap/RSS observe the instrumented process, including probe/trace/frame allocations. Heap sampling is outside action latency and does not force GC; it is not isolated retained product memory."
+  },
+  "interpretation_limits": [
+    "Observer costs were not measured separately; no overhead magnitude or correction factor is established.",
+    "The warmup scan is a direct representation-dependent observer. Open/jump waitText predicates also read one flag and one content item per poll, rather than scanning the whole book.",
+    "SmartText diagnostics can add work proportional to render/HTML activity. Equal instrumentation can amplify different amounts of product work; results remain measurements of the instrumented profile build.",
+    "Excluded recorder/trace/heap work still creates gaps between actions during which background loading may advance or be perturbed. Summing phase latencies is not end-to-end elapsed user-flow time.",
+    "Frame timings are not instrumentation-free and do not establish physical-GPU/FPS performance. Attribution is by build start, not proof that every part of a frame lies inside the action or that every engine frame was delivered."
+  ],
+  "code_changed": false,
+  "tests_run": false
+}

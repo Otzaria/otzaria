@@ -1,0 +1,143 @@
+{
+  "runId": 43294899743,
+  "attempt": 1,
+  "comparisonDesign": "representation-only",
+  "artifactId": 13985155278,
+  "artifactRoot": "/workspace/scratch/03d201536b5d/isolated4307-run43294899743/extracted-attempt1-artifact13985155278",
+  "reviewedQa": "/workspace/scratch/03d201536b5d/measure4307/results/representation-43294899743-attempt1-initial/windows-representation-only-43294899743-1-qa.json",
+  "initialQaEqualsReviewedQa": true,
+  "initialQaUnmodified": true,
+  "metricQaSourceChangedDuringThisRun": false,
+  "diagnosticTraceList": "/workspace/scratch/03d201536b5d/measure4307/results/representation-43294899743-attempt1-initial/windows-representation-only-43294899743-1-diagnostic-trace-paths.json",
+  "diagnosticTraceCount": 13,
+  "reviewNotes": [
+    "Initial metric QA has 0 errors and 44 explicit warnings; no correction or rerun was needed.",
+    "The source-validation first pass records raw CRLF workflow blob difference; source-validation-qa-reviewed.json establishes exact LF-normalized equality while preserving raw bytes.",
+    "All 21 required actions and all 672 measured observations are retained; no cross-run pooling.",
+    "All 848 trace audits require the complete original ZIP; selected diagnostic traces are not a sample filter.",
+    "Figure was visually inspected by analyst and sent to root for final visual review.",
+    "Independent analyst recommendation remains unchanged in interpretation JSON; root makes the final PR-state decision separately."
+  ],
+  "files": [
+    {
+      "path": "/workspace/scratch/03d201536b5d/measure4307/repro/qa_windows_reader.py",
+      "relativeToMeasure": "repro/qa_windows_reader.py",
+      "bytes": 54028,
+      "sha256": "171e7a08ca0f16624f4abfa6b8efcc6066259787a59c539d766e1668a88ab6f9"
+    },
+    {
+      "path": "/workspace/scratch/03d201536b5d/measure4307/repro/windows-qa-input-contract.json",
+      "relativeToMeasure": "repro/windows-qa-input-contract.json",
+      "bytes": 5558,
+      "sha256": "e6e6826fc41275ede223ad3e3cc505a1cfa302914cb07340441a0aa41e838c7e"
+    },
+    {
+      "path": "/workspace/scratch/03d201536b5d/measure4307/repro/summarize_windows_reader.py",
+      "relativeToMeasure": "repro/summarize_windows_reader.py",
+      "bytes": 11547,
+      "sha256": "4c4cced12735ecf104825b3f32df1836975dff053bffb8a680f99d1da4938794"
+    },
+    {
+      "path": "/workspace/scratch/03d201536b5d/measure4307/repro/summarize_windows_memory.py",
+      "relativeToMeasure": "repro/summarize_windows_memory.py",
+      "bytes": 9564,
+      "sha256": "4218ef69d99e36251b3ba6338712d2f1e36167b10aed72c3c6f76e4363f87e4f"
+    },
+    {
+      "path": "/workspace/scratch/03d201536b5d/measure4307/repro/plot_reader_process_samples.py",
+      "relativeToMeasure": "repro/plot_reader_process_samples.py",
+      "bytes": 7611,
+      "sha256": "045769fbef9f1d9ccda89ae43c2c6a54a6e71d14377bd504f7ae33f50dba2b06"
+    },
+    {
+      "path": "/workspace/scratch/03d201536b5d/measure4307/repro/run_representation_43294899743.py",
+      "relativeToMeasure": "repro/run_representation_43294899743.py",
+      "bytes": 6543,
+      "sha256": "f3d529f2dea68416005b30e88d010e263dd56918d9f29df08d9136beddc14195"
+    },
+    {
+      "path": "/workspace/scratch/03d201536b5d/measure4307/repro/representation-43294899743-input-contract.json",
+      "relativeToMeasure": "repro/representation-43294899743-input-contract.json",
+      "bytes": 4485,
+      "sha256": "97de023dc3efa5217f9e3adbfa2c2978ae59b08b640f92821ce84708ad344a2b"
+    },
+    {
+      "path": "/workspace/scratch/03d201536b5d/measure4307/results/observer-timing-qa.json",
+      "relativeToMeasure": "results/observer-timing-qa.json",
+      "bytes": 6650,
+      "sha256": "dda35b2cf8d030984f502a2447d9eb5f93b4b642968d783d25d03c5be442754a"
+    },
+    {
+      "path": "/workspace/scratch/03d201536b5d/measure4307/results/representation-43294899743-attempt1-initial/representation-only-43294899743-long-latency.json",
+      "relativeToMeasure": "results/representation-43294899743-attempt1-initial/representation-only-43294899743-long-latency.json",
+      "bytes": 13548,
+      "sha256": "332b18d2951fa16633bdedfb4d0c1167262b7337bade5cbd49f8a251d8f55390"
+    },
+    {
+      "path": "/workspace/scratch/03d201536b5d/measure4307/results/representation-43294899743-attempt1-initial/representation-only-43294899743-long-latency.png",
+      "relativeToMeasure": "results/representation-43294899743-attempt1-initial/representation-only-43294899743-long-latency.png",
+      "bytes": 210400,
+      "sha256": "90aa1df056c95296353aa1f652e72d85b1f773aa651dd9ec3710034645c5a0c6"
+    },
+    {
+      "path": "/workspace/scratch/03d201536b5d/measure4307/results/representation-43294899743-attempt1-initial/source-validation-qa-reviewed.json",
+      "relativeToMeasure": "results/representation-43294899743-attempt1-initial/source-validation-qa-reviewed.json",
+      "bytes": 3601,
+      "sha256": "a9bfefdd22861e67221632a6854f344d7e4895acfb2945f369aa4302cc74ae60"
+    },
+    {
+      "path": "/workspace/scratch/03d201536b5d/measure4307/results/representation-43294899743-attempt1-initial/source-validation-qa.json",
+      "relativeToMeasure": "results/representation-43294899743-attempt1-initial/source-validation-qa.json",
+      "bytes": 1866,
+      "sha256": "08f348dbec2beb6a4b9cfdfa4f54d886ad89545071285eea63859aebee76ed3d"
+    },
+    {
+      "path": "/workspace/scratch/03d201536b5d/measure4307/results/representation-43294899743-attempt1-initial/windows-representation-only-43294899743-1-diagnostic-trace-catalog.json",
+      "relativeToMeasure": "results/representation-43294899743-attempt1-initial/windows-representation-only-43294899743-1-diagnostic-trace-catalog.json",
+      "bytes": 6546,
+      "sha256": "18cbded7211c4657af85c43c3971745c5705d6a265825deef96487c679eab6c4"
+    },
+    {
+      "path": "/workspace/scratch/03d201536b5d/measure4307/results/representation-43294899743-attempt1-initial/windows-representation-only-43294899743-1-diagnostic-trace-paths.json",
+      "relativeToMeasure": "results/representation-43294899743-attempt1-initial/windows-representation-only-43294899743-1-diagnostic-trace-paths.json",
+      "bytes": 899,
+      "sha256": "74ff14862878e60aff4db424332ce8d19c07dc449141a423e7cd9453901220df"
+    },
+    {
+      "path": "/workspace/scratch/03d201536b5d/measure4307/results/representation-43294899743-attempt1-initial/windows-representation-only-43294899743-1-diagnostics.json",
+      "relativeToMeasure": "results/representation-43294899743-attempt1-initial/windows-representation-only-43294899743-1-diagnostics.json",
+      "bytes": 3048688,
+      "sha256": "d6545fa69d2c727e4b32a24640cf899d6af2290e14850ab5072231b6fdbfc190"
+    },
+    {
+      "path": "/workspace/scratch/03d201536b5d/measure4307/results/representation-43294899743-attempt1-initial/windows-representation-only-43294899743-1-interpretation.json",
+      "relativeToMeasure": "results/representation-43294899743-attempt1-initial/windows-representation-only-43294899743-1-interpretation.json",
+      "bytes": 103457,
+      "sha256": "3466eb3408d246638ef285f2217f43ae7cd45e9ba122c0de7f35d129983a0e61"
+    },
+    {
+      "path": "/workspace/scratch/03d201536b5d/measure4307/results/representation-43294899743-attempt1-initial/windows-representation-only-43294899743-1-invocation.json",
+      "relativeToMeasure": "results/representation-43294899743-attempt1-initial/windows-representation-only-43294899743-1-invocation.json",
+      "bytes": 2385,
+      "sha256": "e0700297f09c42c6cbf8fd1e2251c42bec25446ae8e9f8ce46ba2ed319145942"
+    },
+    {
+      "path": "/workspace/scratch/03d201536b5d/measure4307/results/representation-43294899743-attempt1-initial/windows-representation-only-43294899743-1-memory.json",
+      "relativeToMeasure": "results/representation-43294899743-attempt1-initial/windows-representation-only-43294899743-1-memory.json",
+      "bytes": 142098,
+      "sha256": "64a15905c1e580ba514a9e9b1254c7fff064f402d3a9b42053e517b89d4688a8"
+    },
+    {
+      "path": "/workspace/scratch/03d201536b5d/measure4307/results/representation-43294899743-attempt1-initial/windows-representation-only-43294899743-1-qa.json",
+      "relativeToMeasure": "results/representation-43294899743-attempt1-initial/windows-representation-only-43294899743-1-qa.json",
+      "bytes": 408893,
+      "sha256": "668b235edefd0151018569398ade230c27a1ca4114c979048b4154b75b1354ba"
+    },
+    {
+      "path": "/workspace/scratch/03d201536b5d/measure4307/results/representation-43294899743-attempt1-initial/windows-representation-only-43294899743-1-summary.json",
+      "relativeToMeasure": "results/representation-43294899743-attempt1-initial/windows-representation-only-43294899743-1-summary.json",
+      "bytes": 518334,
+      "sha256": "d678d645f6b12e95deabcc92981d4844483fef718c90c9b34b225acf2b2e343f"
+    }
+  ]
+}

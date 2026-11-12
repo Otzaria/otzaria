@@ -1,0 +1,5 @@
+Building Windows application...                                 
+LINK : warning LNK4098: defaultlib 'LIBCMT' conflicts with use of other libs; use /NODEFAULTLIB:library [D:\a\_temp\r4307p\worktrees\candidate\build\windows\x64\_deps\sentry-native-build\crashpad_build\handler\crashpad_handler.vcxproj]
+CUSTOMBUILD : warning : Precompiled binaries not available for crate hash 7a06d2e9d03615c0f9964b73eae03da8 (x86_64-pc-windows-msvc_super_native_extensions.dll) [D:\a\_temp\r4307p\worktrees\candidate\build\windows\x64\plugins\super_native_extensions\super_native_extensions_plugin_cargokit.vcxproj]
+Building Windows application...                                   925.5s
+√ Built build\windows\x64\runner\Profile\otzaria.exe

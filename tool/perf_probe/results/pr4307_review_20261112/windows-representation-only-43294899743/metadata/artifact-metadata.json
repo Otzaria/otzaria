@@ -1,0 +1,25 @@
+{
+  "artifact": {
+    "id": 13985155278,
+    "name": "reader-representation-4307-43294899743-1",
+    "size_in_bytes": 58301105,
+    "url": "https://api.github.com/repos/Otzaria/otzaria/actions/artifacts/13985155278",
+    "archive_download_url": "https://api.github.com/repos/Otzaria/otzaria/actions/artifacts/13985155278/zip",
+    "expired": false,
+    "created_at": "2026-11-12T21:10:24Z",
+    "expires_at": "2026-11-26T21:10:14Z",
+    "updated_at": "2026-11-12T21:10:24Z",
+    "digest": "sha256:1a399b2bd288683866aec196f190cc7b2e2ef13609296a103e046199f88ce42b",
+    "workflow_run": {
+      "id": 43294899743,
+      "repository_id": 1000527996,
+      "head_repository_id": 1000527996,
+      "head_branch": "palmoni5/pr4307-isolated-profile-20261112",
+      "head_sha": "951a94a9334e818f2dae1431ab19974b7ced9d3a"
+    }
+  },
+  "run_id": 43294899743,
+  "run_attempt": 1,
+  "job_id": 131450474161,
+  "workflow_head": "951a94a9334e818f2dae1431ab19974b7ced9d3a"
+}

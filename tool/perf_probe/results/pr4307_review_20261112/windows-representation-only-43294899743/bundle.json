@@ -1,0 +1,87 @@
+{
+  "comparison_design": "representation-only",
+  "run_id": 43294899743,
+  "run_attempt": 1,
+  "job_id": 131450474161,
+  "workflow_head": "951a94a9334e818f2dae1431ab19974b7ced9d3a",
+  "run_conclusion": "success",
+  "observation_integrity_qa_completed": true,
+  "performance_decision": "Not made by the packager",
+  "failure_evidence_only": false,
+  "source_proof": "source/representation-source-proof.json",
+  "artifact": {
+    "id": 13985155278,
+    "name": "reader-representation-4307-43294899743-1",
+    "sha256": "1a399b2bd288683866aec196f190cc7b2e2ef13609296a103e046199f88ce42b",
+    "zip_bytes": 58301105,
+    "url": "https://github.com/Otzaria/otzaria/actions/runs/43294899743/artifacts/13985155278",
+    "created_at": "2026-11-12T21:10:24Z",
+    "expires_at": "2026-11-26T21:10:14Z",
+    "member_count": 1030,
+    "uncompressed_bytes": 1161703757,
+    "original_zip": "Preserved separately by owner; not embedded in Git"
+  },
+  "preservation": {
+    "all_non_trace_file_bytes": true,
+    "all_raw_statistical_observations": true,
+    "all_duplicates_and_empty_files_present_in_zip": true,
+    "no_sample_or_outlier_filtering": true,
+    "selected_trace_count": 13,
+    "omitted_trace_count": 835,
+    "all_hashes_and_exact_omissions": "artifact-member-index.json.gz",
+    "trace_replay_limitation": "Auditing every original trace requires the full ZIP. This bundle preserves all phase/resource observations and the explicit diagnostic trace subset.",
+    "source_cleanliness_outputs_absent_from_zip": [
+      "r4307p/baseline-status.txt",
+      "r4307p/baseline-diff.patch",
+      "r4307p/candidate-status.txt",
+      "r4307p/candidate-diff.patch"
+    ],
+    "missing_original_outputs": "Missing files are not synthesized; source cleanliness limitations remain in final QA and full job log.",
+    "private_owner_storage_receipt": "Not included"
+  },
+  "qa": {
+    "final_handoff": true,
+    "reviewed_report": "windows-representation-only-43294899743-1-qa.json",
+    "evidence_status": "partial_evidence",
+    "files": [
+      "observer-timing-qa.json",
+      "plot_reader_process_samples.py",
+      "qa-handoff.json",
+      "qa_windows_reader.py",
+      "representation-43294899743-input-contract.json",
+      "representation-only-43294899743-long-latency.json",
+      "representation-only-43294899743-long-latency.png",
+      "run_representation_43294899743.py",
+      "source-validation-qa-reviewed.json",
+      "source-validation-qa.json",
+      "summarize_windows_memory.py",
+      "summarize_windows_reader.py",
+      "windows-qa-input-contract.json",
+      "windows-representation-only-43294899743-1-diagnostic-trace-catalog.json",
+      "windows-representation-only-43294899743-1-diagnostic-trace-paths.json",
+      "windows-representation-only-43294899743-1-diagnostics.json",
+      "windows-representation-only-43294899743-1-interpretation.json",
+      "windows-representation-only-43294899743-1-invocation.json",
+      "windows-representation-only-43294899743-1-memory.json",
+      "windows-representation-only-43294899743-1-qa.json",
+      "windows-representation-only-43294899743-1-summary.json"
+    ],
+    "errors": 0,
+    "warnings_by_code": {
+      "final_cleanliness_raw_output_absent": 4,
+      "pipeline_unavailable_incomplete_trace": 40
+    },
+    "history": "All supplied original and reviewed QA outputs and source versions are preserved; artifact bytes are unchanged."
+  },
+  "compression": {
+    "format": "gzip",
+    "mtime": 0,
+    "filename": "",
+    "level": 9,
+    "zlib_version": "1.3.2",
+    "zlib_runtime_version": "1.3.2",
+    "proof": "New gzip outputs are decompressed and compared byte-for-byte; staged objects are reused only after source/stored hash checks.",
+    "replay": "Decompress .gz files, remove only final .gz suffix, keep paths. Hashes are in content-manifest.json.gz."
+  },
+  "scope": "Hosted Windows representation/list-update comparison with shared common logic. Physical GPU remains unverified. Whole-PR data is excluded."
+}

@@ -1,0 +1,3454 @@
+import 'package:otzaria/text_book/repository/book_notes_repository.dart';
+import 'package:otzaria/text_book/models/book_notes.dart';
+import 'package:otzaria/text_book/models/chunked_list.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/page_shape_default_commentators.dart';
+import 'package:otzaria/library/hidden/hidden_library_store.dart';
+import 'package:otzaria/library/hidden/hidden_titles.dart';
+import 'dart:async';
+import 'dart:math';
+import 'package:otzaria/core/error_log_file.dart';
+import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
+import 'package:bloc_concurrency/bloc_concurrency.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
+import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
+import 'package:otzaria/models/book_source.dart';
+import 'package:otzaria/models/books.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter/foundation.dart';
+import 'package:otzaria/models/links.dart';
+import 'package:otzaria/models/link_types.dart';
+import 'package:otzaria/services/commentary_service.dart';
+import 'package:otzaria/text_book/bloc/text_book_event.dart';
+import 'package:otzaria/data/repository/text_book_repository.dart';
+import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_display/text_display_exports.dart';
+import 'package:otzaria/book_common/models/commentator_group.dart';
+import 'package:otzaria/utils/text/ref_helper.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart' as text_utils;
+import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
+import 'package:otzaria/search/in_book_search_preferences.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/search_engine_gateway.dart';
+import 'package:otzaria/search/utils/in_book_search_routing.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/settings/services/per_book_settings_service.dart';
+import 'package:otzaria/text_book/utils/per_book_display_settings.dart';
+import 'package:otzaria/book_common/utils/default_commentators.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_selection.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
+import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
+import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
+import 'package:otzaria/text_book/utils/link_processing.dart';
+import 'package:otzaria/text_book/utils/he_categories_enricher.dart';
+import 'package:otzaria/book_common/utils/commentator_group_builder.dart';
+import 'package:otzaria/text_book/utils/inline_notes_utils.dart' as notes;
+import 'package:otzaria/text_book/utils/reading_position.dart';
+import 'package:otzaria/text_book/utils/reading_segments.dart';
+import 'package:otzaria/utils/file/toc_parser.dart';
+import 'package:otzaria/utils/file/markdown_to_otzaria.dart';
+
+class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
+  // השאילתה עצמה רצה ב-Isolate, אבל כל טעינה גוררת פענוח התוצאה, מיזוג
+  // הקישורים ובנייה מחדש של חלונית המפרשים על ה-thread שמצייר. הסף — ולא
+  // גודל החלון — הוא שקובע את התדירות: טעינה כל ~120 שורות במקום כל ~20.
+  /// כמה שורות אחורה נטענות סביב הנראה. חייב להיות ≥ [linksReloadThresholdLines].
+  @visibleForTesting
+  static const int linkLookBehindLines = 150;
+
+  /// כמה שורות קדימה נטענות סביב הנראה. חייב להיות ≥ [linksReloadThresholdLines],
+  /// אחרת שורות בין קצה הכיסוי לנקודת הטעינה יישארו בלי קישורים.
+  @visibleForTesting
+  static const int linkLookAheadLines = 200;
+
+  /// המרחק מקצה החלון הטעון שבו נטענת מנה חדשה. קובע את תדירות הטעינות.
+  @visibleForTesting
+  static const int linksReloadThresholdLines = 120;
+  static const int _initialContentLookBehindLines = 80;
+  static const int _initialContentLookAheadLines = 180;
+  static const int _contentLookBehindLines = 120;
+  static const int _contentLookAheadLines = 260;
+  static const int _contentWarmChunkLines = 640;
+  static const int _warmFlushChunkCount = 8;
+
+  /// ספר קצר מזה לא משוחרר במעבר לרקע — הרווח זניח והשחרור גורר rebuild.
+  static const int _releaseContentMinLines = 2000;
+  static const int _contentReloadThresholdLines = 60;
+
+  static const Duration _visibleIndicesDebounceDuration = Duration(
+    milliseconds: 160,
+  );
+
+  /// קצב מרבי לשידור visibleIndices במצב רציף, שבו כמעט כל פריים משנה את
+  /// השורה הגלויה בפסקה ממוזגת וגורר rebuild שלה. במצב רגיל אין הגבלה.
+  static const Duration _visibleIndicesThrottleInterval = Duration(
+    milliseconds: 100,
+  );
+  static const String _allTargetBookTitlesSignature =
+      '__all_target_book_titles__';
+
+  final TextBookRepository repository;
+  final Future<String?> Function(
+    String title,
+    int currentLine, {
+    int? categoryId,
+    String? fileType,
+    BookSource preferSource,
+  })
+  _quickPreviewLoader;
+
+  /// המיקום הנמדד של הקורא; מקור ה-visibleIndices.
+  final ValueListenable<ReadingPosition?>? readingPosition;
+
+  /// מזהה הקורא לזיכרון הפריסה ([readingLayoutOf]).
+  final Object _readerIdentity = Object();
+
+  final Future<BookProtection> Function(Book book) _protectionLoader;
+  final Future<BookNotes> Function(TextBook book) _bookNotesLoader;
+
+  Timer? _debounceTimer;
+  Timer? _highlightTimer;
+  SearchEngineRequest? _highlightRequest;
+  SearchQuerySemantics _highlightSemantics = SearchQuerySemantics.regular;
+  VoidCallback? _releaseHighlightPattern;
+  int _searchResultRequestId = 0;
+  DateTime? _lastVisibleIndicesDispatchAt;
+  bool _listeningToReadingPosition = false;
+  int? _loadedLinksStart;
+  int? _loadedLinksEnd;
+  String? _loadedLinksBookTitle;
+  String? _loadedLinksTargetBookTitlesSignature;
+  String? _activeLinksTargetBookTitlesSignature;
+  String? _loadedContentBookTitle;
+  List<({int startLine, int endLine})> _loadedContentRanges = const [];
+  List<bool> _loadedContentFlags = const [];
+  int? _loadedContentTotalLines;
+  bool _isLoadingContentRange = false;
+  bool _pendingContentRangeReload = false;
+  bool _isWarmingContentCache = false;
+  String? _cachedPageShapeTargetBookTitlesKey;
+  List<String>? _cachedPageShapeTargetBookTitles;
+  bool _isLoadingLinks = false;
+  ({
+    bool force,
+    Iterable<String>? targetBookTitlesOverride,
+    String? workspaceId,
+  })?
+  _pendingLinksReload;
+  List<int>? _pendingForceLoadIndices;
+  int _linksLoadGeneration = 0;
+
+  /// האם הטאב שמציג את ה-bloc נראה כרגע (ראו [SetTabVisibility]).
+  bool _isTabVisible = true;
+
+  /// האם מותר לחמם את מטמון התוכן ברקע (ראו [SetTabVisibility]).
+  bool _allowBackgroundWarming = true;
+
+  /// true רק אחרי שטעינת-טווחים הוכחה כעובדת לספר. ספרי מסלול preview/קובץ
+  /// אינם ניתנים לשחזור אחרי שחרור — אסור לשחרר את תוכנם.
+  bool _supportsContentRangeLoading = false;
+  bool _awaitingInitialPageShapeVisibleSync = false;
+
+  /// סימון אם המשתמש שינה ידנית את בחירת המפרשים. בשונה מ-`activeCommentators.isEmpty`,
+  /// הדגל הזה מבחין בין "עוד לא נבחר כלום" (false) לבין "המשתמש ריקן את הבחירה
+  /// במכוון" (true) — וכך מונע אוטו-בחירה חוזרת של 'הערות' אחרי שהמשתמש כיבה אותן.
+  bool _userTouchedCommentators = false;
+
+  /// true אחרי שסרקנו את כל ה-content (ApplyFullBookContent) — מאפשר לדלג
+  /// על סריקות עתידיות גם אם 'הערות' לא נוסף ל-availableCommentators.
+  bool _inlineNotesFullScanDone = false;
+  Set<String> _hiddenCommentatorTitlesCache = const {};
+  StreamSubscription<void>? _hiddenSelectionSubscription;
+  int _commentatorsLoadGeneration = 0;
+  int _visibilityRefreshGeneration = 0;
+
+  /// הכשל האחרון שנרשם בטעינת המפרשים, כדי שטעינה חוזרת לא תכפיל רשומה.
+  String? _loggedCommentatorsFailure;
+
+  /// בבדיקות ובהרצת פיתוח לא נרשם, כדי לא לכתוב ל-errors.txt של המפתח.
+  @visibleForTesting
+  static bool logCommentatorsFailuresInDebug = false;
+
+  /// מאפס את הדגלים הספציפיים-לספר. נקרא מ-_onLoadContent כשבלוק עובר
+  /// לטעון ספר חדש (כיום בייצור bloc נוצר חדש לכל תא, אבל הקריאה כאן
+  /// מגינה מפני דליפת state בין ספרים אם זה ישתנה בעתיד).
+  @visibleForTesting
+  void resetInlineNotesStateForNewBook() {
+    _userTouchedCommentators = false;
+    _inlineNotesFullScanDone = false;
+  }
+
+  @visibleForTesting
+  bool get userTouchedCommentatorsForTesting => _userTouchedCommentators;
+
+  @visibleForTesting
+  bool get inlineNotesFullScanDoneForTesting => _inlineNotesFullScanDone;
+
+  // pinpoint highlight ממתין להחלה כשה-bloc יגיע ל-Loaded
+  ({String text, int? sectionIndex})? _pendingPinpoint;
+
+  /// גודל גופן שהגיע (דרך `UpdateFontSize`) לפני שהטעינה הסתיימה. בעליית
+  /// התוכנה ההגדרות נטענות מהר יותר מתוכן הספר, כך שעדכון הגופן עלול להגיע
+  /// בזמן `Loading`. נשמר כאן ויוחל ב-`_onLoadContent` במעבר ל-`Loaded`.
+  double? _pendingFontSize;
+
+  TextBookBloc({
+    required this.repository,
+    Future<String?> Function(
+      String title,
+      int currentLine, {
+      int? categoryId,
+      String? fileType,
+      BookSource preferSource,
+    })?
+    quickPreviewLoader,
+    Future<BookProtection> Function(Book book)? protectionLoader,
+    Future<BookNotes> Function(TextBook book)? bookNotesLoader,
+    required TextBookInitial initialState,
+    this.readingPosition,
+  }) : _quickPreviewLoader =
+           quickPreviewLoader ??
+           SqliteDataProvider.instance.getBookQuickPreview,
+       _protectionLoader =
+           protectionLoader ?? BookProtectionRepository.instance.forBook,
+       _bookNotesLoader = bookNotesLoader ?? _loadBookNotes,
+       super(initialState) {
+    on<LoadContent>(_onLoadContent);
+    on<UpdateResolvedBookId>(_onUpdateResolvedBookId);
+    on<UpdateDivineNames>(_onUpdateDivineNames);
+    on<UpdateFontSize>(_onUpdateFontSize);
+    on<ToggleLeftPane>(_onToggleLeftPane);
+    on<ToggleSplitView>(_onToggleSplitView);
+    on<TogglePageShapeView>(_onTogglePageShapeView);
+    on<UpdateCommentators>(_onUpdateCommentators);
+    on<UpdateLinkTypeFilter>(_onUpdateLinkTypeFilter);
+    on<ApplyDisplayPatch>(_onApplyDisplayPatch);
+    on<ClearDisplayOverrides>(_onClearDisplayOverrides);
+    on<ToggleContinuousReadingMode>(_onToggleContinuousReadingMode);
+    on<UpdateVisibleIndecies>(_onUpdateVisibleIndecies);
+    on<UpdateSelectedIndex>(_onUpdateSelectedIndex);
+    on<HighlightLine>(_onHighlightLine);
+    on<ClearHighlightedLine>(_onClearHighlightedLine);
+    on<ApplyMarkHighlight>(_onApplyMarkHighlight);
+    on<TogglePinLeftPane>(_onTogglePinLeftPane);
+    on<UpdateSearchText>(_onUpdateSearchText);
+    on<UpdateSearchResultLines>(_onUpdateSearchResultLines);
+    on<ApplyFullBookContent>(_onApplyFullBookContent);
+    on<ApplyBookContentRange>(_onApplyBookContentRange);
+    on<ApplyBookContentRanges>(_onApplyBookContentRanges);
+    on<UpdateSelectedTextForNote>(_onUpdateSelectedTextForNote);
+    // המיזוג רץ לעיתים ב-isolate; עיבוד מקבילי מאפשר לאצווה איטית לדרוס
+    // אצווה מהירה שהגיעה אחריה, והקישורים שאבדו לא ייטענו שוב (issue #1095).
+    on<UpdateLinks>(_onUpdateLinks, transformer: sequential());
+    on<SetLinksLoading>(_onSetLinksLoading);
+    on<UpdateAvailableCommentators>(_onUpdateAvailableCommentators);
+    on<RefreshCommentatorVisibility>(_onRefreshCommentatorVisibility);
+    on<RefreshLinksForCurrentWindow>(_onRefreshLinksForCurrentWindow);
+    on<LoadAllLinksForIndices>(_onLoadAllLinksForIndices);
+    on<SetTabVisibility>(_onSetTabVisibility);
+    _hiddenSelectionSubscription = const HiddenLibraryStore().visibilityChanges
+        .listen((_) => add(const RefreshCommentatorVisibility()));
+  }
+
+  void _onSetTabVisibility(
+    SetTabVisibility event,
+    Emitter<TextBookState> emit,
+  ) {
+    final warmingChanged =
+        _allowBackgroundWarming != event.allowBackgroundWarming;
+    if (_isTabVisible == event.visible && !warmingChanged) {
+      return;
+    }
+    _isTabVisible = event.visible;
+    _allowBackgroundWarming = event.allowBackgroundWarming;
+    _syncHighlightPattern();
+
+    final currentState = state;
+    if (currentState is! TextBookLoaded) {
+      return;
+    }
+
+    if (event.visible) {
+      _loadContentRangeInBackground(
+        currentState.book,
+        currentState.visibleIndices,
+      );
+      _warmContentCacheInBackground(currentState.book);
+    } else {
+      _releaseContentOutsideWindow(currentState, emit);
+      _releaseLinksOutsideWindow(state as TextBookLoaded, emit);
+    }
+  }
+
+  void _setHighlightRequest(
+    SearchEngineRequest request, {
+    SearchQuerySemantics querySemantics = SearchQuerySemantics.regular,
+  }) {
+    _highlightRequest = RustSearchEngineOperations.indexHighlightRequest(
+      request,
+    );
+    _highlightSemantics = querySemantics;
+    _syncHighlightPattern();
+  }
+
+  void _syncHighlightPattern() {
+    final previousRelease = _releaseHighlightPattern;
+    final request = !isClosed && _isTabVisible ? _highlightRequest : null;
+    _releaseHighlightPattern = request == null
+        ? null
+        : text_utils.retainHighlightPattern(
+            searchQuery: request.query,
+            searchOptions: request.searchOptions,
+            alternativeWords: request.alternativeWords,
+            spacingValues: request.customSpacing,
+            searchDistance: request.distance,
+            isFuzzy: request.searchMode == SearchMode.fuzzy,
+            anyOrder: request.anyOrder,
+            querySemantics: _highlightSemantics,
+          );
+    // Acquire first: reloading the same query must not briefly unpin it.
+    previousRelease?.call();
+    if (request == null) return;
+    unawaited(
+      TantivyDataProvider.instance.engine.then(
+        (engine) {
+          if (!isClosed &&
+              _isTabVisible &&
+              identical(request, _highlightRequest)) {
+            final operations = RustSearchEngineOperations(engine);
+            if (_highlightSemantics == SearchQuerySemantics.smart) {
+              operations.primeSmartHighlightPattern(request);
+            } else {
+              operations.primeHighlightPattern(request);
+            }
+          }
+        },
+        onError: (Object error) =>
+            debugPrint('highlight prime skipped: $error'),
+      ),
+    );
+  }
+
+  /// מפנה הפניות מחוץ לחלון; מפרשים וקישורי מקור נשמרים, כי הסנכרון
+  /// משתמש גם בקישורים רחוקים מהמיקום הנוכחי.
+  void _releaseLinksOutsideWindow(
+    TextBookLoaded current,
+    Emitter<TextBookState> emit,
+  ) {
+    final window = _calculateLinksWindow(current.visibleIndices);
+    final start = min(window.start, _loadedLinksStart ?? window.start) + 1;
+    final end = max(window.end, _loadedLinksEnd ?? window.end) + 1;
+    final selected = current.selectedIndices;
+    final keptTypes = <String, bool>{};
+    bool touchesSelection(Link link) {
+      final last = link.index1End ?? link.index1;
+      if (last - link.index1 >= selected.length) {
+        return selected.any((i) => link.overlapsSourceLines(i + 1, i + 1));
+      }
+      for (var line = link.index1; line <= last; line++) {
+        if (selected.contains(line - 1)) return true;
+      }
+      return false;
+    }
+
+    bool keep(Link link) {
+      final type = link.connectionType;
+      return (keptTypes[type] ??=
+              LinkTypes.isDependentTextLink(type) ||
+              LinkTypes.isVirtualSource(type)) ||
+          link.overlapsSourceLines(start, end) ||
+          (selected.isNotEmpty && touchesSelection(link));
+    }
+
+    final kept = [
+      for (final link in current.links)
+        if (keep(link)) link,
+    ];
+    if (kept.length == current.links.length) return;
+    emit(current.copyWith(links: kept, linksByLine: buildLinksByLineMap(kept)));
+  }
+
+  /// משחרר את תוכן הספר של טאב רקע ומשאיר רק חלון סביב המיקום הנוכחי.
+  /// אורך הרשימה נשמר (placeholders ריקים) כדי שאינדקסי שורות יישארו תקפים.
+  void _releaseContentOutsideWindow(
+    TextBookLoaded currentState,
+    Emitter<TextBookState> emit,
+  ) {
+    final content = currentState.content;
+    if (!_supportsContentRangeLoading ||
+        content.length < _releaseContentMinLines) {
+      return;
+    }
+
+    final window = _calculateContentWindow(
+      currentState,
+      currentState.visibleIndices,
+    );
+    final keepStart = window.startLine.clamp(0, content.length - 1);
+    final keepEnd = window.endLine.clamp(0, content.length - 1);
+
+    final flags = _loadedContentFlags;
+    final sourceContent = ChunkedList<String>.from(content, defaultValue: '');
+    final nextContent = sourceContent.retainRange(keepStart, keepEnd + 1);
+    final nextFlags = ChunkedList<bool>.from(flags, defaultValue: false).edit()
+      ..length = content.length
+      ..retainRange(keepStart, keepEnd + 1);
+    for (var i = keepStart; i <= keepEnd; i++) {
+      if (i >= flags.length) nextFlags[i] = content[i].isNotEmpty;
+    }
+    if (identical(nextContent, sourceContent) && !nextFlags.changed) return;
+
+    _loadedContentRanges = const [];
+    _setLoadedContentFlags(currentState.book, nextFlags.build());
+    _markLoadedContentRange(currentState.book, keepStart, keepEnd);
+
+    emit(
+      currentState.copyWith(
+        content: nextContent,
+        contentVersion: currentState.contentVersion + 1,
+        loadedLineFlags: _loadedContentFlags,
+      ),
+    );
+  }
+
+  /// מחזירה את הערך האפקטיבי של מצב הרצף לאחר אירוע
+  /// [ToggleContinuousReadingMode].
+  ///
+  /// ספר שלא תומך → תמיד false (גם אם בקשו true ידנית — דרך קיצור מקלדת
+  /// או plugin).
+  @visibleForTesting
+  static bool computeEffectiveContinuousReading({
+    required bool requestedEnabled,
+    required bool stateSupportsContinuous,
+  }) => requestedEnabled && stateSupportsContinuous;
+
+  /// קובעת את הערך של `continuousReadingMode` ב-`emit` של `_onLoadContent`.
+  ///
+  /// - ספר שלא תומך → תמיד false.
+  /// - אם הדגל [preserveFlag] פעיל ו-currentState הוא Loaded → שומרים
+  ///   את הערך הקודם של המשתמש.
+  /// - אחרת — הגדרת הספר [perBookValue], ובלעדיה ברירת המחדל הגלובלית
+  ///   [globalDefault]: כך כבר ה-Loaded הראשון בונה את הפריסה הנכונה.
+  @visibleForTesting
+  static bool resolvePreservedContinuousReadingMode({
+    required bool supportsContinuous,
+    required bool preserveFlag,
+    required TextBookState? currentState,
+    bool globalDefault = false,
+    bool? perBookValue,
+  }) {
+    if (!supportsContinuous) return false;
+    if (preserveFlag && currentState is TextBookLoaded) {
+      return currentState.continuousReadingMode;
+    }
+    return perBookValue ?? globalDefault;
+  }
+
+  /// האם לשדר עכשיו עדכון `visibleIndices`, או לדלג ולהשאיר את השידור
+  /// לטיימר הנגרר. [sinceLastDispatch] הוא `null` כשעוד לא שודר דבר.
+  ///
+  /// דילוג בטוח: הטיימר הנגרר נדרך מחדש בכל אירוע גלילה, ולכן המיקום הסופי
+  /// תמיד משודר אחרי שהגלילה נעצרת.
+  ///
+  /// משך שלילי נוצר כששעון המערכת הוזז אחורה; בלי המקרה הזה החסימה הייתה
+  /// נמשכת עד שהשעון משלים את הפער.
+  @visibleForTesting
+  static bool shouldDispatchVisibleIndicesNow({
+    required Duration? sinceLastDispatch,
+    bool continuousReadingMode = true,
+    Duration throttleInterval = _visibleIndicesThrottleInterval,
+  }) {
+    return !continuousReadingMode ||
+        sinceLastDispatch == null ||
+        sinceLastDispatch.isNegative ||
+        sinceLastDispatch >= throttleInterval;
+  }
+
+  @visibleForTesting
+  static int? expectedInitialPageShapeVisibleIndexForTesting({
+    required List<int> visibleIndices,
+    required int? selectedIndex,
+  }) {
+    if (visibleIndices.isNotEmpty) {
+      return visibleIndices.first;
+    }
+    return selectedIndex;
+  }
+
+  static const int _initialVisibleSyncTolerance = 2;
+
+  static ({int min, int max}) _visibleBounds(List<int> indices) {
+    return (
+      min: indices.reduce((a, b) => a < b ? a : b),
+      max: indices.reduce((a, b) => a > b ? a : b),
+    );
+  }
+
+  @visibleForTesting
+  static bool isInitialPageShapeVisibleSyncAlignedForTesting({
+    required List<int> currentVisibleIndices,
+    required int? selectedIndex,
+    required List<int> nextVisibleIndices,
+  }) {
+    final expectedIndex = expectedInitialPageShapeVisibleIndexForTesting(
+      visibleIndices: currentVisibleIndices,
+      selectedIndex: selectedIndex,
+    );
+    if (expectedIndex == null || nextVisibleIndices.isEmpty) {
+      return true;
+    }
+
+    final bounds = _visibleBounds(nextVisibleIndices);
+    return expectedIndex >= (bounds.min - _initialVisibleSyncTolerance) &&
+        expectedIndex <= (bounds.max + _initialVisibleSyncTolerance);
+  }
+
+  static bool _looksLikeStaleInitialStartReport({
+    required int? expectedIndex,
+    required List<int> nextVisibleIndices,
+  }) {
+    if (expectedIndex == null || nextVisibleIndices.isEmpty) {
+      return false;
+    }
+
+    final bounds = _visibleBounds(nextVisibleIndices);
+    return expectedIndex > _initialVisibleSyncTolerance &&
+        bounds.min <= _initialVisibleSyncTolerance &&
+        bounds.max < expectedIndex - _initialVisibleSyncTolerance;
+  }
+
+  static List<({int startLine, int endLine})> mergeLoadedContentRanges(
+    List<({int startLine, int endLine})> ranges, {
+    required int startLine,
+    required int endLine,
+  }) {
+    final normalizedStart = startLine < 0 ? 0 : startLine;
+    if (endLine < normalizedStart) {
+      return List<({int startLine, int endLine})>.unmodifiable(ranges);
+    }
+
+    final sorted = [
+      ...ranges,
+      (startLine: normalizedStart, endLine: endLine),
+    ]..sort((a, b) => a.startLine.compareTo(b.startLine));
+
+    final merged = <({int startLine, int endLine})>[];
+    for (final range in sorted) {
+      if (merged.isEmpty) {
+        merged.add(range);
+        continue;
+      }
+
+      final last = merged.last;
+      if (range.startLine <= last.endLine + 1) {
+        merged[merged.length - 1] = (
+          startLine: last.startLine,
+          endLine: range.endLine > last.endLine ? range.endLine : last.endLine,
+        );
+        continue;
+      }
+
+      merged.add(range);
+    }
+
+    return List<({int startLine, int endLine})>.unmodifiable(merged);
+  }
+
+  static bool isContentWindowSufficient({
+    required List<({int startLine, int endLine})> loadedRanges,
+    required int startLine,
+    required int endLine,
+    required int reloadThresholdLines,
+  }) {
+    if (loadedRanges.isEmpty) {
+      return false;
+    }
+
+    final normalizedStart = startLine < 0 ? 0 : startLine;
+    for (final range in loadedRanges) {
+      final hasStartMargin =
+          (normalizedStart == 0 && range.startLine == 0) ||
+          normalizedStart >= range.startLine + reloadThresholdLines;
+      if (hasStartMargin && endLine <= range.endLine - reloadThresholdLines) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  @visibleForTesting
+  static int? nextWarmContentStartForTesting({
+    required List<({int startLine, int endLine})> loadedRanges,
+    required int totalLines,
+  }) {
+    if (totalLines <= 0) {
+      return null;
+    }
+    if (loadedRanges.isEmpty) {
+      return 0;
+    }
+
+    var nextStart = 0;
+    for (final range in loadedRanges) {
+      if (nextStart < range.startLine) {
+        return nextStart;
+      }
+      if (nextStart <= range.endLine) {
+        nextStart = range.endLine + 1;
+        if (nextStart >= totalLines) {
+          return null;
+        }
+      }
+    }
+
+    return nextStart < totalLines ? nextStart : null;
+  }
+
+  @visibleForTesting
+  static int? nextWarmContentStartNearViewportForTesting({
+    required List<({int startLine, int endLine})> loadedRanges,
+    required int totalLines,
+    required List<int> visibleIndices,
+    required int chunkLines,
+  }) {
+    if (totalLines <= 0) {
+      return null;
+    }
+
+    if (loadedRanges.isEmpty) {
+      return 0;
+    }
+
+    final firstVisible = visibleIndices.isEmpty ? 0 : visibleIndices.first;
+    final lastVisible = visibleIndices.isEmpty
+        ? firstVisible
+        : visibleIndices.last;
+
+    ({int startLine, int endLine})? anchorRange;
+    for (final range in loadedRanges) {
+      final overlapsViewport =
+          range.startLine <= lastVisible && range.endLine >= firstVisible;
+      if (overlapsViewport) {
+        anchorRange = range;
+        break;
+      }
+    }
+
+    if (anchorRange == null) {
+      return nextWarmContentStartForTesting(
+        loadedRanges: loadedRanges,
+        totalLines: totalLines,
+      );
+    }
+
+    final forwardStart = anchorRange.endLine + 1;
+    if (forwardStart < totalLines) {
+      return forwardStart;
+    }
+
+    if (anchorRange.startLine > 0) {
+      final backwardStart = anchorRange.startLine - chunkLines;
+      return backwardStart < 0 ? 0 : backwardStart;
+    }
+
+    return nextWarmContentStartForTesting(
+      loadedRanges: loadedRanges,
+      totalLines: totalLines,
+    );
+  }
+
+  @visibleForTesting
+  static ({bool shouldIgnore, bool shouldDispatchImmediately})
+  classifyRawPositionsDuringInitialPageShapeVisibleSyncForTesting({
+    required bool awaitingInitialPageShapeVisibleSync,
+    required bool showPageShapeView,
+    required List<int> currentVisibleIndices,
+    required int? selectedIndex,
+    required List<int> nextVisibleIndices,
+  }) => _classifyRawPositionsDuringInitialPageShapeVisibleSync(
+    awaitingInitialPageShapeVisibleSync: awaitingInitialPageShapeVisibleSync,
+    showPageShapeView: showPageShapeView,
+    currentVisibleIndices: currentVisibleIndices,
+    selectedIndex: selectedIndex,
+    nextVisibleIndices: nextVisibleIndices,
+  );
+
+  static ({bool shouldIgnore, bool shouldDispatchImmediately})
+  _classifyRawPositionsDuringInitialPageShapeVisibleSync({
+    required bool awaitingInitialPageShapeVisibleSync,
+    required bool showPageShapeView,
+    required List<int> currentVisibleIndices,
+    required int? selectedIndex,
+    required List<int> nextVisibleIndices,
+  }) {
+    if (!awaitingInitialPageShapeVisibleSync ||
+        !showPageShapeView ||
+        nextVisibleIndices.isEmpty) {
+      return (
+        shouldIgnore: false,
+        shouldDispatchImmediately: false,
+      );
+    }
+
+    final isAligned = isInitialPageShapeVisibleSyncAlignedForTesting(
+      currentVisibleIndices: currentVisibleIndices,
+      selectedIndex: selectedIndex,
+      nextVisibleIndices: nextVisibleIndices,
+    );
+    final expectedIndex = expectedInitialPageShapeVisibleIndexForTesting(
+      visibleIndices: currentVisibleIndices,
+      selectedIndex: selectedIndex,
+    );
+    final shouldIgnore =
+        !isAligned &&
+        _looksLikeStaleInitialStartReport(
+          expectedIndex: expectedIndex,
+          nextVisibleIndices: nextVisibleIndices,
+        );
+    return (
+      shouldIgnore: shouldIgnore,
+      shouldDispatchImmediately: !shouldIgnore,
+    );
+  }
+
+  void _setAwaitingInitialPageShapeVisibleSync(bool value) {
+    _awaitingInitialPageShapeVisibleSync = value;
+  }
+
+  @visibleForTesting
+  static List<Link> mergeLinksForTesting(
+    List<Link> existing,
+    List<Link> incoming,
+  ) => mergeLinksByIdentity(existing, incoming);
+
+  @visibleForTesting
+  static List<String> buildPreviewLinesForTesting(
+    String previewContent,
+    int previewStartLine,
+  ) => buildPreviewLines(previewContent, previewStartLine);
+
+  Future<void> _onLoadContent(
+    LoadContent event,
+    Emitter<TextBookState> emit,
+  ) async {
+    TextBook book;
+    String searchText;
+    String highlightText = '';
+    int? permanentHighlightLine;
+    Map<String, Map<String, bool>> searchOptions = {};
+    Map<int, List<String>> alternativeWords = {};
+    Map<String, String> spacingValues = {};
+    SearchMode searchMode = SearchMode.exact;
+    int searchDistance = 0;
+    SearchMatchPolicy matchPolicy = SearchMatchPolicy.standard;
+    var searchOrigin = InBookSearchOrigin.inBook;
+    InBookSearchTemplate? searchTemplate;
+    Set<int>? searchResultLines;
+    ({int line, int requestId})? searchResultNavigation;
+    bool showLeftPane;
+    List<String> commentators;
+    late final List<int> visibleIndices;
+
+    bool initialShowPageShapeView = false;
+    int? pinpointHighlightIndex;
+    String? pinpointHighlightText;
+
+    List<String> existingAvailableCommentators = const [];
+    List<CommentatorGroup> existingCommentatorGroups = const [];
+    var existingCommentatorsLoaded = false;
+    TextDisplayLayer? preservedDisplayOverrides;
+    bool? preservedPinLeftPane;
+
+    if (state is TextBookLoaded && event.preserveState) {
+      final currentState = state as TextBookLoaded;
+      book = currentState.book;
+      searchText = currentState.searchText;
+      highlightText = currentState.highlightText;
+      permanentHighlightLine = currentState.permanentHighlightLine;
+      searchOptions = currentState.searchOptions;
+      alternativeWords = currentState.alternativeWords;
+      spacingValues = currentState.spacingValues;
+      searchMode = currentState.searchMode;
+      searchDistance = currentState.searchDistance;
+      matchPolicy = currentState.matchPolicy;
+      searchOrigin = currentState.searchOrigin;
+      searchTemplate = currentState.searchTemplate;
+      searchResultLines = currentState.searchResultLines;
+      showLeftPane = currentState.showLeftPane;
+      commentators = currentState.activeCommentators;
+      visibleIndices = currentState.visibleIndices;
+      initialShowPageShapeView = currentState.showPageShapeView;
+      existingAvailableCommentators = currentState.availableCommentators;
+      existingCommentatorGroups = currentState.commentatorGroups;
+      existingCommentatorsLoaded = currentState.commentatorsLoaded;
+      preservedDisplayOverrides = currentState.displayOverrides;
+      preservedPinLeftPane = currentState.pinLeftPane;
+      pinpointHighlightIndex = currentState.pinpointHighlightIndex;
+      pinpointHighlightText = currentState.pinpointHighlightText;
+    } else if (state is TextBookInitial) {
+      // איפוס דגלי ה-inline-notes כשמתחילים טעינה של ספר חדש דרך ה-BLoC.
+      // הדגלים האלה תלויים בספר ספציפי ולא צריכים לדלוף בין ספרים, גם
+      // אם בעתיד מישהו ישתמש שוב באותו instance של BLoC לספר אחר.
+      resetInlineNotesStateForNewBook();
+
+      final initial = state as TextBookInitial;
+      book = initial.book;
+      searchText = initial.searchText;
+      highlightText = initial.highlightText;
+      permanentHighlightLine = initial.permanentHighlightLine;
+      searchOptions = initial.searchOptions;
+      alternativeWords = initial.alternativeWords;
+      spacingValues = initial.spacingValues;
+      searchMode = initial.searchMode;
+      searchDistance = initial.searchDistance;
+      matchPolicy = initial.matchPolicy;
+      searchOrigin = initial.searchOrigin;
+      searchTemplate = initial.searchTemplate;
+      searchResultLines = initial.initialSearchResultLines;
+      showLeftPane = initial.showLeftPane;
+      commentators = initial.commentators;
+      final startIndex = event.startIndex ?? initial.index;
+      visibleIndices = [startIndex < 0 ? 0 : startIndex];
+      if (searchText.trim().isNotEmpty) {
+        searchResultNavigation = (
+          line: visibleIndices.first,
+          requestId: ++_searchResultRequestId,
+        );
+      }
+      initialShowPageShapeView = initial.showPageShapeView;
+      pinpointHighlightIndex = initial.pinpointHighlightIndex;
+      pinpointHighlightText = initial.pinpointHighlightText;
+
+      emit(
+        TextBookLoading(
+          book,
+          visibleIndices.first,
+          initial.showLeftPane,
+          initial.commentators,
+        ),
+      );
+    } else if (!event.preserveState) {
+      if (state is TextBookLoaded) {
+        emit(state);
+      }
+      return;
+    } else {
+      return;
+    }
+
+    // במקביל לטעינת התוכן, כדי שה-UI יקבל את ההגבלה כבר במצב ה-Loaded.
+    // גם בטעינה-מחדש: הספרייה עשויה להתעדכן בינתיים.
+    final protectionFuture = _protectionLoader(book);
+    // ביטול עשוי להקדים את ה-await; בטעינה פעילה השגיאה עדיין נמסרת אליו.
+    protectionFuture.then<void>((_) {}, onError: (Object _) {});
+    // ההערות מהמסד קובעות אם 'הערות' זמין כבר ב-emit הראשון. כשל בהן נכשל
+    // את הטעינה (TextBookError) כשהן נדרשות למטה, ולא כשגיאה לא-מטופלת.
+    final bookNotesFuture = _bookNotesLoader(book);
+    bookNotesFuture.then<void>((_) {}, onError: (Object _) {});
+
+    // ספר שנפתח עם חיפוש פעיל (מתוצאות חיפוש או טאב משוחזר): מזינים ברקע את
+    // תבנית ההדגשה מבוססת-האינדקס, במקביל לטעינת התוכן — כך הרינדור מדגיש
+    // את הווריאנטים שהחיפוש באמת התאים (שגיאות כתיב, קידומות, חלק ממילה).
+    // אחרי חיפוש טרי זו פגיעת מטמון; הערך האמיתי הוא טאבים משוחזרים, שבהם
+    // אף חיפוש לא רץ דרך ה-gateway בהפעלה הנוכחית.
+    _setHighlightRequest(
+      SearchEngineRequest(
+        query: searchText,
+        facets: const [],
+        searchMode: searchMode,
+        distance: searchDistance,
+        customSpacing: spacingValues,
+        alternativeWords: alternativeWords,
+        searchOptions: searchOptions,
+        anyOrder: matchPolicy.anyOrder,
+      ),
+      querySemantics: matchPolicy.querySemantics,
+    );
+
+    try {
+      final requiresRenderedToc = _requiresWholeBookContent(book);
+      final tocFuture = requiresRenderedToc
+          ? null
+          : repository.getTableOfContents(book);
+      tocFuture?.then<void>((_) {}, onError: (Object _) {});
+
+      List<String>? contentLines;
+      List<bool>? loadedLineFlags;
+      if (state is TextBookLoaded && event.preserveState) {
+        contentLines = (state as TextBookLoaded).content;
+        loadedLineFlags = _loadedContentFlags;
+      } else if (requiresRenderedToc) {
+        final content = await repository.getBookContent(book);
+        if (isClosed || emit.isDone) return;
+        contentLines = await splitContentLines(content);
+        if (isClosed || emit.isDone) return;
+        loadedLineFlags = List<bool>.filled(contentLines.length, true);
+        _setLoadedContentFlags(book, loadedLineFlags);
+        _markLoadedContentRange(
+          book,
+          0,
+          contentLines.isEmpty ? 0 : contentLines.length - 1,
+          totalLines: contentLines.length,
+        );
+      } else {
+        final initialRange = await repository.getBookContentRange(
+          book,
+          startLine: visibleIndices.first - _initialContentLookBehindLines,
+          endLine: visibleIndices.first + _initialContentLookAheadLines,
+        );
+        if (isClosed || emit.isDone) return;
+
+        if (initialRange != null) {
+          contentLines = _contentWithAppliedRange(initialRange);
+          loadedLineFlags = _loadedContentFlagsWithAppliedRange(initialRange);
+          _setLoadedContentFlags(book, loadedLineFlags);
+          _markLoadedContentRange(
+            book,
+            initialRange.startLine,
+            initialRange.endLine,
+            totalLines: initialRange.totalLines,
+          );
+          _supportsContentRangeLoading = true;
+        } else {
+          final preview = await _quickPreviewLoader(
+            book.title,
+            visibleIndices.first,
+            categoryId: book.categoryId,
+            fileType: book.fileType,
+            preferSource: book.source,
+          );
+          if (isClosed || emit.isDone) return;
+
+          if (preview != null && preview.isNotEmpty) {
+            final previewStartLine = (visibleIndices.first - 10).clamp(
+              0,
+              visibleIndices.first,
+            );
+            contentLines = buildPreviewLines(preview, previewStartLine);
+            loadedLineFlags = _buildPreviewLoadedLineFlags(
+              preview,
+              previewStartLine,
+            );
+            _setLoadedContentFlags(book, loadedLineFlags);
+            _markLoadedContentRange(
+              book,
+              previewStartLine,
+              contentLines.isEmpty ? previewStartLine : contentLines.length - 1,
+            );
+            _loadFullBookInBackground(book);
+          }
+        }
+      }
+
+      if (contentLines == null) {
+        final content = await repository.getBookContent(book);
+        if (isClosed || emit.isDone) return;
+        contentLines = await splitContentLines(content);
+        if (isClosed || emit.isDone) return;
+        loadedLineFlags = List<bool>.filled(contentLines.length, true);
+        _setLoadedContentFlags(book, loadedLineFlags);
+        _markLoadedContentRange(
+          book,
+          0,
+          contentLines.isEmpty ? 0 : contentLines.length - 1,
+          totalLines: contentLines.length,
+        );
+      }
+
+      loadedLineFlags ??= _loadedContentFlags;
+
+      // Markdown מוצג מ-HTML מומר, ולכן ה-TOC שלו נגזר מאותן שורות מוצגות;
+      // TOC שמור מתייחס לשורות המקור ולא יוכל לנווט בתוכן הזה.
+      final tableOfContents = requiresRenderedToc
+          ? TocParser.parseEntriesFromContent(contentLines.join('\n'))
+          : await tocFuture ?? const <TocEntry>[];
+
+      String? currentTitle;
+      if (visibleIndices.isNotEmpty) {
+        try {
+          currentTitle = await refFromIndex(
+            visibleIndices.first,
+            Future.value(tableOfContents),
+          );
+        } catch (_) {
+          currentTitle = null;
+        }
+      }
+
+      final displayPolicy = SettingsRepository().loadTextDisplayPolicy();
+      final isTanach = await FileSystemData.instance.isTanachBook(
+        book.title,
+        categoryId: book.categoryId,
+        fileType: book.fileType,
+      );
+      final perBookSettingsEnabled =
+          Settings.getValue<bool>(
+            SettingsRepository.keyEnablePerBookSettings,
+          ) ??
+          false;
+      final perBookSettings = perBookSettingsEnabled
+          ? await TextBookPerBookSettings.load(book)
+          : null;
+      final bookDisplayLayer =
+          perBookSettings?.effectiveDisplayLayer ?? TextDisplayLayer.empty;
+      // שינוי הגדרות ניקוד/פיסוק גלובלי מפיל את העקיפה הזמנית של הגוף באותו
+      // שדה כדי שהערך החדש ייראה; שינוי גופן בלבד משמר את בחירת המשתמש.
+      // עקיפות כרטיסיית המפרשים נשמרות תמיד.
+      final displayOverrides =
+          (preservedDisplayOverrides ?? TextDisplayLayer.empty).mapPatches(
+            (slot, patch) => slot.target == TextTarget.body
+                ? patch.copyWith(
+                    clearNikud: !event.preserveRemoveNikud,
+                    clearTeamim: !event.preserveRemoveNikud,
+                    clearPunctuation: !event.preserveRemovePunctuation,
+                  )
+                : patch,
+          );
+      final supportsContinuousReading = await repository
+          .supportsContinuousReadingMode(book);
+      if (isClosed || emit.isDone) return;
+
+      // טעינה מחדש בשינוי גופן/ניקוד (preserveFlag) שומרת את בחירת המשתמש;
+      // פתיחה ואיפוס הגדרות הספר — הגדרת הספר או ברירת המחדל.
+      final defaultContinuousReading =
+          Settings.getValue<bool>('key-continuous-reading-mode') ?? false;
+      final effectiveContinuousReading = resolvePreservedContinuousReadingMode(
+        supportsContinuous: supportsContinuousReading,
+        preserveFlag: event.preserveContinuousReadingMode,
+        currentState: state,
+        globalDefault: defaultContinuousReading,
+        perBookValue: perBookSettings?.continuousReadingMode,
+      );
+      if (effectiveContinuousReading &&
+          _supportsContentRangeLoading &&
+          !(state is TextBookLoaded && event.preserveState) &&
+          visibleIndices.isNotEmpty) {
+        final initialItem = await _loadInitialItemRange(
+          book,
+          contentLines,
+          loadedLineFlags,
+          tableOfContents,
+          visibleIndices.first,
+        );
+        if (initialItem != null) {
+          contentLines = initialItem.content;
+          loadedLineFlags = initialItem.loadedLineFlags;
+        }
+      }
+      if (isClosed || emit.isDone) return;
+      const List<Link> emptyLinks = [];
+      const List<Link> emptyVisibleLinks = [];
+
+      _listenToReadingPosition();
+
+      _setAwaitingInitialPageShapeVisibleSync(initialShowPageShapeView);
+
+      final initialShowLeftPane = event.forceCloseLeftPane
+          ? false
+          : resolveInitialReadingLeftPaneVisibility(
+              explicitOpen: showLeftPane,
+              screenWidth: event.screenWidth,
+            );
+      _hiddenCommentatorTitlesCache = await currentHiddenBookTitles();
+      commentators = _withoutHiddenCommentators(commentators);
+      existingAvailableCommentators = _withoutHiddenCommentators(
+        existingAvailableCommentators,
+      );
+      existingCommentatorGroups = _withoutHiddenGroups(
+        existingCommentatorGroups,
+      );
+      final protection = await protectionFuture;
+      final bookNotes = await bookNotesFuture;
+      if (isClosed || emit.isDone) return;
+      final latestState = state;
+      final preservedContentState =
+          event.preserveState &&
+              latestState is TextBookLoaded &&
+              latestState.book.title == book.title
+          ? latestState
+          : null;
+      if (preservedContentState != null) {
+        contentLines = preservedContentState.content;
+        loadedLineFlags = preservedContentState.loadedLineFlags;
+      }
+      TextBookLoaded loadedState = TextBookLoaded(
+        book: book,
+        protection: protection,
+        bookNotes: bookNotes,
+        content: contentLines,
+        contentVersion:
+            preservedContentState?.contentVersion ??
+            (contentLines.isEmpty ? 0 : 1),
+        contentChanges: preservedContentState?.contentChanges,
+        links: emptyLinks,
+        linksByLine: const {},
+        availableCommentators: existingAvailableCommentators,
+        commentatorsLoaded: existingCommentatorsLoaded,
+        tableOfContents: tableOfContents,
+        fontSize: _pendingFontSize ?? event.fontSize,
+        showLeftPane: initialShowLeftPane,
+        showSplitView: event.showSplitView,
+        showPageShapeView: initialShowPageShapeView,
+        activeCommentators: commentators,
+        commentatorGroups: existingCommentatorGroups,
+        isTanach: isTanach,
+        displayPolicy: displayPolicy,
+        bookDisplayLayer: bookDisplayLayer,
+        displayOverrides: displayOverrides,
+        supportsContinuousReadingMode: supportsContinuousReading,
+        continuousReadingMode: effectiveContinuousReading,
+        loadedLineFlags: loadedLineFlags,
+        // בלי בחירת מפרשים הקישורים נטענים רק אחרי שהבחירה נפתרה (ראה למטה),
+        // והחלונית מציגה "טוען" עד אז ולא "לא נמצאו" (issue #1130).
+        linksLoading: event.loadCommentators && commentators.isEmpty,
+        visibleIndices: visibleIndices,
+        // חלונית שנפתחת עם הספר נעוצה: לא נעוצה הייתה מכסה את הטקסט בהצללה.
+        pinLeftPane:
+            preservedPinLeftPane ??
+            ((Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
+                initialShowLeftPane),
+        searchText: searchText,
+        searchOptions: searchOptions,
+        alternativeWords: alternativeWords,
+        spacingValues: spacingValues,
+        searchMode: searchMode,
+        searchDistance: searchDistance,
+        matchPolicy: matchPolicy,
+        searchOrigin: searchOrigin,
+        searchTemplate: searchTemplate,
+        // נזרע כאן ולא בחלונית: החלונית נבנית רק כשנפתחת, וההדגשה בספר
+        // חייבת להיות זהה לפניה ואחריה.
+        searchWholeWord: InBookSearchPreferences.resolveWholeWord(
+          isSimpleSearch: InBookSearchRouting.canRunAsSimpleSearch(
+            searchMode: searchMode,
+            distance: searchDistance,
+            searchOptions: searchOptions,
+            alternativeWords: alternativeWords,
+            spacingValues: spacingValues,
+            matchPolicy: matchPolicy,
+          ),
+        ),
+        searchResultLines: searchResultLines,
+        searchResultNavigation: searchResultNavigation,
+        readerIdentity: _readerIdentity,
+        currentTitle: currentTitle,
+        visibleLinks: emptyVisibleLinks,
+        selectedLinkTypes: _loadSelectedLinkTypes(),
+        selectedTextForNote: state is TextBookLoaded
+            ? (state as TextBookLoaded).selectedTextForNote
+            : null,
+        selectedTextStart: state is TextBookLoaded
+            ? (state as TextBookLoaded).selectedTextStart
+            : null,
+        selectedTextEnd: state is TextBookLoaded
+            ? (state as TextBookLoaded).selectedTextEnd
+            : null,
+        highlightText: _pendingPinpoint?.text ?? highlightText,
+        permanentHighlightLine: _pendingPinpoint != null
+            ? _pendingPinpoint!.sectionIndex
+            : permanentHighlightLine,
+        pinpointHighlightIndex: pinpointHighlightIndex,
+        pinpointHighlightText: pinpointHighlightText,
+      );
+
+      // אין הערות ב-placeholders; סורקים רק תוכן שנמצא בזיכרון.
+      if (notes.hasInlineNotes(
+        contentLines is ChunkedList<String>
+            ? contentLines.nonDefaultValues
+            : contentLines,
+        dbNotes: bookNotes,
+      )) {
+        loadedState = _attachInlineNotesCommentator(loadedState);
+      }
+
+      emit(loadedState);
+      // מיקום שפורסם לפני הטעינה (ניווט לטאב באמצע LoadContent) לא שודר.
+      _onReadingPosition();
+
+      _pendingPinpoint = null;
+      _pendingFontSize = null;
+
+      _resetLoadedLinksWindow(book);
+
+      _loadContentRangeInBackground(book, visibleIndices);
+      _warmContentCacheInBackground(book);
+
+      // טעינת קישורים לפני שבחירת המפרשים ידועה יוצאת בלי יעדים, וחלונית
+      // המפרשים מציגה לרגע "לא נמצאו מפרשים" עד לטעינה החוזרת (issue #1130).
+      if (!event.loadCommentators || commentators.isNotEmpty) {
+        _loadLinksInBackground(book, visibleIndices);
+      }
+
+      if (event.loadCommentators) {
+        _loadCommentatorsInBackground(book);
+      }
+
+      _enrichHeCategoriesInBackground(book);
+      _loadDivineNamesInBackground(book);
+    } catch (e, st) {
+      if (isClosed || emit.isDone) return;
+      debugPrint('Error loading textbook: $e\n$st');
+      if (state is TextBookInitial) {
+        final initial = state as TextBookInitial;
+        emit(
+          TextBookError(
+            e.toString(),
+            initial.book,
+            initial.index,
+            initial.showLeftPane,
+            initial.commentators,
+          ),
+        );
+      } else if (state is TextBookLoading) {
+        final loading = state as TextBookLoading;
+        emit(
+          TextBookError(
+            e.toString(),
+            loading.book,
+            loading.index,
+            loading.showLeftPane,
+            loading.commentators,
+          ),
+        );
+      } else if (state is TextBookLoaded && event.preserveState) {
+        final current = state as TextBookLoaded;
+        emit(
+          TextBookError(
+            e.toString(),
+            current.book,
+            current.visibleIndices.isNotEmpty
+                ? current.visibleIndices.first
+                : 0,
+            current.showLeftPane,
+            current.activeCommentators,
+          ),
+        );
+      }
+    }
+  }
+
+  void _onUpdateFontSize(
+    UpdateFontSize event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is TextBookLoaded) {
+      final currentState = state as TextBookLoaded;
+      emit(
+        currentState.copyWith(
+          fontSize: event.fontSize,
+          selectedIndex: currentState.selectedIndex,
+        ),
+      );
+    } else {
+      // האירוע הגיע לפני סיום הטעינה (מרוץ בעליית התוכנה). שומרים כ-pending
+      // כדי שלא יאבד, ומחילים ב-_onLoadContent בבניית מצב ה-Loaded.
+      _pendingFontSize = event.fontSize;
+    }
+  }
+
+  void _onToggleLeftPane(
+    ToggleLeftPane event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is TextBookLoaded) {
+      final currentState = state as TextBookLoaded;
+      if (currentState.showLeftPane == event.show) {
+        return;
+      }
+      final updatedState = currentState.copyWith(
+        showLeftPane: event.show,
+        selectedIndex: currentState.selectedIndex,
+        visibleLinks: event.show
+            ? computeVisibleLinks(
+                links: currentState.links,
+                visibleIndices: currentState.visibleIndices,
+                selectedIndices: currentState.selectedIndices,
+                linksByLine: currentState.linksByLine,
+              )
+            : currentState.visibleLinks,
+      );
+      emit(updatedState);
+
+      if (event.show && _shouldLoadLinksForState(updatedState)) {
+        _loadLinksInBackground(
+          updatedState.book,
+          updatedState.visibleIndices,
+        );
+      }
+    }
+  }
+
+  void _onToggleSplitView(
+    ToggleSplitView event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is TextBookLoaded) {
+      final currentState = state as TextBookLoaded;
+      Settings.setValue<bool>('key-splited-view', event.show);
+      final updatedState = currentState.copyWith(
+        showSplitView: event.show,
+        selectedIndex: currentState.selectedIndex,
+      );
+      emit(updatedState);
+      _loadLinksInBackground(
+        updatedState.book,
+        updatedState.visibleIndices,
+        force: true,
+      );
+    }
+  }
+
+  void _onTogglePageShapeView(
+    TogglePageShapeView event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is TextBookLoaded) {
+      final currentState = state as TextBookLoaded;
+
+      PageShapeSettingsManager.saveViewModePreference(
+        currentState.book.title,
+        event.show,
+      );
+
+      _setAwaitingInitialPageShapeVisibleSync(event.show);
+      final updatedState = currentState.copyWith(
+        showPageShapeView: event.show,
+        selectedIndex: currentState.selectedIndex,
+        showLeftPane: event.show ? false : currentState.showLeftPane,
+      );
+      emit(updatedState);
+      _loadLinksInBackground(
+        updatedState.book,
+        updatedState.visibleIndices,
+        force: true,
+      );
+    }
+  }
+
+  void _onUpdateCommentators(
+    UpdateCommentators event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is TextBookLoaded) {
+      final currentState = state as TextBookLoaded;
+
+      if (event.displayOrderOnly) {
+        emit(
+          currentState.copyWith(
+            activeCommentators: _withoutHiddenCommentators(event.commentators),
+            selectedIndex: currentState.selectedIndex,
+          ),
+        );
+        return;
+      }
+
+      // בחירה אוטומטית (ברירת מחדל) ושחזור שמור גוברים על בחירה אוטומטית
+      // קודמת (כגון אוטו-בחירת 'הערות'), כל עוד המשתמש לא בחר ידנית בסשן זה.
+      if (!event.isUserAction) {
+        if (_userTouchedCommentators) {
+          _loadLinksAfterCommentatorsResolved(currentState.book);
+          return;
+        }
+        // שחזור בחירה שמורה הוא בחירת המשתמש האמיתית — נועלים אותה מפני
+        // אוטו-בחירה מאוחרת (כולל הוספת 'הערות' אוטומטית), גם כשהיא ריקה.
+        if (event.isRestore) _userTouchedCommentators = true;
+      } else {
+        _userTouchedCommentators = true;
+        // שמירה פר-ספר של בחירת המשתמש (כולל בחירה ריקה) — תמיד, כדי שתיטען
+        // בכל פתיחה. ספר אישי אינו נשמר פר-ספר.
+        if (!currentState.book.isUserBook) {
+          unawaited(
+            _saveActiveCommentatorsPerBook(
+              currentState.book,
+              _withoutHiddenCommentators(event.commentators),
+            ),
+          );
+        }
+      }
+
+      final updatedState = currentState.copyWith(
+        activeCommentators: _withoutHiddenCommentators(event.commentators),
+        selectedIndex: currentState.selectedIndex,
+      );
+      emit(updatedState);
+      if (_shouldLoadLinksForState(updatedState)) {
+        final targetIndices = _targetIndicesForCommentaryRefresh(updatedState);
+        // ללא override — היעדים נגזרים מהמצב, כך שבצורת הדף נשמרים גם
+        // מפרשי הטורים ולא רק הבחירה מהחלונית (issue #906).
+        _loadLinksInBackground(updatedState.book, targetIndices);
+      }
+    }
+  }
+
+  void _onUpdateLinkTypeFilter(
+    UpdateLinkTypeFilter event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is! TextBookLoaded) return;
+    final currentState = state as TextBookLoaded;
+    final normalized = event.linkTypes
+        .map(LinkTypes.normalize)
+        .where((e) => e.isNotEmpty)
+        .toSet();
+
+    emit(
+      currentState.copyWith(
+        selectedLinkTypes: normalized,
+        selectedIndex: currentState.selectedIndex,
+      ),
+    );
+    unawaited(_saveSelectedLinkTypes(normalized));
+  }
+
+  /// טוען את סינון סוגי הקישורים מההגדרות. ריק = הכל מוצג.
+  /// [LinkTypes.onBookKey] מסונן גם בטעינה, כדי לנקות ערך שנשמר בגרסה קודמת.
+  static Set<String> _loadSelectedLinkTypes() {
+    final raw =
+        Settings.getValue<String>(SettingsRepository.keySelectedLinkTypes) ??
+        '';
+    return raw
+        .split(',')
+        .map(LinkTypes.normalize)
+        .where((e) => e.isNotEmpty && e != LinkTypes.onBookKey)
+        .toSet();
+  }
+
+  Future<void> _saveSelectedLinkTypes(Set<String> linkTypes) async {
+    try {
+      // ON_BOOK אינו נשמר: תוויתו נגזרת מהספר הפתוח, ובספר אחר הוא היה מסנן
+      // "על <ספר אחר>" בלי שהמשתמש ביקש זאת.
+      final persisted =
+          linkTypes.where((type) => type != LinkTypes.onBookKey).toList()
+            ..sort();
+      await Settings.setValue(
+        SettingsRepository.keySelectedLinkTypes,
+        persisted.join(','),
+      );
+    } catch (e) {
+      debugPrint('⚠️ Failed to save selected link types: $e');
+    }
+  }
+
+  void _onApplyDisplayPatch(
+    ApplyDisplayPatch event,
+    Emitter<TextBookState> emit,
+  ) {
+    final currentState = state;
+    if (currentState is! TextBookLoaded || event.patch.isEmpty) return;
+    final slot = TextDisplaySlot(
+      target: event.target,
+      view: currentState.activeView,
+      channel: TextChannel.display,
+    );
+    emit(
+      currentState.copyWith(
+        displayOverrides: currentState.displayOverrides.merged(
+          slot,
+          event.patch,
+        ),
+        selectedIndex: currentState.selectedIndex,
+      ),
+    );
+    if (event.persistToBook) {
+      unawaited(
+        persistPerBookDisplayPatch(
+          book: currentState.book,
+          isTanach: currentState.isTanach,
+          policy: currentState.displayPolicy,
+          slot: slot,
+          patch: event.patch,
+        ),
+      );
+    }
+  }
+
+  void _onClearDisplayOverrides(
+    ClearDisplayOverrides event,
+    Emitter<TextBookState> emit,
+  ) {
+    final currentState = state;
+    if (currentState is! TextBookLoaded) return;
+    emit(
+      currentState.copyWith(
+        displayOverrides: TextDisplayLayer.empty,
+        bookDisplayLayer: TextDisplayLayer.empty,
+        selectedIndex: currentState.selectedIndex,
+      ),
+    );
+    unawaited(clearPerBookDisplayLayer(currentState.book));
+  }
+
+  void _onToggleContinuousReadingMode(
+    ToggleContinuousReadingMode event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is! TextBookLoaded) {
+      return;
+    }
+
+    final currentState = state as TextBookLoaded;
+    // אם הספר לא תומך — מתעלמים. הכפתור ב-UI ממילא לא מוצג, אבל זה מגן
+    // גם מקריאות תוכנתיות (קיצורי מקלדת, plugins).
+    final effectiveEnabled = computeEffectiveContinuousReading(
+      requestedEnabled: event.enabled,
+      stateSupportsContinuous: currentState.supportsContinuousReadingMode,
+    );
+    if (currentState.continuousReadingMode == effectiveEnabled) {
+      return;
+    }
+
+    emit(
+      currentState.copyWith(
+        continuousReadingMode: effectiveEnabled,
+      ),
+    );
+  }
+
+  void _onUpdateVisibleIndecies(
+    UpdateVisibleIndecies event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is TextBookLoaded) {
+      final currentState = state as TextBookLoaded;
+
+      if (_awaitingInitialPageShapeVisibleSync &&
+          currentState.showPageShapeView) {
+        final initialSyncClassification =
+            _classifyRawPositionsDuringInitialPageShapeVisibleSync(
+              awaitingInitialPageShapeVisibleSync:
+                  _awaitingInitialPageShapeVisibleSync,
+              showPageShapeView: currentState.showPageShapeView,
+              currentVisibleIndices: currentState.visibleIndices,
+              selectedIndex: currentState.selectedIndex,
+              nextVisibleIndices: event.visibleIndecies,
+            );
+        if (initialSyncClassification.shouldIgnore) {
+          return;
+        }
+
+        _setAwaitingInitialPageShapeVisibleSync(false);
+      }
+
+      if (_listsEqual(currentState.visibleIndices, event.visibleIndecies)) {
+        return;
+      }
+
+      String? newTitle = currentState.currentTitle;
+
+      if (event.visibleIndecies.isNotEmpty &&
+          (currentState.visibleIndices.isEmpty ||
+              currentState.visibleIndices.first !=
+                  event.visibleIndecies.first)) {
+        // סינכרוני בכוונה: `await` כאן היה מאפשר לאירועים אחרים לפלוט מצב
+        // חדש, ואז ה-emit שבהמשך היה דורס אותם עם צילום מיושן.
+        newTitle = refFromTocList(
+          event.visibleIndecies.first,
+          currentState.tableOfContents,
+        );
+      }
+
+      int? index = currentState.selectedIndex;
+      if (index != null &&
+          !event.visibleIndecies.contains(index) &&
+          event.visibleIndecies.isNotEmpty) {
+        // כמה שורות הקטע הנבחר יצא מעבר לקצה הקרוב של החלון הנראה. נמדד מול
+        // הקטע עצמו (עוגן יציב) ולא מהשורה הקודמת, אחרת בגלילה רציפה כל אירוע
+        // זז מעט והבחירה לא משתחררת. מול הקצה הקרוב כדי שיהיה סימטרי בשני הכיוונים.
+        final distance = index < event.visibleIndecies.first
+            ? event.visibleIndecies.first - index
+            : index - event.visibleIndecies.last;
+        if (distance > 3) {
+          index = null;
+        }
+      }
+
+      // גלילה רחוקה אִפסה את העוגן הראשי — מנקים גם את ריבוי-הבחירה.
+      final newIndices = index == null
+          ? const <int>{}
+          : currentState.selectedIndices;
+
+      final visibleLinks = computeVisibleLinks(
+        links: currentState.links,
+        visibleIndices: event.visibleIndecies,
+        selectedIndices: newIndices,
+        linksByLine: currentState.linksByLine,
+      );
+
+      emit(
+        currentState.copyWith(
+          visibleIndices: event.visibleIndecies,
+          currentTitle: newTitle,
+          selectedIndex: index,
+          clearSelectedIndex:
+              index == null && currentState.selectedIndex != null,
+          clearSearchResultNavigation:
+              index == null && currentState.selectedIndex != null,
+          selectedIndices: newIndices,
+          clearSelectedIndices: newIndices.isEmpty,
+          visibleLinks: visibleLinks,
+        ),
+      );
+
+      _loadContentRangeInBackground(currentState.book, event.visibleIndecies);
+
+      if (_shouldLoadLinksForVisibleIndicesChange(currentState)) {
+        _loadLinksInBackground(
+          currentState.book,
+          event.visibleIndecies,
+        );
+      }
+    }
+  }
+
+  void _resetLoadedLinksWindow(TextBook book) {
+    _linksLoadGeneration++;
+    _loadedLinksBookTitle = book.title;
+    _loadedLinksStart = null;
+    _loadedLinksEnd = null;
+    _loadedLinksTargetBookTitlesSignature = null;
+    _activeLinksTargetBookTitlesSignature = null;
+    _isLoadingLinks = false;
+    _pendingLinksReload = null;
+    _pendingForceLoadIndices = null;
+  }
+
+  ({int start, int end}) _calculateLinksWindow(List<int> visibleIndices) {
+    if (visibleIndices.isEmpty) {
+      return (start: 0, end: linkLookAheadLines);
+    }
+
+    final minVisible = visibleIndices.reduce((a, b) => a < b ? a : b);
+    final maxVisible = visibleIndices.reduce((a, b) => a > b ? a : b);
+
+    return (
+      start: (minVisible - linkLookBehindLines).clamp(0, minVisible),
+      end: maxVisible + linkLookAheadLines,
+    );
+  }
+
+  bool _isLinksWindowSufficient(
+    String bookTitle,
+    int start,
+    int end,
+    String targetBookTitlesSignature,
+  ) {
+    return _loadedLinksBookTitle == bookTitle &&
+        _loadedLinksStart != null &&
+        _loadedLinksEnd != null &&
+        _loadedLinksTargetBookTitlesSignature == targetBookTitlesSignature &&
+        start >= (_loadedLinksStart! - linksReloadThresholdLines) &&
+        end <= (_loadedLinksEnd! + linksReloadThresholdLines);
+  }
+
+  List<String>? _normalizeTargetBookTitles(Iterable<String>? targetBookTitles) {
+    if (targetBookTitles == null) {
+      return null;
+    }
+
+    return targetBookTitles
+        .map((title) => title.trim())
+        .where((title) => title.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+  }
+
+  String _targetBookTitlesSignature(Iterable<String>? targetBookTitles) {
+    final normalized = _normalizeTargetBookTitles(targetBookTitles);
+    if (normalized == null) {
+      return _allTargetBookTitlesSignature;
+    }
+
+    return normalized.join('||');
+  }
+
+  String _serializePageShapeConfiguration(Map<String, String?>? configuration) {
+    if (configuration == null) {
+      return '__default__';
+    }
+
+    return [
+      'left=${configuration['left'] ?? 'null'}',
+      'right=${configuration['right'] ?? 'null'}',
+      'bottom=${configuration['bottom'] ?? 'null'}',
+      'bottomRight=${configuration['bottomRight'] ?? 'null'}',
+    ].join('|');
+  }
+
+  String _serializeColumnVisibility(Map<String, bool> columnVisibility) {
+    return [
+      'left=${columnVisibility['left'] ?? true}',
+      'right=${columnVisibility['right'] ?? true}',
+      'bottom=${columnVisibility['bottom'] ?? true}',
+      'bottomRight=${columnVisibility['bottomRight'] ?? true}',
+    ].join('|');
+  }
+
+  Future<List<String>?> _resolvePageShapeTargetBookTitlesForLinks(
+    TextBookLoaded state,
+    String? workspaceId,
+  ) async {
+    final candidateCommentators = {
+      ...state.availableCommentators,
+      ...state.activeCommentators,
+    }.where((commentator) => commentator.trim().isNotEmpty).toList()..sort();
+
+    if (candidateCommentators.isEmpty) {
+      return null;
+    }
+
+    final storedConfiguration = PageShapeSettingsManager.loadConfiguration(
+      state.book.title,
+      heCategories: state.book.heCategories,
+      workspaceId: workspaceId,
+    );
+    final columnVisibility = PageShapeSettingsManager.getColumnVisibility(
+      state.book.title,
+      heCategories: state.book.heCategories,
+      workspaceId: workspaceId,
+    );
+    Map<String, String?> configuration;
+    if (storedConfiguration != null) {
+      configuration = storedConfiguration;
+    } else {
+      final defaults = await PageShapeDefaultCommentators.getPageShapeDefaults(
+        state.book,
+        availableCommentators: candidateCommentators,
+      );
+      configuration = defaults.commentators;
+      for (final entry in defaults.visibility.entries) {
+        if (!entry.value) columnVisibility[entry.key] = false;
+      }
+    }
+    final cacheKey = [
+      state.book.title,
+      state.book.heCategories ?? '',
+      workspaceId ?? '',
+      candidateCommentators.join('||'),
+      _serializePageShapeConfiguration(storedConfiguration),
+      _serializeColumnVisibility(columnVisibility),
+    ].join('::');
+
+    if (_cachedPageShapeTargetBookTitlesKey == cacheKey) {
+      return _cachedPageShapeTargetBookTitles;
+    }
+
+    final selectedCommentators = resolvePageShapeDisplayedCommentators(
+      leftSelection: configuration['left'],
+      rightSelection: configuration['right'],
+      bottomSelection: configuration['bottom'],
+      bottomRightSelection: configuration['bottomRight'],
+      availableCommentators: candidateCommentators,
+      columnVisibility: columnVisibility,
+      commentedBookTitle: state.book.title,
+    );
+
+    _cachedPageShapeTargetBookTitlesKey = cacheKey;
+    _cachedPageShapeTargetBookTitles = selectedCommentators;
+    return selectedCommentators;
+  }
+
+  List<String> _normalizeCommentaryTargets(Iterable<String> titles) {
+    return titles
+        .map((title) => title.trim())
+        .where((title) => title.isNotEmpty && title != kNotesCommentatorTitle)
+        .toSet()
+        .toList()
+      ..sort();
+  }
+
+  Future<List<String>?> _resolveTargetBookTitlesForLinks(
+    TextBookLoaded state,
+    String? workspaceId,
+  ) async {
+    if (state.showPageShapeView) {
+      final pageShapeTargets = await _resolvePageShapeTargetBookTitlesForLinks(
+        state,
+        workspaceId,
+      );
+      // מפרשי חלונית הצד (activeCommentators) מוצגים לצד טורי צורת הדף —
+      // בלעדיהם רענון בגלילה מוחק את הקישורים שלהם והם נעלמים (issue #906).
+      return _normalizeCommentaryTargets([
+        ...?pageShapeTargets,
+        ...state.activeCommentators,
+      ]);
+    }
+
+    if (state.showSplitView || state.activeCommentators.isNotEmpty) {
+      return _normalizeCommentaryTargets(state.activeCommentators);
+    }
+
+    return const <String>[];
+  }
+
+  bool _isCommentariesBelowMode(TextBookLoaded state) {
+    return !state.showSplitView && !state.showPageShapeView;
+  }
+
+  bool _shouldLoadLinksForState(TextBookLoaded state) {
+    return _isCommentariesBelowMode(state) ||
+        state.showSplitView ||
+        state.showPageShapeView ||
+        state.activeCommentators.isNotEmpty;
+  }
+
+  bool _shouldLoadLinksForVisibleIndicesChange(TextBookLoaded state) {
+    return _isCommentariesBelowMode(state) ||
+        state.showSplitView ||
+        state.showPageShapeView ||
+        state.showLeftPane;
+  }
+
+  List<int> _targetIndicesForCommentaryRefresh(TextBookLoaded state) {
+    if (state.showSplitView || state.showPageShapeView) {
+      return state.visibleIndices;
+    }
+
+    return state.selectedIndex != null
+        ? [state.selectedIndex!]
+        : state.visibleIndices;
+  }
+
+  bool _listsEqual(List<int> list1, List<int> list2) {
+    if (list1.length != list2.length) return false;
+    for (int i = 0; i < list1.length; i++) {
+      if (list1[i] != list2[i]) return false;
+    }
+    return true;
+  }
+
+  void _listenToReadingPosition() {
+    final source = readingPosition;
+    if (source == null || _listeningToReadingPosition) return;
+    _listeningToReadingPosition = true;
+    source.addListener(_onReadingPosition);
+  }
+
+  List<int> _currentVisibleLines() =>
+      readingPosition?.value?.visibleLines ?? const [];
+
+  void _onReadingPosition() {
+    final currentState = state;
+    if (currentState is! TextBookLoaded) return;
+    final visibleIndicesNow = _currentVisibleLines();
+    if (visibleIndicesNow.isEmpty ||
+        !_hasMeaningfulVisibleIndicesChange(
+          currentState.visibleIndices,
+          visibleIndicesNow,
+        )) {
+      return;
+    }
+
+    final initialSyncClassification =
+        _classifyRawPositionsDuringInitialPageShapeVisibleSync(
+          awaitingInitialPageShapeVisibleSync:
+              _awaitingInitialPageShapeVisibleSync,
+          showPageShapeView: currentState.showPageShapeView,
+          currentVisibleIndices: currentState.visibleIndices,
+          selectedIndex: currentState.selectedIndex,
+          nextVisibleIndices: visibleIndicesNow,
+        );
+    if (initialSyncClassification.shouldIgnore) return;
+    if (initialSyncClassification.shouldDispatchImmediately) {
+      _debounceTimer?.cancel();
+      _dispatchVisibleIndices(visibleIndicesNow);
+      return;
+    }
+
+    final lastDispatchAt = _lastVisibleIndicesDispatchAt;
+    if (shouldDispatchVisibleIndicesNow(
+      continuousReadingMode: currentState.continuousReadingMode,
+      sinceLastDispatch: lastDispatchAt == null
+          ? null
+          : DateTime.now().difference(lastDispatchAt),
+    )) {
+      _dispatchVisibleIndices(visibleIndicesNow);
+    }
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(_visibleIndicesDebounceDuration, () {
+      if (isClosed) return;
+      final latestState = state;
+      final latest = _currentVisibleLines();
+      if (latestState is TextBookLoaded &&
+          latest.isNotEmpty &&
+          _hasMeaningfulVisibleIndicesChange(
+            latestState.visibleIndices,
+            latest,
+          )) {
+        _dispatchVisibleIndices(latest);
+      }
+    });
+  }
+
+  /// שידור עדכון `visibleIndices` תוך רישום מועד השידור, שעליו נשענת
+  /// הגבלת הקצב ב-[shouldDispatchVisibleIndicesNow].
+  void _dispatchVisibleIndices(List<int> visibleIndices) {
+    _lastVisibleIndicesDispatchAt = DateTime.now();
+    add(UpdateVisibleIndecies(visibleIndices));
+  }
+
+  bool _hasMeaningfulVisibleIndicesChange(
+    List<int> currentIndices,
+    List<int> nextIndices,
+  ) {
+    if (_listsEqual(currentIndices, nextIndices)) {
+      return false;
+    }
+
+    if (currentIndices.isEmpty || nextIndices.isEmpty) {
+      return true;
+    }
+
+    return currentIndices.first != nextIndices.first ||
+        currentIndices.last != nextIndices.last;
+  }
+
+  void _onUpdateSelectedIndex(
+    UpdateSelectedIndex event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is! TextBookLoaded) return;
+    final currentState = state as TextBookLoaded;
+
+    final Set<int> newIndices;
+    final int? newPrimary;
+    if (event.index == null) {
+      newIndices = const {};
+      newPrimary = null;
+    } else if (event.additive) {
+      final updated = Set<int>.from(currentState.selectedIndices);
+      if (updated.remove(event.index)) {
+        newPrimary = updated.isEmpty ? null : updated.last;
+      } else {
+        updated.add(event.index!);
+        newPrimary = event.index;
+      }
+      newIndices = updated;
+    } else {
+      newIndices = {event.index!};
+      newPrimary = event.index;
+    }
+
+    final visibleLinks = computeVisibleLinks(
+      links: currentState.links,
+      visibleIndices: currentState.visibleIndices,
+      selectedIndices: newIndices,
+      linksByLine: currentState.linksByLine,
+    );
+    emit(
+      currentState.copyWith(
+        searchResultNavigation: event is SelectSearchResult
+            ? (line: event.index!, requestId: ++_searchResultRequestId)
+            : null,
+        clearSearchResultNavigation: event is! SelectSearchResult,
+        selectedIndex: newPrimary,
+        clearSelectedIndex: newPrimary == null,
+        selectedIndices: newIndices,
+        clearSelectedIndices: newIndices.isEmpty,
+        visibleLinks: visibleLinks,
+      ),
+    );
+    if (_isCommentariesBelowMode(currentState) &&
+        !currentState.showPageShapeView &&
+        event.index != null &&
+        newIndices.contains(event.index)) {
+      _loadLinksInBackground(currentState.book, [event.index!]);
+    }
+  }
+
+  void _onHighlightLine(
+    HighlightLine event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is! TextBookLoaded) return;
+    final currentState = state as TextBookLoaded;
+    emit(currentState.copyWith(highlightedLine: event.lineIndex));
+
+    _highlightTimer?.cancel();
+
+    _highlightTimer = Timer(const Duration(seconds: 2), () {
+      if (!isClosed) {
+        add(ClearHighlightedLine(event.lineIndex));
+      }
+    });
+  }
+
+  void _onClearHighlightedLine(
+    ClearHighlightedLine event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is! TextBookLoaded) return;
+    final currentState = state as TextBookLoaded;
+    if (currentState.highlightedLine == null) return;
+    if (event.lineIndex != null &&
+        currentState.highlightedLine != event.lineIndex) {
+      return;
+    }
+    emit(currentState.copyWith(clearHighlight: true));
+  }
+
+  /// מחיל highlight מ-deep link על לוגיקת קיימת.
+  /// אם ה-bloc עדיין ב-Initial/Loading, שומר כ-pending ומחיל כשמגיע ל-Loaded.
+  void _onApplyMarkHighlight(
+    ApplyMarkHighlight event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is TextBookLoaded) {
+      final currentState = state as TextBookLoaded;
+      emit(
+        currentState.copyWith(
+          highlightText: event.highlightText,
+          permanentHighlightLine: event.permanentHighlightLine,
+          clearPermanentHighlight: event.permanentHighlightLine == null,
+          searchText: '',
+          searchOrigin: InBookSearchOrigin.inBook,
+        ),
+      );
+      _setHighlightRequest(const SearchEngineRequest(query: '', facets: []));
+    } else {
+      // Initial או Loading — שומרים כ-pending, יוחל ב-_onLoadContent
+      _pendingPinpoint = (
+        text: event.highlightText,
+        sectionIndex: event.permanentHighlightLine,
+      );
+    }
+  }
+
+  void _onTogglePinLeftPane(
+    TogglePinLeftPane event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is TextBookLoaded) {
+      final currentState = state as TextBookLoaded;
+      emit(
+        currentState.copyWith(
+          pinLeftPane: event.pin,
+          selectedIndex: currentState.selectedIndex,
+        ),
+      );
+    }
+  }
+
+  void _onUpdateSearchText(
+    UpdateSearchText event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is TextBookLoaded) {
+      final currentState = state as TextBookLoaded;
+      // בניית החלונית אינה בקשת חיפוש חדשה; שדות null באירוע משמרים תצורה.
+      final requestChanged =
+          event.text != currentState.searchText ||
+          (event.searchMode != null &&
+              event.searchMode != currentState.searchMode) ||
+          (event.searchDistance != null &&
+              event.searchDistance != currentState.searchDistance) ||
+          (event.matchPolicy != null &&
+              event.matchPolicy != currentState.matchPolicy) ||
+          (event.searchOptions != null &&
+              !mapEquals(event.searchOptions, currentState.searchOptions)) ||
+          (event.spacingValues != null &&
+              !mapEquals(event.spacingValues, currentState.spacingValues)) ||
+          (event.alternativeWords != null &&
+              !mapEquals(
+                event.alternativeWords,
+                currentState.alternativeWords,
+              ));
+      // חיפוש ידני חדש מנקה הדגשה ממוקדת קודמת מ‑deep link, אחרת ההדגשה
+      // הממוקדת הייתה ממשיכה לחסום את החיפוש החדש בשאר הסעיפים.
+      emit(
+        currentState.copyWith(
+          searchText: event.text,
+          searchOptions: event.searchOptions,
+          alternativeWords: event.alternativeWords,
+          spacingValues: event.spacingValues,
+          searchMode: event.searchMode,
+          searchDistance: event.searchDistance,
+          matchPolicy: event.matchPolicy,
+          searchOrigin: event.searchOrigin,
+          searchTemplate: event.searchTemplate,
+          searchWholeWord: event.searchWholeWord,
+          selectedIndex: currentState.selectedIndex,
+          clearPinpointHighlight: requestChanged,
+          // שורות התוצאה תקפות לצירוף השאילתה והתצורה, גם לפני פתיחת החלונית.
+          clearSearchResultLines: requestChanged,
+          clearSearchResultNavigation:
+              requestChanged ||
+              (event.searchWholeWord != null &&
+                  event.searchWholeWord != currentState.searchWholeWord),
+          // ניקוי הטקסט והעוגן יחד מונע השארת רקע קבוע במקום ההדגשה.
+          clearHighlightText: requestChanged,
+          clearPermanentHighlight: requestChanged,
+        ),
+      );
+      if (requestChanged) {
+        final updated = state as TextBookLoaded;
+        _setHighlightRequest(
+          SearchEngineRequest(
+            query: updated.searchText,
+            facets: const [],
+            searchMode: updated.searchMode,
+            distance: updated.searchDistance,
+            customSpacing: updated.spacingValues,
+            alternativeWords: updated.alternativeWords,
+            searchOptions: updated.searchOptions,
+            anyOrder: updated.matchPolicy.anyOrder,
+          ),
+          querySemantics: updated.matchPolicy.querySemantics,
+        );
+      }
+    }
+  }
+
+  void _onUpdateSearchResultLines(
+    UpdateSearchResultLines event,
+    Emitter<TextBookState> emit,
+  ) {
+    final currentState = state;
+    if (currentState is! TextBookLoaded) return;
+    if (setEquals(currentState.searchResultLines, event.lines)) return;
+    emit(currentState.copyWith(searchResultLines: event.lines));
+  }
+
+  void _onApplyFullBookContent(
+    ApplyFullBookContent event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is! TextBookLoaded) {
+      return;
+    }
+
+    final currentState = state as TextBookLoaded;
+    if (currentState.book.title != event.bookTitle) {
+      return;
+    }
+
+    final nextLoadedFlags = List<bool>.filled(event.content.length, true);
+    final hasLoadedFlagsChanged =
+        _loadedContentFlags.length != event.content.length ||
+        _loadedContentFlags.any((loaded) => !loaded);
+    if (listEquals(currentState.content, event.content) &&
+        !hasLoadedFlagsChanged) {
+      return;
+    }
+
+    _setLoadedContentFlags(currentState.book, nextLoadedFlags);
+
+    final updatedState = _withInlineNotesCommentator(
+      currentState.copyWith(
+        content: event.content,
+        contentVersion: currentState.contentVersion + 1,
+        loadedLineFlags: _loadedContentFlags,
+      ),
+    );
+    // אחרי שסרקנו את התוכן המלא, אין יותר טעם בסריקה נוספת על הרחבות
+    // טווח עתידיות — או שכבר הוסף 'הערות' ל-availableCommentators (ואז
+    // early-return שומר עלינו), או שאין הערות בכלל בספר.
+    _inlineNotesFullScanDone = true;
+    emit(updatedState);
+    _markLoadedContentRange(
+      currentState.book,
+      0,
+      event.content.isEmpty ? 0 : event.content.length - 1,
+      totalLines: event.content.length,
+    );
+  }
+
+  void _onApplyBookContentRange(
+    ApplyBookContentRange event,
+    Emitter<TextBookState> emit,
+  ) {
+    _applyContentRanges(
+      event.bookTitle,
+      [
+        (
+          startLine: event.startLine,
+          totalLines: event.totalLines,
+          lines: event.lines,
+        ),
+      ],
+      emit,
+    );
+  }
+
+  void _onApplyBookContentRanges(
+    ApplyBookContentRanges event,
+    Emitter<TextBookState> emit,
+  ) {
+    // אצוות חימום שהוכנסו לתור לפני שהטאב הוסתר — החלתן הייתה מחזירה
+    // לזיכרון תוכן שזה עתה שוחרר.
+    if (!_isTabVisible) {
+      return;
+    }
+    _applyContentRanges(event.bookTitle, event.ranges, emit);
+  }
+
+  void _applyContentRanges(
+    String bookTitle,
+    List<BookContentRangeChunk> ranges,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is! TextBookLoaded) {
+      return;
+    }
+
+    final currentState = state as TextBookLoaded;
+    final applicable = ranges.where((range) => range.lines.isNotEmpty).toList();
+    if (currentState.book.title != bookTitle || applicable.isEmpty) {
+      return;
+    }
+
+    // טווח שהוחל בפועל = טעינת-טווחים עובדת לספר הזה (תנאי לשחרור תוכן).
+    _ensureLoadedContentTrackingBook(currentState.book);
+    _supportsContentRangeLoading = true;
+
+    void markAllRanges() {
+      for (final range in applicable) {
+        _markLoadedContentRange(
+          currentState.book,
+          range.startLine,
+          range.startLine + range.lines.length - 1,
+          totalLines: range.totalLines,
+        );
+      }
+    }
+
+    // תוכן מלא עשוי עדיין להיות רשימה רגילה. ב-no-op אין snapshot חדש,
+    // ולכן המרה לפני בדיקת הטווח הייתה חוזרת על כל הספר בכל אירוע זהה.
+    if ((currentState.content is! ChunkedList<String> ||
+            _loadedContentFlags is! ChunkedList<bool>) &&
+        _loadedContentFlags.length >= currentState.content.length &&
+        applicable.every((range) {
+          final end = range.startLine + range.lines.length;
+          if (end > currentState.content.length) return false;
+          for (var index = max(0, range.startLine); index < end; index++) {
+            if (!_loadedContentFlags[index] ||
+                currentState.content[index] !=
+                    range.lines[index - range.startLine]) {
+              return false;
+            }
+          }
+          return true;
+        })) {
+      markAllRanges();
+      return;
+    }
+
+    final nextContent = ChunkedList<String>.from(
+      currentState.content,
+      defaultValue: '',
+    ).edit();
+    final hasTrackedFlags = identical(
+      currentState.loadedLineFlags,
+      _loadedContentFlags,
+    );
+    final nextLoadedFlags = ChunkedList<bool>.from(
+      _loadedContentFlags,
+      defaultValue: false,
+    ).edit();
+    if (nextLoadedFlags.length < nextContent.length) {
+      nextLoadedFlags.length = nextContent.length;
+    }
+
+    for (final range in applicable) {
+      final targetLength = range.startLine + range.lines.length;
+      if (nextContent.length < targetLength) {
+        nextContent.length = targetLength;
+      }
+      if (nextLoadedFlags.length < targetLength) {
+        nextLoadedFlags.length = targetLength;
+      }
+
+      final first = max(0, range.startLine);
+      if (first < targetLength) {
+        nextContent.setRange(
+          first,
+          targetLength,
+          range.lines,
+          first - range.startLine,
+        );
+        nextLoadedFlags.fillRange(first, targetLength, true);
+      }
+    }
+
+    if (!nextContent.changed && !nextLoadedFlags.changed) {
+      markAllRanges();
+      return;
+    }
+
+    _setLoadedContentFlags(currentState.book, nextLoadedFlags.build());
+    markAllRanges();
+
+    emit(
+      _withInlineNotesCommentator(
+        currentState.copyWith(
+          content: nextContent.build(),
+          contentVersion: currentState.contentVersion + 1,
+          loadedLineFlags: _loadedContentFlags,
+          contentChanges: ContentLineChanges(
+            fromVersion: currentState.contentVersion,
+            ranges: [
+              if (!hasTrackedFlags && nextContent.isNotEmpty)
+                (first: 0, last: nextContent.length - 1)
+              else
+                for (final range in applicable)
+                  if (range.startLine + range.lines.length > 0)
+                    (
+                      first: range.startLine.clamp(0, nextContent.length - 1),
+                      last: (range.startLine + range.lines.length - 1).clamp(
+                        0,
+                        nextContent.length - 1,
+                      ),
+                    ),
+            ],
+          ),
+        ),
+        // סורקים הערות רק בטווחים החדשים, בלי לחזור על כל הספר.
+        scanOnly: applicable.expand((range) => range.lines),
+      ),
+    );
+  }
+
+  /// מזהה הערות בטווחים חדשים בלי לסרוק שוב את כל הספר,
+  /// ושומר בחירה ידנית במפרשים גם כאשר מתגלות הערות נוספות.
+  TextBookLoaded _withInlineNotesCommentator(
+    TextBookLoaded state, {
+    Iterable<String>? scanOnly,
+  }) {
+    if (state.availableCommentators.contains(kNotesCommentatorTitle)) {
+      return state;
+    }
+    // ספר מהמסד: גוף ההערות אינו בשורות, ולכן הסריקה לא תמצא אותן.
+    if (!state.bookNotes.isEmpty) return _attachInlineNotesCommentator(state);
+    if (_inlineNotesFullScanDone) {
+      return state;
+    }
+    final content = state.content;
+    final linesToScan =
+        scanOnly ??
+        (content is ChunkedList<String> ? content.nonDefaultValues : content);
+    if (!notes.hasInlineNotes(linesToScan)) {
+      return state;
+    }
+    return _attachInlineNotesCommentator(state);
+  }
+
+  /// מצרף את מפרש ההערות הוירטואלי ל-availableCommentators ולקבוצת "שאר
+  /// מפרשים", ובוחר אותו אוטומטית אם המשתמש עוד לא נגע ידנית בבחירה.
+  /// משותף לסריקה הסינכרונית ב-_onLoadContent ולסריקות ההדרגתיות
+  /// ב-_withInlineNotesCommentator (מסלולי preview/range).
+  TextBookLoaded _attachInlineNotesCommentator(TextBookLoaded state) {
+    if (state.availableCommentators.contains(kNotesCommentatorTitle)) {
+      return state;
+    }
+    final updatedAvailable = [
+      ...state.availableCommentators,
+      kNotesCommentatorTitle,
+    ];
+    final updatedGroups = _addNotesToOtherCommentatorsGroup(
+      state.commentatorGroups,
+    );
+    final shouldAutoSelect =
+        state.activeCommentators.isEmpty && !_userTouchedCommentators;
+    return state.copyWith(
+      availableCommentators: updatedAvailable,
+      commentatorGroups: updatedGroups,
+      activeCommentators: shouldAutoSelect
+          ? const [kNotesCommentatorTitle]
+          : state.activeCommentators,
+    );
+  }
+
+  List<CommentatorGroup> _addNotesToOtherCommentatorsGroup(
+    List<CommentatorGroup> groups,
+  ) {
+    const otherGroupTitle = 'שאר מפרשים';
+    var inserted = false;
+    final next = groups.map((group) {
+      if (group.title == otherGroupTitle &&
+          !group.commentators.contains(kNotesCommentatorTitle)) {
+        inserted = true;
+        return group.copyWith(
+          commentators: [...group.commentators, kNotesCommentatorTitle],
+        );
+      }
+      return group;
+    }).toList();
+    if (!inserted) {
+      next.add(
+        const CommentatorGroup(
+          title: otherGroupTitle,
+          commentators: [kNotesCommentatorTitle],
+        ),
+      );
+    }
+    return next;
+  }
+
+  void _onUpdateSelectedTextForNote(
+    UpdateSelectedTextForNote event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is TextBookLoaded) {
+      final currentState = state as TextBookLoaded;
+      emit(
+        currentState.copyWith(
+          selectedTextForNote: event.text,
+          selectedTextSectionIndex: event.sectionIndex,
+          selectedTextStart: event.start,
+          selectedTextEnd: event.end,
+          clearSelectedText: event.text == null,
+        ),
+      );
+    }
+  }
+
+  @override
+  Future<void> close() async {
+    _debounceTimer?.cancel();
+    _highlightTimer?.cancel();
+    _highlightRequest = null;
+    _releaseHighlightPattern?.call();
+    _releaseHighlightPattern = null;
+    final hiddenSelectionCancellation = _hiddenSelectionSubscription?.cancel();
+
+    readingPosition?.removeListener(_onReadingPosition);
+
+    final blocClosure = super.close();
+    await Future.wait<void>([
+      ?hiddenSelectionCancellation,
+      blocClosure,
+    ]);
+  }
+
+  // האורך הלוגי המלא שומר על מיקום פס הגלילה גם בפתיחה באמצע הספר.
+  int _fullContentLength(BookContentRange range) =>
+      range.totalLines > range.endLine + 1
+      ? range.totalLines
+      : range.endLine + 1;
+
+  /// במצב רציף שורת הפתיחה מוצגת בתוך פסקה שלמה; טוענים את כל שורותיה לפני
+  /// הציור הראשון, כדי שהקורא ייפתח בשורה עצמה ולא במקום שמור.
+  Future<({List<String> content, List<bool> loadedLineFlags})?>
+  _loadInitialItemRange(
+    TextBook book,
+    List<String> content,
+    List<bool> loadedLineFlags,
+    List<TocEntry> tableOfContents,
+    int line,
+  ) async {
+    if (content.isEmpty || loadedLineFlags.length < content.length) return null;
+    final layout = continuousReadingLayout(
+      lineCount: content.length,
+      tableOfContents: tableOfContents,
+    );
+    final item = layout.itemForLine(line);
+    final first = layout.firstLineOf(item);
+    final last = layout.lastLineOf(item);
+    if (!loadedLineFlags.getRange(first, last + 1).contains(false)) return null;
+    // כישלון כאן אינו מכשיל את הפתיחה: הפסקה תיטען כמו כל פריט שלא נטען.
+    final BookContentRange? range;
+    try {
+      range = await repository.getBookContentRange(
+        book,
+        startLine: first,
+        endLine: last,
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint(
+          '⚠️ TextBookBloc::loadInitialItemRange failed for ${book.title}: $e',
+        );
+      }
+      return null;
+    }
+    if (range == null || isClosed) return null;
+    final nextContent = ChunkedList<String>.from(
+      content,
+      defaultValue: '',
+    ).edit();
+    final nextFlags = ChunkedList<bool>.from(
+      loadedLineFlags,
+      defaultValue: false,
+    ).edit();
+    final firstLoaded = max(0, range.startLine);
+    final endLoaded = min(content.length, range.startLine + range.lines.length);
+    if (firstLoaded < endLoaded) {
+      nextContent.setRange(
+        firstLoaded,
+        endLoaded,
+        range.lines,
+        firstLoaded - range.startLine,
+      );
+      nextFlags.fillRange(firstLoaded, endLoaded, true);
+    }
+    final flags = nextFlags.build();
+    _setLoadedContentFlags(book, flags);
+    _markLoadedContentRange(
+      book,
+      range.startLine,
+      range.endLine,
+      totalLines: range.totalLines,
+    );
+    return (content: nextContent.build(), loadedLineFlags: flags);
+  }
+
+  List<String> _contentWithAppliedRange(BookContentRange range) {
+    final content = ChunkedList<String>.filled(
+      _fullContentLength(range),
+      '',
+    ).edit();
+    final first = max(0, range.startLine);
+    final end = min(content.length, range.startLine + range.lines.length);
+    if (first < end) {
+      content.setRange(first, end, range.lines, first - range.startLine);
+    }
+    return content.build();
+  }
+
+  List<bool> _loadedContentFlagsWithAppliedRange(BookContentRange range) {
+    final loadedFlags = ChunkedList<bool>.filled(
+      _fullContentLength(range),
+      false,
+    ).edit();
+    final first = max(0, range.startLine);
+    final end = min(loadedFlags.length, range.startLine + range.lines.length);
+    if (first < end) {
+      loadedFlags.fillRange(first, end, true);
+    }
+    return loadedFlags.build();
+  }
+
+  List<bool> _buildPreviewLoadedLineFlags(
+    String previewContent,
+    int previewStartLine,
+  ) {
+    final previewLineCount = previewContent.isEmpty
+        ? 0
+        : previewContent.split('\n').length;
+    final loadedFlags = List<bool>.filled(
+      previewStartLine + previewLineCount,
+      false,
+    );
+    for (var index = previewStartLine; index < loadedFlags.length; index++) {
+      loadedFlags[index] = true;
+    }
+    return loadedFlags;
+  }
+
+  void _ensureLoadedContentTrackingBook(TextBook book) {
+    if (_loadedContentBookTitle == book.title) {
+      return;
+    }
+
+    _loadedContentBookTitle = book.title;
+    _loadedContentRanges = const [];
+    _loadedContentFlags = const [];
+    _loadedContentTotalLines = null;
+    _supportsContentRangeLoading = false;
+  }
+
+  void _setLoadedContentFlags(TextBook book, List<bool> loadedFlags) {
+    _ensureLoadedContentTrackingBook(book);
+    _loadedContentFlags = loadedFlags is ChunkedList<bool>
+        ? loadedFlags
+        : List<bool>.unmodifiable(loadedFlags);
+  }
+
+  void _markLoadedContentRange(
+    TextBook book,
+    int startLine,
+    int endLine, {
+    int? totalLines,
+  }) {
+    _ensureLoadedContentTrackingBook(book);
+
+    _loadedContentTotalLines = totalLines ?? _loadedContentTotalLines;
+    _loadedContentRanges = mergeLoadedContentRanges(
+      _loadedContentRanges,
+      startLine: startLine,
+      endLine: endLine,
+    );
+  }
+
+  bool _isContentWindowSufficient(TextBook book, int startLine, int endLine) {
+    if (_loadedContentBookTitle != book.title || _loadedContentRanges.isEmpty) {
+      return false;
+    }
+
+    return isContentWindowSufficient(
+      loadedRanges: _loadedContentRanges,
+      startLine: startLine,
+      endLine: endLine,
+      reloadThresholdLines: _contentReloadThresholdLines,
+    );
+  }
+
+  /// החלון כולל את כל שורות הפריטים הגלויים: פריט חלקי מוצג כמקום שמור
+  /// עד שכל שורותיו נטענות.
+  ({int startLine, int endLine}) _calculateContentWindow(
+    TextBookLoaded? state,
+    List<int> visibleIndices,
+  ) {
+    var firstVisible = visibleIndices.isEmpty ? 0 : visibleIndices.first;
+    var lastVisible = visibleIndices.isEmpty
+        ? firstVisible
+        : visibleIndices.last;
+    // פריט חלקי בשולי התצוגה מסונן מ-visibleIndices אך עדיין מוצג.
+    final measured = readingPosition?.value;
+    if (measured != null &&
+        visibleIndices.isNotEmpty &&
+        measured.topLine == firstVisible) {
+      firstVisible = min(firstVisible, measured.windowFirstLine);
+      lastVisible = max(lastVisible, measured.windowLastLine);
+    }
+    if (state != null) {
+      final layout = readingLayoutOf(state);
+      if (layout.isNotEmpty) {
+        firstVisible = layout.firstLineOf(layout.itemForLine(firstVisible));
+        lastVisible = layout.lastLineOf(layout.itemForLine(lastVisible));
+      }
+    }
+
+    return (
+      startLine: firstVisible - _contentLookBehindLines,
+      endLine: lastVisible + _contentLookAheadLines,
+    );
+  }
+
+  Future<void> _loadContentRangeInBackground(
+    TextBook book,
+    List<int> visibleIndices, {
+    bool force = false,
+  }) async {
+    if (_requiresWholeBookContent(book)) return;
+
+    final loadedState = state;
+    final window = _calculateContentWindow(
+      loadedState is TextBookLoaded && loadedState.book.title == book.title
+          ? loadedState
+          : null,
+      visibleIndices,
+    );
+    if (!force &&
+        _isContentWindowSufficient(book, window.startLine, window.endLine)) {
+      return;
+    }
+
+    if (_isLoadingContentRange) {
+      _pendingContentRangeReload = true;
+      return;
+    }
+
+    _isLoadingContentRange = true;
+    try {
+      final range = await repository.getBookContentRange(
+        book,
+        startLine: window.startLine,
+        endLine: window.endLine,
+      );
+      if (range != null && !isClosed) {
+        add(
+          ApplyBookContentRange(
+            bookTitle: book.title,
+            startLine: range.startLine,
+            totalLines: range.totalLines,
+            lines: range.lines,
+          ),
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint(
+          '⚠️ TextBookBloc::loadContentRange failed for ${book.title}: $e',
+        );
+      }
+    } finally {
+      _isLoadingContentRange = false;
+      if (_pendingContentRangeReload && !isClosed) {
+        _pendingContentRangeReload = false;
+        final currentState = state;
+        if (currentState is TextBookLoaded &&
+            currentState.book.title == book.title) {
+          _loadContentRangeInBackground(
+            book,
+            currentState.visibleIndices,
+            force: true,
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _warmContentCacheInBackground(TextBook book) async {
+    if (_requiresWholeBookContent(book)) return;
+
+    if (_isWarmingContentCache || !_allowBackgroundWarming) {
+      return;
+    }
+
+    _isWarmingContentCache = true;
+
+    // chunks שנטענו וטרם נשלחו ל-state. שליחה פר-chunk גררה rebuild מלא של
+    // ה-viewport עשרות פעמים לספר — לכן צוברים ושולחים באצוות.
+    final pendingChunks = <BookContentRangeChunk>[];
+    // הטווחים שהחימום כבר טען (כולל אלו שבהמתנה) — _loadedContentRanges
+    // מתעדכן רק כשה-chunk מוחל בפועל, ולכן לבדו היה גורר טעינה חוזרת.
+    var warmedRanges = <({int startLine, int endLine})>[];
+
+    void flushPendingChunks() {
+      if (pendingChunks.isEmpty || isClosed) {
+        return;
+      }
+      // טאב שהוסתר בינתיים, או חלונית שהחימום בה כובה: אין טעם להחיל
+      // chunks שישוחררו מיד — _loadedContentRanges מתעדכן רק בהחלה,
+      // כך שהוויתור בטוח.
+      if (!_isTabVisible || !_allowBackgroundWarming) {
+        pendingChunks.clear();
+        return;
+      }
+      add(
+        ApplyBookContentRanges(
+          bookTitle: book.title,
+          ranges: List.of(pendingChunks),
+        ),
+      );
+      pendingChunks.clear();
+    }
+
+    try {
+      List<int> lastWarmVisible = const [];
+      while (!isClosed) {
+        final currentState = state;
+        if (currentState is! TextBookLoaded ||
+            currentState.book.title != book.title) {
+          return;
+        }
+
+        // טאב רקע או חלונית בטאב מפוצל אינם מחממים — החימום מתחדש
+        // ב-SetTabVisibility כשהטאב חוזר לחזית או כשנותרה חלונית אחת.
+        if (!_isTabVisible || !_allowBackgroundWarming) {
+          return;
+        }
+
+        // השהיית warming בזמן גלילה: אם החלון הנראה זז המשתמש גולל (warming
+        // לא מזיזו), ונותנים קדימות לטעינה האינטראקטיבית במקום להתחרות עליה.
+        if (!_listsEqual(lastWarmVisible, currentState.visibleIndices)) {
+          lastWarmVisible = currentState.visibleIndices;
+          await Future<void>.delayed(_visibleIndicesDebounceDuration);
+          continue;
+        }
+
+        final totalLines = _loadedContentTotalLines;
+        if (totalLines == null) {
+          return;
+        }
+
+        var effectiveRanges = _loadedContentRanges;
+        for (final range in warmedRanges) {
+          effectiveRanges = mergeLoadedContentRanges(
+            effectiveRanges,
+            startLine: range.startLine,
+            endLine: range.endLine,
+          );
+        }
+        final nextStart = nextWarmContentStartNearViewportForTesting(
+          loadedRanges: effectiveRanges,
+          totalLines: totalLines,
+          visibleIndices: currentState.visibleIndices,
+          chunkLines: _contentWarmChunkLines,
+        );
+        if (nextStart == null || nextStart >= totalLines) {
+          return;
+        }
+
+        final range = await repository.getBookContentRange(
+          book,
+          startLine: nextStart,
+          endLine: nextStart + _contentWarmChunkLines - 1,
+        );
+        if (range == null || range.lines.isEmpty) {
+          return;
+        }
+
+        if (isClosed) {
+          return;
+        }
+
+        pendingChunks.add((
+          startLine: range.startLine,
+          totalLines: range.totalLines,
+          lines: range.lines,
+        ));
+        warmedRanges = mergeLoadedContentRanges(
+          warmedRanges,
+          startLine: range.startLine,
+          endLine: range.startLine + range.lines.length - 1,
+        );
+        if (pendingChunks.length >= _warmFlushChunkCount) {
+          flushPendingChunks();
+        }
+
+        await SchedulerBinding.instance.endOfFrame;
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint(
+          '⚠️ TextBookBloc::warmContentCache failed for ${book.title}: $e',
+        );
+      }
+    } finally {
+      flushPendingChunks();
+      _isWarmingContentCache = false;
+    }
+  }
+
+  bool _requiresWholeBookContent(TextBook book) =>
+      isMarkdownBook(fileType: book.fileType, filePath: book.filePath);
+
+  Future<void> _loadFullBookInBackground(TextBook book) async {
+    try {
+      final fullContent = await repository.getBookContent(book);
+
+      if (fullContent.isEmpty) {
+        return;
+      }
+
+      if (isClosed || state is! TextBookLoaded) {
+        return;
+      }
+
+      final currentState = state as TextBookLoaded;
+      if (currentState.book.title != book.title) {
+        return;
+      }
+
+      final lines = await splitContentLines(fullContent);
+      if (isClosed) {
+        return;
+      }
+      add(
+        ApplyFullBookContent(
+          bookTitle: book.title,
+          content: lines,
+        ),
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint(
+          '⚠️ TextBookBloc::loadFullBook failed for ${book.title}: $e',
+        );
+      }
+    }
+  }
+
+  Future<void> _loadLinksInBackground(
+    TextBook book,
+    List<int> visibleIndices, {
+    bool force = false,
+    Iterable<String>? targetBookTitlesOverride,
+    bool forceLoadAll = false,
+    String? workspaceId,
+  }) async {
+    final loadGeneration = _linksLoadGeneration;
+    final runtimeStateBeforeWindowCheck = state;
+    if (!force &&
+        runtimeStateBeforeWindowCheck is TextBookLoaded &&
+        !_shouldLoadLinksForState(runtimeStateBeforeWindowCheck)) {
+      return;
+    }
+
+    // נועלים גם את פתרון היעדים; הבקשה הממתינה האחרונה שומרת את ההקשר שלה.
+    if (_isLoadingLinks) {
+      if (forceLoadAll) {
+        _pendingForceLoadIndices = List<int>.of(visibleIndices);
+      } else {
+        _pendingLinksReload = (
+          force: force,
+          targetBookTitlesOverride: targetBookTitlesOverride,
+          workspaceId: workspaceId,
+        );
+      }
+      return;
+    }
+    _isLoadingLinks = true;
+    final window = _calculateLinksWindow(visibleIndices);
+    var loadedLinks = false;
+    var targetBookTitlesSignature = _allTargetBookTitlesSignature;
+
+    try {
+      List<String>? targetBookTitles;
+      if (forceLoadAll) {
+        targetBookTitles = null;
+      } else if (targetBookTitlesOverride != null) {
+        targetBookTitles = _normalizeTargetBookTitles(targetBookTitlesOverride);
+        targetBookTitlesSignature = _targetBookTitlesSignature(
+          targetBookTitles,
+        );
+      } else {
+        final runtimeState = state;
+        if (runtimeState is TextBookLoaded) {
+          targetBookTitles = await _resolveTargetBookTitlesForLinks(
+            runtimeState,
+            workspaceId,
+          );
+          targetBookTitlesSignature = _targetBookTitlesSignature(
+            targetBookTitles,
+          );
+        }
+      }
+
+      if (isClosed || loadGeneration != _linksLoadGeneration) return;
+      if (!force &&
+          _isLinksWindowSufficient(
+            book.title,
+            window.start,
+            window.end,
+            targetBookTitlesSignature,
+          )) {
+        return;
+      }
+      add(const SetLinksLoading(true));
+
+      final links = await repository.getBookLinksInRange(
+        book,
+        startIndex: window.start,
+        endIndex: window.end,
+        targetBookTitles: targetBookTitles,
+      );
+
+      if (loadGeneration != _linksLoadGeneration) return;
+      if (isClosed || state is! TextBookLoaded) return;
+      final currentState = state as TextBookLoaded;
+      if (currentState.book.title != book.title) return;
+
+      _loadedLinksBookTitle = book.title;
+      _loadedLinksStart = window.start;
+      _loadedLinksEnd = window.end;
+      _loadedLinksTargetBookTitlesSignature = targetBookTitlesSignature;
+      loadedLinks = true;
+      final replaceExistingLinks =
+          currentState.links.isNotEmpty &&
+          _activeLinksTargetBookTitlesSignature != targetBookTitlesSignature;
+      add(
+        UpdateLinks(
+          links,
+          replaceExisting: replaceExistingLinks,
+          targetBookTitlesSignature: targetBookTitlesSignature,
+        ),
+      );
+    } catch (e, stackTrace) {
+      if (loadGeneration != _linksLoadGeneration) return;
+      if (!isClosed) {
+        add(const SetLinksLoading(false));
+      }
+      try {
+        ErrorLogFile.appendInBackground(
+          title: 'כשל בטעינת קישורי ספר',
+          error: e,
+          stackTrace: stackTrace,
+          details: {
+            'book': book.title,
+            'window': '${window.start}-${window.end}',
+          },
+        );
+      } catch (_) {}
+    } finally {
+      if (loadGeneration == _linksLoadGeneration) {
+        _isLoadingLinks = false;
+        final pending = _pendingLinksReload;
+        final pendingIndices = _pendingForceLoadIndices;
+        _pendingLinksReload = null;
+        _pendingForceLoadIndices = null;
+        final currentState = state;
+        if (!isClosed &&
+            currentState is TextBookLoaded &&
+            currentState.book.title == book.title) {
+          if (pendingIndices != null) {
+            unawaited(
+              _loadLinksInBackground(
+                currentState.book,
+                pendingIndices,
+                force: true,
+                forceLoadAll: true,
+              ),
+            );
+          } else if (pending != null && (!forceLoadAll || !loadedLinks)) {
+            unawaited(
+              _loadLinksInBackground(
+                currentState.book,
+                currentState.visibleIndices,
+                // הצלחה מספקת בקשות זהות; כשל חייב לשמר רענון מאולץ.
+                force: pending.force && !loadedLinks,
+                targetBookTitlesOverride: pending.targetBookTitlesOverride,
+                workspaceId: pending.workspaceId,
+              ),
+            );
+          } else if (loadedLinks && !forceLoadAll) {
+            final latestWindow = _calculateLinksWindow(
+              currentState.visibleIndices,
+            );
+            if (!_isLinksWindowSufficient(
+              currentState.book.title,
+              latestWindow.start,
+              latestWindow.end,
+              targetBookTitlesSignature,
+            )) {
+              unawaited(
+                _loadLinksInBackground(
+                  currentState.book,
+                  currentState.visibleIndices,
+                  workspaceId: workspaceId,
+                ),
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+
+  Future<void> _onUpdateLinks(
+    UpdateLinks event,
+    Emitter<TextBookState> emit,
+  ) async {
+    if (state is! TextBookLoaded) return;
+    final stateBeforeAwait = state as TextBookLoaded;
+    final processedLinks = await processLinksForState(
+      existingLinks: stateBeforeAwait.links,
+      incomingLinks: event.links.cast<Link>(),
+      replaceExisting: event.replaceExisting,
+      visibleIndices: stateBeforeAwait.visibleIndices,
+      selectedIndices: stateBeforeAwait.selectedIndices,
+    );
+
+    if (state is! TextBookLoaded) return;
+    final currentState = state as TextBookLoaded;
+    if (currentState.book.title != stateBeforeAwait.book.title) return;
+
+    emit(
+      currentState.copyWith(
+        links: processedLinks.links,
+        linksByLine: processedLinks.linksByLine,
+        visibleLinks: processedLinks.visibleLinks,
+        linksLoading: false,
+      ),
+    );
+    _activeLinksTargetBookTitlesSignature =
+        event.targetBookTitlesSignature ?? _allTargetBookTitlesSignature;
+
+    // טעינת דורות הספרים מראש למטמון, כדי שתפריט ההקשר יוכל למיין סינכרונית.
+    // רק החלון החדש: הקישורים שנצברו נטענו באירועים קודמים.
+    _preloadLinkEras(event.links.cast<Link>());
+  }
+
+  /// טוען מראש את דורות ספרי היעד של הקישורים הרגילים (לא מפרשים)
+  void _preloadLinkEras(List<Link> links) {
+    final eraLinks = [
+      for (final link in links)
+        if (!LinkTypes.isDependentTextLink(link.connectionType)) link,
+    ];
+    if (eraLinks.isEmpty) return;
+    CommentaryService.preloadErasForLinks(eraLinks);
+  }
+
+  void _onSetLinksLoading(
+    SetLinksLoading event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is! TextBookLoaded) return;
+    final currentState = state as TextBookLoaded;
+    if (currentState.linksLoading == event.isLoading) return;
+    emit(currentState.copyWith(linksLoading: event.isLoading));
+  }
+
+  void _onUpdateAvailableCommentators(
+    UpdateAvailableCommentators event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is TextBookLoaded) {
+      final currentState = state as TextBookLoaded;
+
+      final updatedState = _withInlineNotesCommentator(
+        currentState.copyWith(
+          availableCommentators: _withoutHiddenCommentators(
+            event.availableCommentators,
+          ),
+          commentatorsLoaded: true,
+          activeCommentators: _withoutHiddenCommentators(
+            currentState.activeCommentators,
+          ),
+          commentatorGroups: _withoutHiddenGroups(
+            event.commentatorGroups.cast<CommentatorGroup>(),
+          ),
+          rareCommentators: event.rareCommentators.difference(
+            _hiddenCommentatorTitlesCache,
+          ),
+        ),
+      );
+      emit(updatedState);
+
+      if (updatedState.showPageShapeView) {
+        _loadLinksInBackground(updatedState.book, updatedState.visibleIndices);
+      }
+    }
+  }
+
+  List<String> _withoutHiddenCommentators(List<String> titles) =>
+      _hiddenCommentatorTitlesCache.isEmpty
+      ? titles
+      : titles
+            .where((title) => !_hiddenCommentatorTitlesCache.contains(title))
+            .toList();
+
+  List<CommentatorGroup> _withoutHiddenGroups(
+    List<CommentatorGroup> groups,
+  ) => _hiddenCommentatorTitlesCache.isEmpty
+      ? groups
+      : groups
+            .map(
+              (group) => group.copyWith(
+                commentators: _withoutHiddenCommentators(group.commentators),
+              ),
+            )
+            .where((group) => group.commentators.isNotEmpty)
+            .toList();
+
+  Future<void> _onRefreshCommentatorVisibility(
+    RefreshCommentatorVisibility event,
+    Emitter<TextBookState> emit,
+  ) async {
+    final current = state;
+    if (current is! TextBookLoaded) return;
+    final generation = ++_visibilityRefreshGeneration;
+    final hiddenTitles = await currentHiddenBookTitles();
+    if (isClosed || generation != _visibilityRefreshGeneration) return;
+    final latest = state;
+    if (latest is! TextBookLoaded || latest.book != current.book) return;
+    final previousHiddenTitles = _hiddenCommentatorTitlesCache;
+    if (setEquals(previousHiddenTitles, hiddenTitles)) return;
+    _hiddenCommentatorTitlesCache = hiddenTitles;
+    emit(
+      latest.copyWith(
+        activeCommentators: _withoutHiddenCommentators(
+          latest.activeCommentators,
+        ),
+        availableCommentators: _withoutHiddenCommentators(
+          latest.availableCommentators,
+        ),
+        commentatorGroups: _withoutHiddenGroups(latest.commentatorGroups),
+        rareCommentators: latest.rareCommentators.difference(hiddenTitles),
+      ),
+    );
+    if (previousHiddenTitles.difference(hiddenTitles).isEmpty) return;
+    _loadCommentatorsInBackground(latest.book, restoreSelection: false);
+  }
+
+  void _onRefreshLinksForCurrentWindow(
+    RefreshLinksForCurrentWindow event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is! TextBookLoaded) {
+      return;
+    }
+
+    final currentState = state as TextBookLoaded;
+    _loadLinksInBackground(
+      currentState.book,
+      currentState.visibleIndices,
+      force: true,
+      workspaceId: event.workspaceId,
+    );
+  }
+
+  void _onLoadAllLinksForIndices(
+    LoadAllLinksForIndices event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is! TextBookLoaded) return;
+    final currentState = state as TextBookLoaded;
+    _loadLinksInBackground(
+      currentState.book,
+      event.indices,
+      force: true,
+      forceLoadAll: true,
+    );
+  }
+
+  Future<void> _loadCommentatorsInBackground(
+    TextBook book, {
+    bool restoreSelection = true,
+  }) async {
+    final generation = ++_commentatorsLoadGeneration;
+    try {
+      final commentatorsData = await repository.getCommentatorsWithRarity(book);
+      if (book.source.isOfficial &&
+          commentatorsData.all.isEmpty &&
+          !repository.isLibraryConnectionOpen) {
+        _logCommentatorsFailure(
+          book,
+          StateError('commentators list empty: library connection closed'),
+        );
+      }
+      // מפרש שהמשתמש הסתיר יורד מרשימות הבחירה ומהתצוגה (issue #1448).
+      // הסינון כאן ולא ב-repository: גשר התוספים קורא לאותה שאילתה, וההסתרה
+      // היא של הממשק בלבד.
+      final hiddenTitles = await currentHiddenBookTitles();
+      if (isClosed || generation != _commentatorsLoadGeneration) return;
+      _hiddenCommentatorTitlesCache = hiddenTitles;
+      final availableCommentators = hiddenTitles.isEmpty
+          ? commentatorsData.all
+          : commentatorsData.all
+                .where((title) => !hiddenTitles.contains(title))
+                .toList();
+      final rareCommentators = commentatorsData.rare.difference(hiddenTitles);
+      final baseCommentators = await DefaultCommentators.getBaseCommentators(
+        book,
+      );
+
+      final groups = await groupCommentatorsByEra(
+        availableCommentators,
+        source: book.source,
+        sourceByTitle: await repository.getExternalCommentatorSources(book),
+        baseCommentators: baseCommentators,
+      );
+
+      if (isClosed ||
+          generation != _commentatorsLoadGeneration ||
+          state is! TextBookLoaded) {
+        return;
+      }
+
+      final loaded = state as TextBookLoaded;
+      if (loaded.book.title != book.title) {
+        return;
+      }
+
+      // הזיהוי של 'הערות' כמפרש וירטואלי נעשה בנפרד דרך
+      // _withInlineNotesCommentator שמופעל בכל עדכון של ה-content.
+      if (isClosed) return;
+      add(
+        UpdateAvailableCommentators(
+          availableCommentators,
+          groups,
+          rareCommentators,
+        ),
+      );
+
+      if (!restoreSelection) return;
+
+      // בחירה שמורה פר-ספר גוברת על ברירת המחדל: אם המשתמש בחר בעבר (כולל
+      // בחירה ריקה) — משחזרים אותה; אחרת בוחרים את מפרשי ברירת המחדל.
+      final saved = book.isUserBook
+          ? null
+          : await TextBookPerBookSettings.load(book);
+      if (isClosed || generation != _commentatorsLoadGeneration) return;
+
+      if (saved?.activeCommentators != null) {
+        if (isClosed || generation != _commentatorsLoadGeneration) return;
+        add(
+          UpdateCommentators(
+            saved!.activeCommentators!,
+            isUserAction: false,
+            isRestore: true,
+          ),
+        );
+        return;
+      }
+
+      // בחירה אוטומטית של מפרשי ברירת המחדל בפתיחה — מוחלת רק אם המשתמש
+      // עוד לא בחר ידנית ואין מפרשים פעילים (נאכף ב-_onUpdateCommentators).
+      final initialSelection = await DefaultCommentators.getInitialSelection(
+        book,
+        availableCommentators: availableCommentators,
+        baseCommentators: baseCommentators,
+      );
+      if (generation != _commentatorsLoadGeneration || isClosed) return;
+      if (initialSelection.isNotEmpty) {
+        add(UpdateCommentators(initialSelection, isUserAction: false));
+        return;
+      }
+      _loadLinksAfterCommentatorsResolved(book);
+    } catch (e, stackTrace) {
+      debugPrint('⚠️ Failed to load commentators in background: $e');
+      _logCommentatorsFailure(book, e, stackTrace);
+      final current = state;
+      // אחרת טור צורת הדף ממתין לרשימה שלא תגיע.
+      if (!isClosed &&
+          generation == _commentatorsLoadGeneration &&
+          current is TextBookLoaded &&
+          !current.commentatorsLoaded &&
+          current.book.title == book.title) {
+        add(
+          UpdateAvailableCommentators(
+            current.availableCommentators,
+            current.commentatorGroups,
+            current.rareCommentators,
+          ),
+        );
+      }
+      _loadLinksAfterCommentatorsResolved(book);
+    }
+  }
+
+  /// כשל כאן משאיר את חלונית המפרשים ריקה בלי שום סימן, ולכן נרשם ל-errors.txt.
+  void _logCommentatorsFailure(
+    TextBook book,
+    Object error, [
+    StackTrace? stackTrace,
+  ]) {
+    if (kDebugMode && !logCommentatorsFailuresInDebug) return;
+    final key = '${book.source}|${book.title}|${error.runtimeType}';
+    if (_loggedCommentatorsFailure == key) return;
+    _loggedCommentatorsFailure = key;
+    try {
+      ErrorLogFile.appendInBackground(
+        title: 'כשל בטעינת רשימת המפרשים',
+        error: error,
+        stackTrace: stackTrace,
+        details: {
+          'book': book.title,
+          'categoryId': book.categoryId?.toString(),
+          'source': book.source.toString(),
+          'errorType': error.runtimeType.toString(),
+          'libraryConnectionOpen': repository.isLibraryConnectionOpen
+              .toString(),
+        },
+      );
+    } catch (_) {}
+  }
+
+  /// טעינת הקישורים שנדחתה ב-[_onLoadContent] עד לפתרון בחירת המפרשים,
+  /// במסלולים שבהם לא נשלח UpdateCommentators (ואיתו הטעינה).
+  void _loadLinksAfterCommentatorsResolved(TextBook book) {
+    final current = state;
+    if (isClosed || current is! TextBookLoaded) return;
+    if (current.book.title != book.title) return;
+    _loadLinksInBackground(book, current.visibleIndices);
+  }
+
+  /// שומר את בחירת המפרשים פר-ספר (תמיד, ללא תלות ב-enablePerBookSettings),
+  /// כדי שתיטען בכל פתיחה. בחירה ריקה נשמרת אף היא (המשתמש ביטל את הכל).
+  Future<void> _saveActiveCommentatorsPerBook(
+    Book book,
+    List<String> commentators,
+  ) async {
+    try {
+      await TextBookPerBookSettings.mutate(
+        book,
+        (existing) => (existing ?? TextBookPerBookSettings()).copyWith(
+          activeCommentators: List<String>.from(commentators),
+        ),
+      );
+    } catch (e) {
+      debugPrint('⚠️ Failed to save active commentators per book: $e');
+    }
+  }
+
+  static Future<BookNotes> _loadBookNotes(TextBook book) =>
+      BookNotesRepository.instance.notesFor(
+        book.title,
+        categoryId: book.categoryId,
+        source: book.source,
+        fileType: book.fileType,
+        versionTitle: book.versionTitle,
+      );
+
+  Future<void> _loadDivineNamesInBackground(TextBook book) async {
+    final spans = await DivineNamesRepository.instance.spansFor(
+      book.title,
+      categoryId: book.categoryId,
+      source: book.source,
+      fileType: book.fileType,
+      versionTitle: book.versionTitle,
+    );
+    if (isClosed || spans.isEmpty) return;
+    add(
+      UpdateDivineNames(
+        bookTitle: book.title,
+        versionTitle: book.versionTitle,
+        spans: spans,
+      ),
+    );
+  }
+
+  void _onUpdateDivineNames(
+    UpdateDivineNames event,
+    Emitter<TextBookState> emit,
+  ) {
+    final current = state;
+    if (current is! TextBookLoaded) return;
+    // מעבר מהיר בין ספרים — המופעים שייכים לספר הקודם.
+    if (current.book.title != event.bookTitle ||
+        current.book.versionTitle != event.versionTitle) {
+      return;
+    }
+    emit(current.copyWith(divineNames: event.spans));
+  }
+
+  Future<void> _enrichHeCategoriesInBackground(TextBook book) async {
+    final enriched = await enrichHeCategories(book);
+    if (isClosed) return;
+
+    final heCategoriesChanged =
+        enriched.heCategories != null &&
+        enriched.heCategories != book.heCategories;
+    final authorChanged =
+        enriched.author != null && enriched.author != book.author;
+    final heEraChanged = enriched.heEra != null && enriched.heEra != book.heEra;
+
+    // ה-enrichment רץ ברקע; אם ה-bloc נסגר בינתיים אסור להוסיף event.
+    if (isClosed) return;
+
+    if ((book.id == null && enriched.resolvedId != null) ||
+        heCategoriesChanged ||
+        authorChanged ||
+        heEraChanged) {
+      if (isClosed) return;
+      add(
+        UpdateResolvedBookId(
+          bookTitle: book.title,
+          resolvedId: enriched.resolvedId,
+          heCategories: heCategoriesChanged ? enriched.heCategories : null,
+          author: authorChanged ? enriched.author : null,
+          heEra: heEraChanged ? enriched.heEra : null,
+        ),
+      );
+    }
+  }
+
+  void _onUpdateResolvedBookId(
+    UpdateResolvedBookId event,
+    Emitter<TextBookState> emit,
+  ) {
+    final current = state;
+    if (current is! TextBookLoaded) return;
+    if (current.book.title != event.bookTitle) return;
+
+    final needsIdUpdate = current.book.id == null && event.resolvedId != null;
+    final needsCategoriesUpdate =
+        event.heCategories != null &&
+        event.heCategories != current.book.heCategories;
+    final needsAuthorUpdate =
+        event.author != null && event.author != current.book.author;
+    final needsHeEraUpdate =
+        event.heEra != null && event.heEra != current.book.heEra;
+
+    if (!needsIdUpdate &&
+        !needsCategoriesUpdate &&
+        !needsAuthorUpdate &&
+        !needsHeEraUpdate) {
+      return;
+    }
+
+    final updatedBook = current.book.copyWith(
+      id: needsIdUpdate ? event.resolvedId : null,
+      heCategories: needsCategoriesUpdate ? event.heCategories : null,
+      author: needsAuthorUpdate ? event.author : null,
+      heEra: needsHeEraUpdate ? event.heEra : null,
+    );
+    emit(current.copyWith(book: updatedBook));
+  }
+}

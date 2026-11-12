@@ -1,0 +1,79 @@
+{
+  "runId": "43294899743",
+  "attempt": 1,
+  "jobId": "131450474161",
+  "comparisonDesign": "representation-only",
+  "candidate": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+  "flatControlBaseline": "764abeeec8a81a0e081d951261c37dc15dbadec3",
+  "hardwareId": "github-hosted-43294899743-1",
+  "noResultsAvailableAtPreparation": true,
+  "measurementRoot": "Pass the extracted directory containing provenance.json; expected upload prefix r4307p. Do not infer it from whole-PR paths.",
+  "generalContract": "windows-qa-input-contract.json",
+  "entrypoint": "run_representation_43294899743.py",
+  "command": [
+    "python3",
+    "repro/run_representation_43294899743.py",
+    "ACTUAL_MEASUREMENT_ROOT",
+    "--repo",
+    "REPOSITORY_ROOT",
+    "--output-directory",
+    "results/representation-43294899743-attempt1-initial"
+  ],
+  "outputPolicy": "A distinct directory and run-specific filenames. Existing outputs cause refusal. If a reviewed QA correction becomes necessary, preserve the initial output and source version and use a new directory.",
+  "experimentEvidenceDirectory": "reader-representation-validation",
+  "requiredExperimentEvidence": [
+    "experiment-plan.json",
+    "source-provenance.json",
+    "control-validation.json",
+    "lockfile-quoting.json",
+    "executed-workflow.yml",
+    "representation-only.patch",
+    "original-long_book_snapshot_regression_test.dart",
+    "generated-long_book_snapshot_regression_flat_control_validation_test.dart",
+    "candidate-text_book_bloc.dart",
+    "control-text_book_bloc.dart"
+  ],
+  "preserveExperimentLogs": [
+    "analyze",
+    "format",
+    "pub-get",
+    "common-tests",
+    "comparison-contracts",
+    "sampler-contracts",
+    "version"
+  ],
+  "validationOverlay": {
+    "location": "control-validation.json contains original/generated SHA, omitted assertion, commands/status/cleanup/source-clean results; there is no separate overlay-provenance.json.",
+    "originalTestSha256": "9eeea22effd110ba786a64ccb00bebcffa2621997e071ba9616c580ff1c21356",
+    "generatedTestSha256": "586b42792cabf70f3709f2eabbb6c5507d915c9d0e508af91954133a2e312ed7",
+    "omission": "Only immutable-content assertion in a temporary sibling test; original remains unchanged and all other assertions run."
+  },
+  "expectedActions": 21,
+  "samplesPerActionAndSide": 16,
+  "processesPerSide": 4,
+  "warmupsPerProcess": 1,
+  "measuredRepetitionsPerProcess": 4,
+  "analysis": [
+    "Strict pinned source/hardware/harness and direct-child one-file control verification.",
+    "Exact aggregate/leaf equality, all observations/outliers retained, recompute nearest-rank quantiles.",
+    "Per-process arithmetic medians as well as nearest-rank p50; four-sample nearest-rank p50 alone can hide two slow values.",
+    "All recorded build/raster/total frame arrays, counts, maxima and process distributions.",
+    "Verify steady-scroll no content I/O and distinguish phase FrameTiming from trace-derived pipeline availability.",
+    "Preserve missing timeline evidence and missing final status/diff as distinct evidence limitations.",
+    "Retain all 672 required measured observations; observer-timing-qa.json applies to the identical harness.",
+    "Interpret all 21 actions, including warmup frames separately from readiness latency and unavailable layout/paint."
+  ],
+  "sourceCaveats": [
+    "Representation control retains all unrelated candidate behavior.",
+    "Flat content mutability and identity of internal/state flag snapshots are representation-mediated differences.",
+    "Readiness scan/observer costs can depend on representation; do not subtract estimated overhead."
+  ],
+  "decisionCriteria": {
+    "automaticThreshold": null,
+    "ready": "Assess whether the actual results resolve the documented interaction/frame concerns and existing experiment hold. Ready is not merge approval.",
+    "retainDraft": "Concrete unresolved or inconclusive interaction/frame evidence, unavailable required platform validation, or explicit existing experimental hold can remain reasons.",
+    "close": "Consider only after valid isolated evidence establishes an unfavorable tradeoff; preserve independent correctness fixes. A single outlier, CI infrastructure failure or unavailable GPU does not by itself justify closure.",
+    "physicalGpu": "This hosted run is not presumed to meet physical-GPU requirements; verify actual manifest hardware.",
+    "runSeparation": "Never pool observations or ratios across whole-PR and isolated runs/hardware."
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "repository": "Otzaria/otzaria",
+  "evidence_parent": "c16d296f04f168aad52e572cb00b9a6c8168d226",
+  "evidence_base_tree": "56e6095da6f8427ee1f3a55127cbcac0fef5d859",
+  "repo": "/workspace/scratch/03d201536b5d/repo4307",
+  "run_dir": "/workspace/scratch/03d201536b5d/isolated4307-run43294899743",
+  "output": "/workspace/scratch/03d201536b5d/pr4307-windows-isolated-git-evidence",
+  "prefix": "tool/perf_probe/results/pr4307_review_20261112/windows-representation-only-43294899743",
+  "run_id": 43294899743,
+  "run_attempt": 1,
+  "job_id": 131450474161,
+  "workflow_head": "951a94a9334e818f2dae1431ab19974b7ced9d3a",
+  "expected_baseline": "764abeeec8a81a0e081d951261c37dc15dbadec3",
+  "expected_candidate": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+  "expected_control_tree": "10fca460ba42e1f0fd82bc5d09b0d7a02d9b1131",
+  "expected_changed_path": "lib/text_book/bloc/text_book_bloc.dart",
+  "expected_control_source_sha256": "a31fa2dbc8b9ac2410775407a45c56862098a5c4f334b4264ab70d31da30a6ee",
+  "final_status": "final-status.json",
+  "artifact_metadata": "artifact-metadata.json",
+  "artifact_receipt": "artifact-receipt.json",
+  "required_public_metadata": [
+    "final-status.json",
+    "artifact-metadata.json",
+    "artifact-receipt.json",
+    "job-log.json",
+    "job-log-decoded.log"
+  ],
+  "optional_public_metadata": ["download/verification-summary.json", "job-log-provenance.json"],
+  "notes": "Fixed representation-only experiment. No whole-PR data is included. Artifact identity and final QA are supplied only after the run finishes."
+}

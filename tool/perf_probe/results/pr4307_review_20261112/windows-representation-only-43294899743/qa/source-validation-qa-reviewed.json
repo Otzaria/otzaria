@@ -1,0 +1,81 @@
+{
+  "sourceChecks": [
+    {
+      "file": "candidate-text_book_bloc.dart",
+      "bytes": 124060,
+      "sha256": "73c4de182c83f68a284718a4e5ace0301ceec2b2ac3da2ab2476c1051161c88a",
+      "matchesPinnedBlobBytes": true,
+      "blob": "3fa09b7c039bc7b679361c455f70c07fa4f57c74"
+    },
+    {
+      "file": "control-text_book_bloc.dart",
+      "bytes": 124166,
+      "sha256": "a31fa2dbc8b9ac2410775407a45c56862098a5c4f334b4264ab70d31da30a6ee",
+      "matchesPinnedBlobBytes": true,
+      "blob": "9d2025dd9762c5861ca4d3cac43241d2ad8a5dfc"
+    },
+    {
+      "originalHashMatches": true,
+      "generatedHashMatches": true,
+      "removedCount": 1,
+      "exactlyOneAssertionRemoved": true,
+      "originalBytes": 26711,
+      "generatedBytes": 26631
+    },
+    {
+      "executedWorkflowBlob": "ad58afb2db0bb53203a6132e1b4e88eb1a186b0f",
+      "recordedWorkflowBlob": "ddba0a9657a6dda449d8118049d7c0b3aba7fef0",
+      "match": false,
+      "workflowSha256": "18f4f4f4b1444215428251b6a6f2015de91efa982a553d76602fc796ec4d41c6"
+    }
+  ],
+  "validationStatus": "passed",
+  "allCommandsExit0": true,
+  "originalUnchanged": true,
+  "generatedRemoved": true,
+  "cleanSource": true,
+  "plan": {
+    "candidateSourceCommit": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+    "flatControlSourceCommit": "764abeeec8a81a0e081d951261c37dc15dbadec3",
+    "workflowCommit": "951a94a9334e818f2dae1431ab19974b7ced9d3a",
+    "expectedControlTree": "10fca460ba42e1f0fd82bc5d09b0d7a02d9b1131",
+    "cycles": 2,
+    "warmup": 1,
+    "repetitions": 4,
+    "bookLines": [
+      2000,
+      50000,
+      1000000
+    ],
+    "measuredSamplesPerActionAndSide": 16,
+    "processesPerSide": 4,
+    "scope": "Representation and snapshot sharing, including flags-identity-mediated invalidation.",
+    "limitation": "Hosted Windows; no physical-GPU claim and no identical-object-identity claim."
+  },
+  "workflowCaptureReview": {
+    "rawPreserved": true,
+    "rawBytes": 21228,
+    "rawSha256": "18f4f4f4b1444215428251b6a6f2015de91efa982a553d76602fc796ec4d41c6",
+    "crlfCount": 308,
+    "lfNormalizedBytes": 20920,
+    "matchesPinnedGitBlobAfterOnlyCrLfToLf": true,
+    "pinnedBlob": "ddba0a9657a6dda449d8118049d7c0b3aba7fef0",
+    "pinnedSha256": "bab73977e857298b3b1f684a5a8d55027e1fc3523ceec7dba0f85eeb759cacb4",
+    "explanation": "The workflow captures git show through PowerShell Set-Content. Only line endings differ; product source blobs and test overlay bytes match without normalization."
+  },
+  "sourceChecksResolved": true,
+  "runConclusion": "success",
+  "runHead": "951a94a9334e818f2dae1431ab19974b7ced9d3a",
+  "jobConclusion": "success",
+  "inputHashes": {
+    "experiment-plan.json": "91c979872176a322bc2f9d52b89dad82a00bdca854f0de7ff47543712fdf1c3d",
+    "source-provenance.json": "a7c3cb268b1731b17f78fb71a5be84ba374b7ebec3240d5fd358099a3b691776",
+    "control-validation.json": "f35765314ace7552bb4feeb8e47c0f41c72c9ff6c8e8e0bde88b752d57b5c0f6",
+    "executed-workflow.yml": "18f4f4f4b1444215428251b6a6f2015de91efa982a553d76602fc796ec4d41c6",
+    "candidate-text_book_bloc.dart": "73c4de182c83f68a284718a4e5ace0301ceec2b2ac3da2ab2476c1051161c88a",
+    "control-text_book_bloc.dart": "a31fa2dbc8b9ac2410775407a45c56862098a5c4f334b4264ab70d31da30a6ee",
+    "original-long_book_snapshot_regression_test.dart": "9eeea22effd110ba786a64ccb00bebcffa2621997e071ba9616c580ff1c21356",
+    "generated-long_book_snapshot_regression_flat_control_validation_test.dart": "586b42792cabf70f3709f2eabbb6c5507d915c9d0e508af91954133a2e312ed7"
+  },
+  "jobLogSha256": "c1141455ad21cf14d116bf6b204930f95a781a130b0733f53958bb447a7ab7d2"
+}

@@ -1,0 +1,55 @@
+{
+  "sourceChecks": [
+    {
+      "file": "candidate-text_book_bloc.dart",
+      "bytes": 124060,
+      "sha256": "73c4de182c83f68a284718a4e5ace0301ceec2b2ac3da2ab2476c1051161c88a",
+      "matchesPinnedBlobBytes": true,
+      "blob": "3fa09b7c039bc7b679361c455f70c07fa4f57c74"
+    },
+    {
+      "file": "control-text_book_bloc.dart",
+      "bytes": 124166,
+      "sha256": "a31fa2dbc8b9ac2410775407a45c56862098a5c4f334b4264ab70d31da30a6ee",
+      "matchesPinnedBlobBytes": true,
+      "blob": "9d2025dd9762c5861ca4d3cac43241d2ad8a5dfc"
+    },
+    {
+      "originalHashMatches": true,
+      "generatedHashMatches": true,
+      "removedCount": 1,
+      "exactlyOneAssertionRemoved": true,
+      "originalBytes": 26711,
+      "generatedBytes": 26631
+    },
+    {
+      "executedWorkflowBlob": "ad58afb2db0bb53203a6132e1b4e88eb1a186b0f",
+      "recordedWorkflowBlob": "ddba0a9657a6dda449d8118049d7c0b3aba7fef0",
+      "match": false,
+      "workflowSha256": "18f4f4f4b1444215428251b6a6f2015de91efa982a553d76602fc796ec4d41c6"
+    }
+  ],
+  "validationStatus": "passed",
+  "allCommandsExit0": true,
+  "originalUnchanged": true,
+  "generatedRemoved": true,
+  "cleanSource": true,
+  "plan": {
+    "candidateSourceCommit": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+    "flatControlSourceCommit": "764abeeec8a81a0e081d951261c37dc15dbadec3",
+    "workflowCommit": "951a94a9334e818f2dae1431ab19974b7ced9d3a",
+    "expectedControlTree": "10fca460ba42e1f0fd82bc5d09b0d7a02d9b1131",
+    "cycles": 2,
+    "warmup": 1,
+    "repetitions": 4,
+    "bookLines": [
+      2000,
+      50000,
+      1000000
+    ],
+    "measuredSamplesPerActionAndSide": 16,
+    "processesPerSide": 4,
+    "scope": "Representation and snapshot sharing, including flags-identity-mediated invalidation.",
+    "limitation": "Hosted Windows; no physical-GPU claim and no identical-object-identity claim."
+  }
+}

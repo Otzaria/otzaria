@@ -1,0 +1,43 @@
+{
+  "runId": "43294899743",
+  "attempt": "1",
+  "comparisonDesign": "representation-only",
+  "candidate": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+  "baselineFlatControl": "764abeeec8a81a0e081d951261c37dc15dbadec3",
+  "hardwareId": "github-hosted-43294899743-1",
+  "controlTree": "10fca460ba42e1f0fd82bc5d09b0d7a02d9b1131",
+  "sourceHashes": {
+    "qa_windows_reader.py": "171e7a08ca0f16624f4abfa6b8efcc6066259787a59c539d766e1668a88ab6f9",
+    "windows-qa-input-contract.json": "e6e6826fc41275ede223ad3e3cc505a1cfa302914cb07340441a0aa41e838c7e",
+    "summarize_windows_reader.py": "4c4cced12735ecf104825b3f32df1836975dff053bffb8a680f99d1da4938794"
+  },
+  "preparedOnly": false,
+  "startedAtUtc": "2026-11-12T21:13:50.104476+00:00",
+  "artifactRoot": "/workspace/scratch/03d201536b5d/isolated4307-run43294899743/extracted-attempt1-artifact13985155278/r4307p",
+  "qaCommand": [
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python",
+    "/workspace/scratch/03d201536b5d/measure4307/repro/qa_windows_reader.py",
+    "/workspace/scratch/03d201536b5d/isolated4307-run43294899743/extracted-attempt1-artifact13985155278/r4307p",
+    "--expected-candidate",
+    "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+    "--expected-baseline",
+    "764abeeec8a81a0e081d951261c37dc15dbadec3",
+    "--comparison-design",
+    "representation-only",
+    "--expected-hardware-id",
+    "github-hosted-43294899743-1",
+    "--repo",
+    "/workspace/scratch/03d201536b5d/repo4307",
+    "--output",
+    "/workspace/scratch/03d201536b5d/measure4307/results/representation-43294899743-attempt1-initial/windows-representation-only-43294899743-1-qa.json"
+  ],
+  "diagnosticsCommand": [
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python",
+    "/workspace/scratch/03d201536b5d/measure4307/repro/summarize_windows_reader.py",
+    "/workspace/scratch/03d201536b5d/isolated4307-run43294899743/extracted-attempt1-artifact13985155278/r4307p",
+    "/workspace/scratch/03d201536b5d/measure4307/results/representation-43294899743-attempt1-initial/windows-representation-only-43294899743-1-qa.json",
+    "--output",
+    "/workspace/scratch/03d201536b5d/measure4307/results/representation-43294899743-attempt1-initial/windows-representation-only-43294899743-1-diagnostics.json"
+  ],
+  "entrypointSha256": "f3d529f2dea68416005b30e88d010e263dd56918d9f29df08d9136beddc14195"
+}

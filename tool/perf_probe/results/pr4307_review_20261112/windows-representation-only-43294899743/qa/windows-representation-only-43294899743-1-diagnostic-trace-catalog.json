@@ -1,0 +1,176 @@
+{
+  "runId": "43294899743",
+  "attempt": 1,
+  "comparisonDesign": "representation-only",
+  "selectionIsDiagnosticOnly": true,
+  "allObservationsRetainedInStatistics": true,
+  "fullArchiveRequiredForAll848TraceAudits": true,
+  "fullArchiveSha256": "1a399b2bd288683866aec196f190cc7b2e2ef13609296a103e046199f88ce42b",
+  "traces": [
+    {
+      "path": "step-00-baseline/launch-000/reader_trace_reader_101.json",
+      "sha256": "2b7ea74238f2d146f1e98f0061dc0b67090d6f422e955156171c9f02ef7aef27",
+      "bytes": 3912857,
+      "selectionReason": "long jump duration > 500 ms",
+      "side": "baseline",
+      "name": "book.long.jump_forward",
+      "launchIndex": 0,
+      "iteration": 3,
+      "durationMs": 538.874
+    },
+    {
+      "path": "step-03-baseline/launch-001/reader_trace_reader_38.json",
+      "sha256": "9385df6492eac9bcfd300c4518623856a7989e9df1d40bad9f6466f04e89fe33",
+      "bytes": 3781835,
+      "selectionReason": "long jump duration > 500 ms",
+      "side": "baseline",
+      "name": "book.long.jump_forward",
+      "launchIndex": 1,
+      "iteration": 0,
+      "durationMs": 529.984
+    },
+    {
+      "path": "step-07-baseline/launch-003/reader_trace_reader_102.json",
+      "sha256": "e13dfff2d5f1f53eddfebf218e648f4008b3f0ef43c76ce44fb518493cbe6a4e",
+      "bytes": 3803934,
+      "selectionReason": "long jump duration > 500 ms",
+      "side": "baseline",
+      "name": "book.long.jump_backward",
+      "launchIndex": 3,
+      "iteration": 3,
+      "durationMs": 546.937
+    },
+    {
+      "path": "step-05-candidate/launch-002/reader_trace_reader_102.json",
+      "sha256": "586bba0aa8ea9eddf8d7a37ae6374ce0ad6fe5d8900d7ce4625515e303725e56",
+      "bytes": 3823091,
+      "selectionReason": "long jump duration > 500 ms",
+      "side": "candidate",
+      "name": "book.long.jump_backward",
+      "launchIndex": 2,
+      "iteration": 3,
+      "durationMs": 515.511,
+      "additionalSelectionReasons": [
+        "maximum recorded total-frame duration for this action and side"
+      ]
+    },
+    {
+      "path": "step-00-baseline/launch-000/reader_trace_reader_100.json",
+      "sha256": "b86187022f143bd4f73e5f47871147aa0bb91671b41ad52c4a21ecd283a3403d",
+      "bytes": 1741760,
+      "selectionReason": "maximum long initial scroll duration on this side",
+      "side": "baseline",
+      "name": "book.long.scroll",
+      "launchIndex": 0,
+      "iteration": 3,
+      "durationMs": 998.229
+    },
+    {
+      "path": "step-06-candidate/launch-003/reader_trace_reader_100.json",
+      "sha256": "b8473a65dc31f4e9af9aae6aca2905afa55b6b9ce926ea270f77ad8c9f7751fe",
+      "bytes": 2627344,
+      "selectionReason": "maximum long initial scroll duration on this side",
+      "side": "candidate",
+      "name": "book.long.scroll",
+      "launchIndex": 3,
+      "iteration": 3,
+      "durationMs": 1201.482
+    },
+    {
+      "path": "step-04-baseline/launch-002/reader_trace_reader_58.json",
+      "sha256": "93309b8163ed17da6025418b9634af53cc799635e6e35a7ab91621bff5021eea",
+      "bytes": 1838614,
+      "selectionReason": "maximum recorded total-frame duration for this action and side",
+      "side": "baseline",
+      "name": "book.long.scroll",
+      "launchIndex": 2,
+      "iteration": 1,
+      "durationMs": 960.958,
+      "totalFrameMaxMs": 44.565
+    },
+    {
+      "path": "step-00-baseline/launch-000/reader_trace_reader_81.json",
+      "sha256": "8233be815423d12090ab68e8752abc18a4d14c9386c207409b48cc17b195bdf3",
+      "bytes": 3709112,
+      "selectionReason": "maximum recorded total-frame duration for this action and side",
+      "side": "baseline",
+      "name": "book.long.jump_backward",
+      "launchIndex": 0,
+      "iteration": 2,
+      "durationMs": 493.029,
+      "totalFrameMaxMs": 345.72
+    },
+    {
+      "path": "step-03-baseline/launch-001/reader_trace_reader_105.json",
+      "sha256": "b2a24aeac0b429f51d85948e29c1f3102e75039d207f747eb42fdcbaf56181e4",
+      "bytes": 823462,
+      "selectionReason": "maximum recorded total-frame duration for this action and side",
+      "side": "baseline",
+      "name": "book.long.close",
+      "launchIndex": 1,
+      "iteration": 3,
+      "durationMs": 365.856,
+      "totalFrameMaxMs": 14.551
+    },
+    {
+      "path": "step-00-baseline/launch-000/reader_trace_reader_40.json",
+      "sha256": "86d34da1fa6b1283f99e0c22ee960e2299f856bcf69e0729d3342943e94ea8d0",
+      "bytes": 5780327,
+      "selectionReason": "first measured long warmup in launch 0, same deterministic choice on each side; illustrates incomplete retained timeline",
+      "side": "baseline",
+      "name": "book.long.warmup_complete",
+      "launchIndex": 0,
+      "iteration": 0,
+      "markerCounts": {
+        "reader.phase.begin": 0,
+        "reader.phase.end": 1
+      },
+      "phaseStartTimelineUs": 2758742029,
+      "phaseEndTimelineUs": 2787562158,
+      "traceTimeOriginMicros": 2783255132,
+      "traceTimeExtentMicros": 4581303
+    },
+    {
+      "path": "step-05-candidate/launch-002/reader_trace_reader_58.json",
+      "sha256": "b5476e246ade3fc582dec96bdeca5a9bcf1f701ab7d2d39699a4abeaab3edcd0",
+      "bytes": 2596056,
+      "selectionReason": "maximum recorded total-frame duration for this action and side",
+      "side": "candidate",
+      "name": "book.long.scroll",
+      "launchIndex": 2,
+      "iteration": 1,
+      "durationMs": 1177.762,
+      "totalFrameMaxMs": 58.739
+    },
+    {
+      "path": "step-06-candidate/launch-003/reader_trace_reader_105.json",
+      "sha256": "7b8c4ffceef276f2927133106d64f1723d5b40adc614f33ae718663b5d2df007",
+      "bytes": 736048,
+      "selectionReason": "maximum recorded total-frame duration for this action and side",
+      "side": "candidate",
+      "name": "book.long.close",
+      "launchIndex": 3,
+      "iteration": 3,
+      "durationMs": 364.557,
+      "totalFrameMaxMs": 81.693
+    },
+    {
+      "path": "step-01-candidate/launch-000/reader_trace_reader_40.json",
+      "sha256": "f1e404a7f6a361c9ca4065dd59664c53160add536271a931498344ce06e01aa9",
+      "bytes": 5791598,
+      "selectionReason": "first measured long warmup in launch 0, same deterministic choice on each side; illustrates incomplete retained timeline",
+      "side": "candidate",
+      "name": "book.long.warmup_complete",
+      "launchIndex": 0,
+      "iteration": 0,
+      "markerCounts": {
+        "reader.phase.begin": 0,
+        "reader.phase.end": 1
+      },
+      "phaseStartTimelineUs": 3006775764,
+      "phaseEndTimelineUs": 3034124742,
+      "traceTimeOriginMicros": 3030111237,
+      "traceTimeExtentMicros": 4286932
+    }
+  ]
+}
