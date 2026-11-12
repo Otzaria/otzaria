@@ -70,6 +70,7 @@ import 'package:otzaria/text_book/repository/book_notes_repository.dart';
 import 'package:otzaria/personal_notes/widgets/commentary_notes_section.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
+import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 import 'package:otzaria/text_book/view/reading_viewport/reading_scrollbar_label.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
@@ -1138,6 +1139,7 @@ class _PageShapeScreenState extends State<PageShapeScreen>
     isBottom: isBottom,
     selectionSyncController: _selectionSyncController,
     onOpenPersonalNote: _openCommentaryPersonalNote,
+    mainLines: widget.tab?.lines,
     onLoadFailed: () => _hideColumn(column, showSnack: false, persist: false),
   );
 
@@ -1695,6 +1697,7 @@ class _CommentaryPane extends StatefulWidget {
   final SelectionSyncController? selectionSyncController;
   final void Function(String bookId, int? categoryId, int lineNumber)?
   onOpenPersonalNote;
+  final LineScrollController? mainLines;
 
   const _CommentaryPane({
     required this.column,
@@ -1705,6 +1708,7 @@ class _CommentaryPane extends StatefulWidget {
     this.onLoadFailed,
     this.selectionSyncController,
     this.onOpenPersonalNote,
+    this.mainLines,
   });
 
   @override
@@ -1780,6 +1784,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
   (List<String>, BookNotes)? _notesColumnSource;
   int? _lastSyncedIndex; // האינדקס האחרון שסונכרן
   int? _lastSyncedMainIndex; // השורה הנבחרת שממנה נגזר הסנכרון האחרון
+  int? _lastReferenceMainLine;
   int _initialSyncAttempts = 0; // ניסיונות סנכרון ראשוני עד שה-controller מחובר
   List<Link>? _lastLinks; // לדידוב: מסנן מחדש רק כשהקישורים השתנו
   StreamSubscription<TextBookState>? _blocSubscription;
@@ -1790,6 +1795,9 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
   void initState() {
     super.initState();
     _positionsListener.itemPositions.addListener(_onPanePositionsChanged);
+    widget.mainLines?.positionsListener.itemPositions.addListener(
+      _onMainPositionsChanged,
+    );
     // דוחה את הטעינה כדי לוודא שכל ה-providers מוכנים וה-bloc זמין
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -1960,11 +1968,34 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     if (oldWidget.workspaceId != widget.workspaceId) {
       _updateHighlightSettings();
     }
+    if (oldWidget.mainLines != widget.mainLines) {
+      oldWidget.mainLines?.positionsListener.itemPositions.removeListener(
+        _onMainPositionsChanged,
+      );
+      widget.mainLines?.positionsListener.itemPositions.addListener(
+        _onMainPositionsChanged,
+      );
+    }
+  }
+
+  /// גלילה בתוך פסקה ארוכה אינה משנה את השורות הגלויות ב-bloc, ולכן
+  /// הסנכרון עוקב גם אחר מיקומי הטקסט הראשי.
+  void _onMainPositionsChanged() {
+    if (!mounted) return;
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded || state.selectedIndex != null) return;
+    final line = _referenceMainLine(state);
+    if (line == null || line == _lastReferenceMainLine) return;
+    _lastReferenceMainLine = line;
+    _syncWithMainText(state);
   }
 
   @override
   void dispose() {
     _positionsListener.itemPositions.removeListener(_onPanePositionsChanged);
+    widget.mainLines?.positionsListener.itemPositions.removeListener(
+      _onMainPositionsChanged,
+    );
     _blocSubscription?.cancel();
     super.dispose();
   }
@@ -2174,25 +2205,18 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
   /// הייתה יורה אנימציה חדשה שמבטלת את הקודמת.
   static const double _glideEpsilonPixels = 2;
 
-  /// מחזיר את אינדקס השורה שבכשליש העליון של ה-viewport מתוך השורות
-  /// הגלויות. הסנכרון מכוון לנקודה זו ולא לשורה העליונה, כדי שהמפרש
-  /// יעקוב אחר מה שהמשתמש קורא בפועל. מניחים שהרשימה אינה ריקה.
-  int _referenceVisibleIndex(List<int> visibleIndices) {
-    final sorted = [...visibleIndices]..sort();
+  /// שורת הטקסט הראשי שחוצה את קו הסנכרון בפיקסלים, כדי שהמפרש יעקוב אחר
+  /// מה שנקרא בפועל. בלי מדידה — לפי מספר השורות הגלויות; null כשאין כאלו.
+  int? _referenceMainLine(TextBookLoaded state) {
+    final crossing = widget.mainLines?.lineCrossingViewport(_syncAlignment);
+    if (crossing != null) return crossing;
+    if (state.visibleIndices.isEmpty) return null;
+    final sorted = [...state.visibleIndices]..sort();
     return sorted[(sorted.length * _syncAlignment).floor()];
   }
 
-  int _resolveCurrentMainIndex(TextBookLoaded state) {
-    if (state.selectedIndex != null) {
-      return state.selectedIndex!;
-    }
-
-    if (state.visibleIndices.isNotEmpty) {
-      return _referenceVisibleIndex(state.visibleIndices);
-    }
-
-    return 0;
-  }
+  int _resolveCurrentMainIndex(TextBookLoaded state) =>
+      state.selectedIndex ?? _referenceMainLine(state) ?? 0;
 
   int? _resolveInitialCommentaryTargetIndex(TextBookLoaded state) {
     if (_relevantLinks.isEmpty) {
@@ -2569,17 +2593,9 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
       return;
     }
 
-    // קביעת האינדקס הנוכחי בטקסט הראשי
-    // אם המשתמש לחץ על שורה ספציפית, נסנכרן אליה; אחרת לפי visibleIndices
-    int currentMainIndex;
-    if (state.selectedIndex != null) {
-      currentMainIndex = state.selectedIndex!;
-    } else if (state.visibleIndices.isNotEmpty) {
-      // היעד לסנכרון הוא מרכז המסך, לא השורה העליונה
-      currentMainIndex = _referenceVisibleIndex(state.visibleIndices);
-    } else {
-      return; // אין מידע על מיקום נוכחי
-    }
+    // שורה שנבחרה גוברת; אחרת השורה שחוצה את שליש המסך, לא השורה העליונה.
+    final currentMainIndex = state.selectedIndex ?? _referenceMainLine(state);
+    if (currentMainIndex == null) return;
 
     // חישוב האינדקס הלוגי (עם טיפול בכותרות)
     final logicalIndex = _isNotesColumn
