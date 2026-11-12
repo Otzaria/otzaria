@@ -732,6 +732,37 @@ void main() {
     );
   });
 
+  testWidgets('מסלול גופנים מוטבעים בונה CSS פעם אחת לפני boot', (
+    tester,
+  ) async {
+    const family = 'Embedded font test';
+    await Settings.setValue(SettingsRepository.keyFontFamily, family);
+    var lookups = 0;
+    debugPluginSystemFaces = (name) {
+      if (name == family) lookups++;
+      return null;
+    };
+    addTearDown(() => debugPluginSystemFaces = null);
+
+    await _runBoot(tester, (platform) async {
+      debugPluginFontsFromFileServer = false;
+      final native = platform.controller;
+      final controller = InAppWebViewController.fromPlatform(platform: native);
+      final boot = await _startBoot(
+        tester,
+        platform.views.last,
+        native,
+        controller,
+        WebUri('file:///install/path/index.html'),
+      );
+      await tester.runAsync(() => boot.done);
+
+      expect(lookups, 1);
+      expect(native.fontLoads, isEmpty);
+      expect(native.boots.single, contains('data:font/ttf;base64,'));
+    });
+  });
+
   for (final waitingAt in ['גופנים', 'boot']) {
     testWidgets(
       'ניווט חדש בזמן המתנה ל-$waitingAt מבטל את זרימת ה-boot הישנה',
