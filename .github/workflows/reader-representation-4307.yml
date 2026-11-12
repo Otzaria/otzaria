@@ -30,13 +30,15 @@ jobs:
       READER_CYCLES: '2'
       READER_WARMUP: '1'
       READER_REPETITIONS: '4'
-      VALIDATION_ROOT: ${{ runner.temp }}/reader-representation-validation
-      COMPARISON_ROOT: ${{ runner.temp }}/reader-representation-profile
     steps:
       - name: Preserve source bytes and the fixed experiment plan
         run: |
           $ErrorActionPreference = 'Stop'
-          New-Item -ItemType Directory -Path $env:VALIDATION_ROOT -Force | Out-Null
+          $validationRoot = Join-Path $env:RUNNER_TEMP 'reader-representation-validation'
+          $comparisonRoot = Join-Path $env:RUNNER_TEMP 'reader-representation-profile'
+          "VALIDATION_ROOT=$validationRoot" | Add-Content -LiteralPath $env:GITHUB_ENV
+          "COMPARISON_ROOT=$comparisonRoot" | Add-Content -LiteralPath $env:GITHUB_ENV
+          New-Item -ItemType Directory -Path $validationRoot -Force | Out-Null
           git config --global core.longpaths true
           if ($LASTEXITCODE -ne 0) { throw 'Could not enable Git long paths.' }
           git config --global core.autocrlf false
@@ -53,7 +55,7 @@ jobs:
             processesPerSide = [int]$env:READER_CYCLES * 2
             scope = 'Representation and snapshot sharing, including flags-identity-mediated invalidation.'
             limitation = 'Hosted Windows; no physical-GPU claim and no identical-object-identity claim.'
-          } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $env:VALIDATION_ROOT 'experiment-plan.json') -Encoding utf8
+          } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $validationRoot 'experiment-plan.json') -Encoding utf8
 
       - uses: actions/checkout@v7.0.1
         with:
