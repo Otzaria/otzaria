@@ -53,10 +53,11 @@ packages:
   archive:
     dependency: "direct main"
     description:
-      name: archive
-      sha256: de5ac590b8155e4e676088d714bd41ea620449a6adc0f7950c5073874b287ddb
-      url: "https://pub.dev"
-    source: hosted
+      path: "."
+      ref: "533742bcee15f1a81cecf5d38707e8f6318dcfa3"
+      resolved-ref: "533742bcee15f1a81cecf5d38707e8f6318dcfa3"
+      url: "https://github.com/Otzaria/archive"
+    source: git
     version: "4.6.0"
   args:
     dependency: transitive
