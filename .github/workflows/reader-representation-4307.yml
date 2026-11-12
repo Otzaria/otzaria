@@ -35,7 +35,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $validationRoot = Join-Path $env:RUNNER_TEMP 'reader-representation-validation'
-          $comparisonRoot = Join-Path $env:RUNNER_TEMP 'reader-representation-profile'
+          $comparisonRoot = Join-Path $env:RUNNER_TEMP 'r4307p'
           "VALIDATION_ROOT=$validationRoot" | Add-Content -LiteralPath $env:GITHUB_ENV
           "COMPARISON_ROOT=$comparisonRoot" | Add-Content -LiteralPath $env:GITHUB_ENV
           New-Item -ItemType Directory -Path $validationRoot -Force | Out-Null
@@ -131,7 +131,7 @@ jobs:
           . ./tool/perf_probe/lockfile_quoting.ps1
           $PSNativeCommandUseErrorActionPreference = $false
           $repo = $PWD.Path
-          $checkout = Join-Path $env:RUNNER_TEMP 'reader-flat-control-validation-source'
+          $checkout = Join-Path $env:RUNNER_TEMP 'r4307v'
           $originalRelative = 'test/text_book/bloc/long_book_snapshot_regression_test.dart'
           $generatedRelative = 'test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart'
           $originalHash = '9eeea22effd110ba786a64ccb00bebcffa2621997e071ba9616c580ff1c21356'
@@ -295,14 +295,14 @@ jobs:
           retention-days: 14
           path: |
             ${{ runner.temp }}/reader-representation-validation/**
-            ${{ runner.temp }}/reader-representation-profile/**/*.json
-            ${{ runner.temp }}/reader-representation-profile/**/*.jsonl
-            ${{ runner.temp }}/reader-representation-profile/**/*.csv
-            ${{ runner.temp }}/reader-representation-profile/**/*.md
-            ${{ runner.temp }}/reader-representation-profile/**/*.log
-            ${{ runner.temp }}/reader-representation-profile/*-head.txt
-            ${{ runner.temp }}/reader-representation-profile/*-status.txt
-            ${{ runner.temp }}/reader-representation-profile/*-diff.patch
-            !${{ runner.temp }}/reader-representation-profile/**/data/**
-            !${{ runner.temp }}/reader-representation-profile/**/bundle/**
-            !${{ runner.temp }}/reader-representation-profile/worktrees/**
+            ${{ runner.temp }}/r4307p/**/*.json
+            ${{ runner.temp }}/r4307p/**/*.jsonl
+            ${{ runner.temp }}/r4307p/**/*.csv
+            ${{ runner.temp }}/r4307p/**/*.md
+            ${{ runner.temp }}/r4307p/**/*.log
+            ${{ runner.temp }}/r4307p/*-head.txt
+            ${{ runner.temp }}/r4307p/*-status.txt
+            ${{ runner.temp }}/r4307p/*-diff.patch
+            !${{ runner.temp }}/r4307p/**/data/**
+            !${{ runner.temp }}/r4307p/**/bundle/**
+            !${{ runner.temp }}/r4307p/worktrees/**
