@@ -744,8 +744,8 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: cb3c9c3fb98bb40cbcff104ac977019acb9986ce
-      resolved-ref: cb3c9c3fb98bb40cbcff104ac977019acb9986ce
+      ref: "3b7813842c7c4f1b7d019dcfe344fc8ddfdf6f7e"
+      resolved-ref: "3b7813842c7c4f1b7d019dcfe344fc8ddfdf6f7e"
       url: "https://github.com/Otzaria/flutter_spinbox"
     source: git
     version: "0.13.1"

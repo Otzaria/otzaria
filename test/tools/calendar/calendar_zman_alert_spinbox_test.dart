@@ -84,6 +84,47 @@ void main() {
       expect(result!.cancelAlert, isFalse);
       expect(textAfterBlur, '0');
     });
+
+    testWidgets('clearing $name is saved without first moving focus', (
+      tester,
+    ) async {
+      ZmanAlertDialogResult? result;
+      await _openDialog(tester, (value) => result = value);
+
+      await tester.enterText(_field(index), '');
+      await tester.tap(find.text('הפעל'));
+      await tester.pumpAndSettle();
+
+      expect(result, isNotNull);
+      expect(result!.minutesBefore, expectedMinutes);
+      expect(result!.cancelAlert, isFalse);
+    });
+
+    testWidgets('clearing and replacing $name saves the new number', (
+      tester,
+    ) async {
+      ZmanAlertDialogResult? result;
+      await _openDialog(tester, (value) => result = value);
+
+      await tester.enterText(_field(index), '');
+      await tester.pump();
+      final editing = tester.widget<TextField>(_field(index)).controller!.value;
+      final caret = editing.selection.start;
+      tester.testTextInput.updateEditingValue(
+        editing.copyWith(
+          text: editing.text.replaceRange(caret, editing.selection.end, '2'),
+          selection: TextSelection.collapsed(offset: caret + 1),
+        ),
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('הפעל'));
+      await tester.pumpAndSettle();
+
+      expect(result, isNotNull);
+      expect(result!.minutesBefore, index == 0 ? 125 : 62);
+    });
   }
 }
 
