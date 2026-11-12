@@ -70,6 +70,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
   final Set<int> _pendingRequestIds = {};
   final Set<String> _pendingAttachedSlugs = {};
   RefreshSource _pendingSource = RefreshSource.customFoldersScan;
+  bool _pendingUserContentChanged = false;
 
   LibraryBloc({
     this.hiddenStore = const HiddenLibraryStore(),
@@ -228,6 +229,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       _pendingChangedKeys.addAll(event.changedBookKeys);
       _pendingRequestIds.addAll(event.requestIds);
       _pendingAttachedSlugs.addAll(event.changedAttachedSlugs);
+      _pendingUserContentChanged |= event.userContentChanged;
       if (event.source == RefreshSource.general) {
         _pendingSource = RefreshSource.general;
       }
@@ -247,12 +249,14 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         source: _pendingSource,
         requestIds: Set<int>.from(_pendingRequestIds),
         changedAttachedSlugs: Set<String>.from(_pendingAttachedSlugs),
+        userContentChanged: _pendingUserContentChanged,
       );
       _refreshPending = false;
       _pendingChangedKeys.clear();
       _pendingRequestIds.clear();
       _pendingAttachedSlugs.clear();
       _pendingSource = RefreshSource.customFoldersScan;
+      _pendingUserContentChanged = false;
       add(mergedEvent);
     }
   }
@@ -394,6 +398,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
           completedRefreshRequestIds: event.requestIds.isNotEmpty
               ? event.requestIds
               : null,
+          userContentChanged: event.userContentChanged,
         ),
       );
       _repeatSearch(hadResults);
