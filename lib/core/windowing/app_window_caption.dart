@@ -37,12 +37,14 @@ class _AppWindowCaptionState extends State<AppWindowCaption> {
   AppWindowController? _window;
   bool _isMaximized = false;
   int _requestVersion = 0;
+  int? _refreshCallbackId;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final window = AppWindowScope.controllerOf(context);
     if (identical(window, _window)) return;
+    _cancelScheduledRefresh();
     _window?.stateChanges.removeListener(_onStateChanged);
     _window = window..stateChanges.addListener(_onStateChanged);
     _isMaximized = false;
@@ -52,12 +54,25 @@ class _AppWindowCaptionState extends State<AppWindowCaption> {
   @override
   void dispose() {
     _requestVersion++;
+    _cancelScheduledRefresh();
     _window?.stateChanges.removeListener(_onStateChanged);
     super.dispose();
   }
 
   void _onStateChanged() {
-    if (mounted) _refreshMaximized();
+    if (!mounted) return;
+    // תשובה ישנה נפסלת מיד, גם כשהרענון ממתין לפריים הבא.
+    _requestVersion++;
+    _refreshCallbackId ??= WidgetsBinding.instance.scheduleFrameCallback((_) {
+      _refreshCallbackId = null;
+      _refreshMaximized();
+    });
+  }
+
+  void _cancelScheduledRefresh() {
+    final id = _refreshCallbackId;
+    if (id != null) WidgetsBinding.instance.cancelFrameCallbackWithId(id);
+    _refreshCallbackId = null;
   }
 
   void _refreshMaximized() {
