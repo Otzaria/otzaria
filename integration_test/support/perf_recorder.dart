@@ -6,7 +6,7 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:vm_service/vm_service.dart' show IsolateRef, VmService;
+import 'package:vm_service/vm_service.dart' show VmService;
 import 'package:vm_service/vm_service_io.dart';
 
 class PerfSkipped implements Exception {
@@ -51,8 +51,13 @@ Map<String, Object?> frameMeasurements(List<FrameTiming> frames) => {
 };
 
 class PerfRecorder {
-  PerfRecorder(this.file, this.binding, {required this.launchIndex})
-    : _sink = file.openWrite() {
+  PerfRecorder(
+    this.file,
+    this.binding, {
+    required this.launchIndex,
+    PerfHeapSampler? heap,
+  }) : heap = heap ?? PerfHeapSampler(),
+       _sink = file.openWrite() {
     binding.addTimingsCallback(_onTimings);
   }
 
@@ -61,7 +66,7 @@ class PerfRecorder {
   final int launchIndex;
   final IOSink _sink;
   final _frames = <FrameTiming>[];
-  final PerfHeapSampler heap = PerfHeapSampler();
+  final PerfHeapSampler heap;
   Map<String, Object?> Function()? counters;
   void Function()? verifyAction;
   bool _collecting = false;
@@ -94,6 +99,7 @@ class PerfRecorder {
       throw StateError('Nested performance phases are not supported.');
     }
     final heapBefore = sampleHeap ? await heap.sample() : null;
+    final heapBeforeUnavailableReason = heap.unavailableReason;
     final countersBefore = counters?.call();
     _frames.clear();
     _droppedFrames = 0;
@@ -177,7 +183,9 @@ class PerfRecorder {
       'heapAfter': heapAfter,
       if (heapBefore == null || heapAfter == null)
         'heapUnavailableReason': sampleHeap
-            ? heap.unavailableReason
+            ? (heapBefore == null
+                  ? heapBeforeUnavailableReason
+                  : heap.unavailableReason)
             : 'Disabled during startup.',
       'countersBefore': countersBefore,
       'countersAfter': countersAfter,
@@ -206,8 +214,14 @@ class PerfRecorder {
 }
 
 class PerfHeapSampler {
+  PerfHeapSampler({VmService? service})
+    : _service = service,
+      unavailableReason = service == null
+          ? 'VM service has not been connected.'
+          : null;
+
   VmService? _service;
-  String? unavailableReason = 'VM service has not been connected.';
+  String? unavailableReason;
 
   Future<void> connect() async {
     if (kReleaseMode) {
@@ -240,36 +254,84 @@ class PerfHeapSampler {
     }
     try {
       final vm = await service.getVM().timeout(const Duration(seconds: 5));
-      var usage = 0, capacity = 0, external = 0, isolates = 0;
-      for (final isolate in vm.isolates ?? <IsolateRef>[]) {
+      final isolates = vm.isolates;
+      final groups = vm.isolateGroups;
+      if (isolates == null || groups == null || groups.isEmpty) {
+        throw StateError('Incomplete VM isolate/group inventory.');
+      }
+      final groupIds = <String>{};
+      final systemGroupIds = <String>{
+        for (final group in vm.systemIsolateGroups ?? [])
+          if (group.id != null) group.id!,
+      };
+      for (final group in groups) {
+        final id = group.id;
+        if (group.isSystemIsolateGroup == true) {
+          if (id != null) {
+            systemGroupIds.add(id);
+          }
+          continue;
+        }
+        if (id == null || id.isEmpty) {
+          throw StateError('Application isolate group has no id.');
+        }
+        groupIds.add(id);
+      }
+      final isolatesByGroup = <String, Set<String>>{};
+      for (final isolate in isolates) {
         if (isolate.isSystemIsolate == true) {
           continue;
         }
         final id = isolate.id;
-        if (id == null) {
+        final groupId = isolate.isolateGroupId;
+        if (systemGroupIds.contains(groupId)) {
+          continue;
+        }
+        if (id == null || id.isEmpty) {
           throw StateError('Application isolate has no id.');
         }
+        if (groupId == null || groupId.isEmpty || !groupIds.contains(groupId)) {
+          throw StateError('Application isolate has no known group: $id.');
+        }
+        (isolatesByGroup[groupId] ??= <String>{}).add(id);
+      }
+      if (isolatesByGroup.isEmpty) {
+        throw StateError('No application isolate groups were sampled.');
+      }
+      var usage = 0, capacity = 0, external = 0, isolateCount = 0;
+      final groupSamples = <Map<String, Object?>>[];
+      // isolates באותה קבוצה חולקים heap; מדידה לכל isolate סופרת אותו שוב.
+      for (final group in isolatesByGroup.entries) {
         final memory = await service
-            .getMemoryUsage(id)
+            .getIsolateGroupMemoryUsage(group.key)
             .timeout(const Duration(seconds: 5));
         if (memory.heapUsage == null ||
             memory.heapCapacity == null ||
             memory.externalUsage == null) {
-          throw StateError('Incomplete VM memory sample.');
+          throw StateError('Incomplete VM group memory sample: ${group.key}.');
         }
         usage += memory.heapUsage!;
         capacity += memory.heapCapacity!;
         external += memory.externalUsage!;
-        isolates++;
+        isolateCount += group.value.length;
+        groupSamples.add({
+          'id': group.key,
+          'isolateIds': group.value.toList(),
+          'heapUsage': memory.heapUsage,
+          'heapCapacity': memory.heapCapacity,
+          'externalUsage': memory.externalUsage,
+        });
       }
-      if (isolates == 0) {
-        throw StateError('No application isolates were sampled.');
-      }
+      unavailableReason = null;
       return {
         'heapUsage': usage,
         'heapCapacity': capacity,
         'externalUsage': external,
-        'isolateCount': isolates,
+        'isolateCount': isolateCount,
+        'isolateGroupCount': groupSamples.length,
+        'aggregation': 'unique-application-isolate-groups',
+        'measurement': 'current-usage-without-forced-gc',
+        'isolateGroups': groupSamples,
       };
     } catch (error) {
       unavailableReason =
