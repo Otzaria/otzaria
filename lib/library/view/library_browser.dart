@@ -17,6 +17,7 @@ import 'package:otzaria/widgets/misc/app_context_menu.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/search/view/layout_fix_suggestion_banner.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/empty_library/empty_library_screen.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
@@ -360,6 +361,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
   /// סריקת תיקיות אישיות שהתחילה מ"טעינה מחדש" ועוד לא הסתיימה.
   final _reloadScanPending = ValueNotifier<bool>(false);
+  bool _reportHebrewBooksAfterReload = false;
   double? _previewPaneWidthOverride;
   late final ValueNotifier<double> _topBarTotalHeight;
 
@@ -485,11 +487,19 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             context.read<LibraryBloc>().add(
               SelectCategoryForPreview(state.currentCategory ?? state.library!),
             );
+            if (_reportHebrewBooksAfterReload) {
+              _reportHebrewBooksAfterReload = false;
+              unawaited(_reportUnrecognizedHebrewBooks());
+            }
           },
         ),
         BlocListener<CustomFoldersBloc, CustomFoldersState>(
           listenWhen: (p, c) => p.isSyncing && !c.isSyncing,
-          listener: (_, _) => _reloadScanPending.value = false,
+          listener: (_, _) {
+            // רק "טעינה מחדש" מסמן את הסריקה; הסריקה כבר שלחה RefreshLibrary.
+            _reportHebrewBooksAfterReload = _reloadScanPending.value;
+            _reloadScanPending.value = false;
+          },
         ),
         BlocListener<SettingsBloc, SettingsState>(
           listenWhen: (p, c) =>
@@ -1207,6 +1217,15 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         }
       },
     );
+  }
+
+  /// קובצי PDF בתיקיית היברובוקס שלא יוצגו, מתוך הסריקה שהחיפוש משתמש בה.
+  Future<void> _reportUnrecognizedHebrewBooks() async {
+    final count = await DataRepository.instance.unrecognizedHebrewBooksPdfCount
+        .catchError((Object _) => 0);
+    if (count > 0 && mounted) {
+      UiSnack.show(LibraryMessages.unrecognizedHebrewBooksFiles(count));
+    }
   }
 
   void _refreshWithPersonalFolders() {

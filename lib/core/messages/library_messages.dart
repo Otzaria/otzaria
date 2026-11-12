@@ -30,6 +30,10 @@ abstract class LibraryMessages {
   static String hebrewBookDownloadError(Object error) =>
       'שגיאה בהורדת הספר: $error';
 
+  static String unrecognizedHebrewBooksFiles(int count) =>
+      '${count == 1 ? 'קובץ PDF אחד בתיקיית היברובוקס לא זוהה כספר היברובוקס' : '$count קובצי PDF בתיקיית היברובוקס לא זוהו כספרי היברובוקס'}. '
+      'ספרי PDF אחרים יש להוסיף דרך "ספרים אישיים" בהגדרות הספרייה.';
+
   // ===== חיפוש =====
   static String distanceSetAsDefault(int distance) =>
       'מרווח $distance נקבע כברירת מחדל לחיפוש רגיל';
