@@ -1,0 +1,61 @@
+{
+  "scope": "JIT VM post-GC live object bytes for list representations with shared preallocated strings; excludes application memory and AOT heap; includes protocol noise",
+  "repetitions": 3,
+  "method": "Original PR heap probe; clear/setup getAllocationProfile(gc=true) delta; one million logical lines, one snapshot; median of3 separate VM processes per residency mode; all raw profiles retained",
+  "cases": [
+    {
+      "residency": "sparse",
+      "logical_lines": 1000000,
+      "resident_lines": 5120,
+      "baseline_bytes": [
+        16000416,
+        16000416,
+        16000416
+      ],
+      "candidate_bytes": [
+        91776,
+        91776,
+        91776
+      ],
+      "baseline_median_bytes": 16000416,
+      "candidate_median_bytes": 91776,
+      "candidate_over_baseline": 0.0057358508678774355,
+      "percent_change": -99.42641491321226,
+      "protocol_control_deltas_bytes": [
+        3216,
+        -80,
+        3216,
+        -80,
+        3216,
+        -80
+      ]
+    },
+    {
+      "residency": "full",
+      "logical_lines": 1000000,
+      "resident_lines": 1000000,
+      "baseline_bytes": [
+        16011168,
+        16009824,
+        16009824
+      ],
+      "candidate_bytes": [
+        16740176,
+        16740144,
+        16740128
+      ],
+      "baseline_median_bytes": 16009824,
+      "candidate_median_bytes": 16740144,
+      "candidate_over_baseline": 1.0456169911674231,
+      "percent_change": 4.561699116742313,
+      "protocol_control_deltas_bytes": [
+        3216,
+        -9168,
+        3216,
+        -80,
+        3216,
+        -80
+      ]
+    }
+  ]
+}

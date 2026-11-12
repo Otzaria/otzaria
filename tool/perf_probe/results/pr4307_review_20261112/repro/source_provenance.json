@@ -1,0 +1,127 @@
+{
+  "baseline": "8d24d26f6b7eef04ad9eda1f30eb9ea0e53cf546",
+  "candidate": "75276fe11dcf679f4ffe81eae17f842ba53c6349",
+  "extraction": "Engine methods and consumer bodies copied verbatim, except candidate _applyContentRanges normalizes lazy scanOnly expand to current-dev eager list comprehension to isolate representation. The state, emitter, range tracking and note detection are common benchmark substitutes. ContentLineChanges only loses Flutter import and @immutable annotation.",
+  "scope": "Current production list work. Excludes Flutter rendering, Bloc scheduling, I/O, HTML/footnotes and worker transfer. Consumer functions see identical plain ASCII fixtures; sanitizer rejects unsupported input.",
+  "functions": [
+    {
+      "ref": "8d24d26f6b7eef04ad9eda1f30eb9ea0e53cf546",
+      "path": "lib/text_book/bloc/text_book_bloc.dart",
+      "symbol": "_applyContentRanges",
+      "line": 2165,
+      "sha256": "6295fa0a1d2b5b6f5aadae96edf84fcd39ec9daf8c7a8040404317ce75e390f9"
+    },
+    {
+      "ref": "8d24d26f6b7eef04ad9eda1f30eb9ea0e53cf546",
+      "path": "lib/text_book/bloc/text_book_bloc.dart",
+      "symbol": "_releaseContentOutsideWindow",
+      "line": 374,
+      "sha256": "7ef80c97a8e7f1e32d308ff754374d57eab2238a80ab8b8142bcd1f1345e64a0"
+    },
+    {
+      "ref": "8d24d26f6b7eef04ad9eda1f30eb9ea0e53cf546",
+      "path": "lib/text_book/bloc/text_book_bloc.dart",
+      "symbol": "_setLoadedContentFlags",
+      "line": 2529,
+      "sha256": "7ccf4c8663ffa797429cea179bfd8d86d0b3c0423013fe17a05be116082e3075"
+    },
+    {
+      "ref": "8d24d26f6b7eef04ad9eda1f30eb9ea0e53cf546",
+      "path": "lib/text_book/bloc/text_book_bloc.dart",
+      "symbol": "_onApplyFullBookContent",
+      "line": 2092,
+      "sha256": "d58eee346af4d21207c7dc2fa8e1bc8b6d1b5c2c74e8331dc6ba7720530633fc"
+    },
+    {
+      "ref": "8d24d26f6b7eef04ad9eda1f30eb9ea0e53cf546",
+      "path": "lib/text_book/bloc/text_book_bloc.dart",
+      "symbol": "_contentWithAppliedRange",
+      "line": 2478,
+      "sha256": "58468cfca2be23b264c24f2a35c47a29e16af91d91ad4ea14cb56f8aefc35ecd"
+    },
+    {
+      "ref": "8d24d26f6b7eef04ad9eda1f30eb9ea0e53cf546",
+      "path": "lib/text_book/bloc/text_book_bloc.dart",
+      "symbol": "_loadedContentFlagsWithAppliedRange",
+      "line": 2489,
+      "sha256": "099e60ab8ea853618ae3d2751be97d9977d5840ec55a0df6ac384796baf9e82d"
+    },
+    {
+      "ref": "75276fe11dcf679f4ffe81eae17f842ba53c6349",
+      "path": "lib/text_book/bloc/text_book_bloc.dart",
+      "symbol": "_applyContentRanges",
+      "line": 2172,
+      "sha256": "8bf7670ff27acf1fe4a24cd1786f3811140f9b1b4b035a4714062b32248b044a"
+    },
+    {
+      "ref": "75276fe11dcf679f4ffe81eae17f842ba53c6349",
+      "path": "lib/text_book/bloc/text_book_bloc.dart",
+      "symbol": "_releaseContentOutsideWindow",
+      "line": 360,
+      "sha256": "09acc1772b9cecdda0db29947349be512739e7dd5ece5a1b65a3795997ffd204"
+    },
+    {
+      "ref": "75276fe11dcf679f4ffe81eae17f842ba53c6349",
+      "path": "lib/text_book/bloc/text_book_bloc.dart",
+      "symbol": "_setLoadedContentFlags",
+      "line": 2537,
+      "sha256": "f9388f3da7d86b895477b0495450cc72cd2ce000762074527018435960a3fb1e"
+    },
+    {
+      "ref": "75276fe11dcf679f4ffe81eae17f842ba53c6349",
+      "path": "lib/text_book/bloc/text_book_bloc.dart",
+      "symbol": "_onApplyFullBookContent",
+      "line": 2099,
+      "sha256": "d58eee346af4d21207c7dc2fa8e1bc8b6d1b5c2c74e8331dc6ba7720530633fc"
+    },
+    {
+      "ref": "75276fe11dcf679f4ffe81eae17f842ba53c6349",
+      "path": "lib/text_book/bloc/text_book_bloc.dart",
+      "symbol": "_contentWithAppliedRange",
+      "line": 2482,
+      "sha256": "8e4989b1f063e6d917dc02d11df2a9111bde831a1a6f21a4887810bb780df40f"
+    },
+    {
+      "ref": "75276fe11dcf679f4ffe81eae17f842ba53c6349",
+      "path": "lib/text_book/bloc/text_book_bloc.dart",
+      "symbol": "_loadedContentFlagsWithAppliedRange",
+      "line": 2495,
+      "sha256": "d56b3b8d8e807be170497c65048e2f9846cc12106978cbb41bb974be2043121e"
+    },
+    {
+      "ref": "75276fe11dcf679f4ffe81eae17f842ba53c6349",
+      "path": "lib/text_book/models/chunked_list.dart",
+      "symbol": "entire file",
+      "line": 1,
+      "sha256": "2e4c219b24cca46edf48b05fc155b58eae465d06e51903342235f6a41a7bce91"
+    },
+    {
+      "ref": "8d24d26f6b7eef04ad9eda1f30eb9ea0e53cf546",
+      "path": "lib/text_book/utils/reading_extent_estimates.dart",
+      "symbol": "_rawCharactersExceed",
+      "line": 207,
+      "sha256": "9822defda09b8d71c5f7fe86cbc7efa8421684ab692cbd572a82d15bc8280d0d"
+    },
+    {
+      "ref": "8d24d26f6b7eef04ad9eda1f30eb9ea0e53cf546",
+      "path": "lib/text_book/utils/reading_extent_estimates.dart",
+      "symbol": "_countChunks",
+      "line": 220,
+      "sha256": "a80660900823f6fe137f0ef28386262ecf67e30ac21c47119202320cd8f29deb"
+    },
+    {
+      "ref": "8d24d26f6b7eef04ad9eda1f30eb9ea0e53cf546",
+      "path": "lib/text_book/utils/reading_extent_estimates.dart",
+      "symbol": "visibleReadingCharCount",
+      "line": 267,
+      "sha256": "20da08ce0d8033b94e4ae3c86b0f15dad490df5b9c3bbc2cffa7ff089ac97b93"
+    },
+    {
+      "ref": "8d24d26f6b7eef04ad9eda1f30eb9ea0e53cf546",
+      "path": "lib/text_book/models/content_line_changes.dart",
+      "symbol": "entire file before import/annotation removal",
+      "line": 1,
+      "sha256": "64ccbc4abe38e09240d97877afd88ebfe241b26f52cc115ece212ab693f08ace"
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "working_directory_layout": {
+    "repo4307": "Read-only Git clone with the pinned baseline and candidate objects",
+    "dart-sdk": "Dart3.13.5 official Linuxx64 SDK",
+    "measure4307/repro": "Copy of the published repro directory",
+    "measure4307/results": "Preserved originals; use a fresh directory when rerunning"
+  },
+  "setup_commands": [
+    "git clone --filter=blob:none --no-checkout --single-branch --branch dev https://github.com/Otzaria/otzaria.git repo4307",
+    "git -C repo4307 fetch origin 8d24d26f6b7eef04ad9eda1f30eb9ea0e53cf546 75276fe11dcf679f4ffe81eae17f842ba53c6349",
+    "curl -fL -o dart-sdk.zip https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.5/sdk/dartsdk-linux-x64-release.zip",
+    "Verify dart-sdk.zip SHA256 ea864bc64df30a6b8bdf30b2e32550f7717d9a890de8f40293aeabb924fe232b before unzip",
+    "unzip -q dart-sdk.zip"
+  ],
+  "timing_commands": [
+    "python measure4307/repro/prepare_sources.py",
+    "./dart-sdk/bin/dart analyze measure4307/repro",
+    "./dart-sdk/bin/dart compile exe measure4307/repro/benchmark.dart -o measure4307/benchmark",
+    "python measure4307/repro/run_measurements.py"
+  ],
+  "heap_command_template": "python measure4307/repro/range_allocation_probe.py --dart ABSOLUTE_PATH/dart-sdk/bin/dart --out measure4307/results/heap-MODE-REPETITION.jsonl --sizes 1000000 --windows 1 --iterations 5 (add --full-resident for full mode; use separate processes for repetitions 0, 1, 2)",
+  "heap_command_arguments": [
+    "python",
+    "measure4307/repro/range_allocation_probe.py",
+    "--dart",
+    "ABSOLUTE_PATH/dart-sdk/bin/dart",
+    "--out",
+    "measure4307/results/heap-sparse-0.jsonl",
+    "--sizes",
+    "1000000",
+    "--windows",
+    "1",
+    "--iterations",
+    "5"
+  ],
+  "reproducer_note": "prepare_sources.py deliberately expects this sibling repository layout. Generated engine/consumer files are source excerpts preserved as run; benchmark.dart was dart-formatted. Exact source-as-run hashes are in environment.json. All timing samples are retained without outlier removal."
+}

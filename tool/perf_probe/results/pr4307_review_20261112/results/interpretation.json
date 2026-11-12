@@ -1,0 +1,24 @@
+{
+  "decision_scope": "Fresh current-dev representation-isolated CPU/live-structure-heap evidence. Final PR readiness awaits separately measured current-dev application profile; this microbenchmark does not establish UI performance.",
+  "method": {
+    "baseline": "8d24d26f6b7eef04ad9eda1f30eb9ea0e53cf546",
+    "candidate": "75276fe11dcf679f4ffe81eae17f842ba53c6349",
+    "sdk": "Dart3.13.5 AOT for timings; separate JIT VM for heap",
+    "samples": "4 separate VM processes x8 timed samples per side/case=32; correctness preflight then4 explicit warmups per side/process/case",
+    "median": "Arithmetic mean of the two central observations for even sample sizes (statistics.median)",
+    "p95": "Nearest rank ceil(.95*n),31st sorted observation for n32",
+    "candidate_normalization": "Candidate scanOnly uses current-dev eager list construction, isolating representation from its separate lazy-expand optimization",
+    "source_guards": "Current-dev no-op check retained; existing revision-before-listEquals optimization is already in both refs and is not credited to the PR"
+  },
+  "interpretation": [
+    "Large genuine savings remain in initial sparse representation, changed ranges on prepared sparse/full chunked state, and eviction from prepared full chunked state.",
+    "Changed updates starting from flat full content, eviction starting from flat full content, and sparse count worker CPU are slower in all4 process medians.",
+    "Full count worker pooled median is about4.1% slower, but oneprocess favors the candidate; do not claim a consistent regression.",
+    "rawCharactersExceed is measured only below10000 lines with the exact1MiB cutoff, since production skips it for larger ranges. Absolute added preflight time is well below1ms in this fixture.",
+    "The combined partial/warm/full/edit/hide sequence measures a synthetic composition of real list operations; it is not observed app lifecycle latency. Normal range-based warming emits batches, not FullBookContent. Full-content flat handoff occurs in preview fallback and its costs are conditional.",
+    "countChunks CPU runs in a worker for large ranges in production; measured CPU differences are not UI frame timings. Isolate transfer, scheduling, I/O and Flutter rendering are excluded.",
+    "Shared preallocated plain ASCII strings isolate representation and current plain-text counting. HTML, notes, markup and diverse real book texts are out of scope.",
+    "Heap values are post-GC JIT live-object deltas for list structure with shared text excluded, including protocol noise. They are not total app memory, RSS, allocation throughput or AOT heap.",
+    "Microbenchmarks cannot resolve the earlier mixed frame/jump results, nor remove the need to validate the current-dev integrated candidate."
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "reviewer": "independent source and methodology review",
+  "baseline": "8d24d26f6b7eef04ad9eda1f30eb9ea0e53cf546",
+  "candidate": "75276fe11dcf679f4ffe81eae17f842ba53c6349",
+  "source_records_verified_against_git_show": 17,
+  "source_hash_errors": [],
+  "generated_engine_methods_match": "verbatim, except documented candidate eager scanOnly normalization to current-dev behavior",
+  "chunked_list_matches_candidate_byte_for_byte": true,
+  "current_dev_noop_and_revision_improvements_preserved": true,
+  "full_content_handler": "uses original _onApplyFullBookContent on both sides, including any/listEquals/revision/coverage",
+  "snapshot_validation": "checks output strings and flags line by line before timing; source fixture rolling checksums include string.hashCode, index, flags, revision and are compared outside timing",
+  "scenarios_reviewed": [
+    "initial partial allocation",
+    "changed sparse/full chunk snapshots",
+    "flat to chunk conversion",
+    "flat and chunked no-ops",
+    "eviction from flat and ready chunks",
+    "production character counting",
+    "realistic list-work partial/full/edit/hide sequence"
+  ],
+  "consumer_limits": [
+    "rawCharactersExceed executes only below 10000 logical lines and uses the exact 1MiB cutoff",
+    "large countChunks measures worker body CPU, excluding isolate transfer and UI",
+    "plain ASCII fixtures; HTML/entities/footnote parsing are excluded"
+  ],
+  "inference_limits": [
+    "synchronous list work is not app opening latency or end-to-end reader lifecycle",
+    "source isolation cannot resolve historical frame/raster/jump regressions",
+    "current-dev paired application measurements remain necessary for whole-PR UI conclusions",
+    "gains in sparse initial allocation and updates remain meaningful; conversion/scan costs alone do not justify closing the experiment"
+  ],
+  "no_additional_performance_run_by_reviewer": true
+}

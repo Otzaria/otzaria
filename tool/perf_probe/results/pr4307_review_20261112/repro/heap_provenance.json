@@ -1,0 +1,19 @@
+{
+  "files": [
+    {
+      "source_ref": "75276fe11dcf679f4ffe81eae17f842ba53c6349",
+      "source_path": "tool/perf_probe/range_snapshot_probe.dart",
+      "original_sha256": "cf41109dfe0f0d1d080609cb7c7ba331344ab34ac68808707b1b1241ffe29ac2",
+      "adapted_sha256": "5b1eb65ee06abd1a5386ce4cdea7bda0856ee97df719d968f4201cb10d3a8712",
+      "adaptation": "Only package import to sibling chunked_list.dart"
+    },
+    {
+      "source_ref": "75276fe11dcf679f4ffe81eae17f842ba53c6349",
+      "source_path": "tool/perf_probe/range_allocation_probe.py",
+      "original_sha256": "8f8d442b88cc3c05ee02cf7f84ad53536372bf3bafb5b6c2c0cf880738516f24",
+      "adapted_sha256": "8f8d442b88cc3c05ee02cf7f84ad53536372bf3bafb5b6c2c0cf880738516f24",
+      "adaptation": "none"
+    }
+  ],
+  "scope": "Representation live heap only; not allocation throughput, RSS, full application memory or AOT retained heap"
+}

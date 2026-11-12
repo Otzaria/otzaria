@@ -1,0 +1,7 @@
+{"measurement": "protocol_control", "lines": 1000000, "paged": false, "delta_totals": {"accumulatedSize": 3216, "bytesCurrent": 3216, "instancesAccumulated": 29, "instancesCurrent": 29}}
+{"measurement": "retained_after_changed_range_updates", "lines": 1000000, "paged": false, "delta_totals": {"accumulatedSize": -80, "bytesCurrent": -80, "instancesAccumulated": -2, "instancesCurrent": -2}}
+{"measurement": "protocol_control", "lines": 1000000, "paged": true, "delta_totals": {"accumulatedSize": -9168, "bytesCurrent": -9168, "instancesAccumulated": -273, "instancesCurrent": -273}}
+{"measurement": "retained_after_changed_range_updates", "lines": 1000000, "paged": true, "delta_totals": {"accumulatedSize": 512, "bytesCurrent": 512, "instancesAccumulated": 4, "instancesCurrent": 4}}
+{"measurement": "retained_full_snapshots", "lines": 1000000, "paged": false, "windows": 1, "delta_totals": {"accumulatedSize": 16011168, "bytesCurrent": 16011168, "instancesAccumulated": 107, "instancesCurrent": 107}}
+{"measurement": "retained_full_snapshots", "lines": 1000000, "paged": true, "windows": 1, "delta_totals": {"accumulatedSize": 16740176, "bytesCurrent": 16740176, "instancesAccumulated": 15986, "instancesCurrent": 15986}}
+saved measure4307/results/heap-full-0.jsonl

@@ -1,0 +1,27 @@
+{
+  "started_utc": "2026-11-12T17:26:23.437137+00:00",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "cpu_model": "INTEL(R) XEON(R) PLATINUM 8573C",
+  "visible_cpus": 9,
+  "cpu_quota": null,
+  "memory_limit": null,
+  "command": "./benchmark PROCESS_INDEX 8",
+  "separate_processes": 4,
+  "samples_per_side_per_process_per_case": 8,
+  "warmups": "one correctness preflight plus four explicit warmups per side per case in every process",
+  "order": "ABBA/BAAB alternating blocks, initial orientation alternates by process",
+  "percentile": "nearest rank ceil(p*n); all samples retained",
+  "gc": "natural AOT GC included in timings; no forced GC in timed operations",
+  "binary_sha256": "8e88915f746c9366cd8423c7d40bed1afcffba4c309e5e95866633cad67b55a9",
+  "source_sha256": {
+    "benchmark.dart": "24b0ba95136a5df3a1b037f58cefc2159bb582090278006539604c175d5a9f7a",
+    "chunked_list.dart": "2e4c219b24cca46edf48b05fc155b58eae465d06e51903342235f6a41a7bce91",
+    "consumer_sources.dart": "4fd7544daafc243e3280f9fedca768259fb3dacdd89cb6195329edb3b78c9c1d",
+    "content_line_changes.dart": "c522687857675cf304489dab1fb2e3ac3c7e6bd66b594a6b9cff9da6bded271d",
+    "engine_sources.dart": "85cd2978c3721ed6f018e4446c8634099adfb669a2a7757737ab3d9ebb602efa",
+    "prepare_sources.py": "0451e1ead714ac4f33b0cff52bbe10ea8d6b6cf22f182462a93c857896d3b95c",
+    "run_measurements.py": "ee471422b9fe3cf1f34156307e963867d7edf509a37adede3bb59fc8455e71f1",
+    "source_provenance.json": "2b693c407014d849cdf2c2d22bd55f6feef9735ec3128c64b09a4908f25b8969"
+  },
+  "completed_utc": "2026-11-12T17:29:45.060128+00:00"
+}
