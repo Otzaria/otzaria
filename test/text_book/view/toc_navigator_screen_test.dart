@@ -404,15 +404,15 @@ Future<void> main() async {
     );
     await tester.pump();
     expect(find.text('seif 0'), findsNWidgets(3));
-    // הכפתור המשותף לתוכן העניינים ולעץ החיפוש (#3103).
-    expect(find.byType(NavTreeCollapseAllButton), findsOneWidget);
+    // תפריט הרמות שבכותרת העץ (#3236).
+    expect(find.byTooltip(_expansionMenuTooltip), findsOneWidget);
 
-    await tester.tap(find.byTooltip('כווץ הכל'));
+    await _chooseExpansion(tester, 'כווץ הכל');
     await tester.pumpAndSettle();
     expect(find.text('seif 0'), findsNothing);
     expect(find.text('siman 2'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('הרחב הכל'));
+    await _chooseExpansion(tester, 'הרחב הכל');
     await tester.pumpAndSettle();
     expect(find.text('seif 0'), findsNWidgets(3));
   });
@@ -470,10 +470,9 @@ Future<void> main() async {
       await tester.pumpAndSettle();
     }
 
+    // האייקון של תפריט הרמות מראה את הפעולה הצפויה, כמו הכפתור שקדם לו.
     void expectButton(String tooltip) {
-      const other = {'כווץ הכל': 'הרחב הכל', 'הרחב הכל': 'כווץ הכל'};
-      expect(find.byTooltip(tooltip), findsOneWidget);
-      expect(find.byTooltip(other[tooltip]!), findsNothing);
+      expect(find.byTooltip(_expansionMenuTooltip), findsOneWidget);
       expect(
         find.byIcon(
           tooltip == 'כווץ הכל'
@@ -532,7 +531,7 @@ Future<void> main() async {
       expect(find.text('פרק 0'), findsNothing);
       expectButton('הרחב הכל');
 
-      await tester.tap(find.byTooltip('הרחב הכל'));
+      await _chooseExpansion(tester, 'הרחב הכל');
       await tester.pumpAndSettle();
       expect(find.text('דף 2-1'), findsOneWidget);
       expectButton('כווץ הכל');
@@ -578,8 +577,7 @@ Future<void> main() async {
       ),
     );
     await tester.pump();
-    expect(find.byTooltip('כווץ הכל'), findsNothing);
-    expect(find.byTooltip('הרחב הכל'), findsNothing);
+    expect(find.byTooltip(_expansionMenuTooltip), findsNothing);
   });
 
   testWidgets('מטמון השיטוח מתעדכן בסגירה ובפתיחה של ענף', (tester) async {
@@ -1488,7 +1486,7 @@ Future<void> main() async {
       _buildLargeToc(simanim: 3, seifim: 300),
     );
 
-    await tester.tap(find.byTooltip('כווץ הכל'));
+    await _chooseExpansion(tester, 'כווץ הכל');
     await tester.pumpAndSettle();
 
     expect(find.text('seif 0'), findsNothing);
@@ -1524,6 +1522,16 @@ Future<void> main() async {
     await tester.pumpAndSettle();
     expect(tester.element(row), same(before));
   });
+}
+
+const _expansionMenuTooltip = 'הרחבה וכיווץ של הכותרות';
+
+/// בוחר פעולה בתפריט הרמות שבכותרת העץ.
+Future<void> _chooseExpansion(WidgetTester tester, String label) async {
+  await tester.tap(find.byTooltip(_expansionMenuTooltip));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(label).last);
+  await tester.pumpAndSettle();
 }
 
 /// השדה בלשונית הניווט סגור עד הלחיצה על אייקון החיפוש שבכותרת.
