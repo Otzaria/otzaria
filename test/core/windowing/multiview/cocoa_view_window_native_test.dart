@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/multiview/cocoa_view_window_native.dart';
-import 'package:window_manager/window_manager.dart' show ResizeEdge;
+import 'package:window_manager/legacy.dart' show ResizeEdge;
 
 /// ה-runner של macOS לפי החוזה של `otzaria/view_window` (ViewWindowChannel.swift).
 class _FakeRunner {

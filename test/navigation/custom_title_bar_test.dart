@@ -51,7 +51,7 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_state.dart';
-import 'package:window_manager/window_manager.dart' show WindowCaptionButton;
+import 'package:window_manager/legacy.dart' show WindowCaptionButton;
 import '../helpers/memory_settings_cache.dart';
 import '../test_helpers/fake_view_window.dart';
 import '../test_helpers/second_test_view.dart';
