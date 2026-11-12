@@ -938,6 +938,23 @@ class MyDatabase {
       'CREATE INDEX IF NOT EXISTS idx_user_book_version_primary ON user_book_version(primaryBookId);',
       'CREATE INDEX IF NOT EXISTS idx_user_book_version_source ON user_book_version(source);',
 
+      // גרסה שספרה במסד מצורף: מזוהה לפי slug וכותרת, כי מזהי המסד פנימיים לו.
+      '''
+      CREATE TABLE IF NOT EXISTS user_attached_book_version (
+          versionDb TEXT NOT NULL,
+          versionBookTitle TEXT NOT NULL,
+          primarySource TEXT NOT NULL,
+          primaryTitle TEXT NOT NULL,
+          primaryCategoryPath TEXT,
+          versionTitle TEXT NOT NULL,
+          versionNotes TEXT,
+          priority REAL,
+          source TEXT NOT NULL,
+          PRIMARY KEY (versionDb, versionBookTitle)
+      );
+      ''',
+      'CREATE INDEX IF NOT EXISTS idx_user_attached_book_version_source ON user_attached_book_version(source);',
+
       // קובצי כותרות/גרסאות שנקלטו בסריקת תיקייה. [signature] מצרף את מצב
       // הקובץ ואת מזהי ומצב הספרים שאליהם נפתר — שינוי באחד מהם מחייב יישום מחדש.
       '''

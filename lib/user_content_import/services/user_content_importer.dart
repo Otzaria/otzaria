@@ -185,9 +185,10 @@ class UserContentImporter {
         await _ingestVersions(
           file,
           repo,
-          ingest.versions,
+          ingest,
           errors,
           sourceExists: sourceExists,
+          attached: attached,
         );
       } else if (_generationFileNames.contains(name)) {
         await _ingestGenerations(
@@ -312,8 +313,12 @@ class UserContentImporter {
         source: contentSource,
       );
     }
-    if (ingest.versions.isNotEmpty) {
-      await repo.replaceVersions(ingest.versions, source: contentSource);
+    if (ingest.versions.isNotEmpty || ingest.attachedVersions.isNotEmpty) {
+      await repo.replaceVersions(
+        ingest.versions,
+        attachedVersions: ingest.attachedVersions,
+        source: contentSource,
+      );
     }
     // איחוד רשומות זהות מכל הקבצים (למשל שני צדי צמד דו-כיווני שנורמלו
     // לאותו כיוון), תוך שמירת עוגנים נפרדים באותו צמד-שורות.
@@ -324,7 +329,7 @@ class UserContentImporter {
       generationsApplied: ingest.generationByBook.length,
       linksApplied: unique.length,
       headingsApplied: ingest.headingsByBook.length,
-      versionsApplied: ingest.versions.length,
+      versionsApplied: ingest.versions.length + ingest.attachedVersions.length,
     );
   }
 
@@ -417,9 +422,10 @@ class UserContentImporter {
   static Future<void> _ingestVersions(
     ImportedFile file,
     UserContentRepository repo,
-    List<UserBookVersionRecord> out,
+    UserImportIngest ingest,
     List<String> errors, {
     required UserLinkSourceChecker sourceExists,
+    required AttachedLinkBooks attached,
   }) async {
     final fileName = file.name;
     final ParseResult<ParsedBookVersion> parsed;
@@ -433,15 +439,33 @@ class UserContentImporter {
       errors.add('$fileName ${err.message} (שורה ${err.lineNumber})');
     }
     for (final row in parsed.rows) {
-      if (!row.primarySource.isUser) {
-        final versionId = await repo.bookIdByTitle(row.version);
-        if (versionId == null) {
+      // ספר הגרסה: אישי, ואם אינו שם — מהמסד המצורף הגלוי הראשון שמכיל אותו.
+      final versionId = row.versionDb == null
+          ? await repo.bookIdByTitle(row.version)
+          : null;
+      String? versionDb;
+      if (versionId == null) {
+        versionDb = (await attached.locate(
+          row.version,
+          slug: row.versionDb,
+        ))?.slug;
+        if (versionDb == null) {
+          final where = row.versionDb != null
+              ? 'במסד "${row.versionDb}"'
+              : attached.isEmpty
+              ? 'בספרייה האישית'
+              : 'בספרייה האישית או במסד מצורף';
           errors.add(
-            '$fileName: הספר "${row.version}" לא נמצא בספרייה האישית '
+            '$fileName: הספר "${row.version}" לא נמצא $where '
             '(שורה ${row.rowNumber})',
           );
           continue;
         }
+      }
+      final primaryId = row.primarySource.isUser
+          ? await repo.bookIdByTitle(row.primary)
+          : null;
+      if (!row.primarySource.isUser) {
         // מסד מצורף עשוי להיות מנותק כרגע; הראשי שלו נפתר בטעינת הקטלוג.
         if (row.primarySource.isOfficial &&
             !await sourceExists(
@@ -455,38 +479,50 @@ class UserContentImporter {
           );
           continue;
         }
-        out.add(
-          UserBookVersionRecord.ofCatalogBook(
-            versionBookId: versionId,
-            primarySource: row.primarySource,
-            primaryTitle: row.primary,
-            primaryCategoryPath: row.primaryCategoryPath,
-            versionTitle: row.label ?? row.version,
-            versionNotes: row.notes,
-            priority: row.priority,
-          ),
-        );
-        continue;
-      }
-      final primaryId = await repo.bookIdByTitle(row.primary);
-      final versionId = await repo.bookIdByTitle(row.version);
-      if (primaryId == null || versionId == null) {
-        final missing = primaryId == null ? row.primary : row.version;
+      } else if (primaryId == null) {
         errors.add(
-          '$fileName: הספר "$missing" לא נמצא בספרייה האישית '
+          '$fileName: הספר "${row.primary}" לא נמצא בספרייה האישית '
           '(שורה ${row.rowNumber})',
         );
         continue;
       }
-      out.add(
-        UserBookVersionRecord(
-          versionBookId: versionId,
-          primaryBookId: primaryId,
-          versionTitle: row.label ?? row.version,
-          versionNotes: row.notes,
-          priority: row.priority,
-        ),
-      );
+      final versionTitle = row.label ?? row.version;
+      if (versionDb != null) {
+        ingest.attachedVersions.add(
+          AttachedBookVersionRecord(
+            versionDb: versionDb,
+            versionBookTitle: row.version,
+            primarySource: row.primarySource,
+            primaryTitle: row.primary,
+            primaryCategoryPath: row.primaryCategoryPath,
+            versionTitle: versionTitle,
+            versionNotes: row.notes,
+            priority: row.priority,
+          ),
+        );
+      } else if (row.primarySource.isUser) {
+        ingest.versions.add(
+          UserBookVersionRecord(
+            versionBookId: versionId!,
+            primaryBookId: primaryId!,
+            versionTitle: versionTitle,
+            versionNotes: row.notes,
+            priority: row.priority,
+          ),
+        );
+      } else {
+        ingest.versions.add(
+          UserBookVersionRecord.ofCatalogBook(
+            versionBookId: versionId!,
+            primarySource: row.primarySource,
+            primaryTitle: row.primary,
+            primaryCategoryPath: row.primaryCategoryPath,
+            versionTitle: versionTitle,
+            versionNotes: row.notes,
+            priority: row.priority,
+          ),
+        );
+      }
     }
   }
 
@@ -904,6 +940,7 @@ class UserImportIngest {
   final links = <UserLinkRecord>[];
   final headingsByBook = <int, List<UserAltTocStructureData>>{};
   final versions = <UserBookVersionRecord>[];
+  final attachedVersions = <AttachedBookVersionRecord>[];
   final errors = <String>[];
 
   UserImportIngest._();

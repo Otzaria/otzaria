@@ -1,3 +1,4 @@
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/book_version.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/user_content_import/models/user_import_models.dart';
@@ -6,12 +7,13 @@ import 'package:otzaria/user_content_import/models/user_import_models.dart';
 /// ושם. ריק כשהספר אינו בקבוצה, או כשהגרסה הראשית אינה בקטלוג.
 ///
 /// [catalogPrimaries] — הספר הרשמי/המצורף שנפתר לכל גרסה שהראשי שלה אינו
-/// אישי, לפי מזהה ספר הגרסה.
+/// אישי, לפי מזהה ספר הגרסה. [attachedMembers] — גרסאות שספרן במסד מצורף.
 List<BookVersionInfo> buildUserBookVersions({
   required int bookId,
   required List<UserBookVersionRecord> records,
   required Map<int, Book> booksById,
   Map<int, Book> catalogPrimaries = const {},
+  List<AttachedVersionMember> attachedMembers = const [],
 }) {
   final own = records.where((v) => v.versionBookId == bookId).firstOrNull;
   if (own != null && own.hasCatalogPrimary) {
@@ -28,6 +30,7 @@ List<BookVersionInfo> buildUserBookVersions({
         records: records,
         booksById: booksById,
         catalogPrimaries: catalogPrimaries,
+        attachedMembers: attachedMembers,
       ),
     ];
   }
@@ -40,9 +43,10 @@ List<BookVersionInfo> buildUserBookVersions({
       )
       .toList();
   final primary = booksById[primaryId];
-  if (members.isEmpty || primary == null) return const [];
+  if (primary == null) return const [];
+  final attached = _attachedVersionsOf(primary, attachedMembers);
+  if (members.isEmpty && attached.isEmpty) return const [];
 
-  _sortVersions(members);
   final primaryRow = userRecords
       .where((v) => v.versionBookId == primaryId)
       .firstOrNull;
@@ -53,9 +57,12 @@ List<BookVersionInfo> buildUserBookVersions({
       hasContent: true,
       separateBook: primary,
     ),
-    for (final member in members)
-      if (booksById[member.versionBookId] case final target?)
-        _versionInfo(member, target),
+    ..._sortedInfos([
+      for (final member in members)
+        if (booksById[member.versionBookId] case final target?)
+          _versionInfo(member, target),
+      ...attached,
+    ]),
   ];
 }
 
@@ -65,6 +72,7 @@ List<BookVersionInfo> buildPersonalVersionsOfCatalogBook({
   required List<UserBookVersionRecord> records,
   required Map<int, Book> booksById,
   required Map<int, Book> catalogPrimaries,
+  List<AttachedVersionMember> attachedMembers = const [],
 }) {
   final members = [
     for (final record in records)
@@ -72,28 +80,67 @@ List<BookVersionInfo> buildPersonalVersionsOfCatalogBook({
           when record.hasCatalogPrimary && isSameCatalogBook(resolved, primary))
         record,
   ];
-  _sortVersions(members);
-  return [
+  return _sortedInfos([
     for (final member in members)
       if (booksById[member.versionBookId] case final target?)
         _versionInfo(member, target),
-  ];
+    ..._attachedVersionsOf(primary, attachedMembers),
+  ]);
 }
+
+/// גרסה שספרה במסד מצורף, אחרי שספר הגרסה והראשי נמצאו בקטלוג.
+typedef AttachedVersionMember = ({
+  Book version,
+  Book primary,
+  String versionTitle,
+  String? versionNotes,
+  double? priority,
+});
+
+List<BookVersionInfo> _attachedVersionsOf(
+  Book primary,
+  List<AttachedVersionMember> members,
+) => [
+  for (final member in members)
+    if (isSameCatalogBook(member.primary, primary))
+      BookVersionInfo(
+        versionTitle: member.versionTitle,
+        heVersionNotes: member.versionNotes,
+        priority: member.priority,
+        hasContent: true,
+        separateBook: member.version,
+      ),
+];
 
 /// הספר בקטלוג שהרשומה [record] מצהירה עליו כראשי, או null כשאינו נמצא או
 /// כשהכותרת מתאימה לכמה ספרים בקטגוריות שונות. [catalogByTitle] ממופתח
 /// ב-[normalizeVersionTitle].
 Book? resolveCatalogPrimary(
-  UserBookVersionRecord record,
+  CatalogVersionPrimary record,
   Map<String, List<Book>> catalogByTitle,
 ) {
   final title = record.primaryTitle;
   if (title == null) return null;
-  final wanted = _categorySegments(record.primaryCategoryPath);
+  return findCatalogBook(
+    source: record.primarySource,
+    title: title,
+    categoryPath: record.primaryCategoryPath,
+    catalogByTitle: catalogByTitle,
+  );
+}
+
+/// הספר [title] ממקור [source], כמו ב-[resolveCatalogPrimary].
+Book? findCatalogBook({
+  required BookSource source,
+  required String title,
+  String? categoryPath,
+  required Map<String, List<Book>> catalogByTitle,
+}) {
+  final wanted = _categorySegments(categoryPath);
   final candidates = [
     for (final book
         in catalogByTitle[normalizeVersionTitle(title)] ?? const <Book>[])
-      if (book.source == record.primarySource &&
+      if (book.source == source &&
           _endsWith(_categorySegments(book.categoryPath), wanted))
         book,
   ];
@@ -140,14 +187,13 @@ bool _endsWith(List<String> path, List<String> suffix) {
   return true;
 }
 
-void _sortVersions(List<UserBookVersionRecord> members) {
-  members.sort((a, b) {
-    final byPriority = (b.priority ?? 0).compareTo(a.priority ?? 0);
-    return byPriority != 0
-        ? byPriority
-        : a.versionTitle.compareTo(b.versionTitle);
-  });
-}
+List<BookVersionInfo> _sortedInfos(List<BookVersionInfo> infos) =>
+    infos..sort((a, b) {
+      final byPriority = (b.priority ?? 0).compareTo(a.priority ?? 0);
+      return byPriority != 0
+          ? byPriority
+          : a.versionTitle.compareTo(b.versionTitle);
+    });
 
 BookVersionInfo _versionInfo(UserBookVersionRecord member, Book target) =>
     BookVersionInfo(

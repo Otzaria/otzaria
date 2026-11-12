@@ -806,6 +806,56 @@ void main() {
         expect(result.linksApplied, 0);
       });
 
+      test(
+        'גרסאות: ספר הגרסה במסד מצורף נשמר לפי slug וכותרת (#4392)',
+        () async {
+          final f = writeCsv(
+            'גרסאות.csv',
+            'ראשי,גרסה,שם,מקור_ראשי\n'
+                'בראשית,ספר מצורף,נוסח אחר,רשמי\n'
+                'ביאורי יוסף,ספר מצורף,,אישי\n',
+          );
+          final result = await UserContentImporter.importFiles(
+            [f],
+            db,
+            sourceExists:
+                ({required title, categoryId, required isUserBook}) async =>
+                    title == 'בראשית',
+            attachedBooks: attached,
+          );
+          expect(result.errors, isEmpty);
+          expect(result.versionsApplied, 2);
+          final rows = (await db.database).select(
+            'SELECT * FROM user_attached_book_version',
+          );
+          final row = rows.single;
+          // הצהרה שנייה על אותו ספר דורסת את הראשונה (מפתח slug+כותרת).
+          expect(row['versionDb'], 'my-db');
+          expect(row['versionBookTitle'], 'ספר מצורף');
+          expect(row['primarySource'], 'u');
+          expect(row['primaryTitle'], 'ביאורי יוסף');
+          expect(
+            (await db.database).select('SELECT * FROM user_book_version'),
+            isEmpty,
+          );
+        },
+      );
+
+      test('גרסאות: מסד_גרסה שאינו מכיל את הספר → שגיאה', () async {
+        final f = writeCsv(
+          'גרסאות.csv',
+          'ראשי,גרסה,מקור_ראשי,מסד_גרסה\nבראשית,ספר מצורף,רשמי,other\n',
+        );
+        final result = await UserContentImporter.importFiles(
+          [f],
+          db,
+          sourceExists:
+              ({required title, categoryId, required isUserBook}) async => true,
+          attachedBooks: attached,
+        );
+        expect(result.errors.single, contains('לא נמצא במסד "other"'));
+      });
+
       test('native: ספר בסיס במסד מצורף נקלט', () async {
         final f = writeCsv(
           'ספר מצורף_links.json',

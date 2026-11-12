@@ -45,6 +45,7 @@ class UserContentRepository {
         'structureId IN (SELECT id FROM user_alt_toc_structure '
         "WHERE source = '$manualImportSource')",
     'user_book_version': "source = '$manualImportSource'",
+    'user_attached_book_version': "source = '$manualImportSource'",
   };
 
   static String _baselineTable(String table) => 'import_baseline_$table';
@@ -227,9 +228,32 @@ class UserContentRepository {
   Future<void> replaceVersions(
     List<UserBookVersionRecord> versions, {
     required String source,
+    List<AttachedBookVersionRecord> attachedVersions = const [],
   }) async {
     final db = await _db.database;
     db.execute('DELETE FROM user_book_version WHERE source = ?', [source]);
+    db.execute('DELETE FROM user_attached_book_version WHERE source = ?', [
+      source,
+    ]);
+    for (final version in attachedVersions) {
+      db.execute(
+        'INSERT OR REPLACE INTO user_attached_book_version '
+        '(versionDb, versionBookTitle, primarySource, primaryTitle, '
+        'primaryCategoryPath, versionTitle, versionNotes, priority, source) '
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          version.versionDb,
+          version.versionBookTitle,
+          version.primarySource.wireKey,
+          version.primaryTitle,
+          version.primaryCategoryPath,
+          version.versionTitle,
+          version.versionNotes,
+          version.priority,
+          source,
+        ],
+      );
+    }
     for (final version in versions) {
       db.execute(
         'INSERT OR REPLACE INTO user_book_version '
@@ -262,6 +286,9 @@ class UserContentRepository {
     );
     db.execute('DELETE FROM user_alt_toc_structure WHERE source = ?', [source]);
     db.execute('DELETE FROM user_book_version WHERE source = ?', [source]);
+    db.execute('DELETE FROM user_attached_book_version WHERE source = ?', [
+      source,
+    ]);
     db.execute('DELETE FROM user_link WHERE source = ?', [source]);
     db.execute('DELETE FROM user_sidecar_link_book WHERE path = ?', [source]);
     db.execute('DELETE FROM user_sidecar_file WHERE path = ?', [source]);
