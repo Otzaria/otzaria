@@ -181,5 +181,58 @@ void main() {
       expect(await links.ensureLoaded(999, 1000), isFalse);
       expect(calls, hasLength(count));
     });
+
+    test('קריאות מקבילות לאותו חלון שולפות פעם אחת', () async {
+      final links = loader();
+      final results = await Future.wait([
+        links.ensureLoaded(20, 1000),
+        links.ensureLoaded(20, 1000),
+      ]);
+      expect(results, [true, false]);
+      expect(calls, hasLength(2));
+    });
+
+    test('כשל נרשם: השהיה, ניסיון חוזר ועצירה אחרי המגבלה', () async {
+      var now = DateTime(2026);
+      var failing = true;
+      var fetches = 0;
+      final links = SuperCommentaryLinkLoader(
+        mainTitle: _main,
+        mainCategoryId: 1,
+        mainSource: BookSource.official,
+        parentTitle: _parent,
+        superTitle: _super,
+        maxFailures: 2,
+        retryBackoff: const Duration(seconds: 2),
+        now: () => now,
+        fetch:
+            ({
+              required bookTitle,
+              required categoryId,
+              required source,
+              required startLine,
+              required endLine,
+              required targetTitle,
+            }) async {
+              fetches++;
+              if (failing) throw StateError('db closed');
+              return const [];
+            },
+      );
+
+      await expectLater(links.ensureLoaded(5, 100), throwsStateError);
+      expect(fetches, 1);
+      expect(await links.ensureLoaded(5, 100), isFalse, reason: 'בהשהיה');
+      expect(fetches, 1);
+
+      now = now.add(const Duration(seconds: 3));
+      await expectLater(links.ensureLoaded(5, 100), throwsStateError);
+      expect(fetches, 2);
+
+      now = now.add(const Duration(minutes: 5));
+      failing = false;
+      expect(await links.ensureLoaded(5, 100), isFalse, reason: 'נעצר');
+      expect(fetches, 2);
+    });
   });
 }

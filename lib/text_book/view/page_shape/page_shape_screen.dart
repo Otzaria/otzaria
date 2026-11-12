@@ -475,26 +475,30 @@ class _PageShapeScreenState extends State<PageShapeScreen>
     );
   }
 
+  /// המפרשים שנבחרו בטורים ושמפרשי-על שלהם אפשריים: ספרי הספרייה בלבד.
+  List<String> _superParentCandidates(TextBookLoaded state) {
+    final available = _availableCommentators(state);
+    return [
+      ?_leftCommentator,
+      ?_bottomCommentator,
+      ?_bottomRightCommentator,
+      ..._selectedRightPaneCommentators(state),
+    ]
+        .where(
+          (title) =>
+              title != kNotesCommentatorTitle && available.contains(title),
+        )
+        .toSet()
+        .toList();
+  }
+
   /// מפרשי-העל מתגלים מסיכום הקישורים של כל מפרש שנבחר בטור (גם בטור מוסתר),
   /// ב-worker ופעם אחת לכל מפרש.
   Future<void> _discoverSuperCommentators() async {
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded) return;
     final generation = ++_superDiscoveryGeneration;
-    final available = _availableCommentators(state);
-    final parents =
-        [
-              ?_leftCommentator,
-              ?_bottomCommentator,
-              ?_bottomRightCommentator,
-              ..._selectedRightPaneCommentators(state),
-            ]
-            .where(
-              (title) =>
-                  title != kNotesCommentatorTitle && available.contains(title),
-            )
-            .toSet()
-            .toList();
+    final parents = _superParentCandidates(state);
     final provider = LibraryProviderManager.instance.databaseProvider;
     final cachePrefix = '${state.book.title}|';
     for (final parent in parents) {
@@ -1222,7 +1226,8 @@ class _PageShapeScreenState extends State<PageShapeScreen>
         commentatorName != kNotesCommentatorTitle &&
         state is TextBookLoaded &&
         state.commentatorsLoaded &&
-        !state.availableCommentators.contains(commentatorName)) {
+        !state.availableCommentators.contains(commentatorName) &&
+        _superParentCandidates(state).isNotEmpty) {
       return const LoadingIndicator();
     }
     return _CommentaryPane(
@@ -1664,6 +1669,7 @@ class _PageShapeScreenState extends State<PageShapeScreen>
                     previous.availableCommentators,
                     current.availableCommentators,
                   ) ||
+                  previous.commentatorsLoaded != current.commentatorsLoaded ||
                   previous.book.heCategories != current.book.heCategories;
             }
             return previous is! TextBookLoaded && current is TextBookLoaded;

@@ -879,10 +879,21 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
       for (final MapEntry(key: title, value: parent)
           in widget.superCommentatorParents.entries) {
         if (eraOf.containsKey(title)) continue;
-        final group = 'על $parent';
+        final group = context.settingsText(
+          'על {parent}',
+          args: {'parent': parent},
+        );
         if (!superGroups.contains(group)) superGroups.add(group);
         eraOf[title] = group;
-        entries.add(AppMenuEntry(value: title, label: '$title ($group)'));
+        entries.add(
+          AppMenuEntry(
+            value: title,
+            label: context.settingsText(
+              '{title} ({group})',
+              args: {'title': title, 'group': group},
+            ),
+          ),
+        );
       }
     }
 
