@@ -75,6 +75,9 @@ abstract class CommonMessages {
 
   // ── קיצורי מקשים ────────────────────────────────────────────────────────
   static const String shortcutRequired = 'יש לבחור קיצור';
+  static const String shortcutReaderNavigationKey =
+      'באזור הקריאה החיצים כבר מנווטים וגוללים, ולכן קיצור ניווט על חץ '
+      'לבדו לא יפעל. בחר צירוף אחר.';
 
   static String shortcutAlreadyInUse(String actionName) =>
       'קיצור זה כבר בשימוש עבור: $actionName';

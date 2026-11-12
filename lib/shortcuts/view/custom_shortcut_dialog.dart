@@ -5,7 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
+import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
@@ -18,10 +20,15 @@ class CustomShortcutDialog extends StatefulWidget {
   /// כדי שיהיה ברור לאיזו פעולה הקיצור משויך.
   final String? actionName;
 
+  /// מפתח הפעולה; צירוף שאזור הקריאה בולע לפניה נדחה (ראו
+  /// [ShortcutValidator.isReservedByReader]).
+  final String? settingKey;
+
   const CustomShortcutDialog({
     super.key,
     this.initialShortcut,
     this.actionName,
+    this.settingKey,
   });
 
   @override
@@ -73,6 +80,15 @@ class _CustomShortcutDialogState extends State<CustomShortcutDialog>
     }
 
     final shortcut = ShortcutHelper.formatKeysToShortcut(_pressedKeys);
+    if (ShortcutValidator.isReservedByReader(
+      widget.settingKey ?? '',
+      shortcut,
+    )) {
+      UiSnack.showError(
+        context.settingsText(CommonMessages.shortcutReaderNavigationKey),
+      );
+      return;
+    }
     Navigator.pop(context, shortcut);
   }
 
