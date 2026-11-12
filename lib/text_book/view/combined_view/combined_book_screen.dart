@@ -389,6 +389,7 @@ class _CombinedViewState extends State<CombinedView> {
   late final SiblingCommentariesController _siblingController;
 
   bool _hasScrolledToInitialPosition = false;
+  bool? _continuousReadingMode;
 
   // הקצאת וריאנט טיפוגרפי קבוע לכל מפרש עם עוגני-מילה. ממוזכר לפי זהות
   // רשימת הקישורים של ה-state (מתחלפת רק כשהקישורים נטענים מחדש).
@@ -964,6 +965,12 @@ class _CombinedViewState extends State<CombinedView> {
 
   void _onTextBookState(TextBookState state) {
     if (state is! TextBookLoaded) return;
+    // הרשימה נבנית מחדש, ו-Flutter מחיל את הבחירה שוב לפי מיקום על המסך
+    // ולא לפי הטקסט.
+    if (_continuousReadingMode != state.continuousReadingMode) {
+      _continuousReadingMode = state.continuousReadingMode;
+      _clearSelectionBeforeJump();
+    }
     _scrollToInitialPosition(state);
     final line = _commentaryRevealLine;
     if (line == null) return;
