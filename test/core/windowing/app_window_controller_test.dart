@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/runner_window_channel.dart';
 import 'package:otzaria/core/windowing/window_manager_app_window_controller.dart';
-import 'package:window_manager/window_manager.dart' show TitleBarStyle;
+import 'package:window_manager/legacy.dart' show TitleBarStyle;
 
 /// מיירטים את הערוצים ומאמתים שהפעולה מגיעה למימוש המתאים.
 /// רצף הקריאות הפנימי תלוי בפלטפורמה ובמצב החלון.

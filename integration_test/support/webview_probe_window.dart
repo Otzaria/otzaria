@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/services.dart';
-import 'package:window_manager/window_manager.dart';
+import 'package:window_manager/legacy.dart';
 
 const _desktopPlatforms = {'windows', 'linux', 'macos'};
 const _windowSize = Size(1000, 700);

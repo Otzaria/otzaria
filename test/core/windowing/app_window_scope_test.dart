@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/app_window_controller.dart';
 import 'package:otzaria/core/windowing/app_window_id.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
-import 'package:window_manager/window_manager.dart' show TitleBarStyle;
+import 'package:window_manager/legacy.dart' show TitleBarStyle;
 
 /// ה-scope הוא הדרך של widget להגיע לחלון שהוא יושב בו, במקום לפנות
 /// ל-singleton גלובלי שמתאר תמיד את החלון היחיד.

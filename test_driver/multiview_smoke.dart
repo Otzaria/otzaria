@@ -23,7 +23,7 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:path/path.dart' as p;
 import 'package:win32/win32.dart';
-import 'package:window_manager/window_manager.dart';
+import 'package:window_manager/legacy.dart';
 
 const _toolId = 'builtin.measurements';
 
