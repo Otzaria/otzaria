@@ -296,6 +296,11 @@ dependency_overrides:
       url: https://github.com/Otzaria/provider
       ref: bf3930e454494525017b94641632577360ca7098
       path: packages/provider
+  # TODO: Return to the official release after felangel/equatable#223-#229 merge and release.
+  equatable:
+    git:
+      url: https://github.com/Otzaria/equatable.git
+      ref: integration/equatable-20261110-performance-qa
   analyzer: ^14.7.0
   device_info_plus: ^13.3.0
   # הגרסה שב-pub.dev חסרה את תיקון גלילת הטאצ'פד.
