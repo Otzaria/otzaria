@@ -94,18 +94,21 @@ function Merge-ReaderObservations([string]$Destination, [string[]]$Directories) 
         $path = Join-Path $directory $name
         if (-not (Test-Path -LiteralPath $path)) { continue }
         $first = $true
-        foreach ($line in [IO.File]::ReadLines($path)) {
-          if ($name -eq 'samples.csv' -and $first) {
-            if ($null -ne $header) {
-              if ($line -cne $header) { throw 'Process sample headers differ between launches.' }
-              $first = $false
-              continue
+        $reader = [IO.File]::OpenText($path)
+        try {
+          while ($null -ne ($line = $reader.ReadLine())) {
+            if ($name -eq 'samples.csv' -and $first) {
+              if ($null -ne $header) {
+                if ($line -cne $header) { throw 'Process sample headers differ between launches.' }
+                $first = $false
+                continue
+              }
+              $header = $line
             }
-            $header = $line
+            $writer.WriteLine($line)
+            $first = $false
           }
-          $writer.WriteLine($line)
-          $first = $false
-        }
+        } finally { $reader.Dispose() }
       }
     } finally { $writer.Dispose() }
   }
