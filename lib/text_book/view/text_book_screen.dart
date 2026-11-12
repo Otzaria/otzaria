@@ -73,6 +73,8 @@ import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/utils/file/page_converter.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:otzaria/book_common/view/book_source_dialog.dart';
+import 'package:otzaria/text_book/view/page_shape/page_shape_screen.dart'
+    show PageShapeColumnsControl;
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/personal_notes/utils/personal_note_source_selection.dart';
@@ -1709,6 +1711,12 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     // קביעת מצב היעד לפי הבחירה
     final bool isPageSelected = value == _viewModePage;
     final bool isSplitSelected = value == _viewModeSplit;
+
+    if (isPageSelected && state.showPageShapeView) {
+      if (_pageShapeKey.currentState case final PageShapeColumnsControl page) {
+        page.showHiddenColumns();
+      }
+    }
 
     // עדכון תצוגת צורת הדף במידת הצורך
     if (isPageSelected != state.showPageShapeView) {

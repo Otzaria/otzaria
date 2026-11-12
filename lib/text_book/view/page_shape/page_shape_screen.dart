@@ -94,6 +94,12 @@ typedef PageShapeDefaultsLoader =
 const double _kSidebarDefaultFraction = 0.22;
 const double _kSidebarMaxFraction = 0.35;
 
+/// פעולות שמסך הספר מבקש מצורת הדף.
+abstract interface class PageShapeColumnsControl {
+  /// בחירה חוזרת ב"צורת הדף" מחזירה טורים שהוסתרו (issue #3262).
+  void showHiddenColumns();
+}
+
 class PageShapeScreen extends StatefulWidget {
   final Function(OpenedTab) openBookCallback;
   final ValueNotifier<int?>? sidebarTabNotifier;
@@ -121,7 +127,7 @@ class PageShapeScreen extends StatefulWidget {
 }
 
 class _PageShapeScreenState extends State<PageShapeScreen>
-    implements PersonalNotesPanelVisibility {
+    implements PersonalNotesPanelVisibility, PageShapeColumnsControl {
   String? _leftCommentator;
   String? _rightCommentator;
   String? _bottomCommentator;
@@ -481,7 +487,8 @@ class _PageShapeScreenState extends State<PageShapeScreen>
     );
   }
 
-  List<String> _displayedCommentators(TextBookLoaded state) => [
+  // אותו מפרש יכול להופיע בשני טורים; ההערות שלו יוצגו פעם אחת.
+  List<String> _displayedCommentators(TextBookLoaded state) => {
     for (final (column, commentator) in [
       ('left', _leftCommentator),
       ('bottom', _bottomCommentator),
@@ -492,7 +499,7 @@ class _PageShapeScreenState extends State<PageShapeScreen>
     ..._selectedRightPaneCommentators(
       state,
     ).where((commentator) => _isCommentatorVisible('right', commentator)),
-  ];
+  }.toList();
 
   bool _isCommentatorVisible(String column, String? commentator) {
     if (commentator == null) return _columnVisibility[column] == true;
@@ -582,7 +589,12 @@ class _PageShapeScreenState extends State<PageShapeScreen>
     return isPageShapeMultipleCommentatorsMode(_rightCommentator);
   }
 
+  /// רק "שאר המפרשים" מדלג על מפרשי הטורים האחרים; מפרש שנבחר במפורש
+  /// מוצג גם אם הוא מוצג כבר בטור אחר.
   List<String> _rightPaneSelectableCommentators(TextBookLoaded state) {
+    if (!isPageShapeRemainingCommentatorsValue(_rightCommentator)) {
+      return _availableCommentators(state);
+    }
     final excludedCommentators = {
       ?_leftCommentator,
       ?_bottomCommentator,
@@ -786,6 +798,30 @@ class _PageShapeScreenState extends State<PageShapeScreen>
     });
     _refreshLinksForCurrentConfiguration('page-shape commentator switched');
     await _saveCommentatorConfiguration(state);
+  }
+
+  @override
+  void showHiddenColumns() {
+    final state = context.read<TextBookBloc>().state;
+    if (_isLoadingConfig || state is! TextBookLoaded) return;
+    final assigned = {
+      'left': _leftCommentator,
+      'right': _rightCommentator,
+      'bottom': _bottomCommentator,
+      'bottomRight': _bottomRightCommentator,
+    };
+    final hidden = [
+      for (final MapEntry(key: column, value: commentator) in assigned.entries)
+        if (commentator != null && _columnVisibility[column] != true) column,
+    ];
+    if (hidden.isEmpty) return;
+    setState(() {
+      for (final column in hidden) {
+        _columnVisibility[column] = true;
+      }
+    });
+    _refreshLinksForCurrentConfiguration('page-shape hidden columns shown');
+    unawaited(_saveCommentatorConfiguration(state));
   }
 
   void _showColumnAndOpenSettings(String column) {

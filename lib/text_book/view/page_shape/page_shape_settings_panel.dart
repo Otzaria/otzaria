@@ -551,10 +551,43 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
                 _displaySettingsSubtitle,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
+              // ה-ListTile מצייר על ה-Material הקרוב, ולכן לא על רקע המקטע.
+              Material(
+                type: MaterialType.transparency,
+                child: SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('הדגש פרשנים קשורים'),
+                  subtitle: const Text(
+                    'הדגשת קטעים בפרשנים הקשורים לשורה שנבחרה',
+                  ),
+                  value: _highlightRelatedCommentators,
+                  onChanged: (value) {
+                    setState(() {
+                      _highlightRelatedCommentators = value;
+                    });
+                    _saveSettings();
+                  },
+                ),
+              ),
             ],
           ),
         ),
 
+        const SizedBox(height: 8),
+        SwitchListTile(
+          title: const Text('החל את הגדרת רוחב הטקסט'),
+          subtitle: const Text(
+            'הגבלת רוחב הטקסט שבהגדרות תחול גם על הדף כולו',
+          ),
+          value: _applyTextMaxWidth,
+          onChanged: _onApplyTextMaxWidthChanged,
+        ),
+        const Divider(),
+        const SizedBox(height: 8),
+        const Text(
+          'בחר מפרשים להצגה:',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         // בחירת היכן לשמור את הגדרות המפרשים
         const SizedBox(height: 12),
         Container(
@@ -636,33 +669,7 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
           ),
         ),
 
-        const SizedBox(height: 16),
-        const Text(
-          'בחר מפרשים להצגה:',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 16),
-        SwitchListTile(
-          title: const Text('הדגש פרשנים קשורים'),
-          subtitle: const Text('הדגשת קטעים בפרשנים הקשורים לשורה שנבחרה'),
-          value: _highlightRelatedCommentators,
-          onChanged: (value) {
-            setState(() {
-              _highlightRelatedCommentators = value;
-            });
-            _saveSettings();
-          },
-        ),
-        SwitchListTile(
-          title: const Text('החל את הגדרת רוחב הטקסט'),
-          subtitle: const Text(
-            'הגבלת רוחב הטקסט שבהגדרות תחול גם על הדף כולו',
-          ),
-          value: _applyTextMaxWidth,
-          onChanged: _onApplyTextMaxWidthChanged,
-        ),
-        const Divider(),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         // הסבר על כפתורי העין
         Row(
           children: [

@@ -48,7 +48,6 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
-import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
@@ -96,6 +95,7 @@ import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/utils/section_search_utils.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
+import 'package:otzaria/text_book/utils/inline_section_marks_loader.dart';
 import 'package:otzaria/text_book/utils/inline_section_markers.dart';
 import 'package:otzaria/text_book/view/reader_line/reader_line_item.dart';
 import 'package:otzaria/text_book/view/reader_line/reader_line_render.dart';
@@ -1141,34 +1141,9 @@ class _CombinedViewState extends State<CombinedView> {
         mounted &&
         generation == _sectionMarkersGeneration &&
         identical(tab, widget.tab);
-    // הסימנים ממופים ל-lineIndex של הטקסט הממוזג במסד — מהדורה חלופית
-    // (version_line) או ספר שתוכנו מוגש מקבצים ממוספרים אחרת.
-    if (book.versionTitle != null) return;
-    final InlineSectionMarks marks;
+    final InlineSectionMarks? loaded;
     try {
-      if (book.isUserBook) {
-        marks = await DatabaseLibraryProvider.instance
-            .getUserInlineSectionMarks(
-              book,
-              _loadedLineAt,
-            );
-      } else {
-        if (book.source.isOfficial &&
-            LibraryProviderManager.instance.getProviderForBook(
-                  book.title,
-                  categoryId: book.categoryId,
-                  fileType: book.fileType,
-                )
-                is! DatabaseLibraryProvider) {
-          return;
-        }
-        marks = await DatabaseLibraryProvider.instance
-            .getInlineSectionMarksByLineIndex(
-              book.title,
-              categoryId: book.categoryId,
-              source: book.source,
-            );
-      }
+      loaded = await loadInlineSectionMarks(book, _loadedLineAt);
     } on DbReadWorkerBusy {
       if (!isCurrent()) return;
       if (retryAfterBusy) {
@@ -1188,7 +1163,8 @@ class _CombinedViewState extends State<CombinedView> {
       }
       return;
     }
-    if (!isCurrent()) return;
+    if (loaded == null || !isCurrent()) return;
+    final marks = loaded;
     if (marks.markers.isEmpty &&
         marks.headings.isEmpty &&
         _sectionMarkersByLine.isEmpty &&
