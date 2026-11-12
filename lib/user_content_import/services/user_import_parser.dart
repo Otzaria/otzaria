@@ -169,6 +169,7 @@ class UserImportParser {
       'priority': ['עדיפות'],
       'primarySource': ['מקור_ראשי'],
       'primaryCategory': ['קטגוריית_ראשי'],
+      'versionDb': ['מסד_גרסה', 'versionDb'],
     });
     final primaryCol = header['primary'];
     final versionCol = header['version'];
@@ -215,9 +216,21 @@ class UserImportParser {
         );
         continue;
       }
+      final versionDbRaw = _at(cells, header['versionDb']);
+      final versionDb = parseAttachedSlug(versionDbRaw);
+      if (versionDbRaw.isNotEmpty && versionDb == null) {
+        errors.add(
+          ImportRowError(
+            record.lineNumber,
+            'מזהה מסד לא חוקי: "$versionDbRaw"',
+          ),
+        );
+        continue;
+      }
       rows.add(
         ParsedBookVersion(
           rowNumber: record.lineNumber,
+          versionDb: versionDb,
           primary: primary,
           version: version,
           label: _nullable(_at(cells, header['label'])),
@@ -253,8 +266,18 @@ class UserImportParser {
     return BookSource.isValidSlug(slug) ? BookSource.attached(slug) : null;
   }
 
+  /// slug של מסד מצורף, עם או בלי הקידומת "מסד:"/"db:"; null לערך ריק או לא חוקי.
+  static String? parseAttachedSlug(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return null;
+    final parsed = parseVersionPrimarySource(value);
+    if (parsed != null) return parsed.attachedSlug;
+    return BookSource.isValidSlug(value) ? value : null;
+  }
+
   /// מפענח קובץ קישורים (עמודות: מקור, ספר_יעד, [מיקום_יעד], סוג,
-  /// [יעד_אישי], [ספר_מקור], [מקור_אישי], [קטגוריית_מקור], [קטגוריית_יעד]).
+  /// [יעד_אישי], [ספר_מקור], [מקור_אישי], [קטגוריית_מקור], [קטגוריית_יעד],
+  /// [מסד_מקור], [מסד_יעד]).
   static ParseResult<ParsedUserLink> parseLinks(String content) {
     final rows = <ParsedUserLink>[];
     final errors = <ImportRowError>[];
@@ -271,6 +294,8 @@ class UserImportParser {
       'sourceIsUser': ['מקור_אישי'],
       'sourceCategoryId': ['קטגוריית_מקור'],
       'targetCategoryId': ['קטגוריית_יעד'],
+      'sourceDb': ['מסד_מקור', 'sourceDb'],
+      'targetDb': ['מסד_יעד', 'targetDb'],
     });
     final sourceCol = header['source'];
     final targetCol = header['targetTitle'];
@@ -315,6 +340,20 @@ class UserImportParser {
         );
         continue;
       }
+      final sourceDbRaw = _at(cells, header['sourceDb']);
+      final targetDbRaw = _at(cells, header['targetDb']);
+      final sourceDb = parseAttachedSlug(sourceDbRaw);
+      final targetDb = parseAttachedSlug(targetDbRaw);
+      if ((sourceDbRaw.isNotEmpty && sourceDb == null) ||
+          (targetDbRaw.isNotEmpty && targetDb == null)) {
+        errors.add(
+          ImportRowError(
+            record.lineNumber,
+            'מזהה מסד לא חוקי: "${sourceDb == null && sourceDbRaw.isNotEmpty ? sourceDbRaw : targetDbRaw}"',
+          ),
+        );
+        continue;
+      }
       rows.add(
         ParsedUserLink(
           sourceBookTitle: _nullable(_at(cells, header['sourceBook'])),
@@ -332,6 +371,8 @@ class UserImportParser {
           targetCategoryId: _parseIntOrNull(
             _at(cells, header['targetCategoryId']),
           ),
+          sourceDb: sourceDb,
+          targetDb: targetDb,
         ),
       );
     }
@@ -405,6 +446,15 @@ class UserImportParser {
         'sourceIsUserBook',
         'sourceIsUser',
       ]);
+      final sourceDbRaw = _str(_pick(item, const ['מסד_מקור', 'sourceDb']));
+      final targetDbRaw = _str(_pick(item, const ['מסד_יעד', 'targetDb']));
+      final sourceDb = parseAttachedSlug(sourceDbRaw ?? '');
+      final targetDb = parseAttachedSlug(targetDbRaw ?? '');
+      if ((sourceDbRaw != null && sourceDb == null) ||
+          (targetDbRaw != null && targetDb == null)) {
+        errors.add(ImportRowError(n, 'מזהה מסד לא חוקי'));
+        continue;
+      }
       rows.add(
         ParsedUserLink(
           sourceBookTitle: _str(_pick(item, const ['ספר_מקור', 'sourceBook'])),
@@ -422,6 +472,8 @@ class UserImportParser {
           targetCategoryId: _toInt(
             _pick(item, const ['קטגוריית_יעד', 'targetCategoryId']),
           ),
+          sourceDb: sourceDb,
+          targetDb: targetDb,
         ),
       );
     }

@@ -632,6 +632,36 @@ void main() {
       await bloc.close();
     });
   });
+
+  // issue #4609 — ספר אישי שהשתנה נטען מחדש גם כשהוא חלונית בטאב מפוצל.
+  group('ReplaceTab — החלפת חלונית', () {
+    test('החלונית מוחלפת במקומה, האחות והחלונית הפעילה נשמרות', () async {
+      final a = leaf('א');
+      final b = leaf('ב');
+      final replacement = leaf('ב');
+      final bloc = await blocWith([
+        leaf('אחר'),
+        CombinedTab(rightTab: a, leftTab: b),
+      ], current: 1);
+      bloc.add(SetActivePane(b));
+      await bloc.stream.firstWhere((s) => identical(s.activePane, b));
+
+      bloc.add(ReplaceTab(oldTab: b, newTab: replacement));
+      await bloc.stream.firstWhere(
+        (s) =>
+            s.tabs[1] is CombinedTab &&
+            identical((s.tabs[1] as CombinedTab).leftTab, replacement),
+      );
+
+      final combined = bloc.state.tabs[1] as CombinedTab;
+      expect(combined.rightTab, same(a));
+      expect(bloc.state.tabs, hasLength(2));
+      expect(bloc.state.currentTabIndex, 1);
+      expect(bloc.state.activePane, same(replacement));
+
+      await bloc.close();
+    });
+  });
 }
 
 class _FakeTabsRepository extends TabsRepository {

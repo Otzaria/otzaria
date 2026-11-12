@@ -8,6 +8,9 @@ import 'package:otzaria/user_content_import/repository/user_content_repository.d
 import 'package:otzaria/user_content_import/services/user_content_importer.dart';
 import 'package:otzaria/user_content_import/services/user_sidecar_sync.dart';
 import 'package:path/path.dart' as p;
+import 'package:sqlite3/sqlite3.dart' as sqlite3;
+
+import '../helpers/seforim_fixture_db.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -381,6 +384,34 @@ void main() {
       } finally {
         officialDb.close();
       }
+    });
+
+    test('קובץ בתיקייה מקשר לספר ממסד מצורף (#4237)', () async {
+      final dir = Directory(p.join(tempDir.path, 'attached'))..createSync();
+      final path = SeforimFixtureDb.create(dir, SeforimFixtureVariant.full);
+      final raw = sqlite3.sqlite3.open(path);
+      raw.execute("UPDATE book SET title = 'ספר מצורף' WHERE id = 1");
+      raw.close();
+      await addBook('מגילה.txt', 'א\nב\nג');
+      writeNativeLinks('מגילה', 'ספר מצורף', 2);
+
+      final errors = await UserSidecarSync.applyForFolder(
+        userDb: db,
+        folderPath: folder.path,
+        attachedLibraries: [
+          (slug: 'my-db', path: path, immutable: false, visible: true),
+        ],
+      );
+
+      expect(errors, isEmpty);
+      // מפרש נשמר בכיוון הקנוני: הספר המצורף הוא הבסיס.
+      final stored = (await UserContentRepository(db).forwardUserLinks(
+        'ספר מצורף',
+        sourceIsUserBook: false,
+        sourceDb: 'my-db',
+      )).single;
+      expect(stored.targetTitle, 'מגילה');
+      expect(stored.sourceLineIndex, 0);
     });
 
     test('מסד רשמי חסר נרשם כלא זמין ומתעדכן כשהוא מופיע', () async {

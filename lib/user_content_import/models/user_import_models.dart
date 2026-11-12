@@ -155,6 +155,9 @@ class ParsedBookVersion {
   /// נתיב קטגוריה לפירוק כפילות כותרת של ראשי לא-אישי ("תנך/תורה").
   final String? primaryCategoryPath;
 
+  /// slug של מסד מצורף שבו ספר הגרסה (עמודת "מסד_גרסה").
+  final String? versionDb;
+
   const ParsedBookVersion({
     required this.rowNumber,
     required this.primary,
@@ -164,21 +167,32 @@ class ParsedBookVersion {
     this.priority,
     this.primarySource = BookSource.user,
     this.primaryCategoryPath,
+    this.versionDb,
   });
+}
+
+/// הספר הראשי שגרסה מצהירה עליו לפי כותרת, לפתירה מול הקטלוג.
+abstract interface class CatalogVersionPrimary {
+  BookSource get primarySource;
+  String? get primaryTitle;
+  String? get primaryCategoryPath;
 }
 
 /// רשומת גרסה כפי שהיא נשמרת ב-user_book_version.
 ///
 /// ראשי אישי מזוהה ב-[primaryBookId]; ראשי ממקור אחר — ב-[primarySource]
 /// ו-[primaryTitle] (+[primaryCategoryPath]), ונפתר מול הקטלוג בכל טעינה.
-class UserBookVersionRecord {
+class UserBookVersionRecord implements CatalogVersionPrimary {
   final int versionBookId;
   final int? primaryBookId;
   final String versionTitle;
   final String? versionNotes;
   final double? priority;
+  @override
   final BookSource primarySource;
+  @override
   final String? primaryTitle;
+  @override
   final String? primaryCategoryPath;
 
   const UserBookVersionRecord({
@@ -204,6 +218,35 @@ class UserBookVersionRecord {
 
   /// הראשי אינו ספר אישי, ולכן נפתר לפי כותרת.
   bool get hasCatalogPrimary => !primarySource.isUser;
+}
+
+/// גרסה שספרה במסד מצורף [versionDb]: מטבלת book_version_link של המסד
+/// (לפי [versionBookId]) או מקובץ גרסאות של המשתמש (לפי [versionBookTitle]).
+class AttachedBookVersionRecord implements CatalogVersionPrimary {
+  final String versionDb;
+  final int? versionBookId;
+  final String? versionBookTitle;
+  @override
+  final BookSource primarySource;
+  @override
+  final String primaryTitle;
+  @override
+  final String? primaryCategoryPath;
+  final String versionTitle;
+  final String? versionNotes;
+  final double? priority;
+
+  const AttachedBookVersionRecord({
+    required this.versionDb,
+    this.versionBookId,
+    this.versionBookTitle,
+    required this.primarySource,
+    required this.primaryTitle,
+    this.primaryCategoryPath,
+    required this.versionTitle,
+    this.versionNotes,
+    this.priority,
+  }) : assert(versionBookId != null || versionBookTitle != null);
 }
 
 /// שורת דור שפוענחה מקובץ הדורות.
@@ -259,6 +302,10 @@ class ParsedUserLink {
   /// מזהה קטגוריית היעד, אם צוין (רמז ל-resolution).
   final int? targetCategoryId;
 
+  /// slug של מסד מצורף שבו ספר המקור/היעד (עמודות "מסד_מקור"/"מסד_יעד").
+  final String? sourceDb;
+  final String? targetDb;
+
   const ParsedUserLink({
     this.sourceBookTitle,
     this.sourceIsUserBook = true,
@@ -269,6 +316,8 @@ class ParsedUserLink {
     required this.connectionType,
     this.targetIsUserBook = false,
     this.targetCategoryId,
+    this.sourceDb,
+    this.targetDb,
   });
 }
 
@@ -307,6 +356,11 @@ class UserLinkRecord {
   final String? targetRefEnd;
   final String connectionType;
 
+  /// slug של מסד מצורף כשהצד נמצא בו (אז הדגל האישי false והקטגוריה null:
+  /// מזהי הקטגוריות של מסד מצורף פנימיים לו).
+  final String? sourceDb;
+  final String? targetDb;
+
   const UserLinkRecord({
     required this.sourceTitle,
     this.sourceCategoryId,
@@ -324,7 +378,17 @@ class UserLinkRecord {
     this.targetLineIndexEnd,
     this.targetRefEnd,
     required this.connectionType,
+    this.sourceDb,
+    this.targetDb,
   });
+
+  BookSource get sourceOrigin => _origin(sourceDb, sourceIsUserBook);
+  BookSource get targetOrigin => _origin(targetDb, targetIsUserBook);
+
+  static BookSource _origin(String? db, bool isUserBook) =>
+      db != null && BookSource.isValidSlug(db)
+      ? BookSource.attached(db)
+      : BookSource.fromUserFlag(isUserBook);
 
   /// עותק שבו שדות תצוגה וטווח *חסרים* מושלמים מ-[other]; ערך קיים לעולם
   /// אינו נדרס. משמש במיזוג שני הצדדים של אותו קישור.
@@ -345,6 +409,8 @@ class UserLinkRecord {
     targetLineIndexEnd: targetLineIndexEnd ?? other.targetLineIndexEnd,
     targetRefEnd: targetRefEnd ?? other.targetRefEnd,
     connectionType: connectionType,
+    sourceDb: sourceDb,
+    targetDb: targetDb,
   );
 }
 

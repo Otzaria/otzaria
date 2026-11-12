@@ -546,6 +546,77 @@ void main() {
       await busy;
     });
 
+    test('נתיב מוחלט של ספר אישי נשמר בתוצאה (#4183)', () async {
+      final pdfPath = '${tempDir.path}${Platform.pathSeparator}קונטרס.pdf';
+      execute('ALTER TABLE book ADD COLUMN filePath TEXT');
+      execute("ALTER TABLE book ADD COLUMN fileType TEXT DEFAULT 'txt'");
+      execute(
+        'INSERT INTO book (id, categoryId, sourceId, title, orderIndex, '
+        "filePath, fileType) VALUES (61, ?, 1, ?, 3, ?, 'pdf')",
+        [SeforimFixtureIds.torahCategoryId, 'קונטרס מוחלט', pdfPath],
+      );
+      final repo = _repo(
+        books: const [],
+        openUserBooksRepository: () async => SeforimRepository(userDb),
+      );
+
+      final results = await repo.findRefs(
+        'קונטרס מוחלט',
+        includePersonalBooks: true,
+      );
+
+      expect(
+        results
+            .where((r) => r.source == BookSource.user && r.bookId == 61)
+            .map((r) => r.filePath),
+        contains(pdfPath),
+      );
+    });
+
+    test('קטלוג אישי שנקרא מעבר לזמן הקריאה הרגיל נטען (#4183)', () async {
+      final previous = AttachedFindRefWorker.callTimeout;
+      addTearDown(() => AttachedFindRefWorker.callTimeout = previous);
+      AttachedFindRefWorker.callTimeout = Duration.zero;
+      final repo = _repo(
+        books: const [],
+        openUserBooksRepository: () async => SeforimRepository(userDb),
+      );
+      const title = SeforimFixtureIds.rashiTitle;
+
+      expect(await userRefs(repo, title), contains(title));
+    });
+
+    test('קריאת קטלוג שחרגה מהזמן אינה משביתה את הספרים האישיים', () async {
+      final previous = FindRefRepository.userBooksCatalogTimeout;
+      addTearDown(() => FindRefRepository.userBooksCatalogTimeout = previous);
+      FindRefRepository.userBooksCatalogTimeout = Duration.zero;
+      final repo = _repo(
+        books: const [],
+        openUserBooksRepository: () async => SeforimRepository(userDb),
+      );
+      const title = SeforimFixtureIds.rashiTitle;
+      expect(await userRefs(repo, title), isEmpty);
+
+      FindRefRepository.userBooksCatalogTimeout = previous;
+      expect(await userRefs(repo, title), contains(title));
+    });
+
+    test('שינוי שם ספר בין חיבורים נראה בחיפוש הבא', () async {
+      final repo = _repo(
+        books: const [],
+        openUserBooksRepository: () async => SeforimRepository(userDb),
+      );
+      expect(await userRefs(repo, 'קונטרס משונה'), isEmpty);
+
+      await AttachedFindRefWorker.instance.reset();
+      execute("UPDATE book SET title = 'קונטרס משונה' WHERE id = ?", [
+        SeforimFixtureIds.rashiId,
+      ]);
+      await userRefs(repo, 'קונטרס משונה');
+      await repo.debugUserBooksRefresh;
+      expect(await userRefs(repo, 'קונטרס משונה'), contains('קונטרס משונה'));
+    });
+
     test('חיבור חדש לאותו תוכן אינו בונה את האינדקס מחדש', () async {
       final repo = _repo(
         books: const [],

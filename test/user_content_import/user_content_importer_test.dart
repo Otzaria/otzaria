@@ -6,10 +6,13 @@ import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/user_content_import/models/user_import_models.dart';
 import 'package:otzaria/user_content_import/repository/user_content_repository.dart';
 import 'package:otzaria/user_content_import/services/user_content_importer.dart';
+import 'package:otzaria/user_content_import/services/user_link_ref_resolver.dart';
+import 'package:sqlite3/sqlite3.dart' as sqlite3;
 import 'package:otzaria/utils/file/text_encoding.dart';
 import 'package:path/path.dart' as p;
 
 import '../../tool/generate_text_encoding_fixtures.dart' show encodeLegacy;
+import '../helpers/seforim_fixture_db.dart';
 
 /// פותר-כתובות מזויף לבדיקות: "לא קיים" → null (כשל resolution); כל כתובת
 /// טקסטואלית אחרת → שורה 41.
@@ -716,6 +719,208 @@ void main() {
         );
         expect(result.errors.single, contains('לא קיים'));
         expect(result.linksApplied, 0);
+      });
+    });
+
+    group('ספר במסד מצורף (#4237)', () {
+      late AttachedLinkBooks attached;
+
+      setUp(() {
+        final dir = Directory(p.join(tempDir.path, 'attached'))..createSync();
+        final path = SeforimFixtureDb.create(dir, SeforimFixtureVariant.full);
+        final raw = sqlite3.sqlite3.open(path);
+        raw.execute("UPDATE book SET title = 'ספר מצורף' WHERE id = 1");
+        raw.close();
+        attached = AttachedLinkBooks.open([
+          (slug: 'my-db', path: path, immutable: false, visible: true),
+        ]);
+      });
+      tearDown(() => attached.close());
+
+      Future<bool> notOfficial({
+        required String title,
+        required int? categoryId,
+        required bool isUserBook,
+      }) async => false;
+
+      test('CSV: יעד שאינו ברשמית נמצא במסד המצורף', () async {
+        final f = writeCsv(
+          'ביאורי יוסף.links.csv',
+          'מקור,ספר_יעד,מיקום_יעד,סוג\n3,ספר מצורף,2,הפניה\n',
+        );
+        final result = await UserContentImporter.importFiles(
+          [f],
+          db,
+          resolveRef: fakeResolver,
+          sourceExists: notOfficial,
+          attachedBooks: attached,
+        );
+        expect(result.errors, isEmpty);
+        final link = (await repo.forwardUserLinks(
+          'ביאורי יוסף',
+          sourceIsUserBook: true,
+        )).single;
+        expect(link.targetDb, 'my-db');
+        expect(link.targetIsUserBook, isFalse);
+        expect(link.targetCategoryId, isNull);
+        expect(link.targetLineIndex, 1);
+      });
+
+      test('CSV: פירוש על ספר מצורף נשמר כשהמסד המצורף הוא הבסיס', () async {
+        final f = writeCsv(
+          'ביאורי יוסף.links.csv',
+          'מקור,ספר_יעד,מיקום_יעד,סוג,מסד_יעד\n3,ספר מצורף,1,פירוש,db:my-db\n',
+        );
+        final result = await UserContentImporter.importFiles(
+          [f],
+          db,
+          resolveRef: fakeResolver,
+          attachedBooks: attached,
+        );
+        expect(result.errors, isEmpty);
+        final link = (await repo.forwardUserLinks(
+          'ספר מצורף',
+          sourceIsUserBook: false,
+          sourceDb: 'my-db',
+        )).single;
+        expect(link.targetTitle, 'ביאורי יוסף');
+        expect(link.targetIsUserBook, isTrue);
+        expect(
+          await repo.forwardUserLinks('ספר מצורף', sourceIsUserBook: false),
+          isEmpty,
+        );
+      });
+
+      test('CSV: מסד מפורש שאינו מכיל את הספר → שגיאה', () async {
+        final f = writeCsv(
+          'ביאורי יוסף.links.csv',
+          'מקור,ספר_יעד,מיקום_יעד,סוג,מסד_יעד\n3,ספר מצורף,1,הפניה,מסד:other\n',
+        );
+        final result = await UserContentImporter.importFiles(
+          [f],
+          db,
+          resolveRef: fakeResolver,
+          attachedBooks: attached,
+        );
+        expect(result.errors.single, contains('ספר היעד "ספר מצורף" לא נמצא'));
+        expect(result.linksApplied, 0);
+      });
+
+      test(
+        'CSV: יעד שלא נמצא בלי מסד מפורש נקלט כמו בלי מסדים מצורפים',
+        () async {
+          final f = writeCsv(
+            'ביאורי יוסף.links.csv',
+            'מקור,ספר_יעד,מיקום_יעד,סוג\n3,ספר עלום,2,הפניה\n',
+          );
+          final result = await UserContentImporter.importFiles(
+            [f],
+            db,
+            resolveRef: fakeResolver,
+            sourceExists: notOfficial,
+            attachedBooks: attached,
+          );
+          expect(result.errors, isEmpty);
+          final link = (await repo.forwardUserLinks(
+            'ביאורי יוסף',
+            sourceIsUserBook: true,
+          )).single;
+          expect(link.targetTitle, 'ספר עלום');
+          expect(link.targetDb, isNull);
+        },
+      );
+
+      test(
+        'גרסאות: ספר הגרסה במסד מצורף נשמר לפי slug וכותרת (#4392)',
+        () async {
+          final f = writeCsv(
+            'גרסאות.csv',
+            'ראשי,גרסה,שם,מקור_ראשי\n'
+                'בראשית,ספר מצורף,נוסח אחר,רשמי\n'
+                'ביאורי יוסף,ספר מצורף,,אישי\n',
+          );
+          final result = await UserContentImporter.importFiles(
+            [f],
+            db,
+            sourceExists:
+                ({required title, categoryId, required isUserBook}) async =>
+                    title == 'בראשית',
+            attachedBooks: attached,
+          );
+          expect(result.errors, isEmpty);
+          expect(result.versionsApplied, 2);
+          final rows = (await db.database).select(
+            'SELECT * FROM user_attached_book_version',
+          );
+          final row = rows.single;
+          // הצהרה שנייה על אותו ספר דורסת את הראשונה (מפתח slug+כותרת).
+          expect(row['versionDb'], 'my-db');
+          expect(row['versionBookTitle'], 'ספר מצורף');
+          expect(row['primarySource'], 'u');
+          expect(row['primaryTitle'], 'ביאורי יוסף');
+          expect(
+            (await db.database).select('SELECT * FROM user_book_version'),
+            isEmpty,
+          );
+        },
+      );
+
+      test('גרסאות: מסד_גרסה שאינו מכיל את הספר → שגיאה', () async {
+        final f = writeCsv(
+          'גרסאות.csv',
+          'ראשי,גרסה,מקור_ראשי,מסד_גרסה\nבראשית,ספר מצורף,רשמי,other\n',
+        );
+        final result = await UserContentImporter.importFiles(
+          [f],
+          db,
+          sourceExists:
+              ({required title, categoryId, required isUserBook}) async => true,
+          attachedBooks: attached,
+        );
+        expect(result.errors.single, contains('לא נמצא במסד "other"'));
+      });
+
+      test('native: ספר בסיס במסד מצורף נקלט', () async {
+        final f = writeCsv(
+          'ספר מצורף_links.json',
+          '[{"line_index_1": 2, "line_index_2": 5, '
+              '"path_2": "ביאורי יוסף.txt", '
+              '"Conection Type": "reference"}]',
+        );
+        final result = await UserContentImporter.importFiles(
+          [f],
+          db,
+          locateBook: (title) async => title == 'ביאורי יוסף'
+              ? (isUserBook: true, categoryId: 1, totalLines: 50)
+              : null,
+          attachedBooks: attached,
+        );
+        expect(result.errors, isEmpty);
+        final link = (await repo.forwardUserLinks(
+          'ספר מצורף',
+          sourceIsUserBook: false,
+          sourceDb: 'my-db',
+        )).single;
+        expect(link.sourceLineIndex, 1);
+        expect(link.targetIsUserBook, isTrue);
+      });
+
+      test('native: שורה מעבר לאורך הספר המצורף → שגיאה', () async {
+        final f = writeCsv(
+          'ספר מצורף_links.json',
+          '[{"line_index_1": 9, "line_index_2": 5, '
+              '"path_2": "ביאורי יוסף.txt", '
+              '"Conection Type": "reference"}]',
+        );
+        final result = await UserContentImporter.importFiles(
+          [f],
+          db,
+          locateBook: (title) async => title == 'ביאורי יוסף'
+              ? (isUserBook: true, categoryId: 1, totalLines: 50)
+              : null,
+          attachedBooks: attached,
+        );
+        expect(result.errors.single, contains('חורגת מגבולות'));
       });
     });
 
