@@ -3,8 +3,7 @@ import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 
-/// מפרש-על (שער הציון על משנה ברורה) כטור עצמאי בצורת הדף: אין לו קישורים
-/// מהספר הראשי, ולכן קישורי הסנכרון שלו מורכבים דרך המפרש שעליו הוא מפרש.
+/// מפרש-על (שער הציון) אינו מקושר לספר הראשי; הסנכרון מורכב דרך המפרש שלו.
 
 /// מפרשי-העל מתוך סיכום קישורי המפרש [parentTargets]: יעדים תלויי-טקסט
 /// שאינם הספר הראשי ואינם מפרשים ישירים שלו.
@@ -38,8 +37,8 @@ Map<String, String> superCommentatorParents(
   return result;
 }
 
-/// מרכיב קישורי ראשי←מפרש-על: לכל קישור ראשי←[parentTitle] (index2 = שורת
-/// המפרש) נלקחים קישורי המפרש←[superTitle] שיוצאים מאותה שורה. ממוין ובלי כפילויות.
+/// מרכיב קישורי ראשי←מפרש-על דרך שורת המפרש (index2 של הקישור הראשי),
+/// ממוינים ובלי כפילויות.
 List<Link> composeSuperCommentaryLinks({
   required Iterable<Link> mainToParent,
   required Iterable<Link> parentToSuper,
@@ -108,8 +107,8 @@ typedef SuperCommentaryRangeFetcher =
       required String targetTitle,
     });
 
-/// טוען בחלונות סביב שורת הראשי את קישורי טור מפרש-העל — שתי שאילתות לכל
-/// חלון (ראשי←מפרש, ואז מפרש←מפרש-על בטווח השורות שעלה), דרך ה-worker.
+/// טוען בחלונות סביב שורת הראשי את קישורי מפרש-העל: ראשי←מפרש, ואז
+/// מפרש←מפרש-על בטווח שעלה. כשל נרשם עם השהיה גדלה ונעצר אחרי כמה ניסיונות.
 class SuperCommentaryLinkLoader {
   SuperCommentaryLinkLoader({
     required this.mainTitle,
@@ -120,7 +119,10 @@ class SuperCommentaryLinkLoader {
     required this.fetch,
     this.windowLines = 150,
     this.reloadThresholdLines = 50,
-  });
+    this.maxFailures = 4,
+    this.retryBackoff = const Duration(seconds: 2),
+    DateTime Function()? now,
+  }) : _now = now ?? DateTime.now;
 
   final String mainTitle;
   final int mainCategoryId;
@@ -130,11 +132,16 @@ class SuperCommentaryLinkLoader {
   final SuperCommentaryRangeFetcher fetch;
   final int windowLines;
   final int reloadThresholdLines;
+  final int maxFailures;
+  final Duration retryBackoff;
+  final DateTime Function() _now;
 
+  int _failures = 0;
+  DateTime? _retryAfter;
+  Future<void> _tail = Future<void>.value();
   final List<({int start, int end})> _loaded = [];
   final Map<(int, int), Link> _byKey = {};
   List<Link> _links = const [];
-  Future<bool>? _inFlight;
 
   /// הקישורים המורכבים שנטענו עד כה, ממוינים לפי שורת הראשי.
   List<Link> get links => _links;
@@ -151,24 +158,34 @@ class SuperCommentaryLinkLoader {
   );
 
   /// מוודא שחלון סביב [mainIndex] (0-based) מתוך [totalLines] שורות הראשי
-  /// טעון. מחזיר true כשנוספו קישורים.
-  Future<bool> ensureLoaded(int mainIndex, int totalLines) async {
-    final pending = _inFlight;
-    if (pending != null) {
-      await pending;
-    }
+  /// טעון; קריאות מתבצעות בזו אחר זו. מחזיר true כשנוספו קישורים.
+  Future<bool> ensureLoaded(int mainIndex, int totalLines) {
+    final run = _tail.then((_) => _ensure(mainIndex, totalLines));
+    _tail = run.then<void>((_) {}, onError: (_) {});
+    return run;
+  }
+
+  Future<bool> _ensure(int mainIndex, int totalLines) async {
     final lastLine = totalLines - 1;
     if (lastLine < 0 || _covers(mainIndex, lastLine)) return false;
+    final retryAfter = _retryAfter;
+    if (_failures >= maxFailures ||
+        (retryAfter != null && _now().isBefore(retryAfter))) {
+      return false;
+    }
     final end = mainIndex + windowLines;
-    final future = _load(
-      mainIndex - windowLines < 0 ? 0 : mainIndex - windowLines,
-      end > lastLine ? lastLine : end,
-    );
-    _inFlight = future;
     try {
-      return await future;
-    } finally {
-      if (identical(_inFlight, future)) _inFlight = null;
+      final added = await _load(
+        mainIndex - windowLines < 0 ? 0 : mainIndex - windowLines,
+        end > lastLine ? lastLine : end,
+      );
+      _failures = 0;
+      _retryAfter = null;
+      return added;
+    } catch (_) {
+      _failures++;
+      _retryAfter = _now().add(retryBackoff * (1 << (_failures - 1)));
+      rethrow;
     }
   }
 
@@ -181,12 +198,14 @@ class SuperCommentaryLinkLoader {
       endLine: end,
       targetTitle: parentTitle,
     )).where((link) => _isDependentLinkTo(link, parentTitle)).toList();
-    _loaded.add((start: start, end: end));
     final parentCategoryId = mainLinks
         .map((link) => link.targetCategoryId)
         .whereType<int>()
         .firstOrNull;
-    if (mainLinks.isEmpty || parentCategoryId == null) return false;
+    if (mainLinks.isEmpty || parentCategoryId == null) {
+      _loaded.add((start: start, end: end));
+      return false;
+    }
 
     var first = mainLinks.first.index2;
     var last = first;
@@ -209,11 +228,12 @@ class SuperCommentaryLinkLoader {
       parentTitle: parentTitle,
       superTitle: superTitle,
     );
+    _loaded.add((start: start, end: end));
     var added = false;
     for (final link in composed) {
-      if (_byKey.putIfAbsent((link.index1, link.index2), () => link) == link) {
-        added = true;
-      }
+      if (_byKey.containsKey((link.index1, link.index2))) continue;
+      _byKey[(link.index1, link.index2)] = link;
+      added = true;
     }
     if (added) {
       _links = _byKey.values.toList()
