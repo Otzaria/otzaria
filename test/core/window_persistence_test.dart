@@ -49,10 +49,7 @@ void main() {
     test('DPI אפס, שלילי או לא סופי מסונן', () {
       const rect = Rect.fromLTWH(0, 0, 1920, 1080);
       for (final scale in [0.0, -1.0, double.nan, double.infinity]) {
-        expect(
-          WindowPersistence.physicalWorkAreaOrNull(rect, scale),
-          isNull,
-        );
+        expect(WindowPersistence.physicalWorkAreaOrNull(rect, scale), isNull);
       }
     });
 

@@ -16,6 +16,12 @@ void main() {
   const controller = WindowManagerAppWindowController();
 
   setUp(() {
+    runnerCalls.clear();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(RunnerWindowChannel.channel, (call) async {
+          runnerCalls.add(call.method);
+          return null;
+        });
     native = RecordingNativeWindow(maximized: true);
     windowManager.debugBindWindow(native);
   });

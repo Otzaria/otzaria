@@ -24,7 +24,6 @@ void main() {
       () =>
           messenger.setMockMethodCallHandler(RunnerWindowChannel.channel, null),
     );
-
     expect(await const RunnerWindowChannel().mainWindowHandle(), handle);
   });
 
