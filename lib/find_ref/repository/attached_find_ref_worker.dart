@@ -62,6 +62,7 @@ class AttachedFindRefWorker {
 
   /// מריץ עבודה אחת; ההמתנה בתור אינה נחשבת לזמן הריצה שלה.
   /// ב-[background] timeout משחרר את ה-worker בלי להשבית את המסד.
+  /// [trusted]: מסד שבשליטת התוכנה (user_books.db) — נתיבים מוחלטים נשמרים.
   Future<R> run<R>(
     String path, {
     required bool immutable,
@@ -69,6 +70,8 @@ class AttachedFindRefWorker {
     required AttachedDbJob<R> job,
     int calls = 1,
     bool background = false,
+    bool trusted = false,
+    Duration? timeout,
   }) async => (await _run<R>(
     path,
     immutable: immutable,
@@ -76,6 +79,8 @@ class AttachedFindRefWorker {
     jobs: [job],
     calls: calls,
     background: background,
+    trusted: trusted,
+    timeout: timeout,
   )).single;
 
   /// שולח אצווה אחת; כל עבודה חוזרת לסוף התור ומאפשרת ביטול בין ספרים.
@@ -86,6 +91,7 @@ class AttachedFindRefWorker {
     required List<AttachedDbJob<R>> jobs,
     required int searchScope,
     required int searchEpoch,
+    bool trusted = false,
   }) => _run<R>(
     path,
     immutable: immutable,
@@ -93,6 +99,7 @@ class AttachedFindRefWorker {
     jobs: jobs,
     searchScope: searchScope,
     searchEpoch: searchEpoch,
+    trusted: trusted,
   );
 
   Future<List<R>> _run<R>(
@@ -104,6 +111,8 @@ class AttachedFindRefWorker {
     int? searchScope,
     int? searchEpoch,
     bool background = false,
+    bool trusted = false,
+    Duration? timeout,
   }) async {
     if (jobs.isEmpty) return [];
     final failedUntil = _failedUntil[path];
@@ -126,9 +135,10 @@ class AttachedFindRefWorker {
     reply.listen(
       (message) {
         if (message is _Started) {
-          timer = Timer(callTimeout + perCallTimeout * (calls - 1), () {
+          final limit = timeout ?? callTimeout;
+          timer = Timer(limit + perCallTimeout * (calls - 1), () {
             result.completeError(
-              TimeoutException('secondary database job', callTimeout),
+              TimeoutException('secondary database job', limit),
             );
             if (!background) {
               _failedUntil[path] = DateTime.now().add(failureBackoff);
@@ -156,6 +166,7 @@ class AttachedFindRefWorker {
         _Request(
           path,
           immutable,
+          trusted,
           version,
           jobs,
           reply.sendPort,
@@ -266,7 +277,9 @@ class AttachedFindRefWorker {
       request.reply.send(const _Started());
       try {
         var entry = open[request.path];
-        if (entry != null && entry.version != request.version) {
+        if (entry != null &&
+            (entry.version != request.version ||
+                entry.repository.database.isUntrusted == request.trusted)) {
           entry.repository.database.retire();
           open.remove(request.path);
           entry = null;
@@ -337,10 +350,9 @@ class AttachedFindRefWorker {
     if (!File(request.path).existsSync()) {
       throw StateError('missing file: ${request.path}');
     }
-    final database = MyDatabase.untrusted(
-      request.path,
-      immutable: request.immutable,
-    );
+    final database = request.trusted
+        ? MyDatabase.withPath(request.path, readOnly: true)
+        : MyDatabase.untrusted(request.path, immutable: request.immutable);
     final repository = SeforimRepository(database);
     try {
       await repository.ensureInitialized();
@@ -375,6 +387,7 @@ class _Request {
   _Request(
     this.path,
     this.immutable,
+    this.trusted,
     this.version,
     this.jobs,
     this.reply,
@@ -384,6 +397,7 @@ class _Request {
 
   final String path;
   final bool immutable;
+  final bool trusted;
   final String version;
   final List<AttachedDbJob<Object?>> jobs;
   final int? scope;
