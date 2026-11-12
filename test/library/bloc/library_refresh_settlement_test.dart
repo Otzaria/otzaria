@@ -184,4 +184,28 @@ void main() {
     expect(result.error, isNull);
     expect(result.newBooksToIndex, [newBook]);
   });
+
+  // issue #4609 — טאבים פתוחים של ספרים אישיים נטענים מחדש לפי הדגל הזה.
+  test('בנייה מחדש של נתוני המשתמש נמסרת גם ברענון המאוחד', () async {
+    final first = Completer<Library>();
+    final second = Completer<Library>();
+    files.results.addAll([first.future, second.future]);
+
+    bloc.add(const RefreshLibrary(requestIds: {3}));
+    await bloc.stream.firstWhere((state) => state.isLoading);
+    bloc.add(const RefreshLibrary(userContentChanged: true, requestIds: {7}));
+    final firstDone = bloc.stream.firstWhere(
+      (state) => state.completedRefreshRequestIds?.contains(3) ?? false,
+    );
+    first.complete(Library(categories: []));
+    expect((await firstDone).userContentChanged, isFalse);
+
+    final secondDone = bloc.stream.firstWhere(
+      (state) => state.completedRefreshRequestIds?.contains(7) ?? false,
+    );
+    second.complete(Library(categories: []));
+    final result = await secondDone;
+    expect(result.userContentChanged, isTrue);
+    expect(result.copyWith().userContentChanged, isFalse);
+  });
 }

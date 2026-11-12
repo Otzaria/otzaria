@@ -667,8 +667,10 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   Future<void> _onReplaceTab(ReplaceTab event, Emitter<TabsState> emit) async {
     final index = state.tabs.indexOf(event.oldTab);
     if (index == -1) {
-      // הטאב נסגר בזמן הרזולוציה — אין את מי להחליף.
-      _disposeTabLater(event.newTab);
+      if (!_replacePane(event, emit)) {
+        // הטאב נסגר בזמן הרזולוציה — אין את מי להחליף.
+        _disposeTabLater(event.newTab);
+      }
       return;
     }
 
@@ -684,6 +686,29 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
     _emitAndSaveTabs(emit, newTabs);
     _disposeTabLater(event.oldTab);
+  }
+
+  /// מחליף את [ReplaceTab.oldTab] כשהוא חלונית בטאב מפוצל; false כשאינו כזה.
+  bool _replacePane(ReplaceTab event, Emitter<TabsState> emit) {
+    final index = state.tabs.indexWhere(
+      (tab) => tab is CombinedTab && tab.sibling(event.oldTab) != null,
+    );
+    if (index == -1) return false;
+
+    final combined = state.tabs[index] as CombinedTab;
+    final newTabs = List<OpenedTab>.from(state.tabs);
+    newTabs[index] = identical(combined.rightTab, event.oldTab)
+        ? combined.copyWith(rightTab: event.newTab)
+        : combined.copyWith(leftTab: event.newTab);
+    _emitAndSaveTabs(
+      emit,
+      newTabs,
+      activePane: identical(state.rawActivePane, event.oldTab)
+          ? ActivePaneUpdate.set(event.newTab)
+          : const ActivePaneUpdate.unchanged(),
+    );
+    _disposeTabLater(event.oldTab);
+    return true;
   }
 
   void _propagatePinpointHighlightToExistingTab({

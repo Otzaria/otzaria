@@ -56,6 +56,7 @@ import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.d
 import 'package:otzaria/text_book/view/widgets/reader_back_button.dart';
 import 'package:otzaria/book_common/view/reading_history_tooltip.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/data/book_identity.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/services/parallel_editions_service.dart';
@@ -117,6 +118,17 @@ const String _viewModeBelow = 'below';
 const String _viewModePage = 'page';
 // פעולה (לא מצב תצוגה): פתיחת כרטיסיית מפרשים נפרדת
 const String _actionOpenCommentatorsTab = 'open_commentators_tab';
+
+/// האם רענון הספרייה [libState] שינה את תוכן ספר אישי [book] או את כותרותיו.
+bool _userBookChangedByLibraryReload(TextBook book, LibraryState libState) {
+  if (!book.isUserBook) return false;
+  if (libState.userContentChanged) return true;
+  final key = BookIdentity.keyOf(book);
+  return libState.changedBooksToIndex?.any(
+        (changed) => BookIdentity.keyOf(changed) == key,
+      ) ??
+      false;
+}
 
 class TextBookViewerBloc extends StatefulWidget {
   final void Function(OpenedTab) openBookCallback;
@@ -313,6 +325,13 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         );
         previousLibraryState = libState;
         if (!completed || !mounted) return;
+        if (_userBookChangedByLibraryReload(widget.tab.book, libState)) {
+          // טאב חדש טוען מחדש תוכן, כותרות וסימני מקטעים, ושומר את המיקום.
+          context.read<TabsBloc>().add(
+            ReplaceTab(oldTab: widget.tab, newTab: widget.tab.clone()),
+          );
+          return;
+        }
         _hasResolvedCompanionPdf = false;
         _resolveCompanionPdf();
       });
