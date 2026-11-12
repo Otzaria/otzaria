@@ -178,11 +178,11 @@ dependency_overrides:
       url: https://github.com/Otzaria/labs.git
       ref: f48be9ede26c06e433a186bd1aca2876fb4de143
       path: pkgs/timezone
-  # TODO: לחזור לגרסה הרשמית אחרי מיזוג ושחרור brendan-duncan/archive#428–#438.
+  # TODO: לחזור לגרסה הרשמית אחרי מיזוג ושחרור brendan-duncan/archive#428–#438 ו־#441.
   archive:
     git:
       url: https://github.com/Otzaria/archive
-      ref: 170d7f9f00548581d373e02012bb69f350e89172 # codex/archive-integration
+      ref: 533742bcee15f1a81cecf5d38707e8f6318dcfa3 # codex/archive-integration
   # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור dart-lang/core#1043, #1044.
   # ענף characters-integrated כולל את כל התיקונים; מוצמד לקומיט שנבדק.
   characters:

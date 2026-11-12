@@ -54,8 +54,8 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "170d7f9f00548581d373e02012bb69f350e89172"
-      resolved-ref: "170d7f9f00548581d373e02012bb69f350e89172"
+      ref: "533742bcee15f1a81cecf5d38707e8f6318dcfa3"
+      resolved-ref: "533742bcee15f1a81cecf5d38707e8f6318dcfa3"
       url: "https://github.com/Otzaria/archive"
     source: git
     version: "4.6.0"
