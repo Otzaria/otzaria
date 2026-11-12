@@ -45,6 +45,8 @@ class BookOpenCoordinator {
     bool navigateToPositionIfReused = false,
     bool inSidePane = false,
     ExternalBookMatches? externalMatches,
+    bool navigate = true,
+    bool captureHistory = true,
   }) {
     final tab = buildTab(
       book,
@@ -64,19 +66,27 @@ class BookOpenCoordinator {
       insertAdjacent: insertAdjacent,
       navigateToPositionIfReused: navigateToPositionIfReused,
       inSidePane: inSidePane,
+      navigate: navigate,
+      captureHistory: captureHistory,
     );
   }
 
   /// פותח טאב מוכן עם סמנטיקת [openBook]: לכידת מצב להיסטוריה, פתיחה/מיקוד
   /// של הטאב וניווט למסך הקריאה — למסלולים שבונים את הטאב בעצמם.
+  ///
+  /// בפתיחת כמה ספרים ברצף כל פתיחה מקבלת [navigate] ו-[captureHistory] כבויים
+  /// (ואחרי הסיום [showReadingScreen]): ההיסטוריה נשמרת פעם אחת, לטאב שהמשתמש
+  /// עוזב ולא לטאבים שנפתחו זה עתה, והמעבר למסך הקריאה קורה פעם אחת.
   void openTab(
     OpenedTab tab, {
     bool insertAdjacent = false,
     bool navigateToPositionIfReused = false,
     bool inSidePane = false,
+    bool navigate = true,
+    bool captureHistory = true,
   }) {
     final tabsState = tabsBloc.state;
-    if (tabsState.hasOpenTabs) {
+    if (captureHistory && tabsState.hasOpenTabs) {
       historyBloc.add(CaptureStateForHistory(tabsState.currentTab!));
     }
     // בטאב שכבר מפוצל (או כשאין טאב פתוח) אין לאן להוסיף חלונית שלישית,
@@ -94,8 +104,11 @@ class BookOpenCoordinator {
               navigateToPositionIfReused: navigateToPositionIfReused,
             ),
     );
-    navigationBloc.add(const NavigateToScreen(Screen.reading));
+    if (navigate) showReadingScreen();
   }
+
+  void showReadingScreen() =>
+      navigationBloc.add(const NavigateToScreen(Screen.reading));
 
   /// בונה את הטאב עם אותה סמנטיקת פתיחה של [openBook] (שחזור מיקום ומפרשים
   /// מההיסטוריה, צורת-דף שמורה) — למסלולים שמוסיפים את הטאב בעצמם.
