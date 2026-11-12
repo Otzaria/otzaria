@@ -214,6 +214,30 @@ ReadingPosition? readingPositionFromItems(
   );
 }
 
+/// שורת המקור שחוצה את הקו שבגובה [fraction] מהתצוגה, לפי הפיקסלים ולא לפי
+/// מספר השורות הגלויות; null כשאף פריט אינו חוצה אותו.
+int? lineCrossingViewportFraction(
+  ReadingSegments segments,
+  Iterable<ItemPosition> itemPositions,
+  double fraction, {
+  MeasuredLineExtent? measure,
+}) {
+  final layout = segments.layout;
+  for (final p in itemPositions) {
+    if (p.index < 0 || p.index >= segments.length) continue;
+    if (p.itemLeadingEdge > fraction || p.itemTrailingEdge <= fraction) {
+      continue;
+    }
+    final last = layout.lastLineOf(p.index);
+    for (var line = layout.firstLineOf(p.index); line < last; line++) {
+      final edges = lineEdgesInViewport(segments, line, p, measure: measure);
+      if (edges.trailing > fraction) return line;
+    }
+    return last;
+  }
+  return null;
+}
+
 double _fractionPastAnchor(
   ReadingSegments segments,
   int line,
