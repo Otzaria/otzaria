@@ -1,3 +1,4 @@
+import 'package:otzaria/book_common/utils/commentator_identity_lookup.dart';
 import 'package:otzaria/book_common/utils/commentator_name_matching.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/models/book_source.dart';
@@ -86,24 +87,32 @@ class DefaultCommentators {
   /// מפרשים קבועים שהמשתמש קבע לקטגוריה (אם יש), אחרת מפרשי ברירת המחדל
   /// מה-DB, אחרת כל המפרשים אם יש עד 4.
   /// כשאין ברירת מחדל ויש יותר מ-4 מפרשים — מחזיר רשימה ריקה (בחירה ידנית).
-  /// [availableCommentators] = המפרשים הזמינים בפועל לספר.
+  /// [availableCommentators] = המפרשים הזמינים בפועל לספר; [identities] =
+  /// זהויותיהם מהמסד, ובלעדיהן הן נשלפות לפי הכותרות.
   static Future<List<String>> getInitialSelection(
     Book book, {
     required List<String> availableCommentators,
     List<String>? baseCommentators,
+    Map<String, CommentatorIdentity>? identities,
   }) async {
     if (availableCommentators.isEmpty) return const [];
 
-    final categorySelection = _resolveCategorySelection(
+    final categorySelection = await _resolveCategorySelection(
       book,
       availableCommentators,
+      identities,
     );
     if (categorySelection != null) return categorySelection;
 
     final base = baseCommentators ?? await getBaseCommentators(book);
     final resolved = <String>[];
     for (final name in base) {
-      final match = findMatchingCommentator(name, availableCommentators);
+      final match = findMatchingCommentator(
+        name,
+        availableCommentators,
+        commentedBookTitle: book.title,
+        identities: identities ?? const {},
+      );
       if (match != null && !resolved.contains(match)) {
         resolved.add(match);
       }
@@ -119,22 +128,28 @@ class DefaultCommentators {
   /// המפרשים הקבועים שהמשתמש קבע לקטגוריה של [book], כשמות מלאים מתוך
   /// הזמינים. null כשאין קביעה או כשאף שם לא נפתר בספר הזה (ואז נופלים
   /// לברירת המחדל מה-DB). רשימה ריקה שנקבעה במפורש מוחזרת כמות שהיא.
-  static List<String>? _resolveCategorySelection(
+  static Future<List<String>?> _resolveCategorySelection(
     Book book,
     List<String> availableCommentators,
-  ) {
-    final baseNames = CategoryCommentatorsService.loadBaseNames(
+    Map<String, CommentatorIdentity>? identities,
+  ) async {
+    final keys = CategoryCommentatorsService.loadKeys(
       bookCategoriesSource(book),
     );
-    if (baseNames == null) return null;
-    if (baseNames.isEmpty) return const [];
+    if (keys == null) return null;
+    if (keys.isEmpty) return const [];
 
+    final withSelections = await withSelectionIdentities(
+      identities ?? await lookupCommentatorIdentities(availableCommentators),
+      keys,
+    );
     final resolved = <String>[];
-    for (final name in baseNames) {
+    for (final key in keys) {
       final match = findMatchingCommentator(
-        name,
+        key,
         availableCommentators,
         commentedBookTitle: book.title,
+        identities: withSelections,
       );
       if (match != null && !resolved.contains(match)) {
         resolved.add(match);

@@ -26,10 +26,14 @@ class PageShapeDefaultCommentators {
     var commentators = defaults.commentators;
 
     if (availableCommentators != null && availableCommentators.isNotEmpty) {
-      commentators = _resolveCommentatorNamesFromAvailable(
-        commentators,
-        availableCommentators,
-      );
+      commentators = {
+        for (final MapEntry(:key, :value) in commentators.entries)
+          key: findMatchingCommentator(
+            value,
+            availableCommentators,
+            commentedBookTitle: book.title,
+          ),
+      };
     }
 
     return (commentators: commentators, visibility: defaults.visibility);
@@ -80,26 +84,5 @@ class PageShapeDefaultCommentators {
     }
 
     return (commentators: mappedCommentators, visibility: mappedVisibility);
-  }
-
-  static Map<String, String?> _resolveCommentatorNamesFromAvailable(
-    Map<String, String?> defaults,
-    List<String> availableCommentators,
-  ) {
-    return {
-      'right': findMatchingCommentator(
-        defaults['right'],
-        availableCommentators,
-      ),
-      'left': findMatchingCommentator(defaults['left'], availableCommentators),
-      'bottom': findMatchingCommentator(
-        defaults['bottom'],
-        availableCommentators,
-      ),
-      'bottomRight': findMatchingCommentator(
-        defaults['bottomRight'],
-        availableCommentators,
-      ),
-    };
   }
 }

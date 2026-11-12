@@ -258,6 +258,14 @@ Future<List<Map<String, Object?>>> _readBatchOnFreshConnection(
           results.add({'result': await _readLineRef(repo, method, args)});
           continue;
         }
+        if (method == 'commentatorIdentities') {
+          results.add({
+            'result': await repo.database.linkDao.selectCommentatorIdentities(
+              (args['titles'] as List).cast<String>(),
+            ),
+          });
+          continue;
+        }
         if (_bookLineMethods.contains(method)) {
           results.add({'result': await _readBookLines(repo, method, args)});
           continue;
@@ -1473,6 +1481,11 @@ void _workerMain(_Bootstrap bootstrap) {
         final repo = await ensureRepo(args['dbPath'] as String);
         return repo.database.linkDao.selectCommentatorsByBook(
           args['bookId'] as int,
+        );
+      case 'commentatorIdentities':
+        final repo = await ensureRepo(args['dbPath'] as String);
+        return repo.database.linkDao.selectCommentatorIdentities(
+          (args['titles'] as List).cast<String>(),
         );
       case 'bookCatalog':
         final repo = await ensureRepo(args['dbPath'] as String);
