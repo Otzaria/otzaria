@@ -479,11 +479,11 @@ class _PageShapeScreenState extends State<PageShapeScreen>
   List<String> _superParentCandidates(TextBookLoaded state) {
     final available = _availableCommentators(state);
     return [
-      ?_leftCommentator,
-      ?_bottomCommentator,
-      ?_bottomRightCommentator,
-      ..._selectedRightPaneCommentators(state),
-    ]
+          ?_leftCommentator,
+          ?_bottomCommentator,
+          ?_bottomRightCommentator,
+          ..._selectedRightPaneCommentators(state),
+        ]
         .where(
           (title) =>
               title != kNotesCommentatorTitle && available.contains(title),
