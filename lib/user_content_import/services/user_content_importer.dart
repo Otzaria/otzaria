@@ -2,10 +2,12 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/query_loader.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/models/link_types.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/user_content_import/models/user_import_models.dart';
 import 'package:otzaria/user_content_import/repository/user_content_repository.dart';
 import 'package:otzaria/user_content_import/services/user_headings_builder.dart';
@@ -93,6 +95,7 @@ class UserContentImporter {
     UserLinkRefResolver resolveRef = resolveUserLinkTargetLine,
     UserLinkSourceChecker sourceExists = userLinkSourceBookExists,
     UserLinkBookLocator locateBook = locateUserLinkBook,
+    AttachedLinkBooks? attachedBooks,
   }) async {
     final files = <ImportedFile>[];
     final readErrors = <String>[];
@@ -120,6 +123,7 @@ class UserContentImporter {
       resolveRef: resolveRef,
       sourceExists: sourceExists,
       locateBook: locateBook,
+      attachedBooks: attachedBooks,
     );
   }
 
@@ -130,6 +134,7 @@ class UserContentImporter {
     UserLinkRefResolver resolveRef = resolveUserLinkTargetLine,
     UserLinkSourceChecker sourceExists = userLinkSourceBookExists,
     UserLinkBookLocator locateBook = locateUserLinkBook,
+    AttachedLinkBooks? attachedBooks,
     String? source,
   }) async {
     final ingest = await ingestContents(
@@ -138,6 +143,7 @@ class UserContentImporter {
       resolveRef: resolveRef,
       sourceExists: sourceExists,
       locateBook: locateBook,
+      attachedBooks: attachedBooks,
     );
     if (ingest.errors.isNotEmpty) {
       return UserImportResult(errors: ingest.errors);
@@ -152,7 +158,9 @@ class UserContentImporter {
     UserLinkRefResolver resolveRef = resolveUserLinkTargetLine,
     UserLinkSourceChecker sourceExists = userLinkSourceBookExists,
     UserLinkBookLocator locateBook = locateUserLinkBook,
+    AttachedLinkBooks? attachedBooks,
   }) async {
+    final attached = attachedBooks ?? AttachedLinkBooks.none;
     final repo = UserContentRepository(userDb);
     final ingest = UserImportIngest._();
     final errors = ingest.errors;
@@ -205,6 +213,7 @@ class UserContentImporter {
           bookTitleFromFile: null,
           resolveRef: resolveRef,
           sourceExists: sourceExists,
+          attached: attached,
         );
       } else if (lower.endsWith('.links.csv')) {
         final bookTitle = name.substring(0, name.length - '.links.csv'.length);
@@ -216,6 +225,7 @@ class UserContentImporter {
           bookTitleFromFile: bookTitle,
           resolveRef: resolveRef,
           sourceExists: sourceExists,
+          attached: attached,
         );
       } else if (lower.endsWith('.links.json')) {
         final bookTitle = name.substring(0, name.length - '.links.json'.length);
@@ -227,6 +237,7 @@ class UserContentImporter {
           bookTitleFromFile: bookTitle,
           resolveRef: resolveRef,
           sourceExists: sourceExists,
+          attached: attached,
         );
       } else if (lower.endsWith('_links.json')) {
         final baseTitle = name.substring(0, name.length - '_links.json'.length);
@@ -236,6 +247,7 @@ class UserContentImporter {
           errors,
           baseTitle: baseTitle,
           locateBook: locateBook,
+          attached: attached,
         );
       } else {
         errors.add('$name: $kUnrecognizedImportFileMessage');
@@ -272,9 +284,25 @@ class UserContentImporter {
         userDbPath: userDb.path,
         officialDbPath: officialDbPath,
         officialError: officialError,
+        attachedLibraries: _attachedLinkLibraries(),
         queries: QueryLoader.cacheSnapshot,
       ),
     );
+  }
+
+  /// המסדים המצורפים התקינים לפי עדיפות; בלי הגדרות טעונות אין רשימה לקרוא.
+  static List<AttachedLinkLibrary> _attachedLinkLibraries() {
+    if (!Settings.isInitialized) return const [];
+    return [
+      for (final library in AttachedLibraryRegistry.instance.libraries)
+        if (library.isOk)
+          (
+            slug: library.slug,
+            path: library.path,
+            immutable: library.immutable,
+            visible: library.isVisibleInLibrary,
+          ),
+    ];
   }
 
   /// כותב תוצאת פענוח נקייה משגיאות, בדריסה מצטברת.
@@ -489,6 +517,7 @@ class UserContentImporter {
     required String? bookTitleFromFile,
     required UserLinkRefResolver resolveRef,
     required UserLinkSourceChecker sourceExists,
+    required AttachedLinkBooks attached,
   }) async {
     final fileName = file.name;
     final ParseResult<ParsedUserLink> parsed;
@@ -506,8 +535,8 @@ class UserContentImporter {
     }
     // אלפי שורות חוזרות על אותו ספר ואותה כתובת; כל חיפוש נעשה פעם אחת.
     final foundCache = <(String, int?, bool), bool>{};
-    final refCache = <(String, int?, bool, String), int?>{};
-    Future<bool> cachedSourceFound(
+    final refCache = <(String, int?, bool, String?, String), int?>{};
+    Future<bool> cachedFound(
       String title,
       int? categoryId,
       bool isUserBook,
@@ -515,8 +544,8 @@ class UserContentImporter {
       final key = (title, categoryId, isUserBook);
       final cached = foundCache[key];
       if (cached != null) return cached;
-      // מקור אישי מאומת מול user_books.db הנתון (כמו קודם); מקור רשמי מול
-      // seforim.db דרך [sourceExists] — כדי לחסום כותרת שגויה שתיצור קישור מת.
+      // אישי מאומת מול user_books.db הנתון; רשמי מול seforim.db דרך
+      // [sourceExists] — כדי לחסום כותרת שגויה שתיצור קישור מת.
       final found = isUserBook
           ? await repo.bookIdByTitle(title, categoryId: categoryId) != null
           : await sourceExists(
@@ -527,20 +556,43 @@ class UserContentImporter {
       return foundCache[key] = found;
     }
 
+    /// ה-slug של הצד: המפורש, או כשהספר חסר במקור שסומן — המסד הגלוי הראשון
+    /// שמכיל אותו. '' = הצד אינו במסד מצורף; null = הספר לא נמצא.
+    Future<String?> attachedSide(
+      String title,
+      String? explicitDb,
+      Future<bool> Function() foundElsewhere,
+    ) async {
+      if (explicitDb != null) {
+        return (await attached.locate(title, slug: explicitDb))?.slug;
+      }
+      if (attached.isEmpty || await foundElsewhere()) return '';
+      return (await attached.locate(title))?.slug;
+    }
+
     Future<int?> cachedResolveRef({
       required String targetTitle,
       required int? targetCategoryId,
       required bool targetIsUserBook,
+      required String? targetDb,
       required String ref,
     }) async {
-      final key = (targetTitle, targetCategoryId, targetIsUserBook, ref);
-      if (refCache.containsKey(key)) return refCache[key];
-      return refCache[key] = await resolveRef(
-        targetTitle: targetTitle,
-        targetCategoryId: targetCategoryId,
-        targetIsUserBook: targetIsUserBook,
-        ref: ref,
+      final key = (
+        targetTitle,
+        targetCategoryId,
+        targetIsUserBook,
+        targetDb,
+        ref,
       );
+      if (refCache.containsKey(key)) return refCache[key];
+      return refCache[key] = targetDb != null
+          ? await attached.resolveRef(targetDb, targetTitle, ref)
+          : await resolveRef(
+              targetTitle: targetTitle,
+              targetCategoryId: targetCategoryId,
+              targetIsUserBook: targetIsUserBook,
+              ref: ref,
+            );
     }
 
     for (final row in parsed.rows) {
@@ -549,13 +601,38 @@ class UserContentImporter {
         errors.add('$fileName: חסר ספר מקור (עמודת "ספר_מקור")');
         continue;
       }
-      final found = await cachedSourceFound(
+      final sourceDb = await attachedSide(
         sourceTitle,
-        row.sourceCategoryId,
-        row.sourceIsUserBook,
+        row.sourceDb,
+        () => cachedFound(
+          sourceTitle,
+          row.sourceCategoryId,
+          row.sourceIsUserBook,
+        ),
       );
-      if (!found) {
+      final sourceFound = sourceDb == null
+          ? false
+          : sourceDb.isNotEmpty ||
+                await cachedFound(
+                  sourceTitle,
+                  row.sourceCategoryId,
+                  row.sourceIsUserBook,
+                );
+      if (!sourceFound) {
         errors.add('$fileName: ספר המקור "$sourceTitle" לא נמצא');
+        continue;
+      }
+      final targetDb = await attachedSide(
+        row.targetTitle,
+        row.targetDb,
+        () => cachedFound(
+          row.targetTitle,
+          row.targetCategoryId,
+          row.targetIsUserBook,
+        ),
+      );
+      if (targetDb == null) {
+        errors.add('$fileName: ספר היעד "${row.targetTitle}" לא נמצא');
         continue;
       }
       final record = await _resolveRecord(
@@ -564,6 +641,8 @@ class UserContentImporter {
         cachedResolveRef,
         fileName,
         errors,
+        sourceDb: sourceDb.isEmpty ? null : sourceDb,
+        targetDb: targetDb.isEmpty ? null : targetDb,
       );
       if (record != null) out.add(record);
     }
@@ -578,6 +657,7 @@ class UserContentImporter {
     List<String> errors, {
     required String baseTitle,
     required UserLinkBookLocator locateBook,
+    required AttachedLinkBooks attached,
   }) async {
     final fileName = file.name;
     final ParseResult<ParsedNativeLink> parsed;
@@ -591,9 +671,30 @@ class UserContentImporter {
       errors.add('$fileName ${err.message} (שורה ${err.lineNumber})');
     }
 
-    final ({bool isUserBook, int? categoryId, int totalLines})? source;
+    // אישי/רשמי קודמים; ספר שאין בהם נלקח מהמסד המצורף הגלוי הראשון שמכיל אותו.
+    Future<_LocatedLinkBook?> locate(String title) async {
+      final found = await locateBook(title);
+      if (found != null) {
+        return (
+          isUserBook: found.isUserBook,
+          categoryId: found.categoryId,
+          totalLines: found.totalLines,
+          db: null,
+        );
+      }
+      final inAttached = await attached.locate(title);
+      if (inAttached == null) return null;
+      return (
+        isUserBook: false,
+        categoryId: null,
+        totalLines: inAttached.totalLines,
+        db: inAttached.slug,
+      );
+    }
+
+    final _LocatedLinkBook? source;
     try {
-      source = await locateBook(baseTitle);
+      source = await locate(baseTitle);
     } on AmbiguousUserLinkBookException {
       errors.add(
         '$fileName: ספר הבסיס "$baseTitle" קיים גם בספרייה האישית וגם ברשמית',
@@ -608,14 +709,13 @@ class UserContentImporter {
       return;
     }
 
-    final targetCache =
-        <String, ({bool isUserBook, int? categoryId, int totalLines})?>{};
+    final targetCache = <String, _LocatedLinkBook?>{};
     final ambiguousTargets = <String>{};
     for (final row in parsed.rows) {
       if (ambiguousTargets.contains(row.targetTitle)) continue;
       if (!targetCache.containsKey(row.targetTitle)) {
         try {
-          targetCache[row.targetTitle] = await locateBook(row.targetTitle);
+          targetCache[row.targetTitle] = await locate(row.targetTitle);
         } on AmbiguousUserLinkBookException {
           ambiguousTargets.add(row.targetTitle);
           errors.add(
@@ -679,10 +779,12 @@ class UserContentImporter {
                 sourceTitle: row.targetTitle,
                 sourceCategoryId: target.categoryId,
                 sourceIsUserBook: target.isUserBook,
+                sourceDb: target.db,
                 sourceLineIndex: row.targetLineNumber - 1,
                 targetTitle: baseTitle,
                 targetCategoryId: source.categoryId,
                 targetIsUserBook: source.isUserBook,
+                targetDb: source.db,
                 targetLineIndex: row.sourceLineNumber - 1,
                 sourceLineIndexEnd: row.targetLineNumberEnd == null
                     ? null
@@ -696,10 +798,12 @@ class UserContentImporter {
                 sourceTitle: baseTitle,
                 sourceCategoryId: source.categoryId,
                 sourceIsUserBook: source.isUserBook,
+                sourceDb: source.db,
                 sourceLineIndex: row.sourceLineNumber - 1,
                 targetTitle: row.targetTitle,
                 targetCategoryId: target.categoryId,
                 targetIsUserBook: target.isUserBook,
+                targetDb: target.db,
                 targetRef: row.targetRef,
                 targetLineIndex: row.targetLineNumber - 1,
                 anchorStart: row.anchorStart,
@@ -724,10 +828,19 @@ class UserContentImporter {
   static Future<UserLinkRecord?> _resolveRecord(
     String sourceTitle,
     ParsedUserLink row,
-    UserLinkRefResolver resolveRef,
+    Future<int?> Function({
+      required String targetTitle,
+      required int? targetCategoryId,
+      required bool targetIsUserBook,
+      required String? targetDb,
+      required String ref,
+    })
+    resolveRef,
     String fileName,
-    List<String> errors,
-  ) async {
+    List<String> errors, {
+    String? sourceDb,
+    String? targetDb,
+  }) async {
     final ref = row.targetRef?.trim();
     if (ref == null || ref.isEmpty) {
       errors.add('$fileName: חסר מיקום_יעד לקישור אל "${row.targetTitle}"');
@@ -746,6 +859,7 @@ class UserContentImporter {
         targetTitle: row.targetTitle,
         targetCategoryId: row.targetCategoryId,
         targetIsUserBook: row.targetIsUserBook,
+        targetDb: targetDb,
         ref: ref,
       );
       if (resolved == null) {
@@ -762,24 +876,28 @@ class UserContentImporter {
     if (LinkTypes.isDependentTextLink(row.connectionType)) {
       return UserLinkRecord(
         sourceTitle: row.targetTitle,
-        sourceCategoryId: row.targetCategoryId,
-        sourceIsUserBook: row.targetIsUserBook,
+        sourceCategoryId: targetDb == null ? row.targetCategoryId : null,
+        sourceIsUserBook: targetDb == null && row.targetIsUserBook,
+        sourceDb: targetDb,
         sourceLineIndex: targetLineIndex,
         targetTitle: sourceTitle,
-        targetCategoryId: row.sourceCategoryId,
-        targetIsUserBook: row.sourceIsUserBook,
+        targetCategoryId: sourceDb == null ? row.sourceCategoryId : null,
+        targetIsUserBook: sourceDb == null && row.sourceIsUserBook,
+        targetDb: sourceDb,
         targetLineIndex: row.sourceLineNumber - 1,
         connectionType: row.connectionType,
       );
     }
     return UserLinkRecord(
       sourceTitle: sourceTitle,
-      sourceCategoryId: row.sourceCategoryId,
-      sourceIsUserBook: row.sourceIsUserBook,
+      sourceCategoryId: sourceDb == null ? row.sourceCategoryId : null,
+      sourceIsUserBook: sourceDb == null && row.sourceIsUserBook,
+      sourceDb: sourceDb,
       sourceLineIndex: row.sourceLineNumber - 1,
       targetTitle: row.targetTitle,
-      targetCategoryId: row.targetCategoryId,
-      targetIsUserBook: row.targetIsUserBook,
+      targetCategoryId: targetDb == null ? row.targetCategoryId : null,
+      targetIsUserBook: targetDb == null && row.targetIsUserBook,
+      targetDb: targetDb,
       // כתובת טקסטואלית נשמרת להצגה; מספרית מיותרת (heRef נופל לכותרת היעד).
       targetRef: numeric != null ? null : ref,
       targetLineIndex: targetLineIndex,
@@ -790,6 +908,13 @@ class UserContentImporter {
   static String _baseName(String path) =>
       path.replaceAll('\\', '/').split('/').last;
 }
+
+typedef _LocatedLinkBook = ({
+  bool isUserBook,
+  int? categoryId,
+  int totalLines,
+  String? db,
+});
 
 /// מה שהפענוח הפיק, לפני כתיבה. bookId → דור / מחבר (אחרון מנצח).
 class UserImportIngest {
@@ -813,6 +938,7 @@ Future<UserImportIngest> Function() _backgroundIngestTask(
   required String userDbPath,
   required String? officialDbPath,
   required String? officialError,
+  required List<AttachedLinkLibrary> attachedLibraries,
   required Map<String, Map<String, String>> queries,
 }) => () async {
   QueryLoader.seedCache(queries);
@@ -820,6 +946,7 @@ Future<UserImportIngest> Function() _backgroundIngestTask(
   final officialDb = officialDbPath == null
       ? null
       : MyDatabase.withPath(officialDbPath, readOnly: true, official: true);
+  final attachedBooks = AttachedLinkBooks.open(attachedLibraries);
   try {
     (await userDb.database).execute('PRAGMA busy_timeout=5000');
     final resolvers = userLinkResolversFor(
@@ -837,10 +964,12 @@ Future<UserImportIngest> Function() _backgroundIngestTask(
       resolveRef: resolvers.resolveRef,
       sourceExists: resolvers.sourceExists,
       locateBook: resolvers.locateBook,
+      attachedBooks: attachedBooks,
     );
   } finally {
     userDb.close();
     officialDb?.close();
+    attachedBooks.close();
   }
 };
 
@@ -875,6 +1004,8 @@ List<UserLinkRecord> mergeUserLinks(List<UserLinkRecord> links) {
       link.targetTitle,
       link.targetLineIndex,
       link.connectionType,
+      link.sourceDb,
+      link.targetDb,
     ].join('|');
     (groups[key] ??= []).add(link);
   }

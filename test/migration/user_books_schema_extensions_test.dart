@@ -170,12 +170,16 @@ void main() {
             'targetLineIndexEnd',
             'targetRefEnd',
             'source',
+            'sourceDb',
+            'targetDb',
           ]),
         );
         final row = db.select('SELECT * FROM user_link').single;
         expect(row['sourceTitle'], 'ביאורי יוסף');
         expect(row['anchorStart'], isNull);
         expect(row['source'], isNull);
+        expect(row['sourceDb'], isNull);
+        expect(row['targetDb'], isNull);
 
         final indexes = db
             .select(

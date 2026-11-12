@@ -69,6 +69,76 @@ void main() {
     expect(inverse.single.overlapsSourceLines(7, 8), isTrue);
   });
 
+  test(
+    'קישור שצדו במסד מצורף מוצג בספר המצורף ולא בספר רשמי באותו שם',
+    () async {
+      await Settings.init(cacheProvider: MemoryCacheProvider());
+      final tempDir = await Directory.systemTemp.createTemp(
+        'user_link_attached',
+      );
+      final previousRoot = AppPaths.cachedDataRootPath;
+      await UserBooksDatabaseHolder.instance.close();
+      AppPaths.debugOverrideDataRootPath(p.join(tempDir.path, 'data'));
+      addTearDown(() async {
+        await UserBooksDatabaseHolder.instance.close();
+        AppPaths.debugOverrideDataRootPath(previousRoot);
+        await tempDir.delete(recursive: true);
+      });
+
+      final db = (await UserBooksDatabaseHolder.instance.repository).database;
+      await UserContentRepository(db).upsertUserLink(
+        const UserLinkRecord(
+          sourceTitle: 'בסיס',
+          sourceIsUserBook: false,
+          sourceDb: 'my-db',
+          sourceLineIndex: 2,
+          targetTitle: 'מפרש',
+          targetIsUserBook: true,
+          targetLineIndex: 4,
+          connectionType: 'COMMENTARY',
+        ),
+      );
+
+      final attached = BookSource.attached('my-db');
+      final forward = await loadUserLinksForBook(
+        bookTitle: 'בסיס',
+        bookCategoryId: 7,
+        source: attached,
+        startLineIndex: 0,
+        endLineIndex: 10,
+      );
+      expect(forward.single.index1, 3);
+      expect(forward.single.targetSource, BookSource.user);
+      expect(
+        await loadUserCommentatorTitles(
+          bookTitle: 'בסיס',
+          bookCategoryId: 7,
+          source: attached,
+        ),
+        ['מפרש'],
+      );
+
+      final official = await loadUserLinksForBook(
+        bookTitle: 'בסיס',
+        bookCategoryId: null,
+        source: BookSource.official,
+        startLineIndex: 0,
+        endLineIndex: 10,
+      );
+      expect(official, isEmpty);
+
+      final inverse = await loadUserLinksForBook(
+        bookTitle: 'מפרש',
+        bookCategoryId: null,
+        source: BookSource.user,
+        startLineIndex: 0,
+        endLineIndex: 10,
+      );
+      expect(inverse.single.targetSource, attached);
+      expect(inverse.single.index2, 3);
+    },
+  );
+
   test('מפרשי-משתמש נקראים בחיבור נפרד, לא בחיבור הראשי', () async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
     final tempDir = await Directory.systemTemp.createTemp('user_commentators');

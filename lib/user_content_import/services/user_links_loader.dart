@@ -16,8 +16,8 @@ import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 /// - inverse: ספר-משתמש אחר מצביע אל הספר הזה (כשקוראים רשמי/אישי שעליו
 ///   נכתב מפרש-משתמש) — כך מפרש-משתמש מופיע גם בספר הרשמי.
 ///
-/// מחזיר רשימה ריקה אם user_books.db לא פתוח (בלי לכפות פתיחתו), או לספר
-/// ממסד מצורף — טבלת user_link מבחינה רק בין רשמי לאישי.
+/// מחזיר רשימה ריקה אם user_books.db לא פתוח (בלי לכפות פתיחתו). ספר ממסד
+/// מצורף מזוהה לפי slug וכותרת, בלי קטגוריה (מזהיה פנימיים למסד).
 Future<List<Link>> loadUserLinksForBook({
   required String bookTitle,
   required int? bookCategoryId,
@@ -26,10 +26,11 @@ Future<List<Link>> loadUserLinksForBook({
   required int endLineIndex,
   List<String>? targetBookTitles,
 }) async {
-  if (source.isAttached) return const [];
   final dbPath = UserBooksDatabaseHolder.instance.openDbPath;
   if (dbPath == null) return const [];
   final isUserBook = source.isUser;
+  final db = source.attachedSlug;
+  final categoryId = db == null ? bookCategoryId : null;
 
   final result = <Link>[];
   final (forward, inverse) = await _readUserContent(
@@ -39,7 +40,8 @@ Future<List<Link>> loadUserLinksForBook({
       await ucr.forwardUserLinks(
         bookTitle,
         sourceIsUserBook: isUserBook,
-        sourceCategoryId: bookCategoryId,
+        sourceDb: db,
+        sourceCategoryId: categoryId,
         startLineIndex: startLineIndex,
         endLineIndex: endLineIndex,
       ),
@@ -48,7 +50,8 @@ Future<List<Link>> loadUserLinksForBook({
       await ucr.inverseUserLinks(
         bookTitle,
         targetIsUserBook: isUserBook,
-        targetCategoryId: bookCategoryId,
+        targetDb: db,
+        targetCategoryId: categoryId,
         startLineIndex: startLineIndex,
         endLineIndex: endLineIndex,
       ),
@@ -70,7 +73,7 @@ Future<List<Link>> loadUserLinksForBook({
         index2: targetLine + 1,
         connectionType: r.connectionType,
         targetCategoryId: r.targetCategoryId,
-        targetSource: BookSource.fromUserFlag(r.targetIsUserBook),
+        targetSource: r.targetOrigin,
         anchorStart: r.anchorStart,
         anchorEnd: r.anchorEnd,
         // אופסטי user_link נכתבים כפי שהלינקר מדד אותם — על ה-HTML הגולמי,
@@ -102,7 +105,7 @@ Future<List<Link>> loadUserLinksForBook({
         connectionType: LinkTypes.isDependentTextLink(r.connectionType)
             ? LinkTypes.source
             : r.connectionType,
-        targetSource: BookSource.fromUserFlag(r.sourceIsUserBook),
+        targetSource: r.sourceOrigin,
         targetCategoryId: r.sourceCategoryId,
       ),
     );
@@ -118,16 +121,17 @@ Future<List<String>> loadUserCommentatorTitles({
   required int? bookCategoryId,
   required BookSource source,
 }) async {
-  if (source.isAttached) return const [];
   final dbPath = UserBooksDatabaseHolder.instance.openDbPath;
   if (dbPath == null) return const [];
   final isUserBook = source.isUser;
+  final db = source.attachedSlug;
   return _readUserContent(
     dbPath,
     (ucr) => ucr.userCommentatorTitles(
       bookTitle,
       sourceIsUserBook: isUserBook,
-      sourceCategoryId: bookCategoryId,
+      sourceDb: db,
+      sourceCategoryId: db == null ? bookCategoryId : null,
     ),
     ifSkipped: const [],
   );
