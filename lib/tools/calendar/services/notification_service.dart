@@ -452,7 +452,10 @@ class NotificationService {
       presentSound: soundEnabled,
     );
 
-    const windowsDetails = WindowsNotificationDetails();
+    // בלי audio נשמע צליל ברירת המחדל של Windows.
+    final windowsDetails = WindowsNotificationDetails(
+      audio: soundEnabled ? null : WindowsNotificationAudio.silent(),
+    );
 
     final notificationDetails = NotificationDetails(
       android: androidDetails,
