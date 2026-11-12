@@ -259,6 +259,10 @@ class ParsedUserLink {
   /// מזהה קטגוריית היעד, אם צוין (רמז ל-resolution).
   final int? targetCategoryId;
 
+  /// slug של מסד מצורף שבו ספר המקור/היעד (עמודות "מסד_מקור"/"מסד_יעד").
+  final String? sourceDb;
+  final String? targetDb;
+
   const ParsedUserLink({
     this.sourceBookTitle,
     this.sourceIsUserBook = true,
@@ -269,6 +273,8 @@ class ParsedUserLink {
     required this.connectionType,
     this.targetIsUserBook = false,
     this.targetCategoryId,
+    this.sourceDb,
+    this.targetDb,
   });
 }
 
@@ -307,6 +313,11 @@ class UserLinkRecord {
   final String? targetRefEnd;
   final String connectionType;
 
+  /// slug של מסד מצורף כשהצד נמצא בו (אז הדגל האישי false והקטגוריה null:
+  /// מזהי הקטגוריות של מסד מצורף פנימיים לו).
+  final String? sourceDb;
+  final String? targetDb;
+
   const UserLinkRecord({
     required this.sourceTitle,
     this.sourceCategoryId,
@@ -324,7 +335,17 @@ class UserLinkRecord {
     this.targetLineIndexEnd,
     this.targetRefEnd,
     required this.connectionType,
+    this.sourceDb,
+    this.targetDb,
   });
+
+  BookSource get sourceOrigin => _origin(sourceDb, sourceIsUserBook);
+  BookSource get targetOrigin => _origin(targetDb, targetIsUserBook);
+
+  static BookSource _origin(String? db, bool isUserBook) =>
+      db != null && BookSource.isValidSlug(db)
+      ? BookSource.attached(db)
+      : BookSource.fromUserFlag(isUserBook);
 
   /// עותק שבו שדות תצוגה וטווח *חסרים* מושלמים מ-[other]; ערך קיים לעולם
   /// אינו נדרס. משמש במיזוג שני הצדדים של אותו קישור.
@@ -345,6 +366,8 @@ class UserLinkRecord {
     targetLineIndexEnd: targetLineIndexEnd ?? other.targetLineIndexEnd,
     targetRefEnd: targetRefEnd ?? other.targetRefEnd,
     connectionType: connectionType,
+    sourceDb: sourceDb,
+    targetDb: targetDb,
   );
 }
 
