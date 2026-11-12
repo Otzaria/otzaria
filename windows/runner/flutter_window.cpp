@@ -548,8 +548,12 @@ bool FlutterWindow::OnCreate() {
       [this](const flutter::MethodCall<flutter::EncodableValue>& call,
              std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
                  result) {
-        // nativeapi Window.id is not a Win32 HWND. The runner owns the
-        // real native handle used for modal dialogs and child windows.
+        // סוגר את החלון הזה, בדחייה לאיטרציה הבאה של לולאת ההודעות.
+        //
+        // ⚠️ `windowManager.destroy()` קורא ל-`DestroyWindow` מתוך טיפול
+        // בערוץ, כלומר מתוך ריצת ה-Dart של החלון — הריסת המנוע משם היא
+        // ריאנטרנטית ומפילה את התהליך. ראו `kMsgDeferredDestroy`.
+        // NativeAPI Window.id is not HWND; obtain the actual runner handle.
         if (call.method_name() == "mainWindowHandle") {
           const HWND self = GetHandle();
           result->Success(
@@ -558,11 +562,6 @@ bool FlutterWindow::OnCreate() {
                    : flutter::EncodableValue());
           return;
         }
-        // סוגר את החלון הזה, בדחייה לאיטרציה הבאה של לולאת ההודעות.
-        //
-        // ⚠️ `windowManager.destroy()` קורא ל-`DestroyWindow` מתוך טיפול
-        // בערוץ, כלומר מתוך ריצת ה-Dart של החלון — הריסת המנוע משם היא
-        // ריאנטרנטית ומפילה את התהליך. ראו `kMsgDeferredDestroy`.
         if (call.method_name() == "closeSelf") {
           const HWND self = GetHandle();
           if (self) ::PostMessageW(self, kMsgDeferredDestroy, 0, 0);

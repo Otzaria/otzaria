@@ -6,14 +6,16 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nativeapi/nativeapi.dart' as nativeapi;
 import 'package:otzaria/core/windowing/app_drag_to_move_area.dart';
 import 'package:otzaria/core/windowing/app_window_caption.dart';
 import 'package:otzaria/core/windowing/app_window_controller.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
 import 'package:otzaria/core/windowing/window_manager_app_window_controller.dart';
 import 'package:window_manager/legacy.dart';
+
+import '../../test_helpers/recording_native_window.dart';
 
 void main() {
   Future<_RecordingWindow> pump(WidgetTester tester, Widget child) async {
@@ -208,18 +210,9 @@ void main() {
     tester,
   ) async {
     const controller = WindowManagerAppWindowController();
-    const channel = MethodChannel('window_manager');
-    final messenger = tester.binding.defaultBinaryMessenger;
-    var nativeMaximized = true;
-    var nativeReads = 0;
-    messenger.setMockMethodCallHandler(channel, (call) async {
-      if (call.method == 'isMaximized') {
-        nativeReads++;
-        return nativeMaximized;
-      }
-      return null;
-    });
-    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    final native = _CountingNativeWindow()..maximized = true;
+    windowManager.debugBindWindow(native);
+    addTearDown(() => windowManager.debugBindWindow(null));
 
     Future<void> show({required bool fullscreen}) async {
       await tester.pumpWidget(
@@ -234,33 +227,30 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    Future<void> nativeEvent(String name) async {
-      await messenger.handlePlatformMessage(
-        channel.name,
-        const StandardMethodCodec().encodeMethodCall(
-          MethodCall('onEvent', {'eventName': name}),
-        ),
-        (_) {},
-      );
+    Future<void> nativeEvent(nativeapi.WindowEvent event) async {
+      await native.emit(event);
       await tester.pumpAndSettle();
     }
 
     await show(fullscreen: false);
     expect(find.byTooltip('שחזר'), findsOneWidget);
-    expect(nativeReads, 1);
+    // Native event binding snapshots the state once before the caption query.
+    expect(native.reads, 2);
     await show(fullscreen: true);
-    await nativeEvent('enter-full-screen');
-    expect(nativeReads, 2);
+    await nativeEvent(
+      const nativeapi.WindowEnteredFullScreenEvent(windowId: 0),
+    );
+    expect(native.reads, 3);
     await show(fullscreen: false);
 
     // במסלול Windows זה מתקבל leave-full-screen בלבד, בלי unmaximize.
-    nativeMaximized = false;
-    await nativeEvent('leave-full-screen');
+    native.maximized = false;
+    await nativeEvent(const nativeapi.WindowExitedFullScreenEvent(windowId: 0));
     expect(find.byTooltip('הגדל'), findsOneWidget);
     expect(find.byTooltip('שחזר'), findsNothing);
-    expect(nativeReads, 3);
+    expect(native.reads, 4);
     await show(fullscreen: false);
-    expect(nativeReads, 3);
+    expect(native.reads, 4);
   });
 
   testWidgets('אירועי מצב רצופים מבצעים שאילתת caption אחת בפריים', (
@@ -442,4 +432,14 @@ class _RecordingWindow extends Fake implements AppWindowController {
 class _Changes extends ChangeNotifier {
   @override
   void notifyListeners() => super.notifyListeners();
+}
+
+class _CountingNativeWindow extends RecordingNativeWindow {
+  int reads = 0;
+
+  @override
+  bool get isMaximized {
+    reads++;
+    return super.isMaximized;
+  }
 }

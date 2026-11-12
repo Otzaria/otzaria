@@ -10,7 +10,7 @@ import 'package:otzaria/tabs/models/tool_tab.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('mainWindowHandle preserves a 64-bit window pointer', () async {
+  test('mainWindowHandle preserves a 64-bit native window pointer', () async {
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     const handle = 0x123456789;

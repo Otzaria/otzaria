@@ -51,8 +51,8 @@ class RunnerWindowChannel {
 
   static const MethodChannel channel = MethodChannel('otzaria/multiwindow');
 
-  /// Real native pointer for the primary window; nativeapi's Window.id
-  /// is not an HWND (Windows) or GtkWindow* (Linux).
+  /// The real top-level runner pointer. NativeAPI Window.id is not an HWND.
+  /// On Linux this is GtkWindow*; on Windows it is HWND.
   Future<int?> mainWindowHandle() =>
       channel.invokeMethod<int>('mainWindowHandle');
 
@@ -198,11 +198,10 @@ class RunnerWindowChannel {
     double devicePixelRatio, {
     int? hwnd,
   }) => _guarded(canDragTabsOut, 'screenToClient', null, () async {
-    final p = await channel.invokeMapMethod<String, dynamic>('screenToClient', {
-      'x': x,
-      'y': y,
-      'hwnd': ?hwnd,
-    });
+    final p = await channel.invokeMapMethod<String, dynamic>(
+      'screenToClient',
+      {'x': x, 'y': y, 'hwnd': ?hwnd},
+    );
     if (p == null) return null;
     return Offset(
       ((p['x'] as int?) ?? 0) / devicePixelRatio,
@@ -305,7 +304,9 @@ class RunnerWindowChannel {
         return false;
       }
       if (tab is CombinedTab && restored is! CombinedTab) {
-        debugPrint('canTransfer: טאב מפוצל איבד חלונית בסריאליזציה — לא מועבר');
+        debugPrint(
+          'canTransfer: טאב מפוצל איבד חלונית בסריאליזציה — לא מועבר',
+        );
         return false;
       }
       return true;

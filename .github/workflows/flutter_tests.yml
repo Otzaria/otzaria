@@ -92,8 +92,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      # cnativeapi's 0.6 desktop bridge runs pkg-config from Dart build hooks
-      # even in an analyzer run. These are build-time (not runtime) headers.
+      # NativeAPI's build hooks need GTK, X11 and Xi headers on Linux hosts.
       - name: Install nativeapi Linux build headers
         run: sudo apt-get update -qq && sudo apt-get install -y libgtk-3-dev libx11-dev libxi-dev pkg-config
 

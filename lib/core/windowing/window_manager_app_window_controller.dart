@@ -1,5 +1,5 @@
-// Intentional use of window_manager 0.6's legacy facade during the
-// staged nativeapi migration; remove after moving these callers to Window.
+// Intentionally use window_manager 0.6's legacy façade while existing
+// AppWindowController callers migrate to nativeapi's per-window interface.
 // ignore_for_file: deprecated_member_use
 
 import 'dart:io' show Platform;
