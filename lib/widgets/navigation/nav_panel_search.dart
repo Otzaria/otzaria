@@ -87,6 +87,16 @@ class NavPanelSearchHost {
     return true;
   }
 
+  final Map<int, VoidCallback> _searchOpeners = {};
+
+  /// פותח וממקד את החיפוש המוסתר ([NavPanelCollapsibleSearch]) של הלשונית
+  /// [tab]. מחזיר שקר כשאין בה חיפוש כזה.
+  bool openCollapsibleSearch(int tab) {
+    final open = _searchOpeners[tab];
+    open?.call();
+    return open != null;
+  }
+
   void dispose() => paneFocusScope.dispose();
 }
 
@@ -311,6 +321,29 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
     widget.delegate.controller.addListener(_onTextChanged);
   }
 
+  NavPanelSearchHost? _host;
+  int? _slot;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final host = NavPanelSearchScope.hostOf(context);
+    final slot = NavPanelSearchSlot.indexOf(context);
+    if (host == _host && slot == _slot) return;
+    _unregisterOpener();
+    _host = host;
+    _slot = slot;
+    if (host != null && slot != null) host._searchOpeners[slot] = _open;
+  }
+
+  void _unregisterOpener() {
+    final host = _host;
+    final slot = _slot;
+    if (host != null && slot != null && host._searchOpeners[slot] == _open) {
+      host._searchOpeners.remove(slot);
+    }
+  }
+
   @override
   void didUpdateWidget(NavPanelCollapsibleSearch oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -323,6 +356,7 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
 
   @override
   void dispose() {
+    _unregisterOpener();
     widget.delegate.controller.removeListener(_onTextChanged);
     _ownFocusNode?.dispose();
     super.dispose();
