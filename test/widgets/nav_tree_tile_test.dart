@@ -421,4 +421,124 @@ void main() {
       expect(find.byTooltip(text), findsOneWidget);
     });
   });
+
+  group('פוקוס בשורת עץ (#3247)', () {
+    Widget list(int selected, ValueChanged<int> onTap) => NavTreeFocusGroup(
+      child: ListView(
+        children: [
+          for (var i = 0; i < 4; i++)
+            NavTreeGroupCard(
+              isGroupStart: i == 0,
+              isGroupEnd: i == 3,
+              child: NavTreeTile.heading(
+                title: 'שורה $i',
+                level: 0,
+                isSelected: i == selected,
+                focusOnTap: true,
+                onTap: () => onTap(i),
+              ),
+            ),
+        ],
+      ),
+    );
+
+    bool isFocused(String title) =>
+        FocusManager.instance.primaryFocus?.context
+            ?.findAncestorWidgetOfExactType<NavTreeTile>()
+            ?.title ==
+        title;
+
+    testWidgets('לחיצה ממקדת את השורה, והחץ ממשיך ממנה', (tester) async {
+      var selected = 0;
+      late StateSetter setOuter;
+      await pump(
+        tester,
+        StatefulBuilder(
+          builder: (context, setState) {
+            setOuter = setState;
+            return list(selected, (i) => setOuter(() => selected = i));
+          },
+        ),
+      );
+
+      await tester.tap(find.text('שורה 2'));
+      await tester.pumpAndSettle();
+      expect(isFocused('שורה 2'), isTrue);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(isFocused('שורה 3'), isTrue);
+    });
+
+    testWidgets('אחרי לחיצה אין מסגרת פוקוס; אחרי חץ יש', (tester) async {
+      await pump(tester, list(0, (_) {}));
+      Color? focusColorOf(String title) => tester
+          .widget<InkWell>(
+            find.ancestor(of: find.text(title), matching: find.byType(InkWell)),
+          )
+          .focusColor;
+
+      await tester.tap(find.text('שורה 1'));
+      await tester.pumpAndSettle();
+      expect(isFocused('שורה 1'), isTrue);
+      expect(focusColorOf('שורה 1'), Colors.transparent);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(isFocused('שורה 2'), isTrue);
+      expect(focusColorOf('שורה 2'), isNull, reason: 'צבע הפוקוס של הערכה');
+    });
+
+    testWidgets('בלי focusOnTap הלחיצה משאירה את הפוקוס בשדה', (tester) async {
+      final field = FocusNode();
+      addTearDown(field.dispose);
+      var taps = 0;
+      await pump(
+        tester,
+        Column(
+          children: [
+            TextField(focusNode: field),
+            NavTreeTile.heading(
+              title: 'תוצאה',
+              level: 0,
+              onTap: () => taps++,
+            ),
+          ],
+        ),
+      );
+      field.requestFocus();
+      await tester.pump();
+
+      await tester.tap(find.text('תוצאה'));
+      await tester.pump();
+      expect(taps, 1);
+      expect(field.hasFocus, isTrue);
+    });
+
+    testWidgets('שינוי הסימון אינו מאבד את הפוקוס של השורה', (tester) async {
+      var selected = 0;
+      late StateSetter setOuter;
+      await pump(
+        tester,
+        StatefulBuilder(
+          builder: (context, setState) {
+            setOuter = setState;
+            return list(selected, (_) {});
+          },
+        ),
+      );
+
+      await tester.tap(find.text('שורה 1'));
+      await tester.pump();
+      expect(isFocused('שורה 1'), isTrue);
+
+      // הספר נגלל: הסימון עובר לשורה הממוקדת ואחר כך ממנה הלאה.
+      setOuter(() => selected = 1);
+      await tester.pump();
+      expect(isFocused('שורה 1'), isTrue);
+      setOuter(() => selected = 3);
+      await tester.pump();
+      expect(isFocused('שורה 1'), isTrue);
+    });
+  });
 }

@@ -372,7 +372,11 @@ class _TocViewerState extends State<TocViewer>
     bool isGroupStart = false,
     bool isGroupEnd = false,
   }) {
-    void navigateToEntry() => _navigateToLine(entry.index);
+    void navigateToEntry() {
+      // לחיצה בתוצאות החיפוש מעבירה לשם גם את סימון הדפדוף בחיצים.
+      if (showFullText) _highlightedEntryIndex = entry.index;
+      _navigateToLine(entry.index);
+    }
 
     // בזמן דפדוף בחיצים הסימון הוא של תוצאת הדפדוף, לא של מיקום הקריאה.
     final bool selected = _highlightedEntryIndex != null
@@ -398,6 +402,8 @@ class _TocViewerState extends State<TocViewer>
         hasChildren && !showFullText && (!isExpanded || selected);
     final tile = NavTreeTile.heading(
       title: title,
+      // בחיפוש הפוקוס נשאר בשדה, והחיצים מדפדפים משם.
+      focusOnTap: !showFullText,
       level: level,
       isSelected: selected,
       isExpanded: isExpanded,

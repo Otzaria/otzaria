@@ -169,6 +169,11 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     if ((widget.isOpen || widget.maintainState) && !_paneEverOpened) {
       _paneEverOpened = true;
     }
+    // החלונית הסגורה נשארת בעץ: שורה ממוקדת בה הייתה בולעת את החיצים של הספר.
+    // unfocus של הצומת העוטף ולא של הממוקד: אחרת הפוקוס נשאר ב-scope שבתוך החלונית.
+    if (oldWidget.isOpen && !widget.isOpen && _paneFocusNode.hasFocus) {
+      _paneFocusNode.unfocus();
+    }
   }
 
   @override

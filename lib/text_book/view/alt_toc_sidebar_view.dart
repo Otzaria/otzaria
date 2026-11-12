@@ -993,7 +993,10 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
               title: entry.text ?? '',
               level: 0,
               isSelected: isSelected,
-              onTap: () => _handleEntryTap(structureId, entry),
+              onTap: () {
+                setState(() => _highlightedMatchPos = index - 1);
+                _handleEntryTap(structureId, entry);
+              },
             ),
           );
         },
@@ -1061,6 +1064,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
         hasChildren: hasChildren,
         onTap: () =>
             _handleEntryTap(structureId, entry, toggleIfLinkless: hasChildren),
+        focusOnTap: true,
         onToggleExpand: hasChildren
             ? () => _toggleEntryExpanded(entry.id)
             : null,
