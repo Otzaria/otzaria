@@ -9,6 +9,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 /// `RichText` שתיבות הבחירה בו נמדדות בגובה שורת התצוגה המלאה.
@@ -283,26 +284,41 @@ class _RenderSelectionFillParagraph extends RenderParagraph {
   }
 
   /// בשורה המוזזת המנוע מזיז רק חלק ממיקומי הסמן, ולכן הסמן נגזר מתיבת האות
-  /// הסמוכה המתוקנת. TODO: להסיר כש-flutter#196326 יתוקן.
+  /// הסמוכה המתוקנת, לפי ה-affinity כמו ב-TextPainter.
+  /// TODO: להסיר כש-flutter#196326 יתוקן.
   @override
   Offset getOffsetForCaret(TextPosition position, Rect caretPrototype) {
     final offset = super.getOffsetForCaret(position, caretPrototype);
     final shift = _shifts.isEmpty ? null : _shiftAt(offset.dy + 1);
     if (shift == null) return offset;
     final plain = text.toPlainText(includeSemanticsLabels: false);
+    final graphemes = CharacterBoundary(plain);
+    // לחלק מאות מנוקדת אין תיבה, ולכן נמדדת האות כולה.
     ui.TextBox? boxOnLine(int i) {
       if (i < 0 || i >= plain.length || plain[i] == '\n') return null;
       final box = _glyphBoxesForSelection(
-        TextSelection(baseOffset: i, extentOffset: i + 1),
+        TextSelection(
+          baseOffset: graphemes.getLeadingTextBoundaryAt(i)!,
+          extentOffset: graphemes.getTrailingTextBoundaryAt(i)!,
+        ),
       ).firstOrNull;
       final y = box?.toRect().center.dy;
       return y != null && y >= shift.top && y < shift.bottom ? box : null;
     }
 
-    final beforeBox = boxOnLine(position.offset - 1);
-    final box = beforeBox ?? boxOnLine(position.offset);
+    final i = position.offset;
+    final upstream =
+        position.affinity == TextAffinity.upstream &&
+        i > 0 &&
+        plain[i - 1] != '\n';
+    final beforeBox = boxOnLine(i - 1);
+    // מיקום באמצע אות נצמד, כמו ב-TextPainter, לאות שאחריה.
+    final afterBox = boxOnLine(
+      i > 0 ? graphemes.getTrailingTextBoundaryAt(i - 1) ?? i : i,
+    );
+    final before = beforeBox != null && (upstream || afterBox == null);
+    final box = before ? beforeBox : afterBox;
     if (box == null) return offset;
-    final before = beforeBox != null;
     final rtl = box.direction == TextDirection.rtl;
     final edge = before == rtl ? box.left : box.right;
     final dx = rtl ? edge - caretPrototype.width : edge;
