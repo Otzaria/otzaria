@@ -140,7 +140,7 @@ dependencies:
   window_manager:
     git:
       url: https://github.com/Otzaria/window_manager
-      ref: d56403f29dd700d878a9151f03aca2a51b4b9310
+      ref: 5e33e8a0750bd41200cb07b3b9e3edda8f0d389a
   screen_retriever: ^0.2.2
   # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור ubuntu-flutter-community/flutter_spinbox#102–#114.
   # תיקוני סקירה חייבים להישמר גם בענף המשולב (main של הפורק) וגם בענפי ה-PRים באפסטרים.
