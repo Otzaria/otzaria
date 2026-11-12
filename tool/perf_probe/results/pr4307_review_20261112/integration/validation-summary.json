@@ -1,0 +1,53 @@
+{
+  "base": "8d24d26f6b7eef04ad9eda1f30eb9ea0e53cf546",
+  "published_head": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+  "validated_tree": "0e646d02ab2408f19f922bf011d7df35a7f6940f",
+  "local_validation": {
+    "pub_get_enforce_lockfile": {
+      "exit_code": 0,
+      "lockfile_unchanged": true
+    },
+    "flutter_analyze": {
+      "exit_code": 0,
+      "issues": 0,
+      "seconds": 111
+    },
+    "focused_flutter_tests": {
+      "exit_code": 0,
+      "passed": 280,
+      "failed": 0,
+      "skipped": 0,
+      "file_count": 16,
+      "log_sha256": "7b17cc161c13f2dd96d5ea7502f162434bdbfca1965b3657a3668ffe6a02a452"
+    },
+    "format_conflict_files": {
+      "exit_code": 0,
+      "changes": 0,
+      "paths": [
+        "lib/text_book/bloc/text_book_bloc.dart",
+        "lib/text_book/utils/reader_build_policy.dart",
+        "integration_test/perf_resource_probe_test.dart"
+      ]
+    },
+    "powershell_contracts": {
+      "exit_code": 0,
+      "paths": [
+        "tool/perf_probe/test_reader_comparison.ps1",
+        "tool/perf_probe/test_sample_resources.ps1"
+      ]
+    },
+    "workflow_powershell_blocks": {
+      "exit_code": 0,
+      "count": 6
+    }
+  },
+  "published_tree_verification": "All six remotely created trees matched the locally validated tree SHAs before the PR ref was updated with a lease.",
+  "original_head_archive": "palmoni5/pr4307-before-current-dev-20261112",
+  "windows_profile": {
+    "run_id": 43276783432,
+    "job_id": 131387187813,
+    "status": "running",
+    "result_available": false
+  },
+  "source_note": "The local executor was replaced after validation and publication. The focused-test log hash was recorded before replacement; its raw local log is not included in this archive. Published source and the independent core measurement bundle were preserved in GitHub."
+}

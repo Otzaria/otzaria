@@ -1,0 +1,50 @@
+{
+  "base": "8d24d26f6b7eef04ad9eda1f30eb9ea0e53cf546",
+  "original": "75276fe11dcf679f4ffe81eae17f842ba53c6349",
+  "expectedFinalTree": "0e646d02ab2408f19f922bf011d7df35a7f6940f",
+  "commits": [
+    {
+      "sequence": 1,
+      "local": "d1d9787d5658e1f45a50f817d665c0b4ef626c9d",
+      "remote": "207cb6257ad4bc5743b2b5d49e6c557bdb011da3",
+      "tree": "b79dfc32ad085c0b11d6cb9244226def67188b65",
+      "subject": "perf(reader): share immutable content chunks across range snapshots"
+    },
+    {
+      "sequence": 2,
+      "local": "36ce75c1d0475961b81776adf9536eeba68332f4",
+      "remote": "d1179f2367ed9ae78bc8b89179fbab4cc20f60d6",
+      "tree": "49019cb480c6b8e13ff5f4bb1e03577be5627583",
+      "subject": "test(perf): compare reader profiles and refine cache admission experiment"
+    },
+    {
+      "sequence": 3,
+      "local": "700a2211573bd18669a4cd7b6d192823910cea38",
+      "remote": "eb4f6206d4c9c87053a156c4bc8cfa62cd1edb1d",
+      "tree": "a431eff7d1407782bf32a4455d6172062f2c9d92",
+      "subject": "test(perf): release CSV readers and pin the shared baseline"
+    },
+    {
+      "sequence": 4,
+      "local": "67b6774e6a1d69a6c9eb4c9adff6d9804d6170ed",
+      "remote": "df8bc4de3b0a4998e1fedad0dd7717c22799d34a",
+      "tree": "dbcaabfa53e16d6cda2c6913096d97c88a1c3506",
+      "subject": "perf(reader): avoid repeated full-list conversion for identical ranges"
+    },
+    {
+      "sequence": 5,
+      "local": "0674de1268d9c755357cb4dbeeb9e32440376a68",
+      "remote": "ad45bfb8035cae5dfacdaf34340a35ef5c90b2e6",
+      "tree": "6cc53363325cbb94a74988e1dd773c63b2527dbf",
+      "subject": "test(perf): record reader results and deduplicate heap groups"
+    },
+    {
+      "sequence": 6,
+      "local": "b5c76915f110b3b20a342f6e0871d53ed82edbf0",
+      "remote": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+      "tree": "0e646d02ab2408f19f922bf011d7df35a7f6940f",
+      "subject": "test(perf): expand paired reader sampling on current dev"
+    }
+  ],
+  "finalHead": "6aa411d774f453331d6821dbb5a68f1c3b78bd78"
+}
