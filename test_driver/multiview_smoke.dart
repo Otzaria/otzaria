@@ -1,3 +1,7 @@
+// Intentional use of window_manager 0.6's legacy facade during the
+// staged nativeapi migration; remove after moving these callers to Window.
+// ignore_for_file: deprecated_member_use
+
 // יעד `flutter drive` לבדיקת ריבוי התצוגות באפליקציה האמיתית: binding אמיתי
 // (לא של בדיקות), ולכן בעלי החלונות מותקן וחלונות Dart נפתחים באמת.
 import 'dart:async';

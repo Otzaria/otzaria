@@ -1,3 +1,7 @@
+// Intentional use of window_manager 0.6's legacy facade during the
+// staged nativeapi migration; remove after moving these callers to Window.
+// ignore_for_file: deprecated_member_use
+
 // Opt-in real-app scenario; see tool/perf_probe/WEBVIEW_RESOURCE_PROBE.md.
 import 'dart:async';
 import 'dart:convert';
