@@ -127,6 +127,14 @@ class SettingsRepository {
   /// תג release וקטורים שהמנוע זיהה כפרסום חוזר של גרסה מותקנת; לא מורידים שוב.
   static const String keySemanticSkippedVectorsRelease =
       'key-semantic-skipped-vectors-release';
+
+  /// מתי נתוני החיפוש החכם מתעדכנים ברקע (SemanticUpdateFrequency).
+  static const String keySemanticUpdateFrequency =
+      'key-semantic-update-frequency';
+
+  /// מועד ההתקנה המוצלחת האחרונה של וקטורי החיפוש החכם (ISO-8601).
+  static const String keySemanticLastVectorsUpdate =
+      'key-semantic-last-vectors-update';
   static const String keyLibraryPath = 'key-library-path';
   static const String keyIndexPath = 'key-index-path';
   static const String keyDatabasesPath = 'key-databases-path';
@@ -350,6 +358,8 @@ class SettingsRepository {
     keySemanticDataEnabled,
     keySemanticDownloadPaused,
     keySemanticSkippedVectorsRelease,
+    keySemanticUpdateFrequency,
+    keySemanticLastVectorsUpdate,
     keyLibraryPath,
     keyIndexPath,
     keyDatabasesPath,

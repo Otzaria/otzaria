@@ -9,6 +9,7 @@ import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria/semantic_search/models/semantic_model_identity.dart';
 import 'package:otzaria/semantic_search/models/semantic_model_release.dart';
 import 'package:otzaria/semantic_search/models/semantic_paths.dart';
+import 'package:otzaria/semantic_search/models/semantic_update_frequency.dart';
 import 'package:otzaria/semantic_search/models/semantic_vectors_family.dart';
 import 'package:otzaria/semantic_search/repository/semantic_search_repository.dart';
 import 'package:otzaria/semantic_search/repository/semantic_data_ownership.dart';
@@ -91,6 +92,18 @@ class FakeSettingsStore implements SemanticSettingsStore {
 
   @override
   Future<void> setDataEnabled(bool value) async => dataEnabled = value;
+
+  @override
+  SemanticUpdateFrequency updateFrequency = SemanticUpdateFrequency.withLibrary;
+  @override
+  Future<void> setUpdateFrequency(SemanticUpdateFrequency value) async =>
+      updateFrequency = value;
+
+  @override
+  DateTime? lastVectorsUpdate;
+  @override
+  Future<void> setLastVectorsUpdate(DateTime value) async =>
+      lastVectorsUpdate = value;
 }
 
 const kTestModelFamilyId = 'otzaria/Meivin-Embed-QA491-native256';
@@ -405,6 +418,7 @@ SemanticSearchRepository buildRepository({
   Map<SemanticQuantization, SemanticModelRelease?>? modelReleases,
   Duration busyRetryDelay = const Duration(milliseconds: 20),
   Future<String> Function(SemanticVectorsFamily family)? identityLoader,
+  String? Function()? onnxRuntimePath,
 }) {
   return SemanticSearchRepository(
     backend: backend ?? FakeBackend(),
@@ -416,7 +430,8 @@ SemanticSearchRepository buildRepository({
     locator: locator ?? FakeLocator(),
     download: download ?? FakeDownloads().call,
     libraryVersion: () async => libraryVersion,
-    onnxRuntimePath: () => '/app/onnxruntime/onnxruntime.dll',
+    onnxRuntimePath:
+        onnxRuntimePath ?? () => '/app/onnxruntime/onnxruntime.dll',
     isPlatformSupported: () => platformSupported,
     diskSpace:
         diskSpace ??
