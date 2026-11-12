@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/search/utils/snippet_builder.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/utils/text/copy_utils.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
@@ -13,14 +14,11 @@ void copySearchResultText({
   required String titleText,
   required SettingsState settingsState,
 }) {
-  final plainText = utils.stripHtmlPreservingBreaks(
-    rawHtml,
-  );
+  final plainText =
+      SnippetBuilder.annotatedPlainText(rawHtml) ??
+      utils.stripHtmlPreservingBreaks(rawHtml);
   final bookName = settingsState.replaceHolyNames
-      ? utils.replaceHolyNames(
-          result.title,
-          style: settingsState.holyNameStyle,
-        )
+      ? utils.replaceHolyNames(result.title, style: settingsState.holyNameStyle)
       : result.title;
   final textToCopy = CopyUtils.formatTextWithHeaders(
     originalText: plainText,
@@ -32,8 +30,6 @@ void copySearchResultText({
       reference: titleText,
     ),
   );
-  Clipboard.setData(
-    ClipboardData(text: textToCopy),
-  );
+  Clipboard.setData(ClipboardData(text: textToCopy));
   UiSnack.show(UiSnack.textCopied);
 }
