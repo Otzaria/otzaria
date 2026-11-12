@@ -38,6 +38,7 @@ import 'package:otzaria/user_content_import/models/user_import_models.dart';
 import 'package:otzaria/user_content_import/services/user_book_versions.dart';
 import 'package:otzaria/user_content_import/services/user_import_parser.dart';
 import 'package:otzaria/user_content_import/services/user_link_ref_resolver.dart';
+import 'package:otzaria/user_content_import/services/user_content_importer.dart';
 import 'package:otzaria/user_content_import/services/user_sidecar_sync.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/migration/database/sqlite3_utils.dart';
@@ -47,6 +48,8 @@ import 'package:otzaria/models/book_version.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/models/link_types.dart';
+import 'package:otzaria/library/hidden/hidden_library_selection.dart';
+import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart'
     show bookNoteMarkers;
@@ -101,6 +104,9 @@ class _AttachedCatalogBuild {
   final List<Map<String, dynamic>> versionLinks;
   final Map<int, List<Map<String, dynamic>>> booksByCategory = {};
   final Map<int?, List<db_models.Category>> categoriesByParent = {};
+
+  /// ההסתרות נקראות פעם אחת לבנייה, ורק כשיש ספר רשמי להשוואה.
+  late final HiddenLibrarySelection hidden = const HiddenLibraryStore().load();
 
   /// הסדר בעץ של [orderIndex] מהמסד: במיזוג — אחרי כל התוכן הקיים.
   int order(num? orderIndex) {
@@ -443,6 +449,7 @@ typedef _SidecarSyncArgs = ({
   String? officialDbPath,
   String? officialError,
   String folderPath,
+  List<AttachedLinkLibrary> attachedLibraries,
   Map<String, Map<String, String>> queries,
 });
 
@@ -466,6 +473,7 @@ Future<List<String>> _applySidecars(_SidecarSyncArgs args) async {
       officialError: args.officialError == null
           ? null
           : Exception(args.officialError),
+      attachedLibraries: args.attachedLibraries,
     );
   } finally {
     userDb.close();
@@ -2310,14 +2318,19 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   void _attachCatalogBookVersions(Library library) {
     _catalogVersionPrimaries.clear();
     _attachedVersionMembers.clear();
-    final catalogByTitle = <String, List<Book>>{};
-    for (final book in library.getAllBooks()) {
-      catalogByTitle
-          .putIfAbsent(normalizeVersionTitle(book.title), () => [])
-          .add(book);
+    if (_userBookVersions.any((v) => v.hasCatalogPrimary) ||
+        _userAttachedVersions.isNotEmpty ||
+        _attachedDbVersions.isNotEmpty ||
+        _attachedDuplicateVersions.isNotEmpty) {
+      final catalogByTitle = <String, List<Book>>{};
+      for (final book in library.getAllBooks()) {
+        catalogByTitle
+            .putIfAbsent(normalizeVersionTitle(book.title), () => [])
+            .add(book);
+      }
+      _resolveCatalogVersionPrimaries(catalogByTitle);
+      _resolveAttachedVersions(catalogByTitle);
     }
-    _resolveCatalogVersionPrimaries(catalogByTitle);
-    _resolveAttachedVersions(catalogByTitle);
     library.offTreeBooks = [
       for (final id in _hiddenUserVersionBookIds) ?_userBooksById[id],
       for (final member in _attachedVersionMembers) member.version,
@@ -4443,7 +4456,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     final officialByTitle = <(String, bool), Book>{
       if (build.library.placement == AttachedLibraryPlacement.mergeIntoLibrary)
         for (final book in category.books)
-          if (book.source.isOfficial)
+          // ספר רשמי מוסתר היה מעלים איתו את הספר המצורף שהפך לגרסתו.
+          if (book.source.isOfficial && !build.hidden.isBookHidden(book))
             (normalizeVersionTitle(book.title), book is PdfBook): book,
     };
     for (final row in rows) {
@@ -5697,6 +5711,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         officialDbPath: officialDbPath,
         officialError: officialError,
         folderPath: folderPath,
+        attachedLibraries: UserContentImporter.attachedLinkLibraries(),
         queries: QueryLoader.cacheSnapshot,
       ))) {
         failedDetails.add((folderName, error));

@@ -807,6 +807,30 @@ void main() {
       });
 
       test(
+        'CSV: יעד שלא נמצא בלי מסד מפורש נקלט כמו בלי מסדים מצורפים',
+        () async {
+          final f = writeCsv(
+            'ביאורי יוסף.links.csv',
+            'מקור,ספר_יעד,מיקום_יעד,סוג\n3,ספר עלום,2,הפניה\n',
+          );
+          final result = await UserContentImporter.importFiles(
+            [f],
+            db,
+            resolveRef: fakeResolver,
+            sourceExists: notOfficial,
+            attachedBooks: attached,
+          );
+          expect(result.errors, isEmpty);
+          final link = (await repo.forwardUserLinks(
+            'ביאורי יוסף',
+            sourceIsUserBook: true,
+          )).single;
+          expect(link.targetTitle, 'ספר עלום');
+          expect(link.targetDb, isNull);
+        },
+      );
+
+      test(
         'גרסאות: ספר הגרסה במסד מצורף נשמר לפי slug וכותרת (#4392)',
         () async {
           final f = writeCsv(

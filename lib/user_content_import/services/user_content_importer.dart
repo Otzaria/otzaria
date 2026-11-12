@@ -270,14 +270,14 @@ class UserContentImporter {
         userDbPath: userDb.path,
         officialDbPath: officialDbPath,
         officialError: officialError,
-        attachedLibraries: _attachedLinkLibraries(),
+        attachedLibraries: attachedLinkLibraries(),
         queries: QueryLoader.cacheSnapshot,
       ),
     );
   }
 
   /// המסדים המצורפים התקינים לפי עדיפות; בלי הגדרות טעונות אין רשימה לקרוא.
-  static List<AttachedLinkLibrary> _attachedLinkLibraries() {
+  static List<AttachedLinkLibrary> attachedLinkLibraries() {
     if (!Settings.isInitialized) return const [];
     return [
       for (final library in AttachedLibraryRegistry.instance.libraries)
@@ -639,15 +639,18 @@ class UserContentImporter {
         errors.add('$fileName: ספר המקור "$sourceTitle" לא נמצא');
         continue;
       }
-      final targetDb = await attachedSide(
-        row.targetTitle,
-        row.targetDb,
-        () => cachedFound(
-          row.targetTitle,
-          row.targetCategoryId,
-          row.targetIsUserBook,
-        ),
-      );
+      // יעד שלא נמצא בלי מסד מפורש נשמר כרגיל (כמו בלי מסדים מצורפים).
+      final targetDb =
+          await attachedSide(
+            row.targetTitle,
+            row.targetDb,
+            () => cachedFound(
+              row.targetTitle,
+              row.targetCategoryId,
+              row.targetIsUserBook,
+            ),
+          ) ??
+          (row.targetDb == null ? '' : null);
       if (targetDb == null) {
         errors.add('$fileName: ספר היעד "${row.targetTitle}" לא נמצא');
         continue;

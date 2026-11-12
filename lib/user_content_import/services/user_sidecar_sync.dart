@@ -29,19 +29,26 @@ const _perBookHeadingSuffixes = ['.כותרות.csv', '.headings.csv'];
 /// קובץ שלא השתנה, ושהספרים שלו לא השתנו, מדולג.
 class UserSidecarSync {
   /// מיישם את כל הקבצים הנלווים שתחת [folderPath]. מחזיר שגיאות לתצוגה
-  /// למשתמש; לעולם אינו זורק.
+  /// למשתמש; לעולם אינו זורק. ב-isolate חובה להעביר [attachedLibraries].
   static Future<List<String>> applyForFolder({
     required MyDatabase userDb,
     required String folderPath,
     SeforimRepository? officialRepository,
     Exception? officialError,
+    List<AttachedLinkLibrary>? attachedLibraries,
   }) async {
     final repo = UserContentRepository(userDb);
     final errors = <String>[];
     final seen = <String>{};
-    final officialStamp = await _officialDatabaseStamp(
+    final libraries =
+        attachedLibraries ?? UserContentImporter.attachedLinkLibraries();
+    final catalogStamp = await _officialDatabaseStamp(
       officialRepository ?? SqliteDataProvider.instance.repository,
     );
+    final officialStamp =
+        '${catalogStamp ?? 'unavailable'}'
+        '${await _attachedDatabasesStamp(libraries)}';
+    final attachedBooks = AttachedLinkBooks.open(libraries);
 
     try {
       final dir = Directory(folderPath);
@@ -62,6 +69,7 @@ class UserSidecarSync {
               officialRepository: officialRepository,
               officialError: officialError,
               officialStamp: officialStamp,
+              attachedBooks: attachedBooks,
             );
           } catch (e) {
             errors.add('$name: הקליטה נכשלה ($e)');
@@ -77,6 +85,8 @@ class UserSidecarSync {
     } catch (e) {
       debugPrint('⚠️ [UserSidecarSync] failed for $folderPath: $e');
       errors.add('קליטת קובצי הכותרות והגרסאות נכשלה: $e');
+    } finally {
+      attachedBooks.close();
     }
     return errors;
   }
@@ -109,6 +119,7 @@ class UserSidecarSync {
     SeforimRepository? officialRepository,
     Exception? officialError,
     String? officialStamp,
+    AttachedLinkBooks? attachedBooks,
   }) async {
     final name = p.basename(file.path);
     if (kind == _SidecarKind.links) {
@@ -120,6 +131,7 @@ class UserSidecarSync {
         officialRepository: officialRepository,
         officialError: officialError,
         officialStamp: officialStamp,
+        attachedBooks: attachedBooks,
       );
       return;
     }
@@ -251,6 +263,7 @@ class UserSidecarSync {
     SeforimRepository? officialRepository,
     Exception? officialError,
     String? officialStamp,
+    AttachedLinkBooks? attachedBooks,
   }) async {
     final repo = UserContentRepository(userDb);
     final stamp = await _fileStamp(file);
@@ -278,6 +291,7 @@ class UserSidecarSync {
         resolveRef: resolvers.resolveRef,
         sourceExists: resolvers.sourceExists,
         locateBook: resolvers.locateBook,
+        attachedBooks: attachedBooks,
         source: file.path,
       );
       if (result.errors.isNotEmpty) {
@@ -423,6 +437,23 @@ class UserSidecarSync {
     } on FileSystemException {
       return null;
     }
+  }
+
+  /// מסד מצורף שנוסף, הוסר או השתנה מבטל את חתימת קובצי הקישורים.
+  static Future<String> _attachedDatabasesStamp(
+    List<AttachedLinkLibrary> libraries,
+  ) async {
+    final stamp = StringBuffer();
+    for (final library in libraries) {
+      stamp.write('|${library.slug}:${library.visible}:');
+      try {
+        final stat = await File(library.path).stat();
+        stamp.write('${stat.size}:${stat.modified.millisecondsSinceEpoch}');
+      } on FileSystemException {
+        stamp.write('missing');
+      }
+    }
+    return stamp.toString();
   }
 
   static void _collectParseErrors(
