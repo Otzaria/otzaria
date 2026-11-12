@@ -1,3 +1,5 @@
+import 'dart:math' show max, min;
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_spinbox/flutter_spinbox.dart';
@@ -82,9 +84,11 @@ class _ZmanAlertDialogState extends State<ZmanAlertDialog> {
                   // SpinBox needs value updates to keep its blur cache in sync.
                   child: StatefulBuilder(
                     builder: (context, setSpinBoxState) => SpinBox(
-                      min: 0,
-                      max: 23,
+                      // שומרים ערך משוחזר גם מחוץ לטווח ברירת המחדל.
+                      min: min(0, hours).toDouble(),
+                      max: max(23, hours).toDouble(),
                       value: hours.toDouble(),
+                      emptyValue: 0,
                       decimals: 0,
                       step: 1,
                       decoration: const InputDecoration(labelText: 'שעות'),
@@ -100,6 +104,7 @@ class _ZmanAlertDialogState extends State<ZmanAlertDialog> {
                       min: 0,
                       max: 59,
                       value: minutes.toDouble(),
+                      emptyValue: 0,
                       decimals: 0,
                       step: 1,
                       decoration: const InputDecoration(labelText: 'דקות'),
