@@ -227,6 +227,9 @@ class SemanticSearchRepository {
 
   /// בקשת משתמש שהצטרפה לעבודה שרצה מקבלת גם היא את הכשל.
   bool _reportJobFailures = false;
+
+  /// המשתמש ביקש במפורש להוריד או לעדכן; עוקף את תדירות העדכון.
+  bool _explicitUpdate = false;
   bool _moveInProgress = false;
   bool _removingData = false;
   bool _needsRepair = false;
@@ -316,6 +319,7 @@ class SemanticSearchRepository {
     }
     await _settings.setDataEnabled(true);
     await _settings.setDownloadPaused(false);
+    _explicitUpdate = true;
     await _runJob(userInitiated: true);
   }
 
@@ -735,7 +739,7 @@ class SemanticSearchRepository {
       }.contains(failure.kind)) {
         _repairModel = true;
       }
-      failureLog.record('open', failure, details: _failureDetails());
+      failureLog.record('open', failure, details: _failureDetails);
       if (epoch == _lifecycleEpoch) {
         _lastFailure = failure;
         await refresh();
@@ -1071,7 +1075,7 @@ class SemanticSearchRepository {
           // ביטול מפורש אינו כשל.
         } catch (error, stackTrace) {
           final failure = _failureOf(error);
-          failureLog.record('download', failure, details: _failureDetails());
+          failureLog.record('download', failure, details: _failureDetails);
           if (failure.kind == SemanticFailureKind.vectorsBusy) {
             _scheduleBusyRetry();
           } else if (failure.kind != SemanticFailureKind.cancelled) {
@@ -1103,6 +1107,7 @@ class SemanticSearchRepository {
       _jobModelBytes = 0;
       _jobFromStaged = false;
       _reportJobFailures = false;
+      _explicitUpdate = false;
     }
   }
 
@@ -1121,13 +1126,6 @@ class SemanticSearchRepository {
     if (!_isPlatformSupported()) return;
     if (!_isConsentGranted()) {
       return _skipOrThrow(SemanticFailureKind.consentRequired);
-    }
-    // בלי רכיב ההרצה הנתונים אינם שמישים; עדיף להיכשל לפני הורדה של כ-1.8GB.
-    if (_onnxRuntimePath() == null) {
-      throw const SemanticFailure(
-        SemanticFailureKind.onnxRuntimeMissing,
-        'the bundled ONNX Runtime library is missing',
-      );
     }
     final offline = _settings.isOfflineMode;
     _jobFromStaged = await _staged.hasData();
@@ -1155,14 +1153,29 @@ class SemanticSearchRepository {
       _needsRepair = true;
     }
     _vectors = installed;
-    if (!_reportJobFailures &&
+    // בלי רכיב ההרצה הנתונים אינם שמישים; עדיף להיכשל לפני הורדה של כ-1.8GB.
+    if (_onnxRuntimePath() == null) {
+      throw const SemanticFailure(
+        SemanticFailureKind.onnxRuntimeMissing,
+        'the bundled ONNX Runtime library is missing',
+      );
+    }
+    if (!_explicitUpdate &&
+        !_jobFromStaged &&
         installed.libraryVersion != version &&
-        await _isRoutineUpdate(paths, installed) &&
+        await _isRoutineUpdate(installed) &&
         !isSemanticRoutineUpdateDue(
           frequency: _settings.updateFrequency,
           lastUpdate: _settings.lastVectorsUpdate,
           now: DateTime.now(),
         )) {
+      // הווקטורים ממתינים לתדירות, אבל רכיב החיפוש שנבחר (למשל דיוק אחר) יורד.
+      final model = await _missingModelFiles(paths, quantization);
+      if (model.missing.isEmpty) return;
+      _jobModelBytes = model.missing.fold(0, (sum, t) => sum + t.file.size);
+      _jobTotalBytes = _jobModelBytes;
+      _jobSteps = const [SemanticDownloadItem.model];
+      await _ensureModel(paths, modelIdentity, quantization, model);
       return;
     }
 
@@ -1299,17 +1312,12 @@ class SemanticSearchRepository {
   }
 
   /// סט תקין של המודל והמשפחה הנוכחיים, שרק גרסת הספרייה שלו ישנה.
-  Future<bool> _isRoutineUpdate(
-    SemanticPaths paths,
-    SemanticVectorsSummary installed,
-  ) async =>
+  Future<bool> _isRoutineUpdate(SemanticVectorsSummary installed) async =>
       installed.present &&
       !_needsRepair &&
       !_repairModel &&
       await _installedFamily(installed) == _preferredFamily &&
-      await _hasCurrentModel(installed) &&
-      await File(paths.modelFile(quantization)).exists() &&
-      await File(paths.tokenizerFile).exists();
+      await _hasCurrentModel(installed);
 
   /// מתקין release אחד מ-[segment]; `false` כש-delta אינו ממשיך את הסט.
   /// [before] — הבתים שנספרו לפני ההורדה של [release].
