@@ -249,11 +249,12 @@ packages:
   collection:
     dependency: "direct main"
     description:
-      name: collection
-      sha256: "2f5709ae4d3d59dd8f7cd309b4e023046b57d8a6c82130785d2b0e5868084e76"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.19.1"
+      path: "pkgs/collection"
+      ref: "86ac482dc0e3ff5a00a40afae1999826cee5f522"
+      resolved-ref: "86ac482dc0e3ff5a00a40afae1999826cee5f522"
+      url: "https://github.com/Otzaria/core"
+    source: git
+    version: "1.20.0-wip"
   console:
     dependency: transitive
     description:
