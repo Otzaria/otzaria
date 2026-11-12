@@ -1,0 +1,899 @@
+name: Windowing conflict validation - Flutter Tests
+
+on:
+  push:
+    branches:
+      - 'palmoni5/validate-windowing-conflicts-20261112'
+
+# A new push to a PR supersedes its previous run, so the older one is cancelled.
+concurrency:
+  group: windowing-conflict-validation-flutter_tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # הג'ובים הנייטיביים אינם תלויים באפליקציה; בלי שינוי במקורות שלהם הם רק תופסים
+  # ראנרים (macOS במיוחד). כשל בזיהוי מריץ אותם.
+  changes:
+    name: Detect native changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      native_linux: ${{ steps.filter.outputs.native_linux }}
+      native_macos: ${{ steps.filter.outputs.native_macos }}
+    steps:
+      - id: filter
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -z "$PR" ] || ! files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --jq '.[].filename'); then
+            echo native_linux=true >> "$GITHUB_OUTPUT"
+            echo native_macos=true >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          shared='^(tool/(download_assistant|updater)/|tool/release/(download_assistant_selection|generate_release_manifest|semantic_release_components)\.dart$|installer/assistant_art\.pin\.json$|\.github/workflows/flutter_tests\.yml$)'
+          macos='^(lib/utils/file/native_sha256\.dart|test/utils/file/native_sha256_test\.dart|pubspec\.lock)$'
+          linux=false; mac=false
+          grep -qE "$shared" <<< "$files" && linux=true && mac=true
+          grep -qE "$macos" <<< "$files" && mac=true
+          echo "native_linux=$linux" | tee -a "$GITHUB_OUTPUT"
+          echo "native_macos=$mac" | tee -a "$GITHUB_OUTPUT"
+
+  native_linux:
+    name: Native updater and download assistant (Linux)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.native_linux == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: '8d98175e157909c2ccc84615c34f6c15d4216803'
+
+      - name: Verify pinned validation source
+        shell: bash
+        env:
+          EXPECTED_SOURCE_SHA: '8d98175e157909c2ccc84615c34f6c15d4216803'
+          VALIDATION_WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo '::error::Validation source must be a pinned 40-character commit SHA'
+            exit 1
+          fi
+          actual_sha="$(git rev-parse HEAD)"
+          test "$actual_sha" = "$EXPECTED_SOURCE_SHA"
+          git diff --exit-code
+          git diff --cached --exit-code
+          printf 'Validated source SHA: %s\nWorkflow SHA: %s\n' "$actual_sha" "$VALIDATION_WORKFLOW_SHA"
+      - name: Install native test dependencies
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev xvfb xauth
+      - name: Build and test Linux download assistant
+        run: make -C tool/download_assistant/linux all check-needed test test-ui
+      - name: Build atomic tree swap helper
+        run: cc -O2 -Wall -Wextra tool/updater/atomic_tree_swap.c -o /tmp/otzaria-atomic-swap
+
+  native_macos:
+    name: Native updater and download assistant (macOS)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.native_macos == 'true') }}
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: '8d98175e157909c2ccc84615c34f6c15d4216803'
+
+      - name: Verify pinned validation source
+        shell: bash
+        env:
+          EXPECTED_SOURCE_SHA: '8d98175e157909c2ccc84615c34f6c15d4216803'
+          VALIDATION_WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo '::error::Validation source must be a pinned 40-character commit SHA'
+            exit 1
+          fi
+          actual_sha="$(git rev-parse HEAD)"
+          test "$actual_sha" = "$EXPECTED_SOURCE_SHA"
+          git diff --exit-code
+          git diff --cached --exit-code
+          printf 'Validated source SHA: %s\nWorkflow SHA: %s\n' "$actual_sha" "$VALIDATION_WORKFLOW_SHA"
+      - name: Test macOS download assistant
+        run: swift test --package-path tool/download_assistant/macos
+      - name: Build universal atomic tree swap helper
+        run: |
+          cc -O2 -Wall -Wextra -arch x86_64 -arch arm64 -mmacosx-version-min=12.0 \
+            tool/updater/atomic_tree_swap.c -o /tmp/otzaria-atomic-swap
+          lipo /tmp/otzaria-atomic-swap -verify_arch x86_64 arm64
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+      - name: Test native SHA-256 (macOS)
+        run: flutter test test/utils/file/native_sha256_test.dart
+
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: '8d98175e157909c2ccc84615c34f6c15d4216803'
+
+      - name: Verify pinned validation source
+        shell: bash
+        env:
+          EXPECTED_SOURCE_SHA: '8d98175e157909c2ccc84615c34f6c15d4216803'
+          VALIDATION_WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo '::error::Validation source must be a pinned 40-character commit SHA'
+            exit 1
+          fi
+          actual_sha="$(git rev-parse HEAD)"
+          test "$actual_sha" = "$EXPECTED_SOURCE_SHA"
+          git diff --exit-code
+          git diff --cached --exit-code
+          printf 'Validated source SHA: %s\nWorkflow SHA: %s\n' "$actual_sha" "$VALIDATION_WORKFLOW_SHA"
+
+      # NativeAPI's build hooks need GTK, X11 and Xi headers on Linux hosts.
+      - name: Install nativeapi Linux build headers
+        run: sudo apt-get update -qq && sudo apt-get install -y libgtk-3-dev libx11-dev libxi-dev pkg-config
+
+      - name: Test physical Windows centering
+        run: |
+          c++ -std=c++17 -Wall -Wextra -Werror -I windows/runner \
+            test/windows/window_centering_test.cpp -o "$RUNNER_TEMP/window_centering_test"
+          "$RUNNER_TEMP/window_centering_test"
+
+      - name: Test native exception records
+        run: |
+          c++ -std=c++17 -Wall -Wextra -Werror -pthread -I windows/runner \
+            test/windows/native_exception_records_test.cpp -o "$RUNNER_TEMP/native_exception_records_test"
+          "$RUNNER_TEMP/native_exception_records_test"
+
+      # שימוש ב-channel stable + flutter-version קבוע, אחיד עם build-and-announce.yml.
+      # הגרסה ננעלת מפני שדרוגים אוטומטיים של pub/CI אחרי שחרור גרסת flutter יציבה חדשה.
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      # חילול אינדקס חיפוש בהגדרות. ה-.g.dart נדחף לרפו, אבל הסקריפט הזה
+      # יוודא שהוא עדכני בכל הרצה (אם searchEntries השתנו במהלך ה-PR).
+      # ה-dart run הראשון מפעיל build hooks שמורידים נכסים נייטיביים, ולכן
+      # retry חל רק על כשל hooks כדי ששגיאת סקריפט תיכשל מיד.
+      - name: Generate settings search index
+        run: |
+          set +e
+
+          for attempt in 1 2 3; do
+            output=$(dart run tool/generate_search_index.dart 2>&1)
+            status=$?
+            printf '%s\n' "$output"
+
+            if [ "$status" -eq 0 ]; then
+              exit 0
+            fi
+
+            case "$output" in
+              *'Running build hooks failed'*) ;;
+              *) exit "$status" ;;
+            esac
+
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning::בניית נכסים נייטיביים נכשלה (ניסיון $attempt מתוך 3) - ניסיון נוסף בעוד 15 שניות"
+              sleep 15
+            fi
+          done
+
+          echo "::error::בניית הנכסים הנייטיביים נכשלה בשלושה ניסיונות"
+          exit 1
+
+      - name: Generate settings translation catalog
+        run: dart run tool/generate_settings_l10n.dart
+
+      # מפרט ה-SDK לתוספים. --check נכשל אם spec.json שבדיסק מיושן, כדי
+      # שהוולידטורים החיצוניים לא יצרכו מפרט שאינו תואם את קוד האפליקציה.
+      - name: Check plugin SDK spec is fresh
+        run: dart run tool/plugins/generate_plugin_spec.dart --check
+
+      # דוח ui_lint מול tool/ui_lint/baseline.json (docs/design-system/CI_ENFORCEMENT.md).
+      # ה-step הזה רק מדווח: חריגות חדשות מסומנות ב-annotations ולא מכשילות את ה-job.
+      # השער החוסם הוא test/design_system/ui_lint_test.dart, שרץ ב-shards של job ה-test.
+      - name: UI lint report
+        continue-on-error: true
+        run: dart tool/ui_lint_cli.dart --format=github
+
+      # בדיקות ה־CI: analyze + test (פורמט נבדק locally ב־lint).
+      - name: Analyze
+        run: flutter analyze
+
+      # חוזה הדיווחים משותף עם "עדכוני אוצריא"; ה-goldens שלו נועלים את גופי הבקשות.
+      - name: Report contract package
+        working-directory: packages/otzaria_report_contract
+        run: |
+          dart pub get
+          dart analyze --fatal-infos
+          dart test
+
+      - name: Context menu package
+        working-directory: packages/otzaria_context_menu
+        run: |
+          flutter pub get
+          dart format --output=none --set-exit-if-changed lib test
+          flutter analyze --fatal-infos
+          flutter test
+
+  test:
+    name: Test (shard ${{ matrix.shard }}/5)
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4]
+
+    # בדיקות ה-zstd של line_content נכשלות כאן במקום לדלג כשחסרים libzstd או המילון.
+    env:
+      OTZARIA_REQUIRE_CODEC_TESTS: '1'
+      # מנוע שלא נטען מפיל כל קובץ בטעינה, במקום שטסטי המנוע ידלגו על עצמם.
+      OTZARIA_REQUIRE_SEARCH_ENGINE: '1'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: '8d98175e157909c2ccc84615c34f6c15d4216803'
+
+      - name: Verify pinned validation source
+        shell: bash
+        env:
+          EXPECTED_SOURCE_SHA: '8d98175e157909c2ccc84615c34f6c15d4216803'
+          VALIDATION_WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo '::error::Validation source must be a pinned 40-character commit SHA'
+            exit 1
+          fi
+          actual_sha="$(git rev-parse HEAD)"
+          test "$actual_sha" = "$EXPECTED_SOURCE_SHA"
+          git diff --exit-code
+          git diff --cached --exit-code
+          printf 'Validated source SHA: %s\nWorkflow SHA: %s\n' "$actual_sha" "$VALIDATION_WORKFLOW_SHA"
+
+      - name: Install nativeapi Linux build headers
+        run: sudo apt-get update -qq && sudo apt-get install -y libgtk-3-dev libx11-dev libxi-dev pkg-config
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      # flutter test runs the build hooks of the engine and the shaper. A crate
+      # hash with no published binary (a Git-pinned engine) compiles from
+      # source, so its output is cached by the resolved packages.
+      - name: Cache native build hook output
+        uses: actions/cache@v6.1.0
+        with:
+          path: .dart_tool/hooks_runner/shared
+          key: ${{ runner.os }}-native-hooks-v1-${{ hashFiles('pubspec.yaml', 'pubspec.lock') }}
+
+      # הטסטים תלויים בקבצים המחוללים, לכן החילול רץ גם בכל shard (~20 שניות).
+      - name: Generate settings search index
+        run: |
+          set +e
+
+          for attempt in 1 2 3; do
+            output=$(dart run tool/generate_search_index.dart 2>&1)
+            status=$?
+            printf '%s\n' "$output"
+
+            if [ "$status" -eq 0 ]; then
+              exit 0
+            fi
+
+            case "$output" in
+              *'Running build hooks failed'*) ;;
+              *) exit "$status" ;;
+            esac
+
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning::בניית נכסים נייטיביים נכשלה (ניסיון $attempt מתוך 3) - ניסיון נוסף בעוד 15 שניות"
+              sleep 15
+            fi
+          done
+
+          echo "::error::בניית הנכסים הנייטיביים נכשלה בשלושה ניסיונות"
+          exit 1
+
+      - name: Generate settings translation catalog
+        run: dart run tool/generate_settings_l10n.dart
+
+      # המילון האמיתי (2MB) לא נכנס לרפו: הוא מגיע מ-SeforimLibrary בקומיט נעוץ ונבדק
+      # לפי SHA-256, ועותק וקטור ה-golden שב-test/fixtures חייב להיות זהה למקור שם.
+      - name: Fetch the SeforimLibrary line dictionary (pinned)
+        env:
+          SL_COMMIT: cdc5a50fc5c831284e190ad15791b72af8198a57
+          DICT_SHA256: 7b08b7c3534c9f9cd0e8f18414b4326aeeb64cfd574cc0f12d83b6f92bd6a396
+        run: |
+          set -euo pipefail
+          base="https://raw.githubusercontent.com/Otzaria/SeforimLibrary/$SL_COMMIT/generator/common/src"
+          mkdir -p build/test_fixtures
+          curl -fsSL --retry 3 --retry-delay 5 -o build/test_fixtures/line_content.zdict \
+            "$base/jvmMain/resources/zstd/line_content.zdict"
+          printf '%s  %s\n' "$DICT_SHA256" build/test_fixtures/line_content.zdict | sha256sum -c -
+          curl -fsSL --retry 3 --retry-delay 5 "$base/jvmTest/resources/zstd/line_content_golden_frames.json" \
+            | cmp - test/fixtures/line_content_codec/sl_golden_frames.json
+          ldconfig -p | grep -F 'libzstd.so.1'
+
+      # הרצת הטסטים עם retry: אם הריצה הראשונה נכשלה, נחלץ את קבצי הטסט
+      # שנכשלו ונריץ אותם שוב. רק אם הם נכשלים גם בריצה השנייה - הסטפ נכשל.
+      - name: Run tests (with retry on failure)
+        run: |
+          set +e
+
+          # פיצול מפורש של רשימת הקבצים לפי זמני ריצה שנמדדו, במקום
+          # --total-shards: הדגל מקמפל את כל הקבצים בכל shard והקומפילציה
+          # היא רוב הזמן, כך שהפיצול לא חסך כלום.
+          all_count=$(find test -name "*_test.dart" | wc -l)
+          mapfile -t shard_files < <(dart tool/ci/test_shards.dart ${{ strategy.job-index }} ${{ strategy.job-total }})
+
+          echo "════════════════════════════════════════"
+          echo "ריצה ראשונה של הטסטים (shard ${{ matrix.shard }}/5, ${#shard_files[@]} מתוך $all_count קבצים)"
+          echo "════════════════════════════════════════"
+
+          # ברירת המחדל (ליבות÷2) משאירה כמחצית מה-CPU של הראנר פנוי.
+          flutter test -j 4 --file-reporter json:test-results.json "${shard_files[@]}"
+          first_exit=$?
+
+          if [ $first_exit -eq 0 ]; then
+            echo "כל הטסטים עברו בהצלחה בריצה הראשונה"
+            exit 0
+          fi
+
+          if [ ! -s test-results.json ]; then
+            echo "::error::ריצת הטסטים נכשלה ולא הופק קובץ תוצאות (ייתכן שיש שגיאת קומפילציה)"
+            exit $first_exit
+          fi
+
+          # חילוץ קבצי הטסט שכללו לפחות טסט שנכשל.
+          # ממפים דרך suiteID→suite.path כי .test.url מצביע על widget_tester.dart
+          # כשטסט testWidgets נכשל בתוך קוד async של ה-framework.
+          failed_files=$(jq -rs '
+            (map(select(.type == "suite"))
+              | map({(.suite.id | tostring): .suite.path})
+              | add) as $suites
+            | (map(select(.type == "testStart"))
+              | map({(.test.id | tostring): .test})
+              | add) as $tests
+            | map(select(
+                .type == "testDone"
+                and (.result == "failure" or .result == "error")
+                and (.hidden | not)
+              ))
+            | map($suites[($tests[.testID | tostring].suiteID) | tostring] // empty)
+            | map(select(. != ""))
+            | unique
+            | .[]
+          ' test-results.json)
+
+          if [ -z "$failed_files" ]; then
+            echo "::error::הריצה הראשונה נכשלה אבל לא ניתן לחלץ רשימת קבצים שנכשלו"
+            exit $first_exit
+          fi
+
+          echo ""
+          echo "════════════════════════════════════════"
+          echo "ריצה ראשונה נכשלה. מריץ שוב את קבצי הטסט הבאים:"
+          echo "$failed_files" | sed 's/^/  /'
+          echo "════════════════════════════════════════"
+          echo ""
+
+          files_array=()
+          while IFS= read -r line; do
+            [ -n "$line" ] && files_array+=("$line")
+          done <<< "$failed_files"
+
+          # ה-retry רץ על רשימת קבצים מפורשת - בלי דגלי shard,
+          # כדי שהפיצול לא ישמיט חלק מהקבצים שנכשלו.
+          flutter test --file-reporter json:retry-results.json "${files_array[@]}"
+          second_exit=$?
+
+          if [ $second_exit -eq 0 ]; then
+            echo ""
+            echo "════════════════════════════════════════"
+            echo "כל הטסטים עברו בהצלחה בריצה השנייה (retry)"
+            echo "════════════════════════════════════════"
+            {
+              echo "## טסטים שעברו רק אחרי retry (shard ${{ matrix.shard }})"
+              echo ""
+              echo "$failed_files" | sed 's/^/- /'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # ריצה שנייה נכשלה גם - מדפיסים בדיוק מה נכשל
+          final_failed=$(jq -rs '
+            (map(select(.type == "suite"))
+              | map({(.suite.id | tostring): .suite.path})
+              | add) as $suites
+            | (map(select(.type == "testStart"))
+              | map({(.test.id | tostring): .test})
+              | add) as $tests
+            | map(select(
+                .type == "testDone"
+                and (.result == "failure" or .result == "error")
+                and (.hidden | not)
+              ))
+            | map($tests[.testID | tostring])
+            | map("- " + ($suites[.suiteID | tostring] // "unknown") + " :: " + .name)
+            | .[]
+          ' retry-results.json)
+
+          echo ""
+          echo "════════════════════════════════════════"
+          echo "טסטים שנכשלו גם אחרי retry:"
+          echo "════════════════════════════════════════"
+          echo "$final_failed"
+          echo "════════════════════════════════════════"
+
+          {
+            echo "## טסטים שנכשלו גם אחרי retry (shard ${{ matrix.shard }})"
+            echo ""
+            echo "$final_failed"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          exit $second_exit
+
+      # הוכחה בלוג שבדיקות ה-codec רצו ב-shard הזה, וכשל אם אחת מהן דולגה.
+      - name: Report zstd codec tests
+        run: |
+          set -euo pipefail
+          read -r ran skipped < <(jq -rs '
+            (map(select(.type == "suite"))
+              | map({(.suite.id | tostring): .suite.path})
+              | add) as $suites
+            | (map(select(.type == "testStart"))
+              | map({(.test.id | tostring): .test})
+              | add // {}) as $tests
+            | map(select(.type == "testDone" and (.hidden | not)))
+            | map(select(($suites[($tests[.testID | tostring].suiteID) | tostring] // "")
+                | test("line_content_(codec|split)|db_read_worker_compressed|line_codec_isolate_placement")))
+            | "\(map(select(.skipped | not)) | length) \(map(select(.skipped)) | length)"
+          ' test-results.json)
+          echo "zstd codec tests (shard ${{ matrix.shard }}): $ran ran, $skipped skipped"
+          if [ "$skipped" -ne 0 ]; then
+            echo "::error::$skipped zstd codec tests were skipped"
+            exit 1
+          fi
+
+      # קלט ל-tool/ci/test_shards.dart --record, לעדכון זמני הפיצול.
+      - name: Upload test timings
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: test-results-${{ matrix.shard }}
+          path: test-results.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # שער הבנייה היחיד ל-Windows על PR. עד עכשיו לא היה כזה: `analyze` ו-`test`
+  # רצים שניהם על ubuntu, ו-`webview2_smoke` מסונן ב-`paths`. המשמעות הייתה
+  # ששבירה בקוד הנייטיבי (windows/runner, רישום תוספים, build hooks) התגלתה רק
+  # אצל המפתח הבא שניסה לבנות מקומית.
+  build_windows:
+    name: Build (Windows)
+    runs-on: windows-2025
+    env:
+      # כמו בבניית ההפצה: בלי אלה MSBuild מקמפל קובץ C++ אחד בכל פעם.
+      UseMultiToolTask: 'true'
+      EnforceProcessCountAcrossBuilds: 'true'
+      CMAKE_BUILD_PARALLEL_LEVEL: '4'
+    # מדידה מקומית: בנייה קרה 6 דקות. ראנר CI איטי יותר ומוסיף checkout,
+    # setup ו-pub get, ועוד בדיקת ריבוי התצוגות. 40 נותן מרווח בלי לתת ל-job תקוע לשרוף שעה שלמה.
+    # לכווץ אחרי הריצה הראשונה לפי הזמן שנמדד בפועל.
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: '8d98175e157909c2ccc84615c34f6c15d4216803'
+
+      - name: Verify pinned validation source
+        shell: bash
+        env:
+          EXPECTED_SOURCE_SHA: '8d98175e157909c2ccc84615c34f6c15d4216803'
+          VALIDATION_WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo '::error::Validation source must be a pinned 40-character commit SHA'
+            exit 1
+          fi
+          actual_sha="$(git rev-parse HEAD)"
+          test "$actual_sha" = "$EXPECTED_SOURCE_SHA"
+          git diff --exit-code
+          git diff --cached --exit-code
+          printf 'Validated source SHA: %s\nWorkflow SHA: %s\n' "$actual_sha" "$VALIDATION_WORKFLOW_SHA"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          # ⚠️ חייב להתאים לשאר ה-jobs. `pubspec.lock` דורש Flutter >=3.47.0,
+          # ולכן עם 3.44.0 ה-job הזה נכשל ב-`pub get` ומעולם לא רץ ירוק.
+          flutter-version: 3.47.7
+          # ה-cache של Windows נשמר על ענף הבסיס ב-warm_flutter_cache.yml.
+          cache: true
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          # תלות git על מונורפו נכשלת ב-checkout ("Filename too long") ומשאירה
+          # עץ חלקי, ואז הבנייה נופלת על קובץ חסר במקום על ה-clone.
+          git config --global core.longpaths true
+          flutter pub get --enforce-lockfile
+
+      # The Git-pinned engine may not have precompiled release assets yet.
+      - name: Install Rust for native source fallback
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Test splash timeline
+        shell: pwsh
+        run: native/splash/test/run_splash_timeline_test.ps1
+
+      - name: Test native keyboard scan codes
+        shell: pwsh
+        timeout-minutes: 3
+        run: test/windows/run_shift_key_normalizer_test.ps1
+
+      - name: Test the native Windows clipboard bitmap reader
+        shell: pwsh
+        timeout-minutes: 10
+        working-directory: packages/super_native_extensions/rust
+        run: |
+          rustfmt --edition 2021 --check src/win32/reader.rs src/win32/image_conversion.rs src/win32/bitmap_reader_tests.rs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked bitmap_reader_tests -- --test-threads=1 --nocapture
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # זה הצעד שבגללו ה-job קיים: MSBuild, רישום התוספים הנייטיביים
+      # וה-build hooks. debug ולא release — הוא מפעיל את אותה שרשרת נייטיבית
+      # בשבריר מהזמן, ובניית ה-release כבר מכוסה ב-build-and-announce.
+      # build hooks מורידים מ-GitHub releases (ל-sqlite3 אין retry משלו), ו-flutter build
+      # לא מדפיס איזה hook נכשל. לכן מדפיסים את פלט ה-hooks ומנסים שוב רק על כשל hooks.
+      - name: Build Windows (debug)
+        shell: pwsh
+        run: |
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            flutter build windows --debug 2>&1 | Tee-Object -Variable output
+            $status = $LASTEXITCODE
+            if ($status -eq 0) { exit 0 }
+            if (($output | Out-String) -notmatch 'Building native assets failed') { exit $status }
+            Get-ChildItem .dart_tool/hooks_runner -Recurse -Filter stderr.txt -ErrorAction SilentlyContinue |
+              Where-Object Length -gt 0 |
+              ForEach-Object { "== $($_.FullName)"; Get-Content $_.FullName -Tail 40 }
+            if ($attempt -lt 3) {
+              Write-Output "::warning::Native asset build hooks failed (attempt $attempt of 3); retrying in 15 seconds"
+              Start-Sleep -Seconds 15
+            }
+          }
+          Write-Output "::error::Native asset build hooks failed in 3 attempts"
+          exit 1
+
+      # המנוע בבניית האפליקציה בלי SQLite משלו; כשל ברישום אינו נראה בשום טסט
+      # יחידה. רץ על הבנייה הנייטיבית שלמעלה, ולכן מוסיף רק קומפילציה וריצה.
+      - name: Engine SQLite integration test (Windows)
+        run: flutter test integration_test/external_line_text_test.dart -d windows --timeout 5m
+
+      - name: Native report clipboard and keyboard (Windows)
+        shell: pwsh
+        env:
+          CI: 'true'
+          FLUTTER_SUPPRESS_ANALYTICS: 'true'
+          REPORT_QA_COMMIT: '8d98175e157909c2ccc84615c34f6c15d4216803'
+          REPORT_QA_REVIEWED_HEAD: '8d98175e157909c2ccc84615c34f6c15d4216803'
+          REPORT_QA_NATIVE_OUTPUT: ${{ github.workspace }}/build/reporting_qa/native-clipboard.json
+        run: |
+          New-Item -ItemType Directory -Force build/reporting_qa | Out-Null
+          flutter test integration_test/report_clipboard_windows_test.dart -d windows --timeout 2m 2>&1 |
+            Tee-Object -FilePath build/reporting_qa/native-clipboard.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload native clipboard evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: windows-native-report-clipboard
+          path: |
+            build/reporting_qa/native-clipboard.*
+            build/reporting_qa/native-keyboard.log
+          if-no-files-found: warn
+
+      # ריבוי תצוגות באפליקציה המלאה. `flutter drive` ולא integration_test: ה-binding
+      # של הבדיקות מחזיר engineId=1, ובלי בעלים אמיתי לא נפתחים חלונות Dart.
+      # portable.marker: נתונים ומופע יחיד בתוך תיקיית הבנייה. DSN ריק משבית את Sentry.
+      - name: Multiview smoke (Windows)
+        shell: pwsh
+        run: |
+          New-Item -ItemType File -Force build/windows/x64/runner/Debug/portable.marker | Out-Null
+          flutter drive -d windows -t test_driver/multiview_smoke.dart --dart-define=SENTRY_DSN=
+
+      # שומר לוגים בכישלון: כשהבנייה נופלת, הלוג של MSBuild הוא הדבר היחיד
+      # שמסביר למה — ההודעה ב-stdout מפנה לכיוון הלא נכון בדרך כלל.
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: windows-build-logs
+          path: |
+            build/windows/x64/**/*.log
+            build/windows/x64/**/*.tlog
+            build/windows/x64/runner/Debug/otzaria_data/logs/**
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # רץ במקביל לבנייה: את ספריית המנוע מוריד ה-build hook של flutter test,
+  # חתומה מאותו מקור שממנו הבנייה מורידה אותה.
+  test_windows:
+    name: Test (Windows)
+    runs-on: windows-2025
+    env:
+      OTZARIA_REQUIRE_SEARCH_ENGINE: '1'
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: '8d98175e157909c2ccc84615c34f6c15d4216803'
+
+      - name: Verify pinned validation source
+        shell: bash
+        env:
+          EXPECTED_SOURCE_SHA: '8d98175e157909c2ccc84615c34f6c15d4216803'
+          VALIDATION_WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo '::error::Validation source must be a pinned 40-character commit SHA'
+            exit 1
+          fi
+          actual_sha="$(git rev-parse HEAD)"
+          test "$actual_sha" = "$EXPECTED_SOURCE_SHA"
+          git diff --exit-code
+          git diff --cached --exit-code
+          printf 'Validated source SHA: %s\nWorkflow SHA: %s\n' "$actual_sha" "$VALIDATION_WORKFLOW_SHA"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          git config --global core.longpaths true
+          flutter pub get --enforce-lockfile
+
+      # ההיקף מכוון וצר: הסוללה המלאה רצה על Linux ב-5 shards. כאן רצות
+      # רק הקבוצות שאומתו כירוקות ב-Windows (1,073 בדיקות, ועוד 146 של
+      # personal_notes), והקבוצות הידועות כתלויות-סביבה או flaky (migration,
+      # installer, tools/calendar) נשארות ל-Linux בלבד. הרחבת ההיקף מחייבת אימות
+      # מקומי ב-Windows קודם — אחרת ה-job נהיה רועש ומתחילים להתעלם ממנו.
+      - name: Run Windows-relevant tests
+        run: flutter test -j 4 test/core/ test/tabs/ test/navigation/ test/workspaces/ test/personal_notes/ test/utils/file/native_sha256_test.dart test/utils/file/zip_extractor_service_test.dart test/external_catalog/external_catalog_repository_test.dart
+
+      - name: Test plugin ZIP extraction paths (Windows)
+        run: flutter test test/plugins/services/plugin_archive_extractor_test.dart
+
+  # Golden tests (docs/design-system/CI_ENFORCEMENT.md §5, DD-22): Windows היא
+  # פלטפורמת הייחוס, ולכן test/goldens/ מוחרג מה-shards של Linux
+  # (tool/ci/test_shards.dart). כשל מעלה את תמונות ההשוואה כ-artifact.
+  goldens_windows:
+    name: Goldens (Windows)
+    runs-on: windows-2025
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: '8d98175e157909c2ccc84615c34f6c15d4216803'
+
+      - name: Verify pinned validation source
+        shell: bash
+        env:
+          EXPECTED_SOURCE_SHA: '8d98175e157909c2ccc84615c34f6c15d4216803'
+          VALIDATION_WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo '::error::Validation source must be a pinned 40-character commit SHA'
+            exit 1
+          fi
+          actual_sha="$(git rev-parse HEAD)"
+          test "$actual_sha" = "$EXPECTED_SOURCE_SHA"
+          git diff --exit-code
+          git diff --cached --exit-code
+          printf 'Validated source SHA: %s\nWorkflow SHA: %s\n' "$actual_sha" "$VALIDATION_WORKFLOW_SHA"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          git config --global core.longpaths true
+          flutter pub get --enforce-lockfile
+
+      - name: Run golden tests
+        run: flutter test test/goldens/
+
+      - name: Upload golden failures
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: golden-failures
+          path: test/goldens/**/failures/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  build_linux:
+    name: Build (Linux)
+    runs-on: ubuntu-26.04
+    # ה-SDK של WPE נבנה ומופץ עבור Debian Bookworm. זהה את סביבת הבנייה
+    # לבדיקת ההפצה: על Ubuntu 24.04 ה-try_compile של WPEPlatform נכשל אף
+    # שה-PC modules נמצאים, ולכן אינו מייצג build נתמך של המוצר.
+    container:
+      image: debian:bookworm-slim
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      RUSTUP_HOME: ${{ github.workspace }}/.rustup
+      CARGO_HOME: ${{ github.workspace }}/.cargo
+      WPE_SDK: /opt/wpe-sdk
+      PKG_CONFIG_PATH: /opt/wpe-sdk/lib/pkgconfig
+      LD_LIBRARY_PATH: /opt/wpe-sdk/lib
+      LIBRARY_PATH: /opt/wpe-sdk/lib
+      # התוסף jni מפעיל FindJNI בזמן CMake; בקונטיינר אין JAVA_HOME ברירת מחדל.
+      JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+      # Flutter בוחר clang++ עבור Linux. Clang 14 של Bookworm אינו מכיר
+      # דגל אזהרה אופציונלי של nlohmann/json, לכן רק diagnostic זה אינו -Werror.
+      CC: clang
+      CXX: clang++
+      CFLAGS: -Wno-error=unknown-warning-option
+      CXXFLAGS: -Wno-error=unknown-warning-option
+
+    steps:
+      # הפעולה חייבת לרוץ לפני checkout: הקונטיינר המינימלי לא כולל git,
+      # curl, unzip או zstd, הנדרשים ל-actions ול-SDK.
+      - name: Prepare Linux build container
+        run: |
+          set -euo pipefail
+          apt-get update -y
+          apt-get install -y ca-certificates curl git jq unzip xz-utils zstd
+          # ה-Flutter SDK מוזרק מה-runner בבעלות משתמש אחר. זהו קונטיינר
+          # חד-פעמי של CI, וכל עץ git בו מגיע מה-workflow עצמו.
+          git config --global --add safe.directory '*'
+
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: '8d98175e157909c2ccc84615c34f6c15d4216803'
+
+      - name: Verify pinned validation source
+        shell: bash
+        env:
+          EXPECTED_SOURCE_SHA: '8d98175e157909c2ccc84615c34f6c15d4216803'
+          VALIDATION_WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo '::error::Validation source must be a pinned 40-character commit SHA'
+            exit 1
+          fi
+          actual_sha="$(git rev-parse HEAD)"
+          test "$actual_sha" = "$EXPECTED_SOURCE_SHA"
+          git diff --exit-code
+          git diff --cached --exit-code
+          printf 'Validated source SHA: %s\nWorkflow SHA: %s\n' "$actual_sha" "$VALIDATION_WORKFLOW_SHA"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          # ה-cache של הקונטיינר נשמר על ענף הבסיס ב-warm_flutter_cache.yml.
+          cache: true
+
+      - name: Install Linux build dependencies
+        run: |
+          set -euo pipefail
+          apt-get update -y
+          apt-get install -y build-essential clang-14 cmake \
+            libblkid1 libcurl4-openssl-dev libglib2.0-dev libgtk-3-dev \
+            liblzma5 liblzma-dev libsecret-1-dev libsoup-3.0-dev \
+            libwebkit2gtk-4.1-dev libxkbcommon-dev libx11-dev libxi-dev ninja-build \
+            openjdk-17-jdk-headless pkg-config xvfb xauth
+          update-alternatives --install /usr/bin/clang clang /usr/bin/clang-14 100
+          update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-14 100
+
+      # Bookworm-slim has no rustup. Unpublished crate hashes fall back to
+      # building the Git-pinned engine from source in its build hook.
+      - name: Install Rust for native source fallback
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify native Rust toolchain
+        run: |
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+          rustc -Vv
+          cargo -V
+          rustup show
+
+      - name: Download prebuilt WPE runtime SDK
+        env:
+          WPE_RUNTIME_SHA256: ca7e706c0ec2f66623fede2c369e3e13339448843e125f2ccd1553f4a3c4bcaf
+          WPE_RUNTIME_VERSION: 2.48.7
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          asset="wpe-runtime-${WPE_RUNTIME_VERSION}-linux-x86_64.tar.zst"
+          bash tool/ci/download_verified_wpe_sdk.sh \
+            x86_64 "$WPE_RUNTIME_VERSION" "$WPE_RUNTIME_SHA256" "/tmp/$asset"
+          mkdir -p /opt
+          tar -C /opt -I zstd -xf "/tmp/$asset"
+          test -f "$WPE_SDK/lib/pkgconfig/wpe-webkit-2.0.pc"
+          pkg-config --print-errors --exists \
+            wpe-webkit-2.0 wpe-platform-2.0 wpe-platform-headless-2.0 wpe-1.0
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Test fractional scaling policy
+        run: linux/runner/test/run_fractional_scaling_test.sh
+
+      - name: Test splash timeline
+        run: native/splash/test/run_splash_timeline_test.sh
+
+      - name: Build Linux (debug)
+        run: flutter build linux --debug
+
+      # ראו את הצעד המקביל ב-build_windows. ה-runner של GTK צריך תצוגה.
+      - name: Engine SQLite integration test (Linux)
+        run: >-
+          xvfb-run -a flutter test integration_test/external_line_text_test.dart
+          -d linux --timeout 5m

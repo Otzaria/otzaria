@@ -1,0 +1,90 @@
+name: Windowing conflict validation - macOS Runner
+
+# ה-runner של macOS נשען על משתנה פרטי של המנוע (ריבוי חלונות), ולכן כל שינוי בו
+# או בקוד החלונות נבנה ונבדק ב-XCTest על Mac אמיתי.
+on:
+  push:
+    branches:
+      - 'palmoni5/validate-windowing-conflicts-20261112'
+
+concurrency:
+  group: windowing-conflict-validation-macos_runner-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos_runner:
+    name: macOS runner build and XCTest
+    runs-on: macos-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: '8d98175e157909c2ccc84615c34f6c15d4216803'
+
+      - name: Verify pinned validation source
+        shell: bash
+        env:
+          EXPECTED_SOURCE_SHA: '8d98175e157909c2ccc84615c34f6c15d4216803'
+          VALIDATION_WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo '::error::Validation source must be a pinned 40-character commit SHA'
+            exit 1
+          fi
+          actual_sha="$(git rev-parse HEAD)"
+          test "$actual_sha" = "$EXPECTED_SOURCE_SHA"
+          git diff --exit-code
+          git diff --cached --exit-code
+          printf 'Validated source SHA: %s\nWorkflow SHA: %s\n' "$actual_sha" "$VALIDATION_WORKFLOW_SHA"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          # ב-macOS ה-cache (~2.5GB) כמעט לא נמצא בין ריצות, ושמירתו איטית מהתקנה.
+          cache: false
+
+      # רק אם למנוע החיפוש אין בינארי מפורסם ל-hash שלו.
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Build macOS app (debug, with retry)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # xcodebuild נכשל לפעמים ב-"never received target ended message"; ניסיון חוזר פותר.
+          for attempt in 1 2 3; do
+            if flutter build macos --debug; then
+              exit 0
+            fi
+            echo "flutter build macos failed (attempt $attempt)"
+            sleep 15
+          done
+          exit 1
+
+      - name: Run RunnerTests (XCTest)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -workspace macos/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Debug \
+            -destination "platform=macOS,arch=$(uname -m)" \
+            -derivedDataPath build/macos \
+            -resultBundlePath build/macos_runner_tests.xcresult
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: macos-runner-tests-xcresult
+          path: build/macos_runner_tests.xcresult
+          retention-days: 7
