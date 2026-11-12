@@ -46,6 +46,9 @@ class PageShapeSettingsPanel extends StatefulWidget {
   final String? currentBottomRight;
   final String? currentWorkspaceId;
 
+  /// מפרשי-על שאפשר להציג בטור יחיד: מפרש-על ← המפרש שעליו הוא מפרש.
+  final Map<String, String> superCommentatorParents;
+
   /// נקרא אחרי כל שמירת שינוי, כדי שהמסך יתעדכן מיידית (עדכון חי).
   final VoidCallback? onSettingsChanged;
 
@@ -63,6 +66,7 @@ class PageShapeSettingsPanel extends StatefulWidget {
     this.currentBottom,
     this.currentBottomRight,
     this.currentWorkspaceId,
+    this.superCommentatorParents = const {},
     this.onSettingsChanged,
     this.onReset,
   });
@@ -287,7 +291,11 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
     void Function(String?) setter, {
     String? visibilityKey,
   }) {
-    if (value != null && !widget.availableCommentators.contains(value)) return;
+    if (value != null &&
+        !widget.availableCommentators.contains(value) &&
+        !widget.superCommentatorParents.containsKey(value)) {
+      return;
+    }
     setState(() {
       setter(value);
       // אם בחרו מפרש והטור מוסתר - הצג אותו אוטומטית
@@ -686,6 +694,7 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
         const SizedBox(height: 12),
         _buildCommentatorDropdown(
           label: 'מפרש ימני',
+          includeSuperCommentators: true,
           value: _leftCommentator,
           onChanged: (value) => _onCommentatorChanged(
             value,
@@ -713,6 +722,7 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
         const SizedBox(height: 12),
         _buildCommentatorDropdown(
           label: 'מפרש תחתון',
+          includeSuperCommentators: true,
           value: _bottomCommentator,
           onChanged: (value) => _onCommentatorChanged(
             value,
@@ -724,6 +734,7 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
         const SizedBox(height: 12),
         _buildCommentatorDropdown(
           label: 'מפרש תחתון נוסף',
+          includeSuperCommentators: true,
           value: _bottomRightCommentator,
           onChanged: (value) => _onCommentatorChanged(
             value,
@@ -770,12 +781,15 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
     required String? value,
     required ValueChanged<String?> onChanged,
     String? visibilityKey,
+    bool includeSuperCommentators = false,
   }) {
     final isVisible = visibilityKey != null
         ? (_columnVisibility[visibilityKey] ?? true)
         : true;
 
-    final menuData = _buildCommentatorMenuData();
+    final menuData = _buildCommentatorMenuData(
+      includeSuperCommentators: includeSuperCommentators,
+    );
 
     return Row(
       children: [
@@ -832,7 +846,7 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
     List<String> filterLabels,
     List<bool Function(AppMenuEntry<String>)?> filterPredicates,
   })
-  _buildCommentatorMenuData() {
+  _buildCommentatorMenuData({bool includeSuperCommentators = false}) {
     if (_isLoadingGroups) {
       return (
         entries: const [],
@@ -859,12 +873,36 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
       }
     }
 
+    // מפרשי-על אינם מפרשי הספר: קבוצה לכל מפרש שעליו הם מפרשים, אחרי הדורות.
+    final superGroups = <String>[];
+    if (includeSuperCommentators) {
+      for (final MapEntry(key: title, value: parent)
+          in widget.superCommentatorParents.entries) {
+        if (eraOf.containsKey(title)) continue;
+        final group = context.settingsText(
+          'על {parent}',
+          args: {'parent': parent},
+        );
+        if (!superGroups.contains(group)) superGroups.add(group);
+        eraOf[title] = group;
+        entries.add(
+          AppMenuEntry(
+            value: title,
+            label: context.settingsText(
+              '{title} ({group})',
+              args: {'title': title, 'group': group},
+            ),
+          ),
+        );
+      }
+    }
+
     // "ללא מפרש" אינו משויך לדור — יופיע רק תחת "הכל".
-    final filterLabels = <String>['הכל', ...nonEmptyGroups.map((g) => g.title)];
+    final groupTitles = [...nonEmptyGroups.map((g) => g.title), ...superGroups];
+    final filterLabels = <String>['הכל', ...groupTitles];
     final filterPredicates = <bool Function(AppMenuEntry<String>)?>[
       null,
-      for (final group in nonEmptyGroups)
-        (entry) => eraOf[entry.value] == group.title,
+      for (final group in groupTitles) (entry) => eraOf[entry.value] == group,
     ];
 
     return (

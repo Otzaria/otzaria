@@ -26,6 +26,7 @@ import 'package:otzaria/text_book/view/page_shape/utils/commentary_sync_helper.d
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_workspace_scope.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_pane_sizes.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_notes_column.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/super_commentary_links.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_settings_panel.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
@@ -70,6 +71,8 @@ import 'package:otzaria/text_book/repository/book_notes_repository.dart';
 import 'package:otzaria/personal_notes/widgets/commentary_notes_section.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
+import 'package:otzaria/text_book/models/commentary_scroll_request.dart';
+import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 import 'package:otzaria/text_book/view/reading_viewport/reading_scrollbar_label.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
@@ -128,6 +131,13 @@ class _PageShapeScreenState extends State<PageShapeScreen>
   String? _bottomRightCommentator;
   bool _isLoadingConfig = true;
   int _loadConfigurationGeneration = 0;
+
+  // מפרשי-על של המפרשים שנבחרו בטורים (שער הציון על משנה ברורה): מפרש-על ←
+  // המפרש שדרכו הוא מסונכרן. עד סיום הגילוי הראשון טור כזה ממתין.
+  final Map<String, Set<String>> _superTitlesByParent = {};
+  Map<String, String> _superCommentatorParents = const {};
+  bool _superDiscoveryDone = false;
+  int _superDiscoveryGeneration = 0;
   StreamSubscription<void>? _hiddenSelectionSubscription;
   bool _applyTextMaxWidth = PageShapeSettingsManager.getApplyTextMaxWidth();
   bool _isLeftSidebarOpen = false;
@@ -151,6 +161,9 @@ class _PageShapeScreenState extends State<PageShapeScreen>
   );
   final ValueNotifier<int> _closeCommentatorsFilterNotifier =
       ValueNotifier<int>(0);
+  final ValueNotifier<CommentaryScrollRequest?> _commentaryScrollTarget =
+      ValueNotifier<CommentaryScrollRequest?>(null);
+  int _commentaryScrollRequestId = 0;
   final GlobalKey _mainTextViewerKey = GlobalKey();
 
   // סרגל הצד בפיקסלים; הטורים כחלק יחסי מהדף כדי לשמור על היחס בשינוי גודל.
@@ -426,6 +439,7 @@ class _PageShapeScreenState extends State<PageShapeScreen>
       // כשהרשימה מגיעה.
       if (state.commentatorsLoaded) {
         _refreshLinksForCurrentConfiguration('page-shape configuration loaded');
+        unawaited(_discoverSuperCommentators());
       }
     }
   }
@@ -459,6 +473,70 @@ class _PageShapeScreenState extends State<PageShapeScreen>
         return MapEntry(entry.key, resolved);
       }),
     );
+  }
+
+  /// המפרשים שנבחרו בטורים ושמפרשי-על שלהם אפשריים: ספרי הספרייה בלבד.
+  List<String> _superParentCandidates(TextBookLoaded state) {
+    final available = _availableCommentators(state);
+    return [
+          ?_leftCommentator,
+          ?_bottomCommentator,
+          ?_bottomRightCommentator,
+          ..._selectedRightPaneCommentators(state),
+        ]
+        .where(
+          (title) =>
+              title != kNotesCommentatorTitle && available.contains(title),
+        )
+        .toSet()
+        .toList();
+  }
+
+  /// מפרשי-העל מתגלים מסיכום הקישורים של כל מפרש שנבחר בטור (גם בטור מוסתר),
+  /// ב-worker ופעם אחת לכל מפרש.
+  Future<void> _discoverSuperCommentators() async {
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return;
+    final generation = ++_superDiscoveryGeneration;
+    final parents = _superParentCandidates(state);
+    final provider = LibraryProviderManager.instance.databaseProvider;
+    final cachePrefix = '${state.book.title}|';
+    for (final parent in parents) {
+      if (_superTitlesByParent.containsKey('$cachePrefix$parent')) continue;
+      List<LinkTargetSummary> targets = const [];
+      try {
+        final location = await BookLocator.locateBook(parent);
+        final categoryId = location?.book != null ? location?.categoryId : null;
+        if (categoryId != null) {
+          final summary = await provider.getBookLinkTargetsSummary(
+            parent,
+            categoryId,
+          );
+          targets = summary?.targets ?? const [];
+        }
+      } catch (e, stackTrace) {
+        debugPrint('Failed to find super-commentators: $e\n$stackTrace');
+      }
+      if (!mounted) return;
+      _superTitlesByParent['$cachePrefix$parent'] = superCommentatorTitles(
+        parentTargets: targets,
+        mainBookTitle: state.book.title,
+        directCommentators: state.availableCommentators,
+      );
+    }
+    if (!mounted || generation != _superDiscoveryGeneration) return;
+    final parentsBySuper = superCommentatorParents(parents, {
+      for (final parent in parents)
+        parent: ?_superTitlesByParent['$cachePrefix$parent'],
+    });
+    if (_superDiscoveryDone &&
+        mapEquals(parentsBySuper, _superCommentatorParents)) {
+      return;
+    }
+    setState(() {
+      _superCommentatorParents = parentsBySuper;
+      _superDiscoveryDone = true;
+    });
   }
 
   /// מפרש "נדיר" הוא בדרך כלל קישור בודד שסווג בטעות — אינו מוצע בטורים.
@@ -995,6 +1073,15 @@ class _PageShapeScreenState extends State<PageShapeScreen>
     _notifyCommentatorsFilter(_closeCommentatorsFilterNotifier);
   }
 
+  /// מפרש שנבחר מתפריט הפסקה: החלונית נפתחת גלולה אליו באותה פסקה.
+  void _requestCommentaryScroll(String title, int sourceLine) {
+    _commentaryScrollTarget.value = CommentaryScrollRequest(
+      title: title,
+      sourceLine: sourceLine,
+      requestId: ++_commentaryScrollRequestId,
+    );
+  }
+
   /// פתיחת לשונית המפרשים עם חלונית בחירת המפרשים פרושה.
   void _openCommentatorsPaneWithFilter() {
     _openLeftSidebarTab(kCommentaryTabIndex);
@@ -1085,6 +1172,7 @@ class _PageShapeScreenState extends State<PageShapeScreen>
     _selectionSyncController.dispose();
     _openCommentatorsFilterNotifier.dispose();
     _closeCommentatorsFilterNotifier.dispose();
+    _commentaryScrollTarget.dispose();
     super.dispose();
   }
 
@@ -1130,16 +1218,31 @@ class _PageShapeScreenState extends State<PageShapeScreen>
     String column,
     String commentatorName, {
     bool isBottom = false,
-  }) => _CommentaryPane(
-    column: column,
-    commentatorName: commentatorName,
-    openBookCallback: widget.openBookCallback,
-    workspaceId: _activeWorkspaceId,
-    isBottom: isBottom,
-    selectionSyncController: _selectionSyncController,
-    onOpenPersonalNote: _openCommentaryPersonalNote,
-    onLoadFailed: () => _hideColumn(column, showSnack: false, persist: false),
-  );
+  }) {
+    final superParent = _superCommentatorParents[commentatorName];
+    final state = context.read<TextBookBloc>().state;
+    if (superParent == null &&
+        !_superDiscoveryDone &&
+        commentatorName != kNotesCommentatorTitle &&
+        state is TextBookLoaded &&
+        state.commentatorsLoaded &&
+        !state.availableCommentators.contains(commentatorName) &&
+        _superParentCandidates(state).isNotEmpty) {
+      return const LoadingIndicator();
+    }
+    return _CommentaryPane(
+      column: column,
+      commentatorName: commentatorName,
+      openBookCallback: widget.openBookCallback,
+      workspaceId: _activeWorkspaceId,
+      isBottom: isBottom,
+      selectionSyncController: _selectionSyncController,
+      onOpenPersonalNote: _openCommentaryPersonalNote,
+      mainLines: widget.tab?.lines,
+      superCommentatorParent: superParent,
+      onLoadFailed: () => _hideColumn(column, showSnack: false, persist: false),
+    );
+  }
 
   /// טור בלי מפרש: בחירת מפרש או הסתרת הטור.
   Widget _emptyColumn(String column) => _buildEmptyColumnContent(
@@ -1156,6 +1259,7 @@ class _PageShapeScreenState extends State<PageShapeScreen>
     selectionSyncController: _selectionSyncController,
     openCommentatorsFilterNotifier: _openCommentatorsFilterNotifier,
     closeCommentatorsFilterNotifier: _closeCommentatorsFilterNotifier,
+    commentaryScrollTarget: _commentaryScrollTarget,
     tab: widget.tab,
     notesBookIdOverride: _notesBookIdOverride,
     notesCategoryIdOverride: _notesCategoryIdOverride,
@@ -1199,6 +1303,7 @@ class _PageShapeScreenState extends State<PageShapeScreen>
           _isLeftSidebarOpen && _leftSidebarTabIndex == kLinksTabIndex,
       onOpenCommentatorsPane: _openCommentatorsPane,
       onOpenCommentatorsPaneWithFilter: _openCommentatorsPaneWithFilter,
+      onCommentatorPicked: _requestCommentaryScroll,
       tab: widget.tab,
       labelForIndex: state.tableOfContents.isEmpty
           ? null
@@ -1230,6 +1335,7 @@ class _PageShapeScreenState extends State<PageShapeScreen>
       currentBottom: _bottomCommentator,
       currentBottomRight: _bottomRightCommentator,
       currentWorkspaceId: _activeWorkspaceId,
+      superCommentatorParents: _superCommentatorParents,
       onSettingsChanged: _loadConfiguration,
       onReset: _handleSettingsReset,
     ),
@@ -1563,6 +1669,7 @@ class _PageShapeScreenState extends State<PageShapeScreen>
                     previous.availableCommentators,
                     current.availableCommentators,
                   ) ||
+                  previous.commentatorsLoaded != current.commentatorsLoaded ||
                   previous.book.heCategories != current.book.heCategories;
             }
             return previous is! TextBookLoaded && current is TextBookLoaded;
@@ -1695,6 +1802,10 @@ class _CommentaryPane extends StatefulWidget {
   final SelectionSyncController? selectionSyncController;
   final void Function(String bookId, int? categoryId, int lineNumber)?
   onOpenPersonalNote;
+  final LineScrollController? mainLines;
+
+  /// כשהטור הוא מפרש-על: המפרש של הספר הראשי שדרכו מסונכרן הטור.
+  final String? superCommentatorParent;
 
   const _CommentaryPane({
     required this.column,
@@ -1705,6 +1816,8 @@ class _CommentaryPane extends StatefulWidget {
     this.onLoadFailed,
     this.selectionSyncController,
     this.onOpenPersonalNote,
+    this.mainLines,
+    this.superCommentatorParent,
   });
 
   @override
@@ -1768,6 +1881,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
   final ScrollOffsetController _scrollOffsetController =
       ScrollOffsetController();
   List<Link> _relevantLinks = [];
+  SuperCommentaryLinkLoader? _superLinks;
 
   // עוגני מפרשי-המפרש (שער הציון וכד') והלינקר בתוך טקסט המפרש — נטענים
   // פר-חלון שורות רק לספרי DB שיש להם יעדים כאלה. null עד שהסיכום נבדק.
@@ -1780,6 +1894,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
   (List<String>, BookNotes)? _notesColumnSource;
   int? _lastSyncedIndex; // האינדקס האחרון שסונכרן
   int? _lastSyncedMainIndex; // השורה הנבחרת שממנה נגזר הסנכרון האחרון
+  int? _lastReferenceMainLine;
   int _initialSyncAttempts = 0; // ניסיונות סנכרון ראשוני עד שה-controller מחובר
   List<Link>? _lastLinks; // לדידוב: מסנן מחדש רק כשהקישורים השתנו
   StreamSubscription<TextBookState>? _blocSubscription;
@@ -1790,6 +1905,9 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
   void initState() {
     super.initState();
     _positionsListener.itemPositions.addListener(_onPanePositionsChanged);
+    widget.mainLines?.positionsListener.itemPositions.addListener(
+      _onMainPositionsChanged,
+    );
     // דוחה את הטעינה כדי לוודא שכל ה-providers מוכנים וה-bloc זמין
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -1951,7 +2069,8 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
   void didUpdateWidget(_CommentaryPane oldWidget) {
     super.didUpdateWidget(oldWidget);
     // אם שם המפרש השתנה, טען מחדש את התוכן
-    if (oldWidget.commentatorName != widget.commentatorName) {
+    if (oldWidget.commentatorName != widget.commentatorName ||
+        oldWidget.superCommentatorParent != widget.superCommentatorParent) {
       _loadCommentary();
     } else {
       // אם המפרש לא השתנה, רק עדכן הדגשות
@@ -1960,11 +2079,34 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     if (oldWidget.workspaceId != widget.workspaceId) {
       _updateHighlightSettings();
     }
+    if (oldWidget.mainLines != widget.mainLines) {
+      oldWidget.mainLines?.positionsListener.itemPositions.removeListener(
+        _onMainPositionsChanged,
+      );
+      widget.mainLines?.positionsListener.itemPositions.addListener(
+        _onMainPositionsChanged,
+      );
+    }
+  }
+
+  /// גלילה בתוך פסקה ארוכה אינה משנה את השורות הגלויות ב-bloc, ולכן
+  /// הסנכרון עוקב גם אחר מיקומי הטקסט הראשי.
+  void _onMainPositionsChanged() {
+    if (!mounted) return;
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded || state.selectedIndex != null) return;
+    final line = _referenceMainLine(state);
+    if (line == null || line == _lastReferenceMainLine) return;
+    _lastReferenceMainLine = line;
+    _syncWithMainText(state);
   }
 
   @override
   void dispose() {
     _positionsListener.itemPositions.removeListener(_onPanePositionsChanged);
+    widget.mainLines?.positionsListener.itemPositions.removeListener(
+      _onMainPositionsChanged,
+    );
     _blocSubscription?.cancel();
     super.dispose();
   }
@@ -2000,6 +2142,9 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
         } else if (!identical(_lastLinks, state.links)) {
           _lastLinks = state.links;
           _refreshRelevantLinks(state);
+        }
+        if (_superLinks != null) {
+          unawaited(_ensureSuperLinksLoaded(state));
         }
         _syncWithMainText(state);
         _updateHighlights(state);
@@ -2046,11 +2191,75 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
   }
 
   void _refreshRelevantLinks(TextBookLoaded state) {
+    final superLinks = _superLinks;
+    if (superLinks != null) {
+      _relevantLinks = superLinks.links;
+      return;
+    }
     _relevantLinks = state.links.where((link) {
       final linkTitle = utils.getTitleFromPath(link.path2);
       return linkTitle == widget.commentatorName &&
           LinkTypes.isDependentTextLink(link.connectionType);
     }).toList();
+  }
+
+  /// טוען את קישורי טור מפרש-העל סביב שורת הראשי הנוכחית, ומסנכרן כשנוספו.
+  Future<bool> _ensureSuperLinksLoaded(TextBookLoaded state) async {
+    final loader = _superLinks;
+    if (loader == null) return false;
+    final bool added;
+    try {
+      added = await loader.ensureLoaded(
+        _resolveCurrentMainIndex(state),
+        state.content.length,
+      );
+    } catch (e, stackTrace) {
+      debugPrint('Failed to load super-commentary links: $e\n$stackTrace');
+      return false;
+    }
+    if (!added || !mounted || !identical(loader, _superLinks)) return added;
+    setState(() => _relevantLinks = loader.links);
+    final latest = context.read<TextBookBloc>().state;
+    if (latest is TextBookLoaded) {
+      _syncWithMainText(latest);
+      _updateHighlights(latest);
+    }
+    return added;
+  }
+
+  SuperCommentaryLinkLoader? _createSuperLinkLoader(TextBookLoaded state) {
+    final parent = widget.superCommentatorParent;
+    final categoryId = state.book.categoryId;
+    if (parent == null ||
+        categoryId == null ||
+        state.availableCommentators.contains(widget.commentatorName)) {
+      return null;
+    }
+    final provider = LibraryProviderManager.instance.databaseProvider;
+    return SuperCommentaryLinkLoader(
+      mainTitle: state.book.title,
+      mainCategoryId: categoryId,
+      mainSource: state.book.source,
+      parentTitle: parent,
+      superTitle: widget.commentatorName,
+      fetch:
+          ({
+            required bookTitle,
+            required categoryId,
+            required source,
+            required startLine,
+            required endLine,
+            required targetTitle,
+          }) => provider.getLinksForBookRange(
+            bookTitle,
+            categoryId,
+            'txt',
+            startLineIndex: startLine,
+            endLineIndex: endLine,
+            targetBookTitles: [targetTitle],
+            source: source,
+          ),
+    );
   }
 
   String _commentaryCacheKey(TextBook book, {required bool preferDatabase}) {
@@ -2174,25 +2383,18 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
   /// הייתה יורה אנימציה חדשה שמבטלת את הקודמת.
   static const double _glideEpsilonPixels = 2;
 
-  /// מחזיר את אינדקס השורה שבכשליש העליון של ה-viewport מתוך השורות
-  /// הגלויות. הסנכרון מכוון לנקודה זו ולא לשורה העליונה, כדי שהמפרש
-  /// יעקוב אחר מה שהמשתמש קורא בפועל. מניחים שהרשימה אינה ריקה.
-  int _referenceVisibleIndex(List<int> visibleIndices) {
-    final sorted = [...visibleIndices]..sort();
+  /// שורת הטקסט הראשי שחוצה את קו הסנכרון בפיקסלים, כדי שהמפרש יעקוב אחר
+  /// מה שנקרא בפועל. בלי מדידה — לפי מספר השורות הגלויות; null כשאין כאלו.
+  int? _referenceMainLine(TextBookLoaded state) {
+    final crossing = widget.mainLines?.lineCrossingViewport(_syncAlignment);
+    if (crossing != null) return crossing;
+    if (state.visibleIndices.isEmpty) return null;
+    final sorted = [...state.visibleIndices]..sort();
     return sorted[(sorted.length * _syncAlignment).floor()];
   }
 
-  int _resolveCurrentMainIndex(TextBookLoaded state) {
-    if (state.selectedIndex != null) {
-      return state.selectedIndex!;
-    }
-
-    if (state.visibleIndices.isNotEmpty) {
-      return _referenceVisibleIndex(state.visibleIndices);
-    }
-
-    return 0;
-  }
+  int _resolveCurrentMainIndex(TextBookLoaded state) =>
+      state.selectedIndex ?? _referenceMainLine(state) ?? 0;
 
   int? _resolveInitialCommentaryTargetIndex(TextBookLoaded state) {
     if (_relevantLinks.isEmpty) {
@@ -2355,6 +2557,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     _anchorBookNotes = BookNotes.empty;
     _anchorLoadedRanges = const [];
     _notesColumnSource = null;
+    _superLinks = null;
 
     try {
       // המתנה לכך שה-state יהיה TextBookLoaded
@@ -2377,7 +2580,24 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
 
       // מפרש שאינו מקושר לספר הנוכחי שייך לספר אחר, ו-BookLocator היה טוען
       // אותו לפי שמו ומציג את הספר הזר. ההגדרה השמורה נשארת על כנה.
+      final superLinks = state is TextBookLoaded
+          ? _createSuperLinkLoader(state)
+          : null;
+      _superLinks = superLinks;
+      if (superLinks != null && state is TextBookLoaded) {
+        // יעד הסנכרון הראשוני נגזר מהקישורים — טוענים אותם לפני חלון התוכן.
+        try {
+          await superLinks.ensureLoaded(
+            _resolveCurrentMainIndex(state),
+            state.content.length,
+          );
+        } catch (e, stackTrace) {
+          debugPrint('Failed to load super-commentary links: $e\n$stackTrace');
+        }
+        if (!mounted || !identical(superLinks, _superLinks)) return;
+      }
       if (state is TextBookLoaded &&
+          _superLinks == null &&
           state.availableCommentators.isNotEmpty &&
           !state.availableCommentators.contains(widget.commentatorName)) {
         _notifyCommentaryLoadFailed();
@@ -2569,17 +2789,9 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
       return;
     }
 
-    // קביעת האינדקס הנוכחי בטקסט הראשי
-    // אם המשתמש לחץ על שורה ספציפית, נסנכרן אליה; אחרת לפי visibleIndices
-    int currentMainIndex;
-    if (state.selectedIndex != null) {
-      currentMainIndex = state.selectedIndex!;
-    } else if (state.visibleIndices.isNotEmpty) {
-      // היעד לסנכרון הוא מרכז המסך, לא השורה העליונה
-      currentMainIndex = _referenceVisibleIndex(state.visibleIndices);
-    } else {
-      return; // אין מידע על מיקום נוכחי
-    }
+    // שורה שנבחרה גוברת; אחרת השורה שחוצה את שליש המסך, לא השורה העליונה.
+    final currentMainIndex = state.selectedIndex ?? _referenceMainLine(state);
+    if (currentMainIndex == null) return;
 
     // חישוב האינדקס הלוגי (עם טיפול בכותרות)
     final logicalIndex = _isNotesColumn
