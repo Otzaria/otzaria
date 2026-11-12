@@ -137,13 +137,12 @@ dependencies:
     git:
       url: https://github.com/Otzaria/otzaria_library_updater
       ref: effdc651635a18c719b52a79d840b5aa27b1968e
-  # nativeapi-based window_manager 0.6; use the actual Flutter runner window
-  # instead of assuming the current foreground window is the primary one.
-  # Promote to the hosted release after platform QA completes.
+  # Review fixes belong in this combined fork and the matching upstream PR.
+  # TODO: return to pub.dev after leanflutter/window_manager#598–#607 merge and release.
   window_manager:
     git:
       url: https://github.com/Otzaria/window_manager
-      ref: 09dd9791e453cb153fd91f1c9ba49d81339c66f6
+      ref: e5140090cefc48d06534bdd31f43c55d1f1a5bcb
   screen_retriever: ^0.2.2
   # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור ubuntu-flutter-community/flutter_spinbox#102–#114.
   # תיקוני סקירה חייבים להישמר גם בענף המשולב (main של הפורק) וגם בענפי ה-PRים באפסטרים.

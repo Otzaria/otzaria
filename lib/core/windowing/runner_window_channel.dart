@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/windowing/drag_preview_colors.dart';
 import 'package:otzaria/core/windowing/multiview/multiview_flag.dart';
+import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 
@@ -84,7 +85,13 @@ class RunnerWindowChannel {
   static bool? debugSupportedOverride;
 
   /// מביא את החלון הראשי לחזית, ומציג אותו אם הוסתר.
-  Future<void> raiseSelf() => _send(_hasRunner, 'raiseSelf');
+  Future<void> raiseSelf() async {
+    final raised = await _guarded(_hasRunner, 'raiseSelf', false, () async {
+      await channel.invokeMethod<void>('raiseSelf');
+      return true;
+    });
+    if (raised) _reportMainWindowShown();
+  }
 
   /// מתחיל להציג את הכרטיסיה הנגררת **מחוץ** לחלון.
   ///
@@ -180,13 +187,22 @@ class RunnerWindowChannel {
   Future<void> endTabDrag() => _send(canDragTabsOut, 'endTabDrag');
 
   /// מציג שוב את החלון הראשי אם Dart הסתיר אותו. true אם היה מוסתר.
-  Future<bool> restoreLastClosedWindow() => _guarded(
-    _hasRunner,
-    'restoreLastClosedWindow',
-    false,
-    () async =>
-        await channel.invokeMethod<bool>('restoreLastClosedWindow') ?? false,
-  );
+  Future<bool> restoreLastClosedWindow() async {
+    final restored = await _guarded(
+      _hasRunner,
+      'restoreLastClosedWindow',
+      false,
+      () async =>
+          await channel.invokeMethod<bool>('restoreLastClosedWindow') ?? false,
+    );
+    if (restored) _reportMainWindowShown();
+    return restored;
+  }
+
+  /// ה-runner הציג את הראשי בלי אירוע show של window_manager.
+  /// הדיווח מחזיר את נראות התוספים גם כש-Windows מסרב להעביר פוקוס.
+  static void _reportMainWindowShown() =>
+      PluginRuntimeDispatcher.instance.setWindowShown(true);
 
   /// ממיר נקודת מסך לקואורדינטות אזור-הלקוח של החלון, בפיקסלים לוגיים.
   ///
@@ -198,10 +214,11 @@ class RunnerWindowChannel {
     double devicePixelRatio, {
     int? hwnd,
   }) => _guarded(canDragTabsOut, 'screenToClient', null, () async {
-    final p = await channel.invokeMapMethod<String, dynamic>(
-      'screenToClient',
-      {'x': x, 'y': y, 'hwnd': ?hwnd},
-    );
+    final p = await channel.invokeMapMethod<String, dynamic>('screenToClient', {
+      'x': x,
+      'y': y,
+      'hwnd': ?hwnd,
+    });
     if (p == null) return null;
     return Offset(
       ((p['x'] as int?) ?? 0) / devicePixelRatio,
@@ -304,9 +321,7 @@ class RunnerWindowChannel {
         return false;
       }
       if (tab is CombinedTab && restored is! CombinedTab) {
-        debugPrint(
-          'canTransfer: טאב מפוצל איבד חלונית בסריאליזציה — לא מועבר',
-        );
+        debugPrint('canTransfer: טאב מפוצל איבד חלונית בסריאליזציה — לא מועבר');
         return false;
       }
       return true;

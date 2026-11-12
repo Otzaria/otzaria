@@ -1,10 +1,18 @@
 // ignore_for_file: deprecated_member_use
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nativeapi/nativeapi.dart' as nativeapi;
 import 'package:otzaria/core/windowing/nativeapi_primary_window_binding.dart';
 import 'package:window_manager/legacy.dart';
 
 import '../../test_helpers/recording_native_window.dart';
+
+class _Listener with WindowListener {
+  final events = <String>[];
+
+  @override
+  void onWindowEvent(String eventName) => events.add(eventName);
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -49,6 +57,15 @@ void main() {
 
     expect(actual, hwnd);
     expect(wrappedAddress, hwnd);
+    final listener = _Listener();
+    windowManager.addListener(listener);
+    addTearDown(() async {
+      await windowManager.setPreventClose(false);
+      windowManager.removeListener(listener);
+    });
+    await windowManager.setPreventClose(true);
+    await native.emit(const nativeapi.WindowFocusedEvent(windowId: 0));
+    expect(listener.events, contains('focus'));
     expect(await windowManager.isVisible(), isFalse);
     await windowManager.show();
     expect(native.calls, contains('show'));
