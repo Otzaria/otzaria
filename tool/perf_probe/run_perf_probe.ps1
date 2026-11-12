@@ -11,6 +11,12 @@ param(
   [string]$OutputDirectory = '',
   [string]$Baseline = '',
   [string]$HardwareId = '',
+  [switch]$ReaderOnly,
+  [string]$BookLines = '',
+  [switch]$BuildOnly,
+  [string]$ReuseBuild = '',
+  [ValidateRange(0, 59)][int]$LaunchIndexOffset = 0,
+  [switch]$SkipAnalysis,
   [ValidateRange(60, 7200)][int]$TimeoutSeconds = 1200
 )
 
@@ -20,6 +26,8 @@ if ($Target -eq 'integration_test/perf_resource_probe_test.dart') {
   & (Join-Path $PSScriptRoot 'runner.ps1') -Mode $Mode -CacheState $CacheState `
     -Warmup $Warmup -Repetitions $Repetitions -Launches $Launches `
     -OutputDirectory $OutputDirectory -Baseline $Baseline -HardwareId $HardwareId `
+    -ReaderOnly:$ReaderOnly -BookLines $BookLines -BuildOnly:$BuildOnly -ReuseBuild $ReuseBuild `
+    -LaunchIndexOffset $LaunchIndexOffset -SkipAnalysis:$SkipAnalysis `
     -TimeoutSeconds $TimeoutSeconds
   exit $LASTEXITCODE
 }

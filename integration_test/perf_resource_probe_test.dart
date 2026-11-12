@@ -46,10 +46,11 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/work_status/work_status_cubit.dart';
 import 'package:otzaria/work_status/work_status_item.dart';
 import 'package:path/path.dart' as p;
-import 'package:positioned_sliver_list/positioned_list.dart';
 
 import 'support/perf_fixture.dart';
+import 'support/perf_reader_scroll.dart';
 import 'support/perf_recorder.dart';
+import 'support/perf_reader_probe.dart';
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -90,9 +91,22 @@ void main() {
         const String.fromEnvironment('PERF_PREPARE_ONLY', defaultValue: '0'),
       ) ==
       '1';
+  final readerOnly =
+      perfOption(
+        'PERF_READER_ONLY',
+        const String.fromEnvironment('PERF_READER_ONLY', defaultValue: '0'),
+      ) ==
+      '1';
+  final books = perfBooksWithLineCounts(
+    perfOption(
+      'PERF_BOOK_LINES',
+      const String.fromEnvironment('PERF_BOOK_LINES'),
+    ),
+  );
   final output = Directory(outputPath);
   final recorderDone = Completer<void>();
   PerfRecorder? recorder;
+  PerfReaderProbe? readerProbe;
   Object? runError;
   var canWriteOutput = false;
   String? fixtureId;
@@ -159,7 +173,7 @@ void main() {
         throw StateError('The output directory already contains a run.');
       }
       canWriteOutput = true;
-      final fixture = PerfFixture(Directory(dataPath));
+      final fixture = PerfFixture(Directory(dataPath), books: books);
       await fixture.prepare(preparationOnly: preparationOnly);
       fixtureId = fixture.id;
       final rec = recorder = PerfRecorder(
@@ -180,18 +194,32 @@ void main() {
         'pid': pid,
         'cores': Platform.numberOfProcessors,
         'startedAt': DateTime.now().millisecondsSinceEpoch,
-        'fixtureBooks': perfBooks,
+        'fixtureBooks': fixture.books,
+        'readerOnly': readerOnly,
         'limitations': [
           'Cold means a fresh app data directory; OS filesystem caches are not evicted.',
           'Startup begins at Dart main; native engine/process initialization is separate.',
           'Condition polling resolution is 16 ms; frames use engine timestamps.',
           'Heap samples are outside action latency, without forced garbage collection.',
           'Private bytes are not native-only memory; RSS minus Dart heap is not computed.',
+          if (readerOnly) ...[
+            'Repository request time includes queueing, database access, decoding and IPC; it is not physical disk time.',
+            'Repository instrumentation covers only getBookContent and getBookContentRange, not metadata, links or paragraph I/O.',
+            'Layout/paint timeline intervals can overlap nested pipeline owners and are unioned per thread; they are not additive with async I/O or FrameTiming.',
+            'Pipeline totals include only complete calls inside the action window, exclude boundary-crossing calls, and are not CPU time.',
+            'Steady scroll requires all logical content loaded and no content requests; it does not assert that every extent/layout worker is idle.',
+            'warmup_complete measures remaining warmup wait after preceding actions and recorder work, not total warmup time since opening.',
+            'Warmup readiness advances the loaded prefix monotonically: loaded flags pass once, while the first unloaded flag can be polled again. Observation cost is included in action latency.',
+            'Reader readiness checks and opt-in profiling overhead are identical on both sides.',
+          ],
         ],
       });
       if (preparationOnly) {
         return;
       }
+      final reader = readerProbe = readerOnly
+          ? PerfReaderProbe(binding, rec)
+          : null;
       late _Scenario scenario;
       previousFlutterError = FlutterError.onError;
       previousPlatformError = PlatformDispatcher.instance.onError;
@@ -222,7 +250,7 @@ void main() {
           ? await errorsFile.readAsString()
           : '';
       captureErrors();
-      await rec.phase('startup.first_content', () async {
+      Future<void> firstContent() async {
         app.main(const []);
         await _wait(
           () {
@@ -235,9 +263,30 @@ void main() {
         );
         final context = tester.element(find.byType(App));
         final library = await DataRepository.instance.library;
-        scenario = _Scenario(tester, context, rec, library, fixture);
-        await scenario.openText(perfBooks.keys.first);
-      }, sampleHeap: false);
+        scenario = _Scenario(
+          tester,
+          context,
+          rec,
+          library,
+          fixture,
+          reader: reader,
+        );
+        await scenario.openText(fixture.books.keys.first);
+      }
+
+      if (reader == null) {
+        await rec.phase(
+          'startup.first_content',
+          firstContent,
+          sampleHeap: false,
+        );
+      } else {
+        await reader.phase(
+          'startup.first_content',
+          firstContent,
+          sampleHeap: false,
+        );
+      }
       final startup = StartupTimeline.instance;
       final revealMs = startup.toJson()['revealMs'] as int;
       final startupAt = startup.startedAt!.millisecondsSinceEpoch;
@@ -276,7 +325,9 @@ void main() {
           'fontSize': settings.fontSize,
           'showTeamim': settings.showTeamim,
           'offline': true,
-          'fixtureBooks': perfBooks,
+          'fixtureBooks': fixture.books,
+          'readerOnly': readerOnly,
+          if (readerOnly) 'readerProbeVersion': 1,
           'scrollSteps': 60,
           'scrollPixels': 30,
           'pollIntervalMs': 16,
@@ -290,12 +341,14 @@ void main() {
       rec.counters = scenario.counters;
       await rec.heap.connect();
       await scenario.closeTabs();
-      await rec.phase(
-        'index.fixture_prepare',
-        scenario.indexFixture,
-        warmup: true,
-      );
-      await scenario.installPlugin();
+      if (!readerOnly) {
+        await rec.phase(
+          'index.fixture_prepare',
+          scenario.indexFixture,
+          warmup: true,
+        );
+        await scenario.installPlugin();
+      }
       for (var round = 0; round < warmup + repetitions; round++) {
         scenario.iteration = round < warmup ? round : round - warmup;
         scenario.warmup = round < warmup;
@@ -333,6 +386,7 @@ void main() {
         PlatformDispatcher.instance.onError = previousPlatformError;
       }
       try {
+        readerProbe?.dispose();
         await recorder?.dispose();
       } finally {
         recorderDone.complete();
@@ -356,12 +410,20 @@ Future<void> _wait(
 }
 
 class _Scenario {
-  _Scenario(this.tester, this.context, this.rec, this.library, this.fixture);
+  _Scenario(
+    this.tester,
+    this.context,
+    this.rec,
+    this.library,
+    this.fixture, {
+    this.reader,
+  });
   final WidgetTester tester;
   final BuildContext context;
   final PerfRecorder rec;
   final Library library;
   final PerfFixture fixture;
+  final PerfReaderProbe? reader;
   int iteration = 0;
   bool warmup = false;
   TabsBloc get tabs => context.read<TabsBloc>();
@@ -380,58 +442,42 @@ class _Scenario {
     'schedulerCallbacks': tester.binding.transientCallbackCount,
     'flutterViews': PlatformDispatcher.instance.views.length,
     'queueDepth': null,
+    if (reader != null) ...reader!.snapshot(),
   };
 
   Future<void> phase(
     String name,
     Future<void> Function() action, {
     Map<String, Object?>? details,
-  }) => rec.phase(
-    name,
-    action,
-    warmup: warmup,
-    iteration: iteration,
-    details: details,
-  );
+    bool requireNoContentReads = false,
+  }) =>
+      reader?.phase(
+        name,
+        action,
+        warmup: warmup,
+        iteration: iteration,
+        details: details,
+        requireNoContentReads: requireNoContentReads,
+      ) ??
+      rec.phase(
+        name,
+        action,
+        warmup: warmup,
+        iteration: iteration,
+        details: details,
+      );
 
   Future<void> run() async {
-    for (final title in perfBooks.keys) {
-      final kind = switch (perfBooks[title]) {
-        128 => 'short',
-        4096 => 'medium',
-        _ => 'long',
-      };
+    for (final (bookIndex, title) in fixture.books.keys.indexed) {
+      final kind = const ['short', 'medium', 'long'][bookIndex];
       await phase('book.$kind.open', () async {
         await openText(title);
       });
       final tab = tabs.state.currentTab as TextBookTab;
       await phase('book.$kind.scroll', () async {
-        // Wide layouts make the main window's page switcher vertical too.
-        final scrollable = find.descendant(
-          of: find.byWidgetPredicate(
-            (widget) =>
-                widget is ScrollablePositionedList &&
-                identical(
-                  widget.itemScrollController,
-                  tab.lines.itemController,
-                ),
-          ),
-          matching: find.byType(Scrollable),
+        final position = perfReaderScrollPosition(
+          tab.lines.itemController.scrollController,
         );
-        final candidates = tester
-            .stateList<ScrollableState>(scrollable)
-            .where(
-              (state) =>
-                  state.position.axis == Axis.vertical &&
-                  state.position.maxScrollExtent > 500,
-            )
-            .toList();
-        if (candidates.length != 1) {
-          throw StateError(
-            'Expected exactly one vertical reader scrollable, found ${candidates.length}.',
-          );
-        }
-        final position = candidates.single.position;
         for (var step = 0; step < 60; step++) {
           position.jumpTo(
             (position.pixels + 30).clamp(
@@ -443,7 +489,7 @@ class _Scenario {
         }
       }, details: {'steps': 60, 'pixelsPerStep': 30});
       for (final fraction in [0.75, 0.1]) {
-        final target = (perfBooks[title]! * fraction).floor();
+        final target = (fixture.books[title]! * fraction).floor();
         final direction = fraction == 0.75 ? 'forward' : 'backward';
         await phase('book.$kind.jump_$direction', () async {
           await tab.lines
@@ -452,8 +498,49 @@ class _Scenario {
           await waitText(tab, target);
         }, details: {'line': target, 'fraction': fraction});
       }
+      if (reader != null) {
+        var loadedPrefix = 0;
+        final warmupDetails = <String, Object?>{
+          'readiness':
+              'remaining warmup wait after preceding actions; all logical lines loaded through the existing range path; no pending content requests',
+          'observation':
+              'loaded prefix advances once across each line; the first unloaded flag can be polled again; readiness scan cost included',
+        };
+        await phase(
+          'book.$kind.warmup_complete',
+          () => _wait(
+            () {
+              final state = tab.bloc.state;
+              if (state is! TextBookLoaded ||
+                  state.content.length != fixture.books[title]) {
+                return false;
+              }
+              while (loadedPrefix < state.content.length &&
+                  state.isContentLineLoaded(loadedPrefix)) {
+                loadedPrefix++;
+              }
+              warmupDetails.putIfAbsent(
+                'loadedPrefixAtFirstCheck',
+                () => loadedPrefix,
+              );
+              return loadedPrefix == state.content.length &&
+                  reader!.pendingReads == 0;
+            },
+            'complete progressive warmup',
+            timeout: const Duration(minutes: 3),
+          ),
+          details: warmupDetails,
+        );
+        await phase(
+          'book.$kind.steady_scroll',
+          () => scroll(tab),
+          requireNoContentReads: true,
+          details: {'steps': 60, 'pixelsPerStep': 30, 'fullyLoaded': true},
+        );
+      }
       await phase('book.$kind.close', closeTabs);
     }
+    if (reader != null) return;
     await phase('search.normal', search);
     await closeTabs();
     await _searchWhileIndexing();
@@ -462,8 +549,8 @@ class _Scenario {
     await _plugin();
     await _preview();
     await phase('lifecycle.tabs_cycle', () async {
-      await openText(perfBooks.keys.first);
-      await openText(perfBooks.keys.last);
+      await openText(fixture.books.keys.first);
+      await openText(fixture.books.keys.last);
       tabs.add(const SetCurrentTab(0));
       await tester.pump();
       await closeTabs();
@@ -474,17 +561,34 @@ class _Scenario {
     );
   }
 
+  Future<void> scroll(TextBookTab tab) async {
+    final position = perfReaderScrollPosition(
+      tab.lines.itemController.scrollController,
+    );
+    for (var step = 0; step < 60; step++) {
+      position.jumpTo(
+        (position.pixels + 30).clamp(
+          position.minScrollExtent,
+          position.maxScrollExtent,
+        ),
+      );
+      await tester.pump();
+    }
+  }
+
   Future<TextBookTab> openText(String title) async {
     final book = library.getAllBooks().whereType<TextBook>().singleWhere(
       (book) => book.title == title,
     );
-    final tab = TextBookTab(
-      book: book,
-      index: 1,
-      commentators: const [],
-      splitedView: false,
-      showPageShapeView: false,
-    );
+    final tab =
+        reader?.createTab(book) ??
+        TextBookTab(
+          book: book,
+          index: 1,
+          commentators: const [],
+          splitedView: false,
+          showPageShapeView: false,
+        );
     context.read<NavigationBloc>().add(NavigateToScreen(Screen.reading));
     tabs.add(AddTab(tab));
     await _wait(
@@ -534,6 +638,13 @@ class _Scenario {
       ),
       'tab controllers disposed',
     );
+    if (reader != null) {
+      await _wait(
+        () => reader!.pendingReads == 0,
+        'content requests settled after close',
+      );
+      reader!.releaseClosedReaders();
+    }
   }
 
   Future<void> indexFixture() async {

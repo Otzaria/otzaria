@@ -3,6 +3,10 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/data/data_providers/hive_data_provider.dart';
+import 'package:otzaria/indexing/models/index_update_mode.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
 
@@ -19,6 +23,77 @@ void main() {
     AppPaths.debugOverrideDataRootPath(null);
     AppPaths.debugOverrideDocumentsRootPath(null);
     await temp.delete(recursive: true);
+  });
+
+  test(
+    'custom book sizes are reproducible and bound to the fixture marker',
+    () async {
+      final books = perfBooksWithLineCounts('3,7,11');
+      final first = PerfFixture(
+        Directory(p.join(temp.path, 'custom-a')),
+        books: books,
+      );
+      final second = PerfFixture(
+        Directory(p.join(temp.path, 'custom-b')),
+        books: books,
+      );
+      await first.prepare(preparationOnly: true);
+      await second.prepare(preparationOnly: true);
+      expect(first.id, second.id);
+      final db = sqlite3.open(first.dbPath, mode: OpenMode.readOnly);
+      try {
+        expect(
+          db
+              .select('SELECT totalLines FROM book ORDER BY id')
+              .map((row) => row['totalLines']),
+          [3, 7, 11],
+        );
+        expect(db.select('SELECT count(*) AS n FROM line').single['n'], 21);
+        expect(
+          db
+              .select(
+                'SELECT content FROM line WHERE bookId=3 AND lineIndex=10',
+              )
+              .single['content'],
+          perfLine(10),
+        );
+      } finally {
+        db.close();
+      }
+      await first.prepare(preparationOnly: false);
+      await expectLater(
+        PerfFixture(
+          first.root,
+          books: perfBooksWithLineCounts('3,7,12'),
+        ).prepare(preparationOnly: false),
+        throwsStateError,
+      );
+    },
+  );
+
+  test('book-size options reject invalid or unbounded fixtures', () {
+    expect(perfBooksWithLineCounts(''), perfBooks);
+    expect(perfBooksWithLineCounts('2000,50000,1000000').values, [
+      2000,
+      50000,
+      1000000,
+    ]);
+    for (final value in [
+      '1,2',
+      '1,2,3,4',
+      '0,2,3',
+      '-1,2,3',
+      '3,2,1',
+      '1,1,3',
+      'a,2,3',
+      '1,2,1000001',
+    ]) {
+      expect(
+        () => perfBooksWithLineCounts(value),
+        throwsArgumentError,
+        reason: value,
+      );
+    }
   });
 
   test(
@@ -90,5 +165,28 @@ void main() {
     );
     expect(await sentinel.readAsString(), 'untouched');
     expect(await root.list().length, 1);
+  });
+
+  test('application settings loading preserves the prepared fixture', () async {
+    final fixture = PerfFixture(Directory(p.join(temp.path, 'settings')));
+    await fixture.prepare(preparationOnly: true);
+    await Settings.init(cacheProvider: HiveCache());
+
+    final loaded = await SettingsRepository().loadSettings();
+
+    expect(
+      loaded['fontFamily'],
+      'NotoSerifHebrew',
+      reason: 'Prepared fixture font was overwritten by first-run defaults.',
+    );
+    expect(loaded['fontSize'], 22.0);
+    expect(loaded['indexUpdateMode'], IndexUpdateMode.off);
+    expect(loaded['softwareAndBookUpdatesEnabled'], isFalse);
+    expect(loaded['showLocalHebrewBooks'], isFalse);
+    expect(Settings.getValue<bool>(SettingsRepository.keyOfflineMode), isTrue);
+    expect(
+      Settings.getValue<String>(SettingsRepository.keyAppCrashReportMode),
+      'never',
+    );
   });
 }
