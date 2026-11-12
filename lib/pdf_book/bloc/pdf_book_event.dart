@@ -98,9 +98,22 @@ class RememberPdfLocation extends PdfBookEvent {
   List<Object> get props => [location];
 }
 
-/// חוזר לעוגן הקודם בלי להוסיף את החזרה להיסטוריה.
+/// חוזר לעוגן הקודם; [current] נשמר כיעד של [GoForwardPdfLocation].
 class ReturnToPreviousPdfLocation extends PdfBookEvent {
-  const ReturnToPreviousPdfLocation();
+  const ReturnToPreviousPdfLocation([this.current]);
+  final PdfReadingLocation? current;
+
+  @override
+  List<Object?> get props => [current];
+}
+
+/// מתקדם לעוגן שממנו חזרו; [current] נשמר כנקודת חזרה.
+class GoForwardPdfLocation extends PdfBookEvent {
+  const GoForwardPdfLocation([this.current]);
+  final PdfReadingLocation? current;
+
+  @override
+  List<Object?> get props => [current];
 }
 
 // ============ Zoom Events ============

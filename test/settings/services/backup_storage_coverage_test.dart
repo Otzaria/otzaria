@@ -57,7 +57,7 @@ void main() {
     final sources = <String>[];
     for (final file in Directory('lib').listSync(recursive: true)) {
       if (file is! File || !file.path.endsWith('.dart')) continue;
-      // קוד מוערך אינו מקום שמירה קיים (`user_overrides` נוטרל בהערה).
+      // קוד מוערך אינו מקום שמירה קיים.
       sources.add(
         file
             .readAsLinesSync()

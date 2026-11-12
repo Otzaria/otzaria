@@ -28,9 +28,6 @@ class AppFonts {
   /// גופן ברירת מחדל למפרשים
   static const String defaultCommentatorsFont = 'NotoRashiHebrew';
 
-  /// גופן לעריכת טקסט עם טעמים
-  static const String editorFont = 'TaameyAshkenaz';
-
   /// כתב אשורית, מחבילת `otzaria_ashurit`. במשפחת הסת"ם אין מיפוי לניקוד
   /// ולטעמים, ולכן תו מנוקד נופל בה אוטומטית לגופן אחר.
   static const String ashuritFont = 'OtzariaAshurit';

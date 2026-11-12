@@ -23,13 +23,21 @@ class PdfNavigationBackScope extends StatelessWidget {
     selector: (state) => identical(state.activePane, bloc.tab),
     builder: (context, active) => BlocSelector<PdfBookBloc, PdfBookState, bool>(
       bloc: bloc,
-      selector: (state) => state is PdfBookLoaded && state.canReturnToLocation,
-      builder: (context, canReturn) => PopScope(
-        canPop: !active || !canReturn,
-        onPopInvokedWithResult: (didPop, result) {
-          if (!didPop && active && canReturn) onBack();
-        },
+      selector: (state) => state is PdfBookLoaded,
+      builder: (context, loaded) => ListenableBuilder(
+        listenable: bloc.tab.navigationHistory,
         child: child,
+        builder: (context, child) {
+          final handlesBack =
+              active && loaded && bloc.tab.navigationHistory.canGoBack;
+          return PopScope(
+            canPop: !handlesBack,
+            onPopInvokedWithResult: (didPop, result) {
+              if (!didPop && handlesBack) onBack();
+            },
+            child: child!,
+          );
+        },
       ),
     ),
   );

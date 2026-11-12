@@ -43,8 +43,16 @@ abstract class LibraryMessages {
   static const String searchIndexMissing =
       'אינדקס לא קיים, לא ניתן לבצע חיפוש זה ללא אינדקס.';
 
-  static const String searchIndexOpenFailed =
-      'פתיחת אינדקס החיפוש נכשלה — האינדוקס הושהה. נסה להפעיל מחדש את התוכנה';
+  /// [indexPath] מופיע בהודעה כשהוא ידוע: כשהאינדקס מוגדר על כונן אחר,
+  /// "הפעל מחדש" לבדו לא עוזר והמשתמש צריך לדעת איזה נתיב נכשל.
+  static String searchIndexOpenFailed([String? indexPath]) {
+    final location = (indexPath == null || indexPath.isEmpty)
+        ? ''
+        : ' ($indexPath)';
+    return 'פתיחת אינדקס החיפוש$location נכשלה — האינדוקס הושהה. '
+        'ודא שהתיקייה נגישה וניתנת לכתיבה, או החזר את נתיב האינדקס לברירת '
+        'המחדל בהגדרות הספרייה. אם זה לא עוזר, הפעל מחדש את התוכנה';
+  }
 
   static const String searchResultIndexOutOfDate =
       'תוצאת החיפוש שייכת לאינדקס ישן. יש לעדכן את אינדקס החיפוש.';

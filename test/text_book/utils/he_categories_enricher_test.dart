@@ -285,7 +285,7 @@ void main() {
         expect(
           result.heCategories,
           'ספרים אישיים, תיקיית בית',
-          reason: 'categoryPath מסומן כספרים אישיים → preferUserBooks',
+          reason: 'categoryPath מסומן כספרים אישיים → preferSource=user',
         );
         expect(book.heCategories, isNull);
       },

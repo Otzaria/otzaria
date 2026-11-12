@@ -824,7 +824,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
   void _logUpdateError(String stage, Object e, StackTrace st) {
     debugPrint('[LibraryUpdate] ERROR in $stage: $e\n$st');
     try {
-      ErrorLogFile.append(
+      ErrorLogFile.appendInBackground(
         title: 'Library Update Error ($stage)',
         error: e,
         stackTrace: st,

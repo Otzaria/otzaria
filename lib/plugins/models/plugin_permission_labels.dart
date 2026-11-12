@@ -609,4 +609,11 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
     icon: FluentIcons.select_all_on_24_regular,
     description: 'התוסף יקבל עדכון בכל פעם שהטקסט המסומן בקורא משתנה',
   ),
+  'events.subscribe:search.completed': PluginPermissionInfo(
+    label: 'אירועי סיום חיפוש',
+    icon: FluentIcons.search_24_regular,
+    description:
+        'התוסף יקבל עדכון בכל פעם שחיפוש בטקסט באוצריא מסתיים, עם הביטוי '
+        'שחיפשת ומספר התוצאות',
+  ),
 };

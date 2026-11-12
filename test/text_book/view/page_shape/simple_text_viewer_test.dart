@@ -31,7 +31,6 @@ import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart
 import 'package:otzaria/personal_notes/widgets/personal_note_editor_dialog.dart';
 import 'package:otzaria/personal_notes/utils/create_personal_note.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
@@ -55,6 +54,7 @@ import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 import 'package:otzaria/text_book/view/selection/selection_persistence.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_settings_bloc.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 
 void main() {
@@ -167,7 +167,7 @@ void main() {
 
         expect(await back(), 200);
         expect(await back(), beforeLink);
-        expect(lines.canGoBack.value, isFalse);
+        expect(lines.history.value.back, isNull);
         await tester.pumpWidget(const SizedBox());
       });
     }
@@ -418,7 +418,7 @@ void main() {
             ),
           ),
           BlocProvider<SettingsBloc>(
-            create: (_) => _TestSettingsBloc(SettingsState.initial()),
+            create: (_) => StubSettingsBloc(SettingsState.initial()),
           ),
         ],
         child: MaterialApp(
@@ -516,7 +516,7 @@ void main() {
               ),
             ),
             BlocProvider<SettingsBloc>.value(
-              value: _TestSettingsBloc(SettingsState.initial()),
+              value: StubSettingsBloc(SettingsState.initial()),
             ),
           ],
           child: Scaffold(
@@ -568,7 +568,7 @@ void main() {
         showOnlyVisible: true,
       ),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     int? openedTab;
 
     await tester.pumpWidget(
@@ -646,7 +646,7 @@ void main() {
               ),
             ),
             BlocProvider<SettingsBloc>.value(
-              value: _TestSettingsBloc(SettingsState.initial()),
+              value: StubSettingsBloc(SettingsState.initial()),
             ),
           ],
           // כמו מסך העיון: כל טאב הוא עמוד PageView שנשמר חי ברקע.
@@ -728,7 +728,7 @@ void main() {
         filteredMissingNotes: [],
       ),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     addTearDown(LinkPreviewOverlay.dismiss);
 
     await tester.pumpWidget(
@@ -816,7 +816,7 @@ void main() {
         filteredMissingNotes: [],
       ),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     addTearDown(LinkPreviewOverlay.dismiss);
 
     await tester.pumpWidget(
@@ -893,7 +893,7 @@ void main() {
         filteredMissingNotes: [],
       ),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     addTearDown(LinkPreviewOverlay.dismiss);
 
     await tester.pumpWidget(
@@ -962,7 +962,7 @@ void main() {
         filteredMissingNotes: [],
       ),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     addTearDown(LinkPreviewOverlay.dismiss);
     Widget app(Widget home) => MultiBlocProvider(
       providers: [
@@ -1015,7 +1015,7 @@ void main() {
         filteredMissingNotes: [],
       ),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
 
     await tester.pumpWidget(
       MultiBlocProvider(
@@ -1102,7 +1102,7 @@ void main() {
               ),
             ),
             BlocProvider<SettingsBloc>.value(
-              value: _TestSettingsBloc(SettingsState.initial()),
+              value: StubSettingsBloc(SettingsState.initial()),
             ),
           ],
           child: MaterialApp(
@@ -1188,7 +1188,7 @@ void main() {
         filteredMissingNotes: [],
       ),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
 
     await tester.pumpWidget(
       MultiBlocProvider(
@@ -1252,7 +1252,7 @@ void main() {
         filteredMissingNotes: [],
       ),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     addTearDown(LinkPreviewOverlay.dismiss);
 
     await tester.pumpWidget(
@@ -1307,7 +1307,7 @@ void main() {
         filteredMissingNotes: const [],
       ),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
 
     await tester.pumpWidget(
       MaterialApp(
@@ -1360,7 +1360,7 @@ void main() {
           filteredMissingNotes: const [],
         ),
       );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
 
       await tester.pumpWidget(
         MaterialApp(
@@ -1451,7 +1451,7 @@ void main() {
           filteredMissingNotes: const [],
         ),
       );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
 
       await tester.pumpWidget(
         MaterialApp(
@@ -1527,7 +1527,7 @@ void main() {
       final notesBloc = _TestPersonalNotesBloc(
         const PersonalNotesState.initial(),
       );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
       final targets = <(String, int?, int)>[];
       var outerCalls = 0;
       addTearDown(textBookBloc.close);
@@ -1629,7 +1629,7 @@ void main() {
         filteredMissingNotes: [],
       ),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
 
     await tester.pumpWidget(
       MaterialApp(
@@ -2077,7 +2077,7 @@ void main() {
           filteredMissingNotes: const [],
         ),
       );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
       final menuItemFocusNode = FocusNode(debugLabel: 'TestMenuItem');
 
       await tester.pumpWidget(
@@ -2149,7 +2149,7 @@ void main() {
         filteredMissingNotes: const [],
       ),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final menuItemFocusNode = FocusNode(debugLabel: 'TestMenuItem');
 
     await tester.pumpWidget(
@@ -2237,7 +2237,7 @@ void main() {
           filteredMissingNotes: const [],
         ),
       );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
       final commentaryPositions = ItemPositionsListener.create();
 
       await tester.pumpWidget(
@@ -2334,7 +2334,7 @@ void main() {
         filteredMissingNotes: const [],
       ),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
 
     await tester.pumpWidget(
       MaterialApp(
@@ -2404,7 +2404,7 @@ void main() {
         filteredMissingNotes: const [],
       ),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
 
     await tester.pumpWidget(
       MaterialApp(
@@ -2489,7 +2489,7 @@ void main() {
         filteredMissingNotes: const [],
       ),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final menuItemFocusNode = FocusNode(debugLabel: 'TestMenuItem');
     final otherButtonFocusNode = FocusNode(debugLabel: 'OtherButton');
 
@@ -2570,7 +2570,7 @@ void main() {
         filteredMissingNotes: const [],
       ),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final dialogFocusNode = FocusNode(debugLabel: 'DialogBody');
     addTearDown(dialogFocusNode.dispose);
 
@@ -2664,7 +2664,7 @@ void main() {
           filteredMissingNotes: const [],
         ),
       );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
 
       await tester.pumpWidget(
         MaterialApp(
@@ -2727,7 +2727,7 @@ void main() {
           filteredMissingNotes: const [],
         ),
       );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
 
       await tester.pumpWidget(
         MaterialApp(
@@ -2795,7 +2795,7 @@ void main() {
           filteredMissingNotes: const [],
         ),
       );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
 
       await tester.pumpWidget(
         MaterialApp(
@@ -2863,7 +2863,7 @@ void main() {
             filteredMissingNotes: const [],
           ),
         );
-        final settingsBloc = _TestSettingsBloc(settings);
+        final settingsBloc = StubSettingsBloc(settings);
 
         await tester.pumpWidget(
           MaterialApp(
@@ -3007,7 +3007,7 @@ void main() {
         filteredMissingNotes: const [],
       ),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
 
     await tester.pumpWidget(
       MaterialApp(
@@ -3181,7 +3181,7 @@ void main() {
             value: _TestPersonalNotesBloc(const PersonalNotesState.initial()),
           ),
           BlocProvider<SettingsBloc>.value(
-            value: _TestSettingsBloc(SettingsState.initial()),
+            value: StubSettingsBloc(SettingsState.initial()),
           ),
         ],
         child: MaterialApp(
@@ -3375,7 +3375,7 @@ Future<_SelectionEmittingTextBookBloc> _pumpMarkedViewer(
               ),
             ),
           BlocProvider<SettingsBloc>.value(
-            value: _TestSettingsBloc(SettingsState.initial()),
+            value: StubSettingsBloc(SettingsState.initial()),
           ),
         ],
         child: Scaffold(
@@ -3650,16 +3650,6 @@ class _TestNavigationBloc extends Bloc<NavigationEvent, NavigationState>
     implements NavigationBloc {
   _TestNavigationBloc(super.initialState) {
     on<NavigationEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
   }
 
   @override

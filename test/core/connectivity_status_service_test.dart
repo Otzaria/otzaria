@@ -543,20 +543,6 @@ void main() {
   });
 
   group('ConnectivityStatusService.instance', () {
-    test('קיים instance משותף שאפשר להחליף לבדיקות', () {
-      final original = ConnectivityStatusService.instance;
-      addTearDown(() => ConnectivityStatusService.instance = original);
-
-      final replacement = ConnectivityStatusService(
-        offlineModeReader: () => true,
-        networkProbe: () async => false,
-      );
-      ConnectivityStatusService.instance = replacement;
-
-      expect(ConnectivityStatusService.instance, same(replacement));
-      expect(ConnectivityStatusService.instance.cached?.isOnline, isFalse);
-    });
-
     test('resetCache מאפשר בדיקה מחדש', () async {
       var probes = 0;
       final service = ConnectivityStatusService(

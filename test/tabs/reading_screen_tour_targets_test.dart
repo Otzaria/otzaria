@@ -18,7 +18,6 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
@@ -36,6 +35,7 @@ import 'package:otzaria/tour/bloc/tour_cubit.dart';
 import 'package:provider/provider.dart';
 
 import '../test_helpers/memory_cache_provider.dart';
+import '../test_helpers/stub_settings_bloc.dart';
 
 /// מעבר טאב מזיז את יעדי הסיור בלי לבנות מחדש את מסכי הספר.
 void main() {
@@ -61,7 +61,7 @@ void main() {
     final tabsBloc = TabsBloc(repository: _FakeTabsRepository());
     tabsBloc.emit(TabsState(tabs: tabs, currentTabIndex: 0));
     final tourCubit = TourCubit();
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final bookmarkBloc = _TestBookmarkBloc();
     final notesBloc = PersonalNotesBloc();
     final historyBloc = _FakeHistoryBloc();
@@ -182,16 +182,6 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
   final TextBookRepository repository = TextBookRepository(
     fileSystem: FileSystemData.instance,
   );
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

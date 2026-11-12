@@ -29,6 +29,8 @@ environment:
   sdk: ">=3.13.0 <4.0.0"
 
 dependencies:
+  # Wrap the existing Flutter runner host for the 0.6 nativeapi bridge.
+  nativeapi: ^0.5.10
   sentry_flutter: ^9.30.1
   flutter:
     sdk: flutter
@@ -36,7 +38,13 @@ dependencies:
     path: packages/otzaria_context_menu
   flutter_bloc: ^9.1.1
   bloc: ^9.2.1
-  bloc_concurrency: ^0.3.0
+  # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור felangel/bloc#4829, #4894, #4913–#4916.
+  # ענף master בפורק Otzaria/bloc הוא הענף המשולב; תיקוני סקירה נדחפים אליו וגם לענפי ה-PRים.
+  bloc_concurrency:
+    git:
+      url: https://github.com/Otzaria/bloc
+      ref: 6e4061e34e8062ba3b72f3fb005fbae1278742b4
+      path: packages/bloc_concurrency
   equatable: ^3.0.0
   flutter_localizations:
     sdk: flutter
@@ -121,7 +129,7 @@ dependencies:
   otzaria_search_engine:
     git:
       url: https://github.com/Otzaria/otzaria_search_engine
-      ref: d303a03d00986c5c64243cfc6a7d84015fba5dac
+      ref: 5babbce643d69cb20e2e9d4592b6ece120f2723d
   # חוזה הדיווחים מול השרת, משותף עם "עדכוני אוצריא" (Dart טהור).
   otzaria_report_contract:
     path: packages/otzaria_report_contract
@@ -129,21 +137,23 @@ dependencies:
     git:
       url: https://github.com/Otzaria/otzaria_library_updater
       ref: effdc651635a18c719b52a79d840b5aa27b1968e
-  # 0.6 (nativeapi) from the combined branch of our fork: Otzaria/window_manager
-  # main = upstream leanflutter 0.6.1 + the fork's merged PRs. Review fixes go
-  # both to that branch (then bump the ref here) and to the upstream PR branches.
-  # TODO: return to the official pub.dev release once these upstream PRs are merged:
-  #   leanflutter/window_manager#598 #599 #600 #601 #602 #603 #604 #605 #606 #607
+  # Review fixes belong in this combined fork and the matching upstream PR.
+  # TODO: return to pub.dev after leanflutter/window_manager#598–#607 merge and release.
   window_manager:
     git:
       url: https://github.com/Otzaria/window_manager
       ref: e5140090cefc48d06534bdd31f43c55d1f1a5bcb
   screen_retriever: ^0.2.2
-  flutter_spinbox: ^0.13.1
+  # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור ubuntu-flutter-community/flutter_spinbox#102–#114.
+  # תיקוני סקירה חייבים להישמר גם בענף המשולב (main של הפורק) וגם בענפי ה-PRים באפסטרים.
+  flutter_spinbox:
+    git:
+      url: https://github.com/Otzaria/flutter_spinbox
+      ref: 3b7813842c7c4f1b7d019dcfe344fc8ddfdf6f7e
   logging: ^1.3.0
   sqlite3: ^3.8.0
   super_clipboard: ^0.9.1
-  flutter_local_notifications: ^22.3.3
+  flutter_local_notifications: ^23.0.0
   timezone: ^0.11.2
   xml: ^7.0.1
   markdown: ^7.3.1
@@ -155,7 +165,7 @@ dependencies:
   flutter_inappwebview:
     git:
       url: https://github.com/Otzaria/flutter_inappwebview
-      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
       path: flutter_inappwebview
   # נדרש ישירות עבור WindowsFileDropManager (גרירת קבצים אל החלון).
   flutter_inappwebview_windows: any
@@ -164,6 +174,26 @@ dependencies:
   wakelock_plus: ^1.8.2
 
 dependency_overrides:
+  # TODO: לחזור לגרסת timezone הרשמית אחרי מיזוג ה-PRים ב-dart-lang/labs
+  # ופרסום גרסה שכוללת את התיקונים.
+  # ענף codex/timezone-integrated-20261111. מוצמד לקומיט שעבר QA.
+  timezone:
+    git:
+      url: https://github.com/Otzaria/labs.git
+      ref: f48be9ede26c06e433a186bd1aca2876fb4de143
+      path: pkgs/timezone
+  # TODO: לחזור לגרסה הרשמית אחרי מיזוג ושחרור brendan-duncan/archive#428–#438 ו־#441.
+  archive:
+    git:
+      url: https://github.com/Otzaria/archive
+      ref: 533742bcee15f1a81cecf5d38707e8f6318dcfa3 # codex/archive-integration
+  # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור dart-lang/core#1043, #1044.
+  # ענף characters-integrated כולל את כל התיקונים; מוצמד לקומיט שנבדק.
+  characters:
+    git:
+      url: https://github.com/Otzaria/core
+      ref: 3c153cc0a9bd4327331870b4d6ee0ca8a35435f1
+      path: pkgs/characters
   # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור flutter/packages#13595–#13600.
   # תיקוני סקירה חייבים להישמר גם בענף המשולב וגם בענפי ה-PRים באפסטרים.
   flutter_svg:
@@ -182,20 +212,26 @@ dependency_overrides:
       url: https://github.com/Otzaria/pdfrx
       ref: d898e52b1526532c8d66a5f7fee0ca6b867a77d0
       path: packages/pdfium_dart
-  # Windows clipboard history requires the CF_BITMAP reader patch; see UPSTREAM.md.
+  # TODO: להסיר יחד עם ה-override של super_native_extensions כשתשוחרר 0.10 יציבה
+  # (native assets, תלויה ב-irondash ^0.6). עד אז הפורק Otzaria: 0.5.5 עם תיקון Cargokit
+  # ל-AGP 9 ו-Gradle 9 (irondash/irondash#95), תג irondash_engine_context-v0.5.5+otzaria.1.
+  irondash_engine_context:
+    git:
+      url: https://github.com/Otzaria/irondash
+      ref: 4afdd8dc3ff29d119b9f9c4ddce3b001be961d51
+      path: engine_context/dart
+  # Windows clipboard history requires the CF_BITMAP reader patch; also Cargokit for
+  # AGP 9 / Gradle 9 (superlistapp/super_native_extensions#565). See UPSTREAM.md.
   super_native_extensions:
     path: packages/super_native_extensions
-  # TODO: להחזיר ל-pub.dev כשיתמזג וישוחרר MaikuB/flutter_local_notifications#2826
-  # (קריאות WinRT ב-thread ייעודי, כולל תיקון ה-deadlock ב-invoke) ו-#2862 (טעינת ה-DLL
-  # בשימוש הראשון). עד אז הפורק Otzaria, ענף windows-worker-thread-lazy-library, מוצמד לקומיט.
+  # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור MaikuB/flutter_local_notifications#2826 ו-#2869–#2874.
+  # עד אז: ענף Windows המשולב windows-worker-thread-lazy-library-23x (בסיס 4.0.0), מוצמד לקומיט.
   # בהסרה: למחוק גם את core.longpaths מ-workflows של Windows - הוא נדרש
   # רק בגלל הנתיב העמוק במונורפו הזה.
-  # כולל תיקון memory ownership (#4), helper isolates ו-native teardown (#5).
-  # נעיצה ל-SHA המדויק שנבדק ב-Windows, ללא שינוי public Dart API.
   flutter_local_notifications_windows:
     git:
       url: https://github.com/Otzaria/flutter_local_notifications
-      ref: faf17437daccb8c74a4d17e6881dc834415de6d8
+      ref: 327a0713ccebe2bdf981db532c5904e3b731ef16
       path: flutter_local_notifications_windows
   # TODO: להחזיר ל-pub.dev כשימוזגו וישוחררו getsentry/sentry-dart#4094 ו-#4126 (ה-backport ל-9.x בענף
   # fix/9.x-windows-scope-sync-worker: טעינת sentry.dll, sentry_init ועדכוני ה-scope ב-isolate עזר ב-Windows).
@@ -221,6 +257,12 @@ dependency_overrides:
       url: https://github.com/Otzaria/dart_pdf
       ref: fb1bcbd6a43a5510462b949fcdf2526cd8abe422
       path: widget_wrapper
+  # TODO: להחזיר ל-pub.dev אחרי מיזוג ושחרור olutter/bidi#11–#19.
+  # הענף המשולב כולל גם את תיקוני מיפוי המקור הנדרשים להדפסה.
+  bidi:
+    git:
+      url: https://github.com/Otzaria/bidi
+      ref: eab19a79d6aff662e135b65c2d95cf6d00c1d600
   # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור daohoangson/flutter_widget_from_html#1658, #1659,
   # #1660, #1661, #1662, #1663 (מטמון CSS, מיזוג margins, מחרוזות debug עצלות, Flattener,
   # FutureBuilder, צבע hex פגום).
@@ -229,6 +271,23 @@ dependency_overrides:
       url: https://github.com/Otzaria/flutter_widget_from_html
       ref: 57080495ee8b89aeee156a4440b6de1c5e0f7ef2
       path: packages/core
+  # TODO: לחזור ל-csslib, ל-html ול-markdown מ-pub.dev אחרי מיזוג ושחרור dart-lang/tools#2826–#2838, #2842–#2853 ו-#2856–#2865.
+  # ענף main בפורק Otzaria/tools הוא הענף המשולב; תיקוני סקירה נדחפים אליו וגם לענפי ה-PRים.
+  csslib:
+    git:
+      url: https://github.com/Otzaria/tools
+      ref: a6186923df7fb587a42af24ac04b3a9ac27d0c0d
+      path: pkgs/csslib
+  html:
+    git:
+      url: https://github.com/Otzaria/tools
+      ref: a6186923df7fb587a42af24ac04b3a9ac27d0c0d
+      path: pkgs/html
+  markdown:
+    git:
+      url: https://github.com/Otzaria/tools
+      ref: a6186923df7fb587a42af24ac04b3a9ac27d0c0d
+      path: pkgs/markdown
   matcher: ^0.12.20
   # TODO: לחזור לגרסה הרשמית לאחר מיזוג ושחרור תיקוני provider באפסטרים.
   provider:
@@ -242,36 +301,37 @@ dependency_overrides:
   flutter_inappwebview_windows:
     git:
       url: https://github.com/Otzaria/flutter_inappwebview
-      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
       path: flutter_inappwebview_windows
   flutter_inappwebview_platform_interface:
     git:
       url: https://github.com/Otzaria/flutter_inappwebview
-      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
       path: flutter_inappwebview_platform_interface
   flutter_inappwebview_ios:
     git:
       url: https://github.com/Otzaria/flutter_inappwebview
-      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
       path: flutter_inappwebview_ios
   flutter_inappwebview_macos:
     git:
       url: https://github.com/Otzaria/flutter_inappwebview
-      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
       path: flutter_inappwebview_macos
   flutter_inappwebview_linux:
     git:
       url: https://github.com/Otzaria/flutter_inappwebview
-      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
       path: flutter_inappwebview_linux
   # הגרסה שב-pub.dev קוראת ל-setStatusBarColor שהוצא משימוש ב-Android 15.
   flutter_inappwebview_android:
     git:
       url: https://github.com/Otzaria/flutter_inappwebview
-      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
       path: flutter_inappwebview_android
 
-  # TODO: לחזור לגרסה הרשמית כשיפורסמו התיקונים שנותרו; v14 כבר מכסה חלק מהם.
+  # TODO: להישאר במזלג עד שחרור V14 ב-pub.dev ואימות כיסוי כל השיפורים ובדיקות המעבר; 13.3.3 אינה מספיקה.
+  # לפני הסרת ה-overrides יש לאמת URI מלא באנדרואיד (#2316) וקריאה עצלה ב-Web שמייתרת הגבלת מקביליות (#2325–#2326).
   file_picker:
     git:
       url: https://github.com/Otzaria/flutter_file_picker
@@ -308,6 +368,17 @@ dependency_overrides:
       ref: codex/integrated-fixes
       path: packages/file_picker_web
 
+  # TODO: לחזור לגרסה הרשמית לאחר מיזוג ושחרור תיקוני renggli/dart-xml.
+  xml:
+    git:
+      url: https://github.com/Otzaria/dart-xml.git
+      ref: codex/integrated-xml-fixes
+  # TODO: להסיר לאחר שחרור petitparser שתומך ב-ParseIterator וב-ParseDecoderSink.
+  petitparser:
+    git:
+      url: https://github.com/petitparser/dart-petitparser.git
+      ref: c5eb8c0349a02142fc7577f784ebdf01a1d1daf8
+
 flutter_launcher_icons:
   android: true
   ios: true
@@ -328,8 +399,6 @@ flutter_launcher_icons:
     icon_size: 256 # min:48, max:256, default: 48
 
 dev_dependencies:
-  # Test doubles for window_manager 0.6's nativeapi-backed window bridge.
-  nativeapi: ^0.5.10
   sentry_dart_plugin: ^3.4.0
   # מחולל spec.json של התוספים (tool/plugins) מפרסר AST של קוד המקור.
   # מוצמד ל-major: צורת ה-AST משתנה בין גרסאות ראשיות ושוברת את המחולל.
@@ -379,6 +448,7 @@ flutter:
     - assets/semantic/meivin-round2-windows-onnx/
     - assets/semantic/meivin-qa491-onnx/
     - assets/semantic/meivin-qa491-windows-onnx/
+    - assets/semantic/pardesqa491-windows-onnx/
 
   fonts:
     # החבילה מספקת את הגופן אך אינה מצהירה עליו, ולכן שני אייקוני ה-light

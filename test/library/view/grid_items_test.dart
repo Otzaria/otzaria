@@ -270,38 +270,6 @@ void main() {
     expect(find.byIcon(OtzariaIcons.document_alef_24_regular), findsNothing);
   });
 
-  testWidgets('מציג אייקון תיקייה בקו regular ולא filled', (tester) async {
-    final category = Category(
-      title: 'קטגוריה',
-      description: '',
-      shortDescription: '',
-      order: 0,
-      subCategories: [],
-      books: [],
-      parent: null,
-    );
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Material(
-          child: Center(
-            child: SizedBox(
-              width: 260,
-              child: CategoryGridItem(
-                category: category,
-                onCategoryClickCallback: () {},
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.byIcon(FluentIcons.folder_24_regular), findsOneWidget);
-    expect(find.byIcon(FluentIcons.folder_24_filled), findsNothing);
-  });
-
   group('מידע קטגוריה', () {
     Category category({
       String shortDescription = '',

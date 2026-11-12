@@ -20,17 +20,14 @@ import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/reports/bloc/book_report_draft_cubit.dart';
 import 'package:otzaria/reports/repository/report_draft_store.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
@@ -47,6 +44,9 @@ import 'package:url_launcher_platform_interface/link.dart';
 import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_personal_notes_bloc.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 const _title = 'חברותא על ברכות';
 const _inlineTitle = 'חברותא על שבת';
@@ -436,9 +436,9 @@ Future<void> _pumpWithBlocs(
   TextBookLoaded state,
   Widget child,
 ) async {
-  final textBook = _TextBookBloc(state);
-  final settings = _SettingsBloc(SettingsState.initial());
-  final notes = _PersonalNotesBloc(const PersonalNotesState.initial());
+  final textBook = StubTextBookBloc(state);
+  final settings = StubSettingsBloc(SettingsState.initial());
+  final notes = StubPersonalNotesBloc(const PersonalNotesState.initial());
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox.shrink());
     await textBook.close();
@@ -504,34 +504,4 @@ class _RecordingUrlLauncher extends UrlLauncherPlatform
 
   @override
   LinkDelegate? get linkDelegate => null;
-}
-
-class _TextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _SettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _SettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _PersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

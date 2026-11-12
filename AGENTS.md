@@ -248,6 +248,8 @@ missed it.
 After reveal, `windows/runner/hang_monitor.cpp` polls `IsHungAppWindow` once a second (no WM_TIMER,
 which floods starve) and writes `=== App hang` / `=== App hang recovered`; Dart offers a report
 under the crash-report setting (`lib/app_report/services/app_hang_report.dart`).
+`native_exception_log.cpp` records only the UI thread’s exception code, address and time in a fixed buffer.
+The hang report includes the metadata when the captured stack contains that address.
 
 **Reading a hang stack.** Every Dart-code hang ends in the same engine frames (`DartEntry::Invoke*`
 called from `BeginFrame` or a platform message). The cause is in the `app.so+0x…` frames above them.
@@ -259,6 +261,8 @@ published symbols. Windows builds published by `build-and-announce.yml` ship a p
 `otzaria-3.47.7-a11y.1`, picked by the GUID in the record's `Module PDB:` line (x64
 `9A3F8E48-5EA7-4A0A-8316-21352F723250`, arm64 `7324F4D1-92B4-455F-BA47-E65B47E2E69B`). Other builds use the official PDB from
 `flutter_infra_release/flutter/<engine.version>/windows-x64-release/windows-x64-flutter.zip`.
+For `otzaria.exe` and the DLLs CMake builds from source (e.g. `flutter_inappwebview_windows_plugin.dll`), use the PDBs in the release
+asset `otzaria-native-symbols-<arch>.zip`; Release builds write them to `build/windows/<arch>/pdb/Release`.
 For system-DLL frames, fetch the PDB from the Microsoft symbol server using the record's `Module PDB`
 line (the tool prints the URL).
 

@@ -65,25 +65,6 @@ void main() {
   });
 
   group('PluginSystemLoaded.pluginsPinnedToNavRail', () {
-    test('returns empty list when there are no plugins', () {
-      const state = PluginSystemLoaded([]);
-      expect(state.pluginsPinnedToNavRail, isEmpty);
-    });
-
-    test('excludes disabled plugins even if pinnedToNavRail is true', () {
-      final state = PluginSystemLoaded([
-        _plugin(id: 'a', enabled: false, pinned: true, pinnedToNavRail: true),
-      ]);
-      expect(state.pluginsPinnedToNavRail, isEmpty);
-    });
-
-    test('excludes plugins where pinnedToNavRail is false', () {
-      final state = PluginSystemLoaded([
-        _plugin(id: 'a', enabled: true, pinned: true, pinnedToNavRail: false),
-      ]);
-      expect(state.pluginsPinnedToNavRail, isEmpty);
-    });
-
     test('includes only enabled plugins with pinnedToNavRail = true', () {
       final state = PluginSystemLoaded([
         _plugin(

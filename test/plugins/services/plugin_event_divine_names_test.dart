@@ -13,6 +13,7 @@ import 'package:otzaria/plugins/services/context_menu_registry.dart';
 import 'package:otzaria/plugins/services/plugin_divine_names_filter.dart';
 import 'package:otzaria/plugins/services/plugin_restore_state_store.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
+import 'package:otzaria/plugins/services/plugin_webview_runtime.dart';
 import 'package:otzaria/plugins/utils/plugin_context_menu_entries.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';

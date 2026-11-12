@@ -34,7 +34,7 @@ class SemanticSearchTab extends SearchingTab {
 
   /// הכותרת של כרטיסייה עם השאילתה [query].
   static String titleFor(String query) =>
-      '$kSemanticSearchModeName: ${query.trim()}';
+      '$kSemanticSearchModeName: ${SearchingTab.shortenQueryForTitle(query.trim())}';
 
   /// השאילתה והאפשרויות של החיפוש האחרון שהוגש.
   SemanticQueryOptions get options => _options;

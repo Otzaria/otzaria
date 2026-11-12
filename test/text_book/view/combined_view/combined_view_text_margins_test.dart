@@ -12,14 +12,11 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/view/widgets/selection_gutter_painter.dart';
@@ -30,6 +27,9 @@ import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_personal_notes_bloc.dart';
+import '../../../test_helpers/stub_settings_bloc.dart';
+import '../../../test_helpers/stub_text_book_bloc.dart';
 
 const int _lineCount = 40;
 
@@ -60,37 +60,6 @@ TextBookLoaded _loadedState(
   searchText: '',
   protection: protection,
 );
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestPersonalNotesBloc
-    extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _TestPersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
 
 /// כמה פיקסלים הדיו של [word] בולט משמאל לתיבת המילה, כלומר אחרי סופה.
 Future<double> _inkPastWordEnd(WidgetTester tester, String word) async {
@@ -148,13 +117,13 @@ void main() {
     addTearDown(tester.view.reset);
 
     final content = _content(lineCount);
-    final textBookBloc = _TestTextBookBloc(
+    final textBookBloc = StubTextBookBloc(
       _loadedState(content, protection: protection),
     );
-    final personalNotesBloc = _TestPersonalNotesBloc(
+    final personalNotesBloc = StubPersonalNotesBloc(
       const PersonalNotesState.initial(),
     );
-    final settingsBloc = _TestSettingsBloc(
+    final settingsBloc = StubSettingsBloc(
       SettingsState.initial().copyWith(textMaxWidth: textMaxWidth),
     );
     final tab = TextBookTab(book: TextBook(title: 'ספר בדיקה'), index: 0);

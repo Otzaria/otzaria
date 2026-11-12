@@ -9,6 +9,7 @@
 #include <thread>
 #include <vector>
 
+#include "native_exception_log.h"
 #include "startup_watchdog.h"
 
 namespace hang_monitor {
@@ -30,6 +31,7 @@ constexpr int kMaxExtraSamples = 3;
 constexpr ULONGLONG kSampleIntervalMs = 2000;
 constexpr int kMaxOtherThreads = 32;
 constexpr DWORD kCpuWindowMs = 250;
+constexpr ULONGLONG kExceptionLeadMs = 10000;
 
 HWND g_window = nullptr;
 HANDLE g_stop_event = nullptr;
@@ -219,7 +221,12 @@ void AppendMemory(std::string* report) {
   *report += line;
 }
 
-void ReportHang(const std::vector<ULONG_PTR>& frames, bool with_threads) {
+void ReportHang(const std::vector<ULONG_PTR>& frames, bool with_threads,
+                ULONGLONG hang_started_at, ULONGLONG detected_at) {
+  const auto exception = native_exception_log::FindStackMatch(
+      native_exception_log::ReadRecent(), frames,
+      hang_started_at > kExceptionLeadMs ? hang_started_at - kExceptionLeadMs : 0,
+      detected_at);
   // רק בדוח הראשון: הרשימה ארוכה, ודוחות נוספים היו דוחקים רשומות קודמות.
   const std::vector<OtherThread> threads =
       with_threads ? CaptureOtherThreads() : std::vector<OtherThread>();
@@ -242,6 +249,16 @@ void ReportHang(const std::vector<ULONG_PTR>& frames, bool with_threads) {
   AppendMemory(&report);
   startup_watchdog::AppendBuildIdentity(all_frames, &report);
   startup_watchdog::AppendStack(frames, &report);
+  if (exception) {
+    char header[160];
+    snprintf(header, sizeof(header),
+             "--- Recent UI exception matching stack (%llums before detection) ---\n"
+             "Code: 0x%08x\nAddress: ",
+             static_cast<unsigned long long>(detected_at - exception->awake_ms),
+             static_cast<unsigned int>(exception->code));
+    report += header;
+    report += startup_watchdog::DescribeFrame(exception->address) + "\n";
+  }
   AppendOtherThreads(threads, &report);
   startup_watchdog::AppendReport(report);
 }
@@ -290,6 +307,7 @@ void ReportProcessStall(ULONGLONG gap_ms) {
 }
 
 void WatcherLoop() {
+  native_exception_log::Install(::GetWindowThreadProcessId(g_window, nullptr));
   ULONGLONG last_tick = ::GetTickCount64();
   ULONGLONG last_awake = AwakeMs();
   ULONGLONG grace_until = 0;
@@ -350,7 +368,7 @@ void WatcherLoop() {
     hang_started_at = first_hung_at - kHungThresholdMs;
     last_sample_at = awake;
     samples = 0;
-    ReportHang(CaptureFrames(), reports == 1);
+    ReportHang(CaptureFrames(), reports == 1, hang_started_at, awake);
   }
 }
 

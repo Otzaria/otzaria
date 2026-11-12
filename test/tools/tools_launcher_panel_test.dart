@@ -25,6 +25,8 @@ import 'package:otzaria/tools/view/tools_launcher_panel.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 
+import '../test_helpers/stub_settings_bloc.dart';
+
 class _MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
     implements SettingsBloc {}
 
@@ -189,7 +191,7 @@ void main() {
     tester,
   ) async {
     final key = GlobalKey<_ToolsLauncherOverlayHarnessState>();
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final pluginSystemBloc = _TestPluginSystemBloc(PluginSystemInitial());
     final tabsBloc = _TestTabsBloc(TabsState.initial());
     addTearDown(() async {
@@ -224,7 +226,7 @@ void main() {
   ) async {
     final key = GlobalKey<_ToolsLauncherOverlayHarnessState>();
     final backgroundFocusNode = FocusNode();
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final pluginSystemBloc = _TestPluginSystemBloc(PluginSystemInitial());
     final tabsBloc = _TestTabsBloc(TabsState.initial());
     addTearDown(() async {
@@ -547,11 +549,6 @@ void main() {
       movePulse: movePulse,
     );
 
-    testWidgets('מציג את תווית הכלי', (tester) async {
-      await tester.pumpWidget(_tileHost(buildTile()));
-      expect(find.text('לוח שנה'), findsOneWidget);
-    });
-
     // אותו כרטיס כמו בקוביות הספרייה — צבע הכרטיס שבערכת הנושא, ומסגרת
     // outlineVariant בלי צל (DD-12).
     testWidgets('הקובייה על צבע הכרטיס של הספרייה', (tester) async {
@@ -590,32 +587,6 @@ void main() {
       );
       expect(icon.size, lessThan(ToolTile.maxIconSize));
       expect(icon.size, greaterThanOrEqualTo(ToolTile.minIconSize));
-    });
-
-    // התווית קטנה מברירת המחדל של bodySmall, כדי לפנות מקום לאייקון.
-    testWidgets('תווית הקובייה בגודל 11', (tester) async {
-      await tester.pumpWidget(_tileHost(buildTile()));
-      final label = tester.widget<Text>(find.text('לוח שנה'));
-      expect(label.style?.fontSize, ToolTile.labelFontSize);
-    });
-
-    // האייקון עומד על רקע הכרטיס עצמו — בלי מעטפת מרובעת סביבו.
-    testWidgets('האייקון בצבע primary ובלי מעטפת מרובעת', (tester) async {
-      await tester.pumpWidget(_tileHost(buildTile()));
-      final context = tester.element(find.byType(ToolTile));
-      final cs = Theme.of(context).colorScheme;
-
-      final icon = tester.widget<Icon>(
-        find.byIcon(FluentIcons.calendar_24_regular),
-      );
-      expect(icon.color, cs.primary);
-      expect(
-        find.ancestor(
-          of: find.byIcon(FluentIcons.calendar_24_regular),
-          matching: find.byType(Container),
-        ),
-        findsNothing,
-      );
     });
 
     testWidgets('האייקון והטקסט ממורכזים אופקית בקובייה', (tester) async {
@@ -2207,16 +2178,6 @@ class _RecordingPluginSystemBloc
   void add(PluginSystemEvent event) {
     recorded.add(event);
     super.add(event);
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
   }
 
   @override

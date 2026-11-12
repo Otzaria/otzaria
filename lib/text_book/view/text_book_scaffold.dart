@@ -102,12 +102,6 @@ class TextBookScaffold extends StatelessWidget {
       return PageShapeStrategyImpl();
     }
 
-    // Check for split view (commentaries on side)
-    if (state.showSplitView) {
-      return SplitViewStrategyImpl();
-    }
-
-    // Default to combined view (commentaries below)
-    return CombinedViewStrategyImpl();
+    return SplitViewStrategyImpl(showSplitView: state.showSplitView);
   }
 }

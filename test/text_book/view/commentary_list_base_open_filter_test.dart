@@ -4,24 +4,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
-import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
-import 'package:otzaria/library/models/library.dart';
-import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/widgets/misc/commentators_filter_button.dart';
 
+import '../../test_helpers/fake_commentary_library_provider.dart';
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -30,7 +28,7 @@ void main() {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
-  late _TestTextBookBloc textBookBloc;
+  late StubTextBookBloc textBookBloc;
   late _TestSettingsBloc settingsBloc;
 
   setUp(() {
@@ -41,12 +39,12 @@ void main() {
           title: 'מפרש בדיקה',
           categoryId: 1,
           fileType: 'txt',
-        ): _FakeLibraryProvider(),
+        ): FakeCommentaryLibraryProvider(),
       },
-      providers: [_FakeLibraryProvider()],
+      providers: [FakeCommentaryLibraryProvider()],
     );
 
-    textBookBloc = _TestTextBookBloc(_loadedState());
+    textBookBloc = StubTextBookBloc(_loadedState());
     settingsBloc = _TestSettingsBloc(SettingsState.initial());
   });
 
@@ -225,7 +223,7 @@ void main() {
     testWidgets(
       'activeCommentators=[הערות] + onSelectedCommentatorsOverrideChanged: לא נפתח אוטומטית',
       (tester) async {
-        final notesOnlyBloc = _TestTextBookBloc(
+        final notesOnlyBloc = StubTextBookBloc(
           _loadedStateWithCommentators([kNotesCommentatorTitle]),
         );
         addTearDown(() async => notesOnlyBloc.close());
@@ -246,7 +244,7 @@ void main() {
       'activeCommentators=[] (ריק לחלוטין) + onSelectedCommentatorsOverrideChanged: נפתח אוטומטית',
       (tester) async {
         // ביקורת: כאשר אין גם מפרשים וגם הערות, חלונית הסינון נפתחת.
-        final emptyBloc = _TestTextBookBloc(_loadedStateWithCommentators([]));
+        final emptyBloc = StubTextBookBloc(_loadedStateWithCommentators([]));
         addTearDown(() async => emptyBloc.close());
 
         await _pumpWithOverride(
@@ -262,7 +260,7 @@ void main() {
     testWidgets(
       'activeCommentators=[הערות, מפרש] — selectedCommentators לא ריק, לא נפתח',
       (tester) async {
-        final mixedBloc = _TestTextBookBloc(
+        final mixedBloc = StubTextBookBloc(
           _loadedStateWithCommentators([kNotesCommentatorTitle, 'מפרש בדיקה']),
         );
         addTearDown(() async => mixedBloc.close());
@@ -282,7 +280,7 @@ void main() {
       'activeCommentators=[הערות] + onFilterOpenRequested: נקרא פעם אחת בלבד גם תחת rebuilds',
       (tester) async {
         // פתיחת לשונית הבחירה בונה שוב את ההורה; ה-latch מונע לולאת פתיחות.
-        final notesOnlyBloc = _TestTextBookBloc(
+        final notesOnlyBloc = StubTextBookBloc(
           _loadedStateWithCommentators([kNotesCommentatorTitle]),
         );
         addTearDown(() async => notesOnlyBloc.close());
@@ -340,7 +338,7 @@ void main() {
           bookNotes: notes,
           line: line,
         );
-        final bloc = _TestTextBookBloc(at(0));
+        final bloc = StubTextBookBloc(at(0));
         addTearDown(bloc.close);
 
         await _pumpWithOverride(
@@ -370,7 +368,7 @@ void main() {
       testWidgets(
         'מפרש נדיר שאינו רלוונטי מוסתר — אין פתיחה חוזרת (delegated=$delegated)',
         (tester) async {
-          final bloc = _TestTextBookBloc(
+          final bloc = StubTextBookBloc(
             _loadedStateWithCommentators([], bookNotes: notes).copyWith(
               rareCommentators: const {'מפרש בדיקה'},
               linksByLine: {
@@ -410,7 +408,7 @@ void main() {
       testWidgets('מפרש נדיר רלוונטי ל-$selection — הבחירה נפתחת', (
         tester,
       ) async {
-        final bloc = _TestTextBookBloc(
+        final bloc = StubTextBookBloc(
           _loadedStateWithCommentators(
             [],
             bookNotes: notes,
@@ -439,7 +437,7 @@ void main() {
     testWidgets('יש גם מפרש רגיל לבחירה — הבחירה נפתחת אוטומטית', (
       tester,
     ) async {
-      final bloc = _TestTextBookBloc(
+      final bloc = StubTextBookBloc(
         _loadedStateWithCommentators([], bookNotes: notes),
       );
       addTearDown(bloc.close);
@@ -455,7 +453,7 @@ void main() {
     testWidgets('כרטיסיית המפרשים: רק "הערות" זמינות — לא נפתחת לשונית בחירה', (
       tester,
     ) async {
-      final bloc = _TestTextBookBloc(
+      final bloc = StubTextBookBloc(
         _loadedStateWithCommentators(
           [kNotesCommentatorTitle],
           available: const [kNotesCommentatorTitle],
@@ -619,16 +617,6 @@ Future<void> _pumpWithOverride(
   await tester.pumpAndSettle();
 }
 
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
 class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
     implements SettingsBloc {
   _TestSettingsBloc(super.initialState) {
@@ -637,83 +625,4 @@ class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _FakeLibraryProvider implements LibraryProvider {
-  @override
-  String get displayName => 'Fake';
-
-  @override
-  bool get isInitialized => true;
-
-  @override
-  int get priority => 0;
-
-  @override
-  String get providerId => 'fake';
-
-  @override
-  String get sourceIndicator => 'T';
-
-  @override
-  Future<Library> buildLibraryCatalog(
-    Map<String, Map<String, dynamic>> metadata,
-    String rootPath,
-  ) async {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<List<Link>> getAllLinksForBook(
-    String title,
-    int categoryId,
-    String fileType,
-  ) async {
-    return const [];
-  }
-
-  @override
-  Future<Set<String>> getAvailableBookTitles() async {
-    return {'מפרש בדיקה|1|txt'};
-  }
-
-  @override
-  Future<String?> getBookText(
-    String title,
-    int categoryId,
-    String fileType, {
-    BookSource preferSource = BookSource.official,
-  }) async {
-    return null;
-  }
-
-  @override
-  Future<List<TocEntry>?> getBookToc(
-    String title,
-    int categoryId,
-    String fileType, {
-    BookSource preferSource = BookSource.official,
-  }) async {
-    return const [];
-  }
-
-  @override
-  Future<String> getLinkContent(Link link) async {
-    return 'זהו פירוש לבדיקה עם טקסט שניתן לבחור';
-  }
-
-  @override
-  Future<bool> hasBook(String title, int categoryId, String fileType) async {
-    return title == 'מפרש בדיקה';
-  }
-
-  @override
-  Future<void> initialize() async {}
-
-  @override
-  Future<Map<String, List<Book>>> loadBooks(
-    Map<String, Map<String, dynamic>> metadata,
-  ) async {
-    return const {};
-  }
 }

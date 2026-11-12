@@ -14,15 +14,12 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
@@ -30,6 +27,9 @@ import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_personal_notes_bloc.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 final List<String> _lines = [
   for (var line = 0; line < 120; line++)
@@ -166,9 +166,9 @@ Future<TextBookTab> _mountReader(WidgetTester tester) async {
     pinLeftPane: false,
     searchText: '',
   );
-  final bloc = _TestTextBookBloc(initial);
-  final notes = _TestPersonalNotesBloc(const PersonalNotesState.initial());
-  final settings = _TestSettingsBloc(SettingsState.initial());
+  final bloc = StubTextBookBloc(initial);
+  final notes = StubPersonalNotesBloc(const PersonalNotesState.initial());
+  final settings = StubSettingsBloc(SettingsState.initial());
   final tab = TextBookTab(book: initial.book, index: 0);
   addTearDown(bloc.close);
   addTearDown(notes.close);
@@ -213,7 +213,7 @@ Future<void> _mountCommentaries(WidgetTester tester) async {
         targetFileType: 'txt',
       ),
   ];
-  final bloc = _TestTextBookBloc(
+  final bloc = StubTextBookBloc(
     TextBookLoaded(
       book: TextBook(title: 'ספר בדיקה'),
       showLeftPane: false,
@@ -237,7 +237,7 @@ Future<void> _mountCommentaries(WidgetTester tester) async {
       searchText: '',
     ),
   );
-  final settings = _TestSettingsBloc(SettingsState.initial());
+  final settings = StubSettingsBloc(SettingsState.initial());
   addTearDown(bloc.close);
   addTearDown(settings.close);
   await tester.pumpWidget(
@@ -262,37 +262,6 @@ Future<void> _mountCommentaries(WidgetTester tester) async {
   );
   await tester.pumpAndSettle();
   addTearDown(() => tester.pumpWidget(const SizedBox.shrink()));
-}
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestPersonalNotesBloc
-    extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _TestPersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _FakeLibraryProvider implements LibraryProvider {

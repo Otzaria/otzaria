@@ -957,6 +957,213 @@ void main() {
       expect(await repository.getHebrewBooksByIds(const []), isEmpty);
     });
 
+    void createMappingTable(Database db) => db.execute(
+      'CREATE TABLE otzaria_hebrew_books (hb_id INTEGER NOT NULL, '
+      'otzaria_id INTEGER NOT NULL, otzaria_title TEXT NOT NULL, '
+      'is_best INTEGER NOT NULL DEFAULT 0, confidence TEXT NOT NULL, '
+      'PRIMARY KEY (hb_id, otzaria_id))',
+    );
+
+    test(
+      'מיפוי היברובוקס מחזיר מזהים לפי איכות ההתאמה, בשני הכיוונים',
+      () async {
+        final db = sqlite3.open(repository.databasePath);
+        createMappingTable(db);
+        db.execute(
+          "INSERT INTO otzaria_hebrew_books VALUES (10, 1, 'א', 0, 'high'), "
+          "(11, 1, 'א', 1, 'low'), (12, 1, 'א', 0, 'medium'), "
+          "(10, 2, 'ב', 1, 'high')",
+        );
+        db.close();
+
+        expect(await repository.getHebrewBookIdsForOtzariaId(1), [11, 12, 10]);
+        expect(await repository.getOtzariaIdsForHebrewBookId(10), [2, 1]);
+        expect(await repository.getHebrewBookIdsForOtzariaId(99), isEmpty);
+      },
+    );
+
+    test('שאילתת מיפוי איטית לא חוסמת את ה-isolate הראשי', () async {
+      // אלפי התאמות לאותו ספר: המיון לפני LIMIT קורא את כולן.
+      const rowCount = 300000;
+      final db = sqlite3.open(repository.databasePath);
+      createMappingTable(db);
+      db.execute('BEGIN');
+      final insert = db.prepare(
+        "INSERT INTO otzaria_hebrew_books VALUES (?, 1, 'א', 0, ?)",
+      );
+      for (var i = 0; i < rowCount; i++) {
+        insert.execute([i, 'c$i']);
+      }
+      insert.close();
+      db.execute('COMMIT');
+      db.close();
+
+      var maxGap = Duration.zero;
+      final gapWatch = Stopwatch()..start();
+      final ticker = Timer.periodic(const Duration(milliseconds: 2), (_) {
+        if (gapWatch.elapsed > maxGap) maxGap = gapWatch.elapsed;
+        gapWatch.reset();
+      });
+      final total = Stopwatch()..start();
+      final ids = await repository.getHebrewBookIdsForOtzariaId(1);
+      total.stop();
+      ticker.cancel();
+      if (gapWatch.elapsed > maxGap) maxGap = gapWatch.elapsed;
+
+      expect(ids, hasLength(20));
+      expect(
+        maxGap.inMicroseconds,
+        lessThan(total.elapsedMicroseconds ~/ 2),
+        reason: 'max gap $maxGap of total ${total.elapsed}',
+      );
+    });
+
+    for (final (failQuery, failSwap) in [
+      (false, false),
+      (true, false),
+      (false, true),
+    ]) {
+      test('החלפת קטלוג ממתינה לקורא מיפוי ממופע אחר '
+          '(query fails: $failQuery, swap fails: $failSwap)', () async {
+        await _createCatalogDatabase(repository.databasePath, version: 3);
+        _createSlowMappingView(repository.databasePath, failQuery: failQuery);
+        final remotePath = path.join(tempDir.path, 'replacement.db');
+        await _createCatalogDatabase(remotePath, version: 4);
+        final bytes = await File(remotePath).readAsBytes();
+        var mappingFinished = false;
+        final mapping = repository
+            .getHebrewBookIdsForOtzariaId(1)
+            .whenComplete(
+              () => mappingFinished = true,
+            );
+        addTearDown(() async => await mapping);
+        await _waitForCatalogReader(repository.databasePath);
+        final updater = ExternalCatalogRepository(
+          httpClient: _catalogClient(bytes),
+          beforeFileRename: (_, _) {
+            expect(mappingFinished, isTrue);
+            if (failSwap) {
+              throw const FileSystemException('Injected swap failure');
+            }
+          },
+        );
+
+        if (failSwap) {
+          await expectLater(
+            updater.updateDatabaseIfNeeded(),
+            throwsA(isA<FileSystemException>()),
+          );
+        } else {
+          expect(await updater.updateDatabaseIfNeeded(), isTrue);
+        }
+        expect(await mapping, failQuery ? isEmpty : hasLength(20));
+        expect(await updater.getCurrentDatabaseVersion(), failSwap ? 3 : 4);
+        expect(
+          await repository.getHebrewBookIdsForOtzariaId(1),
+          failSwap ? hasLength(20) : isEmpty,
+        );
+        _expectExclusiveCatalogAccess(updater.databasePath);
+      });
+    }
+
+    test('קורא מיפוי אינו מעכב החלפת קטלוג בנתיב אחר', () async {
+      await _createCatalogDatabase(repository.databasePath, version: 3);
+      _createSlowMappingView(repository.databasePath, rowCount: 20000000);
+      var mappingFinished = false;
+      final originalPath = repository.databasePath;
+      final mapping = repository
+          .getHebrewBookIdsForOtzariaId(1)
+          .whenComplete(
+            () => mappingFinished = true,
+          );
+      addTearDown(() async => await mapping);
+      await _waitForCatalogReader(originalPath);
+      await Settings.setValue<String>(
+        SettingsRepository.keyLibraryFolderName,
+        'Other',
+      );
+      await Directory(path.dirname(repository.databasePath)).create();
+      await _createCatalogDatabase(repository.databasePath, version: 3);
+      final remotePath = path.join(tempDir.path, 'replacement.db');
+      await _createCatalogDatabase(remotePath, version: 4);
+      final updater = ExternalCatalogRepository(
+        httpClient: _catalogClient(await File(remotePath).readAsBytes()),
+        beforeFileRename: (_, _) => expect(mappingFinished, isFalse),
+      );
+
+      expect(await updater.updateDatabaseIfNeeded(), isTrue);
+      expect(await updater.getCurrentDatabaseVersion(), 4);
+      expect(await mapping, hasLength(20));
+      _expectExclusiveCatalogAccess(originalPath);
+    });
+
+    test('שחזור קטלוג שנקטע ממתין לסיום קורא המיפוי', () async {
+      final target = repository.databasePath;
+      await _createCatalogDatabase(target, version: 9);
+      _createSlowMappingView(target);
+      final backup = Directory('$target.catalog-update-backup')..createSync();
+      await _createCatalogDatabase(path.join(backup.path, '0'), version: 3);
+      File(path.join(backup.path, 'state.json')).writeAsStringSync(
+        '[true,false,false,false]',
+        flush: true,
+      );
+      var mappingFinished = false;
+      final mapping = repository
+          .getHebrewBookIdsForOtzariaId(1)
+          .whenComplete(
+            () => mappingFinished = true,
+          );
+      addTearDown(() async => await mapping);
+      await _waitForCatalogReader(target);
+      final updater = ExternalCatalogRepository(
+        httpClient: MockClient((_) async => http.Response('unavailable', 404)),
+        beforeFileRename: (_, _) => expect(mappingFinished, isTrue),
+      );
+
+      await expectLater(updater.downloadLatestDatabase(), throwsException);
+      expect(await mapping, hasLength(20));
+      expect(await updater.getCurrentDatabaseVersion(), 3);
+      expect(backup.existsSync(), isFalse);
+      expect(await repository.getHebrewBookIdsForOtzariaId(1), isEmpty);
+      _expectExclusiveCatalogAccess(target);
+    });
+
+    test('הורדת קטלוג אינה מעכבת קריאת מיפוי מהקטלוג הקיים', () async {
+      await _createCatalogDatabase(repository.databasePath, version: 3);
+      final db = sqlite3.open(repository.databasePath);
+      createMappingTable(db);
+      db.execute(
+        "INSERT INTO otzaria_hebrew_books VALUES (10, 1, 'א', 1, 'high')",
+      );
+      db.close();
+      final remotePath = path.join(tempDir.path, 'replacement.db');
+      await _createCatalogDatabase(remotePath, version: 4);
+      final downloadStarted = Completer<void>();
+      final finishDownload = Completer<void>();
+      final updater = ExternalCatalogRepository(
+        httpClient: _catalogClient(
+          await File(remotePath).readAsBytes(),
+          downloadGate: finishDownload.future,
+          onDownload: downloadStarted.complete,
+        ),
+      );
+      final update = updater.updateDatabaseIfNeeded();
+      await downloadStarted.future;
+      try {
+        expect(
+          await repository
+              .getHebrewBookIdsForOtzariaId(1)
+              .timeout(
+                const Duration(seconds: 5),
+              ),
+          [10],
+        );
+      } finally {
+        finishDownload.complete();
+        expect(await update, isTrue);
+      }
+    });
+
     test('טעינת קטלוג גדול לא חוסמת את ה-isolate הראשי (perf)', () async {
       const rowCount = 80000;
       final db = sqlite3.open(repository.databasePath);
@@ -1246,6 +1453,77 @@ void main() {
       expect(await repository.getHebrewBooks(), isEmpty);
     });
   });
+}
+
+void _createSlowMappingView(
+  String dbPath, {
+  bool failQuery = false,
+  int rowCount = 2000000,
+}) {
+  final db = sqlite3.open(dbPath);
+  try {
+    db.execute('''
+      CREATE VIEW otzaria_hebrew_books AS
+      WITH RECURSIVE numbers(x) AS (
+        VALUES(1) UNION ALL SELECT x + 1 FROM numbers WHERE x < $rowCount
+      )
+      SELECT ${failQuery ? 'abs(-9223372036854775808 + (x != $rowCount))' : 'x'} AS hb_id,
+        1 AS otzaria_id, 0 AS is_best, x AS confidence FROM numbers, db_meta
+    ''');
+  } finally {
+    db.close();
+  }
+}
+
+http.Client _catalogClient(
+  List<int> bytes, {
+  Future<void>? downloadGate,
+  void Function()? onDownload,
+}) => MockClient((request) async {
+  if (request.url.toString() == ExternalCatalogRepository.releaseApiUrl) {
+    return http.Response(
+      jsonEncode({
+        'tag_name': 'db-v4',
+        'assets': [
+          {
+            'name': DatabaseConstants.externalCatalogDatabaseFileName,
+            'browser_download_url': 'https://example.com/catalog.db',
+          },
+          {
+            'name': DatabaseConstants.externalCatalogVersionFileName,
+            'browser_download_url': 'https://example.com/version.txt',
+          },
+        ],
+      }),
+      200,
+    );
+  }
+  if (request.url.path == '/version.txt') return http.Response('4', 200);
+  onDownload?.call();
+  if (downloadGate != null) {
+    await downloadGate;
+  }
+  return http.Response.bytes(bytes, 200);
+});
+
+Future<void> _waitForCatalogReader(String dbPath) async {
+  final probe = sqlite3.open(dbPath);
+  final watch = Stopwatch()..start();
+  try {
+    while (watch.elapsed < const Duration(seconds: 5)) {
+      try {
+        probe.execute('BEGIN EXCLUSIVE');
+        probe.execute('ROLLBACK');
+      } on SqliteException catch (error) {
+        if (error.resultCode == 5) return;
+        rethrow;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+    }
+    fail('Mapping reader never acquired its SQLite lock');
+  } finally {
+    probe.close();
+  }
 }
 
 void _expectExclusiveCatalogAccess(String dbPath) {

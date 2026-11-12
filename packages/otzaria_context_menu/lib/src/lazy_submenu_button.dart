@@ -141,6 +141,7 @@ class _LazyAppSubmenuButtonState extends State<_LazyAppSubmenuButton>
         );
     if (_hasEnabledChildren == false) {
       return MenuItemButton(
+        overflowAxis: Axis.vertical,
         requestFocusOnHover: false,
         style: buildAppSubmenuItemStyle(
           context,

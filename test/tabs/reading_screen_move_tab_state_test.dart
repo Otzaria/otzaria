@@ -16,8 +16,6 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -30,6 +28,7 @@ import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:provider/provider.dart';
 
 import '../helpers/memory_settings_cache.dart';
+import '../test_helpers/stub_settings_bloc.dart';
 
 /// אימות התנהגותי של `MoveTab` על ה-`ReadingScreen` האמיתי: אחרי הזזה,
 /// ה-`State` של מסך הטאב חייב להיות *אותו מופע*. ב-PDF זה ההבדל בין
@@ -67,7 +66,7 @@ void main() {
       MaterialApp(
         home: MultiBlocProvider(
           providers: [
-            BlocProvider<SettingsBloc>.value(value: _FakeSettingsBloc()),
+            BlocProvider<SettingsBloc>.value(value: StubSettingsBloc()),
             BlocProvider<PersonalNotesBloc>.value(
               value: _FakePersonalNotesBloc(),
             ),
@@ -730,16 +729,6 @@ class _FakeHistoryBloc extends Bloc<HistoryEvent, HistoryState>
     implements HistoryBloc {
   _FakeHistoryBloc() : super(HistoryInitial()) {
     on<HistoryEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _FakeSettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
   }
 
   @override

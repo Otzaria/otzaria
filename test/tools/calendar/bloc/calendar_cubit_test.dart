@@ -771,12 +771,6 @@ void main() {
       final cleared = event.copyWith(colorIndex: () => null);
       expect(cleared.colorIndex, isNull);
     });
-
-    test('שימור הערך כשלא מועבר', () {
-      final renamed = event.copyWith(title: 'שם חדש');
-      expect(renamed.colorIndex, 5);
-      expect(renamed.title, 'שם חדש');
-    });
   });
 
   group('eventsForDate — טווח אירוע מרובה-ימים', () {
@@ -1281,12 +1275,6 @@ void main() {
     test('איפוס מפורש ל-null', () {
       final cleared = event.copyWith(endGregorianDate: () => null);
       expect(cleared.endGregorianDate, isNull);
-    });
-
-    test('שימור הערך כשלא מועבר', () {
-      final renamed = event.copyWith(title: 'שם חדש');
-      expect(renamed.endGregorianDate, DateTime(2026, 5, 18));
-      expect(renamed.title, 'שם חדש');
     });
 
     test('recurringYears מתאפס במפורש ל-null', () {

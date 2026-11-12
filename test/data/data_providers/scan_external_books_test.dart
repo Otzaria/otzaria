@@ -220,49 +220,6 @@ void main() {
     },
   );
 
-  test('Phase-1 contract: ב-fallback mode existingBookId הוא null גם לקבצים קיימים ב-DB — '
-      'Phase 2 אחראי לבדיקה הסופית לפני insert', () async {
-    // This is a structural test: we verify that _DiscoveredBook with
-    // existingBookId == null AND a file that already has a DB row will be
-    // caught by the Phase-2 getExternalBookByFilePath re-check.
-    //
-    // We test the scan side: even in fallback mode the field is null (not the
-    // existing ID), which is correct — Phase 2 is responsible for the final
-    // authoritative check. This validates the contract between Phase 1 and 2.
-    final file = await createTxtFile('existing.txt');
-    final stat = await file.stat();
-    _insertBook(
-      db,
-      id: 99,
-      filePath: file.path,
-      fileSize: stat.size,
-      lastModified: stat.modified.millisecondsSinceEpoch,
-    );
-
-    const badDbPath = '/nonexistent/path/that/cannot/exist.db';
-    db.close();
-    final result = await scanExternalFolderForTest(
-      tmpDir.path,
-      'testFolder',
-      badDbPath,
-    );
-    db = sqlite3.sqlite3.open(dbPath);
-
-    // Phase 1 returns it as "new" (existingBookId == null).
-    // Phase 2 must call getExternalBookByFilePath before inserting.
-    // We verify the Phase 1 contract: existingBookId is null in fallback mode.
-    final entry = result.firstWhere(
-      (r) => r['path'] == file.path,
-      orElse: () => {},
-    );
-    expect(
-      entry['existingBookId'],
-      isNull,
-      reason:
-          'Phase 1 fallback מחזיר null — Phase 2 אחראי לבדיקה הסופית מול repository',
-    );
-  });
-
   // ── Phase-2 recheck (recheckBeforeInsertForTest) ─────────────────────────
 
   group('Phase-2 recheck via recheckBeforeInsertForTest', () {

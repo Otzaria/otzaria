@@ -2,17 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 
-/// סמנטיקת searchResultLines בהדגשת חיפוש:
-///
-/// הבאג: ארבעת אתרי הרינדור תרגמו `searchResultLines == null` ל"השורה אינה
-/// תוצאה" (`?? false`). אבל null פירושו שחיפוש-מנוע בתוך הספר כלל לא רץ —
-/// למשל ספר שנפתח מלחיצה על תוצאת חיפוש גלובלית בלי חלונית צד פתוחה (רק
-/// חלונית החיפוש שבספר ממלאה את הסט). במדיניות התאמה שאינה ברירת המחדל שער
-/// ההדגשה דורש isSearchResultLine — וכך שום שורה לא הודגשה, למרות שהמשתמש
-/// הגיע היישר מתוצאה שהמנוע (הגלובלי) בהחלט החזיר.
-///
-/// החוזה: null = אין מידע ⇢ ההדגשה אינה נחסמת; סט (גם ריק) = מוסמך —
-/// רק שורות שהמנוע החזיר מודגשות.
+/// בהדגשת חיפוש במדיניות שאינה סטנדרטית רק שורה שהמנוע החזיר משתתפת;
+/// searchResultLines שהוא null (אין תוצאות מנוע ידועות) חוסם כל שורה.
 void main() {
   group('TextBookLoaded.lineParticipatesInSearchHighlight', () {
     test('null — אין תוצאות מנוע ידועות — חוסם כל שורה', () {

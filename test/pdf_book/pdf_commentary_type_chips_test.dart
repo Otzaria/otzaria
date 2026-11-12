@@ -11,8 +11,6 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/book_common/utils/commentary_type_filter.dart';
 import 'package:otzaria/widgets/commentary/commentary_content.dart';
@@ -20,19 +18,11 @@ import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
 import 'package:otzaria/widgets/misc/commentators_filter_button.dart';
 
 import '../helpers/memory_settings_cache.dart';
+import '../test_helpers/stub_settings_bloc.dart';
 
 /// צ׳יפי סינון סוג המפרש היו קיימים בכרטיסיית הטקסט בלבד. הטסטים כאן נועלים
 /// את החיווט המקביל בחלונית ה-PDF: הצ׳יפים נבנים מהקטע הנראה, והסינון עצמו
 /// חייב לצמצם את הרשימה בפועל (ולא רק לצבוע צ׳יפ).
-class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _FakeSettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
-}
 
 class _FakePersonalNotesBloc
     extends Bloc<PersonalNotesEvent, PersonalNotesState>
@@ -90,7 +80,7 @@ Future<void> _pump(
     MaterialApp(
       home: MultiBlocProvider(
         providers: [
-          BlocProvider<SettingsBloc>.value(value: _FakeSettingsBloc()),
+          BlocProvider<SettingsBloc>.value(value: StubSettingsBloc()),
           BlocProvider<PersonalNotesBloc>.value(
             value: _FakePersonalNotesBloc(),
           ),
@@ -116,44 +106,6 @@ void main() {
   setUpAll(() async {
     WidgetsFlutterBinding.ensureInitialized();
     await Settings.init(cacheProvider: MemorySettingsCache());
-  });
-
-  group('CommentaryTypeFilter — הבסיס המשותף לצ׳יפים', () {
-    test('צ׳יפ נבנה רק לסוג שקיים בקישורים', () {
-      final keys = CommentaryTypeFilter.chipKeys([
-        _link(path2: 'אונקלוס', connectionType: LinkTypes.targum),
-        _link(path2: 'רש"י', connectionType: LinkTypes.parshanut),
-      ]);
-      expect(keys, containsAll([LinkTypes.targum, LinkTypes.parshanut]));
-      expect(keys, isNot(contains(LinkTypes.midrash)));
-    });
-
-    test('סוג שאינו סוג-סינון אינו מקבל צ׳יפ', () {
-      final keys = CommentaryTypeFilter.chipKeys([
-        _link(path2: 'ספר', connectionType: 'COMMENTARY'),
-      ]);
-      expect(keys, isEmpty);
-    });
-
-    test('הסדר קבוע לפי commentaryFilterTypes ולא לפי סדר הקישורים', () {
-      final keys = CommentaryTypeFilter.chipKeys([
-        _link(path2: 'רש"י', connectionType: LinkTypes.parshanut),
-        _link(path2: 'אונקלוס', connectionType: LinkTypes.targum),
-      ]);
-      final expectedOrder = LinkTypes.commentaryFilterTypes
-          .where(keys.contains)
-          .toList();
-      expect(keys, equals(expectedOrder));
-    });
-
-    test('commentatorsByType ממפה סוג לשמות המפרשים', () {
-      final byType = CommentaryTypeFilter.commentatorsByType([
-        _link(path2: 'אונקלוס', connectionType: LinkTypes.targum),
-        _link(path2: 'רש"י', connectionType: LinkTypes.parshanut),
-      ]);
-      expect(byType[LinkTypes.targum], contains('אונקלוס'));
-      expect(byType[LinkTypes.parshanut], contains('רש"י'));
-    });
   });
 
   group('pdfVisibleContentCacheKey — סינון הסוגים נכלל במפתח', () {

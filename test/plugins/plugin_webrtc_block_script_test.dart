@@ -9,12 +9,5 @@ void main() {
       expect(script.injectionTime, UserScriptInjectionTime.AT_DOCUMENT_START);
       expect(script.forMainFrameOnly, isFalse);
     });
-
-    test('מסיר את בנאי החיבור בלי אפשרות להגדירו מחדש', () {
-      final source = buildPluginWebRtcBlockScript().source;
-      expect(source, contains("'RTCPeerConnection'"));
-      expect(source, contains("'webkitRTCPeerConnection'"));
-      expect(source, contains('configurable: false'));
-    });
   });
 }

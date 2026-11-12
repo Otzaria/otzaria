@@ -37,7 +37,7 @@ String _oracleNextVisible(String line, int from) {
 }
 
 /// עותק של המימוש הקודם, שעבר תו-תו כמחרוזות, ועליו פיסוק שבין מילים הופך
-/// לרווח. הקלטים בלי גרשיים: הם מוכרעים לפני הלולאה ב-_stripQuotesOutsideTags
+/// לרווח. הקלטים בלי גרשיים: הם מוכרעים לפני הלולאה ב-stripNonAcronymQuotes
 /// ונבדקים ב-remove_punctuation_quotes_test.
 String _oracleRemovePunctuation(String text) {
   if (text.isEmpty) return text;

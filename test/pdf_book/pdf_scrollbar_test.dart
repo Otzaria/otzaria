@@ -687,48 +687,6 @@ void main() {
     });
   });
 
-  // ─── עיצוב וצבעים ─────────────────────────────────────────────────────────
-  group('PdfScrollbar - עיצוב', () {
-    testWidgets('PdfScrollbar עם thumbColor מותאם', (
-      tester,
-    ) async {
-      final controller = PdfViewerController();
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: PdfScrollbar(
-              controller: controller,
-              orientation: ScrollbarOrientation.right,
-              thumbColor: Colors.blue,
-              trackThickness: 16,
-              thumbMinSize: 50,
-              scrollBoundsBuilder: (_) => Rect.zero,
-            ),
-          ),
-        ),
-      );
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('PdfHorizontalScrollbar עם trackThickness מותאם', (
-      tester,
-    ) async {
-      final controller = PdfViewerController();
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: PdfHorizontalScrollbar(
-              controller: controller,
-              trackThickness: 12,
-              thumbColor: Colors.red,
-            ),
-          ),
-        ),
-      );
-      expect(tester.takeException(), isNull);
-    });
-  });
-
   // ─── ארבע כיוונים ─────────────────────────────────────────────────────────
   group('PdfScrollbar - כל הכיוונים', () {
     for (final orientation in ScrollbarOrientation.values) {

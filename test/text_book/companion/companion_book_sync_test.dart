@@ -196,7 +196,7 @@ void main() {
       companion.lines.goBack();
       async.flushMicrotasks();
       expect(companion.lines.captureAnchor()!.line, 0);
-      expect(companion.lines.canGoBack.value, isFalse);
+      expect(companion.lines.history.value.back, isNull);
       sync.dispose();
       primary.dispose();
       companion.dispose();

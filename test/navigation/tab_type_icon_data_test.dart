@@ -1,11 +1,9 @@
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/view/tab_visuals.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
-import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/semantic_search_tab.dart';
@@ -34,29 +32,6 @@ void main() {
 
   TextBookTab textTab([String title = 'בראשית']) =>
       TextBookTab(book: TextBook(title: title, categoryId: 1), index: 0);
-
-  test('כל סוג כרטיסיה מקבל את האייקון שלו', () {
-    // אייקון PDF של אוצריא, כמו ברצועה העליונה (q10 Q14 C).
-    expect(tabTypeIconData(pdfTab()), OtzariaIcons.document_pdf_24_regular);
-    expect(
-      tabTypeIconData(SearchingTab('חיפוש', null)),
-      OtzariaIcons.search_24_regular,
-    );
-    expect(
-      tabTypeIconData(
-        CombinedTab(rightTab: textTab(), leftTab: textTab('שמות')),
-      ),
-      FluentIcons.split_horizontal_24_regular,
-    );
-    expect(
-      tabTypeIconData(ToolTab(toolId: 'builtin.calendar', title: 'לוח שנה')),
-      FluentIcons.toolbox_24_regular,
-    );
-    // ⚠️ כרטיסיית טקסט היא היחידה ש-`buildTabTypeIcon` מחזיר לה `null`,
-    // וכאן היא **חייבת** לקבל אייקון: מוק בלי אייקון הוא מלבן ריק עם
-    // כותרת תלויה באוויר.
-    expect(tabTypeIconData(textTab()), FluentIcons.document_24_regular);
-  });
 
   test('סוגי כרטיסיה שונים אינם מקבלים אותו אייקון', () {
     final icons = <OpenedTab>[

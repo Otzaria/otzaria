@@ -231,7 +231,8 @@ void main() {
       } catch (_) {}
     });
 
-    String errorsTxt() {
+    Future<String> errorsTxt() async {
+      await ErrorLogFile.flushPending(timeout: const Duration(seconds: 30));
       final file = File(p.join(tempDir.path, 'logs', ErrorLogFile.fileName));
       return file.existsSync() ? file.readAsStringSync() : '';
     }
@@ -293,7 +294,7 @@ $script
         };
 
         await WebView2CreationDiagnostics.recordCreationFailure(_conflict);
-        final content = errorsTxt();
+        final content = await errorsTxt();
         expect(
           content,
           contains(
@@ -359,7 +360,7 @@ $script
       );
 
       expect(runs, 1);
-      final content = errorsTxt();
+      final content = await errorsTxt();
       expect(
         RegExp(WebView2CreationDiagnostics.logTitle).allMatches(content),
         hasLength(1),
@@ -403,7 +404,7 @@ $script
         WebView2CreationDiagnostics.debugRunnerOverride = entry.value;
         await WebView2CreationDiagnostics.recordCreationFailure(_conflict);
         expect(
-          errorsTxt(),
+          await errorsTxt(),
           contains('Holders: process query failed or timed out'),
         );
       });
@@ -421,10 +422,10 @@ $script
         creationFailure: true,
       );
       await ran.future;
-      // After the runner the record is synchronous; a timer runs after it.
+      // The record is queued in a later event, after the runner completes.
       await Future<void>.delayed(Duration.zero);
 
-      final content = errorsTxt();
+      final content = await errorsTxt();
       final failureAt = content.indexOf('=== Plugin WebView creation failed');
       final holdersAt = content.indexOf(
         '=== ${WebView2CreationDiagnostics.logTitle}',
@@ -443,7 +444,7 @@ $script
       await settle();
       expect(runs, 0);
       expect(
-        errorsTxt(),
+        await errorsTxt(),
         isNot(contains(WebView2CreationDiagnostics.logTitle)),
       );
       expect(
@@ -509,14 +510,14 @@ $script
       expect(runs, 0);
     });
 
-    test('only abnormal browser exits are logged, a few per process', () {
+    test('only abnormal browser exits are logged, a few per process', () async {
       WebViewEnvironmentHolder.debugBrowserProcessExited(
         BrowserProcessExitedDetail(
           kind: BrowserProcessExitKind.NORMAL,
           processId: 1,
         ),
       );
-      expect(errorsTxt(), isEmpty);
+      expect(await errorsTxt(), isEmpty);
       for (var i = 0; i < 5; i++) {
         WebViewEnvironmentHolder.debugBrowserProcessExited(
           BrowserProcessExitedDetail(
@@ -525,7 +526,7 @@ $script
           ),
         );
       }
-      final content = errorsTxt();
+      final content = await errorsTxt();
       expect(
         RegExp('=== WebView2 browser process exited').allMatches(content),
         hasLength(3),

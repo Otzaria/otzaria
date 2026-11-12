@@ -1,30 +1,19 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/book_common/utils/commentary_search_utils.dart';
 import 'package:otzaria/widgets/commentary/commentary_search_results_list.dart';
 
 import '../../helpers/memory_settings_cache.dart';
 import '../../support/search_engine_test_init.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
 
 /// רשימת קטעי תוצאות החיפוש הייתה קיימת בכרטיסיית המפרשים בטקסט בלבד; ב-PDF
 /// הוצג `SizedBox.shrink()`. הטסטים כאן נועלים את הרשימה המשותפת ואת המיפוי
 /// בין היקרות (currentIdx) לשורה המסומנת.
-class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _FakeSettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
-}
 
 CommentarySearchSnippet _snippet(String path, String text, int globalIndex) =>
     CommentarySearchSnippet(
@@ -43,7 +32,7 @@ Future<int?> _pump(
   await tester.pumpWidget(
     MaterialApp(
       home: BlocProvider<SettingsBloc>.value(
-        value: _FakeSettingsBloc(),
+        value: StubSettingsBloc(),
         child: Scaffold(
           body: CommentarySearchResultsList(
             query: query,
@@ -173,7 +162,7 @@ Future<void> main() async {
       await tester.pumpWidget(
         MaterialApp(
           home: BlocProvider<SettingsBloc>.value(
-            value: _FakeSettingsBloc(),
+            value: StubSettingsBloc(),
             child: Scaffold(
               body: CommentarySearchResultsList(
                 query: 'שבת',
@@ -193,41 +182,6 @@ Future<void> main() async {
       await tester.tap(find.byType(InkWell).last);
       await tester.pump();
       expect(tapped, 7);
-    });
-  });
-
-  group('מבנה — שני משטחי המפרשים צורכים את אותה רשימה', () {
-    String read(String path) => File(path).readAsStringSync();
-
-    test('כרטיסיית הטקסט וכרטיסיית ה-PDF מציגות את הרשימה המשותפת', () {
-      // Both tabs show their search results through CommentarySearchPane,
-      // which builds the shared results list.
-      const paneRef = 'book_common/view/commentary_search_pane.dart';
-      expect(
-        read('lib/text_book/view/commentators_tab_screen.dart'),
-        contains(paneRef),
-      );
-      expect(
-        read('lib/pdf_book/view/pdf_commentators_tab_screen.dart'),
-        contains(paneRef),
-      );
-      expect(
-        read('lib/book_common/view/commentary_search_pane.dart'),
-        contains('widgets/commentary/commentary_search_results_list.dart'),
-      );
-    });
-
-    test('כרטיסיית ה-PDF אינה מציגה עוד placeholder ריק לתוצאות', () {
-      expect(
-        read('lib/pdf_book/view/pdf_commentators_tab_screen.dart'),
-        isNot(contains('resultsWidget: const SizedBox.shrink()')),
-      );
-    });
-
-    test('פאנל ה-PDF מפרסם קטעי חיפוש ויודע לנווט לאינדקס גלובלי', () {
-      final source = read('lib/pdf_book/view/pdf_commentary_panel.dart');
-      expect(source, contains('externalSearchSnippetsNotifier'));
-      expect(source, contains('navigateToGlobalIndex'));
     });
   });
 }

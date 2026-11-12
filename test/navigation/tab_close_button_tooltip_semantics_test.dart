@@ -20,7 +20,6 @@ import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/navigation/view/custom_title_bar.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -35,6 +34,7 @@ import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 
 import '../helpers/memory_settings_cache.dart';
 import '../helpers/semantics_update_recorder.dart';
+import '../test_helpers/stub_settings_bloc.dart';
 
 void main() {
   // ה-binding המקליט חייב להיווצר לפני כל binding אחר בקובץ.
@@ -71,7 +71,7 @@ void main() {
       final navigationBloc = _TestNavigationBloc(
         const NavigationState(currentScreen: Screen.reading),
       );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
       addTearDown(() async {
         tab.dispose();
         await tabsBloc.close();
@@ -139,7 +139,7 @@ void main() {
       final navigationBloc = _TestNavigationBloc(
         const NavigationState(currentScreen: Screen.reading),
       );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
       addTearDown(() async {
         tab.dispose();
         await tabsBloc.close();
@@ -273,16 +273,6 @@ class _TestNavigationBloc extends Cubit<NavigationState>
 
   @override
   void add(NavigationEvent event) {}
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

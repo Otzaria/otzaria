@@ -9,21 +9,19 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
-import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
-import 'package:otzaria/library/models/library.dart';
-import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/utils/commentary_title_visibility.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
+import '../../test_helpers/fake_commentary_library_provider.dart';
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -193,9 +191,9 @@ void main() {
             title: 'מפרש בדיקה',
             categoryId: 1,
             fileType: 'txt',
-          ): _FakeLibraryProvider(),
+          ): FakeCommentaryLibraryProvider(),
         },
-        providers: [_FakeLibraryProvider()],
+        providers: [FakeCommentaryLibraryProvider()],
       );
       settingsBloc = _TestSettingsBloc(SettingsState.initial());
     });
@@ -207,7 +205,7 @@ void main() {
 
     testWidgets('יעד במקום הנקרא — הכותרת מוסתרת והתוכן מוצג', (tester) async {
       final link = _link(heRef: 'מפרש בדיקה, ג ב', index1: 1, index2: 1);
-      final bloc = _TestTextBookBloc(_loadedState(links: [link]));
+      final bloc = StubTextBookBloc(_loadedState(links: [link]));
       addTearDown(() async => bloc.close());
 
       await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
@@ -218,7 +216,7 @@ void main() {
 
     testWidgets('יעד במקום אחר — הכותרת מוצגת', (tester) async {
       final link = _link(heRef: 'מפרש בדיקה, סימן ב', index1: 1, index2: 2);
-      final bloc = _TestTextBookBloc(_loadedState(links: [link]));
+      final bloc = StubTextBookBloc(_loadedState(links: [link]));
       addTearDown(() async => bloc.close());
 
       await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
@@ -231,7 +229,7 @@ void main() {
         _link(heRef: 'מפרש בדיקה, ג ב', index1: 1, index2: 3),
         _link(heRef: 'מפרש בדיקה, ד א', index1: 2, index2: 4),
       ];
-      final bloc = _TestTextBookBloc(
+      final bloc = StubTextBookBloc(
         _loadedState(
           links: links,
           content: const ['שורה א', 'שורה ב'],
@@ -254,7 +252,7 @@ void main() {
         anchorStart: 0,
         anchorLabel: 'א',
       );
-      final bloc = _TestTextBookBloc(_loadedState(links: [link]));
+      final bloc = StubTextBookBloc(_loadedState(links: [link]));
       addTearDown(() async => bloc.close());
 
       await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
@@ -358,16 +356,6 @@ Future<void> _pump(
   await tester.pumpAndSettle();
 }
 
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
 class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
     implements SettingsBloc {
   _TestSettingsBloc(super.initialState) {
@@ -376,83 +364,4 @@ class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _FakeLibraryProvider implements LibraryProvider {
-  @override
-  String get displayName => 'Fake';
-
-  @override
-  bool get isInitialized => true;
-
-  @override
-  int get priority => 0;
-
-  @override
-  String get providerId => 'fake';
-
-  @override
-  String get sourceIndicator => 'T';
-
-  @override
-  Future<Library> buildLibraryCatalog(
-    Map<String, Map<String, dynamic>> metadata,
-    String rootPath,
-  ) async {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<List<Link>> getAllLinksForBook(
-    String title,
-    int categoryId,
-    String fileType,
-  ) async {
-    return const [];
-  }
-
-  @override
-  Future<Set<String>> getAvailableBookTitles() async {
-    return {'מפרש בדיקה|1|txt'};
-  }
-
-  @override
-  Future<String?> getBookText(
-    String title,
-    int categoryId,
-    String fileType, {
-    BookSource preferSource = BookSource.official,
-  }) async {
-    return null;
-  }
-
-  @override
-  Future<List<TocEntry>?> getBookToc(
-    String title,
-    int categoryId,
-    String fileType, {
-    BookSource preferSource = BookSource.official,
-  }) async {
-    return const [];
-  }
-
-  @override
-  Future<String> getLinkContent(Link link) async {
-    return _kFakeContent;
-  }
-
-  @override
-  Future<bool> hasBook(String title, int categoryId, String fileType) async {
-    return title == 'מפרש בדיקה';
-  }
-
-  @override
-  Future<void> initialize() async {}
-
-  @override
-  Future<Map<String, List<Book>>> loadBooks(
-    Map<String, Map<String, dynamic>> metadata,
-  ) async {
-    return const {};
-  }
 }

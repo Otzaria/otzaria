@@ -59,4 +59,5 @@ const List<String> pluginNetworkAllowlist = <String>[
   'http://chavruta-relay.chavruta.workers.dev',
   'http://hiruv.com',
   'https://oraysa-media.s3.amazonaws.com',
+  'https://moodle.oraysa.org',
 ];

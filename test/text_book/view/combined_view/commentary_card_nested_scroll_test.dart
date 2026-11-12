@@ -13,7 +13,6 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
@@ -30,6 +29,7 @@ import 'package:otzaria/widgets/lists/scroll_position_reanchor.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
 import '../../../test_helpers/reading_toc.dart';
+import '../../../test_helpers/stub_personal_notes_bloc.dart';
 
 const _commentators = ['מפרש א', 'מפרש ב', 'מפרש ג', 'מפרש ד'];
 const _segmentsPerCommentator = 4;
@@ -312,7 +312,7 @@ Future<(TextBookTab, _TestSettingsBloc)> _pumpCombinedView(
     // ברוחב מלא יש סטייה ידועה ונפרדת בשחזור הגלילה הפנימית; מצמידים רוחב יעד.
     SettingsState.initial().copyWith(lineHeight: lineHeight, textMaxWidth: 700),
   );
-  final personalNotesBloc = _TestPersonalNotesBloc(
+  final personalNotesBloc = StubPersonalNotesBloc(
     PersonalNotesState(
       isLoading: false,
       bookId: 'ספר בדיקה',
@@ -433,17 +433,6 @@ class _TestTextBookRepository implements TextBookRepository {
     required int endIndex,
     Iterable<String>? targetBookTitles,
   }) async => const [];
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestPersonalNotesBloc
-    extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _TestPersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
-  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

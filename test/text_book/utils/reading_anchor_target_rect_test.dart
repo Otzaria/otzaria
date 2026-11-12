@@ -41,7 +41,6 @@ void main() {
       lineIndex: _line,
       intraLineFraction: 0.25,
       alignment: 0.35,
-      viewportExtent: 600,
       duration: Duration.zero,
       measure: harness.boxes.lineExtent,
     ).then((_) => completed = true);
@@ -60,7 +59,6 @@ void main() {
       lineIndex: _line,
       intraLineFraction: 0.25,
       alignment: 0.35,
-      viewportExtent: 600,
       duration: Duration.zero,
       measure: harness.boxes.lineExtent,
     );

@@ -125,7 +125,7 @@ class LibraryChangesNotes {
   void _log(Object error, StackTrace stackTrace) {
     debugPrint('[LibraryChanges] $error\n$stackTrace');
     try {
-      ErrorLogFile.append(
+      ErrorLogFile.appendInBackground(
         title: 'Library changes notes',
         error: error,
         stackTrace: stackTrace,

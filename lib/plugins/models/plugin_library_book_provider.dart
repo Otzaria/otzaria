@@ -159,12 +159,21 @@ class PluginLibraryBookEntry {
   static const int maxAuthorLength = 200;
   static const int maxCategoryPathLength = 300;
 
+  /// תיאור הספר: מוצג בחלון "אודות הספר" ובריחוף על כפתור המידע.
+  static const int maxDescriptionLength = 2000;
+
+  /// סך התווים בכל התיאורים של ספק. התיאורים נשמרים ב-DB ונטענים לזיכרון
+  /// עם הרשימה, ולכן הם חסומים גם בסכום: 50,000 תיאורים באורך מלא היו כ-100MB.
+  static const int maxTotalDescriptionLength = 5000000;
+
   /// תווי בקרה ותווי כיוון: שורה חדשה או סימן RTL/LTR בשם ספר היו שוברים
   /// את השורה בכרטיס ואת סדר הטקסט סביבו.
   static final RegExp _controlCharacters = RegExp(
     r'[\u0000-\u001F\u007F-\u009F\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]',
   );
   static final RegExp _whitespace = RegExp(r'\s+');
+  static final RegExp _lineBreaks = RegExp(r'\r\n|[\r\n]');
+  static final RegExp _manyNewlines = RegExp(r'\n{3,}');
 
   final int id;
   final String title;
@@ -173,11 +182,16 @@ class PluginLibraryBookEntry {
   /// נתיב מנורמל בצורת `library.getTree`: `/שו"ת/אחרונים`.
   final String? categoryPath;
 
+  /// טקסט רגיל בלי עיצוב; שבירות שורה ופסקאות נשמרות (ראו
+  /// [_normalizeDescription]).
+  final String? description;
+
   const PluginLibraryBookEntry({
     required this.id,
     required this.title,
     this.author,
     this.categoryPath,
+    this.description,
   });
 
   /// מזהה כפול אסור: לחיצה על ספר נמסרת לתוסף לפי המזהה בלבד. [stored] —
@@ -196,6 +210,7 @@ class PluginLibraryBookEntry {
     }
     final seen = <int>{};
     final entries = <PluginLibraryBookEntry>[];
+    var descriptionLength = 0;
     for (var index = 0; index < raw.length; index++) {
       final entry = PluginLibraryBookEntry.parse(
         raw[index],
@@ -207,13 +222,20 @@ class PluginLibraryBookEntry {
           'books[$index]: duplicate id ${entry.id}',
         );
       }
+      descriptionLength += entry.description?.length ?? 0;
+      if (descriptionLength > maxTotalDescriptionLength) {
+        throw PluginLibraryBooksException(
+          'books[$index]: the descriptions are longer than '
+          '$maxTotalDescriptionLength characters in total',
+        );
+      }
       entries.add(entry);
     }
     return entries;
   }
 
-  /// מהאחסון: מערך `[id, title, author, categoryPath]`, שחוסך כמחצית
-  /// מהנפח ברשימה של אלפי ספרים. מהתוסף: אובייקט בלבד.
+  /// מהאחסון: מערך `[id, title, author, categoryPath]`, ועוד `description`
+  /// כשיש, שחוסך כמחצית מהנפח ברשימה של אלפי ספרים. מהתוסף: אובייקט בלבד.
   factory PluginLibraryBookEntry.parse(
     Object? raw,
     int index, {
@@ -223,16 +245,19 @@ class PluginLibraryBookEntry {
     final Object? title;
     final Object? author;
     final Object? categoryPath;
+    final Object? description;
     if (raw is Map) {
       id = raw['id'];
       title = raw['title'];
       author = raw['author'];
       categoryPath = raw['categoryPath'];
-    } else if (stored && raw is List && raw.length == 4) {
+      description = raw['description'];
+    } else if (stored && raw is List && (raw.length == 4 || raw.length == 5)) {
       id = raw[0];
       title = raw[1];
       author = raw[2];
       categoryPath = raw[3];
+      description = raw.length == 5 ? raw[4] : null;
     } else {
       throw PluginLibraryBooksException('books[$index] must be an object');
     }
@@ -247,6 +272,7 @@ class PluginLibraryBookEntry {
       String field,
       int max, {
       String? Function(String)? normalize,
+      String Function(String) cleaner = _normalizeLine,
     }) {
       if (value == null) return null;
       if (value is! String) {
@@ -254,10 +280,7 @@ class PluginLibraryBookEntry {
           'books[$index].$field must be a string',
         );
       }
-      var clean = value
-          .replaceAll(_controlCharacters, ' ')
-          .replaceAll(_whitespace, ' ')
-          .trim();
+      var clean = cleaner(value);
       // אחרי הנרמול: הערך נשמר כך, ונבדק שוב בטעינה מהאחסון.
       if (normalize != null) clean = normalize(clean) ?? '';
       if (clean.length > max) {
@@ -282,8 +305,28 @@ class PluginLibraryBookEntry {
         maxCategoryPathLength,
         normalize: _normalizePath,
       ),
+      description: text(
+        description,
+        'description',
+        maxDescriptionLength,
+        cleaner: _normalizeDescription,
+      ),
     );
   }
+
+  /// שם, מחבר ונתיב הם שורה אחת: תווי בקרה וכיוון ורווחים רצופים הופכים
+  /// לרווח יחיד.
+  static String _normalizeLine(String value) => value
+      .replaceAll(_controlCharacters, ' ')
+      .replaceAll(_whitespace, ' ')
+      .trim();
+
+  /// תיאור: כל שורה מנורמלת כמו [_normalizeLine], ושבירות השורה נשמרות
+  /// (CRLF ו-CR הופכים ל-LF). שורות ריקות רצופות מצטמצמות לאחת, כך שנשארת
+  /// הפרדת פסקאות אך לא רווח אנכי שרירותי.
+  static String _normalizeDescription(String value) => [
+    for (final line in value.split(_lineBreaks)) _normalizeLine(line),
+  ].join('\n').replaceAll(_manyNewlines, '\n\n').trim();
 
   /// `שו"ת/ אחרונים/` ← `/שו"ת/אחרונים`; נתיב בלי שם אף תיקייה ← `null`.
   static String? _normalizePath(String value) {
@@ -294,7 +337,14 @@ class PluginLibraryBookEntry {
     return segments.isEmpty ? null : '/${segments.join('/')}';
   }
 
-  List<Object?> toStorage() => [id, title, author, categoryPath];
+  /// בלי תיאור: ארבעה איברים, כמו לפני שהשדה נוסף, כך שגם מארח ישן קורא אותה.
+  List<Object?> toStorage() => [
+    id,
+    title,
+    author,
+    categoryPath,
+    if (description != null) description,
+  ];
 
   /// בכרטיס הנתיב מוצג כמו אצל ספרי אוצריא: `שו"ת, אחרונים`.
   ExternalLibraryBook toBook(String provider) => ExternalLibraryBook(
@@ -302,6 +352,7 @@ class PluginLibraryBookEntry {
     id: id,
     author: author,
     categoryPath: categoryPath?.substring(1).replaceAll('/', ', '),
+    heDesc: description,
     link: '',
     externalLibraryId: '$provider:$id',
   );

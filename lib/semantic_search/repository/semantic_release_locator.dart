@@ -374,7 +374,10 @@ class SemanticVectorsReleaseLocator {
 
     final segment = manifest['segment'];
     if (segment is! Map<String, dynamic>) throw _malformed('manifest segment');
-    final identity = SemanticVectorsRelease.identityOf(manifest);
+    final identity = SemanticVectorsRelease.identityOf(
+      manifest,
+      rawJson: manifestJson,
+    );
     return SemanticVectorsRelease(
       libraryTag: libraryTag,
       releaseTag: releaseTag,

@@ -4,8 +4,6 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
@@ -15,6 +13,7 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/commentators_tab_screen.dart';
 
 import '../../helpers/memory_settings_cache.dart';
+import '../../test_helpers/stub_personal_notes_bloc.dart';
 import '../../unit/mocks/mock_settings_repository.mocks.dart';
 
 class _LoadingTextBookBloc extends Bloc<TextBookEvent, TextBookState>
@@ -23,17 +22,6 @@ class _LoadingTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     on<TextBookEvent>((event, emit) {
       if (event is LoadContent) emit(loaded);
     });
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestPersonalNotesBloc
-    extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _TestPersonalNotesBloc() : super(const PersonalNotesState.initial()) {
-    on<PersonalNotesEvent>((_, _) {});
   }
 
   @override
@@ -88,7 +76,7 @@ void main() {
       blocOverride: tabBloc,
     );
     final settings = SettingsBloc(repository: MockSettingsRepository());
-    final notes = _TestPersonalNotesBloc();
+    final notes = StubPersonalNotesBloc();
     addTearDown(() async {
       await tester.pumpWidget(const SizedBox.shrink());
       await settings.close();

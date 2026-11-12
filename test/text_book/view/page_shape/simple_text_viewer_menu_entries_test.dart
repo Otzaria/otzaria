@@ -6,12 +6,10 @@ import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
 import 'package:otzaria/services/target_line_links_service.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
@@ -24,6 +22,8 @@ import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import '../../../test_helpers/context_menu_description.dart';
 import '../../../test_helpers/memory_cache_provider.dart';
 import '../../../test_helpers/plugin_menu_click_recorder.dart';
+import '../../../test_helpers/stub_personal_notes_bloc.dart';
+import '../../../test_helpers/stub_settings_bloc.dart';
 
 /// Pins every entry of the page shape view's context menus, so that sharing
 /// their code with the combined view cannot change them unnoticed.
@@ -52,8 +52,8 @@ void main() {
         availableCommentators: availableCommentators,
       ),
     );
-    final settingsBloc = _SettingsBloc(SettingsState.initial());
-    final notesBloc = _PersonalNotesBloc(const PersonalNotesState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
+    final notesBloc = StubPersonalNotesBloc(const PersonalNotesState.initial());
     addTearDown(() async {
       await bloc.close();
       await settingsBloc.close();
@@ -281,26 +281,6 @@ class _TextBookRepository implements TextBookRepository {
     required int endIndex,
     Iterable<String>? targetBookTitles,
   }) async => [for (final title in commentators) _commentaryLink(title)];
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _PersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _SettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _SettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

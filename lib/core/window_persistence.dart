@@ -75,6 +75,34 @@ class WindowPersistence {
     rect.height * factor,
   );
 
+  /// Convert a screen work area to physical coordinates when the display
+  /// reports finite, usable geometry. Invalid monitor data must not make a
+  /// previously reachable window appear off-screen during restoration.
+  @visibleForTesting
+  static Rect? physicalWorkAreaOrNull(
+    Rect logicalWorkArea,
+    double scaleFactor,
+  ) {
+    if (!scaleFactor.isFinite ||
+        scaleFactor <= 0 ||
+        logicalWorkArea.width <= 0 ||
+        logicalWorkArea.height <= 0 ||
+        !logicalWorkArea.left.isFinite ||
+        !logicalWorkArea.top.isFinite ||
+        !logicalWorkArea.right.isFinite ||
+        !logicalWorkArea.bottom.isFinite) {
+      return null;
+    }
+
+    final physical = _scaleRect(logicalWorkArea, scaleFactor);
+    return physical.left.isFinite &&
+            physical.top.isFinite &&
+            physical.right.isFinite &&
+            physical.bottom.isFinite
+        ? physical
+        : null;
+  }
+
   /// האם רצועת האחיזה — [stripExtent] העליונים של [bounds] — מונחת במלואה
   /// (לגובהה) ולרוחב [stripExtent] לפחות על אחד מ-[displayRects]. גבולות
   /// שנשמרו בטעות כשהחלון ממוזער (חניה ב--32000, ראה `_saveNow`), מסך שנותק,
@@ -293,16 +321,19 @@ class WindowPersistenceBinding {
       final displays = await screenRetriever.getAllDisplays();
       // מסכי macOS וחלונותיו משתמשים באותו מרחב נקודות גלובלי.
       // בשאר הפלטפורמות משווים בפיקסלים פיזיים.
-      final displayRects = [
-        for (final display in displays)
-          if (display.visiblePosition != null && display.visibleSize != null)
-            WindowPersistence._scaleRect(
-              display.visiblePosition! & display.visibleSize!,
-              defaultTargetPlatform == TargetPlatform.macOS
-                  ? 1.0
-                  : (display.scaleFactor ?? 1).toDouble(),
-            ),
-      ];
+      final displayRects = <Rect>[];
+      for (final display in displays) {
+        final position = display.visiblePosition;
+        final size = display.visibleSize;
+        if (position == null || size == null) continue;
+        final rect = WindowPersistence.physicalWorkAreaOrNull(
+          position & size,
+          defaultTargetPlatform == TargetPlatform.macOS
+              ? 1.0
+              : (display.scaleFactor ?? 1).toDouble(),
+        );
+        if (rect != null) displayRects.add(rect);
+      }
       if (displayRects.isEmpty) return true;
       return WindowPersistence.titleStripReachableOnAnyDisplay(
         physicalBounds,
@@ -372,7 +403,7 @@ class WindowPersistenceBinding {
   // כשל דיסק בשמירת הגבולות נרשם ליומן ואינו יוצא כשגיאה לא מטופלת.
   void _logSaveFailure(Object error, StackTrace stackTrace) {
     try {
-      ErrorLogFile.append(
+      ErrorLogFile.appendInBackground(
         title: 'שמירת גבולות החלון נכשלה',
         error: error,
         stackTrace: stackTrace,

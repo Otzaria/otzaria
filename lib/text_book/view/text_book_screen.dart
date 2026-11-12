@@ -54,6 +54,7 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 import 'package:otzaria/text_book/view/widgets/reader_back_button.dart';
+import 'package:otzaria/book_common/view/reading_history_tooltip.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
@@ -82,6 +83,7 @@ import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 import 'package:otzaria/widgets/navigation/book_view_actions.dart';
+import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/plugins/services/plugin_text_reader_registry.dart';
 import 'package:otzaria/plugins/utils/plugin_toolbar_actions.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
@@ -1047,6 +1049,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         AppTopBarItem(
           widget: ReaderBackButton(
             lines: widget.tab.lines,
+            describe: (anchor) =>
+                refFromTocList(anchor.line, state.tableOfContents),
             compact: AppDensity.of(context).isCompact,
           ),
         ),
@@ -1232,7 +1236,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   Widget _buildActions(BuildContext context, TextBookLoaded state) {
     final tourKeys = TourTargetKeys.of(context);
     return ListenableBuilder(
-      listenable: readerPluginToolbarListenable(context),
+      listenable: Listenable.merge([
+        readerPluginToolbarListenable(context),
+        widget.tab.lines.history,
+      ]),
       builder: (context, _) => Consumer<ShamorZachorDataProvider>(
         builder: (context, _, _) => ResponsiveActionBar(
           key: const ValueKey('responsive_actions'),
@@ -1250,6 +1257,20 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                 }
               : null,
           actions: [
+            if (widget.tab.lines.history.value.forward case final forward?)
+              ActionButtonData.simple(
+                key: const ValueKey('reader-forward-location'),
+                icon: FluentIcons.arrow_right_24_regular,
+                tooltip: historyTooltip(
+                  context,
+                  refFromTocList(forward.line, state.tableOfContents),
+                  'מעבר קדימה',
+                  'מעבר קדימה אל {place}',
+                ),
+                onPressed: () => unawaited(widget.tab.lines.goForward()),
+                compact: AppDensity.of(context).isCompact,
+                actionId: ToolbarActionId.forwardLocation,
+              ),
             ..._buildDisplayOrderActions(context, state),
             ...buildReaderPluginActions(
               context,
@@ -2875,11 +2896,12 @@ Future<void> _dispatchContextMenuShortcut({
 }) async {
   final window = AppWindowKeys.of(context);
   final viewId = View.of(context).viewId;
-  final item = ContextMenuRegistry.instance.findItem(
-    target.pluginId,
-    target.contextMenuItemId ?? '',
-  );
-  if (item == null) return;
+  final registry = ContextMenuRegistry.instance;
+  final itemId = target.contextMenuItemId ?? '';
+  final resolved = registry.findVisibleItem(target.pluginId, itemId);
+  if (resolved == null && registry.findItem(target.pluginId, itemId) == null) {
+    return;
+  }
 
   // נקרא לפני ה-await כדי לא להחזיק BuildContext מעבר לגבול אסינכרוני.
   final textBookBloc = context.read<TextBookBloc>();
@@ -2896,14 +2918,16 @@ Future<void> _dispatchContextMenuShortcut({
   final contextName = state.showPageShapeView
       ? 'reader-page-shape-selection'
       : 'reader-selection';
-  if (!item.contexts.contains(contextName)) {
+  if (resolved == null ||
+      !resolved.item.contexts.contains(contextName) ||
+      !resolved.root.showsForBook(
+        bookType: PluginBookIdentity.typeOf(state.book),
+        bookSource: PluginBookIdentity.sourceOf(state.book),
+      )) {
     UiSnack.showError(PluginMessages.contextMenuActionUnavailableHere);
     return;
   }
-  if (!ContextMenuRegistry.instance.isItemVisible(target.pluginId, item.id)) {
-    UiSnack.showError(PluginMessages.contextMenuActionUnavailableHere);
-    return;
-  }
+  final item = resolved.item;
 
   final selectedLineCount = text.split('\n').length;
   List<String>? fullContentLines;

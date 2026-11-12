@@ -7,11 +7,9 @@ import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -21,6 +19,8 @@ import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/widgets/misc/app_context_menu.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_personal_notes_bloc.dart';
+import '../../../test_helpers/stub_settings_bloc.dart';
 
 // כל שינוי בבחירה בגרירה בנה מחדש את שכבת תפריט ההקשר של כל שורה גלויה,
 // אף שהטקסט הנבחר נדרש רק בפתיחת התפריט.
@@ -53,27 +53,6 @@ class _TestTextBookRepository implements TextBookRepository {
     required int endIndex,
     Iterable<String>? targetBookTitles,
   }) async => const [];
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestPersonalNotesBloc
-    extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _TestPersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -112,10 +91,10 @@ void main() {
       searchText: '',
     );
     final textBookBloc = _TestTextBookBloc(state);
-    final personalNotesBloc = _TestPersonalNotesBloc(
+    final personalNotesBloc = StubPersonalNotesBloc(
       const PersonalNotesState.initial(),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final tab = TextBookTab(book: TextBook(title: _title), index: 0);
     addTearDown(textBookBloc.close);
     addTearDown(personalNotesBloc.close);

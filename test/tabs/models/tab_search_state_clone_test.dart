@@ -1,4 +1,3 @@
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
@@ -8,13 +7,12 @@ import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/reading_tab_search_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
-import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show SearchScope, WordMatchMode;
 
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 /// שכפול טאב (`OpenedTab.from`) משמש לשחזור טאב שנסגר, לשכפול ולמעבר בין
 /// שולחנות עבודה. בלי קונפיגורציית החיפוש, החיפוש שבספר המשוחזר חוזר למסלול
@@ -362,7 +360,7 @@ void main() {
       searchDistance: 3,
       matchPolicy: policy,
     );
-    final bloc = _LoadedTextBookBloc(state);
+    final bloc = StubTextBookBloc(state);
     final original = TextBookTab(
       book: state.book,
       index: 0,
@@ -384,7 +382,7 @@ void main() {
   test('שכפול טאב טקסט מעדיף את מצב החיפוש המעודכן מה-BLoC', () {
     // המשתמש שינה את החיפוש בתוך הספר (חיפוש מתקדם מהחלונית): שדות הטאב
     // נשארים על הערכים שאיתם נפתח, וה-state הוא המצב האמיתי.
-    final bloc = _LoadedTextBookBloc(
+    final bloc = StubTextBookBloc(
       _loadedState(
         searchText: 'תדע זרעך',
         searchMode: SearchMode.advanced,
@@ -408,16 +406,6 @@ void main() {
     expect(clone.searchDistance, 3);
     expect(clone.matchPolicy, policy);
   });
-}
-
-class _LoadedTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _LoadedTextBookBloc(super.initialState) {
-    on<TextBookEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 TextBookLoaded _loadedState({

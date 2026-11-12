@@ -1259,16 +1259,22 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       final isAtFirstResult = (selected ?? 0) <= 0 || searchResults.isEmpty;
       final isAtLastResult =
           searchResults.isEmpty || (selected ?? 0) >= searchResults.length - 1;
-      return _buildNavigationButtons(isAtFirstResult, isAtLastResult);
+      return _buildNavigationButtons(selected, isAtFirstResult, isAtLastResult);
     },
   );
 
-  Widget _buildNavigationButtons(bool isAtFirstResult, bool isAtLastResult) {
+  Widget _buildNavigationButtons(
+    int? selected,
+    bool isAtFirstResult,
+    bool isAtLastResult,
+  ) {
     return Padding(
       padding: const EdgeInsetsDirectional.only(start: 12, end: 12, bottom: 2),
       child: Align(
         alignment: AlignmentDirectional.centerEnd,
         child: SearchResultNavigator(
+          current: selected == null ? null : selected + 1,
+          total: searchResults.length,
           previousTooltip: 'התוצאה הקודמת',
           nextTooltip: 'התוצאה הבאה',
           onPrevious: isAtFirstResult ? null : () => _moveBetweenResults(-1),

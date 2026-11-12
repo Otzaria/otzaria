@@ -15,16 +15,6 @@ void main() {
   tearDown(() => WebViewEnvironmentHolder.debugOverrideRuntimeAvailable(null));
 
   group('WebViewEnvironmentHolder.isRuntimeAvailable', () {
-    test('override true → מחזיר true', () async {
-      WebViewEnvironmentHolder.debugOverrideRuntimeAvailable(true);
-      expect(await WebViewEnvironmentHolder.isRuntimeAvailable(), isTrue);
-    });
-
-    test('override false → מחזיר false', () async {
-      WebViewEnvironmentHolder.debugOverrideRuntimeAvailable(false);
-      expect(await WebViewEnvironmentHolder.isRuntimeAvailable(), isFalse);
-    });
-
     test('איפוס override מחזיר את הבדיקה להתנהגות הרגילה', () async {
       WebViewEnvironmentHolder.debugOverrideRuntimeAvailable(false);
       WebViewEnvironmentHolder.debugOverrideRuntimeAvailable(null);

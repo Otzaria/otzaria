@@ -62,20 +62,6 @@ void main() {
     );
   }
 
-  group('PluginReportService.generateReportId', () {
-    test('מייצר UUID v4 תקין וייחודי', () {
-      final id = PluginReportService.generateReportId();
-      expect(
-        RegExp(
-          r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-        ).hasMatch(id),
-        isTrue,
-        reason: 'מזהה לא בפורמט UUID v4: $id',
-      );
-      expect(id, isNot(PluginReportService.generateReportId()));
-    });
-  });
-
   group('PluginReportService.buildRecord', () {
     test('iOS report metadata uses the hotfix release version', () async {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;

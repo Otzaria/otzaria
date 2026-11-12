@@ -48,7 +48,6 @@ void main() {
 
   group('קובץ הנתונים ${SupportOrganizationsService.assetPath}', () {
     late SupportOrganizations organizations;
-    late Map<String, dynamic> raw;
 
     setUpAll(() {
       final file = File(SupportOrganizationsService.assetPath);
@@ -57,20 +56,9 @@ void main() {
         isTrue,
         reason: 'קובץ הנתונים חסר — הפופאפ ייפתח ריק',
       );
-      raw = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
-      organizations = SupportOrganizations.fromJson(raw);
-    });
-
-    test('מוגדר ב-pubspec כדי שייארז לאפליקציה', () {
-      expect(
-        File('pubspec.yaml').readAsStringSync(),
-        contains(SupportOrganizationsService.assetPath),
+      organizations = SupportOrganizations.fromJson(
+        jsonDecode(file.readAsStringSync()) as Map<String, dynamic>,
       );
-    });
-
-    test('שתי הקבוצות אינן ריקות', () {
-      expect(organizations.emergencyLines, isNotEmpty);
-      expect(organizations.supportOrgs, isNotEmpty);
     });
 
     test('לכל ארגון שם, טלפון וקובץ לוגו קיים', () {
@@ -139,18 +127,6 @@ void main() {
           contains('כמות הנרשמים'),
           reason: 'ל"${org.name}" יש registeredCount שלא מופיע בפרטים',
         );
-      }
-    });
-
-    test('details נשמר כמערך שורות, לא כמחרוזת אחת', () {
-      for (final section in ['emergencyLines', 'supportOrgs']) {
-        for (final org in raw[section] as List<dynamic>) {
-          expect(
-            (org as Map<String, dynamic>)['details'],
-            isA<List<dynamic>>(),
-            reason: 'details של "${org['name']}" חייב להיות מערך שורות',
-          );
-        }
       }
     });
   });

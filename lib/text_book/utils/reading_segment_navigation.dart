@@ -83,7 +83,6 @@ Future<void> scrollToSourceLine({
   required ItemPositionsListener? positionsListener,
   required ReadingSegments segments,
   required int lineIndex,
-  required double viewportExtent,
   double alignment = kReadingAnchorAlignment,
   double intraLineFraction = 0,
   Duration duration = const Duration(milliseconds: 250),

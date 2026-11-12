@@ -44,7 +44,6 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/models/search_results.dart';
 import 'package:otzaria/text_book/utils/section_search_utils.dart';
@@ -61,6 +60,9 @@ import 'package:otzaria/widgets/navigation/sidebar_nav_item.dart';
 import 'package:provider/provider.dart';
 
 import '../test_helpers/memory_cache_provider.dart';
+import '../test_helpers/stub_navigation_bloc.dart';
+import '../test_helpers/stub_settings_bloc.dart';
+import '../test_helpers/stub_text_book_bloc.dart';
 
 const _runs = 5;
 
@@ -146,13 +148,13 @@ void main() {
       addTearDown(tester.view.reset);
       final focusRepository = FocusRepository()..resetForTesting();
       final book = TextBook(title: 'ספר בדיקה');
-      final bloc = _TestTextBookBloc(_readerState(book));
+      final bloc = StubTextBookBloc(_readerState(book));
       final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
       final tabsBloc = _TestTabsBloc(
         TabsState(tabs: [tab], currentTabIndex: 0),
       );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
-      final navigationBloc = _TestNavigationBloc();
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
+      final navigationBloc = StubNavigationBloc();
       addTearDown(() async {
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pump();
@@ -220,8 +222,8 @@ void main() {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(1400, 900);
       addTearDown(tester.view.reset);
-      final textBookBloc = _TestTextBookBloc(_searchState());
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final textBookBloc = StubTextBookBloc(_searchState());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
       final focusNode = FocusNode();
       addTearDown(textBookBloc.close);
       addTearDown(settingsBloc.close);
@@ -498,36 +500,6 @@ TextBookLoaded _searchState() => TextBookLoaded(
   pinLeftPane: false,
   searchText: '',
 );
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestNavigationBloc extends Bloc<NavigationEvent, NavigationState>
-    implements NavigationBloc {
-  _TestNavigationBloc() : super(NavigationState.initial(true)) {
-    on<NavigationEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
 
 class _TestTabsBloc extends Cubit<TabsState> implements TabsBloc {
   _TestTabsBloc(super.initialState);

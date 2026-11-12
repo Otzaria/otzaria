@@ -52,6 +52,19 @@ class ContextMenuRegistry extends PluginItemRegistry<PluginContextMenuItem> {
     return null;
   }
 
+  /// הפריט ושורשו מאותו רישום שמוצג בתפריט, אחרי קדימות המופעים ו-when.
+  ({PluginContextMenuItem root, PluginContextMenuItem item})? findVisibleItem(
+    String pluginId,
+    String itemId,
+  ) {
+    for (final (id, root) in getAll()) {
+      if (id != pluginId) continue;
+      final item = _findInTree(root, itemId);
+      if (item != null) return (root: root, item: item);
+    }
+    return null;
+  }
+
   bool isItemVisible(String pluginId, String itemId) {
     for (final entry in items.entries) {
       if (entry.key.pluginId != pluginId) continue;
@@ -239,6 +252,7 @@ class ContextMenuRegistry extends PluginItemRegistry<PluginContextMenuItem> {
       );
     }
 
+    final bookFilters = parseBookFilters(json, isChild: depth > 0);
     return PluginContextMenuItem(
       id: id,
       type: type,
@@ -258,6 +272,8 @@ class ContextMenuRegistry extends PluginItemRegistry<PluginContextMenuItem> {
       separatorBefore: _parseSeparatorBefore(json['separatorBefore'], depth),
       declaredRawDivineNames: declaredRawDivineNames,
       rawDivineNames: rawDivineNames,
+      bookTypes: bookFilters.types,
+      bookSources: bookFilters.sources,
     );
   }
 

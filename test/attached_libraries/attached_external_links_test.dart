@@ -12,8 +12,6 @@ import 'package:material_ui/material_ui.dart' as mui;
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
@@ -53,6 +51,7 @@ import 'package:sqlite3/sqlite3.dart' as sqlite3;
 import '../helpers/seforim_fixture_db.dart';
 import '../test_helpers/memory_cache_provider.dart';
 import '../test_helpers/pdf_document_dispose.dart';
+import '../test_helpers/stub_settings_bloc.dart';
 
 /// כותרות גנריות לספרי המסד המצורף — שלא יתנגשו בכותרות הספרייה הרשמית.
 const _commentaryTitle = 'ספר א';
@@ -347,7 +346,7 @@ void main() {
     final tabs = TabsBloc(repository: _PdfTabsRepository());
     // ignore: invalid_use_of_visible_for_testing_member
     tabs.emit(TabsState(tabs: [tab], currentTabIndex: 0));
-    final settings = _PdfSettingsBloc();
+    final settings = StubSettingsBloc();
     final tour = TourCubit();
     addTearDown(tabs.close);
     addTearDown(settings.close);
@@ -2099,14 +2098,4 @@ class _PdfTabsRepository implements TabsRepository {
     if (invocation.memberName == #loadCurrentTabIndex) return 0;
     return Future<void>.value();
   }
-}
-
-class _PdfSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _PdfSettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

@@ -112,8 +112,8 @@ Widget? _buildSettingIcon(IconData? icon, IconData? rtlIcon, Color? iconColor) {
   return null;
 }
 
-/// תת-כותרת האפשרות הנבחרת מתוך [options] — משמש ע"י dropdownTile/segmentedTile
-/// כדי לא לחייב כל call site לבנות מיפוי value→subtitle בנפרד.
+/// תת-כותרת האפשרות הנבחרת מתוך [options] — משמש את [SettingsDropdownTile] ואת
+/// [SettingsSegmentedTile] כדי לא לחייב כל call site לבנות מיפוי value→subtitle.
 /// [explicitSubtitle], אם סופק, גובר על תת-הכותרת של האפשרות.
 String? _selectedOptionSubtitle<TOption, TValue>({
   required String? explicitSubtitle,

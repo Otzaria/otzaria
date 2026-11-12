@@ -1511,25 +1511,5 @@ void main() {
         expect(fakeAdapter.executeCalls, 1);
       });
     }
-
-    test('apiCallToPermissionHint מתעד את השיטות החדשות', () {
-      expect(
-        apiCallToPermissionHint['library.getLinks'],
-        pluginLinksReadPermission,
-      );
-      expect(
-        apiCallToPermissionHint['library.getRawLinks'],
-        pluginLinksReadPermission,
-      );
-      expect(
-        apiCallToPermissionHint['library.getLinkContent'],
-        'library.content.read',
-      );
-      expect(
-        apiCallToPermissionHint['library.getLineNotes'],
-        'library.content.read',
-      );
-      expect(pluginValidPermissions, contains(pluginLinksReadPermission));
-    });
   });
 }

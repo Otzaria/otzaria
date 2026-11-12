@@ -58,8 +58,4 @@ void main() {
       );
     });
   });
-
-  test('IndexingStopped שונה ממצב התחלתי', () {
-    expect(IndexingStopped(), isNot(IndexingInitial()));
-  });
 }

@@ -26,6 +26,7 @@ import 'package:otzaria/library/view/book_versions_dialog.dart';
 import 'package:otzaria/text_book/utils/book_versions_action.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/book_common/view/book_source_dialog.dart';
+import 'package:otzaria/services/book_details_service.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:otzaria/utils/ui/book_format_icon.dart';
@@ -439,14 +440,10 @@ class BookGridItem extends StatelessWidget {
                   mainAxisSize: MainAxisSize.max,
                   children: [
                     _BookGridMediaColumn(book: book),
-                    // "אודות הספר" מחפש לפי כותרת, ולספר של תוסף היה מציג
-                    // את פרטי ספר אוצריא בעל אותו שם.
-                    if (PluginLibraryBooksRegistry.instance.providerOf(book) ==
-                        null)
-                      _BookGridActionColumn(
-                        book: book,
-                        onBookDeleted: onBookDeleted,
-                      ),
+                    _BookGridActionColumn(
+                      book: book,
+                      onBookDeleted: onBookDeleted,
+                    ),
                   ],
                 ),
               ),
@@ -690,6 +687,9 @@ class _BookGridActionColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ספר של תוסף מציג את מה שהתוסף שלח בלבד. "אודות הספר" ו"אפשרויות
+    // נוספות" מחפשים ספר בספרייה לפי הכותרת, ושם נמצא ספר אחר באותו שם.
+    final provider = PluginLibraryBooksRegistry.instance.providerOf(book);
     // הפעולות המשניות מוחרגות ממסלול הפוקוס — חיצים/Tab עוצרים רק על הכרטיס.
     return ExcludeFocusTraversal(
       child: Column(
@@ -698,9 +698,19 @@ class _BookGridActionColumn extends StatelessWidget {
           _libraryInfoButton(
             context,
             tooltip: _bookInfoTooltipText(book),
-            onPressed: () => showBookDetailsDialog(context, book),
+            onPressed: () => showBookDetailsDialog(
+              context,
+              book,
+              information: provider == null
+                  ? null
+                  : BookInformation.pluginProvided(
+                      book as ExternalLibraryBook,
+                      providerName: provider.title,
+                    ),
+            ),
           ),
-          BookActionsMenuButton(book: book, onBookDeleted: onBookDeleted),
+          if (provider == null)
+            BookActionsMenuButton(book: book, onBookDeleted: onBookDeleted),
         ],
       ),
     );

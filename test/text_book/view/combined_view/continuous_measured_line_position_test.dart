@@ -15,10 +15,8 @@ import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -33,6 +31,8 @@ import 'package:otzaria/user_content_import/services/user_headings_builder.dart'
 import 'package:positioned_sliver_list/positioned_list.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_personal_notes_bloc.dart';
+import '../../../test_helpers/stub_settings_bloc.dart';
 
 /// פסקה אחת עם שורה ממורכזת וכותרת נושא ארוכה בתוכה: הערכה לפי אורך הטקסט
 /// מחמיצה את הגובה של שתיהן, ולכן מיקום שורה אחריהן נמדד מהרינדור.
@@ -169,8 +169,8 @@ Future<TextBookTab> _pump(WidgetTester tester) async {
       continuousReadingMode: true,
     ),
   );
-  final notes = _TestPersonalNotesBloc(const PersonalNotesState.initial());
-  final settings = _TestSettingsBloc(SettingsState.initial());
+  final notes = StubPersonalNotesBloc(const PersonalNotesState.initial());
+  final settings = StubSettingsBloc(SettingsState.initial());
   final tab = TextBookTab(book: book, index: 0);
   addTearDown(bloc.close);
   addTearDown(notes.close);
@@ -231,27 +231,6 @@ class _Repository implements TextBookRepository {
     required int endIndex,
     Iterable<String>? targetBookTitles,
   }) async => const [];
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestPersonalNotesBloc
-    extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _TestPersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

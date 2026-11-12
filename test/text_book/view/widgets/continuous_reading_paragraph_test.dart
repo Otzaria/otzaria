@@ -596,7 +596,7 @@ void main() {
     });
 
     test('background-color בלבד לא נתפס בטעות כ-color', () {
-      // הregex של _inlineColor חייב להבדיל בין `color:` ל-`background-color:`.
+      // `_colorRe` חייב להבדיל בין `color:` ל-`background-color:`.
       // אם הוא יתפוס את הערך אחרי `background-color:` כ-color — צבע
       // הטקסט יזחל בטעות.
       final spans = buildInlineHtmlSpans(

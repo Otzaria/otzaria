@@ -12,7 +12,8 @@ class RecordingNativeWindow extends nativeapi.Window {
     this.fullScreen = false,
     this.windowOpacity = 1,
     nativeapi.Rectangle? initialBounds,
-  }) : nativeBounds = initialBounds ??
+  }) : nativeBounds =
+           initialBounds ??
            const nativeapi.Rectangle(x: 1, y: 2, width: 3, height: 4),
        super.borrowed(0);
 
@@ -26,7 +27,8 @@ class RecordingNativeWindow extends nativeapi.Window {
   nativeapi.Size? minimum;
   nativeapi.TitleBarStyle? barStyle;
   bool? controlButtonsVisible;
-  final Map<int, FutureOr<void> Function(nativeapi.WindowEvent)> _listeners = {};
+  final Map<int, FutureOr<void> Function(nativeapi.WindowEvent)> _listeners =
+      {};
   int _nextListener = 1;
 
   Future<void> emit(nativeapi.WindowEvent event) async {
@@ -143,7 +145,10 @@ class RecordingNativeWindow extends nativeapi.Window {
   @override
   nativeapi.Size get size {
     calls.add('getSize');
-    return nativeapi.Size(width: nativeBounds.width, height: nativeBounds.height);
+    return nativeapi.Size(
+      width: nativeBounds.width,
+      height: nativeBounds.height,
+    );
   }
 
   @override

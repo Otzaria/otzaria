@@ -942,6 +942,12 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
               allShortcuts: _shortcutsList,
             ),
             _ShortcutTile(
+              settingKey: ShortcutValidator.nextPdfLocationKey,
+              label: context.settingsText('מעבר קדימה למיקום הבא (PDF)'),
+              icon: FluentIcons.arrow_right_24_regular,
+              allShortcuts: _shortcutsList,
+            ),
+            _ShortcutTile(
               settingKey: ShortcutValidator.findNextKey,
               label: context.settingsText('תוצאת החיפוש הבאה (PDF)'),
               icon: FluentIcons.chevron_down_24_regular,

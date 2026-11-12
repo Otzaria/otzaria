@@ -1,3 +1,5 @@
+import 'dart:math' show max, min;
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_spinbox/flutter_spinbox.dart';
@@ -79,26 +81,36 @@ class _ZmanAlertDialogState extends State<ZmanAlertDialog> {
             Row(
               children: [
                 Expanded(
-                  child: SpinBox(
-                    min: 0,
-                    max: 23,
-                    value: hours.toDouble(),
-                    decimals: 0,
-                    step: 1,
-                    decoration: const InputDecoration(labelText: 'שעות'),
-                    onChanged: (v) => setState(() => hours = v.toInt()),
+                  // SpinBox needs value updates to keep its blur cache in sync.
+                  child: StatefulBuilder(
+                    builder: (context, setSpinBoxState) => SpinBox(
+                      // שומרים ערך משוחזר גם מחוץ לטווח ברירת המחדל.
+                      min: min(0, hours).toDouble(),
+                      max: max(23, hours).toDouble(),
+                      value: hours.toDouble(),
+                      emptyValue: 0,
+                      decimals: 0,
+                      step: 1,
+                      decoration: const InputDecoration(labelText: 'שעות'),
+                      onChanged: (v) =>
+                          setSpinBoxState(() => hours = v.toInt()),
+                    ),
                   ),
                 ),
                 const SizedBox(width: AppTokens.spaceMD),
                 Expanded(
-                  child: SpinBox(
-                    min: 0,
-                    max: 59,
-                    value: minutes.toDouble(),
-                    decimals: 0,
-                    step: 1,
-                    decoration: const InputDecoration(labelText: 'דקות'),
-                    onChanged: (v) => setState(() => minutes = v.toInt()),
+                  child: StatefulBuilder(
+                    builder: (context, setSpinBoxState) => SpinBox(
+                      min: 0,
+                      max: 59,
+                      value: minutes.toDouble(),
+                      emptyValue: 0,
+                      decimals: 0,
+                      step: 1,
+                      decoration: const InputDecoration(labelText: 'דקות'),
+                      onChanged: (v) =>
+                          setSpinBoxState(() => minutes = v.toInt()),
+                    ),
                   ),
                 ),
               ],

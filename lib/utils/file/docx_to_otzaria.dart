@@ -42,10 +42,6 @@ import 'package:xml/xml.dart' as xml;
 /// וסימניות יעד הופכות לעוגנים באותה שורת פלט — גם כשאינן כותרות.
 const int kOoxmlWordConverterVersion = 15;
 
-/// שם ותיק ל-[kOoxmlWordConverterVersion]. הערך משותף לכל פורמטי OOXML —
-/// הם חולקים מנוע אחד, ולכן שינוי בפלט פוסל את המטמון של כולם יחד.
-const int kDocxConverterVersion = kOoxmlWordConverterVersion;
-
 // Windows-1255 Hebrew range: 0xC0–0xD8 and 0xE0–0xFA map to Unicode with offset 1264.
 // 0xE0 (224) + 1264 = 1488 = U+05D0 = א, ... 0xFA (250) + 1264 = 1514 = U+05EA = ת
 const _cp1255Offset = 1264;

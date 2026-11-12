@@ -47,6 +47,16 @@ class PluginToolbarItem implements PluginRegistryItem {
   @override
   final PluginWhenCondition? when;
 
+  /// סוגי הספרים שהפקד מוצג בסרגל שלהם, כערכי `type` של זהות הספר
+  /// (`text`, `pdf`, `docx`…). ריק = כל ספר. נבדק מול הספר של אותו סרגל,
+  /// ולכן בתצוגה מפוצלת כל חלונית מחליטה לפי הספר שלה. על פריט עליון בלבד.
+  final List<String> bookTypes;
+
+  /// מקורות הספרים שהפקד מוצג בסרגל שלהם, כערכי `source` של זהות הספר
+  /// (`library`, `user`, `attached`, `external`). ריק = כל מקור. מצטבר עם
+  /// [bookTypes] (AND), ונבדק כמוהו מול הספר של אותו סרגל.
+  final List<String> bookSources;
+
   const PluginToolbarItem({
     required this.id,
     this.type = 'button',
@@ -62,7 +72,15 @@ class PluginToolbarItem implements PluginRegistryItem {
     this.placement = 'primary',
     this.order = defaultOrder,
     this.when,
+    this.bookTypes = const [],
+    this.bookSources = const [],
   });
+
+  /// האם הפקד מוצג בסרגל של ספר מסוג [bookType] וממקור [bookSource]. סרגל
+  /// שאינו יודע את הספר שלו (null) מציג רק פקדים שאינם מסננים.
+  bool showsForBook({String? bookType, String? bookSource}) =>
+      bookFilterAllows(bookTypes, bookType) &&
+      bookFilterAllows(bookSources, bookSource);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -80,6 +98,8 @@ class PluginToolbarItem implements PluginRegistryItem {
     if (placement != 'primary') 'placement': placement,
     if (order != defaultOrder) 'order': order,
     if (when != null) 'when': when!.toJson(),
+    if (bookTypes.isNotEmpty) 'bookTypes': bookTypes,
+    if (bookSources.isNotEmpty) 'bookSources': bookSources,
   };
 }
 

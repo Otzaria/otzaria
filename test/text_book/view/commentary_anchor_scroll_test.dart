@@ -14,10 +14,8 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/models/commentary_scroll_request.dart';
 import 'package:otzaria/book_common/models/commentator_group.dart';
@@ -25,6 +23,8 @@ import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 /// די מפרשים כדי שהיעד יהיה מחוץ למסך — זה התנאי של הבאג.
 const int _commentatorCount = 6;
@@ -623,7 +623,7 @@ bool _isNearTop(WidgetTester tester, Object target) {
 }
 
 /// ה-bloc של ההרצה האחרונה, כדי שבדיקה תוכל לדחוף מצב חדש (מעבר קטע).
-_TestTextBookBloc? _lastBloc;
+EmittingStubTextBookBloc? _lastBloc;
 
 Future<GlobalKey<CommentaryListBaseState>> _pump(
   WidgetTester tester, {
@@ -636,10 +636,10 @@ Future<GlobalKey<CommentaryListBaseState>> _pump(
     addTearDown(tester.view.reset);
   }
   final key = GlobalKey<CommentaryListBaseState>();
-  final bloc = _TestTextBookBloc(_loadedState());
+  final bloc = EmittingStubTextBookBloc(_loadedState());
   _lastBloc = bloc;
   addTearDown(() => _lastBloc = null);
-  final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+  final settingsBloc = StubSettingsBloc(SettingsState.initial());
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 20));
@@ -756,29 +756,6 @@ class _CountingLink extends Link {
     index1Reads++;
     return super.index1;
   }
-}
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  /// דוחף מצב חדש, כדי לדמות את `UpdateSelectedIndex` שלחיצה על עוגן שולחת.
-  void emitState(TextBookState state) => emit(state);
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _FakeLibraryProvider implements LibraryProvider {

@@ -58,18 +58,7 @@ class _ShamorZachorSidebarState extends State<ShamorZachorSidebar> {
     final allCategories = dataProvider.allBookData;
     // Use natural order from DataProvider (already sorted by orderIndex from DB)
     final sortedKeys = allCategories.keys.toList();
-
-    // Create 'All Books' as a parent node wrapper
-    final allBooksCategory = BookCategory(
-      name: 'כל הספרים',
-      books: {},
-      subcategories: sortedKeys.map((key) => allCategories[key]!).toList(),
-      isCustom: false,
-      sourceFile: 'virtual',
-      schemaVersion: 1,
-      contentType: 'text',
-      defaultStartPage: 1,
-    );
+    final allBooksCategory = dataProvider.allBooksCategory;
 
     final isAllBooksSelected =
         widget.selectedCategoryName == 'all_books_virtual' ||

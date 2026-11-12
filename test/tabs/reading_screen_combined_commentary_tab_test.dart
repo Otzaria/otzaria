@@ -10,10 +10,7 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentators_tab_screen.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
-import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
@@ -21,19 +18,11 @@ import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/reading_screen.dart';
 import 'package:provider/provider.dart';
 import '../helpers/memory_settings_cache.dart';
+import '../test_helpers/stub_settings_bloc.dart';
+import '../test_helpers/stub_tabs_bloc.dart';
 
-/// רגרסיה: כרטסיית מפרשים עצמאית בתצוגה מפוצלת (`CombinedTab`) הוצגה ריקה,
-/// כי `_buildSingleTabContent` (נתיב ה-side-by-side) טיפל רק ב-Pdf/Text/Search
-/// ולא ב-`CommentatorsTab`/`PdfCommentatorsTab` כפי ש-`_buildTabView` עושה.
-class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _FakeSettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
+/// רגרסיה: כרטסיית מפרשים עצמאית (`CommentatorsTab`/`PdfCommentatorsTab`)
+/// בתצוגה מפוצלת (`CombinedTab`) הוצגה ריקה.
 
 class _FakePersonalNotesBloc
     extends Bloc<PersonalNotesEvent, PersonalNotesState>
@@ -51,15 +40,6 @@ class _FakePersonalNotesBloc
         ),
       ) {
     on<PersonalNotesEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _FakeTabsBloc extends Bloc<TabsEvent, TabsState> implements TabsBloc {
-  _FakeTabsBloc(super.initial) {
-    on<TabsEvent>((_, _) {});
   }
 
   @override
@@ -102,7 +82,7 @@ void main() {
       );
       addTearDown(combined.dispose);
 
-      final tabsBloc = _FakeTabsBloc(
+      final tabsBloc = StubTabsBloc(
         TabsState(tabs: [combined], currentTabIndex: 0),
       );
       addTearDown(tabsBloc.close);
@@ -111,7 +91,7 @@ void main() {
         MaterialApp(
           home: MultiBlocProvider(
             providers: [
-              BlocProvider<SettingsBloc>.value(value: _FakeSettingsBloc()),
+              BlocProvider<SettingsBloc>.value(value: StubSettingsBloc()),
               BlocProvider<PersonalNotesBloc>.value(
                 value: _FakePersonalNotesBloc(),
               ),

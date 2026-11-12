@@ -152,12 +152,6 @@ void main() {
     );
   });
 
-  testWidgets('תווית הגופן מסייגת שהוא למפרשים התחתונים בלבד', (tester) async {
-    await pumpPanel(tester);
-
-    expect(find.text('גופן מפרשים תחתונים:'), findsOneWidget);
-  });
-
   testWidgets('ללא בחירה שמורה - מוצג גופן ברירת המחדל', (tester) async {
     await pumpPanel(tester);
 

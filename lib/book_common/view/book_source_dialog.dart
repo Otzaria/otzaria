@@ -210,7 +210,10 @@ Widget _buildBookDetailsContent(
   final bookDetails = information.fileDetails;
   final bookSource = information.source ?? 'לא נמצא מקור';
   final sourceInfo = getSourceDisplayInfo(bookSource);
-  final isTashma = isTashmaSource(bookSource);
+  // שם הספק של תוסף אינו עובר את מיפוי המקורות: אחרת תוסף ששמו כשם מקור
+  // מוכר היה מקבל את הלוגו והקישור של אותו מקור.
+  final pluginProviderName = information.pluginProviderName;
+  final isTashma = pluginProviderName == null && isTashmaSource(bookSource);
   final mergedDescription = splitShortAndFullDescription(
     information.shortDescription,
     information.fullDescription,
@@ -331,7 +334,9 @@ Widget _buildBookDetailsContent(
               padding: const EdgeInsets.symmetric(
                 vertical: AppTokens.spaceSM + 1,
               ),
-              child: isTashma
+              child: pluginProviderName != null
+                  ? Text('ספר מתוסף: $pluginProviderName')
+                  : isTashma
                   ? const _TashmaCopyrightNotice()
                   : _SourceCredit(info: sourceInfo),
             ),

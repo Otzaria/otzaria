@@ -121,6 +121,7 @@ class AppReportCollector {
     final parts = <String>[];
 
     try {
+      await ErrorLogFile.flushPending();
       final path = _errorLogPath ?? ErrorLogFile.resolvePath();
       final content = await _readTail(path, _maxErrorLogReadBytes);
       if (content != null && content.isNotEmpty) {

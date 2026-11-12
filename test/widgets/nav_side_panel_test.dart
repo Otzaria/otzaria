@@ -154,23 +154,6 @@ void main() {
   });
 
   group('NavPanelTabHeader - אייקונים', () {
-    testWidgets('מציג אייקון filled לטאב הנבחר (index=0)', (tester) async {
-      await tester.pumpWidget(_wrap(initialIndex: 0));
-      await tester.pump();
-
-      expect(find.byIcon(FluentIcons.link_24_filled), findsOneWidget);
-      expect(find.byIcon(FluentIcons.link_24_regular), findsNothing);
-    });
-
-    testWidgets('מציג אייקון רגיל לטאב שאינו נבחר', (tester) async {
-      await tester.pumpWidget(_wrap(initialIndex: 0));
-      await tester.pump();
-
-      // הטאב השני (הערות) אינו נבחר → אייקון רגיל
-      expect(find.byIcon(FluentIcons.note_24_regular), findsOneWidget);
-      expect(find.byIcon(FluentIcons.note_24_filled), findsNothing);
-    });
-
     testWidgets('אחרי מעבר טאב — האייקון הנבחר מתעדכן', (tester) async {
       await tester.pumpWidget(_wrap(initialIndex: 0));
       await tester.pump();

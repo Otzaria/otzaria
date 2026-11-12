@@ -18,7 +18,10 @@ void main() {
   });
   tearDown(() => root.deleteSync(recursive: true));
 
-  for (final family in SemanticVectorsFamily.values) {
+  for (final family in const [
+    SemanticVectorsFamily.windows,
+    SemanticVectorsFamily.anchor,
+  ]) {
     test(
       'אותה ספרייה ואותה חלוקה: מחליפים מודל קודם ב-base של $family',
       () async {

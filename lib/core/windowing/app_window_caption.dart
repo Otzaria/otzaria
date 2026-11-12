@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:otzaria/core/windowing/app_drag_to_move_area.dart';
 import 'package:otzaria/core/windowing/app_window_controller.dart';
@@ -33,28 +35,95 @@ class AppWindowCaption extends StatefulWidget {
 
 class _AppWindowCaptionState extends State<AppWindowCaption> {
   AppWindowController? _window;
+  bool _isMaximized = false;
+  int _requestVersion = 0;
+  int? _refreshCallbackId;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final window = AppWindowScope.controllerOf(context);
     if (identical(window, _window)) return;
+    _cancelScheduledRefresh();
     _window?.stateChanges.removeListener(_onStateChanged);
     _window = window..stateChanges.addListener(_onStateChanged);
+    _isMaximized = false;
+    _refreshMaximized();
   }
 
   @override
   void dispose() {
+    _requestVersion++;
+    _cancelScheduledRefresh();
     _window?.stateChanges.removeListener(_onStateChanged);
     super.dispose();
   }
 
   void _onStateChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    // תשובה ישנה נפסלת מיד, גם כשהרענון ממתין לפריים הבא.
+    _requestVersion++;
+    _refreshCallbackId ??= WidgetsBinding.instance.scheduleFrameCallback((_) {
+      _refreshCallbackId = null;
+      _refreshMaximized();
+    });
+  }
+
+  void _cancelScheduledRefresh() {
+    final id = _refreshCallbackId;
+    if (id != null) WidgetsBinding.instance.cancelFrameCallbackWithId(id);
+    _refreshCallbackId = null;
+  }
+
+  void _refreshMaximized() {
+    final window = _window;
+    if (window == null) return;
+    final version = ++_requestVersion;
+    // State notifications, not parent/widget rebuilds, are the only reason
+    // to query native maximization state again.
+    unawaited(_readMaximized(window, version));
+  }
+
+  Future<void> _readMaximized(AppWindowController window, int version) async {
+    try {
+      final maximized = await window.isMaximized();
+      if (!mounted ||
+          !identical(window, _window) ||
+          version != _requestVersion ||
+          maximized == _isMaximized) {
+        return;
+      }
+      setState(() => _isMaximized = maximized);
+    } catch (_) {
+      // A closing native window can reject state reads. Preserve the last
+      // known state; another notification or a new controller will retry.
+    }
   }
 
   Widget _tip(String message, Widget button) =>
       Tooltip(message: message, child: button);
+
+  Widget _maximizeButton(
+    AppWindowController window,
+    AppWindowCaptionTooltips tips,
+  ) {
+    if (_isMaximized) {
+      return _tip(
+        tips.restore,
+        WindowCaptionButton.unmaximize(
+          brightness: widget.brightness,
+          onPressed: window.unmaximize,
+        ),
+      );
+    }
+    return _tip(
+      tips.maximize,
+      WindowCaptionButton.maximize(
+        brightness: widget.brightness,
+        onPressed: window.maximize,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -79,28 +148,7 @@ class _AppWindowCaptionState extends State<AppWindowCaption> {
               onPressed: widget.onMinimize ?? window.minimize,
             ),
           ),
-          if (!widget.fullscreen)
-            FutureBuilder<bool>(
-              future: window.isMaximized(),
-              builder: (context, snapshot) {
-                if (snapshot.data == true) {
-                  return _tip(
-                    tips.restore,
-                    WindowCaptionButton.unmaximize(
-                      brightness: widget.brightness,
-                      onPressed: window.unmaximize,
-                    ),
-                  );
-                }
-                return _tip(
-                  tips.maximize,
-                  WindowCaptionButton.maximize(
-                    brightness: widget.brightness,
-                    onPressed: window.maximize,
-                  ),
-                );
-              },
-            ),
+          if (!widget.fullscreen) _maximizeButton(window, tips),
           _tip(
             tips.close,
             WindowCaptionButton.close(

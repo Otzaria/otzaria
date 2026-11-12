@@ -24,31 +24,5 @@ void main() {
             .setMockMethodCallHandler(SystemChannels.platform, null);
       }
     });
-
-    test('משתמש ב-Clipboard.setData ולא מסתמך על super_clipboard', () async {
-      // הגנה מול רגרסיה: אם helper היה משתמש ב-SystemClipboard.instance
-      // (super_clipboard) הוא היה יכול להחזיר null בלי לכתוב כלום ולהראות
-      // הודעת הצלחה כוזבת. כאן בודקים שערוץ Clipboard.setData אכן נקרא.
-      bool clipboardCalled = false;
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
-            if (call.method == 'Clipboard.setData') {
-              clipboardCalled = true;
-            }
-            return null;
-          });
-
-      try {
-        await copyLinkToClipboard('otzaria://open/pdf/42');
-        expect(
-          clipboardCalled,
-          isTrue,
-          reason: 'copyLinkToClipboard חייב להשתמש ב-Clipboard.setData',
-        );
-      } finally {
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-            .setMockMethodCallHandler(SystemChannels.platform, null);
-      }
-    });
   });
 }

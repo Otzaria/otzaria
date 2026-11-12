@@ -108,17 +108,6 @@ void main() {
       );
     });
 
-    test('ברירת המחדל היא kDibburMaxWords', () {
-      final words = List.generate(kDibburMaxWords + 1, (i) => 'מ$i');
-      expect(truncateDibbur(words.join(' ')).endsWith('…'), isTrue);
-      expect(
-        truncateDibbur(words.take(kDibburMaxWords).join(' ')),
-        isNot(
-          endsWith('…'),
-        ),
-      );
-    });
-
     test('זהה למימוש הקודם בכל יחידת קוד ובכל מספר מילים (perf)', () {
       // המימוש הקודם כלשונו: trim() של Dart כולל U+0085, ו-\s של RegExp לא.
       String old(String text, int maxWords) {

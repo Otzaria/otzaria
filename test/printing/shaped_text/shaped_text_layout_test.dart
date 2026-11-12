@@ -55,10 +55,12 @@ void main() {
       ShapedTextAlign align = ShapedTextAlign.start,
       double? heightFactor,
       double fontSize = 14,
+      bool rtl = true,
     }) => ShapedTextLayout(
       fonts: [shaper],
       fontSize: fontSize,
       align: align,
+      rtl: rtl,
       heightFactor: heightFactor,
     );
 
@@ -120,6 +122,32 @@ void main() {
       expect(segments.length, 2);
       // Base direction is right-to-left, so the Latin run sits on the left.
       expect(segments.first.run.text, 'Otzaria');
+    });
+
+    test('mixed print line uses RTL base even when Latin comes first', () {
+      final block = layoutWith(rtl: true).layout(
+        'Otzaria שָׁלוֹם',
+        maxWidth: 300,
+      );
+      final segments = block.lines.single.segments;
+      expect(segments, hasLength(2));
+      // In an RTL paragraph the Hebrew word appears visually leftmost.
+      expect(segments.first.run.text, 'שָׁלוֹם');
+      expect(segments.last.run.text, 'Otzaria');
+      expect(segments.first.x, lessThan(segments.last.x));
+    });
+
+    test('mixed print line uses LTR base even when Hebrew comes first', () {
+      final block = layoutWith(rtl: false).layout(
+        'שָׁלוֹם Otzaria',
+        maxWidth: 300,
+      );
+      final segments = block.lines.single.segments;
+      expect(segments, hasLength(2));
+      // In an LTR paragraph the Hebrew run occupies the left edge.
+      expect(segments.first.run.text, 'שָׁלוֹם');
+      expect(segments.last.run.text, 'Otzaria');
+      expect(segments.first.x, lessThan(segments.last.x));
     });
 
     test('keeps the digits of a number in reading order', () {
@@ -225,50 +253,6 @@ void main() {
         painted.where((entry) => entry.$1 == 2 && entry.$2 > 0),
         hasLength(1),
       );
-    });
-
-    test('renders a multi-line document for inspection', () async {
-      final shaper = ShaperFont.register(fontBytes!);
-      addTearDown(shaper.dispose);
-
-      final document = pw.Document();
-      late PdfShapedFont pdfFont;
-
-      document.addPage(
-        pw.Page(
-          pageFormat: PdfPageFormat.a5,
-          build: (context) {
-            pdfFont = PdfShapedFont(
-              context.document,
-              shaper: shaper,
-              fontBytes: fontBytes,
-            );
-            return pw.Padding(
-              padding: const pw.EdgeInsets.all(24),
-              child: ShapedText(
-                buildParagraph(48),
-                fonts: [pdfFont],
-                fontSize: 16,
-                align: ShapedTextAlign.justify,
-                heightFactor: 1.35,
-              ),
-            );
-          },
-        ),
-      );
-
-      final bytes = await document.save();
-      final out = File(
-        '${Directory.systemTemp.createTempSync('shaped_layout').path}'
-        '${Platform.pathSeparator}shaped_paragraph.pdf',
-      );
-      out.writeAsBytesSync(bytes);
-      // ignore: avoid_print
-      print('wrote ${out.path}');
-
-      expect(bytes.length, greaterThan(1000));
-      final text = String.fromCharCodes(bytes);
-      expect(text, contains('/Identity-H'));
     });
   }, skip: skipReason);
 }

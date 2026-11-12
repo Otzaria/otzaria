@@ -20,8 +20,6 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
@@ -36,6 +34,7 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:provider/provider.dart';
 
 import '../helpers/memory_settings_cache.dart';
+import '../test_helpers/stub_settings_bloc.dart';
 
 /// issue #3355 — החלקה בשתי אצבעות על לוח המגע לא עברה מכרטיסיית PDF
 /// לכרטיסייה הסמוכה. נבדק על ReadingScreen האמיתי עם PDF אמיתי.
@@ -136,7 +135,7 @@ void main() {
         currentTabIndex: currentTabIndex,
       ),
     );
-    final settings = _SettingsBloc();
+    final settings = StubSettingsBloc();
     final tour = TourCubit();
     final notes = _PersonalNotesBloc();
     final history = _HistoryBloc();
@@ -505,16 +504,6 @@ class _TabsRepository implements TabsRepository {
     if (invocation.memberName == #loadCurrentTabIndex) return 0;
     return Future<void>.value();
   }
-}
-
-class _SettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _SettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _HistoryBloc extends Bloc<HistoryEvent, HistoryState>

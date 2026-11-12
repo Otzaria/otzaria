@@ -3,7 +3,6 @@ import 'dart:ffi' show Abi;
 import 'dart:io';
 
 import 'package:otzaria/settings/engine/app_settings_store.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:otzaria/plugins/services/plugin_discard_policy.dart';
@@ -34,8 +33,6 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
-import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show SearchScope, WordMatchMode;
@@ -43,6 +40,7 @@ import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:path/path.dart' as p;
 
 import '../helpers/memory_settings_cache.dart';
+import '../test_helpers/stub_text_book_bloc.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -473,7 +471,7 @@ void main() {
         return TextBookTab(
           book: book,
           index: 0,
-          blocOverride: _FakeTextBookBloc(
+          blocOverride: StubTextBookBloc(
             TextBookLoaded(
               book: book,
               showLeftPane: false,
@@ -653,14 +651,4 @@ void main() {
       });
     });
   });
-}
-
-class _FakeTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _FakeTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

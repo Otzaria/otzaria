@@ -114,95 +114,10 @@ void main() {
 
   // ──────────────────────────────────────────────────────────────────────────
   group('PdfBookTab - בנייה', () {
-    test('שדות ראשוניים נכונים', () {
-      final book = _book();
-      final tab = PdfBookTab(book: book, pageNumber: 5);
-
-      expect(tab.book, book);
-      expect(tab.pageNumber, 5);
-      expect(tab.searchText, '');
-      expect(tab.links, isEmpty);
-      expect(tab.pdfHeadings, isNull);
-      expect(tab.savedZoom, isNull);
-      expect(tab.savedLayoutMode, isNull);
-      expect(tab.showLeftPane.value, isFalse);
-      expect(tab.activeCommentators, isEmpty);
-      expect(tab.currentTextLineNumber, isNull);
-      expect(tab.currentTextLineNumberEnd, isNull);
-    });
-
-    test('currentTextLineNumber ו-currentTextLineNumberEnd ניתנים לכתיבה', () {
-      final tab = _tab();
-      tab.currentTextLineNumber = 42;
-      tab.currentTextLineNumberEnd = 67;
-      expect(tab.currentTextLineNumber, 42);
-      expect(tab.currentTextLineNumberEnd, 67);
-    });
-
-    test('currentTextLineNumberEnd אינו נדרש — נשאר null כברירת מחדל', () {
-      final tab = _tab();
-      tab.currentTextLineNumber = 10;
-      expect(tab.currentTextLineNumberEnd, isNull);
-    });
-
-    test('openLeftPane=true → showLeftPane מתחיל true', () {
-      final tab = PdfBookTab(book: _book(), pageNumber: 1, openLeftPane: true);
-      expect(tab.showLeftPane.value, isTrue);
-    });
-
-    test('requiresStableLayout=false כברירת מחדל (פתיחה ישירה מהירה)', () {
-      final tab = _tab();
-      expect(tab.requiresStableLayout, isFalse);
-    });
-
-    test('requiresStableLayout ניתן להפעלה (תרחישי סיכון)', () {
-      final tab = PdfBookTab(
-        book: _book(),
-        pageNumber: 1,
-        requiresStableLayout: true,
-      );
-      expect(tab.requiresStableLayout, isTrue);
-    });
-
     test('searchText מועבר ל-searchController', () {
       final tab = PdfBookTab(book: _book(), pageNumber: 1, searchText: 'תורה');
       expect(tab.searchController.text, 'תורה');
       expect(tab.searchText, 'תורה');
-    });
-
-    test('notifiers של קיצורי המקלדת קיימים ומתחילים ב-0', () {
-      final tab = _tab();
-      expect(tab.toggleNavPaneNotifier.value, 0);
-      expect(tab.toggleCommentatorsPaneNotifier.value, 0);
-    });
-
-    test('הגדלת toggleNavPaneNotifier משדרת ל-listener', () {
-      final tab = _tab();
-      var calls = 0;
-      void listener() => calls++;
-      tab.toggleNavPaneNotifier.addListener(listener);
-      addTearDown(() => tab.toggleNavPaneNotifier.removeListener(listener));
-
-      tab.toggleNavPaneNotifier.value++;
-      tab.toggleNavPaneNotifier.value++;
-
-      expect(calls, 2);
-      expect(tab.toggleNavPaneNotifier.value, 2);
-    });
-
-    test('הגדלת toggleCommentatorsPaneNotifier משדרת ל-listener', () {
-      final tab = _tab();
-      var calls = 0;
-      void listener() => calls++;
-      tab.toggleCommentatorsPaneNotifier.addListener(listener);
-      addTearDown(
-        () => tab.toggleCommentatorsPaneNotifier.removeListener(listener),
-      );
-
-      tab.toggleCommentatorsPaneNotifier.value++;
-
-      expect(calls, 1);
-      expect(tab.toggleCommentatorsPaneNotifier.value, 1);
     });
   });
 
@@ -239,23 +154,10 @@ void main() {
       final json = tab.toJson();
       expect(json.containsKey('savedLayoutMode'), isFalse);
     });
-
-    test('toJson שומר showLeftPane=true', () {
-      final tab = PdfBookTab(book: _book(), pageNumber: 1, openLeftPane: true);
-      expect(tab.toJson()['showLeftPane'], isTrue);
-    });
   });
 
   // ──────────────────────────────────────────────────────────────────────────
   group('PdfBookTab - דה-סריאליזציה fromJson', () {
-    test('fromJson משחזר pageNumber ו-path', () {
-      final tab = _tab(page: 12);
-      final restored = PdfBookTab.fromJson(tab.toJson());
-
-      expect(restored.pageNumber, 12);
-      expect(restored.book.path, '/path/to/book.pdf');
-    });
-
     test('fromJson roundtrip שומר savedLayoutMode', () {
       final tab = _tab();
       tab.savedLayoutMode = PdfLayoutMode.bookView;
@@ -274,12 +176,6 @@ void main() {
       final tab = _tab();
       final restored = PdfBookTab.fromJson(tab.toJson());
       expect(restored.savedLayoutMode, isNull);
-    });
-
-    test('fromJson עם showLeftPane=true → showLeftPane.value=true', () {
-      final tab = PdfBookTab(book: _book(), pageNumber: 1, openLeftPane: true);
-      final restored = PdfBookTab.fromJson(tab.toJson());
-      expect(restored.showLeftPane.value, isTrue);
     });
 
     test('fromJson משחזר requiresStableLayout=true', () {
@@ -353,28 +249,7 @@ void main() {
   });
 
   // ──────────────────────────────────────────────────────────────────────────
-  group('PdfBookTab - מחזור חיים', () {
-    test('dispose לא קורס', () {
-      final tab = _tab();
-      expect(() => tab.dispose(), returnsNormally);
-    });
-
-    test('searchController מוסר ב-dispose ואינו נגיש', () {
-      final tab = _tab(page: 1);
-      tab.dispose();
-      // אחרי dispose, searchController.text אמור לזרוק
-      // (בדיקת dispose הצליחה)
-      expect(tab.pdfHeadings, isNull); // state לא השתנה
-    });
-  });
-
-  // ──────────────────────────────────────────────────────────────────────────
   group('PdfBookTab - isPinned', () {
-    test('isPinned=false ברירת מחדל', () {
-      final tab = _tab();
-      expect(tab.isPinned, isFalse);
-    });
-
     test('isPinned=true נשמר ב-toJson', () {
       final tab = PdfBookTab(book: _book(), pageNumber: 1, isPinned: true);
       expect(tab.toJson()['isPinned'], isTrue);

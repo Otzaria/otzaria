@@ -24,6 +24,7 @@ import 'package:otzaria/plugins/services/plugin_fonts.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
+import 'package:otzaria/plugins/services/plugin_webview_runtime.dart';
 import 'package:otzaria/plugins/view/plugin_tab_page.dart';
 import 'package:otzaria/plugins/view/plugin_webview_host.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -729,6 +730,37 @@ void main() {
         devRootPath: 'http://localhost:5173/',
       ),
     );
+  });
+
+  testWidgets('מסלול גופנים מוטבעים בונה CSS פעם אחת לפני boot', (
+    tester,
+  ) async {
+    const family = 'Embedded font test';
+    await Settings.setValue(SettingsRepository.keyFontFamily, family);
+    var lookups = 0;
+    debugPluginSystemFaces = (name) {
+      if (name == family) lookups++;
+      return null;
+    };
+    addTearDown(() => debugPluginSystemFaces = null);
+
+    await _runBoot(tester, (platform) async {
+      debugPluginFontsFromFileServer = false;
+      final native = platform.controller;
+      final controller = InAppWebViewController.fromPlatform(platform: native);
+      final boot = await _startBoot(
+        tester,
+        platform.views.last,
+        native,
+        controller,
+        WebUri('file:///install/path/index.html'),
+      );
+      await tester.runAsync(() => boot.done);
+
+      expect(lookups, 1);
+      expect(native.fontLoads, isEmpty);
+      expect(native.boots.single, contains('data:font/ttf;base64,'));
+    });
   });
 
   for (final waitingAt in ['גופנים', 'boot']) {

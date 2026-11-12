@@ -7,11 +7,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/text_book/view/commentators_list_screen.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
+
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 void main() {
   testWidgets('בלי מפתחות סוג — ציר הסוגים אינו מוצג', (tester) async {
@@ -66,7 +67,7 @@ Future<void> _pump(
   Set<String> selectedTypeChips = const {},
   ValueChanged<Set<String>>? onTypeChipsChanged,
 }) async {
-  final bloc = _TestTextBookBloc(_state());
+  final bloc = StubTextBookBloc(_state());
   addTearDown(() async => bloc.close());
 
   await tester.pumpWidget(
@@ -110,13 +111,3 @@ TextBookLoaded _state() => TextBookLoaded(
   pinLeftPane: false,
   searchText: '',
 );
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}

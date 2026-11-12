@@ -6,10 +6,8 @@ import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -21,6 +19,8 @@ import 'package:otzaria/widgets/misc/app_context_menu.dart';
 
 import '../../../test_helpers/context_menu_description.dart';
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_personal_notes_bloc.dart';
+import '../../../test_helpers/stub_settings_bloc.dart';
 
 /// Pins the main text context menu of the combined view, item by item, so
 /// that sharing its code with the page shape view cannot change it unnoticed.
@@ -43,8 +43,8 @@ void main() {
         availableCommentators: availableCommentators,
       ),
     );
-    final settingsBloc = _SettingsBloc(SettingsState.initial());
-    final notesBloc = _PersonalNotesBloc(const PersonalNotesState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
+    final notesBloc = StubPersonalNotesBloc(const PersonalNotesState.initial());
     final tab = TextBookTab(book: TextBook(title: 'ספר בדיקה'), index: 0);
     addTearDown(() async {
       await tester.pumpWidget(const SizedBox.shrink());
@@ -244,26 +244,6 @@ class _TextBookRepository implements TextBookRepository {
     required int endIndex,
     Iterable<String>? targetBookTitles,
   }) async => [for (final title in commentators) _commentaryLink(title)];
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _PersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _SettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _SettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

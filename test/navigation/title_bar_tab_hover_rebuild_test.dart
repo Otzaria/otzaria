@@ -15,7 +15,6 @@ import 'package:otzaria/navigation/view/custom_title_bar.dart';
 import 'package:otzaria/navigation/view/tab_visuals.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
@@ -26,6 +25,7 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 
 import '../helpers/memory_settings_cache.dart';
+import '../test_helpers/stub_settings_bloc.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -47,7 +47,7 @@ void main() {
     final navigationBloc = _TestNavigationBloc(
       const NavigationState(currentScreen: Screen.reading),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     addTearDown(() async {
       debugOnRebuildDirtyWidget = null;
       for (final tab in tabs) {
@@ -193,16 +193,6 @@ class _TestNavigationBloc extends Cubit<NavigationState>
 
   @override
   void add(NavigationEvent event) {}
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

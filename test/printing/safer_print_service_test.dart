@@ -260,6 +260,7 @@ void main() {
     expect(await printing, isTrue);
 
     expect(received, [PdfPageFormat.a5, PdfPageFormat.letter]);
+    await ErrorLogFile.flushPending(timeout: const Duration(seconds: 30));
     final log = File(ErrorLogFile.resolvePath()).readAsStringSync();
     expect(log, contains('=== Printer page size'));
     expect(log, contains('unusable page size'));

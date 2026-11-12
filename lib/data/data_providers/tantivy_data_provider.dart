@@ -14,6 +14,7 @@ import 'package:otzaria/search/search_engine_gateway.dart';
 import 'package:otzaria/search/magic_dictionary_downloader.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/error_log_file.dart';
 
 /// A singleton class that manages search functionality using Tantivy search engine.
 ///
@@ -468,12 +469,12 @@ class TantivyDataProvider {
       await _attachSearchLexicons(engine);
 
       return engine;
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('❌ Failed to initialize search engine: $e');
+      _reportOpenFailure(indexPath, e, stackTrace);
 
-      // הסנטינל נשאר בכוונה: גם כשל פתיחה שנתפס כחריגה (לא קריסה) חייב
-      // להיצבר במונה — אחרת אינדקס שפתיחתו נכשלת שוב ושוב לעולם לא היה
-      // מגיע לסף שני הכשלונות ולא היה מוזז הצידה.
+      // כשל פתיחה חייב להצטבר בסנטינל, כדי שאינדקס שנכשל שוב ושוב
+      // יגיע לסף ההסגר ולא יישאר תקוע בכל הפעלה.
 
       // Recover by falling back to temp memory index
       debugPrint('⚠️ Falling back to temporary in-memory index');
@@ -485,6 +486,44 @@ class TantivyDataProvider {
       }
     }
   }
+
+  /// כותב את כשל פתיחת האינדקס ל-errors.txt; מוחלף בטסטים.
+  @visibleForTesting
+  static void Function(String? indexPath, Object error, StackTrace? stackTrace)
+  openFailureLog = _appendOpenFailureToErrorLog;
+
+  static void _reportOpenFailure(
+    String? indexPath,
+    Object error,
+    StackTrace? stackTrace,
+  ) {
+    try {
+      openFailureLog(indexPath, error, stackTrace);
+    } catch (_) {
+      // כשל בכתיבת הלוג אינו עוצר את המעבר לאינדקס הזמני.
+    }
+  }
+
+  static void _appendOpenFailureToErrorLog(
+    String? indexPath,
+    Object error,
+    StackTrace? stackTrace,
+  ) {
+    if (kDebugMode) return;
+    ErrorLogFile.appendInBackground(
+      title: 'Search Index Open Failure',
+      error: error,
+      stackTrace: stackTrace,
+      details: indexOpenFailureDetails(indexPath),
+    );
+  }
+
+  /// פרטים שכבר ידועים בזמן הכשל, בלי לפנות שוב לכונן שנכשל.
+  @visibleForTesting
+  static Map<String, String?> indexOpenFailureDetails(String? indexPath) => {
+    'Phase': 'open index',
+    'Index path': indexPath,
+  };
 
   /// מנוע על תיקייה זמנית, כשאינדקס הדיסק אינו ניתן לפתיחה. במצב זה
   /// האינדוקס חסום ([isTempFallback]) כדי שכתיבות לא ילכו לתיקייה שנזרקת.

@@ -13,15 +13,16 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
+import 'package:otzaria/pdf_book/models/pdf_reading_location.dart';
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
+import 'package:otzaria/widgets/controls/bar_button.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart'
     show PdfLayoutMode;
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
@@ -31,6 +32,7 @@ import 'package:pdfrx/pdfrx.dart';
 
 import '../helpers/memory_settings_cache.dart';
 import '../test_helpers/pdf_document_dispose.dart';
+import '../test_helpers/stub_settings_bloc.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -91,7 +93,7 @@ void main() {
     final tabsBloc = TabsBloc(repository: _TabsRepository());
     // ignore: invalid_use_of_visible_for_testing_member
     tabsBloc.emit(TabsState(tabs: [tab], currentTabIndex: 0));
-    final settings = _SettingsBloc();
+    final settings = StubSettingsBloc();
     final tour = TourCubit();
     addTearDown(tabsBloc.close);
     addTearDown(settings.close);
@@ -365,6 +367,102 @@ void main() {
     });
   }
 
+  testWidgets('קדימה ב־PDF מתעדכן מהמתאר ומדלג פעם אחת כשהחץ מוחזק', (
+    tester,
+  ) async {
+    await Settings.setValue(
+      ShortcutValidator.fitPdfViewKey,
+      'alt+arrowright',
+    );
+    final (_, tab) = await pumpBook(tester);
+    final controller = tab.pdfViewerController;
+    final document = controller.document;
+    try {
+      await dragIntoViewer(tester);
+      final zoomBefore = controller.currentZoom;
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      await settle(tester, rounds: 10);
+      expect(controller.currentZoom, isNot(closeTo(zoomBefore, 0.01)));
+
+      await Settings.setValue(ShortcutValidator.fitPdfViewKey, '');
+      await Settings.setValue(
+        ShortcutValidator.nextPdfLocationKey,
+        'alt+arrowright',
+      );
+      final start = PdfReadingLocation.capture(controller)!;
+      final ahead = PdfReadingLocation(
+        pageNumber: 6,
+        pageOffset: start.pageOffset,
+        zoom: start.zoom,
+      );
+      tab.navigationHistory.remember(start);
+      expect(tab.navigationHistory.takePrevious(ahead), start);
+      tab.outline.value = null;
+      await tester.pump();
+      final forward = find.byKey(const ValueKey('pdf-forward-location'));
+      String tooltip() => tester.widget<BarButton>(forward).tooltip;
+      expect(tooltip(), 'מעבר קדימה אל עמוד 6');
+
+      tab.outline.value = [
+        PdfOutlineNode(
+          title: 'כותרת חדשה',
+          dest: PdfDest(6, PdfDestCommand.fit, null),
+          children: const [],
+        ),
+      ];
+      await tester.pump();
+      expect(tooltip(), 'מעבר קדימה אל כותרת חדשה');
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowRight);
+      await settle(tester, rounds: 5);
+      await tester.sendKeyRepeatEvent(LogicalKeyboardKey.arrowRight);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowRight);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      await settle(tester, rounds: 15);
+      expect(controller.pageNumber, 6);
+      expect(tab.navigationHistory.last?.pageNumber, start.pageNumber);
+      expect(forward, findsNothing);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      await settle(tester, rounds: 5);
+      expect(controller.pageNumber, start.pageNumber);
+      expect(tab.navigationHistory.next?.pageNumber, 6);
+
+      final beforeLink = Matrix4.copy(controller.value);
+      final direct = controller.goToPage(pageNumber: 8);
+      await settle(tester, rounds: 15);
+      await direct;
+      final directView = controller.visibleRect;
+      await controller.goTo(beforeLink, duration: Duration.zero);
+      await settle(tester, rounds: 3);
+      final previousLocation = PdfReadingLocation.capture(controller);
+
+      final tabs = tester.element(find.byType(PdfViewer)).read<TabsBloc>();
+      tabs.add(
+        OpenOrFocusTab(
+          PdfBookTab(book: tab.book, pageNumber: 8),
+          navigateToPositionIfReused: true,
+        ),
+      );
+      await settle(tester, rounds: 15);
+      expect(
+        (controller.visibleRect.center - directView.center).distance,
+        lessThan(0.01),
+      );
+      expect(tab.navigationHistory.next, isNull);
+      expect(tab.navigationHistory.last, previousLocation);
+      expect(tester.takeException(), isNull);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await disposePdfDocument(tester, document);
+    }
+  });
+
   for (final bookView in [false, true]) {
     testWidgets(
       'PageDown לעמוד הבא ו-PageUp לקודם, Alt+PageDown אינו מדפדף: '
@@ -503,14 +601,4 @@ class _TabsRepository implements TabsRepository {
     if (invocation.memberName == #loadCurrentTabIndex) return 0;
     return Future<void>.value();
   }
-}
-
-class _SettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _SettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

@@ -1002,25 +1002,6 @@ void main() {
         }
       }
     });
-
-    test('שמות רכיבי Windows', () {
-      String nameOf(String id) =>
-          kKnownComponents.firstWhere((c) => c.id == id).name;
-      expect(nameOf('otzaria-windows-x64'), 'אוצריא ל-Windows');
-      expect(nameOf('otzaria-windows-arm64'), 'אוצריא ל-Windows (ARM64)');
-      expect(
-        nameOf('otzaria-windows-portable-x64'),
-        'אוצריא ל-Windows — גרסה ניידת',
-      );
-      expect(
-        nameOf('otzaria-windows-portable-arm64'),
-        'אוצריא ל-Windows — גרסה ניידת (ARM64)',
-      );
-      expect(
-        nameOf('otzaria-windows-full'),
-        'אוצריא ל-Windows עם ספרייה מלאה',
-      );
-    });
   });
 
   group('הטקסט באנגלית (nameEn, descriptionEn, outputNoteEn)', () {

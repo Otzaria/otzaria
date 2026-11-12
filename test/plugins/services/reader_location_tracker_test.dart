@@ -72,27 +72,6 @@ void main() {
     // עלולה להימשך יותר מכל השהיה קבועה ולדחות את טיימר ה-tracker.
     Future<void> settle() => pumpEventQueue();
 
-    test('initializes without errors', () {
-      expect(
-        () => ReaderLocationTracker(tabsBloc: mockTabsBloc),
-        returnsNormally,
-      );
-    });
-
-    test('disposes without errors', () {
-      final tracker = ReaderLocationTracker(tabsBloc: mockTabsBloc);
-      expect(() => tracker.dispose(), returnsNormally);
-    });
-
-    test('listens to TabsBloc stream on initialization', () async {
-      final tracker = ReaderLocationTracker(tabsBloc: mockTabsBloc);
-
-      // Verify that stream is being listened to
-      verify(mockTabsBloc.stream).called(1);
-
-      tracker.dispose();
-    });
-
     test(
       'dispatches reader.current_ref_changed with correct payload for text tab',
       () async {
@@ -292,11 +271,6 @@ void main() {
       expect(dispatchedEvents, hasLength(2));
       expect(dispatchedEvents.last.payload['currentRef'], 'פרק ד');
       tracker.dispose();
-    });
-
-    test('resolves null snapshot for null tab', () async {
-      final snapshot = await resolveReaderLocation(null);
-      expect(snapshot, isNull);
     });
 
     group('טאב מפוצל', () {

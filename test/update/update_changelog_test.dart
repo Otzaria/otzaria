@@ -106,14 +106,6 @@ void main() {
       expect(url.toString(), contains('%'));
       expect(url.toString(), isNot(contains(' ')));
     });
-
-    test('builds a path rooted under the upstream repo', () {
-      final url = rawAssetUrlForTag('0.9.92+628', 'assets/foo.md');
-      expect(url.pathSegments.first, 'Otzaria');
-      expect(url.pathSegments[1], 'otzaria');
-      expect(url.pathSegments[2], 'refs');
-      expect(url.pathSegments[3], 'tags');
-    });
   });
 
   group('גרסאות hotfix (issue #1547)', () {

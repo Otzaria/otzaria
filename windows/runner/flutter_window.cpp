@@ -22,8 +22,26 @@
 #include "hang_monitor.h"
 #include "startup_watchdog.h"
 #include "utils.h"
+#include "window_centering.h"
 
 namespace {
+
+bool CenterWindowOnCursorMonitor(HWND hwnd) {
+  POINT cursor{};
+  if (!hwnd || !GetCursorPos(&cursor)) return false;
+  HMONITOR monitor = MonitorFromPoint(cursor, MONITOR_DEFAULTTOPRIMARY);
+  MONITORINFO info{};
+  info.cbSize = sizeof(info);
+  if (!monitor || !GetMonitorInfo(monitor, &info)) return false;
+
+  return otzaria::CenterWindowInWorkArea(
+      info.rcWork,
+      [hwnd](RECT* bounds) { return GetWindowRect(hwnd, bounds) != FALSE; },
+      [hwnd](int x, int y) {
+        return SetWindowPos(hwnd, nullptr, x, y, 0, 0,
+                            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE) != FALSE;
+      });
+}
 
 // ── דיאגנוסטיקה של סיום סשן (כיבוי / יציאת משתמש) ────────────────────────
 //
@@ -530,8 +548,12 @@ bool FlutterWindow::OnCreate() {
       [this](const flutter::MethodCall<flutter::EncodableValue>& call,
              std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
                  result) {
-        // nativeapi Window.id is not a Win32 HWND. The runner owns the
-        // real native handle used for modal dialogs and child windows.
+        // סוגר את החלון הזה, בדחייה לאיטרציה הבאה של לולאת ההודעות.
+        //
+        // ⚠️ `windowManager.destroy()` קורא ל-`DestroyWindow` מתוך טיפול
+        // בערוץ, כלומר מתוך ריצת ה-Dart של החלון — הריסת המנוע משם היא
+        // ריאנטרנטית ומפילה את התהליך. ראו `kMsgDeferredDestroy`.
+        // NativeAPI Window.id is not HWND; obtain the actual runner handle.
         if (call.method_name() == "mainWindowHandle") {
           const HWND self = GetHandle();
           result->Success(
@@ -540,15 +562,19 @@ bool FlutterWindow::OnCreate() {
                    : flutter::EncodableValue());
           return;
         }
-        // סוגר את החלון הזה, בדחייה לאיטרציה הבאה של לולאת ההודעות.
-        //
-        // ⚠️ `windowManager.destroy()` קורא ל-`DestroyWindow` מתוך טיפול
-        // בערוץ, כלומר מתוך ריצת ה-Dart של החלון — הריסת המנוע משם היא
-        // ריאנטרנטית ומפילה את התהליך. ראו `kMsgDeferredDestroy`.
         if (call.method_name() == "closeSelf") {
           const HWND self = GetHandle();
           if (self) ::PostMessageW(self, kMsgDeferredDestroy, 0, 0);
           result->Success();
+          return;
+        }
+        if (call.method_name() == "centerMainWindow") {
+          if (CenterWindowOnCursorMonitor(GetHandle())) {
+            result->Success();
+          } else {
+            result->Error("centerMainWindowFailed",
+                          "Unable to center the main window.");
+          }
           return;
         }
         // איזה חלון אוצריא נמצא תחת הסמן, אם בכלל.

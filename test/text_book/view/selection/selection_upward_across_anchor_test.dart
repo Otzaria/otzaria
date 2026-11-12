@@ -11,10 +11,8 @@ import 'package:positioned_sliver_list/positioned_list.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -24,6 +22,8 @@ import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/widgets/selection/item_selection_container.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_personal_notes_bloc.dart';
+import '../../../test_helpers/stub_settings_bloc.dart';
 
 // גרירת בחירה כלפי מעלה נעצרה בפסקה שמתחת ולא נכנסה לפסקה שמעל, עד גרירת
 // החלון. הרשימה מעוגנת בשורת הפתיחה (initialScrollIndex); הכותרת שלפניה
@@ -51,27 +51,6 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
   }
 
   void emitForTest(TextBookState state) => emit(state);
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestPersonalNotesBloc
-    extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _TestPersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -116,10 +95,10 @@ void main() {
       searchText: '',
     );
     final textBookBloc = _TestTextBookBloc(state);
-    final personalNotesBloc = _TestPersonalNotesBloc(
+    final personalNotesBloc = StubPersonalNotesBloc(
       const PersonalNotesState.initial(),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final tab = TextBookTab(
       book: TextBook(title: _title),
       index: anchor,
@@ -290,16 +269,6 @@ void main() {
 
     expect(selected, startsWith('(ב)'));
     expect(selected, isNot(contains('אדמומית')));
-  });
-
-  testWidgets('כל פריט ברשימה עטוף ב-ItemSelectionContainer', (
-    tester,
-  ) async {
-    await pumpScrolledView(tester);
-    expect(
-      find.byType(ItemSelectionContainer),
-      findsAtLeastNWidgets(3),
-    );
   });
 
   // אות מפרש שנוספת בסוף הפסקה בונה אותה מחדש; ב-450 כל ה-sliver ההפוך מעל

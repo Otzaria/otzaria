@@ -7,7 +7,6 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_engine_gateway.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/view/in_book_advanced_search_dialog.dart';
-import 'package:otzaria/search/utils/smart_lexical_in_book_search.dart';
 import 'package:otzaria/tabs/models/reading_tab_search_state.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
@@ -54,15 +53,6 @@ Future<void> main() async {
     );
   }, skip: !ready);
 
-  test('הסורק שומר כללי ציטוטי המנוע ואקרונים מנוקדים', () {
-    expect(smartSearchQuotedPhrases('רַמְבַּ"ם "ברא אלהים" ״ארץ״'), [
-      'ברא אלהים',
-      'ארץ',
-    ]);
-    expect(smartSearchQuotedPhrases('„ברא אלהים” “ארץ”'), ['ברא אלהים', 'ארץ']);
-    expect(smartSearchQuotedPhrases('"  " רמב"ם "לא נסגר'), isEmpty);
-  });
-
   test('טאב קריאה משמר את המדיניות החכמה בשמירה ושחזור', () {
     const original = ReadingTabSearchState(
       searchText: '"ברא אלהים" ארץ',
@@ -75,7 +65,7 @@ Future<void> main() async {
     expect(restored.searchMode, SearchMode.fuzzy);
   });
 
-  test('מדיניות ציטוט אינה משנה הדגשות קיימות או הדגשה בין שורות', () {
+  test('רק ציטוט חכם מלא שומר הדגשה שחוצה שורות', () {
     for (final query in ['ברא אלהים', '"ברא אלהים"']) {
       for (final sample in [
         (line: 'ברא אלהים הארץ', next: ''),
@@ -95,7 +85,11 @@ Future<void> main() async {
           matchPolicy: SearchMatchPolicy.smart,
         );
         expect(regular, contains('color: otzaria-search-hit'));
-        expect(smart, regular);
+        if (sample.next.isNotEmpty && query == 'ברא אלהים') {
+          expect(smart, isNot(contains('color: otzaria-search-hit')));
+        } else {
+          expect(smart, regular);
+        }
       }
     }
   }, skip: !ready);
@@ -175,7 +169,10 @@ Future<void> main() async {
       '"ברא אלהים" "השמים"': [0],
       '"ברא" אלהים': [0, 2, 3, 4],
       'רמב"ם': [5, 6],
-      '"יקוק"': [7],
+      '“רַמְבַּ"ם”': [6],
+      'יקוק': [7, 8],
+      '"יקוק"': [7, 8],
+      '„יקוק”': [7, 8],
     }.entries) {
       test(entry.key, () async {
         final global = await repository.searchSemantic(
@@ -205,6 +202,77 @@ Future<void> main() async {
         );
       });
     }
+
+    test('חלופות בכל מיקום נשמרות גם בתוצאות מעורבות ובציטוט חלקי', () async {
+      const name = '\u05d9\u05d4\u05d5\u05d4';
+      const mixed = [
+        '$name טוב $name',
+        'יקוק טוב $name',
+        '$name טוב ידוד',
+        'יקוק טוב ידוד',
+        '$name רחוק טוב $name',
+      ];
+      await engine.addDocumentsBatch(
+        docs: [
+          for (var i = 0; i < mixed.length; i++)
+            DocumentInput(
+              ordinal: i,
+              title: 'חלופות',
+              reference: 'שורה $i',
+              topics: '/aliases',
+              text: mixed[i],
+              segment: BigInt.from(i),
+              isPdf: false,
+              filePath: 'aliases',
+            ),
+        ],
+      );
+      await engine.commit();
+      for (final entry in {
+        'יקוק טוב ידוד': [0, 1, 2, 3, 4],
+        '"יקוק טוב ידוד"': [0, 1, 2, 3],
+        '"יקוק טוב" ידוד': [0, 1, 2, 3],
+        'יקוק "טוב ידוד"': [0, 1, 2, 3, 4],
+        'יְקוק טוב ידוד': [0, 1, 2, 3, 4],
+      }.entries) {
+        final global = await repository.searchSemantic(
+          SemanticSearchRequest(
+            query: entry.key,
+            facets: const ['/aliases'],
+            limit: 100,
+            lexicalMode: SemanticLexicalMode.fuzzy,
+            retrievalMode: SemanticRetrievalMode.lexicalOnly,
+          ),
+        );
+        final inBook = await searchBookWithEngine(
+          repository,
+          query: entry.key,
+          bookPath: '/aliases',
+          limit: 100,
+          settings: settings,
+        );
+        expect(inBook.map((hit) => hit.segment.toInt()), entry.value);
+        expect(
+          inBook.map((hit) => hit.id).toSet(),
+          global.results.map((hit) => hit.id).toSet(),
+        );
+        expect(
+          inBook.every((hit) => hit.text.contains('<font color=red>')),
+          isTrue,
+        );
+      }
+    });
+
+    test('שאילתת regex בטאב חכם ממשיכה במסלול regex', () async {
+      final results = await searchBookWithEngine(
+        repository,
+        query: '/יקוק/',
+        bookPath: '/smart/book',
+        limit: 100,
+        settings: settings,
+      );
+      expect(results.map((hit) => hit.segment.toInt()), [7]);
+    });
 
     test('הקטלוג ממוין לפי מקום השורה גם כשמספרי השורות בסדר אחר', () async {
       await engine.addDocumentsBatch(
@@ -330,6 +398,20 @@ Future<void> main() async {
       expect(
         results.map(_ordinal),
         orderedEquals(List.generate(5000, (i) => 50 + i)),
+      );
+      final tail = await repository.searchSmartLexical(
+        SearchEngineRequest(
+          query: '"ברא אלהים" "הארץ"',
+          facets: const ['/large'],
+          limit: 100,
+          offset: 5000,
+          searchMode: SearchMode.fuzzy,
+          order: ResultsOrder.catalogue,
+        ),
+      );
+      expect(
+        tail.map(_ordinal),
+        orderedEquals(List.generate(55, (i) => 5050 + i)),
       );
     });
 

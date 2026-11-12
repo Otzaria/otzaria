@@ -10,8 +10,6 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as text_utils;
@@ -20,16 +18,7 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import '../../helpers/memory_settings_cache.dart';
 import '../../support/search_engine_test_init.dart';
 import '../../test_helpers/pdf_document_dispose.dart';
-
-class _SettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _SettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
+import '../../test_helpers/stub_settings_bloc.dart';
 
 class _HighlightCanvas implements Canvas {
   final rects = <Rect>[];
@@ -86,7 +75,7 @@ Future<void> main() async {
     await tester.runAsync(pdfrxFlutterInitialize);
     await tester.binding.setSurfaceSize(const Size(900, 760));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    final settings = _SettingsBloc();
+    final settings = StubSettingsBloc();
     addTearDown(settings.close);
 
     Future<void> pump(
@@ -312,7 +301,7 @@ Future<void> main() async {
       await tester.runAsync(pdfrxFlutterInitialize);
       await tester.binding.setSurfaceSize(const Size(900, 760));
       addTearDown(() => tester.binding.setSurfaceSize(null));
-      final settings = _SettingsBloc();
+      final settings = StubSettingsBloc();
       addTearDown(settings.close);
       final patterns = (await tester.runAsync(() async {
         final source = pw.Document()

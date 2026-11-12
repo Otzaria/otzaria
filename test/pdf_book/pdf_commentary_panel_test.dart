@@ -15,8 +15,6 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -25,18 +23,9 @@ import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as text_utils;
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
 import '../helpers/memory_settings_cache.dart';
+import '../test_helpers/stub_settings_bloc.dart';
 
 // ─── fakes ───────────────────────────────────────────────────────────────────
-
-class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _FakeSettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
-}
 
 class _FakePersonalNotesBloc
     extends Bloc<PersonalNotesEvent, PersonalNotesState>
@@ -98,7 +87,7 @@ Link _regularLink({required int index1}) => Link(
 Widget _wrap(Widget child, {_RecordingTabsBloc? tabsBloc}) => MaterialApp(
   home: MultiBlocProvider(
     providers: [
-      BlocProvider<SettingsBloc>.value(value: _FakeSettingsBloc()),
+      BlocProvider<SettingsBloc>.value(value: StubSettingsBloc()),
       BlocProvider<PersonalNotesBloc>.value(value: _FakePersonalNotesBloc()),
       if (tabsBloc != null) BlocProvider<TabsBloc>.value(value: tabsBloc),
     ],
@@ -522,8 +511,8 @@ void main() {
         await tester.pumpWidget(_wrap(buildPanel(tab, notifierA)));
         await tester.pumpAndSettle();
 
-        // החלפה ל-notifier חדש עם value=0. בלי איפוס baseline, _lastSeen היה
-        // נשאר על 7 ופתיחות חדשות עד value=7 היו נחסמות.
+        // החלפה ל-notifier חדש עם value=0. בלי איפוס _lastSeenFilterRequest
+        // הוא היה נשאר על 7 ופתיחות חדשות עד value=7 היו נחסמות.
         await tester.pumpWidget(_wrap(buildPanel(tab, notifierB)));
         await tester.pumpAndSettle();
 

@@ -33,13 +33,12 @@ import 'package:otzaria/plugins/services/plugin_content_blockers.dart';
 import 'package:otzaria/plugins/services/plugin_content_security_policy.dart';
 import 'package:otzaria/plugins/services/plugin_file_server.dart';
 import 'package:otzaria/plugins/services/plugin_fonts.dart';
-import 'package:otzaria/plugins/services/plugin_font_bootstrap.dart';
-import 'package:otzaria/plugins/services/plugin_font_scheme.dart';
 import 'package:otzaria/plugins/services/plugin_headless_shell.dart';
 import 'package:otzaria/plugins/services/plugin_network_gate.dart';
 import 'package:otzaria/plugins/services/plugin_network_policy.dart';
 import 'package:otzaria/plugins/services/plugin_ref_line_resolver.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
+import 'package:otzaria/plugins/services/plugin_webview_runtime.dart';
 import 'package:otzaria/plugins/services/plugin_webview_diagnostics.dart';
 import 'package:otzaria/plugins/services/plugin_webview_failure_log.dart';
 import 'package:otzaria/plugins/services/plugin_webview_settings_updater.dart';
@@ -128,33 +127,6 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
   BuildContext? get dialogContext;
 
   InAppWebViewController? _webViewController;
-  final _fontSchemeOwner = PluginFontSchemeOwner();
-
-  PluginFontSchemeLease? get pluginFontSchemeLease => _fontSchemeOwner.lease;
-
-  void releasePluginFontDocument([InAppWebViewController? controller]) {
-    _fontSchemeOwner.release(controller: controller?.platform);
-  }
-
-  PluginFontSchemeLease? beginPluginFontDocument(
-    InAppWebViewController controller,
-    WebUri? url,
-  ) {
-    if (!isCurrentWebView(controller)) return null;
-    releasePluginFontDocument(controller);
-    final origin = '$pluginAssetScheme://${pluginAssetHost(plugin.pluginId)}';
-    if (!pluginMacFontSchemeEnabled ||
-        url == null ||
-        url.scheme != pluginAssetScheme ||
-        url.authority != pluginAssetHost(plugin.pluginId)) {
-      return null;
-    }
-    return _fontSchemeOwner.begin(
-      controller: controller.platform,
-      origin: origin,
-    );
-  }
-
   late final _backendDiagnostics = WebViewBackendDiagnostics();
   late final _settingsUpdater = PluginWebViewSettingsUpdater(
     onError: (error) => debugPrint(
@@ -165,7 +137,6 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
   InAppWebViewController? get webViewController => _webViewController;
 
   set webViewController(InAppWebViewController? controller) {
-    _fontSchemeOwner.attach(controller?.platform);
     final changed = !identical(
       controller?.platform,
       _webViewController?.platform,
@@ -545,7 +516,6 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
       _syncConsoleMessageLevels,
     );
     _settingsUpdater.dispose();
-    _fontSchemeOwner.attach(null);
     _backendDiagnostics.dispose();
     _webViewController = null;
     _confirmationDialog.dispose();

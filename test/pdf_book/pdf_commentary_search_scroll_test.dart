@@ -19,13 +19,12 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/widgets/commentary/commentary_content.dart';
 
 import '../helpers/memory_settings_cache.dart';
 import '../support/search_engine_test_init.dart';
+import '../test_helpers/stub_settings_bloc.dart';
 import '../test_helpers/text_occurrence_visibility.dart';
 
 // כותרות ייחודיות: מטמון התוכן של Link סטטי ומשותף לכל הבדיקות.
@@ -572,22 +571,12 @@ Widget _wrap(Widget child) => MaterialApp(
       Directionality(textDirection: TextDirection.rtl, child: child!),
   home: MultiBlocProvider(
     providers: [
-      BlocProvider<SettingsBloc>.value(value: _FakeSettingsBloc()),
+      BlocProvider<SettingsBloc>.value(value: StubSettingsBloc()),
       BlocProvider<PersonalNotesBloc>.value(value: _FakePersonalNotesBloc()),
     ],
     child: Scaffold(body: child),
   ),
 );
-
-class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _FakeSettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((_, _) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
-}
 
 class _FakePersonalNotesBloc
     extends Bloc<PersonalNotesEvent, PersonalNotesState>

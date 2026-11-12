@@ -5,6 +5,7 @@ import 'package:otzaria/plugins/plugin_constants.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
+import 'package:otzaria/plugins/services/plugin_webview_runtime.dart';
 import 'package:otzaria/plugins/services/plugin_toolbar_registry.dart';
 import 'package:otzaria/plugins/utils/plugin_context_menu_entries.dart';
 import 'package:otzaria/plugins/utils/plugin_toolbar_actions.dart';

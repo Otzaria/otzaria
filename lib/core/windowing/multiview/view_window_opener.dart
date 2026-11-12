@@ -344,10 +344,8 @@ class ViewWindowOpener implements WindowOpener {
 
   /// החלון הראשי נספר תמיד, גם מוסתר: הוא חי ותופס מקום בתקרה.
   @override
-  Future<({int count, int max})?> windowCount() async => (
-    count: registry.windows.length + 1,
-    max: ViewWindowRegistry.maxWindows,
-  );
+  Future<({int count, int max})?> windowCount() async =>
+      (count: registry.windows.length + 1, max: ViewWindowRegistry.maxWindows);
 
   @override
   Future<void> reportOpenWindowFailure() async {

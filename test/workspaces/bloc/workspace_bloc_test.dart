@@ -61,9 +61,13 @@ void main() {
     await tester.pump();
     bloc.add(
       SwitchToWorkspace(
+        sourceWorkspaceId: bloc.state.activeWorkspaceId,
         targetWorkspaceId: second.id,
-        currentTabsToSave: [],
-        currentTabIndexToSave: 0,
+        readCurrentTabs: () => (
+          tabs: [],
+          activeTabIndex: 0,
+          activePane: null,
+        ),
       ),
     );
     await tester.pump();
@@ -116,9 +120,13 @@ void main() {
       final liveTab = _createTextTab('ספר חי');
       bloc.add(
         SwitchToWorkspace(
+          sourceWorkspaceId: bloc.state.activeWorkspaceId,
           targetWorkspaceId: secondWorkspace.id,
-          currentTabsToSave: [liveTab],
-          currentTabIndexToSave: 0,
+          readCurrentTabs: () => (
+            tabs: [liveTab],
+            activeTabIndex: 0,
+            activePane: null,
+          ),
         ),
       );
 
@@ -160,9 +168,13 @@ void main() {
 
       bloc.add(
         SwitchToWorkspace(
+          sourceWorkspaceId: bloc.state.activeWorkspaceId,
           targetWorkspaceId: targetWorkspace.id,
-          currentTabsToSave: const [],
-          currentTabIndexToSave: 0,
+          readCurrentTabs: () => (
+            tabs: const [],
+            activeTabIndex: 0,
+            activePane: null,
+          ),
         ),
       );
 
@@ -201,9 +213,13 @@ void main() {
       );
       bloc.add(
         SwitchToWorkspace(
+          sourceWorkspaceId: bloc.state.activeWorkspaceId,
           targetWorkspaceId: targetWorkspace.id,
-          currentTabsToSave: const [],
-          currentTabIndexToSave: 0,
+          readCurrentTabs: () => (
+            tabs: const [],
+            activeTabIndex: 0,
+            activePane: null,
+          ),
         ),
       );
 
@@ -234,9 +250,13 @@ void main() {
       final liveTab = _createTextTab('ספר חי');
       bloc.add(
         SwitchToWorkspace(
+          sourceWorkspaceId: bloc.state.activeWorkspaceId,
           targetWorkspaceId: secondWorkspace.id,
-          currentTabsToSave: [liveTab],
-          currentTabIndexToSave: 0,
+          readCurrentTabs: () => (
+            tabs: [liveTab],
+            activeTabIndex: 0,
+            activePane: null,
+          ),
         ),
       );
 
@@ -269,9 +289,13 @@ void main() {
       final extraTab = _createTextTab('ספר שנפתח בדרך אגב');
       bloc.add(
         SwitchToWorkspace(
+          sourceWorkspaceId: bloc.state.activeWorkspaceId,
           targetWorkspaceId: other.id,
-          currentTabsToSave: [pinnedTab, extraTab],
-          currentTabIndexToSave: 1,
+          readCurrentTabs: () => (
+            tabs: [pinnedTab, extraTab],
+            activeTabIndex: 1,
+            activePane: null,
+          ),
         ),
       );
       await bloc.stream.firstWhere((s) => s.activeWorkspaceId == other.id);
@@ -284,9 +308,13 @@ void main() {
       await reopen.stream.firstWhere((s) => !s.isLoading);
       reopen.add(
         SwitchToWorkspace(
+          sourceWorkspaceId: reopen.state.activeWorkspaceId,
           targetWorkspaceId: pinned.id,
-          currentTabsToSave: const [],
-          currentTabIndexToSave: 0,
+          readCurrentTabs: () => (
+            tabs: const [],
+            activeTabIndex: 0,
+            activePane: null,
+          ),
         ),
       );
       await reopen.stream.firstWhere((s) => s.activeWorkspaceId == pinned.id);
@@ -318,14 +346,20 @@ void main() {
         )..add(LoadWorkspaces());
         await bloc.stream.firstWhere((s) => !s.isLoading);
 
+        final completed = Completer<bool?>();
         bloc.add(
           SwitchToWorkspace(
+            sourceWorkspaceId: bloc.state.activeWorkspaceId,
             targetWorkspaceId: second.id,
-            currentTabsToSave: const [],
-            currentTabIndexToSave: 0,
+            readCurrentTabs: () => (
+              tabs: const [],
+              activeTabIndex: 0,
+              activePane: null,
+            ),
+            onCompleted: completed.complete,
           ),
         );
-        await bloc.stream.firstWhere((s) => s.activeWorkspaceId == second.id);
+        await completed.future;
 
         expect(asked, [second.id]);
         await bloc.close();
@@ -441,7 +475,7 @@ class _FakeWorkspaceRepository extends WorkspaceRepository {
   List<Workspace> _workspaces;
   String? _activeWorkspaceId;
 
-  /// `mutateWorkspaces` זורק — כמו `SharedHiveUnavailable` בחלון משני.
+  /// `mutateWorkspaces` זורק — כמו כתיבה שנכשלה ל-`user_state.db`.
   bool failMutate = false;
 
   /// מה שיהיה ברשימה ברגע ה-`mutate`, גם אם הטעינה החזירה ריק.

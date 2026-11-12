@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
+import 'package:otzaria/plugins/utils/plugin_toolbar_actions.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/models/plugin_permission_grant.dart';
 import 'package:otzaria/plugins/models/plugin_published_record.dart';
@@ -241,6 +242,59 @@ void main() {
     );
   });
 
+  test(
+    'הסינון שורד הצהרת startup ואחריה גיבוי דינמי בלי הרשאת startup',
+    () async {
+      final payload = <String, dynamic>{
+        'id': 'word',
+        'title': 'עריכה',
+        'icon': 'document_edit_24_regular',
+        'contexts': ['reader-text'],
+        'bookTypes': ['docx', 'docm'],
+        'bookSources': ['user'],
+        'openPlugin': true,
+      };
+      final plugin = _plugin(
+        startup: {
+          'toolbarItems': [payload],
+        },
+      );
+      repo.grantedByPlugin['p1'] = {
+        'app.startup_contributions',
+        'reader.toolbar',
+      };
+      await service.sync([plugin], repo);
+      expect(toolbar.getAll().single.$2.bookTypes, ['docx', 'docm']);
+      toolbar.registerPayload('p1', payload, instanceId: 'live');
+      repo.grantedByPlugin['p1'] = {'reader.toolbar'};
+      await service.sync([plugin], repo);
+      final records = toolbar.getAll();
+      expect(records, hasLength(1));
+      expect(records.single.$2.openPlugin, isTrue);
+      expect(records.single.$2.bookSources, ['user']);
+      for (final (type, source, shown) in [
+        ('docx', 'user', true),
+        ('docm', 'user', true),
+        ('docx', 'library', false),
+        ('text', 'user', false),
+        ('pdf', 'user', false),
+      ]) {
+        expect(
+          buildPluginToolbarActions(
+            records: records,
+            context: type == 'pdf' ? 'reader-pdf' : 'reader-text',
+            bookType: type,
+            bookSource: source,
+            compact: false,
+            locationPayload: () async => {},
+          ),
+          hasLength(shown ? 1 : 0),
+          reason: '$type/$source',
+        );
+      }
+    },
+  );
+
   test('מקור הרשאות חלופי מוגבל לסנכרון שבו הועבר', () async {
     final plugin = _plugin(startup: _fullStartup());
     final requestedIds = <String>[];
@@ -333,6 +387,43 @@ void main() {
       expect(fieldActions.hasActionsFor(PluginSearchField.library), isFalse);
       expect(endReasons, ['closed']);
       expect(fieldSessions.hasSessionsFor(field), isFalse);
+    });
+
+    test('מפתח האחסון של when נטען, והכפתור נרשם גם כשהתנאי כבוי', () async {
+      final evaluator = PluginConditionEvaluator.forTesting();
+      addTearDown(evaluator.dispose);
+      final conditionalService = PluginStartupContributionsService.forTesting(
+        toolbarRegistry: toolbar,
+        contextMenuRegistry: contextMenu,
+        activationService: activation,
+        searchFieldActionsRegistry: fieldActions,
+        searchFieldSessions: fieldSessions,
+        conditionEvaluator: evaluator,
+      );
+      const when = {
+        'storage': {'key': 'showDictate', 'equals': true},
+      };
+      repo.grantedByPlugin['p1'] = {
+        'app.startup_contributions',
+        'search.field_actions',
+      };
+      await conditionalService.sync([
+        _plugin(
+          startup: {
+            'searchFieldActions': [
+              {'id': 'dictate', 'title': 'דיבור', 'when': when},
+            ],
+          },
+        ),
+      ], repo);
+
+      final action = fieldActions
+          .actionsFor(PluginSearchField.library)
+          .single
+          .$2;
+      expect(evaluator.isVisible('p1', action.when), isFalse);
+      evaluator.onStorageValueChanged('p1', 'showDictate', true);
+      expect(evaluator.isVisible('p1', action.when), isTrue);
     });
   });
 

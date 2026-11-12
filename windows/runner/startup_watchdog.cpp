@@ -608,6 +608,8 @@ bool CaptureThreadStack(HANDLE thread, std::vector<ULONG_PTR>* frames) {
 
 bool IsDartFrame(ULONG_PTR address) { return DartImageBase(address) != 0; }
 
+std::string DescribeFrame(ULONG_PTR address) { return DescribeAddress(address); }
+
 void AppendStack(const std::vector<ULONG_PTR>& frames, std::string* report) {
   AppendStackSection(frames, report);
 }

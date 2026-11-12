@@ -335,4 +335,7 @@ const pluginValidPermissions = <String>[
   /// הרשמה לאירועי סימון טקסט בקורא
   'events.subscribe:reader.selection_changed',
   'events.subscribe:reader.sectionContentChanged',
+
+  /// הרשמה לאירוע סיום חיפוש טקסט מלא, עם המונה הסופי
+  'events.subscribe:search.completed',
 ];

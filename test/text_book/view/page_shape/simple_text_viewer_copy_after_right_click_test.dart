@@ -8,20 +8,20 @@ import 'package:otzaria/book_protection/repository/book_protection_repository.da
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_personal_notes_bloc.dart';
+import '../../../test_helpers/stub_settings_bloc.dart';
+import '../../../test_helpers/stub_text_book_bloc.dart';
 
 /// issue #937 — לחיצה ימנית משמרת-בחירה במפרש בצורת הדף פולטת אירוע בחירה
 /// ריקה רגעי; עיבודו מחק את הטקסט השמור, ו-Ctrl+C הפסיק לעבוד לצמיתות
@@ -45,8 +45,8 @@ void main() {
   testWidgets('Ctrl+C ממפרש ממשיך לעבוד אחרי לחיצה ימנית על הבחירה', (
     tester,
   ) async {
-    final textBookBloc = _TestTextBookBloc(_loadedState());
-    final personalNotesBloc = _TestPersonalNotesBloc(
+    final textBookBloc = StubTextBookBloc(_loadedState());
+    final personalNotesBloc = StubPersonalNotesBloc(
       const PersonalNotesState(
         isLoading: false,
         bookId: 'ספר בדיקה',
@@ -57,7 +57,7 @@ void main() {
         filteredMissingNotes: [],
       ),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final sync = SelectionSyncController();
 
     await tester.pumpWidget(
@@ -201,35 +201,4 @@ TextBookLoaded _loadedState() {
     pinLeftPane: false,
     searchText: '',
   );
-}
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestPersonalNotesBloc
-    extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _TestPersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

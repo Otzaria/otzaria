@@ -393,6 +393,7 @@ class PluginStartupContributionsService {
       ...startup.toolbarItems,
       ...startup.contextMenuItems,
       ...startup.searchDialogItems,
+      ...startup.searchFieldActions,
       ...startup.libraryBooks,
     ]) {
       final raw = item['when'];

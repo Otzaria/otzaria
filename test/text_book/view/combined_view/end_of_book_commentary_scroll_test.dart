@@ -16,10 +16,8 @@ import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -29,6 +27,8 @@ import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_personal_notes_bloc.dart';
+import '../../../test_helpers/stub_settings_bloc.dart';
 
 const _title = 'ספר בדיקה';
 
@@ -122,8 +122,8 @@ void main() {
         protection: protection,
       ),
     );
-    final notesBloc = _PersonalNotesBloc(const PersonalNotesState.initial());
-    final settingsBloc = _SettingsBloc(SettingsState.initial());
+    final notesBloc = StubPersonalNotesBloc(const PersonalNotesState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final tab = TextBookTab(
       book: TextBook(title: _title),
       index: 0,
@@ -251,8 +251,8 @@ void main() {
     tester.view.physicalSize = const Size(620, 880);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    final notes = _PersonalNotesBloc(const PersonalNotesState.initial());
-    final settings = _SettingsBloc(SettingsState.initial());
+    final notes = StubPersonalNotesBloc(const PersonalNotesState.initial());
+    final settings = StubSettingsBloc(SettingsState.initial());
     final oldBook = TextBook(title: 'ספר ישן');
     final newBook = TextBook(title: 'ספר חדש');
     final oldTab = TextBookTab(book: oldBook, index: 0);
@@ -461,7 +461,7 @@ void main() {
       );
       expect(measuredHeight, closeTo(textRect.height, 4));
       expect(sourceExtent.bottom, lessThan(1));
-      expect(result.tab.lines.canGoBack.value, isTrue);
+      expect(result.tab.lines.history.value.back, isNotNull);
       final back = result.tab.lines.goBack();
       await tester.pumpAndSettle();
       await back;
@@ -652,26 +652,6 @@ class _TextBookBloc extends Bloc<TextBookEvent, TextBookState>
 }
 
 class _TextBookRepository implements TextBookRepository {
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _PersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _SettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _SettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

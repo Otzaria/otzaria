@@ -331,7 +331,7 @@ class SeforimRepository {
   }
 
   /// מוסיף את הרשומות הנדרשות ל-category_closure עבור קטגוריה שזה עתה הוכנסה.
-  /// יש לקרוא לזה אחרי כל insertCategoryWithId מוצלח, כדי לשמור על הטבלה עקבית
+  /// יש לקרוא לזה אחרי כל הכנסה מוצלחת ב-[insertCategory], כדי לשמור על הטבלה עקבית
   /// בלי צורך ב-rebuildCategoryClosure גלובלי.
   Future<void> _insertClosureForCategory(int categoryId, int? parentId) async {
     final db = await _database.database;

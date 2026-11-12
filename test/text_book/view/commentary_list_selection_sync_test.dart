@@ -12,10 +12,8 @@ import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
@@ -23,6 +21,8 @@ import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart'
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 
 /// issues #530 ו-#674: מעבר בעלות בחירה בין אזורים לא יהרוס את ה-SelectionArea
 /// של המפרשים. הניקוי נעשה ב-`clearSelection()` ולא בהחלפת מפתח — החלפת מפתח
@@ -35,8 +35,8 @@ void main() {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
-  late _TestTextBookBloc textBookBloc;
-  late _TestSettingsBloc settingsBloc;
+  late StubTextBookBloc textBookBloc;
+  late StubSettingsBloc settingsBloc;
 
   setUp(() {
     LibraryProviderManager.instance.resetForTesting();
@@ -51,8 +51,8 @@ void main() {
       providers: [_FakeLibraryProvider()],
     );
 
-    textBookBloc = _TestTextBookBloc(_loadedState());
-    settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    textBookBloc = StubTextBookBloc(_loadedState());
+    settingsBloc = StubSettingsBloc(SettingsState.initial());
     // ההעתקה מאתרת את הגבלת המו"ל במסד; IO אמיתי נתקע תחת FakeAsync.
     BookProtectionRepository.instance.debugRepositoryFor = (_) async => null;
   });
@@ -246,7 +246,7 @@ void main() {
     debugSelectedTextCopyHandler = (content) => copied.add(content.plainText);
     addTearDown(() => debugSelectedTextCopyHandler = null);
     addTearDown(textBookBloc.close);
-    textBookBloc = _TestTextBookBloc(
+    textBookBloc = StubTextBookBloc(
       _loadedState().copyWith(
         displayPolicy: TextDisplayPolicy.empty.merged(
           TextDisplayBookClass.general,
@@ -449,26 +449,6 @@ TextBookLoaded _loadedState() {
     pinLeftPane: false,
     searchText: '',
   );
-}
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _FakeLibraryProvider implements LibraryProvider {

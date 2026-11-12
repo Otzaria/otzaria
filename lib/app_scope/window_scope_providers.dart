@@ -26,6 +26,7 @@ import 'package:otzaria/plugins/declarative/services/declarative_library_book_ac
 import 'package:otzaria/plugins/declarative/services/declarative_plugin_host_service.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/plugin_reader_actions.dart';
+import 'package:otzaria/plugins/services/plugin_search_completed_publisher.dart';
 import 'package:otzaria/plugins/services/plugin_toolbar_registry.dart';
 import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/tools/calendar/services/calendar_alerts_client.dart';
@@ -119,6 +120,10 @@ class WindowScopeProviders extends StatelessWidget {
                   return TabsBloc(
                     repository: repository,
                     session: repository.window,
+                    searchCompletedPublisher: PluginSearchCompletedPublisher(
+                      viewId: View.of(context).viewId,
+                      windowId: AppWindowKeys.of(context).id.value,
+                    ),
                   )..add(LoadTabs());
                 },
               );

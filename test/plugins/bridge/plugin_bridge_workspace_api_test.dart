@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
@@ -55,6 +57,8 @@ class _InMemoryWorkspaceRepository extends WorkspaceRepository {
 
   List<Workspace> workspaces;
   String? activeWorkspaceId;
+  Completer<void>? nextMutationGate;
+  Completer<void>? mutationStarted;
 
   @override
   Future<(List<Workspace>, String?)> loadWorkspaces() async =>
@@ -63,7 +67,15 @@ class _InMemoryWorkspaceRepository extends WorkspaceRepository {
   @override
   Future<List<Workspace>> mutateWorkspaces(
     List<Workspace> Function(List<Workspace> current) apply,
-  ) async => workspaces = List<Workspace>.from(apply(workspaces));
+  ) async {
+    final gate = nextMutationGate;
+    nextMutationGate = null;
+    if (gate != null) {
+      mutationStarted?.complete();
+      await gate.future;
+    }
+    return workspaces = List<Workspace>.from(apply(workspaces));
+  }
 
   @override
   Future<void> saveActiveWorkspaceId(String? id) async {
@@ -349,6 +361,55 @@ void main() {
   });
 
   group('workspace.switch', () {
+    test(
+      'מעבר שהתיישן מאחורי מעבר חיצוני מחזיר false בלי להמתין לפסק זמן',
+      () async {
+        final source = Workspace(name: 'מקור', tabs: const []);
+        final middle = Workspace(name: 'אמצע', tabs: [textTab('שבת')]);
+        final target = Workspace(name: 'יעד', tabs: [textTab('עירובין')]);
+        await loadWorkspaces([source, middle, target], activeId: source.id);
+        tabsBloc.currentState = TabsState(
+          tabs: [textTab('ברכות')],
+          currentTabIndex: 0,
+        );
+        final gate = Completer<void>();
+        final started = Completer<void>();
+        addTearDown(() {
+          if (!gate.isCompleted) gate.complete();
+        });
+        workspaceRepository.nextMutationGate = gate;
+        workspaceRepository.mutationStarted = started;
+        workspaceBloc.add(
+          SwitchToWorkspace(
+            sourceWorkspaceId: source.id,
+            targetWorkspaceId: middle.id,
+            readCurrentTabs: () => (
+              tabs: tabsBloc.state.tabs,
+              activeTabIndex: 0,
+              activePane: null,
+            ),
+          ),
+        );
+        await started.future;
+        final stale = buildAdapter().execute('workspace', 'switch', {
+          'id': target.id,
+        });
+        await Future<void>.delayed(Duration.zero);
+        gate.complete();
+        expect(await stale.timeout(const Duration(seconds: 2)), isFalse);
+        expect(workspaceBloc.state.activeWorkspaceId, middle.id);
+        expect(workspaceBloc.state.isChangingTabs, isFalse);
+        expect(
+          workspaceBloc.state.workspaces
+              .firstWhere((w) => w.id == middle.id)
+              .tabs
+              .single
+              .title,
+          'שבת',
+        );
+      },
+    );
+
     test('מעבר שומר את הכרטיסיות הפתוחות וטוען את של היעד', () async {
       final source = Workspace(name: 'מקור', tabs: const []);
       final target = Workspace(name: 'יעד', tabs: [textTab('שולחן ערוך')]);

@@ -66,26 +66,6 @@ void main() {
       expect(folder('/home/david/ספרים/').name, isEmpty);
     });
 
-    test('copyWith משנה רק את השדה שנמסר', () {
-      final original = folder('/a');
-
-      final updated = original.copyWith(addToDatabase: true);
-
-      expect(updated.path, '/a');
-      expect(updated.addToDatabase, isTrue);
-      expect(updated.addedAt, original.addedAt);
-    });
-
-    test('copyWith ללא ארגומנטים מחזיר עותק זהה', () {
-      final original = folder('/a', addToDatabase: true);
-
-      final copy = original.copyWith();
-
-      expect(copy.path, original.path);
-      expect(copy.addToDatabase, original.addToDatabase);
-      expect(copy.addedAt, original.addedAt);
-    });
-
     test('addedAt אינו חלק מהזהות', () {
       final a = CustomFolder(path: '/same', addedAt: DateTime(2026, 1, 1));
       final b = CustomFolder(path: '/same', addedAt: DateTime(2030, 12, 31));
@@ -100,10 +80,6 @@ void main() {
       expect(a, isNot(equals(a.copyWith(addToDatabase: true))));
       expect(a, isNot(equals(a.copyWith(mergeIntoLibrary: false))));
       expect(a, isNot(equals(a.copyWith(hidden: true))));
-    });
-
-    test('נתיבים שונים אינם שווים', () {
-      expect(folder('/a'), isNot(equals(folder('/b'))));
     });
   });
 

@@ -4,10 +4,8 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -23,6 +21,8 @@ import 'package:positioned_sliver_list/positioned_list.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
 import '../../../test_helpers/reading_toc.dart';
+import '../../../test_helpers/stub_personal_notes_bloc.dart';
+import '../../../test_helpers/stub_settings_bloc.dart';
 
 /// ניווט ומיקום במצב רציף נמדדים בשורות מקור: היעד יושב על קו העוגן גם
 /// כשהוא באמצע פסקה ממוזגת, ולא בתחילתה.
@@ -96,8 +96,8 @@ Future<_Fixture> _mount(
   void Function(TextBookTab tab)? beforeMount,
 }) async {
   final bloc = _TestTextBookBloc(initial);
-  final notes = _TestPersonalNotesBloc(const PersonalNotesState.initial());
-  final settings = _TestSettingsBloc(SettingsState.initial());
+  final notes = StubPersonalNotesBloc(const PersonalNotesState.initial());
+  final settings = StubSettingsBloc(SettingsState.initial());
   final tab = TextBookTab(book: initial.book, index: index);
   addTearDown(bloc.close);
   addTearDown(notes.close);
@@ -337,25 +337,6 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     on<TextBookEvent>((event, emit) {});
   }
   void emitForTest(TextBookState state) => emit(state);
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestPersonalNotesBloc
-    extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _TestPersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
-  }
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
-  }
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

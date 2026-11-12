@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
@@ -37,6 +38,11 @@ class ExternalCatalogRepository {
   static const Duration defaultDownloadTimeout = Duration(minutes: 5);
 
   static final ExternalCatalogRepository instance = ExternalCatalogRepository();
+  static final _mappingQueries = <String, Set<Future<void>>>{};
+  static final _catalogSwaps = <String, Future<void>>{};
+
+  static String _catalogKey(String dbPath) =>
+      path.normalize(path.absolute(dbPath));
 
   final http.Client _httpClient;
   final ExternalCatalogExtractor _extractZst;
@@ -119,10 +125,35 @@ class ExternalCatalogRepository {
     required String where,
     required int argument,
   }) async {
-    if (!await databaseExists()) return const [];
+    final dbPath = databasePath;
+    if (!await File(dbPath).exists()) return const [];
+    final key = _catalogKey(dbPath);
+    while (_catalogSwaps.containsKey(key)) {
+      await _catalogSwaps[key];
+    }
+    final finished = Completer<void>();
+    final queries = _mappingQueries.putIfAbsent(key, () => {});
+    queries.add(finished.future);
+    try {
+      return await Isolate.run(
+        () => _queryMappingColumn(dbPath, select, where, argument),
+      );
+    } finally {
+      queries.remove(finished.future);
+      if (queries.isEmpty) _mappingQueries.remove(key);
+      finished.complete();
+    }
+  }
+
+  static List<int> _queryMappingColumn(
+    String dbPath,
+    String select,
+    String where,
+    int argument,
+  ) {
     sqlite3.Database? db;
     try {
-      db = sqlite3.sqlite3.open(databasePath, mode: sqlite3.OpenMode.readOnly);
+      db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
       final rows = db.select(
         'SELECT $select FROM otzaria_hebrew_books WHERE $where '
         'ORDER BY is_best DESC, confidence DESC LIMIT 20',
@@ -262,14 +293,17 @@ class ExternalCatalogRepository {
         !File('$destination.bak').existsSync()) {
       return;
     }
-    await withFileOperationLock(destination, () async {
-      await _recoverCatalogFamily(destination);
-      // הגיבוי הישן כלל רק את קובץ המסד; ה-sidecars נשארו בנתיב המקורי.
-      if (!File(destination).existsSync() &&
-          File('$destination.bak').existsSync()) {
-        _renameCatalogFile('$destination.bak', destination);
-      }
-    });
+    await withFileOperationLock(
+      destination,
+      () => _withCatalogMutation(destination, () async {
+        await _recoverCatalogFamily(destination);
+        // שחזור הגיבוי הישן אינו משנה את נתיבי ה-sidecars.
+        if (!File(destination).existsSync() &&
+            File('$destination.bak').existsSync()) {
+          _renameCatalogFile('$destination.bak', destination);
+        }
+      }),
+    );
   }
 
   Future<void> _downloadReleaseDatabase(
@@ -310,7 +344,12 @@ class ExternalCatalogRepository {
     var replaced = false;
     try {
       _checkCancelled(isCancelled);
-      await _recoverCatalogFamily(databasePath);
+      if (await Directory(_catalogBackupPath(databasePath)).exists()) {
+        await _withCatalogMutation(
+          databasePath,
+          () => _recoverCatalogFamily(databasePath),
+        );
+      }
       await _removeCatalogFamily(tempFile.path);
       // Keep the verified download separate from the staging output so a
       // cancelled extraction or validation can reuse it on the next attempt.
@@ -343,7 +382,10 @@ class ExternalCatalogRepository {
         throw ZstdOutputLimitExceeded(maxOutputBytes);
       }
       _checkCancelled(isCancelled);
-      _swapCatalogFamily(databasePath, tempFile.path);
+      await _withCatalogMutation(databasePath, () {
+        _checkCancelled(isCancelled);
+        _swapCatalogFamily(databasePath, tempFile.path);
+      });
       replaced = true;
       try {
         await _cleanCommittedCatalogBackup(
@@ -368,6 +410,23 @@ class ExternalCatalogRepository {
   static const _catalogSuffixes = ['', '-wal', '-shm', '-journal'];
   static String _catalogBackupPath(String target) =>
       '$target.catalog-update-backup';
+
+  Future<T> _withCatalogMutation<T>(
+    String target,
+    FutureOr<T> Function() mutation,
+  ) async {
+    final key = _catalogKey(target);
+    final finished = Completer<void>();
+    _catalogSwaps[key] = finished.future;
+    try {
+      // קוראים חדשים ממתינים לשינוי הקובץ; הקיימים חייבים לסגור את ה-handle.
+      await Future.wait(_mappingQueries[key] ?? const <Future<void>>[]);
+      return await mutation();
+    } finally {
+      _catalogSwaps.remove(key);
+      finished.complete();
+    }
+  }
 
   void _renameCatalogFile(String source, String destination) {
     _beforeFileRename?.call(source, destination);

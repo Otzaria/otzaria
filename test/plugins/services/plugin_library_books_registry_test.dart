@@ -359,6 +359,165 @@ void main() {
       expect(book.author, 'רבי יוסף');
     });
 
+    group('תיאור', () {
+      test('נשמר כאיבר חמישי, נטען מחדש וזמין כתיאור הספר', () async {
+        await registry.setBooks('p1', 'mylib', [
+          {'id': 1, 'title': 'א', 'description': 'תיאור הספר'},
+          {'id': 2, 'title': 'ב'},
+        ]);
+
+        expect(jsonDecode(repo.kv[_storedKey]!), {
+          'version': 1,
+          'books': [
+            [1, 'א', null, null, 'תיאור הספר'],
+            [2, 'ב', null, null],
+          ],
+        });
+        expect(registry.booksOf('mylib').map((b) => b.heDesc), [
+          'תיאור הספר',
+          null,
+        ]);
+
+        final restored = PluginLibraryBooksRegistry.forTesting(
+          dispatch: (_, _, _, {viewId, windowKeys}) async {},
+          conditions: conditions,
+          repository: repo,
+        );
+        restored.registerPayload('p1', _provider());
+        await _eventually(() => restored.visibleBooks.length == 2);
+        expect(restored.visibleBooks.map((b) => b.heDesc), [
+          'תיאור הספר',
+          null,
+        ]);
+      });
+
+      test('רשימה שמורה בצורה הישנה, בלי תיאור, עדיין נטענת', () async {
+        repo.kv[_storedKey] = jsonEncode({
+          'version': 1,
+          'books': [
+            [1, 'ישן', 'מחבר', '/שו"ת'],
+          ],
+        });
+        final restored = PluginLibraryBooksRegistry.forTesting(
+          dispatch: (_, _, _, {viewId, windowKeys}) async {},
+          conditions: conditions,
+          repository: repo,
+        );
+        addTearDown(restored.dispose);
+        restored.registerPayload('p1', _provider());
+        await _eventually(() => restored.visibleBooks.isNotEmpty);
+
+        expect(restored.visibleBooks.single.title, 'ישן');
+        expect(restored.visibleBooks.single.heDesc, isNull);
+      });
+
+      test('פסקאות ושבירות שורה נשמרות, השאר מנורמל', () async {
+        await registry.setBooks('p1', 'mylib', [
+          {
+            'id': 1,
+            'title': 'א',
+            'description': '  שורה  א\r\nשורה\tב\u200F\r\r\n\n\n\nפסקה  ג\n  ',
+          },
+          {'id': 2, 'title': 'ב', 'description': ' \n \r\n '},
+        ]);
+
+        final books = registry.booksOf('mylib');
+        expect(books[0].heDesc, 'שורה א\nשורה ב\n\nפסקה ג');
+        expect(books[1].heDesc, isNull);
+      });
+
+      test('אותה רשימה שוב אינה נכתבת; שינוי בתיאור בלבד הוא שינוי', () async {
+        List<Map<String, dynamic>> books(String description) => [
+          {'id': 1, 'title': 'א', 'description': description},
+        ];
+        await registry.setBooks('p1', 'mylib', books('תיאור'));
+        var notifications = 0;
+        registry.addListener(() => notifications++);
+        final writes = repo.writes;
+        final shown = registry.booksOf('mylib').single;
+
+        expect(await registry.setBooks('p1', 'mylib', books('תיאור')), 1);
+        expect(repo.writes, writes);
+        expect(notifications, 0);
+        expect(registry.booksOf('mylib').single, same(shown));
+
+        await registry.setBooks('p1', 'mylib', books('תיאור אחר'));
+        expect(repo.writes, writes + 1);
+        expect(notifications, 1);
+        expect(registry.booksOf('mylib').single.heDesc, 'תיאור אחר');
+      });
+
+      test('אורך: 2,000 תווים מתקבלים, 2,001 נדחים לפי מיקום הרשומה', () async {
+        await registry.setBooks('p1', 'mylib', [
+          {'id': 1, 'title': 'א', 'description': 'א' * 2000},
+        ]);
+        expect(registry.booksOf('mylib').single.heDesc, hasLength(2000));
+
+        await expectLater(
+          registry.setBooks('p1', 'mylib', [
+            {'id': 1, 'title': 'א'},
+            {'id': 2, 'title': 'ב', 'description': 'א' * 2001},
+          ]),
+          throwsA(
+            isA<PluginLibraryBooksException>().having(
+              (e) => e.message,
+              'message',
+              'books[1].description is longer than 2000 characters',
+            ),
+          ),
+        );
+        expect(registry.booksOf('mylib').single.heDesc, hasLength(2000));
+      });
+
+      test('סוג שגוי נדחה', () async {
+        for (final description in <Object>[
+          5,
+          true,
+          ['א'],
+          {'a': 1},
+        ]) {
+          await expectLater(
+            registry.setBooks('p1', 'mylib', [
+              {'id': 1, 'title': 'א', 'description': description},
+            ]),
+            throwsA(
+              isA<PluginLibraryBooksException>().having(
+                (e) => e.message,
+                'message',
+                'books[0].description must be a string',
+              ),
+            ),
+            reason: '$description',
+          );
+        }
+      });
+
+      test('סך התיאורים חסום, והרשימה הקודמת נשארת', () async {
+        await registry.setBooks('p1', 'mylib', [
+          {'id': 1, 'title': 'קיים'},
+        ]);
+        const perBook = PluginLibraryBookEntry.maxDescriptionLength;
+        final fits =
+            PluginLibraryBookEntry.maxTotalDescriptionLength ~/ perBook;
+        final description = 'א' * perBook;
+
+        await expectLater(
+          registry.setBooks('p1', 'mylib', [
+            for (var i = 1; i <= fits + 1; i++)
+              {'id': i, 'title': 'ספר $i', 'description': description},
+          ]),
+          throwsA(
+            isA<PluginLibraryBooksException>().having(
+              (e) => e.message,
+              'message',
+              startsWith('books[$fits]: the descriptions are longer than'),
+            ),
+          ),
+        );
+        expect(registry.booksOf('mylib').single.title, 'קיים');
+      });
+    });
+
     test('אותה רשימה שוב אינה נכתבת ואינה מודיעה', () async {
       final books = [
         {'id': 1, 'title': 'א', 'categoryPath': '/שו"ת'},

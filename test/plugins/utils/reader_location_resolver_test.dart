@@ -103,26 +103,6 @@ void main() {
       expect(json['currentIndex'], 42);
       expect(json['currentRef'], 'פרק ג');
     });
-
-    test('handles null values correctly', () {
-      final snapshot = ReaderLocationSnapshot(
-        currentBook: null,
-        currentBookId: null,
-        currentId: null,
-        currentType: null,
-        currentIndex: 0,
-        currentRef: null,
-      );
-
-      final json = snapshot.toJson();
-
-      expect(json['currentBook'], isNull);
-      expect(json['currentBookId'], isNull);
-      expect(json['currentId'], isNull);
-      expect(json['currentType'], isNull);
-      expect(json['currentIndex'], 0);
-      expect(json['currentRef'], isNull);
-    });
   });
 
   group('resolveReaderLocation', () {

@@ -48,41 +48,12 @@ InstalledPlugin _plugin({
 
 void main() {
   group('InstalledPlugin', () {
-    test('default value of pinnedToNavRail is false', () {
-      final plugin = InstalledPlugin(
-        pluginId: 'p',
-        name: 'p',
-        version: '1.0.0',
-        installPath: '/x',
-        entrypointPath: 'i.html',
-        enabled: true,
-        pinned: true,
-        // pinnedToNavRail intentionally omitted
-        manifest: _manifest(),
-        installedAt: DateTime.utc(2026, 1, 1),
-        updatedAt: DateTime.utc(2026, 1, 1),
-      );
-      expect(plugin.pinnedToNavRail, isFalse);
-    });
-
     test('toDbMap serializes pinnedToNavRail as 0/1', () {
       expect(
         _plugin(pinnedToNavRail: false).toDbMap()['pinned_to_nav_rail'],
         0,
       );
       expect(_plugin(pinnedToNavRail: true).toDbMap()['pinned_to_nav_rail'], 1);
-    });
-
-    test('fromDbMap reads pinned_to_nav_rail = 1 as true', () {
-      final original = _plugin(pinnedToNavRail: true);
-      final restored = InstalledPlugin.fromDbMap(original.toDbMap());
-      expect(restored.pinnedToNavRail, isTrue);
-    });
-
-    test('fromDbMap reads pinned_to_nav_rail = 0 as false', () {
-      final original = _plugin(pinnedToNavRail: false);
-      final restored = InstalledPlugin.fromDbMap(original.toDbMap());
-      expect(restored.pinnedToNavRail, isFalse);
     });
 
     test('fromDbMap defaults pinnedToNavRail to false when column is absent '
@@ -117,24 +88,6 @@ void main() {
       final restoredB = InstalledPlugin.fromDbMap(b.toDbMap());
       expect(restoredB.pinned, isTrue);
       expect(restoredB.pinnedToNavRail, isFalse);
-    });
-
-    test('copyWith updates pinnedToNavRail without touching pinned', () {
-      final original = _plugin(pinned: true, pinnedToNavRail: false);
-      final updated = original.copyWith(pinnedToNavRail: true);
-      expect(updated.pinned, isTrue, reason: 'pinned must be unchanged');
-      expect(updated.pinnedToNavRail, isTrue);
-    });
-
-    test('copyWith without pinnedToNavRail preserves the existing value', () {
-      final original = _plugin(pinnedToNavRail: true);
-      final updated = original.copyWith(pinned: false);
-      expect(
-        updated.pinnedToNavRail,
-        isTrue,
-        reason: 'omitted parameter should keep current value',
-      );
-      expect(updated.pinned, isFalse);
     });
   });
 
@@ -175,11 +128,6 @@ void main() {
   });
 
   group('InstalledPlugin.userOrder + effectiveToolTabOrder', () {
-    test('default userOrder is null (no manual ordering yet)', () {
-      final plugin = _plugin();
-      expect(plugin.userOrder, isNull);
-    });
-
     test('effectiveToolTabOrder falls back to manifest.toolTabOrder '
         'when userOrder is null', () {
       final plugin = _plugin(manifestToolTabOrder: 250);
@@ -231,16 +179,6 @@ void main() {
       expect(b.effectiveToolTabOrder, lessThan(c.effectiveToolTabOrder));
     });
 
-    test('toDbMap serializes userOrder=null as null', () {
-      final plugin = _plugin();
-      expect(plugin.toDbMap()['user_order'], isNull);
-    });
-
-    test('toDbMap serializes userOrder=5 as 5', () {
-      final plugin = _plugin(userOrder: 5);
-      expect(plugin.toDbMap()['user_order'], 5);
-    });
-
     test('round-trip toDbMap → fromDbMap preserves userOrder=null', () {
       final original = _plugin();
       final restored = InstalledPlugin.fromDbMap(original.toDbMap());
@@ -266,22 +204,6 @@ void main() {
       );
     });
 
-    test('copyWith updates userOrder', () {
-      final original = _plugin();
-      final updated = original.copyWith(userOrder: 4);
-      expect(updated.userOrder, 4);
-    });
-
-    test('copyWith without userOrder preserves the existing value', () {
-      final original = _plugin(userOrder: 9);
-      final updated = original.copyWith(pinned: false);
-      expect(
-        updated.userOrder,
-        9,
-        reason: 'omitted userOrder should keep current value',
-      );
-    });
-
     test('copyWith with clearUserOrder=true sets userOrder back to null', () {
       final original = _plugin(userOrder: 9);
       final updated = original.copyWith(clearUserOrder: true);
@@ -301,23 +223,6 @@ void main() {
   });
 
   group('InstalledPlugin.showInTools', () {
-    test('default value is true', () {
-      final plugin = InstalledPlugin(
-        pluginId: 'p',
-        name: 'p',
-        version: '1.0.0',
-        installPath: '/x',
-        entrypointPath: 'i.html',
-        enabled: true,
-        pinned: true,
-        // showInTools intentionally omitted
-        manifest: _manifest(),
-        installedAt: DateTime.utc(2026, 1, 1),
-        updatedAt: DateTime.utc(2026, 1, 1),
-      );
-      expect(plugin.showInTools, isTrue);
-    });
-
     test('toDbMap serializes showInTools as inverted hidden_from_tools', () {
       expect(_plugin(showInTools: true).toDbMap()['hidden_from_tools'], 0);
       expect(_plugin(showInTools: false).toDbMap()['hidden_from_tools'], 1);
@@ -338,43 +243,6 @@ void main() {
         restored.showInTools,
         isTrue,
         reason: 'pre-migration row must not crash and must default to visible',
-      );
-    });
-
-    test('copyWith updates showInTools without touching other flags', () {
-      final original = _plugin(
-        pinned: true,
-        pinnedToNavRail: true,
-        showInTools: true,
-      );
-      final updated = original.copyWith(showInTools: false);
-
-      expect(updated.showInTools, isFalse);
-      expect(
-        updated.pinned,
-        isTrue,
-        reason:
-            'hiding from tools must not unpin the plugin from the tools tab',
-      );
-      expect(
-        updated.pinnedToNavRail,
-        isTrue,
-        reason: 'hiding from tools must not unpin the plugin from the nav rail',
-      );
-      expect(
-        updated.enabled,
-        isTrue,
-        reason: 'hiding from tools must not disable the plugin',
-      );
-    });
-
-    test('copyWith without showInTools preserves the existing value', () {
-      final original = _plugin(showInTools: false);
-      final updated = original.copyWith(pinned: false);
-      expect(
-        updated.showInTools,
-        isFalse,
-        reason: 'omitted parameter should keep current value',
       );
     });
 

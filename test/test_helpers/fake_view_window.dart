@@ -121,11 +121,7 @@ class FakeViewWindowNative implements ViewWindowNative {
   ({Rect normal, bool maximized, int dpi})? placement(int hwnd) {
     final rect = rects[hwnd];
     if (rect == null) return null;
-    return (
-      normal: rect,
-      maximized: maximizedWindows.contains(hwnd),
-      dpi: dpi,
-    );
+    return (normal: rect, maximized: maximizedWindows.contains(hwnd), dpi: dpi);
   }
 
   @override

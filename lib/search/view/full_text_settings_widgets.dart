@@ -1,3 +1,5 @@
+import 'dart:math' show max;
+
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -136,7 +138,10 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
                 ),
               ),
               min: 0,
-              max: isFuzzy ? kMaxFuzzyDistance.toDouble() : 30,
+              // תוספים יכולים לקבוע ערכים מעל טווח הבורר הרגיל.
+              max: isFuzzy
+                  ? kMaxFuzzyDistance.toDouble()
+                  : max(30, state.distance).toDouble(),
               value: state.distance.toDouble(),
               onChanged: isEnabled
                   ? (value) => context.read<SearchBloc>().add(
@@ -167,7 +172,7 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
                 ),
               ),
               min: 1,
-              max: 30,
+              max: max(30, state.wordMatchCount).toDouble(),
               value: state.wordMatchCount.toDouble(),
               onChanged: (value) => context.read<SearchBloc>().add(
                 widget.triggerSearch
@@ -402,6 +407,10 @@ class _ScopeAndMatchMenu extends StatelessWidget {
   }
 }
 
+/// שאילתה ארוכה (למשל ספר שלם שהודבק) מוצגת בשורה אחת ברוחב לא מוגבל;
+/// מעבר לזה עיצוב השורה והציור שלה תוקעים את ה-UI לשניות.
+const int _maxDisplayedQueryWords = 60;
+
 class SearchTermsDisplay extends StatefulWidget {
   const SearchTermsDisplay({super.key, required this.tab, this.query});
 
@@ -517,7 +526,10 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
       'סיומות ארמיות',
     };
 
-    for (int i = 0; i < words.length; i++) {
+    final shownWords = words.length < _maxDisplayedQueryWords
+        ? words.length
+        : _maxDisplayedQueryWords;
+    for (int i = 0; i < shownWords; i++) {
       final word = words[i];
       final wordKey = '${word}_$i';
 
@@ -618,7 +630,7 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
       }
 
       // הוספת + בין המילים (לא אחרי המילה האחרונה)
-      if (i < words.length - 1) {
+      if (i < shownWords - 1) {
         // בדיקה אם יש מרווח מוגדר בין המילים
         final spacingKey = '$i-${i + 1}';
         final spacingValue = activeParameters.customSpacing[spacingKey];
@@ -666,6 +678,17 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
           );
         }
       }
+    }
+    if (shownWords < words.length) {
+      spans.add(
+        TextSpan(
+          text: ' …',
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+      );
     }
 
     return spans;

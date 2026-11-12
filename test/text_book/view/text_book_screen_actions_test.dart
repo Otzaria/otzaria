@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:otzaria/text_book/repository/book_notes_repository.dart';
 import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
@@ -24,6 +25,8 @@ import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
+import 'package:otzaria/plugins/services/plugin_webview_runtime.dart';
+import 'package:otzaria/plugins/utils/plugin_context_menu_entries.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -45,6 +48,7 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/services/parallel_editions_service.dart';
 import 'package:otzaria/library/view/book_versions_dialog.dart';
 import 'package:otzaria/models/book_version.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
@@ -58,6 +62,8 @@ import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/tabs/view/pane_drag_handle.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
@@ -80,6 +86,8 @@ import 'package:provider/provider.dart';
 // ignore: depend_on_referenced_packages
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
+
+import '../../test_helpers/capture_file_saves.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -110,6 +118,74 @@ void main() {
     await tourCubit.close();
     focusRepository.resetForTesting();
   });
+
+  for (final (size, seed, brightness) in [
+    (const Size(300, 800), AppSeedColors.defaultLight, Brightness.light),
+    (const Size(360, 800), AppSeedColors.defaultLight, Brightness.dark),
+    (const Size(1200, 800), AppSeedColors.white, Brightness.light),
+  ]) {
+    testWidgets('קדימה זמין בחלונית RTL ברוחב ${size.width}', (tester) async {
+      final book = TextBook(title: 'ביצה');
+      final bloc = _TestTextBookBloc(
+        _loadedState(book, content: List.generate(150, (i) => 'שורה $i')),
+      );
+      final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await bloc.close();
+        await tabsBloc.close();
+        await settingsBloc.close();
+        tab.dispose();
+      });
+      await _setSurfaceSize(tester, size);
+      tab.lines.reportExternalLine(0);
+      await tab.lines.jumpToLine(60);
+      await tab.lines.goBack();
+      await _pumpTextBookScreen(
+        tester,
+        tab: tab,
+        textBookBloc: bloc,
+        tabsBloc: tabsBloc,
+        settingsBloc: settingsBloc,
+        focusRepository: focusRepository,
+        shamorZachorDataProvider: shamorZachorDataProvider,
+        shamorZachorProgressProvider: shamorZachorProgressProvider,
+        bookmarkBloc: bookmarkBloc,
+        personalNotesBloc: personalNotesBloc,
+        tourCubit: tourCubit,
+        isInCombinedView: true,
+        textDirection: TextDirection.rtl,
+        withPaneDragHandle: true,
+        textScaler: TextScaler.linear(1.3),
+        theme: AppThemeData.light(
+          AppThemeData.createColorScheme(seed, brightness),
+          compactMenuMode: false,
+          variant: AppThemeVariant.ofSeed(seed),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      final toolbarForward = find.byKey(
+        const ValueKey('reader-forward-location'),
+      );
+      if (size.width <= 360) {
+        expect(toolbarForward, findsNothing);
+        await tester.tap(find.byTooltip('עוד פעולות'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('מעבר קדימה'));
+        await tester.pumpAndSettle();
+      } else {
+        await tester.tap(toolbarForward);
+        await tester.pumpAndSettle();
+      }
+      expect(tab.lines.captureAnchor()?.line, 60);
+      expect(tab.lines.history.value.forward, isNull);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   for (final contextMenu in [false, true]) {
     testWidgets(
@@ -248,123 +324,250 @@ void main() {
     );
   }
 
+  testWidgets('קיצור תפריט הקשר משתמש במסנן ובפעולה של הרישום המוצג', (
+    tester,
+  ) async {
+    const pluginId = 'text.shortcut.book-filters';
+    final registry = ContextMenuRegistry.instance;
+    final dispatcher = PluginRuntimeDispatcher.instance;
+    final controller = _PluginController();
+    final keys = AppWindowKeys(id: const AppWindowId('shortcut-filters'));
+    AppWindowKeys.register(keys);
+    AppWindowKeys.activateWindow(keys.id);
+    dispatcher.repositoryForTesting = _PluginRepository();
+    dispatcher.registerController(
+      pluginId,
+      controller,
+      instanceId: 'live',
+      viewId: tester.view.viewId,
+    );
+    dispatcher.setVisiblePluginInstances({
+      (pluginId: pluginId, instanceId: 'live'),
+    }, viewId: tester.view.viewId);
+    ShortcutValidator.registerPluginShortcuts({
+      'key-shortcut-plugin-book-filters': (
+        pluginId: pluginId,
+        shortcutId: 'book-filters',
+        label: 'פעולה מסוננת',
+        defaultKey: 'ctrl+shift+f12',
+        command: null,
+        contextMenuItemId: 'act',
+      ),
+    });
+    final book = TextBook(title: 'ספר אישי', source: BookSource.user);
+    final bloc = _TestTextBookBloc(_loadedState(book));
+    final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
+    final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
+    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    addTearDown(() async {
+      UiSnack.hide(window: keys);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await bloc.close();
+      await tabsBloc.close();
+      await settingsBloc.close();
+      tab.dispose();
+      ShortcutValidator.registerPluginShortcuts({});
+      registry.removeAll(pluginId);
+      dispatcher.unregisterController(pluginId, instanceId: 'live');
+      dispatcher.resetVisibilityForTesting();
+      dispatcher.repositoryForTesting = PluginRegistryRepository();
+      dispatcher.invalidatePlugin(pluginId);
+      AppWindowKeys.resetForTest();
+    });
+    await _setSurfaceSize(tester, const Size(1600, 900));
+    await _pumpTextBookScreen(
+      tester,
+      tab: tab,
+      textBookBloc: bloc,
+      tabsBloc: tabsBloc,
+      settingsBloc: settingsBloc,
+      focusRepository: focusRepository,
+      shamorZachorDataProvider: shamorZachorDataProvider,
+      shamorZachorProgressProvider: shamorZachorProgressProvider,
+      bookmarkBloc: bookmarkBloc,
+      personalNotesBloc: personalNotesBloc,
+      tourCubit: tourCubit,
+      isInCombinedView: false,
+      windowKeys: keys,
+    );
+    tester
+        .widget<SplitedViewScreen>(find.byType(SplitedViewScreen))
+        .onSelectedTextChanged!('שורה א', 0, 0);
+
+    Future<void> checkShortcut({String? expectedParam}) async {
+      final entries = buildPluginContextMenuEntries(
+        records: registry.getAll(),
+        selection: const {'type': 'text', 'source': 'user', 'text': 'שורה א'},
+      );
+      expect(entries, hasLength(expectedParam == null ? 0 : 1));
+      controller.events.clear();
+      final modifier = Platform.isMacOS
+          ? LogicalKeyboardKey.metaLeft
+          : LogicalKeyboardKey.controlLeft;
+      await tester.sendKeyDownEvent(modifier);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.f12);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyUpEvent(modifier);
+      await tester.pumpAndSettle();
+      final clicks = controller.events.where(
+        (event) => event.contains('contextMenu.itemClicked'),
+      );
+      expect(clicks, hasLength(expectedParam == null ? 0 : 1));
+      if (expectedParam != null) {
+        expect(clicks.single, contains('"param":"$expectedParam"'));
+      }
+      UiSnack.hide(window: keys);
+      await tester.pumpAndSettle();
+    }
+
+    for (final (field, restricted) in [
+      ('bookTypes', ['docx']),
+      ('bookSources', ['library']),
+    ]) {
+      registry.removeAll(pluginId);
+      for (final instanceId in ['plugin', 'live']) {
+        registry.registerPayload(pluginId, {
+          'id': 'menu',
+          'type': 'submenu',
+          'title': 'פעולות',
+          field: restricted,
+          'children': [
+            {'id': 'act', 'title': 'פעולה', 'param': instanceId},
+          ],
+        }, instanceId: instanceId);
+      }
+      registry.update(pluginId, 'menu', {field: []}, instanceId: 'live');
+      await checkShortcut(expectedParam: 'live');
+
+      registry.update(pluginId, 'menu', {field: []});
+      registry.update(pluginId, 'menu', {
+        field: restricted,
+      }, instanceId: 'live');
+      await checkShortcut();
+
+      const hidden = {
+        'when': {
+          'storage': {'key': 'not-set', 'exists': true},
+        },
+      };
+      registry.update(pluginId, 'menu', hidden, instanceId: 'live');
+      await checkShortcut(expectedParam: 'plugin');
+      registry.update(pluginId, 'menu', hidden);
+      await checkShortcut();
+    }
+  });
+
   group('TextBookViewerBloc actions', () {
-    testWidgets(
-      'שמור וזכור מסמן רק את ההלכה הפתוחה ומציג את הנתיב המלא',
-      (tester) async {
-        final book = _TrackedBook();
-        final details = book.details;
-        shamorZachorDataProvider.bookDetails = details;
-        final bloc = _TestTextBookBloc(
-          _loadedState(
-            book,
-            content: List.generate(15, (index) => 'שורת לימוד $index'),
-          ),
-        );
-        final tab = TextBookTab(book: book, index: 9, blocOverride: bloc);
-        final tabsBloc = _TestTabsBloc(
-          TabsState(tabs: [tab], currentTabIndex: 0),
-        );
-        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
-        final keys = AppWindowKeys(id: const AppWindowId('shamor-3369'));
-        AppWindowKeys.register(keys);
-        AppWindowKeys.activateWindow(keys.id);
-        addTearDown(() async {
-          UiSnack.hide(window: keys);
-          await tester.pumpAndSettle();
-          await tester.pumpWidget(const SizedBox.shrink());
-          await bloc.close();
-          await tabsBloc.close();
-          await settingsBloc.close();
-          tab.dispose();
-          AppWindowKeys.resetForTest();
-        });
-        await _setSurfaceSize(tester, const Size(1600, 900));
-        await _pumpTextBookScreen(
-          tester,
-          tab: tab,
-          textBookBloc: bloc,
-          tabsBloc: tabsBloc,
-          settingsBloc: settingsBloc,
-          focusRepository: focusRepository,
-          shamorZachorDataProvider: shamorZachorDataProvider,
-          shamorZachorProgressProvider: shamorZachorProgressProvider,
-          bookmarkBloc: bookmarkBloc,
-          personalNotesBloc: personalNotesBloc,
-          tourCubit: tourCubit,
-          isInCombinedView: false,
-          textDirection: TextDirection.rtl,
-          windowKeys: keys,
-        );
-        Future<void> markCurrentSection() async {
-          await tester.tap(find.byIcon(FluentIcons.more_vertical_24_regular));
-          await tester.pumpAndSettle();
-          await tester.tap(find.text('סמן קטע פתוח כנלמד בשמור וזכור'));
-          await tester.pumpAndSettle();
-        }
-
-        for (final (line, itemIndex, path) in [
-          (9, 3, 'ירושלמי יבמות, פרק י, הלכה ג'),
-          (8, 3, 'ירושלמי יבמות, פרק י, הלכה ג'),
-          (10, 3, 'ירושלמי יבמות, פרק י, הלכה ג'),
-          (3, 1, 'ירושלמי יבמות, פרק ט, הלכה ג'),
-          (12, 4, 'ירושלמי יבמות, פרק יא, הלכה א'),
-        ]) {
-          shamorZachorProgressProvider.markedItems.clear();
-          tab.lines.reportExternalLine(line);
-          expect(tab.index, line);
-          await markCurrentSection();
-          expect(
-            shamorZachorProgressProvider.markedItems.keys,
-            [(book.id!, itemIndex)],
-          );
-          expect(
-            shamorZachorProgressProvider.markedItems.values.single.toJson(),
-            {'learn': true},
-          );
-          expect(
-            find.text(TextBookMessages.chapterMarked(path, 'נלמד')),
-            findsOneWidget,
-          );
-          UiSnack.hide(window: keys);
-          await tester.pumpAndSettle();
-        }
-
-        // כותרת האב נמצאת לפני ההלכה הראשונה ואינה יחידת לימוד בעצמה.
-        shamorZachorProgressProvider.markedItems.clear();
-        tab.lines.reportExternalLine(11);
-        await markCurrentSection();
-        expect(shamorZachorProgressProvider.markedItems, isEmpty);
-        expect(find.textContaining('לא נמצא בשמור וזכור'), findsOneWidget);
+    testWidgets('שמור וזכור מסמן רק את ההלכה הפתוחה ומציג את הנתיב המלא', (
+      tester,
+    ) async {
+      final book = _TrackedBook();
+      final details = book.details;
+      shamorZachorDataProvider.bookDetails = details;
+      final bloc = _TestTextBookBloc(
+        _loadedState(
+          book,
+          content: List.generate(15, (index) => 'שורת לימוד $index'),
+        ),
+      );
+      final tab = TextBookTab(book: book, index: 9, blocOverride: bloc);
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final keys = AppWindowKeys(id: const AppWindowId('shamor-3369'));
+      AppWindowKeys.register(keys);
+      AppWindowKeys.activateWindow(keys.id);
+      addTearDown(() async {
         UiSnack.hide(window: keys);
         await tester.pumpAndSettle();
+        await tester.pumpWidget(const SizedBox.shrink());
+        await bloc.close();
+        await tabsBloc.close();
+        await settingsBloc.close();
+        tab.dispose();
+        AppWindowKeys.resetForTest();
+      });
+      await _setSurfaceSize(tester, const Size(1600, 900));
+      await _pumpTextBookScreen(
+        tester,
+        tab: tab,
+        textBookBloc: bloc,
+        tabsBloc: tabsBloc,
+        settingsBloc: settingsBloc,
+        focusRepository: focusRepository,
+        shamorZachorDataProvider: shamorZachorDataProvider,
+        shamorZachorProgressProvider: shamorZachorProgressProvider,
+        bookmarkBloc: bookmarkBloc,
+        personalNotesBloc: personalNotesBloc,
+        tourCubit: tourCubit,
+        isInCombinedView: false,
+        textDirection: TextDirection.rtl,
+        windowKeys: keys,
+      );
+      Future<void> markCurrentSection() async {
+        await tester.tap(find.byIcon(FluentIcons.more_vertical_24_regular));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('סמן קטע פתוח כנלמד בשמור וזכור'));
+        await tester.pumpAndSettle();
+      }
 
-        tab.lines.reportExternalLine(9);
-        for (var mark = 0; mark < 5; mark++) {
-          await markCurrentSection();
-        }
-        expect(shamorZachorProgressProvider.markedItems.keys, [(book.id!, 3)]);
+      for (final (line, itemIndex, path) in [
+        (9, 3, 'ירושלמי יבמות, פרק י, הלכה ג'),
+        (8, 3, 'ירושלמי יבמות, פרק י, הלכה ג'),
+        (10, 3, 'ירושלמי יבמות, פרק י, הלכה ג'),
+        (3, 1, 'ירושלמי יבמות, פרק ט, הלכה ג'),
+        (12, 4, 'ירושלמי יבמות, פרק יא, הלכה א'),
+      ]) {
+        shamorZachorProgressProvider.markedItems.clear();
+        tab.lines.reportExternalLine(line);
+        expect(tab.index, line);
+        await markCurrentSection();
+        expect(shamorZachorProgressProvider.markedItems.keys, [
+          (book.id!, itemIndex),
+        ]);
         expect(
           shamorZachorProgressProvider.markedItems.values.single.toJson(),
-          {
-            'learn': true,
-            'review1': true,
-            'review2': true,
-            'review3': true,
-          },
+          {'learn': true},
         );
         expect(
-          find.text(
-            TextBookMessages.noFreeSlotInChapter(
-              'ירושלמי יבמות, פרק י, הלכה ג',
-            ),
-          ),
+          find.text(TextBookMessages.chapterMarked(path, 'נלמד')),
           findsOneWidget,
         );
         UiSnack.hide(window: keys);
         await tester.pumpAndSettle();
-      },
-    );
+      }
+
+      // כותרת האב נמצאת לפני ההלכה הראשונה ואינה יחידת לימוד בעצמה.
+      shamorZachorProgressProvider.markedItems.clear();
+      tab.lines.reportExternalLine(11);
+      await markCurrentSection();
+      expect(shamorZachorProgressProvider.markedItems, isEmpty);
+      expect(find.textContaining('לא נמצא בשמור וזכור'), findsOneWidget);
+      UiSnack.hide(window: keys);
+      await tester.pumpAndSettle();
+
+      tab.lines.reportExternalLine(9);
+      for (var mark = 0; mark < 5; mark++) {
+        await markCurrentSection();
+      }
+      expect(shamorZachorProgressProvider.markedItems.keys, [(book.id!, 3)]);
+      expect(shamorZachorProgressProvider.markedItems.values.single.toJson(), {
+        'learn': true,
+        'review1': true,
+        'review2': true,
+        'review3': true,
+      });
+      expect(
+        find.text(
+          TextBookMessages.noFreeSlotInChapter('ירושלמי יבמות, פרק י, הלכה ג'),
+        ),
+        findsOneWidget,
+      );
+      UiSnack.hide(window: keys);
+      await tester.pumpAndSettle();
+    });
     testWidgets(
       'next TOC toolbar command preserves the source line for an external reader',
       (tester) async {
@@ -372,9 +575,7 @@ void main() {
         final loaded = _loadedState(book).copyWith(
           continuousReadingMode: true,
           content: const ['שורה א', 'שורה ב', 'שורה ג'],
-          tableOfContents: [
-            TocEntry(text: 'פרק ב', index: 2, level: 1),
-          ],
+          tableOfContents: [TocEntry(text: 'פרק ב', index: 2, level: 1)],
         );
         final bloc = _TestTextBookBloc(loaded);
         final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
@@ -472,11 +673,7 @@ void main() {
     ) async {
       final book = TextBook(title: 'ספר בדיקה');
       final bloc = _TestTextBookBloc(_loadedState(book));
-      final tab = TextBookTab(
-        book: book,
-        index: 0,
-        blocOverride: bloc,
-      );
+      final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
       final tabsBloc = _TestTabsBloc(
         TabsState(tabs: [tab], currentTabIndex: 0),
       );
@@ -510,10 +707,7 @@ void main() {
       );
 
       expect(find.byType(NavPanelToggleButton), findsOneWidget);
-      expect(
-        find.byIcon(OtzariaIcons.alef_delete_24_filled),
-        findsOneWidget,
-      );
+      expect(find.byIcon(OtzariaIcons.alef_delete_24_filled), findsOneWidget);
 
       final overflowButton = find.byIcon(FluentIcons.more_vertical_24_regular);
       expect(overflowButton, findsOneWidget);
@@ -575,9 +769,7 @@ void main() {
       tester,
     ) async {
       final picker = _CapturingFilePicker();
-      final previousPicker = FilePickerPlatform.instance;
-      FilePickerPlatform.instance = picker;
-      addTearDown(() => FilePickerPlatform.instance = previousPicker);
+      captureFileSaves(picker, (bytes) => picker.bytes = bytes);
       // איתור הספק האמיתי מאתחל את הספרייה מהדיסק, ותחת FakeAsync הוא נתקע.
       Future<bool> notFromDb(
         String title, {
@@ -673,71 +865,70 @@ void main() {
       expect(exported, isNot(contains(',')), reason: 'הפיסוק לא הוסר');
     });
 
-    testWidgets(
-      'שינוי ערוץ ההעתקה בהגדרות מגיע לספר שכבר פתוח (issue #2377)',
-      (tester) async {
-        final book = TextBook(title: 'ספר בדיקה');
-        final bloc = _TestTextBookBloc(_loadedState(book));
-        final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
-        final tabsBloc = _TestTabsBloc(
-          TabsState(tabs: [tab], currentTabIndex: 0),
-        );
-        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
-        addTearDown(() async {
-          await tester.pumpWidget(const SizedBox.shrink());
-          await bloc.close();
-          await tabsBloc.close();
-          await settingsBloc.close();
-          tab.dispose();
-        });
-        await _setSurfaceSize(tester, const Size(1600, 900));
-        await _pumpTextBookScreen(
-          tester,
-          tab: tab,
-          textBookBloc: bloc,
-          tabsBloc: tabsBloc,
-          settingsBloc: settingsBloc,
-          focusRepository: focusRepository,
-          shamorZachorDataProvider: shamorZachorDataProvider,
-          shamorZachorProgressProvider: shamorZachorProgressProvider,
-          bookmarkBloc: bookmarkBloc,
-          personalNotesBloc: personalNotesBloc,
-          tourCubit: tourCubit,
-          isInCombinedView: false,
-        );
-        bloc.receivedEvents.clear();
+    testWidgets('שינוי ערוץ ההעתקה בהגדרות מגיע לספר שכבר פתוח (issue #2377)', (
+      tester,
+    ) async {
+      final book = TextBook(title: 'ספר בדיקה');
+      final bloc = _TestTextBookBloc(_loadedState(book));
+      final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await bloc.close();
+        await tabsBloc.close();
+        await settingsBloc.close();
+        tab.dispose();
+      });
+      await _setSurfaceSize(tester, const Size(1600, 900));
+      await _pumpTextBookScreen(
+        tester,
+        tab: tab,
+        textBookBloc: bloc,
+        tabsBloc: tabsBloc,
+        settingsBloc: settingsBloc,
+        focusRepository: focusRepository,
+        shamorZachorDataProvider: shamorZachorDataProvider,
+        shamorZachorProgressProvider: shamorZachorProgressProvider,
+        bookmarkBloc: bookmarkBloc,
+        personalNotesBloc: personalNotesBloc,
+        tourCubit: tourCubit,
+        isInCombinedView: false,
+      );
+      bloc.receivedEvents.clear();
 
-        // הגדרה אחרת ומדיניות שווה-ערך (מופע חדש) — בלי טעינה מחדש
-        final settings = settingsBloc.state;
-        settingsBloc.emitStateForTest(
-          settings.copyWith(
-            sidebarWidth: 350,
-            textDisplayPolicy: TextDisplayPolicy.fromJson(
-              settings.textDisplayPolicy.toJson(),
-            ),
+      // הגדרה אחרת ומדיניות שווה-ערך (מופע חדש) — בלי טעינה מחדש
+      final settings = settingsBloc.state;
+      settingsBloc.emitStateForTest(
+        settings.copyWith(
+          sidebarWidth: 350,
+          textDisplayPolicy: TextDisplayPolicy.fromJson(
+            settings.textDisplayPolicy.toJson(),
           ),
-        );
-        await tester.pump();
-        expect(bloc.receivedEvents.whereType<LoadContent>(), isEmpty);
+        ),
+      );
+      await tester.pump();
+      expect(bloc.receivedEvents.whereType<LoadContent>(), isEmpty);
 
-        settingsBloc.emitStateForTest(
-          settings.copyWith(
-            textDisplayPolicy: settings.textDisplayPolicy.merged(
-              TextDisplayBookClass.general,
-              const TextDisplaySlot(
-                target: TextTarget.body,
-                view: TextView.regular,
-                channel: TextChannel.copy,
-              ),
-              const TextDisplayPatch(anchorMarkers: MarkVisibility.hide),
+      settingsBloc.emitStateForTest(
+        settings.copyWith(
+          textDisplayPolicy: settings.textDisplayPolicy.merged(
+            TextDisplayBookClass.general,
+            const TextDisplaySlot(
+              target: TextTarget.body,
+              view: TextView.regular,
+              channel: TextChannel.copy,
             ),
+            const TextDisplayPatch(anchorMarkers: MarkVisibility.hide),
           ),
-        );
-        await tester.pump();
+        ),
+      );
+      await tester.pump();
 
-        expect(bloc.receivedEvents.whereType<LoadContent>(), hasLength(1));
-      },
-    );
+      expect(bloc.receivedEvents.whereType<LoadContent>(), hasLength(1));
+    });
 
     testWidgets(
       'שינוי מדיניות בזמן טעינת ספר מרענן רק אם הספר נטען עם המדיניות הישנה',
@@ -790,9 +981,8 @@ void main() {
         await tester.pump();
 
         bloc.emitStateForTest(
-          _loadedState(book).copyWith(
-            displayPolicy: newSettings.textDisplayPolicy,
-          ),
+          _loadedState(book)
+              .copyWith(displayPolicy: newSettings.textDisplayPolicy),
         );
         await tester.pump();
         expect(bloc.receivedEvents.whereType<LoadContent>(), isEmpty);
@@ -812,9 +1002,8 @@ void main() {
         settingsBloc.emitStateForTest(latestSettings);
         await tester.pump();
         bloc.emitStateForTest(
-          _loadedState(book).copyWith(
-            displayPolicy: newSettings.textDisplayPolicy,
-          ),
+          _loadedState(book)
+              .copyWith(displayPolicy: newSettings.textDisplayPolicy),
         );
         await tester.pump();
 
@@ -822,9 +1011,7 @@ void main() {
       },
     );
 
-    testWidgets('הלחצן למהדורה המובנית כתוב "פתח בתצוגת PDF"', (
-      tester,
-    ) async {
+    testWidgets('הלחצן למהדורה המובנית כתוב "פתח בתצוגת PDF"', (tester) async {
       final book = TextBook(title: 'ספר בדיקה');
       final pdfBook = PdfBook(title: 'ספר בדיקה', path: 'ספר בדיקה.pdf');
       DataRepository.instance.library = Future.value(
@@ -890,11 +1077,7 @@ void main() {
 
       final book = TextBook(title: 'ספר בדיקה', categoryId: 7);
       final bloc = _TestTextBookBloc(_loadedState(book));
-      final tab = TextBookTab(
-        book: book,
-        index: 0,
-        blocOverride: bloc,
-      );
+      final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
       final tabsBloc = _TestTabsBloc(
         TabsState(tabs: [tab], currentTabIndex: 0),
       );
@@ -1020,9 +1203,7 @@ void main() {
       expect(event.single.navigateToPositionIfReused, isTrue);
     });
 
-    testWidgets('מהדורה מקבילה שהיא ספר טקסט נפתחת בשורה 0', (
-      tester,
-    ) async {
+    testWidgets('מהדורה מקבילה שהיא ספר טקסט נפתחת בשורה 0', (tester) async {
       final edition = TextBook(
         title: 'מהדורה מקבילה',
         id: 55,
@@ -1135,61 +1316,55 @@ void main() {
       expect(find.text('הצג נוסחאות נוספות'), findsOneWidget);
     });
 
-    testWidgets(
-      'תפריט תצוגת המפרשים כולל "פתח כרטיסיית מפרשים"',
-      (tester) async {
-        final book = TextBook(title: 'ספר בדיקה');
-        final bloc = _TestTextBookBloc(_loadedState(book));
-        final tab = TextBookTab(
-          book: book,
-          index: 0,
-          blocOverride: bloc,
-        );
-        final tabsBloc = _TestTabsBloc(
-          TabsState(tabs: [tab], currentTabIndex: 0),
-        );
-        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    testWidgets('תפריט תצוגת המפרשים כולל "פתח כרטיסיית מפרשים"', (
+      tester,
+    ) async {
+      final book = TextBook(title: 'ספר בדיקה');
+      final bloc = _TestTextBookBloc(_loadedState(book));
+      final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
 
-        addTearDown(() async {
-          await tester.pumpWidget(const SizedBox.shrink());
-          await tester.pump();
-          await bloc.close();
-          await tabsBloc.close();
-          await settingsBloc.close();
-          tab.dispose();
-        });
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+        await bloc.close();
+        await tabsBloc.close();
+        await settingsBloc.close();
+        tab.dispose();
+      });
 
-        await _setSurfaceSize(tester, const Size(1600, 900));
-        await _pumpTextBookScreen(
-          tester,
-          tab: tab,
-          textBookBloc: bloc,
-          tabsBloc: tabsBloc,
-          settingsBloc: settingsBloc,
-          focusRepository: focusRepository,
-          shamorZachorDataProvider: shamorZachorDataProvider,
-          shamorZachorProgressProvider: shamorZachorProgressProvider,
-          bookmarkBloc: bookmarkBloc,
-          personalNotesBloc: personalNotesBloc,
-          tourCubit: tourCubit,
-          isInCombinedView: false,
-        );
+      await _setSurfaceSize(tester, const Size(1600, 900));
+      await _pumpTextBookScreen(
+        tester,
+        tab: tab,
+        textBookBloc: bloc,
+        tabsBloc: tabsBloc,
+        settingsBloc: settingsBloc,
+        focusRepository: focusRepository,
+        shamorZachorDataProvider: shamorZachorDataProvider,
+        shamorZachorProgressProvider: shamorZachorProgressProvider,
+        bookmarkBloc: bookmarkBloc,
+        personalNotesBloc: personalNotesBloc,
+        tourCubit: tourCubit,
+        isInCombinedView: false,
+      );
 
-        final viewModeButton = find.byTooltip('בחר סוג תצוגת מפרשים');
-        expect(viewModeButton, findsOneWidget);
-        await tester.tap(viewModeButton);
-        await tester.pumpAndSettle();
+      final viewModeButton = find.byTooltip('בחר סוג תצוגת מפרשים');
+      expect(viewModeButton, findsOneWidget);
+      await tester.tap(viewModeButton);
+      await tester.pumpAndSettle();
 
-        expect(
-          find.byIcon(OtzariaIcons.book_open_tzurat_hadaf_24_regular),
-          findsOneWidget,
-        );
-        expect(find.text('מפרשים בצד'), findsOneWidget);
-        expect(find.text('צורת הדף'), findsOneWidget);
-        expect(find.text('פתח כרטיסיית מפרשים'), findsOneWidget);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.windows),
-    );
+      expect(
+        find.byIcon(OtzariaIcons.book_open_tzurat_hadaf_24_regular),
+        findsOneWidget,
+      );
+      expect(find.text('מפרשים בצד'), findsOneWidget);
+      expect(find.text('צורת הדף'), findsOneWidget);
+      expect(find.text('פתח כרטיסיית מפרשים'), findsOneWidget);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
     testWidgets(
       'אייקון "מפרשים בצד" בסרגל תואם לתפריט ומראה חלונית משמאל ב-RTL (#1868)',
@@ -1256,11 +1431,7 @@ void main() {
         final bloc = _TestTextBookBloc(
           _loadedState(book).copyWith(showSplitView: true),
         );
-        final tab = TextBookTab(
-          book: book,
-          index: 0,
-          blocOverride: bloc,
-        );
+        final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
         final tabsBloc = _TestTabsBloc(
           TabsState(tabs: [tab], currentTabIndex: 0),
         );
@@ -1308,11 +1479,7 @@ void main() {
     testWidgets('במצב משולב כפתורי הניווט עוברים ל-overflow', (tester) async {
       final book = TextBook(title: 'ספר בדיקה');
       final bloc = _TestTextBookBloc(_loadedState(book));
-      final tab = TextBookTab(
-        book: book,
-        index: 0,
-        blocOverride: bloc,
-      );
+      final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
       final tabsBloc = _TestTabsBloc(
         TabsState(tabs: [tab], currentTabIndex: 0),
       );
@@ -1428,11 +1595,7 @@ void main() {
     ) async {
       final book = TextBook(title: 'ספר בדיקה');
       final bloc = _TestTextBookBloc(_loadedState(book));
-      final tab = TextBookTab(
-        book: book,
-        index: 0,
-        blocOverride: bloc,
-      );
+      final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
       final tabsBloc = _TestTabsBloc(
         TabsState(tabs: [tab], currentTabIndex: 0),
       );
@@ -1478,11 +1641,7 @@ void main() {
     testWidgets('במצב רגיל אין שורת ניווט בתפריט ה-overflow', (tester) async {
       final book = TextBook(title: 'ספר בדיקה');
       final bloc = _TestTextBookBloc(_loadedState(book));
-      final tab = TextBookTab(
-        book: book,
-        index: 0,
-        blocOverride: bloc,
-      );
+      final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
       final tabsBloc = _TestTabsBloc(
         TabsState(tabs: [tab], currentTabIndex: 0),
       );
@@ -1530,11 +1689,7 @@ void main() {
     ) async {
       final book = TextBook(title: 'ספר בדיקה');
       final bloc = _TestTextBookBloc(_loadedState(book));
-      final tab = TextBookTab(
-        book: book,
-        index: 0,
-        blocOverride: bloc,
-      );
+      final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
       final tabsBloc = _TestTabsBloc(
         TabsState(tabs: [tab], currentTabIndex: 0),
       );
@@ -1572,64 +1727,58 @@ void main() {
       expect(find.byTooltip('הדף/פרק הבא'), findsOneWidget);
     });
 
-    testWidgets(
-      'תצוגה משולבת מכבדת את מצב התצוגה ומאפשרת לשנות אותו',
-      (tester) async {
-        // רגרסיה: בעבר תצוגה משולבת כפתה "מפרשים מתחת" ל-state (ההעדפה אבדה
-        // בפירוק ההצמדה) ונטרלה את תפריט בחירת התצוגה.
-        final book = TextBook(title: 'ספר בדיקה');
-        final bloc = _TestTextBookBloc(_loadedState(book, showSplitView: true));
-        final tab = TextBookTab(
-          book: book,
-          index: 0,
-          blocOverride: bloc,
-        );
-        final tabsBloc = _TestTabsBloc(
-          TabsState(tabs: [tab], currentTabIndex: 0),
-        );
-        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    testWidgets('תצוגה משולבת מכבדת את מצב התצוגה ומאפשרת לשנות אותו', (
+      tester,
+    ) async {
+      // רגרסיה: בעבר תצוגה משולבת כפתה "מפרשים מתחת" ל-state (ההעדפה אבדה
+      // בפירוק ההצמדה) ונטרלה את תפריט בחירת התצוגה.
+      final book = TextBook(title: 'ספר בדיקה');
+      final bloc = _TestTextBookBloc(_loadedState(book, showSplitView: true));
+      final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
 
-        addTearDown(() async {
-          await tester.pumpWidget(const SizedBox.shrink());
-          await tester.pump();
-          await bloc.close();
-          await tabsBloc.close();
-          await settingsBloc.close();
-          tab.dispose();
-        });
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+        await bloc.close();
+        await tabsBloc.close();
+        await settingsBloc.close();
+        tab.dispose();
+      });
 
-        await _setSurfaceSize(tester, const Size(1600, 900));
-        await _pumpTextBookScreen(
-          tester,
-          tab: tab,
-          textBookBloc: bloc,
-          tabsBloc: tabsBloc,
-          settingsBloc: settingsBloc,
-          focusRepository: focusRepository,
-          shamorZachorDataProvider: shamorZachorDataProvider,
-          shamorZachorProgressProvider: shamorZachorProgressProvider,
-          bookmarkBloc: bookmarkBloc,
-          personalNotesBloc: personalNotesBloc,
-          tourCubit: tourCubit,
-          isInCombinedView: true,
-        );
+      await _setSurfaceSize(tester, const Size(1600, 900));
+      await _pumpTextBookScreen(
+        tester,
+        tab: tab,
+        textBookBloc: bloc,
+        tabsBloc: tabsBloc,
+        settingsBloc: settingsBloc,
+        focusRepository: focusRepository,
+        shamorZachorDataProvider: shamorZachorDataProvider,
+        shamorZachorProgressProvider: shamorZachorProgressProvider,
+        bookmarkBloc: bookmarkBloc,
+        personalNotesBloc: personalNotesBloc,
+        tourCubit: tourCubit,
+        isInCombinedView: true,
+      );
 
-        final splitedView = tester.widget<SplitedViewScreen>(
-          find.byType(SplitedViewScreen).first,
-        );
-        expect(
-          splitedView.showSplitView,
-          isTrue,
-          reason: 'מצב "מפרשים בצד" של הטאב מכובד גם בתצוגה משולבת',
-        );
+      final splitedView = tester.widget<SplitedViewScreen>(
+        find.byType(SplitedViewScreen).first,
+      );
+      expect(
+        splitedView.showSplitView,
+        isTrue,
+        reason: 'מצב "מפרשים בצד" של הטאב מכובד גם בתצוגה משולבת',
+      );
 
-        // תפריט בחירת התצוגה פעיל — למשתמש יש שליטה גם בתצוגה משולבת
-        await tester.tap(find.byTooltip('בחר סוג תצוגת מפרשים'));
-        await tester.pumpAndSettle();
-        expect(find.text('מפרשים מתחת'), findsOneWidget);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.windows),
-    );
+      // תפריט בחירת התצוגה פעיל — למשתמש יש שליטה גם בתצוגה משולבת
+      await tester.tap(find.byTooltip('בחר סוג תצוגת מפרשים'));
+      await tester.pumpAndSettle();
+      expect(find.text('מפרשים מתחת'), findsOneWidget);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
   });
 
   group('reanchor בפתיחת/סגירת החלונית', () {
@@ -1788,10 +1937,7 @@ void main() {
     });
 
     testWidgets('overlay במסך צר — נסגרת', (tester) async {
-      final toggles = await navigateFromToc(
-        tester,
-        size: const Size(780, 900),
-      );
+      final toggles = await navigateFromToc(tester, size: const Size(780, 900));
       expect(toggles, [false]);
     });
 
@@ -1958,11 +2104,7 @@ void main() {
         // requestFocus וחוטף את הפוקוס משדה החיפוש — והמקלדת נסגרה מיד.
         final book = TextBook(title: 'ספר בדיקה');
         final bloc = _TestTextBookBloc(_loadedState(book));
-        final tab = TextBookTab(
-          book: book,
-          index: 0,
-          blocOverride: bloc,
-        );
+        final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
         final tabsBloc = _TestTabsBloc(
           TabsState(tabs: [tab], currentTabIndex: 0),
         );
@@ -2116,9 +2258,7 @@ void main() {
       expect(reached, 1);
     });
 
-    testWidgets('לחיצות רצופות על "הבא" מתקדמות קטע בכל לחיצה', (
-      tester,
-    ) async {
+    testWidgets('לחיצות רצופות על "הבא" מתקדמות קטע בכל לחיצה', (tester) async {
       final (tab, state) = await pumpLongBook(tester);
 
       for (var i = 0; i < 10; i++) {
@@ -2205,40 +2345,37 @@ void main() {
 
           expect(await back(), 100);
           expect(await back(), 0);
-          expect(tab.lines.canGoBack.value, isFalse);
+          expect(tab.lines.history.value.back, isNull);
         });
       }
     }
 
     for (final continuous in [false, true]) {
-      testWidgets(
-        'Ctrl+End ו-Ctrl+Home גוללים לקצות הספר '
-        '(${continuous ? 'רציף' : 'רגיל'})',
-        (tester) async {
-          final (tab, _) = await pumpLongBook(tester, continuous: continuous);
-          await tester.tap(find.byType(ScrollablePositionedList));
-          await tester.pump(kDoubleTapTimeout);
-          final modifier = Platform.isMacOS
-              ? LogicalKeyboardKey.metaLeft
-              : LogicalKeyboardKey.controlLeft;
+      testWidgets('Ctrl+End ו-Ctrl+Home גוללים לקצות הספר '
+          '(${continuous ? 'רציף' : 'רגיל'})', (tester) async {
+        final (tab, _) = await pumpLongBook(tester, continuous: continuous);
+        await tester.tap(find.byType(ScrollablePositionedList));
+        await tester.pump(kDoubleTapTimeout);
+        final modifier = Platform.isMacOS
+            ? LogicalKeyboardKey.metaLeft
+            : LogicalKeyboardKey.controlLeft;
 
-          await tester.sendKeyDownEvent(modifier);
-          await tester.sendKeyEvent(LogicalKeyboardKey.end);
-          await tester.sendKeyUpEvent(modifier);
-          // גלילה מונפשת של 300ms נמשכת פריימים רבים; קפיצה מתייצבת מיד.
-          final frames = await tester.pumpAndSettle(
-            const Duration(milliseconds: 20),
-          );
-          expect(frames, greaterThanOrEqualTo(10));
-          expect(tab.lines.position.value?.visibleLines, contains(199));
+        await tester.sendKeyDownEvent(modifier);
+        await tester.sendKeyEvent(LogicalKeyboardKey.end);
+        await tester.sendKeyUpEvent(modifier);
+        // גלילה מונפשת של 300ms נמשכת פריימים רבים; קפיצה מתייצבת מיד.
+        final frames = await tester.pumpAndSettle(
+          const Duration(milliseconds: 20),
+        );
+        expect(frames, greaterThanOrEqualTo(10));
+        expect(tab.lines.position.value?.visibleLines, contains(199));
 
-          await tester.sendKeyDownEvent(modifier);
-          await tester.sendKeyEvent(LogicalKeyboardKey.home);
-          await tester.sendKeyUpEvent(modifier);
-          await tester.pumpAndSettle();
-          expect(tab.index, 0);
-        },
-      );
+        await tester.sendKeyDownEvent(modifier);
+        await tester.sendKeyEvent(LogicalKeyboardKey.home);
+        await tester.sendKeyUpEvent(modifier);
+        await tester.pumpAndSettle();
+        expect(tab.index, 0);
+      });
     }
 
     testWidgets('גלילה ידנית מבטלת יעד ניווט ממתין', (tester) async {
@@ -2365,9 +2502,7 @@ void main() {
       expect(copied, 'otzaria://open/book/7?index=0&mark');
     });
 
-    testWidgets('Home/End לבד קופצים לקצות הספר (issue #2140)', (
-      tester,
-    ) async {
+    testWidgets('Home/End לבד קופצים לקצות הספר (issue #2140)', (tester) async {
       await pumpAfterTocJump(tester);
       await tester.sendKeyEvent(LogicalKeyboardKey.end);
       await tester.sendKeyEvent(LogicalKeyboardKey.home);
@@ -2435,6 +2570,9 @@ Future<void> _pumpTextBookScreen(
   AppWindowGeometry? geometry,
   WindowFullscreenCubit? fullscreenCubit,
   bool withGlobalShortcuts = false,
+  bool withPaneDragHandle = false,
+  ThemeData? theme,
+  TextScaler? textScaler,
 }) async {
   // openBook (מסלול פתיחת נוסח) קורא גם ל-HistoryBloc ול-NavigationBloc.
   final historyBloc = _TestHistoryBloc();
@@ -2444,11 +2582,14 @@ Future<void> _pumpTextBookScreen(
     await navigationBloc.close();
   });
 
-  final Widget viewer = TextBookViewerBloc(
+  Widget viewer = TextBookViewerBloc(
     tab: tab,
     isInCombinedView: isInCombinedView,
     openBookCallback: (_) {},
   );
+  if (withPaneDragHandle) {
+    viewer = PaneDragHandleScope(pane: tab, enabled: true, child: viewer);
+  }
   final screen = withGlobalShortcuts
       ? KeyboardShortcuts(onFindRefRequested: () {}, child: viewer)
       : viewer;
@@ -2480,8 +2621,21 @@ Future<void> _pumpTextBookScreen(
         ],
         child: MaterialApp(
           navigatorKey: windowKeys?.navigator,
-          builder: (context, child) =>
-              Directionality(textDirection: textDirection, child: child!),
+          theme: theme,
+          builder: (context, child) {
+            final directed = Directionality(
+              textDirection: textDirection,
+              child: child!,
+            );
+            return textScaler == null
+                ? directed
+                : MediaQuery(
+                    data: MediaQuery.of(
+                      context,
+                    ).copyWith(textScaler: textScaler),
+                    child: directed,
+                  );
+          },
           home: windowKeys == null
               ? screen
               : AppWindowScope(

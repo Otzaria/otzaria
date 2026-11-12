@@ -37,7 +37,7 @@ class SemanticFallbackLog {
 
   static void _append(SemanticFailure failure, Map<String, String?> details) {
     try {
-      ErrorLogFile.append(
+      ErrorLogFile.appendInBackground(
         title: 'חיפוש חכם: החלק הסמנטי נכשל',
         error: failure,
         details: details,

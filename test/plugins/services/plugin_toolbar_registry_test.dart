@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/plugins/models/plugin_toolbar_item.dart';
 import 'package:otzaria/plugins/services/plugin_toolbar_registry.dart';
 
@@ -446,6 +447,171 @@ void main() {
           }),
           throwsA(isA<PluginToolbarException>()),
         );
+      });
+    });
+
+    group('bookTypes', () {
+      Map<String, dynamic> button(Object? bookTypes) => {
+        'id': 'edit',
+        'title': 'Edit',
+        'icon': 'document_edit_24_regular',
+        'bookTypes': ?bookTypes,
+      };
+
+      test('חסר = כל ספר, ואינו נכתב ב-toJson', () {
+        final item = registry.registerPayload('word', button(null));
+        expect(item.bookTypes, isEmpty);
+        expect(item.toJson().containsKey('bookTypes'), isFalse);
+        expect(item.showsForBook(bookType: 'text'), isTrue);
+        expect(item.showsForBook(), isTrue);
+      });
+
+      test('מנורמל (רווחים ואותיות גדולות) ונשמר ב-toJson', () {
+        final item = registry.registerPayload(
+          'word',
+          button([' DOCX', 'docm']),
+        );
+        expect(item.bookTypes, ['docx', 'docm']);
+        expect(item.toJson()['bookTypes'], ['docx', 'docm']);
+        expect(item.showsForBook(bookType: 'docx'), isTrue);
+        expect(item.showsForBook(bookType: 'text'), isFalse);
+        expect(item.showsForBook(), isFalse);
+      });
+
+      test('עדכון שומר את המסנן, ו-[] מבטל אותו', () {
+        registry.registerPayload('word', button(['docx']));
+        final retitled = registry.update('word', 'edit', {'title': 'Other'});
+        expect(retitled.bookTypes, ['docx']);
+        final cleared = registry.update('word', 'edit', {'bookTypes': []});
+        expect(cleared.bookTypes, isEmpty);
+        expect(cleared.showsForBook(bookType: 'pdf'), isTrue);
+      });
+
+      test('ערך לא מוכר, כפול או לא-מחרוזת נדחה', () {
+        for (final invalid in <Object>[
+          ['word'],
+          ['docx', 'DOCX'],
+          [1],
+          'docx',
+          List.filled(PluginToolbarRegistry.maxBookFilterValues + 1, 'pdf'),
+        ]) {
+          expect(
+            () => registry.registerPayload('word', button(invalid)),
+            throwsA(isA<PluginToolbarException>()),
+            reason: '$invalid',
+          );
+        }
+      });
+
+      test('על ילד נדחה — המסנן הוא של הפקד העליון', () {
+        expect(
+          () => registry.registerPayload('word', {
+            'id': 'menu',
+            'type': 'menu',
+            'title': 'Menu',
+            'icon': 'apps_24_regular',
+            'children': [
+              {
+                'id': 'child',
+                'title': 'Child',
+                'bookTypes': ['pdf'],
+              },
+            ],
+          }),
+          throwsA(isA<PluginToolbarException>()),
+        );
+      });
+
+      test('כל סוג ש-PluginBookIdentity.typeOf מחזיר מתקבל', () {
+        expect(
+          PluginBookIdentity.knownTypes,
+          containsAll(['text', 'pdf', 'external', 'docx', 'docm']),
+        );
+        final item = registry.registerPayload(
+          'word',
+          button(PluginBookIdentity.knownTypes.toList()),
+        );
+        expect(item.bookTypes, hasLength(PluginBookIdentity.knownTypes.length));
+      });
+    });
+
+    group('bookSources', () {
+      Map<String, dynamic> button({Object? types, Object? sources}) => {
+        'id': 'mine',
+        'title': 'Mine',
+        'icon': 'person_24_regular',
+        'bookTypes': ?types,
+        'bookSources': ?sources,
+      };
+
+      test('נשמר ב-toJson ומסנן לפי מקור', () {
+        final item = registry.registerPayload(
+          'notes',
+          button(sources: ['User']),
+        );
+        expect(item.bookSources, ['user']);
+        expect(item.toJson()['bookSources'], ['user']);
+        expect(item.showsForBook(bookSource: 'user'), isTrue);
+        expect(item.showsForBook(bookSource: 'library'), isFalse);
+        expect(item.showsForBook(), isFalse);
+      });
+
+      test('מצטבר עם bookTypes (AND)', () {
+        final item = registry.registerPayload(
+          'notes',
+          button(types: ['text'], sources: ['library']),
+        );
+        expect(
+          item.showsForBook(bookType: 'text', bookSource: 'library'),
+          isTrue,
+        );
+        expect(
+          item.showsForBook(bookType: 'text', bookSource: 'user'),
+          isFalse,
+        );
+        expect(
+          item.showsForBook(bookType: 'pdf', bookSource: 'library'),
+          isFalse,
+        );
+      });
+
+      test('ערך לא מוכר, כפול, או על ילד — נדחה', () {
+        for (final invalid in <Object>[
+          ['official'],
+          ['user', 'user'],
+          'user',
+        ]) {
+          expect(
+            () => registry.registerPayload('notes', button(sources: invalid)),
+            throwsA(isA<PluginToolbarException>()),
+            reason: '$invalid',
+          );
+        }
+        expect(
+          () => registry.registerPayload('notes', {
+            'id': 'menu',
+            'type': 'menu',
+            'title': 'Menu',
+            'icon': 'apps_24_regular',
+            'children': [
+              {
+                'id': 'child',
+                'title': 'Child',
+                'bookSources': ['user'],
+              },
+            ],
+          }),
+          throwsA(isA<PluginToolbarException>()),
+        );
+      });
+
+      test('כל מקור ש-PluginBookIdentity.sourceOf מחזיר מוכר', () {
+        expect(PluginBookIdentity.knownSources, {
+          'library',
+          'user',
+          'attached',
+          'external',
+        });
       });
     });
   });

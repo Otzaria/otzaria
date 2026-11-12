@@ -50,7 +50,7 @@ class ExternalBooksChanged extends LibraryEvent {
 }
 
 class RefreshLibrary extends LibraryEvent {
-  /// מפתחות catalogueOrderKey של ספרים שתוכנם השתנה ודורשים אינדוקס מחדש.
+  /// מפתחות BookIdentity.keyOf של ספרים שתוכנם השתנה ודורשים אינדוקס מחדש.
   final Set<String> changedBookKeys;
 
   final RefreshSource source;

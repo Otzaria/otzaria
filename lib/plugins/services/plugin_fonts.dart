@@ -7,7 +7,6 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:otzaria/plugins/services/plugin_asset_scheme.dart';
 import 'package:otzaria/plugins/services/plugin_file_server.dart';
-import 'package:otzaria/plugins/services/plugin_font_scheme.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/theme/app_fonts.dart';
@@ -16,13 +15,11 @@ import 'package:path/path.dart' as p;
 /// האם הגופנים מוגשים כקבצים משרת הקבצים, או מוטבעים כ-`data:` בכלל עצמו.
 /// ב-WKWebView נשארים עם data: כדי לא להרחיב את הרשאות ה-ATS של האפליקציה.
 bool get pluginFontsFromFileServer =>
-    kIsWeb || (!Platform.isIOS && !Platform.isMacOS);
+    debugPluginFontsFromFileServer ??
+    (kIsWeb || (!Platform.isIOS && !Platform.isMacOS));
 
 @visibleForTesting
 bool? debugPluginFontsFromFileServer;
-
-bool get _fromFileServer =>
-    debugPluginFontsFromFileServer ?? pluginFontsFromFileServer;
 
 /// המשפחות שנרשמות בכל דף תוסף: המובנים, ושתי המשפחות שנבחרו בהגדרות.
 Set<String> pluginFontFamilies() => {
@@ -119,10 +116,8 @@ Future<String> _source(
   _Face face, {
   required bool embedded,
   required bool cache,
-  PluginFontSchemeLease? lease,
 }) async {
-  if (!embedded && lease != null) return lease.register(face.id, face.load);
-  if (!embedded && _fromFileServer) {
+  if (!embedded && pluginFontsFromFileServer) {
     return PluginFileServer.instance.fontUrl(face.id, face.load);
   }
   final cached = cache ? _dataSources[face.id] : null;
@@ -143,19 +138,13 @@ Future<List<String>> _familyRules(
   String family, {
   String? asFamily,
   bool embedded = false,
-  PluginFontSchemeLease? lease,
 }) async {
   try {
     return [
       for (final face in await _faces(family))
         _rule(
           asFamily ?? family,
-          await _source(
-            face,
-            embedded: embedded,
-            cache: asFamily == null,
-            lease: lease,
-          ),
+          await _source(face, embedded: embedded, cache: asFamily == null),
           face.weight,
         ),
     ];
@@ -168,14 +157,10 @@ Future<List<String>> _familyRules(
 
 /// כללי `@font-face` לכל [pluginFontFamilies]. [embedded] מטביע את הבייטים
 /// כשהדף אינו יכול לטעון משרת הקבצים, למשל בגלל CSP משלו.
-Future<String> buildPluginFontFaceCss({
-  bool embedded = false,
-  PluginFontSchemeLease? lease,
-  Set<String>? families,
-}) async {
+Future<String> buildPluginFontFaceCss({bool embedded = false}) async {
   final rules = <String>[];
-  for (final family in families ?? pluginFontFamilies()) {
-    rules.addAll(await _familyRules(family, embedded: embedded, lease: lease));
+  for (final family in pluginFontFamilies()) {
+    rules.addAll(await _familyRules(family, embedded: embedded));
   }
   return rules.join('\n');
 }
@@ -279,7 +264,7 @@ Future<bool> installPluginFonts(
   required List<String> targets,
   Duration timeout = pluginFontWaitTimeout,
 }) async {
-  if (!_fromFileServer) return false;
+  if (!pluginFontsFromFileServer) return false;
   try {
     final result = await controller
         .callAsyncJavaScript(

@@ -12,13 +12,35 @@ class BookInformation {
   final String? generation;
   final Map<String, String> fileDetails;
 
+  /// שם הספק כשהספר נוסף על ידי תוסף; null לכל ספר אחר.
+  final String? pluginProviderName;
+
   const BookInformation({
     required this.book,
     required this.databaseBook,
     required this.source,
     required this.generation,
     required this.fileDetails,
+    this.pluginProviderName,
   });
+
+  /// פרטי ספר שתוסף הוסיף, מהנתונים שהתוסף שלח בלבד: אין חיפוש בספרייה
+  /// לפי שם, שהיה מציג ספר אחר באותו שם.
+  factory BookInformation.pluginProvided(
+    ExternalLibraryBook book, {
+    required String providerName,
+  }) => BookInformation(
+    book: book,
+    databaseBook: null,
+    source: null,
+    generation: null,
+    fileDetails: const {
+      'שם הקובץ': BookDetailsService.bookNotFoundText,
+      'נתיב הקובץ': BookDetailsService.bookNotFoundText,
+      'תיקיית המקור': BookDetailsService.bookNotFoundText,
+    },
+    pluginProviderName: providerName,
+  );
 
   /// התיאור הקצר, אם קיים.
   String? get shortDescription => _firstAvailable(

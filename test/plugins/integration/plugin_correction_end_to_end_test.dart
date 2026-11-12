@@ -22,8 +22,6 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
 import 'package:otzaria/plugins/bridge/plugin_bridge_adapter.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
@@ -36,9 +34,7 @@ import 'package:otzaria/plugins/view/plugin_correction_session_banner.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
@@ -56,6 +52,8 @@ import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
 import '../../helpers/seforim_fixture_db.dart';
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_personal_notes_bloc.dart';
+import '../../test_helpers/stub_settings_bloc.dart';
 
 /// מסלול מקומי מלא של תיקון תוסף: adapter, שירות הסשנים עם worker אמיתי על
 /// קובץ, הקורא, והדיווח. ההזרקה היחידה ברשת: ה-client מפנה ל-loopback.
@@ -125,26 +123,6 @@ class _ReaderBloc extends Bloc<TextBookEvent, TextBookState>
 
   @override
   final TextBookRepository repository = _NoLinks();
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _SettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _SettingsBloc() : super(SettingsState.initial()) {
-    on<SettingsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _NotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _NotesBloc() : super(const PersonalNotesState.initial()) {
-    on<PersonalNotesEvent>((event, emit) {});
-  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -436,8 +414,8 @@ void main() {
       );
 
       Future<void> mountReader(TextBookTab tab) async {
-        final settings = _SettingsBloc();
-        final notes = _NotesBloc();
+        final settings = StubSettingsBloc();
+        final notes = StubPersonalNotesBloc();
         disposables.add(() async {
           await settings.close();
           await notes.close();

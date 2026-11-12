@@ -202,11 +202,11 @@ jobs:
           kotlin.incremental=true
           EOF
 
-      - name: Ensure Android SDK Platform 36
+      - name: Ensure Android SDK Platform 37
         run: |
           set -e
-          if [ ! -d "${ANDROID_SDK_ROOT}/platforms/android-36" ]; then
-            ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-36"
+          if [ ! -d "${ANDROID_SDK_ROOT}/platforms/android-37.0" ]; then
+            ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-37.0"
           fi
           if [ ! -d "${ANDROID_SDK_ROOT}/build-tools/36.0.0" ]; then
             ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager --install "build-tools;36.0.0"

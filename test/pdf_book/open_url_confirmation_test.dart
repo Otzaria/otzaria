@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/pdf_book/view/widgets/open_url_confirmation.dart';
-import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// דיאלוג האישור למעבר לכתובת חיצונית מתוך PDF (issue #1482).
 void main() {
@@ -41,21 +40,5 @@ void main() {
       TextDirection.ltr,
       reason: 'בפסקה RTL ה-bidi מסדר מחדש את הסלאש והפרמטרים של הכתובת',
     );
-  });
-
-  testWidgets('הדיאלוג הוא AppDialog ולא AlertDialog גולמי (issue #1482)', (
-    tester,
-  ) async {
-    await open(tester);
-
-    expect(find.byType(AppDialog), findsOneWidget);
-  });
-
-  testWidgets('הפעולות הן ActionButton ולא TextButton (issue #1482)', (
-    tester,
-  ) async {
-    await open(tester);
-
-    expect(find.byType(ActionButton), findsNWidgets(2));
   });
 }

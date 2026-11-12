@@ -247,7 +247,10 @@ export type BookType =
   | 'wbk'
   | 'xml'
   | 'rtf'
-  | 'odt';
+  | 'odt'
+  | 'html'
+  | 'htm'
+  | 'xhtml';
 
 export interface BookMeta {
   id?: number | null;
@@ -452,6 +455,12 @@ export interface ProviderBook {
   author?: string;
   /** `/`-separated, in the form `library.getTree` uses: `/שו"ת/אחרונים`. */
   categoryPath?: string;
+  /**
+   * Plain text shown in the book's "about" dialog and info tooltip. Up to
+   * 2,000 characters per book and 5,000,000 across the provider's list; line
+   * breaks are kept. Available from 0.9.99; older hosts ignore it.
+   */
+  description?: string;
 }
 
 /** Arguments to `library.setProviderBooks`: replaces the provider's whole list. */
@@ -1440,6 +1449,8 @@ export interface TextSourceMap {
 
 export interface GetSectionTextMapArgs extends RawDivineNamesOption {
   bookId: string;
+  /** Stable identity; takes precedence over the book title. */
+  bookUid?: string;
   sectionIndex: number;
   layer?: 'source' | 'rendered' | 'both';
   includeWords?: boolean;
@@ -1648,6 +1659,16 @@ export interface ContextMenuItem {
    * click path of the item; inherited by children. Available from 0.9.98.
    * ⚠️ See the warning on `RawDivineNamesOption`. */
   rawDivineNames?: boolean;
+  /** Top-level items only: show the item only when the clicked book's
+   * identity `type` (the `type` in the click payload) is listed — `'text'`,
+   * `'pdf'`, `'external'`, or a document extension such as `'docx'`. In a
+   * commentary this is the commentary book, not `mainBook`. Empty or omitted
+   * = every book. Older hosts ignore it. Available from 0.9.99. */
+  bookTypes?: BookType[];
+  /** Top-level items only, combined with `bookTypes` (AND): show the item
+   * only when the clicked book's identity `source` is listed. Empty or
+   * omitted = every source. Older hosts ignore it. Available from 0.9.99. */
+  bookSources?: Array<'library' | 'user' | 'attached' | 'external'>;
 }
 
 /**
@@ -1717,6 +1738,17 @@ export interface ToolbarItem {
   newTab?: boolean;
   /** Free-form value echoed back as `param` in the click event payload. */
   param?: unknown;
+  /** Top-level items only: show the item only in the toolbar of a book whose
+   * identity `type` is listed (`'text'`, `'pdf'`, `'external'`, or a document
+   * extension such as `'docx'`). Checked against each toolbar's own book, so
+   * every pane of a split view decides on its own. Empty or omitted = every
+   * book. Older hosts ignore it. Available from 0.9.99. */
+  bookTypes?: BookType[];
+  /** Top-level items only, combined with `bookTypes` (AND): show the item only
+   * for a book whose identity `source` is listed (`'library'`, `'user'`,
+   * `'attached'`, `'external'`). Empty or omitted = every source. Older hosts
+   * ignore it. Available from 0.9.99. */
+  bookSources?: Array<'library' | 'user' | 'attached' | 'external'>;
 }
 
 export interface UpdateToolbarItemArgs {
@@ -1857,6 +1889,39 @@ export interface OtzariaEventMap {
    * `plugin.openOther` — in which case `openedBy` holds that plugin's id.
    */
   'plugin.page_opened': { param: unknown; openedBy?: string };
+  /**
+   * A full-text search in an Otzaria search tab finished successfully (from
+   * 0.9.99). Broadcast, read-only. Requires permission:
+   * events.subscribe:search.completed; may also be listed in
+   * `contributes.startup.activationEvents`.
+   *
+   * Fired once per search, after the final count is known. Not fired for an
+   * empty query, no selected categories, a cancelled or superseded search, an
+   * error, or "load more" results. Changing a setting that re-runs the search
+   * (sort, result limit, distance) is a new search and fires again.
+   */
+  'search.completed': {
+    /** Identifies the search tab; valid while the tab lives in this session. */
+    tabId: string;
+    /** Source window in this session, including delivery to the shared background. */
+    windowId: string;
+    /** Increases with every search in that tab; `tabId` + `requestId` is unique. */
+    requestId: number;
+    query: string;
+    mode: SearchMode;
+    /** The search as run, in the same shape as `search.requested` carries.
+     * `facets` are the categories actually searched. */
+    request: SearchQueryParams;
+    /** The count shown above the results. */
+    total: number;
+    /** What `total` counts: `groups` when result grouping is on, else `matches`. */
+    totalKind: 'matches' | 'groups';
+    /** True when the engine stopped counting early: `total` is then a lower bound,
+     * so `total < N` does not prove fewer than N results exist. */
+    truncated: boolean;
+    /** How many results were loaded into the list (at most the result limit). */
+    returned: number;
+  };
   /** A checked static search row routed submission to its owning plugin. */
   'search.requested': { itemId: string; request: SearchQueryParams };
   /** External-search page request sent only to the plugin owning `provider`. */

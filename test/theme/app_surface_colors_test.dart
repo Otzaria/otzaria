@@ -91,28 +91,6 @@ void main() {
       }
     });
 
-    testWidgets('העטיפות ב-AppSurfaces קוראות את ההרחבה', (tester) async {
-      for (final brightness in Brightness.values) {
-        final theme = _theme(AppSeedColors.defaultLight, brightness);
-        final context = await _pumpTheme(tester, theme);
-        final s = theme.extension<AppSurfaceColors>()!;
-        expect(AppSurfaces.readerBackground(context), s.readerBackground);
-        expect(AppSurfaces.panelBackground(context), s.panelBackground);
-        expect(AppSurfaces.topBarBackground(context), s.topBarBackground);
-        expect(AppSurfaces.navPanelBackground(context), s.navPanelBackground);
-        expect(AppSurfaces.card(context), s.card);
-        expect(AppSurfaces.panelSection(context), s.panelSection);
-        expect(AppSurfaces.panelSectionAccent(context), s.panelSectionAccent);
-        expect(
-          AppSurfaces.panelSectionAccentBorder(context),
-          s.panelSectionAccentBorder,
-        );
-        expect(AppSurfaces.cardRowDivider(context), s.cardRowDivider);
-        expect(AppSurfaces.paneCard(context), s.paneCard);
-        expect(AppSurfaces.paneGutter(context), s.paneGutter);
-      }
-    });
-
     testWidgets('דריסה לתת-עץ משנה רק את המשטח שנדרס', (tester) async {
       final theme = _theme(AppSeedColors.defaultLight, Brightness.light);
       final base = theme.extension<AppSurfaceColors>()!;

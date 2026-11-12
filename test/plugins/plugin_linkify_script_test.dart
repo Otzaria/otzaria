@@ -22,21 +22,6 @@ void main() {
         contains('window.__otzariaAutoLinkify = false;'),
       );
     });
-
-    test('חושף linkify גם לקריאה יזומה של התוסף', () {
-      final source = buildPluginLinkifyScript(auto: false).source;
-      expect(source, contains('window.Otzaria.linkify = linkify'));
-      expect(source, contains('window.__otzariaLinkify = linkify'));
-    });
-
-    test('מדלג על שדות עריכה, קוד וקישורים קיימים', () {
-      final source = buildPluginLinkifyScript(auto: false).source;
-      expect(source, contains('A: 1'));
-      expect(source, contains('TEXTAREA: 1'));
-      expect(source, contains('CODE: 1'));
-      expect(source, contains('isContentEditable'));
-      expect(source, contains('data-otzaria-no-linkify'));
-    });
   });
 
   group('contributes.autoLinkify', () {

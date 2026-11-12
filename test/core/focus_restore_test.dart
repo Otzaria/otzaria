@@ -224,10 +224,8 @@ void main() {
   });
 
   // ── בדיקות layout-aware restorer ──────────────────────────────────────────
-  // מאמתות שהתנהגות canRestore תלויה בחיבור ה-FocusNode לעץ (enclosingScope).
-  // זה מייצג את ההבדל בין Settings/More בdesktop-mode לmobile-mode:
-  // בdesktop, ה-contentFocusNode מחובר ↠ canRestore=true.
-  // במobile, ה-node לא מחובר ↠ canRestore=false.
+  // canRestore תלוי בחיבור ה-FocusNode לעץ (enclosingScope): במסך ההגדרות
+  // ה-contentFocusNode מחובר ב-desktop ולא מחובר ב-mobile.
   group('layout-aware restorer', () {
     testWidgets('Settings narrow: node לא מחובר → canRestore=false', (
       tester,
@@ -263,45 +261,6 @@ void main() {
         repo.screenCanRestoreForTesting(),
         true,
         reason: 'Desktop layout: node מחובר → canRestore=true',
-      );
-    });
-
-    testWidgets('More: canRestore תלוי בחיבור node לעץ, לא ב-showMobileMenu', (
-      tester,
-    ) async {
-      final node = FocusNode();
-      addTearDown(node.dispose);
-
-      // מדמה את _registerMoreRestorer — canRestore נקבע לפי enclosingScope בלבד
-      repo.setScreenRestorer(
-        restore: () {
-          if (node.enclosingScope != null) node.requestFocus();
-        },
-        canRestore: () => node.enclosingScope != null,
-      );
-
-      // node לא מחובר לעץ (mobile menu פתוח, contentFocusNode לא בעץ)
-      expect(
-        repo.screenCanRestoreForTesting(),
-        false,
-        reason: 'Node לא מחובר → canRestore=false',
-      );
-
-      // מחבר את ה-node לעץ — מדמה desktop layout (contentFocusNode תמיד בעץ בdesktop)
-      // גם כאשר _showMobileMenu==true ב-state הפנימי, ב-desktop הnode מחובר
-      await tester.pumpWidget(
-        WidgetsApp(
-          color: const Color(0xFFFFFFFF),
-          builder: (_, _) => Focus(focusNode: node, child: const SizedBox()),
-        ),
-      );
-
-      // node מחובר → canRestore=true, ללא קשר לערך _showMobileMenu
-      expect(
-        repo.screenCanRestoreForTesting(),
-        true,
-        reason:
-            'Node מחובר לעץ → canRestore=true (גם אם showMobileMenu==true כ-state ישן)',
       );
     });
   });

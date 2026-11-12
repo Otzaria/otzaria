@@ -16,7 +16,6 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -28,6 +27,7 @@ import 'package:otzaria/text_book/view/reader_line/reader_line_render.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
 import 'package:otzaria/text_book/view/widgets/selection_gutter_painter.dart';
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_settings_bloc.dart';
 
 // issue #875 — במצב קריאה רציפה כרטיס המפרשים נבנה בתחתית הפסקה הממוזגת
 // כולה (מסכים שלמים מתחת לשורה שנלחצה). התיקון: פיצול רינדור הפסקה סביב
@@ -88,7 +88,7 @@ Future<_TestTextBookBloc> _pumpContinuousView(
   final personalNotesBloc = _TestPersonalNotesBloc(
     const PersonalNotesState.initial(),
   );
-  final settingsBloc = _TestSettingsBloc(
+  final settingsBloc = StubSettingsBloc(
     SettingsState.initial().copyWith(textMaxWidth: textMaxWidth),
   );
   final tab = TextBookTab(book: TextBook(title: 'ספר בדיקה'), index: 0);
@@ -482,16 +482,6 @@ class _TestPersonalNotesBloc
     implements PersonalNotesBloc {
   _TestPersonalNotesBloc(super.initialState) {
     on<PersonalNotesEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
   }
 
   @override

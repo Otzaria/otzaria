@@ -6,11 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/services/target_line_links_service.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
@@ -22,6 +20,8 @@ import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 import 'package:otzaria/widgets/misc/app_context_menu.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/stub_personal_notes_bloc.dart';
+import '../../../test_helpers/stub_settings_bloc.dart';
 
 /// תפריט ההקשר של צורת הדף — הפריטים שהיו חסרים בה מול "מפרשים בצד":
 /// תת-תפריט "מפרשים" על הטקסט הראשי, ותתי-התפריטים של קטע היעד בלחיצה
@@ -43,10 +43,10 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(900, 700));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    final personalNotesBloc = _TestPersonalNotesBloc(
+    final personalNotesBloc = StubPersonalNotesBloc(
       const PersonalNotesState.initial(),
     );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
     addTearDown(() async {
       await personalNotesBloc.close();
       await settingsBloc.close();
@@ -581,27 +581,6 @@ class _TestTextBookRepository implements TextBookRepository {
           connectionType: 'commentary',
         ),
     ];
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestPersonalNotesBloc
-    extends Bloc<PersonalNotesEvent, PersonalNotesState>
-    implements PersonalNotesBloc {
-  _TestPersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
-    implements SettingsBloc {
-  _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
   }
 
   @override

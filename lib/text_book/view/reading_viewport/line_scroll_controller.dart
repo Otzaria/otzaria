@@ -20,6 +20,9 @@ export 'package:otzaria/text_book/utils/reading_position.dart';
 /// ניווט של קורא חיצוני (תוסף שמחליף את תצוגת הטקסט) — שורת מקור בלבד.
 typedef ExternalLineNavigator = Future<void> Function(int line);
 
+/// היעדים הקרובים בהיסטוריית הניווט של הקורא.
+typedef ReadingHistoryEnds = ({ReadingAnchor? back, ReadingAnchor? forward});
+
 /// מה שהתצוגה המחוברת מספקת: הפריסה מול התוכן הנוכחי, וגובה התצוגה.
 class ReadingViewportBinding {
   const ReadingViewportBinding({
@@ -90,8 +93,11 @@ class LineScrollController {
 
   final ValueNotifier<ReadingPosition?> _position = ValueNotifier(null);
   final ValueNotifier<int> _navigationEpoch = ValueNotifier(0);
-  final ValueNotifier<bool> _canGoBack = ValueNotifier(false);
+  final ValueNotifier<ReadingHistoryEnds> _history = ValueNotifier(
+    (back: null, forward: null),
+  );
   final List<ReadingAnchor> _backAnchors = [];
+  final List<ReadingAnchor> _forwardAnchors = [];
 
   /// המיקום הנוכחי, או יעד הניווט מרגע שהתחיל ועד שנחת.
   ValueListenable<ReadingPosition?> get position => _position;
@@ -99,19 +105,27 @@ class LineScrollController {
   /// משתנה בתחילת ניווט מפורש, לפני פרסום היעד; תיקוני פריסה אינם ניווט.
   ValueListenable<int> get navigationEpoch => _navigationEpoch;
 
-  ValueListenable<bool> get canGoBack => _canGoBack;
+  /// היעד של [goBack] ושל [goForward], או null כשאין לאן.
+  ValueListenable<ReadingHistoryEnds> get history => _history;
+
+  void _publishHistory() => _history.value = (
+    back: _backAnchors.lastOrNull,
+    forward: _forwardAnchors.lastOrNull,
+  );
+
+  static void _push(List<ReadingAnchor> stack, ReadingAnchor anchor) {
+    if (stack.lastOrNull == anchor) return;
+    stack.add(anchor);
+    if (stack.length > 50) stack.removeAt(0);
+  }
 
   void _rememberPosition({ReadingAnchor? destination}) {
     if (_historyPaused) return;
     final anchor = captureAnchor();
-    if (anchor == null ||
-        anchor == destination ||
-        _backAnchors.lastOrNull == anchor) {
-      return;
-    }
-    _backAnchors.add(anchor);
-    if (_backAnchors.length > 50) _backAnchors.removeAt(0);
-    _canGoBack.value = true;
+    if (anchor == null || anchor == destination) return;
+    _push(_backAnchors, anchor);
+    _forwardAnchors.clear();
+    _publishHistory();
   }
 
   /// נקודת חזרה אחת בתחילת גרירת פס גלילה או לחיצה על המסילה.
@@ -134,11 +148,18 @@ class LineScrollController {
     }
   }
 
-  Future<void> goBack() {
-    if (_backAnchors.isEmpty) return Future<void>.value();
-    final anchor = _backAnchors.removeLast();
-    _canGoBack.value = _backAnchors.isNotEmpty;
-    return _navigate(_Target.anchor(anchor));
+  Future<void> goBack() => _travel(_backAnchors, _forwardAnchors);
+
+  Future<void> goForward() => _travel(_forwardAnchors, _backAnchors);
+
+  /// עובר ליעד האחרון ב-[from] ושומר את המיקום הנוכחי ב-[to], לחזרה בכיוון ההפוך.
+  Future<void> _travel(List<ReadingAnchor> from, List<ReadingAnchor> to) {
+    if (from.isEmpty) return Future<void>.value();
+    final current = captureAnchor();
+    final target = from.removeLast();
+    if (current != null && current != target) _push(to, current);
+    _publishHistory();
+    return _navigate(_Target.anchor(target));
   }
 
   ReadingViewportBinding? _binding;
@@ -410,9 +431,8 @@ class LineScrollController {
   }
 
   Future<void> _run(_Target target) async {
-    final binding = _binding;
     final segments = _segments;
-    if (binding == null || segments == null || segments.isEmpty) return;
+    if (segments == null || segments.isEmpty) return;
     final token = ++_token;
     _navigating++;
     _activeTarget = target;
@@ -423,7 +443,6 @@ class LineScrollController {
         segments: segments,
         latestSegments: () => _segments ?? segments,
         lineIndex: target.line,
-        viewportExtent: binding.viewportExtent(),
         alignment: target.alignment,
         intraLineFraction: target.intraLineFraction,
         duration: target.duration,
@@ -635,7 +654,7 @@ class LineScrollController {
     _forgetMeasured();
     positionsListener.itemPositions.removeListener(_onItemPositions);
     _navigationEpoch.dispose();
-    _canGoBack.dispose();
+    _history.dispose();
     _position.dispose();
   }
 }

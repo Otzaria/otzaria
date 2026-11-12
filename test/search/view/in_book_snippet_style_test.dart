@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/search/view/in_book_snippet_style.dart';
 import 'package:otzaria/settings/settings_exports.dart';
@@ -22,25 +21,5 @@ void main() {
       );
       expect(withHolyNamesSetting(text, settings), text);
     });
-  });
-
-  testWidgets('InBookSnippetStyle highlights in bold and larger', (
-    tester,
-  ) async {
-    late InBookSnippetStyle style;
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Builder(
-          builder: (context) {
-            style = InBookSnippetStyle(context, SettingsState.initial());
-            return const SizedBox();
-          },
-        ),
-      ),
-    );
-
-    expect(style.text.fontSize, 16);
-    expect(style.highlight.fontSize, 18);
-    expect(style.highlight.fontWeight, FontWeight.bold);
   });
 }

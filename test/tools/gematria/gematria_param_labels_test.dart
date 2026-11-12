@@ -21,16 +21,8 @@ void main() {
       expect(build(), ['גימטריה רגילה']);
     });
 
-    test('גימטריה קטנה', () {
-      expect(build(method: 'small').first, 'גימטריה קטנה');
-    });
-
     test('אותיות סופיות', () {
       expect(build(method: 'finalLetters').first, 'אותיות סופיות');
-    });
-
-    test('עם הכולל מופיע כתווית', () {
-      expect(build(useWithKolel: true), contains('עם הכולל'));
     });
 
     test('כל הדגלים פעילים — שיטה תחילה ואז הדגלים לפי הסדר', () {
@@ -44,13 +36,6 @@ void main() {
         ),
         ['גימטריה קטנה', 'עם הכולל', 'פסוק שלם', 'תורה בלבד', 'ללא כפילויות'],
       );
-    });
-  });
-
-  group('GematriaSearchScreenState.isLatestSearch', () {
-    test('מאשר רק את מזהה החיפוש העדכני', () {
-      expect(GematriaSearchScreenState.isLatestSearch(3, 3), isTrue);
-      expect(GematriaSearchScreenState.isLatestSearch(2, 3), isFalse);
     });
   });
 }

@@ -502,23 +502,9 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
     String? currentTopLevelName = _selectedTopLevelName;
 
     if (currentCategoryObject == null && currentCategoryName == null) {
-      // Construct 'All Books' category (same logic as Sidebar)
-      final allCategories = dataProvider.allBookData;
-      // Use natural order from DataProvider (already sorted by orderIndex from DB)
-      final sortedKeys = allCategories.keys.toList();
-
       currentCategoryName = 'כל הספרים';
       currentTopLevelName = 'all_books_virtual';
-      currentCategoryObject = BookCategory(
-        name: 'כל הספרים',
-        books: {},
-        subcategories: sortedKeys.map((key) => allCategories[key]!).toList(),
-        isCustom: false,
-        sourceFile: 'virtual',
-        schemaVersion: 1,
-        contentType: 'text',
-        defaultStartPage: 1,
-      );
+      currentCategoryObject = dataProvider.allBooksCategory;
     }
 
     return NavSidePanel(

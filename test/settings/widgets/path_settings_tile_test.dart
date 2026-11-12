@@ -40,7 +40,7 @@ void main() {
   const title = 'תיקיית בדיקה';
   const placeholder = 'לא נבחר מיקום';
 
-  group('PathSettingsTile — simpleButtonWhenEmpty=true (ברירת מחדל)', () {
+  group('SettingsPathTile — simpleButtonWhenEmpty=true (ברירת מחדל)', () {
     testWidgets(
       'כשהנתיב ריק מוצג כפתור "הגדר מיקום" בלבד',
       (tester) async {
@@ -110,7 +110,7 @@ void main() {
     );
   });
 
-  group('PathSettingsTile — simpleButtonWhenEmpty=false', () {
+  group('SettingsPathTile — simpleButtonWhenEmpty=false', () {
     testWidgets(
       'כשהנתיב ריק עדיין מוצג "אפשרויות מיקום" (לא "הגדר מיקום")',
       (tester) async {
@@ -135,7 +135,7 @@ void main() {
     );
   });
 
-  group('PathSettingsTile — clearPathEnabled', () {
+  group('SettingsPathTile — clearPathEnabled', () {
     testWidgets(
       'כשclearPathEnabled=false ו-onClearPath מוגדר מוצג placeholder הנתיב',
       (tester) async {
@@ -185,7 +185,7 @@ void main() {
     );
   });
 
-  group('PathSettingsTile — תצוגת נתיב', () {
+  group('SettingsPathTile — תצוגת נתיב', () {
     testWidgets(
       'כשיש נתיב מוצג הנתיב בתור subtitle',
       (tester) async {
@@ -232,7 +232,7 @@ void main() {
     );
   });
 
-  group('PathSettingsTile — pathTargets תת-תפריט', () {
+  group('SettingsPathTile — pathTargets תת-תפריט', () {
     testWidgets(
       '"פתח תיקייה..." פותח תת-תפריט של יעדים וקורא ל-onOpenPath',
       (tester) async {
@@ -343,7 +343,7 @@ void main() {
     );
   });
 
-  group('PathSettingsTile — requestChangeLocation', () {
+  group('SettingsPathTile — requestChangeLocation', () {
     testWidgets(
       'לחיצה על "שינוי מיקום..." בתפריט קוראת ל-requestChangeLocation',
       (tester) async {

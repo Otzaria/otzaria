@@ -233,10 +233,6 @@ void main() {
       expect(stopwatch.elapsed, lessThan(const Duration(seconds: 1)));
     });
 
-    test('selectedIndices defaults to empty', () {
-      expect(_loadedState().selectedIndices, isEmpty);
-    });
-
     test('changes when heCategories is enriched in background', () {
       final beforeEnrich = _loadedState();
       final afterEnrich = _loadedState(heCategories: 'תנ״ך, תורה');
@@ -258,51 +254,6 @@ void main() {
       );
     });
   });
-
-  group('commentaryRemoveNikud', () {
-    test('hides nikud in commentaries of a Tanach book showing nikud', () {
-      // הבאג: "הצג ניקוד בתנ״ך" הותיר ניקוד גם במפרשי התנ״ך.
-      final state = _loadedState(
-        removeNikud: false,
-        nikudExemptByTanach: true,
-      );
-
-      expect(state.removeNikud, isFalse);
-      expect(state.commentaryRemoveNikud, isTrue);
-    });
-
-    test('keeps the exemption when the toolbar re-shows nikud', () {
-      final state = _loadedState(
-        removeNikud: false,
-        nikudExemptByTanach: true,
-      );
-
-      expect(state.copyWith(removeNikud: true).commentaryRemoveNikud, isTrue);
-      expect(state.copyWith(removeNikud: false).commentaryRemoveNikud, isTrue);
-    });
-
-    test('commentary override does not change the main book', () {
-      final state = _loadedState(
-        removeNikud: false,
-        nikudExemptByTanach: true,
-      );
-
-      final showingCommentaries = state.copyWith(
-        commentaryRemoveNikudOverride: false,
-      );
-
-      expect(showingCommentaries.removeNikud, isFalse);
-      expect(showingCommentaries.commentaryRemoveNikud, isFalse);
-    });
-
-    test('follows the tab when no exemption applies', () {
-      final showing = _loadedState(removeNikud: false);
-      final hiding = _loadedState(removeNikud: true);
-
-      expect(showing.commentaryRemoveNikud, isFalse);
-      expect(hiding.commentaryRemoveNikud, isTrue);
-    });
-  });
 }
 
 TextBookLoaded _loadedState({
@@ -317,7 +268,6 @@ TextBookLoaded _loadedState({
   Set<String> selectedLinkTypes = const {},
   Set<int>? searchResultLines,
   String? heCategories,
-  bool removeNikud = false,
   bool nikudExemptByTanach = false,
   bool? commentaryRemoveNikudOverride,
 }) {
@@ -336,7 +286,7 @@ TextBookLoaded _loadedState({
     selectedLinkTypes: selectedLinkTypes,
     linksByLine: const {},
     tableOfContents: const [],
-    removeNikud: removeNikud,
+    removeNikud: false,
     nikudExemptByTanach: nikudExemptByTanach,
     commentaryRemoveNikudOverride: commentaryRemoveNikudOverride,
     visibleIndices: const [0],

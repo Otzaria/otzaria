@@ -102,6 +102,18 @@ void main() {
   group('מסכי הספרייה, החיפוש והכלים (issue #1101)', () {
     // התיאור של כפתור עדכון הספרייה נבנה ב-libraryUpdateButtonTooltip ונמסר
     // ל-settingsText דרך משתנה; ענפים דינמיים (state.message) נשארים עברית.
+    // historyTooltip מוסר את הנוסח ל-settingsText דרך משתנה.
+    test('תיאורי כפתורי חזרה וקדימה בקורא', () {
+      for (final tooltip in [
+        'חזרה למיקום הקודם',
+        'חזרה אל {place}',
+        'מעבר קדימה',
+        'מעבר קדימה אל {place}',
+      ]) {
+        expect(catalog, contains(tooltip), reason: tooltip);
+      }
+    });
+
     test('תיאורי כפתור עדכון הספרייה', () {
       for (final tooltip in [
         'העדכון הושלם',

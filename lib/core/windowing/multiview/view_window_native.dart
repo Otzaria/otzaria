@@ -212,10 +212,9 @@ class Win32ViewWindowNative implements ViewWindowNative {
   Future<void> installViewHooks(int hwnd) async {
     if (!Platform.isWindows) return;
     try {
-      final installed = await _channel.invokeMethod<bool>(
-        'installViewHooks',
-        {'hwnd': hwnd},
-      );
+      final installed = await _channel.invokeMethod<bool>('installViewHooks', {
+        'hwnd': hwnd,
+      });
       if (installed != true) debugPrint('installViewHooks: not installed');
     } catch (e) {
       // החלון עובד גם בלי התיקונים; רק מגע ו-Shift תקוע חוזרים.

@@ -17,7 +17,6 @@ import 'package:path/path.dart' as p;
 import 'package:otzaria/core/messages/plugin_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/plugins/services/plugin_fonts.dart';
-import 'package:otzaria/plugins/services/plugin_font_bootstrap.dart';
 import 'package:otzaria/plugins/services/plugin_page_launcher.dart';
 import 'package:otzaria/plugins/services/plugin_process_recovery.dart';
 import 'package:otzaria/plugins/services/plugin_restore_state_store.dart';
@@ -263,7 +262,7 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
     final dispatcher = PluginRuntimeDispatcher.instance;
     // דף שמחליף דף חי של אותו מופע (עדכון התוסף) הוא טעינה חוזרת, לא חדשה.
     _bootedOnce =
-        dispatcher.controllerOf(pluginId, instanceId: instanceId) != null;
+        dispatcher.runtimeOf(pluginId, instanceId: instanceId) != null;
     initPluginHost(
       onReload: _reloadFromDisk,
       readerTab: widget.readerTab,
@@ -713,9 +712,6 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
         mounted &&
         identical(_webViewKey, webViewKey) &&
         identical(_crashGuardOwner, crashGuardOwner);
-    bool currentFontLoad(InAppWebViewController controller) =>
-        currentAttempt() &&
-        (!pluginMacFontSchemeEnabled || isCurrentWebView(controller));
 
     if (_creationWatchdog == null && webViewController == null) {
       _creationWatchdog = Timer(const Duration(seconds: 20), () {
@@ -740,9 +736,6 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
             url: request.url,
             pluginId: widget.plugin.pluginId,
             rootPath: widget.plugin.resolvedRootPath,
-            fontLease: currentAttempt() && isCurrentWebView(controller)
-                ? pluginFontSchemeLease
-                : null,
             contentSecurityPolicy: await pluginContentSecurityPolicy(),
           ),
       initialSettings: buildPluginTabWebViewSettings(
@@ -759,11 +752,6 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
           source: pluginSdkStubScript,
           injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
         ),
-        if (pluginMacFontSchemeEnabled)
-          UserScript(
-            source: pluginFontDocumentMarkerJs,
-            injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
-          ),
         buildPluginDropGuardScript(),
         buildPluginWebRtcBlockScript(),
         buildPluginLinkifyScript(auto: widget.plugin.manifest.autoLinkify),
@@ -822,18 +810,14 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
       shouldInterceptRequest: (controller, request) =>
           interceptPluginRequest(request),
       onLoadStart: (controller, url) {
-        if (currentFontLoad(controller)) {
-          _loadGeneration.invalidate();
-          releasePluginFontDocument(controller);
-        }
+        if (currentAttempt()) _loadGeneration.invalidate();
       },
       onLoadStop: (controller, url) async {
-        if (!currentFontLoad(controller)) return;
+        if (!currentAttempt()) return;
         final viewId = View.of(context).viewId;
         final generation = _loadGeneration.begin();
         bool stale() =>
-            !currentFontLoad(controller) ||
-            !_loadGeneration.isCurrent(generation);
+            !currentAttempt() || !_loadGeneration.isCurrent(generation);
         // טעינה מחדש של הדף מאפסת את מצב ה-JS, ואיתו את הדגל שהוא הרים.
         PluginUnsavedChangesRegistry.instance.removeInstance((
           pluginId: widget.plugin.pluginId,
@@ -847,10 +831,7 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
           // לוכד theme לפני ה-await (context חייב להישמר synchronously)
           final theme = buildThemePayload(context);
 
-          final fontLease = beginPluginFontDocument(controller, url);
-          final fontFaceCss = fontLease == null
-              ? await buildPluginFontFaceCss()
-              : null;
+          final fontFaceCss = await buildPluginFontFaceCss();
           if (stale()) return;
 
           // Use cached PackageInfo — avoids async gap crossing a dispose
@@ -861,26 +842,12 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
           final permissions = await pluginRegistryRepository
               .getGrantedPermissionNames(widget.plugin.pluginId);
           if (stale()) return;
-          PluginFontBootstrapResult? fontPreparation;
-          String? fallbackCss;
-          if (fontLease != null) {
-            fontPreparation = await preparePluginFontExperiment(
-              controller,
-              lease: fontLease,
-              theme: theme,
-              isCurrent: () =>
-                  !stale() && identical(pluginFontSchemeLease, fontLease),
-            );
-            if (!fontPreparation.ready && !stale()) {
-              debugPrint(
-                'Plugin [${widget.plugin.pluginId}] font experiment: '
-                '${fontPreparation.outcome['reason']}',
-              );
-            }
-          } else {
+          String? fallbackCss = fontFaceCss;
+          if (pluginFontsFromFileServer) {
+            // תוסף עשוי למדוד טקסט ב-plugin.ready, ולכן מחכים לגופנים לפני ה-boot.
             final fontsInstalled = await installPluginFonts(
               controller,
-              css: fontFaceCss!,
+              css: fontFaceCss,
               targets: pluginFontLoadTargets(theme),
             );
             if (stale()) return;
@@ -907,14 +874,9 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
                 ? null
                 : pluginFontFaceJson(fallbackCss),
           );
-          final booted = fontPreparation == null
-              ? await controller.evaluateJavascript(source: bootSource)
-              : (await fontPreparation.evaluateBoot(
-                  controller,
-                  source: bootSource,
-                  isCurrent: () =>
-                      !stale() && identical(pluginFontSchemeLease, fontLease),
-                )).eventOptions;
+          final booted = await controller.evaluateJavascript(
+            source: bootSource,
+          );
           if (stale()) return;
           await adapter.applyBootEventOptions(
             booted,

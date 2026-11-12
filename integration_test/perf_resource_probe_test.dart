@@ -33,6 +33,7 @@ import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
+import 'package:otzaria/plugins/services/plugin_webview_runtime.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
@@ -45,6 +46,7 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/work_status/work_status_cubit.dart';
 import 'package:otzaria/work_status/work_status_item.dart';
 import 'package:path/path.dart' as p;
+import 'package:positioned_sliver_list/positioned_list.dart';
 
 import 'support/perf_fixture.dart';
 import 'support/perf_recorder.dart';
@@ -404,8 +406,16 @@ class _Scenario {
       });
       final tab = tabs.state.currentTab as TextBookTab;
       await phase('book.$kind.scroll', () async {
+        // Wide layouts make the main window's page switcher vertical too.
         final scrollable = find.descendant(
-          of: find.byType(App),
+          of: find.byWidgetPredicate(
+            (widget) =>
+                widget is ScrollablePositionedList &&
+                identical(
+                  widget.itemScrollController,
+                  tab.lines.itemController,
+                ),
+          ),
           matching: find.byType(Scrollable),
         );
         final candidates = tester
@@ -663,7 +673,11 @@ class _Scenario {
     await phase('notes.caret', () async {
       for (var i = 0; i < 12; i++) {
         final before = controller.selection;
-        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+        // Profile builds strip debugName, which the default physical-key lookup needs.
+        await tester.sendKeyEvent(
+          LogicalKeyboardKey.arrowRight,
+          physicalKey: PhysicalKeyboardKey.arrowRight,
+        );
         await tester.pump();
         if (controller.selection == before) {
           throw StateError('The caret did not move.');

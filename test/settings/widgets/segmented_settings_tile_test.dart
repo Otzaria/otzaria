@@ -8,7 +8,7 @@ import 'package:otzaria/widgets/controls/segmented_control.dart';
 
 void main() {
   testWidgets(
-    'SegmentedSettingsTile remains stable on narrow width',
+    'SettingsSegmentedTile remains stable on narrow width',
     (tester) async {
       String currentValue = 'closed';
 
@@ -51,7 +51,7 @@ void main() {
   );
 
   testWidgets(
-    'SegmentedSettingsTile supports keyboard selection in RTL',
+    'SettingsSegmentedTile supports keyboard selection in RTL',
     (tester) async {
       String currentValue = 'closed';
 
@@ -80,7 +80,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // מאתר את ה-FocusNode הפנימי של _SegmentedTile לפי debugLabel
+      // מאתר את ה-FocusNode הפנימי של SettingsSegmentedTile לפי debugLabel
       final focusNode = tester
           .widgetList<Focus>(find.byType(Focus))
           .firstWhere((w) => w.focusNode?.debugLabel == 'segmented_tile')
@@ -128,7 +128,7 @@ void main() {
   });
 
   testWidgets(
-    'SegmentedSettingsTile labels keep their size across selections',
+    'SettingsSegmentedTile labels keep their size across selections',
     (
       tester,
     ) async {
@@ -166,7 +166,7 @@ void main() {
   );
 
   testWidgets(
-    'SegmentedSettingsTile wraps long labels instead of cutting them',
+    'SettingsSegmentedTile wraps long labels instead of cutting them',
     (
       tester,
     ) async {

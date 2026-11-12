@@ -146,6 +146,11 @@ class SearchRepository {
     }
   }
 
+  /// חיפוש חכם בסדר הספר, בלי חיתוך לפי דירוג סמנטי.
+  Future<List<SearchResult>> searchSmartLexical(
+    SearchEngineRequest request,
+  ) async => (await _engine()).searchSmartLexical(request);
+
   /// Performs a combined search + count in a single engine pass.
   /// Returns total hit count alongside paged results, without streaming.
   /// Prefer this over separate search() + count() calls when streaming is not needed.

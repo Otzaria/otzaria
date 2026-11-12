@@ -56,10 +56,7 @@ String _selectedLinkBookKey(Link link) =>
     '${link.targetSource.wireKey}_${link.targetCategoryId ?? ''}_${link.targetBookId ?? ''}';
 
 @visibleForTesting
-String buildSelectedLinkContentKey(Link link) {
-  final target = _selectedLinkBookKey(link);
-  return '${link.path2}_${link.index2}_$target';
-}
+String buildSelectedLinkContentKey(Link link) => link.contentIdentityKey;
 
 @visibleForTesting
 String buildSelectedLinkInstanceKey(Link link) {
@@ -90,11 +87,16 @@ String buildSelectedLinksSearchKey({
   required List<Link> links,
   Set<String> selectedLinkTypes = const {},
 }) {
-  final linksSignature = links.map(buildSelectedLinkInstanceKey).join('|');
+  // רשימה אינה משתנה אחרי שנבנתה, ולכן הקלדה אינה גוזרת שוב את מפתחות כולה.
+  final linksSignature = _linksSignatures[links] ??= links
+      .map(buildSelectedLinkInstanceKey)
+      .join('|');
   // סדר יציב — Set.toString() אינו מבטיח סדר, ומפתח מתחלף היה מרענן לשווא.
   final typesSignature = (selectedLinkTypes.toList()..sort()).join(',');
   return '${searchQuery}_$searchInContent|$typesSignature|$linksSignature';
 }
+
+final _linksSignatures = Expando<String>('linksSignature');
 
 /// מפתחות צ׳יפי הסינון של [links], בסדר התצוגה. סוג בעל תווית משמעותית מקבל
 /// צ׳יפ משלו; שאר הסוגים ([LinkTypes.eraGroupedTypes]) מקובצים לפי דור ספר
@@ -273,6 +275,9 @@ class _LinksListViewState extends State<LinksListView> {
   String _searchQuery = '';
   final Map<String, Future<String>> _contentCache = {};
   final Set<String> _failedContentKeys = {};
+  // תוצאת ה-Future שב-_contentCache, ולא link.loadedContent: המטמון הזה אינו
+  // מתנקה ברענון מסד.
+  final Map<String, String> _loadedContent = {};
   final Map<String, bool> _expanded = {};
   bool _searchInContent = false;
   Future<List<Link>>? _filteredLinksFuture;
@@ -280,6 +285,11 @@ class _LinksListViewState extends State<LinksListView> {
   Object? _lastSearchInputs;
   List<Link>? _dedupedSource;
   List<Link> _dedupedLinks = const [];
+  List<Link>? _sortedSource;
+  int _sortedEraVersion = -1;
+  List<Link> _sortedLinks = const [];
+  List<Link>? _searchTextsSource;
+  List<(String, String)> _searchTexts = const [];
   final Set<String> _linksWithSearchResults = {}; // קישורים עם תוצאות חיפוש
   String? _savedSelectedText; // טקסט נבחר לתפריט הקשר
   bool _anchorHandledTap = false;
@@ -603,6 +613,9 @@ class _LinksListViewState extends State<LinksListView> {
           itemCount: filteredLinks.length,
           child: ScrollablePositionedList.builder(
             itemScrollController: _itemScrollController,
+            // נבנית מחדש בכל קטע ואין בה scrollTo, ולכן די בחצי מסך. רשימות הקריאה
+            // צריכות יותר, כדי ש-scrollTo ליעד קרוב יגיע בגלילה חלקה.
+            cacheExtentScreens: 0.5,
             itemCount: filteredLinks.length,
             itemBuilder: (context, index) {
               final link = filteredLinks[index];
@@ -622,25 +635,59 @@ class _LinksListViewState extends State<LinksListView> {
     );
   }
 
+  /// סדר הדורות אינו תלוי בשאילתה: ממיינים פעם אחת לרשימה ולא בכל הקשה.
+  Future<List<Link>> _sortedByEra(List<Link> links) async {
+    if (links.length <= 1) return links;
+    final eraVersion = CommentaryService.eraCacheVersion;
+    if (identical(links, _sortedSource) && eraVersion == _sortedEraVersion) {
+      return _sortedLinks;
+    }
+    await CommentaryService.preloadErasForLinks(links);
+    // מיון ללא דורות הוא זמני. בלי await בין המיון לבדיקה, שניהם רואים
+    // אותו מטמון גם כשפאנל אחר משלים טעינת דורות במקביל.
+    final sorted = CommentaryService.sortLinksByEraSync(links);
+    if (eraVersion == CommentaryService.eraCacheVersion &&
+        CommentaryService.hasCachedErasForLinks(links)) {
+      _sortedSource = links;
+      _sortedEraVersion = eraVersion;
+      _sortedLinks = sorted;
+    }
+    return sorted;
+  }
+
+  /// הכותרת ושם הספר של כל קישור, מוקטנים — פעם אחת לרשימה ממוינת.
+  List<(String, String)> _searchTextsFor(List<Link> sortedLinks) {
+    if (!identical(sortedLinks, _searchTextsSource)) {
+      _searchTextsSource = sortedLinks;
+      _searchTexts = [
+        for (final link in sortedLinks)
+          (
+            link.heRef.toLowerCase(),
+            utils.getTitleFromPath(link.path2).toLowerCase(),
+          ),
+      ];
+    }
+    return _searchTexts;
+  }
+
   // פונקציה אסינכרונית לסינון הקישורים עם חיפוש בתוכן
   Future<List<Link>> _filterLinksAsync(List<Link> links) async {
     _linksWithSearchResults.clear(); // איפוס רשימת הקישורים עם תוצאות
 
     // מיון הקישורים לפי סדר הדורות (כמו במפרשים)
-    final sortedLinks = await CommentaryService.sortLinksByEra(links);
+    final sortedLinks = await _sortedByEra(links);
 
     if (_searchQuery.isEmpty) {
       return sortedLinks;
     }
 
     final query = _searchQuery.toLowerCase();
+    final searchTexts = _searchTextsFor(sortedLinks);
     final filteredLinks = <Link>[];
 
-    for (final link in sortedLinks) {
-      final instanceKey = buildSelectedLinkInstanceKey(link);
-      final contentKey = buildSelectedLinkContentKey(link);
-      final title = link.heRef.toLowerCase();
-      final bookTitle = utils.getTitleFromPath(link.path2).toLowerCase();
+    for (var i = 0; i < sortedLinks.length; i++) {
+      final link = sortedLinks[i];
+      final (title, bookTitle) = searchTexts[i];
 
       // חיפוש בכותרת ושם הספר
       if (title.contains(query) || bookTitle.contains(query)) {
@@ -667,9 +714,10 @@ class _LinksListViewState extends State<LinksListView> {
           partialWordMatch: true,
         );
         if (matches > 0) {
+          final instanceKey = buildSelectedLinkInstanceKey(link);
           filteredLinks.add(link);
           _linksWithSearchResults.add(instanceKey); // מסמן שיש תוצאות בתוכן
-          _cacheLinkContent(contentKey, link);
+          _cacheLinkContent(buildSelectedLinkContentKey(link), link);
 
           // פותח אוטומטית את הקישור הראשון עם תוצאות
           if (_linksWithSearchResults.length == 1) {
@@ -823,6 +871,9 @@ class _LinksListViewState extends State<LinksListView> {
             ),
             child: AppFutureBuilder<String>(
               future: _contentCache[contentKey],
+              // קישור פתוח שנבנה מחדש בגלילה: שלד טעינה מקצר אותו לפריים אחד,
+              // והגדילה אחריו דוחפת את הרשימה.
+              initialData: _loadedContent[contentKey],
               builder: (context, content) => _buildLinkContent(content, link),
               errorBuilder: (context, error) =>
                   BlocBuilder<SettingsBloc, SettingsState>(
@@ -845,6 +896,7 @@ class _LinksListViewState extends State<LinksListView> {
   void _cacheLinkContent(String key, Link link) {
     final pending = link.content;
     _failedContentKeys.remove(key);
+    _loadedContent.remove(key);
     _contentCache[key] = pending;
     void failed() {
       if (identical(_contentCache[key], pending)) _failedContentKeys.add(key);
@@ -852,6 +904,7 @@ class _LinksListViewState extends State<LinksListView> {
 
     // פינוי מיידי היה מציג future=null אם הכשל הקדים את פריים ההרחבה.
     pending.then<void>((value) {
+      if (identical(_contentCache[key], pending)) _loadedContent[key] = value;
       if (value.startsWith('שגיאה')) failed();
     }, onError: (Object _) => failed());
   }

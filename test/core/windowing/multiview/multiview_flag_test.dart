@@ -50,13 +50,6 @@ void main() {
     );
   });
 
-  test('debugOverride גובר על מצב הבעלים', () {
-    MultiViewMode.debugOverride = true;
-    expect(MultiViewMode.enabled, isTrue);
-    MultiViewMode.debugOverride = false;
-    expect(MultiViewMode.enabled, isFalse);
-  });
-
   test('nativeHandle: בקר שאינו נייטיב או חלון שנהרס מחזירים null', () {
     final view =
         TestWidgetsFlutterBinding.instance.platformDispatcher.views.first;

@@ -34,6 +34,8 @@ class _Repository extends DataRepository {
   int searches = 0;
   int superseded = 0;
   Completer<void>? searchGate;
+  Completer<void>? staleFailureGate;
+  String? staleFailureQuery;
 
   @override
   Future<({List<Book> books, List<Category> categories})>
@@ -50,6 +52,10 @@ class _Repository extends DataRepository {
     Object? supersedeKey,
   }) async {
     searches++;
+    if (query == staleFailureQuery) {
+      await staleFailureGate!.future;
+      throw StateError('Delayed failure from a superseded search');
+    }
     final ({List<Book> books, List<Category> categories}) found;
     try {
       found = await super.findBooksAndCategories(
@@ -129,6 +135,8 @@ void main() {
   tearDown(() async {
     final gate = repo.searchGate;
     if (gate != null && !gate.isCompleted) gate.complete();
+    final stale = repo.staleFailureGate;
+    if (stale != null && !stale.isCompleted) stale.complete();
     await bloc.close();
     repo.bookSearchWorkerForTesting.dispose();
     TantivyDataProvider.instance = previous;
@@ -141,6 +149,101 @@ void main() {
     await done;
     expect(bloc.state.searchResults, isNull);
   }
+
+  test('failure from an older search does not replace newer results', () async {
+    final failure = repo.staleFailureGate = Completer<void>();
+    repo.staleFailureQuery = 'חיפוש ישן';
+
+    final oldStarted = bloc.stream.firstWhere(
+      (state) => state.searchQuery == 'חיפוש ישן' && state.isSearching,
+    );
+    bloc.add(const UpdateSearchQuery('חיפוש ישן'));
+    bloc.add(const SearchBooks(showLocalHebrewBooks: false));
+    await oldStarted;
+
+    final newFinished = bloc.stream.firstWhere(
+      (state) =>
+          state.searchQuery == 'מבחן ב' &&
+          !state.isSearching &&
+          state.searchResults != null,
+    );
+    bloc.add(const UpdateSearchQuery('מבחן ב'));
+    bloc.add(const SearchBooks(showLocalHebrewBooks: false));
+    await newFinished;
+
+    failure.complete();
+    // Let the older future resume and its catch handler run.
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(bloc.state.error, isNull);
+    expect(bloc.state.searchQuery, 'מבחן ב');
+    expect(bloc.state.searchResults!.first.title, 'מבחן ב ספר');
+    expect(bloc.state.isSearching, isFalse);
+  });
+
+  test('stale failure after editing query keeps search results', () async {
+    final previousResults = bloc.state.searchResults;
+    final previousCategories = bloc.state.searchCategoryResults;
+    final previousPreview = bloc.state.previewBook;
+    expect(previousResults, isNotNull);
+    expect(previousCategories, isNotNull);
+
+    final failure = repo.staleFailureGate = Completer<void>();
+    repo.staleFailureQuery = 'חיפוש ישן';
+
+    final started = bloc.stream.firstWhere(
+      (state) => state.searchQuery == 'חיפוש ישן' && state.isSearching,
+    );
+    bloc.add(const UpdateSearchQuery('חיפוש ישן'));
+    bloc.add(const SearchBooks(showLocalHebrewBooks: false));
+    await started.timeout(const Duration(seconds: 2));
+
+    final edited = bloc.stream.firstWhere(
+      (state) => state.searchQuery == 'שאילתה חדשה' && state.isSearching,
+    );
+    bloc.add(const UpdateSearchQuery('שאילתה חדשה'));
+    await edited.timeout(const Duration(seconds: 2));
+    expect(repo.searches, 2);
+
+    final stopped = bloc.stream.firstWhere(
+      (state) => state.searchQuery == 'שאילתה חדשה' && !state.isSearching,
+    );
+    failure.complete();
+    final state = await stopped.timeout(const Duration(seconds: 2));
+
+    expect(state.error, isNull);
+    expect(state.searchQuery, 'שאילתה חדשה');
+    expect(state.searchResults, same(previousResults));
+    expect(state.searchCategoryResults, same(previousCategories));
+    expect(state.previewBook, same(previousPreview));
+    expect(repo.searches, 2);
+  });
+
+  test('failure from the current search still reports an error', () async {
+    final failure = repo.staleFailureGate = Completer<void>();
+    repo.staleFailureQuery = 'חיפוש נכשל';
+
+    final started = bloc.stream.firstWhere(
+      (state) => state.searchQuery == 'חיפוש נכשל' && state.isSearching,
+    );
+    bloc.add(const UpdateSearchQuery('חיפוש נכשל'));
+    bloc.add(const SearchBooks(showLocalHebrewBooks: false));
+    await started.timeout(const Duration(seconds: 2));
+
+    final failed = bloc.stream.firstWhere(
+      (state) =>
+          state.searchQuery == 'חיפוש נכשל' &&
+          !state.isSearching &&
+          state.error != null,
+    );
+    failure.complete();
+    final state = await failed.timeout(const Duration(seconds: 2));
+
+    expect(state.searchQuery, 'חיפוש נכשל');
+    expect(state.error, isNotNull);
+    expect(state.searchResults, isNull);
+    expect(state.searchCategoryResults, isNull);
+  });
 
   test('איתור שהוחלף באיתור חדש אינו מציג שגיאה', () async {
     final states = <LibraryState>[];

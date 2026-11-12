@@ -288,6 +288,7 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
   final _fieldKey = GlobalKey();
   late FocusNode _effectiveFocusNode;
   bool _hasFocus = false;
+  bool _textOverflows = false;
 
   bool _resolveSlim(BuildContext context) {
     if (widget.slim != null) return widget.slim!;
@@ -356,6 +357,22 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
 
   void _onExtraActionsChanged() {
     if (mounted) setState(() {});
+  }
+
+  /// גלילה אופקית בשדה פירושה שהטקסט ארוך מהשדה ונחתך בתצוגה.
+  bool _onFieldScrollMetrics(ScrollMetricsNotification notification) {
+    final metrics = notification.metrics;
+    if (metrics.axis != Axis.horizontal) return false;
+    final overflows = metrics.maxScrollExtent > 0;
+    if (overflows != _textOverflows) {
+      _textOverflows = overflows;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+      // מדדי גלילה מגיעים גם אחרי frame; ה-callback לבדו לא מזמין frame חדש.
+      WidgetsBinding.instance.ensureVisualUpdate();
+    }
+    return false;
   }
 
   // ── מצב compact (אייקון עגול) ────────────────────────────────────────────
@@ -552,6 +569,14 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
         ),
       ),
     );
+    field = NotificationListener<ScrollMetricsNotification>(
+      onNotification: _onFieldScrollMetrics,
+      child: field,
+    );
+    // בעריכה הטקסט גלוי בגלילה; הטולטיפ היה מכסה את התוצאות שמתחת לשדה.
+    if (_textOverflows && !_hasFocus && hasText) {
+      field = Tooltip(message: widget.controller.text, child: field);
+    }
     if (belowActions.isNotEmpty) {
       field = Column(
         mainAxisSize: MainAxisSize.min,

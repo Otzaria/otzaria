@@ -10,7 +10,6 @@ import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/alt_toc_sidebar_view.dart';
 import 'package:otzaria/user_content_import/repository/user_content_repository.dart';
@@ -19,17 +18,8 @@ import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria/widgets/misc/expanding_chevron.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../test_helpers/stub_text_book_bloc.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
-
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
 
 const _title = 'ספר אישי';
 const _filePath = '/books/ספר אישי.txt';
@@ -99,7 +89,7 @@ void main() {
       filePath: _filePath,
       source: BookSource.user,
     );
-    final bloc = _TestTextBookBloc(
+    final bloc = StubTextBookBloc(
       TextBookLoaded(
         book: book,
         showLeftPane: true,

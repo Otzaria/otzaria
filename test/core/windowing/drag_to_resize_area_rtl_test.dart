@@ -18,15 +18,14 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   // #3187: physical screen edges must remain stable under RTL.
-  testWidgets('resizing still targets physical edges under RTL', (tester) async {
+  testWidgets('resizing still targets physical edges under RTL', (
+    tester,
+  ) async {
     final window = _TrackingWindow();
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.rtl,
-        child: DragToResizeArea(
-          window: window,
-          child: const SizedBox.expand(),
-        ),
+        child: DragToResizeArea(window: window, child: const SizedBox.expand()),
       ),
     );
     final size = tester.view.physicalSize / tester.view.devicePixelRatio;

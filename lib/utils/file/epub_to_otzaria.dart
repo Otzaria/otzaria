@@ -18,10 +18,8 @@ import 'package:otzaria/utils/file/text_encoding.dart'
     show decodeTextBytesSmart;
 import 'package:otzaria/utils/file/toc_parser.dart' show kTocExcludeAttr;
 
-/// גרסת הממיר [epubToText] — **חובה להעלות בכל שינוי שמשפיע על הפלט**:
-/// מטמון התוכן כולל את הגרסה במפתח-התוקף, והעלאה פוסלת רשומות ישנות.
-/// v15: חבילה שאינה קריאה זורקת חריגה מוקלדת במקום להחזיר כותרת בלבד.
-const int kEpubConverterVersion = 16;
+/// גרסת הממיר [epubToText]. יש להעלות אותה בכל שינוי בפלט כדי לפסול מטמון ישן.
+const int kEpubConverterVersion = 17;
 
 /// ממיר קובץ EPUB לפורמט הטקסט של אוצריא: שורת `<h1>` עם שם הספר, ואחריה
 /// שורה לכל בלוק (פסקה/כותרת/טבלה/תמונה) לפי סדר פרקי ה-spine.
