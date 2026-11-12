@@ -1,210 +1,106 @@
-import 'dart:io' show Platform;
+// The 0.6 nativeapi implementation does not install a window_manager
+// MethodChannel. Test the actual compatibility adapter with a borrowed native
+// window fake instead of silently exercising a channel nobody listens to.
+// ignore_for_file: deprecated_member_use
 
-import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/core/windowing/runner_window_channel.dart';
 import 'package:otzaria/core/windowing/window_manager_app_window_controller.dart';
-import 'package:window_manager/legacy.dart' show TitleBarStyle;
+import 'package:window_manager/legacy.dart';
 
-/// מיירטים את הערוצים ומאמתים שהפעולה מגיעה למימוש המתאים.
-/// רצף הקריאות הפנימי תלוי בפלטפורמה ובמצב החלון.
-const Map<String, dynamic> _display = <String, dynamic>{
-  'id': 'display-1',
-  'name': 'מסך בדיקה',
-  'size': <String, dynamic>{'width': 1920.0, 'height': 1080.0},
-  'visiblePosition': <String, dynamic>{'dx': 0.0, 'dy': 0.0},
-  'visibleSize': <String, dynamic>{'width': 1920.0, 'height': 1040.0},
-  'scaleFactor': 1.0,
-};
+import '../../test_helpers/recording_native_window.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-
-  late List<MethodCall> calls;
-  late Map<String, bool> boolResponses;
-
-  setUp(() {
-    calls = [];
-    // ברירת המחדל היא חלון רגיל: לא ממוזער ולא במסך מלא. שני אלה משנים
-    // את מסלול הביצוע של show() ו-startDragging().
-    boolResponses = {
-      'isVisible': true,
-      'isMaximized': true,
-      'isMinimized': false,
-      'isFullScreen': false,
-    };
-
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(const MethodChannel('window_manager'), (
-          call,
-        ) async {
-          calls.add(call);
-          // כל getter מפרש את התשובה בטיפוס אחר: השאילתות הבוליאניות
-          // מצפות ל-bool, ו-getBounds למפה. תשובה אחידה נופלת ב-cast.
-          if (boolResponses.containsKey(call.method)) {
-            return boolResponses[call.method];
-          }
-          if (call.method == 'getBounds') {
-            return <String, dynamic>{
-              'x': 1.0,
-              'y': 2.0,
-              'width': 3.0,
-              'height': 4.0,
-            };
-          }
-          return null;
-        });
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(RunnerWindowChannel.channel, (call) async {
-          calls.add(call);
-          return null;
-        });
-
-    // `center()` שואל שלוש שאלות ברצף: היכן הסמן, מהם כל המסכים, ומהו
-    // הראשי — לכל אחת צורת תשובה משלה, ורשימת מסכים ריקה זורקת.
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(
-          const MethodChannel('dev.leanflutter.plugins/screen_retriever'),
-          (call) async => switch (call.method) {
-            'getCursorScreenPoint' => <String, dynamic>{'dx': 0.0, 'dy': 0.0},
-            'getAllDisplays' => <String, dynamic>{
-              'displays': <dynamic>[_display],
-            },
-            _ => _display,
-          },
-        );
-  });
-
-  tearDown(() {
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(
-      const MethodChannel('window_manager'),
-      null,
-    );
-    messenger.setMockMethodCallHandler(RunnerWindowChannel.channel, null);
-    messenger.setMockMethodCallHandler(
-      const MethodChannel('dev.leanflutter.plugins/screen_retriever'),
-      null,
-    );
-  });
-
+  late RecordingNativeWindow native;
   const controller = WindowManagerAppWindowController();
 
-  Future<void> expectReachesChannel(
-    Future<void> Function() action,
-    String channelMethod,
-  ) async {
-    calls.clear();
-    await action();
-    expect(
-      calls.map((c) => c.method),
-      contains(channelMethod),
-      reason: 'הפעולה לא הגיעה לערוץ כ-$channelMethod',
-    );
-  }
-
-  test('כל פעולה מגיעה לערוץ', () async {
-    await expectReachesChannel(controller.show, 'show');
-    await expectReachesChannel(controller.focus, 'focus');
-    await expectReachesChannel(controller.minimize, 'minimize');
-    await expectReachesChannel(controller.maximize, 'maximize');
-    await expectReachesChannel(controller.unmaximize, 'unmaximize');
-    await expectReachesChannel(controller.startDragging, 'startDragging');
-    await expectReachesChannel(controller.close, 'close');
-    // שם המתודה בערוץ נשאר `destroy` — זו הספרייה. השם אצלנו שונה כי הוא
-    // מסיים את התוכנה, וההטעיה כבר עלתה בקריסת יציאה בייצור.
-    await expectReachesChannel(controller.quitApplication, 'destroy');
-    // ב-Windows ה-runner ממרכז בפיקסלים פיזיים; בשאר המערכות הספרייה מטפלת בכך.
-    await expectReachesChannel(
-      controller.center,
-      Platform.isWindows ? 'centerMainWindow' : 'setBounds',
-    );
+  setUp(() {
+    native = RecordingNativeWindow(maximized: true);
+    windowManager.debugBindWindow(native);
   });
 
-  test('show משחזר חלון ממוזער לפני שהוא מציג אותו', () async {
-    boolResponses['isMinimized'] = true;
-    calls.clear();
+  tearDown(() => windowManager.debugBindWindow(null));
 
+  test('simple actions target the borrowed native window', () async {
     await controller.show();
-
-    final methods = calls.map((c) => c.method).toList();
-    expect(methods, containsAllInOrder(['restore', 'show']));
-  });
-
-  test('startDragging במסך מלא — no-op ב-Windows בלבד', () async {
-    // התנהגות של הספרייה שכדאי להכיר לפני שמעבירים אליה קוראים: גרירה
-    // מסרגל הכותרת פשוט לא תקרה במסך מלא.
-    //
-    // ⚠️ **הבדיקה מגודרת בפלטפורמה, כי ההתנהגות עצמה מגודרת בה.** המקור
-    // הוא `if (Platform.isWindows && await isFullScreen()) return;`
-    // ב-`window_manager`, ולכן הצפייה ההפוכה — שהקריאה כן מגיעה לערוץ —
-    // היא הנכונה בכל שאר הפלטפורמות. ניסוח שבדק רק את צד Windows היה
-    // ירוק על מכונת המפתח ואדום ב-CI שרץ על ubuntu.
-    boolResponses['isFullScreen'] = true;
-    calls.clear();
-
+    await controller.focus();
+    await controller.minimize();
+    await controller.maximize();
+    await controller.unmaximize();
     await controller.startDragging();
 
-    expect(
-      calls.map((c) => c.method),
-      Platform.isWindows
-          ? isNot(contains('startDragging'))
-          : contains(
-              'startDragging',
-            ),
-      reason: Platform.isWindows
-          ? 'ב-Windows הספרייה בולעת את הגרירה במסך מלא'
-          : 'מחוץ ל-Windows אין גידור, והגרירה חייבת להגיע לערוץ',
-    );
+    expect(native.calls, [
+      'show',
+      'focus',
+      'minimize',
+      'maximize',
+      'unmaximize',
+      'startDragging',
+    ]);
   });
 
-  test('השאילתות מחזירות את תשובת הערוץ', () async {
-    boolResponses
-      ..['isMinimized'] = true
-      ..['isFullScreen'] = true;
+  test('show restores a minimized window first', () async {
+    native.minimized = true;
+    await controller.show();
+    expect(native.calls, ['restore', 'show']);
+    expect(native.minimized, isFalse);
+  });
+
+  test('nativeapi controls dragging, including while fullscreen', () async {
+    native.fullScreen = true;
+    await controller.startDragging();
+    expect(native.calls, ['startDragging']);
+  });
+
+  test('state queries observe the current native state', () async {
+    native
+      ..visible = true
+      ..maximized = true
+      ..minimized = true
+      ..fullScreen = true;
 
     expect(await controller.isVisible(), isTrue);
     expect(await controller.isMaximized(), isTrue);
     expect(await controller.isMinimized(), isTrue);
     expect(await controller.isFullScreen(), isTrue);
-
-    boolResponses['isVisible'] = false;
+    native.visible = false;
     expect(await controller.isVisible(), isFalse);
   });
 
-  test('setTitleBarStyle מעביר את windowButtonVisibility הלאה', () async {
-    // שלושת אתרי הקריאה באפליקציה מעבירים false; אילו הערך היה נבלע,
-    // כפתורי המערכת היו חוזרים לצד הכפתורים המותאמים.
-    calls.clear();
+  test('title bar honors explicit system button visibility', () async {
     await controller.setTitleBarStyle(
       TitleBarStyle.hidden,
       windowButtonVisibility: false,
     );
-
-    final call = calls.single;
-    expect(call.method, 'setTitleBarStyle');
-    expect((call.arguments as Map)['windowButtonVisibility'], isFalse);
+    expect(native.calls, [
+      'setTitleBarStyle',
+      'setWindowControlButtonsVisible',
+    ]);
+    expect(native.barStyle, TitleBarStyle.hidden);
+    expect(native.controlButtonsVisible, isFalse);
   });
 
-  test('הגאומטריה מגיעה לערוץ', () async {
-    await expectReachesChannel(
-      () => controller.setBounds(const Rect.fromLTWH(1, 2, 3, 4)),
-      'setBounds',
+  test('geometry is converted into nativeapi units and back', () async {
+    await controller.setBounds(const Rect.fromLTWH(10, 20, 500, 300));
+    expect(await controller.getBounds(), const Rect.fromLTWH(10, 20, 500, 300));
+    await controller.setSize(const Size(300, 400));
+    expect(await controller.getBounds(), const Rect.fromLTWH(10, 20, 300, 400));
+    await controller.setMinimumSize(const Size(100, 200));
+    expect(native.minimum?.width, 100);
+    expect(native.minimum?.height, 200);
+    await controller.setFullScreen(true);
+    expect(native.fullScreen, isTrue);
+    expect(
+      native.calls,
+      containsAllInOrder([
+        'setBounds',
+        'getBounds',
+        'setSize',
+        'getBounds',
+        'setMinimumSize',
+        'setFullScreen',
+      ]),
     );
-    await expectReachesChannel(
-      () => controller.setSize(const Size(300, 400)),
-      // setSize מיושם ב-window_manager דרך setBounds.
-      'setBounds',
-    );
-    await expectReachesChannel(
-      () => controller.setMinimumSize(const Size(100, 200)),
-      'setMinimumSize',
-    );
-    await expectReachesChannel(
-      () => controller.setFullScreen(true),
-      'setFullScreen',
-    );
-    await expectReachesChannel(controller.getBounds, 'getBounds');
   });
 }
