@@ -14,7 +14,6 @@ import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/error_log_file.dart';
-import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/ui_snack.dart' show navigatorKey;
 import 'package:otzaria/data/data_providers/cache_database_holder.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
@@ -2675,9 +2674,54 @@ void main() {
         await tester.pump();
 
         expect(runs.map((run) => run.completed), everyElement(isFalse));
-        expect(find.text(LibraryMessages.searchIndexOpenFailed), findsNothing);
+        expect(find.textContaining('פתיחת אינדקס החיפוש'), findsNothing);
       },
     );
+
+    for (final configuredPath in <String?>[null, r'F:\Otzaria\index']) {
+      testWidgets(
+        'כשל פתיחה מדווח בלי בדיקת כונן (issue #4557): $configuredPath',
+        (
+          tester,
+        ) async {
+          await Settings.init(cacheProvider: MemoryCacheProvider());
+          addTearDown(Settings.clearCache);
+          if (configuredPath != null) {
+            await Settings.setValue(
+              SettingsRepository.keyIndexPath,
+              configuredPath,
+            );
+          }
+          await tester.pumpWidget(
+            MaterialApp(navigatorKey: navigatorKey, home: const SizedBox()),
+          );
+          final provider = FakeTantivyDataProvider(
+            indexedFilePaths: {},
+            requiresManualReindexValue: false,
+          )..isTempFallback = true;
+          final library = _buildLibrary(bavliBooks: const [('שבת', 1)]);
+
+          final spy = _IndexFailureIoSpy();
+          final run = await io.IOOverrides.runWithIOOverrides(
+            () => IndexingRepository(
+              provider,
+            ).indexAllBooks(library, onProgress: (_, _) {}),
+            spy,
+          );
+          await tester.pump();
+
+          expect(run.completed, isFalse);
+          expect(spy.paths, isEmpty);
+          expect(find.textContaining('הגדרות הספרייה'), findsOneWidget);
+          if (configuredPath != null) {
+            expect(find.textContaining(configuredPath), findsOneWidget);
+          }
+          // ה-SnackBar מחזיק טיימר; מרוקנים אותו לפני סיום הטסט.
+          await tester.pump(const Duration(seconds: 30));
+          await tester.pumpAndSettle();
+        },
+      );
+    }
 
     test('לא מדלג ב-fast path כשנדרש manual reindex', () async {
       final library = _buildLibrary(bavliBooks: const [('שבת', 1)]);
@@ -4604,6 +4648,22 @@ void main() {
       expect(provider.indexedFilePaths, {'uid:1', 'uid:99'});
     });
   });
+}
+
+final class _IndexFailureIoSpy extends io.IOOverrides {
+  final paths = <String>[];
+
+  @override
+  io.File createFile(String path) {
+    paths.add(path);
+    return super.createFile(path);
+  }
+
+  @override
+  io.Directory createDirectory(String path) {
+    paths.add(path);
+    return super.createDirectory(path);
+  }
 }
 
 class FakeTantivyDataProvider implements TantivyDataProvider {
