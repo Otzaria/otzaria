@@ -1,0 +1,45 @@
+{
+  "scope": "PowerShell workflow orchestration only; Flutter/Dart/Rust commands replaced with local functions. No app validation or performance measurement.",
+  "cases": [
+    {
+      "status": "passed",
+      "originalUnchanged": true,
+      "generatedRemoved": true,
+      "cleanSource": true,
+      "case": "mocked-tests-pass",
+      "exitCode": 0,
+      "real_flutter_invoked": false,
+      "remainingWorktree": false,
+      "commands": [
+        "flutter-version",
+        "dart-version",
+        "rust-version",
+        "pub-get",
+        "format",
+        "analyze",
+        "common-tests"
+      ],
+      "error": null
+    },
+    {
+      "status": "failed",
+      "originalUnchanged": true,
+      "generatedRemoved": true,
+      "cleanSource": true,
+      "case": "mocked-tests-fail",
+      "exitCode": 1,
+      "real_flutter_invoked": false,
+      "remainingWorktree": false,
+      "commands": [
+        "flutter-version",
+        "dart-version",
+        "rust-version",
+        "pub-get",
+        "format",
+        "analyze",
+        "common-tests"
+      ],
+      "error": "common-tests failed (7)."
+    }
+  ]
+}

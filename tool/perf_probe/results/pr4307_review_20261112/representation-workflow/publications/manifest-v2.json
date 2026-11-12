@@ -1,0 +1,111 @@
+{
+  "archive_operation": "Only the embedded workflow content is stored once in the referenced file. Restore files[0].content and serialize with indent=2, ensure_ascii=False and a final newline to reconstruct the original manifest bytes.",
+  "original_json_sha256": "f52f270d8ab005f3b7c8bfe7977ba53454bfa72c46f6438c040eaff38fac5b89",
+  "original_json_bytes": 26160,
+  "embedded_content_file": "workflows/v2.yml",
+  "manifest": {
+    "branch": "palmoni5/pr4307-isolated-profile-20261112",
+    "parent_sha": "c89c15836ce2e05027e7fd9fbf90ce33118c84bb",
+    "base_tree_sha": "19187e477b512386942f0ab55d5d009180d46617",
+    "expected_tree": "64de43bcda7291a9face4067846e56880cae7902",
+    "candidate_source_sha": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+    "control_source_sha": "764abeeec8a81a0e081d951261c37dc15dbadec3",
+    "commit_message": "fix(ci): initialize reader experiment paths within a runner step",
+    "files": [
+      {
+        "repo_path": ".github/workflows/reader-representation-4307.yml",
+        "local_path": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow/.github/workflows/reader-representation-4307.yml",
+        "mode": "100644",
+        "type": "blob",
+        "git_blob_sha": "ea27fc7573ac1adf4e081258d334f38c860a1df0",
+        "bytes": 21227,
+        "sha256": "670651c7da34680e857448fb141f492033ef4700de4a11d0990c9dc10ce8b69f"
+      }
+    ],
+    "validation": {
+      "actionlint_version": "1.7.12",
+      "actionlint_verified_archive_sha256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8",
+      "actionlint_before": {
+        "exit_code": 1,
+        "errors": 2,
+        "reason": "runner context is unavailable in jobs.env"
+      },
+      "actionlint_after_exit_code": 0,
+      "yaml_parsed": true,
+      "powershell_blocks_parsed": 6,
+      "setup_contract_passed": true,
+      "subsequent_steps_unchanged": true,
+      "source_and_sampling_pins_unchanged": true,
+      "git_diff_check_passed": true,
+      "full_flutter_validation": {
+        "status": "passed",
+        "candidate_sha": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+        "control_sha": "764abeeec8a81a0e081d951261c37dc15dbadec3",
+        "workflow_sha256": "670651c7da34680e857448fb141f492033ef4700de4a11d0990c9dc10ce8b69f",
+        "commands": [
+          {
+            "name": "actionlint",
+            "args": [
+              "/workspace/scratch/03d201536b5d/pr4307-isolated-tools/actionlint/actionlint",
+              "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow/.github/workflows/reader-representation-4307.yml"
+            ],
+            "exit_code": 0,
+            "elapsed_seconds": 0.011
+          },
+          {
+            "name": "pub-get",
+            "args": [
+              "flutter",
+              "pub",
+              "get",
+              "--enforce-lockfile"
+            ],
+            "exit_code": 0,
+            "elapsed_seconds": 19.369
+          },
+          {
+            "name": "lockfile-restore",
+            "args": [
+              "/workspace/scratch/03d201536b5d/pr4307-isolated-tools/powershell/pwsh",
+              "-NoProfile",
+              "-File",
+              "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/restore-v2-lockfile.ps1",
+              "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v2-original-pubspec.lock",
+              "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v2-lockfile-quoting.json"
+            ],
+            "exit_code": 0,
+            "elapsed_seconds": 0.592
+          },
+          {
+            "name": "analyze",
+            "args": [
+              "flutter",
+              "analyze",
+              "--no-pub"
+            ],
+            "exit_code": 0,
+            "elapsed_seconds": 48.705
+          }
+        ],
+        "lockfile_sha256": "1a716b4ffe7bc77506b550db9f185a2a6ff3de8882941f8f2752ca2cfadc5397"
+      },
+      "new_product_tests_run": false
+    },
+    "failure_evidence": {
+      "run_url": "https://github.com/Otzaria/otzaria/actions/runs/43288648821",
+      "run_head_sha": "c89c15836ce2e05027e7fd9fbf90ce33118c84bb",
+      "jobs_started": 0,
+      "diagnostic": "(Line: 33, Col: 24) and (Line: 34, Col: 24): Unrecognized named-value: 'runner'; expression runner.temp",
+      "local_html": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/invalid-workflow-run.html"
+    },
+    "evidence_paths": {
+      "actionlint_before": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/actionlint-v1.log",
+      "actionlint_after": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v2-actionlint.log",
+      "powershell": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/powershell-v2.log",
+      "setup_contract": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v2-setup-contract.json",
+      "flutter_validation": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v2-flutter-validation.json",
+      "analyze_log": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v2-analyze.log",
+      "patch": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/workflow-v2.patch"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "requirements": [
+    "Python 3 with PyYAML",
+    "git",
+    "actionlint 1.7.12",
+    "PowerShell 7.4 or newer"
+  ],
+  "light_checks": "python3 repro/validate.py --bundle . --actionlint /path/to/actionlint --pwsh /path/to/pwsh --output /new/output/directory",
+  "include_mocked_cleanup_cases": "Add --repo /local/otzaria/repository containing commit 6aa411d774f453331d6821dbb5a68f1c3b78bd78. The script creates and removes its own temporary candidate worktree; it never changes a branch or invokes Flutter.",
+  "mock_scope": "The pass/fail orchestration cases replace Flutter/Dart/Rust commands with local PowerShell functions. Their statuses are not product-test or performance outcomes.",
+  "historical_actual_flutter_validation": "See validation/v2-flutter-validation.json and its pub/analyze/lockfile logs. The full analyze passed with no issues in 48.705 seconds wall time; product tests were not rerun for the YAML-only fix.",
+  "actual_control_product_tests": "Already preserved in the parent evidence tree under representation-control/validation: full analyze, format and 220 tests passed. They are referenced rather than duplicated.",
+  "windows_measurement": "The published workflow at 64f296e5bd0fd1451a893c5c809648f5b8da8f2a pins the two measured sources and performs the real Windows validation/build/ABBA sequence. No final performance result is part of this package."
+}

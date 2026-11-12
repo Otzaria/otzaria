@@ -1,0 +1,308 @@
+name: Reader representation comparison (PR 4307)
+
+on:
+  push:
+    branches:
+      - 'palmoni5/pr4307-isolated-profile-20261112'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reader-representation-4307-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  paired-profile:
+    name: Flat and chunked snapshots on one Windows runner
+    runs-on: windows-2025
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CANDIDATE_SHA: '6aa411d774f453331d6821dbb5a68f1c3b78bd78'
+      CONTROL_SHA: '764abeeec8a81a0e081d951261c37dc15dbadec3'
+      CONTROL_TREE: '10fca460ba42e1f0fd82bc5d09b0d7a02d9b1131'
+      CONTROL_BLOC_SHA256: 'a31fa2dbc8b9ac2410775407a45c56862098a5c4f334b4264ab70d31da30a6ee'
+      WORKFLOW_SHA: ${{ github.sha }}
+      PAIR_HARDWARE_ID: github-hosted-${{ github.run_id }}-${{ github.run_attempt }}
+      READER_CYCLES: '2'
+      READER_WARMUP: '1'
+      READER_REPETITIONS: '4'
+    steps:
+      - name: Preserve source bytes and the fixed experiment plan
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $validationRoot = Join-Path $env:RUNNER_TEMP 'reader-representation-validation'
+          $comparisonRoot = Join-Path $env:RUNNER_TEMP 'reader-representation-profile'
+          "VALIDATION_ROOT=$validationRoot" | Add-Content -LiteralPath $env:GITHUB_ENV
+          "COMPARISON_ROOT=$comparisonRoot" | Add-Content -LiteralPath $env:GITHUB_ENV
+          New-Item -ItemType Directory -Path $validationRoot -Force | Out-Null
+          git config --global core.longpaths true
+          if ($LASTEXITCODE -ne 0) { throw 'Could not enable Git long paths.' }
+          git config --global core.autocrlf false
+          if ($LASTEXITCODE -ne 0) { throw 'Could not preserve source line endings.' }
+          foreach ($revision in @($env:CONTROL_SHA, $env:CANDIDATE_SHA, $env:WORKFLOW_SHA)) {
+            if ($revision -notmatch '^[0-9a-f]{40}$') { throw 'All experiment sources must be pinned.' }
+          }
+          [ordered]@{
+            candidateSourceCommit = $env:CANDIDATE_SHA; flatControlSourceCommit = $env:CONTROL_SHA
+            workflowCommit = $env:WORKFLOW_SHA; expectedControlTree = $env:CONTROL_TREE
+            cycles = [int]$env:READER_CYCLES; warmup = [int]$env:READER_WARMUP
+            repetitions = [int]$env:READER_REPETITIONS; bookLines = @(2000, 50000, 1000000)
+            measuredSamplesPerActionAndSide = [int]$env:READER_CYCLES * 2 * [int]$env:READER_REPETITIONS
+            processesPerSide = [int]$env:READER_CYCLES * 2
+            scope = 'Representation and snapshot sharing, including flags-identity-mediated invalidation.'
+            limitation = 'Hosted Windows; no physical-GPU claim and no identical-object-identity claim.'
+          } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $validationRoot 'experiment-plan.json') -Encoding utf8
+
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: '6aa411d774f453331d6821dbb5a68f1c3b78bd78'
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify pinned topology, product diff and identical harness
+        run: |
+          . ./tool/perf_probe/run_reader_comparison.ps1 -DefinitionsOnly
+          $repo = $PWD.Path
+          $proof = [ordered]@{ status = 'running'; candidate = $env:CANDIDATE_SHA; control = $env:CONTROL_SHA }
+          try {
+            Assert-ReaderClean $repo
+            $head = @(Invoke-ReaderGit $repo @('rev-parse', 'HEAD'))[-1]
+            if ($head -cne $env:CANDIDATE_SHA) { throw 'The execution checkout is not the pinned candidate.' }
+            Invoke-ReaderGit $repo @('fetch', '--no-tags', 'origin', $env:CONTROL_SHA) | Out-Null
+            $topology = @(Invoke-ReaderGit $repo @('rev-list', '--parents', '-n', '1', $env:CONTROL_SHA))[-1]
+            if ($topology -cne "$env:CONTROL_SHA $env:CANDIDATE_SHA") {
+              throw 'The flat control must have the candidate as its only direct parent.'
+            }
+            $tree = @(Invoke-ReaderGit $repo @('rev-parse', "$($env:CONTROL_SHA)^{tree}"))[-1]
+            if ($tree -cne $env:CONTROL_TREE) { throw 'The flat-control tree does not match the reviewed tree.' }
+            $changes = @(Invoke-ReaderGit $repo @('diff-tree', '--no-commit-id', '--no-renames', '--name-status', '-r', $env:CANDIDATE_SHA, $env:CONTROL_SHA))
+            if ($changes.Count -ne 1 -or $changes[0] -cne "M`tlib/text_book/bloc/text_book_bloc.dart") {
+              throw 'The control must change only the existing text_book_bloc.dart product file.'
+            }
+            $candidateHarness = @(Get-ReaderHarnessEntries $repo $env:CANDIDATE_SHA $readerHarnessPaths)
+            $controlHarness = @(Get-ReaderHarnessEntries $repo $env:CONTROL_SHA $readerHarnessPaths)
+            if (($candidateHarness -join "`n") -cne ($controlHarness -join "`n")) { throw 'Harness blobs or modes differ.' }
+            $proof.parentTopology = $topology; $proof.controlTree = $tree; $proof.changedPaths = $changes
+            $proof.harnessEntries = $candidateHarness
+            $proof.harnessSha256 = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData(
+              [Text.Encoding]::UTF8.GetBytes(($candidateHarness -join "`n") + "`n"))).ToLowerInvariant()
+            $proof.candidateBlocBlob = @(Invoke-ReaderGit $repo @('rev-parse', "$($env:CANDIDATE_SHA):lib/text_book/bloc/text_book_bloc.dart"))[-1]
+            $proof.controlBlocBlob = @(Invoke-ReaderGit $repo @('rev-parse', "$($env:CONTROL_SHA):lib/text_book/bloc/text_book_bloc.dart"))[-1]
+            $proof.sharedLockfileBlob = @(Invoke-ReaderGit $repo @('rev-parse', "$($env:CANDIDATE_SHA):pubspec.lock"))[-1]
+            $proof.workflowBlob = @(Invoke-ReaderGit $repo @('rev-parse', "$($env:WORKFLOW_SHA):.github/workflows/reader-representation-4307.yml"))[-1]
+            Invoke-ReaderGit $repo @('diff', '--no-ext-diff', '--binary', $env:CANDIDATE_SHA, $env:CONTROL_SHA) |
+              Set-Content -LiteralPath (Join-Path $env:VALIDATION_ROOT 'representation-only.patch') -Encoding utf8
+            Invoke-ReaderGit $repo @('show', "$($env:WORKFLOW_SHA):.github/workflows/reader-representation-4307.yml") |
+              Set-Content -LiteralPath (Join-Path $env:VALIDATION_ROOT 'executed-workflow.yml') -Encoding utf8
+            Copy-Item -LiteralPath 'lib/text_book/bloc/text_book_bloc.dart' -Destination (Join-Path $env:VALIDATION_ROOT 'candidate-text_book_bloc.dart')
+            $proof.status = 'passed'
+          } catch {
+            $proof.status = 'failed'; $proof.error = $_.Exception.Message
+            $_ | Out-String | Set-Content -LiteralPath (Join-Path $env:VALIDATION_ROOT 'source-guard-failure.log')
+            throw
+          } finally {
+            Write-ReaderJson (Join-Path $env:VALIDATION_ROOT 'source-provenance.json') $proof
+          }
+
+      - name: Validate runner and source-overlay contracts
+        run: |
+          & pwsh -NoProfile -File ./tool/perf_probe/test_sample_resources.ps1 2>&1 |
+            Tee-Object -FilePath (Join-Path $env:VALIDATION_ROOT 'sampler-contracts.log')
+          if ($LASTEXITCODE -ne 0) { throw 'Sampler contracts failed.' }
+          & pwsh -NoProfile -File ./tool/perf_probe/test_reader_comparison.ps1 2>&1 |
+            Tee-Object -FilePath (Join-Path $env:VALIDATION_ROOT 'comparison-contracts.log')
+          if ($LASTEXITCODE -ne 0) { throw 'Reader comparison contracts failed.' }
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Validate the flat control in a temporary worktree
+        run: |
+          . ./tool/perf_probe/run_reader_comparison.ps1 -DefinitionsOnly
+          . ./tool/perf_probe/lockfile_quoting.ps1
+          $PSNativeCommandUseErrorActionPreference = $false
+          $repo = $PWD.Path
+          $checkout = Join-Path $env:RUNNER_TEMP 'reader-flat-control-validation-source'
+          $originalRelative = 'test/text_book/bloc/long_book_snapshot_regression_test.dart'
+          $generatedRelative = 'test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart'
+          $originalHash = '9eeea22effd110ba786a64ccb00bebcffa2621997e071ba9616c580ff1c21356'
+          $generatedHash = '586b42792cabf70f3709f2eabbb6c5507d915c9d0e508af91954133a2e312ed7'
+          $assertion = "    expect(() => second.content[639] = 'מוטציה', throwsUnsupportedError);`n"
+          $tests = @(
+            'test/text_book/models/chunked_list_test.dart',
+            'test/text_book/bloc/background_full_content_loading_test.dart',
+            'test/text_book/bloc/split_pane_warming_test.dart',
+            'test/text_book/bloc/per_book_continuous_initial_load_test.dart',
+            'test/text_book/bloc/continuous_reading_mode_test.dart',
+            'test/text_book/bloc/inline_notes_commentator_test.dart',
+            'test/text_book/utils/reader_content_revision_test.dart',
+            'test/text_book/utils/reading_extent_estimates_test.dart',
+            'test/text_book/utils/reading_segment_cache_test.dart',
+            'test/text_book/utils/inline_notes_utils_test.dart',
+            'test/text_book/view/page_shape/page_shape_notes_column_test.dart',
+            'test/text_book/view/combined_view/continuous_reflow_keeps_place_test.dart',
+            'test/tool/perf_probe/perf_fixture_test.dart',
+            'test/tool/perf_probe/perf_reader_probe_test.dart',
+            'test/tool/perf_probe/perf_reader_scroll_test.dart',
+            'test/tool/perf_probe/perf_recorder_test.dart',
+            'test/tool/perf_probe/report_test.dart'
+          )
+          $commands = [Collections.Generic.List[object]]::new()
+          $proof = [ordered]@{
+            status = 'running'; sourceCommit = $env:CONTROL_SHA; commands = $commands
+            originalTest = $originalRelative; originalSha256 = $originalHash
+            generatedTest = $generatedRelative; generatedSha256 = $generatedHash
+            removedUniqueAssertion = $assertion; removedOccurrences = 1
+            commonTestFiles = $tests; generatedSuiteRunsAllRemainingAssertions = $true
+            originalUnchanged = $false; generatedRemoved = $false; cleanSource = $false
+          }
+          function Invoke-ValidationCommand([string]$Name, [string]$Command, [string[]]$Arguments) {
+            $entry = [ordered]@{ name = $Name; command = $Command; arguments = $Arguments; startedAtUtc = [DateTime]::UtcNow.ToString('o'); exitCode = $null }
+            $commands.Add($entry)
+            & $Command @Arguments 2>&1 | Tee-Object -FilePath (Join-Path $env:VALIDATION_ROOT "$Name.log")
+            $entry.exitCode = $LASTEXITCODE; $entry.endedAtUtc = [DateTime]::UtcNow.ToString('o')
+            if ($entry.exitCode -ne 0) { throw "$Name failed ($($entry.exitCode))." }
+          }
+          $added = $false; $generatedCreated = $false; $locationPushed = $false; $failure = $null
+          try {
+            Invoke-ReaderGit $repo @('worktree', 'add', '--detach', $checkout, $env:CONTROL_SHA) | Out-Null
+            $added = $true
+            Assert-ReaderClean $checkout
+            Push-Location $checkout
+            $locationPushed = $true
+            $bloc = Join-Path $checkout 'lib/text_book/bloc/text_book_bloc.dart'
+            $proof.controlBlocSha256 = (Get-FileHash -LiteralPath $bloc -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($proof.controlBlocSha256 -cne $env:CONTROL_BLOC_SHA256) { throw 'Control source bytes do not match the reviewed file.' }
+            Copy-Item -LiteralPath $bloc -Destination (Join-Path $env:VALIDATION_ROOT 'control-text_book_bloc.dart')
+            Invoke-ValidationCommand 'flutter-version' 'flutter' @('--version', '--machine')
+            Invoke-ValidationCommand 'dart-version' 'dart' @('--version')
+            Invoke-ValidationCommand 'rust-version' 'rustc' @('--version')
+            $lockfilePath = Join-Path $checkout 'pubspec.lock'
+            $originalLockfile = [IO.File]::ReadAllBytes($lockfilePath)
+            Invoke-ValidationCommand 'pub-get' 'flutter' @('pub', 'get', '--enforce-lockfile')
+            $lockfileProof = Restore-PerfLockfileQuoting $lockfilePath $originalLockfile
+            Write-ReaderJson (Join-Path $env:VALIDATION_ROOT 'lockfile-quoting.json') $lockfileProof
+            Assert-ReaderClean $checkout
+            Invoke-ValidationCommand 'format' 'dart' @('format', '--output=none', '--set-exit-if-changed', 'lib/text_book/bloc/text_book_bloc.dart')
+            Invoke-ValidationCommand 'analyze' 'flutter' @('analyze', '--no-pub')
+            Assert-ReaderClean $checkout
+            $original = Join-Path $checkout $originalRelative
+            $generated = Join-Path $checkout $generatedRelative
+            if ((Get-FileHash -LiteralPath $original -Algorithm SHA256).Hash.ToLowerInvariant() -cne $originalHash) { throw 'Original snapshot-test bytes differ.' }
+            if (@(Invoke-ReaderGit $checkout @('ls-files', '--', $generatedRelative)).Count) { throw 'The validation sibling must be untracked.' }
+            $utf8 = [Text.UTF8Encoding]::new($false, $true)
+            $source = $utf8.GetString([IO.File]::ReadAllBytes($original))
+            if ([regex]::Matches($source, [regex]::Escape($assertion)).Count -ne 1) { throw 'Expected exactly one incompatible representation assertion.' }
+            $overlayBytes = $utf8.GetBytes($source.Replace($assertion, ''))
+            $overlayHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($overlayBytes)).ToLowerInvariant()
+            if ($overlayHash -cne $generatedHash) { throw 'Generated sibling differs from the reviewed one-line exclusion.' }
+            $stream = [IO.File]::Open($generated, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write)
+            try { $stream.Write($overlayBytes, 0, $overlayBytes.Length) } finally { $stream.Dispose() }
+            $generatedCreated = $true
+            Copy-Item -LiteralPath $original -Destination (Join-Path $env:VALIDATION_ROOT 'original-long_book_snapshot_regression_test.dart')
+            Copy-Item -LiteralPath $generated -Destination (Join-Path $env:VALIDATION_ROOT 'generated-long_book_snapshot_regression_flat_control_validation_test.dart')
+            Write-ReaderJson (Join-Path $env:VALIDATION_ROOT 'control-validation.json') $proof
+            Invoke-ValidationCommand 'common-tests' 'flutter' (@('test', '--no-pub', '--reporter', 'expanded', '--concurrency=2') + $tests + @($generatedRelative))
+            $proof.status = 'passed'
+          } catch {
+            $failure = $_; $proof.status = 'failed'; $proof.error = $_.Exception.Message
+            $_ | Out-String | Set-Content -LiteralPath (Join-Path $env:VALIDATION_ROOT 'control-validation-failure.log')
+          } finally {
+            if ($locationPushed) { Pop-Location }
+            if ($added) {
+              try {
+                if ($generatedCreated) {
+                  if ((Get-Item -LiteralPath $generated).LinkType) { throw 'Refusing to remove a linked validation sibling.' }
+                  if (@(Invoke-ReaderGit $checkout @('ls-files', '--', $generatedRelative)).Count) { throw 'Refusing to remove a tracked validation sibling.' }
+                  if ((Get-FileHash -LiteralPath $generated -Algorithm SHA256).Hash.ToLowerInvariant() -cne $generatedHash) { throw 'Refusing to remove a modified validation sibling.' }
+                  Remove-Item -LiteralPath $generated
+                  $proof.generatedRemoved = $true
+                }
+                $proof.originalUnchanged = (Get-FileHash -LiteralPath (Join-Path $checkout $originalRelative) -Algorithm SHA256).Hash.ToLowerInvariant() -ceq $originalHash
+                if (-not $proof.originalUnchanged) { throw 'The original snapshot test changed during validation.' }
+                Assert-ReaderClean $checkout
+                $proof.cleanSource = $true
+              } catch {
+                $proof.status = 'failed'; $proof.cleanupError = $_.Exception.Message
+                if ($null -eq $failure) { $failure = $_ }
+              } finally {
+                Invoke-ReaderGit $checkout @('status', '--porcelain=v1', '--untracked-files=all') |
+                  Set-Content -LiteralPath (Join-Path $env:VALIDATION_ROOT 'control-final-status.txt')
+                Invoke-ReaderGit $checkout @('diff', '--no-ext-diff') |
+                  Set-Content -LiteralPath (Join-Path $env:VALIDATION_ROOT 'control-final-diff.patch')
+              }
+              if ($proof.cleanSource) { Invoke-ReaderGit $repo @('worktree', 'remove', '--force', $checkout) | Out-Null }
+            }
+            Write-ReaderJson (Join-Path $env:VALIDATION_ROOT 'control-validation.json') $proof
+          }
+          if ($null -ne $failure) { Write-Error $failure; exit 1 }
+          if (-not $proof.generatedRemoved -or -not $proof.cleanSource) { throw 'Control validation did not finish with a removed sibling and clean source.' }
+          Assert-ReaderClean $repo
+
+      - name: Build both pinned sides and measure in ABBA order
+        run: |
+          ./tool/perf_probe/run_reader_comparison.ps1 `
+            -BaselineRef $env:CONTROL_SHA -CandidateRef $env:CANDIDATE_SHA `
+            -Cycles ([int]$env:READER_CYCLES) -Warmup ([int]$env:READER_WARMUP) `
+            -Repetitions ([int]$env:READER_REPETITIONS) -BookLines '2000,50000,1000000' `
+            -TimeoutSeconds 1800 -HardwareId $env:PAIR_HARDWARE_ID `
+            -OutputDirectory $env:COMPARISON_ROOT
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Summarize observed representation comparison
+        if: always()
+        run: |
+          $report = Join-Path $env:COMPARISON_ROOT 'candidate/report.md'
+          $launchesPerSide = [int]$env:READER_CYCLES * 2
+          $samplesPerSide = $launchesPerSide * [int]$env:READER_REPETITIONS
+          @(
+            '## Reader representation comparison — PR 4307', '',
+            "Flat control (baseline): $env:CONTROL_SHA", "Chunked candidate: $env:CANDIDATE_SHA",
+            "Workflow commit: $env:WORKFLOW_SHA", '',
+            'The control is a direct child of the candidate and changes only six representation/list-update methods in text_book_bloc.dart.',
+            'This includes snapshot sharing and flags-identity-mediated invalidation; object identity and contentChanges granularity are not claimed identical.',
+            'Full control analysis and 17 shared test files plus the generated snapshot suite must pass before building either measured app.',
+            'Only the generated suite omits the one content-write-must-throw assertion; the committed source test is unchanged and the sibling is removed before measurement.',
+            'Candidate exact-head ordinary CI already passed; both profile apps are built before any timed launch.',
+            'One hosted Windows runner, Flutter 3.47.7/profile, identical committed measurement harness. No physical-GPU claim.',
+            "Launch order: flat, chunked, chunked, flat; $env:READER_CYCLES cycles. Each launch has $env:READER_WARMUP warmup and $env:READER_REPETITIONS measured repetitions.",
+            'Books: 2,000 / 50,000 / 1,000,000 lines. Builds and fixture preparation are outside action timings.',
+            'Cold means fresh application data; operating-system caches are not cleared.',
+            "$samplesPerSide latency samples per action and side across $launchesPerSide processes are descriptive; p95/p99 are not stable tail estimates.",
+            'No performance threshold or automatic retry is used. All raw observations and validation diagnostics are preserved.', ''
+          ) | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          if (Test-Path -LiteralPath $report) {
+            Get-Content -LiteralPath $report | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          } else {
+            'Comparison unavailable; inspect source guards, validation results and partial build/runner logs.' | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          }
+
+      - name: Preserve raw observations, source proof and partial failures
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: reader-representation-4307-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            ${{ runner.temp }}/reader-representation-validation/**
+            ${{ runner.temp }}/reader-representation-profile/**/*.json
+            ${{ runner.temp }}/reader-representation-profile/**/*.jsonl
+            ${{ runner.temp }}/reader-representation-profile/**/*.csv
+            ${{ runner.temp }}/reader-representation-profile/**/*.md
+            ${{ runner.temp }}/reader-representation-profile/**/*.log
+            ${{ runner.temp }}/reader-representation-profile/*-head.txt
+            ${{ runner.temp }}/reader-representation-profile/*-status.txt
+            ${{ runner.temp }}/reader-representation-profile/*-diff.patch
+            !${{ runner.temp }}/reader-representation-profile/**/data/**
+            !${{ runner.temp }}/reader-representation-profile/**/bundle/**
+            !${{ runner.temp }}/reader-representation-profile/worktrees/**

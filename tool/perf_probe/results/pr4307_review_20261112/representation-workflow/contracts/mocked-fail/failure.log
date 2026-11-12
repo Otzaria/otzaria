@@ -1,0 +1,7 @@
+Exception: /workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/validation-orchestration-contract.ps1:51
+Line |
+  51 |  … $entry.exitCode -ne 0) { throw "$Name failed ($($entry.exitCode))." }
+     |                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | common-tests failed (7).
+
+

@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "started_without_path_environment_variables": true,
+  "both_paths_exported_to_github_env": true,
+  "first_step_used_local_path_successfully": true,
+  "plan_counts_verified": true,
+  "later_steps_byte_identical_to_v1": true,
+  "source_and_sampling_env_pins_unchanged": true,
+  "exit_code": 0,
+  "workflow_sha256": "670651c7da34680e857448fb141f492033ef4700de4a11d0990c9dc10ce8b69f"
+}

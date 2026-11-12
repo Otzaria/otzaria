@@ -1,0 +1,18 @@
+{
+  "candidateSourceCommit": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+  "flatControlSourceCommit": "764abeeec8a81a0e081d951261c37dc15dbadec3",
+  "workflowCommit": "c89c15836ce2e05027e7fd9fbf90ce33118c84bb",
+  "expectedControlTree": null,
+  "cycles": 2,
+  "warmup": 1,
+  "repetitions": 4,
+  "bookLines": [
+    2000,
+    50000,
+    1000000
+  ],
+  "measuredSamplesPerActionAndSide": 16,
+  "processesPerSide": 4,
+  "scope": "Representation and snapshot sharing, including flags-identity-mediated invalidation.",
+  "limitation": "Hosted Windows; no physical-GPU claim and no identical-object-identity claim."
+}

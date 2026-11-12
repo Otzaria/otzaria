@@ -1,0 +1,8 @@
+.github/workflows/reader-representation-4307.yml:33:28: context "runner" is not allowed here. available contexts are "github", "inputs", "matrix", "needs", "secrets", "strategy", "vars". see https://docs.github.com/en/actions/learn-github-actions/contexts#context-availability for more details [expression]
+   |
+33 |       VALIDATION_ROOT: ${{ runner.temp }}/reader-representation-validation
+   |                            ^~~~~~~~~~~
+.github/workflows/reader-representation-4307.yml:34:28: context "runner" is not allowed here. available contexts are "github", "inputs", "matrix", "needs", "secrets", "strategy", "vars". see https://docs.github.com/en/actions/learn-github-actions/contexts#context-availability for more details [expression]
+   |
+34 |       COMPARISON_ROOT: ${{ runner.temp }}/reader-representation-profile
+   |                            ^~~~~~~~~~~

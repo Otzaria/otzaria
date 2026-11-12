@@ -1,0 +1,24 @@
+{
+  "actionlint": {
+    "version": "1.7.12",
+    "archive_url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz",
+    "archive_sha256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8",
+    "checksum_url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_checksums.txt",
+    "checksum_file_sha256": "433028cf0ba3c42163ea1a668dedce30fcdbe84fe912b1a5e288c006eab8a4f5",
+    "verified_against_release_api_and_checksums": true
+  },
+  "powershell": {
+    "version": "7.4.6",
+    "archive_url": "https://github.com/PowerShell/PowerShell/releases/download/v7.4.6/powershell-7.4.6-linux-x64.tar.gz",
+    "archive_sha256": "6f6015203c47806c5cc444c19d8ed019695e610fbd948154264bf9ca8e157561",
+    "checksum_url": "https://github.com/PowerShell/PowerShell/releases/download/v7.4.6/hashes.sha256",
+    "verified_against_official_checksums": true
+  },
+  "flutter": {
+    "version": "3.47.7",
+    "dart_version": "3.13.5",
+    "full_toolchain_record_in_base": "tool/perf_probe/results/pr4307_review_20261112/representation-control/validation/toolchain.json"
+  },
+  "pyyaml_version": "6.0.3",
+  "binaries_included": false
+}

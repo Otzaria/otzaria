@@ -1,0 +1,36 @@
+{
+  "scope": "Evidence/schema/PowerShell and optional mocked orchestration checks only. No Flutter tests, app build, or performance measurement.",
+  "checks": [
+    {
+      "name": "actionlint-v1",
+      "exit_code": 1,
+      "expected_exit_code": 1
+    },
+    {
+      "name": "actionlint-v2",
+      "exit_code": 0,
+      "expected_exit_code": 0
+    },
+    {
+      "name": "powershell-parse",
+      "exit_code": 0,
+      "expected_exit_code": 0
+    },
+    {
+      "name": "setup-contract",
+      "exit_code": 0,
+      "expected_exit_code": 0
+    },
+    {
+      "name": "mocked-tests-pass",
+      "exit_code": 0,
+      "expected_exit_code": 0
+    },
+    {
+      "name": "mocked-tests-fail",
+      "exit_code": 1,
+      "expected_exit_code": 1
+    }
+  ],
+  "status": "passed"
+}

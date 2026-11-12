@@ -1,0 +1,16 @@
+{
+  "run_url": "https://github.com/Otzaria/otzaria/actions/runs/43288648821",
+  "workflow_commit": "c89c15836ce2e05027e7fd9fbf90ce33118c84bb",
+  "html_source_sha256": "ace89318e3e83367f94c11bcd9ad1dfee4c0491ae03c79a5b0e2fe5e33f5910e",
+  "html_source_bytes": 147372,
+  "html_source_included": false,
+  "exact_diagnostic_text": "(Line: 33, Col: 24): Unrecognized named-value: 'runner'. Located at position 1 within expression: runner.temp, (Line: 34, Col: 24): Unrecognized named-value: 'runner'. Located at position 1 within expression: runner.temp",
+  "affected_context": "jobs.paired-profile.env",
+  "expressions": [
+    "runner.temp",
+    "runner.temp"
+  ],
+  "job_count": 0,
+  "performance_data_produced": false,
+  "root_cause": "GitHub Actions does not permit the runner context in jobs.env. YAML and PowerShell parsers do not validate Actions context availability."
+}

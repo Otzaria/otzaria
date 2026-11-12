@@ -1,0 +1,367 @@
+{
+  "schema_version": 1,
+  "scope": "PR 4307 representation-workflow preparation, validation, publication attempts and the minimal GitHub Actions schema fix.",
+  "evidence_base_commit": "90f738ca470a5b5c9f0eed49b3e4b4b0007d9403",
+  "evidence_base_tree": "4c608b77368994e034e64bbdb483567b053f700b",
+  "candidate_commit": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+  "flat_control_commit": "764abeeec8a81a0e081d951261c37dc15dbadec3",
+  "workflow_v1_commit": "c89c15836ce2e05027e7fd9fbf90ce33118c84bb",
+  "workflow_v2_commit": "64f296e5bd0fd1451a893c5c809648f5b8da8f2a",
+  "workflow_v1_run": 43288648821,
+  "workflow_v2_run": 43289584496,
+  "v1_outcome": "Workflow validation failure before any job: unavailable runner context in job-level env.",
+  "v2_run_state_at_parent_handoff": "in_progress",
+  "v2_final_outcome_recorded": false,
+  "no_performance_result_claim": true,
+  "interpretation": "The planned comparison isolates representation and snapshot-sharing implementations, including flags-identity-mediated invalidation. Object identity/contentChanges granularity are not claimed identical. Hosted Windows does not prove physical-GPU behavior.",
+  "fix_scope": "Only initialize VALIDATION_ROOT and COMPARISON_ROOT in the first PowerShell step and export via GITHUB_ENV. Subsequent steps and all source/sampling pins are unchanged.",
+  "mock_contract_candidate_bloc_sha256": "73c4de182c83f68a284718a4e5ace0301ceec2b2ac3da2ab2476c1051161c88a",
+  "control_validation_in_parent": "tool/perf_probe/results/pr4307_review_20261112/representation-control/validation/local_validation_summary.json",
+  "archive_notes": [
+    "Full HTML is replaced by exact error text, URL, length and SHA-256.",
+    "No SDK binary, full product file or copied lockfile is included.",
+    "Workflow content embedded in publication manifests is externalized once and reconstructs each original manifest hash exactly.",
+    "Historical local paths in unmodified logs/manifests describe the original execution; portable reproduction uses supplied CLI paths.",
+    "Mocked cleanup tests are explicitly separate from actual Flutter analysis/control tests."
+  ],
+  "files": [
+    {
+      "path": "attempts/v1-validation-error.json",
+      "bytes": 873,
+      "sha256": "5688068a8507312a3f20315709a6883f8f96a357e2b5fe78518e712b3bc2bd00",
+      "git_blob_sha": "e3332c496187bc4c916ec2a036d6f2ae4cb89fbf",
+      "transformation": "Only the exact diagnostic, source URL, source length and SHA-256 are retained",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/invalid-workflow-run.html",
+      "original_source_sha256": "ace89318e3e83367f94c11bcd9ad1dfee4c0491ae03c79a5b0e2fe5e33f5910e"
+    },
+    {
+      "path": "attempts/v1.json",
+      "bytes": 515,
+      "sha256": "f8587e5c97a91eb9b1a2f88175a5995e6d92dd8374f73c965e367b6f346a4ae9",
+      "git_blob_sha": "57933f3ad91cff6102da68122f7a7ab9443667fd",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/run-v1.json",
+      "original_source_sha256": "f8587e5c97a91eb9b1a2f88175a5995e6d92dd8374f73c965e367b6f346a4ae9"
+    },
+    {
+      "path": "attempts/v2.json",
+      "bytes": 191,
+      "sha256": "d21834a988030f1b97301a234c0509fa4b77e1ba347712765b84a95de9933015",
+      "git_blob_sha": "acd06e5506cf6fc2094f1d9dafad7e4372271f15",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/run-v2.json",
+      "original_source_sha256": "d21834a988030f1b97301a234c0509fa4b77e1ba347712765b84a95de9933015"
+    },
+    {
+      "path": "changes/workflow-v2.patch",
+      "bytes": 1981,
+      "sha256": "e31a31e0c3342b6f30aa50b383d8c928281852329b05ff38ab3586ddf67ca1bd",
+      "git_blob_sha": "6dbdae3e266ee798ee470f1f3ac1a90bb77714f2",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/workflow-v2.patch",
+      "original_source_sha256": "e31a31e0c3342b6f30aa50b383d8c928281852329b05ff38ab3586ddf67ca1bd"
+    },
+    {
+      "path": "contracts/mocked-fail/control-validation.json",
+      "bytes": 5090,
+      "sha256": "d4cc628d4e64f424c76f5e03d389584f4cba46d2049419a349d35d9e301316ac",
+      "git_blob_sha": "e1facf9d300a54e0b5c91294bc3d38577f7e9f16",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/mocked-tests-fail/artifacts/control-validation.json",
+      "original_source_sha256": "d4cc628d4e64f424c76f5e03d389584f4cba46d2049419a349d35d9e301316ac"
+    },
+    {
+      "path": "contracts/mocked-fail/failure.log",
+      "bytes": 319,
+      "sha256": "e3caa6e12a40e8f69750065215c24abd9663dc1ceb11e10be1339bc319c14e5c",
+      "git_blob_sha": "c786528d893124e4bed3bfc60f8db6e961fbc345",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/mocked-tests-fail/artifacts/control-validation-failure.log",
+      "original_source_sha256": "e3caa6e12a40e8f69750065215c24abd9663dc1ceb11e10be1339bc319c14e5c"
+    },
+    {
+      "path": "contracts/mocked-fail/output.log",
+      "bytes": 1734,
+      "sha256": "6a23c3d10b8af30d1c09f2b052b95adf71dca24591d38a7e82e2f9c354f89943",
+      "git_blob_sha": "1bb1455f412d3cdaa2fe4158eed08c949475757a",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/mocked-tests-fail/orchestration.log",
+      "original_source_sha256": "6a23c3d10b8af30d1c09f2b052b95adf71dca24591d38a7e82e2f9c354f89943"
+    },
+    {
+      "path": "contracts/mocked-pass/control-validation.json",
+      "bytes": 5051,
+      "sha256": "2e827d739590d4b190d795c07832eb284246df0e95f75b845cfc309d80f7c928",
+      "git_blob_sha": "4d1a7fdb60a626d8f7445b4fde301e5681dea4d3",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/mocked-tests-pass/artifacts/control-validation.json",
+      "original_source_sha256": "2e827d739590d4b190d795c07832eb284246df0e95f75b845cfc309d80f7c928"
+    },
+    {
+      "path": "contracts/mocked-pass/output.log",
+      "bytes": 1456,
+      "sha256": "0d8c17a137ba93c7844a999287ba85b49c7889c6c7129b226b531d81eb4722b1",
+      "git_blob_sha": "65f4ff122fefd0a037803421bc3c80819221bebf",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/mocked-tests-pass/orchestration.log",
+      "original_source_sha256": "0d8c17a137ba93c7844a999287ba85b49c7889c6c7129b226b531d81eb4722b1"
+    },
+    {
+      "path": "contracts/orchestration-summary.json",
+      "bytes": 1122,
+      "sha256": "2dc823842d6f9343314f956c5746ff7bf5f814f835cf0fd4d9db2e8767b84926",
+      "git_blob_sha": "1aa527c0c38ee99ccddfcd134581e4306ba594df",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/validation-orchestration-contract.json",
+      "original_source_sha256": "2dc823842d6f9343314f956c5746ff7bf5f814f835cf0fd4d9db2e8767b84926"
+    },
+    {
+      "path": "contracts/orchestration.ps1",
+      "bytes": 8527,
+      "sha256": "6fe37cbc6b5d23dda8fca3c22b7bf528934a50d4977533d1f7c08a169d47cd22",
+      "git_blob_sha": "065e6983863f723ec12a483261e4abc035ab84b0",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/validation-orchestration-contract.ps1",
+      "original_source_sha256": "6fe37cbc6b5d23dda8fca3c22b7bf528934a50d4977533d1f7c08a169d47cd22"
+    },
+    {
+      "path": "contracts/setup/experiment-plan.json",
+      "bytes": 609,
+      "sha256": "e5b6bce1664b26af824d38a5a14cb3185486715ccba56b34a4476428a6b78b4d",
+      "git_blob_sha": "89d82fc949c9d982793c85bf334ae358fa076118",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v2-setup-contract/runner-temp/reader-representation-validation/experiment-plan.json",
+      "original_source_sha256": "e5b6bce1664b26af824d38a5a14cb3185486715ccba56b34a4476428a6b78b4d"
+    },
+    {
+      "path": "contracts/setup/github-env.txt",
+      "bytes": 287,
+      "sha256": "31f661ec6b182caa43197b8738aa4d855f8c0f043282fc7b9e8d375b8fd9f718",
+      "git_blob_sha": "a2dd4f3964524c5d739d9389113619fc962e9486",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v2-setup-contract/github-env.txt",
+      "original_source_sha256": "31f661ec6b182caa43197b8738aa4d855f8c0f043282fc7b9e8d375b8fd9f718"
+    },
+    {
+      "path": "contracts/setup/setup.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v2-setup-contract/setup.log",
+      "original_source_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "contracts/setup/setup.ps1",
+      "bytes": 1608,
+      "sha256": "eb785cd61110b07eb677aa6d5865e5bd667d377994ceaa1e3d9668351c0c5b9b",
+      "git_blob_sha": "b6801db29d44352356330c7690100c30f70d394f",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v2-setup-contract/setup.ps1",
+      "original_source_sha256": "eb785cd61110b07eb677aa6d5865e5bd667d377994ceaa1e3d9668351c0c5b9b"
+    },
+    {
+      "path": "contracts/setup/summary.json",
+      "bytes": 404,
+      "sha256": "9de4e357ee7a126d92a47b1930d640f56656ef377f05549798376fc0ca75e38e",
+      "git_blob_sha": "096e744785765acceafddd861fb4d8c2f2dd9a83",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v2-setup-contract.json",
+      "original_source_sha256": "9de4e357ee7a126d92a47b1930d640f56656ef377f05549798376fc0ca75e38e"
+    },
+    {
+      "path": "publications/manifest-v1.json",
+      "bytes": 2417,
+      "sha256": "01a508a0f3098d7537275f73591af803cf8d604b6f41ce2b4816c8738697afc8",
+      "git_blob_sha": "6823cde4e51041a9dd027822a61ecf6eb96bb188",
+      "transformation": "Lossless content externalization, verified by reconstructing the original JSON SHA-256",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/publication-manifest.json",
+      "original_source_sha256": "5e3f9a48836798933fb02da592a72375f5934a2c60e49ff24e3dec86fb8c3e27"
+    },
+    {
+      "path": "publications/manifest-v2.json",
+      "bytes": 5196,
+      "sha256": "1f18074380ff11acdb4162a9661c5aaad923e1c80849988111707b9ec43143ee",
+      "git_blob_sha": "219558076027244dfce4eea1514735cb762444d9",
+      "transformation": "Lossless content externalization, verified by reconstructing the original JSON SHA-256",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/publication-manifest-v2.json",
+      "original_source_sha256": "f52f270d8ab005f3b7c8bfe7977ba53454bfa72c46f6438c040eaff38fac5b89"
+    },
+    {
+      "path": "publications/result-v1.json",
+      "bytes": 672,
+      "sha256": "fcb3b839f8813b209cc412c1136d8d24b2842eff181d8105a218ce6fbe88ac12",
+      "git_blob_sha": "707441855815c349951fc0664da61c60870948f6",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/publication-result.json",
+      "original_source_sha256": "fcb3b839f8813b209cc412c1136d8d24b2842eff181d8105a218ce6fbe88ac12"
+    },
+    {
+      "path": "publications/result-v2.json",
+      "bytes": 727,
+      "sha256": "0fa5cdbbd76df9ab7958efe76b206997cd3e2a4ca07502e3533a5c8f64f4643f",
+      "git_blob_sha": "73b3bda7d987e4152911a381f62238c6b5de1a56",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/publication-result-v2.json",
+      "original_source_sha256": "0fa5cdbbd76df9ab7958efe76b206997cd3e2a4ca07502e3533a5c8f64f4643f"
+    },
+    {
+      "path": "repro/instructions.json",
+      "bytes": 1389,
+      "sha256": "f1581c0104f08119132cde918635d7eaba0b64cabe84a8895eab553d53a27550",
+      "git_blob_sha": "87e76ed06a368ba2c855fff39a53016336896505",
+      "transformation": "Portable reproduction instructions and explicit scope boundaries"
+    },
+    {
+      "path": "repro/restore-lockfile.ps1",
+      "bytes": 319,
+      "sha256": "6807432be123b164c60b05509e1b50e410285ba7f6ef2a5d819890570f1d569b",
+      "git_blob_sha": "0bf56542478f7240af6cba11cf4ce6fbaed4cf10",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/restore-v2-lockfile.ps1",
+      "original_source_sha256": "6807432be123b164c60b05509e1b50e410285ba7f6ef2a5d819890570f1d569b"
+    },
+    {
+      "path": "repro/validate-powershell.ps1",
+      "bytes": 431,
+      "sha256": "d1ced845eafc6d643c5d7a576cf5ddce8080612347b8ae0b2a8c41c39133119b",
+      "git_blob_sha": "66a25d20cfa121949a94eee2c395f2c9e26d8720",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/validate-final-powershell.ps1",
+      "original_source_sha256": "d1ced845eafc6d643c5d7a576cf5ddce8080612347b8ae0b2a8c41c39133119b"
+    },
+    {
+      "path": "repro/validate.py",
+      "bytes": 6608,
+      "sha256": "3d7d5fd51e239f1bb88a2e984d36879981d354dd7b5f1a8f9b36196f875cacab",
+      "git_blob_sha": "79b95c6a137ee92145924d4958c1ff92a9c13971",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-workflow-git-evidence/reproduce_workflow_checks.py",
+      "original_source_sha256": "3d7d5fd51e239f1bb88a2e984d36879981d354dd7b5f1a8f9b36196f875cacab"
+    },
+    {
+      "path": "validation/actionlint-v1.log",
+      "bytes": 869,
+      "sha256": "aaac6784c87fb5127990a27629ed260561e875da3538589de8681c64b176dcbd",
+      "git_blob_sha": "3caf98deb4970cbf9b858f3acfc360d6db6dbd25",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/actionlint-v1.log",
+      "original_source_sha256": "aaac6784c87fb5127990a27629ed260561e875da3538589de8681c64b176dcbd"
+    },
+    {
+      "path": "validation/actionlint-v2.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v2-actionlint.log",
+      "original_source_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "validation/flutter-analyze.log",
+      "bytes": 97,
+      "sha256": "3d53e436ad2b39419fb9e4db009cd2f9898e88b4702d7162e0a2532df3ed57cb",
+      "git_blob_sha": "23126ca3518de95655a3947eb002911d316b089a",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v2-analyze.log",
+      "original_source_sha256": "3d53e436ad2b39419fb9e4db009cd2f9898e88b4702d7162e0a2532df3ed57cb"
+    },
+    {
+      "path": "validation/flutter-pub-get.log",
+      "bytes": 6318,
+      "sha256": "cbc72e42285e642b1243228c9322a18e276fc3374727d03e0cb2979406cf0f33",
+      "git_blob_sha": "2662f1134dcbba9e46324198643679809196cb8c",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v2-pub-get.log",
+      "original_source_sha256": "cbc72e42285e642b1243228c9322a18e276fc3374727d03e0cb2979406cf0f33"
+    },
+    {
+      "path": "validation/lockfile-quoting.json",
+      "bytes": 389,
+      "sha256": "f4c716bdd92aa189bab46a5620cd81a57694454b0874fe8d769520840bed4486",
+      "git_blob_sha": "9d1d728e2855d5ebf4b77137940126537c61a4ff",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v2-lockfile-quoting.json",
+      "original_source_sha256": "f4c716bdd92aa189bab46a5620cd81a57694454b0874fe8d769520840bed4486"
+    },
+    {
+      "path": "validation/lockfile-restore.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v2-lockfile-restore.log",
+      "original_source_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "validation/powershell-v2.log",
+      "bytes": 38,
+      "sha256": "8f60ac350f324b537621275d794eafbec768e31aa46e10751909374ec83d9b47",
+      "git_blob_sha": "08d63c91b693cc8c890dd5e4b5bd026d73852316",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/powershell-v2.log",
+      "original_source_sha256": "8f60ac350f324b537621275d794eafbec768e31aa46e10751909374ec83d9b47"
+    },
+    {
+      "path": "validation/reproduction-result.json",
+      "bytes": 776,
+      "sha256": "c6097c3b95930ccd794b38109860ee55e37bfb520907ccf7c46d5b307e80bdf2",
+      "git_blob_sha": "5c410078595e0cf765d3893c6d5bd518a54c85e9",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-workflow-git-evidence/reproduction-check/reproduction-result.json",
+      "original_source_sha256": "c6097c3b95930ccd794b38109860ee55e37bfb520907ccf7c46d5b307e80bdf2"
+    },
+    {
+      "path": "validation/tools.json",
+      "bytes": 1209,
+      "sha256": "51049be133f7b9b73f23aff850a1416079cbfffdf9cb6ac23bf95673b5e14220",
+      "git_blob_sha": "0207cb6b33fa5f68233dcbfc0ba6350f5a476e38",
+      "transformation": "Structured tool version and verified-download provenance"
+    },
+    {
+      "path": "validation/v1-template-validation.json",
+      "bytes": 1395,
+      "sha256": "88c21b7662a6d1e99870a4254fc3c6e99f063f77b2ceaefc117ea739c37effe0",
+      "git_blob_sha": "10d84e3badc208c5964188307e551899a9347347",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/workflow-template-validation.json",
+      "original_source_sha256": "88c21b7662a6d1e99870a4254fc3c6e99f063f77b2ceaefc117ea739c37effe0"
+    },
+    {
+      "path": "validation/v2-flutter-validation.json",
+      "bytes": 1587,
+      "sha256": "0901def013fcd00dfdb430f9b0bee5d2a73a1b21b7bbfbc3e5b6aac0c222291d",
+      "git_blob_sha": "00a305abda67cfbf6d96412400aefc27dbfd6aa1",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/v2-flutter-validation.json",
+      "original_source_sha256": "0901def013fcd00dfdb430f9b0bee5d2a73a1b21b7bbfbc3e5b6aac0c222291d"
+    },
+    {
+      "path": "validation/v2-summary.json",
+      "bytes": 2787,
+      "sha256": "06ce211024d4c90cc6674f42681c9893e064c50b4b74156cd91a288d53ac4963",
+      "git_blob_sha": "ac27f573d12d90d7f48d2ee2679836364b4607da",
+      "transformation": "verbatim",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/workflow-v2-validation.json",
+      "original_source_sha256": "06ce211024d4c90cc6674f42681c9893e064c50b4b74156cd91a288d53ac4963"
+    },
+    {
+      "path": "workflows/v1.yml",
+      "bytes": 21033,
+      "sha256": "a835087b2782384076ad1118485465156704edf7dc0a490cd283ebba23ce411d",
+      "git_blob_sha": "ee5639ebaf85a8d066665845114a7c3236d00023",
+      "transformation": "Exact embedded UTF-8 workflow content extracted from the publication manifest",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/publication-manifest.json",
+      "original_source_sha256": "5e3f9a48836798933fb02da592a72375f5934a2c60e49ff24e3dec86fb8c3e27"
+    },
+    {
+      "path": "workflows/v2.yml",
+      "bytes": 21227,
+      "sha256": "670651c7da34680e857448fb141f492033ef4700de4a11d0990c9dc10ce8b69f",
+      "git_blob_sha": "ea27fc7573ac1adf4e081258d334f38c860a1df0",
+      "transformation": "Exact embedded UTF-8 workflow content extracted from the publication manifest",
+      "original_local_source": "/workspace/scratch/03d201536b5d/pr4307-isolated-workflow-evidence/publication-manifest-v2.json",
+      "original_source_sha256": "f52f270d8ab005f3b7c8bfe7977ba53454bfa72c46f6438c040eaff38fac5b89"
+    }
+  ]
+}
