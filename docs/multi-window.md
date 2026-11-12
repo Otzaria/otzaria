@@ -80,6 +80,8 @@
    * flutter#190029 — `windows/runner/phantom_mouse_button_filter.h`. נכנס כבר
      ל-3.48.0-0.5.pre (ולכן ההערה שם אומרת 3.48), אבל 3.48 ו-3.49 לא יצאו
      ליציב.
+   * flutter#175041 (עדיין פתוח) — `windows/runner/accessibility_request_filter.h`:
+     גשר הנגישות קורס על מעבר אב מקונן (#3336). למחוק כשיתוקן.
    * flutter#193174 (3.50) מבטל את view 0 רק כשהחלון הראשון נוצר ב-API
      החלונות; ה-`FlutterViewController` של ה-runner שומר אותו (סעיף 3).
 

@@ -54,6 +54,8 @@ windows/runner/*
 !windows/runner/shift_key_normalizer.cpp
 !windows/runner/shift_key_normalizer.h
 !windows/runner/window_centering.h
+!windows/runner/accessibility_request_filter.cpp
+!windows/runner/accessibility_request_filter.h
 # ⚠️ `windows/runner/*` מעל מסנן **הכול**, וכל קובץ מקור חדש חייב חריגה
 # מפורשת כאן. קבצים שכבר tracked ממשיכים להיות tracked ולכן הבעיה אינה
 # נראית — אבל קובץ **חדש** נבלע בשקט: `git add -A` מדלג עליו בלי מילה,
