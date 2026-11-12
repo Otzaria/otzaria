@@ -161,7 +161,7 @@ dependencies:
   flutter_inappwebview:
     git:
       url: https://github.com/Otzaria/flutter_inappwebview
-      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
       path: flutter_inappwebview
   # נדרש ישירות עבור WindowsFileDropManager (גרירת קבצים אל החלון).
   flutter_inappwebview_windows: any
@@ -278,33 +278,33 @@ dependency_overrides:
   flutter_inappwebview_windows:
     git:
       url: https://github.com/Otzaria/flutter_inappwebview
-      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
       path: flutter_inappwebview_windows
   flutter_inappwebview_platform_interface:
     git:
       url: https://github.com/Otzaria/flutter_inappwebview
-      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
       path: flutter_inappwebview_platform_interface
   flutter_inappwebview_ios:
     git:
       url: https://github.com/Otzaria/flutter_inappwebview
-      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
       path: flutter_inappwebview_ios
   flutter_inappwebview_macos:
     git:
       url: https://github.com/Otzaria/flutter_inappwebview
-      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
       path: flutter_inappwebview_macos
   flutter_inappwebview_linux:
     git:
       url: https://github.com/Otzaria/flutter_inappwebview
-      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
       path: flutter_inappwebview_linux
   # הגרסה שב-pub.dev קוראת ל-setStatusBarColor שהוצא משימוש ב-Android 15.
   flutter_inappwebview_android:
     git:
       url: https://github.com/Otzaria/flutter_inappwebview
-      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      ref: ca04f1e7139f03e39577d940aa0fd33b2e59b664
       path: flutter_inappwebview_android
 
   # TODO: להישאר במזלג עד שחרור V14 ב-pub.dev ואימות כיסוי כל השיפורים ובדיקות המעבר; 13.3.3 אינה מספיקה.

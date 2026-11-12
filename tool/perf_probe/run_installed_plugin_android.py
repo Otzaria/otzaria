@@ -32,11 +32,44 @@ ACTIVITY = "org.otzaria.otzaria.MainActivity"
 COMPONENT = f"{PACKAGE}/{ACTIVITY}"
 DIRECTORY = "installed-plugin-android"
 TARGET = "integration_test/installed_plugin_resource_probe_test.dart"
-NATIVE_PIN = "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
 COMMAND_OUTPUT_LIMIT = 8 * 1024 * 1024
 COMPLETION_TIMEOUT = 15
 PACKAGES = ["flutter_inappwebview" + suffix for suffix in
             ("", "_android", "_ios", "_linux", "_macos", "_platform_interface", "_web", "_windows")]
+def read_native_pin(root):
+    """Require one exact, clean Git revision in the manifest and all eight lock entries."""
+    manifest = (root / "pubspec.yaml").read_text(encoding="utf-8")
+    lock = (root / "pubspec.lock").read_text(encoding="utf-8")
+    refs = re.findall(
+        r"(?m)^      ref: ([0-9a-f]{40})\r?\n      path: (flutter_inappwebview(?:_[a-z_]+)?)$",
+        manifest,
+    )
+    explicit = set(PACKAGES) - {"flutter_inappwebview_web"}
+    require(len(refs) == len(explicit) and {name for _, name in refs} == explicit,
+            "Expected exactly seven explicit flutter_inappwebview Git paths")
+    revisions = {revision for revision, _ in refs}
+    require(len(revisions) == 1, "Mixed flutter_inappwebview revisions in pubspec.yaml")
+    expected = revisions.pop()
+    for name in PACKAGES:
+        found = re.search(
+            rf"(?ms)^  {re.escape(name)}:\r?\n(.*?)(?=^  [A-Za-z0-9_]+:\r?\n|\Z)",
+            lock,
+        )
+        require(found is not None, f"Missing lockfile package: {name}")
+        section = found.group(1)
+
+        def field(key, indent):
+            return re.findall(rf"(?m)^{' ' * indent}{re.escape(key)}: (.+?)\r?$", section)
+
+        require(field("source", 4) == ["git"], f"Not a Git dependency: {name}")
+        require(field("path", 6) == [name], f"Unexpected Git path: {name}")
+        require(field("url", 6) == ['"https://github.com/Otzaria/flutter_inappwebview"'],
+                f"Unexpected Git source: {name}")
+        require(field("ref", 6) == [expected] and field("resolved-ref", 6) == [expected],
+                f"Mixed or unresolved native pin in pubspec.lock: {name}")
+    return expected
+
+
 REQUIRED_PHASES = {
     "startup", "firstOpen", "visibleIdle", "stateAndScroll", "multipleOpen", "hiddenIdle",
     "memoryPressure", "restore", "protectedControls", "countPolicy", "agePolicy", "storeRestore",
@@ -536,6 +569,7 @@ class Runner:
         require(lock_before == (ROOT / "pubspec.lock").read_bytes(), "Strict pub changed the lockfile")
         config = json.loads((ROOT / ".dart_tool/package_config.json").read_text())
         packages = {entry["name"]: entry for entry in config["packages"]}
+        expected_pin = read_native_pin(ROOT)
         pins = {}
         for name in PACKAGES:
             uri = urllib.parse.urlparse(packages[name]["rootUri"])
@@ -544,7 +578,7 @@ class Runner:
             if not path.is_absolute():
                 path = (ROOT / ".dart_tool" / path).resolve()
             observed = self.command(["git", "-C", str(path), "rev-parse", "HEAD"]).stdout.decode().strip()
-            require(observed == NATIVE_PIN, f"Mixed or unexpected native pin: {name}")
+            require(observed == expected_pin, f"Mixed or unexpected native pin: {name}")
             require(not self.command(["git", "-C", str(path), "status", "--porcelain", "--untracked-files=no"]).stdout.strip(),
                     f"Resolved native package contains modified sources: {name}")
             pins[name] = observed
