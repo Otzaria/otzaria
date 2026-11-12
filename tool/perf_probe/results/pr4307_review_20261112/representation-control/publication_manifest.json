@@ -1,0 +1,151 @@
+{
+  "parent_sha": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+  "candidate_sha": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+  "flat_algorithm_source_sha": "8d24d26f6b7eef04ad9eda1f30eb9ea0e53cf546",
+  "expected_tree": "10fca460ba42e1f0fd82bc5d09b0d7a02d9b1131",
+  "commit_message": "test(perf): prepare a flat-list control for PR 4307 representation A/B",
+  "branch_purpose": "counterfactual measurement control only; never merge into product",
+  "files": [
+    {
+      "repo_path": "lib/text_book/bloc/text_book_bloc.dart",
+      "local_path": "/workspace/scratch/03d201536b5d/pr4307-flat-control/lib/text_book/bloc/text_book_bloc.dart",
+      "mode": "100644",
+      "git_blob_sha": "9d2025dd9762c5861ca4d3cac43241d2ad8a5dfc",
+      "bytes": 124166,
+      "sha256": "a31fa2dbc8b9ac2410775407a45c56862098a5c4f334b4264ab70d31da30a6ee"
+    }
+  ],
+  "evidence_paths": {
+    "prepare_flat_control.py": "/workspace/scratch/03d201536b5d/pr4307-flat-evidence/prepare_flat_control.py",
+    "source_provenance.json": "/workspace/scratch/03d201536b5d/pr4307-flat-evidence/source_provenance.json",
+    "representation_only.patch": "/workspace/scratch/03d201536b5d/pr4307-flat-evidence/representation_only.patch",
+    "validation_plan.json": "/workspace/scratch/03d201536b5d/pr4307-flat-evidence/validation_plan.json",
+    "validation_overlay.py": "/workspace/scratch/03d201536b5d/pr4307-flat-evidence/validation_overlay.py",
+    "validation_overlay_provenance.json": "/workspace/scratch/03d201536b5d/pr4307-flat-evidence/validation_overlay_provenance.json",
+    "run_local_control_validation.py": "/workspace/scratch/03d201536b5d/pr4307-flat-evidence/run_local_control_validation.py",
+    "finalize_local_validation.py": "/workspace/scratch/03d201536b5d/pr4307-flat-evidence/finalize_local_validation.py",
+    "independent-source-qa.json": "/workspace/scratch/03d201536b5d/pr4307-flat-evidence/independent-source-qa.json",
+    "validation/analyze.log": "/workspace/scratch/03d201536b5d/pr4307-flat-evidence/validation/analyze.log",
+    "validation/analyze_status.json": "/workspace/scratch/03d201536b5d/pr4307-flat-evidence/validation/analyze_status.json",
+    "validation/common_tests.log": "/workspace/scratch/03d201536b5d/pr4307-flat-evidence/validation/common_tests.log",
+    "validation/common_tests_status.json": "/workspace/scratch/03d201536b5d/pr4307-flat-evidence/validation/common_tests_status.json",
+    "validation/format_check.log": "/workspace/scratch/03d201536b5d/pr4307-flat-evidence/validation/format_check.log",
+    "validation/local_validation_summary.json": "/workspace/scratch/03d201536b5d/pr4307-flat-evidence/validation/local_validation_summary.json",
+    "validation/lockfile-proof.json": "/workspace/scratch/03d201536b5d/pr4307-flat-evidence/validation/lockfile-proof.json",
+    "validation/pub_get.log": "/workspace/scratch/03d201536b5d/pr4307-flat-evidence/validation/pub_get.log",
+    "validation/pub_get_status.json": "/workspace/scratch/03d201536b5d/pr4307-flat-evidence/validation/pub_get_status.json",
+    "validation/toolchain.json": "/workspace/scratch/03d201536b5d/pr4307-flat-evidence/validation/toolchain.json"
+  },
+  "validation_status": "Local format, full Flutter analyze and all 220 common behavioral tests passed before any control commit; Windows validation/builds and performance interpretation remain pending.",
+  "frozen_at_utc": "2026-11-12T19:13:00.446836+00:00",
+  "publication_state": "validated and ready for parent-controlled publication; no local commit or remote mutation performed by this agent",
+  "local_validation_summary": {
+    "relative_path": "validation/local_validation_summary.json",
+    "bytes": 4973,
+    "sha256": "63258e7a7a4cbdce2b46e861b88442fb29d8d4258c964ce3f0f951fb72ed75aa"
+  },
+  "one_commit_requirement": {
+    "only_parent": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+    "only_changed_path": "lib/text_book/bloc/text_book_bloc.dart",
+    "expected_tree": "10fca460ba42e1f0fd82bc5d09b0d7a02d9b1131",
+    "do_not_rebase_onto_moving_dev": true
+  },
+  "evidence_files": [
+    {
+      "relative_path": "prepare_flat_control.py",
+      "bytes": 10059,
+      "sha256": "26877dc2438fc8369f4a74575896411bdf2aaf10e6a8904df86bb70685a0b19f"
+    },
+    {
+      "relative_path": "source_provenance.json",
+      "bytes": 5058,
+      "sha256": "fb258e9051961fff8e775963cd1ed1553811c12dec251cc4cc184d4ebc342892"
+    },
+    {
+      "relative_path": "representation_only.patch",
+      "bytes": 9129,
+      "sha256": "f27487c85a6aa18adc21cba0df2e19cc5f3b3040e38573692042f30ea26b860b"
+    },
+    {
+      "relative_path": "validation_plan.json",
+      "bytes": 6602,
+      "sha256": "6160d1c717dc8570e318388fbe6ddf37fe07848f80e207a38a3b2bdcadbeb70d"
+    },
+    {
+      "relative_path": "validation_overlay.py",
+      "bytes": 3892,
+      "sha256": "8608d28fe24b61c806449a437e78c29fc30b40e7448d123da31bdbff014dfdf9"
+    },
+    {
+      "relative_path": "validation_overlay_provenance.json",
+      "bytes": 1093,
+      "sha256": "971c3ff05ab5737b16916fff192714e2013a75f79035a27c8e4674dead08b563"
+    },
+    {
+      "relative_path": "run_local_control_validation.py",
+      "bytes": 4844,
+      "sha256": "81986a14d16315bc4a5d13691a71fe20f4bd76984bd00b7624760efc841dd9b1"
+    },
+    {
+      "relative_path": "finalize_local_validation.py",
+      "bytes": 8950,
+      "sha256": "dd7ea70fc56e1d7bfcf6f98ec202466dee148b92f634cc7596dfef8dd03daad3"
+    },
+    {
+      "relative_path": "independent-source-qa.json",
+      "bytes": 5751,
+      "sha256": "bd1ed6878c84994be2d188739327fb41fa9b3e6094eb356aa22861dacf0ee287"
+    },
+    {
+      "relative_path": "validation/analyze.log",
+      "bytes": 97,
+      "sha256": "d09428c88d50e3a5ab7cf0728474dc51aea1d67f7285632ce5fe6d3e522a8e1f"
+    },
+    {
+      "relative_path": "validation/analyze_status.json",
+      "bytes": 53,
+      "sha256": "4e58c11df7c2add9817128d87ed1ff69acccf08a75a03177010eab934bcbb240"
+    },
+    {
+      "relative_path": "validation/common_tests.log",
+      "bytes": 123001,
+      "sha256": "324483deef24ab88486f5a31b5c2e5f2c1c4c8e4d3308f1f352b082a19c34b71"
+    },
+    {
+      "relative_path": "validation/common_tests_status.json",
+      "bytes": 1957,
+      "sha256": "4232a1618b618c5edf41f408fa4b35b6dac001585e3e3c8c335358a4e55de507"
+    },
+    {
+      "relative_path": "validation/format_check.log",
+      "bytes": 46,
+      "sha256": "f9082f332e17ad0a9982a05eb4167ae95b672938df06a6158ab88d20c6d76fb6"
+    },
+    {
+      "relative_path": "validation/local_validation_summary.json",
+      "bytes": 4973,
+      "sha256": "63258e7a7a4cbdce2b46e861b88442fb29d8d4258c964ce3f0f951fb72ed75aa"
+    },
+    {
+      "relative_path": "validation/lockfile-proof.json",
+      "bytes": 389,
+      "sha256": "f4c716bdd92aa189bab46a5620cd81a57694454b0874fe8d769520840bed4486"
+    },
+    {
+      "relative_path": "validation/pub_get.log",
+      "bytes": 6941,
+      "sha256": "14001e349de72ca9fa858f567c373d4c96ef10f326aefa8ed965ce8e9544bb92"
+    },
+    {
+      "relative_path": "validation/pub_get_status.json",
+      "bytes": 53,
+      "sha256": "5407e9e0df5d657165d3f174ca5b481148c1d06244412dcb3214de972a2e15a6"
+    },
+    {
+      "relative_path": "validation/toolchain.json",
+      "bytes": 3168,
+      "sha256": "058809ac6322472d94dbd15f4399cffc678db5b68f1230230c3bc922f561811a"
+    }
+  ],
+  "evidence_total_bytes_excluding_manifest": 196056
+}

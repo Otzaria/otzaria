@@ -1,0 +1,82 @@
+{
+  "flutter_tag": "3.47.7",
+  "flutter_framework_sha": "abaf9c523780a608bd46686fd5e53740a07077f8",
+  "flutter_engine_revision": "deb287481e3ce9468f3434937ced4240a70539ca",
+  "dart_version": "3.13.5",
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+  "clang": "Debian clang version 19.1.7 (3+b1)",
+  "rustup_archive_sha256": "b1c8cb14e30889e7e2999e6b69e62d9e9b9ffc0f4df8180564d306d9680e6c55",
+  "clang_package_provenance": [
+    {
+      "Package": "libobjc4",
+      "Version": "14.2.0-19",
+      "Filename": "pool/main/g/gcc-14/libobjc4_14.2.0-19_amd64.deb",
+      "SHA256": "d48411ec79114d5941256dddb1720fc65cbe4733285b29d5ecc87eb452ab30d9",
+      "Size": "43280"
+    },
+    {
+      "Package": "libgc1",
+      "Version": "1:8.2.8-1",
+      "Filename": "pool/main/libg/libgc/libgc1_8.2.8-1_amd64.deb",
+      "SHA256": "0279fc16692a3a4a6d5f84051f5e55fc721f3cbb0e2bbc052d8980888f18c698",
+      "Size": "247256"
+    },
+    {
+      "Package": "clang-19",
+      "Version": "1:19.1.7-3+b1",
+      "Filename": "pool/main/l/llvm-toolchain-19/clang-19_19.1.7-3+b1_amd64.deb",
+      "SHA256": "bbb74458d782b7792b61b0eed92746df5e6d033778c045cf8c2b3835b7c4efc4",
+      "Size": "116584"
+    },
+    {
+      "Package": "libclang-common-19-dev",
+      "Version": "1:19.1.7-3+b1",
+      "Filename": "pool/main/l/llvm-toolchain-19/libclang-common-19-dev_19.1.7-3+b1_amd64.deb",
+      "SHA256": "4018e40e2d4144fe38c45822e68cca63c1bf6c7872c3073ebb262ad4b2f9b8bc",
+      "Size": "739932"
+    },
+    {
+      "Package": "libclang-cpp19",
+      "Version": "1:19.1.7-3+b1",
+      "Filename": "pool/main/l/llvm-toolchain-19/libclang-cpp19_19.1.7-3+b1_amd64.deb",
+      "SHA256": "a7d2b6df51050834f6ea5c0d5e34869c2298b0bcdaa91eff17ba3db2cd545c47",
+      "Size": "13191148"
+    },
+    {
+      "Package": "libclang1-19",
+      "Version": "1:19.1.7-3+b1",
+      "Filename": "pool/main/l/llvm-toolchain-19/libclang1-19_19.1.7-3+b1_amd64.deb",
+      "SHA256": "4e7e2a5fe236e280d32fb529350b3c1cfd9410a964629a57ea079a314c45d7a3",
+      "Size": "7623496"
+    },
+    {
+      "Package": "libllvm19",
+      "Version": "1:19.1.7-3+b1",
+      "Filename": "pool/main/l/llvm-toolchain-19/libllvm19_19.1.7-3+b1_amd64.deb",
+      "SHA256": "db0d614d61345ca710fb73e75105f1ec6e38898fa7b3aa99fa7eb7d8b0a11d57",
+      "Size": "25978316"
+    },
+    {
+      "Package": "llvm-19-linker-tools",
+      "Version": "1:19.1.7-3+b1",
+      "Filename": "pool/main/l/llvm-toolchain-19/llvm-19-linker-tools_19.1.7-3+b1_amd64.deb",
+      "SHA256": "874a0a5cde797cda3e94e9310a0a9958608f526f177637414a8ce9620c804818",
+      "Size": "1263460"
+    },
+    {
+      "Package": "libz3-4",
+      "Version": "4.13.3-1",
+      "Filename": "pool/main/z/z3/libz3-4_4.13.3-1_amd64.deb",
+      "SHA256": "71383373523ef62d47eccf660cf6535c3febcbb3f88e54cb7a43124014b57359",
+      "Size": "8560036"
+    }
+  ],
+  "environment_flags": {
+    "CI": "true",
+    "BOT": "true",
+    "FLUTTER_SUPPRESS_ANALYTICS": "true",
+    "DART_SUPPRESS_ANALYTICS": "true"
+  },
+  "network": "Inherited proxy and CA trust preserved. Official GitHub Flutter tag, Rust static releases and Debian package index used."
+}

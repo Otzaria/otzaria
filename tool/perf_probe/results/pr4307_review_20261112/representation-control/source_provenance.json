@@ -1,0 +1,72 @@
+{
+  "candidate_sha": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+  "flat_algorithm_source_sha": "8d24d26f6b7eef04ad9eda1f30eb9ea0e53cf546",
+  "path": "lib/text_book/bloc/text_book_bloc.dart",
+  "candidate_file_sha256": "73c4de182c83f68a284718a4e5ace0301ceec2b2ac3da2ab2476c1051161c88a",
+  "flat_source_file_sha256": "159c6af1545e5410f0b931e109f867f43c8dcb237c66423cc4e34441e1acaefe",
+  "control_file_sha256": "a31fa2dbc8b9ac2410775407a45c56862098a5c4f334b4264ab70d31da30a6ee",
+  "outside_changed_methods_byte_identical": true,
+  "methods": [
+    {
+      "name": "_releaseContentOutsideWindow",
+      "candidate_sha256": "09acc1772b9cecdda0db29947349be512739e7dd5ece5a1b65a3795997ffd204",
+      "flat_source_sha256": "7ef80c97a8e7f1e32d308ff754374d57eab2238a80ab8b8142bcd1f1345e64a0",
+      "control_sha256": "6ff65f29ae205a617134aa06b0f9f9a5d36fad13d99e2fb1d0e252372aa1e59c",
+      "description": "Current-dev flat scan/copy method, with candidate-equivalent change detection for unequal flag length and loaded empty lines outside the retained window. Restoring the dev early return verbatim would change behavior beyond representation."
+    },
+    {
+      "name": "_applyContentRanges",
+      "candidate_sha256": "8bf7670ff27acf1fe4a24cd1786f3811140f9b1b4b035a4714062b32248b044a",
+      "flat_source_sha256": "6295fa0a1d2b5b6f5aadae96edf84fcd39ec9daf8c7a8040404317ce75e390f9",
+      "control_sha256": "ab136c6a39e3c12d7a9bef9206eed93b698ff5c1216c8c939fdaa90c0177fa9f",
+      "description": "Candidate common method, markAllRanges, no-op guard semantics, revision/contentChanges emission and lazy scanOnly retained. List copies and the changed-range loop come from current dev. Candidate flag-length normalization is retained with flat addAll. The representation type condition is removed because this control uses flat lists on all normal production paths."
+    },
+    {
+      "name": "_loadInitialItemRange",
+      "candidate_sha256": "658b1c63740f69e32e91c7ee81753195f98598834ea7366e3ac7992c0315bb80",
+      "flat_source_sha256": "3a33bb03556f0dd6430bef3295ea6ad7849b33afa4a2e8ca2c07d6b57cbe4da3",
+      "control_sha256": "088ac8bbcf5e7e340b1908003c9d11fd2093dda46fb2656b287e9beb5bd68218",
+      "description": "Candidate record/null return contract, getRange readiness check, error handling and post-await isClosed guard retained. The initial flat assignment loop and setFlags call come verbatim from current dev. The sole caller only invokes this helper for newly prepared initial lists, excludes preserveState on a loaded state, and has not emitted those lists. No extra full-list copy is introduced."
+    },
+    {
+      "name": "_contentWithAppliedRange",
+      "candidate_sha256": "8e4989b1f063e6d917dc02d11df2a9111bde831a1a6f21a4887810bb780df40f",
+      "flat_source_sha256": "58468cfca2be23b264c24f2a35c47a29e16af91d91ad4ea14cb56f8aefc35ecd",
+      "control_sha256": "58468cfca2be23b264c24f2a35c47a29e16af91d91ad4ea14cb56f8aefc35ecd",
+      "description": "Exact current-dev method bytes."
+    },
+    {
+      "name": "_loadedContentFlagsWithAppliedRange",
+      "candidate_sha256": "d56b3b8d8e807be170497c65048e2f9846cc12106978cbb41bb974be2043121e",
+      "flat_source_sha256": "099e60ab8ea853618ae3d2751be97d9977d5840ec55a0df6ac384796baf9e82d",
+      "control_sha256": "099e60ab8ea853618ae3d2751be97d9977d5840ec55a0df6ac384796baf9e82d",
+      "description": "Exact current-dev method bytes."
+    },
+    {
+      "name": "_setLoadedContentFlags",
+      "candidate_sha256": "f9388f3da7d86b895477b0495450cc72cd2ce000762074527018435960a3fb1e",
+      "flat_source_sha256": "7ccf4c8663ffa797429cea179bfd8d86d0b3c0423013fe17a05be116082e3075",
+      "control_sha256": "7ccf4c8663ffa797429cea179bfd8d86d0b3c0423013fe17a05be116082e3075",
+      "description": "Exact current-dev method bytes."
+    }
+  ],
+  "shared_unchanged": [
+    "All code outside the six methods, including _onLoadTextBook preserve/close/metadata logic",
+    "_withInlineNotesCommentator and initial inline-note dispatch",
+    "lib/text_book/utils/inline_notes_utils.dart",
+    "lib/text_book/view/page_shape/utils/page_shape_notes_column.dart",
+    "All contentVersion/revision consumer optimizations",
+    "_onApplyFullBookContent and all background loading/scheduling",
+    "All measurement harness, fixtures, tests, workflows and dependency lockfiles"
+  ],
+  "validation": {
+    "source_structure_checks": "passed",
+    "independent_source_audit": "passed; see independent-source-qa.json (runtime statements there reflect its earlier audit time)",
+    "dart_format": "passed locally with pinned SDK; 0 files changed",
+    "flutter_analyze": "passed full repository locally; no issues found",
+    "flutter_behavioral_tests": "passed locally: 220 tests in 17 common files and the narrow temporary validation sibling; original test unchanged and sibling removed",
+    "pubspec_lock": "unchanged byte-for-byte after --enforce-lockfile",
+    "local_validation_summary": "validation/local_validation_summary.json",
+    "windows_profile_build": "pending CI for both fixed source SHAs"
+  }
+}

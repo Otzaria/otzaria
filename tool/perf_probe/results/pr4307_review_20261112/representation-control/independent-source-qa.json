@@ -1,0 +1,91 @@
+{
+  "candidate_sha": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+  "candidate_blob": "3fa09b7c039bc7b679361c455f70c07fa4f57c74",
+  "control_blob": "9d2025dd9762c5861ca4d3cac43241d2ad8a5dfc",
+  "control_file_sha256": "a31fa2dbc8b9ac2410775407a45c56862098a5c4f334b4264ab70d31da30a6ee",
+  "control_bytes": 124166,
+  "reviewer": "audit_drafts_windowing",
+  "outside_six_methods_byte_identical": true,
+  "only_changed_path": "lib/text_book/bloc/text_book_bloc.dart",
+  "unrelated_logic_preserved": [
+    "preserve/close/metadata guards",
+    "inline notes and lazy iterator",
+    "loading/background scheduling",
+    "measurement harness and fixtures",
+    "revision consumers"
+  ],
+  "logical_cases_reviewed": [
+    "release loaded empty lines",
+    "release unequal flag lengths",
+    "apply short flags padding",
+    "no-op guard",
+    "sticky changed-then-restored revision",
+    "negative/out-of-bounds range clipping",
+    "initial paragraph assignment before normal initial emit"
+  ],
+  "representation_mediators": [
+    "flat content remains mutable as in dev",
+    "flat unmodifiable flag copy can make initial hasTrackedFlags false and widen contentChanges"
+  ],
+  "source_blockers": [],
+  "runtime_validation": "Not performed by this reviewer; no Flutter installed",
+  "saved_at_utc": "2026-11-12T18:55:23.316Z",
+  "review_scope": "Independent source review only; no new measurements or application tests were run by this reviewer.",
+  "control_uncommitted_at_review": true,
+  "methods": [
+    {
+      "name": "_releaseContentOutsideWindow",
+      "review": "Flat scan/copy retains the candidate's logical change detection, including loaded empty lines outside the window and any flag-length mismatch; content/flags and revision update remain consistent."
+    },
+    {
+      "name": "_applyContentRanges",
+      "review": "Flat copying and assignment preserve range clipping, short-flag padding, current-dev no-op behavior, range bookkeeping, lazy scanOnly, contentVersion increments, and sticky change detection when a batch changes then restores a value."
+    },
+    {
+      "name": "_loadInitialItemRange",
+      "review": "Candidate record/null return contract, readiness check, error path and post-await isClosed guard remain. In the normal initial-opening path the sole caller supplies newly prepared lists before emit, excludes preserveState on a loaded state, and flat assignments stay within bounds."
+    },
+    {
+      "name": "_contentWithAppliedRange",
+      "review": "Flat initial content allocation and clipped assignments are the dev implementation; logical length, offsets and contents match the candidate."
+    },
+    {
+      "name": "_loadedContentFlagsWithAppliedRange",
+      "review": "Flat initial loaded-flag allocation and clipped assignments retain loaded-empty-line semantics and logical indices."
+    },
+    {
+      "name": "_setLoadedContentFlags",
+      "review": "Returns to dev's unmodifiable flat flag copy; the identity difference is explicitly disclosed as part of the representation/snapshot implementation."
+    }
+  ],
+  "detailed_representation_mediators": [
+    {
+      "name": "content_mutability",
+      "description": "The flat content list remains mutable as in dev, while ChunkedList snapshots reject writes. This is a representation contract difference; it must not be reported as a new unrelated correctness fix in one arm."
+    },
+    {
+      "name": "flag_snapshot_identity",
+      "description": "List.unmodifiable copies initial flags, so state.loadedLineFlags can initially differ by identity from internal flags. The unchanged hasTrackedFlags guard may then expand the first contentChanges to the full book; ChunkedList can preserve identity and narrower invalidation. Revision increment and the conservative guard remain unchanged. Do not claim all invalidation ranges are value-identical between arms."
+    }
+  ],
+  "preserved_semantics": [
+    "All production code outside the six listed methods is byte-identical to candidate 6aa.",
+    "Preserve-state latest-content selection, close guards and metadata-error guards are unchanged.",
+    "Initial note dispatch, _withInlineNotesCommentator, Iterable notes, lazy scanOnly, and page-shape note consumers are unchanged.",
+    "Full-content application, background scheduling and loading queues are unchanged.",
+    "Range bookkeeping, contentVersion and ContentLineChanges emission guards are retained.",
+    "All harness, fixtures, tests, workflows and dependency files are unchanged in the control source."
+  ],
+  "mixed_test_assertion": {
+    "path": "test/text_book/bloc/long_book_snapshot_regression_test.dart",
+    "expected_representation_difference": "expect(() => second.content[639] = 'מוטציה', throwsUnsupportedError);",
+    "recommendation": "If validation needs an overlay, remove only this assertion from a temporary shared copy, retaining every other assertion and keeping the original source unchanged.",
+    "overlay_status": "Measure agent reports that the approved narrow validation overlay has been prepared outside the control; runtime execution was pending at this review."
+  },
+  "limitations": [
+    "Source inspection does not substitute for the planned Flutter analysis, behavioral tests and both Windows builds.",
+    "The initialItem ownership assessment applies to the normal initial-opening flow inspected; no new concurrency experiment was performed.",
+    "Representation-only here covers the storage and snapshot implementation and its downstream type/identity effects, not a guarantee of identical allocations or invalidation spans.",
+    "This evidence binds the exact reviewed control file SHA-256/blob. Recheck any later source-byte changes before treating this as the final frozen control."
+  ]
+}

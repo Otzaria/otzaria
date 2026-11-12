@@ -1,0 +1,135 @@
+{
+  "sdk_requirement": "Flutter 3.47.7 with its pinned Dart; dependency resolution with --enforce-lockfile; unchanged pubspec.lock",
+  "local_tools": {
+    "initially_available_on_PATH": false,
+    "restored_after_explicit_parent_instruction": true,
+    "flutter_directory": "/workspace/scratch/03d201536b5d/flutter-sdk4307",
+    "native_toolchain_directory": "/workspace/scratch/03d201536b5d/toolchain4307",
+    "toolchain_provenance": "validation/toolchain.json"
+  },
+  "mandatory_gates": [
+    [
+      "dart",
+      "format",
+      "--output=none",
+      "--set-exit-if-changed",
+      "lib/text_book/bloc/text_book_bloc.dart"
+    ],
+    [
+      "flutter",
+      "analyze",
+      "--no-pub"
+    ],
+    [
+      "python",
+      "validation_overlay.py",
+      "create",
+      "--repo",
+      "<control-checkout>",
+      "--proof",
+      "<artifact-directory>/control-validation-overlay.json"
+    ],
+    [
+      "flutter",
+      "test",
+      "--no-pub",
+      "--reporter",
+      "expanded",
+      "test/text_book/models/chunked_list_test.dart",
+      "test/text_book/bloc/background_full_content_loading_test.dart",
+      "test/text_book/bloc/split_pane_warming_test.dart",
+      "test/text_book/bloc/per_book_continuous_initial_load_test.dart",
+      "test/text_book/bloc/continuous_reading_mode_test.dart",
+      "test/text_book/bloc/inline_notes_commentator_test.dart",
+      "test/text_book/utils/reader_content_revision_test.dart",
+      "test/text_book/utils/reading_extent_estimates_test.dart",
+      "test/text_book/utils/reading_segment_cache_test.dart",
+      "test/text_book/utils/inline_notes_utils_test.dart",
+      "test/text_book/view/page_shape/page_shape_notes_column_test.dart",
+      "test/text_book/view/combined_view/continuous_reflow_keeps_place_test.dart",
+      "test/tool/perf_probe/perf_fixture_test.dart",
+      "test/tool/perf_probe/perf_reader_probe_test.dart",
+      "test/tool/perf_probe/perf_reader_scroll_test.dart",
+      "test/tool/perf_probe/perf_recorder_test.dart",
+      "test/tool/perf_probe/report_test.dart",
+      "test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart"
+    ],
+    [
+      "python",
+      "validation_overlay.py",
+      "remove",
+      "--repo",
+      "<control-checkout>"
+    ]
+  ],
+  "shared_preserved_behaviors": [
+    "Loaded empty lines and missing flags",
+    "Overlapping/batched/out-of-bounds ranges and extensions",
+    "No-op identity and contentVersion/contentChanges propagation",
+    "PreserveState after await",
+    "Close/cancellation and late metadata errors",
+    "Initial continuous paragraph completion",
+    "Hidden-tab release and split-pane warming",
+    "Notes mapping, selection, reading extents and reflow"
+  ],
+  "representation_mediated_identity": {
+    "description": "Current-dev flat setFlags creates an unmodifiable copy, whereas ChunkedList reuses the immutable snapshot. Consequently identical(state.loadedLineFlags, internalFlags) may differ at first incremental update; the identical hasTrackedFlags conditional can emit full contentChanges in flat and range contentChanges in chunked. Revision and fallback logic is unchanged.",
+    "interpretation": "This compares integrated representation/list-update implementations, including their sharing and allocation effects; it does not claim identical object identity or contentChanges granularity."
+  },
+  "windows_requirements": [
+    "Build both pinned sources successfully in profile with identical harness and dependencies before launches",
+    "Record exact control/candidate SHAs and harness tree hashes",
+    "Require control to have candidate as its only parent and exactly the one changed product file",
+    "Use paired ABBA sampling on the same runner and retain all raw observations",
+    "Physical GPU remains unavailable; hosted Windows is explicitly scoped"
+  ],
+  "not_run_locally": [
+    "Windows builds",
+    "New Windows performance measurements",
+    "Physical GPU measurements"
+  ],
+  "validation_overlay": {
+    "original_repo_path": "test/text_book/bloc/long_book_snapshot_regression_test.dart",
+    "original_source_sha": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+    "original_git_blob_sha": "674206e82a3104d74e2c5aa26effd6e9e4176c22",
+    "original_sha256": "9eeea22effd110ba786a64ccb00bebcffa2621997e071ba9616c580ff1c21356",
+    "original_bytes": 26711,
+    "removed_unique_assertion_utf8": "    expect(() => second.content[639] = 'מוטציה', throwsUnsupportedError);\n",
+    "removed_occurrences": 1,
+    "generated_repo_path": "test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart",
+    "generated_sha256": "586b42792cabf70f3709f2eabbb6c5507d915c9d0e508af91954133a2e312ed7",
+    "generated_bytes": 26631,
+    "source_unchanged": true,
+    "scope": "Temporary control validation only. Run all remaining assertions from this unchanged-source-derived sibling plus all 17 shared test files; do not alter or commit the original test.",
+    "cleanup": "Remove only the generated sibling after verifying its expected SHA256, then assert clean source. Restore nothing by blanket reset."
+  },
+  "common_test_files": [
+    "test/text_book/models/chunked_list_test.dart",
+    "test/text_book/bloc/background_full_content_loading_test.dart",
+    "test/text_book/bloc/split_pane_warming_test.dart",
+    "test/text_book/bloc/per_book_continuous_initial_load_test.dart",
+    "test/text_book/bloc/continuous_reading_mode_test.dart",
+    "test/text_book/bloc/inline_notes_commentator_test.dart",
+    "test/text_book/utils/reader_content_revision_test.dart",
+    "test/text_book/utils/reading_extent_estimates_test.dart",
+    "test/text_book/utils/reading_segment_cache_test.dart",
+    "test/text_book/utils/inline_notes_utils_test.dart",
+    "test/text_book/view/page_shape/page_shape_notes_column_test.dart",
+    "test/text_book/view/combined_view/continuous_reflow_keeps_place_test.dart",
+    "test/tool/perf_probe/perf_fixture_test.dart",
+    "test/tool/perf_probe/perf_reader_probe_test.dart",
+    "test/tool/perf_probe/perf_reader_scroll_test.dart",
+    "test/tool/perf_probe/perf_recorder_test.dart",
+    "test/tool/perf_probe/report_test.dart"
+  ],
+  "cleanup_in_finally": true,
+  "candidate_test_status": "Original unmodified candidate test already passed in exact-head CI and the reported 280 local tests; no redundant rerun requested.",
+  "local_validation": {
+    "passed": true,
+    "summary": "validation/local_validation_summary.json",
+    "test_count": 220,
+    "format_changed_files": 0,
+    "full_analyze_issues": 0,
+    "source_and_lockfile_unchanged": true
+  }
+}

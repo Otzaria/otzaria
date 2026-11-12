@@ -1,0 +1,10 @@
+{
+  "branch": "palmoni5/pr4307-flat-control-20261112",
+  "sha": "764abeeec8a81a0e081d951261c37dc15dbadec3",
+  "parent": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+  "tree": "10fca460ba42e1f0fd82bc5d09b0d7a02d9b1131",
+  "blob": "9d2025dd9762c5861ca4d3cac43241d2ad8a5dfc",
+  "sha256": "a31fa2dbc8b9ac2410775407a45c56862098a5c4f334b4264ab70d31da30a6ee",
+  "manifest_sha256": "fcc3e52da6eb5d6a6c16533caa4ffe1b901f3a5e1b675d3581bd368b5e670206",
+  "validation": "Local format, full Flutter analyze and all 220 common behavioral tests passed before any control commit; Windows validation/builds and performance interpretation remain pending."
+}

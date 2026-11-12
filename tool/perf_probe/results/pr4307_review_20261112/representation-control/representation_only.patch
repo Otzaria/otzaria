@@ -1,0 +1,233 @@
+diff --git a/lib/text_book/bloc/text_book_bloc.dart b/lib/text_book/bloc/text_book_bloc.dart
+index 3fa09b7c039bc7b679361c455f70c07fa4f57c74..9d2025dd9762c5861ca4d3cac43241d2ad8a5dfc 100644
+--- a/lib/text_book/bloc/text_book_bloc.dart
++++ b/lib/text_book/bloc/text_book_bloc.dart
+@@ -390,18 +390,29 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
+     final keepEnd = window.endLine.clamp(0, content.length - 1);
+ 
+     final flags = _loadedContentFlags;
+-    final sourceContent = ChunkedList<String>.from(content, defaultValue: '');
+-    final nextContent = sourceContent.retainRange(keepStart, keepEnd + 1);
+-    final nextFlags = ChunkedList<bool>.from(flags, defaultValue: false).edit()
+-      ..length = content.length
+-      ..retainRange(keepStart, keepEnd + 1);
++    var hasLoadedOutsideWindow = flags.length != content.length;
++    for (var i = 0; i < content.length; i++) {
++      if (i >= keepStart && i <= keepEnd) {
++        continue;
++      }
++      if (content[i].isNotEmpty || (i < flags.length && flags[i])) {
++        hasLoadedOutsideWindow = true;
++        break;
++      }
++    }
++    if (!hasLoadedOutsideWindow) {
++      return;
++    }
++
++    final nextContent = List<String>.filled(content.length, '');
++    final nextFlags = List<bool>.filled(content.length, false);
+     for (var i = keepStart; i <= keepEnd; i++) {
+-      if (i >= flags.length) nextFlags[i] = content[i].isNotEmpty;
++      nextContent[i] = content[i];
++      nextFlags[i] = i < flags.length ? flags[i] : content[i].isNotEmpty;
+     }
+-    if (identical(nextContent, sourceContent) && !nextFlags.changed) return;
+ 
+     _loadedContentRanges = const [];
+-    _setLoadedContentFlags(currentState.book, nextFlags.build());
++    _setLoadedContentFlags(currentState.book, nextFlags);
+     _markLoadedContentRange(currentState.book, keepStart, keepEnd);
+ 
+     emit(
+@@ -2217,9 +2228,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
+ 
+     // תוכן מלא עשוי עדיין להיות רשימה רגילה. ב-no-op אין snapshot חדש,
+     // ולכן המרה לפני בדיקת הטווח הייתה חוזרת על כל הספר בכל אירוע זהה.
+-    if ((currentState.content is! ChunkedList<String> ||
+-            _loadedContentFlags is! ChunkedList<bool>) &&
+-        _loadedContentFlags.length >= currentState.content.length &&
++    if (_loadedContentFlags.length >= currentState.content.length &&
+         applicable.every((range) {
+           final end = range.startLine + range.lines.length;
+           if (end > currentState.content.length) return false;
+@@ -2236,55 +2245,63 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
+       return;
+     }
+ 
+-    final nextContent = ChunkedList<String>.from(
+-      currentState.content,
+-      defaultValue: '',
+-    ).edit();
++    final nextContent = List<String>.of(currentState.content);
+     final hasTrackedFlags = identical(
+       currentState.loadedLineFlags,
+       _loadedContentFlags,
+     );
+-    final nextLoadedFlags = ChunkedList<bool>.from(
+-      _loadedContentFlags,
+-      defaultValue: false,
+-    ).edit();
++    final nextLoadedFlags = List<bool>.of(_loadedContentFlags);
++    var hasContentChanged = false;
++    var hasLoadedFlagsChanged = false;
+     if (nextLoadedFlags.length < nextContent.length) {
+-      nextLoadedFlags.length = nextContent.length;
++      hasLoadedFlagsChanged = true;
++      nextLoadedFlags.addAll(
++        List<bool>.filled(nextContent.length - nextLoadedFlags.length, false),
++      );
+     }
+ 
+     for (final range in applicable) {
+       final targetLength = range.startLine + range.lines.length;
+       if (nextContent.length < targetLength) {
+-        nextContent.length = targetLength;
++        hasContentChanged = true;
++        nextContent.addAll(
++          List<String>.filled(targetLength - nextContent.length, ''),
++        );
+       }
+       if (nextLoadedFlags.length < targetLength) {
+-        nextLoadedFlags.length = targetLength;
++        hasLoadedFlagsChanged = true;
++        nextLoadedFlags.addAll(
++          List<bool>.filled(targetLength - nextLoadedFlags.length, false),
++        );
+       }
+ 
+-      final first = max(0, range.startLine);
+-      if (first < targetLength) {
+-        nextContent.setRange(
+-          first,
+-          targetLength,
+-          range.lines,
+-          first - range.startLine,
+-        );
+-        nextLoadedFlags.fillRange(first, targetLength, true);
++      for (var offset = 0; offset < range.lines.length; offset++) {
++        final targetIndex = range.startLine + offset;
++        if (targetIndex >= 0 && targetIndex < nextContent.length) {
++          if (nextContent[targetIndex] != range.lines[offset]) {
++            hasContentChanged = true;
++          }
++          if (!nextLoadedFlags[targetIndex]) {
++            hasLoadedFlagsChanged = true;
++          }
++          nextContent[targetIndex] = range.lines[offset];
++          nextLoadedFlags[targetIndex] = true;
++        }
+       }
+     }
+ 
+-    if (!nextContent.changed && !nextLoadedFlags.changed) {
++    if (!hasContentChanged && !hasLoadedFlagsChanged) {
+       markAllRanges();
+       return;
+     }
+ 
+-    _setLoadedContentFlags(currentState.book, nextLoadedFlags.build());
++    _setLoadedContentFlags(currentState.book, nextLoadedFlags);
+     markAllRanges();
+ 
+     emit(
+       _withInlineNotesCommentator(
+         currentState.copyWith(
+-          content: nextContent.build(),
++          content: nextContent,
+           contentVersion: currentState.contentVersion + 1,
+           loadedLineFlags: _loadedContentFlags,
+           contentChanges: ContentLineChanges(
+@@ -2465,60 +2482,42 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
+       return null;
+     }
+     if (range == null || isClosed) return null;
+-    final nextContent = ChunkedList<String>.from(
+-      content,
+-      defaultValue: '',
+-    ).edit();
+-    final nextFlags = ChunkedList<bool>.from(
+-      loadedLineFlags,
+-      defaultValue: false,
+-    ).edit();
+-    final firstLoaded = max(0, range.startLine);
+-    final endLoaded = min(content.length, range.startLine + range.lines.length);
+-    if (firstLoaded < endLoaded) {
+-      nextContent.setRange(
+-        firstLoaded,
+-        endLoaded,
+-        range.lines,
+-        firstLoaded - range.startLine,
+-      );
+-      nextFlags.fillRange(firstLoaded, endLoaded, true);
++    for (var offset = 0; offset < range.lines.length; offset++) {
++      final target = range.startLine + offset;
++      if (target < 0 || target >= content.length) continue;
++      content[target] = range.lines[offset];
++      loadedLineFlags[target] = true;
+     }
+-    final flags = nextFlags.build();
+-    _setLoadedContentFlags(book, flags);
++    _setLoadedContentFlags(book, loadedLineFlags);
+     _markLoadedContentRange(
+       book,
+       range.startLine,
+       range.endLine,
+       totalLines: range.totalLines,
+     );
+-    return (content: nextContent.build(), loadedLineFlags: flags);
++    return (content: content, loadedLineFlags: loadedLineFlags);
+   }
+ 
+   List<String> _contentWithAppliedRange(BookContentRange range) {
+-    final content = ChunkedList<String>.filled(
+-      _fullContentLength(range),
+-      '',
+-    ).edit();
+-    final first = max(0, range.startLine);
+-    final end = min(content.length, range.startLine + range.lines.length);
+-    if (first < end) {
+-      content.setRange(first, end, range.lines, first - range.startLine);
++    final content = List<String>.filled(_fullContentLength(range), '');
++    for (var offset = 0; offset < range.lines.length; offset++) {
++      final targetIndex = range.startLine + offset;
++      if (targetIndex >= 0 && targetIndex < content.length) {
++        content[targetIndex] = range.lines[offset];
++      }
+     }
+-    return content.build();
++    return content;
+   }
+ 
+   List<bool> _loadedContentFlagsWithAppliedRange(BookContentRange range) {
+-    final loadedFlags = ChunkedList<bool>.filled(
+-      _fullContentLength(range),
+-      false,
+-    ).edit();
+-    final first = max(0, range.startLine);
+-    final end = min(loadedFlags.length, range.startLine + range.lines.length);
+-    if (first < end) {
+-      loadedFlags.fillRange(first, end, true);
++    final loadedFlags = List<bool>.filled(_fullContentLength(range), false);
++    for (var offset = 0; offset < range.lines.length; offset++) {
++      final targetIndex = range.startLine + offset;
++      if (targetIndex >= 0 && targetIndex < loadedFlags.length) {
++        loadedFlags[targetIndex] = true;
++      }
+     }
+-    return loadedFlags.build();
++    return loadedFlags;
+   }
+ 
+   List<bool> _buildPreviewLoadedLineFlags(
+@@ -2552,9 +2551,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
+ 
+   void _setLoadedContentFlags(TextBook book, List<bool> loadedFlags) {
+     _ensureLoadedContentTrackingBook(book);
+-    _loadedContentFlags = loadedFlags is ChunkedList<bool>
+-        ? loadedFlags
+-        : List<bool>.unmodifiable(loadedFlags);
++    _loadedContentFlags = List<bool>.unmodifiable(loadedFlags);
+   }
+ 
+   void _markLoadedContentRange(

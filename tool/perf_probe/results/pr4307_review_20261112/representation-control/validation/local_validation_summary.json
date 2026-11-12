@@ -1,0 +1,125 @@
+{
+  "completed_at_utc": "2026-11-12T19:13:00.446836+00:00",
+  "candidate_parent_sha": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+  "tested_staged_control_tree": "10fca460ba42e1f0fd82bc5d09b0d7a02d9b1131",
+  "tested_product_git_blob": "9d2025dd9762c5861ca4d3cac43241d2ad8a5dfc",
+  "tested_product_sha256": "a31fa2dbc8b9ac2410775407a45c56862098a5c4f334b4264ab70d31da30a6ee",
+  "pub_get_enforce_lockfile": {
+    "passed": true,
+    "exit_code": 0,
+    "seconds": 490.8178036212921
+  },
+  "format_check": {
+    "passed": true,
+    "exit_code": 0,
+    "changed_files": 0,
+    "command": [
+      "dart",
+      "format",
+      "--output=none",
+      "--set-exit-if-changed",
+      "lib/text_book/bloc/text_book_bloc.dart"
+    ],
+    "note": "Successful check after dependency resolution, before analyze/tests; source hash unchanged after all gates."
+  },
+  "full_flutter_analyze": {
+    "passed": true,
+    "exit_code": 0,
+    "seconds": 88.25710701942444
+  },
+  "common_flutter_tests": {
+    "passed": true,
+    "exit_code": 0,
+    "count": 220,
+    "test_files": 18,
+    "seconds_including_native_build": 401.5350947380066,
+    "command": [
+      "flutter",
+      "test",
+      "--no-pub",
+      "--reporter",
+      "expanded",
+      "test/text_book/models/chunked_list_test.dart",
+      "test/text_book/bloc/background_full_content_loading_test.dart",
+      "test/text_book/bloc/split_pane_warming_test.dart",
+      "test/text_book/bloc/per_book_continuous_initial_load_test.dart",
+      "test/text_book/bloc/continuous_reading_mode_test.dart",
+      "test/text_book/bloc/inline_notes_commentator_test.dart",
+      "test/text_book/utils/reader_content_revision_test.dart",
+      "test/text_book/utils/reading_extent_estimates_test.dart",
+      "test/text_book/utils/reading_segment_cache_test.dart",
+      "test/text_book/utils/inline_notes_utils_test.dart",
+      "test/text_book/view/page_shape/page_shape_notes_column_test.dart",
+      "test/text_book/view/combined_view/continuous_reflow_keeps_place_test.dart",
+      "test/tool/perf_probe/perf_fixture_test.dart",
+      "test/tool/perf_probe/perf_reader_probe_test.dart",
+      "test/tool/perf_probe/perf_reader_scroll_test.dart",
+      "test/tool/perf_probe/perf_recorder_test.dart",
+      "test/tool/perf_probe/report_test.dart",
+      "test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart"
+    ],
+    "reporter_scope": "Aggregate successful run of the 18 explicitly named files; expanded parallel reporter can show another active suite on a completion line, so no per-file count is inferred from those line labels.",
+    "temporary_sibling_removed": true,
+    "only_representation_assertion_removed_from_temporary_sibling": true
+  },
+  "pubspec_lock_sha256_before_and_after": "1a716b4ffe7bc77506b550db9f185a2a6ff3de8882941f8f2752ca2cfadc5397",
+  "all_other_sources_unchanged": true,
+  "uncommitted_control_only": true,
+  "source_audit": {
+    "relative_path": "independent-source-qa.json",
+    "bytes": 5751,
+    "sha256": "bd1ed6878c84994be2d188739327fb41fa9b3e6094eb356aa22861dacf0ee287"
+  },
+  "remaining_gates": [
+    "Publish one control commit with candidate as its only parent and this exact tree.",
+    "Run controlled Windows validation/builds for both fixed SHAs before accepting performance measurements.",
+    "Analyze the paired Windows raw results; physical GPU verification remains unavailable and separate."
+  ],
+  "evidence": [
+    {
+      "relative_path": "validation/toolchain.json",
+      "bytes": 3168,
+      "sha256": "058809ac6322472d94dbd15f4399cffc678db5b68f1230230c3bc922f561811a"
+    },
+    {
+      "relative_path": "validation/pub_get.log",
+      "bytes": 6941,
+      "sha256": "14001e349de72ca9fa858f567c373d4c96ef10f326aefa8ed965ce8e9544bb92"
+    },
+    {
+      "relative_path": "validation/pub_get_status.json",
+      "bytes": 53,
+      "sha256": "5407e9e0df5d657165d3f174ca5b481148c1d06244412dcb3214de972a2e15a6"
+    },
+    {
+      "relative_path": "validation/lockfile-proof.json",
+      "bytes": 389,
+      "sha256": "f4c716bdd92aa189bab46a5620cd81a57694454b0874fe8d769520840bed4486"
+    },
+    {
+      "relative_path": "validation/format_check.log",
+      "bytes": 46,
+      "sha256": "f9082f332e17ad0a9982a05eb4167ae95b672938df06a6158ab88d20c6d76fb6"
+    },
+    {
+      "relative_path": "validation/analyze.log",
+      "bytes": 97,
+      "sha256": "d09428c88d50e3a5ab7cf0728474dc51aea1d67f7285632ce5fe6d3e522a8e1f"
+    },
+    {
+      "relative_path": "validation/analyze_status.json",
+      "bytes": 53,
+      "sha256": "4e58c11df7c2add9817128d87ed1ff69acccf08a75a03177010eab934bcbb240"
+    },
+    {
+      "relative_path": "validation/common_tests.log",
+      "bytes": 123001,
+      "sha256": "324483deef24ab88486f5a31b5c2e5f2c1c4c8e4d3308f1f352b082a19c34b71"
+    },
+    {
+      "relative_path": "validation/common_tests_status.json",
+      "bytes": 1957,
+      "sha256": "4232a1618b618c5edf41f408fa4b35b6dac001585e3e3c8c335358a4e55de507"
+    }
+  ]
+}

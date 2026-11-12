@@ -1,0 +1,1927 @@
+No Visual Studio installation found with the requested Microsoft.VisualStudio.Component.VC.Tools.x86.x64 component.
+
+info: component rust-std is up to date
+
+    Updating git repository `https://github.com/Otzaria/tantivy`
+
+    Updating crates.io index
+    Updating git repository `https://github.com/Otzaria/otzaria-semantic-search`
+
+ Downloading crates ...
+
+  Downloaded darling_macro v0.20.11
+
+  Downloaded anstyle-parse v1.0.0
+
+  Downloaded futures-io v0.3.33
+
+  Downloaded getrandom v0.3.4
+
+  Downloaded bitpacking v0.9.3
+
+  Downloaded find-msvc-tools v0.1.9
+
+  Downloaded utf8parse v0.2.2
+
+  Downloaded ahash v0.8.12
+
+  Downloaded darling v0.20.11
+
+  Downloaded crypto-common v0.1.7
+
+  Downloaded block-buffer v0.10.4
+
+  Downloaded bon v3.9.3
+
+  Downloaded cc v1.4.0
+
+  Downloaded anstyle-query v1.1.5
+
+  Downloaded base64 v0.13.1
+
+  Downloaded arc-swap v1.9.2
+
+  Downloaded darling_core v0.20.11
+
+  Downloaded darling_macro v0.23.0
+
+  Downloaded bit-set v0.8.0
+
+  Downloaded bitflags v2.13.1
+
+  Downloaded anstream v1.0.0
+
+  Downloaded dary_heap v0.3.9
+  Downloaded htmlescape v0.3.1
+  Downloaded castaway v0.2.4
+  Downloaded dart-sys v4.1.5
+
+  Downloaded defmt v1.1.1
+
+  Downloaded fallible-streaming-iterator v0.1.9
+  Downloaded futures-core v0.3.33
+  Downloaded anyhow v1.0.104
+  Downloaded bitflags v1.3.2
+  Downloaded anstyle v1.0.14
+  Downloaded bit-vec v0.8.0
+
+  Downloaded downcast-rs v2.0.2
+
+  Downloaded backtrace v0.3.76
+
+  Downloaded base64 v0.22.1
+
+  Downloaded build-target v0.4.0
+
+  Downloaded flutter_rust_bridge_macros v2.13.0
+
+  Downloaded allocator-api2 v0.2.21
+
+  Downloaded colorchoice v1.0.5
+
+  Downloaded crossbeam-epoch v0.9.20
+
+  Downloaded futures v0.3.33
+
+  Downloaded futures-channel v0.3.33
+
+  Downloaded derive_builder v0.20.2
+
+  Downloaded compact_str v0.9.1
+
+  Downloaded digest v0.10.7
+
+  Downloaded futures-macro v0.3.33
+
+  Downloaded hashlink v0.9.1
+
+  Downloaded adler2 v2.0.1
+
+  Downloaded futures-task v0.3.33
+
+  Downloaded autocfg v1.5.1
+
+  Downloaded fs4 v0.13.1
+
+  Downloaded cpufeatures v0.2.17
+
+  Downloaded futures-sink v0.3.33
+
+  Downloaded generic-array v0.14.7
+
+  Downloaded derive_builder_core v0.20.2
+
+  Downloaded allo-isolate v0.1.27
+
+  Downloaded darling v0.23.0
+
+  Downloaded hex v0.4.3
+
+  Downloaded foldhash v0.2.0
+
+  Downloaded zmij v1.0.23
+
+  Downloaded either v1.17.0
+
+  Downloaded futures-executor v0.3.33
+
+  Downloaded foldhash v0.1.5
+
+  Downloaded daachorse v3.0.3
+
+  Downloaded crossbeam-channel v0.5.16
+
+  Downloaded getrandom v0.4.3
+
+  Downloaded byteorder v1.5.0
+
+  Downloaded defmt-parser v1.0.0
+
+  Downloaded hashbrown v0.16.1
+
+  Downloaded inventory v0.3.24
+
+  Downloaded async-trait v0.1.91
+
+  Downloaded darling_core v0.23.0
+
+  Downloaded datasketches v0.2.0
+
+  Downloaded fancy-regex v0.17.0
+
+  Downloaded atomic v0.5.3
+  Downloaded crossbeam-deque v0.8.7
+
+  Downloaded bon-macros v3.9.3
+
+  Downloaded addr2line v0.25.1
+
+  Downloaded esaxx-rs v0.1.10
+
+  Downloaded fastrand v2.5.0
+
+  Downloaded gimli v0.32.3
+
+  Downloaded hashbrown v0.15.5
+
+  Downloaded flutter_rust_bridge v2.13.0
+
+  Downloaded cfg-if v1.0.4
+
+  Downloaded aho-corasick v1.1.4
+
+  Downloaded env_logger v0.11.11
+
+  Downloaded hashbrown v0.14.5
+
+  Downloaded delegate-attr v0.3.0
+
+  Downloaded env_filter v2.0.0
+
+  Downloaded fallible-iterator v0.3.0
+
+  Downloaded fastdivide v0.4.2
+
+  Downloaded zerocopy v0.8.55
+
+  Downloaded crc32fast v1.5.0
+
+  Downloaded equivalent v1.0.2
+
+  Downloaded futures-util v0.3.33
+
+  Downloaded log v0.4.33
+
+  Downloaded crossbeam-utils v0.8.22
+
+  Downloaded defmt-macros v1.1.1
+
+  Downloaded deranged v0.5.8
+
+  Downloaded fnv v1.0.7
+
+  Downloaded lazy_static v1.5.0
+
+  Downloaded levenshtein_automata v0.2.1
+
+  Downloaded census v0.4.2
+
+  Downloaded crunchy v0.2.4
+
+  Downloaded derive_builder_macro v0.20.2
+
+  Downloaded erased-serde v0.4.10
+
+  Downloaded errno v0.3.14
+
+  Downloaded num-conv v0.2.2
+
+  Downloaded num-integer v0.1.47
+
+  Downloaded memchr v2.8.3
+
+  Downloaded num-complex v0.4.6
+
+  Downloaded lru v0.12.5
+
+  Downloaded monostate-impl v0.1.18
+
+  Downloaded ort v2.0.0-rc.15
+
+  Downloaded powerfmt v0.2.0
+
+  Downloaded rand v0.9.5
+
+  Downloaded quote v1.0.47
+
+  Downloaded rand_chacha v0.9.0
+
+  Downloaded rustc-demangle v0.1.28
+
+  Downloaded tempfile v3.27.0
+
+  Downloaded time-macros v0.2.32
+
+  Downloaded macro_rules_attribute-proc_macro v0.2.3
+
+  Downloaded serde_core v1.0.229
+
+  Downloaded time-core v0.1.9
+
+  Downloaded itoa v1.0.18
+
+  Downloaded rustc-hash v2.1.3
+
+  Downloaded unicode-segmentation v1.13.3
+
+  Downloaded time v0.3.54
+
+  Downloaded jiff-core v0.1.0
+
+  Downloaded lz4_flex v0.13.1
+
+  Downloaded paste v1.0.15
+
+  Downloaded unicode-normalization-alignments v0.1.12
+
+  Downloaded rand_core v0.9.5
+
+  Downloaded serde_json v1.0.151
+
+  Downloaded serde_derive v1.0.229
+
+  Downloaded ort-sys v2.0.0-rc.15
+
+  Downloaded rawpointer v0.2.1
+
+  Downloaded slab v0.4.12
+
+  Downloaded proc-macro2 v1.0.107
+
+  Downloaded matrixmultiply v0.3.11
+
+  Downloaded tokenizers v0.23.2
+
+  Downloaded macro_rules_attribute v0.2.3
+
+  Downloaded oneshot v0.1.13
+
+  Downloaded jiff v0.2.35
+
+  Downloaded monostate v0.1.18
+
+  Downloaded jobserver v0.1.35
+
+  Downloaded smallvec v1.15.2
+
+  Downloaded itertools v0.14.0
+
+  Downloaded strsim v0.11.1
+
+  Downloaded is_terminal_polyfill v1.70.2
+
+  Downloaded threadpool v1.8.1
+
+  Downloaded typetag v0.2.23
+
+  Downloaded once_cell v1.21.4
+
+  Downloaded sketches-ddsketch v0.4.0
+
+  Downloaded tokio v1.53.1
+
+  Downloaded uuid v1.24.0
+
+  Downloaded rayon-core v1.13.0
+
+  Downloaded rusqlite v0.32.1
+
+  Downloaded ryu v1.0.23
+
+  Downloaded vcpkg v0.2.15
+
+  Downloaded spm_precompiled v0.1.4
+
+  Downloaded prettyplease v0.2.37
+
+  Downloaded rustix v1.1.4
+
+  Downloaded tracing v0.1.44
+
+  Downloaded typenum v1.20.1
+
+  Downloaded serde v1.0.229
+
+  Downloaded lru v0.16.4
+
+  Downloaded syn v2.0.119
+
+  Downloaded md-5 v0.10.6
+
+  Downloaded object v0.37.3
+
+  Downloaded rayon-cond v0.4.0
+
+  Downloaded rustversion v1.0.23
+
+  Downloaded version_check v0.9.5
+
+  Downloaded zstd v0.13.3
+
+  Downloaded typeid v1.0.3
+
+  Downloaded unicode-ident v1.0.24
+
+  Downloaded utf8-ranges v1.0.5
+
+  Downloaded murmurhash32 v0.3.1
+
+  Downloaded pastey v0.2.3
+
+  Downloaded libloading v0.9.0
+
+  Downloaded linux-raw-sys v0.12.1
+
+  Downloaded measure_time v0.9.0
+
+  Downloaded ordered-float v5.3.0
+
+  Downloaded pkg-config v0.3.33
+
+  Downloaded miniz_oxide v0.8.9
+
+  Downloaded regex v1.13.1
+
+  Downloaded pin-project-lite v0.2.17
+
+  Downloaded nom v7.1.3
+
+  Downloaded num_cpus v1.17.0
+
+  Downloaded stable_deref_trait v1.2.1
+
+  Downloaded ppv-lite86 v0.2.21
+
+  Downloaded shlex v2.0.1
+
+  Downloaded thiserror-impl v2.0.19
+
+  Downloaded sha2 v0.10.9
+
+  Downloaded memmap2 v0.9.11
+
+  Downloaded ndarray v0.17.2
+
+  Downloaded num-traits v0.2.19
+
+  Downloaded zstd-safe v7.2.4
+
+  Downloaded rayon v1.12.0
+
+  Downloaded static_assertions v1.1.0
+
+  Downloaded tracing-core v0.1.36
+
+  Downloaded portable-atomic v1.14.0
+
+  Downloaded thiserror v2.0.19
+
+  Downloaded syn v3.0.3
+
+  Downloaded regex-syntax v0.8.11
+
+  Downloaded typetag-impl v0.2.23
+
+  Downloaded unicode_categories v0.1.1
+
+  Downloaded minimal-lexical v0.2.1
+
+  Downloaded zstd-sys v2.0.16+zstd.1.5.7
+
+  Downloaded regex-automata v0.4.16
+
+  Downloaded libc v0.2.189
+
+  Downloaded libsqlite3-sys v0.30.1
+
+  Downloaded ident_case v1.0.1
+
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+
+   Compiling unicode-ident v1.0.24
+
+   Compiling libc v0.2.189
+
+   Compiling serde_core v1.0.229
+
+   Compiling syn v2.0.119
+
+   Compiling syn v3.0.3
+
+   Compiling version_check v0.9.5
+
+   Compiling cfg-if v1.0.4
+
+   Compiling memchr v2.8.3
+
+   Compiling serde v1.0.229
+
+   Compiling serde_derive v1.0.229
+
+   Compiling generic-array v0.14.7
+
+   Compiling
+ jobserver v0.1.35
+
+   Compiling find-msvc-tools v0.1.9
+
+   Compiling shlex v2.0.1
+
+   Compiling strsim v0.11.1
+
+   Compiling ident_case v1.0.1
+
+   Compiling cc v1.4.0
+
+   Compiling pkg-config v0.3.33
+
+   Compiling zerocopy v0.8.55
+
+   Compiling
+ getrandom v0.3.4
+
+   Compiling regex-syntax v0.8.11
+
+   Compiling crossbeam-utils v0.8.22
+
+   Compiling rustversion v1.0.23
+
+   Compiling crossbeam-epoch v0.9.20
+
+   Compiling
+ once_cell v1.21.4
+
+   Compiling prettyplease v0.2.37
+
+   Compiling zstd-sys v2.0.16+zstd.1.5.7
+
+   Compiling aho-corasick v1.1.4
+
+   Compiling pin-project-lite v0.2.17
+
+   Compiling futures-core v0.3.33
+
+   Compiling fnv v1.0.7
+
+   Compiling either v1.17.0
+
+   Compiling
+ futures-sink v0.3.33
+
+   Compiling crossbeam-deque v0.8.7
+
+   Compiling futures-channel v0.3.33
+
+   Compiling darling_core v0.20.11
+
+   Compiling regex-automata v0.4.16
+
+   Compiling ahash v0.8.12
+
+   Compiling futures-macro v0.3.33
+
+   Compiling slab v0.4.12
+
+   Compiling log v0.4.33
+
+   Compiling typenum v1.20.1
+
+   Compiling
+ futures-io v0.3.33
+
+   Compiling
+ byteorder v1.5.0
+
+   Compiling futures-task v0.3.33
+
+   Compiling rayon-core v1.13.0
+
+   Compiling crunchy v0.2.4
+
+   Compiling zmij v1.0.23
+
+   Compiling futures-util v0.3.33
+
+   Compiling darling_macro v0.20.11
+
+   Compiling itertools v0.14.0
+
+   Compiling deranged v0.5.8
+
+   Compiling
+ itoa v1.0.18
+
+   Compiling
+ serde_json v1.0.151
+
+   Compiling
+ stable_deref_trait v1.2.1
+
+   Compiling
+ powerfmt v0.2.0
+
+   Compiling
+ minimal-lexical v0.2.1
+
+   Compiling
+ smallvec v1.15.2
+
+   Compiling
+ time-core v0.1.9
+
+   Compiling zstd-safe v7.2.4
+
+   Compiling num-conv v0.2.2
+
+   Compiling autocfg v1.5.1
+
+   Compiling num-traits v0.2.19
+
+   Compiling
+ time v0.3.54
+
+   Compiling nom v7.1.3
+
+   Compiling ownedbytes v0.9.0 (https://github.com/Otzaria/tantivy?rev=130b2682807d2a609d09ba432ba4d0ccc8faf7ed#130b2682)
+
+   Compiling darling v0.20.11
+
+   Compiling regex v1.13.1
+
+   Compiling darling_core v0.23.0
+
+   Compiling async-trait v0.1.91
+
+   Compiling thiserror v2.0.19
+
+   Compiling object v0.37.3
+
+   Compiling allocator-api2 v0.2.21
+
+   Compiling typeid v1.0.3
+
+   Compiling rustix v1.1.4
+
+   Compiling getrandom v0.4.3
+
+   Compiling bitflags v2.13.1
+
+   Compiling equivalent v1.0.2
+
+   Compiling tantivy-common v0.11.0 (https://github.com/Otzaria/tantivy?rev=130b2682807d2a609d09ba432ba4d0ccc8faf7ed#130b2682)
+
+   Compiling darling_macro v0.23.0
+
+   Compiling bitpacking v0.9.3
+
+   Compiling
+ rayon v1.12.0
+
+   Compiling
+ derive_builder_core v0.20.2
+
+   Compiling block-buffer v0.10.4
+
+   Compiling crypto-common v0.1.7
+
+   Compiling rand_core v0.9.5
+
+   Compiling ppv-lite86 v0.2.21
+
+   Compiling thiserror-impl v2.0.19
+
+   Compiling erased-serde v0.4.10
+
+   Compiling ort-sys v2.0.0-rc.15
+
+   Compiling linux-raw-sys v0.12.1
+
+   Compiling gimli v0.32.3
+
+   Compiling adler2 v2.0.1
+
+   Compiling
+ bit-vec v0.8.0
+
+   Compiling
+ paste v1.0.15
+
+   Compiling
+ anyhow v1.0.104
+
+   Compiling
+ vcpkg v0.2.15
+
+   Compiling
+ esaxx-rs v0.1.10
+
+   Compiling utf8-ranges v1.0.5
+
+   Compiling crc32fast v1.5.0
+
+   Compiling tantivy-fst v0.5.0 (/home/agent/.pub-cache/git/otzaria_search_engine-5babbce643d69cb20e2e9d4592b6ece120f2723d/rust/vendor/tantivy-fst)
+
+   Compiling libsqlite3-sys v0.30.1
+
+   Compiling bit-set v0.8.0
+
+   Compiling miniz_oxide v0.8.9
+
+   Compiling addr2line v0.25.1
+
+   Compiling rand_chacha v0.9.0
+
+   Compiling digest v0.10.7
+
+   Compiling tantivy-bitpacker v0.10.0 (https://github.com/Otzaria/tantivy?rev=130b2682807d2a609d09ba432ba4d0ccc8faf7ed#130b2682)
+
+   Compiling derive_builder_macro v0.20.2
+
+   Compiling zstd v0.13.3
+
+   Compiling darling v0.23.0
+
+   Compiling castaway v0.2.4
+
+   Compiling dart-sys v4.1.5
+
+   Compiling monostate-impl v0.1.18
+
+   Compiling pastey v0.2.3
+
+   Compiling base64 v0.13.1
+
+   Compiling portable-atomic v1.14.0
+
+   Compiling rustc-demangle v0.1.28
+
+   Compiling utf8parse v0.2.2
+
+   Compiling typetag v0.2.23
+
+   Compiling murmurhash32 v0.3.1
+
+   Compiling ryu v1.0.23
+
+   Compiling build-target v0.4.0
+
+   Compiling macro_rules_attribute-proc_macro v0.2.3
+
+   Compiling static_assertions v1.1.0
+
+   Compiling unicode-segmentation v1.13.3
+
+   Compiling
+ foldhash v0.2.0
+
+   Compiling hashbrown v0.16.1
+
+   Compiling backtrace v0.3.76
+
+   Compiling spm_precompiled v0.1.4
+
+   Compiling compact_str v0.9.1
+
+   Compiling md-5 v0.10.6
+
+   Compiling
+ macro_rules_attribute v0.2.3
+
+   Compiling
+ flutter_rust_bridge v2.13.0
+
+   Compiling tantivy-stacker v0.7.0 (https://github.com/Otzaria/tantivy?rev=130b2682807d2a609d09ba432ba4d0ccc8faf7ed#130b2682)
+
+   Compiling anstyle-parse v1.0.0
+
+   Compiling monostate v0.1.18
+
+   Compiling bon-macros v3.9.3
+
+   Compiling tantivy-sstable v0.7.0 (https://github.com/Otzaria/tantivy?rev=130b2682807d2a609d09ba432ba4d0ccc8faf7ed#130b2682)
+
+   Compiling ordered-float v5.3.0
+
+   Compiling derive_builder v0.20.2
+
+   Compiling rand v0.9.5
+
+   Compiling fancy-regex v0.17.0
+
+   Compiling rayon-cond v0.4.0
+
+   Compiling
+ hashbrown v0.14.5
+
+   Compiling unicode-normalization-alignments v0.1.12
+
+   Compiling futures-executor v0.3.33
+
+   Compiling dary_heap v0.3.9
+
+   Compiling num_cpus v1.17.0
+
+   Compiling memmap2 v0.9.11
+
+   Compiling
+ typetag-impl v0.2.23
+
+   Compiling
+ libloading v0.9.0
+
+   Compiling downcast-rs v2.0.2
+
+   Compiling hex v0.4.3
+
+   Compiling daachorse v3.0.3
+
+   Compiling is_terminal_polyfill v1.70.2
+
+   Compiling fastrand v2.5.0
+
+   Compiling cpufeatures v0.2.17
+
+   Compiling colorchoice v1.0.5
+
+   Compiling inventory v0.3.24
+
+   Compiling unicode_categories v0.1.1
+
+   Compiling foldhash v0.1.5
+
+   Compiling fastdivide v0.4.2
+
+   Compiling anstyle v1.0.14
+
+   Compiling jiff-core v0.1.0
+
+   Compiling atomic v0.5.3
+
+   Compiling anstyle-query v1.1.5
+
+   Compiling
+ anstream v1.0.0
+
+   Compiling allo-isolate v0.1.27
+
+   Compiling
+ jiff v0.2.35
+
+   Compiling tantivy-columnar v0.7.0 (https://github.com/Otzaria/tantivy?rev=130b2682807d2a609d09ba432ba4d0ccc8faf7ed#130b2682)
+
+   Compiling hashbrown v0.15.5
+
+   Compiling tokenizers v0.23.2
+
+   Compiling sha2 v0.10.9
+
+   Compiling tempfile v3.27.0
+
+   Compiling flutter_rust_bridge_macros v2.13.0
+
+   Compiling
+ tantivy-query-grammar v0.26.0 (https://github.com/Otzaria/tantivy?rev=130b2682807d2a609d09ba432ba4d0ccc8faf7ed#130b2682)
+
+   Compiling
+ ort v2.0.0-rc.15
+
+   Compiling threadpool v1.8.1
+
+   Compiling futures v0.3.33
+
+   Compiling hashlink v0.9.1
+
+   Compiling bon v3.9.3
+
+   Compiling lru v0.16.4
+
+   Compiling uuid v1.24.0
+
+   Compiling fs4 v0.13.1
+
+   Compiling env_filter v2.0.0
+
+   Compiling measure_time v0.9.0
+
+   Compiling tokio v1.53.1
+
+   Compiling arc-swap v1.9.2
+
+   Compiling crossbeam-channel v0.5.16
+
+   Compiling tantivy-tokenizer-api v0.7.0 (https://github.com/Otzaria/tantivy?rev=130b2682807d2a609d09ba432ba4d0ccc8faf7ed#130b2682)
+
+   Compiling sketches-ddsketch v0.4.0
+
+   Compiling delegate-attr v0.3.0
+
+   Compiling levenshtein_automata v0.2.1
+
+   Compiling lz4_flex v0.13.1
+
+   Compiling datasketches v0.2.0
+
+   Compiling base64 v0.22.1
+
+   Compiling fallible-streaming-iterator v0.1.9
+
+   Compiling htmlescape v0.3.1
+
+   Compiling census v0.4.2
+
+   Compiling oneshot v0.1.13
+
+   Compiling rustc-hash v2.1.3
+
+   Compiling fallible-iterator v0.3.0
+
+   Compiling lazy_static v1.5.0
+
+   Compiling rusqlite v0.32.1
+
+   Compiling tantivy v0.26.2 (https://github.com/Otzaria/tantivy?rev=130b2682807d2a609d09ba432ba4d0ccc8faf7ed#130b2682)
+
+   Compiling env_logger v0.11.11
+
+   Compiling otzaria-semantic-search v0.1.0 (https://github.com/Otzaria/otzaria-semantic-search?rev=d2a782add422011fc37595f56f238322567811ca#d2a782ad)
+
+   Compiling lru v0.12.5
+
+   Compiling search_engine v7.0.1 (/home/agent/.pub-cache/git/otzaria_search_engine-5babbce643d69cb20e2e9d4592b6ece120f2723d/rust)
+
+    Finished `release` profile [optimized] target(s) in 4m 42s
+
+00:00 +0: loading /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/models/chunked_list_test.dart
+00:00 +0: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/models/chunked_list_test.dart: sparse logical length preserves missing and boundary values
+00:00 +1: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/models/chunked_list_test.dart: published snapshots reject changes and editors cannot mutate after build
+00:00 +2: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/models/chunked_list_test.dart: unchanged edits preserve snapshot identity and flags represent blank lines
+00:00 +3: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/models/chunked_list_test.dart: shrink then grow does not restore discarded values
+00:00 +4: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/models/chunked_list_test.dart: retain clears full and partial chunks without changing global indices
+00:00 +5: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/models/chunked_list_test.dart: nullable values are distinct from a nonnull default
+00:00 +6: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/models/chunked_list_test.dart: random batches, retention and length changes match a normal list
+00:00 +7: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/models/chunked_list_test.dart: non-default traversal preserves logical order and partial chunks
+00:00 +8: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/models/chunked_list_test.dart: bulk writes preserve chunks, no-op identity and defaults
+00:00 +9: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/models/chunked_list_test.dart: bulk input validation does not change the editor
+00:00 +10: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/models/chunked_list_test.dart: bulk self-copy and iterable views preserve overlapping source values
+00:00 +11: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/models/chunked_list_test.dart: (tearDownAll)
+00:01 +11: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/background_full_content_loading_test.dart: (setUpAll)
+00:01 +11: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/background_full_content_loading_test.dart: ApplyFullBookContent מחליף preview בתוכן מלא ושומר searchText
+💾 DatabaseLibraryProvider initialized
+✅ Initialized provider: מסד נתונים
+📁 FileSystemLibraryProvider initialized
+✅ Initialized provider: קבצים
+📚 LibraryProviderManager initialized with 2 providers
+Library providers initialized in FileSystemData
+00:01 +12: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/background_full_content_loading_test.dart: SetTabVisibility הסתרת טאב משחררת תוכן מחוץ לחלון ושומרת אורך ואינדקסים
+00:01 +13: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/background_full_content_loading_test.dart: SetTabVisibility מצב קריאה רציף משוחרר בהסתרה ופריסת הקריאה אינה זזה
+00:01 +14: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/background_full_content_loading_test.dart: SetTabVisibility ספר במסלול preview (ללא טעינת-טווחים) אינו משוחרר בהסתרה
+00:01 +15: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/background_full_content_loading_test.dart: SetTabVisibility ספר קצר אינו משוחרר בהסתרה
+00:01 +16: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/background_full_content_loading_test.dart: SetTabVisibility אצוות חימום בתור אינן מוחלות בזמן שהטאב מוסתר
+00:01 +17: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/background_full_content_loading_test.dart: SetTabVisibility אחרי חזרה לנראות אצוות תוכן שבות ומוחלות
+00:01 +18: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/background_full_content_loading_test.dart: SetTabVisibility הסתרה שומרת סנכרון מפרש דליל גם מחוץ לחלון
+00:01 +19: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/background_full_content_loading_test.dart: SetTabVisibility הסתרה שומרת את כל סוגי קישורי הסנכרון והמקור
+00:01 +20: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/background_full_content_loading_test.dart: SetTabVisibility הסתרת טאב משחררת קישורים שנצברו בגלילה מחוץ לחלון
+00:01 +21: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/background_full_content_loading_test.dart: SetTabVisibility הסתרת טאב עם הרבה קישורים ובחירה גדולה: אותה תוצאה, בלי סריקה של הבחירה לכל קישור
+00:01 +21: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/split_pane_warming_test.dart: כיבוי החימום נקלט גם כשהנראות אינה משתנה
+💾 DatabaseLibraryProvider initialized
+✅ Initialized provider: מסד נתונים
+📁 FileSystemLibraryProvider initialized
+✅ Initialized provider: קבצים
+📚 LibraryProviderManager initialized with 2 providers
+Library providers initialized in FileSystemData
+00:01 +22: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/background_full_content_loading_test.dart: SetTabVisibility הסתרת טאב עם הרבה קישורים ובחירה גדולה: אותה תוצאה, בלי סריקה של הבחירה לכל קישור
+00:02 +23: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/background_full_content_loading_test.dart: ApplyBookContentRanges מחיל כמה טווחים ב-emission יחיד
+00:02 +24: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/background_full_content_loading_test.dart: טווח זהה בספר מלא בודק רק את שורות הטווח
+00:02 +25: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/background_full_content_loading_test.dart: טווח זהה שומר שורה, בחירה, סימון ו-revision
+00:02 +26: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/background_full_content_loading_test.dart: שורה ריקה ללא דגל טעון עדיין מפעילה רענון
+00:02 +27: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/background_full_content_loading_test.dart: אצווה שמשנה ואז משחזרת עדיין מגדילה revision
+00:02 +28: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/background_full_content_loading_test.dart: פסקה רציפה שלא נטענה כולה מבקשת את כל טווח שורותיה
+00:02 +29: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/background_full_content_loading_test.dart: (tearDownAll)
+00:02 +29: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/per_book_continuous_initial_load_test.dart: הגדרת הספר continuous=true חלה כבר על ה-Loaded הראשון
+📁 Looking for file: /tmp/per_book_continuousELOXWU/per_book_settings/settings_2021e1661b0dd89f11e2240678d994737a3ddbbd.json
+📁 File does not exist
+📁 Saving to file: /tmp/per_book_continuousELOXWU/per_book_settings/settings_2021e1661b0dd89f11e2240678d994737a3ddbbd.json
+📄 JSON content: {"continuousReadingMode":true}
+✅ Saved per-book settings for: o__x__ספר בדיקה
+💾 DatabaseLibraryProvider initialized
+✅ Initialized provider: מסד נתונים
+📁 FileSystemLibraryProvider initialized
+✅ Initialized provider: קבצים
+📚 LibraryProviderManager initialized with 2 providers
+Library providers initialized in FileSystemData
+📁 Looking for file: /tmp/per_book_continuousELOXWU/per_book_settings/settings_2021e1661b0dd89f11e2240678d994737a3ddbbd.json
+📄 JSON content: {"continuousReadingMode":true}
+✅ Loaded per-book settings for: o__x__ספר בדיקה
+00:03 +30: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/per_book_continuous_initial_load_test.dart: הגדרת הספר continuous=false חלה כבר על ה-Loaded הראשון
+📁 Looking for file: /tmp/per_book_continuousMCQVDW/per_book_settings/settings_2021e1661b0dd89f11e2240678d994737a3ddbbd.json
+📁 File does not exist
+📁 Saving to file: /tmp/per_book_continuousMCQVDW/per_book_settings/settings_2021e1661b0dd89f11e2240678d994737a3ddbbd.json
+📄 JSON content: {"continuousReadingMode":false}
+✅ Saved per-book settings for: o__x__ספר בדיקה
+📁 Looking for file: /tmp/per_book_continuousMCQVDW/per_book_settings/settings_2021e1661b0dd89f11e2240678d994737a3ddbbd.json
+📄 JSON content: {"continuousReadingMode":false}
+✅ Loaded per-book settings for: o__x__ספר בדיקה
+00:03 +31: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/per_book_continuous_initial_load_test.dart: (tearDownAll)
+00:03 +31: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/continuous_reading_mode_test.dart: computeEffectiveContinuousReading ביקוש לאפשר על ספר שתומך → מחזיר true
+00:03 +32: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/continuous_reading_mode_test.dart: computeEffectiveContinuousReading ביקוש לאפשר על ספר שלא תומך → מחזיר false
+00:03 +33: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/continuous_reading_mode_test.dart: computeEffectiveContinuousReading ביקוש לכבות → false ללא תלות בתמיכה
+00:03 +34: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/continuous_reading_mode_test.dart: resolvePreservedContinuousReadingMode ספר לא תומך → false (גם אם preserve+state+globalDefault מבקשים true)
+00:03 +35: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/continuous_reading_mode_test.dart: resolvePreservedContinuousReadingMode preserveFlag=false → globalDefault (מסלול פתיחת ספר / איפוס)
+00:03 +36: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/continuous_reading_mode_test.dart: resolvePreservedContinuousReadingMode הגדרת הספר גוברת על ברירת המחדל, ושימור גובר על שתיהן
+00:03 +37: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/continuous_reading_mode_test.dart: resolvePreservedContinuousReadingMode preserveFlag=true + state.continuous=true → מחזיר true
+00:03 +38: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/continuous_reading_mode_test.dart: resolvePreservedContinuousReadingMode preserveFlag=true + state.continuous=false → false
+00:03 +39: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/continuous_reading_mode_test.dart: resolvePreservedContinuousReadingMode currentState אינו Loaded (Initial/Loading) → globalDefault
+00:03 +40: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/continuous_reading_mode_test.dart: (tearDownAll)
+00:04 +40: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: (setUpAll)
+00:04 +40: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: ApplyFullBookContent מוסיף את "הערות" ל-availableCommentators כשיש <i class="footnote"> בתוכן המלא
+💾 DatabaseLibraryProvider initialized
+✅ Initialized provider: מסד נתונים
+📁 FileSystemLibraryProvider initialized
+✅ Initialized provider: קבצים
+📚 LibraryProviderManager initialized with 2 providers
+Library providers initialized in FileSystemData
+00:04 +41: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: ApplyBookContentRange מוסיף את "הערות" כשהערה inline מופיעה רק בהמשך הספר (מחוץ לחלון הראשוני)
+00:04 +42: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: ApplyFullBookContent ללא הערות inline לא מוסיף את "הערות"
+00:04 +43: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: כשיש כבר מפרש פעיל אחר, "הערות" מתווסף ל-available אך לא דורס את activeCommentators
+00:04 +44: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: הערחבה שנייה לא מכפילה את "הערות" אם כבר נוסף
+00:04 +45: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: P1: אחרי UpdateCommentators ריק (clear מפורש), הרחבת תוכן עם הערות מוסיפה ל-available אך לא לבחירה הפעילה
+00:04 +46: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: P2: הרחבת טווח ללא הערות לא סורקת את כל ה-content הקיים (scanOnly)
+00:04 +47: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: P2: אחרי ApplyFullBookContent נקי, הרחבות עתידיות לא סורקות (flag)
+00:04 +47: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: P1: אחרי UpdateCommentators ריק (clear מפורש), הרחבת תוכן עם הערות מוסיפה ל-available אך לא לבחירה הפעילה
+📁 Looking for file: /tmp/otzaria_test_OARQBX/per_book_settings/settings_2021e1661b0dd89f11e2240678d994737a3ddbbd.json
+📁 File does not exist
+📁 Saving to file: /tmp/otzaria_test_OARQBX/per_book_settings/settings_2021e1661b0dd89f11e2240678d994737a3ddbbd.json
+📄 JSON content: {"activeCommentators":[]}
+00:04 +48: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: P3a: הדגלים נדלקים אחרי UpdateCommentators + ApplyFullBookContent
+00:04 +48: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: P1: אחרי UpdateCommentators ריק (clear מפורש), הרחבת תוכן עם הערות מוסיפה ל-available אך לא לבחירה הפעילה
+✅ Saved per-book settings for: o__x__ספר בדיקה
+00:04 +49: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: P3b: resetInlineNotesStateForNewBook מאפס את שני הדגלים (מדמה טעינת ספר חדש)
+00:04 +49: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: P3a: הדגלים נדלקים אחרי UpdateCommentators + ApplyFullBookContent
+📁 Looking for file: /tmp/otzaria_test_OARQBX/per_book_settings/settings_2021e1661b0dd89f11e2240678d994737a3ddbbd.json
+📄 JSON content: {"activeCommentators":[]}
+✅ Loaded per-book settings for: o__x__ספר בדיקה
+📁 Saving to file: /tmp/otzaria_test_OARQBX/per_book_settings/settings_2021e1661b0dd89f11e2240678d994737a3ddbbd.json
+📄 JSON content: {"activeCommentators":["רש\"י"]}
+00:04 +50: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: UpdateCommentators auto/restore guards בחירת ברירת מחדל (isUserAction:false) מוחלת כשאין מפרשים פעילים
+00:04 +50: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: P3a: הדגלים נדלקים אחרי UpdateCommentators + ApplyFullBookContent
+✅ Saved per-book settings for: o__x__ספר בדיקה
+00:04 +50: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: P3b: resetInlineNotesStateForNewBook מאפס את שני הדגלים (מדמה טעינת ספר חדש)
+📁 Looking for file: /tmp/otzaria_test_OARQBX/per_book_settings/settings_2021e1661b0dd89f11e2240678d994737a3ddbbd.json
+00:04 +51: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: UpdateCommentators auto/restore guards בחירת ברירת מחדל גוברת על אוטו-בחירת הערות (ספר עם הערות)
+00:04 +52: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: UpdateCommentators auto/restore guards שחזור בחירה שמורה (isRestore) גובר על בחירה אוטומטית קיימת (כגון הערות)
+00:04 +52: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: P3b: resetInlineNotesStateForNewBook מאפס את שני הדגלים (מדמה טעינת ספר חדש)
+📄 JSON content: {"activeCommentators":["רש\"י"]}
+✅ Loaded per-book settings for: o__x__ספר בדיקה
+📁 Saving to file: /tmp/otzaria_test_OARQBX/per_book_settings/settings_2021e1661b0dd89f11e2240678d994737a3ddbbd.json
+📄 JSON content: {"activeCommentators":["רש\"י"]}
+00:04 +53: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: UpdateCommentators auto/restore guards שחזור בחירה ריקה מנקה גם בחירה אוטומטית קיימת
+00:04 +53: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: P3b: resetInlineNotesStateForNewBook מאפס את שני הדגלים (מדמה טעינת ספר חדש)
+✅ Saved per-book settings for: o__x__ספר בדיקה
+00:04 +54: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: UpdateCommentators auto/restore guards אחרי בחירה ידנית, שחזור/אוטומט מאוחרים אינם דורסים
+00:04 +55: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: ספר מהמסד — גוף ההערות בטבלת line_note ולא בשורות ApplyFullBookContent מוסיף את "הערות" גם בלי <i class="footnote">
+00:04 +55: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: UpdateCommentators auto/restore guards אחרי בחירה ידנית, שחזור/אוטומט מאוחרים אינם דורסים
+📁 Looking for file: /tmp/otzaria_test_OARQBX/per_book_settings/settings_2021e1661b0dd89f11e2240678d994737a3ddbbd.json
+00:04 +56: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: UpdateCommentators auto/restore guards אחרי בחירה ידנית, שחזור/אוטומט מאוחרים אינם דורסים
+📄 JSON content: {"activeCommentators":["רש\"י"]}
+✅ Loaded per-book settings for: o__x__ספר בדיקה
+00:04 +56: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: ספר מהמסד — גוף ההערות בטבלת line_note ולא בשורות UpdateAvailableCommentators אחרי סריקה מלאה לא מפיל את "הערות"
+00:04 +56: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: UpdateCommentators auto/restore guards אחרי בחירה ידנית, שחזור/אוטומט מאוחרים אינם דורסים
+📁 Saving to file: /tmp/otzaria_test_OARQBX/per_book_settings/settings_2021e1661b0dd89f11e2240678d994737a3ddbbd.json
+📄 JSON content: {"activeCommentators":["רש\"י"]}
+✅ Saved per-book settings for: o__x__ספר בדיקה
+00:04 +57: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: ספר מהמסד — גוף ההערות בטבלת line_note ולא בשורות LoadContent — ההערות נטענות במקביל ו"הערות" זמין כבר ב-emit הראשון
+00:04 +58: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: ספר מהמסד — גוף ההערות בטבלת line_note ולא בשורות LoadContent — כשל בטעינת ההערות מכשיל את פתיחת הספר (TextBookError)
+Error loading textbook: Bad state: גוף שאינו מתפענח
+dart:async/future_impl.dart 21:26                              _interceptError
+dart:async/future_impl.dart 52:23                              _interceptUserError
+dart:async/future_impl.dart 82:26                              _Completer.completeError
+test/text_book/bloc/inline_notes_commentator_test.dart 605:16  main.<fn>.<fn>
+===== asynchronous gap ===========================
+dart:async/zone.dart 841:35                                    _CustomZone.registerUnaryCallback
+test/text_book/bloc/inline_notes_commentator_test.dart 604:9   main.<fn>.<fn>
+package:test_api/src/backend/declarer.dart 253:25              Declarer.test.<fn>.<fn>
+===== asynchronous gap ===========================
+dart:async/zone.dart 841:35                                    _CustomZone.registerUnaryCallback
+package:test_api/src/backend/declarer.dart 252:15              Declarer.test.<fn>.<fn>
+dart:async/zone_root.dart 35:13                                _rootRun
+dart:async/zone.dart 810:35                                    _CustomZone.run
+dart:async/zone_api.dart 165:6                                 _runZoned
+dart:async/zone_api.dart 91:10                                 runZoned
+package:test_api/src/backend/declarer.dart 250:17              Declarer.test.<fn>
+package:test_api/src/backend/invoker.dart 318:17               Invoker._waitForOutstandingCallbacks.<fn>
+dart:async/zone_root.dart 35:13                                _rootRun
+dart:async/zone.dart 810:35                                    _CustomZone.run
+dart:async/zone_api.dart 165:6                                 _runZoned
+dart:async/zone_api.dart 91:10                                 runZoned
+package:test_api/src/backend/invoker.dart 314:5                Invoker._waitForOutstandingCallbacks
+package:test_api/src/backend/invoker.dart 457:21               Invoker._onRun.<fn>.<fn>.<fn>
+===== asynchronous gap ===========================
+dart:async/zone.dart 841:35                                    _CustomZone.registerUnaryCallback
+package:test_api/src/backend/invoker.dart 455:15               Invoker._onRun.<fn>.<fn>.<fn>
+dart:async/zone_root.dart 35:13                                _rootRun
+dart:async/zone.dart 810:35                                    _CustomZone.run
+dart:async/zone_api.dart 165:6                                 _runZoned
+dart:async/zone_api.dart 91:10                                 runZoned
+package:test_api/src/backend/invoker.dart 445:11               Invoker._onRun.<fn>.<fn>
+package:test_api/src/backend/invoker.dart 500:15               Invoker._guardIfGuarded
+package:test_api/src/backend/invoker.dart 444:9                Invoker._onRun.<fn>
+package:stack_trace/src/chain.dart 97:24                       Chain.capture.<fn>
+dart:async/zone_root.dart 35:13                                _rootRun
+dart:async/zone.dart 810:35                                    _CustomZone.run
+dart:async/zone_api.dart 165:6                                 _runZoned
+dart:async/zone_api.dart 91:10                                 runZoned
+package:stack_trace/src/chain.dart 95:12                       Chain.capture
+package:test_api/src/backend/invoker.dart 442:11               Invoker._onRun
+package:test_api/src/backend/live_test_controller.dart 161:11  LiveTestController.run
+package:test_api/src/backend/remote_listener.dart 320:16       RemoteListener._runLiveTest.<fn>
+dart:async/zone_root.dart 35:13                                _rootRun
+dart:async/zone.dart 810:35                                    _CustomZone.run
+dart:async/zone_api.dart 165:6                                 _runZoned
+dart:async/zone_api.dart 91:10                                 runZoned
+package:test_api/src/backend/remote_listener.dart 319:5        RemoteListener._runLiveTest
+package:test_api/src/backend/remote_listener.dart 261:7        RemoteListener._serializeTest.<fn>
+dart:async/zone_root.dart 48:47                                _rootRunUnary
+dart:async/zone.dart 816:35                                    _CustomZone.runUnary
+dart:async/zone.dart 710:7                                     _CustomZone.runUnaryGuarded
+dart:async/stream_impl.dart 381:11                             _BufferingStreamSubscription._sendData
+dart:async/stream_impl.dart 312:7                              _BufferingStreamSubscription._add
+dart:async/stream_controller.dart 798:19                       _SyncStreamControllerDispatch._sendData
+dart:async/stream_controller.dart 663:7                        _StreamController._add
+dart:async/stream_controller.dart 618:5                        _StreamController.add
+dart:async/zone_root.dart 56:13                                _rootRunUnary
+dart:async/zone.dart 816:35                                    _CustomZone.runUnary
+dart:async/zone.dart 710:7                                     _CustomZone.runUnaryGuarded
+dart:async/stream_impl.dart 381:11                             _BufferingStreamSubscription._sendData
+dart:async/stream_impl.dart 312:7                              _BufferingStreamSubscription._add
+dart:async/stream_controller.dart 798:19                       _SyncStreamControllerDispatch._sendData
+dart:async/stream_controller.dart 663:7                        _StreamController._add
+dart:async/stream_controller.dart 618:5                        _StreamController.add
+dart:async/stream_controller.dart 898:13                       _StreamSinkWrapper.add
+package:stream_channel/src/guarantee_channel.dart 125:12       _GuaranteeSink.add
+package:stream_channel/src/multi_channel.dart 159:31           new _MultiChannel.<fn>
+dart:async/zone.dart 963:10                                    _RootZone.runUnaryGuarded
+dart:_internal/async_cast.dart 95:11                           CastStreamSubscription._onData
+dart:async/zone.dart 963:10                                    _RootZone.runUnaryGuarded
+dart:async/stream_impl.dart 381:11                             _BufferingStreamSubscription._sendData
+dart:async/stream_impl.dart 312:7                              _BufferingStreamSubscription._add
+dart:async/stream_controller.dart 798:19                       _SyncStreamControllerDispatch._sendData
+dart:async/stream_controller.dart 663:7                        _StreamController._add
+dart:async/stream_controller.dart 618:5                        _StreamController.add
+dart:async/zone.dart 963:10                                    _RootZone.runUnaryGuarded
+dart:async/stream_impl.dart 381:11                             _BufferingStreamSubscription._sendData
+dart:async/stream_impl.dart 312:7                              _BufferingStreamSubscription._add
+dart:async/stream_controller.dart 798:19                       _SyncStreamControllerDispatch._sendData
+dart:async/stream_controller.dart 663:7                        _StreamController._add
+dart:async/stream_controller.dart 618:5                        _StreamController.add
+dart:async/stream_controller.dart 898:13                       _StreamSinkWrapper.add
+dart:async/zone.dart 963:10                                    _RootZone.runUnaryGuarded
+dart:async/stream_impl.dart 381:11                             _BufferingStreamSubscription._sendData
+dart:async/stream_impl.dart 312:7                              _BufferingStreamSubscription._add
+dart:async/stream_pipe.dart 154:11                             _ForwardingStreamSubscription._add
+dart:async/stream_pipe.dart 252:10                             _MapStream._handleData
+dart:async/stream_pipe.dart 184:13                             _ForwardingStreamSubscription._handleData
+dart:async/zone.dart 963:10                                    _RootZone.runUnaryGuarded
+dart:async/stream_impl.dart 381:11                             _BufferingStreamSubscription._sendData
+dart:async/stream_impl.dart 312:7                              _BufferingStreamSubscription._add
+dart:async/stream_controller.dart 798:19                       _SyncStreamControllerDispatch._sendData
+dart:async/stream_controller.dart 663:7                        _StreamController._add
+dart:async/stream_controller.dart 618:5                        _StreamController.add
+dart:_http/websocket_impl.dart 1530:27                         new _WebSocketImpl._fromSocket.<fn>
+dart:async/zone.dart 963:10                                    _RootZone.runUnaryGuarded
+dart:async/stream_impl.dart 381:11                             _BufferingStreamSubscription._sendData
+dart:async/stream_impl.dart 312:7                              _BufferingStreamSubscription._add
+dart:async/stream_transformers.dart 67:11                      _SinkTransformerStreamSubscription._add
+dart:async/stream_transformers.dart 13:11                      _EventSinkWrapper.add
+dart:_http/websocket_impl.dart 525:23                          _WebSocketProtocolTransformer._messageFrameEnd
+dart:_http/websocket_impl.dart 409:46                          _WebSocketProtocolTransformer.add
+dart:async/stream_transformers.dart 115:24                     _SinkTransformerStreamSubscription._handleData
+dart:async/zone.dart 963:10                                    _RootZone.runUnaryGuarded
+dart:async/stream_impl.dart 381:11                             _BufferingStreamSubscription._sendData
+dart:async/stream_impl.dart 312:7                              _BufferingStreamSubscription._add
+dart:async/stream_controller.dart 798:19                       _SyncStreamControllerDispatch._sendData
+dart:async/stream_controller.dart 663:7                        _StreamController._add
+dart:async/stream_controller.dart 618:5                        _StreamController.add
+dart:io-patch/socket_patch.dart 2906:41                        _Socket._onData
+dart:async/zone.dart 963:10                                    _RootZone.runUnaryGuarded
+dart:async/stream_impl.dart 381:11                             _BufferingStreamSubscription._sendData
+dart:async/stream_impl.dart 312:7                              _BufferingStreamSubscription._add
+dart:async/stream_controller.dart 798:19                       _SyncStreamControllerDispatch._sendData
+dart:async/stream_controller.dart 663:7                        _StreamController._add
+dart:async/stream_controller.dart 618:5                        _StreamController.add
+dart:io-patch/socket_patch.dart 2344:31                        new _RawSocket.<fn>
+dart:io-patch/socket_patch.dart 1679:14                        _NativeSocket.issueReadEvent.issue
+dart:async/schedule_microtask.dart 40:35                       _microtaskLoop
+dart:async/schedule_microtask.dart 49:5                        _startMicrotaskLoop
+
+00:04 +59: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/inline_notes_commentator_test.dart: (tearDownAll)
+00:05 +59: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reader_content_revision_test.dart: revision חדש בונה מחדש בלי לסרוק את כל תוכן הספר
+00:05 +60: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reader_content_revision_test.dart: מטא-בחירה בלבד באותו snapshot אינו קורא שורות ואינו בונה
+00:05 +61: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reader_content_revision_test.dart: תוכן שונה באותה revision עדיין בונה עבור צרכנים ללא revision
+00:05 +62: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reader_content_revision_test.dart: תוכן שווה בעותקים שונים ללא revision משמר השוואת תוכן
+00:05 +63: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reader_content_revision_test.dart: טעינת שורה ריקה נחשבת שינוי גם כשזהות התוכן לא השתנתה
+00:05 +64: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reader_content_revision_test.dart: המסנן שמתעלם מבחירה עדיין מזהה שינוי תוכן ללא סריקה
+00:05 +65: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reader_content_revision_test.dart: (tearDownAll)
+00:05 +65: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: סגירת ספר משחררת ספירה בתור ואינה מפעילה isolate מיותר
+00:05 +66: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: השבתה בזמן ספירה דוחה מנת חימום נוספת עד לחזרה
+00:05 +67: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: מסיר רק סימנים משולבים ומשאיר פיסוק עברי
+00:05 +68: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: מפענח ישויות אחרי הסרת תגיות ומסתיר גוף הערות
+00:06 +69: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: זהה לספירה ב-RegExp וב-runes על כל תו ועל צירופים אקראיים (perf)
+00:06 +70: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: זהה לספירה ב-RegExp וב-runes על כל תו ועל צירופים אקראיים (perf)
+00:06 +71: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: זהה לספירה ב-RegExp וב-runes על כל תו ועל צירופים אקראיים (perf)
+00:06 +72: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: זהה לספירה ב-RegExp וב-runes על כל תו ועל צירופים אקראיים (perf)
+00:06 +73: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: זהה לספירה ב-RegExp וב-runes על כל תו ועל צירופים אקראיים (perf)
+00:06 +74: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: מידות השורות ורוחב העמודה משפיעים על ההערכה
+00:06 +75: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: דלתאות רציפות ממוזגות ומעדכנות רק את שורותיהן
+00:06 +76: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: טעינה תוך כדי ספירה ברקע אינה מאבדת דלתא
+00:06 +77: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: גרסה שדולגה וספר אחר מחייבים רענון מלא
+00:06 +78: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: חימום מעדכן פריט רחוק בלי key חדש ובלי לבנותו
+00:07 +79: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: חימום מעדכן פריט רחוק בלי key חדש ובלי לבנותו (עם textWidth)
+00:07 +80: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: חימום בפריים האחרון של שינוי רוחב רציף ברשימה גדולה מוערך ברוחב החדש
+00:07 +81: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: חימום בפריים האחרון של שינוי רוחב רציף ברשימה גדולה מוערך ברוחב החדש
+00:07 +82: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: חימום בפריים האחרון של שינוי רוחב רציף ברשימה גדולה מוערך ברוחב החדש
+00:07 +83: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: חימום בפריים האחרון של שינוי רוחב רציף ברשימה גדולה מוערך ברוחב החדש
+00:07 +84: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: חימום בפריים האחרון של שינוי רוחב רציף ברשימה גדולה מוערך ברוחב החדש
+00:07 +85: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: חימום בפריים האחרון של שינוי רוחב רציף ברשימה גדולה מוערך ברוחב החדש
+00:07 +86: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: חימום בפריים האחרון של שינוי רוחב רציף ברשימה גדולה מוערך ברוחב החדש
+00:07 +87: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: חימום בפריים האחרון של שינוי רוחב רציף ברשימה גדולה מוערך ברוחב החדש
+00:07 +88: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: חימום בפריים האחרון של שינוי רוחב רציף ברשימה גדולה מוערך ברוחב החדש
+00:07 +89: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: חימום בפריים האחרון של שינוי רוחב רציף ברשימה גדולה מוערך ברוחב החדש
+00:07 +90: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: חימום בפריים האחרון של שינוי רוחב רציף ברשימה גדולה מוערך ברוחב החדש
+00:07 +91: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: חימום בפריים האחרון של שינוי רוחב רציף ברשימה גדולה מוערך ברוחב החדש
+00:07 +92: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: חימום בפריים האחרון של שינוי רוחב רציף ברשימה גדולה מוערך ברוחב החדש
+00:07 +93: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: חימום בפריים האחרון של שינוי רוחב רציף ברשימה גדולה מוערך ברוחב החדש
+00:07 +94: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: addInlineNotePreviewLinks מרקר מספרי עובר באותו קישור מורם כמו מרקר אות
+00:07 +95: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: רוחב הטקסט מחושב פעם אחת לכל רוחב ולא לכל פריט
+00:07 +96: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: רוחב הטקסט מחושב פעם אחת לכל רוחב ולא לכל פריט
+00:07 +97: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: addInlineNotePreviewLinks רשימה ארוכה של הערות נשמרת כסדרה במעבר אחד
+00:07 +98: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: addInlineNotePreviewLinks רשימה ארוכה של הערות נשמרת כסדרה במעבר אחד
+00:07 +99: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: טאב מושבת דוחה ספירה וחוזר לרענון יחיד כשהוא פעיל
+00:07 +100: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: טאב מושבת דוחה ספירה וחוזר לרענון יחיד כשהוא פעיל
+00:07 +101: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: טאב מושבת דוחה ספירה וחוזר לרענון יחיד כשהוא פעיל
+00:07 +102: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: טאב מושבת דוחה ספירה וחוזר לרענון יחיד כשהוא פעיל
+00:07 +103: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: טאב מושבת דוחה ספירה וחוזר לרענון יחיד כשהוא פעיל
+00:07 +104: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: טאב מושבת דוחה ספירה וחוזר לרענון יחיד כשהוא פעיל
+00:07 +105: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/reading_extent_estimates_test.dart: טאב מושבת דוחה ספירה וחוזר לרענון יחיד כשהוא פעיל
+00:07 +106: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: stripInlineNotesFromHeading מסיר הערה מקוננת בשלמותה ושומר עיצוב וטקסט שסביבה
+00:07 +107: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: stripInlineNotesFromHeading מסיר הערות מרובות עם עיצוב פנימי בלי למחוק טקסט ביניהן
+00:07 +108: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: stripInlineNotesFromHeading כותרת בלי הערה אינה משתנה
+00:07 +109: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: stripInlineNotesForSearch מסיר גם את אות ההפניה (<sup>) וגם את גוף ההערה
+00:07 +110: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: stripInlineNotesForSearch אות ההפניה מפרידה מילים, כמו תג sup של הערה באינדקס
+00:07 +111: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: stripInlineNotesForSearch מטפל במספר הערות באותה שורה
+00:07 +112: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: stripInlineNotesForSearch משאיר שורות ללא הערות ללא שינוי
+00:07 +113: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: stripInlineNotesForSearch לא נוגע ב-<sup> שאינו footnote-marker
+00:07 +114: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: hasInlineNotes מחזיר true כשיש לפחות שורה אחת עם <i class="footnote">
+00:07 +115: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: hasInlineNotes מחזיר false כשאין הערות בשום שורה
+00:07 +116: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: hasInlineNotes מחזיר false לרשימה ריקה
+00:07 +117: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: notesForLines מחזיר את ה-marker והגוף עבור הערה צמודה ל-<sup>
+00:07 +118: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: notesForLines מחלץ מספר הערות באותה שורה — כל הערה רק עם ה-<sup> הצמוד שלה
+00:07 +119: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: notesForLines מחלץ 4 הערות עם markers אותיות עבריות שונות (Beit Yaakov pattern)
+00:07 +120: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: notesForLines מסנן אינדקסים מחוץ לתחום
+00:07 +121: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: notesForLines מחזיר רק את ההערות של האינדקסים המבוקשים
+00:07 +122: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: notesForLines מחלץ הערה ללא <sup> צמוד (orphan)
+00:07 +123: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: notesForLines הערה בתחילת השורה לא נצמדת לסמן מאוחר יותר
+00:07 +124: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: notesForLines מתעלם משורות ללא הערות
+00:07 +125: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: הערות מהמסד (line_note) — גוף ההערה אינו בשורה notesForLines ו-hasInlineNotes רואים את הערות הטבלה
+00:07 +126: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: הערות מהמסד (line_note) — גוף ההערה אינו בשורה ה-<sup> ה-k-י מקושר להערה ה-k-ית שיש לה marker
+00:07 +127: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: הערות מהמסד (line_note) — גוף ההערה אינו בשורה בלי הערות מהמסד — השורה ללא שינוי
+00:07 +128: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: הערות מהמסד (line_note) — גוף ההערה אינו בשורה rehydrate מחזיר את הגוף אחרי ה-<sup> שלו, ואת היתר לסוף
+00:07 +129: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: הערות מהמסד (line_note) — גוף ההערה אינו בשורה rehydrate ואחריו notesForLines — כמו הערה inline מקורית
+00:07 +130: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: line_note עם charPos ושמות קודש בגוף כל גוף חוזר באופסט שלו — גם הערה בלי marker באמצע השורה
+00:07 +131: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: line_note עם charPos ושמות קודש בגוף ישות נספרת כתו אחד, ושתי הערות באותו מקום נשמרות בסדרן
+00:07 +132: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: line_note עם charPos ושמות קודש בגוף אופסט מעבר לסוף השורה — בסוף
+00:07 +133: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: line_note עם charPos ושמות קודש בגוף שמות הקודש בגוף ההערה מסומנים לחלונית ולריחוף
+00:07 +134: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: line_note עם charPos ושמות קודש בגוף applyStoredLineData — שמות השורה וההערה, וההערה במקומה
+00:07 +135: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/utils/inline_notes_utils_test.dart: (tearDownAll)
+00:08 +135: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/page_shape/page_shape_notes_column_test.dart: (setUpAll)
+00:08 +135: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/page_shape/page_shape_notes_column_test.dart: כל הערה היא שורה בטור, מקושרת לשורת המקור שלה לפי הסדר
+00:08 +136: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/page_shape/page_shape_notes_column_test.dart: מקטעים שומרים על מיפוי הערות inline ומסד בגבול 256
+00:08 +137: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/page_shape/page_shape_notes_column_test.dart: "הערות" שנבחר לטור מציג את הערות הספר (issues #3400, #3507)
+CopyUtils: Final path from CONTENT (strict, full scan): "פרק שני"
+00:10 +137: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/combined_view/continuous_reflow_keeps_place_test.dart: ניווט פעיל נוחת ביעד כשהפסקה נטענת ברקע
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+00:10 +137: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/page_shape/page_shape_notes_column_test.dart: "הערות" שנבחר לטור מציג את הערות הספר (issues #3400, #3507)
+CopyUtils: Final path from CONTENT (strict, full scan): "פרק שני"
+00:10 +138: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/page_shape/page_shape_notes_column_test.dart: "הערות" שנבחר לטור מציג את הערות הספר (issues #3400, #3507)
+00:10 +139: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/page_shape/page_shape_notes_column_test.dart: "הערות" שנבחר לטור מציג את הערות הספר (issues #3400, #3507)
+00:10 +140: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/page_shape/page_shape_notes_column_test.dart: "הערות" שנבחר לטור מציג את הערות הספר (issues #3400, #3507)
+00:10 +140: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/combined_view/continuous_reflow_keeps_place_test.dart: עדכון תוכן אינו שולח ניווט לקורא חיצוני
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+00:11 +141: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/page_shape/page_shape_notes_column_test.dart: "הערות" שנבחר לטור מציג את הערות הספר (issues #3400, #3507)
+00:11 +141: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/combined_view/continuous_reflow_keeps_place_test.dart: החלפת מצב אחרי עדכון תוכן משמרת את יעד החלפת המצב
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+00:11 +141: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/page_shape/page_shape_notes_column_test.dart: "הערות" שנבחר לטור מציג את הערות הספר (issues #3400, #3507)
+💾 DatabaseLibraryProvider initialized
+✅ Initialized provider: מסד נתונים
+📁 FileSystemLibraryProvider initialized
+✅ Initialized provider: קבצים
+📚 LibraryProviderManager initialized with 2 providers
+00:11 +142: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/page_shape/page_shape_notes_column_test.dart: "הערות" שנבחר לטור מציג את הערות הספר (issues #3400, #3507)
+00:11 +142: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/combined_view/continuous_reflow_keeps_place_test.dart: שני עדכוני תוכן לפני frame משתמשים בפריסה שהוצגה
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+00:11 +143: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/page_shape/page_shape_notes_column_test.dart: "הערות" שנבחר לטור מציג את הערות הספר (issues #3400, #3507)
+00:11 +144: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/page_shape/page_shape_notes_column_test.dart: "הערות" שנבחר לטור מציג את הערות הספר (issues #3400, #3507)
+00:11 +145: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/page_shape/page_shape_notes_column_test.dart: "הערות" שנבחר לטור מציג את הערות הספר (issues #3400, #3507)
+00:11 +146: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/page_shape/page_shape_notes_column_test.dart: "הערות" שנבחר לטור מציג את הערות הספר (issues #3400, #3507)
+00:11 +147: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/page_shape/page_shape_notes_column_test.dart: "הערות" שנבחר לטור מציג את הערות הספר (issues #3400, #3507)
+00:12 +148: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/page_shape/page_shape_notes_column_test.dart: "הערות" שנבחר לטור מציג את הערות הספר (issues #3400, #3507)
+00:12 +149: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_fixture_test.dart: fresh fixtures have identical bytes, stable IDs, sizes and neutral text
+00:12 +150: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/combined_view/continuous_reflow_keeps_place_test.dart: קישור עם mark מדגיש את השורה בתוך פסקה רציפה (issue #2057)
+00:12 +151: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/combined_view/continuous_reflow_keeps_place_test.dart: קישור עם mark מדגיש את השורה בתוך פסקה רציפה (issue #2057)
+00:12 +152: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/combined_view/continuous_reflow_keeps_place_test.dart: קישור עם mark מדגיש את השורה בתוך פסקה רציפה (issue #2057)
+00:12 +153: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_fixture_test.dart: application settings loading preserves the prepared fixture
+00:12 +153: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/combined_view/continuous_reflow_keeps_place_test.dart: מקטעים שומרים בחירה, ניקוד ומקום בהחלפת גופן ובקפיצה (chunks=false)
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+00:12 +154: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/combined_view/continuous_reflow_keeps_place_test.dart: מקטעים שומרים בחירה, ניקוד ומקום בהחלפת גופן ובקפיצה (chunks=false)
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+00:13 +155: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_reader_scroll_test.dart: scrolls the attached reader while a long side list is visible
+00:13 +156: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/combined_view/continuous_reflow_keeps_place_test.dart: מקטעים שומרים בחירה, ניקוד ומקום בהחלפת גופן ובקפיצה (chunks=true)
+00:13 +157: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/combined_view/continuous_reflow_keeps_place_test.dart: מקטעים שומרים בחירה, ניקוד ומקום בהחלפת גופן ובקפיצה (chunks=true)
+00:13 +158: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/combined_view/continuous_reflow_keeps_place_test.dart: מקטעים שומרים בחירה, ניקוד ומקום בהחלפת גופן ובקפיצה (chunks=true)
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+PluginRuntimeDispatcher: Dispatching reader.sectionContentChanged
+00:14 +159: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/view/combined_view/continuous_reflow_keeps_place_test.dart: (tearDownAll)
+00:14 +159: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: frame windows use engine wall timestamps, not callback arrival
+00:14 +160: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: an interval with no frames remains missing, not a zero-duration frame
+00:14 +161: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: failed actions are persisted as failed and still propagate
+00:15 +162: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: an asynchronously captured application error fails its phase
+00:15 +163: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +164: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +165: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +166: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +167: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +168: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +169: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +170: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +171: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +172: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +173: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +174: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +175: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +176: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +177: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +178: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +179: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +180: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +181: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +182: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +183: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +184: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +185: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +186: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +187: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +188: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +189: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +190: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +191: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +192: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +193: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: warmup and explicit unavailable phases cannot masquerade as samples
+00:15 +194: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/report_test.dart: ה-CLI כותב JSON ו-Markdown מאותם נתונים
+00:15 +195: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/report_test.dart: ה-CLI כותב JSON ו-Markdown מאותם נתונים
+00:15 +196: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/report_test.dart: ה-CLI כותב JSON ו-Markdown מאותם נתונים
+00:15 +197: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/report_test.dart: ה-CLI כותב JSON ו-Markdown מאותם נתונים
+00:15 +198: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/report_test.dart: ה-CLI כותב JSON ו-Markdown מאותם נתונים
+00:15 +199: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/report_test.dart: ה-CLI כותב JSON ו-Markdown מאותם נתונים
+00:15 +200: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/report_test.dart: ה-CLI כותב JSON ו-Markdown מאותם נתונים
+00:15 +201: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/report_test.dart: ה-CLI כותב JSON ו-Markdown מאותם נתונים
+00:15 +202: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/report_test.dart: ה-CLI כותב JSON ו-Markdown מאותם נתונים
+00:16 +203: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/tool/perf_probe/perf_recorder_test.dart: a failed heap-before reason survives successful heap-after sampling
+00:16 +203: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart: טווחים חופפים שומרים snapshots קודמים ואת שורות המקור
+💾 DatabaseLibraryProvider initialized
+✅ Initialized provider: מסד נתונים
+📁 FileSystemLibraryProvider initialized
+✅ Initialized provider: קבצים
+📚 LibraryProviderManager initialized with 2 providers
+Library providers initialized in FileSystemData
+00:16 +204: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart: טווחים חופפים שומרים snapshots קודמים ואת שורות המקור
+00:16 +205: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart: שורה ריקה טעונה מתעדכנת פעם אחת ולא נחשבת placeholder
+00:16 +206: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart: טווחים זהים אחרי תוכן מלא בודקים רק את שורות הטווח
+00:16 +207: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart: טווח אחרי תוכן מלא מחיל שינוי אמיתי (הארכה=false)
+00:16 +208: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart: טווח אחרי תוכן מלא מחיל שינוי אמיתי (הארכה=true)
+00:16 +209: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart: תוכן זהה ללא דגלים טעונים עדיין מפרסם טעינת שורה ריקה
+00:16 +210: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart: טווחים שמשנים ואז משחזרים תוכן מלא שומרים על עדכון revision
+00:16 +211: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart: טווחים מחוץ לגבולות שומרים offset ומרחיבים אינדקסים לוגיים
+00:16 +212: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart: פסקה רציפה חוצה מקטעים בלי לשנות ניקוד, UTF-16 ואינדקסים
+00:16 +213: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart: חלוניות עם אותו ספר אינן משנות snapshots זו של זו
+00:16 +214: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart: הטעינה הראשונה משלימה פסקה רציפה ושינוי גופן שומר תוכן
+00:16 +215: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart: סגירה בזמן קריאת טווח לא מחילה תוכן שהגיע באיחור
+00:16 +216: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart: טעינה מחדש בשינוי גופן לא דורסת טווח שהגיע בזמן ההמתנה
+00:16 +217: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart: סגירה בזמן פתיחה (רציף=false) אינה מחזירה listener או I/O
+00:16 +218: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart: סגירה בזמן פתיחה (רציף=true) אינה מחזירה listener או I/O
+00:16 +219: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart: כשל metadata מאוחר אחרי סגירה אינו נשאר Future error לא מטופל
+00:16 +220: /workspace/scratch/03d201536b5d/pr4307-flat-control/test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart: (tearDownAll)
+00:16 +220: All tests passed!

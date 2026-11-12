@@ -1,0 +1,7 @@
+{
+  "restoredQuotingOnly": false,
+  "originalSha256": "1a716b4ffe7bc77506b550db9f185a2a6ff3de8882941f8f2752ca2cfadc5397",
+  "resolvedSha256": "1a716b4ffe7bc77506b550db9f185a2a6ff3de8882941f8f2752ca2cfadc5397",
+  "restoredSha256": "1a716b4ffe7bc77506b550db9f185a2a6ff3de8882941f8f2752ca2cfadc5397",
+  "rule": "Only matching quotes around unchanged full ref/resolved-ref SHAs may differ."
+}

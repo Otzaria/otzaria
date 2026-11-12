@@ -1,0 +1,205 @@
+{
+  "purpose": "Durable source, validation and publication evidence for the representation-only flat counterfactual of PR 4307.",
+  "prepared_at_utc": "2026-11-12T19:21:34.670198+00:00",
+  "repository_prefix": "tool/perf_probe/results/pr4307_review_20261112/representation-control",
+  "evidence_parent_commit": "71bb471fca2b7ddeb5a593cce03fbe4eac9004d7",
+  "evidence_parent_tree": "dead6dfdefe3688b3637fe903b8906ac2f18cabd",
+  "source_verification": {
+    "candidate_commit": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+    "control_commit": "764abeeec8a81a0e081d951261c37dc15dbadec3",
+    "only_parent_of_control": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+    "control_tree": "10fca460ba42e1f0fd82bc5d09b0d7a02d9b1131",
+    "only_changed_product_file": "lib/text_book/bloc/text_book_bloc.dart",
+    "product_blob": "9d2025dd9762c5861ca4d3cac43241d2ad8a5dfc",
+    "product_sha256": "a31fa2dbc8b9ac2410775407a45c56862098a5c4f334b4264ab70d31da30a6ee",
+    "exact_full_index_diff_matches": "representation_only.patch",
+    "full_product_source": "Referenced by immutable Git commit/blob; deliberately not duplicated in this evidence directory."
+  },
+  "included_files": [
+    {
+      "relative_path": "prepare_flat_control.py",
+      "bytes": 10059,
+      "sha256": "26877dc2438fc8369f4a74575896411bdf2aaf10e6a8904df86bb70685a0b19f"
+    },
+    {
+      "relative_path": "source_provenance.json",
+      "bytes": 5058,
+      "sha256": "fb258e9051961fff8e775963cd1ed1553811c12dec251cc4cc184d4ebc342892"
+    },
+    {
+      "relative_path": "representation_only.patch",
+      "bytes": 9129,
+      "sha256": "f27487c85a6aa18adc21cba0df2e19cc5f3b3040e38573692042f30ea26b860b"
+    },
+    {
+      "relative_path": "validation_plan.json",
+      "bytes": 6602,
+      "sha256": "6160d1c717dc8570e318388fbe6ddf37fe07848f80e207a38a3b2bdcadbeb70d"
+    },
+    {
+      "relative_path": "validation_overlay.py",
+      "bytes": 3892,
+      "sha256": "8608d28fe24b61c806449a437e78c29fc30b40e7448d123da31bdbff014dfdf9"
+    },
+    {
+      "relative_path": "validation_overlay_provenance.json",
+      "bytes": 1093,
+      "sha256": "971c3ff05ab5737b16916fff192714e2013a75f79035a27c8e4674dead08b563"
+    },
+    {
+      "relative_path": "run_local_control_validation.py",
+      "bytes": 4844,
+      "sha256": "81986a14d16315bc4a5d13691a71fe20f4bd76984bd00b7624760efc841dd9b1"
+    },
+    {
+      "relative_path": "finalize_local_validation.py",
+      "bytes": 8950,
+      "sha256": "dd7ea70fc56e1d7bfcf6f98ec202466dee148b92f634cc7596dfef8dd03daad3"
+    },
+    {
+      "relative_path": "independent-source-qa.json",
+      "bytes": 5751,
+      "sha256": "bd1ed6878c84994be2d188739327fb41fa9b3e6094eb356aa22861dacf0ee287"
+    },
+    {
+      "relative_path": "validation/analyze.log",
+      "bytes": 97,
+      "sha256": "d09428c88d50e3a5ab7cf0728474dc51aea1d67f7285632ce5fe6d3e522a8e1f"
+    },
+    {
+      "relative_path": "validation/analyze_status.json",
+      "bytes": 53,
+      "sha256": "4e58c11df7c2add9817128d87ed1ff69acccf08a75a03177010eab934bcbb240"
+    },
+    {
+      "relative_path": "validation/common_tests.log",
+      "bytes": 123001,
+      "sha256": "324483deef24ab88486f5a31b5c2e5f2c1c4c8e4d3308f1f352b082a19c34b71"
+    },
+    {
+      "relative_path": "validation/common_tests_status.json",
+      "bytes": 1957,
+      "sha256": "4232a1618b618c5edf41f408fa4b35b6dac001585e3e3c8c335358a4e55de507"
+    },
+    {
+      "relative_path": "validation/format_check.log",
+      "bytes": 46,
+      "sha256": "f9082f332e17ad0a9982a05eb4167ae95b672938df06a6158ab88d20c6d76fb6"
+    },
+    {
+      "relative_path": "validation/local_validation_summary.json",
+      "bytes": 4973,
+      "sha256": "63258e7a7a4cbdce2b46e861b88442fb29d8d4258c964ce3f0f951fb72ed75aa"
+    },
+    {
+      "relative_path": "validation/lockfile-proof.json",
+      "bytes": 389,
+      "sha256": "f4c716bdd92aa189bab46a5620cd81a57694454b0874fe8d769520840bed4486"
+    },
+    {
+      "relative_path": "validation/pub_get.log",
+      "bytes": 6941,
+      "sha256": "14001e349de72ca9fa858f567c373d4c96ef10f326aefa8ed965ce8e9544bb92"
+    },
+    {
+      "relative_path": "validation/pub_get_status.json",
+      "bytes": 53,
+      "sha256": "5407e9e0df5d657165d3f174ca5b481148c1d06244412dcb3214de972a2e15a6"
+    },
+    {
+      "relative_path": "validation/toolchain.json",
+      "bytes": 3168,
+      "sha256": "058809ac6322472d94dbd15f4399cffc678db5b68f1230230c3bc922f561811a"
+    },
+    {
+      "relative_path": "publication_manifest.json",
+      "bytes": 7345,
+      "sha256": "fcc3e52da6eb5d6a6c16533caa4ffe1b901f3a5e1b675d3581bd368b5e670206"
+    },
+    {
+      "relative_path": "publication_result.json",
+      "bytes": 639,
+      "sha256": "0577c9c8b3b0a9e9d8ecb39dd9cb17e386924b8bef333e87a918cfcfc0260a5d"
+    }
+  ],
+  "history": {
+    "publication_manifest.json": "Frozen pre-publication manifest, preserved byte-for-byte; local absolute paths record the as-run environment.",
+    "publication_result.json": "Subsequent publication record for the immutable control commit.",
+    "independent-source-qa.json": "Source review recorded before local runtime validation; its historical runtime wording is superseded by validation/local_validation_summary.json.",
+    "run_local_control_validation.py": "As-run pre-commit orchestration, with original local paths retained.",
+    "finalize_local_validation.py": "As-run manifest finalizer, with original local layout retained."
+  },
+  "reproduce_validation": {
+    "checkout": "764abeeec8a81a0e081d951261c37dc15dbadec3",
+    "precondition": "Use a clean checkout of the pinned control commit. Keep evidence outputs outside that checkout. Follow the repository AGENTS instructions.",
+    "toolchain": "Flutter 3.47.7 / Dart 3.13.5; exact framework, engine and native-toolchain provenance is in validation/toolchain.json.",
+    "dependencies": [
+      "flutter",
+      "pub",
+      "get",
+      "--enforce-lockfile"
+    ],
+    "format": [
+      "dart",
+      "format",
+      "--output=none",
+      "--set-exit-if-changed",
+      "lib/text_book/bloc/text_book_bloc.dart"
+    ],
+    "analyze": [
+      "flutter",
+      "analyze",
+      "--no-pub"
+    ],
+    "temporary_overlay_create": [
+      "python3",
+      "<this-directory>/validation_overlay.py",
+      "create",
+      "--repo",
+      "<clean-control-checkout>",
+      "--proof",
+      "<outside-checkout>/overlay-proof.json"
+    ],
+    "tests": [
+      "flutter",
+      "test",
+      "--no-pub",
+      "--reporter",
+      "expanded",
+      "test/text_book/models/chunked_list_test.dart",
+      "test/text_book/bloc/background_full_content_loading_test.dart",
+      "test/text_book/bloc/split_pane_warming_test.dart",
+      "test/text_book/bloc/per_book_continuous_initial_load_test.dart",
+      "test/text_book/bloc/continuous_reading_mode_test.dart",
+      "test/text_book/bloc/inline_notes_commentator_test.dart",
+      "test/text_book/utils/reader_content_revision_test.dart",
+      "test/text_book/utils/reading_extent_estimates_test.dart",
+      "test/text_book/utils/reading_segment_cache_test.dart",
+      "test/text_book/utils/inline_notes_utils_test.dart",
+      "test/text_book/view/page_shape/page_shape_notes_column_test.dart",
+      "test/text_book/view/combined_view/continuous_reflow_keeps_place_test.dart",
+      "test/tool/perf_probe/perf_fixture_test.dart",
+      "test/tool/perf_probe/perf_reader_probe_test.dart",
+      "test/tool/perf_probe/perf_reader_scroll_test.dart",
+      "test/tool/perf_probe/perf_recorder_test.dart",
+      "test/tool/perf_probe/report_test.dart",
+      "test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart"
+    ],
+    "temporary_overlay_remove_in_finally": [
+      "python3",
+      "<this-directory>/validation_overlay.py",
+      "remove",
+      "--repo",
+      "<clean-control-checkout>"
+    ],
+    "postcondition": "The original test and all tracked sources remain unchanged, the temporary sibling is absent, and git status is clean. Preserve all failed outputs if any step fails.",
+    "regenerate_control_source": "prepare_flat_control.py accepts --repo, --worktree and --outdir; start its worktree at the clean candidate commit, not the already-generated control. Compare its product SHA256 and the full-index patch to source_verification."
+  },
+  "scope": {
+    "local_validation": "Passed format, full analyze and 220 tests; no source or lockfile changes during validation.",
+    "representation_effects": "Includes allocation and immutable snapshot sharing, including their effect on identical(flags) and contentChanges granularity. It does not isolate map lookup instructions alone.",
+    "windows_results": "Pending in this evidence addition; workflow evidence is intentionally excluded until finalized.",
+    "physical_gpu": "Not measured; remains a separate limitation.",
+    "existing_failed_data": "All paths in the parent evidence tree are preserved unchanged; this addition only creates new files under repository_prefix."
+  }
+}

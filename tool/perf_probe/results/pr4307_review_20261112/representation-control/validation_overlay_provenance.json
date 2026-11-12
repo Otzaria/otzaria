@@ -1,0 +1,15 @@
+{
+  "original_repo_path": "test/text_book/bloc/long_book_snapshot_regression_test.dart",
+  "original_source_sha": "6aa411d774f453331d6821dbb5a68f1c3b78bd78",
+  "original_git_blob_sha": "674206e82a3104d74e2c5aa26effd6e9e4176c22",
+  "original_sha256": "9eeea22effd110ba786a64ccb00bebcffa2621997e071ba9616c580ff1c21356",
+  "original_bytes": 26711,
+  "removed_unique_assertion_utf8": "    expect(() => second.content[639] = 'מוטציה', throwsUnsupportedError);\n",
+  "removed_occurrences": 1,
+  "generated_repo_path": "test/text_book/bloc/long_book_snapshot_regression_flat_control_validation_test.dart",
+  "generated_sha256": "586b42792cabf70f3709f2eabbb6c5507d915c9d0e508af91954133a2e312ed7",
+  "generated_bytes": 26631,
+  "source_unchanged": true,
+  "scope": "Temporary control validation only. Run all remaining assertions from this unchanged-source-derived sibling plus all 17 shared test files; do not alter or commit the original test.",
+  "cleanup": "Remove only the generated sibling after verifying its expected SHA256, then assert clean source. Restore nothing by blanket reset."
+}
