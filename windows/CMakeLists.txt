@@ -26,6 +26,12 @@ else()
       "Debug" "Profile" "Release")
   endif()
 endif()
+# PDBs name the native frames in hang reports. They go to build/.../pdb, outside
+# runner/Release, so the bundle and installers don't ship them.
+add_compile_options("$<$<NOT:$<CONFIG:Debug>>:/Z7>")
+add_link_options("$<$<NOT:$<CONFIG:Debug>>:/DEBUG;/OPT:REF;/OPT:ICF>")
+set(CMAKE_PDB_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/pdb/Release")
+set(CMAKE_PDB_OUTPUT_DIRECTORY_PROFILE "${CMAKE_BINARY_DIR}/pdb/Profile")
 # Define settings for the Profile build mode.
 set(CMAKE_EXE_LINKER_FLAGS_PROFILE "${CMAKE_EXE_LINKER_FLAGS_RELEASE}")
 set(CMAKE_SHARED_LINKER_FLAGS_PROFILE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE}")

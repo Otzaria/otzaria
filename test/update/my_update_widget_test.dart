@@ -344,6 +344,9 @@ void main() {
 
     // נכסי release מציאותיים, כפי שמועלים ע"י build-and-announce.yml.
     final fullReleaseAssets = [
+      // הסמלים קודמים לחבילות בסדר ההעלאה, ואסור שייבחרו כחבילה ניידת.
+      asset('otzaria-native-symbols-arm64.zip'),
+      asset('otzaria-native-symbols-x64.zip'),
       asset('otzaria-0.9.96-windows.exe'),
       asset('otzaria-0.9.96-windows_arm64.exe'),
       asset('otzaria-0.9.96-windows-full.exe'),
