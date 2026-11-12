@@ -816,11 +816,12 @@ jobs:
           APP_FILE_MANIFEST: ${{ steps.app_file_manifest.outcome }}
         run: |
           set -euo pipefail
-          optional=(build/dart-symbols/otzaria-dart-symbols-windows-x64.debug build/dart-symbols/otzaria-native-symbols-x64.zip)
+          optional=(build/dart-symbols/otzaria-dart-symbols-windows-x64.debug)
           [ "$ASSISTANT" != success ] || optional+=(installer/Otzaria-Download-Assistant-windows.exe)
           [ "$APP_FILE_MANIFEST" != success ] || optional+=(otzaria-app-files-windows-x64.json)
           bash tool/release/upload_release_assets.sh "$RELEASE_ID" release-record \
-            installer/otzaria-*-windows-full.exe otzaria-windows.zip --optional "${optional[@]}"
+            installer/otzaria-*-windows-full.exe otzaria-windows.zip --optional "${optional[@]}" \
+            --best-effort build/dart-symbols/otzaria-native-symbols-x64.zip
 
       - name: Upload release record
         if: needs.prepare_release.outputs.release_id != ''
@@ -1130,7 +1131,7 @@ jobs:
           APP_FILE_MANIFEST: ${{ steps.app_file_manifest_arm64.outcome }}
         run: |
           set -euo pipefail
-          optional=(build/dart-symbols/otzaria-dart-symbols-windows-arm64.debug build/dart-symbols/otzaria-native-symbols-arm64.zip)
+          optional=(build/dart-symbols/otzaria-dart-symbols-windows-arm64.debug)
           [ "$APP_FILE_MANIFEST" != success ] || optional+=(otzaria-app-files-windows-arm64.json)
           if [ "$ARM64_FULL" = success ]; then
             optional+=(installer/otzaria-*-windows_arm64-full.exe)
@@ -1138,7 +1139,8 @@ jobs:
             echo "::warning::ARM64 FULL installer is missing - releasing without it"
           fi
           bash tool/release/upload_release_assets.sh "$RELEASE_ID" release-record \
-            otzaria-windows_arm64.zip --optional "${optional[@]}"
+            otzaria-windows_arm64.zip --optional "${optional[@]}" \
+            --best-effort build/dart-symbols/otzaria-native-symbols-arm64.zip
 
       - name: Upload release record
         if: needs.prepare_release.outputs.release_id != ''
