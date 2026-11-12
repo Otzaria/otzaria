@@ -393,6 +393,7 @@ class _CombinedViewState extends State<CombinedView> {
   late final SiblingCommentariesController _siblingController;
 
   bool _hasScrolledToInitialPosition = false;
+  bool? _continuousReadingMode;
 
   // הקצאת וריאנט טיפוגרפי קבוע לכל מפרש עם עוגני-מילה. ממוזכר לפי זהות
   // רשימת הקישורים של ה-state (מתחלפת רק כשהקישורים נטענים מחדש).
@@ -847,6 +848,7 @@ class _CombinedViewState extends State<CombinedView> {
   bool _didRequestInitialFocus = false;
 
   bool _isSelectionPointerDown = false;
+  bool _pointerDownInCommentaryCard = false;
   bool _needsSelectionAreaRefreshOnPointerUp = false;
   bool _pendingSelectionClear = false;
 
@@ -967,6 +969,12 @@ class _CombinedViewState extends State<CombinedView> {
 
   void _onTextBookState(TextBookState state) {
     if (state is! TextBookLoaded) return;
+    // הרשימה נבנית מחדש, ו-Flutter מחיל את הבחירה שוב לפי מיקום על המסך
+    // ולא לפי הטקסט.
+    if (_continuousReadingMode != state.continuousReadingMode) {
+      _continuousReadingMode = state.continuousReadingMode;
+      _clearSelectionBeforeJump();
+    }
     _scrollToInitialPosition(state);
     final line = _commentaryRevealLine;
     if (line == null) return;
@@ -2021,9 +2029,11 @@ class _CombinedViewState extends State<CombinedView> {
               child: RtlSelectionShortcuts(
                 child: Listener(
                   onPointerDown: (event) {
-                    if (event.buttons == kPrimaryMouseButton) {
+                    if (event.buttons == kPrimaryMouseButton &&
+                        !_pointerDownInCommentaryCard) {
                       _isSelectionPointerDown = true;
                     }
+                    _pointerDownInCommentaryCard = false;
                   },
                   onPointerUp: (_) => _endSelectionPointer(takeFocus: true),
                   onPointerCancel: (_) =>
@@ -3105,17 +3115,21 @@ class _CombinedViewState extends State<CombinedView> {
             state.book.versionTitle,
             lineIndex,
           )),
-          child: SelectionContainer.disabled(
-            child: _CommentaryCard(
-              key: ValueKey('commentary_card_$lineIndex'),
-              index: lineIndex,
-              textSize: widget.textSize,
-              openBookCallback: widget.openBookCallback,
-              viewportHeight: _viewportHeight,
-              selectionSyncController: widget.selectionSyncController,
-              searchText: state.searchText,
-              scrollTargetListenable: _anchorScrollTargetNotifier,
-              onOpenPersonalNote: widget.onOpenCommentaryPersonalNote,
+          // לכרטיס אזור בחירה משלו; מיקוד הקורא בשחרור העכבר היה מנקה אותו.
+          child: Listener(
+            onPointerDown: (_) => _pointerDownInCommentaryCard = true,
+            child: SelectionContainer.disabled(
+              child: _CommentaryCard(
+                key: ValueKey('commentary_card_$lineIndex'),
+                index: lineIndex,
+                textSize: widget.textSize,
+                openBookCallback: widget.openBookCallback,
+                viewportHeight: _viewportHeight,
+                selectionSyncController: widget.selectionSyncController,
+                searchText: state.searchText,
+                scrollTargetListenable: _anchorScrollTargetNotifier,
+                onOpenPersonalNote: widget.onOpenCommentaryPersonalNote,
+              ),
             ),
           ),
         ),
