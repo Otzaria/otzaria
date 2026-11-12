@@ -743,10 +743,11 @@ packages:
   flutter_spinbox:
     dependency: "direct main"
     description:
-      name: flutter_spinbox
-      sha256: "38d8c1a3a39f0fa72823d4470785f5e165f2deb53531ca7803b54ba45e4dbd46"
-      url: "https://pub.dev"
-    source: hosted
+      path: "."
+      ref: cb3c9c3fb98bb40cbcff104ac977019acb9986ce
+      resolved-ref: cb3c9c3fb98bb40cbcff104ac977019acb9986ce
+      url: "https://github.com/Otzaria/flutter_spinbox"
+    source: git
     version: "0.13.1"
   flutter_svg:
     dependency: "direct main"
