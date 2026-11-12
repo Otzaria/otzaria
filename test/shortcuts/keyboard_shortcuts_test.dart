@@ -547,6 +547,129 @@ void main() {
     });
   });
 
+  group('KeyboardShortcuts - בית הספרייה אופציונלי', () {
+    late MockSettingsBloc settingsBlocLocal;
+    late StreamController<SettingsState> settingsControllerLocal;
+    late _StubNavigationBloc navigationBloc;
+    late _StubTabsBloc tabsBloc;
+    late _StubHistoryBloc historyBloc;
+
+    setUpAll(() async {
+      await Settings.init(cacheProvider: MemorySettingsCache());
+    });
+
+    setUp(() {
+      FocusRepository().resetForTesting();
+      settingsBlocLocal = MockSettingsBloc();
+      settingsControllerLocal = StreamController<SettingsState>.broadcast();
+      navigationBloc = _StubNavigationBloc();
+      tabsBloc = _StubTabsBloc(const TabsState(tabs: [], currentTabIndex: 0));
+      historyBloc = _StubHistoryBloc();
+    });
+
+    tearDown(() async {
+      await settingsControllerLocal.close();
+      await tabsBloc.close();
+      await historyBloc.close();
+      await navigationBloc.close();
+      FocusRepository().resetForTesting();
+    });
+
+    Future<void> pumpWith(
+      WidgetTester tester,
+      Map<String, String> shortcuts,
+    ) async {
+      whenListen(
+        settingsBlocLocal,
+        settingsControllerLocal.stream,
+        initialState: SettingsState.initial().copyWith(shortcuts: shortcuts),
+      );
+      await tester.pumpWidget(
+        MultiBlocProvider(
+          providers: [
+            BlocProvider<SettingsBloc>.value(value: settingsBlocLocal),
+            BlocProvider<TabsBloc>.value(value: tabsBloc),
+            BlocProvider<HistoryBloc>.value(value: historyBloc),
+            BlocProvider<NavigationBloc>.value(value: navigationBloc),
+            Provider<FocusRepository>.value(value: FocusRepository()),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: KeyboardShortcuts(
+                onFindRefRequested: () {},
+                child: const SizedBox(width: 100, height: 100),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    Future<void> sendCtrlShift(
+      WidgetTester tester,
+      LogicalKeyboardKey key,
+    ) async {
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyDownEvent(key);
+      await tester.sendKeyUpEvent(key);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+    }
+
+    testWidgets('הקיצור עובר לספרייה ומפעיל את פעולת הבית', (tester) async {
+      var homeCalls = 0;
+      FocusRepository().registerLibraryHomeHandler(() => homeCalls++);
+      await pumpWith(tester, const {
+        'key-shortcut-open-library-home': 'ctrl+shift+h',
+      });
+
+      await sendCtrlShift(tester, LogicalKeyboardKey.keyH);
+
+      expect(
+        navigationBloc.events,
+        contains(const NavigateToScreen(Screen.library)),
+      );
+      expect(homeCalls, 1);
+    });
+
+    testWidgets('בלי הגדרה (ברירת מחדל ריקה) הקיצור לא עושה כלום', (
+      tester,
+    ) async {
+      var homeCalls = 0;
+      FocusRepository().registerLibraryHomeHandler(() => homeCalls++);
+      await pumpWith(tester, const {});
+
+      await sendCtrlShift(tester, LogicalKeyboardKey.keyH);
+
+      expect(navigationBloc.events, isEmpty);
+      expect(homeCalls, 0);
+    });
+
+    testWidgets('Ctrl+L הרגיל לא מפעיל את פעולת הבית', (tester) async {
+      var homeCalls = 0;
+      FocusRepository().registerLibraryHomeHandler(() => homeCalls++);
+      await pumpWith(tester, const {
+        'key-shortcut-open-library-browser': 'ctrl+l',
+        'key-shortcut-open-library-home': 'ctrl+shift+h',
+      });
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyL);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyL);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+
+      expect(
+        navigationBloc.events,
+        contains(const NavigateToScreen(Screen.library)),
+      );
+      expect(homeCalls, 0);
+    });
+  });
+
   group('KeyboardShortcuts - חיפוש חדש', () {
     late MockSettingsBloc settingsBlocLocal;
     late MockIndexingBloc indexingBloc;

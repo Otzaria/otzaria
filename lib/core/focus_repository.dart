@@ -146,6 +146,43 @@ class FocusRepository {
     );
   }
 
+  // ── בית הספרייה ────────────────────────────────────────────────────────────
+  // הספרייה נבנית בעצלתיים (רק כשמבקשים אותה), ולכן בקשת "בית" שמגיעה לפני
+  // שנבנתה נזכרת ומתבצעת ברגע שהספרייה נרשמת.
+
+  VoidCallback? _libraryHomeHandler;
+  bool _libraryHomePending = false;
+
+  /// הספרייה רושמת כאן את פעולת הבית שלה. בקשה ממתינה תתבצע אחרי ה-frame
+  /// הנוכחי, כשהספרייה כבר בעץ.
+  void registerLibraryHomeHandler(VoidCallback handler) {
+    _libraryHomeHandler = handler;
+    if (!_libraryHomePending) return;
+    _libraryHomePending = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_libraryHomeHandler == handler) handler();
+    });
+    // הרישום קורה בדרך כלל באמצע בנייה; ההבטחה שיהיה frame לא תלויה בכך.
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  void unregisterLibraryHomeHandler(VoidCallback handler) {
+    // `==` ולא `identical`: tear-off של מתודת מופע הוא אובייקט חדש בכל גישה.
+    if (_libraryHomeHandler == handler) _libraryHomeHandler = null;
+  }
+
+  /// מפעיל את פעולת הבית של הספרייה — אותה תוצאה כמו לחיצה על כפתור הבית.
+  /// אם הספרייה עוד לא נבנתה, הבקשה ממתינה לרישום שלה.
+  void requestLibraryHome() {
+    final handler = _libraryHomeHandler;
+    if (handler == null) {
+      _libraryHomePending = true;
+      return;
+    }
+    _libraryHomePending = false;
+    handler();
+  }
+
   void requestFindRefSearchFocus({bool selectAll = false}) {
     findRefSearchFocusNode.requestFocus();
     if (selectAll) {
@@ -298,6 +335,8 @@ class FocusRepository {
     _dialogRestorers.clear();
     _tabContentFocusRequesters.clear();
     _pendingTabContentFocus = null;
+    _libraryHomeHandler = null;
+    _libraryHomePending = false;
     _hasScheduledRestore = false;
     _resizeDebounceTimer?.cancel();
     _resizeDebounceTimer = null;
