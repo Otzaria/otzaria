@@ -56,7 +56,11 @@ void main() {
     ).renameSync(dbPath);
     // במסד: מבנה "פרשה" עם "פרשת בראשית". נוסף מבנה שני, "פרקים", עם שני פרקים.
     final db = sqlite3.sqlite3.open(dbPath);
-    final bookId = db.select('SELECT bookId FROM alt_toc_structure').first.values.first;
+    final bookId = db
+        .select('SELECT bookId FROM alt_toc_structure')
+        .first
+        .values
+        .first;
     db.execute(
       "INSERT INTO alt_toc_structure VALUES (2, ?, 'Chapters', 'Chapters', "
       "'פרקים')",
