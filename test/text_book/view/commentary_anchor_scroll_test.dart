@@ -561,6 +561,44 @@ void main() {
       expect(_isNearTop(tester, ValueKey(commentaryLinkKey(target))), isTrue);
     });
 
+    testWidgets(
+      'מפרש מתפריט של פסקה אחרת: נפתח גלול אליו גם אחרי מעבר הקטע (#4798)',
+      (tester) async {
+        final notifier = ValueNotifier<CommentaryScrollRequest?>(null);
+        addTearDown(notifier.dispose);
+        await _pump(tester, scrollTarget: notifier);
+        await _settleAnchorScroll(tester);
+
+        // הבחירה בתפריט נרשמת לפני שה-bloc מעביר את הבחירה לפסקה שנלחצה.
+        notifier.value = const CommentaryScrollRequest(
+          title: 'מפרש 4',
+          sourceLine: 1,
+          requestId: 1,
+        );
+        await tester.pump();
+        _lastBloc!.emitState(_loadedState(selectedLine: 1));
+        await _settleAnchorScroll(tester);
+
+        expect(_isNearTop(tester, find.text('מפרש 4')), isTrue);
+        expect(
+          _offsetOf(
+            tester,
+            ValueKey(
+              commentaryLinkKey(
+                _link(
+                  title: 'מפרש 4',
+                  segment: 0,
+                  line: 1,
+                ),
+              ),
+            ),
+          ),
+          isNotNull,
+          reason: 'מוצגים קטעי המפרש של הפסקה שנבחרה',
+        );
+      },
+    );
+
     testWidgets('לחיצה חוזרת על אותו עוגן גוללת שוב', (tester) async {
       final notifier = ValueNotifier<CommentaryScrollRequest?>(null);
       addTearDown(notifier.dispose);
