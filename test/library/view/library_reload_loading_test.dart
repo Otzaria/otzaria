@@ -7,6 +7,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/core/messages/library_messages.dart';
+import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
@@ -14,6 +17,7 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/view/library_browser.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
 import 'package:otzaria/migration/sync/file_sync_service.dart';
+import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
@@ -55,15 +59,19 @@ void main() {
   });
 
   // סריקה שלא התחילה מהכפתור (הוספת תיקייה, ייבוא, תוסף) לא חוסמת את הספרייה.
-  for (final fromButton in [true, false]) {
+  for (final (fromButton, unrecognized) in [(true, 2), (false, 2), (true, 0)]) {
     testWidgets(
-      fromButton
-          ? 'מצב הטעינה מוצג כבר בזמן סריקת התיקיות האישיות'
-          : 'סריקה שלא התחילה מ"טעינה מחדש" אינה מציגה מצב טעינה',
+      '${fromButton ? 'מצב הטעינה מוצג כבר בזמן סריקת התיקיות האישיות' : 'סריקה שלא התחילה מ"טעינה מחדש" אינה מציגה מצב טעינה'}'
+      ' ($unrecognized קבצי היברובוקס לא מזוהים)',
       (tester) async {
         final library = Library(categories: []);
         final releaseSync = Completer<FileSyncResult>();
+        final libraryStates = StreamController<LibraryState>();
         final libraryBloc = _MockLibraryBloc();
+        DataRepository.instance.localHebrewBooksScan = Future.value((
+          books: const <Book>[],
+          unrecognizedPdfCount: unrecognized,
+        ));
         final settingsBloc = _MockSettingsBloc();
         final navigationBloc = _MockNavigationBloc();
         final libraryUpdateBloc = _MockLibraryUpdateBloc();
@@ -79,7 +87,7 @@ void main() {
 
         whenListen(
           libraryBloc,
-          const Stream<LibraryState>.empty(),
+          libraryStates.stream,
           initialState: LibraryState(
             library: library,
             currentCategory: library,
@@ -110,7 +118,9 @@ void main() {
           }
           await tester.pumpWidget(const SizedBox.shrink());
           tester.view.reset();
+          DataRepository.instance.invalidateHebrewBooksCache();
           await foldersBloc.close();
+          await libraryStates.close();
           await libraryBloc.close();
           await settingsBloc.close();
           await navigationBloc.close();
@@ -120,6 +130,7 @@ void main() {
 
         await tester.pumpWidget(
           MaterialApp(
+            navigatorKey: navigatorKey,
             locale: const Locale('he', 'IL'),
             home: MultiProvider(
               providers: [
@@ -154,6 +165,18 @@ void main() {
         await tester.pump();
         await tester.pump();
         expect(_loadingOverlay, findsNothing);
+
+        // #2964: קבצים לא מזוהים בתיקיית היברובוקס מדווחים רק אחרי "טעינה מחדש".
+        libraryStates
+          ..add(LibraryState(library: library, isLoading: true))
+          ..add(LibraryState(library: library, currentCategory: library));
+        await tester.pump();
+        await tester.pump();
+        expect(
+          find.text(LibraryMessages.unrecognizedHebrewBooksFiles(unrecognized)),
+          fromButton && unrecognized > 0 ? findsOneWidget : findsNothing,
+        );
+        await tester.pump(const Duration(seconds: 10));
       },
     );
   }

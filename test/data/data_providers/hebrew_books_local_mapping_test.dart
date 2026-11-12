@@ -110,4 +110,35 @@ void main() {
       expect(FileSystemData.extractHebrewBookIds(['x.pdf']), isEmpty);
     });
   });
+
+  // #2964: קבצים שלא יוצגו נספרים כדי להפנות את המשתמש ל"ספרים אישיים".
+  group('countUnrecognizedHebrewBookFiles', () {
+    test('סופר שמות שאינם בתבנית ומזהים שאינם בקטלוג', () {
+      final count = FileSystemData.countUnrecognizedHebrewBookFiles(
+        [
+          '123.pdf',
+          'hebrewbooks_org_456.pdf',
+          'שולחן ערוך.pdf',
+          'book_789.pdf',
+          '999.pdf',
+        ],
+        {123, 456},
+      );
+      expect(count, 3);
+    });
+
+    test('אפס כשכל הקבצים מזוהים', () {
+      expect(
+        FileSystemData.countUnrecognizedHebrewBookFiles(
+          [
+            '50.pdf',
+            'hebrewbooks_org_50.pdf',
+          ],
+          {50},
+        ),
+        0,
+      );
+      expect(FileSystemData.countUnrecognizedHebrewBookFiles(const [], {}), 0);
+    });
+  });
 }

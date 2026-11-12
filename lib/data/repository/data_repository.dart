@@ -87,7 +87,19 @@ class DataRepository {
   /// ספרי היברובוקס שקיים להם PDF מקומי (כ-[PdfBook]). נחשבים מקומיים
   /// ומוצגים בחיפוש גם כשהצגת ספרים חיצוניים כבויה.
   Future<List<Book>> get localHebrewBooks =>
-      _localHebrewBooksFuture ??= FileSystemData.getLocalHebrewBooks();
+      _localHebrewBooksFuture ??= _localHebrewBooksScan.then((s) => s.books);
+
+  /// קובצי PDF בתיקיית היברובוקס שלא זוהו — מאותה סריקה של [localHebrewBooks].
+  Future<int> get unrecognizedHebrewBooksPdfCount =>
+      _localHebrewBooksScan.then((s) => s.unrecognizedPdfCount);
+
+  Future<LocalHebrewBooksScan>? _localHebrewBooksScanFuture;
+  Future<LocalHebrewBooksScan> get _localHebrewBooksScan =>
+      _localHebrewBooksScanFuture ??= FileSystemData.scanLocalHebrewBooks();
+
+  @visibleForTesting
+  set localHebrewBooksScan(Future<LocalHebrewBooksScan> value) =>
+      _localHebrewBooksScanFuture = value;
 
   @visibleForTesting
   set localHebrewBooks(Future<List<Book>> value) =>
@@ -106,6 +118,7 @@ class DataRepository {
   void invalidateHebrewBooksCache() {
     _hebrewBooksFuture = null;
     _localHebrewBooksFuture = null;
+    _localHebrewBooksScanFuture = null;
   }
 
   DataRepository({FileSystemData? fileSystemData})
