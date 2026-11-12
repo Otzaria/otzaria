@@ -23,25 +23,19 @@ void main() {
     });
   }
 
-  test('שני מסלולי הגופנים מסתיימים לפני יצירת ה-boot ושליחתו', () {
+  test('התקנת הגופנים מסתיימת לפני יצירת ה-boot ושליחתו', () {
     final source = File(
       'lib/plugins/view/plugin_tab_page.dart',
     ).readAsStringSync();
     final boot = source.indexOf('final bootSource = pluginBootScript(');
     expect(boot, greaterThan(0));
-    for (final preparation in [
-      'fontPreparation = await preparePluginFontExperiment(',
+    final prepare = source.indexOf(
       'final fontsInstalled = await installPluginFonts(',
-    ]) {
-      final prepare = source.indexOf(preparation);
-      expect(prepare, greaterThan(0), reason: preparation);
-      expect(prepare, lessThan(boot), reason: preparation);
-    }
+    );
+    expect(prepare, greaterThan(0));
+    expect(prepare, lessThan(boot));
     final dispatch = RegExp(
-      r'final booted = fontPreparation == null\s+'
-      r'\? await controller\.evaluateJavascript\(source: bootSource\)\s+'
-      r': \(await fontPreparation\.evaluateBoot\(\s+'
-      r'controller,\s+source: bootSource,',
+      r'await controller\.evaluateJavascript\(\s*source: bootSource',
     ).firstMatch(source);
     expect(dispatch, isNotNull);
     expect(dispatch!.start, greaterThan(boot));
