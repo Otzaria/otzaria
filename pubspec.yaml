@@ -170,6 +170,14 @@ dependencies:
   wakelock_plus: ^1.8.2
 
 dependency_overrides:
+  # TODO: לחזור לגרסת timezone הרשמית אחרי מיזוג ה-PRים ב-dart-lang/labs
+  # ופרסום גרסה שכוללת את התיקונים.
+  # ענף codex/timezone-integrated-20261111. מוצמד לקומיט שעבר QA.
+  timezone:
+    git:
+      url: https://github.com/Otzaria/labs.git
+      ref: f48be9ede26c06e433a186bd1aca2876fb4de143
+      path: pkgs/timezone
   # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור dart-lang/core#1043, #1044.
   # ענף characters-integrated כולל את כל התיקונים; מוצמד לקומיט שנבדק.
   characters:
