@@ -762,6 +762,24 @@ jobs:
           path: build/dart-symbols/otzaria-dart-symbols-windows-x64.debug
           if-no-files-found: warn
 
+      # PDB של otzaria.exe ושל ה-DLL של התוספים: מפענחים את הפריימים הנייטיב
+      # בדוחות התקיעה (למשל flutter_inappwebview_windows_plugin.dll).
+      - name: Package native symbols (x64)
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $pdbs = @(Get-ChildItem -LiteralPath 'build\windows\x64\pdb\Release' -Filter '*.pdb' -File)
+          if ($pdbs.Count -eq 0) { throw 'No native PDBs were produced' }
+          Compress-Archive -Path $pdbs.FullName -DestinationPath 'build\dart-symbols\otzaria-native-symbols-x64.zip'
+
+      - name: Upload native symbols (x64)
+        continue-on-error: true
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: otzaria-native-symbols-x64
+          path: build/dart-symbols/otzaria-native-symbols-x64.zip
+          if-no-files-found: warn
+
       # מניפסט קובצי ההתקנה — הקלט של העדכון הדיפרנציאלי בשחרור הבא.
       # נסרקת תיקיית הבנייה ולא ה-ZIP, ולכן portable.marker אינו נכנס.
       # אופטימיזציה בלבד: בלעדיו העדכון הבא נופל למתקין המלא.
@@ -802,7 +820,8 @@ jobs:
           [ "$ASSISTANT" != success ] || optional+=(installer/Otzaria-Download-Assistant-windows.exe)
           [ "$APP_FILE_MANIFEST" != success ] || optional+=(otzaria-app-files-windows-x64.json)
           bash tool/release/upload_release_assets.sh "$RELEASE_ID" release-record \
-            installer/otzaria-*-windows-full.exe otzaria-windows.zip --optional "${optional[@]}"
+            installer/otzaria-*-windows-full.exe otzaria-windows.zip --optional "${optional[@]}" \
+            --best-effort build/dart-symbols/otzaria-native-symbols-x64.zip
 
       - name: Upload release record
         if: needs.prepare_release.outputs.release_id != ''
@@ -1033,6 +1052,22 @@ jobs:
           path: build/dart-symbols/otzaria-dart-symbols-windows-arm64.debug
           if-no-files-found: warn
 
+      - name: Package native symbols (ARM64)
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $pdbs = @(Get-ChildItem -LiteralPath 'build\windows\arm64\pdb\Release' -Filter '*.pdb' -File)
+          if ($pdbs.Count -eq 0) { throw 'No native PDBs were produced' }
+          Compress-Archive -Path $pdbs.FullName -DestinationPath 'build\dart-symbols\otzaria-native-symbols-arm64.zip'
+
+      - name: Upload native symbols (ARM64)
+        continue-on-error: true
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: otzaria-native-symbols-arm64
+          path: build/dart-symbols/otzaria-native-symbols-arm64.zip
+          if-no-files-found: warn
+
       # ראה ההסבר בשלב המקביל ב-build_windows. ארכיטקטורה נפרדת = מניפסט
       # נפרד: בינארי ARM64 אינו רץ על x64 ולהפך.
       - name: Generate application file manifest (ARM64)
@@ -1104,7 +1139,8 @@ jobs:
             echo "::warning::ARM64 FULL installer is missing - releasing without it"
           fi
           bash tool/release/upload_release_assets.sh "$RELEASE_ID" release-record \
-            otzaria-windows_arm64.zip --optional "${optional[@]}"
+            otzaria-windows_arm64.zip --optional "${optional[@]}" \
+            --best-effort build/dart-symbols/otzaria-native-symbols-arm64.zip
 
       - name: Upload release record
         if: needs.prepare_release.outputs.release_id != ''
