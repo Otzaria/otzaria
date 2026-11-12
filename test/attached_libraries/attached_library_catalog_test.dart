@@ -319,11 +319,68 @@ void main() {
     final torah = _child(_child(catalog, 'תנ"ך')!, 'תורה')!;
     final sources = [for (final b in torah.books) b.source];
     expect(sources.where((s) => s.isOfficial), hasLength(2));
-    expect(
-      sources.where((s) => s == BookSource.attached(library.slug)),
-      hasLength(2),
+    // ספר בשם זהה לרשמי באותה קטגוריה הופך לגרסה שלו ואינו כפול בעץ (#4198).
+    expect(sources.where((s) => s.isAttached), isEmpty);
+    expect(catalog.offTreeBooks, hasLength(2));
+    final official = torah.books.firstWhere(
+      (b) => b.title == SeforimFixtureIds.bereshitTitle,
     );
+    final versions = provider.getPersonalVersionsOf(official);
+    expect(versions.single.displayTitle, library.displayName);
+    expect(versions.single.separateBook?.source, library.source);
     expect(_child(catalog, _personalRoot), isNull);
+  });
+
+  test(
+    'מיזוג: הצהרה מפורשת על ספר זהה לרשמי גוברת על הזיהוי האוטומטי',
+    () async {
+      final path = attachedFixture('מפורש', SeforimFixtureVariant.full);
+      final raw = sqlite3.sqlite3.open(path);
+      raw.execute(
+        'CREATE TABLE book_version_link (versionBookId INTEGER, '
+        'primarySource TEXT, primaryTitle TEXT, versionTitle TEXT)',
+      );
+      raw.execute(
+        "INSERT INTO book_version_link VALUES (?, 'official', ?, 'נוסח מוצהר')",
+        [SeforimFixtureIds.rashiId, SeforimFixtureIds.bereshitTitle],
+      );
+      raw.close();
+      final library = await attach(path);
+      await attached.setPlacement(
+        library,
+        AttachedLibraryPlacement.mergeIntoLibrary,
+      );
+
+      final catalog = await buildCatalog();
+
+      final torah = _child(_child(catalog, 'תנ"ך')!, 'תורה')!;
+      final official = torah.books.firstWhere(
+        (b) => b.title == SeforimFixtureIds.bereshitTitle,
+      );
+      expect(
+        [
+          for (final v in provider.getPersonalVersionsOf(official))
+            v.displayTitle,
+        ],
+        unorderedEquals([library.displayName, 'נוסח מוצהר']),
+      );
+      final rashi = torah.books.firstWhere(
+        (b) => b.title == SeforimFixtureIds.rashiTitle,
+      );
+      expect(provider.getPersonalVersionsOf(rashi), isEmpty);
+    },
+  );
+
+  test('בנפרד: ספר בשם זהה לרשמי נשאר ספר רגיל', () async {
+    final library = await attach(
+      attachedFixture('נפרד', SeforimFixtureVariant.full),
+    );
+
+    final catalog = await buildCatalog();
+
+    expect(catalog.offTreeBooks, isEmpty);
+    final root = _child(_child(catalog, _personalRoot)!, library.displayName)!;
+    expect(_booksUnder(root), hasLength(2));
   });
 
   for (final placement in AttachedLibraryPlacement.values) {
