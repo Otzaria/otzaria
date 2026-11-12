@@ -1,3 +1,5 @@
+import 'dart:math' show max;
+
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -136,7 +138,10 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
                 ),
               ),
               min: 0,
-              max: isFuzzy ? kMaxFuzzyDistance.toDouble() : 30,
+              // תוספים יכולים לקבוע ערכים מעל טווח הבורר הרגיל.
+              max: isFuzzy
+                  ? kMaxFuzzyDistance.toDouble()
+                  : max(30, state.distance).toDouble(),
               value: state.distance.toDouble(),
               onChanged: isEnabled
                   ? (value) => context.read<SearchBloc>().add(
@@ -167,7 +172,7 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
                 ),
               ),
               min: 1,
-              max: 30,
+              max: max(30, state.wordMatchCount).toDouble(),
               value: state.wordMatchCount.toDouble(),
               onChanged: (value) => context.read<SearchBloc>().add(
                 widget.triggerSearch

@@ -4,9 +4,54 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_spinbox/flutter_spinbox.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/tools/calendar/dialogs/calendar_zman_alert_dialog.dart';
+import 'package:otzaria/tools/calendar/models/zman_alert_preference.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 
 void main() {
+  for (final initialMinutesBefore in [1505, -60]) {
+    for (final editHours in [false, true]) {
+      testWidgets('התראה שמורה $initialMinutesBefore דקות נשמרת ($editHours)', (
+        tester,
+      ) async {
+        final preference = ZmanAlertPreference.fromJson({
+          'minutesBefore': initialMinutesBefore,
+          'displayName': 'זמן',
+        })!;
+        ZmanAlertDialogResult? result;
+        await _openDialog(
+          tester,
+          (value) => result = value,
+          initialMinutesBefore: preference.minutesBefore,
+        );
+        expect(
+          tester.widget<TextField>(_field(0)).controller!.text,
+          '${initialMinutesBefore ~/ 60}',
+        );
+        expect(
+          tester.widget<TextField>(_field(1)).controller!.text,
+          '${initialMinutesBefore % 60}',
+        );
+        if (editHours) {
+          await tester.enterText(
+            _field(0),
+            initialMinutesBefore > 0 ? '23' : '0',
+          );
+          await tester.pump();
+        }
+        await tester.tap(find.text('הפעל'));
+        await tester.pumpAndSettle();
+
+        expect(
+          result!.minutesBefore,
+          editHours
+              ? (initialMinutesBefore > 0 ? 1385 : 0)
+              : initialMinutesBefore,
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
   testWidgets(
     'editing an alert spinbox does not rebuild its sibling or dialog',
     (tester) async {
@@ -135,8 +180,9 @@ Finder _field(int index) => find.descendant(
 
 Future<void> _openDialog(
   WidgetTester tester,
-  ValueChanged<ZmanAlertDialogResult?> onResult,
-) async {
+  ValueChanged<ZmanAlertDialogResult?> onResult, {
+  int initialMinutesBefore = 65,
+}) async {
   await tester.pumpWidget(
     MaterialApp(
       locale: const Locale('he', 'IL'),
@@ -151,7 +197,7 @@ Future<void> _openDialog(
                   context,
                   zmanName: 'זמן',
                   timeLabel: '12:00',
-                  initialMinutesBefore: 65,
+                  initialMinutesBefore: initialMinutesBefore,
                   isEnabled: false,
                 ),
               );
