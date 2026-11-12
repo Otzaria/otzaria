@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/book_common/utils/commentator_identity_lookup.dart';
 import 'package:otzaria/book_common/utils/commentator_name_matching.dart';
 import 'package:otzaria/book_common/utils/category_settings_utils.dart'
     as category_utils;
@@ -64,19 +65,6 @@ class PageShapeSettingsManager {
   /// קבלת קטגוריית האב הראשית (למשל "משנה תורה" מתוך "הלכה, משנה תורה, ספר מדע")
   static String? getParentCategory(String? heCategories) =>
       category_utils.parentBookCategory(heCategories);
-
-  /// חילוץ שם בסיסי של מפרש (בלי שם הספר המפורש)
-  /// למשל: "רמב"ן על ברכות" → "רמב"ן"
-  /// למשל: "יכין מקואות" עם [commentedBookTitle] "משנה מקואות" → "יכין"
-  static String? extractBaseCommentatorName(
-    String? fullName, {
-    String? commentedBookTitle,
-  }) {
-    return commentatorBaseName(
-      fullName,
-      commentedBookTitle: commentedBookTitle,
-    );
-  }
 
   // ==================== גודל גופן (גלובלי בלבד) ====================
 
@@ -287,7 +275,10 @@ class PageShapeSettingsManager {
       await Settings.setValue<String>(key, _serializeConfiguration(config));
     } else if (saveToCategory != null) {
       key = '$_categoryConfigPrefix$saveToCategory';
-      // שמירה לקטגוריה - שומרים רק את השמות הבסיסיים של המפרשים
+      // שמירה לקטגוריה - שומרים את מפתחות המפרשים, לא את השמות המלאים
+      final identities = await lookupCommentatorIdentities(
+        pageShapeSelectionTitles(config.values),
+      );
       final baseConfig = config.map((key, value) {
         if (isPageShapeRemainingCommentatorsValue(value) ||
             value == pageShapeMultipleCommentatorsModeValue) {
@@ -297,14 +288,13 @@ class PageShapeSettingsManager {
         return MapEntry(
           key,
           encodePageShapeCommentatorsSelection(
-            decodePageShapeCommentatorsSelection(value)
-                .map(
-                  (name) => extractBaseCommentatorName(
-                    name,
-                    commentedBookTitle: bookTitle,
-                  ),
-                )
-                .whereType<String>(),
+            decodePageShapeCommentatorsSelection(value).map(
+              (name) => commentatorKey(
+                name,
+                commentedBookTitle: bookTitle,
+                identities: identities,
+              ),
+            ),
             forceMultipleMode: isPageShapeMultipleCommentatorsMode(value),
           ),
         );

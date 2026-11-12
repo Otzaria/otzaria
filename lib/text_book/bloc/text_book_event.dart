@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:otzaria/book_common/utils/commentator_name_matching.dart';
 import 'package:otzaria/divine_names/models/divine_name_spans.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
@@ -420,11 +421,13 @@ class UpdateAvailableCommentators extends TextBookEvent {
   final List<String> availableCommentators;
   final List<dynamic> commentatorGroups;
   final Set<String> rareCommentators;
+  final Map<String, CommentatorIdentity> commentatorIdentities;
 
   const UpdateAvailableCommentators(
     this.availableCommentators,
     this.commentatorGroups, [
     this.rareCommentators = const {},
+    this.commentatorIdentities = const {},
   ]);
 
   @override
@@ -432,6 +435,7 @@ class UpdateAvailableCommentators extends TextBookEvent {
     availableCommentators,
     commentatorGroups,
     rareCommentators,
+    commentatorIdentities,
   ];
 }
 
