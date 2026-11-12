@@ -40,6 +40,19 @@ void main() {
     ]);
   });
 
+  // Non-Windows window_manager.center() calculates monitor work-area
+  // alignment through nativeapi DisplayManager. That needs a real display
+  // and belongs in a desktop integration test, not a headless unit fake.
+  test(
+    'Windows centering delegates to the runner instead of nativeapi',
+    () async {
+      await controller.center();
+      expect(runnerCalls, ['centerMainWindow']);
+      expect(native.calls, isNot(contains('center')));
+    },
+    skip: !Platform.isWindows,
+  );
+
   test('show restores a minimized window first', () async {
     native.minimized = true;
     await controller.show();
