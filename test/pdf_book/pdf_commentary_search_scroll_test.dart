@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -475,6 +477,82 @@ Future<void> main() async {
         tester.widget<TextField>(find.byType(TextField)).focusNode!.hasFocus,
         isTrue,
       );
+    }, skip: !engineReady);
+
+    testWidgets('מונה התוצאות לא חוטף את סימון הטקסט במפרשים (issue #2198)', (
+      tester,
+    ) async {
+      final tab = _tab(index2: 2198);
+      addTearDown(tab.dispose);
+
+      await tester.pumpWidget(
+        _wrap(
+          PdfCommentaryPanel(
+            tab: tab,
+            linksCount: tab.links.length,
+            openBookCallback: (_) {},
+            fontSize: 16,
+            commentaryGroupsLoader: (links) async => [
+              for (final link in links)
+                LinkGroup(
+                  bookTitle: link.path2.replaceAll('.txt', ''),
+                  links: [link],
+                ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(FluentIcons.search_24_regular).first);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'עמק');
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pumpAndSettle();
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      expect(find.text('1/$_groupCount'), findsOneWidget);
+
+      // המונה "1/40" הוא תוכן LTR בתוך אזור בחירה RTL: גרירה מתחתיו נתפסה
+      // בו ונעצרה, והמפרש לא סומן.
+      final paragraph = find
+          .descendant(
+            of: find.byType(CommentaryContent).first,
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is RichText &&
+                  widget.text.toPlainText().contains('עָמֹק'),
+            ),
+          )
+          .first;
+      final rect = tester.getRect(paragraph);
+      final start = rect.centerRight - const Offset(2, 0);
+      final gesture = await tester.startGesture(
+        start,
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      for (var step = 1; step <= 5; step++) {
+        await gesture.moveTo(start - Offset(20.0 * step, 0));
+        await tester.pump();
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      final selections = tester
+          .renderObject<RenderParagraph>(paragraph)
+          .selections;
+      expect(selections, hasLength(1));
+      expect(selections.single.isCollapsed, isFalse);
+      final counter = tester.renderObject<RenderParagraph>(
+        find
+            .descendant(
+              of: find.text('1/$_groupCount'),
+              matching: find.byType(RichText),
+            )
+            .first,
+      );
+      expect(counter.selections, isEmpty);
     }, skip: !engineReady);
 
     for (final entry in _longContentCases.entries) {
