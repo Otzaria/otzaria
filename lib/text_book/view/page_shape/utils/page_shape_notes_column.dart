@@ -10,11 +10,13 @@ import 'package:otzaria/text_book/utils/inline_notes_utils.dart' as notes;
   List<String> content,
   BookNotes dbNotes,
 ) {
-  final lineIndexes = <int>{
-    ...dbNotes.lineIndexes,
-    for (var i = 0; i < content.length; i++)
-      if (content[i].contains('footnote')) i,
-  }.toList()..sort();
+  final noteLineIndexes = dbNotes.lineIndexes.toSet();
+  var index = 0;
+  for (final line in content) {
+    if (line.contains('footnote')) noteLineIndexes.add(index);
+    index++;
+  }
+  final lineIndexes = noteLineIndexes.toList()..sort();
 
   final rows = <String>[];
   final links = <Link>[];

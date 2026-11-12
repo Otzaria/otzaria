@@ -1,5 +1,9 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:positioned_sliver_list/positioned_list.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
@@ -13,6 +17,7 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/models/chunked_list.dart';
 import 'package:otzaria/text_book/utils/reading_position.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
@@ -84,7 +89,8 @@ List<bool> _window(int start, int end) => [
   for (var i = 0; i < _content.length; i++) i >= start && i <= end,
 ];
 
-Future<({TextBookTab tab, _TestTextBookBloc bloc})> _mount(
+Future<({TextBookTab tab, _TestTextBookBloc bloc, _TestSettingsBloc settings})>
+_mount(
   WidgetTester tester,
   TextBookLoaded initial,
   int targetLine,
@@ -100,6 +106,8 @@ Future<({TextBookTab tab, _TestTextBookBloc bloc})> _mount(
   await tester.pumpWidget(
     MaterialApp(
       locale: const Locale('he', 'IL'),
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      supportedLocales: const [Locale('he', 'IL')],
       home: MultiBlocProvider(
         providers: [
           BlocProvider<TextBookBloc>.value(value: bloc),
@@ -112,7 +120,7 @@ Future<({TextBookTab tab, _TestTextBookBloc bloc})> _mount(
               data: (state as TextBookLoaded).content,
               openBookCallback: (_) {},
               openLeftPaneTab: (_, {searchText}) {},
-              textSize: 18,
+              textSize: state.fontSize,
               showCommentaryAsExpansionTiles: true,
               tab: tab,
             ),
@@ -124,7 +132,7 @@ Future<({TextBookTab tab, _TestTextBookBloc bloc})> _mount(
   await tester.pumpAndSettle();
   bloc.emitForTest(initial.copyWith(visibleIndices: [targetLine]));
   await tester.pumpAndSettle();
-  return (tab: tab, bloc: bloc);
+  return (tab: tab, bloc: bloc, settings: settings);
 }
 
 // בלי חיפוש הבדיקה אינה נזקקת למנוע החיפוש הנייטיב.
@@ -345,6 +353,180 @@ void main() {
     expect(line.background, AppSurfaces.permanentMark(scheme));
     expect(line.style.backgroundColor, isNull);
   });
+
+  for (final useChunks in [false, true]) {
+    testWidgets(
+      'מקטעים שומרים בחירה, ניקוד ומקום בהחלפת גופן ובקפיצה (chunks=$useChunks)',
+      (
+        tester,
+      ) async {
+        await tester.runAsync(() async {
+          for (final entry in const {
+            'FrankRuhlCLM': 'fonts/FrankRuehlCLM-Medium.ttf',
+            'NotoSerifHebrew':
+                'fonts/NotoSerifHebrew-VariableFont_wdth,wght.ttf',
+          }.entries) {
+            final loader = FontLoader(entry.key)
+              ..addFont(rootBundle.load(entry.value));
+            await loader.load();
+          }
+        });
+        final source = List.generate(
+          1400,
+          (index) => 'שׁוּרָה $index אָבּ בְּנִקּוּד \u2066abc e\u0301\u2069',
+        );
+        final List<String> snapshot = useChunks
+            ? ChunkedList<String>.from(source, defaultValue: '')
+            : List<String>.unmodifiable(source);
+        final List<bool> flags = useChunks
+            ? ChunkedList<bool>.from(
+                List.filled(source.length, true),
+                defaultValue: false,
+              )
+            : List<bool>.unmodifiable(List.filled(source.length, true));
+        final initial = _state(flags, lines: source).copyWith(
+          content: snapshot,
+          loadedLineFlags: flags,
+          contentVersion: 1,
+          visibleIndices: const [255],
+          continuousReadingMode: false,
+          permanentHighlightLine: 255,
+        );
+        final fixture = await _mount(tester, initial, 255);
+        Finder lineFinder(int line) =>
+            find.byKey(ValueKey('html_${initial.book.title}_$line'));
+        String selectedText() {
+          final context = tester.element(find.byType(SuperSliverList).first);
+          final registrar =
+              SelectionContainer.maybeOf(context)!
+                  as MultiSelectableSelectionContainerDelegate;
+          return registrar.selectables
+              .map(
+                (selectable) =>
+                    selectable.getSelectedContent()?.plainText ?? '',
+              )
+              .join();
+        }
+
+        String displayedParagraphText() => tester
+            .widgetList<RichText>(
+              find.descendant(
+                of: find.byType(ContinuousReadingParagraph),
+                matching: find.byWidgetPredicate(
+                  (widget) => widget is RichText,
+                ),
+              ),
+            )
+            .map((widget) => widget.text.toPlainText())
+            .join('\n');
+
+        expect(
+          tester.widget<CombinedView>(find.byType(CombinedView)).data,
+          same(snapshot),
+        );
+        expect(
+          Directionality.of(tester.element(lineFinder(255))),
+          TextDirection.rtl,
+        );
+        final first = tester.getRect(lineFinder(255));
+        final last = tester.getRect(lineFinder(256));
+        final gesture = await tester.startGesture(
+          Offset(first.right - 2, first.center.dy),
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pump();
+        await gesture.moveTo(Offset(last.left + 2, last.center.dy));
+        await tester.pump();
+        await gesture.up();
+        await tester.pump();
+        final selection = selectedText();
+        expect(selection, contains('255'));
+        expect(selection, contains('256'));
+        expect(selection, contains('שׁוּרָה'));
+
+        final List<String> nextContent;
+        if (snapshot is ChunkedList<String>) {
+          final editor = snapshot.edit()
+            ..setRangeValues(1024, const ['עוֹד טֶקְסְט']);
+          nextContent = editor.build();
+        } else {
+          final copy = List<String>.of(snapshot)..[1024] = 'עוֹד טֶקְסְט';
+          nextContent = List<String>.unmodifiable(copy);
+        }
+        final updated = initial.copyWith(
+          content: nextContent,
+          contentVersion: 2,
+          visibleIndices: [fixture.tab.index],
+          contentChanges: ContentLineChanges(
+            fromVersion: 1,
+            ranges: const [(first: 1024, last: 1024)],
+          ),
+        );
+        fixture.bloc.emitForTest(updated);
+        await tester.pumpAndSettle();
+        expect(selectedText(), selection);
+        expect(snapshot[1024], source[1024]);
+        expect(updated.content[1024], 'עוֹד טֶקְסְט');
+
+        final anchor = fixture.tab.lines.captureAnchor()!;
+        fixture.settings.emitForTest(
+          fixture.settings.state.copyWith(fontFamily: 'NotoSerifHebrew'),
+        );
+        final resized = updated.copyWith(fontSize: 28);
+        fixture.bloc.emitForTest(resized);
+        await tester.pumpAndSettle();
+        expect(fixture.tab.lines.captureAnchor()!.line, anchor.line);
+        expect(
+          tester.widget<CombinedView>(find.byType(CombinedView)).textSize,
+          28,
+        );
+
+        final continuous = resized.copyWith(continuousReadingMode: true);
+        fixture.bloc.emitForTest(continuous);
+        await tester.pumpAndSettle();
+        final boundaryJump = fixture.tab.lines.jumpToLine(255);
+        await tester.pumpAndSettle();
+        await boundaryJump;
+        final boundaryLines = tester
+            .widgetList<ContinuousReadingParagraph>(
+              find.byType(ContinuousReadingParagraph),
+            )
+            .expand((paragraph) => paragraph.lines);
+        final highlighted = boundaryLines.singleWhere(
+          (line) => line.lineIndex == 255,
+        );
+        expect(
+          highlighted.htmlText ?? highlighted.text,
+          contains('שׁוּרָה 255'),
+        );
+        expect(displayedParagraphText(), contains('שׁוּרָה 255'));
+        expect(highlighted.background, isNotNull);
+        expect(
+          boundaryLines.singleWhere((line) => line.lineIndex == 256).background,
+          isNull,
+        );
+        expect(highlighted.style.fontFamily, 'NotoSerifHebrew');
+        expect(boundaryLines.any((line) => line.lineIndex == 256), isTrue);
+
+        final distantJump = fixture.tab.lines.jumpToLine(1024);
+        await tester.pumpAndSettle();
+        await distantJump;
+        final visibleLines = tester
+            .widgetList<ContinuousReadingParagraph>(
+              find.byType(ContinuousReadingParagraph),
+            )
+            .expand((paragraph) => paragraph.lines);
+        final target = visibleLines.singleWhere(
+          (line) => line.lineIndex == 1024,
+        );
+        expect(target.htmlText ?? target.text, 'עוֹד טֶקְסְט');
+        expect(displayedParagraphText(), contains('עוֹד טֶקְסְט'));
+        expect(snapshot[255], source[255]);
+        expect(snapshot[1024], source[1024]);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 }
 
 class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
@@ -372,6 +554,7 @@ class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
   _TestSettingsBloc(super.initialState) {
     on<SettingsEvent>((event, emit) {});
   }
+  void emitForTest(SettingsState state) => emit(state);
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

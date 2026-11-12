@@ -228,7 +228,7 @@ String stripInlineNotesFromHeading(String html) {
 }
 
 /// בודק אם הספר מכיל לפחות שורה אחת עם הערה — בשורה או בטבלה ([dbNotes]).
-bool hasInlineNotes(List<String> content, {BookNotes? dbNotes}) {
+bool hasInlineNotes(Iterable<String> content, {BookNotes? dbNotes}) {
   if (dbNotes != null && !dbNotes.isEmpty) return true;
   for (final line in content) {
     if (line.contains('footnote') && _footnoteBodies(line).isNotEmpty) {
