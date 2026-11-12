@@ -18,7 +18,6 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
-import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -32,6 +31,7 @@ import 'package:otzaria/tour/models/live_tip.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 import '../../test_helpers/stub_personal_notes_bloc.dart';
 import '../../test_helpers/stub_settings_bloc.dart';
+import '../../test_helpers/stub_tabs_bloc.dart';
 import '../../test_helpers/stub_text_book_bloc.dart';
 
 const _commentators = ['מפרש א', 'מפרש ב', 'מפרש ג'];
@@ -149,7 +149,7 @@ Future<(EmittingStubTextBookBloc, TextBookTab)> _pumpScreen(
   final settings = StubSettingsBloc(SettingsState.initial());
   final notes = StubPersonalNotesBloc(const PersonalNotesState.initial());
   final tab = TextBookTab(book: _book, index: 0, blocOverride: bloc);
-  final tabs = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
+  final tabs = StubTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
   final tour = _TestTourCubit();
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox.shrink());
@@ -238,15 +238,6 @@ TextBookLoaded _state(int line) => TextBookLoaded(
   pinLeftPane: false,
   searchText: '',
 );
-
-class _TestTabsBloc extends Bloc<TabsEvent, TabsState> implements TabsBloc {
-  _TestTabsBloc(super.initialState) {
-    on<TabsEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
 
 class _TestTourCubit extends Cubit<TourState> implements TourCubit {
   _TestTourCubit() : super(const TourState.inactive());

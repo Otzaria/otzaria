@@ -60,6 +60,7 @@ import 'package:otzaria/widgets/navigation/sidebar_nav_item.dart';
 import 'package:provider/provider.dart';
 
 import '../test_helpers/memory_cache_provider.dart';
+import '../test_helpers/stub_navigation_bloc.dart';
 import '../test_helpers/stub_settings_bloc.dart';
 import '../test_helpers/stub_text_book_bloc.dart';
 
@@ -153,7 +154,7 @@ void main() {
         TabsState(tabs: [tab], currentTabIndex: 0),
       );
       final settingsBloc = StubSettingsBloc(SettingsState.initial());
-      final navigationBloc = _TestNavigationBloc();
+      final navigationBloc = StubNavigationBloc();
       addTearDown(() async {
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pump();
@@ -499,16 +500,6 @@ TextBookLoaded _searchState() => TextBookLoaded(
   pinLeftPane: false,
   searchText: '',
 );
-
-class _TestNavigationBloc extends Bloc<NavigationEvent, NavigationState>
-    implements NavigationBloc {
-  _TestNavigationBloc() : super(NavigationState.initial(true)) {
-    on<NavigationEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
 
 class _TestTabsBloc extends Cubit<TabsState> implements TabsBloc {
   _TestTabsBloc(super.initialState);

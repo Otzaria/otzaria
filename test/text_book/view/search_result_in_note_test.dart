@@ -11,7 +11,6 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
-import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -30,6 +29,7 @@ import '../../support/search_engine_test_init.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 import '../../test_helpers/stub_personal_notes_bloc.dart';
 import '../../test_helpers/stub_settings_bloc.dart';
+import '../../test_helpers/stub_tabs_bloc.dart';
 
 /// תוצאת חיפוש בהערה נחשפת ומודגשת דרך המסך האמיתי.
 /// ההדגשה דורשת מנוע נייטיבי; בלעדיו הבדיקות מדולגות.
@@ -127,7 +127,7 @@ Future<void> main() async {
       );
       final settingsBloc = StubSettingsBloc(SettingsState.initial());
       tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
-      final tabsBloc = _TestTabsBloc(
+      final tabsBloc = StubTabsBloc(
         TabsState(tabs: [tab], currentTabIndex: 0),
       );
       final tourCubit = _TestTourCubit();
@@ -548,15 +548,6 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
       ),
     );
     on<TextBookEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _TestTabsBloc extends Bloc<TabsEvent, TabsState> implements TabsBloc {
-  _TestTabsBloc(super.initialState) {
-    on<TabsEvent>((event, emit) {});
   }
 
   @override

@@ -11,8 +11,6 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
-import 'package:otzaria/navigation/bloc/navigation_event.dart';
-import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
@@ -28,6 +26,7 @@ import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_pro
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
 import 'package:provider/provider.dart';
 
+import '../../test_helpers/stub_navigation_bloc.dart';
 import '../../test_helpers/stub_settings_bloc.dart';
 import '../../test_helpers/stub_text_book_bloc.dart';
 
@@ -76,7 +75,7 @@ void main() {
       TabsState(tabs: [tab], currentTabIndex: 0),
     );
     final settingsBloc = StubSettingsBloc(SettingsState.initial());
-    final navigationBloc = _TestNavigationBloc();
+    final navigationBloc = StubNavigationBloc();
 
     addTearDown(() async {
       await tester.pumpWidget(const SizedBox.shrink());
@@ -216,16 +215,6 @@ TextBookLoaded _loadedState(TextBook book, {bool showPageShapeView = false}) {
     currentTitle: 'סימן א',
     searchMode: SearchMode.exact,
   );
-}
-
-class _TestNavigationBloc extends Bloc<NavigationEvent, NavigationState>
-    implements NavigationBloc {
-  _TestNavigationBloc() : super(NavigationState.initial(true)) {
-    on<NavigationEvent>((event, emit) {});
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _TestTabsBloc extends Cubit<TabsState> implements TabsBloc {
