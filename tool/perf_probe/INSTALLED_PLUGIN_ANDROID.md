@@ -43,7 +43,8 @@ The runner selects the `direct` flavor and uses
 `build/app/outputs/flutter-apk/app-direct-debug.apk` for verification and installation.
 
 The runner performs strict lockfile resolution, verifies all eight resolved
-WebView packages at `ab6953a7d69016bcfcd6d47c301ded0d2a6d5400`, and records the
+WebView packages against the identical Git revision in `pubspec.yaml` and
+`pubspec.lock` (seven explicit refs, eight locked packages), and records the
 source commit, lockfile digest, Flutter/engine identity, verified APK digest,
 device fingerprint, API, ABI, display, density and WebView provider. The Store
 payload is hash-checked before compilation and again when materialized by the
