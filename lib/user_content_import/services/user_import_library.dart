@@ -53,10 +53,14 @@ class UserImportFile {
 @immutable
 class UserImportLibraryResult {
   final UserImportResult rebuild;
+
+  /// מה שהביאו הקבצים שנוספו בפעולה הזו בלבד — זה מה שמדווח למשתמש.
+  final UserImportResult added;
   final List<String> errors;
 
   const UserImportLibraryResult({
     required this.rebuild,
+    this.added = const UserImportResult(),
     this.errors = const [],
   });
 
@@ -138,7 +142,10 @@ class UserImportLibrary {
             errors: errors,
           );
         }
-        return _changeAndRebuild(_insertFiles(files));
+        return _changeAndRebuild(
+          _insertFiles(files),
+          selected: {for (final file in files) (file.name, file.path)},
+        );
       });
 
   static _Change _insertFiles(List<_ReadFile> files) => (userDb) async {
@@ -196,8 +203,12 @@ class UserImportLibrary {
 
   /// שינוי ובנייה מחדש נכתבים יחד, כולל טבלאות הבסיס הידני. הפענוח ארוך ורץ
   /// בלי טרנזקציה פתוחה, ולכן השינוי מוחל פעם כדי לדעת מה ייבנה ופעם לכתיבה.
-  Future<UserImportLibraryResult> _changeAndRebuild(_Change change) async {
-    final files = await _onOwnConnection(_enabledFilesAfter(change));
+  /// [selected]: (שם, מקור) של הקבצים שנוספו עכשיו — רק הם נספרים ב-added.
+  Future<UserImportLibraryResult> _changeAndRebuild(
+    _Change change, {
+    Set<(String, String?)> selected = const {},
+  }) async {
+    final files = await _onOwnConnection(_enabledFilesAfter(change, selected));
     final ingest = files.isEmpty ? null : await _ingest(files);
     if (ingest != null && ingest.errors.isNotEmpty) {
       return UserImportLibraryResult(
@@ -206,15 +217,19 @@ class UserImportLibrary {
       );
     }
     final rebuild = await _onOwnConnection(_rebuildWith(change, ingest));
-    return UserImportLibraryResult(rebuild: rebuild);
+    return UserImportLibraryResult(
+      rebuild: rebuild,
+      added: ingest?.selectedCounts ?? const UserImportResult(),
+    );
   }
 
   static Future<List<ImportedFile>> Function(MyDatabase) _enabledFilesAfter(
     _Change change,
+    Set<(String, String?)> selected,
   ) =>
       (userDb) => _inTransaction(userDb, () async {
         await change(userDb);
-        return _enabledFiles(await userDb.database);
+        return _enabledFiles(await userDb.database, selected);
       }, commit: false);
 
   static Future<UserImportResult> Function(MyDatabase) _rebuildWith(
@@ -314,14 +329,21 @@ class UserImportLibrary {
         await repo.clearAllUserContent();
       }, commit: true);
 
-  static List<ImportedFile> _enabledFiles(sqlite3.Database db) => [
+  static List<ImportedFile> _enabledFiles(
+    sqlite3.Database db,
+    Set<(String, String?)> selected,
+  ) => [
     for (final row in db.select(
-      'SELECT name, content FROM user_import_file WHERE enabled = 1 '
-      'ORDER BY id',
+      'SELECT name, originPath, content FROM user_import_file '
+      'WHERE enabled = 1 ORDER BY id',
     ))
       ImportedFile(
         name: row['name'] as String,
         content: row['content'] as String,
+        selected: selected.contains((
+          row['name'] as String,
+          row['originPath'] as String?,
+        )),
       ),
   ];
 

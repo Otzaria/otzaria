@@ -156,6 +156,8 @@ class UserContentImporter {
     final repo = UserContentRepository(userDb);
     final ingest = UserImportIngest._();
     final errors = ingest.errors;
+    // מה שהקבצים שנבחרו עכשיו הפיקו נאסף גם לחוד, לספירה שמדווחת למשתמש.
+    final selected = UserImportIngest._();
 
     for (final file in files) {
       final name = file.name;
@@ -163,6 +165,9 @@ class UserContentImporter {
       final perBookHeadingSuffix = _perBookHeadingSuffixes
           .where(lower.endsWith)
           .firstOrNull;
+      final selectedOut = file.selected ? selected : null;
+      final linksFrom = ingest.links.length;
+      final versionsFrom = ingest.versions.length;
       if (_headingFileNames.contains(name) || perBookHeadingSuffix != null) {
         await _ingestHeadings(
           file,
@@ -172,6 +177,7 @@ class UserContentImporter {
           bookTitleFromFile: perBookHeadingSuffix == null
               ? null
               : name.substring(0, name.length - perBookHeadingSuffix.length),
+          selectedOut: selectedOut?.headingsByBook,
         );
       } else if (_versionFileNames.contains(name)) {
         await _ingestVersions(
@@ -188,6 +194,7 @@ class UserContentImporter {
           ingest.generationByBook,
           ingest.authorByBook,
           errors,
+          selectedOut: selectedOut?.generationByBook,
         );
       } else if (_folderLinkFileNames.contains(name)) {
         await _ingestLinks(
@@ -233,7 +240,15 @@ class UserContentImporter {
       } else {
         errors.add('$name: $kUnrecognizedImportFileMessage');
       }
+      selectedOut?.links.addAll(ingest.links.skip(linksFrom));
+      selectedOut?.versions.addAll(ingest.versions.skip(versionsFrom));
     }
+    ingest.selectedCounts = UserImportResult(
+      generationsApplied: selected.generationByBook.length,
+      linksApplied: mergeUserLinks(selected.links).length,
+      headingsApplied: selected.headingsByBook.length,
+      versionsApplied: selected.versions.length,
+    );
     return ingest;
   }
 
@@ -305,8 +320,9 @@ class UserContentImporter {
     UserContentRepository repo,
     Map<int, String> out,
     Map<int, String> authorsOut,
-    List<String> errors,
-  ) async {
+    List<String> errors, {
+    Map<int, String>? selectedOut,
+  }) async {
     final fileName = file.name;
     final ParseResult<ParsedBookGeneration> parsed;
     try {
@@ -328,6 +344,7 @@ class UserContentImporter {
         continue;
       }
       out[bookId] = row.eraName;
+      selectedOut?[bookId] = row.eraName;
       final author = row.author?.trim();
       if (author != null && author.isNotEmpty) {
         authorsOut[bookId] = author;
@@ -341,6 +358,7 @@ class UserContentImporter {
     Map<int, List<UserAltTocStructureData>> out,
     List<String> errors, {
     required String? bookTitleFromFile,
+    Map<int, List<UserAltTocStructureData>>? selectedOut,
   }) async {
     final fileName = file.name;
     final ParseResult<ParsedHeading> parsed;
@@ -383,6 +401,7 @@ class UserContentImporter {
         errors.add('$fileName $error');
       }
       out[book.id] = built.structures;
+      selectedOut?[book.id] = built.structures;
     }
   }
 
@@ -782,6 +801,10 @@ class UserImportIngest {
   final errors = <String>[];
 
   UserImportIngest._();
+
+  /// מה שהפיקו רק הקבצים המסומנים [ImportedFile.selected], בספירה של
+  /// [UserContentImporter.applyIngest] — זה מה שמדווח למשתמש.
+  var selectedCounts = const UserImportResult();
 }
 
 // פונקציה נפרדת: סגירה בתוך המתודה הייתה לוכדת את userDb, שאינו נשלח.

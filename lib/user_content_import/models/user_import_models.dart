@@ -14,7 +14,14 @@ class ImportedFile {
   final String name;
   final String content;
 
-  const ImportedFile({required this.name, required this.content});
+  /// נבחר בייבוא הנוכחי, להבדיל מקובץ שמור שרק נבנה מחדש איתו.
+  final bool selected;
+
+  const ImportedFile({
+    required this.name,
+    required this.content,
+    this.selected = false,
+  });
 }
 
 /// סוג התוכן שקובץ ייבוא נושא, לפי שמו. משמש להצגה ולקיבוץ בהגדרות.

@@ -378,7 +378,7 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
       // הקבצים נשמרים בספרייה ואז הנתונים נבנים מחדש מכל הפעילים, כדי
       // שהמשתמש יוכל לנהל אותם אחר כך (השהיה/ייצוא/מחיקה).
       final outcome = await library.addFiles(event.paths);
-      final r = outcome.rebuild;
+      final r = outcome.added;
       final importFiles = await library.list();
       // ⚠️ תמיד, גם כשיובא אפס: הבנייה מחדש כתבה את הטבלאות, ומטמון ישן היה
       // מציג דורות ומפרשים שכבר אינם במסד.
