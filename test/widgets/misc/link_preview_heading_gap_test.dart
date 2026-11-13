@@ -68,12 +68,13 @@ void main() {
   Future<void> showPreview(
     WidgetTester tester,
     String surface,
-    Link link,
-  ) async {
+    Link link, {
+    SettingsState? settings,
+  }) async {
     late BuildContext hostContext;
     await tester.pumpWidget(
       BlocProvider<SettingsBloc>.value(
-        value: StubSettingsBloc(SettingsState.initial()),
+        value: StubSettingsBloc(settings ?? SettingsState.initial()),
         child: MaterialApp(
           home: Scaffold(
             body: Builder(
@@ -165,6 +166,128 @@ void main() {
       expect(heading.text.style?.color, const Color(0xFFFF0000));
     });
 
+    for (final attributes in [
+      'title="x > y" style="color:red"',
+      '''title='a style=bad' style="color:red"''',
+      '''title="a style='bad'" style='color:red' ''',
+      'title="<h3>טקסט</h3>" style="color:red"',
+      'title="x > y" STYLE = color:red',
+      'style="color:red" style="color:blue"',
+    ]) {
+      testWidgets('עיצוב ומאפייני כותרת נשמרים: $attributes', (tester) async {
+        await showPreview(
+          tester,
+          'תת-תפריט "קישורים"',
+          rangeLink(attributes, ['לפני סוף', '<h2 $attributes>דף</h2>']),
+        );
+
+        final heading = tester.allRenderObjects
+            .whereType<RenderParagraph>()
+            .firstWhere((p) => p.text.toPlainText() == 'דף');
+        expect(heading.text.style?.color, const Color(0xFFFF0000));
+        expect(
+          tester
+              .widget<SmartTextWidget>(find.byType(SmartTextWidget))
+              .text
+              .replaceFirst('margin:0;', ''),
+          'לפני סוף<br><h2 $attributes>דף</h2>',
+        );
+        expect(
+          lineOf(tester, 'דף').top - lineOf(tester, 'סוף').bottom,
+          moreOrLessEquals(0, epsilon: 1),
+        );
+      });
+    }
+
+    testWidgets('שוליים מפורשים בכותרת גוברים על ברירת המחדל', (tester) async {
+      await showPreview(
+        tester,
+        'תת-תפריט "קישורים"',
+        rangeLink('margin', [
+          'לפני סוף',
+          '<h2 title="x > y" style="margin:7px;color:red">דף</h2>',
+        ]),
+      );
+
+      expect(
+        lineOf(tester, 'דף').top - lineOf(tester, 'סוף').bottom,
+        moreOrLessEquals(7, epsilon: 1),
+      );
+    });
+
+    for (final attributes in ['style', 'style=""', "style=''"]) {
+      testWidgets('style ריק מקבל שוליים מצומצמים: $attributes', (
+        tester,
+      ) async {
+        await showPreview(
+          tester,
+          'תת-תפריט "קישורים"',
+          rangeLink('empty-$attributes', [
+            'לפני סוף',
+            '<h2 $attributes>דף</h2>',
+          ]),
+        );
+        expect(
+          lineOf(tester, 'דף').top - lineOf(tester, 'סוף').bottom,
+          moreOrLessEquals(0, epsilon: 1),
+        );
+      });
+    }
+
+    for (final html in [
+      '<h2>דף</h2>',
+      '<h2 title="<br><h3>טקסט</h3>">דף</h2>',
+      '<!-- <br><h2> --> <h2>דף</h2>',
+    ]) {
+      testWidgets('כותרת בלי מעבר שורה אמיתי אינה משתנה: $html', (
+        tester,
+      ) async {
+        await showPreview(
+          tester,
+          'תת-תפריט "קישורים"',
+          rangeLink(html, [html]),
+        );
+
+        expect(
+          tester.widget<SmartTextWidget>(find.byType(SmartTextWidget)).text,
+          html,
+        );
+      });
+    }
+
+    testWidgets('ישויות ניקוד מועתקות כמו במקור גם כשהסרת ניקוד פעילה', (
+      tester,
+    ) async {
+      const lines = ['א&#x05B0;ב', '<h2>דף</h2>'];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SelectionArea(
+            child: SmartTextWidget(
+              text: lines.join('<br>'),
+              settings: const RenderSettings(removeNikud: true),
+            ),
+          ),
+        ),
+      );
+      final document = copyAll(tester, find.byType(SmartTextWidget));
+      expect(document, contains('א\u05B0ב'));
+
+      await showPreview(
+        tester,
+        'תת-תפריט "קישורים"',
+        rangeLink('encoded-nikud', lines),
+        settings: SettingsState.initial().copyWith(defaultRemoveNikud: true),
+      );
+      expect(
+        copyAll(tester, find.byType(LinkHoverPreviewContent)),
+        endsWith(document),
+      );
+      expect(
+        tester.widget<SmartTextWidget>(find.byType(SmartTextWidget)).text,
+        'א&#x05B0;ב<br><h2 style="margin:0">דף</h2>',
+      );
+    });
+
     testWidgets('ההעתקה זהה להעתקת התוכן כמסמך אחד', (tester) async {
       final contents = {
         'כותרת באמצע': _targetLines,
@@ -172,6 +295,16 @@ void main() {
         'כמה כותרות': ['א', '<h2>ב</h2>', '<h3>ג</h3>', 'ד', '<h2>ה</h2>', 'ו'],
         'שורה ריקה לפני כותרת': ['א', '', '<h2>ב</h2>', '', 'ג'],
         'בלי כותרת': ['א', 'ב', 'ג'],
+        'ישויות ומאפיין מצוטט': [
+          'א &amp; ב&nbsp;ג',
+          '<h2 title="x > y" style="color:red">דף &lt; לז</h2>',
+          'ד&#x05D4; &quot;ו&quot;',
+        ],
+        'הערה מוטמעת': [
+          'א',
+          '<h2 title="x > y">דף</h2>',
+          'ב<sup class="footnote-marker">א</sup><i class="footnote">הערה נסתרת</i>ג',
+        ],
       };
       for (final MapEntry(key: name, value: lines) in contents.entries) {
         await tester.pumpWidget(

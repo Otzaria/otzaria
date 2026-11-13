@@ -6,6 +6,7 @@ import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
 import 'package:otzaria/models/links.dart';
@@ -94,24 +95,40 @@ double compactPreviewTitleFontSize(double contentFontSize) =>
 
 // שורת כותרת לבדה נשארת בלי attributes, במסלול המהיר של SmartTextWidget.
 final _headingLineBreak = RegExp(r'<br><h[1-6][\s>]|</h[1-6]><br>');
-final _headingTag = RegExp(r'<h[1-6](?=[\s>])[^>]*>');
-final _styleAttribute = RegExp(
-  r'''\sstyle\s*=\s*["']?''',
-  caseSensitive: false,
-);
 
 /// כותרות בתוכן קישור-טווח בלי שולי HTML, כמו שורת כותרת בספר. ה-`<br>` שבין
 /// השורות נשארים: הטקסט המועתק תלוי בהם.
 String _withoutHeadingLineMargins(String html) {
   if (!_headingLineBreak.hasMatch(html)) return html;
-  return html.replaceAllMapped(_headingTag, (m) {
-    final tag = m[0]!;
-    final style = _styleAttribute.firstMatch(tag);
+  final fragment = html_parser.parseFragment(html, generateSpans: true);
+  final headings = fragment.querySelectorAll('h1,h2,h3,h4,h5,h6');
+  if (!headings.any(
+    (heading) =>
+        heading.previousElementSibling?.localName == 'br' ||
+        heading.nextElementSibling?.localName == 'br',
+  )) {
+    return html;
+  }
+  // כתיבה מחדש של HTML מפענחת ישויות לפני סינון הניקוד; עורכים רק את המקור.
+  headings.sort(
+    (a, b) => a.sourceSpan!.start.offset.compareTo(b.sourceSpan!.start.offset),
+  );
+  final result = StringBuffer();
+  var cursor = 0;
+  for (final heading in headings) {
+    final style = heading.attributeValueSpans!['style'];
+    final emptyStyle = style == null ? heading.attributeSpans!['style'] : null;
+    final offset =
+        style?.start.offset ??
+        emptyStyle?.start.offset ??
+        heading.sourceSpan!.start.offset + 3;
     // לפני ה-style הקיים, כדי ששוליים מפורשים בו יגברו.
-    return style == null
-        ? '${tag.substring(0, 3)} style="margin:0"${tag.substring(3)}'
-        : tag.replaceRange(style.end, style.end, 'margin:0;');
-  });
+    result
+      ..write(html.substring(cursor, offset))
+      ..write(style == null ? ' style="margin:0"' : 'margin:0;');
+    cursor = emptyStyle?.end.offset ?? offset;
+  }
+  return (result..write(html.substring(cursor))).toString();
 }
 
 /// תוכן חלונית התצוגה המקדימה של קישור — כותרת (כתובת היעד) ותוכן הקטע,
