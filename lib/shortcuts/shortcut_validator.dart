@@ -495,6 +495,28 @@ class ShortcutValidator {
     return false;
   }
 
+  /// חץ לבד לא מגיע לעולם לקיצורי הניווט: באזור הקריאה הוא מנווט וגולל,
+  /// ומחוץ לו מעביר פוקוס.
+  static const Set<String> readerNavigationShortcuts = {
+    'arrowleft',
+    'arrowright',
+    'arrowup',
+    'arrowdown',
+  };
+
+  static const Set<String> _textNavigationShortcutKeys = {
+    'key-shortcut-prev-segment',
+    'key-shortcut-next-segment',
+    'key-shortcut-prev-toc',
+    'key-shortcut-next-toc',
+  };
+
+  /// האם [shortcut] לעולם לא יגיע לקיצור [settingKey]: קיצורי הניווט בספר
+  /// טקסט נבדקים רק אחרי עץ הפוקוס, שבולע את [readerNavigationShortcuts].
+  static bool isReservedByReader(String settingKey, String shortcut) =>
+      _textNavigationShortcutKeys.contains(settingKey) &&
+      readerNavigationShortcuts.contains(_normalizedShortcutValue(shortcut));
+
   static bool canShareShortcut(String firstKey, String secondKey) {
     final normalizedFirst = canonicalSettingKey(firstKey);
     final normalizedSecond = canonicalSettingKey(secondKey);

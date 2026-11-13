@@ -525,6 +525,7 @@
   "החזר את כל קיצורי המקשים לברירת המחדל": "Restore all shortcuts back to default",
   "איפוס קיצורי מקשים?": "Reset keyboard shortcuts?",
   "כל קיצורי המקשים המותאמים אישית יאופסו לברירת המחדל.": "Every shortcut you customized will go back to default.",
+  "באזור הקריאה החיצים כבר מנווטים וגוללים, ולכן קיצור ניווט על חץ לבדו לא יפעל. בחר צירוף אחר.": "In the reading area the arrow keys already navigate and scroll, so a navigation shortcut on an arrow key alone won't work. Choose a different combination.",
   "פעולה זו אינה הפיכה!": "This cannot be undone!",
   "ניווט כללי": "General Navigation",
   "איתור": "Find",

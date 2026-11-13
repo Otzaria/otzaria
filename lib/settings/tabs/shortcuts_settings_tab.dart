@@ -1224,6 +1224,7 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
         context,
         (_) => CustomShortcutDialog(
           actionName: ShortcutValidator.shortcutNames[selectedKey],
+          settingKey: selectedKey,
         ),
       ),
     );

@@ -157,6 +157,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'אשר את העדכון בחלון Google Play.': 'Approve the update in the Google Play dialog.',
     'ב-{count} הערות קובץ הגיבוי אינו כולל את המילים שאליהן הן קושרו, ולכן הן מסומנות כעת על הקטע כולו. הקישור למילים נכנס לגיבוי בגרסה מאוחרת יותר.': 'For {count} notes the backup file does not include the words they were attached to, so they are now marked across the whole passage. Word-level attachment was added to the backup in a later version.',
     'באותה פסקה': 'Same paragraph',
+    'באזור הקריאה החיצים כבר מנווטים וגוללים, ולכן קיצור ניווט על חץ לבדו לא יפעל. בחר צירוף אחר.': 'In the reading area the arrow keys already navigate and scroll, so a navigation shortcut on an arrow key alone won\'t work. Choose a different combination.',
     'באם שמכם אינו מופיע ברשימה או שאתם מעוניינים בשינוי, אנא פנו למייל המערכת.': 'If your name is missing from the list, or you would like it changed, please email us.',
     'בדוק אם קיימת גרסה חדשה של אוצריא.': 'Check for a newer version of Otzaria.',
     'בדוק ועדכן': 'Check and update',
