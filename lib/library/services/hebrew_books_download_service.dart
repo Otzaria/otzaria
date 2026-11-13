@@ -14,6 +14,13 @@ class HebrewBookDownload {
   const HebrewBookDownload({required this.bytes, required this.fileName});
 }
 
+/// השרת ענה בסטטוס שאינו הצלחה.
+class HebrewBookDownloadStatusException implements Exception {
+  final int statusCode;
+
+  const HebrewBookDownloadStatusException(this.statusCode);
+}
+
 /// מוריד קובצי PDF של ספרי היברובוקס. השרת דורש את [appKeyHeader].
 class HebrewBooksDownloadService {
   static const String appKeyHeader = 'x-app-key';
@@ -57,7 +64,7 @@ class HebrewBooksDownloadService {
       headers: const {appKeyHeader: appKeyValue},
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('השרת החזיר ${response.statusCode}');
+      throw HebrewBookDownloadStatusException(response.statusCode);
     }
 
     final total = response.contentLength;

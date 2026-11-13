@@ -10,9 +10,11 @@ import '../../utils/navigation/otzar_utils.dart';
 import '../../core/ui_snack.dart';
 import '../bloc/library_bloc.dart';
 import '../bloc/library_event.dart';
+import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/data/data_providers/external_catalog_mapper.dart';
 import 'package:otzaria/library/services/hebrew_books_download_service.dart';
+import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/utils/file/save_file_with_extension.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
@@ -53,6 +55,9 @@ class _OtzarBookDialogState extends State<OtzarBookDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isOfflineMode = context.select<SettingsBloc, bool>(
+      (bloc) => bloc.state.isOfflineMode,
+    );
     return FutureBuilder<(bool, bool)>(
       future: _localAvailability,
       builder: (context, snapshot) {
@@ -70,7 +75,12 @@ class _OtzarBookDialogState extends State<OtzarBookDialog> {
               text: 'סגור',
             ),
             if (!loading)
-              ..._buildActions(context, canLaunchLocally, bookExists),
+              ..._buildActions(
+                context,
+                canLaunchLocally,
+                bookExists,
+                isOfflineMode,
+              ),
           ],
           child: loading
               ? const Padding(
@@ -160,9 +170,10 @@ class _OtzarBookDialogState extends State<OtzarBookDialog> {
     BuildContext context,
     bool canLaunchLocally,
     bool bookExists,
+    bool isOfflineMode,
   ) {
     return <Widget>[
-      if (_isHebrewBook && book.id != null)
+      if (_isHebrewBook && book.id != null && !isOfflineMode)
         _HebrewBookDownloadButton(bookId: book.id!),
       ActionButton.neutral(
         icon: FluentIcons.open_24_regular,
@@ -259,8 +270,20 @@ class _HebrewBookDownloadButtonState extends State<_HebrewBookDownloadButton> {
         return;
       }
       UiSnack.show(LibraryMessages.hebrewBookDownloaded(savedPath));
-    } catch (e) {
-      UiSnack.showError(LibraryMessages.hebrewBookDownloadError(e));
+    } on HebrewBookDownloadStatusException catch (e) {
+      UiSnack.showError(
+        LibraryMessages.hebrewBookDownloadServerError(e.statusCode),
+      );
+    } catch (e, stackTrace) {
+      try {
+        ErrorLogFile.appendInBackground(
+          title: 'כשל הורדת ספר היברובוקס',
+          error: e,
+          stackTrace: stackTrace,
+          details: {'bookId': '${widget.bookId}'},
+        );
+      } catch (_) {}
+      UiSnack.showError(LibraryMessages.hebrewBookDownloadError);
     } finally {
       service.dispose();
       if (mounted) {
