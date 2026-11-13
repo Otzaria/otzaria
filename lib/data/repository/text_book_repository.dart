@@ -132,13 +132,14 @@ class TextBookRepository {
     return '';
   }
 
-  /// [maxChars] - הטווח נקטע אחרי השורה שבה הצטברו כך הרבה תווים (לפחות שורה
-  /// אחת). נאכף בספרי המסד; מקורות אחרים מחזירים את הטווח המלא.
+  /// [maxChars] קוטע את הטווח אחרי השורה שממלאת אותו, מההתחלה או מהסוף לפי
+  /// [budgetFromEnd]. נאכף בספרי המסד; מקורות אחרים מחזירים את הטווח המלא.
   Future<BookContentRange?> getBookContentRange(
     TextBook book, {
     required int startLine,
     required int endLine,
     int? maxChars,
+    bool budgetFromEnd = false,
   }) async {
     final categoryId = book.categoryId;
     final fileType = book.fileType ?? 'txt';
@@ -174,6 +175,7 @@ class TextBookRepository {
         versionTitle: book.versionTitle,
         source: book.source,
         maxChars: maxChars,
+        budgetFromEnd: budgetFromEnd,
       );
       if (range != null && range.lines.isNotEmpty) {
         return BookContentRange(

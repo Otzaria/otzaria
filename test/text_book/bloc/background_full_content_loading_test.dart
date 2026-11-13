@@ -28,6 +28,7 @@ class _FakeTextBookRepository extends TextBookRepository {
     required int startLine,
     required int endLine,
     int? maxChars,
+    bool budgetFromEnd = false,
   }) async {
     requestedRanges.add((startLine: startLine, endLine: endLine));
     return null;

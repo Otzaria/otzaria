@@ -38,6 +38,7 @@ class _LinksRepository extends TextBookRepository {
     required int startLine,
     required int endLine,
     int? maxChars,
+    bool budgetFromEnd = false,
   }) async => BookContentRange(
     startLine: 0,
     endLine: 99,

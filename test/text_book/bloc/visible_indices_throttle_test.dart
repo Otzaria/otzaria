@@ -509,6 +509,7 @@ class _TwoSectionRepository extends TextBookRepository {
     required int startLine,
     required int endLine,
     int? maxChars,
+    bool budgetFromEnd = false,
   }) async {
     final lines = List.generate(40, (i) => 'שורה $i');
     final ns = startLine.clamp(0, lines.length - 1);

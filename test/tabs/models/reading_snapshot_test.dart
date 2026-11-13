@@ -593,6 +593,7 @@ class _Repository extends TextBookRepository {
     required int startLine,
     required int endLine,
     int? maxChars,
+    bool budgetFromEnd = false,
   }) async {
     final start = startLine.clamp(0, _lines.length - 1);
     final end = endLine.clamp(start, _lines.length - 1);

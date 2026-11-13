@@ -87,6 +87,7 @@ class _Repository extends TextBookRepository {
     required int startLine,
     required int endLine,
     int? maxChars,
+    bool budgetFromEnd = false,
   }) async => const BookContentRange(
     startLine: 0,
     endLine: 0,
