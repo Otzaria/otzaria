@@ -70,6 +70,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   static const int _contentLookBehindLines = 120;
   static const int _contentLookAheadLines = 260;
   static const int _contentWarmChunkLines = 640;
+
+  /// תקרת התווים שהחימום משאיר בזיכרון, מעל הספר הטקסטואלי הגדול בספרייה.
+  /// ספר עם תמונות מוטמעות נעצר בה, ושאר שורותיו נטענות לפי הגלילה (#5033).
+  static const int _contentWarmCharBudget = 48 * 1024 * 1024;
   static const int _warmFlushChunkCount = 8;
 
   /// ספר קצר מזה לא משוחרר במעבר לרקע — הרווח זניח והשחרור גורר rebuild.
@@ -2695,8 +2699,15 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     }
 
     try {
+      final startState = state;
+      var charBudget = _contentWarmCharBudget;
+      if (startState is TextBookLoaded) {
+        for (final line in startState.content) {
+          charBudget -= line.length;
+        }
+      }
       List<int> lastWarmVisible = const [];
-      while (!isClosed) {
+      while (!isClosed && charBudget > 0) {
         final currentState = state;
         if (currentState is! TextBookLoaded ||
             currentState.book.title != book.title) {
@@ -2744,9 +2755,13 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           book,
           startLine: nextStart,
           endLine: nextStart + _contentWarmChunkLines - 1,
+          maxChars: charBudget,
         );
         if (range == null || range.lines.isEmpty) {
           return;
+        }
+        for (final line in range.lines) {
+          charBudget -= line.length;
         }
 
         if (isClosed) {

@@ -24,6 +24,7 @@ class _CountingRepository extends TextBookRepository {
     TextBook book, {
     required int startLine,
     required int endLine,
+    int? maxChars,
   }) async {
     rangeRequests++;
     return super.getBookContentRange(

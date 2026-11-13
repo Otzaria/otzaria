@@ -27,6 +27,7 @@ class _FakeTextBookRepository extends TextBookRepository {
     TextBook book, {
     required int startLine,
     required int endLine,
+    int? maxChars,
   }) async {
     requestedRanges.add((startLine: startLine, endLine: endLine));
     return null;
