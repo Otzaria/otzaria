@@ -191,6 +191,7 @@ class RtlSelectionShortcuts extends StatelessWidget {
       child: Actions(
         actions: <Type, Action<Intent>>{
           _PhysicalExtendSelectionIntent: _PhysicalExtendSelectionAction(),
+          ..._offscreenEdgeGuards,
         },
         child: child,
       ),
@@ -278,9 +279,17 @@ class _PhysicalExtendSelectionAction
     final lockForward = !frameworkReversed;
 
     rtlSelectionPriming = true;
-    _dispatch(focusContext, word: false, forward: lockForward); // נעילת extent
-    _dispatch(focusContext, word: false, forward: !lockForward); // שחזור
-    rtlSelectionPriming = false;
+    try {
+      _dispatch(
+        focusContext,
+        word: false,
+        forward: lockForward,
+      ); // נעילת extent
+      _dispatch(focusContext, word: false, forward: !lockForward); // שחזור
+    } finally {
+      // דגל שנתקע משתיק את כל onSelectionChanged עד הפעלה מחדש.
+      rtlSelectionPriming = false;
+    }
     _dispatch(focusContext, word: intent.word, forward: intent.physicalLeft);
     return _handled;
   }
@@ -341,6 +350,71 @@ class _PhysicalExtendSelectionAction
       // selectionEndpoints זורק כשאין בחירה פעילה.
       return null;
     }
+  }
+}
+
+// TODO(flutter/flutter#196478): להסיר כשהתיקון יגיע לגרסת Flutter שלנו.
+// קצה בחירה שנגלל הרחק מהתצוגה נשאר בלי מיקום, והרחבה במקלדת זורקת Null check.
+final Map<Type, Action<Intent>> _offscreenEdgeGuards = {
+  ExtendSelectionByCharacterIntent:
+      _OffscreenSelectionEdgeGuard<ExtendSelectionByCharacterIntent>(),
+  ExtendSelectionToNextWordBoundaryIntent:
+      _OffscreenSelectionEdgeGuard<ExtendSelectionToNextWordBoundaryIntent>(),
+  ExtendSelectionToNextWordBoundaryOrCaretLocationIntent:
+      _OffscreenSelectionEdgeGuard<
+        ExtendSelectionToNextWordBoundaryOrCaretLocationIntent
+      >(),
+  ExtendSelectionToLineBreakIntent:
+      _OffscreenSelectionEdgeGuard<ExtendSelectionToLineBreakIntent>(),
+  ExpandSelectionToLineBreakIntent:
+      _OffscreenSelectionEdgeGuard<ExpandSelectionToLineBreakIntent>(),
+  ExtendSelectionToDocumentBoundaryIntent:
+      _OffscreenSelectionEdgeGuard<ExtendSelectionToDocumentBoundaryIntent>(),
+  ExpandSelectionToDocumentBoundaryIntent:
+      _OffscreenSelectionEdgeGuard<ExpandSelectionToDocumentBoundaryIntent>(),
+  ExtendSelectionVerticallyToAdjacentLineIntent:
+      _OffscreenSelectionEdgeGuard<
+        ExtendSelectionVerticallyToAdjacentLineIntent
+      >(),
+};
+
+/// מעביר את ה-intent לפעולה המקורית, חוץ מהרחבה ב-[SelectableRegion] שלאחד
+/// מקצות הבחירה שלו אין מיקום: אז המקש לא עושה כלום.
+class _OffscreenSelectionEdgeGuard<T extends Intent> extends ContextAction<T> {
+  @override
+  bool get isActionEnabled => callingAction?.isActionEnabled ?? false;
+
+  @override
+  bool isEnabled(T intent, [BuildContext? context]) {
+    final action = callingAction;
+    if (action is ContextAction<T>) return action.isEnabled(intent, context);
+    return action?.isEnabled(intent) ?? false;
+  }
+
+  @override
+  bool consumesKey(T intent) => callingAction?.consumesKey(intent) ?? false;
+
+  @override
+  Object? invoke(T intent, [BuildContext? context]) {
+    final region = context == null || isTextInputContext(context)
+        ? null
+        : context.findAncestorStateOfType<SelectableRegionState>();
+    if (region != null && !_hasEdgeLocations(region)) return null;
+    final action = callingAction;
+    return action is ContextAction<T>
+        ? action.invoke(intent, context)
+        : action?.invoke(intent);
+  }
+}
+
+// אין API ציבורי לנקודות הבחירה; ה-getters האלה זורקים כשלקצה אין מיקום.
+bool _hasEdgeLocations(SelectableRegionState region) {
+  try {
+    region.startGlyphHeight;
+    region.endGlyphHeight;
+    return true;
+  } on TypeError {
+    return false;
   }
 }
 
