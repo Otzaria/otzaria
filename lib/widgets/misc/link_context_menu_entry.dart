@@ -6,6 +6,7 @@ import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
 import 'package:otzaria/models/links.dart';
@@ -91,6 +92,44 @@ double previewFontSize(SettingsState settingsState, double? maxFontSize) =>
 /// 11 (labelSmall, הגודל הקודם) כדי שלא תקטן ממנו.
 double compactPreviewTitleFontSize(double contentFontSize) =>
     (contentFontSize * 0.85).clamp(11.0, 14.0);
+
+// שורת כותרת לבדה נשארת בלי attributes, במסלול המהיר של SmartTextWidget.
+final _headingLineBreak = RegExp(r'<br><h[1-6][\s>]|</h[1-6]><br>');
+
+/// כותרות בתוכן קישור-טווח בלי שולי HTML, כמו שורת כותרת בספר. ה-`<br>` שבין
+/// השורות נשארים: הטקסט המועתק תלוי בהם.
+String _withoutHeadingLineMargins(String html) {
+  if (!_headingLineBreak.hasMatch(html)) return html;
+  final fragment = html_parser.parseFragment(html, generateSpans: true);
+  final headings = fragment.querySelectorAll('h1,h2,h3,h4,h5,h6');
+  if (!headings.any(
+    (heading) =>
+        heading.previousElementSibling?.localName == 'br' ||
+        heading.nextElementSibling?.localName == 'br',
+  )) {
+    return html;
+  }
+  // כתיבה מחדש של HTML מפענחת ישויות לפני סינון הניקוד; עורכים רק את המקור.
+  headings.sort(
+    (a, b) => a.sourceSpan!.start.offset.compareTo(b.sourceSpan!.start.offset),
+  );
+  final result = StringBuffer();
+  var cursor = 0;
+  for (final heading in headings) {
+    final style = heading.attributeValueSpans!['style'];
+    final emptyStyle = style == null ? heading.attributeSpans!['style'] : null;
+    final offset =
+        style?.start.offset ??
+        emptyStyle?.start.offset ??
+        heading.sourceSpan!.start.offset + 3;
+    // לפני ה-style הקיים, כדי ששוליים מפורשים בו יגברו.
+    result
+      ..write(html.substring(cursor, offset))
+      ..write(style == null ? ' style="margin:0"' : 'margin:0;');
+    cursor = emptyStyle?.end.offset ?? offset;
+  }
+  return (result..write(html.substring(cursor))).toString();
+}
 
 /// תוכן חלונית התצוגה המקדימה של קישור — כותרת (כתובת היעד) ותוכן הקטע,
 /// מעוצב לפי הגדרות תצוגת המפרשים (גופן, ניקוד, טעמים).
@@ -316,7 +355,7 @@ class _LinkHoverPreviewContentState extends State<LinkHoverPreviewContent> {
                     }
 
                     final content = SmartTextWidget(
-                      text: rawContent,
+                      text: _withoutHeadingLineMargins(rawContent),
                       settings: RenderSettings.fromProfile(
                         profile,
                         fontSize: fontSize,
