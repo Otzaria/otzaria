@@ -1,13 +1,17 @@
 import 'dart:async';
+import 'dart:ffi' hide Size;
 import 'dart:io';
 
 import 'package:bloc_test/bloc_test.dart';
+import 'package:ffi/ffi.dart' show using;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/printing/print_content_models.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
+import 'package:otzaria/printing/view/widgets/printing_widgets.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -15,6 +19,7 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:pdf/pdf.dart' hide PdfDocument;
 import 'package:pdf/widgets.dart' as pw;
+import 'package:pdfium_dart/pdfium_dart.dart' as pdfium_bindings;
 import 'package:pdfrx/pdfrx.dart';
 import 'package:printing/printing.dart';
 // ignore: implementation_imports
@@ -92,6 +97,90 @@ Future<T> _settle<T>(WidgetTester tester, Future<T> future) async {
   }
   expect(done, isTrue, reason: 'הפעולה לא הסתיימה');
   return result;
+}
+
+typedef _Placement = ({Size page, Size cell});
+
+/// גודל כל עמוד בגיליון הראשון של התצוגה המקדימה, ושל התא שהוא ממורכז בו.
+List<_Placement> _previewFirstSheet(WidgetTester tester, int cells) => [
+  for (var i = 0; i < cells; i++)
+    (
+      page: tester.getSize(find.byType(RawImage).at(i)),
+      cell: tester.getSize(
+        find
+            .ancestor(
+              of: find.byType(RawImage).at(i),
+              matching: find.byType(Center),
+            )
+            .first,
+      ),
+    ),
+];
+
+/// גודל כל עמוד בגיליון הראשון של [pdf]. PDFium ממרכז את העמוד בתאו, ולכן
+/// היסט המטריצה מקצה התא הוא הרווח הריק משני צדי העמוד.
+Future<List<_Placement>> _pdfFirstSheet(
+  Uint8List pdf,
+  int rows,
+  int cols,
+) async {
+  final doc = await PdfDocument.openData(pdf);
+  try {
+    final sheet = doc.pages.first.size;
+    final cell = Size(sheet.width / cols, sheet.height / rows);
+    return await doc.useNativeDocumentHandle((handle) {
+      final pdfium = pdfium_bindings.getPdfium(
+        modulePath: Pdfrx.pdfiumModulePath,
+      );
+      final page = pdfium.FPDF_LoadPage(
+        pdfium_bindings.FPDF_DOCUMENT.fromAddress(handle),
+        0,
+      );
+      try {
+        return using((arena) {
+          final matrix = arena<pdfium_bindings.FS_MATRIX>();
+          final left = arena<Float>();
+          final bottom = arena<Float>();
+          final right = arena<Float>();
+          final top = arena<Float>();
+          final placements = <_Placement>[];
+          for (var i = 0; i < pdfium.FPDFPage_CountObjects(page); i++) {
+            final object = pdfium.FPDFPage_GetObject(page, i);
+            if (pdfium.FPDFPageObj_GetType(object) !=
+                    pdfium_bindings.FPDF_PAGEOBJ_FORM ||
+                pdfium.FPDFPageObj_GetMatrix(object, matrix) == 0 ||
+                pdfium.FPDFPageObj_GetBounds(
+                      object,
+                      left,
+                      bottom,
+                      right,
+                      top,
+                    ) ==
+                    0) {
+              continue;
+            }
+            // התא לפי מרכז התוכן; הרווח מקצה התא נמדד ממטריצת העמוד.
+            final col = ((left.value + right.value) / 2 / cell.width).floor();
+            final row = ((bottom.value + top.value) / 2 / cell.height).floor();
+            final sideGap = matrix.ref.e - col * cell.width;
+            final verticalGap = matrix.ref.f - row * cell.height;
+            placements.add((
+              page: Size(
+                cell.width - 2 * sideGap,
+                cell.height - 2 * verticalGap,
+              ),
+              cell: cell,
+            ));
+          }
+          return placements;
+        });
+      } finally {
+        pdfium.FPDF_ClosePage(page);
+      }
+    });
+  } finally {
+    await doc.dispose();
+  }
 }
 
 void main() {
@@ -284,4 +373,139 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await drainPrintingRasterQueue(tester);
   }, timeout: const Timeout(Duration(minutes: 2)));
+
+  // עמוד הטקסט נוצר בכיוון התא שלו בגיליון, ולא בכיוון הגיליון: בשני עמודים
+  // לרוחב התאים לאורך. בגיליון לאורך התא צר, ועמוד לאורך ממלא רק את רוחבו.
+  for (final (pagesPerSheet, orientation, expected, commentaryTab) in [
+    (2, pw.PageOrientation.portrait, 'portrait 1.00x0.50', false),
+    (2, pw.PageOrientation.landscape, 'portrait 1.00x1.00', false),
+    (4, pw.PageOrientation.landscape, 'landscape 1.00x1.00', false),
+    (2, pw.PageOrientation.landscape, 'portrait 1.00x1.00', true),
+  ]) {
+    testWidgets(
+      '${commentaryTab ? 'כרטיסיית המפרשים, ' : ''}$pagesPerSheet עמודים בגיליון ${orientation == pw.PageOrientation.landscape ? 'לרוחב' : 'לאורך'}: '
+      'עמוד הטקסט בכיוון התא, בתצוגה המקדימה ובפלט (issue #3184)',
+      (tester) async {
+        tester.view.physicalSize = const Size(1600, 1200);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final platform = _CapturingPrintingPlatform();
+        PrintingPlatform.instance = platform;
+        final settingsBloc = _MockSettingsBloc();
+        whenListen(
+          settingsBloc,
+          const Stream<SettingsState>.empty(),
+          initialState: SettingsState.initial(),
+        );
+        await tester.runAsync(pdfrxFlutterInitialize);
+        final lines = ['ספר', for (var i = 1; i <= 200; i++) 'שורה $i בספר'];
+        bool previewShows(int pages) =>
+            find.byType(RawImage).evaluate().length >= pages &&
+            find.byType(CircularProgressIndicator).evaluate().isEmpty;
+        Future<void> waitForPreview(int pages) async {
+          await tester.pump(const Duration(milliseconds: 300));
+          for (var i = 0; i < 400 && !previewShows(pages); i++) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 25)),
+            );
+            await tester.pump();
+          }
+          expect(previewShows(pages), isTrue);
+        }
+
+        Future<void> setPagesPerSheet(int value) {
+          tester
+              .widget<PrintingPagesPerSheetDropdownRow>(
+                find.byType(PrintingPagesPerSheetDropdownRow),
+              )
+              .onChanged(value);
+          return waitForPreview(value);
+        }
+
+        await tester.pumpWidget(
+          RepositoryProvider<SettingsRepository>.value(
+            value: _FakeSettingsRepository(),
+            child: BlocProvider<SettingsBloc>.value(
+              value: settingsBloc,
+              child: MaterialApp(
+                builder: (context, child) => MediaQuery(
+                  data: MediaQuery.of(
+                    context,
+                  ).copyWith(textScaler: const TextScaler.linear(0.5)),
+                  child: child!,
+                ),
+                home: PrintingScreen(
+                  data: Future.value(commentaryTab ? '' : lines.join('\n')),
+                  bookId: 'test',
+                  startLine: 1,
+                  endLine: lines.length,
+                  prebuiltBlocks: commentaryTab
+                      ? [
+                          for (final line in lines)
+                            PrintBlock(
+                              kind: PrintBlockKind.commentary,
+                              text: line,
+                            ),
+                        ]
+                      : null,
+                ),
+              ),
+            ),
+          ),
+        );
+        await waitForPreview(1);
+        tester
+            .widget<PrintingOrientationDropdownRow>(
+              find.byType(PrintingOrientationDropdownRow),
+            )
+            .onChanged(orientation);
+        await waitForPreview(1);
+        // מספר העמודים בגיליון משתנה אחרי שהתצוגה בכיוון הזה כבר מוכנה.
+        await setPagesPerSheet(pagesPerSheet);
+        final preview = _previewFirstSheet(tester, pagesPerSheet);
+
+        await tester.tap(find.text('הדפסה'));
+        await tester.pump();
+        final output = await _settle(
+          tester,
+          Future.value(platform.onLayout!(PdfPageFormat.a4)),
+        );
+        platform.job.complete(false);
+        await tester.pump();
+        final rows = pagesPerSheet == 4 ? 2 : 1;
+        final saved = await _settle(
+          tester,
+          _pdfFirstSheet(output, rows, pagesPerSheet ~/ rows),
+        );
+        // כיוון העמוד, והחלק שהוא ממלא מרוחב התא ומגובהו.
+        String fit(_Placement p) =>
+            '${p.page.width > p.page.height ? 'landscape' : 'portrait'} '
+            '${(p.page.width / p.cell.width).toStringAsFixed(2)}x'
+            '${(p.page.height / p.cell.height).toStringAsFixed(2)}';
+        expect(
+          {
+            'preview': [...preview.map(fit)],
+            'pdf': [...saved.map(fit)],
+          },
+          {
+            'preview': List.filled(pagesPerSheet, expected),
+            'pdf': List.filled(pagesPerSheet, expected),
+          },
+        );
+
+        // בחזרה לעמוד אחד בגיליון העמוד שוב בכיוון הגיליון.
+        await setPagesPerSheet(1);
+        final single = tester.getSize(find.byType(RawImage).first);
+        expect(
+          single.width > single.height,
+          orientation == pw.PageOrientation.landscape,
+        );
+
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.pumpWidget(const SizedBox());
+        await drainPrintingRasterQueue(tester);
+      },
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
+  }
 }
