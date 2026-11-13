@@ -831,11 +831,14 @@ class _PrintingScreenState extends State<PrintingScreen> {
 
   /// חתימת כל הפרמטרים שמשפיעים על תוכן ה-base PDF. מספר העמודים בגיליון
   /// נכלל רק דרך גודל עמוד הטקסט, וטווח עמודים ב-PDF חיצוני בכוונה אינו נכלל.
-  String _baseCacheKey(PdfPageFormat format) {
+  String _baseCacheKey(
+    PdfPageFormat format, {
+    PdfPageFormat? sourceFormat,
+  }) {
     if (_isPdfSource) {
       return 'override|${identityHashCode(widget.createPdfOverride)}|${orientation.name}|${format.width}x${format.height}';
     }
-    final source = _sourcePageFormat(format);
+    final source = sourceFormat ?? _sourcePageFormat(format);
     final holyNames = _shouldReplaceHolyNames;
     return [
       identityHashCode(_dataFuture),
@@ -865,8 +868,10 @@ class _PrintingScreenState extends State<PrintingScreen> {
   Future<PrintPdfSource> _createBasePdf(PdfPageFormat format) async {
     final path = widget.pdfFilePath;
     if (path != null) return PrintPdfSource.file(path);
+    // כיוון עמוד המקור חייב להתאים למשימה גם כשההגדרות משתנות בזמן הטעינה.
+    final sourceFormat = _sourcePageFormat(format);
     await _divineNamesReady;
-    final key = _baseCacheKey(format);
+    final key = _baseCacheKey(format, sourceFormat: sourceFormat);
     final cached = _cachedBasePdf;
     if (cached != null && _cachedBaseKey == key) {
       return PrintPdfSource.data(cached);
@@ -879,7 +884,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
           : format;
       bytes = await override(effectiveFormat);
     } else {
-      bytes = await createPdf(format);
+      bytes = await createPdf(format, sourceFormat: sourceFormat);
     }
     if (mounted && !_preview.isStopped && _baseCacheKey(format) == key) {
       _cachedBasePdf = bytes;
@@ -979,12 +984,15 @@ class _PrintingScreenState extends State<PrintingScreen> {
     }
   }
 
-  Future<Uint8List> createPdf(PdfPageFormat format) async {
+  Future<Uint8List> createPdf(
+    PdfPageFormat format, {
+    PdfPageFormat? sourceFormat,
+  }) async {
+    format = sourceFormat ?? _sourcePageFormat(format);
     if (widget.prebuiltBlocks != null) {
       return _createPrebuiltPdf(format);
     }
     String dataString = await _dataFuture;
-    format = _sourcePageFormat(format);
 
     final shouldReplaceHolyNames = _shouldReplaceHolyNames;
 
@@ -1026,7 +1034,6 @@ class _PrintingScreenState extends State<PrintingScreen> {
 
   /// יוצר PDF מבלוקים מוכנים מראש (כרטיסיית מפרשים).
   Future<Uint8List> _createPrebuiltPdf(PdfPageFormat format) async {
-    format = _sourcePageFormat(format);
     final bookName = widget.documentTitle ?? widget.bookId;
     final blocks = _mapPrebuiltBlocks(widget.prebuiltBlocks ?? const []);
     return _renderBlocksToPdf(

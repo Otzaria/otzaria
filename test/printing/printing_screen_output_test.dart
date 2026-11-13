@@ -3,6 +3,12 @@ import 'dart:ffi' hide Size;
 import 'dart:io';
 
 import 'package:bloc_test/bloc_test.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
+import 'package:otzaria/divine_names/models/divine_name_spans.dart';
+import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
+import 'package:otzaria/models/books.dart';
+import 'package:otzaria/text_book/models/book_notes.dart';
+import 'package:otzaria/text_book/repository/book_notes_repository.dart';
 import 'package:ffi/ffi.dart' show using;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -507,5 +513,161 @@ void main() {
       },
       timeout: const Timeout(Duration(minutes: 2)),
     );
+  }
+  for (final prebuilt in [false, true]) {
+    for (final initialPages in [1, 2]) {
+      testWidgets(
+        'שינוי מ-$initialPages ל-${3 - initialPages} עמודים בזמן טעינת נתוני ${prebuilt ? 'מפרשים' : 'טקסט'} שומר את כיוון המשימה',
+        (tester) async {
+          tester.view.physicalSize = const Size(1600, 1200);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.reset);
+          final pendingNames = Completer<DivineNameSpans>();
+          addTearDown(() {
+            if (!pendingNames.isCompleted) {
+              pendingNames.complete(DivineNameSpans.empty);
+            }
+          });
+          final lines = ['ספר', for (var i = 1; i <= 100; i++) 'שורת בדיקה $i'];
+          DivineNamesRepository.instance.clear();
+          BookNotesRepository.instance.clear();
+          DivineNamesRepository.instance.debugLoader =
+              (
+                title, {
+                categoryId,
+                required source,
+              }) => pendingNames.future;
+          BookNotesRepository.instance.debugLoader =
+              (
+                title, {
+                categoryId,
+                required source,
+              }) async => BookNotes.empty;
+          addTearDown(() {
+            DivineNamesRepository.instance
+              ..debugLoader = null
+              ..clear();
+            BookNotesRepository.instance
+              ..debugLoader = null
+              ..clear();
+          });
+          final platform = _CapturingPrintingPlatform();
+          PrintingPlatform.instance = platform;
+          addTearDown(() async {
+            if (!platform.job.isCompleted) platform.job.complete(false);
+            await tester.pumpWidget(const SizedBox());
+            await drainPrintingRasterQueue(tester);
+          });
+          final settingsBloc = _MockSettingsBloc();
+          whenListen(
+            settingsBloc,
+            const Stream<SettingsState>.empty(),
+            initialState: SettingsState.initial(),
+          );
+          await tester.runAsync(pdfrxFlutterInitialize);
+          await tester.pumpWidget(
+            RepositoryProvider<SettingsRepository>.value(
+              value: _FakeSettingsRepository(),
+              child: BlocProvider<SettingsBloc>.value(
+                value: settingsBloc,
+                child: MaterialApp(
+                  builder: (context, child) => MediaQuery(
+                    data: MediaQuery.of(
+                      context,
+                    ).copyWith(textScaler: const TextScaler.linear(0.5)),
+                    child: child!,
+                  ),
+                  home: PrintingScreen(
+                    data: Future.value(lines.join('\n')),
+                    prebuiltBlocks: prebuilt
+                        ? [
+                            for (final line in lines)
+                              PrintBlock(
+                                kind: PrintBlockKind.commentary,
+                                text: line,
+                              ),
+                          ]
+                        : null,
+                    startLine: 1,
+                    endLine: 101,
+                    bookId: 'ספר בדיקה',
+                    book: TextBook(title: 'ספר בדיקה'),
+                    protection: BookProtection.none,
+                  ),
+                ),
+              ),
+            ),
+          );
+          await tester.pump();
+          tester
+              .widget<PrintingOrientationDropdownRow>(
+                find.byType(PrintingOrientationDropdownRow),
+              )
+              .onChanged(pw.PageOrientation.landscape);
+          void setPages(int value) => tester
+              .widget<PrintingPagesPerSheetDropdownRow>(
+                find.byType(PrintingPagesPerSheetDropdownRow),
+              )
+              .onChanged(value);
+          setPages(initialPages);
+          await tester.pump(const Duration(milliseconds: 300));
+          await tester.tap(find.text('הדפסה'));
+          await tester.pump();
+          expect(platform.onLayout, isNotNull);
+          var outputReady = false;
+          final pendingOutput = Future.value(
+            platform.onLayout!(PdfPageFormat.a4),
+          )..then((_) => outputReady = true);
+          await tester.pump(const Duration(milliseconds: 50));
+          expect(
+            outputReady,
+            isFalse,
+            reason: 'נתוני הספר עדיין ממתינים בזמן שינוי ההגדרות.',
+          );
+          setPages(3 - initialPages);
+          await tester.pump(const Duration(milliseconds: 300));
+          expect(outputReady, isFalse);
+          pendingNames.complete(DivineNameSpans.empty);
+          final output = await _settle(tester, pendingOutput);
+          platform.job.complete(false);
+          await tester.pump();
+          Future<void> expectGeometry(Uint8List bytes, int pages) async {
+            final document = await _settle(tester, PdfDocument.openData(bytes));
+            final sheet = document.pages.first.size;
+            await _settle(tester, document.dispose());
+            expect(sheet.width, closeTo(PdfPageFormat.a4.landscape.width, 0.1));
+            expect(
+              sheet.height,
+              closeTo(PdfPageFormat.a4.landscape.height, 0.1),
+            );
+            if (pages == 2) {
+              final placements = await _settle(
+                tester,
+                _pdfFirstSheet(bytes, 1, 2),
+              );
+              expect(placements, hasLength(2));
+              for (final placement in placements) {
+                expect(
+                  placement.page.width,
+                  closeTo(placement.cell.width, 0.1),
+                );
+                expect(
+                  placement.page.height,
+                  closeTo(placement.cell.height, 0.1),
+                );
+              }
+            }
+          }
+
+          await expectGeometry(output, initialPages);
+          final nextOutput = await _settle(
+            tester,
+            Future.value(platform.onLayout!(PdfPageFormat.a4)),
+          );
+          await expectGeometry(nextOutput, 3 - initialPages);
+        },
+        timeout: const Timeout(Duration(minutes: 2)),
+      );
+    }
   }
 }
