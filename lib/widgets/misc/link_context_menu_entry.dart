@@ -92,6 +92,28 @@ double previewFontSize(SettingsState settingsState, double? maxFontSize) =>
 double compactPreviewTitleFontSize(double contentFontSize) =>
     (contentFontSize * 0.85).clamp(11.0, 14.0);
 
+// שורת כותרת לבדה נשארת בלי attributes, במסלול המהיר של SmartTextWidget.
+final _headingLineBreak = RegExp(r'<br><h[1-6][\s>]|</h[1-6]><br>');
+final _headingTag = RegExp(r'<h[1-6](?=[\s>])[^>]*>');
+final _styleAttribute = RegExp(
+  r'''\sstyle\s*=\s*["']?''',
+  caseSensitive: false,
+);
+
+/// כותרות בתוכן קישור-טווח בלי שולי HTML, כמו שורת כותרת בספר. ה-`<br>` שבין
+/// השורות נשארים: הטקסט המועתק תלוי בהם.
+String _withoutHeadingLineMargins(String html) {
+  if (!_headingLineBreak.hasMatch(html)) return html;
+  return html.replaceAllMapped(_headingTag, (m) {
+    final tag = m[0]!;
+    final style = _styleAttribute.firstMatch(tag);
+    // לפני ה-style הקיים, כדי ששוליים מפורשים בו יגברו.
+    return style == null
+        ? '${tag.substring(0, 3)} style="margin:0"${tag.substring(3)}'
+        : tag.replaceRange(style.end, style.end, 'margin:0;');
+  });
+}
+
 /// תוכן חלונית התצוגה המקדימה של קישור — כותרת (כתובת היעד) ותוכן הקטע,
 /// מעוצב לפי הגדרות תצוגת המפרשים (גופן, ניקוד, טעמים).
 class LinkHoverPreviewContent extends StatefulWidget {
@@ -316,7 +338,7 @@ class _LinkHoverPreviewContentState extends State<LinkHoverPreviewContent> {
                     }
 
                     final content = SmartTextWidget(
-                      text: rawContent,
+                      text: _withoutHeadingLineMargins(rawContent),
                       settings: RenderSettings.fromProfile(
                         profile,
                         fontSize: fontSize,
