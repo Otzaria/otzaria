@@ -1214,11 +1214,11 @@ packages:
     dependency: "direct main"
     description:
       path: package
-      ref: "v1.2.10"
-      resolved-ref: a6935958d72cebf7080874f30bb96bdfcbfed7a1
+      ref: "v1.3.0"
+      resolved-ref: "94285f5eb96e04ae808301eb8cff935b4b7e3f07"
       url: "https://github.com/palmoni5/mekorot.git"
     source: git
-    version: "1.2.10"
+    version: "1.3.0"
   otzaria_report_contract:
     dependency: "direct main"
     description:

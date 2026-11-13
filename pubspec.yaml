@@ -115,7 +115,7 @@ dependencies:
   otzaria_mekorot:
     git:
       url: https://github.com/palmoni5/mekorot.git
-      ref: v1.2.10
+      ref: v1.3.0
       path: package
   # ed25519 לאימות עדכוני מסדים מצורפים — Dart טהור, בלי תלויות.
   pinenacl: ^0.6.0
