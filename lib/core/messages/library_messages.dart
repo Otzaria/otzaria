@@ -27,8 +27,11 @@ abstract class LibraryMessages {
 
   static const String hebrewBookDownloadCanceled = 'ההורדה בוטלה';
 
-  static String hebrewBookDownloadError(Object error) =>
-      'שגיאה בהורדת הספר: $error';
+  static String hebrewBookDownloadServerError(int statusCode) =>
+      'שגיאה בהורדת הספר: השרת החזיר $statusCode';
+
+  static const String hebrewBookDownloadError =
+      'הורדת הספר נכשלה. פרטי השגיאה נרשמו ביומן השגיאות.';
 
   // ===== חיפוש =====
   static String distanceSetAsDefault(int distance) =>
