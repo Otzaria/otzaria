@@ -83,6 +83,40 @@ void main() {
     }
   }
 
+  void emitLoaded(List<int> visibleIndices) => bloc.emit(
+    TextBookLoaded(
+      book: book,
+      content: List<String>.filled(_totalLines, ''),
+      fontSize: 20,
+      showLeftPane: true,
+      showSplitView: false,
+      activeCommentators: const [],
+      commentatorGroups: const [],
+      availableCommentators: const [],
+      links: const [],
+      linksByLine: const {},
+      tableOfContents: const [],
+      removeNikud: false,
+      visibleIndices: visibleIndices,
+      pinLeftPane: false,
+      searchText: '',
+    ),
+  );
+
+  testWidgets('גלילה בשורה אחת בתחילת קטע התמונות, כשהצד שמאחור שלם, אינה '
+      'טוענת שוב', (tester) async {
+    emitLoaded(const [_firstImageLine + 1]);
+    bloc.add(const SetTabVisibility(true, allowBackgroundWarming: false));
+    await settle(tester);
+
+    final requestsAfterLoad = repository.requests;
+    for (final line in const [2002, 2001, 2002, 2001]) {
+      bloc.add(UpdateVisibleIndecies([line]));
+      await settle(tester);
+    }
+    expect(repository.requests, requestsAfterLoad);
+  });
+
   testWidgets('חלון התוכן סביב קטע תמונות מוטמעות נטען בתקרה ולא נטען שוב '
       'בכל גלילה', (tester) async {
     bloc.emit(
