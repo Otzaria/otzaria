@@ -284,9 +284,16 @@ int _pickBestOccurrence(
 }
 
 /// סוף הטווח הגולמי: אחרי התו האחרון שהתאים והניקוד שלו, בלי הפיסוק שאחריו.
-int _rawEnd(LineProjection p, String rawLine, int matchEnd) {
+int _rawEnd(
+  LineProjection p,
+  String rawLine,
+  int matchEnd, {
+  bool plainText = false,
+}) {
   final lastRawStart = p.rawIndex[matchEnd - 1];
-  final entity = _htmlEntity.matchAsPrefix(rawLine, lastRawStart);
+  final entity = plainText
+      ? null
+      : _htmlEntity.matchAsPrefix(rawLine, lastRawStart);
   var end = entity?.end ?? lastRawStart + 1;
   while (end < rawLine.length && _isDiacritic(rawLine.codeUnitAt(end))) {
     end++;
@@ -314,6 +321,7 @@ int _rawToNormalizedIndex(LineProjection p, int rawHint) {
 ///
 /// [anchorText] הוא הטקסט המנורמל שנבחר. [prefix]/[suffix] הם הקשר מנורמל
 /// לבחירת המופע הנכון. [hintStart] נמדד ב-[hintSourceLine] אם סופקה.
+/// [plainText] — [rawLine] הוא טקסט בלי HTML, והטווח נמדד בו.
 NoteAnchorRange? locateAnchor({
   required String rawLine,
   required String anchorText,
@@ -321,6 +329,7 @@ NoteAnchorRange? locateAnchor({
   String? suffix,
   int? hintStart,
   String? hintSourceLine,
+  bool plainText = false,
 }) {
   final needle = normalizeAnchorText(anchorText);
   if (needle.isEmpty) return null;
@@ -333,6 +342,7 @@ NoteAnchorRange? locateAnchor({
       rawLine,
       omitInjectedAnchorMarkers: hintSourceLine != null,
       joinAtPunctuation: joinAtPunctuation,
+      plainText: plainText,
     );
     final occurrences = _allOccurrences(p.normalized, needle);
     if (occurrences.isEmpty) continue;
@@ -358,7 +368,7 @@ NoteAnchorRange? locateAnchor({
     for (final start in occurrences) {
       final end = start + needle.length;
       final rawStart = p.rawIndex[start];
-      final rawEnd = _rawEnd(p, rawLine, end);
+      final rawEnd = _rawEnd(p, rawLine, end, plainText: plainText);
       if (rawStart < 0 || rawEnd > rawLine.length || rawStart >= rawEnd) {
         continue;
       }
@@ -388,7 +398,8 @@ NoteAnchorRange? locateAnchor({
 ///
 /// [selectionColumnHint] הוא עמודת ההתחלה המשוערת של הבחירה (במרחב המרונדר,
 /// בלי ניקוד) — כשהביטוי חוזר באותה שורה, נבחר המופע הקרוב ביותר לעמודה זו
-/// במקום המופע הראשון. בלי רמז — נבחר המופע הראשון.
+/// במקום המופע הראשון. בלי רמז — נבחר המופע הראשון. [occurrenceIndex] (מ-0)
+/// בוחר מופע מפורש וגובר על הרמזים; מופע שאינו קיים מחזיר null.
 ComputedAnchor? computeAnchorForSelection({
   required String rawLine,
   required String selectedText,
@@ -396,6 +407,7 @@ ComputedAnchor? computeAnchorForSelection({
   int? sourceSelectionOffset,
   String? sourceSelectionText,
   bool punctuationHidden = false,
+  int? occurrenceIndex,
 }) {
   final needle = normalizeAnchorText(selectedText);
   if (needle.isEmpty) return null;
@@ -403,6 +415,10 @@ ComputedAnchor? computeAnchorForSelection({
   final p = projectLine(rawLine);
   final occurrences = _allOccurrences(p.normalized, needle);
   if (occurrences.isEmpty) return null;
+  if (occurrenceIndex != null &&
+      (occurrenceIndex < 0 || occurrenceIndex >= occurrences.length)) {
+    return null;
+  }
 
   int matchStart = occurrences.first;
   int? normalizedHint;
@@ -442,6 +458,7 @@ ComputedAnchor? computeAnchorForSelection({
       normalizedHint,
     );
   }
+  if (occurrenceIndex != null) matchStart = occurrences[occurrenceIndex];
   final matchEnd = matchStart + needle.length;
 
   final prefixStart = (matchStart - _kContextLength) < 0

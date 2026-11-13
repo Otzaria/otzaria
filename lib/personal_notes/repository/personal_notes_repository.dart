@@ -69,7 +69,7 @@ class PersonalNotesRepository {
 
   Future<List<PersonalNote>> addNote({
     required String bookId,
-    required int lineNumber,
+    required int? lineNumber,
     required String content,
     required String contentPlain,
     required PersonalNoteContentFormat contentFormat,
@@ -80,8 +80,13 @@ class PersonalNotesRepository {
     bool punctuationHidden = false,
     PdfNoteAnchor? pdfAnchor,
     int? categoryId,
+    int? occurrenceIndex,
+    bool requireWordAnchor = false,
+    int? endLineNumber,
   }) async {
-    final bookContent = await _loadBookContent(bookId, categoryId: categoryId);
+    final bookContent = lineNumber == null
+        ? ''
+        : await _loadBookContent(bookId, categoryId: categoryId);
     return _service.addNote(
       bookId: bookId,
       bookContent: bookContent,
@@ -95,13 +100,16 @@ class PersonalNotesRepository {
       sourceSelectionOffset: sourceSelectionOffset,
       punctuationHidden: punctuationHidden,
       pdfAnchor: pdfAnchor,
+      occurrenceIndex: occurrenceIndex,
+      requireWordAnchor: requireWordAnchor,
+      endLineNumber: endLineNumber,
     );
   }
 
   /// מסיים אחרי הכתיבה; המאזינים ל-PersonalNotesChanges מרעננים בנפרד.
   Future<PersonalNote> createNote({
     required String bookId,
-    required int lineNumber,
+    required int? lineNumber,
     required String content,
     required String contentPlain,
     required PersonalNoteContentFormat contentFormat,
@@ -112,8 +120,13 @@ class PersonalNotesRepository {
     bool punctuationHidden = false,
     PdfNoteAnchor? pdfAnchor,
     int? categoryId,
+    int? endLineNumber,
+    int? occurrenceIndex,
+    bool requireWordAnchor = false,
   }) async {
-    final bookContent = await _loadBookContent(bookId, categoryId: categoryId);
+    final bookContent = lineNumber == null
+        ? ''
+        : await _loadBookContent(bookId, categoryId: categoryId);
     return _service.createNote(
       bookId: bookId,
       bookContent: bookContent,
@@ -127,6 +140,9 @@ class PersonalNotesRepository {
       sourceSelectionOffset: sourceSelectionOffset,
       punctuationHidden: punctuationHidden,
       pdfAnchor: pdfAnchor,
+      endLineNumber: endLineNumber,
+      occurrenceIndex: occurrenceIndex,
+      requireWordAnchor: requireWordAnchor,
     );
   }
 
@@ -208,6 +224,33 @@ class PersonalNotesRepository {
       noteId: noteId,
       lineNumber: lineNumber,
       pdfAnchor: pdfAnchor,
+    );
+  }
+
+  Future<PersonalNote> setNoteLocation({
+    required String bookId,
+    required String noteId,
+    required PersonalNoteScope scope,
+    int? lineNumber,
+    int? endLineNumber,
+    String? sourceText,
+    int? sourceOffset,
+    int? occurrenceIndex,
+    int? categoryId,
+  }) async {
+    final bookContent = scope == PersonalNoteScope.book
+        ? ''
+        : await _loadBookContent(bookId, categoryId: categoryId);
+    return _service.setNoteLocation(
+      bookId: bookId,
+      bookContent: bookContent,
+      noteId: noteId,
+      scope: scope,
+      lineNumber: lineNumber,
+      endLineNumber: endLineNumber,
+      sourceText: sourceText,
+      sourceOffset: sourceOffset,
+      occurrenceIndex: occurrenceIndex,
     );
   }
 

@@ -988,7 +988,7 @@ class _PersonalNotesManagerScreenState
   int _getMissingNotesCount() {
     int count = 0;
     for (final state in _bookStates.values) {
-      count += state.missingNotes.length;
+      count += state.missingNotes.where((note) => !note.isBookNote).length;
     }
     return count;
   }
@@ -1088,8 +1088,14 @@ class _PersonalNotesManagerScreenState
         for (final note in state.locatedNotes) {
           allNotes.add(_NoteWithBook(note: note, bookId: book.bookId));
         }
-        if (_selectedFilter == '__missing__' || _selectedFilter == null) {
-          for (final note in state.missingNotes) {
+        for (final note in state.missingNotes) {
+          // הערה על הספר כולו אינה "ללא מיקום": היא מוצגת עם הספר שלה.
+          if (note.isBookNote) {
+            if (_selectedFilter != '__missing__') {
+              allNotes.add(_NoteWithBook(note: note, bookId: book.bookId));
+            }
+          } else if (_selectedFilter == '__missing__' ||
+              _selectedFilter == null) {
             allNotes.add(
               _NoteWithBook(note: note, bookId: book.bookId, isMissing: true),
             );
@@ -1357,7 +1363,11 @@ class _PersonalNotesManagerScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isMissing ? 'הערה ללא מיקום' : note.title,
+                  isMissing
+                      ? 'הערה ללא מיקום'
+                      : note.isBookNote
+                      ? 'הערה על הספר'
+                      : note.title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: cs.onSurface,

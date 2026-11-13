@@ -17,6 +17,7 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
+import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
 import 'package:otzaria/personal_notes/widgets/note_tile.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
@@ -644,20 +645,54 @@ void main() {
         selectedIndex: 4,
       );
 
+      const jump = 'העברה לשורה שנבחרה בספר';
+      // הלוח אינו מקבל מאגר, ולכן הסרגל נבנה כאן ישירות, עם תוכן לספר.
+      Future<void> openLocation(String bookId) async {
+        final textBookBloc = _TestTextBookBloc(reader);
+        addTearDown(textBookBloc.close);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MultiBlocProvider(
+              providers: [
+                BlocProvider<TextBookBloc>.value(value: textBookBloc),
+                BlocProvider<PersonalNotesBloc>.value(
+                  value: StubPersonalNotesBloc(
+                    PersonalNotesState(
+                      isLoading: false,
+                      bookId: bookId,
+                      locatedNotes: [noteOn(bookId)],
+                      missingNotes: const [],
+                      errorMessage: null,
+                      showOnlyVisible: false,
+                    ),
+                  ),
+                ),
+              ],
+              child: Scaffold(
+                body: PersonalNotesSidebar(
+                  bookId: bookId,
+                  repository: _ContentRepository(),
+                  onNavigateToLine: (_, {note}) {},
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('מיקום ההערה'));
+        await tester.pumpAndSettle();
+        expect(find.text('מיקום ההערה'), findsOneWidget);
+      }
+
       // בהערות הספר שבקורא — השורה הנבחרת מוצעת.
-      await pumpNotes(tester, reader: reader, notesBookIdOverride: null);
-      await tester.tap(find.byTooltip('שנה שיוך לשורה נבחרת'));
-      await tester.pumpAndSettle();
-      expect(find.text('שייך לשורה נבחרת (5)'), findsOneWidget);
+      await openLocation('טור');
+      expect(find.text(jump), findsOneWidget);
       await tester.tap(find.text('ביטול'));
       await tester.pumpAndSettle();
 
-      // בהערות המפרש — שורה 5 בטור אינה שורה בבית יוסף; רק הקלדת מספר שורה.
-      await pumpNotes(tester, reader: reader);
-      await tester.tap(find.byTooltip('שנה שיוך לשורה נבחרת'));
-      await tester.pumpAndSettle();
-      expect(find.text('שייך לשורה נבחרת (5)'), findsNothing);
-      expect(find.text('מיקום נוכחי: שורה 50'), findsOneWidget);
+      // בהערות המפרש — שורה 5 בטור אינה שורה בבית יוסף.
+      await openLocation('בית יוסף');
+      expect(find.text(jump), findsNothing);
     });
 
     testWidgets('"רק לטקסט הנראה" אינו מסנן לפי השורות הנראות בספר הראשי', (
@@ -785,6 +820,13 @@ class _TestLibraryBloc extends Bloc<LibraryEvent, LibraryState>
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// מאגר הערות שתוכן כל ספר בו הוא 60 שורות.
+class _ContentRepository extends PersonalNotesRepository {
+  @override
+  Future<String> loadBookContent(String bookId, {int? categoryId}) async =>
+      List.generate(60, (i) => 'שורה ${i + 1}').join('\n');
 }
 
 class _TocProvider implements LibraryProvider {

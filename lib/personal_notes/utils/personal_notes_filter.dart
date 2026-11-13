@@ -42,8 +42,7 @@ PersonalNotesFilterResult filterPersonalNotes({
         return pdfPages.contains(pdfAnchor.pageNumber);
       }
       if (visibleLines.isEmpty) return true;
-      final lineNumber = note.lineNumber;
-      return lineNumber != null && visibleLines.contains(lineNumber - 1);
+      return visibleLines.any((index) => note.coversLine(index + 1));
     }).toList();
   }
 
@@ -55,9 +54,14 @@ PersonalNotesFilterResult filterPersonalNotes({
     }).toList();
   }
 
+  // הערות על הספר כולו מוצגות גם כשמסננים לטקסט הנראה.
   var filteredMissing = <PersonalNote>[];
-  if (!showOnlyVisible) {
-    filteredMissing = missingNotes.where(included).toList();
+  if (!showOnlyVisible || missingNotes.any((note) => note.isBookNote)) {
+    filteredMissing = missingNotes
+        .where(
+          (note) => included(note) && (!showOnlyVisible || note.isBookNote),
+        )
+        .toList();
     if (searchQuery.isNotEmpty) {
       final query = searchQuery.toLowerCase();
       filteredMissing = filteredMissing.where((note) {

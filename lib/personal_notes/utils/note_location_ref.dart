@@ -41,6 +41,11 @@ String? personalNoteLocationRef(
     if (tableOfContents == null) return null;
     // lineNumber הוא 1-based ואילו אינדקס ה-TOC הוא 0-based.
     ref = refFromTocList(lineNumber - 1, tableOfContents).trim();
+    final last = note.endLineNumber;
+    if (last != null && last > lineNumber) {
+      final endRef = refFromTocList(last - 1, tableOfContents).trim();
+      if (endRef.isNotEmpty && endRef != ref) ref = '$ref – $endRef';
+    }
   }
 
   if (includeBookTitle) {

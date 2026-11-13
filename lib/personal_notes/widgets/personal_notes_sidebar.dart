@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -13,6 +14,8 @@ import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/personal_notes/utils/edit_personal_note_location.dart';
+import 'package:otzaria/personal_notes/widgets/personal_note_editor_dialog.dart';
 import 'package:otzaria/personal_notes/utils/note_location_ref.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_filter.dart';
@@ -30,6 +33,7 @@ import 'package:otzaria/personal_notes/widgets/inline_note_editor.dart';
 import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_display/models/text_display_profile.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
@@ -335,6 +339,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               NotesSearchHeader(
+                onAddBookNote: () => _addBookNote(context),
                 bookId: widget.bookId,
                 categoryId: widget.categoryId,
                 isPdf: widget.isPdf,
@@ -509,6 +514,64 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
       items.add(_buildNewNoteEditor(context, state));
     }
 
+    final bookNotes = [
+      for (final note in filtered.missingNotes)
+        if (note.isBookNote) note,
+    ];
+    final missingNotes = [
+      for (final note in filtered.missingNotes)
+        if (!note.isBookNote) note,
+    ];
+    Widget sectionLabel(String text) => Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTokens.spaceMD,
+        vertical: AppTokens.spaceSM,
+      ),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+
+    // הערות על הספר כולו — בראש הרשימה
+    if (bookNotes.isNotEmpty) {
+      if (filtered.locatedNotes.isNotEmpty || missingNotes.isNotEmpty) {
+        items.add(sectionLabel('על הספר כולו'));
+      }
+      items.addAll(
+        bookNotes.map(
+          (note) => NoteTile(
+            key: ValueKey(note.id),
+            note: note,
+            onSave: (result) => _saveInline(context, note, result),
+            onDelete: () => _confirmDelete(context, note),
+            onLinkTap: (url) => _handleNoteLinkTap(context, url),
+            defaultExpanded: defaultExpanded,
+            bookId: widget.bookId,
+            categoryId: widget.categoryId,
+            linkableNotes: linkableNotes,
+            backgroundColor: cardColor,
+            extraAction: AppIconButton(
+              size: AppIconButtonSize.small,
+              tooltip: 'מיקום ההערה',
+              icon: const Icon(FluentIcons.pin_24_regular),
+              onPressed: () => _reposition(
+                context,
+                note,
+                selectedLineNumber: selectedLineNumber,
+                tableOfContents: tableOfContents,
+              ),
+            ),
+          ),
+        ),
+      );
+      if (filtered.locatedNotes.isNotEmpty) {
+        items.add(sectionLabel('לפי מיקום בספר'));
+      }
+    }
+
     // הערות ממוקמות
     if (filtered.locatedNotes.isNotEmpty) {
       items.addAll(
@@ -536,9 +599,14 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
             linkableNotes: linkableNotes,
             extraAction: AppIconButton(
               size: AppIconButtonSize.small,
-              tooltip: widget.isPdf ? 'שנה מיקום בדף' : 'שנה שיוך לשורה נבחרת',
+              tooltip: widget.isPdf ? 'שנה מיקום בדף' : 'מיקום ההערה',
               icon: const Icon(FluentIcons.pin_24_regular),
-              onPressed: () => _reanchorNote(context, note, selectedLineNumber),
+              onPressed: () => _reposition(
+                context,
+                note,
+                selectedLineNumber: selectedLineNumber,
+                tableOfContents: tableOfContents,
+              ),
             ),
           ),
         ),
@@ -546,29 +614,21 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     }
 
     // הערות חסרות מיקום
-    if (filtered.missingNotes.isNotEmpty) {
-      if (filtered.locatedNotes.isNotEmpty) {
-        items.add(
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppTokens.spaceMD,
-              vertical: AppTokens.spaceSM,
-            ),
-            child: Text(
-              'הערות חסרות מיקום',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-        );
+    if (missingNotes.isNotEmpty) {
+      if (filtered.locatedNotes.isNotEmpty || bookNotes.isNotEmpty) {
+        items.add(sectionLabel('הערות חסרות מיקום'));
       }
       items.addAll(
-        filtered.missingNotes.map(
+        missingNotes.map(
           (note) => NoteTile(
             key: ValueKey(note.id),
             note: note,
-            onTap: () => _reposition(context, note),
+            onTap: () => _reposition(
+              context,
+              note,
+              selectedLineNumber: selectedLineNumber,
+              tableOfContents: tableOfContents,
+            ),
             onSave: (result) => _saveInline(context, note, result),
             onDelete: () => _confirmDelete(context, note),
             onLinkTap: (url) => _handleNoteLinkTap(context, url),
@@ -592,7 +652,12 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
               size: AppIconButtonSize.small,
               tooltip: 'מיקום מחדש',
               icon: const Icon(FluentIcons.location_24_regular),
-              onPressed: () => _reposition(context, note),
+              onPressed: () => _reposition(
+                context,
+                note,
+                selectedLineNumber: selectedLineNumber,
+                tableOfContents: tableOfContents,
+              ),
             ),
           ),
         ),
@@ -648,8 +713,8 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     if (state.expandRequestPdfAnchor case final anchor?) {
       return note.pdfAnchor == anchor;
     }
-    return note.lineNumber == state.expandRequestLineNumber &&
-        state.expandRequestLineNumber != null;
+    final line = state.expandRequestLineNumber;
+    return line != null && note.coversLine(line);
   }
 
   void _revealRequestedItem(
@@ -806,105 +871,91 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     }
   }
 
-  Future<void> _reposition(BuildContext context, PersonalNote note) async {
+  /// מיקום חדש להערה: עורך המיקום בספר טקסט, ומספר עמוד/נקודה ב-PDF.
+  Future<void> _reposition(
+    BuildContext context,
+    PersonalNote note, {
+    int? selectedLineNumber,
+    List<TocEntry>? tableOfContents,
+  }) async {
     if (widget.onReanchorNote case final reanchor?) {
       await reanchor(note);
       return;
     }
+    if (!widget.isPdf) {
+      await editPersonalNoteLocation(
+        context,
+        note: note,
+        repository: _notesRepository,
+        categoryId: widget.categoryId,
+        readerProfile: _readerDisplayProfile(),
+        tableOfContents: tableOfContents,
+        selectedLine: selectedLineNumber ?? _firstVisibleLine(),
+      );
+      return;
+    }
     final bloc = context.read<PersonalNotesBloc>();
+    final current = note.lineNumber ?? note.lastKnownLineNumber;
     final result = await showInputDialog(
       context: context,
-      title: 'שחזור מיקום הערה',
+      title: 'שנה מיקום הערה',
       icon: FluentIcons.location_24_regular,
-      subtitle: note.lastKnownLineNumber != null
-          ? 'המיקום האחרון הידוע: שורה ${note.lastKnownLineNumber}'
-          : null,
-      labelText: 'שורה חדשה',
-      hintText: 'הקלד מספר שורה',
-      initialValue: note.lastKnownLineNumber?.toString() ?? '',
+      subtitle: current != null ? 'מיקום נוכחי: עמוד $current' : null,
+      labelText: 'עמוד חדש',
+      hintText: 'הקלד מספר עמוד',
+      initialValue: current?.toString() ?? '',
       keyboardType: TextInputType.number,
     );
-
     final newLine = result != null ? int.tryParse(result) : null;
-
-    if (newLine != null) {
-      if (!mounted) return;
-      bloc.add(
-        RepositionPersonalNote(
-          bookId: widget.bookId,
-          noteId: note.id,
-          lineNumber: newLine,
-          categoryId: widget.categoryId,
-        ),
-      );
-    }
-  }
-
-  void _reanchorToSelectedLineWith(
-    PersonalNotesBloc bloc,
-    PersonalNote note,
-    int selectedLineNumber,
-  ) {
+    if (newLine == null || !mounted) return;
     bloc.add(
       RepositionPersonalNote(
         bookId: widget.bookId,
         noteId: note.id,
-        lineNumber: selectedLineNumber,
+        lineNumber: newLine,
         categoryId: widget.categoryId,
       ),
     );
   }
 
-  Future<void> _reanchorNote(
-    BuildContext context,
-    PersonalNote note,
-    int? selectedLineNumber,
-  ) async {
-    if (widget.onReanchorNote case final reanchor?) {
-      await reanchor(note);
-      return;
-    }
-    final bloc = context.read<PersonalNotesBloc>();
-    if (selectedLineNumber != null) {
-      final choice = await showSelectionDialog<String>(
-        context: context,
-        title: 'שינוי שיוך הערה',
-        icon: FluentIcons.pin_24_regular,
-        items: [
-          SelectionItem(
-            label: 'שייך לשורה נבחרת ($selectedLineNumber)',
-            value: 'selected',
-          ),
-          const SelectionItem(label: 'הקלד מספר שורה', value: 'manual'),
-        ],
-      );
-      if (!mounted) return;
-      if (choice == 'selected') {
-        _reanchorToSelectedLineWith(bloc, note, selectedLineNumber);
-        return;
-      }
-      if (choice == null) return;
-    }
+  /// השורה הראשונה (1-based) שנראית בקורא, כשאין שורה נבחרת.
+  int? _firstVisibleLine() {
+    final visible = _visibleLineIndices.value;
+    return visible.isEmpty ? null : visible.reduce(min) + 1;
+  }
 
-    if (!context.mounted) return;
-    final result = await showInputDialog(
+  /// הגדרות התצוגה של הקורא, כשההערות בחלונית הן של הספר שבו.
+  TextDisplayProfile? _readerDisplayProfile() {
+    if (!_hasTextBookBloc) return null;
+    final state = context.read<TextBookBloc>().state;
+    return state is TextBookLoaded && _isReaderBook(state)
+        ? state.bodyDisplayProfile
+        : null;
+  }
+
+  /// הערה חדשה על הספר כולו, בלי מיקום.
+  Future<void> _addBookNote(BuildContext context) async {
+    final state = context.read<PersonalNotesBloc>().state;
+    await showDialogUntilTornDown<PersonalNoteEditorResult>(
       context: context,
-      title: 'שנה שיוך הערה',
-      icon: FluentIcons.pin_24_regular,
-      subtitle: note.lineNumber != null
-          ? 'מיקום נוכחי: שורה ${note.lineNumber}'
-          : null,
-      labelText: 'שורה חדשה',
-      hintText: 'הקלד מספר שורה',
-      initialValue: note.lineNumber?.toString() ?? '',
-      keyboardType: TextInputType.number,
+      builder: (_) => PersonalNoteEditorDialog(
+        title: 'הערה על הספר',
+        icon: FluentIcons.book_open_24_regular,
+        bookId: widget.bookId,
+        categoryId: widget.categoryId,
+        linkableNotes: state.bookId == widget.bookId
+            ? [...state.locatedNotes, ...state.missingNotes]
+            : const [],
+        onSave: (result) => _notesRepository.createNote(
+          bookId: widget.bookId,
+          lineNumber: null,
+          content: result.content,
+          contentPlain: result.contentPlain,
+          contentFormat: result.contentFormat,
+          categoryId: widget.categoryId,
+        ),
+      ),
     );
-    if (!mounted) return;
-
-    final newLine = result != null ? int.tryParse(result) : null;
-    if (newLine != null) {
-      _reanchorToSelectedLineWith(bloc, note, newLine);
-    }
   }
 }
 

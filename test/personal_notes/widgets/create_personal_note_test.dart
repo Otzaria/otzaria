@@ -542,7 +542,7 @@ class _NotesRepository extends PersonalNotesRepository {
   @override
   Future<PersonalNote> createNote({
     required String bookId,
-    required int lineNumber,
+    required int? lineNumber,
     required String content,
     required String contentPlain,
     required PersonalNoteContentFormat contentFormat,
@@ -553,13 +553,16 @@ class _NotesRepository extends PersonalNotesRepository {
     bool punctuationHidden = false,
     PdfNoteAnchor? pdfAnchor,
     int? categoryId,
+    int? endLineNumber,
+    int? occurrenceIndex,
+    bool requireWordAnchor = false,
   }) async {
     attempts++;
     await onAdd?.call();
     writes.add(
       AddPersonalNote(
         bookId: bookId,
-        lineNumber: lineNumber,
+        lineNumber: lineNumber!,
         content: content,
         contentPlain: contentPlain,
         contentFormat: contentFormat,

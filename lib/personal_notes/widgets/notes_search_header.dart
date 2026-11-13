@@ -8,6 +8,7 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_filter.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 
 class NotesSearchHeader extends StatefulWidget {
@@ -20,8 +21,12 @@ class NotesSearchHeader extends StatefulWidget {
   final Set<String> pdfDocumentIds;
   final bool includeUnidentifiedPdfAnchors;
 
+  /// הוספת הערה על הספר כולו; בלעדיו הכפתור אינו מוצג.
+  final VoidCallback? onAddBookNote;
+
   const NotesSearchHeader({
     super.key,
+    this.onAddBookNote,
     required this.bookId,
     this.categoryId,
     this.isPdf = false,
@@ -113,6 +118,12 @@ class _NotesSearchHeaderState extends State<NotesSearchHeader> {
                     ),
                   ),
                   const SizedBox(width: 8),
+                  if (widget.onAddBookNote case final onAdd?)
+                    AppIconButton(
+                      tooltip: 'הערה על הספר',
+                      onPressed: onAdd,
+                      icon: const Icon(FluentIcons.book_add_24_regular),
+                    ),
                   IconButton(
                     tooltip: 'רענן',
                     onPressed: () {
