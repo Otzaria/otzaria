@@ -1735,5 +1735,19 @@
   "חפש בעברית": "Search in Hebrew",
   "העתק פירוש": "Copy the definition",
   "הגדל": "Maximize",
-  "עצור את החיפוש": "Stop the search"
+  "עצור את החיפוש": "Stop the search",
+  "לבטל את כל ההסתרות?": "Unhide everything?",
+  "כל הספרים והקטגוריות המוסתרים יחזרו להיראות בממשק.": "All hidden books and categories will be shown again.",
+  "הזנת סיסמה": "Enter password",
+  "ערוך תיאור": "Edit description",
+  "נקה סינון": "Clear filter",
+  "סגור חיפוש": "Close search",
+  "החלונית נעוצה לפי ההגדרות": "The panel is pinned in the settings",
+  "בטל נעיצה": "Unpin",
+  "נעץ את החלונית": "Pin the panel",
+  "הסתר ניווט": "Hide navigation",
+  "הצג ניווט": "Show navigation",
+  "שגיאה: {error}": "Error: {error}",
+  "בטל": "Undo",
+  "אין סימניות לספר בודד": "No single-book bookmarks"
 }

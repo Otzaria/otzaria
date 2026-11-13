@@ -17,7 +17,9 @@ import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -151,93 +153,69 @@ class _CrashPromptDialogState extends State<CrashPromptDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final maxWidth = WindowClass.of(context).isCompact
-        ? size.width * 0.95
-        : 560.0;
-
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _leave();
-      },
-      child: BlocProvider.value(
-        value: _bloc,
-        child: BlocConsumer<AppReportBloc, AppReportState>(
-          listenWhen: (previous, current) =>
-              current is AppReportEditing &&
-              (current.isFinished ||
-                  current.draftSaved ||
-                  current.draftDiscarded ||
-                  current.invalidField !=
-                      (previous is AppReportEditing
-                          ? previous.invalidField
-                          : null)),
-          listener: (context, state) async {
-            final editing = state as AppReportEditing;
-            if (editing.invalidField case final field?) {
-              UiSnack.showError(
-                appReportInvalidFieldMessage(
-                  field,
-                  emailEmpty: editing.email.trim().isEmpty,
-                  context: context,
-                ),
-              );
-            }
-            if (editing.draftSaved || editing.draftDiscarded) {
-              await _saveMode();
-              if (!context.mounted) return;
-              UiSnack.show(
-                context.settingsText(
-                  editing.draftDiscarded
-                      ? ReportMessages.appReportDraftDiscarded
-                      : ReportMessages.appReportDraftSaved,
-                ),
-              );
-              Navigator.of(context).pop();
-            } else if (editing.isFinished && editing.result != null) {
-              await _saveMode();
-              if (!context.mounted) return;
-              showAppReportResultSnack(editing.result!, context: context);
-              Navigator.of(context).pop(editing.result);
-            }
-          },
-          builder: (context, state) {
-            final editing = state is AppReportEditing ? state : null;
-            if (editing != null && _email.text != editing.email) {
-              _email.text = editing.email;
-            }
-            return Dialog(
-              clipBehavior: Clip.antiAlias,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: maxWidth,
-                  maxHeight: size.height * 0.9,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildHeader(context, editing),
-                    Flexible(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(
-                          AppTokens.spaceLG,
-                          AppTokens.spaceMD,
-                          AppTokens.spaceLG,
-                          0,
-                        ),
-                        child: _buildBody(context, editing),
-                      ),
-                    ),
-                    const Divider(height: 1),
-                    _buildActions(context, editing),
-                  ],
-                ),
+    return BlocProvider.value(
+      value: _bloc,
+      child: BlocConsumer<AppReportBloc, AppReportState>(
+        listenWhen: (previous, current) =>
+            current is AppReportEditing &&
+            (current.isFinished ||
+                current.draftSaved ||
+                current.draftDiscarded ||
+                current.invalidField !=
+                    (previous is AppReportEditing
+                        ? previous.invalidField
+                        : null)),
+        listener: (context, state) async {
+          final editing = state as AppReportEditing;
+          if (editing.invalidField case final field?) {
+            UiSnack.showError(
+              appReportInvalidFieldMessage(
+                field,
+                emailEmpty: editing.email.trim().isEmpty,
+                context: context,
               ),
             );
-          },
-        ),
+          }
+          if (editing.draftSaved || editing.draftDiscarded) {
+            await _saveMode();
+            if (!context.mounted) return;
+            UiSnack.show(
+              context.settingsText(
+                editing.draftDiscarded
+                    ? ReportMessages.appReportDraftDiscarded
+                    : ReportMessages.appReportDraftSaved,
+              ),
+            );
+            Navigator.of(context).pop();
+          } else if (editing.isFinished && editing.result != null) {
+            await _saveMode();
+            if (!context.mounted) return;
+            showAppReportResultSnack(editing.result!, context: context);
+            Navigator.of(context).pop(editing.result);
+          }
+        },
+        builder: (context, state) {
+          final editing = state is AppReportEditing ? state : null;
+          if (editing != null && _email.text != editing.email) {
+            _email.text = editing.email;
+          }
+          return AppDialogFrame(
+            title: context.settingsText(
+              widget.candidate.isHang
+                  ? CrashPromptDialog.hangTitle
+                  : CrashPromptDialog.title,
+            ),
+            subtitle: _incidentText(context),
+            icon: FluentIcons.warning_24_regular,
+            tone: AppDialogHeaderTone.error,
+            scrollable: true,
+            closeEnabled: !(editing?.isSending ?? false),
+            // X, Escape ולחיצה בחוץ שומרים טיוטה, והמאזין סוגר.
+            onDismissRequest: _leave,
+            actions: _buildActions(context, editing),
+            child: _buildBody(context, editing),
+          );
+        },
       ),
     );
   }
@@ -259,22 +237,6 @@ class _CrashPromptDialogState extends State<CrashPromptDialog> {
             args: {'seconds': seconds},
           )
         : context.settingsText('התוכנה הפסיקה להגיב.');
-  }
-
-  /// כותרת בצורת כותרת הטופס [AppReportDialog]: אייקון מסומל, שם ותיאור המקרה.
-  Widget _buildHeader(BuildContext context, AppReportEditing? state) {
-    return AppDialogHeader(
-      icon: FluentIcons.warning_24_regular,
-      tone: AppDialogHeaderTone.error,
-      title: context.settingsText(
-        widget.candidate.isHang
-            ? CrashPromptDialog.hangTitle
-            : CrashPromptDialog.title,
-      ),
-      subtitle: _incidentText(context),
-      closeEnabled: !(state?.isSending ?? false),
-      onClose: _leave,
-    );
   }
 
   Widget _buildBody(BuildContext context, AppReportEditing? state) {
@@ -328,8 +290,8 @@ class _CrashPromptDialogState extends State<CrashPromptDialog> {
         const SizedBox(height: 16),
         if (state == null)
           const Padding(
-            padding: EdgeInsets.all(16),
-            child: Center(child: CircularProgressIndicator()),
+            padding: EdgeInsets.all(AppTokens.spaceLG),
+            child: LoadingIndicator(),
           )
         else
           AppReportPreviewSection(
@@ -377,39 +339,28 @@ class _CrashPromptDialogState extends State<CrashPromptDialog> {
     );
   }
 
-  Widget _buildActions(BuildContext context, AppReportEditing? state) {
+  List<Widget> _buildActions(BuildContext context, AppReportEditing? state) {
     final isSending = state?.isSending ?? false;
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppTokens.spaceLG,
-        vertical: AppTokens.spaceMD,
+    return [
+      ActionButton.ghost(
+        key: const ValueKey('crash-prompt-dismiss'),
+        text: context.settingsText('השלך טיוטה'),
+        onPressed: isSending ? null : _dismiss,
       ),
-      child: Wrap(
-        alignment: WrapAlignment.end,
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          ActionButton.ghost(
-            key: const ValueKey('crash-prompt-dismiss'),
-            text: context.settingsText('השלך טיוטה'),
-            onPressed: isSending ? null : _dismiss,
-          ),
-          ActionButton.ghost(
-            key: const ValueKey('crash-prompt-save-draft'),
-            text: context.settingsText('שמור טיוטה וצא זמנית'),
-            onPressed: state == null || isSending ? null : _leave,
-          ),
-          ActionButton.recommended(
-            key: const ValueKey('crash-prompt-send'),
-            text: context.settingsText('שלח דיווח'),
-            icon: FluentIcons.send_24_regular,
-            isLoading: isSending,
-            onPressed: state == null || isSending
-                ? null
-                : () => _bloc.add(const AppReportSubmitted()),
-          ),
-        ],
+      ActionButton.ghost(
+        key: const ValueKey('crash-prompt-save-draft'),
+        text: context.settingsText('שמור טיוטה וצא זמנית'),
+        onPressed: state == null || isSending ? null : _leave,
       ),
-    );
+      ActionButton.recommended(
+        key: const ValueKey('crash-prompt-send'),
+        text: context.settingsText('שלח דיווח'),
+        icon: FluentIcons.send_24_regular,
+        isLoading: isSending,
+        onPressed: state == null || isSending
+            ? null
+            : () => _bloc.add(const AppReportSubmitted()),
+      ),
+    ];
   }
 }

@@ -1762,7 +1762,9 @@ void main() {
           isTrue,
         );
         await tester.pumpAndSettle();
-        expect(find.byType(AppReportDialog), findsOneWidget);
+        // Escape הוא יציאה מהטופס (DD-07): דרך _leave, עם שמירת טיוטה, ולא
+        // קיצור של המסך שמתחת.
+        expect(find.byType(AppReportDialog), findsNothing);
         expect(navigationBloc.events, isEmpty);
       } finally {
         debugDefaultTargetPlatformOverride = null;

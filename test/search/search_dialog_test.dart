@@ -4,7 +4,6 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/widgets/controls/custom_switch.dart';
 import 'package:otzaria/widgets/controls/toggle_pill.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_spinbox/flutter_spinbox.dart';
@@ -464,7 +463,7 @@ Future<void> main() async {
 
         // ב־AppTogglePill המתג הוא הפקד; בשבב — השבב כולו.
         for (final target in [
-          find.descendant(of: row('sw'), matching: find.byType(CustomSwitch)),
+          find.descendant(of: row('sw'), matching: find.byType(Switch)),
           row('tmp'),
         ]) {
           await tester.ensureVisible(target);

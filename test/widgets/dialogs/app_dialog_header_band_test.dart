@@ -29,4 +29,43 @@ void main() {
 
     expect(buttonsTop - bodyBottom, greaterThanOrEqualTo(AppTokens.spaceMD));
   });
+
+  // q10-f: בחציית 600 ה-leading וה-trailing עוברים מקום בכותרת, והמצב שלהם
+  // (למשל טקסט שהוקלד בשדה) נשמר.
+  testWidgets('leading ו-trailing שומרים מצב בחציית רוחב הטלפון', (
+    tester,
+  ) async {
+    addTearDown(tester.view.reset);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(900, 600);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Material(
+          child: AppDialogHeader(
+            title: 'כותרת',
+            leading: const SizedBox(
+              width: 120,
+              child: TextField(key: Key('lead')),
+            ),
+            trailing: const SizedBox(
+              width: 120,
+              child: TextField(key: Key('trail')),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.enterText(find.byKey(const Key('lead')), 'א');
+    await tester.enterText(find.byKey(const Key('trail')), 'ב');
+    final leadState = tester.state(find.byKey(const Key('lead')));
+    final trailState = tester.state(find.byKey(const Key('trail')));
+
+    tester.view.physicalSize = const Size(400, 600);
+    await tester.pump();
+
+    expect(tester.state(find.byKey(const Key('lead'))), same(leadState));
+    expect(tester.state(find.byKey(const Key('trail'))), same(trailState));
+    expect(find.text('א'), findsOneWidget);
+    expect(find.text('ב'), findsOneWidget);
+  });
 }

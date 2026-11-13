@@ -852,7 +852,7 @@ class _ExternalSearchResultsSectionState
                               // אותה הדגשה כמו בגזירי המנוע המובנה: מילה
                               // אדומה ומודגשת, ולא צביעת רקע.
                               highlightStyle: TextStyle(
-                                fontSize: settings.searchResultsFontSize + 2,
+                                fontSize: settings.searchResultsFontSize,
                                 fontFamily: AppFonts.renderFontFamily(
                                   settings.fontFamily,
                                 ),

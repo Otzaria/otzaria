@@ -224,6 +224,10 @@ Uint8List _buildSfntWithOs2({
 // ---------------------------------------------------------------------------
 
 void main() {
+  test('גודל הקריאה של ברירת המחדל הוא 25, כמו הליטרלים שהחליף', () {
+    expect(AppFonts.defaultReadingSize, 25.0);
+  });
+
   group('sfntSupportsHebrew — SFNT', () {
     test('Hebrew range → true', () {
       expect(

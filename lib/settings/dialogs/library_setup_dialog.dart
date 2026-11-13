@@ -615,10 +615,15 @@ class _LibrarySetupDialogContentState
             scrollable: true,
             icon: FluentIcons.checkmark_circle_24_regular,
             title: context.settingsText('הספרייה הותקנה'),
+            // ההתקנה כבר הצליחה: גם X ו-Escape מחזירים true.
+            onClose: close,
+            dismissResult: true,
             onConfirm: close,
             handleEnterKey: true,
             actions: [
+              // הפוקוס נשאר בדיאלוג כשהגוף שלו מתחלף, כדי ש-Escape יגיע אליו.
               ActionButton.recommended(
+                autofocus: true,
                 text: context.settingsText('סגור'),
                 onPressed: close,
               ),
@@ -793,17 +798,24 @@ class _LibrarySetupDialogContentState
                   if (_inPlaceSupported) useInPlaceOption,
                   // הורדה/ייבוא מחליפים את הספרייה הקיימת — מקובצים תחת
                   // מקטע נפרש כדי להבליט שהן פעולות מחיקה-והחלפה.
-                  ExpandableSection(
-                    title: context.settingsText('החלפת הספרייה בספרייה אחרת'),
-                    subtitle: context.settingsText(
-                      'הספרייה הקיימת תוחלף (עם גיבוי אוטומטי עד להצלחה)',
-                    ),
+                  ExpandableCard(
+                    wrapInCard: false,
                     isExpanded:
                         _replaceExpanded ||
                         downloadSelected ||
                         chooseFolderSelected,
-                    onTap: () =>
-                        setState(() => _replaceExpanded = !_replaceExpanded),
+                    header: ExpandableSettingsTile(
+                      title: context.settingsText('החלפת הספרייה בספרייה אחרת'),
+                      subtitle: context.settingsText(
+                        'הספרייה הקיימת תוחלף (עם גיבוי אוטומטי עד להצלחה)',
+                      ),
+                      isExpanded:
+                          _replaceExpanded ||
+                          downloadSelected ||
+                          chooseFolderSelected,
+                      onTap: () =>
+                          setState(() => _replaceExpanded = !_replaceExpanded),
+                    ),
                     children: [downloadOption, chooseFolderOption],
                   ),
                 ]

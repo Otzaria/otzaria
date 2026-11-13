@@ -2791,49 +2791,58 @@ class _PrintingScreenState extends State<PrintingScreen> {
           separatorBuilder: (_, _) => const SizedBox(height: 8),
           itemBuilder: (context, i) {
             final selected = i == _currentPreviewItem;
-            return GestureDetector(
-              onTap: () {
-                if (!_itemScrollController.isAttached) return;
-                AppMotion.scroll(
-                  context,
-                  AppTokens.animPanelSlide,
-                  animate: (duration) => _itemScrollController.scrollTo(
-                    index: i,
-                    duration: duration,
-                    curve: Curves.easeInOut,
-                  ),
-                  jump: () => _itemScrollController.jumpTo(index: i),
-                );
-              },
-              child: Column(
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: selected
-                            ? colorScheme.primary
-                            : colorScheme.outlineVariant,
-                        width: selected ? 2 : 1,
+            return Semantics(
+              button: true,
+              selected: selected,
+              label: 'גיליון ${i + 1}',
+              excludeSemantics: true,
+              child: Material(
+                type: MaterialType.transparency,
+                child: InkWell(
+                  onTap: () {
+                    if (!_itemScrollController.isAttached) return;
+                    AppMotion.scroll(
+                      context,
+                      AppTokens.animPanelSlide,
+                      animate: (duration) => _itemScrollController.scrollTo(
+                        index: i,
+                        duration: duration,
+                        curve: Curves.easeInOut,
                       ),
-                    ),
-                    child: _buildSheet(
-                      i,
-                      rows,
-                      cols,
-                      colorScheme,
-                      thumbnail: true,
-                    ),
+                      jump: () => _itemScrollController.jumpTo(index: i),
+                    );
+                  },
+                  child: Column(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: selected
+                                ? colorScheme.primary
+                                : colorScheme.outlineVariant,
+                            width: selected ? 2 : 1,
+                          ),
+                        ),
+                        child: _buildSheet(
+                          i,
+                          rows,
+                          cols,
+                          colorScheme,
+                          thumbnail: true,
+                        ),
+                      ),
+                      Text(
+                        '${i + 1}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: selected
+                              ? colorScheme.primary
+                              : colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    '${i + 1}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: selected
-                          ? colorScheme.primary
-                          : colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+                ),
               ),
             );
           },

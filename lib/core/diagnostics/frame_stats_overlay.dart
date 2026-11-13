@@ -157,7 +157,10 @@ class _FrameStatsPanelState extends State<FrameStatsPanel> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(8, 4, 4, 6),
             child: IconTheme(
-              data: IconThemeData(color: colors.onInverseSurface, size: 16),
+              data: IconThemeData(
+                color: colors.onInverseSurface,
+                size: AppTokens.iconSM,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,

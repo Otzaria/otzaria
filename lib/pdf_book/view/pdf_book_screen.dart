@@ -1098,6 +1098,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       length: 3, // חזרה ל-3: ניווט, חיפוש, דפים (ללא מפרשים)
       vsync: this,
       initialIndex: _currentLeftPaneTabIndex,
+      animationDuration: AppMotion.tabSwitch,
     );
     // ה-listener נורה רק על שינוי, ובלי סימון מיידי סרגל החיפוש מושבת
     // (issue #1063). לשונית אוטומטית נסמכת ב-didChangeDependencies, שם ידוע הרוחב.
@@ -1884,6 +1885,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         ),
       ),
       // קישורים מצוירים על הקנבס: ווידג'ט לכל קישור נבנה מחדש בכל פריים גלילה.
+      matchTextColor: AppSurfaces.pdfSearchHit(Theme.of(context).colorScheme),
+      activeMatchTextColor: AppSurfaces.pdfSearchHitCurrent(
+        Theme.of(context).colorScheme,
+      ),
       linkHandlerParams: PdfLinkHandlerParams(
         onLinkTap: _onPdfLinkTap,
         linkColor: Colors.transparent,
@@ -5130,7 +5135,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                       controller: widget.tab.pdfViewerController,
                       focusNode: _navigationFieldFocusNode,
                       isPaneOpen: showLeftPane,
-                      onNavigateToPage: _jumpToPage,
+                      onNavigateToPage: _jumpFromNavPane,
                     ),
                   ),
                 ),
@@ -5165,7 +5170,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                             initialSearchTemplate: widget.tab.searchTemplate,
                             incomingSearchConfiguration:
                                 widget.tab.incomingSearchConfiguration,
-                            onSearchResultNavigated: _ensureSearchTabIsActive,
+                            onSearchResultNavigated: _onSearchResultNavigated,
                             onNavigationStarted: _preparePdfJump,
                             takeCenterMatchPage:
                                 widget.tab.takeCenterSearchMatchPage,
@@ -5181,7 +5186,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                     child: ThumbnailsView(
                       documentRef: widget.tab.documentRef.value,
                       controller: widget.tab.pdfViewerController,
-                      onNavigateToPage: _jumpToPage,
+                      onNavigateToPage: _jumpFromNavPane,
                       shownPagesFor: _spreadPageRangeFor,
                       thumbnailCache: _thumbnailCache,
                       isPaneOpen:
@@ -5281,6 +5286,21 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   Future<void> _jumpToPage(int pageNumber) {
     _rememberPdfLocation();
     return _goToPageWithSpreadLock(pageNumber);
+  }
+
+  /// מעבר מחלונית הניווט: חלונית שמכסה את הדף נסגרת, ומוצמדת נשארת (DD-26).
+  Future<void> _jumpFromNavPane(int pageNumber) {
+    final jump = _jumpToPage(pageNumber);
+    if (!_leftPaneUsesPushLayout) _setLeftPaneVisibility(false);
+    return jump;
+  }
+
+  void _onSearchResultNavigated() {
+    if (_leftPaneUsesPushLayout) {
+      _ensureSearchTabIsActive();
+    } else {
+      _setLeftPaneVisibility(false);
+    }
   }
 
   void _navigateSearchMatch({required bool forward}) {
@@ -6379,7 +6399,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             spacing: 8,
             children: [
               const Text(NotesMessages.choosePdfNotePoint),
-              ActionButton.ghost(
+              ActionButton.neutral(
                 text: 'ביטול',
                 icon: FluentIcons.dismiss_24_regular,
                 onPressed: _cancelPersonalNotePointSelection,
@@ -6585,63 +6605,30 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
         _bloc.add(pdf_events.SetLayoutMode(layoutMode));
       },
-      itemBuilder: (context) {
-        final primaryColor = Theme.of(context).colorScheme.primary;
-
-        PopupMenuItem<PdfLayoutMode> buildItem({
-          required PdfLayoutMode value,
-          required String text,
-          required IconData icon,
-          required bool isSelected,
-        }) {
-          final style = isSelected ? TextStyle(color: primaryColor) : null;
-          return PopupMenuItem<PdfLayoutMode>(
-            value: value,
-            child: Row(
-              children: [
-                Icon(icon, color: isSelected ? primaryColor : null),
-                const SizedBox(width: 12),
-                Text(text, style: style),
-                if (isSelected) ...[
-                  const Spacer(),
-                  Icon(
-                    FluentIcons.checkmark_24_regular,
-                    size: AppTokens.iconSM,
-                    color: primaryColor,
-                  ),
-                ],
-              ],
-            ),
-          );
-        }
-
-        return [
-          buildItem(
-            value: PdfLayoutMode.regularView,
-            text: 'תצוגה רגילה',
-            icon: OtzariaIcons.book_24_regular,
-            isSelected: !isBookViewMode,
+      initialValue: state.layoutMode,
+      entries: [
+        const AppMenuEntry(
+          value: PdfLayoutMode.regularView,
+          label: 'תצוגה רגילה',
+          icon: OtzariaIcons.book_24_regular,
+        ),
+        AppMenuEntry(
+          // בחירה חוזרת בתצוגת ספר משמרת את כיוון הזוגות שנבחר.
+          value: isBookViewMode ? state.layoutMode : PdfLayoutMode.bookView,
+          label: 'תצוגת ספר',
+          icon: OtzariaIcons.book_open_medium_lines_24_regular,
+        ),
+        if (isBookViewMode)
+          AppMenuEntry(
+            value: state.layoutMode.hasCoverPage
+                ? PdfLayoutMode.bookViewNoCover
+                : PdfLayoutMode.bookView,
+            label: state.layoutMode.hasCoverPage
+                ? 'היפוך כיוון: התחלת הספר מימין (ללא עמוד ריק)'
+                : 'היפוך כיוון: התחלת הספר משמאל (עם עמוד ריק)',
+            icon: FluentIcons.arrow_swap_24_regular,
           ),
-          buildItem(
-            // בחירה חוזרת בתצוגת ספר משמרת את כיוון הזוגות שנבחר.
-            value: isBookViewMode ? state.layoutMode : PdfLayoutMode.bookView,
-            text: 'תצוגת ספר',
-            icon: OtzariaIcons.book_open_medium_lines_24_regular,
-            isSelected: isBookViewMode,
-          ),
-          if (isBookViewMode)
-            buildItem(
-              value: state.layoutMode.hasCoverPage
-                  ? PdfLayoutMode.bookViewNoCover
-                  : PdfLayoutMode.bookView,
-              text: state.layoutMode.hasCoverPage
-                  ? 'היפוך כיוון: התחלת הספר מימין (ללא עמוד ריק)'
-                  : 'היפוך כיוון: התחלת הספר משמאל (עם עמוד ריק)',
-              icon: FluentIcons.arrow_swap_24_regular,
-              isSelected: false,
-            ),
-        ];
-      },
+      ],
     );
   }
 }

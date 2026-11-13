@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/layout/tool_result_card_shell.dart';
 
@@ -57,5 +58,32 @@ void main() {
   testWidgets('TickerMode כבוי מעל הרשימה כבוי גם בכרטיס', (tester) async {
     final (_, inner) = await pumpCards(tester, enabled: false);
     expect(TickerMode.getValuesNotifier(inner[0]).value.enabled, isFalse);
+  });
+
+  testWidgets('כרטיס עם onTap שמקבל פוקוס מהמקלדת מציג את מילוי הפוקוס', (
+    tester,
+  ) async {
+    final previous = FocusManager.instance.highlightStrategy;
+    FocusManager.instance.highlightStrategy =
+        FocusHighlightStrategy.alwaysTraditional;
+    addTearDown(() => FocusManager.instance.highlightStrategy = previous);
+    final theme = ThemeData();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: theme,
+        home: Scaffold(
+          body: ToolResultCardShell(onTap: () {}, child: const Text('כרטיס')),
+        ),
+      ),
+    );
+    // הטאב הראשון נעצר ב־SelectableRegion של אזור הבחירה, השני בכרטיס.
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pumpAndSettle();
+
+    final inkFeatures = tester.allRenderObjects.firstWhere(
+      (r) => r.runtimeType.toString() == '_RenderInkFeatures',
+    );
+    expect(inkFeatures, paints..rrect(color: theme.focusColor));
   });
 }

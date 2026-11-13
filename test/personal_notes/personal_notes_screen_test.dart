@@ -1116,6 +1116,46 @@ void main() {
     expect(find.text('קבלה'), findsOneWidget);
   });
 
+  // שאלה פתוחה 5 (הוכרע B): במגע הכרטיס 188 וכפתורים של 48; במחשב 170 ו-32.
+  testWidgets(
+    'כפתורי כרטיס ההערה: 48 במגע בכרטיס גבוה יותר, צמודים במחשב',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await pumpScreenWithManyNotes(tester, count: 3);
+
+      final touch = defaultTargetPlatform == TargetPlatform.android;
+      final delete = find
+          .ancestor(
+            of: find.byTooltip('מחיקה').first,
+            matching: find.byType(IconButton),
+          )
+          .first;
+      expect(tester.getSize(delete), Size.square(touch ? 48 : 32));
+      final row = find
+          .ancestor(
+            of: find.text('כותרת 0'),
+            matching: find.byWidgetPredicate(
+              (w) => w is SizedBox && w.height != null && w.height! > 100,
+            ),
+          )
+          .first;
+      expect(tester.getSize(row).height, touch ? 188 : 170);
+      // שלושת הכפתורים נכנסים בכרטיס, בלי גלישה.
+      expect(tester.takeException(), isNull);
+      expect(
+        tester.getRect(delete).bottom,
+        lessThanOrEqualTo(tester.getRect(row).bottom),
+      );
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{
+      TargetPlatform.android,
+      TargetPlatform.windows,
+    }),
+  );
+
   testWidgets('כרטיסי ההערות נשארים שלושה בשורה ובסדר השורות', (tester) async {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1;

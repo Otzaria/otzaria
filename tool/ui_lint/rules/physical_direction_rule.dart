@@ -8,10 +8,14 @@ import '../ui_lint.dart';
 ///
 /// - `EdgeInsets.only(left:/right:)` ו־`EdgeInsets.fromLTRB(...)`;
 /// - `Alignment.centerLeft`/`topRight` וכו';
-/// - `Positioned(left:/right:)`.
+/// - `Positioned(left:/right:)`;
+/// - `Alignment(x, y)` עם x ליטרלי שאינו 0;
+/// - `BorderRadius.only(topLeft:/topRight:/bottomLeft:/bottomRight:)` ו־
+///   `BorderRadius.horizontal(left:/right:)`.
 ///
 /// ערך סימטרי לא תלוי כיוון ולכן מותר (JX-20): `fromLTRB(a, b, a, c)`,
-/// `only(left: x, right: x)`, `Positioned(left: x, right: x)`.
+/// `only(left: x, right: x)`, `Positioned(left: x, right: x)`,
+/// `BorderRadius.only(topLeft: r, topRight: r)`.
 /// ציור ב־CustomPainter ו־`pw.*` מוחרגים; גאומטריה אחרת — allow עם נימוק.
 class PhysicalDirectionRule extends UiLintRule {
   const PhysicalDirectionRule();
@@ -37,7 +41,8 @@ class PhysicalDirectionRule extends UiLintRule {
   @override
   String get hint =>
       'EdgeInsetsDirectional (start/end), AlignmentDirectional, '
-      'Positioned.directional (DESIGN_SYSTEM.md §2.2, §6.1)';
+      'Positioned.directional, BorderRadiusDirectional (DESIGN_SYSTEM.md §2.2, '
+      '§6.1)';
 
   @override
   void check(UiLintFile file) => file.unit.accept(_Visitor(this, file));
@@ -52,12 +57,26 @@ class _Visitor extends RecursiveAstVisitor<void> {
   bool _excluded(AstNode node) =>
       isInsideClassExtending(node, const {'CustomPainter'});
 
-  /// left/right שנמסרו, ושאינם אותו ביטוי בשני הצדדים.
-  static bool _asymmetric(CtorCall call) {
-    final left = call.named('left');
-    final right = call.named('right');
-    if (left == null && right == null) return false;
-    return left?.toSource() != right?.toSource();
+  /// [left]/[right] שנמסרו, ושאינם אותו ביטוי בשני הצדדים.
+  static bool _asymmetric(
+    CtorCall call, [
+    String left = 'left',
+    String right = 'right',
+  ]) {
+    final l = call.named(left);
+    final r = call.named(right);
+    if (l == null && r == null) return false;
+    return l?.toSource() != r?.toSource();
+  }
+
+  static bool _nonZeroLiteral(Expression e) {
+    final x = e.unParenthesized;
+    if (x is PrefixExpression && x.operator.lexeme == '-') {
+      return _nonZeroLiteral(x.operand);
+    }
+    if (x is IntegerLiteral) return x.value != 0;
+    if (x is DoubleLiteral) return x.value != 0;
+    return false;
   }
 
   bool _violates(CtorCall call) {
@@ -70,6 +89,14 @@ class _Visitor extends RecursiveAstVisitor<void> {
       case ('EdgeInsets', 'fromLTRB'):
         final args = call.positional.toList();
         return args.length == 4 && args[0].toSource() != args[2].toSource();
+      case ('BorderRadius', 'horizontal'):
+        return _asymmetric(call);
+      case ('BorderRadius', 'only'):
+        return _asymmetric(call, 'topLeft', 'topRight') ||
+            _asymmetric(call, 'bottomLeft', 'bottomRight');
+      case ('Alignment', null):
+        final args = call.positional.toList();
+        return args.isNotEmpty && _nonZeroLiteral(args.first);
       default:
         return false;
     }

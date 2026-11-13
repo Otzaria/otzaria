@@ -23,7 +23,6 @@ class ToolResultCardShell extends StatelessWidget {
           child: InkWell(
             onTap: onTap,
             borderRadius: AppTokens.borderRadiusAll,
-            focusColor: Colors.transparent,
             child: Padding(padding: AppTokens.cardPadding, child: child),
           ),
         ),

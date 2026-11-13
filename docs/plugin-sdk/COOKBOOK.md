@@ -418,8 +418,8 @@ setToggle('set-israel', isInIsrael, (v) => {
 | מפריד בין שורות | 1.5px | `AppCard.sectionSpacing` |
 | רדיוס סגמנט | 8px | `AppTokens.radius` |
 | סגמנט נבחר | רקע `secondaryContainer`, טקסט `onSecondaryContainer` | `AppSegmentedControl` |
-| מתג דלוק | track `primary`, thumb `onPrimary` | `CustomSwitch` (M3) |
-| מתג כבוי | track `surfaceContainerHighest`, thumb `outline` | `CustomSwitch` (M3) |
+| מתג דלוק | track `primary`, thumb `onPrimary` | `Switch` (`switchTheme`) |
+| מתג כבוי | track `surfaceContainerHighest`, thumb `outline` | `Switch` (`switchTheme`) |
 
 ---
 

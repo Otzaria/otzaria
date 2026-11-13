@@ -1,9 +1,12 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 
 /// זהות לוגית של פעולה שיכולה להופיע בשורת הכלים של הקורא.
 ///
@@ -204,9 +207,10 @@ partitionToolbarActionsForWidth({
   required double overflowButtonWidth,
   required bool overflowAlreadyRequired,
   int? maxVisibleButtons,
+  double minButtonWidth = 0,
 }) {
   double widthOf(ActionButtonData action) =>
-      action.toolbarWidth ?? standardButtonWidth;
+      math.max(action.toolbarWidth ?? standardButtonWidth, minButtonWidth);
 
   // Validation מפורש: כל action חייב actionId לפני כל לוגיקה. // validate
   for (final action in actions) {
@@ -401,7 +405,12 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
       builder: (context, constraints) {
         final isCompact = AppDensity.of(context).isCompact;
 
-        final standardButtonWidth = BarButton.toolbarWidth(isCompact);
+        // במגע כל כפתור תופס 48 לפחות (שאלה פתוחה 1), ולכן פחות נכנסים.
+        final touch = BarButton.isTouch(context);
+        final standardButtonWidth = BarButton.toolbarWidth(
+          isCompact,
+          touch: touch,
+        );
 
         final partition = partitionToolbarActionsForWidth(
           actions: widget.actions,
@@ -413,6 +422,7 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
           overflowAlreadyRequired:
               widget.alwaysInMenu!.isNotEmpty || _headerActions.isNotEmpty,
           maxVisibleButtons: widget.maxVisibleButtons,
+          minButtonWidth: touch ? standardButtonWidth : 0,
         );
 
         final visibleActions = partition.visible;
@@ -528,7 +538,7 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
         final menuButton = AppPopupMenuButton<ActionButtonData>(
           key: widget.overflowButtonKey,
           iconData: FluentIcons.more_vertical_24_regular,
-          tooltip: 'עוד פעולות',
+          tooltip: context.settingsText('עוד פעולות'),
           position: PopupMenuPosition.under,
           offset: widget.overflowMenuOffset,
           onSelected: (action) {

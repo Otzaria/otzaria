@@ -15,6 +15,7 @@ import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_mana
 import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/book_common/utils/commentator_group_builder.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
@@ -741,9 +742,9 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
           onSaved: widget.onSettingsChanged,
         ),
         const SizedBox(height: 12),
-        const Text(
+        Text(
           'גופן מפרשים תחתונים:',
-          style: TextStyle(fontSize: 15),
+          style: Theme.of(context).textTheme.bodyLarge,
         ),
         const SizedBox(height: 6),
         FontDropdownField(
@@ -781,26 +782,21 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
       children: [
         // כפתור הצגה/הסתרה
         if (visibilityKey != null)
-          IconButton(
+          AppIconButton(
             icon: Icon(
               isVisible
                   ? FluentIcons.eye_24_regular
                   : FluentIcons.eye_off_24_regular,
-              size: 20,
-              color: isVisible
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
             ),
+            isSelected: isVisible,
             tooltip: isVisible ? 'הסתר טור' : 'הצג טור',
             onPressed: () => _toggleColumnVisibility(visibilityKey, !isVisible),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
           ),
         SizedBox(
           width: visibilityKey != null ? 108 : 140,
           child: Text(
             label,
-            style: const TextStyle(fontSize: 15),
+            style: Theme.of(context).textTheme.bodyLarge,
           ),
         ),
         Expanded(

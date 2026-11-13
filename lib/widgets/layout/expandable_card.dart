@@ -15,8 +15,10 @@ import 'package:otzaria/widgets/layout/app_card.dart';
 /// כשה-[wrapInCard] הוא true (ברירת מחדל), הכרטיס עוטף ב-[Material] עם פינות מעוגלות.
 /// כשהוא false, מוחזר [Column] חשוף — מתאים לשימוש בתוך כרטיס קיים (רמה 1+).
 ///
-/// מיועד לשימוש עצמאי (לא בתוך [AppCard.section]).
-/// לשימוש בתוך [AppCard.section], ראה [ExpandableSection].
+/// [children] נבנים רק כשהכרטיס פתוח (וגם בזמן אנימציית הסגירה).
+///
+/// בהגדרות הכותרת היא `ExpandableSettingsTile`, ו-[wrapInCard] false בתוך
+/// `SettingsCard` (DD-27).
 class ExpandableCard extends StatefulWidget {
   const ExpandableCard({
     super.key,
@@ -52,7 +54,7 @@ class _ExpandableCardState extends State<ExpandableCard>
   @override
   void initState() {
     super.initState();
-    _displayChildren = widget.children;
+    if (widget.isExpanded) _displayChildren = widget.children;
     _controller = AnimationController(
       duration: AppTokens.animNormal,
       vsync: this,
@@ -70,7 +72,7 @@ class _ExpandableCardState extends State<ExpandableCard>
   @override
   void didUpdateWidget(ExpandableCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.children.isNotEmpty) {
+    if (widget.isExpanded && widget.children.isNotEmpty) {
       _displayChildren = widget.children;
     }
     if (widget.isExpanded != oldWidget.isExpanded) {

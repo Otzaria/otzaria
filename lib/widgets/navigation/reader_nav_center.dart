@@ -29,17 +29,22 @@ class ReaderNavCenter extends StatelessWidget {
   static const double navGap = 4.0;
 
   /// הרוחב שארבעת החיצים צריכים במרכז: ארבעה כפתורי סרגל ושני רווחים.
-  static double navButtonsWidth({required bool compact}) =>
-      4 * BarButton.toolbarWidth(compact) + 2 * navGap;
+  static double navButtonsWidth({required bool compact, bool touch = false}) =>
+      4 * BarButton.toolbarWidth(compact, touch: touch) + 2 * navGap;
 
   /// במרכז צר מזה הכפתורים בגודל compact גם בצפיפות רגילה.
   static const double _forceCompactBelow = 240.0;
 
   /// האם ארבעת החיצים נכנסים במרכז ברוחב [centerWidth].
-  static bool navFits(double centerWidth, {required bool isCompact}) =>
+  static bool navFits(
+    double centerWidth, {
+    required bool isCompact,
+    bool touch = false,
+  }) =>
       centerWidth >=
       navButtonsWidth(
         compact: isCompact || centerWidth < _forceCompactBelow,
+        touch: touch,
       );
 
   final Widget title;
@@ -90,10 +95,14 @@ class ReaderNavCenter extends StatelessWidget {
 
         // כל הארבעה או אף אחד: חץ בודד בלי בן זוגו, או שני חיצים בלי
         // מעבר הפרק, אינם ניווט שלם (#891 — אז הם לא היו בשום מקום).
-        final showNav = navFits(available, isCompact: isCompact);
+        final touch = BarButton.isTouch(context);
+        final showNav = navFits(available, isCompact: isCompact, touch: touch);
         placement?.arrowsInBar = showNav;
         final navButtonsWidth = showNav
-            ? ReaderNavCenter.navButtonsWidth(compact: forceCompact)
+            ? ReaderNavCenter.navButtonsWidth(
+                compact: forceCompact,
+                touch: touch,
+              )
             : 0.0;
 
         final remainingForTitle = (available - navButtonsWidth).clamp(

@@ -4,6 +4,7 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
@@ -78,11 +79,13 @@ class AppDialogFrame extends StatelessWidget {
     this.onClose,
     this.isDirty,
     this.onDismissRequest,
+    this.confirmDiscard,
     this.onConfirm,
     this.handleEnterKey = true,
     this.dismissResult,
     this.surfaceKey,
-  }) : assert(isDirty == null || onDismissRequest == null);
+  }) : assert(isDirty == null || onDismissRequest == null),
+       assert(isDirty == null || confirmDiscard != null);
 
   final String title;
 
@@ -144,6 +147,9 @@ class AppDialogFrame extends StatelessWidget {
   /// וחזרה קוראים לו, והדיאלוג נסגר רק כשהקורא סוגר אותו.
   final DialogDismissRequest? onDismissRequest;
 
+  /// השאלה של [isDirty]: `confirmDiscardChanges` (מ-`app_dialogs.dart`).
+  final DialogDiscardConfirm? confirmDiscard;
+
   /// הפעולה הראשית: Enter בשדה חד־שורתי, או כשאין רכיב ממוקד שמגיב ל-Enter.
   final VoidCallback? onConfirm;
 
@@ -158,7 +164,7 @@ class AppDialogFrame extends StatelessWidget {
 
   /// בדסקטופ "מסך מלא" מתחיל מתחת לשורת הכותרת של החלון, כדי שהיא תישאר
   /// גלויה; בטלפון הוא ממלא את המסך.
-  static EdgeInsets get _fullscreenInset =>
+  static EdgeInsets _fullscreenInset(BuildContext context) =>
       !kIsWeb &&
           switch (defaultTargetPlatform) {
             TargetPlatform.windows ||
@@ -166,7 +172,7 @@ class AppDialogFrame extends StatelessWidget {
             TargetPlatform.macOS => true,
             _ => false,
           }
-      ? const EdgeInsets.only(top: LayoutConstraints.windowCaptionHeight)
+      ? EdgeInsets.only(top: AppDensity.of(context).captionHeight)
       : EdgeInsets.zero;
 
   @override
@@ -208,7 +214,9 @@ class AppDialogFrame extends StatelessWidget {
         ?tabs,
         Flexible(
           fit: fixedHeight ? FlexFit.tight : FlexFit.loose,
-          child: body,
+          child: scrollable && actions != null && actions!.isNotEmpty
+              ? _MoreBelowLine(child: body)
+              : body,
         ),
         if (actions != null && actions!.isNotEmpty)
           Padding(
@@ -230,7 +238,7 @@ class AppDialogFrame extends StatelessWidget {
         : MediaQuery.sizeOf(context).height * AppDialogSize.maxHeightFactor;
     final dialog = Dialog(
       insetPadding: fullscreen
-          ? _fullscreenInset
+          ? _fullscreenInset(context)
           : compact
           ? AppDialogSize.compactInset
           : AppDialogSize.inset,
@@ -270,12 +278,70 @@ class AppDialogFrame extends StatelessWidget {
       canDismiss: closeEnabled,
       isDirty: isDirty,
       onDismissRequest: onDismissRequest,
+      confirmDiscard: confirmDiscard,
       child: DialogKeyboardNavigator(
         onConfirm: onConfirm,
         handleEnterKey: handleEnterKey,
         dismissResult: dismissResult,
         child: dialog,
       ),
+    );
+  }
+}
+
+/// גוף גולל ומתחתיו קו `outlineVariant` דק, שמוצג רק כשיש עוד תוכן מתחת
+/// לחלק הגלוי: הקו מסמן שהתוכן נחתך מעל הכפתורים (q9).
+class _MoreBelowLine extends StatefulWidget {
+  const _MoreBelowLine({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_MoreBelowLine> createState() => _MoreBelowLineState();
+}
+
+class _MoreBelowLineState extends State<_MoreBelowLine> {
+  bool _moreBelow = false;
+
+  bool _track(int depth, ScrollMetrics metrics) {
+    // רק הגלילה של הגוף עצמו, לא רשימה פנימית או גלילה אופקית.
+    if (depth != 0 || metrics.axis != Axis.vertical) return false;
+    final moreBelow = metrics.extentAfter > 0.5;
+    if (moreBelow != _moreBelow) setState(() => _moreBelow = moreBelow);
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // הקו מצויר מעל הקצה התחתון של הגוף ולא תופס גובה: פריסת הדיאלוג זהה
+    // לזו שבלי הקו, והכפתורים לא זזים כשהוא מופיע או נעלם.
+    return Stack(
+      fit: StackFit.passthrough,
+      children: [
+        NotificationListener<ScrollMetricsNotification>(
+          onNotification: (n) => _track(n.depth, n.metrics),
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (n) => _track(n.depth, n.metrics),
+            child: widget.child,
+          ),
+        ),
+        PositionedDirectional(
+          start: 0,
+          end: 0,
+          bottom: 0,
+          child: IgnorePointer(
+            // ColoredBox ולא Divider: הקו שייך למסגרת, ובדיקות שסופרות את
+            // ה-Divider בגוף הדיאלוג לא צריכות להכיר אותו.
+            child: ColoredBox(
+              key: const ValueKey('app-dialog-more-below-line'),
+              color: _moreBelow
+                  ? Theme.of(context).colorScheme.outlineVariant
+                  : Colors.transparent,
+              child: const SizedBox(height: AppTokens.borderThin),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

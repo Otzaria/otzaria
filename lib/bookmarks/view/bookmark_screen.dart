@@ -24,6 +24,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/bookmarks/utils/bookmark_from_tab.dart';
 import 'package:otzaria/bookmarks/utils/bookmark_search_aliases.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/core/messages/notes_messages.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/lists/items_list_view.dart';
@@ -469,7 +470,9 @@ class _BookmarkViewState extends State<BookmarkView> {
               Expanded(
                 child: OtzariaEmptyState(
                   icon: FluentIcons.bookmark_24_regular,
-                  title: 'אין סימניות',
+                  title: state.groups.isEmpty
+                      ? 'אין סימניות'
+                      : context.settingsText('אין סימניות לספר בודד'),
                   action: ActionButton.neutral(
                     text: 'שמור סימניה לכל הספרים הפתוחים',
                     icon: FluentIcons.bookmark_multiple_24_regular,

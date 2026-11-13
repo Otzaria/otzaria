@@ -42,8 +42,6 @@ class GematriaSearchScreen extends StatefulWidget {
 
 class GematriaSearchScreenState extends State<GematriaSearchScreen>
     with ToolQueryConsumer {
-  static const double _settingsPanelWidth = 400;
-
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   List<GematriaSearchResult> _searchResults = [];
@@ -430,7 +428,6 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen>
     return ContextOverlayPanel(
       isOpen: _showingSettings,
       onClose: _toggleSettings,
-      width: _settingsPanelWidth,
       title: 'הגדרות',
       child: const Expanded(
         child: SingleChildScrollView(

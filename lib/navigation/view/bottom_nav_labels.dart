@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/app_density.dart';
 
 /// תוויות סרגל הניווט התחתון בטלפון (review-r3, q-bottom-bar).
 ///
@@ -45,12 +46,15 @@ abstract final class BottomNavLabels {
     return true;
   }
 
-  /// תווית לכל יעד כשכולן נכנסות; אחרת רק ליעד הנבחר.
+  /// תווית לכל יעד כשכולן נכנסות; אחרת רק ליעד הנבחר. בצפיפות מצומצמת
+  /// בלי תוויות: הסרגל בגובה 48 (#4787), והשם ב-tooltip ובקורא המסך.
   static NavigationDestinationLabelBehavior behaviorFor(
     BuildContext context, {
     required double barWidth,
     required List<String> labels,
-  }) => allFit(context, barWidth: barWidth, labels: labels)
+  }) => AppDensity.of(context).isCompact
+      ? NavigationDestinationLabelBehavior.alwaysHide
+      : allFit(context, barWidth: barWidth, labels: labels)
       ? NavigationDestinationLabelBehavior.alwaysShow
       : NavigationDestinationLabelBehavior.onlyShowSelected;
 

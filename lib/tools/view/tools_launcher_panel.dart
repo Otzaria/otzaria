@@ -1591,7 +1591,7 @@ class _MovePulse extends StatefulWidget {
 class _MovePulseState extends State<_MovePulse>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
-    duration: const Duration(milliseconds: 320),
+    duration: AppMotion.controller(const Duration(milliseconds: 320)),
     vsync: this,
     value: 1.0,
   );

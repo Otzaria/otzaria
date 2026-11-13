@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/navigation/view/bottom_nav_labels.dart';
+import 'package:otzaria/theme/app_density.dart';
 
 const _labels = ['ספרייה', 'איתור', 'עיון', 'חיפוש', 'כלים', 'הגדרות'];
 const _style = TextStyle(fontSize: 12);
@@ -27,6 +28,7 @@ Future<NavigationDestinationLabelBehavior> _pump(
   WidgetTester tester, {
   required double width,
   double scale = 1,
+  bool compact = false,
 }) async {
   tester.view.physicalSize = Size(width, 600);
   tester.view.devicePixelRatio = 1;
@@ -37,6 +39,7 @@ Future<NavigationDestinationLabelBehavior> _pump(
         navigationBarTheme: const NavigationBarThemeData(
           labelTextStyle: WidgetStatePropertyAll(_style),
         ),
+        extensions: [if (compact) AppDensity.compact],
       ),
       home: Directionality(
         textDirection: TextDirection.rtl,
@@ -84,6 +87,17 @@ double _opacity(WidgetTester tester, String label) => tester
     .value;
 
 void main() {
+  testWidgets('צפיפות מצומצמת: בלי תוויות גם כשהן נכנסות (#4787)', (
+    tester,
+  ) async {
+    final width = _longest() * _labels.length + 6;
+    expect(
+      await _pump(tester, width: width, compact: true),
+      NavigationDestinationLabelBehavior.alwaysHide,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('התוויות נכנסות: תווית לכל יעד', (tester) async {
     final width = _longest() * _labels.length + 6;
     expect(

@@ -5,6 +5,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/controls/app_icon_button.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 
 /// הגדרת שדה החיפוש של לשונית אחת בחלונית הניווט.
 class NavPanelSearchDelegate {
@@ -389,7 +390,7 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
             ),
           ),
           AppIconButton(
-            tooltip: 'סגור חיפוש',
+            tooltip: context.settingsText('סגור חיפוש'),
             onPressed: _close,
             size: AppIconButtonSize.small,
             icon: const Icon(FluentIcons.dismiss_24_regular),

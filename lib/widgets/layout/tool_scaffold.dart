@@ -4,6 +4,7 @@ import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
 import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 
 /// מעטפת למסכי כלים שנבנים סביב שדה חיפוש (מילונים, ביוגרפיות, גימטריה,
 /// שמור וזכור): סרגל עליון, [filters] מתחתיו, גוף ו-[footer].
@@ -66,7 +67,7 @@ class ToolScaffold extends StatelessWidget {
                 ? null
                 : [
                     ActionButton.recommended(
-                      text: 'נסה שוב',
+                      text: context.settingsText('נסה שוב'),
                       icon: FluentIcons.arrow_clockwise_24_regular,
                       onPressed: onRetry,
                     ),

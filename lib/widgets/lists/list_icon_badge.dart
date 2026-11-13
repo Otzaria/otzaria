@@ -20,7 +20,10 @@ class ListIconBadge extends StatelessWidget {
         width: 40,
         height: 40,
         child: IconTheme.merge(
-          data: IconThemeData(size: 20, color: cs.onPrimaryContainer),
+          data: IconThemeData(
+            size: AppTokens.iconMD,
+            color: cs.onPrimaryContainer,
+          ),
           child: Center(child: icon),
         ),
       ),

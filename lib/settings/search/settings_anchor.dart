@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/settings/search/settings_search_registry.dart';
 
@@ -40,7 +41,7 @@ class _SettingsAnchorState extends State<SettingsAnchor>
     SettingsSearchRegistry.instance.registerAnchor(widget.cardId, _key);
     _flashController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1300),
+      duration: AppMotion.controller(const Duration(milliseconds: 1300)),
     );
     _flashAnimation =
         TweenSequence<double>([

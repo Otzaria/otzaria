@@ -17,7 +17,7 @@ class RawShowDialogRule extends UiLintRule {
   String get id => 'UIL-028';
 
   @override
-  int get stage => 4;
+  int get stage => 3;
 
   @override
   String get title => 'showDialog גולמי';

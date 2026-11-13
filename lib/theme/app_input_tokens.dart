@@ -4,7 +4,7 @@
 // מגדיר גבהים, רדיוסים, גדלי פונט ו-alpha values אחידים.
 
 import 'package:flutter/material.dart';
-import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/theme/app_surface_colors.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 
 abstract class AppInputTokens {
@@ -30,10 +30,10 @@ abstract class AppInputTokens {
       isCompact ? compactFontSize : regularFontSize;
 }
 
-/// שדה בתוך טופס בדיאלוג: מילוי במשטח הבהיר של הכרטיס ([AppSurfaces.card]) על
+/// שדה בתוך טופס בדיאלוג: מילוי במשטח הבהיר של הכרטיס ([AppSurfaceColors.card]) על
 /// גוף הדיאלוג, כך שהשדות בולטים מהרקע. אחד לכל הטפסים, כדי ששני טפסים של אותו
 /// דבר לא ייראו שונה.
 extension DialogFormFieldDecoration on InputDecoration {
   InputDecoration filledOnDialog(BuildContext context) =>
-      copyWith(filled: true, fillColor: AppSurfaces.card(context));
+      copyWith(filled: true, fillColor: AppSurfaceColors.of(context).card);
 }

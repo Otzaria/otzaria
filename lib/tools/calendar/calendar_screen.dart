@@ -514,7 +514,6 @@ class CalendarWidgetState extends State<CalendarWidget> {
         ContextOverlayPanel(
           isOpen: _isSettingsPanelOpen,
           onClose: _toggleSettingsPanel,
-          width: 400,
           title: 'הגדרות',
           child: const Expanded(
             child: CalendarSettingsPanel(),
@@ -568,7 +567,6 @@ class CalendarWidgetState extends State<CalendarWidget> {
         ContextOverlayPanel(
           isOpen: _isSettingsPanelOpen,
           onClose: _toggleSettingsPanel,
-          width: 400,
           child: Column(
             children: [
               Padding(

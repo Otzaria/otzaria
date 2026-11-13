@@ -97,7 +97,7 @@ class AttachedLibraryUpdateRow extends StatelessWidget {
         ),
         Text(_progressText(context, status), style: style),
         if (status.phase == AttachedUpdatePhase.download)
-          ActionButton.ghost(
+          ActionButton.neutral(
             text: context.settingsText('ביטול'),
             onPressed: onCancel,
           ),

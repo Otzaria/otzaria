@@ -26,20 +26,26 @@ class TourProgressDots extends StatelessWidget {
       alignment: WrapAlignment.center,
       children: [
         for (var i = 0; i < total; i++)
-          GestureDetector(
-            onTap: onDotTap != null ? () => onDotTap!(i) : null,
-            child: AnimatedContainer(
-              duration: AppMotion.duration(
-                context,
-                const Duration(milliseconds: 180),
-              ),
-              width: i == currentIndex ? 20 : 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: i == currentIndex
-                    ? colorScheme.primary
-                    : colorScheme.outlineVariant,
-                borderRadius: AppTokens.borderRadiusAll,
+          Semantics(
+            button: onDotTap != null,
+            selected: i == currentIndex,
+            label: 'שלב ${i + 1} מתוך $total',
+            child: InkWell(
+              onTap: onDotTap != null ? () => onDotTap!(i) : null,
+              borderRadius: AppTokens.borderRadiusAll,
+              child: AnimatedContainer(
+                duration: AppMotion.duration(
+                  context,
+                  AppTokens.animPanelOpacity,
+                ),
+                width: i == currentIndex ? 20 : 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: i == currentIndex
+                      ? colorScheme.primary
+                      : colorScheme.outlineVariant,
+                  borderRadius: AppTokens.borderRadiusAll,
+                ),
               ),
             ),
           ),

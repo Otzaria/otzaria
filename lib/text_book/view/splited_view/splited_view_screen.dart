@@ -23,6 +23,8 @@ import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/utils/ui/commentary_pane_policy.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
 import 'package:otzaria/tour/models/live_tip.dart';
+import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
@@ -578,8 +580,12 @@ class _SplitedViewScreenState extends State<SplitedViewScreen>
                               setState(() {
                                 _paneOpen = true;
                               });
+                              // אחרי שהחלונית סיימה להיפתח.
                               Future.delayed(
-                                const Duration(milliseconds: 280),
+                                AppMotion.duration(
+                                  context,
+                                  AppTokens.animPanelSlide,
+                                ),
                                 () {
                                   if (!mounted) return;
                                   _closeCommentatorsFilterNotifier.value++;

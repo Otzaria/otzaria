@@ -158,6 +158,7 @@ jobs:
       # דוח ui_lint מול tool/ui_lint/baseline.json (docs/design-system/CI_ENFORCEMENT.md).
       # ה-step הזה רק מדווח: חריגות חדשות מסומנות ב-annotations ולא מכשילות את ה-job.
       # השער החוסם הוא test/design_system/ui_lint_test.dart, שרץ ב-shards של job ה-test.
+      # ה-summary כולל גם את טבלת המצב לפי מודול (אותה טבלה כמו --format=modules).
       - name: UI lint report
         continue-on-error: true
         run: dart tool/ui_lint_cli.dart --format=github

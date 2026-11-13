@@ -175,9 +175,9 @@ void main() {
       await tester.pumpWidget(tab());
       await tester.pump();
       final section = find.byWidgetPredicate(
-        (w) => w is ExpandableSection && w.title == 'גיבוי אוטומטי',
+        (w) => w is ExpandableSettingsTile && w.title == 'גיבוי אוטומטי',
       );
-      tester.widget<ExpandableSection>(section).onTap();
+      tester.widget<ExpandableSettingsTile>(section).onTap!();
       await tester.pump();
       final backupMode = find.byWidgetPredicate(
         (w) =>
@@ -242,6 +242,8 @@ void main() {
         );
       }
 
+      // ExpandableCard מונפש: עד סוף הפתיחה הבורר חתוך, והלחיצה לא מגיעה אליו.
+      await tester.pumpAndSettle();
       final mode = tester.widget<SegmentedButton>(backupMode);
       final custom = mode.segments.last.value;
       final all = mode.segments.first.value;
@@ -332,9 +334,9 @@ void main() {
     );
     await tester.pump();
     final section = find.byWidgetPredicate(
-      (w) => w is ExpandableSection && w.title == 'גיבוי אוטומטי',
+      (w) => w is ExpandableSettingsTile && w.title == 'גיבוי אוטומטי',
     );
-    tester.widget<ExpandableSection>(section).onTap();
+    tester.widget<ExpandableSettingsTile>(section).onTap!();
     await tester.pump();
     final tile = tester.widget<SettingsPathTile>(
       find.byWidgetPredicate(

@@ -43,9 +43,6 @@ import 'package:otzaria/theme/app_tokens.dart';
 const double _kSelectorWidth = 150;
 const double _kSelectorPadding = 2;
 
-/// רוחב חלונית ההגדרות — כמו בשאר הכלים.
-const double _kSettingsPanelWidth = 400;
-
 class TikkunKorimScreen extends StatelessWidget {
   final TikkunEngine? engine;
   final TikkunDataSource? data;
@@ -505,7 +502,6 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
     return ContextOverlayPanel(
       isOpen: _settingsOpen,
       onClose: _closePanels,
-      width: _kSettingsPanelWidth,
       title: 'הגדרות',
       scrollable: true,
       child: TikkunSettingsPanel(
@@ -522,7 +518,6 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
     return ContextOverlayPanel(
       isOpen: _bookmarksOpen,
       onClose: _closePanels,
-      width: _kSettingsPanelWidth,
       title: 'סימניות',
       scrollable: true,
       child: TikkunBookmarksPanel(
@@ -632,7 +627,11 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
     // הסרגל מקבל את רוחבם כדי שהבוררים לא יגלשו מתחתיהם.
     double trailingWidthFor(int buttons, {required bool withPageNav}) {
       final count = buttons + (withPageNav ? 2 : 0);
-      return count * BarButton.toolbarWidth(isCompact) +
+      return count *
+              BarButton.toolbarWidth(
+                isCompact,
+                touch: BarButton.isTouch(context),
+              ) +
           (withPageNav ? _kSelectorWidth : 0) +
           AppTopBar.itemSpacing(isCompact) * count;
     }

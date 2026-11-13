@@ -440,6 +440,7 @@ const Map<String, PluginApiMethod> pluginApiMethods = {
   'ui.printFile': PluginApiMethod(null, '0.9.98.1'),
   'ui.exportPdf': PluginApiMethod(null, '0.9.97'),
   'ui.setUnsavedChanges': PluginApiMethod(null, '0.9.97'),
+  'ui.setFullscreen': PluginApiMethod(null, '0.9.99'),
   'storage.get': PluginApiMethod('plugin.storage.read', '0.9.89'),
   'storage.list': PluginApiMethod('plugin.storage.read', '0.9.89'),
   'storage.set': PluginApiMethod('plugin.storage.write', '0.9.89'),

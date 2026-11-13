@@ -42,6 +42,16 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  // q6b: בהפחתת אנימציות החלון במצב הסיום מיד, בלי רצף ובלי טיימרים.
+  testWidgets('הפחתת אנימציות: מצב הסיום מיד', (tester) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    await pumpUntilListReady(tester);
+    // בלי finishAnimations: טיימר של הרצף (Future.delayed) שנשאר היה מכשיל
+    // את הבדיקה בסופה.
+  });
+
   // UI-047, q10 שאלה 7.7: הכפתור נראה פעיל, ולחיצה עליו פותחת את התפריט.
   testWidgets('"אל תציג שוב" הוא כפתור פעיל שפותח את תפריט ההשהיה', (
     tester,
@@ -61,6 +71,9 @@ void main() {
     expect(find.text('למשך שבוע'), findsOneWidget);
     expect(find.text('למשך חודש'), findsOneWidget);
     expect(find.text('לעולם'), findsOneWidget);
+    // UI-047: התפריט והכרטיסים מהרכיבים המשותפים.
+    expect(find.byType(PopupMenuButton<String>), findsNothing);
+    expect(find.byType(Card), findsNothing);
   });
 
   group('תצוגה מקובץ הנתונים', () {

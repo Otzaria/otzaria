@@ -8,7 +8,7 @@ class AppSeedColors {
 
   // ── ברירות מחדל ————————————————————————————————
   static const Color defaultLight = darkBrown;
-  static const Color defaultDark = purple;
+  static const Color defaultDark = darkBrown;
 
   // ── צבעי ספקטרום ————————————————————————————————
   static const Color red = Color(0xFFF44336);

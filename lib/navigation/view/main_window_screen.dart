@@ -155,6 +155,7 @@ import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/utils/file/open_in_file_manager.dart';
 import 'package:kosher_dart/kosher_dart.dart' show Daf;
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/layout/chrome_auto_hide.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart'
     show getDafYomi, formatAmud;
 import 'package:otzaria/tools/calendar/helpers/daf_yomi_navigation.dart'
@@ -312,6 +313,9 @@ bool shouldResyncMainPage({
 
 final _mainWindowScreenKeys = Expando<GlobalKey<MainWindowScreenState>>();
 
+/// רוחב חלונית הכלים: ארבע קוביות בשורה; הריפוד בתוך פאנל הכלים.
+const double _kToolsLauncherWidth = 440;
+
 extension MainWindowScreenKeyX on AppWindowKeys {
   /// מפתח המסך הראשי של החלון. נוצר בגישה הראשונה וקבוע לחיי ה-[AppWindowKeys].
   GlobalKey<MainWindowScreenState> get mainWindowScreen =>
@@ -320,6 +324,12 @@ extension MainWindowScreenKeyX on AppWindowKeys {
 
 class MainWindowScreenState extends State<MainWindowScreen>
     with TickerProviderStateMixin {
+  /// הסתרת הסרגלים בגלילה בטלפון (סרגל הקורא והסרגל התחתון).
+  final _chromeAutoHide = ChromeAutoHideController();
+
+  /// המסך והכרטיסיה שבהם הסרגלים הוסתרו; מעבר לאחרים מציג אותם.
+  Object? _chromeAutoHideKey;
+
   /// מפתחות החלון — נשלפים פעם אחת, כדי שיהיו זמינים גם מ-callback-ים מאוחרים.
   late final AppWindowKeys _windowKeys = AppWindowKeys.of(context);
 
@@ -1916,6 +1926,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
 
   @override
   void dispose() {
+    _chromeAutoHide.dispose();
     _startupWorkGate.markStartupIndexingSettled();
     _startupRefreshWait.cancel();
     _indexingDeferral.clear();
@@ -2002,6 +2013,17 @@ class MainWindowScreenState extends State<MainWindowScreen>
   }
 
   DateTime? _lastBackPressAt;
+
+  /// מעבר למסך או לכרטיסיה אחרים מציג את הסרגלים שהוסתרו בגלילה.
+  void _showChromeOnNewPage(Screen screen, int tabIndex) {
+    final key = (screen, tabIndex);
+    if (key == _chromeAutoHideKey) return;
+    _chromeAutoHideKey = key;
+    if (_chromeAutoHide.visible) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _chromeAutoHide.show();
+    });
+  }
 
   /// מקש Back באנדרואיד: סוגר פאנל פתוח, חוזר לספרייה, ורק לחיצה
   /// כפולה בספרייה יוצאת מהאפליקציה.
@@ -2186,8 +2208,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     isOpen: _isToolsLauncherOpen,
     onClose: _closeToolsLauncher,
     alignment: AlignmentDirectional.centerStart,
-    // רחב מספיק לארבע קוביות; הריפוד נמצא בתוך פאנל הכלים.
-    width: 440,
+    width: _kToolsLauncherWidth,
     contentPadding: EdgeInsets.zero,
     deferChildBuildOnOpen: true,
     child: ToolsLauncherPanel(
@@ -3905,58 +3926,81 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                     // מידה 0 ולא הוצאה מהעץ — החלפת Row/Column
                                     // הורסת את ה-PageView וכל מסך (כולל WebView
                                     // של תוסף פתוח) נבנה מאפס בכל שינוי כיוון.
-                                    return ChromeDirectionality(
-                                      child: Column(
-                                        children: [
-                                          Expanded(
-                                            child: Row(
-                                              children: [
-                                                SizedBox(
-                                                  width: showRail
-                                                      ? railWidth
-                                                      : 0,
-                                                  child: !showRail
-                                                      ? null
-                                                      : Column(
-                                                          children: [
-                                                            Expanded(
-                                                              child: _buildNavRail(
-                                                                context,
-                                                                state,
-                                                                compact:
-                                                                    isCompactRail,
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                ),
-                                                SizedBox(
-                                                  width: showRail ? 1 : 0,
-                                                  child: !showRail
-                                                      ? null
-                                                      // "לבן": קו האזורים (#2850).
-                                                      : VerticalDivider(
-                                                          thickness: 1,
-                                                          width: 1,
-                                                          color:
-                                                              AppSurfaces.regionBorder(
-                                                                context,
-                                                              ),
-                                                        ),
-                                                ),
-                                                Expanded(
-                                                  child: RepaintBoundary(
-                                                    child: pageView,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
+                                    _showChromeOnNewPage(
+                                      state.currentScreen,
+                                      context.select(
+                                        (TabsBloc bloc) =>
+                                            bloc.state.currentTabIndex,
+                                      ),
+                                    );
+                                    return ChromeAutoHideScope(
+                                      controller: _chromeAutoHide,
+                                      // טלפון בלבד: יש סרגל תחתון. לא עם קורא
+                                      // מסך, שבו הסרגל המוסתר היה נעלם ממנו.
+                                      enabled:
+                                          !isLandscape &&
+                                          !isImmersive &&
+                                          !MediaQuery.accessibleNavigationOf(
+                                            context,
                                           ),
-                                          // ילד עוקב ל-pageView — הוספה/הסרה שלו
-                                          // אינה מזיזה את הסלוטים שלפניו.
-                                          if (!isLandscape && !isImmersive)
-                                            _buildBottomNavBar(state),
-                                        ],
+                                      child: ChromeDirectionality(
+                                        child: Column(
+                                          children: [
+                                            Expanded(
+                                              child: Row(
+                                                children: [
+                                                  SizedBox(
+                                                    width: showRail
+                                                        ? railWidth
+                                                        : 0,
+                                                    child: !showRail
+                                                        ? null
+                                                        : Column(
+                                                            children: [
+                                                              Expanded(
+                                                                child: _buildNavRail(
+                                                                  context,
+                                                                  state,
+                                                                  compact:
+                                                                      isCompactRail,
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                  ),
+                                                  SizedBox(
+                                                    width: showRail ? 1 : 0,
+                                                    child: !showRail
+                                                        ? null
+                                                        // "לבן": קו האזורים (#2850).
+                                                        : VerticalDivider(
+                                                            thickness: 1,
+                                                            width: 1,
+                                                            color:
+                                                                AppSurfaces.regionBorder(
+                                                                  context,
+                                                                ),
+                                                          ),
+                                                  ),
+                                                  Expanded(
+                                                    child: RepaintBoundary(
+                                                      child: pageView,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            // ילד עוקב ל-pageView — הוספה/הסרה שלו
+                                            // אינה מזיזה את הסלוטים שלפניו.
+                                            if (!isLandscape && !isImmersive)
+                                              ChromeAutoHide(
+                                                keepBottomInset: true,
+                                                child: _buildBottomNavBar(
+                                                  state,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
                                       ),
                                     );
                                   },
@@ -3978,7 +4022,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
                             onClose: _toggleReadingSettingsPanel,
                             deferChildBuildOnOpen: true,
                             preserveChildStateOnClose: true,
-                            width: 400,
                             title: context.settingsText('הגדרות תצוגת הספרים'),
                             child: const Expanded(
                               child: ReadingSettingsPanel(),

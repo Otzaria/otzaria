@@ -34,6 +34,8 @@ abstract class LibraryMessages {
       'הורדת הספר נכשלה. פרטי השגיאה נרשמו ביומן השגיאות.';
 
   // ===== חיפוש =====
+  static String savedScopeDeleted(String name) => 'ההיקף "$name" נמחק';
+
   static String distanceSetAsDefault(int distance) =>
       'מרווח $distance נקבע כברירת מחדל לחיפוש רגיל';
 

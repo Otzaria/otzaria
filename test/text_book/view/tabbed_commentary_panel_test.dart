@@ -179,6 +179,20 @@ void main() {
     expect(find.text('הערות'), findsOneWidget);
   });
 
+  testWidgets('הפחתת אנימציות: החלפת לשונית בלי מעבר (DD-21)', (tester) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    await tester.pumpWidget(buildPanel());
+    await tester.pump();
+
+    final controller = tester.widget<TabBar>(find.byType(TabBar)).controller!;
+    expect(controller.animationDuration, Duration.zero);
+    await tester.tap(find.text('קישורים'));
+    await tester.pump();
+    expect(controller.animation!.value, 1, reason: 'בלי פריים ביניים');
+  });
+
   testWidgets('לשונית סינון המפרשים מציגה את אייקון כרטיסיית המפרשים', (
     tester,
   ) async {

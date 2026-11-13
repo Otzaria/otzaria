@@ -147,6 +147,9 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
   int? _selectedColorIndex;
   bool _colorChanged = false;
 
+  /// הערכים בפתיחה: יציאה כשהם השתנו שואלת לפני הסגירה (DD-08).
+  late final Object _initialValues;
+
   @override
   void initState() {
     super.initState();
@@ -185,6 +188,29 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
     _notificationMinutes =
         ev?.notificationMinutes ?? _smartDefaultNotification();
     _userOverrodeNotification = ev?.notificationMinutes != null;
+    _initialValues = _currentValues();
+  }
+
+  Object _currentValues() => (
+    _titleController.text,
+    _descriptionController.text,
+    _yearsController.text,
+    _selectedDate,
+    _selectedRecurrenceType,
+    _recurForever,
+    _selectedTime,
+    _selectedEndTime,
+    _notificationMinutes,
+    _selectedEndDate,
+    _selectedColorIndex,
+  );
+
+  Future<void> _requestDismiss() async {
+    if (_currentValues() != _initialValues &&
+        await confirmDiscardChanges(context) != true) {
+      return;
+    }
+    if (mounted) Navigator.of(context).pop();
   }
 
   @override
@@ -1021,10 +1047,11 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
           : FluentIcons.calendar_add_24_regular,
       onConfirm: _submit,
       handleEnterKey: true,
+      onDismissRequest: _requestDismiss,
       actions: [
         ActionButton.neutral(
           text: 'ביטול',
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => Navigator.of(context).maybePop(),
         ),
         ActionButton.recommended(
           text: isEditMode ? 'שמור שינויים' : 'צור',

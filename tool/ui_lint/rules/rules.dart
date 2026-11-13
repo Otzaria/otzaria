@@ -1,4 +1,6 @@
 import '../ui_lint.dart';
+import 'brightness_color_rule.dart';
+import 'deprecated_component_rule.dart';
 import 'elevation_shadow_rule.dart';
 import 'hardcoded_color_rule.dart';
 import 'icon_button_tooltip_rule.dart';
@@ -21,6 +23,7 @@ import 'raw_scrollbar_rule.dart';
 import 'raw_show_dialog_rule.dart';
 import 'raw_text_field_rule.dart';
 import 'rtl_icon_rule.dart';
+import 'selection_context_menu_rule.dart';
 import 'shared_density_rule.dart';
 import 'shared_feature_import_rule.dart';
 import 'snack_bar_rule.dart';
@@ -59,7 +62,10 @@ const List<UiLintRule> uiLintRules = [
   SharedFeatureImportRule(),
   SharedDensityRule(),
   TextScalingRule(),
+  BrightnessColorRule(),
   RawShowDialogRule(),
   ElevationShadowRule(),
   RawScrollbarRule(),
+  SelectionContextMenuRule(),
+  DeprecatedComponentRule(),
 ];

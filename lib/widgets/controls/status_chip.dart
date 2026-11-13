@@ -37,29 +37,28 @@ class StatusChip extends StatelessWidget {
     final cs = theme.colorScheme;
     final chip = Tooltip(
       message: tooltip,
-      child: Material(
-        color: cs.primaryContainer,
-        shape: RoundedRectangleBorder(
-          borderRadius: AppTokens.borderRadiusAll,
-          side: BorderSide(color: cs.primary, width: 1.2),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: TextButton.icon(
-          onPressed: onPressed,
-          style: TextButton.styleFrom(
-            foregroundColor: cs.onPrimaryContainer,
-            textStyle: theme.textTheme.labelLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-            disabledForegroundColor: busy ? cs.onPrimaryContainer : null,
-            disabledIconColor: busy ? cs.onPrimaryContainer : null,
-            minimumSize: const Size(0, 32),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      child: TextButton.icon(
+        onPressed: onPressed,
+        // הצבע והמסגרת על הכפתור עצמו: במגע שטח הלחיצה 48 (ערכת הנושא)
+        // סביב אותו צ'יפ בגובה 32 (שאלה פתוחה 1).
+        style: TextButton.styleFrom(
+          backgroundColor: cs.primaryContainer,
+          disabledBackgroundColor: cs.primaryContainer,
+          shape: RoundedRectangleBorder(
+            borderRadius: AppTokens.borderRadiusAll,
+            side: BorderSide(color: cs.primary, width: 1.2),
           ),
-          icon: icon,
-          label: Text(label),
+          foregroundColor: cs.onPrimaryContainer,
+          textStyle: theme.textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+          disabledForegroundColor: busy ? cs.onPrimaryContainer : null,
+          disabledIconColor: busy ? cs.onPrimaryContainer : null,
+          minimumSize: const Size(0, 32),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         ),
+        icon: icon,
+        label: Text(label),
       ),
     );
     if (!busy) return chip;

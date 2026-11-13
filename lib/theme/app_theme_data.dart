@@ -8,9 +8,7 @@ import 'package:otzaria/theme/app_focus_ring.dart';
 import 'package:otzaria/theme/app_seed_colors.dart';
 import 'package:otzaria/theme/app_shadows.dart';
 import 'package:otzaria/theme/app_surface_colors.dart';
-import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
-import 'package:otzaria/theme/layout_tokens.dart';
 
 export 'package:otzaria_context_menu/otzaria_context_menu.dart'
     show AppMenuMetrics;
@@ -164,8 +162,11 @@ class AppThemeData {
       colorScheme: cs,
       textTheme: textTheme,
       // סרגל הניווט התחתון בטלפון: 64 ולא 80, ותווית לכל יעד (q12 Q8, ss6).
-      navigationBarTheme: const NavigationBarThemeData(
-        height: LayoutConstraints.bottomNavigationBarHeight,
+      // במצומצם 48 בלי תוויות (#4787).
+      navigationBarTheme: NavigationBarThemeData(
+        height: AppDensity(
+          isCompact: compactMenuMode,
+        ).bottomNavigationBarHeight,
       ),
       // כרטיס: מסגרת ולא צל (DD-12).
       cardTheme: CardThemeData(
@@ -196,6 +197,7 @@ class AppThemeData {
       tabBarTheme: _tabBarTheme(cs),
       segmentedButtonTheme: _segmentedButtonTheme(cs, surfaces.selectedBorder),
       tooltipTheme: _tooltipTheme(cs, regionBorder: regionBorder),
+      switchTheme: _switchTheme(cs),
       // פס גלילה: עובי קבוע גם בריחוף, כדי שהרצועה של AppScrollbar תכיל
       // אותו תמיד, ופינות בחצי העובי (q10 Q10).
       scrollbarTheme: const ScrollbarThemeData(
@@ -230,7 +232,7 @@ class AppThemeData {
     );
     return theme.copyWith(
       dialogTheme: DialogThemeData(
-        barrierColor: AppSurfaces.scrim(cs),
+        barrierColor: scrim(cs),
         backgroundColor: cs.surfaceContainerHigh,
         // "לבן": מסגרת דקה סביב הדיאלוג (#2850).
         shape: raisedShape(regionBorder),
@@ -272,6 +274,9 @@ class AppThemeData {
     required bool compactMenuMode,
     AppThemeVariant variant = AppThemeVariant.standard,
   }) => light(cs, compactMenuMode: compactMenuMode, variant: variant);
+
+  /// ההחשכה מאחורי דיאלוג וחלונית צפה (DD-12). קוראים דרך `AppSurfaces.scrim`.
+  static Color scrim(ColorScheme cs) => cs.scrim.withAlpha(0x22);
 
   /// צורת משטח מוגבה (דיאלוג, תפריט): פינות 8, וב"לבן" בבהיר מסגרת בקו
   /// האזורים ([AppSurfaceColors.regionBorder], ‏#2850). [regionBorder] null —
@@ -328,6 +333,30 @@ class AppThemeData {
       ),
     );
   }
+
+  /// מתג M3 (https://m3.material.io/components/switch/specs): אגודל
+  /// `onPrimary` על `primary` כשדלוק, `outline` על `surfaceContainerHighest`
+  /// עם מסגרת כשכבוי.
+  static SwitchThemeData _switchTheme(ColorScheme cs) => SwitchThemeData(
+    thumbColor: WidgetStateProperty.resolveWith((s) {
+      if (s.contains(WidgetState.disabled)) {
+        return cs.onSurface.withValues(alpha: 0.38);
+      }
+      if (s.contains(WidgetState.selected)) return cs.onPrimary;
+      return cs.outline;
+    }),
+    trackColor: WidgetStateProperty.resolveWith((s) {
+      if (s.contains(WidgetState.disabled)) {
+        return cs.surfaceContainerHighest.withValues(alpha: 0.12);
+      }
+      if (s.contains(WidgetState.selected)) return cs.primary;
+      return cs.surfaceContainerHighest;
+    }),
+    trackOutlineColor: WidgetStateProperty.resolveWith((s) {
+      if (s.contains(WidgetState.selected)) return Colors.transparent;
+      return cs.outline;
+    }),
+  );
 
   static TooltipThemeData _tooltipTheme(
     ColorScheme cs, {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/widgets/layout/floating_panel.dart';
 import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
@@ -337,6 +338,28 @@ void main() {
         ),
       );
     }
+
+    testWidgets('ברירת המחדל: LayoutConstraints.overlayPanelWidth (400)', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Stack(
+            children: [
+              const SizedBox.expand(),
+              ContextOverlayPanel(
+                isOpen: true,
+                onClose: () {},
+                child: const Text('תוכן'),
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(LayoutConstraints.overlayPanelWidth, 400);
+      expect(tester.getSize(find.byType(FloatingPanel)).width, 400);
+    });
 
     testWidgets('הרוחב מצומצם לרוחב החלון ונשמרים שוליים משני הצדדים', (
       tester,

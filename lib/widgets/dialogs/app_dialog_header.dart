@@ -15,7 +15,7 @@ enum AppDialogHeaderTone { primary, error }
 /// כותרת דיאלוג בצורה אחידה: אייקון מסומל, שם, שורת משנה אופציונלית וכפתור
 /// סגירה. משמשת את דיאלוגי הדיווח, ההקרסה והרשימות, כדי שכולם ייראו כחלק
 /// מאותה מערכת.
-class AppDialogHeader extends StatelessWidget {
+class AppDialogHeader extends StatefulWidget {
   const AppDialogHeader({
     super.key,
     this.icon,
@@ -74,10 +74,25 @@ class AppDialogHeader extends StatelessWidget {
   final bool fitTitle;
 
   @override
+  State<AppDialogHeader> createState() => _AppDialogHeaderState();
+}
+
+class _AppDialogHeaderState extends State<AppDialogHeader> {
+  // בחציית 600 leading ו-trailing עוברים מקום בעץ; המפתח שומר את המצב שלהם.
+  final _leadingKey = GlobalKey();
+  final _trailingKey = GlobalKey();
+
+  @override
   Widget build(BuildContext context) {
+    final leading = widget.leading == null
+        ? null
+        : KeyedSubtree(key: _leadingKey, child: widget.leading!);
+    final trailing = widget.trailing == null
+        ? null
+        : KeyedSubtree(key: _trailingKey, child: widget.trailing!);
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final vertical = compact ? AppTokens.spaceSM : AppTokens.spaceMD;
+    final vertical = widget.compact ? AppTokens.spaceSM : AppTokens.spaceMD;
     // ברוחב טלפון ה-trailing (מונה, שם צבע) היה מצמצם את הכותרת לרוחב של אות
     // אחת; שם הוא יורד לשורה משלו מתחת לכותרת. נמדד לפי המסך ולא לפי
     // LayoutBuilder, כי AlertDialog מודד רוחב פנימי.
@@ -101,15 +116,15 @@ class AppDialogHeader extends StatelessWidget {
         vertical,
       ),
       child: _withStackedLeading(
-        stackLeading,
+        stackLeading ? leading : null,
         Row(
           children: [
             if (leading != null && !stackLeading) ...[
-              leading!,
+              leading,
               const SizedBox(width: AppTokens.spaceMD),
             ],
-            if (icon != null) ...[
-              AppDialogIconBadge(icon: icon!, tone: tone),
+            if (widget.icon != null) ...[
+              AppDialogIconBadge(icon: widget.icon!, tone: widget.tone),
               const SizedBox(width: AppTokens.spaceMD),
             ] else
               const SizedBox(width: AppTokens.spaceSM),
@@ -118,36 +133,37 @@ class AppDialogHeader extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (fitTitle)
+                  if (widget.fitTitle)
                     Align(
                       alignment: AlignmentDirectional.centerStart,
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
-                          title,
+                          widget.title,
                           maxLines: 1,
                           style: theme.textTheme.titleLarge,
                         ),
                       ),
                     )
-                  else if (titleMaxLines != null)
+                  else if (widget.titleMaxLines != null)
                     Tooltip(
-                      message: title,
+                      message: widget.title,
                       child: Text(
-                        title,
-                        maxLines: titleMaxLines,
+                        widget.title,
+                        maxLines: widget.titleMaxLines,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.titleLarge,
                       ),
                     )
                   else
-                    Text(title, style: theme.textTheme.titleLarge),
-                  if (subtitle != null && subtitle!.isNotEmpty) ...[
+                    Text(widget.title, style: theme.textTheme.titleLarge),
+                  if (widget.subtitle != null &&
+                      widget.subtitle!.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(
-                      subtitle!,
-                      maxLines: subtitleMaxLines,
-                      overflow: subtitleMaxLines == null
+                      widget.subtitle!,
+                      maxLines: widget.subtitleMaxLines,
+                      overflow: widget.subtitleMaxLines == null
                           ? null
                           : TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(
@@ -157,21 +173,21 @@ class AppDialogHeader extends StatelessWidget {
                   ],
                   if (stackTrailing) ...[
                     const SizedBox(height: AppTokens.spaceXS),
-                    trailing!,
+                    trailing,
                   ],
                 ],
               ),
             ),
             if (trailing != null && !stackTrailing) ...[
               const SizedBox(width: AppTokens.spaceSM),
-              trailing!,
+              trailing,
             ],
-            if (showClose)
+            if (widget.showClose)
               AppIconButton(
                 icon: const Icon(FluentIcons.dismiss_24_regular),
-                tooltip: closeTooltip ?? context.settingsText('סגור'),
-                onPressed: closeEnabled
-                    ? (onClose ?? () => Navigator.of(context).maybePop())
+                tooltip: widget.closeTooltip ?? context.settingsText('סגור'),
+                onPressed: widget.closeEnabled
+                    ? (widget.onClose ?? () => Navigator.of(context).maybePop())
                     : null,
               )
             else
@@ -182,8 +198,8 @@ class AppDialogHeader extends StatelessWidget {
     );
   }
 
-  Widget _withStackedLeading(bool stack, Widget row) {
-    if (!stack) return row;
+  Widget _withStackedLeading(Widget? stacked, Widget row) {
+    if (stacked == null) return row;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -191,7 +207,7 @@ class AppDialogHeader extends StatelessWidget {
         row,
         Padding(
           padding: const EdgeInsets.only(top: AppTokens.spaceSM),
-          child: leading!,
+          child: stacked,
         ),
       ],
     );

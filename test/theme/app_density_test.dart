@@ -47,6 +47,22 @@ void main() {
       expect(_theme(compact: true).extension<AppDensity>()!.isCompact, isTrue);
     });
 
+    test('מידות לפי מצב', () {
+      expect(AppDensity.regular.topBarHeight, 56);
+      expect(AppDensity.compact.topBarHeight, 44);
+      expect(AppDensity.regular.fieldHeight, AppInputTokens.regularHeight);
+      expect(AppDensity.compact.fieldHeight, AppInputTokens.compactHeight);
+      // מצומצם שמצמצם באמת (#4787): שורת הכותרת והכרטיסיות, וסרגל תחתון.
+      expect(AppDensity.regular.captionHeight, 40);
+      expect(AppDensity.compact.captionHeight, 32);
+      expect(AppDensity.regular.tabBodyHeight, 32);
+      expect(AppDensity.compact.tabBodyHeight, 26);
+      expect(AppDensity.regular.bottomNavigationBarHeight, 64);
+      expect(AppDensity.compact.bottomNavigationBarHeight, 48);
+      expect(_theme(compact: false).navigationBarTheme.height, 64);
+      expect(_theme(compact: true).navigationBarTheme.height, 48);
+    });
+
     test('lerp מתחלף באמצע, copyWith', () {
       expect(
         AppDensity.regular.lerp(AppDensity.compact, 0.4),

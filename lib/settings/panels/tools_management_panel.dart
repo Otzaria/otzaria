@@ -208,15 +208,19 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
                       cardId: _builtInCardId,
                       title: context.settingsText('כלים מובנים'),
                       children: [
-                        ExpandableSection(
-                          icon: FluentIcons.apps_24_regular,
-                          title: context.settingsText('רשימת הכלים'),
-                          subtitle: context.settingsText(
-                            'הסתר כלים מהממשק או הצמד אותם לסרגל הניווט הראשי.',
-                          ),
+                        ExpandableCard(
+                          wrapInCard: false,
                           isExpanded: _builtInExpanded,
-                          onTap: () => setState(
-                            () => _builtInExpanded = !_builtInExpanded,
+                          header: ExpandableSettingsTile(
+                            icon: FluentIcons.apps_24_regular,
+                            title: context.settingsText('רשימת הכלים'),
+                            subtitle: context.settingsText(
+                              'הסתר כלים מהממשק או הצמד אותם לסרגל הניווט הראשי.',
+                            ),
+                            isExpanded: _builtInExpanded,
+                            onTap: () => setState(
+                              () => _builtInExpanded = !_builtInExpanded,
+                            ),
                           ),
                           children: _builtInToolRows(settingsState),
                         ),
@@ -1401,7 +1405,7 @@ class _AnimatedPluginMoveWrapperState extends State<_AnimatedPluginMoveWrapper>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-      duration: const Duration(milliseconds: 450),
+      duration: AppMotion.controller(const Duration(milliseconds: 450)),
       vsync: this,
       value: 1.0,
     );

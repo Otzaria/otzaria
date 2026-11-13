@@ -1,5 +1,5 @@
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -11,6 +11,8 @@ import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/utils/ui/image_decode_size.dart';
 import 'package:otzaria/widgets/feedback/app_future_builder.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
+import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 
 const _organizationsLoadError = 'לא ניתן לטעון את פרטי הארגונים';
 
@@ -79,7 +81,7 @@ class _AdPopupDialogState extends State<AdPopupDialog>
 
     // כניסת הדיאלוג: scale עדין מ-0.92 ל-1 יחד עם fade
     _entryController = AnimationController(
-      duration: const Duration(milliseconds: 350),
+      duration: AppMotion.controller(const Duration(milliseconds: 350)),
       vsync: this,
     );
     _entryScale = Tween<double>(begin: 0.92, end: 1.0).animate(
@@ -92,7 +94,7 @@ class _AdPopupDialogState extends State<AdPopupDialog>
 
     // הופעת הטקסט ליד הלוגו
     _textController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: AppMotion.controller(const Duration(milliseconds: 600)),
       vsync: this,
     );
     _textReveal = CurvedAnimation(
@@ -102,7 +104,7 @@ class _AdPopupDialogState extends State<AdPopupDialog>
 
     // כיווץ הכותרת למעלה והופעת הרשימה
     _collapseController = AnimationController(
-      duration: const Duration(milliseconds: 650),
+      duration: AppMotion.controller(const Duration(milliseconds: 650)),
       vsync: this,
     );
     _collapse = CurvedAnimation(
@@ -110,6 +112,13 @@ class _AdPopupDialogState extends State<AdPopupDialog>
       curve: Curves.easeInOutCubic,
     );
 
+    // בהפחתת אנימציות: מצב הסיום מיד, בלי ההשהיות שבין השלבים.
+    if (AppMotion.reducedByPlatform) {
+      _entryController.value = 1;
+      _textController.value = 1;
+      _collapseController.value = 1;
+      return;
+    }
     _entryController.forward();
     _startAnimationSequence();
   }
@@ -164,23 +173,13 @@ class _AdPopupDialogState extends State<AdPopupDialog>
                     _buildBottomButtons(),
                   ],
                 ),
-                // כפתור סגירה X
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: IconButton(
+                PositionedDirectional(
+                  top: AppTokens.spaceSM,
+                  end: AppTokens.spaceSM,
+                  child: AppIconButton(
                     onPressed: () => Navigator.of(context).pop(),
                     icon: const Icon(FluentIcons.dismiss_24_regular),
                     tooltip: 'סגור',
-                    style: IconButton.styleFrom(
-                      backgroundColor: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.08),
-                      foregroundColor: Theme.of(
-                        context,
-                      ).colorScheme.onSurfaceVariant,
-                      shape: AppTokens.roundedShape,
-                    ),
                   ),
                 ),
               ],
@@ -296,75 +295,57 @@ class _AdPopupDialogState extends State<AdPopupDialog>
 
   Widget _buildBottomButtons() {
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppTokens.spaceSMD),
       child: Align(
-        alignment: Alignment.centerLeft,
+        alignment: AlignmentDirectional.centerEnd,
         child: Builder(
-          builder: (builderContext) => PopupMenuButton<String>(
-            // הכפתור שבתוכו פותח את התפריט; עטיפת ה-InkWell של התפריט כבויה,
-            // כדי שלא יהיו שתי שכבות ריחוף ושני יעדי פוקוס.
-            enabled: false,
-            tooltip: '',
-            onSelected: (value) async {
-              final navigator = Navigator.of(builderContext);
-              switch (value) {
-                case 'week':
-                  await AdPopupService.setRemindLater(days: 7);
-                  break;
-                case 'month':
-                  await AdPopupService.setRemindLater(days: 30);
-                  break;
-                case 'forever':
-                  await AdPopupService.setDontShowAgain();
-                  break;
-              }
-              navigator.pop();
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'week',
-                child: Row(
-                  children: [
-                    Icon(OtzariaIcons.calendar_24_regular, size: 20),
-                    SizedBox(width: 12),
-                    Text('למשך שבוע'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'month',
-                child: Row(
-                  children: [
-                    RtlIcon(FluentIcons.calendar_month_24_regular, size: 20),
-                    SizedBox(width: 12),
-                    Text('למשך חודש'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'forever',
-                child: Row(
-                  children: [
-                    Icon(FluentIcons.prohibited_24_regular, size: 20),
-                    SizedBox(width: 12),
-                    Text('לעולם'),
-                  ],
-                ),
-              ),
-            ],
-            child: Builder(
-              builder: (menuContext) => ActionButton.neutral(
-                text: 'אל תציג שוב',
-                icon: FluentIcons.dismiss_24_regular,
-                onPressed: () => menuContext
-                    .findAncestorStateOfType<PopupMenuButtonState<String>>()
-                    ?.showButtonMenu(),
-              ),
-            ),
+          builder: (anchorContext) => ActionButton.neutral(
+            text: 'אל תציג שוב',
+            icon: FluentIcons.dismiss_24_regular,
+            onPressed: () => _showRemindMenu(anchorContext),
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _showRemindMenu(BuildContext anchorContext) async {
+    final navigator = Navigator.of(context);
+    final value = await showAnchoredAppMenu<String>(
+      context: context,
+      anchorContext: anchorContext,
+      itemsBuilder: (metrics) => [
+        for (final entry in const [
+          AppMenuEntry(
+            value: 'week',
+            label: 'למשך שבוע',
+            icon: OtzariaIcons.calendar_24_regular,
+          ),
+          AppMenuEntry(
+            value: 'month',
+            label: 'למשך חודש',
+            icon: FluentIcons.calendar_month_24_regular,
+          ),
+          AppMenuEntry(
+            value: 'forever',
+            label: 'לעולם',
+            icon: FluentIcons.prohibited_24_regular,
+          ),
+        ])
+          buildAppPopupMenuItem<String>(context, entry, metrics, null),
+      ],
+    );
+    switch (value) {
+      case 'week':
+        await AdPopupService.setRemindLater(days: 7);
+      case 'month':
+        await AdPopupService.setRemindLater(days: 30);
+      case 'forever':
+        await AdPopupService.setDontShowAgain();
+      default:
+        return;
+    }
+    navigator.pop();
   }
 }
 
@@ -441,11 +422,9 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
 
   Widget _buildDetailsText(String details) {
     final cs = Theme.of(context).colorScheme;
-    final defaultStyle = TextStyle(
-      fontSize: 13,
-      height: 1.6,
-      color: cs.onSurface,
-    );
+    final defaultStyle = Theme.of(
+      context,
+    ).textTheme.bodyMedium!.copyWith(height: 1.6, color: cs.onSurface);
     final boldStyle = defaultStyle.copyWith(
       color: cs.error,
       fontWeight: FontWeight.bold,
@@ -486,174 +465,174 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      // צבע הכרטיס מערכת הנושא (במקום לבן קשיח) כדי שיתאים לרקע הפופאפ
-      color: colorScheme.surfaceContainerHighest,
-      shape: RoundedRectangleBorder(
-        borderRadius: AppTokens.borderRadiusAll,
-        side: BorderSide(
-          color: (widget.isEmergency ? colorScheme.error : colorScheme.primary)
-              .withValues(alpha: 0.15),
-          width: 1.5,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppTokens.spaceSMD),
+      child: Material(
+        color: colorScheme.surfaceContainerHighest,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppTokens.borderRadiusAll,
+          side: BorderSide(
+            color:
+                (widget.isEmergency ? colorScheme.error : colorScheme.primary)
+                    .withValues(alpha: 0.15),
+            width: 1.5,
+          ),
         ),
-      ),
-      child: Column(
-        children: [
-          InkWell(
-            onTap: () => setState(() => _isExpanded = !_isExpanded),
-            borderRadius: AppTokens.borderRadiusAll,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final logo = Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHigh,
-                      borderRadius: AppTokens.borderRadiusAll,
-                    ),
-                    child: ClipRRect(
-                      borderRadius: AppTokens.borderRadiusAll,
-                      child: Image(
-                        image: coverResizeAsset(
-                          context,
-                          widget.org.logo,
-                          logicalSize: 50,
-                          maxSourceAspectRatio:
-                              SupportOrganizationsService.maxLogoAspectRatio,
-                        ),
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Icon(
-                            FluentIcons.building_24_regular,
-                            size: 30,
-                          );
-                        },
+        child: Column(
+          children: [
+            InkWell(
+              onTap: () => setState(() => _isExpanded = !_isExpanded),
+              borderRadius: AppTokens.borderRadiusAll,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final logo = Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHigh,
+                        borderRadius: AppTokens.borderRadiusAll,
                       ),
-                    ),
-                  );
-                  final name = Text(
-                    widget.org.name,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  );
-                  final phone = Text(
-                    widget.org.phone,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color:
-                          (widget.isEmergency
-                                  ? colorScheme.error
-                                  : colorScheme.primary)
-                              .withValues(alpha: 0.8),
-                      letterSpacing: 1.2,
-                    ),
-                    textDirection: TextDirection.ltr,
-                  );
-                  final arrow = Icon(
-                    _isExpanded
-                        ? FluentIcons.chevron_up_24_regular
-                        : FluentIcons.chevron_down_24_regular,
-                    color: colorScheme.onSurfaceVariant,
-                  );
+                      child: ClipRRect(
+                        borderRadius: AppTokens.borderRadiusAll,
+                        child: Image(
+                          image: coverResizeAsset(
+                            context,
+                            widget.org.logo,
+                            logicalSize: 50,
+                            maxSourceAspectRatio:
+                                SupportOrganizationsService.maxLogoAspectRatio,
+                          ),
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Icon(
+                              FluentIcons.building_24_regular,
+                              size: AppTokens.iconLG,
+                            );
+                          },
+                        ),
+                      ),
+                    );
+                    final name = Text(
+                      widget.org.name,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    );
+                    final phone = Text(
+                      widget.org.phone,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color:
+                            (widget.isEmergency
+                                    ? colorScheme.error
+                                    : colorScheme.primary)
+                                .withValues(alpha: 0.8),
+                        letterSpacing: 1.2,
+                      ),
+                      textDirection: TextDirection.ltr,
+                    );
+                    final arrow = Icon(
+                      _isExpanded
+                          ? FluentIcons.chevron_up_24_regular
+                          : FluentIcons.chevron_down_24_regular,
+                      color: colorScheme.onSurfaceVariant,
+                    );
 
-                  // הסף 400 הוא הרוחב המינימלי לפריסה השורתית בלי שהשם
-                  // יתקפל לתו-לשורה: 50 (לוגו) + 16 + ~150 (טלפון מלא) +
-                  // 8 + 24 (חץ) = ~250 קבועים, פלוס ~150 מינימום ל-שם.
-                  const rowMinWidth = 400.0;
-                  final isNarrow = constraints.maxWidth < rowMinWidth;
-                  if (isNarrow) {
+                    // הסף 400 הוא הרוחב המינימלי לפריסה השורתית בלי שהשם
+                    // יתקפל לתו-לשורה: 50 (לוגו) + 16 + ~150 (טלפון מלא) +
+                    // 8 + 24 (חץ) = ~250 קבועים, פלוס ~150 מינימום ל-שם.
+                    const rowMinWidth = 400.0;
+                    final isNarrow = constraints.maxWidth < rowMinWidth;
+                    if (isNarrow) {
+                      return Row(
+                        children: [
+                          logo,
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                name,
+                                const SizedBox(height: 4),
+                                Align(
+                                  alignment: AlignmentDirectional.centerStart,
+                                  child: phone,
+                                ),
+                              ],
+                            ),
+                          ),
+                          arrow,
+                        ],
+                      );
+                    }
+
                     return Row(
                       children: [
                         logo,
                         const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                        Expanded(child: name),
+                        phone,
+                        const SizedBox(width: 8),
+                        arrow,
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+            // מידע מורחב
+            if (_isExpanded) ...[
+              const Divider(height: 1),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                color: colorScheme.surfaceContainer,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // טלפונים נוספים
+                    if (widget.org.phones.isNotEmpty) ...[
+                      Text(
+                        'מספרי טלפון:',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 8),
+                      ...widget.org.phones.map(
+                        (phone) => Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Row(
                             children: [
-                              name,
-                              const SizedBox(height: 4),
-                              Align(
-                                alignment: AlignmentDirectional.centerStart,
-                                child: phone,
+                              const Icon(
+                                FluentIcons.phone_24_regular,
+                                size: AppTokens.iconSM,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                phone,
+                                style: Theme.of(context).textTheme.bodyMedium,
+                                textDirection: TextDirection.ltr,
                               ),
                             ],
                           ),
                         ),
-                        arrow,
-                      ],
-                    );
-                  }
-
-                  return Row(
-                    children: [
-                      logo,
-                      const SizedBox(width: 16),
-                      Expanded(child: name),
-                      phone,
-                      const SizedBox(width: 8),
-                      arrow,
+                      ),
+                      const SizedBox(height: 12),
                     ],
-                  );
-                },
-              ),
-            ),
-          ),
-          // מידע מורחב
-          if (_isExpanded) ...[
-            const Divider(height: 1),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              color: colorScheme.surfaceContainer,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // טלפונים נוספים
-                  if (widget.org.phones.isNotEmpty) ...[
-                    const Text(
-                      'מספרי טלפון:',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                    // פרטים
+                    if (widget.org.details.isNotEmpty) ...[
+                      Text(
+                        'אפשרויות הקו:',
+                        style: Theme.of(context).textTheme.titleSmall,
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    ...widget.org.phones.map(
-                      (phone) => Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Row(
-                          children: [
-                            const Icon(FluentIcons.phone_24_regular, size: 16),
-                            const SizedBox(width: 8),
-                            Text(
-                              phone,
-                              style: const TextStyle(fontSize: 14),
-                              textDirection: TextDirection.ltr,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
+                      const SizedBox(height: 8),
+                      _buildDetailsText(widget.org.details),
+                    ],
                   ],
-                  // פרטים
-                  if (widget.org.details.isNotEmpty) ...[
-                    const Text(
-                      'אפשרויות הקו:',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    _buildDetailsText(widget.org.details),
-                  ],
-                ],
+                ),
               ),
-            ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

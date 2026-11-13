@@ -27,7 +27,6 @@ import 'package:otzaria/settings/search/settings_search_registry.dart';
 import 'package:otzaria/settings/services/backup_service.dart';
 import 'package:otzaria/settings/tabs/system_settings_tab.dart';
 import 'package:otzaria/settings/widgets/expandable_settings_tile.dart';
-import 'package:otzaria/widgets/controls/custom_switch.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -132,7 +131,8 @@ void main() {
   }
 
   Finder backupSection() => find.byWidgetPredicate(
-    (widget) => widget is ExpandableSection && widget.title == 'גיבוי אוטומטי',
+    (widget) =>
+        widget is ExpandableSettingsTile && widget.title == 'גיבוי אוטומטי',
   );
 
   Future<void> startBackupNavigation(
@@ -145,11 +145,12 @@ void main() {
       isCurrent: isCurrent,
     );
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+    // יותר מ-AppTokens.animPanelSlide, משך הגלילה לעוגן.
+    await tester.pump(const Duration(milliseconds: 400));
     await tester.pump();
     await navigation;
     expect(
-      tester.widget<ExpandableSection>(backupSection()).isExpanded,
+      tester.widget<ExpandableSettingsTile>(backupSection()).isExpanded,
       isTrue,
       reason: 'הבדיקה צריכה להגיע להמתנה שאחרי פתיחת הגיבוי',
     );
@@ -180,7 +181,7 @@ void main() {
     await tester.pumpAndSettle();
     await navigation;
     expect(
-      tester.widget<ExpandableSection>(backupSection()).isExpanded,
+      tester.widget<ExpandableSettingsTile>(backupSection()).isExpanded,
       isFalse,
     );
   });
@@ -294,14 +295,14 @@ void main() {
         Hive.box<dynamic>(HiveCache.keyName).toMap(),
       );
       expect(
-        tester.widget<ExpandableSection>(backupSection()).isExpanded,
+        tester.widget<ExpandableSettingsTile>(backupSection()).isExpanded,
         isFalse,
       );
 
       await navigate(tester, 'system.advanced.backup.$option');
 
       expect(
-        tester.widget<ExpandableSection>(backupSection()).isExpanded,
+        tester.widget<ExpandableSettingsTile>(backupSection()).isExpanded,
         isTrue,
       );
       final target = find.byWidgetPredicate(
@@ -325,7 +326,7 @@ void main() {
     await navigate(tester, 'system.advanced.backup.retention');
 
     expect(
-      tester.widget<ExpandableSection>(backupSection()).isExpanded,
+      tester.widget<ExpandableSettingsTile>(backupSection()).isExpanded,
       isTrue,
     );
     final mode = find.byWidgetPredicate(
@@ -354,7 +355,7 @@ void main() {
     await pumpTab(tester);
     await navigate(tester, 'system.advanced.cypher');
     expect(
-      tester.widget<ExpandableSection>(backupSection()).isExpanded,
+      tester.widget<ExpandableSettingsTile>(backupSection()).isExpanded,
       isFalse,
     );
   });
@@ -386,7 +387,7 @@ void main() {
     );
     final toggle = find.descendant(
       of: target,
-      matching: find.byType(CustomSwitch),
+      matching: find.byType(Switch),
     );
     await tester.tap(toggle);
     await tester.pumpAndSettle();

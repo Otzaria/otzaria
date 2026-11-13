@@ -16,8 +16,8 @@ import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
-import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -105,10 +105,6 @@ class _AppReportDialogState extends State<AppReportDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final isNarrow = WindowClass.of(context).isCompact;
-    final maxWidth = isNarrow ? size.width * 0.95 : 640.0;
-
     return BlocProvider.value(
       value: _bloc,
       child: BlocConsumer<AppReportBloc, AppReportState>(
@@ -155,68 +151,39 @@ class _AppReportDialogState extends State<AppReportDialog> {
         },
         builder: (context, state) {
           if (state is AppReportEditing) _syncControllers(state);
-          final dialog = Dialog(
-            insetPadding: isNarrow ? AppDialogSize.compactInset : null,
-            clipBehavior: Clip.antiAlias,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: maxWidth,
-                maxHeight: size.height * 0.9,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildHeader(context, state),
-                  Flexible(
-                    child: switch (state) {
-                      AppReportCollecting() => const Padding(
-                        padding: EdgeInsets.all(AppTokens.spaceXL),
-                        child: Center(child: CircularProgressIndicator()),
-                      ),
-                      // הפס גלוי מההתחלה: בחלון נמוך אין סימן אחר לכך שיש
-                      // עוד שדות מתחת.
-                      AppReportEditing() => PanelScrollableContent(
-                        thumbVisibility: true,
-                        padding: const EdgeInsets.fromLTRB(
-                          AppTokens.spaceLG,
-                          AppTokens.spaceMD,
-                          AppTokens.spaceLG,
-                          0,
-                        ),
-                        child: _buildForm(context, state),
-                      ),
-                    },
-                  ),
-                  const Divider(height: 1),
-                  _buildActions(context, state),
-                ],
-              ),
+          return AppDialogFrame(
+            size: AppDialogSize.large,
+            icon: FluentIcons.person_feedback_24_regular,
+            title: context.settingsText('דיווח על תקלה בתוכנה'),
+            subtitle: context.settingsText(
+              'ככל שהתיאור מדויק יותר, כך קל יותר לאתר את התקלה ולתקן אותה',
             ),
-          );
-          return PopScope(
-            canPop: false,
-            onPopInvokedWithResult: (didPop, result) {
-              if (!didPop) _leave();
+            closeEnabled: !(state is AppReportEditing && state.isSending),
+            // X, Escape ולחיצה בחוץ עוברים ב-_leave: טיוטה, או סגירה.
+            onDismissRequest: _leave,
+            actions: _buildActions(context, state),
+            padding: EdgeInsets.zero,
+            child: switch (state) {
+              AppReportCollecting() => const Padding(
+                padding: EdgeInsets.all(AppTokens.spaceXL),
+                child: LoadingIndicator(),
+              ),
+              // הפס גלוי מההתחלה: בחלון נמוך אין סימן אחר לכך שיש עוד שדות
+              // מתחת.
+              AppReportEditing() => PanelScrollableContent(
+                thumbVisibility: true,
+                padding: const EdgeInsets.fromLTRB(
+                  AppTokens.spaceLG,
+                  AppTokens.spaceMD,
+                  AppTokens.spaceLG,
+                  0,
+                ),
+                child: _buildForm(context, state),
+              ),
             },
-            child: dialog,
           );
         },
       ),
-    );
-  }
-
-  /// כותרת הטופס: אייקון מסומל, שם הטופס ומשפט שמסביר מה עוזר בדיווח.
-  /// הפס הצבוע מפריד אותה מהטופס עצמו, כמו בשאר הדיאלוגים המורכבים.
-  Widget _buildHeader(BuildContext context, AppReportState state) {
-    return AppDialogHeader(
-      icon: FluentIcons.person_feedback_24_regular,
-      title: context.settingsText('דיווח על תקלה בתוכנה'),
-      onClose: _leave,
-      subtitle: context.settingsText(
-        'ככל שהתיאור מדויק יותר, כך קל יותר לאתר את התקלה ולתקן אותה',
-      ),
-      closeEnabled: !(state is AppReportEditing && state.isSending),
     );
   }
 
@@ -434,78 +401,62 @@ class _AppReportDialogState extends State<AppReportDialog> {
       Settings.isInitialized &&
       (Settings.getValue<bool>(SettingsRepository.keyOfflineMode) ?? false);
 
-  Widget _buildActions(BuildContext context, AppReportState state) {
+  List<Widget> _buildActions(BuildContext context, AppReportState state) {
     final editing = state is AppReportEditing ? state : null;
     final busy = editing?.isSending ?? false;
     final finalizing = editing?.invalidField == 'draftFinalize';
     final loadFailed = editing?.invalidField == 'draftLoad';
-    return Padding(
-      padding: const EdgeInsets.all(AppTokens.spaceMD),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_offline && !finalizing)
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppTokens.spaceSM),
-              child: Text(
-                context.settingsText(
-                  'מצב מנותק: הדיווח יישמר בתור לשליחה או להעברה, לאחר השלמת השדות הנדרשים.',
-                ),
-              ),
+    return [
+      // ההודעה בשורה משלה מעל הכפתורים.
+      if (_offline && !finalizing)
+        SizedBox(
+          width: double.infinity,
+          child: Text(
+            context.settingsText(
+              'מצב מנותק: הדיווח יישמר בתור לשליחה או להעברה, לאחר השלמת השדות הנדרשים.',
             ),
-          Wrap(
-            alignment: WrapAlignment.end,
-            spacing: AppTokens.spaceSM,
-            runSpacing: AppTokens.spaceSM,
-            children: [
-              if (_bloc.supportsDraft && !finalizing && !loadFailed)
-                ActionButton.ghost(
-                  key: const ValueKey('app-report-discard'),
-                  text: context.settingsText('השלך טיוטה'),
-                  onPressed: editing == null || busy ? null : _discardDraft,
-                ),
-              ActionButton.neutral(
-                key: const ValueKey('app-report-save-draft'),
-                text: context.settingsText(
-                  _bloc.supportsDraft && !loadFailed
-                      ? 'שמור טיוטה וצא זמנית'
-                      : 'סגור',
-                ),
-                onPressed: busy || finalizing ? null : _leave,
-              ),
-              if (!_offline && !finalizing && !loadFailed)
-                ActionButton.neutral(
-                  key: const ValueKey('app-report-queue'),
-                  text: context.settingsText('שמור בתור'),
-                  onPressed: editing == null || busy
-                      ? null
-                      : () => _bloc.add(
-                          const AppReportSubmitted(queueOnly: true),
-                        ),
-                ),
-              if (!loadFailed)
-                ActionButton.recommended(
-                  key: const ValueKey('app-report-send'),
-                  text: context.settingsText(
-                    finalizing
-                        ? 'סיים שמירה מקומית'
-                        : _offline
-                        ? 'שמור בתור'
-                        : 'שלח',
-                  ),
-                  icon: FluentIcons.send_24_regular,
-                  isLoading: busy,
-                  onPressed: editing == null || busy
-                      ? null
-                      : () =>
-                            _bloc.add(AppReportSubmitted(queueOnly: _offline)),
-                ),
-            ],
           ),
-        ],
+        ),
+      if (_bloc.supportsDraft && !finalizing && !loadFailed)
+        ActionButton.ghost(
+          key: const ValueKey('app-report-discard'),
+          text: context.settingsText('השלך טיוטה'),
+          onPressed: editing == null || busy ? null : _discardDraft,
+        ),
+      ActionButton.neutral(
+        key: const ValueKey('app-report-save-draft'),
+        text: context.settingsText(
+          _bloc.supportsDraft && !loadFailed ? 'שמור טיוטה וצא זמנית' : 'סגור',
+        ),
+        onPressed: busy || finalizing ? null : _leave,
       ),
-    );
+      if (!_offline && !finalizing && !loadFailed)
+        ActionButton.neutral(
+          key: const ValueKey('app-report-queue'),
+          text: context.settingsText('שמור בתור'),
+          onPressed: editing == null || busy
+              ? null
+              : () => _bloc.add(
+                  const AppReportSubmitted(queueOnly: true),
+                ),
+        ),
+      if (!loadFailed)
+        ActionButton.recommended(
+          key: const ValueKey('app-report-send'),
+          text: context.settingsText(
+            finalizing
+                ? 'סיים שמירה מקומית'
+                : _offline
+                ? 'שמור בתור'
+                : 'שלח',
+          ),
+          icon: FluentIcons.send_24_regular,
+          isLoading: busy,
+          onPressed: editing == null || busy
+              ? null
+              : () => _bloc.add(AppReportSubmitted(queueOnly: _offline)),
+        ),
+    ];
   }
 
   void _leave() {

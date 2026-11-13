@@ -18,6 +18,9 @@ import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
 import 'package:otzaria/widgets/dialogs/input_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
+import 'package:flutter_bloc/flutter_bloc.dart' show BlocProvider;
+import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
+import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 import 'package:flutter/foundation.dart' show compute;
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:path/path.dart' as p;
@@ -233,7 +236,8 @@ Map<String, dynamic> buildThemePayloadFromScheme(
       Settings.getValue<String>(SettingsRepository.keyCommentatorsFontFamily) ??
       AppFonts.defaultCommentatorsFont;
   final fontSize =
-      Settings.getValue<double>(SettingsRepository.keyFontSize) ?? 25.0;
+      Settings.getValue<double>(SettingsRepository.keyFontSize) ??
+      AppFonts.defaultReadingSize;
   final commentatorsFontSize =
       Settings.getValue<double>(SettingsRepository.keyCommentatorsFontSize) ??
       22.0;
@@ -493,6 +497,10 @@ class PluginBridgeDependencies {
   final Future<bool> Function(String pluginId, String instanceId)?
   hasUserActivation;
 
+  /// מסך מלא של החלון (`ui.setFullscreen`). אופציונלי — ברירת המחדל היא
+  /// [FullscreenHelper] על החלון שבו רץ התוסף.
+  final Future<void> Function(bool fullscreen)? setAppFullscreen;
+
   /// ה-BLoC של התיקיות האישיות — היעד של `library.refreshUserBooks`. אותה
   /// סריקה שהלחצן „סרוק מחדש תיקיות אישיות” מפעיל, ולכן דרכה ולא בקוד סריקה
   /// משלנו. אופציונלי: כשאינו מסופק (בדיקות), הקריאה מחזירה
@@ -552,6 +560,7 @@ class PluginBridgeDependencies {
     this.printBookRange,
     this.capturePluginPagePdf,
     this.hasUserActivation,
+    this.setAppFullscreen,
     this.customFoldersBloc,
     this.waitForLibraryRefresh,
   });
@@ -4775,6 +4784,28 @@ class PluginBridgeAdapter {
           message: args['message'] as String?,
         );
         return true;
+      case 'setFullscreen':
+        // spec: setFullscreen({ fullscreen }) — מסך מלא של האפליקציה, כמו
+        // F11. כניסה רק מפעולת משתמש; יציאה תמיד. Escape ו"חזור" יוצאים
+        // ממסך מלא בכל מקרה, והתוסף אינו יכול לחסום אותם.
+        final fullscreen = args['fullscreen'];
+        if (fullscreen is! bool) {
+          throw Exception('error.invalid_params: fullscreen must be boolean');
+        }
+        if (fullscreen) {
+          final check =
+              _dependencies.hasUserActivation ?? _defaultHasUserActivation;
+          if (!await check(plugin.pluginId, instanceId)) {
+            throw Exception(
+              'error.forbidden: Requires a user gesture — call it directly '
+              'from a click handler',
+            );
+          }
+        }
+        final setter =
+            _dependencies.setAppFullscreen ?? _defaultSetAppFullscreen;
+        await setter(fullscreen);
+        return true;
       case 'pickFolder':
         // פותח דיאלוג בחירת תיקייה. הנתיב שנבחר נרשם כתיקייה מאושרת לתוסף —
         // מכאן ואילך מותר לו לכתוב/למחוק בתוכה (download.destPath, fs.*).
@@ -5065,6 +5096,24 @@ class PluginBridgeAdapter {
         );
     // WKWebView אינו מממש את navigator.userActivation; שם אין מה לאכוף.
     return result != 'inactive';
+  }
+
+  /// מסך מלא של החלון שבו רץ התוסף. כניסה רק כשהעיון מתיר מסך מלא (מסך
+  /// עיון עם כרטיסיה פתוחה), כמו F11.
+  Future<void> _defaultSetAppFullscreen(bool fullscreen) async {
+    final context = _windowDependencies.context;
+    if (context == null || !context.mounted) {
+      throw Exception('error.unavailable: No window for fullscreen');
+    }
+    if (fullscreen && !FullscreenHelper.isAllowedInContext(context)) {
+      throw Exception(
+        'error.forbidden: Fullscreen is available only in the reading screen',
+      );
+    }
+    if (BlocProvider.of<WindowFullscreenCubit>(context).state == fullscreen) {
+      return;
+    }
+    await FullscreenHelper.toggleFullscreen(context, fullscreen);
   }
 
   /// מסך ההדפסה של הקורא מעל חלון הבקשה (`reader.printRange`).

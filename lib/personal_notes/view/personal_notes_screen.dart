@@ -72,6 +72,12 @@ class PersonalNotesManagerScreen extends StatefulWidget {
       _PersonalNotesManagerScreenState();
 }
 
+/// גובה שורת כרטיסי ההערות במחשב.
+const double _noteCardHeight = 170;
+
+/// במגע: שלושה כפתורים של 48 בטור נכנסים בכרטיס (שאלה פתוחה 5).
+const double _noteCardHeightTouch = 188;
+
 class _PersonalNotesManagerScreenState
     extends State<PersonalNotesManagerScreen> {
   late final PersonalNotesRepository _repository;
@@ -441,6 +447,37 @@ class _PersonalNotesManagerScreenState
     return Builder(
       builder: (context) {
         final isCompact = AppDensity.of(context).isCompact;
+        // בחלון צר (טלפון) הרענון וחמש פעולות הקבצים עוברים לתפריט "עוד":
+        // שבעה כפתורים של 48 במגע לא נכנסים ליד שדה החיפוש.
+        final narrow = WindowClass.of(context).isCompact;
+        final fileActions =
+            <({String tooltip, IconData icon, VoidCallback? onPressed})>[
+              (
+                tooltip: 'רענן',
+                icon: FluentIcons.arrow_clockwise_24_regular,
+                onPressed: _loadBooks,
+              ),
+              (
+                tooltip: 'גיבוי הערות',
+                icon: FluentIcons.arrow_download_24_regular,
+                onPressed: _canExportNotes ? _exportNotes : null,
+              ),
+              (
+                tooltip: 'ייצוא לטקסט',
+                icon: OtzariaIcons.document_download_24_regular,
+                onPressed: _canExportNotes ? _exportNotesToText : null,
+              ),
+              (
+                tooltip: 'ייצוא לוורד',
+                icon: OtzariaIcons.document_word_24_regular,
+                onPressed: _canExportNotes ? _exportNotesToWord : null,
+              ),
+              (
+                tooltip: 'ייבוא הערות',
+                icon: FluentIcons.arrow_upload_24_regular,
+                onPressed: _importNotes,
+              ),
+            ];
         return AppTopBar(
           leadingItems: [
             AppTopBarItem(
@@ -493,46 +530,33 @@ class _PersonalNotesManagerScreenState
                 onPressed: _pickDateRange,
               ),
             ),
-            AppTopBarItem(
-              widget: BarButton.icon(
-                compact: isCompact,
-                tooltip: 'רענן',
-                icon: FluentIcons.arrow_clockwise_24_regular,
-                onPressed: _loadBooks,
-              ),
-            ),
-            AppTopBarItem(
-              widget: BarButton.icon(
-                compact: isCompact,
-                tooltip: 'גיבוי הערות',
-                icon: FluentIcons.arrow_download_24_regular,
-                onPressed: _canExportNotes ? _exportNotes : null,
-              ),
-            ),
-            AppTopBarItem(
-              widget: BarButton.icon(
-                compact: isCompact,
-                tooltip: 'ייצוא לטקסט',
-                icon: OtzariaIcons.document_download_24_regular,
-                onPressed: _canExportNotes ? _exportNotesToText : null,
-              ),
-            ),
-            AppTopBarItem(
-              widget: BarButton.icon(
-                compact: isCompact,
-                tooltip: 'ייצוא לוורד',
-                icon: OtzariaIcons.document_word_24_regular,
-                onPressed: _canExportNotes ? _exportNotesToWord : null,
-              ),
-            ),
-            AppTopBarItem(
-              widget: BarButton.icon(
-                compact: isCompact,
-                tooltip: 'ייבוא הערות',
-                icon: FluentIcons.arrow_upload_24_regular,
-                onPressed: _importNotes,
-              ),
-            ),
+            if (narrow)
+              AppTopBarItem(
+                widget: AppPopupMenuButton<VoidCallback>(
+                  iconData: FluentIcons.more_horizontal_24_regular,
+                  tooltip: context.settingsText('עוד פעולות'),
+                  entries: [
+                    for (final action in fileActions)
+                      AppMenuEntry(
+                        value: action.onPressed ?? () {},
+                        label: action.tooltip,
+                        icon: action.icon,
+                        enabled: action.onPressed != null,
+                      ),
+                  ],
+                  onSelected: (action) => action(),
+                ),
+              )
+            else
+              for (final action in fileActions)
+                AppTopBarItem(
+                  widget: BarButton.icon(
+                    compact: isCompact,
+                    tooltip: action.tooltip,
+                    icon: action.icon,
+                    onPressed: action.onPressed,
+                  ),
+                ),
           ],
         );
       },
@@ -1250,7 +1274,11 @@ class _PersonalNotesManagerScreenState
               builder: (context, tocSnapshot) => Padding(
                 padding: EdgeInsets.only(top: start == 0 ? 0 : spacing),
                 child: SizedBox(
-                  height: 170,
+                  height:
+                      Theme.of(context).materialTapTargetSize ==
+                          MaterialTapTargetSize.padded
+                      ? _noteCardHeightTouch
+                      : _noteCardHeight,
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -1427,15 +1455,14 @@ class _PersonalNotesManagerScreenState
             ),
           ),
           const SizedBox(width: 8),
-          // אותם כפתורים כמו בכרטיס ההערה ליד הספר (q10 שאלה 25). הטור בגובה
-          // הכרטיס, ולכן אזור המגע בגודל הכפתור, כמו קודם.
+          // אותם כפתורים כמו בכרטיס ההערה ליד הספר (q10 שאלה 25). שטח המגע של
+          // ערכת הנושא: 48 במגע (הכרטיס גבוה יותר), צמוד במחשב.
           Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 AppIconButton(
                   size: AppIconButtonSize.small,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   tooltip: 'עריכה',
                   icon: const Icon(FluentIcons.edit_24_regular),
                   onPressed: () => _editNote(note),
@@ -1444,7 +1471,6 @@ class _PersonalNotesManagerScreenState
                 if (isMissing)
                   AppIconButton(
                     size: AppIconButtonSize.small,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     tooltip: note.pdfAnchor != null
                         ? 'פתח PDF לשינוי המיקום'
                         : 'מיקום מחדש',
@@ -1454,7 +1480,6 @@ class _PersonalNotesManagerScreenState
                 else
                   AppIconButton(
                     size: AppIconButtonSize.small,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     tooltip: 'פתח ספר בשורה',
                     icon: const Icon(
                       OtzariaIcons.otzaria_icon_2_page_24_regular,
@@ -1464,7 +1489,6 @@ class _PersonalNotesManagerScreenState
                 const SizedBox(height: 6),
                 AppIconButton(
                   size: AppIconButtonSize.small,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   tooltip: 'מחיקה',
                   icon: const Icon(FluentIcons.delete_24_regular),
                   onPressed: () => _deleteNote(note),

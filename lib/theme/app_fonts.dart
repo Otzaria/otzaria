@@ -25,6 +25,9 @@ class AppFonts {
   /// גופן ברירת מחדל לטקסט ראשי
   static const String defaultFont = 'FrankRuhlCLM';
 
+  /// גודל ברירת המחדל של טקסט הקריאה (`key-font-size`), וגם של "איפוס זום".
+  static const double defaultReadingSize = 25;
+
   /// גופן ברירת מחדל למפרשים
   static const String defaultCommentatorsFont = 'NotoRashiHebrew';
 

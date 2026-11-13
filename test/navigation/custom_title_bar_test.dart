@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:otzaria/navigation/view/tab_visuals.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -781,7 +782,41 @@ void main() {
       return cubit;
     }
 
-    for (final size in const [Size(360, 640), Size(844, 390)]) {
+    // טלפון לאורך: שורת כרום אחת, והפעולות של שורת הכותרת ב"עוד".
+    testWidgets('360×640: שורה אחת — הכרטיסיות ו"עוד", ובו כל הפעולות', (
+      tester,
+    ) async {
+      final cubit = await pumpPhone(tester, const Size(360, 640));
+      expect(
+        tester.getSize(find.byType(CustomTitleBar)).height,
+        AppDensity.of(
+          tester.element(find.byType(CustomTitleBar)),
+        ).captionHeight,
+        reason: 'שורה אחת ולא שתיים',
+      );
+      expect(find.text('ספר א'), findsOneWidget);
+      for (final moved in ['הגדרות תצוגת הספרים', 'מסך מלא']) {
+        expect(find.byTooltip(moved), findsNothing, reason: moved);
+      }
+      expect(find.byTooltip(RegExp('הצג היסטוריה')), findsNothing);
+
+      await tester.tap(find.byTooltip('עוד פעולות'));
+      await tester.pumpAndSettle();
+      for (final item in [
+        'היסטוריה',
+        'סימניות',
+        'החלף שולחן עבודה',
+        'הגדרות תצוגת הספרים',
+        'מסך מלא',
+      ]) {
+        expect(find.text(item), findsOneWidget, reason: item);
+      }
+      await tester.tap(find.text('מסך מלא'));
+      await tester.pumpAndSettle();
+      expect(cubit.state, isTrue);
+    });
+
+    for (final size in const [Size(844, 390)]) {
       testWidgets('${size.width.toInt()}×${size.height.toInt()}: הכפתור משמאל '
           'להגדרות, ונכנס למסך מלא', (tester) async {
         final cubit = await pumpPhone(tester, size);
@@ -3216,6 +3251,99 @@ void main() {
     expect((searchX - bookmarkX).sign, (tabX - bookmarkX).sign);
     expect((searchX - bookmarkX).abs(), lessThan((tabX - bookmarkX).abs()));
   });
+
+  for (final (screen, title) in [
+    (Screen.settings, 'הגדרות'),
+    (Screen.reading, 'עיון'),
+  ]) {
+    testWidgets('בהגדלת טקסט ×2 הכותרת "$title" נכנסת בגובה השורה', (
+      tester,
+    ) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final tabsBloc = _TestTabsBloc(TabsState(tabs: [], currentTabIndex: 0));
+      final navigationBloc = _TestNavigationBloc(
+        NavigationState(currentScreen: screen),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      addTearDown(() async {
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+      });
+
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+      );
+
+      // גודל ה-RenderParagraph מוגבל לגובה השורה גם כשהטקסט חורג ממנו.
+      final paragraph = tester.renderObject<RenderParagraph>(find.text(title));
+      expect(
+        paragraph.textSize.height,
+        lessThanOrEqualTo(paragraph.size.height),
+      );
+      final bar = tester.getRect(find.byType(CustomTitleBar));
+      final text = tester.getRect(find.text(title));
+      expect(text.top, greaterThanOrEqualTo(bar.top));
+      expect(
+        text.bottom,
+        lessThanOrEqualTo(bar.top + LayoutConstraints.windowCaptionHeight),
+      );
+    });
+  }
+
+  for (final compact in [false, true]) {
+    testWidgets('גובה השורה והכרטיסיה לפי הצפיפות (#4787): '
+        '${compact ? 'מצומצם' : 'רגיל'}', (tester) async {
+      final tab = _makeTextTab('ספר א');
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      addTearDown(() async {
+        tab.dispose();
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+      });
+
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+        theme: AppThemeData.light(
+          AppThemeData.createColorScheme(
+            AppSeedColors.defaultLight,
+            Brightness.light,
+          ),
+          compactMenuMode: compact,
+        ),
+      );
+
+      final density = compact ? AppDensity.compact : AppDensity.regular;
+      expect(
+        tester.getSize(find.byType(CustomTitleBar)).height,
+        density.captionHeight,
+      );
+      expect(density.captionHeight, compact ? 32 : 40);
+      final tabBody = find.ancestor(
+        of: find.byType(Tab),
+        matching: find.byWidgetPredicate(
+          (w) => w is SizedBox && w.height == density.tabBodyHeight,
+        ),
+      );
+      expect(tabBody, findsOneWidget);
+    });
+  }
 
   testWidgets('כפתורי החלון המותאמים מוצגים גם במק', (tester) async {
     final tab = _makeTextTab('ספר א');

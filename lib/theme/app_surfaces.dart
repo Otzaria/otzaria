@@ -95,7 +95,7 @@ class AppSurfaces {
       AppThemeData.raisedShape(regionBorder(context));
 
   /// ההחשכה מאחורי דיאלוג וחלונית צפה (DD-12): אחת, עדינה.
-  static Color scrim(ColorScheme cs) => cs.scrim.withAlpha(0x22);
+  static Color scrim(ColorScheme cs) => AppThemeData.scrim(cs);
 
   /// ההחשכה של סיור ההיכרות. כהה מ-[scrim], כי היא שמבליטה את האזור המואר.
   static Color spotlightScrim(ColorScheme cs) =>
@@ -176,6 +176,14 @@ class AppSurfaces {
   /// רקע התוצאה הנוכחית.
   static Color searchHitCurrentBackground(ColorScheme cs) =>
       cs.isDark ? const Color(0xCC8E6200) : const Color(0xCCFFC157);
+
+  /// מילת חיפוש בעמוד PDF. נצבעת מעל הטקסט, ולכן שקופה יותר מ-[searchHit].
+  static Color pdfSearchHit(ColorScheme cs) =>
+      searchHit(cs).withValues(alpha: 0.35);
+
+  /// התוצאה הנוכחית בעמוד PDF, בגוון של [searchHitCurrentBackground].
+  static Color pdfSearchHitCurrent(ColorScheme cs) =>
+      searchHitCurrentBackground(cs).withValues(alpha: 0.5);
 
   /// רקע הסימון (?mark): השורה המסומנת, או הקטע המסומן בתוכה.
   static Color permanentMark(ColorScheme cs) =>

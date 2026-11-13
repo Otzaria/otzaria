@@ -364,6 +364,13 @@ void main() {
     tester.view.physicalSize = const Size(390, 844);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+    // בטלפון הרענון ופעולות הקבצים בתפריט "עוד", ושדה החיפוש נשאר רחב.
+    expect(find.byTooltip('ייבוא הערות'), findsNothing);
+    expect(find.byTooltip('עוד פעולות'), findsOneWidget);
+    expect(
+      tester.getSize(find.byType(OtzariaSearchField)).width,
+      greaterThan(120),
+    );
     await _selectOrder(tester, 'החדשות ביותר תחילה');
     expect(tester.takeException(), isNull);
     expect(_visibleIds(tester), ['a-new', 'b-middle', 'a-old']);

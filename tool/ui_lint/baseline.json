@@ -1,17 +1,6 @@
 {
   "version": 1,
   "rules": {
-    "UIL-001": {
-      "lib/app_report/view/app_report_dialog.dart": [
-        {"scope":"_AppReportDialogState.build","fp":"26be3ad9","n":1}
-      ],
-      "lib/app_report/view/crash_prompt_dialog.dart": [
-        {"scope":"_CrashPromptDialogState.build","fp":"26be3ad9","n":1}
-      ],
-      "lib/tools/shamor_zachor/widgets/add_books_to_tracking_dialog.dart": [
-        {"scope":"_AddBooksToTrackingDialogState.build","fp":"26be3ad9","n":1}
-      ]
-    },
     "UIL-003": {
       "lib/core/diagnostics/frame_stats_overlay.dart": [
         {"scope":"_FrameStatsPanelState._buildToolbar","fp":"5ba189c4","n":1}
@@ -33,21 +22,7 @@
         {"scope":"_HoverableDayCellState._buildAddButton","fp":"65815792","n":1}
       ]
     },
-    "UIL-012": {
-      "lib/tools/calendar/widgets/calendar_times_panel.dart": [
-        {"scope":"_ZmanCard.build","fp":"0855387f","n":1}
-      ],
-      "lib/widgets/dialogs/ad_popup_dialog.dart": [
-        {"scope":"_ExpandableOrgCardState.build","fp":"0855387f","n":1}
-      ]
-    },
     "UIL-013": {
-      "lib/app_report/view/app_report_dialog.dart": [
-        {"scope":"_AppReportDialogState.build","fp":"8fde4718","n":1}
-      ],
-      "lib/app_report/view/crash_prompt_dialog.dart": [
-        {"scope":"_CrashPromptDialogState._buildBody","fp":"8fde4718","n":1}
-      ],
       "lib/book_common/view/book_source_dialog.dart": [
         {"scope":"_BookDetailsDialogContentState.build","fp":"8fde4718","n":1}
       ],
@@ -160,9 +135,6 @@
       "lib/widgets/dialogs/blocking_progress_dialog.dart": [
         {"scope":"_BlockingProgressDialog.build","fp":"8fde4718","n":1}
       ],
-      "lib/widgets/dialogs/zip_extraction_progress_dialog.dart": [
-        {"scope":"ZipExtractionProgressDialog.showAndExtract","fp":"8fde4718","n":2}
-      ],
       "lib/widgets/text/otzaria_search_field_button.dart": [
         {"scope":"OtzariaSearchFieldButton.build","fp":"8fde4718","n":1}
       ],
@@ -177,9 +149,6 @@
       "lib/search/view/search_dialog.dart": [
         {"scope":"_SearchDialogState._buildDefaultsMenu","fp":"a5034eeb","n":1},
         {"scope":"_SearchDialogState._buildHistoryButton","fp":"a5034eeb","n":1}
-      ],
-      "lib/widgets/dialogs/ad_popup_dialog.dart": [
-        {"scope":"_AdPopupDialogState._buildBottomButtons","fp":"3efca7da","n":1}
       ],
       "lib/widgets/text/rtl_text_field.dart": [
         {"scope":"_RtlTextFieldState._showContextMenu","fp":"d8481033","n":1}
@@ -223,9 +192,6 @@
       "lib/search/view/tantivy_full_text_search.dart": [
         {"scope":"_TantivyFullTextSearchState._buildFacetFilterBanner","fp":"70836f0d","n":1},
         {"scope":"_TantivyFullTextSearchState._buildFacetFilterBanner","fp":"c1ad859d","n":1}
-      ],
-      "lib/semantic_search/view/semantic_search_results_screen.dart": [
-        {"scope":"_NarrowScopeBanner.build","fp":"70836f0d","n":1}
       ],
       "lib/settings/panels/tools_management_panel.dart": [
         {"scope":"_AnimatedPluginMoveWrapperState.build","fp":"0997b441","n":1}
@@ -301,12 +267,7 @@
         {"scope":"_LinksListViewState._buildExpansionTile","fp":"513e1515","n":2},
         {"scope":"_LinksListViewState._buildLinkContent","fp":"2409bf30","n":1}
       ],
-      "lib/widgets/controls/custom_switch.dart": [
-        {"scope":"CustomSwitch.build","fp":"14414a5d","n":1},
-        {"scope":"CustomSwitch.build","fp":"9b2b545b","n":1}
-      ],
       "lib/widgets/dialogs/ad_popup_dialog.dart": [
-        {"scope":"_AdPopupDialogState.build","fp":"12f1a54c","n":1},
         {"scope":"_ExpandableOrgCardState.build","fp":"2c874cf5","n":1},
         {"scope":"_ExpandableOrgCardState.build","fp":"ecba9957","n":1},
         {"scope":"_OrganizationsList._buildSectionTitle","fp":"0959be04","n":1},
@@ -459,12 +420,9 @@
         {"scope":"EngineResultCard.build","fp":"a8c1e179","n":1},
         {"scope":"EngineResultCard.build","fp":"aac1e49f","n":1},
         {"scope":"EngineResultCard.build","fp":"abc1e632","n":1},
-        {"scope":"_MergedSiblingsSectionState.build","fp":"a8c1e179","n":3},
-        {"scope":"_TantivySearchResultsState._buildTruncatedBanner","fp":"a8c1e179","n":1}
+        {"scope":"_MergedSiblingsSectionState.build","fp":"a8c1e179","n":3}
       ],
       "lib/semantic_search/view/semantic_search_results_screen.dart": [
-        {"scope":"_NarrowScopeBanner.build","fp":"a8c1e179","n":1},
-        {"scope":"_OnlyLexicalBanner.build","fp":"a8c1e179","n":1},
         {"scope":"_SemanticSearchResultsScreenState._buildResultCounts","fp":"a9c1e30c","n":1}
       ],
       "lib/semantic_search/view/widgets/semantic_result_card.dart": [
@@ -521,9 +479,7 @@
         {"scope":"_PageShapeScreenState._rotatedLabel","fp":"a9c1e30c","n":1}
       ],
       "lib/text_book/view/page_shape/page_shape_settings_panel.dart": [
-        {"scope":"_PageShapeSettingsPanelState._buildCommentatorDropdown","fp":"aac1e49f","n":1},
-        {"scope":"_PageShapeSettingsPanelState.build","fp":"a7c1dfe6","n":1},
-        {"scope":"_PageShapeSettingsPanelState.build","fp":"aac1e49f","n":1}
+        {"scope":"_PageShapeSettingsPanelState.build","fp":"a7c1dfe6","n":1}
       ],
       "lib/text_book/view/page_shape/simple_text_viewer.dart": [
         {"scope":"_SimpleTextViewerState.build","fp":"a9c1e30c","n":1}
@@ -606,10 +562,6 @@
       "lib/widgets/commentary/commentary_search_results_list.dart": [
         {"scope":"_CommentarySearchResultsListState._highlightSpans","fp":"a9c1e30c","n":1},
         {"scope":"_CommentarySearchResultsListState._highlightSpans","fp":"abc1e632","n":1}
-      ],
-      "lib/widgets/dialogs/ad_popup_dialog.dart": [
-        {"scope":"_ExpandableOrgCardState._buildDetailsText","fp":"a8c1e179","n":1},
-        {"scope":"_ExpandableOrgCardState.build","fp":"a9c1e30c","n":3}
       ],
       "lib/widgets/dialogs/details_info_section.dart": [
         {"scope":"DetailsCard.build","fp":"4642f6a0","n":1},
@@ -746,12 +698,7 @@
       ],
       "lib/search/view/tantivy_search_results.dart": [
         {"scope":"_MergedSiblingsSectionState.build","fp":"d1a84c0b","n":1},
-        {"scope":"_MergedSiblingsSectionState.build","fp":"d5f7a13f","n":1},
-        {"scope":"_TantivySearchResultsState._buildTruncatedBanner","fp":"47a98955","n":1}
-      ],
-      "lib/semantic_search/view/semantic_search_results_screen.dart": [
-        {"scope":"_NarrowScopeBanner.build","fp":"ebe52bba","n":1},
-        {"scope":"_OnlyLexicalBanner.build","fp":"ebe52bba","n":1}
+        {"scope":"_MergedSiblingsSectionState.build","fp":"d5f7a13f","n":1}
       ],
       "lib/settings/panels/report_panel_widgets.dart": [
         {"scope":"buildReportActions","fp":"536c166d","n":1}
@@ -1000,10 +947,6 @@
       "lib/tools/tikkun_korim/view/widgets/stam_word.dart": [
         {"scope":"tikkunWordText","fp":"f7030732","n":1}
       ],
-      "lib/widgets/dialogs/ad_popup_dialog.dart": [
-        {"scope":"_AdPopupDialogState._buildBottomButtons","fp":"d9adeea4","n":1},
-        {"scope":"_AdPopupDialogState.build","fp":"0faa7316","n":1}
-      ],
       "lib/widgets/feedback/scrollbar_target_label.dart": [
         {"scope":"ScrollbarTargetLabelController._buildLabel","fp":"720d7210","n":1},
         {"scope":"ScrollbarTargetLabelController._buildLabel","fp":"a336ff9d","n":1}
@@ -1030,23 +973,6 @@
     "UIL-023": {
       "lib/library/view/library_browser.dart": [
         {"scope":"_LoadingDotsTextState.initState","fp":"c71467c1","n":1}
-      ],
-      "lib/settings/panels/tools_management_panel.dart": [
-        {"scope":"_AnimatedPluginMoveWrapperState.initState","fp":"da8151f8","n":1}
-      ],
-      "lib/settings/search/settings_anchor.dart": [
-        {"scope":"_SettingsAnchorState.initState","fp":"c983d11b","n":1}
-      ],
-      "lib/tools/shamor_zachor/widgets/completion_animation_overlay.dart": [
-        {"scope":"_CompletionAnimationState.initState","fp":"bbc6f2f1","n":1}
-      ],
-      "lib/tools/view/tools_launcher_panel.dart": [
-        {"scope":"_MovePulseState._controller","fp":"e24b323e","n":1}
-      ],
-      "lib/widgets/dialogs/ad_popup_dialog.dart": [
-        {"scope":"_AdPopupDialogState.initState","fp":"52e2825f","n":1},
-        {"scope":"_AdPopupDialogState.initState","fp":"7e966d82","n":1},
-        {"scope":"_AdPopupDialogState.initState","fp":"d6b3a3a1","n":1}
       ]
     },
     "UIL-024": {
@@ -1095,6 +1021,15 @@
         {"scope":"<top>","fp":"b4dcdaad","n":1},
         {"scope":"<top>","fp":"cb7579e6","n":1},
         {"scope":"<top>","fp":"cff68829","n":1}
+      ]
+    },
+    "UIL-027": {
+      "lib/text_book/view/error_report_dialog.dart": [
+        {"scope":"_RegularReportTabState.build","fp":"830ee01f","n":1},
+        {"scope":"_RegularReportTabState.build","fp":"e85ce32c","n":1}
+      ],
+      "lib/text_book/view/text_correction_editor.dart": [
+        {"scope":"_TextCorrectionEditorState.build","fp":"66b33325","n":1}
       ]
     },
     "UIL-028": {
@@ -1300,10 +1235,6 @@
       "lib/search/view/tantivy_search_results.dart": [
         {"scope":"_MergedSiblingsSectionState.build","fp":"89f0467d","n":2}
       ],
-      "lib/semantic_search/view/semantic_search_results_screen.dart": [
-        {"scope":"_NarrowScopeBanner.build","fp":"89f0467d","n":1},
-        {"scope":"_OnlyLexicalBanner.build","fp":"89f0467d","n":1}
-      ],
       "lib/semantic_search/view/widgets/semantic_result_card.dart": [
         {"scope":"SemanticResultCard._buildContent","fp":"89f0467d","n":2},
         {"scope":"_VoteButton.build","fp":"89f0467d","n":1}
@@ -1338,13 +1269,9 @@
         {"scope":"_CustomShortcutDialogState.build","fp":"fdf7b8de","n":1}
       ],
       "lib/text_book/view/page_shape/page_shape_settings_panel.dart": [
-        {"scope":"_PageShapeSettingsPanelState._buildCommentatorDropdown","fp":"f1e89b70","n":1},
         {"scope":"_PageShapeSettingsPanelState._buildDisplaySettingsIcon","fp":"f1e89b70","n":2},
         {"scope":"_PageShapeSettingsPanelState.build","fp":"89f0467d","n":1},
         {"scope":"_PageShapeSettingsPanelState.build","fp":"f1e89b70","n":1}
-      ],
-      "lib/text_display/view/text_display_bar_button.dart": [
-        {"scope":"TextDisplayPopupPanel.build","fp":"f1e89b70","n":1}
       ],
       "lib/tools/calendar/widgets/calendar_top_bar.dart": [
         {"scope":"_CalendarTopBarState._buildGoogleSyncStatus","fp":"87f04357","n":1}
@@ -1373,11 +1300,6 @@
       "lib/widgets/controls/bar_split_button.dart": [
         {"scope":"_BarSplitButtonState.build","fp":"87f04357","n":1},
         {"scope":"_BarSplitButtonState.build","fp":"f1e89b70","n":1}
-      ],
-      "lib/widgets/dialogs/ad_popup_dialog.dart": [
-        {"scope":"_AdPopupDialogState._buildBottomButtons","fp":"f1e89b70","n":3},
-        {"scope":"_ExpandableOrgCardState.build","fp":"89f0467d","n":1},
-        {"scope":"_ExpandableOrgCardState.build","fp":"f7eae379","n":1}
       ],
       "lib/widgets/dialogs/details_info_section.dart": [
         {"scope":"DetailsCard.build","fp":"fdc90bff","n":1},

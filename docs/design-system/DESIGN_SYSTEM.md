@@ -143,7 +143,7 @@ AlertDialog(...) / TextButton(...) / Card()  // showTwoActionsDialog / ActionBut
 - `.withValues(alpha:)`, `.withAlpha(` ו־`.withOpacity(` על צבעי ממשק (UIL-016; 86 מופעים ב־baseline).
 - `Theme.of(context).primaryColor`. זהו באג מוכח: במצב כהה Flutter מחזיר דרכו את `surface`, ולכן טקסט ותיבות סימון נעלמו.
 - `hoverColor`, `splashColor` ו־`overlayColor` (UIL-007). חריג אחד: `hoverColor: Colors.transparent` ב־`ListTile` שיש לו `onTap` וגם כפתורים ב־`trailing`, כדי שהריחוף של השורה לא יתחרה בהם. ערך מ־`AppSurfaces` (למשל `hoverRow`) אינו עקיפה, גם בתנאי שכל ענפיו `AppSurfaces` או `null`.
-- ענף `brightness == Brightness.dark` לבחירת צבע. ההחלטה שייכת ל־`AppSurfaceColors`. בדיקה לפי שם מצאה 31 אתרים מחוץ ל־`lib/theme`, ורובם אינם החלטת צבע (בניית הערכה, פלטפורמה, תוכן). הכלל (UIL-027) עוד לא מומש.
+- ענף `brightness == Brightness.dark` לבחירת צבע. ההחלטה שייכת ל־`AppSurfaceColors`. UIL-027 חוסם תנאי בהירות שהענפים שלו צבעים (הכרעת בעל הפרויקט 10.11); שלושה אתרים ב־baseline.
 
 `Colors.transparent` מותר. החריגים המותרים מפורטים בסעיף 2.1.3.
 
@@ -410,7 +410,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 
 ### 3.1 דיאלוגים
 
-**המסגרות:** `AppDialog` (שאלות קצרות, מאחורי `showTwoActionsDialog`/`showWarningDialog`/`showSingleActionDialog`), `AppDialogFrame(size:)` לכל השאר, ו־`InputDialog`/`SelectionDialog` מאחורי `showInputDialog`/`showSelectionDialog`. `AppCustomContentDialog` ו־`ListDialogFrame` הוסרו לטובת `AppDialogFrame`. נשארו 3 דיאלוגים גולמיים, ב־baseline של UIL-001, ו־54 קריאות `showDialog` ישירות (UIL-028, דוח בלבד).
+**המסגרות:** `AppDialog` (שאלות קצרות, מאחורי `showTwoActionsDialog`/`showWarningDialog`/`showSingleActionDialog`), `AppDialogFrame(size:)` לכל השאר, ו־`InputDialog`/`SelectionDialog` מאחורי `showInputDialog`/`showSelectionDialog`. `AppCustomContentDialog` ו־`ListDialogFrame` הוסרו לטובת `AppDialogFrame`. נשארו 3 דיאלוגים גולמיים, ב־baseline של UIL-001, ו־51 קריאות `showDialog` ישירות (UIL-028, 10.11).
 
 #### משפחות הדיאלוג [מחייב] (DD-07 B, DD-16 A) · קיים
 
@@ -465,7 +465,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 | אייקון אחרי הטקסט ("הבא", "הצג עוד") | `iconAlignment: IconAlignment.end` בכל וריאנט חוץ מ־`inline` (q10 Q7.4, Q7.6) | ברירת המחדל `start` |
 | מסוכן (אישור מחיקה) | `ActionButton.warning`: כפתור מלא, רקע `error` וטקסט `onError` (DD-09, השלמה 3.11) | רק בתוך דיאלוג אזהרה או אחרי אישור. כפתור "מחק" ראשוני ברשימה הוא `neutral` או אייקון. גם ״דרוס״ בייבוא ההערות, ליד שלושה כפתורי `neutral` (השלמה 3.11) |
 | מסוכן על מסך הגדרות (לא בדיאלוג): "נקה הכל", "הסר", "מחק" | `ActionButton.warningSoft`: רקע `errorContainer` וטקסט `onErrorContainer` (DD-09, הערה 4.11) | **[מחייב]** אדום מלא רק בדיאלוג. על מסך או חלונית הגדרות הכפתור ההרסני רך, וכפתור האישור בדיאלוג שהוא פותח הוא `ActionButton.warning`. נאכף ב־`destructive_button_contract_test` (‏`lib/settings/tabs`, ‏`lib/settings/panels`) |
-| אייקון בלבד, כללי | `AppIconButton(size: small\|medium\|large)`: עטיפה דקה על `IconButton` שמחייבת `tooltip`. אייקון 16/20/24 מ־`AppTokens.icon*`, ריבוע האייקון ועוד 16 (ועוד 12 בצפיפות קומפקטית), עגול (DD-04). `isSelected` צובע ב־`primary`. ‏`small`: אייקון 16 בריבוע 32 (השלמה 3.11) | חלקי: השכבה המשותפת, שורת הכותרת ועמודת הכרטיסיות הוסבו. בפיצ'רים נשארו כ־90 `IconButton` גולמיים |
+| אייקון בלבד, כללי | `AppIconButton(size: small\|medium\|large)`: עטיפה דקה על `IconButton` שמחייבת `tooltip`. אייקון 16/20/24 מ־`AppTokens.icon*`, ריבוע האייקון ועוד 16 (ועוד 12 בצפיפות קומפקטית), עגול (DD-04). `isSelected` צובע ב־`primary`. ‏`small`: אייקון 16 בריבוע 32 (השלמה 3.11) | חלקי: השכבה המשותפת, שורת הכותרת ועמודת הכרטיסיות הוסבו. בפיצ'רים (מחוץ ל־`lib/widgets`) נשארו 83 `IconButton` גולמיים (10.11) |
 | אייקון בתוך שדה / בסרגל צר | `SquareIconButton.field` / `.toolbar` | קיים |
 | פעולת סרגל | `BarButton.icon` / `.text` | צורה 8, בלי גלולה (DD-04) |
 | פעולה מפוצלת | `BarSplitButton` | צורה: גלולה, חריג מאושר ל־״8 בלבד״ (DD-04, השלמה 2.11) |
@@ -501,7 +501,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 | מתג קטן בתוך שורה | `AppTogglePill` | קיים. תווית `labelMedium` (12), כמו הצ'יפים שלידה (q10 Q1). גם מתג שתוסף מוסיף לדיאלוג החיפוש (q10 Q8e) |
 | בחירה מרובה (פילטר) | `FilterChip` של Material + `chipTheme` (DD-13: פינות 8, תווית `labelMedium` 12) | `FilterChipsSelector` / `compactFilterChips`; `ChoiceChip` לבחירה אחת. גם תיבת סימון שתוסף מוסיף לדיאלוג החיפוש (q10 Q8e) |
 | Checkbox | `Checkbox` של Material | יעד: `checkboxTheme`. השורה כולה לחיצה (`CheckboxListTile` או `InkWell`) |
-| Switch | `SettingsSwitchTile`. מחוץ להגדרות: `Switch` | יעד: `switchTheme`. `CustomSwitch` (4 קוראים) יוסר באותו שינוי, כדי שלא יישארו שני מתגים |
+| Switch | `SettingsSwitchTile`. מחוץ להגדרות: `Switch` | `switchTheme` אחד בערכת הנושא. `CustomSwitch` הוסר, ו־UIL-033 חוסם את החזרה שלו |
 | Slider | `SettingsSliderTile` | `SliderTheme` מקומי אסור |
 | תאריך | `showDatePicker` + `datePickerTheme` | קיים |
 | שגיאת אימות | `InputDecoration.errorText` | לא טקסט אדום שנבנה ידנית מתחת לשדה |
@@ -520,7 +520,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 | דיאלוג הסבר בכמה נושאים | מקטעים: `AppSectionLabel` ומתחתיו הפריטים ישירות על גוף הדיאלוג, בגוון הדיאלוג, וקו `Divider` דק בין מקטע למקטע. בלי כרטיסים ובלי גוף כהה יותר | "הצגה או הוספה של הקבצים" (סקירת 4.11, ושנייה) |
 | כרטיס עם פעולות | `AppCard` + שורת `ActionButton`/`AppIconButton` בסוף | |
 | כרטיס פעיל ברשת (בורר שולחנות העבודה) | `AppCard(active: true)`: מסגרת `multiSelectedBorder` ‏1.5 במקום `outlineVariant`. אזור התצוגה המקדימה בלבד ב־`selectedRow` (אייקון וטקסט `onSelectedRow`); בלא פעילים `surfaceContainerHighest` ו־`primary` (DD-06, השלמה 3.11) | שורת השם בצבע הכרטיס. מחיקה: פח בשורת השם, מושבת בפעיל (DD-11) |
-| כרטיס מתרחב | `ExpandableCard`. בהגדרות: `ExpandableSection` | חץ: `ExpandingChevron(style: accordion\|tree)` עם `Semantics(expanded:)` מובנה (DD-27 A). עץ (`NavTreeTile`, כותרות המפרשים, רשימת הקישורים): חץ לכיוון הקריאה, למטה כשפתוח. אקורדיון (`ExpandableSection`): חץ למטה, למעלה כשפתוח. כרטיסי התיקיות בספרייה (`ExpandableCard`) הם אקורדיון (השלמה 2.11) |
+| כרטיס מתרחב | `ExpandableCard`, גם בהגדרות (DD-27) | חץ: `ExpandingChevron(style: accordion\|tree)` עם `Semantics(expanded:)` מובנה (DD-27 A). עץ (`NavTreeTile`, כותרות המפרשים, רשימת הקישורים): חץ לכיוון הקריאה, למטה כשפתוח. אקורדיון (`ExpandableCard`): חץ למטה, למעלה כשפתוח. כרטיסי התיקיות בספרייה (`ExpandableCard`) הם אקורדיון (השלמה 2.11) |
 | כותרת מקטע מתקפל בטבלה או בעץ עם עמודות | `TreeSectionHeader(isExpanded:, onToggle:, child:, leadingExtent:, padding:)` (‏`lib/widgets/lists/tree_section_header.dart`) | כל השורה לחיצה, החץ בסגנון עץ בתחילת השורה ברוחב `leadingExtent`, ושורות הילדים משאירות אותו רוחב ריק כדי שהעמודות יתיישרו. במקום `ExpansionTile` עטוף ב־Theme מקומי (q10 Q8d, שמור וזכור) |
 | שורת הגדרה | `SettingsSwitchTile`, `SettingsDropdownTile`, `SettingsSegmentedTile`, `SettingsPathTile`, `SettingsSliderTile`, ו־`SettingsActionTile` (.text/.path/radioOption) לשאר, בתוך `SettingsCard` | בין כרטיסים בלשונית: **24 בכל הלשוניות** (השלמה 3.11): ריפוד הכותרת של `SettingsCard`, בלי מרווח נוסף. כרטיס שלפעמים לא מוצג לא משאיר מרווח. חלקי: עדיין נבנים ידנית ההדפסה, חלונית צורת הדף, `ShortcutDropDownTile`, `ColorPickerTile` ועוד |
 | פריט רשימה | `ListTile`, או `NavTreeTile` בחלוניות | יעד: `listTileTheme` |
@@ -918,7 +918,7 @@ final band = Color(markerArgb);
 | גבהים | `AppInputTokens` + `AppDensity` | קיים | — |
 | גדלי אייקון | `AppTokens.icon*` (DD-03) | חלקי | גדלים מספריים (UIL-029) |
 | אנימציות | `AppTokens.anim*` + `AppMotion` (DD-21) | חלקי | 8 `AnimationController` עם משך ליטרלי (UIL-023), משכים בלי טוקן, עקומות ביעד |
-| הגדרות דיאלוג | `lib/widgets/dialogs/` (`AppDialog`, `AppDialogFrame(size: AppDialogSize)`) | חלקי | 3 דיאלוגים גולמיים (UIL-001) ו־54 `showDialog` ישירים (UIL-028) |
+| הגדרות דיאלוג | `lib/widgets/dialogs/` (`AppDialog`, `AppDialogFrame(size: AppDialogSize)`) | חלקי | 3 דיאלוגים גולמיים (UIL-001) ו־51 `showDialog` ישירים (UIL-028, 10.11) |
 | פריסות מסך | `lib/widgets/layout/`, `navigation/`, `ToolScaffold` | חלקי | מעטפות מקומיות |
 | רכיבי ניווט | `NavSidePanel`, `NavRailItem`, `NavTreeTile`; רוחב חלונית `LayoutConstraints.sidePaneWidth` (DD-28) | קיים | — |
 | רספונסיביות | `LayoutBreakpoints` + `WindowClass` (DD-15) | קיים | — |
