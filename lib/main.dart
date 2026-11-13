@@ -57,6 +57,7 @@ import 'package:otzaria/library_update/changes_notes/library_changes_notes.dart'
 import 'package:otzaria/library_update/services/startup_recovery_check.dart';
 
 import 'package:otzaria/search/search_engine_library.dart';
+import 'package:otzaria/semantic_search/repository/semantic_search_repository.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/single_instance_lock.dart';
 import 'package:otzaria/core/otzaria_capabilities.dart';
@@ -753,6 +754,29 @@ Future<void> _initializeProcessSingletons() async {
   unawaited(_runDeferredWebViewPrewarm());
   unawaited(_runDeferredInputFocusHistory());
   unawaited(_runDeferredOsVersion());
+  unawaited(_runDeferredSemanticDataUpdate());
+}
+
+Future<void> _runDeferredSemanticDataUpdate() async {
+  try {
+    await _mainWindowRevealedCompleter.future.timeout(
+      const Duration(seconds: 20),
+    );
+  } on TimeoutException {
+    // מיגרציית הנתונים אינה תלויה באירוע עדכון ספרייה.
+  }
+  try {
+    if (Settings.getValue<bool>(SettingsRepository.keySemanticDataEnabled) !=
+            true ||
+        Settings.getValue<bool>(SettingsRepository.keySemanticDownloadPaused) ==
+            true) {
+      return;
+    }
+    final repository = SemanticSearchRepository.instance;
+    repository.scheduleVectorsUpdate();
+  } catch (error, stackTrace) {
+    _logNonFatalInitializationError('Semantic data update', error, stackTrace);
+  }
 }
 
 // Native device-info handlers may block the platform thread (including macOS).

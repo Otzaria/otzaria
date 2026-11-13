@@ -23,7 +23,7 @@ void main() {
     SemanticVectorsFamily.anchor,
   ]) {
     test(
-      'אותה ספרייה ואותה חלוקה: מחליפים מודל קודם ב-base של $family',
+      'אותה ספרייה: מחליפים מודל קודם מסוג $family ב-base של פרדס',
       () async {
         final oldDigest = '11' * 32;
         final newDigest = '22' * 32;
@@ -31,7 +31,6 @@ void main() {
           markInstalledWindowsSet(root, oldDigest);
         }
         final backend = FakeBackend()
-          ..supportsLongLineWindows = family == SemanticVectorsFamily.windows
           ..vectors = SemanticVectorsSummary(
             present: true,
             modelFamilyId: SemanticModelIdentity.parse(
@@ -45,7 +44,7 @@ void main() {
           )
           ..installedIdentityDigest = newDigest;
         final locator = FakeLocator(
-          releaseV30(family: family, identityDigest: newDigest),
+          releaseV30(identityDigest: newDigest),
         );
         final repository = buildRepository(
           root: root,
@@ -66,7 +65,7 @@ void main() {
         expect(backend.installRequests, hasLength(1));
         expect(
           backend.installRequests.single.modelIdentityJson,
-          bundledModelJson(family),
+          bundledModelJson(),
         );
         expect(repository.availability.phase, SemanticAvailabilityPhase.ready);
 
@@ -76,25 +75,25 @@ void main() {
         await repository.ensureOpen();
         expect(
           backend.openRequests.single.modelIdentityJson,
-          bundledModelJson(family),
+          bundledModelJson(),
         );
       },
     );
   }
 
-  test('סט חלונות ממודל קודם מאפשר fallback ל-anchor של המודל החדש', () async {
+  test('פרסום מייבין אינו מחליף סט ממודל קודם ואינו משמש fallback', () async {
     final oldDigest = '11' * 32;
     markInstalledWindowsSet(root, oldDigest);
     final backend = FakeBackend()
-      ..supportsLongLineWindows = true
       ..vectors = SemanticVectorsSummary(
         present: true,
         modelFamilyId: 'previous-model',
         identityDigest: oldDigest,
         libraryVersion: 30,
-      )
-      ..installedIdentityDigest = '22' * 32;
-    final locator = FakeLocator(releaseV30(identityDigest: '22' * 32));
+      );
+    final locator = FakeLocator(
+      releaseV30(family: SemanticVectorsFamily.anchor),
+    );
     final repository = buildRepository(
       root: root,
       backend: backend,
@@ -106,17 +105,16 @@ void main() {
     await repository.pendingJob;
 
     expect(locator.candidates.single.map((candidate) => candidate.family), [
-      SemanticVectorsFamily.windows,
-      SemanticVectorsFamily.anchor,
+      SemanticVectorsFamily.pardesWindows,
     ]);
-    expect(
-      backend.installRequests.single.modelIdentityJson,
-      bundledModelJson(),
-    );
+    expect(backend.installRequests, isEmpty);
     expect(locator.chainLookups, isEmpty);
-    expect(repository.availability.phase, SemanticAvailabilityPhase.ready);
-    await repository.ensureOpen();
-    expect(backend.openRequests.single.modelIdentityJson, bundledModelJson());
+    expect(
+      repository.availability.phase,
+      SemanticAvailabilityPhase.vectorsNotPublished,
+    );
+    await expectLater(repository.ensureOpen(), throwsA(isA<SemanticFailure>()));
+    expect(backend.openRequests, isEmpty);
   });
 
   for (final familyId in ['previous-model', '']) {

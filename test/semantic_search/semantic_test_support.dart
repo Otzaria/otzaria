@@ -30,7 +30,7 @@ Future<void> waitFor(bool Function() condition) async {
 
 /// טקסט ה-model.json של [family] שמצורף לאפליקציה.
 String bundledModelJson([
-  SemanticVectorsFamily family = SemanticVectorsFamily.anchor,
+  SemanticVectorsFamily family = SemanticVectorsFamily.pardesWindows,
 ]) => File(family.identityAsset).readAsStringSync();
 
 class FakeConsentStore implements SearchFeedbackConsentStore {
@@ -62,12 +62,6 @@ class FakeConsentStore implements SearchFeedbackConsentStore {
 
 class FakeSettingsStore implements SemanticSettingsStore {
   @override
-  SemanticModelChoice modelChoice = SemanticModelChoice.meivin;
-  @override
-  Future<void> setModelChoice(SemanticModelChoice value) async =>
-      modelChoice = value;
-
-  @override
   SemanticQuantization quantization = SemanticQuantization.int8;
   @override
   bool dataEnabled = false;
@@ -93,12 +87,12 @@ class FakeSettingsStore implements SemanticSettingsStore {
   Future<void> setDataEnabled(bool value) async => dataEnabled = value;
 }
 
-const kTestModelFamilyId = 'otzaria/Meivin-Embed-QA491-native256';
+const kTestModelFamilyId = kCompactPardesModelFamilyId;
 
 /// מנוע מזויף שרושם קריאות. חיפוש ממתין ל-[searchGate] כשהוא מוגדר.
 class FakeBackend implements SemanticEngineBackend {
   @override
-  bool supportsLongLineWindows = false;
+  bool supportsLongLineWindows = true;
 
   /// ה-identity digest של הסט שההתקנה הבאה משאירה.
   String installedIdentityDigest = '';
@@ -429,7 +423,8 @@ SemanticSearchRepository buildRepository({
 /// ה-release האמיתי של int8, מכתובת בדיקה.
 final Map<SemanticQuantization, SemanticModelRelease?> testModelReleases = {
   SemanticQuantization.int8: SemanticModelRelease(
-    baseUrl: 'https://models.test/meivin',
+    baseUrl: 'https://models.test/pardes',
+    notice: kSemanticModelReleases[SemanticQuantization.int8]!.notice,
     graph: kSemanticModelReleases[SemanticQuantization.int8]!.graph,
     tokenizer: kSemanticModelReleases[SemanticQuantization.int8]!.tokenizer,
     identity: kSemanticModelReleases[SemanticQuantization.int8]!.identity,
@@ -447,6 +442,10 @@ void installModelFiles(
   File(paths.modelFile(quantization)).createSync(recursive: true);
   File(paths.tokenizerFile).createSync(recursive: true);
   File(paths.licenseFile).createSync(recursive: true);
+  final notice = testModelReleases[quantization]?.notice;
+  if (notice != null) {
+    File(p.join(paths.modelDirectory, notice.name)).createSync();
+  }
   File(paths.identityFile).writeAsStringSync(bundledModelJson());
   File(p.join(paths.modelDirectory, kSemanticOwnerMarker)).createSync();
 }
@@ -469,7 +468,7 @@ const SemanticVectorsSummary installedV30 = SemanticVectorsSummary(
 
 SemanticVectorsRelease releaseV30({
   int parts = 1,
-  SemanticVectorsFamily family = SemanticVectorsFamily.anchor,
+  SemanticVectorsFamily family = SemanticVectorsFamily.pardesWindows,
   String identityDigest = '',
   int? chunkingIdentity,
 }) => SemanticVectorsRelease(
@@ -507,7 +506,7 @@ SemanticVectorsRelease deltaRelease(
   int size = 1,
 }) => SemanticVectorsRelease(
   libraryTag: 'v$to-20260930165019',
-  releaseTag: 'vectors-qa491-windows-delta-v$to-20260930165019',
+  releaseTag: 'vectors-pardesqa491-windows-delta-v$to-20260930165019',
   toLibraryVersion: to,
   kind: 'delta',
   fromLibraryVersion: from,
@@ -525,7 +524,7 @@ SemanticVectorsRelease deltaRelease(
   segmentUncompressedSize: 5,
   identityDigest: identityDigest,
   chunkingIdentity: chunkingIdentity,
-  family: SemanticVectorsFamily.windows,
+  family: SemanticVectorsFamily.pardesWindows,
 );
 
 /// סט חלונות מותקן של [digest]: הסימון שלו ותיקייה שלנו.

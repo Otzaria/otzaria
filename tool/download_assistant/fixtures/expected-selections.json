@@ -74,7 +74,7 @@
         },
         {
           "id": "semantic-vectors-windows",
-          "downloadSize": 1703,
+          "downloadSize": 1829,
           "locked": false,
           "group": ""
         }
@@ -100,10 +100,11 @@
           ],
           "outputFiles": [
             "otzaria-0.10.3-windows-full.exe",
-            "semantic-import/meivin-qa491-onnx/query.int8.onnx",
-            "semantic-import/meivin-qa491-onnx/tokenizer.json",
-            "semantic-import/meivin-qa491-onnx/model.json",
-            "semantic-import/meivin-qa491-onnx/LICENSE",
+            "semantic-import/pardesqa491-onnx/model.onnx",
+            "semantic-import/pardesqa491-onnx/tokenizer.json",
+            "semantic-import/pardesqa491-onnx/model.json",
+            "semantic-import/pardesqa491-onnx/LICENSE-AGPL-3.0.txt",
+            "semantic-import/pardesqa491-onnx/Pardes_NOTICE.txt",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
           ],
@@ -150,7 +151,7 @@
         },
         {
           "id": "semantic-vectors-windows",
-          "downloadSize": 1703,
+          "downloadSize": 1829,
           "locked": false,
           "group": ""
         }
@@ -176,10 +177,11 @@
           ],
           "outputFiles": [
             "otzaria-0.10.3-windows_arm64-full.exe",
-            "semantic-import/meivin-qa491-onnx/query.int8.onnx",
-            "semantic-import/meivin-qa491-onnx/tokenizer.json",
-            "semantic-import/meivin-qa491-onnx/model.json",
-            "semantic-import/meivin-qa491-onnx/LICENSE",
+            "semantic-import/pardesqa491-onnx/model.onnx",
+            "semantic-import/pardesqa491-onnx/tokenizer.json",
+            "semantic-import/pardesqa491-onnx/model.json",
+            "semantic-import/pardesqa491-onnx/LICENSE-AGPL-3.0.txt",
+            "semantic-import/pardesqa491-onnx/Pardes_NOTICE.txt",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
           ],
@@ -217,7 +219,7 @@
         },
         {
           "id": "semantic-vectors-macos",
-          "downloadSize": 1703,
+          "downloadSize": 1829,
           "locked": false,
           "group": ""
         }
@@ -243,10 +245,11 @@
           ],
           "outputFiles": [
             "otzaria-macos-full.tar.zst",
-            "semantic-import/meivin-qa491-onnx/query.int8.onnx",
-            "semantic-import/meivin-qa491-onnx/tokenizer.json",
-            "semantic-import/meivin-qa491-onnx/model.json",
-            "semantic-import/meivin-qa491-onnx/LICENSE",
+            "semantic-import/pardesqa491-onnx/model.onnx",
+            "semantic-import/pardesqa491-onnx/tokenizer.json",
+            "semantic-import/pardesqa491-onnx/model.json",
+            "semantic-import/pardesqa491-onnx/LICENSE-AGPL-3.0.txt",
+            "semantic-import/pardesqa491-onnx/Pardes_NOTICE.txt",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
           ],
@@ -284,7 +287,7 @@
         },
         {
           "id": "semantic-vectors-linux",
-          "downloadSize": 1703,
+          "downloadSize": 1829,
           "locked": false,
           "group": ""
         }
@@ -310,10 +313,11 @@
           ],
           "outputFiles": [
             "otzaria-linux-full.tar.zst",
-            "semantic-import/meivin-qa491-onnx/query.int8.onnx",
-            "semantic-import/meivin-qa491-onnx/tokenizer.json",
-            "semantic-import/meivin-qa491-onnx/model.json",
-            "semantic-import/meivin-qa491-onnx/LICENSE",
+            "semantic-import/pardesqa491-onnx/model.onnx",
+            "semantic-import/pardesqa491-onnx/tokenizer.json",
+            "semantic-import/pardesqa491-onnx/model.json",
+            "semantic-import/pardesqa491-onnx/LICENSE-AGPL-3.0.txt",
+            "semantic-import/pardesqa491-onnx/Pardes_NOTICE.txt",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
           ],
@@ -351,7 +355,7 @@
         },
         {
           "id": "semantic-vectors-linux",
-          "downloadSize": 1703,
+          "downloadSize": 1829,
           "locked": false,
           "group": ""
         }
@@ -377,10 +381,11 @@
           ],
           "outputFiles": [
             "otzaria-linux-full.tar.zst",
-            "semantic-import/meivin-qa491-onnx/query.int8.onnx",
-            "semantic-import/meivin-qa491-onnx/tokenizer.json",
-            "semantic-import/meivin-qa491-onnx/model.json",
-            "semantic-import/meivin-qa491-onnx/LICENSE",
+            "semantic-import/pardesqa491-onnx/model.onnx",
+            "semantic-import/pardesqa491-onnx/tokenizer.json",
+            "semantic-import/pardesqa491-onnx/model.json",
+            "semantic-import/pardesqa491-onnx/LICENSE-AGPL-3.0.txt",
+            "semantic-import/pardesqa491-onnx/Pardes_NOTICE.txt",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
           ],
@@ -411,7 +416,7 @@
         },
         {
           "id": "semantic-vectors-linux",
-          "downloadSize": 1703,
+          "downloadSize": 1829,
           "locked": false,
           "group": ""
         }
@@ -426,10 +431,11 @@
           ],
           "outputFiles": [
             "otzaria-linux-full.tar.zst",
-            "semantic-import/meivin-qa491-onnx/query.int8.onnx",
-            "semantic-import/meivin-qa491-onnx/tokenizer.json",
-            "semantic-import/meivin-qa491-onnx/model.json",
-            "semantic-import/meivin-qa491-onnx/LICENSE",
+            "semantic-import/pardesqa491-onnx/model.onnx",
+            "semantic-import/pardesqa491-onnx/tokenizer.json",
+            "semantic-import/pardesqa491-onnx/model.json",
+            "semantic-import/pardesqa491-onnx/LICENSE-AGPL-3.0.txt",
+            "semantic-import/pardesqa491-onnx/Pardes_NOTICE.txt",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
           ],
@@ -467,7 +473,7 @@
         },
         {
           "id": "semantic-vectors-linux",
-          "downloadSize": 1703,
+          "downloadSize": 1829,
           "locked": false,
           "group": ""
         }
@@ -493,10 +499,11 @@
           ],
           "outputFiles": [
             "otzaria-linux-full-arm64.tar.zst",
-            "semantic-import/meivin-qa491-onnx/query.int8.onnx",
-            "semantic-import/meivin-qa491-onnx/tokenizer.json",
-            "semantic-import/meivin-qa491-onnx/model.json",
-            "semantic-import/meivin-qa491-onnx/LICENSE",
+            "semantic-import/pardesqa491-onnx/model.onnx",
+            "semantic-import/pardesqa491-onnx/tokenizer.json",
+            "semantic-import/pardesqa491-onnx/model.json",
+            "semantic-import/pardesqa491-onnx/LICENSE-AGPL-3.0.txt",
+            "semantic-import/pardesqa491-onnx/Pardes_NOTICE.txt",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
           ],
@@ -534,7 +541,7 @@
         },
         {
           "id": "semantic-vectors-linux",
-          "downloadSize": 1703,
+          "downloadSize": 1829,
           "locked": false,
           "group": ""
         }
@@ -560,10 +567,11 @@
           ],
           "outputFiles": [
             "otzaria-linux-full-arm64.tar.zst",
-            "semantic-import/meivin-qa491-onnx/query.int8.onnx",
-            "semantic-import/meivin-qa491-onnx/tokenizer.json",
-            "semantic-import/meivin-qa491-onnx/model.json",
-            "semantic-import/meivin-qa491-onnx/LICENSE",
+            "semantic-import/pardesqa491-onnx/model.onnx",
+            "semantic-import/pardesqa491-onnx/tokenizer.json",
+            "semantic-import/pardesqa491-onnx/model.json",
+            "semantic-import/pardesqa491-onnx/LICENSE-AGPL-3.0.txt",
+            "semantic-import/pardesqa491-onnx/Pardes_NOTICE.txt",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
           ],
@@ -594,7 +602,7 @@
         },
         {
           "id": "semantic-vectors-linux",
-          "downloadSize": 1703,
+          "downloadSize": 1829,
           "locked": false,
           "group": ""
         }
@@ -609,10 +617,11 @@
           ],
           "outputFiles": [
             "otzaria-linux-full-arm64.tar.zst",
-            "semantic-import/meivin-qa491-onnx/query.int8.onnx",
-            "semantic-import/meivin-qa491-onnx/tokenizer.json",
-            "semantic-import/meivin-qa491-onnx/model.json",
-            "semantic-import/meivin-qa491-onnx/LICENSE",
+            "semantic-import/pardesqa491-onnx/model.onnx",
+            "semantic-import/pardesqa491-onnx/tokenizer.json",
+            "semantic-import/pardesqa491-onnx/model.json",
+            "semantic-import/pardesqa491-onnx/LICENSE-AGPL-3.0.txt",
+            "semantic-import/pardesqa491-onnx/Pardes_NOTICE.txt",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
           ],

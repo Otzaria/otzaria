@@ -204,19 +204,11 @@ void main() {
       );
 
   test(
-    'the published FP32 asset stays optional for the initial query package',
+    'Pardes uses the same compact graph for queries and passages',
     () {
       final release = kSemanticModelReleases[SemanticQuantization.int8]!;
-      expect(
-        release.passageGraph!.name,
-        SemanticQuantization.fp32.modelFileName,
-      );
-      expect(release.passageGraph!.size, 168145648);
-      expect(
-        release.passageGraph!.sha256,
-        '46ba402ce20693d0a3b65aa557a368a3535bbb2a5a1f559d848e803788f7b667',
-      );
-      expect(release.downloadSize, lessThan(50000000));
+      expect(release.graph.name, 'model.onnx');
+      expect(release.passageGraph, isNull);
       expect(kSemanticModelReleases[SemanticQuantization.fp32], isNull);
     },
   );
@@ -255,7 +247,7 @@ void main() {
     expect(await marked, hasLength(1));
     expect(await h.document.readAsBytes(), _passageBytes);
     expect(await File('${h.document.path}.part').exists(), isFalse);
-    expect(h.downloads.urls, ['https://models.test/meivin/document.fp32.onnx']);
+    expect(h.downloads.urls, ['https://models.test/pardes/document.fp32.onnx']);
     await h.highlight();
     expect(h.downloads.urls, hasLength(1));
   });

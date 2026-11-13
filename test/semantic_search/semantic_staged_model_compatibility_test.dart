@@ -69,7 +69,7 @@ void main() {
   test('וקטורים מוכנים מהמודל הקודם אינם גוברים על release תואם', () async {
     final previous = stagePreviousModel(SemanticVectorsFamily.anchor);
     final backend = FakeBackend()..supportsLongLineWindows = true;
-    final release = releaseV30(family: SemanticVectorsFamily.windows);
+    final release = releaseV30();
     final locator = FakeLocator(release);
     final repository = buildRepository(
       root: root,
@@ -83,7 +83,7 @@ void main() {
     expect(backend.installRequests.single.manifestJson, release.manifestJson);
     expect(
       backend.installRequests.single.modelIdentityJson,
-      bundledModelJson(SemanticVectorsFamily.windows),
+      bundledModelJson(),
     );
     expect(previous.existsSync(), isTrue);
     expect(repository.availability.phase, SemanticAvailabilityPhase.ready);

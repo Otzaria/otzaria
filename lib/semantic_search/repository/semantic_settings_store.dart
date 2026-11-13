@@ -4,9 +4,6 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 
 /// ההגדרות שהחיפוש הסמנטי קורא וכותב.
 abstract interface class SemanticSettingsStore {
-  SemanticModelChoice get modelChoice;
-  Future<void> setModelChoice(SemanticModelChoice value);
-
   /// דיוק מודל השאילתות שנבחר.
   SemanticQuantization get quantization;
   Future<void> setQuantization(SemanticQuantization value);
@@ -30,18 +27,6 @@ abstract interface class SemanticSettingsStore {
 /// המימוש מעל [Settings] של האפליקציה.
 class SettingsSemanticSettingsStore implements SemanticSettingsStore {
   const SettingsSemanticSettingsStore();
-
-  @override
-  SemanticModelChoice get modelChoice => SemanticModelChoice.parse(
-    Settings.getValue<String>(SettingsRepository.keySemanticModelChoice),
-  );
-
-  @override
-  Future<void> setModelChoice(SemanticModelChoice value) =>
-      Settings.setValue<String>(
-        SettingsRepository.keySemanticModelChoice,
-        value.name,
-      );
 
   @override
   SemanticQuantization get quantization => SemanticQuantization.parse(
