@@ -94,6 +94,9 @@ const Set<String> _knownEvents = {
   // אירוע ממוקד מ-PluginLibraryBooksRegistry: המשתמש בחר ספר של הספק
   // במסך הספרייה, והתוסף הוא שפותח אותו.
   'library.providerBook.openRequested',
+  'findRef.external.requested',
+  'findRef.external.openRequested',
+  'findRef.external.cancelled',
   // אירועים ממוקדים מ-PluginSearchFieldSessionService: לחיצה על כפתור
   // התוסף בשדה חיפוש, בקשת עצירה, וסיום הסשן.
   'search.fieldAction.invoked',

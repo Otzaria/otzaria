@@ -340,6 +340,7 @@ const Map<String, PluginApiMethod> pluginApiMethods = {
     '0.9.97',
   ),
   'reader.respondExternalSearch': PluginApiMethod('reader.open', '0.9.97'),
+  'reader.respondFindRef': PluginApiMethod('reader.open', '0.9.99'),
   'reader.addContextMenuItem': PluginApiMethod(
     'reader.context_menu',
     '0.9.89',

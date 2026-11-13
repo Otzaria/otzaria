@@ -1995,6 +1995,19 @@ export interface OtzariaEventMap {
     title: string;
     author?: string;
   };
+  'findRef.external.requested': {
+    requestId: string;
+    provider: string;
+    query: string;
+    limit: number;
+  };
+  'findRef.external.cancelled': { requestId: string };
+  'findRef.external.openRequested': {
+    provider: string;
+    query: string;
+    choiceIndex: number;
+    expectedChoice: string;
+  };
   /** In-book search request sent only to the plugin owning `provider`. */
   'reader.inBookSearch.requested': {
     requestId: string;
@@ -2591,6 +2604,7 @@ export type OtzariaMethod =
   | 'reader.openSearchTab'
   | 'reader.registerExternalSearchProvider'
   | 'reader.respondExternalSearch'
+  | 'reader.respondFindRef'
   | 'reader.getCurrentState'
   | 'reader.getCurrentRef'
   | 'reader.closeTab'

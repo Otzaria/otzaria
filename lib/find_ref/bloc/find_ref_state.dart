@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:otzaria/find_ref/repository/db_reference_result.dart';
+import 'package:otzaria/plugins/services/plugin_find_ref_service.dart';
 
 abstract class FindRefState extends Equatable {
   const FindRefState();
@@ -14,6 +15,8 @@ class FindRefLoading extends FindRefState {}
 
 class FindRefSuccess extends FindRefState {
   final List<DbReferenceResult> refs;
+  final List<PluginFindRefHit> externalRefs;
+  final bool externalPending;
 
   /// השאילתה שהניבה את [refs] — לא בהכרח מה שמוקלד כרגע בשדה, שכן
   /// המשתמש ממשיך להקליד בזמן שהתוצאות הקודמות עדיין מוצגות.
@@ -26,10 +29,18 @@ class FindRefSuccess extends FindRefState {
     this.refs, {
     this.query = '',
     this.includePersonalBooks = false,
+    this.externalRefs = const [],
+    this.externalPending = false,
   });
 
   @override
-  List<Object> get props => [refs, query, includePersonalBooks];
+  List<Object> get props => [
+    refs,
+    externalRefs,
+    externalPending,
+    query,
+    includePersonalBooks,
+  ];
 }
 
 /// מטמון הספרים של האיתור לא נטען, ולכן לא היה במה לחפש. נבדל מ-

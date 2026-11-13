@@ -70,6 +70,7 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/utils/confirm_close_tabs.dart';
 import 'package:otzaria/plugins/services/plugin_external_search_service.dart';
+import 'package:otzaria/plugins/services/plugin_find_ref_service.dart';
 import 'package:otzaria/plugins/services/plugin_in_book_search_service.dart';
 import 'package:otzaria/plugins/services/plugin_search_field_session_service.dart';
 import 'package:otzaria/plugins/models/plugin_library_book_provider.dart';
@@ -3153,6 +3154,25 @@ class PluginBridgeAdapter {
           } on StateError {
             throw Exception(
               'error.conflict: provider is owned by another plugin',
+            );
+          }
+          return true;
+        }
+      case 'respondFindRef':
+        {
+          final requestId = args['requestId'];
+          if (requestId is! String || requestId.isEmpty) {
+            throw Exception('error.invalid_params: requestId required');
+          }
+          final accepted = PluginFindRefService.instance.respond(
+            plugin.pluginId,
+            requestId,
+            results: args['results'] as List? ?? const [],
+            error: args['error'] as String?,
+          );
+          if (!accepted) {
+            throw Exception(
+              'error.not_found: reference request is not owned by plugin',
             );
           }
           return true;

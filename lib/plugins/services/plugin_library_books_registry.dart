@@ -117,6 +117,12 @@ class PluginLibraryBooksRegistry extends ChangeNotifier {
   @visibleForTesting
   Iterable<PluginLibraryBookProvider> get providers => _providers.values;
 
+  /// ספקים שתנאי ההצגה שלהם מאפשרים איתור כעת.
+  Iterable<PluginLibraryBookProvider> get referenceProviders =>
+      _providers.values.where(
+        (p) => p.referenceSearch && _conditions.isVisible(p.pluginId, p.when),
+      );
+
   bool hasProviderFor(String pluginId) =>
       _providers.values.any((provider) => provider.pluginId == pluginId);
 

@@ -332,6 +332,7 @@ if (response.success) {
 | `reader.respondInBookSearch` | 0.9.97 |
 | `reader.registerExternalSearchProvider` | 0.9.97 |
 | `reader.respondExternalSearch` | 0.9.97 |
+| `reader.respondFindRef` | 0.9.99 |
 | `reader.addContextMenuItem` | 0.9.89 |
 | `reader.removeContextMenuItem` | 0.9.89 |
 | `reader.updateContextMenuItem` | 0.9.95 |
@@ -2148,6 +2149,25 @@ window.addEventListener('search.external.requested', async (event) => {
 לחיצה על תוצאה פותחת את הספר במציג המובנה לפי הזהות החיצונית
 (`external: { provider, id }`) — מקומית כשהקובץ קיים, אחרת בדפדפן — ועם
 עמודי ההתאמה כשהתוסף רשום גם כספק חיפוש-בתוך-ספר.
+
+### `reader.respondFindRef`
+
+דורש הרשאת `reader.open`, מגרסה 0.9.99. משיב לבקשת איתור מקורות שנשלחה
+לתוסף עצמו באמצעות `findRef.external.requested`. הספק חייב להצהיר
+`referenceSearch: true` בתרומת `libraryBooks` שלו.
+
+```javascript
+await Otzaria.call('reader.respondFindRef', {
+  requestId,
+  results: [{ reference: 'בראשית פרק א פסוק ב', choiceIndex: 0 }],
+});
+```
+
+אפשר להחזיר `error` במקום תוצאות. בקשה מבוטלת, שפג זמנה או השייכת לתוסף אחר
+נדחית. התגובה אינה פותחת ספר. רק בחירת משתמש משגרת
+`findRef.external.openRequested`, עם השאילתה, האינדקס והכותרת המדויקת
+שהמשתמש ראה. אין להשתמש במזהה ספר מקומי עבור מקור חיצוני.
+החוזה המלא, כולל ביטול ובדיקת `expectedChoice`, מפורט ב־[FIND_REF.md](FIND_REF.md).
 
 ### `reader.respondExternalSearch`
 **הרשאה:** `reader.open`
