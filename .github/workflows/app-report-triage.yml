@@ -1,0 +1,26 @@
+name: App report triage
+
+# דוח תקיעה/קריסה חדש מ-Otzaria-Bot נשלח לבדיקה אוטומטית במאגר Otzaria/app-report-triage.
+on:
+  issues:
+    types: [opened, reopened]
+
+permissions: {}
+
+jobs:
+  dispatch:
+    if: >-
+      github.event.issue.user.login == 'Otzaria-Bot' &&
+      (startsWith(github.event.issue.title, '[תקיעה]') || startsWith(github.event.issue.title, '[קריסה]'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Dispatch
+        env:
+          GH_TOKEN: ${{ secrets.APP_REPORT_TRIAGE_TOKEN }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then echo "APP_REPORT_TRIAGE_TOKEN is not set"; exit 0; fi
+          gh api repos/Otzaria/app-report-triage/dispatches \
+            -f event_type=app-report-issue \
+            -F "client_payload[issue]=$ISSUE"
