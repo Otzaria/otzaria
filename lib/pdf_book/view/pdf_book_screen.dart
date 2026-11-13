@@ -6032,7 +6032,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final title = ValueListenableBuilder<String>(
       valueListenable: widget.tab.currentTitle,
       builder: (context, value, child) {
-        String displayTitle = value;
+        // אין כותרת מיקום, או שהיחידה היא שם הספר (שמוסר ממנה) — שם הספר לבדו.
+        String displayTitle = value.isEmpty ? widget.tab.book.title : value;
         if (value.isNotEmpty && !value.contains(widget.tab.book.title)) {
           displayTitle = '${widget.tab.book.title}, $value';
         }
