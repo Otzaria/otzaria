@@ -50,6 +50,7 @@ class _CountingRepository extends TextBookRepository {
     TextBook book, {
     required int startLine,
     required int endLine,
+    int? maxChars,
   }) {
     requestedRanges.add((startLine, endLine));
     if (pendingRange != null) return pendingRange!.future;

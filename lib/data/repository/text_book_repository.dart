@@ -132,10 +132,13 @@ class TextBookRepository {
     return '';
   }
 
+  /// [maxChars] - הטווח נקטע אחרי השורה שבה הצטברו כך הרבה תווים (לפחות שורה
+  /// אחת). נאכף בספרי המסד; מקורות אחרים מחזירים את הטווח המלא.
   Future<BookContentRange?> getBookContentRange(
     TextBook book, {
     required int startLine,
     required int endLine,
+    int? maxChars,
   }) async {
     final categoryId = book.categoryId;
     final fileType = book.fileType ?? 'txt';
@@ -170,6 +173,7 @@ class TextBookRepository {
         endLine: endLine,
         versionTitle: book.versionTitle,
         source: book.source,
+        maxChars: maxChars,
       );
       if (range != null && range.lines.isNotEmpty) {
         return BookContentRange(
