@@ -1,11 +1,14 @@
 import 'dart:io';
 
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:otzaria/core/error_log_file.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
@@ -17,14 +20,41 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/services/hebrew_books_download_service.dart';
 import 'package:otzaria/library/view/otzar_book_dialog.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/settings/engine/settings_bloc.dart';
+import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/settings/engine/settings_state.dart';
 
 import '../../helpers/memory_settings_cache.dart';
 
-Widget _wrap(Widget child) => MaterialApp(
-  locale: const Locale('he', 'IL'),
-  home: Scaffold(body: child),
-);
+class _MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
+    implements SettingsBloc {}
+
+class _MockLibraryBloc extends MockBloc<LibraryEvent, LibraryState>
+    implements LibraryBloc {}
+
+Widget _wrap(
+  Widget child, {
+  bool isOfflineMode = false,
+  GlobalKey<NavigatorState>? navigatorKey,
+}) {
+  final settings = _MockSettingsBloc();
+  whenListen(
+    settings,
+    const Stream<SettingsState>.empty(),
+    initialState: SettingsState.initial().copyWith(
+      isOfflineMode: isOfflineMode,
+    ),
+  );
+  return BlocProvider<SettingsBloc>.value(
+    value: settings,
+    child: MaterialApp(
+      navigatorKey: navigatorKey,
+      locale: const Locale('he', 'IL'),
+      home: Scaffold(body: child),
+    ),
+  );
+}
 
 ExternalLibraryBook _hebrewBook() => ExternalLibraryBook(
   title: 'ספר היברובוקס',
@@ -62,6 +92,52 @@ class _CatalogRepository extends DataRepository {
       ], await FileSystemData.scanHebrewBooksPdfFilesAtPath(folder));
 }
 
+/// לוחץ "הורדת הקובץ" כש-[client] עונה, ומחזיר את הודעת הכשל שהוצגה.
+Future<String?> _failedDownloadMessage(
+  WidgetTester tester,
+  http.Client client,
+) async {
+  await Settings.init(cacheProvider: MemorySettingsCache());
+  final folder = Directory.systemTemp.createTempSync('hb_5002_');
+  addTearDown(() => folder.deleteSync(recursive: true));
+  await Settings.setValue<String>(
+    SettingsRepository.keyHebrewBooksPath,
+    folder.path,
+  );
+  final library = _MockLibraryBloc();
+  whenListen(
+    library,
+    const Stream<LibraryState>.empty(),
+    initialState: LibraryState.initial(),
+  );
+  await tester.pumpWidget(
+    BlocProvider<LibraryBloc>.value(
+      value: library,
+      child: _wrap(
+        OtzarBookDialog(book: _hebrewBook()),
+        navigatorKey: navigatorKey,
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+
+  await tester.runAsync(
+    () => http.runWithClient(() async {
+      await tester.tap(find.text('הורדת הקובץ'));
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      await ErrorLogFile.flushPending();
+    }, () => client),
+  );
+  await tester.pump();
+  await tester.pump();
+
+  final shown = tester.widget<Text>(find.textContaining('הורדת הספר')).data;
+  expect(find.text('הורדת הקובץ'), findsOneWidget);
+  UiSnack.hide();
+  await tester.pump(const Duration(seconds: 5));
+  return shown;
+}
+
 void main() {
   group('כתובת ההורדה', () {
     test('נבנית מתוך מזהה הספר', () {
@@ -95,6 +171,51 @@ void main() {
 
       expect(find.text('פתח באתר'), findsOneWidget);
       expect(find.text('הורדת הקובץ'), findsNothing);
+    });
+
+    testWidgets('אינו מוצג במצב מנותק (issue #5002)', (tester) async {
+      await tester.pumpWidget(
+        _wrap(OtzarBookDialog(book: _hebrewBook()), isOfflineMode: true),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('פתח באתר'), findsOneWidget);
+      expect(find.text('הורדת הקובץ'), findsNothing);
+    });
+  });
+
+  group('כשל בהורדה (issue #5002)', () {
+    testWidgets(
+      'כשל רשת מוצג בעברית בלי טקסט החריגה, והפרטים נרשמים ביומן',
+      (tester) async {
+        // מחשב בלי רשת: כתובת שרת ההורדות אינה מתורגמת.
+        final shown = await _failedDownloadMessage(
+          tester,
+          MockClient(
+            (_) async => throw const SocketException(
+              "Failed host lookup: 'files.hebrewbooksoffline.dpdns.org'",
+              osError: OSError('No such host is known.', 11001),
+            ),
+          ),
+        );
+
+        expect(shown, isNot(contains('Failed host lookup')));
+        expect(shown, isNot(matches(RegExp('[A-Za-z]'))));
+        final log = ErrorLogFile.resolveFile();
+        expect(
+          log.existsSync() ? log.readAsStringSync() : '',
+          contains("Failed host lookup: 'files.hebrewbooksoffline.dpdns.org'"),
+        );
+      },
+    );
+
+    testWidgets('סטטוס השגיאה של השרת מוצג למשתמש', (tester) async {
+      final shown = await _failedDownloadMessage(
+        tester,
+        MockClient((_) async => http.Response('', 404)),
+      );
+
+      expect(shown, 'שגיאה בהורדת הספר: השרת החזיר 404');
     });
   });
 
