@@ -623,6 +623,8 @@ class _ContentRepository extends TextBookRepository {
     TextBook book, {
     required int startLine,
     required int endLine,
+    int? maxChars,
+    bool budgetFromEnd = false,
   }) async => BookContentRange(
     startLine: 0,
     endLine: lines.length - 1,

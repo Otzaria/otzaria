@@ -29,6 +29,8 @@ class _LockedFileRepository extends TextBookRepository {
     TextBook book, {
     required int startLine,
     required int endLine,
+    int? maxChars,
+    bool budgetFromEnd = false,
   }) async => throw _lockedFile();
 
   @override

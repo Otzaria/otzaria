@@ -28,6 +28,8 @@ class _RangeRepository extends TextBookRepository {
     TextBook book, {
     required int startLine,
     required int endLine,
+    int? maxChars,
+    bool budgetFromEnd = false,
   }) async => null;
 }
 
