@@ -1250,7 +1250,7 @@ void main() {
         }
 
         ({int startLine, int endLine, int totalLines, List<String> lines})?
-        load({int? maxChars, int startLine = 0}) =>
+        load({int? maxChars, int startLine = 0, bool fromEnd = false}) =>
             DatabaseLibraryProvider.loadBookTextRangeRowsForTesting(
               dbPath: dbPath,
               title: 'תמונות',
@@ -1259,6 +1259,7 @@ void main() {
               startLine: startLine,
               endLine: 10,
               maxChars: maxChars,
+              budgetFromEnd: fromEnd,
             );
 
         final budgeted = load(maxChars: image.length + 1)!;
@@ -1270,6 +1271,12 @@ void main() {
         final single = load(maxChars: 1, startLine: 2)!;
         expect(single.lines, [image]);
         expect(single.endLine, 2);
+
+        // מהסוף: נשמרות השורות הקרובות לסוף הטווח, בסדרן.
+        final tail = load(maxChars: image.length + 1, fromEnd: true)!;
+        expect(tail.lines, [image, image]);
+        expect(tail.startLine, 2);
+        expect(tail.endLine, 3);
 
         final full = load()!;
         expect(full.lines, hasLength(4));

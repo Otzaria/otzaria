@@ -2385,6 +2385,7 @@ class _FakeTextBookRepository extends TextBookRepository {
     required int startLine,
     required int endLine,
     int? maxChars,
+    bool budgetFromEnd = false,
   }) async {
     getBookContentRangeCalls++;
     final contentLines = List.generate(40, (index) => 'line $index');
@@ -2438,6 +2439,7 @@ class _EmptyContentTextBookRepository extends _FakeTextBookRepository {
     required int startLine,
     required int endLine,
     int? maxChars,
+    bool budgetFromEnd = false,
   }) async {
     return null;
   }
@@ -2479,6 +2481,7 @@ class _DelayedContentTextBookRepository extends _FakeTextBookRepository {
     required int startLine,
     required int endLine,
     int? maxChars,
+    bool budgetFromEnd = false,
   }) async {
     return null;
   }
