@@ -224,6 +224,9 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
   bool _awaitingFirstBoot = true;
   final _loadGeneration = PluginLoadGeneration();
   bool _hasError = false;
+
+  /// הסיבה לשגיאת הטעינה, להצגה במסך השגיאה (מקל על אבחון בדיווחי משתמשים).
+  String? _loadErrorDetails;
   String? _devErrorMessage;
 
   // כשל יצירה native לא מפעיל אף callback ב-Dart — נשאר רק מסך ריק.
@@ -600,7 +603,13 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
     }
 
     if (_hasError) {
-      return Center(child: Text('שגיאה בטעינת הקובץ: $localHtmlPath'));
+      final details = _loadErrorDetails;
+      return Center(
+        child: Text(
+          'שגיאה בטעינת הקובץ: $localHtmlPath'
+          '${details == null ? '' : '\n$details'}',
+        ),
+      );
     }
 
     if (_entrypointMissing != false) {
@@ -787,6 +796,7 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
           // bridge.register נכשל — התהליך חי, לא קריסה native. מנקים גם את
           // ה-canary של ה-crash guard.
           _finishCrashGuardLoad(crashGuardOwner);
+          _loadErrorDetails = lastAttachError;
           if (mounted) setState(() => _hasError = true);
         }
       },
@@ -922,6 +932,7 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
           if (widget.plugin.isDevelopment) {
             setState(() => _devErrorMessage = 'שגיאה באתחול התוסף:\n$e');
           } else {
+            _loadErrorDetails = 'Boot failed: $e';
             setState(() => _hasError = true);
           }
         }
@@ -943,9 +954,27 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
       },
       onReceivedError: (controller, request, error) {
         if (!currentAttempt()) return;
-        // only fail the view for the entrypoint file load itself
+        // only fail the view for the entrypoint file load itself.
+        // באנדרואיד ה-WebView מדווח onReceivedError גם על משאבי משנה (סקריפט,
+        // תמונה או גופן חסרים/חסומים); כשל כזה לא מפיל את התוסף, רק כשל בטעינת
+        // המסמך הראשי.
         if (request.url.scheme == 'file' ||
             request.url.scheme == pluginAssetScheme) {
+          if (request.isForMainFrame == false) {
+            debugPrint(
+              'Plugin [${widget.plugin.pluginId}] subresource load failed: '
+              '${request.url} (${error.type}: ${error.description})',
+            );
+            return;
+          }
+          _loadErrorDetails = '${error.type}: ${error.description}';
+          unawaited(
+            PluginSystemDatabase.instance.writeLog(
+              widget.plugin.pluginId,
+              'ERROR',
+              'Entrypoint load failed: ${request.url} — $_loadErrorDetails',
+            ),
+          );
           // שגיאת רשת/קובץ נתפסה ב-Dart — התהליך חי, לא קריסה native.
           // מנקים את ה-canary כדי שלא נחסום שגיאה רגילה כ"קריסה".
           _finishCrashGuardLoad(crashGuardOwner);
