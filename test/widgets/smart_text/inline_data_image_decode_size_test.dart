@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/widgets/smart_text/display_sized_memory_image.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 
@@ -152,6 +153,42 @@ void main() {
 
     expect(find.text('❌'), findsOneWidget);
     expect(tester.getSize(find.text('❌')).height, lessThan(100));
+  });
+
+  testWidgets('החלפת התמונה באותו State מאפסת שגיאה קודמת', (tester) async {
+    Future<void> pumpImage(Uint8List bytes) => tester.pumpWidget(
+      MaterialApp(
+        home: Center(
+          child: SizedBox(
+            width: 400,
+            child: DisplaySizedMemoryImage(
+              bytes: bytes,
+              pixelWidth: 2002,
+              pixelHeight: 2826,
+              errorBuilder: (_, _, _) => const Text('❌'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await pumpImage(
+      Uint8List.fromList([...scan.take(33), ...List.filled(64, 7)]),
+    );
+    await tester.pump();
+    for (var i = 0; i < 5 && find.text('❌').evaluate().isEmpty; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pump();
+      await tester.pump();
+    }
+    expect(find.text('❌'), findsOneWidget);
+
+    await pumpImage(scan);
+    await tester.pump();
+    expect(find.text('❌'), findsNothing);
+    expect(find.byType(Image), findsOneWidget);
   });
 
   testWidgets('JPEG עם Exif ממשיך במסלול הרגיל, ברזולוציה מלאה', (

@@ -2671,8 +2671,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     );
   }
 
-  /// צד שנקטע בתקרה מספיק כל עוד נשארה מעבר לגלויות שורה טעונה אחת לפחות;
-  /// בלי זה כל גלילה הייתה מבקשת שוב את אותו חלון קטוע.
+  /// צד קטוע מספיק כל עוד נשארה מעבר לגלויות שורה טעונה, וצד שלם עד שהגלויות
+  /// מתקרבות לקצהו; אחרת כל גלילה טוענת שוב את אותו חלון.
   bool _isBudgetedWindowSufficient(
     TextBook book,
     ({int startLine, int endLine, int firstVisible, int lastVisible}) window,
@@ -2691,11 +2691,14 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     final startOk = loaded.startTrimmed
         ? max(0, window.firstVisible) > loaded.startLine
         : loaded.startLine == 0 ||
-              window.startLine >=
-                  loaded.startLine + _contentReloadThresholdLines;
+              max(0, window.firstVisible) - loaded.startLine >=
+                  _contentReloadThresholdLines;
+    final totalLines = _loadedContentTotalLines;
     final endOk = loaded.endTrimmed
         ? window.lastVisible < loaded.endLine
-        : window.endLine <= loaded.endLine - _contentReloadThresholdLines;
+        : (totalLines != null && loaded.endLine >= totalLines - 1) ||
+              loaded.endLine - window.lastVisible >=
+                  _contentReloadThresholdLines;
     return startOk && endOk;
   }
 

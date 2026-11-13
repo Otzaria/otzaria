@@ -85,6 +85,16 @@ class _DisplaySizedMemoryImageState extends State<DisplaySizedMemoryImage> {
   double _devicePixelRatio = 1;
   ({Object error, StackTrace? stackTrace})? _failure;
 
+  @override
+  void didUpdateWidget(DisplaySizedMemoryImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.bytes, widget.bytes)) {
+      _decodeWidth = null;
+      _failure = null;
+      _requestDecodeWidth();
+    }
+  }
+
   void _requestDecodeWidth() {
     final width = _layoutWidth;
     if (width == null) return;
