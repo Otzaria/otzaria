@@ -195,6 +195,13 @@ dependency_overrides:
       url: https://github.com/Otzaria/core
       ref: 3c153cc0a9bd4327331870b4d6ee0ca8a35435f1
       path: pkgs/characters
+  # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור dart-lang/core#1046–#1062.
+  # ענף collection-integrated מוצמד לקומיט שעבר את בדיקות החבילה.
+  collection:
+    git:
+      url: https://github.com/Otzaria/core
+      ref: a87587cca3b208ee26cf0879af506dbae697c799
+      path: pkgs/collection
   # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור flutter/packages#13595–#13600.
   # תיקוני סקירה חייבים להישמר גם בענף המשולב וגם בענפי ה-PRים באפסטרים.
   flutter_svg:
