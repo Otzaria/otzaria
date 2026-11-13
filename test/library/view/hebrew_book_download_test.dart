@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:bloc_test/bloc_test.dart';
@@ -24,11 +25,21 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
 import '../../helpers/memory_settings_cache.dart';
 
 class _MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
     implements SettingsBloc {}
+
+class _PasswordRepository extends Fake implements SettingsRepository {
+  @override
+  bool hasProtectedModePassword() => true;
+
+  @override
+  bool verifyProtectedModePassword(String password) => password == '1234';
+}
 
 class _MockLibraryBloc extends MockBloc<LibraryEvent, LibraryState>
     implements LibraryBloc {}
@@ -36,6 +47,7 @@ class _MockLibraryBloc extends MockBloc<LibraryEvent, LibraryState>
 Widget _wrap(
   Widget child, {
   bool isOfflineMode = false,
+  SettingsBloc? settingsBloc,
   GlobalKey<NavigatorState>? navigatorKey,
 }) {
   final settings = _MockSettingsBloc();
@@ -47,7 +59,7 @@ Widget _wrap(
     ),
   );
   return BlocProvider<SettingsBloc>.value(
-    value: settings,
+    value: settingsBloc ?? settings,
     child: MaterialApp(
       navigatorKey: navigatorKey,
       locale: const Locale('he', 'IL'),
@@ -182,6 +194,213 @@ void main() {
       expect(find.text('פתח באתר'), findsOneWidget);
       expect(find.text('הורדת הקובץ'), findsNothing);
     });
+  });
+
+  group('שינוי מצב הרשת כשהדיאלוג פתוח', () {
+    late _MockSettingsBloc settings;
+    late StreamController<SettingsState> changes;
+    late SettingsState online;
+
+    setUp(() {
+      settings = _MockSettingsBloc();
+      changes = StreamController<SettingsState>.broadcast();
+      online = SettingsState.initial().copyWith(isOfflineMode: false);
+      whenListen(settings, changes.stream, initialState: online);
+      addTearDown(changes.close);
+    });
+
+    Finder downloadButton(String text) => find.byWidgetPredicate(
+      (widget) => widget is ActionButton && widget.text == text,
+    );
+
+    Future<void> setOffline(WidgetTester tester, bool offline) async {
+      changes.add(online.copyWith(isOfflineMode: offline));
+      await tester.pump();
+      await tester.pump();
+    }
+
+    testWidgets('כפתור מוסתר אינו נגיש ואינו שומר פוקוס', (tester) async {
+      final semantics = tester.ensureSemantics();
+      try {
+        await tester.pumpWidget(
+          _wrap(OtzarBookDialog(book: _hebrewBook()), settingsBloc: settings),
+        );
+        await tester.pumpAndSettle();
+        final focus = Focus.of(tester.element(find.text('הורדת הקובץ')));
+        focus.requestFocus();
+        await tester.pump();
+        expect(focus.hasFocus, isTrue);
+        expect(find.bySemanticsLabel('הורדת הקובץ'), findsOneWidget);
+
+        await setOffline(tester, true);
+        expect(find.text('הורדת הקובץ'), findsNothing);
+        expect(find.bySemanticsLabel('הורדת הקובץ'), findsNothing);
+        expect(focus.hasFocus, isFalse);
+        expect(focus.canRequestFocus, isFalse);
+
+        await setOffline(tester, false);
+        expect(find.text('הורדת הקובץ'), findsOneWidget);
+        expect(focus.canRequestFocus, isTrue);
+      } finally {
+        semantics.dispose();
+      }
+    });
+
+    testWidgets('אינו מתחיל הורדה כשעבר למנותק במהלך אימות סייפר', (
+      tester,
+    ) async {
+      await Settings.init(cacheProvider: MemorySettingsCache());
+      final library = _MockLibraryBloc();
+      whenListen(
+        library,
+        const Stream<LibraryState>.empty(),
+        initialState: LibraryState.initial(),
+      );
+      await tester.pumpWidget(
+        RepositoryProvider<SettingsRepository>.value(
+          value: _PasswordRepository(),
+          child: BlocProvider<LibraryBloc>.value(
+            value: library,
+            child: _wrap(
+              OtzarBookDialog(book: _hebrewBook()),
+              settingsBloc: settings,
+              navigatorKey: navigatorKey,
+            ),
+          ),
+        ),
+      );
+      online = online.copyWith(protectedModeEnabled: true);
+      await setOffline(tester, false);
+      await tester.pumpAndSettle();
+      var requests = 0;
+      final client = MockClient((_) async {
+        requests++;
+        return http.Response('', 404);
+      });
+      await tester.runAsync(
+        () => http.runWithClient(() async {
+          await tester.tap(find.text('הורדת הקובץ'));
+          await tester.pumpAndSettle();
+          expect(find.byType(RtlTextField), findsOneWidget);
+          await setOffline(tester, true);
+          await tester.enterText(find.byType(RtlTextField), '1234');
+          await tester.tap(find.text('אישור'));
+          await Future<void>.delayed(Duration.zero);
+          await tester.pumpAndSettle();
+          expect(requests, 0);
+        }, () => client),
+      );
+      UiSnack.hide();
+      await tester.pump(const Duration(seconds: 5));
+    });
+
+    testWidgets(
+      'שומר הורדה אחת והתקדמות, מתאושש מכשל מוסתר ומשלים שמירה מוסתרת',
+      (tester) async {
+        await Settings.init(cacheProvider: MemorySettingsCache());
+        final folder = Directory.systemTemp.createTempSync('hb_5023_');
+        addTearDown(() => folder.deleteSync(recursive: true));
+        await Settings.setValue<String>(
+          SettingsRepository.keyHebrewBooksPath,
+          folder.path,
+        );
+        final library = _MockLibraryBloc();
+        whenListen(
+          library,
+          const Stream<LibraryState>.empty(),
+          initialState: LibraryState.initial(),
+        );
+        await tester.pumpWidget(
+          BlocProvider<LibraryBloc>.value(
+            value: library,
+            child: _wrap(
+              OtzarBookDialog(book: _hebrewBook()),
+              settingsBloc: settings,
+              navigatorKey: navigatorKey,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final chunks = StreamController<List<int>>.broadcast();
+        final retryChunks = StreamController<List<int>>.broadcast();
+        addTearDown(chunks.close);
+        addTearDown(retryChunks.close);
+        var requests = 0;
+        final client = MockClient.streaming((_, _) async {
+          requests++;
+          return http.StreamedResponse(
+            requests == 1 ? chunks.stream : retryChunks.stream,
+            200,
+            contentLength: 8,
+          );
+        });
+
+        await tester.runAsync(
+          () => http.runWithClient(() async {
+            await tester.tap(find.text('הורדת הקובץ'));
+            await Future<void>.delayed(Duration.zero);
+            chunks.add('%PDF'.codeUnits);
+            await Future<void>.delayed(Duration.zero);
+            await tester.pump();
+            expect(downloadButton('מוריד... 50%'), findsOneWidget);
+            expect(requests, 1);
+
+            await setOffline(tester, true);
+            expect(
+              find.byWidgetPredicate(
+                (widget) => widget is ActionButton && widget.isLoading,
+              ),
+              findsNothing,
+            );
+            chunks.add('-1'.codeUnits);
+            await Future<void>.delayed(Duration.zero);
+            await setOffline(tester, false);
+            expect(downloadButton('מוריד... 75%'), findsOneWidget);
+            final button = tester.widget<ActionButton>(
+              downloadButton('מוריד... 75%'),
+            );
+            expect(button.onPressed, isNull);
+            expect(button.isLoading, isTrue);
+            await tester.tap(downloadButton('מוריד... 75%'));
+            await Future<void>.delayed(Duration.zero);
+            expect(requests, 1);
+
+            await setOffline(tester, true);
+            chunks.addError(const SocketException('network lost'));
+            await chunks.close();
+            await ErrorLogFile.flushPending();
+            await tester.pump();
+            expect(find.text('הורדת הקובץ'), findsNothing);
+            expect(
+              find.text('הורדת הספר נכשלה. פרטי השגיאה נרשמו ביומן השגיאות.'),
+              findsOneWidget,
+            );
+            UiSnack.hide();
+            await setOffline(tester, false);
+            expect(find.text('הורדת הקובץ'), findsOneWidget);
+
+            await tester.tap(find.text('הורדת הקובץ'));
+            await Future<void>.delayed(Duration.zero);
+            expect(requests, 2);
+            await setOffline(tester, true);
+            retryChunks.add('%PDF-1.4'.codeUnits);
+            await retryChunks.close();
+            final saved = File('${folder.path}/10022.pdf');
+            final deadline = DateTime.now().add(const Duration(seconds: 5));
+            while ((!saved.existsSync() || saved.lengthSync() != 8) &&
+                DateTime.now().isBefore(deadline)) {
+              await Future<void>.delayed(const Duration(milliseconds: 10));
+            }
+            expect(await saved.readAsString(), '%PDF-1.4');
+            await setOffline(tester, false);
+            expect(find.text('הורדת הקובץ'), findsOneWidget);
+            expect(requests, 2);
+          }, () => client),
+        );
+        UiSnack.hide();
+        await tester.pump(const Duration(seconds: 5));
+      },
+    );
   });
 
   group('כשל בהורדה (issue #5002)', () {

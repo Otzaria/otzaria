@@ -173,8 +173,13 @@ class _OtzarBookDialogState extends State<OtzarBookDialog> {
     bool isOfflineMode,
   ) {
     return <Widget>[
-      if (_isHebrewBook && book.id != null && !isOfflineMode)
-        _HebrewBookDownloadButton(bookId: book.id!),
+      if (_isHebrewBook && book.id != null)
+        Visibility(
+          visible: !isOfflineMode,
+          // ההורדה ממשיכה גם כשהכפתור מוסתר; אסור לאבד את מצבה.
+          maintainState: true,
+          child: _HebrewBookDownloadButton(bookId: book.id!),
+        ),
       ActionButton.neutral(
         icon: FluentIcons.open_24_regular,
         text: 'פתח באתר',
@@ -230,7 +235,7 @@ class _HebrewBookDownloadButtonState extends State<_HebrewBookDownloadButton> {
   Future<void> _download() async {
     final hasFolder = HebrewBooksDownloadService.configuredFolder() != null;
     if (!hasFolder && !await verifySaferModePassword(context)) return;
-    if (!mounted) return;
+    if (!mounted || context.read<SettingsBloc>().state.isOfflineMode) return;
     // נלכד מראש: ההורדה ממשיכה גם אם הדיאלוג נסגר באמצע.
     final libraryBloc = context.read<LibraryBloc>();
 
