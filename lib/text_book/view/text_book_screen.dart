@@ -762,6 +762,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           textSearchFocusNode.requestFocus();
         }
       });
+      // addPostFrameCallback אינו מזמין פריים: כשהחלונית כבר פתוחה על החיפוש
+      // אין שינוי שיצייר, והפוקוס היה ממתין לריחוף עכבר מעל החלונית.
+      WidgetsBinding.instance.ensureVisualUpdate();
     }
   }
 
