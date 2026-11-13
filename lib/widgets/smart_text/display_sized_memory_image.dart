@@ -5,9 +5,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
-/// מידות התמונה בפיקסלים מכותרת PNG או JPEG, בלי לפענח אותה.
-///
-/// מחזיר null לפורמט אחר, ול-JPEG עם Exif — הסיבוב שבו עשוי להחליף רוחב וגובה.
+/// מידות התמונה מכותרת PNG או JPEG, בלי לפענח. null לפורמט אחר ול-JPEG עם
+/// Exif, שהסיבוב שבו עשוי להחליף רוחב וגובה.
 ({int width, int height})? encodedImagePixelSize(Uint8List bytes) {
   int u16(int i) => (bytes[i] << 8) | bytes[i + 1];
   int u32(int i) => (u16(i) << 16) | u16(i + 2);
@@ -53,11 +52,8 @@ import 'package:flutter/widgets.dart';
 ({int width, int height})? _positive(int width, int height) =>
     width > 0 && height > 0 ? (width: width, height: height) : null;
 
-/// תמונה מזיכרון שמפוענחת ברוחב שבו היא מוצגת, ולא ברזולוציה המלאה.
-///
-/// סריקת עמוד של 2000×2800 תופסת 22MB מפוענחת; ספר עם עשרות כאלה קרס (#5033).
-/// הפריסה זהה ל-`Image` בלי מידות: [pixelWidth]×[pixelHeight] פיקסלים לוגיים,
-/// מוקטנים לאילוצים בשמירת היחס.
+/// מפענחת ברוחב התצוגה ולא ברזולוציה המלאה (סריקת עמוד מלאה תופסת ~22MB).
+/// הפריסה זהה ל-`Image` בלי מידות, כבר לפני הפענוח.
 class DisplaySizedMemoryImage extends StatefulWidget {
   const DisplaySizedMemoryImage({
     super.key,
@@ -80,16 +76,24 @@ class DisplaySizedMemoryImage extends StatefulWidget {
 }
 
 class _DisplaySizedMemoryImageState extends State<DisplaySizedMemoryImage> {
+  /// מדרגות רוחב הפענוח: גרירת חלון מפענחת שוב רק במעבר מדרגה, לא בכל פריים.
+  static const int _decodeWidthStep = 256;
+
   /// null עד הפריסה הראשונה: רוחב הפענוח נקבע רק כשרוחב התצוגה ידוע.
   int? _decodeWidth;
+  double? _layoutWidth;
   double _devicePixelRatio = 1;
+  ({Object error, StackTrace? stackTrace})? _failure;
 
-  void _onLayoutWidth(double width) {
+  void _requestDecodeWidth() {
+    final width = _layoutWidth;
+    if (width == null) return;
+    final physical = (width * _devicePixelRatio).ceil();
     final target = math.min(
       widget.pixelWidth,
-      (width * _devicePixelRatio).ceil(),
+      (physical / _decodeWidthStep).ceil() * _decodeWidthStep,
     );
-    // רק הגדלה: הקטנה הייתה מפענחת שוב בכל שינוי רוחב בלי לחסוך זיכרון של ממש.
+    // רק הגדלה: הקטנה הייתה מפענחת שוב בלי לחסוך זיכרון של ממש.
     if (target <= 0 || target <= (_decodeWidth ?? 0)) return;
     SchedulerBinding.instance.addPostFrameCallback((_) {
       if (mounted && target > (_decodeWidth ?? 0)) {
@@ -98,9 +102,41 @@ class _DisplaySizedMemoryImageState extends State<DisplaySizedMemoryImage> {
     });
   }
 
+  void _onLayoutWidth(double width) {
+    _layoutWidth = width;
+    _requestDecodeWidth();
+  }
+
+  Widget _onImageError(
+    BuildContext context,
+    Object error,
+    StackTrace? stackTrace,
+  ) {
+    // סימן השגיאה מוצג בגודלו ולא נמתח על כל המקום ששמור לתמונה.
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _failure == null) {
+        setState(() => _failure = (error: error, stackTrace: stackTrace));
+      }
+    });
+    return const SizedBox.shrink();
+  }
+
   @override
   Widget build(BuildContext context) {
-    _devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final failure = _failure;
+    if (failure != null) {
+      return widget.errorBuilder?.call(
+            context,
+            failure.error,
+            failure.stackTrace,
+          ) ??
+          const SizedBox.shrink();
+    }
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+    if (devicePixelRatio != _devicePixelRatio) {
+      _devicePixelRatio = devicePixelRatio;
+      _requestDecodeWidth();
+    }
     final decodeWidth = _decodeWidth;
     return _AspectSizedBox(
       pixelSize: Size(
@@ -120,7 +156,7 @@ class _DisplaySizedMemoryImageState extends State<DisplaySizedMemoryImage> {
               gaplessPlayback: true,
               semanticLabel: widget.semanticLabel,
               excludeFromSemantics: widget.semanticLabel == null,
-              errorBuilder: widget.errorBuilder,
+              errorBuilder: _onImageError,
             ),
     );
   }
