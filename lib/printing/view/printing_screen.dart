@@ -759,8 +759,14 @@ class _PrintingScreenState extends State<PrintingScreen> {
   }
 
   void _setPagesPerSheet(int value) {
+    final source = _sourcePageFormat(format);
     setState(() => _pagesPerSheet = value);
-    _preview.setPagesPerSheet(value);
+    // עמוד טקסט בכיוון אחר הוא מסמך אחר; אחרת משתנה רק סידור הגיליונות.
+    if (!_isPdfSource && _sourcePageFormat(format) != source) {
+      _refreshPreview();
+    } else {
+      _preview.setPagesPerSheet(value);
+    }
   }
 
   Future<Uint8List> _createOutputPdf(PdfPageFormat format) async {
@@ -811,24 +817,34 @@ class _PrintingScreenState extends State<PrintingScreen> {
         : format;
   }
 
-  // מטמון ה-base PDF: שינוי שמשפיע רק על שלב הרסטור (מספר עמודים בגיליון,
-  // טווח עמודים ב-PDF חיצוני) לא בונה מחדש את המסמך — רק מרסטר אותו שוב.
+  /// עמוד הטקסט שנוצר להדפסה. בשני עמודים בגיליון התא הוא חצי מרוחב הגיליון
+  /// ולכן לאורך, וגם על גיליון לרוחב העמוד לאורך וממלא אותו.
+  PdfPageFormat _sourcePageFormat(PdfPageFormat format) {
+    final sheet = _effectivePageFormat(format);
+    return _pagesPerSheet == 2 ? sheet.portrait : sheet;
+  }
+
+  // מטמון ה-base PDF: שינוי שמשפיע רק על שלב הרסטור (מספר עמודים בגיליון
+  // באותו כיוון עמוד, טווח עמודים ב-PDF חיצוני) רק מרסטר את המסמך שוב.
   Uint8List? _cachedBasePdf;
   String? _cachedBaseKey;
 
-  /// חתימת כל הפרמטרים שמשפיעים על תוכן ה-base PDF. שדות שמשפיעים רק על
-  /// הרסטור (_pagesPerSheet, טווח עמודים ב-PDF חיצוני) בכוונה אינם נכללים.
-  String _baseCacheKey(PdfPageFormat format) {
+  /// חתימת כל הפרמטרים שמשפיעים על תוכן ה-base PDF. מספר העמודים בגיליון
+  /// נכלל רק דרך גודל עמוד הטקסט, וטווח עמודים ב-PDF חיצוני בכוונה אינו נכלל.
+  String _baseCacheKey(
+    PdfPageFormat format, {
+    PdfPageFormat? sourceFormat,
+  }) {
     if (_isPdfSource) {
       return 'override|${identityHashCode(widget.createPdfOverride)}|${orientation.name}|${format.width}x${format.height}';
     }
+    final source = sourceFormat ?? _sourcePageFormat(format);
     final holyNames = _shouldReplaceHolyNames;
     return [
       identityHashCode(_dataFuture),
       identityHashCode(widget.prebuiltBlocks),
-      orientation.name,
-      format.width,
-      format.height,
+      source.width,
+      source.height,
       pageMargin,
       fontSize,
       fontName,
@@ -852,8 +868,10 @@ class _PrintingScreenState extends State<PrintingScreen> {
   Future<PrintPdfSource> _createBasePdf(PdfPageFormat format) async {
     final path = widget.pdfFilePath;
     if (path != null) return PrintPdfSource.file(path);
+    // כיוון עמוד המקור חייב להתאים למשימה גם כשההגדרות משתנות בזמן הטעינה.
+    final sourceFormat = _sourcePageFormat(format);
     await _divineNamesReady;
-    final key = _baseCacheKey(format);
+    final key = _baseCacheKey(format, sourceFormat: sourceFormat);
     final cached = _cachedBasePdf;
     if (cached != null && _cachedBaseKey == key) {
       return PrintPdfSource.data(cached);
@@ -866,7 +884,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
           : format;
       bytes = await override(effectiveFormat);
     } else {
-      bytes = await createPdf(format);
+      bytes = await createPdf(format, sourceFormat: sourceFormat);
     }
     if (mounted && !_preview.isStopped && _baseCacheKey(format) == key) {
       _cachedBasePdf = bytes;
@@ -966,14 +984,15 @@ class _PrintingScreenState extends State<PrintingScreen> {
     }
   }
 
-  Future<Uint8List> createPdf(PdfPageFormat format) async {
+  Future<Uint8List> createPdf(
+    PdfPageFormat format, {
+    PdfPageFormat? sourceFormat,
+  }) async {
+    format = sourceFormat ?? _sourcePageFormat(format);
     if (widget.prebuiltBlocks != null) {
       return _createPrebuiltPdf(format);
     }
     String dataString = await _dataFuture;
-    if (orientation == pw.PageOrientation.landscape) {
-      format = format.landscape;
-    }
 
     final shouldReplaceHolyNames = _shouldReplaceHolyNames;
 
@@ -1015,9 +1034,6 @@ class _PrintingScreenState extends State<PrintingScreen> {
 
   /// יוצר PDF מבלוקים מוכנים מראש (כרטיסיית מפרשים).
   Future<Uint8List> _createPrebuiltPdf(PdfPageFormat format) async {
-    if (orientation == pw.PageOrientation.landscape) {
-      format = format.landscape;
-    }
     final bookName = widget.documentTitle ?? widget.bookId;
     final blocks = _mapPrebuiltBlocks(widget.prebuiltBlocks ?? const []);
     return _renderBlocksToPdf(
