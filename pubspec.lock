@@ -1210,6 +1210,15 @@ packages:
       url: "https://github.com/Otzaria/otzaria_icons"
     source: git
     version: "0.7.0"
+  otzaria_mekorot:
+    dependency: "direct main"
+    description:
+      path: package
+      ref: "v1.3.0"
+      resolved-ref: "94285f5eb96e04ae808301eb8cff935b4b7e3f07"
+      url: "https://github.com/palmoni5/mekorot.git"
+    source: git
+    version: "1.3.0"
   otzaria_report_contract:
     dependency: "direct main"
     description:
