@@ -80,4 +80,88 @@ void main() {
       expect(bloc.state.importFiles, isEmpty);
     },
   );
+
+  group('הודעת הייבוא סופרת רק את הקבצים שנבחרו (issue #4511)', () {
+    late CustomFoldersBloc bloc;
+
+    setUp(() async {
+      final raw = await (await UserBooksDatabaseHolder.instance.repository)
+          .database
+          .database;
+      raw.execute('PRAGMA foreign_keys = OFF');
+      final bookFile = File(p.join(tempDir.path, 'מקור.txt'))
+        ..writeAsStringSync('א\nב\nג\nד\nה\n');
+      raw.execute(
+        'INSERT INTO book (categoryId, sourceId, title, filePath, fileType) '
+        "VALUES (1, 1, 'מקור', ?, 'txt')",
+        [bookFile.path],
+      );
+      raw.execute(
+        "INSERT INTO book (categoryId, sourceId, title) VALUES (1, 1, 'מפרש')",
+      );
+      final targetId = raw.lastInsertRowId;
+      raw.execute("INSERT INTO tocText (text) VALUES ('פרק א')");
+      raw.execute(
+        'INSERT INTO tocEntry (bookId, textId, level, lineIndex) '
+        'VALUES (?, ?, 1, 7)',
+        [targetId, raw.lastInsertRowId],
+      );
+      bloc = build();
+    });
+
+    tearDown(() => bloc.close());
+
+    String write(String folder, String name, String content) {
+      final dir = Directory(p.join(tempDir.path, folder))..createSync();
+      return (File(p.join(dir.path, name))..writeAsStringSync(content)).path;
+    }
+
+    /// קובץ קישורים מ"מקור" אל "מפרש", קישור לכל שורת מקור מ-[first] עד [last].
+    String linksFile(String folder, int first, int last) => write(
+      folder,
+      'מקור.links.csv',
+      [
+        'מקור_אישי,מקור,ספר_יעד,מיקום_יעד,סוג,יעד_אישי',
+        for (var line = first; line <= last; line++)
+          'כן,$line,מפרש,פרק א,הפניה,כן',
+      ].join('\n'),
+    );
+
+    Future<String?> import(List<String> paths) async {
+      bloc.add(ImportUserContentFiles(paths));
+      final state = await bloc.stream.firstWhere((s) => !s.isSyncing);
+      expect(state.error, isNull);
+      return state.message;
+    }
+
+    test('ייבוא נוסף מדווח את קישורי הקובץ החדש, לא את סך הספרייה', () async {
+      expect(await import([linksFile('א', 1, 2)]), 'יובאו 2 קישורים');
+      expect(await import([linksFile('ב', 3, 5)]), 'יובאו 3 קישורים');
+    });
+
+    test('ייבוא חוזר של אותו קובץ מדווח את הקישורים שבו', () async {
+      final first = linksFile('א', 1, 2);
+      await import([first]);
+      await import([linksFile('ב', 3, 5)]);
+      expect(await import([first]), 'יובאו 2 קישורים');
+    });
+
+    test('קובץ שחלק מקישוריו כבר יובאו מדווח את כל קישוריו', () async {
+      await import([linksFile('א', 1, 2)]);
+      expect(await import([linksFile('ג', 2, 4)]), 'יובאו 3 קישורים');
+    });
+
+    test('דורות, כותרות וגרסאות נספרים רק בייבוא שהביא אותם', () async {
+      await import([linksFile('א', 1, 2)]);
+      expect(
+        await import([
+          write('נתונים', 'דורות.csv', 'ספר,דור\nמקור,ראשונים\n'),
+          write('נתונים', 'מקור.כותרות.csv', 'כותרת,שורה\nפתיחה,1\n'),
+          write('נתונים', 'גרסאות.csv', 'ראשי,גרסה\nמקור,מפרש\n'),
+        ]),
+        'יובאו 1 דורות ו-כותרות ל-1 ספרים ו-1 גרסאות',
+      );
+      expect(await import([linksFile('ב', 3, 3)]), 'יובאו 1 קישורים');
+    });
+  });
 }
