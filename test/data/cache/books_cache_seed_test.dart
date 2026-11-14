@@ -1,32 +1,34 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/cache/books_cache.dart';
-import 'package:otzaria/migration/models/book.dart' as db_models;
+import 'package:otzaria/migration/database/daos/book_dao.dart';
 
-db_models.Book _book(
+/// שורה כפי שקריאת הקטלוג מחזירה אותה (`selectBooksMinimal` עם עמודות הקובץ).
+Map<String, dynamic> _row(
   int id,
   String title, {
   String? fileType,
   double order = 5,
-}) => db_models.Book(
-  id: id,
-  categoryId: 7,
-  sourceId: 1,
-  title: title,
-  order: order,
-  filePath: '/books/$title.txt',
-  fileType: fileType,
-);
+}) => {
+  'id': id,
+  'title': title,
+  'categoryId': 7,
+  'orderIndex': order,
+  'heShortDesc': null,
+  'heDesc': null,
+  BookDao.storedFileTypeKey: fileType,
+  BookDao.storedFilePathKey: '/books/$title.txt',
+};
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   tearDown(() => BooksCache.instance.clear());
 
-  group('BooksCache.seedFromBooks', () {
+  group('BooksCache.seedFromRows', () {
     test('זריעה מהקטלוג מסמנת את הקאש כטעון וממפה את כל השדות', () {
-      BooksCache.instance.seedFromBooks([
-        _book(1, 'בראשית', fileType: 'pdf', order: 2),
-        _book(2, 'שמות'),
+      BooksCache.instance.seedFromRows([
+        _row(1, 'בראשית', fileType: 'pdf', order: 2),
+        _row(2, 'שמות'),
       ], generation: BooksCache.instance.generation);
 
       expect(BooksCache.instance.isLoaded, isTrue);
@@ -46,8 +48,8 @@ void main() {
     test(
       'warmUp אחרי זריעה אינו נוגע ב-DB — שורש ביטול הקריאה הכפולה',
       () async {
-        BooksCache.instance.seedFromBooks(
-          [_book(1, 'בראשית')],
+        BooksCache.instance.seedFromRows(
+          [_row(1, 'בראשית')],
           generation: BooksCache.instance.generation,
         );
 
@@ -62,10 +64,10 @@ void main() {
 
     test('זריעה על קאש טעון היא no-op', () {
       final gen = BooksCache.instance.generation;
-      BooksCache.instance.seedFromBooks([_book(1, 'בראשית')], generation: gen);
-      BooksCache.instance.seedFromBooks([
-        _book(2, 'שמות'),
-        _book(3, 'ויקרא'),
+      BooksCache.instance.seedFromRows([_row(1, 'בראשית')], generation: gen);
+      BooksCache.instance.seedFromRows([
+        _row(2, 'שמות'),
+        _row(3, 'ויקרא'),
       ], generation: gen);
 
       expect(BooksCache.instance.books, hasLength(1));
@@ -73,16 +75,16 @@ void main() {
     });
 
     test('clear מאפשר זריעה מחדש אחרי החלפת ספרייה', () {
-      BooksCache.instance.seedFromBooks(
-        [_book(1, 'בראשית')],
+      BooksCache.instance.seedFromRows(
+        [_row(1, 'בראשית')],
         generation: BooksCache.instance.generation,
       );
       BooksCache.instance.clear();
 
       expect(BooksCache.instance.isLoaded, isFalse);
 
-      BooksCache.instance.seedFromBooks(
-        [_book(9, 'תהלים')],
+      BooksCache.instance.seedFromRows(
+        [_row(9, 'תהלים')],
         generation: BooksCache.instance.generation,
       );
       expect(BooksCache.instance.getBookById(9), isNotNull);
@@ -93,8 +95,8 @@ void main() {
       final staleGeneration = BooksCache.instance.generation;
       BooksCache.instance.clear(); // החלפת/רענון ספרייה תוך כדי השליפה
 
-      BooksCache.instance.seedFromBooks(
-        [_book(1, 'בראשית')],
+      BooksCache.instance.seedFromRows(
+        [_row(1, 'בראשית')],
         generation: staleGeneration,
       );
 
@@ -103,8 +105,8 @@ void main() {
     });
 
     test('books אינו מעתיק את הרשימה בכל גישה, ואינו ניתן לשינוי', () {
-      BooksCache.instance.seedFromBooks(
-        [_book(1, 'בראשית')],
+      BooksCache.instance.seedFromRows(
+        [_row(1, 'בראשית')],
         generation: BooksCache.instance.generation,
       );
       final books = BooksCache.instance.books;

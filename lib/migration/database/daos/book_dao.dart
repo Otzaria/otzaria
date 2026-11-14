@@ -74,17 +74,25 @@ class BookDao {
   List<Map<String, dynamic>> getAllBooksMinimal(
     sqlite3.Database db, {
     bool withFileColumns = false,
+    bool withStoredFileColumns = false,
   }) => selectBooksMinimal(
     db,
     DbCapabilities.forDatabase(_db.path, db),
     withFileColumns: withFileColumns,
+    withStoredFileColumns: withStoredFileColumns,
   );
 
+  static const storedFileTypeKey = 'storedFileType';
+  static const storedFilePathKey = 'storedFilePath';
+
   /// גוף [getAllBooksMinimal] בלי תלות במופע — לקריאה ב-isolate על חיבור משלו.
+  /// [withStoredFileColumns] מוסיף את עמודות הקובץ בשמות נפרדים
+  /// ([storedFileTypeKey]), שהקטלוג אינו קורא ו-`BooksCache` צריך.
   static List<Map<String, dynamic>> selectBooksMinimal(
     sqlite3.Database db,
     DbCapabilities capabilities, {
     bool withFileColumns = false,
+    bool withStoredFileColumns = false,
   }) {
     if (!capabilities.hasBooks) return const [];
     String col(String name, {String fallback = 'NULL'}) =>
@@ -106,9 +114,15 @@ class BookDao {
         ORDER BY $order
       ''').toMapList();
     }
+    String stored(String name, String alias) =>
+        '${capabilities.hasColumn('book', name) ? name : 'NULL'} AS $alias';
+    final storedFileColumns = withStoredFileColumns
+        ? ', ${stored('fileType', storedFileTypeKey)}, '
+              '${stored('filePath', storedFilePathKey)}'
+        : '';
     return db.select('''
       SELECT id, title, $categoryColumn, ${col('orderIndex')},
-             ${col('heShortDesc')}, ${col('heDesc')}
+             ${col('heShortDesc')}, ${col('heDesc')}$storedFileColumns
       FROM book
       ORDER BY $order
     ''').toMapList();

@@ -5,6 +5,7 @@ import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
+import 'package:otzaria/data/data_providers/official_catalog_rows.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -75,7 +76,13 @@ void main() {
 
         final rows = readOfficialCatalogSync(provider.sqliteProvider.dbPath);
 
-        expect(rows.books, repository.database.bookDao.getAllBooksMinimal(db));
+        expect(
+          rows.books,
+          repository.database.bookDao.getAllBooksMinimal(
+            db,
+            withStoredFileColumns: true,
+          ),
+        );
         expect(
           rows.categories,
           repository.database.categoryDao.getAllCategoryRows(db),
