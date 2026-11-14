@@ -3388,6 +3388,7 @@ class FindRefRepository {
                     r.isPdf,
                     r.reference,
                   ))),
+          exactAliasMatch: bookMatch?.exactAlias ?? false,
           startsWithMatch: match.startsWithMatch,
           punctuationAgrees:
               quotedWords.isEmpty ||
@@ -3418,7 +3419,15 @@ class FindRefRepository {
       },
     );
 
-    decorated.sort((a, b) => compareFindRefRank(a, b, query));
+    final rankQuery = FindRefRankQuery(
+      queryTokens,
+      aliasFoundationalTiers: {
+        for (final key in decorated)
+          if (key.exactAliasMatch && key.bookRank.foundationalTier != null)
+            key.bookRank.foundationalTier!,
+      },
+    );
+    decorated.sort((a, b) => compareFindRefRank(a, b, rankQuery));
 
     // cap מודע-רלוונטיות: חותכים ב-[_baseResultCap], אך מרחיבים לכל מי שחולק
     // את מפתח-הרלוונטיות של התוצאה האחרונה שבחיתוך — כך שתוצאות שווֹת-רלוונטיות
@@ -3429,7 +3438,7 @@ class FindRefRepository {
     final boundary = decorated[_baseResultCap - 1];
     var end = _baseResultCap;
     while (end < decorated.length &&
-        compareFindRefRelevance(decorated[end], boundary, query) == 0) {
+        compareFindRefRelevance(decorated[end], boundary, rankQuery) == 0) {
       end++;
     }
     if (end > _maxResultCap) {

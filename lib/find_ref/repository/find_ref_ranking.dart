@@ -90,12 +90,13 @@ typedef FindRefBookRank = ({int? foundationalTier, int eraOrder});
 
 /// הצורה של השאילתה שהדירוג צריך, מחושבת פעם אחת לכל שאילתה.
 class FindRefRankQuery {
-  FindRefRankQuery(this.tokens)
+  FindRefRankQuery(this.tokens, {this.aliasFoundationalTiers = const {}})
     : text = tokens.join(' '),
       matchTokens = tokens.map(bookNameMatchToken).toList(growable: false),
       isDafCitation = queryLooksDafCitation(tokens);
 
   final List<String> tokens;
+  final Set<int> aliasFoundationalTiers;
   final String text;
 
   /// [tokens] ב-[bookNameMatchToken], להשוואה מול כותרות.
@@ -151,6 +152,7 @@ class FindRefRankKey<T> {
     this.categoryTokens = const {},
     this.punctuationAgrees = true,
     this.directNameMatch = false,
+    this.exactAliasMatch = false,
   });
 
   final T item;
@@ -160,6 +162,9 @@ class FindRefRankKey<T> {
 
   /// שם או ציון מלא התואמים לשאילתה, כשמתחרים בכינוי מדויק.
   final bool directNameMatch;
+
+  /// הספר נמצא לפי כינוי מדויק (טבלת הכינויים), ולא לפי מילות שמו.
+  final bool exactAliasMatch;
   final bool startsWithMatch;
 
   /// מ-[FindRefRankQuery.titleMatch]: נקבע פעם אחת לכותרת ולא בכל השוואה.
@@ -213,6 +218,20 @@ int compareFindRefRelevance(
 
   if (a.directNameMatch != b.directNameMatch) {
     return a.directNameMatch ? -1 : 1;
+  }
+
+  // כינוי מדויק מקדם את כל קבוצת היסוד, כדי שכינויים חלקיים לא יפצלו אותה.
+  if (!query.needsTokenWiseRanking) {
+    final aAliasFoundation =
+        a.directNameMatch &&
+        query.aliasFoundationalTiers.contains(a.bookRank.foundationalTier);
+    if (aAliasFoundation !=
+        (b.directNameMatch &&
+            query.aliasFoundationalTiers.contains(
+              b.bookRank.foundationalTier,
+            ))) {
+      return aAliasFoundation ? -1 : 1;
+    }
   }
 
   // 2. התאמה של התחלת שם הספר
