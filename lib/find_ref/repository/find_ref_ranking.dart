@@ -151,6 +151,7 @@ class FindRefRankKey<T> {
     this.categoryTokens = const {},
     this.punctuationAgrees = true,
     this.directNameMatch = false,
+    this.exactAliasMatch = false,
   });
 
   final T item;
@@ -160,6 +161,9 @@ class FindRefRankKey<T> {
 
   /// שם או ציון מלא התואמים לשאילתה, כשמתחרים בכינוי מדויק.
   final bool directNameMatch;
+
+  /// הספר נמצא לפי כינוי מדויק (טבלת הכינויים), ולא לפי מילות שמו.
+  final bool exactAliasMatch;
   final bool startsWithMatch;
 
   /// מ-[FindRefRankQuery.titleMatch]: נקבע פעם אחת לכותרת ולא בכל השוואה.
@@ -213,6 +217,17 @@ int compareFindRefRelevance(
 
   if (a.directNameMatch != b.directNameMatch) {
     return a.directNameMatch ? -1 : 1;
+  }
+
+  // בשאילתת מילה אחת, ספר יסוד בכינוי מדויק קודם לספר שרק שמו פותח בה:
+  // "רמב"ם" הוא משנה תורה לפני "רמב"ם על משנה".
+  if (!query.needsTokenWiseRanking) {
+    final aAliasFoundation =
+        a.exactAliasMatch && a.bookRank.foundationalTier != null;
+    if (aAliasFoundation !=
+        (b.exactAliasMatch && b.bookRank.foundationalTier != null)) {
+      return aAliasFoundation ? -1 : 1;
+    }
   }
 
   // 2. התאמה של התחלת שם הספר

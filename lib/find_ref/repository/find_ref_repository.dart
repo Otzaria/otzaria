@@ -3388,6 +3388,7 @@ class FindRefRepository {
                     r.isPdf,
                     r.reference,
                   ))),
+          exactAliasMatch: bookMatch?.exactAlias ?? false,
           startsWithMatch: match.startsWithMatch,
           punctuationAgrees:
               quotedWords.isEmpty ||
