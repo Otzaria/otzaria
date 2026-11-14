@@ -65,6 +65,11 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   /// המרחק מקצה החלון הטעון שבו נטענת מנה חדשה. קובע את תדירות הטעינות.
   @visibleForTesting
   static const int linksReloadThresholdLines = 120;
+
+  /// כמה שורות מעבר לחלון הטעון נשמרים קישורים שנצברו. חייב להיות
+  /// ≥ [linkLookAheadLines], כדי שגלילה חזרה לא תרוקן שורות שכבר נטענו.
+  @visibleForTesting
+  static const int linksRetainMarginLines = 400;
   static const int _initialContentLookBehindLines = 80;
   static const int _initialContentLookAheadLines = 180;
   static const int _contentLookBehindLines = 120;
@@ -3035,6 +3040,13 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           links,
           replaceExisting: replaceExistingLinks,
           targetBookTitlesSignature: targetBookTitlesSignature,
+          // טעינת אינדקסים מפורשת (כרטיסיית המפרשים) צוברת קטעים רחוקים בכוונה.
+          retainLines: forceLoadAll
+              ? null
+              : (
+                  start: max(0, window.start - linksRetainMarginLines),
+                  end: window.end + linksRetainMarginLines,
+                ),
         ),
       );
     } catch (e, stackTrace) {
@@ -3114,8 +3126,20 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   ) async {
     if (state is! TextBookLoaded) return;
     final stateBeforeAwait = state as TextBookLoaded;
-    final processedLinks = await processLinksForState(
-      existingLinks: stateBeforeAwait.links,
+    final retain = event.retainLines;
+    final existingLinks = retain == null || event.replaceExisting
+        ? stateBeforeAwait.links
+        : retainLinksNearLines(
+            stateBeforeAwait.links,
+            first: retain.start + 1,
+            last: retain.end + 1,
+            keepLines: {
+              for (final i in stateBeforeAwait.selectedIndices) i + 1,
+              for (final i in stateBeforeAwait.visibleIndices) i + 1,
+            },
+          );
+    var processedLinks = await processLinksForState(
+      existingLinks: existingLinks,
       incomingLinks: event.links.cast<Link>(),
       replaceExisting: event.replaceExisting,
       visibleIndices: stateBeforeAwait.visibleIndices,
@@ -3125,6 +3149,50 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     if (state is! TextBookLoaded) return;
     final currentState = state as TextBookLoaded;
     if (currentState.book.title != stateBeforeAwait.book.title) return;
+
+    // הבחירה והחלון יכולים להשתנות בזמן העיבוד; משלימים את הקישורים שנגזמו.
+    if (retain != null &&
+        !event.replaceExisting &&
+        (!setEquals(
+              currentState.selectedIndices,
+              stateBeforeAwait.selectedIndices,
+            ) ||
+            !listEquals(
+              currentState.visibleIndices,
+              stateBeforeAwait.visibleIndices,
+            ))) {
+      var links = processedLinks.links;
+      var linksByLine = processedLinks.linksByLine;
+      final newlyProtected =
+          {
+              ...currentState.selectedIndices,
+              ...currentState.visibleIndices,
+            }
+            ..removeAll(stateBeforeAwait.selectedIndices)
+            ..removeAll(stateBeforeAwait.visibleIndices);
+      if (newlyProtected.any((i) => i < retain.start || i > retain.end)) {
+        links = mergeLinksByIdentity(
+          retainLinksNearLines(
+            currentState.links,
+            first: retain.start + 1,
+            last: retain.end + 1,
+            keepLines: {for (final i in newlyProtected) i + 1},
+          ),
+          links,
+        );
+        linksByLine = buildLinksByLineMap(links);
+      }
+      processedLinks = (
+        links: links,
+        linksByLine: linksByLine,
+        visibleLinks: computeVisibleLinks(
+          links: links,
+          visibleIndices: currentState.visibleIndices,
+          selectedIndices: currentState.selectedIndices,
+          linksByLine: linksByLine,
+        ),
+      );
+    }
 
     emit(
       currentState.copyWith(

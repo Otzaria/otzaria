@@ -392,10 +392,14 @@ class UpdateLinks extends TextBookEvent {
   final bool replaceExisting;
   final String? targetBookTitlesSignature;
 
+  /// שורות (0-based, כולל) שהקישורים הקיימים בהן נשמרים; null = כולם.
+  final ({int start, int end})? retainLines;
+
   const UpdateLinks(
     this.links, {
     this.replaceExisting = false,
     this.targetBookTitlesSignature,
+    this.retainLines,
   });
 
   @override
@@ -403,6 +407,7 @@ class UpdateLinks extends TextBookEvent {
     links,
     replaceExisting,
     targetBookTitlesSignature,
+    retainLines,
   ];
 }
 
