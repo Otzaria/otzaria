@@ -5,6 +5,7 @@ import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/text_book/utils/link_processing.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/commentary_sync_helper.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 
 Link makeLink({
@@ -375,6 +376,87 @@ void main() {
       expect(
         result.links.singleWhere((link) => link.index1 == 1).baseProvenance,
         2,
+      );
+    });
+  });
+
+  group('retainLinksNearLines', () {
+    test('בלי הסרה מוחזר אותו מופע', () {
+      final links = [makeLink(index1: 10), makeLink(index1: 12)];
+      expect(
+        identical(retainLinksNearLines(links, first: 10, last: 12), links),
+        isTrue,
+      );
+    });
+
+    test('מסיר הפניות רחוקות ושומר קישור חוצה-טווח ושורות שמורות', () {
+      final near = makeLink(index1: 50);
+      final spanning = makeLink(index1: 5, index1End: 60, index2: 2);
+      final selected = makeLink(index1: 900, index2: 3);
+      final far = makeLink(index1: 400, index2: 4);
+      final kept = retainLinksNearLines(
+        [near, spanning, selected, far],
+        first: 40,
+        last: 100,
+        keepLines: {900},
+      );
+      expect(kept, unorderedEquals([near, spanning, selected]));
+    });
+
+    test('ממפרש רחוק נשאר הקרוב ביותר מכל צד, והסנכרון לא משתנה', () {
+      Link commentary(int index1, int index2, {String path = 'רשי.txt'}) =>
+          makeLink(
+            index1: index1,
+            index2: index2,
+            path2: path,
+            connectionType: LinkTypes.commentary,
+          );
+      final farBefore = commentary(100, 7);
+      final nearestBefore = commentary(300, 9);
+      final sameLineBefore = commentary(300, 8);
+      final nearestAfter = commentary(2000, 40);
+      final farAfter = commentary(2500, 50);
+      final otherType = makeLink(
+        index1: 200,
+        path2: 'רשי.txt',
+        connectionType: LinkTypes.midrash,
+      );
+      final all = [
+        farBefore,
+        nearestBefore,
+        sameLineBefore,
+        nearestAfter,
+        farAfter,
+        otherType,
+      ];
+      final kept = retainLinksNearLines(all, first: 1000, last: 1200);
+      expect(
+        kept,
+        unorderedEquals([sameLineBefore, nearestAfter, otherType]),
+      );
+      for (final line in [999, 1100, 1199]) {
+        expect(
+          CommentarySyncHelper.getCommentaryTargetIndex(
+            linksForCommentary: kept,
+            logicalMainIndex: line,
+          ),
+          CommentarySyncHelper.getCommentaryTargetIndex(
+            linksForCommentary: all,
+            logicalMainIndex: line,
+          ),
+        );
+      }
+      final afterOnly = [nearestAfter, farAfter];
+      expect(
+        CommentarySyncHelper.getCommentaryTargetIndex(
+          linksForCommentary: retainLinksNearLines(
+            afterOnly,
+            first: 1000,
+            last: 1200,
+          ),
+          logicalMainIndex: 1100,
+        ),
+        39,
       );
     });
   });

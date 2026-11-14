@@ -65,6 +65,11 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   /// המרחק מקצה החלון הטעון שבו נטענת מנה חדשה. קובע את תדירות הטעינות.
   @visibleForTesting
   static const int linksReloadThresholdLines = 120;
+
+  /// כמה שורות מעבר לחלון הטעון נשמרים קישורים שנצברו. חייב להיות
+  /// ≥ [linkLookAheadLines], כדי שגלילה חזרה לא תרוקן שורות שכבר נטענו.
+  @visibleForTesting
+  static const int linksRetainMarginLines = 400;
   static const int _initialContentLookBehindLines = 80;
   static const int _initialContentLookAheadLines = 180;
   static const int _contentLookBehindLines = 120;
@@ -3035,6 +3040,13 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           links,
           replaceExisting: replaceExistingLinks,
           targetBookTitlesSignature: targetBookTitlesSignature,
+          // טעינת אינדקסים מפורשת (כרטיסיית המפרשים) צוברת קטעים רחוקים בכוונה.
+          retainLines: forceLoadAll
+              ? null
+              : (
+                  start: max(0, window.start - linksRetainMarginLines),
+                  end: window.end + linksRetainMarginLines,
+                ),
         ),
       );
     } catch (e, stackTrace) {
@@ -3114,8 +3126,20 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   ) async {
     if (state is! TextBookLoaded) return;
     final stateBeforeAwait = state as TextBookLoaded;
+    final retain = event.retainLines;
+    final existingLinks = retain == null || event.replaceExisting
+        ? stateBeforeAwait.links
+        : retainLinksNearLines(
+            stateBeforeAwait.links,
+            first: retain.start + 1,
+            last: retain.end + 1,
+            keepLines: {
+              for (final i in stateBeforeAwait.selectedIndices) i + 1,
+              for (final i in stateBeforeAwait.visibleIndices) i + 1,
+            },
+          );
     final processedLinks = await processLinksForState(
-      existingLinks: stateBeforeAwait.links,
+      existingLinks: existingLinks,
       incomingLinks: event.links.cast<Link>(),
       replaceExisting: event.replaceExisting,
       visibleIndices: stateBeforeAwait.visibleIndices,

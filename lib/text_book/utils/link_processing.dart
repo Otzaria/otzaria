@@ -189,6 +189,59 @@ List<Link> computeVisibleLinks({
   return [for (final (_, link) in byTitle) link];
 }
 
+/// הקישורים שחופפים ל-[first]..[last] או ל-[keepLines] (1-based). ממפרש וקישור
+/// מקור רחוקים נשאר הקרוב מכל צד לכל יעד וסוג — הסנכרון והצ׳יפים נשענים עליו.
+List<Link> retainLinksNearLines(
+  List<Link> links, {
+  required int first,
+  required int last,
+  Set<int> keepLines = const {},
+}) {
+  bool touchesKeptLine(Link link) {
+    if (keepLines.isEmpty) return false;
+    final end = link.index1End ?? link.index1;
+    if (end - link.index1 >= keepLines.length) {
+      return keepLines.any((line) => link.overlapsSourceLines(line, line));
+    }
+    for (var line = link.index1; line <= end; line++) {
+      if (keepLines.contains(line)) return true;
+    }
+    return false;
+  }
+
+  bool closer(Link candidate, Link? current, {required bool before}) =>
+      current == null ||
+      (candidate.index1 != current.index1
+          ? (candidate.index1 > current.index1) == before
+          : candidate.index2 < current.index2);
+
+  final kept = <Link>[];
+  final nearestBefore = <String, Link>{};
+  final nearestAfter = <String, Link>{};
+  final anchoredTypes = <String, bool>{};
+  for (final link in links) {
+    if (link.overlapsSourceLines(first, last) || touchesKeptLine(link)) {
+      kept.add(link);
+      continue;
+    }
+    final type = link.connectionType;
+    if (!(anchoredTypes[type] ??=
+        LinkTypes.isDependentTextLink(type) ||
+        LinkTypes.isVirtualSource(type))) {
+      continue;
+    }
+    final key = '${link.path2}|$type|${link.targetSource.wireKey}';
+    final before = link.index1 < first;
+    final nearest = before ? nearestBefore : nearestAfter;
+    if (closer(link, nearest[key], before: before)) nearest[key] = link;
+  }
+  if (kept.length + nearestBefore.length + nearestAfter.length ==
+      links.length) {
+    return links;
+  }
+  return [...kept, ...nearestBefore.values, ...nearestAfter.values];
+}
+
 Future<
   ({
     List<Link> links,
@@ -204,15 +257,13 @@ processLinksForState({
   required Set<int> selectedIndices,
 }) async {
   const asyncProcessingThreshold = 250;
-  final estimatedLinkCount =
-      (replaceExisting ? 0 : existingLinks.length) + incomingLinks.length;
+  // מחוץ ל-closure: כל מה שהוא לוכד מועתק ל-isolate, גם כשמחליפים הכל.
+  final base = replaceExisting ? const <Link>[] : existingLinks;
+  final estimatedLinkCount = base.length + incomingLinks.length;
 
   // אותו חישוב בשני המסלולים; רק מעל הסף הוא עובר ל-isolate נפרד.
   process() {
-    final links = mergeLinksByIdentity(
-      replaceExisting ? const [] : existingLinks,
-      incomingLinks,
-    );
+    final links = mergeLinksByIdentity(base, incomingLinks);
     final linksByLine = buildLinksByLineMap(links);
     final visibleLinks = computeVisibleLinks(
       links: links,
