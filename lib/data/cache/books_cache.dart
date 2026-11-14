@@ -1,6 +1,7 @@
 import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/official_catalog_rows.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
@@ -69,10 +70,7 @@ class BooksCache {
     }
 
     try {
-      final catalog = await sharedOfficialCatalogRows(
-        SqliteDataProvider.instance.dbPath,
-      );
-      final rows = catalog?.books ?? await fallbackRowsReader();
+      final rows = await _readRows();
       if (myGen != _generation) return; // הופסק על ידי clear()
 
       // בונים למבני ביניים מקומיים — ה-cache החי לא נוגע עד ה-swap בסוף.
@@ -115,11 +113,8 @@ class BooksCache {
     }
   }
 
-  /// זורע את הקאש משורות הקטלוג שכבר נקראו, כדי שטבלת `book` לא תיקרא פעם
-  /// שנייה. no-op אם הקאש כבר טעון או שטעינה כבר רצה (היא מצטרפת לאותה קריאה).
-  ///
-  /// [generation] הוא הערך שנקרא מ-[generation] לפני שליפת [rows]; אם קרה
-  /// [clear] מאז, הנתונים שייכים לספרייה הקודמת והזריעה נדחית.
+  /// זורע משורות הקטלוג כדי שטבלת `book` לא תיקרא שוב; no-op כשהקאש טעון או בטעינה.
+  /// [generation] נצפה לפני שליפת [rows]: [clear] מאז פוסל את הזריעה.
   void seedFromRows(
     Iterable<Map<String, dynamic>> rows, {
     required int generation,
@@ -146,11 +141,25 @@ class BooksCache {
     filePath: (row[BookDao.storedFilePathKey] ?? row['filePath']) as String?,
     fileType:
         (row[BookDao.storedFileTypeKey] ?? row['fileType']) as String? ?? 'txt',
-    categoryId: row['categoryId'] as int,
+    // הקטלוג מדלג על categoryId חסר; זריקה כאן תפיל את טעינת הספרייה כולה.
+    categoryId: row['categoryId'] as int? ?? 0,
     orderIndex: (row['orderIndex'] as num?)?.toDouble() ?? 999.0,
   );
 
-  /// קורא השורות כשאין נתיב ל-seforim.db (המסד נפתח בלעדיו).
+  static Future<List<Map<String, dynamic>>> _readRows() async {
+    try {
+      final catalog = await sharedOfficialCatalogRows(
+        SqliteDataProvider.instance.dbPath,
+      );
+      if (catalog != null) return catalog.books;
+    } on DbReadWorkerBusy {
+      // ל-FindRef חיבור קבוע משלו, מחוץ לתור החיבורים הזמניים שהתמלא.
+    }
+    return fallbackRowsReader();
+  }
+
+  /// קורא השורות כשאין נתיב ל-seforim.db (המסד נפתח בלעדיו) או שתור
+  /// הקריאות הזמניות מלא.
   @visibleForTesting
   static Future<List<Map<String, dynamic>>> Function() fallbackRowsReader =
       () async => (await FindRefDbIsolate.instance()).getAllLocalBooksSlim();

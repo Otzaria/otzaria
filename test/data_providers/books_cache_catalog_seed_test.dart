@@ -7,6 +7,7 @@ import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/cache/books_cache.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
+import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/official_catalog_rows.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
@@ -222,6 +223,24 @@ void main() {
     expect(BooksCache.instance.books.single.fileType, 'txt');
     expect(reads.catalogReads(), 1);
     expect(reads.findRefReads(), 0);
+  });
+
+  test('תור קריאות זמניות מלא: warmUp נופל ל-FindRef ולא נשאר ריק', () async {
+    await insertBook(repo: seforimRepo, title: 'ויקרא');
+    final reads = countReads();
+    final realReader = officialCatalogReader;
+    officialCatalogReader = (_) =>
+        Future.error(const DbReadWorkerBusy('fallback queue capacity'));
+    addTearDown(() => officialCatalogReader = realReader);
+    addTearDown(() async {
+      (await FindRefDbIsolate.instance()).disposeForTesting();
+    });
+
+    await BooksCache.instance.warmUp();
+
+    expect(BooksCache.instance.isLoaded, isTrue);
+    expect(BooksCache.instance.books.single.title, 'ויקרא');
+    expect(reads.findRefReads(), 1);
   });
 
   test('clear במהלך הקריאה המשותפת פוסל את הזריעה מהקטלוג', () async {

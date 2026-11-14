@@ -104,6 +104,14 @@ void main() {
       expect(BooksCache.instance.books, isEmpty);
     });
 
+    test('שורה בלי categoryId אינה מפילה את הזריעה (ואת בניית הקטלוג)', () {
+      BooksCache.instance.seedFromRows([
+        {..._row(1, 'בראשית'), 'categoryId': null},
+      ], generation: BooksCache.instance.generation);
+
+      expect(BooksCache.instance.getBookById(1)?.categoryId, 0);
+    });
+
     test('books אינו מעתיק את הרשימה בכל גישה, ואינו ניתן לשינוי', () {
       BooksCache.instance.seedFromRows(
         [_row(1, 'בראשית')],
