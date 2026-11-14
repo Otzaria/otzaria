@@ -70,6 +70,14 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   static const int _contentLookBehindLines = 120;
   static const int _contentLookAheadLines = 260;
   static const int _contentWarmChunkLines = 640;
+
+  /// תקרת התווים שהחימום משאיר בזיכרון, מעל הספר הטקסטואלי הגדול בספרייה.
+  /// ספר עם תמונות מוטמעות נעצר בה, ושאר שורותיו נטענות לפי הגלילה.
+  static const int _contentWarmCharBudget = 48 * 1024 * 1024;
+
+  /// תקרה לכל צד של שולי החלון: מעל שוליים טקסטואליים רגילים, אך רק שתיים-שלוש
+  /// סריקות עמוד מוטמעות. השורות הגלויות עצמן נטענות תמיד במלואן.
+  static const int _contentMarginCharBudget = 8 * 1024 * 1024;
   static const int _warmFlushChunkCount = 8;
 
   /// ספר קצר מזה לא משוחרר במעבר לרקע — הרווח זניח והשחרור גורר rebuild.
@@ -124,6 +132,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   List<({int startLine, int endLine})> _loadedContentRanges = const [];
   List<bool> _loadedContentFlags = const [];
   int? _loadedContentTotalLines;
+  ({int startLine, int endLine, bool startTrimmed, bool endTrimmed})?
+  _budgetedContentWindow;
   bool _isLoadingContentRange = false;
   bool _pendingContentRangeReload = false;
   bool _isWarmingContentCache = false;
@@ -901,9 +911,11 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           totalLines: contentLines.length,
         );
       } else {
-        final initialRange = await repository.getBookContentRange(
+        final initialRange = await _loadContentWindow(
           book,
           startLine: visibleIndices.first - _initialContentLookBehindLines,
+          firstVisible: visibleIndices.first,
+          lastVisible: visibleIndices.first,
           endLine: visibleIndices.first + _initialContentLookAheadLines,
         );
 
@@ -2564,7 +2576,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
   /// החלון כולל את כל שורות הפריטים הגלויים: פריט חלקי מוצג כמקום שמור
   /// עד שכל שורותיו נטענות.
-  ({int startLine, int endLine}) _calculateContentWindow(
+  ({int startLine, int endLine, int firstVisible, int lastVisible})
+  _calculateContentWindow(
     TextBookLoaded? state,
     List<int> visibleIndices,
   ) {
@@ -2591,7 +2604,102 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     return (
       startLine: firstVisible - _contentLookBehindLines,
       endLine: lastVisible + _contentLookAheadLines,
+      firstVisible: firstVisible,
+      lastVisible: lastVisible,
     );
+  }
+
+  /// השורות הגלויות נטענות במלואן, והשוליים עד [_contentMarginCharBudget] לכל
+  /// צד מהשורה הקרובה לגלויות והלאה.
+  Future<BookContentRange?> _loadContentWindow(
+    TextBook book, {
+    required int startLine,
+    required int firstVisible,
+    required int lastVisible,
+    required int endLine,
+  }) async {
+    final coreStart = max(0, firstVisible);
+    final core = await repository.getBookContentRange(
+      book,
+      startLine: coreStart,
+      endLine: max(coreStart, lastVisible),
+    );
+    if (core == null || core.lines.isEmpty) return core;
+    final coreEnd = core.startLine + core.lines.length - 1;
+
+    final behindStart = max(0, startLine);
+    BookContentRange? behind;
+    if (core.startLine > behindStart) {
+      behind = await repository.getBookContentRange(
+        book,
+        startLine: behindStart,
+        endLine: core.startLine - 1,
+        maxChars: _contentMarginCharBudget,
+        budgetFromEnd: true,
+      );
+      if (behind != null &&
+          behind.startLine + behind.lines.length != core.startLine) {
+        behind = null;
+      }
+    }
+
+    final aheadEnd = min(endLine, core.totalLines - 1);
+    BookContentRange? ahead;
+    if (coreEnd < aheadEnd) {
+      ahead = await repository.getBookContentRange(
+        book,
+        startLine: coreEnd + 1,
+        endLine: aheadEnd,
+        maxChars: _contentMarginCharBudget,
+      );
+      if (ahead != null && ahead.startLine != coreEnd + 1) ahead = null;
+    }
+
+    final start = behind?.startLine ?? core.startLine;
+    final end = coreEnd + (ahead?.lines.length ?? 0);
+    _budgetedContentWindow = (
+      startLine: start,
+      endLine: end,
+      startTrimmed: start > behindStart,
+      endTrimmed: end < aheadEnd,
+    );
+    return BookContentRange(
+      startLine: start,
+      endLine: end,
+      totalLines: core.totalLines,
+      lines: [...?behind?.lines, ...core.lines, ...?ahead?.lines],
+    );
+  }
+
+  /// צד קטוע מספיק כל עוד נשארה מעבר לגלויות שורה טעונה, וצד שלם עד שהגלויות
+  /// מתקרבות לקצהו; אחרת כל גלילה טוענת שוב את אותו חלון.
+  bool _isBudgetedWindowSufficient(
+    TextBook book,
+    ({int startLine, int endLine, int firstVisible, int lastVisible}) window,
+  ) {
+    final loaded = _budgetedContentWindow;
+    if (loaded == null ||
+        !(loaded.startTrimmed || loaded.endTrimmed) ||
+        _loadedContentBookTitle != book.title ||
+        !_loadedContentRanges.any(
+          (range) =>
+              range.startLine <= loaded.startLine &&
+              range.endLine >= loaded.endLine,
+        )) {
+      return false;
+    }
+    final startOk = loaded.startTrimmed
+        ? max(0, window.firstVisible) > loaded.startLine
+        : loaded.startLine == 0 ||
+              max(0, window.firstVisible) - loaded.startLine >=
+                  _contentReloadThresholdLines;
+    final totalLines = _loadedContentTotalLines;
+    final endOk = loaded.endTrimmed
+        ? window.lastVisible < loaded.endLine
+        : (totalLines != null && loaded.endLine >= totalLines - 1) ||
+              loaded.endLine - window.lastVisible >=
+                  _contentReloadThresholdLines;
+    return startOk && endOk;
   }
 
   Future<void> _loadContentRangeInBackground(
@@ -2609,7 +2717,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       visibleIndices,
     );
     if (!force &&
-        _isContentWindowSufficient(book, window.startLine, window.endLine)) {
+        (_isContentWindowSufficient(book, window.startLine, window.endLine) ||
+            _isBudgetedWindowSufficient(book, window))) {
       return;
     }
 
@@ -2620,9 +2729,11 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
     _isLoadingContentRange = true;
     try {
-      final range = await repository.getBookContentRange(
+      final range = await _loadContentWindow(
         book,
         startLine: window.startLine,
+        firstVisible: window.firstVisible,
+        lastVisible: window.lastVisible,
         endLine: window.endLine,
       );
       if (range != null && !isClosed) {
@@ -2695,8 +2806,15 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     }
 
     try {
+      final startState = state;
+      var charBudget = _contentWarmCharBudget;
+      if (startState is TextBookLoaded) {
+        for (final line in startState.content) {
+          charBudget -= line.length;
+        }
+      }
       List<int> lastWarmVisible = const [];
-      while (!isClosed) {
+      while (!isClosed && charBudget > 0) {
         final currentState = state;
         if (currentState is! TextBookLoaded ||
             currentState.book.title != book.title) {
@@ -2744,9 +2862,13 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           book,
           startLine: nextStart,
           endLine: nextStart + _contentWarmChunkLines - 1,
+          maxChars: charBudget,
         );
         if (range == null || range.lines.isEmpty) {
           return;
+        }
+        for (final line in range.lines) {
+          charBudget -= line.length;
         }
 
         if (isClosed) {

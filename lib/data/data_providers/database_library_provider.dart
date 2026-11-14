@@ -1703,6 +1703,8 @@ _loadBookTextRangeRowsInIsolate({
   required int startLine,
   required int endLine,
   String? versionTitle,
+  int? maxChars,
+  bool budgetFromEnd = false,
   ReadOnlyConnection? connection,
 }) {
   sqlite3.Database? db;
@@ -1729,7 +1731,9 @@ _loadBookTextRangeRowsInIsolate({
     final normalizedStart = startLine.clamp(0, totalLines - 1);
     final normalizedEnd = endLine.clamp(normalizedStart, totalLines - 1);
 
-    final List<Map<String, dynamic>> rows;
+    final order = budgetFromEnd ? ' DESC' : '';
+    final String rowsSql;
+    final List<Object?> rowsArgs;
     if (versionTitle != null) {
       if (!capabilities.hasBookVersions) return null;
       final versionRows = db.select(
@@ -1741,10 +1745,10 @@ _loadBookTextRangeRowsInIsolate({
       // מהדורה חלופית: שורות מבנה (heRef NULL — כותרות/מחברים) נשארות מהשלד;
       // שורת תוכן מקבלת את נוסח המהדורה, וסגמנט שחסר בה מוצג ריק — לעולם לא
       // נופלים בשקט לנוסח הממוזג.
-      rows = db.select(
-        capabilities.hasSplitLineContent
-            // סכמה 6: vl.content NULL = זהה לבסיס; שורה חסרה עדיין ריקה.
-            ? '''
+      rowsArgs = [versionId, bookId, normalizedStart, normalizedEnd];
+      rowsSql = capabilities.hasSplitLineContent
+          // סכמה 6: vl.content NULL = זהה לבסיס; שורה חסרה עדיין ריקה.
+          ? '''
         SELECT CASE WHEN l.heRef IS NULL THEN lc.content
                     WHEN vl.lineId IS NULL THEN ''
                     ELSE COALESCE(vl.content, lc.content, '') END AS content
@@ -1752,40 +1756,60 @@ _loadBookTextRangeRowsInIsolate({
         LEFT JOIN line_content lc ON lc.id = l.id
         LEFT JOIN version_line vl ON vl.versionId = ? AND vl.lineId = l.id
         WHERE l.bookId = ? AND l.lineIndex >= ? AND l.lineIndex <= ?
-        ORDER BY l.lineIndex
+        ORDER BY l.lineIndex$order
       '''
-            : '''
+          : '''
         SELECT CASE WHEN l.heRef IS NULL THEN l.content
                     ELSE COALESCE(vl.content, '') END AS content
         FROM line l
         LEFT JOIN version_line vl ON vl.versionId = ? AND vl.lineId = l.id
         WHERE l.bookId = ? AND l.lineIndex >= ? AND l.lineIndex <= ?
-        ORDER BY l.lineIndex
-      ''',
-        [versionId, bookId, normalizedStart, normalizedEnd],
-      ).toMapList();
+        ORDER BY l.lineIndex$order
+      ''';
     } else {
-      rows = db.select(
-        capabilities.hasSplitLineContent
-            ? 'SELECT lc.content AS content FROM line l '
-                  'LEFT JOIN line_content lc ON lc.id = l.id '
-                  'WHERE l.bookId = ? AND l.lineIndex >= ? AND l.lineIndex <= ? '
-                  'ORDER BY l.lineIndex'
-            : 'SELECT content FROM line WHERE bookId = ? AND lineIndex >= ? AND lineIndex <= ? ORDER BY lineIndex',
-        [bookId, normalizedStart, normalizedEnd],
-      ).toMapList();
-    }
-    if (rows.isEmpty) {
-      return null;
+      rowsSql = capabilities.hasSplitLineContent
+          ? 'SELECT lc.content AS content FROM line l '
+                'LEFT JOIN line_content lc ON lc.id = l.id '
+                'WHERE l.bookId = ? AND l.lineIndex >= ? AND l.lineIndex <= ? '
+                'ORDER BY l.lineIndex$order'
+          : 'SELECT content FROM line WHERE bookId = ? AND lineIndex >= ? AND lineIndex <= ? ORDER BY lineIndex$order';
+      rowsArgs = [bookId, normalizedStart, normalizedEnd];
     }
 
+    // שורה אחר שורה: שורות של תמונות מוטמעות שוקלות מגה-בייטים, ואחרי
+    // [maxChars] השורות הבאות לא נקראות. [budgetFromEnd] שומר את השורות הקרובות לסוף.
     final codec = LineContentCodec.of(db);
-    final text = rows.map((row) => codec.text(row['content']) ?? '').join('\n');
+    final texts = <String>[];
+    var chars = 0;
+    final statement = db.prepare(rowsSql);
+    try {
+      final cursor = statement.selectCursor(rowsArgs);
+      while (cursor.moveNext()) {
+        final text = codec.text(cursor.current['content']) ?? '';
+        texts.add(text);
+        chars += text.length;
+        if (maxChars != null && chars >= maxChars) break;
+      }
+    } finally {
+      statement.close();
+    }
+    if (texts.isEmpty) {
+      return null;
+    }
+    final ordered = budgetFromEnd ? texts.reversed : texts;
+
     return (
-      startLine: normalizedStart,
-      endLine: normalizedEnd,
+      startLine: budgetFromEnd
+          ? normalizedEnd - texts.length + 1
+          : normalizedStart,
+      endLine: budgetFromEnd
+          ? normalizedEnd
+          : normalizedStart + texts.length - 1,
       totalLines: totalLines,
-      lines: text.split('\n'),
+      lines: [
+        for (final text in ordered)
+          if (text.contains('\n')) ...text.split('\n') else text,
+      ],
     );
   } finally {
     if (connection == null) db?.close();
@@ -1803,6 +1827,8 @@ _runBookTextRangeInIsolate({
   required int startLine,
   required int endLine,
   String? versionTitle,
+  int? maxChars,
+  bool budgetFromEnd = false,
 }) {
   return Isolate.run(
     () => _loadBookTextRangeRowsInIsolate(
@@ -1813,6 +1839,8 @@ _runBookTextRangeInIsolate({
       startLine: startLine,
       endLine: endLine,
       versionTitle: versionTitle,
+      maxChars: maxChars,
+      budgetFromEnd: budgetFromEnd,
     ),
   );
 }
@@ -1834,6 +1862,8 @@ Object? runRangeRequestOnConnection(
       startLine: args['startLine'] as int,
       endLine: args['endLine'] as int,
       versionTitle: args['versionTitle'] as String?,
+      maxChars: args['maxChars'] as int?,
+      budgetFromEnd: args['budgetFromEnd'] as bool? ?? false,
       connection: connection,
     ),
     'linksRange' => _loadBookLinksRowsInRangeInIsolate(
@@ -2488,6 +2518,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     required int startLine,
     required int endLine,
     String? versionTitle,
+    int? maxChars,
+    bool budgetFromEnd = false,
   }) {
     return _loadBookTextRangeRowsInIsolate(
       target: (path: dbPath, untrusted: untrusted, immutable: false),
@@ -2497,6 +2529,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       startLine: startLine,
       endLine: endLine,
       versionTitle: versionTitle,
+      maxChars: maxChars,
+      budgetFromEnd: budgetFromEnd,
     );
   }
 
@@ -4763,6 +4797,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     required int endLine,
     String? versionTitle,
     BookSource source = BookSource.official,
+    int? maxChars,
+    bool budgetFromEnd = false,
   }) async {
     // ראה הערה ב-_runBookLoadInIsolate.
     return _readTarget(
@@ -4779,6 +4815,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
           'startLine': startLine,
           'endLine': endLine,
           'versionTitle': versionTitle,
+          'maxChars': maxChars,
+          'budgetFromEnd': budgetFromEnd,
         },
         () => _runBookTextRangeInIsolate(
           target: target,
@@ -4788,6 +4826,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
           startLine: startLine,
           endLine: endLine,
           versionTitle: versionTitle,
+          maxChars: maxChars,
+          budgetFromEnd: budgetFromEnd,
         ),
       ),
     );

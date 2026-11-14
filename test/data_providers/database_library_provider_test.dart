@@ -1222,6 +1222,71 @@ void main() {
       }
     });
 
+    test('maxChars עוצר את הטווח אחרי השורה שממלאת אותו (#5033)', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'otzaria_db_range_budget',
+      );
+      final dbPath = path.join(tempDir.path, 'db.sqlite');
+      final db = sqlite3.sqlite3.open(dbPath);
+
+      try {
+        db.execute(
+          'CREATE TABLE book (id INTEGER PRIMARY KEY, title TEXT, categoryId INTEGER, totalLines INTEGER)',
+        );
+        db.execute(
+          'CREATE TABLE line (id INTEGER PRIMARY KEY, bookId INTEGER, lineIndex INTEGER, content TEXT, heRef TEXT)',
+        );
+        db.execute(
+          "INSERT INTO book (id, title, categoryId, totalLines) VALUES (1, 'תמונות', 7, 4)",
+        );
+        final image = '<img src="data:image/png;base64,${'A' * 1000}">';
+        db.execute("INSERT INTO line VALUES (10, 1, 0, 'פתיחה', NULL)");
+        for (var i = 1; i < 4; i++) {
+          db.execute('INSERT INTO line VALUES (?, 1, ?, ?, NULL)', [
+            10 + i,
+            i,
+            image,
+          ]);
+        }
+
+        ({int startLine, int endLine, int totalLines, List<String> lines})?
+        load({int? maxChars, int startLine = 0, bool fromEnd = false}) =>
+            DatabaseLibraryProvider.loadBookTextRangeRowsForTesting(
+              dbPath: dbPath,
+              title: 'תמונות',
+              categoryId: 7,
+              fileType: 'txt',
+              startLine: startLine,
+              endLine: 10,
+              maxChars: maxChars,
+              budgetFromEnd: fromEnd,
+            );
+
+        final budgeted = load(maxChars: image.length + 1)!;
+        expect(budgeted.lines, ['פתיחה', image]);
+        expect(budgeted.endLine, 1);
+        expect(budgeted.totalLines, 4);
+
+        // שורה אחת לפחות, גם כשהיא לבדה חורגת.
+        final single = load(maxChars: 1, startLine: 2)!;
+        expect(single.lines, [image]);
+        expect(single.endLine, 2);
+
+        // מהסוף: נשמרות השורות הקרובות לסוף הטווח, בסדרן.
+        final tail = load(maxChars: image.length + 1, fromEnd: true)!;
+        expect(tail.lines, [image, image]);
+        expect(tail.startLine, 2);
+        expect(tail.endLine, 3);
+
+        final full = load()!;
+        expect(full.lines, hasLength(4));
+        expect(full.endLine, 3);
+      } finally {
+        db.close();
+        await tempDir.delete(recursive: true);
+      }
+    });
+
     test(
       'loadAlternativeStructuresRowsForTesting טוען כותרות חלופיות מה-DB',
       () async {

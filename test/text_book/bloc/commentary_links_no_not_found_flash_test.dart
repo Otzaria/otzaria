@@ -29,6 +29,8 @@ class _Repository extends TextBookRepository {
     TextBook book, {
     required int startLine,
     required int endLine,
+    int? maxChars,
+    bool budgetFromEnd = false,
   }) async {
     final lines = List.generate(40, (i) => 'שורה $i');
     final start = startLine.clamp(0, lines.length - 1);
