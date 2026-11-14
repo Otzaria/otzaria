@@ -28,6 +28,7 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria/tabs/utils/confirm_close_tabs.dart';
@@ -45,6 +46,214 @@ void main() {
   setUp(() async {
     await Settings.init(cacheProvider: MemorySettingsCache());
   });
+
+  for (final onSide in [false, true]) {
+    for (final afterApply in [false, true]) {
+      for (final returnToMoving in [false, true]) {
+        testWidgets(
+          'MRU בזמן העברה: צד=$onSide, אחרי צילום=$afterApply, חזרה=$returnToMoving',
+          (tester) async {
+            final env = await _pumpStrip(tester, onSide: onSide);
+            env.tabsBloc.add(const SetCurrentTab(1));
+            await tester.pumpAndSettle();
+            env.tabsBloc.add(const SetCurrentTab(2));
+            await tester.pumpAndSettle();
+            final gate = Completer<void>();
+            addTearDown(() {
+              if (!gate.isCompleted) gate.complete();
+            });
+            env.workspaces.blockAfterApply = afterApply;
+            env.workspaces.nextMutationGate = gate;
+            await env.chooseTarget(tester, rightClickOn: 'ספר ג');
+            expect(env.tabsBloc.state.currentTab!.title, 'ספר ג');
+            env.tabsBloc.add(const SetCurrentTab(0));
+            await tester.pumpAndSettle();
+            if (returnToMoving) {
+              env.tabsBloc.add(const SetCurrentTab(2));
+              await tester.pumpAndSettle();
+            }
+            gate.complete();
+            await tester.pumpAndSettle();
+            expect(env.tabsBloc.state.currentTab!.title, 'ספר א');
+            final saved = env.workspaces.workspaces.firstWhere(
+              (w) => w.id == env.source.id,
+            );
+            expect(saved.tabs[saved.activeTabIndex].title, 'ספר א');
+            expect(env.targetTitles(), ['ספר ביעד', 'ספר ג']);
+            await tester.pump(const Duration(seconds: 10));
+            await tester.pumpAndSettle();
+          },
+        );
+      }
+    }
+  }
+
+  for (final pinned in [false, true]) {
+    testWidgets('MRU בזמן העברה משמר חלונית פעילה ומכבד מקור מקובע=$pinned', (
+      tester,
+    ) async {
+      final a = CombinedTab(
+        rightTab: _StubTab('ימין'),
+        leftTab: _StubTab('שמאל'),
+      );
+      final env = await _pumpStrip(
+        tester,
+        onSide: false,
+        tabs: [a, _StubTab('ספר ב'), _StubTab('ספר ג')],
+      );
+      if (pinned) {
+        env.workspaces.workspaces = env.workspaces.workspaces
+            .map(
+              (w) => w.id == env.source.id ? w.copyWith(isPinned: true) : w,
+            )
+            .toList();
+      }
+      env.tabsBloc.add(const SetCurrentTab(1));
+      await tester.pumpAndSettle();
+      env.tabsBloc.add(const SetCurrentTab(2));
+      await tester.pumpAndSettle();
+      final gate = Completer<void>();
+      addTearDown(() {
+        if (!gate.isCompleted) gate.complete();
+      });
+      env.workspaces.nextMutationGate = gate;
+      await env.chooseTarget(tester, rightClickOn: 'ספר ג');
+      env.tabsBloc.add(const SetCurrentTab(0));
+      await tester.pumpAndSettle();
+      env.tabsBloc.add(SetActivePane(a.leftTab));
+      await tester.pumpAndSettle();
+      gate.complete();
+      await tester.pumpAndSettle();
+      final saved = env.workspaces.workspaces.firstWhere(
+        (w) => w.id == env.source.id,
+      );
+      expect(env.tabsBloc.state.currentTab, same(a));
+      expect(env.tabsBloc.state.activePane, same(a.leftTab));
+      if (pinned) {
+        expect(saved.tabs, isEmpty);
+        expect(env.workspaces.mutations, 1);
+      } else {
+        expect(
+          saved.tabs.map((t) => t.title),
+          env.tabsBloc.state.tabs.map((t) => t.title),
+        );
+        expect(saved.activeTabIndex, env.tabsBloc.state.currentTabIndex);
+        expect(saved.activePane, env.tabsBloc.state.activePaneSide);
+        expect(saved.activePane, 'left');
+        expect(env.workspaces.mutations, 2);
+      }
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pumpAndSettle();
+    });
+  }
+
+  testWidgets('קיבוע המקור בחלון אחר לפני תיקון השמירה משמר את הצילום המקובע', (
+    tester,
+  ) async {
+    final env = await _pumpStrip(tester, onSide: false);
+    env.tabsBloc.add(const SetCurrentTab(1));
+    await tester.pumpAndSettle();
+    env.tabsBloc.add(const SetCurrentTab(2));
+    await tester.pumpAndSettle();
+    final gate = Completer<void>();
+    addTearDown(() {
+      if (!gate.isCompleted) gate.complete();
+    });
+    env.workspaces.nextMutationGate = gate;
+    env.workspaces.beforeMutation = (mutation) {
+      if (mutation != 2) return;
+      env.workspaces.workspaces = env.workspaces.workspaces
+          .map(
+            (w) => w.id == env.source.id
+                ? w.copyWith(
+                    tabs: [_StubTab('מקור מוקפא')],
+                    activeTabIndex: 0,
+                    isPinned: true,
+                  )
+                : w,
+          )
+          .toList();
+    };
+    await env.chooseTarget(tester, rightClickOn: 'ספר ג');
+    env.tabsBloc.add(const SetCurrentTab(0));
+    await tester.pumpAndSettle();
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(env.tabsBloc.state.currentTab!.title, 'ספר א');
+    expect(env.sourceTitles(), ['מקור מוקפא']);
+    expect(env.targetTitles(), ['ספר ביעד', 'ספר ג']);
+    expect(env.workspaces.mutations, 2);
+    await tester.pump(const Duration(seconds: 10));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('כשל בתיקון שמירת המקור אינו מבטל העברה שכבר הושלמה', (
+    tester,
+  ) async {
+    final env = await _pumpStrip(tester, onSide: false);
+    final workspaceBloc = tester
+        .element(find.byType(CustomTitleBar))
+        .read<WorkspaceBloc>();
+    env.tabsBloc.add(const SetCurrentTab(1));
+    await tester.pumpAndSettle();
+    env.tabsBloc.add(const SetCurrentTab(2));
+    await tester.pumpAndSettle();
+    final gate = Completer<void>();
+    addTearDown(() {
+      if (!gate.isCompleted) gate.complete();
+    });
+    env.workspaces.nextMutationGate = gate;
+    env.workspaces.failOnMutation = 2;
+    await env.chooseTarget(tester, rightClickOn: 'ספר ג');
+    env.tabsBloc.add(const SetCurrentTab(0));
+    await tester.pumpAndSettle();
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(env.tabsBloc.state.currentTab!.title, 'ספר א');
+    expect(env.sourceTitles(), ['ספר א', 'ספר ב']);
+    expect(env.targetTitles(), ['ספר ביעד', 'ספר ג']);
+    expect(env.workspaces.mutations, 2);
+    expect(
+      workspaceBloc.state.error,
+      contains('Failed to update workspace tabs'),
+    );
+    expect(workspaceBloc.state.isChangingTabs, isFalse);
+    expect(find.text('הכרטיסיה הועברה לשולחן העבודה "יעד"'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 10));
+    await tester.pumpAndSettle();
+  });
+
+  for (final hasCallback in [false, true]) {
+    testWidgets(
+      'העברה ללא הסרה חיה אינה משיבה למקור את המועברת: callback=$hasCallback',
+      (tester) async {
+        final env = await _pumpStrip(tester, onSide: false);
+        final workspaceBloc = tester
+            .element(find.byType(CustomTitleBar))
+            .read<WorkspaceBloc>();
+        final completed = Completer<bool>();
+        workspaceBloc.add(
+          MoveTabsToWorkspace(
+            sourceWorkspaceId: env.source.id,
+            tabs: [env.tabsBloc.state.tabs.last],
+            targetWorkspaceId: env.target.id,
+            readCurrentTabs: () => (
+              tabs: env.tabsBloc.state.tabs,
+              activeTabIndex: env.tabsBloc.state.currentTabIndex,
+              activePane: env.tabsBloc.state.activePaneSide,
+            ),
+            onTabsMoved: hasCallback ? () {} : null,
+            onCompleted: completed.complete,
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(await completed.future, isTrue);
+        expect(env.sourceTitles(), ['ספר א', 'ספר ב']);
+        expect(env.targetTitles(), ['ספר ביעד', 'ספר ג']);
+        expect(env.workspaces.mutations, 1);
+      },
+    );
+  }
 
   testWidgets('הכרטיסיות נשארות חיות עד שהעברתן נשמרה', (tester) async {
     final env = await _pumpStrip(tester, onSide: false);
@@ -157,7 +366,7 @@ void main() {
       (selected: [0, 1, 2], active: 3, clicked: 2, next: 'ספר ד'),
       (selected: [0, 2], active: 2, clicked: 2, next: 'ספר ד'),
       (selected: [0, 1], active: 3, clicked: 2, next: 'ספר ד'),
-      (selected: [3, 4], active: 4, clicked: 4, next: 'ספר ג'),
+      (selected: [3, 4], active: 4, clicked: 4, next: 'ספר א'),
     ]) {
       testWidgets(
         '$strip: הפעילה השמורה תואמת לרצועה לאחר העברת '
@@ -397,7 +606,12 @@ class _StubTab extends OpenedTab {
   OpenedTab clone() => _StubTab(title)..isPinned = isPinned;
 
   @override
-  Map<String, dynamic> toJson() => {'type': '_StubTab', 'title': title};
+  Map<String, dynamic> toJson() => {
+    'type': 'TextBookTab',
+    'title': title,
+    'initalIndex': 0,
+    'commentators': <String>[],
+  };
 }
 
 class _MemoryTabsRepository extends TabsRepository {
@@ -428,7 +642,11 @@ class _MemoryWorkspaceRepository extends WorkspaceRepository {
   List<Workspace> workspaces;
   final String _activeId;
   bool failMutation = false;
+  int? failOnMutation;
+  int mutations = 0;
+  void Function(int mutation)? beforeMutation;
   Completer<void>? nextMutationGate;
+  bool blockAfterApply = false;
 
   @override
   Future<(List<Workspace>, String?)> loadWorkspaces() async =>
@@ -438,11 +656,16 @@ class _MemoryWorkspaceRepository extends WorkspaceRepository {
   Future<List<Workspace>> mutateWorkspaces(
     List<Workspace> Function(List<Workspace> current) apply,
   ) async {
+    mutations++;
     final gate = nextMutationGate;
     nextMutationGate = null;
-    if (gate != null) await gate.future;
-    if (failMutation) throw StateError('write failed');
+    if (gate != null && !blockAfterApply) await gate.future;
+    beforeMutation?.call(mutations);
+    if (failMutation || mutations == failOnMutation) {
+      throw StateError('write failed');
+    }
     workspaces = List.of(apply(List.of(workspaces)));
+    if (gate != null && blockAfterApply) await gate.future;
     return List.of(workspaces);
   }
 

@@ -139,6 +139,9 @@ class MoveTabsToWorkspace extends WorkspaceEvent {
   final String targetWorkspaceId;
   final WorkspaceTabs Function() readCurrentTabs;
 
+  /// הפעילה שהחלון יבחר אחרי ההסרה, כדי שהשמירה תתאים לו.
+  final int Function(Set<OpenedTab> removed)? activeIndexAfterRemoving;
+
   /// נקרא רק אחרי שמירה; ההסרה החיה מסתיימת לפני האירוע הבא בתור.
   final FutureOr<void> Function()? onTabsMoved;
   final void Function(bool moved)? onCompleted;
@@ -148,6 +151,7 @@ class MoveTabsToWorkspace extends WorkspaceEvent {
     required this.tabs,
     required this.targetWorkspaceId,
     required this.readCurrentTabs,
+    this.activeIndexAfterRemoving,
     this.onTabsMoved,
     this.onCompleted,
   });
@@ -158,6 +162,7 @@ class MoveTabsToWorkspace extends WorkspaceEvent {
     tabs,
     targetWorkspaceId,
     readCurrentTabs,
+    activeIndexAfterRemoving,
     onTabsMoved,
     onCompleted,
   ];

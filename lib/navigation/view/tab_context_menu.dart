@@ -583,6 +583,7 @@ Future<void> _moveTabsToWorkspace(
           activePane: state.activePaneSide,
         );
       },
+      activeIndexAfterRemoving: tabsBloc.activeIndexAfterRemoving,
       onTabsMoved: () async {
         if (!tabsBloc.state.tabs.any(selected.contains)) return;
         final removed = tabsBloc.stream.firstWhere(
