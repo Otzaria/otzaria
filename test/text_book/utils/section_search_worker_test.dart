@@ -128,6 +128,69 @@ void main() {
       expect(harness.cleanedRawLines, unorderedEquals(content));
     });
 
+    test('רשימה חדשה של אותן שורות משמרת ניקוי וכותרות ומרחיבה טווח', () async {
+      final harness = _RuntimeHarness();
+      addTearDown(harness.dispose);
+      const content = ['<h2>פרק א</h2>', '<b>אוֹר</b>', 'אור נוסף'];
+      await harness.search(
+        requestId: 1,
+        contentId: 1,
+        content: content,
+        range: (start: 1, end: 2),
+      );
+      final copied = await harness.search(
+        requestId: 2,
+        contentId: 2,
+        content: List.of(content),
+        range: (start: 1, end: null),
+      );
+      expect(copied['results'] as List, hasLength(2));
+      expect((copied['results'] as List).last['address'], ' פרק א ');
+      expect(harness.cleanedRawLines, content.sublist(1));
+      await harness.search(requestId: 3, contentId: 2);
+      expect(harness.cleanedRawLines, unorderedEquals(content));
+    });
+
+    test('ביטול וטעינה חוזרת זהה משמרים את השורות שכבר נוקו', () async {
+      final harness = _RuntimeHarness();
+      addTearDown(harness.dispose);
+      final content = List.generate(300, (i) => 'שורה $i');
+      await harness.search(
+        requestId: 1,
+        contentId: 1,
+        content: content,
+        range: (start: 0, end: 0),
+      );
+      final canceled = harness.search(requestId: 2, contentId: 1, query: 'מחט');
+      final latest = await harness.search(
+        requestId: 3,
+        contentId: 2,
+        content: List.of(content),
+        query: 'מחט',
+      );
+      expect((await canceled)['type'], 'canceled');
+      expect(latest['type'], 'result');
+      expect(latest['results'], isEmpty);
+      expect(harness.cleanedRawLines, content);
+    });
+
+    test('תוכן שונה באותו אורך מחליף גם ניקוי וגם כותרות', () async {
+      final harness = _RuntimeHarness();
+      addTearDown(harness.dispose);
+      const first = ['<h2>פרק א</h2>', 'אור'];
+      const updated = ['<h2>פרק ב</h2>', 'נר'];
+      await harness.search(requestId: 1, contentId: 1, content: first);
+      final result = await harness.search(
+        requestId: 2,
+        contentId: 2,
+        content: updated,
+        query: 'נר',
+      );
+      expect((result['results'] as List).single['address'], ' פרק ב ');
+      expect((result['results'] as List).single['snippet'], 'נר');
+      expect(harness.cleanedRawLines, [...first, ...updated]);
+    });
+
     test('שורות ריקות והערות פנימיות נשמרות לאחר ניקוי', () async {
       final harness = _RuntimeHarness();
       addTearDown(harness.dispose);

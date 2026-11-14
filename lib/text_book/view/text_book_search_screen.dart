@@ -116,8 +116,6 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   String? _searchErrorMessage;
   List<String>? _content;
   Future<List<String>>? _contentFuture;
-  // מזהה את התוכן ב-worker; אינו מתחדש בשחרור כי תוכן הספר בטאב לא השתנה.
-  final Object _contentKey = Object();
   String? _bookPath;
   String? _bookTitle;
   Future<void>? _bookPathFuture;
@@ -436,51 +434,6 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     _contentFuture = null;
   }
 
-  /// חיפוש ליטרלי ב-worker. התוכן נטען רק כשה-worker אינו מחזיק כבר את
-  /// [_contentKey], כך שחזרה לטאב שתוכנו שוחרר אינה טוענת את הספר מחדש.
-  Future<void> _searchInWorker(
-    int requestId,
-    String query,
-    ({int start, int? end, String title})? section,
-  ) async {
-    var truncated = false;
-    var contentLoadFailed = false;
-    final List<TextSearchResult> results;
-    try {
-      results = await searchInBookContent(
-        contentKey: _contentKey,
-        loadContent: () async {
-          try {
-            return await _ensureContent();
-          } catch (_) {
-            contentLoadFailed = true;
-            rethrow;
-          }
-        },
-        query: query,
-        wholeWord: _wholeWord,
-        range: section == null
-            ? null
-            : (start: section.start, end: section.end),
-        onTruncated: (t) => truncated = t,
-        isCurrent: () => mounted && requestId == _activeSearchRequestId,
-      );
-    } catch (e) {
-      debugPrint('החיפוש בספר נכשל: $e');
-      if (mounted && requestId == _activeSearchRequestId) {
-        _showSearchFailure(
-          contentLoadFailed
-              ? TextBookMessages.searchContentLoadFailed
-              : LibraryMessages.searchError,
-        );
-      }
-      return;
-    }
-    if (mounted && requestId == _activeSearchRequestId) {
-      _applySearchResults(results, truncated: truncated);
-    }
-  }
-
   void _showSearchFailure(String message) {
     UiSnack.showError(message);
     setState(() {
@@ -512,12 +465,6 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     });
 
     final userRegex = UserRegexQuery.matcher(query);
-    if (userRegex == null &&
-        _isSimpleSearch &&
-        widget.simpleSearchRunner == null) {
-      await _searchInWorker(requestId, query, section);
-      return;
-    }
     if (userRegex != null || _isSimpleSearch) {
       List<String> content;
       try {
@@ -551,12 +498,30 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         return;
       }
 
-      final effectiveResults = await widget.simpleSearchRunner!(
-        content,
-        query,
-      );
+      var truncated = false;
+      final List<TextSearchResult> effectiveResults;
+      try {
+        effectiveResults = widget.simpleSearchRunner != null
+            ? await widget.simpleSearchRunner!(content, query)
+            : await searchInContent(
+                content: content,
+                query: query,
+                wholeWord: _wholeWord,
+                range: section == null
+                    ? null
+                    : (start: section.start, end: section.end),
+                onTruncated: (t) => truncated = t,
+                isCurrent: () => mounted && requestId == _activeSearchRequestId,
+              );
+      } catch (e) {
+        debugPrint('החיפוש בספר נכשל: $e');
+        if (mounted && requestId == _activeSearchRequestId) {
+          _showSearchFailure(LibraryMessages.searchError);
+        }
+        return;
+      }
       if (mounted && requestId == _activeSearchRequestId) {
-        _applySearchResults(effectiveResults);
+        _applySearchResults(effectiveResults, truncated: truncated);
       }
       return;
     }

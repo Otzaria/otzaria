@@ -396,69 +396,44 @@ Future<void> main() async {
     });
   });
 
-  group('searchInBookContent - מפתח תוכן', () {
-    const firstBook = ['אור ראשון', 'שורה', 'אור שני'];
-    const secondBook = ['חושך', 'אור אחר'];
-
-    Future<List<int>> search(
-      Object key,
-      List<String> book,
-      void Function() onLoad, {
-      String? patternSource,
-    }) async {
-      final results = await searchInBookContent(
-        contentKey: key,
-        loadContent: () async {
-          onLoad();
-          return book;
-        },
+  group('searchInContent - רענון תוכן', () {
+    Future<List<int>> search(List<String> content) async => [
+      for (final result in await searchInContent(
+        content: content,
         query: 'אור',
-        patternSource: patternSource ?? literalPatternSource('אור'),
-      );
-      return [for (final r in results) r.index];
-    }
+        patternSource: literalPatternSource('אור'),
+      ))
+        result.index,
+    ];
 
-    test('אותו מפתח פעמיים טוען את התוכן פעם אחת', () async {
-      final key = Object();
-      var loads = 0;
-      expect(await search(key, firstBook, () => loads++), [0, 2]);
-      expect(await search(key, firstBook, () => loads++), [0, 2]);
-      expect(loads, 1);
-    });
+    test(
+      'טעינה חוזרת זהה ואחריה עדכון באותו אורך מחפשים בתוכן הנכון',
+      () async {
+        const content = ['אור ראשון', 'חושך'];
+        expect(await search(content), [0]);
+        expect(await search(List.of(content)), [0]);
+        expect(await search(['חושך', 'אור שני']), [1]);
+      },
+    );
 
-    test('מפתח אחר וחזרה טוענים שוב, והתוצאות מהספר הנכון', () async {
-      final firstKey = Object();
-      final secondKey = Object();
-      var firstLoads = 0;
-      var secondLoads = 0;
-      expect(await search(firstKey, firstBook, () => firstLoads++), [0, 2]);
-      expect(await search(secondKey, secondBook, () => secondLoads++), [1]);
-      expect(await search(firstKey, firstBook, () => firstLoads++), [0, 2]);
-      expect((firstLoads, secondLoads), (2, 1));
-    });
-
-    test('שגיאה ב-worker מחייבת לשלוח את התוכן שוב', () async {
-      final key = Object();
-      var loads = 0;
+    test('שגיאה ב-worker מאפשרת לשלוח שוב את אותה רשימת תוכן', () async {
+      const content = ['אור'];
       await expectLater(
-        search(key, firstBook, () => loads++, patternSource: '('),
+        searchInContent(content: content, query: 'אור', patternSource: '('),
         throwsA(isA<StateError>()),
       );
-      expect(await search(key, firstBook, () => loads++), [0, 2]);
-      expect(loads, 2);
+      expect(await search(content), [0]);
     });
 
-    test('בקשות מקבילות עם אותו מפתח מחזירות את הספר הנכון', () async {
-      final firstKey = Object();
-      final secondKey = Object();
-      expect(await search(firstKey, firstBook, () {}), [0, 2]);
-      final results = await Future.wait([
-        search(secondKey, secondBook, () {}),
-        search(secondKey, secondBook, () {}),
-      ]);
-      // הבקשה הראשונה מוחלפת בתור ומחזירה ריק; העיקר שאין תוצאות מהספר הקודם.
-      expect(results.last, [1]);
-      expect(results.first, anyOf(isEmpty, [1]));
+    test('בקשה שהתיישנה בזמן אתחול אינה נשלחת ל-worker', () async {
+      final old = searchInContent(
+        content: const ['אור ישן'],
+        query: 'אור',
+        patternSource: literalPatternSource('אור'),
+        isCurrent: () => false,
+      );
+      expect(await search(const ['חושך', 'אור חדש']), [1]);
+      expect(await old, isEmpty);
     });
   });
 
