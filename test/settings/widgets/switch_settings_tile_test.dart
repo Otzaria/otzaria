@@ -142,4 +142,48 @@ void main() {
       expect(ring, findsOneWidget);
     });
   });
+  testWidgets('keyboard focus ring clears on pointer down outside the row', (
+    tester,
+  ) async {
+    FocusManager.instance.highlightStrategy =
+        FocusHighlightStrategy.alwaysTraditional;
+    addTearDown(
+      () => FocusManager.instance.highlightStrategy =
+          FocusHighlightStrategy.automatic,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topCenter,
+            child: SettingsSwitchTile(
+              title: 'אפשרות',
+              value: false,
+              onChanged: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pumpAndSettle();
+    final ring = find.descendant(
+      of: find.byType(SettingsSwitchTile),
+      matching: find.byWidgetPredicate(
+        (w) =>
+            w is DecoratedBox &&
+            w.position == DecorationPosition.foreground &&
+            (w.decoration as BoxDecoration).border != null,
+      ),
+    );
+    expect(ring, findsOneWidget);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: const Offset(700, 500));
+    await mouse.down(const Offset(700, 500));
+    await mouse.up();
+    await tester.pumpAndSettle();
+    expect(AppFocusRing.isKeyboardFocusVisible, isFalse);
+    expect(ring, findsNothing);
+  });
 }

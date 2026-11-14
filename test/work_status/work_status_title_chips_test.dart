@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/library_update/library_update_work_status.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/widgets/controls/status_chip.dart';
 import 'package:otzaria/work_status/work_status_cubit.dart';
 import 'package:otzaria/work_status/work_status_item.dart';
@@ -257,4 +258,99 @@ void main() {
     showCollapsed: true,
     width: 360,
   );
+  testWidgets(
+    'manually collapsed work remains reachable after shrinking the window',
+    (tester) async {
+      final cubit = WorkStatusCubit();
+      addTearDown(cubit.close);
+      tester.view.physicalSize = const Size(900, 600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BlocProvider.value(
+            value: cubit,
+            child: Scaffold(
+              body: Builder(
+                builder: (context) => Stack(
+                  children: [
+                    const Align(
+                      alignment: Alignment.topLeft,
+                      child: WorkStatusTitleChips(),
+                    ),
+                    WorkStatusOverlay(
+                      showCollapsed: WindowClass.of(context).isCompact,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      cubit.upsert(
+        const WorkStatusItem(
+          id: 'library',
+          title: 'עדכון ספרייה',
+          message: 'מוריד',
+          chipLabel: 'ספרייה',
+          collapseAfter: Duration(seconds: 6),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      await tester.tap(find.byTooltip('כווץ לשורת הכותרת'));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('ספרייה'), findsOneWidget);
+      tester.view.physicalSize = const Size(360, 600);
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('עדכון ספרייה'), findsOneWidget);
+      tester.view.physicalSize = const Size(900, 600);
+      await _tick(tester);
+      expect(find.text('ספרייה'), findsOneWidget);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BlocProvider.value(
+            value: cubit,
+            child: const Scaffold(body: WorkStatusOverlay(showCollapsed: true)),
+          ),
+        ),
+      );
+      await _tick(tester);
+      expect(find.text('עדכון ספרייה'), findsOneWidget);
+    },
+  );
+  for (final kind in WorkStatusKind.values) {
+    _test(
+      'fallback restores only collapsed chip jobs: $kind',
+      (tester, cubit) async {
+        cubit
+          ..upsert(_indexing)
+          ..upsert(kind == WorkStatusKind.running ? _running() : _of(kind));
+        await _tick(tester);
+        cubit.dismiss();
+        await _tick(tester);
+        expect(_card, findsOneWidget);
+        expect(find.text('אינדוקס ספרים'), findsNothing);
+        cubit.upsert(
+          const WorkStatusItem(
+            id: 'indexing',
+            title: 'אינדוקס ספרים',
+            message: 'מתקדם',
+          ),
+        );
+        await _tick(tester);
+        expect(find.text('אינדוקס ספרים'), findsNothing);
+        await tester.tap(find.byTooltip('סגור'));
+        await _tick(tester, _collapseAfter * 2);
+        expect(_card, findsNothing);
+        expect(_chip, findsNothing);
+      },
+      showCollapsed: true,
+      width: 360,
+    );
+  }
 }

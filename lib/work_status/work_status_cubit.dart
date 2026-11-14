@@ -169,6 +169,15 @@ class WorkStatusCubit extends Cubit<WorkStatusState> {
     return super.close();
   }
 
+  /// מסתיר את הכרטיס כשאין שורת כותרת שאפשר לכווץ אליה.
+  void hide() {
+    for (final timer in _collapseTimers.values) {
+      timer.cancel();
+    }
+    _collapseTimers.clear();
+    emit(state.copyWith(collapsedIds: {}, isDismissed: true));
+  }
+
   /// סוגר את הכרטיס: פריט עם גלולה מצטמצם אליה, והשאר מוסתרים עד פריט חדש.
   void dismiss() {
     if (state.isDismissed) return;

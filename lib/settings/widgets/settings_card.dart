@@ -552,9 +552,8 @@ class SettingsActionTile extends StatelessWidget {
   }
 }
 
-/// שורת הגדרה שמילוי הפוקוס וטבעתו (DD-06) מופיעים רק בניווט מקלדת.
-/// ‏[ListTile] ו-[InkWell] מציירים את צבע הפוקוס גם אחרי לחיצת עכבר, כשהפוקוס
-/// נשאר על השורה (למשל ב-[SettingsSwitchTile]).
+/// מילוי הפוקוס וטבעתו (DD-06) מופיעים רק בניווט מקלדת, גם כשצומת הפוקוס
+/// נשאר על השורה אחרי לחיצת עכבר.
 class _KeyboardFocusRow extends StatefulWidget {
   const _KeyboardFocusRow({this.focusNode, required this.builder});
 
@@ -581,7 +580,7 @@ class _KeyboardFocusRowState extends State<_KeyboardFocusRow> {
         (_ownedNode ??= FocusNode(debugLabel: 'settings_row'));
     final cs = Theme.of(context).colorScheme;
     return ListenableBuilder(
-      listenable: node,
+      listenable: Listenable.merge([node, AppFocusRing.keyboardFocusChanges]),
       builder: (context, _) {
         // נקרא גם בלי פוקוס: הקריאה הראשונה רושמת את מאזיני המקלדת.
         final keyboardFocused =

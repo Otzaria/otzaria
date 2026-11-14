@@ -18,8 +18,14 @@ class WorkStatusOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<WorkStatusCubit, WorkStatusState>(
       builder: (context, state) {
-        final items = showCollapsed ? state.orderedItems : state.cardItems;
-        if (items.isEmpty || state.isDismissed) {
+        final items = [
+          for (final item
+              in showCollapsed ? state.orderedItems : state.cardItems)
+            if (!state.isDismissed ||
+                (showCollapsed && state.collapsedIds.contains(item.id)))
+              item,
+        ];
+        if (items.isEmpty) {
           return const SizedBox.shrink();
         }
 
@@ -106,8 +112,10 @@ class WorkStatusOverlay extends StatelessWidget {
                             : 'סגור',
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
-                        onPressed: () =>
-                            context.read<WorkStatusCubit>().dismiss(),
+                        onPressed: () {
+                          final cubit = context.read<WorkStatusCubit>();
+                          showCollapsed ? cubit.hide() : cubit.dismiss();
+                        },
                       ),
                     ),
                   ],
