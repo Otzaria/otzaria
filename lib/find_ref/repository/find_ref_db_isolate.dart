@@ -717,20 +717,28 @@ List<int> matchAltTocFlatIndex(
   AltTocFlatIndex index,
   List<String> queryTokens, {
   int? maxRefTokens,
-}) => altTocFlatMatchesAll(
-  (variants) => _matchAltTocFlatIndex(
-    index,
-    queryTokens,
-    maxRefTokens: maxRefTokens,
-    variants: variants,
-  ),
-);
+}) {
+  // הסינון המוקדם אינו תלוי בכתיב: מעבר החלופות עובר רק על מי שעבר אותו.
+  List<int>? candidates;
+  return altTocFlatMatchesAll(
+    (variants) => _matchAltTocFlatIndex(
+      index,
+      queryTokens,
+      maxRefTokens: maxRefTokens,
+      variants: variants,
+      candidates: candidates,
+      onCandidates: (found) => candidates = found,
+    ),
+  );
+}
 
 List<int> _matchAltTocFlatIndex(
   AltTocFlatIndex index,
   List<String> queryTokens, {
   required int? maxRefTokens,
   required bool variants,
+  required List<int>? candidates,
+  required void Function(List<int>) onCandidates,
 }) {
   final dafCitation = parseDafCitationFromDafToken(queryTokens);
   // אחרי "דף" הכתיבים נבדקים מיקומית; "דף" עצמו חייב להופיע בנתיב.
@@ -831,15 +839,24 @@ List<int> _matchAltTocFlatIndex(
       hostTitles ? hostWordsOf(index.bookSlotOf(i)) : const {};
 
   final masks = index.refMasks;
+  final pool =
+      candidates ??
+      [
+        for (var i = 0; i < masks.length; i++)
+          if ((masks[i] & queryMask == queryMask ||
+                  titleMasks != null &&
+                      (masks[i] | titleMasks[index.bookSlotOf(i)]) &
+                              queryMask ==
+                          queryMask) &&
+              (maxRefTokens == null ||
+                  index.refTokenCountOf(i) <= maxRefTokens) &&
+              (dafSlots == null || dafMatches(i)))
+            i,
+      ];
+  onCandidates(pool);
   return [
-    for (var i = 0; i < masks.length; i++)
-      if ((masks[i] & queryMask == queryMask ||
-              titleMasks != null &&
-                  (masks[i] | titleMasks[index.bookSlotOf(i)]) & queryMask ==
-                      queryMask) &&
-          (maxRefTokens == null || index.refTokenCountOf(i) <= maxRefTokens) &&
-          (dafSlots == null || dafMatches(i)) &&
-          (textBits == null || coversRequired(i)) &&
+    for (final i in pool)
+      if ((textBits == null || coversRequired(i)) &&
           // בלי ציון דף הכיסוי הוא בדיוק בדיקת הטוקנים של altTocFlatMatches.
           (textBits != null && dafCitation == null ||
               altTocFlatMatches(

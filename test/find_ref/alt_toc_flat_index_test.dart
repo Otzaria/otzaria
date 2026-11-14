@@ -46,6 +46,33 @@ void main() {
     ['סימן', 'חמש', 'ספר', 'חמש'],
   ];
 
+  /// [altTocFlatMatches] על כל ערך, עם שם הספר המארח והכתיב החלופי.
+  List<int> bruteForce(AltTocFlatIndex index, List<String> q, {int? max}) {
+    final dafCitation = parseDafCitationFromDafToken(q);
+    return altTocFlatMatchesAll((variants) {
+      final hostWords = <String, Set<String>>{};
+      return [
+        for (var i = 0; i < index.length; i++)
+          if (altTocFlatMatches(
+            index.refTokensOf(i),
+            q,
+            maxRefTokens: max,
+            dafCitation: dafCitation,
+            hostTitleWords: hostWords.putIfAbsent(
+              index.bookOf(i).title,
+              () => altTocHostTitleWords(
+                q,
+                tokensOf(index.bookOf(i).title),
+                variants: variants,
+              ),
+            ),
+            variants: variants,
+          ))
+            i,
+      ];
+    });
+  }
+
   void expectConsistent(AltTocFlatIndex index) {
     final references = AltTocQualifiedReferences(index);
     for (var i = 0; i < index.length; i++) {
@@ -62,27 +89,9 @@ void main() {
     }
     for (final q in queries) {
       for (final max in [null, 2]) {
-        final dafCitation = parseDafCitationFromDafToken(q);
         expect(
           matchAltTocFlatIndex(index, q, maxRefTokens: max),
-          altTocFlatMatchesAll(
-            (variants) => [
-              for (var i = 0; i < index.length; i++)
-                if (altTocFlatMatches(
-                  index.refTokensOf(i),
-                  q,
-                  maxRefTokens: max,
-                  dafCitation: dafCitation,
-                  hostTitleWords: altTocHostTitleWords(
-                    q,
-                    tokensOf(index.bookOf(i).title),
-                    variants: variants,
-                  ),
-                  variants: variants,
-                ))
-                  i,
-            ],
-          ),
+          bruteForce(index, q, max: max),
           reason: '$q max=$max',
         );
       }
@@ -468,17 +477,11 @@ void main() {
         ['מאימתי', 'דף', 'ב'],
         ['סעיף', 'ב'],
       ]) {
-        final dafCitation = parseDafCitationFromDafToken(q);
-        final expected = [
-          for (var i = 0; i < index.length; i++)
-            if (altTocFlatMatches(
-              index.refTokensOf(i),
-              q,
-              dafCitation: dafCitation,
-            ))
-              i,
-        ];
-        expect(matchAltTocFlatIndex(index, q), expected, reason: '${q.length}');
+        expect(
+          matchAltTocFlatIndex(index, q),
+          bruteForce(index, q),
+          reason: '$q',
+        );
       }
     },
     skip: dbPath == null || dbPath.isEmpty,
