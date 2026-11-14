@@ -190,7 +190,7 @@ List<Link> computeVisibleLinks({
 }
 
 /// הקישורים שחופפים ל-[first]..[last] או ל-[keepLines] (1-based). ממפרש וקישור
-/// מקור רחוקים נשאר הקרוב מכל צד לכל יעד וסוג — הסנכרון והצ׳יפים נשענים עליו.
+/// מקור רחוקים נשאר הקרוב לכל נקודת הגנה — הסנכרון והצ׳יפים נשענים עליו.
 List<Link> retainLinksNearLines(
   List<Link> links, {
   required int first,
@@ -216,8 +216,13 @@ List<Link> retainLinksNearLines(
           : candidate.index2 < current.index2);
 
   final kept = <Link>[];
-  final nearestBefore = <(String, String, String), Link>{};
-  final nearestAfter = <(String, String, String), Link>{};
+  final boundaries = [
+    first,
+    last,
+    ...keepLines.where((line) => line < first || line > last),
+  ]..sort();
+  final nearestBefore = <(String, String, String, int), Link>{};
+  final nearestAfter = <(String, String, String, int), Link>{};
   final anchoredTypes = <String, bool>{};
   for (final link in links) {
     if (link.overlapsSourceLines(first, last) || touchesKeptLine(link)) {
@@ -230,16 +235,32 @@ List<Link> retainLinksNearLines(
         LinkTypes.isVirtualSource(type))) {
       continue;
     }
-    final key = (link.path2, type, link.targetSource.wireKey);
-    final before = link.index1 < first;
-    final nearest = before ? nearestBefore : nearestAfter;
-    if (closer(link, nearest[key], before: before)) nearest[key] = link;
+    var bucket = link.index1 < first ? 0 : boundaries.length;
+    if (boundaries.length > 2) {
+      var low = 0;
+      var high = boundaries.length;
+      while (low < high) {
+        final middle = (low + high) ~/ 2;
+        if (boundaries[middle] < link.index1) {
+          low = middle + 1;
+        } else {
+          high = middle;
+        }
+      }
+      bucket = low;
+    }
+    final key = (link.path2, type, link.targetSource.wireKey, bucket);
+    if (bucket < boundaries.length &&
+        closer(link, nearestBefore[key], before: true)) {
+      nearestBefore[key] = link;
+    }
+    if (bucket > 0 && closer(link, nearestAfter[key], before: false)) {
+      nearestAfter[key] = link;
+    }
   }
-  if (kept.length + nearestBefore.length + nearestAfter.length ==
-      links.length) {
-    return links;
-  }
-  return [...kept, ...nearestBefore.values, ...nearestAfter.values];
+  final nearest = {...nearestBefore.values, ...nearestAfter.values};
+  if (kept.length + nearest.length == links.length) return links;
+  return [...kept, ...nearest];
 }
 
 Future<

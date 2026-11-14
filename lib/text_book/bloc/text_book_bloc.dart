@@ -3138,7 +3138,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
               for (final i in stateBeforeAwait.visibleIndices) i + 1,
             },
           );
-    final processedLinks = await processLinksForState(
+    var processedLinks = await processLinksForState(
       existingLinks: existingLinks,
       incomingLinks: event.links.cast<Link>(),
       replaceExisting: event.replaceExisting,
@@ -3149,6 +3149,50 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     if (state is! TextBookLoaded) return;
     final currentState = state as TextBookLoaded;
     if (currentState.book.title != stateBeforeAwait.book.title) return;
+
+    // הבחירה והחלון יכולים להשתנות בזמן העיבוד; משלימים את הקישורים שנגזמו.
+    if (retain != null &&
+        !event.replaceExisting &&
+        (!setEquals(
+              currentState.selectedIndices,
+              stateBeforeAwait.selectedIndices,
+            ) ||
+            !listEquals(
+              currentState.visibleIndices,
+              stateBeforeAwait.visibleIndices,
+            ))) {
+      var links = processedLinks.links;
+      var linksByLine = processedLinks.linksByLine;
+      final newlyProtected =
+          {
+              ...currentState.selectedIndices,
+              ...currentState.visibleIndices,
+            }
+            ..removeAll(stateBeforeAwait.selectedIndices)
+            ..removeAll(stateBeforeAwait.visibleIndices);
+      if (newlyProtected.any((i) => i < retain.start || i > retain.end)) {
+        links = mergeLinksByIdentity(
+          retainLinksNearLines(
+            currentState.links,
+            first: retain.start + 1,
+            last: retain.end + 1,
+            keepLines: {for (final i in newlyProtected) i + 1},
+          ),
+          links,
+        );
+        linksByLine = buildLinksByLineMap(links);
+      }
+      processedLinks = (
+        links: links,
+        linksByLine: linksByLine,
+        visibleLinks: computeVisibleLinks(
+          links: links,
+          visibleIndices: currentState.visibleIndices,
+          selectedIndices: currentState.selectedIndices,
+          linksByLine: linksByLine,
+        ),
+      );
+    }
 
     emit(
       currentState.copyWith(

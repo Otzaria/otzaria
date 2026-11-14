@@ -381,6 +381,79 @@ void main() {
   });
 
   group('retainLinksNearLines', () {
+    test('מסנכרן מפרש ומקור גם כשאין עוגן בדיוק בשורות המוגנות', () {
+      for (final source in [BookSource.official, BookSource.user]) {
+        for (final type in [LinkTypes.commentary, LinkTypes.source]) {
+          final links = [
+            for (final line in [101, 501, 1001, 3001, 5001, 6001, 6501])
+              makeLink(
+                index1: line,
+                index2: line ~/ 2,
+                connectionType: type,
+                targetSource: source,
+              ),
+          ];
+          final kept = retainLinksNearLines(
+            links,
+            first: 3801,
+            last: 4201,
+            keepLines: {751, 1251, 5501},
+          );
+          for (final line in [750, 1250, 3800, 4000, 4200, 5500]) {
+            expect(
+              CommentarySyncHelper.getCommentaryTargetIndex(
+                linksForCommentary: kept,
+                logicalMainIndex: line,
+              ),
+              CommentarySyncHelper.getCommentaryTargetIndex(
+                linksForCommentary: links,
+                logicalMainIndex: line,
+              ),
+              reason: 'שורה $line, סוג $type, מסד ${source.wireKey}',
+            );
+          }
+          expect(kept.length, lessThan(links.length));
+        }
+      }
+    });
+
+    test('שומר קישורי מקור ותלויי-טקסט לכל מסד, וטווח שחופף שורה שמורה', () {
+      final before = <Link>[];
+      final after = <Link>[];
+      final far = <Link>[];
+      for (final source in [BookSource.official, BookSource.user]) {
+        for (final type in [LinkTypes.source, LinkTypes.targum]) {
+          Link link(int line) => makeLink(
+            index1: line,
+            path2: 'אותו יעד.txt',
+            connectionType: type,
+            targetSource: source,
+          );
+          before.add(link(30));
+          after.add(link(110));
+          far.addAll([link(10), link(130)]);
+        }
+      }
+      final spanning = makeLink(index1: 200, index1End: 210);
+      final outside = makeLink(index1: 300);
+      final kept = retainLinksNearLines(
+        [...before, ...after, ...far, spanning, outside],
+        first: 40,
+        last: 100,
+        keepLines: {205},
+      );
+      expect(
+        kept,
+        unorderedEquals([
+          ...before,
+          ...after,
+          ...far.where((link) => link.index1 == 130),
+          spanning,
+        ]),
+      );
+      expect(buildLinksByLineMap(kept)[205], contains(spanning));
+    });
+
     test('בלי הסרה מוחזר אותו מופע', () {
       final links = [makeLink(index1: 10), makeLink(index1: 12)];
       expect(
