@@ -105,6 +105,11 @@ class _OutlineViewState extends State<OutlineView>
 
   final ScrollController _tocScrollController = ScrollController();
   final ListController _listController = ListController();
+  final FocusNode _entryFocusNode = FocusNode(debugLabel: 'PDF outline entry');
+  late final _OutlineFocusPolicy _focusPolicy = _OutlineFocusPolicy(
+    _entryFocusNode,
+    () => widget.isPaneOpen && _rowIndices.containsKey(_activeNode),
+  );
   bool _isManuallyScrolling = false;
   int? _lastScrolledPage;
 
@@ -163,6 +168,7 @@ class _OutlineViewState extends State<OutlineView>
     for (final notifier in _selected.values) {
       notifier.dispose();
     }
+    _entryFocusNode.dispose();
     _listController.dispose();
     _tocScrollController.dispose();
     searchController.dispose();
@@ -256,15 +262,26 @@ class _OutlineViewState extends State<OutlineView>
       if (!mounted || _isManuallyScrolling || !_listController.isAttached) {
         return;
       }
-      final rowIndex = _rowIndices[activeNode];
-      if (rowIndex == null) return;
-      // +1: פריט 0 ברשימה הוא הכותרת.
-      final index = rowIndex + 1;
+      int? targetIndex() {
+        if (!mounted ||
+            !widget.isPaneOpen ||
+            _isManuallyScrolling ||
+            !identical(widget.outline, outline) ||
+            !identical(_activeNode, activeNode)) {
+          return null;
+        }
+        final rowIndex = _rowIndices[activeNode];
+        // +1: פריט 0 ברשימה הוא הכותרת.
+        return rowIndex == null ? null : rowIndex + 1;
+      }
+
+      final index = targetIndex();
+      if (index == null) return;
       AppMotion.scroll(
         context,
         AppTokens.animPanelSlide,
         animate: (duration) => _listController.animateToItem(
-          index: () => index,
+          index: targetIndex,
           scrollController: _tocScrollController,
           alignment: 0.5,
           duration: (_) => duration,
@@ -367,39 +384,92 @@ class _OutlineViewState extends State<OutlineView>
     // בסינון צומת עשוי להופיע פעמיים (כהתאמה וכצאצא של התאמה), ולכן בלי מפתח.
     final keyRows = query.isEmpty;
     return NavTreeFocusGroup(
-      child: SuperListView.builder(
-        controller: _tocScrollController,
-        listController: _listController,
-        extentEstimation: (_, _) => _estimatedRowExtent,
-        padding: kNavTreeListPadding,
-        itemCount: rows.length + 1,
-        findChildIndexCallback: (key) {
-          if (key == _headerKey) return 0;
-          if (!keyRows || key is! ObjectKey) return null;
-          final index = _rowIndices[key.value];
-          return index == null ? null : index + 1;
-        },
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return KeyedSubtree(
-              key: _headerKey,
-              child: NavTreeHeader(
-                title: widget.title ?? '',
-                trailing: const NavPanelSearchToggle(),
+      child: FocusTraversalGroup(
+        policy: _focusPolicy,
+        child: Stack(
+          children: [
+            FocusTraversalOrder(
+              order: const NumericFocusOrder(-2),
+              child: Focus(
+                focusNode: _entryFocusNode,
+                includeSemantics: false,
+                onFocusChange: _revealFocusedEntry,
+                child: const SizedBox.shrink(),
               ),
-            );
-          }
-          final row = _buildOutlineRow(
-            rows[index - 1],
-            isGroupStart: index == 1,
-            isGroupEnd: index == rows.length,
-          );
-          return keyRows
-              ? KeyedSubtree(key: ObjectKey(rows[index - 1].node), child: row)
-              : row;
-        },
+            ),
+            SuperListView.builder(
+              controller: _tocScrollController,
+              listController: _listController,
+              extentEstimation: (_, _) => _estimatedRowExtent,
+              padding: kNavTreeListPadding,
+              itemCount: rows.length + 1,
+              findChildIndexCallback: (key) {
+                if (key == _headerKey) return 0;
+                if (!keyRows || key is! ObjectKey) return null;
+                final index = _rowIndices[key.value];
+                return index == null ? null : index + 1;
+              },
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return KeyedSubtree(
+                    key: _headerKey,
+                    child: NavTreeHeader(
+                      title: widget.title ?? '',
+                      trailing: const NavPanelSearchToggle(),
+                    ),
+                  );
+                }
+                final row = _buildOutlineRow(
+                  rows[index - 1],
+                  isGroupStart: index == 1,
+                  isGroupEnd: index == rows.length,
+                );
+                return keyRows
+                    ? KeyedSubtree(
+                        key: ObjectKey(rows[index - 1].node),
+                        child: row,
+                      )
+                    : row;
+              },
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  void _revealFocusedEntry(bool hasFocus) {
+    if (!hasFocus) return;
+    final node = _activeNode;
+    final outline = widget.outline;
+    final index = _rowIndices[node];
+    if (!widget.isPaneOpen || index == null || !_listController.isAttached) {
+      _entryFocusNode.nextFocus();
+      return;
+    }
+    _listController.jumpToItem(
+      index: index + 1,
+      scrollController: _tocScrollController,
+      alignment: 0.5,
+    );
+    SchedulerBinding.instance.ensureVisualUpdate();
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_entryFocusNode.hasFocus) return;
+      if (!widget.isPaneOpen || !identical(widget.outline, outline)) {
+        _entryFocusNode.unfocus();
+        return;
+      }
+      if (!identical(_activeNode, node) || _rowIndices[node] != index) {
+        _revealFocusedEntry(true);
+        return;
+      }
+      final target = _focusPolicy.selectedTarget;
+      if (target == null) {
+        _entryFocusNode.nextFocus();
+      } else {
+        target.requestFocus();
+      }
+    });
   }
 
   Widget _buildOutlineRow(
@@ -409,6 +479,7 @@ class _OutlineViewState extends State<OutlineView>
   }) {
     final node = row.node;
     Future<void> navigateToEntry() async {
+      _entryFocusNode.unfocus();
       _isManuallyScrolling = false;
       _lastScrolledPage = null;
       final targetPage = node.dest?.pageNumber;
@@ -445,13 +516,61 @@ class _OutlineViewState extends State<OutlineView>
           hasChildren: hasChildren,
           onTap: navigateToEntry,
           onToggleExpand: hasChildren
-              ? () => setState(() {
-                  _expanded[node] = !isExpanded;
-                  _expandedRevision++;
-                })
+              ? () {
+                  _entryFocusNode.unfocus();
+                  setState(() {
+                    _expanded[node] = !isExpanded;
+                    _expandedRevision++;
+                  });
+                }
               : null,
         ),
       ),
     );
+  }
+}
+
+bool _isSelectedOutlineFocus(FocusNode node) =>
+    node.context?.findAncestorWidgetOfExactType<NavTreeTile>()?.isSelected ==
+    true;
+
+class _OutlineFocusPolicy extends OrderedTraversalPolicy {
+  _OutlineFocusPolicy(this.entryNode, this.hasActiveRow);
+
+  final FocusNode entryNode;
+  final bool Function() hasActiveRow;
+
+  FocusNode? get selectedTarget {
+    final targets = super.sortDescendants(
+      entryNode.parent!.traversalDescendants.where(_isSelectedOutlineFocus),
+      entryNode,
+    );
+    return targets.isEmpty ? null : targets.first;
+  }
+
+  @override
+  Iterable<FocusNode> sortDescendants(
+    Iterable<FocusNode> descendants,
+    FocusNode currentNode,
+  ) {
+    final nodes = descendants.toList();
+    final needsEntry = hasActiveRow() && !nodes.any(_isSelectedOutlineFocus);
+    return super.sortDescendants(
+      nodes.where(
+        (node) => node != entryNode || needsEntry || node == currentNode,
+      ),
+      currentNode,
+    );
+  }
+
+  @override
+  bool inDirection(FocusNode currentNode, TraversalDirection direction) {
+    // נקודת הכניסה היא יעד Tab בלבד; החיצים ממשיכים בין השורות הגלויות.
+    entryNode.skipTraversal = true;
+    try {
+      return super.inDirection(currentNode, direction);
+    } finally {
+      entryNode.skipTraversal = false;
+    }
   }
 }

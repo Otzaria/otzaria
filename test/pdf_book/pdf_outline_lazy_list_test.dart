@@ -1,10 +1,15 @@
+import 'dart:ui' show Tristate;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/pdf_book/view/pdf_outlines_screen.dart';
+import 'package:otzaria/theme/app_seed_colors.dart';
+import 'package:otzaria/theme/app_theme_data.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:pdfrx/pdfrx.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart';
 
 class _PageController extends PdfViewerController {
   _PageController(this.page);
@@ -52,30 +57,82 @@ List<PdfOutlineNode> _bigOutline() => [
 
 void main() {
   late List<PdfOutlineNode> outline;
-  setUp(() => outline = _bigOutline());
+  late StateSetter rebuildOutline;
+  late FocusNode beforeFocus;
+  late FocusNode afterFocus;
+  late NavPanelSearchHost searchHost;
+  var paneOpen = true;
+  setUp(() {
+    outline = _bigOutline();
+    paneOpen = true;
+  });
 
   Future<_PageController> pumpOutline(
     WidgetTester tester, {
     int page = 1,
     bool disableAnimations = false,
+    bool withNeighbors = false,
+    bool withHost = false,
+    Future<void> Function(int)? onNavigate,
+    double width = 800,
+    double textScale = 1,
+    ThemeData? theme,
   }) async {
-    await tester.binding.setSurfaceSize(const Size(800, 600));
+    await tester.binding.setSurfaceSize(Size(width, 600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final controller = _PageController(page);
     final focusNode = FocusNode();
+    beforeFocus = FocusNode(debugLabel: 'before outline');
+    afterFocus = FocusNode(debugLabel: 'after outline');
+    searchHost = NavPanelSearchHost();
     addTearDown(focusNode.dispose);
+    addTearDown(beforeFocus.dispose);
+    addTearDown(afterFocus.dispose);
+    addTearDown(searchHost.dispose);
     await tester.pumpWidget(
       MaterialApp(
+        theme: theme,
+        builder: (context, child) => Directionality(
+          textDirection: TextDirection.rtl,
+          child: child!,
+        ),
         home: MediaQuery(
           data: MediaQueryData(
-            size: const Size(800, 600),
+            size: Size(width, 600),
+            textScaler: TextScaler.linear(textScale),
             disableAnimations: disableAnimations,
           ),
           child: Scaffold(
-            body: OutlineView(
-              outline: outline,
-              controller: controller,
-              focusNode: focusNode,
+            body: StatefulBuilder(
+              builder: (context, setState) {
+                rebuildOutline = setState;
+                Widget child = OutlineView(
+                  outline: outline,
+                  controller: controller,
+                  focusNode: focusNode,
+                  isPaneOpen: paneOpen,
+                  onNavigateToPage: onNavigate,
+                );
+                if (withHost) {
+                  child = NavPanelSearchScope(host: searchHost, child: child);
+                }
+                if (withNeighbors) {
+                  child = Column(
+                    children: [
+                      Focus(
+                        focusNode: beforeFocus,
+                        child: const SizedBox(height: 24),
+                      ),
+                      Expanded(child: child),
+                      Focus(
+                        focusNode: afterFocus,
+                        child: const SizedBox(height: 24),
+                      ),
+                    ],
+                  );
+                }
+                return child;
+              },
             ),
           ),
         ),
@@ -85,9 +142,11 @@ void main() {
     return controller;
   }
 
-  Finder row(String title) => find.byWidgetPredicate(
-    (widget) => widget is NavTreeTile && widget.title == title,
-  );
+  Finder row(String title, {bool skipOffstage = true}) =>
+      find.byWidgetPredicate(
+        (widget) => widget is NavTreeTile && widget.title == title,
+        skipOffstage: skipOffstage,
+      );
 
   ScrollController scrollController(WidgetTester tester) =>
       tester.widget<Scrollable>(find.byType(Scrollable).first).controller!;
@@ -102,6 +161,32 @@ void main() {
   bool isOnScreen(WidgetTester tester, String title) {
     final rect = tester.getRect(row(title));
     return rect.top >= 0 && rect.bottom <= 600;
+  }
+
+  String? focusedTitle(WidgetTester tester) => tester
+      .binding
+      .focusManager
+      .primaryFocus
+      ?.context
+      ?.findAncestorWidgetOfExactType<NavTreeTile>()
+      ?.title;
+
+  Future<void> shiftTab(WidgetTester tester) async {
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> beginEntry(WidgetTester tester) async {
+    final scope = FocusScope.of(tester.element(row('חלק 0')));
+    scope.unfocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    expect(
+      tester.binding.focusManager.primaryFocus?.debugLabel,
+      'PDF outline entry',
+    );
   }
 
   testWidgets('עץ של אלף צמתים בונה רק את השורות שבתצוגה', (tester) async {
@@ -297,26 +382,398 @@ void main() {
 
   testWidgets('החלפת העץ מציגה את השורות החדשות וגוללת אליהן', (tester) async {
     final controller = await pumpOutline(tester);
-    final focusNode = FocusNode();
-    addTearDown(focusNode.dispose);
-    final replacement = [
-      for (var i = 0; i < 300; i++) _node('דף $i', i + 1),
-    ];
-    controller.page = 200;
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: OutlineView(
-            outline: replacement,
-            controller: controller,
-            focusNode: focusNode,
-          ),
-        ),
-      ),
-    );
+    rebuildOutline(() {
+      outline = [for (var i = 0; i < 300; i++) _node('דף $i', i + 1)];
+      controller.page = 200;
+    });
     await tester.pumpAndSettle();
     expect(row('חלק 0'), findsNothing);
     expect(tester.widget<NavTreeTile>(row('דף 199')).isSelected, isTrue);
     expect(tester.getCenter(row('דף 199')).dy, closeTo(300, 1));
   });
+
+  testWidgets('Tab חוזר לסעיף הנבחר גם אחרי גלילה ידנית רחוקה', (tester) async {
+    await pumpOutline(tester, page: 501);
+    final scope = FocusScope.of(tester.element(row('סימן 2-0')));
+    final controller = scrollController(tester);
+    controller.jumpTo(0);
+    await tester.pumpAndSettle();
+    scope.unfocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pumpAndSettle();
+    final focusedTile = tester.binding.focusManager.primaryFocus?.context
+        ?.findAncestorWidgetOfExactType<NavTreeTile>();
+    expect(focusedTile?.title, 'סימן 2-0');
+    expect(isOnScreen(tester, 'סימן 2-0'), isTrue);
+    expect(find.byType(NavTreeTile).evaluate().length, lessThan(60));
+  });
+
+  testWidgets('סינון בזמן גלילה אל הסעיף הפעיל עוצר יעד שנעלם', (tester) async {
+    final controller = await pumpOutline(tester);
+    await tester.tap(find.byType(NavPanelSearchToggle));
+    await tester.pumpAndSettle();
+    controller.showPage(601);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(tester.hasRunningAnimations, isTrue);
+    await tester.enterText(find.byType(TextField), 'סימן 3-249');
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('סינון בזמן גלילה מעדכן את מיקום היעד שנותר', (tester) async {
+    final controller = await pumpOutline(tester);
+    await tester.tap(find.byType(NavPanelSearchToggle));
+    await tester.pumpAndSettle();
+    controller.showPage(601);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.enterText(find.byType(TextField), 'סימן 2-1');
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(tester.widget<NavTreeTile>(row('סימן 2-100')).isSelected, isTrue);
+    expect(
+      tester.getCenter(row('סימן 2-100')).dy,
+      closeTo(tester.getRect(find.byType(SuperListView)).center.dy, 1),
+    );
+  });
+
+  testWidgets('כיווץ בזמן גלילה מעדכן את אינדקס היעד', (tester) async {
+    final controller = await pumpOutline(tester);
+    final collapse = tester.widget<NavTreeTile>(row('חלק 0')).onToggleExpand!;
+    controller.showPage(601);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    collapse();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(tester.getCenter(row('סימן 2-100')).dy, closeTo(300, 1));
+  });
+
+  testWidgets('החלפת מסמך בזמן גלילה מבטלת את היעד הישן', (tester) async {
+    final controller = await pumpOutline(tester);
+    controller.showPage(601);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    rebuildOutline(() {
+      outline = [for (var i = 0; i < 20; i++) _node('חדש $i', i + 1)];
+      controller.page = 10;
+    });
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(tester.widget<NavTreeTile>(row('חדש 9')).isSelected, isTrue);
+    expect(isOnScreen(tester, 'חדש 9'), isTrue);
+  });
+
+  testWidgets('סגירת חלונית בזמן גלילה עוצרת אותה ופתיחה ממרכזת מחדש', (
+    tester,
+  ) async {
+    final controller = await pumpOutline(tester);
+    controller.showPage(601);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    rebuildOutline(() => paneOpen = false);
+    await tester.pump();
+    final offset = scrollController(tester).offset;
+    await tester.pumpAndSettle();
+    expect(scrollController(tester).offset, offset);
+    rebuildOutline(() => paneOpen = true);
+    await tester.pumpAndSettle();
+    expect(tester.getCenter(row('סימן 2-100')).dy, closeTo(300, 1));
+  });
+
+  testWidgets('מעבר עמוד נוסף בזמן גלילה משאיר רק את היעד העדכני', (
+    tester,
+  ) async {
+    final controller = await pumpOutline(tester);
+    controller.showPage(601);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    controller.showPage(201);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(tester.widget<NavTreeTile>(row('סימן 0-200')).isSelected, isTrue);
+    expect(tester.getCenter(row('סימן 0-200')).dy, closeTo(300, 1));
+    expect(row('סימן 2-100'), findsNothing);
+  });
+
+  testWidgets('כיווץ ענף היעד בזמן גלילה עוצר יעד שנעלם', (tester) async {
+    final controller = await pumpOutline(tester, page: 501);
+    final collapse = tester.widget<NavTreeTile>(row('חלק 2')).onToggleExpand!;
+    controller.showPage(601);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    collapse();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(row('סימן 2-100'), findsNothing);
+  });
+
+  testWidgets('שורות מחוץ לתצוגה משתחררות אחרי החלפת בחירה', (
+    tester,
+  ) async {
+    final controller = await pumpOutline(tester, page: 501);
+    scrollController(tester).jumpTo(0);
+    await tester.pumpAndSettle();
+    expect(row('סימן 2-0', skipOffstage: false), findsNothing);
+    controller.showPage(751);
+    await tester.pumpAndSettle();
+    scrollController(tester).jumpTo(0);
+    await tester.pumpAndSettle();
+    expect(row('סימן 2-0', skipOffstage: false), findsNothing);
+    expect(row('סימן 3-0', skipOffstage: false), findsNothing);
+    expect(
+      find.byType(NavTreeTile, skipOffstage: false).evaluate().length,
+      lessThan(60),
+    );
+  });
+
+  testWidgets('השורות שומרות שם נגיש ומצב נבחר ומורחב', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await pumpOutline(tester);
+    final selected = tester.getSemantics(row('סימן 0-0')).getSemanticsData();
+    expect(selected.label, contains('סימן 0-0'));
+    expect(selected.flagsCollection.isSelected, Tristate.isTrue);
+    final parent = tester.getSemantics(row('חלק 0')).getSemanticsData();
+    expect(parent.flagsCollection.isExpanded, Tristate.isTrue);
+    semantics.dispose();
+  });
+  testWidgets('יעד עמוד חדש בזמן גרירה מקבל Tab', (tester) async {
+    final controller = await pumpOutline(tester, page: 501);
+    final scope = FocusScope.of(tester.element(row('סימן 2-0')));
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(Scrollable).first),
+    );
+    await gesture.moveBy(const Offset(0, 100));
+    await tester.pump();
+    final offset = scrollController(tester).offset;
+    controller.showPage(751);
+    await tester.pump();
+    expect(scrollController(tester).offset, offset);
+    expect(row('סימן 3-0', skipOffstage: false), findsNothing);
+    await gesture.up();
+    await tester.pumpAndSettle();
+    scope.unfocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pumpAndSettle();
+    final focused = tester.binding.focusManager.primaryFocus?.context
+        ?.findAncestorWidgetOfExactType<NavTreeTile>();
+    expect(focused?.title, 'סימן 3-0');
+  });
+
+  testWidgets('Tab ו־Shift+Tab נכנסים לנבחר ויוצאים בלי להילכד', (
+    tester,
+  ) async {
+    await pumpOutline(tester, page: 501, withNeighbors: true);
+    scrollController(tester).jumpTo(0);
+    await tester.pumpAndSettle();
+    beforeFocus.requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pumpAndSettle();
+    expect(focusedTitle(tester), 'סימן 2-0');
+    await shiftTab(tester);
+    expect(beforeFocus.hasFocus, isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pumpAndSettle();
+    expect(focusedTitle(tester), isNot('סימן 2-0'));
+    await shiftTab(tester);
+    expect(focusedTitle(tester), 'סימן 2-0');
+    await shiftTab(tester);
+    expect(beforeFocus.hasFocus, isTrue);
+    afterFocus.requestFocus();
+    await tester.pump();
+    await shiftTab(tester);
+    expect(
+      tester.binding.focusManager.primaryFocus?.context
+          ?.findAncestorWidgetOfExactType<IconButton>()
+          ?.tooltip,
+      'חיפוש סימניה...',
+    );
+  });
+
+  testWidgets('כניסה מהסרגל עם חץ למטה מגלה את הנבחר', (tester) async {
+    await pumpOutline(tester, page: 501, withHost: true);
+    scrollController(tester).jumpTo(0);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(NavPanelSearchToggle));
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+    expect(focusedTitle(tester), 'סימן 2-0');
+    expect(isOnScreen(tester, 'סימן 2-0'), isTrue);
+  });
+
+  testWidgets('שינוי עמוד בזמן כניסה ממקד את היעד העדכני', (tester) async {
+    final controller = await pumpOutline(tester, page: 501);
+    scrollController(tester).jumpTo(0);
+    await tester.pumpAndSettle();
+    await beginEntry(tester);
+    controller.showPage(751);
+    await tester.pumpAndSettle();
+    expect(focusedTitle(tester), 'סימן 3-0');
+    expect(isOnScreen(tester, 'סימן 3-0'), isTrue);
+  });
+
+  testWidgets('לחיצת עכבר מבטלת כניסת פוקוס ממתינה לסעיף הישן', (tester) async {
+    final navigations = <int>[];
+    await pumpOutline(
+      tester,
+      page: 501,
+      onNavigate: (page) async => navigations.add(page),
+    );
+    scrollController(tester).jumpTo(0);
+    await tester.pumpAndSettle();
+    await beginEntry(tester);
+    await tester.tap(row('סימן 0-0'));
+    await tester.pumpAndSettle();
+    expect(navigations, [1]);
+    expect(focusedTitle(tester), isNot('סימן 2-0'));
+    expect(
+      tester.binding.focusManager.primaryFocus?.debugLabel,
+      isNot('PDF outline entry'),
+    );
+  });
+
+  testWidgets('כיווץ יעד בזמן כניסה אינו ממקד שורה שהוסרה', (tester) async {
+    await pumpOutline(tester, page: 501);
+    final collapse = tester.widget<NavTreeTile>(row('חלק 2')).onToggleExpand!;
+    scrollController(tester).jumpTo(0);
+    await tester.pumpAndSettle();
+    await beginEntry(tester);
+    collapse();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(focusedTitle(tester), isNot('סימן 2-0'));
+    expect(row('סימן 2-0', skipOffstage: false), findsNothing);
+  });
+
+  testWidgets('החלפת מסמך בזמן כניסה מבטלת מיקוד של המסמך הישן', (
+    tester,
+  ) async {
+    final controller = await pumpOutline(tester, page: 501);
+    scrollController(tester).jumpTo(0);
+    await tester.pumpAndSettle();
+    await beginEntry(tester);
+    rebuildOutline(() {
+      outline = [for (var i = 0; i < 20; i++) _node('חדש $i', i + 1)];
+      controller.page = 10;
+    });
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(focusedTitle(tester), isNot('סימן 2-0'));
+    expect(
+      tester.binding.focusManager.primaryFocus?.debugLabel,
+      isNot('PDF outline entry'),
+    );
+    expect(tester.widget<NavTreeTile>(row('חדש 9')).isSelected, isTrue);
+  });
+
+  testWidgets('סגירת חלונית בזמן כניסה מבטלת את הפוקוס הממתין', (tester) async {
+    await pumpOutline(tester, page: 501);
+    scrollController(tester).jumpTo(0);
+    await tester.pumpAndSettle();
+    await beginEntry(tester);
+    rebuildOutline(() => paneOpen = false);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(focusedTitle(tester), isNull);
+    expect(
+      tester.binding.focusManager.primaryFocus?.debugLabel,
+      isNot('PDF outline entry'),
+    );
+  });
+
+  testWidgets('הסרת המסך בזמן כניסה אינה משאירה מוקד מעבר חי', (tester) async {
+    await pumpOutline(tester, page: 501);
+    scrollController(tester).jumpTo(0);
+    await tester.pumpAndSettle();
+    await beginEntry(tester);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(
+      tester.binding.focusManager.primaryFocus?.debugLabel,
+      isNot('PDF outline entry'),
+    );
+  });
+
+  testWidgets('כניסה לסעיף עם ילדים ואז Enter מנווטת ואינה מכווצת', (
+    tester,
+  ) async {
+    outline = [
+      for (var i = 0; i < 1000; i++)
+        _node('כותרת $i', i * 10 + 1, i == 500 ? [_node('תת סעיף', 5002)] : []),
+    ];
+    final navigations = <int>[];
+    await pumpOutline(
+      tester,
+      page: 5001,
+      onNavigate: (page) async => navigations.add(page),
+    );
+    final scope = FocusScope.of(tester.element(row('כותרת 500')));
+    scrollController(tester).jumpTo(0);
+    await tester.pumpAndSettle();
+    scope.unfocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(navigations, [5001]);
+    expect(tester.widget<NavTreeTile>(row('כותרת 500')).isExpanded, isTrue);
+  });
+
+  for (final appearance in [
+    (
+      name: 'בהיר',
+      seed: AppSeedColors.defaultLight,
+      brightness: Brightness.light,
+    ),
+    (name: 'כהה', seed: AppSeedColors.defaultDark, brightness: Brightness.dark),
+    (name: 'לבן', seed: AppSeedColors.white, brightness: Brightness.light),
+  ]) {
+    for (final width in [360.0, 800.0]) {
+      testWidgets(
+        'כניסה ויציאה עם RTL וטקסט מוגדל: ${appearance.name} $width',
+        (tester) async {
+          final scheme = AppThemeData.createColorScheme(
+            appearance.seed,
+            appearance.brightness,
+          );
+          await pumpOutline(
+            tester,
+            page: 501,
+            withNeighbors: true,
+            width: width,
+            textScale: 1.3,
+            theme: AppThemeData.light(
+              scheme,
+              compactMenuMode: false,
+              variant: AppThemeVariant.ofSeed(appearance.seed),
+            ),
+          );
+          scrollController(tester).jumpTo(0);
+          await tester.pumpAndSettle();
+          beforeFocus.requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pumpAndSettle();
+          expect(focusedTitle(tester), 'סימן 2-0');
+          expect(isOnScreen(tester, 'סימן 2-0'), isTrue);
+          await shiftTab(tester);
+          expect(beforeFocus.hasFocus, isTrue);
+          expect(tester.takeException(), isNull);
+          expect(
+            find.byType(NavTreeTile, skipOffstage: false).evaluate().length,
+            lessThan(60),
+          );
+        },
+      );
+    }
+  }
 }
