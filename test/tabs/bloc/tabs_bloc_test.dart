@@ -39,6 +39,173 @@ import '../../plugins/services/plugin_text_reader_registry_test.dart' as reader;
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  for (final replacement in ['resolve', 'swap', 'closePane', 'remap']) {
+    for (final viewed in [false, true]) {
+      for (final latest in [false, true]) {
+        test(
+          'MRU נשמר בהחלפת $replacement ברקע, הוצג=$viewed, האחרון=$latest',
+          () async {
+            await Settings.init(cacheProvider: _MemoryCacheProvider());
+            final a = _createTextTab('A', categoryId: 1);
+            final resolved = _createTextTab('B', categoryId: 2);
+            final OpenedTab b = switch (replacement) {
+              'resolve' => ResolvingTab(
+                fallbackTab: _createTextTab('B loading', categoryId: 2),
+                resolve: () async => resolved,
+              ),
+              'remap' => PdfBookTab(
+                book: PdfBook(title: 'B', path: p.join('/old', 'book.pdf')),
+                pageNumber: 1,
+              ),
+              _ => CombinedTab(
+                rightTab: resolved,
+                leftTab: _createTextTab('B left', categoryId: 4),
+              ),
+            };
+            final c = _createTextTab('C', categoryId: 3);
+            final bloc = _newBloc(_FakeTabsRepository());
+            try {
+              for (final tab in [a, b, c]) {
+                final added = bloc.stream.firstWhere(
+                  (s) => s.tabs.contains(tab),
+                );
+                bloc.add(
+                  AddTab(tab, inBackground: identical(tab, b) && !viewed),
+                );
+                await added;
+              }
+              if (!latest) {
+                final focused = bloc.stream.firstWhere(
+                  (s) => identical(s.currentTab, a),
+                );
+                bloc.add(const SetCurrentTab(0));
+                await focused;
+              }
+              final closing = bloc.state.currentTab!;
+              final replaced = bloc.stream.firstWhere(
+                (s) => !identical(s.tabs[1], b),
+              );
+              bloc.add(switch (replacement) {
+                'resolve' => ReplaceTab(oldTab: b, newTab: resolved),
+                'swap' => const SwapSideBySideTabs(tabIndex: 1),
+                'closePane' => ClosePane((b as CombinedTab).leftTab),
+                _ => RemapBookPaths('/old', '/new'),
+              });
+              await replaced;
+              final expected = latest ? (viewed ? bloc.state.tabs[1] : a) : c;
+              final removed = bloc.stream.firstWhere((s) => s.tabs.length == 2);
+              bloc.add(RemoveTab(closing));
+              await removed;
+              expect(bloc.state.currentTab, same(expected));
+            } finally {
+              await _closeBlocAndAllowDeferredDispose(bloc);
+            }
+          },
+        );
+      }
+    }
+  }
+
+  for (final detach in [false, true]) {
+    for (final viewed in [false, true]) {
+      test('MRU של חלוניות אחרי פירוק: detach=$detach, הוצג=$viewed', () async {
+        await Settings.init(cacheProvider: _MemoryCacheProvider());
+        final a = _createTextTab('A', categoryId: 1);
+        final b = CombinedTab(
+          rightTab: _createTextTab('B right', categoryId: 2),
+          leftTab: _createTextTab('B left', categoryId: 4),
+        );
+        final c = _createTextTab('C', categoryId: 3);
+        final bloc = _newBloc(_FakeTabsRepository());
+        try {
+          for (final tab in [a, b, c]) {
+            final added = bloc.stream.firstWhere((s) => s.tabs.contains(tab));
+            bloc.add(AddTab(tab, inBackground: identical(tab, b) && !viewed));
+            await added;
+          }
+          if (viewed) {
+            final focused = bloc.stream.firstWhere(
+              (s) => identical(s.currentTab, b),
+            );
+            bloc.add(const SetCurrentTab(1));
+            await focused;
+          }
+          final expanded = bloc.stream.firstWhere((s) => s.tabs.length == 4);
+          bloc.add(
+            detach
+                ? DetachPane(b.leftTab, insertIndex: 2)
+                : const ExpandCombinedTab(1),
+          );
+          await expanded;
+          final closing = bloc.state.currentTab!;
+          final expected = viewed ? (detach ? b.rightTab : b.leftTab) : c;
+          final removed = bloc.stream.firstWhere((s) => s.tabs.length == 3);
+          bloc.add(RemoveTab(closing));
+          await removed;
+          expect(bloc.state.currentTab, same(expected));
+        } finally {
+          await _closeBlocAndAllowDeferredDispose(bloc);
+        }
+      });
+    }
+  }
+
+  test('שכפול ברקע אינו יורש את חותמת הצפייה של המקור', () async {
+    await Settings.init(cacheProvider: _MemoryCacheProvider());
+    final bloc = _newBloc(_FakeTabsRepository());
+    final tabs = [
+      for (var i = 0; i < 3; i++) _createTextTab('$i', categoryId: i),
+    ];
+    try {
+      for (final tab in tabs) {
+        final added = bloc.stream.firstWhere((s) => s.tabs.contains(tab));
+        bloc.add(AddTab(tab));
+        await added;
+      }
+      final copy = OpenedTab.from(tabs[1]);
+      final added = bloc.stream.firstWhere((s) => s.tabs.length == 4);
+      bloc.add(AddTab(copy, index: 0, inBackground: true));
+      await added;
+      final removed = bloc.stream.firstWhere((s) => s.tabs.length == 3);
+      bloc.add(RemoveTab(tabs.last));
+      await removed;
+      expect(bloc.state.currentTab, same(tabs[1]));
+    } finally {
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    }
+  });
+
+  test('שולחן משוחזר מתחיל בלי היסטוריית הצפייה של השולחן הקודם', () async {
+    await Settings.init(cacheProvider: _MemoryCacheProvider());
+    final bloc = _newBloc(_FakeTabsRepository());
+    final tabs = [
+      for (var i = 0; i < 3; i++) _createTextTab('$i', categoryId: i),
+    ];
+    try {
+      for (final tab in tabs) {
+        final added = bloc.stream.firstWhere((s) => s.tabs.contains(tab));
+        bloc.add(AddTab(tab));
+        await added;
+      }
+      final restored = [
+        OpenedTab.from(tabs[1]),
+        OpenedTab.from(tabs[0]),
+        OpenedTab.from(tabs[2]),
+      ];
+      final replaced = bloc.stream.firstWhere(
+        (s) => identical(s.currentTab, restored.last),
+      );
+      bloc.add(ReplaceAllTabs(restored, 2));
+      await replaced;
+      final removed = bloc.stream.firstWhere((s) => s.tabs.length == 2);
+      bloc.add(RemoveTab(restored.last));
+      await removed;
+      expect(bloc.state.currentTab, same(restored[1]));
+    } finally {
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    }
+  });
+
   group('TabsBloc side-by-side', () {
     setUp(() async {
       await Settings.init(cacheProvider: _MemoryCacheProvider());

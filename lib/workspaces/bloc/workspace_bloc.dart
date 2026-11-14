@@ -373,8 +373,9 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
 
   Future<void> _onUpdateCurrentWorkspaceTabs(
     UpdateCurrentWorkspaceTabs event,
-    Emitter<WorkspaceState> emit,
-  ) async {
+    Emitter<WorkspaceState> emit, {
+    bool onlyIfUnpinned = false,
+  }) async {
     var updated = false;
     var completed = false;
     try {
@@ -383,7 +384,7 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
 
       final saved = await _repository.mutateWorkspaces(
         (current) => current.map((w) {
-          if (w.id == currentId) {
+          if (w.id == currentId && (!onlyIfUnpinned || !w.isPinned)) {
             updated = true;
             return w.withTabs(
               tabs: event.restoreTabs(),
@@ -504,6 +505,28 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
       if (targetUpdated) {
         await event.onTabsMoved?.call();
         moved = true;
+        if (sourceSaved && event.onTabsMoved != null) {
+          final afterRemoval = event.readCurrentTabs();
+          if (!afterRemoval.tabs.any(selected.contains) &&
+              (!const ListEquality<OpenedTab>().equals(
+                    remaining,
+                    afterRemoval.tabs,
+                  ) ||
+                  activeIndex != afterRemoval.activeTabIndex ||
+                  activePane != afterRemoval.activePane)) {
+            // בזמן הכתיבה המשתמש יכול לשנות את הבחירה; שומרים את תוצאת ההסרה החיה.
+            await _onUpdateCurrentWorkspaceTabs(
+              UpdateCurrentWorkspaceTabs(
+                sourceWorkspaceId: currentId,
+                tabs: afterRemoval.tabs,
+                activeTabIndex: afterRemoval.activeTabIndex,
+                activePane: afterRemoval.activePane,
+              ),
+              emit,
+              onlyIfUnpinned: true,
+            );
+          }
+        }
       } else {
         UiSnack.showError(
           LibraryMessages.workspaceNoLongerExists,

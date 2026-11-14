@@ -63,6 +63,11 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   final Expando<int> _lastViewedAt = Expando<int>();
   int _viewClock = 0;
 
+  void _inheritViewTime(OpenedTab previous, OpenedTab replacement) {
+    final viewedAt = _lastViewedAt[previous];
+    if (viewedAt != null) _lastViewedAt[replacement] = viewedAt;
+  }
+
   /// הכרטיסיות שנסגרו לאחרונה, מהאחרונה שנסגרה ואילך. הרשימה אינה חלק
   /// מה-state, ולכן קוראים אותה בתוך `BlocBuilder` על שינוי הכרטיסיות.
   List<OpenedTab> get recentlyClosedTabs => List<OpenedTab>.unmodifiable(
@@ -416,6 +421,9 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
             (i) => i,
           ).every((i) => identical(remapped[i], state.tabs[i]));
       if (!unchanged) {
+        for (var i = 0; i < remapped.length; i++) {
+          _inheritViewTime(state.tabs[i], remapped[i]);
+        }
         emit(state.copyWith(tabs: remapped));
         // המיפוי חייב להיכתב אחרי הכתיבה שרצה, כי היא נושאת את הנתיבים הישנים.
         await _saveDrain;
@@ -689,6 +697,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     event.newTab.isPinned = event.oldTab.isPinned;
     final newTabs = List<OpenedTab>.from(state.tabs);
     newTabs[index] = event.newTab;
+    _inheritViewTime(event.oldTab, event.newTab);
 
     _emitAndSaveTabs(emit, newTabs);
     _disposeTabLater(event.oldTab);
@@ -1748,6 +1757,9 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
       // החלוניות חוזרות לרשימה בזהותן כדי לשמר את מצב הקריאה.
       final panes = leafPanes(combinedTab);
+      for (final pane in panes) {
+        _inheritViewTime(combinedTab, pane);
+      }
       // ההצמדה עוברת לשתי החלוניות.
       if (combinedTab.isPinned) {
         for (final pane in panes) {
@@ -1803,6 +1815,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       splitRatio: 1.0 - current.splitRatio,
     );
 
+    _inheritViewTime(current, newTabs[tabIndex]);
     _emitAndSaveTabs(emit, newTabs);
   }
 
@@ -1828,6 +1841,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
     final newTabs = List<OpenedTab>.from(state.tabs);
     newTabs[index] = survivor;
+    _inheritViewTime(combined, survivor);
 
     _emitAndSaveTabs(emit, newTabs);
 
@@ -1851,8 +1865,10 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
     final newTabs = List<OpenedTab>.from(state.tabs);
     newTabs[index] = survivor;
+    _inheritViewTime(combined, survivor);
     final insertIndex = event.insertIndex.clamp(0, newTabs.length);
     newTabs.insert(insertIndex, event.pane);
+    _inheritViewTime(combined, event.pane);
 
     // החלונית שנגררה החוצה נשארת מול העיניים, כמו גרירת כרטיסיה בדפדפן.
     _emitAndSaveTabs(emit, newTabs, currentTabIndex: insertIndex);
