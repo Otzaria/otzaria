@@ -90,12 +90,13 @@ typedef FindRefBookRank = ({int? foundationalTier, int eraOrder});
 
 /// הצורה של השאילתה שהדירוג צריך, מחושבת פעם אחת לכל שאילתה.
 class FindRefRankQuery {
-  FindRefRankQuery(this.tokens)
+  FindRefRankQuery(this.tokens, {this.aliasFoundationalTiers = const {}})
     : text = tokens.join(' '),
       matchTokens = tokens.map(bookNameMatchToken).toList(growable: false),
       isDafCitation = queryLooksDafCitation(tokens);
 
   final List<String> tokens;
+  final Set<int> aliasFoundationalTiers;
   final String text;
 
   /// [tokens] ב-[bookNameMatchToken], להשוואה מול כותרות.
@@ -219,13 +220,16 @@ int compareFindRefRelevance(
     return a.directNameMatch ? -1 : 1;
   }
 
-  // בשאילתת מילה אחת, ספר יסוד בכינוי מדויק קודם לספר שרק שמו פותח בה:
-  // "רמב"ם" הוא משנה תורה לפני "רמב"ם על משנה".
+  // כינוי מדויק מקדם את כל קבוצת היסוד, כדי שכינויים חלקיים לא יפצלו אותה.
   if (!query.needsTokenWiseRanking) {
     final aAliasFoundation =
-        a.exactAliasMatch && a.bookRank.foundationalTier != null;
+        a.directNameMatch &&
+        query.aliasFoundationalTiers.contains(a.bookRank.foundationalTier);
     if (aAliasFoundation !=
-        (b.exactAliasMatch && b.bookRank.foundationalTier != null)) {
+        (b.directNameMatch &&
+            query.aliasFoundationalTiers.contains(
+              b.bookRank.foundationalTier,
+            ))) {
       return aAliasFoundation ? -1 : 1;
     }
   }

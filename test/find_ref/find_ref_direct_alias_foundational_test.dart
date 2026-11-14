@@ -34,7 +34,7 @@ FindRefRankKey<String> _key(
 
 void main() {
   // #4496: "רמב"ם" הוא כינוי מדויק גם של משנה תורה וגם של פירוש המשניות.
-  final query = FindRefRankQuery(['רמבם']);
+  final query = FindRefRankQuery(['רמבם'], aliasFoundationalTiers: {9});
   final mishnehTorah = _key(query, 'משנה תורה הלכות שבת', tier: 9, order: 5);
   final onMishnah = _key(query, 'רמבם על משנה ברכות', order: 1);
   final indirectPrefix = _key(
@@ -67,7 +67,15 @@ void main() {
     order: 3,
     alias: false,
   );
+  final withoutAlias = _key(
+    query,
+    'משנה תורה הלכות תפילה',
+    tier: 9,
+    order: 4,
+    alias: false,
+  );
   final keys = [
+    withoutAlias,
     mishnehTorah,
     onMishnah,
     directFoundation,
@@ -86,6 +94,21 @@ void main() {
     );
   });
 
+  test('ספרים באותה קבוצת יסוד נשארים בסדר הספרייה גם בלי כינוי', () {
+    expect(
+      compareFindRefRelevance(withoutAlias, mishnehTorah, query),
+      lessThan(0),
+    );
+    expect(
+      compareFindRefRelevance(mishnehTorah, withoutAlias, query),
+      greaterThan(0),
+    );
+    expect(
+      compareFindRefRelevance(withoutAlias, directFoundation, query),
+      lessThan(0),
+    );
+  });
+
   test('בלי כינוי מדויק התחלת השם עדיין קודמת ליסוד', () {
     expect(
       compareFindRefRelevance(indirectPrefix, indirectFoundation, query),
@@ -94,7 +117,10 @@ void main() {
   });
 
   test('בשאילתה של שתי מילים הכלל אינו חל', () {
-    final twoWords = FindRefRankQuery(['רמבם', 'שבת']);
+    final twoWords = FindRefRankQuery(
+      ['רמבם', 'שבת'],
+      aliasFoundationalTiers: {8},
+    );
     final otherHalacha = _key(
       twoWords,
       'משנה תורה הלכות ברכות',
@@ -131,6 +157,7 @@ void main() {
       final ranked = List.of(input)
         ..sort((x, y) => compareFindRefRank(x, y, query));
       expect(ranked.map((k) => k.item), [
+        withoutAlias.item,
         mishnehTorah.item,
         onMishnah.item,
         directFoundation.item,
@@ -159,5 +186,83 @@ void main() {
         expect(results.first.bookId, 308, reason: query);
       }
     });
+    test('כינויים חלקיים אינם משנים את סדר המשנה או את גבול המכסה', () async {
+      final books = <SeedBook>[
+        for (var i = 0; i < 22; i++)
+          (id: i + 1, title: 'משנה מסכת $i', acronyms: i >= 20 ? ['משנה'] : []),
+      ];
+      seedLibrary(
+        books,
+        categoryPaths: {
+          for (final book in books) book.id: 'משנה, סדר מועד',
+        },
+      );
+      final results = await buildFindRefRepo().findRefs('משנה');
+      expect(results.map((r) => r.bookId), List.generate(20, (i) => i + 1));
+    });
+
+    test('כינויים חלקיים משאירים את מסכתות הירושלמי יחד לפני הביאור', () async {
+      final books = <SeedBook>[
+        (id: 100, title: 'ירושלמי מבואר ומפורש על ברכות', acronyms: []),
+        for (var i = 0; i < 22; i++)
+          (
+            id: i + 1,
+            title: 'תלמוד ירושלמי מסכת $i',
+            acronyms: i >= 20 ? ['ירושלמי'] : [],
+          ),
+      ];
+      seedLibrary(
+        books,
+        categoryPaths: {
+          100: 'תלמוד ירושלמי, מחברי זמננו',
+          for (final book in books.skip(1)) book.id: 'תלמוד ירושלמי, סדר זרעים',
+        },
+      );
+      final results = await buildFindRefRepo().findRefs('ירושלמי');
+      expect(
+        results.take(20).map((r) => r.bookId),
+        List.generate(20, (i) => i + 1),
+      );
+    });
+
+    test(
+      'כינויים חלקיים אינם מקדימים חושן משפט לשאר חלקי שולחן ערוך',
+      () async {
+        seedLibrary(
+          const [
+            (
+              id: 382,
+              title: 'שולחן ערוך, אורח חיים',
+              acronyms: ['שוע אורח חיים'],
+            ),
+            (
+              id: 383,
+              title: 'שולחן ערוך, יורה דעה',
+              acronyms: ['שוע יורה דעה'],
+            ),
+            (
+              id: 384,
+              title: 'שולחן ערוך, אבן העזר',
+              acronyms: ['שוע אבן העזר'],
+            ),
+            (
+              id: 385,
+              title: 'שולחן ערוך, חושן משפט',
+              acronyms: ['שוע', 'שוע חומ'],
+            ),
+          ],
+          categoryPaths: const {
+            382: 'הלכה, שולחן ערוך',
+            383: 'הלכה, שולחן ערוך',
+            384: 'הלכה, שולחן ערוך',
+            385: 'הלכה, שולחן ערוך',
+          },
+        );
+        final results = await buildFindRefRepo().findRefs('שוע');
+        expect(results.map((r) => r.bookId), [382, 383, 384, 385]);
+        final specific = await buildFindRefRepo().findRefs('שוע יורה דעה');
+        expect(specific.first.bookId, 383);
+      },
+    );
   });
 }
