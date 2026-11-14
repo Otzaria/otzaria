@@ -206,7 +206,7 @@ dependency_overrides:
   collection:
     git:
       url: https://github.com/Otzaria/core
-      ref: a87587cca3b208ee26cf0879af506dbae697c799
+      ref: 3d7579e34b5df0b9fa8ed05d43b370475bb2a2a6
       path: pkgs/collection
   # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור flutter/packages#13595–#13600.
   # תיקוני סקירה חייבים להישמר גם בענף המשולב וגם בענפי ה-PRים באפסטרים.
