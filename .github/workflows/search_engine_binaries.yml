@@ -1,0 +1,97 @@
+name: Search Engine Binaries
+
+# The engine's build hook downloads a signed binary published for its crate
+# hash, and compiles the Rust crate from source when there is none. A commit
+# pin without published binaries therefore makes every build, on every machine
+# and CI job, compile the engine. Released versions always have them: the
+# engine's release pipeline verifies the binaries before uploading to pub.dev.
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+    paths:
+      - pubspec.lock
+  push:
+    branches:
+      - main
+      - dev
+    paths:
+      - pubspec.lock
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: search-engine-binaries-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  precompiled:
+    name: pinned search engine has published binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Read the engine pin
+        id: pin
+        run: |
+          set -euo pipefail
+          source=$(yq '.packages.otzaria_search_engine.source' pubspec.lock)
+          case "$source" in
+            hosted)
+              version=$(yq '.packages.otzaria_search_engine.version' pubspec.lock)
+              echo "otzaria_search_engine $version is a released version; its binaries are published."
+              echo "git=false" >> "$GITHUB_OUTPUT"
+              ;;
+            git)
+              url=$(yq '.packages.otzaria_search_engine.description.url' pubspec.lock)
+              ref=$(yq '.packages.otzaria_search_engine.description["resolved-ref"]' pubspec.lock)
+              path=$(yq '.packages.otzaria_search_engine.description.path' pubspec.lock)
+              echo "otzaria_search_engine is pinned to $url @ $ref"
+              {
+                echo "git=true"
+                echo "url=$url"
+                echo "ref=$ref"
+                echo "path=$path"
+              } >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error file=pubspec.lock::otzaria_search_engine has source '$source'. Pin a released version, or a commit whose binaries are published."
+              exit 1
+              ;;
+          esac
+
+      - name: Fetch the pinned engine commit
+        if: steps.pin.outputs.git == 'true'
+        env:
+          URL: ${{ steps.pin.outputs.url }}
+          REF: ${{ steps.pin.outputs.ref }}
+        run: |
+          set -euo pipefail
+          git init -q engine
+          git -C engine fetch -q --depth 1 "$URL" "$REF"
+          git -C engine checkout -q FETCH_HEAD
+
+      - uses: dart-lang/setup-dart@v1
+        if: steps.pin.outputs.git == 'true'
+
+      - name: Verify the published binaries of its crate hash
+        if: steps.pin.outputs.git == 'true'
+        working-directory: engine/${{ steps.pin.outputs.path }}/tool/precompiled_binaries
+        env:
+          URL: ${{ steps.pin.outputs.url }}
+          REF: ${{ steps.pin.outputs.ref }}
+        run: |
+          set -euo pipefail
+          dart pub get
+          hash=$(dart run bin/precompiled_binaries.dart hash)
+          echo "Crate hash: $hash"
+          if ! dart run bin/precompiled_binaries.dart verify; then
+            echo "::error file=pubspec.lock::otzaria_search_engine is pinned to $REF, which has no complete published binaries (crate hash $hash), so every build compiles the engine from source. Pin a released version, or run the precompiled-binaries workflow of $URL on a branch at $REF."
+            exit 1
+          fi
