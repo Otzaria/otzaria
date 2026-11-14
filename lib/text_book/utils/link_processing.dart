@@ -216,8 +216,8 @@ List<Link> retainLinksNearLines(
           : candidate.index2 < current.index2);
 
   final kept = <Link>[];
-  final nearestBefore = <String, Link>{};
-  final nearestAfter = <String, Link>{};
+  final nearestBefore = <(String, String, String), Link>{};
+  final nearestAfter = <(String, String, String), Link>{};
   final anchoredTypes = <String, bool>{};
   for (final link in links) {
     if (link.overlapsSourceLines(first, last) || touchesKeptLine(link)) {
@@ -230,7 +230,7 @@ List<Link> retainLinksNearLines(
         LinkTypes.isVirtualSource(type))) {
       continue;
     }
-    final key = '${link.path2}|$type|${link.targetSource.wireKey}';
+    final key = (link.path2, type, link.targetSource.wireKey);
     final before = link.index1 < first;
     final nearest = before ? nearestBefore : nearestAfter;
     if (closer(link, nearest[key], before: before)) nearest[key] = link;

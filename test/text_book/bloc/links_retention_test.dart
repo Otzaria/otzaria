@@ -129,21 +129,35 @@ void main() {
     );
   });
 
-  test('קישורי שורה נבחרת שורדים טעינת חלון רחוק', () async {
+  test('קישורי שורה נבחרת ונראית שורדים, וגבולות הטווח נשמרים', () async {
     final bloc = await _loadedBloc();
     final selectedLinks = [
       _link(1001, 'רשי.txt', LinkTypes.commentary),
       _link(1001, 'הפניה א.txt', 'reference'),
     ];
-    final farReference = _link(2001, 'הפניה א.txt', 'reference');
-    final seededLinks = [...selectedLinks, farReference];
+    final visibleLink = _link(5001, 'הפניה א.txt', 'reference');
+    // retainLines הוא 0-based; index1 הוא 1-based.
+    final atFirst = _link(3801, 'הפניה א.txt', 'reference');
+    final atLast = _link(4201, 'הפניה א.txt', 'reference');
+    final outside = [
+      _link(2001, 'הפניה א.txt', 'reference'),
+      _link(3800, 'הפניה א.txt', 'reference'),
+      _link(4202, 'הפניה א.txt', 'reference'),
+    ];
+    final seededLinks = [
+      ...selectedLinks,
+      visibleLink,
+      atFirst,
+      atLast,
+      ...outside,
+    ];
     bloc.emit(
       (bloc.state as TextBookLoaded).copyWith(
         links: seededLinks,
         linksByLine: buildLinksByLineMap(seededLinks),
         selectedIndices: {1000},
         selectedIndex: 1000,
-        visibleIndices: const [4000],
+        visibleIndices: const [5000],
       ),
     );
     final incoming = _link(4001, 'הפניה ב.txt', 'reference');
@@ -154,7 +168,37 @@ void main() {
     final links =
         ((await updated.timeout(const Duration(seconds: 10))) as TextBookLoaded)
             .links;
-    expect(links, containsAll(selectedLinks));
-    expect(links, isNot(contains(farReference)));
+    expect(
+      links,
+      containsAll([...selectedLinks, visibleLink, atFirst, atLast]),
+    );
+    for (final link in outside) {
+      expect(links, isNot(contains(link)));
+    }
   });
+
+  test(
+    'טעינת כל הקישורים לפרק (כרטיסיית המפרשים) אינה מפנה פרקים קודמים',
+    () async {
+      final bloc = await _loadedBloc();
+      Future<void> loadAll(int line) async {
+        final loaded = bloc.stream.firstWhere(
+          (s) =>
+              s is TextBookLoaded &&
+              !s.linksLoading &&
+              s.links.any((l) => l.index1 == line + 1),
+        );
+        bloc.add(LoadAllLinksForIndices([line]));
+        await loaded.timeout(const Duration(seconds: 10));
+      }
+
+      await loadAll(2000);
+      await loadAll(5000);
+      final links = (bloc.state as TextBookLoaded).links;
+      expect(
+        links.where((l) => l.index1 == 2001 && l.path2 == 'הפניה א.txt'),
+        isNotEmpty,
+      );
+    },
+  );
 }
