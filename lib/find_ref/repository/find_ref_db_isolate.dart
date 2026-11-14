@@ -717,21 +717,49 @@ List<int> matchAltTocFlatIndex(
   AltTocFlatIndex index,
   List<String> queryTokens, {
   int? maxRefTokens,
+}) => altTocFlatMatchesAll(
+  (variants) => _matchAltTocFlatIndex(
+    index,
+    queryTokens,
+    maxRefTokens: maxRefTokens,
+    variants: variants,
+  ),
+);
+
+List<int> _matchAltTocFlatIndex(
+  AltTocFlatIndex index,
+  List<String> queryTokens, {
+  required int? maxRefTokens,
+  required bool variants,
 }) {
   final dafCitation = parseDafCitationFromDafToken(queryTokens);
   // אחרי "דף" הכתיבים נבדקים מיקומית; "דף" עצמו חייב להופיע בנתיב.
   final required = dafCitation == null
       ? queryTokens.toSet().toList()
       : {...queryTokens.takeWhile((t) => t != 'דף'), 'דף'}.toList();
-  final words = [for (final token in required) AltTocQueryWord(token)];
+  final words = [
+    for (final token in required) AltTocQueryWord(token, variants: variants),
+  ];
   final queryMask = altTocTokenMask(required);
   final hostTitles = maxRefTokens == null;
-  final titleMasks = hostTitles ? index.bookTitleMasks : null;
+  // לכל ספר: ביטי מילות השאילתה ששמו עשוי לספק; null כשאף ספר אינו מספק.
+  final titleMasks = hostTitles
+      ? _titleQueryMasks(
+          index,
+          altTocTokenMask(
+            words.where((w) => w.canComeFromTitle).map((w) => w.text),
+          ),
+        )
+      : null;
   final hostWords = hostTitles
       ? List<Set<String>?>.filled(index.bookCount, null)
       : null;
-  Set<String> hostWordsOf(int book) => hostWords![book] ??=
-      altTocHostTitleWords(queryTokens, index.bookTitleTokensAt(book));
+  Set<String> hostWordsOf(int book) =>
+      hostWords![book] ??= altTocHostTitleWords(
+        queryTokens,
+        index.bookTitleTokensAt(book),
+        variants: variants,
+      );
   final dafNumber = dafCitation == null
       ? null
       : hebrewTokenAlternatives(dafCitation.number);
@@ -805,11 +833,10 @@ List<int> matchAltTocFlatIndex(
   final masks = index.refMasks;
   return [
     for (var i = 0; i < masks.length; i++)
-      if ((titleMasks == null
-                      ? masks[i]
-                      : masks[i] | titleMasks[index.bookSlotOf(i)]) &
-                  queryMask ==
-              queryMask &&
+      if ((masks[i] & queryMask == queryMask ||
+              titleMasks != null &&
+                  (masks[i] | titleMasks[index.bookSlotOf(i)]) & queryMask ==
+                      queryMask) &&
           (maxRefTokens == null || index.refTokenCountOf(i) <= maxRefTokens) &&
           (dafSlots == null || dafMatches(i)) &&
           (textBits == null || coversRequired(i)) &&
@@ -821,9 +848,22 @@ List<int> matchAltTocFlatIndex(
                 maxRefTokens: maxRefTokens,
                 dafCitation: dafCitation,
                 hostTitleWords: hostTitleWordsOf(i),
+                variants: variants,
               )))
         i,
   ];
+}
+
+Int64List? _titleQueryMasks(AltTocFlatIndex index, int wordMask) {
+  if (wordMask == 0) return null;
+  final titles = index.bookTitleMasks;
+  final masks = Int64List(titles.length);
+  var any = false;
+  for (var b = 0; b < titles.length; b++) {
+    masks[b] = titles[b] & wordMask;
+    if (masks[b] != 0) any = true;
+  }
+  return any ? masks : null;
 }
 
 int _bitCount(int bits) {

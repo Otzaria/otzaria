@@ -675,7 +675,7 @@ class AltTocFlatIndexBuild {
       dafTokens: _dafTokens,
       bookStarts: starts,
       bookEntries: bookEntries,
-    );
+    )..bookTitleMasks;
     _textSlots.clear();
     _bookIdByStructure.clear();
     _phase = _AltTocIndexPhase.done;

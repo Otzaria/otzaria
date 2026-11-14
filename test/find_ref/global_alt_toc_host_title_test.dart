@@ -41,8 +41,64 @@ void main() {
       ref,
       tokensOf(query),
       maxRefTokens: maxRefTokens,
-      hostTitleWords: altTocHostTitleWords(tokensOf(query), host),
+      hostTitleWords: altTocHostTitleWords(
+        tokensOf(query),
+        host,
+        variants: true,
+      ),
+      variants: true,
     );
+
+    test('ו/י אחת בפנים המילה, בלי הכפלה — ורק כשהכתיב שבשאילתה לא נמצא', () {
+      expect(AltTocQueryWord('חידושי').matches('חדושי'), isFalse);
+      expect(altTocFlatMatchesAll((v) => v ? [2] : <int>[]), [2]);
+      expect(altTocFlatMatchesAll((v) => v ? [2] : [1]), [1]);
+      expect(
+        AltTocQueryWord('חידושי', variants: true).matches('חדושי'),
+        isTrue,
+      );
+      expect(
+        AltTocQueryWord('חדושי', variants: true).matches('חידושי'),
+        isTrue,
+      );
+      expect(AltTocQueryWord('רן', variants: true).matches('הרן'), isTrue);
+      expect(
+        AltTocQueryWord('דיינים', variants: true).matches('דינים'),
+        isFalse,
+      );
+      expect(
+        AltTocQueryWord('דינים', variants: true).matches('דיינים'),
+        isFalse,
+      );
+    });
+
+    test('מספר עברי אינו מילה שהערך מכסה', () {
+      expect(AltTocQueryWord('קיט').isWord, isFalse);
+      expect(AltTocQueryWord('רמב').isWord, isFalse);
+      expect(AltTocQueryWord('פסחים').isWord, isTrue);
+      expect(AltTocQueryWord('חדושי').isWord, isTrue);
+      final query = tokensOf('פסחים קיט א');
+      expect(
+        altTocFlatMatches(
+          tokensOf('דף קיט. ספר המצות לרמב"ם — לאוין קי"ט'),
+          query,
+          hostTitleWords: altTocHostTitleWords(query, host),
+        ),
+        isFalse,
+      );
+    });
+
+    test('בדירוג רק מילים שאינן בנתיב הערך', () {
+      const title = 'קובץ שיטות קמאי על נדה';
+      expect(
+        altTocSuppliedTitleWords({'נדה'}, title, '$title דף ב. הלכות נדה'),
+        isEmpty,
+      );
+      expect(
+        altTocSuppliedTitleWords({'נדה'}, title, '$title דף ב. רא"ה'),
+        {'נדה'},
+      );
+    });
 
     test('כתיב מלא וה"א שלפני ראשי-תיבות', () {
       expect(matches('חידושי הרן ט:'), isTrue);
@@ -95,13 +151,24 @@ void main() {
         'INSERT INTO book (id, categoryId, sourceId, title, orderIndex, '
         "filePath, fileType) VALUES "
         "(1, 7, 1, 'קובץ שיטות קמאי על בכורות', 1, '/b/1.txt', 'txt'), "
-        "(2, 7, 1, 'קובץ שיטות קמאי על פסחים', 2, '/b/2.txt', 'txt')",
+        "(2, 7, 1, 'קובץ שיטות קמאי על פסחים', 2, '/b/2.txt', 'txt'), "
+        "(3, 7, 1, 'קובץ שיטות קמאי על נדה', 3, '/b/3.txt', 'txt'), "
+        "(4, 7, 1, 'טור יורה דעה', 0, '/b/4.txt', 'txt'), "
+        "(5, 7, 1, 'שולחן ערוך אורח חיים', 0, '/b/5.txt', 'txt'), "
+        "(6, 7, 1, 'שולחן ערוך חושן משפט', 6, '/b/6.txt', 'txt')",
       );
       db.execute(
         'INSERT INTO alt_toc_structure (id, bookId, key) VALUES '
-        "(1, 1, 'Chapters'), (2, 2, 'Chapters')",
+        "(1, 1, 'Chapters'), (2, 2, 'Chapters'), (3, 3, 'Chapters'), "
+        "(4, 4, 'Topics'), (5, 5, 'Topics'), (6, 6, 'Topics')",
       );
       const entries = [
+        (20, 3, null, 0, 'דף ב.'),
+        (21, 3, 20, 1, 'הלכות נדה לרא"ה'),
+        (30, 4, null, 0, 'הלכות נדה'),
+        (40, 5, null, 0, 'הלכות שבת'),
+        (41, 5, 40, 1, 'דינים השייכים לערב שבת'),
+        (50, 6, null, 0, 'הלכות דיינים'),
         // (id, structureId, parentId, level, text)
         (1, 1, null, 0, 'הלוקח עובר חמורו'),
         (2, 1, 1, 1, 'דף ט:'),
@@ -167,6 +234,19 @@ void main() {
         expect(await globalAltToc(query), [pesachim, bechorot]);
       });
     }
+
+    test('"דיינים" אינו "דינים"', () async {
+      expect(await globalAltToc('הלכות דיינים'), [
+        'שולחן ערוך חושן משפט הלכות דיינים',
+      ]);
+    });
+
+    test('שם הספר שגם בנתיב הערך אינו מקדם את הספר המארח', () async {
+      expect(await globalAltToc('הלכות נדה'), [
+        'טור יורה דעה הלכות נדה',
+        'קובץ שיטות קמאי על נדה דף ב. הלכות נדה לרא"ה',
+      ]);
+    });
 
     test('שם הספר המארח לבדו אינו מוסיף ערכים', () async {
       expect(await globalAltToc('הר"ן פסחים'), [bechorot]);

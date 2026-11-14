@@ -65,20 +65,24 @@ void main() {
         final dafCitation = parseDafCitationFromDafToken(q);
         expect(
           matchAltTocFlatIndex(index, q, maxRefTokens: max),
-          [
-            for (var i = 0; i < index.length; i++)
-              if (altTocFlatMatches(
-                index.refTokensOf(i),
-                q,
-                maxRefTokens: max,
-                dafCitation: dafCitation,
-                hostTitleWords: altTocHostTitleWords(
+          altTocFlatMatchesAll(
+            (variants) => [
+              for (var i = 0; i < index.length; i++)
+                if (altTocFlatMatches(
+                  index.refTokensOf(i),
                   q,
-                  tokensOf(index.bookOf(i).title),
-                ),
-              ))
-                i,
-          ],
+                  maxRefTokens: max,
+                  dafCitation: dafCitation,
+                  hostTitleWords: altTocHostTitleWords(
+                    q,
+                    tokensOf(index.bookOf(i).title),
+                    variants: variants,
+                  ),
+                  variants: variants,
+                ))
+                  i,
+            ],
+          ),
           reason: '$q max=$max',
         );
       }

@@ -836,25 +836,29 @@ class FindRefRepository {
 
       final flat = await _getAltTocFlatCache();
       final dafCitation = parseDafCitationFromDafToken(queryTokens);
-      final hostTitleWords = <String, Set<String>>{};
       // מילות ההקשר נדרשות גם כשמספר הדף והעמוד נבדקים מיקומית.
-      final matches = [
-        for (final entry in flat)
-          if (altTocFlatMatches(
-            entry.refTokens,
-            queryTokens,
-            maxRefTokens: maxRefTokens,
-            dafCitation: dafCitation,
-            hostTitleWords: hostTitleWords.putIfAbsent(
-              entry.bookTitle,
-              () => altTocHostTitleWords(
-                queryTokens,
-                _tokenize(_normalizeForMatch(entry.bookTitle)),
+      final matches = altTocFlatMatchesAll((variants) {
+        final hostTitleWords = <String, Set<String>>{};
+        return [
+          for (final entry in flat)
+            if (altTocFlatMatches(
+              entry.refTokens,
+              queryTokens,
+              maxRefTokens: maxRefTokens,
+              dafCitation: dafCitation,
+              hostTitleWords: hostTitleWords.putIfAbsent(
+                entry.bookTitle,
+                () => altTocHostTitleWords(
+                  queryTokens,
+                  _tokenize(_normalizeForMatch(entry.bookTitle)),
+                  variants: variants,
+                ),
               ),
-            ),
-          ))
-            entry,
-      ];
+              variants: variants,
+            ))
+              entry,
+        ];
+      });
       final selected = selectGlobalAltTocMatches(
         matches,
         request: request,
@@ -3440,13 +3444,18 @@ class FindRefRepository {
           categoryTokens: r.isCategoryMatch
               ? _leafCategoryTokens(r.bookId)
               : r.isAltToc && directMatch
-              // כמו ב-selectGlobalAltTocMatches: מילים משם הספר המארח.
-              ? hostTitleWords.putIfAbsent(
-                  r.title,
-                  () => altTocHostTitleWords(
-                    query.tokens,
-                    _tokenize(title.normTitle),
+              // כמו ב-selectGlobalAltTocMatches: מילים שהגיעו משם הספר המארח.
+              ? altTocSuppliedTitleWords(
+                  hostTitleWords.putIfAbsent(
+                    r.title,
+                    () => altTocHostTitleWords(
+                      query.tokens,
+                      _tokenize(title.normTitle),
+                      variants: true,
+                    ),
                   ),
+                  r.title,
+                  r.reference,
                 )
               : const {},
         );
