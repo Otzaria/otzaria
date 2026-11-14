@@ -178,14 +178,14 @@ AcronymsCache / GenerationCache / ReferenceBooksCache / מילונים) עם ס�
 6. לולאת ה-repaint בתצוגת-ספר (הממצא החדש למעלה) — התיקון הזמין ביותר כעת.
 7. קישורי PDF לפי טווח במקום כל הספר (`getLinksForBookRange` קיים; ‏56,807 מופעי Link ל-6 ספרים).
 8. עץ facets ‏lazy (ילדים רק בהרחבה) + לחיצה על קטגוריה כסינון בצד לקוח במקום re-search מלא.
-9. אתחול (חלקי): **איחוד קריאת טבלת הספרים הכפולה — בוצע ✓**. בניית הקטלוג
-   ‏(`database_library_provider.dart:loadBooks`) זורעת את `BooksCache`, וכשהזריעה
-   מקדימה — אין קריאה שנייה. כשה-warmUp מקדים את הקטלוג, השאילתה רצה ב-isolate
-   המשותף (`find_ref_db_isolate.dart`) ולא על ה-main. גם ה-TOC של פתיחת ספר
-   ‏(`sqlite_data_provider.getBookTocFromDb`, "שמור וזכור") עבר לאותו isolate —
-   שתי השאילתות היו ANRים בייצור. **נשאר פתוח:** בניית הקטלוג עצמה
-   (`getAllBooksWithRelations`, ~1.7 שניות-ליבה) עדיין על ה-main isolate;
-   מילון/ראשי-תיבות בטעינה עצלה.
+9. אתחול (חלקי): **איחוד קריאת טבלת הספרים הכפולה — בוצע ✓**. ‏`buildLibraryCatalog`
+   ו-`BooksCache.warmUp` חולקים קריאה אחת בזמן ריצה (`official_catalog_rows.dart:
+   sharedOfficialCatalogRows`, ב-isolate זמני): מי שמקדים מתחיל אותה והשני מצטרף,
+   והקטלוג זורע את `BooksCache`. ה-worker של FindRef אינו קורא עוד את טבלת `book`
+   (הוא נשאר רק כנפילה כשאין נתיב למסד). ה-TOC של פתיחת ספר
+   ‏(`sqlite_data_provider.getBookTocFromDb`, "שמור וזכור") עבר ל-worker של FindRef —
+   שתי השאילתות היו ANRים בייצור. **נשאר פתוח:** בניית עץ הקטלוג משורות שכבר
+   נקראו עדיין על ה-main isolate; מילון/ראשי-תיבות בטעינה עצלה.
 
    **שני מחירים שנוצרו בהעברה, ולא נמדדו:**
    - **תור סדרתי:** ה-worker מעבד בקשות בזו אחר זו (`processingChain`).

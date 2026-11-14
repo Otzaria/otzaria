@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -6,6 +7,8 @@ import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/cache/books_cache.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
+import 'package:otzaria/data/data_providers/db_read_worker.dart';
+import 'package:otzaria/data/data_providers/official_catalog_rows.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
@@ -19,9 +22,9 @@ import 'package:path/path.dart' as path;
 
 import '../test_helpers/memory_cache_provider.dart';
 
-/// שני המסלולים שקוראים את `seforim.db` בפתיחת האפליקציה ובפתיחת ספר:
-/// זריעת `BooksCache` מתוך בניית הקטלוג (שמייתרת קריאה שנייה של טבלת `book`),
-/// והמסלול החלופי דרך ה-isolate. הבדיקות רצות מול DB אמיתי בתיקייה זמנית.
+/// המסלולים שקוראים את `seforim.db` בפתיחת האפליקציה ובפתיחת ספר: בניית
+/// הקטלוג ו-`BooksCache` חולקים קריאה אחת של טבלת `book`, וה-TOC עובר ב-isolate.
+/// הבדיקות רצות מול DB אמיתי בתיקייה זמנית.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -103,36 +106,132 @@ void main() {
     );
   }
 
-  test(
-    'loadBooks זורע את BooksCache — בלי זה טבלת book נקראת פעם שנייה',
-    () async {
-      await insertBook(repo: seforimRepo, title: 'בראשית');
-      await insertBook(
-        repo: seforimRepo,
-        title: 'שמות',
-        categoryTitle: 'נביאים',
-      );
+  Future<void> insertPdfBook(SeforimRepository repo, String title) async {
+    final categoryId = await repo.insertCategory(
+      migration_models.Category(title: 'ספרי PDF'),
+    );
+    final sourceId = await repo.insertSource('test::$title', -1);
+    await repo.insertBook(
+      migration_models.Book(
+        categoryId: categoryId,
+        sourceId: sourceId,
+        title: title,
+        fileType: 'pdf',
+        filePath: '/pdf/$title.pdf',
+      ),
+    );
+  }
 
-      expect(BooksCache.instance.isLoaded, isFalse);
+  /// סופר קריאות של שורות הקטלוג ובקשות ל-FindRef; משוחזר בסוף הבדיקה.
+  ({int Function() catalogReads, int Function() findRefReads}) countReads({
+    void Function()? onCatalogRead,
+  }) {
+    final realReader = officialCatalogReader;
+    final realFallback = BooksCache.fallbackRowsReader;
+    var catalogReads = 0;
+    var findRefReads = 0;
+    officialCatalogReader = (dbPath) {
+      catalogReads++;
+      onCatalogRead?.call();
+      return realReader(dbPath);
+    };
+    BooksCache.fallbackRowsReader = () {
+      findRefReads++;
+      return realFallback();
+    };
+    addTearDown(() {
+      officialCatalogReader = realReader;
+      BooksCache.fallbackRowsReader = realFallback;
+    });
+    return (
+      catalogReads: () => catalogReads,
+      findRefReads: () => findRefReads,
+    );
+  }
 
-      final byCategory = await DatabaseLibraryProvider.instance.loadBooks({});
+  test('בניית הקטלוג לבדה זורעת את BooksCache בכל הספרים', () async {
+    await insertBook(repo: seforimRepo, title: 'בראשית');
+    await insertBook(repo: seforimRepo, title: 'שמות', categoryTitle: 'נביאים');
+    await insertPdfBook(seforimRepo, 'ספר סרוק');
 
-      // אם הקטלוג לא נבנה — הכשל אינו על הזריעה אלא על ההכנה.
-      expect(byCategory, isNotEmpty, reason: 'הקטלוג לא נבנה; בדוק את ההכנה');
-      expect(
-        BooksCache.instance.isLoaded,
-        isTrue,
-        reason: 'loadBooks חייב לזרוע את BooksCache',
-      );
-      expect(
-        BooksCache.instance.books.map((b) => b.title),
-        containsAll(['בראשית', 'שמות']),
-      );
-    },
-  );
+    expect(BooksCache.instance.isLoaded, isFalse);
 
-  test('warmUp טוען את הקאש דרך ה-isolate כשלא קדמה זריעה', () async {
+    final library = await DatabaseLibraryProvider.instance.buildLibraryCatalog(
+      {},
+      libraryPath,
+    );
+
+    expect(
+      library.getAllBooks().map((b) => b.title),
+      containsAll(['בראשית', 'שמות']),
+      reason: 'הקטלוג לא נבנה; בדוק את ההכנה',
+    );
+    expect(
+      BooksCache.instance.isLoaded,
+      isTrue,
+      reason: 'בלי זריעה, ה-warmUp קורא את טבלת book פעם שנייה',
+    );
+    expect(
+      BooksCache.instance.books.map((b) => b.title),
+      containsAll(['בראשית', 'שמות', 'ספר סרוק']),
+    );
+    final pdf = BooksCache.instance.books.singleWhere(
+      (b) => b.title == 'ספר סרוק',
+    );
+    expect(pdf.fileType, 'pdf');
+    expect(pdf.filePath, '/pdf/ספר סרוק.pdf');
+  });
+
+  for (final warmUpFirst in [true, false]) {
+    test(
+      'warmUp במקביל לבניית הקטלוג קורא את טבלת book פעם אחת '
+      '(${warmUpFirst ? 'warmUp' : 'הקטלוג'} ראשון)',
+      () async {
+        await insertBook(repo: seforimRepo, title: 'בראשית');
+        final catalogReadStarted = Completer<void>();
+        final reads = countReads(onCatalogRead: catalogReadStarted.complete);
+        final provider = DatabaseLibraryProvider.instance;
+
+        final Future<void> warmUp;
+        final Future<Object> catalog;
+        if (warmUpFirst) {
+          warmUp = BooksCache.instance.warmUp();
+          catalog = provider.buildLibraryCatalog({}, libraryPath);
+        } else {
+          catalog = provider.buildLibraryCatalog({}, libraryPath);
+          await catalogReadStarted.future;
+          warmUp = BooksCache.instance.warmUp();
+        }
+        await Future.wait([warmUp, catalog]);
+
+        expect(reads.catalogReads(), 1);
+        expect(reads.findRefReads(), 0);
+        expect(BooksCache.instance.isLoaded, isTrue);
+        expect(BooksCache.instance.books.single.title, 'בראשית');
+      },
+    );
+  }
+
+  test('warmUp לבדו (בלי קטלוג) טוען את הקאש', () async {
     await insertBook(repo: seforimRepo, title: 'ויקרא');
+    final reads = countReads();
+
+    await BooksCache.instance.warmUp();
+
+    expect(BooksCache.instance.isLoaded, isTrue);
+    expect(BooksCache.instance.books.single.title, 'ויקרא');
+    expect(BooksCache.instance.books.single.fileType, 'txt');
+    expect(reads.catalogReads(), 1);
+    expect(reads.findRefReads(), 0);
+  });
+
+  test('תור קריאות זמניות מלא: warmUp נופל ל-FindRef ולא נשאר ריק', () async {
+    await insertBook(repo: seforimRepo, title: 'ויקרא');
+    final reads = countReads();
+    final realReader = officialCatalogReader;
+    officialCatalogReader = (_) =>
+        Future.error(const DbReadWorkerBusy('fallback queue capacity'));
+    addTearDown(() => officialCatalogReader = realReader);
     addTearDown(() async {
       (await FindRefDbIsolate.instance()).disposeForTesting();
     });
@@ -141,7 +240,16 @@ void main() {
 
     expect(BooksCache.instance.isLoaded, isTrue);
     expect(BooksCache.instance.books.single.title, 'ויקרא');
-    expect(BooksCache.instance.books.single.fileType, 'txt');
+    expect(reads.findRefReads(), 1);
+  });
+
+  test('clear במהלך הקריאה המשותפת פוסל את הזריעה מהקטלוג', () async {
+    await insertBook(repo: seforimRepo, title: 'בראשית');
+    countReads(onCatalogRead: BooksCache.instance.clear);
+
+    await DatabaseLibraryProvider.instance.buildLibraryCatalog({}, libraryPath);
+
+    expect(BooksCache.instance.isLoaded, isFalse);
   });
 
   test(

@@ -5,7 +5,6 @@ import 'package:otzaria/data/cache/books_cache.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
-import 'package:otzaria/migration/models/book.dart' as db_models;
 import 'package:otzaria/search/utils/foundational_book_classifier.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
@@ -274,17 +273,16 @@ void main() {
   });
 
   test('תוצאת AltToc גלובלית נושאת את סוג הקובץ והנתיב של הספר', () async {
-    BooksCache.instance.seedFromBooks([
-      db_models.Book(
+    BooksCache.instance.setBooksForTesting(const [
+      BookCacheEntry(
         id: 1,
-        categoryId: 7,
-        sourceId: 1,
         title: 'סדר תפילה',
-        order: 1,
         filePath: 'אוצריא/סדר תפילה.docx',
         fileType: 'docx',
+        categoryId: 7,
+        orderIndex: 1,
       ),
-    ], generation: BooksCache.instance.generation);
+    ]);
     addTearDown(BooksCache.instance.clear);
 
     Map<String, dynamic> row(int bookId) => {

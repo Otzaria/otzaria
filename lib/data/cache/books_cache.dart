@@ -1,9 +1,11 @@
 import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/data/data_providers/db_read_worker.dart';
+import 'package:otzaria/data/data_providers/official_catalog_rows.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
-import 'package:otzaria/migration/models/book.dart' as db_models;
+import 'package:otzaria/migration/database/daos/book_dao.dart';
 
 /// Shared in-memory cache for the `book` table.
 ///
@@ -30,7 +32,7 @@ class BooksCache {
 
   bool get isLoaded => _isLoaded;
 
-  /// הדור הנוכחי, לצילום *לפני* קריאת נתונים שתיזרע ל-[seedFromBooks].
+  /// הדור הנוכחי, לצילום *לפני* קריאת נתונים שתיזרע ל-[seedFromRows].
   int get generation => _generation;
 
   /// כל הספרים — תצוגה חיה ולא עותק (נקראת בכל הקלדה); מי שממתין באמצע
@@ -68,8 +70,7 @@ class BooksCache {
     }
 
     try {
-      final rows = await (await FindRefDbIsolate.instance())
-          .getAllLocalBooksSlim();
+      final rows = await _readRows();
       if (myGen != _generation) return; // הופסק על ידי clear()
 
       // בונים למבני ביניים מקומיים — ה-cache החי לא נוגע עד ה-swap בסוף.
@@ -112,44 +113,56 @@ class BooksCache {
     }
   }
 
-  /// זורע את הקאש מרשימת הספרים שכבר נקראה לבניית הקטלוג, כדי שטבלת `book`
-  /// לא תיקרא פעם שנייה. no-op אם הקאש כבר טעון או שטעינה כבר רצה.
-  ///
-  /// [generation] הוא הערך שנקרא מ-[generation] לפני שליפת [books]; אם קרה
-  /// [clear] מאז, הנתונים שייכים לספרייה הקודמת והזריעה נדחית.
-  void seedFromBooks(
-    Iterable<db_models.Book> books, {
+  /// זורע משורות הקטלוג כדי שטבלת `book` לא תיקרא שוב; no-op כשהקאש טעון או בטעינה.
+  /// [generation] נצפה לפני שליפת [rows]: [clear] מאז פוסל את הזריעה.
+  void seedFromRows(
+    Iterable<Map<String, dynamic>> rows, {
     required int generation,
   }) {
     if (generation != _generation) return;
     if (_isLoaded || _loadingFuture != null) return;
     _books.clear();
     _booksById.clear();
-    for (final b in books) {
-      final entry = BookCacheEntry(
-        id: b.id,
-        title: b.title,
-        filePath: b.filePath,
-        fileType: b.fileType ?? 'txt',
-        categoryId: b.categoryId,
-        orderIndex: b.order,
-      );
+    for (final row in rows) {
+      final entry = _entryFromRow(row);
       _books.add(entry);
-      _booksById[b.id] = entry;
+      _booksById[entry.id] = entry;
     }
     _isLoaded = true;
     debugPrint('[BooksCache] Seeded ${_books.length} books from catalog');
   }
 
-  static BookCacheEntry _entryFromRow(Map<String, dynamic> row) =>
-      BookCacheEntry(
-        id: row['id'] as int,
-        title: row['title'] as String,
-        filePath: row['filePath'] as String?,
-        fileType: (row['fileType'] as String?) ?? 'txt',
-        categoryId: row['categoryId'] as int,
-        orderIndex: (row['orderIndex'] as num?)?.toDouble() ?? 999.0,
+  /// שורות הקטלוג נושאות את עמודות הקובץ בשמות נפרדים (ר' [BookDao]).
+  static BookCacheEntry _entryFromRow(
+    Map<String, dynamic> row,
+  ) => BookCacheEntry(
+    id: row['id'] as int,
+    title: row['title'] as String,
+    filePath: (row[BookDao.storedFilePathKey] ?? row['filePath']) as String?,
+    fileType:
+        (row[BookDao.storedFileTypeKey] ?? row['fileType']) as String? ?? 'txt',
+    // הקטלוג מדלג על categoryId חסר; זריקה כאן תפיל את טעינת הספרייה כולה.
+    categoryId: row['categoryId'] as int? ?? 0,
+    orderIndex: (row['orderIndex'] as num?)?.toDouble() ?? 999.0,
+  );
+
+  static Future<List<Map<String, dynamic>>> _readRows() async {
+    try {
+      final catalog = await sharedOfficialCatalogRows(
+        SqliteDataProvider.instance.dbPath,
       );
+      if (catalog != null) return catalog.books;
+    } on DbReadWorkerBusy {
+      // ל-FindRef חיבור קבוע משלו, מחוץ לתור החיבורים הזמניים שהתמלא.
+    }
+    return fallbackRowsReader();
+  }
+
+  /// קורא השורות כשאין נתיב ל-seforim.db (המסד נפתח בלעדיו) או שתור
+  /// הקריאות הזמניות מלא.
+  @visibleForTesting
+  static Future<List<Map<String, dynamic>>> Function() fallbackRowsReader =
+      () async => (await FindRefDbIsolate.instance()).getAllLocalBooksSlim();
 
   void clear() {
     _generation++;

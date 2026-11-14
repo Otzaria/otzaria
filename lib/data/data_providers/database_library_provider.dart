@@ -19,6 +19,7 @@ import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/book_text_reader.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
+import 'package:otzaria/data/data_providers/official_catalog_rows.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/divine_names/models/divine_name_spans.dart';
@@ -164,52 +165,6 @@ String? _existingAttachedFile(
     row['filePath'] as String?,
   );
   return resolved != null && File(resolved).existsSync() ? resolved : null;
-}
-
-/// שורות הקטלוג של seforim.db על חיבור משלו; null כשאין נתיב למסד.
-/// ביטול חייב להתפשט כדי לא לפתוח חיבור ראשי ששוחרר לכתיבה חיצונית.
-Future<CatalogRows?> _officialCatalogInIsolate(String dbPath) async {
-  if (dbPath.isEmpty) return null;
-  return DbReadWorker.runOnFreshIsolate(
-    () => readOfficialCatalogSync(dbPath),
-    requestArguments: {'dbPath': dbPath},
-  );
-}
-
-typedef CatalogRows = ({
-  List<Map<String, dynamic>> books,
-  List<Map<String, dynamic>> categories,
-  Map<int, String> authors,
-});
-
-@visibleForTesting
-CatalogRows readOfficialCatalogSync(String dbPath) {
-  final db = openReadOnlyTarget((
-    path: dbPath,
-    untrusted: false,
-    immutable: false,
-  ));
-  try {
-    return _readCatalogRows(db, DbCapabilities.probe(db));
-  } finally {
-    db.close();
-  }
-}
-
-/// בטרנזקציה אחת, כדי שסנכרון רקע לא ינעל את המסד בין השאילתות.
-CatalogRows _readCatalogRows(
-  sqlite3.Database db,
-  DbCapabilities capabilities,
-) {
-  late final CatalogRows rows;
-  withTransaction(db, () {
-    rows = (
-      books: BookDao.selectBooksMinimal(db, capabilities),
-      categories: CategoryDao.selectCategoryRows(db, capabilities),
-      authors: BookDao.selectBookAuthorsMap(db, capabilities),
-    );
-  });
-  return rows;
 }
 
 Future<AttachedCatalogRows> _readAttachedCatalogInIsolate(
@@ -2759,15 +2714,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     try {
       final hasTalmudBavliDirectory =
           await _bundledTalmudBavliDirectoryExists();
-      // נצפה *לפני* השליפה: clear() שיקרה במהלכה פוסל את הזריעה.
-      final booksCacheGeneration = BooksCache.instance.generation;
       final dbBooks = await _sqliteProvider.repository!.getAllBooks();
-      // אותן שורות שהקאש המשותף צריך — זריעה כאן חוסכת סריקה שנייה של
-      // טבלת `book` (7,300+ ספרים).
-      BooksCache.instance.seedFromBooks(
-        dbBooks,
-        generation: booksCacheGeneration,
-      );
       final categories = await _sqliteProvider.repository!.getAllCategories();
       debugPrint('💾 Database found ${dbBooks.length} books');
 
@@ -3519,13 +3466,20 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
 
     final tQuery = DateTime.now();
 
+    // נצפה *לפני* השליפה: clear() שיקרה במהלכה פוסל את הזריעה.
+    final booksCacheGeneration = BooksCache.instance.generation;
     final catalogRows =
-        await _officialCatalogInIsolate(_sqliteProvider.dbPath) ??
-        _readCatalogRows(
+        await sharedOfficialCatalogRows(_sqliteProvider.dbPath) ??
+        readCatalogRows(
           await repository.database.database,
           await repository.database.capabilities,
         );
     final allDbBooks = catalogRows.books;
+    // לפני הסינון לפי נתיב: הקאש המשותף מחזיק את כל הספרים.
+    BooksCache.instance.seedFromRows(
+      allDbBooks,
+      generation: booksCacheGeneration,
+    );
     var allCatRows = catalogRows.categories;
     final authorsByBookId = catalogRows.authors;
     // מסד בלי קטגוריות: כל ספריו (categoryId = 0) תחת שורש יחיד.
