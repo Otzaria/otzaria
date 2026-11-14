@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:pdfrx/pdfrx.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart';
 import 'package:otzaria/search/utils/find_match_utils.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:otzaria/theme/app_motion.dart';
@@ -14,6 +15,8 @@ typedef PdfOutlineSearchEntry = ({
   int level,
   String normalizedTitle,
 });
+
+typedef _OutlineRow = ({PdfOutlineNode node, int level, bool isExpanded});
 
 /// כל צמתי העץ בסדר התצוגה, עם הכותרת מנורמלת כמו באיתור (בלי ניקוד וגרשיים).
 @visibleForTesting
@@ -93,10 +96,20 @@ PdfOutlineNode? pdfOutlineActiveNode(List<PdfOutlineNode> nodes, int page) {
 
 class _OutlineViewState extends State<OutlineView>
     with AutomaticKeepAliveClientMixin {
+  static const _headerKey = ValueKey('pdf-outline-header');
+
+  // גובה שורה טיפוסי; משמש רק להערכת פס הגלילה לשורות שטרם נמדדו.
+  static const double _estimatedRowExtent = 44;
+
   final TextEditingController searchController = TextEditingController();
 
   final ScrollController _tocScrollController = ScrollController();
-  final Map<PdfOutlineNode, GlobalKey> _tocItemKeys = {};
+  final ListController _listController = ListController();
+  final FocusNode _entryFocusNode = FocusNode(debugLabel: 'PDF outline entry');
+  late final _OutlineFocusPolicy _focusPolicy = _OutlineFocusPolicy(
+    _entryFocusNode,
+    () => widget.isPaneOpen && _rowIndices.containsKey(_activeNode),
+  );
   bool _isManuallyScrolling = false;
   int? _lastScrolledPage;
 
@@ -106,11 +119,18 @@ class _OutlineViewState extends State<OutlineView>
   // מעבר עמוד מחליף רק את הסימון; דגל לכל צומת בונה מחדש שתי שורות ולא את כל העץ.
   final Map<PdfOutlineNode, ValueNotifier<bool>> _selected = {};
   final Map<PdfOutlineNode, bool> _expanded = {};
-  final Map<PdfOutlineNode, ExpansibleController> _controllers = {};
+  int _expandedRevision = 0;
 
   // הסינון רץ בכל הקשה ובכל מעבר עמוד, ולכן הכותרות מנורמלות פעם אחת לעץ.
   List<PdfOutlineNode>? _searchEntriesSource;
   List<PdfOutlineSearchEntry> _searchEntries = const [];
+
+  // השורות הגלויות משתנות רק עם העץ, השאילתה או מצב ההרחבה.
+  List<PdfOutlineNode>? _rowsSource;
+  String? _rowsQuery;
+  int _rowsRevision = -1;
+  List<_OutlineRow> _rows = const [];
+  Map<PdfOutlineNode, int> _rowIndices = Map.identity();
 
   @override
   bool get wantKeepAlive => true;
@@ -148,6 +168,8 @@ class _OutlineViewState extends State<OutlineView>
     for (final notifier in _selected.values) {
       notifier.dispose();
     }
+    _entryFocusNode.dispose();
+    _listController.dispose();
     _tocScrollController.dispose();
     searchController.dispose();
     super.dispose();
@@ -180,8 +202,10 @@ class _OutlineViewState extends State<OutlineView>
     if (targetLevel >= 2) {
       for (final node in path) {
         if (node.children.isNotEmpty && _expanded[node] != true) {
-          setState(() => _expanded[node] = true);
-          _controllers[node]?.expand();
+          setState(() {
+            _expanded[node] = true;
+            _expandedRevision++;
+          });
         }
       }
     }
@@ -233,40 +257,88 @@ class _OutlineViewState extends State<OutlineView>
     SchedulerBinding.instance.ensureVisualUpdate();
     if (activeNode == null) return;
 
-    // נחכה פריים אחד כדי שה-setState יסיים וה-UI יתעדכן
+    // נחכה פריים אחד כדי שהשורות שנפתחו ייכנסו לרשימה.
     SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _isManuallyScrolling) return;
+      if (!mounted || _isManuallyScrolling || !_listController.isAttached) {
+        return;
+      }
+      int? targetIndex() {
+        if (!mounted ||
+            !widget.isPaneOpen ||
+            _isManuallyScrolling ||
+            !identical(widget.outline, outline) ||
+            !identical(_activeNode, activeNode)) {
+          return null;
+        }
+        final rowIndex = _rowIndices[activeNode];
+        // +1: פריט 0 ברשימה הוא הכותרת.
+        return rowIndex == null ? null : rowIndex + 1;
+      }
 
-      final key = _tocItemKeys[activeNode];
-      final itemContext = key?.currentContext;
-      if (itemContext == null) return;
-
-      final itemRenderObject = itemContext.findRenderObject();
-      if (itemRenderObject is! RenderBox) return;
-
-      final scrollableBox =
-          _tocScrollController.position.context.storageContext
-                  .findRenderObject()
-              as RenderBox;
-      final itemOffset = itemRenderObject
-          .localToGlobal(Offset.zero, ancestor: scrollableBox)
-          .dy;
-      final viewportHeight = scrollableBox.size.height;
-      final itemHeight = itemRenderObject.size.height;
-
-      // מיקום היעד המדויק למירוכז
-      final target =
-          _tocScrollController.offset +
-          itemOffset -
-          (viewportHeight / 2) +
-          (itemHeight / 2);
-
-      AppMotion.scrollPosition(
-        _tocScrollController.position,
-        target.clamp(0.0, _tocScrollController.position.maxScrollExtent),
+      final index = targetIndex();
+      if (index == null) return;
+      AppMotion.scroll(
+        context,
         AppTokens.animPanelSlide,
+        animate: (duration) => _listController.animateToItem(
+          index: targetIndex,
+          scrollController: _tocScrollController,
+          alignment: 0.5,
+          duration: (_) => duration,
+          curve: (_) => Curves.easeInOut,
+        ),
+        jump: () => _listController.jumpToItem(
+          index: index,
+          scrollController: _tocScrollController,
+          alignment: 0.5,
+        ),
       );
     });
+  }
+
+  /// השורות הגלויות לפי [_expanded]. בהיעדר הכרעה פתוחים צמתי השורש ושרשרת
+  /// הילד הראשון; בסינון כל התאמה מוצגת עם צאצאיה הפתוחים.
+  List<_OutlineRow> _visibleRows(List<PdfOutlineNode> outline, String query) {
+    if (identical(_rowsSource, outline) &&
+        _rowsQuery == query &&
+        _rowsRevision == _expandedRevision) {
+      return _rows;
+    }
+    final rows = <_OutlineRow>[];
+    void add(PdfOutlineNode node, int level, bool isFirstChild) {
+      final isExpanded = _expanded[node] ?? (level == 0 || isFirstChild);
+      rows.add((node: node, level: level, isExpanded: isExpanded));
+      if (!isExpanded) return;
+      final children = node.children;
+      for (var i = 0; i < children.length; i++) {
+        add(children[i], level + 1, isFirstChild && i == 0);
+      }
+    }
+
+    if (query.isEmpty) {
+      for (var i = 0; i < outline.length; i++) {
+        add(outline[i], 0, i == 0);
+      }
+    } else {
+      if (!identical(_searchEntriesSource, outline)) {
+        _searchEntriesSource = outline;
+        _searchEntries = flattenPdfOutlineForSearch(outline);
+      }
+      for (final entry in filterPdfOutline(_searchEntries, query)) {
+        add(entry.node, entry.level, false);
+      }
+    }
+
+    final indices = Map<PdfOutlineNode, int>.identity();
+    for (var i = 0; i < rows.length; i++) {
+      indices.putIfAbsent(rows[i].node, () => i);
+    }
+    _rowsSource = outline;
+    _rowsQuery = query;
+    _rowsRevision = _expandedRevision;
+    _rows = rows;
+    _rowIndices = indices;
+    return rows;
   }
 
   @override
@@ -302,35 +374,63 @@ class _OutlineViewState extends State<OutlineView>
           }
           return false;
         },
-        child: searchController.text.isEmpty
-            ? _buildOutlineList(outline)
-            : _buildFilteredOutlineList(outline),
+        child: _buildOutlineList(outline, searchController.text),
       ),
     );
   }
 
-  Widget _buildOutlineList(List<PdfOutlineNode> outline) {
+  Widget _buildOutlineList(List<PdfOutlineNode> outline, String query) {
+    final rows = _visibleRows(outline, query);
+    // בסינון צומת עשוי להופיע פעמיים (כהתאמה וכצאצא של התאמה), ולכן בלי מפתח.
+    final keyRows = query.isEmpty;
     return NavTreeFocusGroup(
-      child: SingleChildScrollView(
-        controller: _tocScrollController,
-        padding: kNavTreeListPadding,
-        child: Column(
+      child: FocusTraversalGroup(
+        policy: _focusPolicy,
+        child: Stack(
           children: [
-            NavTreeHeader(
-              title: widget.title ?? '',
-              trailing: const NavPanelSearchToggle(),
-            ),
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: outline.length,
-              itemBuilder: (context, index) => _buildOutlineItem(
-                outline[index],
-                level: 0,
-                isFirstChild: index == 0,
-                isGroupStart: index == 0,
-                isGroupEnd: index == outline.length - 1,
+            FocusTraversalOrder(
+              order: const NumericFocusOrder(-2),
+              child: Focus(
+                focusNode: _entryFocusNode,
+                includeSemantics: false,
+                onFocusChange: _revealFocusedEntry,
+                child: const SizedBox.shrink(),
               ),
+            ),
+            SuperListView.builder(
+              controller: _tocScrollController,
+              listController: _listController,
+              extentEstimation: (_, _) => _estimatedRowExtent,
+              padding: kNavTreeListPadding,
+              itemCount: rows.length + 1,
+              findChildIndexCallback: (key) {
+                if (key == _headerKey) return 0;
+                if (!keyRows || key is! ObjectKey) return null;
+                final index = _rowIndices[key.value];
+                return index == null ? null : index + 1;
+              },
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return KeyedSubtree(
+                    key: _headerKey,
+                    child: NavTreeHeader(
+                      title: widget.title ?? '',
+                      trailing: const NavPanelSearchToggle(),
+                    ),
+                  );
+                }
+                final row = _buildOutlineRow(
+                  rows[index - 1],
+                  isGroupStart: index == 1,
+                  isGroupEnd: index == rows.length,
+                );
+                return keyRows
+                    ? KeyedSubtree(
+                        key: ObjectKey(rows[index - 1].node),
+                        child: row,
+                      )
+                    : row;
+              },
             ),
           ],
         ),
@@ -338,52 +438,48 @@ class _OutlineViewState extends State<OutlineView>
     );
   }
 
-  Widget _buildFilteredOutlineList(List<PdfOutlineNode> outline) {
-    if (!identical(_searchEntriesSource, outline)) {
-      _searchEntriesSource = outline;
-      _searchEntries = flattenPdfOutlineForSearch(outline);
+  void _revealFocusedEntry(bool hasFocus) {
+    if (!hasFocus) return;
+    final node = _activeNode;
+    final outline = widget.outline;
+    final index = _rowIndices[node];
+    if (!widget.isPaneOpen || index == null || !_listController.isAttached) {
+      _entryFocusNode.nextFocus();
+      return;
     }
-    final filteredNodes = filterPdfOutline(
-      _searchEntries,
-      searchController.text,
+    _listController.jumpToItem(
+      index: index + 1,
+      scrollController: _tocScrollController,
+      alignment: 0.5,
     );
-
-    return NavTreeFocusGroup(
-      child: SingleChildScrollView(
-        controller: _tocScrollController,
-        padding: kNavTreeListPadding,
-        child: Column(
-          children: [
-            NavTreeHeader(
-              title: widget.title ?? '',
-              trailing: const NavPanelSearchToggle(),
-            ),
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: filteredNodes.length,
-              itemBuilder: (context, index) => _buildOutlineItem(
-                filteredNodes[index].node,
-                level: filteredNodes[index].level,
-                isGroupStart: index == 0,
-                isGroupEnd: index == filteredNodes.length - 1,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    SchedulerBinding.instance.ensureVisualUpdate();
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_entryFocusNode.hasFocus) return;
+      if (!widget.isPaneOpen || !identical(widget.outline, outline)) {
+        _entryFocusNode.unfocus();
+        return;
+      }
+      if (!identical(_activeNode, node) || _rowIndices[node] != index) {
+        _revealFocusedEntry(true);
+        return;
+      }
+      final target = _focusPolicy.selectedTarget;
+      if (target == null) {
+        _entryFocusNode.nextFocus();
+      } else {
+        target.requestFocus();
+      }
+    });
   }
 
-  Widget _buildOutlineItem(
-    PdfOutlineNode node, {
-    int level = 0,
-    bool isFirstChild = false,
-    bool isGroupStart = false,
-    bool isGroupEnd = false,
+  Widget _buildOutlineRow(
+    _OutlineRow row, {
+    required bool isGroupStart,
+    required bool isGroupEnd,
   }) {
-    final itemKey = _tocItemKeys.putIfAbsent(node, () => GlobalKey());
+    final node = row.node;
     Future<void> navigateToEntry() async {
+      _entryFocusNode.unfocus();
       _isManuallyScrolling = false;
       _lastScrolledPage = null;
       final targetPage = node.dest?.pageNumber;
@@ -405,54 +501,76 @@ class _OutlineViewState extends State<OutlineView>
       () => ValueNotifier(identical(node, _activeNode)),
     );
     final hasChildren = node.children.isNotEmpty;
-    final bool isExpanded = _expanded[node] ?? (level == 0 || isFirstChild);
+    final isExpanded = row.isExpanded;
 
-    final tile = ValueListenableBuilder<bool>(
-      valueListenable: selected,
-      builder: (context, isSelected, _) => NavTreeTile.heading(
-        title: node.title,
-        level: level,
-        isSelected: isSelected,
-        isExpanded: isExpanded,
-        hasChildren: hasChildren,
-        onTap: navigateToEntry,
-        onToggleExpand: hasChildren
-            ? () => setState(() {
-                _expanded[node] = !isExpanded;
-              })
-            : null,
+    return NavTreeGroupCard(
+      isGroupStart: isGroupStart,
+      isGroupEnd: isGroupEnd,
+      child: ValueListenableBuilder<bool>(
+        valueListenable: selected,
+        builder: (context, isSelected, _) => NavTreeTile.heading(
+          title: node.title,
+          level: row.level,
+          isSelected: isSelected,
+          isExpanded: isExpanded,
+          hasChildren: hasChildren,
+          onTap: navigateToEntry,
+          onToggleExpand: hasChildren
+              ? () {
+                  _entryFocusNode.unfocus();
+                  setState(() {
+                    _expanded[node] = !isExpanded;
+                    _expandedRevision++;
+                  });
+                }
+              : null,
+        ),
       ),
     );
+  }
+}
 
-    if (!hasChildren) {
-      return NavTreeGroupCard(
-        isGroupStart: isGroupStart,
-        isGroupEnd: isGroupEnd,
-        child: KeyedSubtree(
-          key: itemKey,
-          child: tile,
-        ),
-      );
-    }
+bool _isSelectedOutlineFocus(FocusNode node) =>
+    node.context?.findAncestorWidgetOfExactType<NavTreeTile>()?.isSelected ==
+    true;
 
-    return Column(
-      key: itemKey,
-      children: [
-        NavTreeGroupCard(
-          isGroupStart: isGroupStart,
-          isGroupEnd: isGroupEnd && !isExpanded,
-          child: tile,
-        ),
-        if (isExpanded)
-          ...node.children.asMap().entries.map(
-            (e) => _buildOutlineItem(
-              e.value,
-              level: level + 1,
-              isFirstChild: isFirstChild && e.key == 0,
-              isGroupEnd: isGroupEnd && e.key == node.children.length - 1,
-            ),
-          ),
-      ],
+class _OutlineFocusPolicy extends OrderedTraversalPolicy {
+  _OutlineFocusPolicy(this.entryNode, this.hasActiveRow);
+
+  final FocusNode entryNode;
+  final bool Function() hasActiveRow;
+
+  FocusNode? get selectedTarget {
+    final targets = super.sortDescendants(
+      entryNode.parent!.traversalDescendants.where(_isSelectedOutlineFocus),
+      entryNode,
     );
+    return targets.isEmpty ? null : targets.first;
+  }
+
+  @override
+  Iterable<FocusNode> sortDescendants(
+    Iterable<FocusNode> descendants,
+    FocusNode currentNode,
+  ) {
+    final nodes = descendants.toList();
+    final needsEntry = hasActiveRow() && !nodes.any(_isSelectedOutlineFocus);
+    return super.sortDescendants(
+      nodes.where(
+        (node) => node != entryNode || needsEntry || node == currentNode,
+      ),
+      currentNode,
+    );
+  }
+
+  @override
+  bool inDirection(FocusNode currentNode, TraversalDirection direction) {
+    // נקודת הכניסה היא יעד Tab בלבד; החיצים ממשיכים בין השורות הגלויות.
+    entryNode.skipTraversal = true;
+    try {
+      return super.inDirection(currentNode, direction);
+    } finally {
+      entryNode.skipTraversal = false;
+    }
   }
 }

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/pdf_book/view/pdf_outlines_screen.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:pdfrx/pdfrx.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart';
 
 class _PageController extends PdfViewerController {
   int page = 1;
@@ -92,12 +93,20 @@ void main() {
     (widget) => widget is NavTreeTile && widget.title == title,
   );
 
+  // הרשימה עצלה, ושורה שיצאה מאזור התצוגה נבנית מחדש כשהיא חוזרת; לכן
+  // משווים לפי כותרת רק שורות שנבנו גם לפני וגם אחרי.
   List<String> rebuiltTitles(WidgetTester tester, List<NavTreeTile> before) {
+    final beforeByTitle = {for (final tile in before) tile.title: tile};
     final after = tiles(tester);
-    expect(after.length, before.length);
+    expect(
+      after.where((tile) => beforeByTitle.containsKey(tile.title)),
+      isNotEmpty,
+    );
     return [
-      for (var i = 0; i < after.length; i++)
-        if (!identical(before[i], after[i])) after[i].title,
+      for (final tile in after)
+        if (beforeByTitle[tile.title] case final old?
+            when !identical(old, tile))
+          tile.title,
     ];
   }
 
@@ -130,7 +139,7 @@ void main() {
     expect(selectedTitle(tester), 'דף 7');
 
     final gesture = await tester.startGesture(
-      tester.getCenter(find.byType(SingleChildScrollView)),
+      tester.getCenter(find.byType(SuperListView)),
     );
     await gesture.moveBy(const Offset(0, -40));
     await tester.pump();
@@ -168,7 +177,8 @@ void main() {
       },
     );
     final before = tiles(tester);
-    expect(before, hasLength(243));
+    // הרשימה עצלה: רק השורות שבתצוגה נבנות.
+    expect(before.length, lessThan(30));
 
     await tester.tap(row('דף 2'));
     await tester.pump();
@@ -194,9 +204,9 @@ void main() {
             controller.showPage(page);
           },
         );
-        final scrollView = find.byType(SingleChildScrollView);
+        final scrollView = find.byType(SuperListView);
         final scrollController = tester
-            .widget<SingleChildScrollView>(scrollView)
+            .widget<SuperListView>(scrollView)
             .controller!;
         final centeredOffset = scrollController.offset;
         expect(centeredOffset, greaterThan(0));
