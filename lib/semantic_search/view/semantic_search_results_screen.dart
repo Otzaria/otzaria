@@ -194,10 +194,7 @@ class _SemanticSearchResultsScreenState
   void _toggleDimension(String facet) {
     final dimensions = FacetHelper.dimensionFacetsOf(_currentFacets);
     if (!dimensions.remove(facet)) dimensions.add(facet);
-    _narrow(
-      FacetHelper.categoryFacetsOf(_currentFacets),
-      dimensions..sort(),
-    );
+    _narrow(FacetHelper.categoryFacetsOf(_currentFacets), dimensions..sort());
   }
 
   /// ספירה לפי קטגוריה של התוצאות שמוצגות כעת.
@@ -443,7 +440,9 @@ class _SemanticSearchResultsScreenState
     String ref,
   ) {
     final plainText = CopyUtils.applyCopyPreferences(
-      text: utils.stripHtmlIfNeeded(snippetHtml),
+      text:
+          SnippetBuilder.annotatedPlainText(snippetHtml) ??
+          utils.stripHtmlIfNeeded(snippetHtml),
       replaceHolyNames: settings.replaceHolyNames,
       holyNameStyle: settings.holyNameStyle,
     );

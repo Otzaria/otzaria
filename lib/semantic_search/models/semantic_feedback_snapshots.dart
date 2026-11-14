@@ -21,7 +21,7 @@ import 'semantic_result_item.dart';
     if (span is! TextSpan) continue;
     final text = span.text ?? '';
     plain.write(text);
-    final isMark = identical(span.style, markStyle);
+    final isMark = span.style?.fontWeight == markStyle.fontWeight;
     if (isMark && inMark) {
       matched.last += text;
     } else if (isMark) {
