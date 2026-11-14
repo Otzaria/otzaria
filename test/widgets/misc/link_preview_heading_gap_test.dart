@@ -329,6 +329,113 @@ void main() {
       }
     });
   });
+
+  group('חלונית הקישור הפנימי חותכת שורות בלי "…" (issue #3709)', () {
+    /// הטקסט שמועתק מ-[lines] כשהן מוצגות כמסמך אחד.
+    Future<String> documentCopy(WidgetTester tester, List<String> lines) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SelectionArea(
+            child: SmartTextWidget(
+              text: lines.join('<br>'),
+              settings: const RenderSettings(),
+            ),
+          ),
+        ),
+      );
+      return copyAll(tester, find.byType(SmartTextWidget));
+    }
+
+    for (final (name, lines) in [
+      ('חמש שורות בלי כותרת', ['אלף', 'בית', 'גימל', 'דלת', 'סוף']),
+      ('כותרת באמצע', _targetLines),
+    ]) {
+      for (final scale in [1.0, 2.0]) {
+        testWidgets('$name (טקסט ×$scale): "…" מוצג ופורש את השורות החתוכות', (
+          tester,
+        ) async {
+          tester.platformDispatcher.textScaleFactorTestValue = scale;
+          addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+          final document = await documentCopy(tester, lines);
+          await showPreview(
+            tester,
+            'חלונית קישור פנימי',
+            rangeLink('more $name $scale', lines),
+          );
+
+          expect(tester.takeException(), isNull);
+          final lastWord = lines.last.split(' ').last;
+          final clip = tester.getRect(
+            find
+                .descendant(
+                  of: find.byType(LinkHoverPreviewContent),
+                  matching: find.byType(ClipRect),
+                )
+                .first,
+          );
+          expect(lineOf(tester, lastWord).bottom, greaterThan(clip.bottom));
+          expect(find.text('…'), findsOneWidget);
+          expect(
+            tester.getRect(find.text('…')).bottom,
+            moreOrLessEquals(clip.bottom, epsilon: 1),
+          );
+          expect(
+            copyAll(tester, find.byType(LinkHoverPreviewContent)),
+            endsWith(document),
+          );
+
+          await tester.tap(find.text('…'));
+          for (var i = 0; i < 5; i++) {
+            await tester.pump(const Duration(milliseconds: 100));
+          }
+          expect(find.text('…'), findsNothing);
+          // התוכן הפרוש נגלל כשהוא גבוה מהחלונית (×2) — גוללים לסופו.
+          final expanded = tester.state<ScrollableState>(
+            find.byType(Scrollable).last,
+          );
+          expanded.position.jumpTo(expanded.position.maxScrollExtent);
+          await tester.pump();
+          final viewport = tester.getRect(find.byType(Scrollable).last);
+          expect(
+            lineOf(tester, lastWord).bottom,
+            lessThanOrEqualTo(viewport.bottom + 0.01),
+          );
+        });
+      }
+    }
+
+    for (final (name, lines) in [
+      ('ארבע שורות בדיוק', ['אלף', 'בית', 'גימל', 'סוף']),
+      ('כותרת ושורה', ['<h2>כותרת</h2>', 'סוף']),
+    ]) {
+      for (final scale in [1.0, 2.0]) {
+        testWidgets('$name (טקסט ×$scale): בלי "…"', (tester) async {
+          tester.platformDispatcher.textScaleFactorTestValue = scale;
+          addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+          await showPreview(
+            tester,
+            'חלונית קישור פנימי',
+            rangeLink('fits $name $scale', lines),
+          );
+
+          expect(tester.takeException(), isNull);
+          expect(find.text('…'), findsNothing);
+          final clip = tester.getRect(
+            find
+                .descendant(
+                  of: find.byType(LinkHoverPreviewContent),
+                  matching: find.byType(ClipRect),
+                )
+                .first,
+          );
+          expect(
+            lineOf(tester, 'סוף').bottom,
+            lessThanOrEqualTo(clip.bottom + 0.01),
+          );
+        });
+      }
+    }
+  });
 }
 
 class _LinesProvider implements LibraryProvider {
