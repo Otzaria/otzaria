@@ -1,3 +1,4 @@
+import 'package:otzaria/find_ref/book_name_match.dart';
 import 'package:otzaria/find_ref/repository/find_ref_ranking.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 
@@ -41,24 +42,109 @@ class AltTocFlatEntry {
   });
 }
 
-/// פילטר גלובלי משותף ל-main ול-worker. [maxRefTokens] מגביל אורך נתיב,
-/// ו-[dafCitation] מ-[parseDafCitationFromDafToken] מחייב התאמה מיקומית.
+/// מילת שאילתה מול טוקני AltToc: כמו בשמות ספרים, גם בכתיב מלא/חסר ובלי ה"א
+/// שלפני ראשי-תיבות ("חידושי הרן" = "חדושי הר"ן"). לא ב-TOC, שם "דיינים" אינו "דינים".
+final class AltTocQueryWord {
+  AltTocQueryWord(this.text) : _form = bookNameMatchToken(text);
+
+  final String text;
+  final String _form;
+
+  /// מילה ולא מספר מיקום — רק היא יכולה לבוא משם הספר המארח.
+  bool get isWord => text.length >= 3;
+
+  bool matches(String token) {
+    if (token == text) return true;
+    if (token.isEmpty || text.isEmpty) return false;
+    if ((token.length - text.length).abs() > 2 || !_sameEnd(token)) {
+      return false;
+    }
+    final form = bookNameMatchToken(token);
+    return form == _form ||
+        (_form.length >= 3 && isBookTitleSpellingVariant(_form, form));
+  }
+
+  /// סינון זול: התוספת היא בפנים המילה, כך שהאות האחרונה זהה (או ם/ן).
+  bool _sameEnd(String token) {
+    final a = token.codeUnitAt(token.length - 1);
+    final b = text.codeUnitAt(text.length - 1);
+    return a == b ||
+        ((a == 0x05DD || a == 0x05DF) && (b == 0x05DD || b == 0x05DF));
+  }
+
+  bool inTokens(List<String> tokens) {
+    for (final token in tokens) {
+      if (matches(token)) return true;
+    }
+    return false;
+  }
+}
+
+/// האם מילים משם הספר המארח ("פסחים" ב"קובץ שיטות קמאי על פסחים") יכולות
+/// להשלים את השאילתה: רק כשהערך עצמו מכסה שתי מילות שאילתה, אחת מהן מילה.
+bool altTocHostTitleMayComplete({
+  required int pathCovered,
+  required bool pathCoversWord,
+}) => pathCovered >= 2 && pathCoversWord;
+
+/// מילות השאילתה ([AltTocQueryWord.isWord]) שבנושא הספר המארח — מה שאחרי "על"
+/// האחרון בשמו, או כל השם — ורק כשהשאילתה קוראת לנושא כולו ("בבא" אינו "בבא קמא").
+Set<String> altTocHostTitleWords(
+  List<String> queryTokens,
+  List<String> titleTokens,
+) {
+  final on = titleTokens.lastIndexOf('על');
+  final subject = on >= 0 && on + 1 < titleTokens.length
+      ? titleTokens.sublist(on + 1)
+      : titleTokens;
+  final words = [for (final token in queryTokens) AltTocQueryWord(token)];
+  final named = <String>{};
+  for (final part in subject) {
+    var found = false;
+    for (final word in words) {
+      if (!word.matches(part)) continue;
+      found = true;
+      if (word.isWord) named.add(word.text);
+    }
+    if (!found) return const {};
+  }
+  return named;
+}
+
+/// פילטר גלובלי משותף ל-main ול-worker. [maxRefTokens] מגביל אורך נתיב (ואז
+/// [hostTitleWords] מ-[altTocHostTitleWords] לא משתתפים), ו-[dafCitation] מחייב
+/// התאמה מיקומית.
 bool altTocFlatMatches(
   List<String> refTokens,
   List<String> queryTokens, {
   int? maxRefTokens,
   DafCitation? dafCitation,
+  Set<String> hostTitleWords = const {},
 }) {
   if (maxRefTokens != null && refTokens.length > maxRefTokens) return false;
   if (dafCitation != null && !nearestDafInPathMatches(refTokens, dafCitation)) {
     return false;
   }
+  final covered = <String>{};
+  var fromTitle = false;
   for (final token in queryTokens) {
     // הסיומת נבדקה מיקומית; כתיבים שקולים של דף/עמוד אינם טוקנים זהים.
     if (dafCitation != null && token == 'דף') break;
-    if (!refTokens.contains(token)) return false;
+    final word = AltTocQueryWord(token);
+    if (word.inTokens(refTokens)) {
+      covered.add(token);
+    } else if (maxRefTokens == null && hostTitleWords.contains(token)) {
+      fromTitle = true;
+    } else {
+      return false;
+    }
   }
-  return true;
+  return !fromTitle ||
+      altTocHostTitleMayComplete(
+        // ה"דף" שנבדק מיקומית הוא מילה שהערך מכסה.
+        pathCovered: covered.length + (dafCitation == null ? 0 : 1),
+        pathCoversWord: covered.any((t) => AltTocQueryWord(t).isWord),
+      );
 }
 
 /// מפתח תוצאה לצמצום ה-fallback הגלובלי; [reference] כפי שהוא מוצג (עם שם הספר).
@@ -324,6 +410,7 @@ class _GlobalAltTocBook<T> {
     required this.rank,
   }) : normTitle = normalizeForFindRefMatch(title) {
     titleMatch = query.titleMatch(normTitle);
+    hostTitleWords = altTocHostTitleWords(query.tokens, normTitle.split(' '));
   }
 
   final int id;
@@ -338,6 +425,9 @@ class _GlobalAltTocBook<T> {
     List<bool> titleWordMatches,
   })
   titleMatch;
+
+  /// כמו ב-`_rankResults`: מילות השאילתה שבשם הספר המארח נחשבות כשם שנקרא.
+  late final Set<String> hostTitleWords;
 
   /// שורות הספר אחרי הצמצום, בסדר הדירוג; מחושבות רק כשהגיעו לספר.
   _BookRows<T>? rows;
@@ -362,6 +452,7 @@ class _GlobalAltTocBook<T> {
     reference: reference,
     segment: segment,
     bookId: id,
+    categoryTokens: hostTitleWords,
   );
 }
 

@@ -5,9 +5,23 @@ part of 'seforim_repository.dart';
 int altTocTokenMask(Iterable<String> tokens) {
   var mask = 0;
   for (final token in tokens) {
-    mask |= 1 << (token.hashCode & 63);
+    mask |= 1 << (_skeletonHash(token) & 63);
   }
   return mask;
+}
+
+/// ה-hash בלי ו/י, בלי ה פותחת ובלי הבדל ם/ן — כך גם כתיב מלא/חסר וה"א שלפני
+/// ראשי-תיבות (השוואת המילים באיתור) נושאים אותו ביט.
+int _skeletonHash(String token) {
+  var hash = 0x811c9dc5;
+  final start = token.isNotEmpty && token.codeUnitAt(0) == 0x05D4 ? 1 : 0;
+  for (var i = start; i < token.length; i++) {
+    var c = token.codeUnitAt(i);
+    if (c == 0x05D5 || c == 0x05D9) continue;
+    if (c == 0x05DF) c = 0x05DD;
+    hash = ((hash ^ c) * 0x01000193) & 0xffffffff;
+  }
+  return hash ^ (hash >> 15);
 }
 
 /// כל ערכי ה-AltToc בספרייה, בסדר `alt_toc_entry.id`, במערכים טיפוסיים:
@@ -81,6 +95,26 @@ final class AltTocFlatIndex {
   int get length => _ids.length;
 
   AltTocBook bookOf(int i) => _books[_bookOf[i]];
+
+  int get bookCount => _books.length;
+
+  /// מיקום הספר של הערך ב-[bookTitleTokensAt] וב-[bookTitleMasks].
+  int bookSlotOf(int i) => _bookOf[i];
+
+  /// טוקני שם הספר המנורמל, לכל ספר.
+  List<String> bookTitleTokensAt(int slot) => _bookTitleTokens[slot];
+
+  late final List<List<String>> _bookTitleTokens = [
+    for (final book in _books)
+      normalizeForFindRefMatch(
+        book.title,
+      ).split(' ').where((t) => t.isNotEmpty).toList(growable: false),
+  ];
+
+  /// [altTocTokenMask] של [bookTitleTokensAt] לכל ספר.
+  late final Int64List bookTitleMasks = Int64List.fromList([
+    for (final tokens in _bookTitleTokens) altTocTokenMask(tokens),
+  ]);
 
   /// מיקום ההורה, או -1.
   int parentOf(int i) => _parents[i];

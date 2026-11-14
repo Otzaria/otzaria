@@ -836,6 +836,7 @@ class FindRefRepository {
 
       final flat = await _getAltTocFlatCache();
       final dafCitation = parseDafCitationFromDafToken(queryTokens);
+      final hostTitleWords = <String, Set<String>>{};
       // מילות ההקשר נדרשות גם כשמספר הדף והעמוד נבדקים מיקומית.
       final matches = [
         for (final entry in flat)
@@ -844,6 +845,13 @@ class FindRefRepository {
             queryTokens,
             maxRefTokens: maxRefTokens,
             dafCitation: dafCitation,
+            hostTitleWords: hostTitleWords.putIfAbsent(
+              entry.bookTitle,
+              () => altTocHostTitleWords(
+                queryTokens,
+                _tokenize(_normalizeForMatch(entry.bookTitle)),
+              ),
+            ),
           ))
             entry,
       ];
@@ -3345,6 +3353,7 @@ class FindRefRepository {
           String,
           ({bool exactMatch, bool startsWithMatch, List<bool> titleWordMatches})
         >{};
+    final hostTitleWords = <String, Set<String>>{};
     final decorated = List<FindRefRankKey<DbReferenceResult>>.generate(
       results.length,
       (i) {
@@ -3430,6 +3439,15 @@ class FindRefRepository {
           bookId: r.bookId,
           categoryTokens: r.isCategoryMatch
               ? _leafCategoryTokens(r.bookId)
+              : r.isAltToc && directMatch
+              // כמו ב-selectGlobalAltTocMatches: מילים משם הספר המארח.
+              ? hostTitleWords.putIfAbsent(
+                  r.title,
+                  () => altTocHostTitleWords(
+                    query.tokens,
+                    _tokenize(title.normTitle),
+                  ),
+                )
               : const {},
         );
       },

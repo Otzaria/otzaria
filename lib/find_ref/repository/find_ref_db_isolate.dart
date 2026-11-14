@@ -723,7 +723,15 @@ List<int> matchAltTocFlatIndex(
   final required = dafCitation == null
       ? queryTokens.toSet().toList()
       : {...queryTokens.takeWhile((t) => t != 'דף'), 'דף'}.toList();
+  final words = [for (final token in required) AltTocQueryWord(token)];
   final queryMask = altTocTokenMask(required);
+  final hostTitles = maxRefTokens == null;
+  final titleMasks = hostTitles ? index.bookTitleMasks : null;
+  final hostWords = hostTitles
+      ? List<Set<String>?>.filled(index.bookCount, null)
+      : null;
+  Set<String> hostWordsOf(int book) => hostWords![book] ??=
+      altTocHostTitleWords(queryTokens, index.bookTitleTokensAt(book));
   final dafNumber = dafCitation == null
       ? null
       : hebrewTokenAlternatives(dafCitation.number);
@@ -739,20 +747,39 @@ List<int> matchAltTocFlatIndex(
   }
 
   // לכל טקסט (בעצלתיים): אילו מהטוקנים הנדרשים מופיעים בו. ערך מתאים רק
-  // כשהשרשרת שלו מכסה את כולם.
+  // כשהשרשרת שלו מכסה את כולם, או את השאר משם הספר המארח.
   final textBits = required.length > 30
       ? null
       : (Int32List(index.textCount)..fillRange(0, index.textCount, -1));
   final allBits = (1 << required.length) - 1;
+  var wordBits = 0;
+  for (var k = 0; k < words.length; k++) {
+    if (words[k].isWord) wordBits |= 1 << k;
+  }
+
   int bitsOf(int slot) {
     final known = textBits![slot];
     if (known >= 0) return known;
     final tokens = index.textTokensAt(slot);
     var bits = 0;
-    for (var k = 0; k < required.length; k++) {
-      if (tokens.contains(required[k])) bits |= 1 << k;
+    for (var k = 0; k < words.length; k++) {
+      if (words[k].inTokens(tokens)) bits |= 1 << k;
     }
     return textBits[slot] = bits;
+  }
+
+  final titleBits = hostTitles && textBits != null
+      ? (Int32List(index.bookCount)..fillRange(0, index.bookCount, -1))
+      : null;
+  int titleBitsOf(int book) {
+    final known = titleBits![book];
+    if (known >= 0) return known;
+    final named = hostWordsOf(book);
+    var bits = 0;
+    for (var k = 0; k < required.length; k++) {
+      if (named.contains(required[k])) bits |= 1 << k;
+    }
+    return titleBits[book] = bits;
   }
 
   bool coversRequired(int i) {
@@ -760,13 +787,29 @@ List<int> matchAltTocFlatIndex(
     for (var j = i; j >= 0; j = index.parentOf(j)) {
       bits |= bitsOf(index.textSlotOf(j));
     }
-    return bits == allBits;
+    if (bits == allBits) return true;
+    if (titleBits == null ||
+        !altTocHostTitleMayComplete(
+          pathCovered: _bitCount(bits),
+          pathCoversWord: bits & wordBits != 0,
+        )) {
+      return false;
+    }
+    final missing = allBits & ~bits;
+    return titleBitsOf(index.bookSlotOf(i)) & missing == missing;
   }
+
+  Set<String> hostTitleWordsOf(int i) =>
+      hostTitles ? hostWordsOf(index.bookSlotOf(i)) : const {};
 
   final masks = index.refMasks;
   return [
     for (var i = 0; i < masks.length; i++)
-      if (masks[i] & queryMask == queryMask &&
+      if ((titleMasks == null
+                      ? masks[i]
+                      : masks[i] | titleMasks[index.bookSlotOf(i)]) &
+                  queryMask ==
+              queryMask &&
           (maxRefTokens == null || index.refTokenCountOf(i) <= maxRefTokens) &&
           (dafSlots == null || dafMatches(i)) &&
           (textBits == null || coversRequired(i)) &&
@@ -777,9 +820,18 @@ List<int> matchAltTocFlatIndex(
                 queryTokens,
                 maxRefTokens: maxRefTokens,
                 dafCitation: dafCitation,
+                hostTitleWords: hostTitleWordsOf(i),
               )))
         i,
   ];
+}
+
+int _bitCount(int bits) {
+  var count = 0;
+  for (var b = bits; b != 0; b &= b - 1) {
+    count++;
+  }
+  return count;
 }
 
 /// [qualifyAltTocReference] של [AltTocFlatIndex.referenceOf] בשרשור אחד

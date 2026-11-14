@@ -37,6 +37,13 @@ void main() {
     ['ספר', 'א', 'סימן'],
     ['ג'],
     ['אין', 'כזה'],
+    // כתיב מלא, ומילים משם הספר המארח.
+    ['הילכות', 'שבת'],
+    ['סעיף', 'א', 'שבת'],
+    ['סעיף', 'שבת'],
+    ['פרק', 'דף', 'יב', 'ספר', 'א'],
+    ['סימנ', 'חמש', 'ספר'],
+    ['סימן', 'חמש', 'ספר', 'חמש'],
   ];
 
   void expectConsistent(AltTocFlatIndex index) {
@@ -65,6 +72,10 @@ void main() {
                 q,
                 maxRefTokens: max,
                 dafCitation: dafCitation,
+                hostTitleWords: altTocHostTitleWords(
+                  q,
+                  tokensOf(index.bookOf(i).title),
+                ),
               ))
                 i,
           ],
@@ -203,6 +214,19 @@ void main() {
       expect(index.segmentOf(byId['פרק ב דף יב']!), 0);
       expect(index.dafNumberOf(byId['פרק א דף יב.']!), 'יב');
       expect(index.dafNumberOf(byId['פרק א דף']!), isNull);
+
+      List<String> matched(List<String> query) => [
+        for (final i in matchAltTocFlatIndex(index, query))
+          index.referenceOf(i),
+      ];
+      expect(matched(['הילכות', 'שבת']), ['הלכות שבת']);
+      // "שבת" משם הספר, כשהערך עצמו מכסה שתי מילים.
+      expect(matched(['סעיף', 'א', 'שבת']), ['דף ג סעיף א']);
+      expect(matched(['סעיף', 'שבת']), isEmpty);
+      expect(
+        matchAltTocFlatIndex(index, ['סעיף', 'א', 'שבת'], maxRefTokens: 9),
+        isEmpty,
+      );
     });
 
     test('חיפוש קומפקטי שומר סדר אחרי פינוי LRU וביטול חיצוני', () async {
