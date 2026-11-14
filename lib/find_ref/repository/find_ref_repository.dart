@@ -1309,6 +1309,18 @@ class FindRefRepository {
         }
       }
 
+      // מילה קטועה נדחית מפני ספר שהשאילתה מזהה במילים שלמות ("רמב"ם נזיר"
+      // הוא כינוי מדויק של "רמב"ם על משנה נזיר", ולא קטיעה של "נזירות").
+      if (hits.any(
+        (h) =>
+            h.matchRank == 3 ||
+            (h.matchRank == 4 &&
+                h.acronymTailIsTitleWords &&
+                !h.acronymLastWordTruncated),
+      )) {
+        joinablePrefixHits.removeWhere((h) => h.acronymLastWordTruncated);
+      }
+
       if (primaryHits.isNotEmpty) {
         bookHits = [...primaryHits, ...joinablePrefixHits];
         bookQueryTokenCount = n;
@@ -1374,7 +1386,11 @@ class FindRefRepository {
         final titleWords = hit.titleMatchTokens.map(bookNameMatchToken).toSet();
         bookMatchRanks[key] = (
           rank: previous == null || rank < previous.rank ? rank : previous.rank,
-          exactAlias: hit.matchesExactAlias || (previous?.exactAlias ?? false),
+          // קטיעה ששרדה את [_detectBooks] מזהה את הספר כמו כינוי מלא (#5077).
+          exactAlias:
+              hit.matchesExactAlias ||
+              (hit.matchRank == 4 && hit.acronymLastWordTruncated) ||
+              (previous?.exactAlias ?? false),
           wholeName:
               hit.namesBookExactly ||
               (hit.matchRank == 4 && hit.acronymTailIsTitleWords) ||

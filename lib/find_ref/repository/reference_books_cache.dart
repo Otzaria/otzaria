@@ -18,6 +18,7 @@ import 'package:otzaria/migration/models/category.dart' as db_models;
 import 'package:otzaria/migration/models/pdf_outline_cache_entry.dart';
 import 'package:otzaria/pdf_book/utils/pdf_viewer_activity.dart';
 import 'package:otzaria/services/commentary_service.dart';
+import 'package:otzaria/utils/text/ref_key.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:pdfrx/pdfrx.dart';
 
@@ -718,6 +719,26 @@ class ReferenceBooksCache {
     return aTokens.skip(qTokens.length).every(titleTokens.contains);
   }
 
+  /// האם [q] הוא [acronym] שמילתו האחרונה נקטעה ("רשבא עירו" ל"רשבא עירובין"),
+  /// וכל ההמשך מילות כותרת כמו ב-[_acronymTailIsTitleWords]. מספר עברי אינו קטוע.
+  static bool _acronymCompletesLastWord(
+    String acronym,
+    String q,
+    Set<String> titleTokens,
+  ) {
+    final qTokens = q.split(' ');
+    final aTokens = acronym.split(' ');
+    final n = qTokens.length;
+    if (n < 2 || aTokens.length < n) return false;
+    final last = qTokens.last;
+    if (last.length < 2 || isHebrewNumeral(last)) return false;
+    for (var i = 0; i < n - 1; i++) {
+      if (aTokens[i] != qTokens[i]) return false;
+    }
+    return aTokens[n - 1].startsWith(last) &&
+        aTokens.skip(n).every(titleTokens.contains);
+  }
+
   /// דירוג ההתאמה המקורבת — מתחת לכל ההתאמות המילוליות (0–5).
   /// חשוף כי `findRefs` צריך להבחין בו: התאמה מקורבת מצטרפת כמשנית בלבד.
   static const int fuzzyMatchRank = 6;
@@ -1188,6 +1209,7 @@ class BookTitleIndex {
     int? matchRank;
     String? matchedTerm;
     var tailIsTitleWords = false;
+    var lastWordTruncated = false;
     var exactAlias = false;
     var mask = 0;
 
@@ -1233,19 +1255,31 @@ class BookTitleIndex {
               _splitTitleTokens(mt),
             );
             // הכותרת בצורת ההשוואה, ולכן גם הזנב — ה"א שבכינוי אינה מבדילה כאן.
-            final tailIsTitle = ReferenceBooksCache._acronymTailIsTitleWords(
-              bookNameMatchForm(ma),
-              bookNameMatchForm(aq),
+            final acronymForm = bookNameMatchForm(ma);
+            final queryForm = bookNameMatchForm(aq);
+            final wholeWordsTail = ReferenceBooksCache._acronymTailIsTitleWords(
+              acronymForm,
+              queryForm,
               titleTokens,
             );
+            final truncated =
+                !wholeWordsTail &&
+                ReferenceBooksCache._acronymCompletesLastWord(
+                  acronymForm,
+                  queryForm,
+                  titleTokens,
+                );
+            final tailIsTitle = wholeWordsTail || truncated;
             // דירוג טוב יותר גובר על קודמיו — אחרת מונח "contains" (5) שנסרק
             // קודם היה מקבע 5 ומונע מהתאמת-התחילית הזו לדרג 4.
             if (matchRank == null ||
                 matchRank > 4 ||
-                (tailIsTitle && !tailIsTitleWords)) {
+                (tailIsTitle && !tailIsTitleWords) ||
+                (wholeWordsTail && lastWordTruncated)) {
               matchRank = 4;
               matchedTerm = a;
               tailIsTitleWords = tailIsTitle;
+              lastWordTruncated = truncated;
             }
           } else if (matchRank == null &&
               (ma.contains(queries[0]) ||
@@ -1296,6 +1330,7 @@ class BookTitleIndex {
         matchedTerm: matchedTerm,
         orderIndex: book.orderIndex,
         acronymTailIsTitleWords: tailIsTitleWords,
+        acronymLastWordTruncated: lastWordTruncated,
         isExactAlias: exactAlias,
         isWholeTitlePrefix: matchRank == 1 && mt.startsWith('$q '),
         spellingVariantTitleIndex: spellingVariantTitleIndex,
@@ -1470,7 +1505,11 @@ class ReferenceBookHit {
   /// שאר מילות ראש-התיבות כולן מילים מכותרת הספר. אם כן — השאילתה מזהה את
   /// הספר במלואו ("רמב"ם תפילה" ⊂ "רמב"ם תפילה וברכת כהנים"); אם לא — ההמשך
   /// הוא כותרת פנימית ("טור חושן" ⊂ "טור חושן משפט", ו"משפט" אינה בכותרת "טור").
+  /// כך גם כשרק המילה האחרונה של הכינוי נקטעה — ראו [acronymLastWordTruncated].
   final bool acronymTailIsTitleWords;
+
+  /// [acronymTailIsTitleWords] נובע מהשלמת מילה אחרונה קטועה ("רשב"א עירו").
+  final bool acronymLastWordTruncated;
 
   /// השאילתה היא גם כינוי מדויק של ספר שהותאם לפי כותרתו ("זהר" ל"ספר הזהר").
   final bool isExactAlias;
@@ -1507,6 +1546,7 @@ class ReferenceBookHit {
     required this.orderIndex,
     this.matchedTerm,
     this.acronymTailIsTitleWords = false,
+    this.acronymLastWordTruncated = false,
     this.isExactAlias = false,
     this.isWholeTitlePrefix = false,
     this.spellingVariantTitleIndex,
