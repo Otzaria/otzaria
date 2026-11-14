@@ -182,6 +182,41 @@ Future<void> main() async {
       skip: !engineReady,
     );
 
+    testWidgets(
+      'טעינה ישנה שמסתיימת אחרי החדשה אינה מבטלת את החיפוש הפעיל',
+      (tester) async {
+        addTearDown(resetSectionSearchWorkerForTesting);
+        // ספר גדול מגודל ה-chunk, כדי שהסריקה תיעצר להודעה שמגיעה אחריה.
+        final book = List.generate(50000, (i) => i == 40000 ? 'אברהם' : 'שורה');
+        final loaders = <Completer<List<String>>>[];
+        final harness = await pumpSearchView(
+          tester,
+          useSearchWorker: true,
+          contentLoader: () {
+            final completer = Completer<List<String>>();
+            loaders.add(completer);
+            return completer.future;
+          },
+        );
+
+        await harness.search('שורה');
+        await harness.settle();
+        await harness.setVisible(false);
+        await harness.setVisible(true);
+        await harness.search('אברהם');
+        await harness.settle();
+        expect(loaders, hasLength(2));
+
+        loaders.last.complete(book);
+        loaders.first.complete(book);
+        await tester.pump();
+        await harness.settle();
+
+        expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
+      },
+      skip: !engineReady,
+    );
+
     testWidgets('שהייה ברקע בלי חיפוש חדש אינה טוענת את הספר', (tester) async {
       var loadCount = 0;
       final harness = await pumpSearchView(

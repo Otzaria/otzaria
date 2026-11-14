@@ -453,13 +453,15 @@ class _SearchWorkerHost {
     required String query,
     required String patternSource,
     ({int start, int? end})? range,
+    bool Function()? isCurrent,
   }) async {
     await _ensureStarted();
 
     List<String>? content;
     if (!identical(contentKey, _lastSentKey)) {
       content = await loadContent();
-      if (content.isEmpty) {
+      // בקשה שהתיישנה בזמן הטעינה אינה נשלחת, כי ב-worker היא מבטלת את החדשה.
+      if (content.isEmpty || isCurrent?.call() == false) {
         return (results: const <TextSearchResult>[], truncated: false);
       }
     }
@@ -941,6 +943,7 @@ Future<List<TextSearchResult>> searchInBookContent({
   ({int start, int? end})? range,
   @visibleForTesting String? patternSource,
   ValueChanged<bool>? onTruncated,
+  bool Function()? isCurrent,
 }) async {
   final source =
       patternSource ?? buildLiteralPattern(query, wholeWord: wholeWord)?.source;
@@ -952,6 +955,7 @@ Future<List<TextSearchResult>> searchInBookContent({
     query: query,
     patternSource: source,
     range: range,
+    isCurrent: isCurrent,
   );
   onTruncated?.call(outcome.truncated);
   return outcome.results;

@@ -463,6 +463,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
             ? null
             : (start: section.start, end: section.end),
         onTruncated: (t) => truncated = t,
+        isCurrent: () => mounted && requestId == _activeSearchRequestId,
       );
     } catch (e) {
       debugPrint('החיפוש בספר נכשל: $e');

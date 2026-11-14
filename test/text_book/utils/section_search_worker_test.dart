@@ -485,6 +485,20 @@ void main() {
       expect(response['requestId'], 1);
     });
 
+    test('contentId לא מוכר אינו מחפש בספר אחר שבמטמון', () async {
+      final harness = _RuntimeHarness();
+      addTearDown(harness.dispose);
+      await harness.search(
+        requestId: 1,
+        contentId: 1,
+        content: const ['אור בספר הראשון'],
+      );
+
+      final response = await harness.search(requestId: 2, contentId: 2);
+
+      expect(response['type'], 'error');
+    });
+
     test('בניית cache נפסקת כשמגיע תוכן אחר באמצע ועדיין מעבדת אותו', () async {
       final harness = _RuntimeHarness();
       addTearDown(harness.dispose);
