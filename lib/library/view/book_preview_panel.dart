@@ -146,9 +146,10 @@ TextBookTab buildPreviewTextTab({
   SearchMode searchMode = SearchMode.exact,
   int searchDistance = 0,
   SearchMatchPolicy matchPolicy = SearchMatchPolicy.standard,
+  @visibleForTesting TextBookBloc? blocOverride,
 }) {
   final hasTarget = targetIndex != null;
-  return TextBookTab(
+  final tab = TextBookTab(
     book: book,
     index: targetIndex ?? 0,
     searchText: hasTarget ? (searchText ?? '') : '',
@@ -166,7 +167,13 @@ TextBookTab buildPreviewTextTab({
         : null,
     openLeftPane: false,
     splitedView: Settings.getValue<bool>('key-splited-view') ?? true,
+    // ignore: invalid_use_of_visible_for_testing_member
+    blocOverride: blocOverride,
   );
+  // התצוגה המקדימה טוענת רק סביב המיקום הנראה: חימום היה טוען את כל הספר
+  // ומחזיק אותו בזיכרון גם כשהתצוגה מוסתרת. נשלח לפני LoadContent.
+  tab.bloc.add(const SetTabVisibility(true, allowBackgroundWarming: false));
+  return tab;
 }
 
 class _BookPreviewPanelState extends State<BookPreviewPanel> {
