@@ -2537,13 +2537,38 @@ typedef DafCitation = ({String number, String? amud});
 /// בשו"ת היחידה שמצוטטת "סימן" נקראת בתוכן העניינים לעתים "שאלה"/"תשובה".
 const List<String> responsaUnitWords = ['שאלה', 'תשובה'];
 
-/// "סימן" או קיצורו "סי'" — ראו [responsaUnitWords].
-bool isStructureWord(String token) => token == 'סימן' || token == 'סי';
+/// שמות שונים לאותה רמה ממוספרת ("כלל לה" מול "שער לה", ס"ק מול "סעיף").
+/// "פרק", "משנה" ו"סימן" אינם כאן: בספרים רבים יש תחתם רמה ממוספרת נוספת.
+const List<Set<String>> _structureWordGroups = [
+  {'שער', 'כלל', 'מאמר'},
+  {'סעיף', 'סק'},
+  {'הלכה', 'דין', 'אות', 'פסקה'},
+];
+
+bool _isSiman(String token) => token == 'סימן' || token == 'סי';
+
+/// מילת מבנה שיש לה שם חלופי בתוכן העניינים — ראו [matchesOtherStructureWord].
+bool isStructureWord(String token) =>
+    _isSiman(token) || _structureWordGroups.any((g) => g.contains(token));
+
+/// האם כותרת הערך [ownTokens] נקראת בשם חלופי של מילת המבנה [token].
+/// ל"סימן" החלופות הן [responsaUnitWords].
+bool matchesOtherStructureWord(String token, List<String> ownTokens) {
+  if (_isSiman(token)) return responsaUnitWords.any(ownTokens.contains);
+  for (final group in _structureWordGroups) {
+    if (group.contains(token)) {
+      return ownTokens.any((t) => t != token && group.contains(t));
+    }
+  }
+  return false;
+}
 
 /// מחזיר טוקן + גרסת טרנספוזיציה לאותיות עבריות דו-תווניות.
 /// לדוגמה: "טל" → ["טל", "לט"] (שתי שיטות מניין עבריות ל-39).
 List<String> hebrewTokenAlternatives(String token) {
   if (token == 'סי') return const ['סי', 'סימן'];
+  // "סק" הפוך הוא "קס" (160) — מילת מבנה אינה מספר.
+  if (isStructureWord(token)) return [token];
   if (token.length == 2) {
     final c0 = token.codeUnitAt(0);
     final c1 = token.codeUnitAt(1);

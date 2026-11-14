@@ -618,8 +618,11 @@ void main() {
     });
 
     // issue #2707 — ציטוט שו"ת "סי' מז" מול כותרות "שאלה מז".
-    group('SeforimRepository — סימן בשו"ת שכותרותיו שאלה/תשובה', () {
-      Future<int> buildResponsaBook(String title, List<String> headings) async {
+    group('SeforimRepository — שם חלופי למילת מבנה', () {
+      Future<int> buildResponsaBook(
+        String title,
+        List<String> headings,
+      ) async {
         final catId = await createCategory();
         final bookId = await createBook(catId, title);
         await insertLines(
@@ -676,13 +679,138 @@ void main() {
       });
 
       test('כותרת "סימן" מילולית קודמת ל"תשובה" באותו ספר', () async {
-        final bookId = await buildResponsaBook('תשובות', ['תשובה ה', 'סימן ה']);
+        final bookId = await buildResponsaBook('תשובות', [
+          'תשובה ה',
+          'סימן ה',
+        ]);
         final results = await repository.getTocEntriesForReference(
           bookId,
           'תשובות',
           queryTokens: ['סימן', 'ה'],
         );
         expect(results.map((r) => r['reference']), ['תשובות סימן ה']);
+      });
+
+      // issue #4893 — אותה רמה נקראת "כלל" בציטוט ו"שער" בספר.
+      test('"כלל לה" מוצא את "שער לה"', () async {
+        final bookId = await buildResponsaBook('איסור והיתר', [
+          'שער א',
+          'שער לה',
+        ]);
+        final results = await repository.getTocEntriesForReference(
+          bookId,
+          'איסור והיתר',
+          queryTokens: ['כלל', 'לה'],
+        );
+        expect(results.map((r) => r['reference']), ['איסור והיתר שער לה']);
+      });
+
+      test('"סק ב" מוצא את "סעיף ב"', () async {
+        final bookId = await buildResponsaBook('שפתי כהן', [
+          'סעיף א',
+          'סעיף ב',
+        ]);
+        final results = await repository.getTocEntriesForReference(
+          bookId,
+          'שפתי כהן',
+          queryTokens: ['סק', 'ב'],
+        );
+        expect(results.map((r) => r['reference']), ['שפתי כהן סעיף ב']);
+      });
+
+      test('מילת מבנה מילולית קודמת לחלופית', () async {
+        final bookId = await buildResponsaBook('ספר', ['כלל ה', 'שער ה']);
+        final results = await repository.getTocEntriesForReference(
+          bookId,
+          'ספר',
+          queryTokens: ['שער', 'ה'],
+        );
+        expect(results.map((r) => r['reference']), ['ספר שער ה']);
+      });
+
+      test('"הלכה ב" אינו "פרק ב" — פרק אינו שם חלופי', () async {
+        final bookId = await buildResponsaBook('הלכות שבת', [
+          'פרק א',
+          'פרק ב',
+        ]);
+        final results = await repository.getTocEntriesForReference(
+          bookId,
+          'הלכות שבת',
+          queryTokens: ['הלכה', 'ב'],
+        );
+        expect(
+          results.map((r) => r['reference']),
+          isNot(contains('הלכות שבת פרק ב')),
+        );
+      });
+
+      Future<int> buildSimanBook(
+        String title,
+        List<(int, String)> seifim,
+      ) async {
+        final catId = await createCategory();
+        final bookId = await createBook(catId, title);
+        await insertLines(bookId, List.generate(12, (i) => 'l$i'));
+        final siman = await insertToc(
+          bookId: bookId,
+          lineIndex: 0,
+          text: 'סימן כה',
+          level: 1,
+        );
+        for (final (lineIndex, text) in seifim) {
+          await insertToc(
+            bookId: bookId,
+            lineIndex: lineIndex,
+            text: text,
+            level: 2,
+            parentId: siman,
+          );
+        }
+        await repository.updateTocEntryLineIdsByLineIndex(bookId);
+        return bookId;
+      }
+
+      test('"סק ב" אינו נקרא כ"קס" (160)', () async {
+        final bookId = await buildSimanBook('כף החיים', [
+          (1, 'סעיף קטן ב'),
+          (3, 'סעיף קטן קס'),
+        ]);
+        final results = await repository.getTocEntriesForReference(
+          bookId,
+          'כף החיים',
+          queryTokens: ['סימן', 'כה', 'סק', 'ב'],
+        );
+        expect(results.map((r) => r['reference']), [
+          'כף החיים סימן כה סעיף קטן ב',
+        ]);
+      });
+
+      test('"סימן כה סק ב" מוצא את "סעיף ב" תחת הסימן', () async {
+        final bookId = await buildSimanBook('שפתי כהן', [
+          (1, 'סעיף א'),
+          (3, 'סעיף ב'),
+        ]);
+        final results = await repository.getTocEntriesForReference(
+          bookId,
+          'שפתי כהן',
+          queryTokens: ['סימן', 'כה', 'סק', 'ב'],
+        );
+        expect(results.map((r) => r['reference']), [
+          'שפתי כהן סימן כה סעיף ב',
+        ]);
+      });
+
+      test('"שאלה" אינה חלופה למילת מבנה שאינה "סימן"', () async {
+        final bookId = await buildResponsaBook('תשובות', ['שאלה ה']);
+        final results = await repository.getTocEntriesForReference(
+          bookId,
+          'תשובות',
+          queryTokens: ['כלל', 'ה'],
+        );
+        expect(
+          results.map((r) => r['reference']),
+          isNot(contains('תשובות שאלה ה')),
+        );
       });
 
       test('"תשובה" בשם הספר אינה מחליפה את "סימן"', () async {

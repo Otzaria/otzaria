@@ -1211,7 +1211,7 @@ class FindRefRepository {
     final ref = expandQueryAmudMarks(rawRef);
     final cleanedQuery = _normalizeForMatch(ref);
     if (cleanedQuery.isEmpty) return null;
-    final tokens = _tokenize(cleanedQuery);
+    final tokens = _collapseSmallSeif(_tokenize(cleanedQuery));
     if (tokens.isEmpty) return null;
 
     // "תוספות ברכות ד"ה מאימתי": הזנב שאחרי הסמן נפתר מול `line_dh`, והראש
@@ -2519,16 +2519,28 @@ class FindRefRepository {
     final exactLines = <int, _ExactLine>{};
     if (resolveLineRefs != null && queryTokens.length > 1) {
       final bookIdsByKey = <String, List<int>>{};
+      final bookIdsByPlainKey = <String, List<int>>{};
       for (final (:book, :hit) in matches) {
         final remaining = remainingByHit[hit]!;
         if (book.record.fileType == 'pdf' || remaining.length < 2) continue;
         final key = buildRefKey(remaining.join(' '));
         if (key != null) (bookIdsByKey[key] ??= []).add(book.record.id);
+        final plainKey = _plainRefKey(remaining, key);
+        if (plainKey != null) {
+          (bookIdsByPlainKey[plainKey] ??= []).add(book.record.id);
+        }
       }
-      for (final entry in bookIdsByKey.entries) {
-        exactLines.addAll(
-          await _awaitCurrent(resolveLineRefs(entry.value, entry.key)),
-        );
+      for (final byKey in [bookIdsByKey, bookIdsByPlainKey]) {
+        for (final entry in byKey.entries) {
+          final unresolved = [
+            for (final id in entry.value)
+              if (!exactLines.containsKey(id)) id,
+          ];
+          if (unresolved.isEmpty) continue;
+          exactLines.addAll(
+            await _awaitCurrent(resolveLineRefs(unresolved, entry.key)),
+          );
+        }
       }
     }
 
@@ -2988,6 +3000,7 @@ class FindRefRepository {
 
     final bookIdsByKey = <String, List<int>>{};
     final bookIdsBySectionKey = <String, List<int>>{};
+    final bookIdsByPlainKey = <String, List<int>>{};
     for (final hit in bookHits) {
       if (hit.bookId <= 0 || hit.fileType == 'pdf') continue;
       // רכיב יחיד ("ישעיהו לב") הוא ברמת TOC — אין מה לחפש ברמת שורה.
@@ -2999,6 +3012,10 @@ class FindRefRepository {
       if (remaining.length < 2) continue;
       final key = buildRefKey(remaining.join(' '));
       if (key != null) (bookIdsByKey[key] ??= []).add(hit.bookId);
+      final plainKey = _plainRefKey(remaining, key);
+      if (plainKey != null) {
+        (bookIdsByPlainKey[plainKey] ??= []).add(hit.bookId);
+      }
       // החלק שבזנב ראש-התיבות ("טור חושן משפט") הוא חלק מה-heRef של השורה.
       final section = _spelledOutSection(
         hit.bookId,
@@ -3018,6 +3035,16 @@ class FindRefRepository {
         final lines = await _awaitCurrent(resolve(entry.value, entry.key));
         lines.forEach((bookId, line) => resolved[bookId] = [line]);
       }
+    }
+    // ה-heRef ממוספר בלי מילות המבנה שבשאילתה ("כלל לה דין יא" ← "לה, יא").
+    for (final entry in bookIdsByPlainKey.entries) {
+      final unresolved = [
+        for (final id in entry.value)
+          if (!resolved.containsKey(id)) id,
+      ];
+      if (unresolved.isEmpty) continue;
+      final lines = await _awaitCurrent(resolve(unresolved, entry.key));
+      lines.forEach((bookId, line) => resolved[bookId] = [line]);
     }
 
     // שם החלק הושמט ("טור שט ג"): ההפניה עשויה להתקיים בכמה חלקים, וכל אחד
@@ -3520,6 +3547,30 @@ class FindRefRepository {
       .split(' ')
       .where((token) => token.isNotEmpty)
       .toList(growable: false);
+
+  /// "סעיף קטן ב" → "סק ב", כדי שלא יתאים ל"סעיף" המילולי שבתוכן העניינים.
+  static List<String> _collapseSmallSeif(List<String> tokens) {
+    final at = tokens.indexOf('קטן');
+    if (at < 1 || tokens[at - 1] != 'סעיף' || at + 1 >= tokens.length) {
+      return tokens;
+    }
+    return [...tokens.take(at - 1), 'סק', ...tokens.skip(at + 1)];
+  }
+
+  /// מפתח ה-line_ref של [remaining] בלי מילות המבנה שלפני מספר ("כלל לה דין
+  /// יא" → "לה יא"); null כשאינו שונה מ-[key] או שאינו ברמת שורה.
+  static String? _plainRefKey(List<String> remaining, String? key) {
+    final plain = [
+      for (var i = 0; i < remaining.length; i++)
+        if (!isStructureWord(remaining[i]) ||
+            i + 1 >= remaining.length ||
+            !isHebrewNumeral(remaining[i + 1]))
+          remaining[i],
+    ];
+    if (plain.length < 2) return null;
+    final plainKey = buildRefKey(plain.join(' '));
+    return plainKey == key ? null : plainKey;
+  }
 
   /// בודק אם [phraseTokens] מופיעים כסיקוונס רציף ב-[titleTokens], כאשר
   /// כל title-token במיקום שלו מתחיל ב-phrase-token המקביל (startsWith).
