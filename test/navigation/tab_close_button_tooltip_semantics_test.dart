@@ -7,6 +7,7 @@
 // ההפעלה בלי אב: Windows דוחה את עדכון עץ הנגישות
 // (`Failed to update ui::AXTree ... will not be in the tree`), העץ קופא,
 // ובמעבר הפוקוס הבא התוכנה קורסת ב-flutter_windows.dll.
+import 'package:otzaria/work_status/work_status_cubit.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -185,6 +186,7 @@ Future<void> _pumpTitleBar(
       geometry: const WindowManagerAppWindowController(),
       child: MultiBlocProvider(
         providers: [
+          BlocProvider<WorkStatusCubit>(create: (_) => WorkStatusCubit()),
           BlocProvider<TabsBloc>.value(value: tabsBloc),
           BlocProvider<NavigationBloc>.value(value: navigationBloc),
           BlocProvider<SettingsBloc>.value(value: settingsBloc),

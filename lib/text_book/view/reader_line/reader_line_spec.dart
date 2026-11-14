@@ -21,9 +21,9 @@ import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/smart_text/long_line_chunks.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 
-enum ReaderLineBackground { none, permanent, highlighted, related }
+enum ReaderLineBackground { none, permanent, highlighted }
 
-/// בחירה ורקע של שורה — תלויים במצב הספר בלבד.
+/// סמן צד ורקע של שורה — תלויים במצב הספר בלבד.
 @immutable
 class ReaderLineMarks {
   const ReaderLineMarks({
@@ -35,20 +35,15 @@ class ReaderLineMarks {
   final ReaderLineBackground background;
 }
 
-/// [isRelated] — שורת מפרש שמודגשת כקשורה לשורה הנבחרת בטקסט הראשי.
+/// [isRelated] — שורת מפרש שמודגשת כקשורה לשורה הנבחרת בטקסט הראשי; היא
+/// מסומנת בסמן הצד ללא רקע.
 ReaderLineMarks readerLineMarks(
   TextBookLoaded state,
   int lineIndex, {
   bool isMainText = true,
   bool isRelated = false,
 }) {
-  if (!isMainText) {
-    return ReaderLineMarks(
-      background: isRelated
-          ? ReaderLineBackground.related
-          : ReaderLineBackground.none,
-    );
-  }
+  if (!isMainText) return ReaderLineMarks(isSelected: isRelated);
   return ReaderLineMarks(
     isSelected: state.selectedIndices.contains(lineIndex),
     background: state.isPermanentHighlight(lineIndex)
@@ -69,9 +64,6 @@ Color? readerLineBackgroundColor(
   ),
   ReaderLineBackground.highlighted => AppSurfaces.highlightedLineBackground(
     theme.colorScheme,
-  ),
-  ReaderLineBackground.related => AppSurfaces.paragraphSelectionBackground(
-    theme,
   ),
 };
 

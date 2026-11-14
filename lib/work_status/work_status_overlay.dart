@@ -8,17 +8,27 @@ import 'package:otzaria/work_status/work_status_item.dart';
 import 'package:otzaria/theme/app_shadows.dart';
 
 class WorkStatusOverlay extends StatelessWidget {
-  const WorkStatusOverlay({super.key});
+  /// [showCollapsed] — אין גלולות בשורת הכותרת (מסך מלא או חלון צר), ולכן גם
+  /// פריט מצומצם מוצג בכרטיס.
+  const WorkStatusOverlay({super.key, this.showCollapsed = false});
+
+  final bool showCollapsed;
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<WorkStatusCubit, WorkStatusState>(
       builder: (context, state) {
-        if (!state.hasActiveItems || state.isDismissed) {
+        final items = [
+          for (final item
+              in showCollapsed ? state.orderedItems : state.cardItems)
+            if (!state.isDismissed ||
+                (showCollapsed && state.collapsedIds.contains(item.id)))
+              item,
+        ];
+        if (items.isEmpty) {
           return const SizedBox.shrink();
         }
 
-        final items = state.orderedItems;
         final colorScheme = Theme.of(context).colorScheme;
         final isWindows = Theme.of(context).platform == TargetPlatform.windows;
         final alignment = isWindows
@@ -95,11 +105,17 @@ class WorkStatusOverlay extends StatelessWidget {
                           size: 16,
                         ),
                         color: colorScheme.onSurfaceVariant,
-                        tooltip: 'סגור',
+                        tooltip:
+                            !showCollapsed &&
+                                items.any((item) => item.chipLabel != null)
+                            ? 'כווץ לשורת הכותרת'
+                            : 'סגור',
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
-                        onPressed: () =>
-                            context.read<WorkStatusCubit>().dismiss(),
+                        onPressed: () {
+                          final cubit = context.read<WorkStatusCubit>();
+                          showCollapsed ? cubit.hide() : cubit.dismiss();
+                        },
                       ),
                     ),
                   ],

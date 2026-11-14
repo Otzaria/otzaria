@@ -5,6 +5,7 @@
 /// התצוגה, שנוגעת בשורה שאחריה, כמו בדפדפן ובוורד.
 library;
 
+import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart';
@@ -245,19 +246,33 @@ class _RenderSelectionFillParagraph extends RenderParagraph {
 
   /// ציור הבחירה בפריימוורק קורא לכאן בלי `boxHeightStyle`, כלומר `tight`.
   /// סגנון שהמתקשר ביקש במפורש נשאר שלו.
+  ///
+  /// התיבות נחתכות לרוחב הפסקה: תיבת ה-`\n` של `<br>` נמדדת מחוץ לו, ומשאירה
+  /// בליטה בבחירה בסוף השורה שלפניו.
   @override
   List<ui.TextBox> getBoxesForSelection(
     TextSelection selection, {
     ui.BoxHeightStyle boxHeightStyle = ui.BoxHeightStyle.tight,
     ui.BoxWidthStyle boxWidthStyle = ui.BoxWidthStyle.tight,
   }) {
-    return super.getBoxesForSelection(
+    final boxes = super.getBoxesForSelection(
       selection,
       boxHeightStyle: boxHeightStyle == ui.BoxHeightStyle.tight
           ? ui.BoxHeightStyle.max
           : boxHeightStyle,
       boxWidthStyle: boxWidthStyle,
     );
+    if (!hasSize) return boxes;
+    return [
+      for (final box in boxes)
+        ui.TextBox.fromLTRBD(
+          max(0, box.left),
+          box.top,
+          min(size.width, box.right),
+          box.bottom,
+          box.direction,
+        ),
+    ];
   }
 
   List<ui.TextBox> _glyphBoxesForSelection(TextSelection selection) =>

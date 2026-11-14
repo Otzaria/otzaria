@@ -104,6 +104,7 @@ import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 import 'package:otzaria/text_book/view/widgets/reading_extent_estimation.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 
 /// מחזירה האם אירוע המקלדת צריך להניע גלילה/ניווט שורה בצורת הדף.
@@ -3114,7 +3115,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
             for (final selected in state.selectedIndices)
               if (inItem(selected)) selected,
           }
-        : const <int>{};
+        : {
+            for (final line in itemLines)
+              if (widget.highlightedIndices?.contains(line) ?? false) line,
+          };
     final isSelected = selectedLines.isNotEmpty;
     // נתפס בזמן BUILD (כמו selectedText ב-ValueListenableBuilder של Combined),
     // כך שגם אם onSelectionChanged(null) ירוץ לפני menuBuilder, ה-closure
@@ -3122,6 +3126,9 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     final savedTextAtBuild = _savedSelectedText;
 
     final theme = Theme.of(context);
+    final markerColor = widget.isMainText
+        ? theme.colorScheme.primary
+        : AppSurfaces.relatedLineMarker(theme.colorScheme);
     // ברקע ובסמן של פריט רב-שורתי מטפלות השורות עצמן.
     final backgroundColor = isMultiLine
         ? null
@@ -3130,7 +3137,6 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
               state,
               primaryLineIndex,
               isMainText: widget.isMainText,
-              isRelated: widget.highlightedIndices?.contains(index) ?? false,
             ).background,
             theme,
           );
@@ -3325,7 +3331,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
             },
             child: isMultiLine
                 ? ReaderLineGutter(
-                    color: theme.colorScheme.primary,
+                    color: markerColor,
                     selectedLines: selectedLines,
                     gutter: _readerListPadding.right,
                     child: gutterChild,
@@ -3333,7 +3339,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                 : CustomPaint(
                     foregroundPainter: isSelected
                         ? SelectionGutterPainter(
-                            theme.colorScheme.primary,
+                            markerColor,
                             gutter: _readerListPadding.right,
                           )
                         : null,

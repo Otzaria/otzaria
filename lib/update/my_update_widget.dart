@@ -110,6 +110,10 @@ class InitialSoftwareCheck {
 
 final _initialSoftwareCheck = InitialSoftwareCheck();
 
+@visibleForTesting
+Future<bool> get initialSoftwareUpdateResultForTesting =>
+    _initialSoftwareCheck.result;
+
 /// האם בדיקת התוכנה של העלייה מצאה גרסה חדשה.
 /// `false` כשהבדיקה לא רצה (תדירות, מנותק) או נכשלה; בזמן סיור ממתינה לסופו.
 Future<bool> initialSoftwareUpdateAvailable() =>
@@ -607,22 +611,24 @@ class MyUpdatWidget extends StatelessWidget {
     // אסור שצורת העץ תלויה בהגדרות משתנות (מנותק/עדכונים) — החלפת העוטף
     // בזמן ריצה בונה מחדש את כל תת-העץ וה-PageView מאבד את העמוד הפעיל.
     if (!managesUpdatesHere(duties: ProcessDuties.of(context))) return child;
-    return _ManagedUpdatWidget(child: child);
+    return ManagedUpdateHost(child: child);
   }
 }
 
-class _ManagedUpdatWidget extends StatefulWidget {
-  const _ManagedUpdatWidget({required this.child});
+@visibleForTesting
+class ManagedUpdateHost extends StatefulWidget {
+  const ManagedUpdateHost({super.key, required this.child});
 
   final Widget child;
 
   @override
-  State<_ManagedUpdatWidget> createState() => _ManagedUpdatWidgetState();
+  State<ManagedUpdateHost> createState() => _ManagedUpdateHostState();
 }
 
-class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
+class _ManagedUpdateHostState extends State<ManagedUpdateHost> {
   late final Completer<bool> _softwareCheck;
   UpdatStatus _status = UpdatStatus.checking;
+  Future<UpdatStatus?>? _updateCheck;
   String? _currentVersion;
   String? _latestVersion;
   String? _changelog;
@@ -722,19 +728,24 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
   /// הבדיקה האוטומטית בעלייה כפופה לתדירות שנבחרה בהגדרות; בדיקה יזומה
   /// (הצ'יפ בשורת הכותרת) קוראת ל-[_checkForUpdate] ישירות ואינה מושפעת.
   void _runInitialCheckIfDue() {
-    if (!isAutoUpdateCheckDue(SettingsRepository.keyLastSoftwareUpdateCheck)) {
-      _initialSoftwareCheck.resolve(_softwareCheck, updateAvailable: false);
-      setState(() {
-        _status = UpdatStatus.upToDate;
-      });
+    void resolve() => _initialSoftwareCheck.resolve(
+      _softwareCheck,
+      updateAvailable: const {
+        UpdatStatus.available,
+        UpdatStatus.availableWithChangelog,
+        UpdatStatus.downloading,
+        UpdatStatus.readyToInstall,
+      }.contains(_status),
+    );
+    if (!isAutoUpdateCheckDue(SettingsRepository.keyLastSoftwareUpdateCheck) &&
+        _updateCheck == null) {
+      resolve();
+      if (_status == UpdatStatus.checking) {
+        setState(() => _status = UpdatStatus.upToDate);
+      }
       return;
     }
-    _checkForUpdate().whenComplete(
-      () => _initialSoftwareCheck.resolve(
-        _softwareCheck,
-        updateAvailable: _status == UpdatStatus.availableWithChangelog,
-      ),
-    );
+    _checkForUpdate().whenComplete(resolve);
   }
 
   @override
@@ -832,7 +843,20 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
     UiSnack.showError(LibraryMessages.smallUpdateGaveUp);
   }
 
-  Future<void> _checkForUpdate() async {
+  /// התוצאה, או null כשהבדיקה לא נתנה תשובה (חסומה, או נכשלה).
+  Future<UpdatStatus?> _checkForUpdate() {
+    if (_status == UpdatStatus.downloading ||
+        _status == UpdatStatus.readyToInstall ||
+        _awaitingCloseForUpdate ||
+        _installerLaunch != null) {
+      return Future.value(null);
+    }
+    return _updateCheck ??= _performUpdateCheck().whenComplete(
+      () => _updateCheck = null,
+    );
+  }
+
+  Future<UpdatStatus?> _performUpdateCheck() async {
     if (updateCheckBlocked(
       isOfflineMode:
           Settings.getValue<bool>(SettingsRepository.keyOfflineMode) ?? false,
@@ -846,7 +870,7 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
       setState(() {
         _status = UpdatStatus.upToDate;
       });
-      return;
+      return null;
     }
 
     setState(() {
@@ -858,7 +882,7 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
       final currentVersion = appReleaseVersion(packageInfo);
       final latestVersion = await _getLatestVersion(currentVersion);
 
-      if (!mounted) return;
+      if (!mounted) return null;
       // הבדיקה עברה — ניתוק עתידי יקבל שוב מכסת ניסיונות מלאה.
       _offlineRecheckAttempt = 0;
       unawaited(
@@ -872,7 +896,7 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
           _currentVersion = currentVersion;
           _status = UpdatStatus.upToDate;
         });
-        return;
+        return _status;
       }
 
       if (isNewerReleaseVersion(
@@ -880,14 +904,14 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
         currentVersion: currentVersion,
       )) {
         final changelog = await _getChangelog(latestVersion, currentVersion);
-        if (!mounted) return;
+        if (!mounted) return null;
         setState(() {
           _currentVersion = currentVersion;
           _latestVersion = latestVersion;
           _changelog = changelog;
           _status = UpdatStatus.availableWithChangelog;
         });
-        return;
+        return _status;
       }
 
       setState(() {
@@ -895,6 +919,7 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
         _latestVersion = latestVersion;
         _status = UpdatStatus.upToDate;
       });
+      return _status;
     } catch (e, st) {
       debugPrint('[Update] update check failed: $e\n$st');
       // כשל רשת ≠ כשל parsing של תשובת GitHub — הודעת 'רשת' על באג parsing
@@ -909,15 +934,16 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
         isNetworkError: isNetwork,
         isSourceReachable: await isUpdateSourceReachable(),
       );
-      if (!mounted) return;
+      if (!mounted) return null;
       if (message == null) {
         setState(() {
           _status = UpdatStatus.upToDate;
         });
         _scheduleOfflineRecheck();
-        return;
+        return null;
       }
       _showUpdateError(message);
+      return null;
     }
   }
 
@@ -1464,7 +1490,7 @@ class ManagedUpdateScope extends InheritedWidget {
 
   /// ההתקנה החלה והתהליך עוד חי — ראה `_awaitingCloseForUpdate`.
   final bool awaitingClose;
-  final VoidCallback checkForUpdate;
+  final Future<UpdatStatus?> Function() checkForUpdate;
   final VoidCallback startUpdate;
   final Future<void> Function() launchInstaller;
   final VoidCallback dismissUpdate;

@@ -1,5 +1,6 @@
 // ריחוף מעל כרטיסיה משנה רק אותה ואת המפריד של שכנתה, ולכן אינו בונה מחדש
 // את שאר הכרטיסיות; ה-X שמוצג רק בריחוף עדיין מופיע ונעלם.
+import 'package:otzaria/work_status/work_status_cubit.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -64,6 +65,7 @@ void main() {
         geometry: const WindowManagerAppWindowController(),
         child: MultiBlocProvider(
           providers: [
+            BlocProvider<WorkStatusCubit>(create: (_) => WorkStatusCubit()),
             BlocProvider<TabsBloc>.value(value: tabsBloc),
             BlocProvider<NavigationBloc>.value(value: navigationBloc),
             BlocProvider<SettingsBloc>.value(value: settingsBloc),

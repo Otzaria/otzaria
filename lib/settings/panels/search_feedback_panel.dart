@@ -8,6 +8,7 @@ import 'package:otzaria/semantic_search/repository/semantic_platform_support.dar
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 
 /// כרטיס ההסכמה לשליחת נתוני שימוש של מצב החיפוש הסמנטי.
 /// כיבוי המתג מבטל את ההסכמה ומוחק אירועים שטרם נשלחו.
@@ -64,16 +65,11 @@ class SearchFeedbackPanel extends StatelessWidget {
                 ? const SizedBox.shrink()
                 : Padding(
                     key: const ValueKey('search-feedback-network-block'),
-                    padding: const EdgeInsets.only(
-                      right: 16,
-                      left: 16,
-                      bottom: 16,
-                    ),
-                    child: Text(
-                      context.settingsText(
+                    padding: const EdgeInsets.all(AppTokens.spaceSMD),
+                    child: AppInfoBanner(
+                      message: context.settingsText(
                         'השליחה לשרת חסומה כעת ברשת שלך (ייתכן שעל ידי סינון). הנתונים נשמרים במחשב ויישלחו כשהגישה תיפתח.',
                       ),
-                      style: AppTextStyles.settingSubtitle,
                     ),
                   ),
           ),

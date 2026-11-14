@@ -6,6 +6,7 @@ import 'package:otzaria/search_feedback/search_feedback_api.dart';
 import 'package:otzaria/search_feedback/search_feedback_service.dart';
 import 'package:otzaria/search_feedback/semantic_search_strings.dart';
 import 'package:otzaria/settings/panels/search_feedback_panel.dart';
+import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 
 class _FakeStore implements SearchFeedbackConsentStore {
   final _controller = StreamController<SearchFeedbackConsent>.broadcast();
@@ -104,6 +105,10 @@ void main() {
     await tester.pump();
     expect(line, findsOneWidget);
     expect(find.textContaining('הנתונים נשמרים במחשב'), findsOneWidget);
+    expect(
+      find.descendant(of: line, matching: find.byType(AppInfoBanner)),
+      findsOneWidget,
+    );
 
     block.value = null;
     await tester.pump();

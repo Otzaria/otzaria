@@ -48,11 +48,14 @@ abstract final class AppFocusRing {
   /// נפתח בלי טבעת, עד ה-Tab או החץ הראשון.
   static bool get isKeyboardFocusVisible {
     _ensureListening();
-    return _lastInputWasKey &&
+    return _lastInputWasKey.value &&
         FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
   }
 
-  static bool _lastInputWasKey = false;
+  /// התראה כשאמצעי הקלט משתנה בלי להזיז את צומת הפוקוס.
+  static Listenable get keyboardFocusChanges => _lastInputWasKey;
+
+  static final _lastInputWasKey = ValueNotifier(false);
   static FocusManager? _listeningOn;
   static bool _pointerRouteAdded = false;
 
@@ -62,7 +65,7 @@ abstract final class AppFocusRing {
     final manager = FocusManager.instance;
     if (identical(manager, _listeningOn)) return;
     _listeningOn = manager;
-    _lastInputWasKey = false;
+    _lastInputWasKey.value = false;
     manager.addEarlyKeyEventHandler(_onKey);
     if (!_pointerRouteAdded) {
       _pointerRouteAdded = true;
@@ -71,8 +74,8 @@ abstract final class AppFocusRing {
   }
 
   static KeyEventResult _onKey(KeyEvent event) {
-    if (_isNavigationKey(event) && !_lastInputWasKey) {
-      _lastInputWasKey = true;
+    if (_isNavigationKey(event) && !_lastInputWasKey.value) {
+      _lastInputWasKey.value = true;
       _rebuildFocusedButton();
     }
     return KeyEventResult.ignored;
@@ -101,8 +104,8 @@ abstract final class AppFocusRing {
   };
 
   static void _onPointer(PointerEvent event) {
-    if (event is! PointerDownEvent || !_lastInputWasKey) return;
-    _lastInputWasKey = false;
+    if (event is! PointerDownEvent || !_lastInputWasKey.value) return;
+    _lastInputWasKey.value = false;
     _rebuildFocusedButton();
   }
 

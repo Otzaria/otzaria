@@ -14,6 +14,7 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/settings/panels/tools_management_panel.dart';
+import 'package:otzaria/settings/widgets/settings_tab_scroll_view.dart';
 import 'package:otzaria/tools/built_in_tools_catalog.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
@@ -66,6 +67,7 @@ class _FakePluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState>
 
 PluginManifest _manifest({
   String id = 'p',
+  String description = '',
   List<String> permissions = const [],
   bool networkEnabled = false,
 }) {
@@ -73,6 +75,7 @@ PluginManifest _manifest({
     'schemaVersion': 1,
     'id': id,
     'name': id,
+    'description': description,
     'version': '1.0.0',
     'entrypoint': 'index.html',
     'permissions': permissions,
@@ -91,6 +94,7 @@ InstalledPlugin _plugin({
   bool pinnedToNavRail = false,
   bool networkAccessGranted = false,
   bool runOnStartupGranted = false,
+  String description = '',
   List<String> permissions = const [],
   bool networkEnabled = false,
 }) {
@@ -108,6 +112,7 @@ InstalledPlugin _plugin({
     runOnStartupGranted: runOnStartupGranted,
     manifest: _manifest(
       id: id,
+      description: description,
       permissions: permissions,
       networkEnabled: networkEnabled,
     ),
@@ -120,6 +125,7 @@ Widget _wrap({
   required SettingsBloc settingsBloc,
   required PluginSystemBloc pluginBloc,
 }) {
+  final selection = PluginSelection();
   return MaterialApp(
     home: Directionality(
       textDirection: TextDirection.rtl,
@@ -129,8 +135,16 @@ Widget _wrap({
             BlocProvider<SettingsBloc>.value(value: settingsBloc),
             BlocProvider<PluginSystemBloc>.value(value: pluginBloc),
           ],
-          child: const SingleChildScrollView(
-            child: ToolsManagementPanel(),
+          // כמו ToolsSettingsTab: הסרגל מחוץ לאזור הגלילה.
+          child: Column(
+            children: [
+              PluginSelectionBar(selection: selection),
+              Expanded(
+                child: SettingsTabScrollView(
+                  child: ToolsManagementPanel(selection: selection),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -576,7 +590,7 @@ void main() {
       expect(find.text('1 נבחרו'), findsOneWidget);
 
       // לחיצה על "ביטול" — יוצאת ממצב בחירה ומנקה את הבחירה.
-      await tester.tap(find.text('ביטול'));
+      await tester.tap(find.byTooltip('ביטול'));
       await tester.pumpAndSettle();
 
       expect(find.textContaining('נבחרו'), findsNothing);
@@ -1367,4 +1381,125 @@ void main() {
       expect(find.text('DEV'), findsNWidgets(2));
     },
   );
+  testWidgets('the selection action bar stays visible while the list scrolls', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      _wrap(
+        settingsBloc: _FakeSettingsBloc(),
+        pluginBloc: _FakePluginSystemBloc([
+          for (var i = 0; i < 20; i++)
+            _plugin(id: 'p$i', name: 'תוסף-${i.toString().padLeft(2, '0')}'),
+        ]),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _enterSelectionMode(tester);
+    await _selectPlugin(tester, 'תוסף-00');
+
+    await tester.scrollUntilVisible(
+      find.text('תוסף-19'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('מחק').hitTestable(), findsOneWidget);
+    expect(find.text('1 נבחרו').hitTestable(), findsOneWidget);
+
+    await tester.tap(find.text('בחר הכל'));
+    await tester.pumpAndSettle();
+    expect(find.text('20 נבחרו').hitTestable(), findsOneWidget);
+
+    await tester.tap(find.byTooltip('ביטול'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('נבחרו'), findsNothing);
+    expect(find.text('מחק'), findsNothing);
+  });
+
+  group('plugin filter', () {
+    Future<_FakePluginSystemBloc> pumpPanel(WidgetTester tester) async {
+      await tester.binding.setSurfaceSize(const Size(1200, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final pluginBloc = _FakePluginSystemBloc([
+        _plugin(id: 'org.a', name: 'מרקר', description: 'סימון טקסט shared'),
+        _plugin(id: 'org.b', name: 'הַלָּכָה יומית', description: 'לימוד'),
+        _plugin(id: 'org.c', name: 'Daily', description: 'Study shared'),
+      ]);
+      await tester.pumpWidget(
+        _wrap(settingsBloc: _FakeSettingsBloc(), pluginBloc: pluginBloc),
+      );
+      await tester.pumpAndSettle();
+      return pluginBloc;
+    }
+
+    Future<void> filter(WidgetTester tester, String text) async {
+      await tester.enterText(find.byType(TextField), text);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('matches name, description and id without nikud or case', (
+      tester,
+    ) async {
+      await pumpPanel(tester);
+      expect(find.text('מרקר'), findsOneWidget);
+
+      await filter(tester, 'הלכה');
+      expect(find.text('מרקר'), findsNothing);
+      expect(find.text('הַלָּכָה יומית'), findsOneWidget);
+
+      await filter(tester, 'סימון');
+      expect(find.text('מרקר'), findsOneWidget);
+      expect(find.text('הַלָּכָה יומית'), findsNothing);
+
+      await filter(tester, 'ORG.C');
+      expect(find.text('Daily'), findsOneWidget);
+      expect(find.text('מרקר'), findsNothing);
+
+      await filter(tester, 'אין כזה');
+      expect(find.text('לא נמצאו תוספים'), findsOneWidget);
+    });
+
+    testWidgets('selection survives filtering and select-all uses visible', (
+      tester,
+    ) async {
+      await pumpPanel(tester);
+      await _enterSelectionMode(tester);
+      await _selectPlugin(tester, 'מרקר');
+      expect(find.text('1 נבחרו'), findsOneWidget);
+
+      await filter(tester, 'daily');
+      expect(find.text('1 נבחרו'), findsOneWidget);
+
+      await tester.tap(find.text('בחר את המוצגים'));
+      await tester.pumpAndSettle();
+      expect(find.text('2 נבחרו'), findsOneWidget);
+
+      await filter(tester, '');
+      expect(find.text('2 נבחרו'), findsOneWidget);
+      expect(find.text('בחר הכל'), findsOneWidget);
+    });
+    testWidgets('move up while filtered reorders the full list', (
+      tester,
+    ) async {
+      final pluginBloc = await pumpPanel(tester);
+      await _enterSelectionMode(tester);
+      await filter(tester, 'shared');
+      expect(find.text('הַלָּכָה יומית'), findsNothing);
+
+      await tester.tap(find.text('הזז למעלה').last);
+      await tester.pumpAndSettle();
+
+      expect(
+        pluginBloc.dispatched
+            .whereType<ReorderPluginsRequested>()
+            .single
+            .orderedPluginIds,
+        ['org.c', 'org.a', 'org.b'],
+      );
+    });
+  });
 }

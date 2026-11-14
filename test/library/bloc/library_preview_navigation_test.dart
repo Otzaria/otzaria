@@ -220,7 +220,26 @@ void main() {
       );
     }
 
-    test('NavigateToCategory לקטגוריה הפתוחה שומר את התצוגה המקדימה', () async {
+    test('"בית" בשורש מחזיר את התצוגה המקדימה מתיקייה שנבחרה לשורש '
+        '(issue #4626)', () async {
+      // תצוגת רשת: לחיצה אחת על תיקייה בוחרת אותה לתצוגה המקדימה בלי לנווט.
+      bloc.emit(
+        LibraryState(
+          library: library,
+          currentCategory: library,
+          previewCategory: chasidut,
+        ),
+      );
+
+      bloc.add(NavigateToCategory(library));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(bloc.state.currentCategory, library);
+      expect(bloc.state.previewCategory, library);
+      expect(bloc.state.previewBook, isNull);
+    });
+
+    test('NavigateToCategory לקטגוריה הפתוחה מנקה ספר שנבחר בה', () async {
       bloc.emit(
         bloc.state.copyWith(
           currentCategory: library,
@@ -232,7 +251,8 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(bloc.state.currentCategory, library);
-      expect(bloc.state.previewBook, firstChasidutBook);
+      expect(bloc.state.previewBook, isNull);
+      expect(bloc.state.previewCategory, library);
     });
   });
 }
