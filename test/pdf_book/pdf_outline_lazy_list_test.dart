@@ -57,6 +57,7 @@ void main() {
   Future<_PageController> pumpOutline(
     WidgetTester tester, {
     int page = 1,
+    bool disableAnimations = false,
   }) async {
     await tester.binding.setSurfaceSize(const Size(800, 600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -65,11 +66,17 @@ void main() {
     addTearDown(focusNode.dispose);
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(
-          body: OutlineView(
-            outline: outline,
-            controller: controller,
-            focusNode: focusNode,
+        home: MediaQuery(
+          data: MediaQueryData(
+            size: const Size(800, 600),
+            disableAnimations: disableAnimations,
+          ),
+          child: Scaffold(
+            body: OutlineView(
+              outline: outline,
+              controller: controller,
+              focusNode: focusNode,
+            ),
           ),
         ),
       ),
@@ -81,6 +88,16 @@ void main() {
   Finder row(String title) => find.byWidgetPredicate(
     (widget) => widget is NavTreeTile && widget.title == title,
   );
+
+  ScrollController scrollController(WidgetTester tester) =>
+      tester.widget<Scrollable>(find.byType(Scrollable).first).controller!;
+
+  ({bool start, bool end}) groupFlags(WidgetTester tester, String title) {
+    final card = tester
+        .element(row(title))
+        .findAncestorWidgetOfExactType<NavTreeGroupCard>()!;
+    return (start: card.isGroupStart, end: card.isGroupEnd);
+  }
 
   bool isOnScreen(WidgetTester tester, String title) {
     final rect = tester.getRect(row(title));
@@ -188,5 +205,118 @@ void main() {
     }
     expect(focusedTitle(), 'סימן 0-0');
     expect(isOnScreen(tester, 'סימן 0-0'), isTrue);
+  });
+
+  testWidgets('כיווץ והרחבה מעדכנים את השורות ואת מסגרת הקבוצה', (
+    tester,
+  ) async {
+    outline = [
+      _node('א', 1, [
+        _node('א1', 2, [_node('א1א', 3)]),
+        _node('א2', 4, [_node('א2א', 5)]),
+      ]),
+      _node('ב', 10, [_node('ב1', 11)]),
+    ];
+    await pumpOutline(tester);
+    // ברירת המחדל: השורשים ושרשרת הילד הראשון פתוחים.
+    expect(row('א1א'), findsOneWidget);
+    expect(row('א2א'), findsNothing);
+    expect(groupFlags(tester, 'א'), (start: true, end: false));
+    expect(groupFlags(tester, 'ב1'), (start: false, end: true));
+    expect(groupFlags(tester, 'ב'), (start: false, end: false));
+
+    tester.widget<NavTreeTile>(row('ב')).onToggleExpand!();
+    await tester.pump();
+    expect(row('ב1'), findsNothing);
+    expect(groupFlags(tester, 'ב'), (start: false, end: true));
+
+    tester.widget<NavTreeTile>(row('א2')).onToggleExpand!();
+    await tester.pump();
+    expect(row('א2א'), findsOneWidget);
+    expect(tester.widget<NavTreeTile>(row('א2')).isExpanded, isTrue);
+
+    tester.widget<NavTreeTile>(row('א')).onToggleExpand!();
+    await tester.pump();
+    expect(row('א1'), findsNothing);
+    expect(row('א2א'), findsNothing);
+    expect(groupFlags(tester, 'א'), (start: true, end: false));
+  });
+
+  testWidgets('סינון עם צומת שמופיע פעמיים אינו נכשל', (tester) async {
+    outline = [
+      _node('פרק', 1, [_node('פרק משנה', 2)]),
+    ];
+    await pumpOutline(tester);
+    await tester.tap(find.byType(NavPanelSearchToggle));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'פרק');
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(row('פרק'), findsOneWidget);
+    expect(row('פרק משנה'), findsNWidgets(2));
+  });
+
+  testWidgets('הסעיף האחרון ממורכז ככל האפשר בלי גלילת יתר', (tester) async {
+    await pumpOutline(tester, page: 4 * 250);
+    final position = scrollController(tester).position;
+    expect(tester.widget<NavTreeTile>(row('סימן 3-249')).isSelected, isTrue);
+    expect(isOnScreen(tester, 'סימן 3-249'), isTrue);
+    expect(position.pixels, closeTo(position.maxScrollExtent, 1));
+  });
+
+  testWidgets('עץ קצר אינו נגלל', (tester) async {
+    outline = [
+      _node('א', 1, [_node('א1', 2), _node('א2', 3)]),
+    ];
+    await pumpOutline(tester, page: 3);
+    expect(tester.widget<NavTreeTile>(row('א2')).isSelected, isTrue);
+    expect(scrollController(tester).offset, 0);
+  });
+
+  testWidgets('בהפחתת אנימציות הגלילה קופצת מיד', (tester) async {
+    final controller = await pumpOutline(tester, disableAnimations: true);
+    controller.showPage(2 * 250 + 101);
+    await tester.pump();
+    await tester.pump();
+    expect(tester.getCenter(row('סימן 2-100')).dy, closeTo(300, 1));
+    expect(tester.hasRunningAnimations, isFalse);
+  });
+
+  testWidgets('סגירה באמצע גלילה מונפשת אינה זורקת', (tester) async {
+    final controller = await pumpOutline(tester);
+    controller.showPage(2 * 250 + 101);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(tester.hasRunningAnimations, isTrue);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('החלפת העץ מציגה את השורות החדשות וגוללת אליהן', (tester) async {
+    final controller = await pumpOutline(tester);
+    final focusNode = FocusNode();
+    addTearDown(focusNode.dispose);
+    final replacement = [
+      for (var i = 0; i < 300; i++) _node('דף $i', i + 1),
+    ];
+    controller.page = 200;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: OutlineView(
+            outline: replacement,
+            controller: controller,
+            focusNode: focusNode,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(row('חלק 0'), findsNothing);
+    expect(tester.widget<NavTreeTile>(row('דף 199')).isSelected, isTrue);
+    expect(tester.getCenter(row('דף 199')).dy, closeTo(300, 1));
   });
 }
