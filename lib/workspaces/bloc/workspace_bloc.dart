@@ -466,10 +466,11 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
           .length;
       final activeIndex = remaining.isEmpty
           ? 0
-          : (live.activeTabIndex - removedBefore).clamp(
-              0,
-              remaining.length - 1,
-            );
+          : event.activeIndexAfterRemoving?.call(selected) ??
+                (live.activeTabIndex - removedBefore).clamp(
+                  0,
+                  remaining.length - 1,
+                );
       final previousActive = live.tabs.elementAtOrNull(live.activeTabIndex);
       final nextActive = remaining.elementAtOrNull(activeIndex);
       final activePane = identical(previousActive, nextActive)

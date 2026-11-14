@@ -1242,7 +1242,7 @@ void main() {
       await Settings.init(cacheProvider: _MemoryCacheProvider());
     });
 
-    test('סגירת הטאב הפעיל באמצע מעבירה לטאב הבא', () async {
+    test('סגירת הטאב הפעיל באמצע מעבירה לטאב שהוצג לפניו', () async {
       final bloc = _newBloc(_FakeTabsRepository());
       final first = _createTextTab('ספר א', categoryId: 1);
       final second = _createTextTab('ספר ב', categoryId: 2);
@@ -1259,7 +1259,7 @@ void main() {
       bloc.add(RemoveTab(second));
       await bloc.stream.firstWhere((s) => s.tabs.length == 2);
 
-      // ספר ב היה באמצע — הפוקוס עובר לטאב הבא (ספר ג), שנכנס תחת אינדקס 1.
+      // ספר ג הוצג לפני ספר ב, ולכן הוא שנבחר.
       expect(bloc.state.currentTabIndex, 1);
       expect(bloc.state.tabs[1].title, 'ספר ג');
 
@@ -1281,6 +1281,90 @@ void main() {
 
       expect(bloc.state.currentTabIndex, 0);
       expect(bloc.state.tabs[0].title, 'ספר א');
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('סגירת הפעיל חוזרת לטאב שהוצג לפניו ולא לשכן', () async {
+      final bloc = _newBloc(_FakeTabsRepository());
+      final first = _createTextTab('ספר א', categoryId: 1);
+      final second = _createTextTab('ספר ב', categoryId: 2);
+      final third = _createTextTab('ספר ג', categoryId: 3);
+
+      bloc.add(AddTab(first));
+      bloc.add(AddTab(second));
+      bloc.add(AddTab(third));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 3);
+
+      bloc.add(const SetCurrentTab(0));
+      await bloc.stream.firstWhere((s) => s.currentTabIndex == 0);
+
+      bloc.add(RemoveTab(first));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+      expect(bloc.state.currentTab, same(third));
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('טאב שנפתח ברקע ולא הוצג אינו נבחר בסגירת הפעיל', () async {
+      final bloc = _newBloc(_FakeTabsRepository());
+      final first = _createTextTab('ספר א', categoryId: 1);
+      final second = _createTextTab('ספר ב', categoryId: 2);
+      final background = _createTextTab('ספר רקע', categoryId: 3);
+
+      bloc.add(AddTab(first));
+      bloc.add(AddTab(second));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+      bloc.add(AddTab(background, insertAdjacent: true, inBackground: true));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 3);
+      expect(bloc.state.currentTab, same(second));
+
+      bloc.add(RemoveTab(second));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+      expect(bloc.state.currentTab, same(first));
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('כשאף טאב שנותר לא הוצג, הסגירה עוברת לסמוך', () async {
+      final bloc = _newBloc(_FakeTabsRepository());
+      final first = _createTextTab('ספר א', categoryId: 1);
+      final second = _createTextTab('ספר ב', categoryId: 2);
+      final third = _createTextTab('ספר ג', categoryId: 3);
+
+      bloc.add(ReplaceAllTabs([first, second, third], 1));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 3);
+
+      bloc.add(RemoveTab(second));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+      expect(bloc.state.currentTab, same(third));
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('סגירת קבוצה עם הפעיל חוזרת לטאב שהוצג לאחרונה', () async {
+      final bloc = _newBloc(_FakeTabsRepository());
+      final first = _createTextTab('ספר א', categoryId: 1);
+      final second = _createTextTab('ספר ב', categoryId: 2);
+      final third = _createTextTab('ספר ג', categoryId: 3);
+      final fourth = _createTextTab('ספר ד', categoryId: 4);
+
+      for (final tab in [first, second, third, fourth]) {
+        bloc.add(AddTab(tab));
+      }
+      await bloc.stream.firstWhere((s) => s.tabs.length == 4);
+      bloc.add(const SetCurrentTab(0));
+      await bloc.stream.firstWhere((s) => s.currentTabIndex == 0);
+      bloc.add(const SetCurrentTab(2));
+      await bloc.stream.firstWhere((s) => s.currentTabIndex == 2);
+
+      bloc.add(RemoveTabs([second, third]));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+      expect(bloc.state.currentTab, same(first));
 
       await _closeBlocAndAllowDeferredDispose(bloc);
     });

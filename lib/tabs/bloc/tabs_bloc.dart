@@ -59,6 +59,10 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   final Future<OpenedTab> Function(OpenedTab tab) _withCompanion;
   final List<_ClosedTabEntry> _recentlyClosedTabs = <_ClosedTabEntry>[];
 
+  /// מתי כל כרטיסיה הוצגה לאחרונה, כדי שסגירת הפעילה תחזור לקודמתה.
+  final Expando<int> _lastViewedAt = Expando<int>();
+  int _viewClock = 0;
+
   /// הכרטיסיות שנסגרו לאחרונה, מהאחרונה שנסגרה ואילך. הרשימה אינה חלק
   /// מה-state, ולכן קוראים אותה בתוך `BlocBuilder` על שינוי הכרטיסיות.
   List<OpenedTab> get recentlyClosedTabs => List<OpenedTab>.unmodifiable(
@@ -310,6 +314,10 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   @override
   void onChange(Change<TabsState> change) {
     super.onChange(change);
+    final viewed = change.nextState.currentTab;
+    if (viewed != null && !identical(viewed, change.currentState.currentTab)) {
+      _lastViewedAt[viewed] = ++_viewClock;
+    }
     if (identical(change.currentState.tabs, change.nextState.tabs)) return;
     _searchCompletedPublisher?.updateTabs(
       change.nextState.tabs.expand(leafPanes).whereType<SearchingTab>(),
@@ -1258,14 +1266,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       return;
     }
 
-    // סגירת הטאב הפעיל מעבירה לטאב הבא (שנכנס תחת אותו אינדקס לאחר המחיקה).
-    // סגירת טאב שלפני הפעיל מזיזה את הפעיל אינדקס אחד אחורה.
-    var newIndex = removedTabIndex < state.currentTabIndex
-        ? state.currentTabIndex - 1
-        : state.currentTabIndex;
-
-    // וידוא שהאינדקס תקין (לא חורג מגבולות הרשימה)
-    newIndex = min(newIndex, newTabs.length - 1);
+    final newIndex = activeIndexAfterRemoving({event.tab});
 
     emit(
       state.copyWith(
@@ -1276,6 +1277,35 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     );
     _scheduleSave(newTabs, newIndex);
     _disposeTabLater(event.tab);
+  }
+
+  /// אינדקס הכרטיסיה הפעילה אחרי הסרת [removed]: הפעילה אם שרדה, אחרת זו
+  /// שהוצגה לאחרונה, ובלעדיה זו שנכנסה במקום הפעילה.
+  int activeIndexAfterRemoving(Set<OpenedTab> removed) {
+    final remaining = state.tabs.where((t) => !removed.contains(t)).toList();
+    if (remaining.isEmpty) return 0;
+    final current = state.currentTab;
+    if (current != null && !removed.contains(current)) {
+      return remaining.indexOf(current);
+    }
+    var best = -1;
+    var bestViewedAt = 0;
+    for (var i = 0; i < remaining.length; i++) {
+      final viewedAt = _lastViewedAt[remaining[i]];
+      if (viewedAt != null && viewedAt > bestViewedAt) {
+        best = i;
+        bestViewedAt = viewedAt;
+      }
+    }
+    if (best != -1) return best;
+    final removedBefore = state.tabs
+        .take(state.currentTabIndex)
+        .where(removed.contains)
+        .length;
+    return (state.currentTabIndex - removedBefore).clamp(
+      0,
+      remaining.length - 1,
+    );
   }
 
   Future<void> _onRemoveTabs(RemoveTabs event, Emitter<TabsState> emit) async {
@@ -1290,26 +1320,11 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
     final newTabs = state.tabs.where((t) => !toRemove.contains(t)).toList();
 
-    // הטאב הפעיל נשאר אם שרד; אחרת עוברים לטאב שנכנס תחת אותו אינדקס
-    // (כמו בסגירה בודדת), בניכוי הטאבים שנסגרו לפניו.
-    final currentTab = state.currentTab;
-    int newIndex;
-    if (currentTab != null && !toRemove.contains(currentTab)) {
-      newIndex = newTabs.indexOf(currentTab);
-    } else {
-      var removedBefore = 0;
-      for (var i = 0; i < state.currentTabIndex; i++) {
-        if (toRemove.contains(state.tabs[i])) removedBefore++;
-      }
-      newIndex = newTabs.isEmpty
-          ? 0
-          : (state.currentTabIndex - removedBefore).clamp(
-              0,
-              newTabs.length - 1,
-            );
-    }
-
-    _emitAndSaveTabs(emit, newTabs, currentTabIndex: newIndex);
+    _emitAndSaveTabs(
+      emit,
+      newTabs,
+      currentTabIndex: activeIndexAfterRemoving(toRemove),
+    );
 
     for (final tab in toRemove) {
       _disposeTabLater(tab);

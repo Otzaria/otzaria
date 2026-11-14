@@ -157,7 +157,7 @@ void main() {
       (selected: [0, 1, 2], active: 3, clicked: 2, next: 'ספר ד'),
       (selected: [0, 2], active: 2, clicked: 2, next: 'ספר ד'),
       (selected: [0, 1], active: 3, clicked: 2, next: 'ספר ד'),
-      (selected: [3, 4], active: 4, clicked: 4, next: 'ספר ג'),
+      (selected: [3, 4], active: 4, clicked: 4, next: 'ספר א'),
     ]) {
       testWidgets(
         '$strip: הפעילה השמורה תואמת לרצועה לאחר העברת '
