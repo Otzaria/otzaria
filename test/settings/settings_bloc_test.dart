@@ -288,6 +288,31 @@ void main() {
 
     // q12 Q8 (4.11): "לא נבחר" נבדל מ"רגיל", כדי שבמסך קטן ברירת המחדל
     // תהיה מצומצמת ובחירה מפורשת תישמר.
+    group('אינדוקס ספרי PDF', () {
+      blocTest<SettingsBloc, SettingsState>(
+        'בלי מפתח שמור — מופעל',
+        build: () {
+          when(
+            mockRepository.loadSettings(),
+          ).thenAnswer((_) async => mockSettings);
+          when(mockRepository.hasProtectedModePassword()).thenReturn(false);
+          return settingsBloc;
+        },
+        act: (bloc) => bloc.add(LoadSettings()),
+        verify: (bloc) => expect(bloc.state.indexPdfBooks, isTrue),
+      );
+
+      blocTest<SettingsBloc, SettingsState>(
+        'כיבוי נשמר ומתעדכן במצב',
+        build: () => settingsBloc,
+        act: (bloc) => bloc.add(const UpdateIndexPdfBooks(false)),
+        expect: () => [settingsBloc.state.copyWith(indexPdfBooks: false)],
+        verify: (_) {
+          verify(mockRepository.updateIndexPdfBooks(false)).called(1);
+        },
+      );
+    });
+
     group('צפיפות ממשק: בחירה מפורשת', () {
       blocTest<SettingsBloc, SettingsState>(
         'בלי מפתח שמור אין בחירה; ערך שמור (גם "רגיל") הוא בחירה',

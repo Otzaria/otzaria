@@ -79,6 +79,14 @@ class LibrarySettingsTab extends StatefulWidget {
       ],
     ),
     SettingsSearchEntry(
+      id: 'library.search.index_pdf_books',
+      title: 'אינדוקס ספרי PDF',
+      subtitle: 'ספרי PDF נכללים בחיפוש בספרייה',
+      tab: SettingsTab.library,
+      cardId: 'library.repository',
+      keywords: ['PDF', 'אינדקס', 'חיפוש', 'OCR', 'מקום', 'דיסק'],
+    ),
+    SettingsSearchEntry(
       id: 'library.search.index_status',
       title: 'אינדקס חיפוש',
       subtitle: 'סטטוס ועדכון אינדקס החיפוש',
@@ -681,6 +689,18 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
         onChanged: (mode) {
           context.read<SettingsBloc>().add(UpdateIndexUpdateMode(mode));
         },
+      ),
+      SettingsSwitchTile(
+        icon: OtzariaIcons.book_pdf_24_regular,
+        title: context.settingsText('אינדוקס ספרי PDF'),
+        subtitle: state.indexPdfBooks
+            ? context.settingsText('ספרי PDF נכללים בחיפוש בספרייה')
+            : context.settingsText(
+                'ספרי PDF לא ייכללו בחיפוש בספרייה ויוסרו מהאינדקס; פתיחתם וקריאתם אינן מושפעות',
+              ),
+        value: state.indexPdfBooks,
+        onChanged: (value) =>
+            context.read<SettingsBloc>().add(UpdateIndexPdfBooks(value)),
       ),
       SettingsSegmentedTile<IndexingResourceMode>(
         icon: FluentIcons.battery_saver_24_regular,

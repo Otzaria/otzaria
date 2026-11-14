@@ -485,6 +485,30 @@ void main() {
       expect(change(IndexUpdateMode.libraryOnly, IndexUpdateMode.off), isEmpty);
     });
   });
+
+  group('indexPdfBooksChangePlan', () {
+    List<Type> change(bool indexPdfBooks, IndexUpdateMode mode) =>
+        indexPdfBooksChangePlan(
+          library,
+          indexPdfBooks: indexPdfBooks,
+          mode: mode,
+        ).map((e) => e.runtimeType).toList();
+
+    test('כיבוי מסיר את ספרי ה-PDF מהאינדקס ומרענן את החיווי', () {
+      for (final mode in IndexUpdateMode.values) {
+        expect(change(false, mode), [
+          DropOrphanedIndexEntries,
+          CheckIndexStatus,
+        ]);
+      }
+    });
+
+    test('הדלקה מאנדקסת רק כשהעדכון האוטומטי פועל', () {
+      expect(change(true, IndexUpdateMode.all), [StartIndexing]);
+      expect(change(true, IndexUpdateMode.libraryOnly), [StartIndexing]);
+      expect(change(true, IndexUpdateMode.off), [CheckIndexStatus]);
+    });
+  });
 }
 
 class _ComparisonCountingBook extends TextBook {

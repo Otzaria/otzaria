@@ -201,6 +201,15 @@ class UpdateIndexingResourceMode extends SettingsEvent {
   List<Object?> get props => [mode];
 }
 
+class UpdateIndexPdfBooks extends SettingsEvent {
+  final bool indexPdfBooks;
+
+  const UpdateIndexPdfBooks(this.indexPdfBooks);
+
+  @override
+  List<Object?> get props => [indexPdfBooks];
+}
+
 class UpdateIndexUpdateMode extends SettingsEvent {
   final IndexUpdateMode indexUpdateMode;
 

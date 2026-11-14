@@ -18,6 +18,8 @@ abstract class PdfMessages {
       'הספר אינו נמצא באינדקס החיפוש, ולכן חיפוש מתקדם אינו זמין בו. עדכון האינדקס מתבצע בהגדרות הספרייה.';
   static const String personalBookNotInSearchIndex =
       'ספרים אישיים אינם נכללים באינדקס החיפוש לפי הגדרת "עדכון אינדקס אוטומטי", ולכן חיפוש מתקדם אינו זמין בספר זה.';
+  static const String pdfBooksNotInSearchIndex =
+      'ספרי PDF אינם נכללים באינדקס החיפוש לפי הגדרת "אינדוקס ספרי PDF", ולכן חיפוש מתקדם אינו זמין בספר זה.';
   static const String pageRangeRenderFailed = 'עיבוד טווח העמודים שנבחר נכשל';
   static const String multiPageSheetRenderFailed =
       'עיבוד עמודים מרובים בגיליון נכשל';

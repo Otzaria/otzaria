@@ -31,6 +31,19 @@ void main() {
       );
     });
 
+    test('אינדוקס PDF כבוי — הודעה שמפנה להגדרה', () {
+      expect(
+        PdfBookSearchView.missingFromIndexNotice(
+          indexedFilePath: path,
+          indexInitialized: true,
+          indexedFilePaths: const {},
+          excludedByIndexMode: true,
+          pdfIndexingOff: true,
+        ),
+        PdfMessages.pdfBooksNotInSearchIndex,
+      );
+    });
+
     test('לא מחזיר הודעה כשהספר נמצא באינדקס', () {
       expect(
         PdfBookSearchView.missingFromIndexNotice(

@@ -4648,6 +4648,86 @@ void main() {
       expect(provider.indexedFilePaths, {'uid:1', 'uid:99'});
     });
   });
+  group('אינדוקס ספרי PDF כבוי', () {
+    late io.Directory root;
+    late PdfBook pdf;
+    late TextBook text;
+    late Library library;
+
+    setUp(() async {
+      root = await io.Directory.systemTemp.createTemp('otzaria-pdf-off');
+      final file = io.File(p.join(root.path, 'סרוק.pdf'))
+        ..writeAsStringSync('');
+      pdf = PdfBook(title: 'סרוק', path: file.path);
+      text = TextBook(id: 7, title: 'שבת');
+      library = Library(categories: [])..books.addAll([text, pdf]);
+    });
+
+    tearDown(() => root.delete(recursive: true));
+
+    IndexingRepository repositoryFor(
+      _RecordingTantivyDataProvider provider, {
+      required bool indexPdfBooks,
+    }) => IndexingRepository(provider, indexPdfBooks: () => indexPdfBooks);
+
+    test('ריצת אינדוקס אינה כותבת PDF', () async {
+      final engine = _RecordingSearchEngine();
+      final provider = _RecordingTantivyDataProvider(engine);
+      final pdfOnly = Library(categories: [])..books.add(pdf);
+
+      final result = await repositoryFor(
+        provider,
+        indexPdfBooks: false,
+      ).indexAllBooks(pdfOnly, onProgress: (_, _) {});
+
+      expect(result.completed, isTrue);
+      expect(engine.addedDocuments, isEmpty);
+      expect(provider.indexedFilePaths, isEmpty);
+    });
+
+    test('PDF שאינו באינדקס אינו נחשב חסר', () async {
+      final provider = _RecordingTantivyDataProvider(_RecordingSearchEngine());
+      provider.indexedFilePaths.add(BookIdentity.indexedFilePath(text));
+
+      final off = repositoryFor(provider, indexPdfBooks: false);
+      expect(await off.hasUnindexedBooks(library), isFalse);
+      expect(off.eligibleBookCount(library), 1);
+      expect(
+        await repositoryFor(
+          provider,
+          indexPdfBooks: true,
+        ).hasUnindexedBooks(library),
+        isTrue,
+      );
+    });
+
+    test('ניקוי היתומים מסיר PDF שכבר באינדקס ומשאיר את השאר', () async {
+      final engine = _RecordingSearchEngine();
+      final provider = _RecordingTantivyDataProvider(engine);
+      final keys = {
+        BookIdentity.indexedFilePath(text),
+        BookIdentity.indexedFilePath(pdf),
+      };
+      provider.indexedFilePaths.addAll(keys);
+
+      expect(
+        await repositoryFor(
+          provider,
+          indexPdfBooks: true,
+        ).dropOrphanedIndexEntries(library, customFolders: const []),
+        0,
+      );
+      expect(provider.indexedFilePaths, keys);
+
+      final removed = await repositoryFor(
+        provider,
+        indexPdfBooks: false,
+      ).dropOrphanedIndexEntries(library, customFolders: const []);
+
+      expect(removed, 1);
+      expect(provider.indexedFilePaths, {BookIdentity.indexedFilePath(text)});
+    });
+  });
 }
 
 final class _IndexFailureIoSpy extends io.IOOverrides {

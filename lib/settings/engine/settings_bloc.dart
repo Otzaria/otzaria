@@ -62,6 +62,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<UpdateShowLocalHebrewBooks>(_onUpdateShowLocalHebrewBooks);
     on<UpdateShowExternalBooks>(_onUpdateShowExternalBooks);
     on<UpdateIndexUpdateMode>(_onUpdateIndexUpdateMode);
+    on<UpdateIndexPdfBooks>(_onUpdateIndexPdfBooks);
     on<UpdateIndexingResourceMode>(
       _onUpdateIndexingResourceMode,
       transformer: sequential(),
@@ -205,6 +206,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       indexUpdateMode: settings['indexUpdateMode'],
       indexingResourceMode:
           settings['indexingResourceMode'] ?? IndexingResourceMode.automatic,
+      indexPdfBooks: settings['indexPdfBooks'] ?? true,
       textDisplayPolicy: settings['textDisplayPolicy'] as TextDisplayPolicy?,
       defaultContinuousReadingMode:
           settings['defaultContinuousReadingMode'] ?? false,
@@ -714,6 +716,14 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   ) async {
     await _repository.updateIndexingResourceMode(event.mode);
     emit(state.copyWith(indexingResourceMode: event.mode));
+  }
+
+  Future<void> _onUpdateIndexPdfBooks(
+    UpdateIndexPdfBooks event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateIndexPdfBooks(event.indexPdfBooks);
+    emit(state.copyWith(indexPdfBooks: event.indexPdfBooks));
   }
 
   Future<void> _onUpdateIndexUpdateMode(

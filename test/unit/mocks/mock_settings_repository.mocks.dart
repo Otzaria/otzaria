@@ -229,6 +229,18 @@ class MockSettingsRepository extends _i1.Mock
           as _i3.Future<void>);
 
   @override
+  _i3.Future<void> updateIndexPdfBooks(bool? value) =>
+      (super.noSuchMethod(
+            Invocation.method(
+              #updateIndexPdfBooks,
+              [value],
+            ),
+            returnValue: _i3.Future<void>.value(),
+            returnValueForMissingStub: _i3.Future<void>.value(),
+          )
+          as _i3.Future<void>);
+
+  @override
   _i3.Future<void> updateIndexUpdateMode(_i7.IndexUpdateMode? mode) =>
       (super.noSuchMethod(
             Invocation.method(
