@@ -13,6 +13,7 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/models/search_results.dart';
+import 'package:otzaria/text_book/utils/section_search_utils.dart';
 import 'package:otzaria/text_book/view/text_book_search_screen.dart';
 
 import '../../support/search_engine_test_init.dart';
@@ -50,6 +51,7 @@ Future<void> main() async {
     required Future<List<String>> Function() contentLoader,
     Future<List<TextSearchResult>> Function(List<String>, String)?
     simpleSearchRunner,
+    bool useSearchWorker = false,
   }) async {
     final textBookBloc = StubTextBookBloc(_loadedState());
     final settingsBloc = StubSettingsBloc(SettingsState.initial());
@@ -85,8 +87,9 @@ Future<void> main() async {
                     focusNode: focusNode,
                     closeLeftPaneCallback: () {},
                     initialQuery: '',
-                    simpleSearchRunner:
-                        simpleSearchRunner ?? _noResultsSearchRunner,
+                    simpleSearchRunner: useSearchWorker
+                        ? null
+                        : simpleSearchRunner ?? _noResultsSearchRunner,
                   ),
                 ),
               );
@@ -102,6 +105,66 @@ Future<void> main() async {
       setVisibility: (value) => setHostState(() => isVisible = value),
     );
   }
+
+  testWidgets(
+    'תוכן שנטען לרגקס אחרי שינוי הספר זמין גם לחיפוש ליטרלי',
+    (tester) async {
+      addTearDown(resetSectionSearchWorkerForTesting);
+      var book = const ['אברהם'];
+      var loads = 0;
+      final harness = await pumpSearchView(
+        tester,
+        useSearchWorker: true,
+        contentLoader: () async {
+          loads++;
+          return book;
+        },
+      );
+      await harness.search('אברהם');
+      await harness.settle();
+      expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
+      await harness.setVisible(false);
+      book = const ['משה'];
+      await harness.setVisible(true);
+      await harness.search('/משה/');
+      await harness.settle();
+      expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
+      expect(loads, 2);
+      await harness.search('משה');
+      await harness.settle();
+      expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
+      expect(loads, 2);
+    },
+    skip: !engineReady,
+  );
+
+  testWidgets(
+    'חיפוש ליטרלי אחרי חזרה מהרקע רואה שינוי בתוכן הספר',
+    (tester) async {
+      addTearDown(resetSectionSearchWorkerForTesting);
+      var book = const ['אברהם'];
+      var loads = 0;
+      final harness = await pumpSearchView(
+        tester,
+        useSearchWorker: true,
+        contentLoader: () async {
+          loads++;
+          return book;
+        },
+      );
+      await harness.search('אברהם');
+      await harness.settle();
+      expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
+      await harness.setVisible(false);
+      book = const ['משה'];
+      await harness.setVisible(true);
+      await harness.search('משה');
+      await harness.settle();
+      expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
+      expect(loads, 2);
+    },
+    skip: !engineReady,
+  );
 
   group('קאש שורות הספר', () {
     testWidgets('חיפוש טוען את שורות הספר פעם אחת בלבד', (tester) async {
@@ -141,9 +204,77 @@ Future<void> main() async {
       expect(
         loadCount,
         2,
-        reason: 'הקאש שוחרר ברקע, ולכן החיפוש הבא טוען את הספר מחדש',
+        reason: 'הקאש שוחרר ברקע, ומסלול שצריך עותק ב-isolate הראשי טוען מחדש',
       );
     });
+
+    testWidgets(
+      'חיפוש ב-worker אחרי חזרה מהרקע טוען תוכן עדכני',
+      (tester) async {
+        addTearDown(resetSectionSearchWorkerForTesting);
+        var loadCount = 0;
+        final harness = await pumpSearchView(
+          tester,
+          useSearchWorker: true,
+          contentLoader: () async {
+            loadCount++;
+            return const ['אב אברהם', 'יצחק'];
+          },
+        );
+
+        await harness.search('אברהם');
+        await harness.settle();
+        expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
+        expect(loadCount, 1);
+
+        await harness.setVisible(false);
+        await harness.setVisible(true);
+        await harness.search('יצחק');
+        await harness.settle();
+
+        expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
+        expect(
+          loadCount,
+          2,
+          reason: 'טעינה חוזרת מבטיחה שה-worker מקבל את התוכן העדכני',
+        );
+      },
+      skip: !engineReady,
+    );
+
+    testWidgets(
+      'טעינה ישנה שמסתיימת אחרי החדשה אינה מבטלת את החיפוש הפעיל',
+      (tester) async {
+        addTearDown(resetSectionSearchWorkerForTesting);
+        // ספר גדול מגודל ה-chunk, כדי שהסריקה תיעצר להודעה שמגיעה אחריה.
+        final book = List.generate(50000, (i) => i == 40000 ? 'אברהם' : 'שורה');
+        final loaders = <Completer<List<String>>>[];
+        final harness = await pumpSearchView(
+          tester,
+          useSearchWorker: true,
+          contentLoader: () {
+            final completer = Completer<List<String>>();
+            loaders.add(completer);
+            return completer.future;
+          },
+        );
+
+        await harness.search('שורה');
+        expect(loaders, hasLength(1));
+        await harness.setVisible(false);
+        await harness.setVisible(true);
+        await harness.search('אברהם');
+        expect(loaders, hasLength(2));
+
+        loaders.last.complete(book);
+        loaders.first.complete(const ['תוכן ישן']);
+        await tester.pump();
+        await harness.settle();
+
+        expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
+      },
+      skip: !engineReady,
+    );
 
     testWidgets('שהייה ברקע בלי חיפוש חדש אינה טוענת את הספר', (tester) async {
       var loadCount = 0;
@@ -306,6 +437,23 @@ class _Harness {
     await type(query);
     await tester.pump();
     await tester.pump();
+  }
+
+  /// מאפשר ל-isolate של החיפוש לענות; ה-pump לבדו אינו מריץ אירועים אמיתיים.
+  Future<void> settle() async {
+    final deadline = DateTime.now().add(const Duration(seconds: 5));
+    while (tester
+            .widget<SearchPaneBase>(find.byType(SearchPaneBase))
+            .progressWidget !=
+        null) {
+      if (DateTime.now().isAfter(deadline)) {
+        fail('החיפוש לא הסתיים בתוך חמש שניות');
+      }
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+    }
   }
 
   Future<void> setVisible(bool value) async {

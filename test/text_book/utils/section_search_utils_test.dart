@@ -396,6 +396,47 @@ Future<void> main() async {
     });
   });
 
+  group('searchInContent - רענון תוכן', () {
+    Future<List<int>> search(List<String> content) async => [
+      for (final result in await searchInContent(
+        content: content,
+        query: 'אור',
+        patternSource: literalPatternSource('אור'),
+      ))
+        result.index,
+    ];
+
+    test(
+      'טעינה חוזרת זהה ואחריה עדכון באותו אורך מחפשים בתוכן הנכון',
+      () async {
+        const content = ['אור ראשון', 'חושך'];
+        expect(await search(content), [0]);
+        expect(await search(List.of(content)), [0]);
+        expect(await search(['חושך', 'אור שני']), [1]);
+      },
+    );
+
+    test('שגיאה ב-worker מאפשרת לשלוח שוב את אותה רשימת תוכן', () async {
+      const content = ['אור'];
+      await expectLater(
+        searchInContent(content: content, query: 'אור', patternSource: '('),
+        throwsA(isA<StateError>()),
+      );
+      expect(await search(content), [0]);
+    });
+
+    test('בקשה שהתיישנה בזמן אתחול אינה נשלחת ל-worker', () async {
+      final old = searchInContent(
+        content: const ['אור ישן'],
+        query: 'אור',
+        patternSource: literalPatternSource('אור'),
+        isCurrent: () => false,
+      );
+      expect(await search(const ['חושך', 'אור חדש']), [1]);
+      expect(await old, isEmpty);
+    });
+  });
+
   group('searchInContent - whitespace normalization', () {
     test('מוצא ביטוי כשיש תג HTML עם רווחים סביבו', () async {
       final results = await searchInContent(

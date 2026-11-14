@@ -434,7 +434,14 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     _contentFuture = null;
   }
 
-  /// השאילתה שתרוץ בפועל, מנורמלת, או `null` כשאין מה לחפש עליה.
+  void _showSearchFailure(String message) {
+    UiSnack.showError(message);
+    setState(() {
+      searchResults = [];
+      _isSearching = false;
+      _searchErrorMessage = message;
+    });
+  }
 
   Future<void> _searchTextUpdated() async {
     final requestId = ++_activeSearchRequestId;
@@ -465,12 +472,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       } catch (e) {
         debugPrint('טעינת תוכן הספר לחיפוש נכשלה: $e');
         if (mounted && requestId == _activeSearchRequestId) {
-          UiSnack.showError(TextBookMessages.searchContentLoadFailed);
-          setState(() {
-            searchResults = [];
-            _isSearching = false;
-            _searchErrorMessage = TextBookMessages.searchContentLoadFailed;
-          });
+          _showSearchFailure(TextBookMessages.searchContentLoadFailed);
         }
         return;
       }
@@ -497,18 +499,27 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       }
 
       var truncated = false;
-      final effectiveResults = widget.simpleSearchRunner != null
-          ? await widget.simpleSearchRunner!(content, query)
-          : await searchInContent(
-              content: content,
-              query: query,
-              wholeWord: _wholeWord,
-              range: section == null
-                  ? null
-                  : (start: section.start, end: section.end),
-              onTruncated: (t) => truncated = t,
-            );
-
+      final List<TextSearchResult> effectiveResults;
+      try {
+        effectiveResults = widget.simpleSearchRunner != null
+            ? await widget.simpleSearchRunner!(content, query)
+            : await searchInContent(
+                content: content,
+                query: query,
+                wholeWord: _wholeWord,
+                range: section == null
+                    ? null
+                    : (start: section.start, end: section.end),
+                onTruncated: (t) => truncated = t,
+                isCurrent: () => mounted && requestId == _activeSearchRequestId,
+              );
+      } catch (e) {
+        debugPrint('החיפוש בספר נכשל: $e');
+        if (mounted && requestId == _activeSearchRequestId) {
+          _showSearchFailure(LibraryMessages.searchError);
+        }
+        return;
+      }
       if (mounted && requestId == _activeSearchRequestId) {
         _applySearchResults(effectiveResults, truncated: truncated);
       }

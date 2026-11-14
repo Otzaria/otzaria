@@ -442,9 +442,7 @@ class _SearchWorkerHost {
   final Map<int, Completer<({List<TextSearchResult> results, bool truncated})>>
   _pending = {};
 
-  // מעקב אחר התוכן האחרון שנשלח ל-worker. כל עוד מדובר באותו אובייקט תוכן
-  // (אותו ספר פתוח) שולחים רק את השאילתה — לא את הספר כולו — וה-worker
-  // משתמש ב-cache שלו לפי המזהה.
+  // אותה רשימת שורות נשלחת ל-worker פעם אחת; אחריה נשלחת רק השאילתה.
   List<String>? _lastSentContent;
   int _lastContentId = 0;
 
@@ -453,8 +451,12 @@ class _SearchWorkerHost {
     required String query,
     required String patternSource,
     ({int start, int? end})? range,
+    bool Function()? isCurrent,
   }) async {
     await _ensureStarted();
+    if (isCurrent?.call() == false) {
+      return (results: const <TextSearchResult>[], truncated: false);
+    }
 
     final requestId = ++_nextRequestId;
     final completer =
@@ -578,6 +580,8 @@ class _SearchWorkerHost {
         ));
         break;
       case 'error':
+        // ייתכן שהמטמון של ה-worker לא נבנה; הבקשה הבאה תשלח את התוכן שוב.
+        _lastSentContent = null;
         completer.completeError(
           StateError(message['message'] as String? ?? 'Search worker failed'),
         );
@@ -630,7 +634,7 @@ class SectionSearchWorkerRuntime {
   bool _isProcessing = false;
 
   // מטמון של ספר אחד: null מסמן שורה שטרם נוקתה, גם מחרוזת ריקה נשמרת.
-  // הניקוי אינו תלוי בשאילתה; החלפת מזהה התוכן מפנה את כל השורות.
+  // הניקוי אינו תלוי בשאילתה; תוכן שונה מפנה את כל השורות.
   int? _cachedContentId;
   List<String>? _cachedRawContent;
   List<String?>? _cachedCleanLines;
@@ -648,7 +652,23 @@ class SectionSearchWorkerRuntime {
       return;
     }
 
-    _queuedRequest = Map<String, dynamic>.from(message);
+    final request = Map<String, dynamic>.from(message);
+    final superseded = _queuedRequest;
+    if (superseded != null) {
+      // המארח שולח את התוכן פעם אחת לכל מזהה, ולכן הוא עובר לבקשה שמחליפה.
+      final contentId = request['contentId'];
+      if (contentId != null &&
+          contentId == superseded['contentId'] &&
+          !request.containsKey('content') &&
+          superseded.containsKey('content')) {
+        request['content'] = superseded['content'];
+      }
+      _mainSendPort.send({
+        'type': 'canceled',
+        'requestId': superseded['requestId'],
+      });
+    }
+    _queuedRequest = request;
     if (!_isProcessing) {
       unawaited(_processLoop());
     }
@@ -678,9 +698,9 @@ class SectionSearchWorkerRuntime {
               contentId == _cachedContentId &&
               _cachedCleanLines != null;
           if (!cacheValid) {
-            final rawContent = request.containsKey('content')
-                ? (request['content'] as List<dynamic>).cast<String>()
-                : _cachedRawContent;
+            // לעולם לא נופלים לתוכן שבמטמון: הוא שייך למזהה אחר.
+            final rawContent = (request['content'] as List<dynamic>?)
+                ?.cast<String>();
             if (rawContent == null) {
               throw StateError('לא התקבל תוכן לחיפוש (contentId=$contentId)');
             }
@@ -855,6 +875,12 @@ class SectionSearchWorkerRuntime {
   /// אוסף כותרות מכל הספר לכתובות התוצאות; השורות ינוקו רק בתוך טווח החיפוש.
   /// תוכן אחר שמגיע בנקודת yield מבטל את הבנייה בלי לשמור מטמון חלקי.
   Future<bool> _buildCache(int? contentId, List<String> content) async {
+    // טעינה חוזרת יוצרת רשימה חדשה; שורות זהות משמרות גם ניקוי חלקי.
+    if (listEquals(content, _cachedRawContent)) {
+      _cachedContentId = contentId;
+      return true;
+    }
+
     final clean = List<String?>.filled(content.length, null, growable: false);
     final headingLines = <int>[];
     for (int i = 0; i < content.length; i++) {
@@ -890,6 +916,7 @@ Future<List<TextSearchResult>> searchInContent({
   ({int start, int? end})? range,
   @visibleForTesting String? patternSource,
   ValueChanged<bool>? onTruncated,
+  bool Function()? isCurrent,
 }) async {
   if (content.isEmpty) return [];
 
@@ -902,6 +929,7 @@ Future<List<TextSearchResult>> searchInContent({
     query: query,
     patternSource: source,
     range: range,
+    isCurrent: isCurrent,
   );
   onTruncated?.call(outcome.truncated);
   return outcome.results;
