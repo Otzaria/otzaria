@@ -396,6 +396,72 @@ Future<void> main() async {
     });
   });
 
+  group('searchInBookContent - מפתח תוכן', () {
+    const firstBook = ['אור ראשון', 'שורה', 'אור שני'];
+    const secondBook = ['חושך', 'אור אחר'];
+
+    Future<List<int>> search(
+      Object key,
+      List<String> book,
+      void Function() onLoad, {
+      String? patternSource,
+    }) async {
+      final results = await searchInBookContent(
+        contentKey: key,
+        loadContent: () async {
+          onLoad();
+          return book;
+        },
+        query: 'אור',
+        patternSource: patternSource ?? literalPatternSource('אור'),
+      );
+      return [for (final r in results) r.index];
+    }
+
+    test('אותו מפתח פעמיים טוען את התוכן פעם אחת', () async {
+      final key = Object();
+      var loads = 0;
+      expect(await search(key, firstBook, () => loads++), [0, 2]);
+      expect(await search(key, firstBook, () => loads++), [0, 2]);
+      expect(loads, 1);
+    });
+
+    test('מפתח אחר וחזרה טוענים שוב, והתוצאות מהספר הנכון', () async {
+      final firstKey = Object();
+      final secondKey = Object();
+      var firstLoads = 0;
+      var secondLoads = 0;
+      expect(await search(firstKey, firstBook, () => firstLoads++), [0, 2]);
+      expect(await search(secondKey, secondBook, () => secondLoads++), [1]);
+      expect(await search(firstKey, firstBook, () => firstLoads++), [0, 2]);
+      expect((firstLoads, secondLoads), (2, 1));
+    });
+
+    test('שגיאה ב-worker מחייבת לשלוח את התוכן שוב', () async {
+      final key = Object();
+      var loads = 0;
+      await expectLater(
+        search(key, firstBook, () => loads++, patternSource: '('),
+        throwsA(isA<StateError>()),
+      );
+      expect(await search(key, firstBook, () => loads++), [0, 2]);
+      expect(loads, 2);
+    });
+
+    test('בקשות מקבילות עם אותו מפתח מחזירות את הספר הנכון', () async {
+      final firstKey = Object();
+      final secondKey = Object();
+      expect(await search(firstKey, firstBook, () {}), [0, 2]);
+      final results = await Future.wait([
+        search(secondKey, secondBook, () {}),
+        search(secondKey, secondBook, () {}),
+      ]);
+      // הבקשה הראשונה מוחלפת בתור ומחזירה ריק; העיקר שאין תוצאות מהספר הקודם.
+      expect(results.last, [1]);
+      expect(results.first, anyOf(isEmpty, [1]));
+    });
+  });
+
   group('searchInContent - whitespace normalization', () {
     test('מוצא ביטוי כשיש תג HTML עם רווחים סביבו', () async {
       final results = await searchInContent(

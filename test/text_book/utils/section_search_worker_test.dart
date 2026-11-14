@@ -438,6 +438,37 @@ void main() {
       );
     });
 
+    test('בקשה ללא תוכן שמחליפה בתור את בקשת התוכן מחפשת בספר הנכון', () async {
+      final harness = _RuntimeHarness();
+      addTearDown(harness.dispose);
+      // ספר ראשון גדול מגודל ה-chunk, כדי שהסריקה שלו תיעצר לבקשות החדשות.
+      final firstBook = List.generate(300, (i) => 'אור ראשון $i');
+      const secondBook = ['חושך', 'אור שני'];
+      await harness.search(requestId: 1, contentId: 1, content: firstBook);
+
+      harness.deliver({
+        'type': 'search',
+        'requestId': 2,
+        'contentId': 1,
+        'query': 'אור',
+        'patternSource': literalPatternSource('אור'),
+      });
+      harness.deliver({
+        'type': 'search',
+        'requestId': 3,
+        'contentId': 2,
+        'content': secondBook,
+        'query': 'אור',
+        'patternSource': literalPatternSource('אור'),
+      });
+      final latest = await harness.search(requestId: 4, contentId: 2);
+
+      expect(latest['type'], 'result');
+      expect((latest['results'] as List).single['snippet'], 'אור שני');
+      expect((await harness.waitForMessage(requestId: 2))['type'], 'canceled');
+      expect((await harness.waitForMessage(requestId: 3))['type'], 'canceled');
+    });
+
     test('contentId לא מוכר ללא content מחזיר error', () async {
       final harness = _RuntimeHarness();
       addTearDown(harness.dispose);

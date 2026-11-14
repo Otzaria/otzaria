@@ -442,28 +442,38 @@ class _SearchWorkerHost {
   final Map<int, Completer<({List<TextSearchResult> results, bool truncated})>>
   _pending = {};
 
-  // מעקב אחר התוכן האחרון שנשלח ל-worker. כל עוד מדובר באותו אובייקט תוכן
-  // (אותו ספר פתוח) שולחים רק את השאילתה — לא את הספר כולו — וה-worker
-  // משתמש ב-cache שלו לפי המזהה.
-  List<String>? _lastSentContent;
+  // מפתח התוכן האחרון שנשלח ל-worker. כל עוד המפתח זהה נשלחת רק השאילתה,
+  // וה-worker משתמש במטמון שלו לפי המזהה.
+  Object? _lastSentKey;
   int _lastContentId = 0;
 
   Future<({List<TextSearchResult> results, bool truncated})> search({
-    required List<String> content,
+    required Object contentKey,
+    required Future<List<String>> Function() loadContent,
     required String query,
     required String patternSource,
     ({int start, int? end})? range,
   }) async {
     await _ensureStarted();
 
+    List<String>? content;
+    if (!identical(contentKey, _lastSentKey)) {
+      content = await loadContent();
+      if (content.isEmpty) {
+        return (results: const <TextSearchResult>[], truncated: false);
+      }
+    }
+
     final requestId = ++_nextRequestId;
     final completer =
         Completer<({List<TextSearchResult> results, bool truncated})>();
     _pending[requestId] = completer;
 
-    final bool contentChanged = !identical(content, _lastSentContent);
-    if (contentChanged) {
-      _lastSentContent = content;
+    // בזמן הטעינה בקשה מקבילה עם אותו מפתח כבר יכלה לשלוח את התוכן.
+    final bool sendContent =
+        content != null && !identical(contentKey, _lastSentKey);
+    if (sendContent) {
+      _lastSentKey = contentKey;
       _lastContentId++;
     }
 
@@ -476,7 +486,7 @@ class _SearchWorkerHost {
       'rangeStart': range?.start,
       'rangeEnd': range?.end,
     };
-    if (contentChanged) {
+    if (sendContent) {
       message['content'] = content;
     }
 
@@ -578,6 +588,8 @@ class _SearchWorkerHost {
         ));
         break;
       case 'error':
+        // ייתכן שהמטמון של ה-worker לא נבנה; הבקשה הבאה תשלח את התוכן שוב.
+        _lastSentKey = null;
         completer.completeError(
           StateError(message['message'] as String? ?? 'Search worker failed'),
         );
@@ -602,7 +614,7 @@ class _SearchWorkerHost {
     _startFuture = null;
     _startCompleter = null;
     _nextRequestId = 0;
-    _lastSentContent = null;
+    _lastSentKey = null;
     _lastContentId = 0;
     _isolate?.kill(priority: Isolate.immediate);
     _isolate = null;
@@ -648,7 +660,23 @@ class SectionSearchWorkerRuntime {
       return;
     }
 
-    _queuedRequest = Map<String, dynamic>.from(message);
+    final request = Map<String, dynamic>.from(message);
+    final superseded = _queuedRequest;
+    if (superseded != null) {
+      // המארח שולח את התוכן פעם אחת לכל מזהה, ולכן הוא עובר לבקשה שמחליפה.
+      final contentId = request['contentId'];
+      if (contentId != null &&
+          contentId == superseded['contentId'] &&
+          !request.containsKey('content') &&
+          superseded.containsKey('content')) {
+        request['content'] = superseded['content'];
+      }
+      _mainSendPort.send({
+        'type': 'canceled',
+        'requestId': superseded['requestId'],
+      });
+    }
+    _queuedRequest = request;
     if (!_isProcessing) {
       unawaited(_processLoop());
     }
@@ -678,9 +706,9 @@ class SectionSearchWorkerRuntime {
               contentId == _cachedContentId &&
               _cachedCleanLines != null;
           if (!cacheValid) {
-            final rawContent = request.containsKey('content')
-                ? (request['content'] as List<dynamic>).cast<String>()
-                : _cachedRawContent;
+            // לעולם לא נופלים לתוכן שבמטמון: הוא שייך למזהה אחר.
+            final rawContent = (request['content'] as List<dynamic>?)
+                ?.cast<String>();
             if (rawContent == null) {
               throw StateError('לא התקבל תוכן לחיפוש (contentId=$contentId)');
             }
@@ -892,13 +920,35 @@ Future<List<TextSearchResult>> searchInContent({
   ValueChanged<bool>? onTruncated,
 }) async {
   if (content.isEmpty) return [];
+  return searchInBookContent(
+    contentKey: content,
+    loadContent: () async => content,
+    query: query,
+    wholeWord: wholeWord,
+    range: range,
+    patternSource: patternSource,
+    onTruncated: onTruncated,
+  );
+}
 
+/// כמו [searchInContent], אך כל עוד ה-worker מחזיק את התוכן של [contentKey]
+/// (לפי זהות) [loadContent] אינו נקרא. תוכן שעשוי להשתנות דורש מפתח חדש.
+Future<List<TextSearchResult>> searchInBookContent({
+  required Object contentKey,
+  required Future<List<String>> Function() loadContent,
+  required String query,
+  bool wholeWord = true,
+  ({int start, int? end})? range,
+  @visibleForTesting String? patternSource,
+  ValueChanged<bool>? onTruncated,
+}) async {
   final source =
       patternSource ?? buildLiteralPattern(query, wholeWord: wholeWord)?.source;
   if (source == null) return [];
 
   final outcome = await _SearchWorkerHost.instance.search(
-    content: content,
+    contentKey: contentKey,
+    loadContent: loadContent,
     query: query,
     patternSource: source,
     range: range,

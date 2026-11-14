@@ -13,6 +13,7 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/models/search_results.dart';
+import 'package:otzaria/text_book/utils/section_search_utils.dart';
 import 'package:otzaria/text_book/view/text_book_search_screen.dart';
 
 import '../../support/search_engine_test_init.dart';
@@ -50,6 +51,7 @@ Future<void> main() async {
     required Future<List<String>> Function() contentLoader,
     Future<List<TextSearchResult>> Function(List<String>, String)?
     simpleSearchRunner,
+    bool useSearchWorker = false,
   }) async {
     final textBookBloc = StubTextBookBloc(_loadedState());
     final settingsBloc = StubSettingsBloc(SettingsState.initial());
@@ -85,8 +87,9 @@ Future<void> main() async {
                     focusNode: focusNode,
                     closeLeftPaneCallback: () {},
                     initialQuery: '',
-                    simpleSearchRunner:
-                        simpleSearchRunner ?? _noResultsSearchRunner,
+                    simpleSearchRunner: useSearchWorker
+                        ? null
+                        : simpleSearchRunner ?? _noResultsSearchRunner,
                   ),
                 ),
               );
@@ -141,9 +144,43 @@ Future<void> main() async {
       expect(
         loadCount,
         2,
-        reason: 'הקאש שוחרר ברקע, ולכן החיפוש הבא טוען את הספר מחדש',
+        reason: 'הקאש שוחרר ברקע, ומסלול שצריך עותק ב-isolate הראשי טוען מחדש',
       );
     });
+
+    testWidgets(
+      'חיפוש ב-worker אחרי חזרה מהרקע אינו טוען את הספר שוב',
+      (tester) async {
+        addTearDown(resetSectionSearchWorkerForTesting);
+        var loadCount = 0;
+        final harness = await pumpSearchView(
+          tester,
+          useSearchWorker: true,
+          contentLoader: () async {
+            loadCount++;
+            return const ['אב אברהם', 'יצחק'];
+          },
+        );
+
+        await harness.search('אברהם');
+        await harness.settle();
+        expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
+        expect(loadCount, 1);
+
+        await harness.setVisible(false);
+        await harness.setVisible(true);
+        await harness.search('יצחק');
+        await harness.settle();
+
+        expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
+        expect(
+          loadCount,
+          1,
+          reason: 'ה-worker עדיין מחזיק את הספר — שולחים רק את השאילתה',
+        );
+      },
+      skip: !engineReady,
+    );
 
     testWidgets('שהייה ברקע בלי חיפוש חדש אינה טוענת את הספר', (tester) async {
       var loadCount = 0;
@@ -306,6 +343,16 @@ class _Harness {
     await type(query);
     await tester.pump();
     await tester.pump();
+  }
+
+  /// מאפשר ל-isolate של החיפוש לענות; ה-pump לבדו אינו מריץ אירועים אמיתיים.
+  Future<void> settle() async {
+    for (var i = 0; i < 6; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+    }
   }
 
   Future<void> setVisible(bool value) async {
