@@ -67,6 +67,7 @@ class AppFonts {
   /// שונה מה-regular, ולכן כותרת מודגשת נראית כגופן אחר מהגוף.
   static const Set<String> _separateBoldFaceFonts = {
     'FrankRuhlCLM',
+    'Mekorot',
     'OtzariaAshurit',
     'OtzariaAshuritNikud',
   };
@@ -158,6 +159,11 @@ class AppFonts {
     FontInfo(value: 'Tinos', label: 'טינוס', category: FontCategory.serif),
     FontInfo(
       value: 'NotoRashiHebrew',
+      label: 'רש"י נוטו',
+      category: FontCategory.serif,
+    ),
+    FontInfo(
+      value: 'Mekorot',
       label: 'רש"י',
       category: FontCategory.serif,
     ),
@@ -685,6 +691,7 @@ class AppFonts {
     'NotoSerifHebrew': 'fonts/NotoSerifHebrew-VariableFont_wdth,wght.ttf',
     'Tinos': 'fonts/Tinos-Regular.ttf',
     'NotoRashiHebrew': 'fonts/NotoRashiHebrew-VariableFont_wght.ttf',
+    'Mekorot': 'packages/otzaria_mekorot/Mekorot-Light.ttf',
     'Rubik': 'fonts/Rubik-VariableFont_wght.ttf',
   };
 
@@ -692,6 +699,7 @@ class AppFonts {
   /// צרכן חיצוני שמקבל רק את ה-regular (WebView של תוסף) מסנתז בולד מרוח.
   static const Map<String, String> boldFontPaths = {
     'FrankRuhlCLM': 'fonts/FrankRuehlCLM-Bold.ttf',
+    'Mekorot': 'packages/otzaria_mekorot/Mekorot-Bold.ttf',
     ashuritFont: 'packages/otzaria_ashurit/OtzariaAshurit-Bold.otf',
     ashuritNikudFont: 'packages/otzaria_ashurit/OtzariaAshuritNikud-Bold.otf',
   };

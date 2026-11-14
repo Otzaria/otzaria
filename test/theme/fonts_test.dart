@@ -8,8 +8,17 @@ import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/utils/file/sfnt_metadata_reader.dart';
 import 'package:otzaria/widgets/misc/font_dropdown_field.dart';
 
-Uint8List _bundledFont(String name) =>
-    Uint8List.fromList(File('fonts/$name').readAsBytesSync());
+import '../support/shaper_test_init.dart';
+
+/// גופן מהתיקייה fonts, או מחבילת otzaria_mekorot כשאינו שם.
+Uint8List _bundledFont(String name) {
+  final local = File('fonts/$name');
+  if (local.existsSync()) return Uint8List.fromList(local.readAsBytesSync());
+  final mekorot = resolvedTestPackageRoot('otzaria_mekorot')!;
+  return Uint8List.fromList(
+    File('${mekorot.path}/lib/$name').readAsBytesSync(),
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Helpers — build minimal valid OpenType/TrueType byte sequences

@@ -510,6 +510,7 @@ const Map<String, String> _wordFontNames = {
   'NotoSerifHebrew': 'Noto Serif Hebrew',
   'Tinos': 'Tinos',
   'NotoRashiHebrew': 'Noto Rashi Hebrew',
+  'Mekorot': 'Mekorot',
   'Rubik': 'Rubik',
 };
 
