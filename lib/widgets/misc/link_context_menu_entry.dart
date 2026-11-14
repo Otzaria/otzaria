@@ -5,6 +5,7 @@ import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/book_protection/models/book_protection.dart';
@@ -336,7 +337,7 @@ class _LinkHoverPreviewContentState extends State<LinkHoverPreviewContent> {
                     }
 
                     // ה-HTML הגולמי עובר ל-SmartTextWidget כדי שגוף ההערות המוטמעות
-                    // יוסר ומעברי השורה יישמרו; הטקסט הנקי משמש רק לבדיקה ולמדידה.
+                    // יוסר ומעברי השורה יישמרו; הטקסט הנקי משמש רק לבדיקת תוכן ריק.
                     final rawContent = snapshot.data!;
                     final cleanContent =
                         TextRendererService.stripHtml(
@@ -382,74 +383,73 @@ class _LinkHoverPreviewContentState extends State<LinkHoverPreviewContent> {
                       );
                     }
                     final lineHeight = settingsState.lineHeight;
-                    return LayoutBuilder(
-                      builder: (context, constraints) {
-                        // מדידה על הטקסט כפי שירונדר (בלי ניקוד אם צריך) כדי
-                        // להחליט אם התוכן נגזר ולהציג "…".
-                        final measureText = applyTextDisplayProfile(
-                          cleanContent,
-                          profile,
-                        );
-                        // התוכן יורש את סגנון ברירת המחדל (למשל letterSpacing)
-                        // — גם המדידה, אחרת היא שוברת שורות אחרת ממנו.
-                        final measureStyle = DefaultTextStyle.of(context).style
-                            .merge(
-                              TextStyle(
-                                fontSize: fontSize,
-                                fontFamily: AppFonts.renderFontFamily(
-                                  settingsState.commentatorsFontFamily,
-                                ),
-                                height: lineHeight,
-                                fontWeight: settingsState.commentatorsFontBold
-                                    ? FontWeight.bold
-                                    : null,
-                              ),
-                            );
-                        final measureSpan = TextSpan(
-                          text: measureText,
-                          style: measureStyle,
-                        );
-                        final painter = TextPainter(
-                          text: measureSpan,
-                          strutStyle: exactLineHeightStrut(
-                            measureStyle,
-                            measureSpan,
-                          ),
-                          textDirection: TextDirection.rtl,
-                          textScaler: MediaQuery.textScalerOf(context),
-                          maxLines: maxContentLines,
-                        )..layout(maxWidth: constraints.maxWidth);
-                        // הפריסה מעגלת כל שורה לפיקסל שלם, ולכן הגובה והחיתוך
-                        // נמדדים בשורות הפרוסות ולא ב-fontSize×height.
-                        final truncated = painter.didExceedMaxLines;
-                        final maxHeight =
-                            painter.preferredLineHeight * maxContentLines!;
-                        painter.dispose();
-
-                        final clipped = ClipRect(
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(maxHeight: maxHeight),
-                            child: content,
-                          ),
-                        );
-                        if (!truncated) return clipped;
-                        return Stack(
-                          children: [
-                            clipped,
-                            Positioned(
-                              bottom: 0,
-                              left: 0,
-                              child: _ExpandContentButton(
-                                fontSize: fontSize,
-                                fontFamily:
-                                    settingsState.commentatorsFontFamily,
-                                lineHeight: lineHeight,
-                                onPressed: () => _expand(context),
-                              ),
+                    // גובה השורה כמו בתוכן, שיורש את סגנון ברירת המחדל.
+                    final measureStyle = DefaultTextStyle.of(context).style
+                        .merge(
+                          TextStyle(
+                            fontSize: fontSize,
+                            fontFamily: AppFonts.renderFontFamily(
+                              settingsState.commentatorsFontFamily,
                             ),
-                          ],
+                            height: lineHeight,
+                            fontWeight: settingsState.commentatorsFontBold
+                                ? FontWeight.bold
+                                : null,
+                          ),
                         );
-                      },
+                    final measureSpan = TextSpan(style: measureStyle);
+                    final painter = TextPainter(
+                      text: measureSpan,
+                      strutStyle: exactLineHeightStrut(
+                        measureStyle,
+                        measureSpan,
+                      ),
+                      textDirection: TextDirection.rtl,
+                      textScaler: MediaQuery.textScalerOf(context),
+                    );
+                    // הפריסה מעגלת כל שורה לפיקסל שלם, ולכן החיתוך נמדד בשורה
+                    // הפרוסה ולא ב-fontSize×height.
+                    final maxHeight =
+                        painter.preferredLineHeight * maxContentLines!;
+                    painter.dispose();
+
+                    // התוכן נפרס בגובהו המלא (כותרות, מעברי שורה) ונחתך; "…"
+                    // מוצג רק כשהוא גבוה מהחיתוך.
+                    return ClipRect(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(maxHeight: maxHeight),
+                        child: OverflowBox(
+                          maxHeight: double.infinity,
+                          fit: OverflowBoxFit.deferToChild,
+                          alignment: Alignment.topCenter,
+                          child: Stack(
+                            fit: StackFit.passthrough,
+                            children: [
+                              content,
+                              Positioned.fill(
+                                child: LayoutBuilder(
+                                  builder: (_, full) => Stack(
+                                    children: [
+                                      if (full.maxHeight > maxHeight)
+                                        Positioned(
+                                          bottom: full.maxHeight - maxHeight,
+                                          left: 0,
+                                          child: _ExpandContentButton(
+                                            fontSize: fontSize,
+                                            fontFamily: settingsState
+                                                .commentatorsFontFamily,
+                                            lineHeight: lineHeight,
+                                            onPressed: () => _expand(context),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     );
                   },
                 ),
@@ -491,14 +491,17 @@ class _ExpandContentButton extends StatelessWidget {
           onTap: onPressed,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Text(
-              '…',
-              style: TextStyle(
-                fontSize: fontSize,
-                fontFamily: AppFonts.renderFontFamily(fontFamily),
-                height: lineHeight,
-                fontWeight: FontWeight.bold,
-                color: colorScheme.primary,
+            // לחצן ולא תוכן — לא נכלל בהעתקת הטקסט.
+            child: SelectionContainer.disabled(
+              child: Text(
+                '…',
+                style: TextStyle(
+                  fontSize: fontSize,
+                  fontFamily: AppFonts.renderFontFamily(fontFamily),
+                  height: lineHeight,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.primary,
+                ),
               ),
             ),
           ),
