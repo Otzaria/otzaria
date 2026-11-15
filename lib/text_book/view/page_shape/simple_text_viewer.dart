@@ -95,6 +95,11 @@ import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
 import 'package:otzaria/text_book/utils/numbered_note_markers.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
+import 'package:otzaria/text_book/utils/inline_section_marks_loader.dart';
+import 'package:otzaria/text_book/utils/inline_section_markers.dart';
+import 'package:otzaria/data/data_providers/database_library_provider.dart'
+    show InlineSectionMarks;
+import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/text_book/view/reader_line/reader_line_item.dart';
 import 'package:otzaria/text_book/view/reader_line/reader_line_render.dart';
 import 'package:otzaria/text_book/view/reader_line/reader_line_spec.dart';
@@ -558,6 +563,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   Timer? _previewHoverTimer;
   List<PersonalNote> _commentaryNotes = const [];
   int _commentaryNotesLoadGeneration = 0;
+
+  Map<int, String> _sectionMarkersByLine = const {};
+  Map<int, List<String>> _sectionHeadingsByLine = const {};
+  int _sectionMarksGeneration = 0;
   StreamSubscription<String>? _notesChangesSubscription;
 
   /// מזהה הריחוף הממתין. טעינה אסינכרונית שהתחילה בודקת אותו לאחר ה-await —
@@ -1133,6 +1142,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         );
       }
       _attachViewport();
+      _loadSectionMarks();
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
@@ -1349,11 +1359,63 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     if (widget.isMainText &&
         oldTab is TextBookTab &&
         newTab is TextBookTab &&
-        !sameSourceIdentity(oldTab.book, newTab.book)) {
+        (!sameSourceIdentity(oldTab.book, newTab.book) ||
+            oldTab.book.versionTitle != newTab.book.versionTitle)) {
       // ה-State עלול להישמר במעבר ספר — מטמון ה"מפרשים הנוספים" ממופה לפי
       // שורה בלבד, ולכן חייב להתאפס כדי לא להחזיר מפרשים של הספר הקודם.
       _siblingController?.clear();
+      _sectionMarkersByLine = const {};
+      _sectionHeadingsByLine = const {};
+      _loadSectionMarks();
     }
+  }
+
+  /// סמני החלוקה וכותרות הפרשה/הנושא של הטקסט הראשי, כמו בתצוגה הרגילה.
+  Future<void> _loadSectionMarks({bool retryAfterBusy = true}) async {
+    final generation = ++_sectionMarksGeneration;
+    final tab = widget.tab;
+    if (!widget.isMainText || tab is! TextBookTab) return;
+    bool isCurrent() =>
+        mounted &&
+        generation == _sectionMarksGeneration &&
+        identical(tab, widget.tab);
+    final InlineSectionMarks? loaded;
+    try {
+      loaded = await loadInlineSectionMarks(
+        tab.book,
+        (line) => line >= 0 && line < widget.content.length
+            ? widget.content[line]
+            : null,
+      );
+    } on DbReadWorkerBusy {
+      if (!isCurrent()) return;
+      if (retryAfterBusy) {
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        if (isCurrent()) unawaited(_loadSectionMarks(retryAfterBusy: false));
+      } else {
+        UiSnack.showError(
+          TextBookMessages.sectionMarkersBusy,
+          window: _previewWindow,
+          duration: const Duration(seconds: 10),
+          onTap: () {
+            if (isCurrent()) unawaited(_loadSectionMarks());
+          },
+        );
+      }
+      return;
+    }
+    if (loaded == null || !isCurrent()) return;
+    final marks = loaded;
+    if (marks.markers.isEmpty &&
+        marks.headings.isEmpty &&
+        _sectionMarkersByLine.isEmpty &&
+        _sectionHeadingsByLine.isEmpty) {
+      return;
+    }
+    setState(() {
+      _sectionMarkersByLine = marks.markers;
+      _sectionHeadingsByLine = marks.headings;
+    });
   }
 
   Future<void> _loadCommentaryNotes() async {
@@ -1563,6 +1625,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         selectionLines[index] ??= renderSelectionLineWithMarkers(
           rawText: _selectionMarkerLine(index, textBookState),
           settings: renderSettings,
+          blockHeadings: _selectionBlockHeadings(index, textBookState),
         );
     final window = buildSelectionWindow(
       visibleIndices: sourceIndices,
@@ -1589,6 +1652,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
               layout: readingLayoutOf(textBookState),
               lines: widget.content,
               baseIndex: baseIndex,
+              sectionHeadings: _sectionHeadingsByLine,
             )
           : null,
     );
@@ -1688,20 +1752,13 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     _prefetchDictionaryLookups(sourceText);
   }
 
-  /// האם יש לשמר את הבחירה בלחיצה ימנית בנקודה [globalPosition] על השורה
-  /// [lineIndex], כאשר [lineContext] הוא ה-context של אותה שורה (לאיתור הפסקה).
-  ///
-  /// שומר את הבחירה כאשר הלחיצה נופלת על הטקסט המסומן בפועל — כולל הרווח שבין
-  /// שורות-תצוגה של אותה שורת-מקור שנשברה (wrap), שמגושר ע"י
-  /// `includeLineSpacingMiddle`. לחיצה על חלק לא-מסומן בשורה מחזירה `false` כדי
-  /// שהבחירה תתבטל (כמו בתוכנה רגילה). כשהבדיקה הגאומטרית אינה ניתנת להכרעה
-  /// (טקסט HTML מורכב וכו') חוזרים לברירת מחדל סלחנית — שמירת הבחירה כל עוד
-  /// השורה בטווח, כדי לא לבטל בטעות.
+  /// משמר בחירה בלחיצה על הטקסט המסומן; גאומטריה לא מוכרעת נשמרת בסלחנות.
   bool _shouldPreserveSelectionAt(
     Offset globalPosition,
     int lineIndex,
     BuildContext lineContext, {
     ReaderLineHit? hit,
+    (int, int)? blockRange,
   }) {
     final start = _selectionLineStart;
     final end = _selectionLineEnd;
@@ -1721,10 +1778,19 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
 
     final segments = selectedText.split('\n');
     final offsetInRange = lineIndex - lo;
-    final segment = (offsetInRange >= 0 && offsetInRange < segments.length)
-        ? segments[offsetInRange]
-        : selectedText;
-    final edge = lo == hi
+    final body = SourceSelection.paragraphForLine(
+      _sourceSelection,
+      selectedText,
+      offsetInRange,
+      blockRange: blockRange,
+    );
+    final segment =
+        body?.text ??
+        ((offsetInRange >= 0 && offsetInRange < segments.length)
+            ? segments[offsetInRange]
+            : selectedText);
+    if (blockRange != null && (body == null || body.text.isEmpty)) return false;
+    final edge = blockRange != null || lo == hi
         ? SelectionSegmentEdge.substring
         : lineIndex == lo
         ? SelectionSegmentEdge.suffix
@@ -1737,7 +1803,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       globalPosition: globalPosition,
       selectedSegment: segment,
       edge: edge,
-      segmentStartHint: _selectionStartColumn,
+      segmentStartHint: body?.column ?? _selectionStartColumn,
       lineRange: hit?.lineRange,
     );
     return onSelection ?? true; // לא הוכרע — סלחני
@@ -1975,6 +2041,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           book: state.book,
           paragraphIndex: index,
           selectedText: capturedText,
+          sourceSelectedText: sourceText,
           protection: state.protection,
           onCopy: () => _copyFormattedText(capturedText),
           onAddNote: () => _createNoteForCurrentLine(index, capturedText),
@@ -2205,11 +2272,31 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     );
   }
 
+  List<String> _selectionBlockHeadings(int index, TextBookLoaded state) =>
+      readerSelectionBlockHeadings(
+        layout: readingLayoutOf(state),
+        lines: widget.content,
+        line: index,
+        sectionHeadings: _sectionHeadingsByLine,
+      );
+
+  int _selectionBlockPrefixLength(int index, TextBookLoaded state) =>
+      renderSelectionBlockPrefix(
+        _selectionBlockHeadings(index, state),
+        _selectionRenderSettings(
+          state: state,
+          settingsState: context.read<SettingsBloc>().state,
+        ),
+      ).length;
+
   /// השורה כפי שהיא מוצגת לבחירה: עם ציוני המפרשים של הטור.
   String _selectionMarkerLine(int index, TextBookLoaded state) {
     final rawLine = widget.content[index];
     if (widget.isMainText) {
-      return _injectBodyAnchorMarkers(rawLine, index, state);
+      return prependSectionMarker(
+        _injectBodyAnchorMarkers(rawLine, index, state),
+        _sectionMarkersByLine[index],
+      );
     }
     return widget.anchorLinksByLine == null
         ? rawLine
@@ -3201,9 +3288,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       ),
     );
 
+    final sectionHeadings = isMultiLine
+        ? null
+        : _sectionHeadingsByLine[primaryLineIndex];
     // EnhancedGestureDetector ולא GestureDetector רגיל: לחיצה משולשת לבחירת
     // פסקה ב-SelectableRegion חייבת לא לזלוג ל-onTap שמאפס את הבחירה.
-    return Builder(
+    final item = Builder(
       builder: (itemContext) => EnhancedGestureDetector(
         behavior: HitTestBehavior.translucent,
         onSingleTap: widget.isMainText
@@ -3272,6 +3362,11 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                     root: root,
                     globalPosition: event.position,
                   );
+            if (_selectionPointerColumn != null) {
+              _selectionPointerColumn =
+                  _selectionPointerColumn! +
+                  _selectionBlockPrefixLength(primaryLineIndex, state);
+            }
           },
           child: AppContextMenuRegion(
             // שמירת האינדקס דרך ה-Listener של AppContextMenuRegion (מחוסן מהזירה),
@@ -3298,7 +3393,9 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                 _contextMenuSelectedText = selectedTextAtSecondaryTap;
                 _savedSelectedIndex = hit?.lineIndex ?? primaryLineIndex;
                 if (occurrenceStart != null) {
-                  _selectionStartColumn = occurrenceStart;
+                  _selectionStartColumn =
+                      occurrenceStart +
+                      _selectionBlockPrefixLength(primaryLineIndex, state);
                 }
               });
             },
@@ -3356,7 +3453,73 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         ),
       ),
     );
+    if (sectionHeadings == null) return item;
+    // הכותרת אינה חלק מהשורה: מחוץ לרקע הבחירה ולמחוות שלה.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Builder(
+          builder: (headingContext) => AppContextMenuRegion(
+            shouldPreserveSelectionOnSecondaryTap: (position) {
+              final range = renderedParagraphRangeAtPosition(
+                root: headingContext.findRenderObject()!,
+                globalPosition: position,
+              );
+              return range != null &&
+                  _shouldPreserveSelectionAt(
+                    position,
+                    primaryLineIndex,
+                    headingContext,
+                    blockRange: range,
+                  );
+            },
+            menuBuilder: (menuContext, position) => _buildContextMenu(
+              state,
+              primaryLineIndex,
+              menuContext,
+              position,
+              _savedSelectedText ?? savedTextAtBuild,
+            ),
+            child: Listener(
+              onPointerDown: (event) {
+                if (event.buttons != kPrimaryMouseButton) return;
+                _selectionPointerLineIndex = primaryLineIndex;
+                _selectionPointerColumn = renderedTextOffsetAtPosition(
+                  root: headingContext.findRenderObject()!,
+                  globalPosition: event.position,
+                );
+                final range = renderedParagraphRangeAtPosition(
+                  root: headingContext.findRenderObject()!,
+                  globalPosition: event.position,
+                );
+                if (_selectionPointerColumn != null && range != null) {
+                  _selectionPointerColumn = _selectionPointerColumn! + range.$1;
+                }
+              },
+              child: _sectionHeadingsText(state, sectionHeadings),
+            ),
+          ),
+        ),
+
+        item,
+      ],
+    );
   }
+
+  /// כותרות נושא/פרשה שמוזרקות מעל השורה.
+  Widget _sectionHeadingsText(TextBookLoaded state, List<String> headings) =>
+      BlocBuilder<SettingsBloc, SettingsState>(
+        builder: (context, settingsState) => SmartTextWidget(
+          text: sectionHeadingsHtml(headings),
+          settings: RenderSettings.fromProfile(
+            _displayProfile(state),
+            fontSize: widget.fontSize,
+            fontFamily: widget.fontFamily ?? settingsState.fontFamily,
+            fontWeight: settingsState.fontBold ? FontWeight.bold : null,
+            lineHeight: settingsState.lineHeight,
+          ),
+        ),
+      );
 
   ReaderLineContext _readerLineContext(
     TextBookLoaded state,
@@ -3376,6 +3539,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         ? FontWeight.bold
         : null,
     lineHeight: settingsState.lineHeight,
+    sectionHeadings: _sectionHeadingsByLine,
     isRelated: widget.isMainText
         ? null
         : (line) => widget.highlightedIndices?.contains(line) ?? false,
@@ -3417,6 +3581,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         lineIndex,
         state,
       );
+      // סמן חלוקה (אות/סעיף) — תוכן גלוי, אחרי סמני העוגן.
+      data = prependSectionMarker(data, _sectionMarkersByLine[lineIndex]);
     } else if (widget.anchorLinksByLine != null) {
       data = _injectOwnAnchorMarkers(data, lineIndex, state);
     }
@@ -3492,6 +3658,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       state,
       noteMap[spec.lineIndex + 1] ?? const <PersonalNote>[],
     ),
+    blockHeadings: (headings) => _sectionHeadingsText(state, headings),
     onTapUrl: (url) => handleReaderParagraphUrl(
       context,
       url,

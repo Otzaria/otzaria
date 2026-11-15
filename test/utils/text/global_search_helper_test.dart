@@ -134,6 +134,7 @@ void main() {
         book: TextBook(title: 'ספר בדיקה'),
         paragraphIndex: 0,
         selectedText: 'תֵּדַע\nזַרְעֲךָ',
+        sourceSelectedText: 'תֵּדַע\nזַרְעֲךָ',
         onCopy: () {},
         onAddNote: () {},
       );

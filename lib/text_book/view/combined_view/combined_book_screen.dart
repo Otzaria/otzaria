@@ -48,7 +48,6 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
-import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
@@ -96,6 +95,7 @@ import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/utils/section_search_utils.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
+import 'package:otzaria/text_book/utils/inline_section_marks_loader.dart';
 import 'package:otzaria/text_book/utils/inline_section_markers.dart';
 import 'package:otzaria/text_book/view/reader_line/reader_line_item.dart';
 import 'package:otzaria/text_book/view/reader_line/reader_line_render.dart';
@@ -238,6 +238,7 @@ class SelectionLineCache {
     List<String> data,
     RenderSettings settings, {
     String Function(String rawLine, int index)? injectMarkers,
+    List<String> Function(int index)? blockHeadings,
     Object? markerKey,
   }) {
     if (!identical(_data?.target, data) ||
@@ -251,6 +252,7 @@ class SelectionLineCache {
     SelectionLine render(int i) => renderSelectionLineWithMarkers(
       rawText: injectMarkers?.call(data[i], i) ?? data[i],
       settings: settings,
+      blockHeadings: blockHeadings?.call(i) ?? const [],
     );
     return (i) {
       final cached = _lines[i];
@@ -1149,34 +1151,9 @@ class _CombinedViewState extends State<CombinedView> {
         mounted &&
         generation == _sectionMarkersGeneration &&
         identical(tab, widget.tab);
-    // הסימנים ממופים ל-lineIndex של הטקסט הממוזג במסד — מהדורה חלופית
-    // (version_line) או ספר שתוכנו מוגש מקבצים ממוספרים אחרת.
-    if (book.versionTitle != null) return;
-    final InlineSectionMarks marks;
+    final InlineSectionMarks? loaded;
     try {
-      if (book.isUserBook) {
-        marks = await DatabaseLibraryProvider.instance
-            .getUserInlineSectionMarks(
-              book,
-              _loadedLineAt,
-            );
-      } else {
-        if (book.source.isOfficial &&
-            LibraryProviderManager.instance.getProviderForBook(
-                  book.title,
-                  categoryId: book.categoryId,
-                  fileType: book.fileType,
-                )
-                is! DatabaseLibraryProvider) {
-          return;
-        }
-        marks = await DatabaseLibraryProvider.instance
-            .getInlineSectionMarksByLineIndex(
-              book.title,
-              categoryId: book.categoryId,
-              source: book.source,
-            );
-      }
+      loaded = await loadInlineSectionMarks(book, _loadedLineAt);
     } on DbReadWorkerBusy {
       if (!isCurrent()) return;
       if (retryAfterBusy) {
@@ -1196,7 +1173,8 @@ class _CombinedViewState extends State<CombinedView> {
       }
       return;
     }
-    if (!isCurrent()) return;
+    if (loaded == null || !isCurrent()) return;
+    final marks = loaded;
     if (marks.markers.isEmpty &&
         marks.headings.isEmpty &&
         _sectionMarkersByLine.isEmpty &&
@@ -1272,20 +1250,13 @@ class _CombinedViewState extends State<CombinedView> {
     widget.onSelectedTextChanged?.call(null, null, null);
   }
 
-  /// האם יש לשמר את הבחירה בלחיצה ימנית בנקודה [globalPosition] על השורה
-  /// [lineIndex], כאשר [lineContext] הוא ה-context של אותה שורה (לאיתור הפסקה).
-  ///
-  /// שומר את הבחירה כאשר הלחיצה נופלת על הטקסט המסומן בפועל — כולל הרווח שבין
-  /// שורות-תצוגה של אותה שורת-מקור שנשברה (wrap), שמגושר ע"י
-  /// `includeLineSpacingMiddle`. לחיצה על חלק לא-מסומן בשורה מחזירה `false` כדי
-  /// שהבחירה תתבטל (כמו בתוכנה רגילה). כשהבדיקה הגאומטרית אינה ניתנת להכרעה
-  /// (טקסט HTML מורכב וכו') חוזרים לברירת מחדל סלחנית — שמירת הבחירה כל עוד
-  /// השורה בטווח, כדי לא לבטל בטעות.
+  /// משמר בחירה בלחיצה על הטקסט המסומן; גאומטריה לא מוכרעת נשמרת בסלחנות.
   bool _shouldPreserveSelectionAt(
     Offset globalPosition,
     int lineIndex,
     BuildContext lineContext, {
     ReaderLineHit? hit,
+    (int, int)? blockRange,
   }) {
     final start = _selectionLineStart;
     final end = _selectionLineEnd;
@@ -1305,10 +1276,19 @@ class _CombinedViewState extends State<CombinedView> {
 
     final segments = selectedText.split('\n');
     final offsetInRange = lineIndex - lo;
-    final segment = (offsetInRange >= 0 && offsetInRange < segments.length)
-        ? segments[offsetInRange]
-        : selectedText;
-    final edge = lo == hi
+    final body = SourceSelection.paragraphForLine(
+      _sourceSelection,
+      selectedText,
+      offsetInRange,
+      blockRange: blockRange,
+    );
+    final segment =
+        body?.text ??
+        ((offsetInRange >= 0 && offsetInRange < segments.length)
+            ? segments[offsetInRange]
+            : selectedText);
+    if (blockRange != null && (body == null || body.text.isEmpty)) return false;
+    final edge = blockRange != null || lo == hi
         ? SelectionSegmentEdge.substring
         : lineIndex == lo
         ? SelectionSegmentEdge.suffix
@@ -1321,7 +1301,7 @@ class _CombinedViewState extends State<CombinedView> {
       globalPosition: globalPosition,
       selectedSegment: segment,
       edge: edge,
-      segmentStartHint: _selectionStartColumn,
+      segmentStartHint: body?.column ?? _selectionStartColumn,
       lineRange: hit?.lineRange,
     );
     return onSelection ?? true; // לא הוכרע — סלחני
@@ -1518,6 +1498,7 @@ class _CombinedViewState extends State<CombinedView> {
         book: state.book,
         paragraphIndex: paragraphIndex,
         selectedText: selectedText,
+        sourceSelectedText: sourceText,
         protection: state.protection,
         onCopy: () => _copyFormattedText(selectedText),
         onAddNote: () => _showNoteEditor(
@@ -1948,9 +1929,15 @@ class _CombinedViewState extends State<CombinedView> {
         state.linksByLine,
         state.bodyDisplayProfile.showAnchorMarkers,
         state.book.versionTitle,
+        _sectionMarkersByLine,
+        _sectionHeadingsByLine,
+        state.continuousReadingMode,
       ),
-      injectMarkers: (rawLine, index) =>
-          _injectAnchorMarkersForLine(rawLine, index, state),
+      blockHeadings: (index) => _selectionBlockHeadings(index, state),
+      injectMarkers: (rawLine, index) => prependSectionMarker(
+        _injectAnchorMarkersForLine(rawLine, index, state),
+        _sectionMarkersByLine[index],
+      ),
     );
     final window = buildSelectionWindow(
       visibleIndices: state.visibleIndices,
@@ -1970,6 +1957,20 @@ class _CombinedViewState extends State<CombinedView> {
     );
     return (window: window, lineAt: lineAt, paragraphs: paragraphs);
   }
+
+  List<String> _selectionBlockHeadings(int index, TextBookLoaded state) =>
+      readerSelectionBlockHeadings(
+        layout: readingLayoutOf(state),
+        lines: widget.data,
+        line: index,
+        sectionHeadings: _sectionHeadingsByLine,
+      );
+
+  int _selectionBlockPrefixLength(int index, TextBookLoaded state) =>
+      renderSelectionBlockPrefix(
+        _selectionBlockHeadings(index, state),
+        _selectionRenderSettings(state, context.read<SettingsBloc>().state),
+      ).length;
 
   final _selectionLineCache = SelectionLineCache();
 
@@ -2659,18 +2660,50 @@ class _CombinedViewState extends State<CombinedView> {
       children: [
         // הכותרת אינה חלק מהשורה: מחוץ לרקע הבחירה ולמחוות שלה.
         if (sectionHeadings != null)
-          AppContextMenuRegion(
-            shouldPreserveSelectionOnSecondaryTap: (position) =>
-                _shouldPreserveSelectionAt(position, primaryLineIndex, context),
-            menuBuilder: (menuContext, position) => _buildContextMenuForIndex(
-              state,
-              primaryLineIndex,
-              menuContext,
-              _savedSelectedText.value,
-              position,
+          Builder(
+            builder: (headingContext) => AppContextMenuRegion(
+              shouldPreserveSelectionOnSecondaryTap: (position) {
+                final range = renderedParagraphRangeAtPosition(
+                  root: headingContext.findRenderObject()!,
+                  globalPosition: position,
+                );
+                return range != null &&
+                    _shouldPreserveSelectionAt(
+                      position,
+                      primaryLineIndex,
+                      headingContext,
+                      blockRange: range,
+                    );
+              },
+              menuBuilder: (menuContext, position) => _buildContextMenuForIndex(
+                state,
+                primaryLineIndex,
+                menuContext,
+                _savedSelectedText.value,
+                position,
+              ),
+              child: Listener(
+                onPointerDown: (event) {
+                  if (event.buttons != kPrimaryMouseButton) return;
+                  _selectionPointerLineIndex = primaryLineIndex;
+                  _selectionPointerColumn = renderedTextOffsetAtPosition(
+                    root: headingContext.findRenderObject()!,
+                    globalPosition: event.position,
+                  );
+                  final range = renderedParagraphRangeAtPosition(
+                    root: headingContext.findRenderObject()!,
+                    globalPosition: event.position,
+                  );
+                  if (_selectionPointerColumn != null && range != null) {
+                    _selectionPointerColumn =
+                        _selectionPointerColumn! + range.$1;
+                  }
+                },
+                child: _buildSectionHeadings(state, sectionHeadings),
+              ),
             ),
-            child: _buildSectionHeadings(state, sectionHeadings),
           ),
+
         // הטקסט של הספר - ללא SelectionArea נפרד, כי יש SelectionArea כללי
         Builder(
           // בלי אנימציה: טיקר לכל שורה הופך פירוק המוני של שורות לריבועי.
@@ -2694,6 +2727,11 @@ class _CombinedViewState extends State<CombinedView> {
                         root: root,
                         globalPosition: event.position,
                       );
+                if (_selectionPointerColumn != null) {
+                  _selectionPointerColumn =
+                      _selectionPointerColumn! +
+                      _selectionBlockPrefixLength(primaryLineIndex, state);
+                }
               },
               child: EnhancedGestureDetector(
                 coordinationGroup: _commentaryStorage,
@@ -2783,7 +2821,9 @@ class _CombinedViewState extends State<CombinedView> {
                           lineRange: hit?.lineRange,
                         );
                   if (occurrenceStart != null) {
-                    _selectionStartColumn = occurrenceStart;
+                    _selectionStartColumn =
+                        occurrenceStart +
+                        _selectionBlockPrefixLength(primaryLineIndex, state);
                   }
                 },
                 // הטקסט הנבחר נקרא בפתיחת התפריט; האזנה אליו בנתה מחדש את

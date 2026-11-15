@@ -18,52 +18,145 @@ String renderSelectionLine({
   return stripped.replaceAll(RegExp(r'\s+'), ' ').trim();
 }
 
-/// שורת בחירה מרונדרת; [markers] — טווחי ציוני המפרשים שהתצוגה הזריקה לה.
-typedef SelectionLine = ({String text, List<(int, int)> markers});
+/// שורת בחירה: ציוני קישורים בנפרד מתוספות מבניות שאינן במקור.
+typedef SelectionLine = ({
+  String text,
+  int blockPrefixLength,
+  List<(int, int)> markers,
+  List<(int, int)> structural,
+});
 
 const _markerOpen = 0xE000;
 const _markerClose = 0xE001;
+const _structuralOpen = 0xE002;
+const _structuralClose = 0xE003;
+final _structuralMarkerElement = RegExp(
+  r'(<b class="section-marker">)([^<]*)(</b>)',
+);
 final _anchorMarkerElement = RegExp(
   r'(<(a|span) class="link-anchor [^>]*>)([^<]*)(</\2>)',
 );
+
+/// תחילית בלוקים מרונדרת; מעבר שורה מפריד בין הכותרת לגוף השורה.
+String renderSelectionBlockPrefix(
+  List<String> headings,
+  RenderSettings settings,
+) {
+  if (headings.isEmpty) return '';
+  final text = headings
+      .map(
+        (heading) => renderSelectionLine(rawText: heading, settings: settings),
+      )
+      .where((heading) => heading.isNotEmpty)
+      .join('\n');
+  return text.isEmpty ? '' : '$text\n';
+}
 
 /// כמו [renderSelectionLine] לשורה שהוזרקו לה ציוני מפרשים: הציונים נשארים
 /// בטקסט כמו על המסך, ותווי סימון זמניים מאתרים אותם אחרי העיבוד.
 SelectionLine renderSelectionLineWithMarkers({
   required String rawText,
   required RenderSettings settings,
+  List<String> blockHeadings = const [],
 }) {
+  final prefix = renderSelectionBlockPrefix(blockHeadings, settings);
+  SelectionLine withPrefix(
+    String text,
+    List<(int, int)> markers,
+    List<(int, int)> structural,
+  ) => (
+    text: prefix.isEmpty ? text : '$prefix$text',
+    blockPrefixLength: prefix.length,
+    markers: prefix.isEmpty
+        ? markers
+        : [
+            for (final (start, end) in markers)
+              (start + prefix.length, end + prefix.length),
+          ],
+    structural: prefix.isEmpty
+        ? structural
+        : [
+            (0, prefix.length),
+            for (final (start, end) in structural)
+              (start + prefix.length, end + prefix.length),
+          ],
+  );
   final open = String.fromCharCode(_markerOpen);
   final close = String.fromCharCode(_markerClose);
-  final tagged = rawText.replaceAllMapped(
-    _anchorMarkerElement,
-    (m) => '${m[1]}$open${m[3]}$close${m[4]}',
-  );
+  final tagged = rawText
+      .replaceAllMapped(
+        _anchorMarkerElement,
+        (m) => '${m[1]}$open${m[3]}$close${m[4]}',
+      )
+      .replaceAllMapped(
+        _structuralMarkerElement,
+        (m) =>
+            '${m[1]}${String.fromCharCode(_structuralOpen)}${m[2]}'
+            '${String.fromCharCode(_structuralClose)}${m[3]}',
+      );
   final rendered = renderSelectionLine(rawText: tagged, settings: settings);
-  if (!rendered.contains(open)) return (text: rendered, markers: const []);
+  if (!rendered.contains(open) &&
+      !rendered.contains(String.fromCharCode(_structuralOpen))) {
+    return withPrefix(rendered, const [], const []);
+  }
 
   final text = StringBuffer();
   final markers = <(int, int)>[];
+  final structural = <(int, int)>[];
   var markerStart = 0;
+  var structuralStart = 0;
   for (final unit in rendered.codeUnits) {
     if (unit == _markerOpen) {
       markerStart = text.length;
     } else if (unit == _markerClose) {
       markers.add((markerStart, text.length));
+    } else if (unit == _structuralOpen) {
+      structuralStart = text.length;
+    } else if (unit == _structuralClose) {
+      structural.add((structuralStart, text.length));
     } else {
       text.writeCharCode(unit);
     }
   }
-  return (text: text.toString(), markers: markers);
+  final plain = text.toString();
+  return withPrefix(
+    plain,
+    markers,
+    [
+      for (final (start, end) in structural)
+        (
+          start,
+          end < plain.length && _isWhitespace(plain.codeUnitAt(end))
+              ? end + 1
+              : end,
+        ),
+    ],
+  );
 }
 
-/// הבחירה כפי שהיא בשורות המקור, בלי ציוני המפרשים שהתצוגה הזריקה לה —
-/// כך הערה, דיווח, תוספים והעתקה שמסתירה ציונים מאתרים אותה במקור.
+/// ממפה בחירה למקור בלי תוספות תצוגה; בהעתקה נשמר תוכן מבני.
 class SourceSelection {
-  const SourceSelection._(this._shown, this._text, this._startLineMarkers);
+  SourceSelection._(
+    this._shown,
+    this._text,
+    this._copyText,
+    this._startLineMarkers,
+    this._blockLines,
+    this._startColumn,
+  );
 
   final String _shown;
   final String _text;
+  final String _copyText;
+  final List<SelectionLine> _blockLines;
+  final int _startColumn;
+  late final _paragraphRanges = _blockLines.isEmpty
+      ? null
+      : locateSelectionRangesPerLine(
+          selectedText: _shown,
+          visibleLines: [for (final line in _blockLines) line.text],
+          startColumnHint: _startColumn,
+        );
   final List<(int, int)> _startLineMarkers;
 
   /// [lines] — שורות הבחירה החל משורת ההתחלה, ו-[startColumn] בראשונה.
@@ -73,15 +166,33 @@ class SourceSelection {
     required List<SelectionLine> lines,
     required int startColumn,
   }) {
-    if (lines.every((line) => line.markers.isEmpty)) return null;
+    if (lines.every(
+      (line) => line.markers.isEmpty && line.structural.isEmpty,
+    )) {
+      return null;
+    }
     final text = StringBuffer();
+    final copyText = lines.any((line) => line.markers.isNotEmpty)
+        ? StringBuffer()
+        : null;
+    bool inside(List<(int, int)> ranges, int at) =>
+        ranges.any((m) => at >= m.$1 && at < m.$2);
     var removed = false;
     var line = 0;
     var column = startColumn;
     for (var i = 0; i < shownText.length; i++) {
       final unit = shownText.codeUnitAt(i);
       if (_isWhitespace(unit)) {
-        text.writeCharCode(unit);
+        final matched =
+            line < lines.length &&
+            column < lines[line].text.length &&
+            _isWhitespace(lines[line].text.codeUnitAt(column));
+        final anchor = matched && inside(lines[line].markers, column);
+        final structural = matched && inside(lines[line].structural, column);
+        if (!anchor && !structural) text.writeCharCode(unit);
+        if (!anchor) copyText?.writeCharCode(unit);
+        removed |= anchor || structural;
+        if (matched) column++;
         continue;
       }
       while (line < lines.length &&
@@ -98,18 +209,57 @@ class SourceSelection {
         return null;
       }
       final at = column++;
-      if (lines[line].markers.any((m) => at >= m.$1 && at < m.$2)) {
+      final anchor = inside(lines[line].markers, at);
+      if (!anchor) copyText?.writeCharCode(unit);
+      if (anchor || inside(lines[line].structural, at)) {
         removed = true;
       } else {
         text.writeCharCode(unit);
       }
     }
     // גם בלי ציון בבחירה, ציון לפניה בשורה מסיט את עמודת ההתחלה.
-    if (!removed && !lines.first.markers.any((m) => m.$1 < startColumn)) {
-      return null;
-    }
-    return SourceSelection._(shownText, text.toString(), lines.first.markers);
+    final ranges = [...lines.first.markers, ...lines.first.structural];
+    if (!removed && !ranges.any((m) => m.$1 < startColumn)) return null;
+    return SourceSelection._(
+      shownText,
+      text.toString(),
+      copyText?.toString() ?? shownText,
+      ranges,
+      lines.any((line) => line.blockPrefixLength > 0) ? lines : const [],
+      startColumn,
+    );
   }
+
+  /// קטע נבחר בפסקה המצוירת: גוף השורה, או [blockRange] מתוך בלוק הכותרות.
+  static ({String text, int column})? paragraphForLine(
+    SourceSelection? selection,
+    String shownText,
+    int line, {
+    (int, int)? blockRange,
+  }) {
+    if (selection == null || selection._shown != shownText) return null;
+    for (final range
+        in selection._paragraphRanges ??
+            const <({int line, int start, int end})>[]) {
+      if (range.line != line) continue;
+      final shownLine = selection._blockLines[line];
+      final base = blockRange?.$1 ?? shownLine.blockPrefixLength;
+      final limit = blockRange?.$2 ?? shownLine.text.length;
+      if (range.end <= base || range.start >= limit) {
+        return (text: '', column: 0);
+      }
+      final start = range.start.clamp(base, limit);
+      final end = range.end.clamp(start, limit);
+      return (text: shownLine.text.substring(start, end), column: start - base);
+    }
+    return null;
+  }
+
+  /// מסיר רק ציוני קישורים שהפרופיל מסתיר, ומשאיר סמני חלוקה.
+  static String forCopy(SourceSelection? selection, String shownText) =>
+      selection != null && shownText == selection._shown
+      ? selection._copyText
+      : shownText;
 
   /// הטקסט ועמודת שורת ההתחלה כפי שהם במקור. בחירה שאינה זו שממנה נוצר
   /// [selection] (או null) מוחזרת כמות שהיא.
@@ -430,10 +580,12 @@ RestoredSelection? _restoreExact(
   final columnOfChar = <int>[];
   // תו של כותרת בזרימה: משויך לשורה שהיא פותחת, ועמודתו בתוך הכותרת.
   final headingChar = <bool>[];
+  Set<int>? blockBoundaries;
   final visibleBuffer = StringBuffer();
   void addChars(String text, int lineIndex, bool isHeading) {
     for (var i = 0; i < text.length; i++) {
       final unit = text.codeUnitAt(i);
+      if (unit == 0x0A) (blockBoundaries ??= <int>{}).add(lineOfChar.length);
       if (!isIgnored(unit)) {
         visibleBuffer.writeCharCode(unit);
         lineOfChar.add(lineIndex);
@@ -472,6 +624,7 @@ RestoredSelection? _restoreExact(
           headingChar[pos] != headingChar[pos - 1]) {
         continue;
       }
+      if (blockBoundaries?.contains(pos) ?? false) continue;
       if (selectedHasGap(k) != visibleHasGap(pos)) {
         return false;
       }
@@ -510,7 +663,8 @@ RestoredSelection? _restoreExact(
           ? line
           : lineOfChar[start + previous];
       if (line == previousLine) {
-        result.write(gap);
+        final crossesBlock = blockBoundaries?.contains(start + k) ?? false;
+        result.write(crossesBlock ? '\n' : gap);
       } else if (joins(previousLine, line)) {
         for (final unit in gap.codeUnits.where(
           (unit) => !_isWhitespace(unit),

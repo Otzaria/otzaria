@@ -224,8 +224,7 @@ String? _resolvePageShapeSingleCommentator({
 /// מחזיר את כל המפרשים שמוצגים בפועל בחלוניות צורת הדף.
 ///
 /// הפונקציה מיישרת את הלוגיקה של טעינת הקישורים עם הלוגיקה של המסך עצמו:
-/// טורים מוסתרים אינם נכללים, ובטור הימני נלקחים בחשבון רק המפרשים שנבחרו
-/// בפועל לאחר החרגת המפרשים ששובצו בחלוניות הייעודיות.
+/// טורים מוסתרים אינם נכללים, ו"שאר המפרשים" אינו כולל את מפרשי שאר הטורים.
 List<String> resolvePageShapeDisplayedCommentators({
   required String? leftSelection,
   required String? rightSelection,
@@ -255,22 +254,16 @@ List<String> resolvePageShapeDisplayedCommentators({
     commentedBookTitle: commentedBookTitle,
   );
 
-  final excludedForRightPane = [
-    resolvedLeft,
-    resolvedBottom,
-    resolvedBottomRight,
-  ];
-
-  final rightSelectableCommentators = availableCommentators
-      .where((commentator) => !excludedForRightPane.contains(commentator))
-      .toList();
-
   final rightCommentators = columnVisibility['right'] == false
       ? const <String>[]
       : resolvePageShapeSelectedCommentators(
           selection: rightSelection,
-          availableCommentators: rightSelectableCommentators,
-          excludedCommentators: excludedForRightPane,
+          availableCommentators: availableCommentators,
+          excludedCommentators: [
+            resolvedLeft,
+            resolvedBottom,
+            resolvedBottomRight,
+          ],
           commentedBookTitle: commentedBookTitle,
         );
 

@@ -153,7 +153,7 @@ Future<({String plainText, String htmlText})?> buildSelectedTextCopy({
     }
   }
   if (profile != null && !profile.showAnchorMarkers) {
-    plainText = SourceSelection.resolve(source, plainText, null).text;
+    plainText = SourceSelection.forCopy(source, plainText);
     if (plainText.trim().isEmpty) return null;
   }
 

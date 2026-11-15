@@ -121,6 +121,16 @@ bool readerLineInParagraph(
     layout.lineCountOf(layout.itemForLine(line)) > 1 &&
     !isReaderBlockLine(lines[line]);
 
+/// כותרות בלוק נשמרות בהעתקה רגילה; כותרות בתוך פסקה רציפה מטופלות בנפרד.
+List<String> readerSelectionBlockHeadings({
+  required ReadingLayout layout,
+  required List<String> lines,
+  required int line,
+  required Map<int, List<String>> sectionHeadings,
+}) => readerLineInParagraph(layout, lines, line)
+    ? const []
+    : sectionHeadings[line] ?? const [];
+
 /// מבנה הפסקאות של חלון בחירה שמתחיל בשורה [baseIndex]; null במצב רגיל.
 /// [splitsAfter] — שורה שאחריה הפסקה נחתכת (כרטיס מפרשים מתחתיה).
 SelectionParagraphs? readerSelectionParagraphs({

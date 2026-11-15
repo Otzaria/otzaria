@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
@@ -311,6 +312,7 @@ void main() {
         book: TextBook(title: 'ספר בדיקה'),
         paragraphIndex: 0,
         selectedText: original,
+        sourceSelectedText: original,
         onCopy: () => copied = original,
         onAddNote: () {},
       );
@@ -327,6 +329,64 @@ void main() {
   });
 
   group('buildReaderIconRow', () {
+    testWidgets('העתקה שומרת תצוגה; קישור מדגיש מקור מנוקד או מקטע בלבד', (
+      tester,
+    ) async {
+      final copiedLinks = <String>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+            if (call.method == 'Clipboard.setData') {
+              copiedLinks.add(call.arguments['text'] as String);
+            }
+            return null;
+          });
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      late BuildContext context;
+      await tester.pumpWidget(
+        Builder(
+          builder: (value) {
+            context = value;
+            return const SizedBox.shrink();
+          },
+        ),
+      );
+      for (final source in ['גּוּף', '']) {
+        final shown = source.isEmpty ? '[סעיף א]' : 'כותרת\n[סעיף א] $source';
+        String? copiedText;
+        final row = buildReaderIconRow(
+          context: context,
+          selection: ReaderMenuSelection(source),
+          book: TextBook(id: 7, title: 'ספר'),
+          paragraphIndex: 1,
+          selectedText: shown,
+          sourceSelectedText: source,
+          onCopy: () => copiedText = shown,
+          onAddNote: () {},
+        );
+        final actions = row.iconRowActions!;
+        final copy = actions.singleWhere((a) => a.label == 'העתקה');
+        expect(copy.enabled, isTrue);
+        copy.onTap!();
+        expect(copiedText, shown);
+        expect(
+          actions.singleWhere((a) => a.label == 'חיפוש').enabled,
+          source.isNotEmpty,
+        );
+        final links = actions
+            .singleWhere((a) => a.label == 'קישור')
+            .submenuBuilder!();
+        expect(links, hasLength(source.isEmpty ? 2 : 3));
+        links.last.onTap!();
+        await tester.pumpAndSettle();
+        final uri = Uri.parse(copiedLinks.last);
+        expect(uri.queryParameters['index'], '1');
+        expect(uri.queryParameters['m'], source.isEmpty ? null : source);
+      }
+    });
+
     Future<List<String>> describe(
       WidgetTester tester, {
       required String? selectedText,
@@ -347,6 +407,7 @@ void main() {
         book: TextBook(title: 'ספר בדיקה', id: bookId),
         paragraphIndex: 0,
         selectedText: selectedText,
+        sourceSelectedText: selectedText,
         onCopy: () {},
         onAddNote: () {},
       );

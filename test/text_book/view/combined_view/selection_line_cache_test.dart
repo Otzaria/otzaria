@@ -125,6 +125,37 @@ void main() {
     expect(cachedAgain.lines, expected.lines);
   });
 
+  test('שינוי כותרות או מעבר לרציף מאפס את תחילית הבלוק במטמון', () {
+    final cache = SelectionLineCache();
+    final content = ['גוף השורה'];
+    final headings = {
+      0: ['כותרת'],
+    };
+    final first = cache.lines(
+      content,
+      settings,
+      markerKey: (headings, false),
+      blockHeadings: (i) => headings[i] ?? const [],
+    )(0);
+    expect(first.text, 'כותרת\nגוף השורה');
+    expect(first.blockPrefixLength, 'כותרת\n'.length);
+    final changed = cache.lines(
+      content,
+      settings,
+      markerKey: (const <int, List<String>>{}, false),
+    )(0);
+    expect(changed.text, 'גוף השורה');
+    expect(changed.blockPrefixLength, 0);
+    final continuous = cache.lines(
+      content,
+      settings,
+      markerKey: (headings, true),
+      blockHeadings: (_) => const [],
+    )(0);
+    expect(continuous.text, 'גוף השורה');
+    expect(continuous.structural, isEmpty);
+  });
+
   test('שינוי הגדרות או נתונים מרנדר מחדש', () {
     final cache = SelectionLineCache();
     final withoutNikud = textOf(cache.lines(data, settings))(200);

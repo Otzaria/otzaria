@@ -160,14 +160,15 @@ class ReaderMenuSelection {
   }
 }
 
-/// The icon row at the top of a reader's main text context menu: search all
-/// books, copy, add a note and, for a book in the library, copy a link.
+/// שורת פעולות לטקסט הראשי: חיפוש, העתקה, הערה וקישור.
+/// [selectedText] מועתק כפי שהוצג; [sourceSelectedText] משמש להדגשה במקור.
 AppContextMenuEntry buildReaderIconRow({
   required BuildContext context,
   required ReaderMenuSelection selection,
   required Book book,
   required int paragraphIndex,
   required String? selectedText,
+  required String? sourceSelectedText,
   required VoidCallback onCopy,
   required VoidCallback onAddNote,
   BookProtection protection = BookProtection.none,
@@ -182,7 +183,7 @@ AppContextMenuEntry buildReaderIconRow({
     AppContextMenuIconAction(
       label: 'העתקה',
       icon: FluentIcons.copy_24_regular,
-      enabled: selection.hasOriginalText,
+      enabled: selectedText?.trim().isNotEmpty == true,
       onTap: onCopy,
     ),
     AppContextMenuIconAction(
@@ -198,7 +199,7 @@ AppContextMenuEntry buildReaderIconRow({
           bookId: bookId,
           source: book.source,
           index: paragraphIndex,
-          selectedText: selectedText,
+          selectedText: sourceSelectedText,
           protection: () async => protection,
         ),
       ),

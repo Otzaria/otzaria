@@ -145,6 +145,7 @@ void main() {
             book: TextBook(title: 'ספר בדיקה', id: 7),
             paragraphIndex: 0,
             selectedText: 'שלום',
+            sourceSelectedText: 'שלום',
             onCopy: () {},
             onAddNote: () {},
           ),

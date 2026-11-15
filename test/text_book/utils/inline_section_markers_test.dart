@@ -6,21 +6,21 @@ void main() {
     test('מקדים אות מודגשת בסוגריים מרובעים לפני התוכן', () {
       expect(
         prependSectionMarker('רַבִּי הוֹשַׁעְיָה רַבָּה פָּתַח', 'א'),
-        '<b>[א]</b> רַבִּי הוֹשַׁעְיָה רַבָּה פָּתַח',
+        '<b class="section-marker">[א]</b> רַבִּי הוֹשַׁעְיָה רַבָּה פָּתַח',
       );
     });
 
     test('תווית רב-אותית (יא, סעיף ג) נשמרת כלשונה', () {
       expect(
         prependSectionMarker('טקסט', 'סעיף ג'),
-        '<b>[סעיף ג]</b> טקסט',
+        '<b class="section-marker">[סעיף ג]</b> טקסט',
       );
     });
 
     test('שורה עם תגי HTML — הסמן נכנס לפני התג הראשון', () {
       expect(
         prependSectionMarker('<big>בְּ</big>רֵאשִׁית', 'ב'),
-        '<b>[ב]</b> <big>בְּ</big>רֵאשִׁית',
+        '<b class="section-marker">[ב]</b> <big>בְּ</big>רֵאשִׁית',
       );
     });
 

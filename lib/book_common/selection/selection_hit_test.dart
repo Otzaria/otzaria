@@ -83,6 +83,30 @@ int? renderedSelectionStartAtPosition({
   );
 }
 
+/// טווח הפסקה שנפגעה בתוך בלוק של פסקאות, המופרדות במעבר שורה.
+(int, int)? renderedParagraphRangeAtPosition({
+  required RenderObject root,
+  required Offset globalPosition,
+}) {
+  final target = _findParagraphContaining(root, globalPosition);
+  if (target == null) return null;
+  (int, int)? range;
+  var offset = 0;
+  void visit(RenderObject object) {
+    if (range != null) return;
+    if (object is RenderParagraph) {
+      final length = object.text.toPlainText().length;
+      if (identical(object, target)) range = (offset, offset + length);
+      offset += length + 1;
+    } else {
+      object.visitChildren(visit);
+    }
+  }
+
+  visit(root);
+  return range;
+}
+
 /// Returns the rendered text offset under a pointer before Flutter collapses
 /// the selection into plain text. Used as a stable occurrence hint.
 /// With [lineRange] the offset is relative to that source line's text.
