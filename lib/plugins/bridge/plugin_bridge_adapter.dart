@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'dart:io' hide Link;
 import 'dart:math' as math;
 
+import 'package:characters/characters.dart';
 import 'package:collection/collection.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
@@ -6392,13 +6393,13 @@ class PluginBridgeAdapter {
       throw Exception('error.invalid_params: title requires newTab: true');
     }
     final cleaned = raw
-        .replaceAll(RegExp(r'[\u0000-\u001F\u007F]'), ' ')
+        .replaceAll(RegExp(r'[\u0000-\u001F\u007F-\u009F]'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
     if (cleaned.isEmpty) return null;
-    return cleaned.length <= _maxOpenSelfTitleLength
-        ? cleaned
-        : cleaned.substring(0, _maxOpenSelfTitleLength).trimRight();
+    final graphemes = cleaned.characters;
+    if (graphemes.length <= _maxOpenSelfTitleLength) return cleaned;
+    return graphemes.take(_maxOpenSelfTitleLength).toString().trimRight();
   }
 
   /// גם ילד בתפריט יכול לפתוח מופע, ולכן בודקים את כל עץ הפריטים.

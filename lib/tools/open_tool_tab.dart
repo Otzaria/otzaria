@@ -51,6 +51,7 @@ ToolTab newToolTabInstance(ToolCatalogEntry entry, {String? title}) => ToolTab(
   toolId: entry.toolId,
   title: title ?? entry.label,
   allowMultipleInstances: true,
+  preserveTitleOnPluginLoad: title != null,
 );
 
 /// האם המניפסט המותקן מאפשר שכפול מתוך תפריט הכרטיסיה.
@@ -101,6 +102,7 @@ String? openPluginToolInstanceById(
         toolId: pluginId,
         title: title ?? ToolTab.fallbackTitleFor(pluginId),
         allowMultipleInstances: true,
+        preserveTitleOnPluginLoad: title != null,
       );
     case ToolUnavailable(:final reason, :final name):
       UiSnack.showError(toolUnavailableMessage(reason, name, pluginId));
@@ -278,6 +280,7 @@ Map<ToolTab, String> pluginTabsWithFallbackTitle(
   return {
     for (final tab in tabs.expand(leafPanes).whereType<ToolTab>())
       if (tab.isPlugin &&
+          !tab.preserveTitleOnPluginLoad &&
           tab.title == ToolTab.fallbackTitleFor(tab.toolId) &&
           titles[tab.toolId] != null)
         tab: titles[tab.toolId]!,

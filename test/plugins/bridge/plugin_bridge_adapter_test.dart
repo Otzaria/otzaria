@@ -4926,6 +4926,32 @@ Future<void> main() async {
           expect(titles.single, 'א' * 60);
         });
 
+        test('title נחתך לפי אשכולות גרפמה ולא באמצע emoji מורכב', () async {
+          final titles = registerTitledOpener('inst-new');
+          const familyEmoji = '👨‍👩‍👧‍👦';
+
+          await adapterFor(allowMultipleInstances: true).execute(
+            'plugin',
+            'openSelf',
+            {'newTab': true, 'title': '${'א' * 59}$familyEmoji${'ב'}'},
+          );
+
+          expect(titles.single, '${'א' * 59}$familyEmoji');
+        });
+
+        test('title מסיר גם תווי בקרה מטווח C1', () async {
+          final titles = registerTitledOpener('inst-new');
+          final c1Controls = String.fromCharCodes([0x0085, 0x009F]);
+
+          await adapterFor(allowMultipleInstances: true).execute(
+            'plugin',
+            'openSelf',
+            {'newTab': true, 'title': '  שבת${c1Controls}ב  '},
+          );
+
+          expect(titles, ['שבת ב']);
+        });
+
         test('title ריק כמוהו כחסר — הכותרת הרגילה', () async {
           final titles = registerTitledOpener('inst-new');
 
@@ -4958,6 +4984,18 @@ Future<void> main() async {
             throwsWith('invalid_params'),
           );
           expect(titles, isEmpty);
+        });
+
+        test('title: null מתנהג כאילו לא סופק גם בלי newTab', () async {
+          final navigations = <String>[];
+          PluginPageLauncher.instance.navigator = navigations.add;
+
+          final result = await adapterFor(
+            allowMultipleInstances: false,
+          ).execute('plugin', 'openSelf', {'title': null});
+
+          expect(result, isTrue);
+          expect(navigations, ['test.plugin']);
         });
       });
 
