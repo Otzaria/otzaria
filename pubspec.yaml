@@ -56,12 +56,12 @@ dependencies:
   # RAM פיזי לגודל ה-cache של SQLite בעדכון הספרייה ב-mobile.
   device_info_plus: ^13.3.0
   html: ^0.15.7
-  # TODO: לחזור ל-pub.dev אחרי שחרור תיקוני QA ו-partial-area; ללא סדרת ה-prefetch של #798.
-  # espresso3389/pdfrx#799, #800, #801, #802, #803, #804, #805, #806, #807, #808, #809, #810, #811.
+  # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור espresso3389/pdfrx#820 (סדר רינדור לפי שטח נראה, #4175).
+  # שאר הפורק זהה ל-master של upstream (2.12.1 ומעלה).
   pdfrx:
     git:
       url: https://github.com/Otzaria/pdfrx
-      ref: d898e52b1526532c8d66a5f7fee0ca6b867a77d0
+      ref: f8f29ee20d8cd895122fccba35439f888a9135e8
       path: packages/pdfrx
   # FPDF_ImportNPagesToOne: הדפסת כמה עמודים בגיליון נשארת וקטורית.
   pdfium_dart: ^0.4.1
@@ -216,12 +216,12 @@ dependency_overrides:
   pdfrx_engine:
     git:
       url: https://github.com/Otzaria/pdfrx
-      ref: d898e52b1526532c8d66a5f7fee0ca6b867a77d0
+      ref: f8f29ee20d8cd895122fccba35439f888a9135e8
       path: packages/pdfrx_engine
   pdfium_dart:
     git:
       url: https://github.com/Otzaria/pdfrx
-      ref: d898e52b1526532c8d66a5f7fee0ca6b867a77d0
+      ref: f8f29ee20d8cd895122fccba35439f888a9135e8
       path: packages/pdfium_dart
   # TODO: להסיר יחד עם ה-override של super_native_extensions כשתשוחרר 0.10 יציבה
   # (native assets, תלויה ב-irondash ^0.6). עד אז הפורק Otzaria: 0.5.5 עם תיקון Cargokit
