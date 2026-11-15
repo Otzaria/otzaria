@@ -268,6 +268,151 @@ void main() {
       expect(find.textContaining('מפרש בדיקה, ג ב'), findsNothing);
     });
   });
+
+  group('CommentaryListBase - כותרת שחוזרת על הקודמת (#4616)', () {
+    setUpAll(() async {
+      await Settings.init(cacheProvider: MemoryCacheProvider());
+    });
+
+    late _TestSettingsBloc settingsBloc;
+
+    setUp(() {
+      LibraryProviderManager.instance.resetForTesting();
+      LibraryProviderManager.instance.seedMappingsForTesting(
+        mapping: {
+          BookCompositeKey.create(
+            title: 'מפרש בדיקה',
+            categoryId: 1,
+            fileType: 'txt',
+          ): FakeCommentaryLibraryProvider(),
+        },
+        providers: [FakeCommentaryLibraryProvider()],
+      );
+      settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    });
+
+    tearDown(() async {
+      await settingsBloc.close();
+      LibraryProviderManager.instance.resetForTesting();
+    });
+
+    Future<void> pumpLinks(WidgetTester tester, List<Link> links) async {
+      final bloc = StubTextBookBloc(_loadedState(links: links));
+      addTearDown(() async => bloc.close());
+      await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
+    }
+
+    testWidgets('כותרת זהה לקודמת — מוצגת פעם אחת', (tester) async {
+      await pumpLinks(tester, [
+        _link(heRef: 'מפרש בדיקה, סימן ב', index1: 1, index2: 1),
+        _link(heRef: 'מפרש בדיקה, סימן ב', index1: 1, index2: 2),
+      ]);
+
+      expect(find.text(_kFakeContent), findsNWidgets(2));
+      expect(find.text('מפרש בדיקה, סימן ב'), findsOneWidget);
+    });
+
+    testWidgets('כותרות שונות — שתיהן מוצגות', (tester) async {
+      await pumpLinks(tester, [
+        _link(heRef: 'מפרש בדיקה, סימן ב', index1: 1, index2: 1),
+        _link(heRef: 'מפרש בדיקה, סימן ג', index1: 1, index2: 2),
+      ]);
+
+      expect(find.text('מפרש בדיקה, סימן ב'), findsOneWidget);
+      expect(find.text('מפרש בדיקה, סימן ג'), findsOneWidget);
+    });
+
+    testWidgets('כותרת חוזרת עם עוגן-מילה — אות הסימון נשארת', (tester) async {
+      await pumpLinks(tester, [
+        _link(heRef: 'מפרש בדיקה, סימן ב', index1: 1, index2: 1),
+        _link(
+          heRef: 'מפרש בדיקה, סימן ב',
+          index1: 1,
+          index2: 2,
+          anchorStart: 0,
+          anchorLabel: 'א',
+        ),
+      ]);
+
+      final marker = RegExp(r'^[(\[{]א[)\]}]$');
+      expect(
+        find.byWidgetPredicate(
+          (w) => w is Text && marker.hasMatch(w.data ?? ''),
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('מפרש בדיקה, סימן ב'), findsOneWidget);
+    });
+  });
+
+  group('CommentaryListBase - רווח בין מקטעים (#4963)', () {
+    setUpAll(() async {
+      await Settings.init(cacheProvider: MemoryCacheProvider());
+    });
+
+    late _TestSettingsBloc settingsBloc;
+
+    setUp(() {
+      LibraryProviderManager.instance.resetForTesting();
+      LibraryProviderManager.instance.seedMappingsForTesting(
+        mapping: {
+          BookCompositeKey.create(
+            title: 'מפרש בדיקה',
+            categoryId: 1,
+            fileType: 'txt',
+          ): FakeCommentaryLibraryProvider(),
+        },
+        providers: [FakeCommentaryLibraryProvider()],
+      );
+      settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    });
+
+    tearDown(() async {
+      await settingsBloc.close();
+      LibraryProviderManager.instance.resetForTesting();
+    });
+
+    /// המרחק האנכי בין סוף תוכן המקטע הראשון לתחילת תוכן השני.
+    Future<double> contentGap(WidgetTester tester, List<Link> links) async {
+      final bloc = StubTextBookBloc(_loadedState(links: links));
+      addTearDown(() async => bloc.close());
+      await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
+      final contents = find.text(_kFakeContent);
+      expect(contents, findsNWidgets(2));
+      return tester.getTopLeft(contents.at(1)).dy -
+          tester.getBottomLeft(contents.at(0)).dy;
+    }
+
+    testWidgets('כותרת מוסתרת — 8 פיקסלים בין המקטעים', (tester) async {
+      // שני המקטעים מצביעים על המקום הנקרא, ולכן כותרותיהם מוסתרות (#896).
+      final gap = await contentGap(tester, [
+        _link(heRef: 'מפרש בדיקה, ג ב', index1: 1, index2: 1),
+        _link(heRef: 'מפרש בדיקה, ג ב', index1: 1, index2: 2),
+      ]);
+
+      expect(gap, 8.0);
+    });
+
+    testWidgets('כותרת מוצגת — הרווח הקודם סביב הכותרת נשמר', (tester) async {
+      final gap = await contentGap(tester, [
+        _link(heRef: 'מפרש בדיקה, סימן ב', index1: 1, index2: 1),
+        _link(heRef: 'מפרש בדיקה, סימן ג', index1: 1, index2: 2),
+      ]);
+      final title = find.text('מפרש בדיקה, סימן ג');
+
+      expect(gap, greaterThan(8.0));
+      expect(
+        tester.getTopLeft(title).dy -
+            tester.getBottomLeft(find.text(_kFakeContent).first).dy,
+        8.0 + 8.0,
+      );
+      expect(
+        tester.getTopLeft(find.text(_kFakeContent).at(1)).dy -
+            tester.getBottomLeft(title).dy,
+        4.0,
+      );
+    });
+  });
 }
 
 const _kFakeContent = 'זהו פירוש לבדיקה עם טקסט שניתן לבחור';
@@ -309,7 +454,11 @@ TextBookLoaded _loadedState({
     links: links,
     visibleLinks: const [],
     linksByLine: {
-      for (final link in links) link.index1: [link],
+      for (final index1 in links.map((link) => link.index1).toSet())
+        index1: [
+          for (final link in links)
+            if (link.index1 == index1) link,
+        ],
     },
     // הכתובות של שורות המקור: שורה 1 = "ג ב", שורה 2 = "ד א".
     tableOfContents: [

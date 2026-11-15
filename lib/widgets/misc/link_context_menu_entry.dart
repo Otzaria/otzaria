@@ -7,6 +7,9 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart'
+    show DomElementExtension;
+import 'package:html/dom.dart' as html_dom;
 import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
@@ -97,9 +100,8 @@ double compactPreviewTitleFontSize(double contentFontSize) =>
 // שורת כותרת לבדה נשארת בלי attributes, במסלול המהיר של SmartTextWidget.
 final _headingLineBreak = RegExp(r'<br><h[1-6][\s>]|</h[1-6]><br>');
 
-/// כותרות בתוכן קישור-טווח בלי שולי HTML, כמו שורת כותרת בספר. ה-`<br>` שבין
-/// השורות נשארים: הטקסט המועתק תלוי בהם.
-String _withoutHeadingLineMargins(String html) {
+/// מצמצם רווחי כותרת בתוכן קישור; עיצוב פריסה מפורש נשאר בבלוק.
+String _inlineHeadingLines(String html) {
   if (!_headingLineBreak.hasMatch(html)) return html;
   final fragment = html_parser.parseFragment(html, generateSpans: true);
   final headings = fragment.querySelectorAll('h1,h2,h3,h4,h5,h6');
@@ -123,13 +125,42 @@ String _withoutHeadingLineMargins(String html) {
         style?.start.offset ??
         emptyStyle?.start.offset ??
         heading.sourceSpan!.start.offset + 3;
-    // לפני ה-style הקיים, כדי ששוליים מפורשים בו יגברו.
+    // כותרת שחולקת שורה עם טקסט נשארת בלוק, כמו בספר. לפני ה-style הקיים,
+    // כדי שערך מפורש בו יגבר.
+    final declaration = _canInlineHeading(heading)
+        ? 'display:inline'
+        : 'margin:0';
     result
       ..write(html.substring(cursor, offset))
-      ..write(style == null ? ' style="margin:0"' : 'margin:0;');
+      ..write(style == null ? ' style="$declaration"' : '$declaration;');
     cursor = emptyStyle?.end.offset ?? offset;
   }
   return (result..write(html.substring(cursor))).toString();
+}
+
+bool _canInlineHeading(html_dom.Element heading) {
+  // inline מבטל יישור, מידות ועיצוב בלוק; רק סגנונות טקסט בטוחים כאן.
+  if (heading.attributes.containsKey('align') ||
+      heading.attributes.containsKey('dir') ||
+      heading.styles.any((style) {
+        final property = style.property;
+        return property != 'color' &&
+            !property.startsWith('font-') &&
+            !property.startsWith('text-decoration') &&
+            !{'line-height', 'white-space', 'text-shadow'}.contains(property);
+      })) {
+    return false;
+  }
+
+  final siblings = heading.parentNode!.nodes;
+  final index = siblings.indexOf(heading);
+  bool isLineEdge(int i) {
+    if (i < 0 || i >= siblings.length) return true;
+    final node = siblings[i];
+    return node is html_dom.Element && node.localName == 'br';
+  }
+
+  return isLineEdge(index - 1) && isLineEdge(index + 1);
 }
 
 /// תוכן חלונית התצוגה המקדימה של קישור — כותרת (כתובת היעד) ותוכן הקטע,
@@ -356,7 +387,7 @@ class _LinkHoverPreviewContentState extends State<LinkHoverPreviewContent> {
                     }
 
                     final content = SmartTextWidget(
-                      text: _withoutHeadingLineMargins(rawContent),
+                      text: _inlineHeadingLines(rawContent),
                       settings: RenderSettings.fromProfile(
                         profile,
                         fontSize: fontSize,

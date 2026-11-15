@@ -1656,8 +1656,8 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     );
   }
 
-  /// האם להציג את כותרת המקור של מקטע: מוסתרת רק כשכל מקטעי הקבוצה מאותה
-  /// שורת מקור והיעד הוא המקום הנקרא כעת — אחרת הכותרת נושאת מידע (issue #896).
+  /// האם להציג את כותרת המקור של מקטע: מוסתרת כשכל מקטעי הקבוצה מאותה שורת
+  /// מקור והיעד הוא המקום הנקרא כעת (#896). חזרה על הכותרת הקודמת: previousLink.
   bool _shouldShowItemTitle(
     CommentaryGroup group,
     TextBookLoaded state,
@@ -1687,9 +1687,17 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     final key = _getLinkKey(link);
     // שומרים את הרשימה בזמן חישוב הסדר, אך לא מציירים קישור שכבר הוסר.
     if (!_itemKeys.containsKey(key)) return const SizedBox.shrink();
+    Link? previousLink;
+    for (var i = group.links.indexOf(link) - 1; i >= 0; i--) {
+      if (_itemKeys.containsKey(_getLinkKey(group.links[i]))) {
+        previousLink = group.links[i];
+        break;
+      }
+    }
     return _CommentaryLinkItem(
       key: ValueKey(key),
       link: link,
+      previousLink: previousLink,
       fontSize: widget.fontSize,
       openBookCallback: widget.openBookCallback,
       displayProfile: state.commentaryDisplayProfile,
@@ -2423,6 +2431,9 @@ class _CommentaryGroupHeader extends StatelessWidget {
 /// לתצוגה, כך שפתיחת קטע עם המון מפרשים אינה בונה את כולם בבת אחת.
 class _CommentaryLinkItem extends StatefulWidget {
   final Link link;
+
+  /// הפריט המוצג הקודם באותה קבוצה; כותרת זהה לשלו אינה מוצגת שוב (#4616).
+  final Link? previousLink;
   final double fontSize;
   final Function(OpenedTab) openBookCallback;
   final TextDisplayProfile displayProfile;
@@ -2466,6 +2477,7 @@ class _CommentaryLinkItem extends StatefulWidget {
   const _CommentaryLinkItem({
     super.key,
     required this.link,
+    this.previousLink,
     required this.fontSize,
     required this.openBookCallback,
     required this.displayProfile,
@@ -2566,10 +2578,9 @@ class _CommentaryLinkItemState extends State<_CommentaryLinkItem> {
       valueListenable: widget.savedSelectedTextListenable,
       child: Padding(
         key: widget.itemKeys[widget.getLinkKey(link)],
-        padding: const EdgeInsets.only(
-          right: 32.0,
-          left: 16.0,
-          top: 8.0,
+        padding: const EdgeInsetsDirectional.only(
+          start: 32.0,
+          end: 16.0,
           bottom: 8.0,
         ),
         child: Column(
@@ -2577,60 +2588,73 @@ class _CommentaryLinkItemState extends State<_CommentaryLinkItem> {
           children: [
             BlocBuilder<SettingsBloc, SettingsState>(
               builder: (context, settingsState) {
+                final previousLink = widget.previousLink;
                 return FutureBuilder<String>(
-                  future: link.displayReference,
-                  builder: (context, snapshot) {
-                    String displayTitle =
-                        snapshot.data ?? link.fallbackDisplayReference;
-                    final showTitle =
-                        widget.shouldShowItemTitle?.call(displayTitle) ?? true;
-                    // קישור עם עוגן-מילה: אות הסימון שמופיעה בגוף הטקסט
-                    // נשמרת גם כשהכותרת מוסתרת — היא הקישור הוויזואלי להערה.
-                    final markerText = link.anchorStart != null
-                        ? anchorMarkerText(link)
-                        : null;
-                    if (!showTitle && markerText == null) {
-                      // דיווח ריק דורס כותרת שדווחה קודם — לשחזור העתקה נכון.
+                  future: previousLink?.displayReference,
+                  builder: (context, previousSnapshot) => FutureBuilder<String>(
+                    future: link.displayReference,
+                    builder: (context, snapshot) {
+                      String displayTitle =
+                          snapshot.data ?? link.fallbackDisplayReference;
+                      final repeatsPrevious =
+                          previousLink != null &&
+                          displayTitle ==
+                              (previousSnapshot.data ??
+                                  previousLink.fallbackDisplayReference);
+                      final showTitle =
+                          !repeatsPrevious &&
+                          (widget.shouldShowItemTitle?.call(displayTitle) ??
+                              true);
+                      // קישור עם עוגן-מילה: אות הסימון שמופיעה בגוף הטקסט
+                      // נשמרת גם כשהכותרת מוסתרת — היא הקישור הוויזואלי להערה.
+                      final markerText = link.anchorStart != null
+                          ? anchorMarkerText(link)
+                          : null;
+                      if (!showTitle && markerText == null) {
+                        // דיווח ריק דורס כותרת שדווחה קודם — לשחזור העתקה נכון.
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (!mounted) return;
+                          widget.onLinkTitleRendered?.call(link, '');
+                        });
+                        return const SizedBox.shrink();
+                      }
+                      if (!showTitle) {
+                        displayTitle = markerText!;
+                      } else if (markerText != null) {
+                        displayTitle = '$markerText $displayTitle';
+                      }
+                      if (settingsState.replaceHolyNames) {
+                        displayTitle = utils.replaceHolyNames(
+                          displayTitle,
+                          style: settingsState.holyNameStyle,
+                        );
+                      }
+                      final reportedTitle = displayTitle;
                       WidgetsBinding.instance.addPostFrameCallback((_) {
                         if (!mounted) return;
-                        widget.onLinkTitleRendered?.call(link, '');
+                        widget.onLinkTitleRendered?.call(link, reportedTitle);
                       });
-                      return const SizedBox.shrink();
-                    }
-                    if (!showTitle) {
-                      displayTitle = markerText!;
-                    } else if (markerText != null) {
-                      displayTitle = '$markerText $displayTitle';
-                    }
-                    if (settingsState.replaceHolyNames) {
-                      displayTitle = utils.replaceHolyNames(
-                        displayTitle,
-                        style: settingsState.holyNameStyle,
-                      );
-                    }
-                    final reportedTitle = displayTitle;
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (!mounted) return;
-                      widget.onLinkTitleRendered?.call(link, reportedTitle);
-                    });
-                    return Text(
-                      displayTitle,
-                      style: TextStyle(
-                        fontSize: widget.fontSize * 0.75,
-                        fontWeight: FontWeight.normal,
-                        fontFamily: AppFonts.renderFontFamily(
-                          settingsState.commentatorsFontFamily,
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 8.0, bottom: 4.0),
+                        child: Text(
+                          displayTitle,
+                          style: TextStyle(
+                            fontSize: widget.fontSize * 0.75,
+                            fontWeight: FontWeight.normal,
+                            fontFamily: AppFonts.renderFontFamily(
+                              settingsState.commentatorsFontFamily,
+                            ),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.5),
+                          ),
                         ),
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.5),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 );
               },
             ),
-            const SizedBox(height: 4),
             AnimatedBuilder(
               animation: Listenable.merge([
                 widget.searchQueryListenable,

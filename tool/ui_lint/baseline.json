@@ -975,7 +975,6 @@
       ],
       "lib/text_book/view/commentary_list_base.dart": [
         {"scope":"CommentaryListBaseState.build","fp":"373e4811","n":1},
-        {"scope":"_CommentaryLinkItemState.build","fp":"1242d491","n":1},
         {"scope":"_NotesCommentaryWidgetState.build","fp":"4a334ce9","n":1}
       ],
       "lib/tools/calendar/dialogs/calendar_event_dialog.dart": [
