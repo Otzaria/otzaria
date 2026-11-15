@@ -379,7 +379,9 @@ void main() {
           targets: ['16px "A"'],
           timeout: const Duration(milliseconds: 10),
         );
-        expect(await controller.runScript(), outcome == 'loaded');
+        // רק חסימה מחליפה את הכללים בבייטים מוטבעים; המתנה ארוכה אינה חסימה.
+        expect(await controller.runScript(), outcome != 'blocked');
+        expect(controller.styleRemoved, outcome == 'blocked');
       });
     }
 
@@ -563,14 +565,16 @@ class _ScriptController extends _FakeController {
     : super(CallAsyncJavaScriptResult(value: true));
 
   final String outcome;
+  bool? styleRemoved;
 
   // זמן התנעת Node אינו חלק מזמן ההמתנה לגופן ב-WebView שכבר פועל.
   Future<bool> runScript() async {
     final result = await Process.run('node', [
       '-e',
       """
+let removed = false;
 const document = {
-  createElement: () => ({setAttribute() {}, remove() {}}),
+  createElement: () => ({setAttribute() {}, remove() { removed = true; }}),
   head: {appendChild() {}},
   fonts: {load(target) {
     if (${jsonEncode(outcome)} === 'unmatched') {
@@ -585,13 +589,14 @@ const document = {
 (async function(css, targets, timeoutMs) {
 $functionBody
 })(...Object.values(${jsonEncode(arguments)}))
-  .then(value => console.log(JSON.stringify({value})))
+  .then(value => console.log(JSON.stringify({value, removed})))
   .catch(error => console.log(JSON.stringify({error: String(error)})));
 """,
     ]);
     expect(result.exitCode, 0, reason: result.stderr.toString());
     final response = jsonDecode(result.stdout.toString()) as Map;
     expect(response['error'], isNull);
+    styleRemoved = response['removed'] as bool?;
     return response['value'] as bool;
   }
 }

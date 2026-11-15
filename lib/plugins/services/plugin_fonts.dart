@@ -236,6 +236,8 @@ List<String> pluginFontLoadTargets(Map<String, dynamic> theme) {
 
 const Duration pluginFontWaitTimeout = Duration(milliseconds: 1500);
 
+// גופן חסום (CSP) נכשל מיד; timeout הוא רק איטיות, והכללים נשארים. הטבעת
+// הבייטים ב-boot (כ-2MB) חוסמת את ה-UI דווקא במחשב האיטי.
 const String _installFontsJs = r'''
 if (css) {
   var style = document.createElement('style');
@@ -248,7 +250,7 @@ var loaded = await Promise.race([
     return document.fonts.load(t);
   })).then(function () { return true; }, function () { return false; }),
   new Promise(function (resolve) {
-    setTimeout(function () { resolve(false); }, timeoutMs);
+    setTimeout(function () { resolve(true); }, timeoutMs);
   })
 ]);
 if (!loaded && style) style.remove();
@@ -256,8 +258,8 @@ return loaded;
 ''';
 
 /// רושם את [css] בדף וממתין עד [timeout] ל-[targets], כדי שתוסף שמודד טקסט
-/// ב-plugin.ready לא יקבל מדידה של גופן חלופי. מחזיר false כשהכללים לא
-/// נרשמו בוודאות — ואז סקריפט ה-boot מזריק אותם בעצמו.
+/// ב-plugin.ready לא יקבל מדידה של גופן חלופי. מחזיר false כשהגופנים נדחו
+/// או שהכללים לא נרשמו בוודאות — ואז סקריפט ה-boot מזריק אותם בעצמו.
 Future<bool> installPluginFonts(
   InAppWebViewController controller, {
   required String css,
