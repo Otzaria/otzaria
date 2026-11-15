@@ -22,6 +22,7 @@ import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/webview2_creation_diagnostics.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
+import 'package:otzaria/search/active_lexical_searches.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/theme/app_fonts.dart';
@@ -72,6 +73,28 @@ void main() {
     expect(diagnostics['context'], {'screen': 'reading', 'tabs': 3});
     expect(diagnostics['startupTimeline'], contains('lines'));
     expect(() => jsonEncode(diagnostics), returnsNormally);
+  });
+
+  test('אבחון: החיפושים המילוליים הפעילים נכללים', () async {
+    final previous = ActiveLexicalSearches.instance;
+    final searches = ActiveLexicalSearches.instance = ActiveLexicalSearches();
+    addTearDown(() => ActiveLexicalSearches.instance = previous);
+    final search = searches.start({'words': 4, 'prefixes': true});
+    addTearDown(() => search.finish('cancelled'));
+
+    final diagnostics = await AppReportCollector(
+      redactor: redactor,
+      clock: () => now,
+    ).collectDiagnostics();
+    final collected = diagnostics['searches'] as Map;
+    expect(collected['activeCount'], 1);
+    expect(
+      (collected['lexical'] as List).single,
+      containsPair('query', {
+        'words': 4,
+        'prefixes': true,
+      }),
+    );
   });
 
   test('אבחון: תוצאת חימום WebView2 נכללת במצב', () async {
@@ -337,6 +360,7 @@ void main() {
       ).collectDiagnostics();
       expect(diagnostics.containsKey('context'), isFalse);
       expect(diagnostics.containsKey('inputFocus'), isFalse);
+      expect(diagnostics.containsKey('searches'), isFalse);
     });
 
     test('כרטיסיית חיפוש: השאילתה לא נכנסת לכותרת', () {

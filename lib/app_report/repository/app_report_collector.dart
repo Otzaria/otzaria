@@ -19,6 +19,7 @@ import 'package:otzaria/core/info/os_version.dart';
 import 'package:otzaria/core/startup_timeline.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/webview2_creation_diagnostics.dart';
+import 'package:otzaria/search/active_lexical_searches.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
@@ -111,6 +112,11 @@ class AppReportCollector {
         'inputFocus': await _guard(
           'inputFocus',
           () async => InputFocusDiagnostics.instance.collect(),
+        ),
+      if (_includeCurrentContext)
+        'searches': await _guard(
+          'searches',
+          () async => ActiveLexicalSearches.instance.collect(),
         ),
     };
     return _redact(diagnostics);
