@@ -1211,13 +1211,17 @@ class FindRefRepository {
     final ref = expandQueryAmudMarks(rawRef);
     final cleanedQuery = _normalizeForMatch(ref);
     if (cleanedQuery.isEmpty) return null;
-    final tokens = _collapseSmallSeif(_tokenize(cleanedQuery));
+    final tokens = _tokenize(cleanedQuery);
     if (tokens.isEmpty) return null;
 
     // "תוספות ברכות ד"ה מאימתי": הזנב שאחרי הסמן נפתר מול `line_dh`, והראש
     // ממשיך במסלול הרגיל — כאילו הוקלד שם הספר לבדו.
     final dibbur = _detectDibburQuery(tokens);
-    return (ref: ref, tokens: dibbur?.headTokens ?? tokens, dibbur: dibbur);
+    return (
+      ref: ref,
+      tokens: _collapseSmallSeif(dibbur?.headTokens ?? tokens),
+      dibbur: dibbur,
+    );
   }
 
   Future<void> _ensureReferenceBooksLoaded() async {
@@ -1803,14 +1807,37 @@ class FindRefRepository {
       );
     }
 
+    final hasLiteralTocMatch =
+        toc.altToc.isNotEmpty &&
+        toc.toc.any((entry) {
+          if (entry['partialMatch'] == true) return false;
+          final reference = entry['reference'] as String;
+          final location = reference == title || reference.startsWith('$title ')
+              ? reference.substring(title.length).trimLeft()
+              : reference;
+          final refTokens = _collapseSmallSeif(
+            _tokenize(_normalizeForMatch(location)),
+          ).toList();
+          // מספר של רמת אב אינו יכול למלא גם את מספר הסעיף.
+          return remainingTokens.every(
+            (token) => hebrewTokenAlternatives(token).any(refTokens.remove),
+          );
+        });
+
     // ה-reference של AltToc יחסי לספר ("פרשת לך לך עליה ו" בתוך "בראשית"),
     // ולכן שם הספר מצורף כדי שהתצוגה תזהה לאיזה ספר התוצאה שייכת.
     for (final entry in toc.altToc) {
       final ref = entry['reference'] as String;
       // כל טוקני הזנב בערך — אחרת ספר שהותאם ברפיון ("נחל שורק" מול "נח")
       // מחזיר את "הפטרת נח" עבור "נח עליה ב".
-      final refTokens = _tokenize(_normalizeForMatch(ref));
-      if (!remainingTokens.every((qt) => refTokens.contains(qt))) continue;
+      final refTokens = _collapseSmallSeif(_tokenize(_normalizeForMatch(ref)));
+      if (!remainingTokens.every(
+        (qt) =>
+            hebrewTokenAlternatives(qt).any(refTokens.contains) ||
+            (!hasLiteralTocMatch && matchesOtherStructureWord(qt, refTokens)),
+      )) {
+        continue;
+      }
 
       results.add(
         DbReferenceResult(
