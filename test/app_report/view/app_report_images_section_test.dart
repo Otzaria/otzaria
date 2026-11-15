@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,9 +11,21 @@ import 'package:otzaria/app_report/view/widgets/app_report_image_viewer.dart';
 import 'package:otzaria/app_report/view/widgets/app_report_images_section.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/plugins/services/plugin_file_drop_service.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
-const _decodeWait = Duration(milliseconds: 300);
+/// מריץ את הזמן האמיתי (פענוח וקידוד במנוע) עד שהתנאי מתקיים.
+Future<void> _waitFor(WidgetTester tester, bool Function() done) async {
+  for (var i = 0; i < 100 && !done(); i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 20)),
+    );
+    await tester.pump();
+  }
+  expect(done(), isTrue, reason: 'timed out waiting for the engine');
+}
+
+bool _isRed(int r, int g, int b) => r > 200 && g < 100 && b < 100;
 
 Future<Uint8List> _whitePng(int width, int height) async {
   final recorder = ui.PictureRecorder();
@@ -25,17 +38,19 @@ Future<Uint8List> _whitePng(int width, int height) async {
   return data!.buffer.asUint8List();
 }
 
-Future<({Size size, int redCount})> _decodeRgba(Uint8List bytes) async {
+Future<({Size size, bool Function(int x, int y) isRed})> _decodeRgba(
+  Uint8List bytes,
+) async {
   final codec = await ui.instantiateImageCodec(bytes);
   final image = (await codec.getNextFrame()).image;
   final rgba = (await image.toByteData())!.buffer.asUint8List();
-  var red = 0;
-  for (var i = 0; i < rgba.length; i += 4) {
-    if (rgba[i] > 200 && rgba[i + 1] < 100 && rgba[i + 2] < 100) red++;
-  }
+  final width = image.width;
   return (
-    size: Size(image.width.toDouble(), image.height.toDouble()),
-    redCount: red,
+    size: Size(width.toDouble(), image.height.toDouble()),
+    isRed: (int x, int y) {
+      final i = (y * width + x) * 4;
+      return _isRed(rgba[i], rgba[i + 1], rgba[i + 2]);
+    },
   );
 }
 
@@ -161,6 +176,34 @@ void main() {
               .bottomRight -
           const Offset(12, 12),
     );
+
+    Future<void> openViewer(WidgetTester tester) async {
+      await tapThumbnail(tester);
+      await tester.pump();
+      await _waitFor(
+        tester,
+        () =>
+            find
+                .byKey(const ValueKey('app-report-image-canvas'))
+                .evaluate()
+                .isNotEmpty ||
+            find.byIcon(FluentIcons.image_off_24_regular).evaluate().length > 1,
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> markArea(WidgetTester tester) async {
+      await tester.tap(find.byKey(const ValueKey('app-report-image-mark')));
+      await tester.pump();
+      final box = tester.getRect(
+        find.byKey(const ValueKey('app-report-image-canvas')),
+      );
+      await tester.dragFrom(
+        box.topLeft + Offset(box.width * 0.2, box.height * 0.2),
+        Offset(box.width * 0.5, box.height * 0.5),
+      );
+      await tester.pump();
+    }
 
     Future<void> pressPaste(WidgetTester tester) async {
       final modifier = Platform.isMacOS
@@ -423,10 +466,7 @@ void main() {
 
       await tester.tap(find.byKey(const ValueKey('app-report-image-area')));
       await tester.pump();
-      await tapThumbnail(tester);
-      await tester.pump();
-      await tester.runAsync(() => Future<void>.delayed(_decodeWait));
-      await tester.pumpAndSettle();
+      await openViewer(tester);
 
       expect(find.byType(AppReportImageViewer), findsOneWidget);
       expect(find.text('a.png'), findsOneWidget);
@@ -453,24 +493,13 @@ void main() {
       );
       await tester.tap(find.byKey(const ValueKey('app-report-image-area')));
       await tester.pump();
-      await tapThumbnail(tester);
-      await tester.pump();
-      await tester.runAsync(() => Future<void>.delayed(_decodeWait));
-      await tester.pumpAndSettle();
+      await openViewer(tester);
 
-      final save = find.byKey(const ValueKey('app-report-image-save-marks'));
-      await tester.tap(find.byKey(const ValueKey('app-report-image-mark')));
-      await tester.pump();
-      final canvas = find.byKey(const ValueKey('app-report-image-canvas'));
-      final box = tester.getRect(canvas);
-      await tester.dragFrom(
-        box.topLeft + Offset(box.width * 0.2, box.height * 0.2),
-        Offset(box.width * 0.5, box.height * 0.5),
+      await markArea(tester);
+      await tester.tap(
+        find.byKey(const ValueKey('app-report-image-save-marks')),
       );
-      await tester.pump();
-
-      await tester.tap(save);
-      await tester.runAsync(() => Future<void>.delayed(_decodeWait));
+      await _waitFor(tester, () => images.single.bytes != original);
       await tester.pumpAndSettle();
 
       expect(find.byType(AppReportImageViewer), findsNothing);
@@ -479,17 +508,67 @@ void main() {
       expect(marked.mimeType, 'image/png');
       final pixels = (await tester.runAsync(() => _decodeRgba(marked.bytes)))!;
       expect(pixels.size, const Size(100, 60));
-      expect(pixels.redCount, greaterThan(0));
+      // הגרירה מ-20% עד 70% ממפה למלבן x 20..70, y 12..42 בתמונה.
+      expect(pixels.isRed(20, 27), isTrue);
+      expect(pixels.isRed(70, 27), isTrue);
+      expect(pixels.isRed(45, 12), isTrue);
+      expect(pixels.isRed(45, 27), isFalse);
+      expect(pixels.isRed(10, 27), isFalse);
+    });
+
+    testWidgets('תמונה מסומנת שחורגת מהמכסה לא נשמרת, והצופה נשאר פתוח', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final original = (await tester.runAsync(() => _whitePng(100, 60)))!;
+      await pump(
+        tester,
+        _FakeSources(
+          picked: [
+            AppReportImage(
+              bytes: original,
+              fileName: 'shot.png',
+              mimeType: 'image/png',
+            ),
+          ],
+        ),
+        otherAttachmentBytes: AppReportImage.maxTotalBytes - original.length,
+      );
+      await tester.tap(find.byKey(const ValueKey('app-report-image-area')));
+      await tester.pump();
+      await openViewer(tester);
+      await markArea(tester);
+
+      final save = find.byKey(const ValueKey('app-report-image-save-marks'));
+      await tester.tap(save);
+      await tester.pump();
+      expect(tester.widget<ActionButton>(save).isLoading, isTrue);
+      await _waitFor(
+        tester,
+        () => !tester.widget<ActionButton>(save).isLoading,
+      );
+      await tester.pump();
+
+      expect(find.byType(AppReportImageViewer), findsOneWidget);
+      expect(identical(images.single.bytes, original), isTrue);
+      expect(tester.widget<ActionButton>(save).onPressed, isNotNull);
+      UiSnack.hide();
+      await tester.pump(const Duration(seconds: 5));
     });
 
     testWidgets('בטופס נעול התמונה מוצגת בלי כלי סימון', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: AppReportImageViewer(image: _image('a.png'), editable: false),
+          home: AppReportImageViewer(image: _image('a.png')),
         ),
       );
-      await tester.runAsync(() => Future<void>.delayed(_decodeWait));
-      await tester.pumpAndSettle();
+      await _waitFor(
+        tester,
+        () =>
+            find.byIcon(FluentIcons.image_off_24_regular).evaluate().isNotEmpty,
+      );
 
       expect(find.byKey(const ValueKey('app-report-image-mark')), findsNothing);
       expect(

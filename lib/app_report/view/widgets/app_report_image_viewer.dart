@@ -17,29 +17,35 @@ import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
-/// מציג תמונה מצורפת בגדול. כש-[editable] אפשר לסמן עליה אזורים; מחזיר את
-/// התמונה המסומנת (PNG), או null כשלא נשמר סימון.
+/// מציג תמונה מצורפת בגדול. כש-[accept] מועבר אפשר לסמן עליה אזורים; מחזיר
+/// את התמונה המסומנת (PNG), או null כשלא נשמר סימון.
 Future<AppReportImage?> showAppReportImageViewer(
   BuildContext context,
   AppReportImage image, {
-  bool editable = true,
+  AppReportMarkedImageCheck? accept,
 }) => showDialogUntilTornDown<AppReportImage>(
   context: context,
   builder: reportDialogBuilder(
     context,
-    (_) => AppReportImageViewer(image: image, editable: editable),
+    (_) => AppReportImageViewer(image: image, accept: accept),
   ),
 );
+
+/// false כשהתמונה המסומנת חורגת מהמכסות; הבודק מציג את ההודעה, והצופה נשאר
+/// פתוח כדי שהסימון לא יאבד.
+typedef AppReportMarkedImageCheck = bool Function(AppReportImage marked);
 
 class AppReportImageViewer extends StatefulWidget {
   const AppReportImageViewer({
     super.key,
     required this.image,
-    this.editable = true,
+    this.accept,
   });
 
   final AppReportImage image;
-  final bool editable;
+  final AppReportMarkedImageCheck? accept;
+
+  bool get editable => accept != null;
 
   @override
   State<AppReportImageViewer> createState() => _AppReportImageViewerState();
@@ -54,6 +60,7 @@ class _AppReportImageViewerState extends State<AppReportImageViewer> {
   bool _marking = false;
   bool _saving = false;
   Offset? _dragStart;
+  int? _dragPointer;
   Rect? _draft;
 
   @override
@@ -73,8 +80,12 @@ class _AppReportImageViewerState extends State<AppReportImageViewer> {
   Future<void> _decode() async {
     try {
       final codec = await ui.instantiateImageCodec(widget.image.bytes);
-      final frame = await codec.getNextFrame();
-      codec.dispose();
+      final ui.FrameInfo frame;
+      try {
+        frame = await codec.getNextFrame();
+      } finally {
+        codec.dispose();
+      }
       if (!mounted) {
         frame.image.dispose();
         return;
@@ -95,6 +106,7 @@ class _AppReportImageViewerState extends State<AppReportImageViewer> {
     final draft = _draft;
     final image = _decoded;
     _dragStart = null;
+    _dragPointer = null;
     _draft = null;
     if (draft == null || image == null) return setState(() {});
     final minSide = _strokeWidth(image) * 2;
@@ -109,7 +121,12 @@ class _AppReportImageViewerState extends State<AppReportImageViewer> {
     setState(() => _saving = true);
     try {
       final marked = await _renderMarked(image);
-      if (mounted) Navigator.of(context).pop(marked);
+      if (!mounted) return;
+      if (widget.accept!(marked)) {
+        Navigator.of(context).pop(marked);
+      } else {
+        setState(() => _saving = false);
+      }
     } catch (error, stackTrace) {
       debugPrint('App report image marking failed: $error\n$stackTrace');
       if (!mounted) return;
@@ -256,14 +273,16 @@ class _AppReportImageViewerState extends State<AppReportImageViewer> {
     return Listener(
       onPointerDown: _marking
           ? (event) {
+              if (_dragPointer != null) return;
               if (event.buttons & kPrimaryButton == 0) return;
+              _dragPointer = event.pointer;
               _dragStart = imagePoint(event.localPosition);
             }
           : null,
       onPointerMove: _marking
           ? (event) {
               final start = _dragStart;
-              if (start == null) return;
+              if (start == null || event.pointer != _dragPointer) return;
               setState(
                 () => _draft = Rect.fromPoints(
                   start,
@@ -272,12 +291,20 @@ class _AppReportImageViewerState extends State<AppReportImageViewer> {
               );
             }
           : null,
-      onPointerUp: _marking ? (_) => _endDrag() : null,
+      onPointerUp: _marking
+          ? (event) {
+              if (event.pointer == _dragPointer) _endDrag();
+            }
+          : null,
       onPointerCancel: _marking
-          ? (_) => setState(() {
-              _dragStart = null;
-              _draft = null;
-            })
+          ? (event) {
+              if (event.pointer != _dragPointer) return;
+              setState(() {
+                _dragStart = null;
+                _dragPointer = null;
+                _draft = null;
+              });
+            }
           : null,
       child: MouseRegion(
         cursor: _marking ? SystemMouseCursors.precise : MouseCursor.defer,

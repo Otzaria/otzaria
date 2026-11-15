@@ -182,20 +182,23 @@ class _AppReportImagesSectionState extends State<AppReportImagesSection>
     final marked = await showAppReportImageViewer(
       context,
       original,
-      editable: widget.enabled,
+      accept: widget.enabled ? (marked) => _fitsQuota(original, marked) : null,
     );
-    if (marked == null || !mounted || !widget.enabled) return;
+    if (marked == null || !mounted) return;
     final current = widget.images.indexOf(original);
     if (current < 0) return;
-    // PNG המסומן גדול לרוב מהמקור, ולכן נבדק שוב מול המכסות.
-    final others = [...widget.images]..removeAt(current);
+    widget.onChanged([...widget.images]..[current] = marked);
+  }
+
+  /// PNG המסומן גדול לרוב מהמקור, ולכן נבדק שוב מול המכסות.
+  bool _fitsQuota(AppReportImage original, AppReportImage marked) {
     final merged = mergeAppReportImages(
-      others,
+      widget.images.where((image) => image != original).toList(),
       [marked],
       otherAttachmentBytes: widget.otherAttachmentBytes,
     );
-    if (merged.rejection != null) return _showRejection(merged.rejection);
-    widget.onChanged([...widget.images]..[current] = marked);
+    _showRejection(merged.rejection);
+    return merged.rejection == null;
   }
 
   static bool _hasImagePath(List<String> paths) =>

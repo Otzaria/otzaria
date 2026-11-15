@@ -36,6 +36,7 @@ void main() {
         ReportMessages.extendedReportQueued,
         ReportMessages.reportServerUpgradeRequired,
         ReportMessages.reportRejectedPreserved,
+        ReportMessages.appReportImageMarkFailed,
       ]) {
         expect(catalog, contains(message));
         expect(catalog[message], isNot(message));
