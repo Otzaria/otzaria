@@ -250,7 +250,9 @@ class PdfBookSearchView extends StatefulWidget {
     final proximity = _proximityPattern(resultHtmls, query, settings);
     if (proximity != null) return proximity;
 
-    final sourceIndex = <String, int?>{};
+    // לפי התבנית ולא לפי המונח: משתי קבוצות עם אותה תבנית (`"`/`״`) הראשונה
+    // תמיד זוכה, וקטע שסימן את השנייה לא היה מתקיים באף שורה.
+    final sourceIndex = <String, int>{};
     final sources = <String>[];
     final termSets = <Set<int>>[];
     for (final html in resultHtmls) {
@@ -258,13 +260,13 @@ class PdfBookSearchView extends StatefulWidget {
       for (final line in html.split(_lineBreakTag)) {
         final set = <int>{};
         for (final term in SnippetBuilder.extractHighlightedTerms(line)) {
-          final index = sourceIndex.putIfAbsent(term, () {
-            if (sources.length >= _maxHighlightTerms) return null;
-            final literal = buildLiteralPattern(term);
-            if (literal == null) return null;
-            sources.add(literal.source);
-            return sources.length - 1;
-          });
+          final source = buildLiteralPattern(term)?.source;
+          if (source == null) continue;
+          var index = sourceIndex[source];
+          if (index == null && sources.length < _maxHighlightTerms) {
+            index = sourceIndex[source] = sources.length;
+            sources.add(source);
+          }
           if (index != null) set.add(index);
         }
         termSets.add(set);

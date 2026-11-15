@@ -103,6 +103,22 @@ Future<void> main() async {
       ]);
     });
 
+    test('מונחים שונים עם אותה תבנית (`"`/`״`) הם מונח אחד', () {
+      final pattern = build(
+        [
+          '<font>רמב"ם</font> שם <font>ממון</font>',
+          '<font>רמב״ם</font> <font>תובעין</font> כאן',
+        ],
+        const InBookSearchSettings(
+          searchMode: SearchMode.fuzzy,
+          distance: kMaxFuzzyDistance,
+        ),
+      );
+      const page = 'רמב״ם תובעין כאן\nתובעין לבד';
+
+      expect(_highlighted(pattern, page), [(0, 'רמב״ם'), (0, 'תובעין')]);
+    });
+
     test('קטע שחוצה שורה: כל צד נבדק מול שורה משלו', () {
       final pattern = build(
         ['<font>ממון</font> שאין<br><font>לו</font> <font>תובעין</font>'],

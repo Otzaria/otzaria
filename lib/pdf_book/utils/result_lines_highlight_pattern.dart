@@ -39,7 +39,7 @@ class ResultLinesHighlightPattern implements Pattern {
     );
   }
 
-  /// התקרה נובעת ממסכת הסיביות של [_termSets], שגם ב-JS מדויקת עד 53 סיביות.
+  /// התקרה נובעת ממסכת הסיביות של [_termSets], ב-int של 64 סיביות.
   static const int _maxTerms = 50;
   static const String _groupPrefix = 'otzt';
 
