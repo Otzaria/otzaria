@@ -9,6 +9,7 @@ import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/view/grid_items.dart';
+import 'package:otzaria/library/view/library_breadcrumb_bar.dart';
 import 'package:otzaria/library/view/library_browser.dart';
 import 'package:otzaria/widgets/controls/bar_button.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
@@ -242,5 +243,29 @@ void main() {
 
     await swipe(const [Offset(-50, 0), Offset(-150, 4), Offset(-300, 6)]);
     expect(bloc.state.currentCategory, same(tanach));
+  });
+
+  testWidgets('החלקה על נתיב התיקיות אינה מנווטת, ואחריה החלקה רגילה כן', (
+    tester,
+  ) async {
+    await pump(tester);
+    await navigateTo(tester, halacha);
+    await navigateTo(tester, tanach);
+    final pointer = TestPointer(1, PointerDeviceKind.trackpad);
+
+    Future<void> swipeRight(Offset at) async {
+      await tester.sendEventToBinding(pointer.panZoomStart(at));
+      await tester.sendEventToBinding(
+        pointer.panZoomUpdate(at, pan: const Offset(260, 4)),
+      );
+      await tester.sendEventToBinding(pointer.panZoomEnd());
+      await settle(tester);
+    }
+
+    await swipeRight(tester.getCenter(find.byType(LibraryBreadcrumbBar)));
+    expect(bloc.state.currentCategory, same(tanach));
+
+    await swipeRight(tester.getCenter(find.byType(MyGridView)));
+    expect(bloc.state.currentCategory, same(halacha));
   });
 }

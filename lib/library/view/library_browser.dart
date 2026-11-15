@@ -1190,10 +1190,13 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     if (state.searchResults != null) return null;
     final chain = _breadcrumbChain(state);
     if (chain.isEmpty) return null;
-    return LibraryBreadcrumbBar(
-      chain: chain,
-      onNavigate: _openCategory,
-      onNavigateHome: () => _handleNavigateHome(context, state, settingsState),
+    return LibrarySwipeExclusion(
+      child: LibraryBreadcrumbBar(
+        chain: chain,
+        onNavigate: _openCategory,
+        onNavigateHome: () =>
+            _handleNavigateHome(context, state, settingsState),
+      ),
     );
   }
 
@@ -1303,7 +1306,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       ),
       ActionButtonData.simple(
         compact: compact,
-        tooltip: context.settingsText('חזרה לתיקיה הקודמת'),
+        tooltip: context.settingsText('לתיקייה העליונה'),
         icon: FluentIcons.arrow_up_24_regular,
         actionId: ToolbarActionId.navigateUp,
         onPressed: isLibraryEmpty
@@ -1347,21 +1350,21 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       ),
       ActionButtonData.simple(
         compact: compact,
-        tooltip: context.settingsText('חזרה לתיקיה הקודמת'),
+        tooltip: context.settingsText('לתיקייה העליונה'),
         icon: FluentIcons.arrow_up_24_regular,
         actionId: ToolbarActionId.navigateUp,
         onPressed: isLibraryEmpty
             ? null
             : () => _handleNavigateUp(context, state, settingsState),
       ),
+      if (settingsState.canUseSoftwareAndBookUpdates && !isLibraryEmpty)
+        _buildSyncActionButton(compact: compact),
       libraryForwardAction(
         context,
         _history,
         compact: compact,
         onOpen: _openCategory,
       ),
-      if (settingsState.canUseSoftwareAndBookUpdates && !isLibraryEmpty)
-        _buildSyncActionButton(compact: compact),
       ActionButtonData.simple(
         compact: compact,
         tooltip: context.settingsText('חזרה לתיקיה הראשית'),

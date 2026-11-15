@@ -1052,7 +1052,7 @@
   "רק הספרייה": "Library only",
   "לחיצה תחליף את הטקסט שהוקלד": "Click to replace the typed text",
   "חזרה אחורה": "Back",
-  "חזרה לתיקיה הקודמת": "Back to the previous folder",
+  "לתיקייה העליונה": "Up to the parent folder",
   "חזרה לתיקיה הראשית": "Back to the main folder",
   "טעינה מחדש": "Reload",
   "אין תוצאות עבור \"{query}\"": "No results for \"{query}\"",

@@ -167,9 +167,27 @@ class _LibraryHistoryNavigatorState extends State<LibraryHistoryNavigator> {
     listener: (context, state) => _visit(state),
     child: Listener(
       onPointerDown: _onPointerDown,
-      onPointerPanZoomStart: (_) => _swipeHandled = false,
       onPointerPanZoomUpdate: _onPanZoomUpdate,
+      onPointerPanZoomEnd: (_) => _swipeHandled = false,
       child: widget.child,
     ),
+  );
+}
+
+/// מחווה שמתחילה באזור שנגלל אופקית בעצמו לא מנווטת בהיסטוריה.
+class LibrarySwipeExclusion extends StatelessWidget {
+  const LibrarySwipeExclusion({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Listener(
+    behavior: HitTestBehavior.translucent,
+    onPointerPanZoomStart: (_) =>
+        context
+                .findAncestorStateOfType<_LibraryHistoryNavigatorState>()
+                ?._swipeHandled =
+            true,
+    child: child,
   );
 }
