@@ -30,6 +30,7 @@ import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/dialogs/change_location_dialog.dart';
@@ -256,6 +257,15 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
         UiSnack.showError(errorMessage);
       },
     );
+  }
+
+  /// קובצי PDF בתיקיית היברובוקס שלא יוצגו, מתוך הסריקה שהחיפוש משתמש בה.
+  Future<void> _reportUnrecognizedHebrewBooks() async {
+    final count = await DataRepository.instance.unrecognizedHebrewBooksPdfCount
+        .catchError((Object _) => 0);
+    if (count > 0 && mounted) {
+      UiSnack.show(LibraryMessages.unrecognizedHebrewBooksFiles(count));
+    }
   }
 
   /// הסרת מיקום ספרי היברובוקס
@@ -510,6 +520,11 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
               SettingsMessages.hebrewBooksPathRemoveError(libraryState.error!),
             );
           }
+        }
+
+        final hebrewBooksPath = libraryState.changedHebrewBooksPath;
+        if (hebrewBooksPath != null && hebrewBooksPath.isNotEmpty) {
+          unawaited(_reportUnrecognizedHebrewBooks());
         }
 
         unawaited(_refreshManualReindexRequirement(libraryState));

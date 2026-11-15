@@ -17,7 +17,6 @@ import 'package:otzaria/widgets/misc/app_context_menu.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/search/view/layout_fix_suggestion_banner.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
-import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/empty_library/empty_library_screen.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
@@ -30,7 +29,6 @@ import 'package:otzaria/tools/calendar/helpers/daf_yomi_navigation.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
 import 'package:otzaria/library/view/library_breadcrumb_bar.dart';
 import 'package:otzaria/library/view/library_daf_yomi.dart';
-import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/widgets/feedback/edge_scrollbar_behavior.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
@@ -371,9 +369,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   LibraryNavigationHistory get _history =>
       context.read<LibraryBloc>().navigationHistory;
 
-  /// סריקת תיקיות אישיות שהתחילה מ"טעינה מחדש" ועוד לא הסתיימה.
-  final _reloadScanPending = ValueNotifier<bool>(false);
-  bool _reportHebrewBooksAfterReload = false;
   double? _previewPaneWidthOverride;
   late final ValueNotifier<double> _topBarTotalHeight;
 
@@ -457,7 +452,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     _secondaryRowVisible.dispose();
     _topBarTotalHeight.dispose();
     _settingsPanelOpen.dispose();
-    _reloadScanPending.dispose();
     super.dispose();
   }
 
@@ -515,19 +509,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             context.read<LibraryBloc>().add(
               SelectCategoryForPreview(state.currentCategory ?? state.library!),
             );
-            if (_reportHebrewBooksAfterReload) {
-              _reportHebrewBooksAfterReload = false;
-              unawaited(_reportUnrecognizedHebrewBooks());
-            }
-          },
-        ),
-        BlocListener<CustomFoldersBloc, CustomFoldersState>(
-          listenWhen: (p, c) => p.isSyncing && !c.isSyncing,
-          listener: (_, state) {
-            // רק "טעינה מחדש" מסמן; סריקה שנכשלה לא שולחת RefreshLibrary.
-            _reportHebrewBooksAfterReload =
-                _reloadScanPending.value && state.error == null;
-            _reloadScanPending.value = false;
           },
         ),
         BlocListener<SettingsBloc, SettingsState>(
@@ -662,13 +643,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                       );
                     },
                   ),
-                  // גם בזמן סריקת התיקיות שקודמת לרענון מהכפתור.
-                  ValueListenableBuilder<bool>(
-                    valueListenable: _reloadScanPending,
-                    builder: (context, pending, _) => state.isLoading || pending
-                        ? _buildLoadingOverlay(context)
-                        : const SizedBox.shrink(),
-                  ),
+                  if (state.isLoading) _buildLoadingOverlay(context),
                 ],
               );
             },
@@ -1267,22 +1242,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     );
   }
 
-  /// קובצי PDF בתיקיית היברובוקס שלא יוצגו, מתוך הסריקה שהחיפוש משתמש בה.
-  Future<void> _reportUnrecognizedHebrewBooks() async {
-    final count = await DataRepository.instance.unrecognizedHebrewBooksPdfCount
-        .catchError((Object _) => 0);
-    if (count > 0 && mounted) {
-      UiSnack.show(LibraryMessages.unrecognizedHebrewBooksFiles(count));
-    }
-  }
-
-  void _refreshWithPersonalFolders() {
-    _reloadScanPending.value = true;
-    context.read<CustomFoldersBloc>().add(
-      const RescanCustomFolders(showNoChangesMessage: false),
-    );
-  }
-
   List<ActionButtonData> _buildOriginalOrderActions(
     BuildContext context,
     LibraryState state,
@@ -1323,13 +1282,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       ),
       if (settingsState.canUseSoftwareAndBookUpdates && !isLibraryEmpty)
         _buildSyncActionButton(compact: compact),
-      ActionButtonData.simple(
-        compact: compact,
-        tooltip: context.settingsText('טעינה מחדש'),
-        icon: FluentIcons.arrow_clockwise_24_regular,
-        actionId: ToolbarActionId.refresh,
-        onPressed: isLibraryEmpty ? null : _refreshWithPersonalFolders,
-      ),
     ];
   }
 
@@ -1372,13 +1324,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         onPressed: isLibraryEmpty
             ? null
             : () => _handleNavigateHome(context, state, settingsState),
-      ),
-      ActionButtonData.simple(
-        compact: compact,
-        tooltip: context.settingsText('טעינה מחדש'),
-        icon: FluentIcons.arrow_clockwise_24_regular,
-        actionId: ToolbarActionId.refresh,
-        onPressed: isLibraryEmpty ? null : _refreshWithPersonalFolders,
       ),
     ];
   }

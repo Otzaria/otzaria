@@ -8,7 +8,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:otzaria/attached_libraries/bloc/attached_libraries_bloc.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/messages/library_messages.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
+import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
 import 'package:otzaria/indexing/bloc/indexing_state.dart';
@@ -143,6 +146,7 @@ void main() {
     );
     await tester.pumpWidget(
       MaterialApp(
+        navigatorKey: navigatorKey,
         home: Scaffold(
           body: MultiBlocProvider(
             providers: [
@@ -316,6 +320,43 @@ void main() {
     expect(find.textContaining('hebrewbooks-new'), findsOneWidget);
     expect(find.textContaining('hebrewbooks-old'), findsNothing);
   });
+
+  // #2964, #4710: הדיווח על קבצים שלא זוהו מוצג אחרי בחירת תיקיית היברובוקס,
+  // לא אחרי הסרת הנתיב ולא כשכל הקבצים זוהו.
+  for (final (changedPath, unrecognized, reported) in [
+    ('hebrewbooks', 2, true),
+    ('hebrewbooks', 0, false),
+    ('', 2, false),
+  ]) {
+    testWidgets(
+      'שינוי נתיב היברובוקס ל-"$changedPath" עם $unrecognized קבצים לא מזוהים',
+      (tester) async {
+        DataRepository.instance.localHebrewBooksScan = Future.value((
+          books: const <Book>[],
+          unrecognizedPdfCount: unrecognized,
+        ));
+        addTearDown(DataRepository.instance.invalidateHebrewBooksCache);
+        final library = libraryWithBook('תהילים');
+        final base = LibraryState(library: library, currentCategory: library);
+        await pumpTab(tester, base);
+
+        await emit(tester, base.copyWith(isLoading: true));
+        await emit(
+          tester,
+          LibraryState(
+            library: library,
+            currentCategory: library,
+            changedHebrewBooksPath: changedPath,
+          ),
+        );
+        expect(
+          find.text(LibraryMessages.unrecognizedHebrewBooksFiles(unrecognized)),
+          reported ? findsOneWidget : findsNothing,
+        );
+        await tester.pump(const Duration(seconds: 10));
+      },
+    );
+  }
 
   testWidgets('השהיה מחלונית החיווי מוצגת בשורת האינדקס (issue #3243)', (
     tester,
