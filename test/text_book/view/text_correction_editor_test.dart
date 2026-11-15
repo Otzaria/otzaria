@@ -510,7 +510,7 @@ void main() {
     test('סימון היעד עוטף רק טקסט, והתגיות נשארות מאוזנות', () {
       const html = 'א <sup>ב ג</sup> ד';
       expect(
-        markTargetInHtml(html, 2, html.indexOf('ג') + 1),
+        markTargetInHtml(html, html.indexOf('ב'), html.indexOf('ג') + 1),
         'א <sup><correction-target>ב ג</correction-target></sup> ד',
       );
       expect(
@@ -543,6 +543,18 @@ void main() {
         isNull,
       );
       expect(correctionDiffHtml(before: 'א &amp; ב', after: 'א & ב'), isNull);
+    });
+
+    test('שינוי רווחים בלבד אינו מרונדר — הרינדור מכווץ אותו', () {
+      expect(correctionDiffHtml(before: 'א ב', after: 'א  ב'), isNull);
+      expect(correctionDiffHtml(before: 'א ב', after: 'א\nב'), isNull);
+    });
+
+    test('בחירה שחותכת ישות מסמנת את השורה כולה', () {
+      expect(
+        markTargetInHtml('x &amp;amp; y', 0, 4),
+        '<correction-target>x &amp;amp; y</correction-target>',
+      );
     });
 
     Future<List<TextCorrectionDraft>> pumpEditor(
@@ -587,6 +599,10 @@ void main() {
 
       expect(inOriginal(CorrectionHtml), findsOneWidget);
       expect(
+        find.byKey(const ValueKey('correction-source-explanation')),
+        findsOneWidget,
+      );
+      expect(
         find.descendant(
           of: find.byKey(const ValueKey('correction-diff')),
           matching: find.byType(CorrectionHtml),
@@ -613,6 +629,10 @@ void main() {
 
       expect(
         find.byKey(const ValueKey('correction-view-toggle')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('correction-source-explanation')),
         findsNothing,
       );
       expect(inOriginal(CorrectionHtml), findsNothing);

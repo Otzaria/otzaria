@@ -216,6 +216,8 @@ bool hasRenderableMarkup(String html) =>
 /// [html] with the text of [start, end) wrapped in a marker, one wrapper per run
 /// between tags so the markup stays balanced.
 String markTargetInHtml(String html, int start, int end) {
+  // בחירה מטיוטה ישנה עלולה לחתוך ישות; אז מסומנת השורה כולה.
+  if (!_isPlainTextRange(html, start, end)) (start, end) = (0, html.length);
   final out = StringBuffer();
   var inTag = false;
   var inComment = false;
@@ -257,7 +259,7 @@ String markTargetInHtml(String html, int start, int end) {
 }
 
 /// ההבדל בין [before] ל-[after] כ-HTML, השינויים עטופים בסימון; null כששינוי
-/// נוגע בתגית או בישות — אותו אפשר להציג נאמנה רק כקוד מקור.
+/// נוגע בתגית או בישות, או כולו רווחים שהרינדור מכווץ — אלה נאמנים רק כקוד מקור.
 String? correctionDiffHtml({
   required String before,
   required String after,
@@ -269,7 +271,11 @@ String? correctionDiffHtml({
   final out = StringBuffer(contextBefore);
   var beforePos = contextBefore.length;
   var afterPos = contextBefore.length;
+  var visibleChange = false;
   for (final segment in computeTextDiff(before, after)) {
+    if (segment.op != TextDiffOp.equal && segment.text.trim().isNotEmpty) {
+      visibleChange = true;
+    }
     final text = segment.text;
     switch (segment.op) {
       case TextDiffOp.equal:
@@ -294,6 +300,7 @@ String? correctionDiffHtml({
         afterPos += text.length;
     }
   }
+  if (!visibleChange) return null;
   out.write(contextAfter);
   return out.toString();
 }
@@ -563,6 +570,18 @@ class _TextCorrectionEditorState extends State<TextCorrectionEditor> {
           expandToFillWidth: true,
         ),
         const SizedBox(height: 8),
+        if (hasMarkup && _mode == ProposalMode.replace) ...[
+          Text(
+            context.settingsText(
+              'שדה העריכה מציג את קוד המקור, כולל תגיות העיצוב. "כמו בספר" מראה איך השורה והשינוי ייראו בספר.',
+            ),
+            key: const ValueKey('correction-source-explanation'),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppTokens.spaceXS),
+        ],
         if (_mode == ProposalMode.replace)
           Directionality(
             textDirection: sourceDirection,
@@ -639,14 +658,19 @@ class TextCorrectionDiffView extends StatelessWidget {
     this.contextAfter = '',
   });
 
+  /// מעבר לזה השינוי עלול להיות מחוץ לתיבה הנגללת, ולכן מרונדר בלי הקשר.
+  static const int _maxRenderedContext = 300;
+
   @override
   Widget build(BuildContext context) {
+    final withContext =
+        contextBefore.length + contextAfter.length <= _maxRenderedContext;
     final html = renderHtml
         ? correctionDiffHtml(
             before: before,
             after: after,
-            contextBefore: contextBefore,
-            contextAfter: contextAfter,
+            contextBefore: withContext ? contextBefore : '',
+            contextAfter: withContext ? contextAfter : '',
           )
         : null;
     if (!renderHtml || html != null) return _box(context, html);
@@ -654,10 +678,10 @@ class TextCorrectionDiffView extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _box(context, null),
-        const SizedBox(height: 4),
+        const SizedBox(height: AppTokens.spaceXS),
         Text(
           context.settingsText(
-            'השינוי נוגע בתגיות העיצוב, ולכן הוא מוצג כקוד מקור.',
+            'השינוי נוגע בתגיות העיצוב או ברווחים בלבד, ולכן הוא מוצג כקוד מקור.',
           ),
           key: const ValueKey('correction-diff-source-notice'),
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -670,7 +694,9 @@ class TextCorrectionDiffView extends StatelessWidget {
 
   Widget _box(BuildContext context, String? html) {
     final colorScheme = Theme.of(context).colorScheme;
-    final segments = computeTextDiff(before, after);
+    final segments = html == null
+        ? computeTextDiff(before, after)
+        : const <TextDiffSegment>[];
     final direction = reportContentDirection(
       before.isEmpty ? after : before,
       isHtml: true,
