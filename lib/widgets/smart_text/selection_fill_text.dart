@@ -1,14 +1,12 @@
 /// הדגשת בחירה שממלאת את גובה השורה, בלי פס לא-צבוע בין שורה לשורה.
-///
-/// הפריימוורק מצייר את הבחירה ב-`BoxHeightStyle.tight` — תיבה בגובה הגליף
-/// בלבד — ואין פרמטר לשנות זאת מחוץ ל-`TextField`. `max` נותן תיבה בגובה שורת
-/// התצוגה, שנוגעת בשורה שאחריה, כמו בדפדפן ובוורד.
+/// `BoxHeightStyle.max` מחליף את גובה הגליף בגובה שורת התצוגה המלאה.
 library;
 
-import 'dart:math';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 /// `RichText` שתיבות הבחירה בו נמדדות בגובה שורת התצוגה המלאה.
@@ -237,6 +235,7 @@ class _RenderSelectionFillParagraph extends RenderParagraph {
   @override
   void performLayout() {
     super.performLayout();
+    _hardBreakShifts = null;
     final pending = _pendingRegistrar;
     if (pending != null) {
       _pendingRegistrar = null;
@@ -246,37 +245,168 @@ class _RenderSelectionFillParagraph extends RenderParagraph {
 
   /// ציור הבחירה בפריימוורק קורא לכאן בלי `boxHeightStyle`, כלומר `tight`.
   /// סגנון שהמתקשר ביקש במפורש נשאר שלו.
-  ///
-  /// התיבות נחתכות לרוחב הפסקה: תיבת ה-`\n` של `<br>` נמדדת מחוץ לו, ומשאירה
-  /// בליטה בבחירה בסוף השורה שלפניו.
   @override
   List<ui.TextBox> getBoxesForSelection(
     TextSelection selection, {
     ui.BoxHeightStyle boxHeightStyle = ui.BoxHeightStyle.tight,
     ui.BoxWidthStyle boxWidthStyle = ui.BoxWidthStyle.tight,
   }) {
-    final boxes = super.getBoxesForSelection(
-      selection,
-      boxHeightStyle: boxHeightStyle == ui.BoxHeightStyle.tight
-          ? ui.BoxHeightStyle.max
-          : boxHeightStyle,
-      boxWidthStyle: boxWidthStyle,
+    final boxes = _unshiftBoxes(
+      super.getBoxesForSelection(
+        selection,
+        boxHeightStyle: boxHeightStyle == ui.BoxHeightStyle.tight
+            ? ui.BoxHeightStyle.max
+            : boxHeightStyle,
+        boxWidthStyle: boxWidthStyle,
+      ),
     );
     if (!hasSize) return boxes;
     return [
       for (final box in boxes)
         ui.TextBox.fromLTRBD(
-          max(0, box.left),
+          math.max(0, box.left),
           box.top,
-          min(size.width, box.right),
+          math.min(size.width, box.right),
           box.bottom,
           box.direction,
         ),
     ];
   }
 
+  /// בחירה מבקשת מיקום בפינת הפסקה, ובשורה שמתחילה ברצף בכיוון ההפוך זו אינה
+  /// תחילת הטקסט. TODO: להסיר כש-flutter#196327 יתוקן.
+  @override
+  TextPosition getPositionForOffset(Offset offset) {
+    if (textDirection != TextDirection.rtl) {
+      return super.getPositionForOffset(offset);
+    }
+    if (offset.dy <= 0) return const TextPosition(offset: 0);
+    if (offset.dy >= size.height) {
+      return TextPosition(
+        offset: text.toPlainText(includeSemanticsLabels: false).length,
+        affinity: TextAffinity.upstream,
+      );
+    }
+    final dx = _shiftAt(offset.dy)?.dx ?? 0;
+    return super.getPositionForOffset(offset.translate(dx, 0));
+  }
+
+  /// הסמן נגזר מתיבת האות המתוקנת לפי ה-affinity, כמו ב-TextPainter.
+  /// TODO: להסיר כש-flutter#196326 יתוקן.
+  @override
+  Offset getOffsetForCaret(TextPosition position, Rect caretPrototype) {
+    final offset = super.getOffsetForCaret(position, caretPrototype);
+    final shift = _shifts.isEmpty ? null : _shiftAt(offset.dy + 1);
+    if (shift == null) return offset;
+    final plain = text.toPlainText(includeSemanticsLabels: false);
+    final graphemes = CharacterBoundary(plain);
+    // לחלק מאות מנוקדת אין תיבה, ולכן נמדדת האות כולה.
+    ui.TextBox? boxOnLine(int i) {
+      if (i < 0 || i >= plain.length || plain[i] == '\n') return null;
+      final box = _glyphBoxesForSelection(
+        TextSelection(
+          baseOffset: graphemes.getLeadingTextBoundaryAt(i)!,
+          extentOffset: graphemes.getTrailingTextBoundaryAt(i)!,
+        ),
+      ).firstOrNull;
+      final y = box?.toRect().center.dy;
+      return y != null && y >= shift.top && y < shift.bottom ? box : null;
+    }
+
+    final i = position.offset;
+    final upstream =
+        position.affinity == TextAffinity.upstream &&
+        i > 0 &&
+        plain[i - 1] != '\n';
+    final beforeBox = boxOnLine(i - 1);
+    // מיקום באמצע אות נצמד, כמו ב-TextPainter, לאות שאחריה.
+    final afterBox = boxOnLine(
+      i > 0 ? graphemes.getTrailingTextBoundaryAt(i - 1) ?? i : i,
+    );
+    final before = beforeBox != null && (upstream || afterBox == null);
+    final box = before ? beforeBox : afterBox;
+    if (box == null) return offset;
+    final rtl = box.direction == TextDirection.rtl;
+    final edge = before == rtl ? box.left : box.right;
+    final dx = rtl ? edge - caretPrototype.width : edge;
+    return Offset(dx.clamp(0, size.width), offset.dy);
+  }
+
   List<ui.TextBox> _glyphBoxesForSelection(TextSelection selection) =>
-      super.getBoxesForSelection(selection);
+      _unshiftBoxes(super.getBoxesForSelection(selection));
+
+  /// skparagraph מודד שורת RTL שמסתיימת ב-`\n` כאילו ל-`\n` רוחב בקצה השמאלי,
+  /// והתיבות בה זזות ימינה ממה שצויר. TODO: להסיר כש-flutter#196326 יתוקן.
+  List<_LineShift>? _hardBreakShifts;
+
+  // Cluster ב-Skia מסווג רווחי ASCII, וב-Unicode משתמש ב-ICU u_isWhitespace.
+  static final _skiaWhitespace = RegExp(
+    r'[\u0009-\u000d\u0020\u1680\u2000-\u2006\u2008-\u200a\u2028\u2029\u205f\u3000]',
+  );
+
+  List<_LineShift> get _shifts =>
+      _hardBreakShifts ??= _measureHardBreakShifts();
+
+  List<_LineShift> _measureHardBreakShifts() {
+    if (textDirection != TextDirection.rtl) return const [];
+    final plain = text.toPlainText(includeSemanticsLabels: false);
+    final shifts = <_LineShift>[];
+    var start = 0;
+    for (var i = plain.indexOf('\n'); i >= 0; i = plain.indexOf('\n', i + 1)) {
+      final lineStart = start;
+      start = i + 1;
+      final breakBoxes = super.getBoxesForSelection(
+        TextSelection(baseOffset: i, extentOffset: i + 1),
+        boxHeightStyle: ui.BoxHeightStyle.max,
+      );
+      if (i == lineStart || breakBoxes.isEmpty) continue;
+      // רווח לפני השבירה כבר מתקן את מדידות Skia; רוחבו אינו הזזה של הטקסט.
+      if (_skiaWhitespace.hasMatch(plain[i - 1])) continue;
+      final line = breakBoxes.first;
+      var left = double.infinity;
+      for (final box in super.getBoxesForSelection(
+        TextSelection(baseOffset: lineStart, extentOffset: i),
+      )) {
+        if (box.bottom > line.top && box.top < line.bottom) {
+          left = math.min(left, box.left);
+        }
+      }
+      final dx = left - line.left;
+      if (dx.isFinite && dx > 0.5) {
+        shifts.add((
+          top: line.top,
+          bottom: line.bottom,
+          left: line.left,
+          dx: dx,
+        ));
+      }
+    }
+    return shifts;
+  }
+
+  _LineShift? _shiftAt(double dy) {
+    for (final shift in _shifts) {
+      if (dy >= shift.top && dy < shift.bottom) return shift;
+    }
+    return null;
+  }
+
+  List<ui.TextBox> _unshiftBoxes(List<ui.TextBox> boxes) {
+    if (_shifts.isEmpty) return boxes;
+    return [
+      for (final box in boxes)
+        if (_shiftAt((box.top + box.bottom) / 2) case final shift?)
+          ui.TextBox.fromLTRBD(
+            math.max(box.left - shift.dx, shift.left),
+            box.top,
+            math.max(box.right - shift.dx, shift.left),
+            box.bottom,
+            box.direction,
+          )
+        else
+          box,
+    ];
+  }
 }
 
 /// תיבות בגובה הגליף (`tight`) גם בפסקה שמילוי הבחירה ממפה בה `tight` ל-`max` —
@@ -287,3 +417,5 @@ List<ui.TextBox> glyphBoxesForSelection(
 ) => paragraph is _RenderSelectionFillParagraph
     ? paragraph._glyphBoxesForSelection(selection)
     : paragraph.getBoxesForSelection(selection);
+
+typedef _LineShift = ({double top, double bottom, double left, double dx});
