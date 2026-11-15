@@ -1682,6 +1682,70 @@ void main() {
       }
     });
 
+    testWidgets('"הקטע הבא" בוחר את הקטע היעד ולא רק גולל אליו (#3708)', (
+      tester,
+    ) async {
+      final book = TextBook(title: 'ספר בדיקה');
+      final bloc = _TestTextBookBloc(_loadedState(book));
+      final tab = TextBookTab(
+        book: book,
+        index: 0,
+        blocOverride: bloc,
+      );
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+        await bloc.close();
+        await tabsBloc.close();
+        await settingsBloc.close();
+        tab.dispose();
+      });
+
+      await _setSurfaceSize(tester, const Size(1200, 900));
+      await _pumpTextBookScreen(
+        tester,
+        tab: tab,
+        textBookBloc: bloc,
+        tabsBloc: tabsBloc,
+        settingsBloc: settingsBloc,
+        focusRepository: focusRepository,
+        shamorZachorDataProvider: shamorZachorDataProvider,
+        shamorZachorProgressProvider: shamorZachorProgressProvider,
+        bookmarkBloc: bookmarkBloc,
+        personalNotesBloc: personalNotesBloc,
+        tourCubit: tourCubit,
+        isInCombinedView: true,
+      );
+
+      await tester.tap(find.byIcon(FluentIcons.more_vertical_24_regular));
+      await tester.pumpAndSettle();
+
+      bloc.receivedEvents.clear();
+      await tester.tap(find.byTooltip('הקטע הבא'));
+      await tester.pumpAndSettle();
+      // המיקום הוא 0, ולכן היעד 1 נבחר והמפרשים נפתחים עליו.
+      expect(
+        bloc.receivedEvents.whereType<UpdateSelectedIndex>().map(
+          (e) => e.index,
+        ),
+        [1],
+      );
+
+      bloc.receivedEvents.clear();
+      await tester.tap(find.byTooltip('הקטע הקודם'));
+      await tester.pumpAndSettle();
+      expect(
+        bloc.receivedEvents.whereType<UpdateSelectedIndex>(),
+        isEmpty,
+        reason: 'מהקטע הראשון אין קטע קודם',
+      );
+    });
+
     testWidgets('במצב רגיל אין שורת ניווט בתפריט ה-overflow', (tester) async {
       final book = TextBook(title: 'ספר בדיקה');
       final bloc = _TestTextBookBloc(_loadedState(book));

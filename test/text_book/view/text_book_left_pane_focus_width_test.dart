@@ -20,6 +20,7 @@ import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/text_book/view/text_book_screen.dart';
@@ -171,6 +172,31 @@ void main() {
     );
   });
 
+  // #4467: בלשונית 'ניווט' השדה נפתח כשהמשתמש פותח את החלונית, אבל לא כשהיא
+  // נפתחה לבד עם הספר — אז החיצים שייכים לקריאה.
+  testWidgets('מסך רחב: איתור הכותרת נפתח רק כשהמשתמש פותח את החלונית', (
+    tester,
+  ) async {
+    await pumpScreen(tester, size: const Size(1600, 900), searchText: '');
+    expect(anyTextFieldFocused(tester), isFalse);
+
+    final bloc = tester
+        .element(find.byType(TextBookViewerBloc))
+        .read<TextBookBloc>();
+    bloc.add(const ToggleLeftPane(false));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    bloc.add(const ToggleLeftPane(true));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
+
+    expect(find.byType(OtzariaSearchField), findsWidgets);
+    expect(anyTextFieldFocused(tester), isTrue);
+  });
+
   testWidgets('אייפון (412): הקשה על לשונית החיפוש כן ממקדת את השדה', (
     tester,
   ) async {
@@ -236,7 +262,12 @@ TextBookLoaded _loadedState(TextBook book) {
 class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     implements TextBookBloc {
   _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
+    on<TextBookEvent>((event, emit) {
+      final current = state;
+      if (event is ToggleLeftPane && current is TextBookLoaded) {
+        emit(current.copyWith(showLeftPane: event.show));
+      }
+    });
   }
 
   @override

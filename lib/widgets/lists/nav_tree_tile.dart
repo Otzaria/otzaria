@@ -2,6 +2,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/theme/app_focus_ring.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
@@ -73,6 +74,10 @@ class NavTreeTile extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onToggleExpand;
 
+  /// לחיצה ממקדת את השורה, כדי שהחיצים ימשיכו ממנה (#3247). כבוי ברשימות
+  /// שהפוקוס בהן צריך להישאר בשדה החיפוש.
+  final bool focusOnTap;
+
   /// הזחה נוספת (למשל לספרים תחת קטגוריה).
   final double extraIndent;
 
@@ -94,6 +99,7 @@ class NavTreeTile extends StatelessWidget {
     this.onClearFilter,
     this.onTap,
     this.onToggleExpand,
+    this.focusOnTap = false,
     this.extraIndent = 0,
     this.fontWeight = FontWeight.w600,
   });
@@ -177,6 +183,7 @@ class NavTreeTile extends StatelessWidget {
     Widget? trailing,
     VoidCallback? onTap,
     VoidCallback? onToggleExpand,
+    bool focusOnTap = false,
   }) {
     return NavTreeTile(
       key: key,
@@ -193,6 +200,7 @@ class NavTreeTile extends StatelessWidget {
       trailing: trailing,
       onTap: onTap,
       onToggleExpand: onToggleExpand,
+      focusOnTap: focusOnTap,
       extraIndent: 0,
       fontWeight: level == 0
           ? FontWeight.w700
@@ -241,106 +249,162 @@ class NavTreeTile extends StatelessWidget {
                 ),
               ));
 
-    final row = Semantics(
+    return Semantics(
       selected: isSelected,
       expanded: hasChildren ? isExpanded : null,
-      // רקע הבחירה על ה-Material, כדי שהריחוף והלחיצה יצוירו מעליו. הסגנון
-      // הנורש נשמר: Material היה מחליף אותו ב-bodyMedium.
-      child: Material(
-        color: isSelected ? AppSurfaces.selectedRow(cs) : Colors.transparent,
-        textStyle: DefaultTextStyle.of(context).style,
-        child: InkWell(
-          onTap: onTap,
-          hoverColor: AppSurfaces.hoverRow(cs),
-          child: Container(
-            padding: EdgeInsetsDirectional.only(
-              start: 12 + indent,
-              end: 12,
-              top: 8,
-              bottom: 8,
-            ),
-            // גובה מזערי כגובה קופסת האייקון — שורה ללא קופסה (TOC) שומרת על
-            // אותו קצב רשימה כמו שורה שיש בה קופסה.
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: iconBoxSize),
-              child: Row(
-                children: [
-                  if (leadingWidget != null) ...[
-                    leadingWidget,
-                    const SizedBox(width: 9),
-                  ],
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
+      child: _NavTreeRowSurface(
+        isSelected: isSelected,
+        onTap: onTap,
+        focusOnTap: focusOnTap,
+        child: Container(
+          padding: EdgeInsetsDirectional.only(
+            start: 12 + indent,
+            end: 12,
+            top: 8,
+            bottom: 8,
+          ),
+          // גובה מזערי כגובה קופסת האייקון — שורה ללא קופסה (TOC) שומרת על
+          // אותו קצב רשימה כמו שורה שיש בה קופסה.
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: iconBoxSize),
+            child: Row(
+              children: [
+                if (leadingWidget != null) ...[
+                  leadingWidget,
+                  const SizedBox(width: 9),
+                ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      OverflowTooltipText(
+                        text: title,
+                        maxLines: 1,
+                        style: AppTextStyles.settingTitle.copyWith(
+                          fontWeight: isSelected ? FontWeight.w700 : fontWeight,
+                          color: cs.onSurface,
+                          fontSize: AppTokens.fontMD,
+                        ),
+                      ),
+                      if (subtitle != null && subtitle!.isNotEmpty)
                         OverflowTooltipText(
-                          text: title,
+                          text: subtitle!,
                           maxLines: 1,
-                          style: AppTextStyles.settingTitle.copyWith(
-                            fontWeight: isSelected
-                                ? FontWeight.w700
-                                : fontWeight,
-                            color: cs.onSurface,
-                            fontSize: AppTokens.fontMD,
+                          style: AppTextStyles.settingSubtitle.copyWith(
+                            color: cs.onSurfaceVariant,
+                            fontSize: AppTokens.fontSM,
                           ),
                         ),
-                        if (subtitle != null && subtitle!.isNotEmpty)
-                          OverflowTooltipText(
-                            text: subtitle!,
-                            maxLines: 1,
-                            style: AppTextStyles.settingSubtitle.copyWith(
-                              color: cs.onSurfaceVariant,
-                              fontSize: AppTokens.fontSM,
-                            ),
-                          ),
-                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (trailing != null)
+                  trailing!
+                else if (onClearFilter != null)
+                  _ClearFilterButton(onTap: onClearFilter!)
+                else if (count != null && count! > 0)
+                  Text(
+                    '($count)',
+                    style: TextStyle(
+                      fontSize: AppTokens.fontMD,
+                      color: cs.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  if (trailing != null)
-                    trailing!
-                  else if (onClearFilter != null)
-                    _ClearFilterButton(onTap: onClearFilter!)
-                  else if (count != null && count! > 0)
-                    Text(
-                      '($count)',
-                      style: TextStyle(
-                        fontSize: AppTokens.fontMD,
+                if (hasChildren) ...[
+                  const SizedBox(width: 4),
+                  IconButton(
+                    tooltip: context.settingsText(isExpanded ? 'כווץ' : 'הרחב'),
+                    // המצב שייך לשורה; הכפתור נקרא לפי הפעולה (הרחב/כווץ).
+                    icon: ExcludeSemantics(
+                      child: ExpandingChevron(
+                        isExpanded: isExpanded,
+                        style: ExpandingChevronStyle.tree,
                         color: cs.onSurfaceVariant,
+                        size: AppTokens.iconSM,
                       ),
                     ),
-                  if (hasChildren) ...[
-                    const SizedBox(width: 4),
-                    IconButton(
-                      tooltip: context.settingsText(
-                        isExpanded ? 'כווץ' : 'הרחב',
-                      ),
-                      // המצב שייך לשורה; הכפתור נקרא לפי הפעולה (הרחב/כווץ).
-                      icon: ExcludeSemantics(
-                        child: ExpandingChevron(
-                          isExpanded: isExpanded,
-                          style: ExpandingChevronStyle.tree,
-                          color: cs.onSurfaceVariant,
-                          size: AppTokens.iconSM,
-                        ),
-                      ),
-                      visualDensity: VisualDensity.compact,
-                      onPressed: onToggleExpand,
-                    ),
-                  ],
+                    visualDensity: VisualDensity.compact,
+                    onPressed: onToggleExpand,
+                  ),
                 ],
-              ),
+              ],
             ),
           ),
         ),
       ),
     );
+  }
+}
 
-    if (!isSelected) return row;
-    // בתוך [NavTreeFocusGroup] העדיפות הזו מביאה את הפוקוס לשורה המסומנת.
+/// רקע הבחירה, הריחוף והלחיצה של שורת עץ. המבנה קבוע גם כשהסימון מתחלף:
+/// אחרת ה-InkWell נבנה מחדש והפוקוס שעליו הולך לאיבוד.
+class _NavTreeRowSurface extends StatefulWidget {
+  final bool isSelected;
+  final VoidCallback? onTap;
+  final bool focusOnTap;
+  final Widget child;
+
+  const _NavTreeRowSurface({
+    required this.isSelected,
+    required this.onTap,
+    this.focusOnTap = false,
+    required this.child,
+  });
+
+  @override
+  State<_NavTreeRowSurface> createState() => _NavTreeRowSurfaceState();
+}
+
+class _NavTreeRowSurfaceState extends State<_NavTreeRowSurface> {
+  final FocusNode _focusNode = FocusNode(debugLabel: 'navTreeRow');
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_onFocusChanged);
+  }
+
+  // צבע הפוקוס תלוי במצב המקלדת ברגע שהשורה קיבלה את הפוקוס.
+  void _onFocusChanged() => setState(() {});
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChanged);
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final onTap = widget.onTap;
+    // בתוך [NavTreeFocusGroup] העדיפות מביאה את הפוקוס לשורה המסומנת.
     return FocusTraversalOrder(
-      order: const NumericFocusOrder(-1),
-      child: row,
+      order: NumericFocusOrder(widget.isSelected ? -1 : 0),
+      // רקע הבחירה על ה-Material, כדי שהריחוף והלחיצה יצוירו מעליו. הסגנון
+      // הנורש נשמר: Material היה מחליף אותו ב-bodyMedium.
+      child: Material(
+        color: widget.isSelected
+            ? AppSurfaces.selectedRow(cs)
+            : Colors.transparent,
+        textStyle: DefaultTextStyle.of(context).style,
+        child: InkWell(
+          focusNode: _focusNode,
+          // כמו טבעת הפוקוס של הכפתורים (DD-07): רק בניווט מקלדת, לא אחרי לחיצה.
+          focusColor: AppFocusRing.isKeyboardFocusVisible
+              ? null
+              : Colors.transparent,
+          onTap: onTap == null
+              ? null
+              : () {
+                  if (widget.focusOnTap) _focusNode.requestFocus();
+                  onTap();
+                },
+          hoverColor: AppSurfaces.hoverRow(cs),
+          child: widget.child,
+        ),
+      ),
     );
   }
 }
@@ -448,34 +512,21 @@ class NavTreeContentRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final row = Semantics(
+    return Semantics(
       selected: isSelected,
-      // רקע הבחירה על ה-Material, כדי שהריחוף והלחיצה יצוירו מעליו. הסגנון
-      // הנורש נשמר: Material היה מחליף אותו ב-bodyMedium.
-      child: Material(
-        color: isSelected ? AppSurfaces.selectedRow(cs) : Colors.transparent,
-        textStyle: DefaultTextStyle.of(context).style,
-        child: InkWell(
-          onTap: onTap,
-          hoverColor: AppSurfaces.hoverRow(cs),
-          child: Padding(
-            padding: const EdgeInsetsDirectional.only(
-              start: 12,
-              end: 12,
-              top: 10,
-              bottom: 10,
-            ),
-            child: child,
+      child: _NavTreeRowSurface(
+        isSelected: isSelected,
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.only(
+            start: 12,
+            end: 12,
+            top: 10,
+            bottom: 10,
           ),
+          child: child,
         ),
       ),
-    );
-
-    if (!isSelected) return row;
-    return FocusTraversalOrder(
-      order: const NumericFocusOrder(-1),
-      child: row,
     );
   }
 }

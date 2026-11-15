@@ -5,6 +5,9 @@ import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/app_runtime_reset.dart';
+import 'package:otzaria/text_book/view/toc_expansion_settings.dart';
+import 'package:otzaria/tools/calendar/services/calendar_alerts_owner.dart';
 import 'package:otzaria/core/user_state/user_state_database.dart';
 import 'package:otzaria/core/windowing/runner_window_channel.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
@@ -32,6 +35,7 @@ void main() {
   });
 
   tearDown(() async {
+    await CalendarAlertsOwner.instance.idle;
     await Hive.close();
     UserStateDatabase.instance.close();
     RunnerWindowChannel.debugSupportedOverride = null;
@@ -39,6 +43,36 @@ void main() {
     AppPaths.debugOverrideDocumentsRootPath(null);
     await root.delete(recursive: true);
   });
+
+  for (final savedAutoExpand in [false, true]) {
+    test(
+      'שחזור גיבוי ואתחול מיישרים העדפת כותרות שכבר נטענה: $savedAutoExpand',
+      () async {
+        await TocExpansionSettings.saveAutoExpand(savedAutoExpand);
+        await TocExpansionSettings.saveLevel(2);
+        final backup = await BackupService.createBackup(
+          includeSettings: true,
+          includeBookmarks: false,
+          includeHistory: false,
+          includeNotes: false,
+          includeWorkspaces: false,
+          includeShamorZachor: false,
+          includePlugins: false,
+        );
+        await TocExpansionSettings.saveAutoExpand(!savedAutoExpand);
+        await TocExpansionSettings.saveLevel(1);
+        final restored = await BackupService.restoreFromBackup(backup.path);
+        expect(restored.skippedSections, isEmpty);
+        expect(
+          Settings.getValue<bool>(TocExpansionSettings.autoExpandKey),
+          savedAutoExpand,
+        );
+        await resetRuntimeStateAfterSettingsReset();
+        expect(TocExpansionSettings.autoExpand.value, savedAutoExpand);
+        expect(TocExpansionSettings.loadLevel(), 2);
+      },
+    );
+  }
 
   test('גיבוי הגדרות משחזר צבעים ושמות גופנים גם לאחר טעינה מחדש', () async {
     const lightColor = Color(0xff123456);
