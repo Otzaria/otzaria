@@ -19,19 +19,26 @@ class PluginPageLauncher {
       _navigators[keys] = navigator;
 
   final _instanceOpeners = Expando<String? Function(String pluginId)>();
+  final _titledInstanceOpeners =
+      Expando<String? Function(String pluginId, String? title)>();
 
   /// [opener] פותח כרטיסיה חדשה של התוסף ומחזיר את מזהה המופע שלה, או `null`
   /// כשהפתיחה נדחתה (למשל כלי שאינו זמין).
+  ///
+  /// [titledOpener] כמו [opener], וגם מקבל כותרת מותאמת לכרטיסיה החדשה. בלעדיו
+  /// [openNewInstance] עם `title` פותח את המופע עם הכותרת הרגילה.
   ///
   /// [hasOpenTab] אומר אם לתוסף יש כרטיסיה פתוחה בחלון. [openInNewTab] משתמש בו:
   /// בלי כרטיסיה פתוחה אין "עוד מופע", והבקשה נפתחת כפתיחה רגילה.
   void registerInstanceOpener(
     AppWindowKeys keys,
     String? Function(String pluginId) opener, {
+    String? Function(String pluginId, String? title)? titledOpener,
     bool Function(String pluginId)? hasOpenTab,
     bool Function(PluginInstanceKey)? hasOpenInstance,
   }) {
     _instanceOpeners[keys] = opener;
+    _titledInstanceOpeners[keys] = titledOpener;
     _openTabProbes[keys] = hasOpenTab;
     _openInstanceProbes.remove(keys);
     if (hasOpenInstance != null) _openInstanceProbes[keys] = hasOpenInstance;
@@ -47,6 +54,7 @@ class PluginPageLauncher {
   ) {
     if (_instanceOpeners[keys] != opener) return;
     _instanceOpeners[keys] = null;
+    _titledInstanceOpeners[keys] = null;
     _openTabProbes[keys] = null;
     _openInstanceProbes.remove(keys);
   }
@@ -177,16 +185,23 @@ class PluginPageLauncher {
   ///
   /// מחזיר את מזהה המופע החדש, או `null` כשלא נפתח מופע: אין פותח רשום
   /// לחלון (נסגר), או שהפותח דחה את הבקשה.
+  ///
+  /// [title] הוא הכותרת של הכרטיסיה החדשה. הוא נקבע רק בפתיחה.
   String? openNewInstance(
     String pluginId, {
     String? topic,
     Map<String, dynamic> payload = const {},
     int? viewId,
     AppWindowKeys? windowKeys,
+    String? title,
   }) {
-    final opener = _instanceOpeners[windowKeys ?? AppWindowKeys.current];
+    final keys = windowKeys ?? AppWindowKeys.current;
+    final opener = _instanceOpeners[keys];
     if (opener == null) return null;
-    final instanceId = opener(pluginId);
+    final titledOpener = _titledInstanceOpeners[keys];
+    final instanceId = title != null && titledOpener != null
+        ? titledOpener(pluginId, title)
+        : opener(pluginId);
     if (instanceId == null) return null;
     if (topic != null) {
       final key = (pluginId: pluginId, instanceId: instanceId);
