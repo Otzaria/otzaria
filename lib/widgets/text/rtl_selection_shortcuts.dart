@@ -278,9 +278,14 @@ class _PhysicalExtendSelectionAction
     final lockForward = !frameworkReversed;
 
     rtlSelectionPriming = true;
-    _dispatch(focusContext, word: false, forward: lockForward); // נעילת extent
-    _dispatch(focusContext, word: false, forward: !lockForward); // שחזור
-    rtlSelectionPriming = false;
+    // חריגה כאן (flutter/flutter#196478) לא תשאיר את הדגל דולק עד הפעלה מחדש.
+    try {
+      // נעילת extent ואז שחזור.
+      _dispatch(focusContext, word: false, forward: lockForward);
+      _dispatch(focusContext, word: false, forward: !lockForward);
+    } finally {
+      rtlSelectionPriming = false;
+    }
     _dispatch(focusContext, word: intent.word, forward: intent.physicalLeft);
     return _handled;
   }
