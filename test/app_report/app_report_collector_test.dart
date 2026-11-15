@@ -24,6 +24,7 @@ import 'package:otzaria/plugins/services/webview2_creation_diagnostics.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
@@ -81,6 +82,20 @@ void main() {
       clock: () => now,
     ).collectDiagnostics();
     expect(diagnostics['state'], containsPair('webview2Prewarm', 'ok 12ms'));
+  });
+
+  test('אבחון: הגופנים שנבחרו נכללים במצב', () async {
+    await Settings.init(cacheProvider: MemorySettingsCache());
+    await Settings.setValue(SettingsRepository.keyFontFamily, 'FrankRuehl');
+    final diagnostics = await AppReportCollector(
+      redactor: redactor,
+      clock: () => now,
+    ).collectDiagnostics();
+    expect(diagnostics['state'], containsPair('fontFamily', 'FrankRuehl'));
+    expect(
+      diagnostics['state'],
+      containsPair('commentatorsFontFamily', AppFonts.defaultCommentatorsFont),
+    );
   });
 
   test('אבחון: פרופיל המשתמש מוסתר בכל המבנה', () async {
