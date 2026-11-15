@@ -1,3 +1,5 @@
+import 'dart:ui' show SemanticsAction, Tristate;
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -26,6 +28,7 @@ import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_blo
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
+import 'package:otzaria/text_book/utils/book_versions_action.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:provider/provider.dart';
 
@@ -73,6 +76,7 @@ void main() {
     Book? previewBook,
     bool previewEnabled = true,
     String viewMode = 'list',
+    bool isSearching = false,
   }) async {
     final library = Library(categories: []);
     final libraryBloc = _MockLibraryBloc();
@@ -84,6 +88,7 @@ void main() {
         currentCategory: library,
         searchResults: books,
         previewBook: previewBook,
+        isSearching: isSearching,
       ),
     );
     final settingsBloc = _MockSettingsBloc();
@@ -172,22 +177,149 @@ void main() {
   });
 
   for (final viewMode in ['list', 'grid']) {
-    testWidgets('Enter על ספר ממוקד פותח אותו, בתצוגת $viewMode', (
+    for (final key in [
+      LogicalKeyboardKey.enter,
+      LogicalKeyboardKey.numpadEnter,
+    ]) {
+      testWidgets('${key.keyLabel} על ספר ממוקד פותח אותו, בתצוגת $viewMode', (
+        tester,
+      ) async {
+        final books = [
+          TextBook(title: 'ספר ראשון'),
+          TextBook(title: 'ספר שני'),
+        ];
+        await pumpBrowser(tester, books: books, viewMode: viewMode);
+
+        Focus.of(tester.element(find.text('ספר שני'))).requestFocus();
+        await tester.pump();
+        await tester.sendKeyDownEvent(key);
+        await tester.pump();
+
+        expect(opened(), hasLength(1));
+        expect(opened().single.tab.title, 'ספר שני');
+        await tester.sendKeyRepeatEvent(key);
+        await tester.pump();
+        expect(opened(), hasLength(2));
+        await tester.sendKeyUpEvent(key);
+        await tester.pump();
+        expect(opened(), hasLength(2));
+      });
+    }
+    for (final key in [
+      LogicalKeyboardKey.enter,
+      LogicalKeyboardKey.numpadEnter,
+    ]) {
+      testWidgets(
+        '${key.keyLabel} עם מקש צירוף אינו פותח ספר בתצוגת $viewMode',
+        (tester) async {
+          await pumpBrowser(
+            tester,
+            books: [TextBook(title: 'ספר')],
+            viewMode: viewMode,
+          );
+          Focus.of(tester.element(find.text('ספר'))).requestFocus();
+          await tester.pump();
+          for (final modifier in [
+            LogicalKeyboardKey.controlLeft,
+            LogicalKeyboardKey.altLeft,
+            LogicalKeyboardKey.metaLeft,
+            LogicalKeyboardKey.shiftLeft,
+          ]) {
+            await tester.sendKeyDownEvent(modifier);
+            await tester.sendKeyEvent(key);
+            await tester.sendKeyUpEvent(modifier);
+            await tester.pump();
+            expect(opened(), isEmpty, reason: modifier.keyLabel);
+          }
+        },
+      );
+    }
+    for (final key in [
+      LogicalKeyboardKey.enter,
+      LogicalKeyboardKey.numpadEnter,
+    ]) {
+      testWidgets('מיקוד נגישות בתפריט שומר ${key.keyLabel} בתצוגת $viewMode', (
+        tester,
+      ) async {
+        bookVersionsProbeForTesting = (_) async => true;
+        addTearDown(() => bookVersionsProbeForTesting = null);
+        await pumpBrowser(
+          tester,
+          books: [TextBook(title: 'ספר')],
+          viewMode: viewMode,
+        );
+        await tester.pumpAndSettle();
+        final node = tester.getSemantics(find.byTooltip('אפשרויות נוספות'));
+        expect(
+          node.getSemanticsData().hasAction(SemanticsAction.focus),
+          isTrue,
+        );
+        tester.binding.renderViews.single.owner!.semanticsOwner!.performAction(
+          node.id,
+          SemanticsAction.focus,
+        );
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .getSemantics(find.byTooltip('אפשרויות נוספות'))
+              .getSemanticsData()
+              .flagsCollection
+              .isFocused,
+          Tristate.isTrue,
+        );
+
+        await tester.sendKeyEvent(key);
+        await tester.pumpAndSettle();
+
+        expect(opened(), isEmpty);
+        expect(find.text('גרסאות'), findsOneWidget);
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+      });
+    }
+  }
+
+  for (final key in [
+    LogicalKeyboardKey.enter,
+    LogicalKeyboardKey.numpadEnter,
+  ]) {
+    testWidgets('מיקוד נגישות במידע שומר על פעולת ${key.keyLabel}', (
       tester,
     ) async {
-      final books = [
-        TextBook(title: 'ספר ראשון'),
-        TextBook(title: 'ספר שני'),
-      ];
-      await pumpBrowser(tester, books: books, viewMode: viewMode);
+      await pumpBrowser(
+        tester,
+        books: [TextBook(title: 'ספר', heDesc: 'תיאור הספר')],
+        viewMode: 'grid',
+      );
+      await tester.pumpAndSettle();
+      final infoButton = find.descendant(
+        of: find.byTooltip('תיאור הספר'),
+        matching: find.byType(IconButton),
+      );
+      final node = tester.getSemantics(infoButton);
+      expect(node.getSemanticsData().hasAction(SemanticsAction.focus), isTrue);
+      tester.binding.renderViews.single.owner!.semanticsOwner!.performAction(
+        node.id,
+        SemanticsAction.focus,
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .getSemantics(infoButton)
+            .getSemanticsData()
+            .flagsCollection
+            .isFocused,
+        Tristate.isTrue,
+      );
 
-      Focus.of(tester.element(find.text('ספר שני'))).requestFocus();
+      await tester.sendKeyEvent(key);
       await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
 
-      expect(opened(), hasLength(1));
-      expect(opened().single.tab.title, 'ספר שני');
+      expect(opened(), isEmpty);
+      expect(find.text('אודות הספר'), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
     });
   }
 
@@ -220,6 +352,31 @@ void main() {
 
     expect(opened(), hasLength(1));
     expect(opened().single.tab.title, 'ספר שני');
+  });
+
+  testWidgets('Enter בשדה החיפוש אינו פותח תוצאה כשהחיפוש רץ', (tester) async {
+    final book = TextBook(title: 'ספר');
+    await pumpBrowser(
+      tester,
+      books: [book],
+      previewBook: book,
+      isSearching: true,
+    );
+    await tester.tap(find.byType(TextField).first);
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+    expect(opened(), isEmpty);
+  });
+
+  testWidgets('Enter בשדה החיפוש אינו פותח תוצאה בזמן debounce', (
+    tester,
+  ) async {
+    final book = TextBook(title: 'ספר');
+    await pumpBrowser(tester, books: [book], previewBook: book);
+    await tester.enterText(find.byType(TextField).first, 'חיפוש חדש');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+    expect(opened(), isEmpty);
   });
 
   testWidgets('Enter בשדה החיפוש לא פותח ספר מסומן שאינו בתוצאות', (

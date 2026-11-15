@@ -1751,9 +1751,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   void _showBookPreview(Book book) =>
       context.read<LibraryBloc>().add(SelectBookForPreview(book));
 
-  /// הספר המסומן בתוצאות החיפוש, אם Enter בשדה החיפוש אמור לפתוח אותו. null
-  /// כשאין תצוגה מקדימה, כשהחיפוש עוד לא הסתיים (הסימון של תוצאות קודמות), או
-  /// כשהספר המסומן אינו בתוצאות.
+  /// הספר המסומן בתוצאות כשהתצוגה המקדימה גלויה והחיפוש הסתיים;
+  /// בזמן חיפוש הסימון עדיין עלול להשתייך לתוצאות הקודמות.
   Book? _markedSearchResult(LibraryState state, SettingsState settings) {
     final marked = state.previewBook;
     if (marked == null ||
@@ -1765,15 +1764,23 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     return (state.searchResults?.contains(marked) ?? false) ? marked : null;
   }
 
-  /// Enter על ספר בתצוגה מקדימה פותח אותו, כמו בקטגוריה. בלי זה Enter מפעיל את
-  /// ה-tap, שרק מסמן שוב את אותה תצוגה מקדימה (#4468).
+  /// Enter פותח את הספר רק כשהשורה או הכרטיס ממוקדים, ולא כפתור בתוכם.
   Widget _withBookEnterShortcut(Book book, bool previewVisible, Widget child) {
     if (!previewVisible) return child;
-    void open() => _openBookInReader(book, book is PdfBook ? 1 : 0);
-    return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.enter): open,
-        const SingleActivator(LogicalKeyboardKey.numpadEnter): open,
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      onKeyEvent: (node, event) {
+        if (!node.children.any((child) => child.hasPrimaryFocus)) {
+          return KeyEventResult.ignored;
+        }
+        final activate = const [
+          SingleActivator(LogicalKeyboardKey.enter),
+          SingleActivator(LogicalKeyboardKey.numpadEnter),
+        ].any((shortcut) => shortcut.accepts(event, HardwareKeyboard.instance));
+        if (!activate) return KeyEventResult.ignored;
+        _openBookInReader(book, book is PdfBook ? 1 : 0);
+        return KeyEventResult.handled;
       },
       child: child,
     );
@@ -2286,14 +2293,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       height: isGrouped ? 1.1 : null,
     );
 
-    // רקע הבחירה על ה-Material, כדי שהריחוף והלחיצה יצוירו מעליו. הסגנון
-    // הנורש נשמר: Material היה מחליף אותו ב-bodyMedium. ב"לבן" בבהיר הנבחרת
-    // גם בקו דק ([AppSurfaces.selectedBorder]), כי המילוי קרוב לריחוף:
-    // - שורה עצמאית: מסגרת ה-AppCard שלה (selected), כי מסגרת הכרטיס מצוירת
-    //   מעל התוכן ומסתירה קו פנימי באותו מקום.
-    // - שורה מקובצת: קו למעלה ולמטה בלבד, כמו הפריט הנבחר בתפריט. בצדדים היא
-    //   נוגעת בגבול הקבוצה, ובקצה קבוצה בעץ המשוטח מסגרת ישרה הייתה נחתכת
-    //   בפינה המעוגלת.
+    // רקע הבחירה על ה-Material כדי שהריחוף יצויר מעליו; ב"לבן" נדרש גם קו.
+    // לשורה מקובצת קווים אופקיים בלבד, כדי לא לחתוך את פינות הקבוצה.
     final groupedSelectedBorder = isSelected && isGrouped
         ? AppSurfaces.selectedBorder(context)
         : null;
