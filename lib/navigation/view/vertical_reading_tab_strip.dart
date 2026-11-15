@@ -131,6 +131,7 @@ class _VerticalReadingTabStripState extends State<VerticalReadingTabStrip> {
                 isSelected: index == state.currentTabIndex,
                 isInSelection: state.selectedTabs.contains(tab),
                 isHovered: isHovered,
+                showLocationInTitle: tabTitleHasTwin(tab, state.tabs),
                 onClose: () => _closeTab(tab),
               ),
             );
@@ -198,6 +199,7 @@ class _VerticalTabRow extends StatelessWidget {
   final bool isSelected;
   final bool isInSelection;
   final bool isHovered;
+  final bool showLocationInTitle;
   final VoidCallback onClose;
 
   const _VerticalTabRow({
@@ -206,6 +208,7 @@ class _VerticalTabRow extends StatelessWidget {
     required this.isSelected,
     required this.isInSelection,
     required this.isHovered,
+    required this.showLocationInTitle,
     required this.onClose,
   });
 
@@ -251,6 +254,7 @@ class _VerticalTabRow extends StatelessWidget {
             ),
             child: LiveTabTitleBuilder(
               tab: tab,
+              showLocationInTitle: showLocationInTitle,
               builder: (context, displayTitle, tooltipMessage) => collapsed
                   // במצב מכווץ מוצג אייקון בלבד, ולכן ה-tooltip הוא המקור היחיד לשם.
                   ? Stack(

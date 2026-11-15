@@ -202,10 +202,27 @@ ValueListenable<String>? liveTabTitleOf(OpenedTab tab) {
   return null;
 }
 
+bool _hasLiveLocation(OpenedTab tab) =>
+    tab is! SearchingTab && liveTabTitleOf(tab) != null;
+
+/// האם יש בין [tabs] כרטיסיית ספר אחרת עם אותו שם כמו [tab] — אז רק המיקום
+/// בספר מבדיל ביניהן, והוא מוצג בכותרת עצמה ולא רק ב-tooltip.
+bool tabTitleHasTwin(OpenedTab tab, List<OpenedTab> tabs) =>
+    _hasLiveLocation(tab) &&
+    tabs.any(
+      (other) =>
+          !identical(other, tab) &&
+          other.title == tab.title &&
+          _hasLiveLocation(other),
+    );
+
 /// בונה את הזוג (כותרת מוצגת, הודעת tooltip) של כרטיסיה ומתעדכן עם הכותרת
 /// החיה; לכרטיסיה סטטית שניהם שם הכרטיסיה. משותף לפס העליון ולפס הצדדי.
 class LiveTabTitleBuilder extends StatelessWidget {
   final OpenedTab tab;
+
+  /// מציג את המיקום בספר גם בכותרת עצמה (ראה [tabTitleHasTwin]).
+  final bool showLocationInTitle;
   final Widget Function(
     BuildContext context,
     String displayTitle,
@@ -217,6 +234,7 @@ class LiveTabTitleBuilder extends StatelessWidget {
     super.key,
     required this.tab,
     required this.builder,
+    this.showLocationInTitle = false,
   });
 
   @override
@@ -231,10 +249,11 @@ class LiveTabTitleBuilder extends StatelessWidget {
         if (tab is SearchingTab) return builder(context, value, value);
         // טאב שטרם נבנה (שוחזר בעלייה) עוד לא קיבל מיקום מה-BLoC.
         if (value.isEmpty && tab is TextBookTab) tab.ensureLocationTitle();
+        final withLocation = value.isEmpty ? tab.title : '${tab.title}, $value';
         return builder(
           context,
-          tab.title,
-          value.isEmpty ? tab.title : '${tab.title}, $value',
+          showLocationInTitle ? withLocation : tab.title,
+          withLocation,
         );
       },
     );

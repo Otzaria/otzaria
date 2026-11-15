@@ -1392,6 +1392,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 
     Widget buildLiveTabAppearance() => LiveTabTitleBuilder(
       tab: tab,
+      showLocationInTitle: tabTitleHasTwin(tab, state.tabs),
       builder: (_, displayTitle, tooltipMessage) =>
           buildTabAppearance(displayTitle, tooltipMessage),
     );
