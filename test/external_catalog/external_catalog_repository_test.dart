@@ -982,6 +982,70 @@ void main() {
       },
     );
 
+    group('מיפוי אוצר החכמה', () {
+      void createOtzarTables(Database db) {
+        db.execute(
+          'CREATE TABLE otzar_hahochma (book_id INTEGER PRIMARY KEY, '
+          'title TEXT, authors TEXT, volume TEXT, from_year TEXT, '
+          'to_year TEXT, places TEXT, subjects TEXT)',
+        );
+        db.execute(
+          'CREATE TABLE otzaria_otzar_hahochma (oh_id INTEGER NOT NULL, '
+          'otzaria_id INTEGER NOT NULL, otzaria_title TEXT NOT NULL, '
+          'is_best INTEGER NOT NULL DEFAULT 0, confidence TEXT NOT NULL, '
+          'PRIMARY KEY (oh_id, otzaria_id))',
+        );
+      }
+
+      test(
+        'מסודר לפי is_best ואז confidence, עם הכרך, ומזהה חסר נשמט',
+        () async {
+          final db = sqlite3.open(repository.databasePath);
+          createOtzarTables(db);
+          db.execute(
+            "INSERT INTO otzar_hahochma (book_id, title, volume) VALUES "
+            "(10, 'ספר', 'כרך א'), (11, 'ספר', ' '), (12, 'ספר', 'כרך ג'), "
+            "(13, 'ספר', 'כרך ד'), (20, 'אחר', NULL)",
+          );
+          db.execute(
+            "INSERT INTO otzaria_otzar_hahochma VALUES "
+            "(10, 1, 'א', 0, 'likely'), (11, 1, 'א', 0, 'certain'), "
+            "(12, 1, 'א', 1, 'likely'), (13, 1, 'א', 0, 'other'), "
+            "(99, 1, 'א', 1, 'certain'), (20, 2, 'ב', 1, 'certain')",
+          );
+          db.close();
+
+          final books = await repository.getOtzarBooksForOtzariaId(1);
+
+          expect(books.map((b) => b.book.id), [12, 11, 10, 13]);
+          expect(books.map((b) => b.volume), ['כרך ג', null, 'כרך א', 'כרך ד']);
+          expect(books.first.book.externalLibraryId, 'oh:12');
+          expect(
+            books.first.book.link,
+            'https://tablet.otzar.org/book/book.php?book=12',
+          );
+          expect(await repository.getOtzarBooksForOtzariaId(5), isEmpty);
+        },
+      );
+
+      test('קטלוג ישן בלי טבלת המיפוי מחזיר רשימה ריקה', () async {
+        final db = sqlite3.open(repository.databasePath);
+        db.execute(
+          'CREATE TABLE otzar_hahochma (book_id INTEGER PRIMARY KEY, '
+          'title TEXT)',
+        );
+        db.execute("INSERT INTO otzar_hahochma VALUES (10, 'ספר')");
+        db.close();
+
+        expect(await repository.getOtzarBooksForOtzariaId(1), isEmpty);
+      });
+
+      test('בלי קובץ קטלוג מחזיר רשימה ריקה', () async {
+        expect(await repository.databaseExists(), isFalse);
+        expect(await repository.getOtzarBooksForOtzariaId(1), isEmpty);
+      });
+    });
+
     test('שאילתת מיפוי איטית לא חוסמת את ה-isolate הראשי', () async {
       // אלפי התאמות לאותו ספר: המיון לפני LIMIT קורא את כולן.
       const rowCount = 300000;

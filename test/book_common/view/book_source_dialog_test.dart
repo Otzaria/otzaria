@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/book_common/view/book_source_dialog.dart';
+import 'package:otzaria/external_catalog/repository/external_catalog_repository.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/services/book_details_service.dart';
 
@@ -282,5 +284,94 @@ void main() {
 
     expect(find.text('תקופה'), findsOneWidget);
     expect(find.text('אחרונים'), findsOneWidget);
+  });
+
+  group('אוצר החכמה באודות הספר', () {
+    final defaultLoader = otzarBooksForOtzariaId;
+    tearDown(() => otzarBooksForOtzariaId = defaultLoader);
+
+    OtzarMappedBook mapped(int id, String? volume) => (
+      book: ExternalLibraryBook(
+        title: 'הלכות גדולות',
+        id: id,
+        link: 'https://tablet.otzar.org/book/book.php?book=$id',
+      ),
+      volume: volume,
+    );
+
+    Future<void> openDialog(WidgetTester tester, Book book) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showBookDetailsDialog(
+                context,
+                book,
+                information: BookInformation(
+                  book: book,
+                  databaseBook: null,
+                  source: 'Sefaria',
+                  generation: 'ראשונים',
+                  fileDetails: const {
+                    'נתיב הקובץ': BookDetailsService.bookNotFoundText,
+                  },
+                ),
+              ),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('בלי מיפוי השורה אינה מוצגת', (tester) async {
+      final requested = <int>[];
+      otzarBooksForOtzariaId = (id) async {
+        requested.add(id);
+        return const [];
+      };
+      await openDialog(tester, TextBook(title: 'הלכות גדולות', id: 7));
+
+      expect(requested, [7]);
+      expect(find.text('ראשונים'), findsOneWidget);
+      expect(find.text('פתח באוצר החכמה'), findsNothing);
+    });
+
+    testWidgets('ספר אישי אינו נבדק במיפוי', (tester) async {
+      var called = false;
+      otzarBooksForOtzariaId = (id) async {
+        called = true;
+        return [mapped(42, null)];
+      };
+      await openDialog(
+        tester,
+        TextBook(title: 'הלכות גדולות', id: 7, source: BookSource.user),
+      );
+
+      expect(called, isFalse);
+      expect(find.text('פתח באוצר החכמה'), findsNothing);
+    });
+
+    testWidgets('ספר ממופה אחד מוצג כשורה אחת', (tester) async {
+      otzarBooksForOtzariaId = (id) async => [mapped(42, 'כרך א')];
+      await openDialog(tester, TextBook(title: 'הלכות גדולות', id: 7));
+
+      expect(find.text('אוצר החכמה'), findsOneWidget);
+      expect(find.text('פתח באוצר החכמה'), findsOneWidget);
+    });
+
+    testWidgets('כמה ספרים ממופים מוצגים לפי הכרך', (tester) async {
+      otzarBooksForOtzariaId = (id) async => [
+        mapped(42, 'כרך א'),
+        mapped(43, null),
+      ];
+      await openDialog(tester, TextBook(title: 'הלכות גדולות', id: 7));
+
+      expect(find.text('אוצר החכמה – כרך א'), findsOneWidget);
+      expect(find.text('אוצר החכמה – הלכות גדולות'), findsOneWidget);
+      expect(find.text('פתח באוצר החכמה'), findsNWidgets(2));
+    });
   });
 }

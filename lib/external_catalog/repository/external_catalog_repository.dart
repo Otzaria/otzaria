@@ -22,6 +22,9 @@ typedef ExternalCatalogExtractor =
       void Function(double)? onProgress,
     });
 
+/// ספר אוצר החכמה הממופה לספר אוצריא, עם שם הכרך כפי שבקטלוג (אם יש).
+typedef OtzarMappedBook = ({ExternalLibraryBook book, String? volume});
+
 /// מנהל את מסד הקטלוגים החיצוניים (אוצר החכמה והיברובוקס).
 class ExternalCatalogRepository {
   static const String releaseApiUrl =
@@ -120,10 +123,36 @@ class ExternalCatalogRepository {
     );
   }
 
+  /// ספרי אוצר החכמה הממופים לספר אוצריא, מסודרים לפי איכות ההתאמה
+  /// (`is_best` ואז `confidence`), כל אחד עם שם הכרך כפי שבקטלוג.
+  /// מחזיר רשימה ריקה כשאין מיפוי, טבלת מיפוי (קטלוג ישן) או DB.
+  Future<List<OtzarMappedBook>> getOtzarBooksForOtzariaId(int otzariaId) async {
+    final ids = await _selectMappingColumn(
+      select: 'oh_id',
+      where: 'otzaria_id = ?',
+      argument: otzariaId,
+      table: 'otzaria_otzar_hahochma',
+      orderBy:
+          "is_best DESC, CASE confidence WHEN 'certain' THEN 0 "
+          "WHEN 'likely' THEN 1 ELSE 2 END, oh_id",
+    );
+    if (ids.isEmpty) return const [];
+    final books = await _loadBooks(
+      tableName: 'otzar_hahochma',
+      mapper: _mapOtzarBookWithVolume,
+      idColumn: 'book_id',
+      ids: ids,
+    );
+    final byId = {for (final mapped in books) mapped.book.id: mapped};
+    return [for (final id in ids) ?byId[id]];
+  }
+
   Future<List<int>> _selectMappingColumn({
     required String select,
     required String where,
     required int argument,
+    String table = 'otzaria_hebrew_books',
+    String orderBy = 'is_best DESC, confidence DESC',
   }) async {
     final dbPath = databasePath;
     if (!await File(dbPath).exists()) return const [];
@@ -136,7 +165,14 @@ class ExternalCatalogRepository {
     queries.add(finished.future);
     try {
       return await Isolate.run(
-        () => _queryMappingColumn(dbPath, select, where, argument),
+        () => _queryMappingColumn(
+          dbPath,
+          table,
+          select,
+          where,
+          argument,
+          orderBy,
+        ),
       );
     } finally {
       queries.remove(finished.future);
@@ -147,16 +183,17 @@ class ExternalCatalogRepository {
 
   static List<int> _queryMappingColumn(
     String dbPath,
+    String table,
     String select,
     String where,
     int argument,
+    String orderBy,
   ) {
     sqlite3.Database? db;
     try {
       db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
       final rows = db.select(
-        'SELECT $select FROM otzaria_hebrew_books WHERE $where '
-        'ORDER BY is_best DESC, confidence DESC LIMIT 20',
+        'SELECT $select FROM $table WHERE $where ORDER BY $orderBy LIMIT 20',
         [argument],
       );
       return [
@@ -676,7 +713,7 @@ class ExternalCatalogRepository {
   /// כברירת מחדל טוען את כל הטבלה ממוינת לפי כותרת. אם הועברו [idColumn]
   /// ו-[ids], נטענים רק הספרים שמזההם נמצא ב-[ids] (ב-chunks כדי לעמוד
   /// במגבלת המשתנים של SQLite), ללא מיון.
-  Future<List<T>> _loadBooks<T extends Book>({
+  Future<List<T>> _loadBooks<T>({
     required String tableName,
     required T Function(Map<String, Object?> row) mapper,
     String? idColumn,
@@ -696,7 +733,7 @@ class ExternalCatalogRepository {
 
   /// קריאה ומיפוי של כ-160K שורות חוסמים את ה-UI; ה-isolate פותח את המסד לפי
   /// נתיב. סטטית כדי שה-closure לא יתפוס את `this`.
-  static Future<List<T>> _queryBooksInIsolate<T extends Book>(
+  static Future<List<T>> _queryBooksInIsolate<T>(
     String dbPath,
     String tableName,
     T Function(Map<String, Object?> row) mapper,
@@ -708,7 +745,7 @@ class ExternalCatalogRepository {
     );
   }
 
-  static List<T> _queryBooks<T extends Book>(
+  static List<T> _queryBooks<T>(
     String dbPath,
     String tableName,
     T Function(Map<String, Object?> row) mapper,
@@ -984,6 +1021,11 @@ class ExternalCatalogRepository {
       externalLibraryId: 'oh:$bookId',
     );
   }
+
+  static OtzarMappedBook _mapOtzarBookWithVolume(Map<String, Object?> row) => (
+    book: _mapOtzarBook(row),
+    volume: _normalizeNullableString(row['volume']),
+  );
 
   static ExternalLibraryBook _mapHebrewBook(Map<String, Object?> row) {
     final bookId = (row['id_book'] as num).toInt();
