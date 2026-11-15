@@ -109,6 +109,7 @@ void main() {
         ['הלכות', 'שבת'],
         ['כרך', 'א'],
         ['כרך', 'ב'],
+        ['חדושי', 'הרן', 'פסחים', 'ט', 'ב'],
       ];
       for (final tokens in altQueries) {
         final stopwatch = Stopwatch()..start();
@@ -152,6 +153,7 @@ void main() {
         'ברכות ב ע"א',
         'כרך א',
         'כרך ב',
+        'חידושי הרן פסחים ט:',
       ];
       final outPath = Platform.environment['OTZARIA_BENCH_OUT'];
       final out = StringBuffer();

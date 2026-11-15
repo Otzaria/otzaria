@@ -37,7 +37,46 @@ void main() {
     ['ספר', 'א', 'סימן'],
     ['ג'],
     ['אין', 'כזה'],
+    // כתיב מלא, ומילים משם הספר המארח.
+    ['הילכות', 'שבת'],
+    ['חידושי', 'הרן', 'פסחים', 'ב', 'ב'],
+    ['חידושי', 'הרן', 'פסחים', 'ב', 'א'],
+    ['רבינו', 'דוד', 'פסחים', 'ב', 'ב'],
+    ['חידושי', 'הרן', 'ב', 'ב'],
+    ['חידושי', 'הרן', 'פסחים', 'עא'],
+    ['סעיף', 'א', 'שבת'],
+    ['סעיף', 'שבת'],
+    ['פרק', 'דף', 'יב', 'ספר', 'א'],
+    ['סימנ', 'חמש', 'ספר'],
+    ['סימן', 'חמש', 'ספר', 'חמש'],
   ];
+
+  /// [altTocFlatMatches] על כל ערך, עם שם הספר המארח והכתיב החלופי.
+  List<int> bruteForce(AltTocFlatIndex index, List<String> q, {int? max}) {
+    final dafCitation = parseDafCitationFromDafToken(q);
+    return altTocFlatMatchesAll((variants) {
+      final hostWords = <String, Set<String>>{};
+      return [
+        for (var i = 0; i < index.length; i++)
+          if (altTocFlatMatches(
+            index.refTokensOf(i),
+            q,
+            maxRefTokens: max,
+            dafCitation: dafCitation,
+            hostTitleWords: hostWords.putIfAbsent(
+              index.bookOf(i).title,
+              () => altTocHostTitleWords(
+                q,
+                tokensOf(index.bookOf(i).title),
+                variants: variants,
+              ),
+            ),
+            variants: variants,
+          ))
+            i,
+      ];
+    });
+  }
 
   void expectConsistent(AltTocFlatIndex index) {
     final references = AltTocQualifiedReferences(index);
@@ -55,19 +94,9 @@ void main() {
     }
     for (final q in queries) {
       for (final max in [null, 2]) {
-        final dafCitation = parseDafCitationFromDafToken(q);
         expect(
           matchAltTocFlatIndex(index, q, maxRefTokens: max),
-          [
-            for (var i = 0; i < index.length; i++)
-              if (altTocFlatMatches(
-                index.refTokensOf(i),
-                q,
-                maxRefTokens: max,
-                dafCitation: dafCitation,
-              ))
-                i,
-          ],
+          bruteForce(index, q, max: max),
           reason: '$q max=$max',
         );
       }
@@ -203,6 +232,19 @@ void main() {
       expect(index.segmentOf(byId['פרק ב דף יב']!), 0);
       expect(index.dafNumberOf(byId['פרק א דף יב.']!), 'יב');
       expect(index.dafNumberOf(byId['פרק א דף']!), isNull);
+
+      List<String> matched(List<String> query) => [
+        for (final i in matchAltTocFlatIndex(index, query))
+          index.referenceOf(i),
+      ];
+      expect(matched(['הילכות', 'שבת']), ['הלכות שבת']);
+      // "שבת" משם הספר, כשהערך עצמו מכסה שתי מילים.
+      expect(matched(['סעיף', 'א', 'שבת']), ['דף ג סעיף א']);
+      expect(matched(['סעיף', 'שבת']), isEmpty);
+      expect(
+        matchAltTocFlatIndex(index, ['סעיף', 'א', 'שבת'], maxRefTokens: 9),
+        isEmpty,
+      );
     });
 
     test('חיפוש קומפקטי שומר סדר אחרי פינוי LRU וביטול חיצוני', () async {
@@ -440,17 +482,11 @@ void main() {
         ['מאימתי', 'דף', 'ב'],
         ['סעיף', 'ב'],
       ]) {
-        final dafCitation = parseDafCitationFromDafToken(q);
-        final expected = [
-          for (var i = 0; i < index.length; i++)
-            if (altTocFlatMatches(
-              index.refTokensOf(i),
-              q,
-              dafCitation: dafCitation,
-            ))
-              i,
-        ];
-        expect(matchAltTocFlatIndex(index, q), expected, reason: '${q.length}');
+        expect(
+          matchAltTocFlatIndex(index, q),
+          bruteForce(index, q),
+          reason: '$q',
+        );
       }
     },
     skip: dbPath == null || dbPath.isEmpty,

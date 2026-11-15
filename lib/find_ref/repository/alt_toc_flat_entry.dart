@@ -1,3 +1,4 @@
+import 'package:otzaria/find_ref/book_name_match.dart';
 import 'package:otzaria/find_ref/repository/find_ref_ranking.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 
@@ -41,24 +42,275 @@ class AltTocFlatEntry {
   });
 }
 
-/// פילטר גלובלי משותף ל-main ול-worker. [maxRefTokens] מגביל אורך נתיב,
-/// ו-[dafCitation] מ-[parseDafCitationFromDafToken] מחייב התאמה מיקומית.
+/// מילת שאילתה מול טוקני AltToc. עם [variants]: גם ו/י אחת בפנים המילה ("חידושי" =
+/// "חדושי") וה"א שלפני ראשי-תיבות ("הרן" = "רן"), אך לא הכפלה ("דיינים" אינו "דינים").
+final class AltTocQueryWord {
+  AltTocQueryWord(this.text, {this.variants = false})
+    : canComeFromTitle = text.length >= 3,
+      isWord = text.length >= 3 && !_isHebrewNumeral(text);
+
+  final String text;
+  final bool variants;
+
+  /// רק מילה כזו יכולה לבוא משם הספר המארח.
+  final bool canComeFromTitle;
+
+  /// מילה ולא מספר מיקום ("קיט") — הערך עצמו חייב לכסות מילה כזו.
+  final bool isWord;
+
+  bool matches(String token) {
+    if (token == text) return true;
+    if (!variants) return false;
+    final diff = token.length - text.length;
+    if (diff == 1) return _spellsWithExtra(token, text);
+    if (diff == -1) return _spellsWithExtra(text, token);
+    return false;
+  }
+
+  bool inTokens(List<String> tokens) {
+    if (!variants) return tokens.contains(text);
+    for (final token in tokens) {
+      if (matches(token)) return true;
+    }
+    return false;
+  }
+}
+
+const int _he = 0x05D4, _vav = 0x05D5, _yod = 0x05D9;
+
+/// [longer] הוא [shorter] עם ה"א לפני ראשי-תיבות, או עם ו/י אחת בפנים המילה.
+bool _spellsWithExtra(String longer, String shorter) {
+  final n = shorter.length;
+  if (n == 0) return false;
+  if (longer.codeUnitAt(0) == _he && longer.endsWith(shorter)) {
+    return sagesTakingDefiniteArticle.contains(shorter);
+  }
+  if (n < 3) return false;
+  var k = 0;
+  while (k < n && longer.codeUnitAt(k) == shorter.codeUnitAt(k)) {
+    k++;
+  }
+  // לא בראש המילה ולא בסופה, ולא ליד אותה אות (הכפלה).
+  if (k == 0 || k >= n) return false;
+  final c = longer.codeUnitAt(k);
+  if (c != _vav && c != _yod) return false;
+  if (longer.codeUnitAt(k - 1) == c || longer.codeUnitAt(k + 1) == c) {
+    return false;
+  }
+  for (var j = k; j < n; j++) {
+    if (longer.codeUnitAt(j + 1) != shorter.codeUnitAt(j)) return false;
+  }
+  return isBookTitleSpellingVariant(longer, shorter);
+}
+
+/// מספר עברי תקין ("קיט", "רמב", "טו"): מאות, עשרות ואחדות בסדר יורד.
+bool _isHebrewNumeral(String token) {
+  if (token.endsWith('טו') || token.endsWith('טז')) {
+    return token.length == 2 ||
+        _isHebrewNumeral(token.substring(0, token.length - 2));
+  }
+  var last = 1000;
+  for (var i = 0; i < token.length; i++) {
+    final v = _letterValue(token.codeUnitAt(i));
+    if (v == 0) return false;
+    // ת חוזרת במאות (תת); בעשרות ובאחדות אות אחת לכל היותר.
+    if (v > last ||
+        (v == last && v != 400) ||
+        (v < 100 && last < 100 && _place(v) == _place(last))) {
+      return false;
+    }
+    last = v;
+  }
+  return true;
+}
+
+int _place(int v) => v >= 100 ? 2 : (v >= 10 ? 1 : 0);
+
+int _letterValue(int c) {
+  const values = [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    0,
+    20,
+    30,
+    0,
+    40,
+    0,
+    50,
+    60,
+    70,
+    0,
+    80,
+    0,
+    90,
+    100,
+    200,
+    300,
+    400,
+  ];
+  final i = c - 0x05D0;
+  return i < 0 || i >= values.length ? 0 : values[i];
+}
+
+/// האם מילים משם הספר המארח ("פסחים" ב"קובץ שיטות קמאי על פסחים") יכולות
+/// להשלים את השאילתה: רק כשהערך עצמו מכסה שתי מילות שאילתה, אחת מהן מילה.
+bool altTocHostTitleMayComplete({
+  required int pathCovered,
+  required bool pathCoversWord,
+}) => pathCovered >= 2 && pathCoversWord;
+
+/// מילות השאילתה ([AltTocQueryWord.canComeFromTitle]) שבנושא הספר המארח — מה שאחרי "על"
+/// האחרון בשמו, או כל השם — ורק כשהשאילתה קוראת לנושא כולו ("בבא" אינו "בבא קמא").
+Set<String> altTocHostTitleWords(
+  List<String> queryTokens,
+  List<String> titleTokens, {
+  bool variants = false,
+}) {
+  final on = titleTokens.lastIndexOf('על');
+  final subject = on >= 0 && on + 1 < titleTokens.length
+      ? titleTokens.sublist(on + 1)
+      : titleTokens;
+  final words = [
+    for (final token in queryTokens) AltTocQueryWord(token, variants: variants),
+  ];
+  final named = <String>{};
+  for (final part in subject) {
+    var found = false;
+    for (final word in words) {
+      if (!word.matches(part)) continue;
+      found = true;
+      if (word.canComeFromTitle) named.add(word.text);
+    }
+    if (!found) return const {};
+  }
+  return named;
+}
+
+/// מילות [hostTitleWords] שאינן בנתיב הערך — מה שהגיע בפועל משם הספר. [reference]
+/// כמו ב-[qualifyAltTocReference].
+Set<String> altTocSuppliedTitleWords(
+  Set<String> hostTitleWords,
+  String title,
+  String reference,
+) {
+  if (hostTitleWords.isEmpty) return const {};
+  final path = reference.startsWith('$title ')
+      ? reference.substring(title.length + 1)
+      : reference == title
+      ? ''
+      : reference;
+  final tokens = normalizeForFindRefMatch(path).split(' ');
+  final supplied = {
+    for (final word in hostTitleWords)
+      if (!AltTocQueryWord(word, variants: true).inTokens(tokens)) word,
+  };
+  return supplied.isEmpty ? const {} : supplied;
+}
+
+/// התאמות חדשות חייבות לשמור על מספר הדף שבסיומת, גם בלי "דף" בשאילתה.
+bool altTocExpandedDafMatches(
+  List<String> refTokens,
+  List<String> queryTokens,
+) {
+  if (!refTokens.contains('דף') || queryTokens.contains('דף')) return true;
+  final tokens = queryTokens.where((t) => t != 'עמוד').toList();
+  bool isNumber(String token) =>
+      hebrewTokenAlternatives(token).any(_isHebrewNumeral);
+  if (tokens.isEmpty) return true;
+  const units = [
+    'כלל',
+    'מאמר',
+    'פרק',
+    'משנה',
+    'פסוק',
+    'הלכה',
+    'דין',
+    'אות',
+    'פסקה',
+    'סק',
+    'סעיף',
+    'קטן',
+    'סימן',
+    'סי',
+    'חלק',
+    'שער',
+    'כרך',
+    'שאלה',
+    'תשובה',
+    'פרשה',
+    'פרשת',
+    'עליה',
+  ];
+
+  bool isUnit(String token) =>
+      AltTocQueryWord(token, variants: true).inTokens(units);
+  var start = tokens.length - 1;
+  if (start > 0 &&
+      (tokens.last == 'א' || tokens.last == 'ב') &&
+      !isUnit(tokens[start - 1]) &&
+      isNumber(tokens[start - 1])) {
+    start--;
+  }
+  if (!isNumber(tokens[start]) || start > 0 && isUnit(tokens[start - 1])) {
+    return true;
+  }
+  final citation = parseDafCitation(tokens.sublist(start));
+  return citation == null || nearestDafInPathMatches(refTokens, citation);
+}
+
+/// פילטר גלובלי משותף ל-main ול-worker; [hostTitleWords] רק בלי [maxRefTokens], ו-[dafCitation]
+/// מחייב התאמה מיקומית. [variants] רק כשהכתיב שבשאילתה לא מצא דבר ([altTocFlatMatchesAll]).
 bool altTocFlatMatches(
   List<String> refTokens,
   List<String> queryTokens, {
   int? maxRefTokens,
   DafCitation? dafCitation,
+  Set<String> hostTitleWords = const {},
+  bool variants = false,
 }) {
   if (maxRefTokens != null && refTokens.length > maxRefTokens) return false;
   if (dafCitation != null && !nearestDafInPathMatches(refTokens, dafCitation)) {
     return false;
   }
+  final covered = <String>{};
+  var fromTitle = false;
   for (final token in queryTokens) {
     // הסיומת נבדקה מיקומית; כתיבים שקולים של דף/עמוד אינם טוקנים זהים.
     if (dafCitation != null && token == 'דף') break;
-    if (!refTokens.contains(token)) return false;
+    final word = AltTocQueryWord(token, variants: variants);
+    if (word.inTokens(refTokens)) {
+      covered.add(token);
+    } else if (maxRefTokens == null && hostTitleWords.contains(token)) {
+      fromTitle = true;
+    } else {
+      return false;
+    }
   }
-  return true;
+  if ((fromTitle || variants) &&
+      !altTocExpandedDafMatches(refTokens, queryTokens)) {
+    return false;
+  }
+  return !fromTitle ||
+      altTocHostTitleMayComplete(
+        // ה"דף" שנבדק מיקומית הוא מילה שהערך מכסה.
+        pathCovered: covered.length + (dafCitation == null ? 0 : 1),
+        pathCoversWord: covered.any((t) => AltTocQueryWord(t).isWord),
+      );
+}
+
+/// התאמות [match] בכתיב שבשאילתה, ורק אם אין כאלה — גם בכתיב מלא/חסר, כדי שכתיב
+/// זהה ("שלוח", "דינים") לא יפנה מקום לחלופי.
+List<T> altTocFlatMatchesAll<T>(List<T> Function(bool variants) match) {
+  final exact = match(false);
+  return exact.isNotEmpty ? exact : match(true);
 }
 
 /// מפתח תוצאה לצמצום ה-fallback הגלובלי; [reference] כפי שהוא מוצג (עם שם הספר).
@@ -254,9 +506,11 @@ List<T> selectGlobalAltTocMatches<T>(
       extra.addAll(rowsOf(book).ranked);
       continue;
     }
-    slices.add(_GlobalAltTocSlice(book, citationMatch: true));
-    if (query.isDafCitation) {
-      slices.add(_GlobalAltTocSlice(book, citationMatch: false));
+    for (final supplied in _subsetsOf(book.hostTitleWords)) {
+      slices.add(_GlobalAltTocSlice(book, citationMatch: true, supplied));
+      if (query.isDafCitation) {
+        slices.add(_GlobalAltTocSlice(book, citationMatch: false, supplied));
+      }
     }
   }
   int compareSlices(_GlobalAltTocSlice<T> a, _GlobalAltTocSlice<T> b) =>
@@ -283,7 +537,11 @@ List<T> selectGlobalAltTocMatches<T>(
       group.addAll(
         rowsOf(
           slice.book,
-        ).ranked.where((row) => row.citationMatch == slice.key.citationMatch),
+        ).ranked.where(
+          (row) =>
+              row.citationMatch == slice.key.citationMatch &&
+              _sameSet(row.categoryTokens, slice.key.categoryTokens),
+        ),
       );
     }
     // שורות שקולות בדירוג (ספרים שונים, אותו אורך ו-segment) — לפי הספר,
@@ -324,6 +582,11 @@ class _GlobalAltTocBook<T> {
     required this.rank,
   }) : normTitle = normalizeForFindRefMatch(title) {
     titleMatch = query.titleMatch(normTitle);
+    hostTitleWords = altTocHostTitleWords(
+      query.tokens,
+      normTitle.split(' '),
+      variants: true,
+    );
   }
 
   final int id;
@@ -339,6 +602,9 @@ class _GlobalAltTocBook<T> {
   })
   titleMatch;
 
+  /// [altTocHostTitleWords] של הספר; בדירוג רק מה שהגיע מהן בפועל, כמו ב-`_rankResults`.
+  late final Set<String> hostTitleWords;
+
   /// שורות הספר אחרי הצמצום, בסדר הדירוג; מחושבות רק כשהגיעו לספר.
   _BookRows<T>? rows;
 
@@ -347,6 +613,7 @@ class _GlobalAltTocBook<T> {
     required bool citationMatch,
     String reference = '',
     num segment = 0,
+    Set<String>? supplied,
   }) => FindRefRankKey<T>(
     item: item,
     normTitle: normTitle,
@@ -362,18 +629,42 @@ class _GlobalAltTocBook<T> {
     reference: reference,
     segment: segment,
     bookId: id,
+    categoryTokens:
+        supplied ?? altTocSuppliedTitleWords(hostTitleWords, title, reference),
   );
 }
 
 class _GlobalAltTocSlice<T> {
-  _GlobalAltTocSlice(this.book, {required bool citationMatch})
-    : key = book.key(book.entries.first, citationMatch: citationMatch);
+  _GlobalAltTocSlice(
+    this.book,
+    Set<String> supplied, {
+    required bool citationMatch,
+  }) : key = book.key(
+         book.entries.first,
+         citationMatch: citationMatch,
+         supplied: supplied,
+       );
 
   final _GlobalAltTocBook<T> book;
 
   /// מפתח הרלוונטיות של שורות הפרוסה — סדר התצוגה לא משתתף בו.
   final FindRefRankKey<T> key;
 }
+
+/// כל תתי-הקבוצות של [words] — מילים מעטות משם הספר.
+List<Set<String>> _subsetsOf(Set<String> words) {
+  var subsets = <Set<String>>[const {}];
+  for (final word in words) {
+    subsets = [
+      ...subsets,
+      for (final subset in subsets) {...subset, word},
+    ];
+  }
+  return subsets;
+}
+
+bool _sameSet(Set<String> a, Set<String> b) =>
+    a.length == b.length && a.containsAll(b);
 
 const FindRefBookRank _unrankedBook = (foundationalTier: null, eraOrder: 0);
 
