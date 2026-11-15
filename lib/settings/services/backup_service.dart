@@ -41,8 +41,6 @@ import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/core/user_state/pending_report_store.dart';
-import 'package:otzaria/core/messages/settings_messages.dart';
-import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/services/backup/backup_import_merge.dart';
 import 'package:otzaria/settings/services/backup/backup_maintenance.dart';
 import 'package:otzaria/settings/services/backup/backup_report_format.dart';
@@ -98,9 +96,20 @@ class BackupService {
   /// Create a backup with specified options.
   /// Returns the backup path and a list of sections that were skipped (e.g. when Hive box is not open).
   ///
+  /// `oversizedPlugins` — תוספים שחורגים מתקרת הארכיון ולכן לא נכללו. זו החרגה
+  /// קבועה ולא כשל: ניסיון חוזר לא ישנה אותה, ולכן היא לא נספרת ב-
+  /// `skippedSections` (ראה [performAutoBackup]).
+  ///
   /// [isAutoBackup] — גיבוי אוטומטי כפוף לרוטציה; גיבוי ידני מסומן בשם הקובץ
   /// (`_manual`) והרוטציה לא נוגעת בו לעולם.
-  static Future<({String path, List<String> skippedSections})> createBackup({
+  static Future<
+    ({
+      String path,
+      List<String> skippedSections,
+      List<String> oversizedPlugins,
+    })
+  >
+  createBackup({
     required bool includeSettings,
     required bool includeBookmarks,
     required bool includeHistory,
@@ -111,6 +120,7 @@ class BackupService {
     bool isAutoBackup = false,
   }) async {
     final skippedSections = <String>[];
+    final oversizedPlugins = <String>[];
     try {
       final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
       final backupDir = await getBackupDirectory();
@@ -176,7 +186,11 @@ class BackupService {
 
       // Backup plugins
       if (includePlugins) {
-        backupData['plugins'] = await _backupPlugins(skippedSections, store);
+        backupData['plugins'] = await _backupPlugins(
+          skippedSections,
+          oversizedPlugins,
+          store,
+        );
       }
 
       // Backup workspaces
@@ -196,8 +210,14 @@ class BackupService {
         backupData['shamorZachor'] = await _backupShamorZachor();
       }
 
-      if (skippedSections.isNotEmpty) {
-        backupData['partial_sections'] = skippedSections;
+      // הקובץ מצהיר על כל מה שחסר בו, גם החרגת תוספים קבועה, כדי ששחזור ידווח.
+      final partialSections = [
+        ...skippedSections,
+        if (oversizedPlugins.isNotEmpty && !skippedSections.contains('plugins'))
+          'plugins',
+      ];
+      if (partialSections.isNotEmpty) {
+        backupData['partial_sections'] = partialSections;
       }
 
       setReportAwareBackupVersion(backupData);
@@ -215,7 +235,11 @@ class BackupService {
       final size = exists ? await file.length() : 0;
       _logger.info('File exists: $exists, Size: $size bytes');
 
-      return (path: backupPath, skippedSections: skippedSections);
+      return (
+        path: backupPath,
+        skippedSections: skippedSections,
+        oversizedPlugins: oversizedPlugins,
+      );
     } catch (e, stackTrace) {
       _logger.severe('Error creating backup: $e');
       _logger.severe('Stack trace: $stackTrace');
@@ -483,9 +507,12 @@ class BackupService {
 
   //גיבוי תוספים: גיבוי קבצים, תיקיית נתונים, הרשאות ונתוני DB
   // תוספי פיתוח (`development`) מדולגים, כיון שאינם קיימים במחשב היעד.
-  // גיבוי תוסף שנכשל מתבצע דילוג, ומסומן ב-[skippedSections] למניעת שגיאות בשחזור
+  // גיבוי תוסף שנכשל מתבצע דילוג, ומסומן ב-[skippedSections] למניעת שגיאות בשחזור.
+  // תוסף שחורג מהתקרה נרשם ב-[oversizedPlugins] בלבד: הוא לא נכשל, וההודעה עליו
+  // נשלחת פעם אחת מהקורא ולא כאן.
   static Future<List<Map<String, dynamic>>> _backupPlugins(
     List<String> skippedSections,
+    List<String> oversizedPlugins,
     BackupStore? store,
   ) async {
     final db = PluginSystemDatabase.instance;
@@ -507,12 +534,7 @@ class BackupService {
           _logger.warning(
             'Skipping plugin ${plugin.pluginId} backup: exceeds archive budget',
           );
-          UiSnack.showError(
-            SettingsMessages.backupPluginTooLarge(plugin.pluginId),
-          );
-          if (!skippedSections.contains('plugins')) {
-            skippedSections.add('plugins');
-          }
+          oversizedPlugins.add(plugin.pluginId);
           continue;
         }
         consumed += size;
@@ -1788,6 +1810,14 @@ class BackupService {
       isAutoBackup: true,
     );
 
+    // תוספים גדולים מדי אינם סיבה לנסות שוב: הם יידלגו בכל ניסיון, והגיבוי
+    // המלא ביותר האפשרי כבר נשמר. רק כשל אמיתי מחזיר את הגיבוי לתור.
+    if (result.oversizedPlugins.isNotEmpty) {
+      _logger.warning(
+        'Auto-backup excluded oversized plugins: '
+        '${result.oversizedPlugins.join(", ")}',
+      );
+    }
     if (result.skippedSections.isNotEmpty) {
       _logger.warning(
         'Auto-backup partial — skipped: ${result.skippedSections.join(", ")} — will retry after ${_kPartialRetryMinutes}min cooldown',

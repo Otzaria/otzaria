@@ -307,6 +307,49 @@ void main() {
       expect(steps, ['update', 'index', 'finished']);
     });
 
+    test(
+      'בלי סיור: חיווי האינדקס מתרענן לפני העדכון ולא מחליף את ההחלטה',
+      () async {
+        final steps = <String>[];
+        await runStartupIndexingSequence(
+          tourActive: false,
+          previewIndexStatus: () async => steps.add('preview'),
+          resolveIndexing: () async => steps.add('index'),
+          waitForIndexing: () async => fail('אין המתנה בלי סיור'),
+          runUpdates: () async => steps.add('update'),
+        );
+        expect(steps, ['preview', 'update', 'index']);
+      },
+    );
+
+    test('כשל ברענון החיווי אינו עוצר את העדכון והאינדוקס (#4461)', () async {
+      final steps = <String>[];
+      await runStartupIndexingSequence(
+        tourActive: false,
+        previewIndexStatus: () => Future<void>.error(StateError('no engine')),
+        resolveIndexing: () async => steps.add('index'),
+        waitForIndexing: () async {},
+        runUpdates: () async => steps.add('update'),
+      );
+      expect(steps, ['update', 'index']);
+    });
+
+    test('סיור פעיל: אין רענון חיווי, ההחלטה קודמת לעדכון', () async {
+      final gate = StartupWorkGate();
+      final steps = <String>[];
+      await runStartupIndexingSequence(
+        tourActive: true,
+        previewIndexStatus: () async => steps.add('preview'),
+        resolveIndexing: () async {
+          steps.add('index');
+          gate.markIndexingDecisionResolved(expectIndexing: false);
+        },
+        waitForIndexing: () => gate.indexingSettled,
+        runUpdates: () async => steps.add('update'),
+      );
+      expect(steps, ['index', 'update']);
+    });
+
     test('בלי סיור: עדכון הספרייה קודם לאינדוקס', () async {
       final steps = <String>[];
       await runStartupIndexingSequence(

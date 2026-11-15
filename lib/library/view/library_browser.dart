@@ -977,6 +977,15 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               onSubmitted: (value) async {
                 if (await _tryHandleDeepLink(context, value)) return;
                 if (!context.mounted) return;
+                // Enter על תוצאה מסומנת פותח אותה; החיפוש כבר רץ בהקלדה (#4468).
+                final marked = _markedSearchResult(
+                  context.read<LibraryBloc>().state,
+                  settingsState,
+                );
+                if (marked != null) {
+                  _openBookInReader(marked, marked is PdfBook ? 1 : 0);
+                  return;
+                }
                 context.read<LibraryBloc>().add(const SelectTopics([]));
                 _scheduleSearchWithSettings(context, settingsState);
               },
@@ -1700,32 +1709,36 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             final isSelected =
                 _isPreviewPanelVisible(settingsState) &&
                 libState.previewBook == book;
-            return _withTalmudFormatMenu(
+            return _withBookEnterShortcut(
               book,
-              book is PdfBook ? 1 : 0,
-              GestureDetector(
-                onDoubleTap: () =>
-                    _openBookInReader(book, book is PdfBook ? 1 : 0),
-                child: BookGridItem(
-                  book: book,
-                  showTopics: showTopics,
-                  isSelected: isSelected,
-                  focusNode: focusNode,
-                  onFocused: _isPreviewPanelVisible(settingsState)
-                      ? () => _showBookPreview(book)
-                      : null,
-                  onBookClickCallback: () {
-                    if (_isPreviewPanelVisible(settingsState)) {
-                      _showBookPreview(book);
-                    } else {
-                      _openBookInReader(book, book is PdfBook ? 1 : 0);
-                    }
-                  },
-                  onBookDeleted: () {
-                    if (ctx.mounted) {
-                      ctx.read<LibraryBloc>().add(RefreshLibrary());
-                    }
-                  },
+              _isPreviewPanelVisible(settingsState),
+              _withTalmudFormatMenu(
+                book,
+                book is PdfBook ? 1 : 0,
+                GestureDetector(
+                  onDoubleTap: () =>
+                      _openBookInReader(book, book is PdfBook ? 1 : 0),
+                  child: BookGridItem(
+                    book: book,
+                    showTopics: showTopics,
+                    isSelected: isSelected,
+                    focusNode: focusNode,
+                    onFocused: _isPreviewPanelVisible(settingsState)
+                        ? () => _showBookPreview(book)
+                        : null,
+                    onBookClickCallback: () {
+                      if (_isPreviewPanelVisible(settingsState)) {
+                        _showBookPreview(book);
+                      } else {
+                        _openBookInReader(book, book is PdfBook ? 1 : 0);
+                      }
+                    },
+                    onBookDeleted: () {
+                      if (ctx.mounted) {
+                        ctx.read<LibraryBloc>().add(RefreshLibrary());
+                      }
+                    },
+                  ),
                 ),
               ),
             );
@@ -1737,6 +1750,41 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
   void _showBookPreview(Book book) =>
       context.read<LibraryBloc>().add(SelectBookForPreview(book));
+
+  /// הספר המסומן בתוצאות כשהתצוגה המקדימה גלויה והחיפוש הסתיים;
+  /// בזמן חיפוש הסימון עדיין עלול להשתייך לתוצאות הקודמות.
+  Book? _markedSearchResult(LibraryState state, SettingsState settings) {
+    final marked = state.previewBook;
+    if (marked == null ||
+        _searchDebounce != null ||
+        state.isSearching ||
+        !_isPreviewPanelVisible(settings)) {
+      return null;
+    }
+    return (state.searchResults?.contains(marked) ?? false) ? marked : null;
+  }
+
+  /// Enter פותח את הספר רק כשהשורה או הכרטיס ממוקדים, ולא כפתור בתוכם.
+  Widget _withBookEnterShortcut(Book book, bool previewVisible, Widget child) {
+    if (!previewVisible) return child;
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      onKeyEvent: (node, event) {
+        if (!node.children.any((child) => child.hasPrimaryFocus)) {
+          return KeyEventResult.ignored;
+        }
+        final activate = const [
+          SingleActivator(LogicalKeyboardKey.enter),
+          SingleActivator(LogicalKeyboardKey.numpadEnter),
+        ].any((shortcut) => shortcut.accepts(event, HardwareKeyboard.instance));
+        if (!activate) return KeyEventResult.ignored;
+        _openBookInReader(book, book is PdfBook ? 1 : 0);
+        return KeyEventResult.handled;
+      },
+      child: child,
+    );
+  }
 
   Widget _buildSearchListView(
     List<Book> books,
@@ -2245,14 +2293,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       height: isGrouped ? 1.1 : null,
     );
 
-    // רקע הבחירה על ה-Material, כדי שהריחוף והלחיצה יצוירו מעליו. הסגנון
-    // הנורש נשמר: Material היה מחליף אותו ב-bodyMedium. ב"לבן" בבהיר הנבחרת
-    // גם בקו דק ([AppSurfaces.selectedBorder]), כי המילוי קרוב לריחוף:
-    // - שורה עצמאית: מסגרת ה-AppCard שלה (selected), כי מסגרת הכרטיס מצוירת
-    //   מעל התוכן ומסתירה קו פנימי באותו מקום.
-    // - שורה מקובצת: קו למעלה ולמטה בלבד, כמו הפריט הנבחר בתפריט. בצדדים היא
-    //   נוגעת בגבול הקבוצה, ובקצה קבוצה בעץ המשוטח מסגרת ישרה הייתה נחתכת
-    //   בפינה המעוגלת.
+    // רקע הבחירה על ה-Material כדי שהריחוף יצויר מעליו; ב"לבן" נדרש גם קו.
+    // לשורה מקובצת קווים אופקיים בלבד, כדי לא לחתוך את פינות הקבוצה.
     final groupedSelectedBorder = isSelected && isGrouped
         ? AppSurfaces.selectedBorder(context)
         : null;
@@ -2491,30 +2533,34 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             final isSelected =
                 _isPreviewPanelVisible(settingsState) &&
                 libState.previewBook == book;
-            return _withTalmudFormatMenu(
+            return _withBookEnterShortcut(
               book,
-              book is PdfBook ? 1 : 0,
-              _buildBookListRow(
-                context: ctx,
-                book: book,
-                level: level,
-                itemStyle: itemStyle,
-                isSelected: isSelected,
-                focusNode: focusNode,
-                onTap: () {
-                  if (_isPreviewPanelVisible(settingsState)) {
-                    _showBookPreview(book);
-                  } else {
-                    _openBookInReader(book, book is PdfBook ? 1 : 0);
-                  }
-                },
-                onDoubleTap: () =>
-                    _openBookInReader(book, book is PdfBook ? 1 : 0),
-                onBookDeleted: () {
-                  if (ctx.mounted) {
-                    ctx.read<LibraryBloc>().add(RefreshLibrary());
-                  }
-                },
+              _isPreviewPanelVisible(settingsState),
+              _withTalmudFormatMenu(
+                book,
+                book is PdfBook ? 1 : 0,
+                _buildBookListRow(
+                  context: ctx,
+                  book: book,
+                  level: level,
+                  itemStyle: itemStyle,
+                  isSelected: isSelected,
+                  focusNode: focusNode,
+                  onTap: () {
+                    if (_isPreviewPanelVisible(settingsState)) {
+                      _showBookPreview(book);
+                    } else {
+                      _openBookInReader(book, book is PdfBook ? 1 : 0);
+                    }
+                  },
+                  onDoubleTap: () =>
+                      _openBookInReader(book, book is PdfBook ? 1 : 0),
+                  onBookDeleted: () {
+                    if (ctx.mounted) {
+                      ctx.read<LibraryBloc>().add(RefreshLibrary());
+                    }
+                  },
+                ),
               ),
             );
           },

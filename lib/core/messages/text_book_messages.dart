@@ -54,7 +54,7 @@ abstract class TextBookMessages {
 
   // ── תצוגה, העתקה והערות ─────────────────────────────────────────────────
 
-  static const String perBookSettingsReset = 'ההגדרות הפר-ספריות אופסו בהצלחה';
+  static const String perBookSettingsReset = 'ההגדרות האישיות לספר זה אופסו';
   static const String headingLinkNotFound = 'לא נמצא קישור לכותרת זו';
   static const String structureHeadingsNotFound = 'לא נמצאו כותרות למבנה זה';
   static const String searchUnavailableInThisView = 'חיפוש לא זמין בתצוגה זו';

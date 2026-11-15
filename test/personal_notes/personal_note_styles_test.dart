@@ -9,6 +9,7 @@ import 'package:otzaria/personal_notes/widgets/personal_note_content_view.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_styles.dart';
 
 /// #2531: הערה בשורה 1.5 בעורך ובתצוגה, ולא 1.15 של Quill.
+/// #4469: רווח בין פסקאות, כדי ש-Enter לא ייראה כמו גלישת שורה.
 void main() {
   PersonalNote note(List<Map<String, Object>> delta) => PersonalNote(
     id: 'n',
@@ -41,6 +42,22 @@ void main() {
     expect(styles.paragraph!.style.height, personalNoteLineHeight);
     expect(styles.lists!.style.height, personalNoteLineHeight);
     expect(styles.h1!.style.height, base.h1!.style.height);
+  });
+
+  testWidgets('לפסקה רווח תחתון; כותרת נשארת של Quill', (tester) async {
+    await pump(tester, const SizedBox());
+    final context = tester.element(find.byType(SizedBox));
+    final styles = personalNoteStyles(context);
+    final base = quill.DefaultStyles.getInstance(context);
+    expect(styles.paragraph!.verticalSpacing.top, 0);
+    expect(
+      styles.paragraph!.verticalSpacing.bottom,
+      personalNoteParagraphSpacing,
+    );
+    expect(
+      styles.h1!.verticalSpacing.bottom,
+      base.h1!.verticalSpacing.bottom,
+    );
   });
 
   testWidgets('התצוגה בעורך Quill מקבלת את סגנונות ההערה', (tester) async {
@@ -81,5 +98,27 @@ void main() {
           .first,
     );
     expect(text.text.style?.height, personalNoteLineHeight);
+  });
+
+  testWidgets('בתצוגה מקדימה יש רווח בין פסקאות', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      PersonalNoteContentView(
+        interactive: false,
+        note: note([
+          {'insert': 'פסקה ראשונה\nפסקה שנייה\n'},
+        ]),
+      ),
+    );
+    final texts = find.descendant(
+      of: find.byType(NoteDeltaPreview),
+      matching: find.byType(RichText),
+    );
+    expect(texts, findsNWidgets(2));
+    final first = tester.getRect(texts.at(0));
+    final second = tester.getRect(texts.at(1));
+    expect(second.top - first.bottom, personalNoteParagraphSpacing);
   });
 }
