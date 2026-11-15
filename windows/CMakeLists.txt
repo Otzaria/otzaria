@@ -160,15 +160,6 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/../installer/vcredist/${VCREDIST_ARCH}/"
   COMPONENT Runtime
   FILES_MATCHING PATTERN "*.dll")
 
-# The WebView plugin imports this DLL but does not bundle it. Install the matching
-# NuGet loader so portable background plugins do not depend on another app's DLLs.
-if(TARGET flutter_inappwebview_windows_plugin)
-  install(FILES
-    "${CMAKE_BINARY_DIR}/packages/Microsoft.Web.WebView2/build/native/${VCREDIST_ARCH}/WebView2Loader.dll"
-    DESTINATION "${CMAKE_INSTALL_PREFIX}"
-    COMPONENT Runtime)
-endif()
-
 # ONNX Runtime for semantic search, in its own folder: System32 may hold an
 # older onnxruntime.dll, so the app passes this file's full path explicitly.
 include("${CMAKE_SOURCE_DIR}/../tool/onnxruntime/onnxruntime.cmake")

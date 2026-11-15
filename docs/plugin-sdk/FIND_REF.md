@@ -3,6 +3,9 @@
 Since 0.9.99, a startup `libraryBooks` provider can opt in with
 `referenceSearch: true` (boolean, default false). Its `when` condition and
 startup-contribution permissions still apply. Existing providers remain unchanged.
+Without an opted-in provider, the dialog retains its native row presentation,
+query restoration and result cache. Native result tiles also retain their original
+presentation when external references are present.
 
 The host targets `findRef.external.requested` to the provider's plugin with
 `{requestId, provider, query, limit}`. Respond using `reader.respondFindRef`:

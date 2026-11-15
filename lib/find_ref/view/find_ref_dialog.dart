@@ -234,7 +234,9 @@ class _FindRefDialogState extends State<FindRefDialog> {
         baseOffset: 0,
         extentOffset: controller.text.length,
       );
-      _dispatchSearch(controller.text);
+      if (_findRefBloc.externalService.hasProviders) {
+        _dispatchSearch(controller.text);
+      }
     }
 
     // רישום כ-active restorer כדי שהדיאלוג יקבל שחזור פוקוס לאחר אירועי חלון
@@ -256,7 +258,13 @@ class _FindRefDialogState extends State<FindRefDialog> {
 
   @override
   void dispose() {
-    if (!_findRefBloc.isClosed) _findRefBloc.add(ClearSearchRequested());
+    final state = _findRefBloc.state;
+    if (!_findRefBloc.isClosed &&
+        (_findRefBloc.externalService.hasProviders ||
+            state is FindRefSuccess &&
+                (state.externalPending || state.externalRefs.isNotEmpty))) {
+      _findRefBloc.add(ClearSearchRequested());
+    }
     _personalBooksChanges?.cancel();
     _localVisibilityChanges?.cancel();
     _resultsScrollController.removeListener(_updateHasMoreBelow);
@@ -1286,26 +1294,15 @@ class _FindRefDialogState extends State<FindRefDialog> {
               color: colorScheme.onSurface,
             ),
           ),
-          subtitle: Row(
-            children: [
-              Text(
-                context.settingsText('אוצריא'),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              if (ref.bookPath.isNotEmpty) ...[
-                const SizedBox(width: AppTokens.spaceSM),
-                Expanded(
-                  child: LibraryOverflowTooltipText(
-                    text: ref.bookPath,
-                    maxLines: 1,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
+          subtitle: ref.bookPath.isEmpty
+              ? null
+              : LibraryOverflowTooltipText(
+                  text: ref.bookPath,
+                  maxLines: 1,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
-              ],
-            ],
-          ),
           // רשימת המפרשים נטענת אחרי הרינדור, ולכן הופעת הכפתור הייתה מצמצמת
           // את רוחב הכותרת ומזיזה את הטקסט. השורה שומרת את מקומו מהפריים
           // הראשון לפי `eligible`, שידוע סינכרונית.

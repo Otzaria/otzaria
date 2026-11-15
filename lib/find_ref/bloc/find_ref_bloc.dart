@@ -34,7 +34,6 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
   bool? _shownIncludePersonalBooks;
   HiddenLibrarySelection? _shownVisibility;
   int _requestGeneration = 0;
-  _FindRefDelay? _searchDelay;
   _FindRefDelay? _externalDelay;
   bool _closing = false;
   SearchRefRequested? _lastRequest;
@@ -91,7 +90,6 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
   Future<void> close() async {
     _closing = true;
     _requestGeneration++;
-    _searchDelay?.cancel();
     _externalDelay?.cancel();
     externalService.cancel(this);
     _liveBlocs.remove(this);
@@ -129,7 +127,6 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
         : const HiddenLibrarySelection();
     // גם שימוש בתוצאה קיימת מבטל רענון אישי שהתחיל בבקשה אחרת.
     findRefRepository.cancelPendingSearch();
-    _searchDelay?.cancel();
     if (event.refText.length >= 2 &&
         state is FindRefSuccess &&
         normalized == _shownNormalizedQuery &&
@@ -154,13 +151,8 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
     // debounce: ממתינים לפני שמתחילים ב-fetch. אם המשתמש מקליד שוב לפני
     // שהדיליי מסתיים — restartable יבטל את ה-handler הזה כאן בלי שיתחיל
     // לטעון נתונים.
-    final delay = _FindRefDelay(_searchDebounce);
-    _searchDelay = delay;
-    final elapsed = await delay.done;
-    if (identical(_searchDelay, delay)) _searchDelay = null;
-    if (!elapsed || emit.isDone || requestGeneration != _requestGeneration) {
-      return;
-    }
+    await Future.delayed(_searchDebounce);
+    if (emit.isDone || requestGeneration != _requestGeneration) return;
 
     emit(FindRefLoading());
     try {
@@ -187,8 +179,7 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
       );
       // A provider is optional. Its failure must never block native results.
       if (event.refText.trim().length >= 3 && externalService.hasProviders) {
-        // Reference parsing in Responsa uses a Windows dialog. Do not submit
-        // transient keystrokes to it; wait for a brief pause after local hits.
+        // ממתינים להפסקת ההקלדה לפני שמשגרים שאילתה לספק החיצוני.
         unawaited(_searchExternal(event.refText, requestGeneration));
       }
     } on ReferenceLibraryNotReadyException {
@@ -227,7 +218,6 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
   ) {
     _lastRequest = null;
     _requestGeneration++;
-    _searchDelay?.cancel();
     _externalDelay?.cancel();
     externalService.cancel(this);
     findRefRepository.cancelPendingSearch();

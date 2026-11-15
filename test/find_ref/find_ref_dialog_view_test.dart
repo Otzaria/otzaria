@@ -341,6 +341,80 @@ void main() {
     Settings.setValue<bool>('key-find-ref-include-personal-books', false);
   });
 
+  group('native-only without reference opt-in', () {
+    const legacy = PluginLibraryBookProvider(
+      pluginId: 'legacy',
+      id: 'books',
+      provider: 'legacybooks',
+      title: 'Legacy library',
+    );
+    for (final legacyInstalled in [false, true]) {
+      for (final path in ['', 'תנ"ך, תורה']) {
+        testWidgets('keeps native subtitle ($legacyInstalled, $path)', (
+          tester,
+        ) async {
+          final events = <String>[];
+          final service = PluginFindRefService.forTesting(
+            providers: () => legacyInstalled ? [legacy] : const [],
+            dispatch: (_, topic, _) async => events.add(topic),
+          );
+          await _pumpDialog(
+            tester,
+            results: [_ref('מקור מקומי', path: path)],
+            externalService: service,
+          );
+          await tester.enterText(find.byType(TextField), 'בראשית');
+          await tester.pump(_pastDebounce);
+          await tester.pumpAndSettle();
+          expect(find.text('מקור מקומי'), findsOneWidget);
+          expect(find.text('אוצריא'), findsNothing);
+          final tile = tester.widget<ListTile>(
+            find.ancestor(
+              of: find.text('מקור מקומי'),
+              matching: find.byType(ListTile),
+            ),
+          );
+          if (path.isEmpty) {
+            expect(tile.subtitle, isNull);
+          } else {
+            expect(find.text(path), findsOneWidget);
+          }
+          expect(events, isEmpty);
+        });
+      }
+      testWidgets('preserves restored query and cache ($legacyInstalled)', (
+        tester,
+      ) async {
+        final events = <String>[];
+        final service = PluginFindRefService.forTesting(
+          providers: () => legacyInstalled ? [legacy] : const [],
+          dispatch: (_, topic, _) async => events.add(topic),
+        );
+        final repository = _FakeRepository([_ref('מקור מקומי')]);
+        await _pumpDialog(
+          tester,
+          repository: repository,
+          query: 'בראשית',
+          externalService: service,
+        );
+        await tester.pump(_pastDebounce);
+        expect(repository.calls, 0);
+        await tester.enterText(find.byType(TextField), 'ברכות');
+        await tester.pump(_pastDebounce);
+        await tester.pumpAndSettle();
+        expect(repository.calls, 1);
+        final bloc = tester
+            .element(find.byType(FindRefDialog))
+            .read<FindRefBloc>();
+        final cached = bloc.state;
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(_pastDebounce);
+        expect(bloc.state, same(cached));
+        expect(events, isEmpty);
+      });
+    }
+  });
+
   group('native external references', () {
     const provider = PluginLibraryBookProvider(
       pluginId: 'barilan',
@@ -386,6 +460,23 @@ void main() {
         true,
       );
     }
+
+    testWidgets('restored query reaches an opted-in reference provider', (
+      tester,
+    ) async {
+      await _pumpDialog(tester, query: 'בראשית', externalService: service);
+      await tester.pump(_pastDebounce);
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(
+        events
+            .singleWhere((e) => e.topic == PluginFindRefService.requestTopic)
+            .data['query'],
+        'בראשית',
+      );
+      respond();
+      await tester.pumpAndSettle();
+      expect(find.text('בראשית א ב — חיצוני'), findsOneWidget);
+    });
 
     testWidgets('external rows support page keys and Ctrl Home/End', (
       tester,
@@ -538,6 +629,8 @@ void main() {
         events.where((e) => e.topic == PluginFindRefService.openTopic),
         isEmpty,
       );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(_pastDebounce);
     });
   });
 
