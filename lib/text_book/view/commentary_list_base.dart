@@ -2578,9 +2578,9 @@ class _CommentaryLinkItemState extends State<_CommentaryLinkItem> {
       valueListenable: widget.savedSelectedTextListenable,
       child: Padding(
         key: widget.itemKeys[widget.getLinkKey(link)],
-        padding: const EdgeInsets.only(
-          right: 32.0,
-          left: 16.0,
+        padding: const EdgeInsetsDirectional.only(
+          start: 32.0,
+          end: 16.0,
           bottom: 8.0,
         ),
         child: Column(
