@@ -104,12 +104,13 @@ void main() {
     // התיאור של כפתור עדכון הספרייה נבנה ב-libraryUpdateButtonTooltip ונמסר
     // ל-settingsText דרך משתנה; ענפים דינמיים (state.message) נשארים עברית.
     // historyTooltip מוסר את הנוסח ל-settingsText דרך משתנה.
-    test('תיאורי כפתורי חזרה וקדימה בקורא', () {
+    test('תיאורי כפתורי חזרה וקדימה בקורא ובספרייה', () {
       for (final tooltip in [
         'חזרה למיקום הקודם',
         'חזרה אל {place}',
         'מעבר קדימה',
         'מעבר קדימה אל {place}',
+        'חזרה אחורה',
       ]) {
         expect(catalog, contains(tooltip), reason: tooltip);
       }

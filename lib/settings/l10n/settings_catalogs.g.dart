@@ -788,6 +788,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'חוץ לארץ': 'Chutz La\'aretz',
     'חזור (Esc)': 'Back (Esc)',
     'חזור לברירת המחדל': 'Restore Default',
+    'חזרה אחורה': 'Back',
     'חזרה אל {place}': 'Back to {place}',
     'חזרה לברירת מחדל': 'Restore default',
     'חזרה למיקום הקודם': 'Back to previous location',

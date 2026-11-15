@@ -24,6 +24,8 @@ import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/library/models/library_navigation_history.dart';
+import 'package:otzaria/library/view/library_history_navigation.dart';
 import 'package:otzaria/tools/calendar/helpers/daf_yomi_navigation.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
 import 'package:otzaria/library/view/library_breadcrumb_bar.dart';
@@ -366,6 +368,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   Rect? _lastTourBookCardRect;
   final Set<String> _expandedCategories = {};
   final _settingsPanelOpen = ValueNotifier<bool>(false);
+  final _history = LibraryNavigationHistory();
 
   /// סריקת תיקיות אישיות שהתחילה מ"טעינה מחדש" ועוד לא הסתיימה.
   final _reloadScanPending = ValueNotifier<bool>(false);
@@ -454,6 +457,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     _topBarTotalHeight.dispose();
     _settingsPanelOpen.dispose();
     _reloadScanPending.dispose();
+    _history.dispose();
     super.dispose();
   }
 
@@ -487,7 +491,11 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return _buildScaffold(context);
+    return LibraryHistoryNavigator(
+      history: _history,
+      onOpen: _openCategory,
+      child: _buildScaffold(context),
+    );
   }
 
   Future<void> _handleLibraryLoaded() async {
@@ -753,11 +761,14 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       secondaryRowVisible: secondaryRow != null ? _secondaryRowVisible : null,
       leadingItems: [
         AppTopBarItem(
-          widget: _buildNavActions(
-            context,
-            state,
-            settingsState,
-            isLibraryEmpty: isLibraryEmpty,
+          widget: ListenableBuilder(
+            listenable: _history,
+            builder: (context, _) => _buildNavActions(
+              context,
+              state,
+              settingsState,
+              isLibraryEmpty: isLibraryEmpty,
+            ),
           ),
         ),
       ],
@@ -827,7 +838,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         ? 3
         : screenWidth < fourButtonsBelow
         ? 4
-        : 5;
+        : 6;
 
     return ResponsiveActionBar(
       key: ValueKey('action-bar-offline-${settingsState.isOfflineMode}'),
@@ -1278,6 +1289,18 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     required bool isLibraryEmpty,
   }) {
     return [
+      libraryBackAction(
+        context,
+        _history,
+        compact: compact,
+        onOpen: _openCategory,
+      ),
+      libraryForwardAction(
+        context,
+        _history,
+        compact: compact,
+        onOpen: _openCategory,
+      ),
       ActionButtonData.simple(
         compact: compact,
         tooltip: context.settingsText('חזרה לתיקיה הקודמת'),
@@ -1316,6 +1339,12 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     required bool isLibraryEmpty,
   }) {
     return [
+      libraryBackAction(
+        context,
+        _history,
+        compact: compact,
+        onOpen: _openCategory,
+      ),
       ActionButtonData.simple(
         compact: compact,
         tooltip: context.settingsText('חזרה לתיקיה הקודמת'),
@@ -1324,6 +1353,12 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         onPressed: isLibraryEmpty
             ? null
             : () => _handleNavigateUp(context, state, settingsState),
+      ),
+      libraryForwardAction(
+        context,
+        _history,
+        compact: compact,
+        onOpen: _openCategory,
       ),
       if (settingsState.canUseSoftwareAndBookUpdates && !isLibraryEmpty)
         _buildSyncActionButton(compact: compact),
