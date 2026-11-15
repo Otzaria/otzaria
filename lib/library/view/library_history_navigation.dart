@@ -34,10 +34,14 @@ void travelLibraryHistory(
 }) {
   final library = context.read<LibraryBloc>().state.library;
   if (library == null) return;
-  final path = forward ? history.forward() : history.back();
-  if (path == null) return;
-  final category = libraryCategoryAtPath(library, path);
-  if (category != null) onOpen(category);
+  String? travel() => forward ? history.forward() : history.back();
+  // תיקייה שנמחקה מאז מדולגת, אחרת הלחיצה לא הייתה עושה דבר.
+  for (var path = travel(); path != null; path = travel()) {
+    final category = libraryCategoryAtPath(library, path);
+    if (category == null) continue;
+    onOpen(category);
+    return;
+  }
 }
 
 String _placeOf(String? path) => path == null || path == '/'

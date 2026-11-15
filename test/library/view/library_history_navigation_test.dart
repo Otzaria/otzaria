@@ -181,6 +181,17 @@ void main() {
     expect(enabled(tester, backButton), isTrue);
   });
 
+  testWidgets('חזרה מדלגת על תיקייה שנמחקה מהספרייה', (tester) async {
+    await pump(tester);
+    await navigateTo(tester, halacha);
+    await navigateTo(tester, tanach);
+    library.subCategories.remove(halacha);
+
+    await tester.tap(backButton);
+    await settle(tester);
+    expect(bloc.state.currentCategory, same(library));
+  });
+
   testWidgets('לחצני הצד של העכבר חוזרים וממשיכים', (tester) async {
     await pump(tester);
     await navigateTo(tester, halacha);
