@@ -1,14 +1,43 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/app_report/services/app_report_image_sources.dart';
+import 'package:otzaria/app_report/view/widgets/app_report_image_viewer.dart';
 import 'package:otzaria/app_report/view/widgets/app_report_images_section.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/plugins/services/plugin_file_drop_service.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
+
+const _decodeWait = Duration(milliseconds: 300);
+
+Future<Uint8List> _whitePng(int width, int height) async {
+  final recorder = ui.PictureRecorder();
+  Canvas(recorder).drawRect(
+    Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
+    Paint()..color = const Color(0xFFFFFFFF),
+  );
+  final image = await recorder.endRecording().toImage(width, height);
+  final data = await image.toByteData(format: ui.ImageByteFormat.png);
+  return data!.buffer.asUint8List();
+}
+
+Future<({Size size, int redCount})> _decodeRgba(Uint8List bytes) async {
+  final codec = await ui.instantiateImageCodec(bytes);
+  final image = (await codec.getNextFrame()).image;
+  final rgba = (await image.toByteData())!.buffer.asUint8List();
+  var red = 0;
+  for (var i = 0; i < rgba.length; i += 4) {
+    if (rgba[i] > 200 && rgba[i + 1] < 100 && rgba[i + 2] < 100) red++;
+  }
+  return (
+    size: Size(image.width.toDouble(), image.height.toDouble()),
+    redCount: red,
+  );
+}
 
 AppReportImage _image(String name, {int size = 4}) => AppReportImage(
   bytes: Uint8List(size),
@@ -124,6 +153,14 @@ void main() {
         physicalKey: PhysicalKeyboardKey.controlLeft,
       );
     }
+
+    // כפתור ההסרה יושב בפינה העליונה, ואזור המגע שלו מגיע עד מרכז התמונה.
+    Future<void> tapThumbnail(WidgetTester tester) => tester.tapAt(
+      tester
+              .getRect(find.byKey(const ValueKey('app-report-image-0')))
+              .bottomRight -
+          const Offset(12, 12),
+    );
 
     Future<void> pressPaste(WidgetTester tester) async {
       final modifier = Platform.isMacOS
@@ -371,6 +408,94 @@ void main() {
 
       expect(images, isEmpty);
       expect(find.byKey(const ValueKey('app-report-image-0')), findsNothing);
+    });
+
+    testWidgets('לחיצה על תמונה פותחת אותה בגדול, וההסרה לא פותחת', (
+      tester,
+    ) async {
+      await pump(tester, _FakeSources(picked: [_image('a.png')]));
+      await tester.tap(find.byKey(const ValueKey('app-report-image-area')));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const ValueKey('app-report-image-remove')));
+      await tester.pumpAndSettle();
+      expect(find.byType(AppReportImageViewer), findsNothing);
+
+      await tester.tap(find.byKey(const ValueKey('app-report-image-area')));
+      await tester.pump();
+      await tapThumbnail(tester);
+      await tester.pump();
+      await tester.runAsync(() => Future<void>.delayed(_decodeWait));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AppReportImageViewer), findsOneWidget);
+      expect(find.text('a.png'), findsOneWidget);
+    });
+
+    testWidgets('סימון אזור מחליף את התמונה ב-PNG מסומן באותו גודל', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final original = (await tester.runAsync(() => _whitePng(100, 60)))!;
+      await pump(
+        tester,
+        _FakeSources(
+          picked: [
+            AppReportImage(
+              bytes: original,
+              fileName: 'shot.jpg',
+              mimeType: 'image/jpeg',
+            ),
+          ],
+        ),
+      );
+      await tester.tap(find.byKey(const ValueKey('app-report-image-area')));
+      await tester.pump();
+      await tapThumbnail(tester);
+      await tester.pump();
+      await tester.runAsync(() => Future<void>.delayed(_decodeWait));
+      await tester.pumpAndSettle();
+
+      final save = find.byKey(const ValueKey('app-report-image-save-marks'));
+      await tester.tap(find.byKey(const ValueKey('app-report-image-mark')));
+      await tester.pump();
+      final canvas = find.byKey(const ValueKey('app-report-image-canvas'));
+      final box = tester.getRect(canvas);
+      await tester.dragFrom(
+        box.topLeft + Offset(box.width * 0.2, box.height * 0.2),
+        Offset(box.width * 0.5, box.height * 0.5),
+      );
+      await tester.pump();
+
+      await tester.tap(save);
+      await tester.runAsync(() => Future<void>.delayed(_decodeWait));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AppReportImageViewer), findsNothing);
+      final marked = images.single;
+      expect(marked.fileName, 'shot.png');
+      expect(marked.mimeType, 'image/png');
+      final pixels = (await tester.runAsync(() => _decodeRgba(marked.bytes)))!;
+      expect(pixels.size, const Size(100, 60));
+      expect(pixels.redCount, greaterThan(0));
+    });
+
+    testWidgets('בטופס נעול התמונה מוצגת בלי כלי סימון', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AppReportImageViewer(image: _image('a.png'), editable: false),
+        ),
+      );
+      await tester.runAsync(() => Future<void>.delayed(_decodeWait));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('app-report-image-mark')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('app-report-image-save-marks')),
+        findsNothing,
+      );
     });
 
     testWidgets('חריגה מהמכסה מציגה הודעה', (tester) async {

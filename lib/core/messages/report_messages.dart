@@ -184,4 +184,6 @@ abstract class ReportMessages {
       'הגודל הכולל של הצרופות מוגבל ל-{limit} MiB.';
   static const String appReportNoClipboardImage = 'אין תמונה נתמכת בלוח.';
   static const String appReportImageReadFailed = 'לא ניתן היה לקרוא את התמונה.';
+  static const String appReportImageMarkFailed =
+      'לא ניתן היה לשמור את הסימון על התמונה.';
 }
