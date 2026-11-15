@@ -126,6 +126,25 @@ void main() {
       );
     });
 
+    test('the background plan equals the main-isolate plan', () async {
+      final expected = CalendarAlertPlanner.planZmanAlerts(
+        alerts: alerts,
+        city: 'ירושלים',
+        now: now,
+      ).toList();
+
+      final background = await CalendarAlertPlanner.planZmanAlertsInBackground(
+        alerts: alerts,
+        city: 'ירושלים',
+        now: now,
+        twelveHourClock: false,
+      );
+
+      expect(background, isNotEmpty);
+      // שוויון מלא: התראה שכבר תוזמנה לא תיחשב שונה ותתוזמן שוב.
+      expect(background, expected);
+    });
+
     test('a zman that already passed today is not planned', () {
       final plan = CalendarAlertPlanner.planZmanAlerts(
         alerts: alerts,

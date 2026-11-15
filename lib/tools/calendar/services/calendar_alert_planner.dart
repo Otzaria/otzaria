@@ -1,3 +1,5 @@
+import 'dart:isolate';
+
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart'
     as zmanim_helpers;
@@ -130,8 +132,27 @@ abstract final class CalendarAlertPlanner {
     return plan;
   }
 
-  /// התראות זמני היום ל-[city] בחלון המתגלגל. עצל, כדי שהקורא יוכל לפנות
-  /// את ה-isolate בין חישובים.
+  /// [planZmanAlerts] ב-isolate נפרד: החישוב קורא לאזור הזמן של מערכת ההפעלה
+  /// בכל תאריך, ובמחשב עמוס זה תקע את ה-UI לעשרות שניות (#5157).
+  static Future<List<PlannedAlert>> planZmanAlertsInBackground({
+    required Map<String, ZmanAlertPreference> alerts,
+    required String city,
+    required DateTime now,
+    required bool twelveHourClock,
+  }) async {
+    if (alerts.isEmpty) return const [];
+    return Isolate.run(() {
+      NotificationService.initializeTimeZones();
+      return planZmanAlerts(
+        alerts: alerts,
+        city: city,
+        now: now,
+        twelveHourClock: twelveHourClock,
+      ).toList();
+    });
+  }
+
+  /// התראות זמני היום ל-[city] בחלון המתגלגל.
   static Iterable<PlannedAlert> planZmanAlerts({
     required Map<String, ZmanAlertPreference> alerts,
     required String city,

@@ -12,7 +12,7 @@ import 'package:otzaria/tools/calendar/services/calendar_alerts_store.dart';
 import 'package:otzaria/tools/calendar/services/notification_service.dart';
 
 typedef ZmanAlertPlanner =
-    Iterable<PlannedAlert> Function({
+    Future<List<PlannedAlert>> Function({
       required Map<String, ZmanAlertPreference> alerts,
       required String city,
       required DateTime now,
@@ -97,7 +97,8 @@ class CalendarAlertsOwner {
            pluginEvents ??
            (() => const PluginCalendarAdapter().loadAllPluginEvents()),
        _now = now ?? DateTime.now,
-       _zmanPlanner = zmanPlanner ?? CalendarAlertPlanner.planZmanAlerts,
+       _zmanPlanner =
+           zmanPlanner ?? CalendarAlertPlanner.planZmanAlertsInBackground,
        _dedupeDuplicates =
            dedupeDuplicates ?? defaultTargetPlatform == TargetPlatform.windows;
 
@@ -687,18 +688,12 @@ class CalendarAlertsOwner {
       twelveHourClock,
     );
     if (_zmanPlanKey != zmanPlanKey) {
-      final cached = <PlannedAlert>[];
-      for (final alert in _zmanPlanner(
+      _zmanPlan = await _zmanPlanner(
         alerts: zmanAlerts,
         city: city,
         now: today,
         twelveHourClock: twelveHourClock,
-      )) {
-        cached.add(alert);
-        // חישוב זמני היום כבד; מפנים את ה-isolate בין יום ליום.
-        await Future<void>.delayed(Duration.zero);
-      }
-      _zmanPlan = cached;
+      );
       _zmanPlanKey = zmanPlanKey;
     }
     for (final alert in _zmanPlan) {
