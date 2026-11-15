@@ -16,11 +16,13 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
+import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/navigation/navigation_repository.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
+import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/resolving_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
@@ -133,8 +135,10 @@ class _FakeNavigationBloc extends NavigationBloc {
         tabsRepository: _FakeTabsRepository(),
       );
 
+  final List<NavigationEvent> events = [];
+
   @override
-  void add(NavigationEvent event) {}
+  void add(NavigationEvent event) => events.add(event);
 }
 
 Library _libraryWith(List<Book> books) {
@@ -210,6 +214,7 @@ Future<_CapturingTabsBloc> _showDialogWithResults(
   WidgetTester tester, {
   required DbReferenceResult result,
   required Library library,
+  _FakeNavigationBloc? navigation,
   List<Bookmark> history = const [],
   DbCommentatorEntry? commentator,
   _FakeRepository? repository,
@@ -230,7 +235,7 @@ Future<_CapturingTabsBloc> _showDialogWithResults(
         repository ?? _FakeRepository([result], commentators: [?commentator]),
   );
   final tabsBloc = _CapturingTabsBloc(openTabs);
-  final navigationBloc = _FakeNavigationBloc();
+  final navigationBloc = navigation ?? _FakeNavigationBloc();
   late HistoryBloc historyBloc;
   await tester.runAsync(() async {
     historyBloc = HistoryBloc(_FakeHistoryRepository(history));
@@ -629,6 +634,71 @@ void main() {
       expect(tabsBloc.events.whereType<OpenOrFocusTab>(), isEmpty);
       final focus = tabsBloc.events.whereType<SetCurrentTab>().single;
       expect(focus.index, 1);
+    });
+
+    testWidgets('בכרטיסייה משולבת מפעיל את החלונית ועובר למסך הקריאה', (
+      tester,
+    ) async {
+      final pane = TextBookTab(
+        book: TextBook(id: 1, title: 'בראשית'),
+        index: 0,
+      );
+      final navigation = _FakeNavigationBloc();
+      final tabsBloc = await _showDialogWithResults(
+        tester,
+        result: result,
+        library: _libraryWith([TextBook(id: 1, title: 'בראשית')]),
+        navigation: navigation,
+        openTabs: [
+          CombinedTab(
+            rightTab: TextBookTab(
+              book: TextBook(id: 2, title: 'שמות'),
+              index: 0,
+            ),
+            leftTab: pane,
+          ),
+        ],
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip(tooltip));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      final focus = tabsBloc.events.whereType<SetCurrentTab>().single;
+      expect(focus.index, 0);
+      expect(focus.pane, same(pane));
+      expect(
+        navigation.events.whereType<NavigateToScreen>().single.screen,
+        Screen.reading,
+      );
+    });
+
+    testWidgets('ספר PDF פתוח מזוהה לפי הנתיב', (tester) async {
+      await _showDialogWithResults(
+        tester,
+        result: const DbReferenceResult(
+          title: 'ספר סרוק',
+          reference: 'ספר סרוק עמוד 3',
+          segment: 3,
+          isPdf: true,
+          filePath: '/lib/scan.pdf',
+        ),
+        library: _libraryWith([
+          PdfBook(title: 'ספר סרוק', path: '/lib/scan.pdf'),
+        ]),
+        openTabs: [
+          PdfBookTab(
+            book: PdfBook(title: 'שם אחר', path: '/lib/scan.pdf'),
+            pageNumber: 9,
+          ),
+        ],
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip(tooltip), findsOneWidget);
     });
 
     testWidgets('אינו מוצג כשהספר אינו פתוח', (tester) async {

@@ -1432,12 +1432,17 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     if (event.index >= 0 && event.index < state.tabs.length) {
       final tabsToSave = state.tabs;
       final pane = event.pane;
+      final paneInTab =
+          pane != null &&
+          leafPanes(
+            state.tabs[event.index],
+          ).any((leaf) => identical(leaf, pane));
       emit(
         state.copyWith(
           currentTabIndex: event.index,
-          activePane: pane == null
-              ? const ActivePaneUpdate.unchanged()
-              : ActivePaneUpdate.set(pane),
+          activePane: paneInTab
+              ? ActivePaneUpdate.set(pane)
+              : const ActivePaneUpdate.unchanged(),
         ),
       );
       // מעבר טאב לא משנה את רשימת הטאבים — שומרים רק את האינדקס הנוכחי

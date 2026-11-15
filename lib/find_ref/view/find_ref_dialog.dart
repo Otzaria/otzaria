@@ -1199,7 +1199,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
           selected: isSelected,
           // selected צובע את כפתור המפרשים ב-primary; שומרים על צבעו הרגיל.
           selectedColor: colorScheme.onSurfaceVariant,
-          hoverColor: showButton ? Colors.transparent : null,
+          hoverColor: showButton || openTab != null ? Colors.transparent : null,
           visualDensity: VisualDensity.compact,
           contentPadding: const EdgeInsetsDirectional.fromSTEB(12, 4, 8, 4),
           leading: Container(

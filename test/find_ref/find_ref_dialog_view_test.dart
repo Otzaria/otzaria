@@ -238,17 +238,17 @@ Future<void> _pumpDialog(
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
   }
-  FocusRepository().findRefSearchController.text = query;
-  final bloc = FindRefBloc(
-    findRefRepository: repository ?? _FakeRepository(results, error: error),
-  );
-  addTearDown(bloc.close);
   final tabsBloc = TabsBloc(repository: _NoTabsRepository());
   addTearDown(tabsBloc.close);
   final historyBloc = HistoryBloc(_EmptyHistoryRepository());
   addTearDown(historyBloc.close);
   final navigationBloc = _IgnoringNavigationBloc();
   addTearDown(navigationBloc.close);
+  FocusRepository().findRefSearchController.text = query;
+  final bloc = FindRefBloc(
+    findRefRepository: repository ?? _FakeRepository(results, error: error),
+  );
+  addTearDown(bloc.close);
 
   // עץ ריק ביניים מכריח יצירה מחדש של ה-State — פתיחה חדשה של הדיאלוג,
   // ולא עדכון של הקיים.
@@ -1663,6 +1663,15 @@ class _NoTabsRepository extends TabsRepository {
 
   @override
   int loadCurrentTabIndex() => 0;
+
+  @override
+  Future<void> saveTabs(List<OpenedTab> tabs, int currentTabIndex) async {}
+
+  @override
+  Future<void> saveCurrentTabIndex(
+    List<OpenedTab> tabs,
+    int currentTabIndex,
+  ) async {}
 }
 
 class _EmptyHistoryRepository extends HistoryRepository {

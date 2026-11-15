@@ -103,6 +103,22 @@ void main() {
 
     expect(bloc.state.activePane, same(left));
   });
+
+  test('SetCurrentTab מתעלם מחלונית שאינה בכרטיסייה', () async {
+    final stray = pdfTab('/lib/x.pdf');
+    final bloc = await blocWith([
+      CombinedTab(
+        rightTab: pdfTab('/lib/r.pdf'),
+        leftTab: pdfTab('/lib/l.pdf'),
+      ),
+      pdfTab('/lib/a.pdf'),
+    ], current: 1);
+
+    bloc.add(SetCurrentTab(0, pane: stray));
+    await bloc.stream.firstWhere((s) => s.currentTabIndex == 0);
+
+    expect(bloc.state.rawActivePane, isNot(same(stray)));
+  });
 }
 
 class _FakeTabsRepository extends TabsRepository {
