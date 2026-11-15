@@ -1,0 +1,99 @@
+name: CI retry on dev and flaky log
+
+# ב-PR, הרצה חוזרת והעברה לטיוטה הן ב-auto-draft-failed-ci.yml. כאן: הכשל הראשון של
+# ריצה על dev מורץ שוב פעם אחת (כשל חוזר מטופל ב-dev_health.yml), וכל job שנכשל ועבר
+# בהרצה חוזרת, ב-PR או ב-dev, נרשם ב-issue הפתוח עם התווית flaky-ci.
+# אין כאן checkout של קוד; שמות jobs ו-branches מנוקים לפני שהם נכנסים להודעה.
+on:
+  workflow_run:
+    workflows: ['**', '!CI retry on dev and flaky log']
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  retry_dev:
+    name: Retry a first failure on dev
+    if: >-
+      github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'dev' &&
+      contains(fromJSON('["failure", "timed_out"]'), github.event.workflow_run.conclusion)
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    steps:
+      - id: bot
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          BOT_TOKEN: ${{ steps.bot.outputs.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+        run: |
+          for a in $(seq 1 $((ATTEMPT - 1))); do
+            n=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/attempts/$a/jobs" \
+              --jq '.jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out") | .id' | wc -l)
+            if [ "$n" -gt 0 ]; then
+              echo "Attempt $a already failed; this is a repeated failure (dev_health.yml)"
+              exit 0
+            fi
+          done
+          # הרצה חוזרת בטוקן של הבוט, כי זו של GITHUB_TOKEN לא מפעילה את workflow_run הבא.
+          GH_TOKEN=$BOT_TOKEN gh run rerun "$RUN_ID" -R "$GITHUB_REPOSITORY" --failed
+
+  flaky:
+    name: Record flaky jobs
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.run_attempt > 1
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      issues: write
+    concurrency:
+      group: flaky-ci-issue
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          EVENT: ${{ github.event.workflow_run.event }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          WORKFLOW: ${{ github.event.workflow_run.name }}
+        run: |
+          R=$GITHUB_REPOSITORY
+          clean() { tr -d '`<>[]@&"\r\n' <<< "$1"; }
+          BRANCH=$(clean "$BRANCH")
+          WORKFLOW=$(clean "$WORKFLOW")
+          prev=$((ATTEMPT - 1))
+          jobs=$(gh api --paginate "repos/$R/actions/runs/$RUN_ID/attempts/$prev/jobs" \
+            --jq '.jobs[] | select((.conclusion == "failure" or .conclusion == "timed_out") and .name != "CI result") | "\(.name)\t\(.html_url)"')
+          [ -n "$jobs" ] || { echo "Attempt $prev had no failed jobs (a label or manual rerun)"; exit 0; }
+          list=$(while IFS=$'\t' read -r name url; do
+            echo "<li><a href=\"$url\"><code>$(clean "$name")</code></a></li>"
+          done <<< "$jobs")
+
+          issue=$(gh issue list -R "$R" --state open --label flaky-ci --json number --jq '.[0].number // empty')
+          if [ -z "$issue" ]; then
+            f="$RUNNER_TEMP/issue.md"
+            printf '<div dir="rtl">\n\nכל תגובה כאן היא job שנכשל ועבר בהרצה חוזרת אוטומטית. job שחוזר כאן כמה פעמים צריך תיקון.\n\n</div>\n' > "$f"
+            issue=$(gh issue create -R "$R" --title "CI: בדיקות לא יציבות" --label flaky-ci --body-file "$f" | grep -o '[0-9]*$')
+          fi
+
+          f="$RUNNER_TEMP/comment.md"
+          {
+            echo '<div dir="rtl">'
+            echo
+            echo "ב-[$WORKFLOW]($RUN_URL) על \`$BRANCH\` (${EVENT}, קומיט \`${SHA:0:7}\`) נכשלו בניסיון $prev ועברו בניסיון $ATTEMPT:"
+            echo
+            echo '<ul dir="rtl">'
+            echo "$list"
+            echo '</ul>'
+            echo
+            echo '</div>'
+          } > "$f"
+          gh issue comment "$issue" -R "$R" --body-file "$f"

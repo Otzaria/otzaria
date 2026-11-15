@@ -46,8 +46,16 @@ permissions:
   contents: read
 
 jobs:
+  gate:
+    uses: ./.github/workflows/ci_gate.yml
+    permissions:
+      contents: read
+      pull-requests: read
+
   contracts:
     name: Sampler contracts (no performance thresholds)
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -63,6 +71,8 @@ jobs:
 
   webview:
     name: Live WebView2 resource scenario (profile)
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: windows-2025
     timeout-minutes: 45
     steps:
@@ -142,7 +152,8 @@ jobs:
 
   desktop:
     name: Optional Windows measurements
-    if: github.event_name == 'workflow_dispatch'
+    needs: gate
+    if: ${{ needs.gate.outputs.run == 'true' && (github.event_name == 'workflow_dispatch') }}
     runs-on: windows-latest
     timeout-minutes: 60
     steps:

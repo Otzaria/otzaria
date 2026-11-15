@@ -13,7 +13,15 @@ permissions:
   contents: read
 
 jobs:
+  gate:
+    uses: ./.github/workflows/ci_gate.yml
+    permissions:
+      contents: read
+      pull-requests: read
+
   offline-contract:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -24,6 +32,8 @@ jobs:
         run: bash tool/onnxruntime/test_embed_onnxruntime_macos.sh
 
   test:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: macos-latest
     timeout-minutes: 15
     env:

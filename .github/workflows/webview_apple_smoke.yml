@@ -30,8 +30,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  gate:
+    uses: ./.github/workflows/ci_gate.yml
+    permissions:
+      contents: read
+      pull-requests: read
+
   report-contracts:
     name: Fail-closed Apple report contract tests
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -40,7 +48,8 @@ jobs:
         run: python3 -m unittest -v tool/perf_probe/test_webview_apple_smoke_validator.py
 
   portable-webview:
-    needs: report-contracts
+    if: needs.gate.outputs.run == 'true'
+    needs: [gate, report-contracts]
     name: Actual WKWebView / ${{ inputs.platform || 'macos' }}
     runs-on: macos-latest
     timeout-minutes: 90

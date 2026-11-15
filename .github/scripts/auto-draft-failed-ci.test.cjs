@@ -27,6 +27,8 @@ function fixture() {
   const state = {
     pr, run, context, calls: [], messages: [], runReads: [],
     pullPages: [[pr]], recentPages: [[clone(run)]], failAt: '', mutationDraft: true,
+    // ברירת המחדל: כשל דטרמיניסטי, שמועבר לטיוטה בלי הרצה חוזרת.
+    attemptJobs: { 1: [{ name: 'Analyze', conclusion: 'failure' }] },
   };
   function record(kind, args) {
     state.calls.push({ kind, args: clone(args) });
@@ -40,6 +42,11 @@ function fixture() {
           return { data: clone(state.runReads.shift() ?? state.run) };
         },
         listWorkflowRuns() { throw new Error('Expected pagination'); },
+        listJobsForWorkflowRunAttempt() { throw new Error('Expected pagination'); },
+        async reRunWorkflowFailedJobs(args) {
+          record('rerun', args);
+          return { data: {} };
+        },
       },
       pulls: {
         list() { throw new Error('Expected pagination'); },
@@ -62,6 +69,11 @@ function fixture() {
         record('listPulls', args);
         return clone(state.pullPages.flat());
       }
+      if (method === github.rest.actions.listJobsForWorkflowRunAttempt) {
+        record('listJobs', args);
+        assert.equal(args.run_id, state.run.id);
+        return clone(state.attemptJobs[args.attempt_number] ?? []);
+      }
       assert.equal(method, github.rest.actions.listWorkflowRuns);
       record('listRuns', args);
       return clone(state.recentPages.flat());
@@ -74,11 +86,12 @@ function fixture() {
       return { convertPullRequestToDraft: { pullRequest: { isDraft: state.mutationDraft } } };
     },
   };
-  state.execute = () => autoDraft({ github, context, core: {
+  state.github = github;
+  state.execute = () => autoDraft({ github, context, bot: state.bot, core: {
     info: (message) => state.messages.push(message),
     warning: (message) => state.messages.push(message),
   } });
-  state.writes = () => state.calls.filter(({ kind }) => ['draft', 'comment'].includes(kind));
+  state.writes = () => state.calls.filter(({ kind }) => ['draft', 'comment', 'rerun'].includes(kind));
   return state;
 }
 
@@ -92,7 +105,9 @@ for (const conclusion of ['failure', 'timed_out']) {
     assert.equal(args.issue_number, 17);
     assert.equal(args.owner, 'Otzaria');
     assert.equal(args.repo, 'otzaria');
-    assert.match(args.body, /^@contributor,/);
+    assert.match(args.body, /^<div dir="rtl">\n\nה־CI נכשל ב־PR של @contributor,/);
+    assert.match(args.body, /\n<\/div>$/);
+    assert.doesNotMatch(args.body, /הכשל חזר/);
     assert.doesNotMatch(args.body, /@rerun-actor/);
     assert.match(args.body, /` Flutter Tests `/);
     assert.match(args.body, /https:\/\/github.com\/Otzaria\/otzaria\/actions\/runs\/101\/attempts\/1/);
@@ -276,4 +291,70 @@ test('contains hostile Markdown, HTML, mentions and backticks inside a code span
   ));
   assert.doesNotMatch(body, /untrusted-run\.invalid|\r/);
   assert.match(body, /https:\/\/github.com\/Otzaria\/otzaria\/actions\/runs\/101\/attempts\/1/);
+});
+
+test('a first non-deterministic failure is rerun instead of drafted', async () => {
+  const s = fixture();
+  s.attemptJobs = { 1: [{ name: 'Test (shard 2/5)', conclusion: 'failure' }] };
+  await s.execute();
+  assert.deepEqual(s.writes().map(({ kind }) => kind), ['rerun']);
+  assert.deepEqual(s.writes()[0].args, { owner: 'Otzaria', repo: 'otzaria', run_id: 101 });
+});
+
+test('a failure after a clean earlier attempt (run-ci label rerun) is still retried once', async () => {
+  const s = fixture();
+  s.run.run_attempt = s.context.payload.workflow_run.run_attempt = 2;
+  s.attemptJobs = {
+    1: [{ name: 'Test (shard 2/5)', conclusion: 'skipped' }],
+    2: [{ name: 'Test (shard 2/5)', conclusion: 'timed_out' }],
+  };
+  await s.execute();
+  assert.deepEqual(s.writes().map(({ kind }) => kind), ['rerun']);
+});
+
+test('a failure that repeats after a retry is drafted and says so', async () => {
+  const s = fixture();
+  s.run.run_attempt = s.context.payload.workflow_run.run_attempt = 2;
+  s.attemptJobs = {
+    1: [{ name: 'Build (Windows)', conclusion: 'failure' }],
+    2: [{ name: 'Build (Windows)', conclusion: 'failure' }],
+  };
+  await s.execute();
+  assert.deepEqual(s.writes().map(({ kind }) => kind), ['draft', 'comment']);
+  assert.match(s.writes()[1].args.body, /הכשל חזר גם בהרצה חוזרת/);
+});
+
+test('deterministic guard workflows are drafted without a retry', async () => {
+  for (const name of ['Lockfile Guard', 'Goldens Guard', 'UI Baseline Guard']) {
+    const s = fixture();
+    s.run.name = s.context.payload.workflow_run.name = name;
+    s.attemptJobs = { 1: [{ name: 'guard', conclusion: 'failure' }] };
+    await s.execute();
+    assert.deepEqual(s.writes().map(({ kind }) => kind), ['draft', 'comment']);
+  }
+});
+
+test('the bot client drafts and reruns; GITHUB_TOKEN writes the comment', async () => {
+  for (const jobs of [[{ name: 'Analyze', conclusion: 'failure' }], [{ name: 'Test', conclusion: 'failure' }]]) {
+    const s = fixture();
+    s.attemptJobs = { 1: jobs };
+    const botCalls = [];
+    s.bot = {
+      rest: { actions: { async reRunWorkflowFailedJobs(args) { botCalls.push('rerun'); return { data: {} }; } } },
+      async graphql() {
+        botCalls.push('draft');
+        s.pr.draft = true;
+        return { convertPullRequestToDraft: { pullRequest: { isDraft: true } } };
+      },
+    };
+    await s.execute();
+    const viaGithub = s.writes().map(({ kind }) => kind);
+    if (jobs[0].name === 'Analyze') {
+      assert.deepEqual(botCalls, ['draft']);
+      assert.deepEqual(viaGithub, ['comment']);
+    } else {
+      assert.deepEqual(botCalls, ['rerun']);
+      assert.deepEqual(viaGithub, []);
+    }
+  }
 });

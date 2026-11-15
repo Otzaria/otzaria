@@ -7,17 +7,29 @@ on:
       - main
       - dev
       - 'y-ploni/webview-*'
+  # רשת הביטחון של dev (dev_health.yml): כל קומיט נבדק, כדי לדעת איזה מיזוג שבר.
+  push:
+    branches:
+      - dev
 
-# A new push to a PR supersedes its previous run, so the older one is cancelled.
+# A new push to a PR supersedes its previous run; every dev commit keeps its own run.
 concurrency:
-  group: flutter-tests-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: flutter-tests-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  gate:
+    uses: ./.github/workflows/ci_gate.yml
+    permissions:
+      contents: read
+      pull-requests: read
+
   # הג'ובים הנייטיביים אינם תלויים באפליקציה; בלי שינוי במקורות שלהם הם רק תופסים
   # ראנרים (macOS במיוחד). כשל בזיהוי מריץ אותם.
   changes:
     name: Detect native changes
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read
@@ -45,8 +57,8 @@ jobs:
 
   native_linux:
     name: Native updater and download assistant (Linux)
-    needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.native_linux == 'true') }}
+    needs: [gate, changes]
+    if: ${{ !cancelled() && needs.gate.outputs.run == 'true' && (needs.changes.result != 'success' || needs.changes.outputs.native_linux == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -60,8 +72,8 @@ jobs:
 
   native_macos:
     name: Native updater and download assistant (macOS)
-    needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.native_macos == 'true') }}
+    needs: [gate, changes]
+    if: ${{ !cancelled() && needs.gate.outputs.run == 'true' && (needs.changes.result != 'success' || needs.changes.outputs.native_macos == 'true') }}
     runs-on: macos-latest
     steps:
       - name: Checkout code
@@ -184,6 +196,8 @@ jobs:
 
   test:
     name: Test (shard ${{ matrix.shard }}/5)
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
 
     strategy:
@@ -425,6 +439,8 @@ jobs:
   # אצל המפתח הבא שניסה לבנות מקומית.
   build_windows:
     name: Build (Windows)
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: windows-2025
     env:
       # כמו בבניית ההפצה: בלי אלה MSBuild מקמפל קובץ C++ אחד בכל פעם.
@@ -563,6 +579,8 @@ jobs:
   # חתומה מאותו מקור שממנו הבנייה מורידה אותה.
   test_windows:
     name: Test (Windows)
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: windows-2025
     env:
       OTZARIA_REQUIRE_SEARCH_ENGINE: '1'
@@ -601,6 +619,8 @@ jobs:
   # (tool/ci/test_shards.dart). כשל מעלה את תמונות ההשוואה כ-artifact.
   goldens_windows:
     name: Goldens (Windows)
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: windows-2025
     timeout-minutes: 20
 
@@ -635,6 +655,8 @@ jobs:
 
   build_linux:
     name: Build (Linux)
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-26.04
     # ה-SDK של WPE נבנה ומופץ עבור Debian Bookworm. זהה את סביבת הבנייה
     # לבדיקת ההפצה: על Ubuntu 24.04 ה-try_compile של WPEPlatform נכשל אף
@@ -741,3 +763,22 @@ jobs:
         run: >-
           xvfb-run -a flutter test integration_test/external_line_text_test.dart
           -d linux --timeout 5m
+
+  # סיכום אחד לכל ה-jobs, שהמיזוג האוטומטי דורש. job שדולג נראה כהצלחה, ולכן
+  # הסיכום רץ רק כשהשער פתוח: בלי run-ci הוא מדולג ולא מאפשר מיזוג.
+  ci_result:
+    name: CI result
+    needs: [gate, changes, native_linux, native_macos, analyze, test, build_windows, test_windows, goldens_windows, build_linux]
+    if: ${{ !cancelled() && needs.gate.outputs.run == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          NEEDS: ${{ toJSON(needs) }}
+        # כשל של changes רק מריץ את ה-jobs הנייטיביים (ראו שם), ולכן אינו כשל של ה-CI.
+        run: |
+          failed=$(jq -r 'to_entries[] | select(.key != "changes") | select(.value.result == "failure" or .value.result == "cancelled") | .key' <<< "$NEEDS")
+          if [ -n "$failed" ]; then
+            echo "::error::Failed jobs: $(echo $failed)"
+            exit 1
+          fi
+          echo "All jobs passed."
