@@ -94,6 +94,9 @@ class Bookmark {
   /// [OpenedTab.historySlot] של הטאב שממנו נלכדה רשומת ההיסטוריה.
   final String? historySlot;
 
+  /// מחסניות החזרה/קדימה של הקורא; נשמרות ברשומת היסטוריה בלבד.
+  final Map<String, dynamic>? navigationHistory;
+
   /// זהות מקום קריאה: סוג יעד, זהות ספר ו-slot; חיפוש לפי שאילתה וסינון.
   /// זהות הספר חייבת להתאים לשחזור המיקום, כדי לא לדרוס ספר אחר.
   String get historyKey => isSearch
@@ -141,6 +144,7 @@ class Bookmark {
     this.createdAt,
     this.readingAnchor,
     this.historySlot,
+    this.navigationHistory,
   }) : searchConfiguration = searchConfiguration == null
            ? null
            : (Map.of(searchConfiguration)
@@ -153,6 +157,7 @@ class Bookmark {
     String? label,
     bool clearLabel = false,
     String? historySlot,
+    Map<String, dynamic>? navigationHistory,
   }) {
     return Bookmark(
       ref: ref,
@@ -179,6 +184,7 @@ class Bookmark {
       createdAt: createdAt,
       readingAnchor: readingAnchor,
       historySlot: historySlot ?? this.historySlot,
+      navigationHistory: navigationHistory ?? this.navigationHistory,
     );
   }
 
@@ -264,6 +270,9 @@ class Bookmark {
           ? DateTime.tryParse(json['createdAt'] as String)
           : null,
       historySlot: json['historySlot'] as String?,
+      navigationHistory: json['navigationHistory'] is Map
+          ? castMap(json['navigationHistory'])
+          : null,
     );
   }
 
@@ -317,6 +326,7 @@ class Bookmark {
       'label': label,
       'createdAt': createdAt?.toIso8601String(),
       'historySlot': ?historySlot,
+      'navigationHistory': ?navigationHistory,
     };
   }
 }

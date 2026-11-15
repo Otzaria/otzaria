@@ -13,6 +13,7 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
+import 'package:otzaria/tabs/models/reading_tab_history.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/semantic_search_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
@@ -343,11 +344,16 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
       );
     }
 
+    // נלכד לפני ההמתנה, כמו העוגן: טאב שנסגר כבר אינו מחזיק את מיקומו.
+    final navigationHistory = readingTabNavigationHistory(tab);
     final bookmark = await bookmarkFromReadingTab(
       tab,
       workspaceName: workspaceName,
     );
-    return bookmark?.copyWith(historySlot: tab.historySlot);
+    return bookmark?.copyWith(
+      historySlot: tab.historySlot,
+      navigationHistory: navigationHistory,
+    );
   }
 
   String _buildFormattedQuery(SearchingTab tab) {
