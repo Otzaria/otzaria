@@ -1361,6 +1361,80 @@ void main() {
       expect(readMarker(), bodyDigest);
     });
 
+    test('release חדש עם אותו digest ממשיך את השריד מה-release הישן', () async {
+      final full = [...List.filled(50, 9), ...List.filled(50, 7)];
+      final digest = sha256.convert(full).toString();
+      const oldUrl = 'https://x/v1.9.0/talmud_bavli_latest.tar.zst';
+      Map<String, dynamic> releaseJson(
+        String tagName,
+        String url,
+        String sha, {
+        required int id,
+      }) => {
+        'tag_name': tagName,
+        'assets': [
+          {
+            'name': DatabaseConstants.talmudBavliArchiveFileName,
+            'browser_download_url': url,
+            'digest': 'sha256:$sha',
+            'size': 100,
+            'id': id,
+            'updated_at': 't$id',
+          },
+        ],
+      };
+      final latest = releaseJson(tag, assetUrl, digest, id: 2);
+      final releases = [
+        latest,
+        {'tag_name': 'fordb-1', 'assets': []},
+        releaseJson('v1.9.0', oldUrl, digest, id: 1),
+        releaseJson('v1.8.0', 'https://x/v1.8.0/t', 'b' * 64, id: 0),
+      ];
+
+      final talmudTemp = talmudTempFile();
+      talmudTemp.writeAsBytesSync(full.sublist(0, 50));
+      writeResumeState(talmudTemp, 'v1.9.0|100|1|t1');
+      addTearDown(() => cleanupTalmudTemp(talmudTemp));
+
+      final downloads = <String>[];
+      final client = MockClient((request) async {
+        final url = request.url.toString();
+        if (request.url.path.contains('releases/latest')) {
+          return http.Response(jsonEncode(latest), 200);
+        }
+        if (request.url.path.endsWith('/releases')) {
+          final page = request.url.queryParameters['page'];
+          return http.Response(jsonEncode(page == '1' ? releases : []), 200);
+        }
+        if (url == oldUrl || url == assetUrl) {
+          downloads.add(
+            '$url ${request.headers['range']} ${request.headers['if-range']}',
+          );
+          if (url == oldUrl && request.headers['if-range'] == '"e1"') {
+            return http.Response.bytes(
+              full.sublist(50),
+              206,
+              headers: const {
+                'content-range': 'bytes 50-99/100',
+                'etag': '"e1"',
+              },
+            );
+          }
+          return http.Response.bytes(full, 200);
+        }
+        return http.Response('not found', 404);
+      });
+
+      final extractions = <({String archive, String outputDir})>[];
+      await service(client: client, extractions: extractions).verifyAndUpdate();
+
+      expect(downloads, [
+        '$oldUrl bytes=50- "e1"',
+      ], reason: 'ההמשך מאותה העלאה, בלי הורדה מאפס');
+      expect(extractions, hasLength(1));
+      expect(readMarker(), digest);
+    });
+
     test('תיקייה קיימת ללא סימון → מוריד ומחתים את ה-digest הנוכחי', () async {
       createTalmudDir();
       cleanupTalmudTemp(talmudTempFile());
