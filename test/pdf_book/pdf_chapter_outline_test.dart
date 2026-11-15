@@ -57,6 +57,14 @@ void main() {
     expect(_shape(grouped), ['א@1[דף ב.@1]', 'ב@2', 'ג@2[דף ב:@2]']);
   });
 
+  test('a chapter maps through the daf heading it starts under', () {
+    // ברכות "מי שמתו": שורה 873, בין "דף יז:" (861) ל"דף יח." (879).
+    const tocLines = [0, 1, 16, 861, 879];
+    expect(tocLineAtOrBefore(tocLines, 873), 861);
+    expect(tocLineAtOrBefore(tocLines, 879), 879);
+    expect(tocLineAtOrBefore(const [5, 9], 2), 2);
+  });
+
   test('returns the outline unchanged when grouping does not apply', () {
     const chapters = [(title: 'מאימתי', page: 1), (title: 'היה קורא', page: 4)];
     expect(groupPdfOutlineByChapters(bavli, const []), same(bavli));
@@ -69,6 +77,9 @@ void main() {
 
     final withoutDest = [_node('דף ב.', 1), _node('הערות', null)];
     expect(groupPdfOutlineByChapters(withoutDest, chapters), same(withoutDest));
+
+    final unsorted = [_node('דף ג:', 4), _node('דף ב.', 1)];
+    expect(groupPdfOutlineByChapters(unsorted, chapters), same(unsorted));
 
     expect(
       groupPdfOutlineByChapters(bavli, [

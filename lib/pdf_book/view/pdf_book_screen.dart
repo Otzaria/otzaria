@@ -4135,13 +4135,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   }
 
   Future<void> _loadChapterStarts() async {
-    if (_chapterStarts.value.isNotEmpty ||
-        !isTalmudBavliBook(widget.tab.book)) {
+    if (_chapterStartsRequested || !isTalmudBavliBook(widget.tab.book)) {
       return;
     }
+    _chapterStartsRequested = true;
     try {
-      final library = await DataRepository.instance.library;
-      final starts = await loadPdfChapterStarts(library, widget.tab.book);
+      final starts = await loadPdfChapterStarts(
+        widget.tab.book,
+        outline: widget.tab.outline.value,
+      );
       if (mounted) _chapterStarts.value = starts;
     } catch (e, stackTrace) {
       debugPrint('❌ Failed to load PDF chapters: $e\n$stackTrace');
@@ -4347,6 +4349,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   // פרקי הש"ס לחלונית הניווט; tab.outline נשאר כמו בקובץ, כי מיפוי העמודים נשען עליו.
   final _chapterStarts = ValueNotifier<List<PdfChapterStart>>(const []);
+  bool _chapterStartsRequested = false;
   List<PdfOutlineNode>? _groupedOutlineSource;
   List<PdfChapterStart>? _groupedOutlineChapters;
   List<PdfOutlineNode>? _groupedOutline;
