@@ -147,9 +147,39 @@ void main() {
     },
     variant: _desktop,
   );
+
+  testWidgets(
+    'תצוגה מקדימה: לא לוקחת פוקוס בפתיחה, ואחרי לחיצה בטקסט החיצים גוללים '
+    'אותה (issue #5145)',
+    (tester) async {
+      final tab = await _mountReader(tester, isPreviewMode: true);
+      final position = tab.lines.itemController.scrollController!.position;
+      expect(
+        await press(tester, position, LogicalKeyboardKey.pageDown),
+        0,
+        reason: 'התצוגה המקדימה אינה לוקחת פוקוס בפתיחתה',
+      );
+
+      await tester.tap(find.textContaining('מילה בשורה 0 ').first);
+      await tester.pump(kDoubleTapTimeout);
+      await tester.pumpAndSettle();
+      expect(
+        await press(tester, position, LogicalKeyboardKey.arrowDown),
+        greaterThan(0),
+      );
+      expect(
+        await press(tester, position, LogicalKeyboardKey.pageDown),
+        closeTo(position.viewportDimension * 0.8, 1),
+      );
+    },
+    variant: _desktop,
+  );
 }
 
-Future<TextBookTab> _mountReader(WidgetTester tester) async {
+Future<TextBookTab> _mountReader(
+  WidgetTester tester, {
+  bool isPreviewMode = false,
+}) async {
   final initial = TextBookLoaded(
     book: TextBook(title: 'ספר דפדוף'),
     showLeftPane: false,
@@ -190,6 +220,7 @@ Future<TextBookTab> _mountReader(WidgetTester tester) async {
             textSize: 18,
             showCommentaryAsExpansionTiles: true,
             tab: tab,
+            isPreviewMode: isPreviewMode,
           ),
         ),
       ),

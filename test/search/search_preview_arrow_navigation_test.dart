@@ -6,6 +6,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/library/view/book_preview_panel.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
@@ -203,5 +204,25 @@ void main() {
 
     await pressArrow(tester, LogicalKeyboardKey.arrowDown);
     expect(tab.previewTarget.value, isNull);
+  });
+  testWidgets('חץ בתוך התצוגה המקדימה לא עובר לתוצאה אחרת (issue #5145)', (
+    tester,
+  ) async {
+    await pumpResults(tester);
+    await openPreviewOnFirstResult(tester);
+
+    final panel = tester.element(find.byType(BookPreviewPanel));
+    final previewNode = FocusManager.instance.rootScope.descendants.firstWhere(
+      (node) {
+        var inside = false;
+        node.context?.visitAncestorElements((e) => !(inside = e == panel));
+        return inside;
+      },
+    );
+    previewNode.requestFocus();
+    await tester.pump();
+
+    await pressArrow(tester, LogicalKeyboardKey.arrowDown);
+    expect(tab.previewTarget.value?.segment, 100);
   });
 }
