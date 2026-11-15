@@ -1,5 +1,6 @@
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/text_book/view/toc_expansion_settings.dart';
 import 'package:otzaria/core/app_runtime_reset.dart';
 import 'package:otzaria/tools/calendar/services/calendar_alerts_owner.dart';
 import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
@@ -161,6 +162,25 @@ void main() {
 
     expect(FileSystemData.instance.libraryPath, isNot(oldLibraryPath));
   });
+
+  test('איפוס הגדרות טוען מחדש את ברירת המחדל של פתיחת הכותרות', () async {
+    await TocExpansionSettings.saveAutoExpand(false);
+    await TocExpansionSettings.saveLevel(2);
+    await Settings.clearCache();
+    await resetRuntimeStateAfterSettingsReset();
+    expect(Settings.containsKey(TocExpansionSettings.autoExpandKey), isFalse);
+    expect(TocExpansionSettings.autoExpand.value, isTrue);
+    expect(TocExpansionSettings.loadLevel(), isNull);
+  });
+
+  for (final restored in [false, true]) {
+    test('אתחול טוען את העדפת הכותרות ששוחזרה: $restored', () async {
+      await TocExpansionSettings.saveAutoExpand(!restored);
+      await Settings.setValue(TocExpansionSettings.autoExpandKey, restored);
+      await resetRuntimeStateForAppRestart();
+      expect(TocExpansionSettings.autoExpand.value, restored);
+    });
+  }
 
   group('התראות לוח השנה אחרי איפוס', () {
     test('הבעלים משדר את המצב השמור', () async {

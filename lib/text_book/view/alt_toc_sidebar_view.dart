@@ -160,11 +160,12 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
         identical(oldWidget.tableOfContents, widget.tableOfContents)) {
       return;
     }
-    _structureRoots.remove(kDibburimStructureId);
-    _structureChildren.remove(kDibburimStructureId);
-    _structureParents.remove(kDibburimStructureId);
-    _flattenedEntries.remove(kDibburimStructureId);
-    _structureExpanded.remove(kDibburimStructureId);
+    if (_structureRoots.containsKey(kDibburimStructureId)) {
+      _processEntries(
+        kDibburimStructureId,
+        buildDibburimEntries(widget.tableOfContents, widget.dibburim),
+      );
+    }
     _activeEntryIds.remove(kDibburimStructureId);
     _lastScrolledEntryIds.remove(kDibburimStructureId);
     _structures.removeWhere((s) => s.id == kDibburimStructureId);
@@ -185,6 +186,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
       _structureExpanded[shown.id] = true;
       _loadEntriesForStructure(shown.id);
     }
+    _updateActiveItemFromBloc();
   }
 
   @override

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/core/app_runtime_reset.dart';
+import 'package:otzaria/widgets/misc/restart_widget.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
@@ -161,6 +163,72 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('עמוד 1-0.'), findsNothing, reason: 'הענף לא נפתח לבד');
     expect(_isSelected(tester, 'פרק 1'), isTrue);
+  });
+
+  testWidgets('איפוס מסנכרן שתי תצוגות פתוחות ונשמר אחרי RestartWidget', (
+    tester,
+  ) async {
+    await TocExpansionSettings.saveAutoExpand(false);
+    await TocExpansionSettings.saveLevel(1);
+    final toc = _toc();
+    final blocs = [
+      _TestTextBookBloc(_state(toc, visible: 9)),
+      _TestTextBookBloc(_state(toc, visible: 9)),
+    ];
+    final focusNodes = [FocusNode(), FocusNode()];
+    final lines = [LineScrollController(), LineScrollController()];
+    addTearDown(() async {
+      for (final bloc in blocs) {
+        await bloc.close();
+      }
+      for (final node in focusNodes) {
+        node.dispose();
+      }
+      for (final controller in lines) {
+        controller.dispose();
+      }
+    });
+    late BuildContext restartContext;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RestartWidget(
+          child: Builder(
+            builder: (context) {
+              restartContext = context;
+              return Scaffold(
+                body: Row(
+                  children: [
+                    for (var i = 0; i < 2; i++)
+                      Expanded(
+                        child: BlocProvider<TextBookBloc>.value(
+                          value: blocs[i],
+                          child: TocViewer(
+                            lines: lines[i],
+                            focusNode: focusNodes[i],
+                            closeLeftPaneCallback: () {},
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('עמוד 1-0.'), findsNothing);
+    await Settings.clearCache();
+    await tester.runAsync(resetRuntimeStateAfterSettingsReset);
+    await tester.pumpAndSettle();
+    expect(find.text('עמוד 1-0.'), findsNWidgets(2));
+    expect(tester.takeException(), isNull);
+    RestartWidget.restartApp(restartContext);
+    await tester.pumpAndSettle();
+    expect(find.text('עמוד 1-0.'), findsNWidgets(2));
+    expect(TocExpansionSettings.autoExpand.value, isTrue);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('הכותרת הפעילה עוברת מדף לדף בגלילה (#2849)', (tester) async {

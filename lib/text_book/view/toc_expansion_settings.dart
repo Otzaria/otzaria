@@ -28,6 +28,13 @@ class TocExpansionSettings {
         : true,
   );
 
+  /// מיישר את המצב המשותף עם האחסון לפני בנייה מחדש אחרי איפוס או שחזור.
+  static void reload() {
+    autoExpand.value = Settings.isInitialized
+        ? Settings.getValue<bool>(autoExpandKey, defaultValue: true) ?? true
+        : true;
+  }
+
   static Future<void> saveAutoExpand(bool value) {
     autoExpand.value = value;
     return Settings.isInitialized

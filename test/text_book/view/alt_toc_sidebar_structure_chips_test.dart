@@ -9,6 +9,7 @@ import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -100,7 +101,13 @@ void main() {
     } catch (_) {}
   });
 
-  Future<_TestTextBookBloc> pumpSidebar(WidgetTester tester) async {
+  Future<_TestTextBookBloc> pumpSidebar(
+    WidgetTester tester, {
+    List<TocEntry> toc = const [],
+    Map<int, String> dibburim = const {},
+    _TestTextBookBloc? existingBloc,
+    bool settle = true,
+  }) async {
     final book = TextBook(
       title: SeforimFixtureIds.bereshitTitle,
       categoryId: SeforimFixtureIds.torahCategoryId,
@@ -109,8 +116,8 @@ void main() {
       mapping: {BookCompositeKey.fromBook(book)!: provider},
       providers: [provider],
     );
-    final bloc = _TestTextBookBloc(_loadedState(book));
-    addTearDown(bloc.close);
+    final bloc = existingBloc ?? _TestTextBookBloc(_loadedState(book));
+    if (existingBloc == null) addTearDown(bloc.close);
     final lines = LineScrollController();
     addTearDown(lines.dispose);
 
@@ -124,6 +131,8 @@ void main() {
               height: 800,
               child: AltTocSidebarView(
                 book: book,
+                tableOfContents: toc,
+                dibburim: dibburim,
                 closeLeftPaneCallback: () {},
                 lines: lines,
               ),
@@ -132,14 +141,181 @@ void main() {
         ),
       ),
     );
-    await _settleRealAsync(tester);
-    await tester.pumpAndSettle();
+    if (settle) {
+      await _settleRealAsync(tester);
+      await tester.pumpAndSettle();
+    }
     return bloc;
   }
 
   bool chipSelected(WidgetTester tester, String title) => tester
       .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, title))
       .selected;
+
+  for (final refreshToc in [false, true]) {
+    testWidgets(
+      'דיבורים נבחרים נשארים אחרי רענון ${refreshToc ? "כותרות" : "דיבורים"}',
+      (tester) async {
+        var toc = [TocEntry(text: 'כותרת', index: 0, level: 1)];
+        var dibburim = {1: 'דיבור קיים'};
+        final bloc = await pumpSidebar(tester, toc: toc, dibburim: dibburim);
+        await tester.tap(find.widgetWithText(ChoiceChip, 'דיבורי המתחיל'));
+        await tester.pumpAndSettle();
+        expect(find.text('דיבור קיים'), findsOneWidget);
+        for (var i = 0; i < 3; i++) {
+          if (refreshToc) {
+            toc = [TocEntry(text: 'כותרת', index: 0, level: 1)];
+          } else {
+            dibburim = {1: 'דיבור קיים'};
+          }
+          await pumpSidebar(
+            tester,
+            toc: toc,
+            dibburim: dibburim,
+            existingBloc: bloc,
+          );
+          expect(chipSelected(tester, 'דיבורי המתחיל'), isTrue);
+          expect(find.text('דיבור קיים'), findsOneWidget);
+          await tester.tap(find.widgetWithText(ChoiceChip, 'דיבורי המתחיל'));
+          await tester.pumpAndSettle();
+          expect(find.text('דיבור קיים'), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        }
+      },
+    );
+  }
+
+  testWidgets('רענון דיבורים שומר הרחבה וסימון ומציג את הקלט החדש', (
+    tester,
+  ) async {
+    List<TocEntry> toc() => [
+      TocEntry(text: 'פרק א', index: 0, level: 1),
+      TocEntry(text: 'פרק ב', index: 2, level: 1),
+    ];
+    final bloc = await pumpSidebar(
+      tester,
+      toc: toc(),
+      dibburim: {1: 'דיבור ישן', 3: 'דיבור שני'},
+    );
+    await tester.tap(find.widgetWithText(ChoiceChip, 'דיבורי המתחיל'));
+    await tester.pumpAndSettle();
+    final chapter = find.byWidgetPredicate(
+      (w) => w is NavTreeTile && w.title == 'פרק א',
+    );
+    await tester.tap(
+      find.descendant(of: chapter, matching: find.byType(IconButton)),
+    );
+    bloc.emitState((bloc.state as TextBookLoaded).copyWith(selectedIndex: 1));
+    await _settleRealAsync(tester);
+    await tester.pumpAndSettle();
+    expect(find.text('דיבור ישן'), findsOneWidget);
+    await pumpSidebar(
+      tester,
+      toc: toc(),
+      dibburim: {1: 'דיבור חדש', 3: 'דיבור שני'},
+      existingBloc: bloc,
+    );
+    expect(find.text('דיבור ישן'), findsNothing);
+    expect(find.text('דיבור חדש'), findsOneWidget);
+    expect(tester.widget<NavTreeTile>(chapter).isExpanded, isTrue);
+    final selected = tester
+        .widgetList<NavTreeTile>(find.byType(NavTreeTile))
+        .where((w) => w.isSelected);
+    expect(selected.single.title, 'דיבור חדש');
+    expect(find.text('דיבור שני'), findsNothing);
+  });
+
+  testWidgets(
+    'רענון בזמן טעינה, הסרה והוספה מחדש מציגים רק את הדיבורים החדשים',
+    (tester) async {
+      final toc = [TocEntry(text: 'כותרת', index: 0, level: 1)];
+      final bloc = await pumpSidebar(
+        tester,
+        toc: toc,
+        dibburim: {1: 'דיבור ישן'},
+        settle: false,
+      );
+      await pumpSidebar(
+        tester,
+        toc: toc,
+        dibburim: {1: 'דיבור ראשון'},
+        existingBloc: bloc,
+      );
+      await tester.tap(find.widgetWithText(ChoiceChip, 'דיבורי המתחיל'));
+      await tester.pumpAndSettle();
+      expect(find.text('דיבור ראשון'), findsOneWidget);
+      await pumpSidebar(tester, toc: toc, existingBloc: bloc);
+      expect(find.widgetWithText(ChoiceChip, 'דיבורי המתחיל'), findsNothing);
+      await pumpSidebar(
+        tester,
+        toc: toc,
+        dibburim: {1: 'דיבור אחרון'},
+        existingBloc: bloc,
+      );
+      await tester.tap(find.widgetWithText(ChoiceChip, 'דיבורי המתחיל'));
+      await tester.pumpAndSettle();
+      expect(find.text('דיבור אחרון'), findsOneWidget);
+      expect(find.text('דיבור ראשון'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('דיבורים מתרעננים ברקע בלי להחליף את המבנה שהמשתמש בחר', (
+    tester,
+  ) async {
+    final toc = [TocEntry(text: 'כותרת', index: 0, level: 1)];
+    final bloc = await pumpSidebar(
+      tester,
+      toc: toc,
+      dibburim: {1: 'דיבור ישן'},
+    );
+    await tester.tap(find.widgetWithText(ChoiceChip, 'דיבורי המתחיל'));
+    await tester.pumpAndSettle();
+    expect(find.text('דיבור ישן'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ChoiceChip, 'פרקים'));
+    await pumpSidebar(
+      tester,
+      toc: toc,
+      dibburim: {1: 'דיבור חדש'},
+      existingBloc: bloc,
+    );
+    expect(chipSelected(tester, 'פרקים'), isTrue);
+    expect(find.text('פרק ראשון'), findsOneWidget);
+    expect(find.text('דיבור חדש'), findsNothing);
+    await tester.tap(find.widgetWithText(ChoiceChip, 'דיבורי המתחיל'));
+    await tester.pumpAndSettle();
+    expect(find.text('דיבור חדש'), findsOneWidget);
+    expect(find.text('דיבור ישן'), findsNothing);
+  });
+
+  testWidgets('רענונים רצופים בזמן מעקב מיקום אינם מחזירים נתונים ישנים', (
+    tester,
+  ) async {
+    final toc = [TocEntry(text: 'כותרת', index: 0, level: 1)];
+    final bloc = await pumpSidebar(
+      tester,
+      toc: toc,
+      dibburim: {1: 'דיבור ישן'},
+    );
+    await tester.tap(find.widgetWithText(ChoiceChip, 'דיבורי המתחיל'));
+    await tester.pumpAndSettle();
+    expect(find.text('דיבור ישן'), findsOneWidget);
+    for (var i = 0; i < 3; i++) {
+      await pumpSidebar(
+        tester,
+        toc: toc,
+        dibburim: {1: 'דיבור חדש $i'},
+        existingBloc: bloc,
+        settle: false,
+      );
+    }
+    await _settleRealAsync(tester);
+    await tester.pumpAndSettle();
+    expect(find.text('דיבור חדש 2'), findsOneWidget);
+    expect(find.text('דיבור ישן'), findsNothing);
+    expect(chipSelected(tester, 'דיבורי המתחיל'), isTrue);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('שבב שהמשתמש בחר נשאר כשמיקום הקריאה משתנה', (tester) async {
     final bloc = await pumpSidebar(tester);
