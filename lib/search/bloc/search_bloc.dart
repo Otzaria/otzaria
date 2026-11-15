@@ -333,6 +333,8 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
           tracked.onEvent(
             phase: update is SearchCountProgress
                 ? LexicalSearchPhase.counting
+                : allResults.isEmpty
+                ? LexicalSearchPhase.waitingFirstPage
                 : LexicalSearchPhase.streamingResults,
             total: update.totalCount,
           );
