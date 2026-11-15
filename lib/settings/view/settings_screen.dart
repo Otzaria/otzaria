@@ -8,6 +8,9 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
+import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
+import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
+import 'package:otzaria/settings/panels/tools_management_panel.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/settings/search/settings_search_field.dart';
 import 'package:otzaria/settings/search/settings_search_index.dart';
@@ -118,8 +121,17 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
         language: resolveSettingsLanguage(
           context.read<SettingsBloc>().state.settingsLanguageCode,
         ),
+        extraEntries: _toolSearchEntries(),
       );
     });
+  }
+
+  List<SettingsSearchEntry> _toolSearchEntries() {
+    // מסך ההגדרות עולה גם בלי מערכת התוספים (למשל בבדיקות).
+    final pluginState = context.read<PluginSystemBloc?>()?.state;
+    return ToolsManagementPanel.toolSearchEntries(
+      pluginState is PluginSystemLoaded ? pluginState.plugins : const [],
+    );
   }
 
   // ── חיפוש: איפוס שדה החיפוש, השאילתה והתוצאות ────────────────────────────

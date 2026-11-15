@@ -28,15 +28,17 @@ class SettingsSearchIndex {
   ///
   /// [language] היא שפת התצוגה של ההגדרות; בשפה שאינה עברית מחפשים גם
   /// בטקסטים המתורגמים, והמקור העברי נשאר בר-חיפוש.
+  /// [extraEntries] הם פריטים שנקבעים בזמן ריצה, כמו התוספים המותקנים.
   static List<SettingsSearchEntry> search(
     String query, {
     SettingsLanguage language = SettingsLanguage.source,
+    List<SettingsSearchEntry> extraEntries = const [],
   }) {
     final normalized = SettingsSearchEntry.normalize(query);
     if (normalized.isEmpty) return const [];
 
     final scored = <(int, SettingsSearchEntry)>[];
-    for (final entry in kGeneratedSettingsSearchEntries) {
+    for (final entry in [...kGeneratedSettingsSearchEntries, ...extraEntries]) {
       final score = entry.matchScoreIn(normalized, language);
       if (score > 0) {
         scored.add((score, entry));
