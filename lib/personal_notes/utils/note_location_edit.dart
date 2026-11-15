@@ -37,6 +37,8 @@ class NoteLocationEdit {
           anchorText: note.anchorText!,
           prefix: note.anchorPrefix,
           suffix: note.anchorSuffix,
+          hintStart: note.anchorStart,
+          hintSourceLine: rawLines[first],
           plainText: true,
         );
         if (found != null) {

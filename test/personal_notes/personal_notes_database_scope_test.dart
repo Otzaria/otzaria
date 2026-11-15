@@ -67,6 +67,21 @@ void main() {
     expect(notes['range']!.endLineNumber, 5);
   });
 
+  test('מסד קיים מקבל את עמודות המיקום בלי לאבד הערות', () async {
+    final legacy = _note('legacy', line: 2);
+    await database.insertNote(legacy);
+    final db = await database.database;
+    db.execute('ALTER TABLE personal_notes DROP COLUMN end_line_number');
+    db.execute('ALTER TABLE personal_notes DROP COLUMN scope');
+    await database.close();
+    expect(await database.loadNotes('ספר'), [legacy]);
+    final range = _note('range', line: 3, endLine: 5);
+    final book = _note('book', status: PersonalNoteStatus.book);
+    await database.batchInsertNotes([range, book]);
+    await database.close();
+    expect(await database.loadNotes('ספר'), containsAll([legacy, range, book]));
+  });
+
   test('גרסה ישנה, שאינה מכירה את scope, קוראת הערת ספר כחסרת מיקום', () async {
     await database.insertNote(_note('book', status: PersonalNoteStatus.book));
     final db = await database.database;

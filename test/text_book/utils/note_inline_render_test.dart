@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/utils/note_anchor_utils.dart';
+import 'package:otzaria/personal_notes/utils/note_collection_utils.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart';
 import 'package:otzaria/text_book/utils/inline_section_markers.dart';
 import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
@@ -101,6 +102,38 @@ void main() {
       underlineColor: color,
     );
   }
+
+  test('קישור טווח מציג את הערותיו בכל שורה מכוסה, לפי המזהים', () {
+    final range = _note(id: 'range').copyWith(lineNumber: 2, endLineNumber: 4);
+    final single = _note(id: 'single').copyWith(lineNumber: 3);
+    final notes = [range, single];
+    final index = indexPersonalNotesByLine(notes);
+    for (var line = 2; line <= 4; line++) {
+      final html = buildAnnotatedLineHtml(
+        rawLine: 'שורה $line',
+        notesForLine: index[line]!,
+        lineIndex0: line - 1,
+        underlineColor: color,
+      );
+      expect(html, contains('otzaria://note?line=${line - 1}&id=range'));
+      expect(
+        personalNotesForPreview(
+          'otzaria://note?line=${line - 1}&id=range',
+          notes,
+        ),
+        [range],
+      );
+    }
+    expect(personalNotesForPreview('otzaria://note?line=2', notes), notes);
+    expect(
+      personalNotesForPreview('otzaria://note?line=0&id=range', notes),
+      isEmpty,
+    );
+    expect(
+      personalNotesForPreview('otzaria://note?line=4&id=range', notes),
+      isEmpty,
+    );
+  });
 
   test('עוגן PDF אינו מסמן או מציג הערה בשורת טקסט בעלת אותו מספר', () {
     final pdfNote = _note(id: 'pdf').copyWith(

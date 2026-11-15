@@ -935,24 +935,39 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
 
   /// הערה חדשה על הספר כולו, בלי מיקום.
   Future<void> _addBookNote(BuildContext context) async {
+    final bookId = widget.bookId;
+    final categoryId = widget.categoryId;
+    final draft = await _draftService.loadDraft(
+      bookId: bookId,
+      categoryId: categoryId,
+    );
+    if (!context.mounted ||
+        widget.bookId != bookId ||
+        widget.categoryId != categoryId) {
+      return;
+    }
     final state = context.read<PersonalNotesBloc>().state;
     await showDialogUntilTornDown<PersonalNoteEditorResult>(
       context: context,
       builder: (_) => PersonalNoteEditorDialog(
         title: 'הערה על הספר',
+        initialContent: draft?.content ?? '',
+        initialContentPlain: draft?.contentPlain,
+        initialContentFormat:
+            draft?.contentFormat ?? PersonalNoteContentFormat.plain,
         icon: FluentIcons.book_open_24_regular,
-        bookId: widget.bookId,
-        categoryId: widget.categoryId,
-        linkableNotes: state.bookId == widget.bookId
+        bookId: bookId,
+        categoryId: categoryId,
+        linkableNotes: state.bookId == bookId
             ? [...state.locatedNotes, ...state.missingNotes]
             : const [],
         onSave: (result) => _notesRepository.createNote(
-          bookId: widget.bookId,
+          bookId: bookId,
           lineNumber: null,
           content: result.content,
           contentPlain: result.contentPlain,
           contentFormat: result.contentFormat,
-          categoryId: widget.categoryId,
+          categoryId: categoryId,
         ),
       ),
     );

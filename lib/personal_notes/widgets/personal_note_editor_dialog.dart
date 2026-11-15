@@ -175,7 +175,7 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
     final bookId = widget.bookId;
     final noteId = widget.draftNoteId;
     final lineNumber = noteId == null ? widget.draftLineNumber : null;
-    if (bookId == null || (lineNumber == null && noteId == null)) return;
+    if (bookId == null) return;
     final result = _editorController.buildResult();
     if (result.contentPlain.trim().isEmpty) return;
     final write = _draftService.saveDraft(
@@ -200,7 +200,7 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
     final bookId = widget.bookId;
     final noteId = widget.draftNoteId;
     final lineNumber = noteId == null ? widget.draftLineNumber : null;
-    if (bookId == null || (lineNumber == null && noteId == null)) return;
+    if (bookId == null) return;
     await _draftService.clearDraft(
       bookId: bookId,
       categoryId: widget.categoryId,
@@ -215,7 +215,7 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
     final bookId = widget.bookId;
     final noteId = widget.draftNoteId;
     final lineNumber = noteId == null ? widget.draftLineNumber : null;
-    if (bookId == null || (lineNumber == null && noteId == null)) return null;
+    if (bookId == null) return null;
     return _draftService.draftVersion(
       bookId: bookId,
       categoryId: widget.categoryId,

@@ -30,6 +30,51 @@ void main() {
     await tempDir.delete(recursive: true);
   });
 
+  test('טיוטת ספר מופרדת מטיוטת שורה, עריכה וקטגוריה ומכבדת גרסאות', () async {
+    final service = PersonalNoteDraftService();
+    PersonalNoteDraft draft(String text) => PersonalNoteDraft(
+      content: text,
+      contentPlain: text,
+      contentFormat: PersonalNoteContentFormat.plain,
+      updatedAt: DateTime(2026),
+    );
+    await service.saveDraft(bookId: 'ספר', lineNumber: 1, draft: draft('שורה'));
+    await service.saveDraft(
+      bookId: 'ספר',
+      noteId: 'book',
+      draft: draft('עריכה'),
+    );
+    await service.saveDraft(
+      bookId: 'ספר',
+      categoryId: 7,
+      draft: draft('קטגוריה'),
+    );
+    await service.saveDraft(bookId: 'ספר', draft: draft('ספר'));
+    final version = service.draftVersion(bookId: 'ספר');
+    expect((await service.loadDraft(bookId: 'ספר'))?.contentPlain, 'ספר');
+    expect(
+      (await service.loadLatestNewNoteDraft(bookId: 'ספר'))?.contentPlain,
+      'שורה',
+    );
+    await service.saveDraft(bookId: 'ספר', draft: draft('ספר חדש'));
+    await service.clearDraft(bookId: 'ספר', expectedVersion: version);
+    expect((await service.loadDraft(bookId: 'ספר'))?.contentPlain, 'ספר חדש');
+    await service.clearDraft(bookId: 'ספר');
+    expect(await service.loadDraft(bookId: 'ספר'), isNull);
+    expect(
+      (await service.loadDraft(bookId: 'ספר', lineNumber: 1))?.contentPlain,
+      'שורה',
+    );
+    expect(
+      (await service.loadDraft(bookId: 'ספר', noteId: 'book'))?.contentPlain,
+      'עריכה',
+    );
+    expect(
+      (await service.loadDraft(bookId: 'ספר', categoryId: 7))?.contentPlain,
+      'קטגוריה',
+    );
+  });
+
   test(
     'loadLatestNewNoteDraft מחזיר את הטיוטה החדשה האחרונה של הספר',
     () async {

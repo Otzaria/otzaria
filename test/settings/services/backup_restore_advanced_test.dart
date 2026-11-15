@@ -353,6 +353,25 @@ void main() {
       );
     });
 
+    test('הערות אישיות: הערת ספר וטווח שורות שורדים גיבוי ושחזור', () async {
+      final db = PersonalNotesDatabase.instance;
+      final notes = [
+        buildNote(id: 'book').copyWith(
+          status: PersonalNoteStatus.book,
+          clearLineNumber: true,
+          clearDisplayTitle: true,
+        ),
+        buildNote(id: 'range').copyWith(endLineNumber: 9),
+      ];
+      await db.batchInsertNotes(notes);
+      final backup = await createBackup(notes: true);
+      for (final note in notes) {
+        await db.deleteNote(note.id);
+      }
+      await BackupService.restoreFromBackup(backup.path);
+      expect(await db.loadNotes('ספר-הערות'), unorderedEquals(notes));
+    });
+
     test('הערות אישיות: עוגן המילים (anchor) שורד גיבוי ושחזור', () async {
       final db = PersonalNotesDatabase.instance;
       await db.insertNote(

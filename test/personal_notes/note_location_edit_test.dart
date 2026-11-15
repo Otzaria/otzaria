@@ -55,6 +55,27 @@ void main() {
     expect(edit.changed, isFalse);
   });
 
+  test('רמז האופסט מבדיל בין מופעים עם אותו הקשר, גם בתוך HTML', () {
+    final source = List.filled(40, 'אור').join(' ');
+    final raw = '<b>$source</b>';
+    const offset = 80;
+    final anchor = computeAnchorForSelection(
+      rawLine: raw,
+      selectedText: 'אור',
+      sourceSelectionOffset: offset,
+      sourceSelectionText: source,
+    )!;
+    final note = _note(anchorText: 'אור', prefix: anchor.prefix).copyWith(
+      anchorSuffix: anchor.suffix,
+      anchorStart: anchor.start,
+      anchorEnd: anchor.end,
+    );
+    final edit = NoteLocationEdit.of(note, [_lines.first, raw])!;
+    expect(edit.range.start.offset, offset);
+    expect(edit.range.end.offset, offset + 'אור'.length);
+    expect(edit.changed, isFalse);
+  });
+
   test('הערה על שורות נפתחת על כל הטווח', () {
     final edit = NoteLocationEdit.of(_note(line: 2, endLine: 4), _lines)!;
     expect(edit.scope, PersonalNoteScope.lines);

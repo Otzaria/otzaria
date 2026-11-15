@@ -146,7 +146,7 @@ List<PersonalNote> personalNotesForPreview(
       .where(
         (note) =>
             note.pdfAnchor == null &&
-            note.lineNumber == line + 1 &&
+            note.coversLine(line + 1) &&
             (ids == null || ids.contains(note.id)),
       )
       .toList();
