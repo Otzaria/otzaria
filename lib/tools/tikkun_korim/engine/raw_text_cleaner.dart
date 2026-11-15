@@ -186,7 +186,6 @@ final RegExp _kqQOnly = RegExp(
 );
 final RegExp _brTag = RegExp(r'<br\s*/?>', caseSensitive: false);
 final RegExp _anyTag = RegExp(r'<[^>]*>?', multiLine: true);
-final RegExp _kamatzKatan = RegExp('ׇ');
 final RegExp _holamHaserForVav = RegExp('ֺ');
 final RegExp _nbspRun = RegExp(' {4,}');
 final RegExp _parenThenBracket = RegExp(
@@ -302,9 +301,7 @@ String cleanRawText(String raw, {TikkunTradition? tradition}) {
 
   text = decodeHtmlEntities(text);
 
-  // קמץ קטן (U+05C7) וחולם חסר לוי"ו (U+05BA) חסרים בגופנים ונופלים לגופן
-  // חלופי; מנרמלים לקמץ ולחולם רגילים.
-  text = text.replaceAll(_kamatzKatan, 'ָ');
+  // חולם חסר לוי"ו (U+05BA) חסר בגופנים ונופל לגופן חלופי; מנרמלים לחולם.
   text = text.replaceAll(_holamHaserForVav, 'ֹ');
 
   text = text.replaceAll(_nbspRun, ' SEGBREAKMARK ');

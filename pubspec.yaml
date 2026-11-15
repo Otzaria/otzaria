@@ -109,7 +109,7 @@ dependencies:
   otzaria_ashurit:
     git:
       url: https://github.com/palmoni5/otzaria-ashurit.git
-      ref: v1.005
+      ref: v1.006
       path: package
   # גופן מקורות (Mekorot) לבחירה בהגדרות; הגרסה ננעלת ב-pubspec.lock.
   otzaria_mekorot:

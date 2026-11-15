@@ -1189,11 +1189,11 @@ packages:
     dependency: "direct main"
     description:
       path: package
-      ref: "v1.005"
-      resolved-ref: b43b67bb706be6bc87af14658d67e16cd347fc29
+      ref: "v1.006"
+      resolved-ref: "3ecbac138743cf804e8c2eef509dc0b26ae719c8"
       url: "https://github.com/palmoni5/otzaria-ashurit.git"
     source: git
-    version: "1.0.5"
+    version: "1.0.6"
   otzaria_context_menu:
     dependency: "direct main"
     description:
