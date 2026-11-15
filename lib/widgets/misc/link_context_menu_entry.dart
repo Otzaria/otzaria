@@ -97,9 +97,9 @@ double compactPreviewTitleFontSize(double contentFontSize) =>
 // שורת כותרת לבדה נשארת בלי attributes, במסלול המהיר של SmartTextWidget.
 final _headingLineBreak = RegExp(r'<br><h[1-6][\s>]|</h[1-6]><br>');
 
-/// כותרות בתוכן קישור-טווח בלי שולי HTML, כמו שורת כותרת בספר. ה-`<br>` שבין
-/// השורות נשארים: הטקסט המועתק תלוי בהם.
-String _withoutHeadingLineMargins(String html) {
+/// כותרות בתוכן קישור-טווח כ-inline, כמו שורת כותרת בספר: כבלוק, fwfh מוסיף
+/// שורה ריקה מה-`<br>` שאחריה וההעתקה מאבדת את מעבר השורה שלפניה.
+String _inlineHeadingLines(String html) {
   if (!_headingLineBreak.hasMatch(html)) return html;
   final fragment = html_parser.parseFragment(html, generateSpans: true);
   final headings = fragment.querySelectorAll('h1,h2,h3,h4,h5,h6');
@@ -123,10 +123,10 @@ String _withoutHeadingLineMargins(String html) {
         style?.start.offset ??
         emptyStyle?.start.offset ??
         heading.sourceSpan!.start.offset + 3;
-    // לפני ה-style הקיים, כדי ששוליים מפורשים בו יגברו.
+    // לפני ה-style הקיים, כדי ש-display מפורש בו יגבר.
     result
       ..write(html.substring(cursor, offset))
-      ..write(style == null ? ' style="margin:0"' : 'margin:0;');
+      ..write(style == null ? ' style="display:inline"' : 'display:inline;');
     cursor = emptyStyle?.end.offset ?? offset;
   }
   return (result..write(html.substring(cursor))).toString();
@@ -356,7 +356,7 @@ class _LinkHoverPreviewContentState extends State<LinkHoverPreviewContent> {
                     }
 
                     final content = SmartTextWidget(
-                      text: _withoutHeadingLineMargins(rawContent),
+                      text: _inlineHeadingLines(rawContent),
                       settings: RenderSettings.fromProfile(
                         profile,
                         fontSize: fontSize,

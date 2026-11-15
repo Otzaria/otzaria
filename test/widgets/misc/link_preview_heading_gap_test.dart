@@ -111,6 +111,27 @@ void main() {
     throw StateError('"$word" אינו מוצג');
   }
 
+  /// הסגנון האפקטיבי של הספאן שבו [word], כולל הסגנון שעובר בירושה.
+  TextStyle styleOf(WidgetTester tester, String word) {
+    TextStyle? found;
+    void visit(InlineSpan span, TextStyle inherited) {
+      final style = inherited.merge(span.style);
+      if (span is TextSpan) {
+        if (found == null && (span.text?.contains(word) ?? false)) {
+          found = style;
+        }
+        span.children?.forEach((child) => visit(child, style));
+      }
+    }
+
+    for (final paragraph
+        in tester.allRenderObjects.whereType<RenderParagraph>()) {
+      visit(paragraph.text, const TextStyle());
+      if (found != null) return found!;
+    }
+    throw StateError('"$word" אינו מוצג');
+  }
+
   /// הטקסט שאזור הבחירה מעתיק אחרי "בחר הכול", מתחת ל-[of].
   String copyAll(WidgetTester tester, Finder of) {
     tester
@@ -129,7 +150,7 @@ void main() {
       // החלונית מקוצרת לארבע שורות: השורה שלפני הכותרת והכותרת.
       ('חלונית קישור פנימי', 1.0, _targetLines.sublist(1, 3)),
     ]) {
-      testWidgets('$surface (טקסט ×$scale): הכותרת בלי שולי HTML', (
+      testWidgets('$surface (טקסט ×$scale): הכותרת בלי שורה ריקה סביבה', (
         tester,
       ) async {
         tester.platformDispatcher.textScaleFactorTestValue = scale;
@@ -140,11 +161,16 @@ void main() {
         final heading = lineOf(tester, 'דף');
         expect(heading.top - before.bottom, moreOrLessEquals(0, epsilon: 1));
         expect(heading.height, greaterThan(before.height));
+        final headingStyle = styleOf(tester, 'דף');
+        expect(headingStyle.fontWeight, FontWeight.bold);
+        expect(
+          headingStyle.fontSize,
+          greaterThan(styleOf(tester, 'סוף').fontSize!),
+        );
         if (lines.length < _targetLines.length) return;
-        // אחרי הכותרת נשארת רק השורה הריקה של ה-<br>, שההעתקה צריכה.
         expect(
           lineOf(tester, 'אחרי').top - lineOf(tester, 'לז').bottom,
-          moreOrLessEquals(before.height, epsilon: 1),
+          moreOrLessEquals(0, epsilon: 1),
         );
       });
     }
@@ -160,10 +186,7 @@ void main() {
         lineOf(tester, 'דף').top - lineOf(tester, 'סוף').bottom,
         moreOrLessEquals(0, epsilon: 1),
       );
-      final heading = tester.allRenderObjects
-          .whereType<RenderParagraph>()
-          .firstWhere((p) => p.text.toPlainText() == 'דף');
-      expect(heading.text.style?.color, const Color(0xFFFF0000));
+      expect(styleOf(tester, 'דף').color, const Color(0xFFFF0000));
     });
 
     for (final attributes in [
@@ -181,15 +204,12 @@ void main() {
           rangeLink(attributes, ['לפני סוף', '<h2 $attributes>דף</h2>']),
         );
 
-        final heading = tester.allRenderObjects
-            .whereType<RenderParagraph>()
-            .firstWhere((p) => p.text.toPlainText() == 'דף');
-        expect(heading.text.style?.color, const Color(0xFFFF0000));
+        expect(styleOf(tester, 'דף').color, const Color(0xFFFF0000));
         expect(
           tester
               .widget<SmartTextWidget>(find.byType(SmartTextWidget))
               .text
-              .replaceFirst('margin:0;', ''),
+              .replaceFirst('display:inline;', ''),
           'לפני סוף<br><h2 $attributes>דף</h2>',
         );
         expect(
@@ -199,24 +219,31 @@ void main() {
       });
     }
 
-    testWidgets('שוליים מפורשים בכותרת גוברים על ברירת המחדל', (tester) async {
-      await showPreview(
-        tester,
-        'תת-תפריט "קישורים"',
-        rangeLink('margin', [
-          'לפני סוף',
-          '<h2 title="x > y" style="margin:7px;color:red">דף</h2>',
-        ]),
-      );
+    // כמו ב-CSS: שוליים אנכיים לא חלים על inline, אבל display מפורש גובר.
+    for (final (style, gap) in [
+      ('margin:7px;color:red', 0.0),
+      ('display:block;margin:7px;color:red', 7.0),
+    ]) {
+      testWidgets('style מפורש בכותרת: $style', (tester) async {
+        await showPreview(
+          tester,
+          'תת-תפריט "קישורים"',
+          rangeLink(style, [
+            'לפני סוף',
+            '<h2 title="x > y" style="$style">דף</h2>',
+          ]),
+        );
 
-      expect(
-        lineOf(tester, 'דף').top - lineOf(tester, 'סוף').bottom,
-        moreOrLessEquals(7, epsilon: 1),
-      );
-    });
+        expect(
+          lineOf(tester, 'דף').top - lineOf(tester, 'סוף').bottom,
+          moreOrLessEquals(gap, epsilon: 1),
+        );
+        expect(styleOf(tester, 'דף').color, const Color(0xFFFF0000));
+      });
+    }
 
     for (final attributes in ['style', 'style=""', "style=''"]) {
-      testWidgets('style ריק מקבל שוליים מצומצמים: $attributes', (
+      testWidgets('style ריק: הכותרת צמודה לשורה שלפניה: $attributes', (
         tester,
       ) async {
         await showPreview(
@@ -280,49 +307,50 @@ void main() {
       );
       expect(
         copyAll(tester, find.byType(LinkHoverPreviewContent)),
-        endsWith(document),
+        endsWith('א\u05B0ב\nדף'),
       );
       expect(
         tester.widget<SmartTextWidget>(find.byType(SmartTextWidget)).text,
-        'א&#x05B0;ב<br><h2 style="margin:0">דף</h2>',
+        'א&#x05B0;ב<br><h2 style="display:inline">דף</h2>',
       );
     });
 
-    testWidgets('ההעתקה זהה להעתקת התוכן כמסמך אחד', (tester) async {
+    testWidgets('ההעתקה שומרת מעבר שורה משני צדי הכותרת', (tester) async {
       final contents = {
-        'כותרת באמצע': _targetLines,
-        'כותרת ראשונה': ['<h2>א</h2>', 'ב'],
-        'כמה כותרות': ['א', '<h2>ב</h2>', '<h3>ג</h3>', 'ד', '<h2>ה</h2>', 'ו'],
-        'שורה ריקה לפני כותרת': ['א', '', '<h2>ב</h2>', '', 'ג'],
-        'בלי כותרת': ['א', 'ב', 'ג'],
-        'ישויות ומאפיין מצוטט': [
-          'א &amp; ב&nbsp;ג',
-          '<h2 title="x > y" style="color:red">דף &lt; לז</h2>',
-          'ד&#x05D4; &quot;ו&quot;',
-        ],
-        'הערה מוטמעת': [
-          'א',
-          '<h2 title="x > y">דף</h2>',
-          'ב<sup class="footnote-marker">א</sup><i class="footnote">הערה נסתרת</i>ג',
-        ],
+        'כותרת באמצע': (_targetLines, 'פתיחה\nלפני סוף\nדף לז:\nאחרי הכול'),
+        'כותרת ראשונה': (['<h2>א</h2>', 'ב'], 'א\nב'),
+        'כמה כותרות': (
+          ['א', '<h2>ב</h2>', '<h3>ג</h3>', 'ד', '<h2>ה</h2>', 'ו'],
+          'א\nב\nג\nד\nה\nו',
+        ),
+        'שורה ריקה לפני כותרת': (
+          ['א', '', '<h2>ב</h2>', '', 'ג'],
+          'א\n\nב\n\nג',
+        ),
+        'בלי כותרת': (['א', 'ב', 'ג'], 'א\nב\nג'),
+        'ישויות ומאפיין מצוטט': (
+          [
+            'א &amp; ב&nbsp;ג',
+            '<h2 title="x > y" style="color:red">דף &lt; לז</h2>',
+            'ד&#x05D4; &quot;ו&quot;',
+          ],
+          'א & ב\u00A0ג\nדף < לז\nדה "ו"',
+        ),
+        'הערה מוטמעת': (
+          [
+            'א',
+            '<h2 title="x > y">דף</h2>',
+            'ב<sup class="footnote-marker">א</sup><i class="footnote">הערה נסתרת</i>ג',
+          ],
+          'א\nדף\nב\u2067א\u2069ג',
+        ),
       };
-      for (final MapEntry(key: name, value: lines) in contents.entries) {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: SelectionArea(
-              child: SmartTextWidget(
-                text: lines.join('<br>'),
-                settings: const RenderSettings(),
-              ),
-            ),
-          ),
-        );
-        final document = copyAll(tester, find.byType(SmartTextWidget));
-
+      for (final MapEntry(key: name, value: (lines, expected))
+          in contents.entries) {
         await showPreview(tester, 'תת-תפריט "קישורים"', rangeLink(name, lines));
         expect(
           copyAll(tester, find.byType(LinkHoverPreviewContent)),
-          endsWith(document),
+          endsWith(expected),
           reason: name,
         );
         LinkPreviewOverlay.dismiss();
@@ -331,21 +359,6 @@ void main() {
   });
 
   group('חלונית הקישור הפנימי חותכת שורות בלי "…" (issue #3709)', () {
-    /// הטקסט שמועתק מ-[lines] כשהן מוצגות כמסמך אחד.
-    Future<String> documentCopy(WidgetTester tester, List<String> lines) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: SelectionArea(
-            child: SmartTextWidget(
-              text: lines.join('<br>'),
-              settings: const RenderSettings(),
-            ),
-          ),
-        ),
-      );
-      return copyAll(tester, find.byType(SmartTextWidget));
-    }
-
     for (final (name, lines) in [
       ('חמש שורות בלי כותרת', ['אלף', 'בית', 'גימל', 'דלת', 'סוף']),
       ('כותרת באמצע', _targetLines),
@@ -356,7 +369,9 @@ void main() {
         ) async {
           tester.platformDispatcher.textScaleFactorTestValue = scale;
           addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-          final document = await documentCopy(tester, lines);
+          final document = lines
+              .map((line) => line.replaceAll(RegExp('<[^>]+>'), ''))
+              .join('\n');
           await showPreview(
             tester,
             'חלונית קישור פנימי',
