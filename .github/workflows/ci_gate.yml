@@ -35,7 +35,7 @@ jobs:
           grep -qx 'run-ci' <<< "$labels" || decide false "no run-ci label; add it to run the full CI"
           # דחיפה בכוח מסירה את התווית (pr_labels.yml), אבל ייתכן שהשער קרא אותה לפני ההסרה.
           # ריבייס של הבוט לפני מיזוג (automerge.yml) שומר עליה.
-          if [ "$ACTION" = synchronize ] && [ "$ATTEMPT" = 1 ] && [ "$SENDER" != 'otzariabot[bot]' ]; then
+          if [ "$ACTION" = synchronize ] && [ "$ATTEMPT" = 1 ] && [ "$SENDER" != 'otzaria-bot[bot]' ]; then
             status=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$AFTER" --jq .status) || status=unavailable
             [ "$status" = ahead ] || decide false "force push ($status); run-ci must be added again"
           fi

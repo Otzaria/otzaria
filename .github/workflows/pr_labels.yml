@@ -13,7 +13,7 @@ jobs:
   drop_on_push:
     name: Drop labels on push
     if: >-
-      github.event.action == 'synchronize' && github.event.sender.login != 'otzariabot[bot]' &&
+      github.event.action == 'synchronize' && github.event.sender.login != 'otzaria-bot[bot]' &&
       (contains(github.event.pull_request.labels.*.name, 'automerge') ||
        contains(github.event.pull_request.labels.*.name, 'run-ci'))
     runs-on: ubuntu-latest
