@@ -735,6 +735,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     PluginPageLauncher.instance.registerInstanceOpener(
       _windowKeys,
       _openPluginInstance,
+      titledOpener: _openPluginInstance,
       hasOpenTab: _hasOpenPluginTab,
       hasOpenInstance: (key) =>
           mounted &&
@@ -2048,10 +2049,11 @@ class MainWindowScreenState extends State<MainWindowScreen>
     openToolTabById(context, pluginId);
   }
 
-  /// מופע נוסף של התוסף בכרטיסיה חדשה (`plugin.openSelf` עם `newTab`).
-  String? _openPluginInstance(String pluginId) {
+  /// מופע נוסף של התוסף בכרטיסיה חדשה (`plugin.openSelf` עם `newTab`),
+  /// עם [title] אופציונלי ככותרת הכרטיסיה.
+  String? _openPluginInstance(String pluginId, [String? title]) {
     if (!mounted) return null;
-    return openPluginToolInstanceById(context, pluginId);
+    return openPluginToolInstanceById(context, pluginId, title: title);
   }
 
   bool _hasOpenPluginTab(String pluginId) =>
