@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 
@@ -46,6 +47,8 @@ const _tur = (
   acronyms: [
     'ארבעה טורים',
     'הטור',
+    'טור אבן העזר',
+    'טור אה"ע',
     'טור או"ח',
     'טור חו"מ',
     'טור חושן משפט',
@@ -390,6 +393,67 @@ void main() {
   });
 
   group('מילה אחרונה קטועה בכינוי (issue #4933)', () {
+    for (final (part, truncated) in [
+      ('אבן העזר', 'אבן העז'),
+      ('חושן משפט', 'חושן משפ'),
+      ('יורה דעה', 'יורה דע'),
+    ]) {
+      test('"טור $truncated א" שומר את החלק לחיפוש הפנימי', () async {
+        seedLibrary(const [_tur]);
+        final hit = ReferenceBooksCache.instance
+            .search('טור $truncated')
+            .single;
+        expect(hit.acronymTailIsTitleWords, isFalse);
+        expect(hit.acronymLastWordTruncated, isFalse);
+
+        final seen = <List<String>?>[];
+        final repo = buildFindRefRepo(
+          tocQueryTokensSeen: seen,
+          tocEntries: {
+            380: [
+              {
+                'reference': 'טור $part סימן א',
+                'segment': 100 + part.length,
+                'level': 2,
+              },
+            ],
+          },
+        );
+        for (final section in [truncated, part]) {
+          final results = await repo.findRefs('טור $section א');
+          expect(
+            results.map((r) => r.reference),
+            ['טור $part סימן א'],
+            reason: section,
+          );
+        }
+        expect(seen, contains(equals([...truncated.split(' '), 'א'])));
+      });
+
+      test('"טור $truncated א א" אינו מאבד את החלק במפתח השורה', () async {
+        seedLibrary(const [_tur]);
+        final keys = <String>[];
+        final repo = FindRefRepository(
+          isReferenceBooksCacheLoaded: () => true,
+          warmUpReferenceBooksCache: () async {},
+          getTocEntriesForReference: (id, title, {queryTokens}) async =>
+              const [],
+          getAltTocEntriesForReference: (id, title, {queryTokens}) async =>
+              const [],
+          getAllAltTocFlatEntries: () async => const [],
+          getCategoryPath: (_) async => 'ספרייה',
+          resolveLineRefs: (bookIds, key) async {
+            keys.add(key);
+            return {};
+          },
+        );
+        addTearDown(repo.disposeForTesting);
+        await repo.findRefs('טור $truncated א א');
+
+        expect(keys, ['$truncated א א']);
+      });
+    }
+
     // הכותרת כתובה ב-״ והכינוי ב-", ולכן הספר נמצא רק דרך הכינוי.
     const rashbaEruvin = (
       id: 2466,

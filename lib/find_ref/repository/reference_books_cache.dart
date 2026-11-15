@@ -720,7 +720,7 @@ class ReferenceBooksCache {
   }
 
   /// האם [q] הוא [acronym] שמילתו האחרונה נקטעה ("רשבא עירו" ל"רשבא עירובין"),
-  /// וכל ההמשך מילות כותרת כמו ב-[_acronymTailIsTitleWords]. מספר עברי אינו קטוע.
+  /// והמילה המושלמת וכל ההמשך מכותרת הספר. מספר עברי אינו קטוע.
   static bool _acronymCompletesLastWord(
     String acronym,
     String q,
@@ -736,7 +736,7 @@ class ReferenceBooksCache {
       if (aTokens[i] != qTokens[i]) return false;
     }
     return aTokens[n - 1].startsWith(last) &&
-        aTokens.skip(n).every(titleTokens.contains);
+        aTokens.skip(n - 1).every(titleTokens.contains);
   }
 
   /// דירוג ההתאמה המקורבת — מתחת לכל ההתאמות המילוליות (0–5).
