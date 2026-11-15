@@ -1,5 +1,5 @@
 import 'package:otzaria/settings/engine/app_settings_store.dart';
-import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
@@ -228,4 +228,77 @@ Future<SeforimRepository?> officialUserLinkRepository() async {
   if (!provider.isInitialized && !Settings.isInitialized) return null;
   if (!provider.isInitialized) await provider.initialize();
   return provider.repository;
+}
+
+/// מסד מצורף שהייבוא רשאי לחפש בו, כפי שנשלח ל-isolate (ערכים פשוטים בלבד).
+typedef AttachedLinkLibrary = ({
+  String slug,
+  String path,
+  bool immutable,
+  bool visible,
+});
+
+/// ספרי המסדים המצורפים לפתירת צד של קישור או גרסה, לפי סדר העדיפות.
+/// כל מסד נפתח מוקשח ולקריאה בלבד ([MyDatabase.untrusted]).
+class AttachedLinkBooks {
+  AttachedLinkBooks(this._libraries);
+
+  /// [libraries] ממוינים לפי עדיפות; [visible] קובע אם נכללים בחיפוש בלי slug.
+  factory AttachedLinkBooks.open(List<AttachedLinkLibrary> libraries) =>
+      AttachedLinkBooks([
+        for (final library in libraries)
+          (
+            slug: library.slug,
+            visible: library.visible,
+            repository: SeforimRepository(
+              MyDatabase.untrusted(library.path, immutable: library.immutable),
+            ),
+          ),
+      ]);
+
+  static final AttachedLinkBooks none = AttachedLinkBooks(const []);
+
+  final List<({String slug, bool visible, SeforimRepository repository})>
+  _libraries;
+  final _located =
+      <(String, String?), Future<({String slug, int totalLines})?>>{};
+
+  bool get isEmpty => _libraries.isEmpty;
+
+  /// הספר [title] במסד [slug], או — בלי slug — במסד הגלוי הראשון שמכיל אותו.
+  Future<({String slug, int totalLines})?> locate(
+    String title, {
+    String? slug,
+  }) => _located.putIfAbsent((title, slug), () async {
+    for (final library in _libraries) {
+      if (slug != null ? library.slug != slug : !library.visible) continue;
+      try {
+        final book = await _bookByTitle(library.repository, title, null);
+        if (book != null) {
+          return (slug: library.slug, totalLines: book.totalLines);
+        }
+      } on Exception catch (e) {
+        debugPrint('[AttachedLinkBooks] ${library.slug} unreadable: $e');
+      }
+    }
+    return null;
+  });
+
+  /// השורה (0-based) של [ref] בספר [title] שבמסד [slug].
+  Future<int?> resolveRef(String slug, String title, String ref) async {
+    final library = _libraries.where((l) => l.slug == slug).firstOrNull;
+    if (library == null) return null;
+    return _resolveTargetLine(
+      repo: library.repository,
+      targetTitle: title,
+      targetCategoryId: null,
+      ref: ref,
+    );
+  }
+
+  void close() {
+    for (final library in _libraries) {
+      library.repository.database.close();
+    }
+  }
 }

@@ -471,6 +471,9 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
       placeholder: context.settingsText(
         'במידה וקיימים ברשותך ספרים ממאגר זה',
       ),
+      description: context.settingsText(
+        'שמות הקבצים צריכים להישאר כפי שהורדו מהיברובוקס (מספר הספר, למשל hebrewbooks_org_12345.pdf). הספרים יופיעו בחיפוש במסך הספרייה; ספרי PDF אחרים יש להוסיף דרך "ספרים אישיים".',
+      ),
       onFolderChanged: (path) async {
         if (!context.mounted) return;
         await _showExtractionDialog(context, path, isLibraryPath: false);

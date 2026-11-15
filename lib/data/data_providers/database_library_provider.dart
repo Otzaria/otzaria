@@ -37,7 +37,9 @@ import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/user_content_import/repository/user_alt_toc_repository.dart';
 import 'package:otzaria/user_content_import/models/user_import_models.dart';
 import 'package:otzaria/user_content_import/services/user_book_versions.dart';
+import 'package:otzaria/user_content_import/services/user_import_parser.dart';
 import 'package:otzaria/user_content_import/services/user_link_ref_resolver.dart';
+import 'package:otzaria/user_content_import/services/user_content_importer.dart';
 import 'package:otzaria/user_content_import/services/user_sidecar_sync.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/migration/database/sqlite3_utils.dart';
@@ -47,6 +49,8 @@ import 'package:otzaria/models/book_version.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/models/link_types.dart';
+import 'package:otzaria/library/hidden/hidden_library_selection.dart';
+import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart'
     show bookNoteMarkers;
@@ -89,6 +93,7 @@ class _AttachedCatalogBuild {
     required this.categoryRows,
     required this.authors,
     required this.metadata,
+    this.versionLinks = const [],
   });
 
   final AttachedLibrary library;
@@ -97,8 +102,12 @@ class _AttachedCatalogBuild {
   final List<Map<String, dynamic>> categoryRows;
   final Map<int, String> authors;
   final Map<String, Map<String, dynamic>> metadata;
+  final List<Map<String, dynamic>> versionLinks;
   final Map<int, List<Map<String, dynamic>>> booksByCategory = {};
   final Map<int?, List<db_models.Category>> categoriesByParent = {};
+
+  /// ההסתרות נקראות פעם אחת לבנייה, ורק כשיש ספר רשמי להשוואה.
+  late final HiddenLibrarySelection hidden = const HiddenLibraryStore().load();
 
   /// הסדר בעץ של [orderIndex] מהמסד: במיזוג — אחרי כל התוכן הקיים.
   int order(num? orderIndex) {
@@ -118,13 +127,23 @@ typedef AttachedCatalogRows = ({
   List<Map<String, dynamic>> books,
   List<Map<String, dynamic>> categories,
   Map<int, String> authors,
+  List<Map<String, dynamic>> versionLinks,
 });
+
+/// תקרת שורות book_version_link שנקראות ממסד מצורף אחד.
+const kMaxAttachedVersionLinks = 100000;
 
 /// קורא את הקטלוג של מסד מצורף על חיבור מוקשח משלו — רץ ב-isolate, כך
 /// שקובץ איטי או כונן רשת מת אינם חוסמים את בניית העץ.
 AttachedCatalogRows readAttachedCatalogSync(ReadOnlyDbTarget target) {
   if (!File(target.path).existsSync()) {
-    return (missing: true, books: const [], categories: const [], authors: {});
+    return (
+      missing: true,
+      books: const [],
+      categories: const [],
+      authors: {},
+      versionLinks: const [],
+    );
   }
   final db = openReadOnlyTarget(target);
   try {
@@ -132,6 +151,7 @@ AttachedCatalogRows readAttachedCatalogSync(ReadOnlyDbTarget target) {
     late final List<Map<String, dynamic>> books;
     late final List<Map<String, dynamic>> categories;
     late final Map<int, String> authors;
+    var versionLinks = const <Map<String, dynamic>>[];
     withTransaction(db, () {
       books = [
         for (final row in BookDao.selectBooksMinimal(
@@ -143,12 +163,25 @@ AttachedCatalogRows readAttachedCatalogSync(ReadOnlyDbTarget target) {
       ];
       categories = CategoryDao.selectCategoryRows(db, capabilities);
       authors = BookDao.selectBookAuthorsMap(db, capabilities);
+      if (capabilities.hasBookVersionLinks) {
+        String column(String name) =>
+            capabilities.column('book_version_link', name);
+        versionLinks = db
+            .select(
+              'SELECT versionBookId, ${column('primarySource')}, primaryTitle, '
+              '${column('primaryCategoryPath')}, ${column('versionTitle')}, '
+              '${column('versionNotes')}, ${column('priority')} '
+              'FROM book_version_link LIMIT $kMaxAttachedVersionLinks',
+            )
+            .toMapList();
+      }
     });
     return (
       missing: false,
       books: books,
       categories: categories,
       authors: authors,
+      versionLinks: versionLinks,
     );
   } finally {
     db.close();
@@ -176,6 +209,7 @@ typedef _UserBooksCatalogRows = ({
   List<Map<String, dynamic>> categories,
   Map<int, String> authors,
   List<Map<String, dynamic>> versions,
+  List<Map<String, dynamic>> attachedVersions,
 });
 
 /// בטרנזקציה אחת — תמונת מצב עקבית של כל טבלאות הקטלוג של user_books.db.
@@ -200,6 +234,21 @@ _UserBooksCatalogRows _selectUserBooksCatalog(
             'FROM user_book_version',
           )
           .toMapList(),
+      attachedVersions:
+          db
+              .select(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' "
+                "AND name = 'user_attached_book_version'",
+              )
+              .isEmpty
+          ? const []
+          : db
+                .select(
+                  'SELECT versionDb, versionBookTitle, primarySource, '
+                  'primaryTitle, primaryCategoryPath, versionTitle, '
+                  'versionNotes, priority FROM user_attached_book_version',
+                )
+                .toMapList(),
     );
   });
   return rows;
@@ -232,6 +281,7 @@ Future<_UserBooksCatalogRows> _readUserBooksCatalogInIsolate(
       categories: rows.categories,
       authors: rows.authors,
       versions: rows.versions,
+      attachedVersions: rows.attachedVersions,
     );
   } finally {
     db.close();
@@ -354,6 +404,7 @@ typedef _SidecarSyncArgs = ({
   String? officialDbPath,
   String? officialError,
   String folderPath,
+  List<AttachedLinkLibrary> attachedLibraries,
   Map<String, Map<String, String>> queries,
 });
 
@@ -377,6 +428,7 @@ Future<List<String>> _applySidecars(_SidecarSyncArgs args) async {
       officialError: args.officialError == null
           ? null
           : Exception(args.officialError),
+      attachedLibraries: args.attachedLibraries,
     );
   } finally {
     userDb.close();
@@ -2055,8 +2107,23 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
 
   List<UserBookVersionRecord> _userBookVersions = const [];
 
-  /// הספר הרשמי/המצורף שכל גרסה אישית שלו נפתרה אליו, לפי מזהה ספר הגרסה.
+  /// הראשי הסופי לכל ספר אישי בקבוצת גרסאות, כולל הראשי האישי עצמו.
   final Map<int, Book> _catalogVersionPrimaries = {};
+
+  /// גרסאות שספרן במסד מצורף, מקובצי הגרסאות של המשתמש.
+  List<AttachedBookVersionRecord> _userAttachedVersions = const [];
+
+  /// גרסאות שהמסדים המצורפים מצהירים עליהן בטבלת book_version_link.
+  final List<AttachedBookVersionRecord> _attachedDbVersions = [];
+
+  /// ספרי מסד ממוזג שזהים לספר רשמי באותה קטגוריה; הצהרה מפורשת גוברת.
+  final List<AttachedVersionMember> _attachedDuplicateVersions = [];
+
+  /// ספרי המסדים המצורפים לפי slug ומזהה במסד.
+  final Map<String, Map<int, Book>> _attachedBooksById = {};
+
+  /// גרסאות במסד מצורף שהראשי שלהן נמצא; ספריהן אינם בעץ.
+  final List<AttachedVersionMember> _attachedVersionMembers = [];
 
   /// מפתחות ספרי המסדים המצורפים. מזהי הקטגוריות טבעיים לכל מסד, ולכן המקור
   /// (slug) הוא חלק מהמפתח ומנתיבי הקטגוריות.
@@ -2116,23 +2183,87 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   List<BookVersionInfo> getUserBookVersions(Book book) {
     if (!book.isUserBook) return const [];
     final id = _userBookInCatalog(book)?.id;
-    if (id == null) return const [];
+    if (id == null || !_catalogVersionPrimaries.containsKey(id)) {
+      return const [];
+    }
     return buildUserBookVersions(
       bookId: id,
       records: _userBookVersions,
       booksById: _userBooksById,
       catalogPrimaries: _catalogVersionPrimaries,
+      attachedMembers: _attachedVersionMembers,
     );
   }
 
-  /// הגרסאות האישיות שהוצהרו על ספר רשמי או ממסד מצורף [book].
+  /// הגרסאות שהוצהרו על ספר רשמי או ממסד מצורף [book]. לגרסה שספרה במסד
+  /// מצורף — קבוצת הגרסאות של הראשי שלה, הראשי תחילה.
   List<BookVersionInfo> getPersonalVersionsOf(Book book) {
-    if (book.isUserBook || _catalogVersionPrimaries.isEmpty) return const [];
+    if (book.isUserBook) return const [];
+    final asVersion = _attachedVersionMembers
+        .where((m) => isSameCatalogBook(m.version, book))
+        .firstOrNull;
+    if (asVersion != null) {
+      final primary = asVersion.primary;
+      if (primary.isUserBook) return getUserBookVersions(primary);
+      return [
+        BookVersionInfo(
+          versionTitle: primary.title,
+          hasContent: true,
+          separateBook: primary,
+        ),
+        ..._personalVersionsOfPrimary(primary),
+      ];
+    }
+    return _personalVersionsOfPrimary(book);
+  }
+
+  List<BookVersionInfo> _personalVersionsOfPrimary(Book primary) {
+    if (_catalogVersionPrimaries.isEmpty && _attachedVersionMembers.isEmpty) {
+      return const [];
+    }
     return buildPersonalVersionsOfCatalogBook(
-      primary: book,
+      primary: primary,
       records: _userBookVersions,
       booksById: _userBooksById,
       catalogPrimaries: _catalogVersionPrimaries,
+      attachedMembers: _attachedVersionMembers,
+    );
+  }
+
+  /// שורת גרסה של ספר במסד מצורף. נתוני המסד אינם מהימנים, ולכן כל ערך נבדק.
+  static AttachedBookVersionRecord? _attachedBookVersionFromRow(
+    Map<String, dynamic> row, {
+    required Object? versionDb,
+    BookSource defaultPrimarySource = BookSource.user,
+  }) {
+    final primaryTitle = row['primaryTitle'];
+    final versionTitle = row['versionTitle'];
+    final versionId = row['versionBookId'];
+    final versionBookTitle = row['versionBookTitle'];
+    if (versionDb is! String || !BookSource.isValidSlug(versionDb)) return null;
+    if (primaryTitle is! String || primaryTitle.trim().isEmpty) return null;
+    if (versionId is! int && versionBookTitle is! String) return null;
+    final rawSource = row['primarySource'];
+    final primarySource = rawSource is String && rawSource.trim().isNotEmpty
+        ? UserImportParser.parseVersionPrimarySource(rawSource) ??
+              BookSource.tryParse(rawSource)
+        : defaultPrimarySource;
+    if (primarySource == null) return null;
+    final categoryPath = row['primaryCategoryPath'];
+    final notes = row['versionNotes'];
+    final priority = row['priority'];
+    return AttachedBookVersionRecord(
+      versionDb: versionDb,
+      versionBookId: versionId is int ? versionId : null,
+      versionBookTitle: versionBookTitle is String ? versionBookTitle : null,
+      primarySource: primarySource,
+      primaryTitle: primaryTitle,
+      primaryCategoryPath: categoryPath is String ? categoryPath : null,
+      versionTitle: versionTitle is String && versionTitle.trim().isNotEmpty
+          ? versionTitle
+          : (versionBookTitle is String ? versionBookTitle : primaryTitle),
+      versionNotes: notes is String ? notes : null,
+      priority: priority is num ? priority.toDouble() : null,
     );
   }
 
@@ -2173,23 +2304,72 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   /// בעדכון ספרייה). גרסה שהראשי שלה לא נמצא נשארת ספר אישי רגיל בעץ.
   void _attachCatalogBookVersions(Library library) {
     _catalogVersionPrimaries.clear();
-    _resolveCatalogVersionPrimaries(library);
+    _attachedVersionMembers.clear();
+    if (_userBookVersions.any((v) => v.hasCatalogPrimary) ||
+        _userAttachedVersions.isNotEmpty ||
+        _attachedDbVersions.isNotEmpty ||
+        _attachedDuplicateVersions.isNotEmpty) {
+      final catalogByTitle = <String, List<Book>>{};
+      final books = Set<Book>.identity()
+        ..addAll(library.getAllBooks())
+        ..addAll(_userBooksById.values);
+      for (final book in books) {
+        catalogByTitle
+            .putIfAbsent(normalizeVersionTitle(book.title), () => [])
+            .add(book);
+      }
+      _resolveCatalogVersionPrimaries(catalogByTitle);
+      _resolveAttachedVersions(catalogByTitle);
+    }
+    _normalizeVersionGroups();
     library.offTreeBooks = [
       for (final id in _hiddenUserVersionBookIds) ?_userBooksById[id],
+      for (final member in _attachedVersionMembers) member.version,
     ];
   }
 
-  void _resolveCatalogVersionPrimaries(Library library) {
+  /// מקשר כל ספר-גרסה במסד מצורף לראשי שלו ומוריד אותו מהעץ. רשומה אחת לכל
+  /// ספר: קובצי המשתמש קודמים להצהרות המסד עצמו.
+  void _resolveAttachedVersions(Map<String, List<Book>> catalogByTitle) {
+    final records = [..._userAttachedVersions, ..._attachedDbVersions];
+    if (records.isEmpty && _attachedDuplicateVersions.isEmpty) return;
+    final members = Map<Book, AttachedVersionMember>.identity();
+    final declared = Set<Book>.identity();
+    for (final record in records) {
+      final slug = record.versionDb;
+      final id = record.versionBookId;
+      final title = record.versionBookTitle;
+      final version = id != null
+          ? (_attachedBooksById[slug]?[id])
+          : title == null
+          ? null
+          : findCatalogBook(
+              source: BookSource.attached(slug),
+              title: title,
+              catalogByTitle: catalogByTitle,
+            );
+      if (version == null || !declared.add(version)) continue;
+      final primary = resolveCatalogPrimary(record, catalogByTitle);
+      if (primary == null || identical(primary, version)) continue;
+      members[version] = (
+        version: version,
+        primary: primary,
+        versionTitle: record.versionTitle,
+        versionNotes: record.versionNotes,
+        priority: record.priority,
+      );
+    }
+    for (final duplicate in _attachedDuplicateVersions) {
+      if (declared.contains(duplicate.version)) continue;
+      members[duplicate.version] = duplicate;
+    }
+    _attachedVersionMembers.addAll(members.values);
+  }
+
+  void _resolveCatalogVersionPrimaries(Map<String, List<Book>> catalogByTitle) {
     final pending = _userBookVersions.where((v) => v.hasCatalogPrimary);
     if (pending.isEmpty) return;
 
-    final catalogByTitle = <String, List<Book>>{};
-    for (final book in library.getAllBooks()) {
-      if (book.isUserBook) continue;
-      catalogByTitle
-          .putIfAbsent(normalizeVersionTitle(book.title), () => [])
-          .add(book);
-    }
     for (final record in pending) {
       final version = _userBooksById[record.versionBookId];
       if (version == null) continue;
@@ -2202,8 +2382,78 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         continue;
       }
       _catalogVersionPrimaries[record.versionBookId] = primary;
-      _hiddenUserVersionBookIds.add(record.versionBookId);
-      version.category?.books.remove(version);
+    }
+  }
+
+  void _normalizeVersionGroups() {
+    final parents = Map<Book, Book>.identity();
+    for (final record in _userBookVersions) {
+      final version = _userBooksById[record.versionBookId];
+      final primary = record.hasCatalogPrimary
+          ? _catalogVersionPrimaries[record.versionBookId]
+          : _userBooksById[record.primaryBookId];
+      if (version != null && primary != null && !identical(version, primary)) {
+        parents[version] = primary;
+      }
+    }
+    for (final member in _attachedVersionMembers) {
+      parents[member.version] = member.primary;
+    }
+    final roots = Map<Book, Book?>.identity();
+    Book? rootOf(Book book) {
+      final path = Set<Book>.identity();
+      var current = book;
+      while (!roots.containsKey(current) && path.add(current)) {
+        final next = parents[current];
+        if (next == null) {
+          roots[current] = current;
+          break;
+        }
+        current = next;
+      }
+      // מסלול שנכנס למעגל מקבל null ונשאר גלוי בעץ.
+      final root = roots[current];
+      for (final member in path) {
+        roots[member] = root;
+      }
+      return root;
+    }
+
+    final previouslyHidden = _hiddenUserVersionBookIds.toSet();
+    final hiddenBooks = Set<Book>.identity();
+    _catalogVersionPrimaries.clear();
+    _hiddenUserVersionBookIds.clear();
+    for (final entry in parents.entries) {
+      final root = rootOf(entry.key);
+      if (root == null) continue;
+      hiddenBooks.add(entry.key);
+      if (root.isUserBook) _catalogVersionPrimaries[root.id!] = root;
+      if (entry.key.isUserBook) {
+        _catalogVersionPrimaries[entry.key.id!] = root;
+        _hiddenUserVersionBookIds.add(entry.key.id!);
+      }
+    }
+    final categories = Set<Category>.identity()
+      ..addAll(hiddenBooks.map((book) => book.category).whereType<Category>());
+    for (final category in categories) {
+      category.books.removeWhere(hiddenBooks.contains);
+    }
+    for (final id in previouslyHidden.difference(_hiddenUserVersionBookIds)) {
+      final book = _userBooksById[id];
+      if (book != null) book.category?.books.add(book);
+    }
+    final attached = _attachedVersionMembers.toList();
+    _attachedVersionMembers.clear();
+    for (final member in attached) {
+      final root = rootOf(member.version);
+      if (root == null) continue;
+      _attachedVersionMembers.add((
+        version: member.version,
+        primary: root,
+        versionTitle: member.versionTitle,
+        versionNotes: member.versionNotes,
+        priority: member.priority,
+      ));
     }
   }
 
@@ -3724,6 +3974,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     try {
       final dbPath = await UserBooksDatabaseHolder.resolveDbPath();
       if (!await File(dbPath).exists()) {
+        _userAttachedVersions = const [];
         return;
       }
 
@@ -3751,6 +4002,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
           categories: direct.categories,
           authors: direct.authors,
           versions: direct.versions,
+          attachedVersions: direct.attachedVersions,
         );
       }
       final userBooks = rows.books;
@@ -3758,6 +4010,10 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       final userAuthors = rows.authors;
       final userVersions = [
         for (final row in rows.versions) ?_userBookVersionFromRow(row),
+      ];
+      _userAttachedVersions = [
+        for (final row in rows.attachedVersions)
+          ?_attachedBookVersionFromRow(row, versionDb: row['versionDb']),
       ];
 
       // הקריאה הצליחה — עכשיו בטוח לנקות ולבנות מחדש. מכאן והלאה הבנייה
@@ -4020,6 +4276,9 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   ) async {
     _attachedCachedKeys.clear();
     _attachedCategoryPaths.clear();
+    _attachedBooksById.clear();
+    _attachedDbVersions.clear();
+    _attachedDuplicateVersions.clear();
     final attachedLibraries = [
       for (final attached in AttachedLibraryRegistry.instance.visibleLibraries)
         if (attached.source != null) attached,
@@ -4042,6 +4301,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
             categoryRows: rows.categories,
             authors: rows.authors,
             metadata: metadata,
+            versionLinks: rows.versionLinks,
           ),
         );
       } catch (e, stackTrace) {
@@ -4191,6 +4451,14 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         build,
       );
     }
+    for (final row in build.versionLinks) {
+      final record = _attachedBookVersionFromRow(
+        row,
+        versionDb: build.source.slug,
+        defaultPrimarySource: BookSource.official,
+      );
+      if (record != null) _attachedDbVersions.add(record);
+    }
   }
 
   Category _buildAttachedCategory(
@@ -4244,6 +4512,13 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     final slug = build.source.slug;
     // כל הספרים כאן באותה קטגוריה — הנתיב מחושב פעם אחת ולא לכל ספר.
     final categoryPathInfo = _categoryPathInfo(category);
+    final officialByTitle = <(String, bool), Book>{
+      if (build.library.placement == AttachedLibraryPlacement.mergeIntoLibrary)
+        for (final book in category.books)
+          // ספר רשמי מוסתר היה מעלים איתו את הספר המצורף שהפך לגרסתו.
+          if (book.source.isOfficial && !build.hidden.isBookHidden(book))
+            (normalizeVersionTitle(book.title), book is PdfBook): book,
+    };
     for (final row in rows) {
       final id = row['id'] as int? ?? 0;
       final book = _convertMinimalBookMapToBook(
@@ -4264,6 +4539,19 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       );
       if (book == null) continue;
       category.books.add(book);
+      final byId = _attachedBooksById.putIfAbsent(slug, () => {});
+      if (book is! PdfBook || !byId.containsKey(id)) byId[id] = book;
+      final official =
+          officialByTitle[(normalizeVersionTitle(book.title), book is PdfBook)];
+      if (official != null) {
+        _attachedDuplicateVersions.add((
+          version: book,
+          primary: official,
+          versionTitle: build.library.displayName,
+          versionNotes: null,
+          priority: null,
+        ));
+      }
       _attachedCachedKeys.add(
         BookCompositeKey.create(
           title: book.title,
@@ -5488,6 +5776,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         officialDbPath: officialDbPath,
         officialError: officialError,
         folderPath: folderPath,
+        attachedLibraries: UserContentImporter.attachedLinkLibraries(),
         queries: QueryLoader.cacheSnapshot,
       ))) {
         failedDetails.add((folderName, error));

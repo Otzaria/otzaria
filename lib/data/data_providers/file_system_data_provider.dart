@@ -14,6 +14,9 @@ import 'package:otzaria/external_catalog/repository/external_catalog_repository.
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:path/path.dart' as path;
 
+/// ספרי היברובוקס המקומיים, ומספר קובצי ה-PDF בתיקייה שלא זוהו כאלה.
+typedef LocalHebrewBooksScan = ({List<Book> books, int unrecognizedPdfCount});
+
 /// A data provider that manages file system operations for the library.
 ///
 /// This class handles all file system related operations including:
@@ -220,25 +223,58 @@ class FileSystemData {
     return mapHebrewBooksToLocal(books, pdfFiles);
   }
 
-  /// מחזיר רק את ספרי היברובוקס שקיים להם קובץ PDF מקומי (כ-[PdfBook]).
+  /// ספרי היברובוקס שקיים להם קובץ PDF מקומי (כ-[PdfBook]), וכמה קובצי PDF
+  /// בתיקייה לא זוהו (שם שאינו מזהה, או מזהה שאינו בקטלוג).
   ///
   /// ספרים אלו נמצאים פיזית במחשב ולכן נחשבים מקומיים — הם מוצגים בחיפוש
   /// תמיד, גם כשהגדרת "הצגת ספרים מאתרים חיצוניים" כבויה. אם לא הוגדרה
   /// תיקייה או שאין בה קבצי PDF — הקטלוג כלל אינו נטען (חיסכון ב-I/O).
-  static Future<List<Book>> getLocalHebrewBooks() async {
+  static Future<LocalHebrewBooksScan> scanLocalHebrewBooks() async {
     final pdfFiles = await _scanHebrewBooksPdfFiles();
     if (pdfFiles.isEmpty) {
-      return const [];
+      return (books: const <Book>[], unrecognizedPdfCount: 0);
     }
     // טוענים מהקטלוג רק את המזהים שיש להם קובץ מקומי — לא את כל הטבלה.
     final ids = extractHebrewBookIds(pdfFiles.keys);
-    if (ids.isEmpty) {
-      return const [];
-    }
-    final books = await ExternalCatalogRepository.instance.getHebrewBooksByIds(
-      ids,
+    final catalog = ExternalCatalogRepository.instance;
+    final catalogBooks = ids.isEmpty
+        ? const <Book>[]
+        : await catalog.getHebrewBooksByIds(ids);
+    // בלי קטלוג אף קובץ אינו מזוהה, וההגדרות כבר מבקשות להוריד אותו.
+    final unrecognized = catalogBooks.isEmpty && !await catalog.databaseExists()
+        ? 0
+        : countUnrecognizedHebrewBookFiles(pdfFiles.keys, {
+            for (final book in catalogBooks)
+              if (book.id != null) book.id!,
+          });
+    return (
+      books: mapHebrewBooksToLocal(
+        catalogBooks,
+        pdfFiles,
+      ).whereType<PdfBook>().toList(),
+      unrecognizedPdfCount: unrecognized,
     );
-    return mapHebrewBooksToLocal(books, pdfFiles).whereType<PdfBook>().toList();
+  }
+
+  static final RegExp _hebrewBookFileNamePattern = RegExp(
+    r'^(?:hebrewbooks_org_)?(\d+)\.pdf$',
+  );
+
+  /// סופר שמות קבצים (lowercase) שאינם `<id>.pdf` / `hebrewbooks_org_<id>.pdf`
+  /// עם מזהה מתוך [catalogIds].
+  @visibleForTesting
+  static int countUnrecognizedHebrewBookFiles(
+    Iterable<String> pdfFileNames,
+    Set<int> catalogIds,
+  ) {
+    var count = 0;
+    for (final name in pdfFileNames) {
+      final id = int.tryParse(
+        _hebrewBookFileNamePattern.firstMatch(name)?.group(1) ?? '',
+      );
+      if (id == null || !catalogIds.contains(id)) count++;
+    }
+    return count;
   }
 
   /// מחלץ מזהי ספרי היברובוקס משמות קבצי PDF (lowercase).
@@ -247,10 +283,9 @@ class FileSystemData {
   /// שמות שאינם תואמים מתעלמים מהם.
   @visibleForTesting
   static Set<int> extractHebrewBookIds(Iterable<String> pdfFileNames) {
-    final pattern = RegExp(r'^(?:hebrewbooks_org_)?(\d+)\.pdf$');
     final ids = <int>{};
     for (final name in pdfFileNames) {
-      final match = pattern.firstMatch(name);
+      final match = _hebrewBookFileNamePattern.firstMatch(name);
       if (match == null) {
         continue;
       }

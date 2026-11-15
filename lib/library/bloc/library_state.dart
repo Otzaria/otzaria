@@ -36,6 +36,9 @@ class LibraryState extends Equatable {
   /// מזהי בקשות הרענון שהסתיימו בכשל. מתאפס אחרי כל copyWith.
   final Set<int>? failedRefreshRequestIds;
 
+  /// נתוני הספרים האישיים המיובאים נבנו מחדש. מתאפס אחרי כל copyWith.
+  final bool userContentChanged;
+
   /// נתיב HebrewBooks ששונה. מתאפס אחרי כל copyWith.
   final String? changedHebrewBooksPath;
 
@@ -60,6 +63,7 @@ class LibraryState extends Equatable {
     this.failedRefreshRequestIds,
     this.changedHebrewBooksPath,
     this.isSearching = false,
+    this.userContentChanged = false,
   });
 
   /// מעבר "טעינה הסתיימה בהצלחה" — משמש להאזנה לריענון הספרייה (עדכון,
@@ -274,6 +278,7 @@ class LibraryState extends Equatable {
     Set<int>? failedRefreshRequestIds,
     String? changedHebrewBooksPath,
     bool? isSearching,
+    bool userContentChanged = false,
   }) {
     return LibraryState(
       library: library ?? this.library,
@@ -297,6 +302,7 @@ class LibraryState extends Equatable {
       failedRefreshRequestIds: failedRefreshRequestIds,
       changedHebrewBooksPath: changedHebrewBooksPath,
       isSearching: isSearching ?? this.isSearching,
+      userContentChanged: userContentChanged,
     );
   }
 
@@ -319,5 +325,6 @@ class LibraryState extends Equatable {
     failedRefreshRequestIds,
     changedHebrewBooksPath,
     isSearching,
+    userContentChanged,
   ];
 }

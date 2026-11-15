@@ -62,11 +62,15 @@ class RefreshLibrary extends LibraryEvent {
   /// מסדים מצורפים שהקובץ שלהם השתנה — כל ספריהם דורשים אינדוקס מחדש.
   final Set<String> changedAttachedSlugs;
 
+  /// כותרות, דורות או קישורים מיובאים של הספרים האישיים נבנו מחדש.
+  final bool userContentChanged;
+
   const RefreshLibrary({
     this.changedBookKeys = const {},
     this.source = RefreshSource.general,
     this.requestIds = const {},
     this.changedAttachedSlugs = const {},
+    this.userContentChanged = false,
   });
 
   @override
@@ -75,6 +79,7 @@ class RefreshLibrary extends LibraryEvent {
     source,
     requestIds,
     changedAttachedSlugs,
+    userContentChanged,
   ];
 }
 

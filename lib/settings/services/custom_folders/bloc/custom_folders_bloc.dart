@@ -487,7 +487,7 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
     GenerationCache.instance.clear();
     CommentaryService.clearEraCache();
     TargetLineLinksService.instance.clearCache();
-    _addLibraryEvent(RefreshLibrary());
+    _addLibraryEvent(const RefreshLibrary(userContentChanged: true));
   }
 
   /// מוחק את כל הדורות והקישורים המיובאים ומנקה את מטמוני הדור. מרוקן גם את

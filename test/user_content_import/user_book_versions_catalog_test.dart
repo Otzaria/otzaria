@@ -363,4 +363,297 @@ void main() {
     );
     expect(await hasBookVersionsToOpen(attachedBook), isTrue);
   });
+
+  Future<AttachedLibrary> attachVersionOf(
+    BookSource source,
+    String title,
+  ) async {
+    final dir = Directory(p.join(tempDir.path, 'attached'))..createSync();
+    final path = SeforimFixtureDb.create(dir, SeforimFixtureVariant.full);
+    final raw = sqlite3.sqlite3.open(path);
+    raw.execute(
+      'CREATE TABLE book_version_link (versionBookId INTEGER, primarySource TEXT, primaryTitle TEXT, versionTitle TEXT)',
+    );
+    raw.execute(
+      "INSERT INTO book_version_link VALUES (?, ?, ?, 'נוסח מצורף')",
+      [SeforimFixtureIds.bereshitId, source.wireKey, title],
+    );
+    raw.close();
+    final imported = await attached.importFile(path);
+    expect(imported.isOk, isTrue);
+    return imported.library!;
+  }
+
+  void expectCompleteGroup(Book primary, List<Book> members) {
+    for (final book in [primary, ...members]) {
+      final versions = book.isUserBook
+          ? provider.getUserBookVersions(book)
+          : provider.getPersonalVersionsOf(book);
+      final others = versions.map((v) => v.separateBook).toList();
+      expect(
+        others,
+        containsAll([
+          for (final member in [primary, ...members])
+            if (!identical(member, book)) same(member),
+        ]),
+      );
+      expect(others.toSet(), hasLength(others.length));
+    }
+  }
+
+  for (final officialRoot in [false, true]) {
+    test(
+      'שרשרת אישי־מצורף־אישי עם שורש ${officialRoot ? 'רשמי' : 'אישי'} נגישה מכל חבר',
+      () async {
+        final rootId = await addUserBook('שורש אישי', 'root');
+        final versionId = await addUserBook('נוסח אישי', 'version');
+        final localId = await addUserBook('נוסח מקומי', 'local');
+        final isolatedId = await addUserBook('ספר מבודד', 'isolated');
+        final raw = await (await UserBooksDatabaseHolder.instance.repository)
+            .database
+            .database;
+        raw.execute(
+          "INSERT INTO user_book_version (versionBookId, primaryBookId, versionTitle, source) VALUES (?, ?, 'נוסח מקומי', 'import')",
+          [localId, rootId],
+        );
+        if (officialRoot) {
+          await declareVersion(
+            rootId,
+            source: BookSource.official,
+            primaryTitle: SeforimFixtureIds.bereshitTitle,
+          );
+        } else {
+          raw.execute(
+            "INSERT INTO user_book_version (versionBookId, primaryBookId, versionTitle, versionNotes, source) VALUES (?, ?, 'מהדורה ראשונה', 'הערת ראשי', 'import')",
+            [rootId, rootId],
+          );
+        }
+        final library = await attachVersionOf(BookSource.user, 'שורש אישי');
+        await declareVersion(
+          versionId,
+          source: library.source!,
+          primaryTitle: SeforimFixtureIds.bereshitTitle,
+        );
+
+        final catalog = await buildCatalog();
+        final books = catalog.getIndexableBooks();
+        Book personal(int id) =>
+            books.singleWhere((b) => b.source.isUser && b.id == id);
+        final attachedBook = books.singleWhere(
+          (b) =>
+              b.source == library.source &&
+              b.id == SeforimFixtureIds.bereshitId,
+        );
+        final root = officialRoot
+            ? officialBereshit(catalog)
+            : personal(rootId);
+        expectCompleteGroup(root, [
+          if (officialRoot) personal(rootId),
+          personal(versionId),
+          personal(localId),
+          attachedBook,
+        ]);
+        final group = provider.getUserBookVersions(personal(versionId));
+        expect(group.first.separateBook, same(root));
+        if (!officialRoot) {
+          expect(group.first.displayTitle, 'מהדורה ראשונה');
+          expect(group.first.heVersionNotes, 'הערת ראשי');
+        }
+        expect(catalog.getAllBooks(), contains(same(root)));
+        expect(catalog.getAllBooks(), contains(same(personal(isolatedId))));
+        expect(provider.getUserBookVersions(personal(isolatedId)), isEmpty);
+        expect(
+          catalog.offTreeBooks,
+          containsAll([
+            same(personal(versionId)),
+            same(personal(localId)),
+            same(attachedBook),
+          ]),
+        );
+      },
+    );
+  }
+
+  test(
+    'מעגל אישי־מצורף והגרסה הנכנסת אליו נשארים גלויים בלי קבוצת גרסאות חלקית',
+    () async {
+      final personalId = await addUserBook('נוסח אישי', 'personal');
+      final incomingId = await addUserBook('גרסה נכנסת', 'incoming');
+      final library = await attachVersionOf(BookSource.user, 'נוסח אישי');
+      await declareVersion(
+        personalId,
+        source: library.source!,
+        primaryTitle: SeforimFixtureIds.bereshitTitle,
+      );
+      final raw = await (await UserBooksDatabaseHolder.instance.repository)
+          .database
+          .database;
+      raw.execute(
+        "INSERT INTO user_book_version (versionBookId, primaryBookId, versionTitle, source) VALUES (?, ?, 'נכנסת', 'import')",
+        [incomingId, personalId],
+      );
+
+      final catalog = await buildCatalog();
+      final personal = catalog.getAllBooks().singleWhere(
+        (b) => b.source.isUser && b.id == personalId,
+      );
+      final incoming = catalog.getAllBooks().singleWhere(
+        (b) => b.source.isUser && b.id == incomingId,
+      );
+      final attachedBook = catalog.getAllBooks().singleWhere(
+        (b) =>
+            b.source == library.source && b.id == SeforimFixtureIds.bereshitId,
+      );
+      expect(catalog.offTreeBooks, isEmpty);
+      expect(provider.getUserBookVersions(personal), isEmpty);
+      expect(provider.getUserBookVersions(incoming), isEmpty);
+      expect(provider.getPersonalVersionsOf(attachedBook), isEmpty);
+    },
+  );
+
+  test('ראשי אישי חסר משאיר את הספר בעץ ומאפשר את גרסאותיו המצורפות', () async {
+    final personalId = await addUserBook('נוסח אישי', 'personal');
+    final raw = await (await UserBooksDatabaseHolder.instance.repository)
+        .database
+        .database;
+    raw.execute(
+      "INSERT INTO user_book_version (versionBookId, primaryBookId, versionTitle, source) VALUES (?, 999999, 'נוסח יתום', 'import')",
+      [personalId],
+    );
+    final library = await attachVersionOf(BookSource.user, 'נוסח אישי');
+
+    final catalog = await buildCatalog();
+    final personal = catalog.getAllBooks().singleWhere(
+      (b) => b.source.isUser && b.id == personalId,
+    );
+    final attachedBook = catalog.offTreeBooks.singleWhere(
+      (b) => b.source == library.source,
+    );
+    expectCompleteGroup(personal, [attachedBook]);
+  });
+
+  test('שרשרת ארוכה של גרסאות אישיות מתכנסת לראשי יחיד', () async {
+    final ids = [
+      for (var i = 0; i < 128; i++) await addUserBook('נוסח $i', '$i'),
+    ];
+    final raw = await (await UserBooksDatabaseHolder.instance.repository)
+        .database
+        .database;
+    for (var i = 1; i < ids.length; i++) {
+      raw.execute(
+        "INSERT INTO user_book_version (versionBookId, primaryBookId, versionTitle, source) VALUES (?, ?, ?, 'import')",
+        [ids[i], ids[i - 1], 'נוסח $i'],
+      );
+    }
+
+    final catalog = await buildCatalog();
+    final root = catalog.getAllBooks().singleWhere((b) => b.source.isUser);
+    final last = catalog.offTreeBooks.singleWhere(
+      (b) => b.source.isUser && b.id == ids.last,
+    );
+    expect(root.id, ids.first);
+    expect(catalog.offTreeBooks, hasLength(ids.length - 1));
+    for (final book in [root, last]) {
+      final group = provider.getUserBookVersions(book);
+      expect(group.first.separateBook, same(root));
+      expect(group.map((v) => v.separateBook).toSet(), hasLength(ids.length));
+      expect(group, hasLength(ids.length));
+    }
+  });
+
+  for (final declaration in ['אוטומטית', 'מוטמעת', 'קובץ משתמש']) {
+    final explicit = declaration != 'אוטומטית';
+    test(
+      'גרסה אישית נשארת בקבוצה כשמצורף נעשה גרסה: $declaration',
+      () async {
+        final dir = Directory(p.join(tempDir.path, 'attached'))..createSync();
+        final path = SeforimFixtureDb.create(dir, SeforimFixtureVariant.full);
+        final primaryTitle = explicit
+            ? SeforimFixtureIds.rashiTitle
+            : SeforimFixtureIds.bereshitTitle;
+        if (explicit) {
+          final raw = sqlite3.sqlite3.open(path);
+          raw.execute(
+            'CREATE TABLE book_version_link (versionBookId INTEGER, primarySource TEXT, primaryTitle TEXT, versionTitle TEXT)',
+          );
+          raw.execute(
+            "INSERT INTO book_version_link VALUES (?, 'official', ?, 'נוסח מפורש')",
+            [
+              SeforimFixtureIds.bereshitId,
+              declaration == 'קובץ משתמש'
+                  ? SeforimFixtureIds.bereshitTitle
+                  : primaryTitle,
+            ],
+          );
+          raw.close();
+        }
+        final imported = await attached.importFile(path);
+        expect(imported.isOk, isTrue);
+        final library = imported.library!;
+        await attached.setPlacement(
+          library,
+          AttachedLibraryPlacement.mergeIntoLibrary,
+        );
+        final versionId = await addUserBook('נוסח אישי', 'personal');
+        await declareVersion(
+          versionId,
+          source: library.source!,
+          primaryTitle: SeforimFixtureIds.bereshitTitle,
+        );
+        final raw = await (await UserBooksDatabaseHolder.instance.repository)
+            .database
+            .database;
+        raw.execute('UPDATE user_book_version SET priority = 5');
+        if (declaration == 'קובץ משתמש') {
+          raw.execute(
+            "INSERT INTO user_attached_book_version (versionDb, versionBookTitle, primarySource, primaryTitle, versionTitle, versionNotes, priority, source) VALUES (?, ?, 'o', ?, 'נוסח משתמש', 'הערת משתמש', 2, 'import')",
+            [library.slug, SeforimFixtureIds.bereshitTitle, primaryTitle],
+          );
+        }
+
+        final catalog = await buildCatalog();
+        final primary = catalog.getAllBooks().singleWhere(
+          (b) => b.source.isOfficial && b.title == primaryTitle,
+        );
+        final attachedBook = catalog.offTreeBooks.singleWhere(
+          (b) =>
+              b.source == library.source &&
+              b.id == SeforimFixtureIds.bereshitId,
+        );
+        final personal = catalog.offTreeBooks.singleWhere(
+          (b) => b.source.isUser && b.id == versionId,
+        );
+        expect(catalog.getAllBooks(), isNot(contains(personal)));
+        expect(catalog.getAllBooks(), isNot(contains(attachedBook)));
+        final versions = provider.getPersonalVersionsOf(primary);
+        expect(
+          versions.map((v) => v.separateBook),
+          containsAll([same(personal), same(attachedBook)]),
+        );
+        expect(versions.first.separateBook, same(personal));
+        if (declaration == 'קובץ משתמש') {
+          final info = versions.singleWhere(
+            (v) => identical(v.separateBook, attachedBook),
+          );
+          expect(info.displayTitle, 'נוסח משתמש');
+          expect(info.heVersionNotes, 'הערת משתמש');
+          expect(info.priority, 2);
+        }
+        for (final book in [primary, attachedBook, personal]) {
+          final group = book.isUserBook
+              ? provider.getUserBookVersions(book)
+              : provider.getPersonalVersionsOf(book);
+          final others = group.map((v) => v.separateBook).toList();
+          expect(
+            others,
+            containsAll([
+              for (final member in [primary, attachedBook, personal])
+                if (!identical(member, book)) same(member),
+            ]),
+          );
+          expect(others.toSet(), hasLength(others.length));
+        }
+      },
+    );
+  }
 }

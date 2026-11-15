@@ -67,7 +67,7 @@ class OpenOrFocusTab extends TabsEvent {
   ];
 }
 
-/// החלפת טאב קיים בטאב אחר באותו מיקום — סיום רזולוציה של ResolvingTab.
+/// החלפת טאב או חלונית בטאב אחר באותו מיקום (סיום רזולוציה, טעינה מחדש).
 class ReplaceTab extends TabsEvent {
   final OpenedTab oldTab;
   final OpenedTab newTab;

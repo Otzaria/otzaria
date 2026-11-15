@@ -21,11 +21,13 @@ import 'package:otzaria/indexing/bloc/indexing_event.dart';
 import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/library/hidden/hidden_library_selection.dart';
+import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/navigation/utils/refresh_indexing_plan.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
@@ -163,6 +165,105 @@ void main() {
     expect(officialTorah.books.every((b) => b.source.isOfficial), isTrue);
   });
 
+  test(
+    'גרסה מקובץ המשתמש שספרה במסד מצורף: מוסתרת ומוצגת כגרסה (#4392)',
+    () async {
+      final library = await attach(
+        attachedFixture('נוסחים', SeforimFixtureVariant.full),
+      );
+      final userDb =
+          (await UserBooksDatabaseHolder.instance.repository).database;
+      (await userDb.database).execute(
+        'INSERT INTO user_attached_book_version (versionDb, versionBookTitle, '
+        'primarySource, primaryTitle, versionTitle, source) '
+        "VALUES (?, ?, 'o', ?, 'נוסח המסד', 'import')",
+        [
+          library.slug,
+          SeforimFixtureIds.bereshitTitle,
+          SeforimFixtureIds.bereshitTitle,
+        ],
+      );
+
+      final catalog = await buildCatalog();
+
+      final root = _child(
+        _child(catalog, _personalRoot)!,
+        library.displayName,
+      )!;
+      final torah = _child(_child(root, 'תנ"ך')!, 'תורה')!;
+      expect(
+        [for (final b in torah.books) b.title],
+        [
+          SeforimFixtureIds.rashiTitle,
+        ],
+      );
+      final version = catalog.offTreeBooks.single;
+      expect(version.source, library.source);
+      final official = _child(_child(catalog, 'תנ"ך')!, 'תורה')!.books
+          .firstWhere(
+            (b) => b.title == SeforimFixtureIds.bereshitTitle,
+          );
+      final ofOfficial = provider.getPersonalVersionsOf(official);
+      expect(ofOfficial.single.displayTitle, 'נוסח המסד');
+      expect(identical(ofOfficial.single.separateBook, version), isTrue);
+      final group = provider.getPersonalVersionsOf(version);
+      expect(
+        [for (final v in group) v.separateBook?.source],
+        [
+          BookSource.official,
+          library.source,
+        ],
+      );
+    },
+  );
+
+  test(
+    'book_version_link במסד מצורף: הגרסה מוסתרת ומוצגת אצל הראשי (#4392)',
+    () async {
+      final path = attachedFixture('מוטמע', SeforimFixtureVariant.full);
+      final raw = sqlite3.sqlite3.open(path);
+      raw.execute(
+        'CREATE TABLE book_version_link (versionBookId INTEGER, '
+        'primarySource TEXT, primaryTitle TEXT, primaryCategoryPath TEXT, '
+        'versionTitle TEXT, versionNotes TEXT, priority REAL)',
+      );
+      raw.execute(
+        'INSERT INTO book_version_link VALUES '
+        "(?, 'official', ?, 'תורה', 'כתר', 'הערה', 2), "
+        "(999, 'official', ?, NULL, 'יתום', NULL, NULL)",
+        [
+          SeforimFixtureIds.bereshitId,
+          SeforimFixtureIds.bereshitTitle,
+          SeforimFixtureIds.bereshitTitle,
+        ],
+      );
+      raw.close();
+      final library = await attach(path);
+
+      final catalog = await buildCatalog();
+
+      final root = _child(
+        _child(catalog, _personalRoot)!,
+        library.displayName,
+      )!;
+      final torah = _child(_child(root, 'תנ"ך')!, 'תורה')!;
+      expect(
+        [for (final b in torah.books) b.title],
+        [
+          SeforimFixtureIds.rashiTitle,
+        ],
+      );
+      final official = _child(_child(catalog, 'תנ"ך')!, 'תורה')!.books
+          .firstWhere(
+            (b) => b.title == SeforimFixtureIds.bereshitTitle,
+          );
+      final versions = provider.getPersonalVersionsOf(official);
+      expect(versions.single.displayTitle, 'כתר');
+      expect(versions.single.separateBook?.source, library.source);
+      expect(versions.single.separateBook?.id, SeforimFixtureIds.bereshitId);
+    },
+  );
+
   test('נתיב הקטגוריה והנושאים מחושבים פעם אחת לקטגוריה', () async {
     final library = await attach(
       attachedFixture('ספרייה', SeforimFixtureVariant.full),
@@ -220,11 +321,96 @@ void main() {
     final torah = _child(_child(catalog, 'תנ"ך')!, 'תורה')!;
     final sources = [for (final b in torah.books) b.source];
     expect(sources.where((s) => s.isOfficial), hasLength(2));
-    expect(
-      sources.where((s) => s == BookSource.attached(library.slug)),
-      hasLength(2),
+    // ספר בשם זהה לרשמי באותה קטגוריה הופך לגרסה שלו ואינו כפול בעץ (#4198).
+    expect(sources.where((s) => s.isAttached), isEmpty);
+    expect(catalog.offTreeBooks, hasLength(2));
+    final official = torah.books.firstWhere(
+      (b) => b.title == SeforimFixtureIds.bereshitTitle,
     );
+    final versions = provider.getPersonalVersionsOf(official);
+    expect(versions.single.displayTitle, library.displayName);
+    expect(versions.single.separateBook?.source, library.source);
     expect(_child(catalog, _personalRoot), isNull);
+  });
+
+  test(
+    'מיזוג: הצהרה מפורשת על ספר זהה לרשמי גוברת על הזיהוי האוטומטי',
+    () async {
+      final path = attachedFixture('מפורש', SeforimFixtureVariant.full);
+      final raw = sqlite3.sqlite3.open(path);
+      raw.execute(
+        'CREATE TABLE book_version_link (versionBookId INTEGER, '
+        'primarySource TEXT, primaryTitle TEXT, versionTitle TEXT)',
+      );
+      raw.execute(
+        "INSERT INTO book_version_link VALUES (?, 'official', ?, 'נוסח מוצהר')",
+        [SeforimFixtureIds.rashiId, SeforimFixtureIds.bereshitTitle],
+      );
+      raw.close();
+      final library = await attach(path);
+      await attached.setPlacement(
+        library,
+        AttachedLibraryPlacement.mergeIntoLibrary,
+      );
+
+      final catalog = await buildCatalog();
+
+      final torah = _child(_child(catalog, 'תנ"ך')!, 'תורה')!;
+      final official = torah.books.firstWhere(
+        (b) => b.title == SeforimFixtureIds.bereshitTitle,
+      );
+      expect(
+        [
+          for (final v in provider.getPersonalVersionsOf(official))
+            v.displayTitle,
+        ],
+        unorderedEquals([library.displayName, 'נוסח מוצהר']),
+      );
+      final rashi = torah.books.firstWhere(
+        (b) => b.title == SeforimFixtureIds.rashiTitle,
+      );
+      expect(provider.getPersonalVersionsOf(rashi), isEmpty);
+    },
+  );
+
+  test('מיזוג: ספר רשמי מוסתר אינו מעלים את הספר הזהה מהמסד', () async {
+    final library = await attach(
+      attachedFixture('מוסתר', SeforimFixtureVariant.full),
+    );
+    await attached.setPlacement(
+      library,
+      AttachedLibraryPlacement.mergeIntoLibrary,
+    );
+    Book torahBook(Library catalog, String title, bool official) =>
+        _child(_child(catalog, 'תנ"ך')!, 'תורה')!.books.firstWhere(
+          (b) => b.title == title && b.source.isOfficial == official,
+        );
+    final official = torahBook(
+      await buildCatalog(),
+      SeforimFixtureIds.bereshitTitle,
+      true,
+    );
+    await const HiddenLibraryStore().save(
+      HiddenLibrarySelection(bookKeys: {PerBookSettings.bookKey(official)}),
+    );
+
+    final catalog = await buildCatalog();
+
+    final own = torahBook(catalog, SeforimFixtureIds.bereshitTitle, false);
+    expect(own.source, library.source);
+    expect(catalog.offTreeBooks.single.title, SeforimFixtureIds.rashiTitle);
+  });
+
+  test('בנפרד: ספר בשם זהה לרשמי נשאר ספר רגיל', () async {
+    final library = await attach(
+      attachedFixture('נפרד', SeforimFixtureVariant.full),
+    );
+
+    final catalog = await buildCatalog();
+
+    expect(catalog.offTreeBooks, isEmpty);
+    final root = _child(_child(catalog, _personalRoot)!, library.displayName)!;
+    expect(_booksUnder(root), hasLength(2));
   });
 
   for (final placement in AttachedLibraryPlacement.values) {

@@ -40,6 +40,16 @@ void main() {
       expect(tables, contains('user_link'));
     });
 
+    test('מסד קיים בלי user_attached_book_version מקבל אותה בפתיחה', () async {
+      await database.database;
+      database.close();
+      final setupDb = sqlite3.sqlite3.open(dbPath);
+      setupDb.execute('DROP TABLE user_attached_book_version');
+      setupDb.close();
+      database = MyDatabase.withPath(dbPath);
+      expect(await tableNames(), contains('user_attached_book_version'));
+    });
+
     test(
       'user_link מכילה את העמודות הנדרשות לזיהוי מקור+יעד חוצה-DB',
       () async {
@@ -170,12 +180,16 @@ void main() {
             'targetLineIndexEnd',
             'targetRefEnd',
             'source',
+            'sourceDb',
+            'targetDb',
           ]),
         );
         final row = db.select('SELECT * FROM user_link').single;
         expect(row['sourceTitle'], 'ביאורי יוסף');
         expect(row['anchorStart'], isNull);
         expect(row['source'], isNull);
+        expect(row['sourceDb'], isNull);
+        expect(row['targetDb'], isNull);
 
         final indexes = db
             .select(

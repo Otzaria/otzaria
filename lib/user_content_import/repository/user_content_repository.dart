@@ -45,6 +45,7 @@ class UserContentRepository {
         'structureId IN (SELECT id FROM user_alt_toc_structure '
         "WHERE source = '$manualImportSource')",
     'user_book_version': "source = '$manualImportSource'",
+    'user_attached_book_version': "source = '$manualImportSource'",
   };
 
   static String _baselineTable(String table) => 'import_baseline_$table';
@@ -227,9 +228,32 @@ class UserContentRepository {
   Future<void> replaceVersions(
     List<UserBookVersionRecord> versions, {
     required String source,
+    List<AttachedBookVersionRecord> attachedVersions = const [],
   }) async {
     final db = await _db.database;
     db.execute('DELETE FROM user_book_version WHERE source = ?', [source]);
+    db.execute('DELETE FROM user_attached_book_version WHERE source = ?', [
+      source,
+    ]);
+    for (final version in attachedVersions) {
+      db.execute(
+        'INSERT OR REPLACE INTO user_attached_book_version '
+        '(versionDb, versionBookTitle, primarySource, primaryTitle, '
+        'primaryCategoryPath, versionTitle, versionNotes, priority, source) '
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          version.versionDb,
+          version.versionBookTitle,
+          version.primarySource.wireKey,
+          version.primaryTitle,
+          version.primaryCategoryPath,
+          version.versionTitle,
+          version.versionNotes,
+          version.priority,
+          source,
+        ],
+      );
+    }
     for (final version in versions) {
       db.execute(
         'INSERT OR REPLACE INTO user_book_version '
@@ -262,6 +286,9 @@ class UserContentRepository {
     );
     db.execute('DELETE FROM user_alt_toc_structure WHERE source = ?', [source]);
     db.execute('DELETE FROM user_book_version WHERE source = ?', [source]);
+    db.execute('DELETE FROM user_attached_book_version WHERE source = ?', [
+      source,
+    ]);
     db.execute('DELETE FROM user_link WHERE source = ?', [source]);
     db.execute('DELETE FROM user_sidecar_link_book WHERE path = ?', [source]);
     db.execute('DELETE FROM user_sidecar_file WHERE path = ?', [source]);
@@ -429,6 +456,8 @@ class UserContentRepository {
         link.targetIsUserBook,
         link.targetCategoryId,
         link.targetLineIndex,
+        link.sourceDb,
+        link.targetDb,
       ].join('|');
       if (cleared.add(key)) _deleteUserLinksAt(db, link, source);
       _insertUserLink(db, link, source);
@@ -446,7 +475,8 @@ class UserContentRepository {
       'DELETE FROM user_link WHERE sourceTitle = ? AND sourceIsUserBook = ? '
       'AND sourceCategoryId IS ? AND sourceLineIndex = ? '
       'AND targetTitle = ? AND targetIsUserBook = ? AND targetCategoryId IS ? '
-      'AND targetLineIndex IS ? AND source IS ?',
+      'AND targetLineIndex IS ? AND source IS ? '
+      'AND sourceDb IS ? AND targetDb IS ?',
       [
         link.sourceTitle,
         link.sourceIsUserBook ? 1 : 0,
@@ -457,6 +487,8 @@ class UserContentRepository {
         link.targetCategoryId,
         link.targetLineIndex,
         source,
+        link.sourceDb,
+        link.targetDb,
       ],
     );
   }
@@ -471,8 +503,8 @@ class UserContentRepository {
       'sourceLineIndex, targetTitle, targetCategoryId, targetIsUserBook, '
       'targetRef, targetLineIndex, anchorStart, anchorEnd, anchorLabel, '
       'sourceLineIndexEnd, targetLineIndexEnd, targetRefEnd, connectionType, '
-      'source) '
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'source, sourceDb, targetDb) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         link.sourceTitle,
         link.sourceCategoryId,
@@ -491,6 +523,8 @@ class UserContentRepository {
         link.targetRefEnd,
         link.connectionType,
         source,
+        link.sourceDb,
+        link.targetDb,
       ],
     );
   }
@@ -503,6 +537,7 @@ class UserContentRepository {
   Future<List<UserLinkRecord>> forwardUserLinks(
     String sourceTitle, {
     required bool sourceIsUserBook,
+    String? sourceDb,
     int? sourceCategoryId,
     int? startLineIndex,
     int? endLineIndex,
@@ -518,10 +553,11 @@ class UserContentRepository {
         : '';
     final rows = db.select(
       'SELECT * FROM user_link WHERE sourceTitle = ? AND sourceIsUserBook = ? '
-      '$categoryClause $rangeClause ORDER BY sourceLineIndex',
+      'AND sourceDb IS ? $categoryClause $rangeClause ORDER BY sourceLineIndex',
       [
         sourceTitle,
         sourceIsUserBook ? 1 : 0,
+        sourceDb,
         ?sourceCategoryId,
         if (hasRange) ...[endLineIndex, startLineIndex],
       ],
@@ -536,6 +572,7 @@ class UserContentRepository {
   Future<List<UserLinkRecord>> inverseUserLinks(
     String targetTitle, {
     required bool targetIsUserBook,
+    String? targetDb,
     int? targetCategoryId,
     int? startLineIndex,
     int? endLineIndex,
@@ -554,11 +591,12 @@ class UserContentRepository {
     final rows = db.select(
       'SELECT ul.* FROM user_link ul '
       'WHERE ul.targetTitle = ? AND ul.targetIsUserBook = ? '
-      '$categoryClause $rangeClause '
+      'AND ul.targetDb IS ? $categoryClause $rangeClause '
       'ORDER BY ul.targetLineIndex',
       [
         targetTitle,
         targetIsUserBook ? 1 : 0,
+        targetDb,
         ?targetCategoryId,
         if (hasRange) ...[endLineIndex, startLineIndex],
       ],
@@ -571,6 +609,7 @@ class UserContentRepository {
   Future<List<String>> userCommentatorTitles(
     String sourceTitle, {
     required bool sourceIsUserBook,
+    String? sourceDb,
     int? sourceCategoryId,
   }) async {
     final db = await _db.database;
@@ -580,11 +619,12 @@ class UserContentRepository {
         : '';
     final rows = db.select(
       'SELECT DISTINCT targetTitle FROM user_link '
-      'WHERE sourceTitle = ? AND sourceIsUserBook = ? $categoryClause '
-      'AND UPPER(connectionType) IN ($depIn)',
+      'WHERE sourceTitle = ? AND sourceIsUserBook = ? AND sourceDb IS ? '
+      '$categoryClause AND UPPER(connectionType) IN ($depIn)',
       [
         sourceTitle,
         sourceIsUserBook ? 1 : 0,
+        sourceDb,
         ?sourceCategoryId,
       ],
     );
@@ -608,5 +648,7 @@ class UserContentRepository {
     targetLineIndexEnd: row['targetLineIndexEnd'] as int?,
     targetRefEnd: row['targetRefEnd'] as String?,
     connectionType: row['connectionType'] as String,
+    sourceDb: row['sourceDb'] as String?,
+    targetDb: row['targetDb'] as String?,
   );
 }

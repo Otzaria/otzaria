@@ -45,6 +45,7 @@ void main() {
     expect(c.hasLinkSuppressedSide, isTrue);
     expect(c.hasLinkBaseProvenance, isTrue);
     expect(c.hasBookVersions, isTrue);
+    expect(c.hasBookVersionLinks, isFalse);
     expect(c.hasLineRef, isTrue);
     expect(c.hasLineDhDisplay, isTrue);
     expect(c.hasLineBookIndex, isTrue);
@@ -121,6 +122,26 @@ void main() {
       final c = probeWith((db) => db.execute('DROP TABLE version_line'));
       expect(c.has('book_version'), isTrue);
       expect(c.hasBookVersions, isFalse);
+    });
+
+    test('book_version_link עם העמודות הנדרשות — יש גרסאות מוצהרות', () {
+      final c = probeWith(
+        (db) => db.execute(
+          'CREATE TABLE book_version_link (versionBookId INTEGER, '
+          'primarySource TEXT, primaryTitle TEXT)',
+        ),
+      );
+      expect(c.hasBookVersionLinks, isTrue);
+    });
+
+    test('book_version_link בלי primaryTitle — אין גרסאות מוצהרות', () {
+      final c = probeWith(
+        (db) => db.execute(
+          'CREATE TABLE book_version_link (versionBookId INTEGER)',
+        ),
+      );
+      expect(c.has('book_version_link'), isTrue);
+      expect(c.hasBookVersionLinks, isFalse);
     });
 
     test('link בלי connection_type — אין קישורים כלל', () {
