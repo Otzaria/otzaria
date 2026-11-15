@@ -21,9 +21,17 @@ void main() {
       7000: 'טור, יורה דעה,  שי, ב',
       7100: 'טור, אבן העזר,  שי, ב',
     },
+    3909: {410: 'איסור והיתר הארוך, לה, יא'},
+    3133: {20: 'שערי תשובה, שער א, ב'},
   };
 
-  final titles = {12: 'ישעיהו', 70: 'ברכות', 380: 'טור'};
+  final titles = {
+    12: 'ישעיהו',
+    70: 'ברכות',
+    380: 'טור',
+    3909: 'איסור והיתר הארוך',
+    3133: 'שערי תשובה',
+  };
 
   late List<({List<int> bookIds, String refKey})> lookups;
 
@@ -152,6 +160,23 @@ void main() {
     final results = await buildRepo().findRefs('ברכות ב. א');
     expect(results.first.isSourceLine, isTrue);
     expect(results.first.segment, 5);
+  });
+
+  // issue #4893 — "דין" ו"כלל" אינם ב-heRef הממוספר.
+  test('מילות מבנה שאינן ב-heRef ("כלל לה דין יא") מגיעות לשורה', () async {
+    final results = await buildRepo().findRefs(
+      'איסור והיתר הארוך כלל לה דין יא',
+    );
+
+    expect(results.first.isSourceLine, isTrue);
+    expect(results.first.segment, 410);
+  });
+
+  test('מילת מבנה שב-heRef ("שער א ב") נפתרת במפתח המלא בלבד', () async {
+    final results = await buildRepo().findRefs('שערי תשובה שער א ב');
+
+    expect(results.first.segment, 20);
+    expect(lookups.map((l) => l.refKey), ['שער א ב']);
   });
 
   test('שאילתה מאוגדת אחת לכל מפתח — לא פנייה לכל ספר', () async {

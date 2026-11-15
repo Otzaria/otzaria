@@ -2794,13 +2794,14 @@ extension BookAcronymRepository on SeforimRepository {
             .toList();
       }
 
-      // "סימן מז" מול "שאלה מז": רק בכותרת שבה גם המספר שאחריו.
+      // "סימן מז" מול "שאלה מז", "כלל לה" מול "שער לה": רק בכותרת שבה גם
+      // המספר שאחריו.
       if (found.isEmpty && isStructureWord(token) && i + 1 < tokens.length) {
         final next = hebrewTokenAlternatives(tokens[i + 1]);
         found = searchScope
             .where(
               (e) =>
-                  responsaUnitWords.any(e.ownTokens.contains) &&
+                  matchesOtherStructureWord(token, e.ownTokens) &&
                   next.any(e.ownTokens.contains),
             )
             .toList();
@@ -2874,15 +2875,13 @@ extension BookAcronymRepository on SeforimRepository {
     _TocBookCache cache,
     List<String> tokens, {
     bool requireAllTokensInOwnHeading = false,
-    bool responsaUnits = false,
+    bool structureAliases = false,
   }) {
     if (tokens.isEmpty) return const [];
 
-    // "סימן מז" מול "שאלה מז" — רק בכותרת העלה עצמה.
-    bool isResponsaUnit(String token, List<String> ownTokens) =>
-        responsaUnits &&
-        isStructureWord(token) &&
-        responsaUnitWords.any(ownTokens.contains);
+    // שם חלופי למילת מבנה ("סימן מז" מול "שאלה מז") — רק בכותרת העלה עצמה.
+    bool isAlias(String token, _CachedTocEntry e) =>
+        structureAliases && matchesOtherStructureWord(token, e.ownTokens);
     final cite = parseDafCitation(tokens);
     final implicitDaf = cache.hasBareDafHeadings && tokens.contains('דף');
     final lastAlts = hebrewTokenAlternatives(tokens.last);
@@ -2892,7 +2891,7 @@ extension BookAcronymRepository on SeforimRepository {
         return tokens.every(
           (token) =>
               hebrewTokenAlternatives(token).any(e.ownTokens.contains) ||
-              isResponsaUnit(token, e.ownTokens),
+              isAlias(token, e),
         );
       }
       if (cite != null) {
@@ -2914,21 +2913,23 @@ extension BookAcronymRepository on SeforimRepository {
                   pathTokens.contains(a) ||
                   cache.titleHeadingTokens.contains(a),
             ) &&
-            !isResponsaUnit(token, e.ownTokens)) {
+            !isAlias(token, e)) {
           return false;
         }
       }
       return true;
     }).toList();
     // "תשובה ב" רק כשאין בספר "סימן ב" מילולי.
-    if (matches.isNotEmpty || responsaUnits || !tokens.any(isStructureWord)) {
+    if (matches.isNotEmpty ||
+        structureAliases ||
+        !tokens.any(isStructureWord)) {
       return matches;
     }
     return _searchTocFlat(
       cache,
       tokens,
       requireAllTokensInOwnHeading: requireAllTokensInOwnHeading,
-      responsaUnits: true,
+      structureAliases: true,
     );
   }
 
@@ -2979,7 +2980,7 @@ extension BookAcronymRepository on SeforimRepository {
     required List<String> Function(T) ownTokensOf,
     required List<String> Function(T) pathTokensOf,
     int Function(T)? refMaskOf,
-    bool responsaUnits = false,
+    bool structureAliases = false,
   }) {
     if (tokens.isEmpty) return const [];
 
@@ -3031,17 +3032,18 @@ extension BookAcronymRepository on SeforimRepository {
       final pathTokens = checkedPath ?? pathTokensOf(e);
       for (var i = 0; i < tokens.length; i++) {
         if (alternatives[i].any(pathTokens.contains)) continue;
-        // כמו ב-[_searchTocFlat]: "שאלה"/"תשובה" רק בכותרת העלה עצמה.
-        if (responsaUnits &&
-            isStructureWord(tokens[i]) &&
-            responsaUnitWords.any(ownTokens.contains)) {
+        // כמו ב-[_searchTocFlat]: שם חלופי רק בכותרת העלה עצמה.
+        if (structureAliases &&
+            matchesOtherStructureWord(tokens[i], ownTokens)) {
           continue;
         }
         return false;
       }
       return true;
     });
-    if (responsaUnits || !tokens.any(isStructureWord) || matches.isNotEmpty) {
+    if (structureAliases ||
+        !tokens.any(isStructureWord) ||
+        matches.isNotEmpty) {
       return matches;
     }
     return _searchAltTocFlat(
@@ -3050,7 +3052,7 @@ extension BookAcronymRepository on SeforimRepository {
       ownTokensOf: ownTokensOf,
       pathTokensOf: pathTokensOf,
       refMaskOf: refMaskOf,
-      responsaUnits: true,
+      structureAliases: true,
     );
   }
 

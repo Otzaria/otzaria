@@ -136,6 +136,20 @@ void main() {
     expect(exact.single.sourceLineId, 901);
   });
 
+  test('מילות מבנה שאינן ב-heRef ("כלל א דין ב") מגיעות לשורה', () async {
+    await attach(createDb(withLineRef: true));
+    final results = attachedOnly(
+      await buildRepo().findRefs(
+        '$_title כלל א דין ב',
+        includePersonalBooks: true,
+      ),
+    );
+    expect(
+      results.where((r) => r.isSourceLine).map((r) => r.segment),
+      [5],
+    );
+  });
+
   test('בלי line_ref — אין שורה מדויקת, ותוכן העניינים עדיין נמצא', () async {
     await attach(createDb(withLineRef: false));
     final repo = buildRepo();
