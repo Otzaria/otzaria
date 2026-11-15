@@ -1,8 +1,5 @@
 /// הדגשת בחירה שממלאת את גובה השורה, בלי פס לא-צבוע בין שורה לשורה.
-///
-/// הפריימוורק מצייר את הבחירה ב-`BoxHeightStyle.tight` — תיבה בגובה הגליף
-/// בלבד — ואין פרמטר לשנות זאת מחוץ ל-`TextField`. `max` נותן תיבה בגובה שורת
-/// התצוגה, שנוגעת בשורה שאחריה, כמו בדפדפן ובוורד.
+/// `BoxHeightStyle.max` מחליף את גובה הגליף בגובה שורת התצוגה המלאה.
 library;
 
 import 'dart:math' as math;
@@ -294,8 +291,7 @@ class _RenderSelectionFillParagraph extends RenderParagraph {
     return super.getPositionForOffset(offset.translate(dx, 0));
   }
 
-  /// בשורה המוזזת המנוע מזיז רק חלק ממיקומי הסמן, ולכן הסמן נגזר מתיבת האות
-  /// הסמוכה המתוקנת, לפי ה-affinity כמו ב-TextPainter.
+  /// הסמן נגזר מתיבת האות המתוקנת לפי ה-affinity, כמו ב-TextPainter.
   /// TODO: להסיר כש-flutter#196326 יתוקן.
   @override
   Offset getOffsetForCaret(TextPosition position, Rect caretPrototype) {
@@ -343,6 +339,11 @@ class _RenderSelectionFillParagraph extends RenderParagraph {
   /// והתיבות בה זזות ימינה ממה שצויר. TODO: להסיר כש-flutter#196326 יתוקן.
   List<_LineShift>? _hardBreakShifts;
 
+  // Cluster ב-Skia מסווג רווחי ASCII, וב-Unicode משתמש ב-ICU u_isWhitespace.
+  static final _skiaWhitespace = RegExp(
+    r'[\u0009-\u000d\u0020\u1680\u2000-\u2006\u2008-\u200a\u2028\u2029\u205f\u3000]',
+  );
+
   List<_LineShift> get _shifts =>
       _hardBreakShifts ??= _measureHardBreakShifts();
 
@@ -359,6 +360,8 @@ class _RenderSelectionFillParagraph extends RenderParagraph {
         boxHeightStyle: ui.BoxHeightStyle.max,
       );
       if (i == lineStart || breakBoxes.isEmpty) continue;
+      // רווח לפני השבירה כבר מתקן את מדידות Skia; רוחבו אינו הזזה של הטקסט.
+      if (_skiaWhitespace.hasMatch(plain[i - 1])) continue;
       final line = breakBoxes.first;
       var left = double.infinity;
       for (final box in super.getBoxesForSelection(
