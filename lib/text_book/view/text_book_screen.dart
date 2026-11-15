@@ -39,6 +39,7 @@ import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/settings/settings_exports.dart' hide UpdateFontSize;
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/companion/companion_books.dart';
+import 'package:otzaria/text_book/companion/tur_shulchan_aruch.dart';
 import 'package:otzaria/widgets/navigation/reader_nav_center.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -197,6 +198,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   bool _hasResolvedCompanionPdf = false;
   // מהדורות מקבילות ללחצן המובנה: המובנית ראשונה, אחריה היברובוקס מקומיות.
   List<ParallelEdition> _parallelEditions = const [];
+  List<TextBook> _turShulchanAruchPairs = const [];
   bool _hasBookVersions = false;
   // מצב חלונית הצד שזוהה לאחרונה, לעיגון-מחדש של הטקסט בעת פתיחה/סגירה.
   bool _lastShowLeftPaneForReanchor = false;
@@ -605,9 +607,11 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     _hasResolvedCompanionPdf = true;
     try {
       final editions = await ParallelEditionsService.find(widget.tab.book);
+      final pairs = await findTurShulchanAruchPairs(widget.tab.book);
       if (!mounted) return;
       setState(() {
         _parallelEditions = editions;
+        _turShulchanAruchPairs = pairs;
         Book? companion;
         for (final edition in editions) {
           if (edition.isCompanion) {
@@ -1348,6 +1352,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       // 1b) The companion book beside this one (Biur Halacha for Mishnah
       // Berurah). Hidden while this book shares its tab with another book.
       ?_buildCompanionBookAction(context, state),
+
+      // 1c) The Tur and the Shulchan Arukh open each other at the same siman.
+      if (_turShulchanAruchPairs.isNotEmpty)
+        _buildTurShulchanAruchAction(context, state),
 
       // 2) View Mode Dropdown (מאחד את Split View ו-Page Shape View)
       ActionButtonData(
@@ -2144,6 +2152,52 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       // Reading goes on in this book; the companion follows it.
       ..add(SetActivePane(widget.tab));
     await setShowCompanionBookByDefault(true);
+  }
+
+  ActionButtonData _buildTurShulchanAruchAction(
+    BuildContext context,
+    TextBookLoaded state,
+  ) {
+    final label = state.book.title == 'טור' ? 'שולחן ערוך' : 'טור';
+    final tooltip = 'פתח את $label באותו סימן';
+    void open() => unawaited(_openTurShulchanAruchPair());
+    return ActionButtonData(
+      widget: BarButton.icon(
+        tooltip: tooltip,
+        icon: FluentIcons.book_open_24_regular,
+        label: label,
+        compact: AppDensity.of(context).isCompact,
+        onPressed: open,
+      ),
+      icon: FluentIcons.book_open_24_regular,
+      tooltip: tooltip,
+      // Neither book has a companion pane, so they share its slot.
+      actionId: ToolbarActionId.companionBook,
+      toolbarWidth: 132,
+      onPressed: open,
+    );
+  }
+
+  Future<void> _openTurShulchanAruchPair() async {
+    final target = await resolveTurShulchanAruchTarget(
+      widget.tab.book,
+      widget.tab.index,
+      _turShulchanAruchPairs,
+    );
+    if (!mounted) return;
+    if (target == null) {
+      UiSnack.show(TextBookMessages.pairedBookLocationNotFound);
+      return;
+    }
+    openBook(
+      context,
+      target.book,
+      target.index,
+      '',
+      ignoreHistory: true,
+      requiresStableLayout: true,
+      insertAdjacent: true,
+    );
   }
 
   ActionButtonData _buildParallelEditionsAction(
