@@ -4930,7 +4930,7 @@ Future<void> main() async {
           final titles = registerTitledOpener('inst-new');
           const familyEmoji = '👨‍👩‍👧‍👦';
           final prefix = 'א' * 59;
-          final title = '$prefix$familyEmoji' + 'ב';
+          final title = '$prefix$familyEmoji' 'ב';
 
           await adapterFor(allowMultipleInstances: true).execute(
             'plugin',
@@ -4948,7 +4948,7 @@ Future<void> main() async {
           await adapterFor(allowMultipleInstances: true).execute(
             'plugin',
             'openSelf',
-            {'newTab': true, 'title': '  שבת${c1Controls}ב  '},
+            {'newTab': true, 'title': '  שבת$c1Controls' 'ב  '},
           );
 
           expect(titles, ['שבת ב']);
