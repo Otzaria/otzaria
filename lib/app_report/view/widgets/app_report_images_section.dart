@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/app_report/services/app_report_image_sources.dart';
+import 'package:otzaria/app_report/view/widgets/app_report_image_viewer.dart';
 import 'package:otzaria/core/messages/messages_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/plugins/services/plugin_file_drop_service.dart';
@@ -136,7 +137,14 @@ class _AppReportImagesSectionState extends State<AppReportImagesSection>
       incoming,
       otherAttachmentBytes: widget.otherAttachmentBytes,
     );
-    switch (merged.rejection) {
+    _showRejection(merged.rejection);
+    if (merged.images.length != widget.images.length) {
+      widget.onChanged(merged.images);
+    }
+  }
+
+  void _showRejection(AppReportImageRejection? rejection) {
+    switch (rejection) {
       case AppReportImageRejection.tooLarge:
         UiSnack.showError(
           context.settingsText(
@@ -163,13 +171,34 @@ class _AppReportImagesSectionState extends State<AppReportImagesSection>
       case null:
         break;
     }
-    if (merged.images.length != widget.images.length) {
-      widget.onChanged(merged.images);
-    }
   }
 
   void _remove(int index) {
     widget.onChanged([...widget.images]..removeAt(index));
+  }
+
+  Future<void> _view(int index) async {
+    final original = widget.images[index];
+    final marked = await showAppReportImageViewer(
+      context,
+      original,
+      accept: widget.enabled ? (marked) => _fitsQuota(original, marked) : null,
+    );
+    if (marked == null || !mounted) return;
+    final current = widget.images.indexOf(original);
+    if (current < 0) return;
+    widget.onChanged([...widget.images]..[current] = marked);
+  }
+
+  /// PNG המסומן גדול לרוב מהמקור, ולכן נבדק שוב מול המכסות.
+  bool _fitsQuota(AppReportImage original, AppReportImage marked) {
+    final merged = mergeAppReportImages(
+      widget.images.where((image) => image != original).toList(),
+      [marked],
+      otherAttachmentBytes: widget.otherAttachmentBytes,
+    );
+    _showRejection(merged.rejection);
+    return merged.rejection == null;
   }
 
   static bool _hasImagePath(List<String> paths) =>
@@ -302,6 +331,7 @@ class _AppReportImagesSectionState extends State<AppReportImagesSection>
                 _ImageThumbnail(
                   key: ValueKey('app-report-image-$i'),
                   image: widget.images[i],
+                  onOpen: () => _view(i),
                   onRemove: widget.enabled ? () => _remove(i) : null,
                 ),
             ],
@@ -313,11 +343,17 @@ class _AppReportImagesSectionState extends State<AppReportImagesSection>
 }
 
 class _ImageThumbnail extends StatelessWidget {
-  const _ImageThumbnail({super.key, required this.image, this.onRemove});
+  const _ImageThumbnail({
+    super.key,
+    required this.image,
+    required this.onOpen,
+    this.onRemove,
+  });
 
   static const double _size = 72;
 
   final AppReportImage image;
+  final VoidCallback onOpen;
   final VoidCallback? onRemove;
 
   @override
@@ -325,7 +361,10 @@ class _ImageThumbnail extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final ratio = MediaQuery.devicePixelRatioOf(context);
     return Tooltip(
-      message: image.fileName,
+      message: context.settingsText(
+        '{name} — לחצו להגדלה',
+        args: {'name': image.fileName},
+      ),
       child: SizedBox.square(
         dimension: _size,
         child: Stack(
@@ -344,6 +383,15 @@ class _ImageThumbnail extends StatelessWidget {
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ),
+              ),
+            ),
+            Material(
+              type: MaterialType.transparency,
+              shape: AppTokens.roundedShape,
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                key: const ValueKey('app-report-image-open'),
+                onTap: onOpen,
               ),
             ),
             if (onRemove != null)
