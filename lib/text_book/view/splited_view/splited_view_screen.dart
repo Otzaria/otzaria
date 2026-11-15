@@ -109,7 +109,11 @@ class _SplitedViewScreenState extends State<SplitedViewScreen>
 
   /// רושם בקשת גלילה חדשה. מזהה עולה — לחיצה חוזרת על אותו עוגן חייבת
   /// להיחשב בקשה חדשה, אחרת הערך זהה ואין הודעה.
-  void _requestCommentaryScroll(String title, String linkKey, int? sourceLine) {
+  void _requestCommentaryScroll(
+    String title,
+    String? linkKey,
+    int? sourceLine,
+  ) {
     _commentaryScrollTarget.value = CommentaryScrollRequest(
       title: title,
       linkKey: linkKey,

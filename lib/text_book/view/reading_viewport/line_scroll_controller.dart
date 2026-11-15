@@ -404,6 +404,18 @@ class LineScrollController {
     );
   }
 
+  /// שורת המקור שחוצה את הקו שבגובה [fraction] מהתצוגה; null בלי תצוגה מדודה.
+  int? lineCrossingViewport(double fraction) {
+    final segments = _segments;
+    if (segments == null || segments.isEmpty || _external != null) return null;
+    return lineCrossingViewportFraction(
+      segments,
+      positionsListener.itemPositions.value,
+      fraction,
+      measure: itemBoxes.lineExtent,
+    );
+  }
+
   /// לפני שינוי רוחב: אחרי הפריסה מחזיר את השורה המדויקת לקו העוגן.
   void keepViewAcrossRelayout() {
     if (!_nativeReady ||

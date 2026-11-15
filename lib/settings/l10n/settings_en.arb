@@ -1747,5 +1747,7 @@
   "עצור את החיפוש": "Stop the search",
   "חיפוש תוסף": "Search plugins",
   "לא נמצאו תוספים": "No plugins found",
-  "בחר את המוצגים": "Select shown"
+  "בחר את המוצגים": "Select shown",
+  "על {parent}": "On {parent}",
+  "{title} ({group})": "{title} ({group})"
 }

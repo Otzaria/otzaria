@@ -134,4 +134,48 @@ void main() {
     expect(position.windowFirstLine, 0);
     expect(position.windowLastLine, 11);
   });
+  group('lineCrossingViewportFraction (#4798)', () {
+    const line = 1 / 3;
+
+    test('שתי פסקאות ארוכות: נבחרת השנייה כשהיא חוצה את שליש המסך', () {
+      final position = lineCrossingViewportFraction(normal, [
+        _pos(5, -0.6, 0.3),
+        _pos(6, 0.3, 1.4),
+      ], line);
+      expect(position, 6);
+    });
+
+    test('פסקאות קצרות: נבחרת זו שבשליש ולא לפי מספר הגלויות', () {
+      // לפי ספירה (שליש מ-8 גלויות) הייתה נבחרת 22.
+      final position = lineCrossingViewportFraction(normal, [
+        for (var i = 0; i < 6; i++) _pos(20 + i, i * 0.05, (i + 1) * 0.05),
+        _pos(26, 0.3, 0.5),
+        _pos(27, 0.5, 1),
+      ], line);
+      expect(position, 26);
+    });
+
+    test('פריט שמסתיים בדיוק על הקו אינו חוצה אותו; זה שמתחיל בו — כן', () {
+      final position = lineCrossingViewportFraction(normal, [
+        _pos(7, 0, line),
+        _pos(8, line, 0.9),
+      ], line);
+      expect(position, 8);
+    });
+
+    test('בקריאה רציפה נבחרת שורת המקור שבתוך הפסקה', () {
+      // פריט 1 מכסה את שורות 1..10 בשווה: שליש התצוגה נופל בשורה הרביעית.
+      final position = lineCrossingViewportFraction(paragraph, [
+        _pos(1, 0, 1),
+      ], line);
+      expect(position, 4);
+    });
+
+    test('אין פריט שחוצה את הקו', () {
+      expect(
+        lineCrossingViewportFraction(normal, [_pos(0, 0, 0.2)], line),
+        isNull,
+      );
+    });
+  });
 }

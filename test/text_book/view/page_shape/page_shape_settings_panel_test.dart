@@ -35,6 +35,7 @@ void main() {
     String? currentBottomRight,
     String? heCategories,
     List<String> availableCommentators = const ['רש"י על בראשית'],
+    Map<String, String> superCommentatorParents = const {},
   }) async {
     await tester.pumpWidget(
       SettingsTextScope(
@@ -53,6 +54,7 @@ void main() {
                   currentRight: currentRight,
                   currentBottom: currentBottom,
                   currentBottomRight: currentBottomRight,
+                  superCommentatorParents: superCommentatorParents,
                   onSettingsChanged: onSettingsChanged,
                 ),
               ),
@@ -512,5 +514,41 @@ void main() {
     expect(menuItem('רמב"ן על בראשית'), findsOneWidget);
     expect(menuItem('רש"י על בראשית'), findsNothing);
     expect(menuItem('ספורנו על בראשית'), findsNothing);
+  });
+
+  testWidgets('מפרש-על מוצע בטורים היחידים תחת "על <מפרש>" ונשמר בבחירה', (
+    tester,
+  ) async {
+    const parent = 'משנה ברורה';
+    const superTitle = 'שער הציון';
+    await pumpPanel(
+      tester,
+      availableCommentators: const [parent],
+      currentLeft: parent,
+      superCommentatorParents: const {superTitle: parent},
+    );
+    await tester.pumpAndSettle();
+
+    final fields = commentatorFields(tester);
+    final superEntry = fields[0].entries.singleWhere(
+      (entry) => entry.value == superTitle,
+    );
+    expect(superEntry.label, 'שער הציון (על משנה ברורה)');
+    expect(fields[0].filterLabels, contains('על משנה ברורה'));
+    expect(
+      fields[2].entries.map((entry) => entry.value),
+      contains(superTitle),
+    );
+    // הטור השמאלי מציג כמה מפרשים בלשוניות, ושם מפרש-על אינו נתמך.
+    expect(
+      fields[1].entries.map((entry) => entry.value),
+      isNot(contains(superTitle)),
+    );
+
+    fields[2].onSelected!(superTitle);
+    await tester.pumpAndSettle();
+    final saved = PageShapeSettingsManager.loadConfiguration('בראשית')!;
+    expect(saved['bottom'], superTitle);
+    expect(saved['left'], parent);
   });
 }

@@ -143,7 +143,7 @@ class CombinedView extends StatefulWidget {
 
   /// לחיצה על עוגן-אות במצב "מפרשים בצד": ההורה מזרים את שם המפרש ואת
   /// [commentaryLinkKey] של הקטע אל פאנל המפרשים, שאינו בעץ הזה.
-  final void Function(String title, String linkKey, int? sourceLine)?
+  final void Function(String title, String? linkKey, int? sourceLine)?
   onCommentaryPaneScrollRequested;
   final VoidCallback? onOpenLinksPane;
   final bool Function()? isCommentatorsTabActive;
@@ -1456,6 +1456,13 @@ class _CombinedViewState extends State<CombinedView> {
           context.read<TextBookBloc>().add(UpdateCommentators(commentators));
           _openCommentatorsPane(isAdding: isAdding);
         },
+        onCommentatorPicked: widget.showCommentaryAsExpansionTiles
+            ? null
+            : (title) => widget.onCommentaryPaneScrollRequested?.call(
+                title,
+                null,
+                paragraphIndex,
+              ),
       );
     }
 

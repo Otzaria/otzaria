@@ -143,6 +143,52 @@ void main() {
       expect(openedFilter, 0);
     });
 
+    testWidgets('מפרש שנבחר מדווח עם שורת הפסקה, לגלילת החלונית (#4798)', (
+      tester,
+    ) async {
+      final bloc = _RecordingTextBookBloc(
+        _loadedState(
+          availableCommentators: const ['רש"י', 'רמב"ן'],
+          commentatorGroups: const [
+            CommentatorGroup(
+              title: 'ראשונים',
+              commentators: ['רש"י', 'רמב"ן'],
+            ),
+          ],
+          activeCommentators: const ['רש"י'],
+          linksByLine: _commentaryLinks(const ['רש"י', 'רמב"ן']),
+        ),
+      );
+      addTearDown(bloc.close);
+      final picked = <(String, int)>[];
+
+      await pumpViewer(
+        tester,
+        textBookBloc: bloc,
+        viewer: SimpleTextViewer(
+          content: const ['שורה א'],
+          fontSize: 18,
+          openBookCallback: (_) {},
+          isMainText: true,
+          onOpenCommentatorsPane: () {},
+          onCommentatorPicked: (title, line) => picked.add((title, line)),
+        ),
+      );
+
+      await openContextMenu(tester);
+      await tester.tap(find.text('מפרשים על פסקה זו'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('רמב"ן'));
+      await tester.pumpAndSettle();
+
+      expect(picked, [('רמב"ן', 0)]);
+      expect(
+        bloc.received.whereType<UpdateCommentators>().single.commentators,
+        ['רש"י', 'רמב"ן'],
+        reason: 'הסדר השמור אינו משתנה; רק הגלילה מכוונת למפרש',
+      );
+    });
+
     testWidgets('בלי callbacks — התפריט קיים אך בלי פריטי פתיחת החלונית', (
       tester,
     ) async {
