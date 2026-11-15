@@ -281,6 +281,12 @@ int compareFindRefRelevance(
     return a.punctuationAgrees ? -1 : 1;
   }
 
+  // ספר שתוכנו ענה על כל השאילתה קודם לספר שבו נשארה מילה ללא מענה.
+  final aPartial = a.specificity >= _partialTocRankOffset;
+  if (aPartial != (b.specificity >= _partialTocRankOffset)) {
+    return aPartial ? 1 : -1;
+  }
+
   // 7. סדר ספר בספרייה
   final orderCmp = a.orderIndex.compareTo(b.orderIndex);
   if (orderCmp != 0) return orderCmp;

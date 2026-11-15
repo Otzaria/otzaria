@@ -198,6 +198,33 @@ void main() {
     expect(results.first.isPartialTocMatch, isFalse);
   });
 
+  // issue #5162: "ריטבא לג ב עירובין" — שם המסכת אחרי המקום.
+  test('התאמה מלאה בספר אחד קודמת להתאמה חלקית בספר שקודם לו בסדר', () async {
+    final books = [
+      _hit(1, 'ריטב"א על ברכות', orderIndex: 1),
+      _hit(2, 'ריטב"א על עירובין', orderIndex: 2),
+    ];
+    final repo = _repo(
+      hits: books,
+      hitsFor: (query) => query == 'ריטבא' ? books : const [],
+      toc: (_, title, tokens) async => [
+        {
+          'reference': '$title דף לג:',
+          'segment': 100,
+          'level': 1,
+          'dbLineId': 0,
+          if (tokens!.contains('עירובין')) 'partialMatch': true,
+        },
+      ],
+    );
+    addTearDown(repo.dispose);
+
+    final results = await repo.findRefs('ריטבא לג ב עירובין');
+
+    expect(results.first.title, 'ריטב"א על עירובין');
+    expect(results.first.isPartialTocMatch, isFalse);
+  });
+
   // issue #3082: מילות השאילתה אינן באותו מקום כמו בכותרת ("תלמוד ירושלמי ...").
   for (final query in ['ירושלמי מעשר שני', 'מעשר שני']) {
     test(
