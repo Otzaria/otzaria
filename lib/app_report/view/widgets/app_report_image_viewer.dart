@@ -165,6 +165,7 @@ class _AppReportImageViewerState extends State<AppReportImageViewer> {
     return AppDialogFrame(
       title: context.settingsText('צפייה בתמונה'),
       subtitle: widget.image.fileName,
+      subtitleMaxLines: 1,
       icon: FluentIcons.image_24_regular,
       size: AppDialogSize.full,
       isDirty: widget.editable ? _dirty : null,
@@ -180,7 +181,12 @@ class _AppReportImageViewerState extends State<AppReportImageViewer> {
               size: AppIconButtonSize.medium,
               isSelected: _marking,
               onPressed: canMark
-                  ? () => setState(() => _marking = !_marking)
+                  ? () => setState(() {
+                      _marking = !_marking;
+                      _dragStart = null;
+                      _dragPointer = null;
+                      _draft = null;
+                    })
                   : null,
             ),
             AppIconButton(
