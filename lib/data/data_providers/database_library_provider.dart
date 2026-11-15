@@ -2107,7 +2107,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
 
   List<UserBookVersionRecord> _userBookVersions = const [];
 
-  /// הספר הרשמי/המצורף שכל גרסה אישית שלו נפתרה אליו, לפי מזהה ספר הגרסה.
+  /// הראשי הסופי לכל ספר אישי בקבוצת גרסאות, כולל הראשי האישי עצמו.
   final Map<int, Book> _catalogVersionPrimaries = {};
 
   /// גרסאות שספרן במסד מצורף, מקובצי הגרסאות של המשתמש.
@@ -2183,7 +2183,9 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   List<BookVersionInfo> getUserBookVersions(Book book) {
     if (!book.isUserBook) return const [];
     final id = _userBookInCatalog(book)?.id;
-    if (id == null) return const [];
+    if (id == null || !_catalogVersionPrimaries.containsKey(id)) {
+      return const [];
+    }
     return buildUserBookVersions(
       bookId: id,
       records: _userBookVersions,
@@ -2308,7 +2310,10 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         _attachedDbVersions.isNotEmpty ||
         _attachedDuplicateVersions.isNotEmpty) {
       final catalogByTitle = <String, List<Book>>{};
-      for (final book in library.getAllBooks()) {
+      final books = Set<Book>.identity()
+        ..addAll(library.getAllBooks())
+        ..addAll(_userBooksById.values);
+      for (final book in books) {
         catalogByTitle
             .putIfAbsent(normalizeVersionTitle(book.title), () => [])
             .add(book);
@@ -2316,6 +2321,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       _resolveCatalogVersionPrimaries(catalogByTitle);
       _resolveAttachedVersions(catalogByTitle);
     }
+    _normalizeVersionGroups();
     library.offTreeBooks = [
       for (final id in _hiddenUserVersionBookIds) ?_userBooksById[id],
       for (final member in _attachedVersionMembers) member.version,
@@ -2357,12 +2363,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       if (declared.contains(duplicate.version)) continue;
       members[duplicate.version] = duplicate;
     }
-    // גרסה של ספר שהוא עצמו גרסה הייתה יוצרת קבוצה בלי ראשי בעץ.
-    for (final member in members.values) {
-      if (members.containsKey(member.primary)) continue;
-      _attachedVersionMembers.add(member);
-      member.version.category?.books.remove(member.version);
-    }
+    _attachedVersionMembers.addAll(members.values);
   }
 
   void _resolveCatalogVersionPrimaries(Map<String, List<Book>> catalogByTitle) {
@@ -2381,8 +2382,78 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         continue;
       }
       _catalogVersionPrimaries[record.versionBookId] = primary;
-      _hiddenUserVersionBookIds.add(record.versionBookId);
-      version.category?.books.remove(version);
+    }
+  }
+
+  void _normalizeVersionGroups() {
+    final parents = Map<Book, Book>.identity();
+    for (final record in _userBookVersions) {
+      final version = _userBooksById[record.versionBookId];
+      final primary = record.hasCatalogPrimary
+          ? _catalogVersionPrimaries[record.versionBookId]
+          : _userBooksById[record.primaryBookId];
+      if (version != null && primary != null && !identical(version, primary)) {
+        parents[version] = primary;
+      }
+    }
+    for (final member in _attachedVersionMembers) {
+      parents[member.version] = member.primary;
+    }
+    final roots = Map<Book, Book?>.identity();
+    Book? rootOf(Book book) {
+      final path = Set<Book>.identity();
+      var current = book;
+      while (!roots.containsKey(current) && path.add(current)) {
+        final next = parents[current];
+        if (next == null) {
+          roots[current] = current;
+          break;
+        }
+        current = next;
+      }
+      // מסלול שנכנס למעגל מקבל null ונשאר גלוי בעץ.
+      final root = roots[current];
+      for (final member in path) {
+        roots[member] = root;
+      }
+      return root;
+    }
+
+    final previouslyHidden = _hiddenUserVersionBookIds.toSet();
+    final hiddenBooks = Set<Book>.identity();
+    _catalogVersionPrimaries.clear();
+    _hiddenUserVersionBookIds.clear();
+    for (final entry in parents.entries) {
+      final root = rootOf(entry.key);
+      if (root == null) continue;
+      hiddenBooks.add(entry.key);
+      if (root.isUserBook) _catalogVersionPrimaries[root.id!] = root;
+      if (entry.key.isUserBook) {
+        _catalogVersionPrimaries[entry.key.id!] = root;
+        _hiddenUserVersionBookIds.add(entry.key.id!);
+      }
+    }
+    final categories = Set<Category>.identity()
+      ..addAll(hiddenBooks.map((book) => book.category).whereType<Category>());
+    for (final category in categories) {
+      category.books.removeWhere(hiddenBooks.contains);
+    }
+    for (final id in previouslyHidden.difference(_hiddenUserVersionBookIds)) {
+      final book = _userBooksById[id];
+      if (book != null) book.category?.books.add(book);
+    }
+    final attached = _attachedVersionMembers.toList();
+    _attachedVersionMembers.clear();
+    for (final member in attached) {
+      final root = rootOf(member.version);
+      if (root == null) continue;
+      _attachedVersionMembers.add((
+        version: member.version,
+        primary: root,
+        versionTitle: member.versionTitle,
+        versionNotes: member.versionNotes,
+        priority: member.priority,
+      ));
     }
   }
 

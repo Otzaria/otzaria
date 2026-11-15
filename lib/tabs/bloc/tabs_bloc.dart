@@ -717,6 +717,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     newTabs[index] = identical(combined.rightTab, event.oldTab)
         ? combined.copyWith(rightTab: event.newTab)
         : combined.copyWith(leftTab: event.newTab);
+    _inheritViewTime(combined, newTabs[index]);
     _emitAndSaveTabs(
       emit,
       newTabs,

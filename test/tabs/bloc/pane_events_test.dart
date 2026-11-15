@@ -635,6 +635,48 @@ void main() {
 
   // issue #4609 — ספר אישי שהשתנה נטען מחדש גם כשהוא חלונית בטאב מפוצל.
   group('ReplaceTab — החלפת חלונית', () {
+    for (final replaceRight in [false, true]) {
+      test(
+        'רענון חלונית ${replaceRight ? 'ימנית' : 'שמאלית'} ברקע שומר את הכרטיסייה האחרונה שנצפתה',
+        () async {
+          final a = leaf('א');
+          final right = leaf('ימין');
+          final left = leaf('שמאל');
+          final combined = CombinedTab(rightTab: right, leftTab: left);
+          final c = leaf('ג');
+          final replacement = leaf('רענון');
+          final bloc = await blocWith([a, combined, c]);
+          addTearDown(bloc.close);
+          bloc.add(const SetCurrentTab(1));
+          await bloc.stream.firstWhere(
+            (s) => identical(s.currentTab, combined),
+          );
+          bloc.add(const SetCurrentTab(2));
+          await bloc.stream.firstWhere((s) => identical(s.currentTab, c));
+
+          bloc.add(
+            ReplaceTab(
+              oldTab: replaceRight ? right : left,
+              newTab: replacement,
+            ),
+          );
+          await bloc.stream.firstWhere(
+            (s) => leafPanes(s.tabs[1]).contains(replacement),
+          );
+          final refreshed = bloc.state.tabs[1];
+          expect(bloc.state.currentTab, same(c));
+          expect(
+            leafPanes(refreshed),
+            contains(same(replaceRight ? left : right)),
+          );
+          bloc.add(RemoveTab(c));
+          await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+          expect(bloc.state.currentTab, same(refreshed));
+        },
+      );
+    }
+
     test('החלונית מוחלפת במקומה, האחות והחלונית הפעילה נשמרות', () async {
       final a = leaf('א');
       final b = leaf('ב');

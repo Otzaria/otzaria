@@ -6,8 +6,8 @@ import 'package:otzaria/user_content_import/models/user_import_models.dart';
 /// קבוצת הגרסאות של הספר האישי [bookId] — הראשית תחילה, ואחריה לפי עדיפות
 /// ושם. ריק כשהספר אינו בקבוצה, או כשהגרסה הראשית אינה בקטלוג.
 ///
-/// [catalogPrimaries] — הספר הרשמי/המצורף שנפתר לכל גרסה שהראשי שלה אינו
-/// אישי, לפי מזהה ספר הגרסה. [attachedMembers] — גרסאות שספרן במסד מצורף.
+/// [catalogPrimaries] — הראשי הסופי של כל גרסה ושל ראשי אישי, לפי מזהה הספר.
+/// [attachedMembers] — גרסאות שספרן במסד מצורף.
 List<BookVersionInfo> buildUserBookVersions({
   required int bookId,
   required List<UserBookVersionRecord> records,
@@ -16,12 +16,14 @@ List<BookVersionInfo> buildUserBookVersions({
   List<AttachedVersionMember> attachedMembers = const [],
 }) {
   final own = records.where((v) => v.versionBookId == bookId).firstOrNull;
-  if (own != null && own.hasCatalogPrimary) {
-    final primary = catalogPrimaries[bookId];
-    if (primary == null) return const [];
+  if (catalogPrimaries[bookId] case final primary?) {
+    final primaryRow = primary.isUserBook
+        ? records.where((r) => r.versionBookId == primary.id).firstOrNull
+        : null;
     return [
       BookVersionInfo(
-        versionTitle: primary.title,
+        versionTitle: primaryRow?.versionTitle ?? primary.title,
+        heVersionNotes: primaryRow?.versionNotes,
         hasContent: true,
         separateBook: primary,
       ),
@@ -77,7 +79,8 @@ List<BookVersionInfo> buildPersonalVersionsOfCatalogBook({
   final members = [
     for (final record in records)
       if (catalogPrimaries[record.versionBookId] case final resolved?
-          when record.hasCatalogPrimary && isSameCatalogBook(resolved, primary))
+          when isSameCatalogBook(resolved, primary) &&
+              !(primary.isUserBook && record.versionBookId == primary.id))
         record,
   ];
   return _sortedInfos([
