@@ -149,6 +149,36 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
   }
 
+  testWidgets('לחיצות חזרה רצופות לפני עיבוד האירועים שומרות קדימה', (
+    tester,
+  ) async {
+    await pump(tester);
+    await navigateTo(tester, halacha);
+    await navigateTo(tester, tanach);
+    final center = tester.getCenter(find.byType(MyGridView));
+    final pointer = TestPointer(24, PointerDeviceKind.mouse, 24);
+    for (var i = 0; i < 2; i++) {
+      tester.binding.handlePointerEvent(
+        pointer.down(center, buttons: kBackMouseButton),
+      );
+      tester.binding.handlePointerEvent(pointer.up());
+    }
+    await settle(tester);
+    expect(bloc.state.currentCategory, same(library));
+    expect(enabled(tester, forwardButton), isTrue);
+    expect(enabled(tester, backButton), isFalse);
+    for (var i = 0; i < 2; i++) {
+      tester.binding.handlePointerEvent(
+        pointer.down(center, buttons: kForwardMouseButton),
+      );
+      tester.binding.handlePointerEvent(pointer.up());
+    }
+    await settle(tester);
+    expect(bloc.state.currentCategory, same(tanach));
+    expect(enabled(tester, forwardButton), isFalse);
+    expect(enabled(tester, backButton), isTrue);
+  });
+
   testWidgets('כפתורי חזרה וקדימה עוברים בין התיקיות שבוקרו', (tester) async {
     await pump(tester);
     expect(enabled(tester, backButton), isFalse);

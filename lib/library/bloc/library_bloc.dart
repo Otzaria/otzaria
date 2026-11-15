@@ -18,6 +18,7 @@ import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/library/hidden/hidden_library_filter.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/library/models/library_navigation_history.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/migration/sync/file_sync_service.dart';
@@ -32,6 +33,9 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
 
   /// חנות ההסתרות. ניתנת להחלפה בבדיקות.
   final HiddenLibraryStore hiddenStore;
+
+  /// היסטוריית התיקיות של החלון; מתעדכנת יחד עם מצב הספרייה.
+  final navigationHistory = LibraryNavigationHistory();
 
   int _searchGeneration = 0;
   SearchBooks? _lastSearch;
@@ -94,6 +98,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     on<RemoveHebrewBooksPath>(_onRemoveHebrewBooksPath);
     on<NavigateToCategory>(_onNavigateToCategory);
     on<NavigateUp>(_onNavigateUp);
+    on<TravelLibraryHistory>(_onTravelLibraryHistory);
     on<SearchBooks>(_onSearchBooks);
     on<SelectTopics>(_onSelectTopics);
     on<UpdateSearchQuery>(_onUpdateSearchQuery);
@@ -115,9 +120,17 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
   void _announceCatalogChanged() => _catalogChanged.add(this);
 
   @override
+  void onChange(Change<LibraryState> change) {
+    final path = change.nextState.currentCategory?.path;
+    if (path != null) navigationHistory.visit(path);
+    super.onChange(change);
+  }
+
+  @override
   Future<void> close() async {
     await _catalogChangedSub.cancel();
-    return super.close();
+    await super.close();
+    navigationHistory.dispose();
   }
 
   Future<void> _onLoadLibrary(
@@ -665,6 +678,40 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         previewCategory: event.category,
       ),
     );
+  }
+
+  void _onTravelLibraryHistory(
+    TravelLibraryHistory event,
+    Emitter<LibraryState> emit,
+  ) {
+    final library = state.library;
+    if (library == null || state.currentCategory == null) return;
+    Category? category;
+    bool exists(String path) {
+      category = _historyCategoryAtPath(library, path);
+      return category != null;
+    }
+
+    final path = event.forward
+        ? navigationHistory.forward(isAvailable: exists)
+        : navigationHistory.back(isAvailable: exists);
+    if (path == null) return;
+    _onNavigateToCategory(
+      NavigateToCategory(category!),
+      emit,
+    );
+  }
+
+  Category? _historyCategoryAtPath(Library library, String path) {
+    Category category = library;
+    for (final title in path.split('/').where((part) => part.isNotEmpty)) {
+      final child = category.subCategories
+          .where((sub) => sub.title == title)
+          .firstOrNull;
+      if (child == null) return null;
+      category = child;
+    }
+    return category;
   }
 
   void _onNavigateUp(

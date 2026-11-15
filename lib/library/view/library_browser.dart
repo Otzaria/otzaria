@@ -368,7 +368,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   Rect? _lastTourBookCardRect;
   final Set<String> _expandedCategories = {};
   final _settingsPanelOpen = ValueNotifier<bool>(false);
-  final _history = LibraryNavigationHistory();
+  LibraryNavigationHistory get _history =>
+      context.read<LibraryBloc>().navigationHistory;
 
   /// סריקת תיקיות אישיות שהתחילה מ"טעינה מחדש" ועוד לא הסתיימה.
   final _reloadScanPending = ValueNotifier<bool>(false);
@@ -457,7 +458,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     _topBarTotalHeight.dispose();
     _settingsPanelOpen.dispose();
     _reloadScanPending.dispose();
-    _history.dispose();
     super.dispose();
   }
 
@@ -492,8 +492,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   Widget build(BuildContext context) {
     super.build(context);
     return LibraryHistoryNavigator(
-      history: _history,
-      onOpen: _openCategory,
+      onNavigate: _refocusSearchBar,
       child: _buildScaffold(context),
     );
   }
@@ -1296,13 +1295,13 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         context,
         _history,
         compact: compact,
-        onOpen: _openCategory,
+        onNavigate: _refocusSearchBar,
       ),
       libraryForwardAction(
         context,
         _history,
         compact: compact,
-        onOpen: _openCategory,
+        onNavigate: _refocusSearchBar,
       ),
       ActionButtonData.simple(
         compact: compact,
@@ -1346,7 +1345,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         context,
         _history,
         compact: compact,
-        onOpen: _openCategory,
+        onNavigate: _refocusSearchBar,
       ),
       ActionButtonData.simple(
         compact: compact,
@@ -1363,7 +1362,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         context,
         _history,
         compact: compact,
-        onOpen: _openCategory,
+        onNavigate: _refocusSearchBar,
       ),
       ActionButtonData.simple(
         compact: compact,

@@ -1,15 +1,5 @@
-// מדידת ביצועים ממוקדת (B-34) בארבעה מסלולים חמים: גלילה בקורא, ניווט
-// בתוצאות החיפוש בספר, גלילת רשימת הספרייה, ופתיחת ההגדרות ומעבר בין
-// לשוניות.
-//
-// זו מדידה ב-flutter_test (מצב debug, JIT, בלי GPU): מונה בניות של אלמנטים
-// (debugOnRebuildDirtyWidget) וזמן קיר של pump. מונה הבניות דטרמיניסטי ונותן
-// השוואה אמינה בין גרסאות; הזמנים יחסיים בלבד ורועשים. אינה מחליפה את
-// tool/perf_probe (profile על התוכנה האמיתית).
-//
-// הקובץ מתקמפל על הבסיס ac97e4490 ועל stage-b בלי שינוי, כדי להשוות באותה
-// בדיקה. אין בו ספים: הוא מדפיס `PERF|<תרחיש>|<בניות>|<ms חציון>|<ms מינימום>`.
-// הרצה: flutter test test/perf/design_system_hot_paths_perf_test.dart
+// מדידת debug ב־flutter_test: זמני pump ומספר בניות, בלי GPU.
+// הזמנים יחסיים ורועשים; להשוואת התוכנה בפועל משתמשים ב־tool/perf_probe.
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -23,6 +13,7 @@ import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/library/models/library_navigation_history.dart';
 import 'package:otzaria/library/view/library_browser.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
 import 'package:otzaria/models/books.dart';
@@ -539,7 +530,10 @@ class _FakeShamorZachorProgressProvider extends ShamorZachorProgressProvider {
 }
 
 class _MockLibraryBloc extends MockBloc<LibraryEvent, LibraryState>
-    implements LibraryBloc {}
+    implements LibraryBloc {
+  @override
+  final navigationHistory = LibraryNavigationHistory();
+}
 
 class _MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
     implements SettingsBloc {}

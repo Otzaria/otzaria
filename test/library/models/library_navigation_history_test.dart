@@ -54,4 +54,44 @@ void main() {
     }
     expect(back, ['/ג', '/ב', '/א']);
   });
+
+  for (final forward in [false, true]) {
+    test(
+      'מחיקת כל יעדי ${forward ? 'הקדימה' : 'החזרה'} אינה מזיזה את המיקום',
+      () {
+        final history = LibraryNavigationHistory()
+          ..visit('/')
+          ..visit('/א')
+          ..visit('/ב');
+        addTearDown(history.dispose);
+        if (forward) {
+          history.back();
+          history.back();
+        }
+        expect(
+          forward
+              ? history.forward(isAvailable: (_) => false)
+              : history.back(isAvailable: (_) => false),
+          isNull,
+        );
+        expect(history.canGoBack, isFalse);
+        expect(history.canGoForward, isFalse);
+        history.visit('/חדש');
+        expect(history.previous, forward ? '/' : '/ב');
+      },
+    );
+  }
+
+  test('כמה תיקיות מחוקות מדולגות בלי להפוך ליעדי קדימה', () {
+    final history = LibraryNavigationHistory()
+      ..visit('/')
+      ..visit('/א')
+      ..visit('/ב')
+      ..visit('/ג');
+    addTearDown(history.dispose);
+    expect(history.back(isAvailable: (path) => path == '/'), '/');
+    expect(history.canGoBack, isFalse);
+    expect(history.forward(), '/ג');
+    expect(history.canGoForward, isFalse);
+  });
 }

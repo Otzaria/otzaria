@@ -26,20 +26,31 @@ class LibraryNavigationHistory extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// היעד הקודם, או null כשאין.
-  String? back() => _travel(_back, _forward);
+  /// היעד הקודם שקיים עדיין, או null כשאין.
+  String? back({bool Function(String)? isAvailable}) =>
+      _travel(_back, _forward, isAvailable);
 
-  /// היעד הבא, או null כשאין.
-  String? forward() => _travel(_forward, _back);
+  /// היעד הבא שקיים עדיין, או null כשאין.
+  String? forward({bool Function(String)? isAvailable}) =>
+      _travel(_forward, _back, isAvailable);
 
-  String? _travel(List<String> from, List<String> to) {
+  String? _travel(
+    List<String> from,
+    List<String> to,
+    bool Function(String)? isAvailable,
+  ) {
     if (from.isEmpty) return null;
-    final target = from.removeLast();
-    final current = _current;
-    if (current != null) _push(to, current);
-    _current = target;
+    while (from.isNotEmpty) {
+      final target = from.removeLast();
+      if (target == _current || !(isAvailable?.call(target) ?? true)) continue;
+      final current = _current;
+      if (current != null) _push(to, current);
+      _current = target;
+      notifyListeners();
+      return target;
+    }
     notifyListeners();
-    return target;
+    return null;
   }
 
   void _push(List<String> stack, String path) {

@@ -7,6 +7,7 @@ import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/library/models/library_navigation_history.dart';
 import 'package:otzaria/library/view/library_browser.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
 import 'package:otzaria/models/books.dart';
@@ -32,7 +33,10 @@ import '../../test_helpers/memory_cache_provider.dart';
 /// הרגילות אין קו, והמראה הקודם נשמר.
 
 class _MockLibraryBloc extends MockBloc<LibraryEvent, LibraryState>
-    implements LibraryBloc {}
+    implements LibraryBloc {
+  @override
+  final navigationHistory = LibraryNavigationHistory();
+}
 
 class _MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
     implements SettingsBloc {}
