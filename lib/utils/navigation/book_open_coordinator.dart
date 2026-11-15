@@ -10,6 +10,7 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/external_book_matches.dart';
+import 'package:otzaria/tabs/models/reading_tab_history.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
@@ -177,7 +178,7 @@ class BookOpenCoordinator {
         hasPinpoint && !hasMarkText && !markSection ? pinpointHighlight : null;
 
     // ממשיך את המקום האחרון בספר; ספר שכבר פתוח מקבל מקום חדש ב-TabsBloc.
-    return OpenedTab.fromBook(
+    final tab = OpenedTab.fromBook(
       book,
       initialIndex,
       initialReadingAnchor: useHistoryPosition
@@ -197,5 +198,11 @@ class BookOpenCoordinator {
       dedupeKey: dedupeKey,
       externalMatches: externalMatches,
     )..historySlot = latestEntry?.historySlot;
+    restoreReadingTabNavigationHistory(
+      tab,
+      latestEntry?.navigationHistory,
+      asNewJump: !useHistoryPosition,
+    );
+    return tab;
   }
 }

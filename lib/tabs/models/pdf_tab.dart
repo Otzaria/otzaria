@@ -32,6 +32,11 @@ class PdfBookTab extends OpenedTab {
   PdfViewerController pdfViewerController = PdfViewerController();
   final navigationHistory = PdfLocationHistory();
 
+  /// היסטוריית הקפיצות לשמירה; null כשריקה.
+  Map<String, Object>? navigationHistoryToJson() => navigationHistory.toJson(
+    () => PdfReadingLocation.capture(pdfViewerController),
+  );
+
   /// שומר את המיקום הנוכחי לפני קפיצה ומבטל את יעד הקדימה.
   void rememberLocationForJump() => navigationHistory.remember(
     PdfReadingLocation.capture(pdfViewerController),
@@ -274,6 +279,7 @@ class PdfBookTab extends OpenedTab {
     if (active != null) tab.activeCommentators = active.toSet();
     tab.savedZoom = (json['savedZoom'] as num?)?.toDouble();
     tab.historySlot = json['historySlot'] as String?;
+    tab.navigationHistory.restore(json['navigationHistory']);
 
     return tab;
   }
@@ -340,6 +346,7 @@ class PdfReadingSnapshot {
     } catch (_) {
       _persistedPageNumber = _pageNumber;
     }
+    _navigationHistory = tab.navigationHistoryToJson();
   }
 
   final PdfBook _book;
@@ -356,6 +363,7 @@ class PdfReadingSnapshot {
   final PdfLayoutMode? _savedLayoutMode;
   final String _persistedSearchText;
   final ReadingTabSearchState _search;
+  late final Map<String, Object>? _navigationHistory;
 
   /// יוצר טאב עם בקרים משלו, בלי להעתיק מצב נגזר של המסמך.
   PdfBookTab createTab() {
@@ -381,7 +389,8 @@ class PdfReadingSnapshot {
       ..activeCommentators = Set.of(_activeCommentators)
       ..savedZoom = _savedZoom
       ..savedLayoutMode = _savedLayoutMode
-      ..historySlot = _historySlot;
+      ..historySlot = _historySlot
+      ..navigationHistory.restore(_navigationHistory);
   }
 
   /// השדה החי נשמר גם כשהחיפוש נוקה, בלי להחזיר טקסט ישן מהטאב.
@@ -401,6 +410,7 @@ class PdfReadingSnapshot {
       if (_activeCommentators.isNotEmpty)
         'activeCommentators': _activeCommentators.toList(),
       'savedZoom': ?_savedZoom,
+      'navigationHistory': ?_navigationHistory,
       ..._search.copy(searchText: _persistedSearchText).toJson(),
     };
   }

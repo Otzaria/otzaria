@@ -30,6 +30,8 @@ enum ToolbarActionId {
   bookmarkAdd,
   print,
   // ספרייה
+  libraryBack,
+  libraryForward,
   navigateUp,
   navigateHome,
   sync,
@@ -79,6 +81,8 @@ const List<ToolbarActionId> toolbarOverflowOrder = [
   ToolbarActionId.bookmarkAdd,
   ToolbarActionId.print,
   // ספרייה — משתמשת ב-originalOrder (מצב ישן), הסדר כאן לא פעיל
+  ToolbarActionId.libraryForward,
+  ToolbarActionId.libraryBack,
   ToolbarActionId.navigateUp,
   ToolbarActionId.navigateHome,
   ToolbarActionId.sync,

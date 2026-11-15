@@ -144,6 +144,47 @@ void main() {
     expect(explicit.readingAnchor.intraLineFraction, 0);
   });
 
+  test(
+    'פתיחה מחדש משחזרת את היסטוריית החזרה; יעד מפורש מבטל את הקדימה',
+    () async {
+      final book = _makeBook('ספר בדיקה');
+      Map<String, Object> at(int line) => ReadingAnchor(line: line).toJson();
+      final history = await _makeLoadedHistory([
+        Bookmark(
+          ref: 'פרק א',
+          book: book,
+          index: 40,
+          readingAnchor: const ReadingAnchor(line: 40),
+          navigationHistory: {
+            'back': [at(12)],
+            'forward': [at(80)],
+            'at': at(40),
+          },
+        ),
+      ]);
+      final tabs = _CapturingTabsBloc();
+      final navigation = _FakeNavigationBloc();
+      addTearDown(history.close);
+      addTearDown(tabs.close);
+      addTearDown(navigation.close);
+      final coordinator = _makeCoordinator(
+        tabsBloc: tabs,
+        historyBloc: history,
+        navigationBloc: navigation,
+      );
+      final reopened = coordinator.buildTab(book, 0, '') as TextBookTab;
+      final jumped = coordinator.buildTab(book, 200, '') as TextBookTab;
+      addTearDown(reopened.dispose);
+      addTearDown(jumped.dispose);
+      expect(reopened.lines.history.value.back!.line, 12);
+      expect(reopened.lines.history.value.forward!.line, 80);
+      expect(jumped.lines.history.value.back!.line, 40);
+      expect(jumped.lines.history.value.forward, isNull);
+      await jumped.lines.goBack();
+      expect(jumped.lines.history.value.back!.line, 12);
+    },
+  );
+
   testWidgets('openPreparedTab פותח ResolvingTab בלי לצמצם ל-TextBookTab', (
     tester,
   ) async {

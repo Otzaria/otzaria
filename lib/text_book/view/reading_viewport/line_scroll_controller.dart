@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 
+import 'package:otzaria/book_common/models/reading_history_stacks.dart';
 import 'package:otzaria/text_book/utils/reading_position.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
@@ -146,6 +147,31 @@ class LineScrollController {
     } finally {
       _historyPaused = false;
     }
+  }
+
+  /// היסטוריית הניווט לשמירה; null כשריקה.
+  Map<String, Object>? historyToJson() => encodeReadingHistory(
+    back: _backAnchors,
+    forward: _forwardAnchors,
+    at: captureAnchor,
+    encode: (anchor) => anchor.toJson(),
+  );
+
+  /// ראו [decodeReadingHistory].
+  void restoreHistory(Object? json, {bool asNewJump = false}) {
+    final stacks = decodeReadingHistory(
+      json,
+      ReadingAnchor.tryFromJson,
+      asNewJump: asNewJump,
+    );
+    if (stacks == null) return;
+    _backAnchors
+      ..clear()
+      ..addAll(stacks.back);
+    _forwardAnchors
+      ..clear()
+      ..addAll(stacks.forward);
+    _publishHistory();
   }
 
   Future<void> goBack() => _travel(_backAnchors, _forwardAnchors);

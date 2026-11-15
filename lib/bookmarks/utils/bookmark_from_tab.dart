@@ -3,6 +3,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
+import 'package:otzaria/tabs/models/reading_tab_history.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -180,13 +181,15 @@ OpenedTab tabFromBookmark(Bookmark bookmark, {double? screenWidth}) {
     return CommentatorsTab(sourceTab: sourceTab);
   }
 
-  return OpenedTab.fromBook(
+  final tab = OpenedTab.fromBook(
     bookmark.book,
     bookmark.index,
     initialReadingAnchor: bookmark.readingAnchor,
     commentators: bookmark.commentatorsToShow,
     openLeftPane: openLeftPane,
   )..historySlot = bookmark.historySlot;
+  restoreReadingTabNavigationHistory(tab, bookmark.navigationHistory);
+  return tab;
 }
 
 /// מוצא את הכותרת המתאימה לעמוד מסוים ב-outline של PDF.

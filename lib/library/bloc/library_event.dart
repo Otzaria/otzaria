@@ -114,6 +114,16 @@ class NavigateToCategory extends LibraryEvent {
   List<Object?> get props => [category];
 }
 
+/// מעבר בהיסטוריה מחושב בזמן עיבוד האירוע, מול התיקייה שמוצגת אז.
+class TravelLibraryHistory extends LibraryEvent {
+  const TravelLibraryHistory({this.forward = false});
+
+  final bool forward;
+
+  @override
+  List<Object?> get props => [forward];
+}
+
 class NavigateUp extends LibraryEvent {}
 
 class SearchBooks extends LibraryEvent {

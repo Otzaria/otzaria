@@ -132,7 +132,8 @@ void main() {
       );
       expect(copy.index, 80);
       expect(copy.lines, isNot(same(tab.lines)));
-      expect(copy.lines.history.value.back, isNull);
+      // היסטוריית החזרה עוברת לשכפול ולשחזור (issue #4205).
+      expect(copy.lines.history.value.back, anchor);
     }
     expect(tab.blocState, isA<TextBookInitial>());
   });

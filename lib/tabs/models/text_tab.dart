@@ -298,7 +298,7 @@ class TextBookTab extends OpenedTab {
         ? rawResultLines.whereType<int>().toSet()
         : null;
 
-    return TextBookTab(
+    final tab = TextBookTab(
       index: json['initalIndex'],
       initialReadingAnchor: ReadingAnchor.tryFromJson(json['readingAnchor']),
       book: restoredBook,
@@ -331,6 +331,8 @@ class TextBookTab extends OpenedTab {
       searchDistance: searchState.searchDistance,
       matchPolicy: searchState.matchPolicy,
     )..historySlot = json['historySlot'] as String?;
+    tab.lines.restoreHistory(json['navigationHistory']);
+    return tab;
   }
 
   @override
@@ -345,6 +347,7 @@ class TextReadingSnapshot {
     _persistedBook = state is TextBookLoaded ? state.book : tab.book;
     _title = tab.title;
     _readingAnchor = tab.lines.captureAnchor();
+    _navigationHistory = tab.lines.historyToJson();
     _index = _readingAnchor?.line ?? tab.index;
     _isPinned = tab.isPinned;
     _dedupeKey = tab.dedupeKey;
@@ -444,6 +447,7 @@ class TextReadingSnapshot {
   late final String _title;
   late final int _index;
   late final ReadingAnchor? _readingAnchor;
+  late final Map<String, Object>? _navigationHistory;
   late final bool _isPinned;
   late final String? _dedupeKey;
   late final String? _historySlot;
@@ -463,7 +467,7 @@ class TextReadingSnapshot {
   /// בונה טאב עצמאי ושומר את זהותו הזמנית, שאינה נשמרת לדיסק.
   TextBookTab createTab() {
     final search = _search.copy();
-    return TextBookTab(
+    final tab = TextBookTab(
       book: _book,
       index: _index,
       initialReadingAnchor: _readingAnchor,
@@ -490,6 +494,8 @@ class TextReadingSnapshot {
       isPinned: _isPinned,
       dedupeKey: _dedupeKey,
     )..historySlot = _historySlot;
+    tab.lines.restoreHistory(_navigationHistory);
+    return tab;
   }
 
   /// שומר את פורמט הטאב הקיים ואת נתוני הספר שהועשרו בזמן הקריאה.
@@ -505,6 +511,7 @@ class TextReadingSnapshot {
     'isPinned': _isPinned,
     'type': 'TextBookTab',
     'historySlot': ?_historySlot,
+    'navigationHistory': ?_navigationHistory,
     if (_highlightText.isNotEmpty) 'highlightText': _highlightText,
     'permanentHighlightLine': ?_permanentHighlightLine,
     // null = חיפוש שלא רץ; סט ריק = חיפוש שלא מצא תוצאות.
