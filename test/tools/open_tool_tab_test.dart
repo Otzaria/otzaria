@@ -20,6 +20,12 @@ void main() {
       expect(tab.dedupeKey, isNull);
     });
 
+    test('title מותאם גובר על שם התוסף', () {
+      final tab = newToolTabInstance(entry, title: 'ברכות ב');
+      expect(tab.title, 'ברכות ב');
+      expect(tab.allowMultipleInstances, isTrue);
+    });
+
     test('כל קריאה מייצרת מופע ריצה חדש', () {
       final a = newToolTabInstance(entry);
       final b = newToolTabInstance(entry);
