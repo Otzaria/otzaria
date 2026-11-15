@@ -24,11 +24,14 @@ class ResultLinesHighlightPattern implements Pattern {
         if (!masks.any((other) => other != mask && other & mask == other)) mask,
     ]..sort();
     if (minimal.isEmpty) return null;
+    final alternatives = termSources.map((source) => '(?:$source)').join('|');
+    // כמה מקורות יכולים להתאים לאותו מופע; כל lookahead סופר מונח בלי לצרוך אותו.
+    final captures = [
+      for (var i = 0; i < termSources.length; i++)
+        '(?=(?<$_groupPrefix$i>${termSources[i]})|)',
+    ].join();
     final combined = RegExp(
-      [
-        for (var i = 0; i < termSources.length; i++)
-          '(?<$_groupPrefix$i>${termSources[i]})',
-      ].join('|'),
+      '(?=$alternatives)$captures(?:$alternatives)',
       caseSensitive: false,
       unicode: true,
     );
@@ -52,13 +55,14 @@ class ResultLinesHighlightPattern implements Pattern {
   bool get requiresWholeLines =>
       _termSets.any((mask) => mask & (mask - 1) != 0);
 
-  int _termOf(RegExpMatch match) {
+  int _termMask(RegExpMatch match) {
+    var mask = 0;
     for (final name in match.groupNames) {
       if (match.namedGroup(name) != null) {
-        return int.parse(name.substring(_groupPrefix.length));
+        mask |= 1 << int.parse(name.substring(_groupPrefix.length));
       }
     }
-    return -1;
+    return mask;
   }
 
   @override
@@ -85,8 +89,7 @@ class ResultLinesHighlightPattern implements Pattern {
         lineEnd = string.indexOf('\n', match.start);
         if (lineEnd < 0) lineEnd = string.length;
       }
-      final term = _termOf(match);
-      if (term >= 0) lineMask |= 1 << term;
+      lineMask |= _termMask(match);
       line.add(match);
     }
     flushLine();

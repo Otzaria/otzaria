@@ -250,8 +250,7 @@ class PdfBookSearchView extends StatefulWidget {
     final proximity = _proximityPattern(resultHtmls, query, settings);
     if (proximity != null) return proximity;
 
-    // לפי התבנית ולא לפי המונח: משתי קבוצות עם אותה תבנית (`"`/`״`) הראשונה
-    // תמיד זוכה, וקטע שסימן את השנייה לא היה מתקיים באף שורה.
+    // מונחים עם מקור זהה (`"`/`״`) חולקים אינדקס ותופסים מקום אחד בתקרה.
     final sourceIndex = <String, int>{};
     final sources = <String>[];
     final termSets = <Set<int>>[];
