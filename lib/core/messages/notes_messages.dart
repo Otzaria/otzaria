@@ -1,3 +1,5 @@
+import 'package:intl/intl.dart';
+
 /// ריכוז הודעות המערכת (UiSnack) של הערות אישיות, סימניות,
 /// היסטוריה וסביבות עבודה.
 abstract class NotesMessages {
@@ -8,6 +10,9 @@ abstract class NotesMessages {
       'ההערה נשמרה, אך לא ניתן למחוק את הטיוטה הישנה';
   static String noteDraftUpdateError(Object error) =>
       'שגיאה בעדכון טיוטת ההערה: $error';
+  static String noteTooLong(int maxLength) =>
+      'הטקסט ארוך מדי להערה אישית '
+      '(עד ${NumberFormat('#,###', 'en').format(maxLength)} תווים)';
   static const String noteUpdated = 'ההערה עודכנה';
   static const String noteNoLongerExists = 'ההערה אינה קיימת עוד';
   static const String noteMovedToDifferentBook =
