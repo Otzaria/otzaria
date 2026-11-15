@@ -6377,11 +6377,11 @@ class PluginBridgeAdapter {
     }
   }
 
-  /// אורך מרבי של כותרת כרטיסיה שהתוסף מבקש ב-\`plugin.openSelf\`.
+  /// אורך מרבי של כותרת כרטיסיה שהתוסף מבקש ב-`plugin.openSelf`.
   static const int _maxOpenSelfTitleLength = 60;
 
-  /// כותרת הכרטיסיה של \`plugin.openSelf\` עם \`newTab\`: מחרוזת בלי תווי בקרה,
-  /// מקוצצת ל-[_maxOpenSelfTitleLength]. כותרת ריקה כמוה כחסרה. בלי \`newTab\`
+  /// כותרת הכרטיסיה של `plugin.openSelf` עם `newTab`: מחרוזת בלי תווי בקרה,
+  /// מקוצצת ל-[_maxOpenSelfTitleLength]. כותרת ריקה כמוה כחסרה. בלי `newTab`
   /// אין מופע חדש לתת לו שם, ולכן זו שגיאה במקום התעלמות שקטה.
   String? _parseOpenSelfTitle(Object? raw, bool newTab) {
     if (raw == null) return null;
