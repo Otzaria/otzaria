@@ -823,7 +823,10 @@ List<int> _matchAltTocFlatIndex(
     for (var j = i; j >= 0; j = index.parentOf(j)) {
       bits |= bitsOf(index.textSlotOf(j));
     }
-    if (bits == allBits) return true;
+    if (bits == allBits) {
+      return !variants ||
+          altTocExpandedDafMatches(index.refTokensOf(i), queryTokens);
+    }
     if (titleBits == null ||
         !altTocHostTitleMayComplete(
           pathCovered: _bitCount(bits),
@@ -832,7 +835,8 @@ List<int> _matchAltTocFlatIndex(
       return false;
     }
     final missing = allBits & ~bits;
-    return titleBitsOf(index.bookSlotOf(i)) & missing == missing;
+    return titleBitsOf(index.bookSlotOf(i)) & missing == missing &&
+        altTocExpandedDafMatches(index.refTokensOf(i), queryTokens);
   }
 
   Set<String> hostTitleWordsOf(int i) =>

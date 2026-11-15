@@ -215,6 +215,57 @@ Set<String> altTocSuppliedTitleWords(
   return supplied.isEmpty ? const {} : supplied;
 }
 
+/// התאמות חדשות חייבות לשמור על מספר הדף שבסיומת, גם בלי "דף" בשאילתה.
+bool altTocExpandedDafMatches(
+  List<String> refTokens,
+  List<String> queryTokens,
+) {
+  if (!refTokens.contains('דף') || queryTokens.contains('דף')) return true;
+  final tokens = queryTokens.where((t) => t != 'עמוד').toList();
+  bool isNumber(String token) =>
+      hebrewTokenAlternatives(token).any(_isHebrewNumeral);
+  if (tokens.isEmpty) return true;
+  const units = [
+    'כלל',
+    'מאמר',
+    'פרק',
+    'משנה',
+    'פסוק',
+    'הלכה',
+    'דין',
+    'אות',
+    'פסקה',
+    'סק',
+    'סעיף',
+    'קטן',
+    'סימן',
+    'סי',
+    'חלק',
+    'שער',
+    'כרך',
+    'שאלה',
+    'תשובה',
+    'פרשה',
+    'פרשת',
+    'עליה',
+  ];
+
+  bool isUnit(String token) =>
+      AltTocQueryWord(token, variants: true).inTokens(units);
+  var start = tokens.length - 1;
+  if (start > 0 &&
+      (tokens.last == 'א' || tokens.last == 'ב') &&
+      !isUnit(tokens[start - 1]) &&
+      isNumber(tokens[start - 1])) {
+    start--;
+  }
+  if (!isNumber(tokens[start]) || start > 0 && isUnit(tokens[start - 1])) {
+    return true;
+  }
+  final citation = parseDafCitation(tokens.sublist(start));
+  return citation == null || nearestDafInPathMatches(refTokens, citation);
+}
+
 /// פילטר גלובלי משותף ל-main ול-worker; [hostTitleWords] רק בלי [maxRefTokens], ו-[dafCitation]
 /// מחייב התאמה מיקומית. [variants] רק כשהכתיב שבשאילתה לא מצא דבר ([altTocFlatMatchesAll]).
 bool altTocFlatMatches(
@@ -242,6 +293,10 @@ bool altTocFlatMatches(
     } else {
       return false;
     }
+  }
+  if ((fromTitle || variants) &&
+      !altTocExpandedDafMatches(refTokens, queryTokens)) {
+    return false;
   }
   return !fromTitle ||
       altTocHostTitleMayComplete(

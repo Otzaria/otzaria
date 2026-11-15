@@ -11,6 +11,7 @@ import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
+import 'package:otzaria/utils/text/ref_key.dart';
 import 'package:path/path.dart' as path;
 
 class MockDataRepository extends Mock implements DataRepository {}
@@ -128,6 +129,96 @@ void main() {
       });
     });
 
+    test('הרחבה בכתיב חלופי בלי שם מארח שומרת על הדף הקרוב', () {
+      final query = tokensOf('חידושי הרן ב:');
+      for (final reference in [
+        'דף ל: חדושי הר"ן',
+        'דף ב: דף ל: חדושי הר"ן',
+        'דף ב. חדושי הר"ן',
+      ]) {
+        expect(
+          altTocFlatMatches(tokensOf(reference), query, variants: true),
+          isFalse,
+          reason: reference,
+        );
+      }
+      expect(
+        altTocFlatMatches(tokensOf('דף ב: חדושי הר"ן'), query, variants: true),
+        isTrue,
+      );
+      expect(
+        altTocFlatMatches(tokensOf('סעיף ב חדושי הר"ן'), query, variants: true),
+        isTrue,
+      );
+    });
+
+    test('מספר עברי תקין בלבד, ומילות מבנה אינן ציון דף', () {
+      final reference = tokensOf('דף ל:');
+      for (final unit in [
+        'כלל',
+        'מאמר',
+        'פרק',
+        'משנה',
+        'מישנה',
+        'הילכה',
+        'פסוק',
+        'הלכה',
+        'דין',
+        'אות',
+        'פסקה',
+        'ס"ק',
+        'סעיף קטן',
+        'סעיף',
+        'סימן',
+        'סי',
+        'חלק',
+        'שער',
+        'כרך',
+      ]) {
+        expect(
+          altTocExpandedDafMatches(
+            reference,
+            tokensOf('חידושי הרן פסחים $unit ב'),
+          ),
+          isTrue,
+          reason: unit,
+        );
+        expect(
+          altTocExpandedDafMatches(
+            reference,
+            tokensOf('חידושי הרן פסחים $unit א ב'),
+          ),
+          isTrue,
+          reason: unit,
+        );
+      }
+      expect(
+        altTocExpandedDafMatches(reference, tokensOf('חידושי הרן פסחים הרן')),
+        isTrue,
+      );
+      expect(
+        altTocExpandedDafMatches(
+          tokensOf('דף לט:'),
+          tokensOf('חידושי הרן פסחים טל:'),
+        ),
+        isTrue,
+      );
+      expect(
+        altTocExpandedDafMatches(
+          tokensOf('דף ב ע"ב'),
+          tokensOf('חידושי הרן פסחים ב:'),
+        ),
+        isTrue,
+      );
+      expect(
+        altTocExpandedDafMatches(
+          tokensOf('דף ב עמוד א'),
+          tokensOf('חידושי הרן פסחים ב.'),
+        ),
+        isTrue,
+      );
+    });
+
     test('שם הספר אינו מספיק בלי שתי מילים מהערך עצמו', () {
       expect(matches('חדושי פסחים'), isFalse);
       expect(matches('ט: פסחים'), isFalse);
@@ -179,6 +270,23 @@ void main() {
         (13, 2, 11, 2, 'חדושי הר"ן'),
         (14, 2, 10, 1, 'דף י.'),
         (15, 2, 14, 2, 'חדושי הר"ן'),
+        (60, 2, 10, 1, 'דף ב:'),
+        (61, 2, 60, 2, 'חדושי הר"ן'),
+        (62, 2, 60, 2, 'רבינו דוד'),
+        (63, 2, null, 0, 'דף ל:'),
+        (64, 2, 63, 1, 'חדושי הר"ן'),
+        (65, 2, 63, 1, 'רבינו דוד'),
+        (66, 2, null, 0, 'דף מ:'),
+        (67, 2, 66, 1, 'חדושי הר"ן'),
+        (68, 2, 66, 1, 'רבינו דוד'),
+        (69, 2, 10, 1, 'דף ב.'),
+        (70, 2, 69, 2, 'חדושי הר"ן'),
+        (71, 2, 69, 2, 'רבינו דוד'),
+        (72, 2, 66, 1, 'רבינו דוד סעיף ב'),
+        (73, 2, null, 0, 'דף עא.'),
+        (74, 2, 73, 1, 'חדושי הר"ן'),
+        (75, 2, null, 0, 'דף עב:'),
+        (76, 2, 75, 1, 'חדושי הר"ן'),
       ];
       for (final (id, structureId, parentId, level, text) in entries) {
         db.execute(
@@ -235,6 +343,51 @@ void main() {
       });
     }
 
+    for (final author in ['רבינו דוד', 'חידושי הרן']) {
+      test(
+        '"$author פסחים ב:" שומר את מספר הדף לפני תקרת שתי תוצאות',
+        () async {
+          final spelling = author == 'חידושי הרן' ? 'חדושי הר"ן' : author;
+          expect(await globalAltToc('$author פסחים ב:'), [
+            'קובץ שיטות קמאי על פסחים אור לארבעה עשר דף ב: $spelling',
+          ]);
+        },
+      );
+    }
+
+    test('עמוד א ודף ללא עמוד נשמרים, וגם סעיף תחת דף אחר', () async {
+      const prefix = 'קובץ שיטות קמאי על פסחים אור לארבעה עשר';
+      expect(await globalAltToc('רבינו דוד פסחים ב.'), [
+        '$prefix דף ב. רבינו דוד',
+      ]);
+      expect(
+        await globalAltToc('רבינו דוד פסחים ב'),
+        unorderedEquals([
+          '$prefix דף ב. רבינו דוד',
+          '$prefix דף ב: רבינו דוד',
+        ]),
+      );
+      expect(await globalAltToc('רבינו דוד פסחים סעיף ב'), [
+        'קובץ שיטות קמאי על פסחים דף מ: רבינו דוד סעיף ב',
+      ]);
+    });
+
+    for (final (citation, daf) in [
+      ('עא', 'עא.'),
+      ('עב', 'עב:'),
+      ('עא.', 'עא.'),
+      ('עב:', 'עב:'),
+      ('דף עא ע"א', 'עא.'),
+      ('דף עב ע"ב', 'עב:'),
+      ('דף ע"א', 'עא.'),
+    ]) {
+      test('מספר דף וסימן עמוד נבדלים ב"$citation"', () async {
+        expect(await globalAltToc('חידושי הרן פסחים $citation'), [
+          'קובץ שיטות קמאי על פסחים דף $daf חדושי הר"ן',
+        ]);
+      });
+    }
+
     test('"דיינים" אינו "דינים"', () async {
       expect(await globalAltToc('הלכות דיינים'), [
         'שולחן ערוך חושן משפט הלכות דיינים',
@@ -284,6 +437,24 @@ void main() {
       (2, 1, 1, 'חדושי הר"ן — פסחים'),
       (3, 2, null, 'דף ט:'),
       (4, 2, 3, 'חדושי הר"ן'),
+      (5, 2, null, 'דף ב:'),
+      (6, 2, 5, 'חדושי הר"ן'),
+      (7, 2, 5, 'רבינו דוד'),
+      (8, 2, null, 'דף ב.'),
+      (9, 2, 8, 'רבינו דוד'),
+      (10, 2, null, 'דף ל:'),
+      (11, 2, 10, 'חדושי הר"ן'),
+      (12, 2, 10, 'רבינו דוד'),
+      (13, 2, null, 'דף מ:'),
+      (14, 2, 13, 'חדושי הר"ן'),
+      (15, 2, 13, 'רבינו דוד סעיף ב'),
+      (16, 2, null, 'דף עא.'),
+      (17, 2, 16, 'חדושי הר"ן'),
+      (18, 2, null, 'דף עב:'),
+      (19, 2, 18, 'חדושי הר"ן'),
+      (20, 2, 13, 'רבינו דוד כלל א ב'),
+      (21, 2, 13, 'רבינו דוד מאמר א ב'),
+      (22, 2, 13, 'רבינו דוד משנה א ב'),
     ]) {
       db.execute(
         'INSERT INTO alt_toc_entry (id, structureId, parentId, textId, level) '
@@ -298,6 +469,50 @@ void main() {
     );
     while (!await build.step()) {}
     final index = build.index;
+
+    for (final (citation, expected) in [
+      ('רבינו דוד פסחים ב:', ['דף ב: רבינו דוד']),
+      ('רבינו דוד פסחים ב.', ['דף ב. רבינו דוד']),
+      ('רבינו דוד פסחים ב', ['דף ב: רבינו דוד', 'דף ב. רבינו דוד']),
+      ('רבינו דוד פסחים דף ב:', ['דף ב: רבינו דוד']),
+      ('חידושי הרן פסחים ב:', ['דף ב: חדושי הר"ן']),
+      ('חידושי הרן ב:', ['דף ב: חדושי הר"ן']),
+      ('חידושי הרן פסחים עא', ['דף עא. חדושי הר"ן']),
+      ('חידושי הרן פסחים עב', ['דף עב: חדושי הר"ן']),
+      ('חידושי הרן פסחים דף עא ע"א', ['דף עא. חדושי הר"ן']),
+      ('חידושי הרן פסחים דף עב ע"ב', ['דף עב: חדושי הר"ן']),
+      ('חידושי הרן פסחים דף ע"א', ['דף עא. חדושי הר"ן']),
+      ('רבינו דוד פסחים סעיף ב', ['דף מ: רבינו דוד סעיף ב']),
+      ('רבינו דוד פסחים כלל א ב', ['דף מ: רבינו דוד כלל א ב']),
+      ('רבינו דוד פסחים מאמר א ב', ['דף מ: רבינו דוד מאמר א ב']),
+      ('רבינו דוד פסחים מישנה א ב', ['דף מ: רבינו דוד משנה א ב']),
+    ]) {
+      final query = tokensOf(expandQueryAmudMarks(citation));
+      final local = altTocFlatMatchesAll(
+        (variants) => [
+          for (var i = 0; i < index.length; i++)
+            if (altTocFlatMatches(
+              index.refTokensOf(i),
+              query,
+              dafCitation: parseDafCitationFromDafToken(query),
+              hostTitleWords: altTocHostTitleWords(
+                query,
+                tokensOf(index.bookOf(i).title),
+                variants: variants,
+              ),
+              variants: variants,
+            ))
+              i,
+        ],
+      );
+      final compact = matchAltTocFlatIndex(index, query);
+      expect(compact, local, reason: citation);
+      expect(
+        [for (final i in compact) index.referenceOf(i)],
+        expected,
+        reason: citation,
+      );
+    }
 
     final query = tokensOf('חידושי הרן פסחים ט:');
     const rank = (foundationalTier: null, eraOrder: 0);
