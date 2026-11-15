@@ -70,12 +70,17 @@ void main() {
     String surface,
     Link link, {
     SettingsState? settings,
+    TextDirection direction = TextDirection.rtl,
   }) async {
     late BuildContext hostContext;
     await tester.pumpWidget(
       BlocProvider<SettingsBloc>.value(
         value: StubSettingsBloc(settings ?? SettingsState.initial()),
         child: MaterialApp(
+          builder: (context, child) => Directionality(
+            textDirection: direction,
+            child: child!,
+          ),
           home: Scaffold(
             body: Builder(
               builder: (context) {
@@ -142,6 +147,68 @@ void main() {
             as SelectionContainerDelegate;
     return selection.getSelectedContent()!.plainText;
   }
+
+  group('עיצוב פריסת כותרת נשמר בחלונית', () {
+    for (final direction in TextDirection.values) {
+      for (final (attributes, style) in [
+        for (final align in [
+          'center',
+          'left',
+          'right',
+          'justify',
+          'start',
+          'end',
+        ])
+          ('', 'text-align:$align'),
+        for (final align in ['center', 'left', 'right', 'justify'])
+          ('align="$align"', ''),
+        ('dir="ltr"', ''),
+        ('', 'direction:ltr'),
+        ('', 'width:180px'),
+        ('', 'height:60px'),
+        ('', 'padding:12px'),
+        ('', 'border:3px solid red'),
+        ('', 'background-color:red'),
+        ('', 'margin:7px'),
+        ('', 'text-align: /* יישור */ center'),
+        ('', 'TEXT-ALIGN:center'),
+      ]) {
+        testWidgets('$direction $attributes $style', (tester) async {
+          Future<(Rect, double, String)> measure(String display) async {
+            await showPreview(
+              tester,
+              'תת-תפריט "קישורים"',
+              rangeLink(
+                'layout-${direction.name}-${attributes.hashCode}-'
+                '${style.hashCode}-${display.isEmpty}/מקור.txt',
+                [
+                  'לפני סוף',
+                  '<h2 $attributes style="$display$style">דף</h2>',
+                  'אחרי הכול',
+                ],
+              ),
+              direction: direction,
+            );
+            final origin = tester.getTopLeft(find.byType(SmartTextWidget));
+            final result = (
+              lineOf(tester, 'דף').shift(-origin),
+              lineOf(tester, 'אחרי').top - origin.dy,
+              copyAll(tester, find.byType(LinkHoverPreviewContent)),
+            );
+            LinkPreviewOverlay.dismiss();
+            await tester.pumpAndSettle();
+            return result;
+          }
+
+          final actual = await measure('');
+          final block = await measure('display:block;');
+          expect(actual.$1, block.$1);
+          expect(actual.$2, block.$2);
+          expect(actual.$3, block.$3);
+        });
+      }
+    }
+  });
 
   group('רווח מיותר סביב כותרת בתצוגה המקדימה של קישור (issue #3709)', () {
     for (final (surface, scale, lines) in [
@@ -219,10 +286,11 @@ void main() {
       });
     }
 
-    // כמו ב-CSS: שוליים אנכיים לא חלים על inline, אבל display מפורש גובר.
+    // שוליים מפורשים נשמרים גם כשהכותרת היא שורה בפני עצמה.
     for (final (style, gap) in [
-      ('margin:7px;color:red', 0.0),
+      ('margin:7px;color:red', 7.0),
       ('display:block;margin:7px;color:red', 7.0),
+      ('display:inline;margin:7px;color:red', 0.0),
     ]) {
       testWidgets('style מפורש בכותרת: $style', (tester) async {
         await showPreview(

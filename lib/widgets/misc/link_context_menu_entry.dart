@@ -7,6 +7,8 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart'
+    show DomElementExtension;
 import 'package:html/dom.dart' as html_dom;
 import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/book_protection/models/book_protection.dart';
@@ -98,8 +100,7 @@ double compactPreviewTitleFontSize(double contentFontSize) =>
 // שורת כותרת לבדה נשארת בלי attributes, במסלול המהיר של SmartTextWidget.
 final _headingLineBreak = RegExp(r'<br><h[1-6][\s>]|</h[1-6]><br>');
 
-/// כותרות בתוכן קישור-טווח כ-inline, כמו שורת כותרת בספר: כבלוק, fwfh מוסיף
-/// שורה ריקה מה-`<br>` שאחריה וההעתקה מאבדת את מעבר השורה שלפניה.
+/// מצמצם רווחי כותרת בתוכן קישור; עיצוב פריסה מפורש נשאר בבלוק.
 String _inlineHeadingLines(String html) {
   if (!_headingLineBreak.hasMatch(html)) return html;
   final fragment = html_parser.parseFragment(html, generateSpans: true);
@@ -126,7 +127,9 @@ String _inlineHeadingLines(String html) {
         heading.sourceSpan!.start.offset + 3;
     // כותרת שחולקת שורה עם טקסט נשארת בלוק, כמו בספר. לפני ה-style הקיים,
     // כדי שערך מפורש בו יגבר.
-    final declaration = _isWholeLine(heading) ? 'display:inline' : 'margin:0';
+    final declaration = _canInlineHeading(heading)
+        ? 'display:inline'
+        : 'margin:0';
     result
       ..write(html.substring(cursor, offset))
       ..write(style == null ? ' style="$declaration"' : '$declaration;');
@@ -135,7 +138,20 @@ String _inlineHeadingLines(String html) {
   return (result..write(html.substring(cursor))).toString();
 }
 
-bool _isWholeLine(html_dom.Element heading) {
+bool _canInlineHeading(html_dom.Element heading) {
+  // inline מבטל יישור, מידות ועיצוב בלוק; רק סגנונות טקסט בטוחים כאן.
+  if (heading.attributes.containsKey('align') ||
+      heading.attributes.containsKey('dir') ||
+      heading.styles.any((style) {
+        final property = style.property;
+        return property != 'color' &&
+            !property.startsWith('font-') &&
+            !property.startsWith('text-decoration') &&
+            !{'line-height', 'white-space', 'text-shadow'}.contains(property);
+      })) {
+    return false;
+  }
+
   final siblings = heading.parentNode!.nodes;
   final index = siblings.indexOf(heading);
   bool isLineEdge(int i) {
