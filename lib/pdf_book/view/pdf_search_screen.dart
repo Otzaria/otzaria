@@ -29,6 +29,7 @@ import 'package:otzaria/search/utils/literal_search_pattern.dart';
 import 'package:otzaria/search/utils/user_regex_query.dart';
 import 'package:otzaria/pdf_book/utils/pdf_user_regex_pattern.dart';
 import 'package:otzaria/pdf_book/utils/proximity_highlight_pattern.dart';
+import 'package:otzaria/pdf_book/utils/result_lines_highlight_pattern.dart';
 import 'package:otzaria/search/utils/snippet_builder.dart';
 import 'package:otzaria/search/view/in_book_advanced_search_dialog.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
@@ -239,7 +240,7 @@ class PdfBookSearchView extends StatefulWidget {
   static const int _maxHighlightTerms = 50;
 
   /// תבנית הדגשה לעמודים: המתאם של הקורא הטקסטואלי כשהוא מוצא את [resultHtmls],
-  /// ואחרת (מקורב, טווח פסקה) המונחים שהמנוע סימן. null כשאין מה להדגיש.
+  /// ואחרת המונחים שהמנוע סימן, בשורות שהוא התאים. null כשאין מה להדגיש.
   @visibleForTesting
   static Pattern? buildAdvancedHighlightPattern(
     Iterable<String> resultHtmls, {
@@ -249,20 +250,40 @@ class PdfBookSearchView extends StatefulWidget {
     final proximity = _proximityPattern(resultHtmls, query, settings);
     if (proximity != null) return proximity;
 
-    final terms = <String>{};
-    for (final html in resultHtmls) {
-      terms.addAll(SnippetBuilder.extractHighlightedTerms(html));
-      if (terms.length >= _maxHighlightTerms) break;
-    }
-
+    final sourceIndex = <String, int?>{};
     final sources = <String>[];
-    for (final term in terms.take(_maxHighlightTerms)) {
-      final literal = buildLiteralPattern(term);
-      if (literal != null) sources.add('(?:${literal.source})');
+    final termSets = <Set<int>>[];
+    for (final html in resultHtmls) {
+      // קטע שחוצה שורה מחובר ב-<br>, וכל צד שלו הוא שורה משלו בעמוד.
+      for (final line in html.split(_lineBreakTag)) {
+        final set = <int>{};
+        for (final term in SnippetBuilder.extractHighlightedTerms(line)) {
+          final index = sourceIndex.putIfAbsent(term, () {
+            if (sources.length >= _maxHighlightTerms) return null;
+            final literal = buildLiteralPattern(term);
+            if (literal == null) return null;
+            sources.add(literal.source);
+            return sources.length - 1;
+          });
+          if (index != null) set.add(index);
+        }
+        termSets.add(set);
+      }
     }
     if (sources.isEmpty) return null;
-    return RegExp(sources.join('|'), caseSensitive: false, unicode: true);
+    final lines = ResultLinesHighlightPattern.build(sources, termSets);
+    if (lines != null && lines.requiresWholeLines) return lines;
+    return RegExp(
+      sources.map((source) => '(?:$source)').join('|'),
+      caseSensitive: false,
+      unicode: true,
+    );
   }
+
+  static final RegExp _lineBreakTag = RegExp(
+    r'<br[\t\n\f\r ]*/?>',
+    caseSensitive: false,
+  );
 
   /// כמה קטעים נבדקים לפני שמוותרים על המתאם: כל קטע מפוענח כ-HTML.
   static const int _maxProximityProbes = 20;
@@ -272,9 +293,9 @@ class PdfBookSearchView extends StatefulWidget {
     String query,
     InBookSearchSettings settings,
   ) {
+    // במקורב, בטווח פסקה/כותרת וב"לפחות N מילים" המנוע מתאים שורה ולא רצף.
     if (query.isEmpty || settings.searchMode == SearchMode.fuzzy) return null;
     final policy = settings.matchPolicy;
-    // בטווח פסקה/כותרת או "לפחות N מילים" המתאם מדגיש מילה-מילה, לא רצף.
     if (policy.proximityScope != SearchScope.wordDistance ||
         policy.wordMatchMode != WordMatchMode.all) {
       return null;
@@ -423,6 +444,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
     final source = switch (pattern) {
       RegExp regExp => regExp.pattern,
       ProximityHighlightPattern proximity => proximity.key,
+      ResultLinesHighlightPattern lines => lines.key,
       _ => '',
     };
     if (source == _lastPdfHighlightSource) return;
