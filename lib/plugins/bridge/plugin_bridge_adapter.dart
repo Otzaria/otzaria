@@ -5,7 +5,6 @@ import 'dart:typed_data';
 import 'dart:io' hide Link;
 import 'dart:math' as math;
 
-import 'package:characters/characters.dart';
 import 'package:collection/collection.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:otzaria/book_common/utils/link_anchor_markers.dart';

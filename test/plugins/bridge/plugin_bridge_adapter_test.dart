@@ -4929,14 +4929,16 @@ Future<void> main() async {
         test('title נחתך לפי אשכולות גרפמה ולא באמצע emoji מורכב', () async {
           final titles = registerTitledOpener('inst-new');
           const familyEmoji = '👨‍👩‍👧‍👦';
+          final prefix = 'א' * 59;
+          final title = '$prefix$familyEmoji' + 'ב';
 
           await adapterFor(allowMultipleInstances: true).execute(
             'plugin',
             'openSelf',
-            {'newTab': true, 'title': '${'א' * 59}$familyEmoji${'ב'}'},
+            {'newTab': true, 'title': title},
           );
 
-          expect(titles.single, '${'א' * 59}$familyEmoji');
+          expect(titles.single, '$prefix$familyEmoji');
         });
 
         test('title מסיר גם תווי בקרה מטווח C1', () async {
