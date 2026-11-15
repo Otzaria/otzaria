@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_bloc.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_event.dart';
@@ -206,4 +207,41 @@ void main() {
       expect(result.externalPending, false);
     },
   );
+
+  test('reusing a normalized query keeps its pending provider reply', () async {
+    final requested = Completer<Map<String, dynamic>>();
+    var requests = 0;
+    final service = PluginFindRefService.forTesting(
+      providers: () => [provider],
+      dispatch: (_, topic, data) async {
+        if (topic == PluginFindRefService.requestTopic) {
+          requests++;
+          requested.complete(data);
+        }
+      },
+    );
+    final bloc = FindRefBloc(
+      findRefRepository: _Repository(),
+      externalService: service,
+    );
+    addTearDown(bloc.close);
+    bloc.add(const SearchRefRequested('בראשית'));
+    final request = await requested.future.timeout(const Duration(seconds: 5));
+    final cached = bloc.state;
+    bloc.add(const SearchRefRequested('בראשית '));
+    await pumpEventQueue();
+    expect(bloc.state, same(cached));
+    final completed = bloc.stream.firstWhere(
+      (state) => state is FindRefSuccess && !state.externalPending,
+    );
+    expect(
+      service.respond('barilan', request['requestId'] as String, results: rows),
+      true,
+    );
+    final result =
+        await completed.timeout(const Duration(seconds: 5)) as FindRefSuccess;
+    expect(result.refs.single.title, 'בראשית');
+    expect(result.externalRefs.single.reference, 'בראשית א ב');
+    expect(requests, 1);
+  });
 }

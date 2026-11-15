@@ -34,6 +34,7 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
   bool? _shownIncludePersonalBooks;
   HiddenLibrarySelection? _shownVisibility;
   int _requestGeneration = 0;
+  int _externalGeneration = 0;
   _FindRefDelay? _externalDelay;
   bool _closing = false;
   SearchRefRequested? _lastRequest;
@@ -56,7 +57,7 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
     on<ClearSearchRequested>(_onClearSearchRequested);
     on<_ExternalRefsUpdated>((event, emit) {
       final current = state;
-      if (event.generation != _requestGeneration ||
+      if (event.generation != _externalGeneration ||
           current is! FindRefSuccess) {
         return;
       }
@@ -90,6 +91,7 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
   Future<void> close() async {
     _closing = true;
     _requestGeneration++;
+    _externalGeneration++;
     _externalDelay?.cancel();
     externalService.cancel(this);
     _liveBlocs.remove(this);
@@ -126,6 +128,7 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
         ? const HiddenLibraryStore().load()
         : const HiddenLibrarySelection();
     // גם שימוש בתוצאה קיימת מבטל רענון אישי שהתחיל בבקשה אחרת.
+    final requestGeneration = ++_requestGeneration;
     findRefRepository.cancelPendingSearch();
     if (event.refText.length >= 2 &&
         state is FindRefSuccess &&
@@ -135,7 +138,7 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
       return;
     }
 
-    final requestGeneration = ++_requestGeneration;
+    final externalGeneration = ++_externalGeneration;
     _externalDelay?.cancel();
     externalService.cancel(this);
 
@@ -180,7 +183,7 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
       // A provider is optional. Its failure must never block native results.
       if (event.refText.trim().length >= 3 && externalService.hasProviders) {
         // ממתינים להפסקת ההקלדה לפני שמשגרים שאילתה לספק החיצוני.
-        unawaited(_searchExternal(event.refText, requestGeneration));
+        unawaited(_searchExternal(event.refText, externalGeneration));
       }
     } on ReferenceLibraryNotReadyException {
       if (emit.isDone || requestGeneration != _requestGeneration) return;
@@ -218,6 +221,7 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
   ) {
     _lastRequest = null;
     _requestGeneration++;
+    _externalGeneration++;
     _externalDelay?.cancel();
     externalService.cancel(this);
     findRefRepository.cancelPendingSearch();
@@ -233,7 +237,7 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
     _externalDelay = delay;
     final elapsed = await delay.done;
     if (identical(_externalDelay, delay)) _externalDelay = null;
-    if (!elapsed || isClosed || generation != _requestGeneration) return;
+    if (!elapsed || isClosed || generation != _externalGeneration) return;
     final hits = await externalService.search(
       query,
       owner: this,
