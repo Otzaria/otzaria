@@ -7,6 +7,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:html/dom.dart' as html_dom;
 import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
@@ -123,13 +124,27 @@ String _inlineHeadingLines(String html) {
         style?.start.offset ??
         emptyStyle?.start.offset ??
         heading.sourceSpan!.start.offset + 3;
-    // לפני ה-style הקיים, כדי ש-display מפורש בו יגבר.
+    // כותרת שחולקת שורה עם טקסט נשארת בלוק, כמו בספר. לפני ה-style הקיים,
+    // כדי שערך מפורש בו יגבר.
+    final declaration = _isWholeLine(heading) ? 'display:inline' : 'margin:0';
     result
       ..write(html.substring(cursor, offset))
-      ..write(style == null ? ' style="display:inline"' : 'display:inline;');
+      ..write(style == null ? ' style="$declaration"' : '$declaration;');
     cursor = emptyStyle?.end.offset ?? offset;
   }
   return (result..write(html.substring(cursor))).toString();
+}
+
+bool _isWholeLine(html_dom.Element heading) {
+  final siblings = heading.parentNode!.nodes;
+  final index = siblings.indexOf(heading);
+  bool isLineEdge(int i) {
+    if (i < 0 || i >= siblings.length) return true;
+    final node = siblings[i];
+    return node is html_dom.Element && node.localName == 'br';
+  }
+
+  return isLineEdge(index - 1) && isLineEdge(index + 1);
 }
 
 /// תוכן חלונית התצוגה המקדימה של קישור — כותרת (כתובת היעד) ותוכן הקטע,

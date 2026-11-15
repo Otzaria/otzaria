@@ -242,6 +242,25 @@ void main() {
       });
     }
 
+    testWidgets('כותרת וטקסט באותה שורה — הטקסט בשורה משלו, כמו בספר', (
+      tester,
+    ) async {
+      await showPreview(
+        tester,
+        'תת-תפריט "קישורים"',
+        rangeLink('heading-with-text', ['לפני סוף', '<h2>דף</h2>טקסט', 'אחרי']),
+      );
+
+      expect(
+        lineOf(tester, 'טקסט').top,
+        moreOrLessEquals(lineOf(tester, 'דף').bottom, epsilon: 1),
+      );
+      expect(
+        lineOf(tester, 'דף').top - lineOf(tester, 'סוף').bottom,
+        moreOrLessEquals(0, epsilon: 1),
+      );
+    });
+
     for (final attributes in ['style', 'style=""', "style=''"]) {
       testWidgets('style ריק: הכותרת צמודה לשורה שלפניה: $attributes', (
         tester,
