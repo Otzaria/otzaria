@@ -559,14 +559,74 @@ void main() {
     await tester.tap(find.widgetWithText(NavTreeTile, 'פרק ב'));
     await tester.pumpAndSettle();
 
+    // המיקוד עבר לשדה הניווט, ולכן PageView רשאי לפרוק את לשונית החיפוש.
+    // בודקים שהשאילתה נשמרה כאשר המשתמש חוזר אליה.
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavPanelTabHeader),
+        matching: find.text('חיפוש'),
+      ),
+    );
+    await tester.pumpAndSettle();
     expect(
       tester
-          .widgetList<EditableText>(
-            find.byType(EditableText, skipOffstage: false),
+          .widget<EditableText>(
+            find.descendant(
+              of: searchField,
+              matching: find.byType(EditableText),
+            ),
           )
-          .map((field) => field.controller.text),
-      contains('אמר'),
+          .controller
+          .text,
+      'אמר',
     );
+  });
+
+  testWidgets('חיפוש הכותרות מתמקד בפתיחה ובחזרה לניווט ושומר את השאילתה', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final sourceTab = PdfBookTab(
+      book: PdfBook(title: 'PDF בדיקה', path: '/tmp/book.pdf'),
+      pageNumber: 1,
+    );
+    addTearDown(sourceTab.dispose);
+    sourceTab.pdfHeadings = PdfHeadings(
+      bookTitle: 'PDF בדיקה',
+      headingsMap: {'כותרת א': 1, 'כותרת ב': 10},
+    );
+    sourceTab.currentTitle.value = 'כותרת א';
+    final tab = PdfCommentatorsTab(sourceTab: sourceTab);
+    await tester.pumpWidget(_wrap(PdfCommentatorsTabScreen(tab: tab)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(NavPanelToggleButton));
+    await tester.pumpAndSettle();
+    final navigationField = find.widgetWithText(TextField, 'איתור כותרת...');
+    EditableText field() => tester.widget<EditableText>(
+      find.descendant(of: navigationField, matching: find.byType(EditableText)),
+    );
+    expect(navigationField, findsOneWidget);
+    expect(field().focusNode.hasFocus, isTrue);
+    await tester.enterText(navigationField, 'כותרת');
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavPanelTabHeader),
+        matching: find.text('חיפוש'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ניווט'));
+    await tester.pumpAndSettle();
+    expect(field().focusNode.hasFocus, isTrue);
+    expect(field().controller.text, 'כותרת');
+    await tester.tap(find.byType(NavPanelToggleButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(NavPanelToggleButton));
+    await tester.pumpAndSettle();
+    expect(field().focusNode.hasFocus, isTrue);
+    expect(field().controller.text, 'כותרת');
   });
 
   // issue #1112 — פערים מול כרטיסיית המפרשים של ספר טקסט.

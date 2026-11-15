@@ -364,6 +364,7 @@ class _OutlineViewState extends State<OutlineView>
 
     return NavPanelCollapsibleSearch(
       delegate: delegate,
+      presentation: NavPanelSearchPresentation.persistent,
       child: NotificationListener<ScrollNotification>(
         onNotification: (notification) {
           if (notification is ScrollStartNotification &&

@@ -661,6 +661,7 @@ class _TocViewerState extends State<TocViewer>
           );
           return NavPanelCollapsibleSearch(
             delegate: delegate,
+            presentation: NavPanelSearchPresentation.persistent,
             floatingActions: [?expandMenu],
             child: display.isSearching && display.entries.isEmpty
                 ? const OtzariaEmptyState(

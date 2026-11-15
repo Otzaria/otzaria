@@ -20,11 +20,14 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/tabs/models/combined_tab.dart';
+import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/models/search_results.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/text_book/view/text_book_screen.dart';
 import 'package:otzaria/text_book/view/text_book_search_screen.dart';
@@ -74,16 +77,34 @@ void main() {
     WidgetTester tester, {
     String tabSearchText = '',
     bool settle = true,
+    bool showLeftPane = true,
+    bool isActivePane = true,
+    Size size = const Size(1600, 900),
   }) async {
     final book = TextBook(title: 'ספר בדיקה');
-    final bloc = _TestTextBookBloc(_loadedState(book));
+    final bloc = _TestTextBookBloc(
+      _loadedState(book).copyWith(showLeftPane: showLeftPane),
+    );
     final tab = TextBookTab(
       book: book,
       index: 0,
       searchText: tabSearchText,
       blocOverride: bloc,
     );
-    final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
+    final otherPane = ToolTab(toolId: 'builtin.test', title: 'חלונית אחרת');
+    addTearDown(otherPane.dispose);
+    final tabsBloc = _TestTabsBloc(
+      TabsState(
+        tabs: [
+          if (isActivePane)
+            tab
+          else
+            CombinedTab(rightTab: tab, leftTab: otherPane),
+        ],
+        currentTabIndex: 0,
+        rawActivePane: isActivePane ? tab : otherPane,
+      ),
+    );
     final settingsBloc = _TestSettingsBloc(SettingsState.initial());
 
     addTearDown(() async {
@@ -95,7 +116,7 @@ void main() {
       tab.dispose();
     });
 
-    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -157,6 +178,63 @@ void main() {
       setTheme: (value) => setHostState(() => theme = value),
     );
   }
+
+  testWidgets('שדה הניווט גלוי וממוקד בפתיחה, בלי מיקוד חוזר בעדכון קריאה', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+    final toc = find.byType(TocViewer);
+    final field = find.descendant(
+      of: toc,
+      matching: find.byType(OtzariaSearchField),
+    );
+    expect(field.hitTestable(), findsOneWidget);
+    final focus = tester.widget<TocViewer>(toc).focusNode;
+    expect(focus.hasFocus, isTrue);
+
+    focus.unfocus();
+    await tester.pump();
+    final bloc = tester.element(toc).read<TextBookBloc>() as _TestTextBookBloc;
+    bloc.update((bloc.state as TextBookLoaded).copyWith(visibleIndices: [1]));
+    await tester.pump();
+    expect(focus.hasFocus, isFalse);
+
+    bloc.add(const ToggleLeftPane(false));
+    await tester.pumpAndSettle();
+    bloc.add(const ToggleLeftPane(true));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TocViewer>(toc).focusNode.hasFocus, isTrue);
+  });
+
+  testWidgets('חלונית סגורה אינה ממקדת שדה חיפוש בפתיחת ספר', (
+    tester,
+  ) async {
+    await pumpScreen(tester, showLeftPane: false);
+    expect(
+      FocusManager.instance.primaryFocus?.context
+          ?.findAncestorWidgetOfExactType<OtzariaSearchField>(),
+      isNull,
+    );
+  });
+
+  testWidgets('שדה ניווט במסך צר אינו פותח מקלדת אוטומטית', (tester) async {
+    await pumpScreen(tester, size: const Size(360, 900));
+    expect(
+      FocusManager.instance.primaryFocus?.context
+          ?.findAncestorWidgetOfExactType<OtzariaSearchField>(),
+      isNull,
+    );
+    expect(tester.testTextInput.isVisible, isFalse);
+  });
+
+  testWidgets('חלונית לא פעילה בטאב מפוצל אינה ממקדת את החיפוש', (
+    tester,
+  ) async {
+    await pumpScreen(tester, isActivePane: false);
+    final toc = tester.widget<TocViewer>(find.byType(TocViewer));
+    expect(toc.focusNode.hasFocus, isFalse);
+    expect(tester.testTextInput.isVisible, isFalse);
+  });
 
   testWidgets('מצב חלונית הניווט נשמר במעבר טאב וחזרה', (tester) async {
     final controller = await pumpScreen(tester);

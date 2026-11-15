@@ -16,7 +16,6 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/alt_toc_sidebar_view.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
-import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
@@ -245,8 +244,7 @@ void main() {
   ) async {
     configureLaterParentAnchor('anchor');
     final lines = await pumpSidebar(tester);
-    await tester.tap(find.byType(NavPanelSearchToggle));
-    await tester.pumpAndSettle();
+    expect(find.byType(TextField).hitTestable(), findsOneWidget);
     await tester.enterText(find.byType(TextField), _linklessParent);
     await _settleRealAsync(tester);
     await tester.pumpAndSettle();

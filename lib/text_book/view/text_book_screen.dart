@@ -185,9 +185,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   // נפתח (false→true) ולא בכל rebuild - אחרת היה גונב פוקוס מתוכן הספר.
   bool _wasLeftPaneShown = false;
 
-  // חלונית שנפתחה לבד עם הספר לא לוקחת את הפוקוס לחיפוש בעץ: החיצים שייכים לקריאה.
-  bool _leftPaneSeenClosed = false;
-
   /// לשונית החיפוש נבחרה בפתיחת הספר (מתוצאת חיפוש) ולא בהקשה של המשתמש.
   bool _searchTabAutoSelected = false;
   FocusRepository? _focusRepository; // שמירת הפניה לשימוש ב-dispose
@@ -576,20 +573,25 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     _searchTabAutoSelected = false;
     _searchHost.activeTab = tabController.index;
     if (tabController.indexIsChanging) return;
-    _focusActiveTabSearchField(userAction: true);
+    _focusActiveTabSearchField();
   }
 
-  /// ממקד את שדה החיפוש של הלשונית הפעילה; ב'ניווט' וב'כותרות' גם פותח אותו.
-  /// לא עושה דבר כשהפאנל סגור.
-  void _focusActiveTabSearchField({bool userAction = false}) {
+  /// ממקד את שדה החיפוש של הלשונית הפעילה רק כשהחלונית פתוחה.
+  void _focusActiveTabSearchField() {
     // במסך צר מיקוד יזום פותח את מקלדת המערכת על ספר שרק רצו לקרוא.
-    if (!NavPanelSearch.isWide(context)) return;
+    if (!NavPanelSearch.isWide(context) ||
+        !TickerMode.valuesOf(context).enabled ||
+        ModalRoute.of(context)?.isCurrent == false) {
+      return;
+    }
+    final activePane = context.read<TabsBloc>().state.activePane;
+    if (activePane != null && !identical(activePane, widget.tab)) return;
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded || !state.showLeftPane) return;
     final index = tabController.index;
     if (index == (_hasAltTitles ? 2 : 1)) {
       textSearchFocusNode.requestFocus();
-    } else if (userAction || _leftPaneSeenClosed) {
+    } else {
       _searchHost.openCollapsibleSearch(index);
     }
   }
@@ -2372,16 +2374,12 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   }
 
   Widget _buildLeftPaneContent(TextBookLoaded state) {
-    // ברגע שהפאנל הצדדי נפתח (false→true) מעבירים פוקוס לשדה החיפוש של
-    // הלשונית הפעילה. ההחלטה מבוצעת בפונקציה טהורה (resolveLeftPaneSearchFocus)
-    // שמבטיחה שלא נבקש פוקוס בכל rebuild - הגנה מפני רגרסיה לבאג הגלילה
-    // האינסופית (commit 41a5816fc).
+    // מיקוד רק בפתיחה: בנייה בעקבות גלילה אינה לוקחת פוקוס מתוכן הספר.
     final focusDecision = resolveLeftPaneSearchFocus(
       showLeftPane: state.showLeftPane,
       wasShown: _wasLeftPaneShown,
     );
     _wasLeftPaneShown = focusDecision.wasShownNext;
-    if (!state.showLeftPane) _leftPaneSeenClosed = true;
     if (focusDecision.shouldFocus) {
       // microtask: אזור הקריאה מבקש פוקוס ראשוני ב-post-frame של אותו פריים,
       // ובקשה שקודמת לו נדרסת.
@@ -2526,14 +2524,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   }
 }
 
-/// מחליטה אם לבקש פוקוס לשדה החיפוש של הפאנל הצדדי, ומחזירה גם את המצב
-/// הבא של "הפאנל הוצג".
-///
-/// מבקשים פוקוס אך ורק במעבר של הפאנל מסגור לפתוח. בכל rebuild שבו הפאנל
-/// כבר פתוח (למשל בזמן גלילה, שבה ה-bloc פולט states חדשים שוב ושוב) —
-/// [shouldFocus] יהיה false. זו ההגנה מפני רגרסיה לבאג "הגלילה האינסופית"
-/// (commit 41a5816fc): קריאת requestFocus חוזרת בכל build חטפה פוקוס מתוכן
-/// הספר ויצרה לולאת גלילה עד סוף המסמך.
+/// מבקשת מיקוד רק במעבר מסגור לפתוח; בנייה בעקבות גלילה אינה ממקדת מחדש.
 ({bool shouldFocus, bool wasShownNext}) resolveLeftPaneSearchFocus({
   required bool showLeftPane,
   required bool wasShown,

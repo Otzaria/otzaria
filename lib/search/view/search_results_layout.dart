@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/view/full_text_settings_widgets.dart';
@@ -117,13 +118,13 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
       builder: (context, constraints) {
         const narrowBelow = 800.0;
         final isNarrow = constraints.maxWidth < narrowBelow;
-        if (isNarrow &&
-            !_appliedNarrowLeftPaneDefault &&
-            widget.tab.isLeftPaneOpen.value) {
+        if (isNarrow && !_appliedNarrowLeftPaneDefault) {
           _appliedNarrowLeftPaneDefault = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) widget.tab.isLeftPaneOpen.value = false;
-          });
+          if (widget.tab.isLeftPaneOpen.value) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) widget.tab.isLeftPaneOpen.value = false;
+            });
+          }
         }
         final collapseMenus = constraints.maxWidth < _kMenusCollapseWidth;
         if (isNarrow) return _buildForSmallScreens(collapseMenus);
@@ -161,12 +162,17 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
                       context,
                       AppTokens.animPanelSlide,
                     ),
-                    child: SizedBox(
-                      width: value ? 500 : 0,
-                      child: Container(
-                        color: NavSidePanel.background(context),
-                        child: Column(
-                          children: [Expanded(child: widget.facetPane)],
+                    child: Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      widthFactor: value ? 1 : 0,
+                      child: SizedBox(
+                        width: 500,
+                        child: ExcludeFocus(
+                          excluding: !value,
+                          child: Container(
+                            color: NavSidePanel.background(context),
+                            child: _buildFacetPane(),
+                          ),
                         ),
                       ),
                     ),
@@ -206,13 +212,7 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
                       decoration: _resultsDecoration(context),
                       child: widget.resultsBuilder(true),
                     ),
-                    paneContent: NavPanelSearchScope(
-                      host: _searchHost,
-                      child: NavPanelSearchSlot(
-                        index: 0,
-                        child: widget.facetPane,
-                      ),
-                    ),
+                    paneContent: _buildFacetPane(),
                     paneWidth: paneWidth,
                     minMainContentWidth: 300,
                     onClose: () => _setLeftPaneOpen(false),
@@ -239,11 +239,29 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
     );
   }
 
+  Widget _buildFacetPane() => NavPanelSearchScope(
+    host: _searchHost,
+    child: NavPanelSearchSlot(index: 0, child: widget.facetPane),
+  );
+
   /// שינוי מצב עץ התוצאות ביוזמת המשתמש — נשמר גם כברירת מחדל גלובלית.
   /// סגירות אוטומטיות (מסך צר, הרצת חיפוש) אינן עוברות כאן בכוונה.
   void _setLeftPaneOpen(bool isOpen) {
     widget.tab.isLeftPaneOpen.value = isOpen;
     SearchDefaults.saveResultsTreeOpenDefault(isOpen);
+    if (!isOpen) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          !widget.tab.isLeftPaneOpen.value ||
+          !TickerMode.valuesOf(context).enabled ||
+          ModalRoute.of(context)?.isCurrent == false ||
+          !NavPanelSearch.isWide(context)) {
+        return;
+      }
+      final activePane = context.read<TabsBloc?>()?.state.activePane;
+      if (activePane != null && !identical(activePane, widget.tab)) return;
+      _searchHost.openCollapsibleSearch(0);
+    });
   }
 
   /// הסרגל העליון — זהה בכל רוחבי המסך.

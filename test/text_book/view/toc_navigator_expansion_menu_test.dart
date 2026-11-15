@@ -263,7 +263,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('ספר בדיקה'), findsNothing, reason: 'הכותרת נגללה');
     expect(find.byTooltip('הרחבה וכיווץ של הכותרות'), findsOneWidget);
-    expect(find.byTooltip('איתור כותרת...'), findsOneWidget);
+    expect(find.byType(TextField).hitTestable(), findsOneWidget);
     expect(find.byType(NavPanelCollapsibleSearch), findsOneWidget);
   });
 }

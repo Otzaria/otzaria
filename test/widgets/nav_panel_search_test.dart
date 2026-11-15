@@ -16,6 +16,8 @@ class _Host extends StatefulWidget {
   final VoidCallback? onArrowUp;
   final VoidCallback? onClear;
   final int rowCount;
+  final NavPanelSearchPresentation presentation;
+  final VoidCallback? onFloatingAction;
 
   const _Host({
     this.initialText = '',
@@ -23,6 +25,8 @@ class _Host extends StatefulWidget {
     this.onArrowUp,
     this.onClear,
     this.rowCount = 3,
+    this.presentation = NavPanelSearchPresentation.collapsible,
+    this.onFloatingAction,
   });
 
   @override
@@ -49,6 +53,15 @@ class _HostState extends State<_Host> {
       child: NavPanelSearchSlot(
         index: 0,
         child: NavPanelCollapsibleSearch(
+          presentation: widget.presentation,
+          floatingActions: [
+            if (widget.onFloatingAction != null)
+              IconButton(
+                tooltip: 'פעולת כותרת',
+                onPressed: widget.onFloatingAction,
+                icon: const Icon(FluentIcons.chevron_up_24_regular),
+              ),
+          ],
           delegate: NavPanelSearchDelegate(
             controller: controller,
             focusNode: focus,
@@ -200,6 +213,111 @@ void main() {
       await tester.pumpWidget(wrap(const NavPanelSearchToggle()));
 
       expect(find.byType(IconButton), findsNothing);
+    });
+  });
+
+  group('חיפוש קבוע', () {
+    testWidgets('גלוי מיד, בלי כפתור סגירה ובלי לבקש פוקוס בבנייה', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        wrap(const _Host(presentation: NavPanelSearchPresentation.persistent)),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(OtzariaSearchField).hitTestable(), findsOneWidget);
+      expect(find.byTooltip('סגור חיפוש'), findsNothing);
+      expect(find.byIcon(FluentIcons.search_24_regular), findsNothing);
+      expect(_fieldHasFocus(tester), isFalse);
+
+      final state = tester.state<_HostState>(find.byType(_Host));
+      expect(state.host.openCollapsibleSearch(0), isTrue);
+      await tester.pump();
+      expect(_fieldHasFocus(tester), isTrue);
+    });
+
+    testWidgets('ניקוי מעדכן את המסנן ומשאיר שדה פתוח וממוקד', (
+      tester,
+    ) async {
+      var clears = 0;
+      await tester.pumpWidget(
+        wrap(
+          _Host(
+            presentation: NavPanelSearchPresentation.persistent,
+            onClear: () => clears++,
+          ),
+        ),
+      );
+      await tester.enterText(find.byType(OtzariaSearchField), 'כותרת');
+      await tester.pump();
+      await tester.tap(find.byTooltip('נקה'));
+      await tester.pumpAndSettle();
+
+      expect(clears, 1);
+      expect(find.byType(OtzariaSearchField).hitTestable(), findsOneWidget);
+      expect(_fieldHasFocus(tester), isTrue);
+      expect(tester.state<_HostState>(find.byType(_Host)).controller.text, '');
+    });
+
+    testWidgets('Escape מנקה פעם אחת בלי לסגור את השדה', (tester) async {
+      var clears = 0;
+      await tester.pumpWidget(
+        wrap(
+          _Host(
+            presentation: NavPanelSearchPresentation.persistent,
+            onClear: () => clears++,
+          ),
+        ),
+      );
+      await tester.enterText(find.byType(OtzariaSearchField), 'כותרת');
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(clears, 1);
+      expect(tester.state<_HostState>(find.byType(_Host)).controller.text, '');
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(clears, 1);
+      expect(find.byType(OtzariaSearchField).hitTestable(), findsOneWidget);
+    });
+
+    testWidgets('השדה נשאר קבוע בגלילה ופעולות הכותרת נשארות נגישות', (
+      tester,
+    ) async {
+      var actions = 0;
+      final contentFocus = FocusNode();
+      addTearDown(contentFocus.dispose);
+      await tester.pumpWidget(
+        wrap(
+          Focus(
+            focusNode: contentFocus,
+            child: _Host(
+              presentation: NavPanelSearchPresentation.persistent,
+              rowCount: 80,
+              onFloatingAction: () => actions++,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final field = find.byType(OtzariaSearchField);
+      final fieldRect = tester.getRect(field);
+      final state = tester.state<_HostState>(find.byType(_Host));
+      state.host.openCollapsibleSearch(0);
+      await tester.pump();
+      contentFocus.requestFocus();
+      await tester.pump();
+      expect(_fieldHasFocus(tester), isFalse);
+
+      await tester.drag(find.byType(ListView), const Offset(0, -1500));
+      await tester.pumpAndSettle();
+
+      expect(tester.getRect(field), fieldRect);
+      expect(field.hitTestable(), findsOneWidget);
+      expect(_fieldHasFocus(tester), isFalse);
+      expect(contentFocus.hasPrimaryFocus, isTrue);
+      expect(find.byType(NavTreeHeader), findsNothing);
+      await tester.tap(find.byTooltip('פעולת כותרת'));
+      expect(actions, 1);
     });
   });
 

@@ -22,7 +22,6 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
-import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
@@ -257,8 +256,6 @@ void main() {
       configuration: SearchConfiguration(currentFacets: const ['/']),
     );
     await pumpPanel(tester, base);
-    await tester.tap(find.byType(NavPanelSearchToggle));
-    await tester.pumpAndSettle();
     await tester.enterText(find.byType(RtlTextField).first, 'תהילים');
     await emit(tester, base.copyWith(filterQuery: 'תהילים'));
     expect(find.byType(CircularProgressIndicator), findsNothing);
@@ -276,8 +273,6 @@ void main() {
       configuration: SearchConfiguration(currentFacets: const ['/']),
     );
     await pumpPanel(tester, base);
-    await tester.tap(find.byType(NavPanelSearchToggle));
-    await tester.pumpAndSettle();
     await tester.enterText(find.byType(RtlTextField).first, 'תהילים');
     await emit(tester, base.copyWith(filterQuery: 'תהילים'));
     expect(tree(tester).filterQuery, 'תהילים');

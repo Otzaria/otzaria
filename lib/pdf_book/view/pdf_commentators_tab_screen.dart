@@ -12,6 +12,7 @@ import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/pdf_book/utils/pdf_commentary_visibility.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/core/focus_repository.dart';
@@ -235,6 +236,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
     if (!mounted) return;
     _searchHost.activeTab = _navTabController.index;
     setState(() {});
+    if (_navTabController.indexIsChanging) return;
     if (_navTabController.index == _searchTabIndex) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _searchFocusNode.requestFocus();
@@ -242,6 +244,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
     } else if (_navTabController.index == 0) {
       // לשונית הניווט: גלילה לכותרת הנבחרת.
       _scrollNavToSelectedHeading();
+      _focusNavigationSearch();
     }
   }
 
@@ -794,7 +797,24 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
     setState(() => _navPaneOpen = !_navPaneOpen);
     if (_navPaneOpen && _navTabController.index == 0) {
       _scrollNavToSelectedHeading();
+      if (!_pinLeftPane) _focusNavigationSearch();
     }
+  }
+
+  void _focusNavigationSearch() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          !(_navPaneOpen || _pinLeftPane) ||
+          _navTabController.index != 0 ||
+          !TickerMode.valuesOf(context).enabled ||
+          ModalRoute.of(context)?.isCurrent == false ||
+          !NavPanelSearch.isWide(context)) {
+        return;
+      }
+      final activePane = context.read<TabsBloc?>()?.state.activePane;
+      if (activePane != null && !identical(activePane, widget.tab)) return;
+      _searchHost.openCollapsibleSearch(0);
+    });
   }
 
   void _navigateToPrevParagraph() {
@@ -905,7 +925,10 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
       navPaneOpen: _navPaneOpen,
       navPanePinned: _pinLeftPane,
       onToggleNavPane: _toggleNavPane,
-      onTogglePin: () => setState(() => _pinLeftPane = !_pinLeftPane),
+      onTogglePin: () {
+        setState(() => _pinLeftPane = !_pinLeftPane);
+        if (_pinLeftPane && !_navPaneOpen) _focusNavigationSearch();
+      },
       onPrevMajor: _navigateToPrevHeading,
       onPrevMinor: _navigateToPrevParagraph,
       onNextMinor: _navigateToNextParagraph,
@@ -1047,6 +1070,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
         );
 
         return NavPanelCollapsibleSearch(
+          presentation: NavPanelSearchPresentation.persistent,
           delegate: delegate,
           child: NavTreeFocusGroup(
             child: ScrollablePositionedList.builder(

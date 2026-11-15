@@ -18,7 +18,6 @@ import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/view/alt_toc_sidebar_view.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
-import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:path/path.dart' as p;
 
 import '../../helpers/seforim_fixture_db.dart';
@@ -141,11 +140,7 @@ void main() {
       .singleOrNull;
 
   Future<void> search(WidgetTester tester, String query) async {
-    if (find.byType(TextField).evaluate().isEmpty) {
-      await tester.tap(find.byType(NavPanelSearchToggle));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 200));
-    }
+    expect(find.byType(TextField).hitTestable(), findsOneWidget);
     await tester.enterText(find.byType(TextField), query);
     await _settleRealAsync(tester);
     await tester.pumpAndSettle();
