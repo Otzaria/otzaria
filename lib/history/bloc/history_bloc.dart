@@ -138,6 +138,11 @@ List<SearchTitleSegment> buildSearchTitleSegments({
 class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
   final HistoryRepository _repository;
   String? _currentWorkspaceName;
+  String? _currentWorkspaceId;
+
+  /// שולחן העבודה שרשומות חדשות משויכות אליו; null — חלון בלי שולחן.
+  String? get currentWorkspaceName => _currentWorkspaceName;
+  String? get currentWorkspaceId => _currentWorkspaceId;
   Timer? _debounce;
   final Map<String, Bookmark> _pendingSnapshots = {};
   late final Future<void> Function() _preCloseCallback;
@@ -290,6 +295,7 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     SearchScope? proximityScopeOverride,
   }) async {
     final workspaceName = _currentWorkspaceName;
+    final workspaceId = _currentWorkspaceId;
 
     // ההיסטוריה משחזרת חיפוש מילולי; חיפוש סמנטי היה חוזר בה כמילולי.
     if (tab is SemanticSearchTab) return null;
@@ -323,6 +329,7 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
         negativeAlternativeWords: searchingTab.negativeAlternativeWords,
         negativeSpacingValues: searchingTab.negativeSpacingValues,
         workspaceName: workspaceName,
+        workspaceId: workspaceId,
         searchScopeFacets: nonRootScopeFacets.isNotEmpty
             ? nonRootScopeFacets
             : null,
@@ -353,6 +360,7 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     return bookmark?.copyWith(
       historySlot: tab.historySlot,
       navigationHistory: navigationHistory,
+      workspaceId: workspaceId,
     );
   }
 
@@ -412,6 +420,7 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     Emitter<HistoryState> emit,
   ) {
     _currentWorkspaceName = event.workspaceName;
+    _currentWorkspaceId = event.workspaceId;
   }
 
   Future<void> _onAddHistory(

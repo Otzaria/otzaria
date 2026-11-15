@@ -8,7 +8,8 @@ class LoadHistory extends HistoryEvent {}
 
 class SetCurrentWorkspaceName extends HistoryEvent {
   final String? workspaceName;
-  SetCurrentWorkspaceName(this.workspaceName);
+  final String? workspaceId;
+  SetCurrentWorkspaceName(this.workspaceName, {this.workspaceId});
 }
 
 class AddHistory extends HistoryEvent {

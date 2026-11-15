@@ -62,6 +62,9 @@ class Bookmark {
   final Map<int, List<String>>? negativeAlternativeWords;
   final Map<String, String>? negativeSpacingValues;
   final String? workspaceName;
+
+  /// [Workspace.id] — יציב גם אחרי שינוי שם; null ברשומות ישנות.
+  final String? workspaceId;
   final List<String>? searchScopeFacets;
 
   /// הסינון בתוך התחום; נשמר רק כששונה ממנו, בלי לשכפל אלפי facets.
@@ -133,6 +136,7 @@ class Bookmark {
     this.negativeAlternativeWords,
     this.negativeSpacingValues,
     this.workspaceName,
+    this.workspaceId,
     this.searchScopeFacets,
     this.searchFilterFacets,
     this.searchMode,
@@ -158,6 +162,7 @@ class Bookmark {
     bool clearLabel = false,
     String? historySlot,
     Map<String, dynamic>? navigationHistory,
+    String? workspaceId,
   }) {
     return Bookmark(
       ref: ref,
@@ -173,6 +178,7 @@ class Bookmark {
       negativeAlternativeWords: negativeAlternativeWords,
       negativeSpacingValues: negativeSpacingValues,
       workspaceName: workspaceName,
+      workspaceId: workspaceId ?? this.workspaceId,
       searchScopeFacets: searchScopeFacets,
       searchFilterFacets: searchFilterFacets,
       searchMode: searchMode,
@@ -243,6 +249,7 @@ class Bookmark {
             ).map((key, value) => MapEntry(key, value.toString()))
           : null,
       workspaceName: json['workspaceName'] as String?,
+      workspaceId: json['workspaceId'] as String?,
       searchScopeFacets: json['searchScopeFacets'] != null
           ? List<String>.from(json['searchScopeFacets'] as List)
           : null,
@@ -316,6 +323,7 @@ class Bookmark {
       ),
       'negativeSpacingValues': negativeSpacingValues,
       'workspaceName': workspaceName,
+      'workspaceId': ?workspaceId,
       'searchScopeFacets': searchScopeFacets,
       'searchFilterFacets': ?searchFilterFacets,
       'searchMode': searchMode?.name,
