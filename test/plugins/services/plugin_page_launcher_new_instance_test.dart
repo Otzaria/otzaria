@@ -93,6 +93,51 @@ void main() {
     launcher.unregisterInstanceOpener(keys, opener);
   });
 
+  test('title מועבר לפותח עם כותרת; בלעדיו נקרא הפותח הרגיל', () {
+    final plain = <String>[];
+    final titled = <String?>[];
+    String? opener(String pluginId) {
+      plain.add(pluginId);
+      return 'second';
+    }
+
+    String? titledOpener(String pluginId, String? title) {
+      titled.add(title);
+      return 'second';
+    }
+
+    launcher.registerInstanceOpener(keys, opener, titledOpener: titledOpener);
+
+    expect(
+      launcher.openNewInstance(_kPid, title: 'ברכות ב', windowKeys: keys),
+      'second',
+    );
+    expect(titled, ['ברכות ב']);
+    expect(plain, isEmpty);
+
+    expect(launcher.openNewInstance(_kPid, windowKeys: keys), 'second');
+    expect(plain, [_kPid]);
+    expect(titled, ['ברכות ב']);
+    launcher.unregisterInstanceOpener(keys, opener);
+  });
+
+  test('title בלי פותח עם כותרת — נפתח עם הפותח הרגיל', () {
+    final plain = <String>[];
+    String? opener(String pluginId) {
+      plain.add(pluginId);
+      return 'second';
+    }
+
+    launcher.registerInstanceOpener(keys, opener);
+
+    expect(
+      launcher.openNewInstance(_kPid, title: 'ברכות ב', windowKeys: keys),
+      'second',
+    );
+    expect(plain, [_kPid]);
+    launcher.unregisterInstanceOpener(keys, opener);
+  });
+
   test('פותח שדוחה (כלי לא זמין) — אין מופע ואין אירוע ממתין', () {
     String? refuse(String pluginId) => null;
     launcher.registerInstanceOpener(keys, refuse);
