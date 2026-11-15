@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 
@@ -46,6 +47,8 @@ const _tur = (
   acronyms: [
     'ארבעה טורים',
     'הטור',
+    'טור אבן העזר',
+    'טור אה"ע',
     'טור או"ח',
     'טור חו"מ',
     'טור חושן משפט',
@@ -389,6 +392,211 @@ void main() {
     }
   });
 
+  group('מילה אחרונה קטועה בכינוי (issue #4933)', () {
+    for (final (part, truncated) in [
+      ('אבן העזר', 'אבן העז'),
+      ('חושן משפט', 'חושן משפ'),
+      ('יורה דעה', 'יורה דע'),
+    ]) {
+      test('"טור $truncated א" שומר את החלק לחיפוש הפנימי', () async {
+        seedLibrary(const [_tur]);
+        final hit = ReferenceBooksCache.instance
+            .search('טור $truncated')
+            .single;
+        expect(hit.acronymTailIsTitleWords, isFalse);
+        expect(hit.acronymLastWordTruncated, isFalse);
+
+        final seen = <List<String>?>[];
+        final repo = buildFindRefRepo(
+          tocQueryTokensSeen: seen,
+          tocEntries: {
+            380: [
+              {
+                'reference': 'טור $part סימן א',
+                'segment': 100 + part.length,
+                'level': 2,
+              },
+            ],
+          },
+        );
+        for (final section in [truncated, part]) {
+          final results = await repo.findRefs('טור $section א');
+          expect(
+            results.map((r) => r.reference),
+            ['טור $part סימן א'],
+            reason: section,
+          );
+        }
+        expect(seen, contains(equals([...truncated.split(' '), 'א'])));
+      });
+
+      test('"טור $truncated א א" אינו מאבד את החלק במפתח השורה', () async {
+        seedLibrary(const [_tur]);
+        final keys = <String>[];
+        final repo = FindRefRepository(
+          isReferenceBooksCacheLoaded: () => true,
+          warmUpReferenceBooksCache: () async {},
+          getTocEntriesForReference: (id, title, {queryTokens}) async =>
+              const [],
+          getAltTocEntriesForReference: (id, title, {queryTokens}) async =>
+              const [],
+          getAllAltTocFlatEntries: () async => const [],
+          getCategoryPath: (_) async => 'ספרייה',
+          resolveLineRefs: (bookIds, key) async {
+            keys.add(key);
+            return {};
+          },
+        );
+        addTearDown(repo.disposeForTesting);
+        await repo.findRefs('טור $truncated א א');
+
+        expect(keys, ['$truncated א א']);
+      });
+    }
+
+    // הכותרת כתובה ב-״ והכינוי ב-", ולכן הספר נמצא רק דרך הכינוי.
+    const rashbaEruvin = (
+      id: 2466,
+      title: 'רשב״א על עירובין',
+      acronyms: ['רשב"א או"ע', 'רשב"א עירובין', 'רשב"א על או"ע'],
+    );
+    const rashbaBerachot = (
+      id: 2460,
+      title: 'רשב״א על ברכות',
+      acronyms: ['רשב"א ברכות'],
+    );
+
+    for (final query in ['רשב"א עירובי', 'רשב"א עירו']) {
+      test('"$query" מחזיר את רשב״א על עירובין', () async {
+        seedLibrary(const [rashbaBerachot, rashbaEruvin]);
+        final results = await buildFindRefRepo().findRefs(query);
+
+        expect(results.map((r) => r.title).firstOrNull, 'רשב״א על עירובין');
+      });
+    }
+
+    test('"רשב"א עירובי כ" — המיקום שאחרי המילה הקטועה מגיע ל-TOC', () async {
+      seedLibrary(const [rashbaBerachot, rashbaEruvin]);
+      final seen = <List<String>?>[];
+      final results = await buildFindRefRepo(
+        tocQueryTokensSeen: seen,
+        tocEntries: const {
+          2466: [
+            {'reference': 'רשב״א על עירובין כ', 'segment': 9, 'level': 1},
+          ],
+        },
+      ).findRefs('רשב"א עירובי כ');
+
+      expect(
+        results.map((r) => r.reference).firstOrNull,
+        'רשב״א על עירובין כ',
+      );
+      expect(seen, contains(equals(const ['כ'])));
+    });
+
+    test('כינוי מדויק גובר על מילה קטועה — "רמב"ם נזיר"', () async {
+      seedLibrary(const [
+        (
+          id: 327,
+          title: 'משנה תורה, הלכות נזירות',
+          acronyms: ['רמב"ם הלכות נזירות', 'רמב"ם נזירות'],
+        ),
+        (
+          id: 530,
+          title: 'רמב"ם על משנה נזיר',
+          acronyms: ['רמבם נזיר', 'רמבם על נזיר'],
+        ),
+      ]);
+      final titles = (await buildFindRefRepo().findRefs(
+        'רמב"ם נזיר',
+      )).map((r) => r.title).toList();
+
+      expect(titles.firstOrNull, 'רמב"ם על משנה נזיר');
+      final nezirut = titles.indexOf('משנה תורה, הלכות נזירות');
+      expect(nezirut == -1 || nezirut > 0, isTrue, reason: '$titles');
+    });
+
+    for (final query in ['רמב"ם תפיל', 'רמב"ם תפי']) {
+      test('"$query" מציע את שני ספרי התפילה, הלכות תפילה ראשון', () async {
+        seedLibrary(const [_rambamTefila, _rambamSederTefila]);
+        final titles = (await buildFindRefRepo().findRefs(
+          query,
+        )).map((r) => r.title).toList();
+
+        expect(titles.take(2), [
+          'משנה תורה, הלכות תפילה וברכת כהנים',
+          'משנה תורה, סדר התפילה',
+        ]);
+      });
+    }
+
+    test('כינוי שאינו מזהה ספר אינו חוסם השלמה — "רמב"ם עירו"', () async {
+      seedLibrary(const [
+        (
+          id: 309,
+          title: 'משנה תורה, הלכות עירובין',
+          acronyms: ['רמב"ם הלכות עירובין', 'רמב"ם עירובין'],
+        ),
+        (
+          id: 518,
+          title: 'רמב"ם על משנה עירובין',
+          acronyms: ['רמב"ם משנה עירובין', 'רמב"ם עירוב-עירובין'],
+        ),
+      ]);
+      final titles = (await buildFindRefRepo().findRefs(
+        'רמב"ם עירו',
+      )).map((r) => r.title).toList();
+
+      expect(titles, contains('משנה תורה, הלכות עירובין'));
+    });
+
+    // issue #5077
+    test(
+      'קטיעה ששרדה מדורגת ככינוי מדויק — "תוס גיטי" כמו "תוס גיטין"',
+      () async {
+        seedLibrary(const [
+          (
+            id: 206,
+            title: 'תוספתא גיטין',
+            acronyms: ['תוספתא על גיטין', 'תוספתא מסכת גיטין'],
+          ),
+          (
+            id: 1917,
+            title: 'תוספות על גיטין',
+            acronyms: ["תוס' גיטין", 'תוספות גיטין'],
+          ),
+        ]);
+        final repo = buildFindRefRepo();
+        for (final query in ["תוס' גיטין", "תוס' גיטי"]) {
+          final titles = (await repo.findRefs(
+            query,
+          )).map((r) => r.title).toList();
+          expect(titles.firstOrNull, 'תוספות על גיטין', reason: query);
+        }
+      },
+    );
+
+    test('מספר עברי אינו מילה קטועה — "ר"ן נד" נשאר דף נ"ד', () {
+      seedLibrary(const [
+        (id: 2700, title: 'ר"ן על נדרים', acronyms: ['ר"ן נדרים']),
+      ]);
+      final hit = ReferenceBooksCache.instance.search('ר"ן נד').single;
+
+      expect(hit.matchRank, 4);
+      expect(hit.acronymTailIsTitleWords, isFalse);
+    });
+
+    test('אות בודדת אינה מילה קטועה', () {
+      seedLibrary(const [
+        (id: 2466, title: 'חידושי הרשב"א', acronyms: ['רשב"א עירובין']),
+      ]);
+      final hit = ReferenceBooksCache.instance.search('רשב"א ע').single;
+
+      expect(hit.matchRank, 4);
+      expect(hit.acronymTailIsTitleWords, isFalse);
+    });
+  });
+
   group('ReferenceBooksCache.search — דירוג התאמת ראשי תיבות', () {
     test('ראש-תיבות מדויק מקבל rank 3', () {
       seedLibrary(const [_rambamSederTefila]);
@@ -432,15 +640,13 @@ void main() {
       expect(hit.acronymTailIsTitleWords, isFalse);
     });
 
-    test('התאמת התחילית נמדדת במילים שלמות — "רמב"ם תפיל" אינו זיהוי '
-        'מלא', () {
-      seedLibrary(const [_rambamTefila, _rambamSederTefila]);
-      final hits = ReferenceBooksCache.instance.search('רמב"ם תפיל');
+    test('מילה קטועה שאחריה מילות כותרת — "רמב"ם תפיל" מזהה את '
+        '"רמב"ם תפילה וברכת כהנים"', () {
+      seedLibrary(const [_rambamTefila]);
+      final hit = ReferenceBooksCache.instance.search('רמב"ם תפיל').single;
 
-      expect(hits, isNotEmpty);
-      for (final hit in hits) {
-        expect(hit.acronymTailIsTitleWords, isFalse, reason: hit.title);
-      }
+      expect(hit.acronymTailIsTitleWords, isTrue);
+      expect(hit.acronymLastWordTruncated, isTrue);
     });
 
     test('מונח "contains" שנסרק ראשון אינו מקבע rank 5 ומונע את התאמת '
