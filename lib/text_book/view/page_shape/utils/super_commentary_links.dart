@@ -138,7 +138,8 @@ class SuperCommentaryLinkLoader {
 
   int _failures = 0;
   DateTime? _retryAfter;
-  Future<void> _tail = Future<void>.value();
+  Future<void>? _tail;
+  int _requestGeneration = 0;
   final List<({int start, int end})> _loaded = [];
   final Map<(int, int), Link> _byKey = {};
   List<Link> _links = const [];
@@ -158,10 +159,18 @@ class SuperCommentaryLinkLoader {
   );
 
   /// מוודא שחלון סביב [mainIndex] (0-based) מתוך [totalLines] שורות הראשי
-  /// טעון; קריאות מתבצעות בזו אחר זו. מחזיר true כשנוספו קישורים.
+  /// טעון; אחרי הפעילה נטען רק היעד העדכני. מחזיר true כשנוספו קישורים.
   Future<bool> ensureLoaded(int mainIndex, int totalLines) {
-    final run = _tail.then((_) => _ensure(mainIndex, totalLines));
-    _tail = run.then<void>((_) {}, onError: (_) {});
+    final generation = ++_requestGeneration;
+    Future<bool> load() => generation == _requestGeneration
+        ? _ensure(mainIndex, totalLines)
+        : Future.value(false);
+    final run = _tail?.then((_) => load()) ?? load();
+    final tail = run.then<void>((_) {}, onError: (_) {});
+    _tail = tail;
+    tail.then((_) {
+      if (identical(_tail, tail)) _tail = null;
+    });
     return run;
   }
 

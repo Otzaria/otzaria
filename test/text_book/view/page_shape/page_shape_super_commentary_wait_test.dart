@@ -1,9 +1,17 @@
 // בחירה שמורה שאינה בין המפרשים, כשאין מפרש-על אפשרי (#3979), לא נתקעת בטעינה.
 import 'dart:io';
+import 'package:otzaria/migration/database/daos/database.dart';
+import 'package:otzaria/migration/database/repository/seforim_repository.dart';
+import 'package:otzaria/data/data_providers/database_library_provider.dart';
+import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/text_book/view/page_shape/page_shape_settings_panel.dart';
+import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 
 import 'package:flutter/material.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_selection.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
@@ -69,6 +77,11 @@ void main() {
     required String right,
     required List<String> available,
     required bool commentatorsLoaded,
+    ValueNotifier<int>? openSettings,
+    int? categoryId,
+    List<String>? linkTitles,
+    int selectedIndex = 0,
+    String column = 'left',
   }) async {
     tester.view.physicalSize = const Size(2400, 1200);
     tester.view.devicePixelRatio = 1.0;
@@ -89,12 +102,15 @@ void main() {
 
     await PageShapeSettingsManager.saveConfiguration(
       bookTitle,
-      {for (final c in _columns) c: c == 'left' ? right : null},
-      columnVisibility: {for (final c in _columns) c: c == 'left'},
+      {for (final c in _columns) c: c == column ? right : null},
+      columnVisibility: {for (final c in _columns) c: c == column},
     );
-    final book = TextBook(title: bookTitle);
+    final book = TextBook(title: bookTitle, categoryId: categoryId);
     final bloc = _TestTextBookBloc(
-      _state(book, names, available, commentatorsLoaded),
+      _state(book, linkTitles ?? names, available, commentatorsLoaded).copyWith(
+        selectedIndex: selectedIndex,
+        visibleIndices: [selectedIndex],
+      ),
     );
     final settings = StubSettingsBloc(SettingsState.initial());
     final notes = StubPersonalNotesBloc(const PersonalNotesState.initial());
@@ -129,12 +145,13 @@ void main() {
             body: PageShapeScreen(
               openBookCallback: (_) {},
               tab: tab,
+              openSettingsNotifier: openSettings,
               defaultsLoader: (book, available) async => (
                 commentators: <String, String?>{
-                  for (final c in _columns) c: c == 'left' ? right : null,
+                  for (final c in _columns) c: c == column ? right : null,
                 },
                 visibility: <String, bool>{
-                  for (final c in _columns) c: c == 'left',
+                  for (final c in _columns) c: c == column,
                 },
               ),
             ),
@@ -185,6 +202,153 @@ void main() {
       );
     },
   );
+  testWidgets('שאר המפרשים אינו נשלח לגילוי כספר או כמפרש על', (tester) async {
+    final fixture = await tester.runAsync(
+      () => _createSuperCommentaryFixture(
+        superTitle: pageShapeRemainingCommentatorsValue,
+      ),
+    );
+    addTearDown(() async {
+      await DatabaseLibraryProvider.instance.sqliteProvider.dispose();
+      SqliteDataProvider.instance.keepWalJournal = false;
+      await fixture!.delete(recursive: true);
+    });
+    final openSettings = ValueNotifier<int>(0);
+    addTearDown(openSettings.dispose);
+    await pumpPageShape(
+      tester,
+      bookTitle: 'שולחן ערוך, אורח חיים',
+      names: const ['משנה ברורה', pageShapeRemainingCommentatorsValue],
+      right: pageShapeRemainingCommentatorsValue,
+      available: const ['משנה ברורה'],
+      commentatorsLoaded: true,
+      categoryId: 61,
+      linkTitles: const ['משנה ברורה'],
+      openSettings: openSettings,
+    );
+    openSettings.value++;
+    await _pumpUntil(
+      tester,
+      () => find.byType(PageShapeSettingsPanel).evaluate().isNotEmpty,
+    );
+    for (var i = 0; i < 25; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    final panel = tester.widget<PageShapeSettingsPanel>(
+      find.byType(PageShapeSettingsPanel),
+    );
+    expect(panel.superCommentatorParents, isEmpty);
+  });
+
+  for (final column in ['left', 'bottom', 'bottomRight']) {
+    for (final restoreOnly in [false, true]) {
+      testWidgets(
+        restoreOnly
+            ? 'משחזר מפרש על יחיד בטור $column בלי אב נבחר או מטמון קודם'
+            : 'החלפת האב היחיד במפרש העל המוצע משמרת את הטור $column',
+        (tester) async {
+          final openSettings = ValueNotifier<int>(0);
+          addTearDown(openSettings.dispose);
+          final fixture = await tester.runAsync(_createSuperCommentaryFixture);
+          addTearDown(() async {
+            await DatabaseLibraryProvider.instance.sqliteProvider.dispose();
+            SqliteDataProvider.instance.keepWalJournal = false;
+            await fixture!.delete(recursive: true);
+          });
+          await PageShapeSettingsManager.saveHighlightSetting(
+            'שולחן ערוך, אורח חיים',
+            true,
+          );
+          await pumpPageShape(
+            tester,
+            bookTitle: 'שולחן ערוך, אורח חיים',
+            names: const ['משנה ברורה', 'שער הציון'],
+            right: restoreOnly ? 'שער הציון' : 'משנה ברורה',
+            openSettings: openSettings,
+            categoryId: 61,
+            column: column,
+            linkTitles: const ['משנה ברורה'],
+            selectedIndex: 1,
+            available: const ['משנה ברורה'],
+            commentatorsLoaded: true,
+          );
+          for (var i = 0; i < 25; i++) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 20)),
+            );
+            await tester.pump(const Duration(milliseconds: 50));
+          }
+          openSettings.value++;
+          await _pumpUntil(
+            tester,
+            () => find.byType(PageShapeSettingsPanel).evaluate().isNotEmpty,
+          );
+          for (var i = 0; i < 25; i++) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 20)),
+            );
+            await tester.pump(const Duration(milliseconds: 50));
+          }
+          AppDropdownField<String> field() =>
+              tester.widget<AppDropdownField<String>>(
+                find.descendant(
+                  of: find
+                      .ancestor(
+                        of: find.text(
+                          switch (column) {
+                            'left' => 'מפרש ימני',
+                            'bottom' => 'מפרש תחתון',
+                            _ => 'מפרש תחתון נוסף',
+                          },
+                        ),
+                        matching: find.byType(Row),
+                      )
+                      .first,
+                  matching: find.byType(AppDropdownField<String>),
+                ),
+              );
+          expect(field().entries.map((e) => e.value), contains('שער הציון'));
+          expect(
+            find.byWidgetPredicate(
+              (w) => w is SimpleTextViewer && !w.isMainText,
+            ),
+            findsOneWidget,
+          );
+          if (!restoreOnly) field().onSelected!('שער הציון');
+          for (var i = 0; i < 40; i++) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 20)),
+            );
+            await tester.pump(const Duration(milliseconds: 50));
+          }
+          expect(
+            PageShapeSettingsManager.loadConfiguration(
+              'שולחן ערוך, אורח חיים',
+            )?[column],
+            'שער הציון',
+          );
+          expect(
+            find.byWidgetPredicate(
+              (w) => w is SimpleTextViewer && !w.isMainText,
+            ),
+            findsOneWidget,
+            reason:
+                'the offered super-commentary must not disappear when replacing its parent',
+          );
+          final viewer = tester.widget<SimpleTextViewer>(
+            find.byWidgetPredicate(
+              (w) => w is SimpleTextViewer && !w.isMainText,
+            ),
+          );
+          expect(viewer.bookTitle, 'שער הציון');
+          expect(viewer.highlightedIndices, contains(1));
+        },
+      );
+    }
+  }
 }
 
 /// טעינת טור מפרש עוברת דרך Isolate.run, ולכן ממתינים בזמן אמת עד לתנאי.
@@ -338,4 +502,62 @@ class _FakeLibraryProvider implements LibraryProvider {
   Future<Map<String, List<Book>>> loadBooks(
     Map<String, Map<String, dynamic>> metadata,
   ) async => const {};
+}
+
+Future<Directory> _createSuperCommentaryFixture({
+  String superTitle = 'שער הציון',
+}) async {
+  final dir = await Directory.systemTemp.createTemp(
+    'super-commentary-graph-',
+  );
+  final path = '${dir.path}/seforim.db';
+  final database = MyDatabase.withPath(path);
+  final repository = SeforimRepository(database);
+  await repository.ensureInitialized();
+  final db = await database.database;
+  db.execute(
+    "INSERT INTO category (id,title,level) VALUES (61,'ראשי',0),(703,'מפרשים',0)",
+  );
+  db.execute("INSERT INTO source (id,name) VALUES (1,'test')");
+  for (final entry in [
+    (1, 'שולחן ערוך, אורח חיים', 61),
+    (2, 'משנה ברורה', 703),
+    (3, superTitle, 703),
+  ]) {
+    db.execute(
+      "INSERT INTO book (id,categoryId,sourceId,title,orderIndex,totalLines,filePath,fileType) VALUES (?,?,1,?,1,2,'','txt')",
+      [entry.$1, entry.$3, entry.$2],
+    );
+    for (var i = 0; i < 2; i++) {
+      db.execute(
+        'INSERT INTO line (id,bookId,lineIndex,content,heRef) VALUES (?,?,?,?,?)',
+        [
+          entry.$1 * 100 + i,
+          entry.$1,
+          i,
+          '${entry.$2} שורה $i',
+          '${entry.$2} $i',
+        ],
+      );
+    }
+  }
+  db.execute(
+    'INSERT INTO link (sourceBookId,sourceLineId,targetLineId,targetBookId,connectionTypeId) VALUES (1,101,201,2,2),(2,201,301,3,2)',
+  );
+  db.execute('PRAGMA wal_checkpoint(TRUNCATE)');
+  db.execute('PRAGMA journal_mode=DELETE');
+  database.close();
+  final provider = DatabaseLibraryProvider.instance;
+  await provider.sqliteProvider.dispose();
+  provider.sqliteProvider.keepWalJournal = true;
+  await Settings.setValue<String>(
+    SettingsRepository.keyDbEffectivePath,
+    path,
+  );
+  await provider.initialize();
+  expect(
+    provider.sqliteProvider.repository!.database.isReadOnly,
+    isTrue,
+  );
+  return dir;
 }

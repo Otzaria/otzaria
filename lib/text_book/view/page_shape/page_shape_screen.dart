@@ -132,9 +132,8 @@ class _PageShapeScreenState extends State<PageShapeScreen>
   bool _isLoadingConfig = true;
   int _loadConfigurationGeneration = 0;
 
-  // מפרשי-על של המפרשים שנבחרו בטורים (שער הציון על משנה ברורה): מפרש-על ←
-  // המפרש שדרכו הוא מסונכרן. עד סיום הגילוי הראשון טור כזה ממתין.
-  final Map<String, Set<String>> _superTitlesByParent = {};
+  // סיכומי הקישורים משמשים לגילוי מפרשי-על וגם לשחזור האב של בחירה שמורה.
+  final Map<String, List<LinkTargetSummary>> _superTargetsByTitle = {};
   Map<String, String> _superCommentatorParents = const {};
   bool _superDiscoveryDone = false;
   int _superDiscoveryGeneration = 0;
@@ -475,18 +474,21 @@ class _PageShapeScreenState extends State<PageShapeScreen>
     );
   }
 
-  /// המפרשים שנבחרו בטורים ושמפרשי-על שלהם אפשריים: ספרי הספרייה בלבד.
+  /// ספרים שנבחרו בטורים, לגילוי מפרשי-על או האב של בחירה שמורה.
   List<String> _superParentCandidates(TextBookLoaded state) {
-    final available = _availableCommentators(state);
     return [
           ?_leftCommentator,
           ?_bottomCommentator,
           ?_bottomRightCommentator,
           ..._selectedRightPaneCommentators(state),
         ]
-        .where(
+        .expand(decodePageShapeCommentatorsSelection)
+        .where((title) => title != kNotesCommentatorTitle)
+        .map(
           (title) =>
-              title != kNotesCommentatorTitle && available.contains(title),
+              _superTargetsByTitle.containsKey('${state.book.title}|$title')
+              ? title
+              : _superCommentatorParents[title] ?? title,
         )
         .toSet()
         .toList();
@@ -502,7 +504,7 @@ class _PageShapeScreenState extends State<PageShapeScreen>
     final provider = LibraryProviderManager.instance.databaseProvider;
     final cachePrefix = '${state.book.title}|';
     for (final parent in parents) {
-      if (_superTitlesByParent.containsKey('$cachePrefix$parent')) continue;
+      if (_superTargetsByTitle.containsKey('$cachePrefix$parent')) continue;
       List<LinkTargetSummary> targets = const [];
       try {
         final location = await BookLocator.locateBook(parent);
@@ -518,17 +520,32 @@ class _PageShapeScreenState extends State<PageShapeScreen>
         debugPrint('Failed to find super-commentators: $e\n$stackTrace');
       }
       if (!mounted) return;
-      _superTitlesByParent['$cachePrefix$parent'] = superCommentatorTitles(
-        parentTargets: targets,
-        mainBookTitle: state.book.title,
-        directCommentators: state.availableCommentators,
-      );
+      _superTargetsByTitle['$cachePrefix$parent'] = targets;
     }
     if (!mounted || generation != _superDiscoveryGeneration) return;
-    final parentsBySuper = superCommentatorParents(parents, {
-      for (final parent in parents)
-        parent: ?_superTitlesByParent['$cachePrefix$parent'],
-    });
+    final parentsBySuper = superCommentatorParents(
+      parents.where(state.availableCommentators.contains).toList(),
+      {
+        for (final parent in parents)
+          parent: superCommentatorTitles(
+            parentTargets:
+                _superTargetsByTitle['$cachePrefix$parent'] ?? const [],
+            mainBookTitle: state.book.title,
+            directCommentators: state.availableCommentators,
+          ),
+      },
+    );
+    for (final title in parents) {
+      if (state.availableCommentators.contains(title)) continue;
+      final sources = _superTargetsByTitle['$cachePrefix$title']
+          ?.where((target) => LinkTypes.isVirtualSource(target.connectionType))
+          .map((target) => target.targetTitle)
+          .toSet();
+      final parent = state.availableCommentators
+          .where((title) => sources?.contains(title) ?? false)
+          .firstOrNull;
+      if (parent != null) parentsBySuper.putIfAbsent(title, () => parent);
+    }
     if (_superDiscoveryDone &&
         mapEquals(parentsBySuper, _superCommentatorParents)) {
       return;
@@ -1226,8 +1243,7 @@ class _PageShapeScreenState extends State<PageShapeScreen>
         commentatorName != kNotesCommentatorTitle &&
         state is TextBookLoaded &&
         state.commentatorsLoaded &&
-        !state.availableCommentators.contains(commentatorName) &&
-        _superParentCandidates(state).isNotEmpty) {
+        !state.availableCommentators.contains(commentatorName)) {
       return const LoadingIndicator();
     }
     return _CommentaryPane(

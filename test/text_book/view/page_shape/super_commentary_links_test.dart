@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/links.dart';
@@ -109,6 +110,94 @@ void main() {
       expect(composed.single.index1, 12);
       expect(composed.single.index2, 8);
     });
+  });
+
+  test(
+    'rapid distant navigation coalesces pending ranges to the latest target',
+    () async {
+      final gate = Completer<void>();
+      final started = Completer<void>();
+      final calls = <int>[];
+      final loader = SuperCommentaryLinkLoader(
+        mainTitle: 'main',
+        mainCategoryId: 1,
+        mainSource: BookSource.official,
+        parentTitle: 'parent',
+        superTitle: 'super',
+        windowLines: 10,
+        reloadThresholdLines: 2,
+        fetch:
+            ({
+              required bookTitle,
+              required categoryId,
+              required source,
+              required startLine,
+              required endLine,
+              required targetTitle,
+            }) async {
+              calls.add(startLine);
+              if (calls.length == 1) {
+                started.complete();
+                await gate.future;
+              }
+              return <Link>[];
+            },
+      );
+      final first = loader.ensureLoaded(0, 10000);
+      await started.future;
+      final pending = [
+        for (var line = 1000; line <= 9000; line += 1000)
+          loader.ensureLoaded(line, 10000),
+      ];
+      gate.complete();
+      await Future.wait([first, ...pending]);
+      expect(
+        calls,
+        [0, 8990],
+        reason:
+            'the final viewport should not wait for eight stale range queries',
+      );
+    },
+  );
+  test('כשל בפעילה משלים בקשות שבוטלו ושומר השהיה ליעד העדכני', () async {
+    final gate = Completer<void>();
+    final calls = <int>[];
+    var now = DateTime(2026);
+    final loader = SuperCommentaryLinkLoader(
+      mainTitle: _main,
+      mainCategoryId: 1,
+      mainSource: BookSource.official,
+      parentTitle: _parent,
+      superTitle: _super,
+      windowLines: 10,
+      now: () => now,
+      fetch:
+          ({
+            required bookTitle,
+            required categoryId,
+            required source,
+            required startLine,
+            required endLine,
+            required targetTitle,
+          }) async {
+            calls.add(startLine);
+            if (calls.length == 1) {
+              await gate.future;
+              throw StateError('db closed');
+            }
+            return const [];
+          },
+    );
+    final failed = expectLater(loader.ensureLoaded(0, 10000), throwsStateError);
+    final stale = loader.ensureLoaded(1000, 10000);
+    final latest = loader.ensureLoaded(9000, 10000);
+    gate.complete();
+    await failed;
+    expect(await Future.wait([stale, latest]), [false, false]);
+    expect(calls, [0]);
+    now = now.add(const Duration(seconds: 3));
+    expect(await loader.ensureLoaded(9000, 10000), isFalse);
+    expect(calls, [0, 8990]);
   });
 
   group('SuperCommentaryLinkLoader', () {
