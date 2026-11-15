@@ -308,6 +308,10 @@ void main() {
       testWidgets(
         'right click heading offers copy preview=$preview cross=$cross',
         (tester) async {
+          final copied = <String>[];
+          debugSelectedTextCopyHandler = (content) =>
+              copied.add(content.plainText);
+          addTearDown(() => debugSelectedTextCopyHandler = null);
           String? selectedText;
           await pumpBook(
             tester,
@@ -349,10 +353,7 @@ void main() {
             await tester.pump();
             await gesture.up();
             await tester.pump();
-            expect(selectedText, contains('פרשת נח'));
-            if (cross) {
-              expect(selectedText, contains('אלה תולדת נח'));
-            }
+            expect(selectedText, cross ? '(ט) אלה תולדת נח' : '');
           }
           await tester.tapAt(
             textRect('פרשת נח').center,
@@ -365,8 +366,7 @@ void main() {
           if (cross == null) {
             expect(selectedText, isNull);
           } else {
-            expect(selectedText, contains('פרשת נח'));
-            if (cross) expect(selectedText, contains('אלה תולדת נח'));
+            expect(selectedText, cross ? '(ט) אלה תולדת נח' : '');
           }
           final regionFinder = find.ancestor(
             of: heading,
@@ -389,6 +389,14 @@ void main() {
             isTrue,
           );
           expect(children.map((e) => e.label), contains('כמו בתצוגה'));
+          if (cross != null) {
+            await tester.tap(find.text(preview ? 'העתק' : 'העתקה'));
+            await tester.pumpAndSettle();
+            expect(copied.single, contains('פרשת נח'));
+            if (cross) expect(copied.single, contains('אלה תולדת נח'));
+          } else {
+            expect(copied, isEmpty);
+          }
         },
       );
     }
