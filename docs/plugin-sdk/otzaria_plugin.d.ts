@@ -2622,6 +2622,7 @@ export type OtzariaMethod =
   | 'notes.add'
   | 'notes.update'
   | 'notes.delete'
+  | 'notes.setLocation'
   | 'ui.showMessage'
   | 'ui.showSuccess'
   | 'ui.showError'

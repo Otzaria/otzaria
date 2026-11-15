@@ -29,8 +29,8 @@ class _PendingRepository extends PersonalNotesRepository {
     createdAt: DateTime(2026),
     updatedAt: DateTime(2026),
   );
-  final pendingWrite = Completer<List<PersonalNote>>();
-  final targets = <({String bookId, String noteId, int lineNumber})>[];
+  final pendingWrite = Completer<PersonalNote>();
+  final targets = <({String bookId, String noteId, int? lineNumber})>[];
 
   @override
   Future<List<PersonalNote>> loadNotes(
@@ -42,11 +42,19 @@ class _PendingRepository extends PersonalNotesRepository {
   Future<List<PersonalNote>> loadStoredNotes(String bookId) async => [note];
 
   @override
-  Future<List<PersonalNote>> repositionNote({
+  Future<String> loadBookContent(String bookId, {int? categoryId}) async =>
+      'שורה ראשונה\nשורה שנייה\nשורה שלישית';
+
+  @override
+  Future<PersonalNote> setNoteLocation({
     required String bookId,
     required String noteId,
-    required int lineNumber,
-    PdfNoteAnchor? pdfAnchor,
+    required PersonalNoteScope scope,
+    int? lineNumber,
+    int? endLineNumber,
+    String? sourceText,
+    int? sourceOffset,
+    int? occurrenceIndex,
     int? categoryId,
   }) {
     targets.add((bookId: bookId, noteId: noteId, lineNumber: lineNumber));
@@ -100,13 +108,14 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('שנה שיוך לשורה נבחרת'));
+    await tester.tap(find.byTooltip('מיקום ההערה'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(EditableText).last, '3');
-    await tester.tap(find.text('שמור'));
+    await tester.tap(find.byTooltip('הזזה בשורה אחת קדימה'));
+    await tester.pump();
+    await tester.tap(find.text('שמירה'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    final success = NotesMessages.noteAssignedToLine(3);
+    const success = NotesMessages.noteRepositioned;
     final announcedBeforeWrite = find.text(success).evaluate().isNotEmpty;
 
     repository.pendingWrite.completeError(StateError('שיוך נדחה'));
@@ -116,11 +125,12 @@ void main() {
       (
         bookId: repository.note.bookId,
         noteId: repository.note.id,
-        lineNumber: 3,
+        lineNumber: 2,
       ),
     ]);
     expect(announcedBeforeWrite, isFalse);
-    expect(find.textContaining('שיוך נדחה'), findsOneWidget);
+    expect(find.text(NotesMessages.noteAnchorSaveFailed), findsOneWidget);
     expect(find.text(success), findsNothing);
+    await tester.pump(const Duration(seconds: 4));
   });
 }

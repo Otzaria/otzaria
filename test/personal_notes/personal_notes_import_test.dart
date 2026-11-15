@@ -115,6 +115,27 @@ void main() {
     await root.delete(recursive: true);
   });
 
+  test('ייצוא וייבוא משמרים הערת ספר וטווח שורות בכל אסטרטגיה', () async {
+    for (final strategy in NotesImportConflictStrategy.values) {
+      final book = note('book-${strategy.name}').copyWith(
+        status: PersonalNoteStatus.book,
+        clearLineNumber: true,
+        clearAnchor: true,
+      );
+      final range = note('range-${strategy.name}').copyWith(
+        endLineNumber: 8,
+        clearAnchor: true,
+      );
+      final summary = await import(
+        service.buildExport(notes: [book, range]),
+        strategy,
+      );
+      expectCounts(summary, inserted: 2);
+      expect(await database.getNote(book.id), book);
+      expect(await database.getNote(range.id), range);
+    }
+  });
+
   for (final strategy in [
     NotesImportConflictStrategy.overwrite,
     NotesImportConflictStrategy.merge,

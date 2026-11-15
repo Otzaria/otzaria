@@ -17,6 +17,7 @@ import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart
 import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_changes.dart';
 import 'package:otzaria/personal_notes/widgets/inline_note_editor.dart';
+import 'package:otzaria/personal_notes/widgets/personal_note_editor_dialog.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
@@ -64,7 +65,7 @@ class _PendingRepository extends PersonalNotesRepository {
   @override
   Future<PersonalNote> createNote({
     required String bookId,
-    required int lineNumber,
+    required int? lineNumber,
     required String content,
     required String contentPlain,
     required PersonalNoteContentFormat contentFormat,
@@ -75,6 +76,9 @@ class _PendingRepository extends PersonalNotesRepository {
     bool punctuationHidden = false,
     PdfNoteAnchor? pdfAnchor,
     int? categoryId,
+    int? endLineNumber,
+    int? occurrenceIndex,
+    bool requireWordAnchor = false,
   }) async {
     creates++;
     await pendingCreate?.future;
@@ -280,6 +284,60 @@ void main() {
       Hive.box<dynamic>(HiveCache.keyName).keys.where(
         (key) => key.toString().startsWith(PersonalNoteDraftService.keyPrefix),
       );
+
+  testWidgets('טיוטת ספר נשמרת, משוחזרת ומנוקה בשמירה בלי לשנות טיוטת שורה', (
+    tester,
+  ) async {
+    final session = await open(tester);
+    await tester.tap(find.byTooltip('הערה על הספר'));
+    await tester.pumpAndSettle();
+    final dialog = find.byType(PersonalNoteEditorDialog);
+    quill.QuillController bookController() => tester
+        .widget<quill.QuillEditor>(
+          find.descendant(of: dialog, matching: find.byType(quill.QuillEditor)),
+        )
+        .controller;
+    const text = 'הערה על הספר שצריך לשמור';
+    bookController().replaceText(
+      0,
+      0,
+      text,
+      const TextSelection.collapsed(offset: text.length),
+    );
+    await tester.pump();
+    await tester.tap(find.descendant(of: dialog, matching: find.text('ביטול')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('שמור טיוטה'));
+    await tester.pumpAndSettle();
+    expect(dialog, findsNothing);
+    expect(
+      (await drafts.loadDraft(
+        bookId: _bookId,
+        categoryId: _categoryId,
+      ))?.contentPlain,
+      text,
+    );
+    expect((await readDraft())?.contentPlain, 'טיוטה מקורית');
+
+    session.visible.value = false;
+    await tester.pumpAndSettle();
+    session.visible.value = true;
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('הערה על הספר'));
+    await tester.pumpAndSettle();
+    expect(bookController().document.toPlainText().trimRight(), text);
+    await tester.tap(find.descendant(of: dialog, matching: find.text('שמור')));
+    await tester.pumpAndSettle();
+    expect(dialog, findsNothing);
+    expect(session.repository.notes.single.lineNumber, isNull);
+    expect(session.repository.notes.single.contentPlain, text);
+    expect(
+      await drafts.loadDraft(bookId: _bookId, categoryId: _categoryId),
+      isNull,
+    );
+    expect((await readDraft())?.contentPlain, 'טיוטה מקורית');
+    await tester.pump(const Duration(seconds: 4));
+  });
 
   testWidgets('tab navigation without Save keeps one live draft', (
     tester,

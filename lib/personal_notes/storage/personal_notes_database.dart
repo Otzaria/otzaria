@@ -16,6 +16,8 @@ class PersonalNotesDatabase {
   static const _columnId = 'id';
   static const _columnBookId = 'book_id';
   static const _columnLineNumber = 'line_number';
+  static const _columnEndLineNumber = 'end_line_number';
+  static const _columnScope = 'scope';
 
   static const _columnDisplayTitle = 'display_title';
   static const _columnAnchorText = 'anchor_text';
@@ -80,6 +82,8 @@ class PersonalNotesDatabase {
         $_columnId TEXT PRIMARY KEY,
         $_columnBookId TEXT NOT NULL,
         $_columnLineNumber INTEGER,
+        $_columnEndLineNumber INTEGER,
+        $_columnScope TEXT,
         $_columnDisplayTitle TEXT,
         $_columnAnchorText TEXT,
         $_columnAnchorPrefix TEXT,
@@ -124,6 +128,8 @@ class PersonalNotesDatabase {
       'pdf_x': 'REAL',
       'pdf_y': 'REAL',
       'pdf_document_id': 'TEXT',
+      'end_line_number': 'INTEGER',
+      'scope': 'TEXT',
     };
 
     for (final entry in anchorColumns.entries) {
@@ -376,6 +382,8 @@ class PersonalNotesDatabase {
       _columnId: note.id,
       _columnBookId: note.bookId,
       _columnLineNumber: note.lineNumber,
+      _columnEndLineNumber: note.endLineNumber,
+      _columnScope: note.isBookNote ? PersonalNoteScope.book.name : null,
       _columnDisplayTitle: note.displayTitle,
       _columnAnchorText: note.anchorText,
       _columnAnchorPrefix: note.anchorPrefix,
@@ -387,7 +395,7 @@ class PersonalNotesDatabase {
       _columnPdfY: note.pdfAnchor?.y,
       _columnPdfDocumentId: note.pdfAnchor?.documentId,
       _columnLastKnownLine: note.lastKnownLineNumber,
-      _columnStatus: note.status.name,
+      _columnStatus: note.storedStatusName,
       _columnContent: note.content,
       _columnContentPlain: note.contentPlain,
       _columnContentFormat: note.contentFormat.name,
@@ -402,6 +410,7 @@ class PersonalNotesDatabase {
       id: map[_columnId] as String,
       bookId: map[_columnBookId] as String,
       lineNumber: map[_columnLineNumber] as int?,
+      endLineNumber: map[_columnEndLineNumber] as int?,
       displayTitle: map[_columnDisplayTitle] as String?,
       anchorText: map[_columnAnchorText] as String?,
       anchorPrefix: map[_columnAnchorPrefix] as String?,
@@ -417,7 +426,10 @@ class PersonalNotesDatabase {
               'documentId': map[_columnPdfDocumentId],
             }),
       lastKnownLineNumber: map[_columnLastKnownLine] as int?,
-      status: PersonalNoteStatus.values.byName(map[_columnStatus] as String),
+      status: PersonalNote.storedStatus(
+        map[_columnStatus] as String,
+        map[_columnScope],
+      ),
       content: map[_columnContent] as String,
       contentPlain:
           map[_columnContentPlain] as String? ??

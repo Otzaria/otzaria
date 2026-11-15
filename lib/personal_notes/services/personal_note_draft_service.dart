@@ -91,7 +91,7 @@ class PersonalNoteDraftService {
     String? noteId,
     PdfNoteAnchor? pdfAnchor,
   }) {
-    assert((lineNumber == null) != (noteId == null));
+    assert(lineNumber == null || noteId == null);
     final prefix = _bookPrefix(bookId, categoryId: categoryId);
     if (noteId != null) return '${prefix}note:$noteId';
     if (pdfAnchor != null) {
@@ -100,7 +100,8 @@ class PersonalNoteDraftService {
           : '${Uri.encodeComponent(pdfAnchor.documentId!)}:';
       return '${prefix}pdf:$document${pdfAnchor.pageNumber}:${pdfAnchor.x}:${pdfAnchor.y}';
     }
-    return '$prefix$lineNumber';
+    // בלי שורה או מזהה זו טיוטה חדשה על הספר כולו.
+    return '$prefix${lineNumber ?? 'book'}';
   }
 
   String _bookPrefix(String bookId, {int? categoryId}) {

@@ -4,6 +4,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
+import 'package:otzaria/personal_notes/utils/note_collection_utils.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_content_view.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/models/tab.dart';
@@ -28,14 +29,8 @@ import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 typedef CommentaryNotesByLine = Map<int, List<PersonalNote>>;
 
 /// אינדוקס הערות לפי שורה, משותף לטעינה ולבדיקות.
-CommentaryNotesByLine indexCommentaryNotesByLine(List<PersonalNote> notes) {
-  final byLine = <int, List<PersonalNote>>{};
-  for (final note in notes) {
-    if (!note.hasLocation) continue;
-    byLine.putIfAbsent(note.lineNumber!, () => <PersonalNote>[]).add(note);
-  }
-  return byLine;
-}
+CommentaryNotesByLine indexCommentaryNotesByLine(List<PersonalNote> notes) =>
+    indexPersonalNotesByLine(notes);
 
 @visibleForTesting
 List<PersonalNote> commentaryNotesForLine(

@@ -192,6 +192,35 @@ void main() {
       );
     });
 
+    test('הערות על הספר כולו בראש הספר, תחת כותרת משלהן', () {
+      final blocks = service.buildWordExportBlocks(
+        notes: [
+          _note(
+            id: 'located',
+            bookId: 'ברכות',
+            lineNumber: 5,
+            content: 'ממוקמת',
+          ),
+          _note(
+            id: 'book',
+            bookId: 'ברכות',
+            status: PersonalNoteStatus.book,
+            content: 'על הספר',
+          ),
+        ],
+        locationRef: (_) => 'דף ב',
+      );
+
+      expect(
+        blocks
+            .where(
+              (b) => b.kind != PrintBlockKind.heading || b.headingLevel != 1,
+            )
+            .map((b) => b.text),
+        ['על הספר כולו', 'על הספר', 'דף ב', 'ממוקמת'],
+      );
+    });
+
     test('הערות ללא מיקום מקובצות בסוף הספר תחת כותרת משלהן', () {
       final blocks = service.buildWordExportBlocks(
         notes: [
