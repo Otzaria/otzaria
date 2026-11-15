@@ -485,7 +485,10 @@ void main() {
       links: [_inlineLink(5, 9)],
       transform: (h) => prependSectionMarker(h, 'א'),
     );
-    expect(html, startsWith('<b>[א]</b> אבגד $linkOpenהוזח</a> '));
+    expect(
+      html,
+      startsWith('<b class="section-marker">[א]</b> אבגד $linkOpenהוזח</a> '),
+    );
     expect(html, endsWith('$noteOpenטיכל</a>'));
   });
 

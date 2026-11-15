@@ -38,6 +38,7 @@ import 'package:otzaria/indexing/bloc/indexing_state.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
+import 'package:otzaria/library/models/library_navigation_history.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
@@ -361,7 +362,10 @@ class _HistoryBloc extends MockBloc<HistoryEvent, HistoryState>
     implements HistoryBloc {}
 
 class _LibraryBloc extends MockBloc<LibraryEvent, LibraryState>
-    implements LibraryBloc {}
+    implements LibraryBloc {
+  @override
+  final navigationHistory = LibraryNavigationHistory();
+}
 
 class _TabsBloc extends MockBloc<TabsEvent, TabsState> implements TabsBloc {}
 
