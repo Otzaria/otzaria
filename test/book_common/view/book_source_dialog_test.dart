@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/book_common/view/book_source_dialog.dart';
@@ -288,12 +290,17 @@ void main() {
 
   group('אוצר החכמה באודות הספר', () {
     final defaultLoader = otzarBooksForOtzariaId;
-    tearDown(() => otzarBooksForOtzariaId = defaultLoader);
+    final defaultOpener = openOtzarBook;
+    tearDown(() {
+      otzarBooksForOtzariaId = defaultLoader;
+      openOtzarBook = defaultOpener;
+    });
 
-    OtzarMappedBook mapped(int id, String? volume) => (
+    OtzarMappedBook mapped(int id, String? volume, {String? pubDate}) => (
       book: ExternalLibraryBook(
         title: 'הלכות גדולות',
         id: id,
+        pubDate: pubDate,
         link: 'https://tablet.otzar.org/book/book.php?book=$id',
       ),
       volume: volume,
@@ -365,13 +372,47 @@ void main() {
     testWidgets('כמה ספרים ממופים מוצגים לפי הכרך', (tester) async {
       otzarBooksForOtzariaId = (id) async => [
         mapped(42, 'כרך א'),
-        mapped(43, null),
+        mapped(43, null, pubDate: 'תרכ"ה'),
+        mapped(44, null),
       ];
       await openDialog(tester, TextBook(title: 'הלכות גדולות', id: 7));
 
       expect(find.text('אוצר החכמה – כרך א'), findsOneWidget);
+      expect(find.text('אוצר החכמה – הלכות גדולות (תרכ"ה)'), findsOneWidget);
       expect(find.text('אוצר החכמה – הלכות גדולות'), findsOneWidget);
-      expect(find.text('פתח באוצר החכמה'), findsNWidgets(2));
+      expect(find.text('פתח באוצר החכמה'), findsNWidgets(3));
+    });
+
+    testWidgets('הקשה על שורה פותחת את הספר הממופה שלה', (tester) async {
+      final opened = <(int?, String)>[];
+      openOtzarBook = (bookId, link) async {
+        opened.add((bookId, link));
+        return true;
+      };
+      otzarBooksForOtzariaId = (id) async => [
+        mapped(42, 'כרך א'),
+        mapped(43, 'כרך ב'),
+      ];
+      await openDialog(tester, TextBook(title: 'הלכות גדולות', id: 7));
+
+      await tester.tap(find.text('פתח באוצר החכמה').last);
+      await tester.pump();
+
+      expect(opened, [(43, 'https://tablet.otzar.org/book/book.php?book=43')]);
+    });
+
+    testWidgets('סגירת החלון לפני שהמיפוי נטען אינה זורקת', (tester) async {
+      final pending = Completer<List<OtzarMappedBook>>();
+      otzarBooksForOtzariaId = (id) => pending.future;
+      await openDialog(tester, TextBook(title: 'הלכות גדולות', id: 7));
+
+      await tester.tap(find.text('סגור'));
+      await tester.pumpAndSettle();
+      expect(find.text('אודות הספר'), findsNothing);
+
+      pending.complete([mapped(42, 'כרך א')]);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
     });
   });
 }

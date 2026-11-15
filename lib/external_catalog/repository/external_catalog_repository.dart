@@ -126,36 +126,32 @@ class ExternalCatalogRepository {
   /// ספרי אוצר החכמה הממופים לספר אוצריא, מסודרים לפי איכות ההתאמה
   /// (`is_best` ואז `confidence`), כל אחד עם שם הכרך כפי שבקטלוג.
   /// מחזיר רשימה ריקה כשאין מיפוי, טבלת מיפוי (קטלוג ישן) או DB.
-  Future<List<OtzarMappedBook>> getOtzarBooksForOtzariaId(int otzariaId) async {
-    final ids = await _selectMappingColumn(
-      select: 'oh_id',
-      where: 'otzaria_id = ?',
-      argument: otzariaId,
-      table: 'otzaria_otzar_hahochma',
-      orderBy:
-          "is_best DESC, CASE confidence WHEN 'certain' THEN 0 "
-          "WHEN 'likely' THEN 1 ELSE 2 END, oh_id",
+  Future<List<OtzarMappedBook>> getOtzarBooksForOtzariaId(int otzariaId) {
+    return _runMappingQuery(
+      (dbPath) => _queryOtzarBooksForOtzariaId(dbPath, otzariaId),
+      const <OtzarMappedBook>[],
     );
-    if (ids.isEmpty) return const [];
-    final books = await _loadBooks(
-      tableName: 'otzar_hahochma',
-      mapper: _mapOtzarBookWithVolume,
-      idColumn: 'book_id',
-      ids: ids,
-    );
-    final byId = {for (final mapped in books) mapped.book.id: mapped};
-    return [for (final id in ids) ?byId[id]];
   }
 
   Future<List<int>> _selectMappingColumn({
     required String select,
     required String where,
     required int argument,
-    String table = 'otzaria_hebrew_books',
-    String orderBy = 'is_best DESC, confidence DESC',
-  }) async {
+  }) {
+    return _runMappingQuery(
+      (dbPath) => _queryMappingColumn(dbPath, select, where, argument),
+      const <int>[],
+    );
+  }
+
+  /// מריץ שאילתה על הקטלוג ב-isolate ורושם אותה, כדי שהחלפת הקטלוג תמתין
+  /// לה: ב-Windows קובץ פתוח חוסם את שינוי השם.
+  Future<T> _runMappingQuery<T>(
+    T Function(String dbPath) query,
+    T empty,
+  ) async {
     final dbPath = databasePath;
-    if (!await File(dbPath).exists()) return const [];
+    if (!await File(dbPath).exists()) return empty;
     final key = _catalogKey(dbPath);
     while (_catalogSwaps.containsKey(key)) {
       await _catalogSwaps[key];
@@ -164,16 +160,7 @@ class ExternalCatalogRepository {
     final queries = _mappingQueries.putIfAbsent(key, () => {});
     queries.add(finished.future);
     try {
-      return await Isolate.run(
-        () => _queryMappingColumn(
-          dbPath,
-          table,
-          select,
-          where,
-          argument,
-          orderBy,
-        ),
-      );
+      return await Isolate.run(() => query(dbPath));
     } finally {
       queries.remove(finished.future);
       if (queries.isEmpty) _mappingQueries.remove(key);
@@ -181,19 +168,45 @@ class ExternalCatalogRepository {
     }
   }
 
-  static List<int> _queryMappingColumn(
+  static List<OtzarMappedBook> _queryOtzarBooksForOtzariaId(
     String dbPath,
-    String table,
-    String select,
-    String where,
-    int argument,
-    String orderBy,
+    int otzariaId,
   ) {
     sqlite3.Database? db;
     try {
       db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
       final rows = db.select(
-        'SELECT $select FROM $table WHERE $where ORDER BY $orderBy LIMIT 20',
+        'SELECT b.* FROM otzaria_otzar_hahochma m '
+        'JOIN otzar_hahochma b ON b.book_id = m.oh_id '
+        'WHERE m.otzaria_id = ? '
+        "ORDER BY m.is_best DESC, CASE m.confidence WHEN 'certain' THEN 0 "
+        "WHEN 'likely' THEN 1 ELSE 2 END, m.oh_id LIMIT 20",
+        [otzariaId],
+      );
+      return [
+        for (final row in rows)
+          _mapOtzarBookWithVolume(row as Map<String, Object?>),
+      ];
+    } catch (e) {
+      debugPrint('ExternalCatalogRepository: Otzar mapping query failed: $e');
+      return const [];
+    } finally {
+      db?.close();
+    }
+  }
+
+  static List<int> _queryMappingColumn(
+    String dbPath,
+    String select,
+    String where,
+    int argument,
+  ) {
+    sqlite3.Database? db;
+    try {
+      db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
+      final rows = db.select(
+        'SELECT $select FROM otzaria_hebrew_books WHERE $where '
+        'ORDER BY is_best DESC, confidence DESC LIMIT 20',
         [argument],
       );
       return [
@@ -713,7 +726,7 @@ class ExternalCatalogRepository {
   /// כברירת מחדל טוען את כל הטבלה ממוינת לפי כותרת. אם הועברו [idColumn]
   /// ו-[ids], נטענים רק הספרים שמזההם נמצא ב-[ids] (ב-chunks כדי לעמוד
   /// במגבלת המשתנים של SQLite), ללא מיון.
-  Future<List<T>> _loadBooks<T>({
+  Future<List<T>> _loadBooks<T extends Book>({
     required String tableName,
     required T Function(Map<String, Object?> row) mapper,
     String? idColumn,
@@ -733,7 +746,7 @@ class ExternalCatalogRepository {
 
   /// קריאה ומיפוי של כ-160K שורות חוסמים את ה-UI; ה-isolate פותח את המסד לפי
   /// נתיב. סטטית כדי שה-closure לא יתפוס את `this`.
-  static Future<List<T>> _queryBooksInIsolate<T>(
+  static Future<List<T>> _queryBooksInIsolate<T extends Book>(
     String dbPath,
     String tableName,
     T Function(Map<String, Object?> row) mapper,
@@ -745,7 +758,7 @@ class ExternalCatalogRepository {
     );
   }
 
-  static List<T> _queryBooks<T>(
+  static List<T> _queryBooks<T extends Book>(
     String dbPath,
     String tableName,
     T Function(Map<String, Object?> row) mapper,

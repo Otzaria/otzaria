@@ -1028,6 +1028,43 @@ void main() {
         },
       );
 
+      test('החלפת קטלוג ממתינה לשאילתת אוצר החכמה הפתוחה', () async {
+        await _createCatalogDatabase(repository.databasePath, version: 3);
+        final db = sqlite3.open(repository.databasePath);
+        for (var id = 1; id <= 20; id++) {
+          db.execute('INSERT INTO otzar_hahochma VALUES (?, ?)', [id, 'ספר']);
+        }
+        // המיון לפני LIMIT קורא את כל השורות, ולכן השאילתה נשארת פתוחה.
+        db.execute('''
+          CREATE VIEW otzaria_otzar_hahochma AS
+          WITH RECURSIVE numbers(x) AS (
+            VALUES(1) UNION ALL SELECT x + 1 FROM numbers WHERE x < 2000000
+          )
+          SELECT x AS oh_id, 1 AS otzaria_id, 0 AS is_best,
+            'likely' AS confidence FROM numbers
+        ''');
+        db.close();
+        final remotePath = path.join(tempDir.path, 'replacement.db');
+        await _createCatalogDatabase(remotePath, version: 4);
+        var mappingFinished = false;
+        final mapping = repository
+            .getOtzarBooksForOtzariaId(1)
+            .whenComplete(() => mappingFinished = true);
+        addTearDown(() async => await mapping);
+        await _waitForCatalogReader(repository.databasePath);
+        final updater = ExternalCatalogRepository(
+          httpClient: _catalogClient(await File(remotePath).readAsBytes()),
+          beforeFileRename: (_, _) => expect(mappingFinished, isTrue),
+        );
+
+        expect(await updater.updateDatabaseIfNeeded(), isTrue);
+        expect((await mapping).map((b) => b.book.id), [
+          for (var id = 1; id <= 20; id++) id,
+        ]);
+        expect(await updater.getCurrentDatabaseVersion(), 4);
+        _expectExclusiveCatalogAccess(updater.databasePath);
+      });
+
       test('קטלוג ישן בלי טבלת המיפוי מחזיר רשימה ריקה', () async {
         final db = sqlite3.open(repository.databasePath);
         db.execute(

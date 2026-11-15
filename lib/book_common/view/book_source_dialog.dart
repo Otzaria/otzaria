@@ -125,6 +125,11 @@ bool isTashmaSource(String? sourceFolder) {
 Future<List<OtzarMappedBook>> Function(int otzariaId) otzarBooksForOtzariaId =
     (id) => ExternalCatalogRepository.instance.getOtzarBooksForOtzariaId(id);
 
+/// נקודת הזרקה לבדיקות: פתיחת ספר באוצר החכמה (בתוכנה או באתר).
+@visibleForTesting
+Future<bool> Function(int? bookId, String link) openOtzarBook =
+    (bookId, link) => OtzarUtils.openBook(bookId, link);
+
 /// מציג את כל פרטי הספר הזמינים, גם מחוץ לקורא הטקסט.
 Future<void> showBookDetailsDialog(
   BuildContext context,
@@ -305,8 +310,8 @@ Widget _buildBookDetailsContent(
     for (final mapped in otzarBooks)
       DetailsInfoSection(
         title: otzarBooks.length == 1
-            ? 'אוצר החכמה:'
-            : 'אוצר החכמה – ${mapped.volume ?? mapped.book.title}',
+            ? 'אוצר החכמה'
+            : 'אוצר החכמה – ${_otzarBookLabel(mapped)}',
         icon: OtzariaIcons.book_24_regular,
         value: 'פתח באוצר החכמה',
         tapTooltip: 'פתיחה בתוכנת אוצר החכמה כשהספר על הכונן, אחרת באתר',
@@ -381,8 +386,15 @@ Widget _buildBookDetailsContent(
   );
 }
 
+/// הכרך מבדיל בין ספרים ממופים; בלי כרך, שנות ההדפסה מבדילות בין מהדורות.
+String _otzarBookLabel(OtzarMappedBook mapped) {
+  final years = mapped.book.pubDate?.trim() ?? '';
+  return mapped.volume ??
+      (years.isEmpty ? mapped.book.title : '${mapped.book.title} ($years)');
+}
+
 Future<void> _openInOtzar(ExternalLibraryBook book) async {
-  if (!await OtzarUtils.openBook(book.id, book.link)) {
+  if (!await openOtzarBook(book.id, book.link)) {
     UiSnack.showError(LibraryMessages.cannotOpenLinkInBrowser);
   }
 }
