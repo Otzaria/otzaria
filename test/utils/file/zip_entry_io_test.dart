@@ -303,4 +303,60 @@ void main() {
           : false,
     );
   }
+
+  for (final compression in CompressionType.values) {
+    test('${compression.name}: יעד שהוא תיקייה נכשל בלי לגעת בה', () async {
+      final input = openZipInput(writeZip(Uint8List(10), compression));
+      final dest = Directory(p.join(temp.path, 'dest'))..createSync();
+      File(p.join(dest.path, 'inner.txt')).writeAsStringSync('keep');
+      try {
+        await expectLater(
+          writeZipEntry(ZipDecoder().decodeStream(input).single, dest.path),
+          throwsA(isA<FileSystemException>()),
+        );
+        expect(File(p.join(dest.path, 'inner.txt')).readAsStringSync(), 'keep');
+      } finally {
+        input.closeSync();
+      }
+    });
+
+    // מעבר ל-MAX_PATH של Windows, עם שם עברי.
+    test('${compression.name}: נתיב יעד ארוך בעברית', () async {
+      final data = payload();
+      final input = openZipInput(writeZip(data, compression));
+      try {
+        final dest = p.join(
+          temp.path,
+          List.filled(8, 'תיקייה_ארוכה_מאוד_לבדיקת_נתיב').join(p.separator),
+          'קובץ.bin',
+        );
+        expect(dest.length, greaterThan(260));
+        expect(
+          await writeZipEntry(ZipDecoder().decodeStream(input).single, dest),
+          data.length,
+        );
+        expect(File(dest).readAsBytesSync(), data);
+      } finally {
+        input.closeSync();
+      }
+    });
+
+    // הקובץ חייב להימצא דרך dart:io בדיוק כמו בשיטות שנכתבות דרכו.
+    test('${compression.name}: שם עם רווח ונקודה בסוף', () async {
+      final input = openZipInput(writeZip(Uint8List(10), compression));
+      try {
+        final dest = p.join(temp.path, 'dir.', 'name ');
+        await Directory(p.dirname(dest)).create();
+        expect(
+          await writeZipEntry(ZipDecoder().decodeStream(input).single, dest),
+          10,
+        );
+        expect(File(dest).readAsBytesSync(), Uint8List(10));
+        await File(dest).delete();
+        expect(File(dest).existsSync(), isFalse);
+      } finally {
+        input.closeSync();
+      }
+    });
+  }
 }
