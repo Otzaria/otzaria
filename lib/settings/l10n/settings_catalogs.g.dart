@@ -1419,6 +1419,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'ספרים, יעד, תצוגה וערוץ לבחירה חופשית': 'Choose books, target, view and channel freely',
     'סקריפט השליחה נשמר בהצלחה. לשליחת הדיווחים הפעילו את הקובץ במחשב מחובר.': 'The sending script was saved. Run the file on a connected computer to send the reports.',
     'סרוק מחדש תיקיות אישיות': 'Rescan my Folders',
+    'עבור לכרטיסייה הפתוחה': 'Switch to the open tab',
     'עברי': 'Hebrew',
     'עד 10 MiB לקובץ, ועד 20 MiB לכל הצרופות יחד (1 MiB = 1,048,576 בתים).': 'Up to 10 MiB per file and 20 MiB for all attachments together (1 MiB = 1,048,576 bytes).',
     'עדיין אין דיווחים שנשלחו דרך המערכת': 'Nothing has been sent through the system yet',

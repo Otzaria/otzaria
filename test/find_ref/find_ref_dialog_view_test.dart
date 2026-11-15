@@ -9,6 +9,15 @@ import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/bookmarks/models/bookmark.dart';
+import 'package:otzaria/history/bloc/history_bloc.dart';
+import 'package:otzaria/history/history_repository.dart';
+import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
+import 'package:otzaria/navigation/bloc/navigation_event.dart';
+import 'package:otzaria/navigation/navigation_repository.dart';
+import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria/find_ref/find_ref_personal_books_setting.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_bloc.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_event.dart';
@@ -234,6 +243,12 @@ Future<void> _pumpDialog(
     findRefRepository: repository ?? _FakeRepository(results, error: error),
   );
   addTearDown(bloc.close);
+  final tabsBloc = TabsBloc(repository: _NoTabsRepository());
+  addTearDown(tabsBloc.close);
+  final historyBloc = HistoryBloc(_EmptyHistoryRepository());
+  addTearDown(historyBloc.close);
+  final navigationBloc = _IgnoringNavigationBloc();
+  addTearDown(navigationBloc.close);
 
   // עץ ריק ביניים מכריח יצירה מחדש של ה-State — פתיחה חדשה של הדיאלוג,
   // ולא עדכון של הקיים.
@@ -257,6 +272,9 @@ Future<void> _pumpDialog(
               providers: [
                 Provider<FocusRepository>.value(value: FocusRepository()),
                 BlocProvider<FindRefBloc>.value(value: bloc),
+                BlocProvider<TabsBloc>.value(value: tabsBloc),
+                BlocProvider<HistoryBloc>.value(value: historyBloc),
+                BlocProvider<NavigationBloc>.value(value: navigationBloc),
               ],
               child: host == null
                   ? const FindRefDialog()
@@ -1637,4 +1655,41 @@ void main() {
       expect(find.byType(TextField), findsOneWidget);
     });
   });
+}
+
+class _NoTabsRepository extends TabsRepository {
+  @override
+  List<OpenedTab> loadTabs({bool newRuntime = false}) => const [];
+
+  @override
+  int loadCurrentTabIndex() => 0;
+}
+
+class _EmptyHistoryRepository extends HistoryRepository {
+  @override
+  Future<List<Bookmark>> load() async => const [];
+
+  @override
+  Future<List<Bookmark>> mutate(
+    List<Bookmark> Function(List<Bookmark> current) apply,
+  ) async => apply(const []);
+}
+
+class _NoLibraryNavigationRepository implements NavigationRepository {
+  @override
+  Future<bool> checkLibraryIsEmpty() async => false;
+  @override
+  Future<void> refreshLibrary() async {}
+}
+
+/// המסך הראשי אינו חלק מהבדיקה — מעבר המסך נבלע.
+class _IgnoringNavigationBloc extends NavigationBloc {
+  _IgnoringNavigationBloc()
+    : super(
+        repository: _NoLibraryNavigationRepository(),
+        tabsRepository: _NoTabsRepository(),
+      );
+
+  @override
+  void add(NavigationEvent event) {}
 }

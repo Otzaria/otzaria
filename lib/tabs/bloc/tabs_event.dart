@@ -179,10 +179,13 @@ class ClearRecentlyClosedTabs extends TabsEvent {
 class SetCurrentTab extends TabsEvent {
   final int index;
 
-  const SetCurrentTab(this.index);
+  /// חלונית בכרטיסייה המשולבת שתהפוך לפעילה; `null` משאיר את הקיימת.
+  final OpenedTab? pane;
+
+  const SetCurrentTab(this.index, {this.pane});
 
   @override
-  List<Object?> get props => [index];
+  List<Object?> get props => [index, pane];
 }
 
 class CloseAllTabs extends TabsEvent {}
