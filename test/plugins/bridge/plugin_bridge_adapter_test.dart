@@ -4881,6 +4881,12 @@ Future<void> main() async {
             opener,
           ),
         );
+        addTearDown(
+          () => PluginPageLauncher.instance.markPageClosed(
+            'test.plugin',
+            instanceId: instanceId,
+          ),
+        );
         return titles;
       }
 
