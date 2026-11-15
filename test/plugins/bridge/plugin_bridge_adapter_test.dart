@@ -4857,6 +4857,104 @@ Future<void> main() async {
         expect(opened, isEmpty);
       });
 
+      /// כמו [registerOpener], עם פותח שמקבל כותרת. מחזיר את הכותרות שהתקבלו.
+      List<String?> registerTitledOpener(String instanceId) {
+        final titles = <String?>[];
+        String? opener(String pluginId) {
+          titles.add(null);
+          return instanceId;
+        }
+
+        String? titled(String pluginId, String? title) {
+          titles.add(title);
+          return instanceId;
+        }
+
+        PluginPageLauncher.instance.registerInstanceOpener(
+          AppWindowKeys.current,
+          opener,
+          titledOpener: titled,
+        );
+        addTearDown(
+          () => PluginPageLauncher.instance.unregisterInstanceOpener(
+            AppWindowKeys.current,
+            opener,
+          ),
+        );
+        return titles;
+      }
+
+      group('title', () {
+        test('title עם newTab מועבר לפותח המופעים', () async {
+          final titles = registerTitledOpener('inst-new');
+
+          final result = await adapterFor(
+            allowMultipleInstances: true,
+          ).execute('plugin', 'openSelf', {'newTab': true, 'title': 'ברכות ב'});
+
+          expect(result, isTrue);
+          expect(titles, ['ברכות ב']);
+        });
+
+        test('title מנוקה מרווחים ותווי בקרה', () async {
+          final titles = registerTitledOpener('inst-new');
+
+          await adapterFor(allowMultipleInstances: true).execute(
+            'plugin',
+            'openSelf',
+            {'newTab': true, 'title': '  שבת\n\tב  '},
+          );
+
+          expect(titles, ['שבת ב']);
+        });
+
+        test('title ארוך נחתך ל-60 תווים', () async {
+          final titles = registerTitledOpener('inst-new');
+
+          await adapterFor(allowMultipleInstances: true).execute(
+            'plugin',
+            'openSelf',
+            {'newTab': true, 'title': 'א' * 100},
+          );
+
+          expect(titles.single, 'א' * 60);
+        });
+
+        test('title ריק כמוהו כחסר — הכותרת הרגילה', () async {
+          final titles = registerTitledOpener('inst-new');
+
+          await adapterFor(
+            allowMultipleInstances: true,
+          ).execute('plugin', 'openSelf', {'newTab': true, 'title': '   '});
+
+          expect(titles, [null]);
+        });
+
+        test('title שאינו מחרוזת → invalid_params', () async {
+          final titles = registerTitledOpener('inst-new');
+
+          await expectLater(
+            adapterFor(
+              allowMultipleInstances: true,
+            ).execute('plugin', 'openSelf', {'newTab': true, 'title': 5}),
+            throwsWith('invalid_params'),
+          );
+          expect(titles, isEmpty);
+        });
+
+        test('title בלי newTab → invalid_params', () async {
+          final titles = registerTitledOpener('inst-new');
+
+          await expectLater(
+            adapterFor(
+              allowMultipleInstances: true,
+            ).execute('plugin', 'openSelf', {'title': 'כותרת'}),
+            throwsWith('invalid_params'),
+          );
+          expect(titles, isEmpty);
+        });
+      });
+
       for (final bad in <Object>[1, 0, 'true', <String, dynamic>{}, <int>[]]) {
         test(
           'newTab מסוג לא בוליאני (${bad.runtimeType}: $bad) נדחה',
