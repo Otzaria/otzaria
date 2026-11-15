@@ -6377,6 +6377,30 @@ class PluginBridgeAdapter {
     }
   }
 
+  /// אורך מרבי של כותרת כרטיסיה שהתוסף מבקש ב-\`plugin.openSelf\`.
+  static const int _maxOpenSelfTitleLength = 60;
+
+  /// כותרת הכרטיסיה של \`plugin.openSelf\` עם \`newTab\`: מחרוזת בלי תווי בקרה,
+  /// מקוצצת ל-[_maxOpenSelfTitleLength]. כותרת ריקה כמוה כחסרה. בלי \`newTab\`
+  /// אין מופע חדש לתת לו שם, ולכן זו שגיאה במקום התעלמות שקטה.
+  String? _parseOpenSelfTitle(Object? raw, bool newTab) {
+    if (raw == null) return null;
+    if (raw is! String) {
+      throw Exception('error.invalid_params: title must be a string');
+    }
+    if (!newTab) {
+      throw Exception('error.invalid_params: title requires newTab: true');
+    }
+    final cleaned = raw
+        .replaceAll(RegExp(r'[\u0000-\u001F\u007F]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (cleaned.isEmpty) return null;
+    return cleaned.length <= _maxOpenSelfTitleLength
+        ? cleaned
+        : cleaned.substring(0, _maxOpenSelfTitleLength).trimRight();
+  }
+
   /// גם ילד בתפריט יכול לפתוח מופע, ולכן בודקים את כל עץ הפריטים.
   void _requireMultipleInstancesForNewTab(
     Map<String, dynamic> payload, {
@@ -8101,6 +8125,7 @@ class PluginBridgeAdapter {
         if (newTab != null && newTab is! bool) {
           throw Exception('error.invalid_params: newTab must be boolean');
         }
+        final tabTitle = _parseOpenSelfTitle(args['title'], newTab == true);
         if (newTab == true) {
           // מופע נוסף הוא WebView נוסף מעל אותו אחסון — רק תוסף שהצהיר
           // במניפסט שהוא יודע לחיות לצד עצמו.
@@ -8123,6 +8148,7 @@ class PluginBridgeAdapter {
                   payload: {'param': args['param']},
                   viewId: _windowDependencies.viewId,
                   windowKeys: _windowDependencies.windowKeys,
+                  title: tabTitle,
                 );
             return openedInstanceId != null;
           }
