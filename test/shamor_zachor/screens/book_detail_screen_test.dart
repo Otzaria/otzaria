@@ -768,5 +768,10 @@ void main() {
 
     expect(opened, [70, 51]);
     expect(progress.getProgressForBookById(7), isEmpty);
+
+    await tester.tap(find.text('פרק י'));
+    await tester.pumpAndSettle();
+    expect(find.text('הלכה ג'), findsNothing);
+    expect(opened, [70, 51]);
   });
 }

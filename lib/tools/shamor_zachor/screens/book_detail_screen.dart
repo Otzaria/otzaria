@@ -35,7 +35,7 @@ class BookDetailScreen extends StatefulWidget {
   final BookDetails? bookDetails;
   final VoidCallback? onBack;
 
-  /// Opens the book at a source line; when null, section titles are plain text.
+  /// פותח את הספר בשורת מקור; כשהוא null כותרות הסעיפים הן טקסט בלבד.
   final ValueChanged<int>? onOpenLine;
 
   const BookDetailScreen({
@@ -1090,17 +1090,20 @@ class _SectionTitleLinkState extends State<_SectionTitleLink> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Flexible(child: text),
-                  if (_hovered)
-                    Padding(
-                      padding: const EdgeInsetsDirectional.only(
-                        start: AppTokens.spaceXS,
-                      ),
+                  // מקום קבוע לאייקון, כדי שהכותרת לא תתקצר רק בריחוף.
+                  Padding(
+                    padding: const EdgeInsetsDirectional.only(
+                      start: AppTokens.spaceXS,
+                    ),
+                    child: Visibility.maintain(
+                      visible: _hovered,
                       child: Icon(
                         FluentIcons.open_24_regular,
                         size: AppTokens.iconSM,
                         color: primary,
                       ),
                     ),
+                  ),
                 ],
               ),
             ),
