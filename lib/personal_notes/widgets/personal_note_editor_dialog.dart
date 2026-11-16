@@ -278,7 +278,9 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
         size: AppDialogSize.medium,
         icon: widget.icon ?? FluentIcons.note_edit_24_regular,
         title: widget.title,
-        scrollable: true,
+        titleMaxLines: 1,
+        // בלי גלילה חיצונית: הדיאלוג נכנס כולו לחלון — טקסט ההקשר ואזור
+        // הכתיבה מתכווצים וגוללים בתוכם, וסרגל הכלים לא נדחק החוצה (#5048).
         closeEnabled: !_isSaving,
         onDismissRequest: _handleCancel,
         actions: [
@@ -308,6 +310,7 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
               onSaveShortcut: _submit,
               onCancelShortcut: _handleCancel,
               escapeDismisses: true,
+              fitToAvailableHeight: true,
             ),
           ),
         ),

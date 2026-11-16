@@ -19,6 +19,7 @@ import 'package:otzaria/personal_notes/widgets/personal_note_styles.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/widgets/controls/bar_button.dart';
+import 'package:otzaria/widgets/feedback/app_scrollbar.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 import 'package:otzaria/theme/app_motion.dart';
@@ -172,6 +173,10 @@ class PersonalNoteEditorBody extends StatefulWidget {
   /// בדיאלוג: Escape בשדה סוגר את הדיאלוג, כמו מחוץ לשדה.
   final bool escapeDismisses;
 
+  /// בדיאלוג: אזור הכתיבה מתכווץ לגובה שנשאר בחלון (עד 220px) וגולל בתוכו,
+  /// כדי שכפתורי הדיאלוג יישארו גלויים. בפאנל ההערות, שגולל בעצמו — כבוי.
+  final bool fitToAvailableHeight;
+
   const PersonalNoteEditorBody({
     super.key,
     required this.controller,
@@ -186,6 +191,7 @@ class PersonalNoteEditorBody extends StatefulWidget {
     this.onSaveShortcut,
     this.onCancelShortcut,
     this.escapeDismisses = false,
+    this.fitToAvailableHeight = false,
   });
 
   @override
@@ -413,158 +419,192 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
       fontWeight: FontWeight.w500,
       color: colorScheme.onSurfaceVariant,
     );
-    // מגבילים את טקסט ההקשר ל~3 שורות + גלילה פנימית, כדי שטקסט נבחר ארוך
-    // לא ידחוף את אזור הכתיבה מטה ומחוץ למסך. הגובה נגזר מסגנון הטקסט בפועל.
-    final referenceMaxHeight =
-        (referenceStyle?.fontSize ?? 14) * (referenceStyle?.height ?? 1.4) * 3;
+    // טקסט ההקשר מוגבל לשתי שורות ושלוש נקודות, כדי שטקסט נבחר ארוך לא
+    // ידחוף את אזור הכתיבה מטה ומחוץ למסך.
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (widget.referenceText != null &&
             widget.referenceText!.trim().isNotEmpty)
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-              borderRadius: AppTokens.borderRadiusAll,
-            ),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: referenceMaxHeight),
-              child: SingleChildScrollView(
-                child: Text(
-                  widget.referenceText!,
-                  style: referenceStyle,
-                  textAlign: TextAlign.right,
+          _flexibleIfFitting(
+            flex: 1,
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.5,
+                ),
+                borderRadius: AppTokens.borderRadiusAll,
+              ),
+              // הטקסט המלא בריחוף.
+              child: Tooltip(
+                message: widget.referenceText!,
+                waitDuration: const Duration(milliseconds: 500),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Text(
+                    widget.referenceText!,
+                    style: referenceStyle,
+                    textAlign: TextAlign.right,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
             ),
           ),
         // אזור הכתיבה במילוי של שדה בדיאלוג (כמו filledOnDialog), וסרגל הכלים
         // כהה ממנו. המסגרת מצוירת מעל, כדי ששני המילויים לא יכסו אותה.
-        Container(
-          key: _editorAreaKey,
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: AppSurfaces.card(context),
-            borderRadius: AppTokens.borderRadiusAll,
-          ),
-          foregroundDecoration: BoxDecoration(
-            border: Border.all(
-              color: colorScheme.outline.withValues(alpha: 0.6),
-              width: 1.2,
+        // בחלון נמוך טקסט ההקשר מקבל עד רבע מהמקום, ואזור הכתיבה את השאר.
+        _flexibleIfFitting(
+          flex: 3,
+          Container(
+            key: _editorAreaKey,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: AppSurfaces.card(context),
+              borderRadius: AppTokens.borderRadiusAll,
             ),
-            borderRadius: AppTokens.borderRadiusAll,
-          ),
-          child: Column(
-            children: [
-              ColoredBox(
-                color: colorScheme.surfaceContainerHighest,
-                child: _PersonalNoteToolbar(
-                  controller: widget.controller.quillController,
-                  editorFocusNode: widget.focusNode,
-                  onInsertLink: _insertLink,
-                ),
+            foregroundDecoration: BoxDecoration(
+              border: Border.all(
+                color: colorScheme.outline.withValues(alpha: 0.6),
+                width: 1.2,
               ),
-              const Divider(height: 1),
-              SizedBox(
-                // במסך נמוך או עם מקלדת פתוחה 220px קבועים דוחקים את כפתור
-                // השמירה מחוץ לתצוגה — מצמצמים לפי הגובה הפנוי בפועל.
-                height: () {
-                  final media = MediaQuery.of(context);
-                  final available = media.size.height - media.viewInsets.bottom;
-                  return (available * 0.35).clamp(120.0, 220.0);
-                }(),
-                // תופס גרירה אנכית לפני ה-ListView של הפאנל, שאחרת גובר
-                // על גרירת הסימון של Quill; הגלגלת (PointerSignal) עדיין גוללת.
-                child: RawGestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  gestures: <Type, GestureRecognizerFactory>{
-                    VerticalDragGestureRecognizer:
-                        GestureRecognizerFactoryWithHandlers<
-                          VerticalDragGestureRecognizer
-                        >(
-                          () => VerticalDragGestureRecognizer(
-                            supportedDevices: const <PointerDeviceKind>{
-                              PointerDeviceKind.mouse,
-                            },
-                          ),
-                          (instance) {},
-                        ),
-                  },
-                  child: CallbackShortcuts(
-                    bindings: {
-                      if (widget.onSaveShortcut != null) ...{
-                        // Ctrl+Enter (במק Cmd+Enter) — קיצור השמירה המומלץ.
-                        ShortcutHelper.activatorFromShortcut('ctrl+enter')!:
-                            widget.onSaveShortcut!,
-                        // Alt+Enter — לתאימות לאחור.
-                        const SingleActivator(
-                          LogicalKeyboardKey.enter,
-                          alt: true,
-                        ): widget.onSaveShortcut!,
+              borderRadius: AppTokens.borderRadiusAll,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ColoredBox(
+                  color: colorScheme.surfaceContainerHighest,
+                  child: _PersonalNoteToolbar(
+                    controller: widget.controller.quillController,
+                    editorFocusNode: widget.focusNode,
+                    onInsertLink: _insertLink,
+                  ),
+                ),
+                const Divider(height: 1),
+                _flexibleIfFitting(
+                  SizedBox(
+                    // בדיאלוג: 220px כשיש מקום, וה-Flexible שמסביב מקטין לפי מה
+                    // שנשאר בחלון. בפאנל: במסך נמוך או עם מקלדת פתוחה 220px
+                    // קבועים דוחקים את כפתור השמירה — מצמצמים לפי הגובה הפנוי.
+                    height: widget.fitToAvailableHeight
+                        ? 220.0
+                        : () {
+                            final media = MediaQuery.of(context);
+                            final available =
+                                media.size.height - media.viewInsets.bottom;
+                            return (available * 0.35).clamp(120.0, 220.0);
+                          }(),
+                    // תופס גרירה אנכית לפני ה-ListView של הפאנל, שאחרת גובר
+                    // על גרירת הסימון של Quill; הגלגלת (PointerSignal) עדיין גוללת.
+                    child: RawGestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      gestures: <Type, GestureRecognizerFactory>{
+                        VerticalDragGestureRecognizer:
+                            GestureRecognizerFactoryWithHandlers<
+                              VerticalDragGestureRecognizer
+                            >(
+                              () => VerticalDragGestureRecognizer(
+                                supportedDevices: const <PointerDeviceKind>{
+                                  PointerDeviceKind.mouse,
+                                },
+                              ),
+                              (instance) {},
+                            ),
                       },
-                    },
-                    child: AppContextMenuRegion(
-                      key: _editMenuKey,
-                      // לחיצה ארוכה של Quill גוברת על זו של האזור; במגע התפריט
-                      // נפתח מ-contextMenuBuilder.
-                      openOnLongPress: false,
-                      menuBuilder: (_, _) => _buildEditMenu(),
-                      child: Listener(
-                        onPointerDown: (event) => _lastPointerKind = event.kind,
-                        // Quill לא מבקש פוקוס בגרירת בחירה בעכבר, ובלעדיו
-                        // מחיקה והעתקה של הבחירה לא מגיעות לעורך.
-                        onPointerUp: (event) {
-                          if (event.kind == PointerDeviceKind.mouse &&
-                              !widget.focusNode.hasFocus) {
-                            widget.focusNode.requestFocus();
-                          }
+                      child: CallbackShortcuts(
+                        bindings: {
+                          if (widget.onSaveShortcut != null) ...{
+                            // Ctrl+Enter (במק Cmd+Enter) — קיצור השמירה המומלץ.
+                            ShortcutHelper.activatorFromShortcut('ctrl+enter')!:
+                                widget.onSaveShortcut!,
+                            // Alt+Enter — לתאימות לאחור.
+                            const SingleActivator(
+                              LogicalKeyboardKey.enter,
+                              alt: true,
+                            ): widget.onSaveShortcut!,
+                          },
                         },
-                        child: quill.QuillEditor(
-                          controller: widget.controller.quillController,
-                          focusNode: widget.focusNode,
-                          scrollController: widget.scrollController,
-                          config: quill.QuillEditorConfig(
-                            editorKey: widget.editorKey,
-                            customStyles: personalNoteStyles(context),
-                            autoFocus: widget.autofocus,
-                            expands: false,
-                            padding: const EdgeInsets.all(AppTokens.spaceSMD),
-                            placeholder:
-                                widget.hintText ??
-                                'כתוב כאן... (${ShortcutHelper.formatShortcutForDisplay('ctrl+enter')} לשמירה)',
-                            customShortcuts: widget.onCancelShortcut == null
-                                ? _rtlArrowShortcuts
-                                : {
-                                    ..._rtlArrowShortcuts,
-                                    // Quill דורס התאמת SingleActivator בקיצור המובנה.
-                                    // LogicalKeySet משמר את קדימות קיצור הסגירה.
-                                    LogicalKeySet(
-                                      LogicalKeyboardKey.escape,
-                                    ): VoidCallbackIntent(
-                                      widget.onCancelShortcut!,
-                                    ),
-                                  },
-                            // ignore: experimental_member_use
-                            onKeyPressed: (event, node) =>
-                                (widget.escapeDismisses
-                                    ? _dismissOnEscape(event, node)
-                                    : null) ??
-                                _handleEmptyLineBackspace(event, node),
-                            contextMenuBuilder: _touchContextMenu,
+                        child: AppContextMenuRegion(
+                          key: _editMenuKey,
+                          // לחיצה ארוכה של Quill גוברת על זו של האזור; במגע התפריט
+                          // נפתח מ-contextMenuBuilder.
+                          openOnLongPress: false,
+                          menuBuilder: (_, _) => _buildEditMenu(),
+                          child: Listener(
+                            onPointerDown: (event) =>
+                                _lastPointerKind = event.kind,
+                            // Quill לא מבקש פוקוס בגרירת בחירה בעכבר, ובלעדיו
+                            // מחיקה והעתקה של הבחירה לא מגיעות לעורך.
+                            onPointerUp: (event) {
+                              if (event.kind == PointerDeviceKind.mouse &&
+                                  !widget.focusNode.hasFocus) {
+                                widget.focusNode.requestFocus();
+                              }
+                            },
+                            // פס גלילה דק בצד ימין כשההערה ארוכה מהאזור.
+                            child: AppScrollbar(
+                              controller: widget.scrollController,
+                              thumbVisibility: true,
+                              contentInset: AppTokens.spaceSMD,
+                              child: quill.QuillEditor(
+                                controller: widget.controller.quillController,
+                                focusNode: widget.focusNode,
+                                scrollController: widget.scrollController,
+                                config: quill.QuillEditorConfig(
+                                  editorKey: widget.editorKey,
+                                  customStyles: personalNoteStyles(context),
+                                  autoFocus: widget.autofocus,
+                                  expands: false,
+                                  padding: const EdgeInsets.all(
+                                    AppTokens.spaceSMD,
+                                  ),
+                                  placeholder:
+                                      widget.hintText ??
+                                      'כתוב כאן... (${ShortcutHelper.formatShortcutForDisplay('ctrl+enter')} לשמירה)',
+                                  customShortcuts:
+                                      widget.onCancelShortcut == null
+                                      ? _rtlArrowShortcuts
+                                      : {
+                                          ..._rtlArrowShortcuts,
+                                          // Quill דורס התאמת SingleActivator בקיצור המובנה.
+                                          // LogicalKeySet משמר את קדימות קיצור הסגירה.
+                                          LogicalKeySet(
+                                            LogicalKeyboardKey.escape,
+                                          ): VoidCallbackIntent(
+                                            widget.onCancelShortcut!,
+                                          ),
+                                        },
+                                  // ignore: experimental_member_use
+                                  onKeyPressed: (event, node) =>
+                                      (widget.escapeDismisses
+                                          ? _dismissOnEscape(event, node)
+                                          : null) ??
+                                      _handleEmptyLineBackspace(event, node),
+                                  contextMenuBuilder: _touchContextMenu,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ],
     );
   }
+
+  /// Flexible (loose) רק בדיאלוג: הילד שומר על גובהו כשיש מקום ומתכווץ
+  /// בחלון נמוך. בפאנל אין גבול גובה, ושם Flexible היה שובר את הפריסה.
+  Widget _flexibleIfFitting(Widget child, {int flex = 1}) =>
+      widget.fitToAvailableHeight ? Flexible(flex: flex, child: child) : child;
 }
 
 // בלי ביטול הדבקת Rich-Text, ה-HTML שהעתקת אוצריא שמה בלוח גורר את עיצוב
