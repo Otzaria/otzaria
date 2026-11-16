@@ -1,4 +1,3 @@
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart'
     show ValueListenable, visibleForTesting;
@@ -48,7 +47,6 @@ import 'package:otzaria/text_book/view/text_book_screen.dart';
 import 'package:otzaria/text_book/view/commentators_tab_screen.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentators_tab_screen.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
 import 'package:otzaria/tabs/view/recent_books_empty_state.dart';

@@ -14,6 +14,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
+import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/view/recent_books_empty_state.dart';
 
 import '../helpers/memory_settings_cache.dart';
@@ -134,7 +135,7 @@ void main() {
     expect(tabs.sent, hasLength(1));
     final event = tabs.sent.single as OpenOrFocusTab;
     expect(event.matchHistorySlot, isTrue);
-    expect(event.tab, isNotNull);
+    expect((event.tab as PdfBookTab).pageNumber, 23);
     expect(navigation.sent.single, isA<NavigateToScreen>());
   });
 
