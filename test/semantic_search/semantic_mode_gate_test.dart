@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/data/book_identity.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search_feedback/search_feedback_api.dart';
@@ -273,6 +275,73 @@ void main() {
         isTrue,
       );
       expect(officialCategoryFilter(null), isNull);
+    });
+  });
+
+  group('היקף לפי ספרים עם וקטורים (issue #1963)', () {
+    final official = TextBook(title: 'בראשית', id: 1);
+    final uncovered = TextBook(title: 'שמות', id: 2);
+    final personal = TextBook(title: 'חידושים', source: BookSource.user, id: 3);
+    late Library library;
+
+    setUp(() {
+      library = Library(
+        categories: [
+          Category(
+            title: 'תנ״ך',
+            description: '',
+            shortDescription: '',
+            order: 1,
+            subCategories: [],
+            books: [official, uncovered],
+            parent: null,
+          ),
+          Category(
+            title: 'אישי',
+            description: '',
+            shortDescription: '',
+            order: 2,
+            subCategories: [],
+            books: [personal],
+            parent: null,
+          ),
+        ],
+      );
+    });
+
+    String facetOf(Book book) =>
+        FacetHelper.buildBookFacet(FacetHelper.resolveCategoryPath(book), book);
+
+    bool supported(String facet, Set<String>? covered) =>
+        isSemanticScopeFacetSupported(
+          facet,
+          isOfficialCategory: officialCategoryFilter(library),
+          isCoveredFacet: coveredFacetFilter(library, covered),
+        );
+
+    test('ספר מכוסה נתמך גם כשאינו רשמי; ספר רשמי בלי וקטורים לא', () {
+      final covered = {
+        BookIdentity.indexedFilePath(official),
+        BookIdentity.indexedFilePath(personal),
+      };
+      expect(supported(facetOf(official), covered), isTrue);
+      expect(supported(facetOf(personal), covered), isTrue);
+      expect(supported(facetOf(uncovered), covered), isFalse);
+    });
+
+    test('קטגוריה נתמכת רק כשיש בה ספר מכוסה', () {
+      final covered = {BookIdentity.indexedFilePath(personal)};
+      expect(supported('/אישי', covered), isTrue);
+      expect(supported('/תנ״ך', covered), isFalse);
+      expect(supported('/', covered), isTrue);
+    });
+
+    test('כשהכיסוי לא ידוע — לפי מקור הספר כמו קודם', () {
+      expect(coveredFacetFilter(library, null), isNull);
+      expect(coveredFacetFilter(null, const {}), isNull);
+      expect(supported(facetOf(uncovered), null), isTrue);
+      expect(supported(facetOf(personal), null), isFalse);
+      expect(supported('/אישי', null), isFalse);
     });
   });
 }

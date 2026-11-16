@@ -102,6 +102,9 @@ class _FakeRepository extends SemanticSearchRepository {
 
   @override
   Future<void> cancelDownload() async => cancels++;
+
+  @override
+  Future<Set<String>?> loadCoveredBookFilePaths() async => null;
 }
 
 SemanticAvailability _availability(

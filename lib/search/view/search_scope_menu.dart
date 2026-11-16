@@ -44,8 +44,10 @@ class SearchScopeMenuButton extends StatefulWidget {
   final Set<String> selected;
   final ValueChanged<Set<String>> onChanged;
 
-  /// מציג רק ספרים מהספרייה הרשמית (בחיפוש החכם — רק להם יש וקטורים).
+  /// בחיפוש החכם: רק ספרים עם וקטורים ([coveredFilePaths]), ועד שהם ידועים
+  /// רק ספרים מהספרייה הרשמית.
   final bool officialBooksOnly;
+  final Set<String>? coveredFilePaths;
 
   /// מסתיר ספרים אישיים כשאינם באינדקס ("בלי ספרים אישיים").
   final bool excludeUserBooks;
@@ -55,6 +57,7 @@ class SearchScopeMenuButton extends StatefulWidget {
     required this.selected,
     required this.onChanged,
     this.officialBooksOnly = false,
+    this.coveredFilePaths,
     this.excludeUserBooks = false,
   });
 
@@ -82,7 +85,10 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   int _baseBookGeneration = 0;
 
   ScopeTree _visibleTree(ScopeTree tree) => widget.officialBooksOnly
-      ? tree.officialOnly()
+      ? switch (widget.coveredFilePaths) {
+          final covered? => tree.coveredOnly(covered),
+          null => tree.officialOnly(),
+        }
       : widget.excludeUserBooks
       ? tree.withoutUserBooks()
       : tree;
