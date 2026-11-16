@@ -1,5 +1,7 @@
 /// ריכוז הודעות המערכת (UiSnack) הכלליות והמשותפות.
 abstract class CommonMessages {
+  static const waitingForWifi = 'ממתין לחיבור WiFi';
+
   // ── העתקה ללוח ──────────────────────────────────────────────────────────
   static const String textCopied = 'הטקסט הועתק ללוח';
   static const String textCopiedShort = 'הטקסט הועתק';

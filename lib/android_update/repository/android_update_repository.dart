@@ -1,3 +1,5 @@
+import 'package:otzaria/core/download_http_client.dart';
+import 'package:otzaria/core/download_network_policy.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -107,6 +109,15 @@ class DefaultAndroidUpdateRepository implements AndroidUpdateRepository {
     AndroidApkRelease release,
     AndroidDownloadCancellation cancellation,
     void Function(int received, int total) onProgress,
+  ) => DownloadNetworkPolicy.instance.runResumable(
+    () => _downloadOnce(release, cancellation, onProgress),
+    checkCancelled: cancellation.throwIfCancelled,
+  );
+
+  Future<PreparedAndroidUpdate> _downloadOnce(
+    AndroidApkRelease release,
+    AndroidDownloadCancellation cancellation,
+    void Function(int received, int total) onProgress,
   ) async {
     await _require(AndroidUpdateDistribution.direct);
     if (release.size <= 0 ||
@@ -119,7 +130,7 @@ class DefaultAndroidUpdateRepository implements AndroidUpdateRepository {
     final target = File(p.join(directory.path, 'update.apk'));
     final partial = File('${target.path}.part');
     final receipt = File(p.join(directory.path, 'prepared.json'));
-    final client = _clientFactory();
+    final client = createDownloadClient(_clientFactory());
     RandomAccessFile? output;
     var complete = false;
     try {

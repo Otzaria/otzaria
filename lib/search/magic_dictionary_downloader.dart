@@ -1,3 +1,5 @@
+import 'package:otzaria/core/download_http_client.dart';
+import 'package:otzaria/core/download_network_policy.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -57,6 +59,7 @@ class MagicDictionaryDownloader {
 
   final http.Client _client;
   final bool _ownsClient;
+  bool _disposed = false;
   final Future<String> Function() _destinationProvider;
 
   /// עוטף את החלפת הקובץ: המנוע משחרר את המילון לפניה וטוען אותו אחריה.
@@ -77,6 +80,7 @@ class MagicDictionaryDownloader {
            destinationProvider ?? AppPaths.getMagicDictionaryPath;
 
   void dispose() {
+    _disposed = true;
     if (_ownsClient) _client.close();
   }
 
@@ -89,6 +93,8 @@ class MagicDictionaryDownloader {
   Future<bool> ensureLatest({
     void Function(double progress)? onProgress,
     bool force = false,
+    void Function()? checkCancelled,
+    void Function()? onWaitingForWifi,
   }) async {
     final dest = await _destinationProvider();
     try {
@@ -118,7 +124,14 @@ class MagicDictionaryDownloader {
       // עותק מאומת שהחלפתו נכשלה קודם (קובץ נעול) מותקן בלי הורדה חוזרת.
       final version = release.sha256 ?? release.tag;
       if (force || !await _hasStagedVersion(dest, version, release.sizeBytes)) {
-        await _download(release, dest, onProgress);
+        await DownloadNetworkPolicy.instance.runResumable(
+          () => _download(release, dest, onProgress),
+          checkCancelled: () {
+            if (_disposed) throw http.RequestAbortedException();
+            checkCancelled?.call();
+          },
+          onWaiting: onWaitingForWifi,
+        );
       }
       final aroundReplace = _aroundReplace;
       Future<void> install() => _installStaged(dest);
@@ -189,7 +202,12 @@ class MagicDictionaryDownloader {
     String dest,
     void Function(double progress)? onProgress,
   ) async {
-    final response = await _send(release.downloadUrl);
+    final response = await sendGetFollowingRedirects(
+      createDownloadClient(_client),
+      release.downloadUrl,
+      maxRedirects: _maxRedirects,
+      stallTimeout: _stallTimeout,
+    );
     if (response.statusCode < 200 || response.statusCode >= 300) {
       await response.stream.drain<void>();
       throw Exception('הורדת המילון נכשלה (${response.statusCode})');

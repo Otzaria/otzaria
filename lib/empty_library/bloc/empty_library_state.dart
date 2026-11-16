@@ -81,10 +81,12 @@ class EmptyLibraryExtracting extends EmptyLibraryState {
 class EmptyLibraryDownloading extends EmptyLibraryState {
   final double progress;
   final String message;
+  final bool cancellable;
 
   const EmptyLibraryDownloading({
     required this.progress,
     required this.message,
+    this.cancellable = false,
   }) : super(isLoading: true);
 
   @override
@@ -92,5 +94,6 @@ class EmptyLibraryDownloading extends EmptyLibraryState {
     ...super.props,
     progress,
     message,
+    cancellable,
   ];
 }

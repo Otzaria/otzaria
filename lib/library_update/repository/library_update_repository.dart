@@ -1,3 +1,4 @@
+import 'package:otzaria/core/download_network_policy.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
@@ -45,6 +46,7 @@ class LibraryUpdateProgress {
 
   /// תת-שלב גולמי בתוך ה-apply (מ-`PatchApplier.onStage`), לתצוגה מפורטת.
   final String? stage;
+  final bool waitingForWifi;
 
   /// יחס התקדמות (0..1) בתוך שלבי ה-apply הארוכים (שורות ב-upserts/deletes,
   /// בתים באימות ה-hash); null כשאין מדידה לשלב.
@@ -57,6 +59,7 @@ class LibraryUpdateProgress {
     this.bytesDownloaded,
     this.bytesTotal,
     this.stage,
+    this.waitingForWifi = false,
     this.applyProgress,
   });
 }
@@ -384,6 +387,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
         void report(
           LibraryUpdatePhase phase, {
           String? stage,
+          bool waitingForWifi = false,
           int? bytesDownloaded,
           int? bytesTotal,
           double? applyProgress,
@@ -395,6 +399,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
             bytesDownloaded: bytesDownloaded,
             bytesTotal: bytesTotal,
             stage: stage,
+            waitingForWifi: waitingForWifi,
             applyProgress: applyProgress,
           ),
         );
@@ -431,18 +436,23 @@ class LibraryUpdateRepository implements LibraryUpdateService {
         report(LibraryUpdatePhase.downloading);
         final patchPath =
             reusablePatchPath ??
-            await downloader.downloadAndExtract(
-              patchFile: patchFile,
-              downloadUrl: url,
-              destDir: cacheDir,
-              isCancelled: isCancelled,
-              onProgress: (downloaded, total) => report(
-                LibraryUpdatePhase.downloading,
-                bytesDownloaded: downloaded,
-                bytesTotal: total,
+            await DownloadNetworkPolicy.instance.runResumable<String>(
+              () => downloader.downloadAndExtract(
+                patchFile: patchFile,
+                downloadUrl: url,
+                destDir: cacheDir,
+                isCancelled: isCancelled,
+                onProgress: (downloaded, total) => report(
+                  LibraryUpdatePhase.downloading,
+                  bytesDownloaded: downloaded,
+                  bytesTotal: total,
+                ),
+                // אימות patch פרוס של כמה GB נמשך עשרות שניות — בלי מד הוא נראה קפוא.
+                onVerifyProgress: reportVerify,
               ),
-              // אימות patch פרוס של כמה GB נמשך עשרות שניות — בלי מד הוא נראה קפוא.
-              onVerifyProgress: reportVerify,
+              checkCancelled: () => _throwIfCancelled(isCancelled),
+              onWaiting: () =>
+                  report(LibraryUpdatePhase.downloading, waitingForWifi: true),
             );
 
         try {
@@ -828,17 +838,26 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       onProgress?.call(
         const LibraryUpdateProgress(phase: LibraryUpdatePhase.downloading),
       );
-      await downloader.downloadReleaseAssetToFile(
-        asset: asset,
-        destPath: archivePath,
-        // קושר את הקובץ החלקי ל-release — מונע resume על ארכיון מגרסה אחרת.
-        resumeToken: resumeToken,
-        isCancelled: isCancelled,
-        onProgress: (downloaded, total) => onProgress?.call(
-          LibraryUpdateProgress(
+      await DownloadNetworkPolicy.instance.runResumable(
+        () => downloader.downloadReleaseAssetToFile(
+          asset: asset,
+          destPath: archivePath,
+          // קושר את הקובץ החלקי ל-release — מונע resume על ארכיון מגרסה אחרת.
+          resumeToken: resumeToken,
+          isCancelled: isCancelled,
+          onProgress: (downloaded, total) => onProgress?.call(
+            LibraryUpdateProgress(
+              phase: LibraryUpdatePhase.downloading,
+              bytesDownloaded: downloaded,
+              bytesTotal: total,
+            ),
+          ),
+        ),
+        checkCancelled: () => _throwIfCancelled(isCancelled),
+        onWaiting: () => onProgress?.call(
+          const LibraryUpdateProgress(
             phase: LibraryUpdatePhase.downloading,
-            bytesDownloaded: downloaded,
-            bytesTotal: total,
+            waitingForWifi: true,
           ),
         ),
       );

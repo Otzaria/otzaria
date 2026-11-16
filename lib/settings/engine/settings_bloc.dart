@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:otzaria/core/download_network_policy.dart';
+
 import 'package:otzaria/indexing/models/indexing_resource_policy.dart';
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter/foundation.dart';
@@ -86,6 +88,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<UpdatePdfBookViewByDefault>(_onUpdatePdfBookViewByDefault);
     on<UpdateTalmudBavliOpenFormat>(_onUpdateTalmudBavliOpenFormat);
     on<UpdateOfflineMode>(_onUpdateOfflineMode);
+    on<UpdateDownloadsWifiOnly>(_onUpdateDownloadsWifiOnly);
     on<UpdateSoftwareAndBookUpdatesEnabled>(
       _onUpdateSoftwareAndBookUpdatesEnabled,
     );
@@ -225,6 +228,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       pdfBookViewByDefault: settings['pdfBookViewByDefault'] ?? false,
       talmudBavliOpenFormat: settings['talmudBavliOpenFormat'] ?? 'text',
       isOfflineMode: settings['isOfflineMode'] ?? false,
+      downloadsWifiOnly: settings['downloadsWifiOnly'] ?? false,
       softwareAndBookUpdatesEnabled:
           settings['softwareAndBookUpdatesEnabled'] ?? true,
       enableHtmlLinks: settings['enableHtmlLinks'] ?? true,
@@ -298,6 +302,15 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   ) async {
     await _repository.updateTalmudBavliOpenFormat(event.talmudBavliOpenFormat);
     emit(state.copyWith(talmudBavliOpenFormat: event.talmudBavliOpenFormat));
+  }
+
+  Future<void> _onUpdateDownloadsWifiOnly(
+    UpdateDownloadsWifiOnly event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateDownloadsWifiOnly(event.enabled);
+    emit(state.copyWith(downloadsWifiOnly: event.enabled));
+    unawaited(DownloadNetworkPolicy.instance.refresh());
   }
 
   Future<void> _onUpdateOfflineMode(

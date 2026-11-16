@@ -649,7 +649,8 @@ class _LibrarySetupDialogContentState
           handleEnterKey: canConfirm,
           actions: working
               ? [
-                  if (state is EmptyLibraryExtracting && state.cancellable)
+                  if (state is EmptyLibraryExtracting && state.cancellable ||
+                      state is EmptyLibraryDownloading && state.cancellable)
                     ActionButton.neutral(
                       text: context.settingsText('ביטול'),
                       onPressed: () => context.read<EmptyLibraryBloc>().add(

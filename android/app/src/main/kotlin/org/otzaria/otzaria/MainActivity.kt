@@ -12,6 +12,7 @@ class MainActivity : FlutterActivity() {
     private var appExitInfoChannel: AppExitInfoChannel? = null
     private var foregroundWorkChannel: ForegroundWorkChannel? = null
     private var androidUpdateChannel: AndroidUpdateChannel? = null
+    private var downloadNetworkChannel: DownloadNetworkChannel? = null
     private var dartActivationListenerReady = false
     private val pendingActivationUris = mutableListOf<String>()
 
@@ -40,6 +41,8 @@ class MainActivity : FlutterActivity() {
         appExitInfoChannel = AppExitInfoChannel(this, flutterEngine.dartExecutor.binaryMessenger)
         foregroundWorkChannel = ForegroundWorkChannel(this, flutterEngine.dartExecutor.binaryMessenger)
         androidUpdateChannel = AndroidUpdateChannel(this, flutterEngine.dartExecutor.binaryMessenger)
+
+        downloadNetworkChannel = DownloadNetworkChannel(this, flutterEngine.dartExecutor.binaryMessenger)
 
         enqueueIntentUriIfNeeded(intent)
     }
@@ -87,6 +90,8 @@ class MainActivity : FlutterActivity() {
         foregroundWorkChannel = null
         androidUpdateChannel?.dispose()
         androidUpdateChannel = null
+        downloadNetworkChannel?.dispose()
+        downloadNetworkChannel = null
         dartActivationListenerReady = false
         super.cleanUpFlutterEngine(flutterEngine)
     }

@@ -44,3 +44,8 @@ class AndroidUpdateDownloadProgress extends AndroidUpdateEvent {
   final int received;
   final int total;
 }
+
+class AndroidUpdateDownloadNetworkChanged extends AndroidUpdateEvent {
+  const AndroidUpdateDownloadNetworkChanged(this.waitingForWifi);
+  final bool waitingForWifi;
+}

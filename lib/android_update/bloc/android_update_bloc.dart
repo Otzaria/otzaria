@@ -1,3 +1,4 @@
+import 'package:otzaria/core/download_network_policy.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -39,6 +40,21 @@ class AndroidUpdateBloc extends Bloc<AndroidUpdateEvent, AndroidUpdateState> {
         );
       }
     });
+    on<AndroidUpdateDownloadNetworkChanged>((event, emit) {
+      if (state.phase == AndroidUpdatePhase.downloading && !state.isPlay) {
+        emit(state.copyWith(waitingForWifi: event.waitingForWifi));
+      }
+    });
+    _downloadNetworkSubscription = DownloadNetworkPolicy.instance.changes
+        .listen((status) {
+          if (!isClosed) {
+            add(
+              AndroidUpdateDownloadNetworkChanged(
+                status == DownloadNetworkStatus.waitingForWifi,
+              ),
+            );
+          }
+        });
     _nativeSubscription = repository.changes.listen((status) {
       if (!isClosed) add(AndroidUpdateNativeChanged(status));
     });
@@ -50,6 +66,8 @@ class AndroidUpdateBloc extends Bloc<AndroidUpdateEvent, AndroidUpdateState> {
   final Future<void> Function() recordSuccessfulCheck;
   final ForegroundWork _foregroundWork;
   late final StreamSubscription<AndroidNativeUpdateStatus> _nativeSubscription;
+  late final StreamSubscription<DownloadNetworkStatus>
+  _downloadNetworkSubscription;
   AndroidDownloadCancellation? _cancellation;
   int _operation = 0;
   int _nativeRevision = 0;
@@ -180,6 +198,9 @@ class AndroidUpdateBloc extends Bloc<AndroidUpdateEvent, AndroidUpdateState> {
     emit(
       state.copyWith(
         phase: AndroidUpdatePhase.downloading,
+        waitingForWifi:
+            DownloadNetworkPolicy.instance.status ==
+            DownloadNetworkStatus.waitingForWifi,
         bytesDownloaded: 0,
         totalBytes: release.size,
       ),
@@ -414,6 +435,7 @@ class AndroidUpdateBloc extends Bloc<AndroidUpdateEvent, AndroidUpdateState> {
   Future<void> close() async {
     _cancellation?.cancel();
     await _nativeSubscription.cancel();
+    await _downloadNetworkSubscription.cancel();
     _foregroundWork.release(this);
     await super.close();
     await repository.dispose();

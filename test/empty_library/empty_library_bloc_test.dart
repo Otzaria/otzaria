@@ -8,6 +8,8 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:otzaria/core/foreground_work.dart';
+import 'package:otzaria/core/download_network_policy.dart';
+import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
@@ -44,6 +46,74 @@ void main() {
   });
 
   group('EmptyLibraryBloc', () {
+    test(
+      'הורדת ספרייה ראשונית במצב מנותק ממתינה ל־WiFi וניתנת לביטול',
+      () async {
+        await Settings.init(cacheProvider: MemoryCacheProvider());
+        await SettingsRepository().updateOfflineMode(true);
+        final previous = DownloadNetworkPolicy.instance;
+        final network = StreamController<bool>.broadcast(sync: true);
+        final policy = DownloadNetworkPolicy(
+          isAndroid: true,
+          wifiOnlyReader: () => true,
+          wifiChanges: () => network.stream,
+        );
+        DownloadNetworkPolicy.instance = policy;
+        addTearDown(() async {
+          DownloadNetworkPolicy.instance = previous;
+          await policy.dispose();
+          await network.close();
+        });
+        final ready = policy.refresh();
+        network.add(false);
+        await ready;
+        final target = await Directory.systemTemp.createTemp('wifi-library-');
+        final inner = fakeLibraryReleaseClient(() => 'new db');
+        var fileRequests = 0;
+        final bloc = EmptyLibraryBloc(
+          verifyDatabase: verifyFixtureDatabase,
+          httpClient: MockClient((request) async {
+            if (request.method == 'GET' &&
+                (request.url.path.endsWith('.zst') ||
+                    request.url.path.endsWith('.db'))) {
+              fileRequests++;
+            }
+            final response = await inner.send(
+              http.Request(request.method, request.url)
+                ..headers.addAll(request.headers),
+            );
+            return http.Response.fromStream(response);
+          }),
+          defaultLibraryPathOverride: target.path,
+          extractCompressedDatabase: copyAsExtracted,
+          extractTarArchive: ignoreTarArchive,
+        );
+        addTearDown(bloc.close);
+        final waiting = bloc.stream.firstWhere(
+          (state) => state is EmptyLibraryDownloading && state.cancellable,
+        );
+        bloc.add(DownloadLibraryRequested());
+        expect(
+          (await waiting.timeout(const Duration(seconds: 5))
+                  as EmptyLibraryDownloading)
+              .message,
+          CommonMessages.waitingForWifi,
+        );
+        expect(fileRequests, 0);
+        final cancelled = bloc.stream.firstWhere(
+          (state) => state is EmptyLibraryError,
+        );
+        bloc.add(CancelLibraryImportRequested());
+        await cancelled.timeout(const Duration(seconds: 2));
+        expect(fileRequests, 0);
+        expect(
+          await File(path.join(target.path, 'seforim.db')).exists(),
+          isFalse,
+        );
+        expect(SettingsRepository().readSettings()['isOfflineMode'], isTrue);
+      },
+    );
+
     for (final backupState in ['none', 'orphaned', 'committed']) {
       test(
         'redownload preserves existing Talmud content (backup: $backupState)',

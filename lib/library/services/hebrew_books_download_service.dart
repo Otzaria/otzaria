@@ -1,3 +1,5 @@
+import 'package:otzaria/core/download_http_client.dart';
+import 'package:otzaria/core/download_network_policy.dart';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -31,12 +33,14 @@ class HebrewBooksDownloadService {
 
   final http.Client _client;
   final bool _ownsClient;
+  bool _disposed = false;
 
   HebrewBooksDownloadService({http.Client? client})
     : _client = client ?? http.Client(),
       _ownsClient = client == null;
 
   void dispose() {
+    _disposed = true;
     if (_ownsClient) _client.close();
   }
 
@@ -57,13 +61,26 @@ class HebrewBooksDownloadService {
   Future<HebrewBookDownload> download(
     int bookId, {
     void Function(int received, int? total)? onProgress,
+    void Function()? onWaitingForWifi,
+  }) => DownloadNetworkPolicy.instance.runResumable(
+    () => _downloadOnce(bookId, onProgress: onProgress),
+    checkCancelled: () {
+      if (_disposed) throw http.RequestAbortedException();
+    },
+    onWaiting: onWaitingForWifi,
+  );
+
+  Future<HebrewBookDownload> _downloadOnce(
+    int bookId, {
+    void Function(int received, int? total)? onProgress,
   }) async {
     final response = await sendGetFollowingRedirects(
-      _client,
+      createDownloadClient(_client),
       fileUrl(bookId),
       headers: const {appKeyHeader: appKeyValue},
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
+      await response.stream.listen((_) {}).cancel();
       throw HebrewBookDownloadStatusException(response.statusCode);
     }
 

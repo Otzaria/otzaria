@@ -1,3 +1,5 @@
+import 'package:otzaria/core/download_http_client.dart';
+import 'package:otzaria/core/download_network_policy.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -38,6 +40,7 @@ class BiographiesDownloader {
 
   final http.Client _client;
   final bool _ownsClient;
+  bool _disposed = false;
   final Future<String> Function() _destinationProvider;
 
   BiographiesDownloader({
@@ -49,6 +52,7 @@ class BiographiesDownloader {
            destinationProvider ?? AppPaths.getBiographiesPath;
 
   void dispose() {
+    _disposed = true;
     if (_ownsClient) _client.close();
   }
 
@@ -57,14 +61,25 @@ class BiographiesDownloader {
   ///
   /// מחזיר `true` אם בסוף הפעולה קיים קובץ מקומי (כולל קובץ ישן כשאין
   /// רשת). לעולם אינו זורק.
-  Future<bool> ensureLatest({bool force = false}) async {
+  Future<bool> ensureLatest({
+    bool force = false,
+    void Function()? checkCancelled,
+    void Function()? onWaitingForWifi,
+  }) async {
     final dest = await _destinationProvider();
     try {
       final release = await fetchLatestRelease();
       final installed = await installedTag();
       final hasFile = await File(dest).exists();
       if (!force && hasFile && installed == release.tag) return true;
-      await _download(release, dest);
+      await DownloadNetworkPolicy.instance.runResumable(
+        () => _download(release, dest),
+        checkCancelled: () {
+          if (_disposed) throw http.RequestAbortedException();
+          checkCancelled?.call();
+        },
+        onWaiting: onWaitingForWifi,
+      );
       await File(_versionPath(dest)).writeAsString(release.tag);
       await _deleteLegacyFile(dest);
       return true;
@@ -113,7 +128,7 @@ class BiographiesDownloader {
   /// מוריד אל קובץ `.part` ומשנה שם אטומית, כדי שקובץ חלקי לא ייראה תקין.
   Future<void> _download(BiographiesRelease release, String dest) async {
     final response = await sendGetFollowingRedirects(
-      _client,
+      createDownloadClient(_client),
       release.downloadUrl,
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {

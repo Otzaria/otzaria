@@ -1,3 +1,5 @@
+import 'package:otzaria/core/download_http_client.dart';
+import 'package:otzaria/core/download_network_policy.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -257,6 +259,7 @@ class ExternalCatalogRepository {
     bool Function()? isCancelled,
     void Function(int received, int? total)? onDownloadProgress,
     void Function(double)? onExtractionProgress,
+    VoidCallback? onWaitingForWifi,
   }) async {
     _checkCancelled(isCancelled);
     await _recoverInterruptedInstall();
@@ -278,6 +281,7 @@ class ExternalCatalogRepository {
       isCancelled: isCancelled,
       onDownloadProgress: onDownloadProgress,
       onExtractionProgress: onExtractionProgress,
+      onWaitingForWifi: onWaitingForWifi,
       version: latestVersion,
     );
     return true;
@@ -318,6 +322,7 @@ class ExternalCatalogRepository {
     bool Function()? isCancelled,
     void Function(int received, int? total)? onDownloadProgress,
     void Function(double)? onExtractionProgress,
+    VoidCallback? onWaitingForWifi,
   }) async {
     _checkCancelled(isCancelled);
     await _recoverInterruptedInstall();
@@ -333,6 +338,7 @@ class ExternalCatalogRepository {
       isCancelled: isCancelled,
       onDownloadProgress: onDownloadProgress,
       onExtractionProgress: onExtractionProgress,
+      onWaitingForWifi: onWaitingForWifi,
       version: version,
     );
   }
@@ -361,6 +367,7 @@ class ExternalCatalogRepository {
     bool Function()? isCancelled,
     void Function(int received, int? total)? onDownloadProgress,
     void Function(double)? onExtractionProgress,
+    VoidCallback? onWaitingForWifi,
     int? version,
   }) async {
     final dbDir = Directory(path.dirname(databasePath));
@@ -376,6 +383,7 @@ class ExternalCatalogRepository {
         isCancelled,
         onDownloadProgress,
         onExtractionProgress,
+        onWaitingForWifi,
         version,
       ),
     );
@@ -387,6 +395,7 @@ class ExternalCatalogRepository {
     bool Function()? isCancelled,
     void Function(int received, int? total)? onDownloadProgress,
     void Function(double)? onExtractionProgress,
+    VoidCallback? onWaitingForWifi,
     int? version,
   ) async {
     final tempFile = File('$databasePath.download');
@@ -408,6 +417,7 @@ class ExternalCatalogRepository {
         archiveFile.path,
         isCancelled,
         onDownloadProgress,
+        onWaitingForWifi,
       );
       if (asset.isCompressed) {
         await _extractZst(
@@ -854,22 +864,32 @@ class ExternalCatalogRepository {
     String outputPath,
     bool Function()? isCancelled,
     void Function(int received, int? total)? onProgress,
-  ) =>
-      PatchDownloader(
-        decompress: (_) async => null,
-        httpClient: _BoundedCatalogClient(_httpClient, maxDownloadBytes),
-        connectTimeout: apiTimeout,
-        stallTimeout: downloadTimeout,
-      ).downloadToFile(
-        url: asset.downloadUrl,
-        destPath: outputPath,
-        expectedSize: asset.size,
-        expectedSha256: asset.sha256,
-        resumeToken:
-            '${asset.downloadUrl}|${asset.revision}|${asset.size}|${asset.sha256}',
-        isCancelled: isCancelled,
-        onProgress: onProgress,
-      );
+    VoidCallback? onWaitingForWifi,
+  ) => DownloadNetworkPolicy.instance.runResumable(
+    () =>
+        PatchDownloader(
+          decompress: (_) async => null,
+          httpClient: _BoundedCatalogClient(
+            createDownloadClient(_httpClient),
+            maxDownloadBytes,
+          ),
+          connectTimeout: apiTimeout,
+          stallTimeout: downloadTimeout,
+        ).downloadToFile(
+          url: asset.downloadUrl,
+          destPath: outputPath,
+          expectedSize: asset.size,
+          expectedSha256: asset.sha256,
+          resumeToken:
+              '${asset.downloadUrl}|${asset.revision}|${asset.size}|${asset.sha256}',
+          isCancelled: isCancelled,
+          onProgress: onProgress,
+        ),
+    checkCancelled: () {
+      if (isCancelled?.call() ?? false) throw const PatchDownloadCancelled();
+    },
+    onWaiting: onWaitingForWifi,
+  );
 
   Future<String> _downloadTextAsset(String downloadUrl) async {
     final response = await _httpClient

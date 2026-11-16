@@ -12,6 +12,7 @@ import '../bloc/library_bloc.dart';
 import '../bloc/library_event.dart';
 import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
+import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/data/data_providers/external_catalog_mapper.dart';
 import 'package:otzaria/library/services/hebrew_books_download_service.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
@@ -217,17 +218,20 @@ class _HebrewBookDownloadButton extends StatefulWidget {
 
 class _HebrewBookDownloadButtonState extends State<_HebrewBookDownloadButton> {
   bool _isDownloading = false;
+  bool _waitingForWifi = false;
   int? _percent;
 
   @override
   Widget build(BuildContext context) {
-    final label = _isDownloading
+    final label = _waitingForWifi
+        ? CommonMessages.waitingForWifi
+        : _isDownloading
         ? (_percent == null ? 'מוריד...' : 'מוריד... $_percent%')
         : 'הורדת הקובץ';
     return ActionButton.neutral(
       text: label,
       icon: FluentIcons.arrow_download_24_regular,
-      isLoading: _isDownloading,
+      isLoading: _isDownloading && !_waitingForWifi,
       onPressed: _isDownloading ? null : _download,
     );
   }
@@ -247,8 +251,13 @@ class _HebrewBookDownloadButtonState extends State<_HebrewBookDownloadButton> {
     try {
       final result = await service.download(
         widget.bookId,
+        onWaitingForWifi: () {
+          if (mounted) setState(() => _waitingForWifi = true);
+        },
         onProgress: (received, total) {
-          if (!mounted || total == null || total <= 0) return;
+          if (!mounted) return;
+          if (_waitingForWifi) setState(() => _waitingForWifi = false);
+          if (total == null || total <= 0) return;
           final percent = (received * 100 ~/ total).clamp(0, 100);
           if (percent == _percent) return;
           setState(() => _percent = percent);
@@ -294,6 +303,7 @@ class _HebrewBookDownloadButtonState extends State<_HebrewBookDownloadButton> {
       if (mounted) {
         setState(() {
           _isDownloading = false;
+          _waitingForWifi = false;
           _percent = null;
         });
       }

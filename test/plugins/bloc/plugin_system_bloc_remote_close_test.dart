@@ -46,6 +46,7 @@ class _ControlledDownload extends PluginDownloadService {
     Uri downloadUri, {
     String? appVersion,
     bool storeOnly = false,
+    void Function()? onWaitingForWifi,
   }) {
     started.complete();
     return result.future;

@@ -1,3 +1,7 @@
+import 'package:otzaria/utils/http_redirect_download.dart';
+import 'package:otzaria/core/download_http_client.dart';
+import 'package:otzaria/core/download_network_policy.dart';
+import 'package:otzaria/core/messages/common_messages.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
@@ -95,7 +99,9 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     on<ImportLibraryPackageRequested>(_onImportLibraryPackageRequested);
     on<CancelLibraryImportRequested>((_, _) {
       _activeImportCancel?.cancel();
-      if (state case EmptyLibraryExtracting(cancellable: true)) {
+      if (state
+          case EmptyLibraryExtracting(cancellable: true) ||
+              EmptyLibraryDownloading(cancellable: true)) {
         _downloadCancelled = true;
       }
     });
@@ -1273,11 +1279,12 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     final url = asset.resolvedUrl;
     if (url == null) return null;
     try {
-      final request = http.Request('GET', Uri.parse(url))
-        ..headers['Range'] = 'bytes=0-${asset.compressedSize - 1}';
-      final response = await _httpClient
-          .send(request)
-          .timeout(downloadConnectTimeout);
+      final response = await sendGetFollowingRedirects(
+        createDownloadClient(_httpClient),
+        Uri.parse(url),
+        headers: {'Range': 'bytes=0-${asset.compressedSize - 1}'},
+        stallTimeout: downloadConnectTimeout,
+      );
       if (response.statusCode < 200 || response.statusCode >= 300) {
         await response.stream.listen((_) {}).cancel();
         return null;
@@ -1776,29 +1783,51 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     await deleteDownloadSidecar(tempPath);
     final downloader = PatchDownloader(
       decompress: (_) async => null,
-      httpClient: _httpClient,
+      httpClient: createDownloadClient(_httpClient),
       connectTimeout: downloadConnectTimeout,
       stallTimeout: _downloadStallTimeout,
     );
-    if (split != null) {
-      await downloader.downloadSplitToFile(
-        split: split,
-        destPath: tempPath,
-        resumeToken: identity,
-        onProgress: (downloaded, _) => onProgress(downloaded),
-        isCancelled: () => _isDownloadCancelled,
-      );
-    } else {
-      await downloader.downloadToFile(
-        url: asset.resolvedUrl!,
-        destPath: tempPath,
-        expectedSize: asset.compressedSize > 0 ? asset.compressedSize : null,
-        expectedSha256: asset.sha256,
-        resumeToken: identity,
-        onProgress: (downloaded, _) => onProgress(downloaded),
-        isCancelled: () => _isDownloadCancelled,
-      );
-    }
+    await DownloadNetworkPolicy.instance.runResumable(
+      () async {
+        if (split != null) {
+          await downloader.downloadSplitToFile(
+            split: split,
+            destPath: tempPath,
+            resumeToken: identity,
+            onProgress: (downloaded, _) => onProgress(downloaded),
+            isCancelled: () => _isDownloadCancelled,
+          );
+        } else {
+          await downloader.downloadToFile(
+            url: asset.resolvedUrl!,
+            destPath: tempPath,
+            expectedSize: asset.compressedSize > 0
+                ? asset.compressedSize
+                : null,
+            expectedSha256: asset.sha256,
+            resumeToken: identity,
+            onProgress: (downloaded, _) => onProgress(downloaded),
+            isCancelled: () => _isDownloadCancelled,
+          );
+        }
+      },
+      checkCancelled: _checkDownloadCancelled,
+      onWaiting: () {
+        eta.estimator?.pause();
+        emit(
+          EmptyLibraryDownloading(
+            progress: grandTotal > 0
+                ? ((cumulativeBase + downloadedBytes) / grandTotal).clamp(
+                    0.0,
+                    1.0,
+                  )
+                : 0,
+            message: CommonMessages.waitingForWifi,
+            cancellable: true,
+          ),
+        );
+      },
+    );
     eta.estimator
       ?..endPhase()
       ..pause();

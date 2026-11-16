@@ -27,6 +27,7 @@ class AndroidUpdateState extends Equatable {
     this.bytesDownloaded = 0,
     this.totalBytes = 0,
     this.failure,
+    this.waitingForWifi = false,
   });
 
   final AndroidUpdatePhase phase;
@@ -36,6 +37,7 @@ class AndroidUpdateState extends Equatable {
   final int bytesDownloaded;
   final int totalBytes;
   final AndroidUpdateFailure? failure;
+  final bool waitingForWifi;
 
   bool get isPlay =>
       environment?.distribution == AndroidUpdateDistribution.play;
@@ -70,6 +72,7 @@ class AndroidUpdateState extends Equatable {
     int? bytesDownloaded,
     int? totalBytes,
     AndroidUpdateFailure? failure,
+    bool? waitingForWifi,
     bool clearRelease = false,
     bool clearPrepared = false,
   }) => AndroidUpdateState(
@@ -80,6 +83,9 @@ class AndroidUpdateState extends Equatable {
     bytesDownloaded: bytesDownloaded ?? this.bytesDownloaded,
     totalBytes: totalBytes ?? this.totalBytes,
     failure: failure,
+    waitingForWifi: phase != null && phase != AndroidUpdatePhase.downloading
+        ? false
+        : waitingForWifi ?? this.waitingForWifi,
   );
 
   @override
@@ -91,5 +97,6 @@ class AndroidUpdateState extends Equatable {
     bytesDownloaded,
     totalBytes,
     failure,
+    waitingForWifi,
   ];
 }
