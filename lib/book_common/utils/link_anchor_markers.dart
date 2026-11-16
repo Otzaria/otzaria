@@ -59,9 +59,7 @@ Map<String, int> anchorStyleIndexByCommentator(Iterable<Link> links) {
       .where((link) => link.anchorStart != null)
       .map((link) => link.path2)
       .toSet();
-  return {
-    for (final title in titles) title: _stableStyleIndex(title),
-  };
+  return {for (final title in titles) title: _stableStyleIndex(title)};
 }
 
 int _stableStyleIndex(String title) {
@@ -106,11 +104,14 @@ String injectLinkAnchorMarkers({
   final ranges = <HtmlWrapRange>[];
   // כותרת היא כלי ניווט: ציטוט לינקר בתוכה הופך אותה לקישור לספר אחר.
   final skipLinker = isHeadingLine(rawLine);
+  _AnchorProjection? projection;
   final spansByLink = [
     for (final link in anchorLinks)
-      link.anchorOffsetsAreRaw
+      link.anchorOffsetsAreRaw || notes.isEmpty
           ? (note == null ? linkAnchorSpans(link) : const <LinkAnchorSpan>[])
-          : projectAnchorSpans(linkAnchorSpans(link), notes, note: note),
+          : (projection ??= _AnchorProjection(
+              notes,
+            )).project(linkAnchorSpans(link), note: note),
   ];
   // כל המרה היא סריקה של השורה מתחילתה; שורה עם כמה מפרשים מעוגנים שואלת
   // לא פעם על אותו אופסט, ולכן שומרים את התוצאה לאורך הקריאה.
@@ -256,65 +257,124 @@ List<LinkAnchorSpan> projectAnchorSpans(
 }) {
   if (notes.isEmpty) return note == null ? spans : const [];
   if (note != null && (note < 0 || note >= notes.length)) return const [];
-  if (notes.any((n) => n.charPos < 0)) return const [];
-  // גוף k תופס בשורה המלאה את [starts[k], ends[k]).
-  final starts = List<int>.filled(notes.length, 0);
-  final ends = List<int>.filled(notes.length, 0);
-  var before = 0;
-  for (var k = 0; k < notes.length; k++) {
-    starts[k] = notes[k].charPos + before;
-    before += visibleCharCount(notes[k].body);
-    ends[k] = notes[k].charPos + before;
-  }
-  bool inside(int at, int k) => starts[k] < at && at < ends[k];
-  int stored(int at) {
-    var shift = 0;
-    for (var k = 0; k < notes.length && starts[k] < at; k++) {
-      if (at < ends[k]) return starts[k] - shift;
-      shift += ends[k] - starts[k];
+  return _AnchorProjection(notes).project(spans, note: note);
+}
+
+@visibleForTesting
+int debugAnchorProjectionBodyScanCount = 0;
+
+class _AnchorProjection {
+  _AnchorProjection(List<BookNote> notes)
+    : _valid = !notes.any((note) => note.charPos < 0),
+      _starts = List<int>.filled(notes.length, 0),
+      _ends = List<int>.filled(notes.length, 0),
+      _prefix = List<int>.filled(notes.length + 1, 0) {
+    if (!_valid) return;
+    for (var k = 0; k < notes.length; k++) {
+      if (k > 0 && notes[k].charPos < notes[k - 1].charPos) {
+        _ordered = false;
+      }
+      _starts[k] = notes[k].charPos + _prefix[k];
+      assert(() {
+        debugAnchorProjectionBodyScanCount++;
+        return true;
+      }());
+      _prefix[k + 1] = _prefix[k] + visibleCharCount(notes[k].body);
+      _ends[k] = notes[k].charPos + _prefix[k + 1];
     }
-    return at - shift;
   }
 
-  final result = <LinkAnchorSpan>[];
-  for (final span in spans) {
-    final end = span.end;
-    if (note != null) {
-      final from = starts[note];
-      if (end == null) {
-        if (inside(span.start, note)) {
+  final bool _valid;
+  final List<int> _starts;
+  final List<int> _ends;
+  final List<int> _prefix;
+  bool _ordered = true;
+
+  bool _inside(int at, int k) => _starts[k] < at && at < _ends[k];
+
+  int _before(int at) {
+    var low = 0;
+    var high = _starts.length;
+    while (low < high) {
+      final mid = (low + high) >> 1;
+      if (_starts[mid] < at) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    return low;
+  }
+
+  bool _isInBody(int at) {
+    if (!_ordered) {
+      for (var k = 0; k < _starts.length; k++) {
+        if (_inside(at, k)) return true;
+      }
+      return false;
+    }
+    final count = _before(at);
+    return count > 0 && _inside(at, count - 1);
+  }
+
+  int _stored(int at) {
+    if (!_ordered) {
+      var shift = 0;
+      for (var k = 0; k < _starts.length && _starts[k] < at; k++) {
+        if (at < _ends[k]) return _starts[k] - shift;
+        shift += _ends[k] - _starts[k];
+      }
+      return at - shift;
+    }
+    final count = _before(at);
+    if (count > 0 && at < _ends[count - 1]) {
+      return _starts[count - 1] - _prefix[count - 1];
+    }
+    return at - _prefix[count];
+  }
+
+  List<LinkAnchorSpan> project(List<LinkAnchorSpan> spans, {int? note}) {
+    if (_starts.isEmpty) return note == null ? spans : const [];
+    if (!_valid || (note != null && (note < 0 || note >= _starts.length))) {
+      return const [];
+    }
+    final result = <LinkAnchorSpan>[];
+    for (final span in spans) {
+      final end = span.end;
+      if (note != null) {
+        final from = _starts[note];
+        if (end == null) {
+          if (_inside(span.start, note)) {
+            result.add(
+              LinkAnchorSpan(start: span.start - from, label: span.label),
+            );
+          }
+        } else {
+          final a = span.start > from ? span.start : from;
+          final b = end < _ends[note] ? end : _ends[note];
+          if (b > a) {
+            result.add(
+              LinkAnchorSpan(start: a - from, end: b - from, label: span.label),
+            );
+          }
+        }
+      } else if (end == null) {
+        final inBody = _isInBody(span.start);
+        if (!inBody) {
           result.add(
-            LinkAnchorSpan(start: span.start - from, label: span.label),
+            LinkAnchorSpan(start: _stored(span.start), label: span.label),
           );
         }
       } else {
-        final a = span.start > from ? span.start : from;
-        final b = end < ends[note] ? end : ends[note];
+        final a = _stored(span.start);
+        final b = _stored(end);
         if (b > a) {
-          result.add(
-            LinkAnchorSpan(start: a - from, end: b - from, label: span.label),
-          );
+          result.add(LinkAnchorSpan(start: a, end: b, label: span.label));
         }
       }
-    } else if (end == null) {
-      var inBody = false;
-      for (var k = 0; k < notes.length && !inBody; k++) {
-        inBody = inside(span.start, k);
-      }
-      if (!inBody) {
-        result.add(
-          LinkAnchorSpan(start: stored(span.start), label: span.label),
-        );
-      }
-    } else {
-      final a = stored(span.start);
-      final b = stored(end);
-      if (b > a) {
-        result.add(LinkAnchorSpan(start: a, end: b, label: span.label));
-      }
     }
+    return result;
   }
-  return result;
 }
 
 /// עוטף טווח תווים-גלויים [start, end) של שורת HTML בתגי פתיחה/סגירה, תוך
