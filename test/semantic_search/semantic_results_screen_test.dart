@@ -1154,6 +1154,7 @@ void main() {
     );
     String facetOf(Book book) =>
         FacetHelper.buildBookFacet(FacetHelper.resolveCategoryPath(book), book);
+    final repository = _LateCoverageRepository({'uid:4'});
     final harness = await pumpScreen(
       tester,
       library: library,
@@ -1161,7 +1162,7 @@ void main() {
         query: 'כבוד אב',
         includeLexical: false,
       ),
-      semanticRepository: _LateCoverageRepository({'uid:4'}),
+      semanticRepository: repository,
     );
     SemanticFacetFiltering tree() => tester.widget(
       find.byType(SemanticFacetFiltering, skipOffstage: false),
@@ -1174,6 +1175,15 @@ void main() {
     tree().onSetFacet(facetOf(uncovered));
     await settle(tester);
     expect(harness.tab.resultsBloc.state.options!.facets, [facetOf(personal)]);
+
+    final searchId = harness.tab.resultsBloc.state.searchId;
+    repository.gate = Completer<void>();
+    tree().onSetFacet('/');
+    tree().onSetFacet('/ספרים אישיים');
+    repository.gate!.complete();
+    await settle(tester);
+    expect(harness.tab.resultsBloc.state.options!.facets, ['/ספרים אישיים']);
+    expect(harness.tab.resultsBloc.state.searchId, searchId + 1);
   });
 
   testWidgets('עץ חכם מסתיר חברי היקף בלי תוצאות (issue #2702)', (
@@ -1264,10 +1274,14 @@ class _LateCoverageRepository extends SemanticSearchRepository {
       );
 
   final Set<String> covered;
+  Completer<void>? gate;
 
   @override
   Set<String>? get coveredBookFilePaths => null;
 
   @override
-  Future<Set<String>?> loadCoveredBookFilePaths() async => covered;
+  Future<Set<String>?> loadCoveredBookFilePaths() async {
+    await gate?.future;
+    return covered;
+  }
 }

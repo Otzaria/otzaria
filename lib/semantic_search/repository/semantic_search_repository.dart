@@ -2017,18 +2017,8 @@ class SemanticSearchRepository {
   }
 
   /// משתנה בכל שינוי בתוכן האינדקס הלקסיקלי, שגם בו תלוי הכיסוי.
-  static Future<String> _defaultIndexStamp() async => coverageIndexStamp(
-    await (await TantivyDataProvider.instance.engine).searchSnapshot(),
-  );
-
-  /// מ-searchSnapshot רק המקטעים ומקורות הטקסט; סדר הספרים והמילונים אינם
-  /// משנים את הכיסוי. פורמט לא מוכר נשאר כמו שהוא.
-  @visibleForTesting
-  static String coverageIndexStamp(String snapshot) {
-    final parts = snapshot.split(':');
-    if (parts.length < 4) return snapshot;
-    return '${parts.first}:${parts.sublist(3).join(':')}';
-  }
+  static Future<String> _defaultIndexStamp() async =>
+      (await TantivyDataProvider.instance.engine).searchSnapshot();
 
   static Future<int?> _defaultLibraryVersion() async =>
       int.tryParse(await DataCollectionService().readLibraryVersion());
