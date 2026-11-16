@@ -71,6 +71,7 @@ import 'package:otzaria/text_book/view/selection/enhanced_gesture_detector.dart'
 import 'package:otzaria/text_book/view/selection/selection_persistence.dart';
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
+import 'package:otzaria/text_book/view/selection/selected_text_drag.dart';
 import 'package:otzaria/book_common/selection/selected_text_restore.dart';
 import 'package:otzaria/book_common/selection/commentary_selection.dart';
 import 'package:otzaria/book_protection/models/book_protection.dart';
@@ -1808,6 +1809,39 @@ class _CombinedViewState extends State<CombinedView> {
     }
   }
 
+  /// Builds the same protected, formatted text as Ctrl+C without touching the clipboard.
+  Future<SelectedTextDragContent?> _prepareSelectedTextDrag(
+    String capturedText,
+  ) async {
+    final state = _textBookBloc.state;
+    if (state is! TextBookLoaded || capturedText.trim().isEmpty) return null;
+    final settingsState = context.read<SettingsBloc>().state;
+    final selectedIndex = _currentSelectedIndex.value;
+    final source = _sourceSelection;
+    final segmentCount = selectionSegmentCount(
+      start: _selectionLineStart,
+      end: _selectionLineEnd,
+      text: capturedText,
+    );
+    if (!ensureCopyAllowed(state.protection, segmentCount)) return null;
+    final content = await buildSelectedTextCopy(
+      plainText: capturedText,
+      selectedIndex: selectedIndex,
+      sourceContent: widget.data,
+      textBookState: state,
+      settingsState: settingsState,
+      copyTarget: TextTarget.body,
+      source: source,
+    );
+    if (content == null) return null;
+    return (
+      plainText: content.plainText,
+      htmlText: content.htmlText,
+      fontFamily: settingsState.fontFamily,
+      fontSize: widget.textSize,
+    );
+  }
+
   /// הצגת עורך ההערות
   Future<void> _showNoteEditor([
     String? capturedText,
@@ -2048,7 +2082,10 @@ class _CombinedViewState extends State<CombinedView> {
                   onPointerUp: (_) => _endSelectionPointer(takeFocus: true),
                   onPointerCancel: (_) =>
                       _endSelectionPointer(takeFocus: false),
-                  child: SelectionArea(
+                  child: SelectedTextDragRegion(
+                    selectedText: () => _savedSelectedText.value,
+                    prepareContent: _prepareSelectedTextDrag,
+                    child: SelectionArea(
                     key: _selectionAreaKey,
                     focusNode: _selectionAreaFocusNode,
                     // SelectionArea אחד לכל הרשימה - מאפשר בחירה רציפה בין פסקאות
@@ -2339,6 +2376,7 @@ class _CombinedViewState extends State<CombinedView> {
                               ),
                       ),
                     ),
+                  ),
                   ),
                 ),
               ),

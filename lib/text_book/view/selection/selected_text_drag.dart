@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
 import 'package:otzaria/divine_names/models/divine_name_forms.dart';
 import 'package:otzaria/utils/text/copy_utils.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:super_native_extensions/raw_clipboard.dart';
 import 'package:super_native_extensions/raw_drag_drop.dart';
 
@@ -212,13 +213,15 @@ class _SelectedTextDragRegionState extends State<SelectedTextDragRegion> {
     final rect = Rect.fromLTWH(0, 0, 240, 44);
     final colors = Theme.of(context).colorScheme;
     canvas.drawRRect(
-      RRect.fromRectAndRadius(rect.deflate(1), const Radius.circular(8)),
+      RRect.fromRectAndRadius(rect.deflate(1), const Radius.circular(AppTokens.radius)),
       Paint()..color = colors.surface,
     );
     final painter = TextPainter(
       text: TextSpan(
         text: text.replaceAll('\n', ' '),
-        style: TextStyle(fontSize: 14, color: colors.onSurface),
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: colors.onSurface,
+        ),
       ),
       maxLines: 1,
       ellipsis: '…',

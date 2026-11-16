@@ -78,6 +78,7 @@ import 'package:otzaria/text_book/view/selection/enhanced_gesture_detector.dart'
 import 'package:otzaria/text_book/view/selection/selection_persistence.dart';
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
+import 'package:otzaria/text_book/view/selection/selected_text_drag.dart';
 import 'package:otzaria/book_common/selection/selected_text_restore.dart';
 import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
@@ -2862,6 +2863,49 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     }
   }
 
+  /// Prepares native drag content under the same protection as regular copy.
+  Future<SelectedTextDragContent?> _prepareSelectedTextDrag(
+    String capturedText,
+  ) async {
+    if (capturedText.trim().isEmpty) return null;
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return null;
+    final settings = context.read<SettingsBloc>().state;
+    final selectedIndex = _savedSelectedIndex;
+    final source = _sourceSelection;
+    final headerIndex = _sourceIndex(selectedIndex);
+    final segmentCount = selectionSegmentCount(
+      start: _selectionLineStart,
+      end: _selectionLineEnd,
+      text: capturedText,
+    );
+    final protection = await _textProtection(state);
+    if (!mounted || !ensureCopyAllowed(protection, segmentCount)) return null;
+    final content = await buildSelectedTextCopy(
+      plainText: capturedText,
+      selectedIndex: selectedIndex,
+      sourceContent: widget.content,
+      textBookState: state,
+      settingsState: settings,
+      headerBookOverride: widget.reportBook,
+      headerIndexOverride: headerIndex,
+      headerContentOverride: widget.isBookNotesColumn
+          ? state.content
+          : widget.reportBook != null
+              ? widget.content
+              : null,
+      copyTarget: _textTarget,
+      source: source,
+    );
+    if (content == null) return null;
+    return (
+      plainText: content.plainText,
+      htmlText: content.htmlText,
+      fontFamily: widget.fontFamily ?? settings.fontFamily,
+      fontSize: widget.fontSize,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -2924,7 +2968,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                       : null;
                   final itemCount = segments?.length ?? widget.content.length;
                   return RtlSelectionShortcuts(
-                    child: SelectableRegion(
+                    child: SelectedTextDragRegion(
+                      selectedText: () => _savedSelectedText,
+                      prepareContent: _prepareSelectedTextDrag,
+                      child: SelectableRegion(
                       key: _selectionRegionKey,
                       focusNode: _selectionFocusNode,
                       selectionControls: switch (defaultTargetPlatform) {
@@ -3064,6 +3111,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                           ),
                         ),
                       ),
+                    ),
                     ),
                   );
                 },
