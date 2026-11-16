@@ -17,14 +17,30 @@ class PersonalNotesService {
     : _database = database ?? PersonalNotesDatabase.instance,
       _random = random ?? Random();
 
+  /// טוען תוכן דרך [loadBookContent] רק ליישוב הערות טקסט; בהיעדרו משתמש
+  /// ב-[bookContent]. הערות על הספר כולו ועוגני PDF אינם דורשים תוכן.
   Future<List<PersonalNote>> loadNotes({
     required String bookId,
-    required String bookContent,
+    String bookContent = '',
+    Future<String> Function()? loadBookContent,
   }) async {
-    final notes = await _database.loadNotes(bookId);
-    // רוב הספרים בלי הערות, ופיצול ספר גדול לשורות עולה עשרות ms.
+    final revision = loadBookContent == null ? null : _database.revision.value;
+    var notes = await _database.loadNotes(bookId);
     if (notes.isEmpty) return notes;
-    final lines = splitBookContentIntoLines(bookContent);
+    final needsContent = notes.any(
+      (note) => !note.isBookNote && note.pdfAnchor == null,
+    );
+    var content = bookContent;
+    if (needsContent && loadBookContent != null) {
+      content = await loadBookContent();
+      // קריאת הספר יכולה לחפוף לעריכה או למחיקה של הערות.
+      if (_database.revision.value != revision) {
+        notes = await _database.loadNotes(bookId);
+      }
+    }
+    final lines = needsContent
+        ? splitBookContentIntoLines(content)
+        : const <String>[];
 
     final changedNotes = <PersonalNote>[];
     final reconciled = <PersonalNote>[];
@@ -546,12 +562,7 @@ class PersonalNotesService {
     }
 
     // הערות מעוגנות יחפשו nearby לפי טקסט המקור; ישנות לפי כותרת.
-    final match = _searchNearby(
-      lines,
-      note.lineNumber!,
-      note,
-      bookId,
-    );
+    final match = _searchNearby(lines, note.lineNumber!, note, bookId);
     if (match != null) {
       // הערה על כמה שורות זזה כולה, באותו מספר שורות.
       final end = note.endLineNumber;

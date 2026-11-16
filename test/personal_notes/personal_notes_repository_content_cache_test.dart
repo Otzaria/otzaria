@@ -108,6 +108,31 @@ void main() {
     contentFormat: PersonalNoteContentFormat.plain,
   );
 
+  Future<void> seedNote(String title) => database.insertNote(
+    PersonalNote(
+      id: 'warmup',
+      bookId: title,
+      lineNumber: 1,
+      lastKnownLineNumber: null,
+      status: PersonalNoteStatus.located,
+      content: 'הערה',
+      contentPlain: 'הערה',
+      contentFormat: PersonalNoteContentFormat.plain,
+      createdAt: DateTime(2026),
+      updatedAt: DateTime(2026),
+    ),
+  );
+
+  Future<void> warmContent(
+    PersonalNotesRepository repo,
+    String title, {
+    int? categoryId,
+  }) async {
+    await seedNote(title);
+    await repo.loadNotes(title, categoryId: categoryId);
+    await database.deleteNote('warmup');
+  }
+
   // קריאת 4097 שורות מפעילה checkpoint אחד בדיוק. המונה מודד קריאת תוכן
   // אמיתית, בנפרד מהודעות איתור הספר שנוספו ל-worker ב-#4227.
   Future<int Function()> countOfficialContentReads() async {
@@ -143,10 +168,38 @@ void main() {
     return () => reads;
   }
 
+  test('ספר בלי הערות אינו קורא תוכן או מאתר את הספר', () async {
+    final contentReads = await countOfficialContentReads();
+    DbReadWorker.sentMessageCount = 0;
+
+    expect(
+      await repository.loadNotes(SeforimFixtureIds.bereshitTitle),
+      isEmpty,
+    );
+    expect(await repository.loadNotes(_bookId), isEmpty);
+
+    expect(contentReads(), 0);
+    expect(files.textReads, 0);
+    expect(DbReadWorker.sentMessageCount, 0);
+  });
+
+  test('הערות על הספר כולו אינן קוראות את תוכנו', () async {
+    final added = await repository.addNote(
+      bookId: _bookId,
+      lineNumber: null,
+      content: 'הערה על הספר',
+      contentPlain: 'הערה על הספר',
+      contentFormat: PersonalNoteContentFormat.plain,
+    );
+
+    expect(await repository.loadNotes(_bookId), added);
+    expect(files.textReads, 0);
+  });
+
   test('DB רשמי: הוספה, עריכה ושינוי מיקום משתמשים באותה קריאה', () async {
     final contentReads = await countOfficialContentReads();
     const title = SeforimFixtureIds.bereshitTitle;
-    await repository.loadNotes(title);
+    await warmContent(repository, title);
     expect(contentReads(), 1);
     DbReadWorker.sentMessageCount = 0;
     final added = await addOfficial(repository);
@@ -172,7 +225,8 @@ void main() {
 
   test('חלונית חדשה משתמשת ברשומה המשותפת של אותו ספר רשמי', () async {
     final contentReads = await countOfficialContentReads();
-    await repository.loadNotes(
+    await warmContent(
+      repository,
       SeforimFixtureIds.bereshitTitle,
       categoryId: SeforimFixtureIds.torahCategoryId,
     );
@@ -188,13 +242,14 @@ void main() {
 
   test('ספר מחלונית אחרת מפנה את הרשומה היחידה גם בחלונית הישנה', () async {
     final contentReads = await countOfficialContentReads();
-    await repository.loadNotes(
+    await warmContent(
+      repository,
       SeforimFixtureIds.bereshitTitle,
       categoryId: SeforimFixtureIds.torahCategoryId,
     );
     expect(contentReads(), 1);
     final other = PersonalNotesRepository();
-    await other.loadNotes(SeforimFixtureIds.rashiTitle);
+    await warmContent(other, SeforimFixtureIds.rashiTitle);
     DbReadWorker.sentMessageCount = 0;
     final notes = await addOfficial(repository);
 
@@ -226,7 +281,8 @@ void main() {
 
   test('רענון ספרייה פוסל את המטמון גם כשהחיבור לא השתנה', () async {
     final contentReads = await countOfficialContentReads();
-    await repository.loadNotes(
+    await warmContent(
+      repository,
       SeforimFixtureIds.bereshitTitle,
       categoryId: SeforimFixtureIds.torahCategoryId,
     );
@@ -328,7 +384,8 @@ void main() {
     } finally {
       await provider.reopenAfterExternalWrite();
     }
-    await repository.loadNotes(
+    await warmContent(
+      repository,
       SeforimFixtureIds.bereshitTitle,
       categoryId: SeforimFixtureIds.torahCategoryId,
     );
@@ -373,6 +430,7 @@ void main() {
       checkpoints.close();
       DbReadWorker.disposeForTesting();
     });
+    await seedNote(SeforimFixtureIds.bereshitTitle);
     final loading = repository.loadNotes(
       SeforimFixtureIds.bereshitTitle,
       categoryId: SeforimFixtureIds.torahCategoryId,
@@ -381,6 +439,7 @@ void main() {
     BooksCache.instance.clear();
     release.send(null);
     await loading;
+    await database.deleteNote('warmup');
     expect(contentReads, 1);
     DbReadWorker.sentMessageCount = 0;
     final notes = await addOfficial(repository);
@@ -391,7 +450,7 @@ void main() {
   });
 
   test('טקסט ממערכת הקבצים משתנה בין טעינה לעריכה', () async {
-    await repository.loadNotes(_bookId);
+    await warmContent(repository, _bookId);
     files.text = 'שורה חדשה\nשורה שנייה';
     final notes = await add(1);
 
@@ -400,7 +459,7 @@ void main() {
   });
 
   test('הערה חדשה מקבלת את שורת הספר ומיקום מכווץ לגבולותיו', () async {
-    await repository.loadNotes(_bookId);
+    await warmContent(repository, _bookId);
     final notes = await add(9);
 
     expect(notes.single.lineNumber, 2);
@@ -408,9 +467,9 @@ void main() {
   });
 
   test('טעינה חוזרת ועריכת טקסט קובץ קוראות כל פעם את הגרסה החדשה', () async {
-    await repository.loadNotes(_bookId);
+    await warmContent(repository, _bookId);
     files.text = 'שורה מעודכנת\nשורה שנייה';
-    await repository.loadNotes(_bookId);
+    await warmContent(repository, _bookId);
     final notes = await add(1);
 
     expect(files.textReads, 3);
@@ -418,7 +477,7 @@ void main() {
   });
 
   test('עריכה בספר אחר מזה שנטען קוראת את הספר שלה', () async {
-    await repository.loadNotes('ספר אחר');
+    await warmContent(repository, 'ספר אחר');
     await add(1);
 
     expect(files.textReads, 2);
@@ -426,7 +485,7 @@ void main() {
 
   test('תוכן ריק אינו נשמר, ועריכה קוראת את הספר שוב', () async {
     files.text = '';
-    await repository.loadNotes(_bookId);
+    await warmContent(repository, _bookId);
     files.text = 'שורה ראשונה';
     final notes = await add(1);
 

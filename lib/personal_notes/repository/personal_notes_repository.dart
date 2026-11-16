@@ -54,14 +54,12 @@ class PersonalNotesRepository {
        _service = service ?? PersonalNotesService(),
        _database = database ?? PersonalNotesDatabase.instance;
 
-  Future<List<PersonalNote>> loadNotes(String bookId, {int? categoryId}) async {
-    final content = await _loadBookContent(
-      bookId,
-      categoryId: categoryId,
-      refresh: true,
-    );
-    return _service.loadNotes(bookId: bookId, bookContent: content);
-  }
+  Future<List<PersonalNote>> loadNotes(String bookId, {int? categoryId}) =>
+      _service.loadNotes(
+        bookId: bookId,
+        loadBookContent: () =>
+            _loadBookContent(bookId, categoryId: categoryId, refresh: true),
+      );
 
   /// ההערות כפי שנשמרו, בלי לקרוא את תוכן הספר ובלי ליישב מחדש את מיקומן.
   Future<List<PersonalNote>> loadStoredNotes(String bookId) =>
