@@ -524,13 +524,13 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         BlocListener<CustomFoldersBloc, CustomFoldersState>(
           listenWhen: (p, c) => p.isSyncing && !c.isSyncing,
           listener: (_, state) {
-            // רק סריקה ידנית מציגה כאן את הודעת הכשל.
-            final showScanError = _reloadScanPending.value;
-            _reportHebrewBooksAfterReload =
-                showScanError && state.error == null;
-            if (showScanError && state.error != null) {
+            final isManualReload = _reloadScanPending.value;
+            if (isManualReload && state.error != null) {
               UiSnack.showError(state.error!);
             }
+            // רק סריקה מוצלחת מדווחת אחר כך על קובצי היברובוקס לא מזוהים.
+            _reportHebrewBooksAfterReload =
+                isManualReload && state.error == null;
             _reloadScanPending.value = false;
           },
         ),
