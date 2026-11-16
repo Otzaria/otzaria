@@ -560,11 +560,14 @@ class CalendarCubit extends Cubit<CalendarState> {
       transition: transition,
       previousToday: previousToday,
     );
-    // שינוי עיר או מעבר יום בזמן החישוב מתזמן רענון חדש בעצמו.
-    if (isClosed ||
-        state.selectedCity != city ||
+    if (isClosed) return;
+    if (state.selectedCity != city ||
         state.dayTransition != transition ||
         state.todayGregorianDate != previousToday) {
+      // לא כל שינוי מצב מתזמן טיימר חלופי; נסה שוב ברקע רק אם הוא חסר.
+      if (_todayRefreshTimer?.isActive != true) {
+        return _refreshCalendarToday();
+      }
       return;
     }
 
@@ -1627,8 +1630,8 @@ String _calendarTypeToString(CalendarType type) {
   }
 }
 
-/// חישוב הרענון התקופתי של "היום" ב-isolate נפרד: כל DateTime מקומי שואל את
-/// Windows על אזור הזמן, ואחרי יציאה משינה זה תקע את ה-UI לעשרות שניות (#5227).
+/// חישוב זמני היום ומועד הרענון ברקע, כדי שקריאות אזור הזמן של Windows
+/// לא יחסמו את ה-UI לאחר יציאה משינה.
 Future<
   ({DateTime today, Map<String, String>? dailyTimes, DateTime nextRefresh})
 >

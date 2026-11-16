@@ -13,6 +13,7 @@ import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart'
     as zmanim_helpers;
 import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/tools/calendar/services/calendar_alerts_owner.dart';
+import 'package:otzaria/tools/calendar/services/calendar_alerts_client.dart';
 import 'package:otzaria/tools/calendar/services/calendar_alerts_store.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 
@@ -118,6 +119,54 @@ class _FakeNotificationService implements NotificationService {
 
   @override
   noSuchMethod(Invocation i) => super.noSuchMethod(i);
+}
+
+class _ManualRefreshTimer implements Timer {
+  _ManualRefreshTimer(this.callback);
+
+  final void Function() callback;
+  @override
+  bool isActive = true;
+  @override
+  int tick = 0;
+
+  void fire() {
+    if (!isActive) return;
+    isActive = false;
+    tick++;
+    callback();
+  }
+
+  @override
+  void cancel() => isActive = false;
+}
+
+class _RemoteAlertsClient implements CalendarAlertsClient {
+  final controller = StreamController<CalendarAlertsUpdate>.broadcast(
+    sync: true,
+  );
+
+  @override
+  Stream<CalendarAlertsUpdate> get updates => controller.stream;
+  @override
+  Stream<CalendarScheduleStatus> get scheduleStatuses => const Stream.empty();
+  @override
+  Future<CalendarAlertsAck> send(
+    String op, [
+    Map<String, Object?> args = const {},
+  ]) async => CalendarAlertsAck.fromReply({'ok': true});
+}
+
+class _StaleTodayCalendarCubit extends CalendarCubit {
+  _StaleTodayCalendarCubit({required super.alertsClient})
+    : super(
+        settingsRepository: _InMemorySettingsRepository(),
+        googleCalendarService: _FakeGoogleCalendarService(),
+        pluginCalendarAdapter: _SequencedPluginAdapter([Future.value([])]),
+      );
+
+  void simulateSuspensionAcrossDay() =>
+      emit(state.copyWith(todayGregorianDate: DateTime(2000)));
 }
 
 class _InMemorySettingsRepository implements SettingsRepository {
@@ -353,6 +402,77 @@ void main() {
   });
 
   group('Calendar day transition', () {
+    for (final concurrentChange in ['none', 'today', 'remoteCity', 'twice']) {
+      test('רענון מתוזמן ממשיך אחרי שינוי מקביל: $concurrentChange', () async {
+        final timers = <_ManualRefreshTimer>[];
+        final firstScheduled = Completer<_ManualRefreshTimer>();
+        final nextScheduled = Completer<_ManualRefreshTimer>();
+        final alerts = _RemoteAlertsClient();
+        addTearDown(alerts.controller.close);
+        await runZoned(
+          () async {
+            final cubit = _StaleTodayCalendarCubit(alertsClient: alerts);
+            addTearDown(cubit.close);
+            final first = await firstScheduled.future;
+            cubit.simulateSuspensionAcrossDay();
+            first.fire();
+            if (concurrentChange == 'today' || concurrentChange == 'twice') {
+              cubit.jumpToToday();
+            }
+            if (concurrentChange == 'remoteCity' ||
+                concurrentChange == 'twice') {
+              alerts.controller.add(
+                const CalendarAlertsUpdate(
+                  epoch: 'remote',
+                  revision: 1,
+                  values: {CalendarAlertsKeys.city: 'ניו יורק'},
+                ),
+              );
+            }
+            final next = await Zone.root.run(
+              () => nextScheduled.future
+                  .then<_ManualRefreshTimer?>((timer) => timer)
+                  .timeout(const Duration(seconds: 5), onTimeout: () => null),
+            );
+            expect(next, isNotNull, reason: 'נדרש טיימר לרענון היום הבא');
+            if (next == null) return;
+            expect(next.isActive, isTrue);
+            expect(timers.where((timer) => timer.isActive), [next]);
+            expect(cubit.state.calendarClockTick, 1);
+            expect(
+              cubit.state.todayGregorianDate,
+              resolveCalendarDayForTransition(
+                now: DateTime.now(),
+                city: cubit.state.selectedCity,
+                transition: cubit.state.dayTransition,
+              ),
+            );
+            expect(
+              cubit.state.selectedCity,
+              concurrentChange == 'remoteCity' || concurrentChange == 'twice'
+                  ? 'ניו יורק'
+                  : 'ירושלים',
+            );
+          },
+          zoneSpecification: ZoneSpecification(
+            createTimer: (self, parent, zone, duration, callback) {
+              if (duration == Duration.zero) {
+                return parent.createTimer(zone, duration, callback);
+              }
+              final timer = _ManualRefreshTimer(callback);
+              timers.add(timer);
+              if (!firstScheduled.isCompleted) {
+                firstScheduled.complete(timer);
+              } else if (!nextScheduled.isCompleted) {
+                nextScheduled.complete(timer);
+              }
+              return timer;
+            },
+          ),
+        );
+      });
+    }
+
     test('sunset moves the calendar day before midnight', () {
       final jerusalem = tz.getLocation('Asia/Jerusalem');
 
