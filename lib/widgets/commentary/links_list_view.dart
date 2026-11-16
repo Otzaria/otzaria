@@ -1,3 +1,4 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_fonts.dart';
@@ -5,6 +6,7 @@ import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/misc/expanding_chevron.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:otzaria/widgets/navigation/search_result_navigator.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/middle_click_open.dart';
@@ -285,6 +287,7 @@ class _LinksListViewState extends State<LinksListView> {
   bool _showFilters = true;
   Future<List<Link>>? _filteredLinksFuture;
   String _lastSearchKey = '';
+  int _searchGeneration = 0;
   Object? _lastSearchInputs;
   List<Link>? _dedupedSource;
   List<Link> _dedupedLinks = const [];
@@ -297,7 +300,7 @@ class _LinksListViewState extends State<LinksListView> {
   List<Link> _filteredLinks = const [];
   int _currentResult = 0;
   // ExpansionTile קורא initiallyExpanded רק בבנייה; מפתח חדש בונה אותו מחדש פתוח.
-  final Set<String> _forcedOpen = {};
+  final Map<String, int> _forcedOpen = {};
   final FocusNode _searchFocusNode = FocusNode();
   String? _savedSelectedText; // טקסט נבחר לתפריט הקשר
   bool _anchorHandledTap = false;
@@ -381,7 +384,9 @@ class _LinksListViewState extends State<LinksListView> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(builder: _buildPanel);
+
+  Widget _buildPanel(BuildContext context, BoxConstraints constraints) {
     final links = _dedupedFor(widget.links);
     final openBookTitle = widget.openBookTitle;
     final chipKeys = _chipKeysFor(widget.chipSourceLinks, openBookTitle);
@@ -392,6 +397,7 @@ class _LinksListViewState extends State<LinksListView> {
     final chipAxes = splitChipKeysByAxis(chipKeys);
     String chipLabel(String key) =>
         CommentaryService.chipKeyLabel(key, openBookTitle: openBookTitle);
+    final linksList = _buildLinksList(links, effectiveTypes, openBookTitle);
     return Column(
       children: [
         // שדה חיפוש
@@ -403,13 +409,14 @@ class _LinksListViewState extends State<LinksListView> {
                 children: [
                   Expanded(child: _buildSearchField()),
                   if (chipKeys.length > 1)
-                    IconButton(
+                    AppIconButton(
+                      size: AppIconButtonSize.medium,
                       tooltip: _showFilters ? 'הסתר מסננים' : 'הצג מסננים',
                       isSelected: _showFilters,
                       icon: Icon(
                         _showFilters
-                            ? Icons.filter_list_rounded
-                            : Icons.filter_list_off_rounded,
+                            ? FluentIcons.filter_24_regular
+                            : FluentIcons.filter_dismiss_24_regular,
                       ),
                       onPressed: () =>
                           setState(() => _showFilters = !_showFilters),
@@ -429,7 +436,7 @@ class _LinksListViewState extends State<LinksListView> {
                           });
                         },
                       ),
-                      const Text('חפש גם בתוכן הקישורים'),
+                      const Expanded(child: Text('חפש גם בתוכן הקישורים')),
                     ],
                   ),
                 ),
@@ -440,10 +447,10 @@ class _LinksListViewState extends State<LinksListView> {
           ConstrainedBox(
             // מגביל את גובה המסננים כדי שלא יכסו את רשימת הקישורים.
             constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(context).height * 0.3,
+              maxHeight: constraints.maxHeight * 0.3,
             ),
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(
+              padding: const EdgeInsetsDirectional.fromSTEB(
                 AppTokens.spaceSM,
                 0,
                 AppTokens.spaceSM,
@@ -480,9 +487,7 @@ class _LinksListViewState extends State<LinksListView> {
           const SizedBox(height: AppTokens.spaceSM),
         ],
         // תוכן הקישורים
-        Expanded(
-          child: _buildLinksList(links, effectiveTypes, openBookTitle),
-        ),
+        Expanded(child: linksList),
       ],
     );
   }
@@ -613,6 +618,7 @@ class _LinksListViewState extends State<LinksListView> {
     String? openBookTitle,
   ) {
     if (links.isEmpty) {
+      _clearSearch();
       return _buildEmptyMessage(widget.emptyMessage);
     }
 
@@ -631,6 +637,7 @@ class _LinksListViewState extends State<LinksListView> {
     // הצ׳יפים נבנים מקישורי כל חלון הקריאה בעוד הרשימה מציגה את הקטע הנראה
     // בלבד, ולכן צ׳יפ שנבחר עשוי לא להתאים לאף קישור כאן.
     if (typeFilteredLinks.isEmpty) {
+      _clearSearch();
       return _buildEmptyMessage('לא נמצאו קישורים מהסוגים שנבחרו');
     }
 
@@ -652,7 +659,11 @@ class _LinksListViewState extends State<LinksListView> {
       // Future חדש רק כשהחיפוש השתנה, גם כשהרשימה עצמה הוחלפה.
       if (_lastSearchKey != searchKey) {
         _lastSearchKey = searchKey;
-        _filteredLinksFuture = _filterLinksAsync(typeFilteredLinks);
+        _filteredLinks = const [];
+        _filteredLinksFuture = _filterLinksAsync(
+          typeFilteredLinks,
+          ++_searchGeneration,
+        );
       }
     }
 
@@ -726,12 +737,20 @@ class _LinksListViewState extends State<LinksListView> {
     return _searchTexts;
   }
 
+  void _clearSearch() {
+    _searchGeneration++;
+    _lastSearchInputs = null;
+    _lastSearchKey = '';
+    _filteredLinks = const [];
+  }
+
   // פונקציה אסינכרונית לסינון הקישורים עם חיפוש בתוכן
-  Future<List<Link>> _filterLinksAsync(List<Link> links) async {
+  Future<List<Link>> _filterLinksAsync(List<Link> links, int generation) async {
     _linksWithSearchResults.clear(); // איפוס רשימת הקישורים עם תוצאות
 
     // מיון הקישורים לפי סדר הדורות (כמו במפרשים)
     final sortedLinks = await _sortedByEra(links);
+    if (!mounted || generation != _searchGeneration) return const [];
 
     if (_searchQuery.isEmpty) {
       return sortedLinks;
@@ -759,6 +778,7 @@ class _LinksListViewState extends State<LinksListView> {
         } catch (_) {
           content = '';
         }
+        if (!mounted || generation != _searchGeneration) return const [];
         // אותו מונה של חיפוש המפרשים: מתעלם מניקוד ומפיסוק כמו כל משטחי
         // החיפוש, ותואם את ההדגשה ש-SmartTextWidget מרנדר על אותו תוכן.
         // הפענוח קודם לספירה — `&nbsp;` בין מילים היה חוסם ביטוי שהמשתמש רואה
@@ -787,7 +807,7 @@ class _LinksListViewState extends State<LinksListView> {
     _currentResult = firstContentHit < 0 ? 0 : firstContentHit;
     // הרענון מציג את מונה התוצאות בשדה, שנבנה מחוץ ל-FutureBuilder.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+      if (!mounted || generation != _searchGeneration) return;
       if (firstContentHit >= 0) {
         _openResult(_currentResult);
       } else {
@@ -808,7 +828,13 @@ class _LinksListViewState extends State<LinksListView> {
     }
     setState(() {
       _currentResult = index;
-      if (_expanded[instanceKey] != true) _forcedOpen.add(instanceKey);
+      if (_expanded[instanceKey] != true) {
+        _forcedOpen.update(
+          instanceKey,
+          (revision) => revision + 1,
+          ifAbsent: () => 1,
+        );
+      }
       _expanded[instanceKey] = true;
     });
   }
@@ -816,8 +842,13 @@ class _LinksListViewState extends State<LinksListView> {
   void _goToResult(int index) {
     if (index < 0 || index >= _filteredLinks.length) return;
     _openResult(index);
+    final generation = _searchGeneration;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_itemScrollController.isAttached) return;
+      if (!mounted ||
+          generation != _searchGeneration ||
+          !_itemScrollController.isAttached) {
+        return;
+      }
       AppMotion.scroll(
         context,
         AppTokens.animNormal,
@@ -842,9 +873,10 @@ class _LinksListViewState extends State<LinksListView> {
             as bool?;
     final isExpanded = _expanded[instanceKey] ?? restoredExpanded ?? false;
     return ExpansionTile(
-      key: PageStorageKey(
-        _forcedOpen.contains(instanceKey) ? '$instanceKey#open' : instanceKey,
-      ),
+      // אין צורך לשמור ב-PageStorage מצב נפרד לכל פתיחה כפויה.
+      key: _forcedOpen.containsKey(instanceKey)
+          ? ValueKey((instanceKey, _forcedOpen[instanceKey]))
+          : PageStorageKey(instanceKey),
       initiallyExpanded: isExpanded,
       maintainState: true,
       showTrailingIcon: false,
