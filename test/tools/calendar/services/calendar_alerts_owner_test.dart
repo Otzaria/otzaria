@@ -146,7 +146,7 @@ void main() {
             required city,
             required now,
             required twelveHourClock,
-          }) {
+          }) async {
             calculations++;
             plannedTwelveHourClock = twelveHourClock;
             return CalendarAlertPlanner.planZmanAlerts(
@@ -154,7 +154,7 @@ void main() {
               city: city,
               now: now,
               twelveHourClock: twelveHourClock,
-            );
+            ).toList();
           },
     );
     await o.execute('setZmanAlert', {
