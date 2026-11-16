@@ -6,6 +6,7 @@ import 'dart:collection';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart' show HitTestTarget;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:html/parser.dart' as html_parser;
@@ -426,6 +427,8 @@ class RaisedMarkerPlacement {
   /// המלבן שבו הסימון מצויר בפועל — מורם מעל [anchorRect].
   final Rect paintRect;
 
+  final HitTestTarget? hitTestTarget;
+
   final RaisedMarker marker;
 
   /// סגנון הגליף השקוף שבשורה, עם מה שירש מאבות ה-HTML.
@@ -434,6 +437,7 @@ class RaisedMarkerPlacement {
   const RaisedMarkerPlacement({
     required this.anchorRect,
     required this.paintRect,
+    this.hitTestTarget,
     required this.marker,
     this.glyphStyle,
   });
@@ -590,28 +594,20 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
     });
   }
 
-  /// לחיצה/ריחוף שנוחתים על ציור מורם של סימון לחיץ מופנים לעוגן שבשורה —
-  /// כך ה-recognizer, תצוגת הריחוף וסמן העכבר של הספאן עובדים על מה שהעין
-  /// רואה. ההפניה נרשמת כטרנספורם כדי שגם localPosition של האירועים יתאים.
+  /// מפנה פגיעה בציור לספאן המקורי; תיבות הפגיעה הגולמיות של Skia עלולות
+  /// להיות מוזזות, ואפילו לצאת מגבולות הפסקה לפני שבירה קשיחה.
   @override
   bool hitTest(BoxHitTestResult result, {required Offset position}) {
     if (child != null && _hasClickableMarkers) {
       for (final placement in _resolvePlacements()) {
         if (!placement.marker.clickable) continue;
         if (!placement.paintRect.contains(position)) continue;
-        // בתחום החפיפה עם העוגן עצמו הפגיעה הטבעית ממילא נכונה.
-        if (placement.anchorRect.contains(position)) break;
-        final target = placement.anchorRect.center;
-        return result.addWithRawTransform(
-          transform: Matrix4.translationValues(
-            target.dx - position.dx,
-            target.dy - position.dy,
-            0,
-          ),
-          position: position,
-          hitTest: (BoxHitTestResult result, Offset transformed) =>
-              super.hitTest(result, position: transformed),
-        );
+        final target = placement.hitTestTarget;
+        if (target == null) continue;
+        result
+          ..add(HitTestEntry(target))
+          ..add(BoxHitTestEntry(this, position));
+        return true;
       }
     }
     return super.hitTest(result, position: position);
@@ -731,6 +727,11 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
 
       // תו הבידוד שבראש הסימון נמצא מחוץ ל-small של הסוגריים; דוגמים תו גלוי.
       final visible = marker.text.indexOf(_leadingVisibleChar);
+      final span = marker.clickable
+          ? info.paragraph.text.getSpanForPosition(
+              TextPosition(offset: localStart + math.max(visible, 0)),
+            )
+          : null;
       final glyphStyle = _styleAt(
         info.paragraph.text,
         localStart + math.max(visible, 0),
@@ -749,6 +750,10 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
         RaisedMarkerPlacement(
           anchorRect: anchorRect,
           paintRect: Rect.fromLTWH(dx, dy, painter.width, painter.height),
+          hitTestTarget: switch (span) {
+            final HitTestTarget target => target,
+            _ => null,
+          },
           marker: marker,
           glyphStyle: glyphStyle,
         ),
