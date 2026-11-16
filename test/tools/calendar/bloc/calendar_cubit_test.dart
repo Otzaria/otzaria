@@ -1496,7 +1496,7 @@ void main() {
         weeklyDays: () => [DateTime.monday, DateTime.wednesday],
       );
       final googleEvent = google.toGoogleEvent(event, 'Asia/Jerusalem');
-      expect(googleEvent.recurrence, contains(contains('BYDAY=MO,WE')));
+      expect(googleEvent.recurrence!.single, contains('BYDAY=MO,WE'));
       final restored = google.fromGoogleEvent(googleEvent)!;
       expect(restored.recurrenceType, RecurrenceType.weekly);
       expect(restored.weeklyDays, [DateTime.monday, DateTime.wednesday]);
