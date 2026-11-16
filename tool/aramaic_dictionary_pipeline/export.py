@@ -1,6 +1,7 @@
 """שלב 12: ייצוא המודל הממוזג לקובץ dictionary.json במבנה שאוצריא יודעת לקרוא.
 
-* רק "מילון פשיטא" משתנה; שאר המילונים (ושם/סדר המפתחות העליונים) נשמרים בדיוק.
+* רק "מילון פשיטא" משתנה; שאר המילונים (ושם/סדר המפתחות העליונים) נשמרים בדיוק, פרט לשכבות
+  `post_layers` שבתצורה (add_bavli.py): ערכי בבלי נוספים ל"פשיטא", וערכי מילוי נמחקים מכל המילונים.
 * ערך קיים שלא השתנה נכתב בטקסט המקורי, בייט-לבייט; הוספת משמעות מצמידה אותה אחרי
   ` *** ` לטקסט המקורי, ורק שינוי מאושר בפירוש קיים בונה את הערך מחדש.
 * כל הערכים ממוינים א-ב לפי כלל יציב (common.hebrew_sort_key), *אחרי* המיזוג.
@@ -14,6 +15,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from add_bavli import apply_post_layers
 from common import hebrew_sort_key, load_config, read_jsonl, repo_root, work_dir
 
 SEP = " *** "
@@ -65,6 +67,8 @@ def main() -> None:
     entries = read_jsonl(work_dir(cfg, "merge", f"{args.tag}_entries.jsonl"))
     result = dict(original)  # שומר סדר ומפתחות עליונים
     result[cfg["target_dictionary"]] = build_target_list(entries)
+    for line in apply_post_layers(result, cfg["target_dictionary"], cfg.get("post_layers", [])):
+        print("layer", line)
     text = dump(result)
     out_path = Path(args.out) if args.out else work_dir(cfg, "export", f"{args.tag}.dictionary.json")
     out_path.parent.mkdir(parents=True, exist_ok=True)

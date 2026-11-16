@@ -26,6 +26,7 @@ from common import (
     split_senses,
     work_dir,
 )
+from add_bavli import drop_placeholders
 from normalize import gloss_issues
 
 REGRESSION_WORDS = ("אברא", "אהני", "אגמרך", "איבעי")
@@ -48,6 +49,7 @@ def validate(
     snapshot: dict[str, Any],
     merge_log: list[dict[str, Any]] | None,
     target: str,
+    post_layers: list[str] | None = None,
 ) -> Report:
     rep = Report()
     raw = path.read_bytes()
@@ -72,9 +74,13 @@ def validate(
         for entry in entries:
             for key, value in entry.items():
                 rep.check(isinstance(key, str) and isinstance(value, str), f"{name}: מפתח/ערך שאינם מחרוזת: {key!r}")
+    # שאר המילונים זהים לגיבוי, פרט לשכבת drop_placeholders (ערכי מילוי שנמחקו, ושום דבר אחר).
+    expected_others = json.loads(json.dumps(original))
+    if "drop_placeholders" in (post_layers or []):
+        drop_placeholders(expected_others)
     for name in original:
         if name != target:
-            rep.check(data.get(name) == original[name], f"המילון «{name}» שונה (אסור)")
+            rep.check(data.get(name) == expected_others[name], f"המילון «{name}» שונה (אסור)")
 
     entries = [(k, v) for e in data[target] for k, v in e.items()]
     rep.counts["entries"] = len(entries)
@@ -191,7 +197,14 @@ def main() -> None:
     snapshot = json.loads(work_dir(cfg, "baseline", "regression_snapshot.json").read_text(encoding="utf-8"))
     log_path = work_dir(cfg, "merge", f"{args.tag}_log.jsonl")
     log = read_jsonl(log_path) if log_path.exists() else []
-    report = validate(path, work_dir(cfg, "baseline", "dictionary.original.json"), snapshot, log, cfg["target_dictionary"])
+    report = validate(
+        path,
+        work_dir(cfg, "baseline", "dictionary.original.json"),
+        snapshot,
+        log,
+        cfg["target_dictionary"],
+        cfg.get("post_layers", []),
+    )
     print(json.dumps(report.counts, ensure_ascii=False, indent=2))
     for warning in report.warnings:
         print("WARN:", warning)

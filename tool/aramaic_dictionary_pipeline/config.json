@@ -3,6 +3,8 @@
   "otzaria_repo": "../..",
   "dictionary_asset": "assets/dictionary.json",
   "target_dictionary": "מילון פשיטא",
+  "_post_layers_comment": "שכבות שמוחלות על הקובץ המיוצא אחרי המיזוג (ראו add_bavli.py): ערכי בבלי מוכנים, ומחיקת ערכי מילוי. בלעדיהן ייצוא חוזר היה מוחק אותם מהנכס.",
+  "post_layers": ["bavli", "drop_placeholders"],
   "work_dir": "work",
   "sources": {
     "siftey_gitin": {
