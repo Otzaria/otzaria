@@ -648,7 +648,7 @@ class _TocViewerState extends State<TocViewer>
 
           final delegate = NavPanelSearchDelegate(
             controller: searchController,
-            hintText: 'איתור כותרת...',
+            hintText: 'איתור כותרת',
             focusNode: widget.focusNode,
             onChanged: _onSearchChanged,
             onSubmitted: (_) {

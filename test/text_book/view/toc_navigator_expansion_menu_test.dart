@@ -129,6 +129,20 @@ bool _isSelected(WidgetTester tester, String title) => tester
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  testWidgets('חיפוש כותרת מוצג בלי שלוש נקודות', (tester) async {
+    await _pump(tester, _toc());
+
+    if (find.byType(TextField).evaluate().isEmpty) {
+      expect(find.byTooltip('איתור כותרת'), findsOneWidget);
+      await tester.tap(find.byType(NavPanelSearchToggle));
+      await tester.pumpAndSettle();
+    }
+
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.decoration?.hintText, 'איתור כותרת');
+    expect(find.byTooltip('איתור כותרת...'), findsNothing);
+  });
+
   setUp(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
     TocExpansionSettings.autoExpand.value = true;
@@ -246,7 +260,7 @@ void main() {
     expect(_isSelected(tester, 'עמוד 2-0.'), isTrue);
   });
 
-  testWidgets('התפריט צף לצד אייקון החיפוש כשהכותרת נגללה החוצה (#4607)', (
+  testWidgets('התפריט צף לצד אייקון החיפוש כשהכותרת נגללת החוצה (#4607)', (
     tester,
   ) async {
     final toc = List.generate(60, (c) {
