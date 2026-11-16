@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/search/active_lexical_searches.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/search_query_builder.dart';
@@ -73,6 +74,63 @@ Future<void> main() async {
         first,
         repository.requests.last.cancelRequestId,
       ]);
+    });
+
+    test('חיפוש רץ רשום ברישום המשותף עד שהוחלף או נסגר', () async {
+      final previous = ActiveLexicalSearches.instance;
+      final searches = ActiveLexicalSearches.instance = ActiveLexicalSearches();
+      addTearDown(() => ActiveLexicalSearches.instance = previous);
+
+      bloc.add(UpdateSearchQuery('שלום עולם'));
+      await waitForRequests(1);
+      final first = searches.active.single;
+      expect(first.phase, LexicalSearchPhase.waitingFirstPage);
+      expect(first.query['words'], 2);
+
+      bloc.add(UpdateSearchQuery('עולם'));
+      await waitForRequests(2);
+      expect(first.isFinished, isTrue);
+      expect(searches.active.single, isNot(first));
+
+      await bloc.close();
+      expect(searches.active, isEmpty);
+    });
+
+    test('ספירה סופית בלי תוצאות נשארת בהמתנה לעמוד הראשון', () async {
+      final previous = ActiveLexicalSearches.instance;
+      final searches = ActiveLexicalSearches.instance = ActiveLexicalSearches();
+      addTearDown(() => ActiveLexicalSearches.instance = previous);
+
+      bloc.add(UpdateSearchQuery('שלום'));
+      await waitForRequests(1);
+      final tracked = searches.active.single;
+      repository.streams.single.add(
+        const SearchStreamUpdate(totalCount: 7, results: [], truncated: false),
+      );
+      await pumpEventQueue();
+      expect(tracked.phase, LexicalSearchPhase.waitingFirstPage);
+    });
+
+    test('חיפוש שהסתיים או נכשל יוצא מהרישום המשותף', () async {
+      final previous = ActiveLexicalSearches.instance;
+      final searches = ActiveLexicalSearches.instance = ActiveLexicalSearches();
+      addTearDown(() => ActiveLexicalSearches.instance = previous);
+
+      bloc.add(UpdateSearchQuery('שלום'));
+      await waitForRequests(1);
+      final completed = searches.active.single;
+      await repository.streams.single.close();
+      await pumpEventQueue(times: 50);
+      expect(completed.isFinished, isTrue);
+      expect(searches.active, isEmpty);
+
+      bloc.add(UpdateSearchQuery('עולם'));
+      await waitForRequests(2);
+      final failed = searches.active.single;
+      repository.streams.last.addError(StateError('engine'));
+      await pumpEventQueue(times: 50);
+      expect(failed.isFinished, isTrue);
+      expect(searches.active, isEmpty);
     });
 
     test('ביטול שמגיע כשגיאה אינו מוצג למשתמש', () async {
