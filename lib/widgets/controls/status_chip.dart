@@ -44,9 +44,9 @@ class StatusChip extends StatelessWidget {
     final cs = theme.colorScheme;
     final (container, accent, onContainer) = switch (tone) {
       StatusChipTone.primary => (
-        container,
-        accent,
-        onContainer,
+        cs.primaryContainer,
+        cs.primary,
+        cs.onPrimaryContainer,
       ),
       StatusChipTone.error => (
         cs.errorContainer,

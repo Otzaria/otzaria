@@ -131,7 +131,8 @@ class AppSurfaces {
   static Color onSelectedRow(ColorScheme cs) => cs.onSecondaryContainer;
 
   /// מילוי שורה בפוקוס מקלדת (8% primary), יחד עם [focusRingDecoration].
-  static Color focusedRow(ColorScheme cs) => cs.primary.withValues(alpha: 0.08);
+  static Color focusedRow(ColorScheme cs, {bool focused = true}) =>
+      focused ? cs.primary.withValues(alpha: 0.08) : Colors.transparent;
 
   /// טבעת הפוקוס של שורה, לציור מעל התוכן (foregroundDecoration).
   static BoxDecoration focusRingDecoration(ColorScheme cs) => BoxDecoration(

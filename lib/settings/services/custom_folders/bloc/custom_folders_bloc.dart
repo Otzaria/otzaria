@@ -290,7 +290,10 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
           state.copyWith(
             isSyncing: false,
             message: !hasErrors && hasChanges
-                ? SettingsMessages.customFolderScanDone(result.addedBooks, result.updatedBooks)
+                ? SettingsMessages.customFolderScanDone(
+                    result.addedBooks,
+                    result.updatedBooks,
+                  )
                 : null,
             error: hasErrors
                 ? SettingsMessages.customFolderScanErrors(result.errors)
@@ -338,7 +341,10 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
       final hasChanges = result.addedBooks > 0 || result.updatedBooks > 0;
       final hasErrors = result.errors.isNotEmpty;
       final message = !hasErrors && hasChanges
-          ? SettingsMessages.customFolderScanDone(result.addedBooks, result.updatedBooks)
+          ? SettingsMessages.customFolderScanDone(
+              result.addedBooks,
+              result.updatedBooks,
+            )
           : !hasErrors && event.showNoChangesMessage
           ? SettingsMessages.customFolderScanNoNewBooks
           : null;

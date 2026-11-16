@@ -394,7 +394,7 @@ class _NavTreeRowSurfaceState extends State<_NavTreeRowSurface> {
           // כמו טבעת הפוקוס של הכפתורים (DD-07): רק בניווט מקלדת, לא אחרי לחיצה.
           focusColor: AppFocusRing.isKeyboardFocusVisible
               ? null
-              : Colors.transparent,
+              : AppSurfaces.focusedRow(cs, focused: false),
           onTap: onTap == null
               ? null
               : () {

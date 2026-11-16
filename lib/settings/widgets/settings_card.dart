@@ -441,9 +441,9 @@ class SettingsActionTile extends StatelessWidget {
 
   Widget _buildListTile() => _KeyboardFocusRow(
     focusNode: focusNode,
-    builder: (node, focusColor) => ListTile(
+    builder: (node, keyboardFocused, cs) => ListTile(
       focusNode: node,
-      focusColor: focusColor,
+      focusColor: AppSurfaces.focusedRow(cs, focused: keyboardFocused),
       enabled: enabled,
       onTap: onTap,
       leading: _buildIcon(),
@@ -549,10 +549,10 @@ class SettingsActionTile extends StatelessWidget {
     // אז ה-InkWell הוא מה שמאפשר ללחוץ על השורה (למשל לפתוח ExpandableSection).
     return _KeyboardFocusRow(
       focusNode: focusNode,
-      builder: (node, focusColor) => InkWell(
+      builder: (node, keyboardFocused, cs) => InkWell(
         onTap: enabled ? onTap : null,
         focusNode: node,
-        focusColor: focusColor,
+        focusColor: AppSurfaces.focusedRow(cs, focused: keyboardFocused),
         child: content,
       ),
     );
@@ -583,7 +583,12 @@ class _KeyboardFocusRow extends StatefulWidget {
   const _KeyboardFocusRow({this.focusNode, required this.builder});
 
   final FocusNode? focusNode;
-  final Widget Function(FocusNode focusNode, Color focusColor) builder;
+  final Widget Function(
+    FocusNode focusNode,
+    bool keyboardFocused,
+    ColorScheme colors,
+  )
+  builder;
 
   @override
   State<_KeyboardFocusRow> createState() => _KeyboardFocusRowState();
@@ -617,7 +622,8 @@ class _KeyboardFocusRowState extends State<_KeyboardFocusRow> {
               : const BoxDecoration(),
           child: widget.builder(
             node,
-            keyboardFocused ? AppSurfaces.focusedRow(cs) : Colors.transparent,
+            keyboardFocused,
+            cs,
           ),
         );
       },

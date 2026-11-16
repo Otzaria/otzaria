@@ -13,6 +13,7 @@ void main() {
         expect(AppSurfaces.selectedRow(cs), cs.secondaryContainer);
         expect(AppSurfaces.selectedRow(cs).a, 1.0);
         expect(AppSurfaces.focusedRow(cs).a, closeTo(0.08, 0.01));
+        expect(AppSurfaces.focusedRow(cs, focused: false), Colors.transparent);
         expect(AppSurfaces.hoverRow(cs).a, closeTo(0.08, 0.01));
         expect(
           AppSurfaces.multiSelected(cs),

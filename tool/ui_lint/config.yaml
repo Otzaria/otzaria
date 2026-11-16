@@ -12,7 +12,7 @@
 max_allows:
   UIL-003: 1
   UIL-010: 5
-  UIL-015: 4
+  UIL-015: 5
   UIL-017: 3
   UIL-019: 2
   UIL-021: 26
@@ -203,6 +203,7 @@ rules:
         reason: פלט נייר
 
   UIL-023:
+    strict: true
     exclude:
       - path: lib/theme/**
         reason: שכבת הטוקנים

@@ -6,7 +6,8 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show LogicalKeyboardKey;
+import 'package:flutter/services.dart'
+    show LogicalKeyboardKey, MethodChannel, MissingPluginException;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/library_update/services/library_access_gate.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -130,6 +131,16 @@ _FolderFilePickerPlatform _installFolderFilePicker(String folder) {
   final previousOwner = DialogOwner.hwnd();
   final picker = _FolderFilePickerPlatform(folder);
   FilePickerPlatform.instance = picker;
+  if (Platform.isMacOS) {
+    const channel = MethodChannel('miguelruivo.flutter.plugins.filepicker');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'dir') return picker.getDirectoryPath();
+      throw MissingPluginException();
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+  }
   // ב-Windows הבורר דורש חלון מארח, גם כשהבורר עצמו מדומה.
   DialogOwner.mainWindowHwnd = 7;
   addTearDown(() {
