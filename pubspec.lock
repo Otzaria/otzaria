@@ -1011,10 +1011,18 @@ packages:
     dependency: transitive
     description:
       name: jni
-      sha256: d2c361082d554d4593c3012e26f6b188f902acd291330f13d6427641a92b3da1
+      sha256: "2e91e6087291affd10b31b6c872f3e3ac7dc5d93b51b5ba485d930c8f08bde6c"
       url: "https://pub.dev"
     source: hosted
-    version: "0.14.2"
+    version: "1.1.2"
+  jni_util:
+    dependency: transitive
+    description:
+      name: jni_util
+      sha256: "1ba86da04a5f2bf18fde2edb235587e70c5b0fc5bd4ba955f46b00942c3fc35f"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.0"
   json_annotation:
     dependency: transitive
     description:
@@ -1639,10 +1647,10 @@ packages:
     dependency: transitive
     description:
       name: sentry
-      sha256: "40a247686af64e497df29ab0de1303a20ca55a2e3c7c7e39b989fac47dcadf84"
+      sha256: "6549d5e63700434b76a21d4ee6a273fb7e1735307409777d043621f50d7ff9e2"
       url: "https://pub.dev"
     source: hosted
-    version: "9.30.1"
+    version: "10.4.0"
   sentry_dart_plugin:
     dependency: "direct dev"
     description:
@@ -1655,11 +1663,11 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/flutter"
-      ref: "93e7398355e80557a342666f98b23cc9bb832848"
-      resolved-ref: "93e7398355e80557a342666f98b23cc9bb832848"
+      ref: c3a1edeb3a0a509720ea8561122eaecf46d21c36
+      resolved-ref: c3a1edeb3a0a509720ea8561122eaecf46d21c36
       url: "https://github.com/Otzaria/sentry-dart"
     source: git
-    version: "9.30.1"
+    version: "10.4.0"
   shared_preferences:
     dependency: "direct main"
     description:
