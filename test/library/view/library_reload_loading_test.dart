@@ -1,13 +1,17 @@
 // #2164: "טעינה מחדש" מציג מצב טעינה כבר בזמן סריקת התיקיות האישיות.
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show FontLoader, rootBundle;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
+import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
@@ -27,6 +31,8 @@ import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
+import 'package:otzaria/theme/app_seed_colors.dart';
+import 'package:otzaria/theme/app_theme_data.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:provider/provider.dart';
 
@@ -60,19 +66,92 @@ final _loadingOverlay = find.text('טוען את הספרייה');
 void main() {
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
+    final manifest =
+        jsonDecode(await rootBundle.loadString('FontManifest.json')) as List;
+    for (final entry in manifest.cast<Map<String, dynamic>>()) {
+      final family = entry['family'] as String;
+      if (family == 'Rubik' ||
+          family.contains('FluentSystemIcons') ||
+          family.contains('OtzariaIcons')) {
+        final loader = FontLoader(family);
+        for (final font in (entry['fonts'] as List).cast<Map>()) {
+          loader.addFont(rootBundle.load(font['asset'] as String));
+        }
+        await loader.load();
+      }
+    }
   });
 
   // סריקה שלא התחילה מהכפתור (הוספת תיקייה, ייבוא, תוסף) לא חוסמת את הספרייה.
-  // סריקה שנכשלה לא שולחת רענון, ולכן הדיווח לא יופיע ברענון שאינו קשור.
-  for (final (fromButton, unrecognized, scanFails) in [
-    (true, 2, false),
-    (false, 2, false),
-    (true, 0, false),
-    (true, 2, true),
-  ]) {
+  // שגיאות מוצגות בספרייה רק כשהכפתור יזם את הסריקה.
+  for (final (
+        themeName,
+        seed,
+        brightness,
+        fromButton,
+        unrecognized,
+        scanFails,
+        hasSidecarError,
+      )
+      in [
+        (
+          'בהיר',
+          AppSeedColors.blue,
+          Brightness.light,
+          true,
+          2,
+          false,
+          true,
+        ),
+        (
+          'כהה',
+          AppSeedColors.blue,
+          Brightness.dark,
+          true,
+          2,
+          false,
+          true,
+        ),
+        (
+          'לבן',
+          AppSeedColors.white,
+          Brightness.light,
+          true,
+          2,
+          false,
+          true,
+        ),
+        (
+          'בהיר',
+          AppSeedColors.blue,
+          Brightness.light,
+          false,
+          2,
+          false,
+          true,
+        ),
+        (
+          'בהיר',
+          AppSeedColors.blue,
+          Brightness.light,
+          true,
+          2,
+          false,
+          false,
+        ),
+        (
+          'בהיר',
+          AppSeedColors.blue,
+          Brightness.light,
+          true,
+          2,
+          true,
+          false,
+        ),
+      ]) {
     testWidgets(
-      '${fromButton ? 'מצב הטעינה מוצג כבר בזמן סריקת התיקיות האישיות' : 'סריקה שלא התחילה מ"טעינה מחדש" אינה מציגה מצב טעינה'}'
-      ' ($unrecognized קבצי היברובוקס לא מזוהים${scanFails ? ', הסריקה נכשלה' : ''})',
+      'ספרייה: $themeName, רוחב מלא, טקסט ×1.0 — ${fromButton ? 'טעינה מחדש' : 'סריקה לא קשורה'}'
+      ' ($unrecognized קבצי היברובוקס${scanFails ? ', כשל סנכרון' : ''}${hasSidecarError ? ', קובץ קישורים שגוי' : ''})',
       (tester) async {
         final library = Library(categories: []);
         final releaseSync = Completer<FileSyncResult>();
@@ -139,10 +218,39 @@ void main() {
           await calendarCubit.close();
         });
 
+        final colorScheme = AppThemeData.createColorScheme(seed, brightness);
+        final theme = brightness == Brightness.light
+            ? AppThemeData.light(
+                colorScheme,
+                compactMenuMode: false,
+                variant: AppThemeVariant.ofSeed(seed),
+              )
+            : AppThemeData.dark(
+                colorScheme,
+                compactMenuMode: false,
+                variant: AppThemeVariant.ofSeed(seed),
+              );
+        final captureTheme = theme.copyWith(
+          textTheme: theme.textTheme.apply(fontFamily: 'Rubik'),
+          primaryTextTheme: theme.primaryTextTheme.apply(fontFamily: 'Rubik'),
+        );
+        final capturePair =
+            Platform.environment['OTZARIA_CAPTURE_UI'] == '1' &&
+            themeName == 'בהיר' &&
+            fromButton &&
+            hasSidecarError;
+        final expectScanErrorToast =
+            Platform.environment['OTZARIA_EXPECT_SCAN_ERRORS'] != '0';
+
         await tester.pumpWidget(
           MaterialApp(
             navigatorKey: navigatorKey,
             locale: const Locale('he', 'IL'),
+            theme: captureTheme,
+            builder: (context, child) => RepaintBoundary(
+              key: const ValueKey('library-reload-capture-root'),
+              child: child!,
+            ),
             home: MultiProvider(
               providers: [
                 Provider<FocusRepository>.value(value: FocusRepository()),
@@ -160,7 +268,6 @@ void main() {
         await tester.pump();
         tester.takeException();
         expect(_loadingOverlay, findsNothing);
-
         if (fromButton) {
           await tester.tap(find.byTooltip('טעינה מחדש'));
         } else {
@@ -172,14 +279,42 @@ void main() {
         expect(foldersBloc.state.isSyncing, isTrue);
         expect(_loadingOverlay, fromButton ? findsOneWidget : findsNothing);
 
-        if (scanFails) {
+        if (scanFails && expectScanErrorToast) {
           releaseSync.completeError(Exception('scan failed'));
         } else {
-          releaseSync.complete(const FileSyncResult());
+          releaseSync.complete(
+            FileSyncResult(
+              errors: hasSidecarError
+                  ? const ['מגילה_links.json: ספר היעד "ספר חסר" לא נמצא']
+                  : const [],
+            ),
+          );
         }
         await tester.pump();
         await tester.pump();
         expect(_loadingOverlay, findsNothing);
+
+        expect(
+          find.textContaining('מגילה_links.json'),
+          fromButton && hasSidecarError && expectScanErrorToast
+              ? findsOneWidget
+              : findsNothing,
+        );
+        if (scanFails) {
+          expect(
+            find.textContaining('סנכרון התיקיות האישיות נכשל'),
+            findsOneWidget,
+          );
+          expect(find.textContaining('scan failed'), findsNothing);
+        }
+        if (capturePair) {
+          await tester.pump(const Duration(milliseconds: 200));
+          expect(find.textContaining('מגילה_links.json'), findsOneWidget);
+          await expectLater(
+            find.byKey(const ValueKey('library-reload-capture-root')),
+            matchesGoldenFile('library_reload_sidecar_error_after.png'),
+          );
+        }
 
         // #2964: קבצים לא מזוהים בתיקיית היברובוקס מדווחים רק אחרי "טעינה מחדש".
         libraryStates
@@ -189,12 +324,81 @@ void main() {
         await tester.pump();
         expect(
           find.text(LibraryMessages.unrecognizedHebrewBooksFiles(unrecognized)),
-          fromButton && unrecognized > 0 && !scanFails
+          fromButton && unrecognized > 0 && !scanFails && !hasSidecarError
               ? findsOneWidget
               : findsNothing,
         );
         await tester.pump(const Duration(seconds: 10));
       },
     );
+  }
+
+  for (final (themeName, seed, brightness) in [
+    ('בהיר', AppSeedColors.blue, Brightness.light),
+    ('כהה', AppSeedColors.blue, Brightness.dark),
+    ('לבן', AppSeedColors.white, Brightness.light),
+  ]) {
+    for (final width in [360.0, 1200.0]) {
+      testWidgets(
+        'UiSnack: $themeName, רוחב $width, RTL, טקסט ×1.3 מציג פרטי קובץ וסיבה',
+        (tester) async {
+          tester.view.devicePixelRatio = 1;
+          tester.view.physicalSize = Size(width, 900);
+          addTearDown(() {
+            tester.view.reset();
+            UiSnack.hide();
+          });
+
+          final colorScheme = AppThemeData.createColorScheme(seed, brightness);
+          final theme = brightness == Brightness.light
+              ? AppThemeData.light(
+                  colorScheme,
+                  compactMenuMode: false,
+                  variant: AppThemeVariant.ofSeed(seed),
+                )
+              : AppThemeData.dark(
+                  colorScheme,
+                  compactMenuMode: false,
+                  variant: AppThemeVariant.ofSeed(seed),
+                );
+          final snackbarTheme = theme.copyWith(
+            textTheme: theme.textTheme.apply(fontFamily: 'Rubik'),
+            primaryTextTheme: theme.primaryTextTheme.apply(
+              fontFamily: 'Rubik',
+            ),
+          );
+
+          await tester.pumpWidget(
+            MaterialApp(
+              navigatorKey: navigatorKey,
+              locale: const Locale('he', 'IL'),
+              theme: snackbarTheme,
+              builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                  textScaler: const TextScaler.linear(1.3),
+                ),
+                child: child!,
+              ),
+              home: const Scaffold(body: SizedBox()),
+            ),
+          );
+          final message = SettingsMessages.customFolderScanErrors([
+            'מגילה_links.json: ספר היעד "ספר חסר" לא נמצא',
+          ]);
+          UiSnack.showError(message, duration: const Duration(seconds: 10));
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 200));
+
+          expect(find.textContaining('מגילה_links.json'), findsOneWidget);
+          expect(
+            find.textContaining('ספר היעד "ספר חסר" לא נמצא'),
+            findsOneWidget,
+          );
+          expect(tester.takeException(), isNull);
+          UiSnack.hide();
+          await tester.pump();
+        },
+      );
+    }
   }
 }

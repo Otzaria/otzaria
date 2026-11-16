@@ -3,6 +3,7 @@ import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'dart:async';
 
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
@@ -295,8 +296,14 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
       _refreshLibraryAfterScan({
         for (final id in result.updatedBookIds) BookIdentity.userBookKey(id),
       });
-    } catch (e) {
-      emit(state.copyWith(isSyncing: false, error: 'שגיאה בסנכרון: $e'));
+    } catch (e, stackTrace) {
+      debugPrint('⚠️ [CustomFoldersBloc] סנכרון תיקייה נכשל: $e\n$stackTrace');
+      emit(
+        state.copyWith(
+          isSyncing: false,
+          error: SettingsMessages.customFolderSyncFailed,
+        ),
+      );
     }
   }
 
@@ -359,11 +366,14 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
                 ),
         ),
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('⚠️ [CustomFoldersBloc] סריקת תיקיות נכשלה: $e\n$stackTrace');
       emit(
         state.copyWith(
           isSyncing: false,
-          error: 'שגיאה בסריקת תיקיות אישיות: $e',
+          error: event.requestId == null
+              ? SettingsMessages.customFolderSyncFailed
+              : null,
           completedScan: event.requestId == null
               ? null
               : CustomFoldersScanOutcome(
