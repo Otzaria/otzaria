@@ -11,11 +11,19 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
+import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
+import 'package:otzaria/text_book/models/book_notes.dart';
+import 'package:otzaria/text_book/repository/book_notes_repository.dart';
+import 'package:otzaria/divine_names/models/divine_name_spans.dart';
+import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
 import 'package:otzaria/divine_names/utils/divine_name_markers.dart';
 import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/printing/commentary_print_builder.dart';
 import 'package:otzaria/printing/print_content_models.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
+import 'package:otzaria/printing/view/widgets/printing_widgets.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -38,6 +46,48 @@ class _FakeSettingsRepository extends Fake implements SettingsRepository {
   @override
   bool hasProtectedModePassword() => false;
 }
+
+class _Commentary extends Link {
+  _Commentary(String title, String label, int? at, this.text)
+    : super(
+        heRef: '$title, $label',
+        index1: 3,
+        path2: '$title.txt',
+        index2: 1,
+        connectionType: 'COMMENTARY',
+        anchorStart: at,
+        anchorLabel: label,
+      );
+
+  final String text;
+
+  @override
+  Future<String> get content async => text;
+}
+
+class _SourceBook extends TextBook {
+  _SourceBook(this.testLinks, {super.versionTitle}) : super(title: 'בראשית');
+
+  final List<Link> testLinks;
+
+  @override
+  Future<List<Link>> get links async => testLinks;
+}
+
+// חילוץ PDF מחזיר את תווי הסוגריים של הגליפים המהופכים ב־RTL.
+String _pdfMarker(Link link) => String.fromCharCodes(
+  anchorMarkerText(link)!.runes.map(
+    (rune) => switch (rune) {
+      0x28 => 0x29,
+      0x29 => 0x28,
+      0x5B => 0x5D,
+      0x5D => 0x5B,
+      0x7B => 0x7D,
+      0x7D => 0x7B,
+      _ => rune,
+    },
+  ),
+);
 
 class _CapturingFilePicker extends FilePickerPlatform
     with MockPlatformInterfaceMixin {
@@ -71,6 +121,9 @@ Future<String> _exportWord(
   List<String> book = _book,
   List<PrintBlock>? blocks,
   TextDisplayProfile? commentaryProfile,
+  List<Link> links = const [],
+  List<String> commentators = const [],
+  TextBook? sourceBook,
   Future<void> Function(WidgetTester)? verifyPdf,
 }) async {
   tester.view.physicalSize = const Size(1600, 1200);
@@ -100,6 +153,10 @@ Future<String> _exportWord(
           home: PrintingScreen(
             data: Future.value(book.join('\n')),
             bookId: 'בראשית',
+            book: sourceBook,
+            links: links,
+            activeCommentators: commentators,
+            initialIncludeCommentaries: links.isNotEmpty,
             startLine: 1,
             tableOfContents: [
               TocEntry(text: 'בראשית', index: 0, level: 1),
@@ -165,6 +222,160 @@ void main() {
     await Settings.setValue<String>(
       SettingsRepository.keyTextDisplayPolicy,
       jsonEncode(TextDisplayPolicy.empty.toJson()),
+    );
+  });
+
+  testWidgets('ציוני מפרשים נבחרים מופיעים ב-PDF וב-Word לפני הסרת ניקוד', (
+    tester,
+  ) async {
+    BookProtectionRepository.instance.debugRepositoryFor = (_) async => null;
+    const firstWord = 'רִאשׁוֹן';
+    const noteBody = 'גוף הערה';
+    const raw = '$firstWord<sup class="footnote-marker">1</sup> שֵׁנִי';
+    final noteAt = visibleCharCount('$firstWord<sup>1</sup>');
+    final notes =
+        (BookNotesBuilder()..add(2, 0, '1', noteBody, charPos: noteAt)).build();
+    BookNotesRepository.instance.debugLoader =
+        (title, {categoryId, required source}) async =>
+            title == 'בראשית' ? notes : BookNotes.empty;
+    DivineNamesRepository.instance.debugLoader =
+        (title, {categoryId, required source}) async => DivineNameSpans.empty;
+    addTearDown(() {
+      BookProtectionRepository.instance.debugReset();
+      BookNotesRepository.instance
+        ..debugLoader = null
+        ..clear();
+      DivineNamesRepository.instance
+        ..debugLoader = null
+        ..clear();
+    });
+    final first = _Commentary('ראשון', 'א', 0, 'פירוש ראשון');
+    final second = _Commentary(
+      'שני',
+      'ב',
+      visibleCharCount(raw.substring(0, raw.indexOf('שֵׁנִי'))) +
+          noteBody.length,
+      'פירוש שני',
+    );
+    final insideNote = _Commentary(
+      'בהערה',
+      'ו',
+      noteAt + 3,
+      'פירוש בגוף ההערה',
+    );
+    final empty = _Commentary('ריק', 'ג', 2, '');
+    final unselected = _Commentary('לא נבחר', 'ד', 4, 'פירוש לא נבחר');
+    final unanchored = _Commentary('ללא עוגן', 'ה', null, 'פירוש ללא עוגן');
+    final links = [first, second, insideNote, empty, unselected, unanchored];
+    late PrintingSwitchRow markerRow;
+
+    final xml = await _exportWord(
+      tester,
+      const TextDisplayProfile(nikud: MarkVisibility.hide),
+      book: ['<h1>ספר בדיקה</h1>', '<h2>פרק א</h2>', raw],
+      sourceBook: _SourceBook(links),
+      links: links,
+      commentators: ['ראשון', 'שני', 'בהערה', 'ריק', 'ללא עוגן'],
+      verifyPdf: (tester) async {
+        Future<String> pdfText(String name) async {
+          final dynamic state = tester.state(find.byType(PrintingScreen));
+          return (await tester.runAsync(() async {
+            final bytes =
+                await (state.createPdf(PdfPageFormat.a4) as Future<Uint8List>);
+            final output =
+                Platform.environment['OTZARIA_PRINT_TEST_ARTIFACT_DIR'];
+            if (output != null) {
+              await Directory(output).create(recursive: true);
+              await File('$output/$name.pdf').writeAsBytes(bytes);
+            }
+            final doc = await PdfDocument.openData(bytes);
+            try {
+              final pages = <String>[];
+              for (final page in doc.pages) {
+                pages.add((await page.loadText())!.fullText);
+              }
+              return pages.join('\n');
+            } finally {
+              await doc.dispose();
+            }
+          }))!;
+        }
+
+        final before = await pdfText('before');
+        expect(before, contains('גוף הערה'));
+        expect(before, isNot(contains(_pdfMarker(first))));
+        await tester.ensureVisible(find.text('כלול ציוני מפרשים'));
+        await tester.tap(find.text('כלול ציוני מפרשים'));
+        await tester.pump();
+        markerRow = tester.widget<PrintingSwitchRow>(
+          find.ancestor(
+            of: find.text('כלול ציוני מפרשים'),
+            matching: find.byType(PrintingSwitchRow),
+          ),
+        );
+        final after = await pdfText('after');
+        expect(after, contains(_pdfMarker(first)));
+        expect(after, contains(_pdfMarker(second)));
+        expect(after, contains(_pdfMarker(insideNote)));
+        expect(after, isNot(contains(_pdfMarker(empty))));
+        expect(after, isNot(contains(_pdfMarker(unselected))));
+        expect(after, contains('פירוש ללא עוגן'));
+        expect(after, isNot(contains('פירוש לא נבחר')));
+      },
+    );
+    final text = XmlDocument.parse(
+      xml,
+    ).findAllElements('w:t').map((element) => element.innerText).join();
+    expect(text, contains(anchorMarkerText(first)!));
+    expect(text, contains(anchorMarkerText(second)!));
+    expect(text, contains(anchorMarkerText(insideNote)!));
+    expect(text, isNot(contains(anchorMarkerText(empty)!)));
+    for (final (seed, brightness) in [
+      (AppSeedColors.defaultLight, Brightness.light),
+      (AppSeedColors.defaultDark, Brightness.dark),
+      (AppSeedColors.white, Brightness.light),
+    ]) {
+      final theme = AppThemeData.light(
+        AppThemeData.createColorScheme(seed, brightness),
+        compactMenuMode: false,
+        variant: AppThemeVariant.ofSeed(seed),
+      );
+      for (final width in [360.0, 1200.0]) {
+        for (final scale in [1.0, 1.3]) {
+          tester.view.physicalSize = Size(width, 120);
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: theme,
+              builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                  textScaler: TextScaler.linear(scale),
+                ),
+                child: child!,
+              ),
+              home: Directionality(
+                textDirection: TextDirection.rtl,
+                child: Scaffold(body: markerRow),
+              ),
+            ),
+          );
+          await tester.pump();
+          expect(find.text('כלול ציוני מפרשים').hitTestable(), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        }
+      }
+    }
+  });
+
+  testWidgets('מהדורה חלופית אינה מציעה ציוני הנוסח הראשי', (tester) async {
+    await _exportWord(
+      tester,
+      const TextDisplayProfile(),
+      sourceBook: _SourceBook(const [], versionTitle: 'Another edition'),
+      links: [_Commentary('מפרש', 'א', 0, 'פירוש')],
+      commentators: ['מפרש'],
+      verifyPdf: (tester) async {
+        expect(find.text('כלול ציוני מפרשים'), findsNothing);
+      },
     );
   });
 

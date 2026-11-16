@@ -23,6 +23,8 @@ import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart
 import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/printing/print_content_models.dart';
 import 'package:otzaria/printing/commentary_print_builder.dart';
+import 'package:otzaria/printing/commentary_print_markers.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/divine_names/utils/divine_name_markers.dart';
 import 'package:otzaria/printing/serial_latest_runner.dart';
 import 'package:otzaria/printing/printing_helpers.dart';
@@ -263,6 +265,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
       labelForPdfPage(_pageLabels, pageNumber);
 
   bool _includeCommentaries = false;
+  bool _includeCommentaryMarkers = false;
   late List<String> _selectedCommentators;
   bool _includePersonalNotes = false;
 
@@ -858,6 +861,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
       startLine,
       endLine,
       _includeCommentaries,
+      _includeCommentaryMarkers,
       (List.of(_selectedCommentators)..sort()).join("\u0000"),
       _includePersonalNotes,
       _mainProtection.effectiveLevel,
@@ -1435,15 +1439,9 @@ class _PrintingScreenState extends State<PrintingScreen> {
     final limit = CommentaryPrintLimit();
 
     for (var i = selectedStart; i < selectedEnd; i++) {
-      // הטרנספורמציות מוחלות רק על שורות הטווח; ב-Word ה-HTML נשמר לעיצוב.
-      final rawLine = rangeLines[i - selectedStart];
-      final lineText = _applyTextTransforms(_withStoredLineData(rawLine, i));
-      blocks.add({
-        'kind': 'text',
-        'text': keepHtml ? lineText : stripHtmlIfNeeded(lineText),
-      });
-
       final lineNumber1Based = i + 1;
+      final commentaryBlocks = <Map<String, String>>[];
+      final printedLinks = <Link>[];
 
       if (_includeCommentaries) {
         final linksForLine = await getLinksforIndexs(
@@ -1460,7 +1458,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
         }
 
         if (printable.isNotEmpty) {
-          blocks.add({'kind': 'commentaryTitle', 'title': 'מפרשים'});
+          commentaryBlocks.add({'kind': 'commentaryTitle', 'title': 'מפרשים'});
 
           // קיבוץ לפי מפרש (כמו בתצוגת PDF): כותרת לכל מפרש, ומתחתיה כל הקטעים שלו
           String? currentGroupTitle;
@@ -1468,7 +1466,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
             final commentatorTitle = getTitleFromPath(link.path2);
             if (currentGroupTitle != commentatorTitle) {
               currentGroupTitle = commentatorTitle;
-              blocks.add({
+              commentaryBlocks.add({
                 'kind': 'commentaryGroupTitle',
                 'title': commentatorTitle,
               });
@@ -1479,13 +1477,32 @@ class _PrintingScreenState extends State<PrintingScreen> {
               keepHtml: keepHtml,
             );
             if (content.trim().isEmpty) continue;
-            blocks.add({
+            printedLinks.add(link);
+            commentaryBlocks.add({
               'kind': 'commentary',
               'text': content,
             });
           }
         }
       }
+
+      final rawLine = rangeLines[i - selectedStart];
+      final preparedLine =
+          _includeCommentaryMarkers && widget.book?.versionTitle == null
+          ? withPrintCommentaryMarkers(
+              rawLine: rawLine,
+              lineIndex: i,
+              printedLinks: printedLinks,
+              notes: _bookNotes,
+              names: _divineNames,
+            )
+          : _withStoredLineData(rawLine, i);
+      final lineText = _applyTextTransforms(preparedLine);
+      blocks.add({
+        'kind': 'text',
+        'text': keepHtml ? lineText : stripHtmlIfNeeded(lineText),
+      });
+      blocks.addAll(commentaryBlocks);
 
       if (_includePersonalNotes) {
         final notes = notesByLine[lineNumber1Based] ?? const <PersonalNote>[];
@@ -2267,6 +2284,15 @@ class _PrintingScreenState extends State<PrintingScreen> {
               });
             },
           ),
+          if (_includeCommentaries && widget.book?.versionTitle == null)
+            PrintingSwitchRow(
+              label: context.settingsText('כלול ציוני מפרשים'),
+              value: _includeCommentaryMarkers,
+              onChanged: (value) => setState(() {
+                _includeCommentaryMarkers = value;
+                _refreshPreview();
+              }),
+            ),
           if (_includeCommentaries &&
               widget.availableCommentators?.isNotEmpty == true)
             FilterChipsSelector<String>(
