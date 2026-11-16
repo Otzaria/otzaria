@@ -99,6 +99,37 @@ void main() {
     expect(find.textContaining('בית דין'), findsOneWidget);
   });
 
+  testWidgets('פיסוק וסימני כיווניות בקצוות השאילתה אינם מונעים התאמה', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+
+    // כמו בתפריט ההקשר: מילה שהועתקה מטקסט מגיעה עם פסיק, סוגריים או RLM.
+    for (final query in ['איתא,', '(איתא)', '‏איתא', 'איתא?', '"איתא"']) {
+      await tester.enterText(find.byType(TextField), query);
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(AramaicResultCard),
+        findsOneWidget,
+        reason: 'שאילתה: ${query.codeUnits}',
+      );
+    }
+
+    await tester.enterText(find.byType(TextField), 'ב"ד,');
+    await tester.pumpAndSettle();
+    expect(find.textContaining('בית דין'), findsOneWidget);
+  });
+
+  testWidgets('בחיפוש עברי פיסוק בקצה השאילתה אינו מונע התאמה', (tester) async {
+    await pumpScreen(tester);
+
+    await tester.tap(find.text('עברית לארמית'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'עץ,');
+    await tester.pumpAndSettle();
+    expect(find.byType(AramaicResultCard), findsOneWidget);
+  });
+
   testWidgets('חיפוש עברי אינו מתאים לביטוי הארמי שבסוגריים מסולסלים', (
     tester,
   ) async {
