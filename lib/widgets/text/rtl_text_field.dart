@@ -166,7 +166,8 @@ class _RtlTextFieldState extends State<RtlTextField> {
     if (widget.maxLines == 1) return;
     // לא משנים כאן את ה-controller של הקורא: זה רץ בזמן build, ומאזינים שלו
     // היו מופעלים באמצע הבנייה. \r שכבר היה בטקסט ינוקה בפעולה הראשונה בשדה.
-    _rawController = TextEditingController.fromValue(
+    _rawController = _HardBreakController(
+      _effectiveController,
       _expandMapper.map(_effectiveController.value),
     );
     _rawController!.addListener(_syncCleanFromRawLive);
@@ -925,6 +926,34 @@ class _RtlTextFieldState extends State<RtlTextField> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// מציג את העיצוב של ה-controller של הקורא כשהעוקף לא הוסיף לטקסט CR.
+class _HardBreakController extends TextEditingController {
+  final TextEditingController source;
+
+  _HardBreakController(this.source, TextEditingValue initial)
+    : super.fromValue(initial);
+
+  @override
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    TextStyle? style,
+    required bool withComposing,
+  }) {
+    if (source.text != text) {
+      return super.buildTextSpan(
+        context: context,
+        style: style,
+        withComposing: withComposing,
+      );
+    }
+    return source.buildTextSpan(
+      context: context,
+      style: style,
+      withComposing: withComposing,
     );
   }
 }

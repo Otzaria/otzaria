@@ -142,7 +142,7 @@ void main() {
     await _finish(tester, service);
   }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
-  testWidgets('שחזור והרכבה מחדש שומרים טקסט פשוט ומקור מעוצב ללא שינוי', (
+  testWidgets('שחזור והרכבה מחדש שומרים עיצוב בעורך ומקור מעוצב ללא שינוי', (
     tester,
   ) async {
     const source =
@@ -204,15 +204,27 @@ void main() {
       _styleAt(_renderedSpan(tester), 0).color,
       _editor(tester).style.color,
     );
-    expect(
-      _styleAt(_renderedSpan(tester), 8).fontStyle,
-      isNot(FontStyle.italic),
-    );
+    void expectEditorFormatting() {
+      final span = _renderedSpan(tester);
+      expect(
+        _styleAt(span, 0).decoration?.contains(TextDecoration.lineThrough),
+        isTrue,
+      );
+      expect(
+        _styleAt(span, 3).decoration?.contains(TextDecoration.lineThrough),
+        isNot(isTrue),
+      );
+      expect(_styleAt(span, 3).fontStyle, isNot(FontStyle.italic));
+      expect(_styleAt(span, 8).fontStyle, FontStyle.italic);
+    }
+
+    expectEditorFormatting();
     final oldController = _editor(tester).controller;
     await tester.pumpWidget(const SizedBox());
     await _pumpEditor(tester, service, source, original: original);
     expect(_editor(tester).controller, isNot(same(oldController)));
     expect(_editor(tester).controller.text, 'אם רגיל גק');
+    expectEditorFormatting();
     expect(service.editableText('tab', 0, source), proposed);
     final change = (restored['changes'] as List).single as Map;
     expect(change['originalSourceText'], source);
