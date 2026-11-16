@@ -129,6 +129,61 @@ void main() {
     ).called(1);
   });
 
+  for (final ownsProcess in [false, true]) {
+    testWidgets('שינוי אינדוקס PDF נשלח רק מבעל התהליך: $ownsProcess', (
+      tester,
+    ) async {
+      var owner = false;
+      ProcessDuties.debugOverride = ProcessDuties(isProcessOwner: () => owner);
+      addTearDown(() => ProcessDuties.debugOverride = null);
+      final settingsChanges = StreamController<SettingsState>.broadcast();
+      addTearDown(settingsChanges.close);
+      final harness = await _pumpMainWindow(
+        tester,
+        Future.value(Library(categories: [])),
+        settingsStates: settingsChanges.stream,
+      );
+      owner = ownsProcess;
+      settingsChanges.add(
+        SettingsState.initial().copyWith(
+          isOfflineMode: true,
+          indexPdfBooks: false,
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      if (ownsProcess) {
+        verify(
+          () =>
+              harness.indexing.add(any(that: isA<DropOrphanedIndexEntries>())),
+        ).called(1);
+        verify(
+          () => harness.indexing.add(any(that: isA<CheckIndexStatus>())),
+        ).called(1);
+      } else {
+        verifyNever(() => harness.indexing.add(any()));
+      }
+      settingsChanges.add(
+        SettingsState.initial().copyWith(
+          isOfflineMode: true,
+          indexPdfBooks: true,
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      if (ownsProcess) {
+        verify(
+          () => harness.indexing.add(any(that: isA<StartIndexing>())),
+        ).called(1);
+      } else {
+        verifyNever(() => harness.indexing.add(any()));
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('סוף רצף העלייה מכבה את סימון ההמתנה כשהאינדוקס מתחיל (#2646)', (
     tester,
   ) async {
@@ -461,6 +516,7 @@ Future<_Harness> _pumpMainWindow(
   Future<Library> catalog, {
   bool isLoading = true,
   Stream<IndexingState> indexingStates = const Stream.empty(),
+  Stream<SettingsState> settingsStates = const Stream.empty(),
   Size size = const Size(1200, 900),
   String tabsPlacement = SettingsRepository.readingTabsPlacementTop,
   List<OpenedTab> openTabs = const [],
@@ -491,7 +547,7 @@ Future<_Harness> _pumpMainWindow(
   final settings = _SettingsBloc();
   whenListen(
     settings,
-    const Stream<SettingsState>.empty(),
+    settingsStates,
     initialState: SettingsState.initial().copyWith(
       isOfflineMode: true,
       readingTabsPlacement: tabsPlacement,

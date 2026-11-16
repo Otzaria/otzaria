@@ -641,6 +641,77 @@ void main() {
   });
 
   group('IndexingRepository.dropOrphanedIndexEntries', () {
+    test(
+      'כיבוי PDF מפנה נפח רק אחרי מחיקה חתומה ולא חוזר בניקוי ריק',
+      () async {
+        final engine = _RecordingSearchEngine();
+        final provider = _RecordingTantivyDataProvider(engine);
+        final text = TextBook(id: 1, title: 'טקסט');
+        final pdf = PdfBook(title: 'סרוק', path: '/tmp/disabled.pdf');
+        final library = Library(categories: [])..books.addAll([text, pdf]);
+        provider.indexedFilePaths.addAll(['id:1', pdf.path]);
+        final repository = IndexingRepository(
+          provider,
+          indexPdfBooks: () => false,
+        );
+        engine.onOptimize = () {
+          expect(engine.commitCount, 1);
+          expect(provider.indexedFilePaths, {'id:1'});
+        };
+
+        expect(
+          await repository.dropOrphanedIndexEntries(library, customFolders: []),
+          1,
+        );
+        expect(engine.optimizeCount, 1);
+        expect(
+          await repository.dropOrphanedIndexEntries(library, customFolders: []),
+          0,
+        );
+        expect(engine.optimizeCount, 1);
+      },
+    );
+
+    test('כשל commit בכיבוי PDF אינו מפעיל איחוד או מאבד מעקב', () async {
+      final engine = _RecordingSearchEngine()..failCommit = true;
+      final provider = _RecordingTantivyDataProvider(engine);
+      final pdf = PdfBook(title: 'סרוק', path: '/tmp/disabled.pdf');
+      final library = Library(categories: [])..books.add(pdf);
+      provider.indexedFilePaths.add(pdf.path);
+      engine.committedFilePaths = [pdf.path];
+
+      expect(
+        await IndexingRepository(
+          provider,
+          indexPdfBooks: () => false,
+        ).dropOrphanedIndexEntries(library, customFolders: []),
+        0,
+      );
+      expect(engine.optimizeCount, 0);
+      expect(provider.indexedFilePaths, {pdf.path});
+    });
+
+    test('כשל איחוד אחרי מחיקת PDF אינו מבטל commit מוצלח', () async {
+      final engine = _RecordingSearchEngine();
+      final provider = _RecordingTantivyDataProvider(engine);
+      final pdf = PdfBook(title: 'סרוק', path: '/tmp/disabled.pdf');
+      final library = Library(categories: [])..books.add(pdf);
+      provider.indexedFilePaths.add(pdf.path);
+      engine.onOptimize = () => throw StateError('optimize failed');
+
+      expect(
+        await IndexingRepository(
+          provider,
+          indexPdfBooks: () => false,
+        ).dropOrphanedIndexEntries(library, customFolders: []),
+        1,
+      );
+      expect(engine.optimizeCount, 1);
+      expect(engine.commitCount, 1);
+      expect(provider.indexedFilePaths, isEmpty);
+      expect(engine.rollbackCount, 0);
+    });
+
     test('מסיר מפתחות uid: של ספרים שאינם עוד בספרייה', () async {
       final engine = _RecordingSearchEngine();
       final provider = _RecordingTantivyDataProvider(engine);
@@ -661,6 +732,7 @@ void main() {
       expect(removed, 1);
       expect(engine.removedFilePaths, ['uid:99']);
       expect(engine.commitCount, 1);
+      expect(engine.optimizeCount, 0);
       expect(provider.indexedFilePaths, {
         BookIdentity.indexedFilePath(existing),
         'id:7',

@@ -3554,6 +3554,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
             listenWhen: (previous, current) =>
                 previous.indexPdfBooks != current.indexPdfBooks,
             listener: (context, state) {
+              if (!_duties.isProcessOwner) return;
               DataRepository.instance.library.then((library) {
                 if (!mounted || !context.mounted) return;
                 final indexingBloc = context.read<IndexingBloc>();

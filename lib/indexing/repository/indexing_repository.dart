@@ -2578,7 +2578,7 @@ class IndexingRepository {
     if (books.isEmpty) return 0;
 
     // מוודא שה-indexedFilePaths כבר נטענו מהאינדקס (חלק מאתחול המנוע).
-    await _tantivyDataProvider.engine;
+    final index = await _tantivyDataProvider.engine;
 
     // ספרים אישיים ב"בלי ספרים אישיים" ו-PDF כשאינדוקסם כבוי נמחקים כמו יתומים.
     final mode = indexUpdateMode();
@@ -2664,6 +2664,8 @@ class IndexingRepository {
     // כשל delete/commit ⇒ שחזור מנוע והחזרת 0: המעקב לא סומן כמנוקה, כך
     // שקובץ שיחזור לספרייה לא יידלג בטעות כ"מאונדקס".
     if (!await _deleteIndexedFilePaths(orphans)) return 0;
+    // מחיקה לוגית לבדה אינה מפנה את נפח ה-PDF. איחוד רק לאחר מחיקה חתומה.
+    if (!includePdfs) await optimizeIndexBestEffort(index.optimize);
     debugPrint('🧹 נוקו ${orphans.length} ספרים יתומים מהאינדקס');
     return orphans.length;
   }
