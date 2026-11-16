@@ -1,5 +1,6 @@
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/bookmarks/utils/search_history_key.dart';
+import 'package:otzaria/bookmarks/utils/reading_history_key.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/utils/file/hive_utils.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
@@ -62,6 +63,9 @@ class Bookmark {
   final Map<int, List<String>>? negativeAlternativeWords;
   final Map<String, String>? negativeSpacingValues;
   final String? workspaceName;
+
+  /// [Workspace.id] — יציב גם אחרי שינוי שם; null ברשומות ישנות.
+  final String? workspaceId;
   final List<String>? searchScopeFacets;
 
   /// הסינון בתוך התחום; נשמר רק כששונה ממנו, בלי לשכפל אלפי facets.
@@ -97,16 +101,20 @@ class Bookmark {
   /// מחסניות החזרה/קדימה של הקורא; נשמרות ברשומת היסטוריה בלבד.
   final Map<String, dynamic>? navigationHistory;
 
-  /// זהות מקום קריאה: סוג יעד, זהות ספר ו-slot; חיפוש לפי שאילתה וסינון.
-  /// זהות הספר חייבת להתאים לשחזור המיקום, כדי לא לדרוס ספר אחר.
+  /// זהות מקום קריאה לפי ספר, סוג יעד, slot ושולחן; חיפוש לפי שאילתה וסינון.
   String get historyKey => isSearch
       ? searchHistoryKey(
           query: ref,
           scopeFacets: searchScopeFacets,
           filterFacets: searchFilterFacets,
         )
-      : '${targetKind.name}:${bookIdentity(book)}'
-            '${historySlot == null ? '' : '#$historySlot'}';
+      : readingHistoryKey(
+          bookKey: bookIdentity(book),
+          targetKind: targetKind.name,
+          historySlot: historySlot,
+          workspaceId: workspaceId,
+          workspaceName: workspaceName,
+        );
 
   /// מזהה יציב של סימנייה בתוך רשימת הסימניות.
   ///
@@ -133,6 +141,7 @@ class Bookmark {
     this.negativeAlternativeWords,
     this.negativeSpacingValues,
     this.workspaceName,
+    this.workspaceId,
     this.searchScopeFacets,
     this.searchFilterFacets,
     this.searchMode,
@@ -158,6 +167,7 @@ class Bookmark {
     bool clearLabel = false,
     String? historySlot,
     Map<String, dynamic>? navigationHistory,
+    String? workspaceId,
   }) {
     return Bookmark(
       ref: ref,
@@ -173,6 +183,7 @@ class Bookmark {
       negativeAlternativeWords: negativeAlternativeWords,
       negativeSpacingValues: negativeSpacingValues,
       workspaceName: workspaceName,
+      workspaceId: workspaceId ?? this.workspaceId,
       searchScopeFacets: searchScopeFacets,
       searchFilterFacets: searchFilterFacets,
       searchMode: searchMode,
@@ -243,6 +254,7 @@ class Bookmark {
             ).map((key, value) => MapEntry(key, value.toString()))
           : null,
       workspaceName: json['workspaceName'] as String?,
+      workspaceId: json['workspaceId'] as String?,
       searchScopeFacets: json['searchScopeFacets'] != null
           ? List<String>.from(json['searchScopeFacets'] as List)
           : null,
@@ -316,6 +328,7 @@ class Bookmark {
       ),
       'negativeSpacingValues': negativeSpacingValues,
       'workspaceName': workspaceName,
+      'workspaceId': ?workspaceId,
       'searchScopeFacets': searchScopeFacets,
       'searchFilterFacets': ?searchFilterFacets,
       'searchMode': searchMode?.name,

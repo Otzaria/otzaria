@@ -130,9 +130,22 @@ class BookOpenCoordinator {
     // שונים עם אותה כותרת (id/נתיב שונה) מקבלים זהויות נפרדות, כך שפתיחת אחד
     // לא תקפוץ למיקום שנשמר עבור השני.
     final bookKey = bookIdentity(book);
-    final latestEntry = historyState.history.firstWhereOrNull(
+    final bookEntries = historyState.history.where(
       (b) => bookIdentity(b.book) == bookKey,
     );
+    // ממשיכים רק ממקום שנשמר בשולחן הנוכחי (issue #2818); רשומה ישנה בלי מזהה
+    // מותאמת לפי שם, ורשומה או חלון בלי שולחן מתאימים לכל שולחן.
+    bool sameWorkspace(Bookmark entry) {
+      if (entry.workspaceId case final id?) {
+        final current = historyBloc.currentWorkspaceId;
+        return current == null || id == current;
+      }
+      final name = entry.workspaceName;
+      final current = historyBloc.currentWorkspaceName;
+      return name == null || current == null || name == current;
+    }
+
+    final latestEntry = bookEntries.firstWhereOrNull(sameWorkspace);
     final lastOpened = (ignoreHistory || hasAnyHighlight) ? null : latestEntry;
     // ערך המיקום ההתחלתי ה"דיפולטי" תלוי בסוג הספר: בטקסט האינדקס מבוסס-0
     // (0 = "ללא מיקום ספציפי"), אבל ב-PDF העמודים מבוססי-1 (1 = העמוד הראשון).
@@ -198,6 +211,10 @@ class BookOpenCoordinator {
       dedupeKey: dedupeKey,
       externalMatches: externalMatches,
     )..historySlot = latestEntry?.historySlot;
+    // ספר שנקרא רק בשולחנות אחרים מקבל slot חדש, כדי שלא ידרוס את רשומתם.
+    if (latestEntry == null && bookEntries.isNotEmpty) {
+      tab.historySlot = OpenedTab.newHistorySlot();
+    }
     restoreReadingTabNavigationHistory(
       tab,
       latestEntry?.navigationHistory,

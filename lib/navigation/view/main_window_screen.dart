@@ -3122,7 +3122,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
                   (w) => w.id == currentId,
                 );
                 context.read<HistoryBloc>().add(
-                  SetCurrentWorkspaceName(workspace.name),
+                  SetCurrentWorkspaceName(
+                    workspace.name,
+                    workspaceId: workspace.id,
+                  ),
                 );
               }
             },

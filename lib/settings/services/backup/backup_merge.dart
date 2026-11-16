@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:otzaria/bookmarks/utils/search_history_key.dart';
+import 'package:otzaria/bookmarks/utils/reading_history_key.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/settings/services/backup/backup_report_format.dart';
 
@@ -276,8 +277,7 @@ class BackupMerge {
     return '${_bookIdentityOf(m)}|${m['index']}|${_targetKindOf(m)}';
   }
 
-  /// זהות רשומת היסטוריה: אחת לכל ספר, סוג יעד ו-`historySlot`,
-  /// כך שמיזוג משמר את מיקום הקריאה האחרון של כל מקום ולא כל ביקור.
+  /// זהות זהה להיסטוריה החיה, כדי שמיזוג לא ידרוס מקום משולחן אחר.
   static String _historyKey(Map<String, dynamic> m) {
     if (m['isSearch'] == true) {
       return searchHistoryKey(
@@ -286,9 +286,14 @@ class BackupMerge {
         filterFacets: (m['searchFilterFacets'] as List?)?.cast<String>(),
       );
     }
-    final slot = m['historySlot'];
-    return '${_targetKindOf(m)}:${_bookIdentityOf(m)}'
-        '${slot is String ? '#$slot' : ''}';
+    String? text(String key) => m[key] is String ? m[key] as String : null;
+    return readingHistoryKey(
+      bookKey: _bookIdentityOf(m),
+      targetKind: _targetKindOf(m),
+      historySlot: text('historySlot'),
+      workspaceId: text('workspaceId'),
+      workspaceName: text('workspaceName'),
+    );
   }
 
   /// מיזוג הערות: איחוד לפי `note.id`, ה-`updatedAt` המאוחר מנצח.

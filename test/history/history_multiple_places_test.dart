@@ -105,11 +105,18 @@ class _FakeNavigationRepository implements NavigationRepository {
 
 final _book = TextBook(id: 7, title: 'משנה ברורה');
 
-Bookmark _entry(int index, {String? slot}) => Bookmark(
+Bookmark _entry(
+  int index, {
+  String? slot,
+  String? workspace,
+  String? workspaceId,
+}) => Bookmark(
   ref: 'משנה ברורה $index',
   book: _book,
   index: index,
   historySlot: slot,
+  workspaceName: workspace,
+  workspaceId: workspaceId,
 );
 
 void main() {
@@ -467,8 +474,17 @@ void main() {
       if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
     });
 
-    Future<BookOpenCoordinator> coordinator(List<Bookmark> history) async {
+    Future<BookOpenCoordinator> coordinator(
+      List<Bookmark> history, {
+      String? workspace,
+      String? workspaceId,
+    }) async {
       final historyBloc = HistoryBloc(_MemoryHistoryRepository(history));
+      if (workspace != null) {
+        historyBloc.add(
+          SetCurrentWorkspaceName(workspace, workspaceId: workspaceId),
+        );
+      }
       final navigationBloc = NavigationBloc(
         repository: _FakeNavigationRepository(),
         tabsRepository: TabsRepository(),
@@ -493,6 +509,145 @@ void main() {
 
       expect(tab.historySlot, 'b');
       expect((tab as TextBookTab).index, 500);
+    });
+
+    group('שולחן עבודה (issue #2818)', () {
+      int openedAt(OpenedTab tab) {
+        addTearDown(tab.dispose);
+        return (tab as TextBookTab).index;
+      }
+
+      test('ממשיך מהמקום שנשמר בשולחן הנוכחי, לא מהאחרון בכלל', () async {
+        final history = [
+          _entry(25, slot: 'a', workspace: 'סדר א', workspaceId: 'A'),
+          _entry(3, slot: 'b', workspace: 'סדר ב', workspaceId: 'B'),
+        ];
+        final inA = await coordinator(
+          history,
+          workspace: 'סדר א',
+          workspaceId: 'A',
+        );
+        final inB = await coordinator(
+          history,
+          workspace: 'סדר ב',
+          workspaceId: 'B',
+        );
+
+        expect(openedAt(inA.buildTab(_book, 0, '')), 25);
+        final tabB = inB.buildTab(_book, 0, '');
+        expect(tabB.historySlot, 'b');
+        expect(openedAt(tabB), 3);
+      });
+
+      test('שינוי שם השולחן אינו מאבד את מקומו', () async {
+        final opener = await coordinator(
+          [_entry(25, workspace: 'שם ישן', workspaceId: 'A')],
+          workspace: 'שם חדש',
+          workspaceId: 'A',
+        );
+
+        expect(openedAt(opener.buildTab(_book, 0, '')), 25);
+      });
+
+      test('שולחן אחר באותו שם אינו ממשיך את מקומו', () async {
+        final opener = await coordinator(
+          [_entry(25, workspace: 'סדר א', workspaceId: 'A')],
+          workspace: 'סדר א',
+          workspaceId: 'A2',
+        );
+
+        expect(openedAt(opener.buildTab(_book, 0, '')), 0);
+      });
+
+      test('רשומה ישנה בלי מזהה מותאמת לפי שם', () async {
+        final history = [_entry(25, workspace: 'סדר א')];
+        final same = await coordinator(
+          history,
+          workspace: 'סדר א',
+          workspaceId: 'A',
+        );
+        final other = await coordinator(
+          history,
+          workspace: 'סדר ב',
+          workspaceId: 'B',
+        );
+
+        expect(openedAt(same.buildTab(_book, 0, '')), 25);
+        expect(openedAt(other.buildTab(_book, 0, '')), 0);
+      });
+
+      for (final otherSlot in ['a', null]) {
+        test('ספר שלא נקרא בשולחן נפתח בתחילתו במקום חדש, '
+            'slot אחר=$otherSlot', () async {
+          final opener = await coordinator(
+            [_entry(25, slot: otherSlot, workspace: 'א', workspaceId: 'A')],
+            workspace: 'ב',
+            workspaceId: 'B',
+          );
+
+          final tab = opener.buildTab(_book, 0, '');
+          expect(tab.historySlot, isNotNull);
+          expect(tab.historySlot, isNot(otherSlot));
+          expect(openedAt(tab), 0);
+        });
+      }
+
+      test('רשומה בלי שולחן ממשיכה בכל שולחן, באותו slot', () async {
+        final opener = await coordinator(
+          [_entry(25, workspace: 'סדר א', workspaceId: 'A'), _entry(7)],
+          workspace: 'סדר ב',
+          workspaceId: 'B',
+        );
+
+        final tab = opener.buildTab(_book, 0, '');
+        expect(tab.historySlot, isNull);
+        expect(openedAt(tab), 7);
+      });
+
+      test('רשומה מהשולחן הנוכחי בלי slot ממשיכה באותה רשומה', () async {
+        final opener = await coordinator(
+          [
+            _entry(3, slot: 'b', workspace: 'ב', workspaceId: 'B'),
+            _entry(25, workspace: 'א', workspaceId: 'A'),
+          ],
+          workspace: 'א',
+          workspaceId: 'A',
+        );
+
+        final tab = opener.buildTab(_book, 0, '');
+        expect(tab.historySlot, isNull);
+        expect(openedAt(tab), 25);
+      });
+
+      test('חלון בלי שולחן ממשיך מהרשומה האחרונה', () async {
+        final opener = await coordinator([
+          _entry(25, workspace: 'סדר א', workspaceId: 'A'),
+          _entry(3, workspace: 'סדר ב', workspaceId: 'B'),
+        ]);
+
+        expect(openedAt(opener.buildTab(_book, 0, '')), 25);
+      });
+
+      test('לכידה שומרת את מזהה השולחן, והוא שורד JSON', () async {
+        final bloc = HistoryBloc(_MemoryHistoryRepository());
+        addTearDown(bloc.close);
+        await bloc.stream.firstWhere((state) => state is HistoryLoaded);
+        bloc.add(SetCurrentWorkspaceName('סדר א', workspaceId: 'A'));
+        final tab = PdfBookTab(
+          book: PdfBook(title: 'ספר', path: '/a.pdf'),
+          pageNumber: 4,
+        )..pdfViewerController = _ReadyPdfController(4);
+        addTearDown(tab.dispose);
+
+        bloc.add(AddHistory(tab));
+        final entry = (await bloc.stream.firstWhere(
+          (s) => s.history.isNotEmpty,
+        )).history.single;
+
+        expect(entry.workspaceId, 'A');
+        expect(Bookmark.fromJson(entry.toJson()).workspaceId, 'A');
+        expect(_entry(1).toJson().containsKey('workspaceId'), isFalse);
+      });
     });
 
     test('ספר שכבר פתוח בטאב אחר מקבל רשומה חדשה', () async {

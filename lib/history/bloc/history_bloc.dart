@@ -138,6 +138,11 @@ List<SearchTitleSegment> buildSearchTitleSegments({
 class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
   final HistoryRepository _repository;
   String? _currentWorkspaceName;
+  String? _currentWorkspaceId;
+
+  /// שולחן העבודה שרשומות חדשות משויכות אליו; null — חלון בלי שולחן.
+  String? get currentWorkspaceName => _currentWorkspaceName;
+  String? get currentWorkspaceId => _currentWorkspaceId;
   Timer? _debounce;
   final Map<String, Bookmark> _pendingSnapshots = {};
   late final Future<void> Function() _preCloseCallback;
@@ -179,7 +184,11 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
   /// מוסיף את רשומות [tab] לממתינים לשמירה.
   Future<void> _capture(OpenedTab? tab) async {
     if (tab == null) return;
-    for (final bookmark in await _bookmarksFromTab(tab)) {
+    for (final bookmark in await _bookmarksFromTab(
+      tab,
+      workspaceName: _currentWorkspaceName,
+      workspaceId: _currentWorkspaceId,
+    )) {
       _pendingSnapshots[bookmark.historyKey] = bookmark;
     }
   }
@@ -213,10 +222,23 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
 
   static const int _maxHistorySize = 200;
 
-  static bool Function(Bookmark) _historyMatcher(Bookmark bookmark) {
+  static bool Function(Bookmark) _historyMatcher(
+    Bookmark bookmark, {
+    bool upgradeLegacyWorkspace = false,
+  }) {
     if (!bookmark.isSearch) {
       final key = bookmark.historyKey;
-      return (other) => !other.isSearch && other.historyKey == key;
+      return (other) =>
+          !other.isSearch &&
+          (other.historyKey == key ||
+              (upgradeLegacyWorkspace &&
+                  bookmark.workspaceId != null &&
+                  bookmark.workspaceName != null &&
+                  other.workspaceId == null &&
+                  other.workspaceName == bookmark.workspaceName &&
+                  other.historySlot == bookmark.historySlot &&
+                  other.targetKind == bookmark.targetKind &&
+                  bookIdentity(other.book) == bookIdentity(bookmark.book)));
     }
     Set<String> scopeOf(Bookmark entry) =>
         entry.searchScopeFacets?.isNotEmpty == true
@@ -244,7 +266,9 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
   ) {
     final updated = List<Bookmark>.from(current);
     for (final bookmark in snapshots) {
-      updated.removeWhere(_historyMatcher(bookmark));
+      updated.removeWhere(
+        _historyMatcher(bookmark, upgradeLegacyWorkspace: true),
+      );
       updated.insert(0, bookmark);
     }
     if (updated.length > _maxHistorySize) {
@@ -264,6 +288,8 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
   /// הזה כל מפגש קריאה בפיצול לא נרשם כלל.
   Future<List<Bookmark>> _bookmarksFromTab(
     OpenedTab tab, {
+    required String? workspaceName,
+    required String? workspaceId,
     List<String>? scopeFacetsOverride,
     SearchScope? proximityScopeOverride,
   }) async {
@@ -276,6 +302,8 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     for (final pane in panes.reversed) {
       final bookmark = await _bookmarkFromTab(
         pane,
+        workspaceName: workspaceName,
+        workspaceId: workspaceId,
         scopeFacetsOverride: isSplit ? null : scopeFacetsOverride,
         proximityScopeOverride: isSplit ? null : proximityScopeOverride,
       );
@@ -286,11 +314,11 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
 
   Future<Bookmark?> _bookmarkFromTab(
     OpenedTab tab, {
+    required String? workspaceName,
+    required String? workspaceId,
     List<String>? scopeFacetsOverride,
     SearchScope? proximityScopeOverride,
   }) async {
-    final workspaceName = _currentWorkspaceName;
-
     // ההיסטוריה משחזרת חיפוש מילולי; חיפוש סמנטי היה חוזר בה כמילולי.
     if (tab is SemanticSearchTab) return null;
     if (tab is SearchingTab) {
@@ -323,6 +351,7 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
         negativeAlternativeWords: searchingTab.negativeAlternativeWords,
         negativeSpacingValues: searchingTab.negativeSpacingValues,
         workspaceName: workspaceName,
+        workspaceId: workspaceId,
         searchScopeFacets: nonRootScopeFacets.isNotEmpty
             ? nonRootScopeFacets
             : null,
@@ -353,6 +382,7 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     return bookmark?.copyWith(
       historySlot: tab.historySlot,
       navigationHistory: navigationHistory,
+      workspaceId: workspaceId,
     );
   }
 
@@ -412,6 +442,7 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     Emitter<HistoryState> emit,
   ) {
     _currentWorkspaceName = event.workspaceName;
+    _currentWorkspaceId = event.workspaceId;
   }
 
   Future<void> _onAddHistory(
@@ -421,6 +452,8 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     try {
       final bookmarks = await _bookmarksFromTab(
         event.tab,
+        workspaceName: _currentWorkspaceName,
+        workspaceId: _currentWorkspaceId,
         scopeFacetsOverride: event.scopeFacets,
         proximityScopeOverride: event.proximityScope,
       );
@@ -437,8 +470,16 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
   ) async {
     try {
       final snapshots = <Bookmark>[];
+      final workspaceName = _currentWorkspaceName;
+      final workspaceId = _currentWorkspaceId;
       for (final tab in event.tabs) {
-        snapshots.addAll(await _bookmarksFromTab(tab));
+        snapshots.addAll(
+          await _bookmarksFromTab(
+            tab,
+            workspaceName: workspaceName,
+            workspaceId: workspaceId,
+          ),
+        );
       }
       if (snapshots.isEmpty) return;
       add(BulkAddHistory(snapshots));
