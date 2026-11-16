@@ -194,6 +194,35 @@ void main() {
       ]);
     });
 
+    test('קישור לספר הבסיס (SOURCE) עומד בראש, לפני דור ואלפבית (#4170)', () {
+      CommentaryService.clearEraCache();
+      addTearDown(CommentaryService.clearEraCache);
+      CommentaryService.seedEraCache(const {
+        'עירובין': CommentaryEra.chazal,
+        'רש"י על עירובין': CommentaryEra.rishonim,
+        'שולחן ערוך, אורח חיים': CommentaryEra.acharonim,
+      });
+      Link linkFor(String title, String type) => Link(
+        heRef: title,
+        index1: 1,
+        path2: title,
+        index2: 1,
+        connectionType: type,
+      );
+
+      final sorted = CommentaryService.sortLinksByEraSync([
+        linkFor('רש"י על עירובין', 'REFERENCE'),
+        linkFor('שולחן ערוך, אורח חיים', 'SOURCE'),
+        linkFor('עירובין', 'OTHER'),
+      ]);
+
+      expect(sorted.map((l) => l.heRef).toList(), [
+        'שולחן ערוך, אורח חיים',
+        'עירובין',
+        'רש"י על עירובין',
+      ]);
+    });
+
     test(
       'sortGroupsByEraSync: קבוצת "הערות על XX" ממוינת מיד אחרי קבוצת XX',
       () async {
