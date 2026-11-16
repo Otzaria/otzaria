@@ -170,6 +170,8 @@ void main() {
 
   testWidgets('a commentary column', (tester) async {
     expect(await menuFor(tester, isMainText: false), [
+      '[חיפוש (disabled)]',
+      '---',
       'הוסף הערה אישית ',
       'דווח על טעות בספר',
       '---',
