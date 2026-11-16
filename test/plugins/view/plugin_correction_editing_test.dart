@@ -7,6 +7,7 @@ import 'package:otzaria/data/sqlite/sqlite3_api.dart';
 import 'package:otzaria/plugins/repository/plugin_correction_draft_repository.dart';
 import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
 import 'package:otzaria/plugins/view/plugin_correction_paragraph.dart';
+import 'package:otzaria/plugins/view/plugin_correction_controller.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
@@ -142,7 +143,165 @@ void main() {
     await _finish(tester, service);
   }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
-  testWidgets('שחזור והרכבה מחדש שומרים טקסט פשוט ומקור מעוצב ללא שינוי', (
+  testWidgets(
+    'ביטול וביצוע חוזר משחזרים עיצוב של מופע חוזר אחרי שתי עריכות',
+    (
+      tester,
+    ) async {
+      const source = '<b>אב</b> אב <i>גד</i>';
+      final service = await _begin(tester, [source]);
+      await _pumpEditor(tester, service, source);
+      await tester.showKeyboard(find.byType(EditableText));
+      await tester.pump(const Duration(seconds: 1));
+      _editor(tester).controller.selection = const TextSelection(
+        baseOffset: 0,
+        extentOffset: 3,
+      );
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'אב גד',
+          selection: TextSelection.collapsed(offset: 0),
+        ),
+      );
+      await tester.pump(const Duration(seconds: 1));
+      expect(
+        _styleAt(_renderedSpan(tester), 0).fontWeight,
+        isNot(FontWeight.bold),
+      );
+      _editor(tester).controller.selection = const TextSelection(
+        baseOffset: 3,
+        extentOffset: 5,
+      );
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'אב דה',
+          selection: TextSelection.collapsed(offset: 5),
+        ),
+      );
+      await tester.pump(const Duration(seconds: 1));
+      Future<void> undoOrRedo({bool redo = false}) async {
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        if (redo) await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyZ);
+        if (redo) await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        await tester.pump();
+      }
+
+      await undoOrRedo();
+      expect(_editor(tester).controller.text, 'אב גד');
+      expect(
+        _styleAt(_renderedSpan(tester), 0).fontWeight,
+        isNot(FontWeight.bold),
+      );
+      expect(_styleAt(_renderedSpan(tester), 3).fontStyle, FontStyle.italic);
+      expect(service.editableText('tab', 0, source), 'אב גד');
+      await undoOrRedo();
+      expect(_editor(tester).controller.text, 'אב אב גד');
+      expect(_styleAt(_renderedSpan(tester), 0).fontWeight, FontWeight.bold);
+      expect(
+        _styleAt(_renderedSpan(tester), 3).fontWeight,
+        isNot(FontWeight.bold),
+      );
+      await undoOrRedo(redo: true);
+      expect(_editor(tester).controller.text, 'אב גד');
+      expect(
+        _styleAt(_renderedSpan(tester), 0).fontWeight,
+        isNot(FontWeight.bold),
+      );
+      expect(_styleAt(_renderedSpan(tester), 3).fontStyle, FontStyle.italic);
+      await undoOrRedo(redo: true);
+      expect(_editor(tester).controller.text, 'אב דה');
+      expect(
+        _styleAt(_renderedSpan(tester), 0).fontWeight,
+        isNot(FontWeight.bold),
+      );
+      expect(_styleAt(_renderedSpan(tester), 3).fontStyle, FontStyle.italic);
+      expect(service.editableText('tab', 0, source), 'אב דה');
+      await _finish(tester, service);
+    },
+    variant: TargetPlatformVariant({
+      TargetPlatform.windows,
+      TargetPlatform.android,
+    }),
+  );
+
+  testWidgets('הרכבה מחדש אחרי מחיקת מופע חוזר אינה מעבירה אליו הדגשה', (
+    tester,
+  ) async {
+    const source = '<b>אב</b> אב <i>גד</i>';
+    final service = await _begin(tester, [source]);
+    await _pumpEditor(tester, service, source);
+    await tester.showKeyboard(find.byType(EditableText));
+    _editor(tester).controller.selection = const TextSelection(
+      baseOffset: 0,
+      extentOffset: 3,
+    );
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: 'אב גד',
+        selection: TextSelection.collapsed(offset: 0),
+      ),
+    );
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox());
+    await _pumpEditor(tester, service, source);
+    expect(_editor(tester).controller.text, 'אב גד');
+    expect(
+      _styleAt(_renderedSpan(tester), 0).fontWeight,
+      isNot(FontWeight.bold),
+    );
+    expect(_styleAt(_renderedSpan(tester), 3).fontStyle, FontStyle.italic);
+    await _finish(tester, service);
+  });
+
+  for (final separator in ['\n', '\r\n', '\r']) {
+    testWidgets('סנכרון RTL עם שבר קשיח נשאר תקין: ${separator.codeUnits}', (
+      tester,
+    ) async {
+      final controller = PluginCorrectionController('<b>אב</b>$separatorגד');
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: RtlTextField(controller: controller, maxLines: null),
+          ),
+        ),
+      );
+      await tester.showKeyboard(find.byType(EditableText));
+      await tester.pump(const Duration(seconds: 1));
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'אב\r\nגה',
+          selection: TextSelection.collapsed(offset: 6),
+          composing: TextRange(start: 4, end: 6),
+        ),
+      );
+      await tester.pump();
+      expect(controller.text, 'אב\nגה');
+      expect(controller.selection, const TextSelection.collapsed(offset: 5));
+      expect(controller.value.composing, const TextRange(start: 3, end: 5));
+      expect(_editor(tester).controller.text, 'אב\r\nגה');
+      expect(_renderedSpan(tester).toPlainText(), 'אב\r\nגה');
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'אב\r\nגה',
+          selection: TextSelection.collapsed(offset: 6),
+        ),
+      );
+      await tester.pump(const Duration(seconds: 1));
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyZ);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+      expect(controller.text, 'אב\nגד');
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+  }
+
+  testWidgets('שחזור והרכבה מחדש שומרים עיצוב בעורך ומקור מעוצב ללא שינוי', (
     tester,
   ) async {
     const source =
@@ -204,15 +363,27 @@ void main() {
       _styleAt(_renderedSpan(tester), 0).color,
       _editor(tester).style.color,
     );
-    expect(
-      _styleAt(_renderedSpan(tester), 8).fontStyle,
-      isNot(FontStyle.italic),
-    );
+    void expectEditorFormatting() {
+      final span = _renderedSpan(tester);
+      expect(
+        _styleAt(span, 0).decoration?.contains(TextDecoration.lineThrough),
+        isTrue,
+      );
+      expect(
+        _styleAt(span, 3).decoration?.contains(TextDecoration.lineThrough),
+        isNot(isTrue),
+      );
+      expect(_styleAt(span, 3).fontStyle, isNot(FontStyle.italic));
+      expect(_styleAt(span, 8).fontStyle, FontStyle.italic);
+    }
+
+    expectEditorFormatting();
     final oldController = _editor(tester).controller;
     await tester.pumpWidget(const SizedBox());
     await _pumpEditor(tester, service, source, original: original);
     expect(_editor(tester).controller, isNot(same(oldController)));
     expect(_editor(tester).controller.text, 'אם רגיל גק');
+    expectEditorFormatting();
     expect(service.editableText('tab', 0, source), proposed);
     final change = (restored['changes'] as List).single as Map;
     expect(change['originalSourceText'], source);
