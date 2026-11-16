@@ -291,6 +291,14 @@ class GoogleCalendarRepository {
       }
     }
 
+    final weeklyDays = recurrenceType == RecurrenceType.weekly
+        ? parseCalendarWeekdays(
+            RegExp(
+              r'(?:^|;)BYDAY=([^;]+)',
+            ).firstMatch(recurrenceRule ?? '')?.group(1),
+          )
+        : null;
+
     return CustomEvent(
       id: otzariaId ?? gEvent.id ?? generateCalendarEventId(),
       title: gEvent.summary ?? 'אירוע ללא כותרת',
@@ -301,6 +309,7 @@ class GoogleCalendarRepository {
       baseJewishMonth: jewishDate.getJewishMonth(),
       baseJewishDay: jewishDate.getJewishDayOfMonth(),
       recurrenceType: recurrenceType,
+      weeklyDays: weeklyDays,
       recurringYears: null, // Not used in current implementation
       googleEventId: gEvent.id,
       eventTime: isAllDay
@@ -452,6 +461,11 @@ class GoogleCalendarRepository {
     }
 
     final buffer = StringBuffer('RRULE:FREQ=$freq');
+    if (event.recurrenceType == RecurrenceType.weekly &&
+        event.weeklyDays != null &&
+        event.weeklyDays!.isNotEmpty) {
+      buffer.write(';BYDAY=${formatCalendarWeekdays(event.weeklyDays!)}');
+    }
 
     // Add marker for Hebrew recurrences as a comment
     if (marker != null) {
@@ -595,6 +609,9 @@ class _GoogleEventsMerger {
           googleEventId: googleId.isEmpty ? null : googleId,
           endGregorianDate: () => mapped.endGregorianDate,
           recurrenceEndDate: () => mapped.recurrenceEndDate,
+          weeklyDays: googleEvent.recurrence == null
+              ? null
+              : () => mapped.weeklyDays,
           eventTime: () => mapped.eventTime,
           endTime: () => mapped.endTime,
           colorIndex: () => mapped.colorIndex,

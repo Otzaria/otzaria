@@ -1367,6 +1367,7 @@ class CalendarCubit extends Cubit<CalendarState> {
     String? description,
     required DateTime baseGregorianDate,
     required RecurrenceType recurrenceType,
+    List<int>? weeklyDays,
     int? recurringYears,
     TimeOfDay? eventTime,
     DateTime? endGregorianDate,
@@ -1390,6 +1391,7 @@ class CalendarCubit extends Cubit<CalendarState> {
       baseJewishMonth: baseJewish.getJewishMonth(),
       baseJewishDay: baseJewish.getJewishDayOfMonth(),
       recurrenceType: recurrenceType,
+      weeklyDays: weeklyDays,
       recurringYears: recurringYears,
       eventTime: eventTime,
       endGregorianDate: endGregorianDate != null

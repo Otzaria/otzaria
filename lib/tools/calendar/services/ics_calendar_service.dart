@@ -180,6 +180,13 @@ class IcsCalendarService {
 
     final recurrence = _parseSupportedRecurrence(props['RRULE']?.value ?? '');
     if (recurrence == null) return null;
+    // המודל שומר ימים ושעה מקומיים בלבד, בלי אזור זמן לכל מופע חוזר.
+    if (recurrence.weeklyDays != null &&
+        !start.dateOnly &&
+        (props['DTSTART']!.value.endsWith('Z') ||
+            props['DTSTART']!.params.containsKey('TZID'))) {
+      return null;
+    }
 
     final summary = _unescapeText(props['SUMMARY']?.value ?? '');
     final uid = props['UID']?.value ?? '';
@@ -197,6 +204,7 @@ class IcsCalendarService {
       baseJewishMonth: jewishDate.getJewishMonth(),
       baseJewishDay: jewishDate.getJewishDayOfMonth(),
       recurrenceType: recurrence.type,
+      weeklyDays: recurrence.weeklyDays,
       recurrenceEndDate: recurrence.endDate,
       eventTime: start.dateOnly
           ? null
@@ -297,7 +305,7 @@ class IcsCalendarService {
       parts[key] = value;
     }
 
-    const supportedKeys = {'FREQ', 'UNTIL', 'INTERVAL', 'WKST'};
+    const supportedKeys = {'FREQ', 'UNTIL', 'INTERVAL', 'WKST', 'BYDAY'};
     if (!parts.keys.every(supportedKeys.contains) ||
         (parts['INTERVAL'] != null && parts['INTERVAL'] != '1')) {
       return null;
@@ -310,15 +318,22 @@ class IcsCalendarService {
       _ => null,
     };
     if (type == null) return null;
+    // BYDAY is supported only for weekly rules, without ordinal prefixes.
+    if (parts.containsKey('BYDAY') && type != RecurrenceType.weekly) {
+      return null;
+    }
+    final days = parseCalendarWeekdays(parts['BYDAY']);
+    if (parts.containsKey('BYDAY') && days == null) return null;
 
     final until = parts['UNTIL'];
-    if (until == null) return _IcsRecurrence(type);
+    if (until == null) return _IcsRecurrence(type, weeklyDays: days);
     final match = RegExp(
       r'^(\d{4})(\d{2})(\d{2})(?:T\d{6}Z?)?$',
     ).firstMatch(until);
     if (match == null) return null;
     return _IcsRecurrence(
       type,
+      weeklyDays: days,
       endDate: DateTime(
         int.parse(match.group(1)!),
         int.parse(match.group(2)!),
@@ -330,9 +345,10 @@ class IcsCalendarService {
 
 class _IcsRecurrence {
   final RecurrenceType type;
+  final List<int>? weeklyDays;
   final DateTime? endDate;
 
-  const _IcsRecurrence(this.type, {this.endDate});
+  const _IcsRecurrence(this.type, {this.weeklyDays, this.endDate});
 }
 
 class _IcsDateTime {

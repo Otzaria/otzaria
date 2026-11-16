@@ -117,17 +117,93 @@ DTSTART;VALUE=DATE:20260101
 RRULE:FREQ=WEEKLY;INTERVAL=2
 SUMMARY:כל שבועיים
 END:VEVENT
-BEGIN:VEVENT
-UID:multiple-days
-DTSTART;VALUE=DATE:20260101
-RRULE:FREQ=WEEKLY;BYDAY=MO,WE
-SUMMARY:פעמיים בשבוע
-END:VEVENT
 END:VCALENDAR
 ''';
 
       expect(IcsCalendarService.parseIcs(ics), isEmpty);
     });
+
+    test('קורא חזרה שבועית BYDAY לכמה ימים בלי לאבד את התאריכים', () {
+      const ics = '''
+BEGIN:VCALENDAR
+BEGIN:VEVENT
+UID:weekly-days
+DTSTART;VALUE=DATE:20260101
+RRULE:FREQ=WEEKLY;BYDAY=MO,WE;UNTIL=20260131
+SUMMARY:שיעורים
+END:VEVENT
+END:VCALENDAR
+''';
+      final event = IcsCalendarService.parseIcs(ics).single;
+      expect(event.recurrenceType, RecurrenceType.weekly);
+      expect(event.weeklyDays, [DateTime.monday, DateTime.wednesday]);
+      expect(event.occursOn(DateTime(2026, 1, 1)), isFalse);
+      expect(event.occursOn(DateTime(2026, 1, 5)), isTrue);
+      expect(event.occursOn(DateTime(2026, 1, 6)), isFalse);
+      expect(event.occursOn(DateTime(2026, 1, 7)), isTrue);
+      expect(event.occursOn(DateTime(2026, 2, 2)), isFalse);
+    });
+
+    test('דוחה BYDAY לא חוקי במקום לפרש אותו כחזרה ביום הלא נכון', () {
+      const ics = '''
+BEGIN:VCALENDAR
+BEGIN:VEVENT
+UID:bad-rule
+DTSTART;VALUE=DATE:20260101
+RRULE:FREQ=WEEKLY;BYDAY=1MO,WE
+SUMMARY:תדירות לא נתמכת
+END:VEVENT
+END:VCALENDAR
+''';
+      expect(IcsCalendarService.parseIcs(ics), isEmpty);
+    });
+
+    for (final start in [
+      'DTSTART:20261101T233000Z',
+      'DTSTART;TZID=America/New_York:20261101T233000',
+      'DTSTART;TZID=Asia/Jerusalem:20261101T233000',
+    ]) {
+      test('מדלג על BYDAY עם אזור זמן בלי לאבד אירועים תקינים: $start', () {
+        final events = IcsCalendarService.parseIcs('''
+BEGIN:VCALENDAR
+BEGIN:VEVENT
+UID:zoned
+$start
+RRULE:FREQ=WEEKLY;BYDAY=SU
+SUMMARY:חזרה שאינה ניתנת לייצוג
+END:VEVENT
+BEGIN:VEVENT
+UID:floating
+DTSTART:20261102T013000
+RRULE:FREQ=WEEKLY;BYDAY=MO,WE
+SUMMARY:שיעור מקומי
+END:VEVENT
+END:VCALENDAR
+''');
+        final event = events.single;
+        expect(event.title, 'שיעור מקומי');
+        expect(event.eventTime, const TimeOfDay(hour: 1, minute: 30));
+        expect(event.startsOccurrenceOn(DateTime(2026, 11, 9)), isTrue);
+        expect(event.startsOccurrenceOn(DateTime(2026, 11, 11)), isTrue);
+        expect(event.startsOccurrenceOn(DateTime(2026, 11, 8)), isFalse);
+      });
+
+      test('שומר יבוא שבועי קיים עם אזור זמן וללא BYDAY: $start', () {
+        final event = IcsCalendarService.parseIcs('''
+BEGIN:VCALENDAR
+BEGIN:VEVENT
+UID:legacy
+$start
+RRULE:FREQ=WEEKLY
+SUMMARY:אירוע קיים
+END:VEVENT
+END:VCALENDAR
+''').single;
+        expect(event.title, 'אירוע קיים');
+        expect(event.recurrenceType, RecurrenceType.weekly);
+        expect(event.weeklyDays, isNull);
+      });
+    }
 
     test('מאחה שורות מקופלות ומפענח escaping בטקסט', () {
       const ics =
