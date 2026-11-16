@@ -313,6 +313,7 @@ void main() {
       expect(diagnostics['context'], {
         'screen': 'reading',
         'tabs': 1,
+        'currentTabIndex': 0,
         'tabsByType': {'ToolTab': 1},
         'currentTab': 'ToolTab',
         'currentTitle': r'%USERPROFILE%\Demo',

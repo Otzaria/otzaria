@@ -22,6 +22,7 @@ Map<String, Object?> describeAppContext({
   required Screen screen,
   required TabsState tabs,
   required PluginSystemState pluginState,
+  List<Map<String, Object?>> tabSwipes = const [],
 }) {
   final current = tabs.currentTab;
   final tabsByType = <String, int>{};
@@ -38,6 +39,7 @@ Map<String, Object?> describeAppContext({
   return {
     'screen': screen.name,
     'tabs': tabs.tabs.length,
+    if (tabs.hasOpenTabs) 'currentTabIndex': tabs.currentTabIndex,
     'tabsByType': tabsByType,
     'currentTab': current?.runtimeType.toString(),
     'currentTitle': current == null || leafPanes(current).any(_isPrivateTitle)
@@ -51,6 +53,7 @@ Map<String, Object?> describeAppContext({
         _pluginContext(id, pluginState),
     ],
     if (readers.isNotEmpty) 'readers': readers,
+    if (tabSwipes.isNotEmpty) 'tabSwipes': tabSwipes,
     'pluginResources': PluginRuntimeDispatcher.instance
         .describeForegroundResources(),
   };

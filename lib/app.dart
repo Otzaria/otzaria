@@ -12,6 +12,7 @@ import 'package:otzaria/core/diagnostics/frame_stats_overlay.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/tabs/utils/tab_swipe_log.dart';
 import 'package:otzaria/core/windowing/app_virtual_window_frame.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
@@ -168,9 +169,12 @@ class App extends StatelessWidget {
   }
 }
 
-Map<String, Object?> _diagnosticsContext(BuildContext context) =>
-    describeAppContext(
-      screen: context.read<NavigationBloc>().state.currentScreen,
-      tabs: context.read<TabsBloc>().state,
-      pluginState: context.read<PluginSystemBloc>().state,
-    );
+Map<String, Object?> _diagnosticsContext(BuildContext context) {
+  final tabs = context.read<TabsBloc>();
+  return describeAppContext(
+    screen: context.read<NavigationBloc>().state.currentScreen,
+    tabs: tabs.state,
+    pluginState: context.read<PluginSystemBloc>().state,
+    tabSwipes: TabSwipeLog.of(tabs),
+  );
+}
