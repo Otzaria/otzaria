@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import json
 import unittest
 from pathlib import Path
 
@@ -72,11 +73,28 @@ class AddBavliTests(unittest.TestCase):
 
 
 class SourceFileTests(unittest.TestCase):
+    def test_reviewed_translations_keep_full_meaning(self) -> None:
+        rows = dict(read_bavli())
+        self.assertNotIn("צוואר", rows)
+        self.assertEqual(rows["כיון דקם קם"], "כיון שהתקלקלו, לא יתקלקלו יותר")
+        self.assertEqual(rows["גוד או אגוד"], "קנה אתה את חלקי או שאני אקנה את חלקך (חלוקת שותפות)")
+        self.assertEqual(rows["על דאטפת אטפוך"], "על שהטבעת (אחרים), הטביעו אותך (סוכה נג.)")
+
     def test_bavli_source_file_is_valid(self) -> None:
         rows = read_bavli()
         self.assertGreater(len(rows), 500)
         for key, meaning in rows:
             self.assertFalse(is_placeholder(key, meaning), key)
+
+    def test_source_rebuilds_committed_asset(self) -> None:
+        asset = Path(__file__).resolve().parents[3] / "assets" / "dictionary.json"
+        data = json.loads(asset.read_text(encoding="utf-8"))
+        expected = data[TARGET]
+        rows = read_bavli()
+        source_keys = {key for key, _ in rows}
+        data[TARGET] = [entry for entry in expected if next(iter(entry)) not in source_keys]
+        self.assertEqual(add_bavli(data, TARGET, rows), (len(rows), 0))
+        self.assertEqual(data[TARGET], expected)
 
 
 if __name__ == "__main__":

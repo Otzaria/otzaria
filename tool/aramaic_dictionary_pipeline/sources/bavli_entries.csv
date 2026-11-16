@@ -80,7 +80,7 @@ key,meaning,site_vocalised_form,site_original_translations,site_row_ids
 גבורתו,"גבורתו, כוחו",גְּבוּרָתוֹ,"גבורתו, כוחו",aramaic_terms:639d3d19-9e98-47ad-a460-4552cef15ac2;vocabulary:ec5c020c-aa2a-426d-8581-02d2da47fbb2
 גבי הדדי תניין,(הברייתות) נשנו ביחד *** זו ליד זו הן שנויות,גַּבֵּי הֲדָדֵי תַּנְיָין,(הברייתות) נשנו ביחד | זו ליד זו הן שנויות,aramaic_terms:4f918b86-cbe3-42ad-8699-492ce7118a9d;vocabulary:cd18b52f-4dae-4802-8554-7ee7781c45e0
 גבי שוכר,אצל השוכר,גַבֵי שׂוֹכֵר,אצל השוכר,aramaic_terms:96522822-a928-4df3-96ee-5afd52a40cdc;vocabulary:4e056aac-fc6a-4a0d-8183-81509a0c2110
-גוד או אגוד,קנה אתה את חלקי,גוד או אגוד,קְנֵה אַתָּה אֶת חֶלְקִי — אוֹ שֶׁאֲנִי אֶקְנֶה אֶת חֶלְקְךָ (חלוקת שותפות),aramaic_terms:9230cf35-225c-4a65-8539-1010e8a0e182;vocabulary:d8591257-4102-44a1-9bd7-194abced3a18
+גוד או אגוד,קנה אתה את חלקי או שאני אקנה את חלקך (חלוקת שותפות),גוד או אגוד,קְנֵה אַתָּה אֶת חֶלְקִי — אוֹ שֶׁאֲנִי אֶקְנֶה אֶת חֶלְקְךָ (חלוקת שותפות),aramaic_terms:9230cf35-225c-4a65-8539-1010e8a0e182;vocabulary:d8591257-4102-44a1-9bd7-194abced3a18
 גוזמא בעלמא,סתם הגזים *** הגזמה בלבד,גּוּזְמָא בְּעָלְמָא,סתם הגזים | הגזמה בלבד,aramaic_terms:1cbfd338-4ba7-47cb-9210-5d47a6b28da3;vocabulary:6367e86e-b20d-4123-8472-c402a6f10369
 גופי,גופים,גופי,גופים,aramaic_terms:c9832360-1f0c-425c-9829-e4ee9f4a285f;vocabulary:8b922edb-4e1c-44ad-aa9c-cb40bb2b2537
 גוריון,גוריון (שם),גּוּרְיוֹן,גוריון (שם),aramaic_terms:14cf0d9d-d999-418a-bec4-22734cfd761e;vocabulary:d580457e-c5e7-412f-a677-7f190a34cad5
@@ -262,7 +262,7 @@ key,meaning,site_vocalised_form,site_original_translations,site_row_ids
 כי יותן,"הכשר לקבלת טומאה על-ידי נתינת מים *** ""כי יתן""",כִּי יוּתַּן,"הכשר לקבלת טומאה על-ידי נתינת מים | ""כי יֻתַּן"" — יינתן (גם מעצמו)",aramaic_terms:d8e64654-972d-4b8c-b902-25e9a771d465;vocabulary:1f44b63f-10d0-48ae-9922-d49a31b15330
 כי מזבנינן,כאשר אנחנו מוכרים,כי מזבנינן,כאשר אנחנו מוכרים,aramaic_terms:a00dd0a2-0e9a-4776-a3fe-2dcb0f648d11;vocabulary:952cb417-970c-4460-8d0f-75ad5aaaaec0
 כיון,כיוון ש *** כיוון ש... / מאחר ש...,כֵּיוָן,כיוון ש | כיוון ש... / מאחר ש...,aramaic_terms:eb6fb9f7-086f-495f-ad82-b1a130b0651d;vocabulary:1bf431fa-152d-4f67-8763-d4517c409774
-כיון דקם קם,"כיון שהתקלקלו, לא יתקללו יותר",כיון דקם קם,"כיון שהתקלקלו, לא יתקללו יותר",aramaic_terms:c6060323-cc53-439c-9269-86841f9b7050;vocabulary:ac452778-ee6b-493d-b6c6-ee0be0075b71
+כיון דקם קם,"כיון שהתקלקלו, לא יתקלקלו יותר",כיון דקם קם,"כיון שהתקלקלו, לא יתקללו יותר",aramaic_terms:c6060323-cc53-439c-9269-86841f9b7050;vocabulary:ac452778-ee6b-493d-b6c6-ee0be0075b71
 כל היכא,כל מקום *** בכל מקום ש...,כֹּל הֵיכָא,כל מקום | בכל מקום ש...,aramaic_terms:7a33f15b-d261-47e9-9bd7-e83ba2fc5630;vocabulary:16078d8b-7814-49de-b6d6-b2402f82c10f
 כל כמיניה,הכל ממנו,כל כמיניה,הכל ממנו,aramaic_terms:2f2da1ff-ef1e-460d-af8e-65081bba31fb;vocabulary:cc8abd3f-fc86-4334-87c3-29a955418ca4
 כל לא ידענא,כל מי שלא יודע,כֹּל לֹא יָדַעְנָא,כל מי שלא יודע,aramaic_terms:f55667cf-3162-4d33-8637-50390767c660;vocabulary:0e37712b-cd81-4ad8-9cb1-033e316ab0e0
@@ -433,7 +433,7 @@ key,meaning,site_vocalised_form,site_original_translations,site_row_ids
 עיטא,עצה,עֵיטָא,עֵצָה,aramaic_terms:1d0d81df-c2e2-4e55-8d70-3c7257dc59f1;vocabulary:ef4d46e5-837d-4136-bd73-6727bcc7b79b
 עיטדא,שטר חלוקה,עִיטְדָּא,שטר חלוקה,aramaic_terms:9e2715b5-396e-4e39-b7ce-381f1178b95d;vocabulary:62532b10-670e-4f78-8753-e5cca49dc56e
 עינים,עיניים,עֵינָיִם,עיניים,aramaic_terms:daa24ba4-1063-4d2d-a55a-977ec9936ab3;vocabulary:10296c34-8312-4311-85ca-1e6085d8e261
-על דאטפת אטפוך,על שהטבעת (אחרים),עַל דְּאַטֵּפְתְּ אַטְפוּךְ,על שהטבעת (אחרים) — הטביעו אותך (סוכה נג.),vocabulary:1257baac-4abb-43a9-a224-f45a629d3428
+על דאטפת אטפוך,"על שהטבעת (אחרים), הטביעו אותך (סוכה נג.)",עַל דְּאַטֵּפְתְּ אַטְפוּךְ,על שהטבעת (אחרים) — הטביעו אותך (סוכה נג.),vocabulary:1257baac-4abb-43a9-a224-f45a629d3428
 ענוותנותו,"ענוותנותו, ענוותו",עִנְוְותָנוּתוֹ,"ענוותנותו, ענוותו",aramaic_terms:4951f739-45e6-408a-a9d4-bed8a1ca1f64;vocabulary:c487705d-40d7-46ac-99a8-f3d1d983a66f
 פושקנצא,עורב (נקבה) *** עורב,פּוּשְׁקַנְצָא,עורב (נקבה) | עורב,aramaic_terms:143f20d8-ef71-41f6-a753-168b2ee9b64b;vocabulary:60e3a12f-6e31-4647-a4f8-df0a11694073
 פטר נפשיה,היה פוטר את עצמו *** פוטר את עצמו,פָּטַר נַפְשֵׁיהּ,היה פוטר את עצמו | פוטר את עצמו,aramaic_terms:cf0ab31c-eea7-4b17-8fa0-9cb4ce6ec72b;vocabulary:38edd927-db9d-458a-aeca-84b37414027f
@@ -449,7 +449,6 @@ key,meaning,site_vocalised_form,site_original_translations,site_row_ids
 פרה בעינא,את הפרה קיימת,פָּרָה בְּעֵינָא,את הפרה קיימת,aramaic_terms:f40e3e1d-5f48-4b65-8452-bd5b26d6ce36;vocabulary:466f7fc8-4970-431d-805d-a8e69a65ead6
 פרת,נהר פרת,פְּרָת,נהר פְּרָת — הנהר הגדול של בבל,aramaic_terms:035692d2-0540-4d1f-a3ca-055d1d15b232;vocabulary:95ea26f9-2dc0-437a-bb87-3419f01e3522
 צבעינהו,צבע אותם,צַבְעִינְהוּ,צבע אותם,aramaic_terms:54a934d7-1d1b-4e5e-ac75-f7d44d157665;vocabulary:3e212235-6132-4154-a462-d53e48d41070
-צוואר,בקעת,צוואר,בקעת,aramaic_terms:3591a056-57a2-441c-b373-8ac3f5c569e4;vocabulary:64b4eee0-73b0-4bb8-9a76-08cee994e0d6
 צור,"צור, סלע",צוּר,"צור, סלע",aramaic_terms:9d837bc2-9767-4661-a905-04b7e3002823;vocabulary:bafebc1b-4cb0-46a8-b393-f4855c9f4326
 צורריך,"אויביך, צורריך",צוֹרְרֶיךָ,"אויביך, צורריך",aramaic_terms:b5a201f6-406c-493d-a0e5-36f90cfc1945;vocabulary:324d6916-4b67-41bb-afb1-a61cd85b4287
 ציצתו,ציציתו,צִיצָתוֹ,ציציתו,aramaic_terms:72f288b6-1641-4858-88dc-0c8f652f2770;vocabulary:ef5abf20-54cd-4fb2-a209-f01b6c1ec65f
