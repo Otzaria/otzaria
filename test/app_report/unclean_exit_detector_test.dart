@@ -97,10 +97,7 @@ void main() {
     await d.startSession(version: 'test');
     d.markCleanExitSync();
     expect(
-      await AppCrashSession.detectAndStartSession(
-        version: 'test',
-        detector: d,
-      ),
+      await AppCrashSession.detectAndStartSession(version: 'test', detector: d),
       isNull,
     );
 
@@ -248,7 +245,7 @@ void main() {
     expect(candidate.signature!.frames, ['flutter_windows.dll+0x81bb05']);
   });
 
-  group('Native crash מה-runner (issue #4211)', () {
+  group('קריסה לפני החשיפה (issue #4211)', () {
     test('קריסה לפני Sentry → מועמד עם חתימה בצורת minidump', () async {
       writeLock();
       writeErrors(
@@ -299,50 +296,133 @@ void main() {
       expect(candidate.signature!.frames, isEmpty);
     });
 
-    File marker() =>
-        File(p.join(logs.path, UncleanExitDetector.nativeCrashMarkerName));
-
-    String nativeCrashAt(DateTime at) => entry(
-      'Native crash',
-      at,
-      body: 'Exception code: 0xc0000005\nFault: flutter_windows.dll+0x10\n',
+    File startupLock(int pid) => File(
+      p.join(
+        logs.path,
+        '${UncleanExitDetector.startupLockPrefix}$pid'
+        '${UncleanExitDetector.startupLockSuffix}',
+      ),
     );
 
-    test('קריסה לפני כתיבת הנעילה: מזוהה מהסמן, פעם אחת בלבד', () async {
-      final at = previousStart.add(const Duration(milliseconds: 250));
+    void writeStartupLock(int pid, DateTime at) =>
+        startupLock(pid).writeAsStringSync(
+          jsonEncode({
+            'pid': pid,
+            'version': '0.9.99',
+            'startedAt': at.toIso8601String(),
+          }),
+        );
+
+    String nativeCrashAt(DateTime at, {String code = '0xc0000005'}) => entry(
+      'Native crash',
+      at,
+      body: 'Exception code: $code\nFault: flutter_windows.dll+0x10\n',
+    );
+
+    test(
+      'קריסה לפני כתיבת session.lock: מזוהה מנעילת העלייה, פעם אחת',
+      () async {
+        writeErrors(
+          entry(
+                'Unhandled Error',
+                previousStart.subtract(const Duration(hours: 1)),
+              ) +
+              nativeCrashAt(
+                previousStart.add(const Duration(milliseconds: 250)),
+                code: '0xc0000409',
+              ),
+        );
+        writeStartupLock(1500, previousStart);
+
+        final candidate = await detector().detectPreviousCrash();
+        expect(
+          candidate!.signature!.exceptionType,
+          '0xc0000409 flutter_windows.dll+0x10',
+        );
+        expect(candidate.previousSession!.version, '0.9.99');
+        expect(candidate.entries, hasLength(1));
+        expect(startupLock(1500).existsSync(), isFalse);
+        expect(await detector().detectPreviousCrash(), isNull);
+      },
+    );
+
+    test('תהליך שנהרג תקוע לפני החשיפה: Startup stall הוא הראיה', () async {
       writeErrors(
         entry(
-              'Unhandled Error',
-              previousStart.subtract(const Duration(hours: 1)),
-            ) +
-            nativeCrashAt(at),
+          'Startup stall',
+          previousStart.add(const Duration(seconds: 30)),
+          body: 'Stack (module+RVA):\n  ntdll.dll+0x1\n',
+        ),
       );
-      marker().writeAsStringSync(at.toIso8601String());
-
+      writeStartupLock(1500, previousStart);
       final candidate = await detector().detectPreviousCrash();
-      expect(
-        candidate!.signature!.exceptionType,
-        '0xc0000005 flutter_windows.dll+0x10',
-      );
-      expect(candidate.entries, hasLength(1));
-      expect(marker().existsSync(), isFalse);
-      expect(await detector().detectPreviousCrash(), isNull);
+      expect(candidate, isNotNull);
+      expect(candidate!.hasStartupStall, isTrue);
     });
 
-    test('בלי סמן ובלי נעילה רשומה ישנה אינה מוצעת שוב', () async {
+    test('נעילת עלייה בלי ראיה: אין הצעה, והנעילה נמחקת', () async {
+      writeStartupLock(1500, previousStart);
+      expect(await detector().detectPreviousCrash(), isNull);
+      expect(startupLock(1500).existsSync(), isFalse);
+    });
+
+    test('נעילת עלייה של תהליך חי או של התהליך הנוכחי נשארת', () async {
+      writeErrors(nativeCrashAt(previousStart.add(const Duration(seconds: 1))));
+      writeStartupLock(1500, previousStart);
+      writeStartupLock(2000, thisStart);
+      expect(
+        await detector(alive: (pid) => pid == 1500).detectPreviousCrash(),
+        isNull,
+      );
+      expect(startupLock(1500).existsSync(), isTrue);
+      expect(startupLock(2000).existsSync(), isTrue);
+    });
+
+    test('pid שנוצר אחרי הנעילה ממוחזר: הנעילה נספרת כהפעלה שמתה', () async {
+      writeErrors(nativeCrashAt(previousStart.add(const Duration(seconds: 1))));
+      writeStartupLock(1500, previousStart);
+      final d = UncleanExitDetector(
+        logsDirectory: logs.path,
+        sentryDatabaseDirs: [sentry.path],
+        isProcessAlive: (_) => true,
+        processCreatedAt: (_) => previousStart.add(const Duration(hours: 3)),
+        currentPid: 2000,
+        processStartedAt: thisStart,
+      );
+      expect(await d.detectPreviousCrash(), isNotNull);
+      expect(startupLock(1500).existsSync(), isFalse);
+    });
+
+    test('נעילת עלייה ישנה של pid חי (ממוחזר) נמחקת', () async {
+      writeStartupLock(1500, thisStart.subtract(const Duration(days: 8)));
+      expect(await detector(alive: (_) => true).detectPreviousCrash(), isNull);
+      expect(startupLock(1500).existsSync(), isFalse);
+    });
+
+    test('בלי נעילות רשומה ישנה אינה מוצעת שוב', () async {
       writeErrors(nativeCrashAt(previousStart));
       expect(await detector().detectPreviousCrash(), isNull);
     });
 
-    test('עם נעילה: הסמן נמחק והקריסה מזוהה מהנעילה', () async {
+    test('session.lock ונעילת עלייה: הבדיקה מתחילה מהוותיקה', () async {
+      final later = previousStart.add(const Duration(hours: 2));
       writeLock();
-      final at = previousStart.add(const Duration(minutes: 1));
-      writeErrors(nativeCrashAt(at));
-      marker().writeAsStringSync(at.toIso8601String());
-
+      writeStartupLock(1500, later);
+      writeErrors(nativeCrashAt(later.add(const Duration(milliseconds: 100))));
       final candidate = await detector().detectPreviousCrash();
-      expect(candidate!.signature!.frames, ['flutter_windows.dll+0x10']);
-      expect(marker().existsSync(), isFalse);
+      expect(candidate!.previousSession!.startedAt, previousStart);
+      expect(candidate.signature!.frames, ['flutter_windows.dll+0x10']);
+      expect(startupLock(1500).existsSync(), isFalse);
+    });
+
+    test('startSession מוחק את נעילת העלייה של התהליך', () async {
+      writeStartupLock(2000, thisStart);
+      await detector().startSession(version: '0.9.99');
+      expect(startupLock(2000).existsSync(), isFalse);
+      expect(
+        File(p.join(logs.path, UncleanExitDetector.lockFileName)).existsSync(),
+        isTrue,
+      );
     });
   });
 

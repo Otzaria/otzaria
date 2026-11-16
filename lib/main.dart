@@ -1088,8 +1088,8 @@ Future<void> _runDeferredPortableShortcut() async {
 }
 
 /// זיהוי קריסה של ההפעלה הקודמת ופתיחת נעילת ההפעלה הנוכחית. הנעילה נכתבת
-/// רק אחרי החשיפה, כדי לא להוסיף קריאת לוג למסלול העלייה; קריסה נייטיבית
-/// לפניה מזוהה מהסמן שה-runner כותב (`crash_record.cpp`).
+/// רק אחרי החשיפה, כדי לא להוסיף קריאת לוג למסלול העלייה; תהליך שמת לפניה
+/// מזוהה מנעילת העלייה שה-runner כותב (`crash_record.cpp`).
 Future<void> _runDeferredCrashCheck() async {
   if (!AppCrashSession.isSupported) {
     _markCrashScanDone();

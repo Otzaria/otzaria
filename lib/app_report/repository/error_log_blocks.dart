@@ -29,7 +29,7 @@ class ErrorLogBlock {
       title == 'FlutterError' ||
       title == 'Unhandled Error';
 
-  /// קריסה שה-runner רשם לפני ש-Sentry עלה (`crash_record.cpp`).
+  /// קריסה שה-runner או מודול ה-WER רשמו (`crash_record.cpp`, `crash_wer.cpp`).
   bool get isNativeCrash => title == 'Native crash';
 
   /// שורת `Exception:` (או `Message:` ברשומות נייטיב), אם קיימת.

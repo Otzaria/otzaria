@@ -2,11 +2,14 @@
 
 #include <windows.h>
 
+#include <werapi.h>
+
 #include <atomic>
 #include <cstdio>
 #include <string>
 #include <vector>
 
+#include "crash_wer_context.h"
 #include "startup_watchdog.h"
 
 namespace crash_record {
@@ -25,6 +28,8 @@ DWORD g_main_thread_id = 0;
 DWORD g_crash_thread_id = 0;
 EXCEPTION_RECORD g_record = {};
 CONTEXT g_context = {};
+CrashWerContext g_wer = {};
+std::string g_started_at;
 
 #if defined(_M_X64) || defined(_M_ARM64)
 
@@ -117,29 +122,13 @@ std::string DescribeFault(ULONG_PTR address) {
   return startup_watchdog::DescribeFrame(address);
 }
 
-// הסמן אומר להפעלה הבאה שיש קריסה, גם כשנעילת ההפעלה עוד לא נכתבה.
-void WriteMarker(const std::string& at) {
-  const std::wstring log = startup_watchdog::ErrorLogPath();
-  const size_t slash = log.find_last_of(L'\\');
-  if (slash == std::wstring::npos) return;
-  const std::wstring path = log.substr(0, slash) + L"\\native_crash.marker";
-  HANDLE file = ::CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr,
-                              CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-  if (file == INVALID_HANDLE_VALUE) return;
-  DWORD written = 0;
-  ::WriteFile(file, at.c_str(), static_cast<DWORD>(at.size()), &written,
-              nullptr);
-  ::CloseHandle(file);
-}
-
 void WriteRecord() {
   std::vector<ULONG_PTR> frames;
   frames.reserve(kMaxFrames);
   Unwind(g_context, &frames);
 
   char line[160];
-  const std::string at = TimestampMs();
-  std::string report = "\n=== Native crash " + at + " ===\n";
+  std::string report = "\n=== Native crash " + TimestampMs() + " ===\n";
 #ifdef FLUTTER_VERSION
   report += std::string("Version: ") + FLUTTER_VERSION + "\n";
 #endif
@@ -163,14 +152,79 @@ void WriteRecord() {
   startup_watchdog::AppendBuildIdentity(frames, &report);
   startup_watchdog::AppendStack(frames, &report);
   startup_watchdog::AppendReport(report);
-  WriteMarker(at);
+}
+
+std::wstring ExeDirectory() {
+  wchar_t path[MAX_PATH] = {0};
+  const DWORD length = ::GetModuleFileNameW(nullptr, path, MAX_PATH);
+  if (length == 0 || length >= MAX_PATH) return std::wstring();
+  std::wstring dir(path, length);
+  return dir.substr(0, dir.find_last_of(L'\\'));
+}
+
+std::wstring LogsDirectory() {
+  const std::wstring log = startup_watchdog::ErrorLogPath();
+  const size_t slash = log.find_last_of(L'\\');
+  return slash == std::wstring::npos ? std::wstring() : log.substr(0, slash);
+}
+
+// fastfail ו-heap corruption עוקפים את המטפל; רק WER מגיע אליהם, דרך המודול.
+void CALLBACK RegisterWerModule(ULONG_PTR) {
+  const std::wstring log = startup_watchdog::ErrorLogPath();
+  if (log.empty() || log.size() >= ARRAYSIZE(g_wer.log_path)) return;
+  ::wcscpy_s(g_wer.log_path, log.c_str());
+  const std::wstring dll = ExeDirectory() + L"\\" OTZARIA_CRASH_WER_DLL;
+  if (::GetFileAttributesW(dll.c_str()) == INVALID_FILE_ATTRIBUTES) return;
+  // WER טוען רק מודול שרשום כאן; HKCU מספיק גם להתקנה למחשב כולו.
+  constexpr wchar_t kKey[] =
+      L"Software\\Microsoft\\Windows\\Windows Error Reporting\\"
+      L"RuntimeExceptionHelperModules";
+  if (::RegGetValueW(HKEY_CURRENT_USER, kKey, dll.c_str(), RRF_RT_REG_DWORD,
+                     nullptr, nullptr, nullptr) != ERROR_SUCCESS) {
+    const DWORD one = 1;
+    if (::RegSetKeyValueW(HKEY_CURRENT_USER, kKey, dll.c_str(), REG_DWORD,
+                          &one, sizeof(one)) != ERROR_SUCCESS) {
+      return;
+    }
+  }
+  ::WerRegisterRuntimeExceptionModule(dll.c_str(), &g_wer);
+}
+
+// נמחקת כש-Dart כותב את session.lock; נשארת אם התהליך מת לפני כן.
+void CALLBACK WriteStartupLock(ULONG_PTR) {
+  const std::wstring dir = LogsDirectory();
+  if (dir.empty()) return;
+  const size_t parent = dir.find_last_of(L'\\');
+  if (parent != std::wstring::npos) {
+    ::CreateDirectoryW(dir.substr(0, parent).c_str(), nullptr);
+  }
+  ::CreateDirectoryW(dir.c_str(), nullptr);
+  const DWORD pid = ::GetCurrentProcessId();
+  const std::wstring path =
+      dir + L"\\startup-" + std::to_wstring(pid) + L".lock";
+  char json[160];
+  snprintf(json, sizeof(json),
+           "{\"pid\":%lu,\"version\":\"%s\",\"startedAt\":\"%s\"}",
+           static_cast<unsigned long>(pid), g_wer.version,
+           g_started_at.c_str());
+  HANDLE file = ::CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr,
+                              CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (file == INVALID_HANDLE_VALUE) return;
+  DWORD written = 0;
+  ::WriteFile(file, json, static_cast<DWORD>(strlen(json)), &written, nullptr);
+  ::CloseHandle(file);
 }
 
 // הכתיבה ב-thread נפרד: ב-stack overflow אין מקום, ונעילת loader תפוסה
 // הייתה הופכת את הקריסה לתקיעה. המטפל ממתין לו עם תקרה.
 DWORD WINAPI WriterThread(LPVOID) {
-  ::WaitForSingleObject(g_crash_event, INFINITE);
+  // ההמתנה מתעוררת גם למשימות העלייה שנשלחות אליו ב-APC.
+  while (::WaitForSingleObjectEx(g_crash_event, INFINITE, TRUE) ==
+         WAIT_IO_COMPLETION) {
+  }
   WriteRecord();
+  // רק אחרי הכתיבה: writer שנכשל משאיר את הרישום למודול ה-WER.
+  ::InterlockedExchange(&g_wer.recorded, 1);
   ::SetEvent(g_done_event);
   return 0;
 }
@@ -194,7 +248,17 @@ LONG WINAPI OnUnhandledException(EXCEPTION_POINTERS* info) {
 
 void Install() {
   if (g_crash_event != nullptr) return;
+  g_started_at = TimestampMs();
   g_main_thread_id = ::GetCurrentThreadId();
+  g_wer.magic = CrashWerContext::kMagic;
+  g_wer.size = sizeof(g_wer);
+  g_wer.main_thread_id = g_main_thread_id;
+#ifdef FLUTTER_VERSION
+  ::strcpy_s(g_wer.version, FLUTTER_VERSION);
+#endif
+#ifdef OTZARIA_BUILD_COMMIT
+  ::strcpy_s(g_wer.build_commit, OTZARIA_BUILD_COMMIT);
+#endif
   g_crash_event = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
   g_done_event = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
   if (g_crash_event == nullptr || g_done_event == nullptr) return;
@@ -202,6 +266,11 @@ void Install() {
                             STACK_SIZE_PARAM_IS_A_RESERVATION, nullptr);
   if (g_writer == nullptr) return;
   g_previous = ::SetUnhandledExceptionFilter(OnUnhandledException);
+  ::QueueUserAPC(RegisterWerModule, g_writer, 0);
+}
+
+void BeginSession() {
+  if (g_writer != nullptr) ::QueueUserAPC(WriteStartupLock, g_writer, 0);
 }
 
 }  // namespace crash_record

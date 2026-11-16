@@ -58,6 +58,11 @@ windows/runner/*
 !windows/runner/window_centering.h
 !windows/runner/crash_record.cpp
 !windows/runner/crash_record.h
+!windows/runner/crash_wer.cpp
+!windows/runner/crash_wer.def
+!windows/runner/crash_wer_context.h
+!windows/runner/image_identity.cpp
+!windows/runner/image_identity.h
 # ⚠️ `windows/runner/*` מעל מסנן **הכול**, וכל קובץ מקור חדש חייב חריגה
 # מפורשת כאן. קבצים שכבר tracked ממשיכים להיות tracked ולכן הבעיה אינה
 # נראית — אבל קובץ **חדש** נבלע בשקט: `git add -A` מדלג עליו בלי מילה,
