@@ -66,10 +66,15 @@ class SemanticSearchBloc
     });
   }
 
+  /// בלי חיפוש שמיש, או כשהטעינה נכשלה, הרשימה הקודמת כבר אינה נכונה.
   Future<void> _loadCoverageIfWanted(Emitter<SemanticSearchState> emit) async {
-    if (!_coverageWanted || !state.availability.isUsable) return;
+    if (!state.availability.isUsable) {
+      emit(state.copyWith(coveredBookFilePaths: () => null));
+      return;
+    }
+    if (!_coverageWanted) return;
     final covered = await repository.loadCoveredBookFilePaths();
-    if (covered != null) emit(state.copyWith(coveredBookFilePaths: covered));
+    emit(state.copyWith(coveredBookFilePaths: () => covered));
   }
 
   Future<void> _onStarted(

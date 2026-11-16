@@ -179,6 +179,7 @@ class SemanticSearchRepository {
     _jobCancel.cancel();
     await _job;
     await _settings.setModelChoice(value);
+    _invalidateCoveredBooks();
     await _settings.setSkippedVectorsRelease(null);
     _lastFailure = null;
     _unpublishedVersion = null;
@@ -819,7 +820,6 @@ class SemanticSearchRepository {
       throw const SemanticFailure(SemanticFailureKind.cancelled);
     }
     _openQuantization = quantization;
-    _invalidateCoveredBooks();
     unawaited(_warmUp());
   }
 
@@ -847,8 +847,11 @@ class SemanticSearchRepository {
     bool waitForOpening = true,
     bool invalidateOpening = true,
   }) async {
-    if (invalidateOpening) _lifecycleEpoch++;
-    _invalidateCoveredBooks();
+    // הסגירה שבתוך פתיחה אינה משנה את הסט; סגירה מבחוץ (מחיקה, העברה) כן.
+    if (invalidateOpening) {
+      _lifecycleEpoch++;
+      _invalidateCoveredBooks();
+    }
     final wasOpen = _openQuantization != null;
     _openQuantization = null;
     _passageModelVerification = null;
@@ -2014,8 +2017,18 @@ class SemanticSearchRepository {
   }
 
   /// משתנה בכל שינוי בתוכן האינדקס הלקסיקלי, שגם בו תלוי הכיסוי.
-  static Future<String> _defaultIndexStamp() async =>
-      (await TantivyDataProvider.instance.engine).searchSnapshot();
+  static Future<String> _defaultIndexStamp() async => coverageIndexStamp(
+    await (await TantivyDataProvider.instance.engine).searchSnapshot(),
+  );
+
+  /// מ-searchSnapshot רק המקטעים ומקורות הטקסט; סדר הספרים והמילונים אינם
+  /// משנים את הכיסוי. פורמט לא מוכר נשאר כמו שהוא.
+  @visibleForTesting
+  static String coverageIndexStamp(String snapshot) {
+    final parts = snapshot.split(':');
+    if (parts.length < 4) return snapshot;
+    return '${parts.first}:${parts.sublist(3).join(':')}';
+  }
 
   static Future<int?> _defaultLibraryVersion() async =>
       int.tryParse(await DataCollectionService().readLibraryVersion());

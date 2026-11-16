@@ -145,6 +145,7 @@ void main() {
     Set<String>? covered, {
     bool inBook = true,
     Completer<void>? answerGate,
+    Book? openBook,
   }) async {
     final history = _MockHistoryBloc();
     final indexing = _MockIndexingBloc();
@@ -221,9 +222,9 @@ void main() {
                       child: inBook
                           ? SearchDialog(
                               existingTab: tab,
-                              bookTitle: book.title,
+                              bookTitle: (openBook ?? book).title,
                               returnResultOnSubmit: true,
-                              semanticBook: book,
+                              semanticBook: openBook ?? book,
                               semanticRepository: repository,
                               semanticDebugPreview: false,
                             )
@@ -355,6 +356,36 @@ void main() {
               as SemanticSearchTab;
       addTearDown(tab.dispose);
       expect(tab.options.facets, [bookFacet]);
+    });
+  });
+
+  group('PDF', () {
+    testWidgets('PDF עם id שאול מספר הטקסט: אין מצב חכם', (tester) async {
+      final pdf = PdfBook(id: 1, title: 'בראשית', path: '/pdf/a.pdf');
+      await pumpInBookDialog(tester, {
+        BookIdentity.indexedFilePath(pdf),
+        BookIdentity.indexedFilePath(book),
+      }, openBook: pdf);
+      expect(_semanticSegment, findsNothing);
+    });
+
+    testWidgets('PDF בלי id: ההיקף הוא ה-PDF עצמו', (tester) async {
+      final pdf = PdfBook(title: 'בראשית', path: '/pdf/a.pdf');
+      final harness = await pumpInBookDialog(tester, {
+        BookIdentity.indexedFilePath(pdf),
+      }, openBook: pdf);
+      await tester.tap(_semanticSegment);
+      await tester.pumpAndSettle();
+      await tester.enterText(_queryField, 'שאלה');
+      await tester.tap(find.byKey(const ValueKey('search-dialog-submit')));
+      await tester.pumpAndSettle();
+      final tab =
+          verify(
+                () => harness.tabs.add(captureAny()),
+              ).captured.whereType<AddTab>().single.tab
+              as SemanticSearchTab;
+      addTearDown(tab.dispose);
+      expect(tab.options.facets.single, endsWith('/pdf/a.pdf'));
     });
   });
 }

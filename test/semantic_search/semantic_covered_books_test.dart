@@ -3,7 +3,10 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/search_feedback/search_feedback_api.dart';
+import 'package:otzaria/semantic_search/bloc/semantic_search_bloc.dart';
+import 'package:otzaria/semantic_search/models/semantic_availability.dart';
 import 'package:otzaria/semantic_search/models/semantic_engine_models.dart';
+import 'package:otzaria/semantic_search/repository/semantic_search_repository.dart';
 
 import 'semantic_test_support.dart';
 
@@ -163,4 +166,118 @@ void main() {
     await repo.ensureOpen();
     expect(await repo.loadCoveredBookFilePaths(), {'id:1'});
   });
+
+  test('פתיחת ה-session אינה מבטלת את התשובה', () async {
+    installModelFiles(root);
+    final backend = FakeBackend()
+      ..vectors = installedV30
+      ..coveredBooksValue = answer('set-1', ['id:1']);
+    final repo = buildRepository(root: root, backend: backend);
+    await repo.loadCoveredBookFilePaths();
+    await repo.ensureOpen();
+    expect(repo.coveredBookFilePaths, {'id:1'});
+    expect(await repo.loadCoveredBookFilePaths(), {'id:1'});
+    expect(computations(backend), 1);
+  });
+
+  test('התקנה באמצע החישוב: התשובה הישנה לא נשמרת ומחושבת מחדש', () async {
+    installModelFiles(root);
+    final backend = FakeBackend()
+      ..coveredBooksValue = answer('set-1', ['id:1']);
+    final repo = buildRepository(
+      root: root,
+      backend: backend,
+      locator: FakeLocator(releaseV30()),
+    );
+    await repo.enableAndDownload();
+    final gate = Completer<void>();
+    backend.coveredBooksGate = gate;
+    final loading = repo.loadCoveredBookFilePaths();
+    await waitFor(() => computations(backend) == 1);
+    backend.coveredBooksGate = null;
+
+    backend.vectors = SemanticVectorsSummary.absent;
+    await repo.enableAndDownload();
+    backend.coveredBooksValue = answer('set-2', ['id:3']);
+    gate.complete();
+
+    expect(await loading, {'id:3'});
+    expect(computations(backend), 2);
+    expect(repo.coveredBookFilePaths, {'id:3'});
+  });
+
+  test('חותמת האינדקס מתעלמת מסדר הספרים ומהמילונים', () {
+    String stamp(String s) => SemanticSearchRepository.coverageIndexStamp(s);
+    expect(
+      stamp('00000000000000aa:0000000000000001:0000000000000002:Some(3)'),
+      stamp('00000000000000aa:0000000000000009:0000000000000008:Some(3)'),
+    );
+    expect(
+      stamp('00000000000000aa:1:2:Some(3)'),
+      isNot(stamp('00000000000000bb:1:2:Some(3)')),
+    );
+    expect(stamp('aa:1:2:Some(3)'), isNot(stamp('aa:1:2:Some(4)')));
+    expect(stamp('opaque'), 'opaque');
+  });
+
+  group('SemanticSearchBloc', () {
+    test('הרשימה מתאפסת כשהחיפוש אינו שמיש וכשהטעינה נכשלת', () async {
+      final repo = _ScriptedRepository();
+      final bloc = SemanticSearchBloc(repository: repo)
+        ..add(const SemanticSearchStarted())
+        ..add(const SemanticCoveredBooksRequested());
+      addTearDown(bloc.close);
+      await waitFor(() => bloc.state.coveredBookFilePaths != null);
+      expect(bloc.state.coveredBookFilePaths, {'id:1'});
+
+      repo.next = null;
+      repo.emit(_availability(SemanticAvailabilityPhase.ready));
+      await waitFor(() => bloc.state.coveredBookFilePaths == null);
+      expect(bloc.state.coveredBookFilePaths, isNull);
+
+      repo.next = {'id:2'};
+      repo.emit(_availability(SemanticAvailabilityPhase.ready));
+      await waitFor(() => bloc.state.coveredBookFilePaths != null);
+      expect(bloc.state.coveredBookFilePaths, {'id:2'});
+
+      repo.emit(_availability(SemanticAvailabilityPhase.installing));
+      await waitFor(() => bloc.state.coveredBookFilePaths == null);
+      expect(bloc.state.coveredBookFilePaths, isNull);
+    });
+  });
+}
+
+SemanticAvailability _availability(SemanticAvailabilityPhase phase) =>
+    SemanticAvailability(phase: phase, consentGranted: true);
+
+class _ScriptedRepository extends SemanticSearchRepository {
+  _ScriptedRepository()
+    : super(
+        backend: FakeBackend(),
+        consent: () => FakeConsentStore(),
+        settings: FakeSettingsStore(),
+      );
+
+  SemanticAvailability current = _availability(
+    SemanticAvailabilityPhase.ready,
+  );
+  final _controller = StreamController<SemanticAvailability>.broadcast();
+  Set<String>? next = {'id:1'};
+
+  void emit(SemanticAvailability value) {
+    current = value;
+    _controller.add(value);
+  }
+
+  @override
+  SemanticAvailability get availability => current;
+
+  @override
+  Stream<SemanticAvailability> get availabilityChanges => _controller.stream;
+
+  @override
+  Future<SemanticAvailability> refresh() async => current;
+
+  @override
+  Future<Set<String>?> loadCoveredBookFilePaths() async => next;
 }
