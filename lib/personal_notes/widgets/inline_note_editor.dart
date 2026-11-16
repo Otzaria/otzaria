@@ -339,6 +339,21 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            ActionButton.neutral(
+              text: 'ביטול',
+              onPressed: _isSaving ? null : _handleCancel,
+            ),
+            const SizedBox(width: AppTokens.spaceSM),
+            ActionButton.recommended(
+              text: 'שמור',
+              onPressed: _isSaving ? null : _handleSave,
+            ),
+          ],
+        ),
+        const SizedBox(height: AppTokens.spaceSM),
         ExcludeFocus(
           excluding: _isSaving,
           child: AbsorbPointer(
@@ -355,21 +370,6 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
               onSaveShortcut: _handleSave,
             ),
           ),
-        ),
-        const SizedBox(height: AppTokens.spaceSM),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            ActionButton.neutral(
-              text: 'ביטול',
-              onPressed: _isSaving ? null : _handleCancel,
-            ),
-            const SizedBox(width: AppTokens.spaceSM),
-            ActionButton.recommended(
-              text: 'שמור',
-              onPressed: _isSaving ? null : _handleSave,
-            ),
-          ],
         ),
       ],
     );

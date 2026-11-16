@@ -1,3 +1,4 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/personal_notes/widgets/inline_note_editor.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import '../../test_helpers/memory_cache_provider.dart';
@@ -119,6 +121,43 @@ void main() {
 
     final primary = FocusManager.instance.primaryFocus;
     expect(primary?.debugLabel, equals('InlineNoteEditor'));
+  });
+
+  testWidgets('כפתור השמירה נשאר גלוי בראש העורך בחלונית גוללת', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(600, 280);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ListView(
+            children: [
+              InlineNoteEditorCard(
+                icon: FluentIcons.note_edit_24_regular,
+                title: 'הערה חדשה',
+                onCancelPressed: () {},
+                editor: InlineNoteEditor(
+                  bookId: 'ספר בדיקה',
+                  draftLineNumber: 1,
+                  linkableNotes: const [],
+                  onSave: (_) {},
+                  onCancel: () {},
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final saveButton = find.widgetWithText(ActionButton, 'שמור');
+    expect(saveButton.hitTestable(), findsOneWidget);
+    expect(tester.getRect(saveButton).bottom, lessThanOrEqualTo(280));
   });
   // issue #1303 — ה-X של הערה חדשה בחלונית הצד מחק את מה שהוקלד בלי אזהרה,
   // בשונה מעורך ההערות בדיאלוג ששואל לפני סגירה.
