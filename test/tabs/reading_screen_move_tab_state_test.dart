@@ -25,6 +25,7 @@ import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/reading_screen.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
+import 'package:otzaria/tabs/view/tab_swipe_detector.dart';
 import 'package:provider/provider.dart';
 
 import '../helpers/memory_settings_cache.dart';
@@ -397,6 +398,90 @@ void main() {
 
       expect(bloc.state.currentTabIndex, 1);
       expect(pageControllerOf(tester).page, 1);
+    });
+
+    // #5211: הנפה שנייה בתחילת אנימציית ההתיישבות של הראשונה נבלעה.
+    for (final forward in [true, false]) {
+      for (final delayMs in [64, 96]) {
+        final direction = forward ? 'קדימה' : 'אחורה';
+        testWidgets('הנפה שנייה באמצע ההתיישבות מתקדמת עוד טאב ($direction, '
+            '$delayMs ms)', (tester) async {
+          final tabs = [_tab('א'), _tab('ב'), _tab('ג'), _tab('ד'), _tab('ה')];
+          addTearDown(() {
+            for (final t in tabs) {
+              t.dispose();
+            }
+          });
+          final bloc = await pumpReadingScreen(
+            tester,
+            tabs,
+            currentTabIndex: 2,
+          );
+          final center = tester.getCenter(find.byType(PageView));
+          final sign = forward ? -1.0 : 1.0;
+
+          Future<void> fling() async {
+            final gesture = await tester.createGesture(
+              kind: PointerDeviceKind.trackpad,
+            );
+            await gesture.panZoomStart(center, timeStamp: Duration.zero);
+            for (var i = 1; i <= 5; i++) {
+              await gesture.panZoomUpdate(
+                center,
+                pan: Offset(sign * 30.0 * i, 0),
+                timeStamp: Duration(milliseconds: 10 * i),
+              );
+              await tester.pump(const Duration(milliseconds: 10));
+            }
+            await gesture.panZoomEnd(
+              timeStamp: const Duration(milliseconds: 60),
+            );
+          }
+
+          await fling();
+          for (var t = 0; t < delayMs; t += 16) {
+            await tester.pump(const Duration(milliseconds: 16));
+          }
+          expect(bloc.state.currentTabIndex, forward ? 3 : 1);
+          await fling();
+          await tester.pumpAndSettle();
+
+          expect(bloc.state.currentTabIndex, forward ? 4 : 0);
+          expect(pageControllerOf(tester).page, forward ? 4 : 0);
+        });
+      }
+    }
+
+    testWidgets('ההחלקה האחרונה נשמרת לדיווח', (tester) async {
+      TabSwipeDetector.debugClearRecentSwipes();
+      addTearDown(TabSwipeDetector.debugClearRecentSwipes);
+      final tabs = [_tab('א'), _tab('ב')];
+      addTearDown(() {
+        for (final t in tabs) {
+          t.dispose();
+        }
+      });
+      await pumpReadingScreen(tester, tabs);
+      final center = tester.getCenter(find.byType(PageView));
+      final gesture = await tester.createGesture(
+        kind: PointerDeviceKind.trackpad,
+      );
+      await gesture.panZoomStart(center, timeStamp: Duration.zero);
+      for (var i = 1; i <= 5; i++) {
+        await gesture.panZoomUpdate(
+          center,
+          pan: Offset(-30.0 * i, 0),
+          timeStamp: Duration(milliseconds: 10 * i),
+        );
+      }
+      await gesture.panZoomEnd(timeStamp: const Duration(milliseconds: 60));
+      await tester.pumpAndSettle();
+
+      final swipe = TabSwipeDetector.recentSwipes.single;
+      expect(swipe['kind'], 'trackpad');
+      expect(swipe['from'], 0);
+      expect(swipe['to'], 1);
+      expect(swipe['dx'], -150);
     });
   });
 

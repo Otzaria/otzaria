@@ -14,6 +14,7 @@ import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
+import 'package:otzaria/tabs/view/tab_swipe_detector.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 
 /// מה החלון מציג: מסך, כרטיסייה נוכחית, ספירה לפי סוג ותוספים גלויים.
@@ -38,6 +39,7 @@ Map<String, Object?> describeAppContext({
   return {
     'screen': screen.name,
     'tabs': tabs.tabs.length,
+    if (tabs.hasOpenTabs) 'currentTabIndex': tabs.currentTabIndex,
     'tabsByType': tabsByType,
     'currentTab': current?.runtimeType.toString(),
     'currentTitle': current == null || leafPanes(current).any(_isPrivateTitle)
@@ -51,6 +53,8 @@ Map<String, Object?> describeAppContext({
         _pluginContext(id, pluginState),
     ],
     if (readers.isNotEmpty) 'readers': readers,
+    if (TabSwipeDetector.recentSwipes.isNotEmpty)
+      'tabSwipes': TabSwipeDetector.recentSwipes,
     'pluginResources': PluginRuntimeDispatcher.instance
         .describeForegroundResources(),
   };
