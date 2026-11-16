@@ -860,6 +860,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'טיוטות דיווחים': 'Report drafts',
     'טעויות בספרים': 'Errors in Sefarim',
     'טעות בספר': 'Book error',
+    'טעינה מחדש': 'Reload',
     'טעינת תוסף מ-localhost': 'Load a plugin from localhost',
     'טעמי המקרא': 'Taamim',
     'טען': 'Load',

@@ -35,6 +35,7 @@ enum ToolbarActionId {
   navigateUp,
   navigateHome,
   sync,
+  refresh,
   // סרגל העיצוב בעורך ההערות
   noteBold,
   noteItalic,
@@ -85,6 +86,7 @@ const List<ToolbarActionId> toolbarOverflowOrder = [
   ToolbarActionId.navigateUp,
   ToolbarActionId.navigateHome,
   ToolbarActionId.sync,
+  ToolbarActionId.refresh,
   // עורך ההערות — מהנדיר לנפוץ. ברוחב הדיאלוג (560) עוברים לתפריט רק
   // "ציטוט" ו"כותרת" (q12 Q6).
   ToolbarActionId.noteQuote,
