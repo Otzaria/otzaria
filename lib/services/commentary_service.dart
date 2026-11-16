@@ -352,7 +352,7 @@ class CommentaryService {
   ///
   /// [links] - רשימת הקישורים למיון
   ///
-  /// מחזיר רשימה ממוינת לפי: תורה שבכתב -> חז"ל -> ראשונים -> אחרונים -> מחברי זמננו -> שאר מפרשים
+  /// מחזיר רשימה ממוינת לפי: ספר הבסיס של המפרש -> תורה שבכתב -> חז"ל -> ראשונים -> אחרונים -> מחברי זמננו -> שאר מפרשים
   /// בתוך כל דור המיון הוא אלפביתי לפי שם הספר, ובתוך אותו ספר לפי מיקום הקטע
   static Future<List<Link>> sortLinksByEra(List<Link> links) async {
     if (links.length <= 1) return links;
@@ -396,7 +396,7 @@ class CommentaryService {
     return sorted;
   }
 
-  /// משווה שני קישורים לפי דור -> שם ספר -> מיקום קטע.
+  /// משווה לפי SOURCE ומהימנותו -> דור -> שם ספר -> מיקום קטע.
   /// ספר "הערות על XX" מעוגן לדור ולשם של XX, ומוצב מיד אחריו.
   static int _compareLinksByEra(
     Link a,
@@ -405,6 +405,13 @@ class CommentaryService {
     Map<String, CommentaryEra> eraMap,
     Map<String, String?> baseByTitle,
   ) {
+    final baseA = LinkTypes.normalize(a.connectionType) == LinkTypes.source;
+    final baseB = LinkTypes.normalize(b.connectionType) == LinkTypes.source;
+    if (baseA != baseB) return baseA ? -1 : 1;
+    if (baseA && a.baseProvenance != b.baseProvenance) {
+      return b.baseProvenance.compareTo(a.baseProvenance);
+    }
+
     final titleA = titlesByPath[a.path2]!;
     final titleB = titlesByPath[b.path2]!;
     final anchorA = baseByTitle[titleA] ?? titleA;

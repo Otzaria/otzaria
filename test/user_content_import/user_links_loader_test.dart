@@ -139,6 +139,61 @@ void main() {
     },
   );
 
+  test('קישור "מקור" של משתמש מוצג בבסיס כמפרש, כמו בספריות מצורפות', () async {
+    await Settings.init(cacheProvider: MemoryCacheProvider());
+    final tempDir = await Directory.systemTemp.createTemp('user_link_source');
+    final previousRoot = AppPaths.cachedDataRootPath;
+    await UserBooksDatabaseHolder.instance.close();
+    AppPaths.debugOverrideDataRootPath(p.join(tempDir.path, 'data'));
+    addTearDown(() async {
+      await UserBooksDatabaseHolder.instance.close();
+      AppPaths.debugOverrideDataRootPath(previousRoot);
+      await tempDir.delete(recursive: true);
+    });
+
+    // כך היבואן שומר שורת CSV מסוג "מקור": מהספר האישי אל בסיסו.
+    final db = (await UserBooksDatabaseHolder.instance.repository).database;
+    await UserContentRepository(db).upsertUserLink(
+      const UserLinkRecord(
+        sourceTitle: 'חידושים',
+        sourceIsUserBook: true,
+        sourceLineIndex: 2,
+        targetTitle: 'בסיס',
+        targetIsUserBook: false,
+        targetLineIndex: 4,
+        connectionType: 'SOURCE',
+      ),
+    );
+
+    final fromCommentary = await loadUserLinksForBook(
+      bookTitle: 'חידושים',
+      bookCategoryId: null,
+      source: BookSource.user,
+      startLineIndex: 0,
+      endLineIndex: 10,
+    );
+    expect(fromCommentary.single.connectionType, 'SOURCE');
+
+    final fromBase = await loadUserLinksForBook(
+      bookTitle: 'בסיס',
+      bookCategoryId: null,
+      source: BookSource.official,
+      startLineIndex: 0,
+      endLineIndex: 10,
+    );
+    expect(fromBase.single.connectionType, 'COMMENTARY');
+    expect(fromBase.single.path2, 'חידושים');
+    expect(fromBase.single.index1, 5);
+    expect(
+      await loadUserCommentatorTitles(
+        bookTitle: 'בסיס',
+        bookCategoryId: null,
+        source: BookSource.official,
+      ),
+      ['חידושים'],
+    );
+  });
+
   test('מפרשי-משתמש נקראים בחיבור נפרד, לא בחיבור הראשי', () async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
     final tempDir = await Directory.systemTemp.createTemp('user_commentators');

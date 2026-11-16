@@ -604,8 +604,8 @@ class UserContentRepository {
     return rows.map(_fromRow).toList();
   }
 
-  /// כותרות המפרשים מקישורי-משתמש של ספר בסיס: יעדי הקישורים תלויי-הטקסט
-  /// היוצאים ממנו (הכיוון הקנוני באחסון הוא בסיס→מפרש, כמו seforim.db).
+  /// כותרות מפרשי-המשתמש של ספר בסיס: יעדי קישורים תלויי-טקסט שיוצאים ממנו
+  /// (בסיס→מפרש, כמו seforim.db), וספרים שהצביעו עליו כ'מקור' שלהם.
   Future<List<String>> userCommentatorTitles(
     String sourceTitle, {
     required bool sourceIsUserBook,
@@ -614,18 +614,25 @@ class UserContentRepository {
   }) async {
     final db = await _db.database;
     final depIn = LinkTypes.dependentTextTypes.map((t) => "'$t'").join(', ');
-    final categoryClause = sourceCategoryId != null
-        ? 'AND (sourceCategoryId IS NULL OR sourceCategoryId = ?)'
+    String categoryClause(String side) => sourceCategoryId != null
+        ? 'AND (${side}CategoryId IS NULL OR ${side}CategoryId = ?)'
         : '';
     final rows = db.select(
-      'SELECT DISTINCT targetTitle FROM user_link '
+      'SELECT targetTitle FROM user_link '
       'WHERE sourceTitle = ? AND sourceIsUserBook = ? AND sourceDb IS ? '
-      '$categoryClause AND UPPER(connectionType) IN ($depIn)',
+      '${categoryClause('source')} AND UPPER(connectionType) IN ($depIn) '
+      'UNION '
+      'SELECT sourceTitle FROM user_link '
+      'WHERE targetTitle = ? AND targetIsUserBook = ? AND targetDb IS ? '
+      "${categoryClause('target')} AND UPPER(connectionType) = "
+      "'${LinkTypes.source}'",
       [
-        sourceTitle,
-        sourceIsUserBook ? 1 : 0,
-        sourceDb,
-        ?sourceCategoryId,
+        for (var i = 0; i < 2; i++) ...[
+          sourceTitle,
+          sourceIsUserBook ? 1 : 0,
+          sourceDb,
+          ?sourceCategoryId,
+        ],
       ],
     );
     return rows.map((r) => r['targetTitle'] as String).toList();

@@ -37,16 +37,6 @@ typedef ResolvedExternalLink = ({
 /// הערך `external_link.targetSource` שמציין את הספרייה הרשמית.
 const kExternalTargetOfficial = 'official';
 
-/// סוג החיבור כפי שהוא נראה מצד היעד — אותו כלל של הקישור ההפוך ב-seforim.db:
-/// מפרש מוצג בבסיסו כ'מקור', ו'מקור' מוצג בבסיס כמפרש.
-String inverseExternalConnectionType(String connectionType) {
-  if (LinkTypes.isDependentTextLink(connectionType)) return LinkTypes.source;
-  if (LinkTypes.normalize(connectionType) == LinkTypes.source) {
-    return LinkTypes.commentary;
-  }
-  return connectionType;
-}
-
 int? _int(Object? value) => value is int ? value : null;
 
 String? _text(Object? value) {
