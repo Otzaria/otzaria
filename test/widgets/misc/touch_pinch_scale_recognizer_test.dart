@@ -131,25 +131,42 @@ void main() {
     });
   }
 
-  testWidgets('a trackpad horizontal pan switches tabs without zooming', (
-    tester,
-  ) async {
-    await tester.pumpWidget(buildHarness());
-    final pad = TestPointer(1, PointerDeviceKind.trackpad);
-    const position = Offset(300, 250);
-    await tester.sendEventToBinding(pad.panZoomStart(position));
-    for (var step = 1; step <= 5; step++) {
-      await tester.sendEventToBinding(
-        pad.panZoomUpdate(position, pan: Offset(step * 20.0, 0)),
+  for (final scale in [
+    1.0,
+    1.0000009536743164,
+    0.9999990463256836,
+    1.0005,
+    0.9995,
+  ]) {
+    for (final horizontal in [false, true]) {
+      testWidgets(
+        'trackpad pan stays a pan with scale noise=$scale, horizontal=$horizontal',
+        (tester) async {
+          await tester.pumpWidget(buildHarness());
+          final pad = TestPointer(1, PointerDeviceKind.trackpad);
+          const position = Offset(300, 250);
+          await tester.sendEventToBinding(pad.panZoomStart(position));
+          for (var step = 1; step <= 5; step++) {
+            await tester.sendEventToBinding(
+              pad.panZoomUpdate(
+                position,
+                pan: horizontal
+                    ? Offset(step * 20.0, 0)
+                    : Offset(0, step * 20.0),
+                scale: scale,
+              ),
+            );
+            await tester.pump();
+          }
+          await tester.sendEventToBinding(pad.panZoomEnd());
+          await tester.pump();
+          expect(tabSwipeUpdates, horizontal ? greaterThan(0) : 0);
+          expect(scrollUpdates, horizontal ? 0 : greaterThan(0));
+          expect(pinchUpdates, 0);
+        },
       );
-      await tester.pump();
     }
-    await tester.sendEventToBinding(pad.panZoomEnd());
-    await tester.pump();
-    expect(tabSwipeUpdates, greaterThan(0));
-    expect(pinchUpdates, 0);
-    expect(scrollUpdates, 0);
-  });
+  }
 
   testWidgets('a small one-sided pinch zooms instead of scrolling', (
     tester,
