@@ -108,6 +108,7 @@ void main() {
           const Stream<SettingsState>.empty(),
           initialState: SettingsState.initial().copyWith(
             libraryShowPreview: false,
+            hebrewBooksPath: 'C:/hebrewbooks',
           ),
         );
         whenListen(
