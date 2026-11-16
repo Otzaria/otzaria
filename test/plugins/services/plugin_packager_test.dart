@@ -440,6 +440,61 @@ void main() {
     );
 
     test(
+      'ordered negations preserve traversal and metadata precedence',
+      () async {
+        final pluginDir = _writePluginDir(
+          tempDir,
+          manifestOverride: _minimalManifest(
+            entrypoint: 'assets/private/keep.html',
+          ),
+          extraFiles: {
+            'assets/public/app.js': 'x',
+            'assets/private/drop.js': 'x',
+            'assets/private/keep.html': '<html></html>',
+            'docs/guide.md': 'x',
+            'docs/private/drop.md': 'x',
+            'docs/private/keep.md': 'x',
+            'screenshots/logo.png': 'x',
+            '.otzignore':
+                'assets/\n'
+                '!assets/\n'
+                'assets/private/\n'
+                '!assets/private/keep.html\n'
+                'docs/\n'
+                '!docs/\n'
+                'docs/private/\n'
+                '!docs/private/keep.md\n'
+                'screenshots/\n'
+                '!screenshots/logo.png\n'
+                'screenshots/logo.png\n',
+          },
+        );
+
+        final result = await PluginPackager.packDirectory(
+          directoryPath: pluginDir,
+          outputPath: p.join(tempDir.path, 'out.otzplugin'),
+        );
+        final archive = ZipDecoder().decodeBytes(
+          File(result.outputPath).readAsBytesSync(),
+        );
+
+        expect(archive.files.map((file) => file.name).toSet(), {
+          'manifest.json',
+          'index.html',
+          'assets/public/app.js',
+          'assets/private/keep.html',
+          'docs/guide.md',
+          'docs/private/keep.md',
+        });
+        expect(result.excludedCount, 1);
+        expect(result.excludedMetadata.toSet(), {
+          'docs/private/drop.md',
+          'screenshots/logo.png',
+        });
+      },
+    );
+
+    test(
       'no .otzignore => excludedCount is 0 and nothing extra is dropped',
       () async {
         final pluginDir = _writePluginDir(tempDir, extraFiles: {'a.js': 'x'});

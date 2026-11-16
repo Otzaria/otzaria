@@ -39,22 +39,18 @@ class PluginIgnore {
 
   /// האם [relPath] (מנורמל למפרידי `/`) מוחרג. הכלל האחרון שמתאים קובע, כך
   /// ש-`!pattern` מאוחר מחזיר החרגה קודמת.
-  bool ignores(String relPath) {
-    var excluded = false;
-    for (final r in _rules) {
-      if (r.re.hasMatch(relPath)) excluded = !r.negate;
-    }
-    return excluded;
-  }
+  bool ignores(String relPath) => _lastMatch(relPath)?.negate == false;
 
   /// האם הכלל *האחרון* שמתאים ל-[relPath] הוא `!` (החזרה). מאפשר ל-`!` מפורש
   /// לגבור על החרגת קבצי/תיקיות המטא-דאטה באריזה.
-  bool reIncludes(String relPath) {
-    var negated = false;
-    for (final r in _rules) {
-      if (r.re.hasMatch(relPath)) negated = r.negate;
+  bool reIncludes(String relPath) => _lastMatch(relPath)?.negate == true;
+
+  _IgnoreRule? _lastMatch(String relPath) {
+    for (var i = _rules.length - 1; i >= 0; i--) {
+      final rule = _rules[i];
+      if (rule.re.hasMatch(relPath)) return rule;
     }
-    return negated;
+    return null;
   }
 
   /// מספר הכללים הפעילים (ללא הערות ושורות ריקות).
