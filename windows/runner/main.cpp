@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 
+#include "crash_record.h"
 #include "flutter_window.h"
 #include "jump_list_manager.h"
 #include "shift_key_normalizer.h"
@@ -349,6 +350,8 @@ void InstallActivationGuard() {
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t* command_line, _In_ int show_command) {
+  crash_record::Install();
+
   // Attach to console when present (e.g., 'flutter run') or create a
   // new console when running with a debugger.
   if (!::AttachConsole(ATTACH_PARENT_PROCESS) && ::IsDebuggerPresent()) {

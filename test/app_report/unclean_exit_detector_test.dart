@@ -248,6 +248,58 @@ void main() {
     expect(candidate.signature!.frames, ['flutter_windows.dll+0x81bb05']);
   });
 
+  group('Native crash מה-runner (issue #4211)', () {
+    test('קריסה לפני Sentry → מועמד עם חתימה בצורת minidump', () async {
+      writeLock();
+      writeErrors(
+        entry(
+          'Native crash',
+          previousStart.add(const Duration(milliseconds: 400)),
+          body:
+              'Version: 0.9.98+99803\n'
+              'Exception code: 0xc0000005\n'
+              'Fault: EmbeddedBrowserWebView.dll+0x1a2b3c\n'
+              'Access: read 0x10\n'
+              'Thread: main\n'
+              'Stack (module+RVA):\n'
+              '  EmbeddedBrowserWebView.dll+0x1a2b3c\n'
+              '  flutter_windows.dll+0x81bb05\n',
+        ),
+      );
+      final candidate = await detector().detectPreviousCrash();
+      expect(candidate, isNotNull);
+      expect(candidate!.isHang, isFalse);
+      expect(
+        candidate.signature!.exceptionType,
+        '0xc0000005 EmbeddedBrowserWebView.dll+0x1a2b3c',
+      );
+      expect(candidate.signature!.frames, [
+        'EmbeddedBrowserWebView.dll+0x1a2b3c',
+      ]);
+      expect(
+        CrashReportDecision.titleFor(candidate),
+        '0xc0000005 EmbeddedBrowserWebView.dll+0x1a2b3c',
+      );
+    });
+
+    test('כתובת מחוץ למודול: החתימה רק מקוד החריגה', () async {
+      writeLock();
+      writeErrors(
+        entry(
+          'Native crash',
+          previousStart.add(const Duration(seconds: 3)),
+          body:
+              'Exception code: 0xc0000409\n'
+              'Fault: 0x7ff612340000\n'
+              'Stack: unavailable\n',
+        ),
+      );
+      final candidate = await detector().detectPreviousCrash();
+      expect(candidate!.signature!.exceptionType, '0xc0000409');
+      expect(candidate.signature!.frames, isEmpty);
+    });
+  });
+
   test('minidump של Sentry חדש מתחילת ההפעלה הוא ראיה מספקת', () async {
     writeLock(startedAt: DateTime.now().subtract(const Duration(minutes: 5)));
     Directory(p.join(sentry.path, 'reports')).createSync();
