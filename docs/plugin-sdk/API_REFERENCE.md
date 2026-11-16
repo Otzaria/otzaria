@@ -1652,6 +1652,8 @@ if (pending.trim()) consumeResult(JSON.parse(pending));
 - ה-`url` חייב להופיע גם ב-`network.allowlist` של התוסף וגם ברשימת ההיתר הרשמית של אוצריא (הקובץ `plugin_network_allowlist.txt` בענף `dev` ב-GitHub, או הגיבוי המקומפל `pluginNetworkAllowlist`).
   redirect של גיטהאב ל-CDN מטופל אוטומטית בצד אוצריא.
 - `filename` אופציונלי; אם לא סופק, שם הקובץ נגזר מה-URL.
+- [קובץ הרצה](#executable-files) (לפי `filename`, ה-URL או `destPath`) נדחה
+  ב-`error.forbidden` לפני שנשלחת הבקשה.
 - אם קיים כבר קובץ באותו שם, נוספת סיומת מספרית (` (1)`) כדי לא לדרוס.
 - `destPath` אופציונלי: נתיב קובץ מלא שאליו תישמר ההורדה במקום תיקיית
   ההורדות. **הנתיב חייב להיות בתוך תיקייה שהמשתמש בחר דרך `ui.pickFolder`**
@@ -3886,7 +3888,8 @@ async function save() {
 **הרשאה:** (אין — מגודר ע"י `ui.pickFolder`)
 
 חילוץ קובץ ZIP אל תיקיית יעד. גם `zipPath` וגם `destFolder` חייבים להיות
-בתוך תיקייה מאושרת. תיקיית היעד נוצרת אם אינה קיימת.
+בתוך תיקייה מאושרת. תיקיית היעד נוצרת אם אינה קיימת. ארכיון שמכיל
+[קובץ הרצה](#executable-files) נדחה כולו ב-`error.forbidden`, בלי לחלץ דבר.
 
 ```javascript
 await Otzaria.call('fs.extractZip', {
@@ -3942,6 +3945,7 @@ await Otzaria.call('fs.deleteFolder', {
 
 **לא דורס יעד קיים** — אם `to` כבר קיים, נדחית ב-`error.invalid_params`
 (מחקו קודם עם `fs.deleteFolder`/`fs.deleteFile` אם דריסה היא הכוונה).
+יעד ששמו [קובץ הרצה](#executable-files) נדחה ב-`error.forbidden`.
 
 ```javascript
 await Otzaria.call('fs.moveEntry', {
@@ -4204,7 +4208,17 @@ rename שנכשל מחזיר שגיאה, ולא מתדרדר להעתקה. אט�
 
 שגיאות: `error.not_found` (העלאה לא מוכרת, לא הושלמה, פגה או נצרכה כבר; או
 קובץ יעד שנמחק), `error.permission_denied` (token לקריאה בלבד),
-`error.invalid_params` (`writeToken` חסר, או נתיב יעד שלא ניתן לפתור).
+`error.invalid_params` (`writeToken` חסר, או נתיב יעד שלא ניתן לפתור),
+`error.forbidden` (קובץ הרצה, ראו מטה).
+
+<a id="executable-files"></a>
+**קבצי הרצה חסומים.** תוסף אינו יכול להוציא אל המשתמש קובץ הרצה או התקנה
+(`exe`, `msi`, `bat`, `cmd`, `ps1`, `vbs`, `js`, `lnk`, `py`, `jar`, `sh`,
+`dmg`, `deb`, `apk` וכדומה). קובץ כזה, אחרי שהמשתמש מפעיל אותו, עוקף את כל
+ההרשאות, כולל רשימת ההיתר של הרשת. החסימה חלה על „שמור בשם” ועל דריסת קובץ קיים
+כאן, ועל `network.download`, `fs.extractZip` ו-`fs.moveEntry`. בכל אלה מוחזרת
+`error.forbidden` לפני שנכתב משהו. הורדה של קובץ כזה מתוך דף התוסף (קישור
+`download`) מבוטלת.
 
 הערת תאימות: ברגע שקובץ נבחר בגרסה שתומכת ב-`access`, ה-grant שלו נשמר בצורה
 החדשה. גרסה קודמת של אוצריא תמשיך לקרוא grants ותיקים שלא נשמרו מחדש, אך לא את

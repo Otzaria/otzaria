@@ -132,6 +132,26 @@ void main() {
       expect(await inner.readAsString(), 'פנימי');
     });
 
+    test('ארכיון עם קובץ הרצה נדחה בלי לחלץ דבר', () async {
+      final zipPath = buildZip(p.join(tempDir.path, 'a.zip'), {
+        'readme.txt': 'קרא',
+        'bin/OtzariaAIProxy.exe': 'MZ',
+      });
+      final destFolder = p.join(tempDir.path, 'out');
+
+      await expectLater(
+        service.extractZip(zipPath, destFolder),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('error.forbidden'),
+          ),
+        ),
+      );
+      expect(File(p.join(destFolder, 'readme.txt')).existsSync(), isFalse);
+    });
+
     test('זורק כשקובץ ה-ZIP אינו קיים', () async {
       await expectLater(
         service.extractZip(
@@ -377,6 +397,23 @@ void main() {
 
       expect(await from.exists(), isFalse);
       expect(File(to).readAsStringSync(), 'data');
+    });
+
+    test('שינוי שם לקובץ הרצה נדחה והמקור נשאר', () async {
+      final from = File(p.join(tempDir.path, 'proxy.bin'))
+        ..writeAsStringSync('MZ');
+
+      await expectLater(
+        service.moveEntry(from.path, p.join(tempDir.path, 'proxy.exe')),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('error.forbidden'),
+          ),
+        ),
+      );
+      expect(from.existsSync(), isTrue);
     });
 
     test('זורקת error.not_found כשהמקור אינו קיים', () async {

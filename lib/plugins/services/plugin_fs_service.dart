@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/plugins/services/plugin_path_safety.dart';
+import 'package:otzaria/plugins/utils/plugin_executable_files.dart';
 import 'package:otzaria/utils/file/zip_entry_io.dart';
 
 /// רשומה במרחב הפרטי של תוסף — קובץ או תיקייה, עם נתיב **יחסי** לשורש בלבד.
@@ -130,6 +131,10 @@ class PluginFsService {
     final input = openZipInput(zipPath);
     try {
       final archive = ZipDecoder().decodeStream(input);
+      // נבדק לפני כל כתיבה, כדי שארכיון אסור לא ישאיר חילוץ חלקי.
+      for (final file in archive) {
+        p.split(p.normalize(file.name)).forEach(rejectPluginExecutable);
+      }
       var entryCount = 0;
       var totalBytes = 0;
       for (final file in archive) {
@@ -220,6 +225,7 @@ class PluginFsService {
   /// `File.rename`/`Directory.rename` יכולים להיכשל בין כרכי דיסק שונים
   /// (למשל תיקייה שנבחרה בדיסק אחר) — נופלת אז להעתקה+מחיקה.
   Future<void> moveEntry(String from, String to) async {
+    rejectPluginExecutable(to);
     final sourcePath = p.normalize(p.absolute(from));
     final destinationPath = p.normalize(p.absolute(to));
     final sourceIsDir = await Directory(sourcePath).exists();
