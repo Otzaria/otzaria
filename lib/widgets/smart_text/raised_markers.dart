@@ -41,6 +41,8 @@ const String kFootnoteMarkerClass = 'footnote-marker-number';
 /// באותו יחס שבו `<sup>` הוצג קודם בשלושת מסלולי הרינדור.
 const String kRaisedSupClass = 'raised-sup';
 
+final RegExp _leadingVisibleChar = RegExp('[^\u2066-\u2069]');
+
 /// style פשוט של sup (צבע/משקל/נטייה) שעוטף את הסימון, והציור המורם נושא אותו.
 const String kRaisedSupStylePattern =
     r'(?:\s*(?:color|font-weight|font-style)\s*:[^;"]*(?:;|(?=")))+';
@@ -445,10 +447,14 @@ class RaisedMarkerPlacement {
 
   final RaisedMarker marker;
 
+  /// סגנון הגליף השקוף שבשורה, עם מה שירש מאבות ה-HTML.
+  final TextStyle? glyphStyle;
+
   const RaisedMarkerPlacement({
     required this.anchorRect,
     required this.paintRect,
     required this.marker,
+    this.glyphStyle,
   });
 
   String get text => marker.text;
@@ -547,14 +553,20 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
   double _fontSizeOf(RaisedMarker marker) =>
       (_baseStyle.fontSize ?? 18.0) * marker.scale;
 
-  TextPainter _painterFor(RaisedMarker marker) {
+  TextPainter _painterFor(RaisedMarker marker, TextStyle? glyph) {
     final key =
         '${marker.scale}|${marker.italic}|${marker.useLinkColor}'
-        '|${marker.variantIndex}|${marker.active}|${marker.text}|${marker.inlineHtml}';
+        '|${marker.variantIndex}|${marker.active}|${marker.text}|${marker.inlineHtml}'
+        '|${glyph?.fontSize}|${glyph?.fontWeight}|${glyph?.fontStyle}'
+        '|${glyph?.fontVariations}';
     return _painters.putIfAbsent(key, () {
       var style = _baseStyle.copyWith(
-        fontSize: _fontSizeOf(marker),
-        fontStyle: marker.italic ? FontStyle.italic : FontStyle.normal,
+        fontSize: glyph?.fontSize ?? _fontSizeOf(marker),
+        fontWeight: glyph?.fontWeight,
+        fontVariations: glyph?.fontVariations,
+        fontStyle: marker.italic
+            ? FontStyle.italic
+            : glyph?.fontStyle ?? FontStyle.normal,
         height: 1.0,
       );
       // אות מפרש: הווריאנט הטיפוגרפי של המפרש, צבע הקישור, והדגשה עם רקע
@@ -620,6 +632,7 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
     for (final placement in _resolvePlacements()) {
       _painterFor(
         placement.marker,
+        placement.glyphStyle,
       ).paint(context.canvas, offset + placement.paintRect.topLeft);
     }
   }
@@ -724,8 +737,14 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
 
       final anchorRect = sameLineAnchorRect(boxes)!.shift(info.offset);
 
-      final painter = _painterFor(marker);
-      final raise = _fontSizeOf(marker) * kRaisedMarkerRaiseFactor;
+      // תו הבידוד שבראש הסימון נמצא מחוץ ל-small של הסוגריים; דוגמים תו גלוי.
+      final visible = marker.text.indexOf(_leadingVisibleChar);
+      final glyphStyle = _styleAt(
+        info.paragraph.text,
+        localStart + math.max(visible, 0),
+      );
+      final painter = _painterFor(marker, glyphStyle);
+      final raise = painter.text!.style!.fontSize! * kRaisedMarkerRaiseFactor;
       // אותו גופן ואותו גודל: תחתית התיבה ההדוקה מגדירה את קו הבסיס בשניהם, בלי
       // תלות במטריקות ה-ascent של הגופן. הצמדה לראש השכבה מונעת חיתוך.
       final dx = anchorRect.center.dx - painter.width / 2;
@@ -739,10 +758,29 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
           anchorRect: anchorRect,
           paintRect: Rect.fromLTWH(dx, dy, painter.width, painter.height),
           marker: marker,
+          glyphStyle: glyphStyle,
         ),
       );
     }
     return placements;
+  }
+
+  /// הסגנון הממוזג של התו ב-[offset] (יחידות toPlainText; placeholder = תו אחד).
+  static TextStyle? _styleAt(InlineSpan root, int offset) {
+    var position = 0;
+    TextStyle? visit(InlineSpan span, TextStyle inherited) {
+      final style = inherited.merge(span.style);
+      if (span is! TextSpan) return ++position > offset ? style : null;
+      position += span.text?.length ?? 0;
+      if (position > offset) return style;
+      for (final child in span.children ?? const <InlineSpan>[]) {
+        final found = visit(child, style);
+        if (found != null) return found;
+      }
+      return null;
+    }
+
+    return visit(root, const TextStyle());
   }
 
   double _glyphBottomOf(TextPainter painter, RaisedMarker marker) {
@@ -766,6 +804,10 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
 
   @visibleForTesting
   List<RaisedMarkerPlacement> debugPlacements() => _resolvePlacements();
+
+  @visibleForTesting
+  InlineSpan debugPaintedSpan(RaisedMarkerPlacement placement) =>
+      _painterFor(placement.marker, placement.glyphStyle).text!;
 }
 
 /// מאחד את תיבות הבחירה של סימון אחד למלבן עוגן אחד — רק אלו שבשורה

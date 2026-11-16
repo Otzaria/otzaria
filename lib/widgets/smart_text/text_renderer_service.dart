@@ -156,6 +156,10 @@ class TextRendererService {
     '^\\s*(?:style\\s*=\\s*"($kRaisedSupStylePattern)\\s*")?\\s*\$',
     caseSensitive: false,
   );
+  static final RegExp _ownColorRegex = RegExp(
+    r'(?:^|;)\s*color\s*:\s*(?!currentcolor\b)\S',
+    caseSensitive: false,
+  );
   static final RegExp _isolateStartRegex = RegExp(r'[\u2066\u2067\u2068]');
   static final RegExp _rtlCharRegex = RegExp(r'[\u0590-\u08FF]');
 
@@ -202,8 +206,9 @@ class TextRendererService {
       }
 
       final style = plainAttrs?[1];
-      if (style != null) {
-        // הציור המורם אינו יורש את סגנון אבות ה-HTML; נשאיר אותם במסלול הקיים.
+      if (style != null && !_ownColorRegex.hasMatch(style)) {
+        // הציור המורם יורש גודל ומשקל מהגליף אך לא את צבע האבות; בלי צבע משלו
+        // sup מקונן נשאר במסלול הקיים.
         final offsets = rootSupOffsets ??= html_parser
             .parseFragment(unhighlighted, generateSpans: true)
             .children
