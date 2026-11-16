@@ -22,6 +22,9 @@ typedef ExternalCatalogExtractor =
       void Function(double)? onProgress,
     });
 
+/// ספר אוצר החכמה הממופה לספר אוצריא, עם שם הכרך כפי שבקטלוג (אם יש).
+typedef OtzarMappedBook = ({ExternalLibraryBook book, String? volume});
+
 /// מנהל את מסד הקטלוגים החיצוניים (אוצר החכמה והיברובוקס).
 class ExternalCatalogRepository {
   static const String releaseApiUrl =
@@ -120,13 +123,35 @@ class ExternalCatalogRepository {
     );
   }
 
+  /// ספרי אוצר החכמה הממופים לספר אוצריא, מסודרים לפי איכות ההתאמה
+  /// (`is_best` ואז `confidence`), כל אחד עם שם הכרך כפי שבקטלוג.
+  /// מחזיר רשימה ריקה כשאין מיפוי, טבלת מיפוי (קטלוג ישן) או DB.
+  Future<List<OtzarMappedBook>> getOtzarBooksForOtzariaId(int otzariaId) {
+    return _runMappingQuery(
+      (dbPath) => _queryOtzarBooksForOtzariaId(dbPath, otzariaId),
+      const <OtzarMappedBook>[],
+    );
+  }
+
   Future<List<int>> _selectMappingColumn({
     required String select,
     required String where,
     required int argument,
-  }) async {
+  }) {
+    return _runMappingQuery(
+      (dbPath) => _queryMappingColumn(dbPath, select, where, argument),
+      const <int>[],
+    );
+  }
+
+  /// מריץ שאילתה על הקטלוג ב-isolate ורושם אותה, כדי שהחלפת הקטלוג תמתין
+  /// לה: ב-Windows קובץ פתוח חוסם את שינוי השם.
+  Future<T> _runMappingQuery<T>(
+    T Function(String dbPath) query,
+    T empty,
+  ) async {
     final dbPath = databasePath;
-    if (!await File(dbPath).exists()) return const [];
+    if (!await File(dbPath).exists()) return empty;
     final key = _catalogKey(dbPath);
     while (_catalogSwaps.containsKey(key)) {
       await _catalogSwaps[key];
@@ -135,13 +160,38 @@ class ExternalCatalogRepository {
     final queries = _mappingQueries.putIfAbsent(key, () => {});
     queries.add(finished.future);
     try {
-      return await Isolate.run(
-        () => _queryMappingColumn(dbPath, select, where, argument),
-      );
+      return await Isolate.run(() => query(dbPath));
     } finally {
       queries.remove(finished.future);
       if (queries.isEmpty) _mappingQueries.remove(key);
       finished.complete();
+    }
+  }
+
+  static List<OtzarMappedBook> _queryOtzarBooksForOtzariaId(
+    String dbPath,
+    int otzariaId,
+  ) {
+    sqlite3.Database? db;
+    try {
+      db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
+      final rows = db.select(
+        'SELECT b.* FROM otzaria_otzar_hahochma m '
+        'JOIN otzar_hahochma b ON b.book_id = m.oh_id '
+        'WHERE m.otzaria_id = ? '
+        "ORDER BY m.is_best DESC, CASE m.confidence WHEN 'certain' THEN 0 "
+        "WHEN 'likely' THEN 1 ELSE 2 END, m.oh_id LIMIT 20",
+        [otzariaId],
+      );
+      return [
+        for (final row in rows)
+          _mapOtzarBookWithVolume(row as Map<String, Object?>),
+      ];
+    } catch (e) {
+      debugPrint('ExternalCatalogRepository: Otzar mapping query failed: $e');
+      return const [];
+    } finally {
+      db?.close();
     }
   }
 
@@ -984,6 +1034,11 @@ class ExternalCatalogRepository {
       externalLibraryId: 'oh:$bookId',
     );
   }
+
+  static OtzarMappedBook _mapOtzarBookWithVolume(Map<String, Object?> row) => (
+    book: _mapOtzarBook(row),
+    volume: _normalizeNullableString(row['volume']),
+  );
 
   static ExternalLibraryBook _mapHebrewBook(Map<String, Object?> row) {
     final bookId = (row['id_book'] as num).toInt();

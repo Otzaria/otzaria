@@ -3,6 +3,9 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:kosher_dart/kosher_dart.dart';
+import 'package:otzaria/core/messages/library_messages.dart';
+import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/external_catalog/repository/external_catalog_repository.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart'
     show formatHebrewYear;
@@ -10,6 +13,7 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/services/book_details_service.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
+import 'package:otzaria/utils/navigation/otzar_utils.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/widgets/feedback/app_scrollbar.dart';
@@ -116,6 +120,16 @@ bool isTashmaSource(String? sourceFolder) {
   return normalized.contains('tashma');
 }
 
+/// נקודת הזרקה לבדיקות: ספרי אוצר החכמה הממופים לספר אוצריא.
+@visibleForTesting
+Future<List<OtzarMappedBook>> Function(int otzariaId) otzarBooksForOtzariaId =
+    (id) => ExternalCatalogRepository.instance.getOtzarBooksForOtzariaId(id);
+
+/// נקודת הזרקה לבדיקות: פתיחת ספר באוצר החכמה (בתוכנה או באתר).
+@visibleForTesting
+Future<bool> Function(int? bookId, String link) openOtzarBook =
+    (bookId, link) => OtzarUtils.openBook(bookId, link);
+
 /// מציג את כל פרטי הספר הזמינים, גם מחוץ לקורא הטקסט.
 Future<void> showBookDetailsDialog(
   BuildContext context,
@@ -149,6 +163,7 @@ class _BookDetailsDialogContent extends StatefulWidget {
 class _BookDetailsDialogContentState extends State<_BookDetailsDialogContent> {
   late final Future<BookInformation> _informationFuture;
   final _scroll = ScrollController();
+  List<OtzarMappedBook> _otzarBooks = const [];
 
   @override
   void dispose() {
@@ -163,6 +178,17 @@ class _BookDetailsDialogContentState extends State<_BookDetailsDialogContent> {
     _informationFuture = information != null
         ? Future.value(information)
         : BookDetailsService().getBookInformation(widget.book);
+    // המיפוי ממופתח במזהי seforim.db; מזהה של מסד אחר חופף להם ואינו אותו ספר.
+    final otzariaId = widget.book.isOfficialLibraryBook ? widget.book.id : null;
+    if (otzariaId != null) {
+      otzarBooksForOtzariaId(otzariaId).then(
+        (books) {
+          if (mounted && books.isNotEmpty) setState(() => _otzarBooks = books);
+        },
+        onError: (Object error) =>
+            debugPrint('Otzar HaChochma mapping failed: $error'),
+      );
+    }
   }
 
   @override
@@ -193,6 +219,7 @@ class _BookDetailsDialogContentState extends State<_BookDetailsDialogContent> {
                 context,
                 widget.book,
                 snapshot.data!,
+                _otzarBooks,
               );
             },
           ),
@@ -206,6 +233,7 @@ Widget _buildBookDetailsContent(
   BuildContext context,
   Book book,
   BookInformation information,
+  List<OtzarMappedBook> otzarBooks,
 ) {
   final bookDetails = information.fileDetails;
   final bookSource = information.source ?? 'לא נמצא מקור';
@@ -279,6 +307,16 @@ Widget _buildBookDetailsContent(
         icon: FluentIcons.tag_24_regular,
         value: information.topics.join(', '),
       ),
+    for (final mapped in otzarBooks)
+      DetailsInfoSection(
+        title: otzarBooks.length == 1
+            ? 'אוצר החכמה'
+            : 'אוצר החכמה – ${_otzarBookLabel(mapped, otzarBooks)}',
+        icon: OtzariaIcons.book_24_regular,
+        value: 'פתח באוצר החכמה',
+        tapTooltip: 'פתיחה בתוכנת אוצר החכמה כשהספר על הכונן, אחרת באתר',
+        onTap: () => _openInOtzar(mapped.book),
+      ),
   ];
 
   const gap = SizedBox(height: AppTokens.spaceMD);
@@ -346,6 +384,35 @@ Widget _buildBookDetailsContent(
       ],
     ),
   );
+}
+
+/// גם לאותו כרך יש מהדורות; פרטים נוספים נדרשים רק כשהכותר והשנה חופפים.
+String _otzarBookLabel(OtzarMappedBook mapped, List<OtzarMappedBook> books) {
+  String baseLabel(OtzarMappedBook entry) {
+    final title = [
+      entry.book.title,
+      if (entry.volume != null && entry.volume != entry.book.title)
+        entry.volume!,
+    ].join(' – ');
+    final years = entry.book.pubDate?.trim() ?? '';
+    return years.isEmpty ? title : '$title ($years)';
+  }
+
+  final label = baseLabel(mapped);
+  if (books.where((entry) => baseLabel(entry) == label).length < 2) {
+    return label;
+  }
+  final details = [mapped.book.author, mapped.book.pubPlace].nonNulls
+      .map((value) => value.trim())
+      .where((value) => value.isNotEmpty)
+      .join(', ');
+  return details.isEmpty ? label : '$label – $details';
+}
+
+Future<void> _openInOtzar(ExternalLibraryBook book) async {
+  if (!await openOtzarBook(book.id, book.link)) {
+    UiSnack.showError(LibraryMessages.cannotOpenLinkInBrowser);
+  }
 }
 
 /// שם המקור כפי שמוצג למשתמש: לוגו (למקורות שהרישיון שלהם מחייב קרדיט חזותי),
