@@ -31,6 +31,7 @@ import 'package:otzaria/plugins/services/plugin_search_field_session_service.dar
 import 'package:otzaria/plugins/view/plugin_search_field_actions.dart';
 import 'package:otzaria/plugins/services/plugin_search_selection_preferences.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
+import 'package:otzaria/search/active_lexical_searches.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/search_defaults.dart';
@@ -125,6 +126,13 @@ Future<void> main() async {
   final engineReady = await tryInitSearchEngine();
 
   setUpAll(() => registerFallbackValue(_FakeTabsEvent()));
+
+  // טיימר התקיעות של חיפוש שנשאר פתוח בסוף הטסט נחשב טיימר תלוי.
+  setUp(() {
+    ActiveLexicalSearches.instance = ActiveLexicalSearches(
+      stallThreshold: null,
+    );
+  });
 
   // מחסן טרי לכל טסט: טסט ששומר העדפת תצוגת תוצאות אחרת מזליג אותה לכל
   // טאב חיפוש שייבנה אחריו בקובץ.

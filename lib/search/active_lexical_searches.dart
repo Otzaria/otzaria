@@ -30,7 +30,8 @@ class ActiveLexicalSearches {
 
   static ActiveLexicalSearches instance = ActiveLexicalSearches();
 
-  final Duration stallThreshold;
+  /// `null` מכבה את גילוי התקיעות (טסטים שמשאירים חיפוש פתוח).
+  final Duration? stallThreshold;
   final DateTime Function() _now;
   final SearchStallWriter _writeStall;
   final List<TrackedLexicalSearch> _active = [];
@@ -52,7 +53,10 @@ class ActiveLexicalSearches {
       received,
     );
     _active.add(search);
-    search._stallTimer = Timer(stallThreshold, search._onStall);
+    final threshold = stallThreshold;
+    if (threshold != null) {
+      search._stallTimer = Timer(threshold, search._onStall);
+    }
     return search;
   }
 
@@ -177,7 +181,7 @@ class TrackedLexicalSearch {
         title: 'Search stall',
         error:
             'Lexical search #$id did not finish within '
-            '${_owner.stallThreshold.inSeconds}s',
+            '${_owner.stallThreshold?.inSeconds}s',
         details: _details(),
       );
     } catch (_) {}

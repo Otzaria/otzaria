@@ -15,6 +15,7 @@ import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
+import 'package:otzaria/search/active_lexical_searches.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -50,6 +51,13 @@ Future<void> main() async {
   setUpAll(() {
     registerFallbackValue(_TabsEvent());
     registerFallbackValue(_HistoryEvent());
+  });
+
+  // טיימר התקיעות של חיפוש שנשאר פתוח בסוף הטסט נחשב טיימר תלוי.
+  setUp(() {
+    ActiveLexicalSearches.instance = ActiveLexicalSearches(
+      stallThreshold: null,
+    );
   });
 
   testWidgets(
