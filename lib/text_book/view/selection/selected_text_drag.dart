@@ -24,7 +24,12 @@ Uint8List buildWindowsHtmlDragData(String html) {
   const prefix = '<html><body><!--StartFragment-->';
   const suffix = '<!--EndFragment--></body></html>';
   String offset(int value) => value.toString().padLeft(10, '0');
-  String header(int startHtml, int endHtml, int startFragment, int endFragment) =>
+  String header(
+    int startHtml,
+    int endHtml,
+    int startFragment,
+    int endFragment,
+  ) =>
       'Version:0.9\r\n'
       'StartHTML:${offset(startHtml)}\r\n'
       'EndHTML:${offset(endHtml)}\r\n'
@@ -49,8 +54,7 @@ bool shouldStartSelectedTextDrag({
   required bool isSelectedTextHit,
   required bool primaryMouseHeld,
   required double distance,
-}) =>
-    isSelectedTextHit && primaryMouseHeld && distance >= kTouchSlop;
+}) => isSelectedTextHit && primaryMouseHeld && distance >= kTouchSlop;
 
 /// Adds Windows-to-Word drag without participating in Flutter's gesture arena.
 /// A normal first drag still creates/extends a selection; only a second drag
@@ -65,7 +69,7 @@ class SelectedTextDragRegion extends StatefulWidget {
 
   final String? Function() selectedText;
   final Future<SelectedTextDragContent?> Function(String capturedText)
-      prepareContent;
+  prepareContent;
   final Widget child;
 
   @override
@@ -107,7 +111,10 @@ class _SelectedTextDragRegionState extends State<SelectedTextDragRegion> {
   void _move(PointerMoveEvent event) {
     final start = _start;
     final selected = _selectionAtDown;
-    if (_dragging || _pointer != event.pointer || start == null || selected == null) {
+    if (_dragging ||
+        _pointer != event.pointer ||
+        start == null ||
+        selected == null) {
       return;
     }
     if (!shouldStartSelectedTextDrag(
@@ -125,12 +132,14 @@ class _SelectedTextDragRegionState extends State<SelectedTextDragRegion> {
     // recognizers, which might otherwise clear the selected paragraph index.
     final prepared = widget.prepareContent(selected);
     GestureBinding.instance.cancelPointer(event.pointer);
-    unawaited(_startSystemDrag(
-      prepared,
-      position: event.position,
-      pointer: event.pointer,
-      fallbackText: selected,
-    ));
+    unawaited(
+      _startSystemDrag(
+        prepared,
+        position: event.position,
+        pointer: event.pointer,
+        fallbackText: selected,
+      ),
+    );
   }
 
   void _up(PointerEvent event) {
@@ -151,21 +160,25 @@ class _SelectedTextDragRegionState extends State<SelectedTextDragRegion> {
     bool started = false;
     try {
       final content = await prepared;
-      if (!mounted || content == null || content.plainText.trim().isEmpty) return;
+      if (!mounted || content == null || content.plainText.trim().isEmpty) {
+        return;
+      }
       final plain = withoutDivineNameJoiners(content.plainText).trimRight();
       final html = CopyUtils.buildStyledHtml(
         htmlText: withoutDivineNameJoiners(content.htmlText),
         fontFamily: content.fontFamily,
         fontSize: content.fontSize,
       );
-      handle = await DataProvider(representations: [
-        // Windows CF_UNICODETEXT (13), rather than a custom "text/plain" format.
-        DataRepresentation.simple(format: 'NativeShell_CF_13', data: plain),
-        DataRepresentation.simple(
-          format: 'HTML Format',
-          data: buildWindowsHtmlDragData(html),
-        ),
-      ]).register();
+      handle = await DataProvider(
+        representations: [
+          // Windows CF_UNICODETEXT (13), rather than a custom "text/plain" format.
+          DataRepresentation.simple(format: 'NativeShell_CF_13', data: plain),
+          DataRepresentation.simple(
+            format: 'HTML Format',
+            data: buildWindowsHtmlDragData(html),
+          ),
+        ],
+      ).register();
       if (!mounted) return;
       final dragContext = await DragContext.instance();
       if (!mounted) return;
@@ -213,15 +226,18 @@ class _SelectedTextDragRegionState extends State<SelectedTextDragRegion> {
     final rect = Rect.fromLTWH(0, 0, 240, 44);
     final colors = Theme.of(context).colorScheme;
     canvas.drawRRect(
-      RRect.fromRectAndRadius(rect.deflate(1), const Radius.circular(AppTokens.radius)),
+      RRect.fromRectAndRadius(
+        rect.deflate(1),
+        const Radius.circular(AppTokens.radius),
+      ),
       Paint()..color = colors.surface,
     );
     final painter = TextPainter(
       text: TextSpan(
         text: text.replaceAll('\n', ' '),
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: colors.onSurface,
-        ),
+        style: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(color: colors.onSurface),
       ),
       maxLines: 1,
       ellipsis: '…',

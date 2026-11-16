@@ -2892,8 +2892,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       headerContentOverride: widget.isBookNotesColumn
           ? state.content
           : widget.reportBook != null
-              ? widget.content
-              : null,
+          ? widget.content
+          : null,
       copyTarget: _textTarget,
       source: source,
     );
@@ -2972,146 +2972,146 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                       selectedText: () => _savedSelectedText,
                       prepareContent: _prepareSelectedTextDrag,
                       child: SelectableRegion(
-                      key: _selectionRegionKey,
-                      focusNode: _selectionFocusNode,
-                      selectionControls: switch (defaultTargetPlatform) {
-                        TargetPlatform.android || TargetPlatform.fuchsia =>
-                          materialTextSelectionHandleControls,
-                        TargetPlatform.iOS =>
-                          cupertinoTextSelectionHandleControls,
-                        _ => emptyTextSelectionControls,
-                      },
-                      // ביטול תפריט ברירת המחדל של Flutter - נשתמש רק ב-ContextMenuRegion
-                      contextMenuBuilder: (context, selectableRegionState) =>
-                          const SizedBox.shrink(),
-                      onSelectionChanged: (selection) {
-                        // לחיצה ימנית משמרת-בחירה פולטת אירוע בחירה ריקה רגעי;
-                        // עיבודו היה מוחק את הטקסט השמור ושובר את Ctrl+C (issue #937).
-                        if (selection != null &&
-                            selection.plainText.trim().isEmpty &&
-                            _isWithinSecondaryTapWindow) {
-                          return;
-                        }
-                        if (selection != null &&
-                            selection.plainText.trim().isNotEmpty) {
-                          widget.selectionSyncController?.activate(
-                            _selectionOwner,
-                          );
-                        } else {
-                          widget.selectionSyncController?.clear(
-                            _selectionOwner,
-                          );
-                        }
-                        _handleSelectionChange(selection?.plainText);
-                        _requestKeyboardFocus('selection-changed');
-                        if (!widget.isMainText) {
-                          if (selection != null &&
-                              selection.plainText.isNotEmpty) {
-                            _lastActiveCommentary = this;
-                          } else if (selection == null &&
-                              _lastActiveCommentary == this) {
-                            // בחירה בוטלה לחלוטין — מנקים כדי לא לאפשר העתקה "רפאים"
-                            _lastActiveCommentary = null;
-                          }
-                        }
-                      },
-                      child: Actions(
-                        actions: {
-                          _CopyTextIntent: CallbackAction<_CopyTextIntent>(
-                            onInvoke: (_) {
-                              _copyFormattedText();
-                              return null;
-                            },
-                          ),
-                          CopySelectionTextIntent: FormattedCopyAction(
-                            _copyFormattedText,
-                          ),
+                        key: _selectionRegionKey,
+                        focusNode: _selectionFocusNode,
+                        selectionControls: switch (defaultTargetPlatform) {
+                          TargetPlatform.android || TargetPlatform.fuchsia =>
+                            materialTextSelectionHandleControls,
+                          TargetPlatform.iOS =>
+                            cupertinoTextSelectionHandleControls,
+                          _ => emptyTextSelectionControls,
                         },
-                        child: Shortcuts(
-                          shortcuts: {
-                            LogicalKeySet(
-                              LogicalKeyboardKey.control,
-                              LogicalKeyboardKey.keyC,
-                            ): const _CopyTextIntent(),
-                            LogicalKeySet(
-                              LogicalKeyboardKey.meta,
-                              LogicalKeyboardKey.keyC,
-                            ): const _CopyTextIntent(),
+                        // ביטול תפריט ברירת המחדל של Flutter - נשתמש רק ב-ContextMenuRegion
+                        contextMenuBuilder: (context, selectableRegionState) =>
+                            const SizedBox.shrink(),
+                        onSelectionChanged: (selection) {
+                          // לחיצה ימנית משמרת-בחירה פולטת אירוע בחירה ריקה רגעי;
+                          // עיבודו היה מוחק את הטקסט השמור ושובר את Ctrl+C (issue #937).
+                          if (selection != null &&
+                              selection.plainText.trim().isEmpty &&
+                              _isWithinSecondaryTapWindow) {
+                            return;
+                          }
+                          if (selection != null &&
+                              selection.plainText.trim().isNotEmpty) {
+                            widget.selectionSyncController?.activate(
+                              _selectionOwner,
+                            );
+                          } else {
+                            widget.selectionSyncController?.clear(
+                              _selectionOwner,
+                            );
+                          }
+                          _handleSelectionChange(selection?.plainText);
+                          _requestKeyboardFocus('selection-changed');
+                          if (!widget.isMainText) {
+                            if (selection != null &&
+                                selection.plainText.isNotEmpty) {
+                              _lastActiveCommentary = this;
+                            } else if (selection == null &&
+                                _lastActiveCommentary == this) {
+                              // בחירה בוטלה לחלוטין — מנקים כדי לא לאפשר העתקה "רפאים"
+                              _lastActiveCommentary = null;
+                            }
+                          }
+                        },
+                        child: Actions(
+                          actions: {
+                            _CopyTextIntent: CallbackAction<_CopyTextIntent>(
+                              onInvoke: (_) {
+                                _copyFormattedText();
+                                return null;
+                              },
+                            ),
+                            CopySelectionTextIntent: FormattedCopyAction(
+                              _copyFormattedText,
+                            ),
                           },
-                          child: Focus(
-                            focusNode: _resolvedKeyboardFocusNode,
-                            autofocus:
-                                widget.isMainText && _isTabInForeground(),
-                            onFocusChange: (hasFocus) {
-                              if (!hasFocus) {
-                                _ensureKeyboardFocusAfterLoss(
-                                  'focus-widget-lost',
-                                );
-                              }
+                          child: Shortcuts(
+                            shortcuts: {
+                              LogicalKeySet(
+                                LogicalKeyboardKey.control,
+                                LogicalKeyboardKey.keyC,
+                              ): const _CopyTextIntent(),
+                              LogicalKeySet(
+                                LogicalKeyboardKey.meta,
+                                LogicalKeyboardKey.keyC,
+                              ): const _CopyTextIntent(),
                             },
-                            onKeyEvent: (_, event) {
-                              _navigationKeys.release(event);
-                              if (!shouldHandlePageShapeNavigationKeyEvent(
-                                event,
-                                isShiftPressed:
-                                    HardwareKeyboard.instance.isShiftPressed,
-                              )) {
-                                return KeyEventResult.ignored;
-                              }
+                            child: Focus(
+                              focusNode: _resolvedKeyboardFocusNode,
+                              autofocus:
+                                  widget.isMainText && _isTabInForeground(),
+                              onFocusChange: (hasFocus) {
+                                if (!hasFocus) {
+                                  _ensureKeyboardFocusAfterLoss(
+                                    'focus-widget-lost',
+                                  );
+                                }
+                              },
+                              onKeyEvent: (_, event) {
+                                _navigationKeys.release(event);
+                                if (!shouldHandlePageShapeNavigationKeyEvent(
+                                  event,
+                                  isShiftPressed:
+                                      HardwareKeyboard.instance.isShiftPressed,
+                                )) {
+                                  return KeyEventResult.ignored;
+                                }
 
-                              final handled = widget.isMainText
-                                  ? _handleNavigationLogicalKey(
-                                      event,
-                                      isAltPressed:
-                                          ShortcutHelper.isAltModifierPressed,
-                                      isShiftPressed: HardwareKeyboard
-                                          .instance
-                                          .isShiftPressed,
-                                      source: 'content-focus',
-                                    )
-                                  : _scrollCommentaryByKey(event.logicalKey);
-                              return handled
-                                  ? KeyEventResult.handled
-                                  : KeyEventResult.ignored;
-                            },
-                            child: widget.useInternalScroll
-                                ? ScrollablePositionedListScrollbar(
-                                    scrollController: _scrollController,
-                                    onNavigationStart:
-                                        _lines?.beginUserNavigation,
-                                    itemCount: itemCount,
-                                    labelForIndex: widget.labelForIndex,
-                                    child: SmoothWheelScroll(
-                                      child: _trackUserScroll(
-                                        _buildInternalList(
-                                          state,
-                                          noteMap,
-                                          segments,
-                                          continuous,
+                                final handled = widget.isMainText
+                                    ? _handleNavigationLogicalKey(
+                                        event,
+                                        isAltPressed:
+                                            ShortcutHelper.isAltModifierPressed,
+                                        isShiftPressed: HardwareKeyboard
+                                            .instance
+                                            .isShiftPressed,
+                                        source: 'content-focus',
+                                      )
+                                    : _scrollCommentaryByKey(event.logicalKey);
+                                return handled
+                                    ? KeyEventResult.handled
+                                    : KeyEventResult.ignored;
+                              },
+                              child: widget.useInternalScroll
+                                  ? ScrollablePositionedListScrollbar(
+                                      scrollController: _scrollController,
+                                      onNavigationStart:
+                                          _lines?.beginUserNavigation,
+                                      itemCount: itemCount,
+                                      labelForIndex: widget.labelForIndex,
+                                      child: SmoothWheelScroll(
+                                        child: _trackUserScroll(
+                                          _buildInternalList(
+                                            state,
+                                            noteMap,
+                                            segments,
+                                            continuous,
+                                          ),
                                         ),
                                       ),
+                                    )
+                                  : ListView.builder(
+                                      shrinkWrap: true,
+                                      physics:
+                                          const NeverScrollableScrollPhysics(),
+                                      itemCount: itemCount,
+                                      padding: const EdgeInsets.all(4),
+                                      itemBuilder: (context, index) =>
+                                          _buildLineItem(
+                                            context,
+                                            index,
+                                            state,
+                                            noteMap,
+                                            segments,
+                                            continuous,
+                                          ),
                                     ),
-                                  )
-                                : ListView.builder(
-                                    shrinkWrap: true,
-                                    physics:
-                                        const NeverScrollableScrollPhysics(),
-                                    itemCount: itemCount,
-                                    padding: const EdgeInsets.all(4),
-                                    itemBuilder: (context, index) =>
-                                        _buildLineItem(
-                                          context,
-                                          index,
-                                          state,
-                                          noteMap,
-                                          segments,
-                                          continuous,
-                                        ),
-                                  ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
                     ),
                   );
                 },
