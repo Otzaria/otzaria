@@ -1,8 +1,11 @@
 import 'package:flutter/gestures.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
+import 'package:otzaria/tabs/bloc/tabs_state.dart';
+import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/utils/tab_content_vertical_drag_recognizer.dart';
 import 'package:otzaria/tabs/utils/tab_swipe_direction.dart';
@@ -42,6 +45,8 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
   double _draggedDx = 0;
   double _draggedPages = 0;
   PointerDeviceKind? _kind;
+  int? _expectedIndex;
+  List<OpenedTab> _gestureTabs = const [];
 
   /// מחווה חדשה מחליפה את ההתיישבות הקודמת; רק האחרונה משחררת את הדיכוי.
   int _generation = 0;
@@ -49,8 +54,9 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
   @override
   void dispose() {
     // dispose של המזהים לא קורא ל-onEnd/onCancel; בלי זה הסנכרון נשאר חסום.
-    if (_dragging) {
+    if (_expectedIndex != null) {
       _dragging = false;
+      _generation++;
       widget.onActiveChanged(false);
     }
     super.dispose();
@@ -58,38 +64,61 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
 
   @override
   Widget build(BuildContext context) {
-    return RawGestureDetector(
-      gestures: <Type, GestureRecognizerFactory>{
-        // מעל WebView אין מזהה גלילה פנימי שימנע מעבר טאב בגלילה אנכית.
-        TabContentVerticalDragRecognizer:
-            GestureRecognizerFactoryWithHandlers<
-              TabContentVerticalDragRecognizer
-            >(
-              TabContentVerticalDragRecognizer.new,
-              (recognizer) => recognizer.onStart = (_) {},
-            ),
-        HorizontalDragGestureRecognizer:
-            GestureRecognizerFactoryWithHandlers<
-              HorizontalDragGestureRecognizer
-            >(
-              () => HorizontalDragGestureRecognizer(
-                supportedDevices: const {PointerDeviceKind.trackpad},
+    return BlocListener<TabsBloc, TabsState>(
+      listener: (_, state) => _onTabsChanged(state),
+      child: RawGestureDetector(
+        gestures: <Type, GestureRecognizerFactory>{
+          // מעל WebView אין מזהה גלילה פנימי שימנע מעבר טאב בגלילה אנכית.
+          TabContentVerticalDragRecognizer:
+              GestureRecognizerFactoryWithHandlers<
+                TabContentVerticalDragRecognizer
+              >(
+                TabContentVerticalDragRecognizer.new,
+                (recognizer) => recognizer.onStart = (_) {},
               ),
-              _configure,
-            ),
-        TouchTabSwipeRecognizer:
-            GestureRecognizerFactoryWithHandlers<TouchTabSwipeRecognizer>(
-              () => TouchTabSwipeRecognizer(
-                singleFingerPansContent: () {
-                  final tab = context.read<TabsBloc>().state.currentTab;
-                  return tab is PdfBookTab && tab.canPanHorizontally;
-                },
+          HorizontalDragGestureRecognizer:
+              GestureRecognizerFactoryWithHandlers<
+                HorizontalDragGestureRecognizer
+              >(
+                () => HorizontalDragGestureRecognizer(
+                  supportedDevices: const {PointerDeviceKind.trackpad},
+                ),
+                _configure,
               ),
-              _configure,
-            ),
-      },
-      child: widget.child,
+          TouchTabSwipeRecognizer:
+              GestureRecognizerFactoryWithHandlers<TouchTabSwipeRecognizer>(
+                () => TouchTabSwipeRecognizer(
+                  singleFingerPansContent: () {
+                    final tab = context.read<TabsBloc>().state.currentTab;
+                    return tab is PdfBookTab && tab.canPanHorizontally;
+                  },
+                ),
+                _configure,
+              ),
+        },
+        child: widget.child,
+      ),
     );
+  }
+
+  void _onTabsChanged(TabsState state) {
+    if (_expectedIndex == null ||
+        (_expectedIndex == state.currentTabIndex &&
+            listEquals(_gestureTabs, state.tabs))) {
+      return;
+    }
+    // בחירה או שינוי מבנה מבחוץ מחליפים את המחווה, כולל אנימציה שעדיין רצה.
+    _dragging = false;
+    _generation++;
+    _expectedIndex = null;
+    _gestureTabs = const [];
+    final controller = widget.controller;
+    if (state.hasOpenTabs && controller != null && controller.hasClients) {
+      controller.jumpToPage(
+        state.currentTabIndex.clamp(0, state.tabs.length - 1),
+      );
+    }
+    widget.onActiveChanged(false);
   }
 
   void _configure(HorizontalDragGestureRecognizer recognizer) {
@@ -114,7 +143,10 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
     _generation++;
     widget.onActiveChanged(true);
     _startPage = controller.page ?? 0;
-    _anchorIndex = context.read<TabsBloc>().state.currentTabIndex;
+    final state = context.read<TabsBloc>().state;
+    _anchorIndex = state.currentTabIndex;
+    _expectedIndex = _anchorIndex;
+    _gestureTabs = List.of(state.tabs);
     _draggedDx = 0;
     _draggedPages = 0;
     _kind = details.kind;
@@ -143,12 +175,18 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
 
   Future<void> _settle(double velocityDx) async {
     if (!_dragging) return;
+    _onTabsChanged(context.read<TabsBloc>().state);
+    if (!_dragging) return;
     _dragging = false;
     final generation = _generation;
     try {
       await _settleOnTarget(velocityDx);
     } finally {
-      if (generation == _generation) widget.onActiveChanged(false);
+      if (generation == _generation) {
+        _expectedIndex = null;
+        _gestureTabs = const [];
+        widget.onActiveChanged(false);
+      }
     }
   }
 
@@ -184,6 +222,7 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
       'page': _rounded(page),
     });
     // עדכון ה-bloc קודם כדי שההדגשה בשורת הטאבים תגיב מיד.
+    _expectedIndex = target;
     if (target != state.currentTabIndex) bloc.add(SetCurrentTab(target));
     final duration = AppMotion.duration(
       context,

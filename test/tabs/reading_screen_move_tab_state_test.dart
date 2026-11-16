@@ -11,6 +11,7 @@ import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/pdf_headings.dart';
+import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentators_tab_screen.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
@@ -30,6 +31,7 @@ import 'package:provider/provider.dart';
 
 import '../helpers/memory_settings_cache.dart';
 import '../test_helpers/stub_settings_bloc.dart';
+import '../test_helpers/stub_navigation_bloc.dart';
 
 /// אימות התנהגותי של `MoveTab` על ה-`ReadingScreen` האמיתי: אחרי הזזה,
 /// ה-`State` של מסך הטאב חייב להיות *אותו מופע*. ב-PDF זה ההבדל בין
@@ -67,6 +69,7 @@ void main() {
       MaterialApp(
         home: MultiBlocProvider(
           providers: [
+            BlocProvider<NavigationBloc>(create: (_) => StubNavigationBloc()),
             BlocProvider<SettingsBloc>.value(value: StubSettingsBloc()),
             BlocProvider<PersonalNotesBloc>.value(
               value: _FakePersonalNotesBloc(),
@@ -398,6 +401,143 @@ void main() {
 
       expect(bloc.state.currentTabIndex, 1);
       expect(pageControllerOf(tester).page, 1);
+    });
+
+    group('שינוי בחירה או מבנה בזמן מחווה', () {
+      Future<TestGesture> startDrag(WidgetTester tester) async {
+        final center = tester.getCenter(find.byType(PageView));
+        final gesture = await tester.createGesture(
+          kind: PointerDeviceKind.trackpad,
+        );
+        await gesture.panZoomStart(center, timeStamp: Duration.zero);
+        await gesture.panZoomUpdate(
+          center,
+          pan: const Offset(-100, 0),
+          timeStamp: const Duration(milliseconds: 50),
+        );
+        await tester.pump();
+        return gesture;
+      }
+
+      Future<void> releaseDrag(WidgetTester tester, TestGesture gesture) async {
+        final center = tester.getCenter(find.byType(PageView));
+        await gesture.panZoomUpdate(
+          center,
+          pan: const Offset(-250, 0),
+          timeStamp: const Duration(milliseconds: 350),
+        );
+        await gesture.panZoomEnd(timeStamp: const Duration(milliseconds: 400));
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 400));
+      }
+
+      for (final action in ['בחירה', 'הזזה', 'סגירה', 'החלפה', 'הלוך וחזור']) {
+        testWidgets('$action בזמן גרירה נשמרת גם אחרי המשך ושחרור', (
+          tester,
+        ) async {
+          final tabs = [for (final t in 'אבגדהוז'.split('')) _tab(t)];
+          final replacement = _tab('ח');
+          addTearDown(() {
+            for (final tab in [...tabs, replacement]) {
+              tab.dispose();
+            }
+          });
+          final bloc = await pumpReadingScreen(
+            tester,
+            tabs,
+            currentTabIndex: 3,
+          );
+          final gesture = await startDrag(tester);
+          final event = switch (action) {
+            'בחירה' || 'הלוך וחזור' => const SetCurrentTab(6),
+            'הזזה' => MoveTab(tabs[0], 6),
+            'סגירה' => RemoveTab(tabs[0]),
+            _ => ReplaceTab(oldTab: tabs[3], newTab: replacement),
+          };
+          bloc.add(event);
+          if (action == 'הלוך וחזור') bloc.add(const SetCurrentTab(3));
+          await tester.pump();
+          await tester.pump();
+          final expectedIndex = switch (action) {
+            'בחירה' || 'הזזה' => 6,
+            'סגירה' => 2,
+            _ => 3,
+          };
+          final selected = bloc.state.currentTab;
+          expect(bloc.state.currentTabIndex, expectedIndex);
+          expect(pageControllerOf(tester).page, expectedIndex);
+
+          await releaseDrag(tester, gesture);
+          expect(bloc.state.currentTab, same(selected));
+          expect(bloc.state.currentTabIndex, expectedIndex);
+          expect(pageControllerOf(tester).page, expectedIndex);
+          expect(TabSwipeLog.of(bloc), isEmpty);
+        });
+      }
+
+      testWidgets('סגירת כל הטאבים בזמן גרירה מסיימת את המחווה בבטחה', (
+        tester,
+      ) async {
+        final tabs = [_tab('א'), _tab('ב')];
+        addTearDown(() {
+          for (final tab in tabs) {
+            tab.dispose();
+          }
+        });
+        final bloc = await pumpReadingScreen(tester, tabs);
+        final gesture = await startDrag(tester);
+        bloc.add(CloseAllTabs());
+        await tester.pumpAndSettle();
+        await gesture.panZoomEnd(timeStamp: const Duration(milliseconds: 400));
+        await tester.pumpAndSettle();
+        expect(bloc.state.tabs, isEmpty);
+        expect(find.byType(PageView), findsNothing);
+        expect(tester.takeException(), isNull);
+        await tester.pump(const Duration(milliseconds: 400));
+      });
+
+      testWidgets('בחירה באמצע התיישבות מבטלת אותה ומאפשרת הנפה חדשה', (
+        tester,
+      ) async {
+        final tabs = [for (final t in 'אבגדהוז'.split('')) _tab(t)];
+        addTearDown(() {
+          for (final tab in tabs) {
+            tab.dispose();
+          }
+        });
+        final bloc = await pumpReadingScreen(tester, tabs, currentTabIndex: 3);
+        Future<void> fling() async {
+          final center = tester.getCenter(find.byType(PageView));
+          final gesture = await tester.createGesture(
+            kind: PointerDeviceKind.trackpad,
+          );
+          await gesture.panZoomStart(center, timeStamp: Duration.zero);
+          for (var i = 1; i <= 5; i++) {
+            await gesture.panZoomUpdate(
+              center,
+              pan: Offset(-30.0 * i, 0),
+              timeStamp: Duration(milliseconds: i * 10),
+            );
+            await tester.pump(const Duration(milliseconds: 10));
+          }
+          await gesture.panZoomEnd(timeStamp: const Duration(milliseconds: 60));
+        }
+
+        await fling();
+        await tester.pump(const Duration(milliseconds: 32));
+        expect(bloc.state.currentTabIndex, 4);
+        expect(pageControllerOf(tester).page, lessThan(4));
+        bloc.add(const SetCurrentTab(5));
+        await tester.pump();
+        await tester.pump();
+        expect(pageControllerOf(tester).page, 5);
+        await fling();
+        await tester.pumpAndSettle();
+        expect(bloc.state.currentTabIndex, 6);
+        expect(pageControllerOf(tester).page, 6);
+        expect(TabSwipeLog.of(bloc).last['from'], 5);
+        expect(TabSwipeLog.of(bloc).last['to'], 6);
+      });
     });
 
     // #5211: הנפה שנייה בתחילת אנימציית ההתיישבות של הראשונה נבלעה.
