@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:otzaria/core/http_client_registry.dart';
+import 'package:otzaria/plugins/utils/plugin_executable_files.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -120,6 +121,13 @@ class PluginFileDownloadService {
     String? filename,
     Directory? targetDir,
   }) async {
+    final baseName = _sanitizeFilename(
+      (filename == null || filename.trim().isEmpty)
+          ? _filenameFromUri(downloadUri)
+          : filename,
+    );
+    rejectPluginExecutable(baseName);
+
     final response = await _fetchFollowingAllowedRedirects(
       downloadUri,
       isAllowed,
@@ -129,11 +137,6 @@ class PluginFileDownloadService {
     final dir = targetDir ?? await _resolveDownloadsDir();
     await dir.create(recursive: true);
 
-    final baseName = _sanitizeFilename(
-      (filename == null || filename.trim().isEmpty)
-          ? _filenameFromUri(downloadUri)
-          : filename,
-    );
     final outFile = _resolveNonColliding(dir, baseName);
 
     final sink = outFile.openWrite();
@@ -194,6 +197,7 @@ class PluginFileDownloadService {
     bool Function(Uri previous, Uri target)? isRedirectAllowed,
     bool resume = false,
   }) async {
+    rejectPluginExecutable(destPath);
     final outFile = File(destPath);
     await outFile.parent.create(recursive: true);
     final resumeFile = File('$destPath.resume');

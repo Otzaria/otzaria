@@ -132,6 +132,82 @@ void main() {
       expect(await inner.readAsString(), 'פנימי');
     });
 
+    test('ארכיון עם קובץ הרצה נדחה בלי לחלץ דבר', () async {
+      final zipPath = buildZip(p.join(tempDir.path, 'a.zip'), {
+        'readme.txt': 'קרא',
+        'bin/OtzariaAIProxy.exe': 'MZ',
+      });
+      final destFolder = p.join(tempDir.path, 'out');
+
+      await expectLater(
+        service.extractZip(zipPath, destFolder),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('error.forbidden'),
+          ),
+        ),
+      );
+      expect(File(p.join(destFolder, 'readme.txt')).existsSync(), isFalse);
+    });
+
+    test('תיקיות רגילות עם סיומת קובץ אינן נחסמות בחילוץ', () async {
+      final archive = Archive()
+        ..add(ArchiveFile.directory('example.com/'))
+        ..add(ArchiveFile.string('example.com/notes.txt', 'שלום'))
+        ..add(ArchiveFile.string('tools.exe/sub/notes.txt', 'עולם'));
+      final zipPath = p.join(tempDir.path, 'documents.zip');
+      File(zipPath).writeAsBytesSync(ZipEncoder().encodeBytes(archive));
+      final destFolder = p.join(tempDir.path, 'out');
+
+      await service.extractZip(zipPath, destFolder);
+
+      expect(
+        File(p.join(destFolder, 'example.com/notes.txt')).readAsStringSync(),
+        'שלום',
+      );
+      expect(
+        File(p.join(destFolder, 'tools.exe/sub/notes.txt')).readAsStringSync(),
+        'עולם',
+      );
+    });
+
+    for (final extension in ['app', 'pkg']) {
+      for (final explicitDirectory in [false, true]) {
+        test(
+          'תיקיית $extension חסומה לפני החילוץ: רשומה=$explicitDirectory',
+          () async {
+            final archive = Archive()
+              ..add(ArchiveFile.string('readme.txt', 'מסמך'));
+            if (explicitDirectory) {
+              archive.add(
+                ArchiveFile.directory('Tool.${extension.toUpperCase()} . /'),
+              );
+            } else {
+              archive.add(
+                ArchiveFile.string(
+                  'Tool.$extension/Contents/notes.txt',
+                  'מסמך',
+                ),
+              );
+            }
+            final zipPath = p.join(tempDir.path, 'bundle.zip');
+            File(zipPath).writeAsBytesSync(ZipEncoder().encodeBytes(archive));
+            final destFolder = p.join(tempDir.path, 'out');
+
+            await expectLater(
+              service.extractZip(zipPath, destFolder),
+              throwsA(
+                predicate((e) => e.toString().contains('error.forbidden')),
+              ),
+            );
+            expect(Directory(destFolder).listSync(), isEmpty);
+          },
+        );
+      }
+    }
+
     test('זורק כשקובץ ה-ZIP אינו קיים', () async {
       await expectLater(
         service.extractZip(
@@ -353,6 +429,33 @@ void main() {
   });
 
   group('PluginFsService.moveEntry', () {
+    test('שינוי שם תיקייה לסיומת קובץ שומר את תוכנה', () async {
+      final from = Directory(p.join(tempDir.path, 'documents'))..createSync();
+      File(p.join(from.path, 'notes.txt')).writeAsStringSync('שלום');
+      final to = p.join(tempDir.path, 'example.com');
+
+      await service.moveEntry(from.path, to);
+
+      expect(from.existsSync(), isFalse);
+      expect(File(p.join(to, 'notes.txt')).readAsStringSync(), 'שלום');
+    });
+
+    for (final extension in ['app', 'pkg']) {
+      test('שינוי שם תיקייה ל-$extension חסום והמקור נשמר', () async {
+        final from = Directory(p.join(tempDir.path, 'documents'))..createSync();
+        File(p.join(from.path, 'notes.txt')).writeAsStringSync('שלום');
+        final to = p.join(tempDir.path, 'Tool.${extension.toUpperCase()} . ');
+
+        await expectLater(
+          service.moveEntry(from.path, to),
+          throwsA(predicate((e) => e.toString().contains('error.forbidden'))),
+        );
+
+        expect(File(p.join(from.path, 'notes.txt')).readAsStringSync(), 'שלום');
+        expect(Directory(to).existsSync(), isFalse);
+      });
+    }
+
     test('מזיזה תיקייה עם תוכנה ליעד חדש', () async {
       final from = Directory(p.join(tempDir.path, 'old_name'))
         ..createSync(recursive: true);
@@ -377,6 +480,23 @@ void main() {
 
       expect(await from.exists(), isFalse);
       expect(File(to).readAsStringSync(), 'data');
+    });
+
+    test('שינוי שם לקובץ הרצה נדחה והמקור נשאר', () async {
+      final from = File(p.join(tempDir.path, 'proxy.bin'))
+        ..writeAsStringSync('MZ');
+
+      await expectLater(
+        service.moveEntry(from.path, p.join(tempDir.path, 'proxy.exe')),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('error.forbidden'),
+          ),
+        ),
+      );
+      expect(from.existsSync(), isTrue);
     });
 
     test('זורקת error.not_found כשהמקור אינו קיים', () async {

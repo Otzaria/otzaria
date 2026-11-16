@@ -121,6 +121,7 @@ import 'package:otzaria/workspaces/workspace.dart';
 import 'package:otzaria/plugins/database/plugin_database_service.dart';
 import 'package:otzaria/plugins/utils/reader_location_resolver.dart';
 import 'package:otzaria/plugins/utils/plugin_icon_resolver.dart';
+import 'package:otzaria/plugins/utils/plugin_executable_files.dart';
 import 'package:otzaria/plugins/models/plugin_context_menu_item.dart';
 import 'package:otzaria/plugins/models/plugin_toolbar_item.dart';
 import 'package:otzaria/plugins/models/plugin_when_condition.dart';
@@ -5778,6 +5779,7 @@ class PluginBridgeAdapter {
         args['suggestedName'] as String?,
         extension,
       );
+      rejectPluginExecutable(suggested);
       final saver = _dependencies.pickSaveLocation ?? _defaultPickSaveLocation;
       final chosen = await saver(
         suggestedName: suggested,
@@ -5895,6 +5897,7 @@ class PluginBridgeAdapter {
   /// התיעוד של `File.rename` אינו מבטיח אותה, ובפועל היא מתקיימת ב-POSIX
   /// באותו volume וב-Windows דרך החלפה. לכן אין להצהיר „אטומי” בלי הסתייגות.
   Future<void> _atomicWrite(File source, String targetPath) async {
+    rejectPluginExecutable(targetPath);
     final target = File(targetPath);
     final suffix = _randomSuffix();
     final staging = File(

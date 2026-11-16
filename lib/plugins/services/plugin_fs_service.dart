@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/plugins/services/plugin_path_safety.dart';
+import 'package:otzaria/plugins/utils/plugin_executable_files.dart';
 import 'package:otzaria/utils/file/zip_entry_io.dart';
 
 /// רשומה במרחב הפרטי של תוסף — קובץ או תיקייה, עם נתיב **יחסי** לשורש בלבד.
@@ -130,6 +131,16 @@ class PluginFsService {
     final input = openZipInput(zipPath);
     try {
       final archive = ZipDecoder().decodeStream(input);
+      // נבדק לפני כל כתיבה, כדי שארכיון אסור לא ישאיר חילוץ חלקי.
+      for (final file in archive) {
+        final parts = p.split(p.normalize(file.name));
+        for (var i = 0; i < parts.length; i++) {
+          rejectPluginExecutable(
+            parts[i],
+            isDirectory: i < parts.length - 1 || file.isDirectory,
+          );
+        }
+      }
       var entryCount = 0;
       var totalBytes = 0;
       for (final file in archive) {
@@ -223,6 +234,7 @@ class PluginFsService {
     final sourcePath = p.normalize(p.absolute(from));
     final destinationPath = p.normalize(p.absolute(to));
     final sourceIsDir = await Directory(sourcePath).exists();
+    rejectPluginExecutable(to, isDirectory: sourceIsDir);
     final sourceIsFile = !sourceIsDir && await File(sourcePath).exists();
     if (!sourceIsDir && !sourceIsFile) {
       throw Exception('error.not_found: source does not exist');

@@ -4162,6 +4162,89 @@ Future<void> main() async {
       );
     });
 
+    group('קבצי הרצה אינם יוצאים מהתוסף', () {
+      Matcher forbidden() => throwsA(
+        isA<Exception>().having(
+          (e) => e.toString(),
+          'message',
+          contains('error.forbidden'),
+        ),
+      );
+
+      test('סיומת exe נדחית לפני שנפתח דיאלוג השמירה', () async {
+        var saveDialogOpened = false;
+        final adapter = buildAdapter(
+          pickFile: ({allowedExtensions, title}) async => null,
+          pickSaveLocation:
+              ({required suggestedName, allowedExtensions, title}) async {
+                saveDialogOpened = true;
+                return p.join(tempDir.path, suggestedName);
+              },
+        );
+        final ticket =
+            await adapter.execute('fs', 'beginBinaryWrite', {}) as Map;
+        await upload(ticket['uploadUrl'] as String, 'MZ');
+
+        await expectLater(
+          adapter.execute('fs', 'commitUserFileWrite', {
+            'writeToken': ticket['writeToken'],
+            'suggestedName': 'OtzariaAIProxy',
+            'extension': 'exe',
+          }),
+          forbidden(),
+        );
+        expect(saveDialogOpened, isFalse);
+        expect(fileServer.activeUploadsFor('test.plugin'), 0);
+      });
+
+      test('שם קובץ הרצה שנבחר בדיאלוג אינו נכתב', () async {
+        final target = p.join(tempDir.path, 'proxy.py');
+        final adapter = buildAdapter(
+          pickFile: ({allowedExtensions, title}) async => null,
+          pickSaveLocation:
+              ({required suggestedName, allowedExtensions, title}) async =>
+                  target,
+        );
+        final ticket =
+            await adapter.execute('fs', 'beginBinaryWrite', {}) as Map;
+        await upload(ticket['uploadUrl'] as String, 'print(1)');
+
+        await expectLater(
+          adapter.execute('fs', 'commitUserFileWrite', {
+            'writeToken': ticket['writeToken'],
+            'suggestedName': 'proxy',
+          }),
+          forbidden(),
+        );
+        expect(File(target).existsSync(), isFalse);
+      });
+
+      test('קובץ הרצה קיים שנפתח לכתיבה אינו נדרס', () async {
+        final file = File(p.join(tempDir.path, 'tool.exe'))
+          ..writeAsStringSync('מקורי');
+        final adapter = buildAdapter(
+          pickFile: ({allowedExtensions, title}) async => file.path,
+        );
+        final picked =
+            await adapter.execute('fs', 'pickUserFile', {
+                  'access': 'readwrite',
+                })
+                as Map;
+        final ticket =
+            await adapter.execute('fs', 'beginBinaryWrite', {}) as Map;
+        await upload(ticket['uploadUrl'] as String, 'MZ');
+
+        await expectLater(
+          adapter.execute('fs', 'commitUserFileWrite', {
+            'writeToken': ticket['writeToken'],
+            'targetToken': picked['token'],
+          }),
+          forbidden(),
+        );
+        expect(file.readAsStringSync(), 'מקורי');
+      });
+    });
+
     test('„שמור”: כתיבה חוזרת ל-token דורסת את הקובץ בלי דיאלוג', () async {
       final file = File(p.join(tempDir.path, 'a.docx'))
         ..writeAsStringSync('גרסה ראשונה');
@@ -4509,6 +4592,7 @@ Future<void> main() async {
 
       expect(targetLines, [
         'Future<void> _atomicWrite(File source, String targetPath) async {',
+        'rejectPluginExecutable(targetPath);',
         'final target = File(targetPath);',
         'target.parent.path,',
         "'.\${p.basename(targetPath)}.\$suffix\$_stagingExt',",

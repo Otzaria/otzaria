@@ -150,6 +150,51 @@ void main() {
     expect(await File(p.join(tempDir.path, 'a.zip')).readAsBytes(), [0]);
   });
 
+  test('קובץ הרצה אינו מורד, לא לפי URL ולא לפי filename', () async {
+    var requests = 0;
+    final service = PluginFileDownloadService(
+      client: MockClient((request) async {
+        requests++;
+        return http.Response.bytes([1], 200);
+      }),
+    );
+    final forbidden = throwsA(
+      isA<Exception>().having(
+        (e) => e.toString(),
+        'message',
+        contains('error.forbidden'),
+      ),
+    );
+
+    await expectLater(
+      service.downloadToDownloads(
+        Uri.parse('https://github.com/Owner/Repo/releases/download/v1/x.exe'),
+        isAllowed: allowAll,
+        targetDir: tempDir,
+      ),
+      forbidden,
+    );
+    await expectLater(
+      service.downloadToDownloads(
+        Uri.parse('https://github.com/Owner/Repo/releases/download/v1/x.zip'),
+        isAllowed: allowAll,
+        filename: 'setup.msi',
+        targetDir: tempDir,
+      ),
+      forbidden,
+    );
+    await expectLater(
+      service.downloadToPath(
+        Uri.parse('https://github.com/Owner/Repo/releases/download/v1/x.zip'),
+        p.join(tempDir.path, 'run.bat'),
+        isAllowed: allowAll,
+      ),
+      forbidden,
+    );
+    expect(requests, 0);
+    expect(tempDir.listSync(), isEmpty);
+  });
+
   test('שם קובץ עם תווי נתיב מנוקה למניעת path traversal', () async {
     final service = serviceReturning([7]);
     final result = await service.downloadToDownloads(
