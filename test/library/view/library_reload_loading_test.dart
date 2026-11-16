@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart' show FontLoader, rootBundle;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -120,6 +121,15 @@ void main() {
           2,
           false,
           true,
+        ),
+        (
+          'בהיר',
+          AppSeedColors.blue,
+          Brightness.light,
+          true,
+          0,
+          false,
+          false,
         ),
         (
           'בהיר',
@@ -246,6 +256,8 @@ void main() {
           MaterialApp(
             navigatorKey: navigatorKey,
             locale: const Locale('he', 'IL'),
+            supportedLocales: const [Locale('he', 'IL')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
             theme: captureTheme,
             builder: (context, child) => RepaintBoundary(
               key: const ValueKey('library-reload-capture-root'),
@@ -266,6 +278,10 @@ void main() {
           ),
         );
         await tester.pump();
+        expect(
+          Directionality.of(tester.element(find.byType(LibraryBrowser))),
+          TextDirection.rtl,
+        );
         tester.takeException();
         expect(_loadingOverlay, findsNothing);
         if (fromButton) {
@@ -372,6 +388,8 @@ void main() {
             MaterialApp(
               navigatorKey: navigatorKey,
               locale: const Locale('he', 'IL'),
+              supportedLocales: const [Locale('he', 'IL')],
+              localizationsDelegates: GlobalMaterialLocalizations.delegates,
               theme: snackbarTheme,
               builder: (context, child) => MediaQuery(
                 data: MediaQuery.of(context).copyWith(
@@ -389,6 +407,12 @@ void main() {
           await tester.pump();
           await tester.pump(const Duration(milliseconds: 200));
 
+          expect(
+            Directionality.of(
+              tester.element(find.textContaining('מגילה_links.json')),
+            ),
+            TextDirection.rtl,
+          );
           expect(find.textContaining('מגילה_links.json'), findsOneWidget);
           expect(
             find.textContaining('ספר היעד "ספר חסר" לא נמצא'),
