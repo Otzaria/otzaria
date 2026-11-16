@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -158,6 +159,9 @@ Future<List<String>> _familyRules(
 /// כללי `@font-face` לכל [pluginFontFamilies]. [embedded] מטביע את הבייטים
 /// כשהדף אינו יכול לטעון משרת הקבצים, למשל בגלל CSP משלו.
 Future<String> buildPluginFontFaceCss({bool embedded = false}) async {
+  if (embedded || !pluginFontsFromFileServer) {
+    return _buildEmbeddedFontFaceCss();
+  }
   final rules = <String>[];
   for (final family in pluginFontFamilies()) {
     rules.addAll(await _familyRules(family, embedded: embedded));
@@ -165,15 +169,75 @@ Future<String> buildPluginFontFaceCss({bool embedded = false}) async {
   return rules.join('\n');
 }
 
-({String css, String json})? _jsonCache;
+typedef _EmbeddedFace = ({
+  String family,
+  String id,
+  String weight,
+  String? cached,
+  Uint8List? bytes,
+});
 
-/// [css] מקודד ל-JSON לסקריפט ה-boot. הבייטים המוטבעים הם כ-2MB ונשמרים לאותו CSS.
-String pluginFontFaceJson(String css) {
-  final cached = _jsonCache;
-  if (cached != null && cached.css == css) return cached.json;
-  final json = jsonEncode(css);
-  _jsonCache = (css: css, json: json);
-  return json;
+({String key, String css, String json})? _embeddedCache;
+
+Future<String> _buildEmbeddedFontFaceCss() async {
+  final inputs = <_EmbeddedFace>[];
+  final bytesById = <String, Future<Uint8List>>{};
+  for (final family in pluginFontFamilies()) {
+    try {
+      final faces = <_EmbeddedFace>[];
+      for (final face in await _faces(family)) {
+        final cached = _dataSources[face.id];
+        faces.add((
+          family: family,
+          id: face.id,
+          weight: face.weight,
+          cached: cached,
+          bytes: cached == null
+              ? await bytesById.putIfAbsent(face.id, face.load)
+              : null,
+        ));
+      }
+      inputs.addAll(faces);
+    } catch (error) {
+      debugPrint('Plugin font $family unavailable: $error');
+    }
+  }
+  final key = jsonEncode([
+    for (final face in inputs) [face.family, face.id, face.weight],
+  ]);
+  final cached = _embeddedCache;
+  if (cached?.key == key) return cached!.css;
+  if (inputs.isEmpty) return '';
+  // rootBundle נטען ב-isolate הראשי; הקידוד והעתקות המחרוזות הכבדות מחוצה לו.
+  final encoded = await Isolate.run(() => _encodeEmbeddedFonts(inputs));
+  _dataSources.addAll(encoded.sources);
+  _embeddedCache = (key: key, css: encoded.css, json: encoded.json);
+  return encoded.css;
+}
+
+({String css, String json, Map<String, String> sources}) _encodeEmbeddedFonts(
+  List<_EmbeddedFace> inputs,
+) {
+  final sources = <String, String>{};
+  final rules = <String>[];
+  for (final face in inputs) {
+    final source =
+        face.cached ??
+        sources.putIfAbsent(
+          face.id,
+          () => 'data:font/ttf;base64,${base64Encode(face.bytes!)}',
+        );
+    rules.add(_rule(face.family, source, face.weight));
+  }
+  final css = rules.join('\n');
+  return (css: css, json: jsonEncode(css), sources: sources);
+}
+
+/// ה-JSON המוטבע נשמר עם ה-CSS; קידוד נוסף, כשנדרש, אינו חוסם את ה-UI.
+Future<String> pluginFontFaceJson(String css) async {
+  final cached = _embeddedCache;
+  if (identical(cached?.css, css)) return cached!.json;
+  return Isolate.run(() => jsonEncode(css));
 }
 
 /// כמה משפחות ותחליפים בקשה אחת יכולה לבקש.
@@ -256,8 +320,8 @@ return loaded;
 ''';
 
 /// רושם את [css] בדף וממתין עד [timeout] ל-[targets], כדי שתוסף שמודד טקסט
-/// ב-plugin.ready לא יקבל מדידה של גופן חלופי. מחזיר false כשהכללים לא
-/// נרשמו בוודאות — ואז סקריפט ה-boot מזריק אותם בעצמו.
+/// ב-plugin.ready לא יקבל מדידה של גופן חלופי. מחזיר false כשהגופנים נדחו
+/// או שהכללים לא נרשמו בוודאות — ואז סקריפט ה-boot מזריק אותם בעצמו.
 Future<bool> installPluginFonts(
   InAppWebViewController controller, {
   required String css,
@@ -327,5 +391,5 @@ void debugResetPluginFonts() {
   debugPluginSystemFaces = null;
   _systemIds.clear();
   _dataSources.clear();
-  _jsonCache = null;
+  _embeddedCache = null;
 }

@@ -27,7 +27,7 @@ void main() {
     final source = File(
       'lib/plugins/view/plugin_tab_page.dart',
     ).readAsStringSync();
-    final boot = source.indexOf('final bootSource = pluginBootScript(');
+    final boot = source.indexOf('final bootSource = await pluginBootScript(');
     expect(boot, greaterThan(0));
     final prepare = source.indexOf(
       'final fontsInstalled = await installPluginFonts(',

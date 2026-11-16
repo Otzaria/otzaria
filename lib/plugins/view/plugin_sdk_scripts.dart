@@ -1,3 +1,5 @@
+import 'dart:isolate';
+
 // מוזרק ב-AT_DOCUMENT_START ושומר בתור קריאות Otzaria.on() עד ל-_boot.
 const String _sdkStubCore = r'''
   var _queue = [];
@@ -115,6 +117,19 @@ const String pluginBackgroundSdkStubScript =
 /// ה-stub של לשונית תוסף, שמעביר גם מקשים ל-Flutter.
 const String pluginSdkStubScript =
     '(function () {\n$_sdkStubCore$_hostShortcutsJs})();\n';
+
+/// מרכיב את הסקריפט עם הגופנים מחוץ ל-UI, בלי ללכוד State או משאבי פלטפורמה.
+Future<String> buildPluginBootScriptWithFonts({
+  required String nonceJson,
+  required String payloadJson,
+  required String fontFaceJson,
+}) => Isolate.run(
+  () => buildPluginBootScript(
+    nonceJson: nonceJson,
+    payloadJson: payloadJson,
+    fontFaceJson: fontFaceJson,
+  ),
+);
 
 String _fontFaceJs(String fontFaceJson) =>
     '''

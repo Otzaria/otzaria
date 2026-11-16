@@ -556,13 +556,15 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner>
           final permissions = await pluginRegistryRepository
               .getGrantedPermissionNames(widget.plugin.pluginId);
           if (stale()) return;
+          final bootSource = await pluginBootScript(
+            runMode: 'background',
+            packageInfo: packageInfo,
+            permissions: permissions,
+            theme: theme,
+          );
+          if (stale()) return;
           final booted = await controller.evaluateJavascript(
-            source: pluginBootScript(
-              runMode: 'background',
-              packageInfo: packageInfo,
-              permissions: permissions,
-              theme: theme,
-            ),
+            source: bootSource,
           );
           if (stale()) return;
           await adapter.applyBootEventOptions(

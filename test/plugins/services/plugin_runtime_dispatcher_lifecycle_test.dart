@@ -412,6 +412,88 @@ void main() {
   });
 
   group('שחרור ושחזור', () {
+    test('ביטול בזמן בניית boot אינו צורך את השחזור שהוכן', () async {
+      _d.registerController(_pid, _Controller(), instanceId: 'a');
+      PluginRestoreStateStore.instance.set(_key(), {'screen': 2});
+      _d.markInstanceReleased(
+        _pid,
+        instanceId: 'a',
+        reason: PluginRestoreReason.crashed,
+      );
+      final ready = Completer<void>();
+      var current = true;
+      final building = () async {
+        final restore = _d.prepareBootRestore(
+          _pid,
+          instanceId: 'a',
+          firstBoot: true,
+        );
+        await ready.future;
+        if (!current) return;
+        restore.consume();
+      }();
+      current = false;
+      ready.complete();
+      await building;
+      expect(_d.takeBootRestore(_pid, instanceId: 'a', firstBoot: true), {
+        'reason': 'crashed',
+        'state': {'screen': 2},
+      });
+    });
+
+    for (final reason in [
+      PluginRestoreReason.crashed,
+      PluginRestoreReason.discarded,
+    ]) {
+      test('consume ישן אינו מוחק סיבה חדשה: ${reason.name}', () {
+        _d.registerController(_pid, _Controller(), instanceId: 'a');
+        _d.markInstanceReleased(
+          _pid,
+          instanceId: 'a',
+          reason: PluginRestoreReason.crashed,
+        );
+        final restore = _d.prepareBootRestore(
+          _pid,
+          instanceId: 'a',
+          firstBoot: true,
+        );
+        PluginRestoreStateStore.instance.set(_key(), {'screen': 3});
+        _d.markInstanceReleased(_pid, instanceId: 'a', reason: reason);
+        restore.consume();
+        expect(_d.takeBootRestore(_pid, instanceId: 'a', firstBoot: true), {
+          'reason': reason.name,
+          'state': {'screen': 3},
+        });
+      });
+    }
+
+    test('consume ממופע שהוחלף אינו פוגע בשחזור המופע החדש', () {
+      _d.registerController(_pid, _Controller(), instanceId: 'a');
+      _d.markInstanceReleased(
+        _pid,
+        instanceId: 'a',
+        reason: PluginRestoreReason.crashed,
+      );
+      final restore = _d.prepareBootRestore(
+        _pid,
+        instanceId: 'a',
+        firstBoot: true,
+      );
+      _d.unregisterController(_pid, instanceId: 'a');
+      _d.registerController(_pid, _Controller(), instanceId: 'a');
+      PluginRestoreStateStore.instance.set(_key(), {'screen': 4});
+      _d.markInstanceReleased(
+        _pid,
+        instanceId: 'a',
+        reason: PluginRestoreReason.crashed,
+      );
+      restore.consume();
+      expect(_d.takeBootRestore(_pid, instanceId: 'a', firstBoot: true), {
+        'reason': 'crashed',
+        'state': {'screen': 4},
+      });
+    });
+
     test('פינוי מעבר לתקרה משחרר, וחזרה למופע מבקשת שחזור', () async {
       _d.discardLimitsOverride = const PluginDiscardLimits(
         maxLiveSuspended: 0,

@@ -762,7 +762,7 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
   );
 
   /// סקריפט ה-boot: ה-SDK האמיתי וה-payload שהתוסף מקבל ב-plugin.boot.
-  String pluginBootScript({
+  Future<String> pluginBootScript({
     required String runMode,
     required PackageInfo packageInfo,
     required List<String> permissions,
@@ -770,7 +770,7 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
     Map<String, dynamic>? reader,
     Map<String, dynamic>? restore,
     String? fontFaceJson,
-  }) {
+  }) async {
     final bootPayload = {
       'plugin': {'id': plugin.pluginId, 'version': plugin.version},
       'app': {
@@ -794,9 +794,17 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
       'reader': ?reader,
       'restore': ?restore,
     };
-    return buildPluginBootScript(
-      nonceJson: jsonEncode(bridge.bridgeNonce),
-      payloadJson: jsonEncode(bootPayload),
+    final nonceJson = jsonEncode(bridge.bridgeNonce);
+    final payloadJson = jsonEncode(bootPayload);
+    if (fontFaceJson == null) {
+      return buildPluginBootScript(
+        nonceJson: nonceJson,
+        payloadJson: payloadJson,
+      );
+    }
+    return buildPluginBootScriptWithFonts(
+      nonceJson: nonceJson,
+      payloadJson: payloadJson,
       fontFaceJson: fontFaceJson,
     );
   }
