@@ -125,3 +125,16 @@ List<IndexingEvent> indexUpdateModeChangePlan(
           (current.indexesPersonalBooks && !previous.indexesPersonalBooks)))
     StartIndexing(library),
 ];
+
+/// אירועי האינדוקס כשהמשתמש מכבה או מדליק את אינדוקס ספרי ה-PDF.
+List<IndexingEvent> indexPdfBooksChangePlan(
+  Library library, {
+  required bool indexPdfBooks,
+  required IndexUpdateMode mode,
+}) => [
+  if (!indexPdfBooks) DropOrphanedIndexEntries(library, compact: true),
+  if (indexPdfBooks && mode.isAutomatic)
+    StartIndexing(library)
+  else
+    CheckIndexStatus(library),
+];

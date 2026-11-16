@@ -972,6 +972,34 @@ void main() {
       );
     }
 
+    test('אינדוקס ספרי PDF נטען מהמפתח שלו', () async {
+      when(
+        mockSettingsWrapper.getValue<bool>(
+          'settings_initialized',
+          defaultValue: false,
+        ),
+      ).thenReturn(true);
+      when(
+        mockSettingsWrapper.getValue<bool>(
+          SettingsRepository.keyIndexPdfBooks,
+          defaultValue: true,
+        ),
+      ).thenReturn(false);
+
+      expect((await repository.loadSettings())['indexPdfBooks'], isFalse);
+    });
+
+    test('updateIndexPdfBooks שומר את ההגדרה', () async {
+      await repository.updateIndexPdfBooks(false);
+
+      verify(
+        mockSettingsWrapper.setValue(
+          SettingsRepository.keyIndexPdfBooks,
+          false,
+        ),
+      ).called(1);
+    });
+
     // ─── מצב סייפר — הסרת סיסמה ───────────────────────────────────────────
 
     test(

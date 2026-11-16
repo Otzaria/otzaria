@@ -10,6 +10,7 @@ import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/library/hidden/hidden_library_selection.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/indexing/models/index_update_mode.dart';
+import 'package:otzaria/indexing/models/pdf_index_setting.dart';
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
@@ -84,10 +85,14 @@ class IndexingRepository {
   /// מצב העדכון; "בלי ספרים אישיים" מוציא אותם גם מאינדוקס ידני.
   final IndexUpdateMode Function() indexUpdateMode;
 
+  /// הגדרת המשתמש; כבויה — ספרי PDF אינם מאונדקסים ומוסרים מהאינדקס.
+  final bool Function() indexPdfBooks;
+
   IndexingRepository(
     this._tantivyDataProvider, {
     this.hiddenStore = const HiddenLibraryStore(),
     this.indexUpdateMode = IndexUpdateMode.readStored,
+    this.indexPdfBooks = readIndexPdfBooksSetting,
     this.sampleResources = IndexingResourceSampler.sample,
   });
 
@@ -464,7 +469,7 @@ class IndexingRepository {
     final pending = {...?stored?.keys, ...?stored?.checkKeys};
     return booksForIndexing(
       library.getIndexableBooks(),
-      includePdfBooks: true,
+      includePdfBooks: indexPdfBooks(),
       hidden: hiddenStore.load(),
       library: library,
       mode: indexUpdateMode(),
@@ -481,7 +486,7 @@ class IndexingRepository {
     bool includePdfBooks = true,
   }) => booksForIndexing(
     books ?? library.getIndexableBooks(),
-    includePdfBooks: includePdfBooks,
+    includePdfBooks: includePdfBooks && indexPdfBooks(),
     hidden: hiddenStore.load(),
     library: library,
     mode: indexUpdateMode(),
@@ -559,9 +564,10 @@ class IndexingRepository {
   }) async {
     final mode = indexUpdateMode();
     final hidden = hiddenStore.load();
+    final includePdfs = includePdfBooks && indexPdfBooks();
     List<Book> eligible(List<Book> source, {bool? pdf}) => booksForIndexing(
       source,
-      includePdfBooks: pdf ?? includePdfBooks,
+      includePdfBooks: pdf ?? includePdfs,
       hidden: hidden,
       library: library,
       mode: mode,
@@ -807,7 +813,7 @@ class IndexingRepository {
         // ספר שקרס נשאר חסום כל עוד הוא בספרייה; ריצה חלקית אינה מנקה חסימות.
         pendingKeys: wholeLibrary
             ? () =>
-                  (includePdfBooks
+                  (includePdfs
                           ? libraryBooks
                           : eligible(library.getIndexableBooks(), pdf: true))
                       .map(BookIdentity.indexedFilePath)
@@ -2563,6 +2569,7 @@ class IndexingRepository {
   /// מחזיר את מספר הספרים שהוסרו.
   Future<int> dropOrphanedIndexEntries(
     Library library, {
+    bool compact = false,
     @visibleForTesting List<CustomFolder>? customFolders,
     @visibleForTesting Set<String>? preservedHiddenUserBookKeys,
     @visibleForTesting List<AttachedLibrary>? attachedLibraries,
@@ -2572,17 +2579,20 @@ class IndexingRepository {
     if (books.isEmpty) return 0;
 
     // מוודא שה-indexedFilePaths כבר נטענו מהאינדקס (חלק מאתחול המנוע).
-    await _tantivyDataProvider.engine;
+    final index = await _tantivyDataProvider.engine;
 
-    // "בלי ספרים אישיים": רשומות הספרים האישיים נמחקות כמו יתומים.
+    // ספרים אישיים ב"בלי ספרים אישיים" ו-PDF כשאינדוקסם כבוי נמחקים כמו יתומים.
     final mode = indexUpdateMode();
+    final includePdfs = indexPdfBooks();
+    bool admits(Book book) =>
+        mode.admits(book) && (includePdfs || book is! PdfBook);
     final libraryKeys = <String>{
       for (final book in books)
-        if (mode.admits(book)) BookIdentity.indexedFilePath(book),
+        if (admits(book)) BookIdentity.indexedFilePath(book),
     };
-    final excludedPersonalKeys = <String>{
+    final excludedKeys = <String>{
       for (final book in books)
-        if (!mode.admits(book)) BookIdentity.indexedFilePath(book),
+        if (!admits(book)) BookIdentity.indexedFilePath(book),
     };
 
     // כונן חיצוני מנותק: השורש אינו קיים, ולכן הקבצים שתחתיו אינם יתומים
@@ -2625,7 +2635,7 @@ class IndexingRepository {
     // snapshot — הלולאה מכילה await ואסור שהסט החי ישתנה תחתיה.
     for (final key in _tantivyDataProvider.indexedFilePaths.toList()) {
       if (libraryKeys.contains(key)) continue;
-      if (excludedPersonalKeys.contains(key)) {
+      if (excludedKeys.contains(key)) {
         orphans.add(key);
       } else if (key.startsWith('uid:')) {
         // null = כשל בקריאת user_books.db: נשארים שמרניים ולא מוחקים ספרי
@@ -2655,6 +2665,10 @@ class IndexingRepository {
     // כשל delete/commit ⇒ שחזור מנוע והחזרת 0: המעקב לא סומן כמנוקה, כך
     // שקובץ שיחזור לספרייה לא יידלג בטעות כ"מאונדקס".
     if (!await _deleteIndexedFilePaths(orphans)) return 0;
+    // תחזוקה מפורשת בלבד: ניקוי היתומים בעלייה אינו מבקש איחוד כבד.
+    if (compact && !indexPdfBooks()) {
+      await optimizeIndexBestEffort(index.optimize);
+    }
     debugPrint('🧹 נוקו ${orphans.length} ספרים יתומים מהאינדקס');
     return orphans.length;
   }

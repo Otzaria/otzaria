@@ -89,11 +89,12 @@ class SyncBookOrder extends IndexingWorkEvent {
 /// שנמחק, תיקייה מותאמת שהוסרה). רץ בתור העבודה הסדרתי, בלי UI התקדמות.
 class DropOrphanedIndexEntries extends IndexingWorkEvent {
   final Library library;
+  final bool compact;
 
-  const DropOrphanedIndexEntries(this.library);
+  const DropOrphanedIndexEntries(this.library, {this.compact = false});
 
   @override
-  List<Object?> get props => [library];
+  List<Object?> get props => [library, compact];
 }
 
 /// מסנכרן רשומות מוסתרות באינדקס; לפי בקשה מאנדקס גם ספרים שחזרו להיות גלויים.

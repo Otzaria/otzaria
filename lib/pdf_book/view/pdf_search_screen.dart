@@ -16,6 +16,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/indexing/models/index_update_mode.dart';
+import 'package:otzaria/indexing/models/pdf_index_setting.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
@@ -160,10 +161,12 @@ class PdfBookSearchView extends StatefulWidget {
     required bool indexInitialized,
     required Set<String> indexedFilePaths,
     bool excludedByIndexMode = false,
+    bool pdfIndexingOff = false,
   }) {
     if (indexedFilePath == null || indexedFilePath.isEmpty) return null;
     if (!indexInitialized) return null;
     if (indexedFilePaths.contains(indexedFilePath)) return null;
+    if (pdfIndexingOff) return PdfMessages.pdfBooksNotInSearchIndex;
     return excludedByIndexMode
         ? PdfMessages.personalBookNotInSearchIndex
         : PdfMessages.bookNotInSearchIndex;
@@ -1159,6 +1162,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
             excludedByIndexMode:
                 widget.source.isUser &&
                 !IndexUpdateMode.readStored().indexesPersonalBooks,
+            pdfIndexingOff: !readIndexPdfBooksSetting(),
           );
         }
       });

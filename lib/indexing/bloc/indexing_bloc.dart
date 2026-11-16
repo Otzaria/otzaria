@@ -237,7 +237,10 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     if (event is DropOrphanedIndexEntries) {
       // עבודת רקע שקטה — בלי מצבי התקדמות; כשל אינו קריטי (ינוקה ברענון הבא).
       try {
-        await _repository.dropOrphanedIndexEntries(event.library);
+        await _repository.dropOrphanedIndexEntries(
+          event.library,
+          compact: event.compact,
+        );
       } catch (e) {
         debugPrint('⚠️ ניקוי רשומות יתומות מהאינדקס נכשל: $e');
       }

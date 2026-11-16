@@ -3550,6 +3550,24 @@ class MainWindowScreenState extends State<MainWindowScreen>
               });
             },
           ),
+          BlocListener<SettingsBloc, SettingsState>(
+            listenWhen: (previous, current) =>
+                previous.indexPdfBooks != current.indexPdfBooks,
+            listener: (context, state) {
+              if (!_duties.isProcessOwner) return;
+              DataRepository.instance.library.then((library) {
+                if (!mounted || !context.mounted) return;
+                final indexingBloc = context.read<IndexingBloc>();
+                for (final event in indexPdfBooksChangePlan(
+                  library,
+                  indexPdfBooks: state.indexPdfBooks,
+                  mode: state.indexUpdateMode,
+                )) {
+                  indexingBloc.add(event);
+                }
+              });
+            },
+          ),
           BlocListener<TabsBloc, TabsState>(
             // גם החלפת חלונית פעילה היא החלפת הספר הפתוח מבחינת התוספים.
             listenWhen: (previous, current) =>

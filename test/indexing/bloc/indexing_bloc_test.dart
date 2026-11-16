@@ -43,6 +43,19 @@ void main() {
       (bloc as _FakeIndexingBloc).repository;
 
   group('StartIndexing', () {
+    test('בקשת איחוד מפורשת נשמרת בניקוי בתור העבודה', () async {
+      final repository = _FakeIndexingRepository();
+      final bloc = _FakeIndexingBloc(repository);
+      final settled = Completer<void>();
+      final library = libraryWithBooks();
+      bloc.add(DropOrphanedIndexEntries(library));
+      bloc.add(DropOrphanedIndexEntries(library, compact: true));
+      bloc.add(IndexingWorkBarrier(onSettled: settled.complete));
+      await settled.future.timeout(const Duration(seconds: 2));
+      expect(repository.compactionRequests, [false, true]);
+      await bloc.close();
+    });
+
     test('callback משלים גם כשאין ספרים ולא נפלט InProgress', () async {
       final bloc = _FakeIndexingBloc();
       final states = <IndexingState>[];
@@ -1186,6 +1199,7 @@ class _FakeIndexingRepository extends IndexingRepository {
   /// כשהוא מסופק — כל ריצה ממתינה לו לפני שהיא מתחילה.
   Completer<void>? runGate;
   int dropOrphanedCalls = 0;
+  final compactionRequests = <bool>[];
   int dropHiddenCalls = 0;
   bool dropHiddenSucceeded = true;
   bool dropBookSucceeded = true;
@@ -1281,12 +1295,14 @@ class _FakeIndexingRepository extends IndexingRepository {
   @override
   Future<int> dropOrphanedIndexEntries(
     Library library, {
+    bool compact = false,
     List<CustomFolder>? customFolders,
     Set<String>? preservedHiddenUserBookKeys,
     List<AttachedLibrary>? attachedLibraries,
     String? libraryRoot,
   }) async {
     dropOrphanedCalls++;
+    compactionRequests.add(compact);
     return 0;
   }
 

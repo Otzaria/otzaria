@@ -54,6 +54,9 @@ class SettingsState extends Equatable {
   final IndexUpdateMode indexUpdateMode;
   final IndexingResourceMode indexingResourceMode;
 
+  /// האם ספרי PDF נכנסים לאינדקס החיפוש.
+  final bool indexPdfBooks;
+
   /// ברירת מחדל להצגת הטקסט ברצף (מצב "קריאה רציפה"). חלה בפתיחת ספר על
   /// ספרים שתומכים בכך בלבד (תנ"ך ותלמוד); בשאר הספרים אין לה השפעה.
   final bool defaultContinuousReadingMode;
@@ -169,6 +172,7 @@ class SettingsState extends Equatable {
     TextDisplayPolicy? textDisplayPolicy,
     required this.indexUpdateMode,
     this.indexingResourceMode = IndexingResourceMode.automatic,
+    this.indexPdfBooks = true,
     this.defaultContinuousReadingMode = false,
     required this.defaultSidebarOpen,
     required this.defaultCommentaryOpen,
@@ -285,6 +289,7 @@ class SettingsState extends Equatable {
     HolyNameStyle? holyNameStyle,
     IndexUpdateMode? indexUpdateMode,
     IndexingResourceMode? indexingResourceMode,
+    bool? indexPdfBooks,
     bool? defaultRemoveNikud,
     bool? removeNikudFromTanach,
     bool? defaultRemovePunctuation,
@@ -378,6 +383,7 @@ class SettingsState extends Equatable {
       showExternalBooks: showExternalBooks ?? this.showExternalBooks,
       indexUpdateMode: indexUpdateMode ?? this.indexUpdateMode,
       indexingResourceMode: indexingResourceMode ?? this.indexingResourceMode,
+      indexPdfBooks: indexPdfBooks ?? this.indexPdfBooks,
       defaultContinuousReadingMode:
           defaultContinuousReadingMode ?? this.defaultContinuousReadingMode,
       defaultSidebarOpen: defaultSidebarOpen ?? this.defaultSidebarOpen,
@@ -484,6 +490,7 @@ class SettingsState extends Equatable {
     textDisplayPolicy,
     indexUpdateMode,
     indexingResourceMode,
+    indexPdfBooks,
     defaultContinuousReadingMode,
     defaultSidebarOpen,
     defaultCommentaryOpen,
