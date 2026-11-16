@@ -266,6 +266,24 @@ void main() {
       expect(stored.single.connectionType, 'COMMENTARY');
     });
 
+    test('שגיאת JSON בקובץ קישורים מדווחת בלי חריגה גולמית', () async {
+      await addBook('מגילה.txt', 'א\nב');
+      final sidecar = writeSidecar('מגילה_links.json', '{ לא תקין');
+
+      final errors = await UserSidecarSync.applyForFolder(
+        userDb: db,
+        folderPath: folder.path,
+      );
+
+      expect(errors.single, 'מגילה_links.json JSON לא תקין (שורה 0)');
+      expect(errors.single, isNot(contains('FormatException')));
+      expect(
+        await UserContentRepository(db).sidecarSignature(sidecar.path),
+        isNull,
+      );
+      expect(await linksOf('מגילה'), isEmpty);
+    });
+
     test('קישור מספר רשמי נקלט עם המאגר המקומי של סנכרון הרקע', () async {
       final officialDb = MyDatabase.withPath(
         p.join(tempDir.path, 'seforim.db'),
@@ -546,7 +564,7 @@ void main() {
         folderPath: folder.path,
       );
 
-      expect(errors.single, contains('injected write failure'));
+      expect(errors.single, 'מגילה_links.json: לא ניתן לקלוט את הקובץ');
       expect((await linksOf('מגילה')).single.sourceLineIndex, 0);
       expect(await repo.sidecarSignature(sidecar.path), oldSignature);
     });

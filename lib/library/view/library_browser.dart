@@ -524,9 +524,13 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         BlocListener<CustomFoldersBloc, CustomFoldersState>(
           listenWhen: (p, c) => p.isSyncing && !c.isSyncing,
           listener: (_, state) {
-            // רק "טעינה מחדש" מסמן; סריקה שנכשלה לא שולחת RefreshLibrary.
+            // סריקה ידנית מדווחת כשל פעם אחת ולא מרעננת את הספרייה.
+            final showScanError = _reloadScanPending.value;
             _reportHebrewBooksAfterReload =
-                _reloadScanPending.value && state.error == null;
+                showScanError && state.error == null;
+            if (showScanError && state.error != null) {
+              UiSnack.showError(state.error!);
+            }
             _reloadScanPending.value = false;
           },
         ),

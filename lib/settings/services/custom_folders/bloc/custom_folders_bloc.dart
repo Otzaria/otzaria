@@ -264,12 +264,17 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
         newFolders,
         onlyFolderPath: event.folder.path,
       );
+      final hasErrors = result.errors.isNotEmpty;
       if (!event.value) {
         emit(
           state.copyWith(
             isSyncing: false,
-            message:
-                'תוכן הספרים נסרק ועודכן.\nמעתה הספרים ייקראו ישירות מהקבצים.',
+            message: hasErrors
+                ? null
+                : 'תוכן הספרים נסרק ועודכן.\nמעתה הספרים ייקראו ישירות מהקבצים.',
+            error: hasErrors
+                ? SettingsMessages.customFolderScanErrors(result.errors)
+                : null,
           ),
         );
       } else {
@@ -277,9 +282,12 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
         emit(
           state.copyWith(
             isSyncing: false,
-            message: hasChanges
+            message: !hasErrors && hasChanges
                 ? 'הסריקה הושלמה: ${result.addedBooks} ספרים נוספו, '
                       '${result.updatedBooks} עודכנו'
+                : null,
+            error: hasErrors
+                ? SettingsMessages.customFolderScanErrors(result.errors)
                 : null,
           ),
         );
@@ -316,10 +324,11 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
               onlyFolderPath: event.onlyFolderPath,
             );
       final hasChanges = result.addedBooks > 0 || result.updatedBooks > 0;
-      final message = hasChanges
+      final hasErrors = result.errors.isNotEmpty;
+      final message = !hasErrors && hasChanges
           ? 'הסריקה הושלמה: ${result.addedBooks} ספרים נוספו, '
                 '${result.updatedBooks} עודכנו'
-          : event.showNoChangesMessage
+          : !hasErrors && event.showNoChangesMessage
           ? 'הסריקה הושלמה. לא נמצאו ספרים חדשים.'
           : null;
       // הרענון נשלח לפני דיווח התוצאה, כדי שקורא שמחכה ל-completedScan לא
@@ -337,6 +346,9 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
         state.copyWith(
           isSyncing: false,
           message: message,
+          error: hasErrors && event.requestId == null
+              ? SettingsMessages.customFolderScanErrors(result.errors)
+              : null,
           completedScan: event.requestId == null
               ? null
               : CustomFoldersScanOutcome(

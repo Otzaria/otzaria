@@ -112,6 +112,52 @@ void main() {
       },
     );
 
+    test('RescanCustomFolders מדווח שגיאות סנכרון בממשק', () async {
+      await _saveFolders([_folder('C:/private-books')]);
+      final bloc = CustomFoldersBloc(
+        addLibraryEvent: (_) {},
+        syncFolders: (folders, {String? onlyFolderPath}) async =>
+            const FileSyncResult(
+              errors: [
+                'book_links.json שורה 1: סוג קישור לא מוכר',
+              ],
+            ),
+      );
+
+      bloc.add(const RescanCustomFolders(showNoChangesMessage: false));
+      await bloc.stream.firstWhere((state) => !state.isSyncing);
+
+      expect(bloc.state.error, isNotNull);
+      expect(bloc.state.error, contains('book_links.json'));
+      expect(bloc.state.error, contains('סוג קישור לא מוכר'));
+      expect(bloc.state.error, isNot(contains('C:/private-books')));
+      expect(bloc.state.message, isNull);
+
+      await bloc.close();
+    });
+
+    test('ToggleAddToDatabase מדווח שגיאות סנכרון בלי פרטי תיקייה', () async {
+      final folder = _folder('C:/private-books');
+      await _saveFolders([folder]);
+      final bloc = CustomFoldersBloc(
+        addLibraryEvent: (_) {},
+        syncFolders: (folders, {String? onlyFolderPath}) async =>
+            const FileSyncResult(
+              errors: ['book_links.json: ספר היעד "ספר חסר" לא נמצא'],
+            ),
+      );
+
+      bloc.add(ToggleAddToDatabase(folder, true));
+      await bloc.stream.firstWhere((state) => !state.isSyncing);
+
+      expect(bloc.state.error, contains('book_links.json'));
+      expect(bloc.state.error, contains('ספר היעד "ספר חסר" לא נמצא'));
+      expect(bloc.state.error, isNot(contains('C:/private-books')));
+      expect(bloc.state.message, isNull);
+
+      await bloc.close();
+    });
+
     test('ToggleAddToDatabase מסמן activePath לתיקייה הנטענת בלבד '
         'ומאפס בסיום', () async {
       final folderA = _folder('C:/folder-a');
@@ -144,6 +190,7 @@ void main() {
 
       // בסיום activePath מתאפס.
       expect(bloc.state.activePath, isNull);
+      expect(bloc.state.error, isNull);
 
       await bloc.close();
     });
@@ -276,6 +323,7 @@ void main() {
       expect(outcome.addedBooks, 3);
       expect(outcome.updatedBooks, 1);
       expect(outcome.errors, ['ספר.txt נכשל']);
+      expect(bloc.state.error, isNull);
       // הרענון נשלח לפני הדיווח, כדי שמי שממתין לתוצאה לא יקדים אותו.
       final refreshEvents = recordedEvents.whereType<RefreshLibrary>().toList();
       expect(refreshEvents, hasLength(1));

@@ -71,6 +71,23 @@ abstract class SettingsMessages {
 
   static const String folderNotFound = 'התיקייה לא נמצאה';
 
+  static String customFolderScanErrors(List<String> errors) =>
+      'שגיאות בסריקת התיקיות האישיות:\n${errorLines(errors)}';
+
+  static String customFolderFileScanFailed(String fileName) =>
+      '$fileName: לא ניתן לסרוק את הקובץ';
+
+  static String customFolderFileImportFailed(String fileName) =>
+      '$fileName: לא ניתן לקלוט את הקובץ';
+
+  static const String customFolderSidecarScanFailed =
+      'לא ניתן לקלוט את קובצי התוכן הנלווים';
+
+  static const String customFolderSyncFailed = 'סנכרון התיקיות האישיות נכשל';
+
+  static String customFolderBookReadFailed(String source, String title) =>
+      '$source: קריאת הספר "$title" נכשלה';
+
   static String folderAdded(String folderName) =>
       'התיקייה "$folderName" נוספה בהצלחה';
 

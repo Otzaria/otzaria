@@ -134,6 +134,17 @@ void main() {
       return state.message;
     }
 
+    test('ייבוא ידני מציג שגיאת JSON בלי חריגה גולמית', () async {
+      final path = write('פגום', 'מגילה_links.json', '{ לא תקין');
+      bloc.add(ImportUserContentFiles([path]));
+      final state = await bloc.stream.firstWhere((s) => !s.isSyncing);
+
+      expect(state.error, contains('שגיאות בייבוא הקבצים'));
+      expect(state.error, contains('מגילה_links.json'));
+      expect(state.error, contains('JSON לא תקין'));
+      expect(state.error, isNot(contains('FormatException')));
+    });
+
     test('ייבוא נוסף מדווח את קישורי הקובץ החדש, לא את סך הספרייה', () async {
       expect(await import([linksFile('א', 1, 2)]), 'יובאו 2 קישורים');
       expect(await import([linksFile('ב', 3, 5)]), 'יובאו 3 קישורים');
