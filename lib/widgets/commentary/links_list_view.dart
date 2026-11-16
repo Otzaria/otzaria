@@ -282,6 +282,7 @@ class _LinksListViewState extends State<LinksListView> {
   final Map<String, String> _loadedContent = {};
   final Map<String, bool> _expanded = {};
   bool _searchInContent = false;
+  bool _showFilters = true;
   Future<List<Link>>? _filteredLinksFuture;
   String _lastSearchKey = '';
   Object? _lastSearchInputs;
@@ -398,37 +399,22 @@ class _LinksListViewState extends State<LinksListView> {
           padding: const EdgeInsets.all(8.0),
           child: Column(
             children: [
-              OtzariaSearchField(
-                controller: _searchController,
-                focusNode: _searchFocusNode,
-                hintText: 'חפש בתוך הקישורים המוצגים...',
-                icon: OtzariaIcons.search_in_titles_24_regular,
-                // Enter עובר לתוצאה הבאה ונשאר בשדה; בחירת הכול בפוקוס תמחק את
-                // השאילתה בהקשה הבאה.
-                selectAllOnFocus: false,
-                trailingActions: [
-                  if (_searchQuery.isNotEmpty && _filteredLinks.length > 1)
-                    SearchResultNavigator(
-                      current: _currentResult + 1,
-                      total: _filteredLinks.length,
-                      onPrevious: _currentResult > 0
-                          ? () => _goToResult(_currentResult - 1)
-                          : null,
-                      onNext: _currentResult < _filteredLinks.length - 1
-                          ? () => _goToResult(_currentResult + 1)
-                          : null,
+              Row(
+                children: [
+                  Expanded(child: _buildSearchField()),
+                  if (chipKeys.length > 1)
+                    IconButton(
+                      tooltip: _showFilters ? 'הסתר מסננים' : 'הצג מסננים',
+                      isSelected: _showFilters,
+                      icon: Icon(
+                        _showFilters
+                            ? Icons.filter_list_rounded
+                            : Icons.filter_list_off_rounded,
+                      ),
+                      onPressed: () =>
+                          setState(() => _showFilters = !_showFilters),
                     ),
                 ],
-                onClear: () => setState(() => _searchQuery = ''),
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value;
-                  });
-                },
-                onSubmitted: (_) {
-                  _goToResult(_currentResult + 1);
-                  _searchFocusNode.requestFocus();
-                },
               ),
               if (_searchQuery.isNotEmpty)
                 Padding(
@@ -450,39 +436,45 @@ class _LinksListViewState extends State<LinksListView> {
             ],
           ),
         ),
-        if (chipKeys.length > 1) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppTokens.spaceSM,
-              0,
-              AppTokens.spaceSM,
-              AppTokens.spaceXS,
+        if (chipKeys.length > 1 && _showFilters) ...[
+          ConstrainedBox(
+            // מגביל את גובה המסננים כדי שלא יכסו את רשימת הקישורים.
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * 0.3,
             ),
-            // Wrap ולא Row: שני הצירים מתאחדים לשורה אחת רק כשיש רוחב לשניהם,
-            // אחרת כל ציר יורד לשורה משלו. הריווח האנכי מגיע מריפוד הקבוצה.
-            child: Wrap(
-              alignment: WrapAlignment.center,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: AppTokens.spaceMD,
-              runSpacing: 0,
-              children: [
-                if (chipAxes.types.isNotEmpty)
-                  _buildChipGroup(
-                    key: linkTypeChipsRowKey,
-                    keys: chipAxes.types,
-                    savedTypes: widget.selectedLinkTypes,
-                    effectiveTypes: effectiveTypes,
-                    chipLabel: chipLabel,
-                  ),
-                if (chipAxes.eras.isNotEmpty)
-                  _buildChipGroup(
-                    key: linkEraChipsRowKey,
-                    keys: chipAxes.eras,
-                    savedTypes: widget.selectedLinkTypes,
-                    effectiveTypes: effectiveTypes,
-                    chipLabel: chipLabel,
-                  ),
-              ],
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(
+                AppTokens.spaceSM,
+                0,
+                AppTokens.spaceSM,
+                AppTokens.spaceXS,
+              ),
+              // Wrap ולא Row: שני הצירים מתאחדים לשורה אחת רק כשיש רוחב לשניהם,
+              // אחרת כל ציר יורד לשורה משלו. הריווח האנכי מגיע מריפוד הקבוצה.
+              child: Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: AppTokens.spaceMD,
+                runSpacing: 0,
+                children: [
+                  if (chipAxes.types.isNotEmpty)
+                    _buildChipGroup(
+                      key: linkTypeChipsRowKey,
+                      keys: chipAxes.types,
+                      savedTypes: widget.selectedLinkTypes,
+                      effectiveTypes: effectiveTypes,
+                      chipLabel: chipLabel,
+                    ),
+                  if (chipAxes.eras.isNotEmpty)
+                    _buildChipGroup(
+                      key: linkEraChipsRowKey,
+                      keys: chipAxes.eras,
+                      savedTypes: widget.selectedLinkTypes,
+                      effectiveTypes: effectiveTypes,
+                      chipLabel: chipLabel,
+                    ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: AppTokens.spaceSM),
@@ -492,6 +484,41 @@ class _LinksListViewState extends State<LinksListView> {
           child: _buildLinksList(links, effectiveTypes, openBookTitle),
         ),
       ],
+    );
+  }
+
+  Widget _buildSearchField() {
+    return OtzariaSearchField(
+      controller: _searchController,
+      focusNode: _searchFocusNode,
+      hintText: 'חפש בתוך הקישורים המוצגים...',
+      icon: OtzariaIcons.search_in_titles_24_regular,
+      // Enter עובר לתוצאה הבאה ונשאר בשדה; בחירת הכול בפוקוס תמחק את
+      // השאילתה בהקשה הבאה.
+      selectAllOnFocus: false,
+      trailingActions: [
+        if (_searchQuery.isNotEmpty && _filteredLinks.length > 1)
+          SearchResultNavigator(
+            current: _currentResult + 1,
+            total: _filteredLinks.length,
+            onPrevious: _currentResult > 0
+                ? () => _goToResult(_currentResult - 1)
+                : null,
+            onNext: _currentResult < _filteredLinks.length - 1
+                ? () => _goToResult(_currentResult + 1)
+                : null,
+          ),
+      ],
+      onClear: () => setState(() => _searchQuery = ''),
+      onChanged: (value) {
+        setState(() {
+          _searchQuery = value;
+        });
+      },
+      onSubmitted: (_) {
+        _goToResult(_currentResult + 1);
+        _searchFocusNode.requestFocus();
+      },
     );
   }
 
