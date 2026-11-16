@@ -156,6 +156,116 @@ void main() {
     FileSystemLibraryProvider.instance.resetForTesting();
   });
 
+  group('LibraryProviderManager — title candidates', () {
+    _FakeProvider provider(String id) =>
+        _FakeProvider(providerId: id, displayName: id, sourceIndicator: id);
+    BookCompositeKey key(int category, String type, BookSource source) =>
+        BookCompositeKey.create(
+          title: 'משותף',
+          categoryId: category,
+          fileType: type,
+          source: source,
+        );
+
+    test(
+      'preserves insertion, file type and preferred source precedence',
+      () async {
+        final first = provider('first');
+        final text = provider('text');
+        final user = provider('user');
+        final attached = BookSource.attached('library');
+        final personal = provider('attached');
+        manager.seedMappingsForTesting(
+          mapping: {
+            BookCompositeKey.create(title: 'משותף נוסף', categoryId: 1):
+                provider('other title'),
+            key(10, 'pdf', BookSource.official): first,
+            key(20, 'txt', BookSource.official): text,
+            key(30, 'pdf', BookSource.user): user,
+            key(40, 'txt', attached): personal,
+          },
+          providers: [],
+        );
+
+        expect(
+          manager.getProviderForBook('משותף', fileType: ' TXT '),
+          same(text),
+        );
+        expect(
+          manager.getProviderForBook('משותף', fileType: 'pdf'),
+          same(first),
+        );
+        expect(
+          manager.getProviderForBook('משותף', fileType: 'unknown'),
+          same(first),
+        );
+        expect(
+          manager.getProviderForBook('משותף', categoryId: 20, fileType: 'txt'),
+          same(text),
+        );
+        expect(
+          await manager.resolveProviderForBook(
+            'משותף',
+            fileType: 'txt',
+            preferSource: BookSource.user,
+          ),
+          same(user),
+        );
+        expect(
+          await manager.resolveProviderForBook(
+            'משותף',
+            fileType: 'pdf',
+            preferSource: attached,
+          ),
+          same(personal),
+        );
+        expect(
+          await manager.resolveProviderForBook(
+            'משותף',
+            preferSource: BookSource.attached('missing'),
+          ),
+          isNull,
+        );
+      },
+    );
+
+    test('remapping a key keeps its original title precedence', () {
+      final firstKey = key(10, 'txt', BookSource.official);
+      manager.seedMappingsForTesting(
+        mapping: {
+          firstKey: provider('first'),
+          key(20, 'txt', BookSource.official): provider('second'),
+        },
+        providers: [],
+      );
+      final category = Library(categories: [])
+        ..books.add(TextBook(title: 'משותף', categoryId: 10, fileType: 'txt'));
+      manager.mapBooksForTesting(category, {firstKey});
+      manager.mapBooksForTesting(category, {firstKey});
+
+      expect(
+        manager.getProviderForBook('משותף', fileType: 'unknown'),
+        same(DatabaseLibraryProvider.instance),
+      );
+    });
+
+    test('replacing mappings removes old title candidates', () {
+      final old = provider('old');
+      final replacement = provider('new');
+      manager.seedMappingsForTesting(
+        mapping: {key(10, 'txt', BookSource.official): old},
+        providers: [],
+      );
+      manager.seedMappingsForTesting(
+        mapping: {key(20, 'txt', BookSource.official): replacement},
+        providers: [],
+      );
+      expect(manager.getProviderForBook('משותף'), same(replacement));
+      manager.seedMappingsForTesting(mapping: {}, providers: []);
+      expect(manager.getProviderForBook('משותף'), isNull);
+    });
+  });
+
   group('LibraryProviderManager — preferSource routing', () {
     test(
       'getBookText: מקור מצורף מועדף מחזיר את הוריאנט שלו, ואינו נופל לרשמי',
@@ -230,17 +340,11 @@ void main() {
           providerId: 'db',
           displayName: 'DB',
           sourceIndicator: 'DB',
-          bookTextByKey: {
-            officialKey: 'תוכן רשמי',
-            userBookKey: 'תוכן משתמש',
-          },
+          bookTextByKey: {officialKey: 'תוכן רשמי', userBookKey: 'תוכן משתמש'},
         );
 
         manager.seedMappingsForTesting(
-          mapping: {
-            officialKey: provider,
-            userBookKey: provider,
-          },
+          mapping: {officialKey: provider, userBookKey: provider},
           providers: [provider],
         );
 
@@ -356,17 +460,11 @@ void main() {
           providerId: 'db',
           displayName: 'DB',
           sourceIndicator: 'DB',
-          bookTextByKey: {
-            officialKey: 'תוכן רשמי',
-            userBookKey: 'תוכן משתמש',
-          },
+          bookTextByKey: {officialKey: 'תוכן רשמי', userBookKey: 'תוכן משתמש'},
         );
 
         manager.seedMappingsForTesting(
-          mapping: {
-            officialKey: provider,
-            userBookKey: provider,
-          },
+          mapping: {officialKey: provider, userBookKey: provider},
           providers: [provider],
         );
 
@@ -417,17 +515,11 @@ void main() {
         providerId: 'db',
         displayName: 'DB',
         sourceIndicator: 'DB',
-        bookTocByKey: {
-          officialKey: officialToc,
-          userBookKey: userToc,
-        },
+        bookTocByKey: {officialKey: officialToc, userBookKey: userToc},
       );
 
       manager.seedMappingsForTesting(
-        mapping: {
-          officialKey: provider,
-          userBookKey: provider,
-        },
+        mapping: {officialKey: provider, userBookKey: provider},
         providers: [provider],
       );
 
