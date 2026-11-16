@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import json
 import unittest
@@ -9,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from add_bavli import add_bavli, app_key, drop_placeholders, is_placeholder, read_bavli  # noqa: E402
+from add_bavli import add_bavli, app_key, apply_post_layers, drop_placeholders, is_placeholder, read_bavli  # noqa: E402
 from common import hebrew_sort_key  # noqa: E402
 
 TARGET = "מילון פשיטא"
@@ -70,6 +71,29 @@ class AddBavliTests(unittest.TestCase):
     def test_app_key_matches_app_normalisation(self) -> None:
         self.assertEqual(app_key("אַבָּרָא"), "אברא")
         self.assertEqual(app_key("א\"ל  ב'"), "אל ב")
+
+
+class PostLayersTests(unittest.TestCase):
+    """export.py מחיל את השכבות שבתצורה, כדי שייצוא חוזר לא יאבד את ערכי בבלי ואת הניקוי."""
+
+    def test_layers_applied_in_order_and_idempotent(self) -> None:
+        data = sample()
+        log = apply_post_layers(data, TARGET, ["bavli", "drop_placeholders"])
+        self.assertEqual(len(log), 2)
+        self.assertGreater(len(data[TARGET]), len(sample()[TARGET]))  # נוספו ערכי בבלי
+        self.assertEqual(data["מילון שיח ישראל"], [{"הלכתא": "דין"}])  # ערכי מילוי נמחקו
+        snapshot = json.dumps(data, ensure_ascii=False)
+        apply_post_layers(data, TARGET, ["bavli", "drop_placeholders"])
+        self.assertEqual(json.dumps(data, ensure_ascii=False), snapshot)  # הרצה שנייה אינה משנה
+
+    def test_no_layers_changes_nothing(self) -> None:
+        data = sample()
+        self.assertEqual(apply_post_layers(data, TARGET, []), [])
+        self.assertEqual(data, sample())
+
+    def test_unknown_layer_is_rejected(self) -> None:
+        with self.assertRaises(SystemExit):
+            apply_post_layers(sample(), TARGET, ["nope"])
 
 
 class SourceFileTests(unittest.TestCase):

@@ -100,6 +100,20 @@ def drop_placeholders(data: dict[str, list]) -> dict[str, int]:
     return removed
 
 
+def apply_post_layers(data: dict[str, list], target: str, layers: list[str]) -> list[str]:
+    """מחיל על [data] את השכבות שבתצורה (`post_layers`), לפי הסדר; מחזיר תיאור קצר של כל אחת."""
+    log = []
+    for layer in layers:
+        if layer == "bavli":
+            added, skipped = add_bavli(data, target, read_bavli())
+            log.append(f"bavli: +{added} ({skipped} כבר קיימים)")
+        elif layer == "drop_placeholders":
+            log.append(f"drop_placeholders: {drop_placeholders(data) or 'none'}")
+        else:
+            raise SystemExit(f"שכבה לא מוכרת ב-post_layers: {layer!r}")
+    return log
+
+
 def dump(data: dict[str, Any]) -> str:
     return json.dumps(data, ensure_ascii=False, indent=2)
 
