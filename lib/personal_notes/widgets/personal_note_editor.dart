@@ -10,6 +10,9 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
+import 'package:flutter_quill/quill_delta.dart' show Delta;
+import 'package:otzaria/core/messages/notes_messages.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_link_dialog.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_styles.dart';
@@ -387,11 +390,15 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
 
     final insertText = result.label.isNotEmpty ? result.label : result.url;
     final index = selection.baseOffset;
-    controller.document.insert(index, insertText);
-    controller.updateSelection(
+    final lengthBefore = controller.document.length;
+    controller.replaceText(
+      index,
+      0,
+      insertText,
       TextSelection.collapsed(offset: index + insertText.length),
-      quill.ChangeSource.local,
     );
+    // ההכנסה נדחתה בתקרת האורך; אין טקסט חדש לעצב.
+    if (controller.document.length == lengthBefore) return;
     controller.formatText(
       index,
       insertText.length,
@@ -572,6 +579,9 @@ const _noteControllerConfig = quill.QuillControllerConfig(
   clipboardConfig: _noteClipboardConfig,
 );
 
+/// תקרה זמנית לאורך הערה: טקסט ענק תוקע את הפריסה והשמירה של Quill (#5131).
+const int personalNoteMaxLength = 50000;
+
 class _PersonalNoteQuillController extends quill.QuillController {
   _PersonalNoteQuillController(quill.Document document)
     : super(
@@ -580,10 +590,30 @@ class _PersonalNoteQuillController extends quill.QuillController {
         config: _noteControllerConfig,
       ) {
     // קריאת הלוח יכולה להסתיים אחרי סגירת העורך והמסמך שלו.
-    onReplaceText = (_, _, _) => !_disposed;
+    onReplaceText = (_, len, data) => !_disposed && _allowsLength(len, data);
   }
 
   bool _disposed = false;
+
+  bool _allowsLength(int len, Object? data) {
+    final inserted = switch (data) {
+      String text => text.length,
+      Delta delta =>
+        delta.operations
+            .where((op) => op.isInsert)
+            .fold(0, (sum, op) => sum + (op.length ?? 0)),
+      _ => 1,
+    };
+    // הערה קיימת שכבר חורגת נפתחת ונערכת; רק גדילה נחסמת.
+    if (inserted <= len ||
+        document.length - 1 - len + inserted <= personalNoteMaxLength) {
+      return true;
+    }
+    UiSnack.showError(NotesMessages.noteTooLong(personalNoteMaxLength));
+    // מחזיר את שדה הקלט של מערכת ההפעלה לטקסט שלא השתנה.
+    notifyListeners();
+    return false;
+  }
 
   @override
   Future<bool> clipboardPaste({VoidCallback? updateEditor}) async {
