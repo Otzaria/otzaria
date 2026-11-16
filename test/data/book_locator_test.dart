@@ -6,6 +6,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/book_locator.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
+import 'package:otzaria/data/data_providers/file_system_library_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite;
@@ -183,6 +184,99 @@ void main() {
       final location = await BookLocator.locateBook('לא קיים');
 
       expect(location, isNull);
+    });
+  });
+
+  group('BookLocator.locateBook — קובצי ספרים', () {
+    final provider = FileSystemLibraryProvider.instance;
+
+    setUp(provider.resetForTesting);
+    tearDown(provider.resetForTesting);
+
+    Future<String> createBookFile(String name) async {
+      final file = File(path.join(tempDir.path, name));
+      await file.writeAsString('תוכן הספר');
+      return file.path;
+    }
+
+    test('מסנן כותרות דומות ומפתחות פגומים ושומר סדר בין התאמות', () async {
+      final first = await createBookFile('first.txt');
+      final second = await createBookFile('second.txt');
+      provider.seedKeyToPathForTesting(
+        keyToPath: {
+          for (var i = 0; i < 500; i++) 'ספר אחר $i|$i|txt|o': second,
+          'ספר נוסף|42|txt|o': second,
+          'ספר|not-an-id|txt|o': second,
+          'ספר|42': second,
+          'ספר|42|TXT|u': first,
+          'ספר|7|txt': second,
+        },
+      );
+
+      final location = await BookLocator.locateBook('ספר');
+
+      expect(location?.storage, BookStorageKind.fileSystem);
+      expect(location?.filePath, first);
+    });
+
+    for (final key in [
+      'ספר|7|txt',
+      'ספר|7|txt|u',
+      'ספר|7|txt|d:attached',
+      'ספר|7|txt|unknown',
+    ]) {
+      test('שומר תאימות למפתח $key', () async {
+        final filePath = await createBookFile('book.txt');
+        provider.seedKeyToPathForTesting(keyToPath: {key: filePath});
+
+        final location = await BookLocator.locateBook('ספר');
+
+        expect(location?.storage, BookStorageKind.fileSystem);
+        expect(location?.filePath, filePath);
+      });
+    }
+
+    test('כותרת כפולה נפתרת לפי categoryId ולא לפי המפתח הראשון', () async {
+      final other = await createBookFile('other.txt');
+      final selected = await createBookFile('selected.txt');
+      provider.seedKeyToPathForTesting(
+        keyToPath: {
+          'ספר|11|txt|o': other,
+          'ספר נוסף|22|txt|o': other,
+          'ספר|22|txt|d:attached': selected,
+        },
+      );
+
+      final location = await BookLocator.locateBook('ספר', categoryId: 22);
+
+      expect(location?.filePath, selected);
+    });
+
+    test('קטגוריה שלא תואמת אינה נופלת להתאמת כותרת בלבד', () async {
+      final filePath = await createBookFile('book.txt');
+      provider.seedKeyToPathForTesting(
+        keyToPath: {'ספר|11|txt|o': filePath},
+      );
+
+      expect(await BookLocator.locateBook('ספר', categoryId: 22), isNull);
+    });
+
+    test('תו מפריד בכותרת אינו משנה את פענוח המפתח הקיים', () async {
+      final filePath = await createBookFile('book.txt');
+      provider.seedKeyToPathForTesting(
+        keyToPath: {'ספר|7|txt|o': filePath},
+      );
+
+      expect(await BookLocator.locateBook('ספר|7'), isNull);
+    });
+
+    test('כותרת ריקה שומרת על התאמת המפתח הקיים', () async {
+      final filePath = await createBookFile('book.txt');
+      provider.seedKeyToPathForTesting(keyToPath: {'|7|txt': filePath});
+
+      final location = await BookLocator.locateBook('');
+
+      expect(location?.filePath, filePath);
     });
   });
 
