@@ -180,6 +180,13 @@ class IcsCalendarService {
 
     final recurrence = _parseSupportedRecurrence(props['RRULE']?.value ?? '');
     if (recurrence == null) return null;
+    // המודל שומר ימים ושעה מקומיים בלבד, בלי אזור זמן לכל מופע חוזר.
+    if (recurrence.weeklyDays != null &&
+        !start.dateOnly &&
+        (props['DTSTART']!.value.endsWith('Z') ||
+            props['DTSTART']!.params.containsKey('TZID'))) {
+      return null;
+    }
 
     final summary = _unescapeText(props['SUMMARY']?.value ?? '');
     final uid = props['UID']?.value ?? '';

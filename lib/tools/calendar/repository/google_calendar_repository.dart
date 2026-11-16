@@ -293,9 +293,9 @@ class GoogleCalendarRepository {
 
     final weeklyDays = recurrenceType == RecurrenceType.weekly
         ? parseCalendarWeekdays(
-            RegExp(r'(?:^|;)BYDAY=([^;]+)')
-                .firstMatch(recurrenceRule ?? '')
-                ?.group(1),
+            RegExp(
+              r'(?:^|;)BYDAY=([^;]+)',
+            ).firstMatch(recurrenceRule ?? '')?.group(1),
           )
         : null;
 
@@ -609,7 +609,9 @@ class _GoogleEventsMerger {
           googleEventId: googleId.isEmpty ? null : googleId,
           endGregorianDate: () => mapped.endGregorianDate,
           recurrenceEndDate: () => mapped.recurrenceEndDate,
-          weeklyDays: () => mapped.weeklyDays,
+          weeklyDays: googleEvent.recurrence == null
+              ? null
+              : () => mapped.weeklyDays,
           eventTime: () => mapped.eventTime,
           endTime: () => mapped.endTime,
           colorIndex: () => mapped.colorIndex,
