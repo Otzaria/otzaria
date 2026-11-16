@@ -52,6 +52,9 @@ abstract class TextBookMessages {
   static const String pdfLocationNotFoundOpeningAtStart =
       'לא נמצא מיקום תואם ב-PDF — הספר נפתח מתחילתו';
 
+  static const String pairedBookLocationNotFound =
+      'לא נמצא סימן תואם בספר המקביל';
+
   // ── תצוגה, העתקה והערות ─────────────────────────────────────────────────
 
   static const String perBookSettingsReset = 'ההגדרות האישיות לספר זה אופסו';
