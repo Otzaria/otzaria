@@ -3513,6 +3513,7 @@ class _CommentaryCardState extends State<_CommentaryCard> {
                 showSearch: false,
                 selectionSyncController: widget.selectionSyncController,
                 shrinkWrap: true,
+                handOffEdgeDragsToParent: true,
                 highlightQueryListenable: _highlightNotifier,
                 externalTotalResultsNotifier: _totalNotifier,
                 externalCurrentIndexNotifier: _currentIndexNotifier,
