@@ -60,7 +60,8 @@ void main() {
         }
       }
       // המילונים האחרים אינם חלק מהרחבה זו (מאומת לעומק בצינור, validate.py).
-      expect((data['מילון שיח ישראל'] as List).length, 2739);
+      // 2,739 מקוריים פחות 699 ערכי מילוי ("*", "(סימן)") שנמחקו (add_bavli.py --drop-placeholders).
+      expect((data['מילון שיח ישראל'] as List).length, 2040);
       expect((data['מפירוש אונקלוס על התורה'] as List).length, 2516);
       expect((data['מושגים ואישים'] as List).length, 1);
     });
