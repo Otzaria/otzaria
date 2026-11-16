@@ -220,9 +220,9 @@ const Map<String, Object?> kDecalogueTaamim = {
       {
         'vFrom': 5,
         'vTo': 5,
-        'merged': 'תָעָבְדֵ֑ם֒',
-        'elyon': 'תָעָבְדֵם֒',
-        'tachton': 'תָעָבְדֵ֑ם',
+        'merged': 'תׇעׇבְדֵ֑ם֒',
+        'elyon': 'תׇעׇבְדֵם֒',
+        'tachton': 'תׇעׇבְדֵ֑ם',
       },
       {
         'vFrom': 5,
@@ -311,9 +311,9 @@ const Map<String, Object?> kDecalogueTaamim = {
       {
         'vFrom': 9,
         'vTo': 9,
-        'merged': 'כָּֿל',
-        'elyon': 'כָל',
-        'tachton': 'כָּל',
+        'merged': 'כׇּֿל',
+        'elyon': 'כׇל',
+        'tachton': 'כׇּל',
       },
       {
         'vFrom': 9,
@@ -710,9 +710,9 @@ const Map<String, Object?> kDecalogueTaamim = {
       {
         'vFrom': 9,
         'vTo': 9,
-        'merged': 'תָעָבְדֵ֑ם֒',
-        'elyon': 'תָעָבְדֵם֒',
-        'tachton': 'תָעָבְדֵ֑ם',
+        'merged': 'תׇעׇבְדֵ֑ם֒',
+        'elyon': 'תׇעׇבְדֵם֒',
+        'tachton': 'תׇעׇבְדֵ֑ם',
       },
       {
         'vFrom': 9,
@@ -822,9 +822,9 @@ const Map<String, Object?> kDecalogueTaamim = {
       {
         'vFrom': 13,
         'vTo': 13,
-        'merged': 'כָּֿל',
-        'elyon': 'כָל',
-        'tachton': 'כָּל',
+        'merged': 'כׇּֿל',
+        'elyon': 'כׇל',
+        'tachton': 'כׇּל',
       },
       {
         'vFrom': 13,

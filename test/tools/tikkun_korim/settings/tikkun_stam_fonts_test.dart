@@ -65,5 +65,12 @@ void main() {
       expect(tikkunFamilyHasNunHafukha('AshkenaziStam'), isFalse);
       expect(tikkunFamilyHasNunHafukha(null), isFalse);
     });
+
+    test('קמץ קטן נשמר בגופנים המוטמעים, ובגופן מערכת מוצג כקמץ', () {
+      const katan = 'כׇל';
+      expect(tikkunKamatzKatanText(katan, AppFonts.ashuritNikudFont), katan);
+      expect(tikkunKamatzKatanText(katan, kTikkunNikudFallbackFamily), katan);
+      expect(tikkunKamatzKatanText(katan, 'Guttman Frank'), 'כָל');
+    });
   });
 }

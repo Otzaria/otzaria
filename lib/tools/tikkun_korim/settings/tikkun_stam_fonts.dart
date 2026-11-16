@@ -26,6 +26,13 @@ const Map<String, String> kTikkunBundledFontAssets = {
 bool tikkunFamilyHasNunHafukha(String? family) =>
     family == AppFonts.ashuritFont || family == AppFonts.ashuritNikudFont;
 
+/// קמץ קטן (U+05C7) חסר ברבים מגופני המערכת ונופל לגופן אחר; בהם מוצג קמץ.
+String tikkunKamatzKatanText(String text, String? family) =>
+    family == kTikkunNikudFallbackFamily ||
+        kTikkunBundledFontAssets.containsKey(family)
+    ? text
+    : text.replaceAll('ׇ', 'ָ');
+
 bool tikkunFamilyHasVavKetia(String? family) =>
     family == kTikkunNikudFallbackFamily ||
     kTikkunBundledFontAssets.containsKey(family);

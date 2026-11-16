@@ -249,9 +249,9 @@ const SEP = /[־\s]+/;
 // השוואה על העיצורים בלבד: CGJ (U+034F) בא רק בצורה המשולבת,
 // שבה הוא שומר על סדר הטעמים משתי המערכות.
 const stripTeamim = (s) => s.replace(/[֑-ׇ͏]/g, '');
-// cleanRawText מנרמל קמץ קטן וחולם חסר לוי"ו; בלי אותו נרמול המילה
-// המוחלפת לא תזוהה מול המסד.
-const normalizeTaamWord = (s) => s.replace(/ׇ/g, 'ָ').replace(/ֺ/g, 'ֹ');
+// cleanRawText מנרמל חולם חסר לוי"ו; בלי אותו נרמול המילה המוחלפת לא תזוהה מול המסד.
+const normalizeTaamWord = (s) => s.replace(/ֺ/g, 'ֹ');
+const foldKatan = (s) => s.replace(/ׇ/g, 'ָ');
 
 function buildDecalogueDecl() {
   const src = path.resolve('tool/tikkun_korim/vendor/mam-decnreub.json');
@@ -276,8 +276,9 @@ function buildDecalogueDecl() {
         }
       }
       const prev = words[words.length - 1];
-      // המקור מביא את אותה מילה פעמיים כשיש בה קמץ קטן; אחרי הנרמול הן זהות.
-      if (prev && prev.merged === merged && prev.elyon === elyon && prev.tachton === tachton) {
+      // המקור מביא קריאה חלופית בקמץ (תׇעׇבְדֵם/תָעׇבְדֵם); נשארת הראשונה, כבמסד.
+      const same = (a, b) => foldKatan(a) === foldKatan(b);
+      if (prev && same(prev.merged, merged) && same(prev.elyon, elyon) && same(prev.tachton, tachton)) {
         continue;
       }
       const mamVerse = Number(e.bcv.slice(place.prefix.length));

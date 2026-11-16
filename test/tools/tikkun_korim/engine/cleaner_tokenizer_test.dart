@@ -47,8 +47,8 @@ void main() {
       expect(out.endsWith('שלום x'), isTrue);
     });
 
-    test('קמץ קטן מנורמל לקמץ', () {
-      expect(cleanRawText('כׇל'), 'כָל');
+    test('קמץ קטן נשמר — לגופן הניקוד יש לו צורה משלו', () {
+      expect(cleanRawText('כׇל'), 'כׇל');
     });
 
     test('חולם חסר לוי"ו מנורמל לחולם', () {
