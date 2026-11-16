@@ -38,14 +38,6 @@ jobs:
         run: |
           set -euo pipefail
           R=$GITHUB_REPOSITORY
-          # dev אדום (dev_health.yml) עוצר מיזוגים; dev שחזר לירוק בודק מחדש את כל הממתינים.
-          dev=$(gh api "repos/$R/actions/workflows/flutter_tests.yml/runs?branch=dev&event=push&status=completed&per_page=1" \
-            --jq '.workflow_runs[0].conclusion // "none"')
-          if [ "$dev" = failure ]; then
-            echo "dev is red; merges wait until it is green again"
-            echo 'prs=[]' >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
           if [ -n "$PR" ]; then
             prs="[$PR]"
           elif [ "$RUN_EVENT" = push ]; then
@@ -65,9 +57,9 @@ jobs:
       fail-fast: false
       matrix:
         pr: ${{ fromJSON(needs.find.outputs.prs) }}
-    # בדיקה אחת בכל פעם לכל PR, וכל אירוע נכנס לתור במקום להחליף את הממתין.
+    # מיזוג אחד בכל פעם: ה-PR הבא בודק את הבסיס מחדש אחרי המיזוג הקודם.
     concurrency:
-      group: automerge-${{ matrix.pr }}
+      group: automerge-${{ github.repository }}
       cancel-in-progress: false
       queue: max
     steps:
@@ -108,6 +100,16 @@ jobs:
           head=$(jq -r .head.sha <<< "$pr")
           base=$(jq -r .base.ref <<< "$pr")
 
+          # נבדק מתוך תור המיזוגים; ריצה ירוקה של קומיט ישן אינה מעידה על dev הנוכחי.
+          dev_head=$(gh api "repos/$R/git/ref/heads/dev" --jq .object.sha)
+          dev_green=$(gh api "repos/$R/actions/workflows/flutter_tests.yml/runs?branch=dev&event=push&head_sha=$dev_head&per_page=1" \
+            --jq '.workflow_runs[0] | .status == "completed" and .conclusion == "success"')
+          [ "$dev_green" = true ] || { echo "Waiting for successful CI on dev at $dev_head"; exit 0; }
+          base_head=$dev_head
+          if [ "$base" != dev ]; then
+            base_head=$(gh api "repos/$R/git/ref/heads/$base" --jq .object.sha)
+          fi
+
           # תווית מכל מי שיש לו triage הייתה מאפשרת לו למזג; נבדק בכל ריצה, לא רק בהוספה.
           if [ "$ACTION" = labeled ] && [ "$ADDED_LABEL" = automerge ]; then
             labeler=$SENDER
@@ -121,10 +123,18 @@ jobs:
             *) give_up "את התווית הוסיף \`$labeler\`, שאין לו הרשאת כתיבה בריפו." ;;
           esac
 
-          # אותו check יכול להופיע בכמה check suites (ריצות שהתוויות הפעילו); קובע האחרון לכל שם.
-          runs=$(gh api --paginate "repos/$R/commits/$head/check-runs?per_page=100" \
-            --jq '.check_runs[] | {name, status, conclusion, started_at}' \
-            | jq -s 'group_by(.name) | map(max_by(.started_at))')
+          # בוחרים ריצה עדכנית לכל workflow ואירוע, בלי לאחד jobs של workflows שונים.
+          workflows=$(gh api --paginate "repos/$R/actions/runs?head_sha=$head&per_page=100" \
+            --jq '.workflow_runs[] | {workflow_id, event, run_number, name, status, conclusion, check_suite_id}' \
+            | jq -s 'group_by([.workflow_id, .event]) | map(max_by(.run_number))')
+          waiting=$(jq -r '.[] | select(.status != "completed" or (.conclusion | IN("success", "skipped", "neutral") | not)) | .name' <<< "$workflows")
+          [ -z "$waiting" ] || { echo "Workflows not passing:"; echo "$waiting"; exit 0; }
+          suites=$(jq 'map(.check_suite_id)' <<< "$workflows")
+          runs=$(gh api --paginate "repos/$R/commits/$head/check-runs?filter=latest&per_page=100" \
+            --jq '.check_runs[] | {id, name, status, conclusion, suite: .check_suite.id, app: .app.slug}' \
+            | jq -s --argjson suites "$suites" '
+                map(select(.app != "github-actions" or (.suite as $id | $suites | index($id)) != null))
+                | group_by([.suite, .name]) | map(max_by(.id))')
           pending=$(jq -r 'map(select(.status != "completed")) | .[].name' <<< "$runs")
           [ -z "$pending" ] || { echo "Still running:"; echo "$pending"; exit 0; }
           # כשל מטופל ב-auto-draft-failed-ci.yml (הרצה חוזרת או טיוטה); כאן רק לא ממזגים.
@@ -144,7 +154,7 @@ jobs:
             exit 0
           fi
 
-          behind=$(gh api "repos/$R/compare/$base...$head" --jq .behind_by)
+          behind=$(gh api "repos/$R/compare/$base_head...$head" --jq .behind_by)
           if [ "$behind" -gt 0 ]; then
             head_repo=$(jq -r .head.repo.full_name <<< "$pr")
             head_ref=$(jq -r .head.ref <<< "$pr")
@@ -172,6 +182,10 @@ jobs:
             exit 0
           fi
 
+          if [ "$(gh api "repos/$R/git/ref/heads/$base" --jq .object.sha)" != "$base_head" ]; then
+            echo "Base moved during the checks; waiting for CI on the new base"
+            exit 0
+          fi
           if ! gh pr merge "$PR" -R "$R" --merge --match-head-commit "$head"; then
             [ "$(gh api "repos/$R/pulls/$PR" --jq .merged)" = true ] && { echo "Already merged"; exit 0; }
             give_up "המיזוג של הקומיט \`${head:0:7}\` נדחה ב-GitHub."

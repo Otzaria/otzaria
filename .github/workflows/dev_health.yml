@@ -82,13 +82,10 @@ jobs:
           cd "$dir"
           git config user.name "${BOT_SLUG}[bot]"
           git config user.email "${bot_id}+${BOT_SLUG}[bot]@users.noreply.github.com"
-          # קומיט מיזוג: -m 1 מחזיר את כל ה-PR. ב-Rebase and merge ה-PR הוא n הקומיטים שנגמרים כאן.
+          # הורה יחיד יכול להיות squash: מספר קומיטי ה-PR אינו טווח בטוח ב-dev.
           target=("$SHA")
           if [ "$parents" -ge 2 ]; then
             target=(-m 1 "$SHA")
-          elif [ -n "$orig" ]; then
-            n=$(gh api "repos/$R/pulls/$orig" | jq -r --arg s "$SHA" 'if .merge_commit_sha == $s then .commits else 1 end')
-            [ "$n" -le 1 ] || target=("$SHA~$n..$SHA")
           fi
 
           body="$RUNNER_TEMP/body.md"

@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/scripts/**'
       - '.github/workflows/auto-draft-failed-ci.yml'
+      - '.github/workflows/automerge.yml'
+      - '.github/workflows/dev_health.yml'
       - '.github/workflows/ci-automation-tests.yml'
 
 permissions:
@@ -22,5 +24,5 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Test auto-draft decisions and notifications
-        run: node --test .github/scripts/auto-draft-failed-ci.test.cjs
+      - name: Test CI decisions, notifications and safe reverts
+        run: node --test .github/scripts/*.test.cjs
