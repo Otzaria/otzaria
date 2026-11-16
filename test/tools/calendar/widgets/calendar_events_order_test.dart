@@ -463,6 +463,45 @@ void main() {
       expect(find.textContaining('+'), findsNothing);
     });
 
+    testWidgets('+N מזוהה ככפתור ונפתח ב-Enter וב-Space', (tester) async {
+      await addEvents(4);
+      await tester.pumpWidget(extrasApp(2));
+      await tester.pumpAndSettle();
+      final semantics = tester.ensureSemantics();
+      await tester.pump();
+      try {
+        expect(
+          tester.getSemantics(find.text('+2')),
+          matchesSemantics(
+            label: '+2',
+            tooltip: 'עוד 2 — הצגת כל הפריטים',
+            isButton: true,
+            isFocusable: true,
+            hasFocusAction: true,
+            hasTapAction: true,
+          ),
+        );
+      } finally {
+        semantics.dispose();
+      }
+      for (final key in [LogicalKeyboardKey.enter, LogicalKeyboardKey.space]) {
+        Focus.of(tester.element(find.text('+2'))).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(key);
+        await tester.pumpAndSettle();
+        expect(find.text('כל הפריטים ביום'), findsOneWidget);
+        for (var i = 1; i <= 4; i++) {
+          expect(
+            find.textContaining('אירוע $i', findRichText: true),
+            findsAtLeast(1),
+          );
+        }
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        expect(find.text('כל הפריטים ביום'), findsNothing);
+      }
+    });
+
     testWidgets('linesThatFit: תא גבוה מכיל יותר שורות, הגדלת טקסט פחות', (
       tester,
     ) async {
@@ -505,12 +544,15 @@ void main() {
       double textScale = 1,
       List<String> info = const [],
       VoidCallback? onTap,
+      ThemeData? theme,
+      TextDirection direction = TextDirection.ltr,
     }) => MaterialApp(
+      theme: theme,
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(
           context,
         ).copyWith(textScaler: TextScaler.linear(textScale)),
-        child: child!,
+        child: Directionality(textDirection: direction, child: child!),
       ),
       home: BlocProvider.value(
         value: cubit,
@@ -547,6 +589,86 @@ void main() {
         );
       }
     }
+
+    testWidgets('+N סופר את הפריטים שאינם מוצגים גם כשהוא מחליף שורה', (
+      tester,
+    ) async {
+      await addLongEvents(6);
+      final themes = [
+        AppThemeData.light(
+          AppThemeData.createColorScheme(
+            AppSeedColors.defaultLight,
+            Brightness.light,
+          ),
+          compactMenuMode: false,
+        ),
+        AppThemeData.dark(
+          AppThemeData.createColorScheme(
+            AppSeedColors.defaultDark,
+            Brightness.dark,
+          ),
+          compactMenuMode: false,
+        ),
+        AppThemeData.light(
+          AppThemeData.createColorScheme(AppSeedColors.white, Brightness.light),
+          compactMenuMode: false,
+          variant: AppThemeVariant.white,
+        ),
+      ];
+      for (final theme in themes) {
+        for (final scale in [1.0, 1.3]) {
+          for (final width in [56.0, 68.0, 150.0]) {
+            for (final height in [70.0, 110.0, 200.0]) {
+              for (final info in [
+                const <String>[],
+                const ['זריחה 06:12', 'שקיעה 19:45'],
+              ]) {
+                await tester.pumpWidget(
+                  cellApp(
+                    width: width,
+                    height: height,
+                    textScale: scale,
+                    info: info,
+                    theme: theme,
+                    direction: TextDirection.rtl,
+                  ),
+                );
+                await tester.pumpAndSettle();
+                final visible = find
+                    .byWidgetPredicate(
+                      (widget) =>
+                          widget is Text &&
+                          ((widget.textSpan?.toPlainText().contains('אירוע ') ??
+                                  false) ||
+                              info.contains(widget.data)),
+                    )
+                    .evaluate()
+                    .length;
+                final hidden = 6 + info.length - visible;
+                final more = find.textContaining(RegExp(r'^\+\d+$'));
+                final scenario =
+                    'width=$width height=$height scale=$scale info=${info.length}';
+                if (hidden == 0) {
+                  expect(more, findsNothing, reason: scenario);
+                } else {
+                  expect(more, findsOneWidget, reason: scenario);
+                  expect(
+                    tester.widget<Text>(more).data,
+                    '+$hidden',
+                    reason: scenario,
+                  );
+                  expect(
+                    find.byTooltip('עוד $hidden — הצגת כל הפריטים'),
+                    findsOneWidget,
+                  );
+                }
+                expect(tester.takeException(), isNull, reason: scenario);
+              }
+            }
+          }
+        }
+      }
+    });
 
     testWidgets('אין גלישה בגדלים ובהגדלות טקסט שונים', (tester) async {
       await addLongEvents(8);

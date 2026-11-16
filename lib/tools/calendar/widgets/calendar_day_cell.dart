@@ -330,27 +330,30 @@ class DayExtras extends StatelessWidget {
     final lines = [for (final item in items.take(maxVisibleItems)) item(false)];
     if (hiddenCount > 0) {
       final lastItem = lines.last;
-      final moreLabel = _MoreItemsLabel(
-        hiddenCount: hiddenCount,
-        compact: compact,
-        isSelected: isSelected,
-        strut: strut,
-        onTap: () => _showAllItems(context, items),
-      );
       final minRowWidth = MediaQuery.textScalerOf(context).scale(44);
       lines.last = LayoutBuilder(
-        builder: (context, constraints) => constraints.maxWidth < minRowWidth
-            ? FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: AlignmentDirectional.centerStart,
-                child: moreLabel,
-              )
-            : Row(
-                children: [
-                  Expanded(child: lastItem),
-                  moreLabel,
-                ],
-              ),
+        builder: (context, constraints) {
+          final replacesLastItem = constraints.maxWidth < minRowWidth;
+          final moreLabel = _MoreItemsLabel(
+            hiddenCount: hiddenCount + (replacesLastItem ? 1 : 0),
+            compact: compact,
+            isSelected: isSelected,
+            strut: strut,
+            onTap: () => _showAllItems(context, items),
+          );
+          return replacesLastItem
+              ? FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: AlignmentDirectional.centerStart,
+                  child: moreLabel,
+                )
+              : Row(
+                  children: [
+                    Expanded(child: lastItem),
+                    moreLabel,
+                  ],
+                );
+        },
       );
     }
     return Column(
@@ -571,20 +574,23 @@ class _MoreItemsLabel extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return Tooltip(
       message: 'עוד $hiddenCount — הצגת כל הפריטים',
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: AppTokens.borderRadiusAll,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppTokens.space2XS,
-          ),
-          child: Text(
-            '+$hiddenCount',
-            strutStyle: strut,
-            style: TextStyle(
-              fontSize: compact ? 9 : 10,
-              fontWeight: FontWeight.w700,
-              color: isSelected ? cs.onPrimaryContainer : cs.primary,
+      child: Semantics(
+        button: true,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppTokens.borderRadiusAll,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppTokens.space2XS,
+            ),
+            child: Text(
+              '+$hiddenCount',
+              strutStyle: strut,
+              style: TextStyle(
+                fontSize: compact ? 9 : 10,
+                fontWeight: FontWeight.w700,
+                color: isSelected ? cs.onPrimaryContainer : cs.primary,
+              ),
             ),
           ),
         ),
