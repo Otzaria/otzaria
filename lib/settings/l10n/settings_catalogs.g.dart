@@ -974,6 +974,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'כל שולחנות העבודה': 'All your Workspaces',
     'כל שורה תוצג בנפרד': 'Each posuk or line shows on its own',
     'כלול ספרים אישיים': 'Include personal books',
+    'כלול ציוני מפרשים': 'Include commentary markers',
     'כלים': 'Tools',
     'כלים ותוספים': 'Tools & Plugins',
     'כלים מובנים': 'Built-In Tools',
