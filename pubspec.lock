@@ -1213,11 +1213,11 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "483fec355339f54f9e094994a106dad9a63b82e3"
-      resolved-ref: "483fec355339f54f9e094994a106dad9a63b82e3"
+      ref: "252787989c3aa68684a4997af34c8c8c1d0ff7a3"
+      resolved-ref: "252787989c3aa68684a4997af34c8c8c1d0ff7a3"
       url: "https://github.com/Otzaria/otzaria_icons"
     source: git
-    version: "0.7.0"
+    version: "0.8.0"
   otzaria_mekorot:
     dependency: "direct main"
     description:
