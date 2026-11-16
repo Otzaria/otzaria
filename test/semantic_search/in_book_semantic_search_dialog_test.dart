@@ -68,6 +68,9 @@ class _CoveredRepository extends SemanticSearchRepository {
       );
 
   final Set<String>? covered;
+
+  /// כשמוגדר, התשובה מגיעה רק כשהוא מושלם.
+  Completer<void>? answerGate;
   static const _ready = SemanticAvailability(
     phase: SemanticAvailabilityPhase.ready,
     consentGranted: true,
@@ -83,7 +86,10 @@ class _CoveredRepository extends SemanticSearchRepository {
   Future<SemanticAvailability> refresh() async => _ready;
 
   @override
-  Future<Set<String>?> loadCoveredBookFilePaths() async => covered;
+  Future<Set<String>?> loadCoveredBookFilePaths() async {
+    await answerGate?.future;
+    return covered;
+  }
 }
 
 final _semanticSegment = find.byKey(
@@ -138,6 +144,7 @@ void main() {
     WidgetTester tester,
     Set<String>? covered, {
     bool inBook = true,
+    Completer<void>? answerGate,
   }) async {
     final history = _MockHistoryBloc();
     final indexing = _MockIndexingBloc();
@@ -189,7 +196,7 @@ void main() {
     );
     addTearDown(tab.dispose);
     final results = <SearchDialogResult?>[];
-    final repository = _CoveredRepository(covered);
+    final repository = _CoveredRepository(covered)..answerGate = answerGate;
 
     await tester.pumpWidget(
       MultiBlocProvider(
@@ -246,6 +253,15 @@ void main() {
     await pumpInBookDialog(tester, coveredBook);
     expect(_semanticSegment, findsOneWidget);
     expect(_queryField, findsNothing);
+  });
+
+  testWidgets('המצב החכם מופיע בדיאלוג הפתוח כשהתשובה מגיעה', (tester) async {
+    final gate = Completer<void>();
+    await pumpInBookDialog(tester, coveredBook, answerGate: gate);
+    expect(_semanticSegment, findsNothing);
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(_semanticSegment, findsOneWidget);
   });
 
   testWidgets('ספר בלי וקטורים: אין מצב חכם, גם כשהסשן זוכר חכם', (
