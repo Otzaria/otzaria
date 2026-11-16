@@ -341,6 +341,7 @@ int globalAltTocPerBookCap(
 class GlobalAltTocRequest {
   const GlobalAltTocRequest({
     required this.queryTokens,
+    this.preferBavli = false,
     this.maxRefTokens,
     this.occupied = const [],
     this.replaceable = const [],
@@ -352,6 +353,9 @@ class GlobalAltTocRequest {
   });
 
   final List<String> queryTokens;
+
+  /// שם בבלי שזוהה ואחריו מספר יחיד, כפי שנקבע ב-main.
+  final bool preferBavli;
 
   /// מגביל את אורך הערך (מסלול מילה בודדת); `null` = ללא הגבלה.
   final int? maxRefTokens;
@@ -383,6 +387,7 @@ class GlobalAltTocRequest {
   /// [includeBookRanks] = false כשה-worker כבר מחזיק את [bookRanks].
   Map<String, Object?> encode({bool includeBookRanks = true}) => {
     'queryTokens': queryTokens,
+    'preferBavli': preferBavli,
     'maxRefTokens': maxRefTokens,
     'occupied': [for (final key in occupied) encodeAltTocResultKey(key)],
     'replaceable': [for (final key in replaceable) encodeAltTocResultKey(key)],
@@ -421,6 +426,7 @@ class GlobalAltTocRequest {
     }
     return GlobalAltTocRequest(
       queryTokens: (args['queryTokens'] as List).cast<String>(),
+      preferBavli: args['preferBavli'] as bool? ?? false,
       maxRefTokens: args['maxRefTokens'] as int?,
       occupied: [
         for (final map in args['occupied'] as List)
@@ -451,7 +457,10 @@ List<T> selectGlobalAltTocMatches<T>(
   required String Function(T) referenceOf,
   FindRefBookRank? Function(int bookId, String title)? rankOf,
 }) {
-  final query = FindRefRankQuery(request.queryTokens);
+  final query = FindRefRankQuery(
+    request.queryTokens,
+    preferBavli: request.preferBavli,
+  );
   final entriesByBook = <int, List<T>>{};
   for (final m in matches) {
     final id = bookIdOf(m);
