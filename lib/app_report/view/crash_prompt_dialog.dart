@@ -8,6 +8,7 @@ import 'package:otzaria/app_report/bloc/app_report_state.dart';
 import 'package:otzaria/app_report/repository/app_report_collector.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/app_report/services/crash_report_decision.dart';
+import 'package:otzaria/app_report/services/session_context_snapshot.dart';
 import 'package:otzaria/app_report/services/unclean_exit_detector.dart';
 import 'package:otzaria/app_report/view/app_report_result_snack.dart';
 import 'package:otzaria/app_report/view/widgets/app_report_preview_section.dart';
@@ -87,6 +88,9 @@ class CrashPromptDialog extends StatefulWidget {
   static AppReportCollector collectorFor(CrashCandidate candidate) =>
       AppReportCollector(
         includeCurrentContext: !candidate.occurredInPreviousRun,
+        previousRunContext: () => SessionContextSnapshot.instance.previousFor(
+          candidate.previousSession,
+        ),
       );
 
   static const String title = 'אוצריא נסגרה באופן לא צפוי';

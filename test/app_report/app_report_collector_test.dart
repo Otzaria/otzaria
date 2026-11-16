@@ -357,11 +357,47 @@ void main() {
         redactor: redactor,
         appInfoLoader: () async => {},
         includeCurrentContext: false,
+        previousRunContext: () async => null,
         clock: () => now,
       ).collectDiagnostics();
       expect(diagnostics.containsKey('context'), isFalse);
       expect(diagnostics.containsKey('inputFocus'), isFalse);
       expect(diagnostics.containsKey('searches'), isFalse);
+      expect(diagnostics.containsKey('previousRun'), isFalse);
+    });
+
+    test('קריסה מהפעלה קודמת: ההקשר שהיא שמרה', () async {
+      final saved = {
+        'savedAt': '2026-09-17T09:59:58.000Z',
+        'pid': 4242,
+        'context': {'screen': 'search', 'currentTab': 'SearchingTab'},
+        'searches': {'activeCount': 1, 'lexical': <Object?>[]},
+      };
+      final diagnostics = await AppReportCollector(
+        redactor: redactor,
+        appInfoLoader: () async => {},
+        includeCurrentContext: false,
+        previousRunContext: () async => saved,
+        clock: () => now,
+      ).collectDiagnostics();
+      expect(diagnostics['previousRun'], saved);
+      expect(diagnostics.containsKey('context'), isFalse);
+    });
+
+    test('דוח על ההפעלה הנוכחית: בלי ההקשר של הקודמת', () async {
+      var asked = false;
+      final diagnostics = await AppReportCollector(
+        redactor: redactor,
+        appInfoLoader: () async => {},
+        currentContext: () => {'screen': 'reading'},
+        previousRunContext: () async {
+          asked = true;
+          return {'pid': 1};
+        },
+        clock: () => now,
+      ).collectDiagnostics();
+      expect(diagnostics.containsKey('previousRun'), isFalse);
+      expect(asked, isFalse);
     });
 
     test('כרטיסיית חיפוש: השאילתה לא נכנסת לכותרת', () {
