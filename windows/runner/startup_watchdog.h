@@ -37,6 +37,7 @@ void AppendStack(const std::vector<ULONG_PTR>& frames, std::string* report);
 void AppendBuildIdentity(const std::vector<ULONG_PTR>& frames,
                          std::string* report);
 void AppendReport(const std::string& text);
+std::wstring ErrorLogPath();
 std::string UtcTimestamp();
 
 }  // namespace startup_watchdog

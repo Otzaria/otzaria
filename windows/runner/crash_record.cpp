@@ -20,6 +20,7 @@ LPTOP_LEVEL_EXCEPTION_FILTER g_previous = nullptr;
 std::atomic<bool> g_claimed{false};
 HANDLE g_crash_event = nullptr;
 HANDLE g_done_event = nullptr;
+HANDLE g_writer = nullptr;
 DWORD g_main_thread_id = 0;
 DWORD g_crash_thread_id = 0;
 EXCEPTION_RECORD g_record = {};
@@ -61,8 +62,12 @@ bool UnwindStep(CONTEXT* context) {
 }
 
 void Unwind(CONTEXT context, std::vector<ULONG_PTR>* frames) {
-  while (frames->size() < kMaxFrames && CR_PC(context) != 0) {
-    frames->push_back(static_cast<ULONG_PTR>(CR_PC(context)));
+  // PC 0 (קריאה דרך מצביע null): הצעד הראשון עדיין מגיע לקורא.
+  while (frames->size() < kMaxFrames &&
+         (CR_PC(context) != 0 || frames->empty())) {
+    if (CR_PC(context) != 0) {
+      frames->push_back(static_cast<ULONG_PTR>(CR_PC(context)));
+    }
     const auto pc = CR_PC(context);
     const auto sp = CR_SP(context);
     if (!UnwindStep(&context)) break;
@@ -87,13 +92,54 @@ std::string TimestampMs() {
   return buffer;
 }
 
+// שם המודול כפי שה-loader רשם אותו, כמו ב-minidump: אותה קריסה, אותה חתימה.
+std::string DescribeFault(ULONG_PTR address) {
+  HMODULE module = nullptr;
+  wchar_t path[MAX_PATH] = {0};
+  if (::GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                               GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           reinterpret_cast<LPCWSTR>(address), &module)) {
+    const DWORD length = ::GetModuleFileNameW(module, path, MAX_PATH);
+    if (length > 0 && length < MAX_PATH) {
+      const wchar_t* name = ::wcsrchr(path, L'\\');
+      name = name == nullptr ? path : name + 1;
+      char narrow[MAX_PATH * 3] = {0};
+      if (::WideCharToMultiByte(CP_UTF8, 0, name, -1, narrow, sizeof(narrow),
+                                nullptr, nullptr) > 0) {
+        char offset[32];
+        snprintf(offset, sizeof(offset), "+0x%llx",
+                 static_cast<unsigned long long>(
+                     address - reinterpret_cast<ULONG_PTR>(module)));
+        return std::string(narrow) + offset;
+      }
+    }
+  }
+  return startup_watchdog::DescribeFrame(address);
+}
+
+// הסמן אומר להפעלה הבאה שיש קריסה, גם כשנעילת ההפעלה עוד לא נכתבה.
+void WriteMarker(const std::string& at) {
+  const std::wstring log = startup_watchdog::ErrorLogPath();
+  const size_t slash = log.find_last_of(L'\\');
+  if (slash == std::wstring::npos) return;
+  const std::wstring path = log.substr(0, slash) + L"\\native_crash.marker";
+  HANDLE file = ::CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr,
+                              CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (file == INVALID_HANDLE_VALUE) return;
+  DWORD written = 0;
+  ::WriteFile(file, at.c_str(), static_cast<DWORD>(at.size()), &written,
+              nullptr);
+  ::CloseHandle(file);
+}
+
 void WriteRecord() {
   std::vector<ULONG_PTR> frames;
   frames.reserve(kMaxFrames);
   Unwind(g_context, &frames);
 
   char line[160];
-  std::string report = "\n=== Native crash " + TimestampMs() + " ===\n";
+  const std::string at = TimestampMs();
+  std::string report = "\n=== Native crash " + at + " ===\n";
 #ifdef FLUTTER_VERSION
   report += std::string("Version: ") + FLUTTER_VERSION + "\n";
 #endif
@@ -101,7 +147,7 @@ void WriteRecord() {
            static_cast<unsigned long>(g_record.ExceptionCode));
   report += line;
   report += "Fault: " +
-            startup_watchdog::DescribeFrame(
+            DescribeFault(
                 reinterpret_cast<ULONG_PTR>(g_record.ExceptionAddress)) +
             "\n";
   if (g_record.ExceptionCode == EXCEPTION_ACCESS_VIOLATION &&
@@ -117,6 +163,7 @@ void WriteRecord() {
   startup_watchdog::AppendBuildIdentity(frames, &report);
   startup_watchdog::AppendStack(frames, &report);
   startup_watchdog::AppendReport(report);
+  WriteMarker(at);
 }
 
 // הכתיבה ב-thread נפרד: ב-stack overflow אין מקום, ונעילת loader תפוסה
@@ -135,8 +182,11 @@ LONG WINAPI OnUnhandledException(EXCEPTION_POINTERS* info) {
     g_context = *info->ContextRecord;
     g_crash_thread_id = ::GetCurrentThreadId();
     ::SetEvent(g_crash_event);
-    ::WaitForSingleObject(g_done_event, kWriteTimeoutMs);
   }
+  // גם thread שני ממתין, אחרת WER מסיים את התהליך באמצע הכתיבה. writer שמת
+  // (קריסה בתוך ExitProcess) משחרר את ההמתנה מיד.
+  const HANDLE waits[] = {g_done_event, g_writer};
+  ::WaitForMultipleObjects(2, waits, FALSE, kWriteTimeoutMs);
   return g_previous != nullptr ? g_previous(info) : EXCEPTION_CONTINUE_SEARCH;
 }
 
@@ -148,10 +198,9 @@ void Install() {
   g_crash_event = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
   g_done_event = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
   if (g_crash_event == nullptr || g_done_event == nullptr) return;
-  HANDLE writer = ::CreateThread(nullptr, 256 * 1024, WriterThread, nullptr,
-                                 STACK_SIZE_PARAM_IS_A_RESERVATION, nullptr);
-  if (writer == nullptr) return;
-  ::CloseHandle(writer);
+  g_writer = ::CreateThread(nullptr, 256 * 1024, WriterThread, nullptr,
+                            STACK_SIZE_PARAM_IS_A_RESERVATION, nullptr);
+  if (g_writer == nullptr) return;
   g_previous = ::SetUnhandledExceptionFilter(OnUnhandledException);
 }
 

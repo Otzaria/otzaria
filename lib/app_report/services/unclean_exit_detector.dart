@@ -132,6 +132,9 @@ class UncleanExitDetector {
 
   static const String lockFileName = 'session.lock';
 
+  /// ה-runner כותב אותו עם רשומת `Native crash`; תוכנו זמן הרשומה.
+  static const String nativeCrashMarkerName = 'native_crash.marker';
+
   final String logsDirectory;
   final List<String>? _sentryDirs;
   final bool Function(int pid) _isProcessAlive;
@@ -140,6 +143,8 @@ class UncleanExitDetector {
 
   String get lockPath => p.join(logsDirectory, lockFileName);
   String get errorLogPath => p.join(logsDirectory, ErrorLogFile.fileName);
+  String get nativeCrashMarkerPath =>
+      p.join(logsDirectory, nativeCrashMarkerName);
 
   /// כותב את נעילת ההפעלה הנוכחית. יש לקרוא אחרי [detectPreviousCrash].
   Future<void> startSession({required String version}) async {
@@ -181,15 +186,19 @@ class UncleanExitDetector {
     for (final dir in _sentryDirs ?? defaultSentryDatabaseDirs()) {
       await pruneRecoveredMinidumps(dir);
     }
-    final SessionLock lock;
+    final nativeCrashAt = await _takeNativeCrashMarker();
+    SessionLock? lock;
     try {
       final file = File(lockPath);
-      if (!await file.exists()) return null;
-      final parsed = SessionLock.tryParse(await file.readAsString());
-      if (parsed == null) return null;
-      lock = parsed;
-    } catch (_) {
-      return null;
+      if (await file.exists()) {
+        lock = SessionLock.tryParse(await file.readAsString());
+      }
+    } catch (_) {}
+    // הנעילה נכתבת רק אחרי החשיפה; קריסה לפניה ידועה רק מהסמן של ה-runner.
+    if (lock == null) {
+      return nativeCrashAt == null
+          ? null
+          : _nativeCrashBeforeSession(nativeCrashAt);
     }
 
     if (lock.pid == _currentPid) return null;
@@ -228,6 +237,32 @@ class UncleanExitDetector {
       kind: evidence.isNotEmpty && evidence.last.isAppHang
           ? CrashIncidentKind.hang
           : CrashIncidentKind.crash,
+    );
+  }
+
+  /// נמחק מיד, כדי שאותה קריסה לא תוצע שוב בהפעלה הבאה.
+  Future<DateTime?> _takeNativeCrashMarker() async {
+    try {
+      final file = File(nativeCrashMarkerPath);
+      if (!await file.exists()) return null;
+      final at = DateTime.tryParse((await file.readAsString()).trim());
+      await file.delete();
+      return at;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<CrashCandidate?> _nativeCrashBeforeSession(DateTime at) async {
+    final blocks = await _errorBlocksSince(at, until: _processStartedAt);
+    final crashes = blocks.where((b) => b.isNativeCrash).toList();
+    if (crashes.isEmpty) return null;
+    return CrashCandidate(
+      previousSession: SessionLock(pid: 0, version: '', startedAt: at),
+      entries: blocks,
+      signature: crashes.last.signature,
+      hasStartupStall: blocks.any((b) => b.isStartupStall),
+      hasMinidump: false,
     );
   }
 

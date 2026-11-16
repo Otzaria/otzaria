@@ -621,6 +621,8 @@ void AppendBuildIdentity(const std::vector<ULONG_PTR>& frames,
 
 void AppendReport(const std::string& text) { AppendToLog(text); }
 
+std::wstring ErrorLogPath() { return ResolveLogPath(); }
+
 std::string UtcTimestamp() { return Timestamp(); }
 
 void Start() {

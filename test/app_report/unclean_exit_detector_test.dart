@@ -289,14 +289,60 @@ void main() {
           'Native crash',
           previousStart.add(const Duration(seconds: 3)),
           body:
-              'Exception code: 0xc0000409\n'
-              'Fault: 0x7ff612340000\n'
+              'Exception code: 0xc0000005\n'
+              'Fault: 0x0\n'
               'Stack: unavailable\n',
         ),
       );
       final candidate = await detector().detectPreviousCrash();
-      expect(candidate!.signature!.exceptionType, '0xc0000409');
+      expect(candidate!.signature!.exceptionType, '0xc0000005');
       expect(candidate.signature!.frames, isEmpty);
+    });
+
+    File marker() =>
+        File(p.join(logs.path, UncleanExitDetector.nativeCrashMarkerName));
+
+    String nativeCrashAt(DateTime at) => entry(
+      'Native crash',
+      at,
+      body: 'Exception code: 0xc0000005\nFault: flutter_windows.dll+0x10\n',
+    );
+
+    test('קריסה לפני כתיבת הנעילה: מזוהה מהסמן, פעם אחת בלבד', () async {
+      final at = previousStart.add(const Duration(milliseconds: 250));
+      writeErrors(
+        entry(
+              'Unhandled Error',
+              previousStart.subtract(const Duration(hours: 1)),
+            ) +
+            nativeCrashAt(at),
+      );
+      marker().writeAsStringSync(at.toIso8601String());
+
+      final candidate = await detector().detectPreviousCrash();
+      expect(
+        candidate!.signature!.exceptionType,
+        '0xc0000005 flutter_windows.dll+0x10',
+      );
+      expect(candidate.entries, hasLength(1));
+      expect(marker().existsSync(), isFalse);
+      expect(await detector().detectPreviousCrash(), isNull);
+    });
+
+    test('בלי סמן ובלי נעילה רשומה ישנה אינה מוצעת שוב', () async {
+      writeErrors(nativeCrashAt(previousStart));
+      expect(await detector().detectPreviousCrash(), isNull);
+    });
+
+    test('עם נעילה: הסמן נמחק והקריסה מזוהה מהנעילה', () async {
+      writeLock();
+      final at = previousStart.add(const Duration(minutes: 1));
+      writeErrors(nativeCrashAt(at));
+      marker().writeAsStringSync(at.toIso8601String());
+
+      final candidate = await detector().detectPreviousCrash();
+      expect(candidate!.signature!.frames, ['flutter_windows.dll+0x10']);
+      expect(marker().existsSync(), isFalse);
     });
   });
 
