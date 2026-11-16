@@ -161,52 +161,61 @@ void main() {
       expect(ranges.last, 'bytes=$partial-');
     },
   );
-  test(
-    'שינוי רשת מנתק גוף מושהה מיד אחרי הכותרות, גם בלי קריאה ממנו',
-    () async {
-      final disconnected = Completer<void>();
-      final socketServer = await ServerSocket.bind(
-        InternetAddress.loopbackIPv4,
-        0,
-      );
-      addTearDown(socketServer.close);
-      socketServer.listen((socket) {
-        var started = false;
-        Timer? timer;
-        void disconnectedSocket() {
-          timer?.cancel();
-          socket.destroy();
-          if (!disconnected.isCompleted) disconnected.complete();
-        }
-
-        socket.listen(
-          (_) {
-            if (started) return;
-            started = true;
-            socket.write(
-              'HTTP/1.1 200 OK\r\nContent-Length: 16777216\r\n\r\n',
-            );
-            timer = Timer.periodic(const Duration(milliseconds: 10), (_) {
-              socket.add(List.filled(1024, 1));
-            });
-          },
-          onDone: disconnectedSocket,
-          onError: (Object _) => disconnectedSocket(),
+  for (final listensToBody in [false, true]) {
+    test(
+      'שינוי רשת סוגר socket גם לפני צריכת הגוף (מאזין: $listensToBody)',
+      () async {
+        final disconnected = Completer<void>();
+        final socketServer = await ServerSocket.bind(
+          InternetAddress.loopbackIPv4,
+          0,
         );
-        addTearDown(disconnectedSocket);
-      });
-      await wifi(true);
-      final response = await client.send(
-        http.Request(
-          'GET',
-          Uri.http('127.0.0.1:${socketServer.port}', '/download'),
-        ),
-      );
-      final body = response.stream.listen((_) {}, onError: (Object _) {})
-        ..pause();
-      addTearDown(body.cancel);
-      network.add(false);
-      await disconnected.future.timeout(const Duration(seconds: 1));
-    },
-  );
+        addTearDown(socketServer.close);
+        socketServer.listen((socket) {
+          var started = false;
+          Timer? timer;
+          void disconnectedSocket() {
+            timer?.cancel();
+            socket.destroy();
+            if (!disconnected.isCompleted) disconnected.complete();
+          }
+
+          socket.listen(
+            (_) {
+              if (started) return;
+              started = true;
+              socket.write(
+                'HTTP/1.1 200 OK\r\nContent-Length: 16777216\r\n\r\n',
+              );
+              timer = Timer.periodic(const Duration(milliseconds: 10), (_) {
+                socket.add(List.filled(1024, 1));
+              });
+            },
+            onDone: disconnectedSocket,
+            onError: (Object _) => disconnectedSocket(),
+          );
+          addTearDown(disconnectedSocket);
+        });
+        await wifi(true);
+        final response = await client.send(
+          http.Request(
+            'GET',
+            Uri.http('127.0.0.1:${socketServer.port}', '/download'),
+          ),
+        );
+        if (listensToBody) {
+          final body = response.stream.listen((_) {}, onError: (Object _) {})
+            ..pause();
+          addTearDown(body.cancel);
+        } else {
+          addTearDown(
+            () =>
+                response.stream.listen((_) {}, onError: (Object _) {}).cancel(),
+          );
+        }
+        network.add(false);
+        await disconnected.future.timeout(const Duration(seconds: 1));
+      },
+    );
+  }
 }

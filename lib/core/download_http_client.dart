@@ -55,35 +55,10 @@ class DownloadHttpClient extends http.BaseClient {
       final response = await _inner.send(guarded);
       StreamSubscription<List<int>>? upstream;
       late final StreamController<List<int>> body;
-      // הרישום מיידי גם כשהצרכן משהה את הגוף, כדי שביטול יסגור את החיבור.
+      // ביטול IOClient אינו סוגר תגובה שטרם האזינו לה; נרשמים לפני צריכת הגוף.
       body = StreamController<List<int>>(
         sync: true,
-        onListen: () {
-          upstream = response.stream.listen(
-            (chunk) {
-              if (denied == null) {
-                body.add(chunk);
-              } else {
-                body.addError(DownloadNetworkPaused(denied!));
-                unawaited(upstream?.cancel());
-                release();
-                unawaited(body.close());
-              }
-            },
-            onError: (Object error, StackTrace stack) {
-              body.addError(
-                denied != null && error is http.RequestAbortedException
-                    ? DownloadNetworkPaused(denied!)
-                    : error,
-                stack,
-              );
-            },
-            onDone: () {
-              release();
-              unawaited(body.close());
-            },
-          );
-        },
+        onListen: () => upstream?.resume(),
         onPause: () => upstream?.pause(),
         onResume: () => upstream?.resume(),
         onCancel: () {
@@ -91,6 +66,30 @@ class DownloadHttpClient extends http.BaseClient {
           return upstream?.cancel();
         },
       );
+      upstream = response.stream.listen(
+        (chunk) {
+          if (denied == null) {
+            body.add(chunk);
+          } else {
+            body.addError(DownloadNetworkPaused(denied!));
+            unawaited(upstream?.cancel());
+            release();
+            unawaited(body.close());
+          }
+        },
+        onError: (Object error, StackTrace stack) {
+          body.addError(
+            denied != null && error is http.RequestAbortedException
+                ? DownloadNetworkPaused(denied!)
+                : error,
+            stack,
+          );
+        },
+        onDone: () {
+          release();
+          unawaited(body.close());
+        },
+      )..pause();
 
       return http.StreamedResponse(
         body.stream,
