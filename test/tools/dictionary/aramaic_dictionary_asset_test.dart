@@ -142,6 +142,13 @@ void main() {
       expect(duplicates, <String>{'איתא', 'קשוט'});
     });
 
+    test('ערכי בבלי נכנסו ל"פשיטא" (דוגמאות), עם פירושים מרובים מופרדים ב-***', () {
+      final map = {for (final e in entries) e.key: e.value};
+      expect(map['אאנפייהו'], 'על פניהם');
+      expect(map['מקצתן'], 'קצת מהם *** חלק מהם');
+      expect(map['מטראתא'], 'שקים גדולים (עבודה זרה י ע"ב)');
+    });
+
     test('ערכי הרגרסיה הקיימים נשמרו, גם אם נוספו להם משמעויות', () {
       Map<String, String> byKey() => {for (final e in entries) e.key: e.value};
       final map = byKey();
