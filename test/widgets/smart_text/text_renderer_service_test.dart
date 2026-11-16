@@ -12,6 +12,58 @@ Future<void> main() async {
   // את הספרייה הנייטיבית ומדולגים כשאין build זמין.
   final engineReady = await tryInitSearchEngine();
 
+  group('prepareInlineMarkers', () {
+    test('משתמש באותו עיבוד סימונים של הקורא ללא שינוי בפלט', () {
+      for (final html in [
+        'לפני<sup>1</sup><sup>2</sup> אחרי',
+        '<b>לפני<sup style="color: gray">1</sup></b>',
+        '<sup><a href="x">קישור</a></sup>',
+        'מספר<sub>12</sub> סוף',
+        '<sup class="footnote-marker">א</sup>',
+      ]) {
+        expect(
+          TextRendererService.prepareInlineMarkers(html),
+          TextRendererService.processText(
+            html,
+            const RenderSettings(formatParentheses: false),
+          ),
+        );
+      }
+    });
+
+    test('markup של הדגשה בלבד נשמר בתוך סימון מורם', () {
+      const source = 'לפני<sup>1</sup> סוף';
+      const marked = 'לפני<sup><span style="color: red">1</span></sup> סוף';
+      final processed = TextRendererService.prepareInlineMarkers(
+        marked,
+        unhighlighted: source,
+      );
+      expect(processed, contains('class="raised-sup"'));
+      expect(processed, contains('<span style="color: red">1</span>'));
+      expect(
+        TextRendererService.prepareInlineMarkers(marked),
+        contains('<sup>'),
+      );
+    });
+
+    test('מקור עם מספר סימוני sup שונה נדחה במפורש', () {
+      expect(
+        () => TextRendererService.prepareInlineMarkers(
+          '<sup>1</sup>',
+          unhighlighted: 'אחר',
+        ),
+        throwsArgumentError,
+      );
+      expect(
+        () => TextRendererService.prepareInlineMarkers(
+          'אחר',
+          unhighlighted: '<sup>1</sup>',
+        ),
+        throwsArgumentError,
+      );
+    });
+  });
+
   group('TextRendererService - סימוני הערות שוליים', () {
     const settings = RenderSettings();
 

@@ -140,6 +140,22 @@ class TextRendererService {
     return processed;
   }
 
+  /// מכין סימוני עילית ותחתית לציור המשותף; [unhighlighted] מכיל אותן תגיות
+  /// sup באותו סדר, לפני הוספת סימוני הדגשה בלבד.
+  static String prepareInlineMarkers(String html, {String? unhighlighted}) {
+    final source = unhighlighted ?? html;
+    if (!identical(html, source) &&
+        _supRegex.allMatches(html).length !=
+            _supRegex.allMatches(source).length) {
+      throw ArgumentError.value(
+        unhighlighted,
+        'unhighlighted',
+        'Superscript mismatch',
+      );
+    }
+    return _fixSubscripts(_fixFootnoteMarkers(html, source));
+  }
+
   // הקומפילציה משותפת לכל השורות כדי להימנע מהקצאה לכל סימון.
   static final RegExp _supRegex = RegExp(
     r'<sup(\s[^>]*)?>(.*?)</sup>',

@@ -10,6 +10,9 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/smart_text/otzaria_widget_factory.dart';
+import 'package:otzaria/widgets/smart_text/raised_markers.dart';
+import 'package:otzaria/widgets/smart_text/smart_text_css.dart';
+import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
@@ -757,34 +760,51 @@ class CorrectionHtml extends StatelessWidget {
   static String _css(Color color) =>
       '#${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
 
+  static final _markTags = RegExp(
+    '<(/?)($_targetTag|$_removedTag|$_addedTag)>',
+  );
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final styles = {
+      _targetTag:
+          'font-weight:bold;background-color:${_css(colorScheme.secondaryContainer)}',
+      _removedTag:
+          'text-decoration:line-through;color:${_css(colorScheme.onErrorContainer)};background-color:${_css(colorScheme.errorContainer)}',
+      _addedTag:
+          'font-weight:bold;color:${_css(colorScheme.onPrimaryContainer)};background-color:${_css(colorScheme.primaryContainer)}',
+    };
+    final marked = html.replaceAllMapped(
+      _markTags,
+      (match) =>
+          match[1] == '/' ? '</span>' : '<span style="${styles[match[2]]}">',
+    );
+    final processed = TextRendererService.prepareInlineMarkers(
+      marked,
+      unhighlighted: html.replaceAll(_markTags, ''),
+    );
     return Directionality(
       textDirection: direction,
-      child: HtmlWidget(
-        html,
-        textStyle: style,
-        factoryBuilder: OtzariaWidgetFactory.new,
-        // קישורים בשורה מובילים לספרים; בתוך דיווח הם לקריאה בלבד.
-        onTapUrl: (_) => true,
-        customStylesBuilder: (element) => switch (element.localName) {
-          _targetTag => {
-            'font-weight': 'bold',
-            'background-color': _css(colorScheme.secondaryContainer),
-          },
-          _removedTag => {
-            'text-decoration': 'line-through',
-            'color': _css(colorScheme.onErrorContainer),
-            'background-color': _css(colorScheme.errorContainer),
-          },
-          _addedTag => {
-            'font-weight': 'bold',
-            'color': _css(colorScheme.onPrimaryContainer),
-            'background-color': _css(colorScheme.primaryContainer),
-          },
-          _ => null,
-        },
+      child: RaisedMarkerOverlay.wrap(
+        context: context,
+        markers: RaisedMarkers.extract(processed),
+        baseStyle: style,
+        child: HtmlWidget(
+          processed,
+          textStyle: style,
+          factoryBuilder: OtzariaWidgetFactory.new,
+          // קישורים בשורה מובילים לספרים; בתוך דיווח הם לקריאה בלבד.
+          onTapUrl: (_) => true,
+          customStylesBuilder: (element) => smartTextElementCss(
+            element.localName,
+            element.classes,
+            hasHref: element.attributes.containsKey('href'),
+            fontFamily: style.fontFamily,
+            linkColorCss: _css(AppSurfaces.readerLink(colorScheme)),
+            headingColorCss: _css(colorScheme.onSurfaceVariant),
+          ),
+        ),
       ),
     );
   }
