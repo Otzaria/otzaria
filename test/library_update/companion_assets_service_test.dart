@@ -1243,6 +1243,7 @@ void main() {
       required String latestDigest,
       String? installedTagDigest,
       List<Uri>? requested,
+      List<String?>? assetRanges,
     }) {
       return MockClient((request) async {
         requested?.add(request.url);
@@ -1280,7 +1281,11 @@ void main() {
             200,
           );
         }
+        if (request.url.path.endsWith('/releases')) {
+          return http.Response('[]', 200);
+        }
         if (request.url.toString() == assetUrl) {
+          assetRanges?.add(request.headers['range']);
           return http.Response.bytes([1, 2, 3], 200);
         }
         return http.Response('not found', 404);
@@ -1316,16 +1321,21 @@ void main() {
     test('תג התחלף וה-digest שונה → מוריד ומחתים את ה-digest החדש', () async {
       createTalmudDir(markerTag: 'v1.0.0');
       cleanupTalmudTemp(talmudTempFile());
+      talmudTempFile().writeAsBytesSync([9]);
+      writeResumeState(talmudTempFile(), 'v1.0.0|3||');
       addTearDown(() => cleanupTalmudTemp(talmudTempFile()));
+      final assetRanges = <String?>[];
       final extractions = <({String archive, String outputDir})>[];
       await service(
         client: digestClient(
           latestDigest: bodyDigest,
           installedTagDigest: otherDigest,
+          assetRanges: assetRanges,
         ),
         extractions: extractions,
       ).verifyAndUpdate();
 
+      expect(assetRanges, [null], reason: 'תוכן שונה אינו ממשיך שריד ישן');
       expect(extractions, hasLength(1));
       expect(readMarker(), bodyDigest);
     });
@@ -1360,6 +1370,238 @@ void main() {
       expect(extractions, hasLength(1));
       expect(readMarker(), bodyDigest);
     });
+
+    test('release חדש עם אותו digest ממשיך את השריד מה-release הישן', () async {
+      final full = [...List.filled(50, 9), ...List.filled(50, 7)];
+      final digest = sha256.convert(full).toString();
+      const oldUrl = 'https://x/v1.9.0/talmud_bavli_latest.tar.zst';
+      Map<String, dynamic> releaseJson(
+        String tagName,
+        String url,
+        String sha, {
+        required int id,
+      }) => {
+        'tag_name': tagName,
+        'assets': [
+          {
+            'name': DatabaseConstants.talmudBavliArchiveFileName,
+            'browser_download_url': url,
+            'digest': 'sha256:$sha',
+            'size': 100,
+            'id': id,
+            'updated_at': 't$id',
+          },
+        ],
+      };
+      final latest = releaseJson(tag, assetUrl, digest, id: 2);
+      final releases = [
+        latest,
+        {'tag_name': 'fordb-1', 'assets': []},
+        releaseJson('v1.9.0', oldUrl, digest, id: 1),
+        releaseJson('v1.8.0', 'https://x/v1.8.0/t', 'b' * 64, id: 0),
+      ];
+
+      final talmudTemp = talmudTempFile();
+      talmudTemp.writeAsBytesSync(full.sublist(0, 50));
+      writeResumeState(talmudTemp, 'v1.9.0|100|1|t1');
+      addTearDown(() => cleanupTalmudTemp(talmudTemp));
+
+      final downloads = <String>[];
+      final client = MockClient((request) async {
+        final url = request.url.toString();
+        if (request.url.path.contains('releases/latest')) {
+          return http.Response(jsonEncode(latest), 200);
+        }
+        if (request.url.path.endsWith('/releases')) {
+          final page = request.url.queryParameters['page'];
+          return http.Response(jsonEncode(page == '1' ? releases : []), 200);
+        }
+        if (url == oldUrl || url == assetUrl) {
+          downloads.add(
+            '$url ${request.headers['range']} ${request.headers['if-range']}',
+          );
+          if (url == oldUrl && request.headers['if-range'] == '"e1"') {
+            return http.Response.bytes(
+              full.sublist(50),
+              206,
+              headers: const {
+                'content-range': 'bytes 50-99/100',
+                'etag': '"e1"',
+              },
+            );
+          }
+          return http.Response.bytes(full, 200);
+        }
+        return http.Response('not found', 404);
+      });
+
+      final extractions = <({String archive, String outputDir})>[];
+      await service(client: client, extractions: extractions).verifyAndUpdate();
+
+      expect(downloads, [
+        '$oldUrl bytes=50- "e1"',
+      ], reason: 'ההמשך מאותה העלאה, בלי הורדה מאפס');
+      expect(extractions, hasLength(1));
+      expect(readMarker(), digest);
+    });
+
+    for (final segmented in [false, true]) {
+      for (final failure in [
+        (page: 1, kind: 'HTTP'),
+        (page: 2, kind: 'HTTP'),
+        (page: 1, kind: 'JSON'),
+        (page: 2, kind: 'JSON'),
+        (page: 3, kind: 'limit'),
+      ]) {
+        final failingPage = failure.page;
+        test(
+          'כשל ${failure.kind} בעמוד $failingPage בסריקת המקור משמר '
+          '${segmented ? "טווחים מקבילים" : "שריד ומאפשר המשך בניסיון הבא"}',
+          () async {
+            final full = [...List.filled(50, 9), ...List.filled(50, 7)];
+            final digest = sha256.convert(full).toString();
+            final size = segmented
+                ? PatchDownloader.defaultSegmentThresholdBytes
+                : full.length;
+            const oldUrl = 'https://x/v1.9.0/talmud_bavli_latest.tar.zst';
+            final identity = 'v1.9.0|$size|1|t1';
+            Map<String, dynamic> releaseJson(
+              String releaseTag,
+              String url,
+              int id,
+            ) => {
+              'tag_name': releaseTag,
+              'assets': [
+                {
+                  'name': DatabaseConstants.talmudBavliArchiveFileName,
+                  'browser_download_url': url,
+                  'digest': 'sha256:$digest',
+                  'size': size,
+                  'id': id,
+                  'updated_at': 't$id',
+                },
+              ],
+            };
+            final latest = releaseJson(tag, assetUrl, 2);
+            final oldest = releaseJson('v1.9.0', oldUrl, 1);
+            final talmudTemp = talmudTempFile();
+            cleanupTalmudTemp(talmudTemp);
+            talmudTemp.writeAsBytesSync(full.sublist(0, 50));
+            writeResumeState(talmudTemp, identity);
+            final sidecars = <String, String>{
+              '.resume': '$identity\n"e1"',
+              '.meta': 'legacy sidecar',
+              if (segmented)
+                '.segments': jsonEncode({
+                  'v': 1,
+                  'token': identity,
+                  'url': oldUrl,
+                  'size': size,
+                  'sha256': digest,
+                  'bounds': [0, 50, size],
+                  'assembled': 1,
+                  'etag': '"e1"',
+                }),
+              if (segmented) '.seg-1': 'downloaded segment',
+            };
+            for (final entry in sidecars.entries) {
+              File(
+                '${talmudTemp.path}${entry.key}',
+              ).writeAsStringSync(entry.value);
+            }
+            addTearDown(() {
+              cleanupTalmudTemp(talmudTemp);
+              for (final suffix in ['.segments', '.seg-1']) {
+                final file = File('${talmudTemp.path}$suffix');
+                if (file.existsSync()) file.deleteSync();
+              }
+            });
+
+            var scanFails = true;
+            final downloads = <String>[];
+            final client = MockClient((request) async {
+              final url = request.url.toString();
+              if (request.url.path.contains('releases/latest')) {
+                return http.Response(jsonEncode(latest), 200);
+              }
+              if (request.url.path.endsWith('/releases')) {
+                final page = int.parse(request.url.queryParameters['page']!);
+                if (scanFails && failure.kind == 'limit') {
+                  return http.Response(
+                    jsonEncode(
+                      List.generate(
+                        100,
+                        (index) => releaseJson(
+                          'window-$page-$index',
+                          'https://x/window-$page-$index/talmud.tar.zst',
+                          page * 100 + index,
+                        ),
+                      ),
+                    ),
+                    200,
+                  );
+                }
+                if (scanFails && page == failingPage) {
+                  return failure.kind == 'JSON'
+                      ? http.Response('{}', 200)
+                      : http.Response('temporarily unavailable', 503);
+                }
+                return http.Response(
+                  jsonEncode(page == 1 ? [latest, oldest] : []),
+                  200,
+                );
+              }
+              if (request.url.host == 'x') {
+                downloads.add(url);
+                expect(request.headers['range'], 'bytes=50-');
+                expect(request.headers['if-range'], '"e1"');
+                return http.Response.bytes(
+                  full.sublist(50),
+                  206,
+                  headers: const {
+                    'content-range': 'bytes 50-99/100',
+                    'etag': '"e1"',
+                  },
+                );
+              }
+              return http.Response('not found', 404);
+            });
+            final extractions = <({String archive, String outputDir})>[];
+            final catalog = _FakeCatalogRepository(exists: true);
+            final updater = service(
+              client: client,
+              catalog: catalog,
+              extractions: extractions,
+            );
+            final changed = await updater.verifyAndUpdate();
+
+            expect(
+              downloads,
+              isEmpty,
+              reason: 'כשל סריקה אינו משנה מקור הורדה',
+            );
+            expect(changed, isFalse);
+            expect(extractions, isEmpty);
+            expect(catalog.updateCalled, isTrue);
+            expect(talmudTemp.readAsBytesSync(), full.sublist(0, 50));
+            for (final entry in sidecars.entries) {
+              expect(
+                File('${talmudTemp.path}${entry.key}').readAsStringSync(),
+                entry.value,
+              );
+            }
+
+            if (!segmented) {
+              scanFails = false;
+              await updater.verifyAndUpdate();
+              expect(downloads, [oldUrl]);
+              expect(extractions, hasLength(1));
+              expect(readMarker(), digest);
+            }
+          },
+        );
+      }
+    }
 
     test('תיקייה קיימת ללא סימון → מוריד ומחתים את ה-digest הנוכחי', () async {
       createTalmudDir();
