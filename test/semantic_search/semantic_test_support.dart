@@ -221,6 +221,25 @@ class FakeBackend implements SemanticEngineBackend {
     required SemanticCancelHandle cancel,
   }) async => throw UnimplementedError();
 
+  /// מה [coveredBooks] מחזיר; `null` = כשל.
+  SemanticCoveredBooksSummary? coveredBooksValue;
+  Completer<void>? coveredBooksGate;
+
+  @override
+  Future<SemanticCoveredBooksSummary> coveredBooks(
+    String vectorsDir, {
+    required SemanticCancelHandle cancel,
+  }) async {
+    calls.add('coveredBooks');
+    final gate = coveredBooksGate;
+    if (gate != null) await gate.future;
+    if (cancel.isCancelled) {
+      throw const SemanticFailure(SemanticFailureKind.cancelled);
+    }
+    return coveredBooksValue ??
+        (throw const SemanticFailure(SemanticFailureKind.artifactMissing));
+  }
+
   @override
   Future<SemanticBackendStatus> open(SemanticOpenRequest request) async {
     calls.add('open');
@@ -419,6 +438,7 @@ SemanticSearchRepository buildRepository({
   Duration busyRetryDelay = const Duration(milliseconds: 20),
   Future<String> Function(SemanticVectorsFamily family)? identityLoader,
   String? Function()? onnxRuntimePath,
+  Future<String> Function()? indexStamp,
 }) {
   return SemanticSearchRepository(
     backend: backend ?? FakeBackend(),
@@ -438,6 +458,7 @@ SemanticSearchRepository buildRepository({
         (_) async => DiskSpaceInfo(volumeId: 'C', freeBytes: freeBytes),
     modelReleases: modelReleases ?? testModelReleases,
     busyRetryDelay: busyRetryDelay,
+    indexStamp: indexStamp ?? () async => 'index',
   );
 }
 

@@ -1540,6 +1540,10 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
         final result = await showInBookAdvancedSearchDialog(
           context,
           bookTitle: widget.bookTitle,
+          book: switch (pdfBookBloc.state) {
+            PdfBookLoaded(:final book) => book,
+            _ => null,
+          },
           query: widget.searchController.text,
           settings: _settings,
         );

@@ -223,6 +223,22 @@ class SemanticCoverageSummary extends Equatable {
   ];
 }
 
+/// הספרים שהסט מכסה (`semanticCoveredBooks`), לפי ה-filePath שלהם באינדקס.
+class SemanticCoveredBooksSummary extends Equatable {
+  final List<String> filePaths;
+
+  /// משתנה בכל שינוי במה שהסט מגיש; להשוואה בלבד.
+  final String setKey;
+
+  const SemanticCoveredBooksSummary({
+    required this.filePaths,
+    required this.setKey,
+  });
+
+  @override
+  List<Object?> get props => [filePaths, setKey];
+}
+
 /// בקשת פתיחה של סט הוקטורים והמודל (`openSemanticArtifact`).
 class SemanticOpenRequest extends Equatable {
   final String vectorsDir;

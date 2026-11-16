@@ -9,6 +9,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:http/http.dart' as http;
 import 'package:otzaria/data/constants/database_constants.dart';
+import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/library_update/services/companion_assets_service.dart';
 import 'package:otzaria/library_update/services/github_rate_limit.dart';
 import 'package:otzaria/search/search_engine_gateway.dart'
@@ -86,8 +87,10 @@ class SemanticSearchRepository {
     bool Function()? isPlatformSupported,
     Future<DiskSpaceInfo> Function(String path)? diskSpace,
     Map<SemanticQuantization, SemanticModelRelease?>? modelReleases,
+    Future<String> Function()? indexStamp,
     this._busyRetryDelay = const Duration(minutes: 2),
-  }) : _backend = backend ?? createSemanticEngineBackend(),
+  }) : _indexStamp = indexStamp ?? _defaultIndexStamp,
+       _backend = backend ?? createSemanticEngineBackend(),
        _consentFactory = consent ?? (() => SearchFeedbackService.instance),
        _settings = settings ?? const SettingsSemanticSettingsStore(),
        _basePaths = paths ?? _defaultPaths,
@@ -131,6 +134,7 @@ class SemanticSearchRepository {
   final String? Function() _onnxRuntimePath;
   final bool Function() _isPlatformSupported;
   final Future<DiskSpaceInfo> Function(String path) _diskSpace;
+  final Future<String> Function() _indexStamp;
   final Map<SemanticQuantization, SemanticModelRelease?>?
   _modelReleaseOverrides;
 
@@ -250,6 +254,10 @@ class SemanticSearchRepository {
   SemanticQuantization? _openQuantization;
   final SemanticSearchSession _defaultSession = SemanticSearchSession();
   final Set<SemanticCancelHandle> _activeSearches = {};
+  _CoveredBooks? _covered;
+  bool _coveredValid = false;
+  int _coveredEpoch = 0;
+  Future<Set<String>?>? _coveredJob;
 
   /// המצב האחרון שחושב.
   SemanticAvailability get availability => _availability;
@@ -543,6 +551,65 @@ class SemanticSearchRepository {
     cancel: cancel ?? SemanticCancelHandle(),
   );
 
+  /// ה-filePath באינדקס של הספרים שיש להם וקטורים, כפי שחושב לאחרונה;
+  /// `null` כשעוד לא חושב או כשהסט או האינדקס השתנו מאז.
+  Set<String>? get coveredBookFilePaths =>
+      _coveredValid ? _covered?.filePaths : null;
+
+  /// מחשב את [coveredBookFilePaths] כשצריך, אחרי פתיחת ה-session; קוראים
+  /// במקביל חולקים חישוב אחד. כשל או ביטול מחזירים `null`.
+  Future<Set<String>?> loadCoveredBookFilePaths() =>
+      _coveredJob ??= _loadCovered().whenComplete(() => _coveredJob = null);
+
+  Future<Set<String>?> _loadCovered() async {
+    final cancel = SemanticCancelHandle();
+    _activeSearches.add(cancel);
+    try {
+      await ensureOpen();
+      // סט או אינדקס שהשתנו באמצע החישוב מחייבים חישוב נוסף.
+      for (var attempt = 0; attempt < 2 && !cancel.isCancelled; attempt++) {
+        final epoch = _coveredEpoch;
+        final stamp = await _indexStamp();
+        final previous = _covered;
+        if (_coveredValid && previous?.indexStamp == stamp) {
+          return previous!.filePaths;
+        }
+        final answer = await _backend.coveredBooks(
+          (await _paths()).vectorsDirectory,
+          cancel: cancel,
+        );
+        if (epoch != _coveredEpoch) continue;
+        final unchanged =
+            previous != null &&
+            previous.setKey == answer.setKey &&
+            previous.indexStamp == stamp;
+        _covered = unchanged
+            ? previous
+            : _CoveredBooks(
+                setKey: answer.setKey,
+                indexStamp: stamp,
+                filePaths: Set.unmodifiable(answer.filePaths),
+              );
+        _coveredValid = true;
+        return _covered!.filePaths;
+      }
+      return null;
+    } catch (error, stackTrace) {
+      if (error is! SemanticFailure ||
+          error.kind != SemanticFailureKind.cancelled) {
+        _log('coveredBooks', error, stackTrace);
+      }
+      return null;
+    } finally {
+      _activeSearches.remove(cancel);
+    }
+  }
+
+  void _invalidateCoveredBooks() {
+    _coveredEpoch++;
+    _coveredValid = false;
+  }
+
   /// תמונת המנוע לטלמטריה: מצב, זהות המודל, החבילה והוקטורים המותקנים.
   Future<SemanticEngineSnapshot> engineSnapshot() async {
     final status = await _safeStatus();
@@ -751,6 +818,7 @@ class SemanticSearchRepository {
       throw const SemanticFailure(SemanticFailureKind.cancelled);
     }
     _openQuantization = quantization;
+    _invalidateCoveredBooks();
     unawaited(_warmUp());
   }
 
@@ -779,6 +847,7 @@ class SemanticSearchRepository {
     bool invalidateOpening = true,
   }) async {
     if (invalidateOpening) _lifecycleEpoch++;
+    _invalidateCoveredBooks();
     final wasOpen = _openQuantization != null;
     _openQuantization = null;
     _passageModelVerification = null;
@@ -1429,6 +1498,7 @@ class SemanticSearchRepository {
     }
     _needsRepair = false;
     if (repair) _lastFailure = null;
+    _invalidateCoveredBooks();
     _vectors = await _backend.vectorsInfo(paths.vectorsDirectory);
     return true;
   }
@@ -1450,6 +1520,7 @@ class SemanticSearchRepository {
       // גרסת המסד אינה מוכיחה שהאינדקס מלא ועדכני; בלי גרסת אינדקס מאומתת
       // מאחדים בלי לנפות רשומות מול האינדקס, שעשוי להיות חלקי.
       await _backend.compactVectors(dir, cancel: cancel);
+      _invalidateCoveredBooks();
       if (!cancel.isCancelled) _vectors = await _backend.vectorsInfo(dir);
     } on SemanticFailure catch (failure) {
       if (failure.kind == SemanticFailureKind.vectorsBusy) {
@@ -1941,12 +2012,29 @@ class SemanticSearchRepository {
     );
   }
 
+  /// משתנה בכל שינוי בתוכן האינדקס הלקסיקלי, שגם בו תלוי הכיסוי.
+  static Future<String> _defaultIndexStamp() async =>
+      (await TantivyDataProvider.instance.engine).searchSnapshot();
+
   static Future<int?> _defaultLibraryVersion() async =>
       int.tryParse(await DataCollectionService().readLibraryVersion());
 
   static void _log(String step, Object error, StackTrace stackTrace) {
     debugPrint('[SemanticSearch] $step: $error\n$stackTrace');
   }
+}
+
+/// תשובת הכיסוי האחרונה, והמצב של הסט והאינדקס שהיא נכונה להם.
+class _CoveredBooks {
+  const _CoveredBooks({
+    required this.setKey,
+    required this.indexStamp,
+    required this.filePaths,
+  });
+
+  final String setKey;
+  final String indexStamp;
+  final Set<String> filePaths;
 }
 
 /// release של רכיב החיפוש והקבצים ממנו שחסרים במכשיר.

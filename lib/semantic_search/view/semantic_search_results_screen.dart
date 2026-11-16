@@ -31,6 +31,7 @@ import 'package:otzaria/semantic_search/bloc/semantic_results_bloc.dart';
 import 'package:otzaria/semantic_search/models/semantic_engine_models.dart';
 import 'package:otzaria/semantic_search/models/semantic_mode_gate.dart';
 import 'package:otzaria/semantic_search/repository/semantic_platform_support.dart';
+import 'package:otzaria/semantic_search/repository/semantic_search_repository.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria/semantic_search/services/semantic_dwell_binding.dart';
 import 'package:otzaria/semantic_search/view/semantic_mode_panel.dart';
@@ -167,14 +168,18 @@ class _SemanticSearchResultsScreenState
       ...(categories.isEmpty ? scope : categories),
       ...dimensions,
     ];
-    final isOfficialCategory = officialCategoryFilter(
-      context.read<LibraryBloc>().state.library,
+    final library = context.read<LibraryBloc>().state.library;
+    final isOfficialCategory = officialCategoryFilter(library);
+    final isCoveredFacet = coveredFacetFilter(
+      library,
+      SemanticSearchRepository.instance.coveredBookFilePaths,
     );
     if (!selection.every(
       (facet) => isSemanticScopeFacetSupported(
         facet,
         includeLexical: widget.tab.options.includeLexical,
         isOfficialCategory: isOfficialCategory,
+        isCoveredFacet: isCoveredFacet,
       ),
     )) {
       UiSnack.showError(SemanticSearchMessages.unsupportedScope);
