@@ -567,9 +567,10 @@ class _AdaptiveTopBarLayout extends MultiChildLayoutDelegate {
     final trailingReserve = hasTrailing ? minTrailingWidth : 0.0;
 
     if (hasChild(_AdaptiveTopBarSlot.leading)) {
+      // הפקדים הקבועים קודמים לרוחב המרכז המזערי; הכותרת מצטמצמת כשצריך.
       final maxLeadingWidth = math.max(
         0.0,
-        size.width - middleReserve - spacingReserve - trailingReserve,
+        size.width - spacingReserve - trailingReserve,
       );
 
       leadingSize = layoutChild(
@@ -583,7 +584,7 @@ class _AdaptiveTopBarLayout extends MultiChildLayoutDelegate {
 
     if (hasTrailing) {
       final maxTrailingWidth = math.max(
-        0.0,
+        trailingReserve,
         size.width - leadingSize.width - middleReserve - spacingReserve,
       );
 

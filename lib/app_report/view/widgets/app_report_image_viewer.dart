@@ -13,6 +13,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
+import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
@@ -169,6 +170,7 @@ class _AppReportImageViewerState extends State<AppReportImageViewer> {
       icon: FluentIcons.image_24_regular,
       size: AppDialogSize.full,
       isDirty: widget.editable ? _dirty : null,
+      confirmDiscard: confirmDiscardChanges,
       closeEnabled: !_saving,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,

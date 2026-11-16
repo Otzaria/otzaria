@@ -21,6 +21,47 @@ void main() {
   });
 
   group('AppTopBar', () {
+    for (final direction in TextDirection.values) {
+      testWidgets('פקדים קבועים מצמצמים כותרת בסרגל צר $direction', (
+        tester,
+      ) async {
+        const leading = Key('fixed-leading');
+        const middle = Key('shrinking-title');
+        const trailing = Key('fixed-trailing');
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Directionality(
+              textDirection: direction,
+              child: Center(
+                child: SizedBox(
+                  width: 300,
+                  child: AppTopBar(
+                    minCenterWidth: 80,
+                    minTrailingWidth: 52,
+                    leadingItems: const [
+                      AppTopBarItem(
+                        widget: SizedBox(key: leading, width: 140, height: 40),
+                      ),
+                    ],
+                    center: const SizedBox(key: middle, width: 80, height: 40),
+                    trailingItems: const [
+                      AppTopBarItem(
+                        widget: SizedBox(key: trailing, width: 52, height: 40),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        expect(tester.getSize(find.byKey(leading)).width, 140);
+        expect(tester.getSize(find.byKey(trailing)).width, 52);
+        expect(tester.getSize(find.byKey(middle)).width, lessThan(80));
+      });
+    }
+
     testWidgets(
       'does not update height notifier synchronously when visibility notifier instance changes',
       (tester) async {
