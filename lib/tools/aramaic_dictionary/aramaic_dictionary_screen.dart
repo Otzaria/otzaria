@@ -106,9 +106,6 @@ Map<String, String> _mergeGroup(List<Map<String, String>> group) => {
   'hebrewPlain': group.map((e) => e['hebrewPlain']!).join(' '),
 };
 
-// בלי גרשיים, כמו בתפריט ההקשר: "ב"ד" צריך למצוא גם את המפתח ב''ד.
-String _stripQuotes(String text) => text.replaceAll(RegExp("[\"'״׳]"), '');
-
 class AramaicDictionaryScreen extends StatefulWidget {
   const AramaicDictionaryScreen({super.key, this.repository, this.queryInbox});
 
@@ -172,17 +169,20 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen>
     try {
       await _dictionaryRepository.ensureAramaicLoaded();
       final entries = _dictionaryRepository.getAllAramaicEntries();
+      final normalizedKeys = _dictionaryRepository.getAramaicNormalizedKeys();
 
       if (!mounted) return;
 
       setState(() {
-        _dictionaryData = entries.map((entry) {
+        _dictionaryData = entries.indexed.map((item) {
+          final (index, entry) = item;
           return <String, String>{
             'aramaic': entry.aramaic,
             'hebrew': entry.hebrew,
             'dictionary': entry.dictionary,
             // שדות החיפוש בלי ניקוד, כדי שהקלדה רגילה תמצא ערכים מנוקדים.
-            'aramaicPlain': _stripQuotes(removeVolwels(entry.aramaic)),
+            // המפתח הארמי הוא אותו מפתח מנורמל שבו משתמשים תפריט ההקשר וה-API.
+            'aramaicPlain': normalizedKeys[index],
             'hebrewPlain': removeVolwels(
               AramaicDictionaryEntryPresentation.parse(
                 entry.hebrew,
@@ -207,8 +207,9 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen>
   }
 
   void _performSearch(String query) {
-    query = removeVolwels(query.trim());
-    if (!_isHebrewToAramaic) query = _stripQuotes(query);
+    query = _isHebrewToAramaic
+        ? _dictionaryRepository.normalizeHebrewMeaningQuery(query)
+        : _dictionaryRepository.normalizeAramaicQuery(query);
 
     if (query.isEmpty) {
       setState(() {

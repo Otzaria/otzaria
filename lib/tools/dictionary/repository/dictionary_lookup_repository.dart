@@ -525,6 +525,25 @@ class DictionaryLookupRepository {
   /// במקום לתת לכל קריאה ל-[acronymMatchesQuery] לנרמל את אותה שאילתה מחדש.
   String normalizeAcronymQuery(String raw) => _normalizeAcronym(raw);
 
+  /// מנרמל מפתח ארמי בלי ניקוד, גרשיים וקישוטים בקצוות, וברווחים מצומצמים.
+  /// משותף לתפריט ההקשר, ל-API לתוספים ולמסך הכלי.
+  String normalizeAramaicQuery(String raw) => _normalizeAramaic(raw);
+
+  /// מסיר ניקוד וקישוטים בקצוות; פירושים עשויים להכיל גם מספרים ולועזית.
+  /// הגרשיים נשמרים כי הם חלק מהמילה (ר"ח).
+  String normalizeHebrewMeaningQuery(String raw) => utils
+      .removeVolwels(raw)
+      .trim()
+      .replaceAll(RegExp(r'''^[^\p{L}\p{N}"״׳']+''', unicode: true), '')
+      .replaceAll(RegExp(r'''[^\p{L}\p{N}"״׳'\s]+$''', unicode: true), '')
+      .trim();
+
+  /// המפתחות המנורמלים של [getAllAramaicEntries], באותו סדר ובדיוק כפי שהאינדקס
+  /// משווה אותם. מסך הכלי משתמש בהם במקום לנרמל את הערכים בעצמו.
+  List<String> getAramaicNormalizedKeys() => List<String>.unmodifiable([
+    for (final indexed in _aramaicIndex) indexed.normalized,
+  ]);
+
   /// מחזיר את כל רשומות המילון הארמי-עברי, מכל המילונים ובסדר הקובץ.
   List<AramaicDictionaryEntry> getAllAramaicEntries() {
     return List<AramaicDictionaryEntry>.unmodifiable(_aramaicEntries);

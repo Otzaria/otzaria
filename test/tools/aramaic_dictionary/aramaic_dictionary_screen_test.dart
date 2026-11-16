@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -98,6 +100,74 @@ void main() {
 
     expect(find.textContaining('בית דין'), findsOneWidget);
   });
+
+  testWidgets('פיסוק וסימני כיווניות בקצוות השאילתה אינם מונעים התאמה', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+
+    // כמו בתפריט ההקשר: מילה שהועתקה מטקסט מגיעה עם פסיק, סוגריים או RLM.
+    for (final query in ['איתא,', '(איתא)', '‏איתא', 'איתא?', '"איתא"']) {
+      await tester.enterText(find.byType(TextField), query);
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(AramaicResultCard),
+        findsOneWidget,
+        reason: 'שאילתה: ${query.codeUnits}',
+      );
+    }
+
+    await tester.enterText(find.byType(TextField), 'ב"ד,');
+    await tester.pumpAndSettle();
+    expect(find.textContaining('בית דין'), findsOneWidget);
+  });
+
+  testWidgets('בחיפוש עברי פיסוק בקצה השאילתה אינו מונע התאמה', (tester) async {
+    await pumpScreen(tester);
+
+    await tester.tap(find.text('עברית לארמית'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'עץ,');
+    await tester.pumpAndSettle();
+    expect(find.byType(AramaicResultCard), findsOneWidget);
+  });
+
+  for (final (query, expected) in [
+    ('1/3', 'תילתא'),
+    ('2000', 'קפיץ מילא'),
+  ]) {
+    testWidgets('חיפוש פירוש מספרי $query בנכס המלא מוצא $expected', (
+      tester,
+    ) async {
+      final bloc = StubSettingsBloc();
+      addTearDown(bloc.close);
+      final entries = DictionaryLookupRepository.decodeAramaicIndex(
+        File('assets/dictionary.json').readAsStringSync(),
+      ).entries;
+      final repository = DictionaryLookupRepository(
+        loadAramaicEntries: () async => entries,
+      );
+      await tester.pumpWidget(
+        _wrap(AramaicDictionaryScreen(repository: repository), bloc),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('עברית לארמית'));
+      await tester.pumpAndSettle();
+
+      for (final decorated in [query, '($query)', '‏$query,']) {
+        await tester.enterText(find.byType(TextField), decorated);
+        await tester.pumpAndSettle();
+        expect(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is AramaicResultCard && widget.aramaic == expected,
+          ),
+          findsOneWidget,
+          reason: decorated,
+        );
+      }
+    });
+  }
 
   testWidgets('חיפוש עברי אינו מתאים לביטוי הארמי שבסוגריים מסולסלים', (
     tester,
