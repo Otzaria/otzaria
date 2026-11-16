@@ -5456,10 +5456,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       layouts.length - 1,
     );
     final page = layouts[index];
+    final gapBefore = index > 0 ? page.top - layouts[index - 1].bottom : 0.0;
+    final gapAfter = index + 1 < layouts.length
+        ? layouts[index + 1].top - page.bottom
+        : 0.0;
     _verticalCacheExtent.value = pdfVerticalCacheExtent(
-      pageStride: index + 1 < layouts.length
-          ? layouts[index + 1].top - page.top
-          : page.height,
+      pageStride: page.height + max(gapBefore, gapAfter),
       visibleHeight: controller.visibleRect.height,
     );
   }

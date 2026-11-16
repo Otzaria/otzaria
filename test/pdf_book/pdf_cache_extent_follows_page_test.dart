@@ -17,6 +17,7 @@ import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
+import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdfrx/pdfrx.dart';
 
@@ -47,7 +48,7 @@ void main() {
       'build/native_assets/${Platform.operatingSystem}/${Platform.isWindows
           ? 'pdfium.dll'
           : Platform.isMacOS
-          ? 'libpdfium.dylib'
+          ? 'libpdfium_dart.dylib'
           : 'libpdfium.so'}',
     ).absolute.path;
     addTearDown(() => Pdfrx.pdfiumModulePath = originalModulePath);
@@ -56,7 +57,12 @@ void main() {
       await pdfrxFlutterInitialize();
       final pdf = pw.Document();
       for (var i = 0; i < 6; i++) {
-        pdf.addPage(pw.Page(build: (_) => pw.Center(child: pw.Text('$i'))));
+        pdf.addPage(
+          pw.Page(
+            pageFormat: PdfPageFormat(595, i == 5 ? 920 : 842),
+            build: (_) => pw.Center(child: pw.Text('$i')),
+          ),
+        );
       }
       File(path).writeAsBytesSync(await pdf.save());
     });
@@ -133,6 +139,25 @@ void main() {
     );
     await settle();
     expect(params().verticalCacheExtent, 1);
+
+    // בסוף המסמך גם הרווח שלפני הדף נדרש כדי להגיע לדף הקודם.
+    final last = layouts.last;
+    final previous = layouts[layouts.length - 2];
+    final gap = last.top - previous.bottom;
+    final visibleHeight = (last.height + gap / 2) / 2;
+    await controller.goTo(
+      controller.calcMatrixFor(
+        Offset(last.center.dx, last.bottom - visibleHeight / 2),
+        zoom: controller.viewSize.height / visibleHeight,
+      ),
+      duration: Duration.zero,
+    );
+    await settle();
+    expect(controller.pageNumber, layouts.length);
+    final cache = controller.visibleRect.inflate(
+      controller.visibleRect.height * params().verticalCacheExtent,
+    );
+    expect(cache.overlaps(previous), isTrue);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await settle();

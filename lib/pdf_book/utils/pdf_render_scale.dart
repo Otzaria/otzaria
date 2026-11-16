@@ -33,5 +33,6 @@ double pdfVerticalCacheExtent({
   if (!pageStride.isFinite || !visibleHeight.isFinite) return 1;
   if (pageStride <= 0 || visibleHeight <= 0) return 1;
   final extent = pageStride / visibleHeight - 1;
-  return math.max(1.0, (extent * 2).ceil() / 2);
+  // נגיעה בגבול העמוד הבא אינה חפיפה, ולכן נדרשת המדרגה שמעליו.
+  return math.max(1.0, ((extent * 2).floor() + 1) / 2);
 }

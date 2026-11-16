@@ -78,6 +78,20 @@ void main() {
       expect(pdfVerticalCacheExtent(pageStride: 912, visibleHeight: 396), 1.5);
     });
 
+    test('גם בגבול מדרגה הטווח חופף לעמוד הבא ולא רק נוגע בו', () {
+      const visible = 900.0;
+      for (final ratio in [2.0, 2.5, 3.0, 3.5, 5.0, 20.0]) {
+        final stride = visible * ratio;
+        final extent = pdfVerticalCacheExtent(
+          pageStride: stride,
+          visibleHeight: visible,
+        );
+        expect(visible * (1 + extent), greaterThan(stride), reason: '$ratio');
+        expect(extent * 2, (extent * 2).round());
+        expect(visible * (1 + extent), lessThan(2 * stride));
+      }
+    });
+
     test('ערך לא תקין חוזר לטווח הרגיל', () {
       expect(pdfVerticalCacheExtent(pageStride: 0, visibleHeight: 400), 1);
       expect(pdfVerticalCacheExtent(pageStride: 900, visibleHeight: 0), 1);
