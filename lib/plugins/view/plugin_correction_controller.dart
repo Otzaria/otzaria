@@ -36,6 +36,9 @@ class PluginCorrectionController extends TextEditingController {
   List<CorrectionFormat> _formats = const [];
   String _sourceEditorText = '';
   List<CorrectionFormat> _sourceEditorFormats = const [];
+  TextEditingValue? _editingValue;
+  Object _formatSource = Object();
+  List<({int end, CorrectionFormat format})> _runs = const [];
 
   PluginCorrectionController(String raw) {
     setSource(raw);
@@ -53,23 +56,147 @@ class PluginCorrectionController extends TextEditingController {
       formats.length - _suffix.length,
     );
     _formats = _sourceEditorFormats;
-    super.value = TextEditingValue(text: text);
+    _formatSource = Object();
+    _runs = _formatRuns(_formats);
+    _setFormattedValue(TextEditingValue(text: text));
   }
 
   /// עיצוב כל יחידת UTF-16 בטקסט שבעורך.
   List<CorrectionFormat> get formats => List.unmodifiable(_formats);
 
   @override
+  TextEditingValue get value => _editingValue ?? super.value;
+
+  @override
   set value(TextEditingValue newValue) {
-    // ממפים תמיד מהמקור, כדי שביטול או החזרת טקסט ישחזרו את עיצובו.
-    if (newValue.text != text) {
-      _formats = _remapFormats(
-        _sourceEditorText,
-        newValue.text,
-        _sourceEditorFormats,
-      );
+    if (newValue is _FormattedEditingValue &&
+        identical(newValue.source, _formatSource)) {
+      if (!identical(newValue.runs, _runs)) {
+        _formats = newValue.expandFormats();
+        _runs = newValue.runs;
+      }
+    } else if (newValue.text != text) {
+      _formats =
+          !newValue.selection.isValid && newValue.text == _sourceEditorText
+          ? _sourceEditorFormats
+          : _editFormats(value, newValue, _formats);
+      _runs = _formatRuns(_formats);
     }
-    super.value = newValue;
+    _setFormattedValue(newValue);
+  }
+
+  /// שחזור טיוטה שאין עמה היסטוריית עריכה: העיצוב נגזר ממקור הפסקה.
+  void restoreDraftValue(TextEditingValue newValue) {
+    _formats = _remapFormats(
+      _sourceEditorText,
+      newValue.text,
+      _sourceEditorFormats,
+    );
+    _runs = _formatRuns(_formats);
+    _setFormattedValue(newValue);
+  }
+
+  void _setFormattedValue(TextEditingValue value) {
+    final previous = this.value;
+    final formatted = _formattedValue(value);
+    _editingValue = formatted;
+    super.value = formatted;
+    if (previous == formatted &&
+        previous is _FormattedEditingValue &&
+        (!identical(previous.source, _formatSource) ||
+            !identical(previous.runs, _runs))) {
+      notifyListeners();
+    }
+  }
+
+  _FormattedEditingValue _formattedValue(TextEditingValue value) {
+    if (value is _FormattedEditingValue &&
+        identical(value.source, _formatSource) &&
+        identical(value.runs, _runs)) {
+      return value;
+    }
+    return _FormattedEditingValue(
+      value,
+      source: _formatSource,
+      runs: _runs,
+    );
+  }
+
+  static List<({int end, CorrectionFormat format})> _formatRuns(
+    List<CorrectionFormat> formats,
+  ) {
+    final runs = <({int end, CorrectionFormat format})>[];
+    for (var i = 0; i < formats.length; i++) {
+      if (i + 1 == formats.length || formats[i] != formats[i + 1]) {
+        runs.add((end: i + 1, format: formats[i]));
+      }
+    }
+    return runs;
+  }
+
+  static List<CorrectionFormat> _editFormats(
+    TextEditingValue before,
+    TextEditingValue after,
+    List<CorrectionFormat> formats,
+  ) {
+    final delta = after.text.length - before.text.length;
+    bool replaces(int start, int end) =>
+        start >= 0 &&
+        end <= before.text.length &&
+        end >= start &&
+        end - start + delta >= 0 &&
+        after.text.startsWith(before.text.substring(0, start)) &&
+        after.text.endsWith(before.text.substring(end));
+
+    final selection = before.selection;
+    TextRange? range;
+    if (selection.isValid && replaces(selection.start, selection.end)) {
+      range = selection;
+    } else if (before.isComposingRangeValid &&
+        !before.composing.isCollapsed &&
+        replaces(before.composing.start, before.composing.end)) {
+      range = before.composing;
+    } else if (selection.isValid && selection.isCollapsed && delta < 0) {
+      final caret = selection.extentOffset;
+      final nextCaret = after.selection.isValid
+          ? after.selection.extentOffset
+          : null;
+      if ((nextCaret == null || nextCaret == caret + delta) &&
+          replaces(caret + delta, caret)) {
+        range = TextRange(start: caret + delta, end: caret);
+      } else if ((nextCaret == null || nextCaret == caret) &&
+          replaces(caret, caret - delta)) {
+        range = TextRange(start: caret, end: caret - delta);
+      }
+    }
+    if (range == null) {
+      var start = 0;
+      while (start < before.text.length &&
+          start < after.text.length &&
+          before.text.codeUnitAt(start) == after.text.codeUnitAt(start)) {
+        start++;
+      }
+      var end = before.text.length;
+      while (end > start &&
+          end + delta > start &&
+          before.text.codeUnitAt(end - 1) ==
+              after.text.codeUnitAt(end + delta - 1)) {
+        end--;
+      }
+      range = TextRange(start: start, end: end);
+    }
+    final addedEnd = range.end + delta;
+    return [
+      ...formats.sublist(0, range.start),
+      ..._replaceFormats(
+        before.text.substring(range.start, range.end),
+        after.text.substring(range.start, addedEnd),
+        formats.sublist(range.start, range.end),
+        previous: range.start > 0 ? formats[range.start - 1] : null,
+        next: range.end < formats.length ? formats[range.end] : null,
+      ),
+      ...formats.sublist(range.end),
+    ];
   }
 
   String forEditor(String canonical) {
@@ -263,13 +390,15 @@ class PluginCorrectionController extends TextEditingController {
       final old = formats.sublist(offset, offset + removed.length);
       final end = offset + removed.length;
       result.addAll(
-        _replaceFormats(
-          removed.toString(),
-          added.toString(),
-          old,
-          previous: result.isEmpty ? null : result.last,
-          next: end < formats.length ? formats[end] : null,
-        ),
+        old.isNotEmpty && old.any((format) => format != old.first)
+            ? List.filled(added.length, _plainFormat)
+            : _replaceFormats(
+                removed.toString(),
+                added.toString(),
+                old,
+                previous: result.isEmpty ? null : result.last,
+                next: end < formats.length ? formats[end] : null,
+              ),
       );
       offset += removed.length;
       removed.clear();
@@ -289,6 +418,31 @@ class PluginCorrectionController extends TextEditingController {
       }
     }
     flush();
+    if (before == after) return result;
+    // טיוטה שומרת נוסח בלבד; אין דרך לזהות איזה מופע חוזר נמחק.
+    final words =
+        <String, ({List<CorrectionFormat> formats, bool ambiguous})>{};
+    final tokens = RegExp(r'\S+');
+    for (final match in tokens.allMatches(before)) {
+      final word = match[0]!;
+      final previous = words[word];
+      final current = formats.sublist(match.start, match.end);
+      words[word] = (
+        formats: previous?.formats ?? current,
+        ambiguous:
+            previous != null &&
+            (previous.ambiguous ||
+                Iterable<int>.generate(current.length).any(
+                  (index) => previous.formats[index] != current[index],
+                )),
+      );
+    }
+    for (final match in tokens.allMatches(after)) {
+      final original = words[match[0]!];
+      if (original != null && original.ambiguous) {
+        result.fillRange(match.start, match.end, _plainFormat);
+      }
+    }
     return result;
   }
 
@@ -323,5 +477,47 @@ class PluginCorrectionController extends TextEditingController {
       ...List.filled(added.length - prefix - suffix, inherited),
       ...old.sublist(old.length - suffix),
     ];
+  }
+}
+
+// היסטוריית Flutter שומרת את העיצוב עם אותו ערך, גם כשנוסחים זהים נוצרו אחרת.
+class _FormattedEditingValue extends TextEditingValue {
+  _FormattedEditingValue(
+    TextEditingValue value, {
+    required this.source,
+    required this.runs,
+  }) : super(
+         text: value.text,
+         selection: value.selection,
+         composing: value.composing,
+       );
+
+  final Object source;
+  final List<({int end, CorrectionFormat format})> runs;
+
+  List<CorrectionFormat> expandFormats() {
+    final result = <CorrectionFormat>[];
+    var start = 0;
+    for (final run in runs) {
+      result.addAll(List.filled(run.end - start, run.format));
+      start = run.end;
+    }
+    return result;
+  }
+
+  @override
+  TextEditingValue copyWith({
+    String? text,
+    TextSelection? selection,
+    TextRange? composing,
+  }) {
+    final result = super.copyWith(
+      text: text,
+      selection: selection,
+      composing: composing,
+    );
+    return text == null || text == this.text
+        ? _FormattedEditingValue(result, source: source, runs: runs)
+        : result;
   }
 }

@@ -172,6 +172,187 @@ void main() {
       expect(controller.formats[0].bold, isFalse);
     });
 
+    test('מחיקת המופע הראשון משאירה את סגנון המופע השני', () {
+      final controller = PluginCorrectionController('<b>אב</b> <i>אב</i>');
+      addTearDown(controller.dispose);
+      controller.selection = const TextSelection(
+        baseOffset: 0,
+        extentOffset: 3,
+      );
+      controller.value = const TextEditingValue(
+        text: 'אב',
+        selection: TextSelection.collapsed(offset: 0),
+      );
+      expect(controller.formats.every((f) => !f.bold && f.italic), isTrue);
+    });
+
+    test('עריכות בקצוות מילה אינן מעצבות תו פנימי שלא נערך', () {
+      final controller = PluginCorrectionController('<b>א</b>בג');
+      addTearDown(controller.dispose);
+      controller.selection = const TextSelection(
+        baseOffset: 2,
+        extentOffset: 3,
+      );
+      controller.value = const TextEditingValue(
+        text: 'אבד',
+        selection: TextSelection.collapsed(offset: 3),
+      );
+      controller.selection = const TextSelection(
+        baseOffset: 0,
+        extentOffset: 1,
+      );
+      controller.value = const TextEditingValue(
+        text: 'הבד',
+        selection: TextSelection.collapsed(offset: 1),
+      );
+      expect(controller.formats.map((f) => f.bold), [true, false, false]);
+    });
+
+    for (final backspace in [true, false]) {
+      test('מחיקת מילה חוזרת ללא בחירה, backspace=$backspace', () {
+        final controller = PluginCorrectionController('<b>אב</b> אב');
+        addTearDown(controller.dispose);
+        controller.selection = TextSelection.collapsed(
+          offset: backspace ? 3 : 0,
+        );
+        controller.value = const TextEditingValue(
+          text: 'אב',
+          selection: TextSelection.collapsed(offset: 0),
+        );
+        expect(controller.formats.every((f) => !f.bold), isTrue);
+      });
+    }
+
+    test('ערכים בעלי אותו נוסח ובחירה משחזרים כל אחד את עיצובו', () {
+      final controller = PluginCorrectionController('<b>אב</b> אב');
+      addTearDown(controller.dispose);
+      final original = controller.value;
+      controller.selection = const TextSelection(
+        baseOffset: 0,
+        extentOffset: 3,
+      );
+      controller.value = const TextEditingValue(
+        text: 'אב',
+        selection: TextSelection.collapsed(offset: 0),
+      );
+      final plain = controller.value;
+      controller.value = original;
+      controller.selection = const TextSelection(
+        baseOffset: 2,
+        extentOffset: 5,
+      );
+      controller.value = const TextEditingValue(
+        text: 'אב',
+        selection: TextSelection.collapsed(offset: 0),
+      );
+      final bold = controller.value;
+      expect(controller.formats.every((f) => f.bold), isTrue);
+      var notifications = 0;
+      controller.addListener(() => notifications++);
+      controller.value = plain;
+      expect(controller.formats.every((f) => !f.bold), isTrue);
+      expect(notifications, 1);
+      controller.value = bold.copyWith(composing: TextRange.empty);
+      expect(controller.formats.every((f) => f.bold), isTrue);
+      expect(notifications, 2);
+      controller.value = plain.copyWith(
+        selection: const TextSelection.collapsed(offset: 1),
+      );
+      expect(controller.formats.every((f) => !f.bold), isTrue);
+    });
+
+    test('טקסט שהודבק יורש מהטווח המוחלף גם אם הופיע בעבר בסגנון אחר', () {
+      final controller = PluginCorrectionController('<b>אב</b> גד');
+      addTearDown(controller.dispose);
+      controller.selection = const TextSelection(
+        baseOffset: 3,
+        extentOffset: 5,
+      );
+      controller.value = const TextEditingValue(
+        text: 'אב אב',
+        selection: TextSelection.collapsed(offset: 5),
+      );
+      expect(controller.formats.map((f) => f.bold), [
+        true,
+        true,
+        false,
+        false,
+        false,
+      ]);
+      controller.selection = const TextSelection(
+        baseOffset: 0,
+        extentOffset: 5,
+      );
+      controller.value = const TextEditingValue(
+        text: 'אב גד',
+        selection: TextSelection.collapsed(offset: 5),
+      );
+      expect(controller.formats.map((f) => f.bold), [
+        true,
+        true,
+        false,
+        false,
+        false,
+      ]);
+    });
+
+    test('החלפת מקור באותו נוסח אינה משחזרת snapshot מהמקור הקודם', () {
+      final controller = PluginCorrectionController('<b>אב</b>');
+      addTearDown(controller.dispose);
+      final old = controller.value;
+      controller.setSource('<i>אב</i>');
+      expect(controller.formats.every((f) => !f.bold && f.italic), isTrue);
+      controller.value = old;
+      expect(controller.formats.every((f) => !f.bold && f.italic), isTrue);
+    });
+
+    test('IME מחליף רק את המופע שב-composing ומשמר שכנים', () {
+      final controller = PluginCorrectionController('<b>אב</b> אב');
+      addTearDown(controller.dispose);
+      controller.value = const TextEditingValue(
+        text: 'אב אב',
+        selection: TextSelection.collapsed(offset: 1),
+        composing: TextRange(start: 0, end: 2),
+      );
+      controller.value = const TextEditingValue(
+        text: 'אבX אב',
+        selection: TextSelection.collapsed(offset: 3),
+        composing: TextRange(start: 0, end: 3),
+      );
+      expect(controller.formats.map((f) => f.bold), [
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+      ]);
+      controller.selection = const TextSelection(
+        baseOffset: 0,
+        extentOffset: 4,
+      );
+      controller.value = const TextEditingValue(
+        text: 'אב',
+        selection: TextSelection.collapsed(offset: 0),
+      );
+      expect(controller.formats.every((f) => !f.bold), isTrue);
+    });
+
+    test('שחזור טיוטה עם מופע חוזר אינו מנחש שהמופע המודגש שרד', () {
+      final controller = PluginCorrectionController('<b>אב</b> אב <i>גד</i>');
+      addTearDown(controller.dispose);
+      controller.restoreDraftValue(const TextEditingValue(text: 'אב גד'));
+      expect(controller.formats.take(2).every((f) => !f.bold), isTrue);
+      expect(controller.formats.skip(3).every((f) => f.italic), isTrue);
+    });
+
+    test('שחזור מילה מעורבת אינו מעצב תו פנימי שלא השתנה', () {
+      final controller = PluginCorrectionController('<b>א</b>בג');
+      addTearDown(controller.dispose);
+      controller.restoreDraftValue(const TextEditingValue(text: 'הבד'));
+      expect(controller.formats.every((f) => !f.bold), isTrue);
+    });
+
     test('רווח של br בתוך ריצה מעוצבת מקבל את עיצובה', () {
       final controller = PluginCorrectionController('<u>א<br>ב</u>');
       addTearDown(controller.dispose);

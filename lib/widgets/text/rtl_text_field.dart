@@ -938,6 +938,17 @@ class _HardBreakController extends TextEditingController {
     : super.fromValue(initial);
 
   @override
+  TextEditingValue get value {
+    final raw = super.value;
+    final clean = source.value;
+    // גם מטא-נתונים של בקר הקורא צריכים להגיע להיסטוריית הביטול של השדה.
+    return raw == clean ? clean : raw;
+  }
+
+  @override
+  set value(TextEditingValue value) => super.value = value;
+
+  @override
   TextSpan buildTextSpan({
     required BuildContext context,
     TextStyle? style,

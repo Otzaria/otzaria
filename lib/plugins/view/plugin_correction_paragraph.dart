@@ -129,14 +129,16 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     final text = controller.forEditor(canonical);
     if (controller.text == text) return false;
     final selection = controller.selection;
-    controller.value = TextEditingValue(
-      text: text,
-      selection: selection.isValid
-          ? selection.copyWith(
-              baseOffset: selection.baseOffset.clamp(0, text.length),
-              extentOffset: selection.extentOffset.clamp(0, text.length),
-            )
-          : TextSelection.collapsed(offset: text.length),
+    controller.restoreDraftValue(
+      TextEditingValue(
+        text: text,
+        selection: selection.isValid
+            ? selection.copyWith(
+                baseOffset: selection.baseOffset.clamp(0, text.length),
+                extentOffset: selection.extentOffset.clamp(0, text.length),
+              )
+            : TextSelection.collapsed(offset: text.length),
+      ),
     );
     return true;
   }
