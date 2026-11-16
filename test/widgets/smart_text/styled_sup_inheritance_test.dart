@@ -33,6 +33,11 @@ void main() {
       '<b>כותרת<sup style="color: #808080;">123</sup>סוף</b>',
       '<span style="color: red">מילה<sup style="color: currentcolor;">123</sup>סוף</span>',
       'מילה<sup style="color: #808080;">(123)</sup>סוף',
+      '<span style="color: red">מילה<sup style="color: inherit;">123</sup>סוף</span>',
+      if (mode != 'continuous') ...[
+        '<span style="font-family: NotoRashiHebrew, serif">מילה<sup style="color: gray">123</sup>סוף</span>',
+        '<u>מילה<sup style="color: gray">123</sup>סוף</u>',
+      ],
     ]) {
       testWidgets('styled sup retains inherited typography: $mode $source', (
         tester,
@@ -72,7 +77,9 @@ void main() {
 
         // sup עם צבע משלו מצויר בשכבה המורמת ויורש מאבות ה-HTML; currentcolor
         // נשאר ב-HTML כי הציור אינו יורש את צבע ההורה.
-        final lifted = !source.contains('currentcolor');
+        final lifted =
+            !source.contains('currentcolor') &&
+            !source.contains('color: inherit');
         final styles = <TextStyle>[];
         if (lifted) {
           final overlay = tester.renderObject<RenderRaisedMarkerOverlay>(
@@ -113,8 +120,59 @@ void main() {
           styles.single.color,
           lifted ? const Color(0xff808080) : const Color(0xffff0000),
         );
+        if (source.contains('NotoRashiHebrew')) {
+          expect(styles.single.fontFamily, 'NotoRashiHebrew');
+          expect(styles.single.fontFamilyFallback, contains('serif'));
+        }
+        if (source.startsWith('<u>')) {
+          expect(styles.single.decoration, TextDecoration.underline);
+        }
       });
     }
+  }
+
+  for (final html in [false, true]) {
+    testWidgets('identical sup text keeps each inherited style: html=$html', (
+      tester,
+    ) async {
+      SmartTextWidget.debugForceHtmlWidget = html;
+      addTearDown(() => SmartTextWidget.debugForceHtmlWidget = false);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(
+              body: SmartTextWidget(
+                text:
+                    '<u><span style="font-family: NotoRashiHebrew">'
+                    'ראשון<sup style="color: gray">123</sup></span></u> '
+                    'שני<sup style="color: gray">123</sup>',
+                settings: const RenderSettings(
+                  fontSize: 20,
+                  fontFamily: 'FrankRuhlCLM',
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final overlay = tester.renderObject<RenderRaisedMarkerOverlay>(
+        find.byType(RaisedMarkerOverlay),
+      );
+      final styles = [
+        for (final placement in overlay.debugPlacements())
+          ..._markerStyles(
+            overlay.debugPaintedSpan(placement),
+            const TextStyle(),
+          ),
+      ];
+      expect(styles, hasLength(2));
+      expect(styles[0].fontFamily, 'NotoRashiHebrew');
+      expect(styles[0].decoration, TextDecoration.underline);
+      expect(styles[1].fontFamily, 'FrankRuhlCLM');
+      expect(styles[1].decoration, isNot(TextDecoration.underline));
+    });
   }
 
   test(
@@ -151,7 +209,13 @@ void main() {
   });
 
   test('nested styled sup without its own color stays in HTML', () {
-    for (final style in ['font-weight: bold', 'color: currentcolor']) {
+    for (final style in [
+      'font-weight: bold',
+      'color: currentcolor',
+      'color: inherit',
+      'color: unset',
+      'color: revert',
+    ]) {
       final result = TextRendererService.processText(
         '<sup style="$style">1</sup>'
         '<span style="color: red">מילה<sup style="$style">2</sup></span>',

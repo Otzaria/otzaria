@@ -157,7 +157,7 @@ class TextRendererService {
     caseSensitive: false,
   );
   static final RegExp _ownColorRegex = RegExp(
-    r'(?:^|;)\s*color\s*:\s*(?!currentcolor\b)\S',
+    r'(?:^|;)\s*color\s*:\s*(?!(?:currentcolor|inherit|unset|revert(?:-layer)?)\b)\S',
     caseSensitive: false,
   );
   static final RegExp _isolateStartRegex = RegExp(r'[\u2066\u2067\u2068]');

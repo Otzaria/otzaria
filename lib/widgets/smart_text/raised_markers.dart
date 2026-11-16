@@ -1,24 +1,5 @@
-/// הצגה מורמת של סימוני-עילית במסך עיון — "אות גבוהה".
-///
-/// הרקע: fwfh מממש `<sup>` ב-WidgetSpan, ומנוע Flutter משבץ placeholders
-/// בפסקת RTL בסדר ויזואלי במקום לוגי — שני סימונים באותה פסקה מוצגים הפוך
-/// (ראו `_fixFootnoteMarkers` ב-text_renderer_service.dart). לכן sup פשוט
-/// לא-מספרי מומר שם ל-span טקסט טהור, שסדרו מובטח.
-///
-/// אבל ל-fwfh אין תמיכה ב-`position`/`top` — הן היו no-op גם קודם, ולכן
-/// מרקרי הערות הוצגו מוקטנים ונטויים אך יושבים על קו הבסיס, בלי הרמה. וטקסט
-/// טהור אינו ניתן להרמה בפריסה בכלל.
-///
-/// הפתרון כאן משלים את התמונה: הגליפים בשורה נצבעים שקוף (תופסים את המקום
-/// הנכון בסדר הנכון, וזמינים לבחירה ולהעתקה), ו-[RaisedMarkerOverlay] מאתר
-/// את המלבן האמיתי של כל סימון דרך [RenderParagraph.getBoxesForSelection]
-/// ומצייר את אותו טקסט מורם מעליו — אותה תבנית כמו
-/// PluginHighlightFrameOverlay.
-///
-/// גם הסימונים ה*לחיצים* עוברים כאן — סימון הערה מוטמעת (`book-note-marker`)
-/// ואות מפרש (`link-anchor`): הספאן בשורה שומר את ה-recognizer ואת אירועי
-/// הריחוף שלו, והשכבה מפנה hit-test שנוחת על הציור המורם אל העוגן שבשורה,
-/// כך שלחיצה וריחוף עובדים על מה שהעין רואה.
+/// הגליפים השקופים בשורה שומרים סדר RTL ובחירה; השכבה מציירת אותם מורמים.
+/// סימונים לחיצים מפנים hit-test מהציור אל העוגן המקורי בשורה.
 library;
 
 import 'dart:collection';
@@ -479,12 +460,10 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
   bool _hasClickableMarkers;
 
   // TextPainter לכל (טקסט, מטריקות), ממוזג בין פריימים; מתאפס עם שינוי סגנון.
-  final Map<String, TextPainter> _painters = <String, TextPainter>{};
+  final Map<(String, TextStyle?), TextPainter> _painters = {};
 
-  // המיקומים המחושבים, ממוזגים בין פריימים. האיתור עצמו יקר (toPlainText לכל
-  // פסקה + חיפוש לכל סימון), והוא תלוי אך ורק בפריסה — לכן הוא לא רץ שוב בכל
-  // פריים ציור. גלילה מזיזה את ה-RenderObject בלי פריסה מחדש, ומיקומי הסימונים
-  // מוחזקים ביחס לשכבה עצמה, ולכן הם נשארים תקפים.
+  // איתור הסימונים תלוי רק בפריסה; המטמון חוסך סריקת טקסט חוזרת בזמן גלילה.
+  // המיקומים יחסיים לשכבה, ולכן תזוזתה בלי פריסה אינה מבטלת אותם.
   List<RaisedMarkerPlacement>? _placements;
   List<Object?>? _placementsSignature;
 
@@ -554,16 +533,29 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
       (_baseStyle.fontSize ?? 18.0) * marker.scale;
 
   TextPainter _painterFor(RaisedMarker marker, TextStyle? glyph) {
-    final key =
-        '${marker.scale}|${marker.italic}|${marker.useLinkColor}'
-        '|${marker.variantIndex}|${marker.active}|${marker.text}|${marker.inlineHtml}'
-        '|${glyph?.fontSize}|${glyph?.fontWeight}|${glyph?.fontStyle}'
-        '|${glyph?.fontVariations}';
+    final key = (
+      '${marker.scale}|${marker.italic}|${marker.useLinkColor}'
+          '|${marker.variantIndex}|${marker.active}|${marker.text}|${marker.inlineHtml}',
+      glyph,
+    );
     return _painters.putIfAbsent(key, () {
       var style = _baseStyle.copyWith(
         fontSize: glyph?.fontSize ?? _fontSizeOf(marker),
         fontWeight: glyph?.fontWeight,
         fontVariations: glyph?.fontVariations,
+        fontFamily: glyph?.fontFamily,
+        fontFamilyFallback: glyph?.fontFamilyFallback,
+        fontFeatures: glyph?.fontFeatures,
+        letterSpacing: glyph?.letterSpacing,
+        wordSpacing: glyph?.wordSpacing,
+        locale: glyph?.locale,
+        // עוגני קישור מסתירים גם את הקו בגליף; הווריאנט משחזר אותו בהמשך.
+        decoration: marker.useLinkColor ? null : glyph?.decoration,
+        decorationColor: marker.useLinkColor ? null : glyph?.decorationColor,
+        decorationStyle: marker.useLinkColor ? null : glyph?.decorationStyle,
+        decorationThickness: marker.useLinkColor
+            ? null
+            : glyph?.decorationThickness,
         fontStyle: marker.italic
             ? FontStyle.italic
             : glyph?.fontStyle ?? FontStyle.normal,

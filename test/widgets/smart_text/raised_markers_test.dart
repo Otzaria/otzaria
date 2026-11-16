@@ -1393,6 +1393,9 @@ Future<Set<int>> inkBelowRaisedMarker(
     kLinkAnchorVariants[placement.marker.variantIndex!].underline,
     isTrue,
   );
+  final paintedStyle = overlay.debugPaintedSpan(placement).style!;
+  expect(paintedStyle.decoration, TextDecoration.underline);
+  expect(paintedStyle.decorationColor?.a, isNot(0));
   final boundary = tester.renderObject<RenderRepaintBoundary>(
     find
         .ancestor(
