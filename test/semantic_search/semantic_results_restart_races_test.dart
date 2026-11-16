@@ -34,6 +34,7 @@ SemanticResultsPage page(
   bool restart = false,
   String mode = 'hybrid',
   bool semantic = false,
+  String? fallbackKind,
 }) => SemanticResultsPage(
   items: [
     for (var id = start; id < start + 30; id++)
@@ -54,6 +55,7 @@ SemanticResultsPage page(
   countsAreExact: false,
   truncated: false,
   candidateWindowTruncated: false,
+  fallbackKind: fallbackKind,
 );
 Future<void> settle() async {
   for (var i = 0; i < 30; i++) {
@@ -193,6 +195,46 @@ void main() {
         'hybrid',
       ]);
       expect(recorder.shown.map((s) => s.offset), [0, 0]);
+    },
+  );
+  test('a semantic failure on a later page keeps the shown results', () async {
+    final source = ControlledSource();
+    final bloc = buildResultsBloc(
+      source: source,
+      recorder: RecordingRecorder(),
+    );
+    addTearDown(bloc.close);
+    await first(bloc, source);
+    bloc.add(const SemanticMoreResultsRequested());
+    await settle();
+    source.requests[1].complete.complete(
+      page(31, mode: 'lexicalOnly', fallbackKind: 'queryFailed'),
+    );
+    await settle();
+    expect(source.requests.map((r) => r.offset), [0, 30]);
+    expect(bloc.state.status, SemanticResultsStatus.loaded);
+    expect(bloc.state.items, hasLength(30));
+    expect(bloc.state.isLoadingMore, isFalse);
+    expect(bloc.state.message, isNotNull);
+    expect(bloc.state.hasMore, isTrue);
+  });
+  test(
+    'a lasting semantic failure on a later page restarts the search',
+    () async {
+      final source = ControlledSource();
+      final bloc = buildResultsBloc(
+        source: source,
+        recorder: RecordingRecorder(),
+      );
+      addTearDown(bloc.close);
+      await first(bloc, source);
+      bloc.add(const SemanticMoreResultsRequested());
+      await settle();
+      source.requests[1].complete.complete(
+        page(31, mode: 'lexicalOnly', fallbackKind: 'reindexRequired'),
+      );
+      await settle();
+      expect(source.requests.map((r) => r.offset), [0, 30, 0]);
     },
   );
   test(
