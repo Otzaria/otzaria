@@ -14,8 +14,17 @@ DynamicLibrary _openZstandardLib() {
   }
   if (Platform.isWindows) {
     const name = 'zstandard_windows.dll';
-    // אותו שם ואותו סדר חיפוש כמו ה-open, ולכן אותו מודול; כשל מדווח ב-open.
-    preloadWindowsLibrary(name);
+    // אותו שם ואותו סדר חיפוש כמו ה-open, ולכן אותו מודול. אחרי כשל אין open: הוא היה
+    // מריץ שוב את בדיקת החתימה (Smart App Control), והפעם עוצר את ה-GC.
+    if (!preloadWindowsLibrary(name)) {
+      // קובץ קיים שלא נטען — בדרך כלל חסימה של מדיניות (קוד 4551).
+      final exeDir = File(Platform.resolvedExecutable).parent.path;
+      final exists = File('$exeDir\\$name').existsSync();
+      throw ArgumentError(
+        "Failed to load dynamic library '$name' with LoadLibraryW "
+        '(file next to the executable: ${exists ? 'present' : 'missing'})',
+      );
+    }
     return DynamicLibrary.open(name);
   }
   if (Platform.isLinux) {
