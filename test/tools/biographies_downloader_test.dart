@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:otzaria/tools/biographies/data/author_biography_links.dart';
 import 'package:otzaria/tools/biographies/data/biographies_downloader.dart';
 
 void main() {
@@ -50,6 +51,33 @@ void main() {
       return http.StreamedResponse(assetBody(), 200);
     }),
   );
+
+  test('refreshes author links and preserves them on an invalid response', () async {
+    final mapping = jsonEncode({
+      'version': 1,
+      'authors': {'רש״י': 'Q26456'},
+    });
+    var body = mapping;
+    final client = MockClient((request) async {
+      expect(request.url.toString(), AuthorBiographyLinks.downloadUrl);
+      return http.Response.bytes(utf8.encode(body), 200);
+    });
+    addTearDown(client.close);
+    final downloader = BiographiesDownloader(
+      destinationProvider: () async => dest,
+      client: client,
+    );
+    addTearDown(downloader.dispose);
+    final linksFile = File(
+      '${tempDir.path}${Platform.pathSeparator}${AuthorBiographyLinks.fileName}',
+    );
+
+    await downloader.refreshAuthorLinks();
+    expect(await linksFile.readAsString(), mapping);
+    body = '{"version":2,"authors":{}}';
+    await expectLater(downloader.refreshAuthorLinks(), throwsFormatException);
+    expect(await linksFile.readAsString(), mapping);
+  });
 
   test('follows the redirect and installs the streamed file', () async {
     final ok = await downloader(

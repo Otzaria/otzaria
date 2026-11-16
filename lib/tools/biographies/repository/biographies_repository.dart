@@ -1,11 +1,14 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/tools/biographies/data/author_biography_links.dart';
 import 'package:otzaria/tools/biographies/data/biographies_codec.dart';
 import 'package:otzaria/tools/biographies/models/biographies_bundle.dart';
 import 'package:otzaria/tools/biographies/models/biography.dart';
+import 'package:path/path.dart' as p;
 
 /// Data layer of the biographies tool.
 ///
@@ -24,6 +27,7 @@ class BiographiesRepository {
   final Future<ByteData> Function(String key) _loadAsset;
 
   Future<BiographiesBundle>? _loading;
+  Future<Map<String, String>>? _bundledAuthorLinks;
 
   BiographiesRepository({
     Future<String> Function()? updatedPathProvider,
@@ -39,6 +43,54 @@ class BiographiesRepository {
 
   /// All entries, in the bundle's order (by era, then by year).
   Future<List<Biography>> loadAll() async => (await loadBundle()).entries;
+
+  /// Resolves only explicitly mapped names from the official catalog.
+  /// A mapping to an entry missing from the installed bundle is ignored.
+  Future<Map<String, Biography>> forCatalogAuthors(
+    Iterable<String> names,
+  ) async {
+    final links = await _loadAuthorLinks();
+    final ids = {
+      for (final name in names)
+        if (links[name] case final String id) name: id,
+    };
+    if (ids.isEmpty) return const {};
+    final requestedIds = ids.values.toSet();
+    final entries = {
+      for (final entry in (await loadBundle()).entries)
+        if (requestedIds.contains(entry.id)) entry.id: entry,
+    };
+    return {
+      for (final item in ids.entries)
+        if (entries[item.value] case final Biography entry) item.key: entry,
+    };
+  }
+
+  Future<Map<String, String>> _loadAuthorLinks() async {
+    try {
+      final path = await _updatedPathProvider();
+      final file = File(p.join(p.dirname(path), AuthorBiographyLinks.fileName));
+      if (await file.exists()) {
+        return AuthorBiographyLinks.decode(await file.readAsString());
+      }
+    } catch (e) {
+      debugPrint('[Biographies] downloaded author mapping unreadable: $e');
+    }
+    return _bundledAuthorLinks ??= _loadBundledAuthorLinks();
+  }
+
+  Future<Map<String, String>> _loadBundledAuthorLinks() async {
+    try {
+      final data = await _loadAsset(AuthorBiographyLinks.assetKey);
+      return AuthorBiographyLinks.decode(
+        utf8.decode(
+          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+        ),
+      );
+    } catch (_) {
+      return const {};
+    }
+  }
 
   Future<BiographiesBundle> _load() async {
     try {

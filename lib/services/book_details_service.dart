@@ -12,6 +12,12 @@ class BookInformation {
   final String? generation;
   final Map<String, String> fileDetails;
 
+  /// Whether the author rows came from the exact official catalog book.
+  final bool hasOfficialAuthorRecords;
+
+  List<String> get catalogAuthorNames =>
+      hasOfficialAuthorRecords ? _databaseAuthorNames : const [];
+
   /// שם הספק כשהספר נוסף על ידי תוסף; null לכל ספר אחר.
   final String? pluginProviderName;
 
@@ -22,6 +28,7 @@ class BookInformation {
     required this.generation,
     required this.fileDetails,
     this.pluginProviderName,
+    this.hasOfficialAuthorRecords = false,
   });
 
   /// פרטי ספר שתוסף הוסיף, מהנתונים שהתוסף שלח בלבד: אין חיפוש בספרייה
@@ -54,14 +61,16 @@ class BookInformation {
     book.heDesc,
   );
 
+  List<String> get _databaseAuthorNames =>
+      databaseBook?.authors
+          .map((author) => author.name.trim())
+          .where((name) => name.isNotEmpty)
+          .toList() ??
+      const [];
+
   /// שמות המחברים, אם קיימים.
   List<String> get authors {
-    final databaseAuthors =
-        databaseBook?.authors
-            .map((author) => author.name.trim())
-            .where((name) => name.isNotEmpty)
-            .toList() ??
-        const <String>[];
+    final databaseAuthors = _databaseAuthorNames;
     if (databaseAuthors.isNotEmpty) return databaseAuthors;
     final author = book.author?.trim();
     return author == null || author.isEmpty ? const [] : [author];
@@ -151,6 +160,14 @@ class BookDetailsService {
       source: source,
       generation: generation,
       fileDetails: fileDetails,
+      hasOfficialAuthorRecords:
+          _isOfficialCatalogBook(book) &&
+          resolvedBook != null &&
+          resolvedBook.source.isOfficial &&
+          (book.id != null
+              ? databaseBook?.id == book.id
+              : book.categoryId != null &&
+                    databaseBook?.categoryId == book.categoryId),
     );
   }
 
@@ -202,9 +219,21 @@ class BookDetailsService {
     return details;
   }
 
+  bool _isOfficialCatalogBook(Book book) =>
+      book.isOfficialLibraryBook &&
+      BookDatabaseResolver.likelySource(
+        source: book.source,
+        categoryPath: book.categoryPath,
+      ).isOfficial;
+
   Future<ResolvedDbBookRecord?> _tryResolveDbBook(Book book) async {
     if (book is ExternalLibraryBook) return null;
     try {
+      final id = book.id;
+      if (_isOfficialCatalogBook(book) && id != null) {
+        final exact = await BookDatabaseResolver.resolveBookById(id);
+        if (exact?.book.title == book.title) return exact;
+      }
       return await BookDatabaseResolver.resolveBook(
         title: book.title,
         categoryId: book.categoryId,

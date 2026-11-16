@@ -3,12 +3,17 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:kosher_dart/kosher_dart.dart';
+import 'package:otzaria/book_common/view/book_author_biographies.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/external_catalog/repository/external_catalog_repository.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart'
     show formatHebrewYear;
+import 'package:otzaria/tools/biographies/models/biography.dart';
+import 'package:otzaria/tools/biographies/repository/biographies_repository.dart';
+import 'package:otzaria/tools/open_tool_tab.dart';
+import 'package:otzaria/tools/tool_query.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/services/book_details_service.dart';
@@ -145,6 +150,16 @@ Future<void> showBookDetailsDialog(
     customContent: _BookDetailsDialogContent(
       book: book,
       information: information,
+      openBiography: (dialogContext, id) {
+        Navigator.of(dialogContext).pop();
+        if (context.mounted) {
+          openToolTabById(
+            context,
+            'builtin.biographies',
+            query: ToolQuery.biography(id),
+          );
+        }
+      },
     ),
   );
 }
@@ -153,7 +168,13 @@ class _BookDetailsDialogContent extends StatefulWidget {
   final Book book;
   final BookInformation? information;
 
-  const _BookDetailsDialogContent({required this.book, this.information});
+  final void Function(BuildContext, String) openBiography;
+
+  const _BookDetailsDialogContent({
+    required this.book,
+    required this.openBiography,
+    this.information,
+  });
 
   @override
   State<_BookDetailsDialogContent> createState() =>
@@ -164,6 +185,7 @@ class _BookDetailsDialogContentState extends State<_BookDetailsDialogContent> {
   late final Future<BookInformation> _informationFuture;
   final _scroll = ScrollController();
   List<OtzarMappedBook> _otzarBooks = const [];
+  List<Biography> _authorBiographies = const [];
 
   @override
   void dispose() {
@@ -178,6 +200,7 @@ class _BookDetailsDialogContentState extends State<_BookDetailsDialogContent> {
     _informationFuture = information != null
         ? Future.value(information)
         : BookDetailsService().getBookInformation(widget.book);
+    _informationFuture.then(_loadAuthorBiographies, onError: (Object _) {});
     // המיפוי ממופתח במזהי seforim.db; מזהה של מסד אחר חופף להם ואינו אותו ספר.
     final otzariaId = widget.book.isOfficialLibraryBook ? widget.book.id : null;
     if (otzariaId != null) {
@@ -188,6 +211,22 @@ class _BookDetailsDialogContentState extends State<_BookDetailsDialogContent> {
         onError: (Object error) =>
             debugPrint('Otzar HaChochma mapping failed: $error'),
       );
+    }
+  }
+
+  Future<void> _loadAuthorBiographies(BookInformation information) async {
+    final names = information.catalogAuthorNames;
+    if (!mounted || names.isEmpty) return;
+    try {
+      final found = await BiographiesRepository.instance.forCatalogAuthors(
+        names,
+      );
+      final authors = found.values.toSet().toList();
+      if (mounted && authors.isNotEmpty) {
+        setState(() => _authorBiographies = authors);
+      }
+    } catch (e) {
+      debugPrint('Author biographies unavailable: $e');
     }
   }
 
@@ -220,6 +259,8 @@ class _BookDetailsDialogContentState extends State<_BookDetailsDialogContent> {
                 widget.book,
                 snapshot.data!,
                 _otzarBooks,
+                _authorBiographies,
+                (id) => widget.openBiography(context, id),
               );
             },
           ),
@@ -234,6 +275,8 @@ Widget _buildBookDetailsContent(
   Book book,
   BookInformation information,
   List<OtzarMappedBook> otzarBooks,
+  List<Biography> authorBiographies,
+  ValueChanged<String> openBiography,
 ) {
   final bookDetails = information.fileDetails;
   final bookSource = information.source ?? 'לא נמצא מקור';
@@ -330,6 +373,13 @@ Widget _buildBookDetailsContent(
           subtitle: information.authors.join(', '),
         ),
         gap,
+        if (authorBiographies.isNotEmpty) ...[
+          BookAuthorBiographies(
+            biographies: authorBiographies,
+            openBiography: openBiography,
+          ),
+          gap,
+        ],
         if (facts.isNotEmpty) ...[
           DetailsCard(
             title: 'פרטי הספר',

@@ -39,6 +39,7 @@
 | `otzaria://open/tikkun_korim` | פותח תיקון קוראים |
 | `otzaria://open/biographies` | פותח ביוגרפיות |
 | `otzaria://open/biographies?q=<text>` | פותח ביוגרפיות ומחפש רב לפי שם או כינוי |
+| `otzaria://open/biographies?id=<id>` | פותח ערך לפי המזהה בחבילת הביוגרפיות. אם נמסר גם `q`, המזהה קודם |
 | `otzaria://open/library` | פותח את מסך הספרייה |
 | `otzaria://open/search` | פותח את מסך החיפוש (ללא הפעלת חיפוש) |
 | `otzaria://open/search?q=<text>` | פותח לשונית חיפוש חדשה ומפעיל חיפוש מיידית בכל הספרים, עם ברירות המחדל (מצב מתקדם, scope `/`) |

@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/tools/biographies/data/author_biography_links.dart';
 import 'package:otzaria/tools/biographies/repository/biographies_repository.dart';
 
 import 'biographies_codec_test.dart' show encodeBundle, samplePayload;
@@ -32,10 +34,36 @@ void main() {
     },
   );
 
+  test('matches exact catalog names and IDs, with an offline fallback', () async {
+    final payload = samplePayload();
+    final id = (payload['entries'] as List).first['id'] as String;
+    final bundledLinks = jsonEncode({
+      'version': 1,
+      'authors': {'מחבר א': id, 'מחבר ב': 'missing'},
+    });
+    final linksFile = File(
+      '${tempDir.path}${Platform.pathSeparator}${AuthorBiographyLinks.fileName}',
+    );
+    await linksFile.writeAsString('corrupt');
+    final repo = BiographiesRepository(
+      updatedPathProvider: () async => updatedPath,
+      loadAsset: (key) async => ByteData.sublistView(
+        key == AuthorBiographyLinks.assetKey
+            ? utf8.encode(bundledLinks)
+            : encodeBundle(payload),
+      ),
+    );
+    final found = await repo.forCatalogAuthors(['מחבר א', 'מחבר ב', 'מחבר']);
+    expect(found.keys, ['מחבר א']);
+    expect(found['מחבר א']?.id, id);
+
+    await linksFile.writeAsString('{"version":1,"authors":{}}');
+    expect(await repo.forCatalogAuthors(['מחבר א']), isEmpty);
+  });
+
   test('prefers the downloaded copy', () async {
-    await File(
-      updatedPath,
-    ).writeAsBytes(encodeBundle(payloadWithRelease('new')));
+    await File(updatedPath)
+        .writeAsBytes(encodeBundle(payloadWithRelease('new')));
     final bundle = await repository(
       asset: encodeBundle(payloadWithRelease('packed')),
     ).loadBundle();

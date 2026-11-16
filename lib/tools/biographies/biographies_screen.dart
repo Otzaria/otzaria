@@ -55,10 +55,21 @@ class _BiographiesScreenState extends State<BiographiesScreen>
   ToolQueryInbox? get toolQueryInbox => widget.queryInbox;
 
   @override
-  bool get canApplyToolQuery => !_isLoading;
+  bool get canApplyToolQuery => _bundle != null;
 
   @override
   void applyToolQuery(ToolQuery query) {
+    if (query.biographyId case final String id) {
+      final bio = _byId[id];
+      if (bio != null) {
+        setState(() {
+          _opened
+            ..clear()
+            ..add(bio);
+        });
+      }
+      return;
+    }
     fillSearchField(_searchController, query.text);
     _performSearch(query.text);
   }
