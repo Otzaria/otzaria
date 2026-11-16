@@ -634,27 +634,29 @@ class CompanionAssetsService {
   ) async {
     if (latest.sha256 == null) return latest;
     var oldest = latest;
-    try {
-      for (var page = 1; page <= 3; page++) {
-        final list = await _getGithubJson(
-          client,
-          _talmudReleaseApiUrl.replaceFirst(
-            '/releases/latest',
-            '/releases?per_page=100&page=$page',
-          ),
-        );
-        if (list is! List || list.isEmpty) break;
-        for (final r in list) {
-          if (r is! Map<String, dynamic> || r['prerelease'] == true) continue;
-          final release = _talmudReleaseFrom(r);
-          if (release == null) continue;
-          if (release.sha256 != latest.sha256) return oldest;
-          oldest = release;
-        }
+    // כשל סריקה חייב לעצור לפני שינוי המקור, כדי לא לאבד הורדה חלקית.
+    for (var page = 1; page <= 3; page++) {
+      final list = await _getGithubJson(
+        client,
+        _talmudReleaseApiUrl.replaceFirst(
+          '/releases/latest',
+          '/releases?per_page=100&page=$page',
+        ),
+      );
+      if (list is! List) {
+        throw const FormatException('Invalid Talmud releases response');
       }
-    } catch (e) {
-      debugPrint('[CompanionAssets] talmud source lookup failed: $e');
-      return latest;
+      if (list.isEmpty) return oldest;
+      for (final r in list) {
+        if (r is! Map<String, dynamic> || r['prerelease'] == true) continue;
+        final release = _talmudReleaseFrom(r);
+        if (release == null) continue;
+        if (release.sha256 != latest.sha256) return oldest;
+        oldest = release;
+      }
+      if (page == 3 && list.length >= 100) {
+        throw StateError('Talmud source lookup exceeds 300 releases');
+      }
     }
     return oldest;
   }
