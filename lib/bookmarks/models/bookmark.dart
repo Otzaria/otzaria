@@ -1,5 +1,6 @@
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/bookmarks/utils/search_history_key.dart';
+import 'package:otzaria/bookmarks/utils/reading_history_key.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/utils/file/hive_utils.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
@@ -100,16 +101,20 @@ class Bookmark {
   /// מחסניות החזרה/קדימה של הקורא; נשמרות ברשומת היסטוריה בלבד.
   final Map<String, dynamic>? navigationHistory;
 
-  /// זהות מקום קריאה: סוג יעד, זהות ספר ו-slot; חיפוש לפי שאילתה וסינון.
-  /// זהות הספר חייבת להתאים לשחזור המיקום, כדי לא לדרוס ספר אחר.
+  /// זהות מקום קריאה לפי ספר, סוג יעד, slot ושולחן; חיפוש לפי שאילתה וסינון.
   String get historyKey => isSearch
       ? searchHistoryKey(
           query: ref,
           scopeFacets: searchScopeFacets,
           filterFacets: searchFilterFacets,
         )
-      : '${targetKind.name}:${bookIdentity(book)}'
-            '${historySlot == null ? '' : '#$historySlot'}';
+      : readingHistoryKey(
+          bookKey: bookIdentity(book),
+          targetKind: targetKind.name,
+          historySlot: historySlot,
+          workspaceId: workspaceId,
+          workspaceName: workspaceName,
+        );
 
   /// מזהה יציב של סימנייה בתוך רשימת הסימניות.
   ///
