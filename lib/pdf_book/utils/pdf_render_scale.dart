@@ -23,3 +23,16 @@ double pdfPreviewRenderingScale({
       .toDouble();
   return math.min(quantized, cap);
 }
+
+/// טווח המטמון האנכי של pdfrx, בגובהי מסך: העמוד הבא והקודם בטווח מכל מקום
+/// בעמוד, גם כשהוא גבוה מהמסך. מעוגל לחצאים כדי שגלילה לא תבנה את הצפיין מחדש.
+double pdfVerticalCacheExtent({
+  required double pageStride,
+  required double visibleHeight,
+}) {
+  if (!pageStride.isFinite || !visibleHeight.isFinite) return 1;
+  if (pageStride <= 0 || visibleHeight <= 0) return 1;
+  final extent = pageStride / visibleHeight - 1;
+  // נגיעה בגבול העמוד הבא אינה חפיפה, ולכן נדרשת המדרגה שמעליו.
+  return math.max(1.0, ((extent * 2).floor() + 1) / 2);
+}

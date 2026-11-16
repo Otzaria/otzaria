@@ -302,7 +302,7 @@ void main() {
     final moduleName = Platform.isWindows
         ? 'pdfium.dll'
         : Platform.isMacOS
-        ? 'libpdfium.dylib'
+        ? 'libpdfium_dart.dylib'
         : 'libpdfium.so';
     Pdfrx.pdfiumModulePath = File(
       'build/native_assets/${Platform.operatingSystem}/$moduleName',

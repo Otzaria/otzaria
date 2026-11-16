@@ -762,6 +762,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   /// הכפתור מאזין, ורק כשהערך מתחלף.
   final ValueNotifier<bool> _nextFitIsPage = ValueNotifier(false);
 
+  /// טווח המטמון האנכי לפי גובה העמוד בזום הנוכחי; רק הצפיין מאזין.
+  final ValueNotifier<double> _verticalCacheExtent = ValueNotifier(1);
+
   /// מצב יד — גרירת עכבר גוללת את הדף במקום לסמן טקסט (issue #916).
   bool _isHandMode =
       Settings.getValue<bool>(SettingsRepository.keyPdfHandMode) ?? false;
@@ -1770,6 +1773,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         _scrollPhysicsProvider.stop();
         _restoreViewportTopAnchor(controller, oldViewSize);
         _updateNextFit();
+        _updateVerticalCacheExtent();
       },
       enableKeyboardNavigation: false,
       scrollByArrowKey: 25.0,
@@ -1802,7 +1806,14 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         widget.pdfPaneCount,
       ),
       horizontalCacheExtent: 0,
-      verticalCacheExtent: layoutMode.isBookView ? 2 : 1,
+      verticalCacheExtent: layoutMode.isBookView
+          ? 2
+          : _verticalCacheExtent.value,
+      // האריחים החדים ממתינים לעצירת הגלילה; בזמן התנועה מוצגת התצוגה המקדימה,
+      // והמעבד פנוי להכין את העמוד הבא במקום אריחים שיוחלפו בפריים הבא.
+      behaviorControlParams: const PdfViewerBehaviorControlParams(
+        partialImageLoadingDelay: Duration(milliseconds: 120),
+      ),
       pageAnchor: PdfPageAnchor.top, // עיגון לראש הדף
       getPageRenderingScale: pdfPreviewRenderingScaleFor,
       onInteractionStart: (_) {
@@ -2335,13 +2346,16 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                       cursor: _isHandMode
                           ? AppCursors.grabOf(context)
                           : MouseCursor.defer,
-                      child: PdfViewer(
-                        _pdfDocumentRef,
-                        controller: widget.tab.pdfViewerController,
-                        initialPageNumber: widget.tab.pageNumber < 1
-                            ? 1
-                            : widget.tab.pageNumber,
-                        params: _buildPdfViewerParams(layoutMode),
+                      child: ValueListenableBuilder<double>(
+                        valueListenable: _verticalCacheExtent,
+                        builder: (context, _, _) => PdfViewer(
+                          _pdfDocumentRef,
+                          controller: widget.tab.pdfViewerController,
+                          initialPageNumber: widget.tab.pageNumber < 1
+                              ? 1
+                              : widget.tab.pageNumber,
+                          params: _buildPdfViewerParams(layoutMode),
+                        ),
                       ),
                     ),
                   ),
@@ -4310,6 +4324,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _searchHost.dispose();
     _openFilterRequest.dispose();
     _pageNumberNotifier.dispose();
+    _verticalCacheExtent.dispose();
     _searchFieldFocusNode.dispose();
     _navigationFieldFocusNode.dispose();
     _pdfViewFocusNode.dispose();
@@ -4450,6 +4465,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     if (!widget.tab.pdfViewerController.isReady) return;
     _refreshVisiblePersonalNotePages();
     _updateNextFit();
+    _updateVerticalCacheExtent();
 
     // Keep adjacent-spread pre-renders warm so page-turn animations can
     // open the cached snapshot instantly without waiting on goToPage + tile
@@ -5428,6 +5444,26 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   void _updateNextFit() {
     final targets = _fitTargets();
     if (targets != null) _nextFitIsPage.value = targets.toPage;
+  }
+
+  void _updateVerticalCacheExtent() {
+    final controller = widget.tab.pdfViewerController;
+    if (!controller.isReady || _isBookViewModeActive()) return;
+    final layouts = controller.layout.pageLayouts;
+    if (layouts.isEmpty) return;
+    final index = ((controller.pageNumber ?? 1) - 1).clamp(
+      0,
+      layouts.length - 1,
+    );
+    final page = layouts[index];
+    final gapBefore = index > 0 ? page.top - layouts[index - 1].bottom : 0.0;
+    final gapAfter = index + 1 < layouts.length
+        ? layouts[index + 1].top - page.bottom
+        : 0.0;
+    _verticalCacheExtent.value = pdfVerticalCacheExtent(
+      pageStride: page.height + max(gapBefore, gapAfter),
+      visibleHeight: controller.visibleRect.height,
+    );
   }
 
   void _toggleFitMode() {

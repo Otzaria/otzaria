@@ -1344,37 +1344,37 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/pdfium_dart"
-      ref: d898e52b1526532c8d66a5f7fee0ca6b867a77d0
-      resolved-ref: d898e52b1526532c8d66a5f7fee0ca6b867a77d0
+      ref: f8f29ee20d8cd895122fccba35439f888a9135e8
+      resolved-ref: f8f29ee20d8cd895122fccba35439f888a9135e8
       url: "https://github.com/Otzaria/pdfrx"
     source: git
-    version: "0.4.1"
+    version: "0.4.2"
   pdfium_flutter:
     dependency: transitive
     description:
       name: pdfium_flutter
-      sha256: "4d18e6181aa87200750aa4fc607c870f957731b1de9252c2ea19627c19109388"
+      sha256: "4b98ef6d86ada59ad99abd07cf90871929fa733677d6fbcac83a4f575e759ac3"
       url: "https://pub.dev"
     source: hosted
-    version: "0.4.1"
+    version: "0.4.2"
   pdfrx:
     dependency: "direct main"
     description:
       path: "packages/pdfrx"
-      ref: d898e52b1526532c8d66a5f7fee0ca6b867a77d0
-      resolved-ref: d898e52b1526532c8d66a5f7fee0ca6b867a77d0
+      ref: f8f29ee20d8cd895122fccba35439f888a9135e8
+      resolved-ref: f8f29ee20d8cd895122fccba35439f888a9135e8
       url: "https://github.com/Otzaria/pdfrx"
     source: git
-    version: "2.12.0"
+    version: "2.12.1"
   pdfrx_engine:
     dependency: "direct overridden"
     description:
       path: "packages/pdfrx_engine"
-      ref: d898e52b1526532c8d66a5f7fee0ca6b867a77d0
-      resolved-ref: d898e52b1526532c8d66a5f7fee0ca6b867a77d0
+      ref: f8f29ee20d8cd895122fccba35439f888a9135e8
+      resolved-ref: f8f29ee20d8cd895122fccba35439f888a9135e8
       url: "https://github.com/Otzaria/pdfrx"
     source: git
-    version: "0.9.1"
+    version: "0.9.2"
   petitparser:
     dependency: "direct overridden"
     description:

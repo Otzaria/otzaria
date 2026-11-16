@@ -50,4 +50,62 @@ void main() {
       expect(_scale(0.3), 0.5);
     });
   });
+
+  group('pdfVerticalCacheExtent', () {
+    test('עמוד שנכנס במסך — הטווח הרגיל של מסך אחד', () {
+      expect(pdfVerticalCacheExtent(pageStride: 900, visibleHeight: 919), 1);
+      expect(pdfVerticalCacheExtent(pageStride: 1500, visibleHeight: 900), 1);
+    });
+
+    test('בכל זום הטווח מראש העמוד מגיע לעמוד הבא ולא לזה שאחריו', () {
+      const stride = 908.0;
+      for (final zoom in [1.0, 2.27, 3.5, 6.0, 20.0]) {
+        final visible = 900 / zoom;
+        final extent = pdfVerticalCacheExtent(
+          pageStride: stride,
+          visibleHeight: visible,
+        );
+        final reach = visible + extent * visible;
+        expect(reach, greaterThan(stride), reason: 'zoom $zoom');
+        if (extent > 1) {
+          expect(reach, lessThan(2 * stride), reason: 'zoom $zoom');
+        }
+      }
+    });
+
+    test('מעוגל לחצאים, כך שגלילה בתוך הספר אינה משנה אותו', () {
+      expect(pdfVerticalCacheExtent(pageStride: 908, visibleHeight: 396), 1.5);
+      expect(pdfVerticalCacheExtent(pageStride: 912, visibleHeight: 396), 1.5);
+    });
+
+    test('גם בגבול מדרגה הטווח חופף לעמוד הבא ולא רק נוגע בו', () {
+      const visible = 900.0;
+      for (final ratio in [2.0, 2.5, 3.0, 3.5, 5.0, 20.0]) {
+        final stride = visible * ratio;
+        final extent = pdfVerticalCacheExtent(
+          pageStride: stride,
+          visibleHeight: visible,
+        );
+        expect(visible * (1 + extent), greaterThan(stride), reason: '$ratio');
+        expect(extent * 2, (extent * 2).round());
+        expect(visible * (1 + extent), lessThan(2 * stride));
+      }
+    });
+
+    test('ערך לא תקין חוזר לטווח הרגיל', () {
+      expect(pdfVerticalCacheExtent(pageStride: 0, visibleHeight: 400), 1);
+      expect(pdfVerticalCacheExtent(pageStride: 900, visibleHeight: 0), 1);
+      expect(
+        pdfVerticalCacheExtent(pageStride: double.nan, visibleHeight: 400),
+        1,
+      );
+      expect(
+        pdfVerticalCacheExtent(
+          pageStride: double.infinity,
+          visibleHeight: 400,
+        ),
+        1,
+      );
+    });
+  });
 }

@@ -48,7 +48,7 @@ void main() {
         '${Platform.isWindows
             ? 'pdfium.dll'
             : Platform.isMacOS
-            ? 'libpdfium.dylib'
+            ? 'libpdfium_dart.dylib'
             : 'libpdfium.so'}',
       ).absolute.path;
       addTearDown(() => Pdfrx.pdfiumModulePath = originalModulePath);
