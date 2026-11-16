@@ -23,6 +23,7 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/tabs/reading_screen.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -141,9 +142,11 @@ void main() {
     WidgetTester tester, {
     required double fontSize,
     List<String>? content,
+    bool withReadingScreen = false,
   }) async {
     final book = TextBook(title: 'ספר בדיקה');
     final bloc = _MockTextBookBloc();
+    when(() => bloc.isClosed).thenReturn(false);
     whenListen(
       bloc,
       const Stream<TextBookState>.empty(),
@@ -184,11 +187,15 @@ void main() {
             BlocProvider<TourCubit>.value(value: tourCubit),
           ],
           child: MaterialApp(
-            home: TextBookViewerBloc(
-              tab: tab,
-              isInCombinedView: false,
-              openBookCallback: (_) {},
-            ),
+            builder: (_, child) =>
+                Directionality(textDirection: TextDirection.rtl, child: child!),
+            home: withReadingScreen
+                ? const ReadingScreen()
+                : TextBookViewerBloc(
+                    tab: tab,
+                    isInCombinedView: false,
+                    openBookCallback: (_) {},
+                  ),
           ),
         ),
       ),
@@ -334,6 +341,47 @@ void main() {
     await tester.pump();
     verifyNever(() => bloc.add(any(that: isA<UpdateFontSize>())));
   });
+
+  for (final withReadingScreen in [false, true]) {
+    for (final zoomIn in [false, true]) {
+      testWidgets(
+        'drifting trackpad pinch zooms in=$zoomIn with reading screen=$withReadingScreen (#3907)',
+        (tester) async {
+          tester.view.physicalSize = const Size(944, 948);
+          tester.view.devicePixelRatio = 1.5;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          final bloc = await pumpViewer(
+            tester,
+            fontSize: 20,
+            content: List.generate(200, (i) => 'שורה $i'),
+            withReadingScreen: withReadingScreen,
+          );
+          final text = tester.getCenter(find.byType(CombinedView).first);
+          final pad = TestPointer(2, PointerDeviceKind.trackpad);
+          await tester.sendEventToBinding(pad.panZoomStart(text));
+          await tester.sendEventToBinding(
+            pad.panZoomUpdate(
+              text,
+              pan: const Offset(20, 0),
+              scale: zoomIn ? 1.01 : 0.99,
+            ),
+          );
+          await tester.pump();
+          for (final scale
+              in zoomIn ? [1.1, 1.2, 1.3, 1.4, 1.5] : [0.95, 0.9, 0.85, 0.8]) {
+            await tester.sendEventToBinding(
+              pad.panZoomUpdate(text, pan: const Offset(20, 0), scale: scale),
+            );
+            await tester.pump();
+          }
+          await tester.sendEventToBinding(pad.panZoomEnd());
+          await tester.pump();
+          verify(() => bloc.add(UpdateFontSize(zoomIn ? 30 : 16))).called(1);
+        },
+      );
+    }
+  }
 
   late TextBookLoaded loadedFontSizeState;
   blocTest<TextBookBloc, TextBookState>(

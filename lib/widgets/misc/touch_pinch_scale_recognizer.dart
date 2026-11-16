@@ -6,6 +6,8 @@ import 'package:flutter/scheduler.dart';
 class TouchPinchScaleRecognizer extends ScaleGestureRecognizer {
   TouchPinchScaleRecognizer({super.debugOwner});
 
+  static const double _trackpadScaleSlop = 0.001;
+
   final Map<int, Offset> _touches = {};
   double? _startSpan;
   Offset? _startCentroid;
@@ -35,6 +37,11 @@ class TouchPinchScaleRecognizer extends ScaleGestureRecognizer {
   @override
   void handleEvent(PointerEvent event) {
     super.handleEvent(event);
+    // DirectManipulation שולח רעש scale גם בגלילה; מסננים אותו לפני קבלת צביטה.
+    if (event is PointerPanZoomUpdateEvent &&
+        (event.scale - 1).abs() > _trackpadScaleSlop) {
+      resolve(GestureDisposition.accepted);
+    }
     if (!_touches.containsKey(event.pointer)) return;
     if (event is PointerMoveEvent) {
       _touches[event.pointer] = event.position;
