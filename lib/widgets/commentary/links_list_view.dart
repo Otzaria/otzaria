@@ -1,9 +1,11 @@
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/misc/expanding_chevron.dart';
+import 'package:otzaria/widgets/navigation/search_result_navigator.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/middle_click_open.dart';
 import 'package:otzaria/models/link_types.dart';
@@ -291,6 +293,11 @@ class _LinksListViewState extends State<LinksListView> {
   List<Link>? _searchTextsSource;
   List<(String, String)> _searchTexts = const [];
   final Set<String> _linksWithSearchResults = {}; // קישורים עם תוצאות חיפוש
+  List<Link> _filteredLinks = const [];
+  int _currentResult = 0;
+  // ExpansionTile קורא initiallyExpanded רק בבנייה; מפתח חדש בונה אותו מחדש פתוח.
+  final Set<String> _forcedOpen = {};
+  final FocusNode _searchFocusNode = FocusNode();
   String? _savedSelectedText; // טקסט נבחר לתפריט הקשר
   bool _anchorHandledTap = false;
   Link? _savedSelectedLink; // ה-link שממנו נבחר הטקסט
@@ -315,6 +322,7 @@ class _LinksListViewState extends State<LinksListView> {
       _handleExternalSelectionChange,
     );
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -392,13 +400,34 @@ class _LinksListViewState extends State<LinksListView> {
             children: [
               OtzariaSearchField(
                 controller: _searchController,
+                focusNode: _searchFocusNode,
                 hintText: 'חפש בתוך הקישורים המוצגים...',
                 icon: OtzariaIcons.search_in_titles_24_regular,
+                // Enter עובר לתוצאה הבאה ונשאר בשדה; בחירת הכול בפוקוס תמחק את
+                // השאילתה בהקשה הבאה.
+                selectAllOnFocus: false,
+                trailingActions: [
+                  if (_searchQuery.isNotEmpty && _filteredLinks.length > 1)
+                    SearchResultNavigator(
+                      current: _currentResult + 1,
+                      total: _filteredLinks.length,
+                      onPrevious: _currentResult > 0
+                          ? () => _goToResult(_currentResult - 1)
+                          : null,
+                      onNext: _currentResult < _filteredLinks.length - 1
+                          ? () => _goToResult(_currentResult + 1)
+                          : null,
+                    ),
+                ],
                 onClear: () => setState(() => _searchQuery = ''),
                 onChanged: (value) {
                   setState(() {
                     _searchQuery = value;
                   });
+                },
+                onSubmitted: (_) {
+                  _goToResult(_currentResult + 1);
+                  _searchFocusNode.requestFocus();
                 },
               ),
               if (_searchQuery.isNotEmpty)
@@ -718,22 +747,61 @@ class _LinksListViewState extends State<LinksListView> {
           filteredLinks.add(link);
           _linksWithSearchResults.add(instanceKey); // מסמן שיש תוצאות בתוכן
           _cacheLinkContent(buildSelectedLinkContentKey(link), link);
-
-          // פותח אוטומטית את הקישור הראשון עם תוצאות
-          if (_linksWithSearchResults.length == 1) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                setState(() {
-                  _expanded[instanceKey] = true;
-                });
-              }
-            });
-          }
         }
       }
     }
 
+    // התוצאה הנוכחית היא הקישור הראשון עם התאמה בתוכן, ואם אין — הראשון ברשימה.
+    final firstContentHit = filteredLinks.indexWhere(
+      (link) =>
+          _linksWithSearchResults.contains(buildSelectedLinkInstanceKey(link)),
+    );
+    _filteredLinks = filteredLinks;
+    _currentResult = firstContentHit < 0 ? 0 : firstContentHit;
+    // הרענון מציג את מונה התוצאות בשדה, שנבנה מחוץ ל-FutureBuilder.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (firstContentHit >= 0) {
+        _openResult(_currentResult);
+      } else {
+        setState(() {});
+      }
+    });
     return filteredLinks;
+  }
+
+  void _openResult(int index) {
+    if (index < 0 || index >= _filteredLinks.length) return;
+    final link = _filteredLinks[index];
+    final instanceKey = buildSelectedLinkInstanceKey(link);
+    final contentKey = buildSelectedLinkContentKey(link);
+    if (!_contentCache.containsKey(contentKey) ||
+        _failedContentKeys.contains(contentKey)) {
+      _cacheLinkContent(contentKey, link);
+    }
+    setState(() {
+      _currentResult = index;
+      if (_expanded[instanceKey] != true) _forcedOpen.add(instanceKey);
+      _expanded[instanceKey] = true;
+    });
+  }
+
+  void _goToResult(int index) {
+    if (index < 0 || index >= _filteredLinks.length) return;
+    _openResult(index);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_itemScrollController.isAttached) return;
+      AppMotion.scroll(
+        context,
+        AppTokens.animNormal,
+        animate: (duration) => _itemScrollController.scrollTo(
+          index: index,
+          duration: duration,
+          curve: Curves.easeInOut,
+        ),
+        jump: () => _itemScrollController.jumpTo(index: index),
+      );
+    });
   }
 
   Widget _buildExpansionTile(Link link) {
@@ -747,7 +815,9 @@ class _LinksListViewState extends State<LinksListView> {
             as bool?;
     final isExpanded = _expanded[instanceKey] ?? restoredExpanded ?? false;
     return ExpansionTile(
-      key: PageStorageKey(instanceKey),
+      key: PageStorageKey(
+        _forcedOpen.contains(instanceKey) ? '$instanceKey#open' : instanceKey,
+      ),
       initiallyExpanded: isExpanded,
       maintainState: true,
       showTrailingIcon: false,
