@@ -404,6 +404,13 @@ class AramaicDictionaryEntryPresentation {
   }
 }
 
+/// תוצאת [DictionaryLookupRepository.findAramaicMatchGroups].
+typedef AramaicMatchGroups = ({
+  List<AramaicDictionaryEntry> exact,
+  List<AramaicDictionaryEntry> containing,
+  int hiddenContainingKeys,
+});
+
 typedef AramaicIndex = ({
   List<AramaicDictionaryEntry> entries,
   Set<String> terms,
@@ -644,19 +651,39 @@ class DictionaryLookupRepository {
     ].join(' *** ');
   }
 
-  /// התאמות מדויקות וכל פירושי עד [maxContainingMatches] הצירופים הקצרים, בסדר המילון.
+  /// התאמות מדויקות ואחריהן צירופים שמכילים את המילה (ראו [findAramaicMatchGroups]).
   /// נדרשת מילה שקיימת במילון; [dictionaries] בוחר מילונים, כברירת מחדל "פשיטא" בלבד.
   List<AramaicDictionaryEntry> findAramaicMatches(
     String raw, {
     int? maxContainingMatches,
     Set<String> dictionaries = const {AramaicDictionaryEntry.peshitaDictionary},
   }) {
+    final groups = findAramaicMatchGroups(
+      raw,
+      maxContainingMatches: maxContainingMatches,
+      dictionaries: dictionaries,
+    );
+    return <AramaicDictionaryEntry>[...groups.exact, ...groups.containing];
+  }
+
+  /// כמו [findAramaicMatches], אך מפריד בין ההתאמות המדויקות לצירופים שרק מכילים
+  /// את המילה. בלי [maxContainingMatches] הצירופים כולם, בסדר המילון. כשהוא נתון,
+  /// מוחזרים עד כך מפתחות בסדר רלוונטיות (הצירופים הקצרים קודם, ובשוויון סדר
+  /// המילון), ו-`hiddenContainingKeys` הוא מספר המפתחות שנחתכו.
+  AramaicMatchGroups findAramaicMatchGroups(
+    String raw, {
+    int? maxContainingMatches,
+    Set<String> dictionaries = const {AramaicDictionaryEntry.peshitaDictionary},
+  }) {
     assert(maxContainingMatches == null || maxContainingMatches >= 0);
+    const none = (
+      exact: <AramaicDictionaryEntry>[],
+      containing: <AramaicDictionaryEntry>[],
+      hiddenContainingKeys: 0,
+    );
     final normalizedWord = _normalizeAramaic(raw);
-    if (normalizedWord.isEmpty) return const <AramaicDictionaryEntry>[];
-    if (!_aramaicTerms.contains(normalizedWord)) {
-      return const <AramaicDictionaryEntry>[];
-    }
+    if (normalizedWord.isEmpty) return none;
+    if (!_aramaicTerms.contains(normalizedWord)) return none;
 
     final exact = <AramaicDictionaryEntry>[];
     var containing = <int>[];
@@ -674,30 +701,29 @@ class DictionaryLookupRepository {
       }
     }
 
-    if (maxContainingMatches != null &&
-        containing.length > maxContainingMatches) {
-      final selectedKeys =
-          (containing..sort((a, b) {
-                final byLength = _aramaicIndex[a].words.length.compareTo(
-                  _aramaicIndex[b].words.length,
-                );
-                return byLength != 0 ? byLength : a.compareTo(b);
-              }))
-              .map((i) => _aramaicIndex[i].normalized)
-              .toSet()
-              .take(maxContainingMatches)
-              .toSet();
-      containing =
-          containing
-              .where((i) => selectedKeys.contains(_aramaicIndex[i].normalized))
-              .toList()
-            ..sort();
+    var hidden = 0;
+    if (maxContainingMatches != null) {
+      containing.sort((a, b) {
+        final byLength = _aramaicIndex[a].words.length.compareTo(
+          _aramaicIndex[b].words.length,
+        );
+        return byLength != 0 ? byLength : a.compareTo(b);
+      });
+      final keys = containing.map((i) => _aramaicIndex[i].normalized).toSet();
+      if (keys.length > maxContainingMatches) {
+        final selectedKeys = keys.take(maxContainingMatches).toSet();
+        hidden = keys.length - selectedKeys.length;
+        containing = containing
+            .where((i) => selectedKeys.contains(_aramaicIndex[i].normalized))
+            .toList();
+      }
     }
 
-    return <AramaicDictionaryEntry>[
-      ...exact,
-      for (final index in containing) _aramaicEntries[index],
-    ];
+    return (
+      exact: exact,
+      containing: [for (final index in containing) _aramaicEntries[index]],
+      hiddenContainingKeys: hidden,
+    );
   }
 
   Future<void> _loadAcronymsInternal() async {

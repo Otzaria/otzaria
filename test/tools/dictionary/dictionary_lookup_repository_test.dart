@@ -429,10 +429,82 @@ void main() {
         repository: repo,
       );
 
-      expect(merged.single.children!, hasLength(1));
-      expect(merged.single.children!.single.label, contains('ארץ'));
-      expect(merged.single.children!.single.label, contains('אֲדָמָה'));
-      expect(other.single.children!.single.label, contains('איש'));
+      // ערך אחד לכל מפתח; אחריו מפריד ופעולת "פתח במילון".
+      expect(merged.single.children!, hasLength(3));
+      expect(merged.single.children!.first.label, contains('ארץ'));
+      expect(merged.single.children!.first.label, contains('אֲדָמָה'));
+      expect(other.single.children!.first.label, contains('איש'));
+    });
+
+    testWidgets(
+      'התפריט: התאמה מדויקת, מפריד, צירופים קצרים קודם ופעולת פתיחה בכלי',
+      (tester) async {
+        final repo = DictionaryLookupRepository(
+          loadAramaicEntries: () async => const <AramaicDictionaryEntry>[
+            AramaicDictionaryEntry(aramaic: 'א ב ג ליה', hebrew: 'ארוך'),
+            AramaicDictionaryEntry(aramaic: 'בעי ליה', hebrew: 'צריך לו'),
+            AramaicDictionaryEntry(aramaic: 'ליה', hebrew: 'לו'),
+          ],
+        );
+        await repo.ensureAramaicLoaded();
+        await tester.pumpWidget(
+          const MaterialApp(home: Scaffold(body: SizedBox.shrink())),
+        );
+        final context = tester.element(find.byType(SizedBox));
+        final opened = <String>[];
+
+        final entries = buildDictionaryContextMenuEntries(
+          context: context,
+          selectedText: ' ליה ',
+          repository: repo,
+          openInDictionaryTool: (_, text) => opened.add(text),
+        );
+        final children = entries.single.children!;
+
+        expect(children.map((e) => e.isDivider), [
+          false, // ליה
+          true,
+          false, // בעי ליה
+          false, // א ב ג ליה
+          true,
+          false, // פתח במילון
+        ]);
+        expect(children[0].label, startsWith('ליה - '));
+        expect(children[2].label, startsWith('בעי ליה - '));
+        expect(children[3].label, startsWith('א ב ג ליה - '));
+        expect(children.last.label, 'פתח במילון הארמי-עברי');
+
+        children.last.onTap!();
+        expect(opened, ['ליה']);
+      },
+    );
+
+    testWidgets('התפריט: בלי התאמה מדויקת אין מפריד ראשון, ועם חיתוך מוצג המספר', (
+      tester,
+    ) async {
+      final repo = DictionaryLookupRepository(
+        loadAramaicEntries: () async => [
+          for (var i = 0; i < 12; i++)
+            AramaicDictionaryEntry(aramaic: 'מילה$i ליה', hebrew: 'פירוש $i'),
+        ],
+      );
+      await repo.ensureAramaicLoaded();
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: SizedBox.shrink())),
+      );
+      final context = tester.element(find.byType(SizedBox));
+
+      final children = buildDictionaryContextMenuEntries(
+        context: context,
+        selectedText: 'ליה',
+        repository: repo,
+      ).single.children!;
+
+      // 8 צירופים (התקרה), מפריד, ופעולת פתיחה שמציינת את 4 החתוכים.
+      expect(children, hasLength(10));
+      expect(children.first.isDivider, isFalse);
+      expect(children[8].isDivider, isTrue);
+      expect(children.last.label, 'פתח במילון (עוד 4 צירופים)');
     });
 
     testWidgets('נופל חזרה לחיפוש ארמי כשאין התאמת ראשי תיבות', (tester) async {
@@ -555,6 +627,85 @@ void main() {
             .map((e) => e.aramaic),
         <String>['ליה'],
       );
+    });
+  });
+
+  group('findAramaicMatchGroups', () {
+    late DictionaryLookupRepository repo;
+
+    setUp(() async {
+      repo = DictionaryLookupRepository(
+        loadAramaicEntries: () async => <AramaicDictionaryEntry>[
+          const AramaicDictionaryEntry(aramaic: 'ליה', hebrew: 'לו'),
+          const AramaicDictionaryEntry(aramaic: 'א ב ג ליה', hebrew: 'ארוך'),
+          const AramaicDictionaryEntry(aramaic: 'בעי ליה', hebrew: 'צריך לו'),
+          const AramaicDictionaryEntry(aramaic: 'גמר ליה', hebrew: 'למד לו'),
+          const AramaicDictionaryEntry(aramaic: 'דבר ליה', hebrew: 'אמר לו'),
+        ],
+      );
+      await repo.ensureAramaicLoaded();
+    });
+
+    List<String> keys(List<AramaicDictionaryEntry> entries) => [
+      for (final e in entries) e.aramaic,
+    ];
+
+    test('מפריד התאמה מדויקת מצירופים; בלי תקרה הצירופים בסדר המילון', () {
+      final groups = repo.findAramaicMatchGroups('ליה');
+
+      expect(keys(groups.exact), ['ליה']);
+      expect(keys(groups.containing), [
+        'א ב ג ליה',
+        'בעי ליה',
+        'גמר ליה',
+        'דבר ליה',
+      ]);
+      expect(groups.hiddenContainingKeys, 0);
+    });
+
+    test('עם תקרה הצירופים לפי רלוונטיות (הקצרים קודם), וסופרים את החתוכים', () {
+      final roomy = repo.findAramaicMatchGroups(
+        'ליה',
+        maxContainingMatches: 10,
+      );
+      expect(keys(roomy.containing), [
+        'בעי ליה',
+        'גמר ליה',
+        'דבר ליה',
+        'א ב ג ליה',
+      ]);
+      expect(roomy.hiddenContainingKeys, 0);
+
+      final cut = repo.findAramaicMatchGroups('ליה', maxContainingMatches: 2);
+      expect(keys(cut.containing), ['בעי ליה', 'גמר ליה']);
+      expect(cut.hiddenContainingKeys, 2);
+
+      final none = repo.findAramaicMatchGroups('ליה', maxContainingMatches: 0);
+      expect(none.containing, isEmpty);
+      expect(none.hiddenContainingKeys, 4);
+      expect(keys(none.exact), ['ליה']);
+    });
+
+    test('מילה שאינה במילון מחזירה קבוצות ריקות', () {
+      final groups = repo.findAramaicMatchGroups('זזזזזז');
+
+      expect(groups.exact, isEmpty);
+      expect(groups.containing, isEmpty);
+      expect(groups.hiddenContainingKeys, 0);
+    });
+
+    test('findAramaicMatches הוא החיבור של הקבוצות', () {
+      for (final cap in <int?>[null, 0, 2, 10]) {
+        final groups = repo.findAramaicMatchGroups(
+          'ליה',
+          maxContainingMatches: cap,
+        );
+        expect(
+          keys(repo.findAramaicMatches('ליה', maxContainingMatches: cap)),
+          [...keys(groups.exact), ...keys(groups.containing)],
+          reason: 'תקרה: $cap',
+        );
+      }
     });
   });
 
