@@ -244,6 +244,8 @@ void main() {
         tester.widget<TextField>(proposalField()).controller!.text,
         'אֱלֹהִ֑ים',
       );
+      await tester.tap(find.text('קוד מקור'));
+      await tester.pumpAndSettle();
       final original = tester.widget<Text>(
         find.descendant(
           of: find.byKey(const ValueKey('correction-original')),
@@ -257,6 +259,8 @@ void main() {
       final submissions = await pumpTab(tester);
 
       await tester.enterText(proposalField(), 'אֱלֹקִ֑ים');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('קוד מקור'));
       await tester.pumpAndSettle();
 
       final original = tester.widget<Text>(
@@ -499,6 +503,155 @@ void main() {
       expect(proposalField(), findsOneWidget);
       expect(drafts.last.hasProposal, isTrue);
       expect(drafts.last.isValid, isFalse, reason: 'זהה למקור עד שמשנים');
+    });
+  });
+
+  group('תצוגה כמו בספר (#1980)', () {
+    test('סימון היעד עוטף רק טקסט, והתגיות נשארות מאוזנות', () {
+      const html = 'א <sup>ב ג</sup> ד';
+      expect(
+        markTargetInHtml(html, html.indexOf('ב'), html.indexOf('ג') + 1),
+        'א <sup><correction-target>ב ג</correction-target></sup> ד',
+      );
+      expect(
+        markTargetInHtml('<b title="a>b">x</b> y', 0, 22),
+        '<b title="a>b"><correction-target>x</correction-target></b>'
+        '<correction-target> y</correction-target>',
+      );
+    });
+
+    test('הבדל בטקסט בתוך תגית מסומן בלי לגעת בתגית', () {
+      expect(
+        correctionDiffHtml(
+          before: 'ב',
+          after: 'ג',
+          contextBefore: 'א <sup>',
+          contextAfter: '</sup>',
+        ),
+        'א <sup><correction-removed>ב</correction-removed>'
+        '<correction-added>ג</correction-added></sup>',
+      );
+    });
+
+    test('שינוי שנוגע בתגית או בישות אינו מרונדר', () {
+      expect(correctionDiffHtml(before: '<b>א</b>', after: '<i>א</i>'), isNull);
+      expect(
+        correctionDiffHtml(
+          before: '<span class="a">א</span>',
+          after: '<span class="b">א</span>',
+        ),
+        isNull,
+      );
+      expect(correctionDiffHtml(before: 'א &amp; ב', after: 'א & ב'), isNull);
+    });
+
+    test('שינוי רווחים בלבד אינו מרונדר — הרינדור מכווץ אותו', () {
+      expect(correctionDiffHtml(before: 'א ב', after: 'א  ב'), isNull);
+      expect(correctionDiffHtml(before: 'א ב', after: 'א\nב'), isNull);
+    });
+
+    test('בחירה שחותכת ישות מסמנת את השורה כולה', () {
+      expect(
+        markTargetInHtml('x &amp;amp; y', 0, 4),
+        '<correction-target>x &amp;amp; y</correction-target>',
+      );
+    });
+
+    Future<List<TextCorrectionDraft>> pumpEditor(
+      WidgetTester tester,
+      String line,
+      String selected,
+    ) async {
+      final drafts = <TextCorrectionDraft>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: TextCorrectionEditor(
+                original: buildCorrectionTemplate(line, selected),
+                fontSize: 18,
+                onChanged: drafts.add,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return drafts;
+    }
+
+    Finder inOriginal(Type type) => find.descendant(
+      of: find.byKey(const ValueKey('correction-original')),
+      matching: find.byType(type),
+    );
+
+    testWidgets('שורה עם תגיות מוצגת כמו בספר, ואפשר לעבור לקוד מקור', (
+      tester,
+    ) async {
+      final drafts = await pumpEditor(tester, _line, 'אֱלֹהִ֑ים');
+      final field = find.descendant(
+        of: find.byKey(const ValueKey('correction-proposal-field')),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(field, 'אֱלֹקִ֑ים');
+      await tester.pumpAndSettle();
+      final sent = drafts.last.correction;
+
+      expect(inOriginal(CorrectionHtml), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('correction-source-explanation')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('correction-diff')),
+          matching: find.byType(CorrectionHtml),
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('<big>', findRichText: true), findsNothing);
+
+      await tester.tap(find.text('קוד מקור'));
+      await tester.pumpAndSettle();
+
+      expect(inOriginal(CorrectionHtml), findsNothing);
+      expect(find.textContaining('<big>', findRichText: true), findsOneWidget);
+      expect(
+        tester.widget<TextField>(field).controller!.text,
+        'אֱלֹקִ֑ים',
+        reason: 'שדה העריכה תמיד גולמי',
+      );
+      expect(drafts.last.correction, sent, reason: 'התצוגה לא משנה את הדיווח');
+    });
+
+    testWidgets('שורה בלי תגיות — בלי מתג', (tester) async {
+      await pumpEditor(tester, 'בראשית ברא אלהים', 'ברא');
+
+      expect(
+        find.byKey(const ValueKey('correction-view-toggle')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('correction-source-explanation')),
+        findsNothing,
+      );
+      expect(inOriginal(CorrectionHtml), findsNothing);
+    });
+
+    testWidgets('שינוי בתגית מוצג כקוד מקור עם הסבר', (tester) async {
+      await pumpEditor(tester, _line, '');
+      final field = find.descendant(
+        of: find.byKey(const ValueKey('correction-proposal-field')),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(field, _line.replaceAll('big', 'small'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('correction-diff-source-notice')),
+        findsOneWidget,
+      );
+      expect(inOriginal(CorrectionHtml), findsOneWidget);
     });
   });
 }

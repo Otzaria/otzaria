@@ -2,12 +2,17 @@ import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/reports/view_scope.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
+import 'package:otzaria/widgets/smart_text/otzaria_widget_factory.dart';
+import 'package:otzaria/widgets/smart_text/raised_markers.dart';
+import 'package:otzaria/widgets/smart_text/smart_text_css.dart';
+import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
@@ -42,17 +47,7 @@ TextCorrection buildCorrectionTemplate(String originalLine, String selected) {
 ({int start, int end})? _locateAsDisplayed(String line, String selected) {
   final located = locateSelectionInLine(line, selected);
   if (located == null) return null;
-  if (!_isVisibleSourceRange(line, located.start, located.end)) return null;
-  // Visible "&amp;" in raw "&amp;amp;" must not replace only the first
-  // five source characters and leave an unintended "amp;" behind.
-  if (_htmlCharacterReference
-      .allMatches(line)
-      .any(
-        (reference) =>
-            reference.start < located.end && reference.end > located.start,
-      )) {
-    return null;
-  }
+  if (!_isPlainTextRange(line, located.start, located.end)) return null;
   final shown = removeVolwels(stripHtmlIfNeeded(line));
   return locateSelectionInLine(shown, removeVolwels(selected)) == null
       ? null
@@ -64,6 +59,14 @@ TextCorrection buildCorrectionTemplate(String originalLine, String selected) {
 final RegExp _htmlCharacterReference = RegExp(
   r'&(?:#[xX][0-9a-fA-F]+;?|#[0-9]+;?|[a-zA-Z][a-zA-Z0-9]*;?)',
 );
+
+/// Text outside tags and comments that cuts no character reference: visible
+/// "&amp;" in raw "&amp;amp;" must not map to only part of the reference.
+bool _isPlainTextRange(String html, int start, int end) =>
+    _isVisibleSourceRange(html, start, end) &&
+    !_htmlCharacterReference
+        .allMatches(html)
+        .any((reference) => reference.start < end && reference.end > start);
 
 /// A `>` in a quoted attribute or comment is not a tag end. Ambiguous markup
 /// uses the unchanged whole-line path without mapping decoded text to HTML.
@@ -205,6 +208,106 @@ List<TextDiffSegment> _lcsDiff(List<String> a, List<String> b) {
   return result;
 }
 
+const String _targetTag = 'correction-target';
+const String _removedTag = 'correction-removed';
+const String _addedTag = 'correction-added';
+
+/// בשורה יש תגיות או ישויות, ולכן תצוגתה בספר שונה מקוד המקור.
+bool hasRenderableMarkup(String html) =>
+    html.contains('<') || _htmlCharacterReference.hasMatch(html);
+
+/// [html] with the text of [start, end) wrapped in a marker, one wrapper per run
+/// between tags so the markup stays balanced.
+String markTargetInHtml(String html, int start, int end) {
+  // בחירה מטיוטה ישנה עלולה לחתוך ישות; אז מסומנת השורה כולה.
+  if (!_isPlainTextRange(html, start, end)) (start, end) = (0, html.length);
+  final out = StringBuffer();
+  var inTag = false;
+  var inComment = false;
+  String? quote;
+  var open = false;
+  for (var i = 0; i < html.length; i++) {
+    if (!inTag && !inComment) {
+      if (html.startsWith('<!--', i)) {
+        inComment = true;
+      } else if (html[i] == '<') {
+        inTag = true;
+      }
+    }
+    final mark = !inTag && !inComment && i >= start && i < end;
+    if (mark != open) {
+      out.write(open ? '</$_targetTag>' : '<$_targetTag>');
+      open = mark;
+    }
+    final char = html[i];
+    out.write(char);
+    if (inComment) {
+      if (html.startsWith('-->', i)) {
+        out.write('->');
+        i += 2;
+        inComment = false;
+      }
+    } else if (inTag) {
+      if (quote != null) {
+        if (char == quote) quote = null;
+      } else if (char == '"' || char == "'") {
+        quote = char;
+      } else if (char == '>') {
+        inTag = false;
+      }
+    }
+  }
+  if (open) out.write('</$_targetTag>');
+  return out.toString();
+}
+
+/// ההבדל בין [before] ל-[after] כ-HTML, השינויים עטופים בסימון; null כששינוי
+/// נוגע בתגית או בישות, או כולו רווחים שהרינדור מכווץ — אלה נאמנים רק כקוד מקור.
+String? correctionDiffHtml({
+  required String before,
+  required String after,
+  String contextBefore = '',
+  String contextAfter = '',
+}) {
+  final fullBefore = '$contextBefore$before$contextAfter';
+  final fullAfter = '$contextBefore$after$contextAfter';
+  final out = StringBuffer(contextBefore);
+  var beforePos = contextBefore.length;
+  var afterPos = contextBefore.length;
+  var visibleChange = false;
+  for (final segment in computeTextDiff(before, after)) {
+    if (segment.op != TextDiffOp.equal && segment.text.trim().isNotEmpty) {
+      visibleChange = true;
+    }
+    final text = segment.text;
+    switch (segment.op) {
+      case TextDiffOp.equal:
+        out.write(text);
+        beforePos += text.length;
+        afterPos += text.length;
+      case TextDiffOp.removed:
+        if (!_isPlainTextRange(
+          fullBefore,
+          beforePos,
+          beforePos + text.length,
+        )) {
+          return null;
+        }
+        out.write('<$_removedTag>$text</$_removedTag>');
+        beforePos += text.length;
+      case TextDiffOp.added:
+        if (!_isPlainTextRange(fullAfter, afterPos, afterPos + text.length)) {
+          return null;
+        }
+        out.write('<$_addedTag>$text</$_addedTag>');
+        afterPos += text.length;
+    }
+  }
+  if (!visibleChange) return null;
+  out.write(contextAfter);
+  return out.toString();
+}
+
 /// אופן ההצעה: טקסט חלופי או מחיקה מכוונת ("").
 ///
 /// אין מצב "ללא הצעה": הצעת תיקון בלי הצעה היא בעצם דיווח חופשי, ולכן מי שאין לו
@@ -298,6 +401,7 @@ class _TextCorrectionEditorState extends State<TextCorrectionEditor> {
       (widget.restoreProposal && widget.original.proposedText == ''
           ? ProposalMode.delete
           : ProposalMode.replace);
+  bool _showSource = false;
 
   String? get _restoredText {
     final proposed = widget.original.proposedText;
@@ -361,17 +465,43 @@ class _TextCorrectionEditorState extends State<TextCorrectionEditor> {
     final errorText = draft.error == null
         ? null
         : reportFeedbackText(context, draft.error!);
+    final hasMarkup = hasRenderableMarkup(original.originalLine);
+    final rendered = hasMarkup && !_showSource;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          context.settingsText('טקסט המקור (לא ניתן לעריכה):'),
-          style: TextStyle(
-            fontSize: AppTokens.fontMD,
-            fontWeight: FontWeight.bold,
-            color: colorScheme.primary,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                context.settingsText('טקסט המקור (לא ניתן לעריכה):'),
+                style: TextStyle(
+                  fontSize: AppTokens.fontMD,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.primary,
+                ),
+              ),
+            ),
+            if (hasMarkup)
+              AppSegmentedControl<bool>(
+                key: const ValueKey('correction-view-toggle'),
+                options: [
+                  SegmentOption(
+                    value: false,
+                    label: context.settingsText('כמו בספר'),
+                    icon: FluentIcons.book_open_24_regular,
+                  ),
+                  SegmentOption(
+                    value: true,
+                    label: context.settingsText('קוד מקור'),
+                    icon: FluentIcons.code_24_regular,
+                  ),
+                ],
+                currentValue: _showSource,
+                onChanged: (value) => setState(() => _showSource = value),
+              ),
+          ],
         ),
         const SizedBox(height: AppTokens.spaceSM),
         Container(
@@ -383,26 +513,36 @@ class _TextCorrectionEditorState extends State<TextCorrectionEditor> {
             borderRadius: AppTokens.borderRadiusAll,
           ),
           child: SingleChildScrollView(
-            child: Text.rich(
-              TextSpan(
-                style: textStyle,
-                children: [
-                  TextSpan(
-                    text: original.contextBefore,
-                    style: TextStyle(color: colorScheme.onSurfaceVariant),
+            child: rendered
+                ? CorrectionHtml(
+                    html: markTargetInHtml(
+                      original.originalLine,
+                      original.selectionStart ?? 0,
+                      original.selectionEnd ?? original.originalLine.length,
+                    ),
+                    style: textStyle,
+                    direction: sourceDirection,
+                  )
+                : Text.rich(
+                    TextSpan(
+                      style: textStyle,
+                      children: [
+                        TextSpan(
+                          text: original.contextBefore,
+                          style: TextStyle(color: colorScheme.onSurfaceVariant),
+                        ),
+                        TextSpan(
+                          text: original.target,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        TextSpan(
+                          text: original.contextAfter,
+                          style: TextStyle(color: colorScheme.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                    textDirection: sourceDirection,
                   ),
-                  TextSpan(
-                    text: original.target,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  TextSpan(
-                    text: original.contextAfter,
-                    style: TextStyle(color: colorScheme.onSurfaceVariant),
-                  ),
-                ],
-              ),
-              textDirection: sourceDirection,
-            ),
           ),
         ),
         if (!original.hasSelection) ...[
@@ -433,6 +573,18 @@ class _TextCorrectionEditorState extends State<TextCorrectionEditor> {
           expandToFillWidth: true,
         ),
         const SizedBox(height: 8),
+        if (hasMarkup && _mode == ProposalMode.replace) ...[
+          Text(
+            context.settingsText(
+              'שדה העריכה מציג את קוד המקור, כולל תגיות העיצוב. "כמו בספר" מראה איך השורה והשינוי ייראו בספר.',
+            ),
+            key: const ValueKey('correction-source-explanation'),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppTokens.spaceXS),
+        ],
         if (_mode == ProposalMode.replace)
           Directionality(
             textDirection: sourceDirection,
@@ -478,6 +630,9 @@ class _TextCorrectionEditorState extends State<TextCorrectionEditor> {
             before: original.target,
             after: draft.correction.proposedText!,
             style: textStyle,
+            renderHtml: rendered,
+            contextBefore: original.contextBefore,
+            contextAfter: original.contextAfter,
           ),
         ],
       ],
@@ -491,17 +646,64 @@ class TextCorrectionDiffView extends StatelessWidget {
   final String after;
   final TextStyle style;
 
+  /// מציג כמו בספר, עם ההקשר; שינוי שנוגע בתגית מוצג כקוד מקור.
+  final bool renderHtml;
+  final String contextBefore;
+  final String contextAfter;
+
   const TextCorrectionDiffView({
     super.key,
     required this.before,
     required this.after,
     required this.style,
+    this.renderHtml = false,
+    this.contextBefore = '',
+    this.contextAfter = '',
   });
+
+  /// מעבר לזה השינוי עלול להיות מחוץ לתיבה הנגללת, ולכן מרונדר בלי הקשר.
+  static const int _maxRenderedContext = 300;
 
   @override
   Widget build(BuildContext context) {
+    final withContext =
+        contextBefore.length + contextAfter.length <= _maxRenderedContext;
+    final html = renderHtml
+        ? correctionDiffHtml(
+            before: before,
+            after: after,
+            contextBefore: withContext ? contextBefore : '',
+            contextAfter: withContext ? contextAfter : '',
+          )
+        : null;
+    if (!renderHtml || html != null) return _box(context, html);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _box(context, null),
+        const SizedBox(height: AppTokens.spaceXS),
+        Text(
+          context.settingsText(
+            'השינוי נוגע בתגיות העיצוב או ברווחים בלבד, ולכן הוא מוצג כקוד מקור.',
+          ),
+          key: const ValueKey('correction-diff-source-notice'),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _box(BuildContext context, String? html) {
     final colorScheme = Theme.of(context).colorScheme;
-    final segments = computeTextDiff(before, after);
+    final segments = html == null
+        ? computeTextDiff(before, after)
+        : const <TextDiffSegment>[];
+    final direction = reportContentDirection(
+      before.isEmpty ? after : before,
+      isHtml: true,
+    );
     return Container(
       constraints: const BoxConstraints(maxHeight: 150),
       padding: const EdgeInsets.all(8),
@@ -510,32 +712,97 @@ class TextCorrectionDiffView extends StatelessWidget {
         borderRadius: AppTokens.borderRadiusAll,
       ),
       child: SingleChildScrollView(
-        child: Text.rich(
-          TextSpan(
-            style: style,
-            children: [
-              for (final segment in segments)
+        child: html != null
+            ? CorrectionHtml(html: html, style: style, direction: direction)
+            : Text.rich(
                 TextSpan(
-                  text: segment.text,
-                  style: switch (segment.op) {
-                    TextDiffOp.equal => null,
-                    TextDiffOp.removed => TextStyle(
-                      color: colorScheme.onErrorContainer,
-                      backgroundColor: colorScheme.errorContainer,
-                      decoration: TextDecoration.lineThrough,
-                    ),
-                    TextDiffOp.added => TextStyle(
-                      color: colorScheme.onPrimaryContainer,
-                      backgroundColor: colorScheme.primaryContainer,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  },
+                  style: style,
+                  children: [
+                    for (final segment in segments)
+                      TextSpan(
+                        text: segment.text,
+                        style: switch (segment.op) {
+                          TextDiffOp.equal => null,
+                          TextDiffOp.removed => TextStyle(
+                            color: colorScheme.onErrorContainer,
+                            backgroundColor: colorScheme.errorContainer,
+                            decoration: TextDecoration.lineThrough,
+                          ),
+                          TextDiffOp.added => TextStyle(
+                            color: colorScheme.onPrimaryContainer,
+                            backgroundColor: colorScheme.primaryContainer,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        },
+                      ),
+                  ],
                 ),
-            ],
-          ),
-          textDirection: reportContentDirection(
-            before.isEmpty ? after : before,
-            isHtml: true,
+                textDirection: direction,
+              ),
+      ),
+    );
+  }
+}
+
+/// שורת ספר מרונדרת כמו בקורא, עם סימוני היעד וההבדל בצבעי ה-theme.
+class CorrectionHtml extends StatelessWidget {
+  final String html;
+  final TextStyle style;
+  final TextDirection direction;
+
+  const CorrectionHtml({
+    super.key,
+    required this.html,
+    required this.style,
+    required this.direction,
+  });
+
+  static String _css(Color color) =>
+      '#${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
+
+  static final _markTags = RegExp(
+    '<(/?)($_targetTag|$_removedTag|$_addedTag)>',
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final styles = {
+      _targetTag:
+          'font-weight:bold;background-color:${_css(colorScheme.secondaryContainer)}',
+      _removedTag:
+          'text-decoration:line-through;color:${_css(colorScheme.onErrorContainer)};background-color:${_css(colorScheme.errorContainer)}',
+      _addedTag:
+          'font-weight:bold;color:${_css(colorScheme.onPrimaryContainer)};background-color:${_css(colorScheme.primaryContainer)}',
+    };
+    final marked = html.replaceAllMapped(
+      _markTags,
+      (match) =>
+          match[1] == '/' ? '</span>' : '<span style="${styles[match[2]]}">',
+    );
+    final processed = TextRendererService.prepareInlineMarkers(
+      marked,
+      unhighlighted: html.replaceAll(_markTags, ''),
+    );
+    return Directionality(
+      textDirection: direction,
+      child: RaisedMarkerOverlay.wrap(
+        context: context,
+        markers: RaisedMarkers.extract(processed),
+        baseStyle: style,
+        child: HtmlWidget(
+          processed,
+          textStyle: style,
+          factoryBuilder: OtzariaWidgetFactory.new,
+          // קישורים בשורה מובילים לספרים; בתוך דיווח הם לקריאה בלבד.
+          onTapUrl: (_) => true,
+          customStylesBuilder: (element) => smartTextElementCss(
+            element.localName,
+            element.classes,
+            hasHref: element.attributes.containsKey('href'),
+            fontFamily: style.fontFamily,
+            linkColorCss: _css(AppSurfaces.readerLink(colorScheme)),
+            headingColorCss: _css(colorScheme.onSurfaceVariant),
           ),
         ),
       ),
