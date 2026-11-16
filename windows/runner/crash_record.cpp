@@ -122,7 +122,7 @@ std::string DescribeFault(ULONG_PTR address) {
   return startup_watchdog::DescribeFrame(address);
 }
 
-void WriteRecord() {
+bool WriteRecord() {
   std::vector<ULONG_PTR> frames;
   frames.reserve(kMaxFrames);
   Unwind(g_context, &frames);
@@ -151,7 +151,7 @@ void WriteRecord() {
                                                   : "Thread: other\n";
   startup_watchdog::AppendBuildIdentity(frames, &report);
   startup_watchdog::AppendStack(frames, &report);
-  startup_watchdog::AppendReport(report);
+  return startup_watchdog::AppendReport(report);
 }
 
 std::wstring ExeDirectory() {
@@ -222,9 +222,8 @@ DWORD WINAPI WriterThread(LPVOID) {
   while (::WaitForSingleObjectEx(g_crash_event, INFINITE, TRUE) ==
          WAIT_IO_COMPLETION) {
   }
-  WriteRecord();
   // רק אחרי הכתיבה: writer שנכשל משאיר את הרישום למודול ה-WER.
-  ::InterlockedExchange(&g_wer.recorded, 1);
+  if (WriteRecord()) ::InterlockedExchange(&g_wer.recorded, 1);
   ::SetEvent(g_done_event);
   return 0;
 }

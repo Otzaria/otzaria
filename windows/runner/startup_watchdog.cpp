@@ -377,18 +377,21 @@ void CreateParentDirectories(const std::wstring& path) {
   ::CreateDirectoryW(dir.c_str(), nullptr);
 }
 
-void AppendToLog(const std::string& text) {
+bool AppendToLog(const std::string& text) {
   const std::wstring path = ResolveLogPath();
-  if (path.empty()) return;
+  if (path.empty()) return false;
   CreateParentDirectories(path);
   HANDLE file = ::CreateFileW(path.c_str(), FILE_APPEND_DATA,
                               FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
                               OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-  if (file == INVALID_HANDLE_VALUE) return;
+  if (file == INVALID_HANDLE_VALUE) return false;
   DWORD written = 0;
-  ::WriteFile(file, text.c_str(), static_cast<DWORD>(text.size()), &written,
-              nullptr);
+  const bool complete =
+      ::WriteFile(file, text.c_str(), static_cast<DWORD>(text.size()), &written,
+                  nullptr) &&
+      written == text.size();
   ::CloseHandle(file);
+  return complete;
 }
 
 std::string Timestamp() {
@@ -511,7 +514,7 @@ void AppendBuildIdentity(const std::vector<ULONG_PTR>& frames,
   AppendBuildIdentitySection(frames, report);
 }
 
-void AppendReport(const std::string& text) { AppendToLog(text); }
+bool AppendReport(const std::string& text) { return AppendToLog(text); }
 
 std::wstring ErrorLogPath() { return ResolveLogPath(); }
 

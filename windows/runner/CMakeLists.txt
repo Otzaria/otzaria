@@ -83,18 +83,6 @@ target_link_libraries(${BINARY_NAME} PRIVATE "psapi.lib")
 target_link_libraries(${BINARY_NAME} PRIVATE "comctl32.lib")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 
-# מודול ה-WER נטען ב-WerFault בקריסה שעוקפת את המטפל (fastfail, heap corruption).
-add_library(otzaria_crash_wer SHARED
-  "crash_wer.cpp"
-  "crash_wer.def"
-  "image_identity.cpp"
-)
-apply_standard_settings(otzaria_crash_wer)
-target_compile_definitions(otzaria_crash_wer PRIVATE "NOMINMAX")
-# CRT סטטי: WerFault טוען את ה-DLL מ-System32, ושם אין את ה-vcruntime שלנו.
-set_property(TARGET otzaria_crash_wer PROPERTY
-  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-target_link_libraries(otzaria_crash_wer PRIVATE "dbghelp.lib" "psapi.lib")
 add_dependencies(${BINARY_NAME} otzaria_crash_wer)
 
 # Run the Flutter tool portions of the build. This must not be removed.

@@ -34,6 +34,9 @@ packages/*/pubspec.lock
 .pub/
 build/
 windows/*
+!windows/crash_wer/
+windows/crash_wer/*
+!windows/crash_wer/CMakeLists.txt
 !windows/launcher/
 !windows/runner/
 windows/runner/*
