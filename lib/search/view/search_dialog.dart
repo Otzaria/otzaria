@@ -243,6 +243,9 @@ class _SearchDialogState extends State<SearchDialog> {
   bool _semanticGroupIdentical =
       SearchDefaults.initialSemanticGroupIdenticalForNewSearch();
   bool _semanticSubmitted = false;
+
+  /// בשליחה חכמה ממתינים לספרים המכוסים; הכפתור מציג המתנה.
+  bool _loadingCoverage = false;
   SemanticSearchBloc? _semanticBloc;
   TabsBloc? _tabsBloc;
 
@@ -1205,8 +1208,6 @@ class _SearchDialogState extends State<SearchDialog> {
     _openSemanticTab(options);
   }
 
-  bool _loadingCoverage = false;
-
   /// הספרים המכוסים לבדיקת ההיקף; כשעוד לא נטענו, ממתינים להם.
   Future<Set<String>?> _coveredForSubmit(
     SemanticAvailability availability,
@@ -1216,15 +1217,14 @@ class _SearchDialogState extends State<SearchDialog> {
     if (known != null || _semanticIncludeLexical || !availability.isUsable) {
       return known;
     }
-    _loadingCoverage = true;
+    setState(() => _loadingCoverage = true);
     try {
       return await bloc.repository.loadCoveredBookFilePaths();
     } finally {
-      _loadingCoverage = false;
+      if (mounted) setState(() => _loadingCoverage = false);
     }
   }
 
-  /// ההיקף הוא הספר בלבד: לא ההיקף השמור ולא תחביר @, שהיו מרחיבים אותו.
   // PDF שה-id שלו שאול מספר הטקסט המקביל חולק איתו את ה-facet באינדקס,
   // ולכן אי אפשר לצמצם את החיפוש אליו בלבד.
   static bool _hasOwnBookFacet(Book book) =>
@@ -1232,6 +1232,7 @@ class _SearchDialogState extends State<SearchDialog> {
       book.id == null ||
       BookIdentity.indexedFilePath(book) == BookIdentity.keyOf(book);
 
+  /// ההיקף הוא הספר בלבד: לא ההיקף השמור ולא תחביר @, שהיו מרחיבים אותו.
   void _performInBookSemanticSearch(Book book) {
     final query = _searchTab.queryController.text.trim();
     if (query.isEmpty) {
@@ -1949,6 +1950,7 @@ class _SearchDialogState extends State<SearchDialog> {
             ? context.settingsText('עדכן חיפוש')
             : context.settingsText('חפש'),
         icon: FluentIcons.search_24_regular,
+        isLoading: _loadingCoverage,
         onPressed: blocked || semanticBlocked ? null : _performSearch,
       ),
     );

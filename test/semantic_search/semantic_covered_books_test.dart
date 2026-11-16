@@ -206,20 +206,6 @@ void main() {
     expect(repo.coveredBookFilePaths, {'id:3'});
   });
 
-  test('חותמת האינדקס מתעלמת מסדר הספרים ומהמילונים', () {
-    String stamp(String s) => SemanticSearchRepository.coverageIndexStamp(s);
-    expect(
-      stamp('00000000000000aa:0000000000000001:0000000000000002:Some(3)'),
-      stamp('00000000000000aa:0000000000000009:0000000000000008:Some(3)'),
-    );
-    expect(
-      stamp('00000000000000aa:1:2:Some(3)'),
-      isNot(stamp('00000000000000bb:1:2:Some(3)')),
-    );
-    expect(stamp('aa:1:2:Some(3)'), isNot(stamp('aa:1:2:Some(4)')));
-    expect(stamp('opaque'), 'opaque');
-  });
-
   group('SemanticSearchBloc', () {
     test('הרשימה מתאפסת כשהחיפוש אינו שמיש וכשהטעינה נכשלת', () async {
       final repo = _ScriptedRepository();

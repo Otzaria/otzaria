@@ -104,6 +104,9 @@ class _SemanticSearchResultsScreenState
   int _freshnessResultCount = 0;
   int _previewRequestId = 0;
 
+  /// צמצום שממתין לספרים המכוסים מוחלף בצמצום שאחריו.
+  int _narrowRequestId = 0;
+
   /// התוצאה שבתצוגה המקדימה; קובע אם להדגיש מילים בספר.
   SemanticResultItem? _previewItem;
 
@@ -172,6 +175,7 @@ class _SemanticSearchResultsScreenState
       ...(categories.isEmpty ? scope : categories),
       ...dimensions,
     ];
+    final request = ++_narrowRequestId;
     final includeLexical = widget.tab.options.includeLexical;
     final repository =
         widget.semanticRepository ?? SemanticSearchRepository.instance;
@@ -179,7 +183,7 @@ class _SemanticSearchResultsScreenState
         ? null
         : repository.coveredBookFilePaths ??
               await repository.loadCoveredBookFilePaths();
-    if (!mounted) return;
+    if (!mounted || request != _narrowRequestId) return;
     final library = context.read<LibraryBloc>().state.library;
     final isOfficialCategory = officialCategoryFilter(library);
     final isCoveredFacet = coveredFacetFilter(library, covered);
