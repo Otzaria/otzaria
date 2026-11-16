@@ -1,9 +1,13 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/misc/expanding_chevron.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
+import 'package:otzaria/widgets/navigation/search_result_navigator.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/middle_click_open.dart';
 import 'package:otzaria/models/link_types.dart';
@@ -280,8 +284,10 @@ class _LinksListViewState extends State<LinksListView> {
   final Map<String, String> _loadedContent = {};
   final Map<String, bool> _expanded = {};
   bool _searchInContent = false;
+  bool _showFilters = true;
   Future<List<Link>>? _filteredLinksFuture;
   String _lastSearchKey = '';
+  int _searchGeneration = 0;
   Object? _lastSearchInputs;
   List<Link>? _dedupedSource;
   List<Link> _dedupedLinks = const [];
@@ -291,6 +297,11 @@ class _LinksListViewState extends State<LinksListView> {
   List<Link>? _searchTextsSource;
   List<(String, String)> _searchTexts = const [];
   final Set<String> _linksWithSearchResults = {}; // קישורים עם תוצאות חיפוש
+  List<Link> _filteredLinks = const [];
+  int _currentResult = 0;
+  // ExpansionTile קורא initiallyExpanded רק בבנייה; מפתח חדש בונה אותו מחדש פתוח.
+  final Map<String, int> _forcedOpen = {};
+  final FocusNode _searchFocusNode = FocusNode();
   String? _savedSelectedText; // טקסט נבחר לתפריט הקשר
   bool _anchorHandledTap = false;
   Link? _savedSelectedLink; // ה-link שממנו נבחר הטקסט
@@ -315,6 +326,7 @@ class _LinksListViewState extends State<LinksListView> {
       _handleExternalSelectionChange,
     );
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -372,7 +384,9 @@ class _LinksListViewState extends State<LinksListView> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(builder: _buildPanel);
+
+  Widget _buildPanel(BuildContext context, BoxConstraints constraints) {
     final links = _dedupedFor(widget.links);
     final openBookTitle = widget.openBookTitle;
     final chipKeys = _chipKeysFor(widget.chipSourceLinks, openBookTitle);
@@ -383,6 +397,7 @@ class _LinksListViewState extends State<LinksListView> {
     final chipAxes = splitChipKeysByAxis(chipKeys);
     String chipLabel(String key) =>
         CommentaryService.chipKeyLabel(key, openBookTitle: openBookTitle);
+    final linksList = _buildLinksList(links, effectiveTypes, openBookTitle);
     return Column(
       children: [
         // שדה חיפוש
@@ -390,16 +405,23 @@ class _LinksListViewState extends State<LinksListView> {
           padding: const EdgeInsets.all(8.0),
           child: Column(
             children: [
-              OtzariaSearchField(
-                controller: _searchController,
-                hintText: 'חפש בתוך הקישורים המוצגים...',
-                icon: OtzariaIcons.search_in_titles_24_regular,
-                onClear: () => setState(() => _searchQuery = ''),
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value;
-                  });
-                },
+              Row(
+                children: [
+                  Expanded(child: _buildSearchField()),
+                  if (chipKeys.length > 1)
+                    AppIconButton(
+                      size: AppIconButtonSize.medium,
+                      tooltip: _showFilters ? 'הסתר מסננים' : 'הצג מסננים',
+                      isSelected: _showFilters,
+                      icon: Icon(
+                        _showFilters
+                            ? FluentIcons.filter_24_regular
+                            : FluentIcons.filter_dismiss_24_regular,
+                      ),
+                      onPressed: () =>
+                          setState(() => _showFilters = !_showFilters),
+                    ),
+                ],
               ),
               if (_searchQuery.isNotEmpty)
                 Padding(
@@ -414,55 +436,94 @@ class _LinksListViewState extends State<LinksListView> {
                           });
                         },
                       ),
-                      const Text('חפש גם בתוכן הקישורים'),
+                      const Expanded(child: Text('חפש גם בתוכן הקישורים')),
                     ],
                   ),
                 ),
             ],
           ),
         ),
-        if (chipKeys.length > 1) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppTokens.spaceSM,
-              0,
-              AppTokens.spaceSM,
-              AppTokens.spaceXS,
+        if (chipKeys.length > 1 && _showFilters) ...[
+          ConstrainedBox(
+            // מגביל את גובה המסננים כדי שלא יכסו את רשימת הקישורים.
+            constraints: BoxConstraints(
+              maxHeight: constraints.maxHeight * 0.3,
             ),
-            // Wrap ולא Row: שני הצירים מתאחדים לשורה אחת רק כשיש רוחב לשניהם,
-            // אחרת כל ציר יורד לשורה משלו. הריווח האנכי מגיע מריפוד הקבוצה.
-            child: Wrap(
-              alignment: WrapAlignment.center,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: AppTokens.spaceMD,
-              runSpacing: 0,
-              children: [
-                if (chipAxes.types.isNotEmpty)
-                  _buildChipGroup(
-                    key: linkTypeChipsRowKey,
-                    keys: chipAxes.types,
-                    savedTypes: widget.selectedLinkTypes,
-                    effectiveTypes: effectiveTypes,
-                    chipLabel: chipLabel,
-                  ),
-                if (chipAxes.eras.isNotEmpty)
-                  _buildChipGroup(
-                    key: linkEraChipsRowKey,
-                    keys: chipAxes.eras,
-                    savedTypes: widget.selectedLinkTypes,
-                    effectiveTypes: effectiveTypes,
-                    chipLabel: chipLabel,
-                  ),
-              ],
+            child: SingleChildScrollView(
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                AppTokens.spaceSM,
+                0,
+                AppTokens.spaceSM,
+                AppTokens.spaceXS,
+              ),
+              // Wrap ולא Row: שני הצירים מתאחדים לשורה אחת רק כשיש רוחב לשניהם,
+              // אחרת כל ציר יורד לשורה משלו. הריווח האנכי מגיע מריפוד הקבוצה.
+              child: Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: AppTokens.spaceMD,
+                runSpacing: 0,
+                children: [
+                  if (chipAxes.types.isNotEmpty)
+                    _buildChipGroup(
+                      key: linkTypeChipsRowKey,
+                      keys: chipAxes.types,
+                      savedTypes: widget.selectedLinkTypes,
+                      effectiveTypes: effectiveTypes,
+                      chipLabel: chipLabel,
+                    ),
+                  if (chipAxes.eras.isNotEmpty)
+                    _buildChipGroup(
+                      key: linkEraChipsRowKey,
+                      keys: chipAxes.eras,
+                      savedTypes: widget.selectedLinkTypes,
+                      effectiveTypes: effectiveTypes,
+                      chipLabel: chipLabel,
+                    ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: AppTokens.spaceSM),
         ],
         // תוכן הקישורים
-        Expanded(
-          child: _buildLinksList(links, effectiveTypes, openBookTitle),
-        ),
+        Expanded(child: linksList),
       ],
+    );
+  }
+
+  Widget _buildSearchField() {
+    return OtzariaSearchField(
+      controller: _searchController,
+      focusNode: _searchFocusNode,
+      hintText: 'חפש בתוך הקישורים המוצגים...',
+      icon: OtzariaIcons.search_in_titles_24_regular,
+      // Enter עובר לתוצאה הבאה ונשאר בשדה; בחירת הכול בפוקוס תמחק את
+      // השאילתה בהקשה הבאה.
+      selectAllOnFocus: false,
+      trailingActions: [
+        if (_searchQuery.isNotEmpty && _filteredLinks.length > 1)
+          SearchResultNavigator(
+            current: _currentResult + 1,
+            total: _filteredLinks.length,
+            onPrevious: _currentResult > 0
+                ? () => _goToResult(_currentResult - 1)
+                : null,
+            onNext: _currentResult < _filteredLinks.length - 1
+                ? () => _goToResult(_currentResult + 1)
+                : null,
+          ),
+      ],
+      onClear: () => setState(() => _searchQuery = ''),
+      onChanged: (value) {
+        setState(() {
+          _searchQuery = value;
+        });
+      },
+      onSubmitted: (_) {
+        _goToResult(_currentResult + 1);
+        _searchFocusNode.requestFocus();
+      },
     );
   }
 
@@ -557,6 +618,7 @@ class _LinksListViewState extends State<LinksListView> {
     String? openBookTitle,
   ) {
     if (links.isEmpty) {
+      _clearSearch();
       return _buildEmptyMessage(widget.emptyMessage);
     }
 
@@ -575,6 +637,7 @@ class _LinksListViewState extends State<LinksListView> {
     // הצ׳יפים נבנים מקישורי כל חלון הקריאה בעוד הרשימה מציגה את הקטע הנראה
     // בלבד, ולכן צ׳יפ שנבחר עשוי לא להתאים לאף קישור כאן.
     if (typeFilteredLinks.isEmpty) {
+      _clearSearch();
       return _buildEmptyMessage('לא נמצאו קישורים מהסוגים שנבחרו');
     }
 
@@ -596,7 +659,11 @@ class _LinksListViewState extends State<LinksListView> {
       // Future חדש רק כשהחיפוש השתנה, גם כשהרשימה עצמה הוחלפה.
       if (_lastSearchKey != searchKey) {
         _lastSearchKey = searchKey;
-        _filteredLinksFuture = _filterLinksAsync(typeFilteredLinks);
+        _filteredLinks = const [];
+        _filteredLinksFuture = _filterLinksAsync(
+          typeFilteredLinks,
+          ++_searchGeneration,
+        );
       }
     }
 
@@ -670,12 +737,20 @@ class _LinksListViewState extends State<LinksListView> {
     return _searchTexts;
   }
 
+  void _clearSearch() {
+    _searchGeneration++;
+    _lastSearchInputs = null;
+    _lastSearchKey = '';
+    _filteredLinks = const [];
+  }
+
   // פונקציה אסינכרונית לסינון הקישורים עם חיפוש בתוכן
-  Future<List<Link>> _filterLinksAsync(List<Link> links) async {
+  Future<List<Link>> _filterLinksAsync(List<Link> links, int generation) async {
     _linksWithSearchResults.clear(); // איפוס רשימת הקישורים עם תוצאות
 
     // מיון הקישורים לפי סדר הדורות (כמו במפרשים)
     final sortedLinks = await _sortedByEra(links);
+    if (!mounted || generation != _searchGeneration) return const [];
 
     if (_searchQuery.isEmpty) {
       return sortedLinks;
@@ -703,6 +778,7 @@ class _LinksListViewState extends State<LinksListView> {
         } catch (_) {
           content = '';
         }
+        if (!mounted || generation != _searchGeneration) return const [];
         // אותו מונה של חיפוש המפרשים: מתעלם מניקוד ומפיסוק כמו כל משטחי
         // החיפוש, ותואם את ההדגשה ש-SmartTextWidget מרנדר על אותו תוכן.
         // הפענוח קודם לספירה — `&nbsp;` בין מילים היה חוסם ביטוי שהמשתמש רואה
@@ -718,22 +794,72 @@ class _LinksListViewState extends State<LinksListView> {
           filteredLinks.add(link);
           _linksWithSearchResults.add(instanceKey); // מסמן שיש תוצאות בתוכן
           _cacheLinkContent(buildSelectedLinkContentKey(link), link);
-
-          // פותח אוטומטית את הקישור הראשון עם תוצאות
-          if (_linksWithSearchResults.length == 1) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                setState(() {
-                  _expanded[instanceKey] = true;
-                });
-              }
-            });
-          }
         }
       }
     }
 
+    // התוצאה הנוכחית היא הקישור הראשון עם התאמה בתוכן, ואם אין — הראשון ברשימה.
+    final firstContentHit = filteredLinks.indexWhere(
+      (link) =>
+          _linksWithSearchResults.contains(buildSelectedLinkInstanceKey(link)),
+    );
+    _filteredLinks = filteredLinks;
+    _currentResult = firstContentHit < 0 ? 0 : firstContentHit;
+    // הרענון מציג את מונה התוצאות בשדה, שנבנה מחוץ ל-FutureBuilder.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || generation != _searchGeneration) return;
+      if (firstContentHit >= 0) {
+        _openResult(_currentResult);
+      } else {
+        setState(() {});
+      }
+    });
     return filteredLinks;
+  }
+
+  void _openResult(int index) {
+    if (index < 0 || index >= _filteredLinks.length) return;
+    final link = _filteredLinks[index];
+    final instanceKey = buildSelectedLinkInstanceKey(link);
+    final contentKey = buildSelectedLinkContentKey(link);
+    if (!_contentCache.containsKey(contentKey) ||
+        _failedContentKeys.contains(contentKey)) {
+      _cacheLinkContent(contentKey, link);
+    }
+    setState(() {
+      _currentResult = index;
+      if (_expanded[instanceKey] != true) {
+        _forcedOpen.update(
+          instanceKey,
+          (revision) => revision + 1,
+          ifAbsent: () => 1,
+        );
+      }
+      _expanded[instanceKey] = true;
+    });
+  }
+
+  void _goToResult(int index) {
+    if (index < 0 || index >= _filteredLinks.length) return;
+    _openResult(index);
+    final generation = _searchGeneration;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          generation != _searchGeneration ||
+          !_itemScrollController.isAttached) {
+        return;
+      }
+      AppMotion.scroll(
+        context,
+        AppTokens.animNormal,
+        animate: (duration) => _itemScrollController.scrollTo(
+          index: index,
+          duration: duration,
+          curve: Curves.easeInOut,
+        ),
+        jump: () => _itemScrollController.jumpTo(index: index),
+      );
+    });
   }
 
   Widget _buildExpansionTile(Link link) {
@@ -747,7 +873,10 @@ class _LinksListViewState extends State<LinksListView> {
             as bool?;
     final isExpanded = _expanded[instanceKey] ?? restoredExpanded ?? false;
     return ExpansionTile(
-      key: PageStorageKey(instanceKey),
+      // אין צורך לשמור ב-PageStorage מצב נפרד לכל פתיחה כפויה.
+      key: _forcedOpen.containsKey(instanceKey)
+          ? ValueKey((instanceKey, _forcedOpen[instanceKey]))
+          : PageStorageKey(instanceKey),
       initiallyExpanded: isExpanded,
       maintainState: true,
       showTrailingIcon: false,
