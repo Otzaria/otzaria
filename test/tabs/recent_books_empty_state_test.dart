@@ -95,10 +95,7 @@ void main() {
       );
 
       for (var i = 0; i < 5; i++) {
-        expect(
-          find.text('ספר $i'),
-          i < count ? findsOneWidget : findsNothing,
-        );
+        expect(find.text('ספר $i'), i < count ? findsOneWidget : findsNothing);
       }
       expect(tester.takeException(), isNull);
     });

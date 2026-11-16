@@ -16,6 +16,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/utils/ui/book_format_icon.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:otzaria/widgets/text/app_section_label.dart';
@@ -55,9 +56,7 @@ class RecentBooksEmptyState extends StatelessWidget {
         matchHistorySlot: bookmark.targetKind == BookmarkTargetKind.book,
       ),
     );
-    context.read<NavigationBloc>().add(
-      const NavigateToScreen(Screen.reading),
-    );
+    context.read<NavigationBloc>().add(const NavigateToScreen(Screen.reading));
   }
 
   @override
@@ -123,7 +122,7 @@ class RecentBooksEmptyState extends StatelessWidget {
                         alignment: AlignmentDirectional.centerEnd,
                         child: ActionButton.inline(
                           text: 'היסטוריה מלאה',
-                          onPressed: () => showDialog<void>(
+                          onPressed: () => showDialogUntilTornDown<void>(
                             context: context,
                             builder: (_) => const HistoryDialog(),
                           ),
