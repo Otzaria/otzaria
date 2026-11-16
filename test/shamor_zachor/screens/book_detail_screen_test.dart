@@ -696,4 +696,77 @@ void main() {
       }
     });
   });
+
+  testWidgets('לחיצה על הלכה פותחת את שורת המקור שלה גם כשהשם חוזר בפרקים', (
+    tester,
+  ) async {
+    BookSection section(
+      String id,
+      String title,
+      int start,
+      int end, [
+      List<BookSection> children = const [],
+    ]) => BookSection(
+      id: id,
+      title: title,
+      level: children.isEmpty ? 2 : 1,
+      startPage: start,
+      endPage: end,
+      children: children,
+    );
+    final book = BookDetails(
+      id: 7,
+      contentType: 'text',
+      parts: const [],
+      sections: [
+        section('p9', 'פרק ט', 0, 49, [section('p9h1', 'הלכה א', 1, 49)]),
+        section('p10', 'פרק י', 50, 99, [
+          section('p10h1', 'הלכה א', 51, 69),
+          section('p10h3', 'הלכה ג', 70, 99),
+        ]),
+      ],
+    );
+    final progress = ShamorZachorProgressProvider(
+      progressService: _MemoryProgressService(),
+    );
+    addTearDown(progress.dispose);
+    await progress.ensureLoaded();
+    final opened = <int>[];
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<ShamorZachorDataProvider>(
+            create: (_) => _ReadyDataProvider(book),
+          ),
+          ChangeNotifierProvider<ShamorZachorProgressProvider>.value(
+            value: progress,
+          ),
+        ],
+        child: MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(
+              body: BookDetailScreen(
+                topLevelCategoryKey: 'הלכה',
+                bookName: 'ספר',
+                bookId: 7,
+                bookDetails: book,
+                onOpenLine: opened.add,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('פתיחת פרק י, הלכה ג'), findsOneWidget);
+    await tester.tap(find.text('הלכה ג'));
+    await tester.tap(find.text('הלכה א').last);
+    await tester.pump();
+
+    expect(opened, [70, 51]);
+    expect(progress.getProgressForBookById(7), isEmpty);
+  });
 }

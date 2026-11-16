@@ -15,6 +15,13 @@ import '../widgets/category_books_grid.dart';
 import '../widgets/add_books_to_tracking_dialog.dart';
 import '../models/book_model.dart';
 import 'book_detail_screen.dart';
+import 'package:collection/collection.dart';
+import 'package:otzaria/core/messages/library_messages.dart';
+import 'package:otzaria/core/messages/tools_messages.dart';
+import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/library/bloc/library_bloc.dart';
+import 'package:otzaria/models/books.dart';
+import 'package:otzaria/utils/navigation/open_book.dart';
 
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
@@ -357,6 +364,30 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
         _selectedCategoryObject;
   }
 
+  /// פותח את הספר הרשמי [bookId] בשורת המקור [line].
+  void _openBookAt(int bookId, int line) {
+    final library = context.read<LibraryBloc>().state.library;
+    if (library == null) {
+      UiSnack.showError(ToolsMessages.libraryStillLoading);
+      return;
+    }
+    final book = library.getAllBooks().whereType<TextBook>().firstWhereOrNull(
+      (b) => b.source.isOfficial && b.id == bookId,
+    );
+    if (book == null) {
+      UiSnack.showError(LibraryMessages.bookNotFoundById(bookId));
+      return;
+    }
+    openBook(
+      context,
+      book,
+      line,
+      '',
+      explicitIndex: true,
+      navigateToPositionIfReused: true,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -544,6 +575,10 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                     bookId: _selectedBookDetails!.id,
                     bookDetails: _selectedBookDetails!,
                     onBack: _closeBookDetails,
+                    onOpenLine: switch (_selectedBookDetails!.id) {
+                      final bookId? => (line) => _openBookAt(bookId, line),
+                      null => null,
+                    },
                   ),
                 );
               },
