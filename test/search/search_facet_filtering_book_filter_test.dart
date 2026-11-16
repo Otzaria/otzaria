@@ -5,7 +5,6 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
@@ -155,17 +154,13 @@ void main() {
     await tester.pump();
   }
 
-  /// הקלדה בשדה "איתור ספר" (נפתח מהאייקון שבכותרת). העץ מתרענן דרך
+  /// הקלדה בשדה "איתור ספר" הקבוע. העץ מתרענן דרך
   /// ה-BlocBuilder, לכן מדמים גם את ה-state שה-bloc פולט בתגובה ל-UpdateFilterQuery.
   Future<void> typeFilter(
     WidgetTester tester,
     String text,
     SearchState echo,
   ) async {
-    if (find.byType(RtlTextField).evaluate().isEmpty) {
-      await tester.tap(find.byType(NavPanelSearchToggle));
-      await tester.pumpAndSettle();
-    }
     await tester.enterText(find.byType(RtlTextField).first, text);
     searchStates.add(echo);
     await tester.pump();
@@ -251,14 +246,13 @@ void main() {
     expect(find.text('כתובים'), findsNothing);
   });
 
-  testWidgets('שדה "איתור ספר" סגור עד הלחיצה על האייקון, ו-X סוגר ומנקה', (
+  testWidgets('שדה "איתור ספר" מוצג תמיד, ו-X מנקה בלי להסתיר אותו', (
     tester,
   ) async {
     setUpBlocs(stateWith());
     await pumpPanel(tester);
 
-    expect(find.byType(OtzariaSearchField), findsNothing);
-    expect(find.byType(NavPanelSearchToggle), findsOneWidget);
+    expect(find.byType(OtzariaSearchField), findsOneWidget);
 
     await typeFilter(tester, 'תהילים', stateWith());
     expect(find.byType(OtzariaSearchField), findsOneWidget);
@@ -267,11 +261,9 @@ void main() {
     searchStates.add(stateWith());
     await tester.pumpAndSettle();
 
-    expect(find.byType(OtzariaSearchField), findsNothing);
+    expect(find.byType(OtzariaSearchField), findsOneWidget);
     expect(find.text('ספריית אוצריא'), findsOneWidget);
 
-    await tester.tap(find.byType(NavPanelSearchToggle));
-    await tester.pumpAndSettle();
     final field = tester.widget<RtlTextField>(find.byType(RtlTextField));
     expect(field.controller!.text, isEmpty, reason: 'X מנקה את הסינון');
   });

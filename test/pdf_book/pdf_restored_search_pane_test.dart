@@ -14,6 +14,7 @@ import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart' as pdf_events;
 import 'package:otzaria/pdf_book/view/pdf_search_screen.dart';
+import 'package:otzaria/pdf_book/view/pdf_outlines_screen.dart';
 import 'package:otzaria/search/in_book_search_preferences.dart';
 import 'package:otzaria/tabs/models/reading_tab_search_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
@@ -22,9 +23,11 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
+import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdfrx/pdfrx.dart';
 
@@ -69,8 +72,16 @@ void main() {
     }
   }
 
-  Future<PdfBookTab> openRestored(WidgetTester tester, String query) async {
-    tester.view.physicalSize = const Size(1600, 1000);
+  Future<PdfBookTab> openRestored(
+    WidgetTester tester,
+    String query, {
+    double width = 1600,
+    bool withOutline = false,
+    bool initiallyOpen = false,
+    Widget Function(Widget)? wrapScreen,
+    void Function(PdfBookTab, TabsBloc)? afterMount,
+  }) async {
+    tester.view.physicalSize = Size(width, 1000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final file = File('${directory.path}/book.pdf');
@@ -86,6 +97,7 @@ void main() {
           pw.Page(
             build: (_) => pw.Column(
               children: [
+                if (withOutline) pw.Header(text: 'Navigation section'),
                 pw.Text('page zero page pageboy'),
                 pw.Text(
                   'שָׁלוֹם שלום שלוםשלום',
@@ -105,6 +117,7 @@ void main() {
     );
     final tab = PdfBookTab.fromJson(saved.toJson());
     saved.dispose();
+    tab.showLeftPane.value = initiallyOpen;
     DataRepository.instance.library = Future.value(
       Library(categories: const []),
     );
@@ -126,10 +139,16 @@ void main() {
             BlocProvider<TabsBloc>.value(value: tabsBloc),
             BlocProvider<TourCubit>.value(value: tour),
           ],
-          child: PdfBookScreen(tab: tab),
+          child:
+              wrapScreen?.call(PdfBookScreen(tab: tab)) ??
+              PdfBookScreen(tab: tab),
         ),
       ),
     );
+    if (afterMount != null) {
+      afterMount(tab, tabsBloc);
+      await tester.pump();
+    }
     addTearDown(() async {
       final document = tab.pdfViewerController.isReady
           ? tab.pdfViewerController.document
@@ -138,14 +157,131 @@ void main() {
       if (document != null) await tester.runAsync(document.dispose);
     });
     await settle(tester, 30);
-    expect(tab.showLeftPane.value, isFalse);
-    expect(tab.pinLeftPane.value, isFalse);
+    expect(tab.showLeftPane.value, initiallyOpen);
+    expect(tab.pinLeftPane.value, initiallyOpen);
     return tab;
   }
 
   PdfTextSearchSession searcherOf(WidgetTester tester) {
     final dynamic screen = tester.state(find.byType(PdfBookScreen));
     return screen.textSearcher as PdfTextSearchSession;
+  }
+
+  testWidgets('טעינת סימניות אינה חוטפת פוקוס מחלונית שהופעלה בינתיים', (
+    tester,
+  ) async {
+    final peerFocus = FocusNode();
+    addTearDown(peerFocus.dispose);
+    final tab = await openRestored(
+      tester,
+      '',
+      withOutline: true,
+      initiallyOpen: true,
+      wrapScreen: (screen) => Row(
+        children: [
+          SizedBox(
+            width: 300,
+            child: Material(child: TextField(focusNode: peerFocus)),
+          ),
+          Expanded(child: screen),
+        ],
+      ),
+      afterMount: (tab, tabsBloc) {
+        expect(tab.outline.value, isNull);
+        final peer = PdfBookTab(book: tab.book, pageNumber: 1);
+        tabsBloc.emit(
+          TabsState(
+            tabs: [CombinedTab(rightTab: peer, leftTab: tab)],
+            currentTabIndex: 0,
+            rawActivePane: peer,
+          ),
+        );
+        peerFocus.requestFocus();
+      },
+    );
+    final outline = find.byType(OutlineView);
+    expect(
+      find.descendant(of: outline, matching: find.byType(OtzariaSearchField)),
+      findsOneWidget,
+    );
+    expect(tester.widget<OutlineView>(outline).focusNode.hasFocus, isFalse);
+    expect(peerFocus.hasFocus, isTrue);
+    final tabsBloc = tester.element(outline).read<TabsBloc>();
+    tabsBloc.emit(
+      tabsBloc.state.copyWith(activePane: ActivePaneUpdate.set(tab)),
+    );
+    await settle(tester, 4);
+    await tester.tap(
+      find.descendant(
+        of: outline,
+        matching: find.byType(OtzariaSearchField),
+      ),
+    );
+    await tester.pump();
+    expect(tester.widget<OutlineView>(outline).focusNode.hasFocus, isTrue);
+  });
+
+  for (final width in [360.0, 1600.0]) {
+    for (final initiallyOpen in [false, true]) {
+      testWidgets('ניווט PDF קבוע ומיקוד בטוח: $width, פתוח=$initiallyOpen', (
+        tester,
+      ) async {
+        final tab = await openRestored(
+          tester,
+          '',
+          width: width,
+          withOutline: true,
+          initiallyOpen: initiallyOpen,
+        );
+        if (!initiallyOpen) {
+          expect(tester.testTextInput.isVisible, isFalse);
+          await tester.tap(find.byType(NavPanelToggleButton));
+          await settle(tester, 8);
+        }
+        final outline = find.byType(OutlineView);
+        final field = find.descendant(
+          of: outline,
+          matching: find.byType(OtzariaSearchField),
+        );
+        expect(field.hitTestable(), findsOneWidget);
+        expect(
+          tester.widget<OutlineView>(outline).focusNode.hasFocus,
+          width >= 600,
+        );
+        if (width < 600) expect(tester.testTextInput.isVisible, isFalse);
+
+        final controller = tester
+            .widget<TabBarView>(
+              find.byType(TabBarView).first,
+            )
+            .controller!;
+        controller.index = 1;
+        await settle(tester, 4);
+        final searchField = find.descendant(
+          of: find.byType(PdfBookSearchView),
+          matching: find.byType(EditableText),
+        );
+        expect(
+          tester.widget<EditableText>(searchField).focusNode.hasFocus,
+          isTrue,
+        );
+        controller.index = 0;
+        await settle(tester, 4);
+        expect(
+          tester.widget<OutlineView>(outline).focusNode.hasFocus,
+          width >= 600,
+        );
+
+        await tester.tap(find.byType(NavPanelToggleButton));
+        await settle(tester, 4);
+        expect(tab.showLeftPane.value, isFalse);
+        expect(
+          FocusManager.instance.primaryFocus?.context
+              ?.findAncestorWidgetOfExactType<OtzariaSearchField>(),
+          isNull,
+        );
+      });
+    }
   }
 
   for (final (query, wholeWord, matches) in [

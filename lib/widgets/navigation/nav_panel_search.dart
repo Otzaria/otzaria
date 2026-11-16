@@ -5,6 +5,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/controls/app_icon_button.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 
 /// הגדרת שדה החיפוש של לשונית אחת בחלונית הניווט.
 class NavPanelSearchDelegate {
@@ -89,8 +90,8 @@ class NavPanelSearchHost {
 
   final Map<int, VoidCallback> _searchOpeners = {};
 
-  /// פותח וממקד את החיפוש המוסתר ([NavPanelCollapsibleSearch]) של הלשונית
-  /// [tab]. מחזיר שקר כשאין בה חיפוש כזה.
+  /// מציג וממקד את החיפוש של הלשונית [tab], גם כששדה קבוע כבר גלוי.
+  /// מחזיר שקר כשאין בלשונית חיפוש רשום.
   bool openCollapsibleSearch(int tab) {
     final open = _searchOpeners[tab];
     open?.call();
@@ -237,12 +238,13 @@ class NavPanelSearchSlot extends InheritedWidget {
       oldWidget.index != index;
 }
 
-/// חיפוש משני של לשונית: השדה מוסתר עד שלוחצים על [NavPanelSearchToggle]
-/// (שיושב בכותרת הרשימה), ונפתח מעל התוכן עם כפתור סגירה שגם מנקה אותו.
-/// כשהכותרת נגללה מחוץ לתחום, אייקון זהה צף בפינה העליונה (issue #1725).
+enum NavPanelSearchPresentation { collapsible, persistent }
+
+/// חיפוש מעל תוכן נגלל: קבוע, או נפתח באמצעות [NavPanelSearchToggle].
 class NavPanelCollapsibleSearch extends StatefulWidget {
   final NavPanelSearchDelegate delegate;
   final Widget child;
+  final NavPanelSearchPresentation presentation;
 
   /// פעולות מכותרת הרשימה שצפות לצד אייקון החיפוש כשהכותרת נגללה החוצה.
   final List<Widget> floatingActions;
@@ -251,6 +253,7 @@ class NavPanelCollapsibleSearch extends StatefulWidget {
     super.key,
     required this.delegate,
     required this.child,
+    this.presentation = NavPanelSearchPresentation.collapsible,
     this.floatingActions = const [],
   });
 
@@ -260,7 +263,10 @@ class NavPanelCollapsibleSearch extends StatefulWidget {
 }
 
 class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
-  late bool _isOpen = widget.delegate.controller.text.isNotEmpty;
+  late bool _expanded = widget.delegate.controller.text.isNotEmpty;
+  bool get _isPersistent =>
+      widget.presentation == NavPanelSearchPresentation.persistent;
+  bool get _isOpen => _isPersistent || _expanded;
   FocusNode? _ownFocusNode;
   FocusNode get _focusNode =>
       widget.delegate.focusNode ?? (_ownFocusNode ??= FocusNode());
@@ -369,13 +375,13 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
   // סינון שהוחל מבחוץ (שחזור טאב) חייב שדה גלוי — אחרת הרשימה מסוננת בלי הסבר.
   void _onTextChanged() {
     if (!_isOpen && widget.delegate.controller.text.isNotEmpty) {
-      setState(() => _isOpen = true);
+      setState(() => _expanded = true);
     }
   }
 
   // autofocus מוותר כשיש פוקוס אחר (טקסט הספר) — לכן מבקשים במפורש.
   void _open() {
-    setState(() => _isOpen = true);
+    if (!_isOpen) setState(() => _expanded = true);
     _focusNode.requestFocus();
   }
 
@@ -386,12 +392,13 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
       delegate.controller.clear();
       delegate.onClear?.call();
     }
-    setState(() => _isOpen = false);
+    setState(() => _expanded = false);
     if (hadFocus) NavPanelSearchScope.readHost(context)?.focusPaneContent();
   }
 
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
-    if (event is KeyDownEvent &&
+    if (!_isPersistent &&
+        event is KeyDownEvent &&
         event.logicalKey == LogicalKeyboardKey.escape) {
       _close();
       return KeyEventResult.handled;
@@ -420,18 +427,20 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
                 hintText: delegate.hintText,
                 onChanged: delegate.onChanged,
                 onSubmitted: delegate.onSubmitted,
+                onClear: _isPersistent ? delegate.onClear : null,
                 trailingActions: delegate.trailingActions.isEmpty
                     ? null
                     : delegate.trailingActions,
               ),
             ),
           ),
-          AppIconButton(
-            tooltip: 'סגור חיפוש',
-            onPressed: _close,
-            size: AppIconButtonSize.small,
-            icon: const Icon(FluentIcons.dismiss_24_regular),
-          ),
+          if (!_isPersistent)
+            AppIconButton(
+              tooltip: context.settingsText('סגור חיפוש'),
+              onPressed: _close,
+              size: AppIconButtonSize.small,
+              icon: const Icon(FluentIcons.dismiss_24_regular),
+            ),
         ],
       ),
     );
@@ -469,7 +478,11 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
                   end: kNavTreeSideInset + 12,
                   child: AnimatedSwitcher(
                     duration: AppMotion.duration(context, AppTokens.animFast),
-                    child: _toggleOffscreen && !_isOpen
+                    child:
+                        _toggleOffscreen &&
+                            (!_isOpen ||
+                                (_isPersistent &&
+                                    widget.floatingActions.isNotEmpty))
                         ? Material(
                             color: AppSurfaces.navPanelBackground(context),
                             // בצורת כפתור האייקון שעליו (#1942).
@@ -490,10 +503,11 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 ...widget.floatingActions,
-                                _SearchToggleButton(
-                                  hintText: widget.delegate.hintText,
-                                  onPressed: _open,
-                                ),
+                                if (!_isOpen)
+                                  _SearchToggleButton(
+                                    hintText: widget.delegate.hintText,
+                                    onPressed: _open,
+                                  ),
                               ],
                             ),
                           )

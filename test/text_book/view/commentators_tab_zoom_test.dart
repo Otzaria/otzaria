@@ -186,4 +186,69 @@ void main() {
       expect(paneOpen(), expected);
     }
   });
+
+  testWidgets('חיפוש הכותרות קבוע ומתמקד בפתיחה ובחזרה ללשונית הניווט', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final book = TextBook(title: 'ספר בדיקה');
+    final loaded = _loaded(
+      book,
+    ).copyWith(tableOfContents: [TocEntry(text: 'כותרת א', index: 0)]);
+    final tabBloc = StubTextBookBloc(loaded);
+    final sourceTab = TextBookTab(book: book, index: 0);
+    final tab = CommentatorsTab(sourceTab: sourceTab, blocOverride: tabBloc)
+      ..selectedCommentators = const [];
+    final settings = SettingsBloc(repository: MockSettingsRepository());
+    final notes = StubPersonalNotesBloc();
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await settings.close();
+      await notes.close();
+      await tabBloc.close();
+      sourceTab.dispose();
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<SettingsBloc>.value(value: settings),
+            BlocProvider<PersonalNotesBloc>.value(value: notes),
+          ],
+          child: Scaffold(
+            body: CommentatorsTabScreen(tab: tab, openBookCallback: (_) {}),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(NavPanelToggleButton));
+    await tester.pumpAndSettle();
+    final navigationField = find.widgetWithText(TextField, 'איתור כותרת...');
+    EditableText field() => tester.widget<EditableText>(
+      find.descendant(of: navigationField, matching: find.byType(EditableText)),
+    );
+    expect(navigationField, findsOneWidget);
+    expect(field().focusNode.hasFocus, isTrue);
+    await tester.enterText(navigationField, 'כותרת');
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavPanelTabHeader),
+        matching: find.text('חיפוש'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ניווט'));
+    await tester.pumpAndSettle();
+    expect(field().focusNode.hasFocus, isTrue);
+    expect(field().controller.text, 'כותרת');
+    await tester.tap(find.byType(NavPanelToggleButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(NavPanelToggleButton));
+    await tester.pumpAndSettle();
+    expect(field().focusNode.hasFocus, isTrue);
+    expect(field().controller.text, 'כותרת');
+  });
 }

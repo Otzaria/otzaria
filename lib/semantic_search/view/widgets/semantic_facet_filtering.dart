@@ -58,6 +58,7 @@ class _SemanticFacetFilteringState extends State<SemanticFacetFiltering>
   Widget build(BuildContext context) {
     super.build(context);
     return NavPanelCollapsibleSearch(
+      presentation: NavPanelSearchPresentation.persistent,
       delegate: NavPanelSearchDelegate(
         controller: _filterQuery,
         hintText: 'איתור ספר…',

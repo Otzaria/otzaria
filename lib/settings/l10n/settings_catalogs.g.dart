@@ -1343,6 +1343,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'סגור בלי לשמור': 'Close without saving',
     'סגור הגדרות ספרייה': 'Close library settings',
     'סגור הכל': 'Close all',
+    'סגור חיפוש': 'Close search',
     'סגור חלונית': 'Close pane',
     'סגור כל הספרים': 'Close all Tabs',
     'סגור כרטיסיה': 'Close tab',

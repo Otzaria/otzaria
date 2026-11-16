@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/widgets/misc/expanding_chevron.dart';
 import 'package:otzaria/models/books.dart';
@@ -289,8 +289,7 @@ Future<void> main() async {
     expect(closeRequests, 1);
   }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
-  // issue #1725 — ברשימה הוירטואלית הכותרת עם אייקון החיפוש נפרקת בגלילה.
-  testWidgets('גלילה בעץ גדול מציגה אייקון חיפוש צף שפותח את השדה', (
+  testWidgets('גלילה בעץ גדול משאירה שדה חיפוש קבוע מעל הרשימה', (
     tester,
   ) async {
     final bloc = _TestTextBookBloc(
@@ -314,11 +313,9 @@ Future<void> main() async {
       ),
     );
     await tester.pumpAndSettle();
-    final searchIcon = find.byIcon(FluentIcons.search_24_regular);
-    expect(
-      find.descendant(of: find.byType(NavTreeHeader), matching: searchIcon),
-      findsOneWidget,
-    );
+    final field = find.byType(OtzariaSearchField);
+    expect(field.hitTestable(), findsOneWidget);
+    final fieldRect = tester.getRect(field);
 
     await tester.drag(
       find.byType(ScrollablePositionedList),
@@ -327,12 +324,14 @@ Future<void> main() async {
     await tester.pumpAndSettle();
 
     expect(find.byType(NavTreeHeader), findsNothing);
-    expect(searchIcon.hitTestable(), findsOneWidget);
+    expect(field.hitTestable(), findsOneWidget);
+    expect(tester.getRect(field), fieldRect);
+    expect(focusNode.hasFocus, isFalse);
 
-    await tester.tap(searchIcon);
+    await tester.tap(field);
     await tester.pumpAndSettle();
     expect(focusNode.hasFocus, isTrue);
-    expect(searchIcon, findsNothing);
+    expect(find.byIcon(FluentIcons.search_24_regular), findsNothing);
   });
 
   testWidgets('גם עץ של 400 כותרות בונה רק את אזור התצוגה', (
@@ -1689,12 +1688,8 @@ Future<void> _chooseExpansion(WidgetTester tester, String label) async {
   await tester.pumpAndSettle();
 }
 
-/// השדה בלשונית הניווט סגור עד הלחיצה על אייקון החיפוש שבכותרת.
+/// השדה בלשונית הניווט גלוי גם לפני שהוזנה שאילתה.
 Future<void> _typeInSearch(WidgetTester tester, String text) async {
-  if (find.byType(TextField).evaluate().isEmpty) {
-    await tester.tap(find.byType(NavPanelSearchToggle));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
-  }
+  expect(find.byType(TextField).hitTestable(), findsOneWidget);
   await tester.enterText(find.byType(TextField), text);
 }

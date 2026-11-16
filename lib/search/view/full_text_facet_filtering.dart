@@ -369,6 +369,7 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
     super.build(context);
     final delegate = _searchDelegate();
     return NavPanelCollapsibleSearch(
+      presentation: NavPanelSearchPresentation.persistent,
       delegate: delegate,
       child: _buildFacetTree(),
     );

@@ -941,6 +941,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
 
     return NavPanelCollapsibleSearch(
       delegate: delegate,
+      presentation: NavPanelSearchPresentation.persistent,
       floatingActions: [?collapseToggle],
       child: isSearching
           ? _buildSearchResults()
