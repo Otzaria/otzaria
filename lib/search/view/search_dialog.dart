@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' show max;
 
 import 'package:flutter/foundation.dart';
@@ -279,6 +280,7 @@ class _SearchDialogState extends State<SearchDialog> {
     if (book == null) return true;
     final covered = _semanticBloc?.state.coveredBookFilePaths;
     return availability.isUsable &&
+        _hasOwnBookFacet(book) &&
         covered != null &&
         covered.contains(BookIdentity.indexedFilePath(book));
   }
@@ -1077,7 +1079,7 @@ class _SearchDialogState extends State<SearchDialog> {
       return;
     }
     if (_isSemanticActive) {
-      _performSemanticSearch();
+      unawaited(_performSemanticSearch());
       return;
     }
 
@@ -1271,7 +1273,7 @@ class _SearchDialogState extends State<SearchDialog> {
   /// בלי הסכמה או בלי נתונים אין חיפוש; הדיאלוג עצמו אינו רושם דבר.
   Library? get _library => context.read<LibraryBloc>().state.library;
 
-  void _performSemanticSearch() {
+  Future<void> _performSemanticSearch() async {
     final availability = _semanticBloc?.state.availability;
     if (_semanticSubmitted ||
         availability == null ||
@@ -1286,6 +1288,9 @@ class _SearchDialogState extends State<SearchDialog> {
       _performInBookSemanticSearch(book);
       return;
     }
+    if (_loadingCoverage) return;
+    final covered = await _coveredForSubmit(availability);
+    if (!mounted || _semanticSubmitted) return;
     final library = _library;
     final parsedCategory = parseCategoryQuery(
       _searchTab.queryController.text,
@@ -1303,10 +1308,7 @@ class _SearchDialogState extends State<SearchDialog> {
       return;
     }
     final isOfficialCategory = officialCategoryFilter(library);
-    final isCoveredFacet = coveredFacetFilter(
-      library,
-      _semanticBloc?.state.coveredBookFilePaths,
-    );
+    final isCoveredFacet = coveredFacetFilter(library, covered);
     final selection = parsedCategory.categoryFound
         ? [
             ...parsedCategory.facets!,
@@ -1342,7 +1344,33 @@ class _SearchDialogState extends State<SearchDialog> {
     _openSemanticTab(options);
   }
 
+  bool _loadingCoverage = false;
+
+  /// הספרים המכוסים לבדיקת ההיקף; כשעוד לא נטענו, ממתינים להם.
+  Future<Set<String>?> _coveredForSubmit(
+    SemanticAvailability availability,
+  ) async {
+    final bloc = _semanticBloc!;
+    final known = bloc.state.coveredBookFilePaths;
+    if (known != null || _semanticIncludeLexical || !availability.isUsable) {
+      return known;
+    }
+    _loadingCoverage = true;
+    try {
+      return await bloc.repository.loadCoveredBookFilePaths();
+    } finally {
+      _loadingCoverage = false;
+    }
+  }
+
   /// ההיקף הוא הספר בלבד: לא ההיקף השמור ולא תחביר @, שהיו מרחיבים אותו.
+  // PDF שה-id שלו שאול מספר הטקסט המקביל חולק איתו את ה-facet באינדקס,
+  // ולכן אי אפשר לצמצם את החיפוש אליו בלבד.
+  static bool _hasOwnBookFacet(Book book) =>
+      book is! PdfBook ||
+      book.id == null ||
+      BookIdentity.indexedFilePath(book) == BookIdentity.keyOf(book);
+
   void _performInBookSemanticSearch(Book book) {
     final query = _searchTab.queryController.text.trim();
     if (query.isEmpty) {

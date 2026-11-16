@@ -28,14 +28,16 @@ class SemanticSearchState extends Equatable {
     SemanticModelChoice? modelChoice,
     SemanticModelChoice? activeModelChoice,
     bool? isRemoving,
-    Set<String>? coveredBookFilePaths,
+    Set<String>? Function()? coveredBookFilePaths,
   }) => SemanticSearchState(
     availability: availability ?? this.availability,
     quantization: quantization ?? this.quantization,
     modelChoice: modelChoice ?? this.modelChoice,
     activeModelChoice: activeModelChoice ?? this.activeModelChoice,
     isRemoving: isRemoving ?? this.isRemoving,
-    coveredBookFilePaths: coveredBookFilePaths ?? this.coveredBookFilePaths,
+    coveredBookFilePaths: coveredBookFilePaths != null
+        ? coveredBookFilePaths()
+        : this.coveredBookFilePaths,
   );
 
   @override

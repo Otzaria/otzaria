@@ -73,10 +73,14 @@ class SemanticSearchResultsScreen extends StatefulWidget {
     super.key,
     required this.tab,
     this.platformSupported,
+    this.semanticRepository,
   });
 
   final SemanticSearchTab tab;
   final bool? platformSupported;
+
+  /// ברירת המחדל: [SemanticSearchRepository.instance] (לבדיקות).
+  final SemanticSearchRepository? semanticRepository;
 
   @override
   State<SemanticSearchResultsScreen> createState() =>
@@ -162,22 +166,27 @@ class _SemanticSearchResultsScreenState
   List<String> get _currentFacets =>
       _bloc.state.options?.facets ?? widget.tab.options.facets;
 
-  void _narrow(List<String> categories, List<String> dimensions) {
+  Future<void> _narrow(List<String> categories, List<String> dimensions) async {
     final scope = FacetHelper.categoryFacetsOf(widget.tab.options.facets);
     final selection = [
       ...(categories.isEmpty ? scope : categories),
       ...dimensions,
     ];
+    final includeLexical = widget.tab.options.includeLexical;
+    final repository =
+        widget.semanticRepository ?? SemanticSearchRepository.instance;
+    final covered = includeLexical
+        ? null
+        : repository.coveredBookFilePaths ??
+              await repository.loadCoveredBookFilePaths();
+    if (!mounted) return;
     final library = context.read<LibraryBloc>().state.library;
     final isOfficialCategory = officialCategoryFilter(library);
-    final isCoveredFacet = coveredFacetFilter(
-      library,
-      SemanticSearchRepository.instance.coveredBookFilePaths,
-    );
+    final isCoveredFacet = coveredFacetFilter(library, covered);
     if (!selection.every(
       (facet) => isSemanticScopeFacetSupported(
         facet,
-        includeLexical: widget.tab.options.includeLexical,
+        includeLexical: includeLexical,
         isOfficialCategory: isOfficialCategory,
         isCoveredFacet: isCoveredFacet,
       ),
@@ -191,20 +200,24 @@ class _SemanticSearchResultsScreenState
 
   void _setFacet(String facet) {
     final dimensions = FacetHelper.dimensionFacetsOf(_currentFacets);
-    _narrow(facet == '/' ? const [] : [facet], dimensions);
+    unawaited(_narrow(facet == '/' ? const [] : [facet], dimensions));
   }
 
   void _toggleFacet(String facet) {
     final categories = FacetHelper.categoryFacetsOf(_currentFacets)
       ..remove('/');
     if (!categories.remove(facet)) categories.add(facet);
-    _narrow(categories, FacetHelper.dimensionFacetsOf(_currentFacets));
+    unawaited(
+      _narrow(categories, FacetHelper.dimensionFacetsOf(_currentFacets)),
+    );
   }
 
   void _toggleDimension(String facet) {
     final dimensions = FacetHelper.dimensionFacetsOf(_currentFacets);
     if (!dimensions.remove(facet)) dimensions.add(facet);
-    _narrow(FacetHelper.categoryFacetsOf(_currentFacets), dimensions..sort());
+    unawaited(
+      _narrow(FacetHelper.categoryFacetsOf(_currentFacets), dimensions..sort()),
+    );
   }
 
   /// ספירה לפי קטגוריה של התוצאות שמוצגות כעת.
@@ -551,7 +564,7 @@ class _SemanticSearchResultsScreenState
                 hasResults: state.items.isNotEmpty,
                 onSetFacet: _setFacet,
                 onToggleFacet: _toggleFacet,
-                onClearAll: () => _narrow(const [], const []),
+                onClearAll: () => unawaited(_narrow(const [], const [])),
                 onToggleDimension: _toggleDimension,
               ),
             );
