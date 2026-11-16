@@ -121,25 +121,40 @@ class UncleanExitDetector {
     String? logsDirectory,
     List<String>? sentryDatabaseDirs,
     bool Function(int pid)? isProcessAlive,
+    DateTime? Function(int pid)? processCreatedAt,
     int? currentPid,
     DateTime? processStartedAt,
     DateTime Function()? clock,
   }) : logsDirectory = logsDirectory ?? p.dirname(ErrorLogFile.resolvePath()),
        _sentryDirs = sentryDatabaseDirs,
        _isProcessAlive = isProcessAlive ?? defaultIsProcessAlive,
+       _processCreatedAt =
+           processCreatedAt ??
+           (isProcessAlive == null ? defaultProcessCreatedAt : (_) => null),
        _currentPid = currentPid ?? pid,
        _processStartedAt = processStartedAt ?? (clock ?? DateTime.now)();
 
   static const String lockFileName = 'session.lock';
 
+  /// ה-runner של Windows כותב `startup-<pid>.lock` בתחילת התהליך, בפורמט של
+  /// [SessionLock]. נשאר רק כשהתהליך מת לפני [startSession].
+  static const String startupLockPrefix = 'startup-';
+  static const String startupLockSuffix = '.lock';
+
+  /// נעילת עלייה של תהליך חי (pid ממוחזר) נמחקת אחרי הזמן הזה.
+  static const Duration staleStartupLockAge = Duration(days: 7);
+
   final String logsDirectory;
   final List<String>? _sentryDirs;
   final bool Function(int pid) _isProcessAlive;
+  final DateTime? Function(int pid) _processCreatedAt;
   final int _currentPid;
   final DateTime _processStartedAt;
 
   String get lockPath => p.join(logsDirectory, lockFileName);
   String get errorLogPath => p.join(logsDirectory, ErrorLogFile.fileName);
+  String startupLockPath(int processId) =>
+      p.join(logsDirectory, '$startupLockPrefix$processId$startupLockSuffix');
 
   /// כותב את נעילת ההפעלה הנוכחית. יש לקרוא אחרי [detectPreviousCrash].
   Future<void> startSession({required String version}) async {
@@ -151,16 +166,29 @@ class UncleanExitDetector {
     final file = File(lockPath);
     await file.parent.create(recursive: true);
     await file.writeAsString(jsonEncode(lock.toJson()), flush: true);
+    await _deleteOwnStartupLock();
+  }
+
+  Future<void> _deleteOwnStartupLock() async {
+    try {
+      await File(startupLockPath(_currentPid)).delete();
+    } on FileSystemException {
+      // אין נעילת עלייה (לא Windows, או שה-runner לא כתב).
+    }
   }
 
   /// מוחק את הנעילה ביציאה מסודרת (סינכרוני — מסלול הסגירה אינו ממתין).
   void markCleanExitSync() {
     try {
       final file = File(lockPath);
-      if (!_ownsLock(file)) return;
-      file.deleteSync();
+      if (_ownsLock(file)) file.deleteSync();
     } on FileSystemException {
       // אין נעילה — אין מה לסמן.
+    }
+    try {
+      File(startupLockPath(_currentPid)).deleteSync();
+    } on FileSystemException {
+      // כבר נמחקה ב-startSession.
     }
   }
 
@@ -177,30 +205,38 @@ class UncleanExitDetector {
 
   /// מחזיר מועמד לקריסה רק כשנשארה נעילה של תהליך שאינו חי, ויש ראיה לקריסה:
   /// רשומת שגיאה מאז תחילתו, `Startup stall`, או minidump של Sentry.
+  /// נעילת עלייה מכסה תהליך שמת לפני שכתב את `session.lock`.
   Future<CrashCandidate?> detectPreviousCrash() async {
     for (final dir in _sentryDirs ?? defaultSentryDatabaseDirs()) {
       await pruneRecoveredMinidumps(dir);
     }
-    final SessionLock lock;
+    final abandoned = await _takeAbandonedStartupLocks();
+    SessionLock? lock;
     try {
       final file = File(lockPath);
-      if (!await file.exists()) return null;
-      final parsed = SessionLock.tryParse(await file.readAsString());
-      if (parsed == null) return null;
-      lock = parsed;
-    } catch (_) {
-      return null;
+      if (await file.exists()) {
+        lock = SessionLock.tryParse(await file.readAsString());
+      }
+    } catch (_) {}
+    if (lock != null && (lock.pid == _currentPid || _isStillRunning(lock))) {
+      lock = null;
     }
-
-    if (lock.pid == _currentPid) return null;
-    if (_isStillRunning(lock)) return null;
+    // הוותיקה מכולן: רשומות של כל ההפעלות שלא נסגרו נכנסות לבדיקה.
+    final previous = [?lock, ...abandoned].fold<SessionLock?>(
+      null,
+      (oldest, next) =>
+          oldest == null || next.startedAt.isBefore(oldest.startedAt)
+          ? next
+          : oldest,
+    );
+    if (previous == null) return null;
 
     final blocks = await _errorBlocksSince(
-      lock.startedAt,
+      previous.startedAt,
       until: _processStartedAt,
     );
     final hasStall = blocks.any((b) => b.isStartupStall);
-    final dump = await _minidumpSince(lock.startedAt);
+    final dump = await _minidumpSince(previous.startedAt);
     // תקיעה שהשתחררה כבר דווחה בזמן ריצה; שלא השתחררה — התהליך נהרג תקוע.
     bool unrecoveredHang(ErrorLogBlock hang) =>
         hang.isAppHang &&
@@ -218,7 +254,7 @@ class UncleanExitDetector {
         ? null
         : await readMinidumpSignature(newestDump);
     return CrashCandidate(
-      previousSession: lock,
+      previousSession: previous,
       entries: blocks,
       signature: evidence.isNotEmpty ? evidence.last.signature : dumpSignature,
       hasStartupStall: hasStall,
@@ -229,6 +265,39 @@ class UncleanExitDetector {
           ? CrashIncidentKind.hang
           : CrashIncidentKind.crash,
     );
+  }
+
+  /// נעילות עלייה של תהליכים שמתו, ונמחקות מיד כדי שאותה הפעלה לא תוצע שוב.
+  Future<List<SessionLock>> _takeAbandonedStartupLocks() async {
+    final abandoned = <SessionLock>[];
+    try {
+      final dir = Directory(logsDirectory);
+      if (!await dir.exists()) return abandoned;
+      await for (final entity in dir.list()) {
+        final name = p.basename(entity.path);
+        if (entity is! File ||
+            !name.startsWith(startupLockPrefix) ||
+            !name.endsWith(startupLockSuffix)) {
+          continue;
+        }
+        try {
+          final lock = SessionLock.tryParse(await entity.readAsString());
+          if (lock != null && lock.pid == _currentPid) continue;
+          if (lock != null && _isStillRunning(lock)) {
+            final age = _processStartedAt.difference(lock.startedAt);
+            if (age < staleStartupLockAge) continue;
+          } else if (lock != null) {
+            abandoned.add(lock);
+          }
+          await entity.delete();
+        } on FileSystemException {
+          // נעולה או נמחקה בינתיים — תיבדק בהפעלה הבאה.
+        }
+      }
+    } on FileSystemException {
+      // תיקייה לא קריאה אינה ראיה.
+    }
+    return abandoned;
   }
 
   /// התקיעה האחרונה שהתהליך הנוכחי רשם, אחרי שהגלאי הנייטיב דיווח שהשתחררה.
@@ -245,7 +314,11 @@ class UncleanExitDetector {
 
   bool _isStillRunning(SessionLock lock) {
     try {
-      return _isProcessAlive(lock.pid);
+      if (!_isProcessAlive(lock.pid)) return false;
+      // תהליך שנוצר אחרי הנעילה קיבל pid ממוחזר; בעל הנעילה כבר מת.
+      final created = _processCreatedAt(lock.pid);
+      return created == null ||
+          !created.isAfter(lock.startedAt.add(const Duration(seconds: 2)));
     } catch (_) {
       // בלי בדיקה אמינה: נעילה שנכתבה לפני שהתהליך הזה עלה שייכת להפעלה קודמת.
       return !lock.startedAt.isBefore(_processStartedAt);
@@ -369,6 +442,34 @@ class UncleanExitDetector {
       return Directory('/proc/$processId').existsSync();
     }
     throw UnsupportedError('no process probe on ${Platform.operatingSystem}');
+  }
+
+  /// זמן יצירת התהליך ב-Windows (GetProcessTimes), או null.
+  static DateTime? defaultProcessCreatedAt(int processId) {
+    if (!Platform.isWindows) return null;
+    final handle = OpenProcess(
+      PROCESS_QUERY_LIMITED_INFORMATION,
+      false,
+      processId,
+    );
+    if (!handle.value.isValid) return null;
+    final times = calloc<FILETIME>(4);
+    try {
+      if (!GetProcessTimes(
+        handle.value,
+        times,
+        times + 1,
+        times + 2,
+        times + 3,
+      ).value) {
+        return null;
+      }
+      final ticks = (times.ref.dwHighDateTime << 32) | times.ref.dwLowDateTime;
+      return DateTime.utc(1601).add(Duration(microseconds: ticks ~/ 10));
+    } finally {
+      calloc.free(times);
+      handle.value.close();
+    }
   }
 
   static bool _isAliveWindows(int processId) {

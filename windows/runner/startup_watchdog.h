@@ -36,7 +36,9 @@ void AppendStack(const std::vector<ULONG_PTR>& frames, std::string* report);
 // commit הבנייה ו-build-id של app.so — מזהים את קובצי הסמלים לפענוח.
 void AppendBuildIdentity(const std::vector<ULONG_PTR>& frames,
                          std::string* report);
-void AppendReport(const std::string& text);
+// true רק כשהרשומה כולה נכתבה; כשל משאיר למנגנון הקריסה אפשרות לנסות שוב.
+bool AppendReport(const std::string& text);
+std::wstring ErrorLogPath();
 std::string UtcTimestamp();
 
 }  // namespace startup_watchdog

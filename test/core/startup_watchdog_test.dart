@@ -98,7 +98,7 @@ void main() {
   test('פריים Dart מזוהה כ-app.so לפי כותרת ה-ELF, בלי loader APIs', () {
     final dartBase = source.substring(
       source.indexOf('ULONG_PTR DartImageBase('),
-      source.indexOf('std::string DartBuildId('),
+      source.indexOf('void AppendModulePdbLines('),
     );
     expect(dartBase, contains('info.Type != MEM_PRIVATE'));
     expect(dartBase, contains('info.AllocationBase'));
@@ -140,10 +140,13 @@ void main() {
         lessThan(stall.indexOf('AppendStackSection(frames, &report);')),
       ),
     );
-    // רק הקובץ שמשתמש ב-commit מקומפל מחדש כשהוא משתנה.
+    // רק הקבצים שמשתמשים ב-commit מקומפלים מחדש כשהוא משתנה.
     expect(
       File('windows/runner/CMakeLists.txt').readAsStringSync(),
-      contains('set_property(SOURCE "startup_watchdog.cpp" APPEND PROPERTY'),
+      contains(
+        'set_property(SOURCE "startup_watchdog.cpp" "crash_record.cpp" '
+        'APPEND PROPERTY',
+      ),
     );
   });
 

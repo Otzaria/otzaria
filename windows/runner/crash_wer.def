@@ -1,0 +1,6 @@
+LIBRARY "otzaria_crash_wer.dll"
+
+EXPORTS
+  OutOfProcessExceptionEventCallback
+  OutOfProcessExceptionEventSignatureCallback
+  OutOfProcessExceptionEventDebuggerLaunchCallback

@@ -24,7 +24,13 @@ class ErrorLogBlock {
 
   /// שגיאה לא מטופלת או תקיעה — ראיה לקריסה, בניגוד לאזהרות כמו `Slow startup`.
   bool get isCrashEvidence =>
-      isStartupStall || title == 'FlutterError' || title == 'Unhandled Error';
+      isStartupStall ||
+      isNativeCrash ||
+      title == 'FlutterError' ||
+      title == 'Unhandled Error';
+
+  /// קריסה שה-runner או מודול ה-WER רשמו (`crash_record.cpp`, `crash_wer.cpp`).
+  bool get isNativeCrash => title == 'Native crash';
 
   /// שורת `Exception:` (או `Message:` ברשומות נייטיב), אם קיימת.
   String? get exceptionMessage {
@@ -56,6 +62,7 @@ class ErrorLogBlock {
 
   /// חתימה לפי ההודעה וה-stack; לרשומה בלי הודעה — לפי הכותרת.
   CrashSignature get signature {
+    if (isNativeCrash) return _nativeCrashSignature();
     final message = exceptionMessage ?? title;
     if (!isAppHang) {
       return CrashSignature.fromLogText(
@@ -66,6 +73,27 @@ class ErrorLogBlock {
     return CrashSignature(
       exceptionType: CrashSignature.exceptionTypeFromMessage(message),
       frames: _hangSignatureFrames(stackText),
+    );
+  }
+
+  /// באותה צורה כמו חתימה מ-minidump, כדי שאותה קריסה תקובץ יחד.
+  CrashSignature _nativeCrashSignature() {
+    String? field(String name) {
+      for (final line in const LineSplitter().convert(text)) {
+        if (line.startsWith('$name: ')) return line.substring(name.length + 2);
+      }
+      return null;
+    }
+
+    final code = field('Exception code') ?? title;
+    final fault = field('Fault');
+    final frame = fault == null ? null : CrashSignature.normalizeFrame(fault);
+    final type = frame == null ? code : '$code $frame';
+    return CrashSignature(
+      exceptionType: type.length <= CrashSignature.maxExceptionTypeLength
+          ? type
+          : type.substring(0, CrashSignature.maxExceptionTypeLength),
+      frames: [?frame],
     );
   }
 }

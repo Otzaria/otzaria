@@ -34,6 +34,9 @@ packages/*/pubspec.lock
 .pub/
 build/
 windows/*
+!windows/crash_wer/
+windows/crash_wer/*
+!windows/crash_wer/CMakeLists.txt
 !windows/launcher/
 !windows/runner/
 windows/runner/*
@@ -56,6 +59,13 @@ windows/runner/*
 !windows/runner/snap_layouts.cpp
 !windows/runner/snap_layouts.h
 !windows/runner/window_centering.h
+!windows/runner/crash_record.cpp
+!windows/runner/crash_record.h
+!windows/runner/crash_wer.cpp
+!windows/runner/crash_wer.def
+!windows/runner/crash_wer_context.h
+!windows/runner/image_identity.cpp
+!windows/runner/image_identity.h
 # ⚠️ `windows/runner/*` מעל מסנן **הכול**, וכל קובץ מקור חדש חייב חריגה
 # מפורשת כאן. קבצים שכבר tracked ממשיכים להיות tracked ולכן הבעיה אינה
 # נראית — אבל קובץ **חדש** נבלע בשקט: `git add -A` מדלג עליו בלי מילה,
