@@ -232,6 +232,17 @@ class AboutSettingsTab extends StatelessWidget {
                   ),
                 ),
                 _padded(_BookSourcesSection()),
+                _cardTitle(context, context.settingsText('שגיאות מי יבין')),
+                _padded(
+                  _SubtitleText(
+                    context.settingsText(
+                      'הספרים באוצריא הוקלדו, נסרקו והוגהו בעמל רב של מתנדבים, '
+                      'ובכל זאת ייתכנו בהם טעויות. בדבר הלכה למעשה ראוי לעיין '
+                      'גם בספר המודפס.\nמצאתם טעות? סמנו את הקטע, לחצו לחיצה '
+                      'ימנית ובחרו ״דווח על טעות בספר״. כך תזכו את הרבים.',
+                    ),
+                  ),
+                ),
                 _cardTitle(context, context.settingsText('מהדירי ספרים')),
                 _padded(
                   Column(
