@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:otzaria/core/user_state/user_state_database.dart';
+import 'package:otzaria/data/sqlite/sqlite3_api.dart';
 
 /// רשומה אחת בתור דיווחים.
 class PendingReport {
@@ -34,48 +35,73 @@ class PendingReportStore {
   static String _kindPredicate(String? additionalKind) =>
       additionalKind == null ? 'kind = ?' : 'kind IN (?, ?)';
 
-  Future<int> add(String kind, Map<String, dynamic> payload) async {
-    final db = await _database.database;
+  /// הכתיבה ב-isolate: דוח נוסף לתור דווקא כשהמחשב איטי, וכתיבה סינכרונית
+  /// לדיסק על ה-UI הייתה תוקעת אותו.
+  Future<int> add(String kind, Map<String, dynamic> payload) {
+    final encoded = jsonEncode(payload);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return _database.runInWriteQueue(
+      (_) => _database.runOnWriteConnection(_inserter(kind, encoded, now)),
+    );
+  }
+
+  static int Function(Database) _inserter(
+    String kind,
+    String encoded,
+    int now,
+  ) => (db) {
     db.execute(
       'INSERT INTO pending_reports (kind, payload_json, created_at) '
       'VALUES (?, ?, ?)',
-      [kind, jsonEncode(payload), DateTime.now().millisecondsSinceEpoch],
+      [kind, encoded, now],
     );
     return db.lastInsertRowId;
-  }
+  };
 
   Future<Map<String, dynamic>> addIfAbsent(
     String kind,
     Map<String, dynamic> payload,
   ) async {
-    final db = await _database.database;
     final encoded = jsonEncode(payload);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final stored = await _database.runInWriteQueue(
+      (_) => _database.runOnWriteConnection(
+        _insertIfAbsent(kind, payload['id'], encoded, now),
+      ),
+    );
+    return stored == null
+        ? payload
+        : jsonDecode(stored) as Map<String, dynamic>;
+  }
+
+  /// מחזיר את התוכן שכבר היה בתור, או null כשהשורה נוספה עכשיו.
+  static String? Function(Database) _insertIfAbsent(
+    String kind,
+    Object? id,
+    String encoded,
+    int now,
+  ) => (db) {
     db.execute('BEGIN IMMEDIATE');
     try {
       final rows = db.select(
         "SELECT payload_json FROM pending_reports "
         r"WHERE kind = ? AND json_extract(payload_json, '$.id') = ? LIMIT 1",
-        [kind, payload['id']],
+        [kind, id],
       );
-      if (rows.isNotEmpty) {
-        final stored =
-            jsonDecode(rows.single['payload_json'] as String)
-                as Map<String, dynamic>;
-        db.execute('COMMIT');
-        return stored;
+      if (rows.isEmpty) {
+        db.execute(
+          'INSERT INTO pending_reports (kind, payload_json, created_at) '
+          'VALUES (?, ?, ?)',
+          [kind, encoded, now],
+        );
       }
-      db.execute(
-        'INSERT INTO pending_reports (kind, payload_json, created_at) '
-        'VALUES (?, ?, ?)',
-        [kind, encoded, DateTime.now().millisecondsSinceEpoch],
-      );
       db.execute('COMMIT');
-      return payload;
+      return rows.isEmpty ? null : rows.single['payload_json'] as String;
     } catch (_) {
       db.execute('ROLLBACK');
       rethrow;
     }
-  }
+  };
 
   /// [whereField] מסנן ב-SQL לפי שדה בתוכן ששווה ל-[equals], כך ששורות
   /// שאינן מתאימות (או מעבר ל-[limit]) אינן מפוענחות כלל.
