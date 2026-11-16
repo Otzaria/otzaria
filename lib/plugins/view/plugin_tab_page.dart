@@ -959,10 +959,8 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
       },
       onReceivedError: (controller, request, error) {
         if (!currentAttempt()) return;
-        // only fail the view for the entrypoint file load itself.
-        // באנדרואיד ה-WebView מדווח onReceivedError גם על משאבי משנה (סקריפט,
-        // תמונה או גופן חסרים/חסומים); כשל כזה לא מפיל את התוסף, רק כשל בטעינת
-        // המסמך הראשי.
+        // באנדרואיד גם משאבי משנה מפעילים onReceivedError.
+        // רק כשל במסמך הראשי מפיל את התוסף.
         if (request.url.scheme == 'file' ||
             request.url.scheme == pluginAssetScheme) {
           if (request.isForMainFrame == false) {
