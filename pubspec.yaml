@@ -243,7 +243,7 @@ dependency_overrides:
   flutter_local_notifications_windows:
     git:
       url: https://github.com/Otzaria/flutter_local_notifications
-      ref: 327a0713ccebe2bdf981db532c5904e3b731ef16
+      ref: 0943fb8a6ee58b2aaabc578835d0019e54b3133e
       path: flutter_local_notifications_windows
   # TODO: להחזיר ל-pub.dev כשימוזג וישוחרר getsentry/sentry-dart#4094 (ענף feat/nonblocking-native-init:
   # טעינת sentry.dll, sentry_init, עדכוני ה-scope וה-close ב-worker isolate ב-Windows).
