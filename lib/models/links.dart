@@ -337,7 +337,9 @@ class Link {
       common++;
     }
     final tail = endSegs.sublist(common).join(', ');
-    return common > 0 ? '–$tail' : ' – $tail';
+    if (common > 0) return '–$tail';
+    // קצה בלי פסיק הוא "<ספר> <שורה>" של ספרי אוצריא — לא מיקום קריא.
+    return endSegs.length > 1 ? ' – $tail' : '';
   }
 
   /// מחזירה כתובת תצוגה בטוחה גם כאשר לא ניתן לחשב TOC מלא.

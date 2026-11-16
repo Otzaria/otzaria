@@ -179,6 +179,33 @@ void main() {
       );
     });
 
+    test('טווח בספר אוצריא אינו מוסיף את כתובת השורה הגולמית', () async {
+      final ranged = _link(
+        heRef: 'חברותא על בכורות 4790',
+        heRefEnd: 'חברותא על בכורות 4793',
+        path2: 'חברותא על בכורות',
+        index2End: 4793,
+      );
+      final single = _link(
+        heRef: 'חברותא על בכורות 4790',
+        path2: 'חברותא על בכורות',
+      );
+      expect(ranged.fallbackDisplayReference, single.fallbackDisplayReference);
+      expect(await ranged.displayReference, single.fallbackDisplayReference);
+    });
+
+    test('טווח מייבוא אישי בין פרקים שומר את הקצה הקריא', () {
+      expect(
+        _link(
+          heRef: 'רש״י על בראשית א, לא',
+          heRefEnd: 'רש״י על בראשית ב, א',
+          path2: 'רש״י על בראשית',
+          index2End: 40,
+        ).fallbackDisplayReference,
+        endsWith(' – רש״י על בראשית ב, א'),
+      );
+    });
+
     test('הרמה האחרונה בספר שאינו לפי דף נשמרת', () {
       expect(
         _link(heRef: 'יהושע, ב, יג', path2: 'יהושע').fallbackDisplayReference,
