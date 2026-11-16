@@ -1,8 +1,12 @@
 // #2164: "טעינה מחדש" מציג מצב טעינה כבר בזמן סריקת התיקיות האישיות.
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show FontLoader, rootBundle;
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -27,6 +31,8 @@ import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
+import 'package:otzaria/theme/app_seed_colors.dart';
+import 'package:otzaria/theme/app_theme_data.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:provider/provider.dart';
 
@@ -56,23 +62,40 @@ class _StubCalendarCubit extends Cubit<CalendarState> implements CalendarCubit {
 }
 
 final _loadingOverlay = find.text('טוען את הספרייה');
+const _sidecarError = 'מגילה_links.json: ספר היעד "ספר חסר" לא נמצא';
 
 void main() {
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
+    final manifest =
+        jsonDecode(await rootBundle.loadString('FontManifest.json')) as List;
+    for (final entry in manifest.cast<Map<String, dynamic>>()) {
+      final family = entry['family'] as String;
+      if (family == 'Rubik' ||
+          family.contains('FluentSystemIcons') ||
+          family.contains('OtzariaIcons')) {
+        final loader = FontLoader(family);
+        for (final font in (entry['fonts'] as List).cast<Map>()) {
+          loader.addFont(rootBundle.load(font['asset'] as String));
+        }
+        await loader.load();
+      }
+    }
   });
 
   // סריקה שלא התחילה מהכפתור (הוספת תיקייה, ייבוא, תוסף) לא חוסמת את הספרייה.
-  // סריקה שנכשלה לא שולחת רענון, ולכן הדיווח לא יופיע ברענון שאינו קשור.
-  for (final (fromButton, unrecognized, scanFails) in [
-    (true, 2, false),
-    (false, 2, false),
-    (true, 0, false),
-    (true, 2, true),
+  // תוצאות של סריקה לא קשורה נשארות ללא toast בספרייה.
+  for (final (fromButton, unrecognized, scanFails, hasSidecarError) in [
+    (true, 2, false, false),
+    (false, 2, false, false),
+    (true, 0, false, false),
+    (true, 2, true, false),
+    (true, 2, false, true),
+    (false, 2, false, true),
   ]) {
     testWidgets(
       '${fromButton ? 'מצב הטעינה מוצג כבר בזמן סריקת התיקיות האישיות' : 'סריקה שלא התחילה מ"טעינה מחדש" אינה מציגה מצב טעינה'}'
-      ' ($unrecognized קבצי היברובוקס לא מזוהים${scanFails ? ', הסריקה נכשלה' : ''})',
+      ' ($unrecognized קבצי היברובוקס לא מזוהים${scanFails ? ', הסריקה נכשלה' : ''}${hasSidecarError ? ', שגיאת קובץ קישורים' : ''})',
       (tester) async {
         final library = Library(categories: []);
         final releaseSync = Completer<FileSyncResult>();
@@ -123,6 +146,12 @@ void main() {
         );
         tester.view.devicePixelRatio = 1;
         tester.view.physicalSize = const Size(1200, 900);
+        final capturePair =
+            Platform.environment['OTZARIA_CAPTURE_UI'] == '1' &&
+            fromButton &&
+            hasSidecarError;
+        final expectScanErrors =
+            Platform.environment['OTZARIA_EXPECT_SCAN_ERRORS'] != '0';
         addTearDown(() async {
           if (!releaseSync.isCompleted) {
             releaseSync.complete(const FileSyncResult());
@@ -139,10 +168,31 @@ void main() {
           await calendarCubit.close();
         });
 
+        final theme =
+            AppThemeData.light(
+              AppThemeData.createColorScheme(
+                AppSeedColors.blue,
+                Brightness.light,
+              ),
+              compactMenuMode: false,
+              variant: AppThemeVariant.ofSeed(AppSeedColors.blue),
+            ).copyWith(
+              textTheme: ThemeData.light().textTheme.apply(fontFamily: 'Rubik'),
+              primaryTextTheme: ThemeData.light().primaryTextTheme.apply(
+                fontFamily: 'Rubik',
+              ),
+            );
         await tester.pumpWidget(
           MaterialApp(
             navigatorKey: navigatorKey,
             locale: const Locale('he', 'IL'),
+            supportedLocales: const [Locale('he', 'IL')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            theme: theme,
+            builder: (context, child) => RepaintBoundary(
+              key: const ValueKey('library-reload-capture-root'),
+              child: child!,
+            ),
             home: MultiProvider(
               providers: [
                 Provider<FocusRepository>.value(value: FocusRepository()),
@@ -158,6 +208,10 @@ void main() {
           ),
         );
         await tester.pump();
+        expect(
+          Directionality.of(tester.element(find.byType(LibraryBrowser))),
+          TextDirection.rtl,
+        );
         tester.takeException();
         expect(_loadingOverlay, findsNothing);
 
@@ -175,11 +229,34 @@ void main() {
         if (scanFails) {
           releaseSync.completeError(Exception('scan failed'));
         } else {
-          releaseSync.complete(const FileSyncResult());
+          releaseSync.complete(
+            FileSyncResult(
+              errors: hasSidecarError ? const [_sidecarError] : const [],
+            ),
+          );
         }
         await tester.pump();
         await tester.pump();
         expect(_loadingOverlay, findsNothing);
+        expect(
+          find.textContaining('מגילה_links.json'),
+          fromButton && hasSidecarError && expectScanErrors
+              ? findsOneWidget
+              : findsNothing,
+        );
+        expect(
+          find.textContaining('ספר היעד "ספר חסר" לא נמצא'),
+          fromButton && hasSidecarError && expectScanErrors
+              ? findsOneWidget
+              : findsNothing,
+        );
+        if (scanFails) {
+          expect(
+            find.textContaining('סנכרון התיקיות האישיות נכשל'),
+            fromButton ? findsOneWidget : findsNothing,
+          );
+          expect(find.textContaining('scan failed'), findsNothing);
+        }
 
         // #2964: קבצים לא מזוהים בתיקיית היברובוקס מדווחים רק אחרי "טעינה מחדש".
         libraryStates
@@ -189,10 +266,20 @@ void main() {
         await tester.pump();
         expect(
           find.text(LibraryMessages.unrecognizedHebrewBooksFiles(unrecognized)),
-          fromButton && unrecognized > 0 && !scanFails
+          fromButton &&
+                  unrecognized > 0 &&
+                  !scanFails &&
+                  (!hasSidecarError || !expectScanErrors)
               ? findsOneWidget
               : findsNothing,
         );
+        if (capturePair) {
+          await tester.pump(const Duration(milliseconds: 200));
+          await expectLater(
+            find.byKey(const ValueKey('library-reload-capture-root')),
+            matchesGoldenFile('library_reload_sidecar_error_after.png'),
+          );
+        }
         await tester.pump(const Duration(seconds: 10));
       },
     );

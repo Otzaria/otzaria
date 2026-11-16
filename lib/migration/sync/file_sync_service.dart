@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as path;
+import 'package:otzaria/core/messages/settings_messages.dart';
 
 import '../database/repository/off_ui_deletion.dart';
 import '../database/repository/seforim_repository.dart';
@@ -549,7 +550,11 @@ class FileSyncService {
       } catch (e, stackTrace) {
         final errorMsg = 'Error processing file $filePath: $e';
         _log.warning(errorMsg, e, stackTrace);
-        errors.add('Error processing ${path.basename(filePath)}: $e');
+        errors.add(
+          SettingsMessages.customFolderFileScanFailed(
+            path.basename(filePath),
+          ),
+        );
         debugPrint('❌ $errorMsg');
         debugPrint('Stack trace: $stackTrace');
       }
@@ -821,7 +826,7 @@ class FileSyncService {
       _reportProgress(1.0, 'הסנכרון הושלם');
     } catch (e, stackTrace) {
       _log.severe('Error during sync', e, stackTrace);
-      errors.add('Sync error: $e');
+      errors.add(SettingsMessages.customFolderSyncFailed);
     } finally {
       _isSyncing = false;
       stopwatch.stop();

@@ -389,8 +389,8 @@ class UserImportParser {
     final Object? decoded;
     try {
       decoded = jsonDecode(content);
-    } catch (e) {
-      errors.add(ImportRowError(0, 'JSON לא תקין: $e'));
+    } catch (_) {
+      errors.add(const ImportRowError(0, 'JSON לא תקין'));
       return ParseResult(rows, errors);
     }
     if (decoded is! List) {
@@ -489,8 +489,8 @@ class UserImportParser {
     final Object? decoded;
     try {
       decoded = jsonDecode(content);
-    } catch (e) {
-      errors.add(ImportRowError(0, 'JSON לא תקין: $e'));
+    } catch (_) {
+      errors.add(const ImportRowError(0, 'JSON לא תקין'));
       return ParseResult(rows, errors);
     }
     if (decoded is! List) {

@@ -196,6 +196,13 @@ void main() {
   });
 
   group('UserImportParser.parseNativeLinksJson', () {
+    test('JSON פגום מדווח הודעה בטוחה', () {
+      final result = UserImportParser.parseNativeLinksJson('{ לא תקין');
+
+      expect(result.rows, isEmpty);
+      expect(result.errors.single.message, 'JSON לא תקין');
+    });
+
     test('מפענח את פורמט ה-native (line_index, path_2, heRef_2)', () {
       const json =
           '['
@@ -548,6 +555,7 @@ void main() {
       final result = UserImportParser.parseLinksJson('{ לא תקין');
       expect(result.rows, isEmpty);
       expect(result.errors, isNotEmpty);
+      expect(result.errors.single.message, 'JSON לא תקין');
     });
 
     test('שורה פגומה מדולגת, תקינות נקלטות', () {

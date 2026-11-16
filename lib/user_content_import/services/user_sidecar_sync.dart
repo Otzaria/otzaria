@@ -9,6 +9,7 @@ import 'package:otzaria/user_content_import/repository/user_content_repository.d
 import 'package:otzaria/user_content_import/services/user_content_importer.dart';
 import 'package:otzaria/user_content_import/services/user_headings_builder.dart';
 import 'package:otzaria/user_content_import/services/user_import_parser.dart';
+import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/user_content_import/services/user_link_ref_resolver.dart';
 import 'package:otzaria/utils/file/document_converter.dart';
 import 'package:otzaria/utils/file/document_format.dart';
@@ -71,8 +72,9 @@ class UserSidecarSync {
               officialStamp: officialStamp,
               attachedBooks: attachedBooks,
             );
-          } catch (e) {
-            errors.add('$name: הקליטה נכשלה ($e)');
+          } catch (e, stackTrace) {
+            debugPrint('⚠️ [UserSidecarSync] $name: $e\n$stackTrace');
+            errors.add(SettingsMessages.customFolderFileImportFailed(name));
           }
         }
       }
@@ -82,9 +84,9 @@ class UserSidecarSync {
         if (seen.contains(tracked)) continue;
         await repo.forgetSidecar(tracked);
       }
-    } catch (e) {
-      debugPrint('⚠️ [UserSidecarSync] failed for $folderPath: $e');
-      errors.add('קליטת קובצי הכותרות והגרסאות נכשלה: $e');
+    } catch (e, stackTrace) {
+      debugPrint('⚠️ [UserSidecarSync] failed: $e\n$stackTrace');
+      errors.add(SettingsMessages.customFolderSidecarScanFailed);
     } finally {
       attachedBooks.close();
     }
@@ -337,8 +339,11 @@ class UserSidecarSync {
         path: filePath,
       );
       return text.split('\n');
-    } catch (e) {
-      errors.add('$errorPrefix: קריאת הספר "$title" נכשלה ($e)');
+    } catch (e, stackTrace) {
+      debugPrint('⚠️ [UserSidecarSync] $errorPrefix: $e\n$stackTrace');
+      errors.add(
+        SettingsMessages.customFolderBookReadFailed(errorPrefix, title),
+      );
       return null;
     }
   }

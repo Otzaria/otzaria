@@ -3,6 +3,7 @@ import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
+import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/query_loader.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
@@ -562,8 +563,9 @@ class UserContentImporter {
       parsed = fileName.toLowerCase().endsWith('.json')
           ? UserImportParser.parseLinksJson(content)
           : UserImportParser.parseLinks(content);
-    } catch (e) {
-      errors.add('$fileName: קריאת הקובץ נכשלה ($e)');
+    } catch (e, stackTrace) {
+      debugPrint('⚠️ [UserContentImporter] $fileName: $e\n$stackTrace');
+      errors.add(SettingsMessages.customFolderFileImportFailed(fileName));
       return;
     }
     for (final err in parsed.errors) {
@@ -702,8 +704,9 @@ class UserContentImporter {
     final ParseResult<ParsedNativeLink> parsed;
     try {
       parsed = UserImportParser.parseNativeLinksJson(file.content);
-    } catch (e) {
-      errors.add('$fileName: קריאת הקובץ נכשלה ($e)');
+    } catch (e, stackTrace) {
+      debugPrint('⚠️ [UserContentImporter] $fileName: $e\n$stackTrace');
+      errors.add(SettingsMessages.customFolderFileImportFailed(fileName));
       return;
     }
     for (final err in parsed.errors) {

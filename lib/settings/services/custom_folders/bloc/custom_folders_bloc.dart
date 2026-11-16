@@ -3,6 +3,7 @@ import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'dart:async';
 
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
@@ -264,12 +265,17 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
         newFolders,
         onlyFolderPath: event.folder.path,
       );
+      final hasErrors = result.errors.isNotEmpty;
       if (!event.value) {
         emit(
           state.copyWith(
             isSyncing: false,
-            message:
-                'תוכן הספרים נסרק ועודכן.\nמעתה הספרים ייקראו ישירות מהקבצים.',
+            message: hasErrors
+                ? null
+                : 'תוכן הספרים נסרק ועודכן.\nמעתה הספרים ייקראו ישירות מהקבצים.',
+            error: hasErrors
+                ? SettingsMessages.customFolderScanErrors(result.errors)
+                : null,
           ),
         );
       } else {
@@ -277,9 +283,12 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
         emit(
           state.copyWith(
             isSyncing: false,
-            message: hasChanges
+            message: !hasErrors && hasChanges
                 ? 'הסריקה הושלמה: ${result.addedBooks} ספרים נוספו, '
                       '${result.updatedBooks} עודכנו'
+                : null,
+            error: hasErrors
+                ? SettingsMessages.customFolderScanErrors(result.errors)
                 : null,
           ),
         );
@@ -287,8 +296,14 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
       _refreshLibraryAfterScan({
         for (final id in result.updatedBookIds) BookIdentity.userBookKey(id),
       });
-    } catch (e) {
-      emit(state.copyWith(isSyncing: false, error: 'שגיאה בסנכרון: $e'));
+    } catch (e, stackTrace) {
+      debugPrint('⚠️ [CustomFoldersBloc] סנכרון תיקייה נכשל: $e\n$stackTrace');
+      emit(
+        state.copyWith(
+          isSyncing: false,
+          error: SettingsMessages.customFolderSyncFailed,
+        ),
+      );
     }
   }
 
@@ -316,10 +331,11 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
               onlyFolderPath: event.onlyFolderPath,
             );
       final hasChanges = result.addedBooks > 0 || result.updatedBooks > 0;
-      final message = hasChanges
+      final hasErrors = result.errors.isNotEmpty;
+      final message = !hasErrors && hasChanges
           ? 'הסריקה הושלמה: ${result.addedBooks} ספרים נוספו, '
                 '${result.updatedBooks} עודכנו'
-          : event.showNoChangesMessage
+          : !hasErrors && event.showNoChangesMessage
           ? 'הסריקה הושלמה. לא נמצאו ספרים חדשים.'
           : null;
       // הרענון נשלח לפני דיווח התוצאה, כדי שקורא שמחכה ל-completedScan לא
@@ -337,6 +353,9 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
         state.copyWith(
           isSyncing: false,
           message: message,
+          error: hasErrors && event.requestId == null
+              ? SettingsMessages.customFolderScanErrors(result.errors)
+              : null,
           completedScan: event.requestId == null
               ? null
               : CustomFoldersScanOutcome(
@@ -347,11 +366,14 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
                 ),
         ),
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('⚠️ [CustomFoldersBloc] סריקת תיקיות נכשלה: $e\n$stackTrace');
       emit(
         state.copyWith(
           isSyncing: false,
-          error: 'שגיאה בסריקת תיקיות אישיות: $e',
+          error: event.requestId == null
+              ? SettingsMessages.customFolderSyncFailed
+              : null,
           completedScan: event.requestId == null
               ? null
               : CustomFoldersScanOutcome(
