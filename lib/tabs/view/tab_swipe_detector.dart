@@ -47,6 +47,16 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
   int _generation = 0;
 
   @override
+  void dispose() {
+    // dispose של המזהים לא קורא ל-onEnd/onCancel; בלי זה הסנכרון נשאר חסום.
+    if (_dragging) {
+      _dragging = false;
+      widget.onActiveChanged(false);
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return RawGestureDetector(
       gestures: <Type, GestureRecognizerFactory>{
