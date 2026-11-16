@@ -172,12 +172,16 @@ void main() {
     );
   });
 
-  // #4467: בלשונית 'ניווט' השדה נפתח כשהמשתמש פותח את החלונית, אבל לא כשהיא
-  // נפתחה לבד עם הספר — אז החיצים שייכים לקריאה.
-  testWidgets('מסך רחב: איתור הכותרת נפתח רק כשהמשתמש פותח את החלונית', (
+  // #5115: בלשונית 'ניווט' השדה הקבוע מקבל פוקוס בפתיחת החלונית, בפתיחה עם
+  // הספר ובפתיחה חוזרת של המשתמש.
+  testWidgets('מסך רחב: שדה הכותרת מקבל פוקוס בכל פתיחה של החלונית', (
     tester,
   ) async {
     await pumpScreen(tester, size: const Size(1600, 900), searchText: '');
+    expect(anyTextFieldFocused(tester), isTrue);
+
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pump();
     expect(anyTextFieldFocused(tester), isFalse);
 
     final bloc = tester
