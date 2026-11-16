@@ -1216,7 +1216,8 @@ Future<void> main() async {
 
     expect(simpleRunnerCalls, 0);
     expect(repository.requests, isEmpty);
-    expect(find.text('נמצאו 2 תוצאות'), findsOneWidget);
+    // שתי ההופעות באותו קטע מוצגות בשורה אחת (issue #3083).
+    expect(find.text('נמצאו 2 הופעות במקום אחד'), findsOneWidget);
   }, skip: !engineReady);
 }
 

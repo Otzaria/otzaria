@@ -24,4 +24,16 @@ class TextSearchResult {
     this.lineLength,
     this.continuesToNextLine = false,
   });
+
+  /// הופעה באותו קטע הקשר של [previous] (אותה שורה, אותו טקסט, בתוך טווח הקטע).
+  /// הרשימה מציגה את שתיהן בשורה אחת, והניווט עדיין עובר על כל הופעה.
+  bool sharesSnippetWith(TextSearchResult previous) {
+    final offset = matchOffset;
+    final previousOffset = previous.matchOffset;
+    return offset != null &&
+        previousOffset != null &&
+        index == previous.index &&
+        snippet == previous.snippet &&
+        (offset - previousOffset).abs() < snippet.length;
+  }
 }

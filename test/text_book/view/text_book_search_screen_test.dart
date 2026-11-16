@@ -5,6 +5,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/widgets/navigation/search_pane_base.dart';
+import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/core/messages/text_book_messages.dart';
@@ -1153,6 +1154,89 @@ Future<void> main() async {
     await tester.pump();
     expect(find.text('2/3'), findsOneWidget);
     expect(navigatedLines, [7, 9, 7]);
+  });
+
+  testWidgets('הופעות באותו קטע מוצגות כשורה אחת והניווט עובר על כולן '
+      '(issue #3083)', (tester) async {
+    final textBookBloc = _TestTextBookBloc(_loadedState());
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
+    final focusNode = FocusNode();
+    final navigatedLines = <int>[];
+    final lines = LineScrollController()
+      ..externalNavigator = (line) async => navigatedLines.add(line);
+
+    addTearDown(textBookBloc.close);
+    addTearDown(settingsBloc.close);
+    addTearDown(focusNode.dispose);
+    addTearDown(lines.dispose);
+    addTearDown(resetSectionSearchWorkerForTesting);
+
+    TextSearchResult result(int line, int offset) => TextSearchResult(
+      snippet: 'אבג מילה אבג',
+      index: line,
+      query: 'אבג',
+      address: 'א',
+      matchOffset: offset,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<TextBookBloc>.value(value: textBookBloc),
+            BlocProvider<SettingsBloc>.value(value: settingsBloc),
+          ],
+          child: Scaffold(
+            body: TextBookSearchView(
+              contentLoader: () async => ['אבג'],
+              lines: lines,
+              focusNode: focusNode,
+              closeLeftPaneCallback: () {},
+              initialQuery: '',
+              // אותו טקסט בשורה 5 הוא מקום אחר ונשאר תוצאה נפרדת.
+              simpleSearchRunner: (content, query) async => [
+                result(2, 0),
+                result(2, 9),
+                result(5, 0),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), 'אבג');
+    await tester.pump(kSearchFieldDebounce + const Duration(milliseconds: 50));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.byType(NavTreeContentRow), findsNWidgets(2));
+    expect(find.text('נמצאו 3 הופעות ב־2 מקומות'), findsOneWidget);
+    expect(find.text('1/3'), findsOneWidget);
+    bool selected(int row) => tester
+        .widgetList<NavTreeContentRow>(find.byType(NavTreeContentRow))
+        .elementAt(row)
+        .isSelected;
+    expect(selected(0), isTrue);
+
+    await tester.tap(find.byTooltip('התוצאה הבאה'));
+    await tester.pump();
+    expect(find.text('2/3'), findsOneWidget);
+    expect(navigatedLines, [2]);
+    expect(selected(0), isTrue);
+
+    await tester.tap(find.byTooltip('התוצאה הבאה'));
+    await tester.pump();
+    expect(find.text('3/3'), findsOneWidget);
+    expect(navigatedLines, [2, 5]);
+    expect(selected(1), isTrue);
+    expect(selected(0), isFalse);
+
+    await tester.tap(find.byTooltip('התוצאה הקודמת'));
+    await tester.pump();
+    expect(find.text('2/3'), findsOneWidget);
+    expect(navigatedLines, [2, 5, 2]);
+    expect(selected(0), isTrue);
   });
 }
 
