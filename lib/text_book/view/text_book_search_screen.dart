@@ -142,6 +142,9 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   int? _selectedResultLine;
   int? _selectedResultOffset;
   int _activeSearchRequestId = 0;
+  late final _engineSearch = InBookEngineSearchCancellation(
+    widget.searchRepository,
+  );
   final ItemScrollController _resultsScrollController = ItemScrollController();
   final ItemPositionsListener _resultsPositionsListener =
       ItemPositionsListener.create();
@@ -445,6 +448,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
   Future<void> _searchTextUpdated() async {
     final requestId = ++_activeSearchRequestId;
+    _engineSearch.cancel();
     final searchable = _searchableQuery(searchTextController.text);
     if (searchable == null) {
       setState(() {
@@ -553,6 +557,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         bookPath: _bookPath!,
         limit: kInBookEngineFetchLimit,
         settings: _settings,
+        cancelRequestId: _engineSearch.next(),
       );
 
       final expectedTitle = _bookTitle!.trim();
@@ -962,6 +967,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
   @override
   void dispose() {
+    _engineSearch.cancel();
     searchTextController.dispose();
     _selectedResult.dispose();
     super.dispose();

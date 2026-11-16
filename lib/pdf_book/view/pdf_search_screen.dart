@@ -386,6 +386,9 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
 
   String _lastPdfHighlightSource = '';
   int _searchGeneration = 0;
+  late final _engineSearch = InBookEngineSearchCancellation(
+    widget.searchRepository,
+  );
   int _navigationRequest = 0;
 
   /// הדור שעבורו כבר נבדק אם לספר יש טקסט — הסריקה מודיעה על כל עמוד,
@@ -679,6 +682,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
     oldWidget.textSearcher.removeListener(_onTextSearcherMatchesChanged);
     widget.textSearcher.addListener(_onTextSearcherMatchesChanged);
     _searchGeneration++;
+    _engineSearch.cancel();
     _centerOnOpenTargetPage = null;
     _cancelPageScanWait();
     _lastPdfHighlightSource = '';
@@ -970,6 +974,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
     );
     widget.textSearcher.removeListener(_onTextSearcherMatchesChanged);
     _cancelPageScanWait();
+    _engineSearch.cancel();
     super.dispose();
   }
 
@@ -1026,6 +1031,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
     // כל שינוי בשאילתה/במצב החיפוש מבטל תוצאות אסינכרוניות ישנות. בלי מזהה
     // דור, חיפוש איטי קודם יכול להסתיים אחרי החדש ולדרוס תוצאות והדגשות.
     final generation = ++_searchGeneration;
+    _engineSearch.cancel();
     _cancelPageScanWait();
     _resultsTruncated = false;
     // הדגל שייך לדור הקודם: כל מסלול יוצא מכאן בסדר השאילתה, והנסיגה
@@ -1130,6 +1136,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
         bookPath: _bookPath!,
         limit: kInBookEngineFetchLimit,
         settings: _settings,
+        cancelRequestId: _engineSearch.next(),
       );
 
       final indexedFilePath = _indexedFilePath;
