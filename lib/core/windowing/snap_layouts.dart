@@ -80,7 +80,7 @@ class _SnapLayoutsMaximizeButtonState extends State<SnapLayoutsMaximizeButton> {
     );
     if (rect.isEmpty) return null;
     // פינות, אמצעי הצלעות והמרכז: כל מלבן גדול מהכפתור שחופף לו (תפריט,
-    // דיאלוג) מכסה פינה אחת לפחות. נקודה אחת לא הספיקה — זה הכשל של #5114.
+    // דיאלוג) מכסה פינה אחת לפחות; המרכז לבדו מפספס תפריט שמכסה רק קצה.
     final inner = rect.deflate(1);
     for (final x in [inner.left, inner.center.dx, inner.right]) {
       for (final y in [inner.top, inner.center.dy, inner.bottom]) {

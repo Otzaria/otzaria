@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/snap_layouts.dart';
+import 'package:otzaria/core/windowing/window_caption_hit_test.dart';
 
 void main() {
   late List<Map<String, Object?>> sent;
@@ -125,6 +126,71 @@ void main() {
     await tester.pumpWidget(app());
     await tester.pump();
     expect(sent.last['right'], 146);
+  });
+
+  testWidgets('above a dialog barrier only content over the button disables', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    late BuildContext context;
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => WindowCaptionHitTestScope(child: child!),
+        home: Builder(
+          builder: (c) {
+            context = c;
+            return Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 100),
+                child: SizedBox(
+                  width: 46,
+                  height: 32,
+                  child: WindowCaptionRegion(
+                    child: SnapLayoutsMaximizeButton(
+                      window: 0,
+                      onPressed: () {},
+                      builder: (context, hovered, pressed) => GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {},
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(sent.last['right'], 146);
+
+    // DD-16: שכבת ההחשכה אינה מכסה את הכפתור.
+    showDialog<void>(
+      context: context,
+      builder: (_) => const Center(child: SizedBox(width: 50, height: 50)),
+    );
+    await tester.pumpAndSettle();
+    expect(sent.last['right'], 146);
+    Navigator.of(context).pop();
+    await tester.pumpAndSettle();
+
+    // תוכן הדיאלוג מעל הפינה התחתונה של הכפתור.
+    showDialog<void>(
+      context: context,
+      builder: (_) => const Align(
+        alignment: Alignment.topLeft,
+        child: Padding(
+          padding: EdgeInsets.only(left: 140, top: 28),
+          child: Material(child: SizedBox(width: 200, height: 200)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(sent.last['right'], 0);
   });
 
   testWidgets('hover, press and click come from the runner', (tester) async {

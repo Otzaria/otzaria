@@ -1036,6 +1036,7 @@ void FlutterWindow::OnDestroy() {
     }
   }
 
+  snap_layouts_channel_.reset();
   splash_channel_.reset();
   multiwindow_channel_.reset();
   process_control_channel_.reset();
