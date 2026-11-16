@@ -52,6 +52,7 @@ import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/utils/ui/context_menu_utils.dart' show ContextMenuUtils;
+import 'package:otzaria/utils/text/global_search_helper.dart';
 import 'package:otzaria/core/messages/text_book_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
@@ -2068,6 +2069,18 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
             openSearch(menuSelection.hasText ? menuSelection.cleaned : null);
           },
         ),
+      );
+    }
+
+    if (!widget.isMainText && !widget.isBookNotesColumn) {
+      final menuSelection = ReaderMenuSelection(sourceText);
+      entries.add(
+        AppContextMenuEntry.iconRow([
+          buildSearchAllBooksIconAction(
+            selection: menuSelection,
+            onTap: () => openGlobalSearch(menuContext, menuSelection.cleaned),
+          ),
+        ]),
       );
     }
 

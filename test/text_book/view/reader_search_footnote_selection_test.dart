@@ -31,7 +31,7 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
-import 'package:otzaria/widgets/misc/app_context_menu.dart';
+import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
 import '../../test_helpers/stub_personal_notes_bloc.dart';
@@ -254,6 +254,91 @@ void main() {
       },
     );
   }
+
+  testWidgets('חיפוש מכל הספרים בטור מפרש משתמש בבחירה המנורמלת', (
+    tester,
+  ) async {
+    const selected = 'בְּרֵאשִׁית   בָּרָא';
+    final book = TextBook(title: 'רש"י');
+    final bloc = _TextBookBloc(_loaded(book, selected, false));
+    final settings = StubSettingsBloc(SettingsState.initial());
+    final notes = StubPersonalNotesBloc(const PersonalNotesState.initial());
+    final tabs = _TabsBloc(const TabsState(tabs: [], currentTabIndex: 0));
+    final history = _HistoryBloc();
+    final navigation = _NavigationBloc();
+    addTearDown(() async {
+      await tabs.close();
+      await history.close();
+      await navigation.close();
+      await settings.close();
+      await notes.close();
+      await bloc.close();
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<TextBookBloc>.value(value: bloc),
+            BlocProvider<SettingsBloc>.value(value: settings),
+            BlocProvider<PersonalNotesBloc>.value(value: notes),
+            BlocProvider<TabsBloc>.value(value: tabs),
+            BlocProvider<HistoryBloc>.value(value: history),
+            BlocProvider<NavigationBloc>.value(value: navigation),
+          ],
+          child: Scaffold(
+            body: SimpleTextViewer(
+              content: const [selected],
+              fontSize: 18,
+              isMainText: false,
+              bookTitle: 'רש"י',
+              openBookCallback: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final viewer = find.byType(SimpleTextViewer);
+    final menuFinder = find
+        .descendant(
+          of: viewer,
+          matching: find.byType(AppContextMenuRegion),
+        )
+        .first;
+    List<AppContextMenuEntry> entries() {
+      final menu = tester.widget<AppContextMenuRegion>(menuFinder);
+      return menu.menuBuilder(
+        tester.element(menuFinder),
+        tester.getCenter(menuFinder),
+      );
+    }
+
+    var search = entries().first.iconRowActions!.single;
+    expect(search.label, 'חיפוש');
+    expect(search.enabled, isFalse);
+
+    final regionFinder = find.descendant(
+      of: viewer,
+      matching: find.byType(SelectableRegion),
+    );
+    tester.widget<SelectableRegion>(regionFinder).onSelectionChanged!(
+      const SelectedContent(plainText: selected),
+    );
+    await tester.pump();
+
+    search = entries().first.iconRowActions!.single;
+    expect(search.enabled, isTrue);
+    expect(search.tooltip, 'חיפוש "בראשית ברא" בכל הספרים');
+    search.onTap!();
+    await tester.pump();
+
+    final searchTab = tabs.received.single as AddTab;
+    expect((searchTab.tab as SearchingTab).queryController.text, 'בראשית ברא');
+    expect(history.received.whereType<AddHistory>(), hasLength(1));
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }
 
 TextBookLoaded _loaded(TextBook book, String source, bool combined) =>
