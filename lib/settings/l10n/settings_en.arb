@@ -1764,5 +1764,12 @@
   "לא נמצאו תוספים": "No plugins found",
   "בחר את המוצגים": "Select shown",
   "על {parent}": "On {parent}",
-  "{title} ({group})": "{title} ({group})"
+  "{title} ({group})": "{title} ({group})",
+  "רשת להורדת קבצים": "Network for file downloads",
+  "כל רשת": "Any network",
+  "WiFi בלבד": "WiFi only",
+  "WiFi או אינטרנט סלולרי": "WiFi or mobile data",
+  "הורדות ממתינות לחיבור WiFi": "Downloads wait for a WiFi connection",
+  "ממתין לחיבור WiFi": "Waiting for WiFi",
+  "חל על הורדת קבצים, גם מתוספים; לא על גלישה בתוספים או עדכוני Google Play.": "Applies to file downloads, including plugins; not to browsing in plugins or Google Play updates."
 }

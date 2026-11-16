@@ -1,3 +1,5 @@
+import 'package:otzaria/core/download_http_client.dart';
+import 'package:otzaria/core/download_network_policy.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -22,7 +24,7 @@ class PluginDownloadService {
   PluginDownloadService({
     http.Client? client,
     this._stallTimeout = const Duration(seconds: 60),
-  }) : _client = client ?? http.Client(),
+  }) : _client = createDownloadClient(client),
        _ownsClient = client == null {
     if (_ownsClient) HttpClientRegistry.register(_closer);
   }
@@ -45,6 +47,26 @@ class PluginDownloadService {
   /// ע"י תוסף (`plugin.requestInstall`); בקישור שהמשתמש לחץ עליו במודע
   /// הגבלה כזו הייתה שוברת התקנה לגיטימית מכתובת אחרת.
   Future<String> downloadPluginArchive(
+    Uri downloadUri, {
+    String? appVersion,
+    bool storeOnly = false,
+    void Function()? onWaitingForWifi,
+  }) async {
+    if (_disposed) throw StateError('PluginDownloadService is disposed');
+    return DownloadNetworkPolicy.instance.runResumable(
+      () => _downloadPluginArchiveOnce(
+        downloadUri,
+        appVersion: appVersion,
+        storeOnly: storeOnly,
+      ),
+      checkCancelled: () {
+        if (_disposed) throw http.RequestAbortedException(downloadUri);
+      },
+      onWaiting: onWaitingForWifi,
+    );
+  }
+
+  Future<String> _downloadPluginArchiveOnce(
     Uri downloadUri, {
     String? appVersion,
     bool storeOnly = false,

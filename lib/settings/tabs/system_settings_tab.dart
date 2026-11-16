@@ -2,7 +2,8 @@ import 'package:otzaria/search_feedback/semantic_search_strings.dart';
 import 'package:otzaria/android_update/view/android_update_view.dart';
 import 'dart:async';
 import 'dart:io';
-import 'package:flutter/foundation.dart' show mapEquals;
+import 'package:flutter/foundation.dart'
+    show mapEquals, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -49,6 +50,7 @@ import 'package:otzaria/services/data_collection_service.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
+import 'package:otzaria/settings/widgets/download_network_settings_tile.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/widgets/misc/app_dropdown_field.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
@@ -725,6 +727,8 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
             },
           ),
         ),
+        if (defaultTargetPlatform == TargetPlatform.android)
+          const DownloadNetworkSettingsTile(),
         SettingsSwitchTile(
           icon: FluentIcons.arrow_download_24_regular,
           title: context.settingsText('עדכוני תוכנה וספרים'),

@@ -10,6 +10,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/download_network_policy.dart';
+import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
@@ -165,6 +167,74 @@ void main() {
   });
 
   group('כפתור ההורדה בדיאלוג הספר', () {
+    testWidgets('המתנת WiFi מוצגת בכפתור ומתנקה עם סיום ההורדה', (
+      tester,
+    ) async {
+      await Settings.init(cacheProvider: MemorySettingsCache());
+      final previous = DownloadNetworkPolicy.instance;
+      final network = StreamController<bool>.broadcast(sync: true);
+      final policy = DownloadNetworkPolicy(
+        isAndroid: true,
+        wifiOnlyReader: () => true,
+        wifiChanges: () => network.stream,
+      );
+      DownloadNetworkPolicy.instance = policy;
+      addTearDown(() async {
+        DownloadNetworkPolicy.instance = previous;
+        await policy.dispose();
+        await network.close();
+      });
+      final ready = policy.refresh();
+      network.add(false);
+      await ready;
+      final folder = Directory.systemTemp.createTempSync('hb_wifi_');
+      addTearDown(() => folder.deleteSync(recursive: true));
+      await Settings.setValue<String>(
+        SettingsRepository.keyHebrewBooksPath,
+        folder.path,
+      );
+      final library = _MockLibraryBloc();
+      whenListen(
+        library,
+        const Stream<LibraryState>.empty(),
+        initialState: LibraryState.initial(),
+      );
+      await tester.pumpWidget(
+        BlocProvider<LibraryBloc>.value(
+          value: library,
+          child: _wrap(
+            OtzarBookDialog(book: _hebrewBook()),
+            navigatorKey: navigatorKey,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      var requests = 0;
+      final client = MockClient((_) async {
+        requests++;
+        return http.Response('', 404);
+      });
+      await tester.runAsync(
+        () => http.runWithClient(() async {
+          await tester.tap(find.text('הורדת הקובץ'));
+          await Future<void>.delayed(Duration.zero);
+        }, () => client),
+      );
+      await tester.pump();
+      expect(find.text(CommonMessages.waitingForWifi), findsOneWidget);
+      expect(requests, 0);
+      await tester.runAsync(() async {
+        network.add(true);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
+      await tester.pump();
+      expect(requests, 1);
+      expect(find.text(CommonMessages.waitingForWifi), findsNothing);
+      expect(find.text('הורדת הקובץ'), findsOneWidget);
+      UiSnack.hide();
+      await tester.pump(const Duration(seconds: 5));
+    });
+
     testWidgets('מוצג לספר היברובוקס לצד "פתח באתר"', (tester) async {
       await tester.pumpWidget(_wrap(OtzarBookDialog(book: _hebrewBook())));
       await tester.pumpAndSettle();

@@ -384,6 +384,14 @@ class UpdateTalmudBavliOpenFormat extends SettingsEvent {
   List<Object?> get props => [talmudBavliOpenFormat];
 }
 
+class UpdateDownloadsWifiOnly extends SettingsEvent {
+  const UpdateDownloadsWifiOnly(this.enabled);
+  final bool enabled;
+
+  @override
+  List<Object?> get props => [enabled];
+}
+
 class UpdateOfflineMode extends SettingsEvent {
   final bool isOfflineMode;
 

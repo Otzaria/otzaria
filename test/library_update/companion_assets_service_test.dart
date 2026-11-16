@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:otzaria/core/download_network_policy.dart';
+import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -130,6 +132,85 @@ void main() {
       final sidecar = File('${file.path}$suffix');
       if (sidecar.existsSync()) sidecar.deleteSync();
     }
+  }
+
+  for (final asset in ['dictionary', 'biographies']) {
+    test('ביטול עדכון בזמן המתנת $asset ל־WiFi מסיים בלי בקשת קובץ', () async {
+      createTalmudDir(markerTag: tag);
+      final previous = DownloadNetworkPolicy.instance;
+      final network = StreamController<bool>.broadcast(sync: true);
+      final policy = DownloadNetworkPolicy(
+        isAndroid: true,
+        wifiOnlyReader: () => true,
+        wifiChanges: () => network.stream,
+      );
+      DownloadNetworkPolicy.instance = policy;
+      addTearDown(() async {
+        DownloadNetworkPolicy.instance = previous;
+        await policy.dispose();
+        await network.close();
+      });
+      final ready = policy.refresh();
+      network.add(false);
+      await ready;
+      var fileRequests = 0;
+      final metadata = MockClient((request) async {
+        if (request.url.path.endsWith('/releases/latest')) {
+          return http.Response(
+            jsonEncode({
+              'tag_name': 'new',
+              'assets': [
+                {
+                  'browser_download_url': asset == 'dictionary'
+                      ? 'https://example.com/lexical-v2.db'
+                      : 'https://example.com/biographies-app.json.gz',
+                  'size': 100,
+                },
+              ],
+            }),
+            200,
+          );
+        }
+        fileRequests++;
+        return http.Response('', 500);
+      });
+      final service = CompanionAssetsService(
+        clientFactory: releaseClient,
+        catalogRepository: () => _FakeCatalogRepository(exists: true),
+        dictionaryFactory: () => asset == 'dictionary'
+            ? MagicDictionaryDownloader(
+                client: metadata,
+                destinationProvider: () async => p.join(tmp.path, 'lexical.db'),
+              )
+            : _FakeDictionaryDownloader(),
+        biographiesFactory: () => asset == 'biographies'
+            ? BiographiesDownloader(
+                client: metadata,
+                destinationProvider: () async =>
+                    p.join(tmp.path, 'biographies.json.gz'),
+              )
+            : _FakeBiographiesDownloader(),
+        talmudDirsProvider: () => [talmudDir()],
+        invalidateExternalBooksCache: () {},
+        invalidateLibraryCaches: () {},
+      );
+      var cancelled = false;
+      final waiting = Completer<void>();
+      final result = service.verifyAndUpdate(
+        isCancelled: () => cancelled,
+        onStatus: (message, phase) {
+          if (message == CommonMessages.waitingForWifi &&
+              !waiting.isCompleted) {
+            waiting.complete();
+          }
+        },
+      );
+      await waiting.future.timeout(const Duration(seconds: 2));
+      expect(fileRequests, 0);
+      cancelled = true;
+      expect(await result.timeout(const Duration(seconds: 1)), isFalse);
+      expect(fileRequests, 0);
+    });
   }
 
   group('תלמוד בבלי', () {
@@ -1680,6 +1761,7 @@ class _FakeCatalogRepository extends ExternalCatalogRepository {
     bool Function()? isCancelled,
     void Function(int received, int? total)? onDownloadProgress,
     void Function(double)? onExtractionProgress,
+    void Function()? onWaitingForWifi,
   }) async {
     updateCalled = true;
     if (updateResult) onUpdateAvailable?.call();
@@ -1691,6 +1773,7 @@ class _FakeCatalogRepository extends ExternalCatalogRepository {
     bool Function()? isCancelled,
     void Function(int received, int? total)? onDownloadProgress,
     void Function(double)? onExtractionProgress,
+    void Function()? onWaitingForWifi,
   }) async {
     downloadCalled = true;
   }
@@ -1701,7 +1784,11 @@ class _FakeBiographiesDownloader extends BiographiesDownloader {
     : super(client: MockClient((_) async => http.Response('', 404)));
 
   @override
-  Future<bool> ensureLatest({bool force = false}) async => false;
+  Future<bool> ensureLatest({
+    bool force = false,
+    void Function()? checkCancelled,
+    void Function()? onWaitingForWifi,
+  }) async => false;
 }
 
 class _FakeDictionaryDownloader extends MagicDictionaryDownloader {
@@ -1715,6 +1802,8 @@ class _FakeDictionaryDownloader extends MagicDictionaryDownloader {
   Future<bool> ensureLatest({
     void Function(double progress)? onProgress,
     bool force = false,
+    void Function()? checkCancelled,
+    void Function()? onWaitingForWifi,
   }) async {
     ensureCalled = true;
     return true;

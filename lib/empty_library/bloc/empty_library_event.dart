@@ -79,7 +79,7 @@ class ImportLibraryPackageRequested extends EmptyLibraryEvent {
   List<Object?> get props => [packages, targetPath, backupExistingPath];
 }
 
-/// עוצר פריסה של ייבוא תיקייה או חבילה לפני שהספרייה מוחלפת.
+/// עוצר פריסה או המתנה להורדה לפני שהספרייה מוחלפת.
 class CancelLibraryImportRequested extends EmptyLibraryEvent {}
 
 /// בודק מקום פנוי בהתקנה וקובע אם כפתור ההורדה זמין.

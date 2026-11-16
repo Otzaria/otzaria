@@ -213,7 +213,9 @@ String _statusText(BuildContext context, AndroidUpdateState state) {
           ? context.settingsText('גרסה חדשה זמינה ב-Google Play.')
           : context.settingsText('גרסה חדשה של אוצריא זמינה להורדה.'),
     AndroidUpdatePhase.downloading =>
-      state.isPlay
+      state.waitingForWifi
+          ? context.settingsText('ממתין לחיבור WiFi')
+          : state.isPlay
           ? context.settingsText(
               'העדכון יורד באמצעות Google Play. אפשר להמשיך להשתמש באוצריא.',
             )

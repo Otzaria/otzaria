@@ -88,6 +88,7 @@ class SettingsRepository {
   static const String keyPdfHandMode = 'key-pdf-hand-mode';
   static const String keyTalmudBavliOpenFormat = 'key-talmud-bavli-open-format';
   static const String keyOfflineMode = 'key-offline-mode';
+  static const String keyDownloadsWifiOnly = 'key-downloads-wifi-only';
   static const String keyAutoSync = 'key-auto-sync';
   static const String keySoftwareAndBookUpdatesEnabled =
       'key-software-and-book-updates-enabled';
@@ -335,6 +336,7 @@ class SettingsRepository {
     keyPdfHandMode,
     keyTalmudBavliOpenFormat,
     keyOfflineMode,
+    keyDownloadsWifiOnly,
     keyAutoSync,
     keySoftwareAndBookUpdatesEnabled,
     keyUpdateCheckFrequency,
@@ -599,6 +601,10 @@ class SettingsRepository {
       ),
       'isOfflineMode': _settings.getValue<bool>(
         keyOfflineMode,
+        defaultValue: false,
+      ),
+      'downloadsWifiOnly': _settings.getValue<bool>(
+        keyDownloadsWifiOnly,
         defaultValue: false,
       ),
       'softwareAndBookUpdatesEnabled': _settings.getValue<bool>(
@@ -988,6 +994,10 @@ class SettingsRepository {
 
   Future<void> updateTalmudBavliOpenFormat(String value) async {
     await _settings.setValue(keyTalmudBavliOpenFormat, value);
+  }
+
+  Future<void> updateDownloadsWifiOnly(bool value) async {
+    await _settings.setValue(keyDownloadsWifiOnly, value);
   }
 
   Future<void> updateOfflineMode(bool value) async {

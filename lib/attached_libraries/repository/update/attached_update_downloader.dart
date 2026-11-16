@@ -1,3 +1,4 @@
+import 'package:otzaria/core/download_network_policy.dart';
 import 'dart:async';
 import 'dart:isolate';
 import 'dart:io';
@@ -47,6 +48,7 @@ class AttachedUpdateDownloader {
     AttachedUpdateProgress? onProgress,
     AttachedUpdateProgress? onExtractionProgress,
     AttachedUpdateCancelToken? cancel,
+    void Function()? onWaitingForWifi,
   }) async {
     AttachedUpdateArtifactBuilder.checkCancelled(cancel);
     await AttachedUpdateArtifactBuilder.ensureDistinctPaths([
@@ -63,14 +65,19 @@ class AttachedUpdateDownloader {
       outputPath,
       () => withFileOperationLock(
         combinedPath,
-        () => _downloadLocked(
-          artifact,
-          combinedPath,
-          outputPath,
-          basePath,
-          onProgress,
-          onExtractionProgress,
-          cancel,
+        () => DownloadNetworkPolicy.instance.runResumable(
+          () => _downloadLocked(
+            artifact,
+            combinedPath,
+            outputPath,
+            basePath,
+            onProgress,
+            onExtractionProgress,
+            cancel,
+          ),
+          checkCancelled: () =>
+              AttachedUpdateArtifactBuilder.checkCancelled(cancel),
+          onWaiting: onWaitingForWifi,
         ),
       ),
     );
@@ -100,11 +107,20 @@ class AttachedUpdateDownloader {
     }
 
     final unsubscribe = cancel?.onCancel(requestStop);
+    final networkSubscription = DownloadNetworkPolicy.instance.changes.listen((
+      status,
+    ) {
+      control?.send(status == DownloadNetworkStatus.allowed);
+    });
     final subscription = events.listen((message) {
       if (message == null) {
         if (!drained.isCompleted) drained.complete();
       } else if (message is SendPort) {
         control = message;
+        message.send(
+          DownloadNetworkPolicy.instance.status ==
+              DownloadNetworkStatus.allowed,
+        );
         if (stopRequested || (cancel?.isCancelled ?? false)) message.send(null);
       } else if (callbackError == null) {
         try {
@@ -162,6 +178,7 @@ class AttachedUpdateDownloader {
       rethrow;
     } finally {
       unsubscribe?.call();
+      await networkSubscription.cancel();
       await subscription.cancel();
       events.close();
     }
@@ -185,9 +202,27 @@ class AttachedUpdateDownloader {
     trustCertificates(job.certificates);
     final control = ReceivePort();
     final cancel = AttachedUpdateCancelToken();
-    control.listen((_) => cancel.cancel());
+    final transferCancel = AttachedUpdateCancelToken();
+    final permission = Completer<void>();
+    var downloading = true;
+    var networkPaused = false;
+    control.listen((message) {
+      if (message == null) {
+        cancel.cancel();
+        transferCancel.cancel();
+      } else if (message == false && downloading) {
+        networkPaused = true;
+        transferCancel.cancel();
+      }
+      if (!permission.isCompleted) permission.complete();
+    });
     job.events.send(control.sendPort);
     try {
+      await permission.future;
+      AttachedUpdateArtifactBuilder.checkCancelled(cancel);
+      if (networkPaused) {
+        throw const DownloadNetworkPaused(DownloadNetworkStatus.waitingForWifi);
+      }
       final previousOutput = File(job.outputPath);
       if (await previousOutput.exists()) await previousOutput.delete();
       var last = DateTime.fromMillisecondsSinceEpoch(0);
@@ -201,19 +236,30 @@ class AttachedUpdateDownloader {
         job.events.send((written, job.artifact.size, true));
       }
 
-      await job.fetcher.downloadParts(
-        job.artifact.parts,
-        job.combinedPath,
-        cancel: cancel,
-        onProgress: (received, total) {
-          final now = DateTime.now();
-          if (received < total && now.difference(last) < job.progressInterval) {
-            return;
-          }
-          last = now;
-          job.events.send((received, total));
-        },
-      );
+      try {
+        await job.fetcher.downloadParts(
+          job.artifact.parts,
+          job.combinedPath,
+          cancel: transferCancel,
+          onProgress: (received, total) {
+            final now = DateTime.now();
+            if (received < total &&
+                now.difference(last) < job.progressInterval) {
+              return;
+            }
+            last = now;
+            job.events.send((received, total));
+          },
+        );
+      } catch (_) {
+        if (networkPaused && !cancel.isCancelled) {
+          throw const DownloadNetworkPaused(
+            DownloadNetworkStatus.waitingForWifi,
+          );
+        }
+        rethrow;
+      }
+      downloading = false;
       if (cancel.isCancelled) throw const AttachedUpdateCancelled();
       job.events.send((0, 0));
       last = DateTime.fromMillisecondsSinceEpoch(0);

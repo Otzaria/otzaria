@@ -1,3 +1,4 @@
+import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:http/http.dart' as http;
@@ -551,6 +552,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
         Uri.parse(event.downloadUrl),
         appVersion: appVersion,
         storeOnly: event.storeOnly,
+        onWaitingForWifi: () => UiSnack.show(CommonMessages.waitingForWifi),
       );
       if (_closeFuture != null || emit.isDone) return;
 

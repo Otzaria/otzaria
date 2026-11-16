@@ -275,6 +275,13 @@ class AttachedLibraryUpdateService {
           cancel: cancel,
           onProgress: report,
           onExtractionProgress: reportExtraction,
+          onWaitingForWifi: () => _set(
+            path,
+            AttachedUpdateInProgress(
+              offer,
+              phase: AttachedUpdatePhase.waitingForWifi,
+            ),
+          ),
         );
       } catch (e, st) {
         // דלתא חסרה או פגומה חוזרת למלא; ניתוק ושגיאת מדיניות אינם חוזרים.
@@ -298,6 +305,13 @@ class AttachedLibraryUpdateService {
           cancel: cancel,
           onProgress: report,
           onExtractionProgress: reportExtraction,
+          onWaitingForWifi: () => _set(
+            path,
+            AttachedUpdateInProgress(
+              offer,
+              phase: AttachedUpdatePhase.waitingForWifi,
+            ),
+          ),
         );
       }
       if (cancel.isCancelled) throw const AttachedUpdateCancelled();

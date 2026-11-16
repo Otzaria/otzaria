@@ -81,6 +81,7 @@ class SettingsState extends Equatable {
   final bool pdfBookViewByDefault;
   final String talmudBavliOpenFormat;
   final bool isOfflineMode;
+  final bool downloadsWifiOnly;
   final bool enableHtmlLinks;
   final bool personalNotesCollapsedByDefault;
   final bool protectedModeEnabled;
@@ -187,6 +188,7 @@ class SettingsState extends Equatable {
     required this.pdfBookViewByDefault,
     required this.talmudBavliOpenFormat,
     required this.isOfflineMode,
+    this.downloadsWifiOnly = false,
     required this.enableHtmlLinks,
     required this.personalNotesCollapsedByDefault,
     required this.protectedModeEnabled,
@@ -305,6 +307,7 @@ class SettingsState extends Equatable {
     bool? pdfBookViewByDefault,
     String? talmudBavliOpenFormat,
     bool? isOfflineMode,
+    bool? downloadsWifiOnly,
     bool? enableHtmlLinks,
     bool? personalNotesCollapsedByDefault,
     bool? protectedModeEnabled,
@@ -399,6 +402,7 @@ class SettingsState extends Equatable {
       talmudBavliOpenFormat:
           talmudBavliOpenFormat ?? this.talmudBavliOpenFormat,
       isOfflineMode: isOfflineMode ?? this.isOfflineMode,
+      downloadsWifiOnly: downloadsWifiOnly ?? this.downloadsWifiOnly,
       enableHtmlLinks: enableHtmlLinks ?? this.enableHtmlLinks,
       personalNotesCollapsedByDefault:
           personalNotesCollapsedByDefault ??
@@ -499,6 +503,7 @@ class SettingsState extends Equatable {
     pdfBookViewByDefault,
     talmudBavliOpenFormat,
     isOfflineMode,
+    downloadsWifiOnly,
     enableHtmlLinks,
     personalNotesCollapsedByDefault,
     protectedModeEnabled,

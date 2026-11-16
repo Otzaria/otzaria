@@ -27,6 +27,7 @@ class _RecordingDownloadService extends PluginDownloadService {
     Uri downloadUri, {
     String? appVersion,
     bool storeOnly = false,
+    void Function()? onWaitingForWifi,
   }) async {
     appVersions.add(appVersion);
     throw Exception('stop');

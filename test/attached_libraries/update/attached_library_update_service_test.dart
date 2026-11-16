@@ -72,6 +72,7 @@ class _FakeDownloader extends AttachedUpdateDownloader {
     AttachedUpdateProgress? onProgress,
     AttachedUpdateProgress? onExtractionProgress,
     AttachedUpdateCancelToken? cancel,
+    void Function()? onWaitingForWifi,
   }) async {
     calls++;
     artifacts.add(artifact);

@@ -67,7 +67,7 @@ enum AttachedUpdateError {
   unknown,
 }
 
-enum AttachedUpdatePhase { download, assemble, install }
+enum AttachedUpdatePhase { download, waitingForWifi, assemble, install }
 
 /// מצב העדכון של מסד מצורף אחד, כפי שמוצג בכרטיס.
 sealed class AttachedUpdateStatus extends Equatable {

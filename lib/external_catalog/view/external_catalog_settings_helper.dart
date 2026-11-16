@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
+import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/external_catalog/repository/external_catalog_repository.dart';
@@ -82,7 +83,9 @@ class ExternalCatalogSettingsHelper {
 
     try {
       UiSnack.show(SettingsMessages.downloadingCatalogDb);
-      await repository.downloadLatestDatabase();
+      await repository.downloadLatestDatabase(
+        onWaitingForWifi: () => UiSnack.show(CommonMessages.waitingForWifi),
+      );
       DataRepository.instance.invalidateExternalBooksCache();
       UiSnack.showSuccess(SettingsMessages.catalogDbDownloaded);
       return true;

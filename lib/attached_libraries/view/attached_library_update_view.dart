@@ -96,7 +96,8 @@ class AttachedLibraryUpdateRow extends StatelessWidget {
           child: LinearProgressIndicator(value: status.fraction),
         ),
         Text(_progressText(context, status), style: style),
-        if (status.phase == AttachedUpdatePhase.download)
+        if (status.phase == AttachedUpdatePhase.download ||
+            status.phase == AttachedUpdatePhase.waitingForWifi)
           ActionButton.ghost(
             text: context.settingsText('ביטול'),
             onPressed: onCancel,
@@ -141,6 +142,9 @@ class AttachedLibraryUpdateRow extends StatelessWidget {
         'received': formatUpdateBytes(status.received),
         'total': formatUpdateBytes(status.total),
       },
+    ),
+    AttachedUpdatePhase.waitingForWifi => context.settingsText(
+      'ממתין לחיבור WiFi',
     ),
     AttachedUpdatePhase.assemble => context.settingsText('מאמת את הקובץ…'),
     AttachedUpdatePhase.install => context.settingsText('מתקין…'),

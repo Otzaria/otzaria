@@ -1,3 +1,4 @@
+import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
@@ -113,6 +114,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
   LibraryUpdatePhase? _lastPhase;
   int _lastStepIndex = -1;
   String? _lastStage;
+  bool _lastWaitingForWifi = false;
 
   // onProgress נורה על כל chunk רשת; פליטת state לכל chunk מציפה את ה-UI
   // בבניות-מחדש ומאיטה את כל התוכנה. שינוי שלב/סיום עוברים תמיד.
@@ -121,11 +123,13 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
         p.phase != _lastPhase ||
         p.stepIndex != _lastStepIndex ||
         p.stage != _lastStage ||
+        p.waitingForWifi != _lastWaitingForWifi ||
         (p.bytesTotal != null && p.bytesDownloaded == p.bytesTotal);
     if (!_throttleAllows(structural: structural)) return;
     _lastPhase = p.phase;
     _lastStepIndex = p.stepIndex;
     _lastStage = p.stage;
+    _lastWaitingForWifi = p.waitingForWifi;
     add(_LibraryUpdateProgressed(p, opId));
   }
 
@@ -751,8 +755,10 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     final message = switch (p.phase) {
       LibraryUpdatePhase.checking => 'בודק עדכוני ספרייה',
       LibraryUpdatePhase.downloading =>
-        'מוריד עדכון ספרייה'
-            '${p.totalSteps > 1 ? ' (${p.stepIndex + 1}/${p.totalSteps})' : ''}',
+        p.waitingForWifi
+            ? CommonMessages.waitingForWifi
+            : 'מוריד עדכון ספרייה'
+                  '${p.totalSteps > 1 ? ' (${p.stepIndex + 1}/${p.totalSteps})' : ''}',
       LibraryUpdatePhase.verifying => 'מאמת קובץ עדכון',
       LibraryUpdatePhase.applying =>
         _heavyDeltaNotice

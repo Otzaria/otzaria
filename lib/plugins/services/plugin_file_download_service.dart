@@ -1,3 +1,5 @@
+import 'package:otzaria/core/download_http_client.dart';
+import 'package:otzaria/core/download_network_policy.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -29,6 +31,7 @@ class PluginFileDownloadResult {
 /// להפנות ליעד שאינו ב-allowlist ולעקוף את מודל ההרשאות.
 class PluginFileDownloadService {
   final http.Client _client;
+  bool _disposed = false;
   late final FutureOr<void> Function() _closer = _client.close;
 
   /// שם הקובץ שנכתב אליו [downloadToDirectory] עד שההורדה מסתיימת, ואז הוא
@@ -49,15 +52,36 @@ class PluginFileDownloadService {
   PluginFileDownloadService({
     http.Client? client,
     this._stallTimeout = const Duration(seconds: 60),
-  }) : _client = client ?? http.Client() {
+  }) : _client = createDownloadClient(client) {
     HttpClientRegistry.register(_closer);
   }
 
   /// משחרר את ה-client ומסיר אותו מ-[HttpClientRegistry]. יש לקרוא כשהשירות
   /// אינו נחוץ יותר (אחרת ה-registry צובר closers ומחזיק sockets פתוחים).
   void dispose() {
+    _disposed = true;
     HttpClientRegistry.unregister(_closer);
     _client.close();
+  }
+
+  Future<T> _runDownload<T>(
+    Future<T> Function() download, {
+    Future<void>? abortTrigger,
+    bool Function()? expired,
+  }) {
+    var aborted = false;
+    if (abortTrigger != null) {
+      unawaited(abortTrigger.then((_) => aborted = true));
+    }
+    return DownloadNetworkPolicy.instance.runResumable(
+      download,
+      checkCancelled: () {
+        if (_disposed || aborted) throw http.RequestAbortedException();
+        if (expired?.call() ?? false) {
+          throw TimeoutException('Download timed out');
+        }
+      },
+    );
   }
 
   /// מורידה את הקובץ מ-[downloadUri] אל תיקיית ההורדות.
@@ -74,6 +98,22 @@ class PluginFileDownloadService {
   /// מחזירה [PluginFileDownloadResult]. זורקת [Exception] אם ההורדה נכשלה
   /// (קוד סטטוס מחוץ ל-2xx), בקפיצה לא-מותרת, או חריגה ממספר ה-redirects.
   Future<PluginFileDownloadResult> downloadToDownloads(
+    Uri downloadUri, {
+    required Future<bool> Function(Uri) isAllowed,
+    bool Function(Uri previous, Uri target)? isRedirectAllowed,
+    String? filename,
+    Directory? targetDir,
+  }) => _runDownload(
+    () => _downloadToDownloadsOnce(
+      downloadUri,
+      isAllowed: isAllowed,
+      isRedirectAllowed: isRedirectAllowed,
+      filename: filename,
+      targetDir: targetDir,
+    ),
+  );
+
+  Future<PluginFileDownloadResult> _downloadToDownloadsOnce(
     Uri downloadUri, {
     required Future<bool> Function(Uri) isAllowed,
     bool Function(Uri previous, Uri target)? isRedirectAllowed,
@@ -132,6 +172,22 @@ class PluginFileDownloadService {
   /// מחזירה [PluginFileDownloadResult] עם הנתיב והשם שנשמרו. זורקת [Exception]
   /// בקוד סטטוס שאינו 2xx, בקפיצה לא-מותרת, או בחריגה ממספר ה-redirects.
   Future<PluginFileDownloadResult> downloadToPath(
+    Uri downloadUri,
+    String destPath, {
+    required Future<bool> Function(Uri) isAllowed,
+    bool Function(Uri previous, Uri target)? isRedirectAllowed,
+    bool resume = false,
+  }) => _runDownload(
+    () => _downloadToPathOnce(
+      downloadUri,
+      destPath,
+      isAllowed: isAllowed,
+      isRedirectAllowed: isRedirectAllowed,
+      resume: resume,
+    ),
+  );
+
+  Future<PluginFileDownloadResult> _downloadToPathOnce(
     Uri downloadUri,
     String destPath, {
     required Future<bool> Function(Uri) isAllowed,
@@ -305,6 +361,28 @@ class PluginFileDownloadService {
   /// שם הקובץ נגזר מה-URL ומנוקה ל-[_storedFileName]; תשובת PDF בלי סיומת
   /// `.pdf` מקבלת אותה, כי שרת הקבצים קובע את סוג התוכן לפי הסיומת בלבד.
   Future<PluginFileDownloadResult> downloadToDirectory(
+    Uri downloadUri,
+    Directory dir, {
+    required Future<bool> Function(Uri) isAllowed,
+    bool Function(Uri previous, Uri target)? isRedirectAllowed,
+    required int maxBytes,
+    bool Function()? expired,
+    Future<void>? abortTrigger,
+  }) => _runDownload(
+    () => _downloadToDirectoryOnce(
+      downloadUri,
+      dir,
+      isAllowed: isAllowed,
+      isRedirectAllowed: isRedirectAllowed,
+      maxBytes: maxBytes,
+      expired: expired,
+      abortTrigger: abortTrigger,
+    ),
+    abortTrigger: abortTrigger,
+    expired: expired,
+  );
+
+  Future<PluginFileDownloadResult> _downloadToDirectoryOnce(
     Uri downloadUri,
     Directory dir, {
     required Future<bool> Function(Uri) isAllowed,
