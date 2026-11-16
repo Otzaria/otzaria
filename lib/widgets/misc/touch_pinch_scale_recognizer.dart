@@ -35,6 +35,10 @@ class TouchPinchScaleRecognizer extends ScaleGestureRecognizer {
   @override
   void handleEvent(PointerEvent event) {
     super.handleEvent(event);
+    // לוח המגע כבר מדווח scale מפורש; אין להמתין לסף של מחוות מגע.
+    if (event is PointerPanZoomUpdateEvent && event.scale != 1) {
+      resolve(GestureDisposition.accepted);
+    }
     if (!_touches.containsKey(event.pointer)) return;
     if (event is PointerMoveEvent) {
       _touches[event.pointer] = event.position;
