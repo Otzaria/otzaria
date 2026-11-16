@@ -159,6 +159,66 @@ void main() {
     expect(inner.pixels, innerEnd);
   });
 
+  for (final closeReader in [true, false]) {
+    testWidgets('פירוק בזמן גרירה מועברת: קורא שלם=$closeReader', (
+      tester,
+    ) async {
+      final state = _loadedState(lineCount: 200, multiline: true);
+      final (tab, _) = await _pumpCombinedView(tester, initialState: state);
+      final card = find.byType(CommentaryListBase);
+      final inner = tester
+          .state<ScrollableState>(
+            find.descendant(of: card, matching: find.byType(Scrollable)).first,
+          )
+          .position;
+      final outer = tester
+          .state<ScrollableState>(
+            find
+                .descendant(
+                  of: find.byType(ScrollPositionReanchor).first,
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+          )
+          .position;
+      for (var i = 0; i < 10 && inner.pixels < inner.maxScrollExtent; i++) {
+        inner.jumpTo(inner.maxScrollExtent);
+        await _settle(tester);
+      }
+      final before = outer.pixels;
+      final at = tester.getRect(card).topCenter + const Offset(0, 100);
+      final gesture = await tester.createGesture(
+        kind: PointerDeviceKind.trackpad,
+      );
+      await gesture.panZoomStart(at);
+      for (var i = 1; i <= 6; i++) {
+        await gesture.panZoomUpdate(at, pan: Offset(0, -10.0 * i));
+        await tester.pump();
+      }
+      expect(outer.pixels, greaterThan(before));
+      expect(outer.isScrollingNotifier.value, isTrue);
+      if (closeReader) {
+        await tester.pumpWidget(const SizedBox.shrink());
+      } else {
+        final bloc =
+            tester.element(find.byType(CombinedView)).read<TextBookBloc>()
+                as _TestTextBookBloc;
+        bloc.emitState(state.copyWith(selectedIndices: const {}));
+        await _settle(tester);
+        expect(find.byType(CommentaryListBase), findsNothing);
+        expect(outer.isScrollingNotifier.value, isFalse);
+      }
+      await gesture.panZoomEnd();
+      await _settle(tester);
+      expect(tester.takeException(), isNull);
+      if (!closeReader) {
+        tab.lines.itemController.jumpTo(index: 50);
+        await _settle(tester);
+        expect(tester.takeException(), isNull);
+      }
+    });
+  }
+
   // issue #3720: שחרור העכבר מיקד את הקורא הראשי ומחק את הבחירה בכרטיס.
   testWidgets('בחירה בגרירה בכרטיס המפרשים נשמרת אחרי שחרור העכבר', (
     tester,

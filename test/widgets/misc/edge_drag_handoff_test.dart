@@ -26,6 +26,8 @@ void main() {
     WidgetTester tester, {
     bool withOuter = true,
     bool keepCardBuilt = false,
+    ValueNotifier<bool>? showCard,
+    VoidCallback? onHeaderTap,
   }) async {
     final card = SizedBox(
       height: 200,
@@ -49,8 +51,19 @@ void main() {
                     ? const ScrollCacheExtent.pixels(3000)
                     : null,
                 children: [
-                  const SizedBox(height: 300),
-                  card,
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onHeaderTap,
+                    child: const SizedBox(height: 300),
+                  ),
+                  if (showCard == null)
+                    card
+                  else
+                    ValueListenableBuilder<bool>(
+                      valueListenable: showCard,
+                      builder: (_, show, _) =>
+                          show ? card : const SizedBox(height: 200),
+                    ),
                   const SizedBox(height: 2000),
                 ],
               )
@@ -182,5 +195,105 @@ void main() {
     await trackpadPan(tester, at, [60, -200]);
 
     expect(inner.offset, greaterThan(100));
+  });
+
+  Future<TestGesture> startHandoff(WidgetTester tester, Offset at) async {
+    final gesture = await tester.createGesture(
+      kind: PointerDeviceKind.trackpad,
+    );
+    await gesture.panZoomStart(at);
+    for (var i = 1; i <= 6; i++) {
+      await gesture.panZoomUpdate(at, pan: Offset(0, 10.0 * i));
+      await tester.pump();
+    }
+    expect(outer.offset, lessThan(_outerStart));
+    expect(outer.position.isScrollingNotifier.value, isTrue);
+    return gesture;
+  }
+
+  testWidgets('פירוק הקורא בזמן העברה אינו מפעיל אב מושבת', (tester) async {
+    final at = await pumpNested(tester);
+    final gesture = await startHandoff(tester, at);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await gesture.panZoomUpdate(at, pan: const Offset(0, 100));
+    await gesture.panZoomEnd();
+    await tester.pumpAndSettle();
+    expect(outer.hasClients, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('הסרת הכרטיס בלבד משחררת את גרירת האב', (tester) async {
+    final show = ValueNotifier(true);
+    addTearDown(show.dispose);
+    final at = await pumpNested(tester, showCard: show);
+    final gesture = await startHandoff(tester, at);
+    show.value = false;
+    await tester.pump();
+    expect(find.byType(EdgeDragHandoff), findsNothing);
+    expect(outer.position.isScrollingNotifier.value, isFalse);
+    final afterRemoval = outer.offset;
+    await gesture.panZoomUpdate(at, pan: const Offset(0, 100));
+    await gesture.panZoomEnd();
+    await tester.pumpAndSettle();
+    expect(outer.offset, afterRemoval);
+    expect(tester.takeException(), isNull);
+    show.value = true;
+    await tester.pump();
+    final next = await startHandoff(
+      tester,
+      tester.getCenter(find.byType(EdgeDragHandoff)),
+    );
+    await next.panZoomEnd();
+    await tester.pumpAndSettle();
+    expect(outer.offset, lessThan(afterRemoval));
+    expect(outer.position.isScrollingNotifier.value, isFalse);
+  });
+
+  testWidgets('שחרור כרטיס שהוסר אינו מבטל ניווט חדש של האב', (tester) async {
+    final show = ValueNotifier(true);
+    addTearDown(show.dispose);
+    final at = await pumpNested(tester, showCard: show);
+    final gesture = await startHandoff(tester, at);
+    tester.binding.addPostFrameCallback((_) {
+      outer.animateTo(
+        800,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.linear,
+      );
+    });
+    show.value = false;
+    await tester.pump();
+    await gesture.panZoomEnd();
+    await tester.pumpAndSettle();
+    expect(outer.offset, 800);
+    expect(outer.position.isScrollingNotifier.value, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('גרירת לוח מגע מועברת אינה בולעת קליק עכבר בספר', (tester) async {
+    var clicks = 0;
+    final at = await pumpNested(tester, onHeaderTap: () => clicks++);
+    final gesture = await startHandoff(tester, at);
+    await tester.tapAt(const Offset(400, 50), kind: PointerDeviceKind.mouse);
+    await tester.pump();
+    expect(clicks, 1);
+    await gesture.panZoomEnd();
+    await tester.pumpAndSettle();
+    expect(outer.position.isScrollingNotifier.value, isFalse);
+  });
+
+  testWidgets('ביטול מגע מועבר משחרר את פעילות האב', (tester) async {
+    final at = await pumpNested(tester);
+    final gesture = await tester.startGesture(at);
+    for (var i = 0; i < 6; i++) {
+      await gesture.moveBy(const Offset(0, 20));
+      await tester.pump();
+    }
+    expect(outer.offset, lessThan(_outerStart));
+    expect(outer.position.isScrollingNotifier.value, isTrue);
+    await gesture.cancel();
+    await tester.pumpAndSettle();
+    expect(outer.position.isScrollingNotifier.value, isFalse);
+    expect(tester.takeException(), isNull);
   });
 }

@@ -30,7 +30,13 @@ class _EdgeDragHandoffState extends State<EdgeDragHandoff>
 
   @override
   void dispose() {
-    _endGesture(null, disposing: true);
+    // האב כבר עשוי להיות inactive; אם הוא מתפרק, הביטול שלו מאפס את הגרירה.
+    // אחרת מסיימים אותה אחרי פירוק העץ, כשהאב שנותר פעיל שוב בטוח לשימוש.
+    if (_outerDrag != null) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _endGesture(null, disposing: true),
+      );
+    }
     super.dispose();
   }
 
@@ -43,9 +49,10 @@ class _EdgeDragHandoffState extends State<EdgeDragHandoff>
   bool _onScrollNotification(ScrollNotification notification) {
     if (notification.depth != 0) return false;
     switch (notification) {
-      case ScrollStartNotification(dragDetails: final DragStartDetails _):
+      case ScrollStartNotification(dragDetails: final DragStartDetails details):
         _endGesture(null);
         _latch.dragging = _outerPositionFor(notification.metrics) != null;
+        _latch.kind = details.kind;
       case ScrollUpdateNotification(dragDetails: final DragUpdateDetails _):
         if (!_latch.handedOff) _latch.innerMoved = true;
       case OverscrollNotification(
@@ -70,13 +77,14 @@ class _EdgeDragHandoffState extends State<EdgeDragHandoff>
           globalPosition: details.globalPosition,
           localPosition: details.localPosition,
           sourceTimeStamp: details.sourceTimeStamp,
+          kind: _latch.kind,
         ),
         // ביטול מבחוץ (ניווט, גרירה אחרת): שאר המחווה לא מזיזה דבר.
-        // בסיום שלנו _outerDrag כבר null, ולכן כאן אין עדכון בזמן dispose.
+        // גם פירוק האב משחרר את הגרירה, בלי לעדכן כרטיס שכבר פורק.
         () {
           if (_outerDrag == null) return;
           _outerDrag = null;
-          updateKeepAlive();
+          if (mounted) updateKeepAlive();
         },
       );
       updateKeepAlive();
@@ -120,12 +128,14 @@ class _HandoffLatch {
   bool innerMoved = false;
   bool handedOff = false;
   bool outerStarted = false;
+  PointerDeviceKind? kind;
 
   void reset() {
     dragging = false;
     innerMoved = false;
     handedOff = false;
     outerStarted = false;
+    kind = null;
   }
 }
 
