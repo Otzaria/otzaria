@@ -5,6 +5,8 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
+import 'package:otzaria/tools/open_tool_tab.dart';
+import 'package:otzaria/tools/tool_query.dart';
 import 'package:otzaria/tools/dictionary/widgets/aramaic_dictionary_entry_view.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
 import 'package:otzaria/tour/models/live_tip.dart';
@@ -16,11 +18,24 @@ import 'package:otzaria/widgets/misc/app_selection_area.dart';
 /// ("ליה", "לא") מופיעה במאות צירופים, ותפריט כזה אינו שמיש.
 const int _maxContainingAramaicMatches = 8;
 
+/// פותח את כלי המילון הארמי עם הטקסט המסומן בשדה החיפוש.
+void _openInAramaicTool(BuildContext context, String text) {
+  openToolTabById(
+    context,
+    'builtin.aramaic_dictionary',
+    query: ToolQuery(text),
+  );
+}
+
 /// בונה פריטי תפריט הקשר למילונים על סמך הטקסט המסומן.
+///
+/// [openInDictionaryTool] מחליף את פתיחת הכלי (לבדיקות); ברירת המחדל פותחת
+/// כרטיסיית מילון ארמי-עברי עם הטקסט המסומן.
 List<AppContextMenuEntry> buildDictionaryContextMenuEntries({
   required BuildContext context,
   required String? selectedText,
   required DictionaryLookupRepository repository,
+  void Function(BuildContext context, String text)? openInDictionaryTool,
 }) {
   final trimmed = selectedText?.trim() ?? '';
   if (trimmed.isEmpty) {
@@ -46,31 +61,51 @@ List<AppContextMenuEntry> buildDictionaryContextMenuEntries({
   }
 
   if (repository.areAramaicLoaded) {
-    final aramaicMatches = DictionaryLookupRepository.mergeAramaicMatches(
-      repository.findAramaicMatches(
-        trimmed,
-        maxContainingMatches: _maxContainingAramaicMatches,
-        dictionaries: {...repository.aramaicDictionaryNames},
-      ),
+    final groups = repository.findAramaicMatchGroups(
+      trimmed,
+      maxContainingMatches: _maxContainingAramaicMatches,
+      dictionaries: {...repository.aramaicDictionaryNames},
     );
-    if (aramaicMatches.isNotEmpty) {
+    final exact = DictionaryLookupRepository.mergeAramaicMatches(groups.exact);
+    final containing = DictionaryLookupRepository.mergeAramaicMatches(
+      groups.containing,
+    );
+    if (exact.isNotEmpty || containing.isNotEmpty) {
+      AppContextMenuEntry itemOf(
+        AramaicDictionaryEntry entry,
+      ) => AppContextMenuEntry(
+        label:
+            '${entry.aramaic} - ${_summarizeAramaicDefinition(entry.hebrew)}',
+        onTap: () => _showMeaningDialog(
+          context: context,
+          title: entry.aramaic,
+          content: _buildAramaicDialogContent(entry),
+        ),
+      );
+
+      final hidden = groups.hiddenContainingKeys;
       entries.add(
         AppContextMenuEntry(
           label: 'מילון ארמי-עברי',
           icon: OtzariaIcons.alef_near_alef_stam_24_filled,
-          children: aramaicMatches
-              .map<AppContextMenuEntry>(
-                (entry) => AppContextMenuEntry(
-                  label:
-                      '${entry.aramaic} - ${_summarizeAramaicDefinition(entry.hebrew)}',
-                  onTap: () => _showMeaningDialog(
-                    context: context,
-                    title: entry.aramaic,
-                    content: _buildAramaicDialogContent(entry),
-                  ),
-                ),
-              )
-              .toList(),
+          children: [
+            // קודם ההתאמה המדויקת למילה שסומנה, ואחריה צירופים שמכילים אותה.
+            ...exact.map(itemOf),
+            if (exact.isNotEmpty && containing.isNotEmpty)
+              const AppContextMenuEntry.divider(),
+            ...containing.map(itemOf),
+            const AppContextMenuEntry.divider(),
+            AppContextMenuEntry(
+              label: hidden > 0
+                  ? 'פתח במילון (עוד $hidden צירופים)'
+                  : 'פתח במילון הארמי-עברי',
+              icon: FluentIcons.open_24_regular,
+              onTap: () => (openInDictionaryTool ?? _openInAramaicTool)(
+                context,
+                trimmed,
+              ),
+            ),
+          ],
         ),
       );
     }
