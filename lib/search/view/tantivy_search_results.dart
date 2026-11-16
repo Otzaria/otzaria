@@ -699,10 +699,14 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
       builder: (context, constrains) {
         final resultsArea = _buildListenerArea();
         if (!widget.showPreviewPane) return resultsArea;
-        return Focus(
-          focusNode: _arrowNavFocusNode,
-          onKeyEvent: _handleArrowNavKey,
-          child: _wrapWithPreviewPane(resultsArea, constrains),
+        // רק סביב הרשימה: חץ שנלחץ בתוך התצוגה המקדימה גולל אותה (issue #5145).
+        return _wrapWithPreviewPane(
+          Focus(
+            focusNode: _arrowNavFocusNode,
+            onKeyEvent: _handleArrowNavKey,
+            child: resultsArea,
+          ),
+          constrains,
         );
       },
     );

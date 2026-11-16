@@ -922,7 +922,8 @@ class _CombinedViewState extends State<CombinedView> {
     // מוודא שהפוקוס מגיע לאזור הקריאה מיד אחרי פתיחת ספר
     // כדי שגלילה בחיצים תעבוד בלי לחיצה בעכבר, אך בלי לגנוב פוקוס משדות טקסט.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _didRequestInitialFocus) return;
+      // תצוגה מקדימה לא לוקחת פוקוס מרשימת התוצאות, שבה החיצים עוברים בין תוצאות.
+      if (!mounted || _didRequestInitialFocus || widget.isPreviewMode) return;
       _didRequestInitialFocus = true;
 
       final primaryFocus = FocusManager.instance.primaryFocus;
@@ -2363,43 +2364,51 @@ class _CombinedViewState extends State<CombinedView> {
       scrollController: widget.tab.lines.itemController,
       itemCount: itemCount,
       onNavigationStart: widget.tab.lines.beginUserNavigation,
-      child: SmoothWheelScroll(
-        child: _trackReadingScroll(
-          _withReadingExtentEstimation(
-            state,
-            crossAxisPadding: _selectionGutter.horizontal,
-            builder: (estimateExtent, estimationKey, _) =>
-                ScrollablePositionedList.builder(
-                  key: ValueKey((widget.tab, _textBookBloc)),
-                  initialScrollIndex: clampedInitial,
-                  initialAlignment: anchor.alignment,
-                  initialTargetRectResolver: _initialReadingTargetResolver(
-                    state,
-                    anchor,
-                  ),
-                  cacheExtentScreens: TickerMode.valuesOf(context).enabled
-                      ? kReaderCacheExtentScreens
-                      : 0,
-                  estimateExtent: estimateExtent,
-                  estimationKey: estimationKey,
-                  padding: _selectionGutter,
-                  itemScrollController: widget.tab.lines.itemController,
-                  itemPositionsListener: widget.tab.lines.positionsListener,
-                  scrollOffsetController: widget.tab.lines.offsetController,
-                  itemCount: itemCount,
-                  itemBuilder: (context, index) => wrapReaderItem(
-                    item: index,
-                    layout: readingSegmentsOf(state).layout,
-                    boxes: widget.tab.lines.itemBoxes,
-                    child: RepaintBoundary(
-                      child: buildExpansiomTile(
-                        index,
-                        state,
-                        const <int, List<PersonalNote>>{},
+      child: ProgressiveScroll(
+        focusNode: _focusNode,
+        maxSpeed: 10000.0,
+        curve: 10.0,
+        accelerationFactor: 312.5,
+        scrollController: widget.tab.lines.itemController,
+        onNavigationStart: widget.tab.lines.beginUserNavigation,
+        child: SmoothWheelScroll(
+          child: _trackReadingScroll(
+            _withReadingExtentEstimation(
+              state,
+              crossAxisPadding: _selectionGutter.horizontal,
+              builder: (estimateExtent, estimationKey, _) =>
+                  ScrollablePositionedList.builder(
+                    key: ValueKey((widget.tab, _textBookBloc)),
+                    initialScrollIndex: clampedInitial,
+                    initialAlignment: anchor.alignment,
+                    initialTargetRectResolver: _initialReadingTargetResolver(
+                      state,
+                      anchor,
+                    ),
+                    cacheExtentScreens: TickerMode.valuesOf(context).enabled
+                        ? kReaderCacheExtentScreens
+                        : 0,
+                    estimateExtent: estimateExtent,
+                    estimationKey: estimationKey,
+                    padding: _selectionGutter,
+                    itemScrollController: widget.tab.lines.itemController,
+                    itemPositionsListener: widget.tab.lines.positionsListener,
+                    scrollOffsetController: widget.tab.lines.offsetController,
+                    itemCount: itemCount,
+                    itemBuilder: (context, index) => wrapReaderItem(
+                      item: index,
+                      layout: readingSegmentsOf(state).layout,
+                      boxes: widget.tab.lines.itemBoxes,
+                      child: RepaintBoundary(
+                        child: buildExpansiomTile(
+                          index,
+                          state,
+                          const <int, List<PersonalNote>>{},
+                        ),
                       ),
                     ),
                   ),
-                ),
+            ),
           ),
         ),
       ),
@@ -2747,7 +2756,11 @@ class _CombinedViewState extends State<CombinedView> {
                     _anchorHandledCurrentTap = false;
                     return;
                   }
-                  if (widget.isPreviewMode) return;
+                  if (widget.isPreviewMode) {
+                    // אין בחירת שורה בתצוגה מקדימה — רק פוקוס לגלילה בחיצים.
+                    _focusNode.requestFocus();
+                    return;
+                  }
                   final line = lineAtPointer();
                   if (line == null) return;
                   _focusNode.requestFocus();
