@@ -421,13 +421,17 @@ class PluginCorrectionController extends TextEditingController {
     if (before == after) return result;
     // טיוטה שומרת נוסח בלבד; אין דרך לזהות איזה מופע חוזר נמחק.
     final words =
-        <String, ({List<CorrectionFormat> formats, bool ambiguous})>{};
+        <
+          String,
+          ({int count, List<CorrectionFormat> formats, bool ambiguous})
+        >{};
     final tokens = RegExp(r'\S+');
     for (final match in tokens.allMatches(before)) {
       final word = match[0]!;
       final previous = words[word];
       final current = formats.sublist(match.start, match.end);
       words[word] = (
+        count: (previous?.count ?? 0) + 1,
         formats: previous?.formats ?? current,
         ambiguous:
             previous != null &&
@@ -437,9 +441,15 @@ class PluginCorrectionController extends TextEditingController {
                 )),
       );
     }
+    final counts = <String, int>{};
+    for (final match in tokens.allMatches(after)) {
+      counts.update(match[0]!, (count) => count + 1, ifAbsent: () => 1);
+    }
     for (final match in tokens.allMatches(after)) {
       final original = words[match[0]!];
-      if (original != null && original.ambiguous) {
+      if (original != null &&
+          original.ambiguous &&
+          original.count != counts[match[0]!]) {
         result.fillRange(match.start, match.end, _plainFormat);
       }
     }

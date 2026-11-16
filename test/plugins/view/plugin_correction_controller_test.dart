@@ -346,6 +346,22 @@ void main() {
       expect(controller.formats.skip(3).every((f) => f.italic), isTrue);
     });
 
+    test('שחזור טיוטה משמר מופעים חוזרים כשנערכה רק מילה אחרת', () {
+      final controller = PluginCorrectionController('<b>אב</b> אב גד');
+      addTearDown(controller.dispose);
+      controller.restoreDraftValue(const TextEditingValue(text: 'אב אב גה'));
+      expect(controller.formats.map((f) => f.bold), [
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+      ]);
+    });
+
     test('שחזור מילה מעורבת אינו מעצב תו פנימי שלא השתנה', () {
       final controller = PluginCorrectionController('<b>א</b>בג');
       addTearDown(controller.dispose);
