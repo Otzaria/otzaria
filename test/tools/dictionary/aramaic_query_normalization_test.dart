@@ -48,6 +48,14 @@ void main() {
       expect(repository.normalizeHebrewMeaningQuery('ר"ח'), 'ר"ח');
       expect(repository.normalizeHebrewMeaningQuery('‏עץ'), 'עץ');
     });
+
+    test('חיפוש בפירושים משמר מספרים, שברים ואותיות לועזיות', () {
+      for (final query in ['1/3', '2000', '2000 אמות', 'A', 'א A 2', '½']) {
+        for (final decorated in [query, '($query)', '‏$query,']) {
+          expect(repository.normalizeHebrewMeaningQuery(decorated), query);
+        }
+      }
+    });
   });
 
   group('אותה שאילתה, אותן תוצאות בתפריט ההקשר, ב-API ובמסך המילון', () {

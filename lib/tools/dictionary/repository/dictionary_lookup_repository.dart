@@ -525,16 +525,18 @@ class DictionaryLookupRepository {
   /// במקום לתת לכל קריאה ל-[acronymMatchesQuery] לנרמל את אותה שאילתה מחדש.
   String normalizeAcronymQuery(String raw) => _normalizeAcronym(raw);
 
-  /// מנרמל מילה או צירוף ארמי כפי שהאפליקציה משווה מפתחות: בלי ניקוד, בלי פיסוק
-  /// וסימני כיווניות בקצוות (למשל `אמר,` או `מאי?` שהועתקו מטקסט), בלי גרשיים,
-  /// ורווחים מצומצמים. כל צרכני המילון (תפריט ההקשר, ה-API לתוספים ומסך הכלי)
-  /// מנרמלים כך, כדי שאותה שאילתה תחזיר אותם ערכים בכולם.
+  /// מנרמל מפתח ארמי בלי ניקוד, גרשיים וקישוטים בקצוות, וברווחים מצומצמים.
+  /// משותף לתפריט ההקשר, ל-API לתוספים ולמסך הכלי.
   String normalizeAramaicQuery(String raw) => _normalizeAramaic(raw);
 
-  /// כמו [normalizeAramaicQuery] לשאילתה בעברית (חיפוש בפירושים): הגרשיים נשמרים
-  /// כי הם חלק מהמילה (ר"ח), ורק הניקוד והסימנים שבקצוות מוסרים.
-  String normalizeHebrewMeaningQuery(String raw) =>
-      utils.removeVolwels(_trimDecorations(raw)).trim();
+  /// מסיר ניקוד וקישוטים בקצוות; פירושים עשויים להכיל גם מספרים ולועזית.
+  /// הגרשיים נשמרים כי הם חלק מהמילה (ר"ח).
+  String normalizeHebrewMeaningQuery(String raw) => utils
+      .removeVolwels(raw)
+      .trim()
+      .replaceAll(RegExp(r'''^[^\p{L}\p{N}"״׳']+''', unicode: true), '')
+      .replaceAll(RegExp(r'''[^\p{L}\p{N}"״׳'\s]+$''', unicode: true), '')
+      .trim();
 
   /// המפתחות המנורמלים של [getAllAramaicEntries], באותו סדר ובדיוק כפי שהאינדקס
   /// משווה אותם. מסך הכלי משתמש בהם במקום לנרמל את הערכים בעצמו.
