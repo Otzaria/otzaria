@@ -311,7 +311,7 @@ Widget _buildBookDetailsContent(
       DetailsInfoSection(
         title: otzarBooks.length == 1
             ? 'אוצר החכמה'
-            : 'אוצר החכמה – ${_otzarBookLabel(mapped)}',
+            : 'אוצר החכמה – ${_otzarBookLabel(mapped, otzarBooks)}',
         icon: OtzariaIcons.book_24_regular,
         value: 'פתח באוצר החכמה',
         tapTooltip: 'פתיחה בתוכנת אוצר החכמה כשהספר על הכונן, אחרת באתר',
@@ -386,11 +386,27 @@ Widget _buildBookDetailsContent(
   );
 }
 
-/// הכרך מבדיל בין ספרים ממופים; בלי כרך, שנות ההדפסה מבדילות בין מהדורות.
-String _otzarBookLabel(OtzarMappedBook mapped) {
-  final years = mapped.book.pubDate?.trim() ?? '';
-  return mapped.volume ??
-      (years.isEmpty ? mapped.book.title : '${mapped.book.title} ($years)');
+/// גם לאותו כרך יש מהדורות; פרטים נוספים נדרשים רק כשהכותר והשנה חופפים.
+String _otzarBookLabel(OtzarMappedBook mapped, List<OtzarMappedBook> books) {
+  String baseLabel(OtzarMappedBook entry) {
+    final title = [
+      entry.book.title,
+      if (entry.volume != null && entry.volume != entry.book.title)
+        entry.volume!,
+    ].join(' – ');
+    final years = entry.book.pubDate?.trim() ?? '';
+    return years.isEmpty ? title : '$title ($years)';
+  }
+
+  final label = baseLabel(mapped);
+  if (books.where((entry) => baseLabel(entry) == label).length < 2) {
+    return label;
+  }
+  final details = [mapped.book.author, mapped.book.pubPlace].nonNulls
+      .map((value) => value.trim())
+      .where((value) => value.isNotEmpty)
+      .join(', ');
+  return details.isEmpty ? label : '$label – $details';
 }
 
 Future<void> _openInOtzar(ExternalLibraryBook book) async {

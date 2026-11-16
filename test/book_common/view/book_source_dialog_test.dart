@@ -7,6 +7,8 @@ import 'package:otzaria/external_catalog/repository/external_catalog_repository.
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/services/book_details_service.dart';
+import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/dialogs/details_info_section.dart';
 
 void main() {
   group('libraryDisplayPath', () {
@@ -296,19 +298,41 @@ void main() {
       openOtzarBook = defaultOpener;
     });
 
-    OtzarMappedBook mapped(int id, String? volume, {String? pubDate}) => (
+    OtzarMappedBook mapped(
+      int id,
+      String? volume, {
+      String title = 'הלכות גדולות',
+      String? pubDate,
+      String? author,
+      String? pubPlace,
+    }) => (
       book: ExternalLibraryBook(
-        title: 'הלכות גדולות',
+        title: title,
         id: id,
         pubDate: pubDate,
+        author: author,
+        pubPlace: pubPlace,
         link: 'https://tablet.otzar.org/book/book.php?book=$id',
       ),
       volume: volume,
     );
 
-    Future<void> openDialog(WidgetTester tester, Book book) async {
+    Future<void> openDialog(
+      WidgetTester tester,
+      Book book, {
+      ThemeData? theme,
+      TextScaler textScaler = TextScaler.noScaling,
+    }) async {
       await tester.pumpWidget(
         MaterialApp(
+          theme: theme,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+            child: Directionality(
+              textDirection: TextDirection.rtl,
+              child: child!,
+            ),
+          ),
           home: Builder(
             builder: (context) => TextButton(
               onPressed: () => showBookDetailsDialog(
@@ -362,7 +386,9 @@ void main() {
     });
 
     testWidgets('ספר ממופה אחד מוצג כשורה אחת', (tester) async {
-      otzarBooksForOtzariaId = (id) async => [mapped(42, 'כרך א')];
+      otzarBooksForOtzariaId = (id) async => [
+        mapped(42, 'כרך א', pubDate: 'תרכ"ה', author: 'מחבר', pubPlace: 'ורשה'),
+      ];
       await openDialog(tester, TextBook(title: 'הלכות גדולות', id: 7));
 
       expect(find.text('אוצר החכמה'), findsOneWidget);
@@ -377,7 +403,7 @@ void main() {
       ];
       await openDialog(tester, TextBook(title: 'הלכות גדולות', id: 7));
 
-      expect(find.text('אוצר החכמה – כרך א'), findsOneWidget);
+      expect(find.text('אוצר החכמה – הלכות גדולות – כרך א'), findsOneWidget);
       expect(find.text('אוצר החכמה – הלכות גדולות (תרכ"ה)'), findsOneWidget);
       expect(find.text('אוצר החכמה – הלכות גדולות'), findsOneWidget);
       expect(find.text('פתח באוצר החכמה'), findsNWidgets(3));
@@ -400,6 +426,113 @@ void main() {
 
       expect(opened, [(43, 'https://tablet.otzar.org/book/book.php?book=43')]);
     });
+
+    for (final (name, seed, brightness) in [
+      ('בהיר', AppSeedColors.defaultLight, Brightness.light),
+      ('כהה', AppSeedColors.defaultDark, Brightness.dark),
+      ('לבן', AppSeedColors.white, Brightness.light),
+    ]) {
+      for (final width in [360.0, 1200.0]) {
+        testWidgets('מהדורות באותו כרך נבדלות לפי השנה, $name $width', (
+          tester,
+        ) async {
+          tester.view.physicalSize = Size(width, 900);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.reset);
+          final cs = AppThemeData.createColorScheme(seed, brightness);
+          final theme = brightness == Brightness.light
+              ? AppThemeData.light(
+                  cs,
+                  compactMenuMode: false,
+                  variant: AppThemeVariant.ofSeed(seed),
+                )
+              : AppThemeData.dark(cs, compactMenuMode: false);
+          final opened = <int?>[];
+          openOtzarBook = (bookId, link) async {
+            opened.add(bookId);
+            return true;
+          };
+          otzarBooksForOtzariaId = (_) async => [
+            mapped(
+              42,
+              'יורה דעה',
+              title: 'שלחן ערוך',
+              pubDate: 'תשי"ג',
+              author: 'קארו, יוסף',
+              pubPlace: 'ניו יורק',
+            ),
+            mapped(
+              43,
+              'יורה דעה',
+              title: 'שלחן ערוך',
+              pubDate: 'שנ"ג–שנ"ד',
+              author: 'קארו, יוסף',
+              pubPlace: 'ונציה',
+            ),
+          ];
+          await openDialog(
+            tester,
+            TextBook(title: 'שולחן ערוך, יורה דעה', id: 7),
+            theme: theme,
+            textScaler: TextScaler.linear(1.3),
+          );
+
+          expect(
+            find.text('אוצר החכמה – שלחן ערוך – יורה דעה (תשי"ג)'),
+            findsOneWidget,
+          );
+          final edition = find.text(
+            'אוצר החכמה – שלחן ערוך – יורה דעה (שנ"ג–שנ"ד)',
+          );
+          expect(edition, findsOneWidget);
+          final row = find.ancestor(
+            of: edition,
+            matching: find.byType(DetailsInfoSection),
+          );
+          final link = find.descendant(
+            of: row,
+            matching: find.text('פתח באוצר החכמה'),
+          );
+          await tester.ensureVisible(link);
+          await tester.tap(link);
+          await tester.pump();
+          expect(opened, [43]);
+          expect(tester.takeException(), isNull);
+        });
+      }
+    }
+
+    for (final year in [null, 'תרכ"ה']) {
+      testWidgets('תוויות חופפות עם שנה $year נבדלות לפי פרטים קיימים', (
+        tester,
+      ) async {
+        otzarBooksForOtzariaId = (_) async => [
+          mapped(
+            42,
+            'כרך א',
+            pubDate: year,
+            author: 'מחבר א',
+            pubPlace: 'ורשה',
+          ),
+          mapped(
+            43,
+            'כרך א',
+            pubDate: year,
+            author: 'מחבר ב',
+            pubPlace: 'וילנה',
+          ),
+        ];
+        await openDialog(tester, TextBook(title: 'הלכות גדולות', id: 7));
+        final labels = tester
+            .widgetList<DetailsInfoSection>(find.byType(DetailsInfoSection))
+            .map((row) => row.title)
+            .where((title) => title.startsWith('אוצר החכמה'))
+            .toList();
+        expect(labels, hasLength(2));
+        expect(labels.first, contains('מחבר א, ורשה'));
+        expect(labels.last, contains('מחבר ב, וילנה'));
+      });
+    }
 
     testWidgets('סגירת החלון לפני שהמיפוי נטען אינה זורקת', (tester) async {
       final pending = Completer<List<OtzarMappedBook>>();
