@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/user_state/pending_report_store.dart';
 import 'package:otzaria/core/user_state/user_state_database.dart';
 import 'package:otzaria/core/user_state/window_session_store.dart';
+import 'package:otzaria/migration/database/sqlite3_utils.dart';
 
 void main() {
   late Directory tmp;
@@ -190,6 +191,28 @@ void main() {
       });
       expect(separate['text'], 'נפרד');
       expect(await first.countByKind('plugins/pending'), 1);
+    });
+
+    test('הוספה לתור ממתינה לנעילה בלי לחסום את ה-isolate', () async {
+      final store = PendingReportStore(database: db);
+      await store.add('app', {'warm': 1});
+      final locker = openSecondaryWritableConnection(
+        '${tmp.path}${Platform.pathSeparator}user_state.db',
+        'test',
+      );
+      locker.execute('BEGIN IMMEDIATE');
+      final order = <String>[];
+      final added = store.add('app', {'n': 1}).then((_) => order.add('add'));
+      final checked = store
+          .addIfAbsent('errors/pending', {'id': 'x'})
+          .then((_) => order.add('addIfAbsent'));
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      order.add('timer');
+      locker.execute('COMMIT');
+      locker.close();
+      await Future.wait([added, checked]);
+      expect(order, ['timer', 'add', 'addIfAbsent']);
+      expect(await store.countByKind('app'), 2);
     });
 
     test('הוספה פר-שורה, רשימה לפי סוג, מחיקה לפי מזהה, קיצוץ', () async {
