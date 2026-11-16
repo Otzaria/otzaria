@@ -462,6 +462,13 @@ class DictionaryLookupRepository {
   List<String> _aramaicDictionaryNames = const <String>[];
   // מקביל ל-_aramaicEntries: הנרמול נעשה פעם אחת בטעינה ולא בכל תפריט הקשר.
   List<({String normalized, List<String> words})> _aramaicIndex = const [];
+
+  /// מפתח מנורמל ← מיקומי הערכים. נבנה בפעם הראשונה שנדרש ומתאפס בכל טעינה.
+  Map<String, List<int>>? _aramaicPositionsByKey;
+
+  /// המילה הראשונה של כל מפתח בן כמה מילים. מאפשר לדלג על מקומות בטקסט מסומן
+  /// שאף צירוף אינו מתחיל בהם, בלי לבנות מחרוזת לכל חלון (בחירה ארוכה).
+  Set<String>? _aramaicPhraseStarts;
   List<LaazDictionaryEntry> _laazEntries = <LaazDictionaryEntry>[];
 
   /// כותרת ספר-רש"י -> אינדקס-שורה (1-based) -> ערכי הלעז המקושרים לאותה שורה.
@@ -726,6 +733,99 @@ class DictionaryLookupRepository {
     );
   }
 
+  Map<String, List<int>> get _positionsByKey => _aramaicPositionsByKey ??= () {
+    final positions = <String, List<int>>{};
+    for (final (i, indexed) in _aramaicIndex.indexed) {
+      if (indexed.normalized.isEmpty) continue;
+      (positions[indexed.normalized] ??= <int>[]).add(i);
+    }
+    return positions;
+  }();
+
+  Set<String> get _phraseStarts => _aramaicPhraseStarts ??= {
+    for (final key in _positionsByKey.keys)
+      if (key.contains(' ')) key.substring(0, key.indexOf(' ')),
+  };
+
+  /// האורך המרבי (במילים) של צירוף שנבדק בתוך טקסט מסומן; המפתחות הארוכים במילון הם חמש מילים.
+  static const int _maxPhraseWords = 6;
+
+  /// צירופים שלמים (שתי מילים ומעלה) שהם מפתחות במילון ומופיעים ברצף בתוך הטקסט
+  /// המסומן [raw], מהארוך לקצר ובשוויון לפי מיקום. מחזיר את כל ערכי המפתח, עד
+  /// [maxPhrases] מפתחות. התאמה מדויקת בלבד, בלי ניחוש צורות.
+  ///
+  /// הטקסט כולו אינו נכלל: כשהוא עצמו מפתח, [findAramaicMatches] מטפל בו. לכן יש
+  /// משמעות רק לטקסט של שלוש מילים ומעלה.
+  List<AramaicDictionaryEntry> findAramaicPhrasesWithin(
+    String raw, {
+    int maxPhrases = 8,
+    Set<String> dictionaries = const {AramaicDictionaryEntry.peshitaDictionary},
+  }) {
+    final words = _normalizeAramaic(
+      raw,
+    ).split(' ').where((word) => word.isNotEmpty).toList();
+    if (words.length < 3) return const <AramaicDictionaryEntry>[];
+
+    final positions = _positionsByKey;
+    final starts = _phraseStarts;
+    final found = <String>{};
+    final result = <AramaicDictionaryEntry>[];
+    final longest = words.length - 1 < _maxPhraseWords
+        ? words.length - 1
+        : _maxPhraseWords;
+    for (var length = longest; length >= 2; length--) {
+      for (var start = 0; start + length <= words.length; start++) {
+        if (found.length >= maxPhrases) return result;
+        if (!starts.contains(words[start])) continue;
+        final key = words.sublist(start, start + length).join(' ');
+        final at = positions[key];
+        if (at == null || found.contains(key)) continue;
+        final entries = [
+          for (final i in at)
+            if (dictionaries.contains(_aramaicEntries[i].dictionary))
+              _aramaicEntries[i],
+        ];
+        if (entries.isEmpty) continue;
+        found.add(key);
+        result.addAll(entries);
+      }
+    }
+    return result;
+  }
+
+  static const String _commonPrefixLetters = 'ודהבלמכש';
+
+  /// קידומת של שתי אותיות (ודאמר, ולמאן, שבאו) מתחילה רק ב-ו / ד / ש. רצפים
+  /// אחרים ("מו", "למ", "המ") אינם קידומות אלא חלק מהמילה.
+  static const String _stackedPrefixStarts = 'ודש';
+
+  /// כשמילה אחת שאינה במילון נראית כמילה שקיימת במילון עם קידומת נפוצה (אות אחת
+  /// מ"ודהבלמכש", או שתיים שהראשונה בהן ו/ד/ש): הקידומת והמילה. למשל `דאמר` ← (`ד`, `אמר`).
+  ///
+  /// הצעה בלבד, למסך הכלי: מוצגת כהצעת חיפוש מסומנת ולא כפירוש. בטקסט עברי כלל
+  /// כזה מייצר התאמות שגויות רבות ("מקום" ← "קום", "דברי" ← "ברי"), ולכן אסור
+  /// להציג אותו כתוצאה בתפריט ההקשר או ב-API.
+  ({String prefix, String word})? suggestAramaicBaseWord(
+    String raw, {
+    int minWordLength = 2,
+  }) {
+    final word = _normalizeAramaic(raw);
+    if (word.isEmpty || word.contains(' ') || _aramaicTerms.contains(word)) {
+      return null;
+    }
+
+    final positions = _positionsByKey;
+    for (var cut = 1; cut <= 2; cut++) {
+      if (word.length - cut < minWordLength) break;
+      final prefix = word.substring(0, cut);
+      if (!prefix.split('').every(_commonPrefixLetters.contains)) break;
+      if (cut == 2 && !_stackedPrefixStarts.contains(prefix[0])) break;
+      final base = word.substring(cut);
+      if (positions.containsKey(base)) return (prefix: prefix, word: base);
+    }
+    return null;
+  }
+
   Future<void> _loadAcronymsInternal() async {
     final loadAcronyms = _loadAcronyms;
     final index = loadAcronyms == null
@@ -774,6 +874,8 @@ class DictionaryLookupRepository {
       loaded.entries.map((entry) => entry.dictionary).toSet(),
     );
     _aramaicIndex = loaded.index;
+    _aramaicPositionsByKey = null;
+    _aramaicPhraseStarts = null;
   }
 
   static AramaicIndex _buildAramaicIndex(
@@ -1014,6 +1116,8 @@ class DictionaryLookupRepository {
     _aramaicTerms = <String>{};
     _aramaicDictionaryNames = const <String>[];
     _aramaicIndex = const [];
+    _aramaicPositionsByKey = null;
+    _aramaicPhraseStarts = null;
   }
 
   void _resetLaazCache() {

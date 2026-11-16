@@ -242,4 +242,42 @@ void main() {
 
     expect(find.text('ערך אחד'), findsOneWidget);
   });
+
+  testWidgets(
+    'בלי תוצאות מוצעת המילה בלי קידומת, כהצעה בלבד, ולחיצה מחפשת אותה',
+    (
+      tester,
+    ) async {
+      await pumpScreen(tester);
+
+      await tester.enterText(find.byType(TextField), 'דגברא');
+      await tester.pumpAndSettle();
+
+      expect(find.text('לא נמצאו תוצאות'), findsOneWidget);
+      expect(find.textContaining('עם הקידומת "ד"'), findsOneWidget);
+      expect(find.textContaining('זו הצעה בלבד'), findsOneWidget);
+      expect(find.byType(AramaicResultCard), findsNothing);
+
+      await tester.tap(find.text('חפש "גברא"'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AramaicResultCard), findsOneWidget);
+      expect(find.textContaining('איש'), findsWidgets);
+    },
+  );
+
+  testWidgets('אין הצעת קידומת בלי מילת בסיס, ולא בחיפוש עברי', (tester) async {
+    await pumpScreen(tester);
+
+    await tester.enterText(find.byType(TextField), 'דזזזז');
+    await tester.pumpAndSettle();
+    expect(find.text('לא נמצאו תוצאות'), findsOneWidget);
+    expect(find.textContaining('הקידומת'), findsNothing);
+
+    await tester.tap(find.text('עברית לארמית'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'דגברא');
+    await tester.pumpAndSettle();
+    expect(find.textContaining('הקידומת'), findsNothing);
+  });
 }

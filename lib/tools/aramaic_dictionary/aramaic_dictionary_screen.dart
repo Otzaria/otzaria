@@ -9,6 +9,7 @@ import 'package:otzaria/tools/tool_query.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/layout/tool_results_header.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
@@ -308,9 +309,23 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen>
     }
 
     if (_filteredResults.isEmpty) {
-      return const OtzariaEmptyState(
+      // הצעה בלבד, בכיוון ארמי-עברי: המילה עם קידומת נפוצה. אינה מוצגת כפירוש.
+      final suggestion = _isHebrewToAramaic
+          ? null
+          : _dictionaryRepository.suggestAramaicBaseWord(_query);
+      return OtzariaEmptyState(
         icon: OtzariaIcons.search_24_regular,
         title: 'לא נמצאו תוצאות',
+        message: suggestion == null
+            ? null
+            : 'ייתכן שזו המילה "${suggestion.word}" עם הקידומת "${suggestion.prefix}". זו הצעה בלבד.',
+        action: suggestion == null
+            ? null
+            : ActionButton.neutral(
+                text: 'חפש "${suggestion.word}"',
+                onPressed: () =>
+                    _searchFor(suggestion.word, hebrewToAramaic: false),
+              ),
       );
     }
 
