@@ -31,10 +31,12 @@ const _persistentAnchorCacheTtl = Duration(days: 90);
 ///
 /// This function uses a cached, anchor-based map with local interpolation for accuracy and performance.
 /// [pdfBook] - מהדורת ה-PDF אם כבר אותרה אצל הקורא; חוסך סריקה מלאה של העץ.
+/// [outline] - ה-outline של ה-PDF אם כבר נטען; חוסך את פתיחת הקובץ.
 Future<int?> textToPdfPage(
   TextBook textBook,
   int textIndex, {
   PdfBook? pdfBook,
+  List<PdfOutlineNode>? outline,
 }) async {
   pdfBook ??=
       (await DataRepository.instance.library).getCompanionBook(
@@ -56,7 +58,9 @@ Future<int?> textToPdfPage(
   }
 
   try {
-    final anchorsPdf = await _getPdfAnchors(pdfBook.path);
+    final anchorsPdf = outline == null || outline.isEmpty
+        ? await _getPdfAnchors(pdfBook.path)
+        : collectPdfAnchors(outline);
     final anchorsText = collectTextAnchors(await textBook.tableOfContents);
     final map = _buildPageMap(pdfBook, anchorsPdf, anchorsText);
     // גם מפה לא אמינה נשמרת, אחרת דפדוף בונה אותה מחדש בכל עמוד. תוכן עניינים
@@ -198,6 +202,17 @@ Future<SeforimRepository?> _anchorCacheRepository() async {
 
 int _nowMillis() => DateTime.now().millisecondsSinceEpoch;
 
+/// מהדורת הטקסט של [pdfBook], או null.
+///
+/// נקרא בכל מעבר עמוד; החיפוש בלי מלווה סורק את כל הספרייה, וגם "אין" נשמר.
+Future<TextBook?> companionTextBookOf(PdfBook pdfBook) async {
+  final library = await DataRepository.instance.library;
+  return (_companionTextBooks[library] ??= {}).putIfAbsent(
+    '${pdfBook.path}::${pdfBook.title}',
+    () => library.getCompanionBook(pdfBook, TextBook) as TextBook?,
+  );
+}
+
 /// Converts a PDF page number to the corresponding text book index.
 ///
 /// This function uses a cached, anchor-based map with local interpolation for accuracy and performance.
@@ -207,12 +222,7 @@ Future<int?> pdfToTextPage(
   List<PdfOutlineNode> outline,
   int pdfPage,
 ) async {
-  final library = await DataRepository.instance.library;
-  // נקרא בכל מעבר עמוד; החיפוש בלי מלווה סורק את כל הספרייה, וגם "אין" נשמר.
-  final textBook = (_companionTextBooks[library] ??= {}).putIfAbsent(
-    '${pdfBook.path}::${pdfBook.title}',
-    () => library.getCompanionBook(pdfBook, TextBook) as TextBook?,
-  );
+  final textBook = await companionTextBookOf(pdfBook);
   if (textBook == null) {
     return null;
   }

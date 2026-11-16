@@ -5680,6 +5680,43 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     );
   }
 
+  /// תחילות הפרקים של [book] (מבנה `Chapters` ברמה העליונה), לפי סדר הספר.
+  Future<List<({String title, int lineIndex})>> getChapterStarts(
+    TextBook book,
+  ) async {
+    if (book.source.isUser) return const [];
+    final categoryId = book.categoryId;
+    return _dbOperation<List<({String title, int lineIndex})>>(
+      (db) async {
+        final rows = db
+            .select(
+              '''
+          SELECT t.text AS title, l.lineIndex AS lineIndex
+          FROM book b
+          JOIN alt_toc_structure s ON s.bookId = b.id
+          JOIN alt_toc_entry e ON e.structureId = s.id
+          JOIN tocText t ON t.id = e.textId
+          JOIN line l ON l.id = e.lineId
+          WHERE b.title = ? ${categoryId == null ? '' : 'AND b.categoryId = ?'}
+            AND s.key = 'Chapters' AND e.level = 0
+          ORDER BY l.lineIndex
+  ''',
+              [book.title, ?categoryId],
+            )
+            .toMapList();
+        return [
+          for (final row in rows)
+            if (row['title'] case final String title when title.isNotEmpty)
+              (title: title, lineIndex: row['lineIndex'] as int),
+        ];
+      },
+      const [],
+      'getChapterStarts "${book.title}"',
+      requires: (c) => c.hasAltToc,
+      source: book.source,
+    );
+  }
+
   /// מכינה ספרים ברקע ומחילה את השינויים בתור הכתיבה לספרים האישיים.
   Future<ScanResult> scanAndAddExternalBooksFromFolder(
     String folderPath,

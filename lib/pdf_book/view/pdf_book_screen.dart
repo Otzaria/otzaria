@@ -35,6 +35,7 @@ import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/utils/centered_text_search_session.dart';
+import 'package:otzaria/pdf_book/utils/pdf_chapter_outline.dart';
 import 'package:otzaria/pdf_book/utils/pdf_color_filter.dart';
 import 'package:otzaria/pdf_book/utils/pdf_font_fallback.dart';
 import 'package:otzaria/pdf_book/utils/pdf_links_window.dart';
@@ -4103,6 +4104,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       final outline = await document.loadOutline();
       if (!mounted) return;
       widget.tab.outline.value = outline;
+      unawaited(_loadChapterStarts());
       _bloc.add(
         pdf_events.DocumentReady(
           documentRef: documentRef,
@@ -4130,6 +4132,36 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     widget.tab.currentTextLineNumberEnd = resolved.end;
     unawaited(_refreshLinksWindow());
     _pageDataRevision.value++;
+  }
+
+  Future<void> _loadChapterStarts() async {
+    if (_chapterStartsRequested || !isTalmudBavliBook(widget.tab.book)) {
+      return;
+    }
+    _chapterStartsRequested = true;
+    try {
+      final starts = await loadPdfChapterStarts(
+        widget.tab.book,
+        outline: widget.tab.outline.value,
+      );
+      if (mounted) _chapterStarts.value = starts;
+    } catch (e, stackTrace) {
+      debugPrint('❌ Failed to load PDF chapters: $e\n$stackTrace');
+    }
+  }
+
+  /// ה-outline לחלונית הניווט, מקובץ לפי פרקים. נשמר בין בניות כי OutlineView
+  /// שומר את מצב ההרחבה לפי זהות הצמתים.
+  List<PdfOutlineNode>? _navigationOutline(List<PdfOutlineNode>? outline) {
+    final chapters = _chapterStarts.value;
+    if (outline == null || chapters.isEmpty) return outline;
+    if (!identical(outline, _groupedOutlineSource) ||
+        !identical(chapters, _groupedOutlineChapters)) {
+      _groupedOutlineSource = outline;
+      _groupedOutlineChapters = chapters;
+      _groupedOutline = groupPdfOutlineByChapters(outline, chapters);
+    }
+    return _groupedOutline;
   }
 
   /// בודק אם [page] עדיין רלוונטי — האם המשתמש לא ניווט הלאה.
@@ -4265,6 +4297,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     textSearcher = null;
     _pageMetadataTimer?.cancel();
     _pageDataRevision.dispose();
+    _chapterStarts.dispose();
     pdfController.removeListener(_onPdfViewerControllerUpdate);
     _leftPaneTabController?.removeListener(_leftPaneTabControllerListener);
     widget.tab.searchController.removeListener(_onSearchQueryChanged);
@@ -4313,6 +4346,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   /// טווח השורות והקישורים של העמוד הנוכחי השתנו — בונה מחדש רק את חלונית המפרשים.
   final _pageDataRevision = ValueNotifier<int>(0);
+
+  // פרקי הש"ס לחלונית הניווט; tab.outline נשאר כמו בקובץ, כי מיפוי העמודים נשען עליו.
+  final _chapterStarts = ValueNotifier<List<PdfChapterStart>>(const []);
+  bool _chapterStartsRequested = false;
+  List<PdfOutlineNode>? _groupedOutlineSource;
+  List<PdfChapterStart>? _groupedOutlineChapters;
+  List<PdfOutlineNode>? _groupedOutline;
 
   // מסלול חלון-הקישורים (ספרי מסד): tab.links מחזיק רק חלון שורות סביב
   // המיקום הנוכחי ומתרענן בדפדוף — ראה PdfLinksWindowPolicy.
@@ -5123,10 +5163,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               children: [
                 NavPanelSearchSlot(
                   index: 0,
-                  child: ValueListenableBuilder(
-                    valueListenable: widget.tab.outline,
-                    builder: (context, outline, child) => OutlineView(
-                      outline: outline,
+                  child: ListenableBuilder(
+                    listenable: Listenable.merge([
+                      widget.tab.outline,
+                      _chapterStarts,
+                    ]),
+                    builder: (context, child) => OutlineView(
+                      outline: _navigationOutline(widget.tab.outline.value),
                       title: widget.tab.book.title,
                       controller: widget.tab.pdfViewerController,
                       focusNode: _navigationFieldFocusNode,
