@@ -255,7 +255,8 @@ class _VerticalTabRow extends StatelessWidget {
             child: LiveTabTitleBuilder(
               tab: tab,
               showLocationInTitle: showLocationInTitle,
-              builder: (context, displayTitle, tooltipMessage) => collapsed
+              builder: (context, displayTitle, tooltipMessage, titleLocation) =>
+                  collapsed
                   // במצב מכווץ מוצג אייקון בלבד, ולכן ה-tooltip הוא המקור היחיד לשם.
                   ? Stack(
                       children: [
@@ -298,6 +299,7 @@ class _VerticalTabRow extends StatelessWidget {
                             child: buildFadedTabTitle(
                               context,
                               tabTitleBesideContentIcon(tab, displayTitle),
+                              location: titleLocation,
                             ),
                           ),
                         ),

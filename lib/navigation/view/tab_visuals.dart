@@ -116,9 +116,54 @@ Widget buildTabFallbackIcon(
   color: color ?? Theme.of(context).colorScheme.onSurface,
 );
 
+/// הרוחב המינימלי שבו עוד מוצג שם הספר לצד המיקום; מתחתיו מוצג רק המיקום.
+const double _kMinBookTitleBesideLocation = 24;
+
 /// כותרת מוצמדת ל-start ונדהית בסוף רק כשהיא נחתכת.
+///
+/// כש-[location] מוצג בכותרת (ראה [tabTitleHasTwin]) הוא מה שמבדיל בין
+/// הכרטיסיות, ולכן כשאין מקום שם הספר מתכווץ ונדהה והמיקום נשאר שלם.
+Widget buildFadedTabTitle(
+  BuildContext context,
+  String title, {
+  String? location,
+}) {
+  if (location == null || !title.endsWith(', $location')) {
+    return _buildFadedText(title);
+  }
+  final suffix = ', $location';
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      final direction = Directionality.of(context);
+      final style = _effectiveTitleStyle(
+        context,
+        DefaultTextStyle.of(context).style,
+      );
+      final scaler = MediaQuery.textScalerOf(context);
+      final titleWidth = _measuredTitleWidth(title, style, scaler, direction);
+      if (titleWidth <= constraints.maxWidth + 0.5) {
+        return _buildFadedText(title);
+      }
+      final suffixWidth = _measuredTitleWidth(suffix, style, scaler, direction);
+      if (constraints.maxWidth - suffixWidth < _kMinBookTitleBesideLocation) {
+        return _buildFadedText(location);
+      }
+      return Row(
+        children: [
+          Expanded(
+            child: _buildFadedText(
+              title.substring(0, title.length - suffix.length),
+            ),
+          ),
+          Text(suffix, maxLines: 1, softWrap: false),
+        ],
+      );
+    },
+  );
+}
+
 /// TextOverflow.fade מציג בעברית את הסוף, לכן משתמשים ב-OverflowBox וב-ClipRect.
-Widget buildFadedTabTitle(BuildContext context, String title) => LayoutBuilder(
+Widget _buildFadedText(String title) => LayoutBuilder(
   builder: (context, constraints) {
     final direction = Directionality.of(context);
     final titleBox = OverflowBox(
@@ -227,6 +272,7 @@ class LiveTabTitleBuilder extends StatelessWidget {
     BuildContext context,
     String displayTitle,
     String tooltipMessage,
+    String? titleLocation,
   )
   builder;
 
@@ -241,19 +287,23 @@ class LiveTabTitleBuilder extends StatelessWidget {
   Widget build(BuildContext context) {
     final tab = this.tab;
     final liveTitle = liveTabTitleOf(tab);
-    if (liveTitle == null) return builder(context, tab.title, tab.title);
+    if (liveTitle == null) {
+      return builder(context, tab.title, tab.title, null);
+    }
     return ValueListenableBuilder<String>(
       valueListenable: liveTitle,
       builder: (context, value, child) {
         // בכרטיסיית חיפוש הערך הוא הכותרת עצמה; בשאר הוא המיקום שמתווסף לה.
-        if (tab is SearchingTab) return builder(context, value, value);
+        if (tab is SearchingTab) return builder(context, value, value, null);
         // טאב שטרם נבנה (שוחזר בעלייה) עוד לא קיבל מיקום מה-BLoC.
         if (value.isEmpty && tab is TextBookTab) tab.ensureLocationTitle();
         final withLocation = value.isEmpty ? tab.title : '${tab.title}, $value';
+        final inTitle = showLocationInTitle && value.isNotEmpty;
         return builder(
           context,
-          showLocationInTitle ? withLocation : tab.title,
+          inTitle ? withLocation : tab.title,
           withLocation,
+          inTitle ? value : null,
         );
       },
     );
