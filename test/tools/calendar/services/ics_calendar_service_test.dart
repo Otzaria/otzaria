@@ -117,15 +117,44 @@ DTSTART;VALUE=DATE:20260101
 RRULE:FREQ=WEEKLY;INTERVAL=2
 SUMMARY:כל שבועיים
 END:VEVENT
-BEGIN:VEVENT
-UID:multiple-days
-DTSTART;VALUE=DATE:20260101
-RRULE:FREQ=WEEKLY;BYDAY=MO,WE
-SUMMARY:פעמיים בשבוע
-END:VEVENT
 END:VCALENDAR
 ''';
 
+      expect(IcsCalendarService.parseIcs(ics), isEmpty);
+    });
+
+    test('קורא חזרה שבועית BYDAY לכמה ימים בלי לאבד את התאריכים', () {
+      const ics = '''
+BEGIN:VCALENDAR
+BEGIN:VEVENT
+UID:weekly-days
+DTSTART;VALUE=DATE:20260101
+RRULE:FREQ=WEEKLY;BYDAY=MO,WE;UNTIL=20260131
+SUMMARY:שיעורים
+END:VEVENT
+END:VCALENDAR
+''';
+      final event = IcsCalendarService.parseIcs(ics).single;
+      expect(event.recurrenceType, RecurrenceType.weekly);
+      expect(event.weeklyDays, [DateTime.monday, DateTime.wednesday]);
+      expect(event.occursOn(DateTime(2026, 1, 1)), isFalse);
+      expect(event.occursOn(DateTime(2026, 1, 5)), isTrue);
+      expect(event.occursOn(DateTime(2026, 1, 6)), isFalse);
+      expect(event.occursOn(DateTime(2026, 1, 7)), isTrue);
+      expect(event.occursOn(DateTime(2026, 2, 2)), isFalse);
+    });
+
+    test('דוחה BYDAY לא חוקי במקום לפרש אותו כחזרה ביום הלא נכון', () {
+      const ics = '''
+BEGIN:VCALENDAR
+BEGIN:VEVENT
+UID:bad-rule
+DTSTART;VALUE=DATE:20260101
+RRULE:FREQ=WEEKLY;BYDAY=1MO,WE
+SUMMARY:תדירות לא נתמכת
+END:VEVENT
+END:VCALENDAR
+''';
       expect(IcsCalendarService.parseIcs(ics), isEmpty);
     });
 
