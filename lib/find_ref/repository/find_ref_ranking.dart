@@ -3,6 +3,7 @@
 library;
 
 import 'package:otzaria/find_ref/book_name_match.dart';
+import 'package:otzaria/utils/text/ref_key.dart';
 
 /// תקרת-ביטחון מוחלטת על מספר תוצאות האיתור.
 const int findRefMaxResultCap = 100;
@@ -32,23 +33,36 @@ bool queryLooksDafCitation(List<String> tokens) {
   // מפורש — מילת "דף" או "עמוד" בשאילתה
   if (tokens.contains('דף') || tokens.contains('עמוד')) return true;
   // מספר דף עברי: 2–4 אותיות עבריות, ואינו מילת מבנה
-  const structureWords = {
-    'פרק',
-    'משנה',
-    'פסוק',
-    'הלכה',
-    'סעיף',
-    'סימן',
-    'חלק',
-    'שאלה',
-  };
   final penultimate = tokens[tokens.length - 2];
-  if (structureWords.contains(penultimate)) return false;
+  if (_structureWords.contains(penultimate)) return false;
   return penultimate.length >= 2 &&
       penultimate.length <= 4 &&
       penultimate.codeUnits.every(
         (c) => c >= 0x05D0 && c <= 0x05EA,
       ); // אותיות עבריות בלבד
+}
+
+const _structureWords = {
+  'פרק',
+  'משנה',
+  'פסוק',
+  'הלכה',
+  'סעיף',
+  'סימן',
+  'חלק',
+  'שאלה',
+};
+
+/// "סוכה ג": מספר עברי אחד אחרי השם, בלי מילת מבנה ("פרק", "משנה") לפניו.
+/// "א" הוא פרק (בבלי מתחיל בדף ב), ו"ג ב" הוא ציון משנה או עמוד.
+bool queryEndsWithBareNumber(List<String> tokens) {
+  if (tokens.length < 2) return false;
+  final last = tokens.last;
+  final penultimate = tokens[tokens.length - 2];
+  if (last == 'א' || _structureWords.contains(penultimate)) return false;
+  // אות אחת בלבד: "רה ג" (ר"ה) הוא שם מסכת ולא שני מספרים.
+  if (penultimate.length == 1 && isHebrewNumeral(penultimate)) return false;
+  return isHebrewNumeral(last);
 }
 
 /// בציון גמרא ערך שמכיל "דף" קודם לשאינו מכיל (גמרא לפני משנה ב"שבת עא ב").
@@ -93,7 +107,8 @@ class FindRefRankQuery {
   FindRefRankQuery(this.tokens, {this.aliasFoundationalTiers = const {}})
     : text = tokens.join(' '),
       matchTokens = tokens.map(bookNameMatchToken).toList(growable: false),
-      isDafCitation = queryLooksDafCitation(tokens);
+      isDafCitation = queryLooksDafCitation(tokens),
+      endsWithBareNumber = queryEndsWithBareNumber(tokens);
 
   final List<String> tokens;
   final Set<int> aliasFoundationalTiers;
@@ -102,6 +117,7 @@ class FindRefRankQuery {
   /// [tokens] ב-[bookNameMatchToken], להשוואה מול כותרות.
   final List<String> matchTokens;
   final bool isDafCitation;
+  final bool endsWithBareNumber;
 
   bool get needsTokenWiseRanking => tokens.length >= 2;
 
@@ -266,6 +282,10 @@ int compareFindRefRelevance(
   if (aTier != bTier) {
     if (aTier == null) return 1;
     if (bTier == null) return -1;
+    // מספר בודד אחרי שם מסכת הוא לרוב דף, לכן בבלי (3) לפני משנה (2).
+    if (query.endsWithBareNumber && {aTier, bTier}.containsAll(const {2, 3})) {
+      return bTier.compareTo(aTier);
+    }
     return aTier.compareTo(bTier);
   }
 

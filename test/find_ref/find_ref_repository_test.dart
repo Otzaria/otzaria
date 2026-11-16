@@ -3319,10 +3319,9 @@ void main() {
     );
 
     test(
-      '"שבת יג" — סדר ה-tiers: משנה (2) → בבלי (3) → ירושלמי (4) → רמב"ם (8)',
+      '"שבת יג" — סדר ה-tiers: בבלי (3) → משנה (2) → ירושלמי (4) → רמב"ם (8)',
       () async {
-        // 4 ספרי יסוד מ-tiers שונים — לפי דרישת המשתמש, הסדר חייב להיות:
-        //   משנה → בבלי → ירושלמי → רמב"ם.
+        // מספר בודד אחרי שם מסכת הוא לרוב דף (#3229), לכן הבבלי לפני המשנה.
         // ה-orderIndex לכולם זהה (5000) כדי לוודא שה-tier הוא המכריע ולא ה-sort.
         final repo = FindRefRepository(
           dataRepository: MockDataRepository(),
@@ -3364,7 +3363,11 @@ void main() {
             return const <ReferenceBookHit>[];
           },
           getTocEntriesForReference: (id, title, {queryTokens}) async => [
-            {'reference': '$title פרק יג', 'segment': 13, 'level': 2},
+            {
+              'reference': id == 2 ? '$title דף יג.' : '$title פרק יג',
+              'segment': 13,
+              'level': 2,
+            },
           ],
           getCategoryPathSync: (bookId) {
             switch (bookId) {
@@ -3401,14 +3404,14 @@ void main() {
           reason: 'כל ארבעת הספרים חייבים להופיע ב-20 התוצאות הראשונות',
         );
         expect(
-          mishnaIdx,
-          lessThan(bavliIdx),
-          reason: 'tier 2 (משנה) לפני tier 3 (בבלי)',
+          bavliIdx,
+          lessThan(mishnaIdx),
+          reason: 'מספר בודד: tier 3 (בבלי) לפני tier 2 (משנה)',
         );
         expect(
-          bavliIdx,
+          mishnaIdx,
           lessThan(yerushalmiIdx),
-          reason: 'tier 3 (בבלי) לפני tier 4 (ירושלמי)',
+          reason: 'tier 2 (משנה) לפני tier 4 (ירושלמי)',
         );
         expect(
           yerushalmiIdx,
