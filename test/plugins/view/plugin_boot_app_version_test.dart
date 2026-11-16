@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
@@ -93,7 +94,7 @@ void main() {
     final host = tester.state<_Host>(find.byType(_HostWidget))
       ..bridge = _NonceBridge();
 
-    String bootFor(String buildNumber) => host.pluginBootScript(
+    Future<String> bootFor(String buildNumber) => host.pluginBootScript(
       runMode: 'tab',
       packageInfo: PackageInfo(
         appName: 'Otzaria',
@@ -105,8 +106,38 @@ void main() {
       theme: const {},
     );
 
-    expect(bootFor('99801'), contains('"app":{"version":"0.9.98.1"'));
-    expect(bootFor('99800'), contains('"app":{"version":"0.9.98"'));
+    expect(await bootFor('99801'), contains('"app":{"version":"0.9.98.1"'));
+    expect(await bootFor('99800'), contains('"app":{"version":"0.9.98"'));
+  });
+
+  testWidgets('סקריפט foreground עם גופנים משמר payload והטבעה', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const _HostWidget());
+    final host = tester.state<_Host>(find.byType(_HostWidget))
+      ..bridge = _NonceBridge();
+    const css = '@font-face{font-family:"עברית";}';
+    final source = await tester.runAsync(
+      () => host.pluginBootScript(
+        runMode: 'foreground',
+        packageInfo: PackageInfo(
+          appName: 'Otzaria',
+          packageName: 'otzaria',
+          version: '0.9.98',
+          buildNumber: '99801',
+        ),
+        permissions: const ['library.search'],
+        theme: const {'name': 'theme'},
+        reader: const {'book': 'טור'},
+        restore: const {'state': 'נשמר'},
+        fontFaceJson: jsonEncode(css),
+      ),
+    );
+    expect(source, contains('var __css = ${jsonEncode(css)};'));
+    expect(source, contains('"runMode":"foreground"'));
+    expect(source, contains('"reader":{"book":"טור"}'));
+    expect(source, contains('"restore":{"state":"נשמר"}'));
+    expect(source, contains('"permissions":["library.search"]'));
   });
 
   group('מדיניות רמות ה-console של תוסף (issue #4118)', () {

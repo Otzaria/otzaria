@@ -856,7 +856,16 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
                 : await buildPluginFontFaceCss(embedded: true);
           }
           if (stale()) return;
-          final bootSource = pluginBootScript(
+          final fontFaceJson = fallbackCss == null || fallbackCss.isEmpty
+              ? null
+              : await pluginFontFaceJson(fallbackCss);
+          if (stale()) return;
+          final restore = PluginRuntimeDispatcher.instance.prepareBootRestore(
+            widget.plugin.pluginId,
+            instanceId: widget.instanceId,
+            firstBoot: !_bootedOnce,
+          );
+          final bootSource = await pluginBootScript(
             runMode: 'foreground',
             packageInfo: packageInfo,
             permissions: permissions,
@@ -865,15 +874,11 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
               final tab? => PluginTextReaderRegistry.bookPayload(tab),
               null => null,
             },
-            restore: PluginRuntimeDispatcher.instance.takeBootRestore(
-              widget.plugin.pluginId,
-              instanceId: widget.instanceId,
-              firstBoot: !_bootedOnce,
-            ),
-            fontFaceJson: fallbackCss == null
-                ? null
-                : pluginFontFaceJson(fallbackCss),
+            restore: restore.payload,
+            fontFaceJson: fontFaceJson,
           );
+          if (stale()) return;
+          restore.consume();
           final booted = await controller.evaluateJavascript(
             source: bootSource,
           );

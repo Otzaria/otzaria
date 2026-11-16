@@ -143,6 +143,16 @@ void main() {
       )).buffer.asUint8List();
       expect(sourceOf(rule), 'data:font/ttf;base64,${base64Encode(expected)}');
     });
+
+    test('CSS מוטבע וה-JSON שלו נשמרים בלי בנייה חוזרת', () async {
+      final css = await buildPluginFontFaceCss(embedded: true);
+      final json = await pluginFontFaceJson(css);
+      expect(json, jsonEncode(css));
+      final again = await buildPluginFontFaceCss(embedded: true);
+      expect(identical(again, css), isTrue);
+      expect(identical(await pluginFontFaceJson(again), json), isTrue);
+      expect(await pluginFontFaceJson('שונה "\\'), jsonEncode('שונה "\\'));
+    });
   });
 
   group('גופן מערכת שנבחר בהגדרות', () {
@@ -230,6 +240,39 @@ void main() {
         rulesOf(await buildPluginFontFaceCss(), 'Test System Font'),
         isEmpty,
       );
+    });
+
+    test('מטמון ההטבעה מבחין במשפחה שהוחלפה ושומר מקורות', () async {
+      final file = File('${dir.path}/regular.ttf');
+      await file.writeAsBytes([1, 2, 3]);
+      debugPluginSystemFaces = (family) =>
+          family == 'Test System Font' ? faces() : null;
+      final first = await buildPluginFontFaceCss(embedded: true);
+      final regular = rulesOf(first, 'Test System Font').single;
+      expect(sourceOf(regular), 'data:font/ttf;base64,AQID');
+
+      await file.writeAsBytes([4, 5, 6]);
+      expect(
+        identical(await buildPluginFontFaceCss(embedded: true), first),
+        isTrue,
+      );
+      await Settings.setValue<String>(
+        SettingsRepository.keyFontFamily,
+        AppFonts.defaultFont,
+      );
+      final withoutSystem = await buildPluginFontFaceCss(embedded: true);
+      expect(withoutSystem, isNot(contains('Test System Font')));
+      expect(
+        await pluginFontFaceJson(withoutSystem),
+        jsonEncode(withoutSystem),
+      );
+
+      await Settings.setValue<String>(
+        SettingsRepository.keyFontFamily,
+        'Test System Font',
+      );
+      final restored = await buildPluginFontFaceCss(embedded: true);
+      expect(restored, first);
     });
   });
 
@@ -379,11 +422,22 @@ void main() {
           targets: ['16px "A"'],
           timeout: const Duration(milliseconds: 10),
         );
-        // רק חסימה מחליפה את הכללים בבייטים מוטבעים; המתנה ארוכה אינה חסימה.
-        expect(await controller.runScript(), outcome != 'blocked');
-        expect(controller.styleRemoved, outcome == 'blocked');
+        expect(await controller.runScript(), outcome == 'loaded');
+        expect(controller.styleRemoved, outcome != 'loaded');
       });
     }
+
+    test('כשל אחרי סף ההמתנה עדיין משאיר fallback מוטבע', () async {
+      final controller = _ScriptController('late-blocked');
+      await installPluginFonts(
+        controller,
+        css: 'X',
+        targets: ['16px "A"'],
+        timeout: const Duration(milliseconds: 10),
+      );
+      expect(await controller.runScript(), isFalse);
+      expect(controller.styleRemoved, isTrue);
+    });
 
     test('בלי שרת קבצים (iOS) אינו נוגע בדף', () async {
       debugPluginFontsFromFileServer = false;
@@ -395,16 +449,6 @@ void main() {
         isFalse,
       );
       expect(controller.arguments, isNull);
-    });
-  });
-
-  group('pluginFontFaceJson', () {
-    test('זהה ל-jsonEncode ונשמר לאותו CSS', () {
-      const css = "@font-face{font-family:'A';}";
-      final first = pluginFontFaceJson(css);
-      expect(first, jsonEncode(css));
-      expect(identical(pluginFontFaceJson(css), first), isTrue);
-      expect(pluginFontFaceJson('x'), jsonEncode('x'));
     });
   });
 
@@ -582,6 +626,11 @@ const document = {
         ? Promise.reject(new Error('CSP')) : Promise.resolve([]);
     }
     if (${jsonEncode(outcome)} === 'blocked') return Promise.reject(new Error('CSP'));
+    if (${jsonEncode(outcome)} === 'late-blocked') {
+      return new Promise((resolve, reject) => {
+        setTimeout(() => reject(new Error('delayed HTTP error')), ${arguments!['timeoutMs']} * 2);
+      });
+    }
     if (${jsonEncode(outcome)} === 'pending') return new Promise(() => {});
     return Promise.resolve([{}]);
   }}
