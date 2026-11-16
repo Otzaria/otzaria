@@ -23,8 +23,14 @@ FindRefRankKey<String> _key(FindRefRankQuery query, String title, int? tier) {
 }
 
 /// מסדר משנה (2), בבלי (3), ירושלמי (4) ומפרש לפי [tokens] ומחזיר את הסדר.
-List<String> _rank(List<String> tokens) {
-  final query = FindRefRankQuery(tokens);
+List<String> _rank(List<String> tokens, {required int bookTokenCount}) {
+  final query = FindRefRankQuery(
+    tokens,
+    preferBavli: queryEndsWithBareNumber(
+      tokens,
+      bookTokenCount: bookTokenCount,
+    ),
+  );
   // כותרות זהות, כדי שרק ה-tier יכריע.
   final keys = [
     _key(query, 'ירושלמי', 4),
@@ -37,34 +43,61 @@ List<String> _rank(List<String> tokens) {
 
 void main() {
   group('queryEndsWithBareNumber', () {
-    test('מספר עברי בודד אחרי שם', () {
-      expect(queryEndsWithBareNumber(['סוכה', 'ג']), isTrue);
-      expect(queryEndsWithBareNumber(['שבת', 'יג']), isTrue);
-      expect(queryEndsWithBareNumber(['שבת', 'קנז']), isTrue);
-      expect(queryEndsWithBareNumber(['בבא', 'קמא', 'ג']), isTrue);
-      expect(queryEndsWithBareNumber(['רה', 'ג']), isTrue);
+    test('מספר עברי בודד אחרי שם או כינוי שזוהה', () {
+      for (final tokens in [
+        ['סוכה', 'ג'],
+        ['שבת', 'יג'],
+        ['שבת', 'קנז'],
+        ['בבא', 'קמא', 'ג'],
+        ['רה', 'ג'],
+        ['בק', 'ג'],
+        ['מועד', 'קטן', 'ג'],
+      ]) {
+        expect(
+          queryEndsWithBareNumber(tokens, bookTokenCount: tokens.length - 1),
+          isTrue,
+          reason: tokens.join(' '),
+        );
+      }
     });
 
-    test('לא מספר, או מספר אחרי מילת מבנה', () {
-      expect(queryEndsWithBareNumber(['סוכה']), isFalse);
-      expect(queryEndsWithBareNumber(['סוכה', 'פרק', 'ג']), isFalse);
-      expect(queryEndsWithBareNumber(['שבת', 'משנה', 'ג']), isFalse);
-      expect(queryEndsWithBareNumber(['בבא', 'מציעא']), isFalse);
-      // בבלי מתחיל בדף ב, לכן "א" הוא פרק; שני מספרים הם משנה או עמוד.
-      expect(queryEndsWithBareNumber(['ברכות', 'א']), isFalse);
-      expect(queryEndsWithBareNumber(['סוכה', 'ג', 'ב']), isFalse);
+    test('לא מספר, או יותר מטוקן אחד אחרי שם הספר', () {
+      for (final (tokens, bookTokenCount) in [
+        (['סוכה'], 1),
+        (['סוכה', 'פרק', 'ג'], 1),
+        (['שבת', 'משנה', 'ג'], 1),
+        (['בבא', 'מציעא'], 2),
+        (['ברכות', 'א'], 1),
+        (['סוכה', 'ג', 'ב'], 1),
+        (['שבת', 'יג', 'ג'], 1),
+        (['שבת', 'קנז', 'ג'], 1),
+        (['בבא', 'קמא', 'יג', 'ג'], 2),
+        (['רה', 'יג', 'ג'], 1),
+        (<String>[], 0),
+      ]) {
+        expect(
+          queryEndsWithBareNumber(tokens, bookTokenCount: bookTokenCount),
+          isFalse,
+          reason: tokens.join(' '),
+        );
+      }
     });
   });
 
   group('#3229: בבלי לפני משנה כשמספר בודד', () {
     test('"סוכה ג" — בבלי, משנה, ירושלמי, מפרש', () {
-      expect(_rank(['סוכה', 'ג']), ['בבלי', 'משנה', 'ירושלמי', 'מפרש']);
+      expect(_rank(['סוכה', 'ג'], bookTokenCount: 1), [
+        'בבלי',
+        'משנה',
+        'ירושלמי',
+        'מפרש',
+      ]);
     });
 
     test('"סוכה פרק ג" ו"סוכה" — הסדר הרגיל של ה-tiers', () {
       const regular = ['משנה', 'בבלי', 'ירושלמי', 'מפרש'];
-      expect(_rank(['סוכה', 'פרק', 'ג']), regular);
-      expect(_rank(['סוכה']), regular);
+      expect(_rank(['סוכה', 'פרק', 'ג'], bookTokenCount: 1), regular);
+      expect(_rank(['סוכה'], bookTokenCount: 1), regular);
     });
 
     test('"משנה סוכה ג" — שם הספר המפורש גובר על הכלל', () {
@@ -75,9 +108,10 @@ void main() {
     });
 
     test('ההשוואה טרנזיטיבית ואנטי-סימטרית', () {
-      final query = FindRefRankQuery(['סוכה', 'ג']);
+      final query = FindRefRankQuery(['סוכה', 'ג'], preferBavli: true);
       final keys = [
-        for (final tier in [null, 2, 3, 4]) _key(query, 'x', tier),
+        for (final tier in [null, for (var tier = 1; tier <= 10; tier++) tier])
+          _key(query, 'x', tier),
       ];
       for (final x in keys) {
         for (final y in keys) {

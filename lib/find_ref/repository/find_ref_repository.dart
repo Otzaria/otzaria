@@ -781,6 +781,7 @@ class FindRefRepository {
     List<DbReferenceResult> results,
     List<String> queryTokens, {
     int? maxRefTokens,
+    bool preferBavli = false,
     FindRefVisibility? visibility,
   }) async {
     try {
@@ -799,6 +800,7 @@ class FindRefRepository {
       final singleWord = maxRefTokens != null;
       final request = GlobalAltTocRequest(
         queryTokens: queryTokens,
+        preferBavli: preferBavli,
         maxRefTokens: maxRefTokens,
         occupied: occupied,
         replaceable: replaceable,
@@ -1505,12 +1507,28 @@ class FindRefRepository {
     return await _awaitCurrent(_enrichWithPaths(ranked));
   }
 
+  bool _preferBavli(_BookDetection detection, List<String> queryTokens) =>
+      detection.hits.any((hit) {
+        if (!queryEndsWithBareNumber(
+          queryTokens,
+          bookTokenCount:
+              detection.secondaryPhraseTokenCount[hit] ??
+              detection.phraseTokenCount,
+        )) {
+          return false;
+        }
+        return hit.namesBookExactly &&
+            hit.bookId > 0 &&
+            _officialBookRank(hit.bookId, hit.title).foundationalTier == 3;
+      });
+
   Future<List<DbReferenceResult>> _multiWordResults(
     _FindRefSearch search,
     SeforimRepository? repository,
   ) async {
     final queryTokens = search.queryTokens;
     final detection = search.detection;
+    final preferBavli = _preferBavli(detection, queryTokens);
 
     // כשהטוקן הראשון תפס ספרים רבים (כמו "ראש") בלי אקרוניום שמצמצם, הספר
     // המכוון עלול לשבת עמוק ברשימה ולהיחתך ע"י התקרה (למשל "ראש בבא בתרא"
@@ -1597,6 +1615,7 @@ class FindRefRepository {
         _addGlobalAltTocMatches(
           results,
           queryTokens,
+          preferBavli: preferBavli,
           visibility: search.visibilityFilter,
         ),
       );
@@ -1611,6 +1630,7 @@ class FindRefRepository {
       pruned,
       queryTokens,
       bookMatchRanks: search.bookMatchRanks,
+      preferBavli: preferBavli,
       directMatches: directMatches,
       dibburMatches: dibburMatches,
       rawQuery: search.rawQuery,
@@ -3375,6 +3395,7 @@ class FindRefRepository {
     List<DbReferenceResult> results,
     List<String> queryTokens, {
     Map<_BookKey, _BookMatchRank> bookMatchRanks = const {},
+    bool preferBavli = false,
     Set<DbReferenceResult> directMatches = const {},
     Set<DbReferenceResult> dibburMatches = const {},
     bool preserveSubstringTail = false,
@@ -3540,6 +3561,7 @@ class FindRefRepository {
 
     final rankQuery = FindRefRankQuery(
       queryTokens,
+      preferBavli: preferBavli,
       aliasFoundationalTiers: {
         for (final key in decorated)
           if (key.exactAliasMatch && key.bookRank.foundationalTier != null)

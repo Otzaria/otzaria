@@ -696,6 +696,31 @@ void main() {
       expect(multiWord, ['1:פרשה נח', '1:פרשה נחמה']);
     });
 
+    test('העדפת בבלי עוברת ל-worker ומשתנה בין בקשות', () async {
+      final isolate = await seedWorker(books: 3);
+      final ranks = {
+        for (var id = 1; id <= 3; id++)
+          id: (
+            title: 'ספר $id',
+            rank: (foundationalTier: id + 1, eraOrder: 5),
+          ),
+      };
+      for (final preferBavli in [false, true, false]) {
+        final selected = refs(
+          await isolate.searchAltTocFlat(
+            GlobalAltTocRequest(
+              queryTokens: const ['פרשה'],
+              preferBavli: preferBavli,
+              bookRanks: ranks,
+              perBookCap: 1,
+              limit: 1,
+            ),
+          ),
+        );
+        expect(selected, [preferBavli ? '2:פרשה נח' : '1:פרשה נח']);
+      }
+    });
+
     test('טבלת דירוג הספרים נשלחת פעם אחת ומשמשת גם את הבקשות הבאות', () async {
       final isolate = await seedWorker(books: 3);
       final ranks = {

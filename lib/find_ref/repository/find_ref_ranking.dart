@@ -53,17 +53,15 @@ const _structureWords = {
   'שאלה',
 };
 
-/// "סוכה ג": מספר עברי אחד אחרי השם, בלי מילת מבנה ("פרק", "משנה") לפניו.
-/// "א" הוא פרק (בבלי מתחיל בדף ב), ו"ג ב" הוא ציון משנה או עמוד.
-bool queryEndsWithBareNumber(List<String> tokens) {
-  if (tokens.length < 2) return false;
-  final last = tokens.last;
-  final penultimate = tokens[tokens.length - 2];
-  if (last == 'א' || _structureWords.contains(penultimate)) return false;
-  // אות אחת בלבד: "רה ג" (ר"ה) הוא שם מסכת ולא שני מספרים.
-  if (penultimate.length == 1 && isHebrewNumeral(penultimate)) return false;
-  return isHebrewNumeral(last);
-}
+/// מספר יחיד אחרי שם הספר שזוהה; "א" נשאר פרק כי הבבלי מתחיל בדף ב.
+bool queryEndsWithBareNumber(
+  List<String> tokens, {
+  required int bookTokenCount,
+}) =>
+    bookTokenCount > 0 &&
+    tokens.length == bookTokenCount + 1 &&
+    tokens.last != 'א' &&
+    isHebrewNumeral(tokens.last);
 
 /// בציון גמרא ערך שמכיל "דף" קודם לשאינו מכיל (גמרא לפני משנה ב"שבת עא ב").
 bool findRefCitationMatch(bool isDafCitation, String reference) =>
@@ -104,11 +102,13 @@ typedef FindRefBookRank = ({int? foundationalTier, int eraOrder});
 
 /// הצורה של השאילתה שהדירוג צריך, מחושבת פעם אחת לכל שאילתה.
 class FindRefRankQuery {
-  FindRefRankQuery(this.tokens, {this.aliasFoundationalTiers = const {}})
-    : text = tokens.join(' '),
-      matchTokens = tokens.map(bookNameMatchToken).toList(growable: false),
-      isDafCitation = queryLooksDafCitation(tokens),
-      endsWithBareNumber = queryEndsWithBareNumber(tokens);
+  FindRefRankQuery(
+    this.tokens, {
+    this.aliasFoundationalTiers = const {},
+    this.preferBavli = false,
+  }) : text = tokens.join(' '),
+       matchTokens = tokens.map(bookNameMatchToken).toList(growable: false),
+       isDafCitation = queryLooksDafCitation(tokens);
 
   final List<String> tokens;
   final Set<int> aliasFoundationalTiers;
@@ -117,7 +117,7 @@ class FindRefRankQuery {
   /// [tokens] ב-[bookNameMatchToken], להשוואה מול כותרות.
   final List<String> matchTokens;
   final bool isDafCitation;
-  final bool endsWithBareNumber;
+  final bool preferBavli;
 
   bool get needsTokenWiseRanking => tokens.length >= 2;
 
@@ -283,7 +283,8 @@ int compareFindRefRelevance(
     if (aTier == null) return 1;
     if (bTier == null) return -1;
     // מספר בודד אחרי שם מסכת הוא לרוב דף, לכן בבלי (3) לפני משנה (2).
-    if (query.endsWithBareNumber && {aTier, bTier}.containsAll(const {2, 3})) {
+    if (query.preferBavli &&
+        ((aTier == 2 && bTier == 3) || (aTier == 3 && bTier == 2))) {
       return bTier.compareTo(aTier);
     }
     return aTier.compareTo(bTier);
