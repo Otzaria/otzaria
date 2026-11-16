@@ -51,6 +51,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
+import 'package:otzaria/tabs/view/recent_books_empty_state.dart';
 
 /// האם [pane] מציג WebView של תוסף: טאב תוסף או ספר בקורא של תוסף.
 @visibleForTesting
@@ -358,26 +359,8 @@ class _ReadingScreenState extends State<ReadingScreen>
           return ReaderSurfaceScope(
             child: Scaffold(
               body: !state.hasOpenTabs
-                  ? OtzariaEmptyState(
-                      icon: OtzariaIcons.otzaria_icon_2_page_24_regular,
-                      title: 'לא נבחרו ספרים',
-                      message: 'פתחו ספר מהספרייה או מהאיתור כדי להתחיל בקריאה',
-                      actions: [
-                        ActionButton.recommended(
-                          text: 'דפדף בספרייה',
-                          icon: FluentIcons.library_24_regular,
-                          onPressed: () {
-                            context.read<NavigationBloc>().add(
-                              const NavigateToScreen(Screen.library),
-                            );
-                          },
-                        ),
-                        ActionButton.neutral(
-                          text: 'איתור ספר',
-                          icon: FluentIcons.search_24_regular,
-                          onPressed: widget.onFindRefRequested,
-                        ),
-                      ],
+                  ? RecentBooksEmptyState(
+                      onFindRefRequested: widget.onFindRefRequested,
                     )
                   : KeyedSubtree(
                       key: TourTargetKeys.of(context).readingScreen,
