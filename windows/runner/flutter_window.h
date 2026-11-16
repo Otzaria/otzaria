@@ -75,6 +75,9 @@ class FlutterWindow : public Win32Window {
     bool report_hwnd = false;
   };
   std::queue<PendingSystemDrag> pending_system_drags_;
+  // ערוץ כפתור ההגדלה ו-Snap Layouts (otzaria/snap_layouts).
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
+      snap_layouts_channel_;
   // ערוץ לסגירת חלון ה-splash הנייטיב (otzaria/splash) — Dart קורא "close"
   // בעת חשיפת החלון הראשי.
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>

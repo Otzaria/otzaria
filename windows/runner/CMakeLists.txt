@@ -15,6 +15,7 @@ add_executable(${BINARY_NAME} WIN32
   "native_exception_log.cpp"
   "phantom_mouse_button_filter.cpp"
   "shift_key_normalizer.cpp"
+  "snap_layouts.cpp"
   "splash_window.cpp"
   "startup_watchdog.cpp"
   "utils.cpp"
@@ -76,7 +77,7 @@ target_link_libraries(${BINARY_NAME} PRIVATE "shell32.lib")
 target_link_libraries(${BINARY_NAME} PRIVATE "propsys.lib")
 # psapi — מפת המודולים של גלאי התקיעות (startup_watchdog.cpp).
 target_link_libraries(${BINARY_NAME} PRIVATE "psapi.lib")
-# comctl32 — SetWindowSubclass של phantom_mouse_button_filter.cpp ו-shift_key_normalizer.cpp.
+# comctl32 — SetWindowSubclass של phantom_mouse_button_filter.cpp, shift_key_normalizer.cpp ו-snap_layouts.cpp.
 target_link_libraries(${BINARY_NAME} PRIVATE "comctl32.lib")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 
