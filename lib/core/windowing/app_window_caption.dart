@@ -112,6 +112,7 @@ class _AppWindowCaptionState extends State<AppWindowCaption> {
   ) {
     final maximized = _isMaximized;
     return SnapLayoutsMaximizeButton(
+      maximized: maximized,
       window: switch (window) {
         WindowManagerAppWindowController() => 0,
         HostWindowAppWindowController() => window.nativeHandle,

@@ -7,6 +7,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:otzaria/core/windowing/app_virtual_window_frame.dart';
 
 /// מצב הכפתור כפי שהמערכת רואה אותו, כשהיא ולא Flutter מקבלת את העכבר.
 typedef SnapButtonBuilder =
@@ -18,12 +19,16 @@ class SnapLayoutsMaximizeButton extends StatefulWidget {
   const SnapLayoutsMaximizeButton({
     super.key,
     required this.window,
+    required this.maximized,
     required this.onPressed,
     required this.builder,
   });
 
   /// 0 לחלון הראשי, אחרת ה-HWND של חלון Dart; null מכבה (לא Windows).
   final int? window;
+
+  /// מצב ההגדלה שכבר נקרא בידי כפתורי הכותרת.
+  final bool maximized;
   final VoidCallback onPressed;
   final SnapButtonBuilder builder;
 
@@ -68,16 +73,27 @@ class _SnapLayoutsMaximizeButtonState extends State<SnapLayoutsMaximizeButton> {
     });
   }
 
-  /// המלבן בפיקסלים פיזיים של התצוגה, או null כשמשהו אחר מקבל חלק ממנו.
+  /// המלבן הנייטיבי בפיקסלים פיזיים, או null כשמשהו אחר מקבל חלק ממנו.
   Rect? _exposedRect() {
     final box = _probeKey.currentContext?.findRenderObject();
     if (box is! RenderBox || !box.attached || !box.hasSize) return null;
     final view = View.maybeOf(context);
     if (view == null) return null;
-    final rect = MatrixUtils.transformRect(
+    var rect = MatrixUtils.transformRect(
       box.getTransformTo(null),
       Offset.zero & box.size,
     );
+    // פס שינוי הגודל נשאר של Flutter; רק שאר הכפתור עובר ל-Windows.
+    if (!widget.maximized) {
+      rect = rect.intersect(
+        Rect.fromLTRB(
+          rect.left,
+          AppVirtualWindowFrame.edgeSize,
+          rect.right,
+          rect.bottom,
+        ),
+      );
+    }
     if (rect.isEmpty) return null;
     // פינות, אמצעי הצלעות והמרכז: כל מלבן גדול מהכפתור שחופף לו (תפריט,
     // דיאלוג) מכסה פינה אחת לפחות; המרכז לבדו מפספס תפריט שמכסה רק קצה.
@@ -90,7 +106,7 @@ class _SnapLayoutsMaximizeButtonState extends State<SnapLayoutsMaximizeButton> {
     final ratio = view.devicePixelRatio;
     return Rect.fromLTRB(
       (rect.left * ratio).roundToDouble(),
-      (rect.top * ratio).roundToDouble(),
+      (rect.top * ratio).ceilToDouble(),
       (rect.right * ratio).roundToDouble(),
       (rect.bottom * ratio).roundToDouble(),
     );

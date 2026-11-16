@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/snap_layouts.dart';
+import 'package:otzaria/core/windowing/app_virtual_window_frame.dart';
+import 'package:otzaria/core/windowing/app_window_controller.dart';
+import 'package:otzaria/core/windowing/app_window_scope.dart';
+import 'package:otzaria/core/windowing/window_manager_app_window_controller.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:otzaria/core/windowing/window_caption_hit_test.dart';
 
 void main() {
@@ -43,6 +48,7 @@ void main() {
 
   Widget app({
     int? window = 0,
+    bool maximized = true,
     VoidCallback? onPressed,
     void Function(bool hovered, bool pressed)? onBuild,
     Widget? overlay,
@@ -57,6 +63,7 @@ void main() {
           height: 32,
           child: SnapLayoutsMaximizeButton(
             window: window,
+            maximized: maximized,
             onPressed: onPressed ?? () {},
             builder: (context, hovered, pressed) {
               onBuild?.call(hovered, pressed);
@@ -71,6 +78,112 @@ void main() {
         ?overlay,
       ],
     ),
+  );
+
+  for (final secondary in [false, true]) {
+    for (final ratio in [1.0, 1.1, 1.5, 2.0]) {
+      testWidgets(
+        'restored ${secondary ? 'secondary' : 'main'} frame at $ratio preserves resize and Snap',
+        (tester) async {
+          tester.view.devicePixelRatio = ratio;
+          addTearDown(tester.view.resetDevicePixelRatio);
+          final window = _ResizeWindow();
+          addTearDown(window.changes.dispose);
+          Widget framed(Widget child) => secondary
+              ? AppWindowScope(
+                  controller: window,
+                  geometry: const WindowManagerAppWindowController(),
+                  child: AppVirtualWindowFrame(child: child),
+                )
+              : DragToResizeArea(
+                  enableResizeEdges: const [
+                    ResizeEdge.topLeft,
+                    ResizeEdge.top,
+                    ResizeEdge.topRight,
+                  ],
+                  child: child,
+                );
+          await tester.pumpWidget(
+            Directionality(
+              textDirection: TextDirection.rtl,
+              child: framed(app(window: secondary ? 77 : 0, maximized: false)),
+            ),
+          );
+          await tester.pump();
+          expect(sent, isNotEmpty);
+          expect(sent.last, {
+            'hwnd': secondary ? 77 : 0,
+            'left': (100 * ratio).round(),
+            'top': (AppVirtualWindowFrame.edgeSize * ratio).ceil(),
+            'right': (146 * ratio).round(),
+            'bottom': (32 * ratio).round(),
+          });
+
+          await tester.pumpWidget(
+            Directionality(
+              textDirection: TextDirection.rtl,
+              child: framed(
+                app(
+                  window: secondary ? 77 : 0,
+                  maximized: false,
+                  overlay: Positioned(
+                    left: 140,
+                    top: 9,
+                    width: 200,
+                    height: 200,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {},
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+          await tester.pump();
+          expect(sent.last['right'], 0);
+        },
+      );
+    }
+  }
+
+  testWidgets(
+    'maximizing restores the full region and restoring reserves resize',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final window = _ResizeWindow();
+      addTearDown(window.changes.dispose);
+      Future<void> show() async {
+        await tester.pumpWidget(
+          AppWindowScope(
+            controller: window,
+            geometry: const WindowManagerAppWindowController(),
+            child: Directionality(
+              textDirection: TextDirection.rtl,
+              child: AppVirtualWindowFrame(
+                child: app(maximized: window.maximized),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump();
+      }
+
+      await show();
+      expect(sent.last['top'], AppVirtualWindowFrame.edgeSize);
+      window.maximized = true;
+      window.changes.notifyListeners();
+      await show();
+      expect(sent.last['top'], 0);
+      expect(sent.last['right'], 146);
+      window.maximized = false;
+      window.changes.notifyListeners();
+      await show();
+      expect(sent.last['top'], AppVirtualWindowFrame.edgeSize);
+      expect(sent.last['right'], 146);
+    },
   );
 
   testWidgets('publishes the exposed button in physical pixels', (
@@ -151,6 +264,7 @@ void main() {
                   child: WindowCaptionRegion(
                     child: SnapLayoutsMaximizeButton(
                       window: 0,
+                      maximized: true,
                       onPressed: () {},
                       builder: (context, hovered, pressed) => GestureDetector(
                         behavior: HitTestBehavior.opaque,
@@ -246,4 +360,16 @@ void main() {
     await tester.pump();
     expect(sent, isEmpty);
   });
+}
+
+class _ResizeWindow extends Fake
+    implements AppWindowController, AppWindowResizing {
+  final changes = ChangeNotifier();
+  bool maximized = false;
+  @override
+  Listenable get stateChanges => changes;
+  @override
+  Future<bool> isMaximized() async => maximized;
+  @override
+  Future<bool> isFullScreen() async => false;
 }
