@@ -16,7 +16,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  gate:
+    uses: ./.github/workflows/ci_gate.yml
+    permissions:
+      contents: read
+      pull-requests: read
+
   tests:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -33,6 +41,8 @@ jobs:
       - run: python -m unittest discover -s tool/release -p test_audit_bundle_size.py -v
 
   release-fixtures:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:

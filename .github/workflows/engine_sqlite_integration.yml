@@ -34,9 +34,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  gate:
+    uses: ./.github/workflows/ci_gate.yml
+    permissions:
+      contents: read
+      pull-requests: read
+
   android:
     name: Engine SQLite (Android emulator)
-    if: github.event_name == 'pull_request' || inputs.android
+    if: needs.gate.outputs.run == 'true' && (github.event_name == 'pull_request' || inputs.android)
+    needs: gate
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:

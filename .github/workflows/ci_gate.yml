@@ -1,0 +1,42 @@
+name: CI gate
+
+# הבדיקות הכבדות רצות ב-PR רק כשיש עליו תווית run-ci. התווית נקראת מה-API ולא
+# מה-payload, כדי שהרצה חוזרת אחרי הוספתה (pr_labels.yml) תראה אותה.
+on:
+  workflow_call:
+    outputs:
+      run:
+        description: "'true' when the heavy jobs should run"
+        value: ${{ jobs.gate.outputs.run }}
+
+jobs:
+  gate:
+    name: run-ci label
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          ACTION: ${{ github.event.action }}
+          ATTEMPT: ${{ github.run_attempt }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+          SENDER: ${{ github.event.sender.login }}
+        run: |
+          decide() { echo "run=$1" >> "$GITHUB_OUTPUT"; echo "run=$1: $2"; exit 0; }
+          [ -n "$PR" ] || decide true "not a pull request"
+          labels=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq '.labels[].name')
+          grep -qx 'run-ci' <<< "$labels" || decide false "no run-ci label; add it to run the full CI"
+          # דחיפה בכוח מסירה את התווית (pr_labels.yml), אבל ייתכן שהשער קרא אותה לפני ההסרה.
+          # ריבייס של הבוט לפני מיזוג (automerge.yml) שומר עליה.
+          if [ "$ACTION" = synchronize ] && [ "$ATTEMPT" = 1 ] && [ "$SENDER" != 'otzaria-bot[bot]' ]; then
+            status=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$AFTER" --jq .status) || status=unavailable
+            [ "$status" = ahead ] || decide false "force push ($status); run-ci must be added again"
+          fi
+          decide true "run-ci label present"

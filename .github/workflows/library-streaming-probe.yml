@@ -31,8 +31,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  gate:
+    uses: ./.github/workflows/ci_gate.yml
+    permissions:
+      contents: read
+      pull-requests: read
+
   probe:
     name: Native streaming memory and cancellation (Linux)
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # Timing/RSS measurements are diagnostic and have no thresholds. Codec

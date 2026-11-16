@@ -1,0 +1,89 @@
+name: PR labels
+
+# pull_request_target רץ מקוד ענף הבסיס עם הרשאות כתיבה, ולכן אין כאן checkout של קוד ה-PR.
+on:
+  pull_request_target:
+    types: [labeled, synchronize]
+
+permissions: {}
+
+jobs:
+  # automerge מאשר קומיט מסוים: כל דחיפה מסירה אותו, ודחיפה בכוח מסירה גם את run-ci.
+  # הדחיפה של הבוט (ריבייס לפני מיזוג, automerge.yml) לא מסירה תוויות.
+  drop_on_push:
+    name: Drop labels on push
+    if: >-
+      github.event.action == 'synchronize' && github.event.sender.login != 'otzaria-bot[bot]' &&
+      (contains(github.event.pull_request.labels.*.name, 'automerge') ||
+       contains(github.event.pull_request.labels.*.name, 'run-ci'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          drop() {
+            jq -e --arg l "$1" 'index($l) != null' <<< "$LABELS" > /dev/null || return 0
+            echo "Removing $1"
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/issues/$PR/labels/$1" > /dev/null || echo "$1 already removed"
+          }
+          drop automerge
+          status=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$AFTER" --jq .status) || status=unavailable
+          if [ "$status" = ahead ]; then
+            echo "Regular push; run-ci stays."
+          else
+            echo "Force push ($status)."
+            drop run-ci
+          fi
+
+  rerun_on_label:
+    name: Rerun gated workflows
+    if: github.event.action == 'labeled' && github.event.label.name == 'run-ci'
+    runs-on: ubuntu-latest
+    steps:
+      # הרצה חוזרת בטוקן של הבוט: זו של GITHUB_TOKEN לא מפעילה workflow_run בסיומה (automerge).
+      - id: bot
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+      - env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          R=$GITHUB_REPOSITORY
+          # ה-workflows שאינם מאחורי השער כבר רצו (או רצים על אירוע התווית עצמו).
+          ungated='Lockfile Guard|Goldens Guard|UI Baseline Guard|CI Automation Tests'
+          runs=$(gh api --paginate "repos/$R/actions/runs?head_sha=$SHA&event=pull_request&per_page=100" \
+            --jq '.workflow_runs[] | [.workflow_id, .run_number, .id, .name] | @tsv' \
+            | sort -t$'\t' -k1,1n -k2,2nr | sort -s -t$'\t' -u -k1,1n)
+          [ -n "$runs" ] || { echo "No pull_request runs for $SHA"; exit 0; }
+          while IFS=$'\t' read -r _ _ id name; do
+            if grep -qxE "$ungated" <<< "$name"; then
+              echo "$name: not gated"
+              continue
+            fi
+            status=$(gh api "repos/$R/actions/runs/$id" --jq .status)
+            if [ "$status" != completed ]; then
+              echo "$name: run $id is $status; cancelling before rerun"
+              gh run cancel "$id" -R "$R" || true
+              for _ in $(seq 60); do
+                status=$(gh api "repos/$R/actions/runs/$id" --jq .status)
+                [ "$status" = completed ] && break
+                sleep 5
+              done
+            fi
+            if [ "$status" != completed ]; then
+              echo "::warning::$name: run $id is $status; not rerun"
+              continue
+            fi
+            echo "$name: rerunning run $id"
+            gh run rerun "$id" -R "$R" || echo "::warning::$name: rerun of $id failed"
+          done <<< "$runs"

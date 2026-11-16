@@ -12,7 +12,15 @@ permissions:
   contents: read
 
 jobs:
+  gate:
+    uses: ./.github/workflows/ci_gate.yml
+    permissions:
+      contents: read
+      pull-requests: read
+
   strip-contract:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     strategy:
       fail-fast: false
       matrix:

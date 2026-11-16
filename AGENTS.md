@@ -560,6 +560,14 @@ blocTest<SearchBloc, SearchState>(
 );
 ```
 
+## CI on Pull Requests
+
+A pull request runs only Analyze and the guards (Lockfile, Goldens, UI Baseline, CI Automation Tests) by default. Every other job, in Flutter Tests and in the path-filtered workflows, runs while the PR carries the `run-ci` label (a new PR workflow must call `ci_gate.yml` the same way); adding the label reruns the skipped workflows. A regular push keeps the label. A force push, including a rebase, removes it, so add it again afterwards.
+
+A failed run is retried once (except Analyze and the guards); a job that then passes is logged in the open `flaky-ci` issue, and a repeated failure moves the PR to draft. Flutter Tests also runs on every push to `dev`: a commit that fails twice there, after a green one, gets a revert PR from Otzaria Bot. A merge commit reverts its whole PR; a single-parent commit (including squash or rebase) reverts only that commit, never an inferred range based on the original PR's commit count.
+
+The `automerge` label (added by someone with write access) merges the PR with a merge commit as Otzaria Bot once every check passed, including `CI result`. Merges share one queue and require successful CI on the current `dev` SHA, including after a retry. Checks from different workflows remain distinct; only superseded runs of the same workflow and event are replaced. The bot first rebases a branch that is behind and waits for CI on the new head. Any push by a person removes `automerge`.
+
 ## Keeping a Branch Up to Date
 
 `dev` moves quickly; a branch that falls behind it conflicts or is tested against code that no longer exists.

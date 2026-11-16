@@ -30,10 +30,18 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
           sparse-checkout: .github/scripts
-      - name: Draft the PR and notify its author
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      - id: bot
+        uses: actions/create-github-app-token@v2
         with:
-          github-token: ${{ secrets.AUTO_DRAFT_PAT }}
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+      - name: Retry, or draft the PR and notify its author
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          BOT_TOKEN: ${{ steps.bot.outputs.token }}
+        with:
+          github-token: ${{ github.token }}
           script: |
             const autoDraft = require('./.github/scripts/auto-draft-failed-ci.cjs');
-            await autoDraft({ github, context, core });
+            const bot = getOctokit(process.env.BOT_TOKEN);
+            await autoDraft({ github, context, core, bot });

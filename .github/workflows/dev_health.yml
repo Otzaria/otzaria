@@ -1,0 +1,135 @@
+name: Dev health
+
+# כש-Flutter Tests נכשל על dev גם בהרצה החוזרת (ci_failure.yml), הבוט פותח PR שמחזיר
+# את הקומיט ששבר ומודיע ב-PR המקורי. רק במעבר מירוק לאדום, כדי שקומיטים שבאו אחריו
+# (ונכשלים בגללו) לא יפתחו PR נוסף. כל עוד dev אדום, automerge.yml לא ממזג.
+on:
+  workflow_run:
+    workflows: [Flutter Tests]
+    types: [completed]
+    branches: [dev]
+
+permissions: {}
+
+concurrency:
+  group: dev-health
+  cancel-in-progress: false
+
+jobs:
+  revert:
+    name: Revert the commit that broke dev
+    if: >-
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.run_attempt > 1
+    runs-on: ubuntu-latest
+    steps:
+      - id: token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+
+      - env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          BOT_SLUG: ${{ steps.token.outputs.app-slug }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          CREATED: ${{ github.event.workflow_run.created_at }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          set -euo pipefail
+          R=$GITHUB_REPOSITORY
+          short=${SHA:0:7}
+
+          # כשל ראשון מורץ שוב ב-ci_failure.yml; כאן מטפלים רק בכשל שחזר.
+          repeated=0
+          for a in $(seq 1 $((ATTEMPT - 1))); do
+            n=$(gh api --paginate "repos/$R/actions/runs/$RUN_ID/attempts/$a/jobs" \
+              --jq '.jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out") | .id' | wc -l)
+            [ "$n" -eq 0 ] || repeated=1
+          done
+          [ "$repeated" = 1 ] || { echo "No earlier failed attempt; not a repeated failure"; exit 0; }
+
+          # הריצה של הקומיט הקודם עשויה עדיין לרוץ (גם היא בהרצה חוזרת); מחכים לה.
+          q='[.workflow_runs[] | select(.created_at < $c)][0]
+             | if . == null then "none" elif .status == "completed" then .conclusion else "running" end'
+          for _ in $(seq 60); do
+            prev=$(gh api "repos/$R/actions/workflows/flutter_tests.yml/runs?branch=dev&event=push&per_page=20" \
+              | jq -r --arg c "$CREATED" "$q")
+            [ "$prev" = running ] || break
+            sleep 60
+          done
+          if [ "$prev" != success ]; then
+            echo "dev was not green before $short ($prev); not reverting a follow-up commit"
+            exit 0
+          fi
+          branch="revert/$short"
+          if gh api "repos/$R/branches/$branch" > /dev/null 2>&1; then
+            echo "$branch already exists"
+            exit 0
+          fi
+
+          commit=$(gh api "repos/$R/commits/$SHA")
+          parents=$(jq '.parents | length' <<< "$commit")
+          subject=$(jq -r '.commit.message | split("\n")[0]' <<< "$commit")
+          orig=$(gh api "repos/$R/commits/$SHA/pulls" --jq '.[0].number // empty')
+
+          bot_id=$(gh api "users/${BOT_SLUG}%5Bbot%5D" --jq .id)
+          dir="$RUNNER_TEMP/repo"
+          git clone -q --no-tags --filter=blob:none --branch dev "https://x-access-token:$GH_TOKEN@github.com/$R.git" "$dir"
+          cd "$dir"
+          git config user.name "${BOT_SLUG}[bot]"
+          git config user.email "${bot_id}+${BOT_SLUG}[bot]@users.noreply.github.com"
+          # הורה יחיד יכול להיות squash: מספר קומיטי ה-PR אינו טווח בטוח ב-dev.
+          target=("$SHA")
+          if [ "$parents" -ge 2 ]; then
+            target=(-m 1 "$SHA")
+          fi
+
+          body="$RUNNER_TEMP/body.md"
+          if ! git revert --no-edit "${target[@]}"; then
+            git revert --abort || true
+            {
+              echo '<div dir="rtl">'
+              echo
+              echo "### ❌ dev נשבר בקומיט \`$short\`"
+              echo
+              echo "הריצה [Flutter Tests]($RUN_URL) נכשלה גם בהרצה חוזרת. החזרה אוטומטית של הקומיט נכשלה בקונפליקט מול קומיטים מאוחרים יותר, ולכן צריך תיקון ידני."
+              echo
+              echo '</div>'
+            } > "$body"
+            gh issue create -R "$R" --title "dev נשבר בקומיט $short" --body-file "$body"
+            exit 0
+          fi
+          git push -q origin "HEAD:refs/heads/$branch"
+
+          {
+            echo '<div dir="rtl">'
+            echo
+            echo "### ↩️ החזרה של \`$short\`, ששבר את dev"
+            echo
+            echo "הריצה [Flutter Tests]($RUN_URL) על dev נכשלה בקומיט הזה גם בהרצה חוזרת, והריצה שלפניו עברה."
+            [ -z "$orig" ] || echo "הקומיט הגיע מ-#$orig."
+            echo
+            echo "אם ה-CI עובר כאן, מיזוג ה-PR הזה מחזיר את dev לירוק. אם הכשל נובע ממשהו אחר, סגרו אותו."
+            echo
+            echo '</div>'
+          } > "$body"
+          url=$(gh pr create -R "$R" --base dev --head "$branch" --title "Revert: $subject" \
+            --body-file "$body" --label run-ci)
+          echo "Opened $url"
+
+          if [ -n "$orig" ]; then
+            {
+              echo '<div dir="rtl">'
+              echo
+              echo "### ❌ dev נשבר אחרי המיזוג הזה"
+              echo
+              echo "הריצה [Flutter Tests]($RUN_URL) על dev נכשלה בקומיט \`$short\` גם בהרצה חוזרת. נפתח PR שמחזיר אותו: $url"
+              echo
+              echo '</div>'
+            } > "$body"
+            gh pr comment "$orig" -R "$R" --body-file "$body"
+          fi
