@@ -15,6 +15,7 @@ add_executable(${BINARY_NAME} WIN32
   "native_exception_log.cpp"
   "phantom_mouse_button_filter.cpp"
   "shift_key_normalizer.cpp"
+  "snap_layouts.cpp"
   "splash_window.cpp"
   "startup_watchdog.cpp"
   "utils.cpp"

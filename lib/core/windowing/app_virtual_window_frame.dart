@@ -1,7 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:otzaria/core/windowing/app_window_controller.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
-import 'package:window_manager/window_manager.dart' show ResizeEdge;
+import 'package:window_manager/window_manager.dart'
+    show DragToResizeArea, ResizeEdge;
 
 /// כמו `VirtualWindowFrame` של window_manager ב-Windows, לחלון של ה-
 /// [AppWindowScope]: הקצה העליון משנה גודל, ושאר הקצוות הם של המערכת.
@@ -11,7 +12,9 @@ class AppVirtualWindowFrame extends StatefulWidget {
   final Widget child;
 
   /// עובי פסי שינוי הגודל, כמו `DragToResizeArea`.
-  static const double edgeSize = 8;
+  static final double edgeSize = const DragToResizeArea(
+    child: SizedBox.shrink(),
+  ).resizeEdgeSize;
 
   @override
   State<AppVirtualWindowFrame> createState() => _AppVirtualWindowFrameState();
@@ -81,7 +84,7 @@ class _AppVirtualWindowFrameState extends State<AppVirtualWindowFrame> {
   @override
   Widget build(BuildContext context) {
     if (_window is! AppWindowResizing) return widget.child;
-    const size = AppVirtualWindowFrame.edgeSize;
+    final size = AppVirtualWindowFrame.edgeSize;
     // מבנה קבוע: הילד לא נבנה מחדש כשהחלון עובר ל-maximize וחזרה.
     return Stack(
       fit: StackFit.passthrough,

@@ -8,6 +8,7 @@ import 'package:otzaria/core/windowing/app_drag_to_move_area.dart';
 import 'package:otzaria/core/windowing/app_window_caption.dart';
 import 'package:otzaria/core/windowing/app_window_controller.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
+import 'package:otzaria/core/windowing/snap_layouts.dart';
 import 'package:otzaria/core/windowing/window_manager_app_window_controller.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -113,6 +114,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(WindowCaptionButton), findsNWidgets(2));
     expect(find.byTooltip('הגדל'), findsNothing);
+    expect(find.byType(SnapLayoutsMaximizeButton), findsNothing);
     await tester.tap(find.byTooltip('סגור'));
     expect(window.calls.where((c) => c != 'isMaximized'), ['close']);
   });
@@ -123,10 +125,26 @@ void main() {
     final window = await pump(tester, caption());
     await tester.pumpAndSettle();
     window.calls.clear();
+    expect(
+      tester
+          .widget<SnapLayoutsMaximizeButton>(
+            find.byType(SnapLayoutsMaximizeButton),
+          )
+          .maximized,
+      isFalse,
+    );
 
     window.maximized = true;
     window.changes.notifyListeners();
     await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<SnapLayoutsMaximizeButton>(
+            find.byType(SnapLayoutsMaximizeButton),
+          )
+          .maximized,
+      isTrue,
+    );
     await tester.tap(find.byType(WindowCaptionButton).at(1));
 
     expect(window.calls, ['isMaximized', 'unmaximize']);

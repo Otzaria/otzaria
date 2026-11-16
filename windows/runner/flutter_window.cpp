@@ -18,6 +18,7 @@
 #include "drag_preview_window.h"
 #include "phantom_mouse_button_filter.h"
 #include "shift_key_normalizer.h"
+#include "snap_layouts.h"
 #include "splash_window.h"
 #include "hang_monitor.h"
 #include "startup_watchdog.h"
@@ -468,6 +469,19 @@ HWND HwndArgument(const flutter::EncodableValue* arguments) {
   return reinterpret_cast<HWND>(static_cast<intptr_t>(hwnd));
 }
 
+// ארגומנט מספרי [name] של הערוץ; 0 כשחסר או אינו מספר.
+LONG LongArgument(const flutter::EncodableValue* arguments, const char* name) {
+  const auto* args = std::get_if<flutter::EncodableMap>(arguments);
+  if (!args) return 0;
+  const auto it = args->find(flutter::EncodableValue(name));
+  if (it == args->end()) return 0;
+  if (const auto* narrow = std::get_if<int>(&it->second)) return *narrow;
+  if (const auto* wide = std::get_if<int64_t>(&it->second)) {
+    return static_cast<LONG>(*wide);
+  }
+  return 0;
+}
+
 }  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project,
@@ -877,6 +891,58 @@ bool FlutterWindow::OnCreate() {
         result->Success(flutter::EncodableValue(true));
       });
 
+  // כפתור ההגדלה של כל חלון ותפריט Snap Layouts שמעליו (#4021).
+  snap_layouts_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), "otzaria/snap_layouts",
+          &flutter::StandardMethodCodec::GetInstance());
+  snap_layouts_channel_->SetMethodCallHandler(
+      [this](const flutter::MethodCall<flutter::EncodableValue>& call,
+             std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
+                 result) {
+        if (call.method_name() != "setMaximizeButton") {
+          result->NotImplemented();
+          return;
+        }
+        // `hwnd` 0 הוא החלון הזה; אחרת חלון Dart של ה-thread הזה.
+        const HWND dart_window = HwndArgument(call.arguments());
+        HWND root = GetHandle();
+        HWND view = flutter_controller_->view()->GetNativeWindow();
+        if (dart_window) {
+          const bool owned =
+              ::IsWindow(dart_window) && IsDartHostWindow(dart_window) &&
+              ::GetWindowThreadProcessId(dart_window, nullptr) ==
+                  ::GetCurrentThreadId();
+          root = owned ? dart_window : nullptr;
+          view = owned ? ::FindWindowExW(root, nullptr, L"FLUTTERVIEW",
+                                         nullptr)
+                       : nullptr;
+        }
+        const RECT rect = {LongArgument(call.arguments(), "left"),
+                           LongArgument(call.arguments(), "top"),
+                           LongArgument(call.arguments(), "right"),
+                           LongArgument(call.arguments(), "bottom")};
+        const int64_t key = reinterpret_cast<intptr_t>(dart_window);
+        // false רק כשאין Snap Layouts: כשל של חלון אחד לא מכבה את כולם.
+        snap_layouts::SetMaximizeButton(
+            root, view, key, rect, [this](const snap_layouts::ButtonEvent& e) {
+              if (!snap_layouts_channel_) return;
+              flutter::EncodableMap event;
+              event[flutter::EncodableValue("hwnd")] =
+                  flutter::EncodableValue(e.window);
+              event[flutter::EncodableValue("hovered")] =
+                  flutter::EncodableValue(e.hovered);
+              event[flutter::EncodableValue("pressed")] =
+                  flutter::EncodableValue(e.pressed);
+              event[flutter::EncodableValue("clicked")] =
+                  flutter::EncodableValue(e.clicked);
+              snap_layouts_channel_->InvokeMethod(
+                  "maximizeButton",
+                  std::make_unique<flutter::EncodableValue>(event));
+            });
+        result->Success(flutter::EncodableValue(snap_layouts::IsSupported()));
+      });
+
   // Channel for closing the native floating-icon splash window (created in
   // main.cpp before the engine started). Dart invokes "close" when it reveals
   // the main window, so the splash icon disappears exactly as the main window
@@ -970,6 +1036,7 @@ void FlutterWindow::OnDestroy() {
     }
   }
 
+  snap_layouts_channel_.reset();
   splash_channel_.reset();
   multiwindow_channel_.reset();
   process_control_channel_.reset();

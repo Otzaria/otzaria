@@ -5,7 +5,10 @@ import 'package:otzaria/core/windowing/app_drag_to_move_area.dart';
 import 'package:otzaria/core/windowing/app_window_controller.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
 import 'package:otzaria/core/windowing/caption_button_colors.dart';
+import 'package:otzaria/core/windowing/multiview/host_window_app_window_controller.dart';
+import 'package:otzaria/core/windowing/snap_layouts.dart';
 import 'package:otzaria/core/windowing/window_caption_hit_test.dart';
+import 'package:otzaria/core/windowing/window_manager_app_window_controller.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:window_manager/window_manager.dart' show WindowCaptionButton;
 
@@ -107,20 +110,30 @@ class _AppWindowCaptionState extends State<AppWindowCaption> {
     AppWindowController window,
     AppWindowCaptionTooltips tips,
   ) {
-    if (_isMaximized) {
-      return _tip(
-        tips.restore,
-        WindowCaptionButton.unmaximize(
-          brightness: widget.brightness,
-          onPressed: window.unmaximize,
-        ),
-      );
-    }
-    return _tip(
-      tips.maximize,
-      WindowCaptionButton.maximize(
-        brightness: widget.brightness,
-        onPressed: window.maximize,
+    final maximized = _isMaximized;
+    return SnapLayoutsMaximizeButton(
+      maximized: maximized,
+      window: switch (window) {
+        WindowManagerAppWindowController() => 0,
+        HostWindowAppWindowController() => window.nativeHandle,
+        _ => null,
+      },
+      onPressed: maximized ? window.unmaximize : window.maximize,
+      builder: (context, hovered, pressed) => _tip(
+        maximized ? tips.restore : tips.maximize,
+        maximized
+            ? WindowCaptionButton.unmaximize(
+                brightness: widget.brightness,
+                hovered: hovered,
+                pressed: pressed,
+                onPressed: window.unmaximize,
+              )
+            : WindowCaptionButton.maximize(
+                brightness: widget.brightness,
+                hovered: hovered,
+                pressed: pressed,
+                onPressed: window.maximize,
+              ),
       ),
     );
   }

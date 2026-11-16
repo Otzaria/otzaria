@@ -28,6 +28,9 @@ final class HostWindowAppWindowController
   final Future<void> Function() _onClose;
   final ViewWindowNative _native;
 
+  /// ה-HWND של החלון (או החלון המקביל בפלטפורמה); null אחרי ההריסה.
+  int? get nativeHandle => _handle.nativeHandle;
+
   double get _dpr {
     if (_native is CocoaViewWindowNative) return 1;
     final dpr = _handle.view.devicePixelRatio;
