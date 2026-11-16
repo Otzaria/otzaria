@@ -507,9 +507,7 @@ List<int> _searchPreparedEntries(
 }) {
   // מטמון לזוגות (מילת שאילתה, מילת טקסט) — מילים נפוצות ('מסכת', 'על')
   // חוזרות באלפי ספרים ומחושבות פעם אחת בלבד.
-  final pairMemo = {
-    for (final word in queryWords) word: <String, bool>{},
-  };
+  final pairMemo = {for (final word in queryWords) word: <String, bool>{}};
   bool wordMatchesEntry(String queryWord, Set<String> searchWords) {
     final memo = pairMemo[queryWord]!;
     for (final textWord in searchWords) {
@@ -581,7 +579,8 @@ List<int> _searchPreparedEntries(
               eraOrder: entry.eraOrder,
               source: entry.source,
               isExternalCatalog: entry.isExternalCatalog,
-              ratio: bookSearchRatio(normalizedQuery, entry.normalizedTitle),
+              normalizedQuery: normalizedQuery,
+              normalizedTitle: entry.normalizedTitle,
             ),
         ]..sort((a, b) {
           if (a.isExternalCatalog != b.isExternalCatalog) {
@@ -597,14 +596,10 @@ List<int> _searchPreparedEntries(
           return a.index.compareTo(b.index);
         });
 
-    return [
-      for (final entry in scored) entry.index,
-    ];
+    return [for (final entry in scored) entry.index];
   }
 
-  return [
-    for (final match in filtered) match.entry.index,
-  ];
+  return [for (final match in filtered) match.entry.index];
 }
 
 /// האם כל מילות השאילתה מופיעות כמילים שלמות בכותרת, לפי סדרן.
@@ -662,15 +657,18 @@ class _ScoredBookSearchEntry {
   final int eraOrder;
   final BookSource source;
   final bool isExternalCatalog;
-  final int ratio;
+  final String normalizedQuery;
+  final String normalizedTitle;
+  late final int ratio = bookSearchRatio(normalizedQuery, normalizedTitle);
 
-  const _ScoredBookSearchEntry({
+  _ScoredBookSearchEntry({
     required this.index,
     required this.tier,
     required this.eraOrder,
     required this.source,
     required this.isExternalCatalog,
-    required this.ratio,
+    required this.normalizedQuery,
+    required this.normalizedTitle,
   });
 }
 

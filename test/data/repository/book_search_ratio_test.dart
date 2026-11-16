@@ -1,5 +1,8 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/models/book_source.dart';
 
 /// ערכים שנלכדו מ-`ratio` של fuzzywuzzy 1.2.0, שהמיון השתמש בו קודם. שינוי
 /// בערך כאן משנה את סדר תוצאות החיפוש בספרייה.
@@ -86,6 +89,88 @@ void main() {
     ('רש', 'שער המלך על משנה תורה הלכות מעשר שני ונטע רבעי', 8),
     ('רש', 'רש משאנץ על משנה שביעית', 16),
   ];
+
+  test('sorted results match eager ratios across every ranking tier', () {
+    const query = 'הלכות שבת';
+    final cases =
+        <({String title, int tier, List<String> acronyms, String path})>[
+          (title: query, tier: 4, acronyms: [], path: ''),
+          (title: 'דיני הלכות שבת', tier: 3, acronyms: [], path: ''),
+          (
+            title: 'הלכות שבת כל הפרטים והמנהגים',
+            tier: 3,
+            acronyms: [],
+            path: '',
+          ),
+          (title: 'הלכות דיני שבת', tier: 2, acronyms: [], path: ''),
+          (title: 'הלכות מפורטות שבת', tier: 2, acronyms: [], path: ''),
+          (title: 'קיצור דינים', tier: 1, acronyms: [query], path: ''),
+          (title: 'הלכותי שבתון', tier: 0, acronyms: [], path: ''),
+          (title: 'הלכוד שבת', tier: -1, acronyms: [], path: ''),
+          (title: 'קיצור דינים', tier: -2, acronyms: [], path: query),
+        ];
+    final entries = <BookSearchEntry>[];
+    final tiers = <int, int>{};
+    for (final item in cases) {
+      for (final era in [0, 2, 5]) {
+        for (final source in [
+          BookSource.official,
+          BookSource.user,
+          BookSource.attached('test'),
+        ]) {
+          for (final external in [false, true]) {
+            for (var duplicate = 0; duplicate < 2; duplicate++) {
+              final index = entries.length;
+              tiers[index] = item.tier;
+              entries.add(
+                BookSearchEntry(
+                  index: index,
+                  title: item.title,
+                  author: '',
+                  topics: '',
+                  eraOrder: era,
+                  source: source,
+                  isExternalCatalog: external,
+                  acronyms: item.acronyms,
+                  categoryPath: item.path,
+                ),
+              );
+            }
+          }
+        }
+      }
+    }
+    final ratios = {
+      for (final entry in entries)
+        entry.index: bookSearchRatio(query, entry.title),
+    };
+    final expected = List<BookSearchEntry>.of(entries)
+      ..sort((a, b) {
+        if (a.isExternalCatalog != b.isExternalCatalog) {
+          return a.isExternalCatalog ? 1 : -1;
+        }
+        final tier = tiers[b.index]!.compareTo(tiers[a.index]!);
+        if (tier != 0) return tier;
+        final era = a.eraOrder.compareTo(b.eraOrder);
+        if (era != 0) return era;
+        final source = a.source.rank.compareTo(b.source.rank);
+        if (source != 0) return source;
+        final ratio = ratios[b.index]!.compareTo(ratios[a.index]!);
+        return ratio != 0 ? ratio : a.index.compareTo(b.index);
+      });
+    entries.shuffle(Random(19));
+
+    expect(
+      filterBookSearchEntries(
+        entries: entries,
+        queryWords: query.split(' '),
+        topics: [],
+        sortByRatio: true,
+        normalizedQuery: query,
+      ),
+      expected.map((entry) => entry.index).toList(),
+    );
+  });
 
   test('bookSearchRatio matches the captured fuzzywuzzy values', () {
     for (final (a, b, ratio) in expected) {
