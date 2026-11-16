@@ -188,6 +188,20 @@ void main() {
         expect(mark.hasMatch(part), isFalse);
       }
     });
+
+    test('בדיקת סימן צירוף רצה רק בחלונות הבחירה ולא בכל רווח', () {
+      final text = List.filled(60000, 'מילה\u05B0 \u05B1מילה').join(' ');
+      final spaces = ' '.allMatches(text).length;
+      debugMarkChecks = 0;
+      final split = splitLongLine(TextSpan(text: text))!;
+
+      expect(debugMarkChecks, lessThan(spaces ~/ 20));
+      final mark = RegExp(r'^\p{M}', unicode: true);
+      for (final start in split.starts.skip(1)) {
+        expect(mark.hasMatch(text.substring(start)), isFalse);
+        expect(text[start - 1], ' ');
+      }
+    });
   });
 
   test('שורה ארוכה מאוד היא בלוק גם במצב רציף', () {

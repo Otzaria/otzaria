@@ -157,8 +157,14 @@ List<int> _cutPositions(String text, List<TextSpan> leaves) {
 bool _opensDirectional(int c) =>
     (c >= 0x202A && c <= 0x202E && c != 0x202C) || (c >= 0x2066 && c <= 0x2068);
 
-bool _startsWithMark(String text, int at) =>
-    _mark.matchAsPrefix(text, at) != null;
+/// מונה קריאות ל-[_startsWithMark], לבדיקות בלבד.
+@visibleForTesting
+int debugMarkChecks = 0;
+
+bool _startsWithMark(String text, int at) {
+  debugMarkChecks++;
+  return _mark.matchAsPrefix(text, at) != null;
+}
 
 final RegExp _mark = RegExp(r'\p{M}', unicode: true);
 
