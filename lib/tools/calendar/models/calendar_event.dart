@@ -14,6 +14,26 @@ enum RecurrenceType {
   annualGregorian,
 }
 
+const _weekdayCodes = <String>['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
+
+/// Parses RFC 5545 BYDAY weekdays; null means absent or invalid.
+List<int>? parseCalendarWeekdays(String? value) {
+  if (value == null || value.isEmpty) return null;
+  final days = <int>[];
+  for (final code in value.toUpperCase().split(',')) {
+    final weekday = _weekdayCodes.indexOf(code) + 1;
+    if (weekday == 0 || days.contains(weekday)) return null;
+    days.add(weekday);
+  }
+  return days..sort();
+}
+
+/// Dart weekday numbers, Monday=1 … Sunday=7, as RFC 5545 BYDAY.
+String formatCalendarWeekdays(Iterable<int> days) {
+  final weekdays = days.toSet().toList()..sort();
+  return weekdays.map((day) => _weekdayCodes[day - 1]).join(',');
+}
+
 /// אורך המחזור המזערי בימים לכל סוג חזרה — טווח אירוע חוזר חייב להיות קצר ממנו.
 int minRecurrencePeriodDays(RecurrenceType type) {
   return switch (type) {
@@ -67,6 +87,8 @@ class CustomEvent extends Equatable {
   final int baseJewishMonth;
   final int baseJewishDay;
   final RecurrenceType recurrenceType;
+  /// Weekdays selected for weekly recurrence; null means the DTSTART weekday.
+  final List<int>? weeklyDays;
   final int? recurringYears; // כמה שנים האירוע יחזור
   final String? googleEventId;
   final TimeOfDay? eventTime; // שעת האירוע (אופציונלי)
@@ -169,11 +191,20 @@ class CustomEvent extends Equatable {
   DateTime nextOccurrenceFrom(DateTime from) {
     if (occursOn(from)) return _dateOnly(from);
     final base = _dateOnly(baseGregorianDate);
-    if (!recurring || from.isBefore(base)) return base;
+    if (!recurring) return base;
+    // Weekly BYDAY may omit DTSTART; start searching from the base in that case.
+    if (from.isBefore(base) &&
+        (recurrenceType != RecurrenceType.weekly ||
+            weeklyDays == null ||
+            weeklyDays!.isEmpty ||
+            weeklyDays!.contains(base.weekday))) {
+      return base;
+    }
+    final searchFrom = from.isBefore(base) ? base : from;
     // 120: גם ל' בחודש עברי חוזר בתוכם, ו-29 בפברואר בתוך 9 שנים.
     for (var i = 0; i < 120; i++) {
-      final day = occurrenceCandidate(from, i);
-      if (day == null || !day.isAfter(from) || !_isOccurrenceStart(day)) {
+      final day = occurrenceCandidate(searchFrom, i);
+      if (day == null || !day.isAfter(searchFrom) || !_isOccurrenceStart(day)) {
         continue;
       }
       // מופע שכבר אינו בתוקף (סוף חזרה, מספר שנים) — גם כל שאחריו.
@@ -185,7 +216,10 @@ class CustomEvent extends Equatable {
   bool _isOccurrenceStart(DateTime day) {
     switch (recurrenceType) {
       case RecurrenceType.weekly:
-        return day.weekday == baseGregorianDate.weekday;
+        final days = weeklyDays;
+        return days == null || days.isEmpty
+            ? day.weekday == baseGregorianDate.weekday
+            : days.contains(day.weekday);
       case RecurrenceType.monthlyGregorian:
         return day.day == baseGregorianDate.day;
       case RecurrenceType.annualGregorian:
@@ -227,6 +261,7 @@ class CustomEvent extends Equatable {
     required this.baseJewishMonth,
     required this.baseJewishDay,
     required this.recurrenceType,
+    this.weeklyDays,
     this.recurringYears,
     this.googleEventId,
     this.eventTime,
@@ -251,6 +286,7 @@ class CustomEvent extends Equatable {
     int? baseJewishMonth,
     int? baseJewishDay,
     RecurrenceType? recurrenceType,
+    ValueGetter<List<int>?>? weeklyDays,
     ValueGetter<int?>? recurringYears,
     String? googleEventId,
     ValueGetter<TimeOfDay?>? eventTime,
@@ -275,6 +311,7 @@ class CustomEvent extends Equatable {
       baseJewishMonth: baseJewishMonth ?? this.baseJewishMonth,
       baseJewishDay: baseJewishDay ?? this.baseJewishDay,
       recurrenceType: recurrenceType ?? this.recurrenceType,
+      weeklyDays: weeklyDays != null ? weeklyDays() : this.weeklyDays,
       recurringYears: recurringYears != null
           ? recurringYears()
           : this.recurringYears,
@@ -311,6 +348,7 @@ class CustomEvent extends Equatable {
       'baseJewishMonth': baseJewishMonth,
       'baseJewishDay': baseJewishDay,
       'recurrenceType': recurrenceType.index,
+      if (weeklyDays != null) 'weeklyDays': weeklyDays,
       'recurringYears': recurringYears,
       'googleEventId': googleEventId,
       'eventTime': eventTime != null
@@ -386,6 +424,17 @@ class CustomEvent extends Equatable {
       );
     }
 
+    final rawDays = json['weeklyDays'];
+    final List<int>? weeklyDays =
+        rawDays is List &&
+                rawDays.isNotEmpty &&
+                rawDays.every(
+                  (day) =>
+                      day is int && day >= DateTime.monday && day <= DateTime.sunday,
+                )
+            ? (rawDays.cast<int>().toSet().toList()..sort())
+            : null;
+
     return CustomEvent(
       id: json['id'] as String,
       title: json['title'] as String,
@@ -398,6 +447,7 @@ class CustomEvent extends Equatable {
       baseJewishMonth: json['baseJewishMonth'] as int,
       baseJewishDay: json['baseJewishDay'] as int,
       recurrenceType: type,
+      weeklyDays: type == RecurrenceType.weekly ? weeklyDays : null,
       recurringYears: json['recurringYears'] as int?,
       googleEventId: json['googleEventId'] as String?,
       eventTime: eventTime,
@@ -423,6 +473,7 @@ class CustomEvent extends Equatable {
     baseJewishMonth,
     baseJewishDay,
     recurrenceType,
+    weeklyDays,
     recurringYears,
     googleEventId,
     eventTime,
