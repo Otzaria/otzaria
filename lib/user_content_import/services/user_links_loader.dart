@@ -100,11 +100,7 @@ Future<List<Link>> loadUserLinksForBook({
             : r.targetLineIndexEnd! + 1,
         path2: r.sourceTitle,
         index2: r.sourceLineIndex + 1,
-        // כמו ה-inverse של seforim.db: מפרש שקורא את בסיסו רואה אותו כ'מקור'
-        // וירטואלי בפאנל הקישורים, לא כמפרש.
-        connectionType: LinkTypes.isDependentTextLink(r.connectionType)
-            ? LinkTypes.source
-            : r.connectionType,
+        connectionType: LinkTypes.inverse(r.connectionType),
         targetSource: r.sourceOrigin,
         targetCategoryId: r.sourceCategoryId,
       ),

@@ -270,6 +270,13 @@ void main() {
     });
   });
 
+  test('LinkTypes.inverse: מפרש↔מקור, ושאר הסוגים כמות שהם', () {
+    expect(LinkTypes.inverse(LinkTypes.commentary), LinkTypes.source);
+    expect(LinkTypes.inverse(LinkTypes.targum), LinkTypes.source);
+    expect(LinkTypes.inverse(LinkTypes.source), LinkTypes.commentary);
+    expect(LinkTypes.inverse(LinkTypes.reference), LinkTypes.reference);
+  });
+
   group('LinkTypes.inverseQueryTypes', () {
     test('בלי תמיכת דיכוי — בדיוק ההתנהגות הקודמת', () {
       final types = LinkTypes.inverseQueryTypes(bidirectional: false);

@@ -118,6 +118,14 @@ class LinkTypes {
     return dependentTextTypes.contains(normalize(connectionType));
   }
 
+  /// סוג החיבור כפי שהוא נראה מצד היעד — אותו כלל של הקישור ההפוך ב-seforim.db:
+  /// מפרש מוצג בבסיסו כ'מקור', ו'מקור' מוצג בבסיס כמפרש.
+  static String inverse(String connectionType) {
+    if (isDependentTextLink(connectionType)) return source;
+    if (normalize(connectionType) == source) return commentary;
+    return connectionType;
+  }
+
   /// סוגי המפרשים שמקבלים צ׳יפ סינון בפאנל המפרשים, בסדר התצוגה. הערכים
   /// קנוניים, ולכן [explication] מיוצג כאן ע"י [elucidation].
   ///

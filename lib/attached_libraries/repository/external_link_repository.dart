@@ -204,7 +204,7 @@ class ExternalLinkRepository {
     index1: row.targetLineIndex + 1,
     path2: row.sourceTitle,
     index2: row.sourceLineIndex + 1,
-    connectionType: inverseExternalConnectionType(row.connectionType),
+    connectionType: LinkTypes.inverse(row.connectionType),
     targetCategoryId: row.sourceCategoryId,
     targetBookId: row.sourceBookId,
     targetSource: BookSource.attached(row.sourceSlug),
@@ -241,7 +241,7 @@ class ExternalLinkRepository {
       for (final row in await _reverseRows(title, categoryId, source)) {
         add(
           row.sourceTitle,
-          inverseExternalConnectionType(row.connectionType),
+          LinkTypes.inverse(row.connectionType),
           BookSource.attached(row.sourceSlug),
           row.targetLineIndex,
         );
