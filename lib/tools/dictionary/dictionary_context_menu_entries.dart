@@ -61,16 +61,27 @@ List<AppContextMenuEntry> buildDictionaryContextMenuEntries({
   }
 
   if (repository.areAramaicLoaded) {
+    final dictionaries = {...repository.aramaicDictionaryNames};
     final groups = repository.findAramaicMatchGroups(
       trimmed,
       maxContainingMatches: _maxContainingAramaicMatches,
-      dictionaries: {...repository.aramaicDictionaryNames},
+      dictionaries: dictionaries,
     );
     final exact = DictionaryLookupRepository.mergeAramaicMatches(groups.exact);
     final containing = DictionaryLookupRepository.mergeAramaicMatches(
       groups.containing,
     );
-    if (exact.isNotEmpty || containing.isNotEmpty) {
+    // טקסט מסומן שהוא עצמו אינו מפתח (שלוש מילים ומעלה): צירופים שלמים שנמצאים
+    // בתוכו. כשיש התאמה לטקסט כולו מעדיפים אותה, ואין ניחוש צורות.
+    final phrases = exact.isEmpty && containing.isEmpty
+        ? DictionaryLookupRepository.mergeAramaicMatches(
+            repository.findAramaicPhrasesWithin(
+              trimmed,
+              dictionaries: dictionaries,
+            ),
+          )
+        : const <AramaicDictionaryEntry>[];
+    if (exact.isNotEmpty || containing.isNotEmpty || phrases.isNotEmpty) {
       AppContextMenuEntry itemOf(
         AramaicDictionaryEntry entry,
       ) => AppContextMenuEntry(
@@ -94,6 +105,7 @@ List<AppContextMenuEntry> buildDictionaryContextMenuEntries({
             if (exact.isNotEmpty && containing.isNotEmpty)
               const AppContextMenuEntry.divider(),
             ...containing.map(itemOf),
+            ...phrases.map(itemOf),
             const AppContextMenuEntry.divider(),
             AppContextMenuEntry(
               label: hidden > 0
@@ -102,7 +114,8 @@ List<AppContextMenuEntry> buildDictionaryContextMenuEntries({
               icon: FluentIcons.open_24_regular,
               onTap: () => (openInDictionaryTool ?? _openInAramaicTool)(
                 context,
-                trimmed,
+                // לטקסט שאינו מפתח פותחים את הצירוף הארוך ביותר שנמצא בו.
+                phrases.isEmpty ? trimmed : phrases.first.aramaic,
               ),
             ),
           ],
