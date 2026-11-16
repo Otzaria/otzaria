@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:otzaria/pdf_book/utils/proximity_highlight_pattern.dart';
 import 'package:otzaria/search/utils/user_regex_query.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
@@ -80,32 +81,38 @@ class PdfUserRegexPattern implements RegExp {
       throw RangeError.range(start, 0, input.length);
     }
     if (!_lineAnchored) return _matchesIn(input, start, input.length);
-    final matches = <RegExpMatch>[];
+    return _lineMatches(input, start);
+  }
+
+  Iterable<RegExpMatch> _lineMatches(String input, int start) sync* {
     var lineStart = start == 0 ? 0 : input.lastIndexOf('\n', start - 1) + 1;
     while (lineStart <= input.length) {
       final newline = input.indexOf('\n', lineStart);
       final lineEnd = newline < 0 ? input.length : newline;
-      matches.addAll(
-        _matchesIn(input, lineStart, lineEnd).where((m) => m.start >= start),
-      );
+      for (final match in _matchesIn(input, lineStart, lineEnd)) {
+        if (match.start >= start) yield match;
+      }
       lineStart = lineEnd + 1;
     }
-    return matches;
   }
 
-  List<RegExpMatch> _matchesIn(String input, int start, int end) {
+  Iterable<RegExpMatch> _matchesIn(String input, int start, int end) sync* {
+    assert(() {
+      debugPdfRegexScanCount++;
+      return true;
+    }());
     final text = _asPlainText(input.substring(start, end));
-    return [
-      for (final match in _matcher.findMatches(data: text))
-        if (match.end > match.start)
-          _Match(this, input, start + match.start, start + match.end),
-    ];
+    for (final match in _matcher.findMatches(data: text)) {
+      if (match.end > match.start) {
+        yield _Match(this, input, start + match.start, start + match.end);
+      }
+    }
   }
 
   @override
   RegExpMatch? firstMatch(String input) {
-    final matches = allMatches(input);
-    return matches.isEmpty ? null : matches.first;
+    final matches = allMatches(input).iterator;
+    return matches.moveNext() ? matches.current : null;
   }
 
   @override
@@ -123,6 +130,9 @@ class PdfUserRegexPattern implements RegExp {
     return null;
   }
 }
+
+@visibleForTesting
+int debugPdfRegexScanCount = 0;
 
 // ignore: deprecated_implement
 class _Match extends PdfSpanMatch<PdfUserRegexPattern> implements RegExpMatch {
