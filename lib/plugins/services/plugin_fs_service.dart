@@ -133,7 +133,13 @@ class PluginFsService {
       final archive = ZipDecoder().decodeStream(input);
       // נבדק לפני כל כתיבה, כדי שארכיון אסור לא ישאיר חילוץ חלקי.
       for (final file in archive) {
-        p.split(p.normalize(file.name)).forEach(rejectPluginExecutable);
+        final parts = p.split(p.normalize(file.name));
+        for (var i = 0; i < parts.length; i++) {
+          rejectPluginExecutable(
+            parts[i],
+            isDirectory: i < parts.length - 1 || file.isDirectory,
+          );
+        }
       }
       var entryCount = 0;
       var totalBytes = 0;
@@ -225,10 +231,10 @@ class PluginFsService {
   /// `File.rename`/`Directory.rename` יכולים להיכשל בין כרכי דיסק שונים
   /// (למשל תיקייה שנבחרה בדיסק אחר) — נופלת אז להעתקה+מחיקה.
   Future<void> moveEntry(String from, String to) async {
-    rejectPluginExecutable(to);
     final sourcePath = p.normalize(p.absolute(from));
     final destinationPath = p.normalize(p.absolute(to));
     final sourceIsDir = await Directory(sourcePath).exists();
+    rejectPluginExecutable(to, isDirectory: sourceIsDir);
     final sourceIsFile = !sourceIsDir && await File(sourcePath).exists();
     if (!sourceIsDir && !sourceIsFile) {
       throw Exception('error.not_found: source does not exist');

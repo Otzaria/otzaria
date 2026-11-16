@@ -21,6 +21,18 @@ void main() {
     expect(isPluginBlockedExecutable('proxy.exe . '), isTrue);
   });
 
+  test('תיקיות רגילות מותרות וחבילות app/pkg נשארות חסומות', () {
+    for (final extension in pluginBlockedExecutableExtensions) {
+      expect(
+        isPluginBlockedExecutable('documents.$extension', isDirectory: true),
+        extension == 'app' || extension == 'pkg',
+        reason: extension,
+      );
+    }
+    expect(isPluginBlockedExecutable('Tool.APP . ', isDirectory: true), isTrue);
+    expect(isPluginBlockedExecutable('notes.txt', isDirectory: true), isFalse);
+  });
+
   test('נתיב מלא נבדק לפי שם הקובץ', () {
     expect(isPluginBlockedExecutable(r'C:\Users\a\Downloads\x.exe'), isTrue);
     expect(isPluginBlockedExecutable('/home/a/x.sh'), isTrue);

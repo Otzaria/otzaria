@@ -19,20 +19,21 @@ const Set<String> pluginBlockedExecutableExtensions = {
   'apk', 'xapk', 'apks',
 };
 
-/// האם [fileName] (שם בלבד או נתיב) הוא קובץ הרצה או התקנה.
-bool isPluginBlockedExecutable(String fileName) {
+/// האם [fileName] הוא קובץ הרצה, או חבילת יישום אם [isDirectory] מסומן.
+bool isPluginBlockedExecutable(String fileName, {bool isDirectory = false}) {
   // Windows משמיט נקודות ורווחים בסוף השם: "a.exe." נשמר כ-a.exe.
   final name = p
       .basename(fileName.replaceAll('\\', '/'))
       .replaceAll(RegExp(r'[. ]+$'), '');
   final extension = p.extension(name).toLowerCase();
   return extension.length > 1 &&
+      (!isDirectory || extension == '.app' || extension == '.pkg') &&
       pluginBlockedExecutableExtensions.contains(extension.substring(1));
 }
 
 /// זורקת `error.forbidden` כשתוסף מנסה לכתוב קובץ הרצה מחוץ לארגז החול שלו.
-void rejectPluginExecutable(String fileName) {
-  if (isPluginBlockedExecutable(fileName)) {
+void rejectPluginExecutable(String fileName, {bool isDirectory = false}) {
+  if (isPluginBlockedExecutable(fileName, isDirectory: isDirectory)) {
     throw Exception(
       'error.forbidden: תוספים אינם רשאים לשמור קבצי הרצה או התקנה '
       '(${p.basename(fileName.replaceAll('\\', '/'))})',
