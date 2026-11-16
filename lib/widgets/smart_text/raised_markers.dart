@@ -1,24 +1,5 @@
-/// הצגה מורמת של סימוני-עילית במסך עיון — "אות גבוהה".
-///
-/// הרקע: fwfh מממש `<sup>` ב-WidgetSpan, ומנוע Flutter משבץ placeholders
-/// בפסקת RTL בסדר ויזואלי במקום לוגי — שני סימונים באותה פסקה מוצגים הפוך
-/// (ראו `_fixFootnoteMarkers` ב-text_renderer_service.dart). לכן sup פשוט
-/// לא-מספרי מומר שם ל-span טקסט טהור, שסדרו מובטח.
-///
-/// אבל ל-fwfh אין תמיכה ב-`position`/`top` — הן היו no-op גם קודם, ולכן
-/// מרקרי הערות הוצגו מוקטנים ונטויים אך יושבים על קו הבסיס, בלי הרמה. וטקסט
-/// טהור אינו ניתן להרמה בפריסה בכלל.
-///
-/// הפתרון כאן משלים את התמונה: הגליפים בשורה נצבעים שקוף (תופסים את המקום
-/// הנכון בסדר הנכון, וזמינים לבחירה ולהעתקה), ו-[RaisedMarkerOverlay] מאתר
-/// את המלבן האמיתי של כל סימון דרך [RenderParagraph.getBoxesForSelection]
-/// ומצייר את אותו טקסט מורם מעליו — אותה תבנית כמו
-/// PluginHighlightFrameOverlay.
-///
-/// גם הסימונים ה*לחיצים* עוברים כאן — סימון הערה מוטמעת (`book-note-marker`)
-/// ואות מפרש (`link-anchor`): הספאן בשורה שומר את ה-recognizer ואת אירועי
-/// הריחוף שלו, והשכבה מפנה hit-test שנוחת על הציור המורם אל העוגן שבשורה,
-/// כך שלחיצה וריחוף עובדים על מה שהעין רואה.
+/// הגליפים השקופים בשורה שומרים סדר RTL ובחירה; השכבה מציירת אותם מורמים.
+/// סימונים לחיצים מפנים hit-test מהציור אל העוגן המקורי בשורה.
 library;
 
 import 'dart:collection';
@@ -40,6 +21,8 @@ const String kFootnoteMarkerClass = 'footnote-marker-number';
 /// sup חשוף — אות הפניה מקובץ משתמש או superscript תוכני. מוקטן בלי נטייה,
 /// באותו יחס שבו `<sup>` הוצג קודם בשלושת מסלולי הרינדור.
 const String kRaisedSupClass = 'raised-sup';
+
+final RegExp _leadingVisibleChar = RegExp('[^\u2066-\u2069]');
 
 /// style פשוט של sup (צבע/משקל/נטייה) שעוטף את הסימון, והציור המורם נושא אותו.
 const String kRaisedSupStylePattern =
@@ -445,10 +428,14 @@ class RaisedMarkerPlacement {
 
   final RaisedMarker marker;
 
+  /// סגנון הגליף השקוף שבשורה, עם מה שירש מאבות ה-HTML.
+  final TextStyle? glyphStyle;
+
   const RaisedMarkerPlacement({
     required this.anchorRect,
     required this.paintRect,
     required this.marker,
+    this.glyphStyle,
   });
 
   String get text => marker.text;
@@ -473,12 +460,10 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
   bool _hasClickableMarkers;
 
   // TextPainter לכל (טקסט, מטריקות), ממוזג בין פריימים; מתאפס עם שינוי סגנון.
-  final Map<String, TextPainter> _painters = <String, TextPainter>{};
+  final Map<(String, TextStyle?), TextPainter> _painters = {};
 
-  // המיקומים המחושבים, ממוזגים בין פריימים. האיתור עצמו יקר (toPlainText לכל
-  // פסקה + חיפוש לכל סימון), והוא תלוי אך ורק בפריסה — לכן הוא לא רץ שוב בכל
-  // פריים ציור. גלילה מזיזה את ה-RenderObject בלי פריסה מחדש, ומיקומי הסימונים
-  // מוחזקים ביחס לשכבה עצמה, ולכן הם נשארים תקפים.
+  // איתור הסימונים תלוי רק בפריסה; המטמון חוסך סריקת טקסט חוזרת בזמן גלילה.
+  // המיקומים יחסיים לשכבה, ולכן תזוזתה בלי פריסה אינה מבטלת אותם.
   List<RaisedMarkerPlacement>? _placements;
   List<Object?>? _placementsSignature;
 
@@ -547,14 +532,33 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
   double _fontSizeOf(RaisedMarker marker) =>
       (_baseStyle.fontSize ?? 18.0) * marker.scale;
 
-  TextPainter _painterFor(RaisedMarker marker) {
-    final key =
-        '${marker.scale}|${marker.italic}|${marker.useLinkColor}'
-        '|${marker.variantIndex}|${marker.active}|${marker.text}|${marker.inlineHtml}';
+  TextPainter _painterFor(RaisedMarker marker, TextStyle? glyph) {
+    final key = (
+      '${marker.scale}|${marker.italic}|${marker.useLinkColor}'
+          '|${marker.variantIndex}|${marker.active}|${marker.text}|${marker.inlineHtml}',
+      glyph,
+    );
     return _painters.putIfAbsent(key, () {
       var style = _baseStyle.copyWith(
-        fontSize: _fontSizeOf(marker),
-        fontStyle: marker.italic ? FontStyle.italic : FontStyle.normal,
+        fontSize: glyph?.fontSize ?? _fontSizeOf(marker),
+        fontWeight: glyph?.fontWeight,
+        fontVariations: glyph?.fontVariations,
+        fontFamily: glyph?.fontFamily,
+        fontFamilyFallback: glyph?.fontFamilyFallback,
+        fontFeatures: glyph?.fontFeatures,
+        letterSpacing: glyph?.letterSpacing,
+        wordSpacing: glyph?.wordSpacing,
+        locale: glyph?.locale,
+        // עוגני קישור מסתירים גם את הקו בגליף; הווריאנט משחזר אותו בהמשך.
+        decoration: marker.useLinkColor ? null : glyph?.decoration,
+        decorationColor: marker.useLinkColor ? null : glyph?.decorationColor,
+        decorationStyle: marker.useLinkColor ? null : glyph?.decorationStyle,
+        decorationThickness: marker.useLinkColor
+            ? null
+            : glyph?.decorationThickness,
+        fontStyle: marker.italic
+            ? FontStyle.italic
+            : glyph?.fontStyle ?? FontStyle.normal,
         height: 1.0,
       );
       // אות מפרש: הווריאנט הטיפוגרפי של המפרש, צבע הקישור, והדגשה עם רקע
@@ -620,6 +624,7 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
     for (final placement in _resolvePlacements()) {
       _painterFor(
         placement.marker,
+        placement.glyphStyle,
       ).paint(context.canvas, offset + placement.paintRect.topLeft);
     }
   }
@@ -724,8 +729,14 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
 
       final anchorRect = sameLineAnchorRect(boxes)!.shift(info.offset);
 
-      final painter = _painterFor(marker);
-      final raise = _fontSizeOf(marker) * kRaisedMarkerRaiseFactor;
+      // תו הבידוד שבראש הסימון נמצא מחוץ ל-small של הסוגריים; דוגמים תו גלוי.
+      final visible = marker.text.indexOf(_leadingVisibleChar);
+      final glyphStyle = _styleAt(
+        info.paragraph.text,
+        localStart + math.max(visible, 0),
+      );
+      final painter = _painterFor(marker, glyphStyle);
+      final raise = painter.text!.style!.fontSize! * kRaisedMarkerRaiseFactor;
       // אותו גופן ואותו גודל: תחתית התיבה ההדוקה מגדירה את קו הבסיס בשניהם, בלי
       // תלות במטריקות ה-ascent של הגופן. הצמדה לראש השכבה מונעת חיתוך.
       final dx = anchorRect.center.dx - painter.width / 2;
@@ -739,10 +750,29 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
           anchorRect: anchorRect,
           paintRect: Rect.fromLTWH(dx, dy, painter.width, painter.height),
           marker: marker,
+          glyphStyle: glyphStyle,
         ),
       );
     }
     return placements;
+  }
+
+  /// הסגנון הממוזג של התו ב-[offset] (יחידות toPlainText; placeholder = תו אחד).
+  static TextStyle? _styleAt(InlineSpan root, int offset) {
+    var position = 0;
+    TextStyle? visit(InlineSpan span, TextStyle inherited) {
+      final style = inherited.merge(span.style);
+      if (span is! TextSpan) return ++position > offset ? style : null;
+      position += span.text?.length ?? 0;
+      if (position > offset) return style;
+      for (final child in span.children ?? const <InlineSpan>[]) {
+        final found = visit(child, style);
+        if (found != null) return found;
+      }
+      return null;
+    }
+
+    return visit(root, const TextStyle());
   }
 
   double _glyphBottomOf(TextPainter painter, RaisedMarker marker) {
@@ -766,6 +796,10 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
 
   @visibleForTesting
   List<RaisedMarkerPlacement> debugPlacements() => _resolvePlacements();
+
+  @visibleForTesting
+  InlineSpan debugPaintedSpan(RaisedMarkerPlacement placement) =>
+      _painterFor(placement.marker, placement.glyphStyle).text!;
 }
 
 /// מאחד את תיבות הבחירה של סימון אחד למלבן עוגן אחד — רק אלו שבשורה
