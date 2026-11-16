@@ -181,4 +181,57 @@ void main() {
     expect(selectable.anchorRect, plain.anchorRect);
     expect(selectable.paintRect, plain.paintRect);
   });
+
+  // issue #4606: "תורה תמימה" — שורה שנגמרת בסימון, נקודה ו-<br>. Skia מזיז
+  // ימינה את תיבות השורה שלפני השבירה, והסימון צויר על האות שלפניו.
+  testWidgets('סימון לפני נקודה ו-<br> מצויר במקומו כמו בלי ה-<br>', (
+    tester,
+  ) async {
+    await _loadReadingFont();
+    const line =
+        '<b>בראשית.</b> תניא, למה נברא העולם בבי"ת ולא באל"ף, מפני שהבי"ת '
+        'לשון ברכה והאל"ף לשון ארירה, אמר הקב"ה, אינני בורא אותו באל"ף '
+        'שלא יאמרו איך יעמוד העולם שנברא בלשון ארירה, אלא הרי אני בורא '
+        'אותו בבי"ת בלשון ברכה ולואי יעמוד <sup class="footnote-marker">ד</sup>.';
+
+    Future<Rect> anchorOf(String text) async {
+      RaisedMarkers.clearCacheForTesting();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(
+              body: Align(
+                alignment: Alignment.topRight,
+                child: SizedBox(
+                  width: 700,
+                  child: SmartTextWidget(
+                    text: text,
+                    settings: const RenderSettings(
+                      fontFamily: 'FrankRuhlCLM',
+                      fontSize: 25,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return tester
+          .renderObject<RenderRaisedMarkerOverlay>(
+            find.byType(RaisedMarkerOverlay),
+          )
+          .debugPlacements()
+          .single
+          .anchorRect;
+    }
+
+    final reference = await anchorOf(line);
+    final withBreak = await anchorOf('$line<br>(ירושלמי חגיגה פ"ב ה"א)');
+
+    expect(withBreak.left, closeTo(reference.left, 0.5));
+    expect(withBreak.right, closeTo(reference.right, 0.5));
+  });
 }
