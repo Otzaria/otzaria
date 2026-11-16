@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -181,4 +182,182 @@ void main() {
     expect(selectable.anchorRect, plain.anchorRect);
     expect(selectable.paintRect, plain.paintRect);
   });
+
+  // issue #4606: "תורה תמימה" — שורה שנגמרת בסימון, נקודה ו-<br>. Skia מזיז
+  // ימינה את תיבות השורה שלפני השבירה, והסימון צויר על האות שלפניו.
+  testWidgets('סימון לפני נקודה ו-<br> מצויר במקומו כמו בלי ה-<br>', (
+    tester,
+  ) async {
+    await _loadReadingFont();
+    const line =
+        '<b>בראשית.</b> תניא, למה נברא העולם בבי"ת ולא באל"ף, מפני שהבי"ת '
+        'לשון ברכה והאל"ף לשון ארירה, אמר הקב"ה, אינני בורא אותו באל"ף '
+        'שלא יאמרו איך יעמוד העולם שנברא בלשון ארירה, אלא הרי אני בורא '
+        'אותו בבי"ת בלשון ברכה ולואי יעמוד <sup class="footnote-marker">ד</sup>.';
+
+    Future<Rect> anchorOf(String text) async {
+      RaisedMarkers.clearCacheForTesting();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(
+              body: Align(
+                alignment: Alignment.topRight,
+                child: SizedBox(
+                  width: 700,
+                  child: SmartTextWidget(
+                    text: text,
+                    settings: const RenderSettings(
+                      fontFamily: 'FrankRuhlCLM',
+                      fontSize: 25,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return tester
+          .renderObject<RenderRaisedMarkerOverlay>(
+            find.byType(RaisedMarkerOverlay),
+          )
+          .debugPlacements()
+          .single
+          .anchorRect;
+    }
+
+    final reference = await anchorOf(line);
+    final withBreak = await anchorOf('$line<br>(ירושלמי חגיגה פ"ב ה"א)');
+
+    expect(withBreak.left, closeTo(reference.left, 0.5));
+    expect(withBreak.right, closeTo(reference.right, 0.5));
+  });
+
+  testWidgets('ספאן מקונן ושני קישורים שומרים על יעדים נפרדים ועל בחירה', (
+    tester,
+  ) async {
+    await _loadReadingFont();
+    final tapped = <String>[];
+    String? selected;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Scaffold(
+            body: SizedBox(
+              width: 500,
+              child: SelectionArea(
+                onSelectionChanged: (content) => selected = content?.plainText,
+                child: SmartTextWidget(
+                  text:
+                      'לפני <a class="link-anchor link-anchor-0" '
+                      'href="otzaria://anchor?ref=5_0"><b><small>ד</small></b></a> '
+                      'טקסט רגיל בין הקישורים '
+                      '<a class="link-anchor link-anchor-0" '
+                      'href="otzaria://anchor?ref=6_0">ה</a>.<br>שורה שניה',
+                  settings: const RenderSettings(
+                    fontFamily: 'FrankRuhlCLM',
+                    fontSize: 25,
+                  ),
+                  onAnchorTap: tapped.add,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final overlay = tester.renderObject<RenderRaisedMarkerOverlay>(
+      find.byType(RaisedMarkerOverlay),
+    );
+    final placements = overlay.debugPlacements();
+    expect(placements, hasLength(2));
+    for (final placement in placements) {
+      await tester.tapAt(overlay.localToGlobal(placement.paintRect.center));
+      await tester.pump();
+    }
+    expect(tapped, ['otzaria://anchor?ref=5_0', 'otzaria://anchor?ref=6_0']);
+    tapped.clear();
+    await tester.tapAt(
+      overlay.localToGlobal(Offset(5, overlay.size.height - 5)),
+    );
+    await tester.pump();
+    expect(tapped, isEmpty);
+    await tester.longPressAt(
+      overlay.localToGlobal(placements.first.paintRect.center),
+    );
+    await tester.pumpAndSettle();
+    expect(tapped, isEmpty, reason: 'בחירת טקסט אינה מפעילה קישור');
+    expect(selected, isNotEmpty);
+  });
+
+  for (final prefix in ['נעשו ', '']) {
+    for (final selectable in [false, true]) {
+      for (final scale in [1.0, 1.3]) {
+        testWidgets(
+          'סימון לפני שבירה נשאר לחיץ ובר-ריחוף: בחירה=$selectable, קנה מידה=$scale, קידומת=$prefix',
+          (tester) async {
+            await _loadReadingFont();
+            const url = 'otzaria://anchor?ref=5_0';
+            for (final suffix in ['', '<br>שורה שניה']) {
+              RaisedMarkers.clearCacheForTesting();
+              String? tapped;
+              final hovered = <String>[];
+              Widget text = SmartTextWidget(
+                text:
+                    '$prefix<a class="link-anchor link-anchor-0" href="$url">ד</a>.$suffix',
+                settings: const RenderSettings(
+                  fontFamily: 'FrankRuhlCLM',
+                  fontSize: 25,
+                ),
+                onAnchorTap: (value) => tapped = value,
+                onAnchorHover: (value, _) => hovered.add(value),
+              );
+              if (selectable) text = SelectionArea(child: text);
+              await tester.pumpWidget(
+                MaterialApp(
+                  home: Directionality(
+                    textDirection: TextDirection.rtl,
+                    child: MediaQuery(
+                      data: MediaQueryData(
+                        textScaler: TextScaler.linear(scale),
+                      ),
+                      child: Scaffold(
+                        body: Align(
+                          alignment: Alignment.topRight,
+                          child: SizedBox(width: 500, child: text),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+              await tester.pumpAndSettle();
+              final overlay = tester.renderObject<RenderRaisedMarkerOverlay>(
+                find.byType(RaisedMarkerOverlay),
+              );
+              final placement = overlay.debugPlacements().single;
+              final point = overlay.localToGlobal(placement.paintRect.center);
+              await tester.tapAt(point);
+              await tester.pump();
+              expect(tapped, url, reason: 'לחיצה על הסימון; suffix=$suffix');
+
+              final mouse = await tester.createGesture(
+                kind: PointerDeviceKind.mouse,
+              );
+              await mouse.addPointer(location: Offset.zero);
+              await mouse.moveTo(point);
+              await tester.pump();
+              expect(hovered, contains(url), reason: 'ריחוף; suffix=$suffix');
+              await mouse.removePointer();
+            }
+          },
+        );
+      }
+    }
+  }
 }

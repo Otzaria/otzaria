@@ -335,78 +335,17 @@ class _RenderSelectionFillParagraph extends RenderParagraph {
   List<ui.TextBox> _glyphBoxesForSelection(TextSelection selection) =>
       _unshiftBoxes(super.getBoxesForSelection(selection));
 
-  /// skparagraph מודד שורת RTL שמסתיימת ב-`\n` כאילו ל-`\n` רוחב בקצה השמאלי,
-  /// והתיבות בה זזות ימינה ממה שצויר. TODO: להסיר כש-flutter#196326 יתוקן.
   List<_LineShift>? _hardBreakShifts;
 
-  // Cluster ב-Skia מסווג רווחי ASCII, וב-Unicode משתמש ב-ICU u_isWhitespace.
-  static final _skiaWhitespace = RegExp(
-    r'[\u0009-\u000d\u0020\u1680\u2000-\u2006\u2008-\u200a\u2028\u2029\u205f\u3000]',
+  List<_LineShift> get _shifts => _hardBreakShifts ??= _measureHardBreakShifts(
+    this,
+    super.getBoxesForSelection,
   );
 
-  List<_LineShift> get _shifts =>
-      _hardBreakShifts ??= _measureHardBreakShifts();
+  _LineShift? _shiftAt(double dy) => _lineShiftAt(_shifts, dy);
 
-  List<_LineShift> _measureHardBreakShifts() {
-    if (textDirection != TextDirection.rtl) return const [];
-    final plain = text.toPlainText(includeSemanticsLabels: false);
-    final shifts = <_LineShift>[];
-    var start = 0;
-    for (var i = plain.indexOf('\n'); i >= 0; i = plain.indexOf('\n', i + 1)) {
-      final lineStart = start;
-      start = i + 1;
-      final breakBoxes = super.getBoxesForSelection(
-        TextSelection(baseOffset: i, extentOffset: i + 1),
-        boxHeightStyle: ui.BoxHeightStyle.max,
-      );
-      if (i == lineStart || breakBoxes.isEmpty) continue;
-      // רווח לפני השבירה כבר מתקן את מדידות Skia; רוחבו אינו הזזה של הטקסט.
-      if (_skiaWhitespace.hasMatch(plain[i - 1])) continue;
-      final line = breakBoxes.first;
-      var left = double.infinity;
-      for (final box in super.getBoxesForSelection(
-        TextSelection(baseOffset: lineStart, extentOffset: i),
-      )) {
-        if (box.bottom > line.top && box.top < line.bottom) {
-          left = math.min(left, box.left);
-        }
-      }
-      final dx = left - line.left;
-      if (dx.isFinite && dx > 0.5) {
-        shifts.add((
-          top: line.top,
-          bottom: line.bottom,
-          left: line.left,
-          dx: dx,
-        ));
-      }
-    }
-    return shifts;
-  }
-
-  _LineShift? _shiftAt(double dy) {
-    for (final shift in _shifts) {
-      if (dy >= shift.top && dy < shift.bottom) return shift;
-    }
-    return null;
-  }
-
-  List<ui.TextBox> _unshiftBoxes(List<ui.TextBox> boxes) {
-    if (_shifts.isEmpty) return boxes;
-    return [
-      for (final box in boxes)
-        if (_shiftAt((box.top + box.bottom) / 2) case final shift?)
-          ui.TextBox.fromLTRBD(
-            math.max(box.left - shift.dx, shift.left),
-            box.top,
-            math.max(box.right - shift.dx, shift.left),
-            box.bottom,
-            box.direction,
-          )
-        else
-          box,
-    ];
-  }
+  List<ui.TextBox> _unshiftBoxes(List<ui.TextBox> boxes) =>
+      _unshiftLineBoxes(boxes, _shifts);
 }
 
 /// תיבות בגובה הגליף (`tight`) גם בפסקה שמילוי הבחירה ממפה בה `tight` ל-`max` —
@@ -416,6 +355,114 @@ List<ui.TextBox> glyphBoxesForSelection(
   TextSelection selection,
 ) => paragraph is _RenderSelectionFillParagraph
     ? paragraph._glyphBoxesForSelection(selection)
-    : paragraph.getBoxesForSelection(selection);
+    : _unshiftLineBoxes(
+        paragraph.getBoxesForSelection(selection),
+        _plainParagraphShifts(paragraph),
+      );
 
 typedef _LineShift = ({double top, double bottom, double left, double dx});
+
+typedef _RawBoxes =
+    List<ui.TextBox> Function(
+      TextSelection selection, {
+      ui.BoxHeightStyle boxHeightStyle,
+    });
+
+// לפסקה רגילה אין performLayout משלנו, ולכן המטמון נבדק מול הטקסט, הגודל והיישור.
+final Expando<
+  ({InlineSpan text, Size size, TextAlign align, List<_LineShift> shifts})
+>
+_plainShiftsCache = Expando('hardBreakShifts');
+
+List<_LineShift> _plainParagraphShifts(RenderParagraph paragraph) {
+  if (paragraph.textDirection != TextDirection.rtl || !paragraph.hasSize) {
+    return const [];
+  }
+  final cached = _plainShiftsCache[paragraph];
+  if (cached != null &&
+      identical(cached.text, paragraph.text) &&
+      cached.size == paragraph.size &&
+      cached.align == paragraph.textAlign) {
+    return cached.shifts;
+  }
+  final shifts = _measureHardBreakShifts(
+    paragraph,
+    paragraph.getBoxesForSelection,
+  );
+  _plainShiftsCache[paragraph] = (
+    text: paragraph.text,
+    size: paragraph.size,
+    align: paragraph.textAlign,
+    shifts: shifts,
+  );
+  return shifts;
+}
+
+// Cluster ב-Skia מסווג רווחי ASCII, וב-Unicode משתמש ב-ICU u_isWhitespace.
+final _skiaWhitespace = RegExp(
+  r'[\u0009-\u000d\u0020\u1680\u2000-\u2006\u2008-\u200a\u2028\u2029\u205f\u3000]',
+);
+
+/// skparagraph מודד שורת RTL שמסתיימת ב-`\n` כאילו ל-`\n` רוחב בקצה השמאלי,
+/// והתיבות בה זזות ימינה ממה שצויר. TODO: להסיר כש-flutter#196326 יתוקן.
+List<_LineShift> _measureHardBreakShifts(
+  RenderParagraph paragraph,
+  _RawBoxes rawBoxes,
+) {
+  if (paragraph.textDirection != TextDirection.rtl) return const [];
+  final plain = paragraph.text.toPlainText(includeSemanticsLabels: false);
+  final shifts = <_LineShift>[];
+  var start = 0;
+  for (var i = plain.indexOf('\n'); i >= 0; i = plain.indexOf('\n', i + 1)) {
+    final lineStart = start;
+    start = i + 1;
+    final breakBoxes = rawBoxes(
+      TextSelection(baseOffset: i, extentOffset: i + 1),
+      boxHeightStyle: ui.BoxHeightStyle.max,
+    );
+    if (i == lineStart || breakBoxes.isEmpty) continue;
+    // רווח לפני השבירה כבר מתקן את מדידות Skia; רוחבו אינו הזזה של הטקסט.
+    if (_skiaWhitespace.hasMatch(plain[i - 1])) continue;
+    final line = breakBoxes.first;
+    var left = double.infinity;
+    for (final box in rawBoxes(
+      TextSelection(baseOffset: lineStart, extentOffset: i),
+    )) {
+      if (box.bottom > line.top && box.top < line.bottom) {
+        left = math.min(left, box.left);
+      }
+    }
+    final dx = left - line.left;
+    if (dx.isFinite && dx > 0.5) {
+      shifts.add((top: line.top, bottom: line.bottom, left: line.left, dx: dx));
+    }
+  }
+  return shifts;
+}
+
+_LineShift? _lineShiftAt(List<_LineShift> shifts, double dy) {
+  for (final shift in shifts) {
+    if (dy >= shift.top && dy < shift.bottom) return shift;
+  }
+  return null;
+}
+
+List<ui.TextBox> _unshiftLineBoxes(
+  List<ui.TextBox> boxes,
+  List<_LineShift> shifts,
+) {
+  if (shifts.isEmpty) return boxes;
+  return [
+    for (final box in boxes)
+      if (_lineShiftAt(shifts, (box.top + box.bottom) / 2) case final shift?)
+        ui.TextBox.fromLTRBD(
+          math.max(box.left - shift.dx, shift.left),
+          box.top,
+          math.max(box.right - shift.dx, shift.left),
+          box.bottom,
+          box.direction,
+        )
+      else
+        box,
+  ];
+}
