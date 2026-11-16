@@ -99,5 +99,6 @@ Future<({TextBook book, int index})?> resolveTurShulchanAruchTarget(
   final line = refKey == null
       ? null
       : await PluginRefLineResolver().resolve(book: targetBook, ref: refKey);
+  if (refKey != null && line == null) return null;
   return (book: targetBook, index: line ?? 0);
 }
