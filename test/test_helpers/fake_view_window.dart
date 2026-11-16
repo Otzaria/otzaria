@@ -24,6 +24,7 @@ class StubWindowController extends RegularWindowController {
   bool maximized = false;
   bool minimized = false;
   bool fullscreen = false;
+  int fullscreenReads = 0;
   final List<String> titles = [];
   BoxConstraints? constraints;
 
@@ -53,7 +54,11 @@ class StubWindowController extends RegularWindowController {
   @override
   bool get isMinimized => minimized;
   @override
-  bool get isFullscreen => fullscreen;
+  bool get isFullscreen {
+    fullscreenReads++;
+    return fullscreen;
+  }
+
   @override
   void setSize(Size size) {}
   @override
