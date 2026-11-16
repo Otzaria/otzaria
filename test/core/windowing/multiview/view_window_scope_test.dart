@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui' show ViewFocusDirection, ViewFocusEvent, ViewFocusState;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/services/plugin_webview_runtime.dart';
@@ -53,6 +54,8 @@ import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/workspace.dart';
 import 'package:otzaria/workspaces/workspace_repository.dart';
+import 'package:otzaria/navigation/bloc/navigation_state.dart';
+import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 
 import '../../../helpers/memory_settings_cache.dart';
 import '../../../test_helpers/fake_view_window.dart';
@@ -119,9 +122,16 @@ void main() {
     WidgetTester tester,
     ViewWindowRegistry registry, {
     ViewWindowCloseFlowFactory? closeFlow,
+    WindowFullscreenCubit? mainFullscreen,
   }) async {
     final contexts = <int, BuildContext>{};
     late BuildContext mainContext;
+    final main = Builder(
+      builder: (context) {
+        mainContext = context;
+        return const SizedBox.shrink();
+      },
+    );
     await tester.pumpWidget(
       AppScopeProviders(
         settingsRepository: SettingsRepository(),
@@ -143,17 +153,195 @@ void main() {
               ),
             ),
           ),
-          child: Builder(
-            builder: (context) {
-              mainContext = context;
-              return const SizedBox.shrink();
-            },
-          ),
+          child: mainFullscreen == null
+              ? main
+              : BlocProvider.value(value: mainFullscreen, child: main),
         ),
       ),
     );
     return (contexts, () => mainContext);
   }
+
+  testWidgets('שינוי מסך מלא נייטיבי מסנכרן רק את חלון ה-Dart שלו', (
+    tester,
+  ) async {
+    final previousSetting = Settings.getValue<bool>(
+      SettingsRepository.keyIsFullscreen,
+    );
+    addTearDown(
+      () => Settings.setValue(
+        SettingsRepository.keyIsFullscreen,
+        previousSetting ?? false,
+      ),
+    );
+    await Settings.setValue(SettingsRepository.keyIsFullscreen, true);
+    final primary = WindowFullscreenCubit(initial: true, persist: (_) async {});
+    addTearDown(primary.close);
+    final windows = FakeViewWindows(tester);
+    final (contexts, mainContext) = await pumpHost(
+      tester,
+      windows.registry,
+      mainFullscreen: primary,
+    );
+    final a = windows.registry.open(size: const Size(800, 600))!;
+    final b = windows.registry.open(size: const Size(800, 600))!;
+    windows.stubOf(a).fullscreen = true;
+    await tester.pump();
+    await tester.pump();
+    final contextA = contexts[a.slot]!;
+    final fullscreenA = contextA.read<WindowFullscreenCubit>();
+    final fullscreenB = contexts[b.slot]!.read<WindowFullscreenCubit>();
+    expect(mainContext().read<WindowFullscreenCubit>(), same(primary));
+    expect(fullscreenA.state, isTrue);
+    expect(fullscreenB.state, isFalse);
+    final emittedA = <bool>[];
+    final emittedB = <bool>[];
+    final subA = fullscreenA.stream.listen(emittedA.add);
+    final subB = fullscreenB.stream.listen(emittedB.add);
+    addTearDown(subA.cancel);
+    addTearDown(subB.cancel);
+
+    windows.stubOf(a)
+      ..fullscreen = false
+      ..notify();
+    await tester.pump();
+    expect(fullscreenA.state, isFalse);
+    expect(fullscreenB.state, isFalse);
+    expect(primary.state, isTrue);
+    expect(
+      Settings.getValue<bool>(SettingsRepository.keyIsFullscreen),
+      isTrue,
+      reason: 'יציאה נייטיבית בחלון נוסף אינה משנה את שחזור הראשי',
+    );
+
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    try {
+      await FullscreenHelper.toggleFullscreen(contextA, true);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+    await tester.pump();
+    expect(a.handle.isFullscreen, isTrue);
+    expect(fullscreenA.state, isTrue);
+    windows.stubOf(a)
+      ..fullscreen = false
+      ..notify();
+    await tester.pump();
+    expect(
+      FullscreenHelper.shouldUseImmersiveLayout(
+        platform: TargetPlatform.macOS,
+        isFullscreen: fullscreenA.state,
+        screen: Screen.reading,
+        hasOpenTabs: true,
+      ),
+      isFalse,
+    );
+
+    await primary.set(false);
+    await Settings.setValue(SettingsRepository.keyIsFullscreen, false);
+    windows.stubOf(b)
+      ..fullscreen = true
+      ..notify();
+    await tester.pump();
+    windows.stubOf(b).notify();
+    await tester.pump();
+    expect(fullscreenB.state, isTrue);
+    expect(fullscreenA.state, isFalse);
+    expect(primary.state, isFalse);
+    expect(
+      Settings.getValue<bool>(SettingsRepository.keyIsFullscreen),
+      isFalse,
+      reason: 'כניסה נייטיבית בחלון נוסף אינה משנה את שחזור הראשי',
+    );
+    expect(emittedA, [false, true, false]);
+    expect(emittedB, [true]);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('פירוק ספקי החלון מסיר את סנכרון המסך המלא', (tester) async {
+    final windows = FakeViewWindows(tester);
+    final (contexts, _) = await pumpHost(tester, windows.registry);
+    final entry = windows.registry.open(size: const Size(800, 600))!;
+    await tester.pump();
+    await tester.pump();
+    final cubit = contexts[entry.slot]!.read<WindowFullscreenCubit>();
+    windows.stubOf(entry)
+      ..fullscreen = true
+      ..notify();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
+    expect(cubit.isClosed, isTrue);
+    expect(windows.stubOf(entry).disposed, isFalse);
+    windows.stubOf(entry)
+      ..fullscreen = true
+      ..notify();
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('הודעות לפני סיום המעבר מתאחדות ומסנכרנות אחרי פעולת החלון', (
+    tester,
+  ) async {
+    final windows = FakeViewWindows(tester);
+    final (contexts, _) = await pumpHost(tester, windows.registry);
+    final entry = windows.registry.open(size: const Size(800, 600))!;
+    await tester.pump();
+    await tester.pump();
+    final cubit = contexts[entry.slot]!.read<WindowFullscreenCubit>();
+    await tester.pumpAndSettle();
+    expect(tester.binding.hasScheduledFrame, isFalse);
+    windows.stubOf(entry).notify();
+    expect(tester.binding.hasScheduledFrame, isTrue);
+    await tester.pump();
+    // toggleFullscreen מעדכן את הקוביט לפני המעבר הנייטיבי האסינכרוני.
+    await cubit.set(true);
+    windows.stubOf(entry).fullscreenReads = 0;
+    windows.stubOf(entry).notify();
+    windows.stubOf(entry).notify();
+    expect(windows.stubOf(entry).fullscreenReads, 0);
+    expect(cubit.state, isTrue);
+    windows.stubOf(entry).fullscreen = true;
+    await tester.pump();
+    expect(windows.stubOf(entry).fullscreenReads, 1);
+    expect(cubit.state, isTrue);
+    windows.stubOf(entry)
+      ..fullscreen = false
+      ..notify();
+    await tester.pump();
+    expect(cubit.state, isFalse);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('חלון חלופי מתחיל ממצב הידית החדשה, עם קוביט וסנכרון חדשים', (
+    tester,
+  ) async {
+    final windows = FakeViewWindows(tester);
+    final (contexts, _) = await pumpHost(tester, windows.registry);
+    final old = windows.registry.open(size: const Size(800, 600))!;
+    await tester.pump();
+    await tester.pump();
+    final previous = contexts[old.slot]!.read<WindowFullscreenCubit>();
+    old.handle.destroy();
+    final replacement = windows.registry.open(size: const Size(800, 600))!;
+    windows.stubOf(replacement).fullscreen = true;
+    await tester.pump();
+    await tester.pump();
+    final current = contexts[replacement.slot]!.read<WindowFullscreenCubit>();
+    expect(replacement.slot, old.slot);
+    expect(previous.isClosed, isTrue);
+    expect(current, isNot(same(previous)));
+    expect(current.state, isTrue);
+    windows.stubOf(replacement)
+      ..fullscreen = false
+      ..notify();
+    await tester.pump();
+    expect(current.state, isFalse);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
+  });
 
   testWidgets('מזעור חלון Dart משהה רק את התוספים שלו', (tester) async {
     final runtime = PluginRuntimeDispatcher.instance;

@@ -19,6 +19,11 @@ class WindowFullscreenCubit extends Cubit<bool> {
 
   final Future<void> Function(bool value) _persist;
 
+  /// מסנכרן מצב נייטיבי מקומי בלי לשנות את הגדרת השחזור של החלון הראשי.
+  void syncFromWindow(bool value) {
+    if (value != state) emit(value);
+  }
+
   /// מעדכן את המצב ושומר אותו; ערך זהה לנוכחי אינו פולט ואינו כותב.
   Future<void> set(bool value) async {
     if (value == state) return;

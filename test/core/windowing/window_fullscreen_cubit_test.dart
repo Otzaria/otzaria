@@ -54,4 +54,26 @@ void main() {
     expect(emitted, [true, false]);
     expect(persisted, [true, false]);
   });
+
+  test('סנכרון מהחלון מעדכן UI בלבד, ופקודה עדיין שומרת שינוי', () async {
+    final persisted = <bool>[];
+    final cubit = WindowFullscreenCubit(
+      initial: false,
+      persist: (value) async => persisted.add(value),
+    );
+    addTearDown(cubit.close);
+    final emitted = <bool>[];
+    final subscription = cubit.stream.listen(emitted.add);
+    addTearDown(subscription.cancel);
+
+    cubit.syncFromWindow(true);
+    cubit.syncFromWindow(true);
+    cubit.syncFromWindow(false);
+    expect(persisted, isEmpty);
+    await cubit.set(true);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(emitted, [true, false, true]);
+    expect(persisted, [true]);
+  });
 }

@@ -47,7 +47,7 @@ void main() {
   });
 
   group('FullscreenHelper macOS behavior', () {
-    test('ב-macOS מסך מלא לא מסתיר את כרום האפליקציה', () {
+    test('ב-macOS מסך מלא בעיון מסתיר את הטאבים וסרגל הניווט', () {
       expect(
         FullscreenHelper.shouldUseImmersiveLayout(
           platform: TargetPlatform.macOS,
@@ -55,7 +55,7 @@ void main() {
           screen: Screen.reading,
           hasOpenTabs: true,
         ),
-        isFalse,
+        isTrue,
       );
     });
 

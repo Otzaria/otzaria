@@ -26,16 +26,12 @@ class FullscreenHelper {
   }
 
   /// האם מסך מלא צריך להסתיר את כרום האפליקציה.
-  ///
-  /// ב-macOS מסך מלא הוא מצב חלון נייטיבי, ולכן הטאבים וסרגל הניווט נשארים
-  /// גלויים גם כשהחלון תופס את כל ה-Space.
   static bool shouldUseImmersiveLayout({
     required TargetPlatform platform,
     required bool isFullscreen,
     required Screen screen,
     required bool hasOpenTabs,
   }) {
-    if (platform == TargetPlatform.macOS) return false;
     return isFullscreen && isContextAllowed(screen, hasOpenTabs);
   }
 

@@ -1,16 +1,19 @@
 import 'dart:ui' show ViewFocusEvent, ViewFocusState;
 
 import 'package:flutter/widgets.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/app_scope/process_duties.dart';
 import 'package:otzaria/app_scope/window_scope_providers.dart';
 import 'package:otzaria/core/window_persistence.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
+import 'package:otzaria/core/windowing/multiview/multiview_flag.dart';
 import 'package:otzaria/core/windowing/multiview/view_focus_sync.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_close_flow.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_registry.dart';
 import 'package:otzaria/core/windowing/window_role.dart';
 import 'package:otzaria/core/windowing/window_title_sync.dart';
+import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 import 'package:otzaria/history/history_repository.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/tabs/models/tab.dart';
@@ -136,7 +139,58 @@ class _ViewWindowScopeState extends State<ViewWindowScope>
       tabsSession: _entry.tabsSession,
       duties: ViewWindowScope.duties,
       initialFullscreen: _entry.handle.isFullscreen,
-      child: widget.child,
+      child: _ViewWindowFullscreenSync(
+        key: ObjectKey(_entry.handle),
+        handle: _entry.handle,
+        child: widget.child,
+      ),
     ),
   );
+}
+
+class _ViewWindowFullscreenSync extends StatefulWidget {
+  const _ViewWindowFullscreenSync({
+    super.key,
+    required this.handle,
+    required this.child,
+  });
+
+  final ViewWindowHandle handle;
+  final Widget child;
+
+  @override
+  State<_ViewWindowFullscreenSync> createState() =>
+      _ViewWindowFullscreenSyncState();
+}
+
+class _ViewWindowFullscreenSyncState extends State<_ViewWindowFullscreenSync> {
+  late final WindowFullscreenCubit _fullscreen;
+  bool _syncScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fullscreen = context.read<WindowFullscreenCubit>();
+    widget.handle.changes.addListener(_onWindowChanged);
+  }
+
+  void _onWindowChanged() {
+    if (_syncScheduled) return;
+    _syncScheduled = true;
+    // שינוי המצב הנייטיבי עשוי להסתיים רק אחרי הודעות ה-resize שלו.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _syncScheduled = false;
+      if (mounted) _fullscreen.syncFromWindow(widget.handle.isFullscreen);
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  @override
+  void dispose() {
+    widget.handle.changes.removeListener(_onWindowChanged);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
