@@ -80,6 +80,7 @@ class HebrewBooksDownloadService {
       headers: const {appKeyHeader: appKeyValue},
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
+      await response.stream.listen((_) {}).cancel();
       throw HebrewBookDownloadStatusException(response.statusCode);
     }
 
