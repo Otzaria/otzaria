@@ -2569,6 +2569,7 @@ class IndexingRepository {
   /// מחזיר את מספר הספרים שהוסרו.
   Future<int> dropOrphanedIndexEntries(
     Library library, {
+    bool compact = false,
     @visibleForTesting List<CustomFolder>? customFolders,
     @visibleForTesting Set<String>? preservedHiddenUserBookKeys,
     @visibleForTesting List<AttachedLibrary>? attachedLibraries,
@@ -2664,8 +2665,10 @@ class IndexingRepository {
     // כשל delete/commit ⇒ שחזור מנוע והחזרת 0: המעקב לא סומן כמנוקה, כך
     // שקובץ שיחזור לספרייה לא יידלג בטעות כ"מאונדקס".
     if (!await _deleteIndexedFilePaths(orphans)) return 0;
-    // מחיקה לוגית לבדה אינה מפנה את נפח ה-PDF. איחוד רק לאחר מחיקה חתומה.
-    if (!includePdfs) await optimizeIndexBestEffort(index.optimize);
+    // תחזוקה מפורשת בלבד: ניקוי היתומים בעלייה אינו מבקש איחוד כבד.
+    if (compact && !indexPdfBooks()) {
+      await optimizeIndexBestEffort(index.optimize);
+    }
     debugPrint('🧹 נוקו ${orphans.length} ספרים יתומים מהאינדקס');
     return orphans.length;
   }

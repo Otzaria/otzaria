@@ -641,6 +641,42 @@ void main() {
   });
 
   group('IndexingRepository.dropOrphanedIndexEntries', () {
+    test('ניקוי רגיל בכיבוי PDF אינו מוסיף איחוד לנתיב העלייה', () async {
+      final engine = _RecordingSearchEngine();
+      final provider = _RecordingTantivyDataProvider(engine);
+      final pdf = PdfBook(title: 'סרוק', path: '/tmp/disabled.pdf');
+      final library = Library(categories: [])..books.add(pdf);
+      provider.indexedFilePaths.add(pdf.path);
+      expect(
+        await IndexingRepository(
+          provider,
+          indexPdfBooks: () => false,
+        ).dropOrphanedIndexEntries(library, customFolders: []),
+        1,
+      );
+      expect(engine.commitCount, 1);
+      expect(engine.optimizeCount, 0);
+    });
+
+    test('הדלקת PDF בזמן הניקוי מדלגת על האיחוד שהתבקש קודם', () async {
+      var enabled = false;
+      final engine = _RecordingSearchEngine()..onCommit = () => enabled = true;
+      final provider = _RecordingTantivyDataProvider(engine);
+      final pdf = PdfBook(title: 'סרוק', path: '/tmp/disabled.pdf');
+      final library = Library(categories: [])..books.add(pdf);
+      provider.indexedFilePaths.add(pdf.path);
+      expect(
+        await IndexingRepository(
+          provider,
+          indexPdfBooks: () => enabled,
+        ).dropOrphanedIndexEntries(library, compact: true, customFolders: []),
+        1,
+      );
+      expect(enabled, isTrue);
+      expect(engine.commitCount, 1);
+      expect(engine.optimizeCount, 0);
+    });
+
     test(
       'כיבוי PDF מפנה נפח רק אחרי מחיקה חתומה ולא חוזר בניקוי ריק',
       () async {
@@ -660,12 +696,20 @@ void main() {
         };
 
         expect(
-          await repository.dropOrphanedIndexEntries(library, customFolders: []),
+          await repository.dropOrphanedIndexEntries(
+            library,
+            compact: true,
+            customFolders: [],
+          ),
           1,
         );
         expect(engine.optimizeCount, 1);
         expect(
-          await repository.dropOrphanedIndexEntries(library, customFolders: []),
+          await repository.dropOrphanedIndexEntries(
+            library,
+            compact: true,
+            customFolders: [],
+          ),
           0,
         );
         expect(engine.optimizeCount, 1);
@@ -684,7 +728,7 @@ void main() {
         await IndexingRepository(
           provider,
           indexPdfBooks: () => false,
-        ).dropOrphanedIndexEntries(library, customFolders: []),
+        ).dropOrphanedIndexEntries(library, compact: true, customFolders: []),
         0,
       );
       expect(engine.optimizeCount, 0);
@@ -703,7 +747,7 @@ void main() {
         await IndexingRepository(
           provider,
           indexPdfBooks: () => false,
-        ).dropOrphanedIndexEntries(library, customFolders: []),
+        ).dropOrphanedIndexEntries(library, compact: true, customFolders: []),
         1,
       );
       expect(engine.optimizeCount, 1);
@@ -5253,6 +5297,7 @@ class _RecordingSearchEngine implements SearchEngine {
 
   /// המחיקה מצליחה אך ה-commit שאחריה נכשל.
   bool failCommit = false;
+  void Function()? onCommit;
 
   int rollbackCount = 0;
 
@@ -5304,6 +5349,7 @@ class _RecordingSearchEngine implements SearchEngine {
       throw StateError('engine commit failed');
     }
     commitCount++;
+    onCommit?.call();
   }
 
   @override

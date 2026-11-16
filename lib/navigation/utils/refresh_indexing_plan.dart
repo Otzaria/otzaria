@@ -132,7 +132,7 @@ List<IndexingEvent> indexPdfBooksChangePlan(
   required bool indexPdfBooks,
   required IndexUpdateMode mode,
 }) => [
-  if (!indexPdfBooks) DropOrphanedIndexEntries(library),
+  if (!indexPdfBooks) DropOrphanedIndexEntries(library, compact: true),
   if (indexPdfBooks && mode.isAutomatic)
     StartIndexing(library)
   else

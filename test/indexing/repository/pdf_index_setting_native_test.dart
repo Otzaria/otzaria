@@ -72,6 +72,7 @@ void main() {
     expect(
       await repository.dropOrphanedIndexEntries(
         library,
+        compact: true,
         customFolders: [],
         attachedLibraries: [],
       ),

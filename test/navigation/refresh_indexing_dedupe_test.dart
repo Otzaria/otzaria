@@ -500,6 +500,14 @@ void main() {
           DropOrphanedIndexEntries,
           CheckIndexStatus,
         ]);
+        final cleanup =
+            indexPdfBooksChangePlan(
+                  library,
+                  indexPdfBooks: false,
+                  mode: mode,
+                ).first
+                as DropOrphanedIndexEntries;
+        expect(cleanup.compact, isTrue);
       }
     });
 
