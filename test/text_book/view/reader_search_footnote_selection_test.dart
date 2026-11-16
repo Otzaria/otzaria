@@ -339,6 +339,163 @@ void main() {
     expect(history.received.whereType<AddHistory>(), hasLength(1));
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets('חיפוש בטורי מפרשים מנקה רק סמנים ממקור הטור ושומר צילום בחירה', (
+    tester,
+  ) async {
+    const contents = [
+      [
+        'שורה קודמת של רש"י',
+        'פתיחה הודאתו<sup class="footnote-marker">3963</sup>27',
+        'שורה אחרונה של רש"י',
+      ],
+      [
+        'שורה קודמת של תוספות',
+        'עוד שורה קודמת',
+        'פתיחה התירו3963<sup class="footnote-marker">57</sup>',
+      ],
+    ];
+    const words = ['הודאתו', 'התירו'];
+    const queries = ['הודאתו 27', 'התירו3963'];
+    final mainBook = TextBook(title: 'ספר ראשי אחר');
+    final bloc = _TextBookBloc(
+      _loaded(mainBook, 'הודאתו3963 27 התירו57 3963', false),
+    );
+    final settings = StubSettingsBloc(SettingsState.initial());
+    final notes = StubPersonalNotesBloc(const PersonalNotesState.initial());
+    final tabs = _TabsBloc(const TabsState(tabs: [], currentTabIndex: 0));
+    final history = _HistoryBloc();
+    final navigation = _NavigationBloc();
+    addTearDown(() async {
+      for (final event in tabs.received.whereType<AddTab>()) {
+        event.tab.dispose();
+      }
+      await tabs.close();
+      await history.close();
+      await navigation.close();
+      await settings.close();
+      await notes.close();
+      await bloc.close();
+    });
+    await tester.binding.setSurfaceSize(const Size(1000, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('he', 'IL'),
+        supportedLocales: const [Locale('he', 'IL')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<TextBookBloc>.value(value: bloc),
+            BlocProvider<SettingsBloc>.value(value: settings),
+            BlocProvider<PersonalNotesBloc>.value(value: notes),
+            BlocProvider<TabsBloc>.value(value: tabs),
+            BlocProvider<HistoryBloc>.value(value: history),
+            BlocProvider<NavigationBloc>.value(value: navigation),
+          ],
+          child: Scaffold(
+            body: Row(
+              children: [
+                for (var i = 0; i <= contents.length; i++)
+                  Expanded(
+                    child: SimpleTextViewer(
+                      key: ValueKey(i),
+                      content: contents[i % contents.length],
+                      fontSize: 18,
+                      isMainText: false,
+                      bookTitle: i == 0
+                          ? 'רש"י'
+                          : i == 1
+                          ? 'תוספות'
+                          : 'הערות',
+                      isBookNotesColumn: i == contents.length,
+                      openBookCallback: (_) {},
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    for (var i = 0; i < contents.length; i++) {
+      final viewer = find.byKey(ValueKey(i));
+      final rendered = tester
+          .renderObjectList<RenderParagraph>(
+            find.descendant(
+              of: viewer,
+              matching: find.byWidgetPredicate((widget) => widget is RichText),
+            ),
+          )
+          .map((paragraph) => paragraph.text.toPlainText())
+          .singleWhere((text) => text.contains(words[i]));
+      final selected = rendered.substring(rendered.indexOf(words[i]));
+      expect(
+        selected,
+        contains(i == 0 ? '\u20663963\u2069' : '\u206657\u2069'),
+      );
+      final region = find.descendant(
+        of: viewer,
+        matching: find.byType(SelectableRegion),
+      );
+      tester.widget<SelectableRegion>(region).onSelectionChanged!(
+        SelectedContent(plainText: selected),
+      );
+      await tester.pump();
+      final menu = find
+          .descendant(of: viewer, matching: find.byType(AppContextMenuRegion))
+          .first;
+      await tester.state<AppContextMenuRegionState>(menu).showMenu();
+      await tester.pumpAndSettle();
+      tester.widget<SelectableRegion>(region).onSelectionChanged!(null);
+      await tester.pump();
+      await tester.tap(find.text('חיפוש'));
+      await tester.pumpAndSettle();
+      final event = tabs.received.whereType<AddTab>().last;
+      expect((event.tab as SearchingTab).queryController.text, queries[i]);
+      expect(event.insertAdjacent, isTrue);
+      expect(bloc.received.whereType<UpdateSelectedTextForNote>(), isEmpty);
+    }
+    final notesViewer = find.byKey(ValueKey(contents.length));
+    final notesRegion = find.descendant(
+      of: notesViewer,
+      matching: find.byType(SelectableRegion),
+    );
+    tester.widget<SelectableRegion>(notesRegion).onSelectionChanged!(
+      const SelectedContent(plainText: 'הודאתו\u20663963\u206927'),
+    );
+    await tester.pump();
+    final notesMenu = find
+        .descendant(
+          of: notesViewer,
+          matching: find.byType(AppContextMenuRegion),
+        )
+        .first;
+    final noteEntries = tester
+        .widget<AppContextMenuRegion>(notesMenu)
+        .menuBuilder(
+          tester.element(notesMenu),
+          tester.getCenter(notesMenu),
+        );
+    expect(
+      noteEntries.any(
+        (entry) =>
+            entry.iconRowActions?.any((action) => action.label == 'חיפוש') ??
+            false,
+      ),
+      isFalse,
+      reason: 'עמודת הערות ספר אינה טור מפרש לחיפוש',
+    );
+    expect(tabs.received.whereType<AddTab>(), hasLength(2));
+    expect(history.received.whereType<AddHistory>(), hasLength(2));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }
 
 TextBookLoaded _loaded(TextBook book, String source, bool combined) =>

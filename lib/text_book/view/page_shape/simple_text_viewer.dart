@@ -2073,7 +2073,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     }
 
     if (!widget.isMainText && !widget.isBookNotesColumn) {
-      final menuSelection = ReaderMenuSelection(sourceText);
+      final menuSelection = ReaderMenuSelection(
+        sourceText,
+        sourceLines: widget.content,
+        lineStart: _selectionLineStart,
+        lineEnd: _selectionLineEnd,
+      );
       entries.add(
         AppContextMenuEntry.iconRow([
           buildSearchAllBooksIconAction(
