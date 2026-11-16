@@ -556,8 +556,8 @@ class SemanticSearchRepository {
   Set<String>? get coveredBookFilePaths =>
       _coveredValid ? _covered?.filePaths : null;
 
-  /// מחשב את [coveredBookFilePaths] כשצריך, אחרי פתיחת ה-session; קוראים
-  /// במקביל חולקים חישוב אחד. כשל או ביטול מחזירים `null`.
+  /// מחשב את [coveredBookFilePaths] כשצריך, בלי לפתוח session; קוראים
+  /// במקביל חולקים חישוב אחד. בלי חיפוש שמיש, בכשל או בביטול: `null`.
   Future<Set<String>?> loadCoveredBookFilePaths() =>
       _coveredJob ??= _loadCovered().whenComplete(() => _coveredJob = null);
 
@@ -565,7 +565,8 @@ class SemanticSearchRepository {
     final cancel = SemanticCancelHandle();
     _activeSearches.add(cancel);
     try {
-      await ensureOpen();
+      final current = _availability.isUsable ? _availability : await refresh();
+      if (!current.isUsable || _moveInProgress) return null;
       // סט או אינדקס שהשתנו באמצע החישוב מחייבים חישוב נוסף.
       for (var attempt = 0; attempt < 2 && !cancel.isCancelled; attempt++) {
         final epoch = _coveredEpoch;

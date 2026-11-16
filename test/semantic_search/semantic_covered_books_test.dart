@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/search_feedback/search_feedback_api.dart';
 import 'package:otzaria/semantic_search/models/semantic_engine_models.dart';
 
 import 'semantic_test_support.dart';
@@ -40,7 +41,7 @@ void main() {
     expect(await repo.loadCoveredBookFilePaths(), {'id:1', 'id:2'});
     expect(computations(backend), 1);
     expect(repo.coveredBookFilePaths, {'id:1', 'id:2'});
-    expect(backend.calls, contains('open'));
+    expect(backend.calls, isNot(contains('open')));
   });
 
   test('שינוי באינדקס הלקסיקלי מחשב מחדש', () async {
@@ -137,5 +138,29 @@ void main() {
     await moving;
     expect(await loading, isNull);
     expect(repo.coveredBookFilePaths, isNull);
+  });
+
+  test('בלי הסכמה אין חישוב', () async {
+    installModelFiles(root);
+    final backend = FakeBackend()
+      ..vectors = installedV30
+      ..coveredBooksValue = answer('set-1', ['id:1']);
+    final repo = buildRepository(
+      root: root,
+      backend: backend,
+      consent: FakeConsentStore(SearchFeedbackConsent.declined),
+    );
+    expect(await repo.loadCoveredBookFilePaths(), isNull);
+    expect(computations(backend), 0);
+  });
+
+  test('עובד גם כשה-session פתוח', () async {
+    installModelFiles(root);
+    final backend = FakeBackend()
+      ..vectors = installedV30
+      ..coveredBooksValue = answer('set-1', ['id:1']);
+    final repo = buildRepository(root: root, backend: backend);
+    await repo.ensureOpen();
+    expect(await repo.loadCoveredBookFilePaths(), {'id:1'});
   });
 }
