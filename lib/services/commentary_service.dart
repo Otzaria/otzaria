@@ -396,7 +396,7 @@ class CommentaryService {
     return sorted;
   }
 
-  /// משווה שני קישורים לפי ספר הבסיס (SOURCE) -> דור -> שם ספר -> מיקום קטע.
+  /// משווה לפי SOURCE ומהימנותו -> דור -> שם ספר -> מיקום קטע.
   /// ספר "הערות על XX" מעוגן לדור ולשם של XX, ומוצב מיד אחריו.
   static int _compareLinksByEra(
     Link a,
@@ -408,6 +408,9 @@ class CommentaryService {
     final baseA = LinkTypes.normalize(a.connectionType) == LinkTypes.source;
     final baseB = LinkTypes.normalize(b.connectionType) == LinkTypes.source;
     if (baseA != baseB) return baseA ? -1 : 1;
+    if (baseA && a.baseProvenance != b.baseProvenance) {
+      return b.baseProvenance.compareTo(a.baseProvenance);
+    }
 
     final titleA = titlesByPath[a.path2]!;
     final titleB = titlesByPath[b.path2]!;

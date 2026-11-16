@@ -223,6 +223,90 @@ void main() {
       ]);
     });
 
+    group('כמה קישורי SOURCE', () {
+      setUp(CommentaryService.clearEraCache);
+      tearDown(CommentaryService.clearEraCache);
+
+      Link linkFor(
+        String title,
+        int provenance, {
+        String type = 'SOURCE',
+        int line = 1,
+      }) => Link(
+        heRef: title,
+        index1: 1,
+        path2: title,
+        index2: line,
+        connectionType: type,
+        baseProvenance: provenance,
+      );
+
+      test('הבסיס המוצהר קודם לציטוט הפוך באותו דור (#4170)', () {
+        CommentaryService.seedEraCache(const {
+          'בן איש חי': CommentaryEra.acharonim,
+          'שולחן ערוך, אורח חיים': CommentaryEra.acharonim,
+          'קיצור שלחן ערוך': CommentaryEra.acharonim,
+        });
+        final input = [
+          linkFor('בן איש חי', 0),
+          linkFor('שולחן ערוך, אורח חיים', 2),
+          linkFor('קיצור שלחן ערוך', 0, type: 'OTHER'),
+        ];
+
+        expect(
+          CommentaryService.sortLinksByEraSync(input).map((l) => l.path2),
+          ['שולחן ערוך, אורח חיים', 'בן איש חי', 'קיצור שלחן ערוך'],
+        );
+        expect(input.first.path2, 'בן איש חי');
+      });
+
+      test('מקור מוצהר קודם למשוער וללטרלי בלי לשנות סוגים אחרים', () {
+        CommentaryService.seedEraCache(const {
+          'תורה': CommentaryEra.torahShebichtav,
+          'בבלי': CommentaryEra.chazal,
+          'רמב"ם': CommentaryEra.rishonim,
+          'שו"ע': CommentaryEra.acharonim,
+        });
+        final expected = [
+          linkFor('שו"ע', 2),
+          linkFor('רמב"ם', 1, type: 'source'),
+          linkFor('בבלי', 0),
+          linkFor('תורה', 0, type: 'REFERENCE'),
+          linkFor('שו"ע', 2, type: 'COMMENTARY'),
+        ];
+
+        for (var shift = 0; shift < expected.length; shift++) {
+          final rotated = [
+            ...expected.skip(shift),
+            ...expected.take(shift),
+          ];
+          for (final input in [rotated, rotated.reversed.toList()]) {
+            expect(CommentaryService.sortLinksByEraSync(input), expected);
+          }
+        }
+      });
+
+      test('בשוויון מהימנות נשמרים דור, שם ומיקום', () {
+        CommentaryService.seedEraCache(const {
+          'אבן עזרא': CommentaryEra.rishonim,
+          'תוספות': CommentaryEra.rishonim,
+          'שולחן ערוך': CommentaryEra.acharonim,
+        });
+        for (final provenance in [0, 1, 2]) {
+          final expected = [
+            linkFor('אבן עזרא', provenance, line: 2),
+            linkFor('אבן עזרא', provenance, line: 7),
+            linkFor('תוספות', provenance),
+            linkFor('שולחן ערוך', provenance),
+          ];
+          expect(
+            CommentaryService.sortLinksByEraSync(expected.reversed.toList()),
+            expected,
+          );
+        }
+      });
+    });
+
     test(
       'sortGroupsByEraSync: קבוצת "הערות על XX" ממוינת מיד אחרי קבוצת XX',
       () async {
