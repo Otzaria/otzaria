@@ -1490,6 +1490,20 @@ void main() {
       expect(mapped!.endGregorianDate, DateTime(2026, 5, 18));
     });
 
+    test('Google BYDAY roundtrip preserves selected weekdays', () {
+      final event = _buildUserEvent().copyWith(
+        recurrenceType: RecurrenceType.weekly,
+        weeklyDays: () => [DateTime.monday, DateTime.wednesday],
+      );
+      final googleEvent = google.toGoogleEvent(event, 'Asia/Jerusalem');
+      expect(googleEvent.recurrence, contains(contains('BYDAY=MO,WE')));
+      final restored = google.fromGoogleEvent(googleEvent)!;
+      expect(restored.recurrenceType, RecurrenceType.weekly);
+      expect(restored.weeklyDays, [DateTime.monday, DateTime.wednesday]);
+      expect(restored.occursOn(DateTime(2026, 5, 18)), isTrue);
+      expect(restored.occursOn(DateTime(2026, 5, 19)), isFalse);
+    });
+
     test('כתיבה לגוגל: end = היום האחרון + יום (בלעדי)', () {
       final event = _buildUserEvent().copyWith(
         endGregorianDate: () => DateTime(2026, 5, 17),
