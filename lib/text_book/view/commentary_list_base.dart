@@ -68,6 +68,7 @@ import 'package:otzaria/widgets/layout/commentators_filter_screen.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
+import 'package:otzaria/widgets/misc/edge_drag_handoff.dart';
 import 'package:otzaria/widgets/misc/smooth_wheel_scroll.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/settings/settings_exports.dart';
@@ -239,6 +240,9 @@ class CommentaryListBase extends StatefulWidget {
   /// false כשהחלונית שמכילה את הרשימה סגורה אך נשארת בעץ.
   final bool isPaneOpen;
 
+  /// גרירה שמתחילה בקצה הרשימה גוללת את הרשימה שמעליה (כרטיס בתוך הספר).
+  final bool handOffEdgeDragsToParent;
+
   const CommentaryListBase({
     super.key,
     required this.openBookCallback,
@@ -273,6 +277,7 @@ class CommentaryListBase extends StatefulWidget {
     this.contentMaxWidth,
     this.scrollTargetListenable,
     this.isPaneOpen = true,
+    this.handOffEdgeDragsToParent = false,
   });
 
   @override
@@ -2129,7 +2134,9 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                             _schedulePendingCommentatorScroll();
                           }
 
-                          final listView = ScrollablePositionedList.builder(
+                          Widget buildList(
+                            ScrollPhysics physics,
+                          ) => ScrollablePositionedList.builder(
                             itemScrollController: _itemScrollController,
                             itemPositionsListener: _itemPositionsListener,
                             listController: _listController,
@@ -2142,7 +2149,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                                     0,
                                     flatItems.length - 1,
                                   ),
-                            physics: const ClampingScrollPhysics(),
+                            physics: physics,
                             shrinkWrap: widget.shrinkWrap,
                             itemCount: flatItems.length,
                             itemBuilder: (context, index) {
@@ -2165,6 +2172,11 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                               );
                             },
                           );
+                          final listView = widget.handOffEdgeDragsToParent
+                              ? EdgeDragHandoff(
+                                  builder: (_, physics) => buildList(physics),
+                                )
+                              : buildList(const ClampingScrollPhysics());
 
                           // ProgressiveScroll עוטף את SelectionArea (מעליו),
                           // כך שגלילת החיצים נקלטת גם כש-SelectableRegion הוא
