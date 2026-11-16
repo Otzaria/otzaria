@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/user_content_import/services/user_import_parser.dart';
 
 Link _link({
   required String heRef,
@@ -177,6 +180,89 @@ void main() {
         ).fallbackDisplayReference,
         'סוטה, יב:–יג.',
       );
+    });
+
+    test('טווח בספר אוצריא אינו מוסיף את כתובת השורה הגולמית', () async {
+      final ranged = _link(
+        heRef: 'חברותא על בכורות 4790',
+        heRefEnd: 'חברותא על בכורות 4793',
+        path2: 'חברותא על בכורות',
+        index2End: 4793,
+      );
+      final single = _link(
+        heRef: 'חברותא על בכורות 4790',
+        path2: 'חברותא על בכורות',
+      );
+      expect(ranged.fallbackDisplayReference, single.fallbackDisplayReference);
+      expect(await ranged.displayReference, single.fallbackDisplayReference);
+    });
+
+    for (final (separator, label) in [
+      (', ', 'רווח'),
+      (',', 'ללא רווח'),
+      (',\u00a0', 'רווח קשיח'),
+      (',\t', 'טאב'),
+      (' ', 'ללא פסיק'),
+    ]) {
+      test('טווח מייבוא אישי שומר את הקצה הקריא: $label', () async {
+        final start = 'רש״י על בראשית א$separatorלא';
+        final end = 'רש״י על בראשית ב$separatorא';
+        final parsed = UserImportParser.parseNativeLinksJson(
+          jsonEncode([
+            {
+              'line_index_1': 1,
+              'line_index_2': 1,
+              'line_index_2_end': 40,
+              'path_2': 'רש״י על בראשית',
+              'heRef_2': start,
+              'heRef_2_end': end,
+            },
+          ]),
+        );
+        expect(parsed.errors, isEmpty);
+        final row = parsed.rows.single;
+        expect(row.targetRef, start);
+        expect(row.targetRefEnd, end);
+        final link = _link(
+          heRef: row.targetRef!,
+          heRefEnd: row.targetRefEnd,
+          path2: row.targetTitle,
+          index2End: row.targetLineNumberEnd,
+        );
+        expect(link.fallbackDisplayReference, endsWith(' – $end'));
+        expect(await link.displayReference, endsWith(' – $end'));
+        expect(link.heRefEnd, end);
+        expect(link.index2End, 40);
+      });
+    }
+
+    for (final (title, end, last) in [
+      ('ספר אישי', 'ספר אישי 12', 40),
+      ('ספר אישי', 'ספר אחר 40', 40),
+      ('ספר אישי', 'ספר אישי 40', null),
+    ]) {
+      test('קצה ללא פסיק נשמר כשכתובת השורה אינה ודאית: $end/$last', () async {
+        final link = _link(
+          heRef: '$title א',
+          heRefEnd: end,
+          path2: title,
+          index2End: last,
+        );
+        expect(link.fallbackDisplayReference, endsWith(' – $end'));
+        expect(await link.displayReference, endsWith(' – $end'));
+      });
+    }
+
+    test('כתובת שורה סינתטית עם פסיק בשם הספר נשמטת', () async {
+      final ranged = _link(
+        heRef: 'ספר, חלק א 12',
+        heRefEnd: 'ספר, חלק א 40',
+        path2: 'ספר, חלק א',
+        index2End: 40,
+      );
+      final single = _link(heRef: ranged.heRef, path2: ranged.path2);
+      expect(ranged.fallbackDisplayReference, single.fallbackDisplayReference);
+      expect(await ranged.displayReference, single.fallbackDisplayReference);
     });
 
     test('הרמה האחרונה בספר שאינו לפי דף נשמרת', () {

@@ -328,6 +328,14 @@ class Link {
     final start = refUpToDaf(heRef.trim());
     final end = _displayHeRefEnd;
     if (end == null || end.isEmpty || end == start) return '';
+    // כתובת שורה סינתטית תואמת בדיוק לשם הספר ולאינדקס סוף הטווח (1-based).
+    final last = index2End;
+    if (last != null &&
+        last > 0 &&
+        (end == '$path2 $last' ||
+            end == '${utils.getTitleFromPath(path2)} $last')) {
+      return '';
+    }
     final startSegs = start.split(', ');
     final endSegs = end.split(', ');
     var common = 0;
@@ -337,7 +345,8 @@ class Link {
       common++;
     }
     final tail = endSegs.sublist(common).join(', ');
-    return common > 0 ? '–$tail' : ' – $tail';
+    if (common > 0) return '–$tail';
+    return ' – $tail';
   }
 
   /// מחזירה כתובת תצוגה בטוחה גם כאשר לא ניתן לחשב TOC מלא.
