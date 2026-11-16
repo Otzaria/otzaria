@@ -31,6 +31,7 @@ import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/library/models/library_navigation_history.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
@@ -140,6 +141,8 @@ class _TabsBloc extends _Cubit<TabsState> implements TabsBloc {
 
 class _LibraryBloc extends _Cubit<LibraryState> implements LibraryBloc {
   _LibraryBloc(super.initialState);
+  @override
+  final navigationHistory = LibraryNavigationHistory();
   @override
   void add(LibraryEvent event) {}
   @override

@@ -6,6 +6,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/library/models/library_navigation_history.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -612,7 +613,10 @@ class _HistoryBloc extends MockBloc<HistoryEvent, HistoryState>
     implements HistoryBloc {}
 
 class _LibraryBloc extends MockBloc<LibraryEvent, LibraryState>
-    implements LibraryBloc {}
+    implements LibraryBloc {
+  @override
+  final navigationHistory = LibraryNavigationHistory();
+}
 
 class _TabsBloc extends MockBloc<TabsEvent, TabsState> implements TabsBloc {}
 
