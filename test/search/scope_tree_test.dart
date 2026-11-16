@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';
@@ -107,6 +109,41 @@ List<String> _freshSearch(String query) => ScopeTree.fromLibrary(
   _tiedLibrary(),
 ).search(query).map(_resultKey).toList();
 
+class _CountingSelection extends SetBase<String> {
+  final Set<String> _values;
+  int iterations = 0;
+  int lookups = 0;
+
+  _CountingSelection(this._values);
+
+  @override
+  bool add(String value) => _values.add(value);
+
+  @override
+  bool contains(Object? element) {
+    lookups++;
+    return _values.contains(element);
+  }
+
+  @override
+  Iterator<String> get iterator {
+    iterations++;
+    return _values.iterator;
+  }
+
+  @override
+  int get length => _values.length;
+
+  @override
+  String? lookup(Object? element) => _values.lookup(element);
+
+  @override
+  bool remove(Object? value) => _values.remove(value);
+
+  @override
+  Set<String> toSet() => Set<String>.of(_values);
+}
+
 void main() {
   late ScopeTree tree;
 
@@ -128,6 +165,92 @@ void main() {
       // אב עם צאצא נבחר בלבד → מצב חלקי (null)
       expect(tree.categoryCheckState('/מדרש', {'/מדרש/הלכה'}), isNull);
       expect(tree.categoryCheckState('/משנה', {'/תנ״ך'}), isFalse);
+    });
+
+    test('בדיקת כיסוי אינה סורקת אלפי בחירות שאינן אבות', () {
+      final selection = _CountingSelection({
+        for (var i = 0; i < 5000; i++) '/תיקייה$i',
+        '/מדרש',
+      });
+      expect(tree.isFacetCovered('/מדרש/הלכה/ספר', selection), isTrue);
+      expect(tree.isFacetCovered('/אחר/הלכה/ספר', selection), isFalse);
+      expect(selection.iterations, 0);
+      expect(selection.lookups, lessThan(12));
+    });
+
+    test('כיסוי נעצר בגבול מקטע ומשמר תחום שורש', () {
+      expect(tree.isFacetCovered('/מדרשים/הלכה', {'/מדרש'}), isFalse);
+      expect(tree.isFacetCovered('/מדרש', {'/מדרש/הלכה'}), isFalse);
+      expect(tree.isFacetCovered('/', {'/'}), isTrue);
+      expect(tree.isFacetCovered('/מדרש/הלכה', {'/'}), isTrue);
+      expect(tree.categoryCheckState('/מדרשים', {'/מדרש'}), isFalse);
+    });
+
+    test('ביטול מבחירת שורש מסיר גם אב כפול בכל סדר הכנסה', () {
+      for (final selected in [
+        {'/מדרש', '/'},
+        {'/', '/מדרש'},
+      ]) {
+        final actual = tree.deselectFacet('/מדרש/הלכה', selected);
+        expect(actual.contains('/'), isFalse);
+        expect(tree.isFacetCovered('/מדרש/הלכה', actual), isFalse);
+        expect(tree.isFacetCovered('/מדרש/אגדה', actual), isTrue);
+        expect(tree.isFacetCovered('/תנ״ך', actual), isTrue);
+      }
+    });
+
+    test('ביטול קטגוריה שנבחרה גם לצד השורש אינו משאיר אותה מכוסה', () {
+      for (final selected in [
+        {'/מדרש', '/'},
+        {'/', '/מדרש'},
+      ]) {
+        final actual = tree.deselectFacet('/מדרש', selected);
+        expect(actual, {'/תנ״ך', '/משנה'});
+        expect(tree.isFacetCovered('/מדרש', actual), isFalse);
+        expect(tree.isFacetCovered('/מדרש/הלכה', actual), isFalse);
+      }
+    });
+
+    test('ביטול ספר שנבחר גם לצד השורש משאיר את שאר הספרייה', () {
+      final tree = ScopeTree.fromLibrary(
+        _lib([
+          _mkCat(
+            'תנ״ך',
+            books: [
+              TextBook(title: 'בראשית', categoryPath: '/תנ״ך'),
+              TextBook(title: 'שמות', categoryPath: '/תנ״ך'),
+            ],
+          ),
+          _mkCat('מדרש'),
+          _mkCat('משנה'),
+        ]),
+      );
+      final first = tree.allBookNodes().singleWhere(
+        (node) => node.title == 'בראשית',
+      );
+      final other = tree.allBookNodes().singleWhere(
+        (node) => node.title == 'שמות',
+      );
+      for (final selected in [
+        {first.facet, '/'},
+        {'/', first.facet},
+      ]) {
+        final actual = tree.deselectFacet(first.facet, selected);
+        expect(tree.isFacetCovered(first.facet, actual), isFalse);
+        expect(tree.isFacetCovered(other.facet, actual), isTrue);
+        expect(tree.isFacetCovered('/מדרש', actual), isTrue);
+        expect(tree.isFacetCovered('/משנה', actual), isTrue);
+      }
+    });
+
+    test('ביטול תחת אבות חופפים בוחר באב הקרוב ללא תלות בסדר', () {
+      for (final selected in [
+        {'/מדרש', '/מדרש/הלכה'},
+        {'/מדרש/הלכה', '/מדרש'},
+      ]) {
+        final actual = tree.deselectFacet('/מדרש/הלכה/לאקיים', selected);
+        expect(actual, {'/מדרש'});
+      }
     });
 
     test('isFacetCovered: נבחר ישירות או תחת אב נבחר', () {
@@ -257,19 +380,15 @@ void main() {
       ];
       for (final query in queries) {
         final results = t.search(query);
-        expect(
-          results.map((r) => r.facet).toSet(),
-          {
-            for (final node in t.nodesByFacet.values)
-              if (findNormalizedTextMatches(
-                normalizedQuery: query,
-                normalizedPrimaryText: node.normalizedTitle,
-                normalizedSecondaryText: node.normalizedSubtitle,
-              ))
-                node.facet,
-          },
-          reason: query,
-        );
+        expect(results.map((r) => r.facet).toSet(), {
+          for (final node in t.nodesByFacet.values)
+            if (findNormalizedTextMatches(
+              normalizedQuery: query,
+              normalizedPrimaryText: node.normalizedTitle,
+              normalizedSecondaryText: node.normalizedSubtitle,
+            ))
+              node.facet,
+        }, reason: query);
         expect(
           results.map(_resultKey).toList(),
           _freshSearch(query),
@@ -440,14 +559,12 @@ void main() {
       ]);
       var completed = false;
 
-      final future =
-          ScopeTree.fromLibraryAsync(
-            library,
-            batchSize: 1,
-          ).then((tree) {
-            completed = true;
-            return tree;
-          });
+      final future = ScopeTree.fromLibraryAsync(library, batchSize: 1).then((
+        tree,
+      ) {
+        completed = true;
+        return tree;
+      });
 
       expect(completed, isFalse);
       final asyncTree = await future;
@@ -475,11 +592,7 @@ void main() {
     test('הכתובית מציגה את נתיב הקטגוריה ואת המחבר', () {
       final node = ScopeTree.fromLibrary(
         libWithBook(
-          TextBook(
-            title: 'משנה תורה',
-            author: 'הרמב״ם',
-            categoryPath: '/הלכה',
-          ),
+          TextBook(title: 'משנה תורה', author: 'הרמב״ם', categoryPath: '/הלכה'),
           'הלכה',
         ),
       ).allBookNodes().single;
