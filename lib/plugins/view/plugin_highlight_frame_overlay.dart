@@ -3,6 +3,9 @@ import 'package:flutter/widgets.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
 import 'package:otzaria/widgets/smart_text/selection_fill_text.dart';
 
+@visibleForTesting
+int debugPluginHighlightParagraphScans = 0;
+
 class PluginHighlightFrameOverlay extends SingleChildRenderObjectWidget {
   final List<PluginHighlightRenderedRange> ranges;
 
@@ -57,6 +60,7 @@ class RenderPluginHighlightFrameOverlay extends RenderProxyBox {
     var graphemeCursor = 0;
     void visit(RenderObject object) {
       if (object is RenderParagraph) {
+        debugPluginHighlightParagraphScans++;
         final text = object.text.toPlainText();
         final graphemes = text.characters.toList(growable: false);
         final paragraphStart = graphemeCursor;
