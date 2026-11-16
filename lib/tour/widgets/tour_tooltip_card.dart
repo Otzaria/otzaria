@@ -100,16 +100,21 @@ class TourTooltipCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 14),
-                Text(
-                  context.settingsText(
-                    body,
-                    args: shortcutText == null
-                        ? null
-                        : {'shortcut': shortcutText},
-                  ),
-                  style: textTheme.bodyLarge?.copyWith(
-                    height: 1.45,
-                    color: colorScheme.onSecondaryContainer,
+                Flexible(
+                  child: SingleChildScrollView(
+                    primary: false,
+                    child: Text(
+                      context.settingsText(
+                        body,
+                        args: shortcutText == null
+                            ? null
+                            : {'shortcut': shortcutText},
+                      ),
+                      style: textTheme.bodyLarge?.copyWith(
+                        height: 1.45,
+                        color: colorScheme.onSecondaryContainer,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 18),
