@@ -4,14 +4,14 @@ import 'package:otzaria/tabs/utils/tab_swipe_settle.dart';
 void main() {
   int settle({
     required double page,
-    double? startPage,
+    double? dragged,
     required int anchor,
     double velocity = 0,
     int tabCount = 5,
   }) => tabSwipeSettleIndex(
     page: page,
-    startPage: startPage ?? anchor.toDouble(),
     anchorIndex: anchor,
+    draggedPages: dragged ?? page - anchor,
     pageVelocity: velocity,
     tabCount: tabCount,
   );
@@ -33,8 +33,10 @@ void main() {
 
     test('הנפה באמצע אנימציה נמדדת מהטאב הנבחר (#5211)', () {
       // הטאב הנבחר 3, התצוגה עוד ב-2.59 בדרך אליו.
-      expect(settle(page: 2.68, startPage: 2.59, anchor: 3, velocity: 600), 4);
-      expect(settle(page: 1.32, startPage: 1.41, anchor: 1, velocity: -600), 0);
+      expect(settle(page: 2.68, dragged: 0.09, anchor: 3, velocity: 600), 4);
+      expect(settle(page: 1.32, dragged: -0.09, anchor: 1, velocity: -600), 0);
+      // הנפה חזרה באמצע האנימציה חוזרת לטאב שממנו יצאה הקודמת.
+      expect(settle(page: 2.5, dragged: -0.09, anchor: 3, velocity: -600), 2);
     });
 
     test('לא חורג מגבולות הטאבים', () {

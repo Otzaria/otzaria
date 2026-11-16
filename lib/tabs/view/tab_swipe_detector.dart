@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
-import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/utils/tab_content_vertical_drag_recognizer.dart';
 import 'package:otzaria/tabs/utils/tab_swipe_direction.dart';
+import 'package:otzaria/tabs/utils/tab_swipe_log.dart';
 import 'package:otzaria/tabs/utils/tab_swipe_settle.dart';
 import 'package:otzaria/tabs/utils/touch_tab_swipe_recognizer.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -19,26 +19,17 @@ class TabSwipeDetector extends StatefulWidget {
   const TabSwipeDetector({
     super.key,
     required this.controller,
-    required this.onSettlingChanged,
+    required this.onActiveChanged,
     required this.child,
   });
 
   final PageController? controller;
 
-  /// נקרא עם `true` בתחילת אנימציית ההתיישבות ועם `false` בסופה, כדי
-  /// שסנכרון ה-PageView מה-bloc לא יקטע אותה.
-  final ValueChanged<bool> onSettlingChanged;
+  /// `true` מתחילת הגרירה ו-`false` בסוף ההתיישבות, כדי שסנכרון ה-PageView
+  /// מה-bloc לא יקפיץ את התצוגה באמצע.
+  final ValueChanged<bool> onActiveChanged;
 
   final Widget child;
-
-  /// ההחלקות האחרונות, לדיווח על התוכנה.
-  static List<Map<String, Object?>> get recentSwipes =>
-      List.unmodifiable(_recentSwipes);
-  static final List<Map<String, Object?>> _recentSwipes = [];
-  static const int _maxRecentSwipes = 5;
-
-  @visibleForTesting
-  static void debugClearRecentSwipes() => _recentSwipes.clear();
 
   @override
   State<TabSwipeDetector> createState() => _TabSwipeDetectorState();
@@ -49,7 +40,11 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
   double _startPage = 0;
   int _anchorIndex = 0;
   double _draggedDx = 0;
+  double _draggedPages = 0;
   PointerDeviceKind? _kind;
+
+  /// מחווה חדשה מחליפה את ההתיישבות הקודמת; רק האחרונה משחררת את הדיכוי.
+  int _generation = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -106,9 +101,12 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
     final controller = widget.controller;
     if (controller == null || !controller.hasClients) return;
     _dragging = true;
+    _generation++;
+    widget.onActiveChanged(true);
     _startPage = controller.page ?? 0;
     _anchorIndex = context.read<TabsBloc>().state.currentTabIndex;
     _draggedDx = 0;
+    _draggedPages = 0;
     _kind = details.kind;
   }
 
@@ -123,20 +121,32 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
           accumulatedDx: details.delta.dx,
           textDirection: Directionality.of(context),
         );
+    final before = position.pixels;
     position.jumpTo(
       (position.pixels + offsetDelta).clamp(
         position.minScrollExtent,
         position.maxScrollExtent,
       ),
     );
+    _draggedPages += (position.pixels - before) / position.viewportDimension;
   }
 
   Future<void> _settle(double velocityDx) async {
     if (!_dragging) return;
     _dragging = false;
+    final generation = _generation;
+    try {
+      await _settleOnTarget(velocityDx);
+    } finally {
+      if (generation == _generation) widget.onActiveChanged(false);
+    }
+  }
+
+  Future<void> _settleOnTarget(double velocityDx) async {
     final controller = widget.controller;
     if (controller == null || !controller.hasClients) return;
-    final state = context.read<TabsBloc>().state;
+    final bloc = context.read<TabsBloc>();
+    final state = bloc.state;
     if (!state.hasOpenTabs) return;
     final page = controller.page ?? _startPage;
     final pageVelocity =
@@ -147,47 +157,12 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
         );
     final target = tabSwipeSettleIndex(
       page: page,
-      startPage: _startPage,
       anchorIndex: _anchorIndex,
+      draggedPages: _draggedPages,
       pageVelocity: pageVelocity,
       tabCount: state.tabs.length,
     );
-    _record(page: page, velocityDx: velocityDx, target: target, state: state);
-    // עדכון ה-bloc קודם כדי שההדגשה בשורת הטאבים תגיב מיד.
-    if (target != state.currentTabIndex) {
-      context.read<TabsBloc>().add(SetCurrentTab(target));
-    }
-    final duration = AppMotion.duration(
-      context,
-      const Duration(milliseconds: 220),
-    );
-    widget.onSettlingChanged(true);
-    try {
-      if (duration == Duration.zero) {
-        controller.jumpToPage(target);
-      } else {
-        await controller.animateToPage(
-          target,
-          duration: duration,
-          curve: Curves.easeOutCubic,
-        );
-      }
-    } finally {
-      widget.onSettlingChanged(false);
-    }
-  }
-
-  void _record({
-    required double page,
-    required double velocityDx,
-    required int target,
-    required TabsState state,
-  }) {
-    final swipes = TabSwipeDetector._recentSwipes;
-    if (swipes.length == TabSwipeDetector._maxRecentSwipes) {
-      swipes.removeAt(0);
-    }
-    swipes.add({
+    TabSwipeLog.add(bloc, {
       'kind': _kind?.name,
       'tab': state.currentTab?.runtimeType.toString(),
       'from': _anchorIndex,
@@ -195,8 +170,26 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
       'tabs': state.tabs.length,
       'dx': _draggedDx.round(),
       'velocity': velocityDx.round(),
-      'startPage': double.parse(_startPage.toStringAsFixed(2)),
-      'page': double.parse(page.toStringAsFixed(2)),
+      'startPage': _rounded(_startPage),
+      'page': _rounded(page),
     });
+    // עדכון ה-bloc קודם כדי שההדגשה בשורת הטאבים תגיב מיד.
+    if (target != state.currentTabIndex) bloc.add(SetCurrentTab(target));
+    final duration = AppMotion.duration(
+      context,
+      const Duration(milliseconds: 220),
+    );
+    if (duration == Duration.zero) {
+      controller.jumpToPage(target);
+    } else {
+      await controller.animateToPage(
+        target,
+        duration: duration,
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
+
+  static double _rounded(double value) =>
+      double.parse(value.toStringAsFixed(2));
 }

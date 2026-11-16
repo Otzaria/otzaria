@@ -72,8 +72,8 @@ class _ReadingScreenState extends State<ReadingScreen>
   bool _routeWasCurrent = true;
   OpenedTab? _paneBeforeModal;
 
-  /// מדכא את [_syncPageController] בזמן אנימציית מעבר מהחלקה, כדי
-  /// ש-jumpToPage של הסנכרון לא יקטע את האנימציה באמצע.
+  /// מדכא את [_syncPageController] בזמן החלקה והתיישבות, כדי
+  /// ש-jumpToPage של הסנכרון לא יקפיץ את התצוגה באמצע.
   bool _suppressPageSync = false;
 
   bool get _isTouchPlatform =>
@@ -233,10 +233,10 @@ class _ReadingScreenState extends State<ReadingScreen>
     if (_isTouchPlatform) return child;
     return TabSwipeDetector(
       controller: _pageController,
-      onSettlingChanged: (settling) {
-        _suppressPageSync = settling;
-        // משלים שינוי טאב שקרה באמצע האנימציה ונבלע בדיכוי.
-        if (!settling && mounted) _syncPageController();
+      onActiveChanged: (active) {
+        _suppressPageSync = active;
+        // משלים שינוי טאב שקרה באמצע ההחלקה ונבלע בדיכוי.
+        if (!active && mounted) _syncPageController();
       },
       child: child,
     );
