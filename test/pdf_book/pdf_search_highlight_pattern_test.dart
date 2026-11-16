@@ -137,7 +137,14 @@ class _RecordingTextSearcher extends PdfTextSearchSession {
       searchImmediately: searchImmediately,
       goToFirstMatch: goToFirstMatch,
     ));
+    if (startPageNumber != null) startPages.add(startPageNumber);
   }
+
+  /// העמודים שהסריקה הוקדמה אליהם.
+  final startPages = <int>[];
+
+  @override
+  Pattern? get pattern => searches.lastOrNull;
 
   @override
   Future<PdfPageText?> loadText({required int pageNumber}) async => PdfPageText(
@@ -796,6 +803,30 @@ Future<void> main() async {
           },
         );
       }
+
+      testWidgets('קפיצה לעמוד שטרם נסרק מקדימה את הסריקה אליו', (
+        tester,
+      ) async {
+        final controller = _FakeReadyController(viewerPage: 3, canReveal: true);
+        final searcher = await _pumpSearchView(
+          tester,
+          pageFullText: page,
+          initialQuery: near,
+          initialSearchMode: SearchMode.advanced,
+          searchRepository: _OneResultRepository(),
+          controller: controller,
+        );
+        searcher.scanning = true;
+        await _settleWithoutTime(tester);
+        final highlight = searcher.searches.last;
+        await tester.tap(find.byType(SearchResultTile).first);
+        await _settleWithoutTime(tester);
+        expect(searcher.startPages, [5]);
+        expect(searcher.searches.last, same(highlight));
+        searcher.finishPageScan(ranges);
+        await _settleWithoutTime(tester);
+        expect(searcher.navigatedTo, [0]);
+      });
 
       testWidgets('סריקה שמסתיימת בזמן אנימציית הקפיצה אינה משאירה המתנה', (
         tester,
