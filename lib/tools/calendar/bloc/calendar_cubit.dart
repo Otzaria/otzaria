@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -532,11 +533,11 @@ class CalendarCubit extends Cubit<CalendarState> {
     emit(state.copyWith(dailyTimes: newTimes));
   }
 
-  void _scheduleTodayRefresh() {
+  void _scheduleTodayRefresh([DateTime? nextRefresh]) {
     _todayRefreshTimer?.cancel();
     if (isClosed) return;
 
-    final nextRefresh = nextCalendarTodayRefreshTime(
+    nextRefresh ??= nextCalendarTodayRefreshTime(
       now: DateTime.now(),
       city: state.selectedCity,
       transition: state.dayTransition,
@@ -548,15 +549,26 @@ class CalendarCubit extends Cubit<CalendarState> {
     );
   }
 
-  void _refreshCalendarToday() {
+  Future<void> _refreshCalendarToday() async {
     if (isClosed) return;
 
+    final city = state.selectedCity;
+    final transition = state.dayTransition;
     final previousToday = state.todayGregorianDate;
-    final today = resolveCalendarDayForTransition(
-      now: DateTime.now(),
-      city: state.selectedCity,
-      transition: state.dayTransition,
+    final refresh = await computeCalendarTodayRefresh(
+      city: city,
+      transition: transition,
+      previousToday: previousToday,
     );
+    // שינוי עיר או מעבר יום בזמן החישוב מתזמן רענון חדש בעצמו.
+    if (isClosed ||
+        state.selectedCity != city ||
+        state.dayTransition != transition ||
+        state.todayGregorianDate != previousToday) {
+      return;
+    }
+
+    final today = refresh.today;
     final wasViewingToday = _isSameDateOnly(
       state.selectedGregorianDate,
       previousToday,
@@ -564,9 +576,7 @@ class CalendarCubit extends Cubit<CalendarState> {
 
     if (!_isSameDateOnly(today, previousToday)) {
       final jewishToday = JewishDate.fromDateTime(today);
-      final newTimes = wasViewingToday
-          ? _calculateDailyTimes(today, state.selectedCity)
-          : state.dailyTimes;
+      final newTimes = wasViewingToday ? refresh.dailyTimes! : state.dailyTimes;
       emit(
         state.copyWith(
           todayGregorianDate: today,
@@ -595,7 +605,7 @@ class CalendarCubit extends Cubit<CalendarState> {
       );
     }
 
-    _scheduleTodayRefresh();
+    _scheduleTodayRefresh(refresh.nextRefresh);
   }
 
   void selectDate(JewishDate jewishDate, DateTime gregorianDate) {
@@ -1616,6 +1626,35 @@ String _calendarTypeToString(CalendarType type) {
       return 'combined';
   }
 }
+
+/// חישוב הרענון התקופתי של "היום" ב-isolate נפרד: כל DateTime מקומי שואל את
+/// Windows על אזור הזמן, ואחרי יציאה משינה זה תקע את ה-UI לעשרות שניות (#5227).
+Future<
+  ({DateTime today, Map<String, String>? dailyTimes, DateTime nextRefresh})
+>
+computeCalendarTodayRefresh({
+  required String city,
+  required CalendarDayTransition transition,
+  required DateTime previousToday,
+}) => Isolate.run(() {
+  NotificationService.initializeTimeZones();
+  final today = resolveCalendarDayForTransition(
+    now: DateTime.now(),
+    city: city,
+    transition: transition,
+  );
+  return (
+    today: today,
+    dailyTimes: _isSameDateOnly(today, previousToday)
+        ? null
+        : _calculateDailyTimes(today, city),
+    nextRefresh: nextCalendarTodayRefreshTime(
+      now: DateTime.now(),
+      city: city,
+      transition: transition,
+    ),
+  );
+});
 
 /// מחזירה את היום הלוחי לפי זמן מעבר היום שנבחר והעיר הנוכחית.
 DateTime resolveCalendarDayForTransition({

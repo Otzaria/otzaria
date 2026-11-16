@@ -9,6 +9,8 @@ import 'package:otzaria/tools/calendar/repository/google_calendar_repository.dar
 import 'package:otzaria/tools/calendar/services/google_calendar_service.dart';
 import 'package:otzaria/tools/calendar/services/notification_service.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
+import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart'
+    as zmanim_helpers;
 import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/tools/calendar/services/calendar_alerts_owner.dart';
 import 'package:otzaria/tools/calendar/services/calendar_alerts_store.dart';
@@ -494,6 +496,38 @@ void main() {
       expect(refreshInJerusalem.day, 20);
       expect(refreshInJerusalem.hour, 4);
     });
+
+    test(
+      'refresh in a separate isolate matches the synchronous calculation',
+      () async {
+        const city = 'ירושלים';
+        const transition = CalendarDayTransition.sunset;
+        final today = resolveCalendarDayForTransition(
+          now: DateTime.now(),
+          city: city,
+          transition: transition,
+        );
+
+        final newDay = await computeCalendarTodayRefresh(
+          city: city,
+          transition: transition,
+          previousToday: DateTime(2000),
+        );
+        expect(newDay.today, today);
+        expect(
+          newDay.dailyTimes,
+          zmanim_helpers.calculateDailyTimes(today, city),
+        );
+        expect(newDay.nextRefresh.isAfter(DateTime.now()), isTrue);
+
+        final sameDay = await computeCalendarTodayRefresh(
+          city: city,
+          transition: transition,
+          previousToday: today,
+        );
+        expect(sameDay.dailyTimes, isNull);
+      },
+    );
   });
 
   group('refreshPluginEvents — race condition', () {
