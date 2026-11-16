@@ -5,6 +5,8 @@ import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 
 /// מחזיר צבע רקע עדין לשבתות, מועדים ותעניות
 Color? getDayBackgroundColor(
@@ -96,7 +98,6 @@ Widget buildDayCell(
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final compactCell = constraints.maxHeight < 84;
-                  final veryCompactCell = constraints.maxHeight < 64;
                   final primaryFontSize =
                       state.calendarType == CalendarType.combined
                       ? (compactCell ? 11.0 : 12.0)
@@ -174,17 +175,21 @@ Widget buildDayCell(
                         ),
                         SizedBox(height: compactCell ? 2 : 6),
                         Expanded(
-                          child: Align(
-                            alignment: Alignment.topCenter,
-                            child: DayExtras(
-                              jewishCalendar: jewishCalendar,
-                              date: gregorianDate,
-                              maxVisibleItems: veryCompactCell
-                                  ? 0
-                                  : (compactCell ? 1 : 2),
-                              compact: compactCell,
-                              additionalInfoLines: additionalInfoLines,
-                              isSelected: isSelected,
+                          child: LayoutBuilder(
+                            builder: (context, extrasConstraints) => Align(
+                              alignment: AlignmentDirectional.topStart,
+                              child: DayExtras(
+                                jewishCalendar: jewishCalendar,
+                                date: gregorianDate,
+                                maxVisibleItems: DayExtras.linesThatFit(
+                                  context,
+                                  extrasConstraints.maxHeight,
+                                  compact: compactCell,
+                                ),
+                                compact: compactCell,
+                                additionalInfoLines: additionalInfoLines,
+                                isSelected: isSelected,
+                              ),
                             ),
                           ),
                         ),
@@ -222,6 +227,35 @@ class DayExtras extends StatelessWidget {
     this.isSelected = false,
   });
 
+  /// כמה שורות פריטים נכנסות בגובה [height], לפי הגופן והגדלת הטקסט בפועל.
+  static int linesThatFit(
+    BuildContext context,
+    double height, {
+    required bool compact,
+  }) {
+    if (!height.isFinite) return 2;
+    final painter = TextPainter(
+      text: const TextSpan(text: 'א'),
+      strutStyle: _lineStrut(context, compact),
+      textDirection: TextDirection.rtl,
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    final lineHeight = painter.height;
+    painter.dispose();
+    return (height / lineHeight).floor();
+  }
+
+  // גובה שורה קבוע בתא: גופני fallback (עברית לצד ספרות/לטינית) לא יגדילו
+  // שורה מעבר למה ש-linesThatFit מדד.
+  static StrutStyle _lineStrut(BuildContext context, bool compact) =>
+      StrutStyle.fromTextStyle(
+        DefaultTextStyle.of(context).style.merge(
+          TextStyle(fontSize: compact ? 10 : 11, fontWeight: FontWeight.w500),
+        ),
+        forceStrutHeight: true,
+      );
+
   @override
   Widget build(BuildContext context) {
     if (maxVisibleItems <= 0) {
@@ -229,77 +263,138 @@ class DayExtras extends StatelessWidget {
     }
 
     final cs = Theme.of(context).colorScheme;
-    final cubit = context.read<CalendarCubit>();
-    final events = cubit.eventsForDate(date);
-    final List<Widget> lines = [];
-    final jewishEvents = _calcJewishEvents(jewishCalendar);
-    final visibleItems = <Widget>[];
+    final brightness = Theme.of(context).brightness;
+    final events = context.read<CalendarCubit>().eventsForDate(date);
+    final strut = _lineStrut(context, compact);
 
-    for (final e in jewishEvents.take(maxVisibleItems)) {
-      visibleItems.add(
-        Text(
+    // inDialog: שורה מלאה בחלונית "כל הפריטים", בלי קיצור ובלי צבעי בחירה.
+    final items = <Widget Function(bool inDialog)>[
+      for (final e in _calcJewishEvents(jewishCalendar))
+        (inDialog) => Text(
           e,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+          maxLines: inDialog ? null : 1,
+          overflow: inDialog ? null : TextOverflow.ellipsis,
+          strutStyle: inDialog ? null : strut,
           style: TextStyle(
-            fontSize: compact ? 10 : 11,
-            color: isSelected ? cs.onPrimaryContainer : cs.onSurface,
+            fontSize: inDialog ? 14 : (compact ? 10 : 11),
+            color: isSelected && !inDialog
+                ? cs.onPrimaryContainer
+                : cs.onSurface,
             fontWeight: FontWeight.w500,
           ),
         ),
-      );
-    }
-
-    var remainingSlots = maxVisibleItems - visibleItems.length;
-    for (final e in events.take(remainingSlots.clamp(0, maxVisibleItems))) {
-      final dotColor = isSelected
-          ? cs.onPrimaryContainer
-          : CalendarEventColors.colorForIndex(
-                  e.displayColorIndex,
-                  Theme.of(context).brightness,
-                ) ??
-                cs.onSurfaceVariant;
-      visibleItems.add(
-        Text.rich(
+      for (final e in events)
+        (inDialog) => Text.rich(
           TextSpan(
             children: [
               TextSpan(
                 text: '• ',
-                style: TextStyle(color: dotColor),
+                style: TextStyle(
+                  color: isSelected && !inDialog
+                      ? cs.onPrimaryContainer
+                      : CalendarEventColors.colorForIndex(
+                              e.displayColorIndex,
+                              brightness,
+                            ) ??
+                            cs.onSurfaceVariant,
+                ),
               ),
               TextSpan(text: e.title),
             ],
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+          maxLines: inDialog ? null : 1,
+          overflow: inDialog ? null : TextOverflow.ellipsis,
+          strutStyle: inDialog ? null : strut,
           style: TextStyle(
-            fontSize: compact ? 9 : 10,
-            color: isSelected ? cs.onPrimaryContainer : cs.onSurfaceVariant,
+            fontSize: inDialog ? 14 : (compact ? 9 : 10),
+            color: isSelected && !inDialog
+                ? cs.onPrimaryContainer
+                : cs.onSurfaceVariant,
           ),
         ),
-      );
-    }
-
-    remainingSlots = maxVisibleItems - visibleItems.length;
-    for (final info in additionalInfoLines.take(
-      remainingSlots.clamp(0, maxVisibleItems),
-    )) {
-      visibleItems.add(
-        Text(
+      for (final info in additionalInfoLines)
+        (inDialog) => Text(
           info,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+          maxLines: inDialog ? null : 1,
+          overflow: inDialog ? null : TextOverflow.ellipsis,
+          strutStyle: inDialog ? null : strut,
           style: TextStyle(
-            fontSize: compact ? 9 : 10,
-            color: isSelected ? cs.onPrimaryContainer : cs.primary,
+            fontSize: inDialog ? 14 : (compact ? 9 : 10),
+            color: isSelected && !inDialog ? cs.onPrimaryContainer : cs.primary,
             fontWeight: FontWeight.w600,
           ),
         ),
+    ];
+
+    final hiddenCount = items.length - maxVisibleItems;
+    final lines = [for (final item in items.take(maxVisibleItems)) item(false)];
+    if (hiddenCount > 0) {
+      final lastItem = lines.last;
+      final minRowWidth = MediaQuery.textScalerOf(context).scale(44);
+      lines.last = LayoutBuilder(
+        builder: (context, constraints) {
+          final replacesLastItem = constraints.maxWidth < minRowWidth;
+          final moreLabel = _MoreItemsLabel(
+            hiddenCount: hiddenCount + (replacesLastItem ? 1 : 0),
+            compact: compact,
+            isSelected: isSelected,
+            strut: strut,
+            onTap: () => _showAllItems(context, items),
+          );
+          return replacesLastItem
+              ? FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: AlignmentDirectional.centerStart,
+                  child: moreLabel,
+                )
+              : Row(
+                  children: [
+                    Expanded(child: lastItem),
+                    moreLabel,
+                  ],
+                );
+        },
       );
     }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: lines,
+    );
+  }
 
-    lines.addAll(visibleItems);
-    return Column(mainAxisSize: MainAxisSize.min, children: lines);
+  void _showAllItems(
+    BuildContext context,
+    List<Widget Function(bool inDialog)> items,
+  ) {
+    showDialogUntilTornDown<void>(
+      context: context,
+      builder: (dialogContext) => AppDialogFrame(
+        title: 'כל הפריטים ביום',
+        subtitle: formatEventDate(date),
+        icon: FluentIcons.calendar_24_regular,
+        size: AppDialogSize.small,
+        scrollable: true,
+        actions: [
+          ActionButton.recommended(
+            text: 'סגור',
+            autofocus: true,
+            onPressed: () => Navigator.of(dialogContext).pop(),
+          ),
+        ],
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final item in items)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: item(true),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   static String _numberToHebrewLetter(int n) {
@@ -453,6 +548,52 @@ class _HoverableDayCellState extends State<HoverableDayCell> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// סימון "+N" לפריטים שלא נכנסו בתא; לחיצה פותחת את כל פריטי היום.
+class _MoreItemsLabel extends StatelessWidget {
+  final int hiddenCount;
+  final bool compact;
+  final bool isSelected;
+  final StrutStyle strut;
+  final VoidCallback onTap;
+
+  const _MoreItemsLabel({
+    required this.hiddenCount,
+    required this.compact,
+    required this.isSelected,
+    required this.strut,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: 'עוד $hiddenCount — הצגת כל הפריטים',
+      child: Semantics(
+        button: true,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppTokens.borderRadiusAll,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppTokens.space2XS,
+            ),
+            child: Text(
+              '+$hiddenCount',
+              strutStyle: strut,
+              style: TextStyle(
+                fontSize: compact ? 9 : 10,
+                fontWeight: FontWeight.w700,
+                color: isSelected ? cs.onPrimaryContainer : cs.primary,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
