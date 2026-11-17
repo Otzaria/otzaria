@@ -200,6 +200,8 @@ jobs:
     needs: gate
     if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
+    # שארד תקין לוקח ~15 דקות; טסט תקוע מחזיק אחרת ראנר 6 שעות ומעכב את CI result.
+    timeout-minutes: 30
 
     strategy:
       fail-fast: false
