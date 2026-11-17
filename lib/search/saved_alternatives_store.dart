@@ -11,8 +11,22 @@ class SavedAlternativesStore {
 
   SavedAlternativesStore._();
 
-  static Map<String, List<String>> loadAll() {
+  static String? _cachedRaw;
+  static Map<String, List<String>> _cached = const {};
+
+  static Map<String, List<String>> loadAll() => {
+    for (final entry in _loadSnapshot().entries)
+      entry.key: List<String>.of(entry.value),
+  };
+
+  static Map<String, List<String>> _loadSnapshot() {
     final raw = Settings.getValue<String>(_settingsKey);
+    if (raw == _cachedRaw) return _cached;
+    _cachedRaw = raw;
+    return _cached = _decode(raw);
+  }
+
+  static Map<String, List<String>> _decode(String? raw) {
     if (raw == null || raw.isEmpty) return {};
     try {
       final decoded = jsonDecode(raw);
@@ -34,8 +48,10 @@ class SavedAlternativesStore {
   }
 
   /// החלופות השמורות עבור מילה בודדת.
-  static List<String> alternativesFor(String word) =>
-      loadAll()[word.trim()] ?? const [];
+  static List<String> alternativesFor(String word) {
+    final saved = _loadSnapshot()[word.trim()];
+    return saved == null ? const [] : List<String>.of(saved);
+  }
 
   /// שומר חלופה עבור מילה. כפילויות נבלעות בשקט.
   static void addAlternative(String word, String alternative) {
@@ -72,7 +88,7 @@ class SavedAlternativesStore {
       return manual;
     }
 
-    final all = loadAll();
+    final all = _loadSnapshot();
     if (all.isEmpty) return manual;
 
     final merged = {
