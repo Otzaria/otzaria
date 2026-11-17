@@ -164,10 +164,8 @@ class FileSystemLibraryProvider implements LibraryProvider, LinkLinesProvider {
     // Skip special directories (except in debug mode)
     if (!kDebugMode && dirName == 'ספרים מספריות חיצוניות') return;
 
-    await for (FileSystemEntity entity in dir.list()) {
+    await for (final entity in dir.list()) {
       try {
-        await entity.stat();
-
         if (entity is Directory) {
           final newPath = [...currentPath, getTitleFromPath(entity.path)];
           await _loadBooksRecursively(
