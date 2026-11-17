@@ -1,5 +1,5 @@
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'dart:io';
+
 import 'package:flutter/foundation.dart'
     show ValueListenable, visibleForTesting;
 import 'package:flutter/cupertino.dart' show InheritedCupertinoTheme;
@@ -48,9 +48,8 @@ import 'package:otzaria/text_book/view/text_book_screen.dart';
 import 'package:otzaria/text_book/view/commentators_tab_screen.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentators_tab_screen.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria_icons/otzaria_icons.dart';
-import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
+import 'package:otzaria/tabs/view/recent_books_empty_state.dart';
 
 /// האם [pane] מציג WebView של תוסף: טאב תוסף או ספר בקורא של תוסף.
 @visibleForTesting
@@ -148,20 +147,17 @@ class _ReadingScreenState extends State<ReadingScreen>
 
   void _syncVisiblePluginTabs(TabsState state) {
     final registry = PluginTextReaderRegistry.instance;
-    PluginRuntimeDispatcher.instance.setVisiblePluginInstances(
-      {
-        ...ToolTab.visiblePluginInstancesOf(state.currentTab),
-        if (registry.activePlugin case final plugin?)
-          if (state.currentTab case final currentTab?)
-            for (final tab in leafPanes(currentTab).whereType<TextBookTab>())
-              if (registry.usesPlugin(tab))
-                (
-                  pluginId: plugin.pluginId,
-                  instanceId: registry.instanceIdFor(tab),
-                ),
-      },
-      viewId: _viewId,
-    );
+    PluginRuntimeDispatcher.instance.setVisiblePluginInstances({
+      ...ToolTab.visiblePluginInstancesOf(state.currentTab),
+      if (registry.activePlugin case final plugin?)
+        if (state.currentTab case final currentTab?)
+          for (final tab in leafPanes(currentTab).whereType<TextBookTab>())
+            if (registry.usesPlugin(tab))
+              (
+                pluginId: plugin.pluginId,
+                instanceId: registry.instanceIdFor(tab),
+              ),
+    }, viewId: _viewId);
   }
 
   @override
@@ -358,26 +354,8 @@ class _ReadingScreenState extends State<ReadingScreen>
           return ReaderSurfaceScope(
             child: Scaffold(
               body: !state.hasOpenTabs
-                  ? OtzariaEmptyState(
-                      icon: OtzariaIcons.otzaria_icon_2_page_24_regular,
-                      title: 'לא נבחרו ספרים',
-                      message: 'פתחו ספר מהספרייה או מהאיתור כדי להתחיל בקריאה',
-                      actions: [
-                        ActionButton.recommended(
-                          text: 'דפדף בספרייה',
-                          icon: FluentIcons.library_24_regular,
-                          onPressed: () {
-                            context.read<NavigationBloc>().add(
-                              const NavigateToScreen(Screen.library),
-                            );
-                          },
-                        ),
-                        ActionButton.neutral(
-                          text: 'איתור ספר',
-                          icon: FluentIcons.search_24_regular,
-                          onPressed: widget.onFindRefRequested,
-                        ),
-                      ],
+                  ? RecentBooksEmptyState(
+                      onFindRefRequested: widget.onFindRefRequested,
                     )
                   : KeyedSubtree(
                       key: TourTargetKeys.of(context).readingScreen,
@@ -575,10 +553,7 @@ class _ReadingScreenState extends State<ReadingScreen>
         ),
       );
     } else if (tab is PdfCommentatorsTab) {
-      return PdfCommentatorsTabScreen(
-        key: ValueKey(tab),
-        tab: tab,
-      );
+      return PdfCommentatorsTabScreen(key: ValueKey(tab), tab: tab);
     } else if (tab is ResolvingTab) {
       return ResolvingTabScreen(key: ValueKey(tab), tab: tab);
     } else if (tab is ToolTab) {

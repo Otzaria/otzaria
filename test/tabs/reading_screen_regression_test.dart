@@ -3,6 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/history/bloc/history_bloc.dart';
+import 'package:otzaria/history/bloc/history_event.dart';
+import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/pdf_headings.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentators_tab_screen.dart';
@@ -141,14 +144,19 @@ void main() {
   });
 
   testWidgets('כפתור איתור במסך ריק פותח את חלונית האיתור', (tester) async {
+    final historyBloc = _EmptyHistoryBloc();
+    addTearDown(historyBloc.close);
     var findRequests = 0;
     final tabsBloc = StubTabsBloc(TabsState.initial());
     addTearDown(tabsBloc.close);
 
     await tester.pumpWidget(
       MaterialApp(
-        home: BlocProvider<TabsBloc>.value(
-          value: tabsBloc,
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<TabsBloc>.value(value: tabsBloc),
+            BlocProvider<HistoryBloc>.value(value: historyBloc),
+          ],
           child: ReadingScreen(onFindRefRequested: () => findRequests++),
         ),
       ),
@@ -197,4 +205,14 @@ PdfCommentatorsTab _commentaryTab(String title) {
   sourceTab.currentTextLineNumber = 1;
   sourceTab.currentTextLineNumberEnd = 9;
   return PdfCommentatorsTab(sourceTab: sourceTab);
+}
+
+class _EmptyHistoryBloc extends Bloc<HistoryEvent, HistoryState>
+    implements HistoryBloc {
+  _EmptyHistoryBloc() : super(HistoryLoaded([])) {
+    on<HistoryEvent>((_, _) {});
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
