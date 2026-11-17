@@ -89,6 +89,7 @@ class PluginUserFolderGrants {
     final removed = _grantOf(token, grants.remove(token));
     await _write(pluginId, grants);
     if (removed != null) {
+      PluginRegistryRepository.revokePendingFileAccess(pluginId);
       for (final listener in [...?_revokeListeners[pluginId]]) {
         listener(removed.path);
       }

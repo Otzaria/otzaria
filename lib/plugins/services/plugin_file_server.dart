@@ -180,8 +180,10 @@ class PluginFileServer {
   Future<PluginFileRegistration> register({
     required String pluginId,
     required String canonicalPath,
+    void Function()? checkAccess,
   }) async {
     await _ensureStarted();
+    checkAccess?.call();
     final token = _generateToken();
     _grants[token] = PluginFileGrant(
       pluginId: pluginId,
@@ -195,9 +197,11 @@ class PluginFileServer {
   Future<String> registerWithToken({
     required String pluginId,
     required String canonicalPath,
+    void Function()? checkAccess,
     required String token,
   }) async {
     await _ensureStarted();
+    checkAccess?.call();
     _grants[token] = PluginFileGrant(
       pluginId: pluginId,
       canonicalPath: canonicalPath,

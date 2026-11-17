@@ -160,6 +160,42 @@ void main() {
       expect(canonicalizeNearestExisting(p.join(link, 'deeper.txt')), isNull);
     });
 
+    test('הגרסה האסינכרונית מחזירה null לקישור תלוי', () async {
+      final target = p.join(tempDir.path, 'outside', 'nope.txt');
+      final link = p.join(root, 'dangling3');
+      if (!_tryLink(link, target)) return;
+      expect(await canonicalizeNearestExistingAsync(link), isNull);
+      expect(
+        await canonicalizeNearestExistingAsync(p.join(link, 'deeper.txt')),
+        isNull,
+      );
+    });
+
+    test('הגרסה האסינכרונית זהה לסינכרונית', () async {
+      File(p.join(root, 'a.txt')).writeAsStringSync('x');
+      final outside = Directory(p.join(tempDir.path, 'outside'))
+        ..createSync(recursive: true);
+      final paths = [
+        root,
+        p.join(root, 'a.txt'),
+        p.join(root, 'new', 'deeper', 'b.txt'),
+        p.join(root, '..', 'files', 'a.txt'),
+      ];
+      try {
+        Link(p.join(root, 'escape')).createSync(outside.path);
+        paths.add(p.join(root, 'escape', 'c.txt'));
+      } catch (_) {
+        // בלי הרשאת symlink נבדקים שאר הנתיבים.
+      }
+      for (final path in paths) {
+        expect(
+          await canonicalizeNearestExistingAsync(path),
+          canonicalizeNearestExisting(path),
+          reason: path,
+        );
+      }
+    });
+
     test('symlink שיעדו בתוך השורש נדחה גם הוא', () {
       Directory(p.join(root, 'real')).createSync(recursive: true);
       if (!_tryLink(p.join(root, 'inner'), p.join(root, 'real'))) return;

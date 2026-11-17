@@ -257,6 +257,54 @@ void main() {
     expect(await response.transform(utf8.decoder).join(), 'persisted');
   });
 
+  test(
+    'access cancellation preserves an existing token and cannot restore a revoked one',
+    () async {
+      final original = await writeFile('original.txt', 'original');
+      final replacement = await writeFile('replacement.txt', 'replacement');
+      final grant = await server.register(
+        pluginId: 'p1',
+        canonicalPath: original.path,
+      );
+      void checkAccess() => throw StateError('cancelled');
+
+      await expectLater(
+        server.registerWithToken(
+          pluginId: 'p1',
+          canonicalPath: replacement.path,
+          token: grant.token,
+          checkAccess: checkAccess,
+        ),
+        throwsStateError,
+      );
+      final existing = await get(grant.url);
+      expect(existing.statusCode, 200);
+      expect(await existing.transform(utf8.decoder).join(), 'original');
+
+      server.revoke(grant.token);
+      await expectLater(
+        server.registerWithToken(
+          pluginId: 'p1',
+          canonicalPath: original.path,
+          token: grant.token,
+          checkAccess: checkAccess,
+        ),
+        throwsStateError,
+      );
+      final revoked = await get(grant.url);
+      await revoked.drain<void>();
+      expect(revoked.statusCode, 404);
+      await expectLater(
+        server.register(
+          pluginId: 'p1',
+          canonicalPath: original.path,
+          checkAccess: checkAccess,
+        ),
+        throwsStateError,
+      );
+    },
+  );
+
   test('HEAD מחזיר כותרות בלי גוף', () async {
     final file = await writeFile('doc.txt', 'hello world');
     final reg = await server.register(pluginId: 'p1', canonicalPath: file.path);
