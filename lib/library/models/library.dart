@@ -34,13 +34,15 @@ class Category {
     if (title == 'ספריית אוצריא') {
       return '/';
     }
-    String path = title;
-    Category? parent = this.parent;
-    while (parent != null && parent.title != 'ספריית אוצריא') {
-      path = '${parent.title}/$path';
-      parent = parent.parent;
+    // Walk to the root once, then join once: repeated string prepending
+    // copies the accumulated path at every depth.
+    final segments = <String>[title];
+    Category? ancestor = parent;
+    while (ancestor != null && ancestor.title != 'ספריית אוצריא') {
+      segments.add(ancestor.title);
+      ancestor = ancestor.parent;
     }
-    return '/$path';
+    return '/${segments.reversed.join('/')}';
   }
 
   ///the list of sub categories that are contained in this category
