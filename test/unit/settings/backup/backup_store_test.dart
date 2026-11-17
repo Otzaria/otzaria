@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/services/backup/backup_maintenance.dart';
 import 'package:otzaria/settings/services/backup/backup_store.dart';
@@ -45,6 +46,74 @@ void main() {
     final ref2 = await store.putBytes(bytes);
     expect(ref1, ref2);
     expect(await blobFiles(), hasLength(1));
+  });
+
+  test('putFile שומר תוכן בכמה מקטעים ומשתף blob עם putBytes', () async {
+    final bytes = Uint8List((1 << 20) + 29);
+    for (var i = 0; i < bytes.length; i++) {
+      bytes[i] = (i * 2654435761) >> 13;
+    }
+    final source = await File(
+      p.join(tempDir.path, 'plugin-data'),
+    ).writeAsBytes(bytes);
+
+    final refs = await Future.wait([
+      store.putFile(source),
+      store.putFile(source),
+    ]);
+    final ref = await store.putBytes(bytes);
+    expect(refs, [ref, ref]);
+    expect(await store.getBytes(ref), bytes);
+
+    final blob = (await blobFiles()).single;
+    await blob.setLastModified(DateTime.utc(2025));
+    final lastModified = await blob.lastModified();
+    expect(await store.putFile(source), ref);
+    expect((await blobFiles()).single.path, blob.path);
+    expect(await blob.lastModified(), lastModified);
+  });
+
+  test('putFile שומר את התוכן שנקרא אחרי שינוי בקובץ', () async {
+    const before = [1, 2, 3];
+    const after = [4, 5, 6, 7];
+    final source = await File(p.join(tempDir.path, 'plugin-data')).writeAsBytes(
+      before,
+    );
+    final changingSource = _FileChangedOnRewind(source.path, after);
+
+    final ref = await store.putFile(changingSource);
+
+    expect(ref, 'sha256:${sha256.convert(after)}');
+    expect(await store.getBytes(ref), after);
+    expect(await store.exists('sha256:${sha256.convert(before)}'), isFalse);
+
+    final blob = (await blobFiles()).single;
+    await blob.setLastModified(DateTime.utc(2025));
+    final lastModified = await blob.lastModified();
+    await source.writeAsBytes(before);
+    expect(await store.putFile(changingSource), ref);
+    expect((await blobFiles()).single.path, blob.path);
+    expect(await blob.lastModified(), lastModified);
+  });
+
+  test('putFile מנקה קובץ ביניים כשהפרסום נכשל ומאפשר ניסיון חוזר', () async {
+    const bytes = [1, 2, 3];
+    final source = await File(
+      p.join(tempDir.path, 'plugin-data'),
+    ).writeAsBytes(bytes);
+    final ref = await store.putBytes(bytes);
+    final blob = (await blobFiles()).single;
+    await blob.delete();
+    final blocked = await Directory(blob.path).create();
+
+    await expectLater(
+      store.putFile(source),
+      throwsA(isA<FileSystemException>()),
+    );
+    expect(await blobFiles(), isEmpty);
+    await blocked.delete();
+    expect(await store.putFile(source), ref);
+    expect(await store.getBytes(ref), bytes);
   });
 
   test('blob גדול אינו חוסם את לולאת האירועים (issue #3367)', () async {
@@ -224,6 +293,44 @@ void main() {
       },
     );
   });
+}
+
+class _FileChangedOnRewind extends Fake implements File {
+  _FileChangedOnRewind(this.path, this.replacement);
+
+  @override
+  final String path;
+  final List<int> replacement;
+
+  @override
+  File get absolute => this;
+
+  @override
+  Future<RandomAccessFile> open({FileMode mode = FileMode.read}) async =>
+      _InputChangedOnRewind(await File(path).open(mode: mode), replacement);
+}
+
+class _InputChangedOnRewind extends Fake implements RandomAccessFile {
+  _InputChangedOnRewind(this.input, this.replacement);
+
+  final RandomAccessFile input;
+  final List<int> replacement;
+
+  @override
+  String get path => input.path;
+
+  @override
+  Future<Uint8List> read(int count) => input.read(count);
+
+  @override
+  Future<RandomAccessFile> setPosition(int position) async {
+    await File(path).writeAsBytes(replacement);
+    await input.setPosition(position);
+    return this;
+  }
+
+  @override
+  Future<void> close() => input.close();
 }
 
 /// תיקייה שמונה קבצים קבועים, כולל כאלה שכבר אינם על הדיסק.

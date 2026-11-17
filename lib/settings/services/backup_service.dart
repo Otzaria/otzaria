@@ -599,10 +599,9 @@ class BackupService {
       if (await FileSystemEntity.isLink(entity.path)) continue;
       if (entity is File) {
         final relativePath = p.relative(entity.path, from: dir.path);
-        final bytes = await entity.readAsBytes();
         map[p.split(relativePath).join('/')] = store != null
-            ? await store.putBytes(bytes)
-            : base64Encode(bytes);
+            ? await store.putFile(entity)
+            : base64Encode(await entity.readAsBytes());
       }
     }
     return map;
@@ -638,8 +637,9 @@ class BackupService {
       if (await file.length() > budget) {
         throw StateError('user_books.db גדול מתקרת הגיבוי');
       }
-      final bytes = await file.readAsBytes();
-      return store != null ? await store.putBytes(bytes) : base64Encode(bytes);
+      return store != null
+          ? await store.putFile(file)
+          : base64Encode(await file.readAsBytes());
     } catch (e) {
       _logger.warning('Skipping user_books.db backup: $e');
       skippedSections.add('userBooks');
