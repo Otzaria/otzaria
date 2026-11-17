@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/diagnostics/smart_text_render_stats.dart';
-import 'package:otzaria/widgets/smart_text/render_settings.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart' show HolyNameStyle;
 import 'package:otzaria/widgets/smart_text/inline_html_document.dart';
+import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
 
@@ -59,6 +60,59 @@ void main() {
     expect(stats['processMisses'], 2);
     expect(stats['processHits'], 1);
     expect(stats['processUncachedMs'], isA<double>());
+  });
+
+  test('processText: הגדרות חיפוש והחלפה כבויות חולקות תוצאה במטמון', () {
+    const text = 'ויאמר יהוה';
+    final first = TextRendererService.processText(text, const RenderSettings());
+    final second = TextRendererService.processText(
+      text,
+      const RenderSettings(
+        holyNameStyle: HolyNameStyle.hehApostrophe,
+        currentSearchIndex: 1,
+        searchOptions: {
+          'משה': {'fuzzy': true},
+        },
+        alternativeWords: {
+          0: ['אהרן'],
+        },
+        spacingValues: {'0': '2'},
+        isFuzzySearch: true,
+        searchDistance: 2,
+        isSearchResultLine: true,
+        highlightYellowBackground: true,
+        partialWordHighlight: true,
+        previousLineText: 'בראשית',
+        nextLineText: 'וידבר משה',
+      ),
+    );
+
+    expect(first, text);
+    expect(second, text);
+    final stats = SmartTextRenderStats.takeAndReset()!;
+    expect(stats['processMisses'], 1);
+    expect(stats['processHits'], 1);
+  });
+
+  test('processText: לכל סגנון החלפה פעיל תוצאה נפרדת במטמון', () {
+    const text = 'ויאמר יהוה';
+    final first = TextRendererService.processText(
+      text,
+      const RenderSettings(replaceHolyNames: true),
+    );
+    final second = TextRendererService.processText(
+      text,
+      const RenderSettings(
+        replaceHolyNames: true,
+        holyNameStyle: HolyNameStyle.hehApostrophe,
+      ),
+    );
+
+    expect(first, 'ויאמר יקוק');
+    expect(second, "ויאמר ה'");
+    final stats = SmartTextRenderStats.takeAndReset()!;
+    expect(stats['processMisses'], 2);
+    expect(stats['processHits'], 0);
   });
 
   testWidgets('שורות מהירות ומלאות נצברות עם בניית fwfh', (tester) async {
