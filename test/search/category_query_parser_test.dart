@@ -21,14 +21,21 @@ Category _category(
 );
 
 class _CountingBook extends TextBook {
-  _CountingBook() : super(title: 'ספר אחר', id: 1);
+  _CountingBook({super.title = 'ספר אחר', super.id = 1});
 
   int titleReads = 0;
+  int idReads = 0;
 
   @override
   String get title {
     titleReads++;
     return super.title;
+  }
+
+  @override
+  int? get id {
+    idReads++;
+    return super.id;
   }
 }
 
@@ -250,6 +257,26 @@ void main() {
       expect(parsed.categoryFound, isTrue);
       expect(parsed.facets!.length, 1);
       expect(parsed.facets!.single, isNot(contains('רשי')));
+    });
+
+    test('כותרת מדויקת מדלגת על בדיקת כינויים לכל שאר הספרים', () {
+      final otherBooks = List.generate(
+        1000,
+        (i) => _CountingBook(title: 'פירוש בראשית סעיף $i', id: i + 1),
+      );
+      final exactBook = TextBook(title: 'בראשית', id: 1001);
+      final matchingCategory = _category('בראשית', []);
+      final library = Library(
+        categories: [
+          _category('תורה', [...otherBooks, exactBook]),
+          matchingCategory,
+        ],
+      );
+
+      final parsed = parseCategoryQuery('מילה@בְּרֵאשִׁית', library);
+
+      expect(parsed.facets, [facetOf(exactBook), matchingCategory.path]);
+      expect(otherBooks.map((book) => book.idReads), everyElement(0));
     });
 
     test('שם חלקי — התאמת הכלה בכותרת', () {
