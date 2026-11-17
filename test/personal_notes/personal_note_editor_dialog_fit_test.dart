@@ -107,14 +107,14 @@ void main() {
           reason: 'אין גלילה חיצונית בדיאלוג',
         );
 
-        // אזור הכתיבה כולו מעל הכפתורים, ונשאר שמיש (כמה שורות).
+        // אזור הכתיבה מתחת לרצועת השמירה, ונשאר שמיש (כמה שורות).
         final editor = tester.getRect(_editorBox);
         expect(editor.height, greaterThanOrEqualTo(40));
         expect(editor.height, lessThanOrEqualTo(220.5));
         expect(
-          editor.bottom,
-          lessThanOrEqualTo(save.top),
-          reason: 'אזור הכתיבה גלוי במלואו מעל "שמור"',
+          editor.top,
+          greaterThanOrEqualTo(save.bottom),
+          reason: 'בחלון נמוך "שמור" בכותרת ואזור הכתיבה גלוי מתחתיו',
         );
         _expectInside(editor, screen, 'אזור הכתיבה בתוך החלון');
       },

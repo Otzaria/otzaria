@@ -20,6 +20,7 @@ import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/widgets/controls/bar_button.dart';
 import 'package:otzaria/widgets/feedback/app_scrollbar.dart';
+import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 import 'package:otzaria/theme/app_motion.dart';
@@ -173,8 +174,7 @@ class PersonalNoteEditorBody extends StatefulWidget {
   /// בדיאלוג: Escape בשדה סוגר את הדיאלוג, כמו מחוץ לשדה.
   final bool escapeDismisses;
 
-  /// בדיאלוג: אזור הכתיבה מתכווץ לגובה שנשאר בחלון (עד 220px) וגולל בתוכו,
-  /// כדי שכפתורי הדיאלוג יישארו גלויים. בפאנל ההערות, שגולל בעצמו — כבוי.
+  /// בדיאלוג: מתכווץ עד לגובה שימושי וגולל כשאין מקום. בפאנל, שגולל בעצמו — כבוי.
   final bool fitToAvailableHeight;
 
   const PersonalNoteEditorBody({
@@ -198,7 +198,9 @@ class PersonalNoteEditorBody extends StatefulWidget {
   State<PersonalNoteEditorBody> createState() => _PersonalNoteEditorBodyState();
 }
 
-class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
+class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody>
+    with WidgetsBindingObserver {
+  static const _minimumFittedHeight = 160.0;
   final _editMenuKey = GlobalKey<AppContextMenuRegionState>();
   PointerDeviceKind? _lastPointerKind;
 
@@ -210,7 +212,11 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
   void initState() {
     super.initState();
     widget.focusNode.addListener(_handleFocusChange);
+    WidgetsBinding.instance.addObserver(this);
   }
+
+  @override
+  void didChangeMetrics() => _handleFocusChange();
 
   @override
   void didUpdateWidget(covariant PersonalNoteEditorBody oldWidget) {
@@ -224,6 +230,7 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
   @override
   void dispose() {
     _settleTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     widget.focusNode.removeListener(_handleFocusChange);
     super.dispose();
   }
@@ -415,13 +422,37 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final referenceBackground = colorScheme.surfaceContainerHighest.withValues(
+      alpha: 0.5,
+    );
+    final editorOutline = colorScheme.outline.withValues(alpha: 0.6);
+    Widget body(double availableHeight) => _buildBody(
+      context,
+      availableHeight: availableHeight,
+      referenceBackground: referenceBackground,
+      editorOutline: editorOutline,
+    );
+    return widget.fitToAvailableHeight
+        ? LayoutBuilder(
+            builder: (context, constraints) => body(constraints.maxHeight),
+          )
+        : body(double.infinity);
+  }
+
+  Widget _buildBody(
+    BuildContext context, {
+    required double availableHeight,
+    required Color referenceBackground,
+    required Color editorOutline,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
     final referenceStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
       fontWeight: FontWeight.w500,
       color: colorScheme.onSurfaceVariant,
     );
     // טקסט ההקשר מוגבל לשתי שורות ושלוש נקודות, כדי שטקסט נבחר ארוך לא
     // ידחוף את אזור הכתיבה מטה ומחוץ למסך.
-    return Column(
+    final body = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (widget.referenceText != null &&
@@ -431,9 +462,7 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest.withValues(
-                  alpha: 0.5,
-                ),
+                color: referenceBackground,
                 borderRadius: AppTokens.borderRadiusAll,
               ),
               // הטקסט המלא בריחוף.
@@ -467,7 +496,7 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
             ),
             foregroundDecoration: BoxDecoration(
               border: Border.all(
-                color: colorScheme.outline.withValues(alpha: 0.6),
+                color: editorOutline,
                 width: 1.2,
               ),
               borderRadius: AppTokens.borderRadiusAll,
@@ -486,11 +515,9 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
                 const Divider(height: 1),
                 _flexibleIfFitting(
                   SizedBox(
-                    // בדיאלוג: 220px כשיש מקום, וה-Flexible שמסביב מקטין לפי מה
-                    // שנשאר בחלון. בפאנל: במסך נמוך או עם מקלדת פתוחה 220px
-                    // קבועים דוחקים את כפתור השמירה — מצמצמים לפי הגובה הפנוי.
+                    // בדיאלוג מתכווץ לפי הגוף; בפאנל לפי הגובה שמעל המקלדת.
                     height: widget.fitToAvailableHeight
-                        ? 220.0
+                        ? availableHeight.clamp(0.0, 220.0)
                         : () {
                             final media = MediaQuery.of(context);
                             final available =
@@ -598,6 +625,21 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
           ),
         ),
       ],
+    );
+    if (!widget.fitToAvailableHeight) return body;
+    return PanelScrollableContent(
+      padding: EdgeInsets.zero,
+      thumbVisibility: true,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          // שומרים מקום לשורות כתיבה; בגובה קטן יותר הגוף נגלל מעל הפעולות.
+          maxHeight: availableHeight.clamp(
+            MediaQuery.textScalerOf(context).scale(_minimumFittedHeight),
+            double.infinity,
+          ),
+        ),
+        child: body,
+      ),
     );
   }
 
