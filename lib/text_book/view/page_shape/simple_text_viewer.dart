@@ -2163,6 +2163,15 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         onNavigate: (link) =>
             openLinkTarget(link, (tab) => widget.openBookCallback(tab)),
       );
+      final sourceEntry = _siblingController!.buildSourceEntry(
+        sourceLink: sourceLink,
+        removeNikud: state.commentaryRemoveNikud,
+        removePunctuation: state.commentaryRemovePunctuation,
+        maxFontSize: widget.fontSize,
+        onNavigate: (link) =>
+            openLinkTarget(link, (tab) => widget.openBookCallback(tab)),
+      );
+      if (sourceEntry != null) entries.add(sourceEntry);
       if (siblingEntry != null) entries.add(siblingEntry);
     }
 

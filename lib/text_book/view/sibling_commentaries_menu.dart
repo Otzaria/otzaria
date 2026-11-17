@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/models/link_types.dart';
@@ -53,6 +54,26 @@ class SiblingCommentariesController {
       }
     }
     return best;
+  }
+
+  /// פריט "מעבר למקור: <כתובת>" עם תצוגה מקדימה בריחוף, או null כשאין מקור.
+  AppContextMenuEntry? buildSourceEntry({
+    required Link? sourceLink,
+    required void Function(Link link) onNavigate,
+    bool? removeNikud,
+    bool? removePunctuation,
+    double? maxFontSize,
+  }) {
+    if (sourceLink == null) return null;
+    return buildLinkContextMenuEntry(
+      link: sourceLink,
+      labelPrefix: 'מעבר למקור: ',
+      icon: FluentIcons.book_open_24_regular,
+      removeNikud: removeNikud,
+      removePunctuation: removePunctuation,
+      maxFontSize: maxFontSize,
+      onTap: () => onNavigate(sourceLink),
+    );
   }
 
   /// בונה את פריט התפריט "מפרשים נוספים על <כתובת המקור>", או null כשאין מקור
