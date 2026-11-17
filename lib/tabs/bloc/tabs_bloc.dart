@@ -295,6 +295,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     on<SaveTabs>(_onSaveTabs, transformer: sequential());
     on<TogglePinTab>(_onTogglePinTab, transformer: sequential());
     on<RenameTab>(_onRenameTab, transformer: sequential());
+    on<SetPluginTabInfo>(_onSetPluginTabInfo, transformer: sequential());
     on<CreateCombinedTab>(
       _onCreateCombinedTab,
       transformer: sequential(),
@@ -1712,6 +1713,15 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     if (event.tab.title == event.title) return;
     if (!state.tabs.any((tab) => leafPanes(tab).contains(event.tab))) return;
     event.tab.title = event.title;
+    emit(
+      state.copyWith(tabs: List<OpenedTab>.from(state.tabs), forceUpdate: true),
+    );
+    _scheduleSave(state.tabs, state.currentTabIndex);
+  }
+
+  void _onSetPluginTabInfo(SetPluginTabInfo event, Emitter<TabsState> emit) {
+    if (!state.tabs.any((tab) => leafPanes(tab).contains(event.tab))) return;
+    if (!event.tab.applyPluginTabInfo(event.update)) return;
     emit(
       state.copyWith(tabs: List<OpenedTab>.from(state.tabs), forceUpdate: true),
     );

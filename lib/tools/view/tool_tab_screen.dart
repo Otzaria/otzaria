@@ -278,7 +278,7 @@ class ToolTabScreenState extends State<ToolTabScreen>
   Widget _buildUnavailable(ToolUnavailable unavailable) {
     // הכלי אינו זמין (הוסר/הושבת/הוסתר) — אין למה לחזור בטעינה הבאה.
     _lastEntry = null;
-    final name = unavailable.name ?? widget.tab.title;
+    final name = unavailable.name ?? widget.tab.baseTitle;
     final (message, subtitle) = switch (unavailable.reason) {
       ToolUnavailableReason.builtInHidden => (
         'הכלי "$name" מוסתר',

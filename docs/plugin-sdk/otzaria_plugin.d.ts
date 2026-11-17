@@ -946,6 +946,18 @@ export interface UiSetUnsavedChangesArgs {
   message?: string;
 }
 
+/**
+ * ארגומנטים ל-`ui.setTabInfo`. חובה לפחות אחד מהשדות.
+ *
+ * שדה חסר — ללא שינוי. `null`, מחרוזת ריקה או רווחים בלבד — חזרה לברירת
+ * המחדל (שם התוסף; הטולטיפ הרגיל). `title` עד 80 תווים, שורה אחת; `tooltip`
+ * עד 300 תווים, ושורות חדשות נשמרות. ארוך מזה נחתך.
+ */
+export interface UiSetTabInfoArgs {
+  title?: string | null;
+  tooltip?: string | null;
+}
+
 /** ארגומנטים ל-`bookmarks.add`. הספר מזוהה ב-`id` או ב-`bookId`. */
 export interface BookmarkAddArgs extends BookIdentity {
   index?: number;
@@ -2647,6 +2659,7 @@ export type OtzariaMethod =
   | 'ui.printFile'
   | 'ui.exportPdf'
   | 'ui.setUnsavedChanges'
+  | 'ui.setTabInfo'
   | 'fs.extractZip'
   | 'fs.deleteFile'
   | 'fs.pickUserFile'
@@ -2907,6 +2920,17 @@ export interface OtzariaGlobal {
     method: 'ui.printFile',
     payload: { token: string; jobName?: string }
   ): Promise<OtzariaResponse<{ printed: boolean }>>;
+
+  /**
+   * Sets the title and/or tooltip of this plugin instance's own tab. A missing
+   * field is left as is; null or an empty string restores the default. Resolves
+   * to false when the instance has no tab (e.g. a background instance).
+   * Since 0.9.99.
+   */
+  call(
+    method: 'ui.setTabInfo',
+    payload: UiSetTabInfoArgs
+  ): Promise<OtzariaResponse<boolean>>;
 
   call(
     method: 'feedback.submitBookCorrection',

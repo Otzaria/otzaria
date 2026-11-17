@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/services/plugin_restore_state_store.dart';
+import 'package:otzaria/plugins/services/plugin_tab_info.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
 
@@ -200,6 +201,119 @@ void main() {
     test('בלי מצב — אין שדה ב-JSON', () {
       final tab = ToolTab(toolId: 'com.example.plugin', title: 'תוסף');
       expect(tab.toJson().containsKey('pluginRestoreState'), isFalse);
+    });
+  });
+
+  group('כותרת וטולטיפ שהתוסף קבע (ui.setTabInfo)', () {
+    ToolTab plugin() =>
+        ToolTab(toolId: 'com.example.plugin', title: 'שני טורים');
+
+    test('בלי התאמה — title הוא שם התוסף ואין טולטיפ מותאם', () {
+      final tab = plugin();
+      expect(tab.title, 'שני טורים');
+      expect(tab.baseTitle, 'שני טורים');
+      expect(tab.titleOverride, isNull);
+      expect(tab.tooltipOverride, isNull);
+    });
+
+    test('כותרת מותאמת מחליפה את title אבל baseTitle נשאר שם התוסף', () {
+      final tab = plugin();
+      final changed = tab.applyPluginTabInfo(
+        PluginTabInfoUpdate.parse({'title': 'בראשית א', 'tooltip': 'בראשית'}),
+      );
+      expect(changed, isTrue);
+      expect(tab.title, 'בראשית א');
+      expect(tab.baseTitle, 'שני טורים');
+      expect(tab.tooltipOverride, 'בראשית');
+    });
+
+    test('החלה חוזרת של אותם ערכים אינה "שינוי"', () {
+      final tab = plugin();
+      final update = PluginTabInfoUpdate.parse({'title': 'בראשית א'});
+      expect(tab.applyPluginTabInfo(update), isTrue);
+      expect(tab.applyPluginTabInfo(update), isFalse);
+    });
+
+    test('עדכון חלקי משאיר את השדה האחר, ו-null מאפס רק את שלו', () {
+      final tab = plugin();
+      tab.applyPluginTabInfo(
+        PluginTabInfoUpdate.parse({'title': 'כותרת', 'tooltip': 'טולטיפ'}),
+      );
+      tab.applyPluginTabInfo(PluginTabInfoUpdate.parse({'title': 'חדשה'}));
+      expect(tab.title, 'חדשה');
+      expect(tab.tooltipOverride, 'טולטיפ');
+
+      tab.applyPluginTabInfo(PluginTabInfoUpdate.parse({'tooltip': null}));
+      expect(tab.title, 'חדשה');
+      expect(tab.tooltipOverride, isNull);
+
+      tab.applyPluginTabInfo(PluginTabInfoUpdate.parse({'title': ''}));
+      expect(tab.title, 'שני טורים');
+    });
+
+    test('שינוי title הרגיל (RenameTab) לא נוגע בכותרת המותאמת', () {
+      final tab = plugin();
+      tab.applyPluginTabInfo(PluginTabInfoUpdate.parse({'title': 'מותאמת'}));
+      tab.title = 'שם חדש לתוסף';
+      expect(tab.title, 'מותאמת');
+      expect(tab.baseTitle, 'שם חדש לתוסף');
+      tab.applyPluginTabInfo(PluginTabInfoUpdate.parse({'title': null}));
+      expect(tab.title, 'שם חדש לתוסף');
+    });
+
+    test('נשמר ב-JSON, ו-title ב-JSON נשאר שם התוסף', () {
+      final tab = plugin();
+      tab.applyPluginTabInfo(
+        PluginTabInfoUpdate.parse({'title': 'בראשית א', 'tooltip': 'בראשית'}),
+      );
+      final json = tab.toJson();
+      expect(json['title'], 'שני טורים');
+      expect(json['titleOverride'], 'בראשית א');
+      expect(json['tooltipOverride'], 'בראשית');
+
+      final restored = ToolTab.fromJson(json);
+      expect(restored.title, 'בראשית א');
+      expect(restored.baseTitle, 'שני טורים');
+      expect(restored.tooltipOverride, 'בראשית');
+    });
+
+    test('בלי התאמה אין שדות ב-JSON', () {
+      final json = plugin().toJson();
+      expect(json.containsKey('titleOverride'), isFalse);
+      expect(json.containsKey('tooltipOverride'), isFalse);
+    });
+
+    test('JSON פגום לא מפיל: ערך שאינו מחרוזת מתעלמים, ארוך נחתך', () {
+      final restored = ToolTab.fromJson({
+        'type': 'ToolTab',
+        'toolId': 'com.example.plugin',
+        'title': 'תוסף',
+        'titleOverride': 7,
+        'tooltipOverride': 'א' * 5000,
+      });
+      expect(restored.title, 'תוסף');
+      expect(restored.tooltipOverride!.length, kMaxPluginTabTooltipLength);
+    });
+
+    test('clone משמר כותרת וטולטיפ, ו-baseTitle לא נדרס בכותרת המותאמת', () {
+      final tab = plugin();
+      tab.applyPluginTabInfo(
+        PluginTabInfoUpdate.parse({'title': 'בראשית א', 'tooltip': 'בראשית'}),
+      );
+      final copy = tab.clone() as ToolTab;
+      expect(copy.title, 'בראשית א');
+      expect(copy.baseTitle, 'שני טורים');
+      expect(copy.tooltipOverride, 'בראשית');
+      copy.applyPluginTabInfo(PluginTabInfoUpdate.parse({'title': null}));
+      expect(copy.title, 'שני טורים');
+    });
+
+    test('toTransferJson (גרירה בין חלונות) משמר את ההתאמה', () {
+      final tab = plugin();
+      tab.applyPluginTabInfo(PluginTabInfoUpdate.parse({'title': 'בראשית א'}));
+      final restored = OpenedTab.fromJson(tab.toTransferJson()) as ToolTab;
+      expect(restored.instanceId, isNot(tab.instanceId));
+      expect(restored.title, 'בראשית א');
     });
   });
 }
