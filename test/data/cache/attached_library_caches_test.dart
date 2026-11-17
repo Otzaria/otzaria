@@ -362,4 +362,48 @@ void main() {
     await second;
     expect(AcronymsCache.instance.acronymsFor(source, bookId), isNotEmpty);
   });
+
+  test('כינויים מנורמלים נשמרים לפי מסד ובסדר הקריאה', () async {
+    const termsBySlug = {
+      'lib-a': ['רש״י', 'רשב״ם', 'רַשִׁ״י', '', '!?'],
+      'lib-b': ['ABC!'],
+      'lib-c': ['ספר־המוסר'],
+    };
+    final libraries = <AttachedLibrary>[];
+    for (final MapEntry(key: slug, value: terms) in termsBySlug.entries) {
+      final path = '${tempDir.path}/$slug.db';
+      final db = sqlite3.sqlite3.open(path);
+      try {
+        db.execute('CREATE TABLE book_acronym (bookId, term)');
+        for (final term in terms) {
+          db.execute('INSERT INTO book_acronym VALUES (?, ?)', [bookId, term]);
+        }
+        db.execute("INSERT INTO book_acronym VALUES ('invalid', 'כינוי')");
+        db.execute('INSERT INTO book_acronym VALUES (?, NULL)', [bookId]);
+      } finally {
+        db.close();
+      }
+      libraries.add(
+        AttachedLibrary(
+          slug: slug,
+          displayName: slug,
+          path: path,
+          addedAt: DateTime(2026),
+        ),
+      );
+    }
+    registry.update(libraries);
+
+    await AcronymsCache.instance.warmUpAttached();
+    final cache = AcronymsCache.instance;
+    expect(cache.attachedAcronymsOf('lib-a'), {
+      bookId: ['רשי', 'רשבם', 'רשי'],
+    });
+    expect(cache.attachedAcronymsOf('lib-b'), {
+      bookId: ['abc'],
+    });
+    expect(cache.attachedAcronymsOf('lib-c'), {
+      bookId: ['ספר המוסר'],
+    });
+  });
 }
