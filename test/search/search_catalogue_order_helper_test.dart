@@ -2,6 +2,7 @@ import 'package:otzaria/data/book_identity.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/utils/search_catalogue_order_helper.dart';
 
@@ -14,6 +15,30 @@ void main() {
       );
 
       expect(ordered, ['בראשית', 'שבת', 'חגיגה', 'משנה תורה, הלכות שבת']);
+    });
+
+    test('ספרים מצורפים בסוף ומפתח כפול שומר את המיקום הראשון', () {
+      final attached = BookSource.attached('מצורף');
+      final library = Library(categories: [])
+        ..books.addAll([
+          TextBook(title: 'מצורף בעץ', order: 0, source: attached),
+          TextBook(title: 'בראשית', order: 1),
+        ])
+        ..offTreeBooks = [
+          TextBook(title: 'בראשית'),
+          TextBook(title: 'גרסה נוספת'),
+          TextBook(title: 'מצורף מחוץ לעץ', source: attached),
+        ];
+      String keyOf(dynamic book) => (book as Book).title;
+
+      expect(
+        SearchCatalogueOrderHelper.buildOrderedKeys(library, keyOf: keyOf),
+        ['בראשית', 'בראשית', 'גרסה נוספת', 'מצורף בעץ', 'מצורף מחוץ לעץ'],
+      );
+      expect(
+        SearchCatalogueOrderHelper.buildKeyOrderMap(library, keyOf: keyOf),
+        {'בראשית': 0, 'גרסה נוספת': 2, 'מצורף בעץ': 3, 'מצורף מחוץ לעץ': 4},
+      );
     });
 
     test('דירוג קטגוריות עליונות משמר סדר קבוע ונפילה לסדר מותאם', () {

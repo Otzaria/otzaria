@@ -63,7 +63,8 @@ class SearchCatalogueOrderHelper {
     for (final book in library.offTreeBooks) {
       (book.source.isAttached ? attachedKeys : orderedKeys).add(keyOf(book));
     }
-    return [...orderedKeys, ...attachedKeys];
+    orderedKeys.addAll(attachedKeys);
+    return orderedKeys;
   }
 
   static Map<T, int> buildKeyOrderMap<T>(
