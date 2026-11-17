@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:otzaria/semantic_search/models/semantic_availability.dart';
 import 'package:otzaria/semantic_search/models/semantic_model_identity.dart';
+import 'package:otzaria/semantic_search/models/semantic_update_frequency.dart';
 
 sealed class SemanticSearchEvent extends Equatable {
   const SemanticSearchEvent();
@@ -37,6 +38,16 @@ class SemanticQuantizationChanged extends SemanticSearchEvent {
 /// המשתמש ביקש למחוק את נתוני החיפוש הסמנטי.
 class SemanticDataRemovalRequested extends SemanticSearchEvent {
   const SemanticDataRemovalRequested();
+}
+
+/// המשתמש בחר מתי הנתונים מתעדכנים ברקע.
+class SemanticUpdateFrequencyChanged extends SemanticSearchEvent {
+  final SemanticUpdateFrequency frequency;
+
+  const SemanticUpdateFrequencyChanged(this.frequency);
+
+  @override
+  List<Object?> get props => [frequency];
 }
 
 /// המאגר דיווח על מצב זמינות חדש.

@@ -1,5 +1,6 @@
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/semantic_search/models/semantic_model_identity.dart';
+import 'package:otzaria/semantic_search/models/semantic_update_frequency.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 
 /// ההגדרות שהחיפוש הסמנטי קורא וכותב.
@@ -22,6 +23,14 @@ abstract interface class SemanticSettingsStore {
   /// תג release וקטורים שאין להוריד שוב (פרסום חוזר של גרסה מותקנת).
   String? get skippedVectorsRelease;
   Future<void> setSkippedVectorsRelease(String? value);
+
+  /// מתי הנתונים מתעדכנים ברקע אחרי עדכון ספרייה.
+  SemanticUpdateFrequency get updateFrequency;
+  Future<void> setUpdateFrequency(SemanticUpdateFrequency value);
+
+  /// מועד ההתקנה המוצלחת האחרונה של וקטורים.
+  DateTime? get lastVectorsUpdate;
+  Future<void> setLastVectorsUpdate(DateTime value);
 
   /// מצב לא מקוון: אין שום פנייה לרשת.
   bool get isOfflineMode;
@@ -88,6 +97,36 @@ class SettingsSemanticSettingsStore implements SemanticSettingsStore {
       Settings.setValue<String>(
         SettingsRepository.keySemanticSkippedVectorsRelease,
         value ?? '',
+      );
+
+  @override
+  SemanticUpdateFrequency get updateFrequency =>
+      SemanticUpdateFrequency.fromStorage(
+        Settings.getValue<String>(
+          SettingsRepository.keySemanticUpdateFrequency,
+        ),
+      );
+
+  @override
+  Future<void> setUpdateFrequency(SemanticUpdateFrequency value) =>
+      Settings.setValue<String>(
+        SettingsRepository.keySemanticUpdateFrequency,
+        value.storageValue,
+      );
+
+  @override
+  DateTime? get lastVectorsUpdate => DateTime.tryParse(
+    Settings.getValue<String>(
+          SettingsRepository.keySemanticLastVectorsUpdate,
+        ) ??
+        '',
+  );
+
+  @override
+  Future<void> setLastVectorsUpdate(DateTime value) =>
+      Settings.setValue<String>(
+        SettingsRepository.keySemanticLastVectorsUpdate,
+        value.toUtc().toIso8601String(),
       );
 
   @override
