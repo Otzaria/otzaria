@@ -4,7 +4,114 @@ import 'package:otzaria/divine_names/utils/divine_name_markers.dart';
 import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart';
 
+int _referenceInsertionPoint(String html, int visible) {
+  var seen = 0;
+  var i = 0;
+  while (i < html.length && seen < visible) {
+    if (html[i] == '<') {
+      final close = html.indexOf('>', i);
+      if (close < 0) return html.length;
+      i = close + 1;
+      continue;
+    }
+    if (html[i] == '&') {
+      final end = html.indexOf(';', i + 1);
+      i = end > 0 && end < i + 10 ? end + 1 : i + 1;
+    } else {
+      i++;
+    }
+    seen++;
+  }
+  if (seen < visible) return html.length;
+  for (final sup in RegExp(
+    r'<sup\b[^>]*>.*?</sup>',
+    caseSensitive: false,
+    dotAll: true,
+  ).allMatches(html)) {
+    if (sup.start >= i) break;
+    if (i < sup.end) {
+      i = sup.end;
+      break;
+    }
+  }
+  final inlineClose = RegExp(
+    r'</(?:b|i|em|strong|u|s|strike|span|sup|sub|small|big|font|del|ins|a|abbr|acronym|cite|code|dfn|kbd|q|samp|tt|var|mark|bdi|bdo|ruby|rt|rp)\s*>',
+    caseSensitive: false,
+  );
+  while (i < html.length) {
+    final close = inlineClose.matchAsPrefix(html, i);
+    if (close == null) break;
+    i = close.end;
+  }
+  return i;
+}
+
 void main() {
+  test('מיפוי אופסטים משותף זהה לסריקה נפרדת גם בסדר הערות הפוך', () {
+    for (final line in [
+      '',
+      'אב&amp;ג&לאסגור',
+      '<p><b>אב</b><sup>גד</sup><sup><i>הו</i></sup>ז</p>',
+      '<sup></sup>א<b>ב</b></i></span>ג',
+      'אב<לאסגור',
+      'א&abcdefghij;ב',
+    ]) {
+      final positions = [for (var pos = line.length + 2; pos >= 0; pos--) pos];
+      final notes = <BookNote>[
+        for (var k = 0; k < positions.length; k++)
+          (noteIndex: k, charPos: positions[k], marker: null, body: '[$k]'),
+      ];
+      final inserts =
+          [
+            for (var k = 0; k < positions.length; k++)
+              (at: _referenceInsertionPoint(line, positions[k]), order: k),
+          ]..sort(
+            (a, b) => a.at == b.at
+                ? a.order.compareTo(b.order)
+                : a.at.compareTo(b.at),
+          );
+      final expected = StringBuffer();
+      var last = 0;
+      for (final insert in inserts) {
+        expected
+          ..write(line.substring(last, insert.at))
+          ..write('<i class="footnote">[${insert.order}]</i>');
+        last = insert.at;
+      }
+      expected.write(line.substring(last));
+      expect(
+        rehydrateInlineNotes(line, notes),
+        expected.toString(),
+        reason: line,
+      );
+    }
+  });
+
+  test('שורה ארוכה נסרקת פעם אחת למאות הערות ולמיקומים כפולים', () {
+    final line = List.filled(1000, '<b>א&amp;ב</b>').join();
+    final notes = <BookNote>[
+      for (var i = 0; i <= 3000; i += 3)
+        for (var duplicate = 0; duplicate < 2; duplicate++)
+          (noteIndex: i + duplicate, charPos: i, marker: null, body: 'גוף'),
+    ];
+    debugInlineNoteScanChars = 0;
+    final restored = rehydrateInlineNotes(line, notes);
+    expect(debugInlineNoteScanChars, lessThanOrEqualTo(line.length));
+    expect(stripInlineNotes(restored), line);
+    expect(
+      RegExp('<i class="footnote">גוף</i>').allMatches(restored),
+      hasLength(notes.length),
+    );
+  });
+
+  test('הסרת גופים אינה מסירה הערה פנימית ב-sup בין גופים רבים', () {
+    const marker = '<sup>א<i class="footnote">סמן</i></sup>';
+    final line = List.filled(100, '$marker<i class="footnote">גוף</i>').join();
+    expect(stripInlineNotes(line), List.filled(100, marker).join());
+    const noBody = '<span class="footnote">ללא גוף</span>';
+    expect(identical(stripInlineNotes(noBody), noBody), isTrue);
+  });
+
   test('תג הערה בתוך sup אינו גוף שכבר שוחזר', () {
     const stored =
         'א<sup class="footnote-marker">1<i class="footnote"></i></sup> ב';
@@ -148,10 +255,7 @@ void main() {
       ];
 
       expect(
-        inlineNoteFromPreviewUrl(
-          content,
-          'otzaria://book-note?line=0&note=1',
-        ),
+        inlineNoteFromPreviewUrl(content, 'otzaria://book-note?line=0&note=1'),
         contains('שנייה'),
       );
     });
@@ -166,10 +270,7 @@ void main() {
       }
       final input = source.toString();
       final rendered = addInlineNotePreviewLinks(input, lineIndex: 4);
-      expect(
-        'class="book-note-marker"'.allMatches(rendered).length,
-        120,
-      );
+      expect('class="book-note-marker"'.allMatches(rendered).length, 120);
       for (var i = 0; i < 120; i++) {
         final url = 'otzaria://book-note?line=4&note=$i';
         expect(rendered, contains('href="$url">$i</a>'));

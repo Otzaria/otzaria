@@ -5,6 +5,7 @@
 /// ה-<sup>; כל פונקציה מאחדת את שני המקורות.
 library;
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/divine_names/models/divine_name_spans.dart';
@@ -166,7 +167,11 @@ String addInlineNotePreviewLinks(
 /// עיבוד גוף ההערה [note] (מיקום ב-`notesAt`) של שורה [lineIndex] מהטבלה, למשל
 /// הזרקת חלקי עוגני הקישורים שבו.
 typedef BookNoteBodyDecorator =
-    String Function(int lineIndex, int note, String body);
+    String Function(
+      int lineIndex,
+      int note,
+      String body,
+    );
 
 /// מחזיר את תוכן ההערה שאליה מפנה [url] — מהשורה או מהטבלה ([dbNotes]).
 String? inlineNoteFromPreviewUrl(
@@ -197,11 +202,14 @@ String? inlineNoteFromPreviewUrl(
 /// משאיר את ה-<sup> במקומו כעוגן ויזואלי לאיפה הייתה ההערה.
 String stripInlineNotes(String html) {
   if (!html.contains('footnote')) return html;
-  var result = html;
-  for (final body in _footnoteBodies(html).toList().reversed) {
-    result = result.replaceRange(body.start, body.end, '');
+  StringBuffer? result;
+  var last = 0;
+  for (final body in _footnoteBodies(html)) {
+    (result ??= StringBuffer()).write(html.substring(last, body.start));
+    last = body.end;
   }
-  return result;
+  if (result == null) return html;
+  return (result..write(html.substring(last))).toString();
 }
 
 /// מסיר גם את אות ההפניה וגם את גוף ההערה — לחיפוש ולאינדוקס, שבהם תגי ה-HTML
@@ -277,10 +285,7 @@ String _inlineNoteHtml(String line, Match iMatch) {
     if (tail.trim().isEmpty) {
       final openIdx = line.lastIndexOf('<sup', closeIdx);
       if (openIdx >= 0) {
-        final supTag = line.substring(
-          openIdx,
-          closeIdx + _supCloseTag.length,
-        );
+        final supTag = line.substring(openIdx, closeIdx + _supCloseTag.length);
         return '$supTag $body';
       }
     }
@@ -298,14 +303,17 @@ String rehydrateInlineNotes(
 }) {
   if (notes.isEmpty || _footnoteBodies(line).isNotEmpty) return line;
   final markers = _strippedMarkers(line);
-  final superscripts = _supRegExp.allMatches(line).toList(growable: false);
+  final rawPoints = _rawInsertionPoints(
+    line,
+    notes.where((note) => note.charPos >= 0).map((note) => note.charPos),
+  );
   final inserts = <({int at, int order, String html})>[];
   var anchoredSeen = 0;
   for (var order = 0; order < notes.length; order++) {
     final note = notes[order];
     int at;
     if (note.charPos >= 0) {
-      final raw = _rawInsertionPoint(line, note.charPos, superscripts);
+      final raw = rawPoints[note.charPos]!;
       final marker = note.marker != null && anchoredSeen < markers.length
           ? markers[anchoredSeen]
           : null;
@@ -365,37 +373,57 @@ final _inlineCloseTag = RegExp(
   caseSensitive: false,
 );
 
-/// האינדקס הגולמי אחרי התו הגלוי ה-[visible] (ישות = תו אחד, כמו
-/// `line.charCount`). תגי סגירה צמודים שייכים לתו שלפניהם, למשל `</sup>`.
-int _rawInsertionPoint(String html, int visible, List<Match> superscripts) {
+@visibleForTesting
+int debugInlineNoteScanChars = 0;
+
+/// ממפה רק אופסטים מבוקשים, בסריקה משותפת בלי לספור תגי HTML.
+Map<int, int> _rawInsertionPoints(String html, Iterable<int> offsets) {
+  final sorted = offsets.toSet().toList()..sort();
+  if (sorted.isEmpty) return const {};
+  final superscripts = _supRegExp.allMatches(html).toList(growable: false);
+  final points = <int, int>{};
   var seen = 0;
   var i = 0;
+  var supIndex = 0;
   final len = html.length;
-  while (i < len && seen < visible) {
-    final unit = html.codeUnitAt(i);
-    if (unit == 0x3C) {
-      final close = html.indexOf('>', i);
-      if (close < 0) return len;
-      i = close + 1;
+  for (final visible in sorted) {
+    while (i < len && seen < visible) {
+      final previous = i;
+      final unit = html.codeUnitAt(i);
+      if (unit == 0x3C) {
+        final close = html.indexOf('>', i);
+        i = close < 0 ? len : close + 1;
+      } else {
+        if (unit == 0x26) {
+          var end = i + 1;
+          final limit = i + 10 < len ? i + 10 : len;
+          while (end < limit && html.codeUnitAt(end) != 0x3B) {
+            end++;
+          }
+          i = end < limit ? end + 1 : i + 1;
+        } else {
+          i++;
+        }
+        seen++;
+      }
+      assert(() {
+        debugInlineNoteScanChars += i - previous;
+        return true;
+      }());
+    }
+    if (seen < visible) {
+      points[visible] = len;
       continue;
     }
-    if (unit == 0x26) {
-      final end = html.indexOf(';', i + 1);
-      i = end > 0 && end < i + 10 ? end + 1 : i + 1;
-    } else {
-      i++;
+    while (supIndex < superscripts.length && superscripts[supIndex].end <= i) {
+      supIndex++;
     }
-    seen++;
+    // הקפיצה מעבר ל-sup אינה מקדמת את הסורק: התווים שבתוכו עדיין נספרים.
+    final sup = supIndex < superscripts.length ? superscripts[supIndex] : null;
+    final at = sup != null && sup.start < i ? sup.end : i;
+    points[visible] = _afterInlineClosings(html, at);
   }
-  if (seen < visible) return len;
-  for (final sup in superscripts) {
-    if (sup.start >= i) break;
-    if (i < sup.end) {
-      i = sup.end;
-      break;
-    }
-  }
-  return _afterInlineClosings(html, i);
+  return points;
 }
 
 int _afterInlineClosings(String html, int from) {
