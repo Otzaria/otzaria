@@ -103,7 +103,8 @@ LongLineSplit? _split(TextSpan span) {
 }
 
 /// מקומות החיתוך בטקסט: אחרי רווח בספאן בלי עיצוב, מחוץ לבידוד או הטבעה
-/// כיווניים, ולא לפני סימן צירוף. עדיף סוף משפט קרוב.
+/// כיווניים, ולא לפני סימן צירוף. עדיף סוף משפט קרוב. סימן הצירוף נבדק
+/// רק במועמדים בחלונות הבחירה, לא בכל רווח.
 List<int> _cutPositions(String text, List<TextSpan> leaves) {
   final cuttable = Uint8List(text.length + 1);
   var depth = 0;
@@ -115,12 +116,15 @@ List<int> _cutPositions(String text, List<TextSpan> leaves) {
       if (_opensDirectional(c)) depth++;
       if ((c == 0x2069 || c == 0x202C) && depth > 0) depth--;
       final at = offset + i + 1;
-      if (leaf.style == null &&
-          c == 0x20 &&
-          depth == 0 &&
-          at < text.length &&
-          !_startsWithMark(text, at)) {
-        final sentence = i > 0 && '.:?!'.contains(leafText[i - 1]) ? 2 : 1;
+      if (leaf.style == null && c == 0x20 && depth == 0 && at < text.length) {
+        final previous = i > 0 ? leafText.codeUnitAt(i - 1) : -1;
+        final sentence =
+            previous == 0x2E ||
+                previous == 0x3A ||
+                previous == 0x3F ||
+                previous == 0x21
+            ? 2
+            : 1;
         cuttable[at] = sentence;
       }
     }
@@ -134,13 +138,18 @@ List<int> _cutPositions(String text, List<TextSpan> leaves) {
     var cut = -1;
     for (var i = target; i < window; i++) {
       if (cuttable[i] == 2) {
+        if (_startsWithMark(text, i)) {
+          // גם החיפוש החלופי צריך לדלג על מועמד שכבר נפסל.
+          cuttable[i] = 0;
+          continue;
+        }
         cut = i;
         break;
       }
     }
     if (cut < 0) {
       for (var i = target; i < text.length; i++) {
-        if (cuttable[i] != 0) {
+        if (cuttable[i] != 0 && !_startsWithMark(text, i)) {
           cut = i;
           break;
         }
@@ -157,8 +166,14 @@ List<int> _cutPositions(String text, List<TextSpan> leaves) {
 bool _opensDirectional(int c) =>
     (c >= 0x202A && c <= 0x202E && c != 0x202C) || (c >= 0x2066 && c <= 0x2068);
 
-bool _startsWithMark(String text, int at) =>
-    _mark.matchAsPrefix(text, at) != null;
+/// מונה קריאות ל-[_startsWithMark], לבדיקות בלבד.
+@visibleForTesting
+int debugMarkChecks = 0;
+
+bool _startsWithMark(String text, int at) {
+  debugMarkChecks++;
+  return _mark.matchAsPrefix(text, at) != null;
+}
 
 final RegExp _mark = RegExp(r'\p{M}', unicode: true);
 

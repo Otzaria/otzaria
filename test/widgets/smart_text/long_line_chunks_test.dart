@@ -188,6 +188,64 @@ void main() {
         expect(mark.hasMatch(part), isFalse);
       }
     });
+
+    test('סוף משפט מזוהה רק לפי ארבעת סימני הפיסוק באותו ספאן', () {
+      final prefix = '${'א' * (kLongLineChunkChars - 1)} ';
+      final tail = 'ב' * kLongLineChunkChars;
+      for (final (marker, sentence) in [
+        ('.', true),
+        (':', true),
+        ('?', true),
+        ('!', true),
+        ('א', false),
+        ('\uD800', false),
+        ('\uDC00', false),
+        ('😀', false),
+      ]) {
+        final text = '$prefixא$marker $tail';
+        final split = splitLongLine(TextSpan(text: text))!;
+        expect(
+          split.starts,
+          [0, sentence ? prefix.length + 2 + marker.length : prefix.length],
+        );
+        expect(split.chunks.map((chunk) => chunk.toPlainText()).join(), text);
+      }
+      final split = splitLongLine(
+        TextSpan(
+          children: [
+            TextSpan(text: '$prefixא.'),
+            TextSpan(text: ' $tail'),
+          ],
+        ),
+      )!;
+      expect(split.starts, [0, prefix.length]);
+    });
+
+    test('מועמדי משפט שנפסלו אינם נבדקים שוב בחיפוש הרווח החלופי', () {
+      final prefix = 'א' * (kLongLineChunkChars - 2);
+      final rejected = '. \u05B0' * 1000;
+      final text = '$prefix$rejected סוף ${'א' * kLongLineChunkChars}';
+      debugMarkChecks = 0;
+      final split = splitLongLine(TextSpan(text: text))!;
+
+      expect(debugMarkChecks, 1001);
+      expect(split.starts, [0, prefix.length + rejected.length + 1]);
+      expect(split.chunks.map((chunk) => chunk.toPlainText()).join(), text);
+    });
+
+    test('בדיקת סימן צירוף רצה רק בחלונות הבחירה ולא בכל רווח', () {
+      final text = List.filled(60000, 'מילה\u05B0 \u05B1מילה').join(' ');
+      final spaces = ' '.allMatches(text).length;
+      debugMarkChecks = 0;
+      final split = splitLongLine(TextSpan(text: text))!;
+
+      expect(debugMarkChecks, lessThan(spaces ~/ 20));
+      final mark = RegExp(r'^\p{M}', unicode: true);
+      for (final start in split.starts.skip(1)) {
+        expect(mark.hasMatch(text.substring(start)), isFalse);
+        expect(text[start - 1], ' ');
+      }
+    });
   });
 
   test('שורה ארוכה מאוד היא בלוק גם במצב רציף', () {
