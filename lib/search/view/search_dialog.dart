@@ -17,6 +17,7 @@ import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/search/search_scope_preferences.dart';
+import 'package:otzaria/search/view/search_history_menu.dart';
 import 'package:otzaria/search/view/search_scope_menu.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
@@ -219,6 +220,7 @@ class _SearchDialogState extends State<SearchDialog> {
   final ValueNotifier<bool> _advancedControlsHasFocus = ValueNotifier(false);
   final MenuController _historyMenuController = MenuController();
   final MenuController _defaultsMenuController = MenuController();
+  bool _defaultsGroupExpanded = false;
   late final VoidCallback _queryListener;
   late final bool _ownsSearchTab;
   late final PluginSearchDialogRegistry _pluginSearchDialogRegistry;
@@ -684,6 +686,12 @@ class _SearchDialogState extends State<SearchDialog> {
 
     return MenuAnchor(
       controller: _defaultsMenuController,
+      // כל פתיחה מתחילה עם הקבוצה סגורה.
+      onClose: () {
+        if (_defaultsGroupExpanded && mounted) {
+          setState(() => _defaultsGroupExpanded = false);
+        }
+      },
       menuChildren: [
         MenuItemButton(
           key: const ValueKey('search-dialog-default-mode'),
@@ -692,70 +700,88 @@ class _SearchDialogState extends State<SearchDialog> {
               _confirmSetModeAsDefault(semanticActive ? null : mode),
           child: Text(context.settingsText('קבע מצב זה כברירת מחדל')),
         ),
-        if (hasWordOptions)
-          SubmenuButton(
-            menuChildren: [
-              for (final key in keys)
-                CheckboxMenuButton(
-                  value: defaults[key] ?? false,
-                  closeOnActivate: false,
-                  onChanged:
-                      disabledOptionIds.contains(
-                        SearchQueryBuilder.pluginOptionIdByWordOptionKey[key],
-                      )
-                      ? null
-                      : (checked) => saveDefault(key, checked ?? false),
-                  child: Text(isExact ? context.settingsText(key) : key),
-                ),
-              const Divider(height: 8),
-              MenuItemButton(
-                closeOnActivate: false,
-                onPressed: () {
-                  setState(() {
-                    SearchDefaults.saveDistanceDefault(state.distance);
-                  });
-                  UiSnack.show(
-                    LibraryMessages.distanceSetAsDefault(state.distance),
-                  );
-                },
-                child: Text(
-                  context.settingsText(
-                    'קבע את המרווח הנוכחי ({distance}) כברירת מחדל',
-                    args: {'distance': state.distance},
-                  ),
-                ),
-              ),
-              CheckboxMenuButton(
-                key: const ValueKey('search-dialog-default-word-order'),
-                value: !SearchDefaults.loadAnyOrderDefault(),
-                closeOnActivate: false,
-                onChanged: (checked) => saveAnyOrderDefault(checked ?? true),
-                child: Text(context.settingsText('שמור על סדר המילים המקורי')),
-              ),
-              if (!isExact)
-                MenuItemButton(
-                  key: const ValueKey('search-dialog-default-proximity'),
-                  closeOnActivate: false,
-                  onPressed: saveMatchPolicyDefault,
-                  child: Text(
-                    context.settingsText(
-                      'קבע את טווח הקרבה הנוכחי ({scope}) כברירת מחדל',
-                      args: {
-                        'scope': _matchPolicyLabel(
-                          state.configuration.matchPolicy,
-                        ),
-                      },
-                    ),
-                  ),
-                ),
-            ],
+        if (hasWordOptions) ...[
+          // קבוצה שנפתחת בתוך אותו תפריט ולא כתת־תפריט: תת־תפריט גבוה בשורה
+          // תחתונה (התפריט נפתח כלפי מעלה מכפתור בתחתית הדיאלוג) מתהפך מעל
+          // השורה במקום להיפתח לצידה (התנהגות MenuAnchor).
+          MenuItemButton(
+            key: const ValueKey('search-dialog-defaults-group'),
+            closeOnActivate: false,
             leadingIcon: const Icon(FluentIcons.options_24_regular),
-            child: Text(
-              isExact
-                  ? context.settingsText('קביעת ברירת מחדל לחיפוש רגיל')
-                  : context.settingsText('קביעת ברירת מחדל לחיפוש מתקדם'),
+            trailingIcon: Icon(
+              _defaultsGroupExpanded
+                  ? FluentIcons.chevron_up_24_regular
+                  : FluentIcons.chevron_down_24_regular,
+            ),
+            onPressed: () => setState(
+              () => _defaultsGroupExpanded = !_defaultsGroupExpanded,
+            ),
+            child: Semantics(
+              expanded: _defaultsGroupExpanded,
+              child: Text(
+                isExact
+                    ? context.settingsText('קביעת ברירת מחדל לחיפוש רגיל')
+                    : context.settingsText('קביעת ברירת מחדל לחיפוש מתקדם'),
+              ),
             ),
           ),
+          if (_defaultsGroupExpanded) ...[
+            for (final key in keys)
+              CheckboxMenuButton(
+                value: defaults[key] ?? false,
+                closeOnActivate: false,
+                onChanged:
+                    disabledOptionIds.contains(
+                      SearchQueryBuilder.pluginOptionIdByWordOptionKey[key],
+                    )
+                    ? null
+                    : (checked) => saveDefault(key, checked ?? false),
+                child: Text(isExact ? context.settingsText(key) : key),
+              ),
+            const Divider(height: 8),
+            MenuItemButton(
+              closeOnActivate: false,
+              onPressed: () {
+                setState(() {
+                  SearchDefaults.saveDistanceDefault(state.distance);
+                });
+                UiSnack.show(
+                  LibraryMessages.distanceSetAsDefault(state.distance),
+                );
+              },
+              child: Text(
+                context.settingsText(
+                  'קבע את המרווח הנוכחי ({distance}) כברירת מחדל',
+                  args: {'distance': state.distance},
+                ),
+              ),
+            ),
+            CheckboxMenuButton(
+              key: const ValueKey('search-dialog-default-word-order'),
+              value: !SearchDefaults.loadAnyOrderDefault(),
+              closeOnActivate: false,
+              onChanged: (checked) => saveAnyOrderDefault(checked ?? true),
+              child: Text(context.settingsText('שמור על סדר המילים המקורי')),
+            ),
+            if (!isExact)
+              MenuItemButton(
+                key: const ValueKey('search-dialog-default-proximity'),
+                closeOnActivate: false,
+                onPressed: saveMatchPolicyDefault,
+                child: Text(
+                  context.settingsText(
+                    'קבע את טווח הקרבה הנוכחי ({scope}) כברירת מחדל',
+                    args: {
+                      'scope': _matchPolicyLabel(
+                        state.configuration.matchPolicy,
+                      ),
+                    },
+                  ),
+                ),
+              ),
+            const Divider(height: 8),
+          ],
+        ],
         if (hasWordOptions)
           MenuItemButton(
             leadingIcon: const Icon(FluentIcons.arrow_reset_24_regular),
@@ -789,83 +815,40 @@ class _SearchDialogState extends State<SearchDialog> {
   Widget _buildHistoryDropdown() {
     return BlocBuilder<HistoryBloc, HistoryState>(
       builder: (context, state) {
-        final searchHistory = state.history
+        final recentSearches = state.history
             .where((item) => item.isSearch)
+            .take(50)
             .toList();
+        return SearchHistoryMenu(
+          entries: recentSearches,
+          onRemove: (bookmark) => context.read<HistoryBloc>().add(
+            RemoveHistory(state.history.indexOf(bookmark)),
+          ),
+          onSelect: (bookmark) {
+            _searchTab.queryController.text = bookmark.book.title;
 
-        if (searchHistory.isEmpty) return const SizedBox.shrink();
+            // חיפוש היסטורי מורחב משוחזר במצב פר-מילה.
+            if (bookmark.searchOptions != null) {
+              _searchTab.searchOptions
+                ..clear()
+                ..addAll(bookmark.searchOptions!);
+              _searchTab.globalSearchOptions.clear();
+              _searchTab.useGlobalSearchOptions.value = false;
+            }
+            if (bookmark.alternativeWords != null) {
+              _searchTab.alternativeWords
+                ..clear()
+                ..addAll(bookmark.alternativeWords!);
+            }
+            if (bookmark.spacingValues != null) {
+              _searchTab.spacingValues
+                ..clear()
+                ..addAll(bookmark.spacingValues!);
+            }
 
-        final recentSearches = searchHistory.take(50).toList();
-
-        return Column(
-          key: const ValueKey('search-history-menu'),
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var index = 0; index < recentSearches.length; index++) ...[
-              if (index > 0)
-                Divider(
-                  height: 1,
-                  thickness: 1,
-                  color: Theme.of(context).colorScheme.outlineVariant,
-                ),
-              Builder(
-                builder: (context) {
-                  final bookmark = recentSearches[index];
-                  final query = bookmark.book.title;
-                  final displayText = bookmark.ref;
-                  final originalIndex = state.history.indexOf(bookmark);
-
-                  return ListTile(
-                    dense: true,
-                    leading: const Icon(
-                      OtzariaIcons.search_24_regular,
-                      size: AppTokens.iconSM,
-                    ),
-                    title: Text(
-                      displayText,
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(
-                        FluentIcons.delete_24_regular,
-                        size: AppTokens.iconSM,
-                      ),
-                      tooltip: context.settingsText('מחק מההיסטוריה'),
-                      onPressed: () => context.read<HistoryBloc>().add(
-                        RemoveHistory(originalIndex),
-                      ),
-                    ),
-                    onTap: () {
-                      _searchTab.queryController.text = query;
-
-                      // חיפוש היסטורי מורחב משוחזר במצב פר-מילה.
-                      if (bookmark.searchOptions != null) {
-                        _searchTab.searchOptions
-                          ..clear()
-                          ..addAll(bookmark.searchOptions!);
-                        _searchTab.globalSearchOptions.clear();
-                        _searchTab.useGlobalSearchOptions.value = false;
-                      }
-                      if (bookmark.alternativeWords != null) {
-                        _searchTab.alternativeWords
-                          ..clear()
-                          ..addAll(bookmark.alternativeWords!);
-                      }
-                      if (bookmark.spacingValues != null) {
-                        _searchTab.spacingValues
-                          ..clear()
-                          ..addAll(bookmark.spacingValues!);
-                      }
-
-                      _historyMenuController.close();
-                      _searchTab.searchFieldFocusNode.requestFocus();
-                    },
-                  );
-                },
-              ),
-            ],
-          ],
+            _historyMenuController.close();
+            _searchTab.searchFieldFocusNode.requestFocus();
+          },
         );
       },
     );
@@ -1479,8 +1462,12 @@ class _SearchDialogState extends State<SearchDialog> {
         : menuWidth;
     return MenuAnchor(
       controller: _historyMenuController,
-      alignmentOffset: const Offset(0, 4),
+      // הכפתור בקצה הסיום של השדה: הקצה הרחוק של התפריט מיושר לקצה הכפתור
+      // והתפריט נפתח לכיוון השדה, ולא בורח אל מחוץ לדיאלוג. ב-RTL המיקום
+      // הוא קצה הכפתור פחות רוחב התפריט, ולכן ההיסט שלילי ברוחבו.
+      alignmentOffset: Offset(-historyMenuWidth, AppTokens.spaceXS),
       style: MenuStyle(
+        alignment: AlignmentDirectional.bottomEnd,
         padding: const WidgetStatePropertyAll(EdgeInsets.zero),
         backgroundColor: WidgetStatePropertyAll(
           colorScheme.surfaceContainerHigh,

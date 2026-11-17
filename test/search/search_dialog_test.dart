@@ -2316,6 +2316,30 @@ Future<void> main() async {
       expect(tester.widget<FilterChip>(chip).selected, isFalse);
     }, skip: !engineReady);
 
+    testWidgets('קבוצת ברירות המחדל נפתחת בתוך התפריט, לא כתת-תפריט שמתהפך', (
+      WidgetTester tester,
+    ) async {
+      await openDialog(tester);
+      final proximity = find.byKey(
+        const ValueKey('search-dialog-default-proximity'),
+      );
+
+      await openDefaultsMenu(tester);
+      expect(find.byType(SubmenuButton), findsNothing);
+      expect(proximity, findsNothing, reason: 'הקבוצה סגורה בפתיחה');
+
+      await tester.tap(find.text('קביעת ברירת מחדל לחיפוש מתקדם'));
+      await tester.pumpAndSettle();
+      expect(proximity, findsOneWidget);
+      expect(find.byType(SubmenuButton), findsNothing);
+
+      // סגירה ופתיחה מחדש: שוב מתחילים מקבוצה סגורה.
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      await openDefaultsMenu(tester);
+      expect(proximity, findsNothing);
+    }, skip: !engineReady);
+
     testWidgets('תפריט ברירות המחדל שומר את הטווח ואת הסדר ומחזיר אותם', (
       WidgetTester tester,
     ) async {
@@ -2328,6 +2352,11 @@ Future<void> main() async {
 
       await openDefaultsMenu(tester);
       await tester.tap(find.text('קביעת ברירת מחדל לחיפוש מתקדם'));
+      await tester.pumpAndSettle();
+      // הקבוצה נפתחת בתוך התפריט, ובחלון נמוך הפריט האחרון בה בגלילה.
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('search-dialog-default-proximity')),
+      );
       await tester.pumpAndSettle();
       await tester.tap(
         find.byKey(const ValueKey('search-dialog-default-proximity')),
@@ -2350,7 +2379,7 @@ Future<void> main() async {
       await tester.pumpAndSettle();
       expect(SearchDefaults.loadAnyOrderDefault(), isTrue);
       expect(tester.widget<CheckboxMenuButton>(defaultOrder).value, isFalse);
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      // התפריט בשכבה אחת (הקבוצה נפתחת בתוכו): Escape אחד סוגר אותו.
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
       expect(dialogBloc(tester).state.anyOrder, isTrue);
