@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/info/error_log_reader.dart';
 
@@ -199,6 +202,85 @@ Error: crash
       expect(json['readError'], 'FormatException: bad utf8');
       expect(json['entryCount'], 0);
       expect(json['modifiedAt'], endsWith('Z'));
+    });
+  });
+
+  group('ErrorLogReader.readEntries', () {
+    late Directory dir;
+    late File file;
+
+    setUp(() {
+      dir = Directory.systemTemp.createTempSync('error_log_reader_test');
+      file = File('${dir.path}/errors.txt');
+    });
+
+    tearDown(() => dir.deleteSync(recursive: true));
+
+    String bigLog(int blocks) {
+      final out = StringBuffer();
+      for (var i = 0; i < blocks; i++) {
+        out.write(
+          '=== Flutter error 2026-08-20T10:15:30.${i % 1000} ===\n'
+          'Version: 0.3.2+$i\nException: boom $i\n\nStack:\n'
+          '#0      a\n#1      b\n#2      c\n#3      d\n',
+        );
+        for (var j = 0; j < 20; j++) {
+          out.write('#${j + 4}      frame_$j (package:x/y.dart:1:1)\n');
+        }
+        out.write('\n');
+      }
+      return out.toString();
+    }
+
+    test('התוצאה זהה לפענוח סינכרוני', () async {
+      final content = bigLog(300);
+      file.writeAsStringSync(content);
+
+      final entries = await ErrorLogReader.readEntries(
+        file.path,
+        isBlockFormat: true,
+      );
+      final expected = ErrorLogReader.parseBlockLog(
+        content,
+        source: 'errors.txt',
+      );
+
+      expect(entries, hasLength(300));
+      expect(
+        entries.map((e) => e.toJson()).toList(),
+        expected.map((e) => e.toJson()).toList(),
+      );
+    });
+
+    test('הפענוח אינו חוסם את ה-isolate הקורא', () async {
+      final content = bigLog(12000);
+      file.writeAsStringSync(content);
+
+      final sw = Stopwatch()..start();
+      var syncCost = const Duration(days: 1);
+      for (var i = 0; i < 3; i++) {
+        final start = sw.elapsed;
+        ErrorLogReader.parseBlockLog(content, source: 'errors.txt');
+        final cost = sw.elapsed - start;
+        if (cost < syncCost) syncCost = cost;
+      }
+
+      var maxGap = Duration.zero;
+      var last = sw.elapsed;
+      final ticker = Timer.periodic(const Duration(milliseconds: 1), (_) {
+        final now = sw.elapsed;
+        if (now - last > maxGap) maxGap = now - last;
+        last = now;
+      });
+      await ErrorLogReader.readEntries(file.path, isBlockFormat: true);
+      ticker.cancel();
+      if (sw.elapsed - last > maxGap) maxGap = sw.elapsed - last;
+
+      expect(
+        maxGap,
+        lessThan(syncCost ~/ 2),
+        reason: 'syncCost=$syncCost maxGap=$maxGap',
+      );
     });
   });
 }
