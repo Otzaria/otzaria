@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/cache_database_holder.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
@@ -10,9 +11,11 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/file/page_map_builder.dart';
 import 'package:pdfrx/pdfrx.dart';
 
+typedef _PageMapKey = (String, Object);
+
 // A cache for the generated page maps to avoid rebuilding them on every conversion.
-final _pageMapCache = <String, PageMap>{};
-final _pageMapLoads = <String, Future<PageMap>>{};
+final _pageMapCache = <_PageMapKey, PageMap>{};
+final _pageMapLoads = <_PageMapKey, Future<PageMap>>{};
 
 /// מהדורת הטקסט של כל PDF, לפי מופע הספרייה — טעינה מחדש של הספרייה מתחילה נקי.
 final _companionTextBooks = Expando<Map<String, TextBook?>>();
@@ -221,7 +224,11 @@ Future<PageMap> _pageMapFor(
   PdfBook pdfBook,
   List<PdfOutlineNode>? outline,
 ) {
-  final key = '${pdfBook.path}::${textBook.title}';
+  // ללא זהות קטלוגית משתפים מפה רק בין בקשות לאותו מופע ספר.
+  final key = (
+    pdfBook.path,
+    BookCompositeKey.fromBook(textBook) ?? textBook,
+  );
   final cached = _pageMapCache[key];
   if (cached != null) return Future.value(cached);
 

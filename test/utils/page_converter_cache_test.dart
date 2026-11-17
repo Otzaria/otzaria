@@ -191,6 +191,15 @@ class _CountingLibrary extends Library {
   }
 }
 
+class _TextBookWithToc extends TextBook {
+  _TextBookWithToc(String title, this.toc) : super(title: title);
+
+  final List<TocEntry> toc;
+
+  @override
+  Future<List<TocEntry>> get tableOfContents async => toc;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -322,6 +331,104 @@ void main() {
   // ולכן אינו נוגע בקובץ כלל.
   // ---------------------------------------------------------------------------
   group('מטמון מפת העמודים בזיכרון', () {
+    for (final (dimension, source, categoryId, fileType) in [
+      ('מקור אישי', BookSource.user, 1, 'txt'),
+      ('מקור מצורף', BookSource.attached('other-library'), 1, 'txt'),
+      ('קטגוריה', BookSource.official, 2, 'txt'),
+      ('סוג קובץ', BookSource.official, 1, 'md'),
+    ]) {
+      test('טעינות ומפות נפרדות לאותה כותרת עם $dimension שונה', () async {
+        final books = seedLibrary(
+          textTitles: ['ברכות-זהות-$dimension'],
+          pdfPath: p.join(tempDir.path, 'identity.pdf'),
+        );
+        final official = books.texts.single;
+        final other = TextBook(
+          title: official.title,
+          category: official.category,
+          categoryId: categoryId,
+          fileType: fileType,
+          source: source,
+        );
+        final otherProvider = _FakeTocProvider()
+          ..toc = [
+            for (final (i, node) in _matchingOutline().indexed)
+              TocEntry(text: node.title, index: (i + 1) * 100),
+          ];
+        LibraryProviderManager.instance.seedMappingsForTesting(
+          mapping: {
+            BookCompositeKey.fromBook(official)!: books.provider,
+            BookCompositeKey.fromBook(other)!: otherProvider,
+          },
+          providers: [books.provider, otherProvider],
+        );
+        final started = Completer<void>();
+        final release = Completer<void>();
+        var reads = 0;
+        pdfAnchorsReaderForTesting = (_) async {
+          reads++;
+          if (!started.isCompleted) started.complete();
+          await release.future;
+          return collectPdfAnchors(_matchingOutline());
+        };
+
+        final first = textToPdfPage(other, 200, pdfBook: books.pdf);
+        await started.future;
+        final second = textToPdfPage(official, 20, pdfBook: books.pdf);
+        final conversions = Future.wait([first, second]);
+        await Future<void>.delayed(Duration.zero);
+        release.complete();
+
+        expect(await conversions, [2, 2]);
+        expect(reads, 2);
+        expect(await textToPdfPage(other, 100, pdfBook: books.pdf), 1);
+        expect(await textToPdfPage(official, 30, pdfBook: books.pdf), 3);
+        final sameEdition = TextBook(
+          title: other.title,
+          categoryId: other.categoryId,
+          fileType: other.fileType,
+          source: other.source,
+        );
+        expect(await textToPdfPage(sameEdition, 200, pdfBook: books.pdf), 2);
+        expect(reads, 2);
+      });
+    }
+
+    test('ללא זהות קטלוגית המפה נשמרת בנפרד לכל מופע ספר', () async {
+      final books = seedLibrary(
+        textTitles: const ['ברכות-ללא-זהות'],
+        pdfPath: p.join(tempDir.path, 'no-catalog-identity.pdf'),
+      );
+      final first = _TextBookWithToc(books.texts.single.title, [
+        for (final (i, node) in _matchingOutline().indexed)
+          TocEntry(text: node.title, index: (i + 1) * 10),
+      ]);
+      final second = _TextBookWithToc(first.title, [
+        for (final (i, node) in _matchingOutline().indexed)
+          TocEntry(text: node.title, index: (i + 1) * 100),
+      ]);
+      expect(
+        await textToPdfPage(
+          first,
+          20,
+          pdfBook: books.pdf,
+          outline: _matchingOutline(),
+        ),
+        2,
+      );
+      expect(
+        await textToPdfPage(
+          second,
+          200,
+          pdfBook: books.pdf,
+          outline: _matchingOutline(),
+        ),
+        2,
+      );
+      expect(await textToPdfPage(first, 30, pdfBook: books.pdf), 3);
+      expect(await textToPdfPage(second, 100, pdfBook: books.pdf), 1);
+    });
+
     for (final fileOutcome in ['כשל', 'ריק', 'שונה']) {
       for (final fileToPdf in [true, false]) {
         test(
