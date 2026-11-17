@@ -178,6 +178,38 @@ void main() {
       expect(selection.lookups, lessThan(12));
     });
 
+    test('אינדקס אבות שומר על הסימון בלי לסרוק שוב את הבחירה', () {
+      final selection = _CountingSelection({
+        for (var i = 0; i < 5000; i++) '/תיקייה$i/מדף/ספר',
+        '/מדרש/הלכה',
+        '/מדרש/אגדה',
+        '/תנ״ך',
+      });
+      final ancestors = ScopeTree.ancestorsOfSelectedFacets(selection);
+      final iterationsAfterIndex = selection.iterations;
+
+      final expected = <String, bool?>{
+        '/מדרש': null,
+        '/מדרש/הלכה': true,
+        '/מדרשים': false,
+        '/תנ״ך/תורה': true,
+        '/תיקייה4999/מדף': null,
+        '/תיקייה5000': false,
+      };
+      for (final entry in expected.entries) {
+        expect(
+          tree.categoryCheckState(
+            entry.key,
+            selection,
+            selectedAncestors: ancestors,
+          ),
+          entry.value,
+        );
+      }
+      expect(iterationsAfterIndex, 1);
+      expect(selection.iterations, iterationsAfterIndex);
+    });
+
     test('כיסוי נעצר בגבול מקטע ומשמר תחום שורש', () {
       expect(tree.isFacetCovered('/מדרשים/הלכה', {'/מדרש'}), isFalse);
       expect(tree.isFacetCovered('/מדרש', {'/מדרש/הלכה'}), isFalse);
