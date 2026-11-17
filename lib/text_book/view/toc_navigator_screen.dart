@@ -64,6 +64,7 @@ class _TocViewerState extends State<TocViewer>
   List<TocEntry>? _displaySource;
   String? _displayQuery;
   _TocDisplayData? _displayResult;
+  final _pathsByRoots = Expando<TocPathLookup>();
 
   // השיטוח משתנה רק כשהתצוגה או מצב ההרחבה משתנים.
   _TocDisplayData? _flatDisplay;
@@ -215,12 +216,12 @@ class _TocViewerState extends State<TocViewer>
 
   void _ensureParentsOpen(List<TocEntry> entries, int targetIndex) {
     if (!TocExpansionSettings.autoExpand.value) return;
-    final path = _findPath(entries, targetIndex);
+    final path = _pathFromEntry(entries, targetIndex).toList(growable: false);
     if (path.isEmpty) return;
 
     _collapsedByUser.retainWhere((index) => path.any((e) => e.index == index));
     var changed = false;
-    for (final entry in path) {
+    for (final entry in path.reversed) {
       if (entry.children.isNotEmpty &&
           _expanded[entry.index] != true &&
           !_collapsedByUser.contains(entry.index)) {
@@ -232,20 +233,10 @@ class _TocViewerState extends State<TocViewer>
     if (changed) setState(() => _expandedRevision++);
   }
 
-  // רץ בכל החלפת כותרת בגלילה על כל העץ: בלי איטרטור ובלי רשימה לכל צומת.
-  List<TocEntry> _findPath(List<TocEntry> entries, int targetIndex) {
-    for (var i = 0; i < entries.length; i++) {
-      final entry = entries[i];
-      if (entry.index == targetIndex) {
-        return [entry];
-      }
-
-      final subPath = _findPath(entry.children, targetIndex);
-      if (subPath.isNotEmpty) {
-        return [entry, ...subPath];
-      }
-    }
-    return const [];
+  Iterable<TocEntry> _pathFromEntry(List<TocEntry> roots, int targetIndex) {
+    // לתצוגה ללא כותרת הספר יכול להיות נתיב אחר לאותו אינדקס.
+    final lookup = _pathsByRoots[roots] ??= TocPathLookup(roots);
+    return lookup.fromEntry(targetIndex);
   }
 
   /// הכותרת של השורה הנבחרת, ובהיעדרה של השורה הגלויה הראשונה.
@@ -265,8 +256,7 @@ class _TocViewerState extends State<TocViewer>
       return activeIndex;
     }
     _flatItemsFor(display);
-    final path = _findPath(display.entries, activeIndex);
-    for (final entry in path.reversed) {
+    for (final entry in _pathFromEntry(display.entries, activeIndex)) {
       if (_flatEntryIndices.containsKey(entry.index)) return entry.index;
     }
     return activeIndex;

@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/text_book/view/toc_navigator_internals.dart';
@@ -13,7 +15,91 @@ TocEntry _e(String text, int index, int level, {List<TocEntry>? children}) {
   return entry;
 }
 
+class _CountingTocList extends ListBase<TocEntry> {
+  _CountingTocList(this._entries, this.onRead);
+
+  final List<TocEntry> _entries;
+  final void Function() onRead;
+
+  @override
+  int get length => _entries.length;
+
+  @override
+  set length(int value) => throw UnsupportedError('read only');
+
+  @override
+  TocEntry operator [](int index) {
+    onRead();
+    return _entries[index];
+  }
+
+  @override
+  void operator []=(int index, TocEntry value) =>
+      throw UnsupportedError('read only');
+}
+
+List<TocEntry> _scanPathFromEntry(List<TocEntry> roots, int index) {
+  for (final entry in roots) {
+    if (entry.index == index) return [entry];
+    final childPath = _scanPathFromEntry(entry.children, index);
+    if (childPath.isNotEmpty) return [...childPath, entry];
+  }
+  return [];
+}
+
 void main() {
+  group('TocPathLookup', () {
+    test('שורש מוסתר וכותרות כפולות שומרים את סדר העץ המקורי', () {
+      final first = _e('שער ראשון', 1, 2, children: [_e('פרק ראשון', 3, 3)]);
+      final second = _e('שער שני', 2, 2, children: [_e('פרק נוסף', 3, 3)]);
+      final roots = [
+        _e('שם הספר', 1, 1, children: [first, second]),
+      ];
+      final shownRoots = tocRootsBelowTitle(roots, 'שם הספר');
+
+      for (final tree in [roots, shownRoots]) {
+        final lookup = TocPathLookup(tree);
+        for (final index in [1, 2, 3, 4]) {
+          expect(lookup.fromEntry(index), _scanPathFromEntry(tree, index));
+        }
+      }
+      expect(TocPathLookup(roots).fromEntry(1), [roots.single]);
+      expect(TocPathLookup(shownRoots).fromEntry(1), [first]);
+      expect(TocPathLookup(shownRoots).fromEntry(3), [
+        first.children.single,
+        first,
+      ]);
+    });
+
+    test('מיקום קריאה בעץ גדול אינו סורק מחדש את העץ', () {
+      var reads = 0;
+      List<TocEntry> countReads(List<TocEntry> entries) =>
+          _CountingTocList(entries, () => reads++);
+      final roots = countReads([
+        for (var chapter = 0; chapter < 100; chapter++)
+          _e('פרק $chapter', chapter * 21, 1)
+            ..children = countReads([
+              for (var part = 1; part <= 20; part++)
+                _e('סעיף $part', chapter * 21 + part, 2),
+            ]),
+      ]);
+      final indices = [for (var index = 2080; index < 2100; index++) index];
+      final expected = [
+        for (final index in indices) _scanPathFromEntry(roots, index),
+      ];
+      expect(reads, 41810);
+
+      reads = 0;
+      final lookup = TocPathLookup(roots);
+      expect(reads, 2100);
+      for (var i = 0; i < indices.length; i++) {
+        expect(lookup.fromEntry(indices[i]), expected[i]);
+      }
+      expect(lookup.fromEntry(2101), isEmpty);
+      expect(reads, 2100);
+    });
+  });
+
   group('flattenVisibleToc - ברירת מחדל (מפת expanded ריקה)', () {
     test('עלים בלבד מוחזרים עם isExpanded=false', () {
       final entries = [
