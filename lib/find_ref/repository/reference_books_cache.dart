@@ -1114,6 +1114,7 @@ class BookTitleIndex {
   /// אחת לכל מילת שאילתה במקום על ~190,000 המילים שבספרים.
   final List<String> _fuzzyVocabulary = <String>[];
   final List<Uint32List> _fuzzyVocabularyBooks = <Uint32List>[];
+  final Map<String, Uint32List> _exactShortWordBooks = <String, Uint32List>{};
 
   /// מטמון חסום של המסננת לפי מילת שאילתה: `findRefs` קורא ל-[search] עד
   /// ארבע פעמים על אותה שאילתה, וההקלדה הבאה חוזרת על כל המילים חוץ מהאחרונה.
@@ -1154,9 +1155,7 @@ class BookTitleIndex {
 
   void clearTitles() {
     installTitles(const {});
-    _fuzzyVocabulary.clear();
-    _fuzzyVocabularyBooks.clear();
-    _fuzzyWordCandidates.clear();
+    installFuzzyVocabulary(const {});
   }
 
   List<ReferenceBookHit> search(
@@ -1462,12 +1461,17 @@ class BookTitleIndex {
 
   void installFuzzyVocabulary(Map<String, List<int>> booksByWord) {
     _fuzzyWordCandidates.clear();
-    _fuzzyVocabulary
-      ..clear()
-      ..addAll(booksByWord.keys);
-    _fuzzyVocabularyBooks
-      ..clear()
-      ..addAll(booksByWord.values.map(Uint32List.fromList));
+    _exactShortWordBooks.clear();
+    _fuzzyVocabulary.clear();
+    _fuzzyVocabularyBooks.clear();
+    for (final entry in booksByWord.entries) {
+      final books = Uint32List.fromList(entry.value);
+      _fuzzyVocabulary.add(entry.key);
+      _fuzzyVocabularyBooks.add(books);
+      if (entry.key.length < _minFuzzyWordLength) {
+        _exactShortWordBooks[entry.key] = books;
+      }
+    }
   }
 
   /// מזהי הספרים שבהם לכל אחת מ-[queryWords] יש מילה מתאימה — קבוצת-העל של
@@ -1479,15 +1483,26 @@ class BookTitleIndex {
     }
 
     Set<int>? candidates;
-    for (final word in queryWords) {
-      if (word.isEmpty) continue;
-      final forWord = _fuzzyCandidatesForWord(word);
+    bool intersect(Iterable<int> forWord) {
+      final current = candidates;
+      if (current == null) {
+        final copy = forWord.toSet();
+        candidates = copy;
+        return copy.isNotEmpty;
+      }
+      current.retainAll(forWord);
+      return current.isNotEmpty;
+    }
 
-      // העתקה ולא שימוש חוזר: הרשימה מגיעה מהמטמון, ו-retainAll היה פוגם בה.
-      candidates == null
-          ? candidates = <int>{...forWord}
-          : candidates.retainAll(forWord);
-      if (candidates.isEmpty) return const <int>{};
+    // מילה קצרה דורשת התאמה מדויקת. בודקים אותה לפני סריקת אוצר המילים.
+    for (final word in queryWords) {
+      if (word.isEmpty || word.length >= _minFuzzyWordLength) continue;
+      final exact = _exactShortWordBooks[word];
+      if (exact == null || !intersect(exact)) return const <int>{};
+    }
+    for (final word in queryWords) {
+      if (word.length < _minFuzzyWordLength) continue;
+      if (!intersect(_fuzzyCandidatesForWord(word))) return const <int>{};
     }
     return candidates ?? const <int>{};
   }
@@ -1497,16 +1512,11 @@ class BookTitleIndex {
     final cached = _fuzzyWordCandidates[word];
     if (cached != null) return cached;
 
-    // מילה קצרה נדרשת כמילה שלמה ולא בקירוב, ולכן גם המסננת מדויקת —
-    // `contains` עליה היה מחזיר כמעט כל מילה באוצר.
-    final exact = word.length < _minFuzzyWordLength;
     final books = <int>{};
     for (var i = 0; i < _fuzzyVocabulary.length; i++) {
-      final vocabWord = _fuzzyVocabulary[i];
-      final matches = exact
-          ? vocabWord == word
-          : bookSearchWordPairMatches(word, vocabWord);
-      if (matches) books.addAll(_fuzzyVocabularyBooks[i]);
+      if (bookSearchWordPairMatches(word, _fuzzyVocabulary[i])) {
+        books.addAll(_fuzzyVocabularyBooks[i]);
+      }
     }
 
     if (_fuzzyWordCandidates.length >= _fuzzyWordCandidatesLimit) {
