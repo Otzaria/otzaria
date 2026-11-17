@@ -65,8 +65,11 @@ class UserBooksDatabaseHolder {
   /// נתיב ה-DB. שימושי בזרימות isolate שצריכות לפתוח את הקובץ ישירות.
   static Future<String> resolveDbPath() => AppPaths.resolveUserBooksDbPath();
 
-  static Future<void> _backfillLineRefIndexes(MyDatabase database) =>
-      SeforimRepository(database).backfillMissingLineRefIndexes();
+  static Future<void> _backfillLineRefIndexes(MyDatabase database) async {
+    final repository = SeforimRepository(database);
+    await repository.configureConnection();
+    await repository.backfillMissingLineRefIndexes();
+  }
 
   Future<SeforimRepository> _initialize() async {
     final dbPath = await AppPaths.resolveUserBooksDbPath();

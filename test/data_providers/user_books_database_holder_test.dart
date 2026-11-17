@@ -235,7 +235,7 @@ void main() {
       );
     });
 
-    test('אתחול משלים אינדקס הפניות גם מול כותב מקביל', () async {
+    test('אתחול משלים אינדקס הפניות בחיבור מכוונן מול כותב מקביל', () async {
       final holder = UserBooksDatabaseHolder.instance;
       final dbPath = await UserBooksDatabaseHolder.resolveDbPath();
       final legacy = MyDatabase.withPath(dbPath);
@@ -252,6 +252,15 @@ void main() {
             heRef: 'יישאר לב, יא',
           ),
         );
+        final db = await legacy.database;
+        db.execute('''
+          CREATE TRIGGER check_backfill_connection BEFORE INSERT ON line_ref
+          WHEN (SELECT cache_size FROM pragma_cache_size) <> -32000
+            OR (SELECT temp_store FROM pragma_temp_store) <> 2
+          BEGIN
+            SELECT RAISE(ABORT, 'line_ref backfill used an untuned connection');
+          END;
+        ''');
       } finally {
         legacy.close();
       }
