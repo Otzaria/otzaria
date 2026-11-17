@@ -274,6 +274,20 @@ String? correctionDiffHtml({
   required String after,
   String contextBefore = '',
   String contextAfter = '',
+}) => _renderCorrectionDiffHtml(
+  computeTextDiff(before, after),
+  before: before,
+  after: after,
+  contextBefore: contextBefore,
+  contextAfter: contextAfter,
+);
+
+String? _renderCorrectionDiffHtml(
+  List<TextDiffSegment> segments, {
+  required String before,
+  required String after,
+  required String contextBefore,
+  required String contextAfter,
 }) {
   final fullBefore = '$contextBefore$before$contextAfter';
   final fullAfter = '$contextBefore$after$contextAfter';
@@ -281,7 +295,7 @@ String? correctionDiffHtml({
   var beforePos = contextBefore.length;
   var afterPos = contextBefore.length;
   var visibleChange = false;
-  for (final segment in computeTextDiff(before, after)) {
+  for (final segment in segments) {
     if (segment.op != TextDiffOp.equal && segment.text.trim().isNotEmpty) {
       visibleChange = true;
     }
@@ -647,7 +661,7 @@ class _TextCorrectionEditorState extends State<TextCorrectionEditor> {
 }
 
 /// תצוגת ההבדל: נמחק מסומן בקו חוצה, נוסף מודגש — בצבעי ה-theme בלבד.
-class TextCorrectionDiffView extends StatelessWidget {
+class TextCorrectionDiffView extends StatefulWidget {
   final String before;
   final String after;
   final TextStyle style;
@@ -667,15 +681,41 @@ class TextCorrectionDiffView extends StatelessWidget {
     this.contextAfter = '',
   });
 
+  @override
+  State<TextCorrectionDiffView> createState() => _TextCorrectionDiffViewState();
+}
+
+class _TextCorrectionDiffViewState extends State<TextCorrectionDiffView> {
   /// מעבר לזה השינוי עלול להיות מחוץ לתיבה הנגללת, ולכן מרונדר בלי הקשר.
   static const int _maxRenderedContext = 300;
 
+  late List<TextDiffSegment> _segments = computeTextDiff(
+    widget.before,
+    widget.after,
+  );
+
+  @override
+  void didUpdateWidget(covariant TextCorrectionDiffView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.before != widget.before || oldWidget.after != widget.after) {
+      _segments = computeTextDiff(widget.before, widget.after);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final TextCorrectionDiffView(
+      :before,
+      :after,
+      :contextBefore,
+      :contextAfter,
+      :renderHtml,
+    ) = widget;
     final withContext =
         contextBefore.length + contextAfter.length <= _maxRenderedContext;
     final html = renderHtml
-        ? correctionDiffHtml(
+        ? _renderCorrectionDiffHtml(
+            _segments,
             before: before,
             after: after,
             contextBefore: withContext ? contextBefore : '',
@@ -702,10 +742,8 @@ class TextCorrectionDiffView extends StatelessWidget {
   }
 
   Widget _box(BuildContext context, String? html) {
+    final TextCorrectionDiffView(:before, :after, :style) = widget;
     final colorScheme = Theme.of(context).colorScheme;
-    final segments = html == null
-        ? computeTextDiff(before, after)
-        : const <TextDiffSegment>[];
     final direction = reportContentDirection(
       before.isEmpty ? after : before,
       isHtml: true,
@@ -724,7 +762,7 @@ class TextCorrectionDiffView extends StatelessWidget {
                 TextSpan(
                   style: style,
                   children: [
-                    for (final segment in segments)
+                    for (final segment in _segments)
                       TextSpan(
                         text: segment.text,
                         style: switch (segment.op) {
