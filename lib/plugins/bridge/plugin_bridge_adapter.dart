@@ -130,6 +130,7 @@ import 'package:otzaria/plugins/services/context_menu_registry.dart';
 import 'package:otzaria/plugins/services/plugin_toolbar_registry.dart';
 import 'package:otzaria/plugins/services/plugin_restore_state_store.dart';
 import 'package:otzaria/plugins/services/plugin_unsaved_changes_registry.dart';
+import 'package:otzaria/plugins/services/plugin_tab_info.dart';
 import 'package:otzaria/plugins/services/plugin_page_launcher.dart';
 import 'package:otzaria/plugins/services/plugin_new_tab_page_service.dart';
 import 'package:otzaria/plugins/view/plugin_new_tab_page_choice.dart';
@@ -4888,6 +4889,23 @@ class PluginBridgeAdapter {
           hasChanges: hasChanges,
           message: args['message'] as String?,
         );
+        return true;
+      case 'setTabInfo':
+        // spec: setTabInfo({ title?, tooltip? }) — כותרת וטולטיפ של הכרטיסיה
+        // של המופע הקורא בלבד. שדה חסר לא משתנה; null או ריק מאפס.
+        final update = PluginTabInfoUpdate.parse(args);
+        final tabsBloc = _windowDependencies.tabsBloc;
+        final tab = tabsBloc.state.tabs
+            .expand(leafPanes)
+            .whereType<ToolTab>()
+            .where(
+              (tab) =>
+                  tab.toolId == plugin.pluginId && tab.instanceId == instanceId,
+            )
+            .firstOrNull;
+        // מופע רקע, קורא טקסט, או כרטיסיה שנסגרה — אין מה לעדכן.
+        if (tab == null) return false;
+        tabsBloc.add(SetPluginTabInfo(tab, update));
         return true;
       case 'pickFolder':
         // פותח דיאלוג בחירת תיקייה. הנתיב שנבחר נרשם כתיקייה מאושרת לתוסף —

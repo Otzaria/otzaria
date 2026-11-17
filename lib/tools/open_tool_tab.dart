@@ -123,7 +123,7 @@ String? openPluginToolInstanceById(
     tab.dispose();
     UiSnack.showError(
       ToolsMessages.pluginInstanceLimitReached(
-        tab.title,
+        tab.baseTitle,
         kMaxPluginToolInstances,
       ),
     );
@@ -281,7 +281,7 @@ Map<ToolTab, String> pluginTabsWithFallbackTitle(
     for (final tab in tabs.expand(leafPanes).whereType<ToolTab>())
       if (tab.isPlugin &&
           !tab.preserveTitleOnPluginLoad &&
-          tab.title == ToolTab.fallbackTitleFor(tab.toolId) &&
+          tab.baseTitle == ToolTab.fallbackTitleFor(tab.toolId) &&
           titles[tab.toolId] != null)
         tab: titles[tab.toolId]!,
   };

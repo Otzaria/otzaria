@@ -246,6 +246,17 @@ ValueListenable<String>? liveTabTitleOf(OpenedTab tab) {
   return null;
 }
 
+/// הטולטיפ של כרטיסיה סטטית: זה שהתוסף קבע לכרטיסיה שלו, ובלעדיו הכותרת.
+String tabTooltipOf(OpenedTab tab) {
+  if (tab is CombinedTab &&
+      tab.panes.whereType<ToolTab>().any(
+        (pane) => pane.tooltipOverride != null,
+      )) {
+    return tab.panes.map(tabTooltipOf).join('\n');
+  }
+  return (tab is ToolTab ? tab.tooltipOverride : null) ?? tab.title;
+}
+
 bool _hasLiveLocation(OpenedTab tab) =>
     tab is! SearchingTab && liveTabTitleOf(tab) != null;
 
@@ -287,7 +298,7 @@ class LiveTabTitleBuilder extends StatelessWidget {
     final tab = this.tab;
     final liveTitle = liveTabTitleOf(tab);
     if (liveTitle == null) {
-      return builder(context, tab.title, tab.title, null);
+      return builder(context, tab.title, tabTooltipOf(tab), null);
     }
     return ValueListenableBuilder<String>(
       valueListenable: liveTitle,

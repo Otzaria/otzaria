@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:otzaria/plugins/plugin_constants.dart';
 import 'package:otzaria/plugins/services/plugin_restore_state_store.dart';
+import 'package:otzaria/plugins/services/plugin_tab_info.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tools/built_in_tools_catalog.dart';
@@ -25,6 +26,20 @@ bool hasRoomForPluginInstance(
   int pending = 0,
 }) => openToolInstanceCount(tabs, toolId) + pending < kMaxPluginToolInstances;
 
+String? _savedPluginText(
+  Object? raw,
+  int maxLength,
+  String field, {
+  bool allowNewlines = false,
+}) => raw is String
+    ? normalizePluginTabText(
+        raw,
+        maxLength: maxLength,
+        field: field,
+        allowNewlines: allowNewlines,
+      )
+    : null;
+
 /// טאב של כלי מובנה או תוסף, המוצג במסך העיון ככל טאב אחר.
 class ToolTab extends OpenedTab {
   /// מזהה הכלי: `builtin.*` לכלי מובנה, או `pluginId` לתוסף.
@@ -44,6 +59,13 @@ class ToolTab extends OpenedTab {
   /// בקשות חיפוש שממתינות למסך הכלי. אינן נשמרות עם הטאב.
   final ToolQueryInbox queryInbox = ToolQueryInbox();
 
+  /// כותרת שהתוסף קבע לכרטיסיה שלו (`ui.setTabInfo`); null — שם התוסף.
+  /// נשמרת עם הטאב כדי שתוצג מיד בשחזור, לפני שהתוסף עלה.
+  String? titleOverride;
+
+  /// טולטיפ שהתוסף קבע; null — הטולטיפ הרגיל (הכותרת).
+  String? tooltipOverride;
+
   ToolTab({
     required this.toolId,
     required String title,
@@ -58,6 +80,28 @@ class ToolTab extends OpenedTab {
          dedupeKey: allowMultipleInstances ? null : dedupeKeyFor(toolId),
        ) {
     if (query != null) queryInbox.post(query);
+  }
+
+  /// הכותרת שמוצגת בכרטיסיה: זו שהתוסף קבע, ובלעדיה שם הכלי. כך כל מקום
+  /// שמציג כותרת כרטיסיה (פס הכרטיסיות, החיפוש, התפריטים) מתעדכן יחד.
+  @override
+  String get title => titleOverride ?? super.title;
+
+  /// שם הכלי עצמו, בלי התאמה של התוסף — להודעות על הכלי ולכותרת הגיבוי.
+  String get baseTitle => super.title;
+
+  /// מחיל את [update] על הכרטיסיה. מחזיר אם משהו השתנה בפועל.
+  bool applyPluginTabInfo(PluginTabInfoUpdate update) {
+    var changed = false;
+    if (update.hasTitle && titleOverride != update.title) {
+      titleOverride = update.title;
+      changed = true;
+    }
+    if (update.hasTooltip && tooltipOverride != update.tooltip) {
+      tooltipOverride = update.tooltip;
+      changed = true;
+    }
+    return changed;
   }
 
   static int _instanceCounter = 0;
@@ -98,14 +142,17 @@ class ToolTab extends OpenedTab {
 
   @override
   OpenedTab clone({bool? allowMultipleInstances}) {
-    final copy = ToolTab(
-      toolId: toolId,
-      title: title,
-      isPinned: isPinned,
-      allowMultipleInstances:
-          allowMultipleInstances ?? this.allowMultipleInstances,
-      preserveTitleOnPluginLoad: preserveTitleOnPluginLoad,
-    );
+    final copy =
+        ToolTab(
+            toolId: toolId,
+            title: baseTitle,
+            isPinned: isPinned,
+            allowMultipleInstances:
+                allowMultipleInstances ?? this.allowMultipleInstances,
+            preserveTitleOnPluginLoad: preserveTitleOnPluginLoad,
+          )
+          ..titleOverride = titleOverride
+          ..tooltipOverride = tooltipOverride;
     // שולחנות עבודה עוברים דרך clone — בלי ההעתקה המצב אובד במזהה החדש.
     final restoreState = PluginRestoreStateStore.instance.jsonOf(_pluginKey);
     if (restoreState != null) {
@@ -118,11 +165,13 @@ class ToolTab extends OpenedTab {
   Map<String, dynamic> toJson() => {
     'type': 'ToolTab',
     'toolId': toolId,
-    'title': title,
+    'title': baseTitle,
     'isPinned': isPinned,
     'instanceId': instanceId,
     'allowMultipleInstances': allowMultipleInstances,
     if (preserveTitleOnPluginLoad) 'preserveTitleOnPluginLoad': true,
+    'titleOverride': ?titleOverride,
+    'tooltipOverride': ?tooltipOverride,
     // מצב השחזור של התוסף (plugin.setRestoreState) עובר עם הטאב לסשן
     // ולסביבות העבודה.
     'pluginRestoreState': ?PluginRestoreStateStore.instance.jsonOf(_pluginKey),
@@ -149,6 +198,18 @@ class ToolTab extends OpenedTab {
       instanceId: json['instanceId'] as String?,
       allowMultipleInstances: json['allowMultipleInstances'] == true,
       preserveTitleOnPluginLoad: json['preserveTitleOnPluginLoad'] == true,
+    );
+    // JSON שמור יכול להיות ישן או פגום; ערך לא תקין פשוט לא נטען.
+    tab.titleOverride = _savedPluginText(
+      json['titleOverride'],
+      kMaxPluginTabTitleLength,
+      'titleOverride',
+    );
+    tab.tooltipOverride = _savedPluginText(
+      json['tooltipOverride'],
+      kMaxPluginTabTooltipLength,
+      'tooltipOverride',
+      allowNewlines: true,
     );
     final restoreState = json['pluginRestoreState'];
     if (restoreState is String) {

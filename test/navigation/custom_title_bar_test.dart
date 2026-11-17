@@ -8,7 +8,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
+import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
+import 'package:otzaria/plugins/services/plugin_tab_info.dart';
+import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/core/windowing/app_window_caption.dart';
@@ -426,6 +430,129 @@ void main() {
 
     expect(find.byTooltip('ספר א'), findsNothing);
   });
+
+  testWidgets('כרטיסיית תוסף מציגה את הכותרת והטולטיפ שהתוסף קבע', (
+    tester,
+  ) async {
+    final tab = ToolTab(
+      toolId: 'com.example.plugin',
+      title: 'שני טורים',
+      allowMultipleInstances: true,
+    );
+    final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
+    final navigationBloc = _TestNavigationBloc(
+      const NavigationState(currentScreen: Screen.reading),
+    );
+    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final pluginSystemBloc = _TestPluginSystemBloc();
+
+    addTearDown(() async {
+      tab.dispose();
+      await tabsBloc.close();
+      await navigationBloc.close();
+      await settingsBloc.close();
+      await pluginSystemBloc.close();
+    });
+
+    await _setSurfaceSize(tester, const Size(1200, 800));
+    await _pumpTitleBar(
+      tester,
+      tabsBloc: tabsBloc,
+      navigationBloc: navigationBloc,
+      settingsBloc: settingsBloc,
+      pluginSystemBloc: pluginSystemBloc,
+    );
+    expect(find.text('שני טורים'), findsOneWidget);
+
+    tab.applyPluginTabInfo(
+      PluginTabInfoUpdate.parse({
+        'title': 'בראשית א',
+        'tooltip': 'בראשית, פרק א',
+      }),
+    );
+    tabsBloc.emitState(
+      TabsState(tabs: [tab], currentTabIndex: 0, updateCounter: 1),
+    );
+    await tester.idle();
+    await tester.pump();
+
+    expect(find.text('בראשית א'), findsOneWidget);
+    expect(find.text('שני טורים'), findsNothing);
+    expect(find.byTooltip('בראשית, פרק א'), findsOneWidget);
+  });
+
+  for (final narrow in [false, true]) {
+    for (final combined in [false, true]) {
+      testWidgets('טולטיפ תוסף מתעדכן${narrow ? ' בכרטיסיה צרה' : ''}'
+          '${combined ? ' בחלונית משולבת' : ''}', (tester) async {
+        final plugin = ToolTab(
+          toolId: 'com.example.plugin',
+          title: 'שני טורים',
+          allowMultipleInstances: true,
+        );
+        final OpenedTab tab = combined
+            ? CombinedTab(rightTab: _makeTextTab('ספר'), leftTab: plugin)
+            : plugin;
+        final tabs = <OpenedTab>[
+          _makeTextTab('פעילה'),
+          tab,
+          if (narrow)
+            for (var i = 0; i < 98; i++) _makeTextTab('ספר $i'),
+        ];
+        final tabsBloc = _TestTabsBloc(
+          TabsState(tabs: tabs, currentTabIndex: 0),
+        );
+        final navigationBloc = _TestNavigationBloc(
+          const NavigationState(currentScreen: Screen.reading),
+        );
+        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+        final pluginSystemBloc = _TestPluginSystemBloc();
+        addTearDown(() async {
+          for (final tab in tabs) {
+            tab.dispose();
+          }
+          await tabsBloc.close();
+          await navigationBloc.close();
+          await settingsBloc.close();
+          await pluginSystemBloc.close();
+        });
+        await _setSurfaceSize(tester, const Size(1200, 800));
+        await _pumpTitleBar(
+          tester,
+          tabsBloc: tabsBloc,
+          navigationBloc: navigationBloc,
+          settingsBloc: settingsBloc,
+          pluginSystemBloc: pluginSystemBloc,
+        );
+        if (narrow) {
+          expect(find.byTooltip(tab.title), findsOneWidget);
+          expect(find.text(plugin.title), findsNothing);
+        }
+        plugin.applyPluginTabInfo(
+          PluginTabInfoUpdate.parse({
+            'title': 'בראשית א',
+            'tooltip': 'בראשית, פרק א',
+          }),
+        );
+        tabsBloc.emitState(
+          TabsState(tabs: tabs, currentTabIndex: 0, updateCounter: 1),
+        );
+        await tester.idle();
+        await tester.pump();
+        expect(
+          find.byTooltip(combined ? 'ספר\nבראשית, פרק א' : 'בראשית, פרק א'),
+          findsOneWidget,
+        );
+        expect(find.byTooltip(tab.title), findsNothing);
+        expect(find.text('שני טורים'), findsNothing);
+        if (narrow) {
+          expect(find.text('בראשית א'), findsNothing);
+        } else {
+          expect(find.text('בראשית א'), findsOneWidget);
+        }
+      });
+    }
+  }
 
   group('מיקום הכרטיסיות', () {
     /// שורת כותרת עם כרטיסיה אחת, במיקום הכרטיסיות הנתון.
@@ -3539,6 +3666,7 @@ Future<void> _pumpTitleBar(
   ThemeData? theme,
   HistoryBloc? historyBloc,
   WorkspaceBloc? workspaceBloc,
+  PluginSystemBloc? pluginSystemBloc,
   WindowFullscreenCubit? fullscreenCubit,
   AppWindowRole? role,
   AppWindowController? controller,
@@ -3571,6 +3699,8 @@ Future<void> _pumpTitleBar(
             BlocProvider<HistoryBloc>.value(value: historyBloc),
           if (workspaceBloc != null)
             BlocProvider<WorkspaceBloc>.value(value: workspaceBloc),
+          if (pluginSystemBloc != null)
+            BlocProvider<PluginSystemBloc>.value(value: pluginSystemBloc),
         ],
         child: MaterialApp(
           builder: captionScope
@@ -3712,6 +3842,14 @@ class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
   }
 
   void emitState(SettingsState state) => emit(state);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _TestPluginSystemBloc extends Cubit<PluginSystemState>
+    implements PluginSystemBloc {
+  _TestPluginSystemBloc() : super(const PluginSystemLoaded([]));
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
