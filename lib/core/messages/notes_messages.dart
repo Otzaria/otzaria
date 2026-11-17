@@ -56,8 +56,6 @@ abstract class NotesMessages {
 
   static String noteMovedToLine(int line) => 'ההערה הועברה לשורה $line';
 
-  static String noteAssignedToLine(int line) => 'ההערה שויכה לשורה $line';
-
   static String bookNotFound(String bookId) => 'הספר לא נמצא: $bookId';
 
   static String cannotOpenLink(String url) => 'לא ניתן לפתוח את הקישור: $url';
