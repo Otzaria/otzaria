@@ -1,20 +1,20 @@
+import 'dart:isolate';
+
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/cache/generation_cache.dart';
+import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/migration/database/db_capabilities.dart';
+import 'package:otzaria/migration/database/untrusted_database.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/services/commentary_service.dart';
 
-/// מטמון חד-פעמי לריצת אינדוקס: ממדי ה-facet הנוספים של כל ספר —
-/// מחברים (`book_author`), תקופה (דרך [GenerationCache], בדליי
-/// [CommentaryEra]) ודגל ספר-יסוד (`isBaseBook` ב-DB).
-///
-/// הממדים מוטבעים בזמן אינדוקס כערכי facet נוספים על שדה `topics` של
-/// המנוע, תחת שורשים שמורים באנגלית (ראו FACET_DIMENSION_ROOTS במנוע):
-/// `/author/<שם>`, `/era/<תקופה>`, `/base`. בסינון: OR בתוך ממד, AND בין
-/// ממדים. ספר שאין לו נתון (מחבר/תקופה לא ידועים) פשוט לא ישא את ה-facet
-/// ולא ייכלל בסינון לפי אותו ממד.
+typedef _FacetMetadata = ({Map<int, List<String>> authors, Set<int> baseIds});
+
+/// ממדי החיפוש של ספר לריצת אינדוקס: מחברים, תקופה וספר־יסוד.
+/// נתון חסר אינו מוסיף facet, ולכן אינו נכלל בסינון לפי אותו ממד.
 class BookFacetMetadataCache {
   BookFacetMetadataCache._();
 
@@ -64,39 +64,30 @@ class BookFacetMetadataCache {
     // התקופה מגיעה מ-GenerationCache — מחומם יחד כדי שהאינדוקס לא ירוץ
     // לפני שהדורות נטענו (ואז כל הספרים היו נטבעים בלי /era).
     await GenerationCache.instance.warmUp();
+    if (generation != _generation) return;
 
     final repository = SqliteDataProvider.instance.repository;
     if (repository == null) {
       debugPrint('[BookFacetMetadataCache] DB not initialized; skipping');
       return;
     }
-    final authors = <int, List<String>>{};
-    final userAuthors = <int, List<String>>{};
-    final baseIds = <int>{};
-    final userBaseIds = <int>{};
+    late final _FacetMetadata official;
+    var user = (authors: <int, List<String>>{}, baseIds: <int>{});
     try {
-      final db = await repository.database.database;
-      final capabilities = await repository.database.capabilities;
-      if (capabilities.hasAuthors) {
-        _accumulateAuthors(db.select(_authorsSql), authors);
-      }
-      if (capabilities.hasColumn('book', 'isBaseBook')) {
-        for (final row in db.select(_baseBooksSql)) {
-          final id = row['id'] as int?;
-          if (id != null) baseIds.add(id);
-        }
-      }
+      official = await _readOfficialMetadata(
+        repository.database.readOnlyTarget,
+      );
+      if (generation != _generation) return;
 
       // ספרים אישיים — רק אם ה-DB שלהם כבר פתוח, בלי לכפות יצירה.
-      final userRepo = UserBooksDatabaseHolder.instance.repositoryIfInitialized;
+      final userHolder = UserBooksDatabaseHolder.instance;
+      final userRepo = userHolder.repositoryIfInitialized;
       if (userRepo != null) {
         try {
-          final userDb = await userRepo.database.database;
-          _accumulateAuthors(userDb.select(_authorsSql), userAuthors);
-          for (final row in userDb.select(_baseBooksSql)) {
-            final id = row['id'] as int?;
-            if (id != null) userBaseIds.add(id);
-          }
+          final target = userRepo.database.readOnlyTarget;
+          await userHolder.trackRead(() async {
+            user = await _readMetadataInIsolate(target);
+          });
         } catch (e) {
           debugPrint('[BookFacetMetadataCache] user_books skipped: $e');
         }
@@ -107,15 +98,48 @@ class BookFacetMetadataCache {
     }
     // מסד שהוחלף באמצע הטעינה ([clear]) — הנתונים שנקראו כבר אינם שלו.
     if (generation != _generation) return;
-    _authorsByBookId.addAll(authors);
-    _authorsByUserBookId.addAll(userAuthors);
-    _baseBookIds.addAll(baseIds);
-    _baseUserBookIds.addAll(userBaseIds);
+    _authorsByBookId.addAll(official.authors);
+    _authorsByUserBookId.addAll(user.authors);
+    _baseBookIds.addAll(official.baseIds);
+    _baseUserBookIds.addAll(user.baseIds);
     _isLoaded = true;
     debugPrint(
       '[BookFacetMetadataCache] Loaded authors for '
       '${_authorsByBookId.length} books, ${_baseBookIds.length} base books',
     );
+  }
+
+  static Future<_FacetMetadata> _readOfficialMetadata(
+    ReadOnlyDbTarget target,
+  ) => DbReadWorker.runOnFreshIsolate(
+    () => _readMetadata(target),
+    requestArguments: {'dbPath': target.path},
+  );
+
+  static Future<_FacetMetadata> _readMetadataInIsolate(
+    ReadOnlyDbTarget target,
+  ) => Isolate.run(() => _readMetadata(target));
+
+  static _FacetMetadata _readMetadata(ReadOnlyDbTarget target) {
+    final db = openReadOnlyTarget(target);
+    try {
+      if (!target.untrusted) db.execute('PRAGMA busy_timeout=5000');
+      final capabilities = DbCapabilities.probe(db);
+      final authors = <int, List<String>>{};
+      final baseIds = <int>{};
+      if (capabilities.hasAuthors) {
+        _accumulateAuthors(db.select(_authorsSql), authors);
+      }
+      if (capabilities.hasColumn('book', 'isBaseBook')) {
+        for (final row in db.select(_baseBooksSql)) {
+          final id = row['id'] as int?;
+          if (id != null) baseIds.add(id);
+        }
+      }
+      return (authors: authors, baseIds: baseIds);
+    } finally {
+      db.close();
+    }
   }
 
   static void _accumulateAuthors(Iterable rows, Map<int, List<String>> into) {
@@ -127,9 +151,8 @@ class BookFacetMetadataCache {
     }
   }
 
-  /// נתיבי ה-facet הממדיים של הספר, לפרמטר `extraFacets` של המנוע.
-  /// [isFoundational] — סיווג ספרי-היסוד לפי נתיב הקטגוריה
-  /// (FoundationalBookClassifier), שמשלים את דגל ה-DB.
+  /// נתיבי ה-facet של הספר; [isFoundational] משלים את דגל ה-DB
+  /// באמצעות סיווג ספרי־היסוד לפי הקטלוג.
   List<String> extraFacetsForBook(Book book, {required bool isFoundational}) {
     final facets = <String>[];
     final id = book.id;
@@ -164,8 +187,7 @@ class BookFacetMetadataCache {
         AttachedBookSource() => null,
       };
 
-  /// שם התקופה לפי דלי [CommentaryEra] של הספר; null לדלי "שאר מפרשים"
-  /// (ספר בלי דור ידוע) — עדיף שלא ישא facet מאשר שישא תקופה שגויה.
+  /// שם התקופה לפי [CommentaryEra]; ספר בלי דור ידוע אינו מקבל facet תקופה.
   static String? _eraNameFor(Book book) {
     final order = GenerationCache.instance.getOrderForBook(
       book.id,
