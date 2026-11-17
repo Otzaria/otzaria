@@ -170,12 +170,16 @@ class AcronymsCache {
         "AND name = 'book_acronym'",
       );
       if (hasTable.isEmpty) return const {};
-      final rows = db.select('SELECT bookId, term FROM book_acronym');
-      return buildAcronymCacheData([
-        for (final row in rows)
-          if (row['bookId'] is int && row['term'] is String)
-            (row['bookId'] as int, row['term'] as String),
-      ]).acronymsByBookId;
+      final acronymsByBookId = <int, List<String>>{};
+      for (final row in db.select('SELECT bookId, term FROM book_acronym')) {
+        final bookId = row['bookId'];
+        final term = row['term'];
+        if (bookId is! int || term is! String || term.isEmpty) continue;
+        final normalized = normalizeForFindRefMatch(term);
+        if (normalized.isEmpty) continue;
+        acronymsByBookId.putIfAbsent(bookId, () => <String>[]).add(normalized);
+      }
+      return acronymsByBookId;
     } finally {
       db.close();
     }
