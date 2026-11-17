@@ -22,20 +22,22 @@ class LibraryProviderManager {
   final List<LibraryProvider> _providers = [];
   final Map<BookCompositeKey, LibraryProvider> _bookToProvider = {};
 
-  /// המפתח הראשון (בסדר ההכנסה) לכל כותרת — לאיתור ספר היעד של קישור.
-  final Map<String, BookCompositeKey> _firstKeyByTitle = {};
+  /// מפתחות לפי כותרת בסדר ההכנסה — לאיתור ספרים ויעדי קישורים.
+  final Map<String, List<BookCompositeKey>> _keysByTitle = {};
 
   bool _isInitialized = false;
   Future<void>? _initializationFuture;
 
   void _mapBook(BookCompositeKey key, LibraryProvider provider) {
+    if (!_bookToProvider.containsKey(key)) {
+      (_keysByTitle[key.title] ??= []).add(key);
+    }
     _bookToProvider[key] = provider;
-    _firstKeyByTitle.putIfAbsent(key.title, () => key);
   }
 
   void _clearBookMapping() {
     _bookToProvider.clear();
-    _firstKeyByTitle.clear();
+    _keysByTitle.clear();
   }
 
   /// Singleton instance
@@ -127,14 +129,17 @@ class LibraryProviderManager {
       }
     }
 
+    final candidates = _keysByTitle[title];
+    if (candidates == null) return null;
+
     // שני מעברים: התאמה מלאה (כולל fileType), ואז לפי כותרת בלבד.
     // `accept` מאפשר לחפש קודם רק במקור המועדף, ואז בכל השאר.
     BookCompositeKey? findIn(bool Function(BookCompositeKey) accept) {
-      for (final key in _bookToProvider.keys) {
+      for (final key in candidates) {
         if (!accept(key)) continue;
         if (key.matches(title, otherFileType: normalizedFileType)) return key;
       }
-      for (final key in _bookToProvider.keys) {
+      for (final key in candidates) {
         if (!accept(key)) continue;
         if (key.matchesTitle(title)) return key;
       }
@@ -529,7 +534,7 @@ class LibraryProviderManager {
         ? targetName.substring(0, targetName.length - targetExtension.length)
         : targetName;
 
-    final targetKey = _firstKeyByTitle[targetTitle];
+    final targetKey = _keysByTitle[targetTitle]?.firstOrNull;
     final provider = targetKey != null ? _bookToProvider[targetKey] : null;
 
     if (provider != null) {
