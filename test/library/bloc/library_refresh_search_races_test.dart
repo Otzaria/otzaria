@@ -50,6 +50,7 @@ class _Repository extends DataRepository {
     bool extraBooksOnly = false,
     bool sortByRatio = true,
     Object? supersedeKey,
+    bool reuseCatalog = false,
   }) async {
     searches++;
     if (query == staleFailureQuery) {
@@ -69,6 +70,7 @@ class _Repository extends DataRepository {
         extraBooksOnly: extraBooksOnly,
         sortByRatio: sortByRatio,
         supersedeKey: supersedeKey,
+        reuseCatalog: reuseCatalog,
       );
     } on BookSearchSupersededException {
       superseded++;

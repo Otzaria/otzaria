@@ -30,6 +30,10 @@ class GenerationCache {
         Future<Map<int, int>>
       >{};
   int _generation = 0;
+  int _revision = 0;
+
+  /// משתנה כשמיפוי הדורות נטען מחדש או מתאפס.
+  int get revision => _revision;
 
   /// דור לפי id ב-seforim.db.
   final Map<int, int> _orderByBookId = <int, int>{};
@@ -129,6 +133,7 @@ class GenerationCache {
         ..clear()
         ..addAll(localUser);
       _isLoaded = true;
+      _revision++;
       debugPrint(
         '[GenerationCache] Loaded generations for ${_orderByBookId.length} '
         'books (+${_orderByUserBookId.length} user books)',
@@ -167,6 +172,7 @@ class GenerationCache {
     _orderByAttachedBookId
       ..clear()
       ..addAll(localAttached);
+    _revision++;
   }
 
   /// כל מסד נקרא ב-isolate בפתיחה מוקשחת לפי נתיב, במקביל.
@@ -280,6 +286,7 @@ class GenerationCache {
 
   void clear() {
     _generation++;
+    _revision++;
     _orderByAttachedBookId.clear();
     _orderByBookId.clear();
     _orderByUserBookId.clear();

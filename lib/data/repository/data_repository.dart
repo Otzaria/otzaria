@@ -37,8 +37,10 @@ class DataRepository {
   Library? get lastSuccessfulLibrary => _lastSuccessfulLibrary;
   Future<Library> get library =>
       _libraryFuture ??= _trackLibraryFuture(_getLibrary());
-  set library(Future<Library> value) =>
-      _libraryFuture = _trackLibraryFuture(value);
+  set library(Future<Library> value) {
+    _bookSearchCatalog = null;
+    _libraryFuture = _trackLibraryFuture(value);
+  }
 
   /// ממתין לבנייה פעילה, או מחזיר את הקטלוג האחרון שהצליח אחרי כשל.
   Future<Library?> librarySnapshotForRefresh() async {
@@ -72,10 +74,12 @@ class DataRepository {
   void invalidateLibraryCache() {
     _libraryFuture = null;
     _lastSuccessfulLibrary = null;
+    _bookSearchCatalog = null;
     _bookSearchWorker.dispose();
   }
 
   final BookSearchWorker _bookSearchWorker = BookSearchWorker();
+  _BookSearchCatalog? _bookSearchCatalog;
   final Map<Object, Object> _pendingBookSearches = {};
 
   @visibleForTesting
@@ -122,6 +126,7 @@ class DataRepository {
     _hebrewBooksFuture = null;
     _localHebrewBooksFuture = null;
     _localHebrewBooksScanFuture = null;
+    _bookSearchCatalog = null;
   }
 
   DataRepository({FileSystemData? fileSystemData})
@@ -210,6 +215,8 @@ class DataRepository {
   /// חיפוש חדש עם אותו [supersedeKey] מבטל את הקודם ב-[BookSearchSupersededException].
   /// [extraBooksOnly] מחפש רק ב-[extraBooks]: בלי ספרי הספרייה, הקטלוגים
   /// החיצוניים והתיקיות.
+  /// [reuseCatalog] מיועד לקוראים שמחליפים את [category] ו-[extraBooks]
+  /// כאשר תוכנם מתעדכן, במקום לשנות את האובייקטים שפורסמו לחיפוש.
   Future<({List<Book> books, List<Category> categories})>
   findBooksAndCategories(
     String query,
@@ -222,6 +229,7 @@ class DataRepository {
     bool extraBooksOnly = false,
     bool sortByRatio = true,
     Object? supersedeKey,
+    bool reuseCatalog = false,
   }) async {
     final request = Object();
     if (supersedeKey != null) _pendingBookSearches[supersedeKey] = request;
@@ -236,69 +244,51 @@ class DataRepository {
         return empty;
       }
 
-      final allBooks = <Book>[];
-      if (!extraBooksOnly) {
-        allBooks.addAll(
-          category?.getAllBooks() ?? (await library).getAllBooks(),
-        );
-        if (includeOtzar) {
-          allBooks.addAll(await otzarBooks);
-        }
-        if (includeHebrewBooks) {
-          allBooks.addAll(await hebrewBooks);
-        } else if (includeLocalHebrewBooks) {
-          // ספרי היברובוקס שיש להם PDF מקומי הם ספרים שכבר נמצאים במחשב, ולכן
-          // מוצגים גם כשהצגת הקטלוג החיצוני כבויה — עד שהמשתמש מכבה זאת.
-          allBooks.addAll(await localHebrewBooks);
-        }
-      }
-      // ספרים מבחוץ (של תוספים) אחרונים ברשימה.
-      allBooks.addAll(extraBooks);
+      final scope = extraBooksOnly ? null : category ?? await library;
+      final otzar = !extraBooksOnly && includeOtzar
+          ? await otzarBooks
+          : const <Book>[];
+      // עותקים מקומיים מוצגים גם כשהקטלוג החיצוני כבוי.
+      final hebrew = !extraBooksOnly && includeHebrewBooks
+          ? await hebrewBooks
+          : !extraBooksOnly && includeLocalHebrewBooks
+          ? await localHebrewBooks
+          : const <Book>[];
 
-      // no-op אם הקאשים כבר חוממו בעליית האפליקציה
-      await AcronymsCache.instance.warmUp();
+      final acronyms = AcronymsCache.instance;
+      final generations = GenerationCache.instance;
+      await acronyms.warmUp();
       // מסד מצורף איטי (כונן רשת) אינו מעכב את החיפוש — הקריאה נמשכת ב-isolate.
-      await AcronymsCache.instance.warmUpAttached().timeout(
+      await acronyms.warmUpAttached().timeout(
         attachedAcronymsWait,
         onTimeout: () {},
       );
-      await GenerationCache.instance.warmUp();
+      await generations.warmUp();
 
       if (supersedeKey != null &&
           !identical(_pendingBookSearches[supersedeKey], request)) {
         throw const BookSearchSupersededException();
       }
-      final searchEntries = <BookSearchEntry>[
-        for (var i = 0; i < allBooks.length; i++)
-          buildBookSearchEntry(
-            i,
-            allBooks[i],
-            acronymsFor: AcronymsCache.instance.acronymsFor,
-            eraOrderForId: GenerationCache.instance.getOrderForBook,
-          ),
-      ];
-
-      // הקטגוריות מצטרפות לאותה ריצת isolate; מזוהות באינדקסים שמעל הספרים.
-      final allCategories = extraBooksOnly
-          ? const <Category>[]
-          : category?.getAllCategories() ?? (await library).getAllCategories();
-      for (var i = 0; i < allCategories.length; i++) {
-        searchEntries.add(
-          BookSearchEntry(
-            index: allBooks.length + i,
-            title: allCategories[i].title,
-            author: '',
-            topics: '',
-          ),
-        );
-      }
+      final key = (
+        scope: scope,
+        otzar: otzar,
+        hebrew: hebrew,
+        extras: extraBooks,
+        acronymsRevision: acronyms.revision,
+        generationsRevision: generations.revision,
+      );
+      final cached = reuseCatalog ? _bookSearchCatalog : null;
+      final catalog = cached != null && cached.matches(key)
+          ? cached
+          : _BookSearchCatalog.build(key, acronyms, generations);
 
       if (supersedeKey != null &&
           !identical(_pendingBookSearches[supersedeKey], request)) {
         throw const BookSearchSupersededException();
       }
+      if (reuseCatalog) _bookSearchCatalog = catalog;
       final matchingIndices = await _bookSearchWorker.search(
-        searchEntries,
+        catalog.entries,
         BookSearchQuery(
           queryWords: queryWords,
           topics: topics ?? const <String>[],
@@ -311,10 +301,10 @@ class DataRepository {
       final books = <Book>[];
       final categories = <Category>[];
       for (final index in matchingIndices) {
-        if (index < allBooks.length) {
-          books.add(allBooks[index]);
+        if (index < catalog.books.length) {
+          books.add(catalog.books[index]);
         } else {
-          categories.add(allCategories[index - allBooks.length]);
+          categories.add(catalog.categories[index - catalog.books.length]);
         }
       }
       // סינון נושאים פעיל מסתיר את קבוצת התיקיות — לקטגוריה אין נושאים.
@@ -332,6 +322,62 @@ class DataRepository {
   }
 
   String _normalizeForSearch(String input) => _normalizeBookSearchText(input);
+}
+
+typedef _BookSearchCatalogKey = ({
+  Category? scope,
+  List<Book> otzar,
+  List<Book> hebrew,
+  List<Book> extras,
+  int acronymsRevision,
+  int generationsRevision,
+});
+
+class _BookSearchCatalog {
+  const _BookSearchCatalog(this.key, this.books, this.categories, this.entries);
+
+  final _BookSearchCatalogKey key;
+  final List<Book> books;
+  final List<Category> categories;
+  final List<BookSearchEntry> entries;
+
+  bool matches(_BookSearchCatalogKey other) =>
+      identical(key.scope, other.scope) &&
+      identical(key.otzar, other.otzar) &&
+      identical(key.hebrew, other.hebrew) &&
+      identical(key.extras, other.extras) &&
+      key.acronymsRevision == other.acronymsRevision &&
+      key.generationsRevision == other.generationsRevision;
+
+  factory _BookSearchCatalog.build(
+    _BookSearchCatalogKey key,
+    AcronymsCache acronyms,
+    GenerationCache generations,
+  ) {
+    final books = <Book>[
+      ...?key.scope?.getAllBooks(),
+      ...key.otzar,
+      ...key.hebrew,
+      ...key.extras,
+    ];
+    final categories = key.scope?.getAllCategories() ?? const <Category>[];
+    return _BookSearchCatalog(key, books, categories, [
+      for (var i = 0; i < books.length; i++)
+        buildBookSearchEntry(
+          i,
+          books[i],
+          acronymsFor: acronyms.acronymsFor,
+          eraOrderForId: generations.getOrderForBook,
+        ),
+      for (var i = 0; i < categories.length; i++)
+        BookSearchEntry(
+          index: books.length + i,
+          title: categories[i].title,
+          author: '',
+          topics: '',
+        ),
+    ]);
+  }
 }
 
 /// בונה רשומת חיפוש; כינויים ודור נקראים רק במרחב המזהים של מסד הספר.
@@ -853,7 +899,7 @@ String normalizeBookSearchTextForTesting(String input) =>
     _normalizeBookSearchText(input);
 
 /// מסיר ניקוד, טעמים וגרשיים, ומחליף כל תו שאינו אות או ספרה ברווח.
-/// מעבר יחיד ולא שרשרת replaceAll — רץ על כל ספר בספרייה בכל הקלדה.
+/// מעבר יחיד בבניית אינדקס הכותרות ובנרמול השאילתה.
 /// שינוי כאן חייב לעבור את בדיקת השקילות למימוש הקודם ב-
 /// test/data/repository/book_search_normalization_test.dart
 String _normalizeBookSearchText(String input) {

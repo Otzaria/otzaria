@@ -6,11 +6,16 @@ import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:otzaria/data/cache/generation_cache.dart';
+import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/migration/database/untrusted_database.dart';
 import 'package:otzaria/models/book_source.dart';
+import 'package:otzaria/models/books.dart';
 import 'package:otzaria/services/commentary_service.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
+import '../../helpers/memory_settings_cache.dart';
 import '../../helpers/seforim_fixture_db.dart';
 
 void main() {
@@ -102,6 +107,53 @@ void main() {
     AcronymsCache.instance.clearAttached();
     expect(AcronymsCache.instance.acronymsFor(source, bookId), isNull);
   });
+
+  test(
+    'מטמון החיפוש מתעדכן כשמטא־דאטה מצורפת נטענת אחרי החיפוש הראשון',
+    () async {
+      await Settings.init(cacheProvider: MemorySettingsCache());
+      final repository = DataRepository();
+      addTearDown(repository.bookSearchWorkerForTesting.dispose);
+      final ranked = TextBook(id: bookId, title: 'דף מבחן', source: source);
+      final unranked = TextBook(
+        id: bookId + 1000,
+        title: 'דף מבחן',
+        source: source,
+      );
+      final root = Library(categories: [])..books.addAll([unranked, ranked]);
+      Future<List<Book>> search(String query) async =>
+          (await repository.findBooksAndCategories(
+            query,
+            root,
+            includeLocalHebrewBooks: false,
+            reuseCatalog: true,
+          )).books;
+
+      expect(await search('דף מבחן'), [same(unranked), same(ranked)]);
+      expect(await search('abcdxyz'), isEmpty);
+
+      createDb((db) {
+        db.execute('INSERT INTO book_acronym VALUES (?, ?)', [
+          bookId,
+          'abcdxyz',
+        ]);
+        db.execute('UPDATE generation SET name = ?', [
+          CommentaryEra.rishonim.hebrewName,
+        ]);
+      });
+      await AcronymsCache.instance.warmUpAttached();
+      expect(await search('abcdxyz'), [same(ranked)]);
+
+      await GenerationCache.instance.reloadAttached();
+      expect(await search('דף מבחן'), [same(ranked), same(unranked)]);
+
+      registry.update([]);
+      AcronymsCache.instance.clearAttached();
+      await GenerationCache.instance.reloadAttached();
+      expect(await search('abcdxyz'), isEmpty);
+      expect(await search('דף מבחן'), [same(unranked), same(ranked)]);
+    },
+  );
 
   test('דורות המסד המצורף נקראים ב-isolate לפי נתיב', () {
     final path = createDb(

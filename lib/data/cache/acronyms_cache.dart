@@ -54,6 +54,10 @@ class AcronymsCache {
 
   /// מונה דורות לזיהוי [clear] שקרה במהלך טעינה.
   int _generation = 0;
+  int _revision = 0;
+
+  /// משתנה כשכינויי הספרים משתנים, כולל השלמת טעינה של מסד מצורף.
+  int get revision => _revision;
 
   final Map<int, List<String>> _acronymsByBookId = <int, List<String>>{};
   final Map<int, Set<String>> _quotedWordsByBookId = <int, Set<String>>{};
@@ -131,6 +135,7 @@ class AcronymsCache {
             ).timeout(AttachedLibraryRegistry.openTimeout);
             if (myGen != _attachedGeneration) return;
             _attachedAcronyms[library.slug] = terms;
+            if (terms.isNotEmpty) _revision++;
             _attachedRetryAfter.remove(library.slug);
           } catch (e) {
             debugPrint('[AcronymsCache] ${library.slug} acronyms skipped: $e');
@@ -146,6 +151,7 @@ class AcronymsCache {
   /// שוכח את כינויי המסדים המצורפים; הם נטענים שוב בגישה הבאה.
   void clearAttached() {
     _attachedGeneration++;
+    _revision++;
     _attachedAcronyms.clear();
     _attachedRetryAfter.clear();
     _attachedLoading = null;
@@ -247,6 +253,7 @@ class AcronymsCache {
         ..clear()
         ..addAll(data.quotedWordsByBookId);
       _isLoaded = true;
+      _revision++;
       debugPrint(
         '[AcronymsCache] Loaded ${data.rowCount} acronyms for ${_acronymsByBookId.length} books',
       );
@@ -264,10 +271,7 @@ class AcronymsCache {
 
   void clear() {
     _generation++;
-    _attachedGeneration++;
-    _attachedAcronyms.clear();
-    _attachedRetryAfter.clear();
-    _attachedLoading = null;
+    clearAttached();
     _acronymsByBookId.clear();
     _bookIdsByBigram.clear();
     _quotedWordsByBookId.clear();
@@ -292,6 +296,7 @@ class AcronymsCache {
       ..clear()
       ..addAll(data.quotedWordsByBookId);
     _isLoaded = true;
+    _revision++;
   }
 }
 
