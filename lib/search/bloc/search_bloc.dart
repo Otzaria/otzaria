@@ -1,5 +1,6 @@
 import 'package:otzaria/data/book_identity.dart';
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -382,7 +383,8 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
         );
         emit(
           state.copyWith(
-            results: List.from(allResults),
+            // אורך התצוגה קבוע, והרשימה שמתחתיה מקבלת רק תוספות בסוף.
+            results: UnmodifiableListView(allResults.take(allResults.length)),
             isLoading: true, // עדיין טוען
           ),
         );
@@ -405,7 +407,8 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
 
       emit(
         state.copyWith(
-          results: allResults,
+          // הרשימה הסופית נפרדת מהרשימה של התצוגות שכבר פורסמו.
+          results: List.of(allResults),
           totalResults: state.totalGroups == null
               ? reconciledTotal
               : state.totalResults,

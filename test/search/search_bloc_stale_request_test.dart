@@ -76,6 +76,35 @@ Future<void> main() async {
       expect(bloc.state.isCounting, isFalse);
     });
 
+    test('מקטעים חדשים שומרים על תוצאות שכבר נמסרו', () async {
+      bloc = SearchBloc(repository: repository);
+      bloc.add(UpdateSearchQuery('שלום'));
+      await waitFor((s) => s.isLoading);
+
+      repository.stream.add(_chunk(['first', 'second']));
+      await waitFor((s) => s.results.length == 2);
+      final firstResults = bloc.state.results;
+      expect(() => firstResults.clear(), throwsUnsupportedError);
+
+      repository.stream.add(_chunk(['third']));
+      await waitFor((s) => s.results.length == 3);
+      expect(bloc.state.isLoading, isTrue);
+      expect(bloc.state.results[2].text, 'third');
+      expect(firstResults.map((r) => r.text), ['first', 'second']);
+      expect(() => firstResults[2], throwsRangeError);
+
+      final finished = waitFor((s) => !s.isLoading);
+      await repository.stream.close();
+      await finished;
+      expect(bloc.state.results.map((r) => r.text), [
+        'first',
+        'second',
+        'third',
+      ]);
+      bloc.state.results[0] = _result('replacement');
+      expect(firstResults.map((r) => r.text), ['first', 'second']);
+    });
+
     test('ביטול פעיל מסיים גם את מצב הספירה', () async {
       bloc = SearchBloc(repository: repository);
       bloc.add(UpdateSearchQuery('שלום'));
