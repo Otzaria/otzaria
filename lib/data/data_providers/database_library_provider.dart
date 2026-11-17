@@ -2070,40 +2070,59 @@ class ScanResult {
 }
 
 class _BookKeySet extends SetBase<BookCompositeKey> {
-  final Set<BookCompositeKey> _keys = {};
-  Map<String, List<BookCompositeKey>>? _byTitle;
+  static const _matchCacheLimit = 128;
 
-  Iterable<BookCompositeKey> withTitle(String title) {
-    final byTitle = _byTitle ??= _indexTitles();
-    return byTitle[title] ?? const [];
+  final Set<BookCompositeKey> _keys = {};
+  final _matches = <(String, String, int?), BookCompositeKey?>{};
+
+  BookCompositeKey? firstMatch(
+    String title,
+    String fileType, [
+    int? categoryId,
+  ]) {
+    if (_keys.isEmpty) return null;
+    final query = (title, fileType, categoryId);
+    if (_matches.containsKey(query)) return _matches[query];
+
+    BookCompositeKey? match;
+    for (final key in _keys) {
+      if (key.title == title &&
+          key.fileType == fileType &&
+          (categoryId == null || key.categoryId == categoryId)) {
+        match = key;
+        break;
+      }
+    }
+    if (_matches.length == _matchCacheLimit) {
+      _matches.remove(_matches.keys.first);
+    }
+    return _matches[query] = match;
   }
 
-  Map<String, List<BookCompositeKey>> _indexTitles() {
-    final byTitle = <String, List<BookCompositeKey>>{};
-    for (final key in _keys) {
-      byTitle.putIfAbsent(key.title, () => []).add(key);
-    }
-    return byTitle;
+  void _invalidateMatches(BookCompositeKey key) {
+    if (_matches.isEmpty) return;
+    _matches.remove((key.title, key.fileType, null));
+    _matches.remove((key.title, key.fileType, key.categoryId));
   }
 
   @override
   bool add(BookCompositeKey value) {
     if (!_keys.add(value)) return false;
-    _byTitle?.putIfAbsent(value.title, () => []).add(value);
+    _invalidateMatches(value);
     return true;
   }
 
   @override
   bool remove(Object? value) {
-    if (!_keys.remove(value)) return false;
-    _byTitle = null;
+    if (value is! BookCompositeKey || !_keys.remove(value)) return false;
+    _invalidateMatches(value);
     return true;
   }
 
   @override
   void clear() {
     _keys.clear();
-    _byTitle = null;
+    _matches.clear();
   }
 
   @override
@@ -2173,7 +2192,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   final List<AttachedVersionMember> _attachedDuplicateVersions = [];
 
   /// ספרי המסדים המצורפים לפי slug ומזהה במסד.
-  final Map<String, Map<int, Book>> _attachedBooksById = {};
+  final _attachedBooksById =
+      <String, ({AttachedBookSource source, Map<int, Book> books})>{};
 
   /// גרסאות במסד מצורף שהראשי שלהן נמצא; ספריהן אינם בעץ.
   final List<AttachedVersionMember> _attachedVersionMembers = [];
@@ -2198,13 +2218,26 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     int categoryId,
     String fileType,
   ) {
+    if (_attachedCachedKeys.isEmpty) return null;
     final normalized = BookCompositeKey.normalizeFileType(fileType);
-    return _attachedCachedKeys
-        .withTitle(title)
-        .where(
-          (key) => key.categoryId == categoryId && key.fileType == normalized,
-        )
-        .firstOrNull;
+    BookCompositeKey? first;
+    for (final (:source, books: _) in _attachedBooksById.values) {
+      final match = _attachedCachedKeys.lookup(
+        BookCompositeKey(
+          title: title,
+          categoryId: categoryId,
+          fileType: normalized,
+          source: source,
+        ),
+      );
+      if (match == null) continue;
+      // בהתנגשות שומרים את סדר הכנסת המפתחות, גם בין טעינות חופפות.
+      if (first != null) {
+        return _attachedCachedKeys.firstMatch(title, normalized, categoryId);
+      }
+      first = match;
+    }
+    return first;
   }
 
   void _registerUserBook(Book book, Category category) {
@@ -2391,7 +2424,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       final id = record.versionBookId;
       final title = record.versionBookTitle;
       final version = id != null
-          ? (_attachedBooksById[slug]?[id])
+          ? (_attachedBooksById[slug]?.books[id])
           : title == null
           ? null
           : findCatalogBook(
@@ -3331,9 +3364,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       _userBooksCachedKeys,
       _attachedCachedKeys,
     ]) {
-      for (final key in keys.withTitle(title)) {
-        if (key.fileType == normalizedFileType) return key;
-      }
+      final key = keys.firstMatch(title, normalizedFileType);
+      if (key != null) return key;
     }
 
     return null;
@@ -4581,7 +4613,9 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       );
       if (book == null) continue;
       category.books.add(book);
-      final byId = _attachedBooksById.putIfAbsent(slug, () => {});
+      final byId = _attachedBooksById
+          .putIfAbsent(slug, () => (source: build.source, books: {}))
+          .books;
       if (book is! PdfBook || !byId.containsKey(id)) byId[id] = book;
       final official =
           officialByTitle[(normalizeVersionTitle(book.title), book is PdfBook)];

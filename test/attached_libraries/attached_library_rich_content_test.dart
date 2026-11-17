@@ -159,6 +159,58 @@ void main() {
   TextBookRepository repository() =>
       TextBookRepository(fileSystem: FileSystemData.instance);
 
+  test('חיפוש מדויק במסדים מצורפים שומר סדר ומתעדכן ברענון', () async {
+    const title = 'כותרת משותפת למסדים מצורפים';
+    Future<AttachedLibrary> addBook(String sourceName) async {
+      final path = fullAttached(sourceName);
+      final db = sqlite3.sqlite3.open(path);
+      db.execute(
+        'UPDATE book SET title = ? WHERE id = ?',
+        [title, SeforimFixtureIds.bereshitId],
+      );
+      db.close();
+      return attach(path);
+    }
+
+    final first = await addBook('ראשון');
+    final second = await addBook('שני');
+    const categoryId = SeforimFixtureIds.torahCategoryId;
+    await buildCatalog();
+
+    expect(await provider.hasBook(title, categoryId, ' TXT '), isTrue);
+    expect(await provider.hasBook(title, categoryId, 'pdf'), isFalse);
+    expect(
+      await provider.getBookText(title, categoryId, 'txt'),
+      startsWith('ראשון:'),
+    );
+    expect(
+      await provider.findCategoryPathForBook(title),
+      contains(first.displayName),
+    );
+
+    await attached.move(second, -1);
+    await buildCatalog();
+    expect(
+      await provider.getBookText(title, categoryId, 'txt'),
+      startsWith('שני:'),
+    );
+    expect(
+      await provider.findCategoryPathForBook(title),
+      contains(second.displayName),
+    );
+
+    await attached.setHidden(second, true);
+    await buildCatalog();
+    expect(
+      await provider.getBookText(title, categoryId, 'txt'),
+      startsWith('ראשון:'),
+    );
+    expect(
+      await provider.findCategoryPathForBook(title),
+      contains(first.displayName),
+    );
+  });
+
   group('מסד מצורף מלא', () {
     test('קישורים: חלון, כל הקישורים ותוכן המפרש — מהמסד המצורף', () async {
       final library = await attach(fullAttached('מלא'));
