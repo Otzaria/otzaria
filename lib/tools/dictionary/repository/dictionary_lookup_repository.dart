@@ -414,6 +414,7 @@ typedef AramaicMatchGroups = ({
 typedef AramaicIndex = ({
   List<AramaicDictionaryEntry> entries,
   Set<String> terms,
+  Map<String, List<int>> positionsByTerm,
   List<({String normalized, List<String> words})> index,
 });
 
@@ -458,7 +459,7 @@ class DictionaryLookupRepository {
   Map<String, List<String>> _acronymsByKey = <String, List<String>>{};
   Map<String, String> _originalAcronymByKey = <String, String>{};
   List<AramaicDictionaryEntry> _aramaicEntries = <AramaicDictionaryEntry>[];
-  Set<String> _aramaicTerms = <String>{};
+  Map<String, List<int>> _aramaicPositionsByTerm = const {};
   List<String> _aramaicDictionaryNames = const <String>[];
   // מקביל ל-_aramaicEntries: הנרמול נעשה פעם אחת בטעינה ולא בכל תפריט הקשר.
   List<({String normalized, List<String> words})> _aramaicIndex = const [];
@@ -690,20 +691,18 @@ class DictionaryLookupRepository {
     );
     final normalizedWord = _normalizeAramaic(raw);
     if (normalizedWord.isEmpty) return none;
-    if (!_aramaicTerms.contains(normalizedWord)) return none;
+    final positions = _aramaicPositionsByTerm[normalizedWord];
+    if (positions == null) return none;
 
     final exact = <AramaicDictionaryEntry>[];
     var containing = <int>[];
 
-    for (var i = 0; i < _aramaicEntries.length; i++) {
-      if (!dictionaries.contains(_aramaicEntries[i].dictionary)) continue;
-      final indexed = _aramaicIndex[i];
-      if (indexed.normalized == normalizedWord) {
-        exact.add(_aramaicEntries[i]);
-        continue;
-      }
-
-      if (indexed.words.contains(normalizedWord)) {
+    for (final i in positions) {
+      final entry = _aramaicEntries[i];
+      if (!dictionaries.contains(entry.dictionary)) continue;
+      if (_aramaicIndex[i].normalized == normalizedWord) {
+        exact.add(entry);
+      } else {
         containing.add(i);
       }
     }
@@ -810,7 +809,9 @@ class DictionaryLookupRepository {
     int minWordLength = 2,
   }) {
     final word = _normalizeAramaic(raw);
-    if (word.isEmpty || word.contains(' ') || _aramaicTerms.contains(word)) {
+    if (word.isEmpty ||
+        word.contains(' ') ||
+        _aramaicPositionsByTerm.containsKey(word)) {
       return null;
     }
 
@@ -869,7 +870,7 @@ class DictionaryLookupRepository {
   Future<void> _loadAramaicInternal() async {
     final loaded = await _loadAramaic();
     _aramaicEntries = loaded.entries;
-    _aramaicTerms = loaded.terms;
+    _aramaicPositionsByTerm = loaded.positionsByTerm;
     _aramaicDictionaryNames = List<String>.unmodifiable(
       loaded.entries.map((entry) => entry.dictionary).toSet(),
     );
@@ -881,10 +882,10 @@ class DictionaryLookupRepository {
   static AramaicIndex _buildAramaicIndex(
     List<AramaicDictionaryEntry> aramaicEntries,
   ) {
-    final aramaicTerms = <String>{};
+    final positionsByTerm = <String, List<int>>{};
     final aramaicIndex = <({String normalized, List<String> words})>[];
 
-    for (final entry in aramaicEntries) {
+    for (final (i, entry) in aramaicEntries.indexed) {
       final normalizedEntry = _normalizeAramaic(entry.aramaic);
       final words = _splitAramaicWords(normalizedEntry);
       aramaicIndex.add((
@@ -895,13 +896,22 @@ class DictionaryLookupRepository {
         continue;
       }
 
-      aramaicTerms.add(normalizedEntry);
-      aramaicTerms.addAll(words);
+      (positionsByTerm[normalizedEntry] ??= <int>[]).add(i);
+      for (final word in words) {
+        if (word == normalizedEntry) continue;
+        (positionsByTerm[word] ??= <int>[]).add(i);
+      }
     }
 
     return (
       entries: List<AramaicDictionaryEntry>.unmodifiable(aramaicEntries),
-      terms: Set<String>.unmodifiable(aramaicTerms),
+      terms: Set<String>.unmodifiable(positionsByTerm.keys),
+      positionsByTerm: Map<String, List<int>>.unmodifiable(
+        positionsByTerm.map(
+          (term, positions) =>
+              MapEntry(term, List<int>.unmodifiable(positions)),
+        ),
+      ),
       index: List.unmodifiable(aramaicIndex),
     );
   }
@@ -1113,7 +1123,7 @@ class DictionaryLookupRepository {
 
   void _resetAramaicCache() {
     _aramaicEntries = <AramaicDictionaryEntry>[];
-    _aramaicTerms = <String>{};
+    _aramaicPositionsByTerm = const {};
     _aramaicDictionaryNames = const <String>[];
     _aramaicIndex = const [];
     _aramaicPositionsByKey = null;

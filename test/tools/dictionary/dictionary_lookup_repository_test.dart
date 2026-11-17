@@ -749,6 +749,57 @@ void main() {
       expect(groups.hiddenContainingKeys, 0);
     });
 
+    test('שומר סדר מקור ומחזיר כל צירוף פעם אחת גם אם המילה חוזרת', () async {
+      const other = 'מילון נוסף';
+      final repository = DictionaryLookupRepository(
+        loadAramaicEntries: () async => const [
+          AramaicDictionaryEntry(aramaic: 'א ב ליה', hebrew: 'ארוך'),
+          AramaicDictionaryEntry(aramaic: 'ליה ליה', hebrew: 'חוזר'),
+          AramaicDictionaryEntry(aramaic: 'ליה', hebrew: 'מדויק'),
+          AramaicDictionaryEntry(
+            aramaic: 'לֵיהּ לֵיהּ',
+            hebrew: 'חוזר במילון נוסף',
+            dictionary: other,
+          ),
+          AramaicDictionaryEntry(aramaic: 'בעי ליה', hebrew: 'קצר'),
+          AramaicDictionaryEntry(
+            aramaic: 'לֵיהּ',
+            hebrew: 'מדויק במילון נוסף',
+            dictionary: other,
+          ),
+        ],
+      );
+      await repository.ensureAramaicLoaded();
+      final dictionaries = {...repository.aramaicDictionaryNames};
+
+      final all = repository.findAramaicMatchGroups(
+        'ליה',
+        dictionaries: dictionaries,
+      );
+      expect(all.exact.map((entry) => entry.hebrew), [
+        'מדויק',
+        'מדויק במילון נוסף',
+      ]);
+      expect(all.containing.map((entry) => entry.hebrew), [
+        'ארוך',
+        'חוזר',
+        'חוזר במילון נוסף',
+        'קצר',
+      ]);
+
+      final limited = repository.findAramaicMatchGroups(
+        'ליה',
+        maxContainingMatches: 1,
+        dictionaries: dictionaries,
+      );
+      expect(limited.containing.map((entry) => entry.hebrew), [
+        'חוזר',
+        'חוזר במילון נוסף',
+      ]);
+      expect(limited.hiddenContainingKeys, 2);
+      expect(repository.findAramaicMatches('א ב ליה').single.hebrew, 'ארוך');
+    });
+
     test('findAramaicMatches הוא החיבור של הקבוצות', () {
       for (final cap in <int?>[null, 0, 2, 10]) {
         final groups = repo.findAramaicMatchGroups(
