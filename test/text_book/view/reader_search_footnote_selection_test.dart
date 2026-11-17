@@ -315,8 +315,10 @@ void main() {
       );
     }
 
-    var search = entries().first.iconRowActions!.single;
-    expect(search.label, 'חיפוש');
+    final icons = entries().first.iconRowActions!;
+    // Same order as the combined view's commentary row.
+    expect(icons.map((a) => a.label), ['חיפוש', 'העתקה', 'הערה']);
+    var search = icons.first;
     expect(search.enabled, isFalse);
 
     final regionFinder = find.descendant(
@@ -328,7 +330,7 @@ void main() {
     );
     await tester.pump();
 
-    search = entries().first.iconRowActions!.single;
+    search = entries().first.iconRowActions!.first;
     expect(search.enabled, isTrue);
     expect(search.tooltip, 'חיפוש "בראשית ברא" בכל הספרים');
     search.onTap!();

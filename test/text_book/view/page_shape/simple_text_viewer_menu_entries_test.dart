@@ -41,6 +41,7 @@ void main() {
     TextBook? book,
     List<String> availableCommentators = const [],
     bool isMainText = true,
+    TextBook? reportBook,
     PluginMenuClickRecorder? recorder,
     void Function(List<AppContextMenuEntry> entries)? onMenu,
   }) async {
@@ -76,6 +77,7 @@ void main() {
                 openBookCallback: (_) {},
                 isMainText: isMainText,
                 bookTitle: isMainText ? null : 'רש"י על ספר בדיקה',
+                reportBook: reportBook,
                 onOpenCommentatorsPane: () {},
                 onOpenCommentatorsPaneWithFilter: () {},
               ),
@@ -186,6 +188,21 @@ void main() {
       '---',
       'העתק את כל הפסקה',
     ]);
+  });
+
+  testWidgets('a commentary column with a book id offers the link icon', (
+    tester,
+  ) async {
+    final menu = await menuFor(
+      tester,
+      isMainText: false,
+      reportBook: TextBook(title: 'רש"י על ספר בדיקה', id: 9),
+    );
+    expect(
+      menu.first,
+      '[חיפוש (disabled) | העתקה (disabled) | הערה | קישור >]',
+    );
+    expect(menu, isNot(contains('העתק קישור ישיר')));
   });
 
   testWidgets('a commentary column gives reader-commentary items its line', (

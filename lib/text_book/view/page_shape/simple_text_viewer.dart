@@ -2210,8 +2210,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       ),
     ]);
 
-    // העתק קישור ישיר — בטקסט ראשי מוצג כאייקון בשורה העליונה; במפרשים
-    // (ללא שורת אייקונים) נשאר כתת-תפריט ברשימה לפי book_id של widget.reportBook.
+    // העתק קישור ישיר מוצג כאייקון "קישור" בשורה העליונה, בטקסט הראשי ובמפרשים.
     if (widget.isMainText) {
       entries.addAll(
         buildReaderPluginMenuEntries(
