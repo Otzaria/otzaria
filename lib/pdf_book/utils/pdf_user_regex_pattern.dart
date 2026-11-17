@@ -64,7 +64,9 @@ class PdfUserRegexPattern implements RegExp {
       } else if (c == '&' && next == '&' && classDepth > 0) {
         out.write('&&');
         i++;
-      } else if (c == '<' && RegExp(r'\(\?P?$').hasMatch(raw.substring(0, i))) {
+      } else if (c == '<' &&
+          ((i >= 2 && raw.startsWith('(?', i - 2)) ||
+              (i >= 3 && raw.startsWith('(?P', i - 3)))) {
         out.write(c);
       } else {
         if (c == '[') classDepth++;
