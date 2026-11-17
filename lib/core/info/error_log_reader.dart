@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/error_log_file.dart';
@@ -166,12 +167,15 @@ class ErrorLogReader {
   static Future<List<ErrorLogEntry>> readEntries(
     String path, {
     required bool isBlockFormat,
-  }) async {
+  }) {
     final source = p.basename(path);
-    final content = await File(path).readAsString();
-    return isBlockFormat
-        ? parseBlockLog(content, source: source)
-        : parseLineLog(content, source: source);
+    // הלוג אינו מוגבל בגודלו; הפענוח בפרוסס ראשי חוסם פריימים.
+    return Isolate.run(() {
+      final content = File(path).readAsStringSync();
+      return isBlockFormat
+          ? parseBlockLog(content, source: source)
+          : parseLineLog(content, source: source);
+    });
   }
 
   /// ממיין מהחדש לישן. רשומות בלי חותמת זמן נדחקות לסוף.
