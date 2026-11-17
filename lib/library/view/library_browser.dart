@@ -1786,8 +1786,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             ? KeyedSubtree(key: _tourBookCardKey, child: item)
             : item;
       },
-      // בחלון קטן (טלפון, AppDensity.isSmallWindow) כרטיסי התיקייה נמוכים
-      // מכרטיסי הספר (q12 Q8, ss4). במחשב הרשת לא משתנה.
+      // בחלון קטן (AppDensity.isSmallWindow: טלפון, או מחשב צר או נמוך)
+      // כרטיסי התיקייה נמוכים מכרטיסי הספר (q12 Q8, ss4).
       leadingCategoryCount: AppDensity.isSmallWindow(MediaQuery.sizeOf(context))
           ? categoryCount
           : 0,
