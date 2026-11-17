@@ -220,7 +220,6 @@ class _SearchDialogState extends State<SearchDialog> {
   final ValueNotifier<bool> _advancedControlsHasFocus = ValueNotifier(false);
   final MenuController _historyMenuController = MenuController();
   final MenuController _defaultsMenuController = MenuController();
-  bool _defaultsGroupExpanded = false;
   late final VoidCallback _queryListener;
   late final bool _ownsSearchTab;
   late final PluginSearchDialogRegistry _pluginSearchDialogRegistry;
@@ -686,12 +685,6 @@ class _SearchDialogState extends State<SearchDialog> {
 
     return MenuAnchor(
       controller: _defaultsMenuController,
-      // כל פתיחה מתחילה עם הקבוצה סגורה.
-      onClose: () {
-        if (_defaultsGroupExpanded && mounted) {
-          setState(() => _defaultsGroupExpanded = false);
-        }
-      },
       menuChildren: [
         MenuItemButton(
           key: const ValueKey('search-dialog-default-mode'),
@@ -700,88 +693,70 @@ class _SearchDialogState extends State<SearchDialog> {
               _confirmSetModeAsDefault(semanticActive ? null : mode),
           child: Text(context.settingsText('קבע מצב זה כברירת מחדל')),
         ),
-        if (hasWordOptions) ...[
-          // קבוצה שנפתחת בתוך אותו תפריט ולא כתת־תפריט: תת־תפריט גבוה בשורה
-          // תחתונה (התפריט נפתח כלפי מעלה מכפתור בתחתית הדיאלוג) מתהפך מעל
-          // השורה במקום להיפתח לצידה (התנהגות MenuAnchor).
-          MenuItemButton(
-            key: const ValueKey('search-dialog-defaults-group'),
-            closeOnActivate: false,
-            leadingIcon: const Icon(FluentIcons.options_24_regular),
-            trailingIcon: Icon(
-              _defaultsGroupExpanded
-                  ? FluentIcons.chevron_up_24_regular
-                  : FluentIcons.chevron_down_24_regular,
-            ),
-            onPressed: () => setState(
-              () => _defaultsGroupExpanded = !_defaultsGroupExpanded,
-            ),
-            child: Semantics(
-              expanded: _defaultsGroupExpanded,
-              child: Text(
-                isExact
-                    ? context.settingsText('קביעת ברירת מחדל לחיפוש רגיל')
-                    : context.settingsText('קביעת ברירת מחדל לחיפוש מתקדם'),
-              ),
-            ),
-          ),
-          if (_defaultsGroupExpanded) ...[
-            for (final key in keys)
-              CheckboxMenuButton(
-                value: defaults[key] ?? false,
-                closeOnActivate: false,
-                onChanged:
-                    disabledOptionIds.contains(
-                      SearchQueryBuilder.pluginOptionIdByWordOptionKey[key],
-                    )
-                    ? null
-                    : (checked) => saveDefault(key, checked ?? false),
-                child: Text(isExact ? context.settingsText(key) : key),
-              ),
-            const Divider(height: 8),
-            MenuItemButton(
-              closeOnActivate: false,
-              onPressed: () {
-                setState(() {
-                  SearchDefaults.saveDistanceDefault(state.distance);
-                });
-                UiSnack.show(
-                  LibraryMessages.distanceSetAsDefault(state.distance),
-                );
-              },
-              child: Text(
-                context.settingsText(
-                  'קבע את המרווח הנוכחי ({distance}) כברירת מחדל',
-                  args: {'distance': state.distance},
+        if (hasWordOptions)
+          SubmenuButton(
+            menuChildren: [
+              for (final key in keys)
+                CheckboxMenuButton(
+                  value: defaults[key] ?? false,
+                  closeOnActivate: false,
+                  onChanged:
+                      disabledOptionIds.contains(
+                        SearchQueryBuilder.pluginOptionIdByWordOptionKey[key],
+                      )
+                      ? null
+                      : (checked) => saveDefault(key, checked ?? false),
+                  child: Text(isExact ? context.settingsText(key) : key),
                 ),
-              ),
-            ),
-            CheckboxMenuButton(
-              key: const ValueKey('search-dialog-default-word-order'),
-              value: !SearchDefaults.loadAnyOrderDefault(),
-              closeOnActivate: false,
-              onChanged: (checked) => saveAnyOrderDefault(checked ?? true),
-              child: Text(context.settingsText('שמור על סדר המילים המקורי')),
-            ),
-            if (!isExact)
+              const Divider(height: 8),
               MenuItemButton(
-                key: const ValueKey('search-dialog-default-proximity'),
                 closeOnActivate: false,
-                onPressed: saveMatchPolicyDefault,
+                onPressed: () {
+                  setState(() {
+                    SearchDefaults.saveDistanceDefault(state.distance);
+                  });
+                  UiSnack.show(
+                    LibraryMessages.distanceSetAsDefault(state.distance),
+                  );
+                },
                 child: Text(
                   context.settingsText(
-                    'קבע את טווח הקרבה הנוכחי ({scope}) כברירת מחדל',
-                    args: {
-                      'scope': _matchPolicyLabel(
-                        state.configuration.matchPolicy,
-                      ),
-                    },
+                    'קבע את המרווח הנוכחי ({distance}) כברירת מחדל',
+                    args: {'distance': state.distance},
                   ),
                 ),
               ),
-            const Divider(height: 8),
-          ],
-        ],
+              CheckboxMenuButton(
+                key: const ValueKey('search-dialog-default-word-order'),
+                value: !SearchDefaults.loadAnyOrderDefault(),
+                closeOnActivate: false,
+                onChanged: (checked) => saveAnyOrderDefault(checked ?? true),
+                child: Text(context.settingsText('שמור על סדר המילים המקורי')),
+              ),
+              if (!isExact)
+                MenuItemButton(
+                  key: const ValueKey('search-dialog-default-proximity'),
+                  closeOnActivate: false,
+                  onPressed: saveMatchPolicyDefault,
+                  child: Text(
+                    context.settingsText(
+                      'קבע את טווח הקרבה הנוכחי ({scope}) כברירת מחדל',
+                      args: {
+                        'scope': _matchPolicyLabel(
+                          state.configuration.matchPolicy,
+                        ),
+                      },
+                    ),
+                  ),
+                ),
+            ],
+            leadingIcon: const Icon(FluentIcons.options_24_regular),
+            child: Text(
+              isExact
+                  ? context.settingsText('קביעת ברירת מחדל לחיפוש רגיל')
+                  : context.settingsText('קביעת ברירת מחדל לחיפוש מתקדם'),
+            ),
+          ),
         if (hasWordOptions)
           MenuItemButton(
             leadingIcon: const Icon(FluentIcons.arrow_reset_24_regular),

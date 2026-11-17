@@ -92,14 +92,15 @@ void main() {
     expect(find.byTooltip('בטל נעיצה'), findsNothing);
   });
 
-  testWidgets('אין מקום, וגם נעוצה מהעבר: אין כפתור נעיצה', (tester) async {
+  testWidgets('אין מקום, אבל נעוצה מהעבר: אפשר לבטל נעיצה', (tester) async {
     await _pump(
       tester,
       navPaneOpen: true,
       navPanePinned: true,
       canPinNavPane: false,
     );
-    expect(find.byTooltip('בטל נעיצה'), findsNothing);
+    expect(find.byTooltip('בטל נעיצה'), findsOneWidget);
+    expect(find.byTooltip('נעץ את החלונית'), findsNothing);
   });
 
   testWidgets('יש מקום: כפתור הנעיצה מוצג ופועל', (tester) async {

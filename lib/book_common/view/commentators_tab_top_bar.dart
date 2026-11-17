@@ -88,7 +88,7 @@ class CommentatorsTabTopBar extends StatelessWidget {
 
   /// Whether the pane has room to sit beside the content
   /// ([NavSidePanel.canPin]). Without it pinning changes nothing, so the pin
-  /// button is not shown.
+  /// button is only shown for an existing pin, so it can still be removed.
   final bool canPinNavPane;
   final VoidCallback onToggleNavPane;
   final VoidCallback onTogglePin;
@@ -154,7 +154,7 @@ class CommentatorsTabTopBar extends StatelessWidget {
             onToggle: onToggleNavPane,
           ),
         ),
-        if ((navPaneOpen || navPanePinned) && canPinNavPane)
+        if (navPanePinned || (navPaneOpen && canPinNavPane))
           AppTopBarItem(
             widget: NavPanelPinButton(
               isPinned: navPanePinned,

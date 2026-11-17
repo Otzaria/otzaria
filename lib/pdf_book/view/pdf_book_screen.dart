@@ -4720,32 +4720,37 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       child: Scaffold(
         body: Column(
           children: [
-            ValueListenableBuilder<bool>(
-              valueListenable: widget.tab.showLeftPane,
-              builder: (context, showLeftPane, _) => AppTopBar(
-                minCenterWidth: ReaderNavCenter.minTitleWidth,
-                leadingItems: [
-                  AppTopBarItem(
-                    widget: NavPanelToggleButton(
-                      key: TourTargetsScope.enabledOf(context)
-                          ? TourTargetKeys.of(context).pdfBookNavigation
-                          : null,
-                      isOpen: showLeftPane,
-                      onToggle: () => _setLeftPaneVisibility(!showLeftPane),
-                    ),
-                  ),
-                  if (showLeftPane &&
-                      NavSidePanel.canPin(
-                        context,
-                        paneWidth: _bloc.state is PdfBookLoaded
-                            ? (_bloc.state as PdfBookLoaded).sidebarWidth
-                            : 300.0,
-                        minMainContentWidth: _kNavMinMainContentWidth,
-                      ))
+            ListenableBuilder(
+              listenable: Listenable.merge([
+                widget.tab.showLeftPane,
+                widget.tab.pinLeftPane,
+              ]),
+              builder: (context, _) {
+                final showLeftPane = widget.tab.showLeftPane.value;
+                final isPinned = widget.tab.pinLeftPane.value;
+                return AppTopBar(
+                  minCenterWidth: ReaderNavCenter.minTitleWidth,
+                  leadingItems: [
                     AppTopBarItem(
-                      widget: ValueListenableBuilder<bool>(
-                        valueListenable: widget.tab.pinLeftPane,
-                        builder: (context, isPinned, _) => NavPanelPinButton(
+                      widget: NavPanelToggleButton(
+                        key: TourTargetsScope.enabledOf(context)
+                            ? TourTargetKeys.of(context).pdfBookNavigation
+                            : null,
+                        isOpen: showLeftPane,
+                        onToggle: () => _setLeftPaneVisibility(!showLeftPane),
+                      ),
+                    ),
+                    if (showLeftPane &&
+                        (isPinned ||
+                            NavSidePanel.canPin(
+                              context,
+                              paneWidth: _bloc.state is PdfBookLoaded
+                                  ? (_bloc.state as PdfBookLoaded).sidebarWidth
+                                  : 300.0,
+                              minMainContentWidth: _kNavMinMainContentWidth,
+                            )))
+                      AppTopBarItem(
+                        widget: NavPanelPinButton(
                           isPinned: isPinned,
                           isGloballyPinned:
                               Settings.getValue<bool>(
@@ -4756,17 +4761,17 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                               widget.tab.pinLeftPane.value = !isPinned,
                         ),
                       ),
+                    AppTopBarItem(widget: _buildHistoryBackButton()),
+                  ],
+                  center: _buildPdfCenter(context),
+                  trailingItems: [
+                    AppTopBarItem(
+                      flexible: true,
+                      widget: _buildPdfActions(),
                     ),
-                  AppTopBarItem(widget: _buildHistoryBackButton()),
-                ],
-                center: _buildPdfCenter(context),
-                trailingItems: [
-                  AppTopBarItem(
-                    flexible: true,
-                    widget: _buildPdfActions(),
-                  ),
-                ],
-              ),
+                  ],
+                );
+              },
             ),
             // עמודי התאמה ממנוע חיפוש חיצוני (תוסף): סרגל ניווט בין המופעים.
             PdfExternalMatchesBar(

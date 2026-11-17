@@ -1100,11 +1100,12 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           ),
         ),
         if (state.showLeftPane &&
-            NavSidePanel.canPin(
-              context,
-              paneWidth: _sidebarWidth.value,
-              minMainContentWidth: _kNavMinMainContentWidth,
-            ))
+            (state.pinLeftPane ||
+                NavSidePanel.canPin(
+                  context,
+                  paneWidth: _sidebarWidth.value,
+                  minMainContentWidth: _kNavMinMainContentWidth,
+                )))
           AppTopBarItem(
             widget: NavPanelPinButton(
               isPinned: state.pinLeftPane,

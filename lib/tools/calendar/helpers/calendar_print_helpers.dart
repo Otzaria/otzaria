@@ -54,16 +54,15 @@ List<CustomEvent> _eventsForDate(DateTime date, CalendarState state) {
 /// יוצר PDF של לוח השנה עם האירועים.
 ///
 /// [printedZmanim] הם זמני היום שהמשתמש בחר להדפיס (מזהי `kZmanimRegistry`).
-/// בלי ערך נקראת הבחירה השמורה ([CalendarPrintZmanimStore]); ריק, או בלי בחירה
-/// שמורה, משאיר את ברירת המחדל של כל תצוגה.
+/// בלי ערך נקראת הבחירה השמורה ([CalendarPrintZmanimStore]); בלי בחירה שמורה
+/// משתמשים בברירת המחדל של התצוגה. סט ריק מדפיס בלי זמני יום.
 Future<Uint8List> createCalendarPdf(
   CalendarState state,
   PdfPageFormat format, {
   int count = 1,
   Set<String>? printedZmanim,
 }) async {
-  final chosen = printedZmanim ?? CalendarPrintZmanimStore.load();
-  final zmanim = chosen == null || chosen.isEmpty ? null : chosen;
+  final zmanim = printedZmanim ?? CalendarPrintZmanimStore.load();
   final primaryBytes = await _loadFont(
     'fonts/NotoSerifHebrew-VariableFont_wdth,wght.ttf',
   );

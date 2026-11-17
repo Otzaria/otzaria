@@ -31,9 +31,14 @@ class CalendarPrintDialog extends StatefulWidget {
 class _CalendarPrintDialogState extends State<CalendarPrintDialog> {
   int _count = 1;
 
-  /// זמני היום שנבחרו להדפסה;  = ברירת המחדל של התצוגה. נטען מההדפסה
+  /// זמני היום שנבחרו להדפסה; `null` = ברירת המחדל של התצוגה. נטען מההדפסה
   /// הקודמת.
   Set<String>? _zmanim = CalendarPrintZmanimStore.load();
+
+  bool get _selectionFits {
+    final max = maxPrintedZmanim(widget.calendarView);
+    return max == null || (_zmanim?.length ?? 0) <= max;
+  }
 
   Future<void> _confirm() async {
     await CalendarPrintZmanimStore.save(_zmanim);
@@ -61,7 +66,7 @@ class _CalendarPrintDialogState extends State<CalendarPrintDialog> {
       title: 'הגדרות הדפסה',
       icon: FluentIcons.print_24_regular,
       scrollable: true,
-      onConfirm: _confirm,
+      onConfirm: _selectionFits ? _confirm : null,
       actions: [
         ActionButton.neutral(
           text: 'ביטול',
@@ -69,7 +74,7 @@ class _CalendarPrintDialogState extends State<CalendarPrintDialog> {
         ),
         ActionButton.recommended(
           text: 'הדפס',
-          onPressed: _confirm,
+          onPressed: _selectionFits ? _confirm : null,
         ),
       ],
       // סגנון הגוף של AlertDialog.

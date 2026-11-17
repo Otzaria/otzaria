@@ -160,6 +160,11 @@ class _CalendarPrintZmanimPickerState extends State<CalendarPrintZmanimPicker> {
                 ),
             ],
           ),
+          if (max != null && selected.length > max)
+            Text(
+              'יש לצמצם את הבחירה לכל היותר ל־$max זמנים לפני ההדפסה.',
+              style: theme.textTheme.bodySmall?.copyWith(color: cs.error),
+            ),
           SizedBox(
             height: 240,
             child: AppCard(

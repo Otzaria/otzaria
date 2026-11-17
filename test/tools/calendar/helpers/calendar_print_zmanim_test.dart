@@ -27,7 +27,7 @@ void main() {
     final moduleName = Platform.isWindows
         ? 'pdfium.dll'
         : Platform.isMacOS
-        ? 'libpdfium.dylib'
+        ? 'libpdfium_dart.dylib'
         : 'libpdfium.so';
     rx.Pdfrx.pdfiumModulePath = File(
       'build/native_assets/${Platform.operatingSystem}/$moduleName',
@@ -160,7 +160,7 @@ void main() {
       expect(clocks(text), 0);
     });
 
-    test('בחירה ריקה זהה לברירת המחדל', () async {
+    test('בחירה ריקה אינה מדפיסה זמנים', () async {
       final text = await pdfText(stateFor(CalendarView.month), zmanim: {});
       expect(clocks(text), 0);
     });
@@ -187,6 +187,9 @@ void main() {
   });
 
   group('תצוגת שבוע', () {
+    test('בחירה ריקה אינה מדפיסה את זריחה ושקיעה', () async {
+      expect(clocks(await pdfText(stateFor(CalendarView.week), zmanim: {})), 0);
+    });
     test('בלי בחירה: זריחה ושקיעה, כמו קודם', () async {
       final text = await pdfText(stateFor(CalendarView.week));
       expect(text, contains('זריחה'));
@@ -210,6 +213,10 @@ void main() {
       CalendarView.day,
     ).copyWith(enabledZmanim: {'sunrise', 'sunset', 'chatzos'});
 
+    test('בחירה ריקה אינה מדפיסה את הזמנים שהופעלו בלוח', () async {
+      expect(clocks(await pdfText(dayState(), zmanim: {})), 0);
+    });
+
     test('בלי בחירה: הזמנים שהופעלו בלוח', () async {
       expect(clocks(await pdfText(dayState())), 3);
     });
@@ -231,6 +238,13 @@ void main() {
       expect(CalendarPrintZmanimStore.load(), {'sunrise', 'sunset'});
       await CalendarPrintZmanimStore.save(null);
       expect(CalendarPrintZmanimStore.load(), isNull);
+    });
+
+    test('בחירה ריקה נשמרת ומדפיסה אפס זמנים', () async {
+      await CalendarPrintZmanimStore.save({});
+      addTearDown(() => CalendarPrintZmanimStore.save(null));
+      expect(CalendarPrintZmanimStore.load(), isEmpty);
+      expect(clocks(await pdfText(stateFor(CalendarView.week))), 0);
     });
 
     test('createCalendarPdf בלי פרמטר קורא את הבחירה השמורה', () async {

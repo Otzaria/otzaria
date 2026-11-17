@@ -25,7 +25,8 @@ Set<String> defaultPrintedZmanim(
 /// הזמנים שהמשתמש בחר להדפיס, והשמירה שלהם.
 ///
 /// `null` = ברירת המחדל של כל תצוגה: בחודש בלי זמנים בתאים, בשבוע זריחה
-/// ושקיעה, וביום הזמנים שמוצגים בלוח. הבחירה נשמרת מהדפסה להדפסה ונקראת
+/// ושקיעה, וביום הזמנים שמוצגים בלוח. סט ריק הוא בחירה אישית בלי זמנים.
+/// הבחירה נשמרת מהדפסה להדפסה ונקראת
 /// ישירות מההגדרות, כדי שדיאלוג ההדפסה והיוצר של ה-PDF יישארו בלי תלות
 /// במצב המסך שנתפס בעת פתיחת הדיאלוג.
 abstract final class CalendarPrintZmanimStore {
@@ -39,18 +40,18 @@ abstract final class CalendarPrintZmanimStore {
       final decoded = jsonDecode(raw);
       if (decoded is! List) return null;
       final ids = decoded.whereType<String>().toSet();
-      return ids.isEmpty ? null : ids;
+      return ids;
     } catch (_) {
       return null;
     }
   }
 
-  /// שומר את [ids]; `null` או ריק מחזירים לברירת המחדל.
+  /// שומר את [ids]; רק `null` מחזיר לברירת המחדל.
   static Future<void> save(Set<String>? ids) async {
     if (!Settings.isInitialized) return;
     await Settings.setValue<String>(
       key,
-      ids == null || ids.isEmpty ? '' : jsonEncode(ids.toList()..sort()),
+      ids == null ? '' : jsonEncode(ids.toList()..sort()),
     );
   }
 }

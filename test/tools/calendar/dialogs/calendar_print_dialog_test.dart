@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_print_options.dart';
 import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart';
 import 'package:otzaria/tools/calendar/dialogs/calendar_print_dialog.dart';
@@ -247,6 +250,57 @@ void main() {
       expect(find.text('נבחרו 1'), findsOneWidget);
     });
 
+    for (final (view, selectedCount) in [
+      (CalendarView.week, 98),
+      (CalendarView.month, 14),
+    ]) {
+      testWidgets('בחירה שמורה חורגת מחייבת תיקון לפני הדפסת $view', (
+        tester,
+      ) async {
+        await CalendarPrintZmanimStore.save({
+          for (final def in kZmanimRegistry.take(selectedCount)) def.id,
+        });
+        await pumpTall(tester, view);
+        final printButton = find.widgetWithText(ActionButton, 'הדפס');
+        expect(tester.widget<ActionButton>(printButton).onPressed, isNull);
+        expect(
+          tester.widget<AppDialogFrame>(find.byType(AppDialogFrame)).onConfirm,
+          isNull,
+        );
+        expect(
+          find.text(
+            'יש לצמצם את הבחירה לכל היותר ל־${maxPrintedZmanim(view)} זמנים לפני ההדפסה.',
+          ),
+          findsOneWidget,
+        );
+        expect(checkedCount(tester), selectedCount);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(find.byType(CalendarPrintDialog), findsOneWidget);
+        if (view == CalendarView.month) {
+          for (var i = 3; i < selectedCount; i++) {
+            final checkbox = find.byType(Checkbox).at(i);
+            await tester.ensureVisible(checkbox);
+            await tester.tap(checkbox);
+            await tester.pumpAndSettle();
+          }
+          expect(checkedCount(tester), 3);
+        } else {
+          await tester.tap(find.text('נקה בחירה'));
+          await tester.pumpAndSettle();
+        }
+        expect(tester.widget<ActionButton>(printButton).onPressed, isNotNull);
+        await tester.tap(find.text('הדפס'));
+        await tester.pumpAndSettle();
+        expect(
+          CalendarPrintZmanimStore.load(),
+          view == CalendarView.month
+              ? {for (final def in kZmanimRegistry.take(3)) def.id}
+              : <String>{},
+        );
+      });
+    }
+
     testWidgets('"נקה בחירה" מאפס את הסימונים ומשאיר את המתג דלוק', (
       tester,
     ) async {
@@ -256,6 +310,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('נבחרו 0 מתוך 14'), findsOneWidget);
       expect(tester.widget<Switch>(zmanimSwitch()).value, isTrue);
+      await tester.tap(find.text('הדפס'));
+      await tester.pumpAndSettle();
+      expect(CalendarPrintZmanimStore.load(), isEmpty);
     });
   });
 }
