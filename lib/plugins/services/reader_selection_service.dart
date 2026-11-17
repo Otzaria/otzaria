@@ -1,12 +1,14 @@
 import 'dart:convert';
 
 import 'package:characters/characters.dart';
+import 'package:collection/collection.dart';
 import 'package:crypto/crypto.dart';
 import 'package:otzaria/divine_names/models/divine_name_forms.dart';
 import 'package:otzaria/plugins/models/plugin_reader_selection.dart';
 import 'package:otzaria/plugins/models/text_source_map.dart';
 import 'package:otzaria/plugins/services/plugin_divine_names_filter.dart';
 import 'package:otzaria/plugins/services/text_source_map_service.dart';
+import 'package:otzaria/plugins/utils/grapheme_occurrences.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as text_utils;
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
@@ -730,7 +732,7 @@ class ReaderSelectionService {
         end,
         (end + contextLength).clamp(end, text.length).toInt(),
       ),
-      occurrenceIndexInSection: exactOccurrences.indexOf(start),
+      occurrenceIndexInSection: binarySearch(exactOccurrences, start),
       occurrenceCountInSection: exactOccurrences.length,
       startWordIndex: wordIndices?[start] ?? _wordIndex(text.slice(0, start)),
       endWordIndex: wordIndices?[end] ?? _wordIndex(text.slice(0, end)),
@@ -799,25 +801,15 @@ class _GraphemeBoundaries {
 
   String slice(int start, int end) => values.sublist(start, end).join();
 
-  List<int> occurrences(String query) {
-    final needle = query.characters.toList(growable: false);
-    if (needle.isEmpty || needle.length > values.length) return const [];
-    final result = <int>[];
-    for (var start = 0; start <= values.length - needle.length; start++) {
-      var matches = true;
-      for (var offset = 0; offset < needle.length; offset++) {
-        if (values[start + offset] != needle[offset]) {
-          matches = false;
-          break;
-        }
-      }
-      if (matches) result.add(start);
-    }
-    return result;
-  }
+  List<int> occurrences(String query) =>
+      findGraphemeOccurrences(values, query.characters.toList(growable: false));
 
   Map<String, List<int>> occurrencesFor(Iterable<String> queries) {
     final uniqueQueries = queries.toSet();
+    if (uniqueQueries.length == 1) {
+      final query = uniqueQueries.single;
+      return {query: occurrences(query)};
+    }
     final result = {for (final query in uniqueQueries) query: <int>[]};
     final root = _GraphemeTrieNode();
     for (final query in uniqueQueries) {
