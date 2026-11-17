@@ -41,6 +41,7 @@ Future<void> main() async {
         (r'/א[&]ב\W*/', 'א&ב'),
         (r'/ו-ג<ד\s*/', 'ו-ג<ד'),
         (r'/(?P<x>ו)-ג<ד\s*/', 'ו-ג<ד'),
+        (r'/(?<x>ו)-ג<ד\s*/', 'ו-ג<ד'),
       ]) {
         final pattern = PdfUserRegexPattern.tryParse(raw);
         expect(pattern, isNotNull, reason: raw);
@@ -50,12 +51,29 @@ Future<void> main() async {
       }
     });
 
+    test('רצף ארוך של < מילוליים שומר את הטקסט וההיסטים', () {
+      final angles = List.filled(256, '<').join();
+      final text = 'א $angles ב';
+      final pattern = PdfUserRegexPattern.tryParse('/א $angles\\s* ב/');
+      expect(pattern, isNotNull);
+      final match = pattern!.allMatches('פתיחה $text סוף').single;
+      expect((match.start, match.end), (6, 6 + text.length));
+      expect(match.group(0), text);
+    });
+
+    test('סוגריים וסימן שאלה מילוליים לפני < אינם קבוצת לכידה', () {
+      final pattern = PdfUserRegexPattern.tryParse(r'/א\(\?<ב\s*/');
+      expect(pattern, isNotNull);
+      expect(pattern!.allMatches('א(?<ב').single.group(0), 'א(?<ב');
+    });
+
     test('^ ו-\$ מעוגנים לשורת הטקסט, לא לעמוד', () {
       const text = 'ויאמר משה\nויאמר אהרן\r\nאמר משה';
       List<String?> found(String raw, [int start = 0]) =>
-          PdfUserRegexPattern.tryParse(
-            raw,
-          )!.allMatches(text, start).map((m) => m.group(0)).toList();
+          PdfUserRegexPattern.tryParse(raw)!
+              .allMatches(text, start)
+              .map((m) => m.group(0))
+              .toList();
       expect(found('/^ויאמר/'), ['ויאמר', 'ויאמר']);
       expect(found(r'/משה$/'), ['משה', 'משה']);
       expect(found(r'/^ויאמר \S+$/'), ['ויאמר משה', 'ויאמר אהרן']);
@@ -129,9 +147,9 @@ Future<void> main() async {
 
     test('pdfrx מקבל את התבנית ומחזיר טווחים בעמוד', () async {
       const text = 'אמר שמע בני ישראל';
-      final ranges = await page(
-        text,
-      ).allMatches(PdfUserRegexPattern.tryParse(r'/שמע \S+ ישראל/')!).toList();
+      final ranges = await page(text)
+          .allMatches(PdfUserRegexPattern.tryParse(r'/שמע \S+ ישראל/')!)
+          .toList();
       expect(ranges.map((r) => (r.start, r.end)), [(4, text.length)]);
     });
   }, skip: ready ? false : searchEngineSkipReason);
