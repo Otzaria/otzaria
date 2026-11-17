@@ -94,6 +94,7 @@ void main() {
             {
               'index': 2,
               'snippet': clean,
+              'snippetGroupOffset': 0,
               'address': ' פרק א ',
               'query': 'אור',
               'matchOffset': offset,
