@@ -84,12 +84,10 @@ int findNormalizedTextMatchLengthDelta({
   required String normalizedPrimaryText,
   String normalizedSecondaryText = '',
 }) {
-  final primaryLength = normalizedPrimaryText.length;
-  final secondaryLength = normalizedSecondaryText.isEmpty
-      ? primaryLength
-      : normalizedSecondaryText.length;
-  final bestLength = primaryLength < secondaryLength
-      ? primaryLength
-      : secondaryLength;
-  return (bestLength - normalizedQuery.length).abs();
+  final primaryDelta = (normalizedPrimaryText.length - normalizedQuery.length)
+      .abs();
+  if (normalizedSecondaryText.isEmpty) return primaryDelta;
+  final secondaryDelta =
+      (normalizedSecondaryText.length - normalizedQuery.length).abs();
+  return primaryDelta < secondaryDelta ? primaryDelta : secondaryDelta;
 }
