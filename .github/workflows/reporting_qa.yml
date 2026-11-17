@@ -87,6 +87,9 @@ jobs:
           set -euo pipefail
           flutter pub get --enforce-lockfile 2>&1 | tee build/reporting_qa/dependencies.log
 
+      - name: Analyze the patched native drag source
+        run: flutter analyze --no-pub packages/super_native_extensions/lib/src/native/drag.dart
+
       - name: Generate and verify the translation catalog
         shell: bash
         run: |

@@ -78,6 +78,7 @@ import 'package:otzaria/text_book/view/selection/enhanced_gesture_detector.dart'
 import 'package:otzaria/text_book/view/selection/selection_persistence.dart';
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
+import 'package:otzaria/text_book/view/selection/selected_text_drag.dart';
 import 'package:otzaria/book_common/selection/selected_text_restore.dart';
 import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
@@ -2795,14 +2796,18 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   }
 
   /// הגבלת המו"ל של הטקסט שבעמודה: הספר הראשי, או המפרש שבעמודת מפרש.
-  Future<BookProtection> _textProtection(TextBookLoaded state) {
-    if (widget.isMainText || widget.isBookNotesColumn) {
+  Future<BookProtection> _textProtection(
+    TextBookLoaded state, {
+    SimpleTextViewer? sourceWidget,
+  }) {
+    final source = sourceWidget ?? widget;
+    if (source.isMainText || source.isBookNotesColumn) {
       return Future.value(state.protection);
     }
-    final reportBook = widget.reportBook;
+    final reportBook = source.reportBook;
     return reportBook != null
         ? BookProtectionRepository.instance.forBook(reportBook)
-        : BookProtectionRepository.instance.forTitle(widget.bookTitle ?? '');
+        : BookProtectionRepository.instance.forTitle(source.bookTitle ?? '');
   }
 
   Future<void> _copyFormattedText([
@@ -2860,6 +2865,56 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         UiSnack.showError(TextBookMessages.formattedCopyError(e));
       }
     }
+  }
+
+  /// Prepares native drag content under the same protection as regular copy.
+  SelectedTextDragPreparation? _captureSelectedTextDrag(
+    String capturedText,
+  ) {
+    if (capturedText.trim().isEmpty) return null;
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return null;
+    final sourceWidget = widget;
+    final settings = context.read<SettingsBloc>().state;
+    final selectedIndex = _savedSelectedIndex;
+    final source = _sourceSelection;
+    final copyTarget = _textTarget;
+    final headerIndex = _sourceIndex(selectedIndex);
+    final segmentCount = selectionSegmentCount(
+      start: _selectionLineStart,
+      end: _selectionLineEnd,
+      text: capturedText,
+    );
+    return () async {
+      final protection = await _textProtection(
+        state,
+        sourceWidget: sourceWidget,
+      );
+      if (!mounted || !ensureCopyAllowed(protection, segmentCount)) return null;
+      final content = await buildSelectedTextCopy(
+        plainText: capturedText,
+        selectedIndex: selectedIndex,
+        sourceContent: sourceWidget.content,
+        textBookState: state,
+        settingsState: settings,
+        headerBookOverride: sourceWidget.reportBook,
+        headerIndexOverride: headerIndex,
+        headerContentOverride: sourceWidget.isBookNotesColumn
+            ? state.content
+            : sourceWidget.reportBook != null
+            ? sourceWidget.content
+            : null,
+        copyTarget: copyTarget,
+        source: source,
+      );
+      if (content == null) return null;
+      return (
+        plainText: content.plainText,
+        htmlText: content.htmlText,
+        fontFamily: sourceWidget.fontFamily ?? settings.fontFamily,
+        fontSize: sourceWidget.fontSize,
+      );
+    };
   }
 
   @override
@@ -2924,143 +2979,147 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                       : null;
                   final itemCount = segments?.length ?? widget.content.length;
                   return RtlSelectionShortcuts(
-                    child: SelectableRegion(
-                      key: _selectionRegionKey,
-                      focusNode: _selectionFocusNode,
-                      selectionControls: switch (defaultTargetPlatform) {
-                        TargetPlatform.android || TargetPlatform.fuchsia =>
-                          materialTextSelectionHandleControls,
-                        TargetPlatform.iOS =>
-                          cupertinoTextSelectionHandleControls,
-                        _ => emptyTextSelectionControls,
-                      },
-                      // ביטול תפריט ברירת המחדל של Flutter - נשתמש רק ב-ContextMenuRegion
-                      contextMenuBuilder: (context, selectableRegionState) =>
-                          const SizedBox.shrink(),
-                      onSelectionChanged: (selection) {
-                        // לחיצה ימנית משמרת-בחירה פולטת אירוע בחירה ריקה רגעי;
-                        // עיבודו היה מוחק את הטקסט השמור ושובר את Ctrl+C (issue #937).
-                        if (selection != null &&
-                            selection.plainText.trim().isEmpty &&
-                            _isWithinSecondaryTapWindow) {
-                          return;
-                        }
-                        if (selection != null &&
-                            selection.plainText.trim().isNotEmpty) {
-                          widget.selectionSyncController?.activate(
-                            _selectionOwner,
-                          );
-                        } else {
-                          widget.selectionSyncController?.clear(
-                            _selectionOwner,
-                          );
-                        }
-                        _handleSelectionChange(selection?.plainText);
-                        _requestKeyboardFocus('selection-changed');
-                        if (!widget.isMainText) {
-                          if (selection != null &&
-                              selection.plainText.isNotEmpty) {
-                            _lastActiveCommentary = this;
-                          } else if (selection == null &&
-                              _lastActiveCommentary == this) {
-                            // בחירה בוטלה לחלוטין — מנקים כדי לא לאפשר העתקה "רפאים"
-                            _lastActiveCommentary = null;
-                          }
-                        }
-                      },
-                      child: Actions(
-                        actions: {
-                          _CopyTextIntent: CallbackAction<_CopyTextIntent>(
-                            onInvoke: (_) {
-                              _copyFormattedText();
-                              return null;
-                            },
-                          ),
-                          CopySelectionTextIntent: FormattedCopyAction(
-                            _copyFormattedText,
-                          ),
+                    child: SelectedTextDragRegion(
+                      selectedText: () => _savedSelectedText,
+                      captureContent: _captureSelectedTextDrag,
+                      child: SelectableRegion(
+                        key: _selectionRegionKey,
+                        focusNode: _selectionFocusNode,
+                        selectionControls: switch (defaultTargetPlatform) {
+                          TargetPlatform.android || TargetPlatform.fuchsia =>
+                            materialTextSelectionHandleControls,
+                          TargetPlatform.iOS =>
+                            cupertinoTextSelectionHandleControls,
+                          _ => emptyTextSelectionControls,
                         },
-                        child: Shortcuts(
-                          shortcuts: {
-                            LogicalKeySet(
-                              LogicalKeyboardKey.control,
-                              LogicalKeyboardKey.keyC,
-                            ): const _CopyTextIntent(),
-                            LogicalKeySet(
-                              LogicalKeyboardKey.meta,
-                              LogicalKeyboardKey.keyC,
-                            ): const _CopyTextIntent(),
+                        // ביטול תפריט ברירת המחדל של Flutter - נשתמש רק ב-ContextMenuRegion
+                        contextMenuBuilder: (context, selectableRegionState) =>
+                            const SizedBox.shrink(),
+                        onSelectionChanged: (selection) {
+                          // לחיצה ימנית משמרת-בחירה פולטת אירוע בחירה ריקה רגעי;
+                          // עיבודו היה מוחק את הטקסט השמור ושובר את Ctrl+C (issue #937).
+                          if (selection != null &&
+                              selection.plainText.trim().isEmpty &&
+                              _isWithinSecondaryTapWindow) {
+                            return;
+                          }
+                          if (selection != null &&
+                              selection.plainText.trim().isNotEmpty) {
+                            widget.selectionSyncController?.activate(
+                              _selectionOwner,
+                            );
+                          } else {
+                            widget.selectionSyncController?.clear(
+                              _selectionOwner,
+                            );
+                          }
+                          _handleSelectionChange(selection?.plainText);
+                          _requestKeyboardFocus('selection-changed');
+                          if (!widget.isMainText) {
+                            if (selection != null &&
+                                selection.plainText.isNotEmpty) {
+                              _lastActiveCommentary = this;
+                            } else if (selection == null &&
+                                _lastActiveCommentary == this) {
+                              // בחירה בוטלה לחלוטין — מנקים כדי לא לאפשר העתקה "רפאים"
+                              _lastActiveCommentary = null;
+                            }
+                          }
+                        },
+                        child: Actions(
+                          actions: {
+                            _CopyTextIntent: CallbackAction<_CopyTextIntent>(
+                              onInvoke: (_) {
+                                _copyFormattedText();
+                                return null;
+                              },
+                            ),
+                            CopySelectionTextIntent: FormattedCopyAction(
+                              _copyFormattedText,
+                            ),
                           },
-                          child: Focus(
-                            focusNode: _resolvedKeyboardFocusNode,
-                            autofocus:
-                                widget.isMainText && _isTabInForeground(),
-                            onFocusChange: (hasFocus) {
-                              if (!hasFocus) {
-                                _ensureKeyboardFocusAfterLoss(
-                                  'focus-widget-lost',
-                                );
-                              }
+                          child: Shortcuts(
+                            shortcuts: {
+                              LogicalKeySet(
+                                LogicalKeyboardKey.control,
+                                LogicalKeyboardKey.keyC,
+                              ): const _CopyTextIntent(),
+                              LogicalKeySet(
+                                LogicalKeyboardKey.meta,
+                                LogicalKeyboardKey.keyC,
+                              ): const _CopyTextIntent(),
                             },
-                            onKeyEvent: (_, event) {
-                              _navigationKeys.release(event);
-                              if (!shouldHandlePageShapeNavigationKeyEvent(
-                                event,
-                                isShiftPressed:
-                                    HardwareKeyboard.instance.isShiftPressed,
-                              )) {
-                                return KeyEventResult.ignored;
-                              }
+                            child: Focus(
+                              focusNode: _resolvedKeyboardFocusNode,
+                              autofocus:
+                                  widget.isMainText && _isTabInForeground(),
+                              onFocusChange: (hasFocus) {
+                                if (!hasFocus) {
+                                  _ensureKeyboardFocusAfterLoss(
+                                    'focus-widget-lost',
+                                  );
+                                }
+                              },
+                              onKeyEvent: (_, event) {
+                                _navigationKeys.release(event);
+                                if (!shouldHandlePageShapeNavigationKeyEvent(
+                                  event,
+                                  isShiftPressed:
+                                      HardwareKeyboard.instance.isShiftPressed,
+                                )) {
+                                  return KeyEventResult.ignored;
+                                }
 
-                              final handled = widget.isMainText
-                                  ? _handleNavigationLogicalKey(
-                                      event,
-                                      isAltPressed:
-                                          ShortcutHelper.isAltModifierPressed,
-                                      isShiftPressed: HardwareKeyboard
-                                          .instance
-                                          .isShiftPressed,
-                                      source: 'content-focus',
-                                    )
-                                  : _scrollCommentaryByKey(event.logicalKey);
-                              return handled
-                                  ? KeyEventResult.handled
-                                  : KeyEventResult.ignored;
-                            },
-                            child: widget.useInternalScroll
-                                ? ScrollablePositionedListScrollbar(
-                                    scrollController: _scrollController,
-                                    onNavigationStart:
-                                        _lines?.beginUserNavigation,
-                                    itemCount: itemCount,
-                                    labelForIndex: widget.labelForIndex,
-                                    child: SmoothWheelScroll(
-                                      child: _trackUserScroll(
-                                        _buildInternalList(
-                                          state,
-                                          noteMap,
-                                          segments,
-                                          continuous,
+                                final handled = widget.isMainText
+                                    ? _handleNavigationLogicalKey(
+                                        event,
+                                        isAltPressed:
+                                            ShortcutHelper.isAltModifierPressed,
+                                        isShiftPressed: HardwareKeyboard
+                                            .instance
+                                            .isShiftPressed,
+                                        source: 'content-focus',
+                                      )
+                                    : _scrollCommentaryByKey(event.logicalKey);
+                                return handled
+                                    ? KeyEventResult.handled
+                                    : KeyEventResult.ignored;
+                              },
+                              child: widget.useInternalScroll
+                                  ? ScrollablePositionedListScrollbar(
+                                      scrollController: _scrollController,
+                                      onNavigationStart:
+                                          _lines?.beginUserNavigation,
+                                      itemCount: itemCount,
+                                      labelForIndex: widget.labelForIndex,
+                                      child: SmoothWheelScroll(
+                                        child: _trackUserScroll(
+                                          _buildInternalList(
+                                            state,
+                                            noteMap,
+                                            segments,
+                                            continuous,
+                                          ),
                                         ),
                                       ),
+                                    )
+                                  : ListView.builder(
+                                      shrinkWrap: true,
+                                      physics:
+                                          const NeverScrollableScrollPhysics(),
+                                      itemCount: itemCount,
+                                      padding: const EdgeInsets.all(4),
+                                      itemBuilder: (context, index) =>
+                                          _buildLineItem(
+                                            context,
+                                            index,
+                                            state,
+                                            noteMap,
+                                            segments,
+                                            continuous,
+                                          ),
                                     ),
-                                  )
-                                : ListView.builder(
-                                    shrinkWrap: true,
-                                    physics:
-                                        const NeverScrollableScrollPhysics(),
-                                    itemCount: itemCount,
-                                    padding: const EdgeInsets.all(4),
-                                    itemBuilder: (context, index) =>
-                                        _buildLineItem(
-                                          context,
-                                          index,
-                                          state,
-                                          noteMap,
-                                          segments,
-                                          continuous,
-                                        ),
-                                  ),
+                            ),
                           ),
                         ),
                       ),
