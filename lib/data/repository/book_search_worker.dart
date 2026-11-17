@@ -94,10 +94,10 @@ class BookSearchWorker {
       throw StateError('book search worker disposed before sending');
     }
     if (!_sameEntries(_workerEntries, job.entries)) {
-      _workerEntries = job.entries;
       indexUploads++;
       port.send(_SetIndexMessage(job.entries));
     }
+    _workerEntries = job.entries;
     final reply = _reply = Completer<List<int>>();
     port.send(job.query);
     return reply.future;

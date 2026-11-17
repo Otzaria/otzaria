@@ -792,6 +792,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         extraBooks: event.extraBooks,
         extraBooksOnly: event.extraBooksOnly,
         supersedeKey: this,
+        reuseCatalog: true,
       );
       final results = found.books;
 

@@ -33,6 +33,18 @@ BookSearchQuery _query(String text) => BookSearchQuery(
 List<int> _direct(List<BookSearchEntry> entries, String text) =>
     PreparedBookSearchIndex(entries).search(_query(text));
 
+class _CountedEntry extends BookSearchEntry {
+  _CountedEntry() : super(index: 0, title: 'שולחן', author: '', topics: '');
+
+  int comparisons = 0;
+
+  @override
+  bool sameAs(BookSearchEntry other) {
+    comparisons++;
+    return super.sameAs(other);
+  }
+}
+
 void main() {
   late BookSearchWorker worker;
   setUp(() => worker = BookSearchWorker());
@@ -90,6 +102,20 @@ void main() {
     );
     expect(worker.indexUploads, 2);
   });
+
+  test(
+    'only compares an equivalent replacement catalog on its first use',
+    () async {
+      final first = _CountedEntry();
+      final replacement = <BookSearchEntry>[_CountedEntry()];
+      await worker.search([first], _query('שולחן'));
+      for (var i = 0; i < 4; i++) {
+        expect(await worker.search(replacement, _query('שולחן')), [0]);
+      }
+      expect(first.comparisons, 1);
+      expect(worker.indexUploads, 1);
+    },
+  );
 
   test('a newer search with the same key supersedes the older one', () async {
     final key = Object();

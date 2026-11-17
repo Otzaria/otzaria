@@ -43,6 +43,7 @@ void main() {
       )
       ..localHebrewBooks = Future.value(const []);
   });
+  tearDown(() => repository.bookSearchWorkerForTesting.dispose());
 
   test('הספרים מבחוץ מצטרפים לתוצאות לפי כותרת, מחבר ונתיב', () async {
     Future<List<Book>> find(String query) async =>
@@ -109,4 +110,32 @@ void main() {
     expect(without.books.map((b) => b.title), ['שו"ת אבני נזר']);
     expect(withEmpty.books, without.books);
   });
+
+  test(
+    'a new plugin or library snapshot returns the current book objects',
+    () async {
+      final replacement = ExternalLibraryBook(
+        title: pluginBook.title,
+        id: 7,
+        link: '',
+      );
+      var extras = <Book>[pluginBook];
+      Future<List<Book>> search({bool only = false}) async =>
+          (await repository.findBooksAndCategories(
+            'אבני נזר',
+            null,
+            extraBooks: extras,
+            extraBooksOnly: only,
+            sortByRatio: false,
+            reuseCatalog: true,
+          )).books;
+
+      expect((await search()).last, same(pluginBook));
+      extras = [replacement];
+      expect((await search()).last, same(replacement));
+      expect(await search(only: true), [same(replacement)]);
+      repository.library = Future.value(Library(categories: []));
+      expect(await search(), [same(replacement)]);
+    },
+  );
 }

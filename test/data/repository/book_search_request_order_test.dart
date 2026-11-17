@@ -51,9 +51,18 @@ class _SearchCategory extends Category {
       );
 
   void Function()? onCategories;
+  int bookCollections = 0;
+  int categoryCollections = 0;
+
+  @override
+  List<Book> getAllBooks() {
+    bookCollections++;
+    return super.getAllBooks();
+  }
 
   @override
   List<Category> getAllCategories() {
+    categoryCollections++;
     final callback = onCategories;
     onCategories = null;
     callback?.call();
@@ -72,6 +81,57 @@ void main() {
     category = _SearchCategory();
   });
   tearDown(() => repository.bookSearchWorkerForTesting.dispose());
+
+  for (final reuseCatalog in [false, true]) {
+    test(
+      'successive queries (reuse published catalog: $reuseCatalog)',
+      () async {
+        const queryCount = 12;
+        final books = List.generate(1024, _CountedCatalogBook.new);
+        repository.catalog.complete(books);
+
+        for (var i = 0; i < queryCount; i++) {
+          final query = i.isEven ? 'חיצוני' : 'ספר חיצוני';
+          final results = await repository.findBooksAndCategories(
+            query,
+            category,
+            includeOtzar: true,
+            includeLocalHebrewBooks: false,
+            sortByRatio: false,
+            reuseCatalog: reuseCatalog,
+          );
+          expect(results.books, orderedEquals(books));
+          expect(results.categories, isEmpty);
+        }
+
+        final expectedCollections = reuseCatalog ? 1 : queryCount;
+        expect(
+          books.map((book) => book.titleReads),
+          everyElement(expectedCollections),
+        );
+        expect(category.bookCollections, expectedCollections);
+        expect(category.categoryCollections, expectedCollections);
+        expect(repository.bookSearchWorkerForTesting.indexUploads, 1);
+      },
+    );
+  }
+
+  test(
+    'direct searches still observe mutations of caller-owned inputs',
+    () async {
+      final folder = _SearchCategory();
+      Future<List<Book>> search() async =>
+          (await repository.findBooksAndCategories(
+            'קונטרס',
+            folder,
+            includeLocalHebrewBooks: false,
+          )).books;
+      expect(await search(), isEmpty);
+      final book = TextBook(title: 'קונטרס');
+      folder.books.add(book);
+      expect(await search(), [same(book)]);
+    },
+  );
 
   for (final finishLatestFirst in [false, true]) {
     test(

@@ -931,6 +931,7 @@ void main() {
       expect(registry.searchesExtraBooksOnly, isTrue);
       final pluginBooks = registry.filteredVisibleBooks;
       expect(pluginBooks.map((b) => b.title), ['ספר של p1']);
+      expect(registry.filteredVisibleBooks, same(pluginBooks));
 
       expect(registry.cycleSource('p1'), PluginLibraryBooksSource.libraryOnly);
       expect(registry.searchesExtraBooksOnly, isFalse);
@@ -939,6 +940,24 @@ void main() {
       expect(registry.cycleSource('p1'), PluginLibraryBooksSource.all);
       expect(registry.filteredVisibleBooks, hasLength(2));
       expect(changes, hasLength(3));
+    });
+
+    test('עדכון ספק מחליף את תמונת הספרים המסוננת', () async {
+      registry.registerPayload('p1', _provider());
+      await registry.setBooks('p1', 'mylib', [
+        {'id': 1, 'title': 'ראשון'},
+      ]);
+      registry.cycleSource('p1');
+      final before = registry.filteredVisibleBooks;
+
+      await registry.setBooks('p1', 'mylib', [
+        {'id': 2, 'title': 'שני'},
+      ]);
+
+      expect(before.single.title, 'ראשון');
+      final after = registry.filteredVisibleBooks;
+      expect(after.single.title, 'שני');
+      expect(registry.filteredVisibleBooks, same(after));
     });
 
     test('כפתור של תוסף אחר מתחיל מחזור חדש ממצב הכול', () async {
