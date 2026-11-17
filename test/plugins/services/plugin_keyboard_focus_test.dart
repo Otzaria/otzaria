@@ -766,4 +766,57 @@ void main() {
       expect(background.focusCalls, 0);
     });
   });
+
+  group('macOS: התוסף ירד מהמסך — המקלדת חוזרת ל-Flutter (#2945)', () {
+    late List<Object?> reclaims;
+
+    setUp(() {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      reclaims = [];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(macKeyboardFocusChannel, (call) async {
+            if (call.method == 'reclaimFromWebView') {
+              reclaims.add((call.arguments as Map)['viewId']);
+            }
+            return null;
+          });
+    });
+
+    tearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(macKeyboardFocusChannel, null);
+    });
+
+    test('פתיחת ספר מתוסף (טאב בלי תוסף) מחזירה את המקלדת', () {
+      _d.setVisiblePluginInstances({_fg(_pid)});
+      _d.setVisiblePluginInstances(const {});
+      expect(reclaims, [PluginRuntimeDispatcher.mainViewId]);
+    });
+
+    test('יציאה ממסך העיון כשתוסף מוצג מחזירה את המקלדת לחלון שלו', () {
+      _d.setVisiblePluginInstances({_fg(_pid)}, viewId: 3);
+      _d.setReaderScreenVisible(false, viewId: 3);
+      expect(reclaims, [3]);
+    });
+
+    test('מעבר בין תוספים אינו נוגע במקלדת', () {
+      _d.setVisiblePluginInstances({_fg(_pid)});
+      _d.setVisiblePluginInstances({_fg(_other)});
+      expect(reclaims, isEmpty);
+    });
+
+    test('כשלא הוצג תוסף אין קריאה', () {
+      _d.setReaderScreenVisible(false);
+      _d.setReaderScreenVisible(true);
+      _d.setVisiblePluginInstances(const {});
+      expect(reclaims, isEmpty);
+    });
+
+    test('בווינדוס אין קריאה לערוץ', () {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      _d.setVisiblePluginInstances({_fg(_pid)});
+      _d.setVisiblePluginInstances(const {});
+      expect(reclaims, isEmpty);
+    });
+  });
 }
