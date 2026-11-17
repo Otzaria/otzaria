@@ -187,6 +187,22 @@ class ShortcutHelper {
         event.physicalKey == KeyMap.physicalKeyFor(mainKey);
   }
 
+  /// כמו [matchesShortcut] כולל החזקה, כש-`ctrl` הוא כמו [isPlainCtrlOrCmdPressed]:
+  /// ב-Mac גם Control, ובשאר המערכות מקש Windows לצד Ctrl אינו נספר.
+  static bool matchesReaderShortcut(KeyEvent event, String shortcut) {
+    final keyboard = HardwareKeyboard.instance;
+    final control = keyboard.isControlPressed;
+    final meta = keyboard.isMetaPressed;
+    return matchesShortcut(
+      event,
+      shortcut,
+      includeRepeats: true,
+      isMetaPressed: _treatCtrlAsMeta
+          ? control || meta
+          : meta && !(control && !shortcut.contains('meta')),
+    );
+  }
+
   /// האם [key] הוא תו מקומי לא-מוכר ש-macOS מדווח עבור מקש סימן או ספרה.
   /// רק במצב החריג הזה המיקום הפיזי מזהה את הקיצור.
   static bool isLayoutSpecificKey(LogicalKeyboardKey key) {

@@ -63,6 +63,9 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
   /// המקש שהפעיל קיצור דינמי; החזרות שלו (מקש מוחזק) לא יגיעו לטיפול המובנה.
   PhysicalKeyboardKey? _dynamicKey;
 
+  /// החץ שהפעיל קיצור מתוך עץ הפוקוס; החזרות שלו לא יעבירו פוקוס.
+  PhysicalKeyboardKey? _arrowShortcutKey;
+
   @override
   void initState() {
     super.initState();
@@ -125,6 +128,39 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
         (event.logicalKey == LogicalKeyboardKey.keyD ||
             event.logicalKey == LogicalKeyboardKey.keyH);
   }
+
+  /// חץ בלי מקש צירוף, ומקש ששוחרר מאזור הקריאה, נבלעים בהעברת הפוקוס ובאזורי
+  /// הבחירה לפני ה-late handler, ולכן קיצור שהוקצה להם מופעל כאן.
+  KeyEventResult _handleArrowShortcut(FocusNode _, KeyEvent event) {
+    if (event is KeyRepeatEvent && event.physicalKey == _arrowShortcutKey) {
+      return KeyEventResult.handled;
+    }
+    if (event is! KeyRepeatEvent) _arrowShortcutKey = null;
+    final keyboard = HardwareKeyboard.instance;
+    if (event is! KeyDownEvent ||
+        !_isActiveWindow ||
+        ShortcutHelper.isEditingText ||
+        !(_focusArrows.any((arrow) => arrow.accepts(event, keyboard)) ||
+            ShortcutValidator.isReleasedReaderKey(event))) {
+      return KeyEventResult.ignored;
+    }
+    final result = _handleKeyEvent(
+      event,
+      context.read<SettingsBloc>().state.shortcuts,
+    );
+    _arrowShortcutKey = result == KeyEventResult.handled
+        ? event.physicalKey
+        : null;
+    return result;
+  }
+
+  /// החיצים ש-WidgetsApp ממפה להעברת פוקוס.
+  static const _focusArrows = [
+    SingleActivator(LogicalKeyboardKey.arrowLeft),
+    SingleActivator(LogicalKeyboardKey.arrowRight),
+    SingleActivator(LogicalKeyboardKey.arrowUp),
+    SingleActivator(LogicalKeyboardKey.arrowDown),
+  ];
 
   /// בעריכת טקסט השדה קודם, והקיצור הדינמי נבדק רק ב-late handler.
   KeyEventResult _handleEarlyKeyEvent(KeyEvent event) {
@@ -669,6 +705,7 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     return FocusScope(
       node: _shortcutFocusScopeNode,
       autofocus: true,
+      onKeyEvent: _handleArrowShortcut,
       child: widget.child,
     );
   }

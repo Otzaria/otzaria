@@ -5,6 +5,7 @@ import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/text_book/view/widgets/selection_gutter_painter.dart';
 import 'package:otzaria/shortcuts/dynamic/dynamic_shortcut.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
+import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/text_book/utils/reader_paragraph_copy.dart';
 import 'package:otzaria/text_book/utils/reader_menu_entries.dart';
 import 'package:otzaria/text_book/utils/reader_plugin_menu_entries.dart';
@@ -2012,35 +2013,25 @@ class _CombinedViewState extends State<CombinedView> {
   @visibleForTesting
   int get debugSelectionCachedLineCount => _selectionLineCache._lines.length;
 
-  /// ←/→ לקטע הבא/הקודם ו-Ctrl+←/→ לדף/פרק, כמו החיצים בסרגל (← קדימה, כמו ב-PDF).
-  /// עם טקסט מסומן Ctrl+חץ נשאר להזזת קצה הבחירה.
+  /// מקשי אזור הקריאה לפי הגדרות הקיצורים: כברירת מחדל ←/→ לקטע הבא/הקודם
+  /// ו-Ctrl+←/→ לדף/פרק, כמו החיצים בסרגל (← קדימה, כמו ב-PDF).
   KeyEventResult _handleSideArrowNavigation(FocusNode _, KeyEvent event) {
     _navigationKeys.release(event);
-    final key = event.logicalKey;
-    if (event is KeyUpEvent ||
-        (key != LogicalKeyboardKey.arrowLeft &&
-            key != LogicalKeyboardKey.arrowRight) ||
-        ShortcutHelper.isEditingText) {
+    if (event is KeyUpEvent || ShortcutHelper.isEditingText) {
       return KeyEventResult.ignored;
     }
-    final keyboard = HardwareKeyboard.instance;
-    if (keyboard.isShiftPressed || ShortcutHelper.isAltModifierPressed) {
-      return KeyEventResult.ignored;
-    }
-    final toToc = ShortcutHelper.isPlainCtrlOrCmdPressed;
-    if (!toToc && (keyboard.isControlPressed || keyboard.isMetaPressed)) {
-      return KeyEventResult.ignored;
-    }
-    if (toToc && _savedSelectedText.value != null) {
-      return KeyEventResult.ignored;
-    }
-    final forward = key == LogicalKeyboardKey.arrowLeft;
     final tab = widget.tab;
-    final notifier = toToc
-        ? (forward ? tab.navNextTocNotifier : tab.navPreviousTocNotifier)
-        : (forward
-              ? tab.navNextSegmentNotifier
-              : tab.navPreviousSegmentNotifier);
+    final notifier = switch (ShortcutValidator.readerShortcutFor(
+      event,
+      hasSelection: _savedSelectedText.value != null,
+    )) {
+      ShortcutValidator.nextSegmentReaderKey => tab.navNextSegmentNotifier,
+      ShortcutValidator.prevSegmentReaderKey => tab.navPreviousSegmentNotifier,
+      ShortcutValidator.nextTocReaderKey => tab.navNextTocNotifier,
+      ShortcutValidator.prevTocReaderKey => tab.navPreviousTocNotifier,
+      _ => null,
+    };
+    if (notifier == null) return KeyEventResult.ignored;
     // החזקת המקש היא נקודת חזרה אחת, כמו החזקת חץ ב-ProgressiveScroll.
     if (_navigationKeys.isRepeat(event)) {
       tab.lines.withoutHistory(() => notifier.value++);
