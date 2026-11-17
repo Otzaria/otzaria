@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -79,17 +80,27 @@ void main() {
     expect(addresses, hasLength(3));
   });
 
-  test('DNS failure is a rejection, not a crash', () async {
+  // #4935: an unresolvable name is a network failure (the fetcher maps these
+  // exceptions to AttachedUpdateError.network), not a policy rejection.
+  test('DNS failure is a network error, not a rejection', () async {
     final policy = AttachedUpdateHostPolicy(
       lookup: (_) async => throw const SocketException('nxdomain'),
     );
     await expectLater(
       policy.resolve(Uri.parse('https://nope.example.org/')),
-      rejected,
+      throwsA(isA<SocketException>()),
     );
     await expectLater(
       resolvingTo([]).resolve(Uri.parse('https://nope.example.org/')),
-      rejected,
+      throwsA(isA<SocketException>()),
+    );
+    final slow = AttachedUpdateHostPolicy(
+      lookup: (_) => Completer<List<InternetAddress>>().future,
+      lookupTimeout: const Duration(milliseconds: 20),
+    );
+    await expectLater(
+      slow.resolve(Uri.parse('https://nope.example.org/')),
+      throwsA(isA<TimeoutException>()),
     );
   });
 

@@ -92,19 +92,18 @@ class AttachedUpdateHostPolicy {
 
   /// בדיקה מלאה: תחביר + כל כתובות ה-DNS ציבוריות. מחזיר את הכתובות
   /// שנבדקו, כדי שהחיבור ייעשה אליהן בדיוק (בלי תרגום DNS שני).
+  ///
+  /// A name that cannot be resolved (no DNS yet, offline, timeout, empty
+  /// answer) is a network failure, not a policy verdict: it throws
+  /// [SocketException] / [TimeoutException], which the fetcher reports as a
+  /// network error. Only [AttachedUpdateHostRejected] means the address itself
+  /// was refused.
   Future<List<InternetAddress>> resolve(Uri uri) async {
     checkUri(uri);
     if (_isTestTarget(uri)) return [InternetAddress.loopbackIPv4];
-    final List<InternetAddress> addresses;
-    try {
-      addresses = await lookup(uri.host).timeout(lookupTimeout);
-    } on SocketException {
-      throw const AttachedUpdateHostRejected('host name does not resolve');
-    } on TimeoutException {
-      throw const AttachedUpdateHostRejected('DNS lookup timed out');
-    }
+    final addresses = await lookup(uri.host).timeout(lookupTimeout);
     if (addresses.isEmpty) {
-      throw const AttachedUpdateHostRejected('host name does not resolve');
+      throw const SocketException('host name does not resolve');
     }
     for (final address in addresses) {
       if (!isPublicAddress(address)) {
