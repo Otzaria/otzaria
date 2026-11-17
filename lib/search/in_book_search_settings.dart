@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_defaults.dart';
+import 'package:otzaria/search/search_engine_gateway.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/utils/in_book_search_routing.dart';
@@ -194,6 +197,7 @@ Future<List<SearchResult>> searchBookWithEngine(
   required String bookPath,
   required int limit,
   required InBookSearchSettings settings,
+  int? cancelRequestId,
 }) async {
   if (settings.searchMode == SearchMode.fuzzy &&
       settings.matchPolicy.querySemantics == SearchQuerySemantics.smart &&
@@ -207,6 +211,7 @@ Future<List<SearchResult>> searchBookWithEngine(
         searchMode: SearchMode.fuzzy,
         distance: settings.distance,
         order: ResultsOrder.catalogue,
+        cancelRequestId: cancelRequestId,
       ),
     );
   }
@@ -229,8 +234,35 @@ Future<List<SearchResult>> searchBookWithEngine(
       wordMatchCount: policy.wordMatchCount,
       anyOrder: policy.anyOrder,
       order: ResultsOrder.catalogue,
+      cancelRequestId: cancelRequestId,
     ),
   );
+}
+
+/// מזהה הביטול של חיפוש המנוע האחרון בחלונית חיפוש בתוך ספר.
+/// חיפוש חדש או סגירת החלונית עוצרים במנוע את הקודם, שאחרת ממשיך לרוץ ברקע.
+class InBookEngineSearchCancellation {
+  InBookEngineSearchCancellation(this._repository);
+
+  final SearchRepository _repository;
+  int? _id;
+
+  /// מבטל את החיפוש הקודם ומחזיר מזהה לחיפוש החדש.
+  int next() {
+    cancel();
+    return _id = LexicalSearchRequestIds.next();
+  }
+
+  void cancel() {
+    final id = _id;
+    if (id == null) return;
+    _id = null;
+    unawaited(
+      _repository.cancelLexicalSearch(id).catchError((Object error) {
+        debugPrint('In-book search cancel failed: $error');
+      }),
+    );
+  }
 }
 
 /// How many results an in-book engine search asks for. The engine filters by
