@@ -99,6 +99,8 @@ class ToolsManagementPanel extends StatefulWidget {
   static List<SettingsSearchEntry> toolSearchEntries(
     List<InstalledPlugin> plugins,
   ) {
+    final installedIds = plugins.map((plugin) => plugin.pluginId).toSet();
+    _pluginEntries.removeWhere((id, entry) => !installedIds.contains(id));
     return [
       ..._builtInToolEntries,
       for (final plugin in plugins) _pluginSearchEntry(plugin),
@@ -450,10 +452,8 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
     final item = reordered.removeAt(from);
     reordered.insert(to, item);
     final ids = reordered.map((p) => p.pluginId).toList();
-    // Defer dispatch so the BlocBuilder rebuilds during the normal build phase
-    // of the next frame, not inside a LayoutBuilder's _rebuildWithConstraints.
-    // Without deferral, GlobalKey reactivation of rows with Tooltip/OverlayPortal
-    // happens during the LayoutBuilder's buildScope → Flutter rendering crash.
+    // Reordering during LayoutBuilder's buildScope can crash OverlayPortal reactivation.
+    // Dispatch in the next frame's normal build phase.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<PluginSystemBloc>().add(ReorderPluginsRequested(ids));

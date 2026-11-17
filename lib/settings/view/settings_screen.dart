@@ -113,16 +113,18 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
   // ── חיפוש: עדכון השאילתה ─────────────────────────────────────────────────
   void _onSearchChanged(String query) {
     _activeSearchNavigationRequest = null;
+    // ה-State יושב מעל ה-SettingsTextScope, ולכן השפה נלקחת מה-bloc.
+    final results = SettingsSearchIndex.search(
+      query,
+      language: resolveSettingsLanguage(
+        context.read<SettingsBloc>().state.settingsLanguageCode,
+      ),
+      extraEntries: _toolSearchEntries(),
+    );
+    if (query == _searchQuery && listEquals(results, _searchResults)) return;
     setState(() {
       _searchQuery = query;
-      // ה-State יושב מעל ה-SettingsTextScope, ולכן השפה נלקחת מה-bloc.
-      _searchResults = SettingsSearchIndex.search(
-        query,
-        language: resolveSettingsLanguage(
-          context.read<SettingsBloc>().state.settingsLanguageCode,
-        ),
-        extraEntries: _toolSearchEntries(),
-      );
+      _searchResults = results;
     });
   }
 
@@ -403,7 +405,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
   Widget build(BuildContext context) {
     // הכיווניות והשפה חלות על תת-העץ של ההגדרות בלבד; שאר האפליקציה
     // נשארת RTL כי ה-locale הגלובלי אינו משתנה.
-    return BlocListener<NavigationBloc, NavigationState>(
+    final content = BlocListener<NavigationBloc, NavigationState>(
       listenWhen: (previous, current) =>
           previous.currentScreen == Screen.settings &&
           current.currentScreen != Screen.settings,
@@ -427,6 +429,16 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
           );
         },
       ),
+    );
+    final plugins = context.read<PluginSystemBloc?>();
+    if (plugins == null) return content;
+    return BlocListener<PluginSystemBloc, PluginSystemState>(
+      bloc: plugins,
+      listenWhen: (previous, current) =>
+          _searchQuery.trim().isNotEmpty &&
+          (previous is PluginSystemLoaded || current is PluginSystemLoaded),
+      listener: (context, state) => _onSearchChanged(_searchQuery),
+      child: content,
     );
   }
 
@@ -499,10 +511,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                 backgroundColor: bgColor,
                 body: Column(
                   children: [
-                    // סרגל הכותרת של הטלפון הוא AppTopBar, כמו בשאר המסכים
-                    // (q10 Q8b A). בתפריט הוא היה רק "הגדרות" שוב, מתחת
-                    // לשורת הכותרת של החלון שכבר אומרת את זה, ולכן הוא מוצג
-                    // רק כשיש לאן לחזור: בלשונית ובתוצאות החיפוש.
+                    // הכותרת נדרשת רק כשיש לאן לחזור, כדי לא לכפול את כותרת החלון.
                     if (onBack != null)
                       AppTopBar(
                         leadingItems: [

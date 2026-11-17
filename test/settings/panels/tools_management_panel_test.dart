@@ -1547,6 +1547,16 @@ void main() {
       );
     });
 
+    test('removed plugins release their cached search entry', () {
+      final plugin = _plugin(id: 'org.cache', name: 'תוסף למטמון');
+      final entry = ToolsManagementPanel.toolSearchEntries([plugin]).last;
+      ToolsManagementPanel.toolSearchEntries(const []);
+      expect(
+        ToolsManagementPanel.toolSearchEntries([plugin]).last,
+        isNot(same(entry)),
+      );
+    });
+
     testWidgets('a plugin result filters the list to that plugin', (
       tester,
     ) async {
