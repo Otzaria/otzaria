@@ -25,11 +25,27 @@
 - `rust/src/win32/bitmap_reader_tests.rs`: בדיקות Windows של פיקסלים, בעלות,
   שחרור משאבים, קדימות, אלפא, GIF וטקסט.
 
+- `rust/src/win32/drag.rs`: לפני `DoDragDrop` נבדק מצב הכפתור הראשי עם
+  `GetAsyncKeyState`, בהתאם ל־`SM_SWAPBUTTON`. אם שוחרר בזמן הכנת/סריאליזציית
+  הבקשה, הגרירה מסתיימת ב־`UserCancelled` במסלול הניקוי הרגיל, בלי drop.
+  ה־`DataObject` וה־provider handles משתחררים כרגיל. אין שינוי ב־API של Dart.
+  מיפוי הכפתור הפיזי לפי תיעוד Microsoft:
+  <https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getasynckeystate>.
+
+- `lib/src/native/drag.dart`: ביטול session בהכנה נבדק שוב אחרי סריאליזציה
+  ולפני מסירת הבקשה ל־native. `dragStarted` מציין שהבקשה כבר נמסרה;
+  `cancelSession` אינו משחרר session אחרי נקודת העברת הבעלות. זו הרחבת
+  סמנטיקת `dragStarted` במימוש native בלבד; אין קורא קיים אחר של getter זה
+  בקוד המשובץ. מימוש web ללא שינוי והמחווה מוגבלת ל־Windows native.
+  כך גם שחרור ולחיצה מחדש או פירוק widget בזמן ההכנה מבטלים את הגרירה הישנה.
+  אין שינוי בחתימות ה־API.
+
 ## אימות ובנייה
 
 `python3 tool/verify_super_native_extensions.py` מאמת את הארכיון ואת כל
-הקבצים המנוהלים, ומרשה שינויים רק בשני קובצי המוצר שלעיל ובסקריפט ה־Gradle
-של Cargokit (בהמשך). לכן קוד Dart
+הקבצים המנוהלים, ומרשה שינויים רק בארבעת קובצי המוצר שלעיל ובסקריפט ה־Gradle
+של Cargokit (בהמשך). תיקון Dart זה נבדק ב־`flutter analyze packages/super_native_extensions/lib/src/native/drag.dart`
+ובבדיקות transport של האפליקציה. שאר קוד Dart
 המקורי מוחרג מה־formatter ומה־analyzer של האפליקציה; קוד האפליקציה ממשיך
 לעבור אותם, וקוד Rust המתוקן עובר rustfmt ובדיקות Windows ב־CI.
 אפשר להעביר `--archive /path/to/archive.tar.gz` לצורך אימות ללא הורדה נוספת.

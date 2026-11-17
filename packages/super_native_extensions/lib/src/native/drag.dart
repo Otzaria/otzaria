@@ -60,6 +60,10 @@ class DragSessionImpl extends DragSession {
   ValueListenable<ui.Offset?> get lastScreenLocation => _lastScreenLocation;
 
   int? sessionId;
+  bool _startRequested = false;
+
+  @override
+  bool get dragStarted => _startRequested;
 
   @override
   Future<List<Object?>?> getLocalData() async {
@@ -206,6 +210,8 @@ class DragContextImpl extends DragContext {
   @override
   void cancelSession(DragSession session) {
     final sessionImpl = session as DragSessionImpl;
+    // Ownership has already transferred to native after the start request.
+    if (sessionImpl._startRequested) return;
     assert(sessionImpl.dragCompleted.value == null);
     assert(sessionImpl.dragging.value == false);
     sessionImpl._dragCompleted.value = DropOperation.userCancelled;
@@ -237,9 +243,21 @@ class DragContextImpl extends DragContext {
           : null,
     );
 
-    final sessionId =
-        await _channel.invokeMethod("startDrag", await request.serialize());
+    final serialized = await request.serialize();
     final sessionImpl = session as DragSessionImpl;
+    if (!buildContext.mounted && sessionImpl.dragCompleted.value == null) {
+      cancelSession(session);
+    }
+    if (sessionImpl.dragCompleted.value != null) return;
+    // No await between the last cancellation check and handing ownership to native.
+    sessionImpl._startRequested = true;
+    final dynamic sessionId;
+    try {
+      sessionId = await _channel.invokeMethod("startDrag", serialized);
+    } catch (_) {
+      sessionImpl._startRequested = false;
+      rethrow;
+    }
     sessionImpl.sessionId = sessionId;
     _sessions[sessionId] = sessionImpl;
     for (final item in request.configuration.items) {

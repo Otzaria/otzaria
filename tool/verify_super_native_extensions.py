@@ -15,6 +15,10 @@ ARCHIVE_SHA256 = "b9611dcb68f1047d6f3ef11af25e4e68a21b1a705bbcc3eb8cb4e9f5c31485
 PREFIX = "packages/super_native_extensions/"
 PATCHED = {
     "rust/src/win32/reader.rs",
+    # Recheck the primary button immediately before DoDragDrop; see UPSTREAM.md.
+    "rust/src/win32/drag.rs",
+    # Honor cancelled preparation before sending the native start request.
+    "lib/src/native/drag.dart",
     "rust/src/win32/image_conversion.rs",
     # compileSdk "android-37.0" and Gradle 9 (no Project.exec); see UPSTREAM.md.
     "cargokit/gradle/plugin.gradle",
@@ -90,7 +94,7 @@ def main():
     upstream = archive_sources(data)
     root = Path(__file__).resolve().parent.parent
     verify_sources(upstream, tracked_sources(root))
-    print(f"Verified {len(upstream)} upstream files and modes; only the reviewed Windows reader and Cargokit Gradle sources may differ.")
+    print(f"Verified {len(upstream)} upstream files and modes; only the reviewed Windows reader/drag and Cargokit Gradle sources may differ.")
 
 
 if __name__ == "__main__":

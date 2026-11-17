@@ -1806,11 +1806,12 @@ class _CombinedViewState extends State<CombinedView> {
   }
 
   /// Builds the same protected, formatted text as Ctrl+C without touching the clipboard.
-  Future<SelectedTextDragContent?> _prepareSelectedTextDrag(
+  SelectedTextDragPreparation? _captureSelectedTextDrag(
     String capturedText,
-  ) async {
+  ) {
     final state = _textBookBloc.state;
     if (state is! TextBookLoaded || capturedText.trim().isEmpty) return null;
+    final sourceWidget = widget;
     final settingsState = context.read<SettingsBloc>().state;
     final selectedIndex = _currentSelectedIndex.value;
     final source = _sourceSelection;
@@ -1819,23 +1820,25 @@ class _CombinedViewState extends State<CombinedView> {
       end: _selectionLineEnd,
       text: capturedText,
     );
-    if (!ensureCopyAllowed(state.protection, segmentCount)) return null;
-    final content = await buildSelectedTextCopy(
-      plainText: capturedText,
-      selectedIndex: selectedIndex,
-      sourceContent: widget.data,
-      textBookState: state,
-      settingsState: settingsState,
-      copyTarget: TextTarget.body,
-      source: source,
-    );
-    if (content == null) return null;
-    return (
-      plainText: content.plainText,
-      htmlText: content.htmlText,
-      fontFamily: settingsState.fontFamily,
-      fontSize: widget.textSize,
-    );
+    return () async {
+      if (!ensureCopyAllowed(state.protection, segmentCount)) return null;
+      final content = await buildSelectedTextCopy(
+        plainText: capturedText,
+        selectedIndex: selectedIndex,
+        sourceContent: sourceWidget.data,
+        textBookState: state,
+        settingsState: settingsState,
+        copyTarget: TextTarget.body,
+        source: source,
+      );
+      if (content == null) return null;
+      return (
+        plainText: content.plainText,
+        htmlText: content.htmlText,
+        fontFamily: settingsState.fontFamily,
+        fontSize: sourceWidget.textSize,
+      );
+    };
   }
 
   /// הצגת עורך ההערות
@@ -2080,7 +2083,7 @@ class _CombinedViewState extends State<CombinedView> {
                       _endSelectionPointer(takeFocus: false),
                   child: SelectedTextDragRegion(
                     selectedText: () => _savedSelectedText.value,
-                    prepareContent: _prepareSelectedTextDrag,
+                    captureContent: _captureSelectedTextDrag,
                     child: SelectionArea(
                       key: _selectionAreaKey,
                       focusNode: _selectionAreaFocusNode,

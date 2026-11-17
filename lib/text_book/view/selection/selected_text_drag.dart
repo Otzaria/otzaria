@@ -3,9 +3,9 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:otzaria/book_common/selection/selection_hit_test.dart';
 import 'package:otzaria/divine_names/models/divine_name_forms.dart';
 import 'package:otzaria/utils/text/copy_utils.dart';
 import 'package:otzaria/theme/app_tokens.dart';
@@ -18,6 +18,9 @@ typedef SelectedTextDragContent = ({
   String fontFamily,
   double fontSize,
 });
+
+typedef SelectedTextDragPreparation =
+    Future<SelectedTextDragContent?> Function();
 
 /// Windows CF_HTML: offsets are UTF-8 *byte* positions, not Dart code units.
 Uint8List buildWindowsHtmlDragData(String html) {
@@ -63,13 +66,16 @@ class SelectedTextDragRegion extends StatefulWidget {
   const SelectedTextDragRegion({
     super.key,
     required this.selectedText,
-    required this.prepareContent,
+    required this.captureContent,
     required this.child,
   });
 
   final String? Function() selectedText;
-  final Future<SelectedTextDragContent?> Function(String capturedText)
-  prepareContent;
+
+  /// Captures source indices, protection and formatting before selection changes.
+  /// The returned preparation runs only after the drag threshold is crossed.
+  final SelectedTextDragPreparation? Function(String capturedText)
+  captureContent;
   final Widget child;
 
   @override
@@ -80,12 +86,31 @@ class _SelectedTextDragRegionState extends State<SelectedTextDragRegion> {
   int? _pointer;
   Offset? _start;
   String? _selectionAtDown;
+  SelectedTextDragPreparation? _prepareAtDown;
   bool _dragging = false;
+  DragContext? _pendingContext;
+  DragSession? _pendingSession;
+
+  void _cancelPendingSession() {
+    final session = _pendingSession;
+    if (session?.dragStarted == true) return;
+    _pendingSession = null;
+    if (session != null) _pendingContext?.cancelSession(session);
+    _pendingContext = null;
+  }
+
+  @override
+  void dispose() {
+    _cancelPendingSession();
+    super.dispose();
+  }
 
   void _down(PointerDownEvent event) {
+    _cancelPendingSession();
     _pointer = null;
     _start = null;
     _selectionAtDown = null;
+    _prepareAtDown = null;
     if (_dragging ||
         event.kind != PointerDeviceKind.mouse ||
         event.buttons != kPrimaryMouseButton) {
@@ -93,28 +118,49 @@ class _SelectedTextDragRegionState extends State<SelectedTextDragRegion> {
     }
     final selected = widget.selectedText();
     if (selected == null || selected.trim().isEmpty) return;
-    final root = context.findRenderObject();
-    if (root == null ||
-        clickIsOnSelectionWithinArea(
-              root: root,
-              globalPosition: event.position,
-              selectedText: selected,
-            ) !=
-            true) {
-      return;
-    }
+    if (!_isOnSelection(event.position)) return;
+    final prepare = widget.captureContent(selected);
+    if (prepare == null) return;
+    _prepareAtDown = prepare;
     _pointer = event.pointer;
     _start = event.position;
     _selectionAtDown = selected;
   }
 
+  bool _isOnSelection(Offset position) {
+    var hit = false;
+    void visit(Element element) {
+      if (hit) return;
+      final container = element.widget;
+      if (container is SelectionContainer) {
+        final root = element.findRenderObject();
+        if (root is RenderBox) {
+          final local = root.globalToLocal(position);
+          hit =
+              container.delegate?.value.selectionRects.any(
+                (rect) => rect.contains(local),
+              ) ??
+              false;
+        }
+        // The outer delegate already aggregates its nested selection containers.
+        return;
+      }
+      element.visitChildren(visit);
+    }
+
+    context.visitChildElements(visit);
+    return hit;
+  }
+
   void _move(PointerMoveEvent event) {
     final start = _start;
     final selected = _selectionAtDown;
+    final prepare = _prepareAtDown;
     if (_dragging ||
         _pointer != event.pointer ||
         start == null ||
-        selected == null) {
+        selected == null ||
+        prepare == null) {
       return;
     }
     if (!shouldStartSelectedTextDrag(
@@ -124,14 +170,11 @@ class _SelectedTextDragRegionState extends State<SelectedTextDragRegion> {
     )) {
       return;
     }
-    _pointer = null;
     _start = null;
     _selectionAtDown = null;
+    _prepareAtDown = null;
     _dragging = true;
-    // Begin building the content before cancelling the Flutter selection
-    // recognizers, which might otherwise clear the selected paragraph index.
-    final prepared = widget.prepareContent(selected);
-    GestureBinding.instance.cancelPointer(event.pointer);
+    final prepared = prepare();
     unawaited(
       _startSystemDrag(
         prepared,
@@ -144,9 +187,11 @@ class _SelectedTextDragRegionState extends State<SelectedTextDragRegion> {
 
   void _up(PointerEvent event) {
     if (_pointer != event.pointer) return;
+    _cancelPendingSession();
     _pointer = null;
     _start = null;
     _selectionAtDown = null;
+    _prepareAtDown = null;
   }
 
   Future<void> _startSystemDrag(
@@ -155,12 +200,14 @@ class _SelectedTextDragRegionState extends State<SelectedTextDragRegion> {
     required int pointer,
     required String fallbackText,
   }) async {
+    bool isActive() => mounted && _pointer == pointer;
+
     DataProviderHandle? handle;
     DragConfiguration? configuration;
     bool started = false;
     try {
       final content = await prepared;
-      if (!mounted || content == null || content.plainText.trim().isEmpty) {
+      if (!isActive() || content == null || content.plainText.trim().isEmpty) {
         return;
       }
       final plain = withoutDivineNameJoiners(content.plainText).trimRight();
@@ -179,11 +226,11 @@ class _SelectedTextDragRegionState extends State<SelectedTextDragRegion> {
           ),
         ],
       ).register();
-      if (!mounted) return;
+      if (!isActive()) return;
       final dragContext = await DragContext.instance();
-      if (!mounted) return;
+      if (!isActive()) return;
       final snapshot = await _preview(fallbackText);
-      if (!mounted) {
+      if (!isActive()) {
         snapshot.dispose();
         return;
       }
@@ -201,19 +248,28 @@ class _SelectedTextDragRegionState extends State<SelectedTextDragRegion> {
         allowedOperations: [DropOperation.copy],
       );
       final session = dragContext.newSession(pointer: pointer);
+      _pendingContext = dragContext;
+      _pendingSession = session;
       session.dragCompleted.addListener(() {
-        _dragging = false;
+        if (session.dragStarted) _dragging = false;
       });
+      if (!mounted) return;
       await dragContext.startDrag(
         buildContext: context,
         session: session,
         configuration: configuration,
         position: position,
       );
-      started = true;
+      started = session.dragStarted;
+      _pendingContext = null;
+      _pendingSession = null;
+      // Keep receiving release/cancel while preparing and serializing the request.
+      GestureBinding.instance.cancelPointer(pointer);
     } catch (error) {
       debugPrint('Selected text drag failed: $error');
     } finally {
+      _cancelPendingSession();
+      if (_pointer == pointer) _pointer = null;
       configuration?.disposeImages();
       if (!started && handle != null) await handle.dispose();
       if (!started || !mounted) _dragging = false;
@@ -251,7 +307,7 @@ class _SelectedTextDragRegionState extends State<SelectedTextDragRegion> {
 
   @override
   Widget build(BuildContext context) {
-    if (Theme.of(context).platform != TargetPlatform.windows) {
+    if (kIsWeb || Theme.of(context).platform != TargetPlatform.windows) {
       return widget.child;
     }
     return Listener(

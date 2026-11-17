@@ -15,10 +15,12 @@ spec.loader.exec_module(verifier)
 class ProvenanceTest(unittest.TestCase):
     def setUp(self):
         self.upstream = {
+            "lib/src/native/drag.dart": ("100644", b"upstream native drag"),
             "lib/reader.dart": ("100644", b"upstream Dart"),
             "rust/src/linux/reader.rs": ("100644", b"upstream Linux"),
             "cargokit/run_build_tool.sh": ("100755", b"upstream build"),
             "rust/src/win32/reader.rs": ("100644", b"upstream Windows"),
+            "rust/src/win32/drag.rs": ("100644", b"upstream Windows drag"),
             "cargokit/gradle/plugin.gradle": ("100644", b"upstream gradle"),
             "LICENSE": ("100644", b"license"),
         }
@@ -28,6 +30,14 @@ class ProvenanceTest(unittest.TestCase):
 
     def test_windows_reader_change_is_allowed(self):
         self.local["rust/src/win32/reader.rs"] = ("100644", b"patched Windows")
+        verifier.verify_sources(self.upstream, self.local)
+
+    def test_native_drag_cancellation_change_is_allowed(self):
+        self.local["lib/src/native/drag.dart"] = ("100644", b"patched native drag")
+        verifier.verify_sources(self.upstream, self.local)
+
+    def test_windows_drag_change_is_allowed(self):
+        self.local["rust/src/win32/drag.rs"] = ("100644", b"patched Windows drag")
         verifier.verify_sources(self.upstream, self.local)
 
     def test_cargokit_gradle_change_is_allowed(self):

@@ -19,8 +19,9 @@ use windows::{
             SystemServices::{MK_LBUTTON, MODIFIERKEYS_FLAGS},
         },
         UI::{
+            Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON, VK_RBUTTON},
             Shell::{CLSID_DragDropHelper, IDragSourceHelper, SHDRAGIMAGE},
-            WindowsAndMessaging::GetCursorPos,
+            WindowsAndMessaging::{GetCursorPos, GetSystemMetrics, SM_SWAPBUTTON},
         },
     },
 };
@@ -224,13 +225,23 @@ impl PlatformDragContext {
         let cancelled = Rc::new(Cell::new(false));
         let drop_source = DropSource::create(self.weak_self.clone(), session_id, cancelled.clone());
         let mut effects_out = DROPEFFECT_NONE;
-        unsafe {
-            let _ = DoDragDrop(
-                &data_object,
-                &drop_source,
-                DROPEFFECT(allowed_effects),
-                &mut effects_out as *mut DROPEFFECT,
-            );
+        // Preparation/serialization may finish after release. Never turn that into a drop.
+        let primary_button = if unsafe { GetSystemMetrics(SM_SWAPBUTTON) } != 0 {
+            VK_RBUTTON
+        } else {
+            VK_LBUTTON
+        };
+        if unsafe { GetAsyncKeyState(primary_button.0 as i32) } >= 0 {
+            cancelled.set(true);
+        } else {
+            unsafe {
+                let _ = DoDragDrop(
+                    &data_object,
+                    &drop_source,
+                    DROPEFFECT(allowed_effects),
+                    &mut effects_out as *mut DROPEFFECT,
+                );
+            }
         }
 
         // Data source might be still in use through IDataObjectAsyncCapability,

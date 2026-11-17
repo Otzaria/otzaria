@@ -2796,14 +2796,18 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   }
 
   /// הגבלת המו"ל של הטקסט שבעמודה: הספר הראשי, או המפרש שבעמודת מפרש.
-  Future<BookProtection> _textProtection(TextBookLoaded state) {
-    if (widget.isMainText || widget.isBookNotesColumn) {
+  Future<BookProtection> _textProtection(
+    TextBookLoaded state, {
+    SimpleTextViewer? sourceWidget,
+  }) {
+    final source = sourceWidget ?? widget;
+    if (source.isMainText || source.isBookNotesColumn) {
       return Future.value(state.protection);
     }
-    final reportBook = widget.reportBook;
+    final reportBook = source.reportBook;
     return reportBook != null
         ? BookProtectionRepository.instance.forBook(reportBook)
-        : BookProtectionRepository.instance.forTitle(widget.bookTitle ?? '');
+        : BookProtectionRepository.instance.forTitle(source.bookTitle ?? '');
   }
 
   Future<void> _copyFormattedText([
@@ -2864,46 +2868,53 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   }
 
   /// Prepares native drag content under the same protection as regular copy.
-  Future<SelectedTextDragContent?> _prepareSelectedTextDrag(
+  SelectedTextDragPreparation? _captureSelectedTextDrag(
     String capturedText,
-  ) async {
+  ) {
     if (capturedText.trim().isEmpty) return null;
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded) return null;
+    final sourceWidget = widget;
     final settings = context.read<SettingsBloc>().state;
     final selectedIndex = _savedSelectedIndex;
     final source = _sourceSelection;
+    final copyTarget = _textTarget;
     final headerIndex = _sourceIndex(selectedIndex);
     final segmentCount = selectionSegmentCount(
       start: _selectionLineStart,
       end: _selectionLineEnd,
       text: capturedText,
     );
-    final protection = await _textProtection(state);
-    if (!mounted || !ensureCopyAllowed(protection, segmentCount)) return null;
-    final content = await buildSelectedTextCopy(
-      plainText: capturedText,
-      selectedIndex: selectedIndex,
-      sourceContent: widget.content,
-      textBookState: state,
-      settingsState: settings,
-      headerBookOverride: widget.reportBook,
-      headerIndexOverride: headerIndex,
-      headerContentOverride: widget.isBookNotesColumn
-          ? state.content
-          : widget.reportBook != null
-          ? widget.content
-          : null,
-      copyTarget: _textTarget,
-      source: source,
-    );
-    if (content == null) return null;
-    return (
-      plainText: content.plainText,
-      htmlText: content.htmlText,
-      fontFamily: widget.fontFamily ?? settings.fontFamily,
-      fontSize: widget.fontSize,
-    );
+    return () async {
+      final protection = await _textProtection(
+        state,
+        sourceWidget: sourceWidget,
+      );
+      if (!mounted || !ensureCopyAllowed(protection, segmentCount)) return null;
+      final content = await buildSelectedTextCopy(
+        plainText: capturedText,
+        selectedIndex: selectedIndex,
+        sourceContent: sourceWidget.content,
+        textBookState: state,
+        settingsState: settings,
+        headerBookOverride: sourceWidget.reportBook,
+        headerIndexOverride: headerIndex,
+        headerContentOverride: sourceWidget.isBookNotesColumn
+            ? state.content
+            : sourceWidget.reportBook != null
+            ? sourceWidget.content
+            : null,
+        copyTarget: copyTarget,
+        source: source,
+      );
+      if (content == null) return null;
+      return (
+        plainText: content.plainText,
+        htmlText: content.htmlText,
+        fontFamily: sourceWidget.fontFamily ?? settings.fontFamily,
+        fontSize: sourceWidget.fontSize,
+      );
+    };
   }
 
   @override
@@ -2970,7 +2981,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                   return RtlSelectionShortcuts(
                     child: SelectedTextDragRegion(
                       selectedText: () => _savedSelectedText,
-                      prepareContent: _prepareSelectedTextDrag,
+                      captureContent: _captureSelectedTextDrag,
                       child: SelectableRegion(
                         key: _selectionRegionKey,
                         focusNode: _selectionFocusNode,
