@@ -450,6 +450,34 @@ class _DiscoveredBook {
   final String? conversionError;
 }
 
+// מנסים שוב בכל סריקה, כדי שנעילה לא תעכב את הסריקה ולא תמנע אינדוקס בעתיד.
+void _tryCreateBookFilePathIndex(sqlite3.Database reader, String dbPath) {
+  const indexName = 'idx_book_file_path';
+  try {
+    if (reader.select(
+      "SELECT 1 FROM sqlite_schema WHERE type = 'index' AND name = ?",
+      [indexName],
+    ).isNotEmpty) {
+      return;
+    }
+    final db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readWrite);
+    try {
+      db.execute('PRAGMA busy_timeout=0');
+      db.execute(
+        'CREATE INDEX IF NOT EXISTS $indexName '
+        'ON book(filePath) WHERE filePath IS NOT NULL',
+      );
+    } finally {
+      db.close();
+    }
+  } on sqlite3.SqliteException catch (error) {
+    if (error.resultCode != sqlite3.SqlError.SQLITE_BUSY &&
+        error.resultCode != sqlite3.SqlError.SQLITE_LOCKED) {
+      debugPrint('⚠️ לא ניתן ליצור אינדקס נתיבים לספרים אישיים: $error');
+    }
+  }
+}
+
 /// מסננת קבצים ללא שינוי ומכינה כותרות טקסטואליות מחוץ ל-UI isolate.
 Future<List<_DiscoveredBook>> _scanExternalFolderInIsolate(
   (String folderPath, String folderName, String dbPath) args,
@@ -466,6 +494,7 @@ Future<List<_DiscoveredBook>> _scanExternalFolderInIsolate(
 
   final books = <_DiscoveredBook>[];
   try {
+    if (db != null) _tryCreateBookFilePathIndex(db, args.$3);
     await _collectBookFilesRecursive(
       Directory(args.$1),
       ['ספרים אישיים', args.$2],

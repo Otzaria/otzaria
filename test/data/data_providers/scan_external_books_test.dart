@@ -166,6 +166,46 @@ void main() {
     );
   });
 
+  test('סריקה מוותרת על יצירת אינדקס בזמן נעילה ומנסה שוב', () async {
+    final file = await createTxtFile('duplicate.txt');
+    final stat = await file.stat();
+    for (final id in [1, 2]) {
+      _insertBook(
+        db,
+        id: id,
+        filePath: file.path,
+        fileSize: stat.size + id,
+        lastModified: stat.modified.millisecondsSinceEpoch,
+      );
+    }
+    db.execute('PRAGMA journal_mode=WAL');
+    final lookupPlan =
+        'EXPLAIN QUERY PLAN '
+        'SELECT id, fileSize, lastModified FROM book WHERE filePath = ? LIMIT 1';
+    final expected = [
+      {'path': file.path, 'existingBookId': 1},
+    ];
+
+    db.execute('BEGIN IMMEDIATE');
+    try {
+      final elapsed = Stopwatch()..start();
+      expect(
+        await scanExternalFolderForTest(tmpDir.path, 'testFolder', dbPath),
+        expected,
+      );
+      expect(elapsed.elapsed, lessThan(const Duration(seconds: 3)));
+      expect(db.select(lookupPlan, [file.path]).single['detail'], 'SCAN book');
+    } finally {
+      db.execute('ROLLBACK');
+    }
+
+    expect(await runScan(), expected);
+    expect(
+      db.select(lookupPlan, [file.path]).single['detail'],
+      contains('USING INDEX idx_book_file_path'),
+    );
+  });
+
   test('קבצים שאינם נתמכים (.log) מסוננים; ‎.epub נתמך ונסרק', () async {
     await createTxtFile('book.txt');
     await File(p.join(tmpDir.path, 'notes.log')).writeAsString('x');
