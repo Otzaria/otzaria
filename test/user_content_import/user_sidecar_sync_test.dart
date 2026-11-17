@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -80,6 +81,32 @@ void main() {
     expect(rows.map((r) => r['text']), ['סימן א', 'סימן ב']);
     expect(rows.map((r) => r['lineIndex']), [1, 2]);
     expect(rows.first['key'], 'Simanim');
+  });
+
+  test('קובצי כותרות באותה תיקייה חולקים סריקה אחת בכל סנכרון', () async {
+    final first = await addBook('ראשון.txt', 'א\nב');
+    final second = await addBook('שני.txt', 'א\nב');
+    writeSidecar('ראשון.כותרות.csv', 'כותרת,שורה\nא,1\n');
+    writeSidecar('שני.כותרות.csv', 'כותרת,שורה\nב,2\n');
+
+    final scannedFolder = _ScanCountingDirectory(folder);
+    Future<List<String>> sync() => IOOverrides.runZoned(
+      () => UserSidecarSync.applyForFolder(userDb: db, folderPath: folder.path),
+      createDirectory: (path) => path == folder.path
+          ? scannedFolder
+          : Zone.root.run(() => Directory(path)),
+    );
+
+    expect(await sync(), isEmpty);
+    expect(scannedFolder.shallowScans, 1);
+    expect((await headingRows(first)).single['text'], 'א');
+    expect((await headingRows(second)).single['text'], 'ב');
+
+    final third = await addBook('שלישי.txt', 'א\nב');
+    writeSidecar('שלישי.כותרות.csv', 'כותרת,שורה\nג,2\n');
+    expect(await sync(), isEmpty);
+    expect(scannedFolder.shallowScans, 2);
+    expect((await headingRows(third)).single['text'], 'ג');
   });
 
   test('קובץ כותרות רוחבי מזהה ספרים לפי עמודת ספר', () async {
@@ -757,4 +784,26 @@ void main() {
       expect(row['primarySource'], 'd:ספרייה');
     });
   });
+}
+
+class _ScanCountingDirectory implements Directory {
+  _ScanCountingDirectory(this.directory);
+
+  final Directory directory;
+  int shallowScans = 0;
+
+  @override
+  Future<bool> exists() => directory.exists();
+
+  @override
+  Stream<FileSystemEntity> list({
+    bool recursive = false,
+    bool followLinks = true,
+  }) {
+    if (!recursive) shallowScans++;
+    return directory.list(recursive: recursive, followLinks: followLinks);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

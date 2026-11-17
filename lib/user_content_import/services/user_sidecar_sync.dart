@@ -29,6 +29,10 @@ const _perBookHeadingSuffixes = ['.כותרות.csv', '.headings.csv'];
 ///
 /// קובץ שלא השתנה, ושהספרים שלו לא השתנו, מדולג.
 class UserSidecarSync {
+  UserSidecarSync._();
+
+  final _bookFilesByDirectory = <String, Map<String, List<File>>>{};
+
   /// מיישם את כל הקבצים הנלווים שתחת [folderPath]. מחזיר שגיאות לתצוגה
   /// למשתמש; לעולם אינו זורק. ב-isolate חובה להעביר [attachedLibraries].
   static Future<List<String>> applyForFolder({
@@ -41,6 +45,7 @@ class UserSidecarSync {
     final repo = UserContentRepository(userDb);
     final errors = <String>[];
     final seen = <String>{};
+    final sync = UserSidecarSync._();
     final libraries =
         attachedLibraries ?? UserContentImporter.attachedLinkLibraries();
     final catalogStamp = await _officialDatabaseStamp(
@@ -61,7 +66,7 @@ class UserSidecarSync {
           if (kind == null) continue;
           seen.add(entity.path);
           try {
-            await _applyFile(
+            await sync._applyFile(
               repo,
               userDb,
               entity,
@@ -112,7 +117,7 @@ class UserSidecarSync {
     return null;
   }
 
-  static Future<void> _applyFile(
+  Future<void> _applyFile(
     UserContentRepository repo,
     MyDatabase userDb,
     File file,
@@ -350,16 +355,17 @@ class UserSidecarSync {
 
   /// הספר שקובץ הכותרות שלו הוא `<שם הספר>.כותרות.csv` — אותו שם בסיס
   /// באותה תיקייה.
-  static Future<_UserBookFile?> _bookOfPerBookFile(
+  Future<_UserBookFile?> _bookOfPerBookFile(
     UserContentRepository repo,
     File file,
   ) async {
+    final directory = p.dirname(file.path);
     final base = _bookFileBaseName(file);
-    final dir = Directory(p.dirname(file.path));
-    await for (final entity in dir.list()) {
-      if (entity is! File) continue;
-      if (p.basenameWithoutExtension(entity.path) != base) continue;
-      final book = await _bookAt(repo, entity.path);
+    final byBase = _bookFilesByDirectory[directory] ??=
+        await _indexDirectoryFiles(directory);
+    for (final candidate in byBase[base] ?? const <File>[]) {
+      if (!await candidate.exists()) continue;
+      final book = await _bookAt(repo, candidate.path);
       if (book != null) return book;
     }
     return null;
@@ -416,6 +422,19 @@ class UserSidecarSync {
       }
     }
     return p.basenameWithoutExtension(name);
+  }
+
+  static Future<Map<String, List<File>>> _indexDirectoryFiles(
+    String directory,
+  ) async {
+    final byBase = <String, List<File>>{};
+    await for (final entity in Directory(directory).list()) {
+      if (entity is File) {
+        final base = p.basenameWithoutExtension(entity.path);
+        (byBase[base] ??= []).add(entity);
+      }
+    }
+    return byBase;
   }
 
   static Future<bool> _isUnchanged(
