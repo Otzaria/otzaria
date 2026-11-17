@@ -11,13 +11,10 @@ Link _link({required int index1, required int index2}) => Link(
 );
 
 void main() {
-  group('getCommentaryTargetIndex', () {
+  group('CommentarySyncIndex', () {
     test('מחזיר null כשאין קישורים', () {
       expect(
-        CommentarySyncHelper.getCommentaryTargetIndex(
-          linksForCommentary: const [],
-          logicalMainIndex: 5,
-        ),
+        CommentarySyncIndex(const []).targetIndexFor(5),
         isNull,
       );
     });
@@ -29,10 +26,7 @@ void main() {
       ];
       // logicalMainIndex 0 => mainLineNumber 1 => בדיוק על הקישור הראשון
       expect(
-        CommentarySyncHelper.getCommentaryTargetIndex(
-          linksForCommentary: links,
-          logicalMainIndex: 0,
-        ),
+        CommentarySyncIndex(links).targetIndexFor(0),
         0, // index2(1) - 1
       );
     });
@@ -44,10 +38,7 @@ void main() {
       ];
       // mainLineNumber 6 => בין הקישורים, אך נצמד לקודם (יעד 0)
       expect(
-        CommentarySyncHelper.getCommentaryTargetIndex(
-          linksForCommentary: links,
-          logicalMainIndex: 5,
-        ),
+        CommentarySyncIndex(links).targetIndexFor(5),
         0,
       );
     });
@@ -59,10 +50,7 @@ void main() {
       ];
       // mainLineNumber 2 => הקישור הקודם הוא (1,1), היעד 0
       expect(
-        CommentarySyncHelper.getCommentaryTargetIndex(
-          linksForCommentary: links,
-          logicalMainIndex: 1,
-        ),
+        CommentarySyncIndex(links).targetIndexFor(1),
         0,
       );
     });
@@ -74,10 +62,7 @@ void main() {
       ];
       // mainLineNumber 15 => אחרי הקישור האחרון
       expect(
-        CommentarySyncHelper.getCommentaryTargetIndex(
-          linksForCommentary: links,
-          logicalMainIndex: 14,
-        ),
+        CommentarySyncIndex(links).targetIndexFor(14),
         49, // index2(50) - 1
       );
     });
@@ -89,10 +74,7 @@ void main() {
       ];
       // mainLineNumber 5 => לפני הקישור הראשון
       expect(
-        CommentarySyncHelper.getCommentaryTargetIndex(
-          linksForCommentary: links,
-          logicalMainIndex: 4,
-        ),
+        CommentarySyncIndex(links).targetIndexFor(4),
         49, // index2(50) - 1
       );
     });
@@ -104,10 +86,7 @@ void main() {
       ];
       // mainLineNumber 6 => הקישור הקודם הוא (1,1), היעד 0
       expect(
-        CommentarySyncHelper.getCommentaryTargetIndex(
-          linksForCommentary: links,
-          logicalMainIndex: 5,
-        ),
+        CommentarySyncIndex(links).targetIndexFor(5),
         0,
       );
     });
@@ -120,10 +99,7 @@ void main() {
         _link(index1: 10, index2: 57),
       ];
       expect(
-        CommentarySyncHelper.getCommentaryTargetIndex(
-          linksForCommentary: links,
-          logicalMainIndex: 9,
-        ),
+        CommentarySyncIndex(links).targetIndexFor(9),
         41, // index2(42) - 1 — הקטע הראשון, לא זה שבמקרה ראשון ברשימה
       );
     });
@@ -139,10 +115,7 @@ void main() {
       ];
       for (final links in [ascending, descending]) {
         expect(
-          CommentarySyncHelper.getCommentaryTargetIndex(
-            linksForCommentary: links,
-            logicalMainIndex: 6,
-          ),
+          CommentarySyncIndex(links).targetIndexFor(6),
           19, // index2(20) - 1, בשני סדרי הקלט
         );
       }
@@ -155,12 +128,31 @@ void main() {
         _link(index1: 30, index2: 65),
       ];
       expect(
-        CommentarySyncHelper.getCommentaryTargetIndex(
-          linksForCommentary: links,
-          logicalMainIndex: 4,
-        ),
+        CommentarySyncIndex(links).targetIndexFor(4),
         64, // index2(65) - 1
       );
+    });
+
+    test('מחשב כמה יעדים מאותו אינדקס בלי לשנות את סדר הקישורים', () {
+      final links = [
+        _link(index1: 30, index2: 140),
+        _link(index1: 10, index2: 40),
+        _link(index1: 30, index2: 120),
+        _link(index1: 20, index2: 80),
+        _link(index1: 10, index2: 20),
+      ];
+      final original = List<Link>.of(links);
+      final index = CommentarySyncIndex(links);
+
+      expect(
+        [-1, 9, 18, 19, 28, 29, 100].map(index.targetIndexFor),
+        orderedEquals([19, 19, 19, 79, 79, 119, 119]),
+      );
+      expect(links, orderedEquals(original));
+
+      links.add(_link(index1: 20, index2: 10));
+      expect(index.targetIndexFor(19), 79);
+      expect(CommentarySyncIndex(links).targetIndexFor(19), 9);
     });
   });
 
