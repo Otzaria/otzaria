@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:otzaria/theme/app_theme_data.dart';
+import 'package:otzaria/theme/app_seed_colors.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/tools/shamor_zachor/models/book_model.dart';
@@ -696,4 +699,132 @@ void main() {
       }
     });
   });
+
+  final openingThemes = {
+    'בהיר': AppThemeData.light(
+      AppThemeData.createColorScheme(
+        AppSeedColors.defaultLight,
+        Brightness.light,
+      ),
+      compactMenuMode: false,
+    ),
+    'כהה': AppThemeData.dark(
+      AppThemeData.createColorScheme(
+        AppSeedColors.defaultDark,
+        Brightness.dark,
+      ),
+      compactMenuMode: false,
+    ),
+    'לבן': AppThemeData.light(
+      AppThemeData.createColorScheme(AppSeedColors.white, Brightness.light),
+      compactMenuMode: false,
+      variant: AppThemeVariant.white,
+    ),
+  };
+  for (final theme in openingThemes.entries) {
+    for (final width in [360.0, 1200.0]) {
+      testWidgets(
+        'לחיצה על הלכה בשמות חוזרים, ${theme.key}, רוחב $width, טקסט 1.3',
+        (
+          tester,
+        ) async {
+          tester.view.physicalSize = Size(width, 900);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.reset);
+          BookSection section(
+            String id,
+            String title,
+            int start,
+            int end, [
+            List<BookSection> children = const [],
+          ]) => BookSection(
+            id: id,
+            title: title,
+            level: children.isEmpty ? 2 : 1,
+            startPage: start,
+            endPage: end,
+            children: children,
+          );
+          final book = BookDetails(
+            id: 7,
+            contentType: 'text',
+            parts: const [],
+            sections: [
+              section('p9', 'פרק ט', 0, 49, [section('p9h1', 'הלכה א', 1, 49)]),
+              section('p10', 'פרק י', 50, 99, [
+                section('p10h1', 'הלכה א', 51, 69),
+                section('p10h3', 'הלכה ג', 70, 99),
+              ]),
+            ],
+          );
+          final progress = ShamorZachorProgressProvider(
+            progressService: _MemoryProgressService(),
+          );
+          addTearDown(progress.dispose);
+          await progress.ensureLoaded();
+          final opened = <int>[];
+
+          await tester.pumpWidget(
+            MultiProvider(
+              providers: [
+                ChangeNotifierProvider<ShamorZachorDataProvider>(
+                  create: (_) => _ReadyDataProvider(book),
+                ),
+                ChangeNotifierProvider<ShamorZachorProgressProvider>.value(
+                  value: progress,
+                ),
+              ],
+              child: MaterialApp(
+                theme: theme.value,
+                builder: (context, child) => MediaQuery(
+                  data: MediaQuery.of(
+                    context,
+                  ).copyWith(textScaler: const TextScaler.linear(1.3)),
+                  child: child!,
+                ),
+                home: Directionality(
+                  textDirection: TextDirection.rtl,
+                  child: Scaffold(
+                    body: BookDetailScreen(
+                      topLevelCategoryKey: 'הלכה',
+                      bookName: 'ספר',
+                      bookId: 7,
+                      bookDetails: book,
+                      onOpenLine: opened.add,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          expect(find.byTooltip('פתיחת פרק י, הלכה ג'), findsOneWidget);
+          await tester.tap(find.text('הלכה ג'));
+          await tester.tap(find.text('הלכה א').last);
+          await tester.pump();
+
+          expect(opened, [70, 51]);
+          expect(progress.getProgressForBookById(7), isEmpty);
+
+          final titleFocus = Focus.of(tester.element(find.text('הלכה ג')));
+          for (var step = 0; step < 50 && !titleFocus.hasPrimaryFocus; step++) {
+            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+            await tester.pump();
+          }
+          expect(titleFocus.hasPrimaryFocus, isTrue);
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.sendKeyEvent(LogicalKeyboardKey.space);
+          await tester.pump();
+          expect(opened, [70, 51, 70, 70]);
+          expect(progress.getProgressForBookById(7), isEmpty);
+
+          await tester.tap(find.text('פרק י'));
+          await tester.pumpAndSettle();
+          expect(find.text('הלכה ג'), findsNothing);
+          expect(opened, [70, 51, 70, 70]);
+        },
+      );
+    }
+  }
 }

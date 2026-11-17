@@ -35,6 +35,9 @@ class BookDetailScreen extends StatefulWidget {
   final BookDetails? bookDetails;
   final VoidCallback? onBack;
 
+  /// פותח את הספר בשורת מקור; כשהוא null כותרות הסעיפים הן טקסט בלבד.
+  final ValueChanged<int>? onOpenLine;
+
   const BookDetailScreen({
     super.key,
     required this.topLevelCategoryKey,
@@ -42,6 +45,7 @@ class BookDetailScreen extends StatefulWidget {
     this.bookId,
     this.bookDetails,
     this.onBack,
+    this.onOpenLine,
   });
 
   @override
@@ -919,14 +923,17 @@ class _BookDetailScreenState extends State<BookDetailScreen>
           children: [
             Expanded(
               flex: _titleFlex,
-              child: Text(
-                learnable.displayLabel ?? learnable.partName,
+              child: _SectionTitleLink(
+                label: learnable.displayLabel ?? learnable.partName,
+                tooltip: ToolsMessages.openTrackedSection(
+                  learnable.hierarchyPath.join(', '),
+                ),
                 style: _headingStyle.copyWith(
                   color: theme.colorScheme.onSurface,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                softWrap: false,
+                onOpen: widget.onOpenLine == null
+                    ? null
+                    : () => widget.onOpenLine!(section.startPage),
               ),
             ),
             Expanded(
@@ -1020,6 +1027,87 @@ class _BookDetailScreenState extends State<BookDetailScreen>
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// כותרת הלכה שלחיצה עליה פותחת את הספר במקומה.
+class _SectionTitleLink extends StatefulWidget {
+  final String label;
+  final String tooltip;
+  final TextStyle style;
+  final VoidCallback? onOpen;
+
+  const _SectionTitleLink({
+    required this.label,
+    required this.tooltip,
+    required this.style,
+    required this.onOpen,
+  });
+
+  @override
+  State<_SectionTitleLink> createState() => _SectionTitleLinkState();
+}
+
+class _SectionTitleLinkState extends State<_SectionTitleLink> {
+  bool _hovered = false;
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final onOpen = widget.onOpen;
+    final primary = Theme.of(context).colorScheme.primary;
+    final text = Text(
+      widget.label,
+      style: (_hovered || _focused) && onOpen != null
+          ? widget.style.copyWith(
+              color: primary,
+              decoration: TextDecoration.underline,
+              decorationColor: primary,
+            )
+          : widget.style,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      softWrap: false,
+    );
+    if (onOpen == null) return text;
+
+    // רק הכותרת לחיצה ולא כל השורה, כדי שלחיצה ליד התיבות לא תפתח ספר.
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Semantics(
+        link: true,
+        button: true,
+        child: Tooltip(
+          message: widget.tooltip,
+          child: InkWell(
+            mouseCursor: SystemMouseCursors.click,
+            onHover: (hovered) => setState(() => _hovered = hovered),
+            onFocusChange: (focused) => setState(() => _focused = focused),
+            onTap: onOpen,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(child: text),
+                // מקום קבוע לאייקון, כדי שהכותרת לא תתקצר רק בריחוף.
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(
+                    start: AppTokens.spaceXS,
+                  ),
+                  child: Visibility.maintain(
+                    visible: _hovered || _focused,
+                    child: Icon(
+                      FluentIcons.open_24_regular,
+                      size: AppTokens.iconSM,
+                      color: primary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

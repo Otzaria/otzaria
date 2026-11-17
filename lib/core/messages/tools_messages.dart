@@ -39,6 +39,7 @@ abstract class ToolsMessages {
   static String bookRemovedFromShamorZachor(String bookName) =>
       'הספר "$bookName" הוסר משמור וזכור';
   static String bookRemoveError(Object error) => 'שגיאה בהסרת הספר: $error';
+  static String openTrackedSection(String path) => 'פתיחת $path';
   static const String noBooksSelectedToAdd = 'לא נבחרו ספרים להוספה';
   static String booksAddedToTracking(int count) => '$count ספרים נוספו למעקב';
   static String booksAddFailed(int count) => '$count ספרים לא נוספו';
