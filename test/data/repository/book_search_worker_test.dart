@@ -49,6 +49,22 @@ void main() {
     expect(worker.usesWorker, isTrue);
   });
 
+  test('FIFO handles a burst of queued searches without reordering', () async {
+    final entries = _entries();
+    final queries = [
+      'שולחן', 'חיים', 'הלכה', 'מב', 'ערוך', 'ברורה',
+      'ביאור', 'שולחן ערוך', 'החפץ', 'טור',
+    ];
+    final pending = [
+      for (final text in queries)
+        worker.search(entries, _query(text)),
+    ];
+    final results = await Future.wait(pending);
+    for (var i = 0; i < queries.length; i++) {
+      expect(results[i], _direct(entries, queries[i]), reason: queries[i]);
+    }
+  });
+
   test('uploads the index only when the entries change', () async {
     await worker.search(_entries(), _query('שולחן'));
     await worker.search(_entries(), _query('שולחן ערוך'));
