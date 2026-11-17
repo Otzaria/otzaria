@@ -302,6 +302,56 @@ void main() {
         orderedEquals(['1.pdf', 'hebrewbooks_org_1.pdf', '2.pdf']),
       );
     });
+
+    test('כשל בכונן ממתין רק לבדיקות שקדמו לו', () async {
+      final first = Completer<bool>();
+      final later = Completer<bool>();
+      final laterError = Completer<bool>();
+      final checked = <String>[];
+      var returned = false;
+      final probe =
+          IOOverrides.runZoned(
+            () => FileSystemData.probeHebrewBooksPdfFilesByIds({1, 2, 3, 4}),
+            createFile: (p) => _ProbeFile(p, () async {
+              final name = path.basename(p);
+              checked.add(name);
+              return switch (name) {
+                '1.pdf' => first.future,
+                '2.pdf' => throw FileSystemException(
+                  'Exists failed',
+                  p,
+                  _notReady,
+                ),
+                '3.pdf' => later.future,
+                '4.pdf' => laterError.future,
+                _ => false,
+              };
+            }),
+          ).then((files) {
+            returned = true;
+            return files;
+          });
+
+      try {
+        await Future<void>.delayed(Duration.zero);
+        expect(checked, orderedEquals(['1.pdf', '2.pdf', '3.pdf', '4.pdf']));
+        expect(returned, isFalse);
+
+        first.complete(true);
+        await Future<void>.delayed(Duration.zero);
+        expect(returned, isTrue);
+        expect(await probe, {'1.pdf': path.join(root, '1.pdf')});
+
+        later.complete(true);
+        laterError.completeError(StateError('בדיקה מאוחרת נכשלה'));
+        await Future<void>.delayed(Duration.zero);
+        expect(checked, isNot(contains('hebrewbooks_org_3.pdf')));
+      } finally {
+        for (final pending in [first, later, laterError]) {
+          if (!pending.isCompleted) pending.complete(false);
+        }
+      }
+    });
   });
 }
 
