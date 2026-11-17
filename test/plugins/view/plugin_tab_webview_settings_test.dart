@@ -44,6 +44,14 @@ void main() {
       expect(settings.pinchZoomEnabled, isFalse);
     });
 
+    test(
+      'החלקה אופקית לא מנווטת אחורה בתוסף — היא של הטאבים (issue #3161)',
+      () {
+        final settings = buildPluginTabWebViewSettings(isDevelopment: false);
+        expect(settings.allowsBackForwardNavigationGestures, isFalse);
+      },
+    );
+
     test('הגדרות אבטחה ותצוגה נשמרות', () {
       final settings = buildPluginTabWebViewSettings(isDevelopment: false);
       expect(settings.allowFileAccessFromFileURLs, isFalse);
