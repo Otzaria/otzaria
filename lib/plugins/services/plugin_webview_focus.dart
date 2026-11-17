@@ -126,6 +126,26 @@ void _focusFlutterViewWin32() {
   });
 }
 
+@visibleForTesting
+const MethodChannel macKeyboardFocusChannel = MethodChannel(
+  'otzaria/keyboard_focus',
+);
+
+/// מחזיר את המקלדת של המערכת ל-Flutter בחלון [viewId] אחרי שהתוסף ירד מהמסך.
+///
+/// ב-macOS ה-WKWebView נשאר first responder, ו-⌘W נבלע עד קליק (#2945). הצד
+/// הנייטיבי נוגע רק ב-responder של WebView, ולכן שדה טקסט של Flutter לא נפגע.
+void returnKeyboardFromHiddenPluginWebView(int viewId) {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.macOS) return;
+  unawaited(
+    macKeyboardFocusChannel
+        .invokeMethod<void>('reclaimFromWebView', {'viewId': viewId})
+        .catchError((Object e) {
+          debugPrint('returnKeyboardFromHiddenPluginWebView failed: $e');
+        }),
+  );
+}
+
 /// האם חלון האפליקציה בחזית. Alt-Tab בזמן טעינת תוסף לא יגרור העברת פוקוס.
 bool appIsActiveNow() {
   final state = WidgetsBinding.instance.lifecycleState;

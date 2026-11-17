@@ -164,6 +164,8 @@ class _WindowVisibility {
   bool minimized = false;
 
   bool get isForeground => readerScreenVisible && shown && !minimized;
+
+  bool get showsPlugins => isForeground && visibleKeys.isNotEmpty;
 }
 
 class PluginRuntimeDispatcher {
@@ -836,7 +838,9 @@ class PluginRuntimeDispatcher {
   void setVisiblePluginInstances(Set<PluginInstanceKey> keys, {int? viewId}) {
     final window = _window(viewId);
     if (setEquals(window.visibleKeys, keys)) return;
+    final showedPlugins = window.showsPlugins;
     window.visibleKeys = Set.unmodifiable(keys);
+    _reclaimKeyboardIfPluginsLeft(window, showedPlugins, viewId);
     _scheduleForegroundReconciliation();
   }
 
@@ -844,8 +848,20 @@ class PluginRuntimeDispatcher {
   void setReaderScreenVisible(bool visible, {int? viewId}) {
     final window = _window(viewId);
     if (window.readerScreenVisible == visible) return;
+    final showedPlugins = window.showsPlugins;
     window.readerScreenVisible = visible;
+    _reclaimKeyboardIfPluginsLeft(window, showedPlugins, viewId);
     _scheduleForegroundReconciliation();
+  }
+
+  void _reclaimKeyboardIfPluginsLeft(
+    _WindowVisibility window,
+    bool showedPlugins,
+    int? viewId,
+  ) {
+    if (showedPlugins && !window.showsPlugins) {
+      returnKeyboardFromHiddenPluginWebView(viewId ?? mainViewId);
+    }
   }
 
   /// מעדכן אם החלון עצמו מוצג. חלון שנסגר מוסתר ולא נהרס, ובלי זה

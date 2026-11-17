@@ -3,6 +3,7 @@ import FlutterMacOS
 import ImageIO
 import Metal
 import QuartzCore
+import WebKit
 
 /// Impeller (ברירת המחדל מ-Flutter 3.47) רק על GPU של Apple Silicon. על Intel, ובמיוחד
 /// על GPU ישן תחת OCLP, העלייה נתקעת (#1898), ולכן שם Skia. `OTZARIA_RENDERER` עוקף לבדיקה.
@@ -58,12 +59,53 @@ class OtzariaWindow: NSWindow {
   }
 }
 
+/// WKWebView של תוסף שירד מהמסך נשאר first responder (או מוריש אותו לחלון),
+/// וקיצורים כמו ⌘W אינם מגיעים ל-Flutter עד קליק (#2945).
+enum OtzariaKeyboardFocus {
+  static func reclaimFromWebView(viewId: FlutterViewIdentifier) {
+    for window in NSApp.windows {
+      guard let controller = window.contentViewController as? FlutterViewController,
+        controller.viewIdentifier == viewId
+      else { continue }
+      if responderNeedsReclaim(window.firstResponder, in: window),
+        let flutterView = findFlutterView(in: controller.view)
+      {
+        window.makeFirstResponder(flutterView)
+      }
+      return
+    }
+  }
+
+  /// רק WebView או חלון בלי responder — שדה טקסט של Flutter נשאר במקומו.
+  static func responderNeedsReclaim(_ responder: NSResponder?, in window: NSWindow) -> Bool {
+    guard let responder = responder, responder !== window else { return true }
+    guard let view = responder as? NSView else { return false }
+    if view.window == nil || view.isHiddenOrHasHiddenAncestor { return true }
+    var current: NSView? = view
+    while let candidate = current {
+      if candidate is WKWebView { return true }
+      current = candidate.superview
+    }
+    return false
+  }
+
+  /// FlutterView אינו חשוף ב-API הציבורי; זה ה-view שקליק הופך ל-first responder.
+  static func findFlutterView(in root: NSView) -> NSView? {
+    if NSStringFromClass(type(of: root)) == "FlutterView" { return root }
+    for subview in root.subviews {
+      if let found = findFlutterView(in: subview) { return found }
+    }
+    return nil
+  }
+}
+
 class MainFlutterWindow: OtzariaWindow {
   // חלון ה-splash הנייטיב (סמל צף שקוף) וערוץ הסגירה שלו.
   private var splashWindow: NSWindow?
   private var splashChannel: FlutterMethodChannel?
   private var splashShownAt: Date?
   private var terminationChannel: FlutterMethodChannel?
+  private var keyboardFocusChannel: FlutterMethodChannel?
   private(set) var isDartCloseHandlingEnabled = false
   private var isDartTerminationAllowed = false
 
@@ -114,6 +156,21 @@ class MainFlutterWindow: OtzariaWindow {
       }
     }
     self.terminationChannel = terminationChannel
+
+    let keyboardFocusChannel = FlutterMethodChannel(
+      name: "otzaria/keyboard_focus",
+      binaryMessenger: flutterViewController.engine.binaryMessenger)
+    keyboardFocusChannel.setMethodCallHandler { call, result in
+      guard call.method == "reclaimFromWebView" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      let args = call.arguments as? [String: Any]
+      let viewId = (args?["viewId"] as? NSNumber)?.int64Value ?? 0
+      OtzariaKeyboardFocus.reclaimFromWebView(viewId: FlutterViewIdentifier(viewId))
+      result(nil)
+    }
+    self.keyboardFocusChannel = keyboardFocusChannel
 
     // ערוץ `otzaria/multiwindow` של החלון הראשי (הסתרה, הבאה לחזית ושחזור).
     OtzariaWindowManager.shared.registerMainWindow(

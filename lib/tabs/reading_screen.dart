@@ -16,6 +16,8 @@ import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/services/plugin_text_reader_registry.dart';
+import 'package:otzaria/plugins/services/plugin_webview_focus.dart'
+    show returnKeyboardFromHiddenPluginWebView;
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -49,6 +51,18 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
+
+/// האם [pane] מציג WebView של תוסף: טאב תוסף או ספר בקורא של תוסף.
+@visibleForTesting
+bool paneShowsPlugin(
+  OpenedTab? pane, [
+  PluginTextReaderRegistry? textReaders,
+]) {
+  if (pane is ToolTab) return pane.isPlugin;
+  if (pane is! TextBookTab) return false;
+  final registry = textReaders ?? PluginTextReaderRegistry.instance;
+  return registry.activePlugin != null && registry.usesPlugin(pane);
+}
 
 class ReadingScreen extends StatefulWidget {
   const ReadingScreen({super.key, this.onFindRefRequested});
@@ -263,6 +277,16 @@ class _ReadingScreenState extends State<ReadingScreen>
               !identical(previous.currentTab, current.currentTab) ||
               previous.updateCounter != current.updateCounter,
           listener: (context, state) => _syncVisiblePluginTabs(state),
+        ),
+        // בטאב מפוצל התוסף נשאר מוצג, אבל המקלדת שייכת לחלונית הספר (#2945).
+        BlocListener<TabsBloc, TabsState>(
+          listenWhen: (previous, current) =>
+              current.activePane != null &&
+              paneShowsPlugin(previous.activePane) &&
+              !paneShowsPlugin(current.activePane),
+          listener: (context, state) => returnKeyboardFromHiddenPluginWebView(
+            _viewId ?? PluginRuntimeDispatcher.mainViewId,
+          ),
         ),
         BlocListener<TabsBloc, TabsState>(
           listener: (context, state) {
