@@ -27,6 +27,7 @@ import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
+import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdfrx/pdfrx.dart';
 
@@ -457,6 +458,51 @@ void main() {
       expect(tab.navigationHistory.next, isNull);
       expect(tab.navigationHistory.last, previousLocation);
       expect(tester.takeException(), isNull);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await disposePdfDocument(tester, document);
+    }
+  });
+
+  testWidgets('דפדוף בתצוגת ספר מעדכן את הכותרת לפי המתאר הנוכחי', (
+    tester,
+  ) async {
+    final (bloc, tab) = await pumpBook(tester);
+    final document = tab.pdfViewerController.document;
+
+    PdfOutlineNode heading(String title, int page) => PdfOutlineNode(
+      title: title,
+      dest: PdfDest(page, PdfDestCommand.fit, null),
+      children: const [],
+    );
+
+    Future<void> turnTo(LogicalKeyboardKey key, int page, String title) async {
+      await tester.sendKeyEvent(key);
+      await settle(tester, rounds: 20);
+      expect(tab.pageNumber, page);
+      expect(
+        find.descendant(of: find.byType(AppTopBar), matching: find.text(title)),
+        findsOneWidget,
+      );
+    }
+
+    try {
+      bloc.add(const SetLayoutMode(PdfLayoutMode.bookView));
+      await settle(tester, rounds: 30);
+      await tester.tapAt(tester.getCenter(find.byType(PdfViewer)));
+      await settle(tester, rounds: 3);
+      tab.outline.value = [heading('פרק ראשון', 2), heading('פרק שני', 3)];
+      await turnTo(
+        LogicalKeyboardKey.pageDown,
+        2,
+        'ספר בדיקה, פרק ראשון — פרק שני',
+      );
+
+      tab.outline.value = null;
+      await turnTo(LogicalKeyboardKey.pageDown, 4, 'ספר בדיקה');
+
+      tab.outline.value = [heading('פרק חלופי', 3)];
+      await turnTo(LogicalKeyboardKey.pageUp, 2, 'ספר בדיקה, פרק חלופי');
     } finally {
       await tester.pumpWidget(const SizedBox.shrink());
       await disposePdfDocument(tester, document);
