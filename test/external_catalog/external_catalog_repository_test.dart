@@ -982,6 +982,27 @@ void main() {
       },
     );
 
+    test('מיפוי היברובוקס מרובה מזהים שומר סדר ותקרה לכל ספר', () async {
+      final db = sqlite3.open(repository.databasePath);
+      createMappingTable(db);
+      for (var id = 1; id <= 21; id++) {
+        db.execute(
+          "INSERT INTO otzaria_hebrew_books VALUES (?, 1, 'א', 1, ?)",
+          [id, id.toString().padLeft(2, '0')],
+        );
+      }
+      db.execute(
+        "INSERT INTO otzaria_hebrew_books VALUES (100, 2, 'ב', 1, 'high')",
+      );
+      db.close();
+
+      expect(await repository.getHebrewBookIdsForOtzariaIds([2, 99, 1]), [
+        100,
+        for (var id = 21; id >= 2; id--) id,
+      ]);
+      expect(await repository.getHebrewBookIdsForOtzariaIds(const []), isEmpty);
+    });
+
     group('מיפוי אוצר החכמה', () {
       void createOtzarTables(Database db) {
         db.execute(

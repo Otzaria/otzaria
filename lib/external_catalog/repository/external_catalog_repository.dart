@@ -107,23 +107,25 @@ class ExternalCatalogRepository {
 
   /// מזהי היברובוקס הממופים לספר אוצריא, מסודרים לפי איכות ההתאמה
   /// (`is_best` ואז `confidence`). מחזיר רשימה ריקה כשאין מיפוי או DB.
-  Future<List<int>> getHebrewBookIdsForOtzariaId(int otzariaId) async {
-    return _selectMappingColumn(
-      select: 'hb_id',
-      where: 'otzaria_id = ?',
-      argument: otzariaId,
-    );
-  }
+  Future<List<int>> getHebrewBookIdsForOtzariaId(int otzariaId) =>
+      getHebrewBookIdsForOtzariaIds([otzariaId]);
+
+  /// מזהי היברובוקס בקבוצות לפי סדר מזהי אוצריא, עד 20 התאמות לכל מזהה.
+  Future<List<int>> getHebrewBookIdsForOtzariaIds(List<int> otzariaIds) =>
+      _selectMappingColumn(
+        select: 'hb_id',
+        where: 'otzaria_id = ?',
+        arguments: otzariaIds,
+      );
 
   /// מזהי ספרי אוצריא הממופים לספר היברובוקס — הכיוון ההפוך של
   /// [getHebrewBookIdsForOtzariaId].
-  Future<List<int>> getOtzariaIdsForHebrewBookId(int hbId) async {
-    return _selectMappingColumn(
-      select: 'otzaria_id',
-      where: 'hb_id = ?',
-      argument: hbId,
-    );
-  }
+  Future<List<int>> getOtzariaIdsForHebrewBookId(int hbId) =>
+      _selectMappingColumn(
+        select: 'otzaria_id',
+        where: 'hb_id = ?',
+        arguments: [hbId],
+      );
 
   /// ספרי אוצר החכמה הממופים לספר אוצריא, מסודרים לפי איכות ההתאמה
   /// (`is_best` ואז `confidence`), כל אחד עם שם הכרך כפי שבקטלוג.
@@ -138,10 +140,12 @@ class ExternalCatalogRepository {
   Future<List<int>> _selectMappingColumn({
     required String select,
     required String where,
-    required int argument,
+    required List<int> arguments,
   }) {
+    if (arguments.isEmpty) return Future.value(const <int>[]);
+    final ids = List<int>.of(arguments);
     return _runMappingQuery(
-      (dbPath) => _queryMappingColumn(dbPath, select, where, argument),
+      (dbPath) => _queryMappingColumn(dbPath, select, where, ids),
       const <int>[],
     );
   }
@@ -201,20 +205,24 @@ class ExternalCatalogRepository {
     String dbPath,
     String select,
     String where,
-    int argument,
+    List<int> arguments,
   ) {
     sqlite3.Database? db;
     try {
       db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
-      final rows = db.select(
+      final statement = db.prepare(
         'SELECT $select FROM otzaria_hebrew_books WHERE $where '
         'ORDER BY is_best DESC, confidence DESC LIMIT 20',
-        [argument],
       );
-      return [
-        for (final row in rows)
-          if (row.values.first case final int id) id,
-      ];
+      try {
+        return [
+          for (final argument in arguments)
+            for (final row in statement.select([argument]))
+              if (row[select] case final int id) id,
+        ];
+      } finally {
+        statement.close();
+      }
     } catch (e) {
       debugPrint('ExternalCatalogRepository: mapping query failed: $e');
       return const [];

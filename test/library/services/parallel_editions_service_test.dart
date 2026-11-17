@@ -214,8 +214,8 @@ void main() {
   group('מיפוי היברובוקס המובנה (issue #1273)', () {
     test('ספר ספרייה: מהדורות מקומיות בלי תוסף רשום', () async {
       final requested = <int>[];
-      ParallelEditionsService.builtInExternalIdsFor = (id) async {
-        requested.add(id);
+      ParallelEditionsService.builtInExternalIdsFor = (ids) async {
+        requested.addAll(ids);
         return [21, 22];
       };
       loaderResponse = [_localExternalBook(22), _localExternalBook(21)];
@@ -231,9 +231,12 @@ void main() {
     });
 
     test('ספר היברובוקס: שני צעדים במיפוי והחרגת הספר הנוכחי', () async {
-      ParallelEditionsService.builtInOtzariaIdsFor = (id) async => [3, 4];
-      ParallelEditionsService.builtInExternalIdsFor = (id) async =>
-          id == 3 ? [7, 8] : [9, 8];
+      final requested = <List<int>>[];
+      ParallelEditionsService.builtInOtzariaIdsFor = (id) async => [3, 4, 3];
+      ParallelEditionsService.builtInExternalIdsFor = (ids) async {
+        requested.add(ids);
+        return [7, 8, 9, 8];
+      };
       loaderResponse = [_localExternalBook(8), _localExternalBook(9)];
 
       final current = PdfBook(
@@ -247,6 +250,9 @@ void main() {
       );
 
       expect([for (final book in editions) book.id], [8, 9]);
+      expect(requested, [
+        [3, 4],
+      ]);
       expect(loaderRequestedIds, {8, 9});
     });
   });
