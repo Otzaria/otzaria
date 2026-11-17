@@ -53,6 +53,25 @@ class _CountingCategory extends Category {
   }
 }
 
+class _CountingLibrary extends Library {
+  _CountingLibrary({required super.categories});
+
+  int bookScans = 0;
+  int categoryScans = 0;
+
+  @override
+  List<Book> getAllBooks() {
+    bookScans++;
+    return super.getAllBooks();
+  }
+
+  @override
+  List<Category> getAllCategories() {
+    categoryScans++;
+    return super.getAllCategories();
+  }
+}
+
 void main() {
   group('parseCategoryQuery', () {
     setUp(AcronymsCache.instance.clear);
@@ -84,6 +103,49 @@ void main() {
       final parsed = parseCategoryQuery('מילה@בראשיתת', library);
       expect(parsed.categoryFound, isTrue);
       expect(parsed.facets, contains(contains('בראשית')));
+    });
+
+    test('כמה שמות וניסיון נתיב הפוך חולקים סריקה ונרמול', () {
+      final book = _CountingBook();
+      final library = _CountingLibrary(
+        categories: [
+          _category('תורה', [book]),
+        ],
+      );
+
+      final parsed = parseCategoryQuery(
+        'מילה@לאקייםבכללאא@לאקייםבכללבב/לאקייםבכללגג',
+        library,
+      );
+
+      expect(parsed.facets, isEmpty);
+      expect(parsed.notFoundNames, hasLength(2));
+      expect(library.bookScans, 1);
+      expect(library.categoryScans, 1);
+      expect(book.titleReads, 1);
+    });
+
+    test('שאילתה בלי שמות אינה סורקת את הקטלוג', () {
+      final library = _CountingLibrary(categories: []);
+      parseCategoryQuery('מילה', library);
+      parseCategoryQuery('מילה@@', library);
+      expect(library.bookScans, 0);
+      expect(library.categoryScans, 0);
+    });
+
+    test('נתוני פענוח אינם נשמרים לשאילתה הבאה לאחר שינוי ספרייה', () {
+      final category = _category('ספרים', []);
+      final library = _CountingLibrary(categories: [category]);
+      expect(parseCategoryQuery('מילה@בראשית', library).facets, isEmpty);
+
+      final book = TextBook(title: 'בראשית', id: 42);
+      category.books.add(book);
+      expect(parseCategoryQuery('מילה@בראשית@בראשית', library).facets, [
+        facetOf(book),
+        facetOf(book),
+      ]);
+      expect(library.bookScans, 2);
+      expect(library.categoryScans, 2);
     });
 
     test('ללא @ — מחזיר את השאילתה כמות שהיא ו-facets null', () {
