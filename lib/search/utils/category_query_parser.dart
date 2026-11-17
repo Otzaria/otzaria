@@ -2,6 +2,7 @@ import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:otzaria/data/repository/data_repository.dart'
     show bookSearchWordMatchesFuzzy;
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/book_facet.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/search/utils/find_match_utils.dart';
@@ -78,10 +79,14 @@ ParsedCategoryQuery parseCategoryQuery(String rawQuery, Library? library) {
     return ParsedCategoryQuery(query: queryPart);
   }
 
+  // Walk the library tree once per parsed query, even with several @ names
+  // or a scoped path with multiple segments.
+  final books = library?.getAllBooks();
+  final categories = library?.getAllCategories();
   final facets = <String>[];
   final notFoundNames = <String>[];
   for (final name in names) {
-    final matches = _facetsForPath(name, library);
+    final matches = _facetsForPath(name, library, books, categories);
     if (matches.isEmpty) {
       notFoundNames.add(name);
     } else {
@@ -99,7 +104,12 @@ ParsedCategoryQuery parseCategoryQuery(String rawQuery, Library? library) {
 
 /// נתיבי ה-facet עבור [name], שיכול להיות נתיב `שם/שם...`: כל חלק מותאם רק
 /// מתחת להתאמות החלק שלפניו. אם הסדר שהוקלד לא מניב דבר — מנסים בסדר ההפוך.
-List<String> _facetsForPath(String name, Library? library) {
+List<String> _facetsForPath(
+  String name,
+  Library? library,
+  List<Book>? books,
+  List<Category>? categories,
+) {
   final segments = name
       .split('/')
       .map((segment) => segment.trim())
@@ -109,7 +119,13 @@ List<String> _facetsForPath(String name, Library? library) {
   List<String> resolve(Iterable<String> ordered) {
     List<String>? scopes;
     for (final segment in ordered) {
-      scopes = _facetsForName(segment, library, within: scopes);
+      scopes = _facetsForName(
+        segment,
+        library,
+        books,
+        categories,
+        within: scopes,
+      );
       if (scopes.isEmpty) break;
     }
     return scopes ?? const [];
@@ -128,11 +144,14 @@ List<String> _facetsForPath(String name, Library? library) {
 /// הכלה חלקית ולבסוף שגיאות כתיב; מוחזרת השכבה הטובה ביותר שאינה ריקה.
 List<String> _facetsForName(
   String name,
-  Library? library, {
+  Library? library,
+  List<Book>? books,
+  List<Category>? categories, {
   List<String>? within,
 }) {
   final normalizedName = normalizeFindText(name);
-  if (library == null || normalizedName.isEmpty) {
+  if (library == null || books == null || categories == null ||
+      normalizedName.isEmpty) {
     return const [];
   }
 
@@ -146,8 +165,6 @@ List<String> _facetsForName(
     return scopes.any((scope) => normalized.startsWith('$scope/'));
   }
 
-  final books = library.getAllBooks();
-  final categories = library.getAllCategories();
   final nameWords = normalizedName.split(' ');
   final tiers = [<String>[], <String>[], <String>[]];
 
