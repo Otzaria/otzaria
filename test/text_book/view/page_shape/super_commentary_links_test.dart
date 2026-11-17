@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/links.dart';
@@ -109,6 +110,49 @@ void main() {
       );
       expect(composed.single.index1, 12);
       expect(composed.single.index2, 8);
+    });
+
+    test('קישור כפול נבחר לפי סדר הקישור הראשי, שורת החפיפה וסדר הקלט', () {
+      final composed = composeSuperCommentaryLinks(
+        mainToParent: [
+          _link(_parent, 12, 60, index1End: 15, index2End: 64),
+          _link(_parent, 12, 30, index1End: 16),
+        ],
+        parentToSuper: [
+          _link(_super, 62, 8, index2End: 80),
+          _link(_super, 59, 8, index1End: 60, index2End: 81),
+          _link(_super, 55, 8, index1End: 64, index2End: 82),
+          _link(_super, 30, 8, index2End: 83),
+          _link(_super, 30, 9),
+        ],
+        parentTitle: _parent,
+        superTitle: _super,
+      );
+      expect(
+        composed.map((link) => (link.index1End, link.index2, link.index2End)),
+        [(15, 8, 81), (16, 9, null)],
+      );
+    });
+
+    test('חפיפה בטווח של מיליוני שורות שומרת גבולות כלולים', () {
+      final composed = composeSuperCommentaryLinks(
+        mainToParent: [
+          _link(_parent, 12, 2_000_000, index2End: 8_000_000),
+          _link(_parent, 14, 3, index2End: 2),
+        ],
+        parentToSuper: [
+          _link(_super, 8_000_000, 8, index1End: 8_025_000),
+          _link(_super, 1_975_000, 9, index1End: 2_000_000),
+          _link(_super, 8_000_001, 10, index1End: 8_000_002),
+          _link(_super, 4_000_000, 11, index1End: 3_000_000),
+        ],
+        parentTitle: _parent,
+        superTitle: _super,
+      );
+      expect(composed.map((link) => (link.index1, link.index2)), [
+        (12, 8),
+        (12, 9),
+      ]);
     });
   });
 

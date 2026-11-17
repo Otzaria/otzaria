@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
@@ -45,43 +47,56 @@ List<Link> composeSuperCommentaryLinks({
   required String parentTitle,
   required String superTitle,
 }) {
-  final superByParentLine = <int, List<Link>>{};
+  final superRanges = <_OrderedRange>[];
   for (final link in parentToSuper) {
     if (!_isDependentLinkTo(link, superTitle)) continue;
-    for (
-      var line = link.index1;
-      line <= (link.index1End ?? link.index1);
-      line++
-    ) {
-      superByParentLine.putIfAbsent(line, () => []).add(link);
-    }
+    final end = link.index1End ?? link.index1;
+    if (end < link.index1) continue;
+    superRanges.add((link: link, end: end, order: superRanges.length));
   }
+  superRanges.sort((a, b) => a.link.index1.compareTo(b.link.index1));
+  final rangeTree = _SuperLinkRange.build(superRanges, 0, superRanges.length);
+  if (rangeTree == null) return [];
 
   final seen = <(int, int)>{};
   final composed = <Link>[];
   for (final mainLink in mainToParent) {
     if (!_isDependentLinkTo(mainLink, parentTitle)) continue;
-    final last = mainLink.index2End ?? mainLink.index2;
-    for (var line = mainLink.index2; line <= last; line++) {
-      for (final superLink in superByParentLine[line] ?? const <Link>[]) {
-        if (!seen.add((mainLink.index1, superLink.index2))) continue;
-        composed.add(
-          Link(
-            heRef: superLink.heRef,
-            index1: mainLink.index1,
-            index1End: mainLink.index1End,
-            path2: superLink.path2,
-            index2: superLink.index2,
-            index2End: superLink.index2End,
-            heRefEnd: superLink.heRefEnd,
-            connectionType: superLink.connectionType,
-            targetCategoryId: superLink.targetCategoryId,
-            targetBookId: superLink.targetBookId,
-            targetFileType: superLink.targetFileType,
-            targetSource: superLink.targetSource,
-          ),
-        );
+    final first = mainLink.index2;
+    final last = mainLink.index2End ?? first;
+    if (last < first) continue;
+    final matches = <int, ({int line, _OrderedRange range})>{};
+    rangeTree.visitOverlaps(first, last, (range) {
+      final target = range.link.index2;
+      if (seen.contains((mainLink.index1, target))) return;
+      final line = math.max(first, range.link.index1);
+      final previous = matches[target];
+      // בקישורים כפולים מנצחת שורת החפיפה הראשונה, ואז סדר המקור.
+      if (previous == null ||
+          line < previous.line ||
+          (line == previous.line && range.order < previous.range.order)) {
+        matches[target] = (line: line, range: range);
       }
+    });
+    for (final match in matches.values) {
+      final superLink = match.range.link;
+      seen.add((mainLink.index1, superLink.index2));
+      composed.add(
+        Link(
+          heRef: superLink.heRef,
+          index1: mainLink.index1,
+          index1End: mainLink.index1End,
+          path2: superLink.path2,
+          index2: superLink.index2,
+          index2End: superLink.index2End,
+          heRefEnd: superLink.heRefEnd,
+          connectionType: superLink.connectionType,
+          targetCategoryId: superLink.targetCategoryId,
+          targetBookId: superLink.targetBookId,
+          targetFileType: superLink.targetFileType,
+          targetSource: superLink.targetSource,
+        ),
+      );
     }
   }
   composed.sort(
@@ -90,6 +105,44 @@ List<Link> composeSuperCommentaryLinks({
         : a.index2.compareTo(b.index2),
   );
   return composed;
+}
+
+typedef _OrderedRange = ({Link link, int end, int order});
+
+// סידור לפי תחילת הטווח וסוף הטווח המרבי בכל ענף מאפשרים לדלג על תת־עצים.
+class _SuperLinkRange {
+  _SuperLinkRange(this.range, this.left, this.right)
+    : maxEnd = math.max(
+        range.end,
+        math.max(left?.maxEnd ?? range.end, right?.maxEnd ?? range.end),
+      );
+
+  final _OrderedRange range;
+  final _SuperLinkRange? left;
+  final _SuperLinkRange? right;
+  final int maxEnd;
+
+  static _SuperLinkRange? build(
+    List<_OrderedRange> ranges,
+    int start,
+    int end,
+  ) {
+    if (start == end) return null;
+    final middle = start + ((end - start) ~/ 2);
+    return _SuperLinkRange(
+      ranges[middle],
+      build(ranges, start, middle),
+      build(ranges, middle + 1, end),
+    );
+  }
+
+  void visitOverlaps(int first, int last, void Function(_OrderedRange) visit) {
+    if (maxEnd < first) return;
+    left?.visitOverlaps(first, last, visit);
+    if (range.link.index1 > last) return;
+    if (range.end >= first) visit(range);
+    right?.visitOverlaps(first, last, visit);
+  }
 }
 
 bool _isDependentLinkTo(Link link, String title) =>
