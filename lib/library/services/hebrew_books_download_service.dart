@@ -98,7 +98,11 @@ class HebrewBooksDownloadService {
       );
       return saved.path;
     } finally {
-      await staging.delete(recursive: true);
+      try {
+        await staging.delete(recursive: true);
+      } on FileSystemException {
+        // כשל בניקוי לא משנה את תוצאת ההורדה או את ההמתנה ל־WiFi.
+      }
     }
   }, onWaitingForWifi);
 

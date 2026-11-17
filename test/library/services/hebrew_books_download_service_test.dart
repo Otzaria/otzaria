@@ -56,6 +56,25 @@ class _StreamClient extends http.BaseClient {
       http.StreamedResponse(body(), 200, contentLength: contentLength);
 }
 
+final class _CleanupFailure extends IOOverrides {
+  @override
+  Directory createDirectory(String directoryPath) =>
+      path.basename(directoryPath).startsWith('.hebrewbooks-')
+      ? _CleanupFailingDirectory(directoryPath)
+      : super.createDirectory(directoryPath);
+}
+
+class _CleanupFailingDirectory extends Fake implements Directory {
+  _CleanupFailingDirectory(this.path);
+
+  @override
+  final String path;
+
+  @override
+  Future<FileSystemEntity> delete({bool recursive = false}) async =>
+      throw FileSystemException('staging cleanup denied', path);
+}
+
 void main() {
   group('הורדת ספר בזרימה לתיקייה', () {
     late Directory folder;
@@ -146,6 +165,59 @@ void main() {
         await destination.parent.list().map((entry) => entry.path).toList(),
         [destination.path],
       );
+    });
+
+    test('כשל בניקוי אינו מונע ניסיון חוזר או דיווח על הצלחה', () async {
+      final previousPolicy = DownloadNetworkPolicy.instance;
+      final network = StreamController<bool>.broadcast(sync: true);
+      final policy = DownloadNetworkPolicy(
+        isAndroid: true,
+        wifiOnlyReader: () => true,
+        wifiChanges: () => network.stream,
+      );
+      DownloadNetworkPolicy.instance = policy;
+      addTearDown(() async {
+        DownloadNetworkPolicy.instance = previousPolicy;
+        await policy.dispose();
+        await network.close();
+      });
+      final ready = policy.refresh();
+      network.add(true);
+      await ready;
+
+      var requests = 0;
+      Stream<List<int>> body() async* {
+        if (++requests == 1) {
+          yield [1, 2];
+          network.add(false);
+          yield [3];
+        } else {
+          yield [4, 5, 6];
+        }
+      }
+
+      final service = HebrewBooksDownloadService(client: _StreamClient(body));
+      addTearDown(service.dispose);
+      final waiting = Completer<void>();
+      final download = IOOverrides.runWithIOOverrides(
+        () => service.downloadToFolder(
+          123,
+          folder.path,
+          onWaitingForWifi: waiting.complete,
+        ),
+        _CleanupFailure(),
+      );
+
+      await Future.any<void>([
+        waiting.future,
+        download.then((_) => fail('ההורדה הסתיימה לפני ההמתנה ל־WiFi')),
+      ]).timeout(const Duration(seconds: 5));
+      expect(await destination.readAsBytes(), [9]);
+      expect(requests, 1);
+      network.add(true);
+      expect(await download, destination.path);
+      expect(await destination.readAsBytes(), [4, 5, 6]);
+      expect(requests, 2);
     });
   });
   for (final owned in [true, false]) {
