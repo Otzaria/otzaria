@@ -67,41 +67,47 @@ class ResultLinesHighlightPattern implements Pattern {
 
   @override
   Iterable<Match> allMatches(String string, [int start = 0]) {
-    final result = <Match>[];
+    RangeError.checkValueInInterval(start, 0, string.length, 'start');
+    return _allMatches(string, start);
+  }
+
+  Iterable<Match> _allMatches(String string, int start) sync* {
     final line = <RegExpMatch>[];
     var lineMask = 0;
     var lineEnd = -1;
-    void flushLine() {
-      if (line.isEmpty) return;
-      if (_termSets.any((mask) => lineMask & mask == mask)) {
-        for (final match in line) {
-          result.add(PdfSpanMatch(this, string, match.start, match.end));
-        }
-      }
-      line.clear();
-      lineMask = 0;
-    }
-
     for (final match in _terms.allMatches(string, start)) {
       if (match.end <= match.start) continue;
       if (match.start >= lineEnd) {
-        flushLine();
+        yield* _matchesForLine(string, line, lineMask);
+        line.clear();
+        lineMask = 0;
         lineEnd = string.indexOf('\n', match.start);
         if (lineEnd < 0) lineEnd = string.length;
       }
       lineMask |= _termMask(match);
       line.add(match);
     }
-    flushLine();
-    return result;
+    yield* _matchesForLine(string, line, lineMask);
+  }
+
+  Iterable<Match> _matchesForLine(
+    String string,
+    List<RegExpMatch> line,
+    int lineMask,
+  ) sync* {
+    if (_termSets.any((mask) => lineMask & mask == mask)) {
+      for (final match in line) {
+        yield PdfSpanMatch(this, string, match.start, match.end);
+      }
+    }
   }
 
   @override
   Match? matchAsPrefix(String string, [int start = 0]) {
-    for (final match in allMatches(string, start)) {
-      if (match.start == start) return match;
-    }
-    return null;
+    final iterator = allMatches(string, start).iterator;
+    if (!iterator.moveNext()) return null;
+    final match = iterator.current;
+    return match.start == start ? match : null;
   }
 
   @override

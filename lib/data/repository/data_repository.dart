@@ -677,15 +677,21 @@ class _ScoredBookSearchEntry {
 bool _editDistanceAtMost(String a, String b, int k) {
   final la = a.length;
   final lb = b.length;
-  var prev2 = List<int>.filled(lb + 1, 0);
-  var prev = List<int>.generate(lb + 1, (j) => j);
-  var curr = List<int>.filled(lb + 1, 0);
+  final outsideBand = k + 1;
+  var prev2 = List<int>.filled(lb + 1, outsideBand);
+  var prev = List<int>.generate(lb + 1, (j) => j <= k ? j : outsideBand);
+  var curr = List<int>.filled(lb + 1, outsideBand);
   var prevMin = 0;
   for (var i = 1; i <= la; i++) {
-    curr[0] = i;
-    var rowMin = i;
+    final first = i > k ? i - k : 1;
+    final last = i + k < lb ? i + k : lb;
+    curr[0] = i <= k ? i : outsideBand;
+    // שורות ממוחזרות: תאים מחוץ לפס חייבים להישאר בלתי נגישים.
+    if (first > 1) curr[first - 1] = outsideBand;
+    if (last < lb) curr[last + 1] = outsideBand;
+    var rowMin = curr[0];
     final ca = a.codeUnitAt(i - 1);
-    for (var j = 1; j <= lb; j++) {
+    for (var j = first; j <= last; j++) {
       final cost = ca == b.codeUnitAt(j - 1) ? 0 : 1;
       var best = prev[j - 1] + cost; // substitution
       final deletion = prev[j] + 1;

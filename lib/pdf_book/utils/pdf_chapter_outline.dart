@@ -42,12 +42,17 @@ Future<List<PdfChapterStart>> loadPdfChapterStarts(
 /// שמתחיל אחרי אמצע הדף היה מתעגל לעמוד הבא.
 @visibleForTesting
 int tocLineAtOrBefore(List<int> sortedTocLines, int line) {
-  var result = line;
-  for (final tocLine in sortedTocLines) {
-    if (tocLine > line) break;
-    result = tocLine;
+  var first = 0;
+  var last = sortedTocLines.length;
+  while (first < last) {
+    final middle = first + ((last - first) ~/ 2);
+    if (sortedTocLines[middle] <= line) {
+      first = middle + 1;
+    } else {
+      last = middle;
+    }
   }
-  return result;
+  return first == 0 ? line : sortedTocLines[first - 1];
 }
 
 /// מקבץ את סעיפי [outline] תחת [chapters]: כל סעיף עובר לפרק האחרון שמתחיל

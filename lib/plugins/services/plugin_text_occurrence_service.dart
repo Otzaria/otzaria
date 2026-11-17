@@ -7,6 +7,7 @@ import 'package:otzaria/plugins/models/plugin_text_normalization.dart';
 import 'package:otzaria/plugins/services/plugin_section_text_map_service.dart'
     show decodePluginTextCursor, encodePluginTextCursor;
 import 'package:otzaria/plugins/services/reader_selection_service.dart';
+import 'package:otzaria/plugins/utils/grapheme_occurrences.dart';
 
 class PluginTextOccurrenceService {
   static const int defaultLimit = 50;
@@ -45,9 +46,8 @@ class PluginTextOccurrenceService {
         'sectionIndex or limit is invalid',
       );
     }
-    // A UTF-16 code unit contains at most one grapheme. Avoid segmentation
-    // entirely for short inputs; stop after the first over-limit grapheme
-    // when a larger input must be checked.
+    // UTF-16 length bounds the grapheme count; longer inputs need segmentation
+    // only until the limit is exceeded.
     if (text.length > maxSectionGraphemes &&
         text.characters.iterator.moveNext(maxSectionGraphemes + 1)) {
       throw const PluginTextOccurrenceException(
@@ -82,7 +82,7 @@ class PluginTextOccurrenceService {
     );
     final offset = cursor == null ? 0 : _decodeCursor(cursor, fingerprint);
     final haystack = normalizedText.text.characters.toList(growable: false);
-    final matches = _findMatches(haystack, needle);
+    final matches = findGraphemeOccurrences(haystack, needle);
     if (offset > matches.length) {
       throw const PluginTextOccurrenceException(
         'error.invalid_params',
@@ -90,20 +90,28 @@ class PluginTextOccurrenceService {
       );
     }
     final page = matches.skip(offset).take(limit).toList(growable: false);
+    final ranges = [
+      for (final normalizedStart in page)
+        (
+          startGrapheme: normalizedText.sourceBoundary(normalizedStart),
+          endGrapheme: normalizedText.sourceEndBoundary(
+            normalizedStart + needle.length,
+          ),
+        ),
+    ];
+    final anchors = _selectionService.buildRangeAnchors(
+      text: text,
+      ranges: ranges,
+      layer: layer,
+      sourceTextHash: layer == 'source' ? textHash : null,
+      renderedTextHash: layer == 'rendered' ? textHash : null,
+      normalizationProfile: normalize.profile.name,
+    );
     final results = <PluginTextOccurrence>[];
-    for (final normalizedStart in page) {
-      final normalizedEnd = normalizedStart + needle.length;
-      final start = normalizedText.sourceBoundary(normalizedStart);
-      final end = normalizedText.sourceEndBoundary(normalizedEnd);
-      final range = _selectionService.buildRangeAnchor(
-        text: text,
-        startGrapheme: start,
-        endGrapheme: end,
-        layer: layer,
-        sourceTextHash: layer == 'source' ? textHash : null,
-        renderedTextHash: layer == 'rendered' ? textHash : null,
-        normalizationProfile: normalize.profile.name,
-      );
+    for (var i = 0; i < ranges.length; i++) {
+      final start = ranges[i].startGrapheme;
+      final end = ranges[i].endGrapheme;
+      final range = anchors[i];
       if (range == null) continue;
       results.add(
         PluginTextOccurrence(
@@ -135,36 +143,6 @@ class PluginTextOccurrenceService {
           : null,
       totalCount: matches.length,
     );
-  }
-
-  List<int> _findMatches(List<String> haystack, List<String> needle) {
-    if (needle.isEmpty || needle.length > haystack.length) return const [];
-
-    // KMP prefix table: repeated Hebrew passages and long search terms would
-    // otherwise rescan the same candidate prefix at every source position.
-    final prefix = List<int>.filled(needle.length, 0);
-    for (var i = 1, matched = 0; i < needle.length; i++) {
-      while (matched > 0 && needle[i] != needle[matched]) {
-        matched = prefix[matched - 1];
-      }
-      if (needle[i] == needle[matched]) matched++;
-      prefix[i] = matched;
-    }
-
-    final matches = <int>[];
-    var matched = 0;
-    for (var i = 0; i < haystack.length; i++) {
-      while (matched > 0 && haystack[i] != needle[matched]) {
-        matched = prefix[matched - 1];
-      }
-      if (haystack[i] == needle[matched]) matched++;
-      if (matched == needle.length) {
-        matches.add(i + 1 - matched);
-        // Preserve overlapping occurrences, as the previous scan did.
-        matched = prefix[matched - 1];
-      }
-    }
-    return matches;
   }
 
   String _fingerprint({

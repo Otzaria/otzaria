@@ -30,6 +30,92 @@ void main() {
     expect(range.end, 15);
   });
 
+  test('range lookup handles missing matches and hints outside the text', () {
+    const text = 'אב אב אב';
+    expect(
+      service.locateRenderedRange(renderedText: text, selectedText: ''),
+      isNull,
+    );
+    expect(
+      service.locateRenderedRange(renderedText: text, selectedText: 'גד'),
+      isNull,
+    );
+    for (final entry in [(null, 0), (-10, 0), (3, 3), (100, 6)]) {
+      final range = service.locateRenderedRange(
+        renderedText: text,
+        selectedText: 'אב',
+        startHint: entry.$1,
+      );
+      expect(range, (start: entry.$2, end: entry.$2 + 2));
+    }
+  });
+
+  test('range lookup preserves overlapping matches', () {
+    final range = service.locateRenderedRange(
+      renderedText: 'אאאא',
+      selectedText: 'אא',
+      startHint: 1,
+    );
+    expect(range, (start: 1, end: 3));
+  });
+
+  test('equal-distance hints consistently choose the earlier occurrence', () {
+    final range = service.locateRenderedRange(
+      renderedText: List.filled(80, 'א ').join(),
+      selectedText: 'א',
+      startHint: 79,
+    );
+    expect(range, (start: 78, end: 79));
+  });
+
+  test('range hints use UTF-16 positions around emoji and nikud', () {
+    final range = service.locateRenderedRange(
+      renderedText: '🙂אָ|🙂אָ',
+      selectedText: '🙂אָ',
+      startHint: 4,
+    );
+    expect(range, (start: 5, end: 9));
+  });
+
+  test('normalized equal-distance hints prefer the earlier source range', () {
+    final selection = service.buildFromRenderedSelection(
+      bookId: 'book',
+      bookTitle: 'ספר',
+      sectionIndex: 0,
+      rawText: 'אב  גד || אב\tגד',
+      settings: const RenderSettings(
+        replaceHolyNames: false,
+        formatParentheses: false,
+      ),
+      selectedText: 'אב גד',
+      startHint: 5,
+    );
+    expect(selection?.sourceRange.start.utf16, 0);
+    expect(selection?.sourceRange.end.utf16, 6);
+    expect(selection?.sourceSelectedText, 'אב  גד');
+  });
+
+  test('normalized selection chooses the nearest original-text occurrence', () {
+    const settings = RenderSettings(
+      replaceHolyNames: false,
+      formatParentheses: false,
+    );
+    const rawText = 'אב  גד | אב\tגד';
+    final selection = service.buildFromRenderedSelection(
+      bookId: 'book',
+      bookTitle: 'ספר',
+      sectionIndex: 0,
+      rawText: rawText,
+      settings: settings,
+      selectedText: 'אב גד',
+      startHint: 100,
+    );
+    expect(selection, isNotNull);
+    expect(selection!.sourceRange.start.utf16, 9);
+    expect(selection.sourceRange.end.utf16, 14);
+    expect(selection.sourceSelectedText, 'אב\tגד');
+  });
+
   test('maps a displayed holy-name replacement back to the source', () {
     const settings = RenderSettings(
       replaceHolyNames: true,

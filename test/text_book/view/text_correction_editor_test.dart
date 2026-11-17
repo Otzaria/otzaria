@@ -96,6 +96,25 @@ void main() {
   });
 
   group('computeTextDiff', () {
+    test('long insertions and deletions preserve every token', () {
+      final text = List.filled(1000, 'בְּרֵאשִׁית  ').join();
+      expect(computeTextDiff('', text), [
+        TextDiffSegment(TextDiffOp.added, text),
+      ]);
+      expect(computeTextDiff(text, ''), [
+        TextDiffSegment(TextDiffOp.removed, text),
+      ]);
+    });
+
+    test('flushes equal, removed and added runs at their boundaries', () {
+      expect(computeTextDiff('א ב ג', 'א ד ג'), [
+        const TextDiffSegment(TextDiffOp.equal, 'א '),
+        const TextDiffSegment(TextDiffOp.removed, 'ב'),
+        const TextDiffSegment(TextDiffOp.added, 'ד'),
+        const TextDiffSegment(TextDiffOp.equal, ' ג'),
+      ]);
+      expect(computeTextDiff('', ''), isEmpty);
+    });
     test('שינוי ניקוד במילה אחת מסומן כמילה שלמה', () {
       expect(computeTextDiff('בָּרָא אֱלֹהִים את', 'בָּרָא אֱלֹקִים את'), [
         const TextDiffSegment(TextDiffOp.equal, 'בָּרָא '),

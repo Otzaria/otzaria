@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:otzaria/plugins/models/plugin_reader_selection.dart';
 import 'package:otzaria/plugins/models/plugin_text_normalization.dart';
 import 'package:otzaria/plugins/models/text_source_map.dart';
+import 'package:otzaria/plugins/utils/grapheme_occurrences.dart';
 
 class PluginHighlightAnchorResult {
   final String status;
@@ -62,7 +63,7 @@ class PluginHighlightAnchorService {
       );
     }
 
-    final exactCandidates = _findCandidates(source, exact);
+    final exactCandidates = findGraphemeOccurrences(source, exact);
     if (exactCandidates.isNotEmpty) {
       final selected = _selectCandidate(
         candidates: exactCandidates,
@@ -132,19 +133,29 @@ class PluginHighlightAnchorService {
     required int exactLength,
     required PluginTextRangeAnchor anchor,
   }) {
-    final scored =
-        candidates
-            .map(
-              (start) => (
-                start,
-                _contextScore(source, start, start + exactLength, anchor),
-              ),
-            )
-            .toList()
-          ..sort((a, b) => b.$2.compareTo(a.$2));
-    if (scored.first.$2 > 0 &&
-        (scored.length == 1 || scored.first.$2 > scored[1].$2)) {
-      return scored.first.$1;
+    final before = anchor.beforeText.raw.characters.toList(growable: false);
+    final after = anchor.afterText.raw.characters.toList(growable: false);
+    var bestScore = 0;
+    int? bestStart;
+    var tied = false;
+    for (final start in candidates) {
+      final score = _contextScore(
+        source,
+        start,
+        start + exactLength,
+        before,
+        after,
+      );
+      if (score > bestScore) {
+        bestScore = score;
+        bestStart = start;
+        tied = false;
+      } else if (score == bestScore) {
+        tied = true;
+      }
+    }
+    if (bestScore > 0 && !tied) {
+      return bestStart;
     }
     final occurrence = anchor.occurrenceIndexInSection;
     if (occurrence >= 0 && occurrence < candidates.length) {
@@ -157,10 +168,9 @@ class PluginHighlightAnchorService {
     List<String> source,
     int start,
     int end,
-    PluginTextRangeAnchor anchor,
+    List<String> before,
+    List<String> after,
   ) {
-    final before = anchor.beforeText.raw.characters.toList(growable: false);
-    final after = anchor.afterText.raw.characters.toList(growable: false);
     var score = 0;
     for (
       var offset = 1;
@@ -199,7 +209,7 @@ class PluginHighlightAnchorService {
     if (normalizedExact.isEmpty) return const [];
     final haystack = normalizedSource.text.characters.toList(growable: false);
     final needle = normalizedExact.characters.toList(growable: false);
-    return _findCandidates(haystack, needle)
+    return findGraphemeOccurrences(haystack, needle)
         .map(
           (start) => (
             normalizedSource.sourceBoundary(start),
@@ -218,7 +228,7 @@ class PluginHighlightAnchorService {
     required String sourceHash,
   }) {
     final graphemes = sourceText.characters.toList(growable: false);
-    final matches = _findCandidates(
+    final matches = findGraphemeOccurrences(
       graphemes,
       graphemes.sublist(start, end),
     );
@@ -273,15 +283,6 @@ class PluginHighlightAnchorService {
       codePoint: prefix.runes.length,
       utf16: prefix.length,
     );
-  }
-
-  List<int> _findCandidates(List<String> source, List<String> exact) {
-    if (exact.isEmpty || exact.length > source.length) return const [];
-    final result = <int>[];
-    for (var start = 0; start <= source.length - exact.length; start++) {
-      if (_matches(source, exact, start)) result.add(start);
-    }
-    return result;
   }
 
   bool _matches(List<String> source, List<String> exact, int start) {
