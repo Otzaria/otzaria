@@ -11,6 +11,8 @@ import 'package:otzaria/personal_notes/widgets/note_draft_decision_dialog.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 
@@ -227,6 +229,15 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
 
   @override
   Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final short =
+        media.size.height - media.viewInsets.bottom <
+        LayoutBreakpoints.compactHeight;
+    final saveButton = ActionButton.recommended(
+      focusNode: _saveFocusNode,
+      text: 'שמור',
+      onPressed: _isSaving ? null : _submit,
+    );
     return Focus(
       onKeyEvent: (node, event) {
         if (event is! KeyDownEvent) {
@@ -254,8 +265,9 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
 
         // חיצים ואנטר שייכים לכפתור שבפוקוס, לא לפקדי הכותרת והעורך.
         if (_saveFocusNode.hasFocus || _cancelFocusNode.hasFocus) {
-          if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
-              event.logicalKey == LogicalKeyboardKey.arrowRight) {
+          if (!short &&
+              (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+                  event.logicalKey == LogicalKeyboardKey.arrowRight)) {
             (_saveFocusNode.hasFocus ? _cancelFocusNode : _saveFocusNode)
                 .requestFocus();
             return KeyEventResult.handled;
@@ -276,23 +288,28 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
       // היציאה שואלת על טיוטה ב-_handleCancel, לא בשאלת הסגירה הכללית.
       child: AppDialogFrame(
         size: AppDialogSize.medium,
+        padding: short
+            ? AppTokens.dialogPadding.copyWith(
+                top: AppTokens.spaceSM,
+                bottom: AppTokens.spaceSM,
+              )
+            : AppTokens.dialogPadding,
         icon: widget.icon ?? FluentIcons.note_edit_24_regular,
         title: widget.title,
-        scrollable: true,
+        titleMaxLines: 1,
+        trailing: short ? saveButton : null,
         closeEnabled: !_isSaving,
         onDismissRequest: _handleCancel,
-        actions: [
-          ActionButton.neutral(
-            focusNode: _cancelFocusNode,
-            text: 'ביטול',
-            onPressed: _isSaving ? null : _handleCancel,
-          ),
-          ActionButton.recommended(
-            focusNode: _saveFocusNode,
-            text: 'שמור',
-            onPressed: _isSaving ? null : _submit,
-          ),
-        ],
+        actions: short
+            ? null
+            : [
+                ActionButton.neutral(
+                  focusNode: _cancelFocusNode,
+                  text: 'ביטול',
+                  onPressed: _isSaving ? null : _handleCancel,
+                ),
+                saveButton,
+              ],
         child: ExcludeFocus(
           excluding: _isSaving,
           child: AbsorbPointer(
@@ -308,6 +325,7 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
               onSaveShortcut: _submit,
               onCancelShortcut: _handleCancel,
               escapeDismisses: true,
+              fitToAvailableHeight: true,
             ),
           ),
         ),

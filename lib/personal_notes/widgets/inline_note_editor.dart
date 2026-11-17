@@ -413,7 +413,7 @@ class InlineNoteEditorCard extends StatelessWidget {
                 child: Text(
                   title,
                   style: TextStyle(fontWeight: FontWeight.bold, color: primary),
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
