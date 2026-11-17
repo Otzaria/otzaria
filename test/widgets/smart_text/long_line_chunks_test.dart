@@ -189,6 +189,38 @@ void main() {
       }
     });
 
+    test('סוף משפט מזוהה רק לפי ארבעת סימני הפיסוק באותו ספאן', () {
+      final prefix = '${'א' * (kLongLineChunkChars - 1)} ';
+      final tail = 'ב' * kLongLineChunkChars;
+      for (final (marker, sentence) in [
+        ('.', true),
+        (':', true),
+        ('?', true),
+        ('!', true),
+        ('א', false),
+        ('\uD800', false),
+        ('\uDC00', false),
+        ('😀', false),
+      ]) {
+        final text = '$prefixא$marker $tail';
+        final split = splitLongLine(TextSpan(text: text))!;
+        expect(
+          split.starts,
+          [0, sentence ? prefix.length + 2 + marker.length : prefix.length],
+        );
+        expect(split.chunks.map((chunk) => chunk.toPlainText()).join(), text);
+      }
+      final split = splitLongLine(
+        TextSpan(
+          children: [
+            TextSpan(text: '$prefixא.'),
+            TextSpan(text: ' $tail'),
+          ],
+        ),
+      )!;
+      expect(split.starts, [0, prefix.length]);
+    });
+
     test('מועמדי משפט שנפסלו אינם נבדקים שוב בחיפוש הרווח החלופי', () {
       final prefix = 'א' * (kLongLineChunkChars - 2);
       final rejected = '. \u05B0' * 1000;

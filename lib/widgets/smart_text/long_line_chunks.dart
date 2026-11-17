@@ -117,7 +117,14 @@ List<int> _cutPositions(String text, List<TextSpan> leaves) {
       if ((c == 0x2069 || c == 0x202C) && depth > 0) depth--;
       final at = offset + i + 1;
       if (leaf.style == null && c == 0x20 && depth == 0 && at < text.length) {
-        final sentence = i > 0 && '.:?!'.contains(leafText[i - 1]) ? 2 : 1;
+        final previous = i > 0 ? leafText.codeUnitAt(i - 1) : -1;
+        final sentence =
+            previous == 0x2E ||
+                previous == 0x3A ||
+                previous == 0x3F ||
+                previous == 0x21
+            ? 2
+            : 1;
         cuttable[at] = sentence;
       }
     }
