@@ -189,6 +189,18 @@ void main() {
       }
     });
 
+    test('מועמדי משפט שנפסלו אינם נבדקים שוב בחיפוש הרווח החלופי', () {
+      final prefix = 'א' * (kLongLineChunkChars - 2);
+      final rejected = '. \u05B0' * 1000;
+      final text = '$prefix$rejected סוף ${'א' * kLongLineChunkChars}';
+      debugMarkChecks = 0;
+      final split = splitLongLine(TextSpan(text: text))!;
+
+      expect(debugMarkChecks, 1001);
+      expect(split.starts, [0, prefix.length + rejected.length + 1]);
+      expect(split.chunks.map((chunk) => chunk.toPlainText()).join(), text);
+    });
+
     test('בדיקת סימן צירוף רצה רק בחלונות הבחירה ולא בכל רווח', () {
       final text = List.filled(60000, 'מילה\u05B0 \u05B1מילה').join(' ');
       final spaces = ' '.allMatches(text).length;

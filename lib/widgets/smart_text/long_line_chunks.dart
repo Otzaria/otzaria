@@ -130,7 +130,12 @@ List<int> _cutPositions(String text, List<TextSpan> leaves) {
     final window = math.min(text.length, target + kLongLineChunkChars ~/ 4);
     var cut = -1;
     for (var i = target; i < window; i++) {
-      if (cuttable[i] == 2 && !_startsWithMark(text, i)) {
+      if (cuttable[i] == 2) {
+        if (_startsWithMark(text, i)) {
+          // גם החיפוש החלופי צריך לדלג על מועמד שכבר נפסל.
+          cuttable[i] = 0;
+          continue;
+        }
         cut = i;
         break;
       }
