@@ -1196,19 +1196,25 @@ class PluginBridgeAdapter {
         if (uri == null) {
           throw Exception('error.invalid_params: invalid URL');
         }
-        // רק http/https — חוסם file://, javascript:, ומטפלי-פרוטוקול מותקנים
-        // (otzaria:// וכו') שהיו מאפשרים לתוסף להריץ פעולות מחוץ לדפדפן.
-        if (uri.scheme != 'http' && uri.scheme != 'https') {
-          throw Exception('error.forbidden: only http/https URLs are allowed');
+        // רק http/https וסכמות אפליקציה מאושרות — חוסם file://, javascript:,
+        // ושאר מטפלי-פרוטוקול שהיו מאפשרים לתוסף להריץ פעולות מחוץ לדפדפן.
+        final isAppScheme = _approvedAppSchemes.contains(uri.scheme);
+        if (uri.scheme != 'http' && uri.scheme != 'https' && !isAppScheme) {
+          throw Exception(
+            'error.forbidden: only http/https and approved app URLs are allowed',
+          );
         }
         // הכתובת עצמה נושאת מידע לאתר. בלי אישור — רק יעד שהתוסף רשאי
         // לפנות אליו ממילא ברשת, אחרת זה ערוץ שליחה שעוקף את רשימת ההיתר.
-        final allowed = await isPluginNetworkAccessAllowed(
-          uri: uri,
-          pluginId: plugin.pluginId,
-          manifest: plugin.manifest,
-          registry: _pluginRepo,
-        );
+        // פתיחת אפליקציה חיצונית דורשת אישור תמיד.
+        final allowed =
+            !isAppScheme &&
+            await isPluginNetworkAccessAllowed(
+              uri: uri,
+              pluginId: plugin.pluginId,
+              manifest: plugin.manifest,
+              registry: _pluginRepo,
+            );
         if (!allowed && !await _confirmOpenUrl(uri)) return false;
         final launched = await launchUrl(
           uri,
@@ -5064,6 +5070,9 @@ class PluginBridgeAdapter {
     }
   }
 
+  /// סכמות של אפליקציות מותקנות שתוסף רשאי לבקש לפתוח (באישור בכל פעם).
+  static const _approvedAppSchemes = {'zayit'};
+
   /// דיאלוג אישור לפתיחת [uri] בדפדפן. אחד בכל רגע, כמו דיאלוגי המערכת.
   Future<bool> _confirmOpenUrl(Uri uri) async {
     if (_userDialogOpen) {
@@ -5075,9 +5084,11 @@ class PluginBridgeAdapter {
       final shown = url.length > 300 ? '${url.substring(0, 300)}…' : url;
       return await _dependencies.showConfirmDialog(
         title: 'פתיחת קישור חיצוני',
-        content:
-            'התוסף "${plugin.name}" מבקש לפתוח בדפדפן כתובת באתר '
-            '${uri.host}:\n$shown\n\nהכתובת יכולה להעביר לאתר מידע מתוך התוסף.',
+        content: _approvedAppSchemes.contains(uri.scheme)
+            ? 'התוסף "${plugin.name}" מבקש לפתוח את האפליקציה '
+                  '"${uri.scheme}":\n$shown'
+            : 'התוסף "${plugin.name}" מבקש לפתוח בדפדפן כתובת באתר '
+                  '${uri.host}:\n$shown\n\nהכתובת יכולה להעביר לאתר מידע מתוך התוסף.',
       );
     } finally {
       _userDialogOpen = false;

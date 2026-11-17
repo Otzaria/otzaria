@@ -1171,6 +1171,51 @@ Future<void> main() async {
     );
 
     test(
+      'app.openUrl לסכמת אפליקציה מאושרת מבקש אישור תמיד, וסירוב אינו פותח',
+      () async {
+        final prompts = <String>[];
+        final gated = PluginBridgeAdapter(
+          _buildInstalledPlugin(permissions: const ['app.open_url']),
+          dependencies: PluginBridgeDependencies(
+            historyBloc: _MockHistoryBloc(),
+            tabsBloc: _StubTabsBloc(),
+            navigationBloc: _MockNavigationBloc(),
+            calendarCubit: _StubCalendarCubit(
+              _buildCalendarState(DateTime(2026, 1, 1), inIsrael: true),
+            ),
+            workspaceBloc: _MockWorkspaceBloc(),
+            searchRepository: _MockSearchRepository(),
+            personalNotesRepository: _MockPersonalNotesRepository(),
+            bookOpenCoordinator: _MockBookOpenCoordinator(),
+            themePayloadBuilder: () => <String, dynamic>{},
+            showConfirmDialog: ({required title, required content}) async {
+              prompts.add(content);
+              return false;
+            },
+            showWarningDialog:
+                ({required title, required content, required subtitle}) async =>
+                    true,
+          ),
+          pluginRepository: _StubPluginRegistryRepository(),
+        );
+
+        final result = await gated.execute('app', 'openUrl', {
+          'url': 'zayit://search?q=abc',
+        });
+
+        expect(result, isFalse);
+        expect(prompts.single, contains('zayit://search?q=abc'));
+      },
+    );
+
+    test('app.openUrl דוחה סכמה לא מאושרת', () async {
+      await expectLater(
+        adapter.execute('app', 'openUrl', {'url': 'ms-settings:privacy'}),
+        throwsA(predicate((e) => e.toString().contains('error.forbidden'))),
+      );
+    });
+
+    test(
       'reader.getCurrentRef returns current reference for active pdf tab',
       () async {
         final currentTab = PdfBookTab(
