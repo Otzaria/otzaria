@@ -49,6 +49,26 @@ class LineDao {
         .toList();
   }
 
+  /// קורא טווח סגור בשאילתה אחת, ומפענח את תוכן השורות לפי צריכתן.
+  /// השאילתה מסתיימת לפני הפענוח והסריקה כדי לשחרר את נעילת הקריאה.
+  Future<Iterable<({int lineIndex, String content})>>
+  selectIndexedContentByBookIdRange(
+    int bookId,
+    int startIndex,
+    int endIndex,
+  ) async {
+    final db = await database;
+    final rows = db.select(
+      await _forShape('selectIndexedContentByBookIdRange'),
+      [bookId, startIndex, endIndex],
+    ).rows;
+    if (rows.isEmpty) return const [];
+    final codec = LineContentCodec.of(db);
+    return rows.map(
+      (row) => (lineIndex: row[0] as int, content: codec.text(row[1])!),
+    );
+  }
+
   Future<Line?> selectByBookIdAndIndex(int bookId, int lineIndex) async {
     final db = await database;
     final result = db.select(await _forShape('selectByBookIdAndIndex'), [

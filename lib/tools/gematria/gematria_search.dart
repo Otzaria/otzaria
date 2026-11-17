@@ -341,12 +341,12 @@ class GimatriaSearch {
           final book = await searchRepository.getBook(bookId);
           if (book == null) continue;
 
-          // Get all lines for this book
-          final lines = await searchRepository.getLines(
-            bookId,
-            0,
-            book.totalLines - 1,
-          );
+          final lines = await database.lineDao
+              .selectIndexedContentByBookIdRange(
+                bookId,
+                0,
+                book.totalLines - 1,
+              );
 
           // Get TOC entries for path extraction
           final tocEntries = await searchRepository.getBookTocs(bookId);

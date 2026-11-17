@@ -7,6 +7,13 @@ AND lineIndex >= ?
 AND lineIndex <= ?
 ORDER BY lineIndex;
 
+selectIndexedContentByBookIdRange:
+SELECT lineIndex, content FROM line
+WHERE bookId = ?
+AND lineIndex >= ?
+AND lineIndex <= ?
+ORDER BY lineIndex;
+
 -- מסלול האינדוקס: תוכן בלבד, בסדר השורות. SELECT * היה גורר בניית Map
 -- ואובייקט Line מלא לכל שורה (מיליוני שורות בספרייה) רק כדי לזרוק הכול
 -- חוץ מ-content.
@@ -18,6 +25,14 @@ SELECT * FROM line WHERE bookId = ? AND lineIndex = ?;
 
 selectByBookIdRangeSplit:
 SELECT l.*, COALESCE(lc.content, '') AS content
+FROM line l LEFT JOIN line_content lc ON lc.id = l.id
+WHERE l.bookId = ?
+AND l.lineIndex >= ?
+AND l.lineIndex <= ?
+ORDER BY l.lineIndex;
+
+selectIndexedContentByBookIdRangeSplit:
+SELECT l.lineIndex, COALESCE(lc.content, '') AS content
 FROM line l LEFT JOIN line_content lc ON lc.id = l.id
 WHERE l.bookId = ?
 AND l.lineIndex >= ?
