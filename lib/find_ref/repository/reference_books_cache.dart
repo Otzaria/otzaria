@@ -1113,8 +1113,8 @@ class BookTitleIndex {
   /// כולה מכילה ~6,900 מילים שונות בלבד, ולכן ההתאמה המקורבת רצה עליהן פעם
   /// אחת לכל מילת שאילתה במקום על ~190,000 המילים שבספרים.
   final List<String> _fuzzyVocabulary = <String>[];
-  final List<Uint32List> _fuzzyVocabularyBooks = <Uint32List>[];
-  final Map<String, Uint32List> _exactShortWordBooks = <String, Uint32List>{};
+  final List<Iterable<int>> _fuzzyVocabularyBooks = <Iterable<int>>[];
+  final Map<String, Set<int>> _exactShortWordBooks = <String, Set<int>>{};
 
   /// מטמון חסום של המסננת לפי מילת שאילתה: `findRefs` קורא ל-[search] עד
   /// ארבע פעמים על אותה שאילתה, וההקלדה הבאה חוזרת על כל המילים חוץ מהאחרונה.
@@ -1465,11 +1465,14 @@ class BookTitleIndex {
     _fuzzyVocabulary.clear();
     _fuzzyVocabularyBooks.clear();
     for (final entry in booksByWord.entries) {
-      final books = Uint32List.fromList(entry.value);
+      final ids = Uint32List.fromList(entry.value);
       _fuzzyVocabulary.add(entry.key);
-      _fuzzyVocabularyBooks.add(books);
       if (entry.key.length < _minFuzzyWordLength) {
+        final books = ids.toSet();
         _exactShortWordBooks[entry.key] = books;
+        _fuzzyVocabularyBooks.add(books);
+      } else {
+        _fuzzyVocabularyBooks.add(ids);
       }
     }
   }
@@ -1483,15 +1486,19 @@ class BookTitleIndex {
     }
 
     Set<int>? candidates;
-    bool intersect(Iterable<int> forWord) {
+    bool intersect(Set<int> forWord) {
+      if (forWord.isEmpty) return false;
       final current = candidates;
       if (current == null) {
-        final copy = forWord.toSet();
-        candidates = copy;
-        return copy.isNotEmpty;
+        candidates = forWord;
+        return true;
       }
-      current.retainAll(forWord);
-      return current.isNotEmpty;
+      // שתי הקבוצות עשויות להיות במטמון. חיתוך סורק רק את הקטנה מהן.
+      final common = current.length <= forWord.length
+          ? current.intersection(forWord)
+          : forWord.intersection(current);
+      candidates = common;
+      return common.isNotEmpty;
     }
 
     // מילה קצרה דורשת התאמה מדויקת. בודקים אותה לפני סריקת אוצר המילים.
