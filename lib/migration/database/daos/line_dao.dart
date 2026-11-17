@@ -49,26 +49,24 @@ class LineDao {
         .toList();
   }
 
-  /// סורק שורות בטווח סגור לפי הסדר. החזרת true מ-[stopAfter] עוצרת
-  /// את הסמן לפני קריאת השורה הבאה ומחזירה true לקורא.
-  Future<bool> visitByBookIdRange(
+  /// קורא טווח סגור בשאילתה אחת, ומפענח את תוכן השורות לפי צריכתן.
+  /// השאילתה מסתיימת לפני הפענוח והסריקה כדי לשחרר את נעילת הקריאה.
+  Future<Iterable<({int lineIndex, String content})>>
+  selectIndexedContentByBookIdRange(
     int bookId,
     int startIndex,
     int endIndex,
-    bool Function(Line) stopAfter,
   ) async {
     final db = await database;
+    final rows = db.select(
+      await _forShape('selectIndexedContentByBookIdRange'),
+      [bookId, startIndex, endIndex],
+    ).rows;
+    if (rows.isEmpty) return const [];
     final codec = LineContentCodec.of(db);
-    final statement = db.prepare(await _forShape('selectByBookIdRange'));
-    try {
-      final cursor = statement.selectCursor([bookId, startIndex, endIndex]);
-      while (cursor.moveNext()) {
-        if (stopAfter(_mapToLine(cursor.current, codec))) return true;
-      }
-      return false;
-    } finally {
-      statement.close();
-    }
+    return rows.map(
+      (row) => (lineIndex: row[0] as int, content: codec.text(row[1])!),
+    );
   }
 
   Future<Line?> selectByBookIdAndIndex(int bookId, int lineIndex) async {
