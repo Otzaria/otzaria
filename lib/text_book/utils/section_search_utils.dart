@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:isolate';
-import 'dart:math' show min;
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
@@ -24,8 +23,8 @@ const int _searchChunkSize = 128;
 // שוב סביב ההופעה הראשונה ותעלים הופעות מאוחרות באותה שורה.
 const int _snippetContextChars = 90;
 
-/// חלון טקסט סביב [match] (הופעה או קבוצת הופעות) בגבולות מילים, תחום
-/// ב-[lowerBound]..[upperBound] — חצי הדרך להופעות השכנות.
+/// חלון טקסט סביב [match] בגבולות מילים, תחום ב-[lowerBound]..[upperBound]
+/// (חצי הדרך להופעות השכנות) — כך שכל תוצאה מציגה ומדגישה רק את ההופעה שלה.
 String _snippetAroundMatch(
   String line,
   ({int start, int end}) match, {
@@ -64,39 +63,6 @@ String _snippetAroundMatch(
     end = space == -1 || space > upperBound ? upperBound : space;
   }
   return line.substring(start, end).trim();
-}
-
-/// קטע לכל הופעה ב-[matches]. הופעות שמרחקן מתחילת הראשונה בקבוצה אינו עולה
-/// על אורך ההקשר חולקות קטע זהה, וכך הרשימה מציגה אותן פעם אחת (issue #3083).
-/// רק [count] הראשונות מקבלות קטע; הופעה שאחריהן משמשת רק כגבול.
-List<({String text, int groupOffset})> _sharedSnippets(
-  String line,
-  List<({int start, int end})> matches, {
-  required int count,
-}) {
-  final snippets = <({String text, int groupOffset})>[];
-  for (var first = 0; first < count;) {
-    var last = first;
-    while (last + 1 < count &&
-        matches[last + 1].end - matches[first].start <= _snippetContextChars) {
-      last++;
-    }
-    final snippet = _snippetAroundMatch(
-      line,
-      (start: matches[first].start, end: matches[last].end),
-      lowerBound: first > 0
-          ? (matches[first - 1].end + matches[first].start) ~/ 2
-          : 0,
-      upperBound: last < matches.length - 1
-          ? (matches[last].end + matches[last + 1].start) ~/ 2
-          : line.length,
-    );
-    final groupOffset = matches[first].start;
-    for (; first <= last; first++) {
-      snippets.add((text: snippet, groupOffset: groupOffset));
-    }
-  }
-  return snippets;
 }
 
 /// האם בקטע שבין הגבול להופעה יש מילה שלמה, ולא רק חלק ממילה שנחתך בגבול.
@@ -598,7 +564,6 @@ class _SearchWorkerHost {
                   address: raw['address'] as String,
                   query: raw['query'] as String,
                   matchOffset: raw['matchOffset'] as int?,
-                  snippetGroupOffset: raw['snippetGroupOffset'] as int?,
                   lineLength: raw['lineLength'] as int?,
                   continuesToNextLine:
                       raw['continuesToNextLine'] as bool? ?? false,
@@ -803,20 +768,15 @@ class SectionSearchWorkerRuntime {
               nextHeading++;
             }
 
-            // תוצאה לכל הופעה, לניווט אל כל אחת. התאמה עודפת אחת מעבר
-            // לקיבולת משמשת רק כגבול ל-snippet.
+            // תוצאה לכל הופעה בשורה — לא אחת לשורה — כדי ששתי הופעות
+            // באותו קטע יופיעו שתיהן ברשימת התוצאות. המטריאליזציה מוגבלת
+            // לקיבולת שנותרה, עם התאמה עודפת אחת שמשמשת רק כגבול ל-snippet.
             final remainingCapacity = _maxSearchResults - results.length;
             final lineMatches = pattern
                 .allMatches(line)
                 .where((m) => m.end > m.start)
                 .take(remainingCapacity + 1)
-                .map((m) => (start: m.start, end: m.end))
                 .toList(growable: false);
-            final snippets = _sharedSnippets(
-              line,
-              lineMatches,
-              count: min(lineMatches.length, remainingCapacity),
-            );
             String? cleanAddress;
             for (int m = 0; m < lineMatches.length; m++) {
               final match = lineMatches[m];
@@ -825,8 +785,16 @@ class SectionSearchWorkerRuntime {
               );
               results.add({
                 'index': i,
-                'snippet': snippets[m].text,
-                'snippetGroupOffset': snippets[m].groupOffset,
+                'snippet': _snippetAroundMatch(
+                  line,
+                  (start: match.start, end: match.end),
+                  lowerBound: m > 0
+                      ? (lineMatches[m - 1].end + match.start) ~/ 2
+                      : 0,
+                  upperBound: m < lineMatches.length - 1
+                      ? (match.end + lineMatches[m + 1].start) ~/ 2
+                      : line.length,
+                ),
                 'address': cleanAddress,
                 'query': query,
                 'matchOffset': match.start,
@@ -1013,11 +981,6 @@ searchUserRegexInContent({
 
     final line = clean(i);
     final matches = find(line);
-    final snippets = _sharedSnippets(
-      line,
-      matches,
-      count: min(matches.length, _maxSearchResults - results.length),
-    );
     String cleanAddress() =>
         utils.removeVolwels(utils.stripHtmlIfNeeded(address.join(', ')));
     for (var m = 0; m < matches.length; m++) {
@@ -1029,8 +992,14 @@ searchUserRegexInContent({
       results.add(
         TextSearchResult(
           index: i,
-          snippet: snippets[m].text,
-          snippetGroupOffset: snippets[m].groupOffset,
+          snippet: _snippetAroundMatch(
+            line,
+            match,
+            lowerBound: m > 0 ? (matches[m - 1].end + match.start) ~/ 2 : 0,
+            upperBound: m < matches.length - 1
+                ? (match.end + matches[m + 1].start) ~/ 2
+                : line.length,
+          ),
           address: cleanAddress(),
           query: query,
           matchOffset: match.start,

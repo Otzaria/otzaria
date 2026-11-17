@@ -583,15 +583,6 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
     try {
       if (searcher.getMatchesRangeForPage(pageNumber) == null &&
           searcher.isSearching) {
-        // הסריקה מתחילה מעמוד 1: מעבירים אותה לעמוד היעד כדי לא להמתין לכל מה שלפניו.
-        final pattern = searcher.pattern;
-        if (pattern != null) {
-          searcher.startTextSearch(
-            pattern,
-            goToFirstMatch: false,
-            startPageNumber: pageNumber,
-          );
-        }
         revealed = await revealPageIfPending?.call() ?? false;
         if (!isCurrent()) return null;
         if (searcher.getMatchesRangeForPage(pageNumber) == null &&
