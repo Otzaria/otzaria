@@ -322,7 +322,61 @@ void main() {
   // ולכן אינו נוגע בקובץ כלל.
   // ---------------------------------------------------------------------------
   group('מטמון מפת העמודים בזיכרון', () {
-    test('outline טעון מצטרף לטעינה פעילה ללא פתיחה נוספת', () async {
+    for (final fileOutcome in ['כשל', 'ריק', 'שונה']) {
+      for (final fileToPdf in [true, false]) {
+        test(
+          'outline שסופק נשמר מול קריאת קובץ $fileOutcome '
+          'בכיוון ${fileToPdf ? 'טקסט ל-PDF' : 'PDF לטקסט'}',
+          () async {
+            final books = seedLibrary(
+              textTitles: const ['ברכות-מקורות-שונים'],
+              pdfPath: p.join(tempDir.path, 'different-sources.pdf'),
+            );
+            final started = Completer<void>();
+            final release = Completer<void>();
+            var reads = 0;
+            final shifted = [
+              _outlineNode('דף ב.', 11),
+              _outlineNode('דף ב:', 12),
+              _outlineNode('דף ג.', 13),
+            ];
+            pdfAnchorsReaderForTesting = (_) async {
+              reads++;
+              started.complete();
+              await release.future;
+              if (fileOutcome == 'כשל') {
+                throw const FileSystemException('temporary failure');
+              }
+              return collectPdfAnchors(fileOutcome == 'ריק' ? [] : shifted);
+            };
+
+            final fromFile = fileToPdf
+                ? textToPdfPage(books.texts.first, 20, pdfBook: books.pdf)
+                : pdfToTextPage(books.pdf, const [], 13);
+            await started.future;
+            final supplied = fileToPdf
+                ? pdfToTextPage(books.pdf, _matchingOutline(), 3)
+                : textToPdfPage(
+                    books.texts.first,
+                    20,
+                    pdfBook: books.pdf,
+                    outline: _matchingOutline(),
+                  );
+            await Future<void>.delayed(Duration.zero);
+            release.complete();
+
+            expect(await supplied, fileToPdf ? 30 : 2);
+            expect(
+              await fromFile,
+              fileOutcome == 'שונה' ? (fileToPdf ? 12 : 30) : isNull,
+            );
+            expect(reads, 1);
+          },
+        );
+      }
+    }
+
+    test('outline טעון מומר לצד טעינה פעילה ללא פתיחה נוספת', () async {
       final books = seedLibrary(
         textTitles: const ['ברכות-outline-מקביל'],
         pdfPath: p.join(tempDir.path, 'mixed-outline-concurrent.pdf'),

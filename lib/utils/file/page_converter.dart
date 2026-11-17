@@ -80,8 +80,8 @@ Future<List<({int page, String ref})>> _getPdfAnchors(String pdfPath) async {
         if (matchesCurrentFile) {
           try {
             final anchors = entry.decodeAnchors();
-            // רשומה ריקה שנשמרה לפני התיקון — נמחקת ונבנית מחדש, אחרת
-            // ה-touch מרענן את ה-TTL והכשל החולף נשאר לצמיתות.
+            // רשומה ריקה נמחקת ונבנית מחדש; רענון ה-TTL שלה
+            // היה מקבע כשל חולף לצמיתות.
             if (anchors.isNotEmpty) {
               unawaited(
                 repository
@@ -225,7 +225,6 @@ Future<PageMap> _pageMapFor(
   final cached = _pageMapCache[key];
   if (cached != null) return Future.value(cached);
 
-  // הקריאה הראשונה בוחרת את ה-outline; שתי ההמרות ממתינות לאותה מפה.
   Future<PageMap> load() async {
     final anchorsPdf = outline == null || outline.isEmpty
         ? await _getPdfAnchors(pdfBook.path)
@@ -236,6 +235,9 @@ Future<PageMap> _pageMapFor(
     if (anchorsText.isNotEmpty) _pageMapCache[key] = map;
     return map;
   }
+
+  // outline בזיכרון הוא מקור עצמאי, ואינו תלוי בתוצאת קריאת הקובץ.
+  if (outline != null && outline.isNotEmpty) return load();
 
   return _pageMapLoads.putIfAbsent(
     key,
