@@ -3685,12 +3685,13 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   ) async {
     bool cacheWasSuperseded() =>
         generation != _databaseBookKeysGeneration || _titlesCached;
+    load:
     try {
       final hasTalmudBavliDirectory =
           await _bundledTalmudBavliDirectoryExists();
-      if (cacheWasSuperseded()) return _databaseOnlyBookKeys();
+      if (cacheWasSuperseded()) break load;
       final (:books, :categories) = await _bookCatalog(repository);
-      if (cacheWasSuperseded()) return _databaseOnlyBookKeys();
+      if (cacheWasSuperseded()) break load;
       final talmudBavliPath = _bundledTalmudBavliPathCache;
       final keys = <BookCompositeKey>[];
       final cache = (
@@ -3717,7 +3718,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
 
         if (!cache.paths.containsKey(book.categoryId)) {
           await _getPathForCategoryId(book.categoryId, cache: cache);
-          if (cacheWasSuperseded()) return _databaseOnlyBookKeys();
+          if (cacheWasSuperseded()) break load;
         }
       }
 
@@ -3731,11 +3732,13 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       _titlesCached = true;
       return UnmodifiableSetView(_cachedKeys);
     } catch (e) {
-      if (cacheWasSuperseded()) return _databaseOnlyBookKeys();
+      if (cacheWasSuperseded()) break load;
       if (e is DbReadWorkerBusy) rethrow;
       debugPrint('⚠️ Error building DB key cache: $e');
       return {};
     }
+    // Let the current generation handle its own errors.
+    return _databaseOnlyBookKeys();
   }
 
   /// כל ספרי seforim.db וקטגוריותיו: על ה-UI isolate זו חסימה של כ-90ms,
