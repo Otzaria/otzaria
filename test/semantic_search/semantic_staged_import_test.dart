@@ -14,6 +14,7 @@ import 'package:otzaria/semantic_search/models/semantic_model_identity.dart';
 import 'package:otzaria/semantic_search/models/semantic_model_release.dart';
 import 'package:otzaria/semantic_search/models/semantic_paths.dart';
 import 'package:otzaria/semantic_search/models/semantic_vectors_family.dart';
+import 'package:otzaria/semantic_search/models/semantic_update_frequency.dart';
 import 'package:otzaria/semantic_search/models/semantic_vectors_release.dart';
 import 'package:otzaria/semantic_search/repository/semantic_release_locator.dart';
 import 'package:otzaria/semantic_search/repository/semantic_staged_import.dart';
@@ -107,6 +108,19 @@ class _UnreachableLocator extends SemanticVectorsReleaseLocator {
   }) async {
     lookups++;
     throw const SocketException('no network');
+  }
+}
+
+class _InspectingBackend extends FakeBackend {
+  final installedBytes = <List<int>>[];
+
+  @override
+  Future<SemanticInstallSummary> installVectors(
+    SemanticInstallRequest request, {
+    required SemanticCancelHandle cancel,
+  }) async {
+    installedBytes.add(await File(request.segmentPath).readAsBytes());
+    return super.installVectors(request, cancel: cancel);
   }
 }
 
@@ -413,6 +427,135 @@ void main() {
     expect(downloads.urls, isEmpty);
     expect(backend.installRequests, hasLength(1));
   });
+
+  for (final frequency in [
+    SemanticUpdateFrequency.manual,
+    SemanticUpdateFrequency.monthly,
+  ]) {
+    for (final source in [
+      'old model',
+      'no manifest',
+      'manifest only',
+      'invalid manifest',
+      'old version',
+      'foreign family',
+      'wrong chunking',
+      'partial',
+      'corrupt',
+      'delta',
+      'vanished',
+      'ready split',
+      'ready',
+      'ready offline',
+    ]) {
+      test('תדירות חסומה נשארת מקומית: $frequency / $source', () async {
+        installModelFiles(root);
+        final manifest =
+            jsonDecode(_manifest(version: 31)) as Map<String, dynamic>;
+        switch (source) {
+          case 'old version':
+            manifest['toLibraryVersion'] = 30;
+            manifest['libraryReleaseTag'] = _tag;
+          case 'foreign family':
+            manifest['identity']['model']['family_id'] = 'foreign';
+          case 'wrong chunking':
+            manifest['identity']['model']['chunking_identity'] = -1;
+          case 'invalid manifest':
+            manifest['segment'] = 'invalid';
+          case 'partial':
+          case 'ready split':
+            (manifest['files'] as List).add({
+              'file': '$_segmentName.part-001',
+              'size': 1,
+              'sha256': _sha([1]),
+            });
+          case 'delta':
+            manifest['kind'] = 'delta';
+            manifest['fromLibraryVersion'] = 30;
+        }
+        if (source == 'ready split') {
+          manifest['files'][0]['file'] = '$_segmentName.part-000';
+        }
+        if (source == 'old model') {
+          write(staged('meivin-round2-onnx', 'query.int8.onnx'), 'old');
+        } else {
+          if (source != 'manifest only') {
+            write(
+              staged(
+                kSemanticImportVectorsFolderName,
+                manifest['files'][0]['file'],
+              ),
+              source == 'corrupt' ? 'damaged' : 'segment',
+            );
+          }
+          if (source == 'ready split') {
+            File(
+                staged(
+                  kSemanticImportVectorsFolderName,
+                  '$_segmentName.part-001',
+                ),
+              )
+              ..createSync(recursive: true)
+              ..writeAsBytesSync([1]);
+          }
+          if (source != 'no manifest') {
+            write(
+              staged(kSemanticImportVectorsFolderName, _manifestName),
+              jsonEncode(manifest),
+            );
+          }
+        }
+        final backend = _InspectingBackend()..vectors = installedV30;
+        final locator = FakeLocator(releaseV30());
+        final downloads = FakeDownloads();
+        final lastUpdate = DateTime.now().subtract(const Duration(days: 7));
+        final settings = FakeSettingsStore()
+          ..dataEnabled = true
+          ..updateFrequency = frequency
+          ..lastVectorsUpdate = lastUpdate
+          ..isOfflineMode = source == 'ready offline';
+        final repository = buildRepository(
+          root: root,
+          backend: backend,
+          settings: settings,
+          locator: locator,
+          download: downloads.call,
+          modelReleases: _smallModel,
+          libraryVersion: 31,
+          diskSpace: (_) async {
+            if (source == 'vanished') {
+              final payload = File(
+                staged(kSemanticImportVectorsFolderName, _segmentName),
+              );
+              if (payload.existsSync()) payload.deleteSync();
+            }
+            return const DiskSpaceInfo(volumeId: 'C', freeBytes: -1);
+          },
+        );
+
+        repository.scheduleVectorsUpdate();
+        await repository.pendingJob;
+
+        expect(locator.lookups, isEmpty);
+        expect(locator.chainLookups, isEmpty);
+        expect(downloads.urls, isEmpty);
+        if (source.startsWith('ready')) {
+          expect(
+            backend.installRequests.single.manifestJson,
+            jsonEncode(manifest),
+          );
+          expect(
+            backend.installedBytes.single,
+            [...utf8.encode('segment'), if (source == 'ready split') 1],
+          );
+          expect(settings.lastVectorsUpdate!.isAfter(lastUpdate), isTrue);
+        } else {
+          expect(backend.installRequests, isEmpty);
+          expect(settings.lastVectorsUpdate, lastUpdate);
+        }
+      });
+    }
+  }
 
   for (final offline in [true, false]) {
     test(

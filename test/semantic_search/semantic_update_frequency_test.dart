@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/semantic_search/models/semantic_availability.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria/semantic_search/models/semantic_update_frequency.dart';
+import 'package:otzaria/semantic_search/models/semantic_vectors_family.dart';
 import 'package:otzaria/semantic_search/services/semantic_data_failure_log.dart';
 
 import 'semantic_test_support.dart';
@@ -193,6 +194,25 @@ void main() {
       await repository.pendingJob;
 
       expect(f.locator.lookups, [31]);
+    });
+
+    test('ידני לא חוסם החלפה למשפחת החלונות', () async {
+      final f = installedBehindLibrary(SemanticUpdateFrequency.manual);
+      f.backend.supportsLongLineWindows = true;
+      f.locator.release = releaseV30(family: SemanticVectorsFamily.windows);
+      final repository = buildRepository(
+        root: root,
+        locator: f.locator,
+        settings: f.settings,
+        backend: f.backend,
+        libraryVersion: 31,
+      );
+
+      repository.scheduleVectorsUpdate();
+      await repository.pendingJob;
+
+      expect(f.locator.lookups, [31]);
+      expect(f.backend.installRequests, hasLength(1));
     });
 
     test('התקנה מוצלחת רושמת את מועד העדכון', () async {

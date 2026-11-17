@@ -1160,15 +1160,35 @@ class SemanticSearchRepository {
         'the bundled ONNX Runtime library is missing',
       );
     }
-    if (!_explicitUpdate &&
-        !_jobFromStaged &&
+    final routineUpdateBlocked =
+        !_explicitUpdate &&
         installed.libraryVersion != version &&
         await _isRoutineUpdate(installed) &&
         !isSemanticRoutineUpdateDue(
           frequency: _settings.updateFrequency,
           lastUpdate: _settings.lastVectorsUpdate,
           now: DateTime.now(),
-        )) {
+        );
+    SemanticVectorsRelease? release;
+    if (routineUpdateBlocked) {
+      release = await _staged.stagedRelease(
+        version,
+        await _vectorsCandidates(await _installedFamily(installed)),
+      );
+      for (final file in release?.files ?? <SemanticVectorsFile>[]) {
+        if (await _staged.verifiedStagedFile(
+              file.name,
+              file.size,
+              file.sha256,
+              isCancelled: () => _jobCancel.isCancelled,
+            ) ==
+            null) {
+          release = null;
+          break;
+        }
+      }
+    }
+    if (routineUpdateBlocked && release == null) {
       // הווקטורים ממתינים לתדירות, אבל רכיב החיפוש שנבחר (למשל דיוק אחר) יורד.
       final model = await _missingModelFiles(paths, quantization);
       if (model.missing.isEmpty) return;
@@ -1180,7 +1200,6 @@ class SemanticSearchRepository {
     }
 
     // ה-release נמצא לפני הורדת המודל: בלי וקטורים לגרסה הזו אין מה להוריד.
-    SemanticVectorsRelease? release;
     SemanticVectorsRelease? onlineRelease;
     final installedFamily = await _installedFamily(installed);
     final installedModelMatches = await _hasCurrentModel(installed);
@@ -1194,7 +1213,7 @@ class SemanticSearchRepository {
       final candidates = await _vectorsCandidates(
         installedModelMatches ? installedFamily : null,
       );
-      release = await _staged.locate(
+      release ??= await _staged.locate(
         version,
         offline: offline,
         candidates: candidates,
@@ -1253,7 +1272,20 @@ class SemanticSearchRepository {
     await _removeLegacyModels(paths);
     if (_jobCancel.isCancelled) return;
     if (release != null) {
-      await _installRelease(paths, release, chain: chain);
+      await _installRelease(
+        paths,
+        release,
+        chain: chain,
+        // גם שינוי בקובץ אחרי האימות אינו מתיר מעבר לרשת.
+        download: routineUpdateBlocked
+            ? _staged.wrap(
+                _download,
+                isOffline: () => true,
+                onChecking: _showChecking,
+                onSource: _showSource,
+              )
+            : _fetch,
+      );
       if (_jobCancel.isCancelled) return;
     }
     _compactIfNeeded();
@@ -1266,6 +1298,7 @@ class SemanticSearchRepository {
     SemanticVectorsRelease base, {
     List<SemanticVectorsRelease>? chain,
     int? vectorsStart,
+    SemanticFileDownloader? download,
   }) async {
     final plan = chain ?? [base];
     await _stopCompaction();
@@ -1280,7 +1313,12 @@ class SemanticSearchRepository {
     for (final release in plan) {
       bool installed;
       try {
-        final segment = await _downloadVectors(downloadDir.path, release, done);
+        final segment = await _downloadVectors(
+          downloadDir.path,
+          release,
+          done,
+          download: download,
+        );
         if (_jobCancel.isCancelled) return;
         installed = await _installStep(paths, release, segment, done);
       } catch (error, stackTrace) {
@@ -1292,7 +1330,12 @@ class SemanticSearchRepository {
         // בלי זה כל עבודה הייתה מחשבת שוב את אותה שרשרת ונכשלת בה.
         _deltaChainFailedFor = base.releaseTag;
         _jobTotalBytes = done + base.downloadSize;
-        return _installRelease(paths, base, vectorsStart: done);
+        return _installRelease(
+          paths,
+          base,
+          vectorsStart: done,
+          download: download,
+        );
       }
       done += release.downloadSize;
       // צעד שהותקן אינו נחוץ עוד; ההורדות החלקיות של הבאים נשמרות.
@@ -1607,15 +1650,16 @@ class SemanticSearchRepository {
   Future<String> _downloadVectors(
     String downloadDir,
     SemanticVectorsRelease release,
-    int before,
-  ) async {
+    int before, {
+    SemanticFileDownloader? download,
+  }) async {
     var done = before;
     final parts = <String>[];
     _reportProgress(SemanticDownloadItem.vectors, done, force: true);
     for (final file in release.files) {
       final dest = p.join(downloadDir, file.name);
       final start = done;
-      await _fetch(
+      await (download ?? _fetch)(
         url: file.downloadUrl,
         destPath: dest,
         resumeIdentity:
