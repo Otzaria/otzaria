@@ -2313,7 +2313,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               // שחרור אחרי החזקה מבטל את התור; לחיצות קצרות שומרות את הדפדוף שלהן.
               if (_isPageTurnKey(event.logicalKey)) {
                 final wasHeld = _heldArrowKeys.remove(event.logicalKey);
-                if (wasHeld) {
+                if (wasHeld && _pendingPageTurns.isNotEmpty) {
                   _pendingPageTurns.clear();
                   // הלחיצה הבאה תמשיך מיעד האנימציה הפעילה ולא מהתור שבוטל.
                   _lastInitiatedTargetPage = _inFlightAnimationTarget;
