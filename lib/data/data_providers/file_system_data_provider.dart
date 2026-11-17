@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
@@ -368,21 +369,47 @@ class FileSystemData {
       return const {};
     }
     final roots = [hebrewBooksPath, path.join(hebrewBooksPath, 'Books')];
-    final pdfFiles = <String, String>{};
-    try {
-      for (final id in ids) {
+    final requested = ids.toList(growable: false);
+    var firstFailedIndex = requested.length;
+    Future<({Map<String, String> files, (Object, StackTrace)? failure})> probe(
+      int index,
+    ) async {
+      final id = requested[index];
+      final files = <String, String>{};
+      try {
         for (final name in ['$id.pdf', 'hebrewbooks_org_$id.pdf']) {
           for (final root in roots) {
+            if (index > firstFailedIndex) return (files: files, failure: null);
             final file = File(path.join(root, name));
             if (await file.exists()) {
-              pdfFiles.putIfAbsent(name, () => file.path);
+              files[name] = file.path;
               break;
             }
           }
         }
+      } catch (error, stackTrace) {
+        firstFailedIndex = math.min(firstFailedIndex, index);
+        // תוצאה מאוחרת עשויה להגיע אחרי שהבקשה כבר חזרה.
+        return (files: files, failure: (error, stackTrace));
       }
-    } on FileSystemException {
-      // כונן לא זמין - מחזירים את מה שנמצא עד כה.
+      return (files: files, failure: null);
+    }
+
+    const batchSize = 8;
+    final pdfFiles = <String, String>{};
+    for (var start = 0; start < requested.length; start += batchSize) {
+      final end = math.min(start + batchSize, requested.length);
+      final batch = [
+        for (var index = start; index < end; index++) probe(index),
+      ];
+      for (final pending in batch) {
+        final (:files, :failure) = await pending;
+        pdfFiles.addAll(files);
+        if (failure case (final error, final stackTrace)) {
+          if (error is FileSystemException) return pdfFiles;
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+      }
     }
     return pdfFiles;
   }
