@@ -285,6 +285,24 @@ void main() {
       },
     );
 
+    test('תחילית אוספת תיקיות שונות בסדר הספרים וללא כפילויות', () async {
+      final repo = _repo(
+        books: [
+          _book(1, 'חלק ב', folders: const ['מקורות']),
+          _book(2, 'חלק א', folders: const ['מקואות', 'מקואות']),
+          _book(3, 'חלק ג', folders: const ['מקואות', 'קטן']),
+        ],
+      );
+      Future<List<int>> ids(String query) async => [
+        for (final result in await personal(repo, query)) result.bookId,
+      ];
+
+      expect(await ids('מקו'), [1, 2]);
+      expect(await ids('מ"קו'), isEmpty);
+      expect(await ids('מקו חלק'), isEmpty);
+      expect(await ids('מקוואות חלק'), [2]);
+    });
+
     test('ספר רשמי קודם לספר אישי כשהרלוונטיות שווה', () async {
       final repo = FindRefRepository(
         dataRepository: MockDataRepository(),

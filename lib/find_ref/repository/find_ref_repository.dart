@@ -110,6 +110,7 @@ class _SecondaryBook {
 class _SecondaryIndex {
   _SecondaryIndex(this.books, {Map<int, List<String>>? acronyms})
     : byId = {for (final book in books) book.record.id: book},
+      folderNames = _FolderNameIndex(books),
       titles = BookTitleIndex(
         books: [
           for (final book in books)
@@ -130,6 +131,7 @@ class _SecondaryIndex {
 
   final List<_SecondaryBook> books;
   final Map<int, _SecondaryBook> byId;
+  final _FolderNameIndex folderNames;
   final BookTitleIndex titles;
 
   static Future<_SecondaryIndex> build(
@@ -140,6 +142,72 @@ class _SecondaryIndex {
       return _SecondaryIndex(books, acronyms: acronyms);
     }
     return Isolate.run(() => _SecondaryIndex(books, acronyms: acronyms));
+  }
+}
+
+/// מועמדים לפי המילה הראשונה בכל סיומת של שרשרת התיקיות.
+class _FolderNameIndex {
+  _FolderNameIndex(List<_SecondaryBook> books) {
+    final barePrefixes = <String>{};
+    final singleWordPrefixes = <String>{};
+    final shortestByFirstToken = <String, int>{};
+    for (var position = 0; position < books.length; position++) {
+      final book = books[position];
+      shortestByFirstToken.clear();
+      for (final tokens in book.folderMatchTokens) {
+        if (tokens.isEmpty) continue;
+        final first = tokens.first;
+        final folderWords = tokens.length - book.titleTokens.length;
+        final previous = shortestByFirstToken[first];
+        if (previous == null || folderWords < previous) {
+          shortestByFirstToken[first] = folderWords;
+        }
+      }
+      for (final MapEntry(key: first, value: folderWords)
+          in shortestByFirstToken.entries) {
+        _postings.putIfAbsent(first, () => []).add((position, folderWords));
+        if (folderWords <= 0) barePrefixes.add(first);
+        if (folderWords <= 1) singleWordPrefixes.add(first);
+      }
+    }
+    _barePrefixes = barePrefixes.toList()..sort();
+    _singleWordPrefixes = singleWordPrefixes.toList()..sort();
+  }
+
+  final _postings = <String, List<(int, int)>>{};
+  late final List<String> _barePrefixes;
+  late final List<String> _singleWordPrefixes;
+
+  List<int> candidates(List<String> queryTokens, {required bool partialFirst}) {
+    final first = queryTokens.first;
+    final exact = [
+      for (final (position, folderWords)
+          in _postings[first] ?? const <(int, int)>[])
+        if (folderWords <= queryTokens.length) position,
+    ];
+    // בטוקן ראשון חלקי יש בשאילתה מילה אחת בלבד. בכל מקרה אחר
+    // תחילית מותרת כאן רק אם שם התיקייה נעלם בנרמול.
+    final keys = partialFirst ? _singleWordPrefixes : _barePrefixes;
+    final maxFolderWords = partialFirst ? 1 : 0;
+    var start = 0;
+    var end = keys.length;
+    while (start < end) {
+      final mid = (start + end) ~/ 2;
+      if (keys[mid].compareTo(first) < 0) {
+        start = mid + 1;
+      } else {
+        end = mid;
+      }
+    }
+    Set<int>? combined;
+    for (var i = start; i < keys.length && keys[i].startsWith(first); i++) {
+      if (keys[i] == first) continue;
+      final positions = combined ??= exact.toSet();
+      for (final (position, folderWords) in _postings[keys[i]]!) {
+        if (folderWords <= maxFolderWords) positions.add(position);
+      }
+    }
+    return combined == null ? exact : (combined.toList()..sort());
   }
 }
 
@@ -2532,6 +2600,10 @@ class FindRefRepository {
     final queryMatchTokens = queryTokens
         .map(bookNameMatchToken)
         .toList(growable: false);
+    final folderCandidates = index.folderNames.candidates(
+      queryMatchTokens,
+      partialFirst: partialFolderToken == 0,
+    );
     final books = _BookSearch(
       queryTokens: queryTokens,
       visibility: search.visibility,
@@ -2539,6 +2611,7 @@ class FindRefRepository {
       source: source,
       extraHits: (phrase, hits) => _folderNameHits(
         index,
+        folderCandidates,
         queryMatchTokens,
         phrase,
         hits,
@@ -2750,6 +2823,7 @@ class FindRefRepository {
   /// לרוב על התיקייה. רק לספרים שהמנוע לא מצא בצירוף [phrase].
   static List<ReferenceBookHit> _folderNameHits(
     _SecondaryIndex index,
+    List<int> candidates,
     List<String> queryMatchTokens,
     String phrase,
     List<ReferenceBookHit> hits,
@@ -2762,9 +2836,10 @@ class FindRefRepository {
     final found = {for (final hit in hits) hit.bookId};
     final restrict = !visibility.selection.isEmpty;
     final out = <ReferenceBookHit>[];
-    for (final book in index.books) {
+    for (final position in candidates) {
+      final book = index.books[position];
       final record = book.record;
-      if (book.folderNameTokens.isEmpty || found.contains(record.id)) continue;
+      if (found.contains(record.id)) continue;
       if (restrict &&
           !visibility.allowsCandidate(
             source,
