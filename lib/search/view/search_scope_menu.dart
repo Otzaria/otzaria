@@ -220,6 +220,9 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
 
   Future<void> _deleteSavedScope(String name) async {
     final before = SearchScopePreferences.loadSavedScopes();
+    final index = before.indexWhere((scope) => scope.name == name);
+    if (index < 0) return;
+    final deleted = before[index];
     final next = await SearchScopePreferences.removeSavedScope(name);
     if (!mounted) return;
     setState(() => _savedScopes = next);
@@ -227,8 +230,13 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
       message: LibraryMessages.savedScopeDeleted(name),
       actionLabel: context.settingsText('בטל'),
       onAction: () async {
-        await SearchScopePreferences.saveSavedScopes(before);
-        if (mounted) setState(() => _savedScopes = before);
+        final restored = SearchScopePreferences.loadSavedScopes().toList();
+        // שמירה חדשה באותו שם קודמת לביטול המחיקה הישנה.
+        if (!restored.any((scope) => scope.name == name)) {
+          restored.insert(index.clamp(0, restored.length), deleted);
+          await SearchScopePreferences.saveSavedScopes(restored);
+        }
+        if (mounted) setState(() => _savedScopes = restored);
       },
     );
   }

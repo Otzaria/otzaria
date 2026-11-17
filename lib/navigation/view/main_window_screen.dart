@@ -328,7 +328,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
   /// הסתרת הסרגלים בגלילה בטלפון (סרגל הקורא והסרגל התחתון).
   final _chromeAutoHide = ChromeAutoHideController();
 
-  /// המסך והכרטיסיה שבהם הסרגלים הוסתרו; מעבר לאחרים מציג אותם.
+  /// המסך, הכרטיסיה והחלונית שבהם הסרגלים הוסתרו.
   Object? _chromeAutoHideKey;
 
   /// מפתחות החלון — נשלפים פעם אחת, כדי שיהיו זמינים גם מ-callback-ים מאוחרים.
@@ -2025,8 +2025,11 @@ class MainWindowScreenState extends State<MainWindowScreen>
   DateTime? _lastBackPressAt;
 
   /// מעבר למסך או לכרטיסיה אחרים מציג את הסרגלים שהוסתרו בגלילה.
-  void _showChromeOnNewPage(Screen screen, int tabIndex) {
-    final key = (screen, tabIndex);
+  void _showChromeOnNewPage(
+    Screen screen,
+    (OpenedTab?, OpenedTab?) tabAndPane,
+  ) {
+    final key = (screen, tabAndPane);
     if (key == _chromeAutoHideKey) return;
     _chromeAutoHideKey = key;
     if (_chromeAutoHide.visible) return;
@@ -3962,8 +3965,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                     _showChromeOnNewPage(
                                       state.currentScreen,
                                       context.select(
-                                        (TabsBloc bloc) =>
-                                            bloc.state.currentTabIndex,
+                                        (TabsBloc bloc) => (
+                                          bloc.state.currentTab,
+                                          bloc.state.activePane,
+                                        ),
                                       ),
                                     );
                                     return ChromeAutoHideScope(
