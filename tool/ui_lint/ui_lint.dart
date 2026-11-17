@@ -196,6 +196,7 @@ class UiLintConfig {
     this.globalExcludes = const [],
     this.ruleExcludes = const {},
     this.strictRules = const {},
+    this.maxAllows = const {},
   });
 
   final List<PathExclusion> globalExcludes;
@@ -207,6 +208,12 @@ class UiLintConfig {
   final Set<String> strictRules;
 
   bool isStrict(String rule) => strictRules.contains(rule);
+
+  /// תקרת הערות allow לכל כלל (`max_allows`, CI_ENFORCEMENT.md §3.5). כלל
+  /// שלא מופיע שם: 0.
+  final Map<String, int> maxAllows;
+
+  int maxAllowsFor(String rule) => maxAllows[rule] ?? 0;
 
   bool excludesFile(String path) => globalExcludes.any((e) => e.matches(path));
 
@@ -249,10 +256,24 @@ class UiLintConfig {
         if (flag == true) strict.add(key);
       }
     }
+    final caps = <String, int>{};
+    final capsNode = doc['max_allows'];
+    if (capsNode != null && capsNode is! YamlMap) {
+      throw const FormatException('max_allows חייב להיות מפה של כלל → מספר');
+    }
+    if (capsNode is YamlMap) {
+      for (final MapEntry(:key, :value) in capsNode.entries) {
+        if (value is! int || value < 0) {
+          throw FormatException('max_allows.$key חייב להיות מספר שלם אי־שלילי');
+        }
+        caps[key as String] = value;
+      }
+    }
     return UiLintConfig(
       globalExcludes: exclusions(doc['exclude'], 'exclude'),
       ruleExcludes: rules,
       strictRules: strict,
+      maxAllows: caps,
     );
   }
 
@@ -365,7 +386,52 @@ UiLintResult runUiLint(
     allows.addAll(result.allows);
     problems.addAll(result.problems);
   }
+  problems.addAll(
+    allowCapProblems(allows, effectiveConfig, {for (final r in rules) r.id}),
+  );
   return UiLintResult(findings, allows, problems);
+}
+
+/// מספר הערות ה־allow של כל כלל מול `max_allows` ב־config.yaml: חריגה מעל
+/// התקרה, וגם תקרה שגבוהה מהמספר בפועל (ratchet, כמו ה־baseline), כדי שהמספר
+/// לא יגדל בשקט.
+List<UiLintProblem> allowCapProblems(
+  List<UiLintAllow> allows,
+  UiLintConfig config,
+  Set<String> ruleIds,
+) {
+  final counts = <String, int>{};
+  for (final allow in allows) {
+    counts.update(allow.rule, (n) => n + 1, ifAbsent: () => 1);
+  }
+  final problems = <UiLintProblem>[];
+  for (final rule in ({
+    ...ruleIds,
+    ...config.maxAllows.keys,
+  }.toList()..sort())) {
+    final count = counts[rule] ?? 0;
+    final cap = config.maxAllowsFor(rule);
+    if (count > cap) {
+      problems.add(
+        UiLintProblem(
+          configRelativePath,
+          1,
+          '$rule: $count הערות allow, מעל התקרה $cap (max_allows). לתקן את '
+          'החריגה, או להעלות את התקרה ב־config.yaml כדי שהתוספת תיסקר',
+        ),
+      );
+    } else if (count < cap) {
+      problems.add(
+        UiLintProblem(
+          configRelativePath,
+          1,
+          '$rule: $count הערות allow ו־max_allows הוא $cap. להוריד את התקרה '
+          'ל־$count ב־config.yaml',
+        ),
+      );
+    }
+  }
+  return problems;
 }
 
 List<UiLintAllow> _parseAllows(
@@ -550,4 +616,82 @@ class BaselineComparison {
 
   /// רשומות baseline (מפתח → כמות) שכבר לא מנוצלות.
   final Map<String, int> dead;
+}
+
+// ── מצב לפי מודול ────────────────────────────────────────────────────────────
+
+/// שורה בטבלת המצב לפי מודול: תיקייה ראשית תחת `lib/` (קובץ שיושב ישירות
+/// ב־`lib/` נספר תחת [rootModule]).
+class ModuleStatus {
+  ModuleStatus(this.module, this.baselineByRule, this.allows);
+
+  static const rootModule = 'lib';
+
+  final String module;
+
+  /// מופעי baseline לכל כלל, ממוין לפי הכלל.
+  final Map<String, int> baselineByRule;
+  final int allows;
+
+  int get baseline => baselineByRule.values.fold(0, (sum, n) => sum + n);
+
+  /// "נקי" בלי baseline ובלי allow; אחרת הסכום שלהם.
+  String get status => baseline + allows == 0 ? 'נקי' : '${baseline + allows}';
+}
+
+String moduleOf(String path) {
+  final parts = path.split('/');
+  return parts.length > 2 && parts.first == 'lib'
+      ? parts[1]
+      : ModuleStatus.rootModule;
+}
+
+/// הטבלה לפי מודול, נגזרת מה־baseline ומהערות ה־allow בלבד, בלי תחזוקה
+/// ידנית. [modules] הם כל התיקיות הראשיות ב־lib, כדי שגם מודול נקי יופיע.
+List<ModuleStatus> moduleStatuses(
+  UiLintBaseline baseline,
+  List<UiLintAllow> allows,
+  Iterable<String> modules,
+) {
+  final debt = <String, Map<String, int>>{};
+  for (final MapEntry(:key, :value) in baseline.counts.entries) {
+    final [rule, path, ...] = key.split('|');
+    debt
+        .putIfAbsent(moduleOf(path), () => {})
+        .update(rule, (n) => n + value, ifAbsent: () => value);
+  }
+  final allowCounts = <String, int>{};
+  for (final allow in allows) {
+    allowCounts.update(moduleOf(allow.path), (n) => n + 1, ifAbsent: () => 1);
+  }
+  final names = {...modules, ...debt.keys, ...allowCounts.keys}.toList()
+    ..sort();
+  return [
+    for (final name in names)
+      ModuleStatus(
+        name,
+        Map.fromEntries(
+          (debt[name] ?? const {}).entries.toList()
+            ..sort((a, b) => a.key.compareTo(b.key)),
+        ),
+        allowCounts[name] ?? 0,
+      ),
+  ];
+}
+
+/// טבלת Markdown של [moduleStatuses], ל־`$GITHUB_STEP_SUMMARY`.
+String moduleStatusMarkdown(List<ModuleStatus> rows) {
+  final buffer = StringBuffer('## ui_lint לפי מודול\n\n')
+    ..writeln('| מודול | מצב | baseline | לפי כלל | allow |')
+    ..writeln('|---|---|---|---|---|');
+  for (final row in rows) {
+    final rules = row.baselineByRule.entries
+        .map((e) => '${e.key}: ${e.value}')
+        .join(', ');
+    buffer.writeln(
+      '| `${row.module}` | ${row.status} | ${row.baseline} | '
+      '${rules.isEmpty ? '—' : rules} | ${row.allows} |',
+    );
+  }
+  return buffer.toString();
 }

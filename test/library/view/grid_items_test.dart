@@ -59,6 +59,8 @@ void main() {
   Widget buildTestWidget({
     required Book book,
     bool showTopics = false,
+    bool isSelected = false,
+    bool isChecked = false,
     double width = 260,
   }) {
     return MaterialApp(
@@ -69,6 +71,8 @@ void main() {
             child: BookGridItem(
               book: book,
               showTopics: showTopics,
+              isSelected: isSelected,
+              isChecked: isChecked,
               onBookClickCallback: () {},
             ),
           ),
@@ -106,9 +110,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(Tooltip), findsOneWidget);
-    final tooltip = tester.widget<Tooltip>(find.byType(Tooltip));
-    expect(tooltip.preferBelow, isFalse);
-    expect(tooltip.verticalOffset, 18);
+    // הסגנון מגיע מ-TooltipTheme ש-OverflowTooltipText עוטף בו את ה-Tooltip.
+    final theme = TooltipTheme.of(tester.element(find.byType(Tooltip)));
+    expect(theme.preferBelow, isFalse);
+    expect(theme.verticalOffset, 18);
   });
 
   testWidgets('בתוצאות חיפוש מוצג נתיב הקטגוריות, לא הנושאים', (
@@ -268,6 +273,122 @@ void main() {
 
     expect(find.byIcon(OtzariaIcons.document_word_24_regular), findsOneWidget);
     expect(find.byIcon(OtzariaIcons.document_alef_24_regular), findsNothing);
+  });
+
+  // LQ-6: בכרטיס נבחר תג האייקון לא נבלע ברקע הבחירה (selectedRow).
+  testWidgets('בכרטיס נבחר תג התיקייה ותג הספר נבדלים מרקע הבחירה', (
+    tester,
+  ) async {
+    final category = Category(
+      title: 'קטגוריה',
+      description: '',
+      shortDescription: '',
+      order: 0,
+      subCategories: [],
+      books: [],
+      parent: null,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Material(
+          child: Column(
+            children: [
+              SizedBox(
+                width: 260,
+                child: CategoryGridItem(
+                  category: category,
+                  onCategoryClickCallback: () {},
+                  isSelected: true,
+                ),
+              ),
+              SizedBox(
+                width: 260,
+                height: 120,
+                child: BookGridItem(
+                  book: TextBook(title: 'ברכות'),
+                  onBookClickCallback: () {},
+                  isSelected: true,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final cs = Theme.of(
+      tester.element(find.byType(CategoryGridItem)),
+    ).colorScheme;
+    for (final icon in [
+      FluentIcons.folder_24_regular,
+      bookFormatIcon(TextBook(title: 'ברכות')),
+    ]) {
+      final badge = tester.widget<Container>(
+        find
+            .ancestor(of: find.byIcon(icon), matching: find.byType(Container))
+            .first,
+      );
+      final color = (badge.decoration! as BoxDecoration).color;
+      expect(color, isNot(cs.secondaryContainer), reason: '$icon');
+    }
+  });
+
+  for (final selected in [false, true]) {
+    testWidgets('סימון בחירה מרובה נשמר בכרטיס עם preview=$selected', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildTestWidget(
+          book: TextBook(title: 'ברכות'),
+          isSelected: selected,
+          isChecked: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+      final check = find.byIcon(FluentIcons.checkmark_24_regular);
+      final colors = Theme.of(tester.element(check)).colorScheme;
+      final badge = tester.widget<Container>(
+        find
+            .ancestor(
+              of: check,
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+      expect((badge.decoration! as BoxDecoration).color, colors.primary);
+      expect(tester.widget<Icon>(check).color, colors.onPrimary);
+      expect(
+        find.byIcon(bookFormatIcon(TextBook(title: 'ברכות'))),
+        findsNothing,
+      );
+    });
+  }
+
+  // q11 B: ה-tooltip של כפתור הפרטים מערכת הנושא, בלי עיצוב מקומי.
+  testWidgets('tooltip כפתור הפרטים בלי decoration וסגנון טקסט מקומיים', (
+    tester,
+  ) async {
+    final category = Category(
+      title: 'תנ״ך',
+      description: 'תורה, נביאים וכתובים',
+      shortDescription: '',
+      order: 0,
+      subCategories: [],
+      books: [],
+      parent: null,
+    );
+    await tester.pumpWidget(buildCategoryTestWidget(category));
+    await tester.pumpAndSettle();
+    final tooltip = tester.widget<Tooltip>(
+      find
+          .ancestor(
+            of: find.byIcon(FluentIcons.info_24_regular),
+            matching: find.byType(Tooltip),
+          )
+          .first,
+    );
+    expect(tooltip.decoration, isNull);
+    expect(tooltip.textStyle, isNull);
   });
 
   group('מידע קטגוריה', () {

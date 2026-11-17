@@ -16,7 +16,7 @@ import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
-import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import '../providers/shamor_zachor_data_provider.dart';
@@ -140,81 +140,49 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Dialog(
-      clipBehavior: Clip.antiAlias,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 600, maxHeight: 680),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            AppDialogHeader(
-              icon: FluentIcons.library_24_regular,
-              title: 'הוספת ספרים למעקב',
-              subtitle:
-                  'בחר ספרים מעץ הספרייה. הספרים שייבחרו יתווספו לרשימת "בתהליך".',
-              closeEnabled: !_isAdding,
+    final selectedCount = _selectedBooks.length;
+    return AppDialogFrame(
+      size: AppDialogSize.large,
+      // רשימה עם שורת חיפוש: גובה קבוע, כדי שהשדה לא יזוז בזמן ההקלדה.
+      height: MediaQuery.sizeOf(context).height * AppDialogSize.maxHeightFactor,
+      icon: FluentIcons.library_24_regular,
+      title: 'הוספת ספרים למעקב',
+      subtitle:
+          'בחר ספרים מעץ הספרייה. הספרים שייבחרו יתווספו לרשימת "בתהליך".',
+      closeEnabled: !_isAdding,
+      // ברוחב טלפון המספר מופיע בכפתור ההוספה עצמו.
+      trailing: selectedCount == 0 || WindowClass.of(context).isCompact
+          ? null
+          : MetaChip(
+              tone: MetaChipTone.success,
+              icon: FluentIcons.checkmark_circle_24_regular,
+              label: 'נבחרו $selectedCount',
             ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppTokens.spaceLG,
-                  AppTokens.spaceMD,
-                  AppTokens.spaceLG,
-                  0,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildSearchField(),
-                    const SizedBox(height: AppTokens.spaceMD),
-                    Expanded(child: _buildBody(colorScheme)),
-                  ],
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(AppTokens.spaceMD),
-              child: Row(
-                children: [
-                  // ברוחב טלפון המספר מופיע בכפתור ההוספה עצמו.
-                  Expanded(
-                    child: Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child:
-                          _selectedBooks.isEmpty ||
-                              WindowClass.of(context).isCompact
-                          ? null
-                          : Padding(
-                              padding: const EdgeInsetsDirectional.only(
-                                start: AppTokens.spaceSM,
-                              ),
-                              child: MetaChip(
-                                tone: MetaChipTone.success,
-                                icon: FluentIcons.checkmark_circle_24_regular,
-                                label: 'נבחרו ${_selectedBooks.length}',
-                              ),
-                            ),
-                    ),
-                  ),
-                  ActionButton.neutral(
-                    text: 'ביטול',
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  const SizedBox(width: AppTokens.spaceSM),
-                  ActionButton.recommended(
-                    text: _selectedBooks.isEmpty
-                        ? 'הוסף'
-                        : 'הוסף (${_selectedBooks.length})',
-                    icon: FluentIcons.add_24_regular,
-                    isLoading: _isAdding,
-                    onPressed: _addSelected,
-                  ),
-                ],
-              ),
-            ),
-          ],
+      padding: const EdgeInsets.fromLTRB(
+        AppTokens.spaceLG,
+        AppTokens.spaceMD,
+        AppTokens.spaceLG,
+        AppTokens.spaceMD,
+      ),
+      actions: [
+        ActionButton.neutral(
+          text: 'ביטול',
+          onPressed: () => Navigator.of(context).maybePop(),
         ),
+        ActionButton.recommended(
+          text: selectedCount == 0 ? 'הוסף' : 'הוסף ($selectedCount)',
+          icon: FluentIcons.add_24_regular,
+          isLoading: _isAdding,
+          onPressed: _addSelected,
+        ),
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildSearchField(),
+          const SizedBox(height: AppTokens.spaceMD),
+          Expanded(child: _buildBody(colorScheme)),
+        ],
       ),
     );
   }

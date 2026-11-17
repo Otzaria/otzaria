@@ -18,3 +18,6 @@ Widget withActions(VoidCallback onTap, bool showButton) => ListTile(
   hoverColor: showButton ? Colors.transparent : null,
   trailing: const Icon(null),
 );
+
+Widget focusToken(ColorScheme cs, VoidCallback onTap) =>
+    InkWell(onTap: onTap, focusColor: AppSurfaces.hoverRow(cs));

@@ -68,6 +68,12 @@ class OverflowTooltipText extends StatelessWidget {
   final String? tooltipMessage;
   final Duration waitDuration;
 
+  /// סגנון הרמז, כשהוא שונה מ-`tooltipTheme` של ערכת הנושא.
+  final TooltipThemeData? tooltipTheme;
+
+  /// מטמון מדידה משלו לרשימה ארוכה ([newTextOverflowCache]).
+  final Map<Object, bool>? cache;
+
   const OverflowTooltipText({
     super.key,
     required this.text,
@@ -76,6 +82,8 @@ class OverflowTooltipText extends StatelessWidget {
     this.textAlign = TextAlign.start,
     this.tooltipMessage,
     this.waitDuration = const Duration(milliseconds: 300),
+    this.tooltipTheme,
+    this.cache,
   });
 
   @override
@@ -94,6 +102,7 @@ class OverflowTooltipText extends StatelessWidget {
               maxLines: maxLines,
               maxWidth: constraints.maxWidth,
               textAlign: textAlign,
+              cache: cache,
             );
 
         final child = Text(
@@ -108,11 +117,15 @@ class OverflowTooltipText extends StatelessWidget {
           return child;
         }
 
-        return Tooltip(
+        final tooltip = Tooltip(
           message: tooltipMessage ?? text,
           waitDuration: waitDuration,
           child: child,
         );
+        final theme = tooltipTheme;
+        return theme == null
+            ? tooltip
+            : TooltipTheme(data: theme, child: tooltip);
       },
     );
   }

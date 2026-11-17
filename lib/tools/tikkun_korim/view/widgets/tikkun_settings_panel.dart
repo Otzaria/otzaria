@@ -4,8 +4,10 @@ library;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/settings/widgets/settings_card.dart';
+import 'package:otzaria/settings/widgets/settings_slider_tile.dart';
 import 'package:otzaria/settings/widgets/tikkun_vav_ketia_setting.dart';
 import 'package:otzaria/tools/tikkun_korim/models/tikkun_models.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/tools/tikkun_korim/settings/tikkun_settings.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
@@ -81,17 +83,26 @@ class TikkunSettingsPanel extends StatelessWidget {
               onSelected: (value) =>
                   _emit(settings.copyWith(nikudFont: value ?? 'AshuritNikud')),
             ),
-            _SliderTile(
-              icon: FluentIcons.line_horizontal_3_24_regular,
-              title: 'מרווח בין שורות',
-              value: settings.lineSpacing,
-              min: kTikkunMinLineSpacing,
-              max: kTikkunMaxLineSpacing,
-              divisions: 15,
-              valueLabel: settings.lineSpacing.toStringAsFixed(1),
-              onChanged: (value) => _emit(
-                settings.copyWith(
-                  lineSpacing: (value * 10).roundToDouble() / 10,
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTokens.spaceMD,
+                vertical: AppTokens.spaceSM,
+              ),
+              child: SettingsSliderTile(
+                icon: FluentIcons.line_horizontal_3_24_regular,
+                title: 'מרווח בין שורות',
+                value: settings.lineSpacing.clamp(
+                  kTikkunMinLineSpacing,
+                  kTikkunMaxLineSpacing,
+                ),
+                min: kTikkunMinLineSpacing,
+                max: kTikkunMaxLineSpacing,
+                divisions: 15,
+                valueLabel: settings.lineSpacing.toStringAsFixed(1),
+                onChanged: (value) => _emit(
+                  settings.copyWith(
+                    lineSpacing: (value * 10).roundToDouble() / 10,
+                  ),
                 ),
               ),
             ),
@@ -239,48 +250,4 @@ class TikkunSettingsPanel extends StatelessWidget {
   }
 
   void _emit(TikkunSettings updated) => onChanged(updated);
-}
-
-class _SliderTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String valueLabel;
-  final double value;
-  final double min;
-  final double max;
-  final int divisions;
-  final ValueChanged<double> onChanged;
-
-  const _SliderTile({
-    required this.icon,
-    required this.title,
-    required this.valueLabel,
-    required this.value,
-    required this.min,
-    required this.max,
-    required this.divisions,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ListTile(
-      leading: Icon(icon, color: theme.colorScheme.onSurfaceVariant),
-      title: Row(
-        children: [
-          Expanded(child: Text(title)),
-          Text(valueLabel, style: theme.textTheme.bodySmall),
-        ],
-      ),
-      subtitle: Slider(
-        value: value.clamp(min, max),
-        min: min,
-        max: max,
-        divisions: divisions,
-        label: valueLabel,
-        onChanged: onChanged,
-      ),
-    );
-  }
 }

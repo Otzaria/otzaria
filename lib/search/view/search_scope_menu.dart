@@ -24,6 +24,8 @@ import 'package:otzaria/search/utils/foundational_book_classifier.dart';
 import 'package:otzaria/search/utils/scope_tree.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/core/messages/library_messages.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/app_icon_button.dart';
@@ -217,8 +219,26 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   }
 
   Future<void> _deleteSavedScope(String name) async {
+    final before = SearchScopePreferences.loadSavedScopes();
+    final index = before.indexWhere((scope) => scope.name == name);
+    if (index < 0) return;
+    final deleted = before[index];
     final next = await SearchScopePreferences.removeSavedScope(name);
-    if (mounted) setState(() => _savedScopes = next);
+    if (!mounted) return;
+    setState(() => _savedScopes = next);
+    UiSnack.showWithAction(
+      message: LibraryMessages.savedScopeDeleted(name),
+      actionLabel: context.settingsText('בטל'),
+      onAction: () async {
+        final restored = SearchScopePreferences.loadSavedScopes().toList();
+        // שמירה חדשה באותו שם קודמת לביטול המחיקה הישנה.
+        if (!restored.any((scope) => scope.name == name)) {
+          restored.insert(index.clamp(0, restored.length), deleted);
+          await SearchScopePreferences.saveSavedScopes(restored);
+        }
+        if (mounted) setState(() => _savedScopes = restored);
+      },
+    );
   }
 
   Future<void> _loadBaseBookIds() async {
@@ -933,7 +953,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
     AppMotion.scrollPosition(
       _scrollController.position,
       (target - _rowHeight).clamp(min, max),
-      const Duration(milliseconds: 120),
+      AppTokens.animFast,
       curve: Curves.easeOut,
     );
   }

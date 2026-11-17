@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 
 class AppFutureBuilder<T> extends StatelessWidget {
   final Future<T>? future;
@@ -37,7 +38,10 @@ class AppFutureBuilder<T> extends StatelessWidget {
           }
           return Center(
             child: Text(
-              'שגיאה: ${snapshot.error}',
+              context.settingsText(
+                'שגיאה: {error}',
+                args: {'error': snapshot.error},
+              ),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           );

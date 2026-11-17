@@ -56,29 +56,28 @@ class StatusChip extends StatelessWidget {
     };
     final chip = Tooltip(
       message: tooltip,
-      child: Material(
-        color: container,
-        shape: RoundedRectangleBorder(
-          borderRadius: AppTokens.borderRadiusAll,
-          side: BorderSide(color: accent, width: 1.2),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: TextButton.icon(
-          onPressed: onPressed,
-          style: TextButton.styleFrom(
-            foregroundColor: onContainer,
-            textStyle: theme.textTheme.labelLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-            disabledForegroundColor: busy ? onContainer : null,
-            disabledIconColor: busy ? onContainer : null,
-            minimumSize: const Size(0, 32),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      child: TextButton.icon(
+        onPressed: onPressed,
+        // הצבע והמסגרת על הכפתור עצמו: במגע שטח הלחיצה 48 (ערכת הנושא)
+        // סביב אותו צ'יפ בגובה 32.
+        style: TextButton.styleFrom(
+          backgroundColor: container,
+          disabledBackgroundColor: container,
+          shape: RoundedRectangleBorder(
+            borderRadius: AppTokens.borderRadiusAll,
+            side: BorderSide(color: accent, width: 1.2),
           ),
-          icon: icon,
-          label: Text(label),
+          foregroundColor: onContainer,
+          textStyle: theme.textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+          disabledForegroundColor: busy ? onContainer : null,
+          disabledIconColor: busy ? onContainer : null,
+          minimumSize: const Size(0, 32),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         ),
+        icon: icon,
+        label: Text(label),
       ),
     );
     if (!busy) return chip;

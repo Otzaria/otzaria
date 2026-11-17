@@ -378,7 +378,13 @@ class _AppTopBarState extends State<AppTopBar>
           );
     final barH = density.topBarHeight;
     final hPad = AppTopBar.horizontalPadding(isCompact);
-    final vPad = isCompact ? 4.0 : 8.0;
+    // במגע הכפתורים תופסים 48 (שאלה פתוחה 1): הריווח האנכי מצטמצם כדי
+    // שייכנסו. בסרגל המצומצם (44) הם בגובה הסרגל.
+    final vPad = BarButton.isTouch(context)
+        ? math.max(0.0, (barH - kMinInteractiveDimension) / 2)
+        : isCompact
+        ? 4.0
+        : 8.0;
 
     final leadingItems = [
       ...AppTopBarScope._collect(context, isCompact, leading: true),
@@ -422,7 +428,11 @@ class _AppTopBarState extends State<AppTopBar>
             minMiddleWidth: widget.minCenterWidth ?? 0.0,
             minTrailingWidth: trailingWidget == null
                 ? 0.0
-                : widget.minTrailingWidth ?? BarButton.toolbarWidth(isCompact),
+                : widget.minTrailingWidth ??
+                      BarButton.toolbarWidth(
+                        isCompact,
+                        touch: BarButton.isTouch(context),
+                      ),
           );
 
     final mainBar = ClipRect(
@@ -557,9 +567,10 @@ class _AdaptiveTopBarLayout extends MultiChildLayoutDelegate {
     final trailingReserve = hasTrailing ? minTrailingWidth : 0.0;
 
     if (hasChild(_AdaptiveTopBarSlot.leading)) {
+      // הפקדים הקבועים קודמים לרוחב המרכז המזערי; הכותרת מצטמצמת כשצריך.
       final maxLeadingWidth = math.max(
         0.0,
-        size.width - middleReserve - spacingReserve - trailingReserve,
+        size.width - spacingReserve - trailingReserve,
       );
 
       leadingSize = layoutChild(
@@ -573,7 +584,7 @@ class _AdaptiveTopBarLayout extends MultiChildLayoutDelegate {
 
     if (hasTrailing) {
       final maxTrailingWidth = math.max(
-        0.0,
+        trailingReserve,
         size.width - leadingSize.width - middleReserve - spacingReserve,
       );
 

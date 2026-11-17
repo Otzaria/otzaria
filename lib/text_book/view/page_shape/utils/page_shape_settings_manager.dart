@@ -80,8 +80,9 @@ class PageShapeSettingsManager {
 
   // ==================== גודל גופן (גלובלי בלבד) ====================
 
+  /// אותו טווח כמו "גודל גופן המפרשים" בהגדרות הכלליות.
   static const double minCommentaryFontSize = 10;
-  static const double maxCommentaryFontSize = 30;
+  static const double maxCommentaryFontSize = 40;
 
   /// מתקדם אחרי כל שמירה של גודל גופן המפרשים. מאזינים לו מסך צורת הדף,
   /// החלונית שלו והחלונית הכללית, כדי ששינוי באחד יופיע בכולם.

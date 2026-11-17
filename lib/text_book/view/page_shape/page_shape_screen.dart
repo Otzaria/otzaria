@@ -1373,7 +1373,6 @@ class _PageShapeScreenState extends State<PageShapeScreen>
     isOpen: _isSettingsPaneOpen,
     onClose: _closeSettingsPane,
     alignment: AlignmentDirectional.centerStart,
-    width: 400,
     title: 'הגדרות צורת הדף',
     scrollable: true,
     child: PageShapeSettingsPanel(
@@ -2934,7 +2933,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     unawaited(
       _scrollOffsetController.animateScroll(
         offset: delta,
-        duration: const Duration(milliseconds: 120),
+        duration: AppTokens.animFast,
         curve: Curves.easeOut,
       ),
     );

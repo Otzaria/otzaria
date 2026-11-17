@@ -681,7 +681,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                                     return AnimatedPadding(
                                       duration: AppMotion.duration(
                                         context,
-                                        const Duration(milliseconds: 180),
+                                        AppTokens.animPanelOpacity,
                                       ),
                                       curve: Curves.easeOut,
                                       padding: EdgeInsets.only(
@@ -3390,7 +3390,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       child: ContextOverlayPanel(
         isOpen: isOpen,
         onClose: _closeSettingsPanel,
-        width: 400,
         deferChildBuildOnOpen: true,
         preserveChildStateOnClose: true,
         title: context.settingsText('הגדרות'),

@@ -45,12 +45,13 @@ void goldenTest(String description, WidgetTesterCallback body) => testWidgets(
   variant: TargetPlatformVariant.only(goldenPlatform),
 );
 
-/// ערכת הנושא של האפליקציה בזרע ברירת המחדל. נבנית בתוך הבדיקה, כדי ש-
+/// ערכת הנושא של האפליקציה בזרע קבוע (בהיר: ברירת המחדל, כהה: סגול), כדי
+/// ששינוי בזרע ברירת המחדל לא יחליף את כל התמונות. נבנית בתוך הבדיקה, כדי ש-
 /// visualDensity והתפריטים יחושבו ל-[goldenPlatform].
 ThemeData goldenTheme(Brightness brightness, {bool compact = false}) {
   final light = brightness == Brightness.light;
   final cs = AppThemeData.createColorScheme(
-    light ? AppSeedColors.defaultLight : AppSeedColors.defaultDark,
+    light ? AppSeedColors.defaultLight : AppSeedColors.purple,
     brightness,
   );
   return light

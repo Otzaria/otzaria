@@ -26,6 +26,31 @@ abstract class SettingsMessages {
       'הספרייה הועברה, אך חלק מהקבצים הישנים לא נמחקו. ניתן למחוק אותם '
       'ידנית מהמיקום הישן.';
 
+  // ── תיקיות אישיות (custom_folders_bloc) ─────────────────────────────────
+
+  static String customFolderBooksChanged(int added, int updated) =>
+      '$added ספרים נוספו, $updated עודכנו';
+
+  static String customFolderFailedCount(int failed) => 'כשל: $failed';
+
+  static const String customFolderAddedNoNewBooks =
+      'התיקייה נוספה. לא נמצאו ספרים חדשים.';
+
+  static const String customFolderRemovedWithBooks =
+      'התיקייה והספרים הוסרו מהתוכנה.';
+
+  static const String customFolderRemovedKeptBooks =
+      'התיקייה הוסרה. הספרים נשארו בתוכנה.';
+
+  static const String customFolderContentRescanned =
+      'תוכן הספרים נסרק ועודכן.\nמעתה הספרים ייקראו ישירות מהקבצים.';
+
+  static String customFolderScanDone(int added, int updated) =>
+      'הסריקה הושלמה: $added ספרים נוספו, $updated עודכנו';
+
+  static const String customFolderScanNoNewBooks =
+      'הסריקה הושלמה. לא נמצאו ספרים חדשים.';
+
   // ── סיסמת מצב מוגן (safer_mode_password_dialog) ────────────────────────
 
   static const String passwordRequired = 'נא להזין סיסמה';

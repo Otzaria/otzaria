@@ -404,7 +404,7 @@ void main() {
       expect(icon.size, 20);
       expect(icon.color, cs.onSurfaceVariant);
       expect(BarButton.toolbarWidth(false), 44);
-    });
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
     testWidgets('icon compact: 36', (tester) async {
       await pumpInApp(
@@ -420,7 +420,29 @@ void main() {
       );
       expect(tester.getSize(find.byType(IconButton)), const Size(36, 36));
       expect(BarButton.toolbarWidth(true), 40);
-    });
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
+    // שאלה פתוחה 1 (הוכרע B): במגע שטח 48, והעיגול הנראה נשאר 40.
+    testWidgets('icon במגע: שטח 48, העיגול 40', (tester) async {
+      await pumpInApp(
+        tester,
+        Center(
+          child: BarButton.icon(
+            tooltip: 'חיפוש',
+            icon: FluentIcons.search_24_regular,
+            onPressed: () {},
+            selected: true,
+          ),
+        ),
+      );
+      final button = find.byType(IconButton);
+      expect(tester.getSize(button), const Size(48, 48));
+      final circle = find
+          .descendant(of: button, matching: find.byType(Material))
+          .first;
+      expect(tester.getSize(circle), const Size(40, 40));
+      expect(BarButton.toolbarWidth(false, touch: true), 52);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 
     testWidgets(
       'icon נבחר: רקע barButtonSelected ואייקון onSecondaryContainer',
@@ -439,12 +461,11 @@ void main() {
           ),
         );
         final cs = schemeAt(tester, find.byType(BarButton));
-        final decoration =
-            tester
-                    .widget<AnimatedContainer>(find.byType(AnimatedContainer))
-                    .decoration!
-                as BoxDecoration;
-        expect(decoration.color, AppSurfaces.barButtonSelected(cs));
+        final style = tester.widget<IconButton>(find.byType(IconButton)).style!;
+        expect(
+          style.backgroundColor!.resolve(const {}),
+          AppSurfaces.barButtonSelected(cs),
+        );
         expect(
           tester.widget<Icon>(find.byType(Icon)).color,
           cs.onSecondaryContainer,

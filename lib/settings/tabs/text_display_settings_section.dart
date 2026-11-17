@@ -106,12 +106,16 @@ class _TextDisplaySettingsCardState extends State<TextDisplaySettingsCard> {
             ),
           ),
         ),
-        ExpandableSection(
-          icon: FluentIcons.options_24_regular,
-          title: t('התאמות נוספות'),
-          subtitle: t('מפרשים, העתקה, ייצוא והדפסה, צורת הדף ותנ"ך'),
+        ExpandableCard(
+          wrapInCard: false,
           isExpanded: _advancedOpen,
-          onTap: () => setState(() => _advancedOpen = !_advancedOpen),
+          header: ExpandableSettingsTile(
+            icon: FluentIcons.options_24_regular,
+            title: t('התאמות נוספות'),
+            subtitle: t('מפרשים, העתקה, ייצוא והדפסה, צורת הדף ותנ"ך'),
+            isExpanded: _advancedOpen,
+            onTap: () => setState(() => _advancedOpen = !_advancedOpen),
+          ),
           children: _buildAdvanced(context, policy),
         ),
       ],
@@ -167,12 +171,16 @@ class _TextDisplaySettingsCardState extends State<TextDisplaySettingsCard> {
             onDelete: () => _update(_cleared(policy, c)),
           ),
       ],
-      ExpandableSection(
-        icon: FluentIcons.add_24_regular,
-        title: t('התאמה מתקדמת...'),
-        subtitle: t('ספרים, יעד, תצוגה וערוץ לבחירה חופשית'),
+      ExpandableCard(
+        wrapInCard: false,
         isExpanded: _pickerOpen,
-        onTap: () => setState(() => _pickerOpen = !_pickerOpen),
+        header: ExpandableSettingsTile(
+          icon: FluentIcons.add_24_regular,
+          title: t('התאמה מתקדמת...'),
+          subtitle: t('ספרים, יעד, תצוגה וערוץ לבחירה חופשית'),
+          isExpanded: _pickerOpen,
+          onTap: () => setState(() => _pickerOpen = !_pickerOpen),
+        ),
         children: _buildPicker(context, policy),
       ),
       if (hasOverrides)
@@ -221,20 +229,24 @@ class _TextDisplaySettingsCardState extends State<TextDisplaySettingsCard> {
     VoidCallback? onDelete,
   }) {
     final t = context.settingsText;
-    return ExpandableSection(
+    return ExpandableCard(
       key: ValueKey('text-display-case-${_caseKey(c)}'),
-      icon: icon,
-      title: title,
-      subtitle: _caseSubtitle(t, policy, c),
+      wrapInCard: false,
       isExpanded: _openCase == _caseKey(c),
-      onTap: () => _toggleCase(c),
-      trailing: onDelete == null
-          ? null
-          : SecondaryIconButton(
-              icon: FluentIcons.delete_24_regular,
-              tooltip: t('מחק התאמה'),
-              onPressed: onDelete,
-            ),
+      header: ExpandableSettingsTile(
+        icon: icon,
+        title: title,
+        subtitle: _caseSubtitle(t, policy, c),
+        trailing: onDelete == null
+            ? null
+            : SecondaryIconButton(
+                icon: FluentIcons.delete_24_regular,
+                tooltip: t('מחק התאמה'),
+                onPressed: onDelete,
+              ),
+        isExpanded: _openCase == _caseKey(c),
+        onTap: () => _toggleCase(c),
+      ),
       children: _caseEditor(context, policy, c),
     );
   }

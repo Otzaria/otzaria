@@ -67,7 +67,7 @@ class _CompletionAnimationState extends State<_CompletionAnimation>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 2000),
+      duration: AppMotion.controller(const Duration(milliseconds: 2000)),
       vsync: this,
     );
 

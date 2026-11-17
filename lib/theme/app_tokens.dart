@@ -21,6 +21,21 @@ class AppTokens {
     vertical: spaceMD,
   );
 
+  /// ריפוד שורה ברשימה, כמו שורת הגדרה.
+  static const EdgeInsets listRowPadding = EdgeInsets.symmetric(
+    horizontal: spaceMD,
+    vertical: spaceSMD,
+  );
+
+  /// בין מקטעים, כמו בין כרטיסי ההגדרות.
+  static const double sectionGap = spaceLG;
+
+  /// בין כותרת מקטע לתוכן שמתחתיה.
+  static const double titleContentGap = spaceSMD;
+
+  /// בין תווית לשדה שמתחתיה.
+  static const double labelFieldGap = spaceXS;
+
   // ── Icon Sizes ———————————————————————————————
   static const double iconXS = 14;
   static const double iconSM = 16;
@@ -82,6 +97,16 @@ class AppTokens {
   static const Duration animNormal = Duration(milliseconds: 250);
   static const Duration animPanelOpacity = Duration(milliseconds: 200);
   static const Duration animPanelSlide = Duration(milliseconds: 300);
+
+  // ── Animation Curves (DD-21) ————————————————
+  /// תנועה בתוך המסך: גלילה, החלפת עמוד.
+  static const Curve curveStandard = Curves.easeInOut;
+
+  /// כניסה: מהיר בהתחלה ונרגע.
+  static const Curve curveEnter = Curves.easeOutCubic;
+
+  /// יציאה: איטי בהתחלה ומאיץ.
+  static const Curve curveExit = Curves.easeInCubic;
 
   /// השהיה לפני תצוגה מקדימה ברפרוף (לא תנועה, ולכן לא עוברת דרך AppMotion).
   static const Duration hoverPreviewDelay = Duration(milliseconds: 280);

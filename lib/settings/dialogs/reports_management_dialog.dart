@@ -105,6 +105,7 @@ class _ReportsManagementDialogState extends State<ReportsManagementDialog>
     length: ReportsTab.values.length,
     initialIndex: widget.initialTab.index,
     vsync: this,
+    animationDuration: AppMotion.tabSwitch,
   );
   final _counts = ValueNotifier(const ReportCounts());
 

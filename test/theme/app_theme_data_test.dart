@@ -61,9 +61,10 @@ void main() {
   testWidgets('סרגל הניווט התחתון בגובה 64, עם תווית לכל יעד', (
     tester,
   ) async {
+    // בצפיפות רגילה. במצומצם הסרגל 48 (#4787), ראו app_density_test.
     final theme = AppThemeData.light(
       AppThemeData.createColorScheme(Colors.deepPurple, Brightness.light),
-      compactMenuMode: true,
+      compactMenuMode: false,
     );
     expect(
       theme.navigationBarTheme.height,
@@ -89,6 +90,27 @@ void main() {
     // תווית גם ליעד שלא נבחר.
     expect(find.text('עיון').hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  test('switchTheme: צבעי המתג M3 של המערכת (היו ב-CustomSwitch)', () {
+    final cs = AppThemeData.createColorScheme(
+      AppSeedColors.defaultLight,
+      Brightness.light,
+    );
+    final sw = AppThemeData.light(cs, compactMenuMode: false).switchTheme;
+    const on = {WidgetState.selected};
+    const off = <WidgetState>{};
+    const disabled = {WidgetState.disabled};
+    expect(sw.thumbColor!.resolve(on), cs.onPrimary);
+    expect(sw.thumbColor!.resolve(off), cs.outline);
+    expect(
+      sw.thumbColor!.resolve(disabled),
+      cs.onSurface.withValues(alpha: 0.38),
+    );
+    expect(sw.trackColor!.resolve(on), cs.primary);
+    expect(sw.trackColor!.resolve(off), cs.surfaceContainerHighest);
+    expect(sw.trackOutlineColor!.resolve(on), Colors.transparent);
+    expect(sw.trackOutlineColor!.resolve(off), cs.outline);
   });
 
   test('הערכה נגזרת מהזרע ונישאת ב-ThemeData', () {

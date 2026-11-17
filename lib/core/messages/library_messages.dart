@@ -38,6 +38,8 @@ abstract class LibraryMessages {
       'ספרי PDF אחרים יש להוסיף דרך "ספרים אישיים" בהגדרות הספרייה.';
 
   // ===== חיפוש =====
+  static String savedScopeDeleted(String name) => 'ההיקף "$name" נמחק';
+
   static String distanceSetAsDefault(int distance) =>
       'מרווח $distance נקבע כברירת מחדל לחיפוש רגיל';
 

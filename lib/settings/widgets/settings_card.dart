@@ -55,7 +55,12 @@ class SettingsCard extends StatelessWidget {
 
     final header = Container(
       width: double.infinity,
-      padding: const EdgeInsets.only(right: 16, left: 16, top: 24, bottom: 12),
+      padding: const EdgeInsetsDirectional.only(
+        start: AppTokens.spaceMD,
+        end: AppTokens.spaceMD,
+        top: AppTokens.sectionGap,
+        bottom: AppTokens.titleContentGap,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -241,7 +246,7 @@ class _RadioIndicator extends StatelessWidget {
 /// • `SettingsActionTile.path(title: '...', path: '...', ...)` — path עם BiDi.
 ///
 /// ### factory methods (נראים כבנאים ב-call site)
-/// • `SettingsSwitchTile(...)` — שורה עם [CustomSwitch], focus וניהול keyboard.
+/// • `SettingsSwitchTile(...)` — שורה עם [Switch], focus וניהול keyboard.
 /// • `SettingsDropdownTile(...)` — שורה עם [AppDropdownField].
 /// • `SettingsSegmentedTile(...)` — שורה עם [AppSegmentedControl].
 ///
@@ -260,7 +265,7 @@ class SettingsActionTile extends StatelessWidget {
   final Widget title;
   final Widget? subtitle;
   final List<Widget> actions;
-  // ווידג'ט שנשאר צמוד לטקסט תמיד (לדוגמה: צ'בֺרן של ExpandableSection) —
+  // ווידג'ט שנשאר צמוד לטקסט תמיד (לדוגמה: צ'בֺרן של ExpandableSettingsTile) —
   // בניגוד ל-actions, לא גולש מתחת לטקסט ב-layout האנכי.
   final Widget? pinnedTrailing;
   final VoidCallback? onTap;
@@ -436,9 +441,9 @@ class SettingsActionTile extends StatelessWidget {
 
   Widget _buildListTile() => _KeyboardFocusRow(
     focusNode: focusNode,
-    builder: (node, focusColor) => ListTile(
+    builder: (node, keyboardFocused, cs) => ListTile(
       focusNode: node,
-      focusColor: focusColor,
+      focusColor: AppSurfaces.focusedRow(cs, focused: keyboardFocused),
       enabled: enabled,
       onTap: onTap,
       leading: _buildIcon(),
@@ -496,7 +501,7 @@ class SettingsActionTile extends StatelessWidget {
   Widget _buildColumnLayout() {
     final iconWidget = _buildIcon();
     final content = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: AppTokens.listRowPadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
@@ -544,10 +549,10 @@ class SettingsActionTile extends StatelessWidget {
     // אז ה-InkWell הוא מה שמאפשר ללחוץ על השורה (למשל לפתוח ExpandableSection).
     return _KeyboardFocusRow(
       focusNode: focusNode,
-      builder: (node, focusColor) => InkWell(
+      builder: (node, keyboardFocused, cs) => InkWell(
         onTap: enabled ? onTap : null,
         focusNode: node,
-        focusColor: focusColor,
+        focusColor: AppSurfaces.focusedRow(cs, focused: keyboardFocused),
         child: content,
       ),
     );
@@ -578,7 +583,12 @@ class _KeyboardFocusRow extends StatefulWidget {
   const _KeyboardFocusRow({this.focusNode, required this.builder});
 
   final FocusNode? focusNode;
-  final Widget Function(FocusNode focusNode, Color focusColor) builder;
+  final Widget Function(
+    FocusNode focusNode,
+    bool keyboardFocused,
+    ColorScheme colors,
+  )
+  builder;
 
   @override
   State<_KeyboardFocusRow> createState() => _KeyboardFocusRowState();
@@ -612,7 +622,8 @@ class _KeyboardFocusRowState extends State<_KeyboardFocusRow> {
               : const BoxDecoration(),
           child: widget.builder(
             node,
-            keyboardFocused ? AppSurfaces.focusedRow(cs) : Colors.transparent,
+            keyboardFocused,
+            cs,
           ),
         );
       },
@@ -622,7 +633,7 @@ class _KeyboardFocusRowState extends State<_KeyboardFocusRow> {
 
 // ── SettingsSwitchTile ────────────────────────────────────────────────────────
 
-/// שורת on/off עם [CustomSwitch]: הקשה על כל השורה, Enter ו־Space מחליפים מצב.
+/// שורת on/off עם [Switch]: הקשה על כל השורה, Enter ו־Space מחליפים מצב.
 class SettingsSwitchTile extends StatefulWidget {
   final IconData? icon;
   final IconData? rtlIcon;
@@ -707,7 +718,7 @@ class _SettingsSwitchTileState extends State<SettingsSwitchTile> {
             : null,
         actions: [
           ExcludeFocus(
-            child: CustomSwitch(
+            child: Switch(
               value: widget.value,
               onChanged: widget.enabled && widget.onChanged != null
                   ? (_) => _toggle()

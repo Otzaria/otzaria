@@ -1804,5 +1804,18 @@
   "WiFi או אינטרנט סלולרי": "WiFi or mobile data",
   "הורדות ממתינות לחיבור WiFi": "Downloads wait for a WiFi connection",
   "ממתין לחיבור WiFi": "Waiting for WiFi",
-  "חל על הורדת קבצים, גם מתוספים; לא על גלישה בתוספים או עדכוני Google Play.": "Applies to file downloads, including plugins; not to browsing in plugins or Google Play updates."
+  "חל על הורדת קבצים, גם מתוספים; לא על גלישה בתוספים או עדכוני Google Play.": "Applies to file downloads, including plugins; not to browsing in plugins or Google Play updates.",
+  "החלונית נעוצה לפי ההגדרות": "The panel is pinned in the settings",
+  "בטל נעיצה": "Unpin",
+  "נעץ את החלונית": "Pin the panel",
+  "הסתר ניווט": "Hide navigation",
+  "הצג ניווט": "Show navigation",
+  "הזנת סיסמה": "Enter password",
+  "ערוך תיאור": "Edit description",
+  "נקה סינון": "Clear filter",
+  "שגיאה: {error}": "Error: {error}",
+  "לבטל את כל ההסתרות?": "Unhide everything?",
+  "כל הספרים והקטגוריות המוסתרים יחזרו להיראות בממשק.": "All hidden books and categories will be shown again.",
+  "בטל": "Undo",
+  "אין סימניות לספר בודד": "No single-book bookmarks"
 }

@@ -152,6 +152,7 @@ class _AppDialogState extends State<AppDialog> {
       size: widget.size,
       scrollable: widget.scrollable,
       isDirty: widget.isDirty,
+      confirmDiscard: confirmDiscardChanges,
       onClose: _cancel,
       onConfirm: _handleConfirm,
       handleEnterKey: widget.handleEnterKey,
@@ -329,6 +330,16 @@ Future<bool?> showWarningDialog({
       icon: icon,
     ),
   ),
+);
+
+/// שאלת הסגירה של טופס עם שינויים שלא נשמרו (`DialogDismissGuard`). true =
+/// לסגור בלי לשמור.
+Future<bool?> confirmDiscardChanges(BuildContext context) => showWarningDialog(
+  context: context,
+  title: context.settingsText('לסגור בלי לשמור?'),
+  content: context.settingsText('השינויים שלא נשמרו יאבדו.'),
+  cancelText: context.settingsText('המשך לערוך'),
+  confirmText: context.settingsText('סגור בלי לשמור'),
 );
 
 // ── showChoiceDialog ─────────────────────────────────────────────────────────

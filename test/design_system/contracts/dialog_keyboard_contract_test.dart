@@ -375,6 +375,7 @@ void main() {
           title: 'טופס',
           icon: Icons.edit,
           isDirty: dirty,
+          confirmDiscard: confirmDiscardChanges,
           child: const Focus(autofocus: true, child: Text('גוף')),
         ),
       );
@@ -391,6 +392,7 @@ void main() {
           title: 'טופס',
           icon: Icons.edit,
           isDirty: dirty,
+          confirmDiscard: confirmDiscardChanges,
           child: const Text('גוף'),
         ),
       );

@@ -9,6 +9,7 @@ import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 import 'package:otzaria/widgets/controls/bar_button.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 
 /// במסך מלא, כל [AppTopBar] שמתחתיו מסתיים בלחצן יציאה (ולא בלחצן צף) —
 /// בקצה השמאלי, באותה פינה שבה יושב לחצן הכניסה למסך מלא בשורת הכותרת.
@@ -26,7 +27,7 @@ class WindowFullscreenTopBarScope extends StatelessWidget {
     return [
       AppTopBarItem(
         widget: BarButton.icon(
-          tooltip: 'צא ממסך מלא',
+          tooltip: context.settingsText('צא ממסך מלא'),
           icon: FluentIcons.full_screen_minimize_24_regular,
           compact: compact,
           onPressed: () => FullscreenHelper.toggleFullscreen(context, false),
@@ -79,7 +80,7 @@ ActionButtonData? buildMobileFullscreenAction(
   if (isFullscreen) return null;
   return ActionButtonData.simple(
     icon: FluentIcons.full_screen_maximize_24_regular,
-    tooltip: 'מסך מלא',
+    tooltip: context.settingsText('מסך מלא'),
     compact: compact,
     onPressed: () => FullscreenHelper.toggleFullscreen(context, true),
     actionId: ToolbarActionId.fullscreen,

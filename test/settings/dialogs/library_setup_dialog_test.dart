@@ -6,7 +6,8 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show LogicalKeyboardKey;
+import 'package:flutter/services.dart'
+    show LogicalKeyboardKey, MethodChannel, MissingPluginException;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/library_update/services/library_access_gate.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -54,6 +55,7 @@ Widget _host(void Function(BuildContext) onOpen) => MaterialApp(
 Future<void> _openSetup(
   WidgetTester tester, {
   String defaultTargetPath = '/default/library',
+  ValueChanged<bool>? onResult,
 }) async {
   await tester.binding.setSurfaceSize(const Size(1200, 900));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -62,7 +64,7 @@ Future<void> _openSetup(
       (ctx) => showLibrarySetupDialog(
         context: ctx,
         defaultTargetPath: defaultTargetPath,
-      ),
+      ).then((result) => onResult?.call(result)),
     ),
   );
   await tester.tap(find.text('פתח'));
@@ -129,6 +131,16 @@ _FolderFilePickerPlatform _installFolderFilePicker(String folder) {
   final previousOwner = DialogOwner.hwnd();
   final picker = _FolderFilePickerPlatform(folder);
   FilePickerPlatform.instance = picker;
+  if (Platform.isMacOS) {
+    const channel = MethodChannel('miguelruivo.flutter.plugins.filepicker');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'dir') return picker.getDirectoryPath();
+      throw MissingPluginException();
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+  }
   // ב-Windows הבורר דורש חלון מארח, גם כשהבורר עצמו מדומה.
   DialogOwner.mainWindowHwnd = 7;
   addTearDown(() {
@@ -798,9 +810,17 @@ void main() {
       await temp.delete(recursive: true);
     });
 
-    Future<void> pickFolder(WidgetTester tester, PackageFolder folder) async {
+    Future<void> pickFolder(
+      WidgetTester tester,
+      PackageFolder folder, {
+      ValueChanged<bool>? onResult,
+    }) async {
       debugPickAndroidSourceFolder = () async => folder;
-      await _openSetup(tester, defaultTargetPath: p.join(temp.path, 'lib'));
+      await _openSetup(
+        tester,
+        defaultTargetPath: p.join(temp.path, 'lib'),
+        onResult: onResult,
+      );
       await _select(tester, 'בחירת תיקייה מהמחשב');
       await tester.ensureVisible(find.text('בחר תיקייה'));
       await tester.runAsync(() async {
@@ -988,6 +1008,51 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('הספרייה הותקנה'), findsNothing);
     });
+
+    for (final exit in ['Escape', 'X']) {
+      testWidgets('סגירת הסיכום ב-$exit מחזירה שההתקנה הצליחה', (tester) async {
+        EmptyLibraryBloc.tempRootOverride = temp.path;
+        debugCreateLibrarySetupBloc = () => EmptyLibraryBloc(
+          verifyDatabase: verifyFixtureDatabase,
+          downloadSpaceChecker: (_) async => null,
+          packageImporter: LibraryPackageImporter(
+            rawRunner: (job, {required onProgress, required cancel}) =>
+                extractRawAssetJob(
+                  job,
+                  openZstd: () => throw StateError('אין נכס דחוס'),
+                  onProgress: onProgress,
+                ),
+            diskSpace: (_) async => DiskSpaceInfo.unknown,
+          ),
+        );
+        bool? result;
+        await pickFolder(
+          tester,
+          _MemoryFolder('x', {
+            DatabaseConstants.databaseFileName: utf8.encode('db'),
+          }),
+          onResult: (value) => result = value,
+        );
+        await tester.tap(find.text('אישור'));
+        for (var i = 0; i < 300; i++) {
+          if (find.text('הספרייה הותקנה').evaluate().isNotEmpty) break;
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+          await tester.pump(const Duration(milliseconds: 10));
+        }
+        expect(find.text('הספרייה הותקנה'), findsOneWidget);
+
+        if (exit == 'Escape') {
+          await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        } else {
+          await tester.tap(find.byTooltip('סגור'));
+        }
+        await tester.pumpAndSettle();
+        expect(find.text('הספרייה הותקנה'), findsNothing);
+        expect(result, isTrue);
+      });
+    }
   });
 
   group('קובצי מסייע ההורדה', () {

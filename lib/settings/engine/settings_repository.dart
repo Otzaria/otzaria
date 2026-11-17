@@ -438,7 +438,10 @@ class SettingsRepository {
   /// קריאה סינכרונית של ההגדרות השמורות — למצב ההתחלתי של ה-bloc, כדי
   /// שהמסך הראשון לא ייבנה מברירות מחדל ויקפוץ אחרי הטעינה (issue #1280).
   Map<String, dynamic> readSettings() {
-    final fontSize = _settings.getValue<double>(keyFontSize, defaultValue: 25);
+    final fontSize = _settings.getValue<double>(
+      keyFontSize,
+      defaultValue: AppFonts.defaultReadingSize,
+    );
     return {
       'isDarkMode': _settings.getValue<bool>(keyDarkMode, defaultValue: false),
       'followSystemTheme': _settings.getValue<bool>(
@@ -1399,7 +1402,10 @@ class SettingsRepository {
     if (saved != null) return;
     await _settings.setValue(
       keySearchResultsFontSize,
-      _settings.getValue<double>(keyFontSize, defaultValue: 25),
+      _settings.getValue<double>(
+        keyFontSize,
+        defaultValue: AppFonts.defaultReadingSize,
+      ),
     );
   }
 
@@ -1415,7 +1421,7 @@ class SettingsRepository {
       AppSeedColors.defaultDark.toARGB32(),
     );
     await _settings.setValue(keyTextColumnWidth, 0.0);
-    await _settings.setValue(keyFontSize, 25.0);
+    await _settings.setValue(keyFontSize, AppFonts.defaultReadingSize);
     await _settings.setValue(keyFontFamily, AppFonts.defaultFont);
     await _settings.setValue(
       keyCommentatorsFontFamily,
@@ -1424,7 +1430,10 @@ class SettingsRepository {
     await _settings.setValue(keyFontBold, false);
     await _settings.setValue(keyCommentatorsFontBold, false);
     await _settings.setValue(keyCommentatorsFontSize, 22.0);
-    await _settings.setValue(keySearchResultsFontSize, 25.0);
+    await _settings.setValue(
+      keySearchResultsFontSize,
+      AppFonts.defaultReadingSize,
+    );
     await _settings.setValue(keyLineHeight, 1.5);
     await _settings.setValue(keyShowOtzarHachochma, false);
     await _settings.setValue(keyShowHebrewBooks, false);

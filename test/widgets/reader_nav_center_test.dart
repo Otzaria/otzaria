@@ -149,8 +149,12 @@ void main() {
         return placement;
       }
 
-      // מתחת ל-240 הכפתורים compact גם בצפיפות רגילה.
-      final fourCompact = ReaderNavCenter.navButtonsWidth(compact: true);
+      // מתחת ל-240 הכפתורים compact גם בצפיפות רגילה. flutter_test רץ
+      // כאנדרואיד, כלומר במגע: כל כפתור תופס 48 (שאלה פתוחה 1).
+      final fourCompact = ReaderNavCenter.navButtonsWidth(
+        compact: true,
+        touch: true,
+      );
 
       testWidgets('נכנסים בדיוק: ארבעתם בסרגל, והכותרת נדחית ל-0', (
         tester,
@@ -192,7 +196,7 @@ void main() {
           expect(shown, placement.arrowsInBar ? 4 : 0, reason: '$width');
           expect(
             placement.arrowsInBar,
-            ReaderNavCenter.navFits(width, isCompact: false),
+            ReaderNavCenter.navFits(width, isCompact: false, touch: true),
             reason: '$width',
           );
         }

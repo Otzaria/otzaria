@@ -395,7 +395,11 @@ class InlineNoteEditorCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
     return Container(
-      margin: const EdgeInsets.all(8),
+      // כמו NoteTile: בין שני כרטיסים ברשימה spaceSM.
+      margin: const EdgeInsets.symmetric(
+        horizontal: AppTokens.spaceSM,
+        vertical: AppTokens.spaceXS,
+      ),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppSurfaces.panelSectionAccent(context),

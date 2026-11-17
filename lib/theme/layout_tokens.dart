@@ -61,6 +61,10 @@ class LayoutConstraints {
   /// רוחב ברירת המחדל של חלונית צד (DD-28).
   static const double sidePaneWidth = 340.0;
 
+  /// רוחב ברירת המחדל של חלונית צפה (`ContextOverlayPanel`), כמו הגדרות
+  /// המסך (DD-28).
+  static const double overlayPanelWidth = 400.0;
+
   /// רוחב מינימלי של התוכן הראשי לצד חלונית צד.
   static const double mainContentMinWidth = 500.0;
 
@@ -70,8 +74,26 @@ class LayoutConstraints {
   /// גובה שורת הכותרת של החלון בדסקטופ: הכרטיסיות וכפתורי החלון.
   static const double windowCaptionHeight = 40.0;
 
+  /// שורת הכותרת, ושורת הכרטיסיות שמתחתיה בחלון צר, בצפיפות מצומצמת (#4787).
+  static const double windowCaptionHeightCompact = 32.0;
+
+  /// גוף הכרטיסיה בשורת הכותרת, בלי המפריד שלצדה.
+  static const double tabBodyHeight = 32.0;
+
+  /// גוף הכרטיסיה בצפיפות מצומצמת.
+  static const double tabBodyHeightCompact = 26.0;
+
   /// גובה סרגל הניווט התחתון (טלפון לאורך): 64, כמו "flexible navigation
   /// bar" של M3 Expressive, עם תווית לכל יעד. ברירת המחדל של M3 הייתה 80
   /// (q12 Q8, ss6).
   static const double bottomNavigationBarHeight = 64.0;
+
+  /// סרגל הניווט התחתון בצפיפות מצומצמת: אייקונים בלי תוויות (#4787).
+  static const double bottomNavigationBarHeightCompact = 48.0;
+
+  /// עמודת הניווט במחשב.
+  static const double navRailWidth = 74.0;
+
+  /// עמודת הניווט בצפיפות מצומצמת (#4787).
+  static const double navRailWidthCompact = 52.0;
 }

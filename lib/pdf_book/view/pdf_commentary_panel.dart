@@ -566,6 +566,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       length: 3, // מפרשים, קישורים, הערות
       vsync: this,
       initialIndex: widget.initialTabIndex ?? 0,
+      animationDuration: AppMotion.tabSwitch,
     );
     _lastNotifiedTabIndex = _tabController.index;
     _tabControllerListener = () {

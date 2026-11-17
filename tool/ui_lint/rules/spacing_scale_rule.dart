@@ -8,8 +8,9 @@ import '../ui_lint.dart';
 /// מרווח שאינו 0/2/4/8/12/16/24/32.
 ///
 /// - `EdgeInsets.*`/`EdgeInsetsDirectional.*`: כל ארגומנט ליטרלי.
-/// - `SizedBox(width:/height:)` בלי `child`, עם ערך קטן מ־32: זה מרווח. קופסה
-///   עם ילד, או גודל של 32 ומעלה, היא מידה של רכיב ולא ריווח.
+/// - `SizedBox(width:/height:)` ו־`SizedBox.square(dimension:)` בלי `child`, עם
+///   ערך קטן מ־32: זה מרווח. קופסה עם ילד, או גודל של 32 ומעלה, היא מידה של
+///   רכיב ולא ריווח.
 /// ביטוי מחושב, טוקן ו־`double.infinity` לא נתפסים. ציור תוכן ו־`pw.*` מוחרגים.
 class SpacingScaleRule extends UiLintRule {
   const SpacingScaleRule();
@@ -65,12 +66,17 @@ class _Visitor extends RecursiveAstVisitor<void> {
             a,
       ];
     } else if (call.typeName == 'SizedBox' &&
-        call.constructor == null &&
+        (call.constructor == null || call.constructor == 'square') &&
         call.named('child') == null) {
-      values = [?call.named('width'), ?call.named('height')].where((e) {
-        final v = _literal(e);
-        return v != null && v < SpacingScaleRule._maxGap;
-      });
+      values =
+          [
+            ?call.named('width'),
+            ?call.named('height'),
+            ?call.named('dimension'),
+          ].where((e) {
+            final v = _literal(e);
+            return v != null && v < SpacingScaleRule._maxGap;
+          });
     } else {
       return;
     }

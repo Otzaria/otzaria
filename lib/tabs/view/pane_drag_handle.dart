@@ -144,8 +144,8 @@ bool _isDesktop(BuildContext context) => switch (Theme.of(context).platform) {
 /// העליונה בצד ההתחלה, באותו מקום שבו הידית יושבת בסרגל של ספר.
 ///
 /// במחשב היא מופיעה רק כשהעכבר ברצועה העליונה של החלונית
-/// ([hoverStripHeight], לכל רוחבה). במנוחה היא שקופה ולא תופסת לחיצות, ולכן
-/// לא מסתירה ולא חוסמת את תוכן התוסף.
+/// ([hoverStripHeight], לכל רוחבה), ובזמן גרירה שלה. במנוחה היא שקופה ולא
+/// תופסת לחיצות, ולכן לא מסתירה ולא חוסמת את תוכן התוסף.
 ///
 /// במגע אין ריחוף: הידית מופיעה, בגרסה הקטנה ([PaneDragHandleButton.dense]),
 /// אחרי נגיעה באותה רצועה, ונעלמת [touchRevealDuration] אחריה. הנגיעה עצמה
@@ -191,7 +191,7 @@ class _FloatingPaneDragHandleState extends State<FloatingPaneDragHandle> {
   /// מגע: נגיעה ברצועה הציגה את הידית, ו־[_hideTimer] עוד לא הסתיים.
   bool _revealed = false;
 
-  /// מגע: גרירה של הידית בעיצומה. הידית נשארת עד סופה.
+  /// גרירה של הידית בעיצומה. הידית נשארת עד סופה.
   bool _dragging = false;
 
   Timer? _hideTimer;
@@ -221,7 +221,7 @@ class _FloatingPaneDragHandleState extends State<FloatingPaneDragHandle> {
   void _onDragEnd() {
     if (!mounted) return;
     setState(() => _dragging = false);
-    _reveal();
+    if (!_isDesktop(context)) _reveal();
   }
 
   void _setHovered(bool value) {
@@ -236,7 +236,7 @@ class _FloatingPaneDragHandleState extends State<FloatingPaneDragHandle> {
   Widget build(BuildContext context) {
     final pane = widget.enabled ? PaneDragHandleScope.paneOf(context) : null;
     final touch = !_isDesktop(context);
-    final visible = _hovered || (touch && (_revealed || _dragging));
+    final visible = _hovered || _dragging || (touch && _revealed);
     final cs = Theme.of(context).colorScheme;
     return MouseRegion(
       // לא חוסם ריחוף ולחיצות מתחת: רק מאזין.
@@ -277,8 +277,8 @@ class _FloatingPaneDragHandleState extends State<FloatingPaneDragHandle> {
                       child: PaneDragHandleButton(
                         pane: pane,
                         dense: touch,
-                        onDragStarted: touch ? _onDragStarted : null,
-                        onDragEnd: touch ? _onDragEnd : null,
+                        onDragStarted: _onDragStarted,
+                        onDragEnd: _onDragEnd,
                       ),
                     ),
                   ),

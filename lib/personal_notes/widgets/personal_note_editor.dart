@@ -580,6 +580,7 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody>
                                 controller: widget.controller.quillController,
                                 focusNode: widget.focusNode,
                                 scrollController: widget.scrollController,
+                                // TODO(#2531): הסמן עבה עד ש-Quill יחשוף cursorWidth.
                                 config: quill.QuillEditorConfig(
                                   editorKey: widget.editorKey,
                                   customStyles: personalNoteStyles(context),

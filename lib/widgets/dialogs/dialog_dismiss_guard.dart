@@ -3,11 +3,14 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
-import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
-import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 
 /// שאלת הסגירה של טופס ששואל בעצמו ([DialogDismissGuard.onDismissRequest]).
 typedef DialogDismissRequest = FutureOr<void> Function();
+
+/// שאלת "לסגור בלי לשמור?" של [DialogDismissGuard.isDirty]. true = לסגור.
+/// ברירת המחדל, `confirmDiscardChanges`, ב-`app_dialogs.dart`: היא בנויה על
+/// `AppDialog`, שעוטף את עצמו בשומר, ולכן מוזרקת ולא מיובאת.
+typedef DialogDiscardConfirm = Future<bool?> Function(BuildContext context);
 
 /// שומר אחד לכל דרכי היציאה מדיאלוג שעוברות ב-[Navigator.maybePop]: X,
 /// ביטול, Escape, לחיצה בחוץ וחזרה. כש-[canDismiss] false היציאה חסומה (תהליך
@@ -22,15 +25,18 @@ class DialogDismissGuard extends StatefulWidget {
     this.isDirty = false,
     this.canDismiss = true,
     this.onDismissRequest,
-  });
+    this.confirmDiscard,
+  }) : assert(!isDirty || confirmDiscard != null);
 
   /// כמו הבנאי, כשמצב השינויים מגיע כ-[ValueListenable] ולא בבנייה מחדש.
   static Widget listenable({
     required ValueListenable<bool>? isDirty,
     bool canDismiss = true,
     DialogDismissRequest? onDismissRequest,
+    DialogDiscardConfirm? confirmDiscard,
     required Widget child,
   }) {
+    assert(isDirty == null || confirmDiscard != null);
     if (isDirty == null) {
       return DialogDismissGuard(
         canDismiss: canDismiss,
@@ -43,6 +49,7 @@ class DialogDismissGuard extends StatefulWidget {
       builder: (_, dirty, child) => DialogDismissGuard(
         isDirty: dirty,
         canDismiss: canDismiss,
+        confirmDiscard: confirmDiscard,
         child: child!,
       ),
       child: child,
@@ -59,6 +66,9 @@ class DialogDismissGuard extends StatefulWidget {
   /// במקום הסגירה: היציאה קוראת לו, והקורא סוגר ב-[Navigator.pop] — לטופס
   /// ששואל שאלת סגירה משלו. סגירת החלון ממתינה לו, וממשיכה רק אם נסגר.
   final DialogDismissRequest? onDismissRequest;
+
+  /// השאלה כש-[isDirty] true.
+  final DialogDiscardConfirm? confirmDiscard;
 
   /// לפני סגירת חלון (כפתור הסגירה, Alt+F4, יציאה מהתוכנה): כל דיאלוג פתוח
   /// שיש בו שינויים שלא נשמרו עובר את היציאה שלו, מהעליון לתחתון — "לסגור
@@ -121,7 +131,7 @@ class _DialogDismissGuardState extends State<DialogDismissGuard> {
     if (onDismissRequest != null) {
       await onDismissRequest();
     } else {
-      if (widget.isDirty && await confirmDiscardChanges(context) != true) {
+      if (widget.isDirty && await widget.confirmDiscard!(context) != true) {
         return false;
       }
       if (mounted) Navigator.of(context).pop(result);
@@ -158,12 +168,3 @@ class _DialogDismissGuardState extends State<DialogDismissGuard> {
     child: widget.child,
   );
 }
-
-/// שאלת הסגירה של טופס עם שינויים שלא נשמרו. true = לסגור בלי לשמור.
-Future<bool?> confirmDiscardChanges(BuildContext context) => showWarningDialog(
-  context: context,
-  title: context.settingsText('לסגור בלי לשמור?'),
-  content: context.settingsText('השינויים שלא נשמרו יאבדו.'),
-  cancelText: context.settingsText('המשך לערוך'),
-  confirmText: context.settingsText('סגור בלי לשמור'),
-);
