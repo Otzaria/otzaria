@@ -457,6 +457,7 @@ class DifferentialUpdateEngine {
       root: staging.path,
       newTree: newTree,
       allowUnmanaged: allowUnmanagedFiles,
+      hashFile: sha256OfFileFast,
     );
     if (errors.isNotEmpty) {
       throw DifferentialUpdateUnavailable(
