@@ -368,21 +368,36 @@ class FileSystemData {
       return const {};
     }
     final roots = [hebrewBooksPath, path.join(hebrewBooksPath, 'Books')];
-    final pdfFiles = <String, String>{};
-    try {
-      for (final id in ids) {
+    Future<({Map<String, String> files, bool failed})> probe(int id) async {
+      final files = <String, String>{};
+      try {
         for (final name in ['$id.pdf', 'hebrewbooks_org_$id.pdf']) {
           for (final root in roots) {
             final file = File(path.join(root, name));
             if (await file.exists()) {
-              pdfFiles.putIfAbsent(name, () => file.path);
+              files[name] = file.path;
               break;
             }
           }
         }
+      } on FileSystemException {
+        return (files: files, failed: true);
       }
-    } on FileSystemException {
-      // כונן לא זמין - מחזירים את מה שנמצא עד כה.
+      return (files: files, failed: false);
+    }
+
+    const batchSize = 8;
+    final requested = ids.toList(growable: false);
+    final pdfFiles = <String, String>{};
+    for (var start = 0; start < requested.length; start += batchSize) {
+      final batch = await Future.wait(
+        requested.skip(start).take(batchSize).map(probe),
+      );
+      for (final (:files, :failed) in batch) {
+        pdfFiles.addAll(files);
+        // כונן לא זמין — מחזירים רק התאמות שלפני הכשל, לפי סדר הבקשה.
+        if (failed) return pdfFiles;
+      }
     }
     return pdfFiles;
   }

@@ -226,21 +226,80 @@ void main() {
   });
 
   group('FileSystemData.probeHebrewBooksPdfFilesByIds', () {
+    const root = r'D:\HebrewBooks';
+
     setUp(() async {
       await Settings.init(cacheProvider: MemorySettingsCache());
       await Settings.setValue<String>(
         SettingsRepository.keyHebrewBooksPath,
-        r'D:\HebrewBooks',
+        root,
       );
     });
 
     test('כונן לא מוכן מחזיר מפה ריקה', () async {
       final files = await IOOverrides.runZoned(
         () => FileSystemData.probeHebrewBooksPdfFilesByIds({123}),
-        createFile: (p) => _NotReadyFile(p),
+        createFile: (p) => _ProbeFile(
+          p,
+          () async => throw FileSystemException('Exists failed', p, _notReady),
+        ),
       );
 
       expect(files, isEmpty);
+    });
+
+    test('בודק מזהים במקביל עד שמונה בקשות פעילות', () async {
+      var active = 0;
+      var peak = 0;
+      final files = await IOOverrides.runZoned(
+        () => FileSystemData.probeHebrewBooksPdfFilesByIds({
+          for (var id = 0; id < 12; id++) id,
+        }),
+        createFile: (p) => _ProbeFile(p, () async {
+          active++;
+          if (active > peak) peak = active;
+          await Future<void>.delayed(Duration.zero);
+          active--;
+          return false;
+        }),
+      );
+
+      expect(files, isEmpty);
+      expect(peak, 8);
+      expect(active, 0);
+    });
+
+    test('שומר קדימות שורש ומחזיר רק התאמות שלפני כשל הכונן', () async {
+      final first = path.join(root, '1.pdf');
+      final firstAlias = path.join(root, 'Books', 'hebrewbooks_org_1.pdf');
+      final second = path.join(root, 'Books', '2.pdf');
+      final fail = path.join(root, 'hebrewbooks_org_2.pdf');
+      final later = path.join(root, '3.pdf');
+      final candidates = {
+        first,
+        path.join(root, 'Books', '1.pdf'),
+        firstAlias,
+        second,
+        later,
+      };
+      final files = await IOOverrides.runZoned(
+        () => FileSystemData.probeHebrewBooksPdfFilesByIds({1, 2, 3}),
+        createFile: (p) => _ProbeFile(p, () async {
+          if (p == fail)
+            throw FileSystemException('Exists failed', p, _notReady);
+          return candidates.contains(p);
+        }),
+      );
+
+      expect(files, {
+        '1.pdf': first,
+        'hebrewbooks_org_1.pdf': firstAlias,
+        '2.pdf': second,
+      });
+      expect(
+        files.keys,
+        orderedEquals(['1.pdf', 'hebrewbooks_org_1.pdf', '2.pdf']),
+      );
     });
   });
 }
@@ -298,15 +357,15 @@ class _NotReadyDirectory implements Directory {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class _NotReadyFile implements File {
-  _NotReadyFile(this.path);
+class _ProbeFile implements File {
+  _ProbeFile(this.path, this._check);
 
   @override
   final String path;
+  final Future<bool> Function() _check;
 
   @override
-  Future<bool> exists() async =>
-      throw FileSystemException('Exists failed', path, _notReady);
+  Future<bool> exists() => _check();
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
