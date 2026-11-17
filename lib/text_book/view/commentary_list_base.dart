@@ -59,6 +59,7 @@ export 'package:otzaria/book_common/utils/commentary_search_utils.dart'
 import 'package:otzaria/book_common/utils/category_settings_utils.dart';
 import 'package:otzaria/book_common/utils/commentary_plugin_menu_entries.dart';
 import 'package:otzaria/text_book/utils/commentary_title_visibility.dart';
+import 'package:otzaria/text_book/utils/link_processing.dart';
 import 'package:otzaria/book_common/utils/commentary_type_filter.dart';
 import 'package:otzaria/book_common/utils/commentator_group_builder.dart';
 import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
@@ -352,6 +353,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
 
   ({
     List<Link> links,
+    Map<int, List<Link>> linksByLine,
     List<int> indexes,
     List<String> commentators,
     Set<String> types,
@@ -467,30 +469,32 @@ class CommentaryListBaseState extends State<CommentaryListBase>
         .join('||');
   }
 
-  // getLinksforIndexs סורק את כל קישורי הספר; future חדש גם גורם לבנייה נוספת
-  // כשהוא נפתר, ולכן נוצר מחדש רק כשהקלטים משתנים.
+  // future חדש גורם לבנייה נוספת כשהוא נפתר, ולכן נוצר רק כשהקלטים משתנים.
   Future<List<Link>> _getCachedLinks(
     List<int> indexes,
-    List<Link> links,
+    TextBookLoaded state,
     List<String> commentators,
     Set<String> types,
   ) {
     final cached = _cachedLinks;
     if (cached != null &&
-        identical(cached.links, links) &&
+        identical(cached.links, state.links) &&
+        identical(cached.linksByLine, state.linksByLine) &&
         listEquals(cached.indexes, indexes) &&
         listEquals(cached.commentators, commentators) &&
         setEquals(cached.types, types)) {
       return cached.future;
     }
-    final future = getLinksforIndexs(
+    final future = getCommentaryLinksForLines(
       indexes: indexes,
-      links: links,
+      links: state.links,
+      linksByLine: state.linksByLine,
       commentatorsToShow: commentators,
       typesToShow: types,
     );
     _cachedLinks = (
-      links: links,
+      links: state.links,
+      linksByLine: state.linksByLine,
       indexes: indexes,
       commentators: commentators,
       types: types,
@@ -859,9 +863,10 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                     : 0),
           ];
 
-    final links = await getLinksforIndexs(
+    final links = await getCommentaryLinksForLines(
       indexes: indexes,
       links: blocState.links,
+      linksByLine: blocState.linksByLine,
       commentatorsToShow: selectedCommentators,
     );
     if (links.isEmpty) {
@@ -2016,7 +2021,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
               final commentaryWidget = FutureBuilder<List<Link>>(
                 future: _getCachedLinks(
                   currentIndexes,
-                  state.links,
+                  state,
                   selectedCommentators,
                   effectiveTypes,
                 ),
