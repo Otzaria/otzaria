@@ -362,6 +362,25 @@ void main() {
     expect(find.textContaining('פרק ב'), findsNothing);
   });
 
+  test('תאומות בכותרת דורשות כרטיסיות ספר נפרדות באותו שם', () {
+    final first = _makeTextTab('ספר א');
+    final second = _makeTextTab('ספר א')..isPinned = true;
+    final search = SearchingTab('ספר א', 'שאילתה');
+    final tool = ToolTab(toolId: 'builtin.test', title: 'ספר א');
+    addTearDown(first.dispose);
+    addTearDown(second.dispose);
+    addTearDown(search.dispose);
+    addTearDown(tool.dispose);
+
+    expect(tabsWithTwinTitle([first, first, search, tool]), isEmpty);
+    expect(
+      tabsWithTwinTitle([first, search, second, first, tool]),
+      unorderedEquals([first, second]),
+    );
+    second.title = 'ספר ב';
+    expect(tabsWithTwinTitle([second, first, search, tool]), isEmpty);
+  });
+
   testWidgets('בכרטיסיות רבות וצרות המיקום של התאומות נשאר גלוי (issue #5146)', (
     tester,
   ) async {

@@ -675,6 +675,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
   }
 
   Widget _buildTabsContent(TabsState state) {
+    final tabsWithTwin = tabsWithTwinTitle(state.tabs);
     // בפריים הראשון עוד אין מדידה; אומדן לפי רוחב המסך, מתוקן בפריים הבא.
     final available = _tabsAreaWidth ?? MediaQuery.sizeOf(context).width;
     _lastComputedTabWidths = _computeTabWidths(available, state.tabs.length);
@@ -711,7 +712,14 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
           behavior: HitTestBehavior.opaque,
           child: SizedBox(
             width: tabWidth,
-            child: _buildTab(context, tab, index, state, tabWidth),
+            child: _buildTab(
+              context,
+              tab,
+              index,
+              state,
+              tabWidth,
+              showLocationInTitle: tabsWithTwin.contains(tab),
+            ),
           ),
         ),
       ),
@@ -1223,8 +1231,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
     OpenedTab tab,
     int index,
     TabsState state,
-    double tabWidth,
-  ) {
+    double tabWidth, {
+    required bool showLocationInTitle,
+  }) {
     if (tabWidth < _kTabContentMinWidth) {
       return _buildNarrowTab(context, tab, index, state, tabWidth);
     }
@@ -1504,7 +1513,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 
     Widget buildLiveTabAppearance() => LiveTabTitleBuilder(
       tab: tab,
-      showLocationInTitle: tabTitleHasTwin(tab, state.tabs),
+      showLocationInTitle: showLocationInTitle,
       builder: (_, displayTitle, tooltipMessage, titleLocation) =>
           buildTabAppearance(displayTitle, tooltipMessage, titleLocation),
     );

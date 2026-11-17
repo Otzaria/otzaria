@@ -80,6 +80,7 @@ class _VerticalReadingTabStripState extends State<VerticalReadingTabStrip> {
 
         if (!state.hasOpenTabs) return const SizedBox.shrink();
 
+        final tabsWithTwin = tabsWithTwinTitle(state.tabs);
         return buildTabsReadingTabStrip(
           context,
           state: state,
@@ -90,7 +91,13 @@ class _VerticalReadingTabStripState extends State<VerticalReadingTabStrip> {
           widths: [for (final _ in state.tabs) kVerticalTabHeight],
           tabBuilder: (tab, index, extent) => SizedBox(
             height: extent,
-            child: _buildTab(context, tab, index, state),
+            child: _buildTab(
+              context,
+              tab,
+              index,
+              state,
+              showLocationInTitle: tabsWithTwin.contains(tab),
+            ),
           ),
         );
       },
@@ -101,8 +108,9 @@ class _VerticalReadingTabStripState extends State<VerticalReadingTabStrip> {
     BuildContext context,
     OpenedTab tab,
     int index,
-    TabsState state,
-  ) {
+    TabsState state, {
+    required bool showLocationInTitle,
+  }) {
     return _wrapWithTabPointer(
       context,
       tab,
@@ -131,7 +139,7 @@ class _VerticalReadingTabStripState extends State<VerticalReadingTabStrip> {
                 isSelected: index == state.currentTabIndex,
                 isInSelection: state.selectedTabs.contains(tab),
                 isHovered: isHovered,
-                showLocationInTitle: tabTitleHasTwin(tab, state.tabs),
+                showLocationInTitle: showLocationInTitle,
                 onClose: () => _closeTab(tab),
               ),
             );
