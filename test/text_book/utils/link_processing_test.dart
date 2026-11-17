@@ -38,6 +38,26 @@ Link makeLink({
   );
 }
 
+class _CountedRange extends Link {
+  _CountedRange()
+    : super(
+        heRef: 'בראשית א',
+        index1: 1,
+        index1End: 500,
+        path2: 'מפרש אחר.txt',
+        index2: 1,
+        connectionType: LinkTypes.commentary,
+      );
+
+  int endReads = 0;
+
+  @override
+  int get index1End {
+    endReads++;
+    return super.index1End!;
+  }
+}
+
 void main() {
   test('אינדקס המפרשים שומר טווחים, כפילויות וסדר מקור בתיקו', () async {
     const path = 'מפרש.txt';
@@ -109,6 +129,41 @@ void main() {
         [current],
       );
     }
+  });
+
+  test('בחיפוש מפרשים בטווחים חופפים מספר בדיקות הטווח חסום', () async {
+    final overlapping = _CountedRange();
+    final selected = makeLink(
+      path2: 'מפרש.txt',
+      index1: 1,
+      index1End: 500,
+      connectionType: LinkTypes.commentary,
+    );
+    final links = [selected, ...List.filled(1000, overlapping), selected];
+    final index = buildLinksByLineMap(links);
+    final indexes = List.generate(100, (i) => 200 + i);
+    const commentators = ['מפרש'];
+    overlapping.endReads = 0;
+
+    final expected = await getLinksforIndexs(
+      indexes: indexes,
+      links: links,
+      commentatorsToShow: commentators,
+    );
+    final scanEndReads = overlapping.endReads;
+    overlapping.endReads = 0;
+
+    expect(expected, [selected, selected]);
+    expect(
+      await getCommentaryLinksForLines(
+        indexes: indexes,
+        links: links,
+        linksByLine: index,
+        commentatorsToShow: commentators,
+      ),
+      expected,
+    );
+    expect(overlapping.endReads, lessThanOrEqualTo(scanEndReads));
   });
 
   test('retains hot line lookups while evicting cold line lookups', () {

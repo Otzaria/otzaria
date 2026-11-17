@@ -131,13 +131,19 @@ class _LinksByLineMap extends MapBase<int, List<Link>> {
   }
 
   List<Link> _linksForLines(List<int> indexes) {
+    final distinctIndexes = indexes.toSet();
+    // כל שורה עלולה לבקר בכל הטווחים; כשהחסם מגיע לגודל הרשימה, סורקים אותה.
+    if (_ranged.length * distinctIndexes.length >= _sourceLinks.length) {
+      return _sourceLinks;
+    }
+
     // המיקום ברשימת המקור מבדיל כפילויות אמיתיות מחפיפה של טווח לכמה שורות.
     final byOrder = <int, Link>{};
     void add(_OrderedLink item) {
       byOrder[item.order] = item.link;
     }
 
-    for (final index in indexes.toSet()) {
+    for (final index in distinctIndexes) {
       final line = index + 1;
       for (final item in _starts[line] ?? const <_OrderedLink>[]) {
         add(item);
