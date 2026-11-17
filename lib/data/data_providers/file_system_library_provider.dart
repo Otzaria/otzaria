@@ -17,11 +17,31 @@ import 'package:otzaria/utils/file/toc_parser.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:path/path.dart' as p;
+
+typedef _BookFileCategory = ({List<String> parts, String path, int id});
+
+typedef _BookFile = ({
+  String path,
+  String title,
+  DocumentFormat format,
+  _BookFileCategory category,
+});
+
+typedef _BookFileScan = ({
+  String personalRoot,
+  List<String> personalFiles,
+  List<String> bundledFiles,
+  Map<String, String> paths,
+  Map<int, String> categoryPaths,
+});
 
 /// Library provider that loads books from the file system.
 class FileSystemLibraryProvider implements LibraryProvider, LinkLinesProvider {
   late String _libraryPath;
-  Future<Map<String, String>>? _keyToPath;
+  Map<String, String>? _keyToPath;
+  Map<String, String>? _catalogKeyToPath;
+  Future<_BookFileScan>? _bookScanInFlight;
   final Map<int, String> _categoryIdToPath =
       {}; // Maps hash(categoryPath) -> categoryPath
   bool _isInitialized = false;
@@ -36,7 +56,7 @@ class FileSystemLibraryProvider implements LibraryProvider, LinkLinesProvider {
     return _instance!;
   }
 
-  String _generateKey(String title, int categoryId, String fileType) {
+  static String _generateKey(String title, int categoryId, String fileType) {
     return BookCompositeKey.create(
       title: title,
       categoryId: categoryId,
@@ -60,7 +80,9 @@ class FileSystemLibraryProvider implements LibraryProvider, LinkLinesProvider {
   bool get isInitialized => _isInitialized;
 
   @override
-  Future<void> initialize() async {
+  Future<void> initialize() async => _ensureInitialized();
+
+  void _ensureInitialized() {
     if (_isInitialized) return;
 
     _libraryPath =
@@ -69,204 +91,287 @@ class FileSystemLibraryProvider implements LibraryProvider, LinkLinesProvider {
     debugPrint('📁 FileSystemLibraryProvider initialized');
   }
 
-  Future<Map<String, String>> get keyToPath => _keyToPath ??= _buildKeyToPath();
+  Future<Map<String, String>> get keyToPath async {
+    final paths = await physicalKeyToPath;
+    return identical(paths, _keyToPath) ? _catalogKeyToPath ?? paths : paths;
+  }
+
+  /// מפת נתיבים למנייה, עם מפתח התיקייה בפועל לכל קובץ.
+  Future<Map<String, String>> get physicalKeyToPath async {
+    final pending = _bookScanInFlight;
+    if (pending != null) return (await pending).paths;
+    return _keyToPath ?? (await _refreshBookFiles()).paths;
+  }
 
   @override
   Future<Map<String, List<Book>>> loadBooks(
     Map<String, Map<String, dynamic>> metadata,
   ) async {
-    if (!_isInitialized) await initialize();
-
-    final Map<String, List<Book>> booksByCategory = {};
-
-    // We can populate the key map here as well to ensure it's accurate
-    final map = await keyToPath;
-
-    // The main library folder and custom folders come from the database
-    // (DatabaseLibraryProvider); scanning them here would duplicate books.
-
-    // Load books from the built-in personal folder (אוצריא/אישי)
-    // This is NOT a custom folder, but a built-in location for personal books
-    final personalBooksPath = getPersonalBooksPath();
-    final personalBooksDir = Directory(personalBooksPath);
-    if (await personalBooksDir.exists()) {
-      await _loadBooksRecursively(personalBooksDir, metadata, booksByCategory, [
-        'ספרים אישיים',
-      ], map);
+    final scan = await _refreshBookFiles();
+    final entries =
+        <
+          ({
+            _BookFile file,
+            ({String name, String path}) display,
+            String? alias,
+          })
+        >[];
+    final aliases = <String, String>{};
+    final categoryDisplays =
+        <_BookFileCategory, ({String name, String path})>{};
+    for (final file in _catalogFiles(scan)) {
+      final category = file.category;
+      if (!kDebugMode && category.parts.contains('ספרים מספריות חיצוניות')) {
+        continue;
+      }
+      final display = categoryDisplays.putIfAbsent(category, () {
+        final parts = category.parts.map(getTitleFromPath).toList();
+        return (name: parts.last, path: parts.join(', '));
+      });
+      final alias = display.path == category.path
+          ? null
+          : _generateKey(
+              file.title,
+              display.path.hashCode,
+              file.format.extension,
+            );
+      // מפתח לפי שם תצוגה זמין כל עוד אינו מפתח של תיקייה בפועל.
+      if (alias != null && !scan.paths.containsKey(alias)) {
+        aliases[alias] = file.path;
+      }
+      entries.add((file: file, display: display, alias: alias));
     }
 
-    await _loadBundledTalmudBavliBooks(metadata, booksByCategory, map);
-
+    final booksByCategory = <String, List<Book>>{};
+    for (final entry in entries) {
+      final file = entry.file;
+      final categoryId =
+          entry.alias == null || aliases[entry.alias] == file.path
+          ? entry.display.path.hashCode
+          : file.category.id;
+      try {
+        final book = _createBookFromFile(
+          file,
+          metadata,
+          entry.display.path,
+          categoryId,
+        );
+        booksByCategory.putIfAbsent(entry.display.name, () => []).add(book);
+      } catch (_) {
+        if (entry.display.path == DatabaseConstants.talmudBavliFolderName) {
+          rethrow;
+        }
+        debugPrint('⚠️ Skipping inaccessible entity: ${file.path}');
+      }
+    }
+    if (identical(_keyToPath, scan.paths) && aliases.isNotEmpty) {
+      _catalogKeyToPath = {...scan.paths, ...aliases};
+    }
     return booksByCategory;
   }
 
-  Future<void> _loadBundledTalmudBavliBooks(
-    Map<String, Map<String, dynamic>> metadata,
-    Map<String, List<Book>> booksByCategory,
-    Map<String, String> keyToPath,
-  ) async {
-    final bundledDir = await _resolveBundledTalmudBavliDirectory();
-    if (bundledDir == null) return;
+  Future<_BookFileScan> _refreshBookFiles() async {
+    final pending = _bookScanInFlight;
+    if (pending != null) return pending;
 
-    await for (final entity in bundledDir.list()) {
-      if (entity is! File) continue;
-
-      final lowerPath = entity.path.toLowerCase();
-      if (!lowerPath.endsWith('.pdf')) continue;
-
-      final book = await _createBookFromFile(
-        entity,
-        metadata,
-        [DatabaseConstants.talmudBavliFolderName],
-      );
-      if (book == null || book.categoryId == null) continue;
-
-      booksByCategory
-          .putIfAbsent(DatabaseConstants.talmudBavliFolderName, () => [])
-          .add(book);
-
-      final key = _generateKey(
-        book.title,
-        book.categoryId!,
-        book.fileType ?? 'pdf',
-      );
-      keyToPath[key] = entity.path;
+    final scan = _scanBookFiles();
+    _bookScanInFlight = scan;
+    try {
+      final result = await scan;
+      if (identical(_bookScanInFlight, scan)) {
+        _keyToPath = result.paths;
+        _catalogKeyToPath = null;
+        _categoryIdToPath
+          ..clear()
+          ..addAll(result.categoryPaths);
+      }
+      return result;
+    } finally {
+      if (identical(_bookScanInFlight, scan)) _bookScanInFlight = null;
     }
   }
 
-  Future<Directory?> _resolveBundledTalmudBavliDirectory() async {
+  Future<_BookFileScan> _scanBookFiles() {
+    _ensureInitialized();
+    final personalPath = getPersonalBooksPath();
     final folderName =
         Settings.getValue<String>(SettingsRepository.keyLibraryFolderName) ??
         '';
-
-    for (final candidatePath in DatabaseConstants.getTalmudBavliDirectoryPaths(
+    final bundledPaths = DatabaseConstants.getTalmudBavliDirectoryPaths(
       _libraryPath,
       folderName,
-    )) {
-      final directory = Directory(candidatePath);
-      if (await directory.exists()) {
-        return directory;
-      }
-    }
-
-    return null;
+    );
+    return _readBookFiles(personalPath, bundledPaths);
   }
 
-  Future<void> _loadBooksRecursively(
-    Directory dir,
-    Map<String, Map<String, dynamic>> metadata,
-    Map<String, List<Book>> booksByCategory,
-    List<String> currentPath,
-    Map<String, String> keyToPath,
-  ) async {
-    final dirName = dir.path.split(Platform.pathSeparator).last;
+  static Future<_BookFileScan> _readBookFiles(
+    String personalPath,
+    List<String> bundledPaths,
+  ) => Isolate.run(() async {
+    final personalFiles = <String>[];
+    final bundledFiles = <String>[];
+    final paths = <String, String>{};
+    final categoryPaths = <int, String>{};
 
-    // Skip special directories (except in debug mode)
-    if (!kDebugMode && dirName == 'ספרים מספריות חיצוניות') return;
+    void addPath(
+      String path,
+      DocumentFormat format,
+      _BookFileCategory category,
+    ) {
+      final key = _generateKey(
+        getTitleFromPath(path),
+        category.id,
+        format.extension,
+      );
+      paths[key] = path;
+      categoryPaths[category.id] = category.path;
+    }
 
-    await for (final entity in dir.list()) {
-      try {
-        if (entity is Directory) {
-          final newPath = [...currentPath, getTitleFromPath(entity.path)];
-          await _loadBooksRecursively(
-            entity,
-            metadata,
-            booksByCategory,
-            newPath,
-            keyToPath,
+    // הספרייה הראשית והתיקיות המותאמות נטענות ממסד הנתונים.
+    final personalDir = Directory(personalPath);
+    if (await personalDir.exists()) {
+      final categories = <String, _BookFileCategory>{};
+      // Dart מזהה קישורים מחזוריים לאורך מעבר רקורסיבי אחד.
+      final entries = personalDir
+          .list(recursive: true)
+          .handleError(
+            (Object error) =>
+                debugPrint('⚠️ Skipping inaccessible entity: $error'),
+            test: (error) =>
+                error is FileSystemException &&
+                error.path != null &&
+                p.isWithin(personalPath, error.path!),
           );
-        } else if (entity is File) {
-          final book = await _createBookFromFile(entity, metadata, currentPath);
-          if (book != null) {
-            final categoryName = currentPath.isNotEmpty
-                ? currentPath.last
-                : 'ללא קטגוריה';
-            booksByCategory.putIfAbsent(categoryName, () => []);
-            booksByCategory[categoryName]!.add(book);
-
-            // Add to key map
-            if (book.categoryId != null) {
-              final key = _generateKey(
-                book.title,
-                book.categoryId!,
-                book.fileType ?? '',
-              );
-              keyToPath[key] = entity.path;
-            }
-          }
+      await for (final entity in entries) {
+        if (entity is! File) continue;
+        final format = documentFormatFromExtension(entity.path);
+        if (format == null || !format.isProductionSupported) continue;
+        if (format.needsContentSniffing &&
+            !await isSupportedBookFileByContent(entity.path)) {
+          continue;
         }
-      } catch (e) {
-        debugPrint('⚠️ Skipping inaccessible entity: ${entity.path}');
-        continue;
+        personalFiles.add(entity.path);
+        final parent = _parentPath(entity.path);
+        final category = categories.putIfAbsent(
+          parent,
+          () => _personalCategory(personalPath, parent),
+        );
+        addPath(entity.path, format, category);
       }
+    }
+
+    final talmudCategory = _talmudCategory();
+    for (final path in bundledPaths) {
+      final dir = Directory(path);
+      if (!await dir.exists()) continue;
+      await for (final entity in dir.list()) {
+        if (entity is! File ||
+            documentFormatFromExtension(entity.path) != DocumentFormat.pdf) {
+          continue;
+        }
+        bundledFiles.add(entity.path);
+        addPath(entity.path, DocumentFormat.pdf, talmudCategory);
+      }
+      break;
+    }
+    return (
+      personalRoot: personalPath,
+      personalFiles: personalFiles,
+      bundledFiles: bundledFiles,
+      paths: paths,
+      categoryPaths: categoryPaths,
+    );
+  });
+
+  static String _parentPath(String path) =>
+      path.substring(0, path.lastIndexOf(Platform.pathSeparator));
+
+  static _BookFileCategory _personalCategory(String root, String parent) {
+    final prefixLength = root.length + 1;
+    final parts = [
+      'ספרים אישיים',
+      if (parent.length >= prefixLength)
+        ...parent.substring(prefixLength).split(Platform.pathSeparator),
+    ];
+    final path = parts.join(', ');
+    return (parts: parts, path: path, id: path.hashCode);
+  }
+
+  static _BookFileCategory _talmudCategory() {
+    const path = DatabaseConstants.talmudBavliFolderName;
+    return (parts: const [path], path: path, id: path.hashCode);
+  }
+
+  static Iterable<_BookFile> _catalogFiles(_BookFileScan scan) sync* {
+    final categories = <String, _BookFileCategory>{};
+    for (final path in scan.personalFiles) {
+      final parent = _parentPath(path);
+      final category = categories.putIfAbsent(
+        parent,
+        () => _personalCategory(scan.personalRoot, parent),
+      );
+      yield (
+        path: path,
+        title: getTitleFromPath(path),
+        format: documentFormatFromExtension(path)!,
+        category: category,
+      );
+    }
+    final talmudCategory = _talmudCategory();
+    for (final path in scan.bundledFiles) {
+      yield (
+        path: path,
+        title: getTitleFromPath(path),
+        format: DocumentFormat.pdf,
+        category: talmudCategory,
+      );
     }
   }
 
-  Future<Book?> _createBookFromFile(
-    File file,
+  Book _createBookFromFile(
+    _BookFile file,
     Map<String, Map<String, dynamic>> metadata,
-    List<String> categoryPath,
-  ) async {
-    final path = file.path.toLowerCase();
-    final title = getTitleFromPath(file.path);
-    final topics = categoryPath.join(', ');
+    String categoryPath,
+    int categoryId,
+  ) {
+    final path = file.path;
+    final title = file.title;
+    final format = file.format;
+    final topics = title.contains(' על ')
+        ? '$categoryPath, ${title.split(' על ')[1]}'
+        : categoryPath;
+    final info = metadata[title];
 
-    // Handle special case where title contains " על "
-    String finalTopics = topics;
-    if (title.contains(' על ')) {
-      finalTopics = '$topics, ${title.split(' על ')[1]}';
-    }
-
-    if (path.endsWith('.pdf')) {
-      final categoryPathStr = categoryPath.join(', ');
-      final categoryId = categoryPathStr.hashCode;
-      _categoryIdToPath[categoryId] = categoryPathStr;
-
+    if (format == DocumentFormat.pdf) {
       return PdfBook(
         title: title,
-        path: file.path,
-        author: metadata[title]?['author'],
-        heShortDesc: metadata[title]?['heShortDesc'],
-        pubDate: metadata[title]?['pubDate'],
-        pubPlace: metadata[title]?['pubPlace'],
-        order: metadata[title]?['order'] ?? 999,
-        topics: finalTopics,
-        categoryPath: categoryPathStr,
+        path: path,
+        author: info?['author'],
+        heShortDesc: info?['heShortDesc'],
+        pubDate: info?['pubDate'],
+        pubPlace: info?['pubPlace'],
+        order: info?['order'] ?? 999,
+        topics: topics,
+        categoryPath: categoryPath,
         categoryId: categoryId,
       );
     }
 
-    final format = documentFormatFromExtension(path);
-    if (format != null &&
-        format.isProductionSupported &&
-        format.isTextual &&
-        // .xml ו-.wbk נאספים רק אם תוכנם אכן מסמך — אותו שער שבכל שאר
-        // נקודות הכניסה. בלעדיו כל קובץ XML בתיקיית הספרים הופך ל"ספר"
-        // שנכשל בפתיחה ובכל אינדוקס.
-        (!format.needsContentSniffing ||
-            await isSupportedBookFileByContent(file.path))) {
-      final categoryPathStr = categoryPath.join(', ');
-      final categoryId = categoryPathStr.hashCode;
-      _categoryIdToPath[categoryId] = categoryPathStr;
-
-      return buildBookForFileType(
-        fileType: format.extension,
-        title: title,
-        path: file.path,
-        filePath: file.path,
-        author: metadata[title]?['author'],
-        heShortDesc: metadata[title]?['heShortDesc'],
-        pubDate: metadata[title]?['pubDate'],
-        pubPlace: metadata[title]?['pubPlace'],
-        order: metadata[title]?['order'] ?? 999,
-        topics: finalTopics,
-        extraTitles: metadata[title]?['extraTitles'],
-        categoryPath: categoryPathStr,
-        categoryId: categoryId,
-      );
-    }
-
-    return null;
+    return buildBookForFileType(
+      fileType: format.extension,
+      title: title,
+      path: path,
+      filePath: path,
+      author: info?['author'],
+      heShortDesc: info?['heShortDesc'],
+      pubDate: info?['pubDate'],
+      pubPlace: info?['pubPlace'],
+      order: info?['order'] ?? 999,
+      topics: topics,
+      extraTitles: info?['extraTitles'],
+      categoryPath: categoryPath,
+      categoryId: categoryId,
+    );
   }
 
   @override
@@ -332,88 +437,12 @@ class FileSystemLibraryProvider implements LibraryProvider, LinkLinesProvider {
     return map[key];
   }
 
-  Future<Map<String, String>> _buildKeyToPath() async {
-    Map<String, String> keyToPath = {};
-    _categoryIdToPath.clear();
-
-    // Helper to add path
-    void addPath(
-      String path,
-      String rootPath, [
-      List<String> prefix = const [],
-    ]) {
-      final title = getTitleFromPath(path);
-      final fileType = path.split('.').last.toLowerCase();
-
-      // Extract category
-      String relative = path;
-      if (path.startsWith(rootPath)) {
-        relative = path.substring(rootPath.length);
-      }
-      if (relative.startsWith(Platform.pathSeparator)) {
-        relative = relative.substring(1);
-      }
-
-      final parts = relative.split(Platform.pathSeparator);
-      // Remove filename
-      if (parts.isNotEmpty) parts.removeLast();
-
-      final categoryParts = [...prefix, ...parts];
-      final category = categoryParts.join(', ');
-      final categoryId = category.hashCode;
-      _categoryIdToPath[categoryId] = category;
-
-      final key = _generateKey(title, categoryId, fileType);
-      keyToPath[key] = path;
-    }
-
-    // The main library folder and custom folders come from the database
-    // (DatabaseLibraryProvider); scanning them here would duplicate books.
-
-    // Load from the built-in personal folder (אוצריא/אישי)
-    // This is NOT a custom folder, but a built-in location for personal books
-    final personalBooksPath = getPersonalBooksPath();
-    if (await Directory(personalBooksPath).exists()) {
-      final personalPaths = await _getAllBookPaths(personalBooksPath);
-      for (var path in personalPaths) {
-        addPath(path, personalBooksPath, ['ספרים אישיים']);
-      }
-    }
-
-    final bundledTalmudDir = await _resolveBundledTalmudBavliDirectory();
-    if (bundledTalmudDir != null) {
-      await for (final entity in bundledTalmudDir.list()) {
-        if (entity is! File) continue;
-        final lower = entity.path.toLowerCase();
-        if (!lower.endsWith('.pdf')) continue;
-        addPath(
-          entity.path,
-          bundledTalmudDir.path,
-          [DatabaseConstants.talmudBavliFolderName],
-        );
-      }
-    }
-
-    return keyToPath;
-  }
-
-  static Future<List<String>> _getAllBookPaths(String path) async {
-    return Isolate.run(() async {
-      final results = <String>[];
-      await for (final entity in Directory(path).list(recursive: true)) {
-        if (entity is! File) continue;
-        if (await isSupportedBookFileByContent(entity.path)) {
-          results.add(entity.path);
-        }
-      }
-      return results;
-    });
-  }
-
   /// Resets runtime state so the provider re-reads the active library path.
   void resetRuntimeState() {
     _categoryIdToPath.clear();
+    _bookScanInFlight = null;
     _keyToPath = null;
+    _catalogKeyToPath = null;
     _isInitialized = false;
   }
 
@@ -423,7 +452,9 @@ class FileSystemLibraryProvider implements LibraryProvider, LinkLinesProvider {
     Map<int, String>? categoryIdToPath,
     String? libraryPath,
   }) {
-    _keyToPath = Future.value(keyToPath);
+    _bookScanInFlight = null;
+    _keyToPath = keyToPath;
+    _catalogKeyToPath = null;
     _categoryIdToPath
       ..clear()
       ..addAll(categoryIdToPath ?? const {});
@@ -434,11 +465,7 @@ class FileSystemLibraryProvider implements LibraryProvider, LinkLinesProvider {
   }
 
   @visibleForTesting
-  void resetForTesting() {
-    _categoryIdToPath.clear();
-    _isInitialized = false;
-    _keyToPath = null;
-  }
+  void resetForTesting() => resetRuntimeState();
 
   /// Gets the path to the personal books folder
   String getPersonalBooksPath() {
