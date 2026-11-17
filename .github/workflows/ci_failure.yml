@@ -6,7 +6,8 @@ name: CI retry on dev and flaky log
 # אין כאן checkout של קוד; שמות jobs ו-branches מנוקים לפני שהם נכנסים להודעה.
 on:
   workflow_run:
-    workflows: ['**', '!CI retry on dev and flaky log']
+    # המאזינים מוחרגים זה מזה: אחרת כל סיום של אחד מפעיל את האחרים, בשרשרת של כ-20 ריצות.
+    workflows: ['**', '!Automerge', '!Auto-Draft Failed CI', '!CI retry on dev and flaky log', '!Dev health']
     types: [completed]
 
 permissions: {}

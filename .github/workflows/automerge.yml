@@ -7,7 +7,8 @@ on:
   pull_request_target:
     types: [labeled, ready_for_review]
   workflow_run:
-    workflows: ['**', '!Automerge']
+    # המאזינים מוחרגים זה מזה: אחרת כל סיום של אחד מפעיל את האחרים, בשרשרת של כ-20 ריצות.
+    workflows: ['**', '!Automerge', '!Auto-Draft Failed CI', '!CI retry on dev and flaky log', '!Dev health']
     types: [completed]
 
 permissions: {}

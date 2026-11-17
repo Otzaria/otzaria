@@ -2,7 +2,8 @@ name: Auto-Draft Failed CI
 
 on:
   workflow_run:
-    workflows: ['**', '!Auto-Draft Failed CI']
+    # המאזינים מוחרגים זה מזה: אחרת כל סיום של אחד מפעיל את האחרים, בשרשרת של כ-20 ריצות.
+    workflows: ['**', '!Automerge', '!Auto-Draft Failed CI', '!CI retry on dev and flaky log', '!Dev health']
     types: [completed]
 
 permissions:
