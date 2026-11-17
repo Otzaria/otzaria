@@ -183,7 +183,8 @@ class RaisedMarkers {
   }
 
   static List<RaisedMarker> _extractUncached(String html) {
-    final markers = <RaisedMarker>[];
+    // בונים אחרי הלולאה: מספרי המופע נספרים בסריקה אחת של הטקסט הגלוי המלא.
+    final pending = <(String, int, RaisedMarker Function(int))>[];
     // הטקסט הגלוי שנצבר עד כה — לספירת מופעים של כל סימון.
     final visibleSoFar = StringBuffer();
     var index = 0;
@@ -269,15 +270,17 @@ class RaisedMarkers {
       // תווי הבידוד (LRI/RLI/PDI) הם חלק מהטקסט הגלוי — נשארים בתבנית, וגם
       // הופכים אותה לייחודית יותר מול טקסט הגוף.
       final markerText = _visibleText(rawContent);
-      final visibleBefore = visibleSoFar.toString();
+      final visibleBeforeLength = visibleSoFar.length;
       visibleSoFar.write(markerText);
 
       if (markerText.trim().isEmpty) continue;
 
-      markers.add(
-        RaisedMarker(
+      pending.add((
+        markerText,
+        visibleBeforeLength,
+        (occurrence) => RaisedMarker(
           text: markerText,
-          occurrence: _countOccurrences(visibleBefore, markerText) + 1,
+          occurrence: occurrence,
           scale: scale,
           italic: italic,
           clickable: clickable,
@@ -288,10 +291,23 @@ class RaisedMarkers {
               ? rawContent.replaceAll(_sizeTagRegex, '')
               : null,
         ),
-      );
+      ));
     }
 
-    if (markers.isEmpty) return const [];
+    if (pending.isEmpty) return const [];
+    final visible = visibleSoFar.toString();
+    // לכל טקסט סימון: (מופעים עד כה, ההתאמה הבאה).
+    final scans = <String, (int, int)>{};
+    final markers = <RaisedMarker>[];
+    for (final (text, limit, build) in pending) {
+      var (count, next) = scans[text] ?? (0, visible.indexOf(text));
+      while (next >= 0 && next + text.length <= limit) {
+        count++;
+        next = visible.indexOf(text, next + text.length);
+      }
+      scans[text] = (count, next);
+      markers.add(build(count + 1));
+    }
     return List.unmodifiable(markers);
   }
 
@@ -303,19 +319,6 @@ class RaisedMarkers {
         ? html_parser.parseFragment(withoutTags).text ?? withoutTags
         : withoutTags;
     return collapseWhitespace(decoded);
-  }
-
-  /// ספירת מופעים לא-חופפת — חייבת להישאר זהה ללולאת האיתור שבשכבת הציור.
-  static int _countOccurrences(String text, String pattern) {
-    if (pattern.isEmpty) return 0;
-    var count = 0;
-    var from = 0;
-    while (true) {
-      final idx = text.indexOf(pattern, from);
-      if (idx < 0) return count;
-      count++;
-      from = idx + pattern.length;
-    }
   }
 
   static final LinkedHashMap<String, List<RaisedMarker>> _cache =
@@ -697,13 +700,17 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
     final joinedText = joined.toString();
 
     final placements = <RaisedMarkerPlacement>[];
+    final located = <String, (int, int)>{};
     for (final marker in _markers) {
+      final known = located[marker.text];
       final globalIndex = _nthOccurrence(
         joinedText,
         marker.text,
         marker.occurrence,
+        known != null && known.$1 <= marker.occurrence ? known : (0, 0),
       );
       if (globalIndex < 0) continue;
+      located[marker.text] = (marker.occurrence, globalIndex);
 
       // הפסקה שההתאמה בתוכה ('\n' מבטיח שההתאמה לא חוצה פסקאות).
       var paragraphIndex = paragraphStarts.length - 1;
@@ -787,10 +794,17 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
     return boxes.isEmpty ? painter.height : sameLineAnchorRect(boxes)!.bottom;
   }
 
-  static int _nthOccurrence(String text, String pattern, int n) {
+  /// [known] — (מספר מופע, אינדקס) שכבר אותר, להמשך הסריקה ממנו; (0, 0) — מההתחלה.
+  static int _nthOccurrence(
+    String text,
+    String pattern,
+    int n,
+    (int, int) known,
+  ) {
     if (pattern.isEmpty || n < 1) return -1;
-    var from = 0;
-    for (var i = 0; i < n; i++) {
+    if (known.$1 == n) return known.$2;
+    var from = known.$1 == 0 ? 0 : known.$2 + pattern.length;
+    for (var i = known.$1; i < n; i++) {
       final idx = text.indexOf(pattern, from);
       if (idx < 0) return -1;
       if (i == n - 1) return idx;
