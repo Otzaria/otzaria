@@ -13,6 +13,7 @@ import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as p;
+import 'package:sqlite3/sqlite3.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
 
@@ -154,6 +155,49 @@ void main() {
       expect(hashes.forSource(BookSource.official, 10 + count), isNull);
       expect(hashes.forSource(BookSource.official, 2000), isNull);
     }
+  });
+
+  test('כל מקטעי החותמים קוראים את אותה גרסה בזמן כתיבה מקבילה', () {
+    final path = p.join(tempDir.path, 'snapshot.db');
+    final writer = sqlite3.open(path);
+    addTearDown(writer.close);
+    writer.execute('''
+      PRAGMA journal_mode=WAL;
+      CREATE TABLE book_data (id INTEGER PRIMARY KEY, contentHash INTEGER);
+      WITH RECURSIVE ids(id) AS (
+        VALUES (1) UNION ALL SELECT id + 1 FROM ids WHERE id < 1600
+      )
+      INSERT INTO book_data SELECT id, id FROM ids;
+      CREATE VIEW book AS
+        SELECT id, observe_hash(id, contentHash) AS contentHash FROM book_data;
+    ''');
+    final reader = sqlite3.open(path, mode: OpenMode.readOnly);
+    addTearDown(reader.close);
+    var wrote = false;
+    reader.createFunction(
+      functionName: 'observe_hash',
+      argumentCount: const AllowedArgumentCount(2),
+      directOnly: false,
+      function: (args) {
+        if (!wrote && args.first == 1) {
+          writer.execute(
+            'UPDATE book_data SET contentHash = -id WHERE id IN (1, 501)',
+          );
+          wrote = true;
+        }
+        return args[1];
+      },
+    );
+
+    final ids = {for (var id = 1; id <= 501; id++) id};
+    final duringWrite = BookSourceHashes.readHashesFromDatabase(reader, ids);
+
+    expect(wrote, isTrue);
+    expect(duringWrite[1], BigInt.one);
+    expect(duringWrite[501], BigInt.from(501));
+    final afterWrite = BookSourceHashes.readHashesFromDatabase(reader, ids);
+    expect(afterWrite[1], BookSourceHashes.toUnsigned(-1));
+    expect(afterWrite[501], BookSourceHashes.toUnsigned(-501));
   });
 
   test('מסד בלי העמודה — אין חותמים, והבדיקה נופלת לטביעת הטקסט', () async {

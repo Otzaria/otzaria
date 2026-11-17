@@ -5,6 +5,8 @@ import 'package:otzaria/attached_libraries/repository/attached_library_registry.
 import 'package:otzaria/data/book_identity.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
+import 'package:otzaria/migration/database/sqlite3_utils.dart'
+    show withTransaction;
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -120,30 +122,47 @@ class BookSourceHashes {
   static Map<int, BigInt> _readHashes(String path, Set<int>? ids) {
     final db = sqlite3.open(path, mode: OpenMode.readOnly);
     try {
-      final hashes = <int, BigInt>{};
-      if (ids == null) {
-        _addRows(db.select(_selectHashes), hashes);
-      } else if (ids.length > _batchSize &&
+      return readHashesFromDatabase(db, ids);
+    } finally {
+      db.close();
+    }
+  }
+
+  @visibleForTesting
+  static Map<int, BigInt> readHashesFromDatabase(Database db, Set<int>? ids) {
+    final hashes = <int, BigInt>{};
+    if (ids == null) {
+      _addRows(db.select(_selectHashes), hashes);
+      return hashes;
+    }
+
+    void readCandidates() {
+      if (ids.length > _batchSize &&
           db.select('SELECT 1 FROM book LIMIT 1 OFFSET ?', [
             ids.length * 2 - 1,
           ]).isEmpty) {
         // בקבוצה צפופה, סריקה אחת זולה ממאות או אלפי חיפושי מפתח.
         _addRows(db.select(_selectHashes), hashes, filter: ids);
-      } else {
-        final orderedIds = ids.toList();
-        for (var start = 0; start < orderedIds.length; start += _batchSize) {
-          final batch = orderedIds.skip(start).take(_batchSize).toList();
-          final parameters = List.filled(batch.length, '?').join(', ');
-          _addRows(
-            db.select('$_selectHashes WHERE id IN ($parameters)', batch),
-            hashes,
-          );
-        }
+        return;
       }
-      return hashes;
-    } finally {
-      db.close();
+      final orderedIds = ids.toList();
+      for (var start = 0; start < orderedIds.length; start += _batchSize) {
+        final batch = orderedIds.skip(start).take(_batchSize).toList();
+        final parameters = List.filled(batch.length, '?').join(', ');
+        _addRows(
+          db.select('$_selectHashes WHERE id IN ($parameters)', batch),
+          hashes,
+        );
+      }
     }
+
+    if (ids.length > _batchSize) {
+      // בדיקת הצפיפות וכל המקטעים צריכים לקרוא מאותה תמונת מצב.
+      withTransaction(db, readCandidates);
+    } else {
+      readCandidates();
+    }
+    return hashes;
   }
 
   static void _addRows(
