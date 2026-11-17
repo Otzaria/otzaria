@@ -341,21 +341,17 @@ class GimatriaSearch {
           final book = await searchRepository.getBook(bookId);
           if (book == null) continue;
 
-          // Get all lines for this book
-          final lines = await searchRepository.getLines(
-            bookId,
-            0,
-            book.totalLines - 1,
-          );
-
           // Get TOC entries for path extraction
           final tocEntries = await searchRepository.getBookTocs(bookId);
 
           late final tocPaths = _TocPaths(book.title, tocEntries);
           String pathAt(int lineIndex) => tocPaths.pathAt(lineIndex);
 
-          for (final line in lines) {
-            final reachedLimit = _scanLine(
+          final reachedLimit = await database.lineDao.visitByBookIdRange(
+            bookId,
+            0,
+            book.totalLines - 1,
+            (line) => _scanLine(
               found,
               line.content,
               targetGimatria,
@@ -367,9 +363,9 @@ class GimatriaSearch {
               wholeVerseOnly: wholeVerseOnly,
               gematriaMethod: gematriaMethod,
               useWithKolel: useWithKolel,
-            );
-            if (reachedLimit) return found;
-          }
+            ),
+          );
+          if (reachedLimit) return found;
         }
       } finally {
         database.close();
