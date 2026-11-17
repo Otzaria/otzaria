@@ -5,6 +5,7 @@ import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/library/hidden/hidden_titles.dart';
 import 'dart:async';
 import 'dart:math';
+import 'package:otzaria/app_report/services/recent_book_opens.dart';
 import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
 import 'package:bloc_concurrency/bloc_concurrency.dart';
@@ -180,6 +181,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
   /// הכשל האחרון שנרשם בטעינת המפרשים, כדי שטעינה חוזרת לא תכפיל רשומה.
   String? _loggedCommentatorsFailure;
+
+  BookOpenAttempt? _openAttempt;
 
   /// בבדיקות ובהרצת פיתוח לא נרשם, כדי לא לכתוב ל-errors.txt של המפתח.
   @visibleForTesting
@@ -855,6 +858,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           initial.commentators,
         ),
       );
+      _openAttempt = RecentBookOpens.instance.start(book, BookOpenKind.text);
     } else if (!event.preserveState) {
       if (state is TextBookLoaded) {
         emit(state);
@@ -1162,6 +1166,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       }
 
       emit(loadedState);
+      _openAttempt?.finish(BookOpenOutcome.loaded);
       // מיקום שפורסם לפני הטעינה (ניווט לטאב באמצע LoadContent) לא שודר.
       _onReadingPosition();
 
@@ -1187,6 +1192,14 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       _loadDivineNamesInBackground(book);
     } catch (e, st) {
       debugPrint('Error loading textbook: $e\n$st');
+      RecentBookOpens.instance.logLoadError(
+        book,
+        BookOpenKind.text,
+        e,
+        stackTrace: st,
+        details: {'index': visibleIndices.firstOrNull?.toString()},
+      );
+      _openAttempt?.finish(BookOpenOutcome.failed);
       if (state is TextBookInitial) {
         final initial = state as TextBookInitial;
         emit(
@@ -2420,6 +2433,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   Future<void> close() async {
     _debounceTimer?.cancel();
     _highlightTimer?.cancel();
+    _openAttempt?.finish(BookOpenOutcome.closed);
     _highlightRequest = null;
     _releaseHighlightPattern?.call();
     _releaseHighlightPattern = null;

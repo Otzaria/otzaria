@@ -9,6 +9,7 @@ import 'package:otzaria/plugins/services/plugin_discard_policy.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/app_report/repository/app_report_collector.dart';
 import 'package:otzaria/app_report/repository/error_log_blocks.dart';
+import 'package:otzaria/app_report/services/recent_book_opens.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/diagnostics/app_context_snapshot.dart';
 import 'package:otzaria/core/diagnostics/developer_diagnostics.dart';
@@ -105,6 +106,44 @@ void main() {
       clock: () => now,
     ).collectDiagnostics();
     expect(diagnostics['state'], containsPair('webview2Prewarm', 'ok 12ms'));
+  });
+
+  test('אבחון: ניסיונות פתיחת הספרים האחרונים, רק בהפעלה הנוכחית', () async {
+    final previous = RecentBookOpens.instance;
+    final opens = RecentBookOpens.instance = RecentBookOpens(
+      stallThreshold: null,
+      now: () => now,
+    );
+    addTearDown(() => RecentBookOpens.instance = previous);
+    opens
+        .start(TextBook(title: 'בראשית', id: 7), BookOpenKind.text)
+        .finish(BookOpenOutcome.loaded);
+
+    final diagnostics = await AppReportCollector(
+      redactor: redactor,
+      appInfoLoader: () async => {},
+      clock: () => now,
+    ).collectDiagnostics();
+    final attempts = (diagnostics['recentBookOpens'] as Map)['attempts'];
+    expect(attempts, [
+      {
+        'at': now.toUtc().toIso8601String(),
+        'title': 'בראשית',
+        'kind': 'text',
+        'outcome': 'loaded',
+        'durationMs': 0,
+        'source': 'o',
+        'id': 7,
+      },
+    ]);
+
+    final previousRun = await AppReportCollector(
+      redactor: redactor,
+      appInfoLoader: () async => {},
+      includeCurrentContext: false,
+      clock: () => now,
+    ).collectDiagnostics();
+    expect(previousRun.containsKey('recentBookOpens'), isFalse);
   });
 
   test('אבחון: הגופנים שנבחרו נכללים במצב', () async {
