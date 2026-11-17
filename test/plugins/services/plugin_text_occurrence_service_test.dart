@@ -155,6 +155,36 @@ void main() {
     expect(result.results.first.range.sourceTextHash, isNull);
   });
 
+  test('long repeated queries keep the correct anchor occurrence indices', () {
+    final prefix = List.filled(512, 'א').join();
+    final query = '$prefixב';
+    final result = service.find(
+      bookId: 'book',
+      sectionIndex: 0,
+      layer: 'source',
+      text: '$prefix$query $prefix$query',
+      textHash: 'hash',
+      query: query,
+      normalize: options(PluginNormalizationProfile.strict),
+    );
+
+    expect(result.totalCount, 2);
+    expect(result.results.map((item) => item.text), [query, query]);
+    expect(result.results.map((item) => item.range.start.grapheme), [
+      512,
+      1538,
+    ]);
+    expect(result.results.map((item) => item.range.end.grapheme), [1025, 2051]);
+    expect(result.results.map((item) => item.range.occurrenceIndexInSection), [
+      0,
+      1,
+    ]);
+    expect(result.results.map((item) => item.range.occurrenceCountInSection), [
+      2,
+      2,
+    ]);
+  });
+
   test('rejects a cursor reused for another query', () {
     final first = service.find(
       bookId: 'book',

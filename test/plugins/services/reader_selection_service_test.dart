@@ -456,6 +456,66 @@ void main() {
     expect(anchors[3], isNull);
   });
 
+  test('anchors long overlapping ranges in repeated text', () {
+    final text = List.filled(8192, 'א').join();
+    final query = List.filled(512, 'א').join();
+    final anchors = service.buildRangeAnchors(
+      text: text,
+      ranges: const [
+        (startGrapheme: 0, endGrapheme: 512),
+        (startGrapheme: 17, endGrapheme: 529),
+        (startGrapheme: 7000, endGrapheme: 7512),
+      ],
+      layer: 'source',
+    );
+
+    expect(anchors.map((anchor) => anchor!.exactText), [query, query, query]);
+    expect(anchors.map((anchor) => anchor!.occurrenceIndexInSection), [
+      0,
+      17,
+      7000,
+    ]);
+    expect(anchors.map((anchor) => anchor!.occurrenceCountInSection), [
+      7681,
+      7681,
+      7681,
+    ]);
+  });
+
+  test('overlapping batch anchors preserve grapheme and Unicode offsets', () {
+    final anchors = service.buildRangeAnchors(
+      text: '🙂אָאָאָ🙂אָאָ',
+      ranges: const [
+        (startGrapheme: 1, endGrapheme: 3),
+        (startGrapheme: 2, endGrapheme: 4),
+        (startGrapheme: 5, endGrapheme: 7),
+      ],
+      layer: 'rendered',
+      renderedTextHash: 'hash',
+    );
+
+    expect(anchors.map((anchor) => anchor!.exactText), [
+      'אָאָ',
+      'אָאָ',
+      'אָאָ',
+    ]);
+    expect(anchors.map((anchor) => anchor!.occurrenceIndexInSection), [
+      0,
+      1,
+      2,
+    ]);
+    expect(anchors.map((anchor) => anchor!.occurrenceCountInSection), [
+      3,
+      3,
+      3,
+    ]);
+    expect(anchors.map((anchor) => anchor!.start.codePoint), [1, 3, 8]);
+    expect(anchors.map((anchor) => anchor!.end.codePoint), [5, 7, 12]);
+    expect(anchors.map((anchor) => anchor!.start.utf16), [2, 4, 10]);
+    expect(anchors.map((anchor) => anchor!.end.utf16), [6, 8, 14]);
+    expect(anchors.last!.renderedTextHash, 'hash');
+  });
+
   group('buildMultiSectionPayload', () {
     const settings = RenderSettings(formatParentheses: false);
 
