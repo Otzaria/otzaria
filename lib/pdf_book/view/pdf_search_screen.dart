@@ -363,6 +363,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
   String? _bookPath;
   bool _bookPathResolved = false;
   final Map<int, String> _pageTitles = <int, String>{};
+  PdfPageReferenceLookup? _pageReferenceLookup;
 
   InBookSearchSettings _settings = const InBookSearchSettings();
 
@@ -683,11 +684,17 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
   @override
   void didUpdateWidget(covariant PdfBookSearchView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!identical(oldWidget.outline, widget.outline)) {
+    final searcherChanged = !identical(
+      oldWidget.textSearcher,
+      widget.textSearcher,
+    );
+    if (!identical(oldWidget.outline, widget.outline) ||
+        oldWidget.bookTitle != widget.bookTitle ||
+        searcherChanged) {
       _pageTitles.clear();
-      _groupedSource = null;
+      _pageReferenceLookup = null;
     }
-    if (identical(oldWidget.textSearcher, widget.textSearcher)) return;
+    if (!searcherChanged) return;
     oldWidget.textSearcher.removeListener(_onTextSearcherMatchesChanged);
     widget.textSearcher.addListener(_onTextSearcherMatchesChanged);
     _searchGeneration++;
@@ -699,7 +706,6 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
     _mappedMatches = const [];
     _searchResults = [];
     _resultsTruncated = false;
-    _pageTitles.clear();
     _isSearching = false;
     _searchErrorMessage = null;
     _pendingSimpleSearchScrollFor = null;
@@ -804,7 +810,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
                 // בחיפוש הפשוט: אינדקס ההתאמה ב-searcher, לניווט למקומה המדויק.
                 id: BigInt.from(i),
                 title: widget.bookTitle ?? '',
-                reference: '', // Populated by _pageTitles in build
+                reference: '', // הכתובת מוצגת בכותרת של קבוצת העמוד.
                 text: PdfBookSearchView.matchLineSnippet(matches[i], query),
                 segment: BigInt.from(matches[i].pageNumber - 1),
                 isPdf: true,
@@ -1215,10 +1221,6 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
       if (page != _lastGroupedPage) {
         _groupedItems.add(page);
         _lastGroupedPage = page;
-        _pageTitles.putIfAbsent(
-          page,
-          () => referenceFromPageNumber(page, widget.outline, widget.bookTitle),
-        );
       }
       _groupedItems.add(result);
     }
@@ -1255,11 +1257,16 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
                 index == items.length - 1 || items[index + 1] is int;
 
             if (item is int) {
+              final reference = _pageTitles.putIfAbsent(item, () {
+                final lookup = _pageReferenceLookup ??= PdfPageReferenceLookup(
+                  widget.outline,
+                  widget.bookTitle,
+                );
+                return lookup.referenceAt(item);
+              });
+              final text = reference.isEmpty ? 'עמוד $item' : reference;
               return BlocBuilder<SettingsBloc, SettingsState>(
                 builder: (context, settingsState) {
-                  final text = _pageTitles[item]?.isNotEmpty == true
-                      ? _pageTitles[item]!
-                      : 'עמוד $item';
                   return NavTreeHeader(
                     title: withHolyNamesSetting(text, settingsState),
                   );
