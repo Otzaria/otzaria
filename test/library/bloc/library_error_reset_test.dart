@@ -23,7 +23,8 @@ class _ControlledFiles extends Fake implements FileSystemData {
       Queue<Future<Library> Function()>();
 
   @override
-  Future<Library> getLibrary() => results.removeFirst()();
+  Future<Library> getLibrary({bool sharePendingReaderMetadata = false}) =>
+      results.removeFirst()();
 }
 
 class _ReadyIndex extends Fake implements TantivyDataProvider {

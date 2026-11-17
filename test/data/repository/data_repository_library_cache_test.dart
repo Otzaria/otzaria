@@ -14,7 +14,7 @@ class _ControlledFiles extends Fake implements FileSystemData {
   int calls = 0;
 
   @override
-  Future<Library> getLibrary() {
+  Future<Library> getLibrary({bool sharePendingReaderMetadata = false}) {
     calls++;
     return results.removeFirst();
   }

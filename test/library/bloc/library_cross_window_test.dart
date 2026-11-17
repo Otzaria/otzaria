@@ -24,7 +24,8 @@ class _Files extends Fake implements FileSystemData {
   final Library library;
 
   @override
-  Future<Library> getLibrary() async => library;
+  Future<Library> getLibrary({bool sharePendingReaderMetadata = false}) async =>
+      library;
 }
 
 Library _library(String title) {

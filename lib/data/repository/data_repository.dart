@@ -143,7 +143,7 @@ class DataRepository {
   /// Returns a [Future] that completes with a [Library] object containing
   /// the full library structure and metadata
   Future<Library> _getLibrary() async {
-    return _fileSystemData.getLibrary();
+    return _fileSystemData.getLibrary(sharePendingReaderMetadata: true);
   }
 
   /// Retrieves the list of books from the Otzar HaHochma project

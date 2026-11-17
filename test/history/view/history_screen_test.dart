@@ -51,7 +51,8 @@ class _RecordingNavigationBloc
 
 class _HistoryFileSystem implements FileSystemData {
   @override
-  Future<Library> getLibrary() async => Library(categories: []);
+  Future<Library> getLibrary({bool sharePendingReaderMetadata = false}) async =>
+      Library(categories: []);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
