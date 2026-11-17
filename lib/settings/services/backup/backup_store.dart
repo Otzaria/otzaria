@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:convert/convert.dart';
 import 'package:crypto/crypto.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
@@ -51,6 +52,78 @@ class BackupStore {
       await tmp.delete();
     }
     return '$hashPrefix$hex';
+  }
+
+  /// שומר קובץ במחסן במקטעים ומחזיר את ההפניה לתוכנו.
+  Future<String> putFile(File source) {
+    final sourcePath = source.absolute.path;
+    final storePath = Directory(objectsPath).absolute.path;
+    return Isolate.run(() => _putFile(sourcePath, storePath));
+  }
+
+  static Future<String> _putFile(String sourcePath, String storePath) async {
+    final store = BackupStore(storePath);
+    final input = await File(sourcePath).open();
+    try {
+      final hex = (await sha256.bind(_readChunks(input)).single).toString();
+      final ref = '$hashPrefix$hex';
+      final target = File(store._pathForHash(hex));
+      if (await target.exists()) return ref;
+
+      final parent = await target.parent.create(recursive: true);
+      final staging = await parent.createTemp('.backup-');
+      final tmp = File(p.join(staging.path, 'blob.tmp'));
+      try {
+        await input.setPosition(0);
+        await _writeCompressedFile(input, tmp, hex);
+        try {
+          await tmp.rename(target.path);
+        } on FileSystemException {
+          if (!await target.exists()) rethrow;
+        }
+      } finally {
+        await staging.delete(recursive: true);
+      }
+      return ref;
+    } finally {
+      await input.close();
+    }
+  }
+
+  static Stream<List<int>> _readChunks(RandomAccessFile input) async* {
+    const chunkBytes = 256 * 1024;
+    while (true) {
+      final bytes = await input.read(chunkBytes);
+      if (bytes.isEmpty) return;
+      yield bytes;
+    }
+  }
+
+  static Future<void> _writeCompressedFile(
+    RandomAccessFile input,
+    File target,
+    String expectedHash,
+  ) async {
+    // קובץ תוסף יכול להשתנות בין הגיבוב לכתיבה. אין לפרסם תחת גיבוב ישן.
+    final digest = AccumulatorSink<Digest>();
+    final hasher = sha256.startChunkedConversion(digest);
+    final chunks = _readChunks(input).map((chunk) {
+      hasher.add(chunk);
+      return chunk;
+    });
+    final output = await target.open(mode: FileMode.write);
+    try {
+      await for (final compressed in gzip.encoder.bind(chunks)) {
+        await output.writeFrom(compressed);
+      }
+      hasher.close();
+      if (digest.events.single.toString() != expectedHash) {
+        throw FileSystemException('Source changed during backup', input.path);
+      }
+      await output.flush();
+    } finally {
+      await output.close();
+    }
   }
 
   /// קורא blob לפי הפניה ומאמת את ה-hash. מחזיר null אם חסר או פגום.

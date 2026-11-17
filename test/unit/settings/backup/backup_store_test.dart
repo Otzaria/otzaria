@@ -47,6 +47,51 @@ void main() {
     expect(await blobFiles(), hasLength(1));
   });
 
+  test('putFile שומר תוכן בכמה מקטעים ומשתף blob עם putBytes', () async {
+    final bytes = Uint8List((1 << 20) + 29);
+    for (var i = 0; i < bytes.length; i++) {
+      bytes[i] = (i * 2654435761) >> 13;
+    }
+    final source = await File(
+      p.join(tempDir.path, 'plugin-data'),
+    ).writeAsBytes(bytes);
+
+    final refs = await Future.wait([
+      store.putFile(source),
+      store.putFile(source),
+    ]);
+    final ref = await store.putBytes(bytes);
+    expect(refs, [ref, ref]);
+    expect(await store.getBytes(ref), bytes);
+
+    final blob = (await blobFiles()).single;
+    await blob.setLastModified(DateTime.utc(2025));
+    final lastModified = await blob.lastModified();
+    expect(await store.putFile(source), ref);
+    expect((await blobFiles()).single.path, blob.path);
+    expect(await blob.lastModified(), lastModified);
+  });
+
+  test('putFile מנקה קובץ ביניים כשהפרסום נכשל ומאפשר ניסיון חוזר', () async {
+    const bytes = [1, 2, 3];
+    final source = await File(
+      p.join(tempDir.path, 'plugin-data'),
+    ).writeAsBytes(bytes);
+    final ref = await store.putBytes(bytes);
+    final blob = (await blobFiles()).single;
+    await blob.delete();
+    final blocked = await Directory(blob.path).create();
+
+    await expectLater(
+      store.putFile(source),
+      throwsA(isA<FileSystemException>()),
+    );
+    expect(await blobFiles(), isEmpty);
+    await blocked.delete();
+    expect(await store.putFile(source), ref);
+    expect(await store.getBytes(ref), bytes);
+  });
+
   test('blob גדול אינו חוסם את לולאת האירועים (issue #3367)', () async {
     // כמו readAsBytes של user_books.db; List<int> רגיל יקר להעתקה בין isolates.
     final bytes = Uint8List(48 << 20);
