@@ -519,6 +519,42 @@ void main() {
       expect(external.first.targetCategoryId, isNotNull);
     });
 
+    test('חלון ישיר שומר על הסדר ועל כל הקישורים בגבולות', () async {
+      final library = await attach(
+        attachedDb(
+          'range',
+          rows: [
+            _row(4, targetLineIndex: 0),
+            _row(2, targetLineIndex: 1),
+            _row(0, targetLineIndex: 0),
+            _row(3, targetLineIndex: 2),
+            _row(2, targetLineIndex: 0),
+          ],
+        ),
+      );
+
+      Future<List<Link>> window(int start, int end) => links.linksInRange(
+        title: _commentaryTitle,
+        categoryId: null,
+        source: BookSource.attached(library.slug),
+        startLineIndex: start,
+        endLineIndex: end,
+      );
+
+      final all = await window(0, 4);
+      expect(all.map((link) => link.index1), [1, 3, 3, 4, 5]);
+      final middle = await window(2, 3);
+      expect(
+        middle.map((link) => (link.index1, link.index2)),
+        all.skip(1).take(3).map((link) => (link.index1, link.index2)),
+      );
+      final singleLine = await window(2, 2);
+      expect(singleLine.map((link) => link.index2), unorderedEquals([1, 2]));
+      expect(await window(1, 1), isEmpty);
+      expect(await window(5, 7), isEmpty);
+      expect(await window(3, 2), isEmpty);
+    });
+
     test('יעד שלא נפתר נשמט בשקט', () async {
       final library = await attach(
         attachedDb(
