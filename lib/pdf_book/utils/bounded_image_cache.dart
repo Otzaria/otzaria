@@ -37,9 +37,10 @@ class BoundedImageCache<K> {
   void put(K key, ui.Image image, {int? generation}) {
     if (_disposed) return;
     if (generation != null && generation != _generation) return;
-    _remove(key);
     final size = _sizeOf(image);
+    // A rejected oversized replacement must not discard a valid cached image.
     if (size > maxBytes) return;
+    _remove(key);
     while (_bytes + size > maxBytes && _images.isNotEmpty) {
       _remove(_images.keys.first);
     }
