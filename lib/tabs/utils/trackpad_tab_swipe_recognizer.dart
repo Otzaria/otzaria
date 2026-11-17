@@ -17,7 +17,8 @@ class TrackpadTabSwipeRecognizer extends HorizontalDragGestureRecognizer {
 
   @override
   void handleEvent(PointerEvent event) {
-    if (event is PointerPanZoomUpdateEvent) _pan = event.localPan;
+    // localPan כולל גם את הזזת הרכיב; דלתאות שומרות רק את התנועה.
+    if (event is PointerPanZoomUpdateEvent) _pan += event.localPanDelta;
     super.handleEvent(event);
   }
 
