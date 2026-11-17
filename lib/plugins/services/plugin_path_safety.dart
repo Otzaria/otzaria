@@ -47,6 +47,35 @@ String? canonicalizeNearestExisting(String path) {
   }
 }
 
+/// [canonicalizeNearestExisting] על ה-thread של ה-IO: נתיב שהמשתמש בחר יכול
+/// להיחסם בדיסק (סריקת אנטי-וירוס, כונן רשת), וזה לא יקפיא את ה-UI (#5298).
+Future<String?> canonicalizeNearestExistingAsync(String path) async {
+  var existing = p.normalize(p.absolute(path));
+  final pending = <String>[];
+  var type = await FileSystemEntity.type(existing, followLinks: false);
+  while (type == FileSystemEntityType.notFound) {
+    final parent = p.dirname(existing);
+    if (parent == existing) return null;
+    pending.insert(0, p.basename(existing));
+    existing = parent;
+    type = await FileSystemEntity.type(existing, followLinks: false);
+  }
+  try {
+    final canonical = await switch (type) {
+      FileSystemEntityType.directory => Directory(
+        existing,
+      ).resolveSymbolicLinks(),
+      FileSystemEntityType.link => Link(existing).resolveSymbolicLinks(),
+      _ => File(existing).resolveSymbolicLinks(),
+    };
+    return pending.isEmpty
+        ? canonical
+        : p.normalize(p.joinAll([canonical, ...pending]));
+  } catch (_) {
+    return null;
+  }
+}
+
 /// פותרת נתיב יחסי [relative] בתוך [root], ומחזירה את הנתיב הקנוני שלו או
 /// `null` אם הוא יוצא מהשורש. זהו גבול המרחב הפרטי של תוסף (`fs.writeFile`
 /// וחבריו): `..`, נתיב מוחלט, UNC, וכל רכיב symlink בדרך — כולם נדחים.
@@ -163,7 +192,7 @@ Future<String?> pluginFolderRejectionReason(
   if (Platform.isWindows && (path.startsWith(r'\\') || path.startsWith('//'))) {
     return 'תיקיית רשת אינה תיקייה מותרת לתוספים';
   }
-  final canonical = canonicalizeNearestExisting(path);
+  final canonical = await canonicalizeNearestExistingAsync(path);
   if (canonical == null) return 'לא ניתן לפתור את התיקייה שנבחרה';
   if (canonical.startsWith(r'\\')) {
     return 'תיקיית רשת אינה תיקייה מותרת לתוספים';
@@ -172,14 +201,14 @@ Future<String?> pluginFolderRejectionReason(
     return 'שורש כונן אינו תיקייה מותרת לתוספים';
   }
   for (final folder in exactOnlyFolders ?? pluginExactOnlyProtectedFolders()) {
-    final canonicalFolder = canonicalizeNearestExisting(folder);
+    final canonicalFolder = await canonicalizeNearestExistingAsync(folder);
     if (canonicalFolder == null) continue;
     if (p.equals(canonical, canonicalFolder)) {
       return 'תיקיית הבית של המשתמש אינה תיקייה מותרת לתוספים';
     }
   }
   for (final root in protectedRoots ?? await pluginProtectedFolderRoots()) {
-    final canonicalRoot = canonicalizeNearestExisting(root);
+    final canonicalRoot = await canonicalizeNearestExistingAsync(root);
     if (canonicalRoot == null) continue;
     if (p.equals(canonical, canonicalRoot) ||
         p.isWithin(canonicalRoot, canonical)) {

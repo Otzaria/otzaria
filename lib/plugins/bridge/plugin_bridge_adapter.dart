@@ -2497,7 +2497,7 @@ class PluginBridgeAdapter {
       }
       await _requireWritePermission();
     }
-    final canonical = canonicalizeNearestExisting(
+    final canonical = await canonicalizeNearestExistingAsync(
       resolveMovedFileBookPath(book.path),
     );
     if (canonical == null || !await File(canonical).exists()) {
@@ -4862,7 +4862,7 @@ class PluginBridgeAdapter {
         if (rejection != null) {
           throw Exception('error.forbidden: $rejection');
         }
-        final canonical = canonicalizeNearestExisting(path);
+        final canonical = await canonicalizeNearestExistingAsync(path);
         if (canonical == null) {
           throw Exception('error.forbidden: selected folder no longer exists');
         }
@@ -5364,18 +5364,24 @@ class PluginBridgeAdapter {
     String targetPath, {
     bool allowRoot = true,
   }) async {
-    final canonicalTarget = canonicalizeNearestExisting(targetPath);
+    final canonicalTarget = await canonicalizeNearestExistingAsync(targetPath);
     if (canonicalTarget == null) return false;
-    bool inside(String root) {
-      final canonicalRoot = canonicalizeNearestExisting(root);
+    Future<bool> inside(String root) async {
+      final canonicalRoot = await canonicalizeNearestExistingAsync(root);
       if (canonicalRoot == null || !p.equals(canonicalRoot, root)) return false;
       return (allowRoot && p.equals(canonicalTarget, canonicalRoot)) ||
           p.isWithin(canonicalRoot, canonicalTarget);
     }
 
-    if (_grantedFolders.any(inside)) return true;
+    // עותק: pickFolder יכול להוסיף תיקייה בזמן ההמתנה לדיסק.
+    for (final root in _grantedFolders.toList()) {
+      if (await inside(root)) return true;
+    }
     final grants = await _folderGrants.list(plugin.pluginId);
-    return grants.any((grant) => inside(grant.path));
+    for (final grant in grants) {
+      if (await inside(grant.path)) return true;
+    }
+    return false;
   }
 
   Future<void> _requireInGrantedFolder(
@@ -5666,8 +5672,8 @@ class PluginBridgeAdapter {
     if (path == null || path.isEmpty) {
       return {'cancelled': true};
     }
-    final canonical = canonicalizeNearestExisting(path);
-    if (canonical == null || !File(canonical).existsSync()) {
+    final canonical = await canonicalizeNearestExistingAsync(path);
+    if (canonical == null || !await File(canonical).exists()) {
       throw Exception('error.not_found: selected file does not exist');
     }
     final registration = await _fileServer.register(
@@ -5782,8 +5788,8 @@ class PluginBridgeAdapter {
           // לעבור דרך „שמור בשם”, ומשם מתקבל token שכן ניתן לכתיבה.
           throw Exception('error.permission_denied: file token is read-only');
         }
-        final canonical = canonicalizeNearestExisting(grant.path);
-        if (canonical == null || !File(canonical).existsSync()) {
+        final canonical = await canonicalizeNearestExistingAsync(grant.path);
+        if (canonical == null || !await File(canonical).exists()) {
           await _removeUserFileGrant(targetToken);
           throw Exception('error.not_found: file no longer exists');
         }
@@ -5821,7 +5827,7 @@ class PluginBridgeAdapter {
         return {'cancelled': true};
       }
 
-      final canonical = canonicalizeNearestExisting(chosen);
+      final canonical = await canonicalizeNearestExistingAsync(chosen);
       if (canonical == null) {
         throw Exception('error.invalid_params: could not resolve target path');
       }
@@ -5901,7 +5907,7 @@ class PluginBridgeAdapter {
     final target = pluginSaveTargetPath(folder: folder, fileName: fileName);
     if (target == null) return null;
 
-    if (File(target).existsSync()) {
+    if (await File(target).exists()) {
       final replace = await _dependencies.showWarningDialog(
         title: 'הקובץ כבר קיים',
         content: 'הקובץ „$fileName” כבר קיים בתיקייה שנבחרה.',
@@ -6043,8 +6049,8 @@ class PluginBridgeAdapter {
     if (stored == null) {
       throw Exception('error.not_found: unknown file token');
     }
-    final canonical = canonicalizeNearestExisting(stored.path);
-    if (canonical == null || !File(canonical).existsSync()) {
+    final canonical = await canonicalizeNearestExistingAsync(stored.path);
+    if (canonical == null || !await File(canonical).exists()) {
       await _removeUserFileGrant(token);
       throw Exception('error.not_found: file no longer exists');
     }
@@ -6204,7 +6210,7 @@ class PluginBridgeAdapter {
     if (picked == null || picked.isEmpty) return {'cancelled': true};
     final rejection = await pluginFolderRejectionReason(picked);
     if (rejection != null) throw Exception('error.forbidden: $rejection');
-    final canonical = canonicalizeNearestExisting(picked);
+    final canonical = await canonicalizeNearestExistingAsync(picked);
     if (canonical == null || !await Directory(canonical).exists()) {
       throw Exception('error.not_found: selected folder does not exist');
     }
@@ -8451,7 +8457,8 @@ class PluginBridgeAdapter {
       await _remoteFiles.delete(file.path);
       throw Exception('error.unavailable: remote file download revoked');
     }
-    final canonical = canonicalizeNearestExisting(file.path) ?? file.path;
+    final canonical =
+        await canonicalizeNearestExistingAsync(file.path) ?? file.path;
     final registration = await _fileServer.register(
       pluginId: plugin.pluginId,
       canonicalPath: canonical,
