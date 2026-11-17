@@ -619,7 +619,6 @@ void main() {
       }
     });
 
-    // #3946: ב-Windows ההחלקה עבדה בעיקר לכיוון אחד, והחליפה טאב בגלילה.
     group('כיוונים, מרחק מינימלי וגלילה אנכית (#3946)', () {
       Future<TabsBloc> pumpMiddle(
         WidgetTester tester, {
