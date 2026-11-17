@@ -267,6 +267,38 @@ void main() {
       expect(actions['otzaria.exe'], UpdateFileAction.fromFallbackPackage);
     }, skip: !hasZstd ? 'zstd is not on PATH' : null);
 
+    test('תכנון חוזר בודק את הקבצים מחדש ושומר על סדר המניפסט', () async {
+      final install = fixture.install('install');
+      final engine = _engine(install, workDir());
+      final package = await UpdatePackage.open(fixture.package);
+      final initialPlan = await engine.planFor(package);
+
+      expect(
+        initialPlan.steps.map((step) => step.entry),
+        package.manifest.entries,
+      );
+      expect(initialPlan.steps.map((step) => step.action), [
+        UpdateFileAction.writeFull,
+        UpdateFileAction.writeFull,
+        UpdateFileAction.applyPatch,
+      ]);
+
+      final newConfig = File(p.join(fixture.newRoot.path, 'config.bin'));
+      newConfig.copySync(p.join(install.path, 'config.bin'));
+      File(p.join(install.path, 'otzaria.exe')).deleteSync();
+      final nextPlan = await engine.planFor(package);
+
+      expect(
+        nextPlan.steps.map((step) => step.entry),
+        package.manifest.entries,
+      );
+      expect(nextPlan.steps.map((step) => step.action), [
+        UpdateFileAction.alreadyUpToDate,
+        UpdateFileAction.writeFull,
+        UpdateFileAction.fromFallbackPackage,
+      ]);
+    }, skip: !hasZstd ? 'zstd is not on PATH' : null);
+
     test('תיקיית עבודה בתוך ההתקנה נדחית', () async {
       final install = fixture.install('install');
       final engine = _engine(install, Directory(p.join(install.path, 'work')));

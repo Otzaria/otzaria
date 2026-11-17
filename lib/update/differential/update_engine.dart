@@ -187,6 +187,18 @@ Future<String> _sha256OffMain(File file) {
   return Isolate.run(() => sha256OfFileFast(path));
 }
 
+Future<List<String?>> _hashInstalledFiles(
+  String installRoot,
+  List<String> paths,
+) async {
+  final hashes = <String?>[];
+  for (final path in paths) {
+    final file = File(p.join(installRoot, path));
+    hashes.add(await file.exists() ? await sha256OfFile(file) : null);
+  }
+  return hashes;
+}
+
 /// בונה מחבילה את קבוצת הקבצים החדשה בתיקיית עבודה נפרדת — לעולם לא
 /// בהתקנה החיה. כל כשל הוא [DifferentialUpdateUnavailable].
 class DifferentialUpdateEngine {
@@ -267,13 +279,14 @@ class DifferentialUpdateEngine {
     }
     _requireSeparateWorkRoot();
 
+    final installPath = installRoot.path;
+    final paths = [for (final entry in manifest.entries) entry.path];
+    final localHashes = paths.isEmpty
+        ? const <String?>[]
+        : await Isolate.run(() => _hashInstalledFiles(installPath, paths));
     final steps = <UpdateStep>[];
-    for (final entry in manifest.entries) {
-      final local = File(p.join(installRoot.path, entry.path));
-      final localHash = await local.exists()
-          ? await _sha256OffMain(local)
-          : null;
-
+    for (final (index, entry) in manifest.entries.indexed) {
+      final localHash = localHashes[index];
       if (localHash == entry.newSha256) {
         steps.add(UpdateStep(entry, UpdateFileAction.alreadyUpToDate));
         continue;
