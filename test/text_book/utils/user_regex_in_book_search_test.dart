@@ -60,6 +60,15 @@ Future<void> main() async {
       expect(results.single.continuesToNextLine, isTrue);
     });
 
+    test('התאמה ריקה אינה נספרת או מסתירה התאמה חוצת שורות', () async {
+      final found = (await search('/^|משה רבנו/'))!;
+      expect(found.results, hasLength(1));
+      expect(found.results.single.index, 2);
+      expect(found.results.single.matchOffset, 6);
+      expect(found.results.single.continuesToNextLine, isTrue);
+      expect(found.truncated, isFalse);
+    });
+
     test('הגבלה לקטע', () async {
       final results = (await search(
         '/שמע .* ישראל/',
