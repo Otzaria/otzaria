@@ -131,11 +131,16 @@ class ReferenceBooksCache {
       // יציאה ל-event loop כל chunk כדי לא לחסום את ה-UI thread על
       // ספריות גדולות (~50K ספרים × regex לנורמליזציה).
       final localNormalizedTitles = <int, String>{};
+      final localTitleTokens = <int, List<String>>{};
+      final localMatchTitles = <int, String>{};
       const yieldBatch = 1000;
       var processed = 0;
       // עותק: הלולאה ממתינה באמצע, ו-books הוא תצוגה חיה של הקאש.
       for (final book in BooksCache.instance.books.toList(growable: false)) {
-        localNormalizedTitles[book.id] = _normalizeForMatch(book.title);
+        final normalized = _normalizeForMatch(book.title);
+        localNormalizedTitles[book.id] = normalized;
+        localTitleTokens[book.id] = _splitTitleTokens(normalized);
+        localMatchTitles[book.id] = bookNameMatchForm(normalized);
         if (++processed % yieldBatch == 0) {
           await Future<void>.delayed(Duration.zero);
           if (myGen != _generation) return;
@@ -198,7 +203,11 @@ class ReferenceBooksCache {
       // Swap אטומי — רק אם הדור עדיין שלנו.
       if (myGen != _generation) return;
 
-      _official.installTitles(localNormalizedTitles);
+      _official.installTitles(
+        localNormalizedTitles,
+        titleTokens: localTitleTokens,
+        matchTitles: localMatchTitles,
+      );
       _fsPdfBooks
         ..clear()
         ..addAll(localFsPdfBooks);
@@ -1054,22 +1063,34 @@ class BookTitleIndex {
   final Map<String, Set<int>> _fuzzyWordCandidates = <String, Set<int>>{};
   static const int _fuzzyWordCandidatesLimit = 128;
 
-  void installTitles(Map<int, String> titles) {
+  /// [titleTokens] ו-[matchTitles] — תוצאות מחושבות מראש של [titles] (מהלולאה
+  /// עם ה-yield בטעינה); בלעדיהן הן מחושבות כאן, בבלוק סינכרוני אחד.
+  void installTitles(
+    Map<int, String> titles, {
+    Map<int, List<String>>? titleTokens,
+    Map<int, String>? matchTitles,
+  }) {
     _normalizedTitles
       ..clear()
       ..addAll(titles);
     _titleTokens
       ..clear()
-      ..addAll({
-        for (final entry in titles.entries)
-          entry.key: _splitTitleTokens(entry.value),
-      });
+      ..addAll(
+        titleTokens ??
+            {
+              for (final entry in titles.entries)
+                entry.key: _splitTitleTokens(entry.value),
+            },
+      );
     _matchTitles
       ..clear()
-      ..addAll({
-        for (final entry in titles.entries)
-          entry.key: bookNameMatchForm(entry.value),
-      });
+      ..addAll(
+        matchTitles ??
+            {
+              for (final entry in titles.entries)
+                entry.key: bookNameMatchForm(entry.value),
+            },
+      );
     _matchTitleTokens.clear();
     _matchAcronyms.clear();
   }
