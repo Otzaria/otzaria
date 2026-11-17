@@ -939,10 +939,6 @@
       "lib/navigation/view/reading_tab_strip.dart": [
         {"scope":"_InsertIndicator.build","fp":"5bfd1353","n":1}
       ],
-      "lib/navigation/view/tab_visuals.dart": [
-        {"scope":"buildFadedTabTitle","fp":"373e4811","n":2},
-        {"scope":"buildFadedTabTitle","fp":"d9adeea4","n":2}
-      ],
       "lib/pdf_book/view/pdf_book_screen.dart": [
         {"scope":"_PdfBookScreenState._buildBookViewTurnButtonSlot","fp":"957420f7","n":1},
         {"scope":"_PdfBookScreenState._buildBookViewTurnButtonSlot","fp":"e95ca979","n":1},

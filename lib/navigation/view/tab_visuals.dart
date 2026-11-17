@@ -179,17 +179,16 @@ Widget _buildFadedText(String title) => LayoutBuilder(
       direction,
     );
     if (width <= constraints.maxWidth + 0.5) return ClipRect(child: titleBox);
-    final isLtr = direction == TextDirection.ltr;
     return ClipRect(
       child: ShaderMask(
         blendMode: BlendMode.dstIn,
         shaderCallback: (rect) => LinearGradient(
-          begin: isLtr ? Alignment.centerLeft : Alignment.centerRight,
-          end: isLtr ? Alignment.centerRight : Alignment.centerLeft,
+          begin: AlignmentDirectional.centerStart,
+          end: AlignmentDirectional.centerEnd,
           stops: const [0.0, 0.82, 1.0],
           // ui-lint: allow UIL-015 — מסכת השקיפות של ShaderMask (dstIn); הצבע עצמו לא מצויר
           colors: const [Colors.white, Colors.white, Colors.transparent],
-        ).createShader(rect),
+        ).createShader(rect, textDirection: direction),
         child: titleBox,
       ),
     );
