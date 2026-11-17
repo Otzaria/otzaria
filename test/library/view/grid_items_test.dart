@@ -59,6 +59,8 @@ void main() {
   Widget buildTestWidget({
     required Book book,
     bool showTopics = false,
+    bool isSelected = false,
+    bool isChecked = false,
     double width = 260,
   }) {
     return MaterialApp(
@@ -69,6 +71,8 @@ void main() {
             child: BookGridItem(
               book: book,
               showTopics: showTopics,
+              isSelected: isSelected,
+              isChecked: isChecked,
               onBookClickCallback: () {},
             ),
           ),
@@ -328,6 +332,37 @@ void main() {
       expect(color, isNot(cs.secondaryContainer), reason: '$icon');
     }
   });
+
+  for (final selected in [false, true]) {
+    testWidgets('סימון בחירה מרובה נשמר בכרטיס עם preview=$selected', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildTestWidget(
+          book: TextBook(title: 'ברכות'),
+          isSelected: selected,
+          isChecked: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+      final check = find.byIcon(FluentIcons.checkmark_24_regular);
+      final colors = Theme.of(tester.element(check)).colorScheme;
+      final badge = tester.widget<Container>(
+        find
+            .ancestor(
+              of: check,
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+      expect((badge.decoration! as BoxDecoration).color, colors.primary);
+      expect(tester.widget<Icon>(check).color, colors.onPrimary);
+      expect(
+        find.byIcon(bookFormatIcon(TextBook(title: 'ברכות'))),
+        findsNothing,
+      );
+    });
+  }
 
   // q11 B: ה-tooltip של כפתור הפרטים מערכת הנושא, בלי עיצוב מקומי.
   testWidgets('tooltip כפתור הפרטים בלי decoration וסגנון טקסט מקומיים', (
