@@ -193,7 +193,6 @@ class _PageShapeScreenState extends State<PageShapeScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _loadConfiguration();
     _loadSizes();
   }
 
@@ -1178,6 +1177,7 @@ class _PageShapeScreenState extends State<PageShapeScreen>
   @override
   void initState() {
     super.initState();
+    _loadConfiguration();
     _hiddenSelectionSubscription = const HiddenLibraryStore().visibilityChanges
         .listen((_) => unawaited(_loadConfiguration()));
     widget.sidebarTabNotifier?.addListener(_handleSidebarTabRequest);
