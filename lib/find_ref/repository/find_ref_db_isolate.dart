@@ -818,10 +818,21 @@ List<int> _matchAltTocFlatIndex(
     return titleBits[book] = bits;
   }
 
+  // לערכים אחים בסדר הקאש יש אותה מסכת אבות.
+  var lastParent = -1;
+  var lastParentBits = 0;
   bool coversRequired(int i) {
-    var bits = 0;
-    for (var j = i; j >= 0; j = index.parentOf(j)) {
-      bits |= bitsOf(index.textSlotOf(j));
+    var bits = bitsOf(index.textSlotOf(i));
+    if (bits != allBits) {
+      final parent = index.parentOf(i);
+      if (parent != lastParent) {
+        lastParent = parent;
+        lastParentBits = 0;
+        for (var j = parent; j >= 0; j = index.parentOf(j)) {
+          lastParentBits |= bitsOf(index.textSlotOf(j));
+        }
+      }
+      bits |= lastParentBits;
     }
     if (bits == allBits) {
       return !variants ||

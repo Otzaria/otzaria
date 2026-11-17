@@ -247,6 +247,48 @@ void main() {
       );
     });
 
+    test('התאמת אבות נשמרת בין אחים גם כשההורה מופיע אחריהם', () async {
+      await seed();
+      final db = await database.database;
+      final longQuery = [for (var i = 0; i < 31; i++) 'מבחן$i'];
+      for (final (id, parent, text, level) in [
+        (200, 204, 'שבת ראשונה', 2),
+        (201, 204, 'כותרת אחרת', 2),
+        (202, 203, 'שבת שניה', 1),
+        (203, null, 'הלכות', 0),
+        (204, 206, 'הלכות', 1),
+        (205, 204, 'שבת שלישית', 2),
+        (206, null, 'שורש', 0),
+        (207, null, longQuery.take(29).join(' '), 0),
+        (208, 207, longQuery[29], 1),
+        (209, 208, longQuery[30], 2),
+      ]) {
+        db.execute('INSERT OR IGNORE INTO tocText (id, text) VALUES (?, ?)', [
+          id,
+          text,
+        ]);
+        db.execute(
+          'INSERT INTO alt_toc_entry (id, structureId, parentId, textId, level) '
+          'VALUES (?, 1, ?, (SELECT id FROM tocText WHERE text = ?), ?)',
+          [id, parent, text, level],
+        );
+      }
+      final index = await build();
+      const query = ['שורש', 'הלכות', 'שבת'];
+      expect(
+        [
+          for (final i in matchAltTocFlatIndex(index, query))
+            index.referenceOf(i),
+        ],
+        ['שורש הלכות שבת ראשונה', 'שורש הלכות שבת שלישית'],
+      );
+      for (final query in [longQuery.take(30).toList(), longQuery]) {
+        final result = matchAltTocFlatIndex(index, query);
+        expect(result, bruteForce(index, query));
+        expect(result, hasLength(query.length == 30 ? 2 : 1));
+      }
+    });
+
     test('חיפוש קומפקטי שומר סדר אחרי פינוי LRU וביטול חיצוני', () async {
       final lines = await seed();
       final db = await database.database;
