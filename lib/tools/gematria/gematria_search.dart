@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'dart:isolate';
+
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
@@ -350,11 +351,8 @@ class GimatriaSearch {
           // Get TOC entries for path extraction
           final tocEntries = await searchRepository.getBookTocs(bookId);
 
-          String pathAt(int lineIndex) => extractPathFromTocEntries(
-            currentLineIndex: lineIndex,
-            bookTitle: book.title,
-            tocEntries: tocEntries,
-          );
+          late final tocPaths = _TocPaths(book.title, tocEntries);
+          String pathAt(int lineIndex) => tocPaths.pathAt(lineIndex);
 
           for (final line in lines) {
             final reachedLimit = _scanLine(
@@ -430,6 +428,7 @@ class GimatriaSearch {
       return false;
     }
 
+    late final path = pathAt(lineIndex);
     final wordValues = words
         .map((w) => gimatria(w, method: gematriaMethod))
         .toList();
@@ -464,7 +463,7 @@ class GimatriaSearch {
               file: file,
               line: lineIndex + 1,
               text: _cleanHtml(words.sublist(start, end).join(' ')),
-              path: pathAt(lineIndex),
+              path: path,
               verseNumber: verseNumber,
               contextBefore: contextStart < start
                   ? words.sublist(contextStart, start).join(' ')
@@ -493,50 +492,7 @@ class GimatriaSearch {
     required String bookTitle,
     required List<TocEntry> tocEntries,
   }) {
-    if (tocEntries.isEmpty) {
-      return '';
-    }
-
-    TocEntry? bestEntry;
-    for (final entry in tocEntries) {
-      final lineIndex = entry.lineIndex;
-      if (lineIndex == null || lineIndex > currentLineIndex) {
-        continue;
-      }
-
-      if (bestEntry == null ||
-          lineIndex > bestEntry.lineIndex! ||
-          (lineIndex == bestEntry.lineIndex! &&
-              entry.level > bestEntry.level)) {
-        bestEntry = entry;
-      }
-    }
-
-    if (bestEntry == null) {
-      return '';
-    }
-
-    final tocEntriesById = {
-      for (final entry in tocEntries) entry.id: entry,
-    };
-
-    final pathParts = <String>[];
-    TocEntry? current = bestEntry;
-    while (current != null) {
-      final text = _cleanHtml(current.text);
-      if (text.isNotEmpty && text != bookTitle) {
-        pathParts.insert(0, text);
-      }
-
-      final parentId = current.parentId;
-      current = parentId == null ? null : tocEntriesById[parentId];
-    }
-
-    if (pathParts.isEmpty) {
-      return bookTitle;
-    }
-
-    return <String>[bookTitle, ...pathParts].join(', ');
+    return _TocPaths(bookTitle, tocEntries).pathAt(currentLineIndex);
   }
 
   /// Legacy file-based search (fallback)
@@ -696,5 +652,72 @@ class GimatriaSearch {
     cleaned = cleaned.replaceAll(_namedEntityRe, '');
     cleaned = cleaned.replaceAll(_decimalEntityRe, '');
     return cleaned.replaceAll(_hexEntityRe, '');
+  }
+}
+
+class _TocPaths {
+  final String _bookTitle;
+  final _entriesById = <int, TocEntry>{};
+  final _pathsByHeading = <int, String>{};
+  late final List<TocEntry> _headings;
+
+  _TocPaths(this._bookTitle, List<TocEntry> entries) {
+    final bestByLine = <int, TocEntry>{};
+    var isOrdered = true;
+    int? previousLine;
+    for (final entry in entries) {
+      _entriesById[entry.id] = entry;
+      final lineIndex = entry.lineIndex;
+      if (lineIndex == null) continue;
+      if (previousLine != null && lineIndex < previousLine) isOrdered = false;
+      previousLine = lineIndex;
+
+      final previous = bestByLine[lineIndex];
+      // ברמות שוות נשמרת הכותרת הראשונה כמו בסריקה של ה-TOC.
+      if (previous == null || entry.level > previous.level) {
+        bestByLine[lineIndex] = entry;
+      }
+    }
+    _headings = bestByLine.values.toList();
+    if (!isOrdered) {
+      _headings.sort((a, b) => a.lineIndex!.compareTo(b.lineIndex!));
+    }
+  }
+
+  String pathAt(int lineIndex) {
+    var low = 0;
+    var high = _headings.length;
+    while (low < high) {
+      final middle = low + ((high - low) >> 1);
+      if (_headings[middle].lineIndex! <= lineIndex) {
+        low = middle + 1;
+      } else {
+        high = middle;
+      }
+    }
+    if (low == 0) return '';
+
+    final headingIndex = low - 1;
+    return _pathsByHeading.putIfAbsent(
+      headingIndex,
+      () => _formatPath(_headings[headingIndex]),
+    );
+  }
+
+  String _formatPath(TocEntry heading) {
+    final parts = <String>[];
+    TocEntry? current = heading;
+    while (current != null) {
+      final text = GimatriaSearch._cleanHtml(current.text);
+      if (text.isNotEmpty && text != _bookTitle) {
+        parts.add(text);
+      }
+
+      final parentId = current.parentId;
+      current = parentId == null ? null : _entriesById[parentId];
+    }
+
+    parts.add(_bookTitle);
+    return parts.reversed.join(', ');
   }
 }

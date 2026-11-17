@@ -11,6 +11,7 @@ import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart' as migration_models;
 import 'package:otzaria/migration/models/category.dart' as migration_models;
 import 'package:otzaria/migration/models/line.dart' as migration_models;
+import 'package:otzaria/migration/models/toc_entry.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/text_book/utils/section_search_utils.dart';
 import 'package:otzaria/tools/gematria/gematria_search.dart';
@@ -192,6 +193,51 @@ void main() {
         );
       },
     );
+
+    test('תוצאות חוזרות שומרות נתיב לפי הפרק של כל שורה', () async {
+      const title = 'בראשית';
+      final bookId = await insertBookWithLines(
+        repo: seforimRepo,
+        title: title,
+        lines: ['אב', 'אב אב', 'אב', 'אב אב'],
+      );
+      final rootId = await seforimRepo.insertTocEntry(
+        TocEntry(bookId: bookId, level: 1, text: title),
+      );
+      await seforimRepo.insertTocEntry(
+        TocEntry(
+          bookId: bookId,
+          level: 2,
+          parentId: rootId,
+          text: 'פרק א',
+          lineIndex: 1,
+        ),
+      );
+      await seforimRepo.insertTocEntry(
+        TocEntry(
+          bookId: bookId,
+          level: 2,
+          parentId: rootId,
+          text: 'פרק ב',
+          lineIndex: 3,
+        ),
+      );
+
+      final results = await GimatriaSearch.searchInFiles(
+        const <String>[],
+        3,
+        bookTitles: const [title],
+      );
+
+      expect(results.map((hit) => (hit.line, hit.path)), [
+        (1, ''),
+        (2, 'בראשית, פרק א'),
+        (2, 'בראשית, פרק א'),
+        (3, 'בראשית, פרק א'),
+        (4, 'בראשית, פרק ב'),
+        (4, 'בראשית, פרק ב'),
+      ]);
+    });
 
     test('ספר שלא קיים בשום DB מתעלמים ממנו (לא קורסים)', () async {
       await insertBookWithLines(
