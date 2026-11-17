@@ -2,20 +2,33 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/cache_database_holder.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/pdf_anchor_cache_entry.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/file/page_map_builder.dart';
 import 'package:pdfrx/pdfrx.dart';
 
-// A cache for the generated page maps to avoid rebuilding them on every conversion.
-final _pageMapCache = <String, PageMap>{};
-final _pageMapLoads = <String, Future<PageMap>>{};
+typedef _PageMapKey = (String, BookCompositeKey?);
+typedef _PdfAnchors = List<({int page, String ref})>;
 
-/// מהדורת הטקסט של כל PDF, לפי מופע הספרייה — טעינה מחדש של הספרייה מתחילה נקי.
-final _companionTextBooks = Expando<Map<String, TextBook?>>();
+class _PageMaps {
+  final completed = <_PageMapKey, ({PageMap map, bool fromOutline})>{};
+  final loadingFromFile = <_PageMapKey, Future<PageMap>>{};
+}
+
+class _CatalogPageMaps {
+  final editions = _PageMaps();
+  final books = Expando<_PageMaps>();
+}
+
+final _catalogPageMaps = Expando<_CatalogPageMaps>();
+final _uncatalogedPageMaps = Expando<_PageMaps>();
+final _pdfAnchorLoads = <(Object?, String), Future<_PdfAnchors>>{};
+final _companionTextBooks = Expando<Expando<({TextBook? book})>>();
 
 typedef PdfAnchorsReader =
     Future<List<({int page, String ref})>> Function(
@@ -39,18 +52,16 @@ Future<int?> textToPdfPage(
   PdfBook? pdfBook,
   List<PdfOutlineNode>? outline,
 }) async {
-  pdfBook ??=
-      (await DataRepository.instance.library).getCompanionBook(
-            textBook,
-            PdfBook,
-          )
-          as PdfBook?;
+  final repository = DataRepository.instance;
+  final catalog = pdfBook == null ? repository.library : null;
+  final cacheIdentity = repository.libraryCacheIdentity;
+  pdfBook ??= (await catalog!).getCompanionBook(textBook, PdfBook) as PdfBook?;
   if (pdfBook == null) {
     return null;
   }
 
   try {
-    final map = await _pageMapFor(textBook, pdfBook, outline);
+    final map = await _pageMapFor(textBook, pdfBook, outline, cacheIdentity);
     return map.hasReliableAnchors ? map.textToPdf(textIndex) : null;
   } catch (e, st) {
     // null = אין מיפוי (הקוראים מסתמכים על כך). נבלע כאן גם PDF מוגן
@@ -66,7 +77,7 @@ Future<int?> textToPdfPage(
 /// מחזיר את עוגני ה-outline של [pdfPath] — מהמטמון המתמיד (cache.db) אם
 /// הרשומה תואמת את מטא-נתוני הקובץ, אחרת בפתיחת ה-PDF (החלק הכבד, 1-2ש')
 /// ושמירה למטמון לפעם הבאה.
-Future<List<({int page, String ref})>> _getPdfAnchors(String pdfPath) async {
+Future<_PdfAnchors> _getPdfAnchors(String pdfPath) async {
   final metadata = await _readPdfFileMetadata(pdfPath);
   final repository = await _anchorCacheRepository();
 
@@ -127,6 +138,16 @@ Future<List<({int page, String ref})>> _getPdfAnchors(String pdfPath) async {
   return anchors;
 }
 
+Future<_PdfAnchors> _loadPdfAnchors(String path, Object? cacheIdentity) {
+  final key = (cacheIdentity, path);
+  return _pdfAnchorLoads.putIfAbsent(
+    key,
+    () => _getPdfAnchors(path).whenComplete(() {
+      _pdfAnchorLoads.remove(key);
+    }),
+  );
+}
+
 Future<void> _savePdfAnchors(
   SeforimRepository repository,
   String pdfPath,
@@ -184,12 +205,14 @@ int _nowMillis() => DateTime.now().millisecondsSinceEpoch;
 /// מהדורת הטקסט של [pdfBook], או null.
 ///
 /// נקרא בכל מעבר עמוד; החיפוש בלי מלווה סורק את כל הספרייה, וגם "אין" נשמר.
-Future<TextBook?> companionTextBookOf(PdfBook pdfBook) async {
-  final library = await DataRepository.instance.library;
-  return (_companionTextBooks[library] ??= {}).putIfAbsent(
-    '${pdfBook.path}::${pdfBook.title}',
-    () => library.getCompanionBook(pdfBook, TextBook) as TextBook?,
-  );
+Future<TextBook?> companionTextBookOf(PdfBook pdfBook) async =>
+    _companionTextBookOf(await DataRepository.instance.library, pdfBook);
+
+TextBook? _companionTextBookOf(Library library, PdfBook pdfBook) {
+  final companions = _companionTextBooks[library] ??= Expando();
+  return (companions[pdfBook] ??= (
+    book: library.getCompanionBook(pdfBook, TextBook) as TextBook?,
+  )).book;
 }
 
 /// Converts a PDF page number to the corresponding text book index.
@@ -201,12 +224,13 @@ Future<int?> pdfToTextPage(
   List<PdfOutlineNode> outline,
   int pdfPage,
 ) async {
-  final textBook = await companionTextBookOf(pdfBook);
+  final catalog = DataRepository.instance.library;
+  final textBook = _companionTextBookOf(await catalog, pdfBook);
   if (textBook == null) {
     return null;
   }
   try {
-    final map = await _pageMapFor(textBook, pdfBook, outline);
+    final map = await _pageMapFor(textBook, pdfBook, outline, catalog);
     return map.hasReliableAnchors ? map.pdfToText(pdfPage) : null;
   } catch (e, st) {
     debugPrint(
@@ -220,29 +244,43 @@ Future<PageMap> _pageMapFor(
   TextBook textBook,
   PdfBook pdfBook,
   List<PdfOutlineNode>? outline,
+  Object? cacheIdentity,
 ) {
-  final key = '${pdfBook.path}::${textBook.title}';
-  final cached = _pageMapCache[key];
-  if (cached != null) return Future.value(cached);
+  final edition = BookCompositeKey.fromBook(textBook);
+  final catalogMaps = cacheIdentity == null
+      ? null
+      : _catalogPageMaps[cacheIdentity] ??= _CatalogPageMaps();
+  final maps = catalogMaps != null && edition != null
+      ? catalogMaps.editions
+      : (catalogMaps?.books ?? _uncatalogedPageMaps)[textBook] ??= _PageMaps();
+  final key = (pdfBook.path, edition);
+  final hasOutline = outline != null && outline.isNotEmpty;
+  final cached = maps.completed[key];
+  if (cached != null &&
+      (!hasOutline || cached.fromOutline || cached.map.hasReliableAnchors)) {
+    return Future.value(cached.map);
+  }
 
   Future<PageMap> load() async {
-    final anchorsPdf = outline == null || outline.isEmpty
-        ? await _getPdfAnchors(pdfBook.path)
-        : collectPdfAnchors(outline);
+    final anchorsPdf = hasOutline
+        ? collectPdfAnchors(outline)
+        : await _loadPdfAnchors(pdfBook.path, cacheIdentity);
     final anchorsText = collectTextAnchors(await textBook.tableOfContents);
     final map = _buildPageMap(pdfBook, anchorsPdf, anchorsText);
-    // TOC ריק עשוי להיות זמני; מפה לא אמינה עם TOC טעון נשמרת.
-    if (anchorsText.isNotEmpty) _pageMapCache[key] = map;
+    // שומרים גם תוצאה שלילית כדי לא לפתוח שוב PDF שאין בו סימניות.
+    // טעינה מאוחרת מהקובץ אינה מחליפה מפה שכבר נשמרה.
+    if (anchorsText.isNotEmpty &&
+        (hasOutline || !maps.completed.containsKey(key))) {
+      maps.completed[key] = (map: map, fromOutline: hasOutline);
+    }
     return map;
   }
 
-  // outline בזיכרון הוא מקור עצמאי, ואינו תלוי בתוצאת קריאת הקובץ.
-  if (outline != null && outline.isNotEmpty) return load();
-
-  return _pageMapLoads.putIfAbsent(
+  if (hasOutline) return load();
+  return maps.loadingFromFile.putIfAbsent(
     key,
     () => load().whenComplete(() {
-      _pageMapLoads.remove(key);
+      maps.loadingFromFile.remove(key);
     }),
   );
 }
