@@ -349,7 +349,7 @@ AlertDialog(...) / TextButton(...) / Card()  // showTwoActionsDialog / ActionBut
 - 1 (`AppTokens.elevation1`): סרגל עליון וחלונית מוצמדת.
 - 3 (`AppTokens.elevation2`): תפריט, tooltip וחלונית צפה.
 
-הדיאלוג נשאר לפי M3. צל רק דרך `AppShadows`. ה־scrim אחד, עדין כמו בדיאלוגים (2.1.1). UIL-030 חוסם הגבהה ליטרלית ו־`BoxShadow` מחוץ ל־`lib/theme` (4 מופעים ב־baseline: אנימציות הדגשה וחגיגת סיום). צל הנייר של עמוד PDF הוא תוכן, ומסומן allow (JX-05, q10 Q11).
+הדיאלוג נשאר לפי M3. צל רק דרך `AppShadows`. ה־scrim אחד, עדין כמו בדיאלוגים (2.1.1). UIL-030 חוסם הגבהה ליטרלית ו־`BoxShadow` מחוץ ל־`lib/theme` (3 מופעים ב־baseline: אנימציות הדגשה). צל הנייר של עמוד PDF הוא תוכן, ומסומן allow (JX-05, q10 Q11).
 
 #### 2.5.5 תנועה
 | טוקן | ערך | סטטוס |
@@ -935,7 +935,7 @@ final band = Color(markerArgb);
 | טיפוגרפיית תוכן | `SettingsState` + `AppFonts` | קיים | — |
 | ריווח | `AppTokens.space*` + טוקנים סמנטיים | חלקי | ריווח מחוץ לסולם (UIL-020), ארבעה טוקנים סמנטיים ביעד |
 | רדיוסים | `AppTokens.radius` (ערך אחד, DD-04) | קיים | — (UIL-019 נעול) |
-| הגבהה וצל | `AppTokens.elevation*` + `AppShadows` (DD-12) | קיים | 4 צללים מקומיים (UIL-030) |
+| הגבהה וצל | `AppTokens.elevation*` + `AppShadows` (DD-12) | קיים | 3 צללים מקומיים (UIL-030) |
 | גבהים | `AppInputTokens` + `AppDensity` | קיים | — |
 | גדלי אייקון | `AppTokens.icon*` (DD-03) | חלקי | גדלים מספריים (UIL-029) |
 | אנימציות | `AppTokens.anim*` + `AppMotion` (DD-21) | חלקי | 8 `AnimationController` עם משך ליטרלי (UIL-023), משכים בלי טוקן, עקומות ביעד |

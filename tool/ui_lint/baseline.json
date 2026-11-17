@@ -1274,9 +1274,6 @@
       "lib/settings/search/settings_anchor.dart": [
         {"scope":"_SettingsAnchorState.build","fp":"ce1f078a","n":1}
       ],
-      "lib/tools/shamor_zachor/widgets/completion_animation_overlay.dart": [
-        {"scope":"_CompletionAnimationState.build","fp":"ce1f078a","n":1}
-      ],
       "lib/tools/view/tools_launcher_panel.dart": [
         {"scope":"_MovePulseState.build","fp":"ce1f078a","n":1}
       ]
