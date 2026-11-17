@@ -5,21 +5,22 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-mkdir -p "$tmp/source" "$tmp/release/onnxruntime-osx-arm64-1.28.0/lib" "$tmp/bin" "$tmp/app/Otzaria.app"
+mkdir -p "$tmp/source" "$tmp/package/runtimes/osx-arm64/native" "$tmp/bin" "$tmp/app/Otzaria.app"
 cp "$script_dir/embed_onnxruntime_macos.sh" "$tmp/source/"
-printf 'fixture-binary' > "$tmp/release/onnxruntime-osx-arm64-1.28.0/lib/libonnxruntime.1.28.0.dylib"
-printf 'license' > "$tmp/release/onnxruntime-osx-arm64-1.28.0/LICENSE"
-printf 'notices' > "$tmp/release/onnxruntime-osx-arm64-1.28.0/ThirdPartyNotices.txt"
-fixture="$tmp/fixture.tgz"
-tar -czf "$fixture" -C "$tmp/release" onnxruntime-osx-arm64-1.28.0
+printf 'fixture-binary' > "$tmp/package/runtimes/osx-arm64/native/libonnxruntime.dylib"
+printf 'license' > "$tmp/package/LICENSE"
+printf 'notices' > "$tmp/package/ThirdPartyNotices.txt"
+fixture="$tmp/fixture.nupkg"
+(cd "$tmp/package" && zip -qr "$fixture" .)
 sha="$(shasum -a 256 "$fixture" | awk '{print $1}')"
 cat > "$tmp/source/onnxruntime_release.txt" <<EOF
 version 1.28.0
-darwin-arm64 onnxruntime-osx-arm64-1.28.0.tgz $sha
+package microsoft.ml.onnxruntime.1.28.0.nupkg $sha
+darwin-arm64 runtimes/osx-arm64/native/libonnxruntime.dylib
 EOF
 
-# Both mocks validate exact CLI arguments. curl can produce a valid download,
-# partial transfers, HTTP errors, an elapsed timeout or a DNS failure.
+# The mock validates the exact CLI arguments. It can produce a valid download,
+# a partial transfer with an HTTP error, an elapsed timeout or a DNS failure.
 cat > "$tmp/bin/curl" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -36,123 +37,72 @@ while [ "$#" -gt 0 ]; do
     *) echo "unexpected curl argument: $1" >&2; exit 90 ;;
   esac
 done
-[ "$url" = 'https://github.com/microsoft/onnxruntime/releases/download/v1.28.0/onnxruntime-osx-arm64-1.28.0.tgz' ]
+[ "$url" = 'https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime/1.28.0/microsoft.ml.onnxruntime.1.28.0.nupkg' ]
 [ "$retries" = 3 ] && [ "$connect_timeout" = 30 ]
-[ "$max_time" = 180 ] && [ "$retry_max_time" = 360 ]
+[ "$max_time" = 300 ] && [ "$retry_max_time" = 600 ]
 [ -n "$output" ]
-case "${ONNX_TEST_CURL_MODE:-503}" in
+case "${ONNX_TEST_CURL_MODE:-success}" in
   success) cp "$ONNX_TEST_ARCHIVE" "$output" ;;
-  503|504) printf partial > "$output"; echo "synthetic HTTP $ONNX_TEST_CURL_MODE" >&2; exit 22 ;;
+  404|503) printf partial > "$output"; echo "synthetic HTTP $ONNX_TEST_CURL_MODE" >&2; exit 22 ;;
   timeout) printf partial > "$output"; echo 'synthetic curl exit 28 (timeout)' >&2; exit 28 ;;
   network) echo 'synthetic curl exit 6 (DNS failure)' >&2; exit 6 ;;
   *) exit 91 ;;
 esac
 SH
-cat > "$tmp/bin/gh" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-[ "$1" = release ] && [ "$2" = download ] && [ "$3" = v1.28.0 ]
-shift 3
-repo='' pattern='' dir=''
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --repo) repo="$2"; shift 2 ;;
-    --pattern) pattern="$2"; shift 2 ;;
-    --dir) dir="$2"; shift 2 ;;
-    --clobber) shift ;;
-    *) exit 40 ;;
-  esac
-done
-[ "$repo" = microsoft/onnxruntime ]
-[ "$pattern" = onnxruntime-osx-arm64-1.28.0.tgz ]
-[ -n "$dir" ]
-[ "${ONNX_TEST_DISABLE_GH:-0}" != 1 ] || exit 41
-cp "$ONNX_TEST_ARCHIVE" "$dir/$pattern"
-SH
-chmod +x "$tmp/bin/curl" "$tmp/bin/gh"
+chmod +x "$tmp/bin/curl"
 
 export PATH="$tmp/bin:$PATH"
 export ONNX_TEST_ARCHIVE="$fixture"
-export GH_TOKEN=test-read-only-token
 export OTZARIA_BUILD_CACHE="$tmp/cache"
 export TARGET_BUILD_DIR="$tmp/app"
 export WRAPPER_NAME=Otzaria.app
 export DERIVED_FILE_DIR="$tmp/derived"
 export CODE_SIGNING_ALLOWED=NO
-cache="$tmp/cache/onnxruntime/onnxruntime-osx-arm64-1.28.0.tgz"
+cache="$tmp/cache/onnxruntime/microsoft.ml.onnxruntime.1.28.0.nupkg"
 out="$TARGET_BUILD_DIR/$WRAPPER_NAME/Contents"
-
-# Inspect stdout/stderr from *every* invocation so both successful and failed
-# downloads must keep GH_TOKEN secret. Do not print the captured token itself.
-run_checked() {
-  local status=0
-  bash "$tmp/source/embed_onnxruntime_macos.sh" > "$tmp/output.log" 2>&1 || status=$?
-  if [ -n "${GH_TOKEN:-}" ] && grep -Fq -- "$GH_TOKEN" "$tmp/output.log"; then
-    echo 'GH_TOKEN was printed by the embed build phase' >&2
-    exit 98
-  fi
-  cat "$tmp/output.log"
-  return "$status"
-}
-assert_no_download_temps() {
-  [ ! -e "$cache.part" ]
-  [ -z "$(find "$tmp/cache/onnxruntime" -maxdepth 1 -name '.onnx-gh.*' -print -quit)" ]
-}
+embed() { bash "$tmp/source/embed_onnxruntime_macos.sh"; }
 assert_good_archive() {
-  [ -f "$cache" ]
+  [ -f "$cache" ] && [ ! -e "$cache.part" ]
   [ "$(shasum -a 256 "$cache" | awk '{print $1}')" = "$sha" ]
-  assert_no_download_temps
 }
 
-# Ordinary direct download must succeed without ever calling GitHub CLI.
-ONNX_TEST_CURL_MODE=success ONNX_TEST_DISABLE_GH=1 run_checked
+# A direct download embeds the platform's library and the notices.
+ONNX_TEST_CURL_MODE=success embed
 assert_good_archive
-cmp "$tmp/release/onnxruntime-osx-arm64-1.28.0/lib/libonnxruntime.1.28.0.dylib" "$out/Frameworks/libonnxruntime.dylib"
-cmp "$tmp/release/onnxruntime-osx-arm64-1.28.0/LICENSE" "$out/Resources/onnxruntime/LICENSE"
-cmp "$tmp/release/onnxruntime-osx-arm64-1.28.0/ThirdPartyNotices.txt" "$out/Resources/onnxruntime/ThirdPartyNotices.txt"
+cmp "$tmp/package/runtimes/osx-arm64/native/libonnxruntime.dylib" "$out/Frameworks/libonnxruntime.dylib"
+cmp "$tmp/package/LICENSE" "$out/Resources/onnxruntime/LICENSE"
+cmp "$tmp/package/ThirdPartyNotices.txt" "$out/Resources/onnxruntime/ThirdPartyNotices.txt"
 
-# Verified cache works even with no network and a disabled fallback.
-ONNX_TEST_CURL_MODE=network ONNX_TEST_DISABLE_GH=1 run_checked
+# A verified cache needs no network.
+ONNX_TEST_CURL_MODE=network embed
 assert_good_archive
 
-# Each independent error triggers the same API fallback to the exact release.
-for mode in 503 504 timeout network; do
+# Every download error fails explicitly and leaves no partial archive behind.
+for mode in 404 503 timeout network; do
   rm -rf "$tmp/cache"
-  ONNX_TEST_CURL_MODE="$mode" run_checked
-  assert_good_archive
+  if ONNX_TEST_CURL_MODE="$mode" embed; then
+    echo "download failure ($mode) was accepted" >&2
+    exit 1
+  fi
+  [ ! -e "$cache" ] && [ ! -e "$cache.part" ]
 done
 
-# With no token, failure is explicit; no partial archive should survive.
-rm -rf "$tmp/cache"
-saved_token="$GH_TOKEN"
-unset GH_TOKEN
-if ONNX_TEST_CURL_MODE=504 run_checked; then
-  echo 'fallback succeeded without GH_TOKEN' >&2
-  exit 1
-fi
-export GH_TOKEN="$saved_token"
-[ ! -e "$cache" ] && [ ! -e "$cache.part" ]
-
-# Corrupt cache may not be accepted. Disable the fallback to force failure.
-ONNX_TEST_CURL_MODE=503 run_checked
+# A corrupt cache is never used: it is downloaded again, or the build fails.
+ONNX_TEST_CURL_MODE=success embed
 printf corrupt > "$cache"
-if ONNX_TEST_CURL_MODE=timeout ONNX_TEST_DISABLE_GH=1 run_checked; then
+if ONNX_TEST_CURL_MODE=timeout embed; then
   echo 'corrupt cached archive was accepted' >&2
   exit 1
 fi
-assert_no_download_temps
+ONNX_TEST_CURL_MODE=success embed
+assert_good_archive
 
-# A newly downloaded, incorrect archive fails the pinned SHA check.
-printf malicious > "$tmp/wrong.tgz"
-if ONNX_TEST_CURL_MODE=503 ONNX_TEST_ARCHIVE="$tmp/wrong.tgz" run_checked; then
+# A downloaded archive with another digest is rejected.
+rm -rf "$tmp/cache"
+printf malicious > "$tmp/wrong.nupkg"
+if ONNX_TEST_CURL_MODE=success ONNX_TEST_ARCHIVE="$tmp/wrong.nupkg" embed; then
   echo 'untrusted downloaded archive was accepted' >&2
   exit 1
 fi
-[ ! -e "$cache.part" ]
-
-# Exact contents restore the cache; a second invocation must hit the cache.
-ONNX_TEST_CURL_MODE=503 run_checked
-assert_good_archive
-ONNX_TEST_CURL_MODE=timeout ONNX_TEST_DISABLE_GH=1 run_checked
-assert_good_archive
-printf 'PASS: direct download, 503, 504, timeout, network, cache, corrupt cache, wrong digest, no token leak\n'
+[ ! -e "$cache" ] && [ ! -e "$cache.part" ]
+printf 'PASS: download, cache, HTTP errors, timeout, network, corrupt cache, wrong digest\n'

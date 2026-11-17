@@ -9,37 +9,21 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 release_file="$script_dir/onnxruntime_release.txt"
 
 version="$(awk '$1 == "version" { print $2 }' "$release_file")"
-read -r asset sha256 < <(awk '$1 == "darwin-arm64" { print $2, $3 }' "$release_file")
-[ -n "$version" ] && [ -n "$asset" ] || { echo "error: no pinned ONNX Runtime asset for darwin-arm64" >&2; exit 1; }
+read -r asset sha256 < <(awk '$1 == "package" { print $2, $3 }' "$release_file")
+library="$(awk '$1 == "darwin-arm64" { print $2 }' "$release_file")"
+[ -n "$version" ] && [ -n "$asset" ] && [ -n "$library" ] || { echo "error: no pinned ONNX Runtime library for darwin-arm64" >&2; exit 1; }
 
 cache_dir="${OTZARIA_BUILD_CACHE:-$HOME/Library/Caches/otzaria-build-cache}/onnxruntime"
 archive="$cache_dir/$asset"
 if [ ! -f "$archive" ] || [ "$(shasum -a 256 "$archive" | cut -d ' ' -f 1)" != "$sha256" ]; then
   mkdir -p "$cache_dir"
-  url="https://github.com/microsoft/onnxruntime/releases/download/v$version/$asset"
+  url="https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime/$version/$asset"
   echo "Downloading ONNX Runtime $version: $url"
-  if ! curl -fsSL --retry 3 --connect-timeout 30 --max-time 180 \
-      --retry-max-time 360 -o "$archive.part" "$url"; then
-    # Release browser URLs sometimes fail with HTTP 503 on macOS Actions.
-    # An authenticated GitHub CLI downloads the same named asset through
-    # GitHub's release API. Never trust it without verifying the pinned SHA.
+  if ! curl -fsSL --retry 3 --connect-timeout 30 --max-time 300 \
+      --retry-max-time 600 -o "$archive.part" "$url"; then
     rm -f "$archive.part"
-    if [ -n "${GH_TOKEN:-}" ] && command -v gh >/dev/null 2>&1; then
-      gh_tmp="$(mktemp -d "$cache_dir/.onnx-gh.XXXXXXXX")"
-      if gh release download "v$version" \
-        --repo microsoft/onnxruntime --pattern "$asset" \
-        --dir "$gh_tmp" --clobber && [ -f "$gh_tmp/$asset" ]; then
-        mv -f "$gh_tmp/$asset" "$archive.part"
-        rm -rf "$gh_tmp"
-      else
-        rm -rf "$gh_tmp"
-        echo "error: both the release URL and GitHub CLI asset download failed for $asset" >&2
-        exit 1
-      fi
-    else
-      echo "error: failed to download $asset; install gh and set GH_TOKEN to enable API fallback" >&2
-      exit 1
-    fi
+    echo "error: failed to download $url; to build offline, place $asset (SHA-256 $sha256) in $cache_dir" >&2
+    exit 1
   fi
   actual="$(shasum -a 256 "$archive.part" | cut -d ' ' -f 1)"
   if [ "$actual" != "$sha256" ]; then
@@ -50,20 +34,18 @@ if [ ! -f "$archive" ] || [ "$(shasum -a 256 "$archive" | cut -d ' ' -f 1)" != "
   mv -f "$archive.part" "$archive"
 fi
 
-stem="${asset%.tgz}"
 work_dir="${DERIVED_FILE_DIR:-$TMPDIR}/onnxruntime"
 rm -rf "$work_dir"
 mkdir -p "$work_dir"
-tar -xzf "$archive" -C "$work_dir" \
-  "$stem/lib/libonnxruntime.$version.dylib" "$stem/LICENSE" "$stem/ThirdPartyNotices.txt"
+unzip -q "$archive" "$library" LICENSE ThirdPartyNotices.txt -d "$work_dir"
 
 app="$TARGET_BUILD_DIR/$WRAPPER_NAME"
 frameworks="$app/Contents/Frameworks"
 notices="$app/Contents/Resources/onnxruntime"
 mkdir -p "$frameworks" "$notices"
 dylib="$frameworks/libonnxruntime.dylib"
-cp -f "$work_dir/$stem/lib/libonnxruntime.$version.dylib" "$dylib"
-cp -f "$work_dir/$stem/LICENSE" "$work_dir/$stem/ThirdPartyNotices.txt" "$notices/"
+cp -f "$work_dir/$library" "$dylib"
+cp -f "$work_dir/LICENSE" "$work_dir/ThirdPartyNotices.txt" "$notices/"
 
 if [ "${CODE_SIGNING_ALLOWED:-NO}" = "YES" ] && [ -n "${EXPANDED_CODE_SIGN_IDENTITY:-}" ]; then
   sign_args=(--force --sign "$EXPANDED_CODE_SIGN_IDENTITY")

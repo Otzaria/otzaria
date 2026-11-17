@@ -1,10 +1,13 @@
-# Microsoft's official ONNX Runtime release that ships with the app (CPU builds).
+# Microsoft's official ONNX Runtime CPU build that ships with the app, taken from
+# the Microsoft.ML.OnnxRuntime NuGet package: nuget.org packages are immutable,
+# while GitHub release assets can disappear.
 # Read by onnxruntime.cmake (Windows, Linux) and embed_onnxruntime_macos.sh.
-# Format: <flutter target platform> <asset name> <sha256 of the asset>
-# Source: https://github.com/microsoft/onnxruntime/releases/tag/v1.28.0
+# Source: https://www.nuget.org/packages/Microsoft.ML.OnnxRuntime/1.28.0
 version 1.28.0
-windows-x64 onnxruntime-win-x64-1.28.0.zip abef733dacbe2f571547a7150b479b5cb9cc0df22f96c24983a42cadb1b4f8bc
-windows-arm64 onnxruntime-win-arm64-1.28.0.zip cbe4547463ece092b505c3581376ed5896d22b5429f39d5e645e425ecdd369ad
-linux-x64 onnxruntime-linux-x64-1.28.0.tgz a3e1b79d7bb1bf09696ce675f49e4064e6c81f6202b8225624fff0e93f8d6407
-linux-arm64 onnxruntime-linux-aarch64-1.28.0.tgz e15ff8b5d85afe6c144d97c6fd432254bf76a219daaf17658087d6ecb3e8f0bb
-darwin-arm64 onnxruntime-osx-arm64-1.28.0.tgz 1268b359718099bde2cedb55787f182a130067bc4f31e8c88478c445b850d3d8
+package microsoft.ml.onnxruntime.1.28.0.nupkg 769d1d3ea8ab6cd69f737c9dd4d4462aa4ad0ccfa106eaf506efc40d7bead5db
+# <flutter target platform> <library inside the package>
+windows-x64 runtimes/win-x64/native/onnxruntime.dll
+windows-arm64 runtimes/win-arm64/native/onnxruntime.dll
+linux-x64 runtimes/linux-x64/native/libonnxruntime.so
+linux-arm64 runtimes/linux-arm64/native/libonnxruntime.so
+darwin-arm64 runtimes/osx-arm64/native/libonnxruntime.dylib

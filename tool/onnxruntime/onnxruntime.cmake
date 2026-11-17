@@ -2,8 +2,8 @@
 # into <exe dir>/onnxruntime/. The semantic engine loads it at run time through
 # an explicit path; it is never linked, and never placed beside the executable.
 #
-# The archive is downloaded once, verified by SHA-256, and cached outside the
-# repository: $ENV{OTZARIA_BUILD_CACHE}, else the user's cache directory.
+# The NuGet package is downloaded once, verified by SHA-256, and cached outside
+# the repository: $ENV{OTZARIA_BUILD_CACHE}, else the user's cache directory.
 
 set(_OTZARIA_ORT_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
@@ -34,16 +34,19 @@ function(otzaria_bundle_onnxruntime target_platform destination)
   set(version "")
   set(asset "")
   set(sha256 "")
+  set(inner_library "")
   foreach(line IN LISTS lines)
     if(line MATCHES "^version ([0-9.]+)$")
       set(version "${CMAKE_MATCH_1}")
-    elseif(line MATCHES "^${target_platform} ([^ ]+) ([0-9a-f]+)$")
+    elseif(line MATCHES "^package ([^ ]+) ([0-9a-f]+)$")
       set(asset "${CMAKE_MATCH_1}")
       set(sha256 "${CMAKE_MATCH_2}")
+    elseif(line MATCHES "^${target_platform} ([^ ]+)$")
+      set(inner_library "${CMAKE_MATCH_1}")
     endif()
   endforeach()
-  if(version STREQUAL "" OR asset STREQUAL "")
-    message(FATAL_ERROR "No pinned ONNX Runtime asset for '${target_platform}'.")
+  if(version STREQUAL "" OR asset STREQUAL "" OR inner_library STREQUAL "")
+    message(FATAL_ERROR "No pinned ONNX Runtime library for '${target_platform}'.")
   endif()
 
   _otzaria_ort_cache_dir(cache_dir)
@@ -58,7 +61,7 @@ function(otzaria_bundle_onnxruntime target_platform destination)
     endif()
   endif()
   if(NOT have_archive)
-    set(url "https://github.com/microsoft/onnxruntime/releases/download/v${version}/${asset}")
+    set(url "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime/${version}/${asset}")
     message(STATUS "Downloading ONNX Runtime ${version}: ${url}")
     file(MAKE_DIRECTORY "${cache_dir}")
     # הורדה לקובץ זמני: הורדה שנקטעה לא תשאיר במטמון ארכיון חלקי.
@@ -98,33 +101,30 @@ function(otzaria_bundle_onnxruntime target_platform destination)
   endif()
 
   if(target_platform MATCHES "^windows-")
-    set(inner_library "lib/onnxruntime.dll")
     set(library_name "onnxruntime.dll")
   else()
-    set(inner_library "lib/libonnxruntime.so.${version}")
     set(library_name "libonnxruntime.so")
   endif()
 
-  string(REGEX REPLACE "\\.(zip|tgz)$" "" stem "${asset}")
-  set(extract_dir "${CMAKE_BINARY_DIR}/onnxruntime")
-  set(stamp "${extract_dir}/${stem}.sha256")
+  set(extract_dir "${CMAKE_BINARY_DIR}/onnxruntime/${version}")
+  set(stamp "${extract_dir}/${target_platform}.sha256")
   set(stamped "")
   if(EXISTS "${stamp}")
     file(READ "${stamp}" stamped)
   endif()
-  if(NOT stamped STREQUAL sha256 OR NOT EXISTS "${extract_dir}/${stem}/${inner_library}")
-    file(REMOVE_RECURSE "${extract_dir}/${stem}")
-    # רק הספרייה והרישיונות: הארכיון של Windows כולל גם pdb של 400MB.
+  if(NOT stamped STREQUAL sha256 OR NOT EXISTS "${extract_dir}/${inner_library}")
+    file(REMOVE_RECURSE "${extract_dir}")
+    # רק הספרייה של הפלטפורמה והרישיונות: החבילה כוללת את כל הפלטפורמות.
     file(ARCHIVE_EXTRACT INPUT "${archive}" DESTINATION "${extract_dir}"
-      PATTERNS "${stem}/${inner_library}" "${stem}/LICENSE" "${stem}/ThirdPartyNotices.txt")
-    if(NOT EXISTS "${extract_dir}/${stem}/${inner_library}")
+      PATTERNS "${inner_library}" "LICENSE" "ThirdPartyNotices.txt")
+    if(NOT EXISTS "${extract_dir}/${inner_library}")
       message(FATAL_ERROR "${asset} has no ${inner_library}.")
     endif()
     file(WRITE "${stamp}" "${sha256}")
   endif()
 
-  install(FILES "${extract_dir}/${stem}/${inner_library}"
+  install(FILES "${extract_dir}/${inner_library}"
     DESTINATION "${destination}" RENAME "${library_name}" COMPONENT Runtime)
-  install(FILES "${extract_dir}/${stem}/LICENSE" "${extract_dir}/${stem}/ThirdPartyNotices.txt"
+  install(FILES "${extract_dir}/LICENSE" "${extract_dir}/ThirdPartyNotices.txt"
     DESTINATION "${destination}" COMPONENT Runtime)
 endfunction()
