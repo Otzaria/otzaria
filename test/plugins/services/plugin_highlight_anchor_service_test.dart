@@ -96,6 +96,132 @@ void main() {
     expect(result.range, isNull);
     expect(result.confidence, 0);
   });
+
+  test(
+    'keeps overlapping exact occurrences when rebuilding a moved anchor',
+    () {
+      final result = service.resolve(
+        anchor: _anchor('פתיחה ארוכה אא', 'אא', occurrenceIndex: 1),
+        sourceText: 'אאאא',
+      );
+
+      expect(result.status, 'active');
+      expect(result.strategy, 'context-or-occurrence');
+      expect(result.confidence, 0.85);
+      expect(result.range?.start.grapheme, 1);
+      expect(result.range?.end.grapheme, 3);
+      expect(result.range?.occurrenceIndexInSection, 1);
+      expect(result.range?.occurrenceCountInSection, 3);
+    },
+  );
+
+  test('finds a long repeated prefix and rejects a missing suffix', () {
+    final prefix = List.filled(200, 'א').join();
+    final exact = '$prefixב';
+    final anchor = _anchor('ג$exact', exact);
+    final result = service.resolve(
+      anchor: anchor,
+      sourceText: '${List.filled(1200, 'א').join()}ב',
+    );
+
+    expect(result.status, 'active');
+    expect(result.strategy, 'unique-exact-text');
+    expect(result.range?.start.grapheme, 1000);
+    expect(result.range?.end.grapheme, 1201);
+    expect(result.range?.occurrenceCountInSection, 1);
+    final missing = service.resolve(
+      anchor: anchor,
+      sourceText: List.filled(1200, 'א').join(),
+    );
+    expect(missing.status, 'failed_to_anchor');
+    expect(missing.strategy, 'text-not-found');
+  });
+
+  test(
+    'normalized candidates preserve emoji and reject overlapping ambiguity',
+    () {
+      final result = service.resolve(
+        anchor: _anchor('פתיחה אָ🙂ב', 'אָ🙂ב', normalizationProfile: 'search'),
+        sourceText: '#א🙂ב',
+      );
+
+      expect(result.status, 'active');
+      expect(result.strategy, 'unique-normalized-text');
+      expect(result.confidence, 0.75);
+      expect(result.range?.start.grapheme, 1);
+      expect(result.range?.end.grapheme, 4);
+      expect(result.range?.start.utf16, 1);
+      expect(result.range?.end.utf16, 5);
+      expect(result.range?.exactText, 'א🙂ב');
+      final ambiguous = service.resolve(
+        anchor: _anchor('פתיחה אָאָ', 'אָאָ', normalizationProfile: 'search'),
+        sourceText: 'אאא',
+      );
+      expect(ambiguous.status, 'stale');
+      expect(ambiguous.strategy, 'ambiguous-normalized-text');
+      expect(ambiguous.confidence, 0.4);
+    },
+  );
+
+  test('a unique positive context wins over the saved occurrence', () {
+    final result = service.resolve(
+      anchor: _anchor('aXb', 'X'),
+      sourceText: '#cXd|aXb',
+    );
+
+    expect(result.status, 'active');
+    expect(result.range?.start.grapheme, 6);
+    expect(result.range?.occurrenceIndexInSection, 1);
+  });
+
+  test('tied positive context falls back to occurrence or stays stale', () {
+    for (final occurrence in [1, -1, 2]) {
+      final result = service.resolve(
+        anchor: _anchor('aaXbb', 'X', occurrenceIndex: occurrence),
+        sourceText: '#aaXbb|aaXbb',
+      );
+
+      if (occurrence == 1) {
+        expect(result.status, 'active');
+        expect(result.range?.start.grapheme, 9);
+      } else {
+        expect(result.status, 'stale');
+        expect(result.range, isNull);
+        expect(result.strategy, 'ambiguous-exact-text');
+      }
+    }
+  });
+
+  test('zero context falls back to occurrence or stays stale', () {
+    for (final occurrence in [1, -1, 2]) {
+      final result = service.resolve(
+        anchor: _anchor('aXb', 'X', occurrenceIndex: occurrence),
+        sourceText: '##X|X',
+      );
+
+      if (occurrence == 1) {
+        expect(result.status, 'active');
+        expect(result.range?.start.grapheme, 4);
+      } else {
+        expect(result.status, 'stale');
+        expect(result.range, isNull);
+      }
+    }
+  });
+
+  test(
+    'a single candidate without context still requires a valid occurrence',
+    () {
+      for (final occurrence in [0, 1]) {
+        final result = service.resolve(
+          anchor: _anchor('X', 'X', occurrenceIndex: occurrence),
+          sourceText: '#X',
+        );
+        expect(result.status, occurrence == 0 ? 'active' : 'stale');
+        expect(result.range?.start.grapheme, occurrence == 0 ? 1 : null);
+      }
+    },
+  );
 }
 
 PluginTextRangeAnchor _anchor(

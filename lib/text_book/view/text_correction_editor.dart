@@ -143,16 +143,21 @@ List<TextDiffSegment> computeTextDiff(String before, String after) {
   }
 
   final segments = <TextDiffSegment>[];
+  var pendingText = StringBuffer();
+  TextDiffOp? pendingOp;
+  void flush() {
+    if (pendingOp == null) return;
+    segments.add(TextDiffSegment(pendingOp!, pendingText.toString()));
+    pendingText = StringBuffer();
+  }
+
   void add(TextDiffOp op, String text) {
     if (text.isEmpty) return;
-    if (segments.isNotEmpty && segments.last.op == op) {
-      segments[segments.length - 1] = TextDiffSegment(
-        op,
-        segments.last.text + text,
-      );
-    } else {
-      segments.add(TextDiffSegment(op, text));
+    if (pendingOp != op) {
+      flush();
+      pendingOp = op;
     }
+    pendingText.write(text);
   }
 
   add(TextDiffOp.equal, a.sublist(0, prefix).join());
@@ -167,6 +172,7 @@ List<TextDiffSegment> computeTextDiff(String before, String after) {
     }
   }
   add(TextDiffOp.equal, a.sublist(a.length - suffix).join());
+  flush();
   return segments;
 }
 

@@ -39,6 +39,27 @@ Link makeLink({
 }
 
 void main() {
+  test('retains hot line lookups while evicting cold line lookups', () {
+    final range = makeLink(index1: 1, index1End: 3000);
+    final point = makeLink(index1: 2, path2: 'point.txt');
+    final map = buildLinksByLineMap([range, point]);
+    final first = map[2]!;
+    final cold = map[3]!;
+    expect(map[2], same(first));
+    expect(first, [range, point]);
+    for (var line = 4; line <= 3000; line++) {
+      expect(map[line], [range]);
+      expect(map[line + 4000], isNull);
+      expect(map[2], same(first));
+    }
+    expect(map[3], [range]);
+    expect(map[3], isNot(same(cold)));
+    expect(map[2], same(first));
+    expect(first, [range, point]);
+    expect(() => first.clear(), throwsUnsupportedError);
+    expect(map[0], isNull);
+  });
+
   group('mergeLinksByIdentity', () {
     test('שומר טווחים, עוגנים ויעדים שונים באותו זוג שורות', () {
       final links = [

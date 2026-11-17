@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -321,6 +322,122 @@ void main() {
   // ולכן אינו נוגע בקובץ כלל.
   // ---------------------------------------------------------------------------
   group('מטמון מפת העמודים בזיכרון', () {
+    test('outline טעון מצטרף לטעינה פעילה ללא פתיחה נוספת', () async {
+      final books = seedLibrary(
+        textTitles: const ['ברכות-outline-מקביל'],
+        pdfPath: p.join(tempDir.path, 'mixed-outline-concurrent.pdf'),
+      );
+      final started = Completer<void>();
+      final release = Completer<void>();
+      var reads = 0;
+      pdfAnchorsReaderForTesting = (_) async {
+        reads++;
+        started.complete();
+        await release.future;
+        return collectPdfAnchors(_matchingOutline());
+      };
+
+      final toPdf = textToPdfPage(books.texts.first, 20, pdfBook: books.pdf);
+      await started.future;
+      final toText = pdfToTextPage(books.pdf, _matchingOutline(), 3);
+      await Future<void>.delayed(Duration.zero);
+      release.complete();
+
+      expect(await toPdf, 2);
+      expect(await toText, 30);
+      expect(reads, 1);
+    });
+
+    test('המרות מקבילות בשני הכיוונים חולקות טעינת PDF אחת', () async {
+      final books = seedLibrary(
+        textTitles: const ['ברכות-מקביל'],
+        pdfPath: p.join(tempDir.path, 'concurrent.pdf'),
+      );
+      final started = Completer<void>();
+      final release = Completer<void>();
+      var reads = 0;
+      pdfAnchorsReaderForTesting = (_) async {
+        reads++;
+        if (!started.isCompleted) started.complete();
+        await release.future;
+        return collectPdfAnchors(_matchingOutline());
+      };
+      final toPdf = textToPdfPage(books.texts.first, 20, pdfBook: books.pdf);
+      await started.future;
+      final toText = pdfToTextPage(books.pdf, const [], 3);
+      await Future<void>.delayed(Duration.zero);
+      release.complete();
+
+      expect(await toPdf, 2);
+      expect(await toText, 30);
+      expect(reads, 1);
+    });
+
+    test('TOC ריק בטעינה משותפת מתפנה ומאפשר ניסיון חוזר', () async {
+      final books = seedLibrary(
+        textTitles: const ['ברכות-תוכן-עניינים-מקביל'],
+        pdfPath: p.join(tempDir.path, 'empty-toc-concurrent.pdf'),
+        withToc: false,
+      );
+      final started = Completer<void>();
+      final release = Completer<void>();
+      var reads = 0;
+      pdfAnchorsReaderForTesting = (_) async {
+        reads++;
+        if (reads == 1) {
+          started.complete();
+          await release.future;
+        }
+        return collectPdfAnchors(_matchingOutline());
+      };
+
+      final toPdf = textToPdfPage(books.texts.first, 20, pdfBook: books.pdf);
+      await started.future;
+      final toText = pdfToTextPage(books.pdf, const [], 3);
+      final emptyConversions = Future.wait<int?>([toPdf, toText]);
+      await Future<void>.delayed(Duration.zero);
+      expect(reads, 1);
+      release.complete();
+
+      expect(await emptyConversions, [null, null]);
+      expect(reads, 1);
+      books.provider.toc = _tractateToc('ברכות-תוכן-עניינים-מקביל');
+      expect(await pdfToTextPage(books.pdf, const [], 3), 30);
+      expect(reads, 2);
+    });
+
+    test('כשל טעינה משותפת מתפנה ומאפשר ניסיון חוזר', () async {
+      final books = seedLibrary(
+        textTitles: const ['ברכות-ניסיון-חוזר'],
+        pdfPath: p.join(tempDir.path, 'retry-concurrent.pdf'),
+      );
+      final started = Completer<void>();
+      final release = Completer<void>();
+      var reads = 0;
+      pdfAnchorsReaderForTesting = (_) async {
+        reads++;
+        if (reads == 1) {
+          started.complete();
+          await release.future;
+          throw const FileSystemException('temporary failure');
+        }
+        return collectPdfAnchors(_matchingOutline());
+      };
+
+      final toPdf = textToPdfPage(books.texts.first, 20, pdfBook: books.pdf);
+      await started.future;
+      final toText = pdfToTextPage(books.pdf, const [], 3);
+      final failedConversions = Future.wait<int?>([toPdf, toText]);
+      await Future<void>.delayed(Duration.zero);
+      expect(reads, 1);
+      release.complete();
+
+      expect(await failedConversions, [null, null]);
+      expect(reads, 1);
+      expect(await pdfToTextPage(books.pdf, const [], 3), 30);
+      expect(reads, 2);
+    });
+
     test('מפה אמינה נשמרת ומשרתת את שני הכיוונים ללא גישה לקובץ', () async {
       // הקובץ אינו קיים: אילו הכיוון ההפוך לא היה נהנה מהמטמון, פתיחת ה-PDF
       // הייתה זורקת וההמרה הייתה מחזירה null.

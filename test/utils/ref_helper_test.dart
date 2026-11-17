@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
@@ -14,10 +16,14 @@ TocEntry _entry(String text, int index, int level, {List<TocEntry>? children}) {
   return e;
 }
 
-PdfOutlineNode _pdfNode(String title, int? page) => PdfOutlineNode(
+PdfOutlineNode _pdfNode(
+  String title,
+  int? page, [
+  List<PdfOutlineNode> children = const [],
+]) => PdfOutlineNode(
   title: title,
   dest: page == null ? null : PdfDest(page, PdfDestCommand.fit, null),
-  children: const [],
+  children: children,
 );
 
 void main() {
@@ -520,6 +526,113 @@ void main() {
         'ימי מוהרנת חלק ראשון, חלק ראשון',
       );
     });
+  });
+
+  group('PdfPageReferenceLookup', () {
+    test(
+      'empty outlines and pages before the first heading have no reference',
+      () {
+        expect(PdfPageReferenceLookup(null).referenceAt(100), '');
+        expect(PdfPageReferenceLookup(const []).referenceAt(100), '');
+        final lookup = PdfPageReferenceLookup([_pdfNode('פרק א', 3)]);
+        expect(lookup.referenceAt(2), '');
+        expect(lookup.referenceAt(3), 'פרק א');
+        expect(lookup.referenceAt(100), 'פרק א');
+      },
+    );
+
+    test(
+      'preserves hierarchy, trimming, duplicates and book title removal',
+      () {
+        final lookup = PdfPageReferenceLookup([
+          _pdfNode(' ספר ', 1, [
+            _pdfNode(' פרק א ', 2, [_pdfNode(' סעיף ', 3)]),
+            _pdfNode(' פרק ב ', 5),
+            _pdfNode(' פרק ג ', 5),
+          ]),
+        ], 'ספר');
+        expect(lookup.referenceAt(1), '');
+        expect(lookup.referenceAt(3), 'פרק א, סעיף');
+        expect(lookup.referenceAt(5), 'פרק ג');
+        expect(lookup.referenceAt(2), 'פרק א');
+        expect(lookup.referenceAt(3), 'פרק א, סעיף');
+      },
+    );
+
+    test(
+      'null destinations skip their children and unsorted siblings stay gated',
+      () {
+        final lookup = PdfPageReferenceLookup([
+          _pdfNode('א', 1, [_pdfNode('ילד מוקדם', 0)]),
+          _pdfNode('בלי יעד', null, [_pdfNode('אסור לבקר', 2)]),
+          _pdfNode('ב', 10, [
+            _pdfNode('ילד מאוחר', 20),
+            _pdfNode('ילד לא ממוין', 4),
+          ]),
+          _pdfNode('ג לא ממוין', 5),
+        ]);
+        expect(lookup.referenceAt(5), 'א, ילד מוקדם');
+        expect(lookup.referenceAt(10), 'ג לא ממוין');
+        expect(lookup.referenceAt(20), 'ג לא ממוין');
+      },
+    );
+
+    test(
+      'deep outlines preserve hierarchy for queries in arbitrary page order',
+      () {
+        const depth = 500;
+        var outline = <PdfOutlineNode>[];
+        for (var page = depth; page >= 1; page--) {
+          outline = [_pdfNode('כותרת $page', page, outline)];
+        }
+        final lookup = PdfPageReferenceLookup(outline);
+        for (final page in [depth, 1, depth ~/ 2, depth]) {
+          expect(
+            lookup.referenceAt(page),
+            [for (var i = 1; i <= page; i++) 'כותרת $i'].join(', '),
+          );
+        }
+      },
+    );
+
+    test('lookup retains its snapshot when the outline list changes', () {
+      final outline = [_pdfNode('פרק א', 1), _pdfNode('פרק ב', 5)];
+      final lookup = PdfPageReferenceLookup(outline);
+      outline
+        ..clear()
+        ..add(_pdfNode('כותרת אחרת', 1));
+
+      expect(lookup.referenceAt(2), 'פרק א');
+      expect(lookup.referenceAt(5), 'פרק ב');
+    });
+
+    test(
+      'matches the original traversal over deterministic irregular trees',
+      () {
+        final random = Random(4267);
+        List<PdfOutlineNode> makeOutline(int depth) => [
+          for (var i = 0, count = random.nextInt(5); i < count; i++)
+            _pdfNode(
+              ' רמה $depth כותרת $i ',
+              random.nextInt(5) == 0 ? null : random.nextInt(15) - 2,
+              depth < 3 ? makeOutline(depth + 1) : const [],
+            ),
+        ];
+        for (var sample = 0; sample < 100; sample++) {
+          final outline = makeOutline(0);
+          for (final bookTitle in <String?>[null, 'רמה 0 כותרת 0']) {
+            final lookup = PdfPageReferenceLookup(outline, bookTitle);
+            for (var page = 16; page >= -3; page--) {
+              expect(
+                lookup.referenceAt(page),
+                referenceFromPageNumber(page, outline, bookTitle),
+                reason: 'sample=$sample page=$page bookTitle=$bookTitle',
+              );
+            }
+          }
+        }
+      },
+    );
   });
 
   group('referenceFromPageNumber', () {

@@ -102,12 +102,25 @@ class _LinksByLineMap extends MapBase<int, List<Link>> {
     if (link.index1 < line) _collect(node.right, line, result);
   }
 
-  // כל גלילה שואלת שוב על אותן שורות; המפה קבועה, ולכן התשובה נשמרת.
-  final Map<int, List<Link>?> _memo = {};
+  // התקרה מגבילה שורות שנשאלו, כולל תוצאות ריקות; מספר הקישורים בכל שורה משתנה.
+  static const _maxMemoizedLines = 512;
+  final _memo = <int, List<Link>?>{};
 
   @override
-  List<Link>? operator [](Object? key) =>
-      key is int ? _memo.putIfAbsent(key, () => _lookup(key)) : null;
+  List<Link>? operator [](Object? key) {
+    if (key is! int) return null;
+    if (_memo.containsKey(key)) {
+      final cached = _memo.remove(key);
+      _memo[key] = cached;
+      return cached;
+    }
+    final result = _lookup(key);
+    _memo[key] = result;
+    if (_memo.length > _maxMemoizedLines) {
+      _memo.remove(_memo.keys.first);
+    }
+    return result;
+  }
 
   List<Link>? _lookup(int key) {
     final found = <_OrderedLink>[...?_starts[key]];

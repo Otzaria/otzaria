@@ -20,31 +20,15 @@ class ReaderSelectionService {
     this._sourceMapService = const TextSourceMapService(),
   });
 
-  /// Locates a selection inside one rendered section. Restricting the search
-  /// to the section chosen by the context menu prevents an identical phrase
-  /// in an earlier visible section from stealing the anchor.
+  /// מאתר בחירה רק בפסקה שהמשתמש בחר, כדי שמופע בפסקה אחרת לא יחליף אותה.
   ({int start, int end})? locateRenderedRange({
     required String renderedText,
     required String selectedText,
     int? startHint,
   }) {
     if (selectedText.isEmpty) return null;
-    final starts = <int>[];
-    var from = 0;
-    while (from <= renderedText.length - selectedText.length) {
-      final found = renderedText.indexOf(selectedText, from);
-      if (found < 0) break;
-      starts.add(found);
-      from = found + 1;
-    }
-    if (starts.isEmpty) return null;
-    final start = startHint == null
-        ? starts.first
-        : (starts..sort(
-                (a, b) =>
-                    (a - startHint).abs().compareTo((b - startHint).abs()),
-              ))
-              .first;
+    final start = _nearestMatchStart(renderedText, selectedText, startHint);
+    if (start < 0) return null;
     return (start: start, end: start + selectedText.length);
   }
 
@@ -620,24 +604,38 @@ class ReaderSelectionService {
     final needle = selectedText.replaceAll(RegExp(r'\s+'), ' ').trim();
     if (needle.isEmpty || needle.length > offsets.length) return null;
     final text = normalized.toString();
-    final starts = <int>[];
-    var from = 0;
-    while (from <= text.length - needle.length) {
-      final found = text.indexOf(needle, from);
-      if (found < 0) break;
-      starts.add(found);
-      from = found + 1;
-    }
-    if (starts.isEmpty) return null;
-    final start = startHint == null
-        ? starts.first
-        : (starts..sort(
-                (a, b) => (offsets[a] - startHint).abs().compareTo(
-                  (offsets[b] - startHint).abs(),
-                ),
-              ))
-              .first;
+    final start = _nearestMatchStart(
+      text,
+      needle,
+      startHint,
+      sourceOffsets: offsets,
+    );
+    if (start < 0) return null;
     return (start: offsets[start], end: offsets[start + needle.length - 1] + 1);
+  }
+
+  int _nearestMatchStart(
+    String text,
+    String needle,
+    int? startHint, {
+    List<int>? sourceOffsets,
+  }) {
+    var nearest = text.indexOf(needle);
+    if (nearest < 0 || startHint == null) return nearest;
+    var nearestDistance = ((sourceOffsets?[nearest] ?? nearest) - startHint)
+        .abs();
+    var found = nearest;
+    while (found >= 0) {
+      final sourceStart = sourceOffsets?[found] ?? found;
+      final distance = (sourceStart - startHint).abs();
+      if (distance < nearestDistance) {
+        nearest = found;
+        nearestDistance = distance;
+      }
+      if (sourceStart >= startHint) break;
+      found = text.indexOf(needle, found + 1);
+    }
+    return nearest;
   }
 
   PluginTextRangeAnchor? buildRangeAnchor({

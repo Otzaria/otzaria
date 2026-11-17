@@ -20,6 +20,17 @@ List<String> _shape(List<PdfOutlineNode> nodes) => [
 ];
 
 void main() {
+  test('heading lookup preserves boundaries and duplicate headings', () {
+    expect(tocLineAtOrBefore(const [], 7), 7);
+    expect(tocLineAtOrBefore(const [4], 3), 3);
+    expect(tocLineAtOrBefore(const [4], 4), 4);
+    expect(tocLineAtOrBefore(const [4], 9), 4);
+    expect(tocLineAtOrBefore(const [4, 4, 4, 9, 9, 12], 4), 4);
+    expect(tocLineAtOrBefore(const [4, 4, 4, 9, 9, 12], 8), 4);
+    expect(tocLineAtOrBefore(const [4, 4, 4, 9, 9, 12], 9), 9);
+    expect(tocLineAtOrBefore(const [4, 4, 4, 9, 9, 12], 20), 12);
+  });
+
   // כמו ב-PDF הש"ס: שורש בשם המסכת ודף בכל עמוד.
   final bavli = [
     _node('ברכות', 1, [

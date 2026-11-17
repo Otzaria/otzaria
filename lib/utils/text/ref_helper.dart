@@ -434,6 +434,62 @@ String referenceFromPageNumber(
   return texts.join(', ');
 }
 
+/// מיפוי כתובות לעמודי PDF רבים מתוך תמונת outline אחת, בלי לסרוק אותו לכל עמוד.
+class PdfPageReferenceLookup {
+  PdfPageReferenceLookup(List<PdfOutlineNode>? outline, [String? bookTitle])
+    : _bookTitle = bookTitle {
+    final entries = <({int page, int? parent, String title})>[];
+
+    void collect(List<PdfOutlineNode> nodes, int? parent, int? threshold) {
+      for (final node in nodes) {
+        final page = node.dest?.pageNumber;
+        if (page == null) continue;
+        // גם אח מוקדם בעל יעד מאוחר עוצר את הסריקה המקורית של שאר האחים.
+        threshold = threshold == null ? page : max(threshold, page);
+        final index = entries.length;
+        entries.add((page: threshold, parent: parent, title: node.title));
+        collect(node.children, index, threshold);
+      }
+    }
+
+    collect(outline ?? const [], null, null);
+    final pages = <int>[];
+    final indices = <int>[];
+    int? earliestPage;
+    for (var i = entries.length - 1; i >= 0; i--) {
+      final page = entries[i].page;
+      // הביקור האחרון בסדר DFS שמותר בעמוד הוא הנתיב שנשאר בסריקה המקורית.
+      if (earliestPage != null && page >= earliestPage) continue;
+      earliestPage = page;
+      pages.add(page);
+      indices.add(i);
+    }
+    _pages = pages.reversed.toList(growable: false);
+    _indices = indices.reversed.toList(growable: false);
+    _entries = entries;
+  }
+
+  late final List<int> _pages;
+  late final List<int> _indices;
+  late final List<({int page, int? parent, String title})> _entries;
+  final String? _bookTitle;
+
+  /// הכתובת של [pageNumber], גם בקריאות שאינן לפי סדר העמודים.
+  String referenceAt(int pageNumber) {
+    final count = _countAtMost(_pages, pageNumber);
+    if (count == 0) return '';
+    final titles = <String>[];
+    int? current = _indices[count - 1];
+    while (current != null) {
+      final entry = _entries[current];
+      titles.add(entry.title.trim());
+      current = entry.parent;
+    }
+    if (_bookTitle != null && titles.last == _bookTitle) titles.removeLast();
+    return titles.reversed.join(', ');
+  }
+}
+
 /// האינדקס הגדול ביותר מבין הכותרות שהאינדקס שלהן ושל כל אבותיהן <=
 /// [targetIndex], או null. נקראת בכל גלילה, ולכן במבנה עזר שנבנה פעם אחת לכל עץ.
 int? closestTocEntryIndex(List<TocEntry> entries, int targetIndex) {

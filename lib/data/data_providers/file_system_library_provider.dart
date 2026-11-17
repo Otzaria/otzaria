@@ -805,19 +805,25 @@ class FileSystemLibraryProvider implements LibraryProvider, LinkLinesProvider {
         ),
       ];
     }
-    final lines = const LineSplitter().convert(text);
-
-    if (lineIndex < 1 || lineIndex > lines.length) {
+    if (lineIndex < 1) {
       return [(lineIndex: lineIndex - 1, content: 'שגיאה: אינדקס מחוץ לטווח')];
     }
 
-    return [
-      for (
-        var i = lineIndex - 1;
-        i < (lastLineIndex ?? lineIndex).clamp(lineIndex, lines.length);
-        i++
-      )
-        (lineIndex: i, content: lines[i]),
-    ];
+    final end = lastLineIndex == null || lastLineIndex < lineIndex
+        ? lineIndex
+        : lastLineIndex;
+    final result = <LinkContentLine>[];
+    var current = 0;
+    for (final line in LineSplitter.split(text)) {
+      current++;
+      if (current >= lineIndex) {
+        result.add((lineIndex: current - 1, content: line));
+      }
+      if (current == end) break;
+    }
+    if (result.isEmpty) {
+      return [(lineIndex: lineIndex - 1, content: 'שגיאה: אינדקס מחוץ לטווח')];
+    }
+    return result;
   }
 }

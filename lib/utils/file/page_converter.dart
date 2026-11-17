@@ -12,6 +12,7 @@ import 'package:pdfrx/pdfrx.dart';
 
 // A cache for the generated page maps to avoid rebuilding them on every conversion.
 final _pageMapCache = <String, PageMap>{};
+final _pageMapLoads = <String, Future<PageMap>>{};
 
 /// מהדורת הטקסט של כל PDF, לפי מופע הספרייה — טעינה מחדש של הספרייה מתחילה נקי.
 final _companionTextBooks = Expando<Map<String, TextBook?>>();
@@ -48,31 +49,9 @@ Future<int?> textToPdfPage(
     return null;
   }
 
-  final key = '${pdfBook.path}::${textBook.title}';
-  final cached = _pageMapCache[key];
-  if (cached != null) {
-    if (!cached.hasReliableAnchors) {
-      return null;
-    }
-    return cached.textToPdf(textIndex);
-  }
-
   try {
-    final anchorsPdf = outline == null || outline.isEmpty
-        ? await _getPdfAnchors(pdfBook.path)
-        : collectPdfAnchors(outline);
-    final anchorsText = collectTextAnchors(await textBook.tableOfContents);
-    final map = _buildPageMap(pdfBook, anchorsPdf, anchorsText);
-    // גם מפה לא אמינה נשמרת, אחרת דפדוף בונה אותה מחדש בכל עמוד. תוכן עניינים
-    // ריק הוא המצב היחיד שעשוי להיות זמני (ה-DB טרם נטען) ולכן אינו נשמר.
-    if (anchorsText.isNotEmpty) {
-      _pageMapCache[key] = map;
-    }
-    if (!map.hasReliableAnchors) {
-      return null;
-    }
-
-    return map.textToPdf(textIndex);
+    final map = await _pageMapFor(textBook, pdfBook, outline);
+    return map.hasReliableAnchors ? map.textToPdf(textIndex) : null;
   } catch (e, st) {
     // null = אין מיפוי (הקוראים מסתמכים על כך). נבלע כאן גם PDF מוגן
     // בסיסמה (לגיטימי) וגם כשל בבניית המפה — הלוג מבחין ביניהם.
@@ -226,37 +205,44 @@ Future<int?> pdfToTextPage(
   if (textBook == null) {
     return null;
   }
-  final key = '${pdfBook.path}::${textBook.title}';
-  final cached = _pageMapCache[key];
-  if (cached != null) {
-    if (!cached.hasReliableAnchors) {
-      return null;
-    }
-    return cached.pdfToText(pdfPage);
-  }
-
   try {
-    // ה-outline של הטאב נטען ברקע; עד שיגיע קוראים את הסימניות מהקובץ.
-    // outline שנטען וריק מעוגנים אינו מצב זמני, ולכן אינו נקרא שוב.
-    final anchorsPdf = outline.isEmpty
-        ? await _getPdfAnchors(pdfBook.path)
-        : collectPdfAnchors(outline);
-    final anchorsText = collectTextAnchors(await textBook.tableOfContents);
-    final map = _buildPageMap(pdfBook, anchorsPdf, anchorsText);
-    if (anchorsText.isNotEmpty) {
-      _pageMapCache[key] = map;
-    }
-    if (!map.hasReliableAnchors) {
-      return null;
-    }
-
-    return map.pdfToText(pdfPage);
+    final map = await _pageMapFor(textBook, pdfBook, outline);
+    return map.hasReliableAnchors ? map.pdfToText(pdfPage) : null;
   } catch (e, st) {
     debugPrint(
       '[PageConverter] pdfToTextPage failed for "${pdfBook.path}": $e\n$st',
     );
     return null;
   }
+}
+
+Future<PageMap> _pageMapFor(
+  TextBook textBook,
+  PdfBook pdfBook,
+  List<PdfOutlineNode>? outline,
+) {
+  final key = '${pdfBook.path}::${textBook.title}';
+  final cached = _pageMapCache[key];
+  if (cached != null) return Future.value(cached);
+
+  // הקריאה הראשונה בוחרת את ה-outline; שתי ההמרות ממתינות לאותה מפה.
+  Future<PageMap> load() async {
+    final anchorsPdf = outline == null || outline.isEmpty
+        ? await _getPdfAnchors(pdfBook.path)
+        : collectPdfAnchors(outline);
+    final anchorsText = collectTextAnchors(await textBook.tableOfContents);
+    final map = _buildPageMap(pdfBook, anchorsPdf, anchorsText);
+    // TOC ריק עשוי להיות זמני; מפה לא אמינה עם TOC טעון נשמרת.
+    if (anchorsText.isNotEmpty) _pageMapCache[key] = map;
+    return map;
+  }
+
+  return _pageMapLoads.putIfAbsent(
+    key,
+    () => load().whenComplete(() {
+      _pageMapLoads.remove(key);
+    }),
+  );
 }
 
 /// Builds the synchronized anchor map from PDF anchors and text Table of Contents.

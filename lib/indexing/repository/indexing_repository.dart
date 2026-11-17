@@ -1808,10 +1808,11 @@ class IndexingRepository {
       );
       if (extracted == null) return empty;
 
+      final references = PdfPageReferenceLookup(outline, book.title);
       final pages = <({String reference, String text, int pageIndex})>[];
       for (final entry in extracted.texts.entries) {
         final i = entry.key;
-        final bookmark = referenceFromPageNumber(i + 1, outline, book.title);
+        final bookmark = references.referenceAt(i + 1);
         final ref = bookmark.isNotEmpty
             ? '${book.title}, $bookmark, עמוד ${i + 1}'
             : '${book.title}, עמוד ${i + 1}';
@@ -1898,13 +1899,10 @@ class IndexingRepository {
         ? ocrText.split('\f')
         : <String>[ocrText];
 
+    final references = PdfPageReferenceLookup(outline, book.title);
     final pages = <({String reference, String text, int pageIndex})>[];
     for (int pageIndex = 0; pageIndex < pagesText.length; pageIndex++) {
-      final bookmark = referenceFromPageNumber(
-        pageIndex + 1,
-        outline,
-        book.title,
-      );
+      final bookmark = references.referenceAt(pageIndex + 1);
       final ref = bookmark.isNotEmpty
           ? '${book.title}, $bookmark, עמוד ${pageIndex + 1}'
           : '${book.title}, עמוד ${pageIndex + 1}';

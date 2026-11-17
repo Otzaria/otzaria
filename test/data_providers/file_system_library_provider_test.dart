@@ -6,6 +6,7 @@ import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/file_system_library_provider.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
 
@@ -74,6 +75,45 @@ void main() {
         expect(keyToPath[storageKey], pdfPath);
       },
     );
+
+    test('תוכן קישור שומר טווחי שורות, CRLF ושורות ריקות', () async {
+      final personalDir = Directory(path.join(tempDir.path, 'אוצריא', 'אישי'));
+      await personalDir.create(recursive: true);
+      await File(path.join(personalDir.path, 'ספר.txt')).writeAsString(
+        'ראשונה\r\n\r\nשלישית\r\nרביעית\r\n',
+      );
+      final provider = FileSystemLibraryProvider.instance;
+      await provider.initialize();
+      await provider.loadBooks({});
+      Future<List<LinkContentLine>> read(int start, [int? end]) =>
+          provider.getLinkContentLines(
+            Link(
+              heRef: 'ספר',
+              index1: 1,
+              path2: 'ספר',
+              index2: start,
+              index2End: end,
+              connectionType: 'reference',
+            ),
+          );
+
+      expect(await read(2, 3), [
+        (lineIndex: 1, content: ''),
+        (lineIndex: 2, content: 'שלישית'),
+      ]);
+      expect(await read(3, 99), [
+        (lineIndex: 2, content: 'שלישית'),
+        (lineIndex: 3, content: 'רביעית'),
+      ]);
+      expect(await read(3, 1), [(lineIndex: 2, content: 'שלישית')]);
+      expect(await read(1), [(lineIndex: 0, content: 'ראשונה')]);
+      expect(await read(0), [
+        (lineIndex: -1, content: 'שגיאה: אינדקס לא תקין'),
+      ]);
+      expect(await read(5), [
+        (lineIndex: 4, content: 'שגיאה: אינדקס מחוץ לטווח'),
+      ]);
+    });
 
     test('מסווג TXT, DOCX ו-EPUB תאומים כסוגים נפרדים', () async {
       final personalDir = Directory(path.join(tempDir.path, 'אוצריא', 'אישי'));
