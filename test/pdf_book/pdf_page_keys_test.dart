@@ -523,42 +523,48 @@ void main() {
         }
       },
     );
-    testWidgets(
-      'החזקת PageDown/PageUp אחרי גרירה ממשיכה לדפדף: bookView=$bookView',
-      (tester) async {
-        final (bloc, tab) = await pumpBook(tester);
-        final controller = tab.pdfViewerController;
-        final document = controller.document;
-        try {
-          if (bookView) {
-            bloc.add(const SetLayoutMode(PdfLayoutMode.bookView));
-            await settle(tester, rounds: 30);
-          }
-          await dragIntoViewer(tester);
-          await tester.sendKeyDownEvent(LogicalKeyboardKey.pageDown);
-          await settle(tester, rounds: 20);
-          for (var i = 0; i < 3; i++) {
-            await tester.sendKeyRepeatEvent(LogicalKeyboardKey.pageDown);
+    for (final (next, previous) in [
+      (LogicalKeyboardKey.pageDown, LogicalKeyboardKey.pageUp),
+      (LogicalKeyboardKey.arrowLeft, LogicalKeyboardKey.arrowRight),
+    ]) {
+      testWidgets(
+        'החזקת ${next.keyLabel}/${previous.keyLabel} אחרי גרירה ממשיכה '
+        'לדפדף: bookView=$bookView',
+        (tester) async {
+          final (bloc, tab) = await pumpBook(tester);
+          final controller = tab.pdfViewerController;
+          final document = controller.document;
+          try {
+            if (bookView) {
+              bloc.add(const SetLayoutMode(PdfLayoutMode.bookView));
+              await settle(tester, rounds: 30);
+            }
+            await dragIntoViewer(tester);
+            await tester.sendKeyDownEvent(next);
             await settle(tester, rounds: 20);
-          }
-          await tester.sendKeyUpEvent(LogicalKeyboardKey.pageDown);
-          expect(controller.pageNumber, bookView ? 8 : 5);
+            for (var i = 0; i < 3; i++) {
+              await tester.sendKeyRepeatEvent(next);
+              await settle(tester, rounds: 20);
+            }
+            await tester.sendKeyUpEvent(next);
+            expect(controller.pageNumber, bookView ? 8 : 5);
 
-          await tester.sendKeyDownEvent(LogicalKeyboardKey.pageUp);
-          await settle(tester, rounds: 20);
-          for (var i = 0; i < 3; i++) {
-            await tester.sendKeyRepeatEvent(LogicalKeyboardKey.pageUp);
+            await tester.sendKeyDownEvent(previous);
             await settle(tester, rounds: 20);
+            for (var i = 0; i < 3; i++) {
+              await tester.sendKeyRepeatEvent(previous);
+              await settle(tester, rounds: 20);
+            }
+            await tester.sendKeyUpEvent(previous);
+            expect(controller.pageNumber, 1);
+            expect(tester.takeException(), isNull);
+          } finally {
+            await tester.pumpWidget(const SizedBox.shrink());
+            await disposePdfDocument(tester, document);
           }
-          await tester.sendKeyUpEvent(LogicalKeyboardKey.pageUp);
-          expect(controller.pageNumber, 1);
-          expect(tester.takeException(), isNull);
-        } finally {
-          await tester.pumpWidget(const SizedBox.shrink());
-          await disposePdfDocument(tester, document);
-        }
-      },
-    );
+        },
+      );
+    }
   }
 
   testWidgets('שחרור PageDown אחרי גרירה מבטל דפדופים שממתינים בתצוגת ספר', (

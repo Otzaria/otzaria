@@ -1860,28 +1860,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       },
       onKey: (params, key, isRealKeyPress) {
         // הפוקוס החיצוני מטפל גם בחזרות ובשחרור, כולל ביטול תור הדפדוף.
-        if (key == LogicalKeyboardKey.pageDown ||
-            key == LogicalKeyboardKey.pageUp) {
-          return false;
-        }
+        if (_isPageTurnKey(key)) return false;
         final keyboard = HardwareKeyboard.instance;
         // צירופי Ctrl, כולל Ctrl+C ו-Ctrl+A, מטופלים בפוקוס החיצוני.
         if (keyboard.isAltPressed ||
             keyboard.isControlPressed ||
             keyboard.isMetaPressed) {
           return false;
-        }
-        if (key == LogicalKeyboardKey.arrowLeft) {
-          if (isRealKeyPress) {
-            _goNextPage();
-          }
-          return true;
-        }
-        if (key == LogicalKeyboardKey.arrowRight) {
-          if (isRealKeyPress) {
-            _goPreviousPage();
-          }
-          return true;
         }
         return null;
       },
