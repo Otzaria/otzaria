@@ -26,16 +26,16 @@ Future<void> main() async {
     // שינוי הרחבות החיפוש דורש אימות נפרד של תוצאות וביצועים בשני הכיוונים.
     expect(
       sha256.convert(bytes).toString(),
-      'bea6b34a6dce8fef7cbfa00509a75bbd4557b8b33af8b82890c4bfe007db1633',
+      '6806ab9b1ddc53501da080ca78875ed9203f8c7e5a5b8821ee15d16116f32c6c',
     );
     final search = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
-    expect(search.length, 13165);
+    expect(search.length, 13172);
     expect(
       search.values.fold<int>(
         0,
         (n, meanings) => n + (meanings as List).length,
       ),
-      29126,
+      29137,
     );
     final dictionary =
         jsonDecode(await rootBundle.loadString('assets/Acronyms.json'))
@@ -76,6 +76,8 @@ Future<void> main() async {
       'מקח וממכר',
       'מעלה ומטה',
       'מו"מ',
+      'פסק רבנו משה בן מימון',
+      'רמב"ם כאן',
     ];
     for (var i = 0; i < lines.length; i++) {
       await engine.addDocument(
@@ -119,5 +121,7 @@ Future<void> main() async {
     expect(await find('או"א'), [0, 1, 2, 3]);
     expect(await find('בה"מ'), [5, 6]);
     expect(await find('מו"מ'), [7, 8, 9]);
+    // רמב"ם חסר בבסיס ההיסטורי וצורף ב-search_additions.json.
+    expect(await find('רמב"ם'), [10, 11]);
   }, skip: ready ? false : searchEngineSkipReason);
 }

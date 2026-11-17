@@ -203,6 +203,7 @@ class SearchAsset(unittest.TestCase):
             args = ["merge.py", "--baseline", baseline, "--target", target, "--search-target", search]
             with patch.object(merge, "read_ledger", return_value=[row('ב"ה', "בית הלל")]), \
                     patch.object(merge, "read_removals", return_value={('א"א', "אשת איש")}), \
+                    patch.object(merge, "read_search_additions", return_value={}), \
                     patch("builtins.print"):
                 with patch.object(sys, "argv", args + ["--out", target, "--search-out", search]):
                     merge.main()
@@ -220,6 +221,35 @@ class SearchAsset(unittest.TestCase):
                 with patch.object(sys, "argv", args + ["--check"]), self.assertRaises(SystemExit) as result:
                     merge.main()
                 self.assertEqual(result.exception.code, 1)
+
+
+class SearchAdditions(unittest.TestCase):
+    def test_new_keys_enter_in_alphabetical_place_and_existing_ones_stay_untouched(self):
+        out = merge.search_lexicon(BASE, {'ג"א': ["גאון אחד"], 'א"ב': ["אין בו", "איכא בנייהו"]})
+        self.assertEqual(list(out), ['א"א', 'א"ב', 'ב"ד', 'ג"א', 'ג"ש'])
+        self.assertEqual({k: out[k] for k in BASE}, BASE)
+        self.assertEqual(merge.search_lexicon(BASE, {}), BASE)
+
+    def test_a_key_the_baseline_has_is_rejected_even_with_other_quotes(self):
+        with self.assertRaises(ValueError):
+            merge.search_lexicon(BASE, {"בד": ["בית דין שני"]})
+        with self.assertRaises(ValueError):
+            merge.search_lexicon(BASE, {'ב״ד': ["בית דין שני"]})
+
+    def test_shipped_additions_are_reviewed_dictionary_entries_the_search_lacked(self):
+        root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "assets")
+        with open(os.path.join(root, "Acronyms.json"), encoding="utf-8") as f:
+            dictionary = json.load(f)
+        with open(os.path.join(root, "search_acronyms.json"), encoding="utf-8") as f:
+            search = json.load(f)
+        additions = merge.read_search_additions()
+        self.assertTrue(additions)
+        for key, expansions in additions.items():
+            self.assertEqual(search[key], expansions, key)
+            self.assertTrue(set(expansions) <= set(dictionary[key]), key)
+            # the engine skips one-word expansions, so an addition must have words to search
+            self.assertTrue(all(len(e.split()) >= 2 for e in expansions), key)
+            self.assertLessEqual(len(expansions), 16, key)
 
 
 class Imports(unittest.TestCase):

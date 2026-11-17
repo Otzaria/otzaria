@@ -25,6 +25,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 LEDGER = os.path.join(HERE, "data", "decisions.csv")
 SOURCES = os.path.join(HERE, "data", "sources.json")
 REMOVALS = os.path.join(HERE, "data", "baseline_removals.csv")
+SEARCH_ADDITIONS = os.path.join(HERE, "data", "search_additions.json")
 REMOVAL_COLUMNS = ["key", "expansion", "reason"]
 # Only these reasons delete a baseline meaning: the "meaning" is the key itself (or another acronym) and decodes nothing.
 # Gematria values (ט״ו = חמישה עשר) stay listed in the CSV as suggestions; they can be useful and are not deleted.
@@ -83,6 +84,34 @@ def read_removals(path=REMOVALS):
         return set()
     with open(path, encoding="utf-8", newline="") as f:
         return {(r["key"], r["expansion"]) for r in csv.DictReader(f) if r["reason"] in REMOVAL_REASONS}
+
+
+def read_search_additions(path=SEARCH_ADDITIONS):
+    """Keys the full-text search lexicon gets beyond the frozen baseline: {acronym: [expansions]}.
+
+    Each one is a key the search lexicon lacks although the dictionary has it with reviewed expansions (see README)."""
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def search_lexicon(baseline, additions):
+    """The search lexicon: the baseline unchanged, plus new keys at their alphabetical position.
+
+    An addition never touches an existing key (the engine caps expansions per key), so a key that the baseline already
+    has, even spelled with other quotes, is an error."""
+    quote_free = lambda key: re.sub("[\"'׳״]", "", key)
+    taken = {quote_free(k) for k in baseline}
+    out = dict(baseline)
+    keys = list(baseline)
+    for key in sorted(additions):
+        if quote_free(key) in taken:
+            raise ValueError(f"search addition {key!r} is already a key of the search lexicon")
+        taken.add(quote_free(key))
+        keys.insert(bisect.bisect_right(keys, key), key)
+        out[key] = list(additions[key])
+    return {k: out[k] for k in keys}
 
 
 def ledger_id(row):
@@ -213,7 +242,7 @@ def main():
     ap.add_argument("--baseline", required=True, help="pre-expansion Acronyms.json (git show 35e23e7f5:assets/Acronyms.json; see README)")
     ap.add_argument("--import", dest="imports", action="append", default=[], help="review-page export CSV to fold into the ledger")
     ap.add_argument("--out", help="write the merged dictionary here")
-    ap.add_argument("--search-out", help="write the unchanged baseline as a compact full-text search lexicon")
+    ap.add_argument("--search-out", help="write the baseline plus data/search_additions.json as a compact full-text search lexicon")
     ap.add_argument("--human-only", action="store_true", help="leave out agent_approved rows even from sources that are flagged merge_agent_checked")
     ap.add_argument("--check", action="store_true", help="verify that --target equals baseline + ledger")
     ap.add_argument("--target", default=os.path.join(HERE, "..", "..", "assets", "Acronyms.json"))
@@ -237,7 +266,8 @@ def main():
     merged, stats = apply(baseline, ledger, a.human_only, read_removals(), load_sources())
     print(stats)
     data = dump(merged)
-    search_data = json.dumps(baseline, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    search = search_lexicon(baseline, read_search_additions())
+    search_data = json.dumps(search, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     if a.check:
         ok = True
         for path, expected in [(a.target, data), (a.search_target, search_data)]:
