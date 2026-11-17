@@ -1445,6 +1445,7 @@
   "{count} מסדים": "{count} databases",
   "בדוק מחדש את המסדים": "Recheck Databases",
   "הוסף תיקיית מסדים": "Add Database Folder",
+  "הוסף קובץ מסד": "Add Database File",
   "ייבא קובץ מסד": "Import Database File",
   "תיקיית מסדים": "Database Folder",
   "בנפרד": "Separate",

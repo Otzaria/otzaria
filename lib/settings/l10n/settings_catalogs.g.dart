@@ -423,6 +423,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'ההתקנה נקטעה. אפשר להתחיל אותה שוב מהקובץ שכבר הורד.': 'The installation was interrupted. You can restart it using the downloaded file.',
     'הוסף': 'Add',
     'הוסף סימניה': 'Add Bookmark',
+    'הוסף קובץ מסד': 'Add Database File',
     'הוסף קיצור': 'Add shortcut',
     'הוסף קיצור דינמי': 'Add Dynamic Shortcut',
     'הוסף קיצור לפעולה זמינה': 'Add a shortcut for an action',
