@@ -628,6 +628,65 @@ void main() {
     });
   });
 
+  testWidgets('עדכון ספירות וסינון חולקים את סדר הקטלוג', (tester) async {
+    const categoryPath = '/תנ"ך';
+    final books = List.generate(
+      192,
+      (i) => _OrderCountingBook(i + 1, 'ספר ${i + 1}', 192 - i, categoryPath),
+    );
+    final library = makeLibraryFrom([
+      makeCategory(
+        'תנ"ך',
+        books: [...books, makeBook(192, 'כפול', categoryPath)],
+      ),
+    ]);
+    int orderReads() => books.fold(0, (total, book) => total + book.orderReads);
+
+    for (var count = 1; count <= 10; count++) {
+      final readsBefore = orderReads();
+      await pumpTree(
+        tester,
+        library: library,
+        expansion: const {categoryPath: true},
+        facetCounts: {
+          '/': count,
+          categoryPath: count,
+          '$categoryPath/id:192': count,
+        },
+      );
+      expect(find.text('ספר 192'), findsOneWidget);
+      expect(find.text('כפול'), findsNothing);
+      expect(find.text('($count)'), findsWidgets);
+      if (count == 1) {
+        expect(orderReads(), greaterThan(readsBefore));
+      } else {
+        expect(orderReads(), readsBefore);
+      }
+    }
+
+    final readsBeforeFilter = orderReads();
+    await pumpTree(
+      tester,
+      library: library,
+      filterQuery: 'ספר 192',
+      facetCounts: const {'$categoryPath/id:192': 3},
+    );
+    expect(find.text('ספר 192'), findsOneWidget);
+    expect(orderReads(), readsBeforeFilter);
+
+    final replacement = makeLibraryFrom([
+      makeCategory('תנ"ך', books: [makeBook(192, 'מהדורה אחרת', categoryPath)]),
+    ]);
+    await pumpTree(
+      tester,
+      library: replacement,
+      expansion: const {categoryPath: true},
+      facetCounts: const {'/': 1, categoryPath: 1, '$categoryPath/id:192': 1},
+    );
+    expect(find.text('מהדורה אחרת'), findsOneWidget);
+    expect(find.text('ספר 192'), findsNothing);
+  });
+
   group('הסינון הפעיל חייב להישאר גלוי בעץ', () {
     Library nestedLibrary() => makeLibraryFrom([
       makeCategory(
@@ -1245,4 +1304,17 @@ void main() {
       expect(find.text('סדר זרעים'), findsNothing);
     });
   });
+}
+
+class _OrderCountingBook extends TextBook {
+  _OrderCountingBook(int id, String title, int order, String categoryPath)
+    : super(id: id, title: title, order: order, categoryPath: categoryPath);
+
+  int orderReads = 0;
+
+  @override
+  int get order {
+    orderReads++;
+    return super.order;
+  }
 }
