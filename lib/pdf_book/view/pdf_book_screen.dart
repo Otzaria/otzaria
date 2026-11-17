@@ -1860,28 +1860,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       },
       onKey: (params, key, isRealKeyPress) {
         // הפוקוס החיצוני מטפל גם בחזרות ובשחרור, כולל ביטול תור הדפדוף.
-        if (key == LogicalKeyboardKey.pageDown ||
-            key == LogicalKeyboardKey.pageUp) {
-          return false;
-        }
+        if (_isPageTurnKey(key)) return false;
         final keyboard = HardwareKeyboard.instance;
         // צירופי Ctrl, כולל Ctrl+C ו-Ctrl+A, מטופלים בפוקוס החיצוני.
         if (keyboard.isAltPressed ||
             keyboard.isControlPressed ||
             keyboard.isMetaPressed) {
           return false;
-        }
-        if (key == LogicalKeyboardKey.arrowLeft) {
-          if (isRealKeyPress) {
-            _goNextPage();
-          }
-          return true;
-        }
-        if (key == LogicalKeyboardKey.arrowRight) {
-          if (isRealKeyPress) {
-            _goPreviousPage();
-          }
-          return true;
         }
         return null;
       },
@@ -2328,7 +2313,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               // שחרור אחרי החזקה מבטל את התור; לחיצות קצרות שומרות את הדפדוף שלהן.
               if (_isPageTurnKey(event.logicalKey)) {
                 final wasHeld = _heldArrowKeys.remove(event.logicalKey);
-                if (wasHeld) {
+                if (wasHeld && _pendingPageTurns.isNotEmpty) {
                   _pendingPageTurns.clear();
                   // הלחיצה הבאה תמשיך מיעד האנימציה הפעילה ולא מהתור שבוטל.
                   _lastInitiatedTargetPage = _inFlightAnimationTarget;
