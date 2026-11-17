@@ -193,6 +193,7 @@ void main() {
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
     registerFallbackValue(const NavigateToScreen(Screen.reading));
+    registerFallbackValue(const SelectTopics([]));
     registerFallbackValue(const ClearTabSelection());
     registerFallbackValue(CloseAllTabs());
     registerFallbackValue(
@@ -245,6 +246,163 @@ void main() {
           expect(find.text('פתח נבחרים'), findsNothing);
         },
       );
+
+      for (final previewEnabled in [false, true]) {
+        testWidgets('regression: Enter opens Ctrl/Shift selection, '
+            'preview=$previewEnabled', (tester) async {
+          final h = await _pumpBrowser(
+            tester,
+            books: books,
+            viewMode: mode,
+            previewEnabled: previewEnabled,
+            openTabs: [TextBookTab(book: TextBook(title: 'פתוח'), index: 0)],
+          );
+          await _tapWith(
+            tester,
+            find.text('ספר ב'),
+            holding: LogicalKeyboardKey.controlLeft,
+          );
+          await _tapWith(
+            tester,
+            find.text('ספר ד'),
+            holding: LogicalKeyboardKey.shiftLeft,
+          );
+          // Focus a book outside the selection: Enter acts on the selection.
+          Focus.of(tester.element(find.text('ספר א'))).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+          expect(h.openedTitles(), ['ספר ב', 'ספר ג', 'ספר ד']);
+          expect(find.text('פתח נבחרים'), findsNothing);
+          verify(
+            () => h.historyBloc.add(any(that: isA<CaptureStateForHistory>())),
+          ).called(1);
+          verify(
+            () => h.navigationBloc.add(const NavigateToScreen(Screen.reading)),
+          ).called(1);
+        });
+
+        testWidgets('regression: Enter with search focus opens selection, '
+            'preview=$previewEnabled', (tester) async {
+          final h = await _pumpBrowser(
+            tester,
+            books: books,
+            viewMode: mode,
+            previewEnabled: previewEnabled,
+          );
+          await _tapWith(
+            tester,
+            find.text('ספר א'),
+            holding: LogicalKeyboardKey.controlLeft,
+          );
+          await _tapWith(
+            tester,
+            find.text('ספר ב'),
+            holding: LogicalKeyboardKey.controlLeft,
+          );
+          tester
+              .element(find.byType(LibraryBrowser))
+              .read<FocusRepository>()
+              .librarySearchFocusNode
+              .requestFocus();
+          await tester.pump();
+          await tester.testTextInput.receiveAction(TextInputAction.search);
+          await tester.pumpAndSettle();
+          expect(h.openedTitles(), ['ספר א', 'ספר ב']);
+          expect(find.text('פתח נבחרים'), findsNothing);
+        });
+
+        testWidgets('regression: single click keeps preview/open behavior, '
+            'preview=$previewEnabled', (tester) async {
+          final h = await _pumpBrowser(
+            tester,
+            books: books,
+            viewMode: mode,
+            previewEnabled: previewEnabled,
+          );
+          await _tapWith(tester, find.text('ספר ב'));
+          expect(find.text('פתח נבחרים'), findsNothing);
+          if (previewEnabled) {
+            verify(
+              () => h.libraryBloc.add(any(that: isA<SelectBookForPreview>())),
+            ).called(greaterThanOrEqualTo(1));
+            verifyNever(() => h.tabsBloc.add(any()));
+          } else {
+            expect(h.openedTitles(), ['ספר ב']);
+          }
+        });
+
+        testWidgets('regression: double click opens one book, '
+            'preview=$previewEnabled', (tester) async {
+          final h = await _pumpBrowser(
+            tester,
+            books: books,
+            viewMode: mode,
+            previewEnabled: previewEnabled,
+          );
+          await tester.tap(find.text('ספר ב'));
+          await tester.pump(const Duration(milliseconds: 50));
+          await tester.tap(find.text('ספר ב'));
+          await tester.pumpAndSettle();
+          expect(find.text('פתח נבחרים'), findsNothing);
+          expect(h.openedTitles(), ['ספר ב']);
+        });
+
+        testWidgets('regression: canceled/dragged selection does not affect '
+            'the next click, preview=$previewEnabled', (tester) async {
+          final h = await _pumpBrowser(
+            tester,
+            books: books,
+            viewMode: mode,
+            previewEnabled: previewEnabled,
+          );
+          await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+          final canceled = await tester.startGesture(
+            tester.getCenter(find.text('ספר ב')),
+          );
+          await canceled.cancel();
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+          await tester.pump();
+          await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+          final dragged = await tester.startGesture(
+            tester.getCenter(find.text('ספר ב')),
+          );
+          await dragged.moveBy(const Offset(0, -80));
+          await dragged.up();
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+          await tester.pumpAndSettle();
+          expect(find.text('פתח נבחרים'), findsNothing);
+          await _tapWith(tester, find.text('ספר ב'));
+          expect(find.text('פתח נבחרים'), findsNothing);
+          if (previewEnabled) {
+            verifyNever(() => h.tabsBloc.add(any()));
+          } else {
+            expect(h.openedTitles(), ['ספר ב']);
+          }
+        });
+
+        testWidgets('regression: rapid modifier clicks keep their own gesture, '
+            'preview=$previewEnabled', (tester) async {
+          final h = await _pumpBrowser(
+            tester,
+            books: books,
+            viewMode: mode,
+            previewEnabled: previewEnabled,
+          );
+          await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+          await tester.tap(find.text('ספר א'));
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+          await tester.pump(const Duration(milliseconds: 50));
+          await tester.tap(find.text('ספר ב'));
+          await tester.pump(const Duration(milliseconds: 400));
+          await tester.pump();
+          expect(find.text('2 ספרים נבחרו'), findsOneWidget);
+          verifyNever(() => h.tabsBloc.add(any()));
+          await tester.tap(find.text('פתח נבחרים'));
+          await tester.pumpAndSettle();
+          expect(h.openedTitles(), ['ספר א', 'ספר ב']);
+        });
+      }
 
       testWidgets(
         'כשיש טאב פתוח, ההיסטוריה נלכדת פעם אחת בלבד לכל הפתיחה המרובה',
@@ -421,7 +579,7 @@ void main() {
       });
 
       for (final previewEnabled in [false, true]) {
-        testWidgets('Enter בזמן בחירה שומר את חוזה הפתיחה '
+        testWidgets('Enter בזמן בחירה פותח את הנבחרים '
             '(תצוגה מקדימה: $previewEnabled)', (tester) async {
           final h = await _pumpBrowser(
             tester,
@@ -438,13 +596,8 @@ void main() {
           await tester.pump();
           await tester.sendKeyEvent(LogicalKeyboardKey.enter);
           await tester.pump();
-          if (previewEnabled) {
-            expect(find.text('ספר אחד נבחר'), findsOneWidget);
-            expect(h.openedTitles(), ['ספר ב']);
-          } else {
-            expect(find.text('ספר אחד נבחר'), findsNothing);
-            verifyNever(() => h.tabsBloc.add(any()));
-          }
+          expect(find.text('ספר אחד נבחר'), findsNothing);
+          expect(h.openedTitles(), ['ספר ב']);
         });
       }
 
