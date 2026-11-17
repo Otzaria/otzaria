@@ -65,15 +65,22 @@ class UserBooksDatabaseHolder {
   /// נתיב ה-DB. שימושי בזרימות isolate שצריכות לפתוח את הקובץ ישירות.
   static Future<String> resolveDbPath() => AppPaths.resolveUserBooksDbPath();
 
+  static Future<void> _backfillLineRefIndexes(MyDatabase database) async {
+    final repository = SeforimRepository(database);
+    await repository.configureConnection();
+    await repository.backfillMissingLineRefIndexes();
+  }
+
   Future<SeforimRepository> _initialize() async {
     final dbPath = await AppPaths.resolveUserBooksDbPath();
     debugPrint('📚 [UserBooksDB] Opening user_books.db at $dbPath');
-    final db = await MyDatabase.openWritableInBackground(dbPath);
+    final db = await MyDatabase.openWritableInBackground(
+      dbPath,
+      prepare: _backfillLineRefIndexes,
+    );
     final repo = SeforimRepository(db);
     try {
       await repo.ensureInitialized();
-      // ספרים אישיים שנוצרו לפני אינדקס ההפניות — בנייה חד-פעמית.
-      await repo.backfillMissingLineRefIndexes();
     } catch (_) {
       await db.retireInBackground();
       rethrow;

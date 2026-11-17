@@ -169,31 +169,29 @@ class SeforimRepository {
     _initialized = true;
   }
 
-  Future<void> _initialize() async {
-    _logger.info('Initializing SeforimRepository');
-
-    // Ensure QueryLoader and database are initialized first
-    await _database.database;
-
-    // journal_mode/synchronous נקבעים בפתיחה ([openWritableDatabase]): כאן
-    // WAL חוזר היה עוקף את החזרה ל-journal רגיל כש-WAL אינו שמיש.
-    // cache_size שלילי = קילובייטים (חיובי = עמודים!). חיבור הקריאה נשאר פתוח
-    // לכל אורך הריצה, ולכן מטמון ה-heap שלו תורם ישירות לצריכת ה-RAM במצב סרק.
-    // 32MB מספיק; ה-OS file cache וה-mmap מכסים את רוב הקריאות ממילא.
-    // מסד מצורף: כמה כאלה פתוחים במקביל, ומטמון גדול לכל אחד מצטבר ל-RAM.
-    await _executeRawQuery(
+  /// מכוונן את החיבור לקריאות המאגר גם לפני טעינת המטא־נתונים.
+  Future<void> configureConnection() async {
+    final db = await _database.database;
+    // cache_size שלילי נמדד בקילובייטים. למסדים מצורפים תקרה קטנה יותר
+    // כי כמה חיבורים כאלה עשויים להישאר פתוחים במקביל.
+    db.execute(
       _database.isUntrusted
           ? 'PRAGMA cache_size=-8000' // 8MB
           : 'PRAGMA cache_size=-32000', // 32MB
     );
-    await _executeRawQuery('PRAGMA temp_store=MEMORY');
+    db.execute('PRAGMA temp_store=MEMORY');
     // מסד מצורף: mmap כבוי בכוונה — ראה openUntrustedReadOnlyDatabase.
     if (!_database.isUntrusted) {
-      await _executeRawQuery('PRAGMA mmap_size=67108864'); // 64MB
+      db.execute('PRAGMA mmap_size=67108864'); // 64MB
     }
     if (!_database.isReadOnly) {
-      await _executeRawQuery('PRAGMA page_size=4096');
+      db.execute('PRAGMA page_size=4096');
     }
+  }
+
+  Future<void> _initialize() async {
+    _logger.info('Initializing SeforimRepository');
+    await configureConnection();
 
     try {
       // ה-worker סופר בחיבור שלו; אין לפתוח אותו בשביל לוג בזמן אתחול ה-UI.
@@ -1970,16 +1968,6 @@ class SeforimRepository {
   /// lastModified), ולכן חוסכים את מעברי היחסים היקרים של [getAllBooks].
   Future<List<Book>> getAllBooksLean() async {
     return _database.bookDao.getAllBooks();
-  }
-
-  /// Executes a raw SQL query.
-  /// This is useful for operations that are not covered by the generated queries,
-  /// such as enabling or disabling foreign key constraints.
-  ///
-  /// @param sql The SQL query to execute
-  Future<void> _executeRawQuery(String sql) async {
-    final db = await _database.database;
-    db.execute(sql);
   }
 
   /// Checks if a book with the given title, category and file type already exists in the database.

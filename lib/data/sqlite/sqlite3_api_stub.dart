@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:sqlite3/common.dart';
 
 export 'package:sqlite3/common.dart';
@@ -17,7 +19,7 @@ class _UnsupportedSqlite3 implements CommonSqlite3 {
 
 const CommonSqlite3 sqlite3 = _UnsupportedSqlite3();
 
-Future<Database> openSqliteInBackground(Database Function() open) =>
+Future<Database> openSqliteInBackground(FutureOr<Database> Function() open) =>
     Future.sync(open);
 
 /// `releaseMemory` קיים רק ב-Database הנייטיבי.

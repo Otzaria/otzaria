@@ -10,7 +10,9 @@ import 'package:otzaria/migration/database/repository/off_ui_deletion.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart';
 import 'package:otzaria/migration/models/category.dart';
+import 'package:otzaria/migration/models/line.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/utils/text/ref_key.dart';
 import 'package:path/path.dart' as path;
 import 'package:sqlite3/sqlite3.dart';
 
@@ -231,6 +233,56 @@ void main() {
         isTrue,
         reason: 'הקריאה השנייה חייבת להחזיר את אותו repository, בלי לאתחל מחדש',
       );
+    });
+
+    test('אתחול משלים אינדקס הפניות בחיבור מכוונן מול כותב מקביל', () async {
+      final holder = UserBooksDatabaseHolder.instance;
+      final dbPath = await UserBooksDatabaseHolder.resolveDbPath();
+      final legacy = MyDatabase.withPath(dbPath);
+      final seed = SeforimRepository(legacy);
+      late final int bookId;
+      try {
+        await seed.ensureInitialized();
+        bookId = await addBook(seed);
+        await seed.insertLine(
+          Line(
+            bookId: bookId,
+            lineIndex: 11,
+            content: 'פסוק',
+            heRef: 'יישאר לב, יא',
+          ),
+        );
+        final db = await legacy.database;
+        db.execute('''
+          CREATE TRIGGER check_backfill_connection BEFORE INSERT ON line_ref
+          WHEN (SELECT cache_size FROM pragma_cache_size) <> -32000
+            OR (SELECT temp_store FROM pragma_temp_store) <> 2
+          BEGIN
+            SELECT RAISE(ABORT, 'line_ref backfill used an untuned connection');
+          END;
+        ''');
+      } finally {
+        legacy.close();
+      }
+
+      final writer = sqlite3.open(dbPath)..execute('BEGIN IMMEDIATE');
+      final opening = holder.repository;
+      await Future.wait([
+        Future<void>.delayed(const Duration(milliseconds: 150), () {
+          try {
+            expect(holder.repositoryIfInitialized, isNull);
+          } finally {
+            writer.close();
+          }
+        }),
+        opening.then((repository) async {
+          final resolved = await repository.resolveRefKeyInBook(
+            bookId,
+            buildRefKey('לב יא')!,
+          );
+          expect(resolved?.lineIndex, 11);
+        }),
+      ]);
     });
 
     test('close() משחרר את ה-state — אתחול עוקב יוצר instance חדש', () async {

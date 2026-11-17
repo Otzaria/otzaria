@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ffi';
 import 'dart:isolate';
 
@@ -6,9 +7,11 @@ import 'package:sqlite3/sqlite3.dart';
 export 'package:sqlite3/sqlite3.dart';
 
 /// פותח חיבור ב-isolate ומעביר בעלות לקורא. החיבור לא יכול לכלול callbacks של Dart.
-Future<Database> openSqliteInBackground(Database Function() open) async {
-  final address = await Isolate.run(() {
-    final db = open();
+Future<Database> openSqliteInBackground(
+  FutureOr<Database> Function() open,
+) async {
+  final address = await Isolate.run(() async {
+    final db = await open();
     final address = db.leak().address;
     db.close();
     return address;
