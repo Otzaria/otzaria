@@ -46,12 +46,6 @@ class PluginSectionTextMapService {
       );
     }
     final layers = layer == 'both' ? const ['source', 'rendered'] : [layer];
-    final descriptors = <_TokenDescriptor>[];
-    for (final currentLayer in layers) {
-      final text = currentLayer == 'source' ? map.sourceText : map.renderedText;
-      if (includeWords) descriptors.addAll(_words(text, currentLayer));
-      if (includeChars) descriptors.addAll(_chars(text, currentLayer));
-    }
     final fingerprint = _fingerprint(
       map,
       layer,
@@ -61,13 +55,25 @@ class PluginSectionTextMapService {
       normalize,
     );
     final offset = cursor == null ? 0 : _decodeCursor(cursor, fingerprint);
-    if (offset > descriptors.length) {
-      throw const PluginSectionTextMapException(
-        'error.invalid_params',
-        'cursor offset is no longer valid',
-      );
+    final descriptors = _descriptors(
+      map,
+      layers,
+      includeWords: includeWords,
+      includeChars: includeChars,
+    ).iterator;
+    for (var skipped = 0; skipped < offset; skipped++) {
+      if (!descriptors.moveNext()) {
+        throw const PluginSectionTextMapException(
+          'error.invalid_params',
+          'cursor offset is no longer valid',
+        );
+      }
     }
-    final page = descriptors.skip(offset).take(limit).toList(growable: false);
+    final page = <_TokenDescriptor>[];
+    while (page.length < limit && descriptors.moveNext()) {
+      page.add(descriptors.current);
+    }
+    final hasMore = descriptors.moveNext();
     final words = includeWords ? <PluginWordToken>[] : null;
     final chars = includeChars ? <PluginCharToken>[] : null;
     final offsets = {
@@ -127,7 +133,6 @@ class PluginSectionTextMapService {
       }
     }
     final nextOffset = offset + page.length;
-    final hasMore = nextOffset < descriptors.length;
     return PluginSectionTextMapResult(
       bookId: map.bookId,
       sectionIndex: map.sectionIndex,
@@ -188,40 +193,68 @@ class PluginSectionTextMapService {
     );
   }
 
-  List<_TokenDescriptor> _words(String text, String layer) {
-    final graphemes = text.characters.toList(growable: false);
-    final result = <_TokenDescriptor>[];
+  Iterable<_TokenDescriptor> _descriptors(
+    PluginTextSourceMap map,
+    List<String> layers, {
+    required bool includeWords,
+    required bool includeChars,
+  }) sync* {
+    for (final layer in layers) {
+      final text = layer == 'source' ? map.sourceText : map.renderedText;
+      if (includeWords) yield* _words(text, layer);
+      if (includeChars) yield* _chars(text, layer);
+    }
+  }
+
+  Iterable<_TokenDescriptor> _words(String text, String layer) sync* {
+    final word = StringBuffer();
     var start = -1;
     var wordIndex = 0;
-    for (var index = 0; index <= graphemes.length; index++) {
-      final isWord = index < graphemes.length && _isWord(graphemes[index]);
-      if (isWord && start < 0) start = index;
-      if (!isWord && start >= 0) {
-        result.add((
+    var index = 0;
+    for (final grapheme in text.characters) {
+      if (_isWord(grapheme)) {
+        if (start < 0) start = index;
+        word.write(grapheme);
+      } else if (start >= 0) {
+        yield (
           index: wordIndex++,
           layer: layer,
-          text: graphemes.sublist(start, index).join(),
+          text: word.toString(),
           start: start,
           end: index,
           isWord: true,
-        ));
+        );
         start = -1;
+        word.clear();
       }
+      index++;
     }
-    return result;
+    if (start >= 0) {
+      yield (
+        index: wordIndex,
+        layer: layer,
+        text: word.toString(),
+        start: start,
+        end: index,
+        isWord: true,
+      );
+    }
   }
 
-  List<_TokenDescriptor> _chars(String text, String layer) => [
-    for (final entry in text.characters.toList(growable: false).asMap().entries)
-      (
-        index: entry.key,
+  Iterable<_TokenDescriptor> _chars(String text, String layer) sync* {
+    var index = 0;
+    for (final grapheme in text.characters) {
+      yield (
+        index: index,
         layer: layer,
-        text: entry.value,
-        start: entry.key,
-        end: entry.key + 1,
+        text: grapheme,
+        start: index,
+        end: index + 1,
         isWord: false,
-      ),
-  ];
+      );
+      index++;
+    }
+  }
 
   bool _isWord(String grapheme) => grapheme.runes.any(
     (rune) =>
