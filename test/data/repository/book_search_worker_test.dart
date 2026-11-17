@@ -52,14 +52,27 @@ void main() {
   test('FIFO handles a burst of queued searches without reordering', () async {
     final entries = _entries();
     final queries = [
-      'שולחן', 'חיים', 'הלכה', 'מב', 'ערוך', 'ברורה',
-      'ביאור', 'שולחן ערוך', 'החפץ', 'טור',
+      'שולחן',
+      'חיים',
+      'הלכה',
+      'מב',
+      'ערוך',
+      'ברורה',
+      'ביאור',
+      'שולחן ערוך',
+      'החפץ',
+      'טור',
     ];
+    final completionOrder = <String>[];
     final pending = [
       for (final text in queries)
-        worker.search(entries, _query(text)),
+        worker.search(entries, _query(text)).then((result) {
+          completionOrder.add(text);
+          return result;
+        }),
     ];
     final results = await Future.wait(pending);
+    expect(completionOrder, queries);
     for (var i = 0; i < queries.length; i++) {
       expect(results[i], _direct(entries, queries[i]), reason: queries[i]);
     }
