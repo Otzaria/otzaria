@@ -1053,6 +1053,7 @@ class _SectionTitleLink extends StatefulWidget {
 
 class _SectionTitleLinkState extends State<_SectionTitleLink> {
   bool _hovered = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
@@ -1060,7 +1061,7 @@ class _SectionTitleLinkState extends State<_SectionTitleLink> {
     final primary = Theme.of(context).colorScheme.primary;
     final text = Text(
       widget.label,
-      style: _hovered && onOpen != null
+      style: (_hovered || _focused) && onOpen != null
           ? widget.style.copyWith(
               color: primary,
               decoration: TextDecoration.underline,
@@ -1078,34 +1079,33 @@ class _SectionTitleLinkState extends State<_SectionTitleLink> {
       alignment: AlignmentDirectional.centerStart,
       child: Semantics(
         link: true,
+        button: true,
         child: Tooltip(
           message: widget.tooltip,
-          child: MouseRegion(
-            cursor: SystemMouseCursors.click,
-            onEnter: (_) => setState(() => _hovered = true),
-            onExit: (_) => setState(() => _hovered = false),
-            child: GestureDetector(
-              onTap: onOpen,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Flexible(child: text),
-                  // מקום קבוע לאייקון, כדי שהכותרת לא תתקצר רק בריחוף.
-                  Padding(
-                    padding: const EdgeInsetsDirectional.only(
-                      start: AppTokens.spaceXS,
-                    ),
-                    child: Visibility.maintain(
-                      visible: _hovered,
-                      child: Icon(
-                        FluentIcons.open_24_regular,
-                        size: AppTokens.iconSM,
-                        color: primary,
-                      ),
+          child: InkWell(
+            mouseCursor: SystemMouseCursors.click,
+            onHover: (hovered) => setState(() => _hovered = hovered),
+            onFocusChange: (focused) => setState(() => _focused = focused),
+            onTap: onOpen,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(child: text),
+                // מקום קבוע לאייקון, כדי שהכותרת לא תתקצר רק בריחוף.
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(
+                    start: AppTokens.spaceXS,
+                  ),
+                  child: Visibility.maintain(
+                    visible: _hovered || _focused,
+                    child: Icon(
+                      FluentIcons.open_24_regular,
+                      size: AppTokens.iconSM,
+                      color: primary,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),

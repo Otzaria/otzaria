@@ -382,7 +382,14 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
       UiSnack.showError(LibraryMessages.bookNotFoundById(bookId));
       return;
     }
-    if (await openLibraryBookPerTalmudBavliFormat(context, book, line)) return;
+    if (await openLibraryBookPerTalmudBavliFormat(
+      context,
+      book,
+      line,
+      navigateToPositionIfReused: true,
+    )) {
+      return;
+    }
     if (!mounted) return;
     openBook(
       context,
