@@ -12,6 +12,7 @@ import 'package:otzaria/tabs/utils/tab_swipe_direction.dart';
 import 'package:otzaria/tabs/utils/tab_swipe_log.dart';
 import 'package:otzaria/tabs/utils/tab_swipe_settle.dart';
 import 'package:otzaria/tabs/utils/touch_tab_swipe_recognizer.dart';
+import 'package:otzaria/tabs/utils/trackpad_tab_swipe_recognizer.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
 /// מזהה החלקה בין טאבים בדסקטופ, בלוח מגע ובמסך מגע.
@@ -76,13 +77,9 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
                 TabContentVerticalDragRecognizer.new,
                 (recognizer) => recognizer.onStart = (_) {},
               ),
-          HorizontalDragGestureRecognizer:
-              GestureRecognizerFactoryWithHandlers<
-                HorizontalDragGestureRecognizer
-              >(
-                () => HorizontalDragGestureRecognizer(
-                  supportedDevices: const {PointerDeviceKind.trackpad},
-                ),
+          TrackpadTabSwipeRecognizer:
+              GestureRecognizerFactoryWithHandlers<TrackpadTabSwipeRecognizer>(
+                TrackpadTabSwipeRecognizer.new,
                 _configure,
               ),
           TouchTabSwipeRecognizer:
@@ -129,7 +126,12 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
       ..onStart = _onStart
       ..onUpdate = _onUpdate
       ..onEnd = (details) {
-        _settle(details.velocity.pixelsPerSecond.dx);
+        _settle(
+          details.velocity.pixelsPerSecond.dx,
+          crossAxisDistance: recognizer is TrackpadTabSwipeRecognizer
+              ? recognizer.pan.dy.abs()
+              : 0,
+        );
       }
       ..onCancel = () {
         _settle(0);
@@ -173,14 +175,17 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
     _draggedPages += (position.pixels - before) / position.viewportDimension;
   }
 
-  Future<void> _settle(double velocityDx) async {
+  Future<void> _settle(
+    double velocityDx, {
+    double crossAxisDistance = 0,
+  }) async {
     if (!_dragging) return;
     _onTabsChanged(context.read<TabsBloc>().state);
     if (!_dragging) return;
     _dragging = false;
     final generation = _generation;
     try {
-      await _settleOnTarget(velocityDx);
+      await _settleOnTarget(velocityDx, crossAxisDistance);
     } finally {
       if (generation == _generation) {
         _expectedIndex = null;
@@ -190,7 +195,10 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
     }
   }
 
-  Future<void> _settleOnTarget(double velocityDx) async {
+  Future<void> _settleOnTarget(
+    double velocityDx,
+    double crossAxisDistance,
+  ) async {
     final controller = widget.controller;
     if (controller == null || !controller.hasClients) return;
     final bloc = context.read<TabsBloc>();
@@ -209,6 +217,8 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
       draggedPages: _draggedPages,
       pageVelocity: pageVelocity,
       tabCount: state.tabs.length,
+      viewportExtent: controller.position.viewportDimension,
+      crossAxisDistance: crossAxisDistance,
     );
     TabSwipeLog.add(bloc, {
       'kind': _kind?.name,
@@ -217,6 +227,7 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
       'to': target,
       'tabs': state.tabs.length,
       'dx': _draggedDx.round(),
+      'dy': crossAxisDistance.round(),
       'velocity': velocityDx.round(),
       'startPage': _rounded(_startPage),
       'page': _rounded(page),

@@ -21,6 +21,7 @@ import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/reading_screen.dart';
+import 'package:otzaria/tabs/utils/trackpad_tab_swipe_recognizer.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
@@ -215,7 +216,7 @@ void main() {
               (w) => w is RawGestureDetector && w.child is PageView,
             ),
           );
-          final factory = detector.gestures[HorizontalDragGestureRecognizer]!;
+          final factory = detector.gestures[TrackpadTabSwipeRecognizer]!;
           final recognizer =
               factory.constructor() as HorizontalDragGestureRecognizer;
           factory.initializer(recognizer);
@@ -431,7 +432,7 @@ HorizontalDragGestureRecognizer desktopSwipe(WidgetTester tester) {
       (widget) => widget is RawGestureDetector && widget.child is PageView,
     ),
   );
-  final factory = detector.gestures[HorizontalDragGestureRecognizer]!;
+  final factory = detector.gestures[TrackpadTabSwipeRecognizer]!;
   final recognizer = factory.constructor() as HorizontalDragGestureRecognizer;
   factory.initializer(recognizer);
   addTearDown(recognizer.dispose);
