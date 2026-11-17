@@ -183,7 +183,7 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
   'app.open_url': PluginPermissionInfo(
     label: 'פתיחת קישורים בדפדפן',
     icon: FluentIcons.open_24_regular,
-    description: 'התוסף יכול לפתוח כתובת של אתר באינטרנט בדפדפן שלך',
+    description: 'התוסף יכול לפתוח כתובת של אתר באינטרנט בדפדפן שלך, או את אפליקציית זית',
   ),
   'app.run_on_startup': PluginPermissionInfo(
     label: 'טעינה אוטומטית ברקע',

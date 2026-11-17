@@ -443,7 +443,7 @@ Otzaria.on('plugin.boot', (payload) => {
 | `app.getInfo` | `app.info.read` | גרסת האפליקציה, פלטפורמה |
 | `app.getTheme` | `app.info.read` | ערכת נושא מלאה (colorScheme + typography) |
 | `app.getLocale` | `app.info.read` | locale, language ו-textDirection (מ-0.9.97 — לפי שפת הממשק שנבחרה) |
-| `app.openUrl` | `app.open_url` | פתיחת כתובת http/https בדפדפן המערכת |
+| `app.openUrl` | `app.open_url` | פתיחת כתובת http/https בדפדפן המערכת, או zayit:// באפליקציית זית (באישור) |
 | `app.getConnectivity` | `app.info.read` | האם יש אינטרנט — להסתרת יכולות מקוונות |
 | `app.getDivineNamesDisplay` | `app.info.read` | איך שמות הקודש יגיעו בטקסט הספרים (מ-0.9.98.1) — לסינון עצמי של טקסט גולמי |
 | `app.registerShortcut` | `app.shortcuts` | רישום קיצור מקלדת (פקודה / פעולת תפריט הקשר) |
@@ -733,7 +733,7 @@ const { data: keys } = await Otzaria.call('storage.list');
 | הרשאה | מה מאפשרת |
 |-------|-----------|
 | `app.info.read` | קריאת מידע על האפליקציה |
-| `app.open_url` | פתיחת קישור http/https בדפדפן ברירת המחדל של מערכת ההפעלה |
+| `app.open_url` | פתיחת קישור http/https בדפדפן ברירת המחדל של מערכת ההפעלה, או zayit:// באפליקציית זית |
 | `library.books.read` | חיפוש וקריאת metadata של ספרים |
 | `library.content.read` | קריאת תוכן ספרים (TOC + טקסט) |
 | `library.links.read` | קריאת מפרשים וקישורים של ספר (מבנה בלבד, ללא תוכן) |
