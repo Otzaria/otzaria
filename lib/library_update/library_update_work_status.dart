@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
 import 'package:otzaria/work_status/work_status_item.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 
 /// מזהה פריט חיווי העבודה של עדכון הספרייה.
 const kLibraryUpdateWorkStatusId = 'library_update';
@@ -50,7 +51,7 @@ WorkStatusItem? libraryUpdateWorkStatusItem(
         ),
         WorkStatusAction(
           label: 'הורדה מלאה',
-          icon: FluentIcons.database_24_regular,
+          icon: OtzariaIcons.library_download_24_regular,
           onPressed: onChooseFullDownload,
         ),
       ],

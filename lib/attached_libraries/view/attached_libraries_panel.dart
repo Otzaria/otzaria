@@ -21,6 +21,7 @@ import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:path/path.dart' as p;
 
 /// כרטיס "מסדי ספרים אישיים" בהגדרות הספרייה: צירוף קובצי מסד בפורמט
@@ -327,7 +328,7 @@ class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
   Widget _buildActionsTile(BuildContext context, AttachedLibrariesState state) {
     final count = state.libraries.length;
     return SettingsActionTile.text(
-      icon: FluentIcons.database_24_regular,
+      icon: OtzariaIcons.library_database_24_regular,
       title: context.settingsText('צירוף מסד'),
       subtitle: count == 0
           ? context.settingsText('לא צורפו מסדים')
@@ -426,8 +427,8 @@ class _AttachedLibraryTile extends StatelessWidget {
       // הכותרת כוללת תגיות; בחלון צר הבורר יורד מתחתיה ולא דוחס אותה.
       columnBelowWidth: 620,
       icon: library.hidden
-          ? FluentIcons.database_24_regular
-          : FluentIcons.database_24_filled,
+          ? OtzariaIcons.library_database_24_regular
+          : OtzariaIcons.library_database_24_filled,
       iconColor: library.isOk && !library.hidden
           ? cs.primary
           : cs.onSurfaceVariant,

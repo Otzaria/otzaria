@@ -7,6 +7,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/migration/sync/file_sync_service.dart';
 import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
@@ -345,7 +346,7 @@ void main() {
       final icon = tester.widget<Icon>(
         find.descendant(
           of: find.byType(AppDialogFrame),
-          matching: find.byIcon(FluentIcons.database_24_regular),
+          matching: find.byIcon(OtzariaIcons.library_folder_24_regular),
         ),
       );
       expect(icon.size, AppTokens.iconMD);

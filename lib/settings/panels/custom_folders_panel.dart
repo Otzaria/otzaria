@@ -218,7 +218,7 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
       final confirmed = await showConfirmationDialog(
         context: context,
         title: context.settingsText('שמירת עותק עצמאי בתוכנה'),
-        icon: FluentIcons.database_24_regular,
+        icon: OtzariaIcons.library_folder_24_regular,
         content: context.settingsText(
           'עותק של תוכן הספרים יישמר בתוך התוכנה, כך שהם יעבדו גם '
           'אם הקבצים המקוריים יוזזו או יימחקו.\n'
@@ -502,7 +502,7 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
                   SegmentOption(
                     value: true,
                     label: context.settingsText('הוספה'),
-                    icon: FluentIcons.database_24_regular,
+                    icon: OtzariaIcons.library_folder_24_regular,
                   ),
                 ],
               ),
@@ -583,7 +583,7 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
                 ),
               ),
               _StorageInfoItem(
-                icon: FluentIcons.database_24_regular,
+                icon: OtzariaIcons.library_folder_24_regular,
                 title: context.settingsText('הוספה'),
                 description: context.settingsText(
                   'התוכן נשמר בתוך התוכנה ועובד גם אם הקבצים יוסרו. אחרי '

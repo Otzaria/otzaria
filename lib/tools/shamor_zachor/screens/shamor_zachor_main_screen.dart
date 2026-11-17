@@ -240,7 +240,7 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
               SegmentOption<String>(
                 value: 'in_progress',
                 label: 'בתהליך',
-                icon: FluentIcons.hourglass_24_regular,
+                icon: OtzariaIcons.book_progress_24_regular,
               ),
               SegmentOption<String>(
                 value: 'completed',
