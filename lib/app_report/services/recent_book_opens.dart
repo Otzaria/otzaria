@@ -125,10 +125,16 @@ class RecentBookOpens {
 }
 
 class BookOpenAttempt {
-  BookOpenAttempt._(this._owner, this.book, this.kind, this.startedAt);
+  BookOpenAttempt._(this._owner, Book book, this.kind, this.startedAt)
+    : _bookDetails = RecentBookOpens.describeBook(book),
+      _title = book.isUserBook ? null : book.title,
+      _id = book.id;
 
   final RecentBookOpens _owner;
-  final Book book;
+  // Book מחזיק את עץ הספרייה דרך הקטגוריה; נשמרים רק פרטי זיהוי פשוטים.
+  final Map<String, String?> _bookDetails;
+  final String? _title;
+  final int? _id;
   final BookOpenKind kind;
   final DateTime startedAt;
   Timer? _stallTimer;
@@ -162,14 +168,14 @@ class BookOpenAttempt {
   Map<String, Object?> describe() => {
     'at': startedAt.toUtc().toIso8601String(),
     // כמו בהקשר החלון: כותרת ספר אישי היא לרוב שם קובץ של המשתמש.
-    'title': book.isUserBook ? null : book.title,
+    'title': _title,
     'kind': kind.name,
     'outcome': outcome.name,
     'durationMs': (_finishedAt ?? _owner._now())
         .difference(startedAt)
         .inMilliseconds,
-    'source': book.source.wireKey,
-    if (book.id != null) 'id': book.id,
+    'source': _bookDetails['source'],
+    if (_id != null) 'id': _id,
     if (_stalled) 'stalled': true,
   };
 
@@ -181,10 +187,10 @@ class BookOpenAttempt {
     _owner._write(
       title: 'Book Load Stalled',
       error:
-          'Book "${book.title}" (${kind.name}) still loading after '
+          'Book "${_bookDetails['book']}" (${kind.name}) still loading after '
           '${elapsed.inSeconds}s',
       details: {
-        ...RecentBookOpens.describeBook(book),
+        ..._bookDetails,
         'elapsedMs': elapsed.inMilliseconds.toString(),
       },
     );

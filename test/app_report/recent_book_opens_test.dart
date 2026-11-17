@@ -6,6 +6,21 @@ import 'package:otzaria/models/books.dart';
 
 typedef _Entry = ({String title, Object error, Map<String, String?> details});
 
+class _SnapshotBook extends Fake implements TextBook {
+  @override
+  String title = 'בראשית';
+  @override
+  int? id = 7;
+  @override
+  int? categoryId = 4;
+  @override
+  String? versionTitle = 'edition';
+  @override
+  BookSource source = BookSource.official;
+  @override
+  bool get isUserBook => source.isUser;
+}
+
 void main() {
   late List<_Entry> written;
 
@@ -17,6 +32,60 @@ void main() {
   }) => written.add((title: title, error: error, details: details));
 
   setUp(() => written = []);
+
+  for (final source in [
+    BookSource.official,
+    BookSource.user,
+    BookSource.attached('local'),
+  ]) {
+    test('פרטי הפתיחה והתקיעה הם צילום בזמן start: ${source.wireKey}', () {
+      fakeAsync((async) {
+        final now = DateTime(2026);
+        final opens = RecentBookOpens(
+          now: () => now.add(async.elapsed),
+          writeLog: capture,
+        );
+        final book = _SnapshotBook()..source = source;
+        final attempt = opens.start(book, BookOpenKind.text);
+        book
+          ..title = 'כותרת אחרת'
+          ..id = 99
+          ..categoryId = 88
+          ..versionTitle = null
+          ..source = BookSource.official;
+
+        async.elapse(const Duration(seconds: 20));
+        attempt.finish(BookOpenOutcome.closed);
+
+        expect(opens.collect()['attempts'], [
+          {
+            'at': now.toUtc().toIso8601String(),
+            'title': source.isUser ? null : 'בראשית',
+            'kind': 'text',
+            'outcome': 'stalled',
+            'durationMs': 20000,
+            'source': source.wireKey,
+            'id': 7,
+            'stalled': true,
+          },
+        ]);
+        expect(written.single.title, 'Book Load Stalled');
+        expect(
+          written.single.error,
+          'Book "בראשית" (text) still loading after 20s',
+        );
+        expect(written.single.details, {
+          'book': 'בראשית',
+          'id': '7',
+          'source': source.wireKey,
+          'categoryId': '4',
+          'versionTitle': 'edition',
+          'elapsedMs': '20000',
+        });
+        expect(async.pendingTimers, isEmpty);
+      });
+    });
+  }
 
   test('שומר רק את הניסיונות האחרונים, מהחדש לישן', () {
     final opens = RecentBookOpens(
