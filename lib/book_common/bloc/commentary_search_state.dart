@@ -12,27 +12,26 @@ class CommentarySearchState {
       snippets = const [],
       total = 0;
 
-  CommentarySearchState({
-    required List<Link> links,
-    required String Function(Link) keyOf,
+  CommentarySearchState._({
+    required List<_LinkSearchEntry> entries,
+    required Map<String, String> pathsByKey,
     required Map<String, int> counts,
     required Map<String, List<String>> snippetsByKey,
   }) : counts = Map.unmodifiable(counts),
        countsByPath = Map.unmodifiable(
-         commentarySearchCountsByPath(
-           counts,
-           {for (final link in links) keyOf(link): link.path2},
-         ),
+         commentarySearchCountsByPath(counts, pathsByKey),
        ),
-       snippets = List.unmodifiable(
-         orderCommentarySearchSnippets<Link>(
-           items: links,
-           keyOf: keyOf,
-           pathOf: (link) => link.path2,
-           countsByKey: counts,
-           snippetsOf: (key, count) =>
-               count > 0 ? snippetsByKey[key] ?? const [] : const [],
-         ),
-       ),
+       snippets = snippetsByKey.isEmpty
+           ? const []
+           : List.unmodifiable(
+               orderCommentarySearchSnippets(
+                 items: entries,
+                 keyOf: (entry) => entry.key,
+                 pathOf: (entry) => entry.path,
+                 countsByKey: counts,
+                 snippetsOf: (key, count) =>
+                     count > 0 ? snippetsByKey[key] ?? const [] : const [],
+               ),
+             ),
        total = totalCommentarySearchResults(counts);
 }
