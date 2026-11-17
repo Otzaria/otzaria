@@ -1756,51 +1756,40 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   Widget _buildCategoryContent(Category category) {
     final (subCategories: filteredSubCategories, books: filteredBooks) =
         _displayedContent(category);
+    final categoryCount = filteredSubCategories.length;
+    final tourBookTitle = _tourPreviewBook?.title;
+    // בוחרים לפי סדר התצוגה גם כשהגלילה בונה קודם ספר בעל שם זהה בהמשך.
+    final tourBookIndex = tourBookTitle == null
+        ? -1
+        : filteredBooks.indexWhere((book) => book.title == tourBookTitle);
 
-    // הפריט הראשון ברשת מקבל את צומת הפוקוס — כניסה מהחיפוש ב-Tab/חץ-מטה.
-    final allItems = <Widget>[
-      ...filteredSubCategories.indexed.map(
-        ((int, Category) entry) => KeyedSubtree(
-          key: _tourCategoryKeys.putIfAbsent(entry.$2.path, GlobalKey.new),
-          child: _buildCategoryGridItem(
-            entry.$2,
-            focusNode: entry.$1 == 0 ? _firstGridItemFocusNode : null,
-          ),
-        ),
-      ),
-    ];
-
-    var attachedTourKey = false;
-    for (final (bookIndex, book) in filteredBooks.indexed) {
-      final item = _buildBookItem(
-        book,
-        focusNode: filteredSubCategories.isEmpty && bookIndex == 0
-            ? _firstGridItemFocusNode
-            : null,
-      );
-      final isTourBook =
-          _tourPreviewBook != null &&
-          !attachedTourKey &&
-          book.title == _tourPreviewBook!.title;
-      allItems.add(
-        isTourBook
-            ? KeyedSubtree(
-                key: _tourBookCardKey,
-                child: item,
-              )
-            : item,
-      );
-      if (isTourBook) {
-        attachedTourKey = true;
-      }
-    }
-    final grid = MyGridView(
+    final grid = MyGridView.builder(
       key: PageStorageKey(category),
-      items: allItems,
+      itemCount: categoryCount + filteredBooks.length,
+      itemBuilder: (_, index) {
+        // הפריט הראשון ברשת מקבל את צומת הפוקוס לכניסה מהחיפוש.
+        final focusNode = index == 0 ? _firstGridItemFocusNode : null;
+        if (index < categoryCount) {
+          final subCategory = filteredSubCategories[index];
+          return KeyedSubtree(
+            key: _tourCategoryKeys.putIfAbsent(subCategory.path, GlobalKey.new),
+            child: _buildCategoryGridItem(subCategory, focusNode: focusNode),
+          );
+        }
+
+        final bookIndex = index - categoryCount;
+        final item = _buildBookItem(
+          filteredBooks[bookIndex],
+          focusNode: focusNode,
+        );
+        return bookIndex == tourBookIndex
+            ? KeyedSubtree(key: _tourBookCardKey, child: item)
+            : item;
+      },
       // בחלון קטן (טלפון, AppDensity.isSmallWindow) כרטיסי התיקייה נמוכים
       // מכרטיסי הספר (q12 Q8, ss4). במחשב הרשת לא משתנה.
       leadingCategoryCount: AppDensity.isSmallWindow(MediaQuery.sizeOf(context))
-          ? filteredSubCategories.length
+          ? categoryCount
           : 0,
       onExitTop: () => _refocusSearchBar(selectAll: true),
       scrollable: true,

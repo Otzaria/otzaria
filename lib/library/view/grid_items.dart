@@ -1170,11 +1170,13 @@ class LibraryGridKeyNavigator extends StatelessWidget {
 }
 
 class MyGridView extends StatelessWidget {
-  final List<Widget> items;
+  final List<Widget> _items;
+  final int? _itemCount;
+  final IndexedWidgetBuilder? _itemBuilder;
   final VoidCallback? onExitTop;
   final double minItemHeight;
 
-  /// כמה מהפריטים הראשונים ב-[items] הם כרטיסי תיקייה. בתצוגה צרה הם
+  /// כמה מהפריטים הראשונים הם כרטיסי תיקייה. בתצוגה צרה הם
   /// בשורות נמוכות משלהם ([kNarrowCategoryCardHeight]), והספרים שאחריהם
   /// מתחילים בשורה חדשה בגובה הרגיל.
   final int leadingCategoryCount;
@@ -1185,18 +1187,34 @@ class MyGridView extends StatelessWidget {
 
   const MyGridView({
     super.key,
-    required this.items,
+    required this._items,
     this.onExitTop,
     this.minItemHeight = 0,
     this.leadingCategoryCount = 0,
     this.scrollable = false,
     this.controller,
-  });
+  }) : _itemCount = null,
+       _itemBuilder = null;
+
+  const MyGridView.builder({
+    super.key,
+    required int itemCount,
+    required this._itemBuilder,
+    this.onExitTop,
+    this.minItemHeight = 0,
+    this.leadingCategoryCount = 0,
+    this.scrollable = false,
+    this.controller,
+  }) : assert(itemCount >= 0),
+       assert(_itemBuilder != null),
+       _items = const [],
+       _itemCount = itemCount;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
+        final itemCount = _itemCount ?? _items.length;
         final textScale = MediaQuery.textScalerOf(context).scale(1.0);
         final width = constraints.maxWidth;
         final baseRatio = width >= _kGridWideMinWidth
@@ -1232,7 +1250,7 @@ class MyGridView extends StatelessWidget {
 
         // בתצוגה צרה כרטיסי התיקייה נמוכים מכרטיסי הספר (ss4).
         final categoryCount = width < _kGridNarrowBelow && minItemHeight <= 0
-            ? min(leadingCategoryCount, items.length)
+            ? min(leadingCategoryCount, itemCount)
             : 0;
         final SliverGridDelegate gridDelegate = categoryCount > 0
             ? LibraryBandedGridDelegate(
@@ -1291,10 +1309,14 @@ class MyGridView extends StatelessWidget {
                 _kGridPadding,
               ),
               gridDelegate: gridDelegate,
-              itemCount: items.length,
-              itemBuilder: (context, index) => scrollable
-                  ? _FocusedGridItemKeepAlive(child: items[index])
-                  : items[index],
+              itemCount: itemCount,
+              itemBuilder: (context, index) {
+                final item =
+                    _itemBuilder?.call(context, index) ?? _items[index];
+                return scrollable
+                    ? _FocusedGridItemKeepAlive(child: item)
+                    : item;
+              },
               shrinkWrap: !scrollable,
               physics: scrollable ? null : const NeverScrollableScrollPhysics(),
             ),

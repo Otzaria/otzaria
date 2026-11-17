@@ -53,6 +53,27 @@ class _StubCalendarCubit extends Cubit<CalendarState> implements CalendarCubit {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class _TrackedCategory extends Category {
+  _TrackedCategory(int index)
+    : super(
+        title: 'תיקייה $index',
+        description: '',
+        shortDescription: '',
+        order: index,
+        subCategories: [],
+        books: [TextBook(title: 'ספר בתיקייה $index', author: '')],
+        parent: null,
+      );
+
+  bool pathRead = false;
+
+  @override
+  String get path {
+    pathRead = true;
+    return super.path;
+  }
+}
+
 void main() {
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
@@ -355,6 +376,85 @@ void main() {
     await tester.pump();
     expect(position.pixels, 0);
     expect(_focusedBook(), 'ספר 0');
+  });
+
+  testWidgets('מפתחות כרטיסי תיקייה נוצרים לפי טווח הגלילה', (tester) async {
+    final categories = List.generate(1000, _TrackedCategory.new);
+    final library = Library(categories: categories);
+    for (final category in categories) {
+      category.parent = library;
+    }
+    await _pumpBrowser(
+      tester,
+      LibraryState(library: library, currentCategory: library),
+    );
+
+    final readAtStart = categories
+        .where((category) => category.pathRead)
+        .length;
+    expect(readAtStart, inInclusiveRange(1, 99));
+    expect(categories.last.pathRead, isFalse);
+    expect(find.text(categories.first.title), findsOneWidget);
+
+    final controller = tester
+        .widget<MyGridView>(find.byType(MyGridView))
+        .controller!;
+    controller.jumpTo(controller.position.maxScrollExtent);
+    await tester.pump();
+
+    final readAfterScroll = categories
+        .where((category) => category.pathRead)
+        .length;
+    expect(readAfterScroll - readAtStart, inInclusiveRange(1, 99));
+    expect(categories.last.pathRead, isTrue);
+    expect(find.text(categories.last.title), findsOneWidget);
+  });
+
+  testWidgets('יעד הסיור נשאר הספר הראשון גם כשהכפיל נבנה לפניו', (
+    tester,
+  ) async {
+    const targetTitle = 'ספר לסיור';
+    final library = Library(categories: []);
+    final category = Category(
+      title: 'תורה',
+      description: '',
+      shortDescription: '',
+      order: 0,
+      subCategories: [],
+      books: [
+        TextBook(title: targetTitle, author: 'ראשון', order: 0),
+        for (var i = 1; i < 200; i++)
+          TextBook(title: 'ספר $i', author: '', order: i),
+        TextBook(title: targetTitle, author: 'כפיל', order: 200),
+      ],
+      parent: library,
+    );
+    library.subCategories.add(category);
+    await _pumpBrowser(
+      tester,
+      LibraryState(library: library, currentCategory: category),
+    );
+
+    final controller = tester
+        .widget<MyGridView>(find.byType(MyGridView))
+        .controller!;
+    controller.jumpTo(controller.position.maxScrollExtent);
+    await tester.pump();
+    expect(find.text('כפיל'), findsOneWidget);
+    expect(find.text('ראשון'), findsNothing);
+
+    final dynamic browser = tester.state(find.byType(LibraryBrowser));
+    browser.prepareTourBookPreview();
+    await tester.pump();
+    expect(browser.tourBookCardRect(), isNull);
+
+    controller.jumpTo(0);
+    await tester.pump();
+    final target = find.ancestor(
+      of: find.text('ראשון'),
+      matching: find.byType(BookGridItem),
+    );
+    expect(browser.tourBookCardRect(), tester.getRect(target));
   });
 
   testWidgets('בתצוגת רשימה החיצים עוברים שורה-שורה ולא חוזרים לשורה '
