@@ -14,6 +14,7 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
@@ -1097,41 +1098,60 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     return identity != null && identity == _readingBookIdentity(targetTab);
   }
 
-  String? _readingBookIdentity(OpenedTab tab) {
-    if (tab is TextBookTab) {
-      final identity = _textBookIdentity(tab);
-      return identity == null ? null : 'text:$identity';
+  String? _readingBookIdentity(OpenedTab tab) => switch (tab) {
+    TextBookTab(:final book) => _bookIdentity(book),
+    PdfBookTab(:final book) => _bookIdentity(book),
+    _ => null,
+  };
+
+  String? _bookIdentity(Book book) {
+    if (book is PdfBook) return 'pdf:${book.path}';
+    if (book is! TextBook) return null;
+    final identity = _textBookBaseIdentity(book);
+    if (identity == null) return null;
+    final base = '$identity${book.sourceIdentitySuffix}';
+    // מהדורה חלופית היא טאב נפרד מהנוסח הממוזג של אותו ספר.
+    final versionTitle = book.versionTitle;
+    return 'text:${versionTitle == null ? base : '$base|version:$versionTitle'}';
+  }
+
+  /// הכרטיסייה שמציגה את [book] — וכשהוא בחלונית של כרטיסייה משולבת, גם
+  /// החלונית. `null` כשהספר אינו פתוח.
+  ({int index, OpenedTab? pane})? openTabShowing(Book book) {
+    final identity = _bookIdentity(book);
+    if (identity == null) return null;
+    for (var index = 0; index < state.tabs.length; index++) {
+      final tab = state.tabs[index];
+      if (_readingBookIdentity(tab) == identity) {
+        return (index: index, pane: null);
+      }
+      if (tab is! CombinedTab) continue;
+      for (final pane in leafPanes(tab)) {
+        if (_readingBookIdentity(pane) == identity) {
+          return (index: index, pane: pane);
+        }
+      }
     }
-    if (tab is PdfBookTab) return 'pdf:${tab.book.path}';
     return null;
   }
 
-  String? _textBookIdentity(TextBookTab tab) {
-    final identity = _textBookBaseIdentity(tab);
-    if (identity == null) return null;
-    final base = '$identity${tab.book.sourceIdentitySuffix}';
-    // מהדורה חלופית היא טאב נפרד מהנוסח הממוזג של אותו ספר.
-    final versionTitle = tab.book.versionTitle;
-    return versionTitle == null ? base : '$base|version:$versionTitle';
-  }
-
-  String? _textBookBaseIdentity(TextBookTab tab) {
-    final bookId = tab.book.id;
+  String? _textBookBaseIdentity(TextBook book) {
+    final bookId = book.id;
     if (bookId != null) {
       return 'book:$bookId';
     }
 
-    final categoryId = tab.book.categoryId;
+    final categoryId = book.categoryId;
     if (categoryId != null) {
-      return 'category:$categoryId|title:${tab.book.title}|type:${tab.book.fileType ?? 'txt'}';
+      return 'category:$categoryId|title:${book.title}|type:${book.fileType ?? 'txt'}';
     }
 
-    final externalLibraryId = tab.book.externalLibraryId;
+    final externalLibraryId = book.externalLibraryId;
     if (externalLibraryId != null && externalLibraryId.isNotEmpty) {
       return 'external:$externalLibraryId';
     }
 
-    final filePath = tab.book.filePath;
+    final filePath = book.filePath;
     if (filePath != null && filePath.isNotEmpty) {
       return 'file:$filePath';
     }
@@ -1411,7 +1431,20 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   ) async {
     if (event.index >= 0 && event.index < state.tabs.length) {
       final tabsToSave = state.tabs;
-      emit(state.copyWith(currentTabIndex: event.index));
+      final pane = event.pane;
+      final paneInTab =
+          pane != null &&
+          leafPanes(
+            state.tabs[event.index],
+          ).any((leaf) => identical(leaf, pane));
+      emit(
+        state.copyWith(
+          currentTabIndex: event.index,
+          activePane: paneInTab
+              ? ActivePaneUpdate.set(pane)
+              : const ActivePaneUpdate.unchanged(),
+        ),
+      );
       // מעבר טאב לא משנה את רשימת הטאבים — שומרים רק את האינדקס הנוכחי
       // במקום לקודד מחדש את כל הטאבים.
       await _saveCurrentTabIndex(tabsToSave, event.index);

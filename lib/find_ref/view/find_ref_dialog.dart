@@ -40,6 +40,7 @@ import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
+import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
@@ -668,6 +669,31 @@ class _FindRefDialogState extends State<FindRefDialog> {
     );
   }
 
+  /// הכרטיסייה שבה ספר התוצאה כבר פתוח — לפי זהות הספר שבה [TabsBloc] ממחזר
+  /// כרטיסיות. מסכת בבלי שנפתחה כ-PDF היא ספר אחר, ואינה נמצאת כאן.
+  ({int index, OpenedTab? pane})? _openTabShowing(DbReferenceResult ref) {
+    final Book? book = ref.isPdf
+        ? (ref.filePath.isEmpty
+              ? null
+              : PdfBook(title: ref.title, path: ref.filePath))
+        : (ref.bookId > 0
+              ? TextBook(title: ref.title, id: ref.bookId, source: ref.source)
+              : null);
+    return book == null ? null : context.read<TabsBloc>().openTabShowing(book);
+  }
+
+  /// עובר לכרטיסייה הפתוחה בלי להזיז את מקום הקריאה בה.
+  void _focusOpenTab(DbReferenceResult ref) {
+    final target = _openTabShowing(ref);
+    if (target == null) return;
+    _rememberCurrentQuery();
+    final tabsBloc = context.read<TabsBloc>();
+    final navigationBloc = context.read<NavigationBloc>();
+    Navigator.of(context).pop();
+    tabsBloc.add(SetCurrentTab(target.index, pane: target.pane));
+    navigationBloc.add(const NavigateToScreen(Screen.reading));
+  }
+
   /// פותח תפריט עם רשימת המפרשים הזמינים (כבר preloaded — כולל `Book` לכל
   /// רשומה). בחירה פותחת את ספר המפרש ישירות במיקומו (ראה [_openCommentator]).
   Future<void> _showCommentatorsMenu(
@@ -1150,6 +1176,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
     final cached = _commentatorsByRef[_commentatorsKey(ref)];
     final showButton = eligible && cached != null && cached.isNotEmpty;
     final menuButtonKey = _getCommentatorsButtonKey(index);
+    final openTab = _openTabShowing(ref);
 
     // Material (ולא Container צבוע) כדי שהצבע והריפל של ה-ListTile ייראו —
     // ListTile מצייר אותם על ה-Material הקרוב, ורקע שמעליו מסתיר אותם.
@@ -1172,7 +1199,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
           selected: isSelected,
           // selected צובע את כפתור המפרשים ב-primary; שומרים על צבעו הרגיל.
           selectedColor: colorScheme.onSurfaceVariant,
-          hoverColor: showButton ? Colors.transparent : null,
+          hoverColor: showButton || openTab != null ? Colors.transparent : null,
           visualDensity: VisualDensity.compact,
           contentPadding: const EdgeInsetsDirectional.fromSTEB(12, 4, 8, 4),
           leading: Container(
@@ -1215,22 +1242,37 @@ class _FindRefDialogState extends State<FindRefDialog> {
           // רשימת המפרשים נטענת אחרי הרינדור, ולכן הופעת הכפתור הייתה מצמצמת
           // את רוחב הכותרת ומזיזה את הטקסט. השורה שומרת את מקומו מהפריים
           // הראשון לפי `eligible`, שידוע סינכרונית.
-          trailing: eligible
-              ? Visibility(
-                  visible: showButton,
-                  maintainSize: true,
-                  maintainAnimation: true,
-                  maintainState: true,
-                  child: IconButton(
-                    key: menuButtonKey,
-                    icon: const Icon(FluentIcons.library_24_regular),
-                    tooltip: context.settingsText('הצג מפרשים זמינים'),
-                    onPressed: interactive && showButton
-                        ? () => _showCommentatorsMenu(menuButtonKey, cached)
-                        : null,
-                  ),
-                )
-              : null,
+          trailing: openTab == null && !eligible
+              ? null
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (openTab != null)
+                      IconButton(
+                        icon: const Icon(FluentIcons.tab_24_regular),
+                        tooltip: context.settingsText('עבור לכרטיסייה הפתוחה'),
+                        onPressed: interactive
+                            ? () => _focusOpenTab(ref)
+                            : null,
+                      ),
+                    if (eligible)
+                      Visibility(
+                        visible: showButton,
+                        maintainSize: true,
+                        maintainAnimation: true,
+                        maintainState: true,
+                        child: IconButton(
+                          key: menuButtonKey,
+                          icon: const Icon(FluentIcons.library_24_regular),
+                          tooltip: context.settingsText('הצג מפרשים זמינים'),
+                          onPressed: interactive && showButton
+                              ? () =>
+                                    _showCommentatorsMenu(menuButtonKey, cached)
+                              : null,
+                        ),
+                      ),
+                  ],
+                ),
           onTap: interactive ? () => _openRef(ref) : null,
         ),
       ),

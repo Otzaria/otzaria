@@ -16,10 +16,13 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
+import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/navigation/navigation_repository.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
+import 'package:otzaria/tabs/bloc/tabs_state.dart';
+import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/resolving_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
@@ -75,13 +78,28 @@ class _FakeTabsRepository implements TabsRepository {
   @override
   Future<void> flushPendingWrites() async {}
   @override
+  Future<void> saveTabs(List<OpenedTab> tabs, int currentTabIndex) async {}
+  @override
+  Future<void> saveCurrentTabIndex(
+    List<OpenedTab> tabs,
+    int currentTabIndex,
+  ) async {}
+  @override
   dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
 
 class _CapturingTabsBloc extends TabsBloc {
-  _CapturingTabsBloc() : super(repository: _FakeTabsRepository());
+  _CapturingTabsBloc([this._openTabs = const []])
+    : super(repository: _FakeTabsRepository());
 
   final List<TabsEvent> events = [];
+  final List<OpenedTab> _openTabs;
+
+  /// האירועים נלכדים ואינם מעובדים, ולכן הכרטיסיות הפתוחות קבועות.
+  @override
+  TabsState get state => _openTabs.isEmpty
+      ? super.state
+      : TabsState(tabs: _openTabs, currentTabIndex: 0);
 
   @override
   void add(TabsEvent event) => events.add(event);
@@ -117,8 +135,10 @@ class _FakeNavigationBloc extends NavigationBloc {
         tabsRepository: _FakeTabsRepository(),
       );
 
+  final List<NavigationEvent> events = [];
+
   @override
-  void add(NavigationEvent event) {}
+  void add(NavigationEvent event) => events.add(event);
 }
 
 Library _libraryWith(List<Book> books) {
@@ -162,6 +182,44 @@ Future<OpenOrFocusTab> _openResultEvent(
   bool enterBeforeResults = false,
   _FakeRepository? repository,
 }) async {
+  final tabsBloc = await _showDialogWithResults(
+    tester,
+    result: result,
+    library: library,
+    history: history,
+    commentator: commentator,
+    repository: repository,
+  );
+  if (enterBeforeResults) {
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    return tabsBloc.openEvent;
+  }
+  await tester.pump(const Duration(milliseconds: 400));
+  await tester.pump();
+  if (commentator != null) {
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('הצג מפרשים זמינים'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(commentator.title));
+  } else {
+    await tester.tap(find.text(result.reference));
+  }
+  await tester.pumpAndSettle();
+  return tabsBloc.openEvent;
+}
+
+/// פותח את הדיאלוג ומקליד שאילתה; התוצאות מוצגות אחרי ה-debounce.
+Future<_CapturingTabsBloc> _showDialogWithResults(
+  WidgetTester tester, {
+  required DbReferenceResult result,
+  required Library library,
+  _FakeNavigationBloc? navigation,
+  List<Bookmark> history = const [],
+  DbCommentatorEntry? commentator,
+  _FakeRepository? repository,
+  List<OpenedTab> openTabs = const [],
+}) async {
   final previousLibrary = DataRepository.instance.cachedLibraryFutureForTesting;
   DataRepository.instance.library = Future.value(library);
   addTearDown(() {
@@ -176,8 +234,8 @@ Future<OpenOrFocusTab> _openResultEvent(
     findRefRepository:
         repository ?? _FakeRepository([result], commentators: [?commentator]),
   );
-  final tabsBloc = _CapturingTabsBloc();
-  final navigationBloc = _FakeNavigationBloc();
+  final tabsBloc = _CapturingTabsBloc(openTabs);
+  final navigationBloc = navigation ?? _FakeNavigationBloc();
   late HistoryBloc historyBloc;
   await tester.runAsync(() async {
     historyBloc = HistoryBloc(_FakeHistoryRepository(history));
@@ -216,23 +274,7 @@ Future<OpenOrFocusTab> _openResultEvent(
   await tester.tap(find.text('open'));
   await tester.pumpAndSettle();
   await tester.enterText(find.byType(TextField), 'שאילתה');
-  if (enterBeforeResults) {
-    await tester.testTextInput.receiveAction(TextInputAction.done);
-    await tester.pumpAndSettle();
-    return tabsBloc.openEvent;
-  }
-  await tester.pump(const Duration(milliseconds: 400));
-  await tester.pump();
-  if (commentator != null) {
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('הצג מפרשים זמינים'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(commentator.title));
-  } else {
-    await tester.tap(find.text(result.reference));
-  }
-  await tester.pumpAndSettle();
-  return tabsBloc.openEvent;
+  return tabsBloc;
 }
 
 void main() {
@@ -556,5 +598,123 @@ void main() {
 
     expect((tab as PdfBookTab).book.path, r'C:\books\scan.pdf');
     expect(tab.book.id, isNull);
+  });
+
+  group('כפתור "עבור לכרטיסייה הפתוחה"', () {
+    const result = DbReferenceResult(
+      title: 'בראשית',
+      reference: 'בראשית פרק ב',
+      segment: 30,
+      bookId: 1,
+    );
+    const tooltip = 'עבור לכרטיסייה הפתוחה';
+
+    testWidgets('עובר לכרטיסייה בלי לפתוח או להזיז את הספר', (tester) async {
+      final book = TextBook(id: 1, title: 'בראשית');
+      final tabsBloc = await _showDialogWithResults(
+        tester,
+        result: result,
+        library: _libraryWith([book]),
+        openTabs: [
+          PdfBookTab(
+            book: PdfBook(title: 'אחר', path: '/a.pdf'),
+            pageNumber: 1,
+          ),
+          TextBookTab(book: TextBook(id: 1, title: 'בראשית'), index: 5),
+        ],
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip(tooltip));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(FindRefDialog), findsNothing);
+      expect(tabsBloc.events.whereType<OpenOrFocusTab>(), isEmpty);
+      final focus = tabsBloc.events.whereType<SetCurrentTab>().single;
+      expect(focus.index, 1);
+    });
+
+    testWidgets('בכרטיסייה משולבת מפעיל את החלונית ועובר למסך הקריאה', (
+      tester,
+    ) async {
+      final pane = TextBookTab(
+        book: TextBook(id: 1, title: 'בראשית'),
+        index: 0,
+      );
+      final navigation = _FakeNavigationBloc();
+      final tabsBloc = await _showDialogWithResults(
+        tester,
+        result: result,
+        library: _libraryWith([TextBook(id: 1, title: 'בראשית')]),
+        navigation: navigation,
+        openTabs: [
+          CombinedTab(
+            rightTab: TextBookTab(
+              book: TextBook(id: 2, title: 'שמות'),
+              index: 0,
+            ),
+            leftTab: pane,
+          ),
+        ],
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip(tooltip));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      final focus = tabsBloc.events.whereType<SetCurrentTab>().single;
+      expect(focus.index, 0);
+      expect(focus.pane, same(pane));
+      expect(
+        navigation.events.whereType<NavigateToScreen>().single.screen,
+        Screen.reading,
+      );
+    });
+
+    testWidgets('ספר PDF פתוח מזוהה לפי הנתיב', (tester) async {
+      await _showDialogWithResults(
+        tester,
+        result: const DbReferenceResult(
+          title: 'ספר סרוק',
+          reference: 'ספר סרוק עמוד 3',
+          segment: 3,
+          isPdf: true,
+          filePath: '/lib/scan.pdf',
+        ),
+        library: _libraryWith([
+          PdfBook(title: 'ספר סרוק', path: '/lib/scan.pdf'),
+        ]),
+        openTabs: [
+          PdfBookTab(
+            book: PdfBook(title: 'שם אחר', path: '/lib/scan.pdf'),
+            pageNumber: 9,
+          ),
+        ],
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip(tooltip), findsOneWidget);
+    });
+
+    testWidgets('אינו מוצג כשהספר אינו פתוח', (tester) async {
+      await _showDialogWithResults(
+        tester,
+        result: result,
+        library: _libraryWith([TextBook(id: 1, title: 'בראשית')]),
+        openTabs: [
+          TextBookTab(book: TextBook(id: 2, title: 'שמות'), index: 0),
+        ],
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      expect(find.text(result.reference), findsOneWidget);
+      expect(find.byTooltip(tooltip), findsNothing);
+    });
   });
 }
