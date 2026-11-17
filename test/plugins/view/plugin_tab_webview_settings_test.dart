@@ -44,6 +44,18 @@ void main() {
       expect(settings.pinchZoomEnabled, isFalse);
     });
 
+    for (final platform in TargetPlatform.values) {
+      test('מחוות היסטוריה נחסמות רק ב־macOS: $platform (issue #3161)', () {
+        debugDefaultTargetPlatformOverride = platform;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+        final settings = buildPluginTabWebViewSettings(isDevelopment: false);
+        expect(
+          settings.allowsBackForwardNavigationGestures,
+          platform != TargetPlatform.macOS,
+        );
+      });
+    }
+
     test('הגדרות אבטחה ותצוגה נשמרות', () {
       final settings = buildPluginTabWebViewSettings(isDevelopment: false);
       expect(settings.allowFileAccessFromFileURLs, isFalse);
