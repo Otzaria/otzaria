@@ -78,8 +78,20 @@ class TantivySearchResults extends StatefulWidget {
 class _TantivySearchResultsState extends State<TantivySearchResults> {
   static const int _maxUnbrokenWordLength = 12;
   static const double _loadMoreThreshold = 200;
+  static const int _snippetCacheCapacity = 300;
   final ScrollController _scrollController = ScrollController();
-  final Map<String, List<InlineSpan>> _snippetCache = {};
+  final _snippetCache =
+      <
+        ({
+          String html,
+          bool removeNikud,
+          bool removeTeamim,
+          utils.HolyNameStyle? holyNameStyle,
+          TextStyle defaultStyle,
+          TextStyle highlightStyle,
+        }),
+        ({String displayHtml, List<InlineSpan> spans})
+      >{};
   final Map<String, SearchResultBookDisplay> _bookDisplays = {};
   final Set<String> _bookDisplayLoads = {};
   bool _isAutoLoadInFlight = false;
@@ -1038,60 +1050,55 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                 result,
                 perBookSettingsEnabled: settingsState.enablePerBookSettings,
               ).profile(settingsState.textDisplayPolicy);
-              var rawHtml = utils.removeMarks(
-                result.text,
-                nikud: profile.removeNikud,
-                teamim: profile.removeTeamim,
-              );
-              if (profile.replaceHolyNames) {
-                rawHtml = utils.replaceHolyNames(
-                  rawHtml,
-                  style: profile.holyNameStyle,
-                );
-              }
-
-              final wrappedTitleText = _formatTitleForWrapping(titleText);
-
-              // ההדגשה מגיעה מוכנה מהמנוע בתוך rawHtml, ולכן המפתח תלוי רק
-              // ב-HTML ובסגנון התצוגה — לא בפרמטרי החיפוש.
-              final snippetCacheKey = [
-                result.id,
-                result.segment,
-                rawHtml.hashCode,
-                settingsState.searchResultsFontSize,
+              final fontFamily = AppFonts.renderFontFamily(
                 settingsState.fontFamily,
-                settingsState.replaceHolyNames,
-                colorScheme.onSurface.toARGB32(),
-              ].join('|');
-
-              // שימוש בגופן וגודל של המשתמש מההגדרות
-              final snippetSpans = _snippetCache.putIfAbsent(
-                snippetCacheKey,
-                () {
-                  if (_snippetCache.length > 300) {
-                    _snippetCache.clear();
-                  }
-                  return SnippetBuilder.fromHighlightedHtml(
-                    html: rawHtml,
-                    defaultStyle: TextStyle(
-                      fontSize: settingsState.searchResultsFontSize,
-                      fontFamily: AppFonts.renderFontFamily(
-                        settingsState.fontFamily,
-                      ),
-                      color: colorScheme.onSurface,
-                      height: 1.5,
-                    ),
-                    highlightStyle: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: settingsState.searchResultsFontSize,
-                      fontFamily: AppFonts.renderFontFamily(
-                        settingsState.fontFamily,
-                      ),
-                      color: colorScheme.error,
-                    ),
-                  );
-                },
               );
+              final snippetKey = (
+                html: result.text,
+                removeNikud: profile.removeNikud,
+                removeTeamim: profile.removeTeamim,
+                holyNameStyle: profile.replaceHolyNames
+                    ? profile.holyNameStyle
+                    : null,
+                defaultStyle: TextStyle(
+                  fontSize: settingsState.searchResultsFontSize,
+                  fontFamily: fontFamily,
+                  color: colorScheme.onSurface,
+                  height: 1.5,
+                ),
+                highlightStyle: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: settingsState.searchResultsFontSize,
+                  fontFamily: fontFamily,
+                  color: colorScheme.error,
+                ),
+              );
+              final snippet = _snippetCache.putIfAbsent(snippetKey, () {
+                var displayHtml = utils.removeMarks(
+                  snippetKey.html,
+                  nikud: snippetKey.removeNikud,
+                  teamim: snippetKey.removeTeamim,
+                );
+                final holyNameStyle = snippetKey.holyNameStyle;
+                if (holyNameStyle != null) {
+                  displayHtml = utils.replaceHolyNames(
+                    displayHtml,
+                    style: holyNameStyle,
+                  );
+                }
+                return (
+                  displayHtml: displayHtml,
+                  spans: SnippetBuilder.fromHighlightedHtml(
+                    html: displayHtml,
+                    defaultStyle: snippetKey.defaultStyle,
+                    highlightStyle: snippetKey.highlightStyle,
+                  ),
+                );
+              });
+              if (_snippetCache.length > _snippetCacheCapacity) {
+                _snippetCache.remove(_snippetCache.keys.first);
+              }
+              final wrappedTitleText = _formatTitleForWrapping(titleText);
 
               return ValueListenableBuilder<SearchPreviewTarget?>(
                 valueListenable: widget.tab.previewTarget,
@@ -1149,14 +1156,14 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                       rank: index + 1,
                       titleText: titleText,
                       wrappedTitleText: wrappedTitleText,
-                      snippetSpans: snippetSpans,
+                      snippetSpans: snippet.spans,
                       externalSearchStatus: widget.tab.externalSearchStatus,
                       groupingMode: state.resultGrouping,
                       onCopy: !hasCopyableResultText(result)
                           ? null
                           : () => copySearchResultText(
                               result: result,
-                              rawHtml: rawHtml,
+                              rawHtml: snippet.displayHtml,
                               titleText: titleText,
                               settingsState: settingsState,
                             ),

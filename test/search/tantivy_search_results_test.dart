@@ -164,8 +164,12 @@ void main() {
       await settingsBloc.close();
     });
 
-    Widget buildWidget({MockSettingsBloc? overrideSettingsBloc}) {
+    Widget buildWidget({
+      MockSettingsBloc? overrideSettingsBloc,
+      ThemeData? theme,
+    }) {
       return MaterialApp(
+        theme: theme,
         home: MultiBlocProvider(
           providers: [
             BlocProvider<SearchBloc>.value(value: searchBloc),
@@ -535,6 +539,37 @@ void main() {
         return true;
       });
       expect(sizes, hasLength(1));
+    });
+
+    testWidgets('הדגשת התקציר מתעדכנת כשצבע השגיאה בערכת הנושא משתנה', (
+      tester,
+    ) async {
+      final colors = ThemeData.light().colorScheme;
+      Future<Color?> highlightColor(Color errorColor) async {
+        await tester.pumpWidget(
+          buildWidget(
+            theme: ThemeData(colorScheme: colors.copyWith(error: errorColor)),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final snippet = tester
+            .widgetList<RichText>(find.byType(RichText))
+            .singleWhere(
+              (widget) => widget.text.toPlainText() == 'טקסט עם HTML',
+            );
+        Color? color;
+        snippet.text.visitChildren((span) {
+          if (span is TextSpan && span.text == 'טקסט') {
+            color = span.style?.color;
+            return false;
+          }
+          return true;
+        });
+        return color;
+      }
+
+      expect(await highlightColor(Colors.red), Colors.red);
+      expect(await highlightColor(Colors.purple), Colors.purple);
     });
 
     testWidgets('תוצאה שהמנוע לא קרא את הטקסט שלה מציגה הודעה ולא שורה ריקה', (
