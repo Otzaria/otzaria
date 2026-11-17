@@ -6,12 +6,8 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart';
 
-BookNote _note(int noteIndex, int charPos, String body, {String? marker}) => (
-  noteIndex: noteIndex,
-  charPos: charPos,
-  marker: marker,
-  body: body,
-);
+BookNote _note(int noteIndex, int charPos, String body, {String? marker}) =>
+    (noteIndex: noteIndex, charPos: charPos, marker: marker, body: body);
 
 LinkAnchorSpan _range(int start, int end) =>
     LinkAnchorSpan(start: start, end: end);
@@ -52,12 +48,77 @@ List<String> _units(String html) {
   return units;
 }
 
+List<LinkAnchorSpan> _referenceProjection(
+  List<LinkAnchorSpan> spans,
+  List<BookNote> notes, {
+  int? note,
+}) {
+  if (notes.isEmpty) return note == null ? spans : const [];
+  if (note != null && (note < 0 || note >= notes.length)) return const [];
+  if (notes.any((n) => n.charPos < 0)) return const [];
+  // גוף k תופס בשורה המלאה את [starts[k], ends[k]).
+  final starts = List<int>.filled(notes.length, 0);
+  final ends = List<int>.filled(notes.length, 0);
+  var before = 0;
+  for (var k = 0; k < notes.length; k++) {
+    starts[k] = notes[k].charPos + before;
+    before += visibleCharCount(notes[k].body);
+    ends[k] = notes[k].charPos + before;
+  }
+  bool inside(int at, int k) => starts[k] < at && at < ends[k];
+  int stored(int at) {
+    var shift = 0;
+    for (var k = 0; k < notes.length && starts[k] < at; k++) {
+      if (at < ends[k]) return starts[k] - shift;
+      shift += ends[k] - starts[k];
+    }
+    return at - shift;
+  }
+
+  final result = <LinkAnchorSpan>[];
+  for (final span in spans) {
+    final end = span.end;
+    if (note != null) {
+      final from = starts[note];
+      if (end == null) {
+        if (inside(span.start, note)) {
+          result.add(
+            LinkAnchorSpan(start: span.start - from, label: span.label),
+          );
+        }
+      } else {
+        final a = span.start > from ? span.start : from;
+        final b = end < ends[note] ? end : ends[note];
+        if (b > a) {
+          result.add(
+            LinkAnchorSpan(start: a - from, end: b - from, label: span.label),
+          );
+        }
+      }
+    } else if (end == null) {
+      var inBody = false;
+      for (var k = 0; k < notes.length && !inBody; k++) {
+        inBody = inside(span.start, k);
+      }
+      if (!inBody) {
+        result.add(
+          LinkAnchorSpan(start: stored(span.start), label: span.label),
+        );
+      }
+    } else {
+      final a = stored(span.start);
+      final b = stored(end);
+      if (b > a) {
+        result.add(LinkAnchorSpan(start: a, end: b, label: span.label));
+      }
+    }
+  }
+  return result;
+}
+
 void main() {
   // השורה המלאה: "אב" + "1" + [גוף "גד" ב-3..5] + "הו" + [גוף "זחט" ב-7..10] + "יכ".
-  final notes = [
-    _note(0, 3, 'ג<b>ד</b>', marker: '1'),
-    _note(1, 5, 'זחט'),
-  ];
+  final notes = [_note(0, 3, 'ג<b>ד</b>', marker: '1'), _note(1, 5, 'זחט')];
 
   group('projectAnchorSpans', () {
     test('בלי הערות — העוגן כמות שהוא, ואין חלק בהערה', () {
@@ -124,6 +185,35 @@ void main() {
       final spans = [_range(1, 4), const LinkAnchorSpan(start: 2)];
       expect(projectAnchorSpans(spans, unknown), isEmpty);
       expect(projectAnchorSpans(spans, unknown, note: 0), isEmpty);
+    });
+
+    test('הקרנה שומרת את החוזה גם בהערות לא ממוינות ובגבולות גוף ריק', () {
+      final random = Random(12);
+      for (var round = 0; round < 200; round++) {
+        final lineNotes = <BookNote>[
+          for (var k = 0; k < 8; k++)
+            _note(
+              k,
+              random.nextInt(10),
+              List.filled(random.nextInt(5), '&amp;').join(),
+            ),
+        ];
+        final spans = <LinkAnchorSpan>[
+          for (var at = -1; at < 45; at++) ...[
+            LinkAnchorSpan(start: at, label: 'א'),
+            LinkAnchorSpan(start: at, end: at + 4, label: 'ב'),
+          ],
+        ];
+        for (final note in [null, -1, 0, 3, 7, 8]) {
+          final actual = projectAnchorSpans(spans, lineNotes, note: note);
+          final expected = _referenceProjection(spans, lineNotes, note: note);
+          expect(_pairs(actual), _pairs(expected), reason: '$round/$note');
+          expect(
+            actual.map((span) => span.label),
+            expected.map((span) => span.label),
+          );
+        }
+      }
     });
 
     test('השורה המלאה נבנית מחדש בדיוק מהחלקים, בשורות אקראיות', () {
@@ -195,10 +285,9 @@ void main() {
             expect(piece, isEmpty);
           } else {
             expect(
-              _units(lineNotes[k].body).sublist(
-                piece.single.start,
-                piece.single.end!,
-              ),
+              _units(
+                lineNotes[k].body,
+              ).sublist(piece.single.start, piece.single.end!),
               noteUnits,
             );
           }
@@ -209,6 +298,18 @@ void main() {
 
   group('injectLinkAnchorMarkers עם הערות', () {
     const stored = 'אב<sup class="footnote-marker">1</sup>הויכ';
+
+    test('גופי ההערות נסרקים פעם אחת לכל קישורי השורה', () {
+      debugAnchorProjectionBodyScanCount = 0;
+      final html = injectLinkAnchorMarkers(
+        rawLine: stored,
+        anchorLinks: [for (var i = 0; i < 40; i++) _linker(2, 12)],
+        styleIndexByCommentator: const {},
+        notes: notes,
+      );
+      expect(html, contains('link-anchor-range'));
+      expect(debugAnchorProjectionBodyScanCount, notes.length);
+    });
 
     test('בשורה השמורה מוזרק רק החלק שמחוץ להערות', () {
       final html = injectLinkAnchorMarkers(
