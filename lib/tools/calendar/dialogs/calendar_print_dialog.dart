@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
+import 'package:otzaria/tools/calendar/dialogs/calendar_print_zmanim_picker.dart';
+import 'package:otzaria/tools/calendar/helpers/calendar_print_options.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 
@@ -11,10 +13,15 @@ class CalendarPrintDialog extends StatefulWidget {
   final CalendarView calendarView;
   final ShortcutActivator? closeShortcut;
 
+  /// הזמנים שמופעלים בלוח (`CalendarState.enabledZmanim`): ברירת המחדל
+  /// של הדפסת יום.
+  final Set<String> enabledZmanim;
+
   const CalendarPrintDialog({
     super.key,
     required this.calendarView,
     this.closeShortcut,
+    this.enabledZmanim = const {},
   });
 
   @override
@@ -23,6 +30,15 @@ class CalendarPrintDialog extends StatefulWidget {
 
 class _CalendarPrintDialogState extends State<CalendarPrintDialog> {
   int _count = 1;
+
+  /// זמני היום שנבחרו להדפסה;  = ברירת המחדל של התצוגה. נטען מההדפסה
+  /// הקודמת.
+  Set<String>? _zmanim = CalendarPrintZmanimStore.load();
+
+  Future<void> _confirm() async {
+    await CalendarPrintZmanimStore.save(_zmanim);
+    if (mounted) Navigator.of(context).pop(_count);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +60,8 @@ class _CalendarPrintDialogState extends State<CalendarPrintDialog> {
       size: AppDialogSize.small,
       title: 'הגדרות הדפסה',
       icon: FluentIcons.print_24_regular,
-      onConfirm: () => Navigator.of(context).pop(_count),
+      scrollable: true,
+      onConfirm: _confirm,
       actions: [
         ActionButton.neutral(
           text: 'ביטול',
@@ -52,7 +69,7 @@ class _CalendarPrintDialogState extends State<CalendarPrintDialog> {
         ),
         ActionButton.recommended(
           text: 'הדפס',
-          onPressed: () => Navigator.of(context).pop(_count),
+          onPressed: _confirm,
         ),
       ],
       // סגנון הגוף של AlertDialog.
@@ -135,6 +152,16 @@ class _CalendarPrintDialogState extends State<CalendarPrintDialog> {
                 ),
               ],
             ),
+            const SizedBox(height: AppTokens.spaceMD),
+            CalendarPrintZmanimPicker(
+              view: widget.calendarView,
+              defaultSelection: defaultPrintedZmanim(
+                widget.calendarView,
+                dayZmanim: widget.enabledZmanim,
+              ),
+              selection: _zmanim,
+              onChanged: (value) => setState(() => _zmanim = value),
+            ),
           ],
         ),
       ),
@@ -158,12 +185,14 @@ Future<int?> showCalendarPrintDialog({
   required BuildContext context,
   required CalendarView calendarView,
   ShortcutActivator? closeShortcut,
+  Set<String> enabledZmanim = const {},
 }) {
   return showDialog<int>(
     context: context,
     builder: (_) => CalendarPrintDialog(
       calendarView: calendarView,
       closeShortcut: closeShortcut,
+      enabledZmanim: enabledZmanim,
     ),
   );
 }
