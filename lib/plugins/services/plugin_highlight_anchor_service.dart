@@ -51,7 +51,7 @@ class PluginHighlightAnchorService {
         status: 'active',
         range: _rebuildAnchor(
           anchor: anchor,
-          sourceText: sourceText,
+          source: source,
           start: originalStart,
           end: originalEnd,
           sourceHash: sourceHash,
@@ -76,10 +76,11 @@ class PluginHighlightAnchorService {
           status: 'active',
           range: _rebuildAnchor(
             anchor: anchor,
-            sourceText: sourceText,
+            source: source,
             start: selected,
             end: selected + exact.length,
             sourceHash: sourceHash,
+            occurrences: exactCandidates,
           ),
           strategy: exactCandidates.length == 1
               ? 'unique-exact-text'
@@ -102,7 +103,7 @@ class PluginHighlightAnchorService {
         status: 'active',
         range: _rebuildAnchor(
           anchor: anchor,
-          sourceText: sourceText,
+          source: source,
           start: candidate.$1,
           end: candidate.$2,
           sourceHash: sourceHash,
@@ -222,24 +223,23 @@ class PluginHighlightAnchorService {
 
   PluginTextRangeAnchor _rebuildAnchor({
     required PluginTextRangeAnchor anchor,
-    required String sourceText,
+    required List<String> source,
     required int start,
     required int end,
     required String sourceHash,
+    List<int>? occurrences,
   }) {
-    final graphemes = sourceText.characters.toList(growable: false);
-    final matches = findGraphemeOccurrences(
-      graphemes,
-      graphemes.sublist(start, end),
-    );
+    final selected = source.sublist(start, end);
+    final matches = occurrences ?? findGraphemeOccurrences(source, selected);
+    final offsets = _rangeOffsets(source, start, end);
     return PluginTextRangeAnchor(
       layer: 'source',
       sourceTextHash: sourceHash,
-      start: _offset(graphemes, start),
-      end: _offset(graphemes, end),
-      exactText: graphemes.sublist(start, end).join(),
-      beforeText: _context(graphemes, start, before: true, anchor: anchor),
-      afterText: _context(graphemes, end, before: false, anchor: anchor),
+      start: offsets.start,
+      end: offsets.end,
+      exactText: selected.join(),
+      beforeText: _context(source, start, before: true, anchor: anchor),
+      afterText: _context(source, end, before: false, anchor: anchor),
       occurrenceIndexInSection: matches.indexOf(start),
       occurrenceCountInSection: matches.length,
       normalizationProfile: anchor.normalizationProfile,
@@ -276,12 +276,31 @@ class PluginHighlightAnchorService {
     );
   }
 
-  PluginTextOffset _offset(List<String> graphemes, int boundary) {
-    final prefix = graphemes.take(boundary).join();
-    return PluginTextOffset(
-      grapheme: boundary,
-      codePoint: prefix.runes.length,
-      utf16: prefix.length,
+  ({PluginTextOffset start, PluginTextOffset end}) _rangeOffsets(
+    List<String> source,
+    int start,
+    int end,
+  ) {
+    var codePoint = 0;
+    var utf16 = 0;
+    for (var index = 0; index < start; index++) {
+      final grapheme = source[index];
+      utf16 += grapheme.length;
+      codePoint += grapheme.length == 1 ? 1 : grapheme.runes.length;
+    }
+    final startOffset = PluginTextOffset(
+      grapheme: start,
+      codePoint: codePoint,
+      utf16: utf16,
+    );
+    for (var index = start; index < end; index++) {
+      final grapheme = source[index];
+      utf16 += grapheme.length;
+      codePoint += grapheme.length == 1 ? 1 : grapheme.runes.length;
+    }
+    return (
+      start: startOffset,
+      end: PluginTextOffset(grapheme: end, codePoint: codePoint, utf16: utf16),
     );
   }
 

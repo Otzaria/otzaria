@@ -101,17 +101,26 @@ void main() {
     'keeps overlapping exact occurrences when rebuilding a moved anchor',
     () {
       final result = service.resolve(
-        anchor: _anchor('פתיחה ארוכה אא', 'אא', occurrenceIndex: 1),
-        sourceText: 'אאאא',
+        anchor: _anchor('פתיחה ארוכה אָ🙂אָ', 'אָ🙂אָ', occurrenceIndex: 1),
+        sourceText: '#🙂אָ🙂אָ🙂אָ',
       );
 
       expect(result.status, 'active');
       expect(result.strategy, 'context-or-occurrence');
       expect(result.confidence, 0.85);
-      expect(result.range?.start.grapheme, 1);
-      expect(result.range?.end.grapheme, 3);
+      expect(result.range?.start.toJson(), {
+        'grapheme': 4,
+        'codePoint': 5,
+        'utf16': 7,
+      });
+      expect(result.range?.end.toJson(), {
+        'grapheme': 7,
+        'codePoint': 10,
+        'utf16': 13,
+      });
+      expect(result.range?.exactText, 'אָ🙂אָ');
       expect(result.range?.occurrenceIndexInSection, 1);
-      expect(result.range?.occurrenceCountInSection, 3);
+      expect(result.range?.occurrenceCountInSection, 2);
     },
   );
 
@@ -142,17 +151,25 @@ void main() {
     () {
       final result = service.resolve(
         anchor: _anchor('פתיחה אָ🙂ב', 'אָ🙂ב', normalizationProfile: 'search'),
-        sourceText: '#א🙂ב',
+        sourceText: '🙃אֱ#אַ🙂ב',
       );
 
       expect(result.status, 'active');
       expect(result.strategy, 'unique-normalized-text');
       expect(result.confidence, 0.75);
-      expect(result.range?.start.grapheme, 1);
-      expect(result.range?.end.grapheme, 4);
-      expect(result.range?.start.utf16, 1);
-      expect(result.range?.end.utf16, 5);
-      expect(result.range?.exactText, 'א🙂ב');
+      expect(result.range?.start.toJson(), {
+        'grapheme': 3,
+        'codePoint': 4,
+        'utf16': 5,
+      });
+      expect(result.range?.end.toJson(), {
+        'grapheme': 6,
+        'codePoint': 8,
+        'utf16': 10,
+      });
+      expect(result.range?.exactText, 'אַ🙂ב');
+      expect(result.range?.occurrenceIndexInSection, 0);
+      expect(result.range?.occurrenceCountInSection, 1);
       final ambiguous = service.resolve(
         anchor: _anchor('פתיחה אָאָ', 'אָאָ', normalizationProfile: 'search'),
         sourceText: 'אאא',
