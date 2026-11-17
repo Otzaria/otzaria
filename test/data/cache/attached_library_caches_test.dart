@@ -12,8 +12,10 @@ import 'package:otzaria/migration/database/untrusted_database.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/services/commentary_service.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
+import '../../helpers/memory_settings_cache.dart';
 import '../../helpers/seforim_fixture_db.dart';
 
 void main() {
@@ -109,6 +111,7 @@ void main() {
   test(
     'מטמון החיפוש מתעדכן כשמטא־דאטה מצורפת נטענת אחרי החיפוש הראשון',
     () async {
+      await Settings.init(cacheProvider: MemorySettingsCache());
       final repository = DataRepository();
       addTearDown(repository.bookSearchWorkerForTesting.dispose);
       final ranked = TextBook(id: bookId, title: 'דף מבחן', source: source);
