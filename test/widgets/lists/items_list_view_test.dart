@@ -599,6 +599,7 @@ void main() {
       bool grouped = false,
       bool groupWhileSearching = true,
       List<String>? Function(dynamic)? aliases,
+      bool Function(dynamic)? additionalFilter,
       void Function(int originalIndex)? onTap,
     }) {
       return MaterialApp(
@@ -619,6 +620,7 @@ void main() {
                 ? (item) => 'קבוצה ${(item as _Item).workspaceName}'
                 : null,
             groupWhileSearching: groupWhileSearching,
+            additionalFilter: additionalFilter,
             searchAliasesBuilder: aliases,
             searchTitleBuilder: (item) => (item as _Item).book.title,
           ),
@@ -755,6 +757,63 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump();
       expect(tapped, 2);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(tapped, 1);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(tapped, 2);
+
+      await search(tester, 'ברכות ג');
+      tapped = null;
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(tapped, isNull);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(tapped, 1);
+    });
+
+    testWidgets('הבחירה נשמרת כשהסינון משנה את סדר הקבוצות', (
+      tester,
+    ) async {
+      int? tapped;
+      Widget build({bool filtered = false}) => buildSearchable(
+        ranked,
+        grouped: true,
+        additionalFilter: filtered ? (item) => item != ranked.first : null,
+        onTap: (index) => tapped = index,
+      );
+      await tester.pumpWidget(build());
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+
+      await tester.pumpWidget(build(filtered: true));
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(tapped, 2);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(tapped, 1);
+    });
+
+    testWidgets('הבחירה מתאפסת לאחר שהסינון מרוקן את הרשימה', (tester) async {
+      int? tapped;
+      Widget build({bool empty = false}) => buildWidget(
+        additionalFilter: empty ? (_) => false : null,
+        onItemTap: (_, _, index) => tapped = index,
+      );
+      await tester.pumpWidget(build());
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpWidget(build(empty: true));
+      await tester.pumpWidget(build());
+      await tester.showKeyboard(find.byType(TextField));
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(tapped, isNull);
     });
 
     testWidgets('Down באחרונה מחזיר אותה לתצוגה גם כשהמסך במנוחה', (
