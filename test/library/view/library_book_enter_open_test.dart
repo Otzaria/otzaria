@@ -241,6 +241,7 @@ void main() {
     for (final key in [
       LogicalKeyboardKey.enter,
       LogicalKeyboardKey.numpadEnter,
+      LogicalKeyboardKey.space,
     ]) {
       testWidgets('מיקוד נגישות בתפריט שומר ${key.keyLabel} בתצוגת $viewMode', (
         tester,
@@ -286,6 +287,7 @@ void main() {
   for (final key in [
     LogicalKeyboardKey.enter,
     LogicalKeyboardKey.numpadEnter,
+    LogicalKeyboardKey.space,
   ]) {
     testWidgets('מיקוד נגישות במידע שומר על פעולת ${key.keyLabel}', (
       tester,
