@@ -331,6 +331,57 @@ void main() {
   // ולכן אינו נוגע בקובץ כלל.
   // ---------------------------------------------------------------------------
   group('מטמון מפת העמודים בזיכרון', () {
+    test('רענון הספרייה מחליף את המפה של אותה מהדורה', () async {
+      const title = 'אותו ספר לפני ואחרי רענון';
+      final pdfPath = p.join(tempDir.path, 'refreshed-toc.pdf');
+      final original = seedLibrary(textTitles: [title], pdfPath: pdfPath);
+      expect(await pdfToTextPage(original.pdf, _matchingOutline(), 3), 30);
+
+      final refreshed = seedLibrary(textTitles: [title], pdfPath: pdfPath);
+      refreshed.provider.toc = [
+        for (final (i, node) in _matchingOutline().indexed)
+          TocEntry(text: node.title, index: (i + 1) * 100),
+      ];
+      expect(await pdfToTextPage(refreshed.pdf, _matchingOutline(), 3), 300);
+    });
+
+    test('אותו נתיב PDF עם שני מקורות מוצא כל מהדורת טקסט', () async {
+      final books = seedLibrary(
+        textTitles: const ['ספר ממקורות שונים'],
+        pdfPath: p.join(tempDir.path, 'shared-path.pdf'),
+      );
+      final official = books.texts.single;
+      final attached = TextBook(
+        title: official.title,
+        category: official.category,
+        categoryId: official.categoryId,
+        source: BookSource.attached('other-library'),
+      );
+      final attachedPdf = PdfBook(
+        title: official.title,
+        path: books.pdf.path,
+        category: official.category,
+        source: attached.source,
+      );
+      official.category!.books.addAll([attached, attachedPdf]);
+      final attachedProvider = _FakeTocProvider()
+        ..toc = [
+          for (final (i, node) in _matchingOutline().indexed)
+            TocEntry(text: node.title, index: (i + 1) * 100),
+        ];
+      LibraryProviderManager.instance.seedMappingsForTesting(
+        mapping: {
+          BookCompositeKey.fromBook(official)!: books.provider,
+          BookCompositeKey.fromBook(attached)!: attachedProvider,
+        },
+        providers: [books.provider, attachedProvider],
+      );
+
+      expect(await pdfToTextPage(books.pdf, _matchingOutline(), 3), 30);
+      expect(await pdfToTextPage(attachedPdf, _matchingOutline(), 3), 300);
+      expect(await pdfToTextPage(books.pdf, _matchingOutline(), 3), 30);
+    });
+
     for (final (dimension, source, categoryId, fileType) in [
       ('מקור אישי', BookSource.user, 1, 'txt'),
       ('מקור מצורף', BookSource.attached('other-library'), 1, 'txt'),
@@ -380,7 +431,7 @@ void main() {
         release.complete();
 
         expect(await conversions, [2, 2]);
-        expect(reads, 2);
+        expect(reads, 1);
         expect(await textToPdfPage(other, 100, pdfBook: books.pdf), 1);
         expect(await textToPdfPage(official, 30, pdfBook: books.pdf), 3);
         final sameEdition = TextBook(
@@ -390,7 +441,7 @@ void main() {
           source: other.source,
         );
         expect(await textToPdfPage(sameEdition, 200, pdfBook: books.pdf), 2);
-        expect(reads, 2);
+        expect(reads, 1);
       });
     }
 
@@ -469,14 +520,16 @@ void main() {
                     pdfBook: books.pdf,
                     outline: _matchingOutline(),
                   );
-            await Future<void>.delayed(Duration.zero);
-            release.complete();
-
-            expect(await supplied, fileToPdf ? 30 : 2);
+            try {
+              expect(await supplied, fileToPdf ? 30 : 2);
+            } finally {
+              release.complete();
+            }
             expect(
               await fromFile,
               fileOutcome == 'שונה' ? (fileToPdf ? 12 : 30) : isNull,
             );
+            expect(await pdfToTextPage(books.pdf, _matchingOutline(), 3), 30);
             expect(reads, 1);
           },
         );
@@ -642,6 +695,30 @@ void main() {
         isNull,
       );
       expect(await pdfToTextPage(books.pdf, _matchingOutline(), 3), isNull);
+    });
+
+    test('מפה שלילית מהקובץ חוסכת פתיחה חוזרת ומתחדשת עם outline', () async {
+      final books = seedLibrary(
+        textTitles: const ['ספר שהקובץ שלו לא החזיר סימניות'],
+        pdfPath: p.join(tempDir.path, 'no-file-outline.pdf'),
+      );
+      var reads = 0;
+      pdfAnchorsReaderForTesting = (_) async {
+        reads++;
+        return const [];
+      };
+
+      for (var page = 1; page <= 3; page++) {
+        expect(await pdfToTextPage(books.pdf, const [], page), isNull);
+      }
+      expect(reads, 1);
+
+      expect(await pdfToTextPage(books.pdf, _matchingOutline(), 3), 30);
+      expect(
+        await textToPdfPage(books.texts.single, 20, pdfBook: books.pdf),
+        2,
+      );
+      expect(reads, 1);
     });
 
     test('PDF בלי מהדורת טקסט — חיפוש המלווה רץ פעם אחת לכל ספרייה', () async {

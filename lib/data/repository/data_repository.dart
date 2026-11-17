@@ -30,6 +30,9 @@ class DataRepository {
   @visibleForTesting
   Future<Library>? get cachedLibraryFutureForTesting => _libraryFuture;
 
+  /// מזהה את טעינת הקטלוג הנוכחית בלי להתחיל טעינה.
+  Object? get libraryCacheIdentity => _libraryFuture;
+
   /// הקטלוג האחרון שהושלם בהצלחה, גם אם בנייה חדשה יותר נכשלה.
   Library? get lastSuccessfulLibrary => _lastSuccessfulLibrary;
   Future<Library> get library =>
