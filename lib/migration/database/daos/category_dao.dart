@@ -48,6 +48,31 @@ class CategoryDao {
     return Category.fromJson(result.first);
   }
 
+  /// מרכיב נתיב עד השורש, או עד הורה חסר או חוזר במסד ישן.
+  Future<String> getCategoryPath(int id) async {
+    final capabilities = await _db.capabilities;
+    if (!capabilities.hasCategories) return '';
+    if (!capabilities.hasColumn('category', 'parentId')) {
+      return (await getCategoryById(id))?.title ?? '';
+    }
+
+    final db = await database;
+    // UNION שומר כל מזהה פעם אחת, גם כאשר יש מעגל בקשרי ההורות.
+    final categories = {
+      for (final row in db.select(_queries['selectAncestry']!, [id]))
+        row['id'] as int: Category.fromJson(row),
+    };
+    final titles = <String>[];
+    int? currentId = id;
+    while (currentId != null) {
+      final category = categories.remove(currentId);
+      if (category == null) break;
+      titles.add(category.title);
+      currentId = category.parentId;
+    }
+    return titles.reversed.join(', ');
+  }
+
   Future<List<Category>> getRootCategories() => _selectVisible('selectRoot');
 
   Future<List<Category>> _selectVisible(String query) async {

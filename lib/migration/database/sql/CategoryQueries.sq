@@ -6,6 +6,19 @@ SELECT * FROM category ORDER BY orderIndex, title;
 selectById:
 SELECT * FROM category WHERE id = ?;
 
+selectAncestry:
+WITH RECURSIVE ancestors(id, parentId) AS (
+    SELECT id, parentId FROM category WHERE id = ?
+    UNION
+    SELECT parent.id, parent.parentId
+    FROM ancestors
+    JOIN category AS parent ON parent.id = ancestors.parentId
+)
+SELECT category.*
+FROM ancestors
+-- ה-CTE חייב להוביל את החיבור כדי שקטגוריות ייקראו לפי מפתח ראשי.
+CROSS JOIN category ON category.id = ancestors.id;
+
 selectByParentId:
 SELECT * FROM category WHERE parentId = ? ORDER BY orderIndex, title;
 

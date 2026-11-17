@@ -377,6 +377,10 @@ class SeforimRepository {
     return await _database.categoryDao.getCategoryById(id);
   }
 
+  /// מחזיר את נתיב הקטגוריה מהשורש, או מחרוזת ריקה אם היא חסרה.
+  Future<String> getCategoryPath(int id) =>
+      _database.categoryDao.getCategoryPath(id);
+
   /// Retrieves all root categories (categories without a parent).
   ///
   /// @return A list of root categories
