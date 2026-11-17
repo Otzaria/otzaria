@@ -2069,10 +2069,63 @@ class ScanResult {
   bool get hasChanges => addedBooks > 0 || updatedBooks > 0;
 }
 
+class _BookKeySet extends SetBase<BookCompositeKey> {
+  final Set<BookCompositeKey> _keys = {};
+  Map<String, List<BookCompositeKey>>? _byTitle;
+
+  Iterable<BookCompositeKey> withTitle(String title) {
+    final byTitle = _byTitle ??= _indexTitles();
+    return byTitle[title] ?? const [];
+  }
+
+  Map<String, List<BookCompositeKey>> _indexTitles() {
+    final byTitle = <String, List<BookCompositeKey>>{};
+    for (final key in _keys) {
+      byTitle.putIfAbsent(key.title, () => []).add(key);
+    }
+    return byTitle;
+  }
+
+  @override
+  bool add(BookCompositeKey value) {
+    if (!_keys.add(value)) return false;
+    _byTitle?.putIfAbsent(value.title, () => []).add(value);
+    return true;
+  }
+
+  @override
+  bool remove(Object? value) {
+    if (!_keys.remove(value)) return false;
+    _byTitle = null;
+    return true;
+  }
+
+  @override
+  void clear() {
+    _keys.clear();
+    _byTitle = null;
+  }
+
+  @override
+  bool contains(Object? element) => _keys.contains(element);
+
+  @override
+  BookCompositeKey? lookup(Object? element) => _keys.lookup(element);
+
+  @override
+  Iterator<BookCompositeKey> get iterator => _keys.iterator;
+
+  @override
+  int get length => _keys.length;
+
+  @override
+  Set<BookCompositeKey> toSet() => _keys.toSet();
+}
+
 /// Library provider that loads books from the SQLite database.
 class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   final SqliteDataProvider _sqliteProvider = SqliteDataProvider.instance;
-  final Set<BookCompositeKey> _cachedKeys = {};
+  final _cachedKeys = _BookKeySet();
   final Map<int, String> _categoryIdToPath = {};
   final Map<int, db_models.Category> _categoriesById = {};
   bool _titlesCached = false;
@@ -2097,7 +2150,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   /// מיפוי `(title, categoryId, fileType) → BookCompositeKey` עבור ספרים
   /// שמקורם ב-`user_books.db`. נפרד מ-`_cachedKeys` כדי שהמטמון של seforim
   /// לא ייפגע. כל המפתחות כאן עם `source: BookSource.user`.
-  final Set<BookCompositeKey> _userBooksCachedKeys = {};
+  final _userBooksCachedKeys = _BookKeySet();
 
   /// ספרים אישיים לפי מזהה ב-user_books.db — כולל גרסאות שאינן בעץ.
   final Map<int, Book> _userBooksById = {};
@@ -2127,7 +2180,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
 
   /// מפתחות ספרי המסדים המצורפים. מזהי הקטגוריות טבעיים לכל מסד, ולכן המקור
   /// (slug) הוא חלק מהמפתח ומנתיבי הקטגוריות.
-  final Set<BookCompositeKey> _attachedCachedKeys = {};
+  final _attachedCachedKeys = _BookKeySet();
   final Map<String, Map<int, String>> _attachedCategoryPaths = {};
   final Map<String, _PendingAttachedCatalog> _pendingAttachedCatalogs = {};
 
@@ -2147,11 +2200,9 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   ) {
     final normalized = BookCompositeKey.normalizeFileType(fileType);
     return _attachedCachedKeys
+        .withTitle(title)
         .where(
-          (key) =>
-              key.title == title &&
-              key.categoryId == categoryId &&
-              key.fileType == normalized,
+          (key) => key.categoryId == categoryId && key.fileType == normalized,
         )
         .firstOrNull;
   }
@@ -3152,7 +3203,6 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         title,
         categoryId: categoryId,
         normalizedFileType: normalizedFileType,
-        includeUserBooks: true,
       );
 
       final attachedSource = matchedKey?.source;
@@ -3253,7 +3303,6 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     String title, {
     int? categoryId,
     required String normalizedFileType,
-    required bool includeUserBooks,
   }) {
     if (categoryId != null) {
       // seforim קודם (priority גבוה), אז user_books — כי categoryId יכול
@@ -3266,31 +3315,24 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       if (_cachedKeys.contains(seforimKey)) {
         return seforimKey;
       }
-      if (includeUserBooks) {
-        final userBookKey = BookCompositeKey.create(
-          title: title,
-          categoryId: categoryId,
-          fileType: normalizedFileType,
-          source: BookSource.user,
-        );
-        if (_userBooksCachedKeys.contains(userBookKey)) {
-          return userBookKey;
-        }
+      final userBookKey = BookCompositeKey.create(
+        title: title,
+        categoryId: categoryId,
+        fileType: normalizedFileType,
+        source: BookSource.user,
+      );
+      if (_userBooksCachedKeys.contains(userBookKey)) {
+        return userBookKey;
       }
     }
 
-    final candidateSets = <Set<BookCompositeKey>>[
+    for (final keys in [
       _cachedKeys,
-      if (includeUserBooks) ...[_userBooksCachedKeys, _attachedCachedKeys],
-    ];
-    for (final candidateSet in candidateSets) {
-      for (final key in candidateSet) {
-        if (!key.matchesTitle(title)) continue;
-        if (normalizedFileType.isNotEmpty &&
-            key.fileType != normalizedFileType) {
-          continue;
-        }
-        return key;
+      _userBooksCachedKeys,
+      _attachedCachedKeys,
+    ]) {
+      for (final key in keys.withTitle(title)) {
+        if (key.fileType == normalizedFileType) return key;
       }
     }
 
