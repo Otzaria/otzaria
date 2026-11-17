@@ -149,7 +149,7 @@ class _ReadingTabStripState extends State<ReadingTabStrip> {
   late _TabStripGeometry _geometry;
 
   /// מיקום ההכנסה הנוכחי בטווח `0..tabs.length`, או `null` כשאין גרירה מעל.
-  int? _insertIndex;
+  final ValueNotifier<int?> _insertIndex = ValueNotifier(null);
 
   /// הכרטיסיה שהגרירה משתהה מעליה, והשעון שיפתח אותה.
   OpenedTab? _springTarget;
@@ -192,7 +192,7 @@ class _ReadingTabStripState extends State<ReadingTabStrip> {
     final drag = external.drag.value;
     if (drag == null) {
       external.dropIndex.value = null;
-      if (_insertIndex != null) setState(() => _insertIndex = null);
+      _insertIndex.value = null;
       return;
     }
     final box = _contentKey.currentContext?.findRenderObject() as RenderBox?;
@@ -206,13 +206,13 @@ class _ReadingTabStripState extends State<ReadingTabStrip> {
     final crossExtent = widget.isVertical ? box.size.width : box.size.height;
     if (cross < -12 || cross > crossExtent + 12) {
       external.dropIndex.value = null;
-      if (_insertIndex != null) setState(() => _insertIndex = null);
+      _insertIndex.value = null;
       return;
     }
 
     final next = _insertIndexFor(widget.isVertical ? local.dy : local.dx);
     external.dropIndex.value = next;
-    if (next != _insertIndex) setState(() => _insertIndex = next);
+    _insertIndex.value = next;
   }
 
   @override
@@ -229,6 +229,7 @@ class _ReadingTabStripState extends State<ReadingTabStrip> {
     _springTimer?.cancel();
     _autoScrollTimer?.cancel();
     _scrollController.dispose();
+    _insertIndex.dispose();
     super.dispose();
   }
 
@@ -370,9 +371,7 @@ class _ReadingTabStripState extends State<ReadingTabStrip> {
       _updateSpringTarget(dragged, _tabAt(localMain));
     }
 
-    // setState רק כשהיעד באמת זז: onMove יורה בכל תזוזת מצביע.
-    final next = _insertIndexFor(localMain);
-    if (next != _insertIndex) setState(() => _insertIndex = next);
+    _insertIndex.value = _insertIndexFor(localMain);
   }
 
   /// כרטיסיה שנמצאת ברצועה — לסידור מחדש.
@@ -384,10 +383,10 @@ class _ReadingTabStripState extends State<ReadingTabStrip> {
           (widget.acceptsExternal?.call(tab) ?? false));
 
   void _completeReorder(OpenedTab tab) {
-    final insertIndex = _insertIndex;
+    final insertIndex = _insertIndex.value;
     _cancelSpring();
     _stopAutoScroll();
-    setState(() => _insertIndex = null);
+    _insertIndex.value = null;
     if (insertIndex == null) return;
 
     final oldIndex = widget.tabs.indexOf(tab);
@@ -407,6 +406,8 @@ class _ReadingTabStripState extends State<ReadingTabStrip> {
 
   @override
   Widget build(BuildContext context) {
+    // כניסה ויציאה מעדכנות את DragTarget גם כשהרצועה עצמה לא השתנתה.
+    final strip = _buildStrip();
     return DragTarget<OpenedTab>(
       onWillAcceptWithDetails: (details) {
         if (!_accepts(details.data)) return false;
@@ -421,98 +422,101 @@ class _ReadingTabStripState extends State<ReadingTabStrip> {
       onLeave: (_) {
         _cancelSpring();
         _stopAutoScroll();
-        if (_insertIndex != null) setState(() => _insertIndex = null);
+        _insertIndex.value = null;
         // יציאה מהרצועה מאפשרת מסירה מוקדמת ל-Windows.
         widget.onDragLeftStrip?.call();
       },
       onAcceptWithDetails: (details) => _completeReorder(details.data),
-      builder: (context, candidate, rejected) {
-        // הרצועה נמתחת על כל הרוחב הפנוי ולא מתכווצת לרוחב הכרטיסיות: השטח
-        // שנותר הוא "האזור הריק" שגרירת חלון ולחיצה כפולה למסך מלא מסתמכות
-        // על קיומו.
-        final isVertical = widget.isVertical;
-        return SizedBox(
-          width: isVertical ? null : double.infinity,
-          height: isVertical ? double.infinity : null,
-          // ברצועה האופקית הגלילה מנוטרלת: הרוחבים מחושבים כך שכל הכרטיסיות
-          // ייכנסו, אבל בפריים הראשון — לפני שאזור הכרטיסיות נמדד — הם לפי
-          // רוחב המסך. בלי מכל שגולש בשקט אותו פריים היה זורק overflow.
-          child: SingleChildScrollView(
-            key: _viewportKey,
-            controller: _scrollController,
-            scrollDirection: widget.axis,
-            physics: widget.scrollable
-                ? null
-                : const NeverScrollableScrollPhysics(),
-            // רצועה שאינה נגללת לא חותכת: הכרטיסיה הפעילה מציירת "כנף" מחוץ
-            // לגבולותיה, וחיתוך בקצה הרצועה היה מעקם אותה.
-            clipBehavior: widget.scrollable ? Clip.hardEdge : Clip.none,
-            // קו החיווי יושב באותו Stack עם הרצועה, ולכן באותה מערכת
-            // קואורדינטות שבה נמדד מיקום ההכנסה.
-            child: Stack(
-              clipBehavior: Clip.none,
+      builder: (_, _, _) => strip,
+    );
+  }
+
+  Widget _buildStrip() {
+    // הרצועה נמתחת על כל הרוחב הפנוי ולא מתכווצת לרוחב הכרטיסיות: השטח
+    // שנותר הוא "האזור הריק" שגרירת חלון ולחיצה כפולה למסך מלא מסתמכות
+    // על קיומו.
+    final isVertical = widget.isVertical;
+    return SizedBox(
+      width: isVertical ? null : double.infinity,
+      height: isVertical ? double.infinity : null,
+      // ברצועה האופקית הגלילה מנוטרלת: הרוחבים מחושבים כך שכל הכרטיסיות
+      // ייכנסו, אבל בפריים הראשון — לפני שאזור הכרטיסיות נמדד — הם לפי
+      // רוחב המסך. בלי מכל שגולש בשקט אותו פריים היה זורק overflow.
+      child: SingleChildScrollView(
+        key: _viewportKey,
+        controller: _scrollController,
+        scrollDirection: widget.axis,
+        physics: widget.scrollable
+            ? null
+            : const NeverScrollableScrollPhysics(),
+        // רצועה שאינה נגללת לא חותכת: הכרטיסיה הפעילה מציירת "כנף" מחוץ
+        // לגבולותיה, וחיתוך בקצה הרצועה היה מעקם אותה.
+        clipBehavior: widget.scrollable ? Clip.hardEdge : Clip.none,
+        // קו החיווי יושב באותו Stack עם הרצועה, ולכן באותה מערכת
+        // קואורדינטות שבה נמדד מיקום ההכנסה.
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Flex(
+              key: _contentKey,
+              direction: widget.axis,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Flex(
-                  key: _contentKey,
-                  direction: widget.axis,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (var i = 0; i < widget.tabs.length; i++)
-                      _DraggableTab(
-                        key: ObjectKey(widget.tabs[i]),
-                        tab: widget.tabs[i],
-                        axis: widget.axis,
-                        extent: widget.widths[i],
-                        crossExtent: widget.crossExtent,
-                        requireLongPress: widget.requireLongPressToDrag,
-                        touchDragAffinity: widget.scrollable
-                            ? (isVertical ? Axis.horizontal : Axis.vertical)
-                            : null,
-                        stripColor: widget.stripColor,
-                        onDragStarted: widget.onDragStarted == null
-                            ? null
-                            : (cancelDrag) => widget.onDragStarted!(
-                                widget.tabs[i],
-                                cancelDrag,
-                              ),
-                        onTabSnapshot: widget.onTabSnapshot == null
-                            ? null
-                            : (preview, generation) => widget.onTabSnapshot!(
-                                widget.tabs[i],
-                                preview,
-                                generation,
-                              ),
-                        onDroppedOutside: widget.onDroppedOutside == null
-                            ? null
-                            : () => widget.onDroppedOutside!(widget.tabs[i]),
-                        // גרירה שהסתיימה מחוץ לרצועה אינה מפעילה onLeave,
-                        // ולכן קו החיווי מנוקה גם כאן.
-                        onDragFinished: () {
-                          _cancelSpring();
-                          _stopAutoScroll();
-                          if (_insertIndex != null) {
-                            setState(() => _insertIndex = null);
-                          }
-                          widget.onDragFinishedAnywhere?.call();
-                        },
-                        child: widget.tabBuilder(
-                          widget.tabs[i],
-                          i,
-                          widget.widths[i],
-                        ),
-                      ),
-                  ],
-                ),
-                if (_insertIndex != null)
-                  _InsertIndicator(
+                for (var i = 0; i < widget.tabs.length; i++)
+                  _DraggableTab(
+                    key: ObjectKey(widget.tabs[i]),
+                    tab: widget.tabs[i],
                     axis: widget.axis,
-                    offset: _insertLineOffset(_insertIndex!),
+                    extent: widget.widths[i],
+                    crossExtent: widget.crossExtent,
+                    requireLongPress: widget.requireLongPressToDrag,
+                    touchDragAffinity: widget.scrollable
+                        ? (isVertical ? Axis.horizontal : Axis.vertical)
+                        : null,
+                    stripColor: widget.stripColor,
+                    onDragStarted: widget.onDragStarted == null
+                        ? null
+                        : (cancelDrag) =>
+                              widget.onDragStarted!(widget.tabs[i], cancelDrag),
+                    onTabSnapshot: widget.onTabSnapshot == null
+                        ? null
+                        : (preview, generation) => widget.onTabSnapshot!(
+                            widget.tabs[i],
+                            preview,
+                            generation,
+                          ),
+                    onDroppedOutside: widget.onDroppedOutside == null
+                        ? null
+                        : () => widget.onDroppedOutside!(widget.tabs[i]),
+                    // גרירה שהסתיימה מחוץ לרצועה אינה מפעילה onLeave,
+                    // ולכן קו החיווי מנוקה גם כאן.
+                    onDragFinished: () {
+                      _cancelSpring();
+                      _stopAutoScroll();
+                      if (mounted) _insertIndex.value = null;
+                      widget.onDragFinishedAnywhere?.call();
+                    },
+                    child: widget.tabBuilder(
+                      widget.tabs[i],
+                      i,
+                      widget.widths[i],
+                    ),
                   ),
               ],
             ),
-          ),
-        );
-      },
+            ValueListenableBuilder<int?>(
+              valueListenable: _insertIndex,
+              builder: (context, index, child) {
+                if (index == null) return const SizedBox.shrink();
+                return _InsertIndicator(
+                  axis: widget.axis,
+                  offset: _insertLineOffset(index),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

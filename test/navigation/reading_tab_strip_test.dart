@@ -23,6 +23,7 @@ class _StripLog {
   int? newIndex;
   int moves = 0;
   int dragStarts = 0;
+  int tabBuilds = 0;
   final List<OpenedTab> springOpened = [];
 
   void reorder(OpenedTab tab, int index) {
@@ -70,13 +71,16 @@ void main() {
                   onReorder: log.reorder,
                   onDragStarted: (_, _) => log.dragStarts++,
                   onSpringOpen: log.springOpened.add,
-                  tabBuilder: (tab, index, width) => SizedBox(
-                    width: width,
-                    child: ColoredBox(
-                      color: const Color(0xFFDDDDDD),
-                      child: Center(child: Text(tab.title)),
-                    ),
-                  ),
+                  tabBuilder: (tab, index, width) {
+                    log.tabBuilds++;
+                    return SizedBox(
+                      width: width,
+                      child: ColoredBox(
+                        color: const Color(0xFFDDDDDD),
+                        child: Center(child: Text(tab.title)),
+                      ),
+                    );
+                  },
                 ),
               ),
               Expanded(
@@ -371,6 +375,56 @@ void main() {
   });
 
   group('חיווי מיקום ההכנסה', () {
+    testWidgets('מעבר בין יעדי הכנסה אינו בונה מחדש את הכרטיסיות', (
+      tester,
+    ) async {
+      const width = 28.0;
+      final log = _StripLog();
+      final tabs = List.generate(24, (i) => _StubTab('$i'));
+      await tester.pumpWidget(
+        host(
+          log: log,
+          tabs: tabs,
+          textDirection: TextDirection.ltr,
+          tabWidths: List.filled(tabs.length, width),
+        ),
+      );
+
+      final strip = tester.getRect(find.byKey(stripKey));
+      final initialBuilds = log.tabBuilds;
+      expect(initialBuilds, greaterThanOrEqualTo(tabs.length));
+
+      final lines = find.descendant(
+        of: find.byType(ReadingTabStrip),
+        matching: find.byType(DecoratedBox),
+      );
+      final before = lines.evaluate().length;
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('0')),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump(const Duration(milliseconds: 20));
+
+      final offsets = <double>[];
+      for (final index in [4, 8, 12, 20]) {
+        await gesture.moveTo(
+          Offset(strip.left + (index + 0.75) * width, strip.center.dy),
+        );
+        await tester.pump();
+        expect(lines, findsNWidgets(before + 1));
+        offsets.add(tester.getTopLeft(lines.last).dx);
+      }
+      expect(offsets.toSet(), hasLength(4));
+      expect(log.tabBuilds, initialBuilds);
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(log.movedTab, same(tabs[0]));
+      expect(log.newIndex, 20);
+      expect(lines, findsNWidgets(before));
+      expect(log.tabBuilds, initialBuilds);
+    });
+
     testWidgets('קו החיווי מופיע בגרירה מעל הרצועה ונעלם בשחרור', (
       tester,
     ) async {
