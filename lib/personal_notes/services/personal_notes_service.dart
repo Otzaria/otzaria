@@ -24,7 +24,6 @@ class PersonalNotesService {
     String bookContent = '',
     Future<String> Function()? loadBookContent,
   }) async {
-    final revision = loadBookContent == null ? null : _database.revision.value;
     var notes = await _database.loadNotes(bookId);
     if (notes.isEmpty) return notes;
     final needsContent = notes.any(
@@ -33,10 +32,8 @@ class PersonalNotesService {
     var content = bookContent;
     if (needsContent && loadBookContent != null) {
       content = await loadBookContent();
-      // קריאת הספר יכולה לחפוף לעריכה או למחיקה של הערות.
-      if (_database.revision.value != revision) {
-        notes = await _database.loadNotes(bookId);
-      }
+      // ייבוא שומר כתיבות לפני פרסום ההתראות, ולכן צריך snapshot עדכני.
+      notes = await _database.loadNotes(bookId);
     }
     final lines = needsContent
         ? splitBookContentIntoLines(content)

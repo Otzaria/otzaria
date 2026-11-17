@@ -63,7 +63,7 @@ Future<int> _fastestMicros(Future<void> Function() run) async {
 }
 
 void main() {
-  test('טוען הערות פעם אחת ותוכן פעם אחת רק כשנדרש יישוב', () async {
+  test('קורא תוכן רק כשנדרש ומרענן אחריו את ההערות', () async {
     final database = _MemoryNotesDb();
     final service = PersonalNotesService(database: database);
     var contentLoads = 0;
@@ -103,7 +103,7 @@ void main() {
     );
     expect(reconciled, unorderedEquals(database.notes.values));
     expect(contentLoads, 1);
-    expect(database.loads, 3);
+    expect(database.loads, 4);
   });
 
   test('עריכה ומחיקה בזמן קריאת התוכן נשמרות ביישוב', () async {
