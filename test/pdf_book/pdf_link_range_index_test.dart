@@ -68,17 +68,71 @@ void main() {
     }
   });
 
-  test('טווח עמוק מדלג על בלוקים גם כשעוגן ראשון חופף לו', () {
+  test('חיפוש ראשון סורק רק את הקידומת הנדרשת גם בחלון חדש', () {
+    for (final firstLine in [1, 5000]) {
+      final links = _CountingLinks([
+        for (var i = 0; i < 20000; i++) _link(firstLine + i),
+      ]);
+      final first = firstLine + 29;
+      final last = firstLine + 32;
+      final expected = _scan(links, first, last).toList();
+      final scanReads = links.reads;
+      links.reads = 0;
+
+      final result = PdfLinkRangeIndex(links).overlapping(first, last);
+
+      expect(result, orderedEquals(expected));
+      expect(links.reads, scanReads);
+    }
+  });
+
+  test('הרחבת הקידומת שומרת עוגנים חדשים בלי כפילויות', () {
+    final links = [
+      for (var i = 1; i <= 100; i++)
+        if (i == 36 || i == 38) _link(i, 75) else _link(i),
+    ];
+    final index = PdfLinkRangeIndex(links);
+    for (final (first, last) in [(30, 34), (36, 41), (37, 40), (70, 76)]) {
+      expect(
+        index.overlapping(first, last),
+        orderedEquals(_scan(links, first, last)),
+      );
+    }
+  });
+
+  test('ריבוי עוגנים שומר את התוצאות גם במעבר לסריקה ישירה', () {
+    final links = _CountingLinks([
+      for (var i = 1; i <= 300; i++) _link(i, i + 50),
+    ]);
+    final index = PdfLinkRangeIndex(links);
+    for (final (first, last) in [(15, 32), (70, 125)]) {
+      expect(
+        index.overlapping(first, last),
+        orderedEquals(_scan(links, first, last)),
+      );
+    }
+
+    links.reads = 0;
+    final expected = _scan(links, 140, 160).toList();
+    final scanReads = links.reads;
+    links.reads = 0;
+    expect(index.overlapping(140, 160), orderedEquals(expected));
+    expect(links.reads, scanReads);
+  });
+
+  test('טווח עמוק מדלג על קידומת שכבר נסרקה ושומר עוגן חופף', () {
     final links = _CountingLinks([
       _link(1, 20000),
       for (var line = 2; line <= 20000; line++) _link(line),
     ]);
     final index = PdfLinkRangeIndex(links);
-    index.overlapping(500, 550);
 
-    links.reads = 0;
     final expected = _scan(links, 19992, 19995).toList();
     final scanReads = links.reads;
+    links.reads = 0;
+    index.overlapping(19992, 19996);
+    expect(links.reads, scanReads + 1);
+
     links.reads = 0;
     final result = index.overlapping(19992, 19995);
     expect(result, orderedEquals(expected));

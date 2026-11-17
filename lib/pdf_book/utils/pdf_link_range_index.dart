@@ -1,92 +1,76 @@
-import 'dart:math' as math;
-
 import 'package:otzaria/models/links.dart';
 
-/// Inclusive source-line lookup for a PDF tab's sorted link snapshot.
+/// חיפוש לפי טווח שורות כולל, ברשימה ממוינת לפי שורת המקור.
 final class PdfLinkRangeIndex {
   PdfLinkRangeIndex(this._links);
 
-  static const _blockSize = 32;
+  static const _maxCachedSpans = 64;
 
   final List<Link> _links;
+  List<Link>? _spans = [];
+  int _scannedLength = 0;
   ({int first, int last})? _previousRange;
   List<Link> _previousMatches = const [];
-  late final List<int> _maxEnds = _buildMaxEnds();
 
   List<Link> overlapping(int first, int last) {
     final range = (first: first, last: last);
     if (_previousRange == range) return _previousMatches;
 
+    final matches = <Link>[];
+    final spans = _spans;
+    if (spans == null) {
+      _scan(0, first, last, matches);
+    } else {
+      _collect(spans, first, last, matches);
+    }
+    _previousRange = range;
+    return _previousMatches = matches;
+  }
+
+  void _collect(List<Link> spans, int first, int last, List<Link> matches) {
     var low = 0;
-    var high = _links.length;
+    var high = _scannedLength;
     while (low < high) {
       final middle = (low + high) ~/ 2;
-      if (_links[middle].index1 <= last) {
+      if (_links[middle].index1 < first) {
         low = middle + 1;
       } else {
         high = middle;
       }
     }
 
-    final matches = <Link>[];
-    if (low <= _blockSize) {
-      _collectBlock(0, low, first, last, matches);
-    } else {
-      // A long anchor in one block does not prevent pruning other blocks.
-      _collect(
-        1,
-        0,
-        _maxEnds.length ~/ 2 * _blockSize,
-        low,
-        first,
-        last,
-        matches,
-      );
+    // רק עוגנים משתרעים יכולים לחפוף לטווח מתוך הקידומת שעליה דילגנו.
+    for (final link in spans) {
+      if (link.index1 >= first || link.index1 > last) break;
+      if (link.index1End! >= first) matches.add(link);
     }
-    _previousRange = range;
-    return _previousMatches = matches;
-  }
 
-  List<int> _buildMaxEnds() {
-    var leaves = 1;
-    while (leaves * _blockSize < _links.length) {
-      leaves *= 2;
-    }
-    final maxEnds = List<int>.filled(leaves * 2, 0);
-    for (var i = 0; i < _links.length; i++) {
+    final length = _links.length;
+    var i = low;
+    for (; i < length; i++) {
       final link = _links[i];
-      final block = leaves + i ~/ _blockSize;
-      maxEnds[block] = math.max(maxEnds[block], link.index1End ?? link.index1);
+      final start = link.index1;
+      if (start > last) break;
+      final end = link.index1End;
+      if ((end ?? start) >= first) matches.add(link);
+      if (end != null && end > start && i >= _scannedLength) {
+        // עם עוגנים רבים, סריקה ישירה חוסכת רשימת קישורים נוספת.
+        if (spans.length == _maxCachedSpans) {
+          _spans = null;
+          _scan(i + 1, first, last, matches);
+          return;
+        }
+        spans.add(link);
+      }
     }
-    for (var node = leaves - 1; node > 0; node--) {
-      maxEnds[node] = math.max(maxEnds[node * 2], maxEnds[node * 2 + 1]);
-    }
-    return maxEnds;
+    if (i > _scannedLength) _scannedLength = i;
   }
 
-  void _collect(
-    int node,
-    int start,
-    int end,
-    int stop,
-    int first,
-    int last,
-    List<Link> matches,
-  ) {
-    if (start >= stop || _maxEnds[node] < first) return;
-    if (end - start == _blockSize) {
-      _collectBlock(start, math.min(end, stop), first, last, matches);
-      return;
-    }
-
-    final middle = (start + end) ~/ 2;
-    _collect(node * 2, start, middle, stop, first, last, matches);
-    _collect(node * 2 + 1, middle, end, stop, first, last, matches);
-  }
-
-  void _collectBlock(int start, int end, int first, int last, List<Link> matches) {
-    for (var i = start; i < end; i++) {
+  void _scan(int start, int first, int last, List<Link> matches) {
+    final length = _links.length;
+    for (var i = start; i < length; i++) {
       final link = _links[i];
+      if (link.index1 > last) break;
       if (link.overlapsSourceLines(first, last)) matches.add(link);
     }
   }
