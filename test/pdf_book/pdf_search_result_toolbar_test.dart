@@ -271,7 +271,11 @@ Future<void> main() async {
     addTearDown(first.dispose);
     addTearDown(second.dispose);
 
-    Widget view(_ControlledSearcher searcher) => MaterialApp(
+    Widget view(
+      _ControlledSearcher searcher, {
+      List<PdfOutlineNode>? outline,
+      String? bookTitle,
+    }) => MaterialApp(
       home: MultiBlocProvider(
         providers: [
           BlocProvider<SettingsBloc>.value(value: settingsBloc),
@@ -284,6 +288,8 @@ Future<void> main() async {
               textSearcher: searcher,
               searchController: searchController,
               focusNode: focusNode,
+              outline: outline,
+              bookTitle: bookTitle,
             ),
           ),
         ),
@@ -305,6 +311,25 @@ Future<void> main() async {
     await _notify(tester, second);
     expect(find.text('נמצאו 2 תוצאות'), findsOneWidget);
     expect(find.text('עמוד 3'), findsOneWidget);
+    expect(find.text('עמוד 4'), findsOneWidget);
+
+    final outline = [
+      PdfOutlineNode(
+        title: ' שער ',
+        dest: PdfDest(4, PdfDestCommand.fit, null),
+        children: const [],
+      ),
+    ];
+    await tester.pumpWidget(view(second, outline: outline));
+    expect(find.text('עמוד 3'), findsOneWidget);
+    expect(find.text('שער'), findsOneWidget);
+    expect(find.text('עמוד 4'), findsNothing);
+
+    await tester.pumpWidget(view(second, outline: outline, bookTitle: 'שער'));
+    expect(find.text('שער'), findsNothing);
+    expect(find.text('עמוד 4'), findsOneWidget);
+
+    await tester.pumpWidget(view(second));
     expect(find.text('עמוד 4'), findsOneWidget);
   });
 }
