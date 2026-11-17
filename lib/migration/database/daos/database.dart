@@ -115,11 +115,27 @@ class MyDatabase {
        _immutable = false;
 
   /// פותח חיבור כתיב ומכין את הסכמה ב-isolate לפני מסירת החיבור לקורא.
-  static Future<MyDatabase> openWritableInBackground(String path) async {
+  /// [prepare] פועלת על החיבור ב-isolate אחרי הכנת הסכמה ולפני מסירתו.
+  static Future<MyDatabase> openWritableInBackground(
+    String path, {
+    Future<void> Function(MyDatabase)? prepare,
+  }) async {
     await QueryLoader.initialize();
-    final db = await sqlite3.openSqliteInBackground(
-      () => MyDatabase.withPath(path)._initDatabase(),
-    );
+    final queries = prepare == null ? null : QueryLoader.cacheSnapshot;
+    final db = await sqlite3.openSqliteInBackground(() async {
+      final database = MyDatabase.withPath(path);
+      final connection = database._database = database._initDatabase();
+      if (prepare != null) {
+        try {
+          QueryLoader.seedCache(queries!);
+          await prepare(database);
+        } catch (_) {
+          database.retire();
+          rethrow;
+        }
+      }
+      return connection;
+    });
     return MyDatabase.withPath(path).._database = db;
   }
 
