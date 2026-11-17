@@ -575,18 +575,19 @@ class HtmlLinkHandler {
     return null;
   }
 
+  static final _pagePattern = RegExp(r'דף\s+([א-ת]{1,3})');
+  static final _leadingNumberPattern = RegExp(r'^([א-ת]{1,3})(?:\s|$)');
+  static final _whitespaceRun = RegExp(r'\s+');
+
   /// מחלץ את מספר הדף מכותרת (למשל "דף כג א" -> "כג")
   static String? _extractPageNumber(String text) {
-    // דפוס לזיהוי מספר דף עברי
-    final pagePattern = RegExp(r'דף\s+([א-ת]{1,3})');
-    final match = pagePattern.firstMatch(text);
+    final match = _pagePattern.firstMatch(text);
     if (match != null) {
       return match.group(1);
     }
 
     // אם אין "דף", ננסה למצוא מספר עברי בתחילת המחרוזת
-    final numberPattern = RegExp(r'^([א-ת]{1,3})(?:\s|$)');
-    final numberMatch = numberPattern.firstMatch(text.trim());
+    final numberMatch = _leadingNumberPattern.firstMatch(text.trim());
     if (numberMatch != null) {
       return numberMatch.group(1);
     }
@@ -598,10 +599,30 @@ class HtmlLinkHandler {
   /// בכוונה אין התאמת substring — כותרת קצרה (כמו "ב") התאימה כמעט לכל
   /// שורה וניווטה למקום שגוי; עדיף "לא נמצא" גלוי עם פתיחת תחילת הספר.
   static bool isHeaderMatch(String text, String headerName) {
-    final cleanText = text.trim().replaceAll(RegExp(r'\s+'), '');
-    final cleanHeader = headerName.trim().replaceAll(RegExp(r'\s+'), '');
+    final slugHeader = headingSlug(headerName);
+    if (_keptSlugChars(text.trim()) > slugHeader.length) return false;
+    final cleanText = text.trim().replaceAll(_whitespaceRun, '');
+    final cleanHeader = headerName.trim().replaceAll(_whitespaceRun, '');
     if (cleanText == cleanHeader) return true;
-    return headingSlug(text) == headingSlug(headerName);
+    return headingSlug(text) == slugHeader;
+  }
+
+  /// מספר התווים (בלי רווחים) ב-[trimmed] שנשמרים ב-slug בתו אחד בוודאות: חסם
+  /// תחתון לאורך ה-slug וגם לאורך הטקסט בלי רווחים, ומסנן שורות ארוכות בלי regex.
+  static int _keptSlugChars(String trimmed) {
+    var count = 0;
+    for (final c in trimmed.codeUnits) {
+      if ((c >= 0x30 && c <= 0x39) ||
+          (c >= 0x41 && c <= 0x5A) ||
+          (c >= 0x61 && c <= 0x7A) ||
+          c == 0x5F ||
+          c == 0x2D ||
+          (c >= 0x5D0 && c <= 0x5EA) ||
+          (c >= 0x591 && c <= 0x5AF)) {
+        count++;
+      }
+    }
+    return count;
   }
 
   /// מחפש יעד עוגן מפורש בשורות המוצגות — `id` על כותרת או `name`/`id` על
