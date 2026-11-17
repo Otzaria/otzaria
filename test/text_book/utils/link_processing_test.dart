@@ -38,7 +38,134 @@ Link makeLink({
   );
 }
 
+class _CountedRange extends Link {
+  _CountedRange()
+    : super(
+        heRef: 'בראשית א',
+        index1: 1,
+        index1End: 500,
+        path2: 'מפרש אחר.txt',
+        index2: 1,
+        connectionType: LinkTypes.commentary,
+      );
+
+  int endReads = 0;
+
+  @override
+  int get index1End {
+    endReads++;
+    return super.index1End!;
+  }
+}
+
 void main() {
+  test('אינדקס המפרשים שומר טווחים, כפילויות וסדר מקור בתיקו', () async {
+    const path = 'מפרש.txt';
+    const indexes = [5, 2, 5, 7];
+    const commentators = ['מפרש'];
+    const types = {LinkTypes.commentary};
+    final range = makeLink(
+      path2: path,
+      index1: 2,
+      index1End: 6,
+      connectionType: LinkTypes.commentary,
+    );
+    final point = makeLink(
+      path2: path,
+      index1: 8,
+      connectionType: LinkTypes.commentary,
+    );
+    final links = [
+      point,
+      makeLink(path2: path, index1: 6, connectionType: LinkTypes.midrash),
+      range,
+      makeLink(
+        path2: path,
+        index1: 3,
+        index2: 0,
+        connectionType: LinkTypes.commentary,
+      ),
+      point,
+      makeLink(path2: path, index1: 6, connectionType: LinkTypes.reference),
+    ];
+    final expected = await getLinksforIndexs(
+      indexes: indexes,
+      links: links,
+      commentatorsToShow: commentators,
+      typesToShow: types,
+    );
+    expect(expected, [point, range, point]);
+    expect(
+      await getCommentaryLinksForLines(
+        indexes: indexes,
+        links: links,
+        linksByLine: buildLinksByLineMap(links),
+        commentatorsToShow: commentators,
+        typesToShow: types,
+      ),
+      expected,
+    );
+  });
+
+  test('אינדקס חסר או מקטלוג קישורים אחר משתמש ברשימת המקור', () async {
+    final current = makeLink(
+      path2: 'מפרש.txt',
+      index1: 1,
+      index1End: 3,
+      connectionType: LinkTypes.commentary,
+    );
+    final links = [current, makeLink(index1: 10)];
+    for (final index in [
+      const <int, List<Link>>{},
+      buildLinksByLineMap([makeLink(index1: 4), makeLink(index1: 25)]),
+    ]) {
+      expect(
+        await getCommentaryLinksForLines(
+          indexes: const [1],
+          links: links,
+          linksByLine: index,
+          commentatorsToShow: const ['מפרש'],
+        ),
+        [current],
+      );
+    }
+  });
+
+  test('בחיפוש מפרשים בטווחים חופפים מספר בדיקות הטווח חסום', () async {
+    final overlapping = _CountedRange();
+    final selected = makeLink(
+      path2: 'מפרש.txt',
+      index1: 1,
+      index1End: 500,
+      connectionType: LinkTypes.commentary,
+    );
+    final links = [selected, ...List.filled(1000, overlapping), selected];
+    final index = buildLinksByLineMap(links);
+    final indexes = List.generate(100, (i) => 200 + i);
+    const commentators = ['מפרש'];
+    overlapping.endReads = 0;
+
+    final expected = await getLinksforIndexs(
+      indexes: indexes,
+      links: links,
+      commentatorsToShow: commentators,
+    );
+    final scanEndReads = overlapping.endReads;
+    overlapping.endReads = 0;
+
+    expect(expected, [selected, selected]);
+    expect(
+      await getCommentaryLinksForLines(
+        indexes: indexes,
+        links: links,
+        linksByLine: index,
+        commentatorsToShow: commentators,
+      ),
+      expected,
+    );
+    expect(overlapping.endReads, lessThanOrEqualTo(scanEndReads));
+  });
+
   test('retains hot line lookups while evicting cold line lookups', () {
     final range = makeLink(index1: 1, index1End: 3000);
     final point = makeLink(index1: 2, path2: 'point.txt');
