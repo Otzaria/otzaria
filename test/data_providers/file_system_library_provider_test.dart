@@ -149,5 +149,36 @@ void main() {
         expect(keyToPath[key], entry.value);
       }
     });
+
+    test('סורק תיקיות אישיות מקוננות ומזהה מסמכים לפי תוכן', () async {
+      final nestedDir = Directory(
+        path.join(tempDir.path, 'אוצריא', 'אישי', 'תיקייה', 'נושא'),
+      );
+      await nestedDir.create(recursive: true);
+      final wordPath = path.join(nestedDir.path, 'מסמך.xml');
+      await File(wordPath).writeAsString(
+        '<?xml version="1.0"?>'
+        '<w:wordDocument '
+        'xmlns:w="http://schemas.microsoft.com/office/word/2003/wordml">'
+        '<w:body/></w:wordDocument>',
+      );
+      await File(path.join(nestedDir.path, 'הגדרות.xml'))
+          .writeAsString('<?xml version="1.0"?><config/>');
+      await File(path.join(nestedDir.path, 'גיבוי.wbk')).writeAsString('טקסט');
+
+      final provider = FileSystemLibraryProvider.instance;
+      final books = await provider.loadBooks({});
+
+      final book = books['נושא']!.single;
+      expect(book.title, 'מסמך');
+      expect(book.fileType, 'xml');
+      expect(book.categoryPath, 'ספרים אישיים, תיקייה, נושא');
+      final key = BookCompositeKey.create(
+        title: book.title,
+        categoryId: book.categoryId!,
+        fileType: 'xml',
+      ).toStorageKey();
+      expect(await provider.keyToPath, {key: wordPath});
+    });
   });
 }
