@@ -157,18 +157,32 @@ class _CategoryQueryResolver {
       return scopes.any((scope) => normalized.startsWith('$scope/'));
     }
 
-    final nameWords = normalizedName.split(' ');
-    final tiers = [<String>[], <String>[], <String>[]];
+    // כותרת ספר מדויקת מכריעה לפני בדיקת כינויים או התאמות חלקיות.
+    final exact = <String>[
+      for (final book in books)
+        if (book.title == normalizedName && inScope(book.facet)) book.facet,
+    ];
+    if (exact.isNotEmpty) {
+      for (final category in categories) {
+        if (category.title == normalizedName &&
+            (scopes == null || inScope(category.path))) {
+          exact.add(category.facet);
+        }
+      }
+      return exact;
+    }
+
+    final tiers = [<String>[], <String>[]];
 
     // אות שימוש אחת לפני השם ("הרמב"ן", "מקמאי") עדיין נחשבת מילה שלמה.
     final asWords = RegExp(
       '(?:^| )[הובכלמ]?${RegExp.escape(normalizedName)}(?: |\$)',
     );
     int? literalTierOf(String title, [List<String> acronyms = const []]) {
-      if (asWords.hasMatch(title) || acronyms.any(asWords.hasMatch)) return 1;
+      if (asWords.hasMatch(title) || acronyms.any(asWords.hasMatch)) return 0;
       if (title.contains(normalizedName) ||
           acronyms.any((text) => text.contains(normalizedName))) {
-        return 2;
+        return 1;
       }
       return null;
     }
@@ -181,14 +195,13 @@ class _CategoryQueryResolver {
     final categoryTitles = List<String?>.filled(categories.length, null);
     for (var i = 0; i < books.length; i++) {
       final book = books[i];
-      final acronyms = book.acronyms;
       String? facet;
       if (within != null) {
         facet = book.facet;
         if (!inScope(facet)) continue;
       }
       final title = book.title;
-      final tier = title == normalizedName ? 0 : literalTierOf(title, acronyms);
+      final tier = literalTierOf(title, book.acronyms);
       if (tier != null) {
         hasLiteralMatch = true;
         tiers[tier].add(facet ?? book.facet);
@@ -201,9 +214,7 @@ class _CategoryQueryResolver {
       final category = categories[i];
       if (within != null && !inScope(category.path)) continue;
       final title = category.title;
-      final tier = tiers[0].isNotEmpty && title == normalizedName
-          ? 0
-          : literalTierOf(title);
+      final tier = literalTierOf(title);
       if (tier != null) {
         hasLiteralMatch = true;
         tiers[tier].add(category.facet);
@@ -217,6 +228,7 @@ class _CategoryQueryResolver {
     }
 
     // שומרים את הנרמול והתחום מהמעבר הראשון, בלי לחשב אותם שוב ב-fallback.
+    final nameWords = normalizedName.split(' ');
     bool matchesFuzzy(String title, [List<String> acronyms = const []]) {
       final searchText = acronyms.isEmpty
           ? title
