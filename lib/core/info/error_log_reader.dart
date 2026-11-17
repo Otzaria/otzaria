@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/error_log_file.dart';
@@ -130,10 +131,10 @@ class ErrorLogReader {
       String? readError;
       try {
         stat = await file.stat();
-        final content = await file.readAsString();
-        parsed = candidate.isBlockFormat
-            ? parseBlockLog(content, source: p.basename(candidate.path))
-            : parseLineLog(content, source: p.basename(candidate.path));
+        parsed = await readEntries(
+          candidate.path,
+          isBlockFormat: candidate.isBlockFormat,
+        );
       } catch (error) {
         // קובץ לוג פגום/נעול אינו מבטל את שאר הדוח, אבל הכשל מדווח בדוח
         // עצמו — לא רק ב-debugPrint שאינו קיים ב-release.
@@ -159,6 +160,22 @@ class ErrorLogReader {
       recent: sortNewestFirst(entries).take(limit).toList(),
       totalEntries: entries.length,
     );
+  }
+
+  /// קורא ומפענח קובץ לוג.
+  @visibleForTesting
+  static Future<List<ErrorLogEntry>> readEntries(
+    String path, {
+    required bool isBlockFormat,
+  }) {
+    final source = p.basename(path);
+    // הלוג אינו מוגבל בגודלו; הפענוח בפרוסס ראשי חוסם פריימים.
+    return Isolate.run(() {
+      final content = File(path).readAsStringSync();
+      return isBlockFormat
+          ? parseBlockLog(content, source: source)
+          : parseLineLog(content, source: source);
+    });
   }
 
   /// ממיין מהחדש לישן. רשומות בלי חותמת זמן נדחקות לסוף.
