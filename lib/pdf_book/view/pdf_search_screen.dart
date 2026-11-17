@@ -28,6 +28,7 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/utils/literal_search_pattern.dart';
 import 'package:otzaria/search/utils/user_regex_query.dart';
+import 'package:otzaria/pdf_book/utils/pdf_engine_result_ordinals.dart';
 import 'package:otzaria/pdf_book/utils/pdf_user_regex_pattern.dart';
 import 'package:otzaria/pdf_book/utils/proximity_highlight_pattern.dart';
 import 'package:otzaria/pdf_book/utils/result_lines_highlight_pattern.dart';
@@ -403,6 +404,15 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
   /// התבנית שנבנתה מהמונחים שהמנוע מצא בפועל — לשימוש חוזר בלחיצה על תוצאה.
   Pattern? _lastAdvancedHighlightPattern;
 
+  final _engineOrdinals = Expando<
+    ({
+      Pattern? pattern,
+      int length,
+      PdfEngineResultOrdinals<SearchResult> index,
+    })
+  >();
+  final _pdfMatchSpans = Expando<String>();
+
   /// השאילתה שעבורה תוזמנה גלילה לעמוד הנוכחי בסיום חיפוש פשוט.
   /// בחיפוש פשוט התוצאות מגיעות אסינכרונית דרך ה-listener של pdfrx, ולכן
   /// אי אפשר לגלול ב-_searchTextUpdated. השדה נדלק שם וייושם בסיום החיפוש —
@@ -511,28 +521,34 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
     List<PdfTextSearchResult> pageMatches,
   ) {
     final pattern = _lastAdvancedHighlightPattern;
-    String? spanKey(SearchResult r) => pattern is ProximityHighlightPattern
-        ? _resultSpanKey(pattern, r)
-        : null;
-    final key = spanKey(result);
-    var k = 0;
-    var sameSpanBefore = 0;
-    for (final other in _searchResults) {
-      if (identical(other, result)) break;
-      if (_getPdfPageNumber(other) != pageNumber) continue;
-      k++;
-      if (key != null && spanKey(other) == key) sameSpanBefore++;
+    var cached = _engineOrdinals[_searchResults];
+    if (cached == null ||
+        !identical(cached.pattern, pattern) ||
+        cached.length != _searchResults.length) {
+      cached = (
+        pattern: pattern,
+        length: _searchResults.length,
+        index: PdfEngineResultOrdinals<SearchResult>(
+          _searchResults,
+          pageOf: _getPdfPageNumber,
+          spanOf: (result) => pattern is ProximityHighlightPattern
+              ? _resultSpanKey(pattern, result)
+              : null,
+        ),
+      );
+      _engineOrdinals[_searchResults] = cached;
     }
+    final position = cached.index.positionOf(result, pageNumber);
+    final key = position.span;
     if (key != null) {
       var seen = 0;
       for (var i = 0; i < pageMatches.length; i++) {
-        if (_normalizedSpan(pageMatches[i].text) == key &&
-            seen++ == sameSpanBefore) {
-          return i;
-        }
+        final match = pageMatches[i];
+        final span = _pdfMatchSpans[match] ??= _normalizedSpan(match.text);
+        if (span == key && seen++ == position.spanOffset) return i;
       }
     }
-    return k;
+    return position.offset;
   }
 
   static String? _resultSpanKey(
