@@ -3,6 +3,12 @@ import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/search/utils/literal_search_pattern.dart';
 
+class _AnnotationBoundary {
+  int noteStarts = 0;
+  int noteEnds = 0;
+  int markerDelta = 0;
+}
+
 /// בונה הדגשות לתצוגת תוצאות חיפוש.
 ///
 /// קיימים שני מקורות לתוצאות, ולכל אחד דרך הדגשה משלו:
@@ -357,15 +363,21 @@ class SnippetBuilder {
     final leading = untrimmed.length - untrimmed.trimLeft().length;
     int mapped(int offset) =>
         (offsets[offset] - leading).clamp(0, plain.length);
-    final mappedAnnotations = [
-      for (final item in annotations)
-        if (mapped(item.start) < mapped(item.end))
-          (
-            start: mapped(item.start),
-            end: mapped(item.end),
-            marker: item.marker,
-          ),
-    ];
+    final events = <int, _AnnotationBoundary>{};
+    for (final item in annotations) {
+      final start = mapped(item.start);
+      final end = mapped(item.end);
+      if (start >= end) continue;
+      final opening = events.putIfAbsent(start, _AnnotationBoundary.new);
+      final closing = events.putIfAbsent(end, _AnnotationBoundary.new);
+      if (item.marker) {
+        opening.markerDelta++;
+        closing.markerDelta--;
+      } else {
+        opening.noteStarts++;
+        closing.noteEnds++;
+      }
+    }
     final boundaries = <int>{0, plain.length};
     final styled = <({int end, TextStyle style})>[];
     var position = 0;
@@ -374,40 +386,38 @@ class SnippetBuilder {
       boundaries.add(position);
       styled.add((end: position, style: span.style!));
     }
-    for (final item in mappedAnnotations) {
-      boundaries.addAll([item.start, item.end]);
-    }
+    boundaries.addAll(events.keys);
     final points = boundaries.toList()..sort();
     final result = <InlineSpan>[];
     final noteStyle = _annotationStyle(defaultStyle, defaultStyle, note: true);
     var styleIndex = 0;
+    var activeNotes = 0;
+    var activeMarkers = 0;
     for (var i = 0; i < points.length; i++) {
       final start = points[i];
-      for (final item in mappedAnnotations) {
-        if (!item.marker && item.end == start) {
+      final event = events[start];
+      if (event != null) {
+        for (var n = 0; n < event.noteEnds; n++) {
           result.add(TextSpan(text: ']', style: noteStyle));
         }
-      }
-      for (final item in mappedAnnotations) {
-        if (!item.marker && item.start == start) {
+        for (var n = 0; n < event.noteStarts; n++) {
           result.add(TextSpan(text: '[הערה: ', style: noteStyle));
         }
+        activeNotes += event.noteStarts - event.noteEnds;
+        activeMarkers += event.markerDelta;
       }
       if (i == points.length - 1) break;
       while (styled[styleIndex].end <= start) {
         styleIndex++;
       }
-      final active = mappedAnnotations.where(
-        (item) => item.start <= start && item.end > start,
-      );
       result.add(
         TextSpan(
           text: plain.substring(start, points[i + 1]),
           style: _annotationStyle(
             styled[styleIndex].style,
             defaultStyle,
-            note: active.any((item) => !item.marker),
-            marker: active.any((item) => item.marker),
+            note: activeNotes > 0,
+            marker: activeMarkers > 0,
           ),
         ),
       );

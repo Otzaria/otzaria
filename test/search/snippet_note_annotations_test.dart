@@ -325,6 +325,38 @@ void main() {
       expect(notes.last.style!.fontWeight, FontWeight.bold);
     });
 
+    test('הערות צמודות וסמנים מקוננים שומרים על גבולות וסגנונות', () {
+      const html =
+          '<otzaria-note>א<otzaria-note-marker>ב'
+          '<otzaria-note-marker>😀</otzaria-note-marker>ג'
+          '</otzaria-note-marker>ד</otzaria-note>'
+          '<otzaria-note>ה</otzaria-note>ו';
+      final spans = _ranges(html, [
+        [1, 5],
+      ]);
+      expect(spans.map((span) => span.text), [
+        '[הערה: ',
+        'א',
+        'ב',
+        '😀',
+        'ג',
+        'ד',
+        ']',
+        '[הערה: ',
+        'ה',
+        ']',
+        'ו',
+      ]);
+      expect(_matched(spans), 'ב😀ג');
+      for (final span in spans.sublist(2, 5)) {
+        expect(span.style!.fontSize, 16.5);
+        expect(span.style!.fontStyle, FontStyle.italic);
+      }
+      expect(spans[5].style!.fontSize, 18);
+      expect(spans[8].style!.fontStyle, FontStyle.italic);
+      expect(spans.last.style, same(_body));
+    });
+
     test('טווח חורג אינו משבש את גבולות ההערה', () {
       final spans = _ranges(repeated, [
         [0, 99],
