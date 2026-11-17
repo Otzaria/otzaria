@@ -105,6 +105,54 @@ void main() {
       expect(ignore.ignores('assets/big.bin'), isTrue);
       expect(ignore.ignores('assets/icon.png'), isFalse);
     });
+
+    test('כמה החלפות קדימות שומרות את הכלל המתאים האחרון', () {
+      final lines = [
+        'assets/',
+        '!assets/**/*.js',
+        'assets/private/',
+        '!assets/private/keep.js',
+        'assets/private/keep.js',
+        '!assets/private/keep.js',
+        '*.map',
+      ];
+      final cases = {
+        'assets/readme.txt': (true, false),
+        'assets/public/app.js': (false, true),
+        'assets/private/app.js': (true, false),
+        'assets/private/keep.js': (false, true),
+        'assets/private/keep.js.map': (true, false),
+        'other/app.js': (false, false),
+      };
+      final ignore = _ignore(lines);
+      for (final entry in cases.entries) {
+        expect(ignore.ignores(entry.key), entry.value.$1, reason: entry.key);
+        expect(ignore.reIncludes(entry.key), entry.value.$2, reason: entry.key);
+      }
+    });
+
+    test('כלל כולל אחרון מכריע אחרי הרבה כללים קודמים', () {
+      final previous = List<String>.generate(1000, (i) => 'file-$i.js');
+      final included = _ignore([...previous, '!**']);
+      final excluded = _ignore([...previous, '!**', '**']);
+
+      expect(included.ruleCount, 1001);
+      expect(included.ignores('file-0.js'), isFalse);
+      expect(included.reIncludes('file-0.js'), isTrue);
+      expect(excluded.ignores('file-0.js'), isTrue);
+      expect(excluded.reIncludes('file-0.js'), isFalse);
+    });
+
+    test('ללא התאמה שני הממשקים מחזירים false', () {
+      for (final lines in <List<String>>[
+        [],
+        ['*.map', '!keep.map', 'build/'],
+      ]) {
+        final ignore = _ignore(lines);
+        expect(ignore.ignores('src/app.js'), isFalse);
+        expect(ignore.reIncludes('src/app.js'), isFalse);
+      }
+    });
   });
 
   group('reIncludes', () {
