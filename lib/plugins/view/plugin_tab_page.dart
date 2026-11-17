@@ -102,7 +102,8 @@ InAppWebViewSettings buildPluginTabWebViewSettings({
     pinchZoomEnabled: false,
     // ב-macOS מחוות אחורה/קדימה של WebKit בולעת החלקה אופקית לפני הדף,
     // ואז החלקה בין טאבים לא מגיעה ל-Flutter (issue #3161).
-    allowsBackForwardNavigationGestures: false,
+    allowsBackForwardNavigationGestures:
+        defaultTargetPlatform != TargetPlatform.macOS,
     cacheEnabled: !isDevelopment,
     // הפורק מנתק והורס renderer מת ומשלים את בקשות ה-JavaScript הממתינות.
     useOnRenderProcessGone: true,

@@ -44,13 +44,17 @@ void main() {
       expect(settings.pinchZoomEnabled, isFalse);
     });
 
-    test(
-      'החלקה אופקית לא מנווטת אחורה בתוסף — היא של הטאבים (issue #3161)',
-      () {
+    for (final platform in TargetPlatform.values) {
+      test('מחוות היסטוריה נחסמות רק ב־macOS: $platform (issue #3161)', () {
+        debugDefaultTargetPlatformOverride = platform;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
         final settings = buildPluginTabWebViewSettings(isDevelopment: false);
-        expect(settings.allowsBackForwardNavigationGestures, isFalse);
-      },
-    );
+        expect(
+          settings.allowsBackForwardNavigationGestures,
+          platform != TargetPlatform.macOS,
+        );
+      });
+    }
 
     test('הגדרות אבטחה ותצוגה נשמרות', () {
       final settings = buildPluginTabWebViewSettings(isDevelopment: false);
