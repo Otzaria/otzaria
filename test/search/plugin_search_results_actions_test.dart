@@ -11,6 +11,8 @@ import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/view/plugin_search_results_actions.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/theme/app_density.dart';
+import 'package:otzaria/widgets/controls/bar_button.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show ResultsOrder, SearchResult, SearchScope, TextStatus, WordMatchMode;
 
@@ -320,6 +322,55 @@ Future<void> main() async {
     await tester.ensureVisible(last);
     expect(tester.getRect(last).left, greaterThanOrEqualTo(0));
     expect(tester.getRect(last).right, lessThanOrEqualTo(600));
+  });
+
+  testWidgets('כפתור הסרגל נבנה בצפיפות של ערכת הנושא, כמו שכניו', (
+    tester,
+  ) async {
+    for (final density in [AppDensity.regular, AppDensity.compact]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(extensions: [density]),
+          home: Scaffold(
+            body: PluginSearchResultsActions(tab: tab, registry: registry),
+          ),
+        ),
+      );
+      // מעבר ערכת הנושא מונפש: הצפיפות מתהפכת באמצע ההנפשה.
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<BarButton>(find.byType(BarButton)).compact,
+        density.isCompact,
+        reason: 'isCompact=${density.isCompact}',
+      );
+    }
+  });
+
+  testWidgets('בסרגל צר כמה פעולות הן תפריט אחד, לא אייקונים זהים', (
+    tester,
+  ) async {
+    registry.registerPayload('second.plugin', {
+      'id': 'other',
+      'type': 'checkbox',
+      'title': 'מקור נוסף',
+      'openPluginOnSubmit': true,
+      'resultsAction': 'המשך במקור הנוסף',
+      'visibleInModes': ['advanced'],
+    });
+    await pump(tester, iconOnly: true);
+
+    // כפתור אחד: אצל שני כפתורי אייקון זהים אי אפשר להבדיל בלי tooltip.
+    expect(find.byType(BarButton), findsOneWidget);
+    expect(find.text('המשך במקור הנוסף'), findsNothing);
+
+    await tester.tap(find.byType(BarButton));
+    await tester.pumpAndSettle();
+    expect(find.text('המשך במקור החיצוני'), findsOneWidget);
+    await tester.tap(find.text('המשך במקור הנוסף'));
+    await tester.pumpAndSettle();
+    expect(launches.map((l) => (l.$1, l.$2['itemId'])), [
+      ('second.plugin', 'other'),
+    ]);
   });
 
   testWidgets(

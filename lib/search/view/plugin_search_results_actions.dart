@@ -8,8 +8,10 @@ import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/search_dialog_query.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/controls/bar_button.dart';
+import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 
 /// היכן מוצגים כפתורי `resultsAction`.
 enum PluginSearchResultsActionsLayout {
@@ -110,6 +112,23 @@ class PluginSearchResultsActions extends StatelessWidget {
           switch (layout) {
             case PluginSearchResultsActionsLayout.bar:
               if (actions.isEmpty) return const SizedBox.shrink();
+              // בסרגל צר כל הפעולות באותו אייקון, ובלי תווית אי אפשר להבדיל
+              // ביניהן: מרוכזות בתפריט אחד.
+              if (iconOnly && actions.length > 1) {
+                return AppPopupMenuButton<int>(
+                  tooltip: 'המשך בתוסף',
+                  iconData: FluentIcons.open_24_regular,
+                  entries: [
+                    for (var i = 0; i < actions.length; i++)
+                      AppMenuEntry(
+                        value: i,
+                        label: actions[i].$2.resultsAction!,
+                      ),
+                  ],
+                  onSelected: (i) => open(actions[i].$1, actions[i].$2.id),
+                );
+              }
+              final compact = AppDensity.of(context).isCompact;
               return SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
@@ -117,6 +136,7 @@ class PluginSearchResultsActions extends StatelessWidget {
                   children: [
                     for (final (pluginId, item) in actions)
                       BarButton.icon(
+                        compact: compact,
                         icon: FluentIcons.open_24_regular,
                         label: iconOnly ? null : item.resultsAction,
                         tooltip: item.resultsAction!,
