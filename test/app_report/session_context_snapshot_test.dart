@@ -83,9 +83,9 @@ void main() {
       expect(await snapshot.previousFor(crashed), isNull);
     });
 
-    test('בלי נעילה (ANR): מה שנשאר', () async {
+    test('בלי נעילה (ANR): אין התאמה אמינה להפעלה', () async {
       final snapshot = saved(pid: 77, at: '2026-11-15T23:00:00.000Z');
-      expect(await snapshot.previousFor(null), isNotNull);
+      expect(await snapshot.previousFor(null), isNull);
     });
   });
 

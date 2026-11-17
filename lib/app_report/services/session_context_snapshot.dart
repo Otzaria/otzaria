@@ -9,10 +9,7 @@ import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/search/active_lexical_searches.dart';
 import 'package:path/path.dart' as p;
 
-/// מה שהתוכנה הציגה וחיפשה, נשמר לדיסק בזמן הריצה.
-///
-/// דוח על קריסה או תקיעה של ההפעלה הקודמת נשלח מתהליך חדש, וההקשר שבזיכרון
-/// אבד עם הקודם. התמונה האחרונה שנשמרה כאן היא מה שנשאר ממנו.
+/// מה שהתוכנה הציגה וחיפשה, נשמר לדיסק לדוח על ההפעלה הקודמת.
 class SessionContextSnapshot {
   SessionContextSnapshot({
     String? path,
@@ -44,11 +41,12 @@ class SessionContextSnapshot {
   /// התמונה שההפעלה הקודמת השאירה. נקראת פעם אחת, לפני הכתיבה הראשונה כאן.
   Future<Map<String, dynamic>?> get previous => _previous ??= _read();
 
-  /// התמונה רק אם נשמרה בהפעלה [session]; הפעלה שלא הספיקה לכתוב משאירה את
-  /// הקובץ של זו שלפניה. בלי נעילה (ANR) אין במה להשוות, ו-`savedAt` מעיד.
+  /// התמונה רק אם נשמרה בהפעלה [session]. בלי נעילה (ANR) אין זיהוי אמין
+  /// של ההפעלה: מספר תהליך עלול להיות בשימוש חוזר, וזמן יציאה אינו זמן התחלה.
   Future<Map<String, dynamic>?> previousFor(SessionLock? session) async {
+    if (session == null) return null;
     final snapshot = await previous;
-    if (snapshot == null || session == null) return snapshot;
+    if (snapshot == null) return null;
     final savedAt = DateTime.tryParse('${snapshot['savedAt']}');
     final matches =
         snapshot['pid'] == session.pid &&

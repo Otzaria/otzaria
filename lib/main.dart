@@ -1155,11 +1155,7 @@ Future<void> _runDeferredAnrCheck() async {
     if (anr == null) return;
     await CrashReportFlow(
       showPrompt: showCrashPromptOnNavigator,
-      collector: AppReportCollector(
-        includeCurrentContext: false,
-        previousRunContext: () =>
-            SessionContextSnapshot.instance.previousFor(null),
-      ),
+      collector: AppReportCollector(includeCurrentContext: false),
     ).handle(
       CrashCandidate.hang(
         signature: anr.signature,
