@@ -343,6 +343,7 @@ class PluginExtendedValidator {
   static const String _contextMenuActionMinVersion = '0.9.97';
   static const String _searchSubmitRoutingMinVersion = '0.9.97';
   static const String _searchResultsActionMinVersion = '0.9.98.3';
+  static const String _searchResultsActionIconMinVersion = '0.9.99';
   static const String _searchUiOptionsMinVersion = '0.9.98.3';
   static const String _searchFilterLabelsMinVersion = '0.9.99';
   static const String _searchCompletedMinVersion = '0.9.99';
@@ -1147,6 +1148,16 @@ class PluginExtendedValidator {
         }
       }
       if (startup.searchDialogItems.any(
+        (item) => item.containsKey('resultsActionIcon'),
+      )) {
+        _requireMinVersion(
+          manifest,
+          _searchResultsActionIconMinVersion,
+          'searchDialogItems: resultsActionIcon',
+          errors,
+        );
+      }
+      if (startup.searchDialogItems.any(
         (item) => item['type'] == 'switch' || item.containsKey('persist'),
       )) {
         _requireMinVersion(
@@ -1162,6 +1173,13 @@ class PluginExtendedValidator {
           final parsed = PluginSearchDialogItem.fromPayload(item);
           if (!itemIds.add(parsed.id)) {
             errors.add('contributes.startup.searchDialogItems מכיל מזהה כפול');
+          }
+          final icon = parsed.resultsActionIcon;
+          if (icon != null && pluginIconFromName(icon) == null) {
+            warnings.add(
+              'contributes.startup.searchDialogItems: האייקון "$icon" אינו '
+              'מוכר',
+            );
           }
         } on PluginSearchDialogItemException catch (error) {
           errors.add('contributes.startup.searchDialogItems לא תקין: $error');

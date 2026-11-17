@@ -6276,6 +6276,7 @@ async function scheduleReminder(title, body, dateTime) {
 | `resultsProvider` | לא | שם ספק תוצאות חיצוני (אותיות קטנות, עד 64 תווים). כשהשורה מסומנת, טאב החיפוש מציג מדור תוצאות מהתוסף דרך `search.external.requested` (ראו `reader.registerExternalSearchProvider`). סותר את `openPluginOnSubmit`. |
 | `resultsTitle` | לא | כותרת מדור התוצאות בטאב החיפוש (עד 120 תווים); דורש `resultsProvider`. ברירת המחדל: `title`. |
 | `resultsAction` | לא | מגרסה 0.9.98.3: כיתוב כפתור (עד 120 תווים) בטאב החיפוש. הכפתור מוצג כשהחיפוש הסתיים, גם בלי תוצאות, ולחיצה פותחת את דף התוסף עם `search.requested` על אותו חיפוש. דורש `openPluginOnSubmit`. |
+| `resultsActionIcon` | לא | מגרסה 0.9.99: שם אייקון לכפתור `resultsAction` (עד 128 תווים), באותו פורמט של שאר אייקוני התוספים ([ICONS.md](ICONS.md): שם בלי תחילית, או `otzaria:` / `fluent:`). בלעדיו, או עם שם שאינו מוכר, הכפתור מציג את אייקון "פתח" (ובהתקנה מתקבלת אזהרה על שם לא מוכר). דורש `resultsAction`, וגם `minAppVersion: "0.9.99"`: מארח ישן יותר דוחה את המניפסט על מפתח לא מוכר, ולא מתעלם ממנו. |
 | `visibleInModes` | לא | מערך לא-ריק מתוך `"exact"`, `"advanced"`, `"fuzzy"`; ברירת המחדל היא כל המצבים. |
 | `disabledSearchOptions` | לא | אובייקט `מצב → מזהי אפשרויות מילה` להשבתה כשה-checkbox מסומן. |
 
