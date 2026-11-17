@@ -16,6 +16,9 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/reading_screen.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 
 class _StubTab extends OpenedTab {
   _StubTab(super.title);
@@ -140,6 +143,71 @@ void main() {
     expect(find.text('בראשית'), findsNothing);
     // הכותרת של סעיף ריק אינה מוצגת.
     expect(find.text('נסגרו לאחרונה'), findsNothing);
+  });
+
+  group('רכיבי הקטלוג בחלונית', () {
+    testWidgets('שדה החיפוש הוא OtzariaSearchField, וה-X מנקה את הסינון', (
+      tester,
+    ) async {
+      await openMenu(tester);
+      expect(find.byType(OtzariaSearchField), findsOneWidget);
+      expect(find.byTooltip('נקה'), findsNothing);
+
+      await tester.enterText(find.byType(TextField), 'שמו');
+      await tester.pumpAndSettle();
+      expect(find.text('בראשית'), findsNothing);
+
+      await tester.tap(find.byTooltip('נקה'));
+      await tester.pumpAndSettle();
+      expect(find.text('בראשית'), findsOneWidget);
+      expect(find.byTooltip('נקה'), findsNothing);
+    });
+
+    testWidgets('כפתורי השורה הם AppIconButton עם tooltip', (tester) async {
+      await openMenu(tester);
+      for (final tooltip in ['סגור כרטיסיה', 'שחזר כרטיסיה', 'נקה את הרשימה']) {
+        final buttons = find.ancestor(
+          of: find.byTooltip(tooltip),
+          matching: find.byType(AppIconButton),
+        );
+        expect(buttons, findsWidgets, reason: tooltip);
+      }
+    });
+
+    testWidgets('"הצג את כל ההיסטוריה" הוא ActionButton.ghost', (tester) async {
+      await openMenu(tester);
+      expect(
+        find.ancestor(
+          of: find.text('הצג את כל ההיסטוריה'),
+          matching: find.byType(ActionButton),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('בשולחן עבודה שורה היא לפחות בגובה פריט תפריט (36)', (
+      tester,
+    ) async {
+      await openMenu(tester);
+      final row = find.ancestor(
+        of: find.text('שמות'),
+        matching: find.byType(InkWell),
+      );
+      expect(tester.getSize(row.first).height, greaterThanOrEqualTo(36));
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
+    testWidgets(
+      'במגע שורה היא לפחות 48',
+      (tester) async {
+        await openMenu(tester);
+        final row = find.ancestor(
+          of: find.text('שמות'),
+          matching: find.byType(InkWell),
+        );
+        expect(tester.getSize(row.first).height, greaterThanOrEqualTo(48));
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.android),
+    );
   });
 
   testWidgets('שאילתה ללא התאמות מציגה הודעה', (tester) async {

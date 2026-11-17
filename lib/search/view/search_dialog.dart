@@ -17,6 +17,7 @@ import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/search/search_scope_preferences.dart';
+import 'package:otzaria/search/view/search_history_menu.dart';
 import 'package:otzaria/search/view/search_scope_menu.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
@@ -789,83 +790,40 @@ class _SearchDialogState extends State<SearchDialog> {
   Widget _buildHistoryDropdown() {
     return BlocBuilder<HistoryBloc, HistoryState>(
       builder: (context, state) {
-        final searchHistory = state.history
+        final recentSearches = state.history
             .where((item) => item.isSearch)
+            .take(50)
             .toList();
+        return SearchHistoryMenu(
+          entries: recentSearches,
+          onRemove: (bookmark) => context.read<HistoryBloc>().add(
+            RemoveHistory(state.history.indexOf(bookmark)),
+          ),
+          onSelect: (bookmark) {
+            _searchTab.queryController.text = bookmark.book.title;
 
-        if (searchHistory.isEmpty) return const SizedBox.shrink();
+            // חיפוש היסטורי מורחב משוחזר במצב פר-מילה.
+            if (bookmark.searchOptions != null) {
+              _searchTab.searchOptions
+                ..clear()
+                ..addAll(bookmark.searchOptions!);
+              _searchTab.globalSearchOptions.clear();
+              _searchTab.useGlobalSearchOptions.value = false;
+            }
+            if (bookmark.alternativeWords != null) {
+              _searchTab.alternativeWords
+                ..clear()
+                ..addAll(bookmark.alternativeWords!);
+            }
+            if (bookmark.spacingValues != null) {
+              _searchTab.spacingValues
+                ..clear()
+                ..addAll(bookmark.spacingValues!);
+            }
 
-        final recentSearches = searchHistory.take(50).toList();
-
-        return Column(
-          key: const ValueKey('search-history-menu'),
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var index = 0; index < recentSearches.length; index++) ...[
-              if (index > 0)
-                Divider(
-                  height: 1,
-                  thickness: 1,
-                  color: Theme.of(context).colorScheme.outlineVariant,
-                ),
-              Builder(
-                builder: (context) {
-                  final bookmark = recentSearches[index];
-                  final query = bookmark.book.title;
-                  final displayText = bookmark.ref;
-                  final originalIndex = state.history.indexOf(bookmark);
-
-                  return ListTile(
-                    dense: true,
-                    leading: const Icon(
-                      OtzariaIcons.search_24_regular,
-                      size: AppTokens.iconSM,
-                    ),
-                    title: Text(
-                      displayText,
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(
-                        FluentIcons.delete_24_regular,
-                        size: AppTokens.iconSM,
-                      ),
-                      tooltip: context.settingsText('מחק מההיסטוריה'),
-                      onPressed: () => context.read<HistoryBloc>().add(
-                        RemoveHistory(originalIndex),
-                      ),
-                    ),
-                    onTap: () {
-                      _searchTab.queryController.text = query;
-
-                      // חיפוש היסטורי מורחב משוחזר במצב פר-מילה.
-                      if (bookmark.searchOptions != null) {
-                        _searchTab.searchOptions
-                          ..clear()
-                          ..addAll(bookmark.searchOptions!);
-                        _searchTab.globalSearchOptions.clear();
-                        _searchTab.useGlobalSearchOptions.value = false;
-                      }
-                      if (bookmark.alternativeWords != null) {
-                        _searchTab.alternativeWords
-                          ..clear()
-                          ..addAll(bookmark.alternativeWords!);
-                      }
-                      if (bookmark.spacingValues != null) {
-                        _searchTab.spacingValues
-                          ..clear()
-                          ..addAll(bookmark.spacingValues!);
-                      }
-
-                      _historyMenuController.close();
-                      _searchTab.searchFieldFocusNode.requestFocus();
-                    },
-                  );
-                },
-              ),
-            ],
-          ],
+            _historyMenuController.close();
+            _searchTab.searchFieldFocusNode.requestFocus();
+          },
         );
       },
     );
@@ -1479,8 +1437,12 @@ class _SearchDialogState extends State<SearchDialog> {
         : menuWidth;
     return MenuAnchor(
       controller: _historyMenuController,
-      alignmentOffset: const Offset(0, 4),
+      // הכפתור בקצה הסיום של השדה: הקצה הרחוק של התפריט מיושר לקצה הכפתור
+      // והתפריט נפתח לכיוון השדה, ולא בורח אל מחוץ לדיאלוג. ב-RTL המיקום
+      // הוא קצה הכפתור פחות רוחב התפריט, ולכן ההיסט שלילי ברוחבו.
+      alignmentOffset: Offset(-historyMenuWidth, AppTokens.spaceXS),
       style: MenuStyle(
+        alignment: AlignmentDirectional.bottomEnd,
         padding: const WidgetStatePropertyAll(EdgeInsets.zero),
         backgroundColor: WidgetStatePropertyAll(
           colorScheme.surfaceContainerHigh,

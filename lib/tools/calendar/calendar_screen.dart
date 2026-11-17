@@ -775,6 +775,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
     showCalendarPrintDialog(
       context: context,
       calendarView: state.calendarView,
+      enabledZmanim: state.enabledZmanim,
       closeShortcut: _shortcutActivator(
         context.read<SettingsBloc>().state.shortcuts,
         'key-shortcut-print',

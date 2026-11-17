@@ -16,15 +16,19 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria_context_menu/otzaria_context_menu.dart'
+    show AppMenuMetrics;
+import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/controls/app_icon_button.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
-import 'package:otzaria/widgets/text/rtl_text_field.dart';
+import 'package:otzaria/widgets/text/app_section_label.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 import 'package:otzaria/theme/app_shadows.dart';
 
 const double _kMenuWidth = 320;
 const double _kMenuMaxHeight = 420;
-const double _kRowHeight = 32;
 
 /// כפתור "חיפוש כרטיסיות" — חץ מטה בקצה רצועת הכרטיסיות, בנוסח דפדפן.
 class TabSearchButton extends StatelessWidget {
@@ -334,29 +338,14 @@ class _TabSearchPanelState extends State<TabSearchPanel> {
           return Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
-                child: RtlTextField(
+                padding: const EdgeInsets.all(AppTokens.spaceSM),
+                child: OtzariaSearchField(
                   controller: _controller,
                   focusNode: _fieldFocus,
                   autofocus: true,
-                  decoration: InputDecoration(
-                    hintText: context.settingsText('חיפוש כרטיסיות'),
-                    isDense: true,
-                    prefixIcon: const Icon(
-                      FluentIcons.search_24_regular,
-                      size: AppTokens.iconSM,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: AppTokens.borderRadiusAll,
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: cs.surfaceContainerHighest,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                  ),
+                  hintText: context.settingsText('חיפוש כרטיסיות'),
+                  // הניקוי עצמו מאפס את הסינון דרך מאזין הבקר.
+                  onClear: () {},
                 ),
               ),
               Expanded(
@@ -367,16 +356,31 @@ class _TabSearchPanelState extends State<TabSearchPanel> {
                         title: context.settingsText('אין כרטיסיות תואמות'),
                       )
                     : ScrollablePositionedList.builder(
-                        padding: const EdgeInsets.only(top: 2, bottom: 8),
+                        padding: const EdgeInsets.only(
+                          bottom: AppTokens.spaceSM,
+                        ),
                         itemCount: rows.length,
                         itemBuilder: (context, index) => rows[index],
                         itemScrollController: _itemScrollController,
                         itemPositionsListener: _itemPositionsListener,
-                        estimateExtent: (_, _) => _kRowHeight + 2,
+                        estimateExtent: (_, _) => _rowExtent(context),
                       ),
               ),
-              const Divider(height: 1),
-              _HistoryFooter(onTap: _openHistory),
+              Divider(
+                height: AppTokens.borderThin,
+                color: AppSurfaces.subtleDivider(cs),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(AppTokens.spaceXS),
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: ActionButton.ghost(
+                    text: context.settingsText('הצג את כל ההיסטוריה'),
+                    icon: FluentIcons.history_24_regular,
+                    onPressed: _openHistory,
+                  ),
+                ),
+              ),
             ],
           );
         },
@@ -388,46 +392,26 @@ class _TabSearchPanelState extends State<TabSearchPanel> {
     // הדיאלוג נפתח מה-Navigator עצמו: הקונטקסט של החלונית נהרס עם סגירתה.
     final navigator = Navigator.of(context);
     navigator.pop();
-    showDialog(
+    showDialogUntilTornDown<void>(
       context: navigator.context,
       builder: (_) => const HistoryDialog(),
     );
   }
 }
 
-class _HistoryFooter extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _HistoryFooter({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        height: 36,
-        padding: const EdgeInsetsDirectional.symmetric(horizontal: 16),
-        child: Row(
-          children: [
-            Icon(
-              FluentIcons.history_24_regular,
-              size: 16,
-              color: cs.onSurfaceVariant,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              context.settingsText('הצג את כל ההיסטוריה'),
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: cs.onSurface),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+/// גובה שורה בחלונית: גובה פריט תפריט, ובמגע שטח לחיצה של 48.
+double _rowHeight(BuildContext context) {
+  final theme = Theme.of(context);
+  final metrics =
+      theme.extension<AppMenuMetrics>() ??
+      AppMenuMetrics.create(compactMenus: false);
+  final touch = theme.materialTapTargetSize == MaterialTapTargetSize.padded;
+  return touch ? kMinInteractiveDimension : metrics.itemHeight;
 }
+
+/// גובה שורה כולל המרווח שבין שורות, להערכת הגלילה.
+double _rowExtent(BuildContext context) =>
+    _rowHeight(context) + 2 * AppTokens.space2XS;
 
 class _SectionHeader extends StatelessWidget {
   final String label;
@@ -444,40 +428,26 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = Text(
-      label,
-      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-        color: Theme.of(context).colorScheme.primary,
-        fontWeight: FontWeight.bold,
-      ),
-    );
-    final hasAction = onAction != null;
-
+    final action = onAction;
     return Padding(
-      padding: EdgeInsetsDirectional.only(
-        start: 16,
-        top: 8,
-        end: hasAction ? 4 : 16,
-        bottom: 2,
+      padding: const EdgeInsetsDirectional.only(
+        start: AppTokens.spaceMD,
+        end: AppTokens.spaceXS,
+        top: AppTokens.spaceSM,
+        bottom: AppTokens.space2XS,
       ),
-      child: hasAction
-          ? Row(
-              children: [
-                Expanded(child: title),
-                IconButton(
-                  icon: Icon(actionIcon, size: 14),
-                  tooltip: actionTooltip,
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(
-                    minWidth: 28,
-                    minHeight: 28,
-                  ),
-                  onPressed: onAction,
-                ),
-              ],
-            )
-          : title,
+      child: Row(
+        children: [
+          Expanded(child: AppSectionLabel(label)),
+          if (action != null)
+            AppIconButton(
+              icon: Icon(actionIcon),
+              size: AppIconButtonSize.small,
+              tooltip: actionTooltip ?? '',
+              onPressed: action,
+            ),
+        ],
+      ),
     );
   }
 }
@@ -504,52 +474,60 @@ class _TabRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final icon =
         buildTabTypeIcon(context, tab, color: cs.onSurfaceVariant) ??
         buildTabFallbackIcon(context, color: cs.onSurfaceVariant);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTokens.spaceXS,
+        vertical: AppTokens.space2XS,
+      ),
       child: Material(
         color: isCurrent ? AppSurfaces.selectedRow(cs) : Colors.transparent,
         borderRadius: AppTokens.borderRadiusAll,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          child: Container(
-            color: isHighlighted ? Theme.of(context).focusColor : null,
-            height: _kRowHeight,
-            padding: const EdgeInsetsDirectional.only(start: 12, end: 4),
-            child: Row(
-              children: [
-                icon,
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    tabTitleBesideContentIcon(tab, tab.title),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: cs.onSurface,
-                      fontWeight: isCurrent
-                          ? FontWeight.w600
-                          : FontWeight.normal,
+          child: Ink(
+            color: isHighlighted ? AppSurfaces.focusedRow(cs) : null,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: _rowHeight(context)),
+              child: Padding(
+                padding: const EdgeInsetsDirectional.only(
+                  start: AppTokens.spaceSMD,
+                  end: AppTokens.space2XS,
+                ),
+                child: Row(
+                  children: [
+                    icon,
+                    const SizedBox(width: AppTokens.spaceSM),
+                    Expanded(
+                      child: Text(
+                        tabTitleBesideContentIcon(tab, tab.title),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: isCurrent
+                              ? AppSurfaces.onSelectedRow(cs)
+                              : cs.onSurface,
+                          fontWeight: isCurrent
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                        ),
+                      ),
                     ),
-                  ),
+                    AppIconButton(
+                      icon: Icon(trailingIcon),
+                      size: AppIconButtonSize.small,
+                      tooltip: trailingTooltip,
+                      onPressed: onTrailing,
+                    ),
+                  ],
                 ),
-                IconButton(
-                  icon: Icon(trailingIcon, size: 14),
-                  tooltip: trailingTooltip,
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(
-                    minWidth: 28,
-                    minHeight: 28,
-                  ),
-                  onPressed: onTrailing,
-                ),
-              ],
+              ),
             ),
           ),
         ),

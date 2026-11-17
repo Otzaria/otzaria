@@ -109,79 +109,67 @@ class TextDisplayPopupPanel extends StatelessWidget {
     final theme = Theme.of(context);
     return SizedBox(
       width: width,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSM),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppTokens.spaceMD,
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    'תצוגת הטקסט',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.bold,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // אותה רצועת כותרת ותג אייקון כמו בכל דיאלוג (DD-07); שם התצוגה
+          // (צורת הדף / תצוגה רגילה) בשורת המשנה.
+          AppDialogHeader(
+            icon: OtzariaIcons.alef_niqqud_24_filled,
+            title: 'תצוגת הטקסט',
+            subtitle: viewLabel,
+            compact: true,
+            subtitleMaxLines: 1,
+            onClose: () => Navigator.of(context).pop(),
+          ),
+          // טבלה: שורה לכל הגדרה ועמודה לכל מקטע (q12 Q7). הגובה נשאר מתחת
+          // ל-360 (שאלה q12, אפשרות A), ולכן בלי ריפוד נוסף מעל ומתחת.
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceMD),
+            child: TextDisplayProfileTable(
+              columns: [
+                for (final section in sections)
+                  (
+                    title: section.title,
+                    profile: section.profile,
+                    onChanged: section.onChanged,
+                  ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppTokens.spaceMD,
+              vertical: AppTokens.spaceXS,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  FluentIcons.info_24_regular,
+                  size: AppTokens.iconSM,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: AppTokens.spaceSM),
+                Expanded(
+                  child: Text(
+                    footer,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(width: AppTokens.spaceSM),
-                  Expanded(
-                    child: Text(
-                      viewLabel,
-                      style: theme.textTheme.bodySmall,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                ),
+                if (onReset != null)
+                  ActionButton.ghost(
+                    icon: FluentIcons.arrow_reset_24_regular,
+                    text: 'איפוס',
+                    onPressed: onReset,
                   ),
-                  IconButton(
-                    icon: const Icon(FluentIcons.dismiss_24_regular, size: 20),
-                    tooltip: 'סגור',
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
+              ],
             ),
-            // טבלה: שורה לכל הגדרה ועמודה לכל מקטע (q12 Q7).
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppTokens.spaceMD,
-              ),
-              child: TextDisplayProfileTable(
-                columns: [
-                  for (final section in sections)
-                    (
-                      title: section.title,
-                      profile: section.profile,
-                      onChanged: section.onChanged,
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: AppTokens.spaceXS),
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppTokens.spaceMD,
-                AppTokens.spaceSM,
-                AppTokens.spaceMD,
-                0,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(footer, style: theme.textTheme.bodySmall),
-                  ),
-                  if (onReset != null)
-                    ActionButton.ghost(text: 'איפוס', onPressed: onReset),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

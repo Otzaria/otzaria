@@ -62,6 +62,7 @@ class CommentatorsTabTopBar extends StatelessWidget {
     required this.nextMajorTooltip,
     required this.navPaneOpen,
     required this.navPanePinned,
+    required this.canPinNavPane,
     required this.onToggleNavPane,
     required this.onTogglePin,
     required this.onPrevMajor,
@@ -84,6 +85,11 @@ class CommentatorsTabTopBar extends StatelessWidget {
   final String nextMajorTooltip;
   final bool navPaneOpen;
   final bool navPanePinned;
+
+  /// Whether the pane has room to sit beside the content
+  /// ([NavSidePanel.canPin]). Without it pinning changes nothing, so the pin
+  /// button is only shown for an existing pin, so it can still be removed.
+  final bool canPinNavPane;
   final VoidCallback onToggleNavPane;
   final VoidCallback onTogglePin;
   final VoidCallback onPrevMajor;
@@ -148,7 +154,7 @@ class CommentatorsTabTopBar extends StatelessWidget {
             onToggle: onToggleNavPane,
           ),
         ),
-        if (navPaneOpen || navPanePinned)
+        if (navPanePinned || (navPaneOpen && canPinNavPane))
           AppTopBarItem(
             widget: NavPanelPinButton(
               isPinned: navPanePinned,

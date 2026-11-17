@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/theme/app_tokens.dart';
-import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -15,10 +14,11 @@ import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_mana
 import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/book_common/utils/commentator_group_builder.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
-import 'package:otzaria/widgets/text/app_section_label.dart';
+import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 
 /// סוג שמירת הגדרות מפרשים
 enum CommentatorSaveScope {
@@ -413,22 +413,6 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
     }
   }
 
-  Widget _buildDisplaySettingsIcon(BuildContext context) {
-    final color = Theme.of(context).colorScheme.primary;
-    if (_displaySettingsScope == PageShapeDisplaySettingsScope.book) {
-      return Icon(
-        OtzariaIcons.book_24_regular,
-        size: 20,
-        color: color,
-      );
-    }
-    return Icon(
-      _displaySettingsIcon,
-      size: 20,
-      color: color,
-    );
-  }
-
   List<SegmentOption<CommentatorSaveScope>> get _commentatorSaveScopeOptions {
     return [
       // תמיד לספר הנוכחי — בבורר התצוגה "שולחן עבודה" חל על כל ספרי השולחן.
@@ -511,194 +495,119 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
 
   @override
   Widget build(BuildContext context) {
-    // הגלילה, הכותרת והריפוד מסופקים ע"י ContextOverlayPanel העוטף.
+    // הגלילה, הכותרת והריפוד מסופקים ע"י ContextOverlayPanel העוטף. המבנה זהה
+    // ל"הגדרות תצוגת הספרים": כרטיסי SettingsCard עם שורות הגדרה.
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // בחירת תחום השמירה של הגדרות התצוגה בלבד.
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppSurfaces.panelSection(context),
-            borderRadius: AppTokens.borderRadiusAll,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  _buildDisplaySettingsIcon(context),
-                  const SizedBox(width: 8),
-                  Expanded(child: AppSectionLabel(_displaySettingsTitle)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              AppSegmentedControl<PageShapeDisplaySettingsScope>(
-                options: const [
-                  SegmentOption(
-                    value: PageShapeDisplaySettingsScope.book,
-                    label: 'ספר זה',
-                  ),
-                  SegmentOption(
-                    value: PageShapeDisplaySettingsScope.workspace,
-                    label: 'שולחן עבודה זה',
-                  ),
-                  SegmentOption(
-                    value: PageShapeDisplaySettingsScope.global,
-                    label: 'גלובלי',
-                  ),
-                ],
-                currentValue: _displaySettingsScope,
-                onChanged: _onDisplayScopeChanged,
-                expandToFillWidth: true,
-                height: 40,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _displaySettingsSubtitle,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              // ה-ListTile מצייר על ה-Material הקרוב, ולכן לא על רקע המקטע.
-              Material(
-                type: MaterialType.transparency,
-                child: SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('הדגש פרשנים קשורים'),
-                  subtitle: const Text(
-                    'הדגשת קטעים בפרשנים הקשורים לשורה שנבחרה',
-                  ),
-                  value: _highlightRelatedCommentators,
-                  onChanged: (value) {
-                    setState(() {
-                      _highlightRelatedCommentators = value;
-                    });
-                    _saveSettings();
-                  },
-                ),
-              ),
-            ],
+        _buildDisplayCard(context),
+        _buildCommentatorsCard(context),
+        _buildFontCard(context),
+        const SizedBox(height: AppTokens.spaceLG),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: ActionButton.warningSoft(
+            onPressed: _resetCommentators,
+            icon: FluentIcons.arrow_reset_24_regular,
+            text: 'איפוס מפרשים',
           ),
         ),
+      ],
+    );
+  }
 
-        const SizedBox(height: 8),
-        SwitchListTile(
-          title: const Text('החל את הגדרת רוחב הטקסט'),
-          subtitle: const Text(
-            'הגבלת רוחב הטקסט שבהגדרות תחול גם על הדף כולו',
-          ),
+  /// תחום ההגדרות של התצוגה, והדגשת פרשנים ורוחב הטקסט.
+  Widget _buildDisplayCard(BuildContext context) {
+    return SettingsCard(
+      children: [
+        SettingsSegmentedTile<PageShapeDisplaySettingsScope>(
+          icon: _displaySettingsIcon,
+          title: _displaySettingsTitle,
+          subtitle: _displaySettingsSubtitle,
+          options: const [
+            SegmentOption(
+              value: PageShapeDisplaySettingsScope.book,
+              label: 'ספר זה',
+            ),
+            SegmentOption(
+              value: PageShapeDisplaySettingsScope.workspace,
+              label: 'שולחן עבודה זה',
+            ),
+            SegmentOption(
+              value: PageShapeDisplaySettingsScope.global,
+              label: 'גלובלי',
+            ),
+          ],
+          currentValue: _displaySettingsScope,
+          onChanged: _onDisplayScopeChanged,
+        ),
+        SettingsSwitchTile(
+          icon: OtzariaIcons.book_alef_rashi_24_regular,
+          title: 'הדגש פרשנים קשורים',
+          subtitle: 'הדגשת קטעים בפרשנים הקשורים לשורה שנבחרה',
+          value: _highlightRelatedCommentators,
+          onChanged: (value) {
+            setState(() {
+              _highlightRelatedCommentators = value;
+            });
+            _saveSettings();
+          },
+        ),
+        SettingsSwitchTile(
+          icon: FluentIcons.text_align_distributed_24_regular,
+          title: 'החל את רוחב הטקסט',
+          subtitle: 'הגבלת רוחב הטקסט שבהגדרות תחול גם על הדף כולו',
           value: _applyTextMaxWidth,
           onChanged: _onApplyTextMaxWidthChanged,
         ),
-        const Divider(),
-        const SizedBox(height: 8),
-        const Text(
-          'בחר מפרשים להצגה:',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        // בחירת היכן לשמור את הגדרות המפרשים
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppSurfaces.panelSectionAccent(context),
-            borderRadius: AppTokens.borderRadiusAll,
-            border: Border.all(
-              color: AppSurfaces.panelSectionAccentBorder(context),
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    FluentIcons.save_24_regular,
-                    size: 20,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'שמירת בחירת מפרשים',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              if (_commentatorSaveScopeOptions.length > 1) ...[
-                AppSegmentedControl<CommentatorSaveScope>(
-                  options: _commentatorSaveScopeOptions,
-                  currentValue: _commentatorSaveScope,
-                  onChanged: _onCommentatorScopeChanged,
-                  expandToFillWidth: true,
-                  height: 40,
-                ),
-                const SizedBox(height: 8),
-              ],
-              Text(
-                _commentatorSaveScopeSubtitle,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              // בחירת קטגוריה
-              if (_commentatorSaveScope == CommentatorSaveScope.category &&
-                  _availableCategories.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'בחר קטגוריה:',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const SizedBox(height: 4),
-                AppDropdownField<String>(
-                  value: _selectedCategory,
-                  entries: _availableCategories
-                      .map(
-                        (category) => AppMenuEntry<String>(
-                          value: category,
-                          label: category,
-                        ),
-                      )
-                      .toList(),
-                  onSelected: (value) {
-                    if (value != null) {
-                      setState(() {
-                        _selectedCategory = value;
-                      });
-                      _saveSettings();
-                    }
-                  },
-                ),
-              ],
-            ],
-          ),
-        ),
+      ],
+    );
+  }
 
-        const SizedBox(height: 12),
-        // הסבר על כפתורי העין
-        Row(
-          children: [
-            Icon(
-              FluentIcons.eye_24_regular,
-              size: 16,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                'לחץ על סמל העין כדי להציג או להסתיר טור',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
+  /// היכן נשמרת בחירת המפרשים, ובחירת המפרש לכל טור.
+  Widget _buildCommentatorsCard(BuildContext context) {
+    final showScopeChoice = _commentatorSaveScopeOptions.length > 1;
+    return SettingsCard(
+      title: 'בחר מפרשים להצגה',
+      subtitle: 'לחץ על סמל העין כדי להציג או להסתיר טור',
+      children: [
+        if (showScopeChoice)
+          SettingsSegmentedTile<CommentatorSaveScope>(
+            icon: FluentIcons.save_24_regular,
+            title: 'שמירת בחירת מפרשים',
+            subtitle: _commentatorSaveScopeSubtitle,
+            options: _commentatorSaveScopeOptions,
+            currentValue: _commentatorSaveScope,
+            onChanged: _onCommentatorScopeChanged,
+          )
+        else
+          SettingsActionTile.text(
+            icon: FluentIcons.save_24_regular,
+            title: 'שמירת בחירת מפרשים',
+            subtitle: _commentatorSaveScopeSubtitle,
+          ),
+        if (_commentatorSaveScope == CommentatorSaveScope.category &&
+            _availableCategories.isNotEmpty)
+          SettingsDropdownTile<String>(
+            icon: FluentIcons.folder_24_regular,
+            title: 'בחר קטגוריה',
+            value: _selectedCategory,
+            entries: _availableCategories
+                .map(
+                  (category) =>
+                      AppMenuEntry<String>(value: category, label: category),
+                )
+                .toList(),
+            onSelected: (value) {
+              if (value != null) {
+                setState(() {
+                  _selectedCategory = value;
+                });
+                _saveSettings();
+              }
+            },
+          ),
         _buildCommentatorDropdown(
           label: 'מפרש ימני',
           includeSuperCommentators: true,
@@ -710,7 +619,6 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
           ),
           visibilityKey: 'left',
         ),
-        const SizedBox(height: 12),
         _buildCommentatorDropdown(
           label: 'מפרש שמאלי',
           value: _rightSingleCommentator,
@@ -726,7 +634,6 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
           },
           visibilityKey: 'right',
         ),
-        const SizedBox(height: 12),
         _buildCommentatorDropdown(
           label: 'מפרש תחתון',
           includeSuperCommentators: true,
@@ -738,7 +645,6 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
           ),
           visibilityKey: 'bottom',
         ),
-        const SizedBox(height: 12),
         _buildCommentatorDropdown(
           label: 'מפרש תחתון נוסף',
           includeSuperCommentators: true,
@@ -750,34 +656,38 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
           ),
           visibilityKey: 'bottomRight',
         ),
-        const SizedBox(height: 20),
-        const Divider(),
-        const SizedBox(height: 12),
-        // גודל גופן המפרשים
-        PageShapeCommentaryFontSizeSlider(
-          title: 'גודל גופן מפרשים',
-          onSaved: widget.onSettingsChanged,
-        ),
-        const SizedBox(height: 12),
-        const Text(
-          'גופן מפרשים תחתונים:',
-          style: TextStyle(fontSize: 15),
-        ),
-        const SizedBox(height: 6),
-        FontDropdownField(
-          value: _bottomFontFamily,
-          onChanged: _onFontChanged,
-        ),
-        const SizedBox(height: 20),
-        const Divider(),
-        const SizedBox(height: 12),
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: ActionButton.warningSoft(
-            onPressed: _resetCommentators,
-            icon: FluentIcons.arrow_reset_24_regular,
-            text: 'איפוס מפרשים',
+      ],
+    );
+  }
+
+  /// גודל וגופן המפרשים, באותן שורות כמו "הגדרות גופן ועיצוב" בהגדרות התצוגה.
+  Widget _buildFontCard(BuildContext context) {
+    return SettingsCard(
+      title: 'גופן ועיצוב מפרשים',
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppTokens.spaceMD,
+            vertical: AppTokens.spaceSMD,
           ),
+          child: PageShapeCommentaryFontSizeSlider(
+            title: 'גודל גופן מפרשים',
+            onSaved: widget.onSettingsChanged,
+          ),
+        ),
+        SettingsActionTile.text(
+          icon: OtzariaIcons.beit_behind_alef_24_filled,
+          title: 'גופן מפרשים תחתונים',
+          stacked: true,
+          actions: [
+            SizedBox(
+              width: double.infinity,
+              child: FontDropdownField(
+                value: _bottomFontFamily,
+                onChanged: _onFontChanged,
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -787,62 +697,66 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
     required String label,
     required String? value,
     required ValueChanged<String?> onChanged,
-    String? visibilityKey,
+    required String visibilityKey,
     bool includeSuperCommentators = false,
   }) {
-    final isVisible = visibilityKey != null
-        ? (_columnVisibility[visibilityKey] ?? true)
-        : true;
-
+    final isVisible = _columnVisibility[visibilityKey] ?? true;
     final menuData = _buildCommentatorMenuData(
       includeSuperCommentators: includeSuperCommentators,
     );
 
-    return Row(
-      children: [
-        // כפתור הצגה/הסתרה
-        if (visibilityKey != null)
-          IconButton(
+    // שורה אחת קומפקטית: עין, תווית ושדה. כך ארבעת הטורים תופסים מעט מקום.
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTokens.spaceSM,
+        vertical: AppTokens.spaceXS,
+      ),
+      child: Row(
+        children: [
+          // כפתור הצגה/הסתרה של הטור, בצד התווית.
+          AppIconButton(
+            size: AppIconButtonSize.medium,
             icon: Icon(
               isVisible
                   ? FluentIcons.eye_24_regular
                   : FluentIcons.eye_off_24_regular,
-              size: 20,
-              color: isVisible
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
             ),
+            isSelected: isVisible,
             tooltip: isVisible ? 'הסתר טור' : 'הצג טור',
             onPressed: () => _toggleColumnVisibility(visibilityKey, !isVisible),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
           ),
-        SizedBox(
-          width: visibilityKey != null ? 108 : 140,
-          child: Text(
-            label,
-            style: const TextStyle(fontSize: 15),
-          ),
-        ),
-        Expanded(
-          child: AppDropdownField<String>(
-            value: value ?? _noneCommentatorValue,
-            entries: menuData.entries,
-            enableSearch: true,
-            decoration: const InputDecoration(
-              hintText: 'חיפוש מפרש...',
-            ),
-            filterLabels: menuData.filterLabels,
-            filterPredicates: menuData.filterPredicates,
-            labelBuilder: (v) => v == _noneCommentatorValue
-                ? 'ללא מפרש'
-                : formatPageShapeCommentatorSelection(v),
-            onSelected: (selected) => onChanged(
-              selected == _noneCommentatorValue ? null : selected,
+          const SizedBox(width: AppTokens.spaceXS),
+          Expanded(
+            flex: 2,
+            child: Text(
+              context.settingsText(label),
+              style: AppTextStyles.settingTitle,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-        ),
-      ],
+          const SizedBox(width: AppTokens.spaceSM),
+          Expanded(
+            flex: 3,
+            child: AppDropdownField<String>(
+              value: value ?? _noneCommentatorValue,
+              entries: menuData.entries,
+              enableSearch: true,
+              decoration: const InputDecoration(
+                hintText: 'חיפוש מפרש...',
+              ),
+              filterLabels: menuData.filterLabels,
+              filterPredicates: menuData.filterPredicates,
+              labelBuilder: (v) => v == _noneCommentatorValue
+                  ? 'ללא מפרש'
+                  : formatPageShapeCommentatorSelection(v),
+              onSelected: (selected) => onChanged(
+                selected == _noneCommentatorValue ? null : selected,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

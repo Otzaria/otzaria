@@ -526,6 +526,35 @@ void main() {
     expect(find.widgetWithText(NavTreeTile, 'פרק א'), findsOneWidget);
   });
 
+  testWidgets('חלון צר: לחלונית הניווט אין מקום ליד התוכן, ואין כפתור נעיצה '
+      '(issue #5202)', (tester) async {
+    // 320 (החלונית) + 500 (מינימום לתוכן) = 820 נדרשים לדחיקת התוכן.
+    tester.view.physicalSize = const Size(700, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final sourceTab = PdfBookTab(
+      book: PdfBook(title: 'PDF בדיקה', path: '/tmp/book.pdf'),
+      pageNumber: 1,
+    );
+    addTearDown(sourceTab.dispose);
+    sourceTab.pdfHeadings = PdfHeadings(
+      bookTitle: 'PDF בדיקה',
+      headingsMap: {'פרק א': 1, 'פרק ב': 10},
+    );
+    sourceTab.currentTitle.value = 'פרק א';
+
+    final tab = PdfCommentatorsTab(sourceTab: sourceTab);
+    await tester.pumpWidget(_wrap(PdfCommentatorsTabScreen(tab: tab)));
+    await tester.pump();
+    await tester.tap(find.byType(NavPanelToggleButton));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(NavPanelTabHeader), findsOneWidget);
+    expect(find.byType(NavPanelPinButton), findsNothing);
+  });
+
   testWidgets('בחירת כותרת בעץ הניווט שומרת את החיפוש במפרשים', (
     tester,
   ) async {
@@ -733,5 +762,43 @@ void main() {
       );
       expect(scrollbarRect.right, panelRect.right);
     });
+  });
+  testWidgets('אפשר לבטל נעיצה ולסגור מפרשי PDF אחרי הקטנת החלון', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1100, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final sourceTab = PdfBookTab(
+      book: PdfBook(title: 'PDF probe', path: '/tmp/book.pdf'),
+      pageNumber: 1,
+    );
+    addTearDown(sourceTab.dispose);
+    sourceTab.pdfHeadings = PdfHeadings(
+      bookTitle: 'PDF probe',
+      headingsMap: {'פרק א': 1, 'פרק ב': 10},
+    );
+    sourceTab.currentTitle.value = 'פרק א';
+    final tab = PdfCommentatorsTab(sourceTab: sourceTab);
+    await tester.pumpWidget(_wrap(PdfCommentatorsTabScreen(tab: tab)));
+    await tester.pump();
+    await tester.tap(find.byType(NavPanelToggleButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('נעץ את החלונית'));
+    await tester.pumpAndSettle();
+    tester.view.physicalSize = const Size(700, 900);
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('בטל נעיצה'), findsOneWidget);
+    await tester.tap(find.byTooltip('בטל נעיצה'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('נעץ את החלונית'), findsNothing);
+    await tester.tap(find.byType(NavPanelToggleButton));
+    await tester.pumpAndSettle();
+    final panel = tester.widget<NavSidePanel>(find.byType(NavSidePanel));
+    expect(
+      panel.isOpen,
+      isFalse,
+      reason: 'החלונית הצפה חייבת להיסגר לאחר ביטול נעיצה',
+    );
   });
 }

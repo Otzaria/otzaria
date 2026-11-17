@@ -12,6 +12,7 @@ import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart'
     show CalendarType;
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 
 /// האם להציג את הלוח העברי כברירת מחדל לפי סוג הלוח שבהגדרות:
 /// משולב/עברי → עברי, לועזי → לועזי.
@@ -115,7 +116,8 @@ class _MonthGridScaffold extends StatelessWidget {
       children: [
         Row(
           children: [
-            IconButton(
+            AppIconButton(
+              size: AppIconButtonSize.medium,
               onPressed: canGoPrev ? onPrev : null,
               icon: const Icon(FluentIcons.chevron_left_24_regular),
               tooltip: 'חודש קודם',
@@ -125,7 +127,8 @@ class _MonthGridScaffold extends StatelessWidget {
                 child: Text(monthTitle, style: theme.textTheme.titleMedium),
               ),
             ),
-            IconButton(
+            AppIconButton(
+              size: AppIconButtonSize.medium,
               onPressed: canGoNext ? onNext : null,
               icon: const Icon(FluentIcons.chevron_right_24_regular),
               tooltip: 'חודש הבא',
@@ -148,7 +151,7 @@ class _MonthGridScaffold extends StatelessWidget {
               ),
           ],
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: AppTokens.spaceXS),
         Expanded(
           child: Column(
             children: [
@@ -200,7 +203,7 @@ class _DateCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.all(3),
+      padding: const EdgeInsets.all(AppTokens.spaceXS),
       child: Material(
         color: isSelected ? cs.primary : Colors.transparent,
         shape: RoundedRectangleBorder(
@@ -215,7 +218,7 @@ class _DateCell extends StatelessWidget {
           child: Center(
             child: Text(
               label,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: isSelected
                     ? cs.onPrimary
                     : enabled

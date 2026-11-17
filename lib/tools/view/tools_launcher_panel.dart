@@ -33,6 +33,8 @@ import 'package:otzaria/tools/tool_catalog_entry.dart';
 import 'package:otzaria/tools/tool_order.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
+import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 import 'package:otzaria/widgets/feedback/edge_scrollbar_behavior.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
@@ -684,6 +686,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
                                       padding: EdgeInsets.only(
                                         bottom:
                                             AppDensity.of(context).fieldHeight +
+                                            AppTokens.spaceSM +
                                             AppTokens.spaceMD,
                                       ),
                                       child: pluginsFooter,
@@ -696,6 +699,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
                                   footer: pluginsFooter,
                                   bottomInset:
                                       AppDensity.of(context).fieldHeight +
+                                      AppTokens.spaceSM +
                                       AppTokens.spaceMD,
                                 ),
                         ),
@@ -783,7 +787,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
               : context.settingsText('לא נמצאו כלים זמינים'));
     return OtzariaEmptyState(
       icon: hasQuery
-          ? OtzariaIcons.search_in_library_24_regular
+          ? OtzariaIcons.search_not_found_24_regular
           : FluentIcons.toolbox_24_regular,
       title: message,
       message: hasQuery ? context.settingsText('נסה לחפש מילים אחרות') : null,
@@ -1010,8 +1014,8 @@ int hiddenOfflinePluginCount(PluginSystemState pluginState) {
 const String kPluginStoreUrl =
     '${PluginUpdateCheckService.storeBaseUrl}/plugins';
 
-/// שולי הרשימה: קישור לחנות תמיד; כשיש תוספים גם הבהרה שאינם של אוצריא,
-/// ובמצב מנותק — כמה תוספים הוסתרו.
+/// שולי הרשימה: קישור לחנות תמיד; כשיש תוספים גם הבהרה שאינם של אוצריא
+/// (באנר, כדי שלא תיבלע בשולי הרשימה), ובמצב מנותק — כמה תוספים הוסתרו.
 class _PluginsFooter extends StatelessWidget {
   final bool hasPlugins;
   final int hiddenOfflineCount;
@@ -1023,10 +1027,6 @@ class _PluginsFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final style = theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
-    );
     return Padding(
       // ui-lint: allow UIL-021 — המרווח בימין הפיזי בכוונה, מול פס הגלילה שמוצמד לימין (EdgeScrollbarBehavior.right, q10 Q16 A)
       padding: const EdgeInsets.only(
@@ -1034,44 +1034,33 @@ class _PluginsFooter extends StatelessWidget {
         right: kToolGridScrollbarGutter,
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (hiddenOfflineCount > 0)
             Padding(
-              padding: const EdgeInsets.only(bottom: AppTokens.spaceXS),
-              child: Text(
-                context.settingsText(
+              padding: const EdgeInsets.only(bottom: AppTokens.spaceSM),
+              child: AppInfoBanner(
+                icon: FluentIcons.wifi_off_24_regular,
+                message: context.settingsText(
                   '{count} תוספים הדורשים רשת מוסתרים במצב מנותק',
                   args: {'count': hiddenOfflineCount},
                 ),
-                style: style,
-                textAlign: TextAlign.center,
               ),
             ),
           if (hasPlugins)
-            Text(
-              context.settingsText(
+            AppInfoBanner(
+              tone: AppInfoBannerTone.warning,
+              centerText: true,
+              message: context.settingsText(
                 'התוספים אינם מפותחים ע"י אוצריא, ואין לפנות אליהם בנושא',
               ),
-              style: style,
-              textAlign: TextAlign.center,
             ),
-          InkWell(
-            borderRadius: AppTokens.borderRadiusAll,
-            onTap: () => launchUrl(
-              Uri.parse(kPluginStoreUrl),
-              mode: LaunchMode.externalApplication,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceXS),
-              child: Text(
-                context.settingsText('לחנות התוספים המלאה'),
-                style: style?.copyWith(
-                  color: theme.colorScheme.primary,
-                  decoration: TextDecoration.underline,
-                  decorationColor: theme.colorScheme.primary,
-                ),
-                textAlign: TextAlign.center,
+          Align(
+            child: ActionButton.inline(
+              text: context.settingsText('לחנות התוספים'),
+              onPressed: () => launchUrl(
+                Uri.parse(kPluginStoreUrl),
+                mode: LaunchMode.externalApplication,
               ),
             ),
           ),
@@ -1081,8 +1070,8 @@ class _PluginsFooter extends StatelessWidget {
   }
 }
 
-/// סרגל צף לפעולות התוספים, בתחתית תחילת החלונית — באותו עיצוב של סרגל
-/// התצוגה המקדימה בספריה.
+/// סרגל צף לפעולות התוספים, בתחתית תחילת החלונית. ההתקנה היא כפתור ראשי
+/// עם תווית, כדי שלא יימוג מול רקע החלונית; כלי הפיתוח ליד כפתורי אייקון.
 class _PluginsToolbar extends StatelessWidget {
   final bool showDevTools;
   final VoidCallback onInstall;
@@ -1102,30 +1091,36 @@ class _PluginsToolbar extends StatelessWidget {
     return Material(
       color: cs.surfaceContainerHigh,
       shape: AppTokens.roundedShape,
-      elevation: AppTokens.elevation1,
+      elevation: AppTokens.elevation2,
       shadowColor: AppShadows.color(cs),
       clipBehavior: Clip.antiAlias,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SquareIconButton.toolbar(
-            icon: FluentIcons.add_24_regular,
-            tooltip: context.settingsText('התקן תוסף חדש'),
-            onPressed: onInstall,
-          ),
-          if (showDevTools) ...[
-            SquareIconButton.toolbar(
-              icon: FluentIcons.folder_add_24_regular,
-              tooltip: context.settingsText('טען תיקיית תוסף'),
-              onPressed: onLoadFolder,
+      child: Padding(
+        padding: const EdgeInsets.all(AppTokens.spaceXS),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ActionButton.recommended(
+              text: context.settingsText('התקן תוסף חדש'),
+              icon: FluentIcons.add_24_regular,
+              onPressed: onInstall,
             ),
-            SquareIconButton.toolbar(
-              icon: FluentIcons.globe_add_24_regular,
-              tooltip: context.settingsText('טען תוסף מ-localhost'),
-              onPressed: onLoadLocalhost,
-            ),
+            if (showDevTools) ...[
+              const SizedBox(width: AppTokens.spaceXS),
+              AppIconButton(
+                size: AppIconButtonSize.medium,
+                icon: const Icon(FluentIcons.folder_add_24_regular),
+                tooltip: context.settingsText('טען תיקיית תוסף'),
+                onPressed: onLoadFolder,
+              ),
+              AppIconButton(
+                size: AppIconButtonSize.medium,
+                icon: const Icon(FluentIcons.globe_add_24_regular),
+                tooltip: context.settingsText('טען תוסף מ-localhost'),
+                onPressed: onLoadLocalhost,
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

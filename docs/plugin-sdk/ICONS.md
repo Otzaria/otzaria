@@ -320,7 +320,7 @@ icon: 'links_24_regular'            // שרשרת קישורים
 
 <!-- BEGIN GENERATED: otzaria-icons — אל תערכו ידנית, ראו "עדכון הרשימה" למטה -->
 
-הספרייה מכילה **512 אייקונים**, ומהם **84** קיימים גם בפלואנט.
+הספרייה מכילה **600 אייקונים**, ומהם **84** קיימים גם בפלואנט.
 
 | שם | גם בפלואנט |
 |-----|:---:|
@@ -340,6 +340,8 @@ icon: 'links_24_regular'            // שרשרת קישורים
 | `alef_add_24_regular` |  |
 | `alef_alef_24_filled` |  |
 | `alef_alef_24_regular` |  |
+| `alef_alef_badge_24_filled` |  |
+| `alef_alef_badge_24_regular` |  |
 | `alef_behind_alef_24_filled` |  |
 | `alef_behind_alef_24_regular` |  |
 | `alef_check_24_filled` |  |
@@ -362,6 +364,8 @@ icon: 'links_24_regular'            // שרשרת קישורים
 | `alef_exclamation_24_regular` |  |
 | `alef_eye_24_filled` |  |
 | `alef_eye_24_regular` |  |
+| `alef_gematria_24_filled` |  |
+| `alef_gematria_24_regular` |  |
 | `alef_information_24_filled` |  |
 | `alef_information_24_regular` |  |
 | `alef_latin_a_24_filled` |  |
@@ -428,6 +432,8 @@ icon: 'links_24_regular'            // שרשרת קישורים
 | `book_calendar_24_regular` |  |
 | `book_checkmark_24_filled` |  |
 | `book_checkmark_24_regular` |  |
+| `book_cloud_24_filled` |  |
+| `book_cloud_24_regular` |  |
 | `book_copy_24_filled` |  |
 | `book_copy_24_regular` |  |
 | `book_delete_24_filled` |  |
@@ -444,6 +450,8 @@ icon: 'links_24_regular'            // שרשרת קישורים
 | `book_empty_24_regular` |  |
 | `book_exclamation_24_filled` |  |
 | `book_exclamation_24_regular` |  |
+| `book_eye_24_filled` |  |
+| `book_eye_24_regular` |  |
 | `book_fanned_24_filled` |  |
 | `book_fanned_24_regular` |  |
 | `book_history_24_filled` |  |
@@ -458,6 +466,8 @@ icon: 'links_24_regular'            // שרשרת קישורים
 | `book_links_24_regular` |  |
 | `book_lock_24_filled` |  |
 | `book_lock_24_regular` |  |
+| `book_note_24_filled` |  |
+| `book_note_24_regular` |  |
 | `book_number_24_filled` | ✔ |
 | `book_number_24_regular` | ✔ |
 | `book_open_large_24_filled` |  |
@@ -486,6 +496,8 @@ icon: 'links_24_regular'            // שרשרת קישורים
 | `book_pin_24_regular` |  |
 | `book_print_24_filled` |  |
 | `book_print_24_regular` |  |
+| `book_progress_24_filled` |  |
+| `book_progress_24_regular` |  |
 | `book_refresh_24_filled` |  |
 | `book_refresh_24_regular` |  |
 | `book_search_24_filled` | ✔ |
@@ -518,8 +530,12 @@ icon: 'links_24_regular'            // שרשרת קישורים
 | `calendar_24_regular` | ✔ |
 | `calendar_alef_24_filled` |  |
 | `calendar_alef_24_regular` |  |
+| `calendar_shabbat_24_filled` |  |
+| `calendar_shabbat_24_regular` |  |
 | `calendar_yahrzeit_24_filled` |  |
 | `calendar_yahrzeit_24_regular` |  |
+| `chanukiah_24_filled` |  |
+| `chanukiah_24_regular` |  |
 | `check_24_filled` | ✔ |
 | `check_24_regular` | ✔ |
 | `clipboard_task_list_24_filled` |  |
@@ -582,10 +598,14 @@ icon: 'links_24_regular'            // שרשרת קישורים
 | `document_tet_24_regular` |  |
 | `document_text_24_filled` | ✔ |
 | `document_text_24_regular` | ✔ |
+| `document_tzurat_hadaf_24_filled` |  |
+| `document_tzurat_hadaf_24_regular` |  |
 | `document_upload_24_filled` |  |
 | `document_upload_24_regular` |  |
 | `document_word_24_filled` |  |
 | `document_word_24_regular` |  |
+| `dreidel_24_filled` |  |
+| `dreidel_24_regular` |  |
 | `group_list_24_filled` | ✔ |
 | `group_list_24_regular` | ✔ |
 | `kiddush_cup_24_filled` |  |
@@ -598,6 +618,10 @@ icon: 'links_24_regular'            // שרשרת קישורים
 | `library_checkmark_24_regular` |  |
 | `library_clock_24_filled` |  |
 | `library_clock_24_regular` |  |
+| `library_cloud_24_filled` |  |
+| `library_cloud_24_regular` |  |
+| `library_database_24_filled` |  |
+| `library_database_24_regular` |  |
 | `library_delete_24_filled` |  |
 | `library_delete_24_regular` |  |
 | `library_dismiss_24_filled` |  |
@@ -608,6 +632,12 @@ icon: 'links_24_regular'            // שרשרת קישורים
 | `library_edit_24_regular` |  |
 | `library_exclamation_24_filled` |  |
 | `library_exclamation_24_regular` |  |
+| `library_folder_24_filled` |  |
+| `library_folder_24_regular` |  |
+| `library_import_24_filled` |  |
+| `library_import_24_regular` |  |
+| `library_index_24_filled` |  |
+| `library_index_24_regular` |  |
 | `library_info_24_filled` |  |
 | `library_info_24_regular` |  |
 | `library_link_24_filled` |  |
@@ -636,6 +666,8 @@ icon: 'links_24_regular'            // שרשרת קישורים
 | `link_add_24_regular` | ✔ |
 | `link_alef_24_filled` |  |
 | `link_alef_24_regular` |  |
+| `link_auto_24_filled` |  |
+| `link_auto_24_regular` |  |
 | `link_book_24_filled` |  |
 | `link_book_24_regular` |  |
 | `link_check_24_filled` |  |
@@ -644,6 +676,8 @@ icon: 'links_24_regular'            // שרשרת קישורים
 | `link_clock_24_regular` |  |
 | `link_copy_24_filled` |  |
 | `link_copy_24_regular` |  |
+| `link_database_24_filled` |  |
+| `link_database_24_regular` |  |
 | `link_delete_24_filled` |  |
 | `link_delete_24_regular` |  |
 | `link_document_24_filled` |  |
@@ -664,6 +698,8 @@ icon: 'links_24_regular'            // שרשרת קישורים
 | `link_lock_24_regular` |  |
 | `link_marker_24_filled` |  |
 | `link_marker_24_regular` |  |
+| `link_parallel_24_filled` |  |
+| `link_parallel_24_regular` |  |
 | `link_quote_24_filled` |  |
 | `link_quote_24_regular` |  |
 | `link_scissors_24_filled` |  |
@@ -672,6 +708,8 @@ icon: 'links_24_regular'            // שרשרת קישורים
 | `link_search_24_regular` |  |
 | `link_settings_24_filled` | ✔ |
 | `link_settings_24_regular` | ✔ |
+| `link_source_24_filled` |  |
+| `link_source_24_regular` |  |
 | `link_star_24_filled` |  |
 | `link_star_24_regular` |  |
 | `link_tag_24_filled` |  |
@@ -684,12 +722,34 @@ icon: 'links_24_regular'            // שרשרת קישורים
 | `list_24_regular` | ✔ |
 | `luchot_habrit_24_filled` |  |
 | `luchot_habrit_24_regular` |  |
+| `megillah_24_filled` |  |
+| `megillah_24_regular` |  |
 | `menorah_24_filled` |  |
 | `menorah_24_regular` |  |
 | `mezuzah_24_filled` |  |
 | `mezuzah_24_regular` |  |
 | `mount_sinai_24_filled` |  |
 | `mount_sinai_24_regular` |  |
+| `note_copy_24_filled` |  |
+| `note_copy_24_regular` |  |
+| `note_delete_24_filled` |  |
+| `note_delete_24_regular` |  |
+| `note_eraser_24_filled` |  |
+| `note_eraser_24_regular` |  |
+| `note_exclamation_24_filled` |  |
+| `note_exclamation_24_regular` |  |
+| `note_export_24_filled` |  |
+| `note_export_24_regular` |  |
+| `note_lock_24_filled` |  |
+| `note_lock_24_regular` |  |
+| `note_marker_24_filled` |  |
+| `note_marker_24_regular` |  |
+| `note_search_24_filled` |  |
+| `note_search_24_regular` |  |
+| `note_star_24_filled` |  |
+| `note_star_24_regular` |  |
+| `note_tag_24_filled` |  |
+| `note_tag_24_regular` |  |
 | `notebook_24_filled` | ✔ |
 | `notebook_24_regular` | ✔ |
 | `notebook_add_24_filled` | ✔ |
@@ -728,10 +788,16 @@ icon: 'links_24_regular'            // שרשרת קישורים
 | `person_24_regular` | ✔ |
 | `person_portrait_24_filled` |  |
 | `person_portrait_24_regular` |  |
+| `plugin_error_24_filled` |  |
+| `plugin_error_24_regular` |  |
 | `search_24_filled` | ✔ |
 | `search_24_regular` | ✔ |
 | `search_check_24_filled` |  |
 | `search_check_24_regular` |  |
+| `search_fuzzy_24_filled` |  |
+| `search_fuzzy_24_regular` |  |
+| `search_gematria_24_filled` |  |
+| `search_gematria_24_regular` |  |
 | `search_in_book_24_filled` |  |
 | `search_in_book_24_regular` |  |
 | `search_in_bookmarks_24_filled` |  |
@@ -770,12 +836,32 @@ icon: 'links_24_regular'            // שרשרת קישורים
 | `search_in_text_24_regular` |  |
 | `search_in_titles_24_filled` |  |
 | `search_in_titles_24_regular` |  |
+| `search_niqqud_24_filled` |  |
+| `search_niqqud_24_regular` |  |
 | `search_not_found_24_filled` |  |
 | `search_not_found_24_regular` |  |
+| `search_proximity_24_filled` |  |
+| `search_proximity_24_regular` |  |
+| `search_reference_24_filled` |  |
+| `search_reference_24_regular` |  |
+| `search_regex_24_filled` |  |
+| `search_regex_24_regular` |  |
+| `search_synonyms_24_filled` |  |
+| `search_synonyms_24_regular` |  |
+| `search_taamim_24_filled` |  |
+| `search_taamim_24_regular` |  |
+| `search_whole_word_24_filled` |  |
+| `search_whole_word_24_regular` |  |
+| `search_word_forms_24_filled` |  |
+| `search_word_forms_24_regular` |  |
 | `shabbat_candles_24_filled` |  |
 | `shabbat_candles_24_regular` |  |
 | `shamor_vezachor_24_filled` |  |
 | `shamor_vezachor_24_regular` |  |
+| `shofar_24_filled` |  |
+| `shofar_24_regular` |  |
+| `stars_tzeis_24_filled` |  |
+| `stars_tzeis_24_regular` |  |
 | `sunrise_24_filled` |  |
 | `sunrise_24_regular` |  |
 | `sunset_24_filled` |  |
@@ -836,6 +922,8 @@ icon: 'links_24_regular'            // שרשרת קישורים
 | `text_underline_hebrew_24_regular` |  |
 | `torah_scroll_24_filled` |  |
 | `torah_scroll_24_regular` |  |
+| `vav_stam_24_filled` |  |
+| `vav_stam_24_regular` |  |
 
 <!-- END GENERATED: otzaria-icons -->
 

@@ -143,6 +143,28 @@ void main() {
     expect(drawnCellCount(bytes), jewishDate.getDaysInJewishMonth());
   });
 
+  test('בתצוגת שבוע כל ימי השבוע באותו גובה, גם כשהתוכן שונה', () async {
+    // ראש השנה וצום גדליה באמצע השבוע: לימים האלה שורות חג שלשאר אין.
+    final greg = DateTime(2026, 9, 16);
+    final jewishDate = JewishDate.fromDateTime(greg);
+    final state = CalendarState.initial().copyWith(
+      calendarView: CalendarView.week,
+      currentGregorianDate: greg,
+      selectedGregorianDate: greg,
+      currentJewishDate: jewishDate,
+      selectedJewishDate: jewishDate,
+    );
+
+    final bytes = await createCalendarPdf(
+      state,
+      PdfPageFormat.a4,
+      printedZmanim: {'sunrise', 'chatzos', 'sunset'},
+    );
+
+    // שבעת הריבועים הם המלבנים החוזרים ביותר: כולם בדיוק באותו גודל.
+    expect(drawnCellCount(bytes), 7);
+  });
+
   test('רשימת זמנים ארוכה בתצוגת יום ממשיכה לעמוד הבא', () async {
     final all = {for (final def in kZmanimRegistry) def.id};
     final state = dayState(enabled: all);

@@ -162,7 +162,7 @@ void main() {
     expect(find.text('לא זמין'), findsOneWidget);
     expect(find.text('תוכן עניינים'), findsNWidgets(2));
     expect(find.text('תיקיית מסדים'), findsOneWidget);
-    expect(find.text('ייבא קובץ מסד'), findsOneWidget);
+    expect(find.text('הוסף קובץ מסד'), findsOneWidget);
     expect(find.text('הוסף תיקיית מסדים'), findsOneWidget);
     // מסד לא נגיש אינו מציע בחירת מיקום בעץ.
     expect(find.text('בנפרד'), findsNWidgets(2));
@@ -336,6 +336,9 @@ void main() {
 
     expect(find.text('לא צורפו מסדים'), findsOneWidget);
     expect(find.text('הוסף תיקיית מסדים'), findsNothing);
+    // במובייל הקובץ מועתק לתוכנה — "ייבא", לא "הוסף".
+    expect(find.text('ייבא קובץ מסד'), findsOneWidget);
+    expect(find.text('הוסף קובץ מסד'), findsNothing);
   });
 
   testWidgets('יבוא מסד פותח בורר של קובץ אחד בלבד', (tester) async {
@@ -345,7 +348,7 @@ void main() {
     addTearDown(() => FilePickerPlatform.instance = previousPicker);
 
     await pumpPanel(tester, _FakeRepository(const []));
-    await tester.tap(find.text('ייבא קובץ מסד'));
+    await tester.tap(find.text('הוסף קובץ מסד'));
     await tester.pump();
 
     expect(picker.singlePicks, 1);

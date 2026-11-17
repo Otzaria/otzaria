@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_commentary_font_slider.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_settings_panel.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_selection.dart';
@@ -86,7 +87,10 @@ void main() {
       tester.widget<AppDropdownField<String>>(
         find.descendant(
           of: find
-              .ancestor(of: find.text(label), matching: find.byType(Row))
+              .ancestor(
+                of: find.text(label),
+                matching: find.byType(Row),
+              )
               .first,
           matching: find.byType(AppDropdownField<String>),
         ),
@@ -159,6 +163,29 @@ void main() {
 
     // הדרופדאון הסגור מציג את התווית העברית של AppFonts.defaultFont
     expect(find.text('פרנק-רוהל'), findsOneWidget);
+  });
+
+  testWidgets('הפאנל בנוי מכרטיסי SettingsCard כמו הגדרות תצוגת הספרים', (
+    tester,
+  ) async {
+    await pumpPanel(tester, currentWorkspaceId: 'workspace-1');
+    await tester.pumpAndSettle();
+
+    // שלושה כרטיסים: תצוגה, מפרשים, גופן. בלי מיכלים צבועים ידנית ובלי
+    // SwitchListTile גולמי.
+    expect(find.byType(SettingsCard), findsNWidgets(3));
+    expect(find.byType(SettingsSwitchTile), findsNWidgets(2));
+    expect(find.byType(SwitchListTile), findsNothing);
+    expect(
+      find.byType(SettingsSegmentedTile<PageShapeDisplaySettingsScope>),
+      findsOneWidget,
+    );
+    expect(
+      find.byType(SettingsSegmentedTile<CommentatorSaveScope>),
+      findsOneWidget,
+    );
+    // ארבע שורות מפרש, ובכל אחת כפתור הצגה/הסתרה של הטור.
+    expect(find.byTooltip('הסתר טור'), findsNWidgets(4));
   });
 
   testWidgets('תחום שמירת התצוגה מוצג כשלוש בחירות', (tester) async {
@@ -258,7 +285,7 @@ void main() {
     await tester.pump();
 
     final highlightSwitch = find.widgetWithText(
-      SwitchListTile,
+      SettingsSwitchTile,
       'הדגש פרשנים קשורים',
     );
     await tester.ensureVisible(highlightSwitch);
@@ -307,7 +334,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // בדיקה ששדה בחירת הקטגוריה מופיע
-    expect(find.text('בחר קטגוריה:'), findsOneWidget);
+    expect(find.text('בחר קטגוריה'), findsOneWidget);
 
     // פתיחת התפריט ובחירת "מסכת שבת"
     final categoryField = find.widgetWithText(FilledButton, 'סדר מועד');
@@ -348,7 +375,7 @@ void main() {
     await pumpPanel(tester, onSettingsChanged: () => notified++);
 
     final highlightSwitch = find.widgetWithText(
-      SwitchListTile,
+      SettingsSwitchTile,
       'הדגש פרשנים קשורים',
     );
     await tester.ensureVisible(highlightSwitch);
@@ -369,6 +396,23 @@ void main() {
       find.widgetWithText(FilledButton, 'ללא מפרש'),
       findsNWidgets(4),
     );
+  });
+
+  testWidgets('שורת מפרש קומפקטית: התווית והשדה באותה שורה', (tester) async {
+    await pumpPanel(tester);
+    await tester.pumpAndSettle();
+
+    const labels = ['מפרש ימני', 'מפרש שמאלי', 'מפרש תחתון', 'מפרש תחתון נוסף'];
+    final fields = find.widgetWithText(FilledButton, 'ללא מפרש');
+    for (var i = 0; i < labels.length; i++) {
+      final label = tester.getRect(find.text(labels[i]));
+      final field = tester.getRect(fields.at(i));
+      expect(
+        label.center.dy,
+        inInclusiveRange(field.top, field.bottom),
+        reason: 'התווית "${labels[i]}" צריכה להיות באותה שורה עם השדה שלה',
+      );
+    }
   });
 
   testWidgets('שדה מפרש נפתח כתפריט חיפוש ובחירה נשמרת מיידית', (tester) async {
@@ -450,7 +494,7 @@ void main() {
     );
 
     final highlightSwitch = find.widgetWithText(
-      SwitchListTile,
+      SettingsSwitchTile,
       'הדגש פרשנים קשורים',
     );
     await tester.ensureVisible(highlightSwitch);
@@ -469,7 +513,10 @@ void main() {
 
     final leftPaneField = find.descendant(
       of: find
-          .ancestor(of: find.text('מפרש שמאלי'), matching: find.byType(Row))
+          .ancestor(
+            of: find.text('מפרש שמאלי'),
+            matching: find.byType(Row),
+          )
           .first,
       matching: find.byType(FilledButton),
     );

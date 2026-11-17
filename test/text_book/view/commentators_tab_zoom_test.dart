@@ -187,6 +187,64 @@ void main() {
     }
   });
 
+  testWidgets('אפשר לבטל נעיצה ולסגור מפרשי טקסט אחרי הקטנת החלון', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final book = TextBook(title: 'חולין');
+    final tabBloc = StubTextBookBloc(
+      _loaded(
+        book,
+      ).copyWith(tableOfContents: [TocEntry(text: 'פרק א', index: 0)]),
+    );
+    final sourceTab = TextBookTab(book: book, index: 0);
+    final tab = CommentatorsTab(sourceTab: sourceTab, blocOverride: tabBloc)
+      ..selectedCommentators = const [];
+    final settings = SettingsBloc(repository: MockSettingsRepository());
+    final notes = StubPersonalNotesBloc();
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await settings.close();
+      await notes.close();
+      await tabBloc.close();
+      sourceTab.dispose();
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<SettingsBloc>.value(value: settings),
+            BlocProvider<PersonalNotesBloc>.value(value: notes),
+          ],
+          child: Scaffold(
+            body: CommentatorsTabScreen(tab: tab, openBookCallback: (_) {}),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    if (!tester.widget<NavSidePanel>(find.byType(NavSidePanel)).isOpen) {
+      await tester.tap(find.byType(NavPanelToggleButton));
+      await tester.pumpAndSettle();
+    }
+    await tester.tap(find.byTooltip('נעץ את החלונית'));
+    await tester.pumpAndSettle();
+    tester.view.physicalSize = const Size(700, 900);
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('בטל נעיצה'), findsOneWidget);
+    await tester.tap(find.byTooltip('בטל נעיצה'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('נעץ את החלונית'), findsNothing);
+    await tester.tap(find.byType(NavPanelToggleButton));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<NavSidePanel>(find.byType(NavSidePanel)).isOpen,
+      isFalse,
+    );
+  });
+
   testWidgets('חיפוש הכותרות קבוע ומתמקד בפתיחה ובחזרה ללשונית הניווט', (
     tester,
   ) async {
