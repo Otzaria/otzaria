@@ -285,8 +285,9 @@ void main() {
       final files = await IOOverrides.runZoned(
         () => FileSystemData.probeHebrewBooksPdfFilesByIds({1, 2, 3}),
         createFile: (p) => _ProbeFile(p, () async {
-          if (p == fail)
+          if (p == fail) {
             throw FileSystemException('Exists failed', p, _notReady);
+          }
           return candidates.contains(p);
         }),
       );
