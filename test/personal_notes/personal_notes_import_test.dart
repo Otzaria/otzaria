@@ -8,12 +8,35 @@ import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/services/personal_notes_import_export_service.dart';
+import 'package:otzaria/personal_notes/services/personal_notes_service.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_changes.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 
 import '../test_helpers/memory_cache_provider.dart';
+
+class _PausingImportDatabase extends Fake implements PersonalNotesDatabase {
+  _PausingImportDatabase(this.delegate, this.beforeSecondRead);
+
+  final PersonalNotesDatabase delegate;
+  final Future<void> Function() beforeSecondRead;
+
+  @override
+  Future<PersonalNote?> getNote(String id) async {
+    if (id == 'second') await beforeSecondRead();
+    return delegate.getNote(id);
+  }
+
+  @override
+  Future<T> batchNotifications<T>(
+    Future<T> Function(PersonalNotesNotificationBatch) action,
+  ) => delegate.batchNotifications(action);
+
+  @override
+  Future<void> setUserBookKeysPending(bool pending, {int? ifGeneration}) =>
+      delegate.setUserBookKeysPending(pending, ifGeneration: ifGeneration);
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -114,6 +137,76 @@ void main() {
     await Settings.setValue(SettingsRepository.keyDatabasesPath, '');
     await root.delete(recursive: true);
   });
+
+  for (final strategy in [
+    NotesImportConflictStrategy.overwrite,
+    NotesImportConflictStrategy.merge,
+  ]) {
+    test(
+      'יישוב בזמן ייבוא ${strategy.name} משמר תוכן שנכתב לפני הפרסום',
+      () async {
+        const bookId = 'ייבוא מקביל';
+        final original = note('first', bookId: bookId).copyWith(
+          lineNumber: 9,
+          displayTitle: 'מקור קודם',
+          clearAnchor: true,
+        );
+        await database.insertNote(original);
+        final revision = database.revision.value;
+        final contentStarted = Completer<void>();
+        final content = Completer<String>();
+        final loading = PersonalNotesService(database: database).loadNotes(
+          bookId: bookId,
+          loadBookContent: () {
+            contentStarted.complete();
+            return content.future;
+          },
+        );
+        await contentStarted.future;
+        final incoming = original.copyWith(
+          content: 'תוכן מיובא',
+          contentPlain: 'תוכן מיובא',
+          lineNumber: 1,
+          displayTitle: 'מקור',
+          updatedAt: DateTime.utc(2026, 10, 2),
+        );
+        final importer = PersonalNotesImportExportService(
+          database: _PausingImportDatabase(database, () async {
+            // הייבוא כבר שמר את הראשונה, ועדיין לא פרסם את הודעת האצווה.
+            expect(database.revision.value, revision);
+            expect(await database.getNote('first'), incoming);
+            content.complete('מקור');
+            final loaded = await loading;
+            expect(loaded, [incoming]);
+            expect(await database.getNote('first'), incoming);
+          }),
+        );
+        final file = File('${root.path}/concurrent-import.json');
+        await file.writeAsString(
+          jsonEncode(
+            importer.buildExport(
+              notes: [
+                incoming,
+                incoming.copyWith(id: 'second'),
+              ],
+            ),
+          ),
+        );
+        final summary = await importer.importFromFile(
+          path: file.path,
+          strategy: strategy,
+        );
+
+        expectCounts(summary, updated: 1, inserted: 1);
+        expect(await database.getNote('first'), incoming);
+        expect(
+          await database.getNote('second'),
+          incoming.copyWith(id: 'second'),
+        );
+        expect(database.revision.value, revision + 1);
+      },
+    );
+  }
 
   test('ייצוא וייבוא משמרים הערת ספר וטווח שורות בכל אסטרטגיה', () async {
     for (final strategy in NotesImportConflictStrategy.values) {
