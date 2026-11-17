@@ -924,6 +924,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
       nextMajorTooltip: 'הכותרת הבאה',
       navPaneOpen: _navPaneOpen,
       navPanePinned: _pinLeftPane,
+      canPinNavPane: NavSidePanel.canPin(context, paneWidth: _kNavPaneWidth),
       onToggleNavPane: _toggleNavPane,
       onTogglePin: () {
         setState(() => _pinLeftPane = !_pinLeftPane);

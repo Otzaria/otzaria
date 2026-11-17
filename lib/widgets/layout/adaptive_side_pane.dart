@@ -68,6 +68,15 @@ class AdaptiveSidePane extends StatefulWidget {
   /// לדחוק אותו — כך פתיחה וסגירה אינן משנות את שבירת השורות.
   final bool floatOverContent;
 
+  /// האם ב-[availableWidth] נשאר לתוכן לפחות [minMainContentWidth] אחרי
+  /// ש[occupiedByPane] נתפס לחלונית. זה התנאי היחיד שמכריע בין דחיקת התוכן
+  /// ל-overlay, ולכן גם אם נעיצה משנה משהו (`NavSidePanel.canPin`).
+  static bool fitsSideBySide({
+    required double availableWidth,
+    required double occupiedByPane,
+    required double minMainContentWidth,
+  }) => availableWidth >= occupiedByPane + minMainContentWidth;
+
   const AdaptiveSidePane({
     super.key,
     required this.isOpen,
@@ -372,9 +381,11 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
         // ומסונכרן מ-widget.paneWidth ב-didUpdateWidget כשאין גרירה.
         final wideOccupiedWidth =
             _livePaneWidth.value + _wideOuterSideGap + _wideInnerSideGap;
-        final calculatedHasRoomForSideBySide =
-            constraints.maxWidth >=
-            (wideOccupiedWidth + widget.minMainContentWidth);
+        final calculatedHasRoomForSideBySide = AdaptiveSidePane.fitsSideBySide(
+          availableWidth: constraints.maxWidth,
+          occupiedByPane: wideOccupiedWidth,
+          minMainContentWidth: widget.minMainContentWidth,
+        );
         final hasRoomForSideBySide = _resolveHasRoomForSideBySide(
           calculatedHasRoomForSideBySide,
         );

@@ -515,6 +515,10 @@ List<AppContextMenuEntry> buildPdfContextMenuEntries({
 /// מרווח השדרה בין שני עמודי הכפולה, ביחידות נקודות העמוד.
 const double kBookViewSpineGap = 6.0;
 
+/// המקום המינימלי לקורא כדי שחלונית הניווט תידחק ליד התוכן. מתחת לזה היא
+/// נפתחת כ-overlay, ואין טעם בכפתור נעיצה.
+const double _kNavMinMainContentWidth = 200;
+
 /// פריסת הכפולות בתצוגת ספר, ביחידות נקודות העמוד.
 ///
 /// קנה המידה הוא 1 במכוון: מלבן עמוד קטן מגודלו בנקודות גורם ל-pdfrx לרנדר
@@ -4730,7 +4734,14 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                       onToggle: () => _setLeftPaneVisibility(!showLeftPane),
                     ),
                   ),
-                  if (showLeftPane && NavPanelSearch.isWide(context))
+                  if (showLeftPane &&
+                      NavSidePanel.canPin(
+                        context,
+                        paneWidth: _bloc.state is PdfBookLoaded
+                            ? (_bloc.state as PdfBookLoaded).sidebarWidth
+                            : 300.0,
+                        minMainContentWidth: _kNavMinMainContentWidth,
+                      ))
                     AppTopBarItem(
                       widget: ValueListenableBuilder<bool>(
                         valueListenable: widget.tab.pinLeftPane,
@@ -4806,7 +4817,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                           false,
                       alignment: AlignmentDirectional.centerEnd,
                       paneWidth: leftPaneWidth,
-                      minMainContentWidth: 200,
+                      minMainContentWidth: _kNavMinMainContentWidth,
                       onClose: () => _setLeftPaneVisibility(false),
                       isResizable: true,
                       minPaneWidth: 200,
