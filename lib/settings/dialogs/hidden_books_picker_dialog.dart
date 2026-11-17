@@ -165,7 +165,7 @@ class _HiddenBooksPickerDialogState extends State<_HiddenBooksPickerDialog> {
     final cs = Theme.of(context).colorScheme;
 
     return AppDialogFrame(
-      icon: OtzariaIcons.book_delete_24_regular,
+      icon: OtzariaIcons.book_eye_24_regular,
       title: context.settingsText('בחירת ספרים וקטגוריות להסתרה'),
       trailing: ListDialogCounter(
         context.settingsText(

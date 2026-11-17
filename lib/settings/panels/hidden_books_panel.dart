@@ -303,7 +303,7 @@ class _HiddenBooksPanelState extends State<HiddenBooksPanel> {
     return Column(
       children: [
         SettingsActionTile.text(
-          icon: OtzariaIcons.book_delete_24_regular,
+          icon: OtzariaIcons.book_eye_24_regular,
           title: context.settingsText('בחירת ספרים וקטגוריות להסתרה'),
           subtitle: context.settingsText(
             'בחירת ספרים או קטגוריות מתוך הספרייה, עם חיפוש וסימון',
