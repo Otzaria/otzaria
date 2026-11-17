@@ -99,12 +99,20 @@ Future<void> extractRawAssetJob(
     job.maxOutputBytes,
     isCancelled: isCancelled,
   )..checkCancelled();
+  final directoryInventories = <RawLibraryAsset, Map<String, int>>{};
   var total = 0;
   for (final asset in job.assets) {
     budget.checkCancelled();
-    total += asset.format == RawAssetFormat.directory
-        ? await _directorySize(asset.directoryPath!, budget)
-        : asset.size;
+    if (asset.format == RawAssetFormat.directory) {
+      final (lengths, size) = await _inventoryDirectory(
+        asset.directoryPath!,
+        budget,
+      );
+      directoryInventories[asset] = lengths;
+      total += size;
+    } else {
+      total += asset.size;
+    }
   }
   final step = (total ~/ 100).clamp(1, 8 << 20);
   var done = 0;
@@ -119,6 +127,7 @@ Future<void> extractRawAssetJob(
       zstd: () => zstd ??= openZstd(),
       isCancelled: isCancelled,
       budget: budget,
+      plannedLengths: directoryInventories[asset],
       onBytes: (bytes) {
         done += bytes;
         if (done - reported >= step) {
@@ -141,12 +150,19 @@ Future<void> _extractAsset(
   required DynamicLibrary Function() zstd,
   required void Function(int bytes) onBytes,
   required LibraryExtractionBudget budget,
+  required Map<String, int>? plannedLengths,
   bool Function()? isCancelled,
 }) async {
   final target = p.join(destination, asset.targetName);
   switch (asset.format) {
     case RawAssetFormat.directory:
-      await _copyDirectory(asset.directoryPath!, target, budget, onBytes);
+      await _copyDirectory(
+        asset.directoryPath!,
+        target,
+        plannedLengths!,
+        budget,
+        onBytes,
+      );
     case RawAssetFormat.plain:
       final out = File(target).openSync(mode: FileMode.write);
       try {
@@ -251,6 +267,7 @@ Uint8List _asBytes(List<int> bytes) =>
 Future<void> _copyDirectory(
   String source,
   String target,
+  Map<String, int> plannedLengths,
   LibraryExtractionBudget budget,
   void Function(int) onBytes,
 ) async {
@@ -260,7 +277,13 @@ Future<void> _copyDirectory(
     budget.checkCancelled();
     final destination = p.join(target, p.basename(entity.path));
     if (entity is Directory) {
-      await _copyDirectory(entity.path, destination, budget, onBytes);
+      await _copyDirectory(
+        entity.path,
+        destination,
+        plannedLengths,
+        budget,
+        onBytes,
+      );
     } else if (entity is File) {
       if (await FileSystemEntity.type(destination, followLinks: false) !=
           FileSystemEntityType.notFound) {
@@ -268,7 +291,8 @@ Future<void> _copyDirectory(
           'היעד כבר מכיל קובץ בשם ${p.basename(destination)}',
         );
       }
-      final expectedSize = await entity.length();
+      // הסיווג העדכני בא מהסריקה, כך שקישור שהחליף קובץ לא ייפתח כקובץ.
+      final expectedSize = plannedLengths[entity.path] ?? await entity.length();
       final output = await File(destination).open(mode: FileMode.write);
       try {
         var copied = 0;
@@ -298,19 +322,24 @@ Future<void> _copyDirectory(
   budget.checkCancelled();
 }
 
-Future<int> _directorySize(
+Future<(Map<String, int>, int)> _inventoryDirectory(
   String directory,
   LibraryExtractionBudget budget,
 ) async {
+  final lengths = <String, int>{};
   var size = 0;
   await for (final entity in Directory(
     directory,
   ).list(recursive: true, followLinks: false)) {
     budget.checkCancelled();
-    if (entity is File) size += await entity.length();
+    if (entity is File) {
+      final length = await entity.length();
+      lengths[entity.path] = length;
+      size += length;
+    }
   }
   budget.checkCancelled();
-  return size;
+  return (lengths, size);
 }
 
 /// קורא את חלקי [asset] לפי הסדר אל [consume], עם אימות גודל ו-SHA-256 לכל

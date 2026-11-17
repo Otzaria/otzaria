@@ -728,6 +728,46 @@ void main() {
     expectNoLeftovers();
   });
 
+  test('ייבוא תיקייה גולמית מזהה שינוי בגודל אחרי חישוב ההתקדמות', () async {
+    final source = await Directory(p.join(temp.path, 'src')).create();
+    await File(p.join(source.path, dbName)).writeAsString('db');
+    final nested = await Directory(
+      p.join(source.path, talmud, 'nested'),
+    ).create(recursive: true);
+    final file = await File(
+      p.join(nested.path, 'book.pdf'),
+    ).writeAsString('pdf');
+    final output = await Directory(p.join(temp.path, 'output')).create();
+    final scan = await scanRawLibraryAssets(
+      DirectoryPackageFolder(source.path),
+    );
+    var changed = false;
+
+    await expectLater(
+      extractRawAssetJob(
+        RawAssetJob(
+          assets: scan.assets.values.toList(),
+          destination: output.path,
+        ),
+        openZstd: () => throw StateError('אין צורך ב-zstd לקבצים גולמיים'),
+        onProgress: (component, _, _) {
+          if (component == LibraryComponent.talmudBavli && !changed) {
+            file.writeAsStringSync('נתונים חדשים');
+            changed = true;
+          }
+        },
+      ),
+      throwsA(
+        isA<FormatException>().having(
+          (error) => error.message,
+          'message',
+          contains('קובץ המקור השתנה בזמן ההעתקה'),
+        ),
+      ),
+    );
+    expect(changed, isTrue);
+  });
+
   test('runRawAssetJobInIsolate פורס מתיקייה רגילה ב-isolate', () async {
     if (lib == null) return markTestSkipped('libzstd אינו זמין');
     final src = await Directory(p.join(temp.path, 'src', 'library_db')).create(
