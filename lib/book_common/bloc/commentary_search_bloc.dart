@@ -73,7 +73,13 @@ class CommentarySearchBloc
     CommentarySearchRequested request,
     int generation,
   ) async {
+    final slice = Stopwatch()..start();
     for (final link in request.links) {
+      // תוכן שכבר נטען לא מוותר על ה-event loop; בלי זה הלולאה חוסמת את ה-UI.
+      if (slice.elapsedMilliseconds >= 4) {
+        await Future<void>.delayed(Duration.zero);
+        slice.reset();
+      }
       String content;
       try {
         content = await link.content;
