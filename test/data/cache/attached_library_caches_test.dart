@@ -151,6 +151,46 @@ void main() {
     );
   });
 
+  test('חימום שממתין לרענון מקבל את רשימת המסדים העדכנית', () async {
+    final cache = GenerationCache.instance;
+    registry.update([]);
+    final firstReload = cache.reloadAttached();
+    final warming = cache.warmUp();
+
+    final intermediateReload = cache.reloadAttached();
+    createDb(
+      (db) => db.execute('UPDATE generation SET name = ?', [
+        CommentaryEra.rishonim.hebrewName,
+      ]),
+    );
+    final latestReload = cache.reloadAttached();
+
+    await warming;
+    final orderAtWarmUp = cache.getOrderForBook(bookId, source);
+    await Future.wait([firstReload, intermediateReload, latestReload]);
+    expect(orderAtWarmUp, CommentaryEra.rishonim.order);
+    expect(cache.getOrderForBook(bookId, source), CommentaryEra.rishonim.order);
+  });
+
+  test('איפוס מבטל רענון ישן כחסם לחימום ומשאיר את המטמון ריק', () async {
+    final cache = GenerationCache.instance;
+    createDb(
+      (db) => db.execute('UPDATE generation SET name = ?', [
+        CommentaryEra.rishonim.hebrewName,
+      ]),
+    );
+    final obsolete = cache.reloadAttached().then((_) => 'רענון ישן');
+
+    cache.clear();
+    registry.update([]);
+    final warming = cache.warmUp().then((_) => 'חימום חדש');
+    final first = await Future.any([obsolete, warming]);
+
+    await Future.wait([obsolete, warming]);
+    expect(first, 'חימום חדש');
+    expect(cache.getOrderForBook(bookId, source), CommentaryEra.other.order);
+  });
+
   test('כשל קריאת כינויים אינו נשמר כ"אין כינויים" — ניסיון חוזר', () async {
     final previousDelay = AcronymsCache.attachedRetryDelay;
     addTearDown(() => AcronymsCache.attachedRetryDelay = previousDelay);

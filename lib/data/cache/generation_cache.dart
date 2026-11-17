@@ -21,6 +21,8 @@ class GenerationCache {
 
   bool _isLoaded = false;
   Future<void>? _loadingFuture;
+  Future<void>? _attachedReload;
+  bool _attachedReloadPending = false;
   int _generation = 0;
 
   /// דור לפי id ב-seforim.db.
@@ -55,21 +57,23 @@ class GenerationCache {
   }
 
   Future<void> warmUp() async {
-    // האינדוקס מדרג ספרי מסד מצורף לפי הדור — ממתין לטעינה מחדש שבדרך.
-    final attachedReload = _attachedReload;
-    if (attachedReload != null) {
+    final myGen = _generation;
+    if (!_isLoaded) {
+      final loading = _loadingFuture ??= _loadInternal();
+      try {
+        await loading;
+      } finally {
+        if (identical(_loadingFuture, loading)) _loadingFuture = null;
+      }
+    }
+
+    // האינדוקס ממתין גם לרענון שמתחיל עם סיום רענון קודם.
+    while (myGen == _generation) {
+      final attachedReload = _attachedReload;
+      if (attachedReload == null) return;
       try {
         await attachedReload;
       } catch (_) {}
-    }
-    if (_isLoaded) return;
-    if (_loadingFuture != null) return _loadingFuture;
-
-    _loadingFuture = _loadInternal();
-    try {
-      await _loadingFuture;
-    } finally {
-      _loadingFuture = null;
     }
   }
 
@@ -106,12 +110,11 @@ class GenerationCache {
         }
       }
 
-      final localAttached = await _readAttached(myGen);
-
       if (myGen != _generation) return;
-      _orderByAttachedBookId
-        ..clear()
-        ..addAll(localAttached);
+      do {
+        await _ensureAttachedReload();
+      } while (myGen == _generation && _attachedReload != null);
+      if (myGen != _generation) return;
       _orderByBookId
         ..clear()
         ..addAll(local);
@@ -136,21 +139,35 @@ class GenerationCache {
 
   /// טוען מחדש רק את דורות המסדים המצורפים — אחרי צירוף, ניתוק או שינוי
   /// בקובץ מסד. הדורות של seforim.db ו-user_books.db אינם נקראים שוב.
-  /// [warmUp] ממתין לה, כך שהקורא אינו חייב להמתין בעצמו.
+  /// בקשות חופפות ממתינות יחד עד לפרסום הרענון האחרון, וכך גם [warmUp].
   Future<void> reloadAttached() {
-    late final Future<void> reload;
-    reload = _reloadAttached().whenComplete(() {
-      if (identical(_attachedReload, reload)) _attachedReload = null;
-    });
-    return _attachedReload = reload;
+    if (_attachedReload != null) _attachedReloadPending = true;
+    return _ensureAttachedReload();
   }
 
-  Future<void>? _attachedReload;
+  Future<void> _ensureAttachedReload() =>
+      _attachedReload ??= _drainAttachedReloads(_generation);
+
+  Future<void> _drainAttachedReloads(int myGen) async {
+    try {
+      do {
+        _attachedReloadPending = false;
+        try {
+          await _reloadAttached();
+        } catch (_) {
+          if (myGen != _generation) return;
+          if (!_attachedReloadPending) rethrow;
+        }
+      } while (myGen == _generation && _attachedReloadPending);
+    } finally {
+      if (myGen == _generation) _attachedReload = null;
+    }
+  }
 
   Future<void> _reloadAttached() async {
     final myGen = _generation;
     final localAttached = await _readAttached(myGen);
-    if (myGen != _generation) return;
+    if (myGen != _generation || _attachedReloadPending) return;
     _orderByAttachedBookId
       ..clear()
       ..addAll(localAttached);
@@ -166,6 +183,7 @@ class GenerationCache {
           final path = library.path;
           final immutable = library.immutable;
           try {
+            // מגבלת הזמן מסיימת את ההמתנה. הקריאה ב-isolate עשויה להימשך.
             final orders = await readGenerationsInIsolate((
               path: path,
               untrusted: true,
@@ -240,6 +258,8 @@ class GenerationCache {
     _orderByUserBookId.clear();
     _isLoaded = false;
     _loadingFuture = null;
+    _attachedReload = null;
+    _attachedReloadPending = false;
   }
 
   /// סדר הדור לפי שם מנורמל (ללא גרשיים), מחושב פעם אחת. נקרא לכל ספר
