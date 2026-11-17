@@ -138,6 +138,22 @@ class PluginTextNormalizationService {
     String source,
     PluginNormalizeOptions options,
   ) {
+    if (!options.ignoreNikud &&
+        !options.ignoreTeamim &&
+        !options.ignorePunctuation &&
+        !options.normalizeWhitespace &&
+        !options.normalizeFinalLetters) {
+      final length = source.characters.length;
+      return PluginNormalizedText(
+        text: source,
+        sourceBoundaryByNormalizedGrapheme: List<int>.unmodifiable(
+          Iterable<int>.generate(length + 1, (index) => index),
+        ),
+        sourceEndByNormalizedGrapheme: List<int>.unmodifiable(
+          Iterable<int>.generate(length, (index) => index + 1),
+        ),
+      );
+    }
     final output = <String>[];
     final boundaries = <int>[0];
     final ends = <int>[];
