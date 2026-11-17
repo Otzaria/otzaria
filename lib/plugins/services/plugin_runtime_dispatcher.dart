@@ -1940,15 +1940,14 @@ class PluginRuntimeDispatcher {
     }
   }
 
-  /// שולח event לפלאגין ספציפי בלבד (ללא בדיקת הרשאת subscribe).
-  /// משמש לאירועים ממוקדים כמו reader.context_menu_item_clicked.
-  /// עם [instanceId] האירוע נמסר למופע הזה בלבד; בלעדיו — הלוגיקה הקיימת
-  /// (רקע / קדמי ראשי / החייאה).
+  /// שולח אירוע ממוקד; [instanceId] מגביל את המסירה למופע מסוים.
+  /// [allowPageLaunch] מתיר פתיחת דף כשאין מנוע שניתן להעיר ברקע.
   Future<void> dispatchEventToPlugin(
     String pluginId,
     String topic,
     Map<String, dynamic> payload, {
     bool preferBackground = false,
+    bool allowPageLaunch = true,
     bool resumeForegroundIfNeeded = false,
     PluginInstanceId? instanceId,
     int? viewId,
@@ -1977,6 +1976,7 @@ class PluginRuntimeDispatcher {
       pluginId,
       topic,
       payload,
+      isCurrent: isCurrent,
     )) {
       debugPrint('PluginRuntimeDispatcher: $topic → queued (boot pending)');
       return;
@@ -2001,9 +2001,10 @@ class PluginRuntimeDispatcher {
         pluginId,
         topic,
         payload,
+        isCurrent: isCurrent,
       )) {
         debugPrint('PluginRuntimeDispatcher: $topic → queued (lazy boot)');
-      } else if (preferBackground) {
+      } else if (preferBackground && allowPageLaunch) {
         debugPrint('PluginRuntimeDispatcher: $topic → page launcher');
         PluginPageLauncher.instance.open(
           pluginId,

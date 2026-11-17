@@ -18,6 +18,9 @@ Register these event handlers in both the background entry point and any restore
 foreground entry point. Background delivery is preferred, but the host can select
 the foreground runtime when no background controller is available. Each event is
 sent to one controller, not broadcast to every instance of the plugin.
+Search and cancellation never launch a plugin page. With no live runtime and no
+background activation permission, search is skipped until the plugin is running.
+Requests cancelled or revoked before background boot are not delivered afterward.
 
 `findRef.external.cancelled` carries `{requestId}` when a dialog supersedes or
 clears its search. Drop queued work. A running native parse may finish, but its

@@ -707,6 +707,36 @@ void main() {
     expect(service.isBootPending('p1'), isFalse);
   });
 
+  test(
+    'boot-pending delivery rechecks its guard and preserves legacy events',
+    () async {
+      service.syncPlugin('p1', broadcastTopics: {}, scheduleStartup: false);
+      service.queueTargetedEvent('p1', 'click', {'n': 1});
+      var current = true;
+      service.queueIfBootPending('p1', 'click', {
+        'n': 2,
+      }, isCurrent: () => current);
+      service.queueIfBootPending('p1', 'click', {'n': 3});
+      current = false;
+      await service.onBackgroundInstanceReady('p1');
+      expect(delivered.map((e) => e.$3['n']), [1, 3]);
+    },
+  );
+
+  test(
+    'permission revocation drops guarded and legacy boot-pending events',
+    () async {
+      service.syncPlugin('p1', broadcastTopics: {}, scheduleStartup: false);
+      service.queueTargetedEvent('p1', 'click', {'n': 1});
+      service.queueIfBootPending('p1', 'click', {
+        'n': 2,
+      }, isCurrent: () => true);
+      service.removePlugin('p1');
+      await service.onBackgroundInstanceReady('p1');
+      expect(delivered, isEmpty);
+    },
+  );
+
   test('failed activation drops the pending queue and allows retry', () async {
     service.backgroundActivator = (pluginId) async {
       activations.add(pluginId);

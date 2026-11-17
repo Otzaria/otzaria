@@ -35,9 +35,18 @@ class PluginFindRefService {
   PluginFindRefService._()
     : _providers = (() =>
           PluginLibraryBooksRegistry.instance.referenceProviders),
-      _dispatch = ((id, topic, payload) => PluginRuntimeDispatcher.instance
-          .dispatchEventToPlugin(id, topic, payload, preferBackground: true)),
       timeout = const Duration(seconds: 115) {
+    _dispatch = (id, topic, payload) =>
+        PluginRuntimeDispatcher.instance.dispatchEventToPlugin(
+          id,
+          topic,
+          payload,
+          preferBackground: true,
+          allowPageLaunch: topic == openTopic,
+          isCurrent: topic == requestTopic
+              ? () => _pending.containsKey(payload['requestId'])
+              : null,
+        );
     PluginLibraryBooksRegistry.instance.addListener(_providersChanged);
   }
 
@@ -60,7 +69,7 @@ class PluginFindRefService {
   static const cancelTopic = 'findRef.external.cancelled';
   static const maxHits = 100;
   final Duration timeout;
-  final FindRefDispatch _dispatch;
+  late final FindRefDispatch _dispatch;
   final Iterable<PluginLibraryBookProvider> Function() _providers;
   final Map<String, _PendingFindRef> _pending = {};
   int _counter = 0;
