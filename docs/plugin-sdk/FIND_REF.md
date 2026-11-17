@@ -20,6 +20,7 @@ the foreground runtime when no background controller is available. Each event is
 sent to one controller, not broadcast to every instance of the plugin.
 Search and cancellation never launch a plugin page. With no live runtime and no
 background activation permission, search is skipped until the plugin is running.
+An unavailable provider finishes immediately without keeping the dialog loading.
 Requests cancelled or revoked before background boot are not delivered afterward.
 
 `findRef.external.cancelled` carries `{requestId}` when a dialog supersedes or

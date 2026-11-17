@@ -1,5 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/find_ref/bloc/find_ref_bloc.dart';
+import 'package:otzaria/find_ref/bloc/find_ref_event.dart';
+import 'package:otzaria/find_ref/bloc/find_ref_state.dart';
+import 'package:otzaria/find_ref/repository/db_reference_result.dart';
+import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
+import 'package:otzaria/plugins/models/plugin_when_condition.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/plugin_condition_evaluator.dart';
 import 'package:otzaria/plugins/services/plugin_find_ref_service.dart';
@@ -8,6 +14,25 @@ import 'package:otzaria/plugins/services/plugin_library_books_registry.dart';
 import 'package:otzaria/plugins/services/plugin_page_launcher.dart';
 import 'package:otzaria/plugins/services/plugin_runtime.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
+
+import '../helpers/memory_settings_cache.dart';
+
+class _FindRefRepository extends Fake implements FindRefRepository {
+  @override
+  bool get respectHiddenLibrary => false;
+  @override
+  Stream<void> get userBooksChanges => const Stream.empty();
+  @override
+  Future<List<DbReferenceResult>> findRefs(
+    String ref, {
+    bool includePersonalBooks = false,
+  }) async => [DbReferenceResult(title: ref, reference: ref, segment: 1)];
+  @override
+  void cancelPendingSearch() {}
+  @override
+  void dispose() {}
+}
 
 class _Repository extends Fake implements PluginRegistryRepository {
   @override
@@ -74,7 +99,8 @@ void main() {
 
   String requestId(String event) =>
       RegExp(r'"requestId":"([^"]+)"').firstMatch(event)!.group(1)!;
-  setUpAll(() {
+  setUpAll(() async {
+    await Settings.init(cacheProvider: MemorySettingsCache());
     originalRegistry = PluginLibraryBooksRegistry.instance;
     PluginLibraryBooksRegistry.instance = registry;
     service = PluginFindRefService.instance;
@@ -119,6 +145,7 @@ void main() {
       final future = service.search('בראשית', owner: firstOwner);
       await pumpEventQueue();
       expect(opened, isEmpty);
+      expect(await future.timeout(const Duration(seconds: 1)), isEmpty);
       service.cancel(firstOwner);
       expect(await future, isEmpty);
       await pumpEventQueue();
@@ -128,6 +155,32 @@ void main() {
       service.cancel(earlyOwner);
       expect(await early, isEmpty);
       await pumpEventQueue();
+      expect(opened, isEmpty);
+    },
+  );
+  test(
+    'unavailable provider clears pending and keeps native results',
+    () async {
+      final bloc = FindRefBloc(
+        findRefRepository: _FindRefRepository(),
+        externalService: service,
+      );
+      addTearDown(bloc.close);
+      final native = bloc.stream.firstWhere((state) => state is FindRefSuccess);
+      bloc.add(const SearchRefRequested('בראשית'));
+      final initial = await native as FindRefSuccess;
+      expect(initial.refs.single.title, 'בראשית');
+      expect(initial.externalPending, true);
+      final completed =
+          await bloc.stream
+                  .firstWhere(
+                    (state) =>
+                        state is FindRefSuccess && !state.externalPending,
+                  )
+                  .timeout(const Duration(seconds: 2))
+              as FindRefSuccess;
+      expect(completed.refs, initial.refs);
+      expect(completed.externalRefs, isEmpty);
       expect(opened, isEmpty);
     },
   );
@@ -151,6 +204,44 @@ void main() {
       dispatcher.unregisterController(plugin, instanceId: 'foreground');
       await service.open(hit);
       expect(opened, [plugin]);
+    },
+  );
+  test(
+    'blocked activation finishes passive search and preserves default delivery',
+    () async {
+      lazy.syncPlugin(
+        plugin,
+        broadcastTopics: {},
+        scheduleStartup: false,
+        activationConditions: {
+          request: PluginWhenCondition.fromJson({
+            'storage': {'key': 'enabled', 'equals': true},
+          }),
+        },
+      );
+      expect(
+        await service
+            .search('בראשית', owner: owner())
+            .timeout(const Duration(seconds: 1)),
+        isEmpty,
+      );
+      await expectLater(
+        dispatcher.dispatchEventToPlugin(
+          plugin,
+          request,
+          {},
+          preferBackground: true,
+          allowPageLaunch: false,
+        ),
+        throwsStateError,
+      );
+      await dispatcher.dispatchEventToPlugin(
+        plugin,
+        request,
+        {},
+        preferBackground: true,
+      );
+      expect(opened, isEmpty);
     },
   );
   test('background wins over foreground; cancellation stays passive', () async {

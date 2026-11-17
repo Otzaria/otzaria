@@ -1941,7 +1941,7 @@ class PluginRuntimeDispatcher {
   }
 
   /// שולח אירוע ממוקד; [instanceId] מגביל את המסירה למופע מסוים.
-  /// [allowPageLaunch] מתיר פתיחת דף כשאין מנוע שניתן להעיר ברקע.
+  /// [allowPageLaunch]=false מונע פתיחת דף ומכשיל Future שהושמט ללא מנוע.
   Future<void> dispatchEventToPlugin(
     String pluginId,
     String topic,
@@ -1992,6 +1992,10 @@ class PluginRuntimeDispatcher {
         topic,
       )) {
         debugPrint('PluginRuntimeDispatcher: $topic → dropped (when)');
+        if (!allowPageLaunch) {
+          // ready עשוי להיות SynchronousFuture; הכשל ממתין להצמדת catchError.
+          return Future<void>.error(StateError('Plugin activation blocked'));
+        }
         return;
       }
       // אין מנוע חי — עם הרשאת ריצה ברקע התוסף מוּעָר בעצלנות והאירוע ממתין
@@ -2015,6 +2019,9 @@ class PluginRuntimeDispatcher {
         );
       } else {
         debugPrint('PluginRuntimeDispatcher: $topic → dropped (no engine)');
+        if (!allowPageLaunch) {
+          return Future<void>.error(StateError('Plugin runtime unavailable'));
+        }
       }
       return;
     }
