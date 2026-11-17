@@ -28,7 +28,7 @@ void main() {
     });
   });
 
-  group('externalVisibleIdsFor', () {
+  group('externalVisibleResultsFor', () {
     const index = [
       ExternalSearchIndexEntry(id: 1, hits: 5, categoryPath: '/תלמוד בבלי'),
       ExternalSearchIndexEntry(id: 2, hits: 3, categoryPath: '/הלכה'),
@@ -45,112 +45,133 @@ void main() {
 
     test('קטגוריה עם רווח תואמת את עצמה ואת צאצאיה', () {
       expect(
-        externalVisibleIdsFor(
+        externalVisibleResultsFor(
           index: index,
           categories: categories,
           facets: const ['/תלמוד בבלי'],
           otherFacet: '/עוד מהיברובוקס',
-        ),
+        ).ids,
         [1, 4],
       );
     });
 
     test('דלי "עוד מ" תואם רק תוצאות ללא סיווג', () {
       expect(
-        externalVisibleIdsFor(
+        externalVisibleResultsFor(
           index: index,
           categories: categories,
           facets: const ['/עוד מהיברובוקס'],
           otherFacet: '/עוד מהיברובוקס',
-        ),
+        ).ids,
         [3],
       );
     });
 
     test('כמה קטגוריות — OR; קטגוריה זרה — ריק; השורש — הכול', () {
       expect(
-        externalVisibleIdsFor(
+        externalVisibleResultsFor(
           index: index,
           categories: categories,
           facets: const ['/הלכה', '/עוד מהיברובוקס'],
           otherFacet: '/עוד מהיברובוקס',
-        ),
+        ).ids,
         [2, 3],
       );
       expect(
-        externalVisibleIdsFor(
+        externalVisibleResultsFor(
           index: index,
           categories: categories,
           facets: const ['/קבלה'],
           otherFacet: '/עוד מהיברובוקס',
-        ),
+        ).ids,
         isEmpty,
       );
       expect(
-        externalVisibleIdsFor(
+        externalVisibleResultsFor(
           index: index,
           categories: categories,
           facets: const ['/'],
           otherFacet: null,
-        ),
+        ).ids,
         [1, 2, 3, 4],
       );
     });
 
     test('facet של ספר בדלי תואם את אותו ספר בלבד', () {
       expect(
-        externalVisibleIdsFor(
+        externalVisibleResultsFor(
           index: index,
           categories: categories,
           facets: const ['/עוד מהיברובוקס/#3'],
           otherFacet: '/עוד מהיברובוקס',
-        ),
+        ).ids,
         [3],
       );
       // ספר מסווג נבחר דרך הדלי אינו קיים שם — הבחירה מחזירה ריק.
       expect(
-        externalVisibleIdsFor(
+        externalVisibleResultsFor(
           index: index,
           categories: categories,
           facets: const ['/עוד מהיברובוקס/#999'],
           otherFacet: '/עוד מהיברובוקס',
-        ),
+        ).ids,
         isEmpty,
       );
       // בלי דלי (אינדקס בלי סיווג) אין facet כזה.
       expect(
-        externalVisibleIdsFor(
+        externalVisibleResultsFor(
           index: index,
           categories: categories,
           facets: const ['/עוד מהיברובוקס/#3'],
           otherFacet: null,
-        ),
+        ).ids,
         isEmpty,
       );
     });
 
     test('ספר בדלי לצד קטגוריה — OR ביניהם, בסדר האינדקס', () {
       expect(
-        externalVisibleIdsFor(
+        externalVisibleResultsFor(
           index: index,
           categories: categories,
           facets: const ['/הלכה', '/עוד מהיברובוקס/#1'],
           otherFacet: '/עוד מהיברובוקס',
-        ),
+        ).ids,
         [1, 2],
       );
     });
 
     test('קטגוריה שהיא קידומת-מחרוזת אך לא קידומת-נתיב אינה תואמת', () {
       expect(
-        externalVisibleIdsFor(
+        externalVisibleResultsFor(
           index: index,
           categories: categories,
           facets: const ['/תלמוד'],
           otherFacet: null,
-        ),
+        ).ids,
         isEmpty,
       );
+    });
+
+    test('סוכם מופעים לכל רשומה תואמת, גם למזהה שחוזר באינדקס', () {
+      const duplicate = ExternalSearchIndexEntry(id: 1, hits: 9);
+      final filtered = externalVisibleResultsFor(
+        index: [...index, duplicate],
+        categories: categories,
+        facets: const ['/תלמוד בבלי', '/תלמוד בבלי/מסכת ברכות'],
+        otherFacet: null,
+      );
+      expect(filtered.ids, [1, 4, 1]);
+      expect(filtered.hits, 16);
+
+      final empty = externalVisibleResultsFor(
+        index: [...index, duplicate],
+        categories: categories,
+        facets: const ['/קבלה'],
+        otherFacet: null,
+      );
+      expect(empty.ids, isEmpty);
+      expect(empty.hits, 0);
     });
   });
 
