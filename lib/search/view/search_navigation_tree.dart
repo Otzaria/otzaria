@@ -96,26 +96,27 @@ class SearchNavigationTree extends StatelessWidget {
   }
 
   /// נתיבי הקטגוריות/ספרים המסוננים כרגע (בלי השורש ובלי ממדים).
-  List<String> _selectedPaths() => FacetHelper.categoryFacetsOf(
-    selectedFacets,
-  ).where((f) => f != '/').toList();
+  _FacetPathIndex _selectedPaths() => _FacetPathIndex(
+    FacetHelper.categoryFacetsOf(selectedFacets).where((f) => f != '/'),
+  );
 
   /// האם [path] הוא אב-קדמון של סינון פעיל. ענף כזה נפתח כברירת מחדל ומוצג
   /// גם בספירה 0 — אחרת הסינון הפעיל נעלם מהעץ ואין דרך לבטלו.
-  static bool _leadsToSelection(String path, Iterable<String> selectedPaths) =>
-      selectedPaths.any((facet) => facet.startsWith('$path/'));
+  static bool _leadsToSelection(String path, _FacetPathIndex selectedPaths) =>
+      selectedPaths.hasDescendant(path);
 
   /// שורות שנשארות גלויות בספירה 0. חברי היקף (@) אינם נשמרים — אחרת כל ספרי
   /// ההיקף מוצגים גם בלי תוצאות — מלבד פריט יחיד שנבחר ידנית.
-  Set<String> _pinnedPaths(List<String> selectedPaths) {
+  _FacetPathIndex _pinnedPaths(_FacetPathIndex selectedPaths) {
     final scope = FacetHelper.categoryFacetsOf(scopeFacets).toSet();
-    if (scope.isEmpty || scope.contains('/') || selectedPaths.length == 1) {
-      return selectedPaths.toSet();
+    final paths = selectedPaths.paths;
+    if (scope.isEmpty || scope.contains('/') || paths.length == 1) {
+      return selectedPaths;
     }
-    return selectedPaths.where((path) => !scope.contains(path)).toSet();
+    return _FacetPathIndex(paths.where((path) => !scope.contains(path)));
   }
 
-  static bool _isPinned(String path, Set<String> pinnedPaths) =>
+  static bool _isPinned(String path, _FacetPathIndex pinnedPaths) =>
       pinnedPaths.contains(path) || _leadsToSelection(path, pinnedPaths);
 
   bool get _categoryFilterActive =>
@@ -154,7 +155,7 @@ class SearchNavigationTree extends StatelessWidget {
     return rows;
   }
 
-  void _appendExtraRows(List<_FlatRow> rows, List<String> selectedPaths) {
+  void _appendExtraRows(List<_FlatRow> rows, _FacetPathIndex selectedPaths) {
     for (final extra in extraRootCategories) {
       // ספרי הקטגוריה הסינתטית מגיעים מהספק, ולא מהספרייה — לכן חץ ההרחבה
       // כאן תלוי ברשימה שהוא צירף, ולא ב-facetCounts.
@@ -217,8 +218,8 @@ class SearchNavigationTree extends StatelessWidget {
     Category category,
     int level,
     List<_FlatRow> rows,
-    List<String> selectedPaths,
-    Set<String> pinnedPaths,
+    _FacetPathIndex selectedPaths,
+    _FacetPathIndex pinnedPaths,
   ) {
     for (final sub in _sortedSubCategories(category)) {
       final subPath = FacetHelper.categoryFacet(sub);
@@ -251,7 +252,7 @@ class SearchNavigationTree extends StatelessWidget {
 
   /// האם לקטגוריה יש לפחות שורה נראית אחת מתחתיה — אותם תנאים בדיוק
   /// שבהם [_flattenChildren] מרנדר ילד (קטגוריה או ספר).
-  bool _hasVisibleChildren(Category category, Set<String> pinnedPaths) {
+  bool _hasVisibleChildren(Category category, _FacetPathIndex pinnedPaths) {
     for (final sub in category.subCategories) {
       final facet = FacetHelper.categoryFacet(sub);
       final count = facetCounts[facet] ?? 0;
@@ -445,7 +446,7 @@ class SearchNavigationTree extends StatelessWidget {
 
   /// כל הענפים שיש להם חץ הרחבה, באותם תנאים שבהם [_flattenChildren]
   /// ו־[_appendExtraRows] מרנדרים שורה עם ילדים, בלי תלות במצב הפתיחה.
-  List<String> _expandablePaths(List<String> selectedPaths) {
+  List<String> _expandablePaths(_FacetPathIndex selectedPaths) {
     final pinnedPaths = _pinnedPaths(selectedPaths);
     final paths = <String>[];
     void walk(Category category) {
@@ -519,7 +520,7 @@ class SearchNavigationTree extends StatelessWidget {
 
   Category? _singleVisibleSubCategory(
     Category category,
-    Set<String> pinnedPaths,
+    _FacetPathIndex pinnedPaths,
   ) {
     final categoryPath = FacetHelper.categoryFacet(category);
     final hasVisibleBook = category.books.any((book) {
@@ -806,4 +807,31 @@ class _FlatRow {
         level: 2,
         count: hits,
       );
+}
+
+class _FacetPathIndex {
+  _FacetPathIndex(Iterable<String> paths)
+    : paths = paths.toList(growable: false);
+
+  final List<String> paths;
+  late final Set<String> _exactPaths = paths.toSet();
+  late final Set<String> _ancestors = _collectAncestors();
+
+  bool contains(String path) => _exactPaths.contains(path);
+
+  bool hasDescendant(String path) => _ancestors.contains(path);
+
+  Set<String> _collectAncestors() {
+    final ancestors = <String>{};
+    for (final path in _exactPaths) {
+      for (
+        var slash = path.indexOf('/');
+        slash >= 0;
+        slash = path.indexOf('/', slash + 1)
+      ) {
+        ancestors.add(path.substring(0, slash));
+      }
+    }
+    return ancestors;
+  }
 }
