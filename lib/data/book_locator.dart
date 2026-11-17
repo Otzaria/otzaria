@@ -211,6 +211,7 @@ class BookLocator {
     try {
       final keyToPath = await FileSystemLibraryProvider.instance.keyToPath;
       String? filePath;
+      final titlePrefix = '$bookTitle|';
 
       final resolvedCategoryId =
           categoryId ??
@@ -222,6 +223,7 @@ class BookLocator {
 
       if (resolvedCategoryId != null) {
         for (final entry in keyToPath.entries) {
+          if (!entry.key.startsWith(titlePrefix)) continue;
           final key = BookCompositeKey.tryParse(entry.key);
           if (key == null) continue;
           if (key.title == bookTitle && key.categoryId == resolvedCategoryId) {
@@ -238,6 +240,7 @@ class BookLocator {
       // If not found or no category, try fuzzy match by title
       if (filePath == null) {
         for (final entry in keyToPath.entries) {
+          if (!entry.key.startsWith(titlePrefix)) continue;
           final key = BookCompositeKey.tryParse(entry.key);
           if (key == null) continue;
           if (key.title == bookTitle) {
