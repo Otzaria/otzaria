@@ -247,6 +247,86 @@ void main() {
         },
       );
 
+      testWidgets('regression: deselection keeps the existing preview', (
+        tester,
+      ) async {
+        final h = await _pumpBrowser(
+          tester,
+          books: books,
+          viewMode: mode,
+          previewEnabled: true,
+        );
+        h.libraryStates.add(
+          h.libraryBloc.state.copyWith(previewBook: books.first),
+        );
+        await tester.pump();
+        await _tapWith(
+          tester,
+          find.text('ספר ב'),
+          holding: LogicalKeyboardKey.controlLeft,
+        );
+        final focusRepository = tester
+            .element(find.byType(LibraryBrowser))
+            .read<FocusRepository>();
+        focusRepository.librarySearchFocusNode.requestFocus();
+        await tester.pump();
+        clearInteractions(h.libraryBloc);
+        await _tapWith(
+          tester,
+          find.text('ספר ב'),
+          holding: LogicalKeyboardKey.controlLeft,
+        );
+        expect(find.text('פתח נבחרים'), findsNothing);
+        verifyNever(
+          () => h.libraryBloc.add(any(that: isA<SelectBookForPreview>())),
+        );
+        verifyNever(() => h.tabsBloc.add(any()));
+      });
+
+      if (mode == 'grid') {
+        for (final refocusBeforeDeselect in [false, true]) {
+          testWidgets(
+            'regression: keyboard focus after deselection still previews '
+            '(refocus=$refocusBeforeDeselect)',
+            (tester) async {
+              final h = await _pumpBrowser(
+                tester,
+                books: books,
+                viewMode: mode,
+                previewEnabled: true,
+              );
+              await _tapWith(
+                tester,
+                find.text('ספר ב'),
+                holding: LogicalKeyboardKey.controlLeft,
+              );
+              final searchFocus = tester
+                  .element(find.byType(LibraryBrowser))
+                  .read<FocusRepository>()
+                  .librarySearchFocusNode;
+              if (refocusBeforeDeselect) {
+                searchFocus.requestFocus();
+                await tester.pump();
+              }
+              await _tapWith(
+                tester,
+                find.text('ספר ב'),
+                holding: LogicalKeyboardKey.controlLeft,
+              );
+              expect(find.text('פתח נבחרים'), findsNothing);
+              searchFocus.requestFocus();
+              await tester.pump();
+              clearInteractions(h.libraryBloc);
+              Focus.of(tester.element(find.text('ספר ב'))).requestFocus();
+              await tester.pump();
+              verify(
+                () => h.libraryBloc.add(any(that: isA<SelectBookForPreview>())),
+              ).called(1);
+            },
+          );
+        }
+      }
+
       for (final previewEnabled in [false, true]) {
         testWidgets('regression: Enter opens Ctrl/Shift selection, '
             'preview=$previewEnabled', (tester) async {

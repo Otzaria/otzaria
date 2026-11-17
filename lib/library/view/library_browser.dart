@@ -1825,7 +1825,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         false,
         _BookPointerActivation(
           key: ObjectKey(book),
-          builder: (bind) => BookGridItem(
+          builder: (bind, bindFocus) => BookGridItem(
             book: book,
             onBookClickCallback: bind(
               (modifiers) => _openExternalBookUnlessSelecting(book, modifiers),
@@ -1858,7 +1858,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                   book is PdfBook ? 1 : 0,
                   _BookPointerActivation(
                     key: ObjectKey(book),
-                    builder: (bind) => _withBookKeyboardActivation(
+                    selectionActive: _selection.isNotEmpty,
+                    builder: (bind, bindFocus) => _withBookKeyboardActivation(
                       book,
                       _isPreviewPanelVisible(settingsState),
                       GestureDetector(
@@ -1875,13 +1876,13 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                           // הלחיצה מעבירה פוקוס לפני שמוחלט אם היא בחירה; בזמן
                           // איסוף ספרים התצוגה המקדימה נשארת במקומה.
                           onFocused: _isPreviewPanelVisible(settingsState)
-                              ? () {
+                              ? bindFocus(() {
                                   if (!_inSelectionGesture(
                                     _currentBookModifiers(),
                                   )) {
                                     _showBookPreview(book);
                                   }
-                                }
+                                })
                               : null,
                           onBookClickCallback: bind((modifiers) {
                             if (_handleBookSelectionTap(book, modifiers)) {
@@ -1892,7 +1893,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                             } else {
                               _openBookInReader(book, book is PdfBook ? 1 : 0);
                             }
-                          }),
+                          }, requestsFocus: true),
                           onBookDeleted: () {
                             if (ctx.mounted) {
                               ctx.read<LibraryBloc>().add(RefreshLibrary());
@@ -2822,7 +2823,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                   book is PdfBook ? 1 : 0,
                   _BookPointerActivation(
                     key: ObjectKey(book),
-                    builder: (bind) => _withBookKeyboardActivation(
+                    builder: (bind, bindFocus) => _withBookKeyboardActivation(
                       book,
                       _isPreviewPanelVisible(settingsState),
                       _buildBookListRow(
@@ -2874,7 +2875,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       false,
       _BookPointerActivation(
         key: ObjectKey(book),
-        builder: (bind) => _buildExternalBookListRow(
+        builder: (bind, bindFocus) => _buildExternalBookListRow(
           context: context,
           book: book,
           level: level,
@@ -3496,8 +3497,9 @@ class _LibraryBrowserListState extends State<_LibraryBrowserList> {
 typedef _BookSelectionModifiers = ({bool shift, bool additive});
 typedef _BindBookPointer =
     VoidCallback Function(
-      void Function(_BookSelectionModifiers) activate,
-    );
+      void Function(_BookSelectionModifiers) activate, {
+      bool requestsFocus,
+    });
 
 _BookSelectionModifiers _currentBookModifiers() {
   final keyboard = HardwareKeyboard.instance;
@@ -3508,9 +3510,18 @@ _BookSelectionModifiers _currentBookModifiers() {
 }
 
 class _BookPointerActivation extends StatefulWidget {
-  const _BookPointerActivation({super.key, required this.builder});
+  const _BookPointerActivation({
+    super.key,
+    required this.builder,
+    this.selectionActive = false,
+  });
 
-  final Widget Function(_BindBookPointer bind) builder;
+  final bool selectionActive;
+  final Widget Function(
+    _BindBookPointer bind,
+    VoidCallback Function(VoidCallback) bindFocus,
+  )
+  builder;
 
   @override
   State<_BookPointerActivation> createState() => _BookPointerActivationState();
@@ -3519,34 +3530,58 @@ class _BookPointerActivation extends StatefulWidget {
 class _BookPointerActivationState extends State<_BookPointerActivation> {
   _BookSelectionModifiers? _modifiers;
   Offset? _downPosition;
+  bool _selectionFocusPending = false;
 
-  VoidCallback _bind(void Function(_BookSelectionModifiers) activate) => () {
+  VoidCallback _bind(
+    void Function(_BookSelectionModifiers) activate, {
+    bool requestsFocus = false,
+  }) => () {
     final modifiers = _modifiers ?? _currentBookModifiers();
+    _selectionFocusPending =
+        requestsFocus &&
+        _modifiers != null &&
+        (widget.selectionActive || modifiers.shift || modifiers.additive);
     _modifiers = null;
     _downPosition = null;
     activate(modifiers);
   };
 
+  VoidCallback _bindFocus(VoidCallback activate) => () {
+    final selectionFocus = _selectionFocusPending;
+    _selectionFocusPending = false;
+    if (!selectionFocus) activate();
+  };
+
+  void _cancelPointer() {
+    _modifiers = null;
+    _downPosition = null;
+    _selectionFocusPending = false;
+  }
+
   @override
-  Widget build(BuildContext context) => Listener(
-    behavior: HitTestBehavior.translucent,
-    onPointerDown: (event) {
-      _modifiers = _currentBookModifiers();
-      _downPosition = event.position;
+  Widget build(BuildContext context) => Focus(
+    canRequestFocus: false,
+    skipTraversal: true,
+    onFocusChange: (focused) {
+      if (!focused) _selectionFocusPending = false;
     },
-    onPointerMove: (event) {
-      final down = _downPosition;
-      if (down != null && (event.position - down).distance > kTouchSlop) {
-        _modifiers = null;
-        _downPosition = null;
-      }
-    },
-    onPointerCancel: (_) {
-      _modifiers = null;
-      _downPosition = null;
-    },
-    // onTap may wait for double-tap resolution after pointer-up.
-    // Keep one snapshot per book until activation, cancellation or the next down.
-    child: widget.builder(_bind),
+    child: Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (event) {
+        _selectionFocusPending = false;
+        _modifiers = _currentBookModifiers();
+        _downPosition = event.position;
+      },
+      onPointerMove: (event) {
+        final down = _downPosition;
+        if (down != null && (event.position - down).distance > kTouchSlop) {
+          _cancelPointer();
+        }
+      },
+      onPointerCancel: (_) => _cancelPointer(),
+      // Tap callbacks and their focus notification can follow pointer-up.
+      // Each snapshot belongs to this book and is consumed independently.
+      child: widget.builder(_bind, _bindFocus),
+    ),
   );
 }
