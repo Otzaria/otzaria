@@ -1343,27 +1343,38 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     return (start: range.startPage, end: null);
   }
 
+  ({
+    List<PdfOutlineNode>? outline,
+    String bookTitle,
+    PdfPageReferenceLookup lookup,
+  })?
+  _pageTitleLookup;
+
   /// מחזיר שני ערכי כותרת לעמוד נתון:
   /// - [single] משמש כמפתח לחיפוש בכותרות (תמיד עמוד יחיד)
   /// - [display] משמש להצגה למשתמש (שני עמודי הספירייד בתצוגת ספר, אם הם שונים)
   ({String single, String display}) _titlesForPage(int pageNumber) {
-    final outline = widget.tab.outline.value ?? const <PdfOutlineNode>[];
+    final outline = widget.tab.outline.value;
     final bookTitle = widget.tab.book.title;
+    var cached = _pageTitleLookup;
+    if (cached == null ||
+        !identical(cached.outline, outline) ||
+        cached.bookTitle != bookTitle) {
+      cached = (
+        outline: outline,
+        bookTitle: bookTitle,
+        lookup: PdfPageReferenceLookup(outline, bookTitle),
+      );
+      _pageTitleLookup = cached;
+    }
+
     final range = _spreadPageRangeFor(pageNumber);
-    final firstTitle = referenceFromPageNumber(
-      range.startPage,
-      outline,
-      bookTitle,
-    );
+    final firstTitle = cached.lookup.referenceAt(range.startPage);
     final spans = range.endPageExclusive - range.startPage > 1;
     if (!spans) {
       return (single: firstTitle, display: firstTitle);
     }
-    final secondTitle = referenceFromPageNumber(
-      range.startPage + 1,
-      outline,
-      bookTitle,
-    );
+    final secondTitle = cached.lookup.referenceAt(range.startPage + 1);
     final display = pdfCombineSpreadTitles(firstTitle, secondTitle);
     final single = firstTitle.isEmpty ? secondTitle : firstTitle;
     return (single: single, display: display);
