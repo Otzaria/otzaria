@@ -42,6 +42,7 @@ import 'package:otzaria/core/windowing/cross_window_tab_drag.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/tools/tool_catalog_entry.dart';
+import 'package:otzaria/app_report/view/app_report_dialog.dart';
 import 'package:otzaria/history/view/history_screen.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/bookmarks/view/bookmark_screen.dart';
@@ -100,7 +101,7 @@ const String _kTabHitMarker = 'custom-title-bar-tab';
 /// ב-onPointerDown (ראה [_CustomTitleBarState._hitTestCloseButton]).
 const String _kTabCloseButtonHitMarker = 'custom-title-bar-tab-close';
 
-const double _kAppBarControlsWidth = 105.0;
+const double _kAppBarControlsWidth = 140.0;
 const double _kWindowCaptionButtonsWidth = 138.0;
 
 /// רוחב מרבי לטאב בודד: טאב לא נמתח מעבר לזה גם כשיש מעט טאבים ומלא מקום.
@@ -470,6 +471,14 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                     },
                   ),
                   onPressed: () => _showSaveWorkspaceDialog(context),
+                ),
+                AppIconButton(
+                  key: const ValueKey('title-bar-report-button'),
+                  size: AppIconButtonSize.small,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  icon: const Icon(FluentIcons.bug_24_regular),
+                  tooltip: context.settingsText('דיווח על תקלה בתוכנה'),
+                  onPressed: () => showAppReportDialog(context),
                 ),
               ],
             ),

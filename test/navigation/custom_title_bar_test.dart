@@ -26,6 +26,7 @@ import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/app_report/view/app_report_dialog.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
@@ -1030,6 +1031,38 @@ void main() {
     // ⌘H שמור להסתרת היישום ב-Mac, ולכן ההיסטוריה נופלת ל-⌘Y (issue #1269).
     expect(find.byTooltip('הצג היסטוריה (⌘ + Y)'), findsOneWidget);
     expect(find.byTooltip('הצג סימניות (⌘ + ⇧ + B)'), findsOneWidget);
+  });
+
+  testWidgets('כפתור הדיווח בשורת הכותרת פותח את טופס הדיווח על תקלה', (
+    tester,
+  ) async {
+    final tab = _makeTextTab('ספר א');
+    final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
+    final navigationBloc = _TestNavigationBloc(
+      const NavigationState(currentScreen: Screen.reading),
+    );
+    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+    addTearDown(() async {
+      tab.dispose();
+      await tabsBloc.close();
+      await navigationBloc.close();
+      await settingsBloc.close();
+    });
+
+    await _setSurfaceSize(tester, const Size(1200, 800));
+    await _pumpTitleBar(
+      tester,
+      tabsBloc: tabsBloc,
+      navigationBloc: navigationBloc,
+      settingsBloc: settingsBloc,
+    );
+
+    expect(find.byType(AppReportDialog), findsNothing);
+    await tester.tap(find.byTooltip('דיווח על תקלה בתוכנה'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(AppReportDialog), findsOneWidget);
   });
 
   testWidgets('אייקון pin מוסתר כשהכרטיסיה אינה מוצמדת', (tester) async {
@@ -3116,8 +3149,8 @@ void main() {
         );
 
     testWidgets('ה-X מוצג בריחוף גם בכרטיסיה צרה מאוד', (tester) async {
-      // 20 כרטיסיות ברוחב 900 → ~25px לכרטיסיה, פחות מרוחב ה-X המלא.
-      await pumpTabs(tester, 20);
+      // 19 כרטיסיות ברוחב 900 → ~25px לכרטיסיה, פחות מרוחב ה-X המלא.
+      await pumpTabs(tester, 19);
 
       final tab = find.byType(Tab).at(5);
       final closeButton = find.descendant(
