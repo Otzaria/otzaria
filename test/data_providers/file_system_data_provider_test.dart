@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
+import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
@@ -34,14 +35,15 @@ void main() {
     test('הקטלוג הראשון מצטרף לקריאת הקורא ורענון קורא מחדש', () async {
       await IOOverrides.runWithIOOverrides(() async {
         final provider = FileSystemData();
+        final repository = DataRepository(fileSystemData: provider);
         expect(reads.paths, isEmpty);
 
         final reader = provider.metadata;
-        final initialCatalog = provider.getLibrary();
+        final initialCatalog = repository.library;
         expect(provider.metadata, same(reader));
         expect(reads.paths, [path.join(root.path, 'metadata.json')]);
 
-        final refresh = provider.getLibrary();
+        final refresh = repository.reloadLibrary();
         final refreshed = provider.metadata;
         expect(refreshed, isNot(same(reader)));
         expect(
@@ -71,6 +73,54 @@ void main() {
       }, reads);
     });
 
+    for (final (description, readerJson, readerMatcher) in [
+      ('קריאה ישנה', _metadataJson('ישן'), completion(contains('ישן'))),
+      ('JSON פגום', '[', throwsFormatException),
+    ]) {
+      test('רענון ראשון קורא מחדש בזמן שהקורא ממתין עם $description', () async {
+        await IOOverrides.runWithIOOverrides(() async {
+          final provider = FileSystemData();
+          final repository = DataRepository(fileSystemData: provider);
+          final reader = expectLater(provider.metadata, readerMatcher);
+
+          final refresh = expectLater(repository.reloadLibrary(), completes);
+          final refreshed = provider.metadata;
+          final freshMetadata = expectLater(
+            refreshed,
+            completion(contains('תוקן')),
+          );
+
+          reads.results.skip(1).firstOrNull?.complete(_metadataJson('תוקן'));
+          reads.results.first.complete(readerJson);
+          await (reader, refresh, freshMetadata).wait;
+
+          expect(
+            reads.paths,
+            List.filled(2, path.join(root.path, 'metadata.json')),
+          );
+          expect(provider.metadata, same(refreshed));
+        }, reads);
+      });
+    }
+
+    test('בנייה אחרי איפוס הספרייה קוראת מטא־נתונים מעודכנים', () async {
+      await IOOverrides.runWithIOOverrides(() async {
+        final provider = FileSystemData();
+        final repository = DataRepository(fileSystemData: provider);
+        final previous = provider.metadata;
+        provider.clearBookCache();
+        repository.invalidateLibraryCache();
+
+        final catalog = repository.library;
+        reads.results.first.complete(_metadataJson('לפני האיפוס'));
+        reads.results.skip(1).firstOrNull?.complete(_metadataJson('חדש'));
+        await catalog;
+
+        expect(await provider.metadata, contains('חדש'));
+        expect(await previous, contains('לפני האיפוס'));
+      }, reads);
+    });
+
     test('מטא־נתונים ממתינים שייכים לנתיב שפתח אותם', () async {
       final moved = await Directory(path.join(root.path, 'moved')).create();
       await IOOverrides.runWithIOOverrides(() async {
@@ -82,7 +132,7 @@ void main() {
         reads.results[0].complete(_metadataJson('ישן'));
         expect((await previous).keys, ['ישן']);
 
-        final catalog = provider.getLibrary();
+        final catalog = DataRepository(fileSystemData: provider).library;
         expect(provider.metadata, same(current));
         expect(reads.paths, [
           path.join(root.path, 'metadata.json'),

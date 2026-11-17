@@ -22,7 +22,7 @@ class _Files extends Fake implements FileSystemData {
   @override
   String libraryPath = '.';
   @override
-  Future<Library> getLibrary() {
+  Future<Library> getLibrary({bool sharePendingReaderMetadata = false}) {
     if (!started.isCompleted) started.complete();
     return next.future;
   }

@@ -541,7 +541,8 @@ class _SnapshotEngine extends RecordingSearchEngine
 
 class _SnapshotFileSystem extends Fake implements FileSystemData {
   @override
-  Future<Library> getLibrary() async => Library(categories: []);
+  Future<Library> getLibrary({bool sharePendingReaderMetadata = false}) async =>
+      Library(categories: []);
 }
 
 class _CountingIndex extends Fake implements TantivyDataProvider {

@@ -37,7 +37,8 @@ class _Files extends Fake implements FileSystemData {
   String libraryPath = '.';
 
   @override
-  Future<Library> getLibrary() async => next;
+  Future<Library> getLibrary({bool sharePendingReaderMetadata = false}) async =>
+      next;
 }
 
 class _ReadyIndex extends Fake implements TantivyDataProvider {

@@ -16,6 +16,8 @@ import 'package:path/path.dart' as path;
 /// ספרי היברובוקס המקומיים, ומספר קובצי ה-PDF בתיקייה שלא זוהו כאלה.
 typedef LocalHebrewBooksScan = ({List<Book> books, int unrecognizedPdfCount});
 
+enum _MetadataRequest { reader, initialCatalog, catalogRefresh }
+
 /// A data provider that manages file system operations for the library.
 ///
 /// This class handles all file system related operations including:
@@ -33,7 +35,7 @@ class FileSystemData {
 
   /// המטא־נתונים של הספרייה הנוכחית, נטענים לפי דרישה.
   Future<Map<String, Map<String, dynamic>>> get metadata =>
-      _metadataFor(libraryPath, forCatalog: false);
+      _metadataFor(libraryPath, _MetadataRequest.reader);
 
   Future<Map<String, String>>? _titleToPath;
 
@@ -150,19 +152,18 @@ class FileSystemData {
     return _providerManager.isUserBookContentInDb(title, categoryId, fileType);
   }
 
-  /// Clears the book-in-database cache
+  /// מנקה מטמונים התלויים בתוכן הספרייה.
   void clearBookCache() {
     _providerManager.clearCaches();
     _titleToPath = null;
+    _metadata = null;
+    _readerMetadataLoad = null;
     debugPrint('Book cache cleared');
   }
 
-  /// Retrieves the complete library structure from the file system.
-  ///
-  /// Reads the library from the configured path and combines it with metadata
-  /// to create a full [Library] object containing all categories and books.
-  /// Uses LibraryProviderManager for unified catalog building.
-  Future<Library> getLibrary() async {
+  /// בונה קטלוג עם קריאת מטא־נתונים חדשה. בטעינה ראשונית בלבד,
+  /// [sharePendingReaderMetadata] מאפשר להצטרף לקריאה ממתינה של הקורא.
+  Future<Library> getLibrary({bool sharePendingReaderMetadata = false}) async {
     final tTotal = DateTime.now();
     final rootPath = libraryPath;
     final libraryDir = Directory(rootPath);
@@ -188,7 +189,12 @@ class FileSystemData {
     }
 
     final (metadataResult, _) = await (
-      _metadataFor(rootPath, forCatalog: true),
+      _metadataFor(
+        rootPath,
+        sharePendingReaderMetadata
+            ? _MetadataRequest.initialCatalog
+            : _MetadataRequest.catalogRefresh,
+      ),
       _providerManager.initialize(),
     ).wait;
     debugPrint(
@@ -463,16 +469,18 @@ class FileSystemData {
   }
 
   Future<Map<String, Map<String, dynamic>>> _metadataFor(
-    String rootPath, {
-    required bool forCatalog,
-  }) {
+    String rootPath,
+    _MetadataRequest request,
+  ) {
     final cached = _metadata;
     final readerLoad = _readerMetadataLoad;
-    // קטלוג יכול להצטרף לקריאה ראשונה של הקורא. רענון קטלוג קורא מחדש.
-    if (forCatalog) _readerMetadataLoad = null;
+    final forReader = request == _MetadataRequest.reader;
+    if (!forReader) _readerMetadataLoad = null;
     if (cached != null &&
         cached.rootPath == rootPath &&
-        (!forCatalog || identical(cached.result, readerLoad))) {
+        (forReader ||
+            (request == _MetadataRequest.initialCatalog &&
+                identical(cached.result, readerLoad)))) {
       return cached.result;
     }
 
@@ -481,7 +489,7 @@ class FileSystemData {
       if (identical(_readerMetadataLoad, load)) _readerMetadataLoad = null;
     });
     _metadata = (rootPath: rootPath, result: load);
-    if (!forCatalog) _readerMetadataLoad = load;
+    if (forReader) _readerMetadataLoad = load;
     return load;
   }
 
