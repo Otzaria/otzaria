@@ -103,6 +103,15 @@ class ShortcutsSettingsTab extends StatefulWidget {
       keywords: ['חיפוש', 'מתקדם', 'מקלדת'],
     ),
     SettingsSearchEntry(
+      id: 'shortcuts.nav.app_report',
+      title: 'קיצור לדיווח על תקלה',
+      subtitle: 'פתיחת טופס דיווח על תקלה בתוכנה',
+      tab: SettingsTab.shortcuts,
+      cardId: 'shortcuts.nav',
+      expandSection: ShortcutValidator.openAppReportKey,
+      keywords: ['דיווח', 'תקלה', 'באג', 'מקלדת'],
+    ),
+    SettingsSearchEntry(
       id: 'shortcuts.nav.settings',
       title: 'קיצור להגדרות',
       subtitle: 'פתיחת מסך ההגדרות',
@@ -798,6 +807,12 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
               label: context.settingsText('חיפוש מתקדם'),
               icon: FluentIcons.search_info_24_regular,
               iconScale: 1.2,
+              allShortcuts: _shortcutsList,
+            ),
+            _ShortcutTile(
+              settingKey: ShortcutValidator.openAppReportKey,
+              label: context.settingsText('דיווח על תקלה בתוכנה'),
+              icon: FluentIcons.bug_24_regular,
               allShortcuts: _shortcutsList,
             ),
             _ShortcutTile(

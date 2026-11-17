@@ -67,6 +67,7 @@ class PluginHostShortcuts {
     'key-shortcut-open-reading-screen',
     'key-shortcut-open-new-search',
     ShortcutValidator.openAdvancedSearchKey,
+    ShortcutValidator.openAppReportKey,
     ShortcutValidator.openNewWindowKey,
     'key-shortcut-open-settings',
     'key-shortcut-open-more',
