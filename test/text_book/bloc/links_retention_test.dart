@@ -282,12 +282,9 @@ void main() {
       );
       for (final type in [LinkTypes.commentary, LinkTypes.source]) {
         expect(
-          CommentarySyncHelper.getCommentaryTargetIndex(
-            linksForCommentary: result.links
-                .where((link) => link.connectionType == type)
-                .toList(),
-            logicalMainIndex: 1000,
-          ),
+          CommentarySyncIndex(
+            result.links.where((link) => link.connectionType == type),
+          ).targetIndexFor(1000),
           500,
         );
       }

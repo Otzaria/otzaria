@@ -285,10 +285,7 @@ void main() {
       await pumpEventQueue();
       final released = bloc.state as TextBookLoaded;
       expect(
-        CommentarySyncHelper.getCommentaryTargetIndex(
-          linksForCommentary: released.links,
-          logicalMainIndex: 1459,
-        ),
+        CommentarySyncIndex(released.links).targetIndexFor(1459),
         354,
       );
       expect(released.links, links);

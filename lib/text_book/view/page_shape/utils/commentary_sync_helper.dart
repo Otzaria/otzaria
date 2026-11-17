@@ -30,52 +30,6 @@ class CommentarySyncHelper {
     return logicalIndex;
   }
 
-  /// מחשב את אינדקס היעד במפרש עבור שורת מקור נתונה.
-  ///
-  /// היעד נקבע לפי הקישור הקודם הקרוב ביותר (before) — המפרש נצמד אליו עד
-  /// שהשורה הנראית מגיעה לקישור הבא. אם אין קישור קודם, נצמדים לקישור הבא
-  /// הראשון.
-  ///
-  /// [linksForCommentary] - הקישורים של המפרש (לא חייבים להיות ממוינים)
-  /// [logicalMainIndex] - אינדקס השורה הלוגי במקור (0-based)
-  /// מחזיר אינדקס 0-based במפרש, או null אם אין קישורים כלל.
-  static int? getCommentaryTargetIndex({
-    required List<Link> linksForCommentary,
-    required int logicalMainIndex,
-  }) {
-    if (linksForCommentary.isEmpty) {
-      return null;
-    }
-
-    final mainLineNumber = logicalMainIndex + 1; // המרה ל-1-based
-
-    // שורת מקור אחת מקושרת לעיתים לעשרות שורות מפרש; בוחרים את תחילת הבלוק,
-    // אחרת היעד נקבע לפי סדר הרשימה — שאינו מובטח — והנחיתה משתנה בין טעינות.
-    Link? before;
-    Link? after;
-    for (final link in linksForCommentary) {
-      if (link.index1 <= mainLineNumber) {
-        if (before == null ||
-            link.index1 > before.index1 ||
-            (link.index1 == before.index1 && link.index2 < before.index2)) {
-          before = link;
-        }
-      } else {
-        if (after == null ||
-            link.index1 < after.index1 ||
-            (link.index1 == after.index1 && link.index2 < after.index2)) {
-          after = link;
-        }
-      }
-    }
-
-    // תמיד מעדיפים את הקישור הקודם הקרוב; אם אין — את הקישור הבא הראשון
-    if (before != null) {
-      return before.index2 - 1; // המרה ל-0-based
-    }
-    return after == null ? null : after.index2 - 1;
-  }
-
   /// המרחק בפיקסלים שיש לגלול כדי ששורת היעד תשב על קו העוגן.
   ///
   /// [leadingEdge] - הקצה העליון של שורת היעד, כשבר מגובה החלון
@@ -115,5 +69,48 @@ class CommentarySyncHelper {
   }) {
     return targetIndex != lastSyncedIndex ||
         selectedMainIndex != lastSyncedMainIndex;
+  }
+}
+
+/// אינדקס יעדי הסנכרון של טור מפרש אחד, לפי מספר שורת המקור.
+class CommentarySyncIndex {
+  const CommentarySyncIndex.empty() : _targets = const [];
+
+  factory CommentarySyncIndex(Iterable<Link> links) {
+    final targetBySource = <int, int>{};
+    for (final link in links) {
+      final current = targetBySource[link.index1];
+      if (current == null || link.index2 < current) {
+        targetBySource[link.index1] = link.index2;
+      }
+    }
+    final targets = [
+      for (final entry in targetBySource.entries)
+        (sourceLine: entry.key, targetLine: entry.value),
+    ]..sort((a, b) => a.sourceLine.compareTo(b.sourceLine));
+    return CommentarySyncIndex._(targets);
+  }
+
+  const CommentarySyncIndex._(this._targets);
+
+  final List<({int sourceLine, int targetLine})> _targets;
+
+  /// מחזיר יעד מבוסס אפס לפי הקישור הקודם הקרוב או לפי הראשון כשאין קודם.
+  int? targetIndexFor(int logicalMainIndex) {
+    if (_targets.isEmpty) return null;
+
+    final mainLine = logicalMainIndex + 1;
+    var low = 0;
+    var high = _targets.length;
+    while (low < high) {
+      final mid = low + (high - low) ~/ 2;
+      if (_targets[mid].sourceLine <= mainLine) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    final target = _targets[low == 0 ? 0 : low - 1];
+    return target.targetLine - 1;
   }
 }
