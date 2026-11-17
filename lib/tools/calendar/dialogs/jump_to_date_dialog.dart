@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_date_picker_panel.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 
@@ -23,10 +22,6 @@ bool isJumpToDateInRange(DateTime date) {
   return !date.isBefore(kJumpToDateFirstDate) &&
       !date.isAfter(kJumpToDateLastDate);
 }
-
-/// גובה רשת החודש בחלון "מעבר לתאריך": קטן מברירת המחדל של הבורר, כדי
-/// שהחלון לא יכסה את לוח השנה.
-const double kJumpToDatePickerHeight = 214;
 
 class JumpToDatePanel extends StatefulWidget {
   final DateTime selectedDate;
@@ -96,6 +91,7 @@ class _JumpToDatePanelState extends State<JumpToDatePanel> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        const SizedBox(height: 4),
         Listener(
           onPointerDown: _handlePointerDown,
           child: CalendarDatePickerPanel(
@@ -104,19 +100,17 @@ class _JumpToDatePanelState extends State<JumpToDatePanel> {
             firstDate: kJumpToDateFirstDate,
             lastDate: kJumpToDateLastDate,
             showHebrew: widget.showHebrew,
-            bodyHeight: kJumpToDatePickerHeight,
             onDateChanged: _onDateChanged,
           ),
         ),
-        const SizedBox(height: AppTokens.spaceSM),
+        const SizedBox(height: 12),
         Row(
-          mainAxisAlignment: MainAxisAlignment.end,
           children: [
             ActionButton.neutral(
               text: 'ביטול',
               onPressed: widget.onCancel,
             ),
-            const SizedBox(width: AppTokens.spaceSM),
+            const SizedBox(width: 8),
             ActionButton.recommended(
               text: 'פתח',
               onPressed: widget.onConfirm,

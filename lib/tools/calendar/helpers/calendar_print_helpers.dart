@@ -10,7 +10,6 @@ import 'package:otzaria/printing/shaped_text/shaper_font_scope.dart';
 import 'package:otzaria/printing/shaped_text/shaped_text_layout.dart';
 import 'package:otzaria/printing/shaped_text/shaped_text_widget.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
-import 'package:otzaria/tools/calendar/helpers/calendar_print_options.dart';
 import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 
@@ -51,18 +50,12 @@ List<CustomEvent> _eventsForDate(DateTime date, CalendarState state) {
     ..sort(compareCalendarEventsByTime);
 }
 
-/// יוצר PDF של לוח השנה עם האירועים.
-///
-/// [printedZmanim] הם זמני היום שהמשתמש בחר להדפיס (מזהי `kZmanimRegistry`).
-/// בלי ערך נקראת הבחירה השמורה ([CalendarPrintZmanimStore]); בלי בחירה שמורה
-/// משתמשים בברירת המחדל של התצוגה. סט ריק מדפיס בלי זמני יום.
+/// יוצר PDF של לוח השנה עם האירועים
 Future<Uint8List> createCalendarPdf(
   CalendarState state,
   PdfPageFormat format, {
   int count = 1,
-  Set<String>? printedZmanim,
 }) async {
-  final zmanim = printedZmanim ?? CalendarPrintZmanimStore.load();
   final primaryBytes = await _loadFont(
     'fonts/NotoSerifHebrew-VariableFont_wdth,wght.ttf',
   );
@@ -87,11 +80,11 @@ Future<Uint8List> createCalendarPdf(
 
       switch (resolveCalendarPrintLayout(state.calendarView)) {
         case CalendarPrintLayout.month:
-          await _addMonthPages(pdf, state, font, format, count, zmanim);
+          await _addMonthPages(pdf, state, font, format, count);
         case CalendarPrintLayout.week:
-          await _addWeekPages(pdf, state, font, format, count, zmanim);
+          await _addWeekPages(pdf, state, font, format, count);
         case CalendarPrintLayout.day:
-          await _addDayPages(pdf, state, font, format, count, zmanim);
+          await _addDayPages(pdf, state, font, format, count);
       }
 
       return await pdf.save();
@@ -108,21 +101,13 @@ class _CalendarText {
 
   final List<PdfShapedFont> fonts;
 
-  /// גובה שורה בגודל [fontSize], לחישוב מה נכנס בתא.
-  double lineHeight(double fontSize) => ShapedTextLayout(
-    fonts: [for (final font in fonts) font.shaper],
-    fontSize: fontSize,
-  ).lineHeight;
-
-  /// [singleLine] חותך לשורה אחת, כמו `maxLines: 1` בתאים הצרים; [maxLines]
-  /// חותך למספר שורות אחר.
+  /// [singleLine] חותך לשורה אחת, כמו `maxLines: 1` בתאים הצרים.
   pw.Widget call(
     String text,
     double fontSize, {
     PdfColor color = PdfColors.black,
     ShapedTextAlign align = ShapedTextAlign.start,
     bool singleLine = false,
-    int? maxLines,
   }) {
     // מנוע ה-bidi של ההדפסה מכיר embedding אך לא isolate.
     text = text.replaceAll('\u2066', '\u202a').replaceAll('\u2069', '\u202c');
@@ -133,10 +118,13 @@ class _CalendarText {
       color: color,
       align: align,
     );
-    final lines = singleLine ? 1 : maxLines;
-    if (lines == null) return widget;
+    if (!singleLine) return widget;
+    final lineHeight = ShapedTextLayout(
+      fonts: [for (final font in fonts) font.shaper],
+      fontSize: fontSize,
+    ).lineHeight;
     return pw.ConstrainedBox(
-      constraints: pw.BoxConstraints(maxHeight: lineHeight(fontSize) * lines),
+      constraints: pw.BoxConstraints(maxHeight: lineHeight),
       child: widget,
     );
   }
@@ -155,7 +143,6 @@ Future<void> _addMonthPages(
   _CalendarText font,
   PdfPageFormat format,
   int count,
-  Set<String>? zmanim,
 ) async {
   for (int i = 0; i < count; i++) {
     final monthState = _getStateForMonthOffset(state, i);
@@ -173,7 +160,7 @@ Future<void> _addMonthPages(
                 align: ShapedTextAlign.center,
               ),
             ),
-            pw.Expanded(child: _buildCalendarGrid(monthState, font, zmanim)),
+            pw.Expanded(child: _buildCalendarGrid(monthState, font)),
           ],
         ),
       ),
@@ -187,7 +174,6 @@ Future<void> _addWeekPages(
   _CalendarText font,
   PdfPageFormat format,
   int count,
-  Set<String>? zmanim,
 ) async {
   for (int i = 0; i < count; i++) {
     final weekState = _getStateForWeekOffset(state, i);
@@ -205,9 +191,7 @@ Future<void> _addWeekPages(
                 align: ShapedTextAlign.center,
               ),
             ),
-            // גובה אחיד לכל ימי השבוע: העמודות נמתחות לכל גובה העמוד ולא לפי
-            // תוכנן.
-            pw.Expanded(child: _buildWeekGrid(weekState, font, zmanim)),
+            _buildWeekGrid(weekState, font),
           ],
         ),
       ),
@@ -221,7 +205,6 @@ Future<void> _addDayPages(
   _CalendarText font,
   PdfPageFormat format,
   int count,
-  Set<String>? zmanim,
 ) async {
   for (int i = 0; i < count; i++) {
     final dayState = _getStateForDayOffset(state, i);
@@ -255,10 +238,7 @@ Future<void> _addDayPages(
             spacing: 12,
             runSpacing: 12,
             children: [
-              for (final (name, time)
-                  in zmanim == null
-                      ? calendarPrintedZmanim(dayState)
-                      : calendarPrintedZmanimFor(dayState, date, zmanim))
+              for (final (name, time) in calendarPrintedZmanim(dayState))
                 pw.Container(
                   width: 150,
                   padding: const pw.EdgeInsets.symmetric(
@@ -295,43 +275,15 @@ Future<void> _addDayPages(
 
 /// הזמנים שהמסך מציג ליום — שהמשתמש הפעיל ושרלוונטיים לו — בשמם העברי.
 @visibleForTesting
-List<(String, String)> calendarPrintedZmanim(CalendarState state) =>
-    _orderedZmanim(
-      date: state.selectedGregorianDate,
-      inIsrael: state.inIsrael,
-      ids: state.enabledZmanim,
-      times: state.dailyTimes,
-      twelveHourClock: state.twelveHourClock,
-    );
-
-/// זמני היום [ids] ב-[date] — אלה שהמשתמש בחר להדפיס — בשמם העברי, באותו סדר
-/// של [calendarPrintedZmanim]. הזמנים מחושבים לעיר שבמצב, ורק למזהים שנבחרו.
-@visibleForTesting
-List<(String, String)> calendarPrintedZmanimFor(
-  CalendarState state,
-  DateTime date,
-  Set<String> ids,
-) => _orderedZmanim(
-  date: date,
-  inIsrael: state.inIsrael,
-  ids: ids,
-  times: calculateDailyTimes(date, state.selectedCity, only: ids),
-  twelveHourClock: state.twelveHourClock,
-);
-
-List<(String, String)> _orderedZmanim({
-  required DateTime date,
-  required bool inIsrael,
-  required Set<String> ids,
-  required Map<String, String> times,
-  required bool twelveHourClock,
-}) {
-  final jewishCalendar = JewishCalendar.fromDateTime(date)..inIsrael = inIsrael;
+List<(String, String)> calendarPrintedZmanim(CalendarState state) {
+  final jewishCalendar = JewishCalendar.fromDateTime(
+    state.selectedGregorianDate,
+  )..inIsrael = state.inIsrael;
   final zmanim = [
     for (final def in kZmanimRegistry)
-      if (ids.contains(def.id) &&
+      if (state.enabledZmanim.contains(def.id) &&
           (def.isRelevant?.call(jewishCalendar) ?? true))
-        if (times[def.id] case final time? when time.isNotEmpty)
+        if (state.dailyTimes[def.id] case final time? when time.isNotEmpty)
           (id: def.id, name: def.fullName, time: time),
   ];
   // כמו במסך: שעות לפי הסדר הכרונולוגי, זמני תאריך אחריהן, וחצות לילה בסוף.
@@ -347,7 +299,10 @@ List<(String, String)> _orderedZmanim({
   );
   return [
     for (final z in zmanim)
-      (z.name, zmanTimeForDisplay(z.time, twelveHourClock: twelveHourClock)),
+      (
+        z.name,
+        zmanTimeForDisplay(z.time, twelveHourClock: state.twelveHourClock),
+      ),
   ];
 }
 
@@ -468,17 +423,13 @@ String _getWeekRangeText(CalendarState state) {
 
 // ─── Grid builders ─────────────────────────────────────────────────────────
 
-pw.Widget _buildCalendarGrid(
-  CalendarState state,
-  _CalendarText font,
-  Set<String>? zmanim,
-) {
+pw.Widget _buildCalendarGrid(CalendarState state, _CalendarText font) {
   final days = kHebrewDays;
 
   if (state.calendarType == CalendarType.gregorian) {
-    return _buildGregorianCalendarGrid(state, font, days, zmanim);
+    return _buildGregorianCalendarGrid(state, font, days);
   } else {
-    return _buildHebrewCalendarGrid(state, font, days, zmanim);
+    return _buildHebrewCalendarGrid(state, font, days);
   }
 }
 
@@ -486,7 +437,6 @@ pw.Widget _buildGregorianCalendarGrid(
   CalendarState state,
   _CalendarText font,
   List<String> days,
-  Set<String>? zmanim,
 ) {
   final current = state.currentGregorianDate;
   final firstDay = DateTime(current.year, current.month, 1);
@@ -509,7 +459,6 @@ pw.Widget _buildGregorianCalendarGrid(
         events,
         font,
         jewishEvents: jewishEvents,
-        zmanim: _cellZmanim(state, date, zmanim),
       ),
     );
   }
@@ -521,7 +470,6 @@ pw.Widget _buildHebrewCalendarGrid(
   CalendarState state,
   _CalendarText font,
   List<String> days,
-  Set<String>? zmanim,
 ) {
   final currentJd = state.currentJewishDate;
   final daysInMonth = currentJd.getDaysInJewishMonth();
@@ -550,20 +498,12 @@ pw.Widget _buildHebrewCalendarGrid(
         events,
         font,
         jewishEvents: jewishEvents,
-        zmanim: _cellZmanim(state, date, zmanim),
       ),
     );
   }
 
   return _buildGridFromCells(cells, days, font);
 }
-
-/// הזמנים שנבחרו ליום, לתא בחודש; ריק כשלא נבחר דבר.
-List<(String, String)> _cellZmanim(
-  CalendarState state,
-  DateTime date,
-  Set<String>? ids,
-) => ids == null ? const [] : calendarPrintedZmanimFor(state, date, ids);
 
 pw.Widget _buildGridFromCells(
   List<pw.Widget> cells,
@@ -612,77 +552,34 @@ pw.Widget _buildDayCellPdf(
   List<CustomEvent> events,
   _CalendarText font, {
   List<String> jewishEvents = const [],
-  List<(String, String)> zmanim = const [],
 }) {
-  const padding = 4.0;
-  pw.Widget header() => pw.Row(
-    children: [
-      pw.Expanded(child: font(secondaryLabel, 8, color: PdfColors.grey600)),
-      pw.Expanded(child: font(primaryLabel, 11, align: ShapedTextAlign.end)),
-    ],
-  );
-  List<pw.Widget> fixedLines() => [
-    for (final je in jewishEvents) font(je, 7, singleLine: true),
-    for (final event in events.take(2))
-      font('• ${event.title}', 7, singleLine: true),
-  ];
-  pw.Widget frame(List<pw.Widget> children) => pw.Container(
-    padding: const pw.EdgeInsets.all(padding),
+  return pw.Container(
+    padding: const pw.EdgeInsets.all(4),
     decoration: pw.BoxDecoration(
       border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
     ),
     child: pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.end,
-      children: children,
+      children: [
+        pw.Row(
+          children: [
+            pw.Expanded(
+              child: font(secondaryLabel, 8, color: PdfColors.grey600),
+            ),
+            pw.Expanded(
+              child: font(primaryLabel, 11, align: ShapedTextAlign.end),
+            ),
+          ],
+        ),
+        for (final je in jewishEvents) font(je, 7, singleLine: true),
+        for (final event in events.take(2))
+          font('• ${event.title}', 7, singleLine: true),
+      ],
     ),
-  );
-
-  if (zmanim.isEmpty) return frame([header(), ...fixedLines()]);
-
-  // הזמנים באים אחרי החגים והאירועים, ורק כמה שנכנס בתא: בעמוד לרוחב התאים
-  // נמוכים, ושעה שנחתכת באמצע שורה גרועה משעה שלא הודפסה.
-  return pw.LayoutBuilder(
-    builder: (context, constraints) {
-      final height = constraints?.maxHeight ?? double.infinity;
-      var left =
-          height -
-          2 * padding -
-          font.lineHeight(11) -
-          font.lineHeight(7) * (jewishEvents.length + events.take(2).length);
-      final zmanHeight = font.lineHeight(6.5) * 2 + font.lineHeight(7.5);
-      final lines = <pw.Widget>[];
-      for (final (name, time) in zmanim) {
-        if (left < zmanHeight) break;
-        left -= zmanHeight;
-        lines.add(_zmanCellLines(font, name, time, maxNameLines: 2));
-      }
-      return frame([header(), ...fixedLines(), ...lines]);
-    },
   );
 }
 
-/// זמן יום בתא: השם בשורה או שתיים, והשעה מתחתיו.
-pw.Widget _zmanCellLines(
-  _CalendarText font,
-  String name,
-  String time, {
-  int? maxNameLines,
-}) => pw.Padding(
-  padding: const pw.EdgeInsets.only(top: 1),
-  child: pw.Column(
-    crossAxisAlignment: pw.CrossAxisAlignment.end,
-    children: [
-      font(name, 6.5, color: PdfColors.grey700, maxLines: maxNameLines),
-      font(time, 7.5, color: PdfColors.blue800),
-    ],
-  ),
-);
-
-pw.Widget _buildWeekGrid(
-  CalendarState state,
-  _CalendarText font,
-  Set<String>? zmanim,
-) {
+pw.Widget _buildWeekGrid(CalendarState state, _CalendarText font) {
   final startDate = addCalendarDays(
     state.selectedGregorianDate,
     -(state.selectedGregorianDate.weekday % 7),
@@ -690,15 +587,10 @@ pw.Widget _buildWeekGrid(
   final days = List.generate(7, (i) => addCalendarDays(startDate, i));
 
   return pw.Row(
-    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+    crossAxisAlignment: pw.CrossAxisAlignment.start,
     children: days.map((date) {
       final jd = JewishDate.fromDateTime(date);
-      final dailyTimes = zmanim == null
-          ? calculateDailyTimes(date, state.selectedCity)
-          : const <String, String>{};
-      final chosen = zmanim == null
-          ? const <(String, String)>[]
-          : calendarPrintedZmanimFor(state, date, zmanim);
+      final dailyTimes = calculateDailyTimes(date, state.selectedCity);
       String display(String time) =>
           zmanTimeForDisplay(time, twelveHourClock: state.twelveHourClock);
       final events = _eventsForDate(date, state);
@@ -724,9 +616,6 @@ pw.Widget _buildWeekGrid(
                 font('שקיעה ${display(sunset)}', 7, color: PdfColors.blue800),
               if (dailyTimes['sunrise'] != null || dailyTimes['sunset'] != null)
                 pw.SizedBox(height: 4),
-              for (final (name, time) in chosen)
-                _zmanCellLines(font, name, time),
-              if (chosen.isNotEmpty) pw.SizedBox(height: 4),
               for (final event in events.take(3))
                 font('• ${event.title}', 7, singleLine: true),
             ],

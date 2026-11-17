@@ -113,16 +113,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.byType(NavPanelPinButton), findsOneWidget);
-    await tester.tap(find.byTooltip('נעץ את החלונית'));
-    await tester.pump();
-    tester.view.physicalSize = const Size(450, 1000);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(find.byTooltip('בטל נעיצה'), findsOneWidget);
-    await tester.tap(find.byTooltip('בטל נעיצה'));
-    await tester.pump();
-    expect(find.byTooltip('נעץ את החלונית'), findsNothing);
-    expect(tab.pinLeftPane.value, isFalse);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 200));

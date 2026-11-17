@@ -78,11 +78,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsetsDirectional.only(
-        top: AppTokens.spaceSM,
-        bottom: AppTokens.spaceSM,
-        end: AppTokens.spaceSMD,
-      ),
+      padding: const EdgeInsetsDirectional.only(top: 8, bottom: 8, end: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -177,7 +173,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
       children: [
         for (final event in events)
           Padding(
-            padding: const EdgeInsets.only(bottom: AppTokens.listItemGap),
+            padding: const EdgeInsets.only(bottom: 8),
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final width = constraints.maxWidth;
@@ -216,7 +212,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                         existingEvent: event,
                       ),
                     ),
-                    const SizedBox(width: AppTokens.spaceSM),
+                    const SizedBox(width: 6),
                     deleteAction,
                   ],
                 );
@@ -255,9 +251,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                           if (event.googleEventId != null &&
                               event.googleEventId!.isNotEmpty)
                             Padding(
-                              padding: const EdgeInsetsDirectional.only(
-                                start: AppTokens.spaceXS,
-                              ),
+                              padding: const EdgeInsets.only(right: 4),
                               child: Icon(
                                 FluentIcons.arrow_sync_24_regular,
                                 size: AppTokens.iconXS,
@@ -306,7 +300,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: AppTokens.spaceSM),
+                    const SizedBox(height: 6),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
@@ -346,7 +340,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                 );
 
                 return AppCard(
-                  padding: AppTokens.cardPadding,
+                  padding: const EdgeInsets.all(12),
                   onTap: () => cubit.jumpToDate(
                     event.nextOccurrenceFrom(cubit.state.selectedGregorianDate),
                   ),

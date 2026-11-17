@@ -132,15 +132,7 @@ class LibrarySettingsTab extends StatefulWidget {
       subtitle: 'צירוף קובצי מסד בפורמט של ספריית אוצריא',
       tab: SettingsTab.library,
       cardId: 'library.attached_libraries',
-      keywords: [
-        'מסד',
-        'מסדים',
-        'db',
-        'צירוף',
-        'הוספה',
-        'ייבוא',
-        'ספרים אישיים',
-      ],
+      keywords: ['מסד', 'מסדים', 'db', 'צירוף', 'ייבוא', 'ספרים אישיים'],
     ),
     SettingsSearchEntry(
       id: 'library.android_storage',

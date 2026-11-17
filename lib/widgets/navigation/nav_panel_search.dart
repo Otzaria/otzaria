@@ -215,7 +215,8 @@ class NavPanelPaneWidthScope extends InheritedWidget {
 
   @override
   bool updateShouldNotify(NavPanelPaneWidthScope oldWidget) =>
-      oldWidget.width != width;
+      (oldWidget.width >= kNavPanelWideMinWidth) !=
+      (width >= kNavPanelWideMinWidth);
 }
 
 /// מסמן את אינדקס הלשונית שבתוכה יושב התוכן. עוטף כל child של ה-TabBarView

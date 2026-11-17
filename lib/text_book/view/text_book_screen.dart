@@ -116,10 +116,6 @@ import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 
-/// המקום המינימלי לתוכן הספר כדי שחלונית הניווט תידחק ליד התוכן. מתחת לזה
-/// היא נפתחת כ-overlay, ואין טעם בכפתור נעיצה.
-const double _kNavMinMainContentWidth = 520;
-
 // קבועים למצבי תצוגה (למניעת magic strings)
 const String _viewModeSplit = 'split';
 const String _viewModeBelow = 'below';
@@ -1099,13 +1095,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             compact: AppDensity.of(context).isCompact,
           ),
         ),
-        if (state.showLeftPane &&
-            (state.pinLeftPane ||
-                NavSidePanel.canPin(
-                  context,
-                  paneWidth: _sidebarWidth.value,
-                  minMainContentWidth: _kNavMinMainContentWidth,
-                )))
+        if (state.showLeftPane && NavPanelSearch.isWide(context))
           AppTopBarItem(
             widget: NavPanelPinButton(
               isPinned: state.pinLeftPane,
@@ -2319,7 +2309,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           Settings.getValue<bool>(SettingsRepository.keyPinSidebar) ?? false,
       alignment: AlignmentDirectional.centerEnd,
       paneWidth: _sidebarWidth.value,
-      minMainContentWidth: _kNavMinMainContentWidth,
+      minMainContentWidth: 520,
       onClose: () =>
           context.read<TextBookBloc>().add(const ToggleLeftPane(false)),
       paneContent: NavPanelSearchScope(

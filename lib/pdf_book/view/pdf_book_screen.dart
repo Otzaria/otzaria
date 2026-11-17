@@ -515,10 +515,6 @@ List<AppContextMenuEntry> buildPdfContextMenuEntries({
 /// מרווח השדרה בין שני עמודי הכפולה, ביחידות נקודות העמוד.
 const double kBookViewSpineGap = 6.0;
 
-/// המקום המינימלי לקורא כדי שחלונית הניווט תידחק ליד התוכן. מתחת לזה היא
-/// נפתחת כ-overlay, ואין טעם בכפתור נעיצה.
-const double _kNavMinMainContentWidth = 200;
-
 /// פריסת הכפולות בתצוגת ספר, ביחידות נקודות העמוד.
 ///
 /// קנה המידה הוא 1 במכוון: מלבן עמוד קטן מגודלו בנקודות גורם ל-pdfrx לרנדר
@@ -4705,37 +4701,25 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       child: Scaffold(
         body: Column(
           children: [
-            ListenableBuilder(
-              listenable: Listenable.merge([
-                widget.tab.showLeftPane,
-                widget.tab.pinLeftPane,
-              ]),
-              builder: (context, _) {
-                final showLeftPane = widget.tab.showLeftPane.value;
-                final isPinned = widget.tab.pinLeftPane.value;
-                return AppTopBar(
-                  minCenterWidth: ReaderNavCenter.minTitleWidth,
-                  leadingItems: [
-                    AppTopBarItem(
-                      widget: NavPanelToggleButton(
-                        key: TourTargetsScope.enabledOf(context)
-                            ? TourTargetKeys.of(context).pdfBookNavigation
-                            : null,
-                        isOpen: showLeftPane,
-                        onToggle: () => _setLeftPaneVisibility(!showLeftPane),
-                      ),
+            ValueListenableBuilder<bool>(
+              valueListenable: widget.tab.showLeftPane,
+              builder: (context, showLeftPane, _) => AppTopBar(
+                minCenterWidth: ReaderNavCenter.minTitleWidth,
+                leadingItems: [
+                  AppTopBarItem(
+                    widget: NavPanelToggleButton(
+                      key: TourTargetsScope.enabledOf(context)
+                          ? TourTargetKeys.of(context).pdfBookNavigation
+                          : null,
+                      isOpen: showLeftPane,
+                      onToggle: () => _setLeftPaneVisibility(!showLeftPane),
                     ),
-                    if (showLeftPane &&
-                        (isPinned ||
-                            NavSidePanel.canPin(
-                              context,
-                              paneWidth: _bloc.state is PdfBookLoaded
-                                  ? (_bloc.state as PdfBookLoaded).sidebarWidth
-                                  : 300.0,
-                              minMainContentWidth: _kNavMinMainContentWidth,
-                            )))
-                      AppTopBarItem(
-                        widget: NavPanelPinButton(
+                  ),
+                  if (showLeftPane && NavPanelSearch.isWide(context))
+                    AppTopBarItem(
+                      widget: ValueListenableBuilder<bool>(
+                        valueListenable: widget.tab.pinLeftPane,
+                        builder: (context, isPinned, _) => NavPanelPinButton(
                           isPinned: isPinned,
                           isGloballyPinned:
                               Settings.getValue<bool>(
@@ -4746,17 +4730,17 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                               widget.tab.pinLeftPane.value = !isPinned,
                         ),
                       ),
-                    AppTopBarItem(widget: _buildHistoryBackButton()),
-                  ],
-                  center: _buildPdfCenter(context),
-                  trailingItems: [
-                    AppTopBarItem(
-                      flexible: true,
-                      widget: _buildPdfActions(),
                     ),
-                  ],
-                );
-              },
+                  AppTopBarItem(widget: _buildHistoryBackButton()),
+                ],
+                center: _buildPdfCenter(context),
+                trailingItems: [
+                  AppTopBarItem(
+                    flexible: true,
+                    widget: _buildPdfActions(),
+                  ),
+                ],
+              ),
             ),
             // עמודי התאמה ממנוע חיפוש חיצוני (תוסף): סרגל ניווט בין המופעים.
             PdfExternalMatchesBar(
@@ -4807,7 +4791,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                           false,
                       alignment: AlignmentDirectional.centerEnd,
                       paneWidth: leftPaneWidth,
-                      minMainContentWidth: _kNavMinMainContentWidth,
+                      minMainContentWidth: 200,
                       onClose: () => _setLeftPaneVisibility(false),
                       isResizable: true,
                       minPaneWidth: 200,

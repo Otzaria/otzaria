@@ -27,16 +27,12 @@ class AppInfoBanner extends StatelessWidget {
   final IconData? icon;
   final AppInfoBannerTone tone;
 
-  /// ממורכז את הכותרת וההודעה בתוך הבאנר. האייקון נשאר בצד ההתחלה.
-  final bool centerText;
-
   const AppInfoBanner({
     super.key,
     required this.message,
     this.title,
     this.icon,
     this.tone = AppInfoBannerTone.info,
-    this.centerText = false,
   });
 
   static const double _iconSize = 18;
@@ -103,14 +99,11 @@ class AppInfoBanner extends StatelessWidget {
             const SizedBox(width: AppTokens.spaceSM),
             Expanded(
               child: Column(
-                crossAxisAlignment: centerText
-                    ? CrossAxisAlignment.center
-                    : CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (title != null) ...[
                     Text(
                       title!,
-                      textAlign: centerText ? TextAlign.center : null,
                       style: textTheme.titleSmall?.copyWith(
                         color: colors.foreground,
                       ),
@@ -119,7 +112,6 @@ class AppInfoBanner extends StatelessWidget {
                   ],
                   Text(
                     message,
-                    textAlign: centerText ? TextAlign.center : null,
                     style: textTheme.bodyMedium?.copyWith(
                       color: colors.foreground,
                     ),

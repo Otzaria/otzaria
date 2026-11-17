@@ -349,11 +349,7 @@ class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
             onPressed: state.isBusy ? null : _addFolder,
           ),
         ActionButton.recommended(
-          // בדסקטופ הקובץ רק מצורף ונקרא במקומו (המקור חייב להישאר), ולכן
-          // "הוסף". במובייל הוא מועתק לתיקיית התוכנה והמקור אפשר למחוק — "ייבא".
-          text: context.settingsText(
-            widget.supportsLinking ? 'הוסף קובץ מסד' : 'ייבא קובץ מסד',
-          ),
+          text: context.settingsText('ייבא קובץ מסד'),
           icon: FluentIcons.database_arrow_down_20_regular,
           onPressed: state.isBusy ? null : _importFile,
           isLoading: state.isBusy,

@@ -28,6 +28,9 @@
       ],
       "lib/tools/calendar/dialogs/zmanim_settings_dialog.dart": [
         {"scope":"_ZmanInfoButton.build","fp":"5ba189c4","n":1}
+      ],
+      "lib/tools/calendar/widgets/calendar_day_cell.dart": [
+        {"scope":"_HoverableDayCellState._buildAddButton","fp":"65815792","n":1}
       ]
     },
     "UIL-012": {
@@ -423,6 +426,9 @@
         {"scope":"LayoutFixSuggestionBanner.build","fp":"a7c1dfe6","n":1},
         {"scope":"LayoutFixSuggestionBanner.build","fp":"a8c1e179","n":1}
       ],
+      "lib/search/view/search_dialog.dart": [
+        {"scope":"_SearchDialogState._buildHistoryDropdown","fp":"a9c1e30c","n":1}
+      ],
       "lib/search/view/search_result_rank_badge.dart": [
         {"scope":"SearchResultRankBadge.build","fp":"503c9e50","n":1}
       ],
@@ -505,6 +511,11 @@
       "lib/text_book/view/page_shape/page_shape_screen.dart": [
         {"scope":"_CommentaryPaneState.build","fp":"a9c1e30c","n":1},
         {"scope":"_PageShapeScreenState._rotatedLabel","fp":"a9c1e30c","n":1}
+      ],
+      "lib/text_book/view/page_shape/page_shape_settings_panel.dart": [
+        {"scope":"_PageShapeSettingsPanelState._buildCommentatorDropdown","fp":"aac1e49f","n":1},
+        {"scope":"_PageShapeSettingsPanelState.build","fp":"a7c1dfe6","n":1},
+        {"scope":"_PageShapeSettingsPanelState.build","fp":"aac1e49f","n":1}
       ],
       "lib/text_book/view/page_shape/simple_text_viewer.dart": [
         {"scope":"_SimpleTextViewerState.build","fp":"a9c1e30c","n":1}
@@ -675,6 +686,9 @@
         {"scope":"_CustomTitleBarState._buildTab","fp":"2a12a6e2","n":1},
         {"scope":"_CustomTitleBarState._buildTab","fp":"b15ad5e4","n":1}
       ],
+      "lib/navigation/view/tab_search_menu.dart": [
+        {"scope":"_TabRow.build","fp":"49ed4e0e","n":1}
+      ],
       "lib/navigation/view/vertical_reading_tab_strip.dart": [
         {"scope":"_VerticalTabRow.build","fp":"d1a84c0b","n":1}
       ],
@@ -763,6 +777,11 @@
         {"scope":"_RegularReportTabState._buildDictaSelfEditBanner","fp":"2797d389","n":1},
         {"scope":"_RegularReportTabState.build","fp":"3bee9d82","n":1}
       ],
+      "lib/text_book/view/page_shape/page_shape_settings_panel.dart": [
+        {"scope":"_PageShapeSettingsPanelState.build","fp":"06da8626","n":1},
+        {"scope":"_PageShapeSettingsPanelState.build","fp":"088adf84","n":2},
+        {"scope":"_PageShapeSettingsPanelState.build","fp":"d1a84c0b","n":1}
+      ],
       "lib/text_book/view/text_book_export_dialog.dart": [
         {"scope":"showTextBookExportDialog","fp":"06da8626","n":1}
       ],
@@ -783,6 +802,14 @@
         {"scope":"_CategoryHeader.build","fp":"ee455faf","n":1},
         {"scope":"_ZmanInfoButton.build","fp":"05d6e3d9","n":1},
         {"scope":"_ZmanTableRow.build","fp":"fefc72b0","n":1}
+      ],
+      "lib/tools/calendar/widgets/calendar_date_picker_panel.dart": [
+        {"scope":"_DateCell.build","fp":"8b836092","n":1}
+      ],
+      "lib/tools/calendar/widgets/calendar_events_panel.dart": [
+        {"scope":"_CalendarEventsPanelState._buildEventsList","fp":"06da8626","n":1},
+        {"scope":"_CalendarEventsPanelState._buildEventsList","fp":"d1a84c0b","n":1},
+        {"scope":"_CalendarEventsPanelState.build","fp":"de1701d4","n":1}
       ],
       "lib/tools/calendar/widgets/calendar_main_panel.dart": [
         {"scope":"CalendarMainPanel._buildDayNamesRow","fp":"66ff54ff","n":1}
@@ -946,6 +973,12 @@
       "lib/tools/calendar/dialogs/calendar_event_dialog.dart": [
         {"scope":"_AnchoredMenuState._buildOverlay","fp":"b6ab0503","n":1}
       ],
+      "lib/tools/calendar/widgets/calendar_events_panel.dart": [
+        {"scope":"_CalendarEventsPanelState._buildEventsList","fp":"1994fc68","n":1}
+      ],
+      "lib/tools/calendar/widgets/calendar_top_bar.dart": [
+        {"scope":"_CalendarTopBarState._buildDialogOverlay","fp":"d93bf8f3","n":1}
+      ],
       "lib/tools/shamor_zachor/screens/book_detail_screen.dart": [
         {"scope":"_BookDetailScreenState._buildFlatItemsSliver","fp":"21394ca9","n":1},
         {"scope":"_BookDetailScreenState._buildHeader","fp":"dcae0fb1","n":1},
@@ -1082,6 +1115,9 @@
         {"scope":"MainWindowScreenState._handleSearchTabOpen","fp":"3e6ca19c","n":1},
         {"scope":"MainWindowScreenState._showPluginInstallDialog","fp":"3e6ca19c","n":2}
       ],
+      "lib/navigation/view/tab_search_menu.dart": [
+        {"scope":"_TabSearchPanelState._openHistory","fp":"3e6ca19c","n":1}
+      ],
       "lib/pdf_book/view/pdf_book_screen.dart": [
         {"scope":"_PdfBookScreenState._handlePrintPress","fp":"3e6ca19c","n":1}
       ],
@@ -1185,6 +1221,11 @@
       "lib/navigation/view/tab_context_menu.dart": [
         {"scope":"_openTabsMenuEntries","fp":"87f04357","n":1}
       ],
+      "lib/navigation/view/tab_search_menu.dart": [
+        {"scope":"_HistoryFooter.build","fp":"89f0467d","n":1},
+        {"scope":"_SectionHeader.build","fp":"87f04357","n":1},
+        {"scope":"_TabRow.build","fp":"87f04357","n":1}
+      ],
       "lib/navigation/view/vertical_reading_tab_strip.dart": [
         {"scope":"_VerticalTabRow._buildCloseButton","fp":"0b3cb486","n":1}
       ],
@@ -1279,6 +1320,15 @@
       ],
       "lib/shortcuts/view/custom_shortcut_dialog.dart": [
         {"scope":"_CustomShortcutDialogState.build","fp":"fdf7b8de","n":1}
+      ],
+      "lib/text_book/view/page_shape/page_shape_settings_panel.dart": [
+        {"scope":"_PageShapeSettingsPanelState._buildCommentatorDropdown","fp":"f1e89b70","n":1},
+        {"scope":"_PageShapeSettingsPanelState._buildDisplaySettingsIcon","fp":"f1e89b70","n":2},
+        {"scope":"_PageShapeSettingsPanelState.build","fp":"89f0467d","n":1},
+        {"scope":"_PageShapeSettingsPanelState.build","fp":"f1e89b70","n":1}
+      ],
+      "lib/text_display/view/text_display_bar_button.dart": [
+        {"scope":"TextDisplayPopupPanel.build","fp":"f1e89b70","n":1}
       ],
       "lib/tools/calendar/widgets/calendar_top_bar.dart": [
         {"scope":"_CalendarTopBarState._buildGoogleSyncStatus","fp":"87f04357","n":1}
