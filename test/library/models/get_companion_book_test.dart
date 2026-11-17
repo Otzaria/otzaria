@@ -19,6 +19,48 @@ Category _category(String title, {Category? parent}) {
 }
 
 void main() {
+  test('companion traversal preserves nested order and normalized titles', () {
+    final root = _category('ספרים');
+    final nested = _category('תת תיקייה', parent: root);
+    final leaf = _category('עמוקה', parent: nested);
+    final sibling = _category('אחרים');
+    final library = Library(categories: [root, sibling]);
+    final source = TextBook(title: 'ספר חדש');
+    final atRoot = PdfBook(title: 'ספר חדש', path: 'root.pdf');
+    final atCategory = PdfBook(title: '<ספר> חדש', path: 'category.pdf');
+    final atNested = PdfBook(title: 'ספר  חדש', path: 'nested.pdf');
+    final atLeaf = PdfBook(title: 'ספר ״חדש״', path: 'leaf.pdf');
+    final atSibling = PdfBook(title: 'ספר חדש', path: 'sibling.pdf');
+    library.books.add(atRoot);
+    root.books.addAll([
+      TextBook(title: 'ספר חדש'),
+      PdfBook(title: 'ספר אחר', path: 'other.pdf'),
+      atCategory,
+    ]);
+    nested.books.add(atNested);
+    leaf.books.add(atLeaf);
+    sibling.books.add(atSibling);
+    library.offTreeBooks = [PdfBook(title: 'ספר חדש', path: 'off-tree.pdf')];
+
+    expect(library.getCompanionBooks(source, PdfBook), [
+      atRoot,
+      atCategory,
+      atNested,
+      atLeaf,
+      atSibling,
+    ]);
+    expect(library.getCompanionBooks(TextBook(title: 'חסר'), PdfBook), isEmpty);
+    expect(library.getCompanionBooks(source, FileBook), isEmpty);
+
+    nested.books.remove(atNested);
+    expect(library.getCompanionBooks(source, PdfBook), [
+      atRoot,
+      atCategory,
+      atLeaf,
+      atSibling,
+    ]);
+  });
+
   // הבחנה זו היא הבסיס לפתיחת מסכת בבלי כ-PDF ב-find_ref: ספר המקור מזוהה
   // בעץ לפי id ומועבר עם צומת הקטגוריה שלו, כדי ש-getCompanionBook לא יבחר
   // שרירותית בין שני ספרים בעלי אותה כותרת.
