@@ -153,8 +153,8 @@ class IndexingRepository {
   static IndexCommitPolicy Function() newCommitPolicy = IndexCommitPolicy.new;
 
   @visibleForTesting
-  static Future<BookSourceHashes> Function({Iterable<String> attachedSlugs})
-  loadSourceHashes = BookSourceHashes.load;
+  static Future<BookSourceHashes> Function(Iterable<Book> books)
+  loadSourceHashes = BookSourceHashes.loadForBooks;
 
   @visibleForTesting
   static Future<BigInt> Function({required List<int> text}) contentFingerprint =
@@ -833,9 +833,7 @@ class IndexingRepository {
             ? 0
             : PdfExtractionPrefetcher.defaultMaxInFlight,
       );
-      final sourceHashes = await loadSourceHashes(
-        attachedSlugs: [for (final book in allBooks) ?_attachedSlug(book)],
-      );
+      final sourceHashes = await loadSourceHashes(allBooks);
       await Future.wait([
         GenerationCache.instance.warmUp(),
         ReferenceBooksCache.instance.warmUp(),
@@ -2293,17 +2291,8 @@ class IndexingRepository {
 
   /// חותם התוכן של המסד לספר שנקרא מהמסד (רשמי או מצורף); null לכל השאר.
   static BigInt? _dbSourceHash(Book book, BookSourceHashes hashes) {
-    final id = book.id;
-    if (book is! TextBook || id == null) return null;
-    if (book.filePath?.trim().isNotEmpty ?? false) return null;
-    final key = BookIdentity.indexedFilePath(book);
-    final fromDb = switch (book.source) {
-      OfficialBookSource() => key == BookIdentity.officialBookKey(id),
-      AttachedBookSource(:final slug) =>
-        key == BookIdentity.attachedBookKey(slug, id),
-      _ => false,
-    };
-    return fromDb ? hashes.forSource(book.source, id) : null;
+    final id = BookSourceHashes.sourceBookId(book);
+    return id == null ? null : hashes.forSource(book.source, id);
   }
 
   /// סדר הקטלוג והדורות של כל ספר בר-אינדוקס בעץ [library], לפי מפתח האינדקס.
@@ -2922,12 +2911,7 @@ class StampChangeDetector implements IndexChangeDetector {
     ]);
     final sourceHashes =
         await (_loadSourceHashes?.call(indexed) ??
-            IndexingRepository.loadSourceHashes(
-              attachedSlugs: [
-                for (final book in indexed)
-                  ?IndexingRepository._attachedSlug(book),
-              ],
-            ));
+            IndexingRepository.loadSourceHashes(indexed));
 
     final total = indexed.length;
     onProgress?.call(0, total);

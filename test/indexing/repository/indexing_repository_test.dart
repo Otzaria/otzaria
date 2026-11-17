@@ -1913,7 +1913,7 @@ void main() {
 
   group('כתיבה עם חותם המסד', () {
     tearDown(
-      () => IndexingRepository.loadSourceHashes = BookSourceHashes.load,
+      () => IndexingRepository.loadSourceHashes = BookSourceHashes.loadForBooks,
     );
 
     test('ספר רשמי וסמן ריק נכתבים עם book.contentHash של המסד', () async {
@@ -1922,9 +1922,10 @@ void main() {
       final withText = TextBook(id: 5, title: 'שבת');
       final empty = TextBook(id: 6, title: 'ריק');
       final personal = TextBook(id: 7, title: 'אישי', source: BookSource.user);
-      IndexingRepository.loadSourceHashes =
-          ({attachedSlugs = const []}) async =>
-              BookSourceHashes({5: BigInt.from(50), 6: BigInt.from(60)}, {});
+      IndexingRepository.loadSourceHashes = (books) async {
+        expect(books.map((book) => book.id), containsAll([5, 6, 7]));
+        return BookSourceHashes({5: BigInt.from(50), 6: BigInt.from(60)}, {});
+      };
       final repository = _FakeExtractionRepository(provider)
         ..textFailureByTitle.clear();
       final library = Library(categories: [])
