@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,6 +7,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/library/models/library_navigation_history.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
@@ -36,7 +40,10 @@ import 'package:provider/provider.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 
 class _MockLibraryBloc extends MockBloc<LibraryEvent, LibraryState>
-    implements LibraryBloc {}
+    implements LibraryBloc {
+  @override
+  final navigationHistory = LibraryNavigationHistory();
+}
 
 class _MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
     implements SettingsBloc {}
@@ -63,6 +70,7 @@ class _StubCalendarCubit extends Cubit<CalendarState> implements CalendarCubit {
 
 class _Harness {
   final libraryBloc = _MockLibraryBloc();
+  final libraryStates = StreamController<LibraryState>.broadcast();
   final navigationBloc = _MockNavigationBloc();
   final tabsBloc = _MockTabsBloc();
   final historyBloc = _MockHistoryBloc();
@@ -78,6 +86,8 @@ Future<_Harness> _pumpBrowser(
   required List<Book> books,
   required String viewMode,
   List<OpenedTab> openTabs = const [],
+  List<Book>? searchResults,
+  bool previewEnabled = false,
 }) async {
   final h = _Harness();
   final library = Library(categories: [])..books.addAll(books);
@@ -87,15 +97,19 @@ Future<_Harness> _pumpBrowser(
 
   whenListen(
     h.libraryBloc,
-    const Stream<LibraryState>.empty(),
-    initialState: LibraryState(library: library, currentCategory: library),
+    h.libraryStates.stream,
+    initialState: LibraryState(
+      library: library,
+      currentCategory: library,
+      searchResults: searchResults,
+    ),
   );
   whenListen(
     settingsBloc,
     const Stream<SettingsState>.empty(),
     initialState: SettingsState.initial().copyWith(
       libraryViewMode: viewMode,
-      libraryShowPreview: false,
+      libraryShowPreview: previewEnabled,
     ),
   );
   whenListen(
@@ -124,6 +138,7 @@ Future<_Harness> _pumpBrowser(
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox.shrink());
     tester.view.reset();
+    await h.libraryStates.close();
     await settingsBloc.close();
     await h.navigationBloc.close();
     await libraryUpdateBloc.close();
@@ -133,24 +148,24 @@ Future<_Harness> _pumpBrowser(
   });
 
   await tester.pumpWidget(
-    MaterialApp(
-      builder: (context, child) =>
-          Directionality(textDirection: TextDirection.rtl, child: child!),
-      home: MultiProvider(
-        providers: [
-          Provider<FocusRepository>.value(value: FocusRepository()),
-          BlocProvider<LibraryBloc>(create: (_) => h.libraryBloc),
-          BlocProvider<SettingsBloc>.value(value: settingsBloc),
-          BlocProvider<NavigationBloc>.value(value: h.navigationBloc),
-          BlocProvider<LibraryUpdateBloc>.value(value: libraryUpdateBloc),
-          BlocProvider<CalendarCubit>.value(value: calendarCubit),
-          BlocProvider<TabsBloc>.value(value: h.tabsBloc),
-          BlocProvider<HistoryBloc>.value(value: h.historyBloc),
-          BlocProvider<CustomFoldersBloc>(
-            create: (_) => CustomFoldersBloc(addLibraryEvent: (_) {}),
-          ),
-        ],
-        child: const LibraryBrowser(),
+    MultiProvider(
+      providers: [
+        Provider<FocusRepository>.value(value: FocusRepository()),
+        BlocProvider<LibraryBloc>(create: (_) => h.libraryBloc),
+        BlocProvider<SettingsBloc>.value(value: settingsBloc),
+        BlocProvider<NavigationBloc>.value(value: h.navigationBloc),
+        BlocProvider<LibraryUpdateBloc>.value(value: libraryUpdateBloc),
+        BlocProvider<CalendarCubit>.value(value: calendarCubit),
+        BlocProvider<TabsBloc>.value(value: h.tabsBloc),
+        BlocProvider<HistoryBloc>.value(value: h.historyBloc),
+        BlocProvider<CustomFoldersBloc>(
+          create: (_) => CustomFoldersBloc(addLibraryEvent: (_) {}),
+        ),
+      ],
+      child: MaterialApp(
+        builder: (context, child) =>
+            Directionality(textDirection: TextDirection.rtl, child: child!),
+        home: const LibraryBrowser(),
       ),
     ),
   );
@@ -294,6 +309,328 @@ void main() {
         },
       );
 
+      for (final modifier in [
+        LogicalKeyboardKey.controlLeft,
+        LogicalKeyboardKey.metaLeft,
+      ]) {
+        for (final key in [
+          LogicalKeyboardKey.enter,
+          LogicalKeyboardKey.numpadEnter,
+          LogicalKeyboardKey.space,
+        ]) {
+          testWidgets(
+            '${modifier.keyLabel}+לחיצה, שחרור, Esc ואז ${key.keyLabel} '
+            'פותח מיד בלי להשתמש במקשי העכבר',
+            (tester) async {
+              final h = await _pumpBrowser(
+                tester,
+                books: books,
+                viewMode: mode,
+              );
+              await _tapWith(tester, find.text('ספר ב'), holding: modifier);
+              expect(find.text('ספר אחד נבחר'), findsOneWidget);
+              Focus.of(tester.element(find.text('ספר ב'))).requestFocus();
+              await tester.pump();
+              await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+              await tester.pump();
+              expect(find.text('ספר אחד נבחר'), findsNothing);
+
+              await tester.sendKeyEvent(key);
+              await tester.pump();
+              expect(find.text('ספר אחד נבחר'), findsNothing);
+              expect(h.openedTitles(), ['ספר ב']);
+            },
+          );
+        }
+      }
+
+      testWidgets('רענון עץ משמר PDF מקומי מתוצאות חיפוש ומחליף מופעי ספרים', (
+        tester,
+      ) async {
+        final local = PdfBook(
+          title: 'היברובוקס מקומי',
+          path: '/books/hb.pdf',
+          externalLibraryId: 'hb:77',
+        );
+        final replacement = PdfBook(
+          title: local.title,
+          path: local.path,
+          externalLibraryId: local.externalLibraryId,
+        );
+        DataRepository.instance.localHebrewBooks = Future.value([replacement]);
+        addTearDown(DataRepository.instance.invalidateHebrewBooksCache);
+        final h = await _pumpBrowser(
+          tester,
+          books: books,
+          viewMode: mode,
+          searchResults: [local, books.first],
+        );
+        await _tapWith(
+          tester,
+          find.text(local.title),
+          holding: LogicalKeyboardKey.controlLeft,
+        );
+        await _tapWith(
+          tester,
+          find.text(books.first.title),
+          holding: LogicalKeyboardKey.controlLeft,
+        );
+        final updated = TextBook(title: books.first.title);
+        final library = Library(categories: [])..books.add(updated);
+        h.libraryStates.add(
+          h.libraryBloc.state.copyWith(
+            library: library,
+            currentCategory: library,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('2 ספרים נבחרו'), findsOneWidget);
+        await tester.tap(find.text('פתח נבחרים'));
+        await tester.pumpAndSettle();
+        final tabs = verify(() => h.tabsBloc.add(captureAny())).captured
+            .whereType<OpenOrFocusTab>()
+            .map((event) => event.tab)
+            .toList();
+        expect(tabs.map((tab) => tab.title), [local.title, updated.title]);
+        expect((tabs.first as PdfBookTab).book, same(replacement));
+        expect((tabs.last as TextBookTab).book, same(updated));
+      });
+
+      testWidgets('Enter רגיל אחרי ביטול בחירה במקלדת פותח את הספר', (
+        tester,
+      ) async {
+        final h = await _pumpBrowser(tester, books: books, viewMode: mode);
+        await _tapWith(
+          tester,
+          find.text('ספר ב'),
+          holding: LogicalKeyboardKey.controlLeft,
+        );
+        Focus.of(tester.element(find.text('ספר ב'))).requestFocus();
+        await tester.pump();
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        await tester.pump();
+        expect(find.text('ספר אחד נבחר'), findsNothing);
+        verifyNever(() => h.tabsBloc.add(any()));
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        expect(find.text('ספר אחד נבחר'), findsNothing);
+        expect(h.openedTitles(), ['ספר ב']);
+      });
+
+      for (final previewEnabled in [false, true]) {
+        testWidgets('Enter בזמן בחירה שומר את חוזה הפתיחה '
+            '(תצוגה מקדימה: $previewEnabled)', (tester) async {
+          final h = await _pumpBrowser(
+            tester,
+            books: books,
+            viewMode: mode,
+            previewEnabled: previewEnabled,
+          );
+          await _tapWith(
+            tester,
+            find.text('ספר ב'),
+            holding: LogicalKeyboardKey.controlLeft,
+          );
+          Focus.of(tester.element(find.text('ספר ב'))).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pump();
+          if (previewEnabled) {
+            expect(find.text('ספר אחד נבחר'), findsOneWidget);
+            expect(h.openedTitles(), ['ספר ב']);
+          } else {
+            expect(find.text('ספר אחד נבחר'), findsNothing);
+            verifyNever(() => h.tabsBloc.add(any()));
+          }
+        });
+      }
+
+      group('השלמת בחירה אחרי רענון אסינכרוני', () {
+        late PdfBook local;
+        setUp(() {
+          local = PdfBook(
+            title: 'היברובוקס מקומי',
+            id: 77,
+            path: '/books/hb.pdf',
+            externalLibraryId: 'hb:77',
+          );
+        });
+        tearDown(() => DataRepository.instance.invalidateHebrewBooksCache());
+        LibraryState refreshed(_Harness h, List<Book> currentBooks) {
+          final library = Library(categories: [])..books.addAll(currentBooks);
+          return h.libraryBloc.state.copyWith(
+            library: library,
+            currentCategory: library,
+            searchResults: [local, ...currentBooks],
+          );
+        }
+
+        testWidgets('כשל טעינת המטא־דאטה אינו מוחק בחירה או מדליף שגיאה', (
+          tester,
+        ) async {
+          final h = await _pumpBrowser(
+            tester,
+            books: books,
+            viewMode: mode,
+            searchResults: [local],
+          );
+          await _tapWith(
+            tester,
+            find.text(local.title),
+            holding: LogicalKeyboardKey.controlLeft,
+          );
+          final scan = Completer<List<Book>>();
+          DataRepository.instance.localHebrewBooks = scan.future;
+          h.libraryStates.add(refreshed(h, books));
+          await tester.pump();
+          scan.completeError(StateError('catalog unavailable'));
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull);
+          expect(find.text('ספר אחד נבחר'), findsOneWidget);
+          await tester.tap(find.text('פתח נבחרים'));
+          await tester.pumpAndSettle();
+          expect(h.openedTitles(), [local.title]);
+        });
+
+        testWidgets('PDF שנמחק מוסר בלי להחליף PDF ספרייה בעל אותו id', (
+          tester,
+        ) async {
+          final pdf = PdfBook(
+            title: 'PDF ספרייה',
+            id: local.id,
+            path: '/books/library.pdf',
+          );
+          final h = await _pumpBrowser(
+            tester,
+            books: [pdf],
+            viewMode: mode,
+            searchResults: [local, pdf],
+          );
+          for (final title in [local.title, pdf.title]) {
+            await _tapWith(
+              tester,
+              find.text(title),
+              holding: LogicalKeyboardKey.controlLeft,
+            );
+          }
+          final updated = PdfBook(title: pdf.title, id: pdf.id, path: pdf.path);
+          DataRepository.instance.localHebrewBooks = Future.value([]);
+          h.libraryStates.add(refreshed(h, [updated]));
+          await tester.pumpAndSettle();
+          expect(find.text('ספר אחד נבחר'), findsOneWidget);
+          await tester.tap(find.text('פתח נבחרים'));
+          await tester.pumpAndSettle();
+          final event = verify(
+            () => h.tabsBloc.add(captureAny()),
+          ).captured.whereType<OpenOrFocusTab>().single;
+          expect((event.tab as PdfBookTab).book, same(updated));
+        });
+        testWidgets('רענון ישן שמסתיים מאוחר לא מחזיר ספר שנמחק', (
+          tester,
+        ) async {
+          final h = await _pumpBrowser(
+            tester,
+            books: books,
+            viewMode: mode,
+            searchResults: [local, books.first],
+          );
+          for (final title in [local.title, books.first.title]) {
+            await _tapWith(
+              tester,
+              find.text(title),
+              holding: LogicalKeyboardKey.controlLeft,
+            );
+          }
+          final oldScan = Completer<List<Book>>();
+          DataRepository.instance.localHebrewBooks = oldScan.future;
+          h.libraryStates.add(
+            refreshed(h, [TextBook(title: books.first.title)]),
+          );
+          await tester.pump();
+          final latest = TextBook(title: books.first.title);
+          DataRepository.instance.localHebrewBooks = Future.value([]);
+          h.libraryStates.add(refreshed(h, [latest]));
+          await tester.pumpAndSettle();
+          expect(find.text('ספר אחד נבחר'), findsOneWidget);
+          oldScan.complete([local]);
+          await tester.pumpAndSettle();
+          expect(find.text('ספר אחד נבחר'), findsOneWidget);
+          await tester.tap(find.text('פתח נבחרים'));
+          await tester.pumpAndSettle();
+          final event = verify(
+            () => h.tabsBloc.add(captureAny()),
+          ).captured.whereType<OpenOrFocusTab>().single;
+          expect((event.tab as TextBookTab).book, same(latest));
+        });
+        for (final selectAgain in [false, true]) {
+          testWidgets('Esc בזמן המתנה אינו מחזיר בחירה ישנה '
+              '(בחירה חדשה: $selectAgain)', (tester) async {
+            final h = await _pumpBrowser(
+              tester,
+              books: books,
+              viewMode: mode,
+              searchResults: [local, ...books],
+            );
+            await _tapWith(
+              tester,
+              find.text(local.title),
+              holding: LogicalKeyboardKey.controlLeft,
+            );
+            final scan = Completer<List<Book>>();
+            DataRepository.instance.localHebrewBooks = scan.future;
+            final updated = TextBook(title: books.first.title);
+            h.libraryStates.add(refreshed(h, [updated]));
+            await tester.pump();
+            await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+            await tester.pump();
+            if (selectAgain) {
+              await _tapWith(
+                tester,
+                find.text(updated.title),
+                holding: LogicalKeyboardKey.controlLeft,
+              );
+            }
+            scan.complete([local]);
+            await tester.pumpAndSettle();
+            if (selectAgain) {
+              expect(find.text('ספר אחד נבחר'), findsOneWidget);
+              await tester.tap(find.text('פתח נבחרים'));
+              await tester.pumpAndSettle();
+              expect(h.openedTitles(), [updated.title]);
+            } else {
+              expect(find.text('פתח נבחרים'), findsNothing);
+              verifyNever(() => h.tabsBloc.add(any()));
+            }
+          });
+        }
+        testWidgets('סגירת הספרייה בזמן המתנה אינה משתמשת ב־context שנסגר', (
+          tester,
+        ) async {
+          final h = await _pumpBrowser(
+            tester,
+            books: books,
+            viewMode: mode,
+            searchResults: [local],
+          );
+          await _tapWith(
+            tester,
+            find.text(local.title),
+            holding: LogicalKeyboardKey.controlLeft,
+          );
+          final scan = Completer<List<Book>>();
+          DataRepository.instance.localHebrewBooks = scan.future;
+          h.libraryStates.add(refreshed(h, books));
+          await tester.pump();
+          await tester.pumpWidget(const SizedBox.shrink());
+          scan.complete([local]);
+          await tester.pump();
+          expect(tester.takeException(), isNull);
+        });
+      });
+
       // בשורת רשימה לחיצה לא מעבירה פוקוס; גולש המקלדת מגיע אליה ב-Tab.
       testWidgets(
         'Ctrl+Enter על כרטיס ממוקד מחליף את מצבו בלי עכבר, ו-Enter רגיל לא',
@@ -322,6 +659,62 @@ void main() {
         },
         skip: mode != 'grid',
       );
+
+      for (final previewEnabled in [false, true]) {
+        testWidgets('Ctrl/Meta+Enter/Space ו־Shift+Enter שומרים על בחירה וטווח '
+            '(תצוגה מקדימה: $previewEnabled)', (tester) async {
+          final h = await _pumpBrowser(
+            tester,
+            books: books,
+            viewMode: mode,
+            previewEnabled: previewEnabled,
+          );
+          Future<void> activate(
+            String title,
+            LogicalKeyboardKey modifier,
+            LogicalKeyboardKey key,
+          ) async {
+            Focus.of(tester.element(find.text(title))).requestFocus();
+            await tester.pump();
+            await tester.sendKeyDownEvent(modifier);
+            await tester.sendKeyEvent(key);
+            await tester.sendKeyUpEvent(modifier);
+            await tester.pump();
+          }
+
+          await activate(
+            'ספר ב',
+            LogicalKeyboardKey.controlLeft,
+            LogicalKeyboardKey.enter,
+          );
+          expect(find.text('ספר אחד נבחר'), findsOneWidget);
+          await activate(
+            'ספר ד',
+            LogicalKeyboardKey.shiftLeft,
+            LogicalKeyboardKey.enter,
+          );
+          expect(find.text('3 ספרים נבחרו'), findsOneWidget);
+          await activate(
+            'ספר ג',
+            LogicalKeyboardKey.metaLeft,
+            LogicalKeyboardKey.space,
+          );
+          expect(find.text('2 ספרים נבחרו'), findsOneWidget);
+          await activate(
+            'ספר א',
+            LogicalKeyboardKey.controlLeft,
+            LogicalKeyboardKey.space,
+          );
+          expect(find.text('3 ספרים נבחרו'), findsOneWidget);
+          await activate(
+            'ספר ב',
+            LogicalKeyboardKey.metaLeft,
+            LogicalKeyboardKey.enter,
+          );
+          expect(find.text('2 ספרים נבחרו'), findsOneWidget);
+          verifyNever(() => h.tabsBloc.add(any()));
+        });
+      }
 
       testWidgets('Shift+לחיצה בוחרת טווח לפי סדר התצוגה', (tester) async {
         await _pumpBrowser(tester, books: books, viewMode: mode);
@@ -487,6 +880,33 @@ void main() {
         expect(find.byType(OtzarBookDialog), findsOneWidget);
         expect(find.text('פתח נבחרים'), findsNothing);
       });
+
+      for (final key in [LogicalKeyboardKey.enter, LogicalKeyboardKey.space]) {
+        testWidgets(
+          '${key.keyLabel} בספר חיצוני אינו משתמש במקשי לחיצת העכבר',
+          (tester) async {
+            await _pumpBrowser(
+              tester,
+              books: [onlineHebrewBook],
+              viewMode: mode,
+            );
+            await _tapWith(
+              tester,
+              find.text(onlineHebrewBook.title),
+              holding: LogicalKeyboardKey.controlLeft,
+            );
+            expect(find.byType(OtzarBookDialog), findsNothing);
+            Focus.of(
+              tester.element(find.text(onlineHebrewBook.title)),
+            ).requestFocus();
+            await tester.pump();
+            await tester.sendKeyEvent(key);
+            await tester.pumpAndSettle();
+            expect(find.byType(OtzarBookDialog), findsOneWidget);
+            expect(find.text('פתח נבחרים'), findsNothing);
+          },
+        );
+      }
 
       testWidgets('טווח Shift שעובר על ספר חיצוני מדלג עליו, והפתיחה כוללת '
           'רק ספרי קריאה', (tester) async {

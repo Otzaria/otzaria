@@ -540,12 +540,40 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         // יוצא ממנה.
         BlocListener<LibraryBloc, LibraryState>(
           listenWhen: (p, c) => p.library != c.library && _selection.isNotEmpty,
-          listener: (_, state) {
+          listener: (_, state) async {
+            var localHebrewBooks = const <Book>[];
+            if (_selection.books.any(
+              (book) =>
+                  book is PdfBook &&
+                  book.source.isOfficial &&
+                  (book.externalLibraryId?.startsWith('hb:') ?? false),
+            )) {
+              try {
+                localHebrewBooks =
+                    await DataRepository.instance.localHebrewBooks;
+              } catch (error, stackTrace) {
+                debugPrint(
+                  'Library selection refresh failed: $error\n$stackTrace',
+                );
+                return;
+              }
+            }
+            if (!mounted) return;
+            if (!identical(
+              state.library,
+              this.context.read<LibraryBloc>().state.library,
+            )) {
+              return;
+            }
             final books = {
-              for (final book in state.library?.getIndexableBooks() ?? <Book>[])
-                bookIdentity(book): book,
+              for (final book
+                  in (state.library?.getIndexableBooks() ?? <Book>[])
+                      .followedBy(localHebrewBooks))
+                (bookIdentity(book), book.externalLibraryId): book,
             };
-            _selection.reconcile((book) => books[bookIdentity(book)]);
+            _selection.reconcile(
+              (book) => books[(bookIdentity(book), book.externalLibraryId)],
+            );
           },
         ),
         BlocListener<LibraryBloc, LibraryState>(
@@ -1795,11 +1823,15 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     FocusNode? focusNode,
   }) {
     if (book is ExternalLibraryBook) {
-      return BookGridItem(
-        book: book,
-        onBookClickCallback: () => _openExternalBookUnlessSelecting(book),
-        showTopics: showTopics,
-        focusNode: focusNode,
+      return _withBookKeyboardActivation(
+        book,
+        false,
+        BookGridItem(
+          book: book,
+          onBookClickCallback: () => _openExternalBookUnlessSelecting(book),
+          showTopics: showTopics,
+          focusNode: focusNode,
+        ),
       );
     }
     return BlocBuilder<SettingsBloc, SettingsState>(
@@ -1819,12 +1851,12 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               listenable: _selection,
               builder: (ctx, _) {
                 final isChecked = _selection.contains(book);
-                return _withBookEnterShortcut(
+                return _withBookContextMenu(
                   book,
-                  _isPreviewPanelVisible(settingsState),
-                  _withBookContextMenu(
+                  book is PdfBook ? 1 : 0,
+                  _withBookKeyboardActivation(
                     book,
-                    book is PdfBook ? 1 : 0,
+                    _isPreviewPanelVisible(settingsState),
                     GestureDetector(
                       onDoubleTap: () {
                         if (_inSelectionGesture) return;
@@ -1840,8 +1872,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                         // איסוף ספרים התצוגה המקדימה נשארת במקומה.
                         onFocused: _isPreviewPanelVisible(settingsState)
                             ? () {
-                                if (!_inSelectionGesture)
+                                if (!_inSelectionGesture) {
                                   _showBookPreview(book);
+                                }
                               }
                             : null,
                         onBookClickCallback: () {
@@ -1885,9 +1918,12 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     return (state.searchResults?.contains(marked) ?? false) ? marked : null;
   }
 
-  /// Enter פותח את הספר רק כשהשורה או הכרטיס ממוקדים, ולא כפתור בתוכם.
-  Widget _withBookEnterShortcut(Book book, bool previewVisible, Widget child) {
-    if (!previewVisible) return child;
+  /// הפעלה מהמקלדת משתמשת במקשים הנוכחיים, בנפרד מלחיצת עכבר מושהית.
+  Widget _withBookKeyboardActivation(
+    Book book,
+    bool previewVisible,
+    Widget child,
+  ) {
     return Focus(
       canRequestFocus: false,
       skipTraversal: true,
@@ -1898,9 +1934,18 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         final activate = const [
           SingleActivator(LogicalKeyboardKey.enter),
           SingleActivator(LogicalKeyboardKey.numpadEnter),
+          SingleActivator(LogicalKeyboardKey.space),
         ].any((shortcut) => shortcut.accepts(event, HardwareKeyboard.instance));
         if (!activate) return KeyEventResult.ignored;
-        _openBookInReader(book, book is PdfBook ? 1 : 0);
+        if (_selection.isNotEmpty &&
+            (!previewVisible || event.logicalKey == LogicalKeyboardKey.space)) {
+          _selection.toggle(book);
+        } else if (previewVisible &&
+            event.logicalKey == LogicalKeyboardKey.space) {
+          _showBookPreview(book);
+        } else {
+          _openBookInReader(book, book is PdfBook ? 1 : 0);
+        }
         return KeyEventResult.handled;
       },
       child: child,
@@ -1909,9 +1954,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
   // ── בחירה מרובה לפתיחה בבת אחת ─────────────────────────────────────────────
 
-  /// ה-onTap של ספר מתעכב עד שנסגר חלון הלחיצה הכפולה (~300ms), ובינתיים
-  /// המשתמש כבר שחרר את המקש. לכן המקשים נקלטים ברגע הלחיצה ([Listener] סביב
-  /// התוכן) ונשמרים לאותה לחיצה.
+  // onTap מתעכב עד סגירת חלון הלחיצה הכפולה; שומרים את המקשים לפני שחרורם.
   ({bool shift, bool additive}) _pointerDownModifiers = (
     shift: false,
     additive: false,
@@ -1927,8 +1970,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     _pointerDownAt = DateTime.now();
   }
 
-  /// מקשי הבחירה של הלחיצה הנוכחית: מה שלחוץ עכשיו (גם לחיצה במקלדת, בלי
-  /// עכבר), או מה שהיה לחוץ בלחיצת העכבר שזה עתה הסתיימה.
+  /// מקשי הבחירה של לחיצת העכבר, כולל מקשים ששוחררו לפני ה-onTap המושהה.
   ({bool shift, bool additive}) get _selectionModifiers {
     final keyboard = HardwareKeyboard.instance;
     var shift = keyboard.isShiftPressed;
@@ -2797,12 +2839,12 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               listenable: _selection,
               builder: (ctx, _) {
                 final isChecked = _selection.contains(book);
-                return _withBookEnterShortcut(
+                return _withBookContextMenu(
                   book,
-                  _isPreviewPanelVisible(settingsState),
-                  _withBookContextMenu(
+                  book is PdfBook ? 1 : 0,
+                  _withBookKeyboardActivation(
                     book,
-                    book is PdfBook ? 1 : 0,
+                    _isPreviewPanelVisible(settingsState),
                     _buildBookListRow(
                       context: ctx,
                       book: book,
@@ -2846,13 +2888,17 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     _LibraryListItemStyle itemStyle = _LibraryListItemStyle.root,
     FocusNode? focusNode,
   }) {
-    return _buildExternalBookListRow(
-      context: context,
-      book: book,
-      level: level,
-      itemStyle: itemStyle,
-      focusNode: focusNode,
-      onTap: () => _openExternalBookUnlessSelecting(book),
+    return _withBookKeyboardActivation(
+      book,
+      false,
+      _buildExternalBookListRow(
+        context: context,
+        book: book,
+        level: level,
+        itemStyle: itemStyle,
+        focusNode: focusNode,
+        onTap: () => _openExternalBookUnlessSelecting(book),
+      ),
     );
   }
 
