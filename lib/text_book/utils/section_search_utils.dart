@@ -74,6 +74,7 @@ List<({String text, int groupOffset})> _sharedSnippets(
   List<({int start, int end})> matches, {
   required int count,
 }) {
+  if (count == 0) return const [];
   final snippets = <({String text, int groupOffset})>[];
   for (var first = 0; first < count;) {
     var last = first;
@@ -759,6 +760,7 @@ class SectionSearchWorkerRuntime {
           var nextHeading = 0;
 
           final results = <Map<String, dynamic>>[];
+          final lineMatches = <({int start, int end})>[];
           final address = <String>[];
           bool canceled = false;
           bool truncated = false;
@@ -806,12 +808,12 @@ class SectionSearchWorkerRuntime {
             // תוצאה לכל הופעה, לניווט אל כל אחת. התאמה עודפת אחת מעבר
             // לקיבולת משמשת רק כגבול ל-snippet.
             final remainingCapacity = _maxSearchResults - results.length;
-            final lineMatches = pattern
-                .allMatches(line)
-                .where((m) => m.end > m.start)
-                .take(remainingCapacity + 1)
-                .map((m) => (start: m.start, end: m.end))
-                .toList(growable: false);
+            lineMatches.clear();
+            for (final match in pattern.allMatches(line)) {
+              if (match.end <= match.start) continue;
+              lineMatches.add((start: match.start, end: match.end));
+              if (lineMatches.length > remainingCapacity) break;
+            }
             final snippets = _sharedSnippets(
               line,
               lineMatches,
@@ -986,12 +988,9 @@ searchUserRegexInContent({
     null,
   );
   String clean(int i) => cleanLines[i] ??= cleanLineForSearch(content[i]);
-  List<({int start, int end})> find(String text) => [
-    for (final m in matcher.findMatches(data: text))
-      if (m.end > m.start) (start: m.start, end: m.end),
-  ];
 
   final results = <TextSearchResult>[];
+  final lineMatches = <({int start, int end})>[];
   final address = <String>[];
   var truncated = false;
   final rangeStart = range?.start ?? 0;
@@ -1012,20 +1011,26 @@ searchUserRegexInContent({
     if (i < rangeStart) continue;
 
     final line = clean(i);
-    final matches = find(line);
+    final remainingCapacity = _maxSearchResults - results.length;
+    lineMatches.clear();
+    for (final match in matcher.findMatches(data: line)) {
+      if (match.end <= match.start) continue;
+      lineMatches.add((start: match.start, end: match.end));
+      if (lineMatches.length > remainingCapacity) break;
+    }
     final snippets = _sharedSnippets(
       line,
-      matches,
-      count: min(matches.length, _maxSearchResults - results.length),
+      lineMatches,
+      count: min(lineMatches.length, remainingCapacity),
     );
     String cleanAddress() =>
         utils.removeVolwels(utils.stripHtmlIfNeeded(address.join(', ')));
-    for (var m = 0; m < matches.length; m++) {
+    for (var m = 0; m < lineMatches.length; m++) {
       if (results.length >= _maxSearchResults) {
         truncated = true;
         break;
       }
-      final match = matches[m];
+      final match = lineMatches[m];
       results.add(
         TextSearchResult(
           index: i,
@@ -1040,7 +1045,10 @@ searchUserRegexInContent({
     }
     if (truncated || !crossesLines || i + 1 >= rangeEnd) continue;
     final crossing = _crossLineMatchWith(
-      (joined) => find(joined).map((m) => (m.start, m.end)),
+      (joined) => matcher
+          .findMatches(data: joined)
+          .where((match) => match.end > match.start)
+          .map((match) => (match.start, match.end)),
       rawLine: rawLine,
       rawNextLine: content[i + 1],
       line: line,
