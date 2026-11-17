@@ -207,12 +207,14 @@ class AcronymsCache {
     if (_isLoaded) return;
     if (_loadingFuture != null) return _loadingFuture;
 
-    _loadingFuture = _loadInternal();
-
+    final loading = _loadInternal();
+    _loadingFuture = loading;
     try {
-      await _loadingFuture;
+      await loading;
     } finally {
-      _loadingFuture = null;
+      // clear() may have started a newer generation while this one awaited.
+      // Never detach that newer in-flight load.
+      if (identical(_loadingFuture, loading)) _loadingFuture = null;
     }
   }
 
