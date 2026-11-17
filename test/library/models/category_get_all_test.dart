@@ -31,6 +31,40 @@ Category _randomTree(Random rnd, int depth, String prefix) => Category(
 );
 
 void main() {
+  test('נתיב קטגוריה עמוקה שומר סדר אבות גם אחרי הריפקטור', () {
+    final library = Library(categories: []);
+    final a = Category(
+      title: 'תנ"ך',
+      description: '',
+      shortDescription: '',
+      order: 0,
+      subCategories: [],
+      books: [],
+      parent: library,
+    );
+    final b = Category(
+      title: 'נביאים',
+      description: '',
+      shortDescription: '',
+      order: 0,
+      subCategories: [],
+      books: [],
+      parent: a,
+    );
+    final c = Category(
+      title: 'ישעיה',
+      description: '',
+      shortDescription: '',
+      order: 0,
+      subCategories: [],
+      books: [],
+      parent: b,
+    );
+    expect(library.path, '/');
+    expect(a.path, '/תנ"ך');
+    expect(c.path, '/תנ"ך/נביאים/ישעיה');
+  });
+
   test('getAllBooks/getAllCategories בסדר ובתוכן של המימוש הקודם (perf)', () {
     final rnd = Random(7);
     for (var round = 0; round < 300; round++) {
