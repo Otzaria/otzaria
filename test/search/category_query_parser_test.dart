@@ -53,6 +53,25 @@ class _CountingCategory extends Category {
   }
 }
 
+class _CountingLibrary extends Library {
+  _CountingLibrary({required super.categories});
+
+  int bookWalks = 0;
+  int categoryWalks = 0;
+
+  @override
+  List<Book> getAllBooks() {
+    bookWalks++;
+    return super.getAllBooks();
+  }
+
+  @override
+  List<Category> getAllCategories() {
+    categoryWalks++;
+    return super.getAllCategories();
+  }
+}
+
 void main() {
   group('parseCategoryQuery', () {
     setUp(AcronymsCache.instance.clear);
@@ -142,6 +161,19 @@ void main() {
       expect(parsed.hasCategoryToken, isTrue);
       expect(parsed.categoryFound, isFalse);
       expect(parsed.facets, isEmpty);
+    });
+
+    test('ריבוי @ ונתיבים אינו סורק מחדש את עץ הספרייה', () {
+      final library = _CountingLibrary(categories: [
+        _category('תורה', [
+          TextBook(title: 'בראשית', id: 1),
+          TextBook(title: 'שמות', id: 2),
+        ]),
+      ]);
+      final parsed = parseCategoryQuery('שלום@בראשית@שמות@תורה/בראשית', library);
+      expect(parsed.categoryFound, isTrue);
+      expect(library.bookWalks, 1);
+      expect(library.categoryWalks, 1);
     });
 
     test('כמה @ — מאחד את ה-facets של כל הספרים', () {
