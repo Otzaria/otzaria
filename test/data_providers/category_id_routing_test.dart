@@ -240,6 +240,52 @@ void main() {
     },
   );
 
+  test('חיפוש נתיב ספר תאום שומר על סדר הקטגוריות וסוג הקובץ', () async {
+    final provider = DatabaseLibraryProvider.instance;
+    provider.seedCacheForTesting(
+      keys: const [
+        BookCompositeKey(title: 'בראשית', categoryId: 1, fileType: 'pdf'),
+        BookCompositeKey(title: 'בראשית', categoryId: 2, fileType: 'txt'),
+        BookCompositeKey(title: 'בראשית', categoryId: 3, fileType: 'txt'),
+      ],
+      categoryIdToPath: {1: 'סריקות', 2: 'תורה', 3: 'מהדורות נוספות'},
+    );
+
+    expect(await provider.findCategoryPathForBook('בראשית'), 'תורה');
+    expect(
+      await provider.findCategoryPathForBook('בראשית', fileType: ' PDF '),
+      'סריקות',
+    );
+    expect(
+      await provider.findCategoryPathForBook('בראשית', categoryId: 3),
+      'מהדורות נוספות',
+    );
+    expect(
+      await provider.findCategoryPathForBook('בראשית', categoryId: 1),
+      'תורה',
+    );
+  });
+
+  test('חיפוש נתיב ספר לאחר ניקוי המטמון מחזיר את הקטגוריה המעודכנת', () async {
+    final provider = DatabaseLibraryProvider.instance;
+    provider.seedCacheForTesting(
+      keys: const [
+        BookCompositeKey(title: 'בראשית', categoryId: 1, fileType: 'txt'),
+      ],
+      categoryIdToPath: {1: 'תורה'},
+    );
+    expect(await provider.findCategoryPathForBook('בראשית'), 'תורה');
+
+    provider.clearCache();
+    provider.seedCacheForTesting(
+      keys: const [
+        BookCompositeKey(title: 'בראשית', categoryId: 2, fileType: 'txt'),
+      ],
+      categoryIdToPath: {2: 'מקרא, תורה'},
+    );
+    expect(await provider.findCategoryPathForBook('בראשית'), 'מקרא, תורה');
+  });
+
   test('isTanachPath מזהה נתיבי DB ונתיבי קבצים ישנים', () {
     expect(FileSystemData.isTanachPathForTesting('תנ"ך/תורה/בראשית'), isTrue);
     expect(
