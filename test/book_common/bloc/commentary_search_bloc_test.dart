@@ -190,12 +190,53 @@ Future<void> main() async {
       await Future<void>.delayed(const Duration(milliseconds: 200));
       expect(bloc.state.total, 0);
     });
+
+    test('חיפוש על תוכן טעון מוותר על ה-event loop באמצע הלולאה', () async {
+      final unit =
+          'וַיֹּאמֶר <b>משה</b> אל אהרן, אמר רבי יוחנן בשם ר\' שמעון. ';
+      final text = List.filled(5 * 1024 ~/ unit.length, unit).join();
+      var ticks = 0;
+      final ticksAtRead = <int>[];
+      final links = [
+        for (var i = 0; i < 300; i++)
+          _Link(
+            'p$i',
+            Future.value('$text$i'),
+            onRead: () => ticksAtRead.add(ticks),
+          ),
+      ];
+      final timer = Timer.periodic(Duration.zero, (_) => ticks++);
+      final bloc = build();
+      bloc.add(request(links, 'אמר'));
+      await bloc.stream
+          .firstWhere((s) => s.counts.length == links.length)
+          .timeout(const Duration(seconds: 30));
+      timer.cancel();
+      await bloc.close();
+
+      expect(ticksAtRead.toSet().length, greaterThan(5));
+    });
+
+    test('ספירות זהות ללא תלות בוויתור על ה-event loop', () async {
+      final links = [
+        for (var i = 0; i < 40; i++)
+          _Link('p$i', Future.value('אמר ' * (i % 5) + 'משה $i')),
+      ];
+      final bloc = build();
+      bloc.add(request(links, 'אמר'));
+      final state = await bloc.stream
+          .firstWhere((s) => s.counts.length == links.length)
+          .timeout(const Duration(seconds: 30));
+      await bloc.close();
+      expect(state.counts, {for (var i = 0; i < 40; i++) 'p$i': i % 5});
+    });
   }, skip: !engineReady);
 }
 
 class _Link extends Link {
   final Future<String> _content;
-  _Link(String path, this._content)
+  final void Function()? onRead;
+  _Link(String path, this._content, {this.onRead})
     : super(
         heRef: path,
         index1: 1,
@@ -205,5 +246,8 @@ class _Link extends Link {
       );
 
   @override
-  Future<String> get content => _content;
+  Future<String> get content {
+    onRead?.call();
+    return _content;
+  }
 }
