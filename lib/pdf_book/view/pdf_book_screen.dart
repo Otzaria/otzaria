@@ -38,6 +38,7 @@ import 'package:otzaria/pdf_book/utils/centered_text_search_session.dart';
 import 'package:otzaria/pdf_book/utils/pdf_chapter_outline.dart';
 import 'package:otzaria/pdf_book/utils/pdf_color_filter.dart';
 import 'package:otzaria/pdf_book/utils/pdf_font_fallback.dart';
+import 'package:otzaria/pdf_book/utils/pdf_link_range_index.dart';
 import 'package:otzaria/pdf_book/utils/pdf_links_window.dart';
 import 'package:otzaria/pdf_book/utils/pdf_plugin_menu_entries.dart';
 import 'package:otzaria/pdf_book/utils/pdf_personal_note_anchor.dart';
@@ -1380,6 +1381,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     return (single: single, display: display);
   }
 
+  List<otz_links.Link>? _contextLinkSource;
+  PdfLinkRangeIndex? _contextLinkIndex;
+
   ({List<String> commentators, List<otz_links.Link> links})
   _getRelevantContent() {
     final range = _getCurrentPdfLinesRange();
@@ -1388,10 +1392,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final commentators = <String>{};
     final links = <otz_links.Link>[];
 
-    for (final link in widget.tab.links) {
-      if (link.index1 > range.endLine) break;
-      if (!link.overlapsSourceLines(range.startLine, range.endLine)) continue;
-
+    final source = widget.tab.links;
+    if (!identical(source, _contextLinkSource)) {
+      _contextLinkSource = source;
+      _contextLinkIndex = PdfLinkRangeIndex(source);
+    }
+    for (final link in _contextLinkIndex!.overlapping(
+      range.startLine,
+      range.endLine,
+    )) {
       if (LinkTypes.isDependentTextLink(link.connectionType)) {
         commentators.add(utils.getTitleFromPath(link.path2));
         continue;
