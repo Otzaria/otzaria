@@ -16,7 +16,8 @@ WITH RECURSIVE ancestors(id, parentId) AS (
 )
 SELECT category.*
 FROM ancestors
-JOIN category ON category.id = ancestors.id;
+-- ה-CTE חייב להוביל את החיבור כדי שקטגוריות ייקראו לפי מפתח ראשי.
+CROSS JOIN category ON category.id = ancestors.id;
 
 selectByParentId:
 SELECT * FROM category WHERE parentId = ? ORDER BY orderIndex, title;

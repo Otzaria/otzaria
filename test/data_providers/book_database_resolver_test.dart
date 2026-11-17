@@ -9,6 +9,7 @@ import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite;
 import 'package:otzaria/migration/database/daos/database.dart';
+import 'package:otzaria/migration/database/query_loader.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart' as migration_models;
 import 'package:otzaria/migration/models/category.dart' as migration_models;
@@ -163,6 +164,31 @@ void main() {
       );
 
       expect(result, isEmpty);
+    });
+
+    test('קריאת אבות במסד עם סטטיסטיקות אינה סורקת את כל הקטגוריות', () {
+      final db = sqlite.sqlite3.openInMemory();
+      addTearDown(db.close);
+      db.execute('''
+        CREATE TABLE category (id INTEGER PRIMARY KEY, parentId INTEGER, title TEXT);
+        CREATE INDEX idx_category_parent ON category(parentId);
+        WITH RECURSIVE ids(id) AS (
+          VALUES (1) UNION ALL SELECT id + 1 FROM ids WHERE id < 1500
+        )
+        INSERT INTO category
+        SELECT id, CASE WHEN id < 10 THEN NULL ELSE id / 10 END, 'קטגוריה'
+        FROM ids;
+        ANALYZE;
+      ''');
+      final sql = QueryLoader.loadQueries(
+        'CategoryQueries.sq',
+      )['selectAncestry']!;
+      final plan = db
+          .select('EXPLAIN QUERY PLAN $sql', [123])
+          .map((row) => row['detail'])
+          .join('\n');
+
+      expect(plan, isNot(matches(RegExp(r'\bSCAN category\b'))));
     });
 
     test('מסד מצורף בלי טבלת closure תומך בהורה חסר ובמעגל', () async {
