@@ -135,8 +135,8 @@ class _ItemsListViewState extends State<ItemsListView> {
   String _searchQuery = '';
 
   final ValueNotifier<int> _focusedOriginalIndex = ValueNotifier(-1);
-  List<MapEntry<int, dynamic>> _displayEntries = const [];
-  Map<int, ({int ordinal, int row})> _displayPositions = const {};
+  List<_ListRow> _displayRows = const [];
+  int _focusedRowIndex = -1;
   final ItemScrollController _itemScrollController = ItemScrollController();
   final ItemPositionsListener _itemPositionsListener =
       ItemPositionsListener.create();
@@ -345,11 +345,7 @@ class _ItemsListViewState extends State<ItemsListView> {
     );
   }
 
-  /// שורת פריט בכרטיס בהיר לכל קבוצה, בסגנון [AppCard.section]: רקע
-  /// [AppSurfaces.card], פינות מעוגלות בקצות הקבוצה, ורווח
-  /// [AppCard.sectionSpacing] בין השורות שמראה את המשטח שמתחת. נבנית שורה־שורה
-  /// כדי שהרשימה תישאר וירטואלית. הכרעת בעל הפרויקט ב־q12 (DD-11, שאלה 9 C):
-  /// השורות בולטות שוב מגוף הדיאלוג, כמו ב־upstream.
+  /// מחיל את סגנון [AppCard.section] על כל שורה בנפרד כדי לשמור על וירטואליזציה.
   Widget _buildCardRow(BuildContext context, _ListRow row) {
     final entry = row.entry!;
     final rowContent = _buildItemRow(context, entry.value, entry.key);
@@ -419,7 +415,7 @@ class _ItemsListViewState extends State<ItemsListView> {
   void initState() {
     super.initState();
     _searchController.addListener(() {
-      _focusedOriginalIndex.value = -1;
+      _clearFocus();
       setState(() {
         _searchQuery = _searchController.text;
       });
@@ -430,44 +426,63 @@ class _ItemsListViewState extends State<ItemsListView> {
     });
   }
 
-  void _moveFocusDown() {
-    if (_displayEntries.isEmpty) return;
-    final focusedOriginalIndex = _focusedOriginalIndex.value;
-    if (focusedOriginalIndex == -1) {
-      _focusedOriginalIndex.value = _displayEntries.first.key;
-    } else {
-      final idx = _displayPositions[focusedOriginalIndex]?.ordinal;
-      if (idx != null && idx < _displayEntries.length - 1) {
-        _focusedOriginalIndex.value = _displayEntries[idx + 1].key;
-      }
-    }
-    _ensureFocusedVisible();
+  void _clearFocus() {
+    _focusedRowIndex = -1;
+    _focusedOriginalIndex.value = -1;
   }
 
-  void _moveFocusUp() {
+  void _updateDisplayRows(List<_ListRow> rows) {
+    _displayRows = rows;
     final focusedOriginalIndex = _focusedOriginalIndex.value;
     if (focusedOriginalIndex == -1) return;
-    final idx = _displayPositions[focusedOriginalIndex]?.ordinal;
-    if (idx == null || idx == 0) {
-      _focusedOriginalIndex.value = -1;
-    } else {
-      _focusedOriginalIndex.value = _displayEntries[idx - 1].key;
+    if (_focusedRowIndex >= 0 &&
+        _focusedRowIndex < rows.length &&
+        rows[_focusedRowIndex].entry?.key == focusedOriginalIndex) {
+      return;
+    }
+    _focusedRowIndex = rows.indexWhere(
+      (row) => row.entry?.key == focusedOriginalIndex,
+    );
+    if (_focusedRowIndex != -1) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          _focusedRowIndex == -1 &&
+          _focusedOriginalIndex.value == focusedOriginalIndex) {
+        _clearFocus();
+      }
+    });
+  }
+
+  void _moveFocus(int step) {
+    for (
+      var index = _focusedRowIndex + step;
+      index >= 0 && index < _displayRows.length;
+      index += step
+    ) {
+      final entry = _displayRows[index].entry;
+      if (entry == null) continue;
+      _focusedRowIndex = index;
+      _focusedOriginalIndex.value = entry.key;
+      _ensureFocusedVisible();
+      return;
+    }
+    if (step < 0) {
+      _clearFocus();
+    } else if (_focusedRowIndex >= 0) {
       _ensureFocusedVisible();
     }
   }
 
   void _activateFocusedItem(BuildContext context) {
-    final idx = _displayPositions[_focusedOriginalIndex.value]?.ordinal;
-    if (idx == null) return;
-    final entry = _displayEntries[idx];
+    final entry = _displayRows[_focusedRowIndex].entry!;
     widget.onItemTap(context, entry.value, entry.key);
   }
 
   void _ensureFocusedVisible() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_itemScrollController.isAttached) return;
-      final rowIndex = _displayPositions[_focusedOriginalIndex.value]?.row;
-      if (rowIndex == null) return;
+      final rowIndex = _focusedRowIndex;
+      if (rowIndex == -1) return;
       // אם השורה כבר נראית במלואה — אין מה לגלול.
       for (final position in _itemPositionsListener.itemPositions.value) {
         if (position.index == rowIndex &&
@@ -540,8 +555,7 @@ class _ItemsListViewState extends State<ItemsListView> {
         ? widget.items.isNotEmpty
         : widget.items.any(additionalFilter);
     if (!hasAnyMatching) {
-      _displayEntries = const [];
-      _displayPositions = const {};
+      _updateDisplayRows(const []);
       return OtzariaEmptyState(
         icon: widget.searchIcon,
         title: widget.emptyText,
@@ -565,25 +579,7 @@ class _ItemsListViewState extends State<ItemsListView> {
           widget.groupKeyBuilder != null &&
           (widget.groupWhileSearching || _searchQuery.isEmpty),
     );
-    // החצים ו-Enter עוברים על הסדר החזותי, שהקיבוץ עשוי לשנות.
-    _displayEntries = [];
-    _displayPositions = {};
-    for (var row = 0; row < displayRows.length; row++) {
-      final entry = displayRows[row].entry;
-      if (entry == null) continue;
-      _displayPositions[entry.key] = (ordinal: _displayEntries.length, row: row);
-      _displayEntries.add(entry);
-    }
-    final focusedOriginalIndex = _focusedOriginalIndex.value;
-    if (focusedOriginalIndex != -1 &&
-        !_displayPositions.containsKey(focusedOriginalIndex)) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || _focusedOriginalIndex.value != focusedOriginalIndex) {
-          return;
-        }
-        _focusedOriginalIndex.value = -1;
-      });
-    }
+    _updateDisplayRows(displayRows);
 
     return Focus(
       canRequestFocus: false,
@@ -592,15 +588,15 @@ class _ItemsListViewState extends State<ItemsListView> {
           return KeyEventResult.ignored;
         }
         if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-          _moveFocusDown();
+          _moveFocus(1);
           return KeyEventResult.handled;
         }
         if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-          _moveFocusUp();
+          _moveFocus(-1);
           return KeyEventResult.handled;
         }
         if (event.logicalKey == LogicalKeyboardKey.enter &&
-            _focusedOriginalIndex.value != -1) {
+            _focusedRowIndex >= 0) {
           _activateFocusedItem(context);
           return KeyEventResult.handled;
         }
