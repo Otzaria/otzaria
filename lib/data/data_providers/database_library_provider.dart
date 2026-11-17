@@ -5203,25 +5203,14 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         final text =
             await readFileBackedBookText(file, dbBook.fileType, dbBook.title) ??
             '';
-        final lines = text.split('\n');
         final start = link.index2 - 1;
-        if (start >= lines.length) {
+        final lines = linkLinesFromText(text, start, link.index2End);
+        if (lines == null) {
           return [
             (lineIndex: link.index2 - 1, content: 'שגיאה: אינדקס מחוץ לטווח'),
           ];
         }
-        final end0 = ((link.index2End ?? link.index2) - 1).clamp(
-          start,
-          lines.length - 1,
-        );
-        return lines
-            .sublist(start, end0 + 1)
-            .indexed
-            .map(
-              (entry) =>
-                  (lineIndex: start + entry.$1, content: entry.$2.trimRight()),
-            )
-            .toList(growable: false);
+        return lines;
       }
 
       return await linkSourceLinesFromDb(
@@ -5872,4 +5861,32 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       lastModified,
     );
   }
+}
+
+/// שורות [start] (0-based) עד [index2End] (1-based, כולל) מטקסט ספר, כמו
+/// `split('\n')` אך בלי לפצל את כל הטקסט. null כש-[start] מעבר לשורה האחרונה.
+@visibleForTesting
+List<LinkContentLine>? linkLinesFromText(
+  String text,
+  int start,
+  int? index2End,
+) {
+  if (start < 0) throw RangeError.value(start, 'start');
+  final end = (index2End ?? start + 1) - 1;
+  final result = <LinkContentLine>[];
+  var lineStart = 0;
+  for (var i = 0; ; i++) {
+    final nl = text.indexOf('\n', lineStart);
+    final lineEnd = nl < 0 ? text.length : nl;
+    if (i >= start) {
+      result.add((
+        lineIndex: i,
+        content: text.substring(lineStart, lineEnd).trimRight(),
+      ));
+    }
+    // השורה האחרונה בטקסט, או סוף הטווח (קיצוץ לשורה האחרונה כמו clamp).
+    if (nl < 0 || (i >= start && i >= end)) break;
+    lineStart = nl + 1;
+  }
+  return result.isEmpty ? null : result;
 }
