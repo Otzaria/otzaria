@@ -28,10 +28,12 @@ abstract interface class SemanticResultsSource {
   SemanticRankingConfig? get ranking;
 
   /// `null` כשחיפוש חדש יותר החליף את זה. זורק `SemanticFailure` בכשל.
+  /// [onSearching] נקרא כשההכנה הסתיימה והחיפוש עצמו מתחיל.
   Future<SemanticResultsPage?> fetch(
     SemanticQueryOptions options, {
     required int offset,
     required int limit,
+    void Function()? onSearching,
   });
 
   void cancel();
@@ -87,6 +89,7 @@ class EngineSemanticResultsSource implements SemanticResultsSource {
     SemanticQueryOptions options, {
     required int offset,
     required int limit,
+    void Function()? onSearching,
   }) async {
     final outcome = await _repository.search(
       SemanticSearchRequest(
@@ -105,6 +108,7 @@ class EngineSemanticResultsSource implements SemanticResultsSource {
       ),
       ranking: ranking,
       session: _session,
+      onSearching: onSearching,
     );
     if (outcome == null) return null;
     final response = outcome.response;
@@ -182,8 +186,10 @@ class DebugLexicalPreviewSource implements SemanticResultsSource {
     SemanticQueryOptions options, {
     required int offset,
     required int limit,
+    void Function()? onSearching,
   }) async {
     final generation = ++_generation;
+    onSearching?.call();
     final stopwatch = Stopwatch()..start();
     final page = await _searchRepository.searchTextsAndCount(
       SearchEngineRequest(

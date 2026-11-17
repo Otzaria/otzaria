@@ -22,6 +22,7 @@ class ControlledSource extends FakeResultsSource {
     SemanticQueryOptions options, {
     required int offset,
     required int limit,
+    void Function()? onSearching,
   }) {
     final request = Request(options.query, offset);
     requests.add(request);

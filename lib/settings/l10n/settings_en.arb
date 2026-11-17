@@ -1071,6 +1071,8 @@
   "פתיחה כ-PDF": "Open as PDF",
   "כל הספרים ({count})": "All books ({count})",
   "מחפש...": "Searching...",
+  "מכין את החיפוש...": "Preparing the search...",
+  "מחפש בספרייה...": "Searching the library...",
   "טוען את הספרייה": "Loading the library",
   "טוען את הספר": "Loading the book",
   "@@comment_find_ref": "דיאלוג איתור מקורות (issue #1101)",

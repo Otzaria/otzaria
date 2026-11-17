@@ -118,6 +118,9 @@ class FakeResultsSource implements SemanticResultsSource {
   final List<SemanticResultItem>? items;
   Object? error;
   Completer<void>? gate;
+
+  /// מעכב את סוף ההכנה, לפני ש-onSearching נקרא.
+  Completer<void>? prepareGate;
   bool returnsNull = false;
 
   /// ה-hasMore שהמקור מדווח; `null` = לפי [total].
@@ -141,8 +144,12 @@ class FakeResultsSource implements SemanticResultsSource {
     SemanticQueryOptions options, {
     required int offset,
     required int limit,
+    void Function()? onSearching,
   }) async {
     fetches.add((offset: offset, limit: limit));
+    final preparing = prepareGate;
+    if (preparing != null) await preparing.future;
+    onSearching?.call();
     final pending = gate;
     if (pending != null) await pending.future;
     final failure = error;

@@ -415,17 +415,20 @@ class SemanticSearchRepository {
   /// חיפוש סמנטי. מבטל רק את החיפוש הקודם של אותו [session].
   ///
   /// מחזיר `null` כשחיפוש חדש יותר החליף את זה (ביטול אינו כשל). זורק
-  /// [SemanticFailure] בכל כשל אחר.
+  /// [SemanticFailure] בכל כשל אחר. [onSearching] נקרא כשהפתיחה הסתיימה
+  /// והמנוע מתחיל לחפש.
   Future<SemanticSearchOutcome?> search(
     SemanticSearchRequest request, {
     SemanticRankingConfig? ranking,
     SemanticSearchSession? session,
+    void Function()? onSearching,
   }) async {
     final handle = (session ?? _defaultSession)._next();
     _activeSearches.add(handle);
     try {
       await ensureOpen();
       if (handle.isCancelled) return null;
+      onSearching?.call();
       return await _backend.search(request, cancel: handle, ranking: ranking);
     } on SemanticFailure catch (failure) {
       if (handle.isCancelled || failure.kind == SemanticFailureKind.cancelled) {

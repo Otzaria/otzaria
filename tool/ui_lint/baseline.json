@@ -101,9 +101,6 @@
         {"scope":"_TantivySearchResultsState._buildEngineListSliver","fp":"8fde4718","n":1},
         {"scope":"_TantivySearchResultsState._buildEngineSlivers","fp":"8fde4718","n":1}
       ],
-      "lib/semantic_search/view/semantic_search_results_screen.dart": [
-        {"scope":"_SemanticSearchResultsScreenState._buildBody","fp":"8fde4718","n":1}
-      ],
       "lib/semantic_search/view/widgets/semantic_facet_filtering.dart": [
         {"scope":"_SemanticFacetFilteringState.build","fp":"8fde4718","n":1}
       ],
