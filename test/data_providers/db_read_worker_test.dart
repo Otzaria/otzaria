@@ -1841,6 +1841,58 @@ void main() {
       expect(DbReadWorker.sentMessageCount - before, 1);
     });
 
+    test('קריאות קרות במקביל חולקות טעינה אחת של מפתחות הספרים', () async {
+      final provider = DatabaseLibraryProvider.instance..clearCache();
+      addTearDown(provider.clearCache);
+      final before = DbReadWorker.sentMessageCount;
+
+      final results = await Future.wait(
+        List.generate(3, (_) => provider.getAvailableBookKeys()),
+      );
+      expect(results.first, hasLength(3));
+      expect(results.skip(1), everyElement(same(results.first)));
+      expect(DbReadWorker.sentMessageCount - before, 1);
+      expect(await provider.getDatabaseOnlyBookTitles(), hasLength(3));
+      expect(DbReadWorker.sentMessageCount - before, 1);
+    });
+
+    test('איפוס מטמון מעביר קריאות ממתינות לטעינה העדכנית', () async {
+      final provider = DatabaseLibraryProvider.instance..clearCache();
+      addTearDown(provider.clearCache);
+      final before = DbReadWorker.sentMessageCount;
+      final obsolete = provider.getAvailableBookKeys();
+      provider.clearCache();
+      final current = provider.getAvailableBookKeys();
+
+      final results = await Future.wait([obsolete, current]);
+      expect(results.last, hasLength(3));
+      expect(results.first, results.last);
+      expect(DbReadWorker.sentMessageCount - before, 1);
+    });
+
+    test('כשל בטעינה משותפת אינו מונע טעינה חוזרת', () async {
+      final provider = DatabaseLibraryProvider.instance..clearCache();
+      addTearDown(provider.clearCache);
+      final oldLimit = DbReadWorker.maxPendingRequestBytes;
+      DbReadWorker.maxPendingRequestBytes = 0;
+      try {
+        await Future.wait([
+          expectLater(
+            provider.getAvailableBookKeys(),
+            throwsA(isA<DbReadWorkerBusy>()),
+          ),
+          expectLater(
+            provider.getDatabaseOnlyBookTitles(),
+            throwsA(isA<DbReadWorkerBusy>()),
+          ),
+        ]);
+      } finally {
+        DbReadWorker.maxPendingRequestBytes = oldLimit;
+      }
+
+      expect(await provider.getAvailableBookKeys(), hasLength(3));
+    });
+
     test('המפרשים הנוספים על שורה נשלפים ב-worker', () async {
       addCommentaryLink(dbPath);
       await shadowMainBookTable();

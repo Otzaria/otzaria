@@ -2177,8 +2177,9 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   final Map<int, String> _categoryIdToPath = {};
   final Map<int, db_models.Category> _categoriesById = {};
   bool _titlesCached = false;
-  String? _bundledTalmudBavliPathCache;
-  bool? _bundledTalmudBavliExistsCache;
+  int _databaseBookKeysGeneration = 0;
+  Future<Set<BookCompositeKey>>? _databaseBookKeysInFlight;
+  ({String path, bool exists})? _bundledTalmudBavliDirectoryCache;
 
   /// מפתחות "title\u0000categoryId" של ספרים שראוי להציג להם תפריט 'גרסאות',
   /// לפי `BookSource.wireKey`. נטען פעם אחת לכל מסד; מנוקה ב-[clearCache].
@@ -2852,29 +2853,29 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     );
   }
 
-  Future<bool> _bundledTalmudBavliDirectoryExists() async {
+  Future<({String path, bool exists})>
+  _resolveBundledTalmudBavliDirectory() async {
     final candidatePaths = DatabaseConstants.getTalmudBavliDirectoryPaths();
-    if (_bundledTalmudBavliExistsCache != null &&
-        _bundledTalmudBavliPathCache != null &&
-        candidatePaths.contains(_bundledTalmudBavliPathCache)) {
-      return _bundledTalmudBavliExistsCache!;
-    }
+    final cached = _bundledTalmudBavliDirectoryCache;
+    if (cached != null && candidatePaths.contains(cached.path)) return cached;
 
+    final generation = _databaseBookKeysGeneration;
+    var result = (path: candidatePaths.first, exists: false);
     for (final candidatePath in candidatePaths) {
       final exists = await Directory(candidatePath).exists();
       // חילוץ שנקטע משאיר תיקייה עם PDF חלקי וסימון-ביניים; מתעלמים ממנה עד
       // שההתקנה תושלם, אחרת הספרייה תציג מסכתות עם קבצים חסרים.
       if (exists &&
           !DatabaseConstants.isTalmudBavliInstallInProgress(candidatePath)) {
-        _bundledTalmudBavliPathCache = candidatePath;
-        _bundledTalmudBavliExistsCache = true;
-        return true;
+        result = (path: candidatePath, exists: true);
+        break;
       }
     }
 
-    _bundledTalmudBavliPathCache = candidatePaths.first;
-    _bundledTalmudBavliExistsCache = false;
-    return false;
+    if (generation == _databaseBookKeysGeneration) {
+      _bundledTalmudBavliDirectoryCache = result;
+    }
+    return result;
   }
 
   /// מסכתות PDF בלי טקסט בבלי תואם: הסדר שלהן והמסכת שאחריה הן מוצגות.
@@ -2886,12 +2887,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   Future<void> _addBundledTalmudBavliPdfBooksToCategory(
     Category category,
     Map<String, Map<String, dynamic>> metadata,
+    String bundledPath,
   ) async {
-    final bundledPath = _bundledTalmudBavliPathCache;
-    if (bundledPath == null || !await _bundledTalmudBavliDirectoryExists()) {
-      return;
-    }
-
     final bundledDir = Directory(bundledPath);
 
     // Build a map: title → sub-category that contains a TextBook with that title.
@@ -3075,8 +3072,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     }
 
     try {
-      final hasTalmudBavliDirectory =
-          await _bundledTalmudBavliDirectoryExists();
+      final bundledTalmud = await _resolveBundledTalmudBavliDirectory();
       final dbBooks = await _sqliteProvider.repository!.getAllBooks();
       final categories = await _sqliteProvider.repository!.getAllCategories();
       debugPrint('💾 Database found ${dbBooks.length} books');
@@ -3118,8 +3114,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       for (final dbBook in dbBooks) {
         if (!shouldIncludeBookByPath(
           dbBook.filePath,
-          hasTalmudBavliDirectory: hasTalmudBavliDirectory,
-          talmudBavliDirectoryPath: _bundledTalmudBavliPathCache,
+          hasTalmudBavliDirectory: bundledTalmud.exists,
+          talmudBavliDirectoryPath: bundledTalmud.path,
         )) {
           continue;
         }
@@ -3309,8 +3305,11 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   Future<String> _getPathForCategoryId(
     int categoryId, {
     bool fromUserBooks = false,
+    ({Map<int, String> paths, Map<int, db_models.Category> categories})? cache,
   }) async {
-    final cachedPath = _categoryIdToPath[categoryId];
+    final paths = cache?.paths ?? _categoryIdToPath;
+    final categories = cache?.categories ?? _categoriesById;
+    final cachedPath = paths[categoryId];
     if (cachedPath != null && !fromUserBooks) return cachedPath;
 
     if (fromUserBooks || _isUserBooksCategoryId(categoryId)) {
@@ -3321,7 +3320,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
           categoryId,
         );
         if (categoryPath.isNotEmpty && !fromUserBooks) {
-          _categoryIdToPath[categoryId] = categoryPath;
+          paths[categoryId] = categoryPath;
         }
         return categoryPath;
       } catch (_) {
@@ -3332,10 +3331,9 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     final repository = _sqliteProvider.repository;
     if (repository == null) return '';
 
-    if (_categoriesById.isEmpty) {
-      final categories = await repository.getAllCategories();
-      for (final category in categories) {
-        _categoriesById[category.id] = category;
+    if (categories.isEmpty) {
+      for (final category in await repository.getAllCategories()) {
+        categories[category.id] = category;
       }
     }
 
@@ -3344,19 +3342,19 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     int? currentId = categoryId;
 
     while (currentId != null && visited.add(currentId)) {
-      var category = _categoriesById[currentId];
+      var category = categories[currentId];
       category ??= await repository.getCategory(currentId);
       if (category == null) {
         break;
       }
-      _categoriesById[category.id] = category;
+      categories[category.id] = category;
       pathParts.insert(0, category.title);
       currentId = category.parentId;
     }
 
     final categoryPath = pathParts.join(', ');
     if (categoryPath.isNotEmpty) {
-      _categoryIdToPath[categoryId] = categoryPath;
+      paths[categoryId] = categoryPath;
     }
     return categoryPath;
   }
@@ -3659,34 +3657,45 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     if (_titlesCached) return UnmodifiableSetView(_cachedKeys);
 
     final repository = _sqliteProvider.repository;
-    if (repository == null) {
-      return {};
-    }
+    if (repository == null) return {};
 
+    final generation = _databaseBookKeysGeneration;
+    return _databaseBookKeysInFlight ??=
+        _loadDatabaseBookKeys(repository, generation).whenComplete(() {
+          if (generation == _databaseBookKeysGeneration) {
+            _databaseBookKeysInFlight = null;
+          }
+        });
+  }
+
+  Future<Set<BookCompositeKey>> _loadDatabaseBookKeys(
+    SeforimRepository repository,
+    int generation,
+  ) async {
+    bool cacheWasSuperseded() =>
+        generation != _databaseBookKeysGeneration || _titlesCached;
+    load:
     try {
-      final hasTalmudBavliDirectory =
-          await _bundledTalmudBavliDirectoryExists();
-      // Only base fields are needed; loading every relation again doubles the
-      // catalog cost.
+      final bundledTalmud = await _resolveBundledTalmudBavliDirectory();
+      if (cacheWasSuperseded()) break load;
       final (:books, :categories) = await _bookCatalog(repository);
-
-      _cachedKeys.clear();
-      _categoriesById
-        ..clear()
-        ..addEntries(
-          categories.map((category) => MapEntry(category.id, category)),
-        );
+      if (cacheWasSuperseded()) break load;
+      final keys = <BookCompositeKey>[];
+      final cache = (
+        paths: Map<int, String>.of(_categoryIdToPath),
+        categories: {for (final category in categories) category.id: category},
+      );
 
       for (final book in books) {
         if (!shouldIncludeBookByPath(
           book.filePath,
-          hasTalmudBavliDirectory: hasTalmudBavliDirectory,
-          talmudBavliDirectoryPath: _bundledTalmudBavliPathCache,
+          hasTalmudBavliDirectory: bundledTalmud.exists,
+          talmudBavliDirectoryPath: bundledTalmud.path,
         )) {
           continue;
         }
 
-        _cachedKeys.add(
+        keys.add(
           BookCompositeKey.create(
             title: book.title,
             categoryId: book.categoryId,
@@ -3694,22 +3703,29 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
           ),
         );
 
-        if (!_categoryIdToPath.containsKey(book.categoryId)) {
-          final categoryPath = await _getPathForCategoryId(book.categoryId);
-          if (categoryPath.isNotEmpty) {
-            _categoryIdToPath[book.categoryId] = categoryPath;
-          }
+        if (!cache.paths.containsKey(book.categoryId)) {
+          await _getPathForCategoryId(book.categoryId, cache: cache);
+          if (cacheWasSuperseded()) break load;
         }
       }
 
+      _cachedKeys
+        ..clear()
+        ..addAll(keys);
+      _categoriesById
+        ..clear()
+        ..addAll(cache.categories);
+      _categoryIdToPath.addAll(cache.paths);
       _titlesCached = true;
       return UnmodifiableSetView(_cachedKeys);
-    } on DbReadWorkerBusy {
-      rethrow;
     } catch (e) {
+      if (cacheWasSuperseded()) break load;
+      if (e is DbReadWorkerBusy) rethrow;
       debugPrint('⚠️ Error building DB key cache: $e');
       return {};
     }
+    // Let the current generation handle its own errors.
+    return _databaseOnlyBookKeys();
   }
 
   /// כל ספרי seforim.db וקטגוריותיו: על ה-UI isolate זו חסימה של כ-90ms,
@@ -3742,11 +3758,16 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     _userBooksCategoryIds.clear();
     _attachedCachedKeys.clear();
     _attachedCategoryPaths.clear();
-    _titlesCached = false;
-    _bundledTalmudBavliPathCache = null;
-    _bundledTalmudBavliExistsCache = null;
+    _invalidateDatabaseBookKeys();
+    _bundledTalmudBavliDirectoryCache = null;
     _selectableVersionKeysFutures.clear();
     debugPrint('💾 Database cache cleared');
+  }
+
+  void _invalidateDatabaseBookKeys() {
+    _databaseBookKeysGeneration++;
+    _databaseBookKeysInFlight = null;
+    _titlesCached = false;
   }
 
   @visibleForTesting
@@ -3755,6 +3776,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     Map<int, String>? categoryIdToPath,
     bool titlesCached = true,
   }) {
+    _invalidateDatabaseBookKeys();
     _cachedKeys
       ..clear()
       ..addAll(keys);
@@ -3808,14 +3830,14 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     debugPrint('💾 Building library catalog from database...');
 
     // CRITICAL: Clear cache before rebuilding to ensure fresh data
-    _titlesCached = false;
+    _invalidateDatabaseBookKeys();
     _cachedKeys.clear();
     _categoryIdToPath.clear();
     _categoriesById.clear();
 
     final repository = _sqliteProvider.repository!;
 
-    final hasTalmudBavliDirectory = await _bundledTalmudBavliDirectoryExists();
+    final bundledTalmud = await _resolveBundledTalmudBavliDirectory();
 
     final tQuery = DateTime.now();
 
@@ -3850,8 +3872,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     for (final bookData in allDbBooks) {
       if (!shouldIncludeBookByPath(
         bookData['filePath'] as String?,
-        hasTalmudBavliDirectory: hasTalmudBavliDirectory,
-        talmudBavliDirectoryPath: _bundledTalmudBavliPathCache,
+        hasTalmudBavliDirectory: bundledTalmud.exists,
+        talmudBavliDirectoryPath: bundledTalmud.path,
       )) {
         continue;
       }
@@ -3910,10 +3932,11 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     final talmudBavliCategory = library.subCategories.where((category) {
       return category.title == DatabaseConstants.talmudBavliFolderName;
     }).firstOrNull;
-    if (talmudBavliCategory != null) {
+    if (talmudBavliCategory != null && bundledTalmud.exists) {
       await _addBundledTalmudBavliPdfBooksToCategory(
         talmudBavliCategory,
         metadata,
+        bundledTalmud.path,
       );
     }
 
