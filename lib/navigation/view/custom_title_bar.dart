@@ -1062,7 +1062,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
           // אין כאן כותרת כלל, ולכן ה-tooltip הוא הדרך היחידה לזהות את
           // הכרטיסיה — ומוצג בכל שטחה.
           child: Tooltip(
-            message: tab.title,
+            message: tabTooltipOf(tab),
             child: Row(
               children: [
                 Container(

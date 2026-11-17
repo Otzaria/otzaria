@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/navigation/view/tab_visuals.dart';
 import 'package:otzaria/plugins/services/plugin_tab_info.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
+import 'package:otzaria/tabs/models/combined_tab.dart';
 
 void main() {
   ToolTab plugin() => ToolTab(toolId: 'com.example.plugin', title: 'שני טורים');
@@ -25,6 +26,30 @@ void main() {
         );
       expect(tabTooltipOf(tab), 'בראשית, פרק א\nשני טורים');
     });
+
+    test(
+      'פיצול שומר כותרת רגילה בלי override ומשלב טולטיפים לפי סדר החלוניות',
+      () {
+        final first = plugin();
+        final second = plugin()..title = 'כלי נוסף';
+        final tab = CombinedTab(rightTab: first, leftTab: second);
+        expect(tabTooltipOf(tab), tab.title);
+        first.applyPluginTabInfo(
+          PluginTabInfoUpdate.parse({
+            'title': 'בראשית א',
+            'tooltip': 'בראשית, פרק א',
+          }),
+        );
+        expect(tabTooltipOf(tab), 'בראשית, פרק א\nכלי נוסף');
+        second.applyPluginTabInfo(
+          PluginTabInfoUpdate.parse({'tooltip': 'פרטים\nנוספים'}),
+        );
+        expect(tabTooltipOf(tab), 'בראשית, פרק א\nפרטים\nנוספים');
+        first.applyPluginTabInfo(PluginTabInfoUpdate.parse({'tooltip': null}));
+        second.applyPluginTabInfo(PluginTabInfoUpdate.parse({'tooltip': null}));
+        expect(tabTooltipOf(tab), 'משולב: בראשית א | כלי נוסף');
+      },
+    );
 
     test('כלי מובנה לעולם לא מקבל טולטיפ מותאם', () {
       expect(

@@ -247,9 +247,15 @@ ValueListenable<String>? liveTabTitleOf(OpenedTab tab) {
 }
 
 /// הטולטיפ של כרטיסיה סטטית: זה שהתוסף קבע לכרטיסיה שלו, ובלעדיו הכותרת.
-@visibleForTesting
-String tabTooltipOf(OpenedTab tab) =>
-    (tab is ToolTab ? tab.tooltipOverride : null) ?? tab.title;
+String tabTooltipOf(OpenedTab tab) {
+  if (tab is CombinedTab &&
+      tab.panes.whereType<ToolTab>().any(
+        (pane) => pane.tooltipOverride != null,
+      )) {
+    return tab.panes.map(tabTooltipOf).join('\n');
+  }
+  return (tab is ToolTab ? tab.tooltipOverride : null) ?? tab.title;
+}
 
 bool _hasLiveLocation(OpenedTab tab) =>
     tab is! SearchingTab && liveTabTitleOf(tab) != null;

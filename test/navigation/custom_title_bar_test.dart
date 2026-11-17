@@ -481,6 +481,79 @@ void main() {
     expect(find.byTooltip('בראשית, פרק א'), findsOneWidget);
   });
 
+  for (final narrow in [false, true]) {
+    for (final combined in [false, true]) {
+      testWidgets('טולטיפ תוסף מתעדכן${narrow ? ' בכרטיסיה צרה' : ''}'
+          '${combined ? ' בחלונית משולבת' : ''}', (tester) async {
+        final plugin = ToolTab(
+          toolId: 'com.example.plugin',
+          title: 'שני טורים',
+          allowMultipleInstances: true,
+        );
+        final OpenedTab tab = combined
+            ? CombinedTab(rightTab: _makeTextTab('ספר'), leftTab: plugin)
+            : plugin;
+        final tabs = <OpenedTab>[
+          _makeTextTab('פעילה'),
+          tab,
+          if (narrow)
+            for (var i = 0; i < 98; i++) _makeTextTab('ספר $i'),
+        ];
+        final tabsBloc = _TestTabsBloc(
+          TabsState(tabs: tabs, currentTabIndex: 0),
+        );
+        final navigationBloc = _TestNavigationBloc(
+          const NavigationState(currentScreen: Screen.reading),
+        );
+        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+        final pluginSystemBloc = _TestPluginSystemBloc();
+        addTearDown(() async {
+          for (final tab in tabs) {
+            tab.dispose();
+          }
+          await tabsBloc.close();
+          await navigationBloc.close();
+          await settingsBloc.close();
+          await pluginSystemBloc.close();
+        });
+        await _setSurfaceSize(tester, const Size(1200, 800));
+        await _pumpTitleBar(
+          tester,
+          tabsBloc: tabsBloc,
+          navigationBloc: navigationBloc,
+          settingsBloc: settingsBloc,
+          pluginSystemBloc: pluginSystemBloc,
+        );
+        if (narrow) {
+          expect(find.byTooltip(tab.title), findsOneWidget);
+          expect(find.text(plugin.title), findsNothing);
+        }
+        plugin.applyPluginTabInfo(
+          PluginTabInfoUpdate.parse({
+            'title': 'בראשית א',
+            'tooltip': 'בראשית, פרק א',
+          }),
+        );
+        tabsBloc.emitState(
+          TabsState(tabs: tabs, currentTabIndex: 0, updateCounter: 1),
+        );
+        await tester.idle();
+        await tester.pump();
+        expect(
+          find.byTooltip(combined ? 'ספר\nבראשית, פרק א' : 'בראשית, פרק א'),
+          findsOneWidget,
+        );
+        expect(find.byTooltip(tab.title), findsNothing);
+        expect(find.text('שני טורים'), findsNothing);
+        if (narrow) {
+          expect(find.text('בראשית א'), findsNothing);
+        } else {
+          expect(find.text('בראשית א'), findsOneWidget);
+        }
+      });
+    }
+  }
+
   group('מיקום הכרטיסיות', () {
     /// שורת כותרת עם כרטיסיה אחת, במיקום הכרטיסיות הנתון.
     Future<void> pumpWithPlacement(

@@ -104,4 +104,19 @@ void main() {
     expect(state.tabs, hasLength(1));
     expect(pane.title, 'בפיצול');
   });
+  test('RenameTab מעדכן את כותרת הבסיס גם כשההתאמה שווה לשם החדש', () async {
+    final tab = plugin()..title = 'כלי';
+    await open(tab, 1);
+    final info = bloc.stream.firstWhere((state) => tab.titleOverride != null);
+    bloc.add(
+      SetPluginTabInfo(tab, PluginTabInfoUpdate.parse({'title': 'שני טורים'})),
+    );
+    await info;
+    bloc.add(RenameTab(tab, 'שני טורים'));
+    final reset = bloc.stream.firstWhere((state) => tab.titleOverride == null);
+    bloc.add(SetPluginTabInfo(tab, PluginTabInfoUpdate.parse({'title': null})));
+    await reset;
+    expect(tab.baseTitle, 'שני טורים');
+    expect(tab.title, 'שני טורים');
+  });
 }

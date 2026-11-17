@@ -1710,7 +1710,9 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   }
 
   void _onRenameTab(RenameTab event, Emitter<TabsState> emit) {
-    if (event.tab.title == event.title) return;
+    final tab = event.tab;
+    final currentTitle = tab is ToolTab ? tab.baseTitle : tab.title;
+    if (currentTitle == event.title) return;
     if (!state.tabs.any((tab) => leafPanes(tab).contains(event.tab))) return;
     event.tab.title = event.title;
     emit(
