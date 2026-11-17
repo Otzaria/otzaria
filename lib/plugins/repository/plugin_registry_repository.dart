@@ -178,12 +178,24 @@ class PluginRegistryRepository {
     await _db.updatePluginsUserOrder(ordering);
   }
 
+  static final Map<String, int> _fileAccessGenerations = {};
+
+  /// דור הביטול משותף לכל מופעי התוסף, גם כשההרשאה בוטלה מחוץ לגשר.
+  static int fileAccessGenerationForPlugin(String pluginId) =>
+      _fileAccessGenerations[pluginId] ?? 0;
+
+  static void revokePendingFileAccess(String pluginId) {
+    _fileAccessGenerations[pluginId] =
+        fileAccessGenerationForPlugin(pluginId) + 1;
+  }
+
   Future<void> setPermission(
     String pluginId,
     String permission,
     bool granted,
   ) async {
     await _db.setPermission(pluginId, permission, granted);
+    if (!granted) revokePendingFileAccess(pluginId);
   }
 
   Future<void> clearNewTabPageRegistration(String pluginId) =>
