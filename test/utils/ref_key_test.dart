@@ -70,6 +70,38 @@ void main() {
         expect(keys.map(refKeyHash), [for (final e in expected) e['hash']]);
       });
     }
+
+    test('ספרות ASCII בכל אורך ואותיות עבריות בסדר לא עולה', () {
+      expect(
+        partialLineRefKeys('ספר, מבוא, 123456789, 007', const ['ספר']),
+        ['~ 123456789 007'],
+      );
+      expect(
+        partialLineRefKeys('ספר, מבוא, תתרריי, ט״ו', const ['ספר']),
+        ['~ תתרריי טו'],
+      );
+    });
+
+    test('רכיב לא מספרי אחרי המספר הראשון מבטל את המפתחות החלקיים', () {
+      for (final component in ['1א', 'א1', 'ך', 'תתתתתתת', 'פרק', '١٢']) {
+        final heRef = 'ספר, מבוא, יב, $component, ג';
+        expect(
+          partialLineRefKeys(heRef, const ['ספר']),
+          isEmpty,
+          reason: heRef,
+        );
+      }
+    });
+
+    test('קידומת ארוכה עם מקף, רכיב ריק וטווח בסוף ההפניה', () {
+      expect(
+        partialLineRefKeys('ספר־עיון, מבוא,, י״ב, ג–ד', const [
+          'ספר',
+          'ספר־עיון',
+        ]),
+        ['~ יב ג'],
+      );
+    });
   });
 
   group('buildPartialRefKey', () {

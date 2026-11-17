@@ -31,14 +31,11 @@ const Set<String> _locatorWords = {
 /// בניגוד לנרמול הכללי הדפוס תופס גם סימן שאחריו פסיק ("ברכות ב., א") —
 /// תבנית ה-heRef ב-DB, שבלעדיה מידע העמוד אובד.
 String _expandDafMarks(String s) => s
-    .replaceAllMapped(
-      RegExp(r'''(?<![א-ת'"״׳])([א-ת]{1,3})\.(?=[,\s]|$)'''),
-      (m) => '${m[1]} א',
-    )
-    .replaceAllMapped(
-      RegExp(r'''(?<![א-ת'"״׳])([א-ת]{1,3}):(?=[,\s]|$)'''),
-      (m) => '${m[1]} ב',
-    );
+    .replaceAllMapped(_dafA, (m) => '${m[1]} א')
+    .replaceAllMapped(_dafB, (m) => '${m[1]} ב');
+
+final RegExp _dafA = RegExp(r'''(?<![א-ת'"״׳])([א-ת]{1,3})\.(?=[,\s]|$)''');
+final RegExp _dafB = RegExp(r'''(?<![א-ת'"״׳])([א-ת]{1,3}):(?=[,\s]|$)''');
 
 /// טווח בסוף ההפניה ("לב יא-יג", "ברכות ב.-ג.") — רק צורה זו נחתכת. חיתוך
 /// במקף הראשון שנמצא בלע כל הפניה בספר שבכותרתו מקף ("מגדל־עז ...").
@@ -46,6 +43,7 @@ final RegExp _trailingRange = RegExp(
   '''(?:^|[\\s,.:])(?:\\d+|[א-ת]{1,3}(?:["'״׳][א-ת]{1,2})?)[.:]?\\s*([-–־])\\s*'''
   '''(?:\\d+|[א-ת]{1,3}(?:["'״׳][א-ת]{1,2})?)[.:]?\\s*\$''',
 );
+final RegExp _rangeDash = RegExp('[-–־]');
 
 /// רק הצורות המגורשות מסמנות עמוד. "עא"/"עב" חשופים הם המספרים 71/72
 /// ואסור שיתנגשו ב-א/ב.
@@ -116,12 +114,10 @@ List<String> refKeyTokens(String ref) {
   // ורכיב המספר אינם מכילים מפריד, ולכן הראשון שאחרי תחילתה הוא מפריד הטווח.
   final marked = mayHaveRangeOrDafMark(ref);
   final range = marked ? _trailingRange.firstMatch(ref) : null;
-  final dash = range == null ? -1 : ref.indexOf(RegExp('[-–־]'), range.start);
+  final dash = range == null ? -1 : ref.indexOf(_rangeDash, range.start);
   final head = dash > 0 ? ref.substring(0, dash) : ref;
 
-  var cleaned = removeTeamim(
-    removeVolwels(marked ? _expandDafMarks(head) : head),
-  );
+  var cleaned = removeVolwels(marked ? _expandDafMarks(head) : head);
   cleaned = cleaned.replaceAll(_amudA, 'א').replaceAll(_amudB, 'ב');
   cleaned = cleaned
       .replaceAll('"', '')
@@ -149,7 +145,7 @@ List<String> refKeyTokens(String ref) {
 bool isRefKeyChar(int c) =>
     (c >= 0x61 && c <= 0x7A) ||
     (c >= 0x41 && c <= 0x5A) ||
-    (c >= 0x30 && c <= 0x39) ||
+    _isAsciiDigit(c) ||
     (c >= 0x0590 && c <= 0x05FF);
 
 /// המפתח הקנוני של [ref], או `null` כשלא נותר ממנו דבר.
@@ -275,11 +271,10 @@ List<String> partialLineRefKeys(String heRef, Iterable<String> titleAliases) {
       .map((c) => c.trim())
       .where((c) => c.isNotEmpty)
       .toList();
-  var named = components.indexWhere(_isNumeralComponent);
-  if (named < 0) named = components.length;
-  final numeric = components.sublist(named);
-  if (named == 0 || numeric.length < 2 || !numeric.every(_isNumeralComponent)) {
-    return const [];
+  final named = components.indexWhere(_isNumeralComponent);
+  if (named <= 0 || components.length - named < 2) return const [];
+  for (var i = named + 1; i < components.length; i++) {
+    if (!_isNumeralComponent(components[i])) return const [];
   }
   final keys = <String>[];
   for (var omitted = 1; omitted <= named; omitted++) {
@@ -289,30 +284,11 @@ List<String> partialLineRefKeys(String heRef, Iterable<String> titleAliases) {
   return keys;
 }
 
-const Map<String, int> _numeralValues = {
-  'א': 1,
-  'ב': 2,
-  'ג': 3,
-  'ד': 4,
-  'ה': 5,
-  'ו': 6,
-  'ז': 7,
-  'ח': 8,
-  'ט': 9,
-  'י': 10,
-  'כ': 20,
-  'ל': 30,
-  'מ': 40,
-  'נ': 50,
-  'ס': 60,
-  'ע': 70,
-  'פ': 80,
-  'צ': 90,
-  'ק': 100,
-  'ר': 200,
-  'ש': 300,
-  'ת': 400,
-};
+const List<int> _numeralValues = [
+  1, 2, 3, 4, 5, 6, 7, 8, 9, // א–ט
+  10, 0, 20, 30, 0, 40, 0, 50, 60, 70, 0, 80, 0, 90, // י–צ, 0 לאות סופית
+  100, 200, 300, 400, // ק–ת
+];
 
 /// רכיב heRef שהוא מספר מיקום ("שט", "סימן ז", "ב.") ולא שם.
 bool _isNumeralComponent(String component) {
@@ -323,16 +299,26 @@ bool _isNumeralComponent(String component) {
 /// ספרות, או אותיות בסדר ערך לא-עולה. שם שנקרא כמספר ("נח") רק מאבד את
 /// המפתח החלקי שלו.
 bool _isNumeralToken(String token) {
-  if (RegExp(r'^\d+$').hasMatch(token)) return true;
+  if (token.isEmpty) return true;
+  if (_isAsciiDigit(token.codeUnitAt(0))) {
+    for (var i = 1; i < token.length; i++) {
+      if (!_isAsciiDigit(token.codeUnitAt(i))) return false;
+    }
+    return true;
+  }
   if (token.length > 6) return false;
-  int? previous;
-  for (final ch in token.split('')) {
-    final value = _numeralValues[ch];
-    if (value == null || (previous != null && value > previous)) return false;
+  var previous = 400;
+  for (var i = 0; i < token.length; i++) {
+    final index = token.codeUnitAt(i) - 0x05D0;
+    if (index < 0 || index >= _numeralValues.length) return false;
+    final value = _numeralValues[index];
+    if (value == 0 || value > previous) return false;
     previous = value;
   }
   return true;
 }
+
+bool _isAsciiDigit(int codeUnit) => codeUnit >= 0x30 && codeUnit <= 0x39;
 
 /// החלק שאחרי כותרת מילולית ב-[heRef], לפי ה-alias הארוך ביותר שמתאים.
 ///
