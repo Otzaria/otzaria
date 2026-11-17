@@ -81,9 +81,11 @@ class AttachedLibrariesBloc
     AcronymsCache.instance.clearAttached();
     // האינדוקס שאחרי הרענון ממתין לה דרך GenerationCache.warmUp.
     unawaited(
-      GenerationCache.instance.reloadAttached().catchError((Object e) {
-        debugPrint('[AttachedLibrariesBloc] generations reload failed: $e');
-      }),
+      GenerationCache.instance
+          .reloadAttached(changedSlugs: event.contentChangedSlugs)
+          .catchError((Object e) {
+            debugPrint('[AttachedLibrariesBloc] generations reload failed: $e');
+          }),
     );
     _addLibraryEvent(
       RefreshLibrary(
