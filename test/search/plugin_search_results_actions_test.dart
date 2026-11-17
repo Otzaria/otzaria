@@ -1,3 +1,4 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/app_window_controller.dart';
@@ -12,7 +13,11 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/view/plugin_search_results_actions.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/theme/app_density.dart';
-import 'package:otzaria/widgets/controls/bar_button.dart';
+import 'package:otzaria/theme/app_seed_colors.dart';
+import 'package:otzaria/theme/app_theme_data.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/misc/app_menu_exports.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show ResultsOrder, SearchResult, SearchScope, TextStatus, WordMatchMode;
 
@@ -324,27 +329,36 @@ Future<void> main() async {
     expect(tester.getRect(last).right, lessThanOrEqualTo(600));
   });
 
-  testWidgets('כפתור הסרגל נבנה בצפיפות של ערכת הנושא, כמו שכניו', (
-    tester,
-  ) async {
-    for (final density in [AppDensity.regular, AppDensity.compact]) {
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: ThemeData(extensions: [density]),
-          home: Scaffold(
-            body: PluginSearchResultsActions(tab: tab, registry: registry),
+  testWidgets(
+    'הכפתור נכנס בגובה הסרגל בשתי הצפיפויות (בלי חיתוך בצפיפות מצומצמת)',
+    (tester) async {
+      for (final compact in [false, true]) {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppThemeData.light(
+              AppThemeData.createColorScheme(
+                AppSeedColors.defaultLight,
+                Brightness.light,
+              ),
+              compactMenuMode: compact,
+            ),
+            home: Scaffold(
+              body: PluginSearchResultsActions(tab: tab, registry: registry),
+            ),
           ),
-        ),
-      );
-      // מעבר ערכת הנושא מונפש: הצפיפות מתהפכת באמצע ההנפשה.
-      await tester.pumpAndSettle();
-      expect(
-        tester.widget<BarButton>(find.byType(BarButton)).compact,
-        density.isCompact,
-        reason: 'isCompact=${density.isCompact}',
-      );
-    }
-  });
+        );
+        await tester.pumpAndSettle();
+        final barHeight =
+            (compact ? AppDensity.compact : AppDensity.regular).topBarHeight;
+        expect(
+          tester.getSize(find.byType(PluginSearchResultsActions)).height,
+          lessThanOrEqualTo(barHeight),
+          reason: 'compact=$compact',
+        );
+      }
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.windows),
+  );
 
   testWidgets('בסרגל צר כמה פעולות הן תפריט אחד, לא אייקונים זהים', (
     tester,
@@ -360,10 +374,10 @@ Future<void> main() async {
     await pump(tester, iconOnly: true);
 
     // כפתור אחד: אצל שני כפתורי אייקון זהים אי אפשר להבדיל בלי tooltip.
-    expect(find.byType(BarButton), findsOneWidget);
+    expect(find.byType(AppPopupMenuButton<int>), findsOneWidget);
     expect(find.text('המשך במקור הנוסף'), findsNothing);
 
-    await tester.tap(find.byType(BarButton));
+    await tester.tap(find.byType(AppPopupMenuButton<int>));
     await tester.pumpAndSettle();
     expect(find.text('המשך במקור החיצוני'), findsOneWidget);
     await tester.tap(find.text('המשך במקור הנוסף'));
@@ -371,6 +385,132 @@ Future<void> main() async {
     expect(launches.map((l) => (l.$1, l.$2['itemId'])), [
       ('second.plugin', 'other'),
     ]);
+  });
+
+  group('אייקון מהתוסף (resultsActionIcon)', () {
+    Set<IconData> iconsOf(WidgetTester tester) => tester
+        .widgetList<Icon>(
+          find.descendant(
+            of: find.byType(PluginSearchResultsActions),
+            matching: find.byType(Icon),
+          ),
+        )
+        .map((icon) => icon.icon!)
+        .toSet();
+
+    void register({String? icon}) {
+      registry.removeAll('test.plugin');
+      registry.registerPayload('test.plugin', {
+        'id': 'external',
+        'type': 'checkbox',
+        'title': 'חפש במקור חיצוני',
+        'openPluginOnSubmit': true,
+        'resultsAction': 'המשך במקור החיצוני',
+        'visibleInModes': ['advanced'],
+        'resultsActionIcon': ?icon,
+      });
+    }
+
+    testWidgets('בסרגל, בשורה ובתפריט: האייקון שהתוסף הצהיר עליו', (
+      tester,
+    ) async {
+      register(icon: 'search_in_library_24_regular');
+      await pump(tester);
+      expect(
+        iconsOf(tester),
+        contains(OtzariaIcons.search_in_library_24_regular),
+      );
+      expect(iconsOf(tester), isNot(contains(FluentIcons.open_24_regular)));
+
+      await pump(tester, layout: PluginSearchResultsActionsLayout.inline);
+      expect(
+        iconsOf(tester),
+        contains(OtzariaIcons.search_in_library_24_regular),
+      );
+
+      await pump(tester, iconOnly: true);
+      expect(
+        iconsOf(tester),
+        contains(OtzariaIcons.search_in_library_24_regular),
+      );
+    });
+
+    testWidgets('בלי אייקון או עם שם לא מוכר: open, בלי קריסה', (tester) async {
+      for (final icon in [null, 'no_such_icon_24_regular']) {
+        register(icon: icon);
+        await pump(tester);
+        expect(tester.takeException(), isNull);
+        expect(iconsOf(tester), contains(FluentIcons.open_24_regular));
+      }
+    });
+  });
+
+  group('עיצוב הכפתור בסרגל', () {
+    ThemeData theme({bool compact = false}) => AppThemeData.light(
+      AppThemeData.createColorScheme(
+        AppSeedColors.defaultLight,
+        Brightness.light,
+      ),
+      compactMenuMode: compact,
+    );
+
+    testWidgets('כפתור tonal ברקע secondaryContainer, לא שקוף על הסרגל', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme(),
+          home: Scaffold(
+            body: PluginSearchResultsActions(tab: tab, registry: registry),
+          ),
+        ),
+      );
+      final button = find.byType(ActionButton);
+      expect(button, findsOneWidget);
+      final material = tester.widget<Material>(
+        find.descendant(of: button, matching: find.byType(Material)).first,
+      );
+      expect(
+        material.color,
+        theme().colorScheme.secondaryContainer,
+        reason: 'כפתור שקוף נבלע בסרגל; השכנים (מיון, איחוד) tonal',
+      );
+    });
+
+    testWidgets('בסרגל צר: כפתור אייקון tonal, ותפריט tonal לכמה פעולות', (
+      tester,
+    ) async {
+      Future<void> pumpNarrow() => tester.pumpWidget(
+        MaterialApp(
+          theme: theme(),
+          home: Scaffold(
+            body: PluginSearchResultsActions(
+              tab: tab,
+              registry: registry,
+              iconOnly: true,
+            ),
+          ),
+        ),
+      );
+      Color? background() {
+        final style = tester.widget<IconButton>(find.byType(IconButton)).style!;
+        return style.backgroundColor!.resolve({});
+      }
+
+      await pumpNarrow();
+      expect(background(), theme().colorScheme.secondaryContainer);
+
+      registry.registerPayload('second.plugin', {
+        'id': 'other',
+        'type': 'checkbox',
+        'title': 'מקור נוסף',
+        'openPluginOnSubmit': true,
+        'resultsAction': 'המשך במקור הנוסף',
+        'visibleInModes': ['advanced'],
+      });
+      await pumpNarrow();
+      expect(background(), theme().colorScheme.secondaryContainer);
+    });
   });
 
   testWidgets(
