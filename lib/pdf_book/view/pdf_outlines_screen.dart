@@ -1,6 +1,7 @@
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/pdf_book/utils/pdf_outline_page_lookup.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:pdfrx/pdfrx.dart';
@@ -80,20 +81,6 @@ class OutlineView extends StatefulWidget {
   State<OutlineView> createState() => _OutlineViewState();
 }
 
-/// הסעיף העמוק ביותר שמתחיל בעמוד [page] או לפניו. סעיף בלי יעד מדולג, ולא עוצר
-/// את הסריקה של אחיו.
-@visibleForTesting
-PdfOutlineNode? pdfOutlineActiveNode(List<PdfOutlineNode> nodes, int page) {
-  PdfOutlineNode? bestMatch;
-  for (final node in nodes) {
-    final nodePage = node.dest?.pageNumber;
-    if (nodePage == null) continue;
-    if (nodePage > page) break;
-    bestMatch = pdfOutlineActiveNode(node.children, page) ?? node;
-  }
-  return bestMatch;
-}
-
 class _OutlineViewState extends State<OutlineView>
     with AutomaticKeepAliveClientMixin {
   static const _headerKey = ValueKey('pdf-outline-header');
@@ -112,6 +99,7 @@ class _OutlineViewState extends State<OutlineView>
   );
   bool _isManuallyScrolling = false;
   int? _lastScrolledPage;
+  PdfOutlinePageLookup? _pageLookup;
 
   /// הסעיף שהעמוד הנוכחי נמצא בו — גם כשהעמוד אינו תחילת סעיף.
   PdfOutlineNode? _activeNode;
@@ -153,8 +141,9 @@ class _OutlineViewState extends State<OutlineView>
       oldWidget.controller.removeListener(_onControllerChanged);
       widget.controller.addListener(_onControllerChanged);
     }
-    if (!identical(oldWidget.outline, widget.outline) ||
-        (!oldWidget.isPaneOpen && widget.isPaneOpen)) {
+    final outlineChanged = !identical(oldWidget.outline, widget.outline);
+    if (outlineChanged) _pageLookup = null;
+    if (outlineChanged || (!oldWidget.isPaneOpen && widget.isPaneOpen)) {
       _lastScrolledPage = null;
       SchedulerBinding.instance.addPostFrameCallback((_) {
         if (mounted) _scrollToActiveItem();
@@ -188,46 +177,17 @@ class _OutlineViewState extends State<OutlineView>
     _selected[node]?.value = true;
   }
 
-  void _ensureParentsOpen(
-    List<PdfOutlineNode> nodes,
-    PdfOutlineNode targetNode,
-  ) {
-    final path = _findPath(nodes, targetNode);
-    if (path.isEmpty) return;
+  void _ensureParentsOpen(List<PdfOutlineNode> path) {
+    bool needsExpansion(PdfOutlineNode node) =>
+        node.children.isNotEmpty && _expanded[node] != true;
 
-    // רמת הצומת היעד היא מספר אבותיו בנתיב.
-    final targetLevel = path.length - 1;
-
-    // אם הצומת ברמה 2 ומעלה (שזה רמה 3 ומעלה בספירה רגילה), פתח את כל ההורים
-    if (targetLevel >= 2) {
-      for (final node in path) {
-        if (node.children.isNotEmpty && _expanded[node] != true) {
-          setState(() {
-            _expanded[node] = true;
-            _expandedRevision++;
-          });
-        }
+    if (path.length < 3 || !path.any(needsExpansion)) return;
+    setState(() {
+      for (final node in path.where(needsExpansion)) {
+        _expanded[node] = true;
       }
-    }
-  }
-
-  // רץ בכל מעבר עמוד על כל העץ: בלי איטרטור ובלי רשימה לכל צומת.
-  List<PdfOutlineNode> _findPath(
-    List<PdfOutlineNode> nodes,
-    PdfOutlineNode targetNode,
-  ) {
-    for (var i = 0; i < nodes.length; i++) {
-      final node = nodes[i];
-      if (node == targetNode) {
-        return [node];
-      }
-
-      final subPath = _findPath(node.children, targetNode);
-      if (subPath.isNotEmpty) {
-        return [node, ...subPath];
-      }
-    }
-    return const [];
+      _expandedRevision++;
+    });
   }
 
   void _scrollToActiveItem() {
@@ -237,9 +197,10 @@ class _OutlineViewState extends State<OutlineView>
     if (currentPage == _lastScrolledPage) return;
 
     final outline = widget.outline;
-    final activeNode = outline != null && currentPage != null
-        ? pdfOutlineActiveNode(outline, currentPage)
-        : null;
+    final path = outline != null && currentPage != null
+        ? (_pageLookup ??= PdfOutlinePageLookup(outline)).pathAt(currentPage)
+        : const <PdfOutlineNode>[];
+    final activeNode = path.firstOrNull;
 
     // בגלילה ידנית רק ההדגשה מתעדכנת; הגלילה האוטומטית תחכה לסיומה.
     if (_isManuallyScrolling) {
@@ -247,11 +208,9 @@ class _OutlineViewState extends State<OutlineView>
       return;
     }
 
-    // מסומן מיד — אחרת כל עדכון של הקונטרולר חוזר על סריקת העץ וה-setState.
+    // עדכוני קונטרולר נוספים באותו עמוד אינם מפעילים גלילה חוזרת.
     _lastScrolledPage = currentPage;
-    if (activeNode != null && outline != null) {
-      _ensureParentsOpen(outline, activeNode);
-    }
+    _ensureParentsOpen(path);
     _setActiveNode(activeNode);
     // בלי setState ייתכן שאין פריים מתוזמן, והגלילה שלמטה הייתה ממתינה לו.
     SchedulerBinding.instance.ensureVisualUpdate();
