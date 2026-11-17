@@ -121,7 +121,7 @@ const double _kMinBookTitleBesideLocation = 24;
 
 /// כותרת מוצמדת ל-start ונדהית בסוף רק כשהיא נחתכת.
 ///
-/// כש-[location] מוצג בכותרת (ראה [tabTitleHasTwin]) הוא מה שמבדיל בין
+/// כש-[location] מוצג בכותרת (ראה [tabsWithTwinTitle]) הוא מה שמבדיל בין
 /// הכרטיסיות, ולכן כשאין מקום שם הספר מתכווץ ונדהה והמיקום נשאר שלם.
 Widget buildFadedTabTitle(
   BuildContext context,
@@ -260,23 +260,27 @@ String tabTooltipOf(OpenedTab tab) {
 bool _hasLiveLocation(OpenedTab tab) =>
     tab is! SearchingTab && liveTabTitleOf(tab) != null;
 
-/// האם יש בין [tabs] כרטיסיית ספר אחרת עם אותו שם כמו [tab] — אז רק המיקום
-/// בספר מבדיל ביניהן, והוא מוצג בכותרת עצמה ולא רק ב-tooltip.
-bool tabTitleHasTwin(OpenedTab tab, List<OpenedTab> tabs) =>
-    _hasLiveLocation(tab) &&
-    tabs.any(
-      (other) =>
-          !identical(other, tab) &&
-          other.title == tab.title &&
-          _hasLiveLocation(other),
-    );
+/// כרטיסיות ספר שלהן כרטיסיה אחרת עם אותו שם. המיקום בספר מבדיל ביניהן.
+Set<OpenedTab> tabsWithTwinTitle(List<OpenedTab> tabs) {
+  final firstByTitle = <String, OpenedTab>{};
+  final withTwin = Set<OpenedTab>.identity();
+  for (final tab in tabs) {
+    if (!_hasLiveLocation(tab)) continue;
+    final first = firstByTitle.putIfAbsent(tab.title, () => tab);
+    if (identical(first, tab)) continue;
+    withTwin
+      ..add(first)
+      ..add(tab);
+  }
+  return withTwin;
+}
 
 /// בונה את הזוג (כותרת מוצגת, הודעת tooltip) של כרטיסיה ומתעדכן עם הכותרת
 /// החיה; לכרטיסיה סטטית שניהם שם הכרטיסיה. משותף לפס העליון ולפס הצדדי.
 class LiveTabTitleBuilder extends StatelessWidget {
   final OpenedTab tab;
 
-  /// מציג את המיקום בספר גם בכותרת עצמה (ראה [tabTitleHasTwin]).
+  /// מציג את המיקום בספר גם בכותרת עצמה (ראה [tabsWithTwinTitle]).
   final bool showLocationInTitle;
   final Widget Function(
     BuildContext context,
