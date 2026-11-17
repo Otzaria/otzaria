@@ -21,9 +21,8 @@ void main() {
   Future<String> createLibraryCopy(String root, {int dbBytes = 100}) async {
     final books = Directory(p.join(root, 'books'));
     await books.create(recursive: true);
-    await File(
-      p.join(books.path, 'seforim.db'),
-    ).writeAsBytes(List.filled(dbBytes, 0));
+    await File(p.join(books.path, 'seforim.db'))
+        .writeAsBytes(List.filled(dbBytes, 0));
     return root;
   }
 
@@ -114,7 +113,7 @@ void main() {
 
       await OrphanLibraryService.delete(
         info,
-        redetect: () => OrphanLibraryService.evaluateCandidate(
+        redetect: () => OrphanLibraryService.validateCandidate(
           candidateRoot: root,
           activePaths: const [],
         ),
@@ -133,7 +132,7 @@ void main() {
       await expectLater(
         OrphanLibraryService.delete(
           info,
-          redetect: () => OrphanLibraryService.evaluateCandidate(
+          redetect: () => OrphanLibraryService.validateCandidate(
             candidateRoot: root,
             activePaths: [p.join(root, 'books')],
           ),
@@ -141,6 +140,24 @@ void main() {
         throwsStateError,
       );
       expect(await Directory(root).exists(), isTrue);
+    });
+
+    test('משאיר את שני העותקים כשהאימות החוזר מצא נתיב אחר', () async {
+      final root = await createLibraryCopy(p.join(tempDir.path, 'otzaria'));
+      final other = await createLibraryCopy(p.join(tempDir.path, 'other'));
+
+      await expectLater(
+        OrphanLibraryService.delete(
+          OrphanLibraryInfo(path: root, sizeBytes: 100),
+          redetect: () => OrphanLibraryService.validateCandidate(
+            candidateRoot: other,
+            activePaths: const [],
+          ),
+        ),
+        throwsStateError,
+      );
+      expect(await Directory(root).exists(), isTrue);
+      expect(await Directory(other).exists(), isTrue);
     });
   });
 
