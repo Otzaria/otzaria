@@ -7,6 +7,7 @@ import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite;
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart' as migration_models;
@@ -162,6 +163,56 @@ void main() {
       );
 
       expect(result, isEmpty);
+    });
+
+    test('מסד מצורף בלי טבלת closure תומך בהורה חסר ובמעגל', () async {
+      final dbPath = path.join(tempDir.path, 'legacy.db');
+      final rawDb = sqlite.sqlite3.open(dbPath);
+      try {
+        rawDb.execute('''
+          CREATE TABLE category (id INTEGER PRIMARY KEY, parentId INTEGER, title TEXT);
+          INSERT INTO category VALUES
+            (1, 99, 'הורה קיים'), (2, 1, 'בן'),
+            (3, 4, 'ראשון'), (4, 3, 'שני');
+        ''');
+      } finally {
+        rawDb.close();
+      }
+      final attachedDb = MyDatabase.untrusted(dbPath);
+      addTearDown(attachedDb.close);
+      final attachedRepo = SeforimRepository(attachedDb);
+      await attachedRepo.ensureInitialized();
+
+      expect(
+        await BookDatabaseResolver.buildCategoryPath(attachedRepo, 2),
+        'הורה קיים, בן',
+      );
+      expect(
+        await BookDatabaseResolver.buildCategoryPath(attachedRepo, 3),
+        'שני, ראשון',
+      );
+    });
+
+    test('מסד ישן בלי עמודת הורה מחזיר את כותרת הקטגוריה', () async {
+      final dbPath = path.join(tempDir.path, 'parentless.db');
+      final rawDb = sqlite.sqlite3.open(dbPath);
+      try {
+        rawDb.execute('''
+          CREATE TABLE category (id INTEGER PRIMARY KEY, title TEXT);
+          INSERT INTO category VALUES (1, 'מדף');
+        ''');
+      } finally {
+        rawDb.close();
+      }
+      final attachedDb = MyDatabase.untrusted(dbPath);
+      addTearDown(attachedDb.close);
+      final attachedRepo = SeforimRepository(attachedDb);
+      await attachedRepo.ensureInitialized();
+
+      expect(
+        await BookDatabaseResolver.buildCategoryPath(attachedRepo, 1),
+        'מדף',
+      );
     });
   });
 

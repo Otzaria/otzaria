@@ -242,18 +242,7 @@ class BookFacet {
     int categoryId,
   ) async {
     try {
-      final List<String> pathParts = [];
-      int? currentId = categoryId;
-
-      while (currentId != null) {
-        final category = await repository.getCategory(currentId);
-        if (category == null) break;
-
-        pathParts.insert(0, category.title);
-        currentId = category.parentId;
-      }
-
-      return pathParts.join(', ');
+      return await repository.getCategoryPath(categoryId);
     } catch (e) {
       debugPrint('📚 BookFacet._buildCategoryPath error: $e');
       return '';

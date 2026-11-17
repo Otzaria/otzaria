@@ -5,7 +5,6 @@ import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart' as migration_models;
-import 'package:otzaria/migration/models/category.dart' as db_models;
 import 'package:otzaria/models/book_source.dart';
 
 class ResolvedBookRepositoryCandidate {
@@ -212,26 +211,7 @@ class BookDatabaseResolver {
   static Future<String> buildCategoryPath(
     SeforimRepository repository,
     int categoryId,
-  ) async {
-    final categoriesById = <int, db_models.Category>{};
-    final pathParts = <String>[];
-    final visited = <int>{};
-    int? currentId = categoryId;
-
-    while (currentId != null && visited.add(currentId)) {
-      var category = categoriesById[currentId];
-      category ??= await repository.getCategory(currentId);
-      if (category == null) {
-        break;
-      }
-
-      categoriesById[category.id] = category;
-      pathParts.insert(0, category.title);
-      currentId = category.parentId;
-    }
-
-    return pathParts.join(', ');
-  }
+  ) => repository.getCategoryPath(categoryId);
 
   /// מועמדי המסדים לפי הסדר: [preferSource] תחילה, ואחריו רשמי ואז אישי.
   /// מסד מצורף אינו נופל לשאר המסדים — ספר בשם זהה שם הוא ספר אחר.
