@@ -3051,7 +3051,7 @@ void main() {
     );
 
     test(
-      'PDF בבלי של שקלים ועדיות מוצב בסדר שלו אחרי המסכת שלפניו',
+      'PDF בבלי של שקלים ועדיות מוצב בסדר שלו גם באיפוס בזמן הבדיקה',
       () async {
         final tempDir = await Directory.systemTemp.createTemp(
           'otzaria_talmud_pdf_seder',
@@ -3175,7 +3175,9 @@ void main() {
         }
 
         await provider.initialize();
-        final library = await provider.buildLibraryCatalog({}, libraryPath);
+        final pendingLibrary = provider.buildLibraryCatalog({}, libraryPath);
+        provider.clearCache();
+        final library = await pendingLibrary;
         final talmud = library.subCategories.singleWhere(
           (c) => c.title == DatabaseConstants.talmudBavliFolderName,
         );
@@ -3199,6 +3201,27 @@ void main() {
           talmud.subCategories.where((c) => c.title == 'מסכתות נוספות'),
           isEmpty,
         );
+
+        final preferredPdfPath = path.join(
+          libraryPath,
+          'books',
+          DatabaseConstants.talmudBavliFolderName,
+          'שקלים.pdf',
+        );
+        await File(preferredPdfPath).create(recursive: true);
+        await Settings.setValue<String>(
+          SettingsRepository.keyLibraryFolderName,
+          'books',
+        );
+        final updatedLibrary = await provider.buildLibraryCatalog(
+          {},
+          libraryPath,
+        );
+        final shekalim = updatedLibrary
+            .getAllBooks()
+            .whereType<PdfBook>()
+            .singleWhere((book) => book.title == 'שקלים');
+        expect(shekalim.filePath, preferredPdfPath);
       },
     );
 

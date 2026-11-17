@@ -2179,8 +2179,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   bool _titlesCached = false;
   int _databaseBookKeysGeneration = 0;
   Future<Set<BookCompositeKey>>? _databaseBookKeysInFlight;
-  String? _bundledTalmudBavliPathCache;
-  bool? _bundledTalmudBavliExistsCache;
+  ({String path, bool exists})? _bundledTalmudBavliDirectoryCache;
 
   /// מפתחות "title\u0000categoryId" של ספרים שראוי להציג להם תפריט 'גרסאות',
   /// לפי `BookSource.wireKey`. נטען פעם אחת לכל מסד; מנוקה ב-[clearCache].
@@ -2854,34 +2853,29 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     );
   }
 
-  Future<bool> _bundledTalmudBavliDirectoryExists() async {
+  Future<({String path, bool exists})>
+  _resolveBundledTalmudBavliDirectory() async {
     final candidatePaths = DatabaseConstants.getTalmudBavliDirectoryPaths();
-    if (_bundledTalmudBavliExistsCache != null &&
-        _bundledTalmudBavliPathCache != null &&
-        candidatePaths.contains(_bundledTalmudBavliPathCache)) {
-      return _bundledTalmudBavliExistsCache!;
-    }
+    final cached = _bundledTalmudBavliDirectoryCache;
+    if (cached != null && candidatePaths.contains(cached.path)) return cached;
 
     final generation = _databaseBookKeysGeneration;
+    var result = (path: candidatePaths.first, exists: false);
     for (final candidatePath in candidatePaths) {
       final exists = await Directory(candidatePath).exists();
       // חילוץ שנקטע משאיר תיקייה עם PDF חלקי וסימון-ביניים; מתעלמים ממנה עד
       // שההתקנה תושלם, אחרת הספרייה תציג מסכתות עם קבצים חסרים.
       if (exists &&
           !DatabaseConstants.isTalmudBavliInstallInProgress(candidatePath)) {
-        if (generation == _databaseBookKeysGeneration) {
-          _bundledTalmudBavliPathCache = candidatePath;
-          _bundledTalmudBavliExistsCache = true;
-        }
-        return true;
+        result = (path: candidatePath, exists: true);
+        break;
       }
     }
 
     if (generation == _databaseBookKeysGeneration) {
-      _bundledTalmudBavliPathCache = candidatePaths.first;
-      _bundledTalmudBavliExistsCache = false;
+      _bundledTalmudBavliDirectoryCache = result;
     }
-    return false;
+    return result;
   }
 
   /// מסכתות PDF בלי טקסט בבלי תואם: הסדר שלהן והמסכת שאחריה הן מוצגות.
@@ -2893,12 +2887,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   Future<void> _addBundledTalmudBavliPdfBooksToCategory(
     Category category,
     Map<String, Map<String, dynamic>> metadata,
+    String bundledPath,
   ) async {
-    final bundledPath = _bundledTalmudBavliPathCache;
-    if (bundledPath == null || !await _bundledTalmudBavliDirectoryExists()) {
-      return;
-    }
-
     final bundledDir = Directory(bundledPath);
 
     // Build a map: title → sub-category that contains a TextBook with that title.
@@ -3082,8 +3072,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     }
 
     try {
-      final hasTalmudBavliDirectory =
-          await _bundledTalmudBavliDirectoryExists();
+      final bundledTalmud = await _resolveBundledTalmudBavliDirectory();
       final dbBooks = await _sqliteProvider.repository!.getAllBooks();
       final categories = await _sqliteProvider.repository!.getAllCategories();
       debugPrint('💾 Database found ${dbBooks.length} books');
@@ -3125,8 +3114,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       for (final dbBook in dbBooks) {
         if (!shouldIncludeBookByPath(
           dbBook.filePath,
-          hasTalmudBavliDirectory: hasTalmudBavliDirectory,
-          talmudBavliDirectoryPath: _bundledTalmudBavliPathCache,
+          hasTalmudBavliDirectory: bundledTalmud.exists,
+          talmudBavliDirectoryPath: bundledTalmud.path,
         )) {
           continue;
         }
@@ -3687,12 +3676,10 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         generation != _databaseBookKeysGeneration || _titlesCached;
     load:
     try {
-      final hasTalmudBavliDirectory =
-          await _bundledTalmudBavliDirectoryExists();
+      final bundledTalmud = await _resolveBundledTalmudBavliDirectory();
       if (cacheWasSuperseded()) break load;
       final (:books, :categories) = await _bookCatalog(repository);
       if (cacheWasSuperseded()) break load;
-      final talmudBavliPath = _bundledTalmudBavliPathCache;
       final keys = <BookCompositeKey>[];
       final cache = (
         paths: Map<int, String>.of(_categoryIdToPath),
@@ -3702,8 +3689,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       for (final book in books) {
         if (!shouldIncludeBookByPath(
           book.filePath,
-          hasTalmudBavliDirectory: hasTalmudBavliDirectory,
-          talmudBavliDirectoryPath: talmudBavliPath,
+          hasTalmudBavliDirectory: bundledTalmud.exists,
+          talmudBavliDirectoryPath: bundledTalmud.path,
         )) {
           continue;
         }
@@ -3772,8 +3759,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     _attachedCachedKeys.clear();
     _attachedCategoryPaths.clear();
     _invalidateDatabaseBookKeys();
-    _bundledTalmudBavliPathCache = null;
-    _bundledTalmudBavliExistsCache = null;
+    _bundledTalmudBavliDirectoryCache = null;
     _selectableVersionKeysFutures.clear();
     debugPrint('💾 Database cache cleared');
   }
@@ -3851,7 +3837,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
 
     final repository = _sqliteProvider.repository!;
 
-    final hasTalmudBavliDirectory = await _bundledTalmudBavliDirectoryExists();
+    final bundledTalmud = await _resolveBundledTalmudBavliDirectory();
 
     final tQuery = DateTime.now();
 
@@ -3886,8 +3872,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     for (final bookData in allDbBooks) {
       if (!shouldIncludeBookByPath(
         bookData['filePath'] as String?,
-        hasTalmudBavliDirectory: hasTalmudBavliDirectory,
-        talmudBavliDirectoryPath: _bundledTalmudBavliPathCache,
+        hasTalmudBavliDirectory: bundledTalmud.exists,
+        talmudBavliDirectoryPath: bundledTalmud.path,
       )) {
         continue;
       }
@@ -3946,10 +3932,11 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     final talmudBavliCategory = library.subCategories.where((category) {
       return category.title == DatabaseConstants.talmudBavliFolderName;
     }).firstOrNull;
-    if (talmudBavliCategory != null) {
+    if (talmudBavliCategory != null && bundledTalmud.exists) {
       await _addBundledTalmudBavliPdfBooksToCategory(
         talmudBavliCategory,
         metadata,
+        bundledTalmud.path,
       );
     }
 
