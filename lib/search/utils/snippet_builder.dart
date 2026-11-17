@@ -25,6 +25,14 @@ class SnippetBuilder {
   /// `i`, `h2`) אינם נחשבים הדגשה ומוצגים כטקסט רגיל.
   static const Set<String> _highlightTags = {'font', 'mark'};
 
+  static final RegExp _highlightTag = RegExp(
+    '<(?:${_highlightTags.join('|')})[\\s>]',
+    caseSensitive: false,
+  );
+
+  /// האם המנוע סימן התאמה כלשהי ב-[html].
+  static bool hasHighlight(String html) => _highlightTag.hasMatch(html);
+
   static final RegExp _whitespace = RegExp(r'\s+');
 
   static final RegExp _lineBreakTag = RegExp(

@@ -20,6 +20,7 @@ import 'package:otzaria/core/windowing/mac_menu_bar.dart';
 import 'package:otzaria/core/windowing/window_caption_hit_test.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:otzaria/navigation/view/main_window_screen.dart';
+import 'package:otzaria/search/utils/search_results_report.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/widgets/feedback/edge_scrollbar_behavior.dart';
 import 'package:otzaria/widgets/misc/middle_click_autoscroll.dart';
@@ -142,6 +143,9 @@ class App extends StatelessWidget {
                   content = MacMenuBar(child: content);
                   content = FrameStatsOverlay(
                     contextProvider: () => _diagnosticsContext(context),
+                    searchResultsProvider: () => describeSearchResults(
+                      context.read<TabsBloc>().state.currentTab,
+                    ),
                     child: content,
                   );
 

@@ -44,6 +44,7 @@ class AppReportCollector {
     AppReportRedactor? redactor,
     this._appInfoLoader,
     this._currentContext,
+    this._searchResults,
     this._includeCurrentContext = true,
     this._errorLogPath,
     this._shutdownLogPath,
@@ -64,6 +65,7 @@ class AppReportCollector {
   final AppReportRedactor _redactor;
   final Future<Map<String, dynamic>> Function()? _appInfoLoader;
   final Map<String, Object?> Function()? _currentContext;
+  final Map<String, Object?>? Function()? _searchResults;
 
   /// `false` בדיווח על קריסה מהפעלה קודמת: החלון הנוכחי אינו מה שהיה פתוח בה.
   final bool _includeCurrentContext;
@@ -103,6 +105,9 @@ class AppReportCollector {
             'previousRunContext',
             () async => await _previousRunContext() ?? const {},
           );
+    final searchResults = _includeCurrentContext
+        ? _searchResultsOrError()
+        : null;
     final diagnostics = <String, dynamic>{
       'collectedAt': _clock().toUtc().toIso8601String(),
       'appInfo': await _guard('appInfo', _loadAppInfo),
@@ -139,6 +144,7 @@ class AppReportCollector {
         ),
       if (previousRun != null && previousRun.isNotEmpty)
         'previousRun': previousRun,
+      'searchResults': ?searchResults,
     };
     return _redact(diagnostics);
   }
@@ -295,6 +301,21 @@ class AppReportCollector {
             AppFonts.defaultCommentatorsFont,
       },
     };
+  }
+
+  /// null מחוץ ללשונית חיפוש.
+  Map<String, dynamic>? _searchResultsOrError() {
+    try {
+      final results =
+          (_searchResults ??
+                  DeveloperDiagnostics.instance.searchResultsProvider)
+              ?.call();
+      return results == null ? null : Map<String, dynamic>.from(results);
+    } catch (error) {
+      debugPrint('AppReportCollector: searchResults failed: $error');
+      // ההודעה עלולה להכיל טקסט תוצאה, ולכן רק הסוג.
+      return {'error': error.runtimeType.toString()};
+    }
   }
 
   static Future<Map<String, dynamic>> _guard(

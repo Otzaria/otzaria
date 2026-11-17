@@ -18,12 +18,16 @@ class FrameStatsOverlay extends StatefulWidget {
     super.key,
     required this.child,
     this.contextProvider,
+    this.searchResultsProvider,
   });
 
   final Widget child;
 
   /// Describes what the app is showing, for the diagnostics log.
   final Map<String, Object?> Function()? contextProvider;
+
+  /// The current search tab's results, for an app report only.
+  final Map<String, Object?>? Function()? searchResultsProvider;
 
   @override
   State<FrameStatsOverlay> createState() => _FrameStatsOverlayState();
@@ -32,13 +36,17 @@ class FrameStatsOverlay extends StatefulWidget {
 class _FrameStatsOverlayState extends State<FrameStatsOverlay> {
   static final _windows = <_FrameStatsOverlayState, AppWindowKeys>{};
 
-  static Map<String, Object?> _activeContext() {
+  static Map<String, Object?> _activeContext() =>
+      _activeWindow()?.widget.contextProvider?.call() ?? const {};
+
+  static Map<String, Object?>? _activeSearchResults() =>
+      _activeWindow()?.widget.searchResultsProvider?.call();
+
+  static _FrameStatsOverlayState? _activeWindow() {
     for (final window in _windows.entries) {
-      if (identical(window.value, AppWindowKeys.current)) {
-        return window.key.widget.contextProvider?.call() ?? const {};
-      }
+      if (identical(window.value, AppWindowKeys.current)) return window.key;
     }
-    return const {};
+    return null;
   }
 
   DeveloperDiagnostics get _diagnostics => DeveloperDiagnostics.instance;
@@ -47,6 +55,7 @@ class _FrameStatsOverlayState extends State<FrameStatsOverlay> {
   void initState() {
     super.initState();
     _diagnostics.contextProvider = _activeContext;
+    _diagnostics.searchResultsProvider = _activeSearchResults;
     HardwareKeyboard.instance.addHandler(_onKey);
   }
 
@@ -60,6 +69,7 @@ class _FrameStatsOverlayState extends State<FrameStatsOverlay> {
   void didUpdateWidget(FrameStatsOverlay oldWidget) {
     super.didUpdateWidget(oldWidget);
     _diagnostics.contextProvider = _activeContext;
+    _diagnostics.searchResultsProvider = _activeSearchResults;
   }
 
   @override

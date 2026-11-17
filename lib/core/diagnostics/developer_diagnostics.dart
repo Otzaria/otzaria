@@ -247,6 +247,9 @@ class DeveloperDiagnostics {
   /// Describes what the app is showing, for slow frame and context records.
   Map<String, Object?> Function()? contextProvider;
 
+  /// The current search tab's results, for app reports only.
+  Map<String, Object?>? Function()? searchResultsProvider;
+
   late String outputPath = _defaultOutputPath();
 
   /// Lists the WebView processes; registered by the plugin layer.
@@ -764,6 +767,7 @@ class DeveloperDiagnostics {
     _estimateLists.clear();
     _lastEstimates = Expando();
     contextProvider = null;
+    searchResultsProvider = null;
     osVersionForTesting = displayOsVersion;
     _lastOsVersion = null;
     errorLogWriter = ErrorLogFile.appendText;

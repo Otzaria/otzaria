@@ -439,6 +439,33 @@ void main() {
       expect(asked, isFalse);
     });
 
+    test(
+      'תוצאות לשונית החיפוש נכנסות רק כשהלשונית הנוכחית היא חיפוש',
+      () async {
+        Future<Map<String, dynamic>> collect(
+          Map<String, Object?>? results, {
+          bool includeCurrentContext = true,
+        }) => AppReportCollector(
+          redactor: redactor,
+          appInfoLoader: () async => {},
+          searchResults: () => results,
+          includeCurrentContext: includeCurrentContext,
+          clock: () => now,
+        ).collectDiagnostics();
+
+        final results = {'kind': 'lexical', 'unhighlighted': 2};
+        expect((await collect(results))['searchResults'], results);
+        expect((await collect(null)).containsKey('searchResults'), isFalse);
+        expect(
+          (await collect(
+            results,
+            includeCurrentContext: false,
+          )).containsKey('searchResults'),
+          isFalse,
+        );
+      },
+    );
+
     test('כרטיסיית חיפוש: השאילתה לא נכנסת לכותרת', () {
       final tab = SearchingTab(
         SearchingTab.titleForQuery('שאילתה פרטית'),
