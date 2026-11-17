@@ -33,15 +33,21 @@ void main() {
   });
 
   /// יוצר קובץ ספר בתיקייה ורשומת ספר תואמת (כמו אחרי סריקה).
-  Future<int> addBook(String fileName, String content) async {
+  Future<int> addBook(
+    String fileName,
+    String content, {
+    String? title,
+    int categoryId = 1,
+  }) async {
     final path = p.join(folder.path, fileName);
     File(path).writeAsStringSync(content);
     final raw = await db.database;
     raw.execute(
       'INSERT INTO book (categoryId, sourceId, title, filePath, fileType, lastModified) '
-      'VALUES (1, 1, ?, ?, ?, 1)',
+      'VALUES (?, 1, ?, ?, ?, 1)',
       [
-        p.basenameWithoutExtension(fileName),
+        categoryId,
+        title ?? p.basenameWithoutExtension(fileName),
         path,
         p.extension(fileName).substring(1),
       ],
@@ -61,6 +67,27 @@ void main() {
       'WHERE s.bookId = ? ORDER BY e.id',
       [bookId],
     ).toList();
+  }
+
+  Future<int Function()> countBookLookups() async {
+    final raw = await db.database;
+    var count = 0;
+    raw.createFunction(
+      functionName: 'count_book_lookup',
+      argumentCount: const sqlite3.AllowedArgumentCount(1),
+      directOnly: false,
+      function: (args) {
+        count++;
+        return args.first;
+      },
+    );
+    raw.execute('''
+      CREATE TEMP VIEW book AS
+      SELECT id, title, categoryId, filePath, lastModified,
+        count_book_lookup(fileType) AS fileType
+      FROM main.book
+    ''');
+    return () => count;
   }
 
   test('קובץ כותרות של ספר נקלט לפי שם הקובץ', () async {
@@ -95,6 +122,42 @@ void main() {
     expect(errors, isEmpty);
     expect((await headingRows(first)).single['text'], 'ראשון');
     expect((await headingRows(second)).single['lineIndex'], 1);
+  });
+
+  test('כותרות חוזרות מחפשות כל צמד ספר וקטגוריה פעם אחת', () async {
+    final raw = await db.database;
+    raw.execute("INSERT INTO category (id, title) VALUES (20, 'נוספת')");
+    final first = await addBook('א.txt', 'שורה\nשורה', title: 'משותף');
+    final second = await addBook(
+      'ב.txt',
+      'שורה\nשורה',
+      title: 'משותף',
+      categoryId: 20,
+    );
+    writeSidecar(
+      'כותרות.csv',
+      'ספר,קטגוריה,כותרת,שורה\n'
+          'משותף,1,ראשון,1\nמשותף,20,מקביל,1\n'
+          'משותף,1,שני,2\nמשותף,20,מקביל שני,2\n'
+          'חסר,,א,1\nחסר,,ב,2\n',
+    );
+    final lookups = await countBookLookups();
+
+    final errors = await UserSidecarSync.applyForFolder(
+      userDb: db,
+      folderPath: folder.path,
+    );
+
+    expect(lookups(), 2);
+    expect(errors, [contains('שורה 6'), contains('שורה 7')]);
+    expect((await headingRows(first)).map((r) => r['text']), ['ראשון', 'שני']);
+    expect((await headingRows(second)).map((r) => r['text']), [
+      'מקביל',
+      'מקביל שני',
+    ]);
+
+    await UserSidecarSync.applyForFolder(userDb: db, folderPath: folder.path);
+    expect(lookups(), 4);
   });
 
   test('עריכת הקובץ מחליפה את הכותרות, ומחיקתו מסירה אותן', () async {
@@ -194,6 +257,36 @@ void main() {
     expect(rows.single['primaryBookId'], primary);
     expect(rows.single['versionBookId'], version);
     expect(rows.single['versionTitle'], 'מוסד הרב קוק');
+  });
+
+  test('גרסאות משתמשות באותה שאילתה לכתיבים שקולים של נתיב', () async {
+    final primary = await addBook('ראשי.txt', 'א');
+    final first = await addBook('ראשון.txt', 'א');
+    final second = await addBook('שני.txt', 'א');
+    writeSidecar(
+      'גרסאות.csv',
+      'ראשי,גרסה,שם\n'
+          'ראשי.txt,ראשון.txt,גרסה א\n'
+          '.\\ראשי.txt,שני.txt,גרסה ב\n'
+          'חסר.txt,ראשון.txt,חסרה א\n'
+          './חסר.txt,שני.txt,חסרה ב\n',
+    );
+    final lookups = await countBookLookups();
+
+    final errors = await UserSidecarSync.applyForFolder(
+      userDb: db,
+      folderPath: folder.path,
+    );
+
+    expect(lookups(), 3);
+    expect(errors, [contains('שורה 4'), contains('שורה 5')]);
+    final raw = await db.database;
+    final rows = raw.select(
+      'SELECT * FROM user_book_version ORDER BY versionBookId',
+    );
+    expect(rows.map((row) => row['primaryBookId']), [primary, primary]);
+    expect(rows.map((row) => row['versionBookId']), [first, second]);
+    expect(rows.map((row) => row['versionTitle']), ['גרסה א', 'גרסה ב']);
   });
 
   test('ייבוא מההגדרות קולט כותרות וגרסאות לפי כותרות ספרים', () async {
@@ -341,7 +434,10 @@ void main() {
         final repo = UserContentRepository(db);
         expect(await repo.sidecarSignature(sidecar.path), isNull);
         expect(
-          await repo.forwardUserLinks('מגילה רשמית', sourceIsUserBook: false),
+          await repo.forwardUserLinks(
+            'מגילה רשמית',
+            sourceIsUserBook: false,
+          ),
           isEmpty,
         );
       },
@@ -393,10 +489,7 @@ void main() {
         expect(errors.single, contains('חורגת מגבולות'));
         expect(await repo.sidecarSignature(sidecar.path), oldSignature);
         expect(
-          await repo.forwardUserLinks(
-            'מגילה רשמית',
-            sourceIsUserBook: false,
-          ),
+          await repo.forwardUserLinks('מגילה רשמית', sourceIsUserBook: false),
           hasLength(1),
         );
       } finally {

@@ -144,9 +144,18 @@ class UserSidecarSync {
       _collectParseErrors(name, parsed.errors, errors);
       final records = <UserBookVersionRecord>[];
       final signature = StringBuffer(await _fileStamp(file));
+      final booksByPath = <String, Future<_UserBookFile?>>{};
+      final directory = p.dirname(file.path);
+      Future<_UserBookFile?> bookAt(String relativePath) {
+        final path = p.normalize(
+          p.join(directory, relativePath.replaceAll('\\', '/')),
+        );
+        return booksByPath.putIfAbsent(path, () => _bookAt(repo, path));
+      }
+
       for (final row in parsed.rows) {
         if (!row.primarySource.isUser) {
-          final version = await _bookAtRelativePath(repo, file, row.version);
+          final version = await bookAt(row.version);
           if (version == null) {
             errors.add(
               '$name שורה ${row.rowNumber}: הספר "${row.version}" לא נמצא',
@@ -171,8 +180,8 @@ class UserSidecarSync {
           );
           continue;
         }
-        final primary = await _bookAtRelativePath(repo, file, row.primary);
-        final version = await _bookAtRelativePath(repo, file, row.version);
+        final primary = await bookAt(row.primary);
+        final version = await bookAt(row.version);
         if (primary == null || version == null) {
           errors.add(
             '$name שורה ${row.rowNumber}: הספר '
@@ -207,11 +216,15 @@ class UserSidecarSync {
     // כל הכותרות של ספר אחד נכתבות יחד, כדי שהקובץ יגדיר את מבניו במלואם.
     final rowsByBook = <String, List<ParsedHeading>>{};
     final booksByKey = <String, _UserBookFile>{};
+    final booksByTitle = <(String, int?), Future<_UserBookFile?>>{};
     final fileBook = perBook ? await _bookOfPerBookFile(repo, file) : null;
     for (final row in parsed.rows) {
       final book = perBook
           ? fileBook
-          : await _bookByTitle(repo, row.bookTitle!, row.categoryId);
+          : await booksByTitle.putIfAbsent((
+              row.bookTitle!,
+              row.categoryId,
+            ), () => _bookByTitle(repo, row.bookTitle!, row.categoryId));
       if (book == null) {
         errors.add(
           '$name שורה ${row.rowNumber}: הספר '
@@ -363,17 +376,6 @@ class UserSidecarSync {
       if (book != null) return book;
     }
     return null;
-  }
-
-  static Future<_UserBookFile?> _bookAtRelativePath(
-    UserContentRepository repo,
-    File sidecar,
-    String relativePath,
-  ) async {
-    final resolved = p.normalize(
-      p.join(p.dirname(sidecar.path), relativePath.replaceAll('\\', '/')),
-    );
-    return _bookAt(repo, resolved);
   }
 
   static Future<_UserBookFile?> _bookAt(
