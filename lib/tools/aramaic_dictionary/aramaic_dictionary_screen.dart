@@ -72,6 +72,35 @@ List<Map<String, String>> rankAramaicMatches(
   return [for (final r in ranked) entries[r.order]];
 }
 
+/// שורות החיפוש של המסך. שדה העברית נבנה בנפרד ([fillHebrewPlain]) כי הוא יקר.
+@visibleForTesting
+List<Map<String, String>> buildAramaicRows(
+  List<AramaicDictionaryEntry> entries,
+  List<String> normalizedKeys,
+) => [
+  for (final (index, entry) in entries.indexed)
+    <String, String>{
+      'aramaic': entry.aramaic,
+      'hebrew': entry.hebrew,
+      'dictionary': entry.dictionary,
+      // שדות החיפוש בלי ניקוד, כדי שהקלדה רגילה תמצא ערכים מנוקדים.
+      // המפתח הארמי הוא אותו מפתח מנורמל שבו משתמשים תפריט ההקשר וה-API.
+      'aramaicPlain': normalizedKeys[index],
+    },
+];
+
+/// ממלא 'hebrewPlain' לחיפוש עברי→ארמי, רק כשצריך אותו.
+@visibleForTesting
+void fillHebrewPlain(List<Map<String, String>> rows) {
+  for (final row in rows) {
+    row['hebrewPlain'] = removeVolwels(
+      AramaicDictionaryEntryPresentation.parse(
+        row['hebrew']!,
+      ).meanings.map((meaning) => meaning.hebrewText).join(' '),
+    );
+  }
+}
+
 /// ממזג תוצאות בעלות אותו מפתח, גם ממילונים שונים, לכרטיס אחד עם כל הפירושים.
 /// פירושי "פשיטא" קודמים; פירוש זהה שחוזר אינו מוצג פעמיים.
 @visibleForTesting
@@ -104,7 +133,7 @@ Map<String, String> _mergeGroup(List<Map<String, String>> group) => {
   'hebrew': DictionaryLookupRepository.mergeAramaicMeanings(
     group.map((e) => e['hebrew']!),
   ),
-  'hebrewPlain': group.map((e) => e['hebrewPlain']!).join(' '),
+  'hebrewPlain': group.map((e) => e['hebrewPlain'] ?? '').join(' '),
 };
 
 class AramaicDictionaryScreen extends StatefulWidget {
@@ -129,6 +158,7 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen>
   bool _isLoading = true;
   bool _loadFailed = false;
   bool _isHebrewToAramaic = false;
+  bool _hebrewPlainReady = false;
   String _query = '';
 
   @override
@@ -175,22 +205,8 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen>
       if (!mounted) return;
 
       setState(() {
-        _dictionaryData = entries.indexed.map((item) {
-          final (index, entry) = item;
-          return <String, String>{
-            'aramaic': entry.aramaic,
-            'hebrew': entry.hebrew,
-            'dictionary': entry.dictionary,
-            // שדות החיפוש בלי ניקוד, כדי שהקלדה רגילה תמצא ערכים מנוקדים.
-            // המפתח הארמי הוא אותו מפתח מנורמל שבו משתמשים תפריט ההקשר וה-API.
-            'aramaicPlain': normalizedKeys[index],
-            'hebrewPlain': removeVolwels(
-              AramaicDictionaryEntryPresentation.parse(
-                entry.hebrew,
-              ).meanings.map((meaning) => meaning.hebrewText).join(' '),
-            ),
-          };
-        }).toList();
+        _dictionaryData = buildAramaicRows(entries, normalizedKeys);
+        _hebrewPlainReady = false;
         _isLoading = false;
       });
       // השדה גלוי גם בטעינה, ומה שהוקלד בה מחפש עכשיו במילון הטעון.
@@ -220,6 +236,10 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen>
       return;
     }
 
+    if (_isHebrewToAramaic && !_hebrewPlainReady) {
+      fillHebrewPlain(_dictionaryData);
+      _hebrewPlainReady = true;
+    }
     final field = _isHebrewToAramaic ? 'hebrewPlain' : 'aramaicPlain';
     setState(() {
       _query = query;
