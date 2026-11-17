@@ -114,12 +114,12 @@ String? externalValidatedCategoryOf(
   return validPaths.contains(top) ? top : null;
 }
 
-/// המזהים מתוך [index] שסיווגם ([categories]) תואם את בחירת הקטגוריות
+/// המזהים וסך המופעים מתוך [index] שסיווגם ([categories]) תואם את בחירת הקטגוריות
 /// [facets] (OR ביניהן; קטגוריה תואמת גם את צאצאיה). [otherFacet] הוא דלי
 /// "עוד מ<מקור>" — תואם תוצאות ללא סיווג, ו-facet של ספר שתחתיו
 /// (`<דלי>/#<id>`) תואם את אותו ספר בלבד.
 @visibleForTesting
-List<int> externalVisibleIdsFor({
+({List<int> ids, int hits}) externalVisibleResultsFor({
   required List<ExternalSearchIndexEntry> index,
   required Map<int, String?> categories,
   required List<String> facets,
@@ -147,11 +147,15 @@ List<int> externalVisibleIdsFor({
     return false;
   }
 
-  return [
-    for (final entry in index)
-      if (pickedIds.contains(entry.id) || matches(categories[entry.id]))
-        entry.id,
-  ];
+  final ids = <int>[];
+  var hits = 0;
+  for (final entry in index) {
+    if (pickedIds.contains(entry.id) || matches(categories[entry.id])) {
+      ids.add(entry.id);
+      hits += entry.hits;
+    }
+  }
+  return (ids: ids, hits: hits);
 }
 
 class _ExternalSearchResultsSectionState
@@ -193,10 +197,10 @@ class _ExternalSearchResultsSectionState
   Map<int, String?>? _categoryById;
   ExternalSearchSummary? _summary;
 
-  /// במצב מסונן: מזהי התוצאות התואמות את הקטגוריות שנבחרו, בסדר האינדקס,
-  /// וכמה מהם כבר התבקשו (המזהים החסרים במטמון הספק אינם חוזרים כשורות,
-  /// ולכן העמוד הבא נספר לפי מזהים שנצרכו — לא לפי שורות שהוצגו).
-  List<int>? _visibleIds;
+  /// במצב מסונן: מזהים תואמים בסדר האינדקס וסך המופעים, לכל דפי הסינון.
+  ({List<int> ids, int hits})? _visibleResults;
+
+  /// העמוד הבא נספר לפי מזהים שנצרכו, כי מזהה חסר במטמון לא חוזר כשורה.
   int _visibleConsumed = 0;
 
   @override
@@ -284,7 +288,7 @@ class _ExternalSearchResultsSectionState
       loading: _loading,
       books: _totalBooks,
       hits: _totalHits,
-      ofTotalBooks: _filterActive ? _summary?.totalBooks : null,
+      ofTotalBooks: _visibleResults == null ? null : _summary?.totalBooks,
       failed: _error != null,
     );
   }
@@ -319,7 +323,7 @@ class _ExternalSearchResultsSectionState
     _fetchGeneration++;
     _index = null;
     _categoryById = null;
-    _visibleIds = null;
+    _visibleResults = null;
     _visibleConsumed = 0;
     _summary = null;
     widget.tab.externalSearchSummary.value = null;
@@ -344,23 +348,23 @@ class _ExternalSearchResultsSectionState
     (String, String)? active,
   ) {
     if (active == null) return;
-    _recomputeVisibleIds();
+    _recomputeVisibleResults();
     _syncFilteredOutPreview();
     _fetchGeneration++;
     _visibleConsumed = 0;
-    final visible = _visibleIds;
+    final visible = _visibleResults;
     setState(() {
       _results.clear();
       _error = null;
       _hasMore = false;
       if (visible != null) {
-        _totalBooks = visible.length;
-        _totalHits = _hitsOf(visible);
+        _totalBooks = visible.ids.length;
+        _totalHits = visible.hits;
       }
-      _loading = visible == null || visible.isNotEmpty;
+      _loading = visible == null || visible.ids.isNotEmpty;
     });
     _publishStatus();
-    if (visible == null || visible.isNotEmpty) {
+    if (visible == null || visible.ids.isNotEmpty) {
       unawaited(_fetch(state, active.$1, reset: true));
     }
   }
@@ -375,22 +379,19 @@ class _ExternalSearchResultsSectionState
       if (entry.value == target.filePath) id = entry.key;
     }
     if (id == null) return;
-    final visible = _visibleIds;
+    final visible = _visibleResults?.ids;
     widget.tab.filteredOutPreview.value =
         visible == null || visible.contains(id) ? null : target;
   }
 
-  /// הסינון פעיל רק כשנבחרו קטגוריות ויש סיווג מוכן.
-  bool get _filterActive => _filterFacets.isNotEmpty && _visibleIds != null;
-
-  void _recomputeVisibleIds() {
+  void _recomputeVisibleResults() {
     final index = _index;
     final categories = _categoryById;
     if (_filterFacets.isEmpty || index == null || categories == null) {
-      _visibleIds = null;
+      _visibleResults = null;
       return;
     }
-    _visibleIds = externalVisibleIdsFor(
+    _visibleResults = externalVisibleResultsFor(
       index: index,
       categories: categories,
       facets: _filterFacets,
@@ -406,12 +407,9 @@ class _ExternalSearchResultsSectionState
     final generation = _fetchGeneration;
     final signature = _fetchSignature;
     final offset = reset ? 0 : _results.length;
-    final filtered = _filterActive;
-    final visibleIds = _visibleIds;
+    final visible = _visibleResults;
     final idsOffset = reset ? 0 : _visibleConsumed;
-    final idsSlice = filtered && visibleIds != null
-        ? visibleIds.skip(idsOffset).take(_pageSize).toList()
-        : null;
+    final idsSlice = visible?.ids.skip(idsOffset).take(_pageSize).toList();
     // עדכון חלקי מחליף את חלון העמוד הנוכחי; הספירות הן רף-תחתון עד
     // לתשובה הסופית, וחיווי הטעינה נשאר דלוק.
     void applyPage(ExternalSearchPage page, {required bool done}) {
@@ -431,12 +429,12 @@ class _ExternalSearchResultsSectionState
           _results.length,
         );
         _results.addAll(page.results);
-        if (idsSlice != null) {
+        if (visible != null && idsSlice != null) {
           // במצב מסונן הספירות מקומיות — הספק מחזיר את סיכומי החיפוש כולו.
-          _totalBooks = visibleIds!.length;
-          _totalHits = _hitsOf(visibleIds);
+          _totalBooks = visible.ids.length;
+          _totalHits = visible.hits;
           if (done) _visibleConsumed = idsOffset + idsSlice.length;
-          _hasMore = done && _visibleConsumed < visibleIds.length;
+          _hasMore = done && _visibleConsumed < visible.ids.length;
         } else {
           _totalBooks = page.totalBooks;
           _totalHits = page.totalHits;
@@ -472,17 +470,6 @@ class _ExternalSearchResultsSectionState
       });
       _publishStatus();
     }
-  }
-
-  int _hitsOf(List<int> ids) {
-    final index = _index;
-    if (index == null) return 0;
-    final idSet = ids.toSet();
-    var total = 0;
-    for (final entry in index) {
-      if (idSet.contains(entry.id)) total += entry.hits;
-    }
-    return total;
   }
 
   /// מסווג את האינדקס: נתיבי הקטגוריות שהספק צירף (הסיווג עצמו נעשה בצד
