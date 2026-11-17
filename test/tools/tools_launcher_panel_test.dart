@@ -22,6 +22,8 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/built_in_tools_catalog.dart';
 import 'package:otzaria/tools/tool_catalog_entry.dart';
 import 'package:otzaria/tools/view/tools_launcher_panel.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 
@@ -123,6 +125,7 @@ Widget _launcherHost({
   required ValueChanged<ToolCatalogEntry> onToolSelected,
   double width = 520,
   double height = 600,
+  bool showDevTools = false,
 }) => MaterialApp(
   theme: ThemeData(colorSchemeSeed: Colors.blue),
   home: Directionality(
@@ -140,7 +143,7 @@ Widget _launcherHost({
           child: ToolsLauncherPanel(
             onToolSelected: onToolSelected,
             onClose: () {},
-            showDevTools: false,
+            showDevTools: showDevTools,
           ),
         ),
       ),
@@ -967,6 +970,7 @@ void main() {
       PluginSystemState? pluginState,
       double width = 520,
       double height = 600,
+      bool showDevTools = false,
     }) async {
       settingsBloc = _RecordingSettingsBloc(
         settings ?? SettingsState.initial(),
@@ -990,6 +994,7 @@ void main() {
           onToolSelected: selected.add,
           width: width,
           height: height,
+          showDevTools: showDevTools,
         ),
       );
       await tester.pump();
@@ -1101,7 +1106,11 @@ void main() {
         padding.padding,
         EdgeInsets.only(
           right: kToolGridScrollbarGutter,
-          bottom: AppInputTokens.height(false) + AppTokens.spaceMD,
+          // הסרגל הצף: כפתור בגובה שדה, ריפוד סביבו ומרווח תחתון.
+          bottom:
+              AppInputTokens.height(false) +
+              AppTokens.spaceSM +
+              AppTokens.spaceMD,
         ),
       );
     });
@@ -1693,7 +1702,8 @@ void main() {
         );
         await tester.pump(const Duration(milliseconds: 50));
         final grid = tester.getRect(find.byType(CustomScrollView));
-        await gesture.moveTo(Offset(grid.center.dx, grid.bottom - 10));
+        // בקצה ההפוך מהסרגל הצף: הוא מכסה חלק מהרוחב ובולע את המצביע.
+        await gesture.moveTo(Offset(grid.left + 40, grid.bottom - 10));
         await tester.pump();
         for (var i = 0; i < 10; i++) {
           await tester.pump(const Duration(milliseconds: 16));
@@ -1963,10 +1973,67 @@ void main() {
       );
     });
 
+    group('כפתור ההתקנה והמצב הריק של החיפוש', () {
+      const installLabel = 'התקן תוסף חדש';
+
+      testWidgets('ההתקנה היא כפתור ראשי עם תווית, לא אייקון שקוף', (
+        tester,
+      ) async {
+        await pumpPanel(tester);
+        final button = find.widgetWithText(ActionButton, installLabel);
+        expect(button, findsOneWidget);
+        expect(
+          find.descendant(
+            of: button,
+            matching: find.byIcon(FluentIcons.add_24_regular),
+          ),
+          findsOneWidget,
+        );
+        expect(tester.widget<ActionButton>(button).onPressed, isNotNull);
+        expect(find.byType(SquareIconButton), findsNothing);
+      });
+
+      testWidgets('כלי הפיתוח הם כפתורי אייקון עם tooltip', (tester) async {
+        await pumpPanel(tester, showDevTools: true);
+        for (final tip in ['טען תיקיית תוסף', 'טען תוסף מ-localhost']) {
+          final button = find.byTooltip(tip);
+          expect(button, findsOneWidget);
+          expect(
+            find.ancestor(of: button, matching: find.byType(IconButton)),
+            findsOneWidget,
+          );
+        }
+        expect(find.widgetWithText(ActionButton, installLabel), findsOneWidget);
+      });
+
+      testWidgets('בלי מצב פיתוח אין כפתורי כלי פיתוח', (tester) async {
+        await pumpPanel(tester);
+        expect(find.byTooltip('טען תיקיית תוסף'), findsNothing);
+        expect(find.byTooltip('טען תוסף מ-localhost'), findsNothing);
+      });
+
+      testWidgets('חיפוש בלי תוצאות: אייקון "לא נמצא", לא ספרייה (#5093)', (
+        tester,
+      ) async {
+        await pumpPanel(tester);
+        await tester.enterText(find.byType(TextField).first, 'xyzxyz');
+        await tester.pumpAndSettle();
+        expect(find.text('לא נמצאו כלים התואמים לחיפוש'), findsOneWidget);
+        expect(
+          find.byIcon(OtzariaIcons.search_not_found_24_regular),
+          findsOneWidget,
+        );
+        expect(
+          find.byIcon(OtzariaIcons.search_in_library_24_regular),
+          findsNothing,
+        );
+      });
+    });
+
     group('שולי התוספים', () {
       const disclaimer =
           'התוספים אינם מפותחים ע"י אוצריא, ואין לפנות אליהם בנושא';
-      const storeLink = 'לחנות התוספים המלאה';
+      const storeLink = 'לחנות התוספים';
 
       Future<void> scrollToEnd(WidgetTester tester) async {
         await tester.drag(
@@ -2003,6 +2070,18 @@ void main() {
         await pumpPanel(tester);
         await scrollToEnd(tester);
         expect(find.text(disclaimer), findsOneWidget);
+        final banner = tester.widget<AppInfoBanner>(
+          find.ancestor(
+            of: find.text(disclaimer),
+            matching: find.byType(AppInfoBanner),
+          ),
+        );
+        expect(banner.tone, AppInfoBannerTone.warning);
+        // הטקסט ממורכז בתוך הבאנר, גם כשהאייקון צמוד לימין.
+        expect(
+          tester.widget<Text>(find.text(disclaimer)).textAlign,
+          TextAlign.center,
+        );
         expect(find.text(storeLink), findsOneWidget);
         expect(find.textContaining('מוסתרים במצב מנותק'), findsNothing);
       });

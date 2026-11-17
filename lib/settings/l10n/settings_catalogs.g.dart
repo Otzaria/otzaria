@@ -1086,7 +1086,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'לועזי': 'Civil',
     'לחיצה על שלח דיווח תשלח את השגיאה ישירות ל{target}. יש לבדוק את תקינות הדיווח לפני השליחה.': 'Send report will send this error directly to {target}. Check your report before sending.',
     'לחיצה תחליף את הטקסט שהוקלד': 'Click to replace the typed text',
-    'לחנות התוספים המלאה': 'Open the full plugin store',
+    'לחנות התוספים': 'Open the plugin store',
     'לחץ כאן על מנת לתקן את הספר בעצמך': 'Edit the book yourself',
     'לחץ כדי לנווט ישירות לפרק או לסעיף בספר. פאנל ניווט נפתח בצד עם כל הפרקים.': 'Click to jump straight to a perek or a se\'if. A navigation panel opens on the side with all perakim.',
     'לחץ להוספת תיקיות אישיות': 'Click to Add Your Own Folders',
