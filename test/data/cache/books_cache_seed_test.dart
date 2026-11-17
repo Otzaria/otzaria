@@ -74,6 +74,31 @@ void main() {
       expect(BooksCache.instance.getBookById(1), isNotNull);
     });
 
+    test('שורה פגומה אינה משאירה מטמון חלקי', () {
+      final generation = BooksCache.instance.generation;
+      expect(
+        () => BooksCache.instance.seedFromRows(
+          [
+            _row(1, 'בראשית'),
+            {..._row(2, 'שמות'), 'title': null},
+          ],
+          generation: generation,
+        ),
+        throwsA(isA<TypeError>()),
+      );
+
+      expect(BooksCache.instance.isLoaded, isFalse);
+      expect(BooksCache.instance.books, isEmpty);
+      expect(BooksCache.instance.getBookById(1), isNull);
+
+      // A later healthy catalogue load must still work.
+      BooksCache.instance.seedFromRows(
+        [_row(3, 'ויקרא')],
+        generation: generation,
+      );
+      expect(BooksCache.instance.books.single.title, 'ויקרא');
+    });
+
     test('clear מאפשר זריעה מחדש אחרי החלפת ספרייה', () {
       BooksCache.instance.seedFromRows(
         [_row(1, 'בראשית')],
