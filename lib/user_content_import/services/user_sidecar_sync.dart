@@ -201,8 +201,9 @@ class UserSidecarSync {
         );
       }
       if (await _isUnchanged(repo, file.path, signature.toString())) return;
-      await repo.replaceVersions(records, source: file.path);
-      await repo.setSidecarSignature(file.path, signature.toString());
+      if (await repo.replaceVersions(records, source: file.path)) {
+        await repo.setSidecarSignature(file.path, signature.toString());
+      }
       return;
     }
 

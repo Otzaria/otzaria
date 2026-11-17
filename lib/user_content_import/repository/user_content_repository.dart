@@ -224,8 +224,9 @@ class UserContentRepository {
     }
   }
 
-  /// כותב מחדש את כל רשומות הגרסאות שמקורן ב-[source].
-  Future<void> replaceVersions(
+  /// כותב מחדש את רשומות הגרסאות שמקורן ב-[source].
+  /// מחזיר false אם ספר אישי נמחק לפני כתיבת הרשומה שלו.
+  Future<bool> replaceVersions(
     List<UserBookVersionRecord> versions, {
     required String source,
     List<AttachedBookVersionRecord> attachedVersions = const [],
@@ -254,12 +255,15 @@ class UserContentRepository {
         ],
       );
     }
+    var allApplied = true;
     for (final version in versions) {
       db.execute(
         'INSERT OR REPLACE INTO user_book_version '
         '(versionBookId, primaryBookId, primarySource, primaryTitle, '
         'primaryCategoryPath, versionTitle, versionNotes, priority, source) '
-        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'SELECT ?1, ?2, ?, ?, ?, ?, ?, ?, ? '
+        'WHERE EXISTS (SELECT 1 FROM book WHERE id = ?1) '
+        'AND (?2 IS NULL OR EXISTS (SELECT 1 FROM book WHERE id = ?2))',
         [
           version.versionBookId,
           version.primaryBookId,
@@ -272,7 +276,9 @@ class UserContentRepository {
           source,
         ],
       );
+      if (db.updatedRows == 0) allApplied = false;
     }
+    return allApplied;
   }
 
   /// מוחק את כל מה שנקלט מקובץ [source] (כותרות, גרסאות וקישורים), ואת רישום

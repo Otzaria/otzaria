@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/user_content_import/models/user_import_models.dart';
@@ -8,9 +9,49 @@ import 'package:otzaria/user_content_import/repository/user_content_repository.d
 import 'package:otzaria/user_content_import/services/user_content_importer.dart';
 import 'package:otzaria/user_content_import/services/user_sidecar_sync.dart';
 import 'package:path/path.dart' as p;
-import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
 import '../helpers/seforim_fixture_db.dart';
+
+class _BookLookupDatabase extends Fake implements MyDatabase {
+  _BookLookupDatabase(
+    sqlite3.Database db, {
+    void Function(List<Object?>)? afterLookup,
+  }) : connection = _BookLookupConnection(db, afterLookup);
+
+  final _BookLookupConnection connection;
+
+  @override
+  Future<sqlite3.Database> get database async => connection;
+}
+
+class _BookLookupConnection extends Fake implements sqlite3.Database {
+  _BookLookupConnection(this.db, this.afterLookup);
+
+  final sqlite3.Database db;
+  final void Function(List<Object?>)? afterLookup;
+  final lookups = <List<Object?>>[];
+
+  @override
+  sqlite3.ResultSet select(String sql, [List<Object?> parameters = const []]) {
+    final rows = db.select(sql, parameters);
+    if (sql.startsWith('SELECT id,') && sql.contains(' FROM book ')) {
+      lookups.add(parameters);
+      afterLookup?.call(parameters);
+    }
+    return rows;
+  }
+
+  @override
+  int get lastInsertRowId => db.lastInsertRowId;
+
+  @override
+  int get updatedRows => db.updatedRows;
+
+  @override
+  void execute(String sql, [List<Object?> parameters = const []]) {
+    db.execute(sql, parameters);
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -69,27 +110,6 @@ void main() {
     ).toList();
   }
 
-  Future<int Function()> countBookLookups() async {
-    final raw = await db.database;
-    var count = 0;
-    raw.createFunction(
-      functionName: 'count_book_lookup',
-      argumentCount: const sqlite3.AllowedArgumentCount(1),
-      directOnly: false,
-      function: (args) {
-        count++;
-        return args.first;
-      },
-    );
-    raw.execute('''
-      CREATE TEMP VIEW book AS
-      SELECT id, title, categoryId, filePath, lastModified,
-        count_book_lookup(fileType) AS fileType
-      FROM main.book
-    ''');
-    return () => count;
-  }
-
   test('קובץ כותרות של ספר נקלט לפי שם הקובץ', () async {
     final bookId = await addBook('משנה.txt', 'הקדמה\nפרק ראשון\nפרק שני');
     writeSidecar(
@@ -141,14 +161,18 @@ void main() {
           'משותף,1,שני,2\nמשותף,20,מקביל שני,2\n'
           'חסר,,א,1\nחסר,,ב,2\n',
     );
-    final lookups = await countBookLookups();
+    final lookupDb = _BookLookupDatabase(await db.database);
 
     final errors = await UserSidecarSync.applyForFolder(
-      userDb: db,
+      userDb: lookupDb,
       folderPath: folder.path,
     );
 
-    expect(lookups(), 2);
+    expect(lookupDb.connection.lookups, [
+      ['משותף', 1],
+      ['משותף', 20],
+      ['חסר'],
+    ]);
     expect(errors, [contains('שורה 6'), contains('שורה 7')]);
     expect((await headingRows(first)).map((r) => r['text']), ['ראשון', 'שני']);
     expect((await headingRows(second)).map((r) => r['text']), [
@@ -156,8 +180,11 @@ void main() {
       'מקביל שני',
     ]);
 
-    await UserSidecarSync.applyForFolder(userDb: db, folderPath: folder.path);
-    expect(lookups(), 4);
+    await UserSidecarSync.applyForFolder(
+      userDb: lookupDb,
+      folderPath: folder.path,
+    );
+    expect(lookupDb.connection.lookups, hasLength(6));
   });
 
   test('עריכת הקובץ מחליפה את הכותרות, ומחיקתו מסירה אותן', () async {
@@ -271,14 +298,19 @@ void main() {
           'חסר.txt,ראשון.txt,חסרה א\n'
           './חסר.txt,שני.txt,חסרה ב\n',
     );
-    final lookups = await countBookLookups();
+    final lookupDb = _BookLookupDatabase(await db.database);
 
     final errors = await UserSidecarSync.applyForFolder(
-      userDb: db,
+      userDb: lookupDb,
       folderPath: folder.path,
     );
 
-    expect(lookups(), 3);
+    expect(lookupDb.connection.lookups, [
+      [p.join(folder.path, 'ראשי.txt')],
+      [p.join(folder.path, 'ראשון.txt')],
+      [p.join(folder.path, 'שני.txt')],
+      [p.join(folder.path, 'חסר.txt')],
+    ]);
     expect(errors, [contains('שורה 4'), contains('שורה 5')]);
     final raw = await db.database;
     final rows = raw.select(
@@ -287,6 +319,66 @@ void main() {
     expect(rows.map((row) => row['primaryBookId']), [primary, primary]);
     expect(rows.map((row) => row['versionBookId']), [first, second]);
     expect(rows.map((row) => row['versionTitle']), ['גרסה א', 'גרסה ב']);
+  });
+
+  test('מחיקת ספר בזמן הסנכרון אינה דורסת שיוך גרסה מקובץ אחר', () async {
+    final obsolete = await addBook('יוסר.txt', 'א');
+    final primary = await addBook('ראשי.txt', 'א');
+    await addBook('ראשון.txt', 'א');
+    final second = await addBook('שני.txt', 'א');
+    final existing = writeSidecar(
+      'גרסאות.csv',
+      'ראשי,גרסה,שם\nראשי.txt,שני.txt,שיוך קיים\n',
+    );
+    expect(
+      await UserSidecarSync.applyForFolder(userDb: db, folderPath: folder.path),
+      isEmpty,
+    );
+
+    final nested = Directory(p.join(folder.path, 'נוספת'))..createSync();
+    final stale = File(p.join(nested.path, 'גרסאות.csv'));
+    stale.writeAsStringSync(
+      'ראשי,גרסה,שם\n'
+      '../יוסר.txt,../ראשון.txt,גרסה א\n'
+      '../יוסר.txt,../שני.txt,גרסה ב\n',
+    );
+    final raw = await db.database;
+    final writer = sqlite3.sqlite3.open(db.path);
+    addTearDown(writer.close);
+    final lookupDb = _BookLookupDatabase(
+      raw,
+      afterLookup: (parameters) {
+        if (parameters.single == p.join(folder.path, 'ראשון.txt')) {
+          writer.execute('DELETE FROM book WHERE id = ?', [obsolete]);
+        }
+      },
+    );
+
+    final errors = await UserSidecarSync.applyForFolder(
+      userDb: lookupDb,
+      folderPath: nested.path,
+    );
+
+    expect(raw.select('SELECT id FROM book WHERE id = ?', [obsolete]), isEmpty);
+    expect(errors, isEmpty);
+    expect(
+      raw.select(
+        'SELECT versionBookId, primaryBookId, source, versionTitle '
+        'FROM user_book_version',
+      ),
+      [
+        {
+          'versionBookId': second,
+          'primaryBookId': primary,
+          'source': existing.path,
+          'versionTitle': 'שיוך קיים',
+        },
+      ],
+    );
+    expect(
+      await UserContentRepository(db).sidecarSignature(stale.path),
+      isNull,
+    );
   });
 
   test('ייבוא מההגדרות קולט כותרות וגרסאות לפי כותרות ספרים', () async {
