@@ -380,6 +380,21 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
       return KeyEventResult.handled;
     }
 
+    // בית הספרייה (אופציונלי, ללא ברירת מחדל) — מעבר לספרייה והפעלת פעולת
+    // הבית שלה, כמו לחיצה על כפתור הבית.
+    final libraryHomeShortcut = shortcutOf(
+      ShortcutValidator.openLibraryHomeKey,
+    );
+    if (libraryHomeShortcut.isNotEmpty &&
+        ShortcutHelper.matchesShortcut(event, libraryHomeShortcut)) {
+      if (!closeOverlayRoutes()) return KeyEventResult.handled;
+      context.read<NavigationBloc>().add(
+        const NavigateToScreen(Screen.library),
+      );
+      context.read<FocusRepository>().requestLibraryHome();
+      return KeyEventResult.handled;
+    }
+
     // איתור
     if (ShortcutHelper.matchesShortcut(event, findRefShortcut)) {
       widget.onFindRefRequested();
