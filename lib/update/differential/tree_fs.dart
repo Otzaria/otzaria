@@ -298,11 +298,13 @@ Future<void> completeTree({
 /// משווה את העץ על הדיסק לעץ החדש: כל קובץ בגודל, בתוכן ובהרשאות, כל
 /// symlink ביעדו. [allowUnmanaged] מתיר קבצים נוספים (Linux); ב-bundle של
 /// macOS קובץ נוסף שובר את החותם. מחזיר רשימת שגיאות (ריקה = תקין).
+/// הפונקציה [hashFile] חייבת להיות ניתנת להעברה ל-isolate.
 Future<List<String>> verifyTree({
   required TreeFileSystem fs,
   required String root,
   required TreeManifest newTree,
   required bool allowUnmanaged,
+  Future<String> Function(String) hashFile = _hashFile,
 }) async {
   final errors = <String>[];
   final listing = await fs.list(root);
@@ -344,26 +346,33 @@ Future<List<String>> verifyTree({
     }
   }
 
-  final absolute = [for (final path in toHash) p.join(root, path)];
+  final fileChecks = [
+    for (final path in toHash)
+      (path: p.join(root, path), expected: newTree.files[path]!),
+  ];
   // מאות מגה-בתים: הגיבוב מחוץ ל-isolate הראשי כדי שהממשק לא ייתקע.
-  final digests = await Isolate.run(() => _hashFiles(absolute));
+  final matches = await Isolate.run(() => _filesMatch(fileChecks, hashFile));
   for (var i = 0; i < toHash.length; i++) {
-    final expected = newTree.files[toHash[i]]!;
-    final (size, sha) = digests[i];
-    if (size != expected.size || sha != expected.sha256) {
+    if (!matches[i]) {
       errors.add('${toHash[i]}: the content does not match');
     }
   }
   return errors;
 }
 
-Future<List<(int, String)>> _hashFiles(List<String> paths) async {
-  final digests = <(int, String)>[];
-  for (final path in paths) {
-    final file = File(path);
-    final size = await file.length();
-    final digest = await sha256.bind(file.openRead()).first;
-    digests.add((size, digest.toString()));
+Future<List<bool>> _filesMatch(
+  List<({String path, TreeFile expected})> files,
+  Future<String> Function(String) hashFile,
+) async {
+  final matches = <bool>[];
+  for (final (:path, :expected) in files) {
+    final size = await File(path).length();
+    matches.add(
+      size == expected.size && await hashFile(path) == expected.sha256,
+    );
   }
-  return digests;
+  return matches;
 }
+
+Future<String> _hashFile(String path) async =>
+    (await sha256.bind(File(path).openRead()).first).toString();
