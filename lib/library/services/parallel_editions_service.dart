@@ -54,9 +54,10 @@ class ParallelEditionsService {
 
   /// המיפוי המובנה של היברובוקס בקטלוג החיצוני, בשני הכיוונים.
   @visibleForTesting
-  static Future<List<int>> Function(int otzariaId) builtInExternalIdsFor =
-      (id) => ExternalCatalogRepository.instance.getHebrewBookIdsForOtzariaId(
-        id,
+  static Future<List<int>> Function(List<int> otzariaIds)
+  builtInExternalIdsFor = (ids) =>
+      ExternalCatalogRepository.instance.getHebrewBookIdsForOtzariaIds(
+        ids,
       );
 
   @visibleForTesting
@@ -138,9 +139,7 @@ class ParallelEditionsService {
   static Future<List<Book>> builtInEditionsFor(Book current) => _resolve(
     current,
     provider: _builtInProvider,
-    externalIdsFor: (otzariaIds) async => [
-      for (final id in otzariaIds) ...await builtInExternalIdsFor(id),
-    ],
+    externalIdsFor: builtInExternalIdsFor,
     otzariaIdsFor: builtInOtzariaIdsFor,
   );
 

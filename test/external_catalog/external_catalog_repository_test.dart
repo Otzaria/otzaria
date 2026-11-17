@@ -982,6 +982,56 @@ void main() {
       },
     );
 
+    test('מיפוי היברובוקס מרובה מזהים שומר סדר ותקרה לכל ספר', () async {
+      final db = sqlite3.open(repository.databasePath);
+      createMappingTable(db);
+      for (var id = 1; id <= 21; id++) {
+        db.execute(
+          "INSERT INTO otzaria_hebrew_books VALUES (?, 1, 'א', 1, ?)",
+          [id, id.toString().padLeft(2, '0')],
+        );
+      }
+      db.execute(
+        "INSERT INTO otzaria_hebrew_books VALUES (100, 2, 'ב', 1, 'high')",
+      );
+      db.close();
+
+      expect(await repository.getHebrewBookIdsForOtzariaIds([2, 99, 1]), [
+        100,
+        for (var id = 21; id >= 2; id--) id,
+      ]);
+      expect(await repository.getHebrewBookIdsForOtzariaIds(const []), isEmpty);
+    });
+
+    test('כשל SQLite במיפוי היברובוקס מדלג רק על המזהה שנכשל', () async {
+      final db = sqlite3.open(repository.databasePath);
+      try {
+        db.execute('''
+          CREATE TABLE mappings (otzaria_id, hb_id, is_best, confidence);
+          INSERT INTO mappings VALUES (1, 11, 0, 'high'), (1, 12, 1, 'low'),
+            (2, 21, 1, 'high'), (2, NULL, 0, 'low'), (3, 31, 1, 'high');
+          CREATE INDEX mapping_order ON mappings (
+            otzaria_id, is_best DESC, confidence DESC
+          );
+          CREATE VIEW otzaria_hebrew_books AS
+            SELECT otzaria_id, is_best, confidence,
+              CASE WHEN hb_id IS NULL THEN abs(-9223372036854775808)
+                ELSE hb_id END AS hb_id
+            FROM mappings;
+        ''');
+      } finally {
+        db.close();
+      }
+
+      expect(await repository.getHebrewBookIdsForOtzariaId(2), isEmpty);
+      expect(await repository.getHebrewBookIdsForOtzariaIds([3, 2, 1]), [
+        31,
+        12,
+        11,
+      ]);
+      _expectExclusiveCatalogAccess(repository.databasePath);
+    });
+
     group('מיפוי אוצר החכמה', () {
       void createOtzarTables(Database db) {
         db.execute(
