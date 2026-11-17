@@ -25,6 +25,7 @@ import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/reading_screen.dart';
+import 'package:otzaria/tabs/utils/trackpad_tab_swipe_recognizer.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria/tabs/utils/tab_swipe_log.dart';
 import 'package:provider/provider.dart';
@@ -50,6 +51,7 @@ void main() {
     WidgetTester tester,
     List<OpenedTab> tabs, {
     int currentTabIndex = 0,
+    TextDirection textDirection = TextDirection.ltr,
   }) async {
     tester.view.physicalSize = const Size(1600, 900);
     tester.view.devicePixelRatio = 1.0;
@@ -78,7 +80,10 @@ void main() {
             BlocProvider<HistoryBloc>.value(value: _FakeHistoryBloc()),
             Provider<FocusRepository>.value(value: FocusRepository()),
           ],
-          child: const ReadingScreen(),
+          child: Directionality(
+            textDirection: textDirection,
+            child: const ReadingScreen(),
+          ),
         ),
       ),
     );
@@ -123,7 +128,7 @@ void main() {
     expect(detectorFinder, findsOneWidget);
 
     final detector = tester.widget<RawGestureDetector>(detectorFinder);
-    final factory = detector.gestures[HorizontalDragGestureRecognizer];
+    final factory = detector.gestures[TrackpadTabSwipeRecognizer];
     expect(factory, isNotNull);
 
     final recognizer =
@@ -611,6 +616,145 @@ void main() {
             });
           }
         }
+      }
+    });
+
+    // #3946: ב-Windows ההחלקה עבדה בעיקר לכיוון אחד, והחליפה טאב בגלילה.
+    group('כיוונים, מרחק מינימלי וגלילה אנכית (#3946)', () {
+      Future<TabsBloc> pumpMiddle(
+        WidgetTester tester, {
+        TextDirection textDirection = TextDirection.ltr,
+      }) {
+        final tabs = [for (final t in 'אבגדה'.split('')) _tab(t)];
+        addTearDown(() {
+          for (final t in tabs) {
+            t.dispose();
+          }
+        });
+        return pumpReadingScreen(
+          tester,
+          tabs,
+          currentTabIndex: 2,
+          textDirection: textDirection,
+        );
+      }
+
+      /// [pans] - ה-pan המצטבר בכל עדכון, כל 10ms. [hold] עוצר לפני השחרור.
+      Future<void> pan(
+        WidgetTester tester,
+        List<Offset> pans, {
+        bool hold = false,
+      }) async {
+        final center = tester.getCenter(find.byType(PageView));
+        final gesture = await tester.createGesture(
+          kind: PointerDeviceKind.trackpad,
+        );
+        await gesture.panZoomStart(center, timeStamp: Duration.zero);
+        var ms = 0;
+        for (final offset in pans) {
+          ms += 10;
+          await gesture.panZoomUpdate(
+            center,
+            pan: offset,
+            timeStamp: Duration(milliseconds: ms),
+          );
+          await tester.pump(const Duration(milliseconds: 10));
+        }
+        if (hold) {
+          for (final wait in [250, 50]) {
+            ms += wait;
+            await gesture.panZoomUpdate(
+              center,
+              pan: pans.last,
+              timeStamp: Duration(milliseconds: ms),
+            );
+          }
+        }
+        await gesture.panZoomEnd(timeStamp: Duration(milliseconds: ms + 10));
+      }
+
+      List<Offset> slowDrag(double dx) => [
+        for (var i = 1; i <= 10; i++) Offset(dx * i / 10, 0),
+      ];
+      List<Offset> fling(double dx) => [
+        for (var i = 1; i <= 5; i++) Offset(dx * i / 5, 0),
+      ];
+
+      void expectTab(WidgetTester tester, TabsBloc bloc, int index) {
+        expect(bloc.state.currentTabIndex, index);
+        expect(pageControllerOf(tester).page, index);
+      }
+
+      for (final rtl in [true, false]) {
+        final textDirection = rtl ? TextDirection.rtl : TextDirection.ltr;
+        // ב-RTL גרירה ימינה (dx חיובי) מתקדמת טאב, ב-LTR שמאלה.
+        final forward = rtl ? 1.0 : -1.0;
+        final name = rtl ? 'RTL' : 'LTR';
+
+        testWidgets('$name: גרירה איטית לשני הכיוונים ובחזרה', (tester) async {
+          final bloc = await pumpMiddle(tester, textDirection: textDirection);
+          await pan(tester, slowDrag(900 * forward), hold: true);
+          await tester.pumpAndSettle();
+          expectTab(tester, bloc, 3);
+          await pan(tester, slowDrag(-900 * forward), hold: true);
+          await tester.pumpAndSettle();
+          expectTab(tester, bloc, 2);
+          await pan(tester, slowDrag(-900 * forward), hold: true);
+          await tester.pumpAndSettle();
+          expectTab(tester, bloc, 1);
+        });
+
+        testWidgets('$name: היפוך כיוון באמצע ההתיישבות', (tester) async {
+          final bloc = await pumpMiddle(tester, textDirection: textDirection);
+          await pan(tester, slowDrag(900 * forward), hold: true);
+          await tester.pump(const Duration(milliseconds: 32));
+          expect(bloc.state.currentTabIndex, 3);
+          await pan(tester, slowDrag(-900 * forward), hold: true);
+          await tester.pumpAndSettle();
+          expectTab(tester, bloc, 2);
+        });
+
+        testWidgets('$name: הנפה לשני הכיוונים', (tester) async {
+          final bloc = await pumpMiddle(tester, textDirection: textDirection);
+          await pan(tester, fling(150 * forward));
+          await tester.pumpAndSettle();
+          expectTab(tester, bloc, 3);
+          await pan(tester, fling(-150 * forward));
+          await tester.pumpAndSettle();
+          expectTab(tester, bloc, 2);
+          await pan(tester, fling(-150 * forward));
+          await tester.pumpAndSettle();
+          expectTab(tester, bloc, 1);
+        });
+
+        testWidgets('$name: הנפה קצרה מהמרחק המינימלי נשארת בטאב', (
+          tester,
+        ) async {
+          final bloc = await pumpMiddle(tester, textDirection: textDirection);
+          for (final sign in [forward, -forward]) {
+            await pan(tester, [
+              for (var i = 1; i <= 3; i++) Offset(sign * 12.0 * i, 0),
+            ]);
+            await tester.pumpAndSettle();
+            expectTab(tester, bloc, 2);
+          }
+        });
+
+        testWidgets('$name: גלילה אנכית שמתחילה בסטייה אופקית', (
+          tester,
+        ) async {
+          final bloc = await pumpMiddle(tester, textDirection: textDirection);
+          for (final sign in [forward, -forward]) {
+            await pan(tester, [
+              Offset(sign * 30, -2),
+              Offset(sign * 50, -80),
+              Offset(sign * 65, -180),
+              Offset(sign * 80, -300),
+            ]);
+            await tester.pumpAndSettle();
+            expectTab(tester, bloc, 2);
+          }
+        });
       }
     });
 
