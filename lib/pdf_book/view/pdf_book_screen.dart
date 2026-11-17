@@ -1789,9 +1789,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         if (!mounted) return;
         if (!succeeded) {
           _bloc.add(
-            const pdf_events.SetLoadingState(
+            pdf_events.SetLoadingState(
               isLoading: false,
               succeeded: false,
+              error: documentRef.resolveListenable().error,
             ),
           );
           return;

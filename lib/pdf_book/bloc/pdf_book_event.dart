@@ -299,8 +299,15 @@ class SetLoadingState extends PdfBookEvent {
   final bool isLoading;
   final bool succeeded;
 
-  const SetLoadingState({required this.isLoading, this.succeeded = true});
+  /// השגיאה של pdfrx בכשל, לרישום ב-errors.txt.
+  final Object? error;
+
+  const SetLoadingState({
+    required this.isLoading,
+    this.succeeded = true,
+    this.error,
+  });
 
   @override
-  List<Object?> get props => [isLoading, succeeded];
+  List<Object?> get props => [isLoading, succeeded, error];
 }

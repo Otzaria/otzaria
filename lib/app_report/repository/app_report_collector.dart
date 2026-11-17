@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/app_report/repository/error_log_blocks.dart';
 import 'package:otzaria/app_report/services/input_focus_diagnostics.dart';
+import 'package:otzaria/app_report/services/recent_book_opens.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/diagnostics/developer_diagnostics.dart';
 import 'package:otzaria/core/diagnostics/memory_info.dart';
@@ -120,6 +121,11 @@ class AppReportCollector {
         'context': await _guard(
           'context',
           () async => Map<String, dynamic>.from(currentContext()),
+        ),
+      if (_includeCurrentContext)
+        'recentBookOpens': await _guard(
+          'recentBookOpens',
+          () async => RecentBookOpens.instance.collect(),
         ),
       if (_includeCurrentContext)
         'inputFocus': await _guard(

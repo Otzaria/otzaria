@@ -4,6 +4,7 @@ import 'dart:ui' show Offset, Rect;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/app_report/services/recent_book_opens.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
@@ -63,6 +64,9 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
   /// pdfium פתח את הקובץ בניסיון הנוכחי. לפני כן ניסיון חוזר רק נעמד בתור
   /// ה-worker מאחורי הפתיחה שעדיין רצה, ולכן איטיות אינה סיבה לנסות שוב.
   bool _documentOpened = false;
+
+  BookOpenAttempt? _openAttempt;
+  Object? _loadError;
 
   PdfBookBloc({
     required this.tab,
@@ -135,6 +139,7 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     final wasLoading = change.currentState is PdfBookLoading;
     final isLoading = change.nextState is PdfBookLoading;
     if (!wasLoading && isLoading) PdfViewerActivity.instance.begin();
+    _recordLoadOutcome(change);
     if (wasLoading && !isLoading) PdfViewerActivity.instance.end();
   }
 
@@ -143,7 +148,27 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     _zoomBarTimer?.cancel();
     _loadWatchdog?.cancel();
     if (state is PdfBookLoading) PdfViewerActivity.instance.end();
+    _openAttempt?.finish(BookOpenOutcome.closed);
     return super.close();
+  }
+
+  /// שגיאה עם autoRetry היא ניסיון שקט נוסף, ולכן אינה נרשמת.
+  void _recordLoadOutcome(Change<PdfBookState> change) {
+    final next = change.nextState;
+    if (next is PdfBookLoaded && change.currentState is! PdfBookLoaded) {
+      _openAttempt?.finish(BookOpenOutcome.loaded);
+    } else if (next is PdfBookError &&
+        !next.autoRetry &&
+        change.currentState is! PdfBookError) {
+      RecentBookOpens.instance.logLoadError(
+        next.book,
+        BookOpenKind.pdf,
+        _loadError ?? next.message,
+        details: {'message': next.message, 'page': '${tab.pageNumber}'},
+      );
+      _loadError = null;
+      _openAttempt?.finish(BookOpenOutcome.failed);
+    }
   }
 
   void _startLoadWatchdog() {
@@ -179,6 +204,12 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
   ) async {
     final initial = state;
     if (initial is! PdfBookInitial) return;
+    // ל-PDF יש watchdog משלו, שמסיים בשגיאה טעינה שנתקעה.
+    _openAttempt = RecentBookOpens.instance.start(
+      initial.book,
+      BookOpenKind.pdf,
+      detectStall: false,
+    );
 
     final book = _resolvePdfBookPath(initial.book);
     if (!await File(book.path).exists()) {
@@ -851,6 +882,7 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     // ל-PdfBookError המסך נשאר בספינר אינסופי.
     if (current is PdfBookLoading && !event.succeeded) {
       _cancelLoadWatchdog();
+      _loadError = event.error;
       emit(
         PdfBookError(
           book: current.book,
