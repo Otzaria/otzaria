@@ -2,18 +2,19 @@ import 'package:flutter/foundation.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/utils/snippet_builder.dart';
 import 'package:otzaria/semantic_search/bloc/semantic_results_state.dart';
+import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/semantic_search_tab.dart';
-import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show SemanticResultSource, TextStatus;
 
 /// כמה תוצאות לא מודגשות מפורטות בדיווח.
 const int maxUnhighlightedSamples = 10;
 
-/// מצב התוצאות בלשונית חיפוש, לדיווח מהתוכנה: ספירות לפי מצב הטקסט וההדגשה
+/// מצב התוצאות בחלונית הפעילה, לדיווח מהתוכנה: ספירות לפי מצב הטקסט וההדגשה
 /// ודוגמאות של תוצאות שלא הודגשו, בלי השאילתה ובלי טקסט התוצאות.
-Map<String, Object?>? describeSearchResults(OpenedTab? tab) {
+Map<String, Object?>? describeSearchResults(TabsState tabs) {
+  final tab = tabs.activePane;
   if (tab is SemanticSearchTab) {
     final bloc = tab.createdResultsBloc;
     return bloc == null

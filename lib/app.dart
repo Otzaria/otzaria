@@ -144,7 +144,7 @@ class App extends StatelessWidget {
                   content = FrameStatsOverlay(
                     contextProvider: () => _diagnosticsContext(context),
                     searchResultsProvider: () => describeSearchResults(
-                      context.read<TabsBloc>().state.currentTab,
+                      context.read<TabsBloc>().state,
                     ),
                     child: content,
                   );

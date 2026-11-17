@@ -3,11 +3,18 @@ import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/utils/search_results_report.dart';
 import 'package:otzaria/semantic_search/bloc/semantic_results_state.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
+import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/semantic_search_tab.dart';
+import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show SearchResult, SemanticResultSource, TextStatus;
+
+TabsState _tabs(OpenedTab? tab) => TabsState(
+  tabs: [?tab],
+  currentTabIndex: 0,
+);
 
 SearchResult _lexical(
   String filePath,
@@ -137,18 +144,21 @@ void main() {
   });
 
   test('רק לשונית חיפוש מתוארת, ובלוק החיפוש החכם לא נוצר בשבילה', () {
-    expect(describeSearchResults(null), isNull);
-    expect(describeSearchResults(ToolTab(toolId: 'x', title: 'x')), isNull);
+    expect(describeSearchResults(_tabs(null)), isNull);
+    expect(
+      describeSearchResults(_tabs(ToolTab(toolId: 'x', title: 'x'))),
+      isNull,
+    );
 
     final lexical = SearchingTab('חיפוש', null);
     addTearDown(lexical.dispose);
-    expect(describeSearchResults(lexical)?['kind'], 'lexical');
+    expect(describeSearchResults(_tabs(lexical))?['kind'], 'lexical');
 
     final semantic = SemanticSearchTab(
       options: const SemanticQueryOptions(query: 'בית שער'),
     );
     addTearDown(semantic.dispose);
-    expect(describeSearchResults(semantic), {
+    expect(describeSearchResults(_tabs(semantic)), {
       'kind': 'semantic',
       'status': 'notStarted',
     });
