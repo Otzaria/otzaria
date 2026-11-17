@@ -8,14 +8,30 @@ import 'package:path/path.dart' as p;
 /// [activeLibraryPath] נדרש מחוץ ל-isolate הראשי, שם אין גישה להגדרות.
 String resolveMovedFileBookPath(String filePath, {String? activeLibraryPath}) {
   if (File(filePath).existsSync()) return filePath;
+  for (final candidate in _movedPathCandidates(filePath, activeLibraryPath)) {
+    if (File(candidate).existsSync()) return candidate;
+  }
+  return filePath;
+}
 
+/// כמו [resolveMovedFileBookPath], בלי לחסום את ה-isolate: בכונן רשת או
+/// בכונן שנרדם בדיקת קובץ אחת נמשכת שניות.
+Future<String> resolveMovedFileBookPathAsync(String filePath) async {
+  if (await File(filePath).exists()) return filePath;
+  for (final candidate in _movedPathCandidates(filePath, null)) {
+    if (await File(candidate).exists()) return candidate;
+  }
+  return filePath;
+}
+
+Set<String> _movedPathCandidates(String filePath, String? activeLibraryPath) {
   final libraryPath =
       activeLibraryPath ??
       Settings.getValue<String>(SettingsRepository.keyLibraryPath) ??
       '';
-  if (libraryPath.isEmpty) return filePath;
-
   final candidates = <String>{};
+  if (libraryPath.isEmpty) return candidates;
+
   final segments = p.split(p.normalize(filePath));
 
   void addCandidateFromSegment(String segment) {
@@ -28,9 +44,5 @@ String resolveMovedFileBookPath(String filePath, {String? activeLibraryPath}) {
 
   addCandidateFromSegment(p.basename(libraryPath));
   addCandidateFromSegment(DatabaseConstants.talmudBavliFolderName);
-
-  for (final candidate in candidates) {
-    if (File(candidate).existsSync()) return candidate;
-  }
-  return filePath;
+  return candidates;
 }

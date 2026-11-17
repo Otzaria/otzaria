@@ -8,7 +8,6 @@ import 'package:flutter_test/flutter_test.dart';
 // ignore: depend_on_referenced_packages
 import 'package:material_ui/material_ui.dart' as mui;
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/pdf_book/models/pdf_reading_location.dart';
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
@@ -25,6 +24,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdfrx/pdfrx.dart';
 
 import '../helpers/memory_settings_cache.dart';
+import '../helpers/pdf_viewer_mounted.dart';
 import '../test_helpers/pdf_document_dispose.dart';
 import '../test_helpers/stub_settings_bloc.dart';
 
@@ -92,8 +92,8 @@ void main() {
         ),
       ),
     );
+    final bloc = await pumpUntilPdfViewer(tester);
     final viewer = find.byType(PdfViewer);
-    final bloc = tester.element(viewer).read<PdfBookBloc>();
     Future<void> settle([int frames = 15]) async {
       for (var i = 0; i < frames; i++) {
         await tester.runAsync(

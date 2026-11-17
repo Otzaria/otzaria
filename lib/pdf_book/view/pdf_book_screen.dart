@@ -49,7 +49,6 @@ import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/book_common/view/book_source_dialog.dart';
 import 'package:otzaria/book_common/utils/default_commentators.dart';
 import 'package:otzaria/utils/ui/commentary_pane_policy.dart';
-import 'package:otzaria/utils/file/file_book_path_resolver.dart';
 import 'package:otzaria/models/links.dart' as otz_links;
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/services/commentary_service.dart';
@@ -684,8 +683,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   late final PdfViewerController pdfController;
   late final PdfBookBloc _bloc;
-  late final String _resolvedPdfPath;
-  late final bool _pdfFileExists;
+  late String _resolvedPdfPath;
+  // הנתיב והקיום נקבעים בבלוק, בלי בדיקת דיסק סינכרונית בפתיחה (#5364).
+  bool _pdfFileExists = false;
   // שמור reference יציב ל-PdfDocumentRef כדי למנוע race-condition ב-pdfrx:
   // כל parent-rebuild יוצר widget חדש עם PdfDocumentRef חדש (object שונה).
   // pdfrx משתמש ב-identical() לבדוק אם ה-document השתנה במהלך await.
@@ -1007,7 +1007,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _initialPageNumber = widget.tab.pageNumber;
     pdfController = PdfViewerController();
     widget.tab.pdfViewerController = pdfController;
-    _resolvedPdfPath = resolveMovedFileBookPath(widget.tab.book.path);
+    _resolvedPdfPath = widget.tab.book.path;
     _searchIndexRestorer = PdfSearchIndexRestorer(
       widget.tab.pdfSearchCurrentMatchIndex,
     );
@@ -1121,9 +1121,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
     // טעינת המפרשים הפעילים
     _loadActiveCommentators();
-
-    // בדיקת קיום הקובץ — פעם אחת ב-initState, לפני הבנייה הראשונה
-    _pdfFileExists = File(_resolvedPdfPath).existsSync();
 
     // הגדרת Bloc לטיפול בקיום הקובץ ושאר מצבים
     _bloc.add(const pdf_events.LoadPdfDocument());
@@ -4952,9 +4949,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           (prev is PdfBookError && !prev.autoRetry && curr is PdfBookLoading) ||
           (curr is PdfBookError &&
               curr.autoRetry &&
-              !(prev is PdfBookError && prev.autoRetry)),
+              !(prev is PdfBookError && prev.autoRetry)) ||
+          (curr is PdfBookLoading &&
+              (!_pdfFileExists || curr.book.path != _resolvedPdfPath)),
       listener: (context, state) {
         if (state is PdfBookLoading) {
+          _adoptCheckedPath(state);
           final document = _pdfDocumentRef.resolveListenable();
           // החלפת reference באותו מפתח אינה מאפסת כישלון שמור ב-pdfrx.
           if (document.error != null) {
@@ -5175,6 +5175,16 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         ],
       ),
     );
+  }
+
+  void _adoptCheckedPath(PdfBookLoading state) {
+    setState(() {
+      if (state.book.path != _resolvedPdfPath) {
+        _resolvedPdfPath = state.book.path;
+        _pdfDocumentRef = _createDocumentRef();
+      }
+      _pdfFileExists = true;
+    });
   }
 
   Widget _buildLeftPaneContent(bool showLeftPane) {

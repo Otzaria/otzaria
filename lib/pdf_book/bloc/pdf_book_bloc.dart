@@ -211,7 +211,7 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
       detectStall: false,
     );
 
-    final book = _resolvePdfBookPath(initial.book);
+    final book = await _resolvePdfBookPath(initial.book);
     if (!await File(book.path).exists()) {
       emit(PdfBookError(book: book, message: 'הספר איננו קיים'));
       return;
@@ -242,8 +242,8 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     _startLoadWatchdog();
   }
 
-  PdfBook _resolvePdfBookPath(PdfBook book) {
-    final resolvedPath = resolveMovedFileBookPath(book.path);
+  Future<PdfBook> _resolvePdfBookPath(PdfBook book) async {
+    final resolvedPath = await resolveMovedFileBookPathAsync(book.path);
     if (resolvedPath == book.path) return book;
 
     return PdfBook(
@@ -378,7 +378,7 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     final current = state;
     if (current is! PdfBookError) return;
 
-    final book = _resolvePdfBookPath(current.book);
+    final book = await _resolvePdfBookPath(current.book);
     if (!await File(book.path).exists()) {
       emit(PdfBookError(book: book, message: 'הספר איננו קיים'));
       return;

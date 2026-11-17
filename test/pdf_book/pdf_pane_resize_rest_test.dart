@@ -8,7 +8,6 @@ import 'package:flutter_test/flutter_test.dart';
 // ignore: depend_on_referenced_packages
 import 'package:material_ui/material_ui.dart' as mui;
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart' as pdf_events;
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
@@ -25,6 +24,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdfrx/pdfrx.dart';
 
 import '../helpers/memory_settings_cache.dart';
+import '../helpers/pdf_viewer_mounted.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -107,7 +107,7 @@ void main() {
           ),
         ),
       );
-      final bloc = tester.element(find.byType(PdfViewer)).read<PdfBookBloc>();
+      final bloc = await pumpUntilPdfViewer(tester);
       await settle(tester, 50);
       expect(bloc.state, isA<PdfBookLoaded>());
       bloc.add(

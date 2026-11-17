@@ -30,6 +30,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdfrx/pdfrx.dart';
 
 import '../helpers/memory_settings_cache.dart';
+import '../helpers/pdf_viewer_mounted.dart';
 import '../test_helpers/pdf_document_dispose.dart';
 import '../test_helpers/stub_settings_bloc.dart';
 
@@ -123,7 +124,7 @@ void main() {
         ),
       ),
     );
-    final bloc = tester.element(find.byType(PdfViewer)).read<PdfBookBloc>();
+    final bloc = await pumpUntilPdfViewer(tester);
     for (var i = 0; i < 100 && bloc.state is! PdfBookLoaded; i++) {
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 20)),
