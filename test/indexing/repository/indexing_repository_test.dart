@@ -2571,6 +2571,42 @@ void main() {
       expect(shortOnly.dataUriLines, isNull);
     });
 
+    test('רק BOM בתחילת המקור מושמט בפענוח', () async {
+      const bom = '\uFEFF';
+      final image = 'data:image/png;base64,${'A' * 96}';
+      final bytes = utf8.encode('$bom$image$bom שורה $image$bom\r\nסוף');
+
+      final source = await IndexingRepository.cleanDataUrisOffFrame(bytes);
+
+      expect(source.text, '$bom שורה $bom\r\nסוף');
+      expect(source.dataUriLines, [0]);
+    });
+
+    test('פענוח מקטעים משמר UTF-8 פגום וגבולות data: מקוננים', () async {
+      final image = 'data:image/png;base64,${'A' * 96}';
+      final bytes = Uint8List.fromList([
+        ...utf8.encode('לפני\r\n'),
+        0xc2,
+        ...utf8.encode(image),
+        0x80,
+        ...utf8.encode('\r\ndata:x,data:${'A' * 96}\r\n$image $image\r\nסוף'),
+      ]);
+
+      final source = await IndexingRepository.cleanDataUrisOffFrame(bytes);
+
+      expect(
+        source.text,
+        IndexingRepository.stripDataUrisForIndex(
+          utf8.decode(bytes, allowMalformed: true),
+        ),
+      );
+      expect(
+        source.text,
+        'לפני\r\n\uFFFD\uFFFD\r\ndata:x,data:${'A' * 96}\r\n \r\nסוף',
+      );
+      expect(source.dataUriLines, [1, 3]);
+    });
+
     test('bytes גדולים (מסלול ה-isolate): אותה תוצאה בדיוק', () async {
       final text = bigTextWithImage();
       final bytes = Uint8List.fromList(utf8.encode(text));
