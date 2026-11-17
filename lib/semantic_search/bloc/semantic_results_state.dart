@@ -16,6 +16,15 @@ enum SemanticResultsStatus {
   unavailable,
 }
 
+/// השלב שהחל בפועל בזמן [SemanticResultsStatus.loading].
+enum SemanticSearchStage {
+  /// בחירת המקור ופתיחת הוקטורים והמודל.
+  preparing,
+
+  /// המנוע מחפש.
+  searching,
+}
+
 /// מצב מסך התוצאות של החיפוש הסמנטי.
 class SemanticResultsState extends Equatable {
   final SemanticResultsStatus status;
@@ -43,6 +52,8 @@ class SemanticResultsState extends Equatable {
   /// החלק הסמנטי נכשל והמנוע החזיר רק התאמות מילוליות.
   final bool onlyLexical;
 
+  final SemanticSearchStage stage;
+
   const SemanticResultsState({
     this.status = SemanticResultsStatus.initial,
     this.options,
@@ -55,6 +66,7 @@ class SemanticResultsState extends Equatable {
     this.searchId = 0,
     this.passageHighlights = const {},
     this.onlyLexical = false,
+    this.stage = SemanticSearchStage.preparing,
   });
 
   bool get hasMore => status == SemanticResultsStatus.loaded && morePages;
@@ -72,6 +84,7 @@ class SemanticResultsState extends Equatable {
     int? searchId,
     Map<int, String>? passageHighlights,
     bool? onlyLexical,
+    SemanticSearchStage? stage,
   }) => SemanticResultsState(
     status: status ?? this.status,
     options: options ?? this.options,
@@ -84,6 +97,7 @@ class SemanticResultsState extends Equatable {
     searchId: searchId ?? this.searchId,
     passageHighlights: passageHighlights ?? this.passageHighlights,
     onlyLexical: onlyLexical ?? this.onlyLexical,
+    stage: stage ?? this.stage,
   );
 
   @override
@@ -99,5 +113,6 @@ class SemanticResultsState extends Equatable {
     searchId,
     passageHighlights,
     onlyLexical,
+    stage,
   ];
 }

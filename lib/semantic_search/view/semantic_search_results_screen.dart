@@ -39,6 +39,7 @@ import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/models/semantic_search_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/utils/text/copy_utils.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
@@ -618,8 +619,13 @@ class _SemanticSearchResultsScreenState
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 16),
+                  LoadingIndicator(
+                    key: const ValueKey('semantic-results-stage'),
+                    message: context.settingsText(switch (state.stage) {
+                      SemanticSearchStage.preparing => 'מכין את החיפוש...',
+                      SemanticSearchStage.searching => 'מחפש בספרייה...',
+                    }),
+                  ),
                   ActionButton.neutral(
                     key: const ValueKey('semantic-results-cancel'),
                     text: context.settingsText('עצור'),

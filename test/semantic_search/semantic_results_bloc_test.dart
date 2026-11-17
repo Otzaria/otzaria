@@ -474,6 +474,104 @@ void main() {
       expect(recorder.total, 0);
     });
   });
+  group('שלב החיפוש (issue #3825)', () {
+    test('מתחיל בהכנה, עובר לחיפוש בספרייה ונשאר עד התוצאות', () async {
+      final source = FakeResultsSource(total: 3)
+        ..prepareGate = Completer<void>()
+        ..gate = Completer<void>();
+      final bloc = buildResultsBloc(
+        source: source,
+        recorder: RecordingRecorder(),
+      );
+      addTearDown(bloc.close);
+
+      bloc.add(const SemanticSearchSubmitted(_options));
+      await _settle(bloc);
+      expect(bloc.state.status, SemanticResultsStatus.loading);
+      expect(bloc.state.stage, SemanticSearchStage.preparing);
+
+      source.prepareGate!.complete();
+      await _settle(bloc);
+      expect(bloc.state.status, SemanticResultsStatus.loading);
+      expect(bloc.state.stage, SemanticSearchStage.searching);
+
+      source.gate!.complete();
+      await _settle(bloc);
+      expect(bloc.state.status, SemanticResultsStatus.loaded);
+    });
+
+    test('חיפוש חדש מתחיל שוב בהכנה ומתעלם מהשלב של הקודם', () async {
+      final first = FakeResultsSource(items: [resultItem(1)])
+        ..prepareGate = Completer<void>();
+      final second = FakeResultsSource(items: [resultItem(2)])
+        ..prepareGate = Completer<void>();
+      var current = first;
+      final bloc = SemanticResultsBloc(
+        resolveSource: () async => current,
+        feedback: SemanticFeedbackPorts(
+          recorder: () => RecordingRecorder(),
+          consent: () => FakeConsentStore(),
+          newId: () => 'id',
+          whenQueued: () async {},
+        ),
+        isUserBook: (_) async => false,
+      );
+      addTearDown(bloc.close);
+
+      bloc.add(const SemanticSearchSubmitted(_options));
+      await _settle(bloc);
+      current = second;
+      bloc.add(const SemanticSearchSubmitted(_options));
+      await _settle(bloc);
+      first.prepareGate!.complete();
+      await _settle(bloc);
+      expect(bloc.state.status, SemanticResultsStatus.loading);
+      expect(bloc.state.stage, SemanticSearchStage.preparing);
+
+      second.prepareGate!.complete();
+      await _settle(bloc);
+      expect(bloc.state.items.single.id, BigInt.from(2));
+    });
+
+    test('עצירה בזמן ההכנה אינה מחזירה את השלב לטעינה', () async {
+      final source = FakeResultsSource(total: 3)
+        ..prepareGate = Completer<void>();
+      final bloc = buildResultsBloc(
+        source: source,
+        recorder: RecordingRecorder(),
+      );
+      addTearDown(bloc.close);
+
+      bloc.add(const SemanticSearchSubmitted(_options));
+      await _settle(bloc);
+      bloc.add(const SemanticSearchCancelRequested());
+      await _settle(bloc);
+      source.prepareGate!.complete();
+      await _settle(bloc);
+      expect(bloc.state.status, SemanticResultsStatus.cancelled);
+      expect(bloc.state.stage, SemanticSearchStage.preparing);
+    });
+
+    test('עמוד נוסף אינו משנה את השלב', () async {
+      final source = FakeResultsSource(total: 75);
+      final bloc = buildResultsBloc(
+        source: source,
+        recorder: RecordingRecorder(),
+      );
+      addTearDown(bloc.close);
+
+      bloc.add(const SemanticSearchSubmitted(_options));
+      await _settle(bloc);
+      final stage = bloc.state.stage;
+      source.prepareGate = Completer<void>();
+      bloc.add(const SemanticMoreResultsRequested());
+      await _settle(bloc);
+      source.prepareGate!.complete();
+      await _settle(bloc);
+      expect(bloc.state.items, hasLength(60));
+      expect(bloc.state.stage, stage);
+    });
+  });
   test('חיפוש חדש מתעלם מהשלמת חיפוש ישן', () async {
     final first = FakeResultsSource(items: [resultItem(1)])
       ..gate = Completer<void>();
@@ -653,11 +751,12 @@ void main() {
       act: (bloc) => bloc.add(const SemanticSearchSubmitted(_options)),
       wait: const Duration(milliseconds: 20),
       expect: () => [
-        isA<SemanticResultsState>().having(
-          (s) => s.status,
-          'status',
-          SemanticResultsStatus.loading,
-        ),
+        isA<SemanticResultsState>()
+            .having((s) => s.status, 'status', SemanticResultsStatus.loading)
+            .having((s) => s.stage, 'stage', SemanticSearchStage.preparing),
+        isA<SemanticResultsState>()
+            .having((s) => s.status, 'status', SemanticResultsStatus.loading)
+            .having((s) => s.stage, 'stage', SemanticSearchStage.searching),
         isA<SemanticResultsState>()
             .having((s) => s.status, 'status', SemanticResultsStatus.loaded)
             .having((s) => s.items, 'items', mixed)

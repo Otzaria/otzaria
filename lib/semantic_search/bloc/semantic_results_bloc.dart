@@ -416,6 +416,13 @@ class SemanticResultsBloc
         options,
         offset: offset,
         limit: pageSize,
+        onSearching: offset == 0
+            ? () {
+                if (generation == _generation && !emit.isDone) {
+                  emit(state.copyWith(stage: SemanticSearchStage.searching));
+                }
+              }
+            : null,
       );
       if (page != null || generation != _generation) return page;
       // הוחלף בלי חיפוש חדש — כלומר בוטל.

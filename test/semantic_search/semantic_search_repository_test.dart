@@ -194,6 +194,30 @@ void main() {
       expect(userHandles.last.isCancelled, isFalse);
     });
 
+    test('onSearching נקרא אחרי הפתיחה, ולא לחיפוש שהוחלף בזמנה', () async {
+      installModelFiles(root);
+      final backend = FakeBackend()..vectors = installedV30;
+      final repository = buildRepository(root: root, backend: backend);
+      var firstCalled = false;
+      List<String>? callsAtSearching;
+
+      final first = repository.search(
+        const SemanticSearchRequest(query: 'ראשון', facets: ['/']),
+        onSearching: () => firstCalled = true,
+      );
+      final second = repository.search(
+        const SemanticSearchRequest(query: 'שני', facets: ['/']),
+        onSearching: () => callsAtSearching = List.of(backend.calls),
+      );
+
+      expect(await first, isNull);
+      expect(await second, isNotNull);
+      expect(firstCalled, isFalse);
+      expect(callsAtSearching, contains('open'));
+      expect(callsAtSearching, isNot(contains('search:שני')));
+      expect(backend.calls, contains('search:שני'));
+    });
+
     test('בלי הסכמה החיפוש נכשל ב-consentRequired', () async {
       installModelFiles(root);
       final repository = buildRepository(

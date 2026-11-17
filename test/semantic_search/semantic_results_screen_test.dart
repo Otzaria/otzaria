@@ -45,6 +45,7 @@ import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/semantic_search_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show
         SemanticResultSource,
@@ -276,6 +277,23 @@ void main() {
     expect(setup.tab.resultsBloc.state.searchId, greaterThan(oldSearchId));
     expect(setup.tab.resultsBloc.state.items, hasLength(30));
     expect(scroll.position.pixels, 0);
+  });
+
+  testWidgets('בזמן הטעינה מוצג השלב הנוכחי (issue #3825)', (tester) async {
+    final source = FakeResultsSource(total: 3)
+      ..prepareGate = Completer<void>()
+      ..gate = Completer<void>();
+    await pumpScreen(tester, injectedSource: source);
+    final stage = find.byKey(const ValueKey('semantic-results-stage'));
+    expect(tester.widget<LoadingIndicator>(stage).message, 'מכין את החיפוש...');
+
+    source.prepareGate!.complete();
+    await settle(tester);
+    expect(tester.widget<LoadingIndicator>(stage).message, 'מחפש בספרייה...');
+
+    source.gate!.complete();
+    await settle(tester);
+    expect(stage, findsNothing);
   });
 
   testWidgets('הכרטיסים מציגים את תווית המקור', (tester) async {
