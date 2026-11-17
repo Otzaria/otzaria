@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
@@ -15,22 +16,14 @@ import 'package:otzaria/theme/app_tokens.dart';
   List<int> pages,
   int page,
 ) {
-  int? previous;
-  int? exact;
-  for (var i = 0; i < pages.length; i++) {
-    if (pages[i] < page) {
-      previous = i;
-    } else {
-      if (pages[i] == page) exact = i;
-      final next = exact == null ? i : i + 1;
-      return (
-        exact: exact,
-        previous: previous,
-        next: next < pages.length ? next : null,
-      );
-    }
-  }
-  return (exact: null, previous: previous, next: null);
+  final index = lowerBound(pages, page);
+  final exact = index < pages.length && pages[index] == page ? index : null;
+  final next = exact == null ? index : index + 1;
+  return (
+    exact: exact,
+    previous: index == 0 ? null : index - 1,
+    next: next < pages.length ? next : null,
+  );
 }
 
 /// סרגל ניווט בין עמודי התאמה שסופקו על-ידי מנוע חיפוש חיצוני (תוסף).
@@ -213,10 +206,16 @@ class _PdfExternalMatchesBarState extends State<PdfExternalMatchesBar> {
                       message: 'רשימת עמודי ההתאמה',
                       child: AppPopupMenuButton<int>(
                         onSelected: _goToIndex,
-                        entries: [
-                          for (var i = 0; i < pages.length; i++)
-                            AppMenuEntry(value: i, label: 'עמוד ${pages[i]}'),
-                        ],
+                        // The popup reads entries only when it opens.
+                        entries: UnmodifiableListView(
+                          Iterable.generate(
+                            pages.length,
+                            (i) => AppMenuEntry(
+                              value: i,
+                              label: 'עמוד ${pages[i]}',
+                            ),
+                          ),
+                        ),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 6,
