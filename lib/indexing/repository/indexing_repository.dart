@@ -2317,20 +2317,21 @@ class IndexingRepository {
       GenerationCache.instance.warmUp(),
       ReferenceBooksCache.instance.warmUp(),
     ]);
-    final positions = SearchCatalogueOrderHelper.buildKeyOrderMap<String>(
-      library,
-      keyOf: (book) => BookIdentity.keyOf(book as Book),
-    );
-    final entries = <String, BookOrderEntry>{};
-    for (final book in SearchCatalogueOrderHelper.buildOrderedKeys<Book>(
+    final orderedBooks = SearchCatalogueOrderHelper.buildOrderedKeys<Book>(
       library,
       keyOf: (book) => book as Book,
-    )) {
+    );
+    final positions = <String, int>{};
+    final entries = <String, BookOrderEntry>{};
+    for (var index = 0; index < orderedBooks.length; index++) {
+      final book = orderedBooks[index];
+      final identity = BookIdentity.keyOf(book);
+      final position = positions.putIfAbsent(identity, () => index);
       if (!isIndexableBook(book)) continue;
-      final key = BookIdentity.indexedFilePath(book);
+      final key = BookIdentity.indexedFilePath(book, catalogueKey: identity);
       entries[key] ??= BookOrderEntry(
         filePath: key,
-        catalogueOrder: _catalogueOrderOf(BookIdentity.keyOf(book), positions),
+        catalogueOrder: _catalogueOrderOf(identity, position),
         generationOrder: chronologicalOrderForBook(book),
       );
     }
@@ -2356,8 +2357,7 @@ class IndexingRepository {
   static const _personalOrderBase = 1 << 23;
   static const _maxCatalogueOrder = 0xFFFFFFFF;
 
-  static int _catalogueOrderOf(String key, Map<String, int> positions) {
-    final position = positions[key]!;
+  static int _catalogueOrderOf(String key, int position) {
     if (!key.startsWith('uid:')) return position;
     final id = int.tryParse(key.substring(4));
     if (id == null || id < 0 || 'uid:$id' != key) return position;

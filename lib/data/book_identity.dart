@@ -89,7 +89,8 @@ class BookIdentity {
   }
 
   /// המפתח שנשמר בשדה filePath של מסמכי החיפוש.
-  static String indexedFilePath(Book book) {
+  /// אפשר להעביר ל-[catalogueKey] את תוצאת [keyOf] שכבר חושבה עבור [book].
+  static String indexedFilePath(Book book, {String? catalogueKey}) {
     // ב-PDF רגיל ה-id עשוי להיות שאול מספר הטקסט המקביל.
     // למסד מצורף יש id עצמאי, ול-PDF בעל מזהה חיצוני יש זהות יציבה.
     if (book is PdfBook &&
@@ -97,7 +98,7 @@ class BookIdentity {
         !(book.source.isAttached && book.id != null)) {
       return book.path;
     }
-    return keyOf(book);
+    return catalogueKey ?? keyOf(book);
   }
 
   /// הספר שמסמך האינדקס מתאר, רק אם הקטלוג עדיין מחזיק שם את אותו ספר.
