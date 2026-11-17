@@ -20,6 +20,7 @@ import 'package:otzaria/core/diagnostics/developer_diagnostics.dart';
 import 'package:otzaria/plugins/services/plugin_crash_guard.dart';
 import 'package:otzaria/plugins/services/plugin_content_blockers.dart';
 import 'package:otzaria/plugins/services/plugin_file_server.dart';
+import 'package:otzaria/plugins/services/plugin_asset_scheme.dart';
 import 'package:otzaria/plugins/services/plugin_fonts.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
@@ -946,6 +947,42 @@ void main() {
     });
   });
 
+  for (final scheme in ['file', pluginAssetScheme]) {
+    for (final mainFrame in [false, true, null]) {
+      testWidgets('כשל $scheme במסגרת ראשית $mainFrame', (tester) async {
+        await _runBoot(tester, (platform) async {
+          final view = platform.views.last;
+          final controller = InAppWebViewController.fromPlatform(
+            platform: platform.controller,
+          );
+          await tester.runAsync(() async {
+            view.onReceivedError!(
+              controller,
+              WebResourceRequest(
+                url: WebUri('$scheme:///install/path/missing.js'),
+                isForMainFrame: mainFrame,
+              ),
+              WebResourceError(
+                type: WebResourceErrorType.UNKNOWN,
+                description: 'missing resource',
+              ),
+            );
+            await PluginSystemDatabase.instance.database;
+          });
+          await tester.pump();
+          expect(
+            find.textContaining('שגיאה בטעינת הקובץ'),
+            mainFrame == false ? findsNothing : findsOneWidget,
+          );
+          expect(
+            find.byType(InAppWebView),
+            mainFrame == false ? findsOneWidget : findsNothing,
+          );
+        });
+      });
+    }
+  }
+
   testWidgets('onLoadStart של ניסיון קודם אינו מבטל boot של הניסיון הנוכחי', (
     tester,
   ) async {
@@ -954,14 +991,17 @@ void main() {
       final native = platform.controller;
       final controller = InAppWebViewController.fromPlatform(platform: native);
       final url = WebUri('file:///install/path/index.html');
-      previous.onReceivedError!(
-        controller,
-        WebResourceRequest(url: url, isForMainFrame: true),
-        WebResourceError(
-          type: WebResourceErrorType.UNKNOWN,
-          description: 'failed',
-        ),
-      );
+      await tester.runAsync(() async {
+        previous.onReceivedError!(
+          controller,
+          WebResourceRequest(url: url, isForMainFrame: true),
+          WebResourceError(
+            type: WebResourceErrorType.UNKNOWN,
+            description: 'failed',
+          ),
+        );
+        await PluginSystemDatabase.instance.database;
+      });
       await tester.pump();
       await _reload();
       await tester.pump();
