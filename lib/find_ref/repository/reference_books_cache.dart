@@ -168,7 +168,8 @@ class ReferenceBooksCache {
       // PDF outline parsing is NOT done here — it happens lazily via getPdfOutlineEntries().
       final localFsPdfBooks = <(String, ReferenceBookHit)>[];
       if (FileSystemLibraryProvider.instance.isInitialized) {
-        final keyToPath = await FileSystemLibraryProvider.instance.keyToPath;
+        final keyToPath =
+            await FileSystemLibraryProvider.instance.physicalKeyToPath;
         if (myGen != _generation) return;
         var processedPdfs = 0;
         for (final entry in keyToPath.entries) {

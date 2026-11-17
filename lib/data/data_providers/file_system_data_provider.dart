@@ -64,7 +64,8 @@ class FileSystemData {
 
   Future<Map<String, String>> _getTitleToPath() async {
     await _providerManager.initialize();
-    final keyToPath = await _providerManager.fileSystemProvider.keyToPath;
+    final keyToPath =
+        await _providerManager.fileSystemProvider.physicalKeyToPath;
     final dbKeys = await _providerManager.databaseProvider
         .getDatabaseOnlyBookTitles();
     return buildTitleToPathMap(

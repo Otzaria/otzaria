@@ -6,6 +6,8 @@
 // המנגנון: _generation counter שעולה ב-clear; הטעינה בודקת אותו אחרי
 // כל yield ועוצרת אם הוא השתנה.
 
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:otzaria/data/cache/books_cache.dart';
@@ -15,6 +17,11 @@ import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/category.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:path/path.dart' as p;
+
+import '../test_helpers/memory_cache_provider.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -104,6 +111,41 @@ void main() {
           .map((hit) => hit.filePath),
       [fsPath],
     );
+  });
+
+  test('איתור מקורות מונה PDF פעם אחת גם כשלקטלוג יש כינוי', () async {
+    await Settings.init(cacheProvider: MemoryCacheProvider());
+    final root = await Directory.systemTemp.createTemp('otzaria-find-ref-pdf-');
+    addTearDown(() => root.delete(recursive: true));
+    await Settings.setValue(SettingsRepository.keyLibraryPath, root.path);
+    final folder = await Directory(
+      p.join(root.path, 'אוצריא', 'אישי', 'הלכה.מהדורה'),
+    ).create(recursive: true);
+    const title = 'ספר מקומי';
+    final file = await File(
+      p.join(folder.path, '$title.pdf'),
+    ).writeAsString('%PDF-1.4');
+
+    final provider = FileSystemLibraryProvider.instance;
+    await provider.initialize();
+    final cache = ReferenceBooksCache.instance;
+    final originalParser = cache.pdfOutlineParser;
+    addTearDown(() => cache.pdfOutlineParser = originalParser);
+    cache.categoriesProviderOverride = () async => const [];
+    cache.pdfOutlineParser = (_) async => const [];
+    cache.pdfFileMetadataProviderOverride = (_) async => null;
+
+    await cache.warmUp();
+    expect(cache.search(title).map((hit) => hit.filePath), [file.path]);
+
+    await provider.loadBooks({});
+    expect(
+      await provider.hasBook(title, 'ספרים אישיים, הלכה'.hashCode, 'pdf'),
+      isTrue,
+    );
+    cache.clear();
+    await cache.warmUp();
+    expect(cache.search(title).map((hit) => hit.filePath), [file.path]);
   });
 
   group('ReferenceBooksCache — race condition מול clear()', () {

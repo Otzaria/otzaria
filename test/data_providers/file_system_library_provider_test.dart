@@ -1,4 +1,5 @@
-import 'dart:io';
+import 'dart:io' hide Link;
+import 'dart:io' as io show Link;
 
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -75,6 +76,165 @@ void main() {
         expect(keyToPath[storageKey], pdfPath);
       },
     );
+
+    test('טעינה מקבילה מספקת נתיבים לקטלוג ולמפתחות ישנים', () async {
+      final personalDir = Directory(
+        path.join(tempDir.path, 'אוצריא', 'אישי', 'הלכה.מהדורה'),
+      );
+      await personalDir.create(recursive: true);
+      final file = await File(
+        path.join(personalDir.path, 'ספר.TXT'),
+      ).writeAsString('טקסט');
+
+      final provider = FileSystemLibraryProvider.instance;
+      final physicalPathsFuture = provider.physicalKeyToPath;
+      final catalogFuture = provider.loadBooks({});
+      final book = (await catalogFuture)['הלכה']!.single;
+      final physicalPaths = await physicalPathsFuture;
+      final paths = await provider.keyToPath;
+
+      expect(physicalPaths.values, [file.path]);
+      expect(await provider.physicalKeyToPath, same(physicalPaths));
+      expect(book.categoryPath, 'ספרים אישיים, הלכה');
+      for (final categoryPath in [
+        'ספרים אישיים, הלכה',
+        'ספרים אישיים, הלכה.מהדורה',
+      ]) {
+        final key = BookCompositeKey.create(
+          title: 'ספר',
+          categoryId: categoryPath.hashCode,
+          fileType: 'txt',
+        ).toStorageKey();
+        expect(paths[key], file.path);
+      }
+    });
+
+    test('שם תצוגה זהה שומר נתיב מדויק לכל תיקייה', () async {
+      final personalDir = path.join(tempDir.path, 'אוצריא', 'אישי');
+      final expectedPaths = <String, String>{};
+      for (final name in ['הלכה', 'הלכה.מהדורה']) {
+        final dir = await Directory(path.join(personalDir, name)).create(
+          recursive: true,
+        );
+        final file = await File(
+          path.join(dir.path, 'ספר.txt'),
+        ).writeAsString(name);
+        final key = BookCompositeKey.create(
+          title: 'ספר',
+          categoryId: 'ספרים אישיים, $name'.hashCode,
+          fileType: 'txt',
+        ).toStorageKey();
+        expectedPaths[key] = file.path;
+      }
+
+      final provider = FileSystemLibraryProvider.instance;
+      final books = (await provider.loadBooks({}))['הלכה']!;
+      final paths = await provider.keyToPath;
+
+      expect(books, hasLength(2));
+      expect(paths, expectedPaths);
+      expect({
+        for (final book in books)
+          BookCompositeKey.fromBook(book)!.toStorageKey(): book.filePath,
+      }, expectedPaths);
+    });
+
+    test('כינוי משותף שומר את ההתאמה מסוף הסריקה', () async {
+      for (final name in ['הלכה.א', 'הלכה.ב']) {
+        final dir = await Directory(
+          path.join(tempDir.path, 'אוצריא', 'אישי', name),
+        ).create(recursive: true);
+        await File(path.join(dir.path, 'ספר.txt')).writeAsString(name);
+      }
+      final provider = FileSystemLibraryProvider.instance;
+      final books = (await provider.loadBooks({}))['הלכה']!;
+      final physicalPaths = await provider.physicalKeyToPath;
+      final alias = BookCompositeKey.create(
+        title: 'ספר',
+        categoryId: 'ספרים אישיים, הלכה'.hashCode,
+        fileType: 'txt',
+      ).toStorageKey();
+
+      final paths = await provider.keyToPath;
+      expect(paths[alias], physicalPaths.values.last);
+      expect(books.map((book) => book.categoryId).toSet(), hasLength(2));
+      for (final book in books) {
+        final key = BookCompositeKey.fromBook(book)!.toStorageKey();
+        expect(paths[key], book.filePath);
+      }
+    });
+
+    test('סריקת ספרים בקישור סמלי מחזורי מסתיימת', () async {
+      final personalDir = Directory(path.join(tempDir.path, 'אוצריא', 'אישי'));
+      await personalDir.create(recursive: true);
+      final file = await File(
+        path.join(personalDir.path, 'ספר.txt'),
+      ).writeAsString('טקסט');
+      final link = await io.Link(path.join(personalDir.path, 'חזרה')).create(
+        personalDir.path,
+      );
+
+      final provider = FileSystemLibraryProvider.instance;
+      final books = await provider.loadBooks({});
+
+      expect(books['ספרים אישיים']!.single.title, 'ספר');
+      expect(books['חזרה']!.single.title, 'ספר');
+      expect(
+        (await provider.keyToPath).values,
+        unorderedEquals([
+          file.path,
+          path.join(link.path, 'ספר.txt'),
+        ]),
+      );
+    }, skip: Platform.isWindows);
+
+    test('טעינה מחדש מסירה נתיב שנמחק ומוסיפה ספר חדש', () async {
+      final personalDir = Directory(path.join(tempDir.path, 'אוצריא', 'אישי'));
+      await personalDir.create(recursive: true);
+      final before = await File(
+        path.join(personalDir.path, 'לפני.txt'),
+      ).writeAsString('טקסט');
+      final provider = FileSystemLibraryProvider.instance;
+      await provider.loadBooks({});
+      expect((await provider.keyToPath).values, [before.path]);
+
+      await before.delete();
+      final after = await File(
+        path.join(personalDir.path, 'אחרי.txt'),
+      ).writeAsString('טקסט');
+      final books = await provider.loadBooks({
+        'אחרי': {'author': 'מחבר'},
+      });
+
+      expect(books['ספרים אישיים']!.single.title, 'אחרי');
+      expect(books['ספרים אישיים']!.single.author, 'מחבר');
+      expect((await provider.keyToPath).values, [after.path]);
+    });
+
+    test('סריקה שהחלה לפני איפוס אינה מעדכנת את מפת הספרייה החדשה', () async {
+      final oldDir = Directory(path.join(tempDir.path, 'אוצריא', 'אישי'));
+      await oldDir.create(recursive: true);
+      final oldFile = await File(
+        path.join(oldDir.path, 'ישן.txt'),
+      ).writeAsString('טקסט');
+      final newRoot = Directory(path.join(tempDir.path, 'ספרייה חדשה'));
+      final newDir = Directory(path.join(newRoot.path, 'אוצריא', 'אישי'));
+      await newDir.create(recursive: true);
+      final newFile = await File(
+        path.join(newDir.path, 'חדש.txt'),
+      ).writeAsString('טקסט');
+
+      final provider = FileSystemLibraryProvider.instance;
+      final oldScan = provider.keyToPath;
+      provider.resetRuntimeState();
+      await Settings.setValue<String>(
+        SettingsRepository.keyLibraryPath,
+        newRoot.path,
+      );
+
+      expect((await oldScan).values, [oldFile.path]);
+      expect((await provider.keyToPath).values, [newFile.path]);
+    });
 
     test('תוכן קישור שומר טווחי שורות, CRLF ושורות ריקות', () async {
       final personalDir = Directory(path.join(tempDir.path, 'אוצריא', 'אישי'));
@@ -162,8 +322,9 @@ void main() {
         'xmlns:w="http://schemas.microsoft.com/office/word/2003/wordml">'
         '<w:body/></w:wordDocument>',
       );
-      await File(path.join(nestedDir.path, 'הגדרות.xml'))
-          .writeAsString('<?xml version="1.0"?><config/>');
+      await File(
+        path.join(nestedDir.path, 'הגדרות.xml'),
+      ).writeAsString('<?xml version="1.0"?><config/>');
       await File(path.join(nestedDir.path, 'גיבוי.wbk')).writeAsString('טקסט');
 
       final provider = FileSystemLibraryProvider.instance;
