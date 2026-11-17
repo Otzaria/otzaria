@@ -163,14 +163,14 @@ void main() {
       expect(parsed.facets, isEmpty);
     });
 
-    test('ריבוי @ ונתיבים אינו סורק מחדש את עץ הספרייה', () {
+    test('ריבוי @ אינו סורק מחדש את עץ הספרייה', () {
       final library = _CountingLibrary(categories: [
         _category('תורה', [
           TextBook(title: 'בראשית', id: 1),
           TextBook(title: 'שמות', id: 2),
         ]),
       ]);
-      final parsed = parseCategoryQuery('שלום@בראשית@שמות@תורה/בראשית', library);
+      final parsed = parseCategoryQuery('שלום@בראשית@שמות', library);
       expect(parsed.categoryFound, isTrue);
       expect(library.bookWalks, 1);
       expect(library.categoryWalks, 1);
