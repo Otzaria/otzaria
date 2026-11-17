@@ -35,6 +35,9 @@ class PluginLibraryBookProvider {
   final String? iconName;
   final PluginWhenCondition? when;
 
+  /// Opt-in to the native FindRef dialog's external reference results.
+  final bool referenceSearch;
+
   /// פעולת host שמבצעים בלחיצה על ספר, בלי להעיר את מנוע התוסף. בלעדיה
   /// הלחיצה נמסרת לתוסף באירוע `library.providerBook.openRequested`.
   final Map<String, dynamic>? openAction;
@@ -47,6 +50,7 @@ class PluginLibraryBookProvider {
     this.iconName,
     this.when,
     this.openAction,
+    this.referenceSearch = false,
   });
 
   /// משמש גם את הוולידציה בעת אריזה, ולכן אינו תלוי במצב התוכנה.
@@ -55,7 +59,20 @@ class PluginLibraryBookProvider {
     Map<String, dynamic> item, {
     String? fallbackIconName,
   }) {
-    const allowed = {'id', 'provider', 'title', 'icon', 'when', 'openAction'};
+    const allowed = {
+      'id',
+      'provider',
+      'title',
+      'icon',
+      'when',
+      'openAction',
+      'referenceSearch',
+    };
+    if (item['referenceSearch'] != null && item['referenceSearch'] is! bool) {
+      throw const PluginLibraryBooksException(
+        'libraryBooks.referenceSearch must be boolean',
+      );
+    }
     final unknown = item.keys.where((key) => !allowed.contains(key));
     if (unknown.isNotEmpty) {
       throw PluginLibraryBooksException(
@@ -128,6 +145,7 @@ class PluginLibraryBookProvider {
       iconName: icon as String? ?? fallbackIconName,
       when: when,
       openAction: openAction,
+      referenceSearch: item['referenceSearch'] == true,
     );
   }
 
@@ -139,7 +157,8 @@ class PluginLibraryBookProvider {
       title == other.title &&
       iconName == other.iconName &&
       jsonEncode(when?.toJson()) == jsonEncode(other.when?.toJson()) &&
-      jsonEncode(openAction) == jsonEncode(other.openAction);
+      jsonEncode(openAction) == jsonEncode(other.openAction) &&
+      referenceSearch == other.referenceSearch;
 
   /// שם שהמזהה שלו (`<provider>:<id>`) נקרא כספק מובנה אסור: חלק מהמסכים
   /// מזהים את הספקים המובנים לפי מחרוזת חלקית (`hb:`, `otzar` וכו'), וכך

@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/messages/common_messages.dart';
 
 import 'package:flutter/material.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
@@ -7,6 +9,7 @@ import 'package:otzaria/widgets/controls/toggle_pill.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
 import 'package:otzaria/plugins/services/plugin_search_field_actions_registry.dart';
+import 'package:otzaria/plugins/services/plugin_find_ref_service.dart';
 import 'package:otzaria/plugins/view/plugin_search_field_actions.dart';
 import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
@@ -121,6 +124,7 @@ class _CommentatorEntry {
 class _FindRefDialogState extends State<FindRefDialog> {
   /// מאגר הפוקוס של החלון; נשמר כאן כי ב-dispose אסור לחפש ב-context.
   late final FocusRepository _focus;
+  late final FindRefBloc _findRefBloc;
 
   /// מאגר הדוגמאות שמוצגות כשאין עדיין איתורים אחרונים. בכל פתיחה מוצג
   /// חלון אחר מתוכו (ראו [_rotatedExamples]).
@@ -159,6 +163,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
   /// התוצאות שמוצגות כרגע. נשמרות כדי שהקלדה של אות נוספת לא תרוקן את
   /// הרשימה ותחזיר אותה — הרשימה הקודמת נשארת עד שהחדשה מגיעה.
   List<DbReferenceResult> _shownRefs = const <DbReferenceResult>[];
+  List<PluginFindRefHit> _shownExternalRefs = const [];
   FindRefState? _supersededVisibilityState;
   bool _includePersonalBooks = FindRefPersonalBooksSetting.load();
   final Map<int, GlobalKey> _itemKeys = {};
@@ -192,6 +197,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
   void initState() {
     super.initState();
     _focus = FocusRepository.of(context);
+    _findRefBloc = context.read<FindRefBloc>();
     _defaultHost = _MainWindowFindRefHost(
       AppWindowKeys.of(context).mainWindowScreen,
     );
@@ -228,6 +234,9 @@ class _FindRefDialogState extends State<FindRefDialog> {
         baseOffset: 0,
         extentOffset: controller.text.length,
       );
+      if (_findRefBloc.externalService.hasProviders) {
+        _dispatchSearch(controller.text);
+      }
     }
 
     // רישום כ-active restorer כדי שהדיאלוג יקבל שחזור פוקוס לאחר אירועי חלון
@@ -249,6 +258,13 @@ class _FindRefDialogState extends State<FindRefDialog> {
 
   @override
   void dispose() {
+    final state = _findRefBloc.state;
+    if (!_findRefBloc.isClosed &&
+        (_findRefBloc.externalService.hasProviders ||
+            state is FindRefSuccess &&
+                (state.externalPending || state.externalRefs.isNotEmpty))) {
+      _findRefBloc.add(ClearSearchRequested());
+    }
     _personalBooksChanges?.cancel();
     _localVisibilityChanges?.cancel();
     _resultsScrollController.removeListener(_updateHasMoreBelow);
@@ -315,9 +331,19 @@ class _FindRefDialogState extends State<FindRefDialog> {
 
   void _openPendingEnterIfCurrent(FindRefState state) {
     if (!_pendingEnter || !_isCurrentSuccess(state)) return;
+    final success = state as FindRefSuccess;
+    if (success.refs.isEmpty &&
+        success.externalRefs.isEmpty &&
+        success.externalPending) {
+      return;
+    }
     _pendingEnter = false;
-    final refs = (state as FindRefSuccess).refs;
-    if (refs.isNotEmpty) _openRef(refs.first);
+    final refs = success.refs;
+    if (refs.isNotEmpty) {
+      _openRef(refs.first);
+    } else if (success.externalRefs.isNotEmpty) {
+      _openExternal(success.externalRefs.first);
+    }
   }
 
   void _refreshVisibilityIfChanged() {
@@ -335,6 +361,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
       _bookIndexes.clear();
       _commentatorsByRef.clear();
       _shownRefs = const [];
+      _shownExternalRefs = const [];
     });
     bloc.add(ClearSearchRequested());
     if (query.isNotEmpty) {
@@ -852,6 +879,14 @@ class _FindRefDialogState extends State<FindRefDialog> {
         : state is FindRefSuccess
         ? state.refs
         : (isLoading ? _shownRefs : const <DbReferenceResult>[]);
+    final extraRefs = identical(state, _supersededVisibilityState)
+        ? const <PluginFindRefHit>[]
+        : state is FindRefSuccess
+        ? state.externalRefs
+        : isLoading
+        ? _shownExternalRefs
+        : const <PluginFindRefHit>[];
+    final totalCount = refs.length + extraRefs.length;
     return Container(
       padding: EdgeInsets.all(isShort ? 12 : 16),
       decoration: BoxDecoration(
@@ -869,7 +904,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
           ListenableBuilder(
             listenable: PluginSearchFieldActionsRegistry.instance,
             builder: (context, _) => _buildQueryField(
-              isLoading ? const <DbReferenceResult>[] : refs,
+              isLoading ? 0 : totalCount,
             ),
           ),
           TypingLayoutFixSuggestion(
@@ -889,19 +924,19 @@ class _FindRefDialogState extends State<FindRefDialog> {
             runSpacing: 4,
             children: [
               _buildPersonalBooksToggle(),
-              if (isLoading)
+              if (isLoading || state is FindRefSuccess && state.externalPending)
                 const SizedBox(
                   width: 12,
                   height: 12,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
-              if (refs.isNotEmpty)
+              if (totalCount > 0)
                 Text(
-                  refs.length == 1
+                  totalCount == 1
                       ? context.settingsText('מקור אחד')
                       : context.settingsText(
                           '{count} מקורות',
-                          args: {'count': refs.length},
+                          args: {'count': totalCount},
                         ),
                   style: TextStyle(
                     fontSize: 12,
@@ -915,7 +950,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
     );
   }
 
-  Widget _buildQueryField(List<DbReferenceResult> refs) {
+  Widget _buildQueryField(int resultCount) {
     final focusRepository = context.read<FocusRepository>();
     final controller = focusRepository.findRefSearchController;
     final colorScheme = Theme.of(context).colorScheme;
@@ -927,7 +962,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
           return KeyEventResult.ignored;
         }
 
-        if (refs.isEmpty) return KeyEventResult.ignored;
+        if (resultCount == 0) return KeyEventResult.ignored;
         final key = event.logicalKey;
         final current = _selectedIndex.value;
         // Home/End (גם Ctrl+Shift לבחירה) שייכים לשדה; Ctrl לבדו — לרשימה.
@@ -937,15 +972,15 @@ class _FindRefDialogState extends State<FindRefDialog> {
           LogicalKeyboardKey.arrowDown => current + 1,
           LogicalKeyboardKey.arrowUp => current - 1,
           LogicalKeyboardKey.pageDown =>
-            current + _resultsPageStep(refs.length),
-          LogicalKeyboardKey.pageUp => current - _resultsPageStep(refs.length),
+            current + _resultsPageStep(resultCount),
+          LogicalKeyboardKey.pageUp => current - _resultsPageStep(resultCount),
           LogicalKeyboardKey.home when ctrlOnly => 0,
-          LogicalKeyboardKey.end when ctrlOnly => refs.length - 1,
+          LogicalKeyboardKey.end when ctrlOnly => resultCount - 1,
           _ => null,
         };
         if (target == null) return KeyEventResult.ignored;
-        _selectedIndex.value = target.clamp(0, refs.length - 1);
-        _scrollToSelected(count: refs.length);
+        _selectedIndex.value = target.clamp(0, resultCount - 1);
+        _scrollToSelected(count: resultCount);
         return KeyEventResult.handled;
       },
       child: RtlTextField(
@@ -984,11 +1019,18 @@ class _FindRefDialogState extends State<FindRefDialog> {
               state is FindRefInitial);
       return;
     }
-    final current = (state as FindRefSuccess).refs;
-    if (current.isNotEmpty) {
-      _openRef(
-        current[_selectedIndex.value.clamp(0, current.length - 1)],
-      );
+    final success = state as FindRefSuccess;
+    final nativeCount = success.refs.length;
+    final count = nativeCount + success.externalRefs.length;
+    if (count == 0) {
+      _pendingEnter = success.externalPending;
+      return;
+    }
+    final index = _selectedIndex.value.clamp(0, count - 1);
+    if (index < nativeCount) {
+      _openRef(success.refs[index]);
+    } else if (index - nativeCount < success.externalRefs.length) {
+      _openExternal(success.externalRefs[index - nativeCount]);
     }
   }
 
@@ -1066,10 +1108,14 @@ class _FindRefDialogState extends State<FindRefDialog> {
         }
         if (state is FindRefSuccess) {
           _shownRefs = state.refs;
+          _shownExternalRefs = state.externalRefs;
         } else if (state is! FindRefLoading) {
           _shownRefs = const <DbReferenceResult>[];
+          _shownExternalRefs = const [];
         }
-        if (_shownRefs.isEmpty && _hasMoreBelow.value) {
+        if (_shownRefs.isEmpty &&
+            _shownExternalRefs.isEmpty &&
+            _hasMoreBelow.value) {
           _hasMoreBelow.value = false;
         }
         if (state is FindRefSuccess) {
@@ -1092,7 +1138,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
           return const _DelayedLoader();
         }
         if (state is FindRefLoading) {
-          if (_shownRefs.isNotEmpty) {
+          if (_shownRefs.isNotEmpty || _shownExternalRefs.isNotEmpty) {
             return _buildResultsList(_shownRefs, horizontalPadding);
           }
           return const _DelayedLoader();
@@ -1106,12 +1152,16 @@ class _FindRefDialogState extends State<FindRefDialog> {
         if (state is FindRefError) {
           return _buildErrorState(state.kind);
         }
-        if (state is FindRefSuccess && state.refs.isNotEmpty) {
+        if (state is FindRefSuccess &&
+            (state.refs.isNotEmpty || state.externalRefs.isNotEmpty)) {
           return _buildResultsList(
             state.refs,
             horizontalPadding,
             source: state,
           );
+        }
+        if (state is FindRefSuccess && state.externalPending) {
+          return const _DelayedLoader();
         }
         final query = context
             .read<FocusRepository>()
@@ -1149,16 +1199,30 @@ class _FindRefDialogState extends State<FindRefDialog> {
           horizontalPadding,
           8,
         ),
-        itemCount: refs.length,
+        itemCount:
+            refs.length +
+            (source?.externalRefs.length ?? _shownExternalRefs.length),
         itemBuilder: (context, index) => ListenableBuilder(
           key: _getKeyForIndex(index),
           listenable: rowInputs,
-          builder: (context, _) => _buildResultTile(
-            refs[index],
-            index,
-            isSelected: index == _selectedIndex.value,
-            interactive: source != null && _isCurrentSuccess(source),
-          ),
+          builder: (context, _) {
+            final interactive = source != null && _isCurrentSuccess(source);
+            if (index < refs.length) {
+              return _buildResultTile(
+                refs[index],
+                index,
+                isSelected: index == _selectedIndex.value,
+                interactive: interactive,
+              );
+            }
+            final extra = source?.externalRefs ?? _shownExternalRefs;
+            return _buildExternalTile(
+              extra[index - refs.length],
+              index,
+              selected: index == _selectedIndex.value,
+              interactive: interactive,
+            );
+          },
         ),
       ),
     );
@@ -1278,6 +1342,44 @@ class _FindRefDialogState extends State<FindRefDialog> {
       ),
     );
   }
+
+  /// External references are not seforim.db ids: never send them to _openRef.
+  Future<void> _openExternal(PluginFindRefHit hit) async {
+    final service = context.read<FindRefBloc>().externalService;
+    _rememberCurrentQuery();
+    Navigator.of(context).pop();
+    try {
+      await service.open(hit);
+    } catch (e, stack) {
+      debugPrint('FindRef external open failed: $e\n$stack');
+      UiSnack.showError(CommonMessages.cannotOpenBook(hit.reference));
+    }
+  }
+
+  Widget _buildExternalTile(
+    PluginFindRefHit hit,
+    int index, {
+    required bool selected,
+    required bool interactive,
+  }) => Padding(
+    padding: const EdgeInsets.only(bottom: AppTokens.spaceSM),
+    child: Material(
+      color: selected
+          ? AppSurfaces.selectedRow(Theme.of(context).colorScheme)
+          : AppSurfaces.card(context),
+      shape: RoundedRectangleBorder(
+        borderRadius: AppTokens.borderRadiusAll,
+        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+      child: ListTile(
+        selected: selected,
+        leading: const Icon(FluentIcons.book_open_24_regular),
+        title: LibraryOverflowTooltipText(text: hit.reference, maxLines: 2),
+        subtitle: Text(hit.providerTitle, maxLines: 1),
+        onTap: interactive ? () => _openExternal(hit) : null,
+      ),
+    ),
+  );
 
   /// אייקון סוג המקור, כמו ברשימות הספרייה.
   Widget _buildResultIcon(DbReferenceResult ref, Color color) {

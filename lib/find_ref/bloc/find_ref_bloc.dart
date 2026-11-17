@@ -7,6 +7,7 @@ import 'package:otzaria/find_ref/bloc/find_ref_event.dart';
 import 'package:otzaria/find_ref/find_ref_personal_books_setting.dart';
 import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
 import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
+import 'package:otzaria/plugins/services/plugin_find_ref_service.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_state.dart';
 import 'package:otzaria/find_ref/repository/db_reference_result.dart';
 import 'package:otzaria/library/hidden/hidden_library_selection.dart';
@@ -15,6 +16,7 @@ import 'package:otzaria/utils/text/text_manipulation.dart';
 
 class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
   final FindRefRepository findRefRepository;
+  final PluginFindRefService externalService;
 
   /// השהיית debounce לפני שחיפוש מתחיל בפועל. כל הקלדה ב-UI שולחת
   /// `SearchRefRequested` מיידית, וה-handler ממתין כאן לפני שמתחיל ב-fetch
@@ -32,6 +34,9 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
   bool? _shownIncludePersonalBooks;
   HiddenLibrarySelection? _shownVisibility;
   int _requestGeneration = 0;
+  int _externalGeneration = 0;
+  _FindRefDelay? _externalDelay;
+  bool _closing = false;
   SearchRefRequested? _lastRequest;
   late final StreamSubscription<void> _userBooksChanges;
 
@@ -39,13 +44,33 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
   /// כשהביטול חוזר על עצמו.
   String? _retriedQuery;
 
-  FindRefBloc({required this.findRefRepository}) : super(FindRefInitial()) {
+  FindRefBloc({
+    required this.findRefRepository,
+    PluginFindRefService? externalService,
+  }) : externalService = externalService ?? PluginFindRefService.instance,
+       super(FindRefInitial()) {
     // restartable: כל SearchRefRequested חדש מבטל handler קודם שעדיין רץ.
     // הביטול חל בנקודת ה-await הבאה — בין אם זו השהיית ה-debounce, ובין
     // אם זו שאילתה בתוך `findRefs`. כך הקלדה חדשה מבטלת מיידית גם handlers
     // שעדיין בהמתנה וגם כאלה שכבר התחילו fetch.
     on<SearchRefRequested>(_onSearchRefRequested, transformer: restartable());
     on<ClearSearchRequested>(_onClearSearchRequested);
+    on<_ExternalRefsUpdated>((event, emit) {
+      final current = state;
+      if (event.generation != _externalGeneration ||
+          current is! FindRefSuccess) {
+        return;
+      }
+      emit(
+        FindRefSuccess(
+          current.refs,
+          query: current.query,
+          includePersonalBooks: current.includePersonalBooks,
+          externalRefs: event.hits,
+          externalPending: event.pending,
+        ),
+      );
+    });
     on<_UserBooksChanged>(_onUserBooksChanged, transformer: restartable());
     _userBooksChanges = findRefRepository.userBooksChanges.listen(
       (_) => add(const _UserBooksChanged()),
@@ -64,6 +89,11 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
 
   @override
   Future<void> close() async {
+    _closing = true;
+    _requestGeneration++;
+    _externalGeneration++;
+    _externalDelay?.cancel();
+    externalService.cancel(this);
     _liveBlocs.remove(this);
     await _userBooksChanges.cancel();
     findRefRepository.dispose();
@@ -85,6 +115,7 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
     Emitter<FindRefState> emit,
   ) async {
     final normalized = normalizeQuery(event.refText);
+    if (_closing) return;
     final includePersonalBooks =
         event.includePersonalBooks ?? FindRefPersonalBooksSetting.load();
     _lastRequest = event.refText.length < 2
@@ -106,6 +137,10 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
         visibility == _shownVisibility) {
       return;
     }
+
+    final externalGeneration = ++_externalGeneration;
+    _externalDelay?.cancel();
+    externalService.cancel(this);
 
     if (event.refText.length < 2) {
       _shownNormalizedQuery = null;
@@ -141,8 +176,15 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
           refs,
           query: event.refText,
           includePersonalBooks: includePersonalBooks,
+          externalPending:
+              event.refText.trim().length >= 3 && externalService.hasProviders,
         ),
       );
+      // A provider is optional. Its failure must never block native results.
+      if (event.refText.trim().length >= 3 && externalService.hasProviders) {
+        // ממתינים להפסקת ההקלדה לפני שמשגרים שאילתה לספק החיצוני.
+        unawaited(_searchExternal(event.refText, externalGeneration));
+      }
     } on ReferenceLibraryNotReadyException {
       if (emit.isDone || requestGeneration != _requestGeneration) return;
       emit(const FindRefNotReady());
@@ -179,6 +221,9 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
   ) {
     _lastRequest = null;
     _requestGeneration++;
+    _externalGeneration++;
+    _externalDelay?.cancel();
+    externalService.cancel(this);
     findRefRepository.cancelPendingSearch();
     _shownNormalizedQuery = null;
     _shownIncludePersonalBooks = null;
@@ -186,8 +231,49 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
     _retriedQuery = null;
     emit(FindRefInitial());
   }
+
+  Future<void> _searchExternal(String query, int generation) async {
+    final delay = _FindRefDelay(const Duration(milliseconds: 650));
+    _externalDelay = delay;
+    final elapsed = await delay.done;
+    if (identical(_externalDelay, delay)) _externalDelay = null;
+    if (!elapsed || isClosed || generation != _externalGeneration) return;
+    final hits = await externalService.search(
+      query,
+      owner: this,
+      onUpdate: (hits) {
+        if (!isClosed) add(_ExternalRefsUpdated(generation, hits, true));
+      },
+    );
+    if (!isClosed) add(_ExternalRefsUpdated(generation, hits, false));
+  }
 }
 
 class _UserBooksChanged extends FindRefEvent {
   const _UserBooksChanged();
+}
+
+class _ExternalRefsUpdated extends FindRefEvent {
+  const _ExternalRefsUpdated(this.generation, this.hits, this.pending);
+  final int generation;
+  final List<PluginFindRefHit> hits;
+  final bool pending;
+}
+
+class _FindRefDelay {
+  _FindRefDelay(Duration duration) {
+    _timer = Timer(duration, () => _complete(true));
+  }
+  final _completion = Completer<bool>.sync();
+  late final Timer _timer;
+  Future<bool> get done => _completion.future;
+
+  void cancel() {
+    _complete(false);
+  }
+
+  void _complete(bool elapsed) {
+    _timer.cancel();
+    if (!_completion.isCompleted) _completion.complete(elapsed);
+  }
 }

@@ -269,8 +269,9 @@ class PluginLazyActivationService {
   bool queueIfBootPending(
     String pluginId,
     String topic,
-    Map<String, dynamic> payload,
-  ) {
+    Map<String, dynamic> payload, {
+    bool Function()? isCurrent,
+  }) {
     if (!isBootPending(pluginId)) return false;
     final list = _pending.putIfAbsent(pluginId, () => []);
     if (list.length >= _maxPendingPerPlugin) list.removeAt(0);
@@ -278,7 +279,7 @@ class PluginLazyActivationService {
       topic: topic,
       payload: payload,
       requireSubscription: false,
-      isCurrent: null,
+      isCurrent: isCurrent,
     ));
     return true;
   }
