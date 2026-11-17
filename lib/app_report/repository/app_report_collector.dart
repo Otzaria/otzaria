@@ -46,8 +46,10 @@ class AppReportCollector {
     this._includeCurrentContext = true,
     this._errorLogPath,
     this._shutdownLogPath,
+    Future<Map<String, dynamic>?> Function()? previousRunContext,
     DateTime Function()? clock,
-  }) : _redactor = redactor ?? AppReportRedactor.fromPlatform(),
+  }) : _previousRunContext = previousRunContext ?? _noPreviousRunContext,
+       _redactor = redactor ?? AppReportRedactor.fromPlatform(),
        _clock = clock ?? DateTime.now;
 
   /// טווח הזמן של רשומות הלוג שנכנסות לדיווח.
@@ -64,6 +66,11 @@ class AppReportCollector {
 
   /// `false` בדיווח על קריסה מהפעלה קודמת: החלון הנוכחי אינו מה שהיה פתוח בה.
   final bool _includeCurrentContext;
+
+  /// בדוח על ההפעלה הקודמת: מה שהיא הציגה וחיפשה, לפי התמונה ששמרה.
+  final Future<Map<String, dynamic>?> Function() _previousRunContext;
+
+  static Future<Map<String, dynamic>?> _noPreviousRunContext() async => null;
 
   @visibleForTesting
   bool get includesCurrentContext => _includeCurrentContext;
@@ -89,6 +96,12 @@ class AppReportCollector {
     final currentContext = _includeCurrentContext
         ? _currentContext ?? DeveloperDiagnostics.instance.contextProvider
         : null;
+    final previousRun = _includeCurrentContext
+        ? null
+        : await _guard(
+            'previousRunContext',
+            () async => await _previousRunContext() ?? const {},
+          );
     final diagnostics = <String, dynamic>{
       'collectedAt': _clock().toUtc().toIso8601String(),
       'appInfo': await _guard('appInfo', _loadAppInfo),
@@ -118,6 +131,8 @@ class AppReportCollector {
           'searches',
           () async => ActiveLexicalSearches.instance.collect(),
         ),
+      if (previousRun != null && previousRun.isNotEmpty)
+        'previousRun': previousRun,
     };
     return _redact(diagnostics);
   }

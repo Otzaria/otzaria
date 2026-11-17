@@ -30,6 +30,7 @@ import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/app_report/services/crash_report_decision.dart';
 import 'package:otzaria/app_report/services/crash_report_flow.dart';
 import 'package:otzaria/app_report/services/input_focus_diagnostics.dart';
+import 'package:otzaria/app_report/services/session_context_snapshot.dart';
 import 'package:otzaria/app_report/services/unclean_exit_detector.dart';
 import 'package:otzaria/app_report/view/crash_prompt_dialog.dart';
 import 'package:otzaria/app.dart';
@@ -752,6 +753,7 @@ Future<void> _initializeProcessSingletons() async {
   unawaited(_runDeferredSqliteMemoryObserver());
   unawaited(_runDeferredWebViewPrewarm());
   unawaited(_runDeferredInputFocusHistory());
+  unawaited(_runDeferredSessionContextSnapshot());
   unawaited(_runDeferredOsVersion());
 }
 
@@ -772,6 +774,22 @@ Future<void> _runDeferredInputFocusHistory() async {
     // ממשיכים בכל זאת — אחרת ההיסטוריה לא תירשם כלל.
   }
   InputFocusDiagnostics.instance.install();
+}
+
+/// ההקשר שדוח על קריסה או תקיעה של ההפעלה הזו יצרף בהפעלה הבאה.
+Future<void> _runDeferredSessionContextSnapshot() async {
+  try {
+    await _mainWindowRevealedCompleter.future.timeout(
+      const Duration(seconds: 20),
+    );
+  } on TimeoutException {
+    // ממשיכים בכל זאת — אחרת ההקשר לא יישמר כלל.
+  }
+  try {
+    await SessionContextSnapshot.instance.start();
+  } catch (error, stackTrace) {
+    _logNonFatalInitializationError('Session context', error, stackTrace);
+  }
 }
 
 /// מחמם WebView ברקע אחרי חשיפת האפליקציה, ב-Windows וב-Android.
@@ -1109,7 +1127,12 @@ Future<void> _runDeferredCrashCheck() async {
     if (candidate == null) return;
     await CrashReportFlow(
       showPrompt: showCrashPromptOnNavigator,
-      collector: AppReportCollector(includeCurrentContext: false),
+      collector: AppReportCollector(
+        includeCurrentContext: false,
+        previousRunContext: () => SessionContextSnapshot.instance.previousFor(
+          candidate.previousSession,
+        ),
+      ),
     ).handle(candidate);
   } catch (error, stackTrace) {
     _logNonFatalInitializationError('Crash report check', error, stackTrace);
