@@ -1146,6 +1146,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 
     Widget buildTabContent(
       String displayTitle, {
+      String? titleLocation,
       required double paneCloseExtent,
       bool showPaneClose = false,
     }) {
@@ -1171,10 +1172,14 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         );
       }
 
-      return fadedTitle(displayTitle);
+      return buildFadedTabTitle(context, displayTitle, location: titleLocation);
     }
 
-    Widget buildTabAppearance(String displayTitle, String tooltipMessage) {
+    Widget buildTabAppearance(
+      String displayTitle,
+      String tooltipMessage, [
+      String? titleLocation,
+    ]) {
       final showLeadingDivider = _showLeadingDivider(state, index);
       final colorScheme = Theme.of(context).colorScheme;
 
@@ -1354,6 +1359,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                                 Expanded(
                                   child: buildTabContent(
                                     shownTitle,
+                                    titleLocation: titleLocation,
                                     paneCloseExtent: paneCloseExtent,
                                     showPaneClose: showPaneClose,
                                   ),
@@ -1392,8 +1398,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 
     Widget buildLiveTabAppearance() => LiveTabTitleBuilder(
       tab: tab,
-      builder: (_, displayTitle, tooltipMessage) =>
-          buildTabAppearance(displayTitle, tooltipMessage),
+      showLocationInTitle: tabTitleHasTwin(tab, state.tabs),
+      builder: (_, displayTitle, tooltipMessage, titleLocation) =>
+          buildTabAppearance(displayTitle, tooltipMessage, titleLocation),
     );
 
     return _wrapWithTabPointer(

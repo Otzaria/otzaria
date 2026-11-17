@@ -233,6 +233,77 @@ void main() {
     expect(find.byTooltip('ספר א, פרק ב'), findsOneWidget);
   });
 
+  testWidgets('אותו ספר בכמה כרטיסיות מציג את המיקום בכותרת (issue #5146)', (
+    tester,
+  ) async {
+    PdfBookTab makePdf(String title, String location) {
+      final tab = PdfBookTab(
+        book: PdfBook(title: title, path: '/tmp/$title.pdf'),
+        pageNumber: 1,
+      )..currentTitle.value = location;
+      addTearDown(tab.dispose);
+      return tab;
+    }
+
+    final first = makePdf('בבא מציעא', 'דף ה.');
+    final second = makePdf('בבא מציעא', 'דף ז:');
+    final other = makePdf('בבא בתרא', 'דף ב.');
+    await pumpPanel(tester, width: 300, withTabs: [first, second, other]);
+
+    expect(find.textContaining('דף ה.'), findsOneWidget);
+    expect(find.textContaining('דף ז:'), findsOneWidget);
+    expect(find.text('בבא בתרא'), findsOneWidget);
+
+    second.currentTitle.value = 'דף ח.';
+    await tester.pump();
+    expect(find.text('בבא מציעא, דף ח.'), findsOneWidget);
+
+    tabsBloc.emitState(TabsState(tabs: [first, other], currentTabIndex: 0));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('בבא מציעא'),
+      findsOneWidget,
+      reason: 'בלי כפילות המיקום חוזר להופיע רק ב-tooltip',
+    );
+    expect(find.textContaining('דף ה.'), findsNothing);
+  });
+
+  testWidgets('בכרטיסיה צרה שם הספר מתכווץ והמיקום נשאר שלם (issue #5146)', (
+    tester,
+  ) async {
+    PdfBookTab makePdf(String location) {
+      final tab = PdfBookTab(
+        book: PdfBook(title: 'שולחן ערוך אורח חיים', path: '/tmp/sa.pdf'),
+        pageNumber: 1,
+      )..currentTitle.value = location;
+      addTearDown(tab.dispose);
+      return tab;
+    }
+
+    await pumpPanel(
+      tester,
+      width: 260,
+      withTabs: [makePdf('סימן א'), makePdf('סימן ב')],
+    );
+    expect(find.text(', סימן א'), findsOneWidget);
+    expect(find.text(', סימן ב'), findsOneWidget);
+    expect(find.text('שולחן ערוך אורח חיים'), findsNWidgets(2));
+    expect(tester.takeException(), isNull);
+
+    await pumpPanel(
+      tester,
+      width: 150,
+      withTabs: [makePdf('סימן תרצד'), makePdf('סימן תרצה')],
+    );
+    expect(
+      find.text('סימן תרצד'),
+      findsOneWidget,
+      reason: 'בלי מקום לשם הספר מוצג רק המיקום',
+    );
+    expect(find.text('סימן תרצה'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('במצב מכווץ אין ידית לשינוי רוחב', (tester) async {
     await pumpPanel(tester, collapsed: true);
     expect(find.byType(ResizableDragHandle), findsNothing);

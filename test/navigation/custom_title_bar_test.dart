@@ -320,6 +320,83 @@ void main() {
     expect(find.byTooltip('ספר א, פרק א'), findsOneWidget);
   });
 
+  testWidgets('אותו ספר בכמה כרטיסיות מציג את המיקום בכותרת (issue #5146)', (
+    tester,
+  ) async {
+    final first = _makeTextTab('ספר א', currentTitle: 'פרק א');
+    final second = _makeTextTab('ספר א', currentTitle: 'פרק ג');
+    final other = _makeTextTab('ספר ב', currentTitle: 'פרק ב');
+    final tabsBloc = _TestTabsBloc(
+      TabsState(tabs: [first, second, other], currentTabIndex: 0),
+    );
+    final navigationBloc = _TestNavigationBloc(
+      const NavigationState(currentScreen: Screen.reading),
+    );
+    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+    addTearDown(() async {
+      first.dispose();
+      second.dispose();
+      other.dispose();
+      await tabsBloc.close();
+      await navigationBloc.close();
+      await settingsBloc.close();
+    });
+
+    await _setSurfaceSize(tester, const Size(1600, 800));
+    await _pumpTitleBar(
+      tester,
+      tabsBloc: tabsBloc,
+      navigationBloc: navigationBloc,
+      settingsBloc: settingsBloc,
+    );
+
+    expect(find.textContaining('פרק א'), findsOneWidget);
+    expect(find.textContaining('פרק ג'), findsOneWidget);
+    expect(find.text('ספר ב'), findsOneWidget);
+    expect(find.textContaining('פרק ב'), findsNothing);
+  });
+
+  testWidgets('בכרטיסיות רבות וצרות המיקום של התאומות נשאר גלוי (issue #5146)', (
+    tester,
+  ) async {
+    final tabs = [
+      for (var i = 1; i <= 8; i++)
+        _makeTextTab('שולחן ערוך אורח חיים', currentTitle: 'סימן $i'),
+    ];
+    final tabsBloc = _TestTabsBloc(TabsState(tabs: tabs, currentTabIndex: 0));
+    final navigationBloc = _TestNavigationBloc(
+      const NavigationState(currentScreen: Screen.reading),
+    );
+    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+    addTearDown(() async {
+      for (final tab in tabs) {
+        tab.dispose();
+      }
+      await tabsBloc.close();
+      await navigationBloc.close();
+      await settingsBloc.close();
+    });
+
+    await _setSurfaceSize(tester, const Size(1200, 800));
+    await _pumpTitleBar(
+      tester,
+      tabsBloc: tabsBloc,
+      navigationBloc: navigationBloc,
+      settingsBloc: settingsBloc,
+    );
+
+    // הכותרת המלאה אינה נכנסת, ולכן המיקום מרונדר בנפרד משם הספר הנחתך.
+    for (var i = 1; i <= 8; i++) {
+      final locationAlone =
+          find.text(', סימן $i').evaluate().length +
+          find.text('סימן $i').evaluate().length;
+      expect(locationAlone, 1, reason: 'המיקום של כרטיסיה $i נחתך');
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('כרטיסיה שכותרתה נכנסת במלואה אינה מקבלת tooltip', (
     tester,
   ) async {
