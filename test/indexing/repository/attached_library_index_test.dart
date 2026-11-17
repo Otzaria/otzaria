@@ -1,4 +1,5 @@
 import 'package:otzaria/data/book_identity.dart';
+import 'package:otzaria/data/constants/database_constants.dart';
 import 'dart:math';
 import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -162,6 +163,33 @@ void main() {
         );
       }
     });
+
+    test(
+      'המיקום הראשון נשמר גם כשספרים באותה זהות ממופתחים בנפרד',
+      () async {
+        final library = Library(categories: []);
+        final externalId = DatabaseConstants.talmudBavliPdfExternalLibraryId(
+          'ברכות',
+        );
+        library.books.addAll([
+          PdfBook(
+            title: 'ברכות',
+            path: '/bavli/berakhot.pdf',
+            externalLibraryId: externalId,
+            order: 0,
+          ),
+          TextBook(title: 'Official', id: 5, order: 1),
+          PdfBook(title: 'Edition', id: 5, path: '/edition.pdf', order: 2),
+          TextBook(title: 'ברכות', externalLibraryId: externalId, order: 3),
+          TextBook(title: 'Official again', id: 5, order: 4),
+          TextBook(title: 'Later', id: 6, order: 5),
+        ]);
+
+        final order = await orderOf(library);
+        expect(order.keys, ['id:5', '/edition.pdf', 'ext:$externalId', 'id:6']);
+        expect(order.values, [1, 1, 0, 5]);
+      },
+    );
 
     test('טעינת ספרייה מבטלת את הסדר שהחיפוש בספר משווה לפיו', () async {
       await Settings.init(cacheProvider: MemoryCacheProvider());
