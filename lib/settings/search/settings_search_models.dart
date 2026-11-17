@@ -64,14 +64,14 @@ class SettingsSearchEntry {
           : entry.value,
   };
 
-  // הפריטים קבועים והקטלוגים קבועים, לכן המטמון חסום במספר הפריטים כפול השפות.
+  // פריטי תוספים משתנים בזמן ריצה; מטמון חלש אינו מחזיק גרסאות שכבר הוחלפו.
   static final _searchTextsCache =
-      <(SettingsSearchEntry, SettingsLanguage), SettingsSearchTexts>{};
+      Expando<Map<SettingsLanguage, SettingsSearchTexts>>();
 
   /// טקסטי הפריט בשפה [language], מנורמלים לחיפוש ומחושבים פעם אחת.
   SettingsSearchTexts searchTextsIn(SettingsLanguage language) =>
-      _searchTextsCache.putIfAbsent(
-        (this, language),
+      (_searchTextsCache[this] ??= {}).putIfAbsent(
+        language,
         () => SettingsSearchTexts._(
           normalize(titleIn(language)),
           normalize(subtitleIn(language)),

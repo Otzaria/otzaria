@@ -95,9 +95,60 @@ class ToolsManagementPanel extends StatefulWidget {
     ),
   ];
 
+  /// פריט חיפוש לכל כלי מובנה ולכל תוסף מותקן, כדי שחיפוש בהגדרות ימצא אותם בשמם.
+  static List<SettingsSearchEntry> toolSearchEntries(
+    List<InstalledPlugin> plugins,
+  ) {
+    final installedIds = plugins.map((plugin) => plugin.pluginId).toSet();
+    _pluginEntries.removeWhere((id, entry) => !installedIds.contains(id));
+    return [
+      ..._builtInToolEntries,
+      for (final plugin in plugins) _pluginSearchEntry(plugin),
+    ];
+  }
+
+  // מטמון טקסטי החיפוש ממופתח לפי הפריט עצמו, ולכן פריט נבנה מחדש רק כשהתוסף השתנה.
+  static final Map<String, SettingsSearchEntry> _pluginEntries = {};
+
+  static SettingsSearchEntry _pluginSearchEntry(InstalledPlugin plugin) {
+    final description = plugin.manifest.description;
+    final cached = _pluginEntries[plugin.pluginId];
+    if (cached != null &&
+        cached.title == plugin.name &&
+        cached.keywords.first == description) {
+      return cached;
+    }
+    return _pluginEntries[plugin.pluginId] = SettingsSearchEntry(
+      id: 'tools.plugin.${plugin.pluginId}',
+      title: plugin.name,
+      subtitle: _pluginEntrySubtitle,
+      tab: SettingsTab.tools,
+      cardId: _pluginsCardId,
+      expandSection: '$_pluginSectionPrefix${plugin.pluginId}',
+      keywords: [description, plugin.pluginId],
+    );
+  }
+
+  static final List<SettingsSearchEntry> _builtInToolEntries = [
+    for (final meta in kBuiltInToolsCatalog)
+      SettingsSearchEntry(
+        id: 'tools.builtin.${meta.toolId}',
+        title: meta.label,
+        subtitle: _builtInEntrySubtitle,
+        tab: SettingsTab.tools,
+        cardId: _builtInCardId,
+        expandSection: '$_builtInSectionPrefix${meta.toolId}',
+      ),
+  ];
+
   @override
   State<ToolsManagementPanel> createState() => _ToolsManagementPanelState();
 }
+
+const String _builtInEntrySubtitle = 'כלי מובנה';
+const String _pluginEntrySubtitle = 'תוסף מותקן';
+const String _builtInSectionPrefix = 'builtin:';
+const String _pluginSectionPrefix = 'plugin:';
 
 /// מזהי העוגנים של שני האזורים — משמשים גם לחיפוש (SettingsAnchor + searchEntries)
 /// וגם להרחבה אוטומטית בניווט מחיפוש.
@@ -129,7 +180,27 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
     final registry = SettingsSearchRegistry.instance;
     _builtInFlash = registry.flashNotifierFor(_builtInCardId);
     _builtInFlash.addListener(_onBuiltInFlash);
+    registry.registerSectionOpener(_builtInCardId, _openSearchResult);
+    registry.registerSectionOpener(_pluginsCardId, _openSearchResult);
     widget.selection.addListener(_onSelectionChanged);
+  }
+
+  /// תוצאת חיפוש של כלי מובנה פותחת את רשימת הכלים; של תוסף מסננת אליו.
+  void _openSearchResult(String section, {bool Function()? isCurrent}) {
+    if (!mounted) return;
+    if (section.startsWith(_builtInSectionPrefix)) {
+      setState(() => _builtInExpanded = true);
+      return;
+    }
+    if (!section.startsWith(_pluginSectionPrefix)) return;
+    final pluginId = section.substring(_pluginSectionPrefix.length);
+    final pluginState = context.read<PluginSystemBloc>().state;
+    final plugin = pluginState is PluginSystemLoaded
+        ? pluginState.plugins.where((p) => p.pluginId == pluginId).firstOrNull
+        : null;
+    final query = plugin?.name ?? pluginId;
+    _search.text = query;
+    setState(() => _query = query);
   }
 
   void _onSelectionChanged() => setState(() {});
@@ -147,6 +218,9 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
   @override
   void dispose() {
     _builtInFlash.removeListener(_onBuiltInFlash);
+    final registry = SettingsSearchRegistry.instance;
+    registry.unregisterSectionOpener(_builtInCardId, _openSearchResult);
+    registry.unregisterSectionOpener(_pluginsCardId, _openSearchResult);
     widget.selection.removeListener(_onSelectionChanged);
     _search.dispose();
     super.dispose();
@@ -378,10 +452,8 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
     final item = reordered.removeAt(from);
     reordered.insert(to, item);
     final ids = reordered.map((p) => p.pluginId).toList();
-    // Defer dispatch so the BlocBuilder rebuilds during the normal build phase
-    // of the next frame, not inside a LayoutBuilder's _rebuildWithConstraints.
-    // Without deferral, GlobalKey reactivation of rows with Tooltip/OverlayPortal
-    // happens during the LayoutBuilder's buildScope → Flutter rendering crash.
+    // Reordering during LayoutBuilder's buildScope can crash OverlayPortal reactivation.
+    // Dispatch in the next frame's normal build phase.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<PluginSystemBloc>().add(ReorderPluginsRequested(ids));

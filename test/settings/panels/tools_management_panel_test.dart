@@ -14,6 +14,8 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/settings/panels/tools_management_panel.dart';
+import 'package:otzaria/settings/search/settings_search_index.dart';
+import 'package:otzaria/settings/search/settings_search_registry.dart';
 import 'package:otzaria/settings/widgets/settings_tab_scroll_view.dart';
 import 'package:otzaria/tools/built_in_tools_catalog.dart';
 
@@ -1500,6 +1502,112 @@ void main() {
             .orderedPluginIds,
         ['org.c', 'org.a', 'org.b'],
       );
+    });
+  });
+
+  group('settings search', () {
+    final plugins = [
+      _plugin(id: 'org.a', name: 'מרקר', description: 'סימון טקסט'),
+      _plugin(id: 'org.b', name: 'הלכה יומית', description: 'לימוד'),
+    ];
+
+    test('finds installed plugins and built-in tools by name', () {
+      final entries = ToolsManagementPanel.toolSearchEntries(plugins);
+      final builtIn = kBuiltInToolsCatalog.first;
+
+      expect(
+        SettingsSearchIndex.search('מרקר', extraEntries: entries).first.id,
+        'tools.plugin.org.a',
+      );
+      expect(
+        SettingsSearchIndex.search('לימוד', extraEntries: entries).map(
+          (e) => e.id,
+        ),
+        contains('tools.plugin.org.b'),
+      );
+      expect(
+        SettingsSearchIndex.search(
+          builtIn.label,
+          extraEntries: entries,
+        ).map((e) => e.id),
+        contains('tools.builtin.${builtIn.toolId}'),
+      );
+      expect(
+        SettingsSearchIndex.search('מחיקה', extraEntries: entries).map(
+          (e) => e.id,
+        ),
+        isNot(contains('tools.plugin.org.a')),
+      );
+      expect(
+        identical(
+          ToolsManagementPanel.toolSearchEntries([...plugins]).last,
+          entries.last,
+        ),
+        isTrue,
+      );
+    });
+
+    test('removed plugins release their cached search entry', () {
+      final plugin = _plugin(id: 'org.cache', name: 'תוסף למטמון');
+      final entry = ToolsManagementPanel.toolSearchEntries([plugin]).last;
+      ToolsManagementPanel.toolSearchEntries(const []);
+      expect(
+        ToolsManagementPanel.toolSearchEntries([plugin]).last,
+        isNot(same(entry)),
+      );
+    });
+
+    testWidgets('a plugin result filters the list to that plugin', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(1200, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: _FakePluginSystemBloc(plugins),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final done = SettingsSearchRegistry.instance.scrollAndHighlight(
+        'tools.plugins',
+        section: 'plugin:org.b',
+      );
+      await tester.pumpAndSettle();
+      await done;
+
+      expect(find.text('מרקר'), findsNothing);
+      expect(find.text('הלכה יומית'), findsNWidgets(2));
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'הלכה יומית',
+      );
+    });
+
+    testWidgets('a built-in tool result expands the built-in list', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(1200, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: _FakePluginSystemBloc(plugins),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final builtIn = kBuiltInToolsCatalog.first;
+      expect(find.text(builtIn.label), findsNothing);
+
+      final done = SettingsSearchRegistry.instance.scrollAndHighlight(
+        'tools.management',
+        section: 'builtin:${builtIn.toolId}',
+      );
+      await tester.pumpAndSettle();
+      await done;
+
+      expect(find.text(builtIn.label), findsOneWidget);
     });
   });
 }
