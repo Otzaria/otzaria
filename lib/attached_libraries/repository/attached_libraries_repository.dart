@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:collection/collection.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/text_book/repository/book_notes_repository.dart';
 import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
@@ -59,6 +61,7 @@ class AttachedLibrariesRepository {
   final AttachedLibraryStore _store;
   final AttachedLibraryRegistry? _registryOverride;
   final AttachedLibraryProbeFn _probeFn;
+  static const _rescanBatchSize = 3;
 
   /// מסד שבדיקתו לא הסתיימה בזמן (כונן רשת מת) נחשב לא-זמין, כדי שהתור
   /// הסריאלי לא ייתקע מאחוריו.
@@ -376,9 +379,13 @@ class AttachedLibrariesRepository {
       libraries.removeWhere(
         (l) => _inFolder(l, folder) && !files.any((f) => p.equals(f, l.path)),
       );
-      for (final file in files) {
-        if (libraries.any((l) => p.equals(l.path, file))) continue;
-        final result = await _probe(file);
+      final knownPaths = HashSet<String>(equals: p.equals, hashCode: p.hash)
+        ..addAll(libraries.map((library) => library.path));
+      final newFiles = [
+        for (final file in files)
+          if (knownPaths.add(file)) file,
+      ];
+      await _checkInBatches(newFiles, _probe, (file, result) {
         probed.add(file);
         libraries.add(
           _fromProbe(
@@ -389,24 +396,55 @@ class AttachedLibrariesRepository {
             priority: _nextPriority(libraries),
           ),
         );
-      }
+      });
     }
 
-    for (var i = 0; i < libraries.length; i++) {
-      final library = libraries[i];
-      if (probed.contains(library.path)) continue;
-      final refreshed = await _refresh(library).timeout(
-        probeTimeout,
-        onTimeout: () =>
-            library.copyWith(status: AttachedLibraryStatus.unreachable),
-      );
-      if (refreshed != library) {
-        await _registry.close(library.slug);
-        libraries[i] = refreshed;
-      }
-    }
+    final refreshIndexes = [
+      for (var i = 0; i < libraries.length; i++)
+        if (!probed.contains(libraries[i].path)) i,
+    ];
+    await _checkInBatches(
+      refreshIndexes,
+      (index) {
+        final library = libraries[index];
+        return _refresh(library).timeout(
+          probeTimeout,
+          onTimeout: () =>
+              library.copyWith(status: AttachedLibraryStatus.unreachable),
+        );
+      },
+      (index, refreshed) async {
+        final library = libraries[index];
+        if (refreshed != library) {
+          await _registry.close(library.slug);
+          libraries[index] = refreshed;
+        }
+      },
+    );
     return _commit(libraries);
   });
+
+  static Future<void> _checkInBatches<T, R>(
+    Iterable<T> entries,
+    Future<R> Function(T entry) check,
+    FutureOr<void> Function(T entry, R result) apply,
+  ) async {
+    for (final batch in entries.slices(_rescanBatchSize)) {
+      // הבדיקות מקבילות; תוצאות ושגיאות מוחלות לפי סדר המסדים.
+      final settled = await Future.wait<R Function()>([
+        for (final entry in batch)
+          Future<R>.sync(() => check(entry)).then<R Function()>(
+            (value) =>
+                () => value,
+            onError: (Object error, StackTrace stackTrace) =>
+                () => Error.throwWithStackTrace(error, stackTrace),
+          ),
+      ]);
+      for (var i = 0; i < batch.length; i++) {
+        await apply(batch[i], settled[i]());
+      }
+    }
+  }
 
   Future<AttachedLibrary> _refresh(AttachedLibrary library) async {
     final file = File(library.path);

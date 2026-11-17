@@ -252,6 +252,112 @@ void main() {
   });
 
   group('תיקיות מסדים וסריקה', () {
+    for (final refresh in [false, true]) {
+      test(
+        refresh
+            ? 'מסדים רשומים נבדקים במקביל ונשארים בסדר העדיפויות'
+            : 'מסדים חדשים נבדקים באצווה מוגבלת ונרשמים לפי סדר הקבצים',
+        () async {
+          final paths = [
+            for (final name in ['a', 'b', 'c', 'd'])
+              (File(p.join(tempDir.path, '$name.db'))..createSync()).path,
+          ];
+          final started = {for (final path in paths) path: Completer<void>()};
+          final results = {
+            for (final path in paths)
+              path: Completer<AttachedLibraryProbeResult>(),
+          };
+          final repository = AttachedLibrariesRepository(
+            registry: registry,
+            probe: (path) {
+              started[path]!.complete();
+              return results[path]!.future;
+            },
+          );
+          addTearDown(repository.dispose);
+
+          if (refresh) {
+            registry.update([
+              for (final (index, path) in paths.indexed)
+                AttachedLibrary(
+                  slug: p.basenameWithoutExtension(path),
+                  displayName: p.basename(path),
+                  path: path,
+                  priority: index,
+                  addedAt: DateTime(2020),
+                ),
+            ]);
+          }
+
+          final scan = refresh
+              ? repository.rescan()
+              : repository.addFolder(tempDir.path);
+          void complete(int index) => results[paths[index]]!.complete(
+            AttachedLibraryProbeResult(
+              slug: index < 2 ? 'shared' : 'library$index',
+              displayName: 'מסד $index',
+            ),
+          );
+
+          try {
+            await Future.wait([
+              for (final path in paths.take(3)) started[path]!.future,
+            ]).timeout(const Duration(seconds: 2));
+            expect(started[paths.last]!.isCompleted, isFalse);
+            complete(2);
+            complete(1);
+            expect(registry.libraryFor('shared'), isNull);
+            complete(0);
+            await started[paths.last]!.future.timeout(
+              const Duration(seconds: 2),
+            );
+            complete(3);
+            expect(await scan, isTrue);
+          } finally {
+            for (final (index, path) in paths.indexed) {
+              if (!results[path]!.isCompleted) complete(index);
+            }
+            await scan;
+          }
+
+          expect(registry.libraries.map((library) => library.path), paths);
+          expect(registry.libraryFor('shared')!.path, paths.first);
+          expect(
+            registry.libraries[1].status,
+            AttachedLibraryStatus.duplicateSlug,
+          );
+        },
+      );
+    }
+
+    test('שגיאות בדיקה מוחזרות לפי סדר הקבצים גם בסיום הפוך', () async {
+      final first = (File(p.join(tempDir.path, 'a.db'))..createSync()).path;
+      final second = (File(p.join(tempDir.path, 'b.db'))..createSync()).path;
+      final firstResult = Completer<AttachedLibraryProbeResult>();
+      final secondStarted = Completer<void>();
+      final firstError = StateError('first');
+      final repository = AttachedLibrariesRepository(
+        registry: registry,
+        probe: (path) {
+          if (path == first) return firstResult.future;
+          expect(path, second);
+          secondStarted.complete();
+          return Future.error(StateError('second'));
+        },
+      );
+      addTearDown(repository.dispose);
+
+      final scan = repository.addFolder(tempDir.path);
+      final failure = expectLater(scan, throwsA(same(firstError)));
+      try {
+        await secondStarted.future.timeout(const Duration(seconds: 2));
+      } finally {
+        firstResult.completeError(firstError);
+        await failure;
+      }
+      expect(registry.libraries, isEmpty);
+    });
+
     test('קובצי db בתיקייה מצורפים; קובץ שנמחק מהתיקייה יוצא', () async {
       final folder = Directory(p.join(tempDir.path, 'dbs'));
       final a = fixture(folder, 'a');
