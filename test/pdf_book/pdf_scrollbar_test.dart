@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -29,15 +31,16 @@ class _ControllerWithThrowingLayout extends PdfViewerController {
 class _InteractiveController extends PdfViewerController {
   _InteractiveController({
     Size documentSize = const Size(1000, 200),
+    List<Rect> pageLayouts = const [],
     this.page = 1234,
   }) : _visibleRect = const Rect.fromLTWH(0, 0, 100, 100),
-       _layout = PdfPageLayout(
-         pageLayouts: const [],
+       pageLayout = PdfPageLayout(
+         pageLayouts: pageLayouts,
          documentSize: documentSize,
        );
 
   final int page;
-  final PdfPageLayout _layout;
+  PdfPageLayout pageLayout;
   final Rect _visibleRect;
   final List<Duration> goToDurations = [];
   final List<Offset> calcMatrixPositions = [];
@@ -49,7 +52,7 @@ class _InteractiveController extends PdfViewerController {
   Rect get visibleRect => _visibleRect;
 
   @override
-  PdfPageLayout get layout => _layout;
+  PdfPageLayout get layout => pageLayout;
 
   @override
   int? get pageNumber => page;
@@ -75,6 +78,29 @@ class _InteractiveController extends PdfViewerController {
   }
 }
 
+class _CountingPageLayouts extends ListBase<Rect> {
+  _CountingPageLayouts(this._rectangles);
+
+  final List<Rect> _rectangles;
+  int reads = 0;
+
+  @override
+  int get length => _rectangles.length;
+
+  @override
+  set length(int value) => throw UnsupportedError('Read-only page layouts');
+
+  @override
+  Rect operator [](int index) {
+    reads++;
+    return _rectangles[index];
+  }
+
+  @override
+  void operator []=(int index, Rect value) =>
+      throw UnsupportedError('Read-only page layouts');
+}
+
 const _verticalHostKey = Key('vertical-scroll-host');
 const _horizontalHostKey = Key('horizontal-scroll-host');
 
@@ -82,6 +108,7 @@ Widget _buildVerticalScrollbarHarness(
   _InteractiveController controller, {
   bool freezeThumb = false,
   VoidCallback? onNavigationStarted,
+  List<PdfOutlineNode>? outline,
 }) {
   return MaterialApp(
     home: Scaffold(
@@ -99,6 +126,7 @@ Widget _buildVerticalScrollbarHarness(
             scrollBoundsBuilder: (_) => const Rect.fromLTWH(0, 0, 100, 1000),
             freezeThumb: freezeThumb,
             onNavigationStarted: onNavigationStarted,
+            outline: outline,
           ),
         ),
       ),
@@ -341,6 +369,63 @@ void main() {
   );
 
   group('PdfScrollbar - אינטראקציות drag', () {
+    testWidgets('תווית היעד משתמשת באינדקס עד החלפת פריסת העמודים', (
+      tester,
+    ) async {
+      final pages = _CountingPageLayouts(const [
+        Rect.fromLTWH(100, 0, 100, 500),
+        Rect.fromLTWH(0, 0, 100, 400),
+        Rect.fromLTWH(100, 500, 100, 150),
+        Rect.fromLTWH(0, 500, 100, 100),
+      ]);
+      final controller = _InteractiveController(pageLayouts: pages);
+      await tester.pumpWidget(
+        _buildVerticalScrollbarHarness(
+          controller,
+          outline: [
+            for (var page = 1; page <= pages.length; page++)
+              PdfOutlineNode(
+                title: 'יעד $page',
+                dest: PdfDest(page, PdfDestCommand.fit, null),
+                children: const [],
+              ),
+          ],
+        ),
+      );
+      final origin = tester.getTopLeft(find.byKey(_verticalHostKey));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: origin - const Offset(10, 10));
+      addTearDown(mouse.removePointer);
+
+      Future<void> hover(double y) async {
+        await mouse.moveTo(origin + Offset(20, y));
+        await tester.pump();
+      }
+
+      await hover(78);
+      expect(find.text('יעד 1'), findsOneWidget);
+      // ה-hover באמצע המסילה ממפה את מרכז התצוגה לתחתית המדויקת של עמוד 1.
+      await hover(100);
+      expect(find.text('יעד 3'), findsOneWidget);
+      await hover(155);
+      expect(find.text('יעד 4'), findsOneWidget);
+      expect(pages.reads, pages.length);
+
+      final resizedPages = _CountingPageLayouts(const [
+        Rect.fromLTWH(100, 0, 100, 700),
+        Rect.fromLTWH(0, 0, 100, 400),
+        Rect.fromLTWH(100, 700, 100, 150),
+        Rect.fromLTWH(0, 700, 100, 100),
+      ]);
+      controller.pageLayout = PdfPageLayout(
+        pageLayouts: resizedPages,
+        documentSize: controller.pageLayout.documentSize,
+      );
+      await hover(100);
+      expect(find.text('יעד 1'), findsOneWidget);
+      expect(resizedPages.reads, resizedPages.length);
+    });
+
     testWidgets('גרירה אנכית זוכרת מיקום פעם אחת, ולחיצה על המסילה בנפרד', (
       tester,
     ) async {

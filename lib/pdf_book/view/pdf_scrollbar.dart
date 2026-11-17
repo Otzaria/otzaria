@@ -1,13 +1,29 @@
 import 'dart:math' as math;
-import 'package:otzaria/theme/app_tokens.dart';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 import 'package:otzaria/widgets/feedback/scrollbar_target_label.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 typedef PdfScrollBoundsBuilder = Rect? Function(PdfViewerController controller);
+
+// pdfrx מחליף את מופע הפריסה כשמלבני העמודים משתנים.
+final _pageBottomIndexes = Expando<Float64List>();
+
+Float64List _indexPageBottoms(PdfPageLayout layout) {
+  final rectangles = layout.pageLayouts;
+  final bottoms = Float64List(rectangles.length);
+  var farthestBottom = double.negativeInfinity;
+  for (var i = 0; i < rectangles.length; i++) {
+    final bottom = rectangles[i].bottom;
+    if (bottom > farthestBottom) farthestBottom = bottom;
+    bottoms[i] = farthestBottom;
+  }
+  return bottoms;
+}
 
 /// פס גלילה מותאם אישית ל-PDF עם track מלא.
 class PdfScrollbar extends StatefulWidget {
@@ -96,17 +112,28 @@ class _PdfScrollbarState extends State<PdfScrollbar> {
         : desiredThumbTop.clamp(0.0, maxThumbTop) / maxThumbTop;
     final targetTop = bounds.top + normalizedTop * scrollableExtent;
     final centerY = targetTop + visibleHeight / 2;
-    final List<Rect> layouts;
+    final PdfPageLayout layout;
     try {
-      layouts = widget.controller.layout.pageLayouts;
+      layout = widget.controller.layout;
     } catch (_) {
       return null;
     }
-    if (layouts.isEmpty) return null;
-    for (var i = 0; i < layouts.length; i++) {
-      if (centerY < layouts[i].bottom) return i + 1;
+    final bottoms = _pageBottomIndexes[layout] ??= _indexPageBottoms(layout);
+    if (bottoms.isEmpty) return null;
+
+    // בכפולות תחתיות העמודים יכולות לרדת. המקסימום המצטבר שומר
+    // את העמוד הראשון שתחתיתו עוברת את מרכז חלון התצוגה.
+    var lower = 0;
+    var upper = bottoms.length;
+    while (lower < upper) {
+      final middle = lower + ((upper - lower) ~/ 2);
+      if (centerY < bottoms[middle]) {
+        upper = middle;
+      } else {
+        lower = middle + 1;
+      }
     }
-    return layouts.length;
+    return math.min(lower + 1, bottoms.length);
   }
 
   /// מציג/מעדכן את תווית היעד עבור [pageNumber]. הכתובת מחושבת רק כשהעמוד
