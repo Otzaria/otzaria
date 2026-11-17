@@ -534,7 +534,7 @@ void main() {
       await openContextMenu(tester);
       expect(find.text('מפרשים על פסקה זו'), findsNothing);
       expect(find.text('קישורים'), findsNothing);
-      expect(find.textContaining('הוסף הערה אישית'), findsOneWidget);
+      expect(find.text('הערה'), findsOneWidget);
     });
   });
 }

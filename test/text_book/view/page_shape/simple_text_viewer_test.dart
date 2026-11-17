@@ -1403,11 +1403,11 @@ void main() {
       await gesture.up();
       await tester.pumpAndSettle();
 
-      final addNoteFinder = find.textContaining('הוסף הערה אישית');
+      final addNoteFinder = find.text('הערה');
       expect(
         addNoteFinder,
         findsOneWidget,
-        reason: 'תפריט ההקשר במפרש חייב לכלול "הוסף הערה אישית"',
+        reason: 'תפריט ההקשר במפרש חייב לכלול את אייקון "הערה"',
       );
 
       await tester.tap(addNoteFinder);
@@ -1495,7 +1495,7 @@ void main() {
       await gesture.up();
       await tester.pumpAndSettle();
 
-      await tester.tap(find.textContaining('הוסף הערה אישית'));
+      await tester.tap(find.text('הערה'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
@@ -1573,7 +1573,8 @@ void main() {
         tester.getCenter(find.byType(AppContextMenuRegion).first),
       );
       entries
-          .singleWhere((entry) => entry.label?.trim() == 'הוסף הערה אישית')
+          .expand((entry) => entry.iconRowActions ?? const [])
+          .singleWhere((action) => action.label == 'הערה')
           .onTap!();
       await tester.pumpAndSettle();
       expect(outerCalls, 0);

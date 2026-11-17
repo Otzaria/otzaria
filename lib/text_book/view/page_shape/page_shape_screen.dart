@@ -2694,6 +2694,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
 
       if (attachedRecord != null) {
         book = TextBook(
+          id: attachedRecord.book.id,
           title: widget.commentatorName,
           categoryId: attachedRecord.book.categoryId,
           source: attachedRecord.source,
@@ -2702,7 +2703,11 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
           bookLocation.book != null &&
           bookLocation.categoryId != null) {
         // נמצא ספר ב-DB - נשתמש בנתונים שלו
+        // המזהה מאפשר את אייקון "קישור" בתפריט ההקשר של המפרש. רק לספר
+        // רשמי: ה-TextBook כאן נשאר במקור הרשמי, ומזהה של ספר אישי היה
+        // מפנה לספר רשמי אחר בעל אותו מזהה.
         book = TextBook(
+          id: bookLocation.source.isOfficial ? bookLocation.book!.id : null,
           title: widget.commentatorName,
           categoryId: bookLocation.categoryId,
         );

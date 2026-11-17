@@ -170,12 +170,8 @@ void main() {
 
   testWidgets('a commentary column', (tester) async {
     expect(await menuFor(tester, isMainText: false), [
-      '[חיפוש (disabled)]',
-      '---',
-      'הוסף הערה אישית ',
-      'דווח על טעות בספר',
-      '---',
-      'העתק (disabled)',
+      // Same icon row, in the same order, as the combined view's commentary.
+      '[חיפוש (disabled) | העתקה (disabled) | הערה]',
       'העתק כ... (disabled)',
       '  ניקוד (disabled) [x]',
       '  טעמים (disabled) [x]',
@@ -185,6 +181,9 @@ void main() {
       '  ---',
       '  העתק (disabled)',
       '  כמו בתצוגה (disabled)',
+      '---',
+      'דווח על טעות בספר',
+      '---',
       'העתק את כל הפסקה',
     ]);
   });
