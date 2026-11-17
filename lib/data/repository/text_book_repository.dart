@@ -8,6 +8,7 @@ import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
+import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
@@ -234,33 +235,56 @@ class TextBookRepository {
             .toList()
           ?..sort();
 
-    final base = await _loadBaseLinks(
-      book,
-      normalizedStart,
-      normalizedEnd,
-      normalizedTargetBookTitles,
+    final official = SqliteDataProvider.instance;
+    return loadLinkSources(
+      base: _loadBaseLinks(
+        book,
+        normalizedStart,
+        normalizedEnd,
+        normalizedTargetBookTitles,
+      ),
+      userReady: UserBooksDatabaseHolder.instance.openDbPath != null,
+      externalReady: official.isInitialized && official.repository != null,
+      loadUser: () => loadUserLinksForBook(
+        bookTitle: book.title,
+        bookCategoryId: book.categoryId,
+        source: book.source,
+        startLineIndex: normalizedStart,
+        endLineIndex: normalizedEnd,
+        targetBookTitles: normalizedTargetBookTitles,
+      ),
+      loadExternal: () => ExternalLinkRepository.instance.linksInRange(
+        title: book.title,
+        categoryId: book.categoryId,
+        source: book.source,
+        startLineIndex: normalizedStart,
+        endLineIndex: normalizedEnd,
+        targetBookTitles: normalizedTargetBookTitles,
+      ),
     );
+  }
 
-    // מיזוג קישורי-משתמש (מ-user_books.db) — forward (כשקוראים ספר אישי)
-    // ו-inverse (מפרש-משתמש שמצביע אל הספר הזה, גם אם הוא רשמי).
-    final userLinks = await loadUserLinksForBook(
-      bookTitle: book.title,
-      bookCategoryId: book.categoryId,
-      source: book.source,
-      startLineIndex: normalizedStart,
-      endLineIndex: normalizedEnd,
-      targetBookTitles: normalizedTargetBookTitles,
-    );
-    final externalLinks = await ExternalLinkRepository.instance.linksInRange(
-      title: book.title,
-      categoryId: book.categoryId,
-      source: book.source,
-      startLineIndex: normalizedStart,
-      endLineIndex: normalizedEnd,
-      targetBookTitles: normalizedTargetBookTitles,
-    );
-    if (userLinks.isEmpty && externalLinks.isEmpty) return base;
-    return mergeExtraLinks(base, [...userLinks, ...externalLinks]);
+  /// טוען מקורות שכבר זמינים במקביל. מסלול הגיבוי של טעינת הבסיס עשוי
+  /// לפתוח מסד חסר, ולכן קריאה שתלויה במסד כזה ממתינה לבסיס.
+  @visibleForTesting
+  static Future<List<Link>> loadLinkSources({
+    required Future<List<Link>> base,
+    required bool userReady,
+    required bool externalReady,
+    required Future<List<Link>> Function() loadUser,
+    required Future<List<Link>> Function() loadExternal,
+  }) async {
+    // מטפלים בשגיאות מוקדמות בזמן ההמתנה למקור הקודם. ההמתנה עצמה
+    // עדיין מעלה את השגיאה הראשונה לפי סדר המקורות.
+    final user = userReady ? loadUser() : null;
+    user?.ignore();
+    final external = externalReady ? loadExternal() : null;
+    external?.ignore();
+    final baseLinks = await base;
+    final userLinks = await (user ?? loadUser());
+    final externalLinks = await (external ?? loadExternal());
+    if (userLinks.isEmpty && externalLinks.isEmpty) return baseLinks;
+    return mergeExtraLinks(baseLinks, [...userLinks, ...externalLinks]);
   }
 
   /// מוסיף ל-[base] את [extra] בלי כפילויות: קישור הדדי בין שני מסדים (A→B
