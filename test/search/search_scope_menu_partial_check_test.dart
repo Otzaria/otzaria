@@ -43,7 +43,10 @@ Library _buildLibrary() {
 
 Future<void> main() async {
   final engineReady = await tryInitSearchEngine();
-  Future<void> pumpMenu(WidgetTester tester, Set<String> selected) async {
+  Future<ValueChanged<Set<String>>> pumpMenu(
+    WidgetTester tester,
+    Set<String> selected,
+  ) async {
     final libraryBloc = _MockLibraryBloc();
     whenListen(
       libraryBloc,
@@ -57,6 +60,7 @@ Future<void> main() async {
 
     // רכיב נשלט: הבחירה מוזנת חזרה דרך onChanged, כמו בדיאלוג האמיתי.
     var selection = selected;
+    late ValueChanged<Set<String>> updateSelection;
     await tester.binding.setSurfaceSize(const Size(600, 700));
     await tester.pumpWidget(
       MaterialApp(
@@ -65,10 +69,13 @@ Future<void> main() async {
           value: libraryBloc,
           child: Scaffold(
             body: StatefulBuilder(
-              builder: (context, setState) => SearchScopeMenuButton(
-                selected: selection,
-                onChanged: (next) => setState(() => selection = next),
-              ),
+              builder: (context, setState) {
+                updateSelection = (next) => setState(() => selection = next);
+                return SearchScopeMenuButton(
+                  selected: selection,
+                  onChanged: updateSelection,
+                );
+              },
             ),
           ),
         ),
@@ -77,6 +84,7 @@ Future<void> main() async {
     await tester.tap(find.byType(TextField));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
+    return updateSelection;
   }
 
   /// ה-finder של התיבה שבאותה שורה של [label] בתפריט הפתוח.
@@ -118,6 +126,26 @@ Future<void> main() async {
       // להישאר מוצגת (רגרסיה: check==null פורש כ"אין תיבה").
       await drillIntoAllBooks(tester);
       expect(checkboxOf(tester, 'תנ״ך').value, isNull);
+    });
+
+    testWidgets('עדכון בחירה חיצוני מרענן תיבה פתוחה במצב ביניים', (
+      tester,
+    ) async {
+      final updateSelection = await pumpMenu(tester, {'/תנ״ך/תורה/בראשית'});
+      await drillIntoAllBooks(tester);
+      expect(checkboxOf(tester, 'תנ״ך').value, isNull);
+
+      updateSelection({'/מדרשים/ספר'});
+      await tester.pump();
+      expect(checkboxOf(tester, 'תנ״ך').value, isFalse);
+
+      updateSelection({'/תנ״ך/תורה/בראשית', '/base'});
+      await tester.pump();
+      expect(checkboxOf(tester, 'תנ״ך').value, isNull);
+
+      await tester.tap(checkboxFinder('תנ״ך'));
+      await tester.pump();
+      expect(checkboxOf(tester, 'תנ״ך').value, isTrue);
     });
 
     testWidgets('לחיצה על התיבה של "כל הספרים" מבטלת את הסימון', (

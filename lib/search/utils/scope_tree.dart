@@ -177,18 +177,33 @@ class ScopeTree {
 
   bool isAllSelected(Set<String> selection) => selection.contains('/');
 
-  /// מחזיר true/false/null (tristate) למצב הסימון של קטגוריה לפי נתיבה.
-  bool? categoryCheckState(String categoryPath, Set<String> selection) {
-    if (isFacetCovered(categoryPath, selection)) return true;
-    if (_hasSelectedDescendant(categoryPath, selection)) return null;
-    return false;
+  /// נתיבי קטגוריות עם צאצא נבחר, לשימוש חוזר באותה בחירה.
+  static Set<String> ancestorsOfSelectedFacets(Set<String> selection) {
+    final ancestors = <String>{};
+    for (final facet in selection) {
+      var separator = facet.lastIndexOf('/');
+      while (separator >= 0) {
+        if (!ancestors.add(facet.substring(0, separator)) || separator == 0) {
+          break;
+        }
+        separator = facet.lastIndexOf('/', separator - 1);
+      }
+    }
+    return ancestors;
   }
 
-  bool _hasSelectedDescendant(String categoryPath, Set<String> selection) {
-    for (final facet in selection) {
-      if (facet.startsWith('$categoryPath/')) return true;
-    }
-    return false;
+  /// מחזיר true/false/null (tristate) למצב הסימון של קטגוריה לפי נתיבה.
+  /// בסדרת בדיקות אפשר לספק [selectedAncestors] שחושב פעם אחת מהבחירה.
+  bool? categoryCheckState(
+    String categoryPath,
+    Set<String> selection, {
+    Set<String>? selectedAncestors,
+  }) {
+    if (isFacetCovered(categoryPath, selection)) return true;
+    final hasSelectedDescendant =
+        selectedAncestors?.contains(categoryPath) ??
+        selection.any((facet) => facet.startsWith('$categoryPath/'));
+    return hasSelectedDescendant ? null : false;
   }
 
   /// האם [facet] מכוסה ע"י הבחירה (נבחר ישירות, או אב שלו נבחר, או הכל).
