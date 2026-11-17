@@ -1634,6 +1634,12 @@ void main() {
       OpenToolAction parse(String uri) =>
           ExternalUriRouter.parseUri(Uri.parse(uri)) as OpenToolAction;
 
+      test('biographies opens an exact entry ID ahead of a name query', () {
+        final action = parse('otzaria://open/biographies?id=sh-383&q=רמב״ן');
+        expect(action.query?.biographyId, 'sh-383');
+        expect(action.query?.text, isEmpty);
+      });
+
       test('biographies → builtin.biographies', () {
         final action = parse('otzaria://open/biographies');
         expect(action.toolId, 'builtin.biographies');

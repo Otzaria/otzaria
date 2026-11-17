@@ -207,15 +207,27 @@ class CompanionAssetsService {
       onStatus?.call('בודק נתוני ביוגרפיות', CompanionAssetPhase.checking);
       final biographies = _biographiesFactory();
       try {
-        await biographies.ensureLatest(
-          checkCancelled: () {
-            if (cancelled()) throw const PatchDownloadCancelled();
-          },
-          onWaitingForWifi: () => onStatus?.call(
-            CommonMessages.waitingForWifi,
-            CompanionAssetPhase.downloading,
-          ),
+        void checkCancelled() {
+          if (cancelled()) throw const PatchDownloadCancelled();
+        }
+
+        void onWaitingForWifi() => onStatus?.call(
+          CommonMessages.waitingForWifi,
+          CompanionAssetPhase.downloading,
         );
+
+        await Future.wait<void>([
+          biographies
+              .ensureLatest(
+                checkCancelled: checkCancelled,
+                onWaitingForWifi: onWaitingForWifi,
+              )
+              .then<void>((_) {}),
+          biographies.refreshAuthorLinks(
+            checkCancelled: checkCancelled,
+            onWaitingForWifi: onWaitingForWifi,
+          ),
+        ]);
       } finally {
         biographies.dispose();
       }

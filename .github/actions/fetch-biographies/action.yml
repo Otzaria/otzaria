@@ -4,7 +4,7 @@ description: >
   Otzaria/toldot-gedolei-yisrael into assets/bio/, so it is packed into the
   app and ships with every installer. Best effort: on failure the build goes
   on without it, and the tool shows "no data" until the library update
-  downloads it at runtime.
+  downloads it at runtime. Also fetches the reviewed catalog-author links.
 
 runs:
   using: composite
@@ -21,4 +21,16 @@ runs:
         else
           rm -f assets/bio/biographies-app.json.gz.part
           echo "::warning::Could not download biographies data; building without it."
+        fi
+
+    - name: Download author biography links
+      shell: bash
+      run: |
+        if curl -fsSL --retry 3 --max-time 30 \
+            -o assets/bio/author_biographies.json.part \
+            "https://raw.githubusercontent.com/Otzaria/otzaria-library/main/author_biographies.json"; then
+          mv -f assets/bio/author_biographies.json.part assets/bio/author_biographies.json
+        else
+          rm -f assets/bio/author_biographies.json.part
+          echo "::warning::Could not download author biography links."
         fi

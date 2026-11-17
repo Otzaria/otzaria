@@ -2,9 +2,18 @@ import 'package:flutter/widgets.dart';
 
 /// טקסט חיפוש שנשלח לכלי מובנה, למשל מקישור `otzaria://open/gematria?q=...`.
 class ToolQuery {
-  const ToolQuery(this.text, {this.hebrewToAramaic = false});
+  const ToolQuery(this.text, {this.hebrewToAramaic = false})
+    : biographyId = null;
+
+  const ToolQuery.biography(String id)
+    : biographyId = id,
+      text = '',
+      hebrewToAramaic = false;
 
   final String text;
+
+  /// Exact entry to open in the biographies tool.
+  final String? biographyId;
 
   /// כיוון החיפוש במילון הארמי. שאר הכלים מתעלמים ממנו.
   final bool hebrewToAramaic;

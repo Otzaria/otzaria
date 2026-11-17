@@ -9,6 +9,7 @@ import 'package:otzaria/tools/biographies/models/biographies_bundle.dart';
 import 'package:otzaria/tools/biographies/models/biography.dart';
 import 'package:otzaria/tools/biographies/repository/biographies_repository.dart';
 import 'package:otzaria/tools/biographies/widgets/biography_card.dart';
+import 'package:otzaria/tools/tool_query.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 
 import '../test_helpers/stub_settings_bloc.dart';
@@ -92,6 +93,7 @@ void main() {
   Future<void> pumpScreen(
     WidgetTester tester, {
     BiographiesRepository? repository,
+    ToolQueryInbox? queryInbox,
   }) async {
     final bloc = StubSettingsBloc();
     addTearDown(bloc.close);
@@ -102,6 +104,7 @@ void main() {
           child: Scaffold(
             body: BiographiesScreen(
               repository: repository ?? _FakeRepository(),
+              queryInbox: queryInbox,
             ),
           ),
         ),
@@ -109,6 +112,26 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('opens queued entry IDs and replaces the previous entry', (
+    tester,
+  ) async {
+    final inbox = ToolQueryInbox()..post(const ToolQuery.biography('m'));
+    addTearDown(inbox.dispose);
+    await pumpScreen(tester, queryInbox: inbox);
+    expect(_shownIds(tester), ['m']);
+
+    inbox.post(const ToolQuery.biography('r'));
+    await tester.pumpAndSettle();
+    expect(_shownIds(tester), ['r']);
+    inbox.post(const ToolQuery.biography('missing'));
+    await tester.pumpAndSettle();
+    expect(_shownIds(tester), ['r']);
+
+    await tester.tap(find.text('חזרה לרשימה'));
+    await tester.pumpAndSettle();
+    expect(_shownIds(tester), unorderedEquals(['a', 'm', 'r']));
+  });
 
   testWidgets('a link opens the entry without touching the search', (
     tester,

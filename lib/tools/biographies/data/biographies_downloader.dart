@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/tools/biographies/data/author_biography_links.dart';
 import 'package:otzaria/utils/http_redirect_download.dart';
 import 'package:path/path.dart' as p;
 
@@ -86,6 +87,43 @@ class BiographiesDownloader {
     } catch (_) {
       return File(dest).exists();
     }
+  }
+
+  /// Refreshes the optional author mapping even if the biography release did
+  /// not change. An invalid response leaves the installed copy in place.
+  Future<void> refreshAuthorLinks({
+    void Function()? checkCancelled,
+    void Function()? onWaitingForWifi,
+  }) async {
+    await DownloadNetworkPolicy.instance.runResumable(
+      () async {
+        checkCancelled?.call();
+        final response = await createDownloadClient(_client)
+            .get(Uri.parse(AuthorBiographyLinks.downloadUrl))
+            .timeout(_apiTimeout);
+        if (response.statusCode != 200) return;
+        final bytes = response.bodyBytes;
+        AuthorBiographyLinks.decode(utf8.decode(bytes));
+        final dir = Directory(p.dirname(await _destinationProvider()));
+        await dir.create(recursive: true);
+        final staging = await dir.createTemp('.author-biographies-');
+        try {
+          final file = File(
+            p.join(staging.path, AuthorBiographyLinks.fileName),
+          );
+          await file.writeAsBytes(bytes, flush: true);
+          checkCancelled?.call();
+          await file.rename(p.join(dir.path, AuthorBiographyLinks.fileName));
+        } finally {
+          await staging.delete(recursive: true);
+        }
+      },
+      checkCancelled: () {
+        if (_disposed) throw http.RequestAbortedException();
+        checkCancelled?.call();
+      },
+      onWaiting: onWaitingForWifi,
+    );
   }
 
   /// שולף את פרטי ה-release האחרון. זורק [Exception] בכשל.

@@ -490,6 +490,10 @@ class ExternalUriRouter {
     Map<String, String> parameters,
   ) {
     if (!ToolQuery.supportedToolIds.contains(toolId)) return null;
+    final id = parameters['id']?.trim();
+    if (toolId == 'builtin.biographies' && id != null && id.isNotEmpty) {
+      return ToolQuery.biography(id);
+    }
     final text = parameters['q']?.trim() ?? '';
     if (text.isEmpty) return null;
     final from = parameters['from']?.trim().toLowerCase();
