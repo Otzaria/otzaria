@@ -192,6 +192,57 @@ Future<void> main() async {
       },
     );
 
+    final includedCategory = _CountingCategory('נכלל');
+    final excludedCategory = _CountingCategory('מוחרג');
+    const hitsPerBook = 200;
+    blocTest<SearchBloc, SearchState>(
+      'בודק את נתיב הקטגוריה פעם לספר ושומר את סדר התוצאות',
+      build: () => SearchBloc(repository: _RecordingSearchRepository()),
+      seed: () {
+        final includedBook = TextBook(
+          id: 101,
+          title: 'ספר נכלל',
+          category: includedCategory,
+        );
+        final excludedBook = TextBook(
+          id: 102,
+          title: 'ספר מוחרג',
+          category: excludedCategory,
+        );
+        library.books.addAll([includedBook, excludedBook]);
+        return seededState(
+          numResults: hitsPerBook * 2 + 1,
+          results: [
+            for (var index = 0; index < hitsPerBook; index++) ...[
+              _result(
+                book: excludedBook,
+                staleCatalogueOrder: 0,
+                segment: index,
+              ),
+              _result(
+                book: includedBook,
+                staleCatalogueOrder: 0,
+                segment: index,
+              ),
+            ],
+          ],
+        );
+      },
+      act: clickFacet('/נכלל'),
+      verify: (bloc) {
+        expect(includedCategory.pathReads, 1);
+        expect(excludedCategory.pathReads, 1);
+        expect(bloc.state.totalResults, hitsPerBook);
+        expect(
+          bloc.state.results.map(
+            (result) => (result.filePath, result.segment.toInt()),
+          ),
+          List.generate(hitsPerBook, (index) => ('id:101', index)),
+        );
+        expect(streamCallsOf(bloc), 0);
+      },
+    );
+
     blocTest<SearchBloc, SearchState>(
       'לחיצה על קטגוריה שומרת את הספרים שתחתיה בלבד',
       build: () => SearchBloc(repository: _RecordingSearchRepository()),
@@ -436,6 +487,27 @@ Future<void> main() async {
     },
     skip: engineReady ? false : searchEngineSkipReason,
   );
+}
+
+class _CountingCategory extends Category {
+  _CountingCategory(String title)
+    : super(
+        title: title,
+        description: '',
+        shortDescription: '',
+        order: 0,
+        subCategories: const [],
+        books: const [],
+        parent: null,
+      );
+
+  int pathReads = 0;
+
+  @override
+  String get path {
+    pathReads++;
+    return super.path;
+  }
 }
 
 /// תוצאה שמזהה המסמך שלה נושא סדר קטלוגי שכבר אינו תואם למיקום הספר

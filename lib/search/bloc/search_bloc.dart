@@ -1067,17 +1067,26 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     // זיהוי לפי `filePath` — המפתח היציב של האינדקס. הסדר הקטלוגי שבמזהה
     // המסמך זז כשספרים נוספו/נמחקו מאז האינדוקס, ומזהה ספר שגוי.
     final booksByIndexedFilePath = _booksByIndexedFilePathFor(library);
+    final matchesFacetByFilePath = <String, bool>{};
     final filtered = <SearchResult>[];
     for (final result in state.results) {
-      final book = booksByIndexedFilePath[result.filePath];
-      if (book == null) {
-        return false;
+      final filePath = result.filePath;
+      var matchesFacet = matchesFacetByFilePath[filePath];
+      if (matchesFacet == null) {
+        final book = booksByIndexedFilePath[filePath];
+        if (book == null) {
+          return false;
+        }
+        final facetPath = FacetHelper.buildBookFacet(
+          FacetHelper.resolveCategoryPath(book),
+          book,
+        );
+        matchesFacet = newFacets.any(
+          (facet) => facetContains(facet, facetPath),
+        );
+        matchesFacetByFilePath[filePath] = matchesFacet;
       }
-      final facetPath = FacetHelper.buildBookFacet(
-        FacetHelper.resolveCategoryPath(book),
-        book,
-      );
-      if (newFacets.any((facet) => facetContains(facet, facetPath))) {
+      if (matchesFacet) {
         filtered.add(result);
       }
     }
