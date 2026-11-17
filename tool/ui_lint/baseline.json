@@ -381,9 +381,6 @@
         {"scope":"LayoutFixSuggestionBanner.build","fp":"a7c1dfe6","n":1},
         {"scope":"LayoutFixSuggestionBanner.build","fp":"a8c1e179","n":1}
       ],
-      "lib/search/view/search_result_rank_badge.dart": [
-        {"scope":"SearchResultRankBadge.build","fp":"503c9e50","n":1}
-      ],
       "lib/search/view/search_results_layout.dart": [
         {"scope":"_SearchResultsLayoutState._buildQueryDisplay","fp":"2d3a28a0","n":1}
       ],
@@ -656,9 +653,6 @@
       ],
       "lib/search/view/search_dialog.dart": [
         {"scope":"_SearchDialogState._buildFooter","fp":"1509e529","n":1}
-      ],
-      "lib/search/view/search_result_rank_badge.dart": [
-        {"scope":"SearchResultRankBadge.build","fp":"a215a261","n":1}
       ],
       "lib/search/view/search_result_source_tag.dart": [
         {"scope":"SearchResultSourceTag.build","fp":"9f20568c","n":1}
