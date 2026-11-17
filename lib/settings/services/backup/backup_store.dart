@@ -56,35 +56,41 @@ class BackupStore {
 
   /// שומר קובץ במחסן במקטעים ומחזיר את ההפניה לתוכנו.
   Future<String> putFile(File source) {
-    final sourcePath = source.absolute.path;
+    final absoluteSource = source.absolute;
     final storePath = Directory(objectsPath).absolute.path;
-    return Isolate.run(() => _putFile(sourcePath, storePath));
+    return Isolate.run(() => _putFile(absoluteSource, storePath));
   }
 
-  static Future<String> _putFile(String sourcePath, String storePath) async {
+  static Future<String> _putFile(File source, String storePath) async {
     final store = BackupStore(storePath);
-    final input = await File(sourcePath).open();
+    final input = await source.open();
     try {
-      final hex = (await sha256.bind(_readChunks(input)).single).toString();
-      final ref = '$hashPrefix$hex';
-      final target = File(store._pathForHash(hex));
-      if (await target.exists()) return ref;
+      final initialHash = (await sha256.bind(_readChunks(input)).single)
+          .toString();
+      if (await File(store._pathForHash(initialHash)).exists()) {
+        return '$hashPrefix$initialHash';
+      }
 
-      final parent = await target.parent.create(recursive: true);
+      final parent = await Directory(storePath).create(recursive: true);
       final staging = await parent.createTemp('.backup-');
       final tmp = File(p.join(staging.path, 'blob.tmp'));
       try {
         await input.setPosition(0);
-        await _writeCompressedFile(input, tmp, hex);
+        final hex = await _writeCompressedFile(input, tmp);
+        final ref = '$hashPrefix$hex';
+        final target = File(store._pathForHash(hex));
+        if (await target.exists()) return ref;
+
+        await target.parent.create(recursive: true);
         try {
           await tmp.rename(target.path);
         } on FileSystemException {
           if (!await target.exists()) rethrow;
         }
+        return ref;
       } finally {
         await staging.delete(recursive: true);
       }
-      return ref;
     } finally {
       await input.close();
     }
@@ -99,12 +105,11 @@ class BackupStore {
     }
   }
 
-  static Future<void> _writeCompressedFile(
+  static Future<String> _writeCompressedFile(
     RandomAccessFile input,
     File target,
-    String expectedHash,
   ) async {
-    // קובץ תוסף יכול להשתנות בין הגיבוב לכתיבה. אין לפרסם תחת גיבוב ישן.
+    // הקובץ יכול להשתנות בין הקריאות, ולכן ההפניה נקבעת בזמן הדחיסה.
     final digest = AccumulatorSink<Digest>();
     final hasher = sha256.startChunkedConversion(digest);
     final chunks = _readChunks(input).map((chunk) {
@@ -117,10 +122,8 @@ class BackupStore {
         await output.writeFrom(compressed);
       }
       hasher.close();
-      if (digest.events.single.toString() != expectedHash) {
-        throw FileSystemException('Source changed during backup', input.path);
-      }
       await output.flush();
+      return digest.events.single.toString();
     } finally {
       await output.close();
     }
