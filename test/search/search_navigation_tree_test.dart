@@ -681,6 +681,58 @@ void main() {
       expect(find.text('משנה'), findsOneWidget);
     });
 
+    testWidgets('פתיחת ענפים עוקבת אחרי נתיב הבחירה באותו אוסף בחירות', (
+      tester,
+    ) async {
+      final library = makeLibraryFrom([
+        makeCategory(
+          'תורה',
+          subCategories: [
+            makeCategory(
+              'פירוש',
+              books: [makeBook(7, 'ספר ראשון', '/תורה/פירוש')],
+            ),
+            makeCategory(
+              'פירושים',
+              books: [makeBook(8, 'ספר שני', '/תורה/פירושים')],
+            ),
+          ],
+        ),
+      ]);
+      final selected = {
+        for (var i = 0; i < 2000; i++) '/ארכיון/ענף$i/id:$i',
+        '/תורה/פירושים/id:8',
+      };
+      const counts = {
+        '/': 2,
+        '/תורה': 2,
+        '/תורה/פירוש': 1,
+        '/תורה/פירוש/id:7': 1,
+        '/תורה/פירושים': 1,
+        '/תורה/פירושים/id:8': 1,
+      };
+      await pumpTree(
+        tester,
+        library: library,
+        facetCounts: counts,
+        selectedFacets: selected,
+      );
+      expect(find.text('ספר ראשון'), findsNothing);
+      expect(find.text('ספר שני'), findsOneWidget);
+
+      selected
+        ..remove('/תורה/פירושים/id:8')
+        ..add('/תורה/פירוש/id:7');
+      await pumpTree(
+        tester,
+        library: library,
+        facetCounts: counts,
+        selectedFacets: selected,
+      );
+      expect(find.text('ספר ראשון'), findsOneWidget);
+      expect(find.text('ספר שני'), findsNothing);
+    });
+
     testWidgets('כיווץ ידני גובר על הפתיחה האוטומטית', (tester) async {
       await pumpTree(
         tester,
@@ -844,6 +896,26 @@ void main() {
       tester,
     ) async {
       const scope = {'/תנ"ך/כתובים/id:7', '/תנ"ך/כתובים/id:8', '/משנה'};
+      await pumpTree(
+        tester,
+        library: ketuvimLibrary(),
+        facetCounts: ketuvimCounts,
+        selectedFacets: scope,
+        scopeFacets: scope,
+      );
+
+      expect(find.text('תהילים'), findsOneWidget);
+      expect(find.text('משלי'), findsNothing);
+      expect(find.text('משנה'), findsNothing);
+    });
+
+    testWidgets('היקף גדול אינו מצמיד ספרים בספירה אפס', (tester) async {
+      final scope = {
+        for (var i = 0; i < 2000; i++) '/ארכיון/ענף$i/id:$i',
+        '/תנ"ך/כתובים/id:7',
+        '/תנ"ך/כתובים/id:8',
+        '/משנה',
+      };
       await pumpTree(
         tester,
         library: ketuvimLibrary(),
