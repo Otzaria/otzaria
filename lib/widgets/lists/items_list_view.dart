@@ -135,8 +135,8 @@ class _ItemsListViewState extends State<ItemsListView> {
   String _searchQuery = '';
 
   final ValueNotifier<int> _focusedOriginalIndex = ValueNotifier(-1);
-  List<MapEntry<int, dynamic>> _displayEntries = [];
-  List<_ListRow> _displayRows = const [];
+  List<MapEntry<int, dynamic>> _displayEntries = const [];
+  Map<int, ({int ordinal, int row})> _displayPositions = const {};
   final ItemScrollController _itemScrollController = ItemScrollController();
   final ItemPositionsListener _itemPositionsListener =
       ItemPositionsListener.create();
@@ -436,10 +436,8 @@ class _ItemsListViewState extends State<ItemsListView> {
     if (focusedOriginalIndex == -1) {
       _focusedOriginalIndex.value = _displayEntries.first.key;
     } else {
-      final idx = _displayEntries.indexWhere(
-        (e) => e.key == focusedOriginalIndex,
-      );
-      if (idx >= 0 && idx < _displayEntries.length - 1) {
+      final idx = _displayPositions[focusedOriginalIndex]?.ordinal;
+      if (idx != null && idx < _displayEntries.length - 1) {
         _focusedOriginalIndex.value = _displayEntries[idx + 1].key;
       }
     }
@@ -449,33 +447,27 @@ class _ItemsListViewState extends State<ItemsListView> {
   void _moveFocusUp() {
     final focusedOriginalIndex = _focusedOriginalIndex.value;
     if (focusedOriginalIndex == -1) return;
-    final idx = _displayEntries.indexWhere(
-      (e) => e.key == focusedOriginalIndex,
-    );
-    if (idx <= 0) {
+    final idx = _displayPositions[focusedOriginalIndex]?.ordinal;
+    if (idx == null || idx == 0) {
       _focusedOriginalIndex.value = -1;
     } else {
       _focusedOriginalIndex.value = _displayEntries[idx - 1].key;
+      _ensureFocusedVisible();
     }
-    if (idx > 0) _ensureFocusedVisible();
   }
 
   void _activateFocusedItem(BuildContext context) {
-    final focusedOriginalIndex = _focusedOriginalIndex.value;
-    if (focusedOriginalIndex == -1) return;
-    final matches = _displayEntries.where((e) => e.key == focusedOriginalIndex);
-    if (matches.isEmpty) return;
-    final entry = matches.first;
+    final idx = _displayPositions[_focusedOriginalIndex.value]?.ordinal;
+    if (idx == null) return;
+    final entry = _displayEntries[idx];
     widget.onItemTap(context, entry.value, entry.key);
   }
 
   void _ensureFocusedVisible() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_itemScrollController.isAttached) return;
-      final rowIndex = _displayRows.indexWhere(
-        (row) => !row.isHeader && row.entry!.key == _focusedOriginalIndex.value,
-      );
-      if (rowIndex == -1) return;
+      final rowIndex = _displayPositions[_focusedOriginalIndex.value]?.row;
+      if (rowIndex == null) return;
       // אם השורה כבר נראית במלואה — אין מה לגלול.
       for (final position in _itemPositionsListener.itemPositions.value) {
         if (position.index == rowIndex &&
@@ -548,6 +540,8 @@ class _ItemsListViewState extends State<ItemsListView> {
         ? widget.items.isNotEmpty
         : widget.items.any(additionalFilter);
     if (!hasAnyMatching) {
+      _displayEntries = const [];
+      _displayPositions = const {};
       return OtzariaEmptyState(
         icon: widget.searchIcon,
         title: widget.emptyText,
@@ -565,20 +559,24 @@ class _ItemsListViewState extends State<ItemsListView> {
           ]
         : _rankedEntries(sortedEntries, additionalFilter);
 
-    _displayRows = _buildDisplayRows(
+    final displayRows = _buildDisplayRows(
       displayEntries,
       grouped:
           widget.groupKeyBuilder != null &&
           (widget.groupWhileSearching || _searchQuery.isEmpty),
     );
     // החצים ו-Enter עוברים על הסדר החזותי, שהקיבוץ עשוי לשנות.
-    _displayEntries = [
-      for (final row in _displayRows)
-        if (!row.isHeader) row.entry!,
-    ];
+    _displayEntries = [];
+    _displayPositions = {};
+    for (var row = 0; row < displayRows.length; row++) {
+      final entry = displayRows[row].entry;
+      if (entry == null) continue;
+      _displayPositions[entry.key] = (ordinal: _displayEntries.length, row: row);
+      _displayEntries.add(entry);
+    }
     final focusedOriginalIndex = _focusedOriginalIndex.value;
     if (focusedOriginalIndex != -1 &&
-        !displayEntries.any((e) => e.key == focusedOriginalIndex)) {
+        !_displayPositions.containsKey(focusedOriginalIndex)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || _focusedOriginalIndex.value != focusedOriginalIndex) {
           return;
@@ -642,7 +640,7 @@ class _ItemsListViewState extends State<ItemsListView> {
                     icon: widget.searchIcon,
                     title: widget.notFoundText,
                   )
-                : _buildRowsList(context, _displayRows),
+                : _buildRowsList(context, displayRows),
           ),
           Padding(
             padding: const EdgeInsets.all(8.0),

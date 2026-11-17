@@ -755,6 +755,24 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump();
       expect(tapped, 2);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(tapped, 1);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(tapped, 2);
+
+      await search(tester, 'ברכות ג');
+      tapped = null;
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(tapped, isNull);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(tapped, 1);
     });
 
     testWidgets('Down באחרונה מחזיר אותה לתצוגה גם כשהמסך במנוחה', (
