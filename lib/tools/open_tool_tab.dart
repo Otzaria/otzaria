@@ -45,10 +45,13 @@ void openToolTab(
 }
 
 /// בונה טאב של מופע נוסף לכלי — בלי dedupeKey, כך שפתיחתו לא תמקד טאב קיים.
-ToolTab newToolTabInstance(ToolCatalogEntry entry) => ToolTab(
+///
+/// [title] הוא שם מותאם שהתוסף ביקש לפתיחה הזו; בלעדיו הכותרת היא שם התוסף.
+ToolTab newToolTabInstance(ToolCatalogEntry entry, {String? title}) => ToolTab(
   toolId: entry.toolId,
-  title: entry.label,
+  title: title ?? entry.label,
   allowMultipleInstances: true,
+  preserveTitleOnPluginLoad: title != null,
 );
 
 /// האם המניפסט המותקן מאפשר שכפול מתוך תפריט הכרטיסיה.
@@ -69,10 +72,14 @@ bool pluginToolAllowsMultipleInstances(
 /// שכבר פתוחות [kMaxPluginToolInstances] כרטיסיות שלו (בשני המקרים מוצגת הודעה).
 /// כשרשימת התוספים עדיין נטענת הכרטיסיה נפתחת עם כותרת גיבוי, כמו ב-
 /// [openToolTabById].
+///
+/// [title] קובע את כותרת הכרטיסיה החדשה בלבד (לא של שכפול, שנושא את כותרת
+/// המקור). הוא נקבע בפתיחה ואינו משתנה אחריה.
 String? openPluginToolInstanceById(
   BuildContext context,
   String pluginId, {
   ToolTab? cloneOf,
+  String? title,
 }) {
   final settingsState = context.read<SettingsBloc>().state;
   final result = lookupTool(
@@ -86,15 +93,16 @@ String? openPluginToolInstanceById(
     case ToolAvailable(:final entry):
       if (entry.plugin?.manifest.allowMultipleInstances != true) return null;
       tab = cloneOf == null
-          ? newToolTabInstance(entry)
+          ? newToolTabInstance(entry, title: title)
           : (cloneOf.clone(allowMultipleInstances: true) as ToolTab
               ..isPinned = false);
     case ToolUnavailable(reason: ToolUnavailableReason.loading):
       if (cloneOf != null) return null;
       tab = ToolTab(
         toolId: pluginId,
-        title: ToolTab.fallbackTitleFor(pluginId),
+        title: title ?? ToolTab.fallbackTitleFor(pluginId),
         allowMultipleInstances: true,
+        preserveTitleOnPluginLoad: title != null,
       );
     case ToolUnavailable(:final reason, :final name):
       UiSnack.showError(toolUnavailableMessage(reason, name, pluginId));
@@ -272,6 +280,7 @@ Map<ToolTab, String> pluginTabsWithFallbackTitle(
   return {
     for (final tab in tabs.expand(leafPanes).whereType<ToolTab>())
       if (tab.isPlugin &&
+          !tab.preserveTitleOnPluginLoad &&
           tab.title == ToolTab.fallbackTitleFor(tab.toolId) &&
           titles[tab.toolId] != null)
         tab: titles[tab.toolId]!,

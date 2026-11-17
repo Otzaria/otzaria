@@ -37,6 +37,10 @@ class ToolTab extends OpenedTab {
   /// של אותו כלי לא תמקד אותו במקום לפתוח חדש.
   final bool allowMultipleInstances;
 
+  /// כותרת מפורשת שנמסרה בפתיחת מופע תוסף. מונע מהשלמת טעינת הקטלוג
+  /// להחליף אותה בשם התוסף, גם כשהיא שווה למחרוזת כותרת הגיבוי.
+  final bool preserveTitleOnPluginLoad;
+
   /// בקשות חיפוש שממתינות למסך הכלי. אינן נשמרות עם הטאב.
   final ToolQueryInbox queryInbox = ToolQueryInbox();
 
@@ -46,6 +50,7 @@ class ToolTab extends OpenedTab {
     super.isPinned,
     String? instanceId,
     this.allowMultipleInstances = false,
+    this.preserveTitleOnPluginLoad = false,
     ToolQuery? query,
   }) : instanceId = instanceId ?? newInstanceId(),
        super(
@@ -99,6 +104,7 @@ class ToolTab extends OpenedTab {
       isPinned: isPinned,
       allowMultipleInstances:
           allowMultipleInstances ?? this.allowMultipleInstances,
+      preserveTitleOnPluginLoad: preserveTitleOnPluginLoad,
     );
     // שולחנות עבודה עוברים דרך clone — בלי ההעתקה המצב אובד במזהה החדש.
     final restoreState = PluginRestoreStateStore.instance.jsonOf(_pluginKey);
@@ -116,6 +122,7 @@ class ToolTab extends OpenedTab {
     'isPinned': isPinned,
     'instanceId': instanceId,
     'allowMultipleInstances': allowMultipleInstances,
+    if (preserveTitleOnPluginLoad) 'preserveTitleOnPluginLoad': true,
     // מצב השחזור של התוסף (plugin.setRestoreState) עובר עם הטאב לסשן
     // ולסביבות העבודה.
     'pluginRestoreState': ?PluginRestoreStateStore.instance.jsonOf(_pluginKey),
@@ -141,6 +148,7 @@ class ToolTab extends OpenedTab {
       // JSON ישן (גיבוי/סביבת עבודה) בלי השדה — נוצר מזהה טרי.
       instanceId: json['instanceId'] as String?,
       allowMultipleInstances: json['allowMultipleInstances'] == true,
+      preserveTitleOnPluginLoad: json['preserveTitleOnPluginLoad'] == true,
     );
     final restoreState = json['pluginRestoreState'];
     if (restoreState is String) {
