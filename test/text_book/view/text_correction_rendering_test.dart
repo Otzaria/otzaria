@@ -204,6 +204,53 @@ void main() {
     expect(find.textContaining('<sup>', findRichText: true), findsOneWidget);
   });
 
+  testWidgets('תצוגת ההבדל מתעדכנת כשההקשר או הטקסט משתנים', (tester) async {
+    Future<void> pumpDiff({
+      String before = 'א',
+      String after = 'ב',
+      String prefix = 'לפני <sup>',
+      String suffix = '</sup> סוף',
+      bool renderHtml = true,
+    }) async {
+      await tester.pumpWidget(
+        _app(
+          TextCorrectionDiffView(
+            key: _previewKey,
+            before: before,
+            after: after,
+            style: _style,
+            renderHtml: renderHtml,
+            contextBefore: prefix,
+            contextAfter: suffix,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    final html = find.byType(CorrectionHtml);
+    final notice = find.byKey(const ValueKey('correction-diff-source-notice'));
+    await pumpDiff();
+    expect(tester.widget<CorrectionHtml>(html).html, startsWith('לפני <sup>'));
+
+    await pumpDiff(prefix: 'חדש <sup>');
+    expect(tester.widget<CorrectionHtml>(html).html, startsWith('חדש <sup>'));
+
+    await pumpDiff(prefix: '<span title="', suffix: '">טקסט</span>');
+    expect(html, findsNothing);
+    expect(notice, findsOneWidget);
+    expect(find.text('אב', findRichText: true), findsOneWidget);
+
+    await pumpDiff(after: 'ג', renderHtml: false);
+    expect(notice, findsNothing);
+    expect(find.text('אב', findRichText: true), findsNothing);
+    expect(find.text('אג', findRichText: true), findsOneWidget);
+
+    await pumpDiff(before: 'ד', after: 'ג', renderHtml: false);
+    expect(find.text('אג', findRichText: true), findsNothing);
+    expect(find.text('דג', findRichText: true), findsOneWidget);
+  });
+
   for (final mode in ['light', 'dark', 'white']) {
     for (final width in [360.0, 1200.0]) {
       for (final scale in [1.0, 1.3]) {
