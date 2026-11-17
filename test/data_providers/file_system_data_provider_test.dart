@@ -1,6 +1,9 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -9,6 +12,103 @@ import 'package:path/path.dart' as path;
 import '../helpers/memory_settings_cache.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  group('FileSystemData.metadata', () {
+    late Directory root;
+    late _MetadataReadOverrides reads;
+
+    setUp(() async {
+      root = await Directory.systemTemp.createTemp('otzaria-metadata-');
+      reads = _MetadataReadOverrides();
+      AppPaths.debugOverrideDataRootPath(path.join(root.path, 'data'));
+      await Settings.init(cacheProvider: MemorySettingsCache());
+      await Settings.setValue(SettingsRepository.keyLibraryPath, root.path);
+    });
+
+    tearDown(() async {
+      AppPaths.debugOverrideDataRootPath(null);
+      await root.delete(recursive: true);
+    });
+
+    test('הקטלוג הראשון מצטרף לקריאת הקורא ורענון קורא מחדש', () async {
+      await IOOverrides.runWithIOOverrides(() async {
+        final provider = FileSystemData();
+        expect(reads.paths, isEmpty);
+
+        final reader = provider.metadata;
+        final initialCatalog = provider.getLibrary();
+        expect(provider.metadata, same(reader));
+        expect(reads.paths, [path.join(root.path, 'metadata.json')]);
+
+        final refresh = provider.getLibrary();
+        final refreshed = provider.metadata;
+        expect(refreshed, isNot(same(reader)));
+        expect(
+          reads.paths,
+          List.filled(2, path.join(root.path, 'metadata.json')),
+        );
+
+        reads.results[1].complete(
+          jsonEncode([
+            {
+              'title': 'מ"ח',
+              'heCategories': ['ראשונים', 'הלכה'],
+              'order': 2.5,
+            },
+          ]),
+        );
+        await refresh;
+        final entry = (await refreshed)['מח']!;
+        expect(entry['heCategories'], 'ראשונים, הלכה');
+        expect(entry['extraTitles'], ['מ"ח']);
+        expect(entry['order'], 2);
+
+        reads.results[0].complete(_metadataJson('ישן'));
+        await initialCatalog;
+        expect((await reader).keys, ['ישן']);
+        expect(provider.metadata, same(refreshed));
+      }, reads);
+    });
+
+    test('מטא־נתונים ממתינים שייכים לנתיב שפתח אותם', () async {
+      final moved = await Directory(path.join(root.path, 'moved')).create();
+      await IOOverrides.runWithIOOverrides(() async {
+        final provider = FileSystemData();
+        final previous = provider.metadata;
+        provider.libraryPath = moved.path;
+        final current = provider.metadata;
+
+        reads.results[0].complete(_metadataJson('ישן'));
+        expect((await previous).keys, ['ישן']);
+
+        final catalog = provider.getLibrary();
+        expect(provider.metadata, same(current));
+        expect(reads.paths, [
+          path.join(root.path, 'metadata.json'),
+          path.join(moved.path, 'metadata.json'),
+        ]);
+        reads.results[1].complete(_metadataJson('חדש'));
+        await catalog;
+        expect((await current).keys, ['חדש']);
+      }, reads);
+    });
+
+    test('רענון מנסה שוב אחרי JSON פגום', () async {
+      await IOOverrides.runWithIOOverrides(() async {
+        final provider = FileSystemData();
+        final invalid = expectLater(provider.metadata, throwsFormatException);
+        reads.results.single.complete('[');
+        await invalid;
+
+        final catalog = provider.getLibrary();
+        reads.results[1].complete(_metadataJson('תוקן'));
+        await catalog;
+        expect((await provider.metadata).keys, ['תוקן']);
+      }, reads);
+    });
+  });
+
   group('FileSystemData.scanHebrewBooksPdfFilesAtPath', () {
     late Directory tempDir;
 
@@ -93,6 +193,40 @@ void main() {
       expect(files, isEmpty);
     });
   });
+}
+
+String _metadataJson(String title) => jsonEncode([
+  {'title': title},
+]);
+
+final class _MetadataReadOverrides extends IOOverrides {
+  final paths = <String>[];
+  final results = <Completer<String>>[];
+
+  @override
+  File createFile(String filePath) {
+    if (path.basename(filePath) != 'metadata.json') {
+      return super.createFile(filePath);
+    }
+    return _MetadataFile(() {
+      paths.add(filePath);
+      final result = Completer<String>();
+      results.add(result);
+      return result.future;
+    });
+  }
+}
+
+class _MetadataFile implements File {
+  _MetadataFile(this.readMetadata);
+
+  final Future<String> Function() readMetadata;
+
+  @override
+  Future<String> readAsString({Encoding encoding = utf8}) => readMetadata();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 const _notReady = OSError('The device is not ready', 21);
