@@ -16,6 +16,34 @@ void main() {
       expect(ordered, ['בראשית', 'שבת', 'חגיגה', 'משנה תורה, הלכות שבת']);
     });
 
+    test('דירוג קטגוריות עליונות משמר סדר קבוע ונפילה לסדר מותאם', () {
+      final library = _buildLibrary();
+      final tanakh = library.subCategories.singleWhere(
+        (category) => category.title == 'תנ"ך',
+      );
+      final halacha = library.subCategories.singleWhere(
+        (category) => category.title == 'הלכה',
+      );
+
+      expect(
+        SearchCatalogueOrderHelper.topCategoryOrder(tanakh),
+        lessThan(SearchCatalogueOrderHelper.topCategoryOrder(halacha)),
+      );
+      final unknown = Category(
+        title: 'קטגוריה אחרת',
+        description: '',
+        shortDescription: '',
+        order: 3,
+        subCategories: [],
+        books: [],
+        parent: library,
+      );
+      expect(
+        SearchCatalogueOrderHelper.topCategoryOrder(unknown),
+        greaterThan(SearchCatalogueOrderHelper.topCategoryOrder(halacha)),
+      );
+    });
+
     test('ספרי הקטגוריה קודמים למפרשים שבתת-קטגוריה (issue #649)', () {
       final library = _buildMidrashLibrary();
 
