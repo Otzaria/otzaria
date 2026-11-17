@@ -125,16 +125,12 @@ void main() {
     }
 
     testWidgets(
-      'כבוי כברירת מחדל: רק ההסבר, בלי רשימה וכפתורים, ולא נשמר דבר',
+      'כבוי כברירת מחדל: רק המתג, בלי רשימה וכפתורים, ולא נשמר דבר',
       (
         tester,
       ) async {
         await pumpTall(tester, CalendarView.month);
         expect(tester.widget<Switch>(zmanimSwitch()).value, isFalse);
-        expect(
-          find.text('בלי זמנים בתאי החודש: חגים ואירועים בלבד'),
-          findsOneWidget,
-        );
         expect(find.byType(Checkbox), findsNothing);
         expect(find.text('נקה בחירה'), findsNothing);
         await tester.tap(find.text('הדפס'));
@@ -143,11 +139,20 @@ void main() {
       },
     );
 
-    testWidgets('ההסבר כבוי תלוי בתצוגה', (tester) async {
-      await pumpTall(tester, CalendarView.week);
-      expect(find.text('זריחה ושקיעה בכל יום'), findsOneWidget);
-      expect(find.byType(Checkbox), findsNothing);
-    });
+    for (final view in CalendarView.values) {
+      testWidgets('כבוי: בלי טקסט הסבר מתחת למתג (${view.name})', (
+        tester,
+      ) async {
+        await pumpTall(tester, view);
+        expect(find.text('זריחה ושקיעה בכל יום'), findsNothing);
+        expect(
+          find.text('בלי זמנים בתאי החודש: חגים ואירועים בלבד'),
+          findsNothing,
+        );
+        expect(find.text('הזמנים שמוצגים בלוח'), findsNothing);
+        expect(find.byType(Checkbox), findsNothing);
+      });
+    }
 
     testWidgets('הדלקה בשבוע: זריחה ושקיעה מסומנות, והרשימה גוללת אליהן', (
       tester,
