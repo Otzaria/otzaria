@@ -111,6 +111,7 @@ class ExternalCatalogRepository {
       getHebrewBookIdsForOtzariaIds([otzariaId]);
 
   /// מזהי היברובוקס בקבוצות לפי סדר מזהי אוצריא, עד 20 התאמות לכל מזהה.
+  /// מזהה ששאילתת המיפוי שלו נכשלת נדלג.
   Future<List<int>> getHebrewBookIdsForOtzariaIds(List<int> otzariaIds) =>
       _selectMappingColumn(
         select: 'hb_id',
@@ -215,11 +216,19 @@ class ExternalCatalogRepository {
         'ORDER BY is_best DESC, confidence DESC LIMIT 20',
       );
       try {
-        return [
-          for (final argument in arguments)
-            for (final row in statement.select([argument]))
-              if (row[select] case final int id) id,
-        ];
+        final ids = <int>[];
+        for (final argument in arguments) {
+          try {
+            for (final row in statement.select([argument])) {
+              if (row[select] case final int id) ids.add(id);
+            }
+          } on sqlite3.SqliteException catch (e) {
+            debugPrint(
+              'ExternalCatalogRepository: mapping $argument failed: $e',
+            );
+          }
+        }
+        return ids;
       } finally {
         statement.close();
       }
