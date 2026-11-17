@@ -29,6 +29,37 @@ List<TocEntry> tocRootsBelowTitle(List<TocEntry> entries, String bookTitle) {
   return root.children;
 }
 
+/// אינדקס נתיבים לתמונת מצב של עץ כותרות, לפי סדר DFS מקדים.
+class TocPathLookup {
+  TocPathLookup(List<TocEntry> roots) {
+    void visit(List<TocEntry> entries, _TocPathNode? parent) {
+      for (final entry in entries) {
+        final node = _TocPathNode(entry, parent);
+        _firstByIndex.putIfAbsent(entry.index, () => node);
+        visit(entry.children, node);
+      }
+    }
+
+    visit(roots, null);
+  }
+
+  final _firstByIndex = <int, _TocPathNode>{};
+
+  /// הערך הראשון שמצביע ל-[index], ואחריו אבותיו עד השורש.
+  Iterable<TocEntry> fromEntry(int index) sync* {
+    for (var node = _firstByIndex[index]; node != null; node = node.parent) {
+      yield node.entry;
+    }
+  }
+}
+
+class _TocPathNode {
+  const _TocPathNode(this.entry, this.parent);
+
+  final TocEntry entry;
+  final _TocPathNode? parent;
+}
+
 /// מחזיר את הערכים הגלויים כרגע ברשימה שטוחה (לפי [expanded]).
 ///
 /// כללי הרחבה ברירת-מחדל (כשאין הכרעה ב-[expanded]):
