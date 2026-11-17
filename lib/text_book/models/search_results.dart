@@ -8,6 +8,9 @@ class TextSearchResult {
   /// לצורך גלילה מדויקת. null בתוצאות ממנוע החיפוש, שאינו מוסר מיקום.
   final int? matchOffset;
 
+  /// היסט ההופעה הראשונה בקבוצת ההקשר בשורה; null בתוצאות ללא קיבוץ מפורש.
+  final int? snippetGroupOffset;
+
   /// אורך השורה הנקייה, בקואורדינטות של [matchOffset]. מאפשר לגלול אל ההופעה
   /// גם כשתוכן הספר שוחרר מהזיכרון ואינו זמין לחישוב.
   final int? lineLength;
@@ -21,19 +24,14 @@ class TextSearchResult {
     required this.query,
     required this.address,
     this.matchOffset,
+    this.snippetGroupOffset,
     this.lineLength,
     this.continuesToNextLine = false,
   });
 
-  /// הופעה באותו קטע הקשר של [previous] (אותה שורה, אותו טקסט, בתוך טווח הקטע).
-  /// הרשימה מציגה את שתיהן בשורה אחת, והניווט עדיין עובר על כל הופעה.
-  bool sharesSnippetWith(TextSearchResult previous) {
-    final offset = matchOffset;
-    final previousOffset = previous.matchOffset;
-    return offset != null &&
-        previousOffset != null &&
-        index == previous.index &&
-        snippet == previous.snippet &&
-        (offset - previousOffset).abs() < snippet.length;
-  }
+  /// רק הופעות מאותה קבוצת מקור חולקות שורה; טקסט זהה אינו מזהה מיקום.
+  bool sharesSnippetWith(TextSearchResult previous) =>
+      snippetGroupOffset != null &&
+      index == previous.index &&
+      snippetGroupOffset == previous.snippetGroupOffset;
 }

@@ -152,6 +152,29 @@ Future<void> main() async {
       },
     );
 
+    test('טקסט מחזורי אינו מחבר קבוצות רחוקות בשרשרת', () async {
+      final results = (await searchUserRegexInContent(
+        content: ['אבג ' * 400],
+        query: '/אבג/',
+        matcher: UserRegexQuery.matcher('/אבג/')!,
+      ))!.results;
+      final starts = [
+        for (var i = 0; i < results.length; i++)
+          if (i == 0 || !results[i].sharesSnippetWith(results[i - 1])) i,
+      ];
+      expect(starts.length, greaterThan(10));
+      for (var group = 0; group < starts.length; group++) {
+        final first = starts[group];
+        final end = group + 1 < starts.length
+            ? starts[group + 1]
+            : results.length;
+        expect(
+          results[end - 1].matchOffset! - results[first].matchOffset!,
+          lessThanOrEqualTo(90),
+        );
+      }
+    });
+
     test('כמה קטעים מאותה שורה מקבלים טווחים יחסיים להופעה הנכונה', () async {
       final line = 'משה ${'דבר ' * 100}אהרן ${'דבר ' * 100}אהרן';
       const query = '/^משה|אהרן/';

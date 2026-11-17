@@ -197,27 +197,38 @@ void main() {
       expect(recorder.shown.map((s) => s.offset), [0, 0]);
     },
   );
-  test('a semantic failure on a later page keeps the shown results', () async {
-    final source = ControlledSource();
-    final bloc = buildResultsBloc(
-      source: source,
-      recorder: RecordingRecorder(),
-    );
-    addTearDown(bloc.close);
-    await first(bloc, source);
-    bloc.add(const SemanticMoreResultsRequested());
-    await settle();
-    source.requests[1].complete.complete(
-      page(31, mode: 'lexicalOnly', fallbackKind: 'queryFailed'),
-    );
-    await settle();
-    expect(source.requests.map((r) => r.offset), [0, 30]);
-    expect(bloc.state.status, SemanticResultsStatus.loaded);
-    expect(bloc.state.items, hasLength(30));
-    expect(bloc.state.isLoadingMore, isFalse);
-    expect(bloc.state.message, isNotNull);
-    expect(bloc.state.hasMore, isTrue);
-  });
+  test(
+    'a cached semantic fallback restarts at zero and recovers paging',
+    () async {
+      final source = ControlledSource();
+      final bloc = buildResultsBloc(
+        source: source,
+        recorder: RecordingRecorder(),
+      );
+      addTearDown(bloc.close);
+      await first(bloc, source);
+      bloc.add(const SemanticMoreResultsRequested());
+      await settle();
+      source.requests[1].complete.complete(
+        page(31, mode: 'lexicalOnly', fallbackKind: 'queryFailed'),
+      );
+      await settle();
+      // engine 7.2 keeps a failed session for offset > 0; only offset 0 retries it.
+      expect(source.requests.map((r) => r.offset), [0, 30, 0]);
+      source.requests[2].complete.complete(page(101));
+      await settle();
+      expect(bloc.state.items.first.id, BigInt.from(101));
+      expect(bloc.state.status, SemanticResultsStatus.loaded);
+      expect(bloc.state.isLoadingMore, isFalse);
+      bloc.add(const SemanticMoreResultsRequested());
+      await settle();
+      expect(source.requests.map((r) => r.offset), [0, 30, 0, 30]);
+      source.requests[3].complete.complete(page(131));
+      await settle();
+      expect(bloc.state.items, hasLength(60));
+      expect(bloc.state.items.last.id, BigInt.from(160));
+    },
+  );
   test(
     'a lasting semantic failure on a later page restarts the search',
     () async {

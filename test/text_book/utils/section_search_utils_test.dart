@@ -179,6 +179,29 @@ Future<void> main() async {
       },
     );
 
+    test('טקסט מחזורי אינו מחבר קבוצות רחוקות בשרשרת', () async {
+      final results = await searchInContent(
+        content: ['אבג ' * 400],
+        query: 'אבג',
+        patternSource: literalPatternSource('אבג'),
+      );
+      final starts = [
+        for (var i = 0; i < results.length; i++)
+          if (i == 0 || !results[i].sharesSnippetWith(results[i - 1])) i,
+      ];
+      expect(starts.length, greaterThan(10));
+      for (var group = 0; group < starts.length; group++) {
+        final first = starts[group];
+        final end = group + 1 < starts.length
+            ? starts[group + 1]
+            : results.length;
+        expect(
+          results[end - 1].matchOffset! - results[first].matchOffset!,
+          lessThanOrEqualTo(90),
+        );
+      }
+    });
+
     test('הופעות רחוקות באותה שורה ארוכה אינן מאוחדות (issue #3083)', () async {
       final filler = List.filled(60, 'מילה').join(' ');
       final line = 'אבג $filler אבג';
@@ -191,18 +214,22 @@ Future<void> main() async {
       expect(results[1].sharesSnippetWith(results[0]), isFalse);
     });
 
-    test('אותו קטע בשורות שונות או בלי היסט אינו מאוחד (issue #3083)', () {
-      TextSearchResult result(int index, int? offset) => TextSearchResult(
-        snippet: 'אבג מילה אבג',
-        index: index,
-        query: 'אבג',
-        address: 'א',
-        matchOffset: offset,
-      );
-      expect(result(1, 9).sharesSnippetWith(result(1, 0)), isTrue);
-      expect(result(2, 0).sharesSnippetWith(result(1, 0)), isFalse);
-      expect(result(1, null).sharesSnippetWith(result(1, null)), isFalse);
-      expect(result(1, 40).sharesSnippetWith(result(1, 0)), isFalse);
+    test('רק קבוצת מקור מפורשת באותה שורה מאוחדת (issue #3083)', () {
+      TextSearchResult result(int index, int offset, {int? groupOffset}) =>
+          TextSearchResult(
+            snippet: 'אבג מילה אבג',
+            index: index,
+            query: 'אבג',
+            address: 'א',
+            matchOffset: offset,
+            snippetGroupOffset: groupOffset,
+          );
+      final first = result(1, 0, groupOffset: 0);
+      expect(result(1, 9, groupOffset: 0).sharesSnippetWith(first), isTrue);
+      expect(result(2, 0, groupOffset: 0).sharesSnippetWith(first), isFalse);
+      expect(result(1, 40, groupOffset: 40).sharesSnippetWith(first), isFalse);
+      expect(result(1, 9).sharesSnippetWith(first), isFalse);
+      expect(result(1, 9).sharesSnippetWith(result(1, 0)), isFalse);
     });
 
     test('היסט ההתאמה מצביע על הופעה בתוך המילה', () async {

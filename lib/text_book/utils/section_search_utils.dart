@@ -69,12 +69,12 @@ String _snippetAroundMatch(
 /// קטע לכל הופעה ב-[matches]. הופעות שמרחקן מתחילת הראשונה בקבוצה אינו עולה
 /// על אורך ההקשר חולקות קטע זהה, וכך הרשימה מציגה אותן פעם אחת (issue #3083).
 /// רק [count] הראשונות מקבלות קטע; הופעה שאחריהן משמשת רק כגבול.
-List<String> _sharedSnippets(
+List<({String text, int groupOffset})> _sharedSnippets(
   String line,
   List<({int start, int end})> matches, {
   required int count,
 }) {
-  final snippets = <String>[];
+  final snippets = <({String text, int groupOffset})>[];
   for (var first = 0; first < count;) {
     var last = first;
     while (last + 1 < count &&
@@ -91,8 +91,9 @@ List<String> _sharedSnippets(
           ? (matches[last].end + matches[last + 1].start) ~/ 2
           : line.length,
     );
+    final groupOffset = matches[first].start;
     for (; first <= last; first++) {
-      snippets.add(snippet);
+      snippets.add((text: snippet, groupOffset: groupOffset));
     }
   }
   return snippets;
@@ -597,6 +598,7 @@ class _SearchWorkerHost {
                   address: raw['address'] as String,
                   query: raw['query'] as String,
                   matchOffset: raw['matchOffset'] as int?,
+                  snippetGroupOffset: raw['snippetGroupOffset'] as int?,
                   lineLength: raw['lineLength'] as int?,
                   continuesToNextLine:
                       raw['continuesToNextLine'] as bool? ?? false,
@@ -823,7 +825,8 @@ class SectionSearchWorkerRuntime {
               );
               results.add({
                 'index': i,
-                'snippet': snippets[m],
+                'snippet': snippets[m].text,
+                'snippetGroupOffset': snippets[m].groupOffset,
                 'address': cleanAddress,
                 'query': query,
                 'matchOffset': match.start,
@@ -1026,7 +1029,8 @@ searchUserRegexInContent({
       results.add(
         TextSearchResult(
           index: i,
-          snippet: snippets[m],
+          snippet: snippets[m].text,
+          snippetGroupOffset: snippets[m].groupOffset,
           address: cleanAddress(),
           query: query,
           matchOffset: match.start,

@@ -58,18 +58,6 @@ class SemanticFeedbackPorts {
 }
 
 /// תוצאות החיפוש הסמנטי של כרטיסייה אחת, והטלמטריה שלהן.
-/// כשלים שעשויים לחלוף; כשל קבוע (חסר מודל, נדרש אינדוקס) מריץ את החיפוש מחדש.
-final _transientFallbacks = {
-  for (final kind in [
-    SemanticFailureKind.queryFailed,
-    SemanticFailureKind.internal,
-    SemanticFailureKind.cancelled,
-    SemanticFailureKind.vectorsBusy,
-    SemanticFailureKind.sessionConflict,
-  ])
-    kind.name,
-};
-
 class SemanticResultsBloc
     extends Bloc<SemanticResultsEvent, SemanticResultsState> {
   SemanticResultsBloc({
@@ -242,25 +230,11 @@ class SemanticResultsBloc
       emit(state.copyWith(isLoadingMore: false));
       return;
     }
-    final modeChanged =
-        _context != null &&
-        page.executedMode != _context!.response.executedMode;
-    // כשל זמני של החלק הסמנטי בעמוד נוסף אינו מוחק את התוצאות שכבר מוצגות;
-    // "נסה שוב" מבקש את העמוד שוב.
-    if (!page.sessionRestarted &&
-        modeChanged &&
-        _transientFallbacks.contains(page.fallbackKind)) {
-      emit(
-        state.copyWith(
-          isLoadingMore: false,
-          message: SemanticSearchMessages.semanticPartFailed,
-        ),
-      );
-      return;
-    }
     // אין לצרף עמוד מסדר חדש לרשימה הישנה. חיפוש מחדש מאפס גם הצבעות,
     // סימונים והקשר משוב, ומבטל תשובות שעדיין מגיעות מהחיפוש הקודם.
-    if (page.sessionRestarted || modeChanged) {
+    if (page.sessionRestarted ||
+        (_context != null &&
+            page.executedMode != _context!.response.executedMode)) {
       await _onSubmitted(
         SemanticSearchSubmitted(options),
         emit,
