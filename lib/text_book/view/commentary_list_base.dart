@@ -1809,6 +1809,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
               previous.availableCommentators,
               current.availableCommentators,
             ) ||
+            previous.commentatorsLoaded != current.commentatorsLoaded ||
             previous.links != current.links || // השוואת רפרנס לביצועים
             // שורות קבועות (מפרש מתחת לשורה) אינן תלויות בגלילה.
             (widget.indexes == null &&
@@ -1902,7 +1903,12 @@ class CommentaryListBaseState extends State<CommentaryListBase>
           return Builder(
             builder: (context) {
               // כשמשתמשים ב-availableCommentators, ממתינים שהם ייטענו
+              final noCommentatorsAtAll =
+                  widget.useAvailableCommentators &&
+                  state.commentatorsLoaded &&
+                  state.availableCommentators.isEmpty;
               if (widget.useAvailableCommentators &&
+                  !state.commentatorsLoaded &&
                   state.availableCommentators.isEmpty) {
                 return const Center(child: CircularProgressIndicator());
               }
@@ -1972,7 +1978,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
               if (!hasRelevantLinks) {
                 _orderedLinks = [];
                 _scheduleSearchCompute();
-                if (state.linksLoading) {
+                if (state.linksLoading && !noCommentatorsAtAll) {
                   return Center(
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
@@ -2012,7 +2018,9 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                 return OtzariaEmptyState(
                   isCompact: true,
                   icon: OtzariaIcons.links_24_regular,
-                  title: hasAnyCommentaryLinks
+                  title: noCommentatorsAtAll
+                      ? 'אין מפרשים לספר זה'
+                      : hasAnyCommentaryLinks
                       ? 'לא נמצאו מפרשים מהנבחרים לקטע זה'
                       : 'לא נמצאו מפרשים לקטע הנבחר',
                 );

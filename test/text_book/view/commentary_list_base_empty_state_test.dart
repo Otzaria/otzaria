@@ -94,12 +94,59 @@ void main() {
       },
     );
   });
+
+  // רגרסיה #5225: ספר בלי מפרשים הציג ספינר אינסופי בכרטיסיית המפרשים.
+  group('CommentaryListBase - כרטיסיית מפרשים בספר ללא מפרשים', () {
+    testWidgets('אחרי סיום הטעינה ואין מפרשים - הודעה במקום ספינר', (
+      tester,
+    ) async {
+      final bloc = StubTextBookBloc(
+        _stateWithoutCommentators(commentatorsLoaded: true),
+      );
+      addTearDown(() async => bloc.close());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
+      addTearDown(() async => settingsBloc.close());
+
+      await _pump(
+        tester,
+        textBookBloc: bloc,
+        settingsBloc: settingsBloc,
+        useAvailableCommentators: true,
+      );
+
+      expect(find.text('אין מפרשים לספר זה'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.text('טוען מפרשים...'), findsNothing);
+    });
+
+    testWidgets('לפני סיום הטעינה - מוצג ספינר', (tester) async {
+      final bloc = StubTextBookBloc(
+        _stateWithoutCommentators(commentatorsLoaded: false),
+      );
+      addTearDown(() async => bloc.close());
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
+      addTearDown(() async => settingsBloc.close());
+
+      await _pump(
+        tester,
+        textBookBloc: bloc,
+        settingsBloc: settingsBloc,
+        useAvailableCommentators: true,
+        settle: false,
+      );
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.text('אין מפרשים לספר זה'), findsNothing);
+    });
+  });
 }
 
 Future<void> _pump(
   WidgetTester tester, {
   required TextBookBloc textBookBloc,
   required SettingsBloc settingsBloc,
+  bool useAvailableCommentators = false,
+  bool settle = true,
 }) async {
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox.shrink());
@@ -113,22 +160,51 @@ Future<void> _pump(
           BlocProvider<TextBookBloc>.value(value: textBookBloc),
           BlocProvider<SettingsBloc>.value(value: settingsBloc),
         ],
-        child: const Scaffold(
+        child: Scaffold(
           body: CommentaryListBase(
             openBookCallback: _noopOpenBook,
             fontSize: 18,
             showSearch: true,
             shrinkWrap: false,
+            useAvailableCommentators: useAvailableCommentators,
           ),
         ),
       ),
     ),
   );
 
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+  }
 }
 
 void _noopOpenBook(_) {}
+
+TextBookLoaded _stateWithoutCommentators({required bool commentatorsLoaded}) {
+  return TextBookLoaded(
+    book: TextBook(title: 'ספר בדיקה'),
+    showLeftPane: false,
+    content: const ['שורה א'],
+    fontSize: 18,
+    showSplitView: false,
+    activeCommentators: const [],
+    commentatorGroups: const [],
+    availableCommentators: const [],
+    commentatorsLoaded: commentatorsLoaded,
+    linksLoading: true,
+    links: const [],
+    visibleLinks: const [],
+    linksByLine: const {},
+    tableOfContents: const [],
+    removeNikud: false,
+    visibleIndices: const [0],
+    selectedIndex: 0,
+    pinLeftPane: false,
+    searchText: '',
+  );
+}
 
 TextBookLoaded _stateWithoutLinks() {
   return TextBookLoaded(
