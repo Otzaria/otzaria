@@ -191,6 +191,82 @@ void main() {
     expect(cache.getOrderForBook(bookId, source), CommentaryEra.other.order);
   });
 
+  test('הסרת מסד באמצע רענון משאירה רק את הקריאה המשותפת', () async {
+    final cache = GenerationCache.instance;
+    final slow = Completer<Map<int, int>>();
+    final kept = Completer<Map<int, int>>();
+    final reads = <String>[];
+    final previousReader = GenerationCache.readAttachedGenerations;
+    GenerationCache.readAttachedGenerations = (target) {
+      reads.add(target.path);
+      return target.path == 'slow' ? slow.future : kept.future;
+    };
+    addTearDown(() {
+      GenerationCache.readAttachedGenerations = previousReader;
+      if (!slow.isCompleted) slow.complete({});
+      if (!kept.isCompleted) kept.complete({});
+    });
+    final keptLibrary = AttachedLibrary(
+      slug: 'lib-a',
+      displayName: 'Kept',
+      path: 'kept',
+      fingerprint: const AttachedLibraryFingerprint(size: 10, modifiedMs: 1),
+      addedAt: DateTime(2026),
+    );
+    registry.update([
+      keptLibrary,
+      keptLibrary.copyWith(slug: 'slow', path: 'slow'),
+    ]);
+    final stale = cache.reloadAttached(changedSlugs: const {});
+    final warming = cache.warmUp();
+    registry.update([keptLibrary]);
+    final latest = cache.reloadAttached(changedSlugs: const {});
+    expect(reads, unorderedEquals(['kept', 'slow']));
+
+    kept.complete({bookId: CommentaryEra.rishonim.order});
+    await Future.wait([latest, warming]).timeout(const Duration(seconds: 2));
+    expect(cache.getOrderForBook(bookId, source), CommentaryEra.rishonim.order);
+    slow.complete({bookId: CommentaryEra.chazal.order});
+    await stale;
+    expect(
+      cache.getOrderForBook(bookId, BookSource.attached('slow')),
+      CommentaryEra.other.order,
+    );
+  });
+
+  test('שינוי תוכן מצריך קריאה חדשה גם לאותה טביעת אצבע', () async {
+    final cache = GenerationCache.instance;
+    final first = Completer<Map<int, int>>();
+    final second = Completer<Map<int, int>>();
+    final reads = [first, second].iterator;
+    final previousReader = GenerationCache.readAttachedGenerations;
+    GenerationCache.readAttachedGenerations = (_) {
+      expect(reads.moveNext(), isTrue);
+      return reads.current.future;
+    };
+    addTearDown(() {
+      GenerationCache.readAttachedGenerations = previousReader;
+      if (!first.isCompleted) first.complete({});
+      if (!second.isCompleted) second.complete({});
+    });
+    registry.update([
+      AttachedLibrary(
+        slug: 'lib-a',
+        displayName: 'Library',
+        path: 'library',
+        fingerprint: const AttachedLibraryFingerprint(size: 10, modifiedMs: 1),
+        addedAt: DateTime(2026),
+      ),
+    ]);
+    final stale = cache.reloadAttached(changedSlugs: const {});
+    final latest = cache.reloadAttached(changedSlugs: const {'lib-a'});
+    second.complete({bookId: CommentaryEra.rishonim.order});
+    await latest.timeout(const Duration(seconds: 2));
+    first.complete({bookId: CommentaryEra.chazal.order});
+    await stale;
+    expect(cache.getOrderForBook(bookId, source), CommentaryEra.rishonim.order);
+  });
+
   test('כשל קריאת כינויים אינו נשמר כ"אין כינויים" — ניסיון חוזר', () async {
     final previousDelay = AcronymsCache.attachedRetryDelay;
     addTearDown(() => AcronymsCache.attachedRetryDelay = previousDelay);
