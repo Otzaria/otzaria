@@ -111,6 +111,70 @@ Future<void> main() async {
       }
     });
 
+    test(
+      'הופעות צמודות בשורה ארוכה חולקות קטע ומודגשות בו (issue #3083)',
+      () async {
+        final line = 'משה אהרן ${'דבר ' * 100}אהרן';
+        const query = '/^משה|אהרן/';
+        final results = (await searchUserRegexInContent(
+          content: [line],
+          query: query,
+          matcher: UserRegexQuery.matcher(query)!,
+        ))!.results;
+        expect(results.map((r) => r.matchOffset), [0, 4, line.length - 4]);
+        expect(results[1].sharesSnippetWith(results[0]), isTrue);
+        expect(results[2].sharesSnippetWith(results[1]), isFalse);
+        final ranges = UserRegexSnippetHighlighter().rangesFor(
+          line: line,
+          snippet: results[1].snippet,
+          matchOffset: results[1].matchOffset!,
+          query: query,
+        )!;
+        expect(
+          [for (final r in ranges) results[1].snippet.substring(r[0], r[1])],
+          ['משה', 'אהרן'],
+        );
+      },
+    );
+
+    test(
+      'בתקרה — הקטע האחרון אינו מציג הופעה שלא נספרה (issue #3083)',
+      () async {
+        const query = '/אבג/';
+        final found = (await searchUserRegexInContent(
+          content: [for (var i = 0; i < 999; i++) 'אבג', 'אבג מילה ועוד אבג'],
+          query: query,
+          matcher: UserRegexQuery.matcher(query)!,
+        ))!;
+        expect(found.truncated, isTrue);
+        expect(found.results.length, 1000);
+        expect('אבג'.allMatches(found.results.last.snippet).length, 1);
+      },
+    );
+
+    test('טקסט מחזורי אינו מחבר קבוצות רחוקות בשרשרת', () async {
+      final results = (await searchUserRegexInContent(
+        content: ['אבג ' * 400],
+        query: '/אבג/',
+        matcher: UserRegexQuery.matcher('/אבג/')!,
+      ))!.results;
+      final starts = [
+        for (var i = 0; i < results.length; i++)
+          if (i == 0 || !results[i].sharesSnippetWith(results[i - 1])) i,
+      ];
+      expect(starts.length, greaterThan(10));
+      for (var group = 0; group < starts.length; group++) {
+        final first = starts[group];
+        final end = group + 1 < starts.length
+            ? starts[group + 1]
+            : results.length;
+        expect(
+          results[end - 1].matchOffset! - results[first].matchOffset!,
+          lessThanOrEqualTo(90),
+        );
+      }
+    });
+
     test('כמה קטעים מאותה שורה מקבלים טווחים יחסיים להופעה הנכונה', () async {
       final line = 'משה ${'דבר ' * 100}אהרן ${'דבר ' * 100}אהרן';
       const query = '/^משה|אהרן/';

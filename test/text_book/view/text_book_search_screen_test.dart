@@ -5,6 +5,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/widgets/navigation/search_pane_base.dart';
+import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/core/messages/text_book_messages.dart';
@@ -14,6 +15,8 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/models/search_results.dart';
+import 'package:otzaria/theme/app_theme_data.dart';
+import 'package:otzaria/theme/app_seed_colors.dart';
 import 'package:otzaria/text_book/utils/section_search_utils.dart';
 import 'package:otzaria/text_book/view/text_book_search_screen.dart';
 import '../../support/search_engine_test_init.dart';
@@ -1154,6 +1157,138 @@ Future<void> main() async {
     expect(find.text('2/3'), findsOneWidget);
     expect(navigatedLines, [7, 9, 7]);
   });
+
+  for (final appearance in [
+    (
+      name: 'בהיר',
+      seed: AppSeedColors.defaultLight,
+      brightness: Brightness.light,
+    ),
+    (name: 'כהה', seed: AppSeedColors.defaultDark, brightness: Brightness.dark),
+    (name: 'לבן', seed: AppSeedColors.white, brightness: Brightness.light),
+  ]) {
+    for (final width in [360.0, 800.0]) {
+      for (final scale in [1.0, 1.3]) {
+        testWidgets(
+          'קיבוץ וניווט בהופעות: ${appearance.name}, RTL, $width, ×$scale '
+          '(issue #3083)',
+          (tester) async {
+            tester.view.physicalSize = Size(width, 800);
+            tester.view.devicePixelRatio = 1;
+            addTearDown(tester.view.resetPhysicalSize);
+            addTearDown(tester.view.resetDevicePixelRatio);
+            final textBookBloc = _TestTextBookBloc(_loadedState());
+            final settingsBloc = StubSettingsBloc(SettingsState.initial());
+            final focusNode = FocusNode();
+            final navigatedLines = <int>[];
+            final lines = LineScrollController()
+              ..externalNavigator = (line) async => navigatedLines.add(line);
+
+            addTearDown(textBookBloc.close);
+            addTearDown(settingsBloc.close);
+            addTearDown(focusNode.dispose);
+            addTearDown(lines.dispose);
+            addTearDown(resetSectionSearchWorkerForTesting);
+
+            TextSearchResult result(int line, int offset) => TextSearchResult(
+              snippet: 'אבג מילה אבג',
+              index: line,
+              query: 'אבג',
+              address: 'א',
+              matchOffset: offset,
+              snippetGroupOffset: offset < 40 ? 0 : 40,
+            );
+
+            await tester.pumpWidget(
+              MaterialApp(
+                theme: AppThemeData.light(
+                  AppThemeData.createColorScheme(
+                    appearance.seed,
+                    appearance.brightness,
+                  ),
+                  compactMenuMode: false,
+                  variant: AppThemeVariant.ofSeed(appearance.seed),
+                ),
+                builder: (context, child) => Directionality(
+                  textDirection: TextDirection.rtl,
+                  child: MediaQuery(
+                    data: MediaQuery.of(
+                      context,
+                    ).copyWith(textScaler: TextScaler.linear(scale)),
+                    child: child!,
+                  ),
+                ),
+                home: MultiBlocProvider(
+                  providers: [
+                    BlocProvider<TextBookBloc>.value(value: textBookBloc),
+                    BlocProvider<SettingsBloc>.value(value: settingsBloc),
+                  ],
+                  child: Scaffold(
+                    body: TextBookSearchView(
+                      contentLoader: () async => ['אבג'],
+                      lines: lines,
+                      focusNode: focusNode,
+                      closeLeftPaneCallback: () {},
+                      initialQuery: '',
+                      // טקסט זהה בקבוצה אחרת באותה שורה ובשורה אחרת נשאר נפרד.
+                      simpleSearchRunner: (content, query) async => [
+                        result(2, 0),
+                        result(2, 9),
+                        result(2, 40),
+                        result(5, 0),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+
+            await tester.pump();
+            await tester.enterText(find.byType(TextField), 'אבג');
+            await tester.pump(
+              kSearchFieldDebounce + const Duration(milliseconds: 50),
+            );
+            await tester.pump(const Duration(milliseconds: 100));
+
+            expect(find.byType(NavTreeContentRow), findsNWidgets(3));
+            expect(find.text('נמצאו 4 הופעות ב־3 מקומות'), findsOneWidget);
+            expect(find.text('1/4'), findsOneWidget);
+            bool selected(int row) => tester
+                .widgetList<NavTreeContentRow>(find.byType(NavTreeContentRow))
+                .elementAt(row)
+                .isSelected;
+            expect(selected(0), isTrue);
+
+            await tester.tap(find.byTooltip('התוצאה הבאה'));
+            await tester.pump();
+            expect(find.text('2/4'), findsOneWidget);
+            expect(navigatedLines, [2]);
+            expect(selected(0), isTrue);
+
+            await tester.tap(find.byTooltip('התוצאה הבאה'));
+            await tester.pump();
+            expect(find.text('3/4'), findsOneWidget);
+            expect(navigatedLines, [2, 2]);
+            expect(selected(1), isTrue);
+            expect(selected(0), isFalse);
+
+            await tester.tap(find.byTooltip('התוצאה הבאה'));
+            await tester.pump();
+            expect(find.text('4/4'), findsOneWidget);
+            expect(navigatedLines, [2, 2, 5]);
+            expect(selected(2), isTrue);
+
+            await tester.tap(find.byTooltip('התוצאה הקודמת'));
+            await tester.pump();
+            expect(find.text('3/4'), findsOneWidget);
+            expect(navigatedLines, [2, 2, 5, 2]);
+            expect(selected(1), isTrue);
+            expect(tester.takeException(), isNull);
+          },
+        );
+      }
+    }
+  }
 }
 
 TextBookLoaded _loadedState({List<int> visibleIndices = const [0]}) {

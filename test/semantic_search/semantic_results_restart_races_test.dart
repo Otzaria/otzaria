@@ -34,6 +34,7 @@ SemanticResultsPage page(
   bool restart = false,
   String mode = 'hybrid',
   bool semantic = false,
+  String? fallbackKind,
 }) => SemanticResultsPage(
   items: [
     for (var id = start; id < start + 30; id++)
@@ -54,6 +55,7 @@ SemanticResultsPage page(
   countsAreExact: false,
   truncated: false,
   candidateWindowTruncated: false,
+  fallbackKind: fallbackKind,
 );
 Future<void> settle() async {
   for (var i = 0; i < 30; i++) {
@@ -193,6 +195,57 @@ void main() {
         'hybrid',
       ]);
       expect(recorder.shown.map((s) => s.offset), [0, 0]);
+    },
+  );
+  test(
+    'a cached semantic fallback restarts at zero and recovers paging',
+    () async {
+      final source = ControlledSource();
+      final bloc = buildResultsBloc(
+        source: source,
+        recorder: RecordingRecorder(),
+      );
+      addTearDown(bloc.close);
+      await first(bloc, source);
+      bloc.add(const SemanticMoreResultsRequested());
+      await settle();
+      source.requests[1].complete.complete(
+        page(31, mode: 'lexicalOnly', fallbackKind: 'queryFailed'),
+      );
+      await settle();
+      // engine 7.2 keeps a failed session for offset > 0; only offset 0 retries it.
+      expect(source.requests.map((r) => r.offset), [0, 30, 0]);
+      source.requests[2].complete.complete(page(101));
+      await settle();
+      expect(bloc.state.items.first.id, BigInt.from(101));
+      expect(bloc.state.status, SemanticResultsStatus.loaded);
+      expect(bloc.state.isLoadingMore, isFalse);
+      bloc.add(const SemanticMoreResultsRequested());
+      await settle();
+      expect(source.requests.map((r) => r.offset), [0, 30, 0, 30]);
+      source.requests[3].complete.complete(page(131));
+      await settle();
+      expect(bloc.state.items, hasLength(60));
+      expect(bloc.state.items.last.id, BigInt.from(160));
+    },
+  );
+  test(
+    'a lasting semantic failure on a later page restarts the search',
+    () async {
+      final source = ControlledSource();
+      final bloc = buildResultsBloc(
+        source: source,
+        recorder: RecordingRecorder(),
+      );
+      addTearDown(bloc.close);
+      await first(bloc, source);
+      bloc.add(const SemanticMoreResultsRequested());
+      await settle();
+      source.requests[1].complete.complete(
+        page(31, mode: 'lexicalOnly', fallbackKind: 'reindexRequired'),
+      );
+      await settle();
+      expect(source.requests.map((r) => r.offset), [0, 30, 0]);
     },
   );
   test(

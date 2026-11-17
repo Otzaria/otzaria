@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/search/utils/literal_search_pattern.dart';
+import 'package:otzaria/text_book/models/search_results.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart' as notes;
 import 'package:otzaria/text_book/utils/section_search_utils.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
@@ -130,6 +131,105 @@ Future<void> main() async {
       for (final result in results) {
         expect(result.snippet, line);
       }
+      // issue #3083 — שתי הופעות נשמרות לניווט, אך מוצגות כשורה אחת.
+      expect(results.map((r) => r.matchOffset), [0, 9]);
+      expect(results[1].sharesSnippetWith(results[0]), isTrue);
+    });
+
+    test('הופעות צמודות בשורה ארוכה חולקות קטע (issue #3083)', () async {
+      final filler = List.filled(60, 'מילה').join(' ');
+      final line = 'אבג מילה אבג $filler';
+      final results = await searchInContent(
+        content: [line],
+        query: 'אבג',
+        patternSource: literalPatternSource('אבג'),
+      );
+      expect(results.map((r) => r.matchOffset), [0, 9]);
+      expect(results[0].snippet, startsWith('אבג מילה אבג'));
+      expect(results[1].sharesSnippetWith(results[0]), isTrue);
+    });
+
+    test(
+      'קבוצה עד 90 תווים בשורה ארוכה — שתי ההופעות בקטע (issue #3083)',
+      () async {
+        final words = List.filled(40, 'מילה').join(' ');
+        final mid = List.filled(14, 'דבר').join(' ');
+        final results = await searchInContent(
+          content: ['$words אבג $mid אבג $words'],
+          query: 'אבג',
+          patternSource: literalPatternSource('אבג'),
+        );
+        expect(results.length, 2);
+        expect(results[1].sharesSnippetWith(results[0]), isTrue);
+        expect('אבג'.allMatches(results[0].snippet).length, 2);
+      },
+    );
+
+    test(
+      'בתקרה — הקטע האחרון אינו מציג הופעה שלא נספרה (issue #3083)',
+      () async {
+        final results = await searchInContent(
+          content: [for (var i = 0; i < 999; i++) 'אבג', 'אבג מילה ועוד אבג'],
+          query: 'אבג',
+          patternSource: literalPatternSource('אבג'),
+        );
+        expect(results.length, 1000);
+        expect(results.last.index, 999);
+        expect('אבג'.allMatches(results.last.snippet).length, 1);
+      },
+    );
+
+    test('טקסט מחזורי אינו מחבר קבוצות רחוקות בשרשרת', () async {
+      final results = await searchInContent(
+        content: ['אבג ' * 400],
+        query: 'אבג',
+        patternSource: literalPatternSource('אבג'),
+      );
+      final starts = [
+        for (var i = 0; i < results.length; i++)
+          if (i == 0 || !results[i].sharesSnippetWith(results[i - 1])) i,
+      ];
+      expect(starts.length, greaterThan(10));
+      for (var group = 0; group < starts.length; group++) {
+        final first = starts[group];
+        final end = group + 1 < starts.length
+            ? starts[group + 1]
+            : results.length;
+        expect(
+          results[end - 1].matchOffset! - results[first].matchOffset!,
+          lessThanOrEqualTo(90),
+        );
+      }
+    });
+
+    test('הופעות רחוקות באותה שורה ארוכה אינן מאוחדות (issue #3083)', () async {
+      final filler = List.filled(60, 'מילה').join(' ');
+      final line = 'אבג $filler אבג';
+      final results = await searchInContent(
+        content: [line],
+        query: 'אבג',
+        patternSource: literalPatternSource('אבג'),
+      );
+      expect(results.length, 2);
+      expect(results[1].sharesSnippetWith(results[0]), isFalse);
+    });
+
+    test('רק קבוצת מקור מפורשת באותה שורה מאוחדת (issue #3083)', () {
+      TextSearchResult result(int index, int offset, {int? groupOffset}) =>
+          TextSearchResult(
+            snippet: 'אבג מילה אבג',
+            index: index,
+            query: 'אבג',
+            address: 'א',
+            matchOffset: offset,
+            snippetGroupOffset: groupOffset,
+          );
+      final first = result(1, 0, groupOffset: 0);
+      expect(result(1, 9, groupOffset: 0).sharesSnippetWith(first), isTrue);
+      expect(result(2, 0, groupOffset: 0).sharesSnippetWith(first), isFalse);
+      expect(result(1, 40, groupOffset: 40).sharesSnippetWith(first), isFalse);
+      expect(result(1, 9).sharesSnippetWith(first), isFalse);
+      expect(result(1, 9).sharesSnippetWith(result(1, 0)), isFalse);
     });
 
     test('היסט ההתאמה מצביע על הופעה בתוך המילה', () async {
@@ -337,18 +437,17 @@ Future<void> main() async {
       }
     });
 
-    test('הופעות קרובות — כל snippet מכיל רק את ההופעה שלו', () async {
+    test('הופעות קרובות חולקות קטע אחד שמכיל את שתיהן (issue #3083)', () async {
       final results = await searchInContent(
         content: ['אמר רבי יהודה דבר אחד ועוד אמר יהודה בן גרוש דבר אחר'],
         query: 'יהודה',
         patternSource: literalPatternSource('יהודה'),
       );
-      expect(results.length, 2);
-      for (final result in results) {
-        expect('יהודה'.allMatches(result.snippet).length, 1);
-      }
+      expect(results.map((r) => r.matchOffset), [8, 31]);
+      expect('יהודה'.allMatches(results[0].snippet).length, 2);
       expect(results[0].snippet, contains('רבי'));
-      expect(results[1].snippet, contains('בן גרוש'));
+      expect(results[0].snippet, contains('בן גרוש'));
+      expect(results[1].sharesSnippetWith(results[0]), isTrue);
     });
 
     test('בשורה ארוכה — כל תוצאה מקבלת snippet סביב ההופעה שלה', () async {
