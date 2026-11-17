@@ -75,6 +75,7 @@ void main() {
         keys: keys,
         child: FrameStatsOverlay(
           contextProvider: () => {'title': title},
+          searchResultsProvider: () => {'window': title},
           child: const SizedBox(),
         ),
       );
@@ -96,6 +97,10 @@ void main() {
       );
       AppWindowKeys.activate(second);
       expect(DeveloperDiagnostics.instance.contextProvider!()['title'], 'שני');
+      expect(
+        DeveloperDiagnostics.instance.searchResultsProvider!()?['window'],
+        'שני',
+      );
       AppWindowKeys.unregister(second);
       await tester.pumpWidget(host(showSecond: false));
       expect(
@@ -104,6 +109,7 @@ void main() {
       );
       await tester.pumpWidget(const SizedBox());
       expect(DeveloperDiagnostics.instance.contextProvider!(), isEmpty);
+      expect(DeveloperDiagnostics.instance.searchResultsProvider!(), isNull);
     },
   );
 

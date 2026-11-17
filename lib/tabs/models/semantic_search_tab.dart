@@ -43,6 +43,9 @@ class SemanticSearchTab extends SearchingTab {
   SemanticResultsBloc get resultsBloc =>
       _resultsBloc ??= (_createResultsBloc ?? _defaultResultsBloc)(this);
 
+  /// בלי ליצור אותו: לאבחון, שאסור לו להתחיל חיפוש.
+  SemanticResultsBloc? get createdResultsBloc => _resultsBloc;
+
   /// מריץ חיפוש חדש בכרטיסייה ומעדכן את הכותרת.
   void submit(SemanticQueryOptions options) {
     _options = options;
