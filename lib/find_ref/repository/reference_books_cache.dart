@@ -215,6 +215,7 @@ class ReferenceBooksCache {
         ..clear()
         ..addAll(dbPdfTitles);
       _categoryPaths.clear();
+      _eraBooks = null;
 
       if (!await _prewarmFuzzyVocabulary(localNormalizedTitles, myGen)) return;
       if (myGen != _generation) return;
@@ -278,6 +279,7 @@ class ReferenceBooksCache {
         _official.clearTitles();
         _fsPdfBooks.clear();
         _categoryPaths.clear();
+        _eraBooks = null;
         _isLoaded = false;
       }
     }
@@ -290,6 +292,7 @@ class ReferenceBooksCache {
     _dbPdfTitles.clear();
     _pdfOutlineCache.clear();
     _categoryPaths.clear();
+    _eraBooks = null;
     _isLoaded = false;
     _loadingFuture = null;
     // Note: We don't clear the shared caches here as they may be used by other components
@@ -305,6 +308,10 @@ class ReferenceBooksCache {
   // SQL + O(books) in-memory walk), כדי שדירוג ה-FindRef יוכל לסווג "ספר
   // יסוד" מול "מפרש" סינכרונית בלי race עם ה-warmUp.
   final Map<int, String> _categoryPaths = <int, String>{};
+
+  // הספרים בקבוצות נשמרים בסדר הקטלוג של הדור שממנו נבנו.
+  ({int booksGeneration, Map<CommentaryEra, List<BookCacheEntry>> buckets})?
+  _eraBooks;
 
   /// גרסה סינכרונית של [getCategoryPathForBook]: מחזירה `null` אם הערך
   /// אינו בקאש (למשל לפני warmUp או עבור ספרים שאינם ב-DB).
@@ -331,16 +338,26 @@ class ReferenceBooksCache {
       return '';
     }
 
+    final myGen = _generation;
+    final booksGeneration = BooksCache.instance.generation;
     try {
       final path = await BookDatabaseResolver.buildCategoryPath(
         repository,
         book.categoryId,
       );
-      _categoryPaths[bookId] = path;
+      if (myGen == _generation &&
+          booksGeneration == BooksCache.instance.generation &&
+          _categoryPaths[bookId] != path) {
+        _categoryPaths[bookId] = path;
+        _eraBooks = null;
+      }
       return path;
     } catch (e) {
       debugPrint('[ReferenceBooksCache] getCategoryPathForBook error: $e');
-      _categoryPaths[bookId] = '';
+      if (myGen == _generation &&
+          booksGeneration == BooksCache.instance.generation) {
+        _categoryPaths.putIfAbsent(bookId, () => '');
+      }
       return '';
     }
   }
@@ -395,14 +412,22 @@ class ReferenceBooksCache {
 
       const yieldBatch = 1000;
       var processed = 0;
+      final booksGeneration = BooksCache.instance.generation;
+      final paths = <int, String>{};
+      final erasByPath = <String, CommentaryEra>{};
+      final buckets = <CommentaryEra, List<BookCacheEntry>>{};
       // עותק: הלולאה ממתינה באמצע, ו-books הוא תצוגה חיה של הקאש.
       for (final book in BooksCache.instance.books.toList(growable: false)) {
-        _categoryPaths[book.id] = pathFor(book.categoryId);
+        final path = pathFor(book.categoryId);
+        paths[book.id] = path;
+        _addEraBook(buckets, erasByPath, book, path);
         if (++processed % yieldBatch == 0) {
           await Future<void>.delayed(Duration.zero);
           if (myGen != _generation) return true; // ביטול.
         }
       }
+      _categoryPaths.addAll(paths);
+      _eraBooks = (booksGeneration: booksGeneration, buckets: buckets);
       return true;
     } catch (e) {
       debugPrint('[ReferenceBooksCache] _prewarmCategoryPaths failed: $e');
@@ -552,6 +577,15 @@ class ReferenceBooksCache {
     _categoryPaths
       ..clear()
       ..addAll(categoryPaths);
+    final erasByPath = <String, CommentaryEra>{};
+    final buckets = <CommentaryEra, List<BookCacheEntry>>{};
+    for (final book in BooksCache.instance.books) {
+      _addEraBook(buckets, erasByPath, book, _categoryPaths[book.id] ?? '');
+    }
+    _eraBooks = (
+      booksGeneration: BooksCache.instance.generation,
+      buckets: buckets,
+    );
     final booksByWord = <String, List<int>>{};
     _official.collectFuzzyWords(booksByWord, normalizedTitles.entries);
     _official.installFuzzyVocabulary(booksByWord);
@@ -659,19 +693,29 @@ class ReferenceBooksCache {
   }) {
     if (topicTokens.isEmpty) return const <ReferenceBookHit>[];
 
+    final books = BooksCache.instance;
+    final index = _eraBooks;
+    final Iterable<BookCacheEntry> candidates;
+    if (index != null && index.booksGeneration == books.generation) {
+      candidates = index.buckets[era] ?? const [];
+    } else {
+      candidates = books.books.where((book) {
+        final path = _categoryPaths[book.id];
+        return path != null &&
+            path.isNotEmpty &&
+            eraFromCategoryPath(path) == era;
+      });
+    }
+
     final hits = <ReferenceBookHit>[];
-    for (final book in BooksCache.instance.books) {
+    for (final book in candidates) {
       if (allowsBook != null &&
           !allowsBook(book.id, book.filePath ?? '', book.fileType)) {
         continue;
       }
-      final path = _categoryPaths[book.id];
-      if (path == null || path.isEmpty) continue;
-      if (eraFromCategoryPath(path) != era) continue;
-
       final t = _official._normalizedTitles[book.id] ?? '';
       if (t.isEmpty) continue;
-      final titleTokens = t.split(' ').where((w) => w.isNotEmpty);
+      final titleTokens = _official._titleTokens[book.id]!;
       final matches = topicTokens.every(
         (qt) => titleTokens.any((w) => w.startsWith(qt)),
       );
@@ -686,11 +730,23 @@ class ReferenceBooksCache {
           fileType: book.fileType,
           matchRank: 0,
           orderIndex: book.orderIndex,
+          titleTokens: titleTokens,
         ),
       );
       if (hits.length >= limit) break;
     }
     return hits;
+  }
+
+  static void _addEraBook(
+    Map<CommentaryEra, List<BookCacheEntry>> buckets,
+    Map<String, CommentaryEra> erasByPath,
+    BookCacheEntry book,
+    String path,
+  ) {
+    if (path.isEmpty) return;
+    final era = erasByPath.putIfAbsent(path, () => eraFromCategoryPath(path));
+    (buckets[era] ??= []).add(book);
   }
 
   /// מסווג ספר לדור לפי segment בנתיב הקטגוריה. מכסה ראשונים/אחרונים/מחברי

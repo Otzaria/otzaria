@@ -190,4 +190,59 @@ void main() {
     );
     expect(hits, hasLength(4));
   });
+
+  test('חיפוש חוזר בודק נראות רק בדור המבוקש ושומר על סדר הקטלוג', () {
+    seedBooks([
+      for (var i = 99; i >= 0; i--)
+        (
+          id: i,
+          normalizedTitle: 'חידושי  סנהדרין $i',
+          categoryPath: i % 10 == 0 ? 'בבלי, ראשונים' : 'בבלי, אחרונים',
+        ),
+    ]);
+
+    for (var search = 0; search < 2; search++) {
+      final checked = <int>[];
+      final hits = cache.searchByEraAndTopic(
+        CommentaryEra.rishonim,
+        const ['חידו', 'סנהד'],
+        limit: 2,
+        allowsBook: (id, path, type) {
+          checked.add(id);
+          return id != 90;
+        },
+      );
+      expect(hits.map((hit) => hit.bookId), [80, 70]);
+      expect(checked, [90, 80, 70]);
+    }
+  });
+
+  test('איפוס מטמון הספרים והזנה מחדש מעדכנים את קבוצות הדור', () {
+    const book = (id: 1, normalizedTitle: 'סנהדרין', categoryPath: 'ראשונים');
+    seedBooks([book]);
+    BooksCache.instance.clear();
+
+    expect(
+      cache.searchByEraAndTopic(CommentaryEra.rishonim, ['סנהד']),
+      isEmpty,
+    );
+
+    seedBooks([
+      (
+        id: book.id,
+        normalizedTitle: book.normalizedTitle,
+        categoryPath: 'אחרונים',
+      ),
+    ]);
+    expect(
+      cache.searchByEraAndTopic(CommentaryEra.rishonim, ['סנהד']),
+      isEmpty,
+    );
+    expect(
+      cache
+          .searchByEraAndTopic(CommentaryEra.acharonim, ['סנהד'])
+          .map((hit) => hit.bookId),
+      [book.id],
+    );
+  });
 }
