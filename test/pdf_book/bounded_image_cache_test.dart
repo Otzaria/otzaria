@@ -57,6 +57,23 @@ void main() {
     cache.dispose();
   });
 
+  test('תמונה גדולה מדי אינה מוחקת תמונה תקינה באותו מפתח', () async {
+    final cache = BoundedImageCache<int>(maxBytes: 1000);
+    final small = await image10();
+    final oversized = await createTestImage(width: 20, height: 20);
+    cache.put(1, small);
+    cache.put(1, oversized);
+
+    expect(cache.length, 1);
+    expect(cache.bytes, 400);
+    final preserved = cache.lookup(1)!;
+    expect(preserved.width, 10);
+    preserved.dispose();
+    small.dispose();
+    oversized.dispose();
+    cache.dispose();
+  });
+
   test('מטמונים נפרדים חולקים אומדן זיכרון אחד', () async {
     final budget = PdfImageCacheBudget(maximumBytes: 1000);
     final first = BoundedImageCache<int>(maxBytes: 1000, budget: budget);
