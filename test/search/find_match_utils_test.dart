@@ -154,6 +154,32 @@ Future<void> main() async {
     },
   );
 
+  test('סטיית אורך בוחרת את הכותרת הקרובה ביותר לשאילתה', () {
+    expect(
+      findNormalizedTextMatchLengthDelta(
+        normalizedQuery: '1234567890',
+        normalizedPrimaryText: '1234',
+        normalizedSecondaryText: '12345678901',
+      ),
+      1,
+    );
+    expect(
+      findNormalizedTextMatchLengthDelta(
+        normalizedQuery: '1234567890',
+        normalizedPrimaryText: '12345678901',
+        normalizedSecondaryText: '1234',
+      ),
+      1,
+    );
+    expect(
+      findNormalizedTextMatchLengthDelta(
+        normalizedQuery: '1234567890',
+        normalizedPrimaryText: '1234',
+      ),
+      6,
+    );
+  });
+
   test('findNormalizedTextMatchRank מעדיף התאמה מדויקת על contains', () {
     const query = 'שבת דף ע';
 
