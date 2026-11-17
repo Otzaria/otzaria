@@ -776,6 +776,8 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
     );
   }
 
+  static const double _pdfScrollbarGutter = 16.0;
+
   final GlobalKey<AppContextMenuRegionState> _pdfContextMenuKey = GlobalKey();
 
   /// בניית PDF viewer דרך נתיב הקובץ
@@ -787,100 +789,106 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
     }
     return Stack(
       children: [
-        AppContextMenuRegion(
-          key: _pdfContextMenuKey,
-          // לחיצה ארוכה נתפסת ב-onGeneralTap, אחרת pdfrx פותח עליה תפריט Flutter.
-          openOnLongPress: false,
-          menuBuilder: (_, _) {
-            final controller = _pdfController!;
-            final selection = controller.isReady
-                ? controller.textSelectionDelegate
-                : null;
-            return [
-              AppContextMenuEntry(
-                label: 'העתק',
-                icon: FluentIcons.copy_24_regular,
-                enabled:
-                    selection != null &&
-                    selection.hasSelectedText &&
-                    selection.isCopyAllowed,
-                onTap: () => selection?.copyTextSelection(),
+        Positioned.fill(
+          right: _pdfScrollbarGutter + 4,
+          child: AppContextMenuRegion(
+            key: _pdfContextMenuKey,
+            // לחיצה ארוכה נתפסת ב-onGeneralTap, אחרת pdfrx פותח עליה תפריט Flutter.
+            openOnLongPress: false,
+            menuBuilder: (_, _) {
+              final controller = _pdfController!;
+              final selection = controller.isReady
+                  ? controller.textSelectionDelegate
+                  : null;
+              return [
+                AppContextMenuEntry(
+                  label: 'העתק',
+                  icon: FluentIcons.copy_24_regular,
+                  enabled:
+                      selection != null &&
+                      selection.hasSelectedText &&
+                      selection.isCopyAllowed,
+                  onTap: () => selection?.copyTextSelection(),
+                ),
+              ];
+            },
+            child: PdfViewer(
+              PdfFontFallback.documentRef(
+                filePath,
+                passwordProvider: () => passwordDialog(context),
               ),
-            ];
-          },
-          child: PdfViewer(
-            PdfFontFallback.documentRef(
-              filePath,
-              passwordProvider: () => passwordDialog(context),
-            ),
-            key: ValueKey('pdf_${widget.book!.title}'),
-            initialPageNumber: widget.initialPdfPage ?? 1,
-            controller: _pdfController!,
-            params: PdfViewerParams(
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              maxImageBytesCachedOnMemory: kPdfPreviewImageBudgetBytes,
-              imageCacheBudget: pdfSharedImageBudget,
-              zoomStepsDelegateProvider:
-                  const PdfViewerZoomStepsDelegateProviderSmart(),
-              sizeDelegateProvider: PdfViewerSizeDelegateProviderLegacy(
-                maxScale: 10,
-              ),
-              horizontalCacheExtent: 0,
-              verticalCacheExtent: 1,
-              pageAnchor: PdfPageAnchor.top,
-              margin: 4,
-              // כמו בקורא: ברירת המחדל של pdfrx (0.2) איטית פי 5 מגלגלת בטקסט.
-              scrollByMouseWheel: 1.0,
-              pagePaintCallbacks: [_paintPdfHighlights],
-              onGeneralTap: (tapContext, _, details) {
-                if (details.type == PdfViewerGeneralTapType.secondaryTap) {
+              key: ValueKey('pdf_${widget.book!.title}'),
+              initialPageNumber: widget.initialPdfPage ?? 1,
+              controller: _pdfController!,
+              params: PdfViewerParams(
+                backgroundColor: Theme.of(context).colorScheme.surface,
+                maxImageBytesCachedOnMemory: kPdfPreviewImageBudgetBytes,
+                imageCacheBudget: pdfSharedImageBudget,
+                zoomStepsDelegateProvider:
+                    const PdfViewerZoomStepsDelegateProviderSmart(),
+                sizeDelegateProvider: PdfViewerSizeDelegateProviderLegacy(
+                  maxScale: 10,
+                ),
+                horizontalCacheExtent: 0,
+                verticalCacheExtent: 1,
+                pageAnchor: PdfPageAnchor.top,
+                margin: 4,
+                // כמו בקורא: ברירת המחדל של pdfrx (0.2) איטית פי 5 מגלגלת בטקסט.
+                scrollByMouseWheel: 1.0,
+                pagePaintCallbacks: [_paintPdfHighlights],
+                onGeneralTap: (tapContext, _, details) {
+                  if (details.type == PdfViewerGeneralTapType.secondaryTap) {
+                    return true;
+                  }
+                  if (details.type != PdfViewerGeneralTapType.longPress) {
+                    return false;
+                  }
+                  final box = tapContext.findRenderObject();
+                  _pdfContextMenuKey.currentState?.openMenuAt(
+                    box is RenderBox
+                        ? box.localToGlobal(details.localPosition)
+                        : details.localPosition,
+                  );
                   return true;
-                }
-                if (details.type != PdfViewerGeneralTapType.longPress) {
-                  return false;
-                }
-                final box = tapContext.findRenderObject();
-                _pdfContextMenuKey.currentState?.openMenuAt(
-                  box is RenderBox
-                      ? box.localToGlobal(details.localPosition)
-                      : details.localPosition,
-                );
-                return true;
-              },
-              onDocumentChanged: (document) {
-                if (document != null) return;
-                _clearPdfHighlights();
-                if (!_isPdfViewerReady || !mounted) return;
-                setState(() => _isPdfViewerReady = false);
-              },
-              onViewerReady: (document, controller) {
-                if (_isPdfViewerReady || !mounted) return;
-                setState(() => _isPdfViewerReady = true);
-                unawaited(_updatePdfHighlights());
-              },
-              viewerOverlayBuilder: (context, size, handleLinkTap) => [
-                if (_isPdfViewerReady)
-                  KeyedSubtree(
-                    key: _pdfVerticalScrollbarKey,
-                    child: PdfScrollbar(
-                      controller: _pdfController!,
-                      orientation: ScrollbarOrientation.right,
-                      trackThickness: 16.0,
-                      thumbMinSize: 50.0,
+                },
+                onDocumentChanged: (document) {
+                  if (document != null) return;
+                  _clearPdfHighlights();
+                  if (!_isPdfViewerReady || !mounted) return;
+                  setState(() => _isPdfViewerReady = false);
+                },
+                onViewerReady: (document, controller) {
+                  if (_isPdfViewerReady || !mounted) return;
+                  setState(() => _isPdfViewerReady = true);
+                  unawaited(_updatePdfHighlights());
+                },
+                viewerOverlayBuilder: (context, size, handleLinkTap) => [
+                  if (_isPdfViewerReady)
+                    KeyedSubtree(
+                      key: _pdfHorizontalScrollbarKey,
+                      child: PdfHorizontalScrollbar(
+                        controller: _pdfController!,
+                        trackThickness: 10.0,
+                      ),
                     ),
-                  ),
-                if (_isPdfViewerReady)
-                  KeyedSubtree(
-                    key: _pdfHorizontalScrollbarKey,
-                    child: PdfHorizontalScrollbar(
-                      controller: _pdfController!,
-                      trackThickness: 10.0,
-                    ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
+        // הפס מחוץ לצופה, ברצועה משלו, כדי שלא יכסה את התוכן.
+        if (_isPdfViewerReady)
+          Positioned.fill(
+            child: KeyedSubtree(
+              key: _pdfVerticalScrollbarKey,
+              child: PdfScrollbar(
+                controller: _pdfController!,
+                orientation: ScrollbarOrientation.right,
+                trackThickness: _pdfScrollbarGutter,
+                thumbMinSize: 50.0,
+              ),
+            ),
+          ),
         Positioned.fill(
           child: Listener(
             behavior: HitTestBehavior.translucent,
