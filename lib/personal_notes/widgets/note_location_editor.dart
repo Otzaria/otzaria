@@ -7,6 +7,7 @@ import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 
 /// חלון "מיקום ההערה". מחזיר את [edit] כשנשמר שינוי, אחרת null.
 Future<NoteLocationEdit?> showNoteLocationEditor(
@@ -89,7 +90,7 @@ class _NoteLocationEditorState extends State<NoteLocationEditor> {
             SegmentOption(
               value: PersonalNoteScope.lines,
               label: 'שורות',
-              icon: FluentIcons.text_paragraph_24_regular,
+              icon: OtzariaIcons.text_first_line_24_regular,
             ),
             SegmentOption(
               value: PersonalNoteScope.book,
