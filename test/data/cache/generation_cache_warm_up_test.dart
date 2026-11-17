@@ -18,6 +18,36 @@ import '../../test_helpers/memory_cache_provider.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('קריאת דורות בוחרת דור מוקדם ומשחררת את המסד גם בשגיאה', () async {
+    final tempDir = await Directory.systemTemp.createTemp('generation_rows');
+    addTearDown(() => tempDir.delete(recursive: true));
+    final path = SeforimFixtureDb.create(tempDir, SeforimFixtureVariant.full);
+    final writer = sqlite3.open(path);
+    addTearDown(writer.close);
+    const bookId = SeforimFixtureIds.rashiId;
+    writer.execute('INSERT INTO generation VALUES (2, ?), (3, ?)', [
+      CommentaryEra.chazal.hebrewName,
+      CommentaryEra.modern.hebrewName,
+    ]);
+    writer.execute('INSERT INTO book_generation VALUES (?, 2), (?, 3)', [
+      bookId,
+      bookId,
+    ]);
+
+    final target = (path: path, untrusted: true, immutable: false);
+    expect(await GenerationCache.readGenerationsInIsolate(target), {
+      bookId: CommentaryEra.chazal.order,
+    });
+
+    writer.execute("UPDATE generation SET name = X'01' WHERE id = 1");
+    expect(
+      () => GenerationCache.readGenerations(target),
+      throwsA(isA<TypeError>()),
+    );
+    writer.execute('BEGIN EXCLUSIVE');
+    writer.execute('ROLLBACK');
+  });
+
   test('חימום ממתין גם לרענון שהתחיל עם סיום הרענון הקודם', () async {
     final tempDir = await Directory.systemTemp.createTemp('generation_cache');
     final cache = GenerationCache.instance;

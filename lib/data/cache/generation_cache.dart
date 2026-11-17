@@ -261,26 +261,28 @@ class GenerationCache {
         "AND name IN ('book_generation', 'generation')",
       );
       if (tables.first['n'] != 2) return const {};
-      final orders = <int, int>{};
-      _accumulate(db.select(_selectSql), orders);
-      return orders;
+      final statement = db.prepare(_selectSql);
+      try {
+        final cursor = statement.selectCursor();
+        final orders = <int, int>{};
+        while (cursor.moveNext()) {
+          final row = cursor.current;
+          final bookId = row.columnAt(0) as int?;
+          final name = row.columnAt(1) as String?;
+          if (bookId == null || name == null) continue;
+          final order = _orderForGenerationName(name);
+          // לספר רב-מחברי שומרים את הדור המוקדם ביותר.
+          final existing = orders[bookId];
+          if (existing == null || order < existing) {
+            orders[bookId] = order;
+          }
+        }
+        return orders;
+      } finally {
+        statement.close();
+      }
     } finally {
       db.close();
-    }
-  }
-
-  /// צובר bookId→order מתוצאת [_selectSql]. ספר רב-מחברי → הדור המוקדם
-  /// ביותר (order מינימלי), קומוטטיבי ולכן דטרמיניסטי בלי תלות בסדר השורות.
-  static void _accumulate(Iterable rows, Map<int, int> into) {
-    for (final row in rows) {
-      final bookId = row['bookId'] as int?;
-      final name = row['generationName'] as String?;
-      if (bookId == null || name == null) continue;
-      final order = _orderForGenerationName(name);
-      final existing = into[bookId];
-      if (existing == null || order < existing) {
-        into[bookId] = order;
-      }
     }
   }
 
@@ -307,6 +309,7 @@ class GenerationCache {
   /// ממפה שם דור מה-DB לסדר ([CommentaryEra]). גרשיים מנורמלים כדי
   /// להתאים בין כתיב ה-DB ל-hebrewName של ה-enum.
   static int _orderForGenerationName(String name) =>
+      _orderByStrippedGenerationName[name] ??
       _orderByStrippedGenerationName[_stripGershayim(name)] ??
       CommentaryEra.other.order;
 
