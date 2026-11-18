@@ -360,6 +360,50 @@ class SeforimRepository {
     return result.map((row) => row['descendantId'] as int).toList();
   }
 
+  /// האם בענף יש ספר שהמקור או הנתיב שלו מוכיחים שיוך לתיקייה מוגדרת.
+  Future<bool> hasCustomFolderOwnership(
+    int categoryId,
+    bool Function(String? sourceName, String? filePath) ownsBook,
+  ) async {
+    final capabilities = await _capabilities;
+    if (!capabilities.hasCategoryClosure || !capabilities.hasBookCategories) {
+      return false;
+    }
+    final filePath = capabilities.column('book', 'filePath', qualifier: 'b');
+    final hasSource = capabilities.hasColumn('source', 'name');
+    final sourceId = capabilities.hasColumn('book', 'sourceId')
+        ? 'COALESCE(b.sourceId, 0)'
+        : '0';
+    final sourceName = hasSource ? 's.name' : 'NULL';
+    final sourceJoin = hasSource
+        ? 'LEFT JOIN source s ON s.id = $sourceId'
+        : '';
+    final db = await _database.database;
+    // מתחילים בצאצאי הענף, כדי לעצור בלי לסרוק ספרים מחוץ לענף.
+    final statement = db.prepare('''
+      SELECT $sourceName AS sourceName, $filePath
+      FROM category_closure c
+      CROSS JOIN book b ON b.categoryId = c.descendantId
+      $sourceJoin
+      WHERE c.ancestorId = ?
+    ''');
+    try {
+      final cursor = statement.selectCursor([categoryId]);
+      while (cursor.moveNext()) {
+        final row = cursor.current;
+        if (ownsBook(
+          row['sourceName'] as String?,
+          row['filePath'] as String?,
+        )) {
+          return true;
+        }
+      }
+      return false;
+    } finally {
+      statement.close();
+    }
+  }
+
   // --- Categories ---
 
   /// Retrieves all categories.
@@ -509,6 +553,10 @@ class SeforimRepository {
       pubDates: pubDates,
     );
   }
+
+  /// ספרי קטגוריה ללא טעינת היחסים, כשדרושים רק שדות שורת הספר.
+  Future<List<Book>> getBooksByCategoryLean(int categoryId) =>
+      _database.bookDao.getBooksByCategory(categoryId);
 
   /// Retrieves all books in a specific category.
   ///

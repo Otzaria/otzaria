@@ -802,6 +802,88 @@ void main() {
     },
   );
 
+  test('ניקוי תיקיות שהוסרו שומר שיוך מקור או נתיב בעץ עמוק', () async {
+    final personal = await repository.insertCategory(
+      const Category(title: 'ספרים אישיים'),
+    );
+    final folder = path.join(tempDir.path, 'active');
+    final source = await repository.insertSource(
+      _sourceNameForFolder(folder),
+      -1,
+    );
+    final legacy = await repository.insertSource('Personal', -1);
+
+    Future<(int, int)> addBranch(String name) async {
+      final branch = await repository.insertCategory(
+        Category(title: name, parentId: personal, level: 1),
+      );
+      var leaf = branch;
+      for (var level = 2; level <= 8; level++) {
+        leaf = await repository.insertCategory(
+          Category(title: 'עומק $level', parentId: leaf, level: level),
+        );
+      }
+      return (branch, leaf);
+    }
+
+    final bySource = await addBranch('לפי המקור');
+    final byPath = await addBranch('לפי הנתיב');
+    final stale = await addBranch('ספרים מספריות חיצוניות');
+    Future<int> addBook(int category, int sourceId, String? filePath) =>
+        repository.insertBook(
+          Book(
+            id: 0,
+            categoryId: category,
+            sourceId: sourceId,
+            title: 'ספר $category',
+            isPersonal: true,
+            fileType: 'txt',
+            filePath: filePath,
+          ),
+        );
+
+    final rootBook = await addBook(personal, legacy, null);
+    final sourceSibling = await addBook(bySource.$1, source, null);
+    final sourceBook = await addBook(bySource.$2, source, null);
+    final pathBook = await addBook(
+      byPath.$2,
+      legacy,
+      path.join(folder, 'sub', 'ספר.txt'),
+    );
+    final staleBook = await addBook(
+      stale.$2,
+      legacy,
+      path.join('$folder-copy', 'ספר.txt'),
+    );
+
+    var rowsChecked = 0;
+    expect(
+      await repository.hasCustomFolderOwnership(bySource.$1, (sourceName, _) {
+        rowsChecked++;
+        return sourceName == _sourceNameForFolder(folder);
+      }),
+      isTrue,
+    );
+    expect(rowsChecked, 1);
+
+    final service = (await FileSyncService.getInstance(
+      repository,
+      userBooksRepository: repository,
+    ))!;
+    await service.pruneRemovedCustomFoldersFromDatabase([
+      CustomFolder(path: folder, addedAt: DateTime(2026, 4, 13)),
+    ]);
+
+    final books = await repository.getAllBooksLean();
+    expect(
+      books.map((book) => book.id),
+      unorderedEquals([rootBook, sourceSibling, sourceBook, pathBook]),
+    );
+    expect(books.map((book) => book.id), isNot(contains(staleBook)));
+    expect(await repository.getCategory(stale.$1), isNull);
+    expect(await repository.getCategory(stale.$2), isNull);
+  });
+
   group('מחיקת ספרים אינה חוסמת את ה-isolate הקורא בזמן נעילת כותב', () {
     late String folderPath;
     late List<CustomFolder> folders;
