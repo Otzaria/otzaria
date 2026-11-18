@@ -2148,8 +2148,19 @@ void main() {
       final next = _routine(script, 'function NextButtonClick(');
       expect(
         next,
-        contains('AskPortableLibraryChoice()'),
+        contains(
+          'if (CurPageID = wpReady) and Result then\n'
+          '    AskPortableLibraryChoice();',
+        ),
         reason: 'השאלה חייבת לרוץ בעמוד Ready, לפני תחילת ההתקנה',
+      );
+      expect(
+        next.indexOf('if WizardSilent then\n    exit;'),
+        allOf(
+          isNonNegative,
+          lessThan(next.indexOf('AskPortableLibraryChoice()')),
+        ),
+        reason: 'בהתקנה שקטה נשמרת ברירת המחדל של התקנת הספרייה',
       );
     });
 
@@ -2169,9 +2180,48 @@ void main() {
       );
     });
 
-    test('$_full: הדילוג כותב את ה-marker ויוצא לפני החילוץ', () {
-      final body = _routine(_script(_full), 'procedure CurStepChanged(');
-      final skipAt = body.indexOf('PortableMode and PortableSkipLibrary');
+    test('$_full: הדילוג מונע העתקת ארכיונים ויוצא לפני החילוץ', () {
+      final script = _script(_full);
+      final shouldInstall = _routine(
+        script,
+        'function ShouldInstallBundledLibrary(',
+      );
+      expect(
+        shouldInstall,
+        contains('Result := not (PortableMode and PortableSkipLibrary);'),
+      );
+
+      final files = _section(script, 'Files').split('\n');
+      final archives = files.where(
+        (line) => line.startsWith(r'Source: "library_db\'),
+      );
+      expect(archives, hasLength(4));
+      for (final archive in archives) {
+        expect(archive, contains('DestDir: "{code:GetBundledArchiveDir}"'));
+        expect(archive, contains('Flags: deleteafterinstall nocompression'));
+        expect(archive, contains('Check: ShouldInstallBundledLibrary'));
+      }
+      for (final tool in ['zstd.exe', '7za.exe']) {
+        final entry = files.singleWhere(
+          (line) => line.startsWith('Source: "$tool"'),
+        );
+        expect(entry, contains('DestDir: "{tmp}"'));
+        expect(entry, contains('Check: ShouldInstallBundledLibrary'));
+      }
+      for (final extractor in [
+        'ExtractBundledDatabase',
+        'ExtractBundledTarArchive',
+      ]) {
+        expect(
+          _routine(script, 'procedure $extractor('),
+          contains(
+            r"ArchivePath := GetBundledArchiveDir('') + '\' + ArchiveName;",
+          ),
+        );
+      }
+
+      final body = _routine(script, 'procedure CurStepChanged(');
+      final skipAt = body.indexOf('if not ShouldInstallBundledLibrary() then');
       final extractAt = body.indexOf('zstd.exe');
 
       expect(skipAt, greaterThan(0));
