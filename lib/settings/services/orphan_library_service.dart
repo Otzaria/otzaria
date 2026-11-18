@@ -94,7 +94,10 @@ abstract class OrphanLibraryService {
     if (current == null || !p.equals(current, info.path)) {
       throw StateError('העותק אינו מזוהה עוד כיתום — המחיקה בוטלה');
     }
-    await Directory(info.path).delete(recursive: true);
+    final directory = Directory(current);
+    // שגיאת סריקה צריכה להתגלות לפני שהמחיקה משנה את העץ.
+    await _listTree(directory).drain<void>();
+    await directory.delete(recursive: true);
   }
 
   /// AppId של המתקין — רשומת ההסרה ב-HKLM נכתבת רק בהתקנת מנהל
@@ -133,11 +136,12 @@ abstract class OrphanLibraryService {
     );
   }
 
+  static Stream<FileSystemEntity> _listTree(Directory directory) =>
+      directory.list(recursive: true, followLinks: false);
+
   static Future<int> _directorySize(String path) async {
     var total = 0;
-    await for (final entity in Directory(
-      path,
-    ).list(recursive: true, followLinks: false)) {
+    await for (final entity in _listTree(Directory(path))) {
       if (entity is File) {
         try {
           total += await entity.length();
