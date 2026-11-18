@@ -179,13 +179,13 @@ void main() {
       );
       tester.widget<ExpandableSettingsTile>(section).onTap!();
       await tester.pump();
-      final backupMode = find.byWidgetPredicate(
-        (w) =>
-            w is SegmentedButton &&
-            w.segments.any(
-              (s) => s.label is Text && (s.label as Text).data == 'גבה הכל',
-            ),
-      );
+      // התווית עטופה (UiLabelNudge) — מחפשים את הבורר שמעל הטקסט.
+      final backupMode = find
+          .ancestor(
+            of: find.text('גבה הכל'),
+            matching: find.byWidgetPredicate((w) => w is SegmentedButton),
+          )
+          .first;
       expect(
         tester.widget<SegmentedButton>(backupMode).selected.single.toString(),
         endsWith('.all'),
