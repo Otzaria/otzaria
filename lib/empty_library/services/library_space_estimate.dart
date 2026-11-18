@@ -30,13 +30,13 @@ abstract final class ExpansionFallback {
 /// גודל דחוס וגודל אחרי חילוץ של נכס אחד.
 typedef ArchiveSize = ({int compressed, int extracted});
 
-/// seforim.db כפי שנמדד בגרסה הנוכחית — הקובץ הגדול בספרייה.
-const int measuredDatabaseBytes = 3738877952;
+/// seforim.db ב-release v38 (נובמבר 2026), כאשר אין גודל עדכני מהרשת.
+const int measuredDatabaseBytes = 4418928640;
 
 /// הנכסים של הורדה ראשונית בגדלים שנמדדו (DB, תלמוד, קטלוג, מילון), לבדיקת
 /// הסף לפני שהגדלים האמיתיים ידועים.
 const List<ArchiveSize> measuredLibraryDownload = [
-  (compressed: 1807000000, extracted: measuredDatabaseBytes),
+  (compressed: 2246741848, extracted: measuredDatabaseBytes),
   (compressed: 472000000, extracted: 473500000),
   (compressed: 6000000, extracted: 37600000),
   (compressed: 57000000, extracted: 57000000),
@@ -160,6 +160,22 @@ int extractedSizeOf(
   int? archiveContentSize,
   required double fallbackRatio,
 }) => archiveContentSize ?? (compressedSize * fallbackRatio).ceil();
+
+/// גודל ה-DB לפי כותרת ה-frame הראשון. רצפה לפי גודל דחוס מגינה
+/// מפני ארכיון עתידי עם יותר מ-frame אחד, כשהראשון אינו כל ה-DB.
+/// בהיעדר FCS נשאר אומדן שמרני התלוי בגודל ה-release, ולא בקבוע ישן.
+int estimatedDatabaseExtractedSize(
+  int compressedSize, {
+  int? firstFrameSize,
+}) {
+  if (firstFrameSize != null && firstFrameSize > 0) {
+    return math.max(firstFrameSize, (compressedSize * 1.9).ceil());
+  }
+  return extractedSizeOf(
+    compressedSize,
+    fallbackRatio: ExpansionFallback.database,
+  );
+}
 
 /// מרווח ביטחון: 5% ולא פחות מ-256MiB (מטא-דאטה של מערכת הקבצים, WAL).
 int withSafetyMargin(int bytes) =>
