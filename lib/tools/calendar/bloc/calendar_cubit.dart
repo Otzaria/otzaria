@@ -65,6 +65,9 @@ class _DefaultPluginSource implements CalendarPluginSource {
 class CalendarCubit extends Cubit<CalendarState> {
   final SettingsRepository _settingsRepository;
 
+  // ייבוא גדול שומר על סדר השמירה גם מול ייבוא בחלון אחר.
+  static final _pendingIcsImports = Expando<Future<void>>();
+
   /// כל שינוי במצב ההתראות עובר דרך הבעלים; ה-cubit מציג את מה שאישר.
   final CalendarAlertsClient _alerts;
   StreamSubscription<CalendarAlertsUpdate>? _alertsUpdates;
@@ -1185,18 +1188,30 @@ class CalendarCubit extends Cubit<CalendarState> {
   /// המזהים נגזרים מה-UID שבקובץ, כך שייבוא חוזר של אותו קובץ מעדכן
   /// אירועים קיימים במקום לשכפל אותם.
   Future<int> importIcsContent(String content) async {
-    final parsed = await IcsCalendarService.parseIcsAsync(content);
-    if (isClosed || parsed.isEmpty) return 0;
-    emit(
-      state.copyWith(
-        events: [..._upsertedUserEvents(parsed), ..._pluginEvents],
-      ),
-    );
-    final ack = await _send('replaceSourceEvents', {
-      'kind': 'file',
-      'events': [for (final e in parsed) _eventJson(e)],
-    });
-    return ack.ok ? parsed.length : 0;
+    final previous = _pendingIcsImports[_alerts];
+    final completed = Completer<void>();
+    _pendingIcsImports[_alerts] = completed.future;
+    try {
+      if (previous != null) await previous;
+      if (isClosed) return 0;
+      final parsed = await IcsCalendarService.parseIcsAsync(content);
+      if (isClosed || parsed.isEmpty) return 0;
+      emit(
+        state.copyWith(
+          events: [..._upsertedUserEvents(parsed), ..._pluginEvents],
+        ),
+      );
+      final ack = await _send('replaceSourceEvents', {
+        'kind': 'file',
+        'events': [for (final e in parsed) _eventJson(e)],
+      });
+      return ack.ok ? parsed.length : 0;
+    } finally {
+      if (identical(_pendingIcsImports[_alerts], completed.future)) {
+        _pendingIcsImports[_alerts] = null;
+      }
+      completed.complete();
+    }
   }
 
   /// מוסיף מנוי ליומן מקישור ICS ומייבא את האירועים ממנו.

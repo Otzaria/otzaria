@@ -3,6 +3,9 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/tools/calendar/services/calendar_alerts_client.dart';
+import 'package:otzaria/tools/calendar/services/calendar_alerts_owner.dart';
+import 'package:otzaria/tools/calendar/services/calendar_alerts_store.dart';
 import 'package:otzaria/tools/calendar/services/ics_calendar_service.dart';
 import 'package:otzaria/tools/calendar/services/notification_service.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
@@ -93,10 +96,11 @@ void main() {
   Object? fetchError;
   Completer<String>? pendingFetch;
 
-  CalendarCubit buildCubit() {
+  CalendarCubit buildCubit({CalendarAlertsClient? alertsClient}) {
     return CalendarCubit(
       settingsRepository: settings,
       notificationService: _FakeNotificationService(),
+      alertsClient: alertsClient,
       icsCalendarService: IcsCalendarService(
         httpFetcher: (uri) async {
           fetchedUris.add(uri);
@@ -145,6 +149,41 @@ void main() {
 
     expect(await importing, 0);
     expect(settings.savedEventsJson, '[]');
+  });
+
+  test('ייבוא מאוחר מחליף אירוע מייבוא גדול שהתחיל בחלון אחר', () async {
+    final owner = CalendarAlertsOwner(
+      store: RepositoryCalendarAlertsStore(settings),
+      notifications: _FakeNotificationService(),
+    );
+    addTearDown(() async {
+      await owner.idle;
+      owner.dispose();
+    });
+    final alerts = LocalCalendarAlertsClient(owner);
+    final firstWindow = buildCubit(alertsClient: alerts);
+    final secondWindow = buildCubit(alertsClient: alerts);
+    addTearDown(firstWindow.close);
+    addTearDown(secondWindow.close);
+    await Future.wait([firstWindow.initialized, secondWindow.initialized]);
+
+    final original = _icsWithEvents(['shared']);
+    final large = original.replaceFirst(
+      'END:VCALENDAR\n',
+      '${'X-PADDING:1234567890\n' * 10000}END:VCALENDAR\n',
+    );
+    final updated = original.replaceFirst('אירוע shared', 'עדכון חדש');
+    expect(
+      await Future.wait([
+        firstWindow.importIcsContent(large),
+        secondWindow.importIcsContent(updated),
+      ]),
+      [1, 1],
+    );
+
+    expect(secondWindow.state.events.single.title, 'עדכון חדש');
+    final saved = jsonDecode(settings.savedEventsJson) as List;
+    expect(saved.single, containsPair('title', 'עדכון חדש'));
   });
 
   test('addIcsSubscription מוסיף מנוי ואירועים ושומר את שניהם', () async {
