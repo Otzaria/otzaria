@@ -1015,8 +1015,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
         'פנוי ${gb(archiveInfo.freeBytes)}GB',
       );
     }
-    if (extractInfo.freeBytes >= 0 &&
-        extractInfo.freeBytes < extractedDbSize) {
+    if (extractInfo.freeBytes >= 0 && extractInfo.freeBytes < extractedDbSize) {
       throw LibraryUpdateDiskSpaceException(
         'אין מספיק מקום פנוי לחילוץ הספרייה: '
         'נדרש ~${gb(extractedDbSize)}GB, '
