@@ -136,20 +136,28 @@ String cleanLineForSearch(String rawLine) => utils
 String _normalizeQueryWhitespace(String query) =>
     query.replaceAll(_whitespaceRun, ' ');
 
-void _updateAddress(List<String> address, String line) {
-  if (line.length < 4) {
-    address.add(line);
-    return;
-  }
+class _SearchAddress {
+  final _headings = <String>[];
+  String? _cleaned;
 
-  final index = address.indexWhere(
-    (e) => e.length >= 4 && e.substring(0, 4) == line.substring(0, 4),
+  String get cleaned => _cleaned ??= utils.removeVolwels(
+    utils.stripHtmlIfNeeded(_headings.join(', ')),
   );
 
-  if (index != -1) {
-    address.removeRange(index, address.length);
+  void update(String line) {
+    if (line.length >= 4) {
+      final prefix = line.substring(0, 4);
+      final index = _headings.indexWhere(
+        (heading) => heading.length >= 4 && heading.startsWith(prefix),
+      );
+      if (index >= 0) {
+        if (index == _headings.length - 1 && _headings[index] == line) return;
+        _headings.removeRange(index, _headings.length);
+      }
+    }
+    _headings.add(line);
+    _cleaned = null;
   }
-  address.add(line);
 }
 
 /// ביטוי עובר לשורה הבאה רק במפריד שבין מילים, ולכן מילה אחת אינה נמשכת.
@@ -761,7 +769,7 @@ class SectionSearchWorkerRuntime {
 
           final results = <Map<String, dynamic>>[];
           final lineMatches = <({int start, int end})>[];
-          final address = <String>[];
+          final address = _SearchAddress();
           bool canceled = false;
           bool truncated = false;
 
@@ -775,7 +783,7 @@ class SectionSearchWorkerRuntime {
           // הכותרות שלפני הטווח עדיין בונות את כתובת התוצאות שבתוכו.
           while (nextHeading < headingLines.length &&
               headingLines[nextHeading] < rangeStart) {
-            _updateAddress(address, sourceLines[headingLines[nextHeading++]]);
+            address.update(sourceLines[headingLines[nextHeading++]]);
           }
 
           for (int i = rangeStart; i < rangeEnd; i++) {
@@ -801,7 +809,7 @@ class SectionSearchWorkerRuntime {
 
             if (nextHeading < headingLines.length &&
                 headingLines[nextHeading] == i) {
-              _updateAddress(address, rawLine);
+              address.update(rawLine);
               nextHeading++;
             }
 
@@ -819,17 +827,13 @@ class SectionSearchWorkerRuntime {
               lineMatches,
               count: min(lineMatches.length, remainingCapacity),
             );
-            String? cleanAddress;
             for (int m = 0; m < lineMatches.length; m++) {
               final match = lineMatches[m];
-              cleanAddress ??= utils.removeVolwels(
-                utils.stripHtmlIfNeeded(address.join(', ')),
-              );
               results.add({
                 'index': i,
                 'snippet': snippets[m].text,
                 'snippetGroupOffset': snippets[m].groupOffset,
-                'address': cleanAddress,
+                'address': address.cleaned,
                 'query': query,
                 'matchOffset': match.start,
                 'lineLength': line.length,
@@ -854,13 +858,10 @@ class SectionSearchWorkerRuntime {
                 nextLine: cleanLineAt(i + 1),
               );
               if (crossing != null) {
-                cleanAddress ??= utils.removeVolwels(
-                  utils.stripHtmlIfNeeded(address.join(', ')),
-                );
                 results.add({
                   'index': i,
                   'snippet': crossing.snippet,
-                  'address': cleanAddress,
+                  'address': address.cleaned,
                   'query': query,
                   'matchOffset': crossing.offset,
                   'lineLength': line.length,
@@ -991,7 +992,7 @@ searchUserRegexInContent({
 
   final results = <TextSearchResult>[];
   final lineMatches = <({int start, int end})>[];
-  final address = <String>[];
+  final address = _SearchAddress();
   var truncated = false;
   final rangeStart = range?.start ?? 0;
   final requestedEnd = range?.end;
@@ -1006,7 +1007,7 @@ searchUserRegexInContent({
     }
     final rawLine = content[i];
     if (rawLine.contains('<h') && !rawLine.startsWith('<h1')) {
-      _updateAddress(address, rawLine);
+      address.update(rawLine);
     }
     if (i < rangeStart) continue;
 
@@ -1023,8 +1024,6 @@ searchUserRegexInContent({
       lineMatches,
       count: min(lineMatches.length, remainingCapacity),
     );
-    String cleanAddress() =>
-        utils.removeVolwels(utils.stripHtmlIfNeeded(address.join(', ')));
     for (var m = 0; m < lineMatches.length; m++) {
       if (results.length >= _maxSearchResults) {
         truncated = true;
@@ -1036,7 +1035,7 @@ searchUserRegexInContent({
           index: i,
           snippet: snippets[m].text,
           snippetGroupOffset: snippets[m].groupOffset,
-          address: cleanAddress(),
+          address: address.cleaned,
           query: query,
           matchOffset: match.start,
           lineLength: line.length,
@@ -1063,7 +1062,7 @@ searchUserRegexInContent({
       TextSearchResult(
         index: i,
         snippet: crossing.snippet,
-        address: cleanAddress(),
+        address: address.cleaned,
         query: query,
         matchOffset: crossing.offset,
         lineLength: line.length,
