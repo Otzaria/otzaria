@@ -185,9 +185,9 @@ void main() {
     await search(tester, 'בראשית');
     expect(find.text('בראשית ברא'), findsOneWidget);
 
-    // אותה שאילתה ונתונים אחרים: דיבור שאינו קיים עוד לא יישאר בתוצאות.
-    await pumpSidebar(tester, dibburim: const {2: 'בראשית רבה'});
-    expect(find.text('בראשית ברא'), findsNothing);
+    // אותה שאילתה ואותו מזהה: הטקסט המעודכן מחליף את תוצאת המטמון.
+    await pumpSidebar(tester, dibburim: const {1: 'בראשית חדשה'});
+    expect(resultTitles(tester), ['פרשת בראשית', 'בראשית חדשה']);
   });
 }
 
