@@ -31,7 +31,7 @@ import 'package:otzaria/theme/app_surface_colors.dart';
 import 'package:otzaria/theme/app_theme_data.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
-import 'package:kosher_dart/kosher_dart.dart';
+
 import 'package:http/http.dart' as http;
 import 'package:otzaria/update/app_release_version.dart';
 import 'package:package_info_plus/package_info_plus.dart';
