@@ -1,5 +1,6 @@
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
+import 'package:otzaria/widgets/selection/paragraph_selection_container.dart';
 
 /// עוטף פריט של רשימת קריאה כדי שקצות הבחירה יישמרו יחסית לפריט
 /// ולא יחרגו לצדדים בגרירה (ראו [_ItemSelectionDelegate]).
@@ -29,8 +30,8 @@ class _ItemSelectionContainerState extends State<ItemSelectionContainer> {
 
 /// Flutter שומר את קצות הבחירה בקואורדינטות מסך ומשדר אותם שוב כשהטקסט נבנה
 /// מחדש; אחרי גלילה הם נוחתים על טקסט אחר, ולכן נשמרים יחסית לפריט.
-class _ItemSelectionDelegate extends StaticSelectionContainerDelegate {
-  _ItemSelectionDelegate(this._box);
+class _ItemSelectionDelegate extends ParagraphSelectionDelegate {
+  _ItemSelectionDelegate(this._box) : super(_box);
 
   final RenderObject? Function() _box;
   final _edges = <bool, Offset>{};

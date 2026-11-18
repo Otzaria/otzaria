@@ -18,8 +18,8 @@ import 'package:otzaria/widgets/smart_text/exact_line_height.dart';
 import 'package:otzaria/widgets/smart_text/inline_html_document.dart';
 import 'package:otzaria/widgets/smart_text/inline_html_text.dart';
 import 'package:otzaria/widgets/misc/inline_link_targets.dart';
+import 'package:otzaria/widgets/selection/paragraph_selection_container.dart';
 import 'package:otzaria/widgets/smart_text/otzaria_widget_factory.dart';
-import 'package:otzaria/widgets/smart_text/paragraph_selection_container.dart';
 import 'package:otzaria/widgets/smart_text/raised_markers.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/selection_fill_text.dart';
@@ -299,56 +299,54 @@ class SmartTextWidget extends StatelessWidget {
           onAnchorHover: onAnchorHover,
           onAnchorHoverExit: onAnchorHoverExit,
           onMiddleClickUrl: onMiddleClickUrl,
-          child: ParagraphSelectionContainer(
-            child: HtmlWidget(
-              _wrapWithRtlDivCached(processedHtml, settings.justifyText),
-              key: widgetKey,
-              // מעל 10K תווים fwfh בונה ב-isolate ומציג קודם גובה 0 — שורת רשימה
-              // קופצת אחרי פריים ו-jumpTo מחטיא.
-              buildAsync: false,
-              renderMode: renderMode,
-              textStyle: textStyle,
-              // העץ נשמר כל עוד ה-html וה-textStyle זהים; הצבעים אפויים ב-CSS,
-              // והימצאות ה-callbacks קובעת את מבנה הספאנים.
-              rebuildTriggers: [
-                linkColor,
-                colorScheme.surfaceContainerHighest,
-                colorScheme.outlineVariant,
-                colorScheme.onSurfaceVariant,
-                onAnchorHover != null,
-                onOpenBook != null,
-              ],
-              factoryBuilder: _SmartTextWidgetFactory.new,
-              customStylesBuilder: (dom.Element element) {
-                final elementCss = smartTextElementCss(
-                  element.localName,
-                  element.classes,
-                  hasHref: element.attributes.containsKey('href'),
-                  fontFamily: fontFamily,
-                  linkColorCss: anchorLinkColorCss,
-                  headingColorCss: headingColorCss,
-                );
-                if (elementCss != null) return elementCss;
-                final headingCss = smartTextHeadingCss(
-                  element.localName,
-                  fontFamily,
-                );
-                if (!hasMarkdownBlock) {
-                  return headingCss.isEmpty ? null : headingCss;
-                }
-                final markdownCss = _markdownElementCss(
-                  element,
-                  linkColorCss: anchorLinkColorCss,
-                  surfaceCss: markdownSurfaceCss,
-                  borderCss: markdownBorderCss,
-                );
-                if (headingCss.isNotEmpty) {
-                  return {...headingCss, ...?markdownCss};
-                }
-                return markdownCss;
-              },
-              onTapUrl: onTapUrl,
-            ),
+          child: HtmlWidget(
+            _wrapWithRtlDivCached(processedHtml, settings.justifyText),
+            key: widgetKey,
+            // מעל 10K תווים fwfh בונה ב-isolate ומציג קודם גובה 0 — שורת רשימה
+            // קופצת אחרי פריים ו-jumpTo מחטיא.
+            buildAsync: false,
+            renderMode: renderMode,
+            textStyle: textStyle,
+            // העץ נשמר כל עוד ה-html וה-textStyle זהים; הצבעים אפויים ב-CSS,
+            // והימצאות ה-callbacks קובעת את מבנה הספאנים.
+            rebuildTriggers: [
+              linkColor,
+              colorScheme.surfaceContainerHighest,
+              colorScheme.outlineVariant,
+              colorScheme.onSurfaceVariant,
+              onAnchorHover != null,
+              onOpenBook != null,
+            ],
+            factoryBuilder: _SmartTextWidgetFactory.new,
+            customStylesBuilder: (dom.Element element) {
+              final elementCss = smartTextElementCss(
+                element.localName,
+                element.classes,
+                hasHref: element.attributes.containsKey('href'),
+                fontFamily: fontFamily,
+                linkColorCss: anchorLinkColorCss,
+                headingColorCss: headingColorCss,
+              );
+              if (elementCss != null) return elementCss;
+              final headingCss = smartTextHeadingCss(
+                element.localName,
+                fontFamily,
+              );
+              if (!hasMarkdownBlock) {
+                return headingCss.isEmpty ? null : headingCss;
+              }
+              final markdownCss = _markdownElementCss(
+                element,
+                linkColorCss: anchorLinkColorCss,
+                surfaceCss: markdownSurfaceCss,
+                borderCss: markdownBorderCss,
+              );
+              if (headingCss.isNotEmpty) {
+                return {...headingCss, ...?markdownCss};
+              }
+              return markdownCss;
+            },
+            onTapUrl: onTapUrl,
           ),
         ),
       ),
@@ -616,12 +614,15 @@ class _SmartTextWidgetFactory extends OtzariaWidgetFactory {
     }
     final strutStyle = exactLineHeightStrut(resolved.prepareTextStyle(), text);
 
-    return Builder(
+    final richText = Builder(
       builder: (context) => withSelectionFillRichText(
         built.builder(context),
         strutStyle: strutStyle,
       ),
     );
+    return text.visitChildren((span) => span is! WidgetSpan)
+        ? richText
+        : ParagraphSelectionContainer(child: richText);
   }
 
   @override
