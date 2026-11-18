@@ -1,8 +1,8 @@
 import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/tools/calendar/models/calendar_location.dart';
 import 'package:otzaria/tools/calendar/models/zman_definition.dart';
-import 'package:timezone/timezone.dart' as tz;
 import 'package:otzaria/tools/calendar/helpers/zmanim_time_format.dart';
+import 'package:timezone/timezone.dart' as tz;
 
 export 'package:otzaria/tools/calendar/helpers/zmanim_time_format.dart';
 
