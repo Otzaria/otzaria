@@ -24,18 +24,22 @@ void main() {
   late SeforimRepository userRepository;
   late SeforimRepository officialRepository;
 
-  Future<void> addBook(MyDatabase db, String title) async {
+  Future<void> addBook(
+    MyDatabase db,
+    String title, {
+    bool isBaseBook = false,
+  }) async {
     final raw = await db.database;
     raw.execute('PRAGMA foreign_keys = OFF');
     raw.execute("INSERT OR IGNORE INTO source (id, name) VALUES (1, 'test')");
     raw.execute(
-      'INSERT INTO book (categoryId, sourceId, title, totalLines) '
-      'VALUES (1, 1, ?, 10)',
-      [title],
+      'INSERT INTO book (categoryId, sourceId, title, totalLines, isBaseBook) '
+      'VALUES (1, 1, ?, 10, ?)',
+      [title, isBaseBook ? 1 : 0],
     );
   }
 
-  Future<({bool isUserBook, int? categoryId, int totalLines})?> locate(
+  Future<LocatedUserLinkBook?> locate(
     String title,
   ) => locateUserLinkBookInRepositories(
     title,
@@ -169,6 +173,99 @@ void main() {
     expect(links.single.sourceLineIndex, 2);
     expect(links.single.targetLineIndex, 1);
   });
+
+  test('native מאחד צמד קישורים של ספר בסיס רשמי ששמו כולל על', () async {
+    const base = 'ילקוט שמעוני על התורה';
+    const commentary = 'ביאור אישי';
+    await addBook(officialDb, base, isBaseBook: true);
+    await addBook(userDb, commentary);
+
+    final result = await UserContentImporter.importContents(
+      const [
+        ImportedFile(
+          name: '${base}_links.json',
+          content:
+              '[{"line_index_1": 3, "line_index_2": 5, "start": 2, '
+              '"path_2": "$commentary.txt", "Conection Type": "commentary"}]',
+        ),
+        ImportedFile(
+          name: '${commentary}_links.json',
+          content:
+              '[{"line_index_1": 5, "line_index_2": 3, '
+              '"path_2": "$base.txt", "Conection Type": "commentary"}]',
+        ),
+      ],
+      userDb,
+      locateBook: locate,
+    );
+
+    expect(result.errors, isEmpty);
+    expect(result.linksApplied, 1);
+    final repo = UserContentRepository(userDb);
+    final links = await repo.forwardUserLinks(base, sourceIsUserBook: false);
+    expect(links.single.targetTitle, commentary);
+    expect(links.single.anchorStart, 2);
+    expect(
+      await repo.forwardUserLinks(commentary, sourceIsUserBook: true),
+      isEmpty,
+    );
+  });
+
+  for (final isAttached in [false, true]) {
+    test('native משאיר כיוון אל פירוש ללא על (מצורף: $isAttached)', () async {
+      const source = 'ביאור אישי';
+      const target = 'יכין מגילה';
+      await addBook(userDb, source);
+      await addBook(officialDb, target);
+      final raw = await officialDb.database;
+      raw.execute('ALTER TABLE book ADD COLUMN dependenceType TEXT');
+      raw.execute('UPDATE book SET dependenceType = ?', ['commentary']);
+      final attached = isAttached
+          ? AttachedLinkBooks.open([
+              (
+                slug: 'attached',
+                path: officialDb.path,
+                immutable: false,
+                visible: true,
+              ),
+            ])
+          : AttachedLinkBooks.none;
+      if (isAttached) addTearDown(attached.close);
+
+      final result = await UserContentImporter.importContents(
+        const [
+          ImportedFile(
+            name: '${source}_links.json',
+            content:
+                '[{"line_index_1": 5, "line_index_2": 3, '
+                '"path_2": "$target.txt", "Conection Type": "commentary"}]',
+          ),
+        ],
+        userDb,
+        locateBook: (title) => locateUserLinkBookInRepositories(
+          title,
+          userRepository: userRepository,
+          officialRepository: isAttached ? null : officialRepository,
+        ),
+        attachedBooks: attached,
+      );
+
+      expect(result.errors, isEmpty);
+      expect(result.linksApplied, 1);
+      final repo = UserContentRepository(userDb);
+      final links = await repo.forwardUserLinks(source, sourceIsUserBook: true);
+      expect(links.single.targetTitle, target);
+      expect(links.single.targetDb, isAttached ? 'attached' : null);
+      expect(
+        await repo.forwardUserLinks(
+          target,
+          sourceIsUserBook: false,
+          sourceDb: isAttached ? 'attached' : null,
+        ),
+        isEmpty,
+      );
+    });
+  }
 
   test('Settings מאותחל ללא seforim.db: ייבוא אישי עצמאי עובד', () async {
     await Settings.init(cacheProvider: MemoryCacheProvider());

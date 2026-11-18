@@ -689,9 +689,8 @@ class UserContentImporter {
     }
   }
 
-  /// קולט קובץ בפורמט ה-native (`<ספר>_links.json`): ספר הבסיס נגזר משם
-  /// הקובץ, שני הצדדים מאותרים לפי כותרת, ואינדקסי השורות
-  /// הגולמיים מאומתים מול totalLines של כל ספר — אין פתירת ref.
+  /// בקובץ native, שם הקובץ מזהה את ספר המקור ו-path_2 את ספר היעד.
+  /// אינדקסי השורות נבדקים מול totalLines של כל ספר.
   static Future<void> _ingestNativeLinks(
     ImportedFile file,
     List<UserLinkRecord> out,
@@ -721,6 +720,7 @@ class UserContentImporter {
           isUserBook: found.isUserBook,
           categoryId: found.categoryId,
           totalLines: found.totalLines,
+          isDependentOnly: found.isDependentOnly,
           db: null,
         );
       }
@@ -730,6 +730,7 @@ class UserContentImporter {
         isUserBook: false,
         categoryId: null,
         totalLines: inAttached.totalLines,
+        isDependentOnly: inAttached.isDependentOnly,
         db: inAttached.slug,
       );
     }
@@ -814,7 +815,8 @@ class UserContentImporter {
       final flip =
           LinkTypes.isDependentTextLink(connectionType) &&
           source.isUserBook &&
-          !target.isUserBook;
+          !target.isUserBook &&
+          !target.isDependentOnly;
       out.add(
         flip
             ? UserLinkRecord(
@@ -955,6 +957,7 @@ typedef _LocatedLinkBook = ({
   bool isUserBook,
   int? categoryId,
   int totalLines,
+  bool isDependentOnly,
   String? db,
 });
 
