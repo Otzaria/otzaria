@@ -71,7 +71,7 @@ void main() {
       );
     });
 
-    Widget buildScreen({VoidCallback? onDesktopBack}) {
+    Widget buildScreen() {
       return MaterialApp(
         home: RepositoryProvider<SettingsRepository>.value(
           value: settingsRepository,
@@ -80,7 +80,7 @@ void main() {
               BlocProvider<SettingsBloc>.value(value: settingsBloc),
               BlocProvider<NavigationBloc>.value(value: navigationBloc),
             ],
-            child: MySettingsScreen(onDesktopBack: onDesktopBack),
+            child: const MySettingsScreen(),
           ),
         ),
       );
@@ -114,25 +114,25 @@ void main() {
       }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
     }
 
-    testWidgets('דסקטופ: ESC חוזר למסך הקודם', (tester) async {
+    testWidgets('דסקטופ: ESC ללא חיפוש משאיר את מסך ההגדרות', (tester) async {
       await tester.binding.setSurfaceSize(const Size(1400, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
-      var backCount = 0;
-      await tester.pumpWidget(buildScreen(onDesktopBack: () => backCount++));
+      await tester.pumpWidget(buildScreen());
       await tester.pump();
       await tester.tap(find.byType(SettingsSearchField));
       await tester.pump();
 
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
 
-      expect(backCount, 1);
+      await tester.pump();
+      expect(find.byType(MySettingsScreen), findsOneWidget);
+      expect(navigationBloc.state.currentScreen, Screen.settings);
     });
 
     testWidgets('דסקטופ: ESC עם חיפוש פעיל מנקה אותו ונשאר', (tester) async {
       await tester.binding.setSurfaceSize(const Size(1400, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
-      var backCount = 0;
-      await tester.pumpWidget(buildScreen(onDesktopBack: () => backCount++));
+      await tester.pumpWidget(buildScreen());
       await tester.pump();
       await tester.tap(find.byType(SettingsSearchField));
       await tester.enterText(find.byType(EditableText), 'גופן');
@@ -143,7 +143,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('תוצאות חיפוש'), findsNothing);
-      expect(backCount, 0);
+      expect(navigationBloc.state.currentScreen, Screen.settings);
     });
 
     // רשימה בלי primary יורשת את בקר המסך רק בנייד: בדסקטופ הגלגלת מהסרגל
