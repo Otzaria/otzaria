@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/search/search_engine_gateway.dart'
     show SemanticSearchRequest;
@@ -5,6 +7,7 @@ import 'package:otzaria/semantic_search/engine/semantic_engine_backend.dart';
 import 'package:otzaria/semantic_search/models/semantic_engine_models.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
+import 'package:path/path.dart' as p;
 
 /// מממש את [SemanticEngineBackend] מעל ה-API של המנוע: התקנה, פתיחה וחיפוש
 /// של סט וקטורים מוכן, עם ביטול דרך [SemanticCancellationToken].
@@ -88,6 +91,19 @@ class OnnxSemanticEngineAdapter implements SemanticEngineBackend {
   });
 
   @override
+  Future<String?> coveredBooksStamp(String vectorsDir) => _guard(() async {
+    final engine = await _engine();
+    final info = await engine.semanticVectorsInfo(vectorsDir: vectorsDir);
+    if (!info.present || info.recoveredFromPrevious) return null;
+    // CURRENT מכיל את ה-SHA של תיאור הדור, גם אם הותקן שוב באותו מספר.
+    try {
+      return await File(p.join(vectorsDir, 'CURRENT')).readAsString();
+    } on PathNotFoundException {
+      return null;
+    }
+  });
+
+  @override
   Future<SemanticCoveredBooksSummary> coveredBooks(
     String vectorsDir, {
     required SemanticCancelHandle cancel,
@@ -99,6 +115,7 @@ class OnnxSemanticEngineAdapter implements SemanticEngineBackend {
     return SemanticCoveredBooksSummary(
       filePaths: covered.filePaths,
       setKey: covered.setKey,
+      recoveredFromPrevious: covered.recoveredFromPrevious,
     );
   });
 

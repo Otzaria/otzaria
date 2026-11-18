@@ -225,18 +225,25 @@ class FakeBackend implements SemanticEngineBackend {
   SemanticCoveredBooksSummary? coveredBooksValue;
   Completer<void>? coveredBooksGate;
 
+  String? coveredBooksStampValue = 'vectors';
+
+  @override
+  Future<String?> coveredBooksStamp(String vectorsDir) async =>
+      coveredBooksStampValue;
+
   @override
   Future<SemanticCoveredBooksSummary> coveredBooks(
     String vectorsDir, {
     required SemanticCancelHandle cancel,
   }) async {
     calls.add('coveredBooks');
+    final answer = coveredBooksValue;
     final gate = coveredBooksGate;
     if (gate != null) await gate.future;
     if (cancel.isCancelled) {
       throw const SemanticFailure(SemanticFailureKind.cancelled);
     }
-    return coveredBooksValue ??
+    return answer ??
         (throw const SemanticFailure(SemanticFailureKind.artifactMissing));
   }
 

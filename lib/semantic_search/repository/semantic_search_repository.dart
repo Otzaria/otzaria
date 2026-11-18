@@ -553,7 +553,7 @@ class SemanticSearchRepository {
   );
 
   /// ה-filePath באינדקס של הספרים שיש להם וקטורים, כפי שחושב לאחרונה;
-  /// `null` כשעוד לא חושב או כשהסט או האינדקס השתנו מאז.
+  /// `null` לפני חישוב או אחרי ביטול. יש לטעון מחדש כדי לאמת עדכניות.
   Set<String>? get coveredBookFilePaths =>
       _coveredValid ? _covered?.filePaths : null;
 
@@ -567,36 +567,44 @@ class SemanticSearchRepository {
     _activeSearches.add(cancel);
     try {
       final current = _availability.isUsable ? _availability : await refresh();
-      if (!current.isUsable || _moveInProgress) return null;
-      // סט או אינדקס שהשתנו באמצע החישוב מחייבים חישוב נוסף.
+      if (!current.isUsable || _moveInProgress || !_isConsentGranted()) {
+        return null;
+      }
       for (var attempt = 0; attempt < 2 && !cancel.isCancelled; attempt++) {
         final epoch = _coveredEpoch;
-        final stamp = await _indexStamp();
+        final directory = (await _paths()).vectorsDirectory;
+        final stamp = await _coverageStamp(directory);
+        if (cancel.isCancelled || !_isConsentGranted()) return null;
+        if (epoch != _coveredEpoch) continue;
         final previous = _covered;
-        if (_coveredValid && previous?.indexStamp == stamp) {
+        if (_coveredValid &&
+            stamp.vectors != null &&
+            previous?.cacheable == true &&
+            previous?.stamp == stamp) {
           return previous!.filePaths;
         }
-        final answer = await _backend.coveredBooks(
-          (await _paths()).vectorsDirectory,
-          cancel: cancel,
+        _coveredValid = false;
+        final answer = await _backend.coveredBooks(directory, cancel: cancel);
+        final after = await _coverageStamp(directory);
+        if (cancel.isCancelled || !_isConsentGranted()) return null;
+        if (epoch != _coveredEpoch || stamp != after) continue;
+        final paths =
+            previous?.setKey == answer.setKey &&
+                setEquals(previous?.filePaths, answer.filePaths.toSet())
+            ? previous!.filePaths
+            : Set<String>.unmodifiable(answer.filePaths);
+        _covered = _CoveredBooks(
+          setKey: answer.setKey,
+          stamp: stamp,
+          cacheable: !answer.recoveredFromPrevious,
+          filePaths: paths,
         );
-        if (epoch != _coveredEpoch) continue;
-        final unchanged =
-            previous != null &&
-            previous.setKey == answer.setKey &&
-            previous.indexStamp == stamp;
-        _covered = unchanged
-            ? previous
-            : _CoveredBooks(
-                setKey: answer.setKey,
-                indexStamp: stamp,
-                filePaths: Set.unmodifiable(answer.filePaths),
-              );
         _coveredValid = true;
-        return _covered!.filePaths;
+        return paths;
       }
       return null;
     } catch (error, stackTrace) {
+      _coveredValid = false;
       if (error is! SemanticFailure ||
           error.kind != SemanticFailureKind.cancelled) {
         _log('coveredBooks', error, stackTrace);
@@ -606,6 +614,12 @@ class SemanticSearchRepository {
       _activeSearches.remove(cancel);
     }
   }
+
+  Future<_CoverageStamp> _coverageStamp(String directory) async => (
+    directory: directory,
+    index: await _indexStamp(),
+    vectors: await _backend.coveredBooksStamp(directory),
+  );
 
   void _invalidateCoveredBooks() {
     _coveredEpoch++;
@@ -2032,14 +2046,18 @@ class SemanticSearchRepository {
 class _CoveredBooks {
   const _CoveredBooks({
     required this.setKey,
-    required this.indexStamp,
+    required this.stamp,
+    required this.cacheable,
     required this.filePaths,
   });
 
   final String setKey;
-  final String indexStamp;
+  final _CoverageStamp stamp;
+  final bool cacheable;
   final Set<String> filePaths;
 }
+
+typedef _CoverageStamp = ({String directory, String index, String? vectors});
 
 /// release של רכיב החיפוש והקבצים ממנו שחסרים במכשיר.
 typedef _ModelPlan = ({

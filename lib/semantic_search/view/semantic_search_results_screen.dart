@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/feedback/app_info_banner.dart';
@@ -155,11 +156,13 @@ class _SemanticSearchResultsScreenState
       UiSnack.show(LibraryMessages.emptySearchQuery);
       return;
     }
+    _narrowRequestId++;
     _clearPreview();
     _bloc.add(SemanticSearchSubmitted(options));
   }
 
   void _openEditDialog() {
+    _narrowRequestId++;
     showDialog(
       context: context,
       builder: (_) => SearchDialog(editTab: widget.tab),
@@ -170,36 +173,48 @@ class _SemanticSearchResultsScreenState
       _bloc.state.options?.facets ?? widget.tab.options.facets;
 
   Future<void> _narrow(List<String> categories, List<String> dimensions) async {
-    final scope = FacetHelper.categoryFacetsOf(widget.tab.options.facets);
+    final tab = widget.tab;
+    final original = tab.options;
+    final bookFacet = tab.lockedBookFacet;
+    final scope = FacetHelper.categoryFacetsOf(original.facets);
     final selection = [
-      ...(categories.isEmpty ? scope : categories),
+      if (bookFacet != null)
+        bookFacet
+      else
+        ...(categories.isEmpty ? scope : categories),
       ...dimensions,
     ];
     final request = ++_narrowRequestId;
-    final includeLexical = widget.tab.options.includeLexical;
-    final repository =
-        widget.semanticRepository ?? SemanticSearchRepository.instance;
-    final covered = includeLexical
-        ? null
-        : repository.coveredBookFilePaths ??
-              await repository.loadCoveredBookFilePaths();
-    if (!mounted || request != _narrowRequestId) return;
-    final library = context.read<LibraryBloc>().state.library;
-    final isOfficialCategory = officialCategoryFilter(library);
-    final isCoveredFacet = coveredFacetFilter(library, covered);
-    if (!selection.every(
-      (facet) => isSemanticScopeFacetSupported(
-        facet,
-        includeLexical: includeLexical,
-        isOfficialCategory: isOfficialCategory,
-        isCoveredFacet: isCoveredFacet,
-      ),
-    )) {
-      UiSnack.showError(SemanticSearchMessages.unsupportedScope);
-      return;
+    if (bookFacet == null &&
+        !original.includeLexical &&
+        needsSemanticScopeCoverage(selection)) {
+      final repository =
+          widget.semanticRepository ?? SemanticSearchRepository.instance;
+      final covered = await repository.loadCoveredBookFilePaths();
+      if (!mounted ||
+          request != _narrowRequestId ||
+          !identical(widget.tab, tab) ||
+          !identical(tab.options, original)) {
+        return;
+      }
+      final library = context.read<LibraryBloc>().state.library;
+      final isOfficialCategory = officialCategoryFilter(library);
+      final isCoveredFacet = coveredFacetFilter(library, covered);
+      if (!selection.every(
+        (facet) => isSemanticScopeFacetSupported(
+          facet,
+          isOfficialCategory: isOfficialCategory,
+          isCoveredFacet: isCoveredFacet,
+        ),
+      )) {
+        UiSnack.showError(SemanticSearchMessages.unsupportedScope);
+        return;
+      }
     }
+    final facets = semanticScopeFacets(selection);
+    if (listEquals(_currentFacets, facets)) return;
     _clearPreview();
-    widget.tab.narrow(semanticScopeFacets(selection));
+    tab.narrow(facets);
   }
 
   void _setFacet(String facet) {

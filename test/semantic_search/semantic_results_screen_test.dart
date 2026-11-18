@@ -177,6 +177,7 @@ void main() {
     utils.HolyNameStyle? holyNameStyle,
     FakeResultsSource? injectedSource,
     SemanticQueryOptions? initialOptions,
+    String? lockedBookFacet,
     Library? library,
     Stream<LibraryState> libraryStates = const Stream.empty(),
     double? paneWidth,
@@ -198,6 +199,7 @@ void main() {
     final tab = SemanticSearchTab(
       runOnFirstShow: runOnFirstShow,
       options: initialOptions ?? SemanticQueryOptions(query: query),
+      lockedBookFacet: lockedBookFacet,
       createResultsBloc: (_) => buildResultsBloc(
         source: source,
         recorder: recorder,
@@ -1178,12 +1180,54 @@ void main() {
 
     final searchId = harness.tab.resultsBloc.state.searchId;
     repository.gate = Completer<void>();
-    tree().onSetFacet('/');
+    tree().onSetFacet('/הלכה');
     tree().onSetFacet('/ספרים אישיים');
     repository.gate!.complete();
     await settle(tester);
     expect(harness.tab.resultsBloc.state.options!.facets, ['/ספרים אישיים']);
     expect(harness.tab.resultsBloc.state.searchId, searchId + 1);
+
+    repository.gate = Completer<void>();
+    tree().onSetFacet(facetOf(personal));
+    tree().onSetFacet('/');
+    await settle(tester);
+    expect(harness.tab.resultsBloc.state.options!.facets, ['/']);
+    repository.gate!.complete();
+    await settle(tester);
+    expect(harness.tab.resultsBloc.state.options!.facets, ['/']);
+  });
+
+  testWidgets('קטגוריית אב וספר אחר אינם מרחיבים חיפוש מתוך ספר', (
+    tester,
+  ) async {
+    const bookFacet = '/הלכה/id:1';
+    final harness = await pumpScreen(
+      tester,
+      initialOptions: const SemanticQueryOptions(
+        query: 'כבוד אב',
+        facets: [bookFacet],
+      ),
+      lockedBookFacet: bookFacet,
+    );
+    SemanticFacetFiltering tree() => tester.widget(
+      find.byType(SemanticFacetFiltering, skipOffstage: false),
+    );
+
+    tree().onSetFacet('/הלכה');
+    tree().onToggleFacet('/הלכה/id:2');
+    await settle(tester);
+    expect(harness.tab.resultsBloc.state.options!.facets, [bookFacet]);
+
+    tree().onToggleDimension('/era/ראשונים');
+    await settle(tester);
+    expect(harness.tab.resultsBloc.state.options!.facets, [
+      '/era/ראשונים',
+      bookFacet,
+    ]);
+
+    tree().onClearAll();
+    await settle(tester);
+    expect(harness.tab.resultsBloc.state.options!.facets, [bookFacet]);
   });
 
   testWidgets('עץ חכם מסתיר חברי היקף בלי תוצאות (issue #2702)', (

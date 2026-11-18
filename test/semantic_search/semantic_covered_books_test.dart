@@ -67,6 +67,47 @@ void main() {
     expect(computations(backend), 2);
   });
 
+  test('שינוי דור וקטורים מכלי חיצוני מחשב מחדש גם באותו אינדקס', () async {
+    installModelFiles(root);
+    final backend = FakeBackend()
+      ..vectors = installedV30
+      ..coveredBooksValue = answer('set-1', ['id:1']);
+    final repo = buildRepository(root: root, backend: backend);
+    expect(await repo.loadCoveredBookFilePaths(), {'id:1'});
+
+    backend
+      ..coveredBooksStampValue = 'new generation'
+      ..coveredBooksValue = answer('set-2', ['uid:7']);
+    expect(await repo.loadCoveredBookFilePaths(), {'uid:7'});
+    expect(computations(backend), 2);
+  });
+
+  test('שינוי באינדקס באמצע הסריקה פוסל את התשובה הישנה', () async {
+    installModelFiles(root);
+    var stamp = 'index-1';
+    final gate = Completer<void>();
+    final backend = FakeBackend()
+      ..vectors = installedV30
+      ..coveredBooksValue = answer('set-1', ['id:1'])
+      ..coveredBooksGate = gate;
+    final repo = buildRepository(
+      root: root,
+      backend: backend,
+      indexStamp: () async => stamp,
+    );
+    final loading = repo.loadCoveredBookFilePaths();
+    await waitFor(() => computations(backend) == 1);
+
+    stamp = 'index-2';
+    backend
+      ..coveredBooksValue = answer('set-1', ['uid:7'])
+      ..coveredBooksGate = null;
+    gate.complete();
+
+    expect(await loading, {'uid:7'});
+    expect(computations(backend), 2);
+  });
+
   test('התקנת וקטורים מבטלת את התשובה; אותו setKey שומר על אותו סט', () async {
     installModelFiles(root);
     final backend = FakeBackend()

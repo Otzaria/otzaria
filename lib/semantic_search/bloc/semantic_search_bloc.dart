@@ -17,6 +17,7 @@ class SemanticSearchBloc
   final SemanticSearchRepository repository;
   StreamSubscription<Object?>? _subscription;
   bool _coverageWanted = false;
+  int _coverageRequest = 0;
 
   SemanticSearchBloc({required this.repository})
     : super(
@@ -68,12 +69,14 @@ class SemanticSearchBloc
 
   /// בלי חיפוש שמיש, או כשהטעינה נכשלה, הרשימה הקודמת כבר אינה נכונה.
   Future<void> _loadCoverageIfWanted(Emitter<SemanticSearchState> emit) async {
+    final request = ++_coverageRequest;
     if (!state.availability.isUsable) {
       emit(state.copyWith(coveredBookFilePaths: () => null));
       return;
     }
     if (!_coverageWanted) return;
     final covered = await repository.loadCoveredBookFilePaths();
+    if (request != _coverageRequest || emit.isDone) return;
     emit(state.copyWith(coveredBookFilePaths: () => covered));
   }
 
