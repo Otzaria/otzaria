@@ -253,9 +253,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   StreamSubscription<LibraryState>? _libraryReloadSub;
   late final AnimationController _pageTurnController;
 
-  // גלילה רציפה
+  // גלילה רציפה בחיצים: צעד ללחיצה, ומהירות קבועה בהחזקה.
+  static const double _arrowScrollStep = 100.0;
+  static const double _arrowScrollSpeed = 500.0;
+  static const int _arrowScrollHoldDelayMicros = 100000;
   Timer? _scrollTimer;
-  LogicalKeyboardKey? _currentScrollKey;
   int? _scrollAnchorPage;
   int? _lockedSpreadStartPage;
   ui.Image? _pageTurnSnapshot;
@@ -2453,19 +2455,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       zoom: newZoom,
       viewSize: viewSize,
     );
-  }
-
-  bool _wasMatrixClamped({
-    required Matrix4 original,
-    required Matrix4 clamped,
-    required Size viewSize,
-  }) {
-    final originalRect = original.calcVisibleRect(viewSize);
-    final clampedRect = clamped.calcVisibleRect(viewSize);
-
-    return (original.zoom - clamped.zoom).abs() > 0.001 ||
-        (originalRect.center.dx - clampedRect.center.dx).abs() > 0.1 ||
-        (originalRect.center.dy - clampedRect.center.dy).abs() > 0.1;
   }
 
   /// מרכז-X של יעד הניווט: כשהזום מציג רק חלק מהזוג, המיקוד הוא על עמוד
@@ -5161,16 +5150,14 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   void _startContinuousScroll(LogicalKeyboardKey key) {
     if (_scrollTimer != null) return;
 
-    _currentScrollKey = key;
     _captureScrollAnchor();
+    final direction = key == LogicalKeyboardKey.arrowUp ? 1.0 : -1.0;
+    _scrollPhysicsProvider.pan(Offset(0, direction * _arrowScrollStep));
 
-    if (key == LogicalKeyboardKey.arrowUp) {
-      _scrollUpSimple();
-    } else if (key == LogicalKeyboardKey.arrowDown) {
-      _scrollDownSimple();
-    }
-
-    _scrollTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+    // תנועה רציפה לפי הזמן שעבר; הלחיצה הראשונה כבר כיסתה את ה-100ms הראשונות.
+    final clock = Stopwatch()..start();
+    var scrolledUntilMicros = _arrowScrollHoldDelayMicros;
+    _scrollTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
       if (!mounted || !widget.tab.pdfViewerController.isReady) {
         _stopContinuousScroll();
         return;
@@ -5180,27 +5167,24 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         _pdfViewFocusNode.requestFocus();
       }
 
-      final isUpPressed = HardwareKeyboard.instance.logicalKeysPressed.contains(
-        LogicalKeyboardKey.arrowUp,
-      );
-      final isDownPressed = HardwareKeyboard.instance.logicalKeysPressed
-          .contains(LogicalKeyboardKey.arrowDown);
-
-      if (_currentScrollKey == LogicalKeyboardKey.arrowUp && isUpPressed) {
-        _scrollUpSimple();
-      } else if (_currentScrollKey == LogicalKeyboardKey.arrowDown &&
-          isDownPressed) {
-        _scrollDownSimple();
-      } else {
+      if (!HardwareKeyboard.instance.logicalKeysPressed.contains(key)) {
         _stopContinuousScroll();
+        return;
       }
+
+      final nowMicros = clock.elapsedMicroseconds;
+      if (nowMicros <= scrolledUntilMicros) return;
+      final seconds = (nowMicros - scrolledUntilMicros) / 1e6;
+      scrolledUntilMicros = nowMicros;
+      _scrollPhysicsProvider.pan(
+        Offset(0, direction * _arrowScrollSpeed * seconds),
+      );
     });
   }
 
   void _stopContinuousScroll() {
     _scrollTimer?.cancel();
     _scrollTimer = null;
-    _currentScrollKey = null;
     _scrollAnchorPage = null;
 
     if (mounted && !_pdfViewFocusNode.hasFocus) {
@@ -5211,54 +5195,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   void _captureScrollAnchor() {
     if (!widget.tab.pdfViewerController.isReady) return;
     _scrollAnchorPage = widget.tab.pdfViewerController.pageNumber ?? 1;
-  }
-
-  void _applyVerticalScroll(double deltaY) {
-    if (!widget.tab.pdfViewerController.isReady) return;
-
-    final currentMatrix = widget.tab.pdfViewerController.value;
-    final currentTranslation = currentMatrix.getTranslation();
-    final candidateMatrix = currentMatrix.clone()
-      ..setTranslationRaw(
-        currentTranslation.x,
-        currentTranslation.y + deltaY,
-        currentTranslation.z,
-      );
-
-    if (!_isBookViewModeActive()) {
-      widget.tab.pdfViewerController.goTo(candidateMatrix);
-      return;
-    }
-
-    final anchorPage =
-        _scrollAnchorPage ?? (widget.tab.pdfViewerController.pageNumber ?? 1);
-    final clampedMatrix = _clampMatrixToSpread(
-      matrix: candidateMatrix,
-      viewSize: widget.tab.pdfViewerController.viewSize,
-      layout: widget.tab.pdfViewerController.layout,
-      controller: widget.tab.pdfViewerController,
-      spreadStartPage: _spreadStartPageFor(anchorPage),
-    );
-
-    widget.tab.pdfViewerController.goTo(clampedMatrix);
-
-    if (_wasMatrixClamped(
-      original: candidateMatrix,
-      clamped: clampedMatrix,
-      viewSize: widget.tab.pdfViewerController.viewSize,
-    )) {
-      _stopContinuousScroll();
-    }
-  }
-
-  void _scrollUpSimple() {
-    const double scrollAmount = 100.0;
-    _applyVerticalScroll(scrollAmount);
-  }
-
-  void _scrollDownSimple() {
-    const double scrollAmount = 100.0;
-    _applyVerticalScroll(-scrollAmount);
   }
 
   Future<void> navigateToUrl(Uri url) async {
