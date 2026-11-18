@@ -16,8 +16,9 @@ import 'package:otzaria/utils/file/download_space.dart';
 import 'package:otzaria/utils/file/zstd_stream_extractor.dart';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
+import 'package:otzaria/empty_library/services/archive_size_probe.dart';
 import 'package:otzaria/empty_library/services/library_space_estimate.dart'
-    show isSameVolume;
+    show estimatedDatabaseExtractedSize, isSameVolume, withSafetyMargin;
 import 'package:seforim_library_updater/seforim_library_updater.dart'
     hide StreamingPatchDownloader;
 
@@ -213,6 +214,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
   final Future<DiskSpaceInfo> Function(String dirPath) diskSpaceProvider;
   final Future<PatchApplier> Function() applierProvider;
   final Future<void> Function() sqliteTempDirectoryInitializer;
+  final Future<int?> Function(ReleaseAsset) fullDbSizeProbe;
   final bool isAndroid;
 
   LibraryUpdateRepository({
@@ -233,8 +235,10 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     Future<DiskSpaceInfo> Function(String dirPath)? diskSpaceProvider,
     Future<PatchApplier> Function()? applierProvider,
     Future<void> Function()? sqliteTempDirectoryInitializer,
+    Future<int?> Function(ReleaseAsset)? fullDbSizeProbe,
     bool? isAndroid,
   }) : isAndroid = isAndroid ?? Platform.isAndroid,
+       fullDbSizeProbe = fullDbSizeProbe ?? _probeReleaseDbSize,
        dbPathProvider = dbPathProvider ?? DatabaseConstants.getDatabasePath,
        dataRootProvider = dataRootProvider ?? AppPaths.getDataRootPath,
        nowTimestamp = nowTimestamp ?? (() => DateTime.now().toIso8601String()),
@@ -261,6 +265,14 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     } finally {
       await SqliteDataProvider.instance.reopenAfterExternalWrite();
     }
+  }
+
+  static Future<int?> _probeReleaseDbSize(ReleaseAsset asset) {
+    final split = asset.split;
+    final url = split != null && split.parts.isNotEmpty
+        ? split.parts.first.downloadUrl
+        : asset.downloadUrl;
+    return probeZstdFrameContentSize(url);
   }
 
   /// גודל הקובץ, או null כשהוא חסר/ריק — ה-planner מתעלם מגודל לא ידוע.
@@ -823,8 +835,13 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     // מחולץ ליד ה-DB (אותו filesystem) כדי שה-rename יהיה אטומי.
     final newDbPath = '$dbPath.new';
     final resumeToken = _fullDbResumeToken(asset);
+    final frameSize = await fullDbSizeProbe(asset);
+    final extractedDbSize = withSafetyMargin(
+      estimatedDatabaseExtractedSize(asset.size, firstFrameSize: frameSize),
+    );
     await ensureDiskSpaceForFullDownload(
       archivePath: archivePath,
+      extractedDbSize: extractedDbSize,
       archiveNeeded: await additionalDownloadBytes(
         destPath: archivePath,
         identity: resumeToken,
@@ -962,10 +979,6 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     _deleteQuietly('$dbPath-shm');
   }
 
-  /// אומדן גודל ה-DB המחולץ — ה-release מדווח רק את הגודל הדחוס, לכן קבוע
-  /// עם מרווח ביטחון. יש להגדילו אם ה-DB יגדל מעבר לכך.
-  static const int _extractedDbSizeEstimate = 6979321856; // 6.5GB
-
   /// זורק [LibraryUpdateDiskSpaceException] אם אין מקום להורדה ולחילוץ.
   /// מקום פנוי לא-ידוע (freeBytes==-1) אינו חוסם — עדיף לנסות מלחסום בטעות.
   @visibleForTesting
@@ -973,6 +986,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     required String archivePath,
     required int archiveNeeded,
     required String dbDir,
+    required int extractedDbSize,
   }) async {
     final archiveInfo = await diskSpaceProvider(p.dirname(archivePath));
     final extractInfo = await diskSpaceProvider(dbDir);
@@ -986,7 +1000,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       isAndroid: isAndroid,
     );
     if (sameVolume) {
-      final needed = archiveNeeded + _extractedDbSizeEstimate;
+      final needed = archiveNeeded + extractedDbSize;
       if (archiveInfo.freeBytes >= 0 && archiveInfo.freeBytes < needed) {
         throw LibraryUpdateDiskSpaceException(
           'אין מספיק מקום פנוי בכונן: נדרש ~${gb(needed)}GB להורדה ולחילוץ '
@@ -1002,10 +1016,10 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       );
     }
     if (extractInfo.freeBytes >= 0 &&
-        extractInfo.freeBytes < _extractedDbSizeEstimate) {
+        extractInfo.freeBytes < extractedDbSize) {
       throw LibraryUpdateDiskSpaceException(
         'אין מספיק מקום פנוי לחילוץ הספרייה: '
-        'נדרש ~${gb(_extractedDbSizeEstimate)}GB, '
+        'נדרש ~${gb(extractedDbSize)}GB, '
         'פנוי ${gb(extractInfo.freeBytes)}GB',
       );
     }
