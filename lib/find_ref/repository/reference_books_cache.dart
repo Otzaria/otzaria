@@ -1114,6 +1114,7 @@ class BookTitleIndex {
   /// אחת לכל מילת שאילתה במקום על ~190,000 המילים שבספרים.
   final List<String> _fuzzyVocabulary = <String>[];
   final List<Iterable<int>> _fuzzyVocabularyBooks = <Iterable<int>>[];
+  _FuzzyVocabularyIndex? _fuzzyVocabularyIndex;
   final Map<String, Set<int>> _exactShortWordBooks = <String, Set<int>>{};
 
   /// מטמון חסום של המסננת לפי מילת שאילתה: `findRefs` קורא ל-[search] עד
@@ -1461,6 +1462,7 @@ class BookTitleIndex {
 
   void installFuzzyVocabulary(Map<String, List<int>> booksByWord) {
     _fuzzyWordCandidates.clear();
+    _fuzzyVocabularyIndex = null;
     _exactShortWordBooks.clear();
     _fuzzyVocabulary.clear();
     _fuzzyVocabularyBooks.clear();
@@ -1514,13 +1516,16 @@ class BookTitleIndex {
     return candidates ?? const <int>{};
   }
 
-  /// מזהי הספרים שיש בהם מילה המתאימה ל-[word], מהמטמון או בסריקת האוצר.
+  /// מזהי הספרים שיש בהם מילה המתאימה ל-[word], מהמטמון או מאינדקס האוצר.
   Set<int> _fuzzyCandidatesForWord(String word) {
     final cached = _fuzzyWordCandidates[word];
     if (cached != null) return cached;
 
     final books = <int>{};
-    for (var i = 0; i < _fuzzyVocabulary.length; i++) {
+    final index = _fuzzyVocabularyIndex ??= _FuzzyVocabularyIndex(
+      _fuzzyVocabulary,
+    );
+    for (final i in index.candidatesFor(word)) {
       if (bookSearchWordPairMatches(word, _fuzzyVocabulary[i])) {
         books.addAll(_fuzzyVocabularyBooks[i]);
       }
@@ -1656,6 +1661,72 @@ class ReferenceBookHit {
 
   /// [titleMatchTokensOf] של [titleTokens] — מילות הכותרת גם בלי אות-חיבור.
   late final Set<String> titleMatchTokens = titleMatchTokensOf(titleTokens);
+}
+
+class _FuzzyVocabularyIndex {
+  _FuzzyVocabularyIndex(this._words) {
+    for (var i = 0; i < _words.length; i++) {
+      final word = _words[i];
+      (_byLength[word.length] ??= []).add(i);
+      for (final pair in _consonantPairs(word)) {
+        final indexes = _byConsonantPair[pair] ??= [];
+        if (indexes.isEmpty || indexes.last != i) indexes.add(i);
+      }
+    }
+  }
+
+  final List<String> _words;
+  final _byLength = <int, List<int>>{};
+  final _byConsonantPair = <int, List<int>>{};
+
+  static const _maxEdits = 4;
+
+  static Iterable<int> _consonantPairs(String word) sync* {
+    var previous = -1;
+    for (var i = 0; i < word.length; i++) {
+      final current = word.codeUnitAt(i);
+      if (current == 0x05D5 || current == 0x05D9) continue;
+      if (previous >= 0) yield (previous << 16) | current;
+      previous = current;
+    }
+  }
+
+  // לפי מדרגות המרחק של bookSearchWordPairMatches, הקובעת לפי המילה הארוכה.
+  static bool _withinEditBand(int queryLength, int wordLength) {
+    final longest = queryLength > wordLength ? queryLength : wordLength;
+    final difference = (queryLength - wordLength).abs();
+    return difference <= _maxEdits && difference <= (longest - 1) ~/ 4;
+  }
+
+  Iterable<int> candidatesFor(String query) sync* {
+    List<int>? rarest;
+    // הכלה וכתיב מלא/חסר משמרים כל זוג אחרי הסרת ו/י בשני הצדדים.
+    for (final pair in _consonantPairs(query)) {
+      final indexes = _byConsonantPair[pair] ?? const <int>[];
+      if (rarest == null || indexes.length < rarest.length) rarest = indexes;
+      if (indexes.isEmpty) break;
+    }
+    if (rarest == null) {
+      // בלי זוג אין חסם להכלה.
+      for (var i = 0; i < _words.length; i++) {
+        yield i;
+      }
+      return;
+    }
+
+    for (
+      var length = query.length - _maxEdits;
+      length <= query.length + _maxEdits;
+      length++
+    ) {
+      if (_withinEditBand(query.length, length)) {
+        yield* _byLength[length] ?? const <int>[];
+      }
+    }
+    for (final i in rarest) {
+      if (!_withinEditBand(query.length, _words[i].length)) yield i;
+    }
+  }
 }
 
 /// מקום [queryWords] כרצף במילות [titleTokens], כשאחת לפחות בכתיב מלא/חסר

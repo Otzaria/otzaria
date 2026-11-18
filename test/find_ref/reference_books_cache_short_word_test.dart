@@ -35,6 +35,26 @@ void main() {
     expect(cache.search('משפטט ג').single.bookId, 1);
   });
 
+  test('המסננת משמרת הכלה וכתיב חלופי מחוץ לטווח מרחק העריכה', () {
+    seedLibrary(const [
+      (id: 1, title: 'ב זזברכתמלכיםחדשה', acronyms: []),
+      (id: 2, title: 'ב זזמקוואותחדשה', acronyms: []),
+      (id: 3, title: 'ב השרשיםהקדמונים', acronyms: []),
+      (id: 4, title: 'ב משפפט', acronyms: []),
+      (id: 5, title: 'ספר אחר', acronyms: ['ב זזברכתמלכיםחדשה']),
+      (id: 6, title: 'ברכתמלכיםחדשה ללא אות', acronyms: []),
+    ]);
+    final cache = ReferenceBooksCache.instance;
+
+    expect(cache.search('ברכת ב').map((h) => h.bookId), unorderedEquals([1, 5]));
+    expect(cache.search('מקואות ב').map((h) => h.bookId), [2]);
+    expect(cache.search('שורש ב').map((h) => h.bookId), [3]);
+    expect(cache.search('משפט ב').map((h) => h.bookId), [4]);
+
+    seedLibrary(const [(id: 7, title: 'ב זזברכתמלכיםחדשה', acronyms: [])]);
+    expect(cache.search('ברכת ב').map((h) => h.bookId), [7]);
+  });
+
   test('חיתוך עם מילה קצרה נפוצה שומר את המועמדים לחיפוש הבא', () {
     seedLibrary([
       for (var id = 1; id <= 64; id++)
