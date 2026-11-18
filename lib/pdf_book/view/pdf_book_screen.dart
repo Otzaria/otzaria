@@ -45,6 +45,7 @@ import 'package:otzaria/pdf_book/utils/pdf_personal_note_anchor.dart';
 import 'package:otzaria/plugins/utils/plugin_context_menu_entries.dart';
 import 'package:otzaria/pdf_book/utils/pdf_scroll_physics_provider.dart';
 import 'package:otzaria/pdf_book/utils/pdf_text_selection_actions.dart';
+import 'package:otzaria/pdf_book/utils/pdf_viewport_geometry.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/book_common/view/book_source_dialog.dart';
 import 'package:otzaria/book_common/utils/default_commentators.dart';
@@ -144,6 +145,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 
 export 'package:otzaria/pdf_book/utils/pdf_book_layout.dart';
+export 'package:otzaria/pdf_book/utils/pdf_viewport_geometry.dart';
 
 /// תקציב מטמון התמונות של טאב PDF, המתחלק בין חלוניותיו.
 const int kPdfImageCacheBudgetBytes = 48 * 1024 * 1024;
@@ -151,77 +153,6 @@ const int kPdfImageCacheBudgetBytes = 48 * 1024 * 1024;
 /// חלקו של צפיין בתקציב הטאב; חלוניות טקסט אינן נספרות.
 int pdfImageCacheBytesForPanes(int pdfPaneCount) =>
     kPdfImageCacheBudgetBytes ~/ max(1, pdfPaneCount);
-
-/// מלבן הכפולה במרחב התצוגה, בלי חיתוך לגבולותיה. גאומטריית הדפדוף נשענת
-/// עליו: מרכזו הוא השדרה, וחצי מרוחבו הוא עמוד אחד.
-@visibleForTesting
-Rect pdfSpreadTurnViewportRect(Matrix4 matrix, Rect spreadRect) =>
-    MatrixUtils.transformRect(matrix, spreadRect);
-
-/// החלק הנראה של הכפולה — למסכת התצוגה ולאזורי הגרירה, שחייבים להישאר
-/// בתוך המסך. אסור להאכיל בו את גאומטריית הדפדוף: הוא מזיז את השדרה.
-@visibleForTesting
-Rect? pdfSpreadVisibleViewportRect(
-  Matrix4 matrix,
-  Rect spreadRect,
-  Size viewportSize,
-) {
-  final clippedRect = pdfSpreadTurnViewportRect(
-    matrix,
-    spreadRect,
-  ).intersect(Offset.zero & viewportSize);
-  if (clippedRect.width <= 0 || clippedRect.height <= 0) return null;
-  return clippedRect;
-}
-
-/// מרכז התצוגה שמציב את [anchorDocTop] בראשה, בזום ובגובה הנתונים.
-/// האופק נשאר כפי שחישבה מדיניות שינוי-הגודל של pdfrx.
-@visibleForTesting
-Offset pdfTopAnchoredCenter({
-  required double anchorDocTop,
-  required Offset currentCenter,
-  required Size viewSize,
-  required double zoom,
-}) => Offset(currentCenter.dx, anchorDocTop + viewSize.height / 2 / zoom);
-
-/// עוגן חד־פעמי לשימור קו הראש בעת שינוי רוחב קורא ה-PDF.
-@visibleForTesting
-class PdfPaneToggleAnchor {
-  double? _docTop;
-  Size? _viewSize;
-
-  /// מכין עוגן לשינוי רוחב אמיתי, או מנקה עוגן קודם כשהחלונית היא overlay.
-  void prepare({
-    required bool changesReaderWidth,
-    double? docTop,
-    Size? viewSize,
-  }) {
-    _docTop = null;
-    _viewSize = null;
-    if (!changesReaderWidth || docTop == null || viewSize == null) return;
-    _docTop = docTop;
-    _viewSize = viewSize;
-  }
-
-  /// צורך את העוגן פעם אחת ומחזיר אותו רק לשינוי הרוחב התואם.
-  double? consume({
-    required Size? oldViewSize,
-    required Size newViewSize,
-    required bool isBookView,
-  }) {
-    final docTop = _docTop;
-    final capturedViewSize = _viewSize;
-    _docTop = null;
-    _viewSize = null;
-    if (docTop == null ||
-        oldViewSize != capturedViewSize ||
-        isBookView ||
-        oldViewSize!.width == newViewSize.width) {
-      return null;
-    }
-    return docTop;
-  }
-}
 
 /// מחזיר את מדיניות שינוי גודל ה-PDF לפי מצב התצוגה.
 /// קנה המידה של תמונת התצוגה המקדימה לפי הזום הנוכחי; ראה [pdfPreviewRenderingScale].
@@ -247,23 +178,6 @@ double pdfPreviewRenderingScaleFor(
     sizeThreshold: 2000,
   );
 }
-
-/// זום ההתאמה לרוחב ולעמוד שלם של [shown] — העמוד, או הכפולה בתצוגת ספר.
-@visibleForTesting
-({double width, double page}) pdfFitZooms({
-  required Rect shown,
-  required Size viewSize,
-  required double margin,
-}) {
-  final width = (viewSize.width - margin * 2) / shown.width;
-  final height = (viewSize.height - margin * 2) / shown.height;
-  return (width: width, page: min(width, height));
-}
-
-/// המתג עובר לעמוד שלם כשהתצוגה כבר מותאמת לרוחב, ולרוחב בכל מצב אחר.
-@visibleForTesting
-bool pdfNextFitIsPage({required double zoom, required double widthZoom}) =>
-    (zoom - widthZoom).abs() <= widthZoom * 0.01;
 
 /// הסמל והכיתוב של כפתור ההתאמה: הפעולה שלחיצה תבצע, והקיצור אם הוגדר
 /// (§3.2).
