@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:otzaria/core/messages/plugin_messages.dart';
 import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
 import 'package:otzaria/plugins/view/plugin_correction_controller.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/theme/search_highlight_css.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/widgets/smart_text/inline_html_document.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
@@ -306,14 +308,18 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     if (_controller == null) {
       _controller = PluginCorrectionController(
         widget.sourceText,
-        hideNikud: widget.settings.removeNikud,
+        removeNikud: widget.settings.removeNikud,
+        removeTeamim: widget.settings.removeTeamim,
       );
       _focus = FocusNode(onKeyEvent: _onEditorKey)..addListener(_focusChanged);
       _activationFocus = FocusNode()..addListener(_activationFocusChanged);
     }
     final controller = _controller!;
-    // ספר שהוגדר ללא ניקוד מוצג כך גם בעורך; הניקוד נשמר במקור.
-    controller.hideNikud = widget.settings.removeNikud;
+    // מה שהקורא מסתיר (ניקוד, טעמים) מוסתר גם בעורך; הוא נשמר במקור.
+    controller.setHiddenMarks(
+      removeNikud: widget.settings.removeNikud,
+      removeTeamim: widget.settings.removeTeamim,
+    );
     controller.setSource(widget.sourceText);
     final canonical = _registry.editableText(
       widget.tabId,
@@ -384,7 +390,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
         widget.tabId,
         widget.sectionIndex,
         widget.sourceText,
-        _controller!.forService(newValue.text),
+        _controller!.forServiceValue(newValue),
       );
       return newValue;
     } on PluginCorrectionException catch (error) {
@@ -476,10 +482,40 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     ];
   }
 
+  ColorScheme? _colors;
+  ({String text, RenderSettings settings, ColorScheme colors})? _highlightKey;
+  List<CorrectionHighlight> _highlights = const [];
+
+  /// הדגשת החיפוש בטקסט שאינו הטקסט של התצוגה הרגילה: אותו עיבוד בדיוק
+  /// ([TextRendererService.processText], כולל ההתאמה של החיפוש ופתרון הצבעים)
+  /// על הטקסט שבעורך, ומתוך ה-HTML שהתקבל נלקחים הטווחים הצבועים.
+  List<CorrectionHighlight> _highlightsFor(String text) {
+    final settings = widget.settings;
+    final colors = _colors;
+    if (settings.searchText.isEmpty || text.isEmpty || colors == null) {
+      return const [];
+    }
+    final key = (text: text, settings: settings, colors: colors);
+    if (_highlightKey == key) return _highlights;
+    _highlightKey = key;
+    final html = SearchHighlightCss.resolve(
+      TextRendererService.processText(_escape.convert(text), settings),
+      colors,
+    );
+    return _highlights = coloredRanges(html, text);
+  }
+
+  static const _escape = HtmlEscape(HtmlEscapeMode.element);
+
   Widget _buildEditor() {
     final settings = widget.settings;
     // אותו עיבוד, אותו גופן ואותו סגנון שורה כמו ב-SmartTextWidget.
-    final html = TextRendererService.processText(widget.sourceText, settings);
+    final colors = Theme.of(context).colorScheme;
+    final html = SearchHighlightCss.resolve(
+      TextRendererService.processText(widget.sourceText, settings),
+      colors,
+    );
+    _colors = colors;
     final family = AppFonts.taamimSafeFontFamily(settings.fontFamily, html);
     final textStyle = TextStyle(
       fontSize: settings.fontSize,
@@ -503,8 +539,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     // ההדגשה והעלים נקבעים בבקר, כי הוא שמצייר את הטקסט (גם מאחורי עוקף
     // שבירות השורה של השדה).
     _controller!
-      ..highlightText = settings.searchText
-      ..highlightAsMark = settings.highlightYellowBackground
+      ..highlightRanges = _highlightsFor
       ..readingLeaves = line == null ? null : _leavesFor;
     return _matchReadingWidth(
       RtlTextField(

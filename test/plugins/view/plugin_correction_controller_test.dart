@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/view/plugin_correction_controller.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 
 void main() {
   _nikudTests();
   _nikudFormatTests();
+  _hiddenMarksTests();
   _highlightTests();
   for (final source in ['<br>אב', 'אב<br>', '<br>אב<br>']) {
     test('המרה סימטרית גם כשהתיקון הסיר את שולי $source', () {
@@ -392,14 +394,14 @@ void main() {
 void _nikudTests() {
   const base = 'שָׁלוֹם עוֹלָם';
   test('ספר ללא ניקוד: העורך מציג בלי ניקוד והמקור נשמר', () {
-    final controller = PluginCorrectionController(base, hideNikud: true);
+    final controller = PluginCorrectionController(base, removeNikud: true);
     addTearDown(controller.dispose);
     expect(controller.text, 'שלום עולם');
     expect(controller.forService(controller.text), base);
   });
 
   test('ספר ללא ניקוד: עריכה משמרת ניקוד של אותיות שלא נגעו בהן', () {
-    final controller = PluginCorrectionController(base, hideNikud: true);
+    final controller = PluginCorrectionController(base, removeNikud: true);
     addTearDown(controller.dispose);
     // הוספת תו בסוף "עולם": הניקוד של כל האותיות הקיימות נשאר.
     expect(
@@ -417,7 +419,7 @@ void _nikudTests() {
   test('ספר ללא ניקוד: מקף ופסק אינם נמחקים', () {
     final controller = PluginCorrectionController(
       'אָב־גָד ׀ הוּ',
-      hideNikud: true,
+      removeNikud: true,
     );
     addTearDown(controller.dispose);
     expect(controller.text, 'אב־גד ׀ הו');
@@ -431,7 +433,7 @@ void _nikudTests() {
   });
 
   test('forService טהורה ו-forEditor מעדכנת בסיס אחרי עריכה', () {
-    final controller = PluginCorrectionController(base, hideNikud: true);
+    final controller = PluginCorrectionController(base, removeNikud: true);
     addTearDown(controller.dispose);
     expect(controller.forService('שלום'), controller.forService('שלום'));
     final edited = controller.forService('שלום ');
@@ -442,7 +444,7 @@ void _nikudTests() {
   test('ניקוד שהוקלד בספר מוסתר אינו מוכפל ואינו משבש עריכות הבאות', () {
     final controller = PluginCorrectionController(
       'אָבֶג',
-      hideNikud: true,
+      removeNikud: true,
     );
     addTearDown(controller.dispose);
     // הדבקת קמץ נוסף אחרי האלף.
@@ -451,7 +453,7 @@ void _nikudTests() {
   });
 
   test('surrogate pairs אינם נחתכים', () {
-    final controller = PluginCorrectionController('א😀ב', hideNikud: true);
+    final controller = PluginCorrectionController('א😀ב', removeNikud: true);
     addTearDown(controller.dispose);
     expect(controller.forService('א😁ב'), 'א😁ב');
   });
@@ -461,7 +463,7 @@ void _nikudFormatTests() {
   const source = 'אב <b>שָׁלוֹם</b> גד';
 
   test('ספר ללא ניקוד: העיצוב מיושר לטקסט שבעורך', () {
-    final controller = PluginCorrectionController(source, hideNikud: true);
+    final controller = PluginCorrectionController(source, removeNikud: true);
     addTearDown(controller.dispose);
     expect(controller.text, 'אב שלום גד');
     expect(controller.formats, hasLength(controller.text.length));
@@ -471,7 +473,7 @@ void _nikudFormatTests() {
   });
 
   test('ספר ללא ניקוד: מחיקה והוספה שומרות על עיצוב מיושר וניקוד במקור', () {
-    final controller = PluginCorrectionController(source, hideNikud: true);
+    final controller = PluginCorrectionController(source, removeNikud: true);
     addTearDown(controller.dispose);
     controller.value = const TextEditingValue(
       text: 'אב שלו גד',
@@ -490,21 +492,21 @@ void _nikudFormatTests() {
     expect(controller.forService(controller.text), 'אב שָׁלוֹח גד');
   });
 
-  test('שינוי hideNikud אחרי היצירה גוזר מחדש את הטקסט והעיצוב', () {
+  test('שינוי דגלי ההסתרה אחרי היצירה גוזר מחדש את הטקסט והעיצוב', () {
     final controller = PluginCorrectionController(source);
     addTearDown(controller.dispose);
     expect(controller.formats, hasLength('אב שָׁלוֹם גד'.length));
-    controller.hideNikud = true;
+    controller.setHiddenMarks(removeNikud: true, removeTeamim: false);
     expect(controller.text, 'אב שלום גד');
     expect(controller.formats, hasLength(controller.text.length));
     expect(controller.formats[3].bold, isTrue);
-    controller.hideNikud = false;
+    controller.setHiddenMarks(removeNikud: false, removeTeamim: false);
     expect(controller.text, 'אב שָׁלוֹם גד');
     expect(controller.formats, hasLength(controller.text.length));
   });
 
   test('שחזור טיוטה בספר ללא ניקוד שומר עיצוב מיושר', () {
-    final controller = PluginCorrectionController(source, hideNikud: true);
+    final controller = PluginCorrectionController(source, removeNikud: true);
     addTearDown(controller.dispose);
     controller.restoreDraftValue(const TextEditingValue(text: 'אב שלום גדה'));
     expect(controller.formats, hasLength(controller.text.length));
@@ -537,7 +539,9 @@ void _highlightTests() {
 
   testWidgets('הדגשת חיפוש נחתכת בגבולות העיצוב ושומרת עליו', (tester) async {
     final controller = PluginCorrectionController('אב <b>גד</b> הו')
-      ..highlightText = 'ב ג';
+      ..highlightRanges = (_) => [
+        (start: 1, end: 4, color: Colors.red, background: null),
+      ];
     addTearDown(controller.dispose);
     final span = await build(tester, controller);
     final leaves = span.children!.cast<TextSpan>();
@@ -564,17 +568,159 @@ void _highlightTests() {
     expect(span.toPlainText(), 'אבגד');
   });
 
-  testWidgets('הדגשת חיפוש מונחת על עלי התצוגה הרגילה', (tester) async {
-    const own = TextStyle(fontStyle: FontStyle.italic);
+  testWidgets('עלי התצוגה הרגילה נושאים את ההדגשה: אין הדגשה כפולה', (
+    tester,
+  ) async {
+    var asked = 0;
     final controller = PluginCorrectionController('אבג')
-      ..highlightText = 'ב'
-      ..readingLeaves = (text) => [TextSpan(text: text, style: own)];
+      ..highlightRanges = (_) {
+        asked++;
+        return [(start: 0, end: 3, color: Colors.red, background: null)];
+      }
+      ..readingLeaves = (text) => [TextSpan(text: text)];
     addTearDown(controller.dispose);
     final span = await build(tester, controller);
+    expect(span.children!.single.style?.color, isNull);
+    expect(asked, 0);
+  });
+
+  testWidgets('הדגשה נשמרת גם בזמן הרכבה, וההרכבה נשארת מסומנת', (
+    tester,
+  ) async {
+    final controller = PluginCorrectionController('אבגד')
+      ..highlightRanges = (_) => [
+        (start: 1, end: 3, color: Colors.red, background: null),
+      ];
+    addTearDown(controller.dispose);
+    controller.value = const TextEditingValue(
+      text: 'אבגד',
+      composing: TextRange(start: 2, end: 4),
+    );
+    late TextSpan span;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            span = controller.buildTextSpan(
+              context: context,
+              style: const TextStyle(fontSize: 20),
+              withComposing: true,
+            );
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
     final leaves = span.children!.cast<TextSpan>();
-    expect(leaves.map((l) => l.text), ['א', 'ב', 'ג']);
-    expect(leaves[1].style?.fontStyle, FontStyle.italic);
-    expect(leaves[1].style?.color, isNotNull);
-    expect(leaves[0].style?.color, isNull);
+    expect(leaves.map((l) => l.text), ['א', 'ב', 'ג', 'ד']);
+    expect(leaves.map((l) => l.style?.color == Colors.red), [
+      false,
+      true,
+      true,
+      false,
+    ]);
+    expect(leaves[2].style?.decoration, TextDecoration.underline);
+    expect(leaves[3].style?.decoration, TextDecoration.underline);
+    expect(leaves[1].style?.decoration, isNull);
+  });
+}
+
+void _hiddenMarksTests() {
+  const tanakh = 'בְּרֵאשִׁ֖ית בָּרָ֣א אֱלֹהִ֑ים אֵ֣ת־הַשָּׁמַ֔יִם';
+  const paseq = 'וַיֹּ֥אמֶר ׀ אֱלֹהִ֖ים ־ יְהִ֣י ׀־ אֽוֹר';
+  const combos = [(false, false), (true, false), (false, true), (true, true)];
+
+  String reading(String text, bool nikud, bool teamim) =>
+      utils.removeMarks(text, nikud: nikud, teamim: teamim);
+
+  for (final (nikud, teamim) in combos) {
+    group('ניקוד: $nikud, טעמים: $teamim', () {
+      PluginCorrectionController make(String source) =>
+          PluginCorrectionController(
+            source,
+            removeNikud: nikud,
+            removeTeamim: teamim,
+          );
+
+      test('הטקסט בעורך שווה לטקסט של הקורא, וללא עריכה המקור זהה', () {
+        for (final source in [tanakh, paseq]) {
+          final controller = make(source);
+          addTearDown(controller.dispose);
+          expect(controller.text, reading(source, nikud, teamim));
+          expect(controller.formats, hasLength(controller.text.length));
+          expect(controller.forService(controller.text), source);
+        }
+      });
+
+      test('עריכה באמצע משאירה את הסימנים של שאר הטקסט', () {
+        final controller = make(tanakh);
+        addTearDown(controller.dispose);
+        String visible(String word) => reading(word, nikud, teamim);
+        // מחיקת מילה, החלפת מילה אחרי מקף והוספה בקצוות.
+        expect(
+          controller.forService(
+            controller.text.replaceFirst('${visible('בָּרָ֣א')} ', ''),
+          ),
+          tanakh.replaceFirst('בָּרָ֣א ', ''),
+        );
+        expect(
+          controller.forService(
+            controller.text.replaceFirst(visible('שָּׁמַ֔יִם'), 'ארץ'),
+          ),
+          tanakh.replaceFirst('שָּׁמַ֔יִם', 'ארץ'),
+        );
+        expect(controller.forService('!${controller.text}'), '!$tanakh');
+        expect(controller.forService('${controller.text}!'), '$tanakh!');
+      });
+
+      test('כל עריכה בודדת מתמפה למקור שהקורא מציג כפי שנערך', () {
+        for (final source in [tanakh, paseq]) {
+          final controller = make(source);
+          addTearDown(controller.dispose);
+          final text = controller.text;
+          for (var i = 0; i <= text.length; i++) {
+            for (final edited in [
+              if (i < text.length) text.replaceRange(i, i + 1, ''),
+              text.replaceRange(i, i, 'x'),
+              text.replaceRange(i, i, ' '),
+            ]) {
+              expect(
+                reading(controller.forService(edited), nikud, teamim),
+                edited,
+                reason: '$source @ $i',
+              );
+            }
+          }
+        }
+      });
+    });
+  }
+
+  test('מקף שמוצג כרווח חוזר להיות מקף כשלא נגעו בו', () {
+    final controller = PluginCorrectionController(
+      tanakh,
+      removeNikud: true,
+      removeTeamim: true,
+    );
+    addTearDown(controller.dispose);
+    expect(controller.text, 'בראשית ברא אלהים את השמים');
+    expect(controller.forService('בראשית ברא אלהים את השמים!'), '$tanakh!');
+    expect(
+      controller.forService('בראשית ברא אלהים אתם השמים'),
+      tanakh.replaceFirst('אֵ֣ת־', 'אֵ֣תם־'),
+    );
+  });
+
+  test('העיצוב מוקרן לטקסט הגלוי באותו מיפוי', () {
+    final controller = PluginCorrectionController(
+      'אב <b>שָׁלוֹם־גָּ֖ד</b> הו',
+      removeNikud: true,
+      removeTeamim: true,
+    );
+    addTearDown(controller.dispose);
+    expect(controller.text, 'אב שלום גד הו');
+    expect(controller.formats.map((f) => f.bold), [
+      for (var i = 0; i < controller.text.length; i++) i >= 3 && i <= 9,
+    ]);
   });
 }

@@ -533,4 +533,140 @@ void main() {
     );
     await finish(tester, service);
   });
+
+  group('הדגשת חיפוש זהה לקורא', () {
+    const voweled = 'בְּרֵאשִׁית בָּרָא אֱלֹהִים בָּרָא';
+
+    Future<PluginCorrectionSessionService> pumpSearch(
+      WidgetTester tester,
+      RenderSettings settings,
+    ) async {
+      final db = sqlite3.openInMemory();
+      addTearDown(db.close);
+      final service = PluginCorrectionSessionService()
+        ..draftRepository = PluginCorrectionDraftRepository.direct(db);
+      addTearDown(service.dispose);
+      await tester.runAsync(
+        () => service.begin(
+          owner: 'owner',
+          tabId: 'tab',
+          bookId: 'ספר',
+          bookUid: 'id:1',
+          libraryVersion: '1',
+          loadSource: (_) async => voweled,
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(
+              body: PluginCorrectionParagraph(
+                tabId: 'tab',
+                sectionIndex: 0,
+                sourceText: voweled,
+                settings: settings,
+                original: SmartTextWidget(text: voweled, settings: settings),
+                service: service,
+                sessionActive: true,
+              ),
+            ),
+          ),
+        ),
+      );
+      return service;
+    }
+
+    List<String> marks(InlineSpan span) {
+      final out = <String>[];
+      void walk(InlineSpan span) {
+        if (span is! TextSpan) return;
+        final style = span.style;
+        if ((span.text ?? '').isNotEmpty &&
+            (style?.color != null || style?.background != null)) {
+          out.add('${span.text}|${style?.color}|${style?.background?.color}');
+        }
+        span.children?.forEach(walk);
+      }
+
+      walk(span);
+      return out;
+    }
+
+    List<String> readingMarks(WidgetTester tester) => marks(
+      tester
+          .widget<RichText>(
+            find.descendant(
+              of: find.byType(SmartTextWidget),
+              matching: find.byType(RichText),
+            ),
+          )
+          .text,
+    );
+
+    TextSpan editorSpan(WidgetTester tester) {
+      final editor = tester.widget<EditableText>(find.byType(EditableText));
+      return editor.controller.buildTextSpan(
+        context: tester.element(find.byType(EditableText)),
+        style: editor.style,
+        withComposing: false,
+      );
+    }
+
+    testWidgets('טקסט מנוקד ושאילתה בלי ניקוד מודגשים כמו בקורא', (
+      tester,
+    ) async {
+      final service = await pumpSearch(
+        tester,
+        const RenderSettings(searchText: 'ברא'),
+      );
+      final expected = readingMarks(tester);
+      expect(expected.map((e) => e.split('|').first), ['בָּרָא', 'בָּרָא']);
+      await activateCorrectionParagraph(tester, find.byType(SmartTextWidget));
+      await tester.pump();
+      expect(marks(editorSpan(tester)), expected);
+      await finish(tester, service);
+    });
+
+    testWidgets('אחרי עריכה הטקסט מודגש באותה התאמה של הקורא', (tester) async {
+      final service = await pumpSearch(
+        tester,
+        const RenderSettings(searchText: 'ברא'),
+      );
+      await activateCorrectionParagraph(tester, find.byType(SmartTextWidget));
+      await tester.pump();
+      final editor = tester.widget<EditableText>(find.byType(EditableText));
+      editor.controller.value = TextEditingValue(
+        text: 'ברא  ${editor.controller.text}',
+      );
+      await tester.pump();
+      expect(
+        marks(editorSpan(tester)).map((e) => e.split('|').first),
+        ['ברא', 'בָּרָא', 'בָּרָא'],
+      );
+      await finish(tester, service);
+    });
+
+    testWidgets('ההתאמה הנוכחית מסומנת בעורך כמו בקורא, גם אחרי עריכה', (
+      tester,
+    ) async {
+      final service = await pumpSearch(
+        tester,
+        const RenderSettings(searchText: 'ברא', currentSearchIndex: 1),
+      );
+      final expected = readingMarks(tester);
+      expect(expected, hasLength(2));
+      expect(expected[0], isNot(expected[1].replaceFirst('בָּרָא', 'בָּרָא')));
+      await activateCorrectionParagraph(tester, find.byType(SmartTextWidget));
+      await tester.pump();
+      final editor = tester.widget<EditableText>(find.byType(EditableText));
+      expect(marks(editorSpan(tester)), expected);
+      editor.controller.value = TextEditingValue(
+        text: 'x${editor.controller.text}',
+      );
+      await tester.pump();
+      expect(marks(editorSpan(tester)), expected);
+      await finish(tester, service);
+    });
+  });
 }
