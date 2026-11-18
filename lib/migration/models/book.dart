@@ -48,6 +48,7 @@ class Book {
   final int totalLines;
 
   final bool isBaseBook;
+  final String? dependenceType;
   final bool hasTargumConnection;
   final bool hasReferenceConnection;
   final bool hasSourceConnection;
@@ -99,6 +100,7 @@ class Book {
     this.order = 999.0,
     this.totalLines = 0,
     this.isBaseBook = false,
+    this.dependenceType,
     this.hasTargumConnection = false,
     this.hasReferenceConnection = false,
     this.hasSourceConnection = false,
@@ -144,6 +146,7 @@ class Book {
     double? order,
     int? totalLines,
     bool? isBaseBook,
+    String? dependenceType,
     bool? hasTargumConnection,
     bool? hasReferenceConnection,
     bool? hasSourceConnection,
@@ -177,6 +180,7 @@ class Book {
       order: order ?? this.order,
       totalLines: totalLines ?? this.totalLines,
       isBaseBook: isBaseBook ?? this.isBaseBook,
+      dependenceType: dependenceType ?? this.dependenceType,
       hasTargumConnection: hasTargumConnection ?? this.hasTargumConnection,
       hasReferenceConnection:
           hasReferenceConnection ?? this.hasReferenceConnection,
@@ -200,6 +204,7 @@ class Book {
   }
 
   factory Book.fromJson(Map<String, dynamic> json) {
+    final dependenceType = json['dependenceType'];
     return Book(
       id: json['id'] as int? ?? 0,
       // עמודות רשות: מסד שחסרות בו נותן 0 (שורש יחיד / מקור לא ידוע).
@@ -235,6 +240,7 @@ class Book {
           999.0,
       totalLines: json['totalLines'] as int? ?? 0,
       isBaseBook: safeBoolFromJson(json['isBaseBook'], false),
+      dependenceType: dependenceType is String ? dependenceType : null,
       hasTargumConnection: safeBoolFromJson(json['hasTargumConnection'], false),
       hasReferenceConnection: safeBoolFromJson(
         json['hasReferenceConnection'],
@@ -278,6 +284,7 @@ class Book {
       'order': order,
       'totalLines': totalLines,
       'isBaseBook': isBaseBook,
+      'dependenceType': dependenceType,
       'hasTargumConnection': hasTargumConnection,
       'hasReferenceConnection': hasReferenceConnection,
       'hasSourceConnection': hasSourceConnection,
@@ -321,6 +328,7 @@ class Book {
           order == other.order &&
           totalLines == other.totalLines &&
           isBaseBook == other.isBaseBook &&
+          dependenceType == other.dependenceType &&
           hasTargumConnection == other.hasTargumConnection &&
           hasReferenceConnection == other.hasReferenceConnection &&
           hasSourceConnection == other.hasSourceConnection &&
@@ -355,6 +363,7 @@ class Book {
       order.hashCode ^
       totalLines.hashCode ^
       isBaseBook.hashCode ^
+      dependenceType.hashCode ^
       hasTargumConnection.hashCode ^
       hasReferenceConnection.hashCode ^
       hasSourceConnection.hashCode ^

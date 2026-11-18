@@ -434,14 +434,20 @@ void main() {
     group('פורמט native (<ספר>_links.json)', () {
       /// מאתר מזויף: "מגילה" רשמי (200 שורות), "הכי גרסינן מגילה" אישי
       /// (2000 שורות); כל כותרת אחרת לא נמצאת.
-      Future<({bool isUserBook, int? categoryId, int totalLines})?> fakeLocator(
+      Future<LocatedUserLinkBook?> fakeLocator(
         String title,
       ) async => switch (title) {
-        'מגילה' => (isUserBook: false, categoryId: 5, totalLines: 200),
+        'מגילה' => (
+          isUserBook: false,
+          categoryId: 5,
+          totalLines: 200,
+          isDependentOnly: false,
+        ),
         'הכי גרסינן מגילה' => (
           isUserBook: true,
           categoryId: 1,
           totalLines: 2000,
+          isDependentOnly: false,
         ),
         _ => null,
       };
@@ -585,11 +591,13 @@ void main() {
               isUserBook: true,
               categoryId: 1,
               totalLines: 2000,
+              isDependentOnly: false,
             ),
             'רש״י על מגילה' => (
               isUserBook: false,
               categoryId: 5,
               totalLines: 200,
+              isDependentOnly: true,
             ),
             _ => null,
           },
@@ -932,7 +940,12 @@ void main() {
           [f],
           db,
           locateBook: (title) async => title == 'ביאורי יוסף'
-              ? (isUserBook: true, categoryId: 1, totalLines: 50)
+              ? (
+                  isUserBook: true,
+                  categoryId: 1,
+                  totalLines: 50,
+                  isDependentOnly: false,
+                )
               : null,
           attachedBooks: attached,
         );
@@ -957,7 +970,12 @@ void main() {
           [f],
           db,
           locateBook: (title) async => title == 'ביאורי יוסף'
-              ? (isUserBook: true, categoryId: 1, totalLines: 50)
+              ? (
+                  isUserBook: true,
+                  categoryId: 1,
+                  totalLines: 50,
+                  isDependentOnly: false,
+                )
               : null,
           attachedBooks: attached,
         );
