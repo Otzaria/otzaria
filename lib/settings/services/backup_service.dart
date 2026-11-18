@@ -44,6 +44,7 @@ import 'package:otzaria/core/user_state/pending_report_store.dart';
 import 'package:otzaria/settings/services/backup/backup_import_merge.dart';
 import 'package:otzaria/settings/services/backup/backup_maintenance.dart';
 import 'package:otzaria/settings/services/backup/backup_report_format.dart';
+import 'package:otzaria/settings/services/backup/backup_report_queue.dart';
 import 'package:otzaria/settings/services/backup/backup_store.dart';
 import 'package:otzaria/tour/models/live_tip.dart';
 import 'package:otzaria/tour/models/tour_steps.dart';
@@ -832,21 +833,6 @@ class BackupService {
     additionalKind: additionalKind,
   )).map((r) => r.payload).toList();
 
-  /// המרת רשימת דיווחים מ-Hive/JSON לרשימת מפות עם מפתחות מחרוזת.
-  static List<Map<String, dynamic>> _reportList(Object? raw) {
-    if (raw is! List) return const [];
-    return raw
-        .whereType<Map>()
-        .map((e) => Map<String, dynamic>.from(e))
-        .toList();
-  }
-
-  static int _sentTotal(Object? raw) => raw is int ? raw : 0;
-
-  /// מזהה הדיווח: `id` בדיווחי הטעות, `reportId` בדיווחי התוספים והתוכנה.
-  static String? _reportId(Map<String, dynamic> report) =>
-      (report['id'] ?? report['reportId'])?.toString();
-
   /// Backup Shamor Zachor data - backs up all sz: keys found in Hive
   static Future<Map<String, dynamic>> _backupShamorZachor() async {
     if (!Hive.isBoxOpen(HiveCache.keyName)) {
@@ -1117,28 +1103,44 @@ class BackupService {
       if (backedUp == null) continue;
 
       // מהחדש לישן לפני הגזירה, כדי שהמכסה תשמיט את הישנים ולא את החדשים.
-      final sent = _mergeReports(
-        await _storedReports(store, queue.sentKind),
-        _reportList(backedUp['sent']),
-      )..sort((a, b) => _reportTime(b).compareTo(_reportTime(a)));
+      final sent =
+          BackupReportQueue.merge(
+            await _storedReports(store, queue.sentKind),
+            BackupReportQueue.reportList(backedUp['sent']),
+          )..sort(
+            (a, b) => BackupReportQueue.reportTime(b).compareTo(
+              BackupReportQueue.reportTime(a),
+            ),
+          );
       if (sent.length > queue.maxSent) {
         sent.removeRange(queue.maxSent, sent.length);
       }
-      final sentIds = sent.map(_reportId).whereType<String>().toSet();
-      final pending = _mergeReports(
-        await _storedReports(
-          store,
-          queue.pendingKind,
-          additionalKind: queue.section == AppReportService.queueBoxName
-              ? AppReportService.currentPendingKind
-              : null,
-        ),
-        [
-          ..._reportList(backedUp['pending']),
-          if (queue.section == AppReportService.queueBoxName)
-            ..._reportList(backedUp[appReportsBackupPendingV2]),
-        ],
-      ).where((report) => !sentIds.contains(_reportId(report))).toList();
+      final sentIds = sent
+          .map(BackupReportQueue.reportId)
+          .whereType<String>()
+          .toSet();
+      final pending =
+          BackupReportQueue.merge(
+                await _storedReports(
+                  store,
+                  queue.pendingKind,
+                  additionalKind: queue.section == AppReportService.queueBoxName
+                      ? AppReportService.currentPendingKind
+                      : null,
+                ),
+                [
+                  ...BackupReportQueue.reportList(backedUp['pending']),
+                  if (queue.section == AppReportService.queueBoxName)
+                    ...BackupReportQueue.reportList(
+                      backedUp[appReportsBackupPendingV2],
+                    ),
+                ],
+              )
+              .where(
+                (report) =>
+                    !sentIds.contains(BackupReportQueue.reportId(report)),
+              )
+              .toList();
 
       await _replaceReports(
         store,
@@ -1150,7 +1152,7 @@ class BackupService {
       );
       await _replaceReports(store, queue.sentKind, sent);
       // המונה אינו ניתן למיזוג לפי מזהה; הגדול מבין השניים הוא הקירוב הטוב.
-      final backedUpTotal = _sentTotal(backedUp['sentTotal']);
+      final backedUpTotal = BackupReportQueue.sentTotal(backedUp['sentTotal']);
       await SentReportsCounter(boxName: queue.section).raiseTo(
         backedUpTotal > sent.length ? backedUpTotal : sent.length,
       );
@@ -1166,33 +1168,17 @@ class BackupService {
   }) async {
     await store.deleteAllOfKind(kind, additionalKind: additionalKind);
     final oldestFirst = [...reports]
-      ..sort((a, b) => _reportTime(a).compareTo(_reportTime(b)));
+      ..sort(
+        (a, b) => BackupReportQueue.reportTime(a).compareTo(
+          BackupReportQueue.reportTime(b),
+        ),
+      );
     for (final report in oldestFirst) {
       final destination = additionalKind != null && (report['schema'] ?? 1) != 1
           ? additionalKind
           : kind;
       await store.add(destination, report);
     }
-  }
-
-  static DateTime _reportTime(Map<String, dynamic> report) =>
-      DateTime.tryParse('${report['createdAt'] ?? ''}') ??
-      DateTime.fromMillisecondsSinceEpoch(0);
-
-  /// איחוד שתי רשימות דיווחים לפי מזהה — המקומי מנצח, כי הוא העדכני.
-  /// דיווח בלי מזהה נשמר כמות שהוא: אין דרך לזהות אותו ככפול.
-  static List<Map<String, dynamic>> _mergeReports(
-    List<Map<String, dynamic>> local,
-    List<Map<String, dynamic>> backedUp,
-  ) {
-    final merged = [...local];
-    final localIds = local.map(_reportId).whereType<String>().toSet();
-    for (final report in backedUp) {
-      final id = _reportId(report);
-      if (id != null && localIds.contains(id)) continue;
-      merged.add(report);
-    }
-    return merged;
   }
 
   /// האם סעיף ההגדרות נאסף מרשימת מפתחות חלקית. בלי חתימת מקור, רק מפתח
