@@ -19,7 +19,7 @@ void main() {
   test('12-hour display conversion preserves the seconds marker', () {
     expect(
       zmanTimeForDisplay('\u206619:43:\u2069', twelveHourClock: true),
-      '\u20667:43:‎ PM\u2069',
+      '\u20667:43:\u200e\u00a0PM\u2069',
     );
   });
 
