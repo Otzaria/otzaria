@@ -1,6 +1,6 @@
-/// Serialization and merge rules for persisted report queues in backups.
+/// כללי סריאליזציה ומיזוג לתורי דיווחים הנשמרים בגיבויים.
 class BackupReportQueue {
-  /// Converts a JSON/Hive value into maps with string keys.
+  /// ממיר ערך Hive/JSON לרשימת מפות בעלות מפתחות מחרוזת.
   static List<Map<String, dynamic>> reportList(Object? raw) {
     if (raw is! List) return const [];
     return raw
@@ -11,7 +11,7 @@ class BackupReportQueue {
 
   static int sentTotal(Object? raw) => raw is int ? raw : 0;
 
-  /// Error reports use `id`; plugin and app reports use `reportId`.
+  /// בדיווחי טעות המזהה הוא `id`; בדיווחי תוספים ותוכנה הוא `reportId`.
   static String? reportId(Map<String, dynamic> report) =>
       (report['id'] ?? report['reportId'])?.toString();
 
@@ -19,7 +19,7 @@ class BackupReportQueue {
       DateTime.tryParse('${report['createdAt'] ?? ''}') ??
       DateTime.fromMillisecondsSinceEpoch(0);
 
-  /// Local reports win; backed-up reports without an ID cannot be deduplicated.
+  /// ממזג שתי רשימות לפי מזהה. המקומי מנצח; דיווח ללא מזהה אינו ניתן לניכוי ככפול.
   static List<Map<String, dynamic>> merge(
     List<Map<String, dynamic>> local,
     List<Map<String, dynamic>> backedUp,
