@@ -14,7 +14,6 @@ import 'package:otzaria/core/windowing/device_chrome.dart';
 import 'package:otzaria/core/windowing/window_caption_hit_test.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_top_bar.dart';
-import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
