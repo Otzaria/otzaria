@@ -183,13 +183,11 @@ void main() {
     await temp.delete(recursive: true);
   });
 
-  ThemeData theme() {
+  ThemeData theme(Color seed, Brightness brightness) {
     final base = AppThemeData.light(
-      AppThemeData.createColorScheme(
-        AppSeedColors.defaultLight,
-        Brightness.light,
-      ),
+      AppThemeData.createColorScheme(seed, brightness),
       compactMenuMode: false,
+      variant: AppThemeVariant.ofSeed(seed),
     );
     return base.copyWith(
       textTheme: base.textTheme.apply(
@@ -208,6 +206,8 @@ void main() {
     SettingsLanguage language,
     Widget child, {
     Size size = const Size(1100, 760),
+    Color seed = AppSeedColors.defaultLight,
+    Brightness brightness = Brightness.light,
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
@@ -231,7 +231,7 @@ void main() {
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
           ],
-          theme: theme(),
+          theme: theme(seed, brightness),
           home: SettingsTextScope(
             language: language,
             child: Directionality(
@@ -1250,4 +1250,102 @@ void main() {
       await tester.pump(const Duration(seconds: 7));
     },
   );
+
+  for (final (themeName, seed, brightness, size, scale) in [
+    for (final (name, seed, brightness) in [
+      ('light', AppSeedColors.defaultLight, Brightness.light),
+      ('dark', AppSeedColors.defaultDark, Brightness.dark),
+      ('white', AppSeedColors.white, Brightness.light),
+    ])
+      for (final (size, scale) in [
+        (const Size(1280, 800), 1.0),
+        (const Size(360, 800), 1.3),
+      ])
+        (name, seed, brightness, size, scale),
+  ]) {
+    visualTest('book report actions in RTL at ${size.width} px ($themeName)', (
+      tester,
+    ) async {
+      tester.platformDispatcher.textScaleFactorTestValue = scale;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.runAsync(
+        () => Settings.setValue<bool>(SettingsRepository.keyOfflineMode, false),
+      );
+      final draft = BookReportDraftCubit(
+        target: const {'bookTitle': 'אבות', 'libraryVersion': '1234'},
+        initialForm: const {'mode': 'freeText', 'details': 'טעות'},
+      );
+      await mount(
+        tester,
+        SettingsLanguage.hebrew,
+        Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: reportDialogBuilder(
+                  context,
+                  (_) => TabbedReportDialog(
+                    selectedText: 'טקסט לדוגמה',
+                    fontSize: 18,
+                    bookTitle: 'אבות',
+                    currentLineNumber: 12,
+                    directReportTargetLabel: 'ספריא',
+                    draft: draft,
+                  ),
+                ),
+              ),
+              child: const Text('open book report'),
+            ),
+          ),
+        ),
+        size: size,
+        seed: seed,
+        brightness: brightness,
+      );
+      await tester.tap(find.text('open book report'));
+      await nativeWork(tester);
+      await capture(
+        tester,
+        'book-report-actions-he-${size.width.toInt()}-$themeName',
+      );
+
+      final tab = find.byType(RegularReportTab);
+      expect(Directionality.of(tester.element(tab)), TextDirection.rtl);
+      expect(find.text('שלח בדוא"ל'), findsNothing);
+      final actionLabels = [
+        'השלך טיוטה',
+        'שמור טיוטה וצא זמנית',
+        'שמור לשליחה מאוחרת',
+        'שלח ישירות לספריא',
+      ];
+      final dialog = tester.getRect(tab);
+      final footerActions = actionLabels.map((label) {
+        final action = find.text(label);
+        expect(action.hitTestable(), findsOneWidget);
+        final rect = tester.getRect(action);
+        expect(dialog.contains(rect.topLeft), isTrue);
+        expect(dialog.contains(rect.bottomRight), isTrue);
+        return rect;
+      }).toList();
+      if (size.width > 720) {
+        expect(dialog.width, closeTo(720, 1));
+        for (final action in footerActions) {
+          expect(action.center.dy, closeTo(footerActions.first.center.dy, 1));
+        }
+        final rtlOrder = footerActions.map((rect) => rect.center.dx).toList();
+        expect(
+          rtlOrder,
+          orderedEquals([...rtlOrder]..sort((a, b) => b.compareTo(a))),
+        );
+      } else {
+        expect(footerActions.last.top, greaterThan(footerActions.first.bottom));
+      }
+
+      Navigator.of(tester.element(tab)).pop();
+      await tester.pumpAndSettle();
+      await tester.runAsync(draft.close);
+      await tester.pump(const Duration(seconds: 7));
+    });
+  }
 }

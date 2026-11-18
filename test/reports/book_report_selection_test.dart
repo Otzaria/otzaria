@@ -32,39 +32,6 @@ void main() {
     },
   );
 
-  test(
-    'repeated correction snippets include occurrence location and complete result',
-    () {
-      const sentence = 'אחד שני שלישי רביעי טעות שישי שביעי שמיני תשיעי';
-      const original = '$sentence $sentence $sentence';
-      final first = original.indexOf('טעות');
-      final second = original.indexOf('טעות', first + 1);
-      final details = [first, second]
-          .map(
-            (start) => ErrorReportHelper.emailErrorDetails(
-              ReportedErrorData(
-                selectedText: 'טעות',
-                errorDetails: '',
-                correction: TextCorrection.selection(
-                  originalLine: original,
-                  start: start,
-                  end: start + 4,
-                  proposedText: 'תיקון',
-                ),
-              ),
-            ),
-          )
-          .toList();
-      expect(details[0], isNot(details[1]));
-      for (final email in details) {
-        expect(email, contains('הקטע מופיע יותר מפעם אחת בשורה'));
-        expect(email, contains('השורה המקורית המלאה'));
-        expect(email, contains(original));
-        expect(email, contains('השורה המתוקנת המלאה'));
-      }
-    },
-  );
-
   test('UTF16 ranges reject split surrogate pairs', () {
     const text = 'א😀ב';
     expect(const BookReportSelection(1, 2).isValidFor(text), isFalse);
@@ -101,18 +68,6 @@ void main() {
         libraryVersion: 'build1',
       );
       expect(report.contextText, startsWith(context));
-      final email = ErrorReportHelper.buildEmailBody(
-        'book',
-        'reference',
-        {},
-        'מילה',
-        'typo',
-        7,
-        context,
-        'build1',
-        null,
-      );
-      expect(email, contains('22000–22004'));
     },
   );
 

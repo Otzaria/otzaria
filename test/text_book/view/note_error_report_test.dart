@@ -36,12 +36,6 @@ import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_notes_column.dart';
 import 'package:otzaria/widgets/misc/app_context_menu.dart';
 import 'package:path/path.dart' as path;
-// ignore: depend_on_referenced_packages
-import 'package:plugin_platform_interface/plugin_platform_interface.dart';
-// ignore: depend_on_referenced_packages
-import 'package:url_launcher_platform_interface/link.dart';
-// ignore: depend_on_referenced_packages
-import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
 import '../../test_helpers/stub_personal_notes_bloc.dart';
@@ -251,14 +245,10 @@ void main() {
   noteTest(
     'הערה במפרשים: דיווח חופשי עם גוף ההערה, ולשורת הספר הצעת תיקון (issue #3509)',
     (tester) async {
-      final launcher = _RecordingUrlLauncher();
-      final previousLauncher = UrlLauncherPlatform.instance;
-      UrlLauncherPlatform.instance = launcher;
-      addTearDown(() => UrlLauncherPlatform.instance = previousLauncher);
-
       final dialog = await reportFromNotesPanel(tester, _state);
       expect(dialog.correctionTemplate, isNull);
       expect(dialog.selectedText, _noteSelection);
+      expect(dialog.bookTitle, _title);
       expect(dialog.currentLineNumber, 2);
       expect(dialog.draft!.target['reportNote'], contains(_noteBody));
       expect(
@@ -271,16 +261,7 @@ void main() {
         'טעות בהערה',
       );
       await tester.pump();
-      await tester.tap(find.text('שלח בדוא"ל'));
-      for (var i = 0; i < 100 && launcher.urls.isEmpty; i++) {
-        await tester.runAsync(() => Future<void>.delayed(_tick));
-        await tester.pump(_tick);
-      }
-      final body = Uri.parse(launcher.urls.single).queryParameters['body']!;
-      expect(body, contains('שם הספר: $_title'));
-      expect(body, contains('מספר שורה: 2'));
-      expect(body, contains(_noteBody));
-      expect(body, isNot(contains('גוף החברותא')));
+      await tester.tap(find.byKey(const ValueKey('book-report-save-draft')));
       await waitForReportExit(tester, dialog.draft);
       final retained = await tester.runAsync(
         () => ReportDraftStore.instance.read(dialog.draft!.id),
@@ -490,18 +471,4 @@ Future<String> _seedLibrary(Directory dir) async {
     database.close();
   }
   return dbPath;
-}
-
-class _RecordingUrlLauncher extends UrlLauncherPlatform
-    with MockPlatformInterfaceMixin {
-  final urls = <String>[];
-
-  @override
-  Future<bool> launchUrl(String url, LaunchOptions options) async {
-    urls.add(url);
-    return true;
-  }
-
-  @override
-  LinkDelegate? get linkDelegate => null;
 }
