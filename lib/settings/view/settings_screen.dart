@@ -57,12 +57,9 @@ class SettingsScreenController extends ChangeNotifier {
 }
 
 class MySettingsScreen extends StatefulWidget {
-  const MySettingsScreen({super.key, this.controller, this.onDesktopBack});
+  const MySettingsScreen({super.key, this.controller});
 
   final SettingsScreenController? controller;
-
-  /// ESC בתצוגת דסקטופ (כשהחיפוש ריק) — חזרה למסך הקודם.
-  final VoidCallback? onDesktopBack;
 
   @override
   State<MySettingsScreen> createState() => _MySettingsScreenState();
@@ -159,8 +156,6 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
     _activeSearchNavigationRequest = null;
     if (_searchQuery.trim().isNotEmpty) {
       setState(_clearSearch);
-    } else {
-      widget.onDesktopBack?.call();
     }
   }
 
@@ -681,7 +676,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
           // ESC בלבד: onBack של KeyboardNavigator היה מפעיל גם Backspace.
           return CallbackShortcuts(
             bindings: {
-              if (isSearching || widget.onDesktopBack != null)
+              if (isSearching)
                 const SingleActivator(LogicalKeyboardKey.escape):
                     _handleDesktopEscape,
             },
