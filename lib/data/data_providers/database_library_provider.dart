@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:collection';
 import 'dart:io';
 import 'dart:isolate';
 import 'package:otzaria/text_book/repository/book_notes_repository.dart';
@@ -16,6 +15,7 @@ import 'package:otzaria/data/cache/books_cache.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
+import 'package:otzaria/data/data_providers/book_key_set.dart';
 import 'package:otzaria/data/data_providers/book_text_reader.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
@@ -2098,82 +2098,10 @@ class ScanResult {
   bool get hasChanges => addedBooks > 0 || updatedBooks > 0;
 }
 
-class _BookKeySet extends SetBase<BookCompositeKey> {
-  static const _matchCacheLimit = 128;
-
-  final Set<BookCompositeKey> _keys = {};
-  final _matches = <(String, String, int?), BookCompositeKey?>{};
-
-  BookCompositeKey? firstMatch(
-    String title,
-    String fileType, [
-    int? categoryId,
-  ]) {
-    if (_keys.isEmpty) return null;
-    final query = (title, fileType, categoryId);
-    if (_matches.containsKey(query)) return _matches[query];
-
-    BookCompositeKey? match;
-    for (final key in _keys) {
-      if (key.title == title &&
-          key.fileType == fileType &&
-          (categoryId == null || key.categoryId == categoryId)) {
-        match = key;
-        break;
-      }
-    }
-    if (_matches.length == _matchCacheLimit) {
-      _matches.remove(_matches.keys.first);
-    }
-    return _matches[query] = match;
-  }
-
-  void _invalidateMatches(BookCompositeKey key) {
-    if (_matches.isEmpty) return;
-    _matches.remove((key.title, key.fileType, null));
-    _matches.remove((key.title, key.fileType, key.categoryId));
-  }
-
-  @override
-  bool add(BookCompositeKey value) {
-    if (!_keys.add(value)) return false;
-    _invalidateMatches(value);
-    return true;
-  }
-
-  @override
-  bool remove(Object? value) {
-    if (value is! BookCompositeKey || !_keys.remove(value)) return false;
-    _invalidateMatches(value);
-    return true;
-  }
-
-  @override
-  void clear() {
-    _keys.clear();
-    _matches.clear();
-  }
-
-  @override
-  bool contains(Object? element) => _keys.contains(element);
-
-  @override
-  BookCompositeKey? lookup(Object? element) => _keys.lookup(element);
-
-  @override
-  Iterator<BookCompositeKey> get iterator => _keys.iterator;
-
-  @override
-  int get length => _keys.length;
-
-  @override
-  Set<BookCompositeKey> toSet() => _keys.toSet();
-}
-
 /// Library provider that loads books from the SQLite database.
 class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   final SqliteDataProvider _sqliteProvider = SqliteDataProvider.instance;
-  final _cachedKeys = _BookKeySet();
+  final _cachedKeys = BookKeySet();
   final Map<int, String> _categoryIdToPath = {};
   final Map<int, db_models.Category> _categoriesById = {};
   bool _titlesCached = false;
