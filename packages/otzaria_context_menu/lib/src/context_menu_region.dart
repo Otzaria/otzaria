@@ -202,7 +202,9 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
           metrics.menuPadding.vertical,
           (sum, entry) =>
               sum +
-              (entry.isDivider
+              (entry.deferredEntry != null
+                  ? 0
+                  : entry.isDivider
                   ? metrics.dividerHeight
                   // שורת אייקונים גבוהה מפריט רגיל (אייקון + כיתוב + ריפודים).
                   : entry.iconRowActions != null

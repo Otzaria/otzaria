@@ -1535,11 +1535,20 @@ class _CombinedViewState extends State<CombinedView> {
         final sourceLink = _siblingController.sourceLinkForLine(
           state.linksByLine,
           paragraphIndex + 1,
+          queriedLinks: _paragraphCommentatorsCache.referenceLinks(
+            state.book,
+            paragraphIndex,
+          ),
         );
         final sourceEntry = _siblingController.buildSourceEntry(
           sourceLink: sourceLink,
-          removeNikud: state.commentaryRemoveNikud,
-          removePunctuation: state.commentaryRemovePunctuation,
+          pendingLinks: sourceLink == null
+              ? _paragraphCommentatorsCache.pendingReferenceLinks(
+                  state.book,
+                  paragraphIndex,
+                )
+              : null,
+          displayProfile: state.commentaryDisplayProfile,
           maxFontSize: widget.textSize,
           onNavigate: (link) => openLinkTarget(link, _openTab),
         );

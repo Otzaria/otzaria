@@ -11,6 +11,36 @@ extension _ContextMenuEntries on ContextMenuRegionState {
   ) {
     final contentMaxWidth = maxWidth - metrics.itemPadding.horizontal;
     return entries.map<Widget>((entry) {
+      if (entry.deferredEntry case final pending?) {
+        final menuOverlay = _menuOverlayEntry;
+        return NotificationListener<SizeChangedLayoutNotification>(
+          onNotification: (_) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!context.mounted || _menuOverlayEntry != menuOverlay) return;
+              final overlay = Overlay.of(context, rootOverlay: true);
+              final size = overlay.context.size;
+              if (size != null) _repositionContextMenuWithinOverlay(size);
+            });
+            return true;
+          },
+          child: SizeChangedLayoutNotifier(
+            child: FutureBuilder<AppContextMenuEntry?>(
+              future: pending,
+              builder: (context, snapshot) {
+                final resolved = snapshot.data;
+                if (resolved == null) return const SizedBox.shrink();
+                return _buildLeafEntry(
+                  context,
+                  resolved,
+                  metrics,
+                  key: widget.menuItemKeysByLabel?[resolved.label ?? ''],
+                  contentMaxWidth: contentMaxWidth,
+                );
+              },
+            ),
+          ),
+        );
+      }
       if (entry.colorRowActions != null) {
         return _AppContextMenuColorRow(
           actions: entry.colorRowActions!,

@@ -22,7 +22,7 @@ const String kParagraphCommentatorsMenuLabel = 'מפרשים על פסקה זו'
 class ParagraphCommentatorsCache {
   final Map<(Object, int), List<String>> _values = {};
   final Map<(Object, int), List<Link>> _referenceLinks = {};
-  final Set<(Object, int)> _pending = {};
+  final Map<(Object, int), Completer<List<Link>?>> _pending = {};
   final StreamController<Object?> _changes = StreamController.broadcast();
 
   Stream<Object?> get changes => _changes.stream;
@@ -34,8 +34,14 @@ class ParagraphCommentatorsCache {
   List<Link>? referenceLinks(TextBook book, int paragraphIndex) =>
       _referenceLinks[_key(book, paragraphIndex)];
 
+  /// קישורים מהבקשה הקיימת, לפני שמיון הדורות הושלם.
+  Future<List<Link>?>? pendingReferenceLinks(
+    TextBook book,
+    int paragraphIndex,
+  ) => _pending[_key(book, paragraphIndex)]?.future;
+
   bool isLoading(TextBook book, int paragraphIndex) =>
-      _pending.contains(_key(book, paragraphIndex));
+      _pending.containsKey(_key(book, paragraphIndex));
 
   Future<void> prefetch({
     required TextBookRepository repository,
@@ -43,7 +49,9 @@ class ParagraphCommentatorsCache {
     required int paragraphIndex,
   }) async {
     final key = _key(book, paragraphIndex);
-    if (_values.containsKey(key) || !_pending.add(key)) return;
+    if (_values.containsKey(key) || _pending.containsKey(key)) return;
+    final pending = Completer<List<Link>?>();
+    _pending[key] = pending;
     try {
       final links = await repository.getBookLinksInRange(
         book,
@@ -55,6 +63,7 @@ class ParagraphCommentatorsCache {
         for (final link in links)
           if (!LinkTypes.isDependentTextLink(link.connectionType)) link,
       ];
+      pending.complete(referenceLinks);
       // המיון בתפריט סינכרוני — הדורות חייבים להיות במטמון לפני ההודעה.
       await CommentaryService.preloadErasForLinks(
         referenceLinks,
@@ -66,6 +75,7 @@ class ParagraphCommentatorsCache {
       }.toList();
       _referenceLinks[key] = referenceLinks;
     } finally {
+      if (!pending.isCompleted) pending.complete(null);
       _pending.remove(key);
       if (!_changes.isClosed) _changes.add(key);
     }
