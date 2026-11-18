@@ -25,14 +25,13 @@ import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/data/data_providers/official_catalog_rows.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/data/data_providers/user_books_catalog_reader.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/divine_names/models/divine_name_spans.dart';
 import 'package:otzaria/text_book/models/book_notes.dart';
-import 'package:otzaria/migration/database/daos/book_dao.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/query_loader.dart';
 import 'package:otzaria/migration/models/toc_entry.dart' as migration;
-import 'package:otzaria/migration/database/daos/category_dao.dart';
 import 'package:otzaria/migration/database/db_capabilities.dart';
 import 'package:otzaria/migration/database/line_content_codec.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
@@ -130,90 +129,6 @@ class _AttachedCatalogBuild {
         own.clamp(0, _kAttachedMergedOrderStride - 1);
   }
 }
-
-typedef _UserBooksCatalogRows = ({
-  List<Map<String, dynamic>> books,
-  List<Map<String, dynamic>> categories,
-  Map<int, String> authors,
-  List<Map<String, dynamic>> versions,
-  List<Map<String, dynamic>> attachedVersions,
-});
-
-/// בטרנזקציה אחת — תמונת מצב עקבית של כל טבלאות הקטלוג של user_books.db.
-_UserBooksCatalogRows _selectUserBooksCatalog(
-  sqlite3.Database db,
-  DbCapabilities capabilities,
-) {
-  late final _UserBooksCatalogRows rows;
-  withTransaction(db, () {
-    rows = (
-      books: BookDao.selectBooksMinimal(
-        db,
-        capabilities,
-        withFileColumns: true,
-      ),
-      categories: CategoryDao.selectCategoryRows(db, capabilities),
-      authors: BookDao.selectBookAuthorsMap(db, capabilities),
-      versions: db
-          .select(
-            'SELECT versionBookId, primaryBookId, primarySource, primaryTitle, '
-            'primaryCategoryPath, versionTitle, versionNotes, priority '
-            'FROM user_book_version',
-          )
-          .toMapList(),
-      attachedVersions:
-          db
-              .select(
-                "SELECT 1 FROM sqlite_master WHERE type = 'table' "
-                "AND name = 'user_attached_book_version'",
-              )
-              .isEmpty
-          ? const []
-          : db
-                .select(
-                  'SELECT versionDb, versionBookTitle, primarySource, '
-                  'primaryTitle, primaryCategoryPath, versionTitle, '
-                  'versionNotes, priority FROM user_attached_book_version',
-                )
-                .toMapList(),
-    );
-  });
-  return rows;
-}
-
-/// קטלוג user_books.db ופתרון נתיבי הקבצים, על חיבור read-only ב-isolate:
-/// פענוח עשרות אלפי שורות על ה-UI isolate תקע את הממשק (#3515).
-Future<_UserBooksCatalogRows> _readUserBooksCatalogInIsolate(
-  String dbPath,
-  String libraryPath,
-) => Isolate.run(() {
-  final db = openReadOnlyTarget(trustedDbTarget(dbPath));
-  try {
-    db.execute('PRAGMA busy_timeout=5000');
-    final rows = _selectUserBooksCatalog(db, DbCapabilities.probe(db));
-    return (
-      books: [
-        for (final row in rows.books)
-          if (row['filePath'] case final String path)
-            {
-              ...row,
-              'filePath': resolveMovedFileBookPath(
-                path,
-                activeLibraryPath: libraryPath,
-              ),
-            }
-          else
-            row,
-      ],
-      categories: rows.categories,
-      authors: rows.authors,
-      versions: rows.versions,
-      attachedVersions: rows.attachedVersions,
-    );
-  } finally {
-    db.close();
-  }
-}, debugName: 'readUserBooksCatalog');
 
 /// קריאת קטלוג של מסד מצורף שעדיין רצה, כולל אחרי שבניית העץ ויתרה עליה.
 class _PendingAttachedCatalog {
@@ -3877,16 +3792,16 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       // הקריאה נכשלת (למשל "database is locked" בזמן כתיבה מקבילית),
       // יוצאים דרך ה-catch בלי לגעת בקאשים או ב-library — והמצב הקודם
       // (ספרי המשתמש שכבר נטענו) נשמר עד הניסיון הבא, במקום להיעלם.
-      _UserBooksCatalogRows rows;
+      UserBooksCatalogRows rows;
       try {
-        rows = await _readUserBooksCatalogInIsolate(
+        rows = await readUserBooksCatalogInIsolate(
           repo.database.path,
           Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '',
         );
       } catch (e) {
         debugPrint('⚠️ readUserBooksCatalog failed, reading directly: $e');
         final db = await repo.database.database;
-        final direct = _selectUserBooksCatalog(
+        final direct = selectUserBooksCatalog(
           db,
           DbCapabilities.forDatabase(repo.database.path, db),
         );

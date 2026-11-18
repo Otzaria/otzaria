@@ -12,11 +12,13 @@ import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/data_providers/file_system_library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
+import 'package:otzaria/data/data_providers/user_books_catalog_reader.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/services/parallel_editions_service.dart';
 import 'package:otzaria/library/view/book_versions_dialog.dart';
+import 'package:otzaria/migration/database/db_capabilities.dart';
 import 'package:otzaria/migration/models/book.dart' as migration_models;
 import 'package:otzaria/migration/models/category.dart' as migration_models;
 import 'package:otzaria/models/book_source.dart';
@@ -190,6 +192,37 @@ void main() {
     try {
       await tempDir.delete(recursive: true);
     } catch (_) {}
+  });
+
+  test('קריאת קטלוג ישירה וב־isolate תומכות במסד ותיק ובנתיב שהועבר', () async {
+    final bookId = await addUserBook('ספר א', 'personal A');
+    await declareVersion(
+      bookId,
+      source: BookSource.official,
+      primaryTitle: SeforimFixtureIds.bereshitTitle,
+    );
+    final repo = await UserBooksDatabaseHolder.instance.repository;
+    final raw = await repo.database.database;
+    final oldPath = p.join(tempDir.path, 'old', 'library', 'book.txt');
+    final newPath = p.join(libraryPath, 'book.txt');
+    File(newPath).writeAsStringSync('personal A');
+    raw.execute('UPDATE book SET filePath = ? WHERE id = ?', [oldPath, bookId]);
+    raw.execute('DROP TABLE user_attached_book_version');
+
+    final direct = selectUserBooksCatalog(raw, DbCapabilities.probe(raw));
+    final isolated = await readUserBooksCatalogInIsolate(
+      repo.database.path,
+      libraryPath,
+    );
+
+    expect(direct.books.single['filePath'], oldPath);
+    expect(isolated.books.single['filePath'], newPath);
+    expect(isolated.categories, direct.categories);
+    expect(isolated.authors, direct.authors);
+    expect(direct.versions.single['versionBookId'], bookId);
+    expect(isolated.versions, direct.versions);
+    expect(direct.attachedVersions, isEmpty);
+    expect(isolated.attachedVersions, isEmpty);
   });
 
   test('הגרסה נקשרת לספר הרשמי, יוצאת מהעץ ונשארת מאונדקסת', () async {
