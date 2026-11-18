@@ -257,6 +257,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   static const double _arrowScrollStep = 100.0;
   static const double _arrowScrollSpeed = 500.0;
   static const int _arrowScrollHoldDelayMicros = 100000;
+  static const int _arrowScrollMaxTickMicros = 50000;
   Timer? _scrollTimer;
   int? _scrollAnchorPage;
   int? _lockedSpreadStartPage;
@@ -5148,8 +5149,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   }
 
   void _startContinuousScroll(LogicalKeyboardKey key) {
-    if (_scrollTimer != null) return;
+    final controller = widget.tab.pdfViewerController;
+    if (_scrollTimer != null || !controller.isReady || _isPageTurnInProgress) {
+      return;
+    }
 
+    // ניווט פעיל יזיז את המטריצה ויבטל את הגלילה של ה-delegate.
+    unawaited(controller.goTo(controller.value, duration: Duration.zero));
     _captureScrollAnchor();
     final direction = key == LogicalKeyboardKey.arrowUp ? 1.0 : -1.0;
     _scrollPhysicsProvider.pan(Offset(0, direction * _arrowScrollStep));
@@ -5173,16 +5179,22 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       }
 
       final nowMicros = clock.elapsedMicroseconds;
-      if (nowMicros <= scrolledUntilMicros) return;
       // בזמן דפדוף אין נרמול לכפולה, וגלילה מתחת לשכבת הדפדוף לא תינעל.
       if (_isPageTurnInProgress) {
-        scrolledUntilMicros = nowMicros;
+        scrolledUntilMicros = max(scrolledUntilMicros, nowMicros);
+        _scrollAnchorPage = null;
         return;
       }
-      final seconds = (nowMicros - scrolledUntilMicros) / 1e6;
+      if (nowMicros <= scrolledUntilMicros) return;
+      _scrollAnchorPage ??= widget.tab.pdfViewerController.pageNumber ?? 1;
+      // משליכים את רוב הזמן שעבר אם הממשק נתקע, כדי למנוע קפיצה בגלילה.
+      final elapsedMicros = min(
+        nowMicros - scrolledUntilMicros,
+        _arrowScrollMaxTickMicros,
+      );
       scrolledUntilMicros = nowMicros;
       _scrollPhysicsProvider.pan(
-        Offset(0, direction * _arrowScrollSpeed * seconds),
+        Offset(0, direction * _arrowScrollSpeed * elapsedMicros / 1e6),
       );
     });
   }
