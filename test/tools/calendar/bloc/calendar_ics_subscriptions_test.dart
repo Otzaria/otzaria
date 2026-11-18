@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -90,6 +91,7 @@ void main() {
   late String fetchedBody;
   late List<Uri> fetchedUris;
   Object? fetchError;
+  Completer<String>? pendingFetch;
 
   CalendarCubit buildCubit() {
     return CalendarCubit(
@@ -100,7 +102,8 @@ void main() {
           fetchedUris.add(uri);
           final error = fetchError;
           if (error != null) throw error;
-          return fetchedBody;
+          final fetch = pendingFetch;
+          return fetch == null ? fetchedBody : await fetch.future;
         },
       ),
     );
@@ -111,6 +114,7 @@ void main() {
     fetchedBody = _icsWithEvents(['a1']);
     fetchedUris = [];
     fetchError = null;
+    pendingFetch = null;
   });
 
   test('importIcsContent מוסיף אירועים, וייבוא חוזר לא משכפל', () async {
@@ -128,6 +132,19 @@ void main() {
     final saved = jsonDecode(settings.savedEventsJson) as List;
     expect(saved, hasLength(2));
     await cubit.close();
+  });
+
+  test('סגירת הלוח בזמן פענוח קובץ גדול מונעת שמירת אירועים', () async {
+    final cubit = buildCubit();
+    await cubit.initialized;
+
+    final importing = cubit.importIcsContent(
+      _icsWithEvents(['large-file-${'x' * 200000}']),
+    );
+    await cubit.close();
+
+    expect(await importing, 0);
+    expect(settings.savedEventsJson, '[]');
   });
 
   test('addIcsSubscription מוסיף מנוי ואירועים ושומר את שניהם', () async {
@@ -232,6 +249,28 @@ void main() {
     expect(cubit.state.events, hasLength(1));
     expect(cubit.state.events.single.title, 'אירוע שלי');
     expect(settings.savedIcsSubscriptionsJson, '[]');
+    await cubit.close();
+  });
+
+  test('רענון לא משחזר אירועים של מנוי שהוסר בזמן הטעינה', () async {
+    final cubit = buildCubit();
+    await cubit.initialized;
+    await cubit.addIcsSubscription(
+      name: 'יומן',
+      url: 'https://example.com/cal.ics',
+    );
+    final subscriptionId = cubit.state.icsSubscriptions.single.id;
+    final fetch = Completer<String>();
+    pendingFetch = fetch;
+
+    final refreshing = cubit.refreshIcsSubscriptions();
+    await cubit.removeIcsSubscription(subscriptionId);
+    fetch.complete(_icsWithEvents(['b1']));
+    await refreshing;
+
+    expect(cubit.state.events, isEmpty);
+    expect(cubit.state.icsSubscriptions, isEmpty);
+    expect(cubit.state.icsRefreshInProgress, isFalse);
     await cubit.close();
   });
 

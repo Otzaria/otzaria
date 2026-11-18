@@ -1185,8 +1185,8 @@ class CalendarCubit extends Cubit<CalendarState> {
   /// המזהים נגזרים מה-UID שבקובץ, כך שייבוא חוזר של אותו קובץ מעדכן
   /// אירועים קיימים במקום לשכפל אותם.
   Future<int> importIcsContent(String content) async {
-    final parsed = IcsCalendarService.parseIcs(content);
-    if (parsed.isEmpty) return 0;
+    final parsed = await IcsCalendarService.parseIcsAsync(content);
+    if (isClosed || parsed.isEmpty) return 0;
     emit(
       state.copyWith(
         events: [..._upsertedUserEvents(parsed), ..._pluginEvents],
@@ -1208,13 +1208,14 @@ class CalendarCubit extends Cubit<CalendarState> {
     emit(state.copyWith(icsRefreshInProgress: true, clearIcsSyncError: true));
     try {
       final body = await _icsCalendarService.fetchIcs(url);
+      if (isClosed) return null;
       final subscription = IcsSubscription(
         id: 'icssub_${DateTime.now().millisecondsSinceEpoch}',
         name: name,
         url: url,
         lastRefresh: DateTime.now(),
       );
-      final parsed = IcsCalendarService.parseIcs(
+      final parsed = await IcsCalendarService.parseIcsAsync(
         body,
         sourceId: subscription.id,
       );
@@ -1279,11 +1280,15 @@ class CalendarCubit extends Cubit<CalendarState> {
     for (final subscription in toRefresh) {
       try {
         final body = await _icsCalendarService.fetchIcs(subscription.url);
-        final parsed = IcsCalendarService.parseIcs(
+        if (isClosed) return;
+        final parsed = await IcsCalendarService.parseIcsAsync(
           body,
           sourceId: subscription.id,
         );
         if (isClosed) return;
+        if (!state.icsSubscriptions.any((s) => s.id == subscription.id)) {
+          continue;
+        }
         final events = [
           ...state.events.where((e) => e.icsSourceId != subscription.id),
           ...parsed,

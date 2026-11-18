@@ -275,6 +275,49 @@ END:VCALENDAR
     });
   });
 
+  test('פענוח קובץ גדול שומר על אזור הזמן ומזהים ללא UID', () async {
+    final local = tz.local;
+    addTearDown(() => tz.setLocalLocation(local));
+    final newYork = tz.getLocation('America/New_York');
+    tz.setLocalLocation(newYork);
+    const eventText = '''
+BEGIN:VEVENT
+DTSTART;TZID=Asia/Jerusalem:20260415T010000
+SUMMARY:אירוע מנוי
+END:VEVENT
+''';
+    const sourceId = 'icssub_1';
+    final largeIcs =
+        'BEGIN:VCALENDAR\n${'X-PADDING:1234567890\n' * 10000}'
+        '${eventText}END:VCALENDAR\n';
+
+    final event = (await IcsCalendarService.parseIcsAsync(
+      largeIcs,
+      sourceId: sourceId,
+    )).single;
+    final expected = tz.TZDateTime(
+      tz.getLocation('Asia/Jerusalem'),
+      2026,
+      4,
+      15,
+      1,
+    ).toLocal();
+
+    expect(
+      event.baseGregorianDate,
+      DateTime(expected.year, expected.month, expected.day),
+    );
+    expect(
+      event.eventTime,
+      TimeOfDay(hour: expected.hour, minute: expected.minute),
+    );
+    expect(event.icsSourceId, sourceId);
+    expect(
+      event.id,
+      IcsCalendarService.parseIcs(eventText, sourceId: sourceId).single.id,
+    );
+  });
+
   group('IcsSubscription', () {
     test('roundtrip JSON, ופריט פגום מדולג', () {
       final subscription = IcsSubscription(

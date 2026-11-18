@@ -2,10 +2,12 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart' show compute, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:kosher_dart/kosher_dart.dart';
-import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
+import 'package:otzaria/tools/calendar/models/calendar_event.dart';
+import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
 /// מנוי ליומן חיצוני בפורמט ICS (קישור שמתרענן).
@@ -77,6 +79,7 @@ class IcsSubscription extends Equatable {
 class IcsCalendarService {
   static const Duration _fetchTimeout = Duration(seconds: 20);
   static const int _maxIcsBytes = 5 * 1024 * 1024;
+  static const int _backgroundParseThreshold = 128 * 1024;
 
   IcsCalendarService({Future<String> Function(Uri uri)? httpFetcher})
     : _httpFetcher = httpFetcher ?? _defaultFetch;
@@ -121,6 +124,32 @@ class IcsCalendarService {
     } finally {
       client.close();
     }
+  }
+
+  /// מפענח תוכן ICS ומעביר קבצים גדולים ל־isolate נפרד.
+  static Future<List<CustomEvent>> parseIcsAsync(
+    String icsText, {
+    String? sourceId,
+  }) async {
+    if (kIsWeb || icsText.length < _backgroundParseThreshold) {
+      return parseIcs(icsText, sourceId: sourceId);
+    }
+    return compute(_parseInWorker, (
+      text: icsText,
+      sourceId: sourceId,
+      localZone: tz.timeZoneDatabase.isInitialized ? tz.local.name : null,
+    ));
+  }
+
+  static List<CustomEvent> _parseInWorker(
+    ({String text, String? sourceId, String? localZone}) input,
+  ) {
+    final localZone = input.localZone;
+    if (localZone != null) {
+      tz_data.initializeTimeZones();
+      tz.setLocalLocation(tz.getLocation(localZone));
+    }
+    return parseIcs(input.text, sourceId: input.sourceId);
   }
 
   /// מפענח תוכן ICS לאירועי לוח שנה.
