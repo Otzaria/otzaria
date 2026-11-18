@@ -53,6 +53,7 @@ class OpenPluginAction extends ExternalUriAction {
 /// [searchQuery] — מחרוזת חיפוש להדגשה (אופציונלי).
 /// [markSection] — כאשר `true`, מדגיש את כל תוכן המקטע ב-[index].
 /// [markText] — כאשר מוגדר, מדגיש את הטקסט הספציפי הזה בתוך המקטע.
+/// [selectLine] — בוחר את הפסקה שב־[index] ומציג את המפרשים שלה.
 ///
 /// סדר עדיפות להדגשה: [markText] > [markSection] > [searchQuery].
 class OpenBookAction extends ExternalUriAction {
@@ -62,6 +63,7 @@ class OpenBookAction extends ExternalUriAction {
   final String? searchQuery;
   final bool markSection;
   final String? markText;
+  final bool selectLine;
   const OpenBookAction(
     this.bookId, {
     this.source = BookSource.official,
@@ -69,6 +71,7 @@ class OpenBookAction extends ExternalUriAction {
     this.searchQuery,
     this.markSection = false,
     this.markText,
+    this.selectLine = false,
   });
 
   /// `true` אם הקישור מציין במפורש מיקום או הדגשה — index, ?mark או ?m=.
@@ -721,6 +724,8 @@ class ExternalUriRouter {
       final rawMark = queryParameters['m']?.trim();
       final markText = (rawMark == null || rawMark.isEmpty) ? null : rawMark;
 
+      final selectLine = index != null && queryParameters.containsKey('select');
+
       // אכיפת עדיפות m > mark > q: אם יש סימון מקומי (m או mark), q מתעלם
       // לחלוטין כדי שלא תיפתח לשונית חיפוש כללית במקביל. כך הקישור מתנהג
       // כפי שמתואר בתיעוד והקריאה ל-API חד-משמעית.
@@ -735,6 +740,7 @@ class ExternalUriRouter {
         searchQuery: searchQuery,
         markSection: markSection,
         markText: markText,
+        selectLine: selectLine,
       );
     }
 

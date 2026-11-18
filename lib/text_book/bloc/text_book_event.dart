@@ -187,7 +187,11 @@ class UpdateVisibleIndecies extends TextBookEvent {
   List<Object?> get props => [visibleIndecies];
 }
 
-class UpdateSelectedIndex extends TextBookEvent {
+abstract class TextBookSelectionEvent extends TextBookEvent {
+  const TextBookSelectionEvent();
+}
+
+class UpdateSelectedIndex extends TextBookSelectionEvent {
   final int? index;
 
   /// Ctrl+לחיצה: מוסיף/מסיר את [index] מהבחירה הקיימת במקום להחליפה.
@@ -237,6 +241,16 @@ class ApplyMarkHighlight extends TextBookEvent {
     highlightText,
     permanentHighlightLine,
   ];
+}
+
+/// בוחר את [line] כשהקורא מציג אותה. ערך null מבטל בקשה ממתינה.
+class SelectLineWhenVisible extends TextBookSelectionEvent {
+  final int? line;
+
+  const SelectLineWhenVisible(this.line);
+
+  @override
+  List<Object?> get props => [line];
 }
 
 class TogglePinLeftPane extends TextBookEvent {

@@ -952,6 +952,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
+      targetText.updateLinkSelection(incomingTab.linkSelectedLine);
       if (!PluginTextReaderRegistry.instance.usesPlugin(targetText)) {
         unawaited(navigation);
         return;
