@@ -16,6 +16,7 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/tabs/shortcuts_settings_tab.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
+import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/widgets/misc/app_dropdown_field.dart';
 
 import '../helpers/memory_settings_cache.dart';
@@ -164,6 +165,22 @@ void main() {
     await pumpShortcutsTab(tester, language: SettingsLanguage.english);
 
     expect(find.text('Next Section (Reading Area)'), findsOneWidget);
+  });
+
+  test('תוצאות החיפוש של קיצורי הקורא מתורגמות לאנגלית', () {
+    for (final key in ShortcutValidator.readerShortcutKeys) {
+      final entry = ShortcutsSettingsTab.searchEntries.singleWhere(
+        (entry) => entry.expandSection == key,
+      );
+      expect(
+        entry.titleIn(SettingsLanguage.english),
+        isNot(contains(entry.title)),
+      );
+      expect(
+        entry.subtitleIn(SettingsLanguage.english),
+        isNot(contains(entry.subtitle)),
+      );
+    }
   });
 
   testWidgets('← לפעולה אחרת תפוס כמו כל קיצור, ואחרי ביטולו באזור הקריאה '

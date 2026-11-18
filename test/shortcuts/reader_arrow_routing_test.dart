@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -12,6 +13,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/shortcuts/keyboard_shortcuts.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -136,6 +138,8 @@ Future<_Harness> _mount(
         Provider<FocusRepository>.value(value: FocusRepository()),
       ],
       child: MaterialApp(
+        builder: (_, child) =>
+            Directionality(textDirection: TextDirection.rtl, child: child!),
         home: Scaffold(
           body: KeyboardShortcuts(
             onFindRefRequested: () {},
@@ -212,12 +216,18 @@ Future<void> _hold(
   await tester.pumpAndSettle();
 }
 
-/// המדווח ב-Windows: בפלטפורמת ברירת המחדל של הבדיקות (Android) ה-
-/// PrimaryScrollController בולע את Ctrl+חץ, ובשולחן העבודה לא.
-final _windows = TargetPlatformVariant.only(TargetPlatform.windows);
-
 void _test(String description, WidgetTesterCallback body) =>
-    testWidgets(description, body, variant: _windows);
+    testWidgets(description, (tester) async {
+      ShortcutHelper.isMacForTesting =
+          defaultTargetPlatform == TargetPlatform.macOS;
+      addTearDown(() => ShortcutHelper.isMacForTesting = null);
+      await body(tester);
+    }, variant: TargetPlatformVariant.desktop());
+
+LogicalKeyboardKey get _shortcutModifier =>
+    defaultTargetPlatform == TargetPlatform.macOS
+    ? LogicalKeyboardKey.metaLeft
+    : LogicalKeyboardKey.controlLeft;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -252,7 +262,7 @@ void main() {
       await _hold(
         tester,
         LogicalKeyboardKey.arrowLeft,
-        modifier: LogicalKeyboardKey.controlLeft,
+        modifier: _shortcutModifier,
       );
 
       expect(harness.counts, [0, 1, 0, 0]);
@@ -283,6 +293,34 @@ void main() {
       expect(harness.counts, [0, 1, 0, 0]);
     });
   }
+
+  _test('חצים עם בחירה פעילה נשארים לבחירה', (tester) async {
+    final harness = await _mount(tester, _View.text, const {
+      'key-shortcut-next-toc-reader': '',
+      'key-shortcut-next-segment': 'ctrl+arrowleft',
+    });
+    final region = tester.state<SelectableRegionState>(
+      find.byType(SelectableRegion).first,
+    );
+    region.selectAll();
+    await tester.pump();
+    final initial = region.selectionEndpoints.map((p) => p.point).toList();
+
+    await _hold(
+      tester,
+      LogicalKeyboardKey.arrowRight,
+      modifier: LogicalKeyboardKey.shiftLeft,
+    );
+    final afterShift = region.selectionEndpoints.map((p) => p.point).toList();
+    expect(afterShift, isNot(initial));
+
+    await _hold(
+      tester,
+      LogicalKeyboardKey.arrowLeft,
+      modifier: _shortcutModifier,
+    );
+    expect(harness.counts, [0, 0, 0, 0]);
+  });
 
   _test('← ששויך לפעולה נשאר להזזת הסמן בשדה טקסט', (tester) async {
     final harness = await _mount(tester, _View.text, const {

@@ -16,6 +16,22 @@ bool usesAltForWordNavigation([TargetPlatform? platform]) {
       resolvedPlatform == TargetPlatform.iOS;
 }
 
+/// האם באזור הבחירה הממוקד יש קצוות בחירה.
+bool hasFocusedSelectableRegionSelection() {
+  final region = FocusManager.instance.primaryFocus?.context
+      ?.findAncestorStateOfType<SelectableRegionState>();
+  return region != null && (_selectionEndpoints(region)?.length ?? 0) >= 2;
+}
+
+List<TextSelectionPoint>? _selectionEndpoints(SelectableRegionState state) {
+  try {
+    return state.selectionEndpoints;
+  } on TypeError {
+    // ב-Flutter ה-getter מפעיל null assertion כשאין קצוות בחירה.
+    return null;
+  }
+}
+
 // --- מעקב כיוון גרירת הבחירה (לזיהוי קצה ה-focus) ---
 // `selectionEndpoints` הציבורי ממיין לפי Y, ולכן בבחירה רב-שורתית אי אפשר
 // לדעת מתוכו מי ה-base ומי ה-extent (כיוון הגרירה). לכן עוקבים אחר היסטוריית
@@ -249,6 +265,8 @@ class _PhysicalExtendSelectionAction
 
     final geo = _selectionGeometry(state);
     if (geo == null) {
+      // בלי בחירה Ctrl/Alt+חץ לא עושה דבר ב-SelectableRegion.
+      if (intent.collapse) return null;
       // יש SelectableRegion אך אין בחירה פעילה — היפוך פשוט.
       _dispatch(focusContext, word: intent.word, forward: intent.physicalLeft);
       return _handled;
@@ -333,19 +351,14 @@ class _PhysicalExtendSelectionAction
   ({bool multiLine, bool reversed})? _selectionGeometry(
     SelectableRegionState state,
   ) {
-    try {
-      final points = state.selectionEndpoints;
-      if (points.length < 2) return null;
-      final base = points.first.point;
-      final extent = points.last.point;
-      if ((base.dy - extent.dy).abs() > 1.0) {
-        return (multiLine: true, reversed: false);
-      }
-      return (multiLine: false, reversed: base.dx > extent.dx);
-    } catch (_) {
-      // selectionEndpoints זורק כשאין בחירה פעילה.
-      return null;
+    final points = _selectionEndpoints(state);
+    if (points == null || points.length < 2) return null;
+    final base = points.first.point;
+    final extent = points.last.point;
+    if ((base.dy - extent.dy).abs() > 1.0) {
+      return (multiLine: true, reversed: false);
     }
+    return (multiLine: false, reversed: base.dx > extent.dx);
   }
 }
 

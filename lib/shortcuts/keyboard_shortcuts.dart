@@ -38,6 +38,7 @@ import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
+import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
 
 class KeyboardShortcuts extends StatefulWidget {
   final Widget child;
@@ -141,7 +142,8 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
         !_isActiveWindow ||
         ShortcutHelper.isEditingText ||
         !(_focusArrows.any((arrow) => arrow.accepts(event, keyboard)) ||
-            ShortcutValidator.isReleasedReaderKey(event))) {
+            (ShortcutValidator.isReleasedReaderKey(event) &&
+                !hasFocusedSelectableRegionSelection()))) {
       return KeyEventResult.ignored;
     }
     final result = _handleKeyEvent(
