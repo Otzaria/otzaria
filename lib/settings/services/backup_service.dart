@@ -1106,11 +1106,15 @@ class BackupService {
       final sent = BackupReportQueue.merge(
         await _storedReports(store, queue.sentKind),
         BackupReportQueue.reportList(backedUp['sent']),
-      )..sort((a, b) => BackupReportQueue.reportTime(b).compareTo(BackupReportQueue.reportTime(a)));
+      )..sort(
+        (a, b) => BackupReportQueue.reportTime(b).compareTo(
+          BackupReportQueue.reportTime(a),
+        ),
+      );
       if (sent.length > queue.maxSent) {
         sent.removeRange(queue.maxSent, sent.length);
       }
-      final sentIds = sent.map(_reportId).whereType<String>().toSet();
+      final sentIds = sent.map(BackupReportQueue.reportId).whereType<String>().toSet();
       final pending = BackupReportQueue.merge(
         await _storedReports(
           store,
@@ -1152,7 +1156,11 @@ class BackupService {
   }) async {
     await store.deleteAllOfKind(kind, additionalKind: additionalKind);
     final oldestFirst = [...reports]
-      ..sort((a, b) => BackupReportQueue.reportTime(a).compareTo(BackupReportQueue.reportTime(b)));
+      ..sort(
+        (a, b) => BackupReportQueue.reportTime(a).compareTo(
+          BackupReportQueue.reportTime(b),
+        ),
+      );
     for (final report in oldestFirst) {
       final destination = additionalKind != null && (report['schema'] ?? 1) != 1
           ? additionalKind
