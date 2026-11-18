@@ -5174,6 +5174,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
       final nowMicros = clock.elapsedMicroseconds;
       if (nowMicros <= scrolledUntilMicros) return;
+      // בזמן דפדוף אין נרמול לכפולה, וגלילה מתחת לשכבת הדפדוף לא תינעל.
+      if (_isPageTurnInProgress) {
+        scrolledUntilMicros = nowMicros;
+        return;
+      }
       final seconds = (nowMicros - scrolledUntilMicros) / 1e6;
       scrolledUntilMicros = nowMicros;
       _scrollPhysicsProvider.pan(
