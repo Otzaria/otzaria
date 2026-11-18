@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/settings/search/settings_search_index.dart';
 import 'package:otzaria/settings/tabs/shortcuts_settings_tab.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 
@@ -32,8 +34,11 @@ void main() {
     final entries = ShortcutsSettingsTab.searchEntries
         .where((entry) => entry.id != 'shortcuts.reset')
         .toList();
-    expect(entries, hasLength(47));
-    expect(entries.map((entry) => entry.expandSection).toSet(), hasLength(47));
+    expect(entries, hasLength(48));
+    expect(
+      entries.map((entry) => entry.expandSection).toSet(),
+      hasLength(entries.length),
+    );
     for (final entry in entries) {
       expect(entry.expandSection, isNotNull, reason: entry.id);
       expect(
@@ -52,6 +57,25 @@ void main() {
           .singleWhere((entry) => entry.id == 'shortcuts.reset')
           .expandSection,
       isNull,
+    );
+  });
+
+  test('חיפוש הדיווח באנגלית מפנה לקיצור האופציונלי', () {
+    final entry = ShortcutsSettingsTab.searchEntries.singleWhere(
+      (entry) => entry.id == 'shortcuts.nav.app_report',
+    );
+    const language = SettingsLanguage.english;
+    const shortcutKey = ShortcutValidator.openAppReportKey;
+    expect(entry.expandSection, shortcutKey);
+    expect(ShortcutValidator.defaultShortcuts[shortcutKey], isEmpty);
+    expect(entry.titleIn(language), 'Shortcut to report a software problem');
+    expect(entry.subtitleIn(language), 'Open the software problem report form');
+    expect(
+      SettingsSearchIndex.search(
+        'report a software problem',
+        language: language,
+      ),
+      contains(entry),
     );
   });
 }
