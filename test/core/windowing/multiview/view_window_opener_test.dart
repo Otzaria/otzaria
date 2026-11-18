@@ -14,6 +14,7 @@ import 'package:otzaria/core/windowing/multiview/view_focus_sync.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_close_flow.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_opener.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_registry.dart';
+import 'package:otzaria/core/windowing/multiview/window_event_log.dart';
 import 'package:otzaria/core/windowing/window_opener.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -127,7 +128,10 @@ void main() {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
-  setUp(() => MultiViewMode.debugOverride = true);
+  setUp(() {
+    MultiViewMode.debugOverride = true;
+    WindowEventLog.instance = WindowEventLog();
+  });
 
   tearDown(() {
     MultiViewMode.debugOverride = false;
@@ -540,6 +544,39 @@ void main() {
     expect(windows.handles.single.stub.destroyed, isTrue);
     expect(windows.registry.windows, isEmpty);
     expect(sessions.rows[2], isNull);
+  });
+
+  testWidgets('יומן החלונות: פתיחה, פריים ראשון וחשיפה; מצב החלון לדוח', (
+    tester,
+  ) async {
+    final opener = makeOpener(tester);
+    await pumpHost(tester);
+
+    expect(await settle(tester, opener.openWindow()), isTrue);
+
+    final events = WindowEventLog.instance.collect();
+    expect(events.map((e) => e['event']), ['open', 'firstFrame', 'revealed']);
+    expect(events.first['slot'], 2);
+    final open = (await windows.registry.describe()).single;
+    expect(open['slot'], 2);
+    expect(open['firstFrame'], isTrue);
+    expect(open['viewSize'], isNotNull);
+  });
+
+  testWidgets('יומן החלונות: פריים ראשון שלא הגיע נרשם, גם אחרי ההריסה', (
+    tester,
+  ) async {
+    final opener = makeOpener(tester, timeout: const Duration(seconds: 1));
+    await tester.pumpWidget(const SizedBox());
+    final future = opener.openWindow();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+    expect(await future, isFalse);
+
+    final events = WindowEventLog.instance.collect();
+    expect(events.map((e) => e['event']), ['open', 'openFailed', 'closed']);
+    expect(events[1]['error'], contains('TimeoutException'));
+    expect(events.last['firstFrame'], isFalse);
   });
 
   testWidgets('שחזור כל החלונות: משבצת וגבולות שמורים; פתיחה במקביל לא גונבת', (

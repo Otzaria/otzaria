@@ -18,6 +18,8 @@ import 'package:otzaria/core/info/error_log_reader.dart';
 import 'package:otzaria/core/info/info_topic.dart';
 import 'package:otzaria/core/info/os_version.dart';
 import 'package:otzaria/core/startup_timeline.dart';
+import 'package:otzaria/core/windowing/multiview/view_window_registry.dart';
+import 'package:otzaria/core/windowing/multiview/window_event_log.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/webview2_creation_diagnostics.dart';
 import 'package:otzaria/search/active_lexical_searches.dart';
@@ -136,6 +138,14 @@ class AppReportCollector {
         'inputFocus': await _guard(
           'inputFocus',
           () async => InputFocusDiagnostics.instance.collect(),
+        ),
+      if (_includeCurrentContext)
+        'windows': await _guard(
+          'windows',
+          () async => {
+            'open': await ViewWindowRegistry.instance.describe(),
+            'events': WindowEventLog.instance.collect(),
+          },
         ),
       if (_includeCurrentContext)
         'searches': await _guard(
