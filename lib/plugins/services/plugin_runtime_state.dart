@@ -54,7 +54,7 @@ class PluginRuntimeInstance {
   PluginRuntimeInstance({required this.pluginId, required this.instanceId});
 
   final String pluginId;
-  final PluginInstanceId instanceId;
+  final String instanceId;
 
   PluginRuntime? runtime;
   int? viewId;
@@ -127,18 +127,6 @@ class PluginRuntimeInstance {
     queued.clear();
     queuedOneShots = 0;
   }
-}
-
-/// מצב הנראות של חלון אחד (תצוגה אחת).
-class PluginWindowVisibility {
-  Set<PluginInstanceKey> visibleKeys = const {};
-  bool readerScreenVisible = true;
-  bool shown = true;
-  bool minimized = false;
-
-  bool get isForeground => readerScreenVisible && shown && !minimized;
-
-  bool get showsPlugins => isForeground && visibleKeys.isNotEmpty;
 }
 
 /// מצב הנראות של חלון אחד (תצוגה אחת).
