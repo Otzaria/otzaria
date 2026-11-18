@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'dart:isolate';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
@@ -118,10 +119,6 @@ class GimatriaSearch {
   static final RegExp _namedEntityRe = RegExp(r'&[a-zA-Z]+;');
   static final RegExp _decimalEntityRe = RegExp(r'&#\d+;');
   static final RegExp _hexEntityRe = RegExp(r'&#x[0-9a-fA-F]+;');
-  static final RegExp _headingCaptureRe = RegExp(
-    r'<h([1-6])[^>]*>(.*?)</h\1>',
-    dotAll: true,
-  );
 
   static const int _alef = 0x05D0;
 
@@ -530,7 +527,8 @@ class GimatriaSearch {
           debugPrint('Scanning file: ${file.path} (lines: ${lines.length})');
         }
 
-        String pathAt(int lineIndex) => _extractPathFromLines(lines, lineIndex);
+        late final headingPaths = _LegacyHeadingPaths(lines);
+        String pathAt(int lineIndex) => headingPaths.pathAt(lineIndex);
 
         for (int i = 0; i < lines.length; i++) {
           final reachedLimit = _scanLine(
@@ -557,47 +555,6 @@ class GimatriaSearch {
       if (found.length >= fileLimit) break;
     }
     return found;
-  }
-
-  /// מחלץ את הנתיב ההיררכי (כותרות) מהשורות שלפני המיקום הנוכחי
-  static String _extractPathFromLines(List<String> lines, int currentIndex) {
-    final Map<int, String> lastHeaderByLevel = {};
-
-    // סריקה אחורה מהמיקום הנוכחי
-    for (int i = currentIndex; i >= 0; i--) {
-      // אם מצאנו כותרות מספיק, אפשר לעצור
-      if (lastHeaderByLevel.containsKey(1) &&
-          lastHeaderByLevel.containsKey(2) &&
-          lastHeaderByLevel.containsKey(3)) {
-        break;
-      }
-
-      final line = lines[i];
-      for (final match in _headingCaptureRe.allMatches(line)) {
-        try {
-          final level = int.parse(match.group(1)!);
-          final text = _cleanHtml(match.group(2)!);
-
-          // שומרים רק את הכותרת הראשונה שנמצאה עבור כל רמה
-          if (!lastHeaderByLevel.containsKey(level) && text.isNotEmpty) {
-            lastHeaderByLevel[level] = text;
-          }
-        } catch (_) {
-          // התעלם אם תגית ה-h אינה תקינה
-        }
-      }
-    }
-
-    if (lastHeaderByLevel.isEmpty) return '';
-
-    // הרכבת הנתיב לפי סדר הרמות
-    final sortedLevels = lastHeaderByLevel.keys.toList()..sort();
-    final parts = <String>[];
-    for (final level in sortedLevels) {
-      parts.add(lastHeaderByLevel[level]!);
-    }
-
-    return parts.join(', ');
   }
 
   /// מילות השורה לסריקה, אחרי הסרת HTML. הפיצול מדלג על רווחים כפולים, ולכן
@@ -652,6 +609,55 @@ class GimatriaSearch {
     cleaned = cleaned.replaceAll(_namedEntityRe, '');
     cleaned = cleaned.replaceAll(_decimalEntityRe, '');
     return cleaned.replaceAll(_hexEntityRe, '');
+  }
+}
+
+class _LegacyHeadingPaths {
+  static final _headingCaptureRe = RegExp(
+    r'<h([1-6])[^>]*>(.*?)</h\1>',
+    dotAll: true,
+  );
+
+  final List<String> _lines;
+  final _headingLines = List<int>.filled(6, -1);
+  final _headingTitles = List<String>.filled(6, '');
+  int _previousLine = -1;
+  String _path = '';
+
+  _LegacyHeadingPaths(this._lines);
+
+  int get _oldestPrimaryHeadingLine =>
+      math.min(_headingLines[0], math.min(_headingLines[1], _headingLines[2]));
+
+  String pathAt(int lineIndex) {
+    assert(lineIndex >= _previousLine);
+    var headingsChanged = false;
+    // הכותרות עד ההתאמה הקודמת כבר ידועות. בודקים רק שורות חדשות.
+    for (var i = lineIndex; i > _previousLine; i--) {
+      final line = _lines[i];
+      if (!line.contains('<h')) continue;
+      for (final match in _headingCaptureRe.allMatches(line)) {
+        final level = int.parse(match.group(1)!) - 1;
+        if (_headingLines[level] > _previousLine) continue;
+        final title = GimatriaSearch._cleanHtml(match.group(2)!);
+        if (title.isEmpty) continue;
+        _headingLines[level] = i;
+        _headingTitles[level] = title;
+        headingsChanged = true;
+      }
+      if (_oldestPrimaryHeadingLine > _previousLine) break;
+    }
+    _previousLine = lineIndex;
+
+    if (headingsChanged) {
+      // הסריקה לאחור נעצרת אחרי שנמצאו רמות 1–3. כותרת ישנה יותר לא מוצגת.
+      final cutoff = math.max(0, _oldestPrimaryHeadingLine);
+      _path = [
+        for (var level = 0; level < _headingLines.length; level++)
+          if (_headingLines[level] >= cutoff) _headingTitles[level],
+      ].join(', ');
+    }
+    return _path;
   }
 }
 
