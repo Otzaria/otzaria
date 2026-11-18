@@ -6,6 +6,7 @@ import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/contained_tooltip.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
+import 'package:otzaria_context_menu/otzaria_context_menu.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 
 /// עורך פרופיל תצוגה — שורה לכל שדה. מסך ההגדרות משתמש ב-[tiles], והפופאפ
@@ -92,6 +93,280 @@ abstract final class TextDisplayProfileEditor {
         write: (p, v) => p.copyWith(anchorMarkers: v),
       ),
     ];
+  }
+
+  /// פקדים צפופים לחלונית הסרגל. שמות הקודש מוצגים כאן כמתג אחד שמחליף
+  /// יחד את שם הוי"ה ואת שאר השמות; בחירת הנוסח נשארת בהגדרות המלאות.
+  ///
+  /// [preferredHolyName] — הנוסח שהמשתמש בחר לשם הוי"ה, לשימוש בהסתרה.
+  static List<Widget> popupTiles(
+    BuildContext context, {
+    required TextDisplayProfile profile,
+    required ValueChanged<TextDisplayProfile> onChanged,
+    bool includeTeamimSelector = true,
+    HolyNameDisplay preferredHolyName = HolyNameDisplay.kufKuf,
+    bool includeHolyNames = true,
+  }) {
+    final t = context.settingsText;
+    // אותם גדלים כמו בשאר התפריטים בתוכנה.
+    final metrics =
+        Theme.of(context).extension<AppMenuMetrics>() ??
+        AppMenuMetrics.create(compactMenus: false);
+    final itemStyle = TextStyle(fontSize: metrics.fontSize);
+
+    Widget visibilityRow({
+      required IconData icon,
+      required String title,
+      required MarkVisibility value,
+      required ValueChanged<MarkVisibility> onValue,
+    }) {
+      return Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(10, 1, 10, 1),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: metrics.iconSize,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(title, style: itemStyle),
+            ),
+            Switch(
+              value: value == MarkVisibility.show,
+              onChanged: (show) => onValue(
+                show ? MarkVisibility.show : MarkVisibility.hide,
+              ),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return [
+      visibilityRow(
+        icon: OtzariaIcons.alef_niqqud_24_filled,
+        title: t('ניקוד'),
+        value: profile.nikud,
+        onValue: (v) => onChanged(profile.copyWith(nikud: v)),
+      ),
+      if (includeTeamimSelector)
+        Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(10, 1, 10, 1),
+          child: Row(
+            children: [
+              Icon(
+                OtzariaIcons.alef_niqqud_taamim_24_filled,
+                size: metrics.iconSize,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  t('טעמי המקרא'),
+                  style: itemStyle,
+                ),
+              ),
+              // תג "כמו הניקוד": צבוע כשפעיל, רק מתאר כשכבוי.
+              Builder(
+                builder: (context) {
+                  final cs = Theme.of(context).colorScheme;
+                  final linked = profile.teamim == TeamimVisibility.followNikud;
+                  return Material(
+                    // מאופק: גוון בהיר כשפעיל, מסגרת דקה כשכבוי.
+                    color: linked
+                        ? cs.primary.withValues(alpha: 0.10)
+                        : Colors.transparent,
+                    shape: StadiumBorder(
+                      side: BorderSide(
+                        // נבחר: מסגרת מעט עבה ובולטת יותר.
+                        width: linked ? 1.5 : 1,
+                        color: linked
+                            ? cs.primary.withValues(alpha: 0.45)
+                            : cs.outlineVariant,
+                      ),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: () => onChanged(
+                        profile.copyWith(
+                          teamim: linked
+                              // ניתוק: נשארים על המצב שהיה בפועל
+                              ? (profile.removeTeamim
+                                    ? TeamimVisibility.hide
+                                    : TeamimVisibility.show)
+                              : TeamimVisibility.followNikud,
+                        ),
+                      ),
+                      child: Container(
+                        height: 28,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        alignment: Alignment.center,
+                        // הגופן העברי יושב נמוך בתיבה — הזזה קלה למעלה למרכוז.
+                        child: Transform.translate(
+                          offset: const Offset(0, -1.5),
+                          child: Text(
+                            t('כמו הניקוד'),
+                            textAlign: TextAlign.center,
+                            // גובה שורה 1 ורווח מאוזן — הטקסט ממורכז אנכית בתג.
+                            style: itemStyle.copyWith(
+                              height: 1,
+                              leadingDistribution: TextLeadingDistribution.even,
+                              // נבחר: מעט עבה יותר.
+                              fontWeight: linked
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                              // כבוי: אפור בהיר, כדי שייראה כאפשרות שלא נבחרה.
+                              color: linked ? cs.primary : cs.outline,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(width: 6),
+              // המתג מראה את המצב בפועל. לחיצה עליו קובעת הצג/הסתר במפורש,
+              // וממילא מבטלת את "כמו הניקוד".
+              Switch(
+                value: !profile.removeTeamim,
+                onChanged: (show) => onChanged(
+                  profile.copyWith(
+                    teamim: show
+                        ? TeamimVisibility.show
+                        : TeamimVisibility.hide,
+                  ),
+                ),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                // כש"כמו הניקוד" בחור: גוון דהוי (כמו מתג מושבת, אבל עם מסלול
+                // ומסגרת גלויים), ועדיין לחיץ.
+                trackColor: WidgetStateProperty.resolveWith((states) {
+                  final cs = Theme.of(context).colorScheme;
+                  if (profile.teamim != TeamimVisibility.followNikud)
+                    return null;
+                  return states.contains(WidgetState.selected)
+                      ? cs.primary.withValues(alpha: 0.45)
+                      : cs.surfaceContainerHighest;
+                }),
+                trackOutlineColor: WidgetStateProperty.resolveWith((states) {
+                  final cs = Theme.of(context).colorScheme;
+                  if (profile.teamim != TeamimVisibility.followNikud)
+                    return null;
+                  return states.contains(WidgetState.selected)
+                      ? Colors.transparent
+                      : cs.outline.withValues(alpha: 0.6);
+                }),
+                thumbColor: WidgetStateProperty.resolveWith((states) {
+                  final cs = Theme.of(context).colorScheme;
+                  if (profile.teamim != TeamimVisibility.followNikud)
+                    return null;
+                  return states.contains(WidgetState.selected)
+                      ? cs.surface
+                      : cs.outline.withValues(alpha: 0.7);
+                }),
+              ),
+            ],
+          ),
+        ),
+      visibilityRow(
+        icon: OtzariaIcons.alef_punctuation_24_filled,
+        title: t('סימני פיסוק'),
+        value: profile.punctuation,
+        onValue: (v) => onChanged(profile.copyWith(punctuation: v)),
+      ),
+      visibilityRow(
+        icon: OtzariaIcons.text_font_hebrew_24_filled,
+        title: t('ציוני המפרשים'),
+        value: profile.anchorMarkers,
+        onValue: (v) => onChanged(profile.copyWith(anchorMarkers: v)),
+      ),
+      if (includeHolyNames)
+        holyNamesTile(
+          context,
+          shown: holyNamesShown(profile),
+          onShown: (show) => onChanged(
+            withHolyNames(profile, show: show, preferred: preferredHolyName),
+          ),
+        ),
+    ];
+  }
+
+  /// שמות הקודש מוצגים רק כששם הוי"ה וגם שאר השמות ככתבם; מצב מעורב = מוסתר.
+  static bool holyNamesShown(TextDisplayProfile profile) =>
+      profile.holyName == HolyNameDisplay.asIs &&
+      profile.divineNames == DivineNamesDisplay.asIs;
+
+  /// הצג: שניהם ככתבם. הסתר: נוסח קיים נשמר; אחרת הנוסח המועדף,
+  /// ו"ככתבו" הופך ליקוק. שאר השמות — בכינוי.
+  static TextDisplayProfile withHolyNames(
+    TextDisplayProfile profile, {
+    required bool show,
+    required HolyNameDisplay preferred,
+  }) => show
+      ? profile.copyWith(
+          holyName: HolyNameDisplay.asIs,
+          divineNames: DivineNamesDisplay.asIs,
+        )
+      : profile.copyWith(
+          holyName: profile.holyName != HolyNameDisplay.asIs
+              ? profile.holyName
+              : preferred != HolyNameDisplay.asIs
+              ? preferred
+              : HolyNameDisplay.kufKuf,
+          divineNames: DivineNamesDisplay.substitute,
+        );
+
+  /// שורת "שמות הקודש" בסגנון שאר שורות החלונית.
+  static Widget holyNamesTile(
+    BuildContext context, {
+    required bool shown,
+    required ValueChanged<bool> onShown,
+    String? subtitle,
+  }) {
+    final metrics =
+        Theme.of(context).extension<AppMenuMetrics>() ??
+        AppMenuMetrics.create(compactMenus: false);
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(10, 1, 10, 1),
+      child: Row(
+        children: [
+          Icon(
+            OtzariaIcons.alef_crown_24_filled,
+            size: metrics.iconSize,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  context.settingsText('שמות הקודש'),
+                  style: TextStyle(fontSize: metrics.fontSize),
+                ),
+                if (subtitle != null)
+                  Text(
+                    context.settingsText(subtitle),
+                    style: TextStyle(
+                      fontSize: metrics.fontSize - 2,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Switch(
+            value: shown,
+            onChanged: onShown,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ],
+      ),
+    );
   }
 }
 
