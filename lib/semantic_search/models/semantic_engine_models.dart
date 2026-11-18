@@ -229,14 +229,16 @@ class SemanticCoveredBooksSummary extends Equatable {
 
   /// משתנה בכל שינוי במה שהסט מגיש; להשוואה בלבד.
   final String setKey;
+  final bool recoveredFromPrevious;
 
   const SemanticCoveredBooksSummary({
     required this.filePaths,
     required this.setKey,
+    this.recoveredFromPrevious = false,
   });
 
   @override
-  List<Object?> get props => [filePaths, setKey];
+  List<Object?> get props => [filePaths, setKey, recoveredFromPrevious];
 }
 
 /// בקשת פתיחה של סט הוקטורים והמודל (`openSemanticArtifact`).

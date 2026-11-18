@@ -175,6 +175,21 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   }
 
   @override
+  void didUpdateWidget(covariant SearchScopeMenuButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.officialBooksOnly == widget.officialBooksOnly &&
+        identical(oldWidget.coveredFilePaths, widget.coveredFilePaths) &&
+        oldWidget.excludeUserBooks == widget.excludeUserBooks) {
+      return;
+    }
+    final library = _library;
+    final fullTree = library == null ? null : ScopeTree.cachedFor(library);
+    _treeCache = fullTree == null ? null : _visibleTree(fullTree);
+    _baseBookGeneration++;
+    _baseBookNodesCache = null;
+  }
+
+  @override
   void dispose() {
     _fieldFocus.removeListener(_onFocusChanged);
     _fieldFocus.dispose();

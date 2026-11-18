@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/search_feedback/semantic_search_strings.dart';
 import 'package:otzaria/semantic_search/bloc/semantic_results_bloc.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
@@ -14,15 +15,21 @@ class SemanticSearchTab extends SearchingTab {
     required SemanticQueryOptions options,
     super.isPinned,
     this.runOnFirstShow = false,
+    this.lockedBookFacet,
     String? resultsId,
     this._createResultsBloc,
   }) : _options = options,
        resultsId = resultsId ?? _newResultsId(),
-       super(titleFor(options.query), options.query);
+       super(titleFor(options.query), options.query) {
+    _options = _withinBook(options);
+  }
 
   /// הוגש עכשיו מהדיאלוג. כרטיסייה משוחזרת או משוכפלת אינה מריצה חיפוש
   /// מעצמה (אין רישום בלי פעולת משתמש), אלא מציעה "חפש מחדש".
   final bool runOnFirstShow;
+
+  /// ה-facet הקבוע בחיפוש שנפתח מתוך ספר.
+  final String? lockedBookFacet;
 
   /// זהות יציבה של כרטיסיית התוצאות, נשמרת בשכפול (למעקב העיון).
   final String resultsId;
@@ -66,17 +73,28 @@ class SemanticSearchTab extends SearchingTab {
 
   /// מריץ חיפוש חדש בכרטיסייה ומעדכן את הכותרת.
   void submit(SemanticQueryOptions options) {
-    _options = options;
-    queryController.text = options.query;
-    title = titleFor(options.query);
+    _options = _withinBook(options);
+    queryController.text = _options.query;
+    title = titleFor(_options.query);
     titleNotifier.value = title;
-    resultsBloc.add(SemanticSearchSubmitted(options));
+    resultsBloc.add(SemanticSearchSubmitted(_options));
   }
 
   /// מצמצם את התוצאות ל-[facets] בתוך ההיקף, בלי לשנות את ההיקף השמור.
   void narrow(List<String> facets) => resultsBloc.add(
-    SemanticSearchSubmitted(_options.copyWith(facets: facets)),
+    SemanticSearchSubmitted(_withinBook(_options.copyWith(facets: facets))),
   );
+
+  SemanticQueryOptions _withinBook(SemanticQueryOptions options) {
+    final bookFacet = lockedBookFacet;
+    if (bookFacet == null) return options;
+    return options.copyWith(
+      facets: [
+        bookFacet,
+        ...FacetHelper.dimensionFacetsOf(options.facets),
+      ]..sort(),
+    );
+  }
 
   static SemanticResultsBloc _defaultResultsBloc(SemanticSearchTab tab) =>
       SemanticResultsBloc(
@@ -92,6 +110,7 @@ class SemanticSearchTab extends SearchingTab {
   @override
   SemanticSearchTab clone() => SemanticSearchTab(
     options: _options,
+    lockedBookFacet: lockedBookFacet,
     isPinned: isPinned,
     resultsId: resultsId,
     createResultsBloc: _createResultsBloc,
@@ -108,6 +127,7 @@ class SemanticSearchTab extends SearchingTab {
   factory SemanticSearchTab.fromJson(Map<String, dynamic> json) =>
       SemanticSearchTab(
         options: SemanticQueryOptions.fromJson(json),
+        lockedBookFacet: json['lockedBookFacet'] as String?,
         isPinned: json['isPinned'] == true,
       );
 
@@ -116,6 +136,7 @@ class SemanticSearchTab extends SearchingTab {
     'type': 'SemanticSearchTab',
     'title': title,
     'isPinned': isPinned,
+    if (lockedBookFacet != null) 'lockedBookFacet': lockedBookFacet,
     ..._options.toJson(),
   };
 }

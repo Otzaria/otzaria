@@ -52,6 +52,11 @@ List<String> semanticScopeFacets(Iterable<String> selection) {
   return facets..sort();
 }
 
+/// האם יש בבחירה ספר או קטגוריה שדורשים בדיקת כיסוי.
+bool needsSemanticScopeCoverage(Iterable<String> selection) => selection.any(
+  (facet) => facet != '/' && !FacetHelper.isDimensionFacet(facet),
+);
+
 /// האם facet של ספר או קטגוריה נתמך, לפני נרמול של בחירת כל הספרייה.
 bool isSemanticScopeFacetSupported(
   String facet, {

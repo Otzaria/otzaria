@@ -67,7 +67,7 @@ class _CoveredRepository extends SemanticSearchRepository {
         settings: FakeSettingsStore(),
       );
 
-  final Set<String>? covered;
+  Set<String>? covered;
 
   /// כשמוגדר, התשובה מגיעה רק כשהוא מושלם.
   Completer<void>? answerGate;
@@ -137,6 +137,7 @@ void main() {
     ({
       _MockTabsBloc tabs,
       _MockNavigationBloc navigation,
+      _CoveredRepository repository,
       List<SearchDialogResult?> results,
     })
   >
@@ -244,7 +245,12 @@ void main() {
     );
     await tester.tap(find.byKey(const ValueKey('launch')));
     await tester.pumpAndSettle();
-    return (tabs: tabs, navigation: navigation, results: results);
+    return (
+      tabs: tabs,
+      navigation: navigation,
+      repository: repository,
+      results: results,
+    );
   }
 
   testWidgets('ספר עם וקטורים: המצב החכם מוצע, אבל לא נבחר מעצמו', (
@@ -303,11 +309,29 @@ void main() {
     addTearDown(tab.dispose);
     expect(tab.options.query, 'בריאת העולם');
     expect(tab.options.facets, [bookFacet]);
+    expect(tab.lockedBookFacet, bookFacet);
     verify(
       () => harness.navigation.add(const NavigateToScreen(Screen.search)),
     ).called(1);
     expect(harness.results, [null]);
     expect(SearchDefaults.initialSemanticForNewSearch(), isFalse);
+  });
+
+  testWidgets('שליחה מתוך ספר בודקת מחדש כיסוי שהשתנה אחרי פתיחת הדיאלוג', (
+    tester,
+  ) async {
+    final harness = await pumpInBookDialog(tester, coveredBook);
+    await tester.tap(_semanticSegment);
+    await tester.pumpAndSettle();
+    await tester.enterText(_queryField, 'בריאת העולם');
+
+    harness.repository.covered = {'id:2'};
+    await tester.tap(find.byKey(const ValueKey('search-dialog-submit')));
+    await tester.pumpAndSettle();
+
+    verifyNever(() => harness.tabs.add(any()));
+    expect(find.byType(SearchDialog), findsOneWidget);
+    expect(_semanticSegment, findsNothing);
   });
 
   group('חיפוש בספרייה לפי ספרים עם וקטורים', () {
