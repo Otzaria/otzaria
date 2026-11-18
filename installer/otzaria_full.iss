@@ -366,6 +366,13 @@ end;
 
 // נתוני החיפוש החכם שמסייע ההורדה הכין: ההורה של תיקיית הספרייה הוא
 // SemanticPaths.root באפליקציה, ושם היא מחפשת את semantic-import.
+// Keep bundled library archives on the same volume as the selected books.
+// Files marked deleteafterinstall are removed by Inno after installation.
+function GetBundledArchiveDir(Param: String): String;
+begin
+  Result := ExtractFileDir(GetSelectedBooksPath('')) + '\.otzaria-bundled-archives';
+end;
+
 function GetSemanticImportDir(Param: String): String;
 begin
   Result := ExtractFileDir(GetSelectedBooksPath('')) + '\semantic-import';
@@ -1246,7 +1253,7 @@ var
   ArchivePath, DatabasePath, ZstdPath, Params, ErrOutput, Hint: String;
   ResultCode: Integer;
 begin
-  ArchivePath := ExpandConstant('{tmp}\' + ArchiveName);
+  ArchivePath := GetBundledArchiveDir('') + '\' + ArchiveName;
   // ארכיון חסר = כשל (נמחק מ-{tmp} ע"י ניקוי דיסק וכד') — דילוג שקט השאיר
   // התקנה "מוצלחת" בלי ספרייה (issue #862).
   if not FileExists(ArchivePath) then
@@ -1282,7 +1289,7 @@ var
   ArchivePath, TarPath, ParentDir, TargetDir, ZstdPath, SevenZipPath, Params, ErrOutput, Hint: String;
   ResultCode: Integer;
 begin
-  ArchivePath := ExpandConstant('{tmp}\' + ArchiveName);
+  ArchivePath := GetBundledArchiveDir('') + '\' + ArchiveName;
   if not FileExists(ArchivePath) then
   begin
     Log('Bundled archive not found: ' + ArchivePath);
@@ -1873,13 +1880,13 @@ Source: "..\build\windows\{#AppArch}\runner\Release\*"; \
 Source: "bundled_plugins\*"; Excludes: "{#NetworkGatedPlugin}"; DestDir: "{app}\{#BundledPluginsDirName}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "bundled_plugins\{#NetworkGatedPlugin}"; DestDir: "{app}\{#BundledPluginsDirName}"; Flags: ignoreversion skipifsourcedoesntexist; Check: OtzariaSiteReachable
 
-; Compressed library assets + extraction tools staged in the setup temp dir —
-; {tmp} is always writable by the installer process (unlike {app} under Program Files)
-; and is auto-deleted when setup exits, even on abort
-Source: "library_db\seforim.db.zst"; DestDir: "{tmp}"; Flags: deleteafterinstall nocompression
-Source: "library_db\otzar-HB_catalog.db.zst"; DestDir: "{tmp}"; Flags: deleteafterinstall nocompression
-Source: "library_db\talmud_bavli_latest.tar.zst"; DestDir: "{tmp}"; Flags: deleteafterinstall nocompression
-Source: "library_db\lexical.db.zst"; DestDir: "{tmp}"; Flags: deleteafterinstall nocompression
+; Bundled archives go to the selected books volume to avoid filling the system
+; TEMP drive. Only the small extraction tools stay in {tmp}.
+; deleteafterinstall cleans copied archives when setup exits.
+Source: "library_db\seforim.db.zst"; DestDir: "{code:GetBundledArchiveDir}"; Flags: deleteafterinstall nocompression
+Source: "library_db\otzar-HB_catalog.db.zst"; DestDir: "{code:GetBundledArchiveDir}"; Flags: deleteafterinstall nocompression
+Source: "library_db\talmud_bavli_latest.tar.zst"; DestDir: "{code:GetBundledArchiveDir}"; Flags: deleteafterinstall nocompression
+Source: "library_db\lexical.db.zst"; DestDir: "{code:GetBundledArchiveDir}"; Flags: deleteafterinstall nocompression
 Source: "zstd.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
 Source: "7za.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
 ; התיקייה שמסייע ההורדה מכין לצד המתקין (semantic-import), ליד תיקיית הספרייה.
