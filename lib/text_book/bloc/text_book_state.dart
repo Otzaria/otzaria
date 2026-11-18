@@ -161,7 +161,7 @@ class TextBookInitial extends TextBookState {
   final bool splitedView;
   final bool showPageShapeView;
 
-  /// A restored tab owns its selection, even when the selection is empty.
+  /// בחירה שהועברה לטאב במפורש, כולל בחירה ריקה.
   final bool hasExplicitCommentators;
 
   /// טקסט להדגשה בלבד — לא מפעיל חלונית חיפוש.
@@ -283,6 +283,9 @@ class TextBookLoaded extends TextBookState {
   final bool showSplitView;
   final bool showPageShapeView;
   final List<String> activeCommentators;
+
+  /// האם המשתמש קבע את רשימת המפרשים או שהיא שוחזרה מבחירה שמורה.
+  final bool hasExplicitCommentators;
   final List<CommentatorGroup> commentatorGroups;
   final List<String> availableCommentators;
 
@@ -401,6 +404,7 @@ class TextBookLoaded extends TextBookState {
     required this.showSplitView,
     this.showPageShapeView = false,
     required this.activeCommentators,
+    this.hasExplicitCommentators = false,
     required this.commentatorGroups,
     required this.availableCommentators,
     this.commentatorsLoaded = false,
@@ -610,6 +614,7 @@ class TextBookLoaded extends TextBookState {
     bool? showSplitView,
     bool? showPageShapeView,
     List<String>? activeCommentators,
+    bool? hasExplicitCommentators,
     List<CommentatorGroup>? commentatorGroups,
     List<String>? availableCommentators,
     bool? commentatorsLoaded,
@@ -757,6 +762,8 @@ class TextBookLoaded extends TextBookState {
       showSplitView: showSplitView ?? this.showSplitView,
       showPageShapeView: showPageShapeView ?? this.showPageShapeView,
       activeCommentators: activeCommentators ?? this.activeCommentators,
+      hasExplicitCommentators:
+          hasExplicitCommentators ?? this.hasExplicitCommentators,
       commentatorGroups: commentatorGroups ?? this.commentatorGroups,
       availableCommentators:
           availableCommentators ?? this.availableCommentators,
@@ -865,6 +872,7 @@ class TextBookLoaded extends TextBookState {
     // השוואה לפי תוכן (לא רק אורך) — אחרת החלפת מפרש אחד באחר באותו אורך
     // נבלעת ע"י השוואת ה-state והבחירה לא מתעדכנת.
     activeCommentators,
+    hasExplicitCommentators,
     commentatorGroups,
     divineNames,
     bookNotes,

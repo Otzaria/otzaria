@@ -348,8 +348,6 @@ void main() {
     ],
   );
 
-  // P3 (regression): דגלים פר-ספר אסור שידלפו בין ספרים. resetInlineNotesStateForNewBook
-  // נקרא ב-_onLoadContent כשהמצב הוא TextBookInitial.
   blocTest<TextBookBloc, TextBookState>(
     'P3a: הדגלים נדלקים אחרי UpdateCommentators + ApplyFullBookContent',
     build: () => bloc,
@@ -365,13 +363,13 @@ void main() {
       );
     },
     verify: (bloc) {
-      expect(bloc.userTouchedCommentatorsForTesting, isTrue);
+      expect((bloc.state as TextBookLoaded).hasExplicitCommentators, isTrue);
       expect(bloc.inlineNotesFullScanDoneForTesting, isTrue);
     },
   );
 
   blocTest<TextBookBloc, TextBookState>(
-    'P3b: resetInlineNotesStateForNewBook מאפס את שני הדגלים (מדמה טעינת ספר חדש)',
+    'P3b: טעינת ספר חדש מאפסת את מצב בחירת המפרשים וסריקת ההערות',
     build: () => bloc,
     seed: () => _seed(book: book, content: const ['preview']),
     act: (bloc) async {
@@ -385,11 +383,12 @@ void main() {
         ),
       );
       await Future<void>.delayed(Duration.zero);
-      // איפוס — זה מה ש-_onLoadContent קורא לו בטעינת ספר חדש
+      final nextBook = TextBook(title: 'ספר אחר');
+      bloc.emit(_seed(book: nextBook, content: const ['preview']));
       bloc.resetInlineNotesStateForNewBook();
     },
     verify: (bloc) {
-      expect(bloc.userTouchedCommentatorsForTesting, isFalse);
+      expect((bloc.state as TextBookLoaded).hasExplicitCommentators, isFalse);
       expect(bloc.inlineNotesFullScanDoneForTesting, isFalse);
     },
   );
@@ -409,7 +408,7 @@ void main() {
           'תוספות',
         ]);
         // בחירה אוטומטית אינה מסמנת שהמשתמש נגע בבחירה.
-        expect(bloc.userTouchedCommentatorsForTesting, isFalse);
+        expect((bloc.state as TextBookLoaded).hasExplicitCommentators, isFalse);
       },
     );
 
@@ -485,7 +484,7 @@ void main() {
       },
       verify: (bloc) {
         expect((bloc.state as TextBookLoaded).activeCommentators, ['רש"י']);
-        expect(bloc.userTouchedCommentatorsForTesting, isTrue);
+        expect((bloc.state as TextBookLoaded).hasExplicitCommentators, isTrue);
       },
     );
   });

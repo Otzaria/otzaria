@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
+import 'package:otzaria/bookmarks/utils/bookmark_from_tab.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/history_repository.dart';
 import 'package:otzaria/models/books.dart';
@@ -121,9 +122,13 @@ void main() {
       intraLineFraction: 0.8,
       alignment: 0.2,
     );
-    final history = await _makeLoadedHistory([
-      Bookmark(ref: 'פרק א', book: book, index: 12, readingAnchor: anchor),
-    ]);
+    final bookmark = Bookmark(
+      ref: 'פרק א',
+      book: book,
+      index: 12,
+      readingAnchor: anchor,
+    );
+    final history = await _makeLoadedHistory([bookmark]);
     final tabs = _CapturingTabsBloc();
     final navigation = _FakeNavigationBloc();
     addTearDown(history.close);
@@ -142,6 +147,16 @@ void main() {
     expect(restored.readingAnchor, anchor);
     expect(explicit.readingAnchor.line, 0);
     expect(explicit.readingAnchor.intraLineFraction, 0);
+
+    final withoutCommentators =
+        coordinator.buildTab(book, 0, '', initialCommentators: const [])
+            as TextBookTab;
+    final fromBookmark = tabFromBookmark(bookmark) as TextBookTab;
+    addTearDown(withoutCommentators.dispose);
+    addTearDown(fromBookmark.dispose);
+    expect(restored.commentators, isNull);
+    expect(fromBookmark.commentators, isNull);
+    expect(withoutCommentators.commentators, isEmpty);
   });
 
   test(

@@ -177,8 +177,10 @@ class BookOpenCoordinator {
     //   null   → ברירת מחדל: נופלים להיסטוריה (commentatorsToShow).
     //   []     → bypass מפורש: פתיחה בלי מפרשים, גם אם בעבר נשמרו ב-history.
     //   [...]  → רשימה מפורשת מהקורא (למשל FindRef → "פתח עם רש"י").
+    final historyCommentators = lastOpened?.commentatorsToShow;
     final resolvedCommentators =
-        initialCommentators ?? lastOpened?.commentatorsToShow;
+        initialCommentators ??
+        (historyCommentators?.isNotEmpty == true ? historyCommentators : null);
 
     final shouldOpenLeftPane = shouldAutoOpenReadingLeftPane(
       screenWidth: layoutWidth?.call(),

@@ -192,7 +192,7 @@ void main() {
     );
     final result = await _waitFor(
       bloc,
-      (state) => bloc.userTouchedCommentatorsForTesting,
+      (state) => state.hasExplicitCommentators,
     );
     expect(result.activeCommentators, ['מפרש גלוי']);
   });
