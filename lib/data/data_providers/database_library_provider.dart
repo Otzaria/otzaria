@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:io';
 import 'dart:isolate';
 import 'package:otzaria/text_book/repository/book_notes_repository.dart';
@@ -2127,7 +2128,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   /// מיפוי `(title, categoryId, fileType) → BookCompositeKey` עבור ספרים
   /// שמקורם ב-`user_books.db`. נפרד מ-`_cachedKeys` כדי שהמטמון של seforim
   /// לא ייפגע. כל המפתחות כאן עם `source: BookSource.user`.
-  final _userBooksCachedKeys = _BookKeySet();
+  final _userBooksCachedKeys = BookKeySet();
 
   /// ספרים אישיים לפי מזהה ב-user_books.db — כולל גרסאות שאינן בעץ.
   final Map<int, Book> _userBooksById = {};
@@ -2158,7 +2159,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
 
   /// מפתחות ספרי המסדים המצורפים. מזהי הקטגוריות טבעיים לכל מסד, ולכן המקור
   /// (slug) הוא חלק מהמפתח ומנתיבי הקטגוריות.
-  final _attachedCachedKeys = _BookKeySet();
+  final _attachedCachedKeys = BookKeySet();
   final Map<String, Map<int, String>> _attachedCategoryPaths = {};
   final Map<String, _PendingAttachedCatalog> _pendingAttachedCatalogs = {};
 
