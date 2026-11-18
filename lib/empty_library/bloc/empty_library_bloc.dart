@@ -30,6 +30,7 @@ import 'package:otzaria/empty_library/services/library_package/library_package.d
 import 'package:otzaria/empty_library/services/library_package/library_package_extractor.dart';
 import 'package:otzaria/empty_library/services/library_package/library_package_importer.dart';
 import 'package:otzaria/empty_library/services/library_package/library_source.dart';
+import 'package:otzaria/empty_library/services/archive_size_probe.dart';
 import 'package:otzaria/empty_library/services/library_space_estimate.dart';
 import 'package:otzaria/library_update/services/library_access_gate.dart';
 import 'package:otzaria/library_update/services/companion_assets_service.dart';
@@ -1193,11 +1194,16 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         final contentSize = asset.isCompressed
             ? await _probeArchiveContentSize(asset)
             : compressed;
-        final extracted = extractedSizeOf(
-          compressed,
-          archiveContentSize: contentSize,
-          fallbackRatio: _fallbackExpansion(asset),
-        );
+        final extracted = asset.isMainDb
+            ? estimatedDatabaseExtractedSize(
+                compressed,
+                firstFrameSize: contentSize,
+              )
+            : extractedSizeOf(
+                compressed,
+                archiveContentSize: contentSize,
+                fallbackRatio: _fallbackExpansion(asset),
+              );
         sizes.add((compressed: compressed, extracted: extracted));
         if (!asset.isTar && contentSize == extracted) {
           largestFile = math.max(largestFile ?? 0, extracted);
@@ -1269,8 +1275,20 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     return ExpansionFallback.database;
   }
 
-  /// גודל מלא מוכח רק לארכיון קטן שאינו מפוצל; הגדולים נשארים אומדן.
+  /// ה-DB גדול ומפוצל: קוראים רק כותרת 18 בייטים של החלק הראשון.
+  /// לנכסים קטנים אחרים בודקים כרגיל את כל ה-frames.
   Future<int?> _probeArchiveContentSize(_DownloadAsset asset) async {
+    if (asset.isMainDb) {
+      final split = asset.split;
+      final url = split != null && split.parts.isNotEmpty
+          ? split.parts.first.downloadUrl
+          : asset.resolvedUrl ?? asset.url;
+      return probeZstdFrameContentSize(
+        url,
+        client: _httpClient,
+        timeout: downloadConnectTimeout,
+      );
+    }
     if (asset.split != null ||
         asset.compressedSize <= 0 ||
         asset.compressedSize > zstdSizeProbeMaxBytes) {
