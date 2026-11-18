@@ -328,8 +328,21 @@ void main() {
       await tester.tap(find.text('הוסף קיצור'));
       await tester.pumpAndSettle();
 
-      // בחירת "פתח כרטיסיית מפרשים" (הפעולה הריקה כברירת מחדל)
-      await tester.tap(find.text('פתח כרטיסיית מפרשים'));
+      final dialog = find.byType(Dialog);
+      final action = find.descendant(
+        of: dialog,
+        matching: find.text('פתח כרטיסיית מפרשים'),
+      );
+      await tester.scrollUntilVisible(
+        action,
+        80,
+        scrollable: find.descendant(
+          of: dialog,
+          matching: find.byType(Scrollable),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(action.hitTestable());
       await tester.pumpAndSettle();
 
       if (startRecording) {
