@@ -658,6 +658,11 @@ class DbReadWorker {
     requestArguments: requestArguments,
   );
 
+  /// קריאת מטא־דאטה שכבר חולקת Future אחד בין קוראים, גם כשה־fallback עמוס.
+  /// החלפת המסד ממתינה לסגירת החיבור שלה.
+  static Future<T> runMetadataOnFreshIsolate<T>(T Function() read) =>
+      _trackTemporaryRead(() => Isolate.run(read));
+
   /// מסלול ההתאוששות משתמש באותה מכסת חיבורים זמניים.
   static Future<T> runFallbackOnFreshIsolate<T>(
     FutureOr<T> Function() read, {
