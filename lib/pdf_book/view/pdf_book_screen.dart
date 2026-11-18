@@ -61,6 +61,7 @@ import 'package:otzaria/pdf_book/utils/pdf_viewer_lifecycle_policy.dart';
 import 'package:otzaria/pdf_book/utils/pdf_image_budget.dart';
 import 'package:otzaria/pdf_book/utils/pdf_book_layout.dart';
 import 'package:otzaria/pdf_book/utils/pdf_context_menu_builders.dart';
+import 'package:otzaria/pdf_book/utils/pdf_rendering_policy.dart';
 import 'package:otzaria/pdf_book/utils/pdf_search_index_restorer.dart';
 import 'package:otzaria/pdf_book/utils/trackpad_axis_lock.dart';
 import 'package:otzaria/pdf_book/utils/trackpad_pan_recognizer.dart';
@@ -149,89 +150,7 @@ export 'package:otzaria/pdf_book/utils/pdf_book_layout.dart';
 export 'package:otzaria/pdf_book/utils/pdf_context_menu_builders.dart';
 export 'package:otzaria/pdf_book/utils/pdf_viewer_lifecycle_policy.dart';
 export 'package:otzaria/pdf_book/utils/pdf_viewport_geometry.dart';
-
-/// תקציב מטמון התמונות של טאב PDF, המתחלק בין חלוניותיו.
-const int kPdfImageCacheBudgetBytes = 48 * 1024 * 1024;
-
-/// חלקו של צפיין בתקציב הטאב; חלוניות טקסט אינן נספרות.
-int pdfImageCacheBytesForPanes(int pdfPaneCount) =>
-    kPdfImageCacheBudgetBytes ~/ max(1, pdfPaneCount);
-
-/// מחזיר את מדיניות שינוי גודל ה-PDF לפי מצב התצוגה.
-/// קנה המידה של תמונת התצוגה המקדימה לפי הזום הנוכחי; ראה [pdfPreviewRenderingScale].
-double pdfPreviewRenderingScaleFor(
-  BuildContext context,
-  PdfPage page,
-  PdfViewerController controller,
-  double estimatedScale,
-) {
-  final pageRect = controller.layout.pageLayouts[page.pageNumber - 1];
-  final displayScale = page.width > 0
-      ? controller.currentZoom *
-            MediaQuery.devicePixelRatioOf(context) *
-            pageRect.width /
-            page.width
-      : 0.0;
-  return pdfPreviewRenderingScale(
-    displayScale: displayScale,
-    threshold: estimatedScale,
-    pageWidth: page.width,
-    pageHeight: page.height,
-    // ברירת המחדל של onePassRenderingSizeThreshold ב-pdfrx.
-    sizeThreshold: 2000,
-  );
-}
-
-/// הסמל והכיתוב של כפתור ההתאמה: הפעולה שלחיצה תבצע, והקיצור אם הוגדר
-/// (§3.2).
-@visibleForTesting
-({IconData icon, String tooltip}) pdfFitButtonVisual({
-  required bool nextIsPage,
-}) {
-  final label = nextIsPage ? 'התאם לעמוד שלם' : 'התאם לרוחב';
-  final shortcut = ShortcutValidator.getShortcutValue(
-    ShortcutValidator.fitPdfViewKey,
-  );
-  return (
-    icon: nextIsPage
-        ? FluentIcons.arrow_autofit_height_24_regular
-        : FluentIcons.arrow_autofit_width_24_regular,
-    tooltip: shortcut == null || shortcut.isEmpty
-        ? label
-        : '$label (${ShortcutHelper.formatShortcutForDisplay(shortcut)})',
-  );
-}
-
-@visibleForTesting
-PdfViewerSizeDelegateProvider pdfSizeDelegateProviderForLayoutMode(
-  PdfLayoutMode layoutMode,
-) {
-  return layoutMode.isBookView
-      ? const PdfViewerSizeDelegateProviderLegacy(maxScale: 20)
-      : const PdfViewerSizeDelegateProviderSmart(
-          maxScale: 20,
-          smartMaxScale: 20,
-          maxPagesVisible: 1,
-        );
-}
-
-/// העמוד הנוכחי: בתצוגה רגילה זה שבראש החלון, ובתצוגת ספר הכפולה שבמרכזו —
-/// כפולה נמוכה מהחלון ממורכזת בו, וראש החלון נופל אז בכפולה הקודמת.
-@visibleForTesting
-PdfViewerCalculateCurrentPageNumberFunction pdfCurrentPageCalculatorFor(
-  PdfLayoutMode layoutMode,
-) => layoutMode.isBookView
-    ? (visibleRect, pageRects, controller) => pdfTopmostVisiblePage(
-        Rect.fromLTWH(
-          visibleRect.left,
-          visibleRect.center.dy,
-          visibleRect.width,
-          0,
-        ),
-        pageRects,
-      )
-    : (visibleRect, pageRects, controller) =>
-          pdfTopmostVisiblePage(visibleRect, pageRects);
+export 'package:otzaria/pdf_book/utils/pdf_rendering_policy.dart';
 
 class PdfBookScreen extends StatefulWidget {
   final PdfBookTab tab;
