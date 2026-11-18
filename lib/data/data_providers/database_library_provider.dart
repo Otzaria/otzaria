@@ -17,6 +17,7 @@ import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/book_key_set.dart';
+import 'package:otzaria/data/data_providers/scan_result.dart';
 import 'package:otzaria/data/data_providers/book_text_reader.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
@@ -72,6 +73,8 @@ import 'link_visibility_sql.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:path/path.dart' as p;
+
+export 'package:otzaria/data/data_providers/scan_result.dart';
 
 /// שם השורש שמרכז את ספרי מסד שאין בו טבלת קטגוריות.
 const kUncategorizedCategoryTitle = 'ללא קטגוריה';
@@ -2065,38 +2068,6 @@ class PersonalBooksOperationQueue {
     _tail = result.then<void>((_) {}).catchError((_) {});
     return result;
   }
-}
-
-/// תוצאת סריקת תיקייה חיצונית.
-///
-/// [addedBooks]  - מספר הספרים שנוספו ל-DB בהצלחה.
-/// [updatedBooks] - מספר הספרים שעודכנו (שינוי metadata).
-/// [failedBooks]  - מספר הספרים שנכשלו בעיבוד (שגיאה חלקית).
-/// [fatalError]   - שגיאה קטלנית שמנעה את הסריקה כולה (Isolate נפל וכד׳).
-///                  כאשר שגיאה זו קיימת, ספירות הספרים הן 0.
-class ScanResult {
-  final int addedBooks;
-  final int updatedBooks;
-  final int failedBooks;
-  final Object? fatalError;
-  final List<(String title, String reason)> failedDetails;
-
-  /// מזהי ספרים (ב-user_books.db) שקובצם השתנה מאז הסריקה הקודמת —
-  /// דורשים אינדוקס מחדש בחיפוש.
-  final List<int> updatedBookIds;
-
-  const ScanResult({
-    this.addedBooks = 0,
-    this.updatedBooks = 0,
-    this.failedBooks = 0,
-    this.fatalError,
-    this.failedDetails = const [],
-    this.updatedBookIds = const [],
-  });
-
-  bool get isSuccess => fatalError == null;
-  bool get hasPartialFailure => fatalError == null && failedBooks > 0;
-  bool get hasChanges => addedBooks > 0 || updatedBooks > 0;
 }
 
 /// Library provider that loads books from the SQLite database.
