@@ -132,6 +132,7 @@ void main() {
 
     final fresh = TextBookTab(book: book, index: 0);
     addTearDown(fresh.dispose);
+    expect(fresh.toJson().containsKey('commentators'), isFalse);
     expect(
       (fresh.blocState as TextBookInitial).hasExplicitCommentators,
       isFalse,
