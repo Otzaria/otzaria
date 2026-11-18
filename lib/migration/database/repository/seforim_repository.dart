@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:logging/logging.dart';
+import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 
 import '../../../book_protection/utils/banner_title.dart';
@@ -29,6 +30,7 @@ import '../book_read.dart';
 import '../db_capabilities.dart';
 import '../line_content_encoder.dart';
 import '../sqlite3_utils.dart';
+import '../untrusted_database.dart';
 
 part 'alt_toc_flat_index.dart';
 
@@ -984,48 +986,12 @@ class SeforimRepository {
         booksByTitle: const <String, List<({int id, int? categoryId})>>{},
       );
     }
-    final db = await _database.database;
-    final levels = <int, int>{
-      if (capabilities.hasBookProtection)
-        for (final row in db.select(
-          'SELECT bookId, level FROM book_protection',
-        ))
-          if (row['bookId'] is int && row['level'] is int)
-            row['bookId'] as int: row['level'] as int,
-    };
-    final banners = <int, String>{
-      if (capabilities.hasBookBanners)
-        for (final row in db.select(
-          'SELECT bb.bookId, b.title, n.text FROM book_banner bb '
-          'JOIN banner n ON n.id = bb.bannerId JOIN book b ON b.id = bb.bookId',
-        ))
-          if (row['bookId'] is int &&
-              row['title'] is String &&
-              row['text'] is String)
-            row['bookId'] as int: expandBannerTitle(
-              row['text'] as String,
-              row['title'] as String,
-            ),
-    };
-    // רק הספרים שבטבלאות — כדי שאיתור לפי כותרת ייעשה בזיכרון.
-    final booksByTitle = <String, List<({int id, int? categoryId})>>{};
-    if (levels.isNotEmpty || banners.isNotEmpty) {
-      final categoryColumn = capabilities.column('book', 'categoryId');
-      final idSources = [
-        if (capabilities.hasBookProtection)
-          'SELECT bookId FROM book_protection',
-        if (capabilities.hasBookBanners) 'SELECT bookId FROM book_banner',
-      ].join(' UNION ');
-      for (final row in db.select(
-        'SELECT id, title, $categoryColumn FROM book WHERE id IN ($idSources)',
-      )) {
-        booksByTitle.putIfAbsent(row['title'] as String, () => []).add((
-          id: row['id'] as int,
-          categoryId: row['categoryId'] as int?,
-        ));
-      }
+    if (!_database.isOfficial) {
+      return _readBookProtectionTables(await _database.database, capabilities);
     }
-    return (levels: levels, banners: banners, booksByTitle: booksByTitle);
+    return DbReadWorker.runMetadataOnFreshIsolate(
+      _protectionTablesOnTarget(_database.readOnlyTarget, capabilities),
+    );
   }
 
   // --- Sources ---
@@ -3352,4 +3318,63 @@ class _TocBookCache {
     this.hasBareDafHeadings = false,
     this.titleHeadingTokens = const [],
   });
+}
+
+// סגירת ה-isolate לוכדת רק את היעד ומפת הסכמה, בלי חיבור SQLite.
+BookProtectionTables Function() _protectionTablesOnTarget(
+  ReadOnlyDbTarget target,
+  DbCapabilities capabilities,
+) => () {
+  final db = openReadOnlyTarget(target);
+  try {
+    return _readBookProtectionTables(db, capabilities);
+  } finally {
+    db.close();
+  }
+};
+
+BookProtectionTables _readBookProtectionTables(
+  sqlite3.Database db,
+  DbCapabilities capabilities,
+) {
+  final levels = <int, int>{
+    if (capabilities.hasBookProtection)
+      for (final row in db.select(
+        'SELECT bookId, level FROM book_protection',
+      ))
+        if (row['bookId'] is int && row['level'] is int)
+          row['bookId'] as int: row['level'] as int,
+  };
+  final banners = <int, String>{
+    if (capabilities.hasBookBanners)
+      for (final row in db.select(
+        'SELECT bb.bookId, b.title, n.text FROM book_banner bb '
+        'JOIN banner n ON n.id = bb.bannerId JOIN book b ON b.id = bb.bookId',
+      ))
+        if (row['bookId'] is int &&
+            row['title'] is String &&
+            row['text'] is String)
+          row['bookId'] as int: expandBannerTitle(
+            row['text'] as String,
+            row['title'] as String,
+          ),
+  };
+  // רק הספרים שבטבלאות — כדי שאיתור לפי כותרת ייעשה בזיכרון.
+  final booksByTitle = <String, List<({int id, int? categoryId})>>{};
+  if (levels.isNotEmpty || banners.isNotEmpty) {
+    final categoryColumn = capabilities.column('book', 'categoryId');
+    final idSources = [
+      if (capabilities.hasBookProtection) 'SELECT bookId FROM book_protection',
+      if (capabilities.hasBookBanners) 'SELECT bookId FROM book_banner',
+    ].join(' UNION ');
+    for (final row in db.select(
+      'SELECT id, title, $categoryColumn FROM book WHERE id IN ($idSources)',
+    )) {
+      booksByTitle.putIfAbsent(row['title'] as String, () => []).add((
+        id: row['id'] as int,
+        categoryId: row['categoryId'] as int?,
+      ));
+    }
+  }
+  return (levels: levels, banners: banners, booksByTitle: booksByTitle);
 }

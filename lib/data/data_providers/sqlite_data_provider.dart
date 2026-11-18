@@ -72,25 +72,7 @@ class SqliteDataProvider {
 
     // קוראים ממתינים לחיבור ה-RO, בלי לפתוח אותו במהלך כתיבה חיצונית.
     if (_activeWriteSessions > 0) {
-      // תקרה לקורא בלבד: session פעיל ממשיך לחסום פתיחה.
-      var polls = 0;
-      for (; _activeWriteSessions > 0 && !_isInitialized; polls++) {
-        if (polls >= _maxExternalWriteWaitPolls && !libraryReplacing) {
-          // יש לאתר close שלא קיבל reopen תואם.
-          debugPrint(
-            '⚠️ [SqliteDataProvider] initialize() חרג מתקרת ההמתנה '
-            'ל-gate ($_activeWriteSessions write-sessions פעילים, '
-            '_externalWriteGate=${_externalWriteGate == null ? "null" : "ממתין"}). '
-            'חשד לדליפת write-session — קריאות יקבלו ריק עד פתיחה-מחדש.',
-          );
-          break;
-        }
-        final gate = _externalWriteGate;
-        if (gate == null) break;
-        try {
-          await gate.future.timeout(_externalWriteWaitPollInterval);
-        } catch (_) {}
-      }
+      await _waitForExternalWrite();
       // אם החיבור נפתח מחדש — סיימנו. אם עדיין יש session פעיל (חפיפה או
       // השתהות מעבר לתקרה) — מוותרים זמנית. אחרת נופלים לאתחול הרגיל למטה.
       if (_isInitialized || _activeWriteSessions > 0) {
@@ -276,6 +258,25 @@ class SqliteDataProvider {
     if (maxPolls != null) _maxExternalWriteWaitPolls = maxPolls;
   }
 
+  Future<bool> _waitForExternalWrite() async {
+    for (var polls = 0; ; polls++) {
+      final gate = _externalWriteGate;
+      if (gate == null) return true;
+      if (polls >= _maxExternalWriteWaitPolls && !libraryReplacing) {
+        debugPrint(
+          '[SqliteDataProvider] קורא חרג מתקרת ההמתנה לכתיבה חיצונית '
+          '($_activeWriteSessions סשנים פעילים).',
+        );
+        return false;
+      }
+      try {
+        await gate.future.timeout(_externalWriteWaitPollInterval);
+      } on TimeoutException {
+        continue;
+      }
+    }
+  }
+
   /// סוגר את חיבור ה-RO לפני שאיזולייט חיצוני (diff-sync / background sync)
   /// פותח את seforim.db לכתיבה, כדי שלא תתפוס נעילת קובץ מתנגשת.
   ///
@@ -348,6 +349,28 @@ class SqliteDataProvider {
         gate.complete();
       }
     }
+  }
+
+  /// מחזיר הגבלות מהמאגר הפעיל, גם כשקריאה נקטעת בהחלפת המסד.
+  Future<BookProtectionTables?> getBookProtectionTables() async {
+    for (var attempt = 0; attempt < 2; attempt++) {
+      if (!await _waitForExternalWrite()) return null;
+      if (!_isInitialized) await initialize();
+      if (_externalWriteGate != null) continue;
+
+      final current = repository;
+      try {
+        final tables = await current?.getBookProtectionTables();
+        if (_externalWriteGate == null && identical(current, repository)) {
+          return tables;
+        }
+      } on DbReadWorkerSuspended {
+        if (_externalWriteGate == null && identical(current, repository)) {
+          rethrow;
+        }
+      }
+    }
+    return null;
   }
 
   /// Retrieves quick preview of a book (40 lines around position) for instant display
