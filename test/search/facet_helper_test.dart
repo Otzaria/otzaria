@@ -4,20 +4,13 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
 
-class _FakeSearchResult {
-  final String filePath;
-
-  _FakeSearchResult(this.filePath);
-}
-
 void main() {
-  group('FacetHelper.buildFacetCountsFromResults', () {
-    test('מחשב ספירות עבור שורש, אבות וספרים', () {
-      final genesis = TextBook(
-        id: 101,
-        title: 'בראשית',
-        categoryPath: '/תנ"ך/תורה',
+  group('FacetHelper.buildFacetCountsFromResultPaths', () {
+    test('מחשב ספירות עבור שורש, אבות וספרים עם תוצאות חוזרות', () {
+      final torah = _CountingCategory(
+        _category('תורה', _category('תנ"ך', null)),
       );
+      final genesis = TextBook(id: 101, title: 'בראשית', category: torah);
       final berachot = TextBook(
         id: 202,
         title: 'ברכות',
@@ -29,25 +22,20 @@ void main() {
         BookIdentity.indexedFilePath(berachot): berachot,
       };
 
-      final counts = FacetHelper.buildFacetCountsFromResults(
-        [
-          _FakeSearchResult(
-            BookIdentity.indexedFilePath(genesis),
-          ),
-          _FakeSearchResult(
-            BookIdentity.indexedFilePath(berachot),
-          ),
-        ],
-        bookByIndexedFilePath,
-      );
+      final counts = FacetHelper.buildFacetCountsFromResultPaths([
+        BookIdentity.indexedFilePath(genesis),
+        BookIdentity.indexedFilePath(berachot),
+        BookIdentity.indexedFilePath(genesis),
+      ], bookByIndexedFilePath);
 
-      expect(counts['/'], 2);
-      expect(counts['/תנ"ך'], 1);
-      expect(counts['/תנ"ך/תורה'], 1);
-      expect(counts['/תנ"ך/תורה/id:101'], 1);
+      expect(counts['/'], 3);
+      expect(counts['/תנ"ך'], 2);
+      expect(counts['/תנ"ך/תורה'], 2);
+      expect(counts['/תנ"ך/תורה/id:101'], 2);
       expect(counts['/משנה'], 1);
       expect(counts['/משנה/זרעים'], 1);
       expect(counts['/משנה/זרעים/id:202'], 1);
+      expect(torah.pathReads, 1);
     });
 
     test('מבדיל בין ספרים עם אותו שם לפי מפתח ה-filePath היציב', () {
@@ -56,20 +44,12 @@ void main() {
         title: 'שבת',
         categoryPath: '/תלמוד בבלי/סדר מועד',
       );
-      final secondBook = TextBook(
-        id: 22,
-        title: 'שבת',
-        categoryPath: '/הלכה',
-      );
+      final secondBook = TextBook(id: 22, title: 'שבת', categoryPath: '/הלכה');
 
-      final counts = FacetHelper.buildFacetCountsFromResults(
+      final counts = FacetHelper.buildFacetCountsFromResultPaths(
         [
-          _FakeSearchResult(
-            BookIdentity.indexedFilePath(firstBook),
-          ),
-          _FakeSearchResult(
-            BookIdentity.indexedFilePath(secondBook),
-          ),
+          BookIdentity.indexedFilePath(firstBook),
+          BookIdentity.indexedFilePath(secondBook),
         ],
         {
           BookIdentity.indexedFilePath(firstBook): firstBook,
@@ -82,10 +62,9 @@ void main() {
     });
 
     test('תוצאה של ספר שכבר אינו בספרייה מדולגת בשקט', () {
-      final counts = FacetHelper.buildFacetCountsFromResults(
-        [_FakeSearchResult('uid:99')],
-        const <String, Book>{},
-      );
+      final counts = FacetHelper.buildFacetCountsFromResultPaths([
+        'uid:99',
+      ], const <String, Book>{});
 
       expect(counts, isEmpty);
     });

@@ -114,28 +114,16 @@ class FacetHelper {
     }
   }
 
-  /// Builds facet counts from search results and library books.
-  ///
-  /// כל תוצאה מפוענחת לספר דרך שדה ה-`filePath` שנכתב על מסמכיה באינדוקס
-  /// (המפתח היציב של הספר) — ולא דרך הסדר הקטלוגי המוטמע במזהה המסמך,
-  /// שמשתנה כשספרים נוספים/נמחקים מהספרייה אחרי האינדוקס.
-  static Map<String, int> buildFacetCountsFromResults(
-    List<dynamic> results,
+  /// סופר תוצאות לפי המפתח היציב (`filePath`) של הספר באינדקס.
+  static Map<String, int> buildFacetCountsFromResultPaths(
+    Iterable<String> indexedFilePaths,
     Map<String, Book> bookByIndexedFilePath,
   ) {
-    final counts = <String, int>{};
-    if (results.isEmpty) {
-      return counts;
+    final bookCounts = <String, int>{};
+    for (final path in indexedFilePaths) {
+      bookCounts[path] = (bookCounts[path] ?? 0) + 1;
     }
-
-    for (final result in results) {
-      final book = bookByIndexedFilePath[result.filePath as String];
-      if (book == null) continue;
-
-      _incrementBookAndAncestors(counts, book);
-    }
-
-    return counts;
+    return buildFacetCountsFromBookCounts(bookCounts, bookByIndexedFilePath);
   }
 
   /// Builds facet counts from a per-book count map returned by the search engine.
@@ -186,18 +174,5 @@ class FacetHelper {
     }
 
     return counts;
-  }
-
-  static void _incrementBookAndAncestors(Map<String, int> counts, Book book) {
-    final categoryPath = resolveCategoryPath(book);
-    final bookFacet = buildBookFacet(categoryPath, book);
-
-    incrementFacet(counts, bookFacet);
-
-    if (categoryPath != null && categoryPath.isNotEmpty) {
-      incrementFacetWithAncestors(counts, categoryPath);
-    } else {
-      incrementFacet(counts, '/');
-    }
   }
 }
