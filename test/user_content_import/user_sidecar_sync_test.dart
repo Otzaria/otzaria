@@ -53,6 +53,55 @@ class _BookLookupConnection extends Fake implements sqlite3.Database {
   }
 }
 
+final class _DirectoryListingSpy extends IOOverrides {
+  _DirectoryListingSpy(this.root, {this.failAfterFiles = false});
+
+  final String root;
+  final bool failAfterFiles;
+  final nonRecursiveListings = <String, int>{};
+
+  @override
+  Directory createDirectory(String path) {
+    final inner = super.createDirectory(path);
+    if (path == root || p.isWithin(root, path)) {
+      return _ListedDirectory(inner, nonRecursiveListings, failAfterFiles);
+    }
+    return inner;
+  }
+}
+
+class _ListedDirectory extends Fake implements Directory {
+  _ListedDirectory(this.inner, this.nonRecursiveListings, this.failAfterFiles);
+
+  final Directory inner;
+  final Map<String, int> nonRecursiveListings;
+  final bool failAfterFiles;
+
+  @override
+  Future<bool> exists() => inner.exists();
+
+  @override
+  Stream<FileSystemEntity> list({
+    bool recursive = false,
+    bool followLinks = true,
+  }) async* {
+    final entries = inner.list(recursive: recursive, followLinks: followLinks);
+    if (recursive) {
+      yield* entries;
+      return;
+    }
+    nonRecursiveListings.update(
+      inner.path,
+      (count) => count + 1,
+      ifAbsent: () => 1,
+    );
+    final sorted = await entries.toList();
+    sorted.sort((a, b) => a.path.compareTo(b.path));
+    yield* Stream.fromIterable(sorted);
+    if (failAfterFiles) throw FileSystemException('listing failed', inner.path);
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -127,6 +176,60 @@ void main() {
     expect(rows.map((r) => r['text']), ['סימן א', 'סימן ב']);
     expect(rows.map((r) => r['lineIndex']), [1, 2]);
     expect(rows.first['key'], 'Simanim');
+  });
+
+  test('כותרות לפי ספר סורקות כל תיקייה פעם אחת בכל סנכרון', () async {
+    const contents = 'א\nב';
+    const headings = 'כותרת,שורה\nפרק,1\n';
+    final ids = <int>[];
+    for (var index = 0; index < 24; index++) {
+      ids.add(await addBook('ספר $index.txt', contents));
+      writeSidecar('ספר $index.כותרות.csv', headings);
+    }
+    // הסדר בבדיקה הוא bak, text, txt. הקובץ הראשון אינו רשום.
+    writeSidecar('ספר 0.bak', contents);
+    final secondFormat = await addBook('ספר 0.text', contents);
+
+    final subfolder = Directory(p.join(folder.path, 'אחרת'))..createSync();
+    final nestedBook = await addBook(p.join('אחרת', 'ספר 0.txt'), contents);
+    writeSidecar(p.join('אחרת', 'ספר 0.HEADINGS.CSV'), headings);
+    final unrelated = Directory(p.join(folder.path, 'בלי כותרות'))..createSync();
+    File(p.join(unrelated.path, 'ספר.txt')).writeAsStringSync(contents);
+
+    final spy = _DirectoryListingSpy(folder.path);
+    Future<List<String>> sync() => IOOverrides.runWithIOOverrides(
+      () => UserSidecarSync.applyForFolder(userDb: db, folderPath: folder.path),
+      spy,
+    );
+
+    expect(await sync(), isEmpty);
+    expect(spy.nonRecursiveListings, {folder.path: 1, subfolder.path: 1});
+    expect(await headingRows(ids.first), isEmpty);
+    for (final id in [secondFormat, ...ids.skip(1), nestedBook]) {
+      expect((await headingRows(id)).single['text'], 'פרק');
+    }
+
+    final addedBook = await addBook('ספר חדש.txt', contents);
+    writeSidecar('ספר חדש.headings.csv', headings);
+    expect(await sync(), isEmpty);
+    expect(spy.nonRecursiveListings, {folder.path: 2, subfolder.path: 2});
+    expect((await headingRows(addedBook)).single['text'], 'פרק');
+  });
+
+  test('סריקה חלקית שומרת התאמות ואינה נכנסת למטמון', () async {
+    final bookId = await addBook('ספר.txt', 'א\nב');
+    writeSidecar('ספר.כותרות.csv', 'כותרת,שורה\nפרק,1\n');
+    writeSidecar('חסר.כותרות.csv', 'כותרת,שורה\nפרק,1\n');
+
+    final spy = _DirectoryListingSpy(folder.path, failAfterFiles: true);
+    final errors = await IOOverrides.runWithIOOverrides(
+      () => UserSidecarSync.applyForFolder(userDb: db, folderPath: folder.path),
+      spy,
+    );
+
+    expect(errors, [contains('חסר.כותרות.csv')]);
+    expect(spy.nonRecursiveListings, {folder.path: 2});
+    expect((await headingRows(bookId)).single['text'], 'פרק');
   });
 
   test('קובץ כותרות רוחבי מזהה ספרים לפי עמודת ספר', () async {

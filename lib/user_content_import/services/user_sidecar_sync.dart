@@ -41,6 +41,7 @@ class UserSidecarSync {
     final repo = UserContentRepository(userDb);
     final errors = <String>[];
     final seen = <String>{};
+    final siblingFilesByDirectory = <String, Map<String, List<String>>>{};
     final libraries =
         attachedLibraries ?? UserContentImporter.attachedLinkLibraries();
     final catalogStamp = await _officialDatabaseStamp(
@@ -67,6 +68,7 @@ class UserSidecarSync {
               entity,
               kind,
               errors,
+              siblingFilesByDirectory: siblingFilesByDirectory,
               officialRepository: officialRepository,
               officialError: officialError,
               officialStamp: officialStamp,
@@ -118,6 +120,7 @@ class UserSidecarSync {
     File file,
     _SidecarKind kind,
     List<String> errors, {
+    required Map<String, Map<String, List<String>>> siblingFilesByDirectory,
     SeforimRepository? officialRepository,
     Exception? officialError,
     String? officialStamp,
@@ -218,7 +221,9 @@ class UserSidecarSync {
     final rowsByBook = <String, List<ParsedHeading>>{};
     final booksByKey = <String, _UserBookFile>{};
     final booksByTitle = <(String, int?), Future<_UserBookFile?>>{};
-    final fileBook = perBook ? await _bookOfPerBookFile(repo, file) : null;
+    final fileBook = perBook
+        ? await _bookOfPerBookFile(repo, file, siblingFilesByDirectory)
+        : null;
     for (final row in parsed.rows) {
       final book = perBook
           ? fileBook
@@ -367,13 +372,36 @@ class UserSidecarSync {
   static Future<_UserBookFile?> _bookOfPerBookFile(
     UserContentRepository repo,
     File file,
+    Map<String, Map<String, List<String>>> siblingFilesByDirectory,
   ) async {
     final base = _bookFileBaseName(file);
-    final dir = Directory(p.dirname(file.path));
-    await for (final entity in dir.list()) {
-      if (entity is! File) continue;
-      if (p.basenameWithoutExtension(entity.path) != base) continue;
-      final book = await _bookAt(repo, entity.path);
+    final directory = p.dirname(file.path);
+    final cached = siblingFilesByDirectory[directory];
+    if (cached != null) return _firstRegisteredBook(repo, cached[base]);
+
+    final filesByBase = <String, List<String>>{};
+    try {
+      await for (final entity in Directory(directory).list()) {
+        if (entity is! File) continue;
+        final candidateBase = p.basenameWithoutExtension(entity.path);
+        (filesByBase[candidateBase] ??= []).add(entity.path);
+      }
+    } on FileSystemException {
+      // חיפוש היה יכול להסתיים לפני שגיאת הסריקה. אין לשמור אינדקס חלקי.
+      final book = await _firstRegisteredBook(repo, filesByBase[base]);
+      if (book != null) return book;
+      rethrow;
+    }
+    siblingFilesByDirectory[directory] = filesByBase;
+    return _firstRegisteredBook(repo, filesByBase[base]);
+  }
+
+  static Future<_UserBookFile?> _firstRegisteredBook(
+    UserContentRepository repo,
+    List<String>? paths,
+  ) async {
+    for (final path in paths ?? const []) {
+      final book = await _bookAt(repo, path);
       if (book != null) return book;
     }
     return null;
