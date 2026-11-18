@@ -146,27 +146,28 @@ class ViewWindowRegistry extends ChangeNotifier {
     return entry;
   }
 
-  /// מצב כל חלון לדוח. גודל ה-view שונה ממלבן החלון לאורך זמן = חלון
-  /// שהמנוע לא צייר בגודלו החדש (לבן עד שינוי גודל ידני).
+  /// מצב חלונות ה-Dart לדוח, כולל מידות התצוגה ואזור התוכן.
   Future<List<Map<String, Object?>>> describe() async {
     final result = <Map<String, Object?>>[];
     for (final entry in _windows.toList()) {
       final handle = entry.handle;
+      if (handle.isDestroyed) continue;
       final hwnd = handle.nativeHandle;
-      final size = handle.isDestroyed ? null : handle.view.physicalSize;
-      final rect = hwnd == null ? null : await _native.windowRect(hwnd);
+      final view = handle.view;
+      final physicalSize = view.physicalSize;
+      final contentSize = handle.logicalContentSize;
       result.add({
         'slot': entry.slot,
         'aliveMs': DateTime.now().difference(entry.openedAt).inMilliseconds,
         'firstFrame': entry._firstFrame.isCompleted,
         'closing': entry.isClosing,
-        'visible': hwnd == null ? null : await _native.isVisible(hwnd),
         'maximized': handle.isMaximized,
         'minimized': handle.isMinimized,
-        'viewSize': size == null ? null : '${size.width}x${size.height}',
-        'windowRect': rect == null
-            ? null
-            : '${rect.left},${rect.top} ${rect.width}x${rect.height}',
+        'viewSizePx': '${physicalSize.width}x${physicalSize.height}',
+        'viewDevicePixelRatio': view.devicePixelRatio,
+        'windowContentSizeLogical':
+            '${contentSize.width}x${contentSize.height}',
+        'visible': hwnd == null ? null : await _native.isVisible(hwnd),
       });
     }
     return result;

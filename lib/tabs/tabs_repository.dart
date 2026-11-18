@@ -315,7 +315,7 @@ class TabsRepository {
       return adopted;
     } catch (e) {
       debugPrint('⚠️ adoptOrphanWindowSessions failed: $e');
-      WindowEventLog.instance.add('adoptOrphansFailed', {'error': '$e'});
+      WindowEventLog.instance.addFailure('adoptOrphansFailed', e);
       return 0;
     }
   }
@@ -338,7 +338,7 @@ class TabsRepository {
       return slots;
     } catch (e) {
       debugPrint('⚠️ compactWindowSessions failed: $e');
-      WindowEventLog.instance.add('compactFailed', {'error': '$e'});
+      WindowEventLog.instance.addFailure('compactFailed', e);
       return const [];
     }
   }

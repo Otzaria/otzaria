@@ -139,14 +139,7 @@ class AppReportCollector {
           'inputFocus',
           () async => InputFocusDiagnostics.instance.collect(),
         ),
-      if (_includeCurrentContext)
-        'windows': await _guard(
-          'windows',
-          () async => {
-            'open': await ViewWindowRegistry.instance.describe(),
-            'events': WindowEventLog.instance.collect(),
-          },
-        ),
+      if (_includeCurrentContext) 'windows': await _collectWindows(),
       if (_includeCurrentContext)
         'searches': await _guard(
           'searches',
@@ -326,6 +319,17 @@ class AppReportCollector {
       // ההודעה עלולה להכיל טקסט תוצאה, ולכן רק הסוג.
       return {'error': error.runtimeType.toString()};
     }
+  }
+
+  static Future<Map<String, dynamic>> _collectWindows() async {
+    final windows = <String, dynamic>{};
+    try {
+      windows['open'] = await ViewWindowRegistry.instance.describe();
+    } catch (error) {
+      windows['error'] = error.runtimeType.toString();
+    }
+    windows['events'] = WindowEventLog.instance.collect();
+    return windows;
   }
 
   static Future<Map<String, dynamic>> _guard(

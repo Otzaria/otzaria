@@ -25,6 +25,13 @@ class WindowEventLog {
     }
   }
 
+  /// טקסט החריגה עלול לכלול תוכן כרטיסיות, ולכן נשמר רק סוג הכשל.
+  void addFailure(
+    String event,
+    Object error, [
+    Map<String, Object?> details = const {},
+  ]) => add(event, {...details, 'error': error.runtimeType.toString()});
+
   /// מהישן לחדש, כדי שרצף פתיחה אחת ייקרא לפי הסדר.
   List<Map<String, Object?>> collect() => _events.toList();
 

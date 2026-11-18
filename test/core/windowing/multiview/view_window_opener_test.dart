@@ -557,10 +557,20 @@ void main() {
     final events = WindowEventLog.instance.collect();
     expect(events.map((e) => e['event']), ['open', 'firstFrame', 'revealed']);
     expect(events.first['slot'], 2);
+
+    final window = windows.registry.windows.single;
+    final view = window.handle.view as TestFlutterView;
+    view.devicePixelRatio = 2;
+    view.physicalSize = const Size(1600, 1200);
+    windows.stubOf(window).logicalContentSize = const Size(800, 600);
+    final previousRectReads = windows.native.windowRectReads;
     final open = (await windows.registry.describe()).single;
     expect(open['slot'], 2);
     expect(open['firstFrame'], isTrue);
-    expect(open['viewSize'], isNotNull);
+    expect(open['viewSizePx'], '1600.0x1200.0');
+    expect(open['viewDevicePixelRatio'], 2);
+    expect(open['windowContentSizeLogical'], '800.0x600.0');
+    expect(windows.native.windowRectReads, previousRectReads);
   });
 
   testWidgets('יומן החלונות: פריים ראשון שלא הגיע נרשם, גם אחרי ההריסה', (
@@ -575,7 +585,7 @@ void main() {
 
     final events = WindowEventLog.instance.collect();
     expect(events.map((e) => e['event']), ['open', 'openFailed', 'closed']);
-    expect(events[1]['error'], contains('TimeoutException'));
+    expect(events[1]['error'], 'TimeoutException');
     expect(events.last['firstFrame'], isFalse);
   });
 
@@ -1113,6 +1123,10 @@ void main() {
     await pumpHost(tester);
     expect(await settle(tester, opener.openWindow()), isFalse);
     expect(windows.registry.windows, isEmpty);
+    expect(
+      WindowEventLog.instance.collect().single,
+      containsPair('error', 'StateError'),
+    );
     // התור לא נתקע אחרי הכשל.
     expect(await settle(tester, opener.restoreLastClosedWindow()), isFalse);
   });

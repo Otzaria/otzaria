@@ -191,7 +191,7 @@ class ViewWindowOpener implements WindowOpener {
   Future<bool> _serialized(Future<bool> Function() body) {
     final result = _queue.then((_) => body()).catchError((Object e) {
       debugPrint('ViewWindowOpener failed: $e');
-      WindowEventLog.instance.add('openerFailed', {'error': '$e'});
+      WindowEventLog.instance.addFailure('openerFailed', e);
       return false;
     });
     _queue = result.then<void>((_) {}, onError: (_) {});
@@ -386,7 +386,12 @@ class ViewWindowOpener implements WindowOpener {
       'created': entry != null,
       'withTab': tab != null,
       'maximized': maximized,
-      'bounds': ?bounds?.toString(),
+      if (bounds != null) ...{
+        'requestedBounds': bounds.toString(),
+        'requestedBoundsUnit': _native is CocoaViewWindowNative
+            ? 'screenPoints'
+            : 'physicalPixels',
+      },
     });
     if (entry == null) {
       tab?.dispose();
@@ -412,10 +417,9 @@ class ViewWindowOpener implements WindowOpener {
       return true;
     } catch (error) {
       debugPrint('View window failed to open: $error');
-      log.add('openFailed', {
+      log.addFailure('openFailed', error, {
         'slot': slot,
         'ms': watch.elapsedMilliseconds,
-        'error': '$error',
       });
       entry.endSession();
       entry.takeInitialTab()?.dispose();
