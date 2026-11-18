@@ -13,7 +13,7 @@ import 'dart:math';
 import 'dart:async';
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart' show listEquals, setEquals;
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
@@ -23,7 +23,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
-import 'package:otzaria/widgets/misc/link_context_menu_entry.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/core/messages/notes_messages.dart';
 import 'package:otzaria/core/messages/pdf_messages.dart';
@@ -61,6 +60,7 @@ import 'package:otzaria/pdf_book/utils/pdf_render_scale.dart';
 import 'package:otzaria/pdf_book/utils/pdf_viewer_lifecycle_policy.dart';
 import 'package:otzaria/pdf_book/utils/pdf_image_budget.dart';
 import 'package:otzaria/pdf_book/utils/pdf_book_layout.dart';
+import 'package:otzaria/pdf_book/utils/pdf_context_menu_builders.dart';
 import 'package:otzaria/pdf_book/utils/pdf_search_index_restorer.dart';
 import 'package:otzaria/pdf_book/utils/trackpad_axis_lock.dart';
 import 'package:otzaria/pdf_book/utils/trackpad_pan_recognizer.dart';
@@ -146,6 +146,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 
 export 'package:otzaria/pdf_book/utils/pdf_book_layout.dart';
+export 'package:otzaria/pdf_book/utils/pdf_context_menu_builders.dart';
 export 'package:otzaria/pdf_book/utils/pdf_viewer_lifecycle_policy.dart';
 export 'package:otzaria/pdf_book/utils/pdf_viewport_geometry.dart';
 
@@ -248,124 +249,6 @@ class PdfBookScreen extends StatefulWidget {
 
   @override
   State<PdfBookScreen> createState() => _PdfBookScreenState();
-}
-
-/// בונה את פריט תפריט ההקשר "קישורים" עבור PDF.
-/// משתמש ב-`childrenBuilder` (טעינה עצלה) כדי שהתפריט הראשי ייפתח מיד,
-/// בלי להמתין ל-FutureBuilders של `link.displayReference` של כל קישור.
-@visibleForTesting
-AppContextMenuEntry buildPdfLinksContextMenuEntry({
-  required List<otz_links.Link> relevantLinks,
-  required bool showOpenLinksPaneEntry,
-  required VoidCallback onOpenLinksPane,
-  required void Function(otz_links.Link link) onOpenLink,
-}) {
-  List<AppContextMenuEntry> buildLinkChildren() {
-    return <AppContextMenuEntry>[
-      if (showOpenLinksPaneEntry) ...[
-        AppContextMenuEntry(
-          label: 'פתח קישורים בחלונית צד',
-          onTap: onOpenLinksPane,
-        ),
-        const AppContextMenuEntry.divider(),
-      ],
-      ...relevantLinks.map(
-        (link) => buildLinkContextMenuEntry(
-          link: link,
-          onTap: () => onOpenLink(link),
-        ),
-      ),
-    ];
-  }
-
-  return AppContextMenuEntry(
-    label: 'קישורים',
-    icon: OtzariaIcons.links_24_regular,
-    enabled: relevantLinks.isNotEmpty,
-    childrenBuilder: buildLinkChildren,
-  );
-}
-
-/// מעדכן ושומר בחירה שהשתנתה, ופותח את חלונית המפרשים בכל לחיצה.
-@visibleForTesting
-void applyPdfCommentatorSelection({
-  required Set<String> activeCommentators,
-  required Set<String> updated,
-  required VoidCallback onChanged,
-  required VoidCallback onOpenPane,
-}) {
-  if (!setEquals(activeCommentators, updated)) {
-    activeCommentators
-      ..clear()
-      ..addAll(updated);
-    onChanged();
-  }
-  onOpenPane();
-}
-
-/// מרכיב את פריטי תפריט ההקשר של עמוד ה-PDF.
-///
-/// התפריט הזה מחליף את התפריט המובנה של pdfrx — `onGeneralTap` מחזיר `true`
-/// ל-secondaryTap ול-longPress, ולכן pdfrx לא מציג את שלו. כל פעולה שהתפריט
-/// המובנה סיפק חייבת להופיע כאן, אחרת היא נעלמת מהמשתמש (issue #1420).
-@visibleForTesting
-List<AppContextMenuEntry> buildPdfContextMenuEntries({
-  required List<AppContextMenuEntry> commentatorChildren,
-  required bool hasRelevantCommentators,
-  required bool canSelectCommentators,
-  required AppContextMenuEntry linksEntry,
-  required bool hasTextSelection,
-  required ReaderMenuSelection? selection,
-  required bool canCopySelection,
-  required VoidCallback onSearchInBook,
-  required VoidCallback onSearchAllBooks,
-  required VoidCallback onCopySelection,
-  required VoidCallback onAddBookmark,
-  required VoidCallback onAddNote,
-}) {
-  return [
-    // שורת אייקונים עליונה בסגנון Windows 11, כמו בתצוגת הטקסט.
-    AppContextMenuEntry.iconRow([
-      buildSearchAllBooksIconAction(
-        selection: selection ?? ReaderMenuSelection(null),
-        enabled: hasTextSelection && (selection?.hasText ?? true),
-        onTap: onSearchAllBooks,
-      ),
-      AppContextMenuIconAction(
-        label: 'העתקה',
-        icon: FluentIcons.copy_24_regular,
-        enabled: canCopySelection,
-        onTap: onCopySelection,
-      ),
-      AppContextMenuIconAction(
-        label: 'הערה',
-        tooltip: 'הוסף הערה אישית',
-        icon: FluentIcons.note_add_24_regular,
-        onTap: onAddNote,
-      ),
-    ]),
-    const AppContextMenuEntry.divider(),
-    AppContextMenuEntry(
-      label: 'חיפוש בספר',
-      icon: FluentIcons.search_24_regular,
-      onTap: onSearchInBook,
-    ),
-    AppContextMenuEntry(
-      label: 'מפרשים',
-      icon: OtzariaIcons.book_24_regular,
-      // התת-תפריט פעיל אם יש בדף מפרשים זמינים, או אם ניתן לפתוח את
-      // חלונית בחירת המפרשים (כדי לאפשר בחירה התחלתית גם בדף ללא מפרשים).
-      enabled: hasRelevantCommentators || canSelectCommentators,
-      children: commentatorChildren,
-    ),
-    linksEntry,
-    const AppContextMenuEntry.divider(),
-    AppContextMenuEntry(
-      label: 'הוסף סימניה לעמוד זה',
-      icon: FluentIcons.bookmark_add_24_regular,
-      onTap: onAddBookmark,
-    ),
-  ];
 }
 
 /// המקום המינימלי לקורא כדי שחלונית הניווט תידחק ליד התוכן. מתחת לזה היא
