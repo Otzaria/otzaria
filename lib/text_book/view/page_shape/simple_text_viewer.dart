@@ -2080,14 +2080,42 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         lineStart: _selectionLineStart,
         lineEnd: _selectionLineEnd,
       );
+      // אותה שורת אייקונים ואותו סדר כמו במפרשים בתצוגה הרגילה
+      // (ContextMenuUtils.buildCommentaryContextMenu): חיפוש, העתקה, הערה, קישור.
+      // הקישור לפי book_id של המפרש בלבד; categoryId היה פותח ספר אחר.
+      final commentaryBookId = widget.reportBook?.id;
       entries.add(
         AppContextMenuEntry.iconRow([
           buildSearchAllBooksIconAction(
             selection: menuSelection,
             onTap: () => openGlobalSearch(menuContext, menuSelection.cleaned),
           ),
+          AppContextMenuIconAction(
+            label: 'העתקה',
+            icon: FluentIcons.copy_24_regular,
+            enabled: capturedText != null && capturedText.trim().isNotEmpty,
+            onTap: () => _copyFormattedText(capturedText),
+          ),
+          AppContextMenuIconAction(
+            label: 'הערה',
+            icon: FluentIcons.note_add_24_regular,
+            onTap: () => _createNoteForCurrentLine(index, capturedText),
+          ),
+          if (commentaryBookId != null)
+            AppContextMenuIconAction(
+              label: 'קישור',
+              icon: OtzariaIcons.link_24_regular,
+              submenuBuilder: () => buildDirectLinkSubmenuActions(
+                bookId: commentaryBookId,
+                source: widget.reportBook?.source ?? BookSource.official,
+                index: index,
+                selectedText: sourceText,
+                protection: () => _textProtection(state),
+              ),
+            ),
         ]),
       );
+      entries.add(_copyAsEntry(state, capturedText));
     }
 
     if (commentatorItems.isNotEmpty) {
@@ -2156,14 +2184,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           icon: FluentIcons.bookmark_add_24_regular,
           onTap: () => addTextSectionBookmark(context, state, index),
         ),
-      // בטקסט ראשי "הוסף הערה" ו"העתק" קיימים כאייקונים למעלה; במפרשים
-      // (ללא שורת אייקונים) הם נשארים כאן ברשימה.
-      if (!widget.isMainText && !widget.isBookNotesColumn)
-        AppContextMenuEntry(
-          label: 'הוסף הערה אישית ',
-          icon: FluentIcons.note_add_24_regular,
-          onTap: () => _createNoteForCurrentLine(index, capturedText),
-        ),
+      // "הוסף הערה" ו"העתק" מוצגים כאייקונים בשורה העליונה (בטקסט הראשי
+      // ובמפרשים); רק בעמודת ההערות, שאין בה שורת אייקונים, "העתק" נשאר כאן.
       if (reportTargetBook.isOfficialLibraryBook)
         AppContextMenuEntry(
           label: 'דווח על טעות בספר',
@@ -2171,7 +2193,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           onTap: () => _openErrorReportDialog(capturedText ?? ''),
         ),
       const AppContextMenuEntry.divider(),
-      if (!widget.isMainText) ...[
+      if (widget.isBookNotesColumn) ...[
         AppContextMenuEntry(
           label: 'העתק',
           icon: FluentIcons.copy_24_regular,
@@ -2188,8 +2210,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       ),
     ]);
 
-    // העתק קישור ישיר — בטקסט ראשי מוצג כאייקון בשורה העליונה; במפרשים
-    // (ללא שורת אייקונים) נשאר כתת-תפריט ברשימה לפי book_id של widget.reportBook.
+    // העתק קישור ישיר מוצג כאייקון "קישור" בשורה העליונה, בטקסט הראשי ובמפרשים.
     if (widget.isMainText) {
       entries.addAll(
         buildReaderPluginMenuEntries(
@@ -2223,20 +2244,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         ),
       );
     } else {
-      // רק book_id של המפרש; categoryId אינו תחליף — הוא היה פותח ספר אחר.
-      final commentaryBookId = widget.reportBook?.id;
-      if (commentaryBookId != null) {
-        entries.add(const AppContextMenuEntry.divider());
-        entries.add(
-          buildCopyDirectLinkEntry(
-            bookId: commentaryBookId,
-            source: widget.reportBook?.source ?? BookSource.official,
-            index: index,
-            selectedText: capturedText,
-            protection: () => _textProtection(state),
-          ),
-        );
-      }
+      // העתק קישור ישיר במפרשים מוצג כאייקון "קישור" בשורה העליונה.
       entries.addAll(
         _commentaryPluginEntries(state, index, sourceText, menuContext),
       );
