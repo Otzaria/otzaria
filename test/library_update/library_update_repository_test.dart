@@ -57,6 +57,7 @@ void main() {
 
   test('ה-planner של האפליקציה מצהיר על הסכמה שהיא קוראת', () {
     final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
       discovery: _unusedDiscovery(),
       downloader: StreamingPatchDownloader(),
     );
@@ -97,6 +98,7 @@ void main() {
         decompress: (bytes) async => bytes,
       );
       final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: downloader,
         refreshService: refresh,
@@ -204,6 +206,7 @@ void main() {
         decompress: (bytes) async => bytes,
       );
       final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: downloader,
         refreshService: _NoopRefreshService(),
@@ -269,6 +272,7 @@ void main() {
       }
 
       final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: PatchDownloader(
           httpClient: MockClient.streaming(
@@ -515,6 +519,7 @@ void main() {
         decompress: (b) async => b,
       );
       final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: downloader,
         refreshService: _NoopRefreshService(),
@@ -712,6 +717,7 @@ void main() {
         decompress: (b) async => b,
       );
       final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: downloader,
         refreshService: _NoopRefreshService(),
@@ -765,6 +771,7 @@ void main() {
       String dbPath,
     ) {
       return LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: PatchDownloader(
           // כל הגעה לרשת מסומנת בחריגה ייחודית — הבדיקות מבחינות בינה לבין
@@ -829,7 +836,7 @@ void main() {
       ).writeAsStringSync('https://x/manifest|2000|||part-0|$hash');
       final repository = repo(
         (_) async =>
-            const DiskSpaceInfo(volumeId: 'same', freeBytes: 6979321856 + 3000),
+            const DiskSpaceInfo(volumeId: 'same', freeBytes: 8 * oneGb),
         dbPath,
       );
       final downloadPlan = LibraryUpdatePlan.fullDownload(
@@ -946,6 +953,7 @@ void main() {
         required int dbFree,
       }) =>
           LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
             discovery: _unusedDiscovery(),
             downloader: PatchDownloader(decompress: (b) async => b),
             isAndroid: true,
@@ -959,15 +967,16 @@ void main() {
             archivePath: archivePath,
             archiveNeeded: 2 * oneGb,
             dbDir: dbDir,
+            extractedDbSize: 4418928640,
           );
 
       test('אחסון משותף ו-/data נבדקים מול סכום הארכיון והחילוץ', () async {
-        // 8GB מספיקים לארכיון לבד ולחילוץ לבד, אבל לא לשניהם יחד.
+        // 6GiB מספיקים לכל אחד בנפרד, אבל לא לסכומם.
         await expectLater(
           check(
             dbDir: '/storage/emulated/0/ספרים',
-            dataFree: 8 * oneGb,
-            dbFree: 8 * oneGb,
+            dataFree: 6 * oneGb,
+            dbFree: 6 * oneGb,
           ),
           throwsA(
             isA<LibraryUpdateDiskSpaceException>().having(
@@ -1015,6 +1024,7 @@ void main() {
       PatchDownloader? downloader,
     }) {
       return LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader:
             downloader ??
@@ -1296,6 +1306,7 @@ void main() {
       // אך מחזיר patch מקומי בלי רשת.
       final downloader = _LocalPatchDownloader(p.join(tmp.path, 'patch.db'));
       final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: downloader,
         refreshService: _NoopRefreshService(),
@@ -1327,6 +1338,7 @@ void main() {
     final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
     _writeDb(dbPath, version: 1, marker: 'old');
     final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
       discovery: _unusedDiscovery(),
       downloader: _LocalPatchDownloader(
         p.join(tmp.path, 'patch.db'),
@@ -1363,6 +1375,7 @@ void main() {
       _writeDb(dbPath, version: 1, marker: 'old');
 
       final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _LocalPatchDownloader(p.join(tmp.path, 'patch.db')),
         refreshService: _NoopRefreshService(),
@@ -1404,6 +1417,7 @@ void main() {
         final before = File(dbPath).readAsBytesSync();
         final modified = File(dbPath).lastModifiedSync();
         final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
           discovery: _unusedDiscovery(),
           downloader: _LocalPatchDownloader(
             patchPath,
@@ -1478,6 +1492,7 @@ void main() {
       final dbPath = p.join(tmp.path, 'missing.db');
       final stopped = StateError('permissions passed');
       final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _LocalPatchDownloader(p.join(tmp.path, 'patch.db')),
         dbPathProvider: () => dbPath,
@@ -1502,6 +1517,7 @@ void main() {
       expect(result.exitCode, 0);
       try {
         final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
           discovery: _unusedDiscovery(),
           downloader: _LocalPatchDownloader(p.join(tmp.path, 'patch.db')),
           dbPathProvider: () => dbPath,
@@ -1555,6 +1571,7 @@ void main() {
       const OSError('I/O failure', 5),
     );
     final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
       discovery: _unusedDiscovery(),
       downloader: _LocalPatchDownloader(
         patchPath,
@@ -1587,6 +1604,7 @@ void main() {
         if (beforeDownload) await _setReadOnly(dbPath, true);
         var downloaded = false;
         final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
           discovery: _unusedDiscovery(),
           downloader: _LocalPatchDownloader(
             patchPath,
@@ -1651,6 +1669,7 @@ void main() {
         ..select('SELECT value FROM marker');
 
       final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _LocalPatchDownloader(p.join(tmp.path, 'patch.db')),
         refreshService: _NoopRefreshService(),
@@ -1689,6 +1708,7 @@ void main() {
       final modesAtApply = <String>[];
 
       final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         // הניסיון הראשון ממתין 5 שניות לנעילה; הקורא משתחרר בזמן הניסיון השני.
         downloader: _LocalPatchDownloader(
@@ -1751,6 +1771,7 @@ void main() {
       )..createSync(recursive: true);
       final refresh = _NoopRefreshService();
       final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _PatchMapDownloader({'patch-1-2.db': patchPath}),
         refreshService: refresh,
@@ -1795,6 +1816,7 @@ void main() {
         sourceName: 'new',
       );
       final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _PatchMapDownloader({'patch-1-2.db': patchPath}),
         refreshService: _NoopRefreshService(),
@@ -1845,6 +1867,7 @@ void main() {
         sourceName: 'new',
       );
       final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _PatchMapDownloader({'patch-1-2.db': patchPath}),
         refreshService: _NoopRefreshService(),
@@ -1890,6 +1913,7 @@ void main() {
     _writeDb(dbPath, version: 1, marker: 'old');
     final planner = _RecordingPlanner();
     final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
       discovery: _unusedDiscovery(),
       planner: planner,
       downloader: _PatchMapDownloader(const {}),
@@ -1909,6 +1933,7 @@ void main() {
     _writeDb(dbPath, version: 1, marker: 'old');
     final planner = _RecordingPlanner();
     final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
       discovery: _unusedDiscovery(),
       planner: planner,
       versionReader: _IsolateRecordingReader(Isolate.current.debugName),
@@ -1927,6 +1952,7 @@ void main() {
     final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
     _writeDb(dbPath, version: 2, marker: 'current');
     final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
       discovery: LibraryUpdateDiscovery(
         supportedDbSchemaVersion: schema,
         client: GithubLibraryReleaseClient(
@@ -1983,6 +2009,7 @@ void main() {
     final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
     _writeDb(dbPath, version: 1, marker: 'old');
     final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
       discovery: LibraryUpdateDiscovery(
         supportedDbSchemaVersion: DatabaseConstants.readableDbSchemaVersion,
         client: GithubLibraryReleaseClient(
@@ -2044,6 +2071,7 @@ void main() {
       );
       final refresh = _NoopRefreshService();
       final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _PatchMapDownloader({
           'patch-1-2.db': firstPatch,
@@ -2105,6 +2133,7 @@ void main() {
       Future<PatchApplier> Function() applierProvider, {
       Future<void> Function()? sqliteTempDirectoryInitializer,
     }) => LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
       discovery: _unusedDiscovery(),
       downloader: _PatchMapDownloader({'patch-1-2.db': patchPath}),
       refreshService: _NoopRefreshService(),
@@ -2197,6 +2226,7 @@ void main() {
         sourceName: 'new',
       );
       final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _PatchMapDownloader({'patch-1-2.db': patchPath}),
         refreshService: _NoopRefreshService(),
@@ -2280,6 +2310,7 @@ void main() {
       AppPaths.debugOverrideDataRootPath(tmp.path);
       final refresh = _NoopRefreshService();
       final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _PatchMapDownloader({'patch-1-2.db': patchPath}),
         refreshService: refresh,
@@ -2352,6 +2383,7 @@ void main() {
         sourceName: 'newer',
       );
       final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _PatchMapDownloader({
           'patch-1-2.db': firstPatch,
@@ -2435,6 +2467,7 @@ void main() {
         patchFormatVersion: 99,
       );
       final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _PatchMapDownloader({
           'patch-1-2.db': firstPatch,
@@ -2496,6 +2529,7 @@ void main() {
         sourceName: 'new',
       );
       final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _PatchMapDownloader({'patch-1-2.db': patchPath}),
         refreshService: _NoopRefreshService(),
@@ -2740,6 +2774,7 @@ LibraryUpdateRepository _localFullDownloadRepository({
   FullDbExtractor? fullDbExtractor,
   int maxFullDbBytes = kDefaultMaxExtractedBytes,
 }) => LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
   discovery: _unusedDiscovery(),
   downloader: PatchDownloader(
     httpClient: MockClient.streaming(
