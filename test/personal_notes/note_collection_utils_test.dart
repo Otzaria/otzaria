@@ -17,6 +17,30 @@ PersonalNote _note(String id, int line, [int? end]) => PersonalNote(
 );
 
 void main() {
+  test('אינדקס חוזר לפי זהות ההערות ומתעדכן בטעינה או בעריכה', () {
+    final cache = PersonalNotesLineIndex();
+    final firstBook = [_note('a', 3), _note('range', 2, 4)];
+    final firstIndex = cache.forSnapshot(firstBook);
+
+    expect(firstIndex[3], firstBook);
+    expect(cache.forSnapshot(firstBook), same(firstIndex));
+
+    final edited = [firstBook[0], _note('range', 6, 8)];
+    final editedIndex = cache.forSnapshot(edited);
+    expect(editedIndex, isNot(same(firstIndex)));
+    expect(editedIndex[3], [edited[0]]);
+    expect(editedIndex[7], [edited[1]]);
+    expect(cache.forSnapshot(edited), same(editedIndex));
+
+    expect(cache.forSnapshot(const []), isEmpty);
+    final reloaded = [_note('b', 6)];
+    final secondIndex = cache.forSnapshot(reloaded);
+    expect(secondIndex[3], isNull);
+    expect(secondIndex[6], reloaded);
+    expect(secondIndex[7], isNull);
+    expect(cache.forSnapshot(reloaded), same(secondIndex));
+  });
+
   test('טווחים חופפים ושורות יחידות שומרים את סדר ההערות', () {
     final notes = [
       _note('a', 3),
