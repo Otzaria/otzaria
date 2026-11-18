@@ -2548,7 +2548,7 @@ class PluginBridgeAdapter {
       await _requireWritePermission();
     }
     final canonical = await canonicalizeNearestExistingAsync(
-      resolveMovedFileBookPath(book.path),
+      await resolveMovedFileBookPathAsync(book.path),
     );
     if (canonical == null || !await File(canonical).exists()) {
       throw Exception('error.not_found: book file does not exist');

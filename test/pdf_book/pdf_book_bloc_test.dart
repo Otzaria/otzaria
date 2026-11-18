@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:bloc/bloc.dart';
@@ -25,6 +26,19 @@ import 'package:pdfrx/pdfrx.dart';
 
 // ─── fakes ───────────────────────────────────────────────────────────────────
 class _FakeDocumentRef extends Fake implements PdfDocumentRef {}
+
+class _DelayedPdfFile extends Fake implements File {
+  final checked = Completer<void>();
+  final result = Completer<bool>();
+
+  @override
+  Future<bool> exists() {
+    if (!checked.isCompleted) checked.complete();
+    return result.future;
+  }
+}
+
+final class _RealFiles extends IOOverrides {}
 
 class _ReadyPdfViewerController extends PdfViewerController {
   double? lastZoom;
@@ -1268,6 +1282,32 @@ void main() {
       act: (b) => _addAndAwaitState(b, const RetryLoad()),
       expect: () => [isA<PdfBookLoading>()],
     );
+
+    test('הצלחה מאוחרת נשמרת בזמן בדיקת הנתיב של ניסיון חוזר', () async {
+      final file = _DelayedPdfFile();
+      final tab = _tab(path: existingPdfPath);
+      await IOOverrides.runZoned(
+        () async {
+          final bloc = _makeBloc(tab);
+          addTearDown(bloc.close);
+          bloc.seed(PdfBookError(book: tab.book, message: 'הפתיחה התעכבה'));
+
+          bloc.add(const RetryLoad());
+          await file.checked.future;
+          final loaded = bloc.stream.firstWhere((s) => s is PdfBookLoaded);
+          bloc.add(
+            DocumentReady(documentRef: _FakeDocumentRef(), totalPages: 5),
+          );
+          await loaded;
+
+          file.result.complete(true);
+          await Future<void>.delayed(Duration.zero);
+          expect(bloc.state, isA<PdfBookLoaded>());
+        },
+        createFile: (path) =>
+            path == existingPdfPath ? file : _RealFiles().createFile(path),
+      );
+    });
 
     blocTest<PdfBookBloc, PdfBookState>(
       'RetryLoad מתעלם כשה-state אינו PdfBookError',

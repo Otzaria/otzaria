@@ -202,17 +202,20 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     LoadPdfDocument event,
     Emitter<PdfBookState> emit,
   ) async {
-    final initial = state;
-    if (initial is! PdfBookInitial) return;
+    final current = state;
+    if (current is! PdfBookInitial) return;
     // ל-PDF יש watchdog משלו, שמסיים בשגיאה טעינה שנתקעה.
     _openAttempt = RecentBookOpens.instance.start(
-      initial.book,
+      current.book,
       BookOpenKind.pdf,
       detectStall: false,
     );
 
-    final book = _resolvePdfBookPath(initial.book);
-    if (!await File(book.path).exists()) {
+    final book = await _resolvePdfBookPath(current.book);
+    final exists = await File(book.path).exists();
+    final initial = state;
+    if (emit.isDone || initial is! PdfBookInitial) return;
+    if (!exists) {
       emit(PdfBookError(book: book, message: 'הספר איננו קיים'));
       return;
     }
@@ -242,8 +245,8 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     _startLoadWatchdog();
   }
 
-  PdfBook _resolvePdfBookPath(PdfBook book) {
-    final resolvedPath = resolveMovedFileBookPath(book.path);
+  Future<PdfBook> _resolvePdfBookPath(PdfBook book) async {
+    final resolvedPath = await resolveMovedFileBookPathAsync(book.path);
     if (resolvedPath == book.path) return book;
 
     return PdfBook(
@@ -378,8 +381,11 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     final current = state;
     if (current is! PdfBookError) return;
 
-    final book = _resolvePdfBookPath(current.book);
-    if (!await File(book.path).exists()) {
+    final book = await _resolvePdfBookPath(current.book);
+    final exists = await File(book.path).exists();
+    // הצפיין עשוי להשלים את הפתיחה בזמן בדיקת הנתיב של הניסיון החוזר.
+    if (emit.isDone || !identical(state, current)) return;
+    if (!exists) {
       emit(PdfBookError(book: book, message: 'הספר איננו קיים'));
       return;
     }
