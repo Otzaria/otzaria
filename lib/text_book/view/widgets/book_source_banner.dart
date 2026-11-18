@@ -68,6 +68,8 @@ class BookSourceBanner extends StatefulWidget {
 }
 
 class _BookSourceBannerState extends State<BookSourceBanner> {
+  bool _expanded = false;
+  static const _collapseThreshold = 300;
   List<List<BannerSegment>> _lines = const [];
 
   /// מקביל ל-[_lines]; null לקטע שאינו קישור.
@@ -82,7 +84,10 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
   @override
   void didUpdateWidget(covariant BookSourceBanner oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.text != widget.text) _parse();
+    if (oldWidget.text != widget.text) {
+      _expanded = false;
+      _parse();
+    }
   }
 
   void _parse() {
@@ -142,6 +147,16 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
         if (!isOfflineMode || _lines[i].every((s) => s.url == null)) i,
     ];
     if (lineIndices.isEmpty) return const SizedBox.shrink();
+    final longBanner = lineIndices.fold<int>(
+          0,
+          (length, i) => length + _lines[i].fold<int>(
+            0,
+            (lineLength, segment) => lineLength + segment.text.length,
+          ),
+        ) > _collapseThreshold;
+    final visibleLines = longBanner && !_expanded
+        ? lineIndices.take(1)
+        : lineIndices;
     // אינו חלק מהספר: בחירה והעתקה של הטקסט אינן כוללות אותו.
     return SelectionContainer.disabled(
       child: Container(
@@ -152,11 +167,14 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
           color: cs.surfaceContainerHighest,
           borderRadius: AppTokens.borderRadiusAll,
         ),
-        child: Text.rich(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text.rich(
           TextSpan(
             style: textStyle,
             children: [
-              for (final (n, i) in lineIndices.indexed) ...[
+              for (final (n, i) in visibleLines.indexed) ...[
                 if (n > 0) const TextSpan(text: '\n'),
                 for (var j = 0; j < _lines[i].length; j++)
                   _lines[i][j].url == null
@@ -170,6 +188,15 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
             ],
           ),
           textAlign: TextAlign.center,
+          maxLines: longBanner && !_expanded ? 2 : null,
+          overflow: longBanner && !_expanded ? TextOverflow.ellipsis : null,
+        ),
+            if (longBanner)
+              TextButton(
+                onPressed: () => setState(() => _expanded = !_expanded),
+                child: Text(_expanded ? 'הסתר פרטים' : 'הצג פרטים'),
+              ),
+          ],
         ),
       ),
     );
