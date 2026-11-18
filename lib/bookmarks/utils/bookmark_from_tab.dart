@@ -185,7 +185,9 @@ OpenedTab tabFromBookmark(Bookmark bookmark, {double? screenWidth}) {
     bookmark.book,
     bookmark.index,
     initialReadingAnchor: bookmark.readingAnchor,
-    commentators: bookmark.commentatorsToShow,
+    commentators: bookmark.commentatorsToShow.isEmpty
+        ? null
+        : bookmark.commentatorsToShow,
     openLeftPane: openLeftPane,
   )..historySlot = bookmark.historySlot;
   restoreReadingTabNavigationHistory(tab, bookmark.navigationHistory);

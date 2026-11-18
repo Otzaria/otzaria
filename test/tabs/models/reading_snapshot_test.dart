@@ -1,9 +1,14 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
@@ -20,8 +25,10 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/text_book/utils/reading_position.dart';
 import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
+import 'package:otzaria/workspaces/bloc/workspace_event.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 import '../../helpers/memory_settings_cache.dart';
@@ -112,6 +119,215 @@ void main() {
       });
     }
   }
+
+  test('restored tabs retain independent commentator selections (#4560)', () {
+    final book = TextBook(title: 'Shared book');
+    for (final selection in <List<String>>[
+      ['First'],
+      ['Second'],
+      <String>[],
+    ]) {
+      final tab = TextBookTab(book: book, index: 0, commentators: selection);
+      addTearDown(tab.dispose);
+      final restored = TextBookTab.fromJson(tab.toJson());
+      addTearDown(restored.dispose);
+
+      final state = restored.blocState as TextBookInitial;
+      expect(state.commentators, selection);
+      expect(state.hasExplicitCommentators, isTrue);
+    }
+
+    final fresh = TextBookTab(book: book, index: 0);
+    addTearDown(fresh.dispose);
+    expect(fresh.toJson().containsKey('hasExplicitCommentators'), isFalse);
+    expect(
+      (fresh.blocState as TextBookInitial).hasExplicitCommentators,
+      isFalse,
+    );
+    final legacy = fresh.toJson()..remove('commentators');
+    for (final saved in [
+      legacy,
+      {...legacy, 'commentators': null},
+      {...legacy, 'commentators': <String>[]},
+      {...legacy, 'commentators': 'invalid'},
+      {
+        ...legacy,
+        'commentators': [1, 'First'],
+      },
+    ]) {
+      final restored = TextBookTab.fromJson(saved);
+      addTearDown(restored.dispose);
+      expect(
+        (restored.blocState as TextBookInitial).hasExplicitCommentators,
+        isFalse,
+        reason: '$saved',
+      );
+    }
+  });
+
+  test('שחזור שולחן עבודה שומר בחירה בכל טאב גם אחרי טעינת המפרשים', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'commentator_tabs_',
+    );
+    AppPaths.debugOverrideDataRootPath(directory.path);
+    addTearDown(() async {
+      await PerBookSettings.settle();
+      AppPaths.debugOverrideDataRootPath(null);
+      await directory.delete(recursive: true);
+    });
+    final book = TextBook(
+      title: 'ספר בדיקה',
+      source: BookSource.official,
+    );
+    const ownChoices = <List<String>>[
+      ['ראשונים'],
+      ['אחרונים'],
+      [],
+    ];
+    const savedPerBook = ['מפרש ברירת מחדל'];
+    await TextBookPerBookSettings.mutate(
+      book,
+      (current) => (current ?? TextBookPerBookSettings()).copyWith(
+        activeCommentators: savedPerBook,
+      ),
+    );
+
+    final tabs = [
+      for (final selection in ownChoices)
+        TextBookTab(
+          book: book,
+          index: 0,
+          commentators: selection,
+          openLeftPane: selection == ownChoices.first,
+        ),
+      TextBookTab(book: book, index: 0),
+    ];
+    final snapshot = UpdateCurrentWorkspaceTabs(
+      sourceWorkspaceId: 'workspace',
+      tabs: tabs,
+      activeTabIndex: 0,
+    );
+    for (final tab in tabs) {
+      tab.dispose();
+    }
+    final restored = snapshot.restoreTabs().cast<TextBookTab>();
+    final repository = _DelayedCommentatorRepository([
+      for (final choice in ownChoices) ...choice,
+      ...savedPerBook,
+    ]);
+    final blocs = [
+      for (final tab in restored)
+        TextBookBloc(
+          repository: repository,
+          initialState: tab.blocState as TextBookInitial,
+        ),
+    ];
+    addTearDown(() async {
+      for (final bloc in blocs) {
+        await bloc.close();
+      }
+      for (final tab in restored) {
+        tab.dispose();
+      }
+    });
+
+    final initialLoads = [
+      for (final bloc in blocs)
+        bloc.stream.firstWhere((s) => s is TextBookLoaded),
+    ];
+    for (final bloc in blocs) {
+      bloc.add(
+        const LoadContent(
+          fontSize: 20,
+          showSplitView: false,
+          removeNikud: false,
+          screenWidth: 1400,
+        ),
+      );
+    }
+    await Future.wait(initialLoads);
+    final pending = TextBookTab(book: book, index: 0, blocOverride: blocs.last);
+    addTearDown(pending.dispose);
+    final pendingSnapshot = pending.toJson();
+
+    final completedLoads = [
+      for (final bloc in blocs)
+        bloc.stream.firstWhere(
+          (s) => s is TextBookLoaded && s.commentatorsLoaded && !s.linksLoading,
+        ),
+    ];
+    repository.ready.complete();
+    final results = (await Future.wait(completedLoads)).cast<TextBookLoaded>();
+    expect(
+      results.map((state) => state.activeCommentators),
+      [...ownChoices, savedPerBook],
+    );
+    expect(results.first.showLeftPane, isTrue);
+    expect(results.first.pinLeftPane, isTrue);
+    final restoredPending = TextBookTab.fromJson(pendingSnapshot);
+    addTearDown(restoredPending.dispose);
+    expect(
+      (restoredPending.blocState as TextBookInitial).hasExplicitCommentators,
+      isFalse,
+    );
+  });
+
+  test('רענון הגדרות שומר בחירת מפרשים שנעשתה בזמן הטעינה', () async {
+    final book = TextBook(title: 'ספר אישי', source: BookSource.user);
+    final reloadStarted = Completer<void>();
+    final reloadNotes = Completer<BookNotes>();
+    var notesLoads = 0;
+    final bloc = TextBookBloc(
+      repository: _Repository(),
+      initialState: TextBookInitial.named(book, 0, false, ['מפרש ראשון']),
+      bookNotesLoader: (_) {
+        if (++notesLoads == 1) return Future.value(BookNotes.empty);
+        reloadStarted.complete();
+        return reloadNotes.future;
+      },
+    );
+    final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
+    addTearDown(tab.dispose);
+
+    final loaded = bloc.stream.firstWhere((state) => state is TextBookLoaded);
+    bloc.add(
+      const LoadContent(
+        fontSize: 20,
+        showSplitView: true,
+        removeNikud: false,
+        loadCommentators: false,
+      ),
+    );
+    await loaded;
+
+    final reloaded = bloc.stream.firstWhere(
+      (state) => state is TextBookLoaded && state.fontSize == 22,
+    );
+    bloc.add(
+      const LoadContent(
+        fontSize: 22,
+        showSplitView: true,
+        removeNikud: false,
+        preserveState: true,
+        loadCommentators: false,
+      ),
+    );
+    await reloadStarted.future;
+    final userSelection = bloc.stream.firstWhere(
+      (state) => state is TextBookLoaded && state.activeCommentators.isEmpty,
+    );
+    bloc.add(const UpdateCommentators([]));
+    await userSelection;
+    reloadNotes.complete(BookNotes.empty);
+
+    expect((await reloaded as TextBookLoaded).activeCommentators, isEmpty);
+    final restored = TextBookTab.fromJson(tab.toJson());
+    addTearDown(restored.dispose);
+    expect(
+      (restored.blocState as TextBookInitial).hasExplicitCommentators,
+      isTrue,
+    );
+  });
 
   test('snapshot לוכד יעד קריאה נוכחי בלי לטעון את הטאב', () async {
     final tab = TextBookTab(
@@ -620,4 +836,24 @@ class _Repository extends TextBookRepository {
   @override
   Future<List<String>> getAvailableCommentators(TextBook book) async =>
       const [];
+}
+
+class _DelayedCommentatorRepository extends _Repository {
+  _DelayedCommentatorRepository(this.commentators);
+
+  final List<String> commentators;
+  final ready = Completer<void>();
+
+  @override
+  Future<({List<String> all, Set<String> rare})> getCommentatorsWithRarity(
+    TextBook book,
+  ) async {
+    await ready.future;
+    return (all: commentators, rare: const <String>{});
+  }
+
+  @override
+  Future<Map<String, BookSource>> getExternalCommentatorSources(
+    TextBook book,
+  ) async => const {};
 }

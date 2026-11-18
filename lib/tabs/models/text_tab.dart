@@ -187,6 +187,7 @@ class TextBookTab extends OpenedTab {
       _index,
       openLeftPane,
       commentators ?? [],
+      hasExplicitCommentators: commentators != null,
       searchText: searchText,
       searchOrigin: searchOrigin,
       searchTemplate: searchTemplate,
@@ -298,6 +299,16 @@ class TextBookTab extends OpenedTab {
         ? rawResultLines.whereType<int>().toSet()
         : null;
 
+    final rawCommentators = json['commentators'];
+    // שמירות ישנות כללו מערך ריק גם כשהטאב טרם טען בחירה.
+    final commentators =
+        rawCommentators is List &&
+            rawCommentators.every((value) => value is String) &&
+            (rawCommentators.isNotEmpty ||
+                json['hasExplicitCommentators'] == true)
+        ? List<String>.from(rawCommentators)
+        : null;
+
     final tab = TextBookTab(
       index: json['initalIndex'],
       initialReadingAnchor: ReadingAnchor.tryFromJson(json['readingAnchor']),
@@ -316,7 +327,7 @@ class TextBookTab extends OpenedTab {
           json['pinpointHighlightSectionIndex'] is int
           ? json['pinpointHighlightSectionIndex'] as int
           : null,
-      commentators: List<String>.from(json['commentators']),
+      commentators: commentators,
       splitedView: splitedView,
       showPageShapeView: json['showPageShapeView'] ?? false,
       openLeftPane: shouldOpenLeftPane,
@@ -424,7 +435,10 @@ class TextReadingSnapshot {
     if (state is TextBookLoaded) {
       _splitView = state.showSplitView;
       _pageShapeView = state.showPageShapeView;
-      _commentators = state.activeCommentators;
+      _commentators =
+          state.activeCommentators.isNotEmpty || state.hasExplicitCommentators
+          ? state.activeCommentators
+          : null;
       _highlightText = state.highlightText;
       _permanentHighlightLine = state.permanentHighlightLine;
       _searchResultLines = state.searchResultLines;
@@ -505,6 +519,7 @@ class TextReadingSnapshot {
     'initalIndex': _index,
     if (_readingAnchor != null) 'readingAnchor': _readingAnchor.toJson(),
     'commentators': _commentators ?? <String>[],
+    if (_commentators?.isEmpty ?? false) 'hasExplicitCommentators': true,
     'splitedView': _persistedSplitView,
     'showPageShapeView': _persistedPageShapeView,
     'showLeftPane': _showLeftPane,
