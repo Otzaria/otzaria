@@ -171,26 +171,26 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text.rich(
-          TextSpan(
-            style: textStyle,
-            children: [
-              for (final (n, i) in visibleLines.indexed) ...[
-                if (n > 0) const TextSpan(text: '\n'),
-                for (var j = 0; j < _lines[i].length; j++)
-                  _lines[i][j].url == null
-                      ? TextSpan(text: _lines[i][j].text)
-                      : TextSpan(
-                          text: _lines[i][j].text,
-                          style: linkStyle,
-                          recognizer: _recognizers[i][j],
-                        ),
-              ],
-            ],
-          ),
-          textAlign: TextAlign.center,
-          maxLines: longBanner && !_expanded ? 2 : null,
-          overflow: longBanner && !_expanded ? TextOverflow.ellipsis : null,
-        ),
+              TextSpan(
+                style: textStyle,
+                children: [
+                  for (final (n, i) in visibleLines.indexed) ...[
+                    if (n > 0) const TextSpan(text: '\n'),
+                    for (var j = 0; j < _lines[i].length; j++)
+                      _lines[i][j].url == null
+                          ? TextSpan(text: _lines[i][j].text)
+                          : TextSpan(
+                              text: _lines[i][j].text,
+                              style: linkStyle,
+                              recognizer: _recognizers[i][j],
+                            ),
+                  ],
+                ],
+              ),
+              textAlign: TextAlign.center,
+              maxLines: longBanner && !_expanded ? 2 : null,
+              overflow: longBanner && !_expanded ? TextOverflow.ellipsis : null,
+            ),
             if (longBanner)
               TextButton(
                 onPressed: () => setState(() => _expanded = !_expanded),
