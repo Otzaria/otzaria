@@ -124,6 +124,48 @@ void main() {
       expect(_linkSpans(tester), hasLength(1));
     });
 
+    testWidgets('long source details start collapsed and can be expanded', (
+      tester,
+    ) async {
+      final longText = '${'קרדיט ארוך ' * 40}\n'
+          'המשך [קישור](https://example.org) נשמר';
+      await tester.pumpWidget(_wrap(BookSourceBanner(text: longText)));
+
+      expect(find.text('הצג פרטים'), findsOneWidget);
+      expect(find.textContaining('המשך קישור נשמר'), findsNothing);
+      expect(_linkSpans(tester), isEmpty);
+
+      await tester.tap(find.text('הצג פרטים'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('הסתר פרטים'), findsOneWidget);
+      expect(find.textContaining('המשך קישור נשמר'), findsOneWidget);
+      expect(_linkSpans(tester), hasLength(1));
+
+      await tester.tap(find.text('הסתר פרטים'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('המשך קישור נשמר'), findsNothing);
+    });
+
+    testWidgets('a new source resets expanded state', (tester) async {
+      final first = 'קרדיט ' * 70;
+      final second = 'תיאור אחר ' * 50;
+      await tester.pumpWidget(_wrap(BookSourceBanner(text: first)));
+      await tester.tap(find.text('הצג פרטים'));
+      await tester.pumpAndSettle();
+      expect(find.text('הסתר פרטים'), findsOneWidget);
+
+      await tester.pumpWidget(_wrap(BookSourceBanner(text: second)));
+      expect(find.text('הצג פרטים'), findsOneWidget);
+      expect(find.text('הסתר פרטים'), findsNothing);
+    });
+
+    testWidgets('short source credit remains fully visible', (tester) async {
+      await tester.pumpWidget(_wrap(const BookSourceBanner(text: text)));
+      expect(find.text('הצג פרטים'), findsNothing);
+      expect(_linkSpans(tester), hasLength(1));
+    });
+
     testWidgets('the banner is excluded from text selection', (tester) async {
       await tester.pumpWidget(
         _wrap(SelectionArea(child: const BookSourceBanner(text: text))),
