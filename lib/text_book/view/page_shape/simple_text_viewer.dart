@@ -564,6 +564,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   Map<String, int> _anchorStyleCache = const {};
   late final AppWindowKeys _previewWindow;
   Timer? _previewHoverTimer;
+  final _personalNotesLineIndex = PersonalNotesLineIndex();
   List<PersonalNote> _commentaryNotes = const [];
   int _commentaryNotesLoadGeneration = 0;
 
@@ -1437,7 +1438,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           categoryId: widget.reportBook?.categoryId,
         );
     if (!mounted || generation != _commentaryNotesLoadGeneration) return;
-    setState(() => _commentaryNotes = notes);
+    final snapshot = List<PersonalNote>.unmodifiable(notes);
+    setState(() => _commentaryNotes = snapshot);
   }
 
   void _handleNotesChanged(String bookId) {
@@ -2991,7 +2993,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                     (previous.bookId != current.bookId ||
                         previous.locatedNotes != current.locatedNotes),
                 builder: (context, notesState) {
-                  final noteMap = indexPersonalNotesByLine(
+                  final noteMap = _personalNotesLineIndex.forSnapshot(
                     widget.isMainText
                         ? (notesState.bookId == personalNotesBookKey(state.book)
                               ? notesState.locatedNotes

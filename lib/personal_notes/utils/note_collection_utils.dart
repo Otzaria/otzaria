@@ -24,6 +24,20 @@ PersonalNotesPartition partitionAndSortPersonalNotes(List<PersonalNote> notes) {
   return (located: located, missing: missing);
 }
 
+/// מטמון לפי זהות הרשימה האחרונה, עבור קורא אחד.
+class PersonalNotesLineIndex {
+  List<PersonalNote>? _notes;
+  Map<int, List<PersonalNote>> _byLine = const {};
+
+  /// הרשימה היא תמונת־מצב לקריאה בלבד, שמתעדכנת בהחלפת המופע.
+  Map<int, List<PersonalNote>> forSnapshot(List<PersonalNote> notes) {
+    if (identical(notes, _notes)) return _byLine;
+    _byLine = notes.isEmpty ? const {} : indexPersonalNotesByLine(notes);
+    _notes = notes;
+    return _byLine;
+  }
+}
+
 /// ההערות לפי שורה (1-based), בלי להקצות רשומה לכל שורה בטווח.
 Map<int, List<PersonalNote>> indexPersonalNotesByLine(
   Iterable<PersonalNote> notes,

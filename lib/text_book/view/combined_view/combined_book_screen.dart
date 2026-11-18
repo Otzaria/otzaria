@@ -361,6 +361,7 @@ class _CombinedViewState extends State<CombinedView> {
   /// מאגר הפוקוס של החלון; נשמר כאן כי ב-dispose אסור לחפש ב-context.
   late final FocusRepository _focus;
 
+  final _personalNotesLineIndex = PersonalNotesLineIndex();
   PageStorageBucket _commentaryStorage = PageStorageBucket();
   bool _localCorrectionActive = false;
   bool _anchorHandledCurrentTap = false;
@@ -2341,15 +2342,16 @@ class _CombinedViewState extends State<CombinedView> {
                                               previous.locatedNotes !=
                                                   current.locatedNotes,
                                           builder: (context, notesState) {
-                                            final noteMap =
+                                            final notes =
                                                 notesState.bookId ==
                                                     personalNotesBookKey(
                                                       state.book,
                                                     )
-                                                ? indexPersonalNotesByLine(
-                                                    notesState.locatedNotes,
-                                                  )
-                                                : <int, List<PersonalNote>>{};
+                                                ? notesState.locatedNotes
+                                                : const <PersonalNote>[];
+                                            final noteMap =
+                                                _personalNotesLineIndex
+                                                    .forSnapshot(notes);
                                             return SmoothWheelScroll(
                                               child: ScrollPositionReanchor(
                                                 layoutKey: context.select(
