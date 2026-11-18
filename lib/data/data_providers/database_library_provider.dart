@@ -17,6 +17,7 @@ import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/book_key_set.dart';
+import 'package:otzaria/data/data_providers/category_merge_targets.dart';
 import 'package:otzaria/data/data_providers/scan_result.dart';
 import 'package:otzaria/data/data_providers/book_text_reader.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
@@ -74,6 +75,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:path/path.dart' as p;
 
+export 'package:otzaria/data/data_providers/category_merge_targets.dart';
 export 'package:otzaria/data/data_providers/scan_result.dart';
 
 /// שם השורש שמרכז את ספרי מסד שאין בו טבלת קטגוריות.
@@ -291,30 +293,6 @@ Future<_UserBooksCatalogRows> _readUserBooksCatalogInIsolate(
     db.close();
   }
 }, debugName: 'readUserBooksCatalog');
-
-/// יעדי המיזוג ברשימת קטגוריות אחיות, בהשוואה שמתעלמת מגרשיים וגרש: שם תיקייה
-/// ב-Windows לא יכול להכיל `"`, ולכן "תנך" חייב להתאים ל"תנ״ך".
-class _MergeTargets {
-  _MergeTargets(this._categories) {
-    _categories.forEach(_index);
-  }
-
-  final List<Category> _categories;
-  final Map<String, Category> _byKey = {};
-
-  void _index(Category category) => _byKey.putIfAbsent(
-    DatabaseLibraryProvider._mergeTitleKey(category.title),
-    () => category,
-  );
-
-  Category? find(String title) =>
-      _byKey[DatabaseLibraryProvider._mergeTitleKey(title)];
-
-  void add(Category category) {
-    _categories.add(category);
-    _index(category);
-  }
-}
 
 /// קריאת קטלוג של מסד מצורף שעדיין רצה, כולל אחרי שבניית העץ ויתרה עליה.
 class _PendingAttachedCatalog {
@@ -4258,7 +4236,10 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         final grandchildren = [
           ...?categoriesByParent[pickedFolder.id],
         ]..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
-        final rootTargets = _MergeTargets(library.subCategories);
+        final rootTargets = CategoryMergeTargets(
+          library.subCategories,
+          DatabaseLibraryProvider._mergeTitleKey,
+        );
         for (final grandchild in grandchildren) {
           final existing = rootTargets.find(grandchild.title);
           if (existing == null) {
@@ -4453,7 +4434,12 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
     final merge =
         build.library.placement == AttachedLibraryPlacement.mergeIntoLibrary;
-    final rootTargets = merge ? _MergeTargets(library.subCategories) : null;
+    final rootTargets = merge
+        ? CategoryMergeTargets(
+            library.subCategories,
+            DatabaseLibraryProvider._mergeTitleKey,
+          )
+        : null;
     for (final root in roots) {
       if (rootTargets == null) {
         final parent = ensureLibraryRoot();
@@ -4518,7 +4504,10 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     );
     final children = [...?build.categoriesByParent[dbCategory.id]]
       ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
-    final targets = _MergeTargets(category.subCategories);
+    final targets = CategoryMergeTargets(
+      category.subCategories,
+      DatabaseLibraryProvider._mergeTitleKey,
+    );
     for (final child in children) {
       final existing = targets.find(child.title);
       if (existing == null) {
@@ -4765,7 +4754,10 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     final children = [
       ...?categoriesByParent[dbCategory.id],
     ]..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
-    final targets = _MergeTargets(category.subCategories);
+    final targets = CategoryMergeTargets(
+      category.subCategories,
+      DatabaseLibraryProvider._mergeTitleKey,
+    );
     for (final child in children) {
       final existingSubCategory = targets.find(child.title);
       if (existingSubCategory == null) {
