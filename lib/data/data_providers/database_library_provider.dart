@@ -5,7 +5,7 @@ import 'dart:isolate';
 import 'package:otzaria/text_book/repository/book_notes_repository.dart';
 import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
 import 'package:flutter/foundation.dart'
-    show ValueNotifier, debugPrint, visibleForTesting, compute;
+    show debugPrint, visibleForTesting, compute;
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
@@ -18,6 +18,7 @@ import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/book_key_set.dart';
 import 'package:otzaria/data/data_providers/category_merge_targets.dart';
+import 'package:otzaria/data/data_providers/personal_books_operation_queue.dart';
 import 'package:otzaria/data/data_providers/scan_result.dart';
 import 'package:otzaria/data/data_providers/book_text_reader.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
@@ -76,6 +77,8 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:path/path.dart' as p;
 
 export 'package:otzaria/data/data_providers/category_merge_targets.dart';
+export 'package:otzaria/data/data_providers/personal_books_operation_queue.dart'
+    show PersonalBooksOperationQueue;
 export 'package:otzaria/data/data_providers/scan_result.dart';
 
 /// שם השורש שמרכז את ספרי מסד שאין בו טבלת קטגוריות.
@@ -2014,38 +2017,6 @@ Future<List<Map<String, dynamic>>> _runSelectableVersionKeysInIsolate({
   return Isolate.run(
     () => _loadSelectableVersionKeysInIsolate(target: target),
   );
-}
-
-/// מתאם כל פעולות הכתיבה לספרים האישיים: add-folder scan, rescan, toggle, remove.
-///
-/// תור סריאלי יחיד עם ספירת עסוקות נצפית.
-/// ה-singleton חי על [DatabaseLibraryProvider] ולכן שורד פירוק ויצירה של widgets.
-class PersonalBooksOperationQueue {
-  Future<void> _tail = Future.value();
-
-  /// מספר הפעולות הממתינות או הרצות כרגע.
-  /// עולה ב-1 מיד כשמוסיפים לתור (לא רק כשמתחיל הביצוע),
-  /// כך שה-UI מציג מצב עסוק גם בזמן ההמתנה בתור.
-  final ValueNotifier<int> busyCount = ValueNotifier(0);
-
-  bool get isBusy => busyCount.value > 0;
-
-  /// מוסיף [operation] לתור הסריאלי ומחזיר את תוצאתה.
-  ///
-  /// פעולות מבוצעות בסדר הוספה בלבד, לעולם לא במקביל.
-  Future<T> enqueue<T>(Future<T> Function() operation) {
-    busyCount.value++; // עולה מיד, עוד לפני הביצוע
-    final result = _tail.then<T>((_) async {
-      try {
-        return await operation();
-      } finally {
-        busyCount.value--;
-      }
-    });
-    // _tail לעולם לא נדחית; אחרת שרשרת ה-then תיקלע לדד-לוק.
-    _tail = result.then<void>((_) {}).catchError((_) {});
-    return result;
-  }
 }
 
 /// Library provider that loads books from the SQLite database.
