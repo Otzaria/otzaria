@@ -1,8 +1,33 @@
+import 'dart:collection';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/pdf_book/utils/pdf_personal_note_anchor.dart';
 import 'package:otzaria/personal_notes/models/pdf_note_anchor.dart';
 import 'package:pdfrx/pdfrx.dart';
+
+class _CountingRects extends ListBase<Rect> {
+  _CountingRects(this._pages);
+
+  final List<Rect> _pages;
+  int reads = 0;
+
+  @override
+  int get length => _pages.length;
+
+  @override
+  set length(int value) => throw UnsupportedError('read-only');
+
+  @override
+  Rect operator [](int index) {
+    reads++;
+    return _pages[index];
+  }
+
+  @override
+  void operator []=(int index, Rect value) =>
+      throw UnsupportedError('read-only');
+}
 
 class _Page extends Fake implements PdfPage {
   _Page(this.pageNumber, this.rotation, {this.isLoaded = true});
@@ -62,31 +87,106 @@ void main() {
   const anchor = PdfNoteAnchor(pageNumber: 2, x: .25, y: .75);
 
   test('גלילה רציפה כוללת גם עמוד סמוך שנראה חלקית', () {
-    const pages = [
-      Rect.fromLTWH(10, 10, 200, 400),
-      Rect.fromLTWH(10, 420, 200, 400),
-      Rect.fromLTWH(10, 830, 200, 400),
-    ];
+    final lookup = PdfNotePageLookup();
+    final layout = PdfPageLayout(
+      pageLayouts: const [
+        Rect.fromLTWH(10, 10, 200, 400),
+        Rect.fromLTWH(10, 420, 200, 400),
+        Rect.fromLTWH(10, 830, 200, 400),
+      ],
+      documentSize: const Size(210, 1230),
+    );
     expect(
-      visiblePdfNotePageNumbers(
-        pageLayouts: pages,
-        visibleRect: const Rect.fromLTWH(10, 300, 200, 200),
-      ),
+      lookup.visiblePages(layout, const Rect.fromLTWH(10, 300, 200, 200)),
       [1, 2],
     );
     expect(
-      visiblePdfNotePageNumbers(
-        pageLayouts: pages,
-        visibleRect: const Rect.fromLTWH(10, 425, 200, 390),
-      ),
+      lookup.visiblePages(layout, const Rect.fromLTWH(10, 425, 200, 390)),
       [2],
     );
     expect(
-      visiblePdfNotePageNumbers(
-        pageLayouts: pages,
-        visibleRect: const Rect.fromLTWH(10, 411, 200, 8),
-      ),
+      lookup.visiblePages(layout, const Rect.fromLTRB(10, 410, 210, 420)),
       isEmpty,
+    );
+    expect(
+      lookup.visiblePages(layout, const Rect.fromLTWH(210, 300, 200, 200)),
+      isEmpty,
+    );
+  });
+
+  test('גלילה בפריסה קבועה בודקת רק עמודים ליד אזור התצוגה', () {
+    final lookup = PdfNotePageLookup();
+    final pages = _CountingRects(
+      List.generate(20000, (index) => Rect.fromLTWH(0, index * 100.0, 100, 90)),
+    );
+    final layout = PdfPageLayout(
+      pageLayouts: pages,
+      documentSize: const Size(100, 2000000),
+    );
+    lookup.visiblePages(layout, const Rect.fromLTWH(0, 0, 100, 90));
+
+    pages.reads = 0;
+    expect(
+      lookup.visiblePages(layout, const Rect.fromLTWH(0, 999990, 100, 130)),
+      [10001, 10002],
+    );
+    expect(pages.reads, lessThan(30));
+  });
+
+  test('פריסה מעודכנת נבדקת מחדש ושומרת סדר בפריסה לא ממוינת', () {
+    final lookup = PdfNotePageLookup();
+    const viewport = Rect.fromLTRB(0, 55, 100, 75);
+    final initial = PdfPageLayout(
+      pageLayouts: const [Rect.fromLTWH(0, 0, 100, 50)],
+      documentSize: const Size(100, 50),
+    );
+    expect(lookup.visiblePages(initial, viewport), isEmpty);
+
+    final updated = PdfPageLayout(
+      pageLayouts: const [
+        Rect.fromLTWH(0, 20, 100, 100),
+        Rect.fromLTWH(0, 30, 100, 10),
+        Rect.fromLTWH(0, 0, 100, 80),
+      ],
+      documentSize: const Size(100, 120),
+    );
+    expect(lookup.visiblePages(updated, viewport), [1, 3]);
+  });
+
+  test('כפולה מסוננת לפי טווח העמודים והחיתוך המדויק', () {
+    final lookup = PdfNotePageLookup();
+    final layout = PdfPageLayout(
+      pageLayouts: const [
+        Rect.fromLTWH(0, 0, 100, 90),
+        Rect.fromLTWH(110, 100, 100, 90),
+        Rect.fromLTWH(0, 100, 100, 70),
+      ],
+      documentSize: const Size(210, 190),
+    );
+    const spread = (startPage: 2, endPageExclusive: 4);
+    expect(
+      lookup.visiblePages(
+        layout,
+        const Rect.fromLTWH(0, 0, 210, 190),
+        spread: spread,
+      ),
+      [2, 3],
+    );
+    expect(
+      lookup.visiblePages(
+        layout,
+        const Rect.fromLTWH(0, 0, 110, 190),
+        spread: spread,
+      ),
+      [3],
+    );
+    expect(
+      lookup.visiblePages(
+        layout,
+        const Rect.fromLTWH(0, 0, 210, 190),
+        spread: (startPage: 3, endPageExclusive: 5),
+      ),
+      [3],
     );
   });
 

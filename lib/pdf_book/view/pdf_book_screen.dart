@@ -719,6 +719,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   bool _isChoosingPersonalNotePoint = false;
   PersonalNote? _noteToReanchor;
   PdfNoteAnchor? _focusedPersonalNoteAnchor;
+  final _pdfNotePageLookup = PdfNotePageLookup();
   List<int> _lastVisiblePdfNotePages = const [];
   bool _visiblePdfNotesRefreshScheduled = false;
   late final StreamSubscription<SettingsState> _settingsSub;
@@ -6353,21 +6354,17 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   List<int> _visiblePersonalNotePages() {
     final controller = widget.tab.pdfViewerController;
-    if (!controller.isReady) return const [];
-    final visible = visiblePdfNotePageNumbers(
-      pageLayouts: controller.layout.pageLayouts,
-      visibleRect: controller.visibleRect,
+    final layout = pdfReadyLayoutOrNull(controller);
+    if (layout == null) return const [];
+    return _pdfNotePageLookup.visiblePages(
+      layout,
+      controller.visibleRect,
+      spread: _isBookViewModeActive()
+          ? _spreadPageRangeFor(
+              _pageNumberNotifier.value ?? widget.tab.pageNumber,
+            )
+          : null,
     );
-    if (!_isBookViewModeActive()) return visible;
-    final range = _spreadPageRangeFor(
-      _pageNumberNotifier.value ?? widget.tab.pageNumber,
-    );
-    // בתצוגת ספר המסכה מסתירה כפולות אחרות, גם אם הן בתוך מלבן הצפיין.
-    return visible
-        .where(
-          (page) => page >= range.startPage && page < range.endPageExclusive,
-        )
-        .toList();
   }
 
   void _refreshVisiblePersonalNotePages() {
