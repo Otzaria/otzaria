@@ -13,7 +13,6 @@ import '../../settings/services/custom_folders/custom_folder.dart';
 import '../generator/generator.dart';
 import '../services/external_book_import.dart';
 import '../models/book.dart';
-import '../models/category.dart';
 import '../../utils/file/file_hidden_utils.dart';
 import '../../utils/file/document_converter.dart';
 import '../../utils/file/document_format.dart';
