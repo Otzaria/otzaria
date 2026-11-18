@@ -416,7 +416,7 @@ void main() {
                   BlocProvider<SettingsBloc>.value(value: settingsBloc),
                   BlocProvider<NavigationBloc>.value(value: navigationBloc),
                 ],
-                child: MySettingsScreen(onDesktopBack: () {}),
+                child: MySettingsScreen(),
               ),
             ),
           ),
