@@ -69,9 +69,10 @@ void main() {
     WidgetTester tester,
     PdfBook book,
     TextDirection direction,
-    List<int> openedPages,
-  ) async {
-    await tester.binding.setSurfaceSize(const Size(640, 700));
+    List<int> openedPages, {
+    Size size = const Size(640, 700),
+  }) async {
+    await tester.binding.setSurfaceSize(size);
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final settings = StubSettingsBloc();
     addTearDown(settings.close);
@@ -134,6 +135,77 @@ void main() {
       expect(openedPages, [controller.pageNumber]);
     });
   }
+
+  testWidgets('בהתאמת הפתיחה הדף כולו נראה והגלגלת פועלת בשוליים', (
+    tester,
+  ) async {
+    await pumpPreview(
+      tester,
+      longBook,
+      TextDirection.rtl,
+      [],
+      size: const Size(640, 460),
+    );
+    final controller = tester.widget<PdfViewer>(viewer).controller!;
+    final view = tester.getRect(viewer);
+    final firstPage = controller.layout.pageLayouts.first;
+    expect(
+      controller.documentToGlobal(firstPage.topLeft)!.dx,
+      greaterThanOrEqualTo(view.left),
+    );
+    expect(
+      controller.documentToGlobal(firstPage.topRight)!.dx,
+      lessThanOrEqualTo(view.right),
+    );
+
+    final scrollbarMargin = Offset(639, view.center.dy);
+    final beforeWheel = controller.visibleRect.top;
+    await tester.sendEventToBinding(
+      PointerScrollEvent(
+        position: scrollbarMargin,
+        scrollDelta: const Offset(0, 40),
+        kind: PointerDeviceKind.mouse,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(controller.visibleRect.top - beforeWheel, closeTo(40, 0.01));
+
+    final trackpad = await tester.createGesture(
+      kind: PointerDeviceKind.trackpad,
+    );
+    final beforePan = controller.visibleRect.top;
+    await trackpad.panZoomStart(scrollbarMargin);
+    await trackpad.panZoomUpdate(scrollbarMargin, pan: const Offset(0, -80));
+    await trackpad.panZoomEnd();
+    await tester.pumpAndSettle();
+    expect(controller.visibleRect.top, greaterThan(beforePan));
+  });
+
+  testWidgets('בגובה קרוב להתאמה מלאה הרצועה מוסרת והזום נשאר יציב', (
+    tester,
+  ) async {
+    await pumpPreview(
+      tester,
+      shortBook,
+      TextDirection.rtl,
+      [],
+      size: const Size(640, 634),
+    );
+    final controller = tester.widget<PdfViewer>(viewer).controller!;
+    expect(tester.getSize(viewer).width, 640);
+    expect(thumb, findsNothing);
+    expect(
+      controller.documentSize.height * controller.currentZoom,
+      closeTo(634, 1e-6),
+    );
+
+    await tester.binding.setSurfaceSize(const Size(640, 700));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(viewer).width, 640);
+    expect(thumb, findsNothing);
+    expect(tester.widget<PdfViewer>(viewer).controller, same(controller));
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('זום פותח וסוגר את הרצועה בלי לחסום לחיצה כפולה', (tester) async {
     final openedPages = <int>[];

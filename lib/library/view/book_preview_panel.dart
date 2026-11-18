@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math' show min;
+import 'dart:math' show max, min;
 import 'package:otzaria/pdf_book/utils/pdf_font_fallback.dart';
 import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/theme/app_tokens.dart';
@@ -779,6 +779,25 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
 
   final GlobalKey<AppContextMenuRegionState> _pdfContextMenuKey = GlobalKey();
 
+  static double _initialPdfPreviewZoom(
+    PdfDocument _,
+    PdfViewerController controller,
+    double _,
+    double coverScale,
+  ) {
+    final view = controller.viewSize;
+    final document = controller.documentSize;
+    if (view.width <= AppTokens.scrollbarGutter ||
+        document.height * coverScale <= view.height + precisionErrorTolerance) {
+      return coverScale;
+    }
+    // כשהפס יופיע, הצופה ישמר את הזום. מתאימים מראש לרוחב שיישאר.
+    return max(
+      view.height / document.height,
+      (view.width - AppTokens.scrollbarGutter) / document.width,
+    );
+  }
+
   /// בניית PDF viewer דרך נתיב הקובץ
   Widget _buildPdfViewer(String filePath) {
     if (!_pdfFileExists) {
@@ -787,6 +806,10 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
       );
     }
     final controller = _pdfController!;
+    void forwardScrollbarPanZoom(PointerEvent event) {
+      if (controller.isReady) controller.handlePointerPanZoomEvent(event);
+    }
+
     final viewer = AppContextMenuRegion(
       key: _pdfContextMenuKey,
       // לחיצה ארוכה נתפסת ב-onGeneralTap, אחרת pdfrx פותח עליה תפריט Flutter.
@@ -821,8 +844,9 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
           imageCacheBudget: pdfSharedImageBudget,
           zoomStepsDelegateProvider:
               const PdfViewerZoomStepsDelegateProviderSmart(),
-          sizeDelegateProvider: PdfViewerSizeDelegateProviderLegacy(
+          sizeDelegateProvider: const PdfViewerSizeDelegateProviderLegacy(
             maxScale: 10,
+            calculateInitialZoom: _initialPdfPreviewZoom,
           ),
           horizontalCacheExtent: 0,
           verticalCacheExtent: 1,
@@ -894,15 +918,35 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                   SizedBox(
                     key: _pdfVerticalScrollbarKey,
                     width: AppTokens.scrollbarGutter,
-                    child: Stack(
-                      children: [
-                        PdfScrollbar(
-                          controller: controller,
-                          orientation: ScrollbarOrientation.right,
-                          trackThickness: AppTokens.scrollbarThickness,
-                          thumbMinSize: min(50.0, constraints.maxHeight / 2),
-                        ),
-                      ],
+                    child: Listener(
+                      behavior: HitTestBehavior.opaque,
+                      onPointerSignal: (event) {
+                        if (event is PointerScrollEvent && controller.isReady) {
+                          GestureBinding.instance.pointerSignalResolver
+                              .register(
+                                event,
+                                controller.handlePointerSignalEvent,
+                              );
+                        }
+                      },
+                      onPointerPanZoomStart: forwardScrollbarPanZoom,
+                      onPointerPanZoomUpdate: forwardScrollbarPanZoom,
+                      onPointerPanZoomEnd: forwardScrollbarPanZoom,
+                      onPointerCancel: (event) {
+                        if (event.kind == PointerDeviceKind.trackpad) {
+                          forwardScrollbarPanZoom(event);
+                        }
+                      },
+                      child: Stack(
+                        children: [
+                          PdfScrollbar(
+                            controller: controller,
+                            orientation: ScrollbarOrientation.right,
+                            trackThickness: AppTokens.scrollbarThickness,
+                            thumbMinSize: min(50.0, constraints.maxHeight / 2),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
               ],
