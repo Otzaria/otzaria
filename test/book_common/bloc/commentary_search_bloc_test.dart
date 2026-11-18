@@ -16,14 +16,53 @@ Future<void> main() async {
     List<Link> links,
     String query, {
     TextDisplayProfile profile = TextDisplayProfile.defaults,
+    bool includeSnippets = true,
   }) => CommentarySearchRequested(
     links: links,
     query: query,
     displayProfile: profile,
-    includeSnippets: true,
+    includeSnippets: includeSnippets,
   );
 
   group('בעלות משותפת על חיפוש מפרשים', () {
+    test('מחשֵב מפתחות פעם אחת ושומר מופעים כפולים בסדר התצוגה', () async {
+      var keyReads = 0;
+      final bloc = CommentarySearchBloc(
+        keyOf: (_) {
+          keyReads++;
+          return 'משותף';
+        },
+      );
+      addTearDown(bloc.close);
+      final links = [
+        _Link('ראשון', Future.value('אמר אמר')),
+        _Link('שני', Future.value('אמר אמר')),
+      ];
+      final initial = bloc.stream.firstWhere((state) => state.total == 2);
+      bloc.add(request(links, 'אמר'));
+      final state = await initial;
+      expect(state.countsByPath, {'שני': 2});
+      expect(state.snippets.map((s) => s.path), ['ראשון', 'שני']);
+      expect(state.snippets.map((s) => s.globalIndex), [0, 2]);
+
+      final updated = bloc.stream.firstWhere((state) => state.total == 3);
+      bloc.add(
+        CommentarySearchReported(
+          generation: bloc.generation,
+          key: 'משותף',
+          count: 3,
+        ),
+      );
+      expect((await updated).snippets.map((s) => s.globalIndex), [0, 3]);
+
+      final countsOnly = bloc.stream.firstWhere((state) => state.total == 2);
+      bloc.add(request(links, 'אמר', includeSnippets: false));
+      final countsOnlyState = await countsOnly;
+      expect(countsOnlyState.countsByPath, {'שני': 2});
+      expect(countsOnlyState.snippets, isEmpty);
+      expect(keyReads, links.length);
+    });
+
     blocTest<CommentarySearchBloc, CommentarySearchState>(
       'טוען גם פריטים שלא נבנו ומפרסם ספירות וקטעים עם אותם היסטים',
       build: build,
