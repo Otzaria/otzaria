@@ -105,9 +105,8 @@ void main() {
     BuildContext context,
     BookReportDraftCubit draft, {
     String? reportId,
-  }) => ErrorReportHelper.handleRegularReportAction(
+  }) => ErrorReportHelper.queueReportForLater(
     context,
-    ErrorReportAction.saveForLater,
     ReportedErrorData(
       selectedText: 'quoted text',
       errorDetails: draft.state.form['details'] as String,
