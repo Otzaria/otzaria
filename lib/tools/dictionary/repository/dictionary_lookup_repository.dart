@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
@@ -456,6 +457,8 @@ class DictionaryLookupRepository {
     _resetLaazLinksCache,
   );
 
+  List<AcronymCatalogEntry>? _acronymCatalog;
+  List<String>? _sortedAcronymKeys;
   Map<String, List<String>> _acronymsByKey = <String, List<String>>{};
   Map<String, String> _originalAcronymByKey = <String, String>{};
   List<AramaicDictionaryEntry> _aramaicEntries = <AramaicDictionaryEntry>[];
@@ -518,6 +521,10 @@ class DictionaryLookupRepository {
   /// קטלוג לחיפוש עם תווית מקורית ומפתח מנורמל, ממוין לפי אורך התווית ואז
   /// לפי א"ב — שוברי השוויון של דירוג החיפוש במסך ראשי התיבות.
   List<AcronymCatalogEntry> getAcronymSearchCatalog() {
+    return _acronymCatalog ??= _buildAcronymSearchCatalog();
+  }
+
+  List<AcronymCatalogEntry> _buildAcronymSearchCatalog() {
     final catalog = [
       for (final entry in _acronymsByKey.entries)
         AcronymCatalogEntry(
@@ -594,19 +601,22 @@ class DictionaryLookupRepository {
       return const <AcronymDictionaryEntry>[];
     }
 
-    return _acronymsByKey.keys
-        .where((key) => key.startsWith(normalized))
-        .map(_buildAcronymEntry)
-        .whereType<AcronymDictionaryEntry>()
-        .toList()
-      ..sort((a, b) {
-        final lengthCompare = a.acronym.length.compareTo(b.acronym.length);
-        if (lengthCompare != 0) {
-          return lengthCompare;
-        }
+    final keys = _sortedAcronymKeys ??= (_acronymsByKey.keys.toList()..sort());
+    final matches = <AcronymDictionaryEntry>[];
+    for (
+      var i = lowerBound(keys, normalized);
+      i < keys.length && keys[i].startsWith(normalized);
+      i++
+    ) {
+      final entry = _buildAcronymEntry(keys[i]);
+      if (entry != null) matches.add(entry);
+    }
 
-        return a.acronym.compareTo(b.acronym);
-      });
+    return matches..sort((a, b) {
+      final lengthCompare = a.acronym.length.compareTo(b.acronym.length);
+      if (lengthCompare != 0) return lengthCompare;
+      return a.acronym.compareTo(b.acronym);
+    });
   }
 
   /// בודק אם מפתח ראשי תיבות תואם לשאילתת חיפוש לאחר נרמול גרשיים.
@@ -834,6 +844,8 @@ class DictionaryLookupRepository {
         : _buildAcronymIndex(await loadAcronyms());
     _acronymsByKey = index.byKey;
     _originalAcronymByKey = index.originalByKey;
+    _acronymCatalog = null;
+    _sortedAcronymKeys = null;
   }
 
   static ({Map<String, List<String>> byKey, Map<String, String> originalByKey})
@@ -1117,6 +1129,8 @@ class DictionaryLookupRepository {
   }
 
   void _resetAcronymsCache() {
+    _acronymCatalog = null;
+    _sortedAcronymKeys = null;
     _acronymsByKey = <String, List<String>>{};
     _originalAcronymByKey = <String, String>{};
   }
