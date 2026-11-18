@@ -30,6 +30,19 @@ void main() {
     TextRendererService.clearRenderCacheForTesting();
   });
 
+  test('clickable footnote markers use link color (#4514)', () {
+    final markers = RaisedMarkers.extract(
+      '<a class="book-note-marker" href="#note">א</a> '
+      '<a class="numbered-note-marker" href="#note2">'
+      '<span class="$kRaisedSupClass">ב</span></a>',
+    );
+    expect(markers, hasLength(2));
+    for (final marker in markers) {
+      expect(marker.clickable, isTrue);
+      expect(marker.useLinkColor, isTrue);
+    }
+  });
+
   group('processText — sup פשוט ולא-מספרי הופך ל-span טקסט טהור', () {
     String process(String html) =>
         TextRendererService.processText(html, const RenderSettings());
