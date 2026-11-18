@@ -18,7 +18,7 @@ class TabBackgroundPainter extends CustomPainter {
   /// גובה גוף הכרטיסיה, שממורכז בגובה הסרגל.
   final double bodyHeight;
 
-  TabBackgroundPainter(
+  const TabBackgroundPainter(
     this.color, {
     required this.bodyHeight,
     this.borderColor,
