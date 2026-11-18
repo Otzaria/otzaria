@@ -66,6 +66,32 @@ Future<void> main() async {
     skip: engineReady ? false : searchEngineSkipReason,
   );
 
+  test('retained descendants point to cloned ancestors without changing the source', () {
+    final title = _entry(text: 'ספר', index: 0, level: 1);
+    final chapter = _entry(text: 'פרק ב', index: 1, level: 2, parent: title);
+    final rejected = _entry(text: 'פרק ג', index: 4, level: 2, parent: title);
+    final leaf = _entry(text: 'הלכה א', index: 2, level: 3, parent: chapter);
+    final other = _entry(text: 'הלכה ב', index: 3, level: 3, parent: chapter);
+    chapter.children = [leaf, other];
+    rejected.children = [
+      _entry(text: 'הלכה ג', index: 5, level: 3, parent: rejected),
+    ];
+    title.children = [chapter, rejected];
+
+    final filteredTitle = filterTocEntriesForSearch([title], 'הלכה א').single;
+    final filteredChapter = filteredTitle.children.single;
+    final filteredLeaf = filteredChapter.children.single;
+
+    expect(filteredTitle, isNot(same(title)));
+    expect(filteredChapter.parent, same(filteredTitle));
+    expect(filteredLeaf.parent, same(filteredChapter));
+    expect(filteredLeaf.fullText, leaf.fullText);
+    expect(title.children, [chapter, rejected]);
+    expect(chapter.children, [leaf, other]);
+    expect(leaf.parent, same(chapter));
+    expect(filterTocEntriesForSearch([title], 'ספר'), isEmpty);
+  }, skip: engineReady ? false : searchEngineSkipReason);
+
   test(
     'filterTocEntriesForSearch returns empty list for empty query',
     () {
