@@ -113,6 +113,40 @@ void main() {
     }
   }
 
+  test('restored tabs retain independent commentator selections (#4560)', () {
+    final book = TextBook(title: 'Shared book');
+    for (final selection in <List<String>>[
+      ['First'],
+      ['Second'],
+      <String>[],
+    ]) {
+      final tab = TextBookTab(book: book, index: 0, commentators: selection);
+      addTearDown(tab.dispose);
+      final restored = TextBookTab.fromJson(tab.toJson());
+      addTearDown(restored.dispose);
+
+      final state = restored.blocState as TextBookInitial;
+      expect(state.commentators, selection);
+      expect(state.hasExplicitCommentators, isTrue);
+    }
+
+    final fresh = TextBookTab(book: book, index: 0);
+    addTearDown(fresh.dispose);
+    expect(
+      (fresh.blocState as TextBookInitial).hasExplicitCommentators,
+      isFalse,
+    );
+    // Older snapshots with no saved choice still inherit book defaults.
+    final legacy = Map<String, dynamic>.from(fresh.toJson())
+      ..remove('commentators');
+    final restoredLegacy = TextBookTab.fromJson(legacy);
+    addTearDown(restoredLegacy.dispose);
+    expect(
+      (restoredLegacy.blocState as TextBookInitial).hasExplicitCommentators,
+      isFalse,
+    );
+  });
+
   test('snapshot לוכד יעד קריאה נוכחי בלי לטעון את הטאב', () async {
     final tab = TextBookTab(
       book: TextBook(title: 'בראשית'),
