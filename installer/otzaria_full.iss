@@ -364,15 +364,13 @@ begin
     Result := GetDataDir('') + '\books';
 end;
 
-// נתוני החיפוש החכם שמסייע ההורדה הכין: ההורה של תיקיית הספרייה הוא
-// SemanticPaths.root באפליקציה, ושם היא מחפשת את semantic-import.
-// Keep bundled library archives on the same volume as the selected books.
-// Files marked deleteafterinstall are removed by Inno after installation.
+// תיקייה נפרדת מתיקיית החילוץ, שמתאפסת לפני הפריסה.
 function GetBundledArchiveDir(Param: String): String;
 begin
   Result := ExtractFileDir(GetSelectedBooksPath('')) + '\.otzaria-bundled-archives';
 end;
 
+// SemanticPaths.root באפליקציה הוא ההורה של תיקיית הספרים.
 function GetSemanticImportDir(Param: String): String;
 begin
   Result := ExtractFileDir(GetSelectedBooksPath('')) + '\semantic-import';
@@ -784,6 +782,11 @@ begin
   // "כן" (Enter) נשאר חילוץ: דילוג רק בבחירה מפורשת ב"לא" (Esc אינו עונה).
   PortableSkipLibrary := not InstAskYesNo(CustomMessage('PortableLibraryTitle'),
     Msg1('PortableLibraryFound', UiDialogPath(ExistingPath)), mbConfirmation, MB_YESNO);
+end;
+
+function ShouldInstallBundledLibrary(): Boolean;
+begin
+  Result := not (PortableMode and PortableSkipLibrary);
 end;
 
 function InitializeSetup(): Boolean;
@@ -1254,8 +1257,7 @@ var
   ResultCode: Integer;
 begin
   ArchivePath := GetBundledArchiveDir('') + '\' + ArchiveName;
-  // ארכיון חסר = כשל (נמחק מ-{tmp} ע"י ניקוי דיסק וכד') — דילוג שקט השאיר
-  // התקנה "מוצלחת" בלי ספרייה (issue #862).
+  // ארכיון חסר מכשיל את ההתקנה לפני החלפת הספרייה.
   if not FileExists(ArchivePath) then
   begin
     Log('Bundled database archive not found: ' + ArchivePath);
@@ -1780,7 +1782,7 @@ begin
 
   // המשתמש בחר לדלג על חילוץ הספרייה: רק ה-marker נכתב, ומסך הפתיחה של
   // אוצריא יציע להצביע על הספרייה הקיימת.
-  if PortableMode and PortableSkipLibrary then
+  if not ShouldInstallBundledLibrary() then
   begin
     SaveStringToFile(ExpandConstant('{app}\portable.marker'), '', False);
     InstallPortableShortcut();
@@ -1880,15 +1882,13 @@ Source: "..\build\windows\{#AppArch}\runner\Release\*"; \
 Source: "bundled_plugins\*"; Excludes: "{#NetworkGatedPlugin}"; DestDir: "{app}\{#BundledPluginsDirName}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "bundled_plugins\{#NetworkGatedPlugin}"; DestDir: "{app}\{#BundledPluginsDirName}"; Flags: ignoreversion skipifsourcedoesntexist; Check: OtzariaSiteReachable
 
-; Bundled archives go to the selected books volume to avoid filling the system
-; TEMP drive. Only the small extraction tools stay in {tmp}.
-; deleteafterinstall cleans copied archives when setup exits.
-Source: "library_db\seforim.db.zst"; DestDir: "{code:GetBundledArchiveDir}"; Flags: deleteafterinstall nocompression
-Source: "library_db\otzar-HB_catalog.db.zst"; DestDir: "{code:GetBundledArchiveDir}"; Flags: deleteafterinstall nocompression
-Source: "library_db\talmud_bavli_latest.tar.zst"; DestDir: "{code:GetBundledArchiveDir}"; Flags: deleteafterinstall nocompression
-Source: "library_db\lexical.db.zst"; DestDir: "{code:GetBundledArchiveDir}"; Flags: deleteafterinstall nocompression
-Source: "zstd.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
-Source: "7za.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
+; הארכיונים מועתקים לכונן הספרייה כדי למנוע מילוי של כונן המערכת.
+Source: "library_db\seforim.db.zst"; DestDir: "{code:GetBundledArchiveDir}"; Flags: deleteafterinstall nocompression; Check: ShouldInstallBundledLibrary
+Source: "library_db\otzar-HB_catalog.db.zst"; DestDir: "{code:GetBundledArchiveDir}"; Flags: deleteafterinstall nocompression; Check: ShouldInstallBundledLibrary
+Source: "library_db\talmud_bavli_latest.tar.zst"; DestDir: "{code:GetBundledArchiveDir}"; Flags: deleteafterinstall nocompression; Check: ShouldInstallBundledLibrary
+Source: "library_db\lexical.db.zst"; DestDir: "{code:GetBundledArchiveDir}"; Flags: deleteafterinstall nocompression; Check: ShouldInstallBundledLibrary
+Source: "zstd.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: ShouldInstallBundledLibrary
+Source: "7za.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: ShouldInstallBundledLibrary
 ; התיקייה שמסייע ההורדה מכין לצד המתקין (semantic-import), ליד תיקיית הספרייה.
 ; האפליקציה מעבירה ממנה את הקבצים כשהחיפוש החכם מופעל, אחרי ההסכמה.
 Source: "{src}\semantic-import\*"; DestDir: "{code:GetSemanticImportDir}"; \
