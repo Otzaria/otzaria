@@ -795,7 +795,7 @@ void main() {
       expect(marker.scale, kHtmlSmallerFontScale);
       expect(marker.italic, isFalse);
       expect(marker.clickable, isTrue);
-      expect(marker.useLinkColor, isTrue);
+      expect(marker.useLinkColor, isFalse);
     });
 
     test('link-anchor: וריאנט, צבע קישור ומצב פעיל', () {
