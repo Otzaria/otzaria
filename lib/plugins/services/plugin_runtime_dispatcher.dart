@@ -2,10 +2,6 @@ import 'dart:async';
 import 'dart:collection';
 
 import 'package:otzaria/plugins/services/plugin_runtime_state.dart';
-
-export 'plugin_runtime_state.dart' show PluginInstanceHost;
-
-typedef PluginInstanceId = String;
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -34,6 +30,10 @@ import 'package:otzaria/plugins/services/plugin_search_field_session_service.dar
 import 'package:otzaria/plugins/services/plugin_startup_contributions_service.dart';
 import 'package:otzaria/plugins/services/plugin_unsaved_changes_registry.dart';
 import 'package:otzaria/plugins/services/plugin_webview_focus.dart';
+
+export 'plugin_runtime_state.dart' show PluginInstanceHost;
+
+typedef PluginInstanceId = String;
 
 enum _PluginRuntimeShutdownMode { idle, restart, exit }
 
