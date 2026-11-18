@@ -507,7 +507,7 @@ class TextReadingSnapshot {
     'book': _persistedBook.toJson(),
     'initalIndex': _index,
     if (_readingAnchor != null) 'readingAnchor': _readingAnchor.toJson(),
-    'commentators': _commentators ?? <String>[],
+    if (_commentators != null) 'commentators': _commentators,
     'splitedView': _persistedSplitView,
     'showPageShapeView': _persistedPageShapeView,
     'showLeftPane': _showLeftPane,
