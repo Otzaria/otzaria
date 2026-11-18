@@ -683,14 +683,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   late final PdfViewerController pdfController;
   late final PdfBookBloc _bloc;
-  late String _resolvedPdfPath;
-  // הנתיב והקיום נקבעים בבלוק, בלי בדיקת דיסק סינכרונית בפתיחה (#5364).
-  bool _pdfFileExists = false;
-  // שמור reference יציב ל-PdfDocumentRef כדי למנוע race-condition ב-pdfrx:
-  // כל parent-rebuild יוצר widget חדש עם PdfDocumentRef חדש (object שונה).
-  // pdfrx משתמש ב-identical() לבדוק אם ה-document השתנה במהלך await.
-  // אם ה-object ישתנה, pdfrx מדלג על .load() והמסמך לא נטען לעולם.
+  String? _resolvedPdfPath;
+  // שומרים הפניה קבועה לאותו ניסיון פתיחה, כי pdfrx משווה זהות אחרי await.
   late PdfDocumentRef _pdfDocumentRef;
+  PdfDocumentListenable? _failedPdfDocument;
   PdfTextSearchSession? textSearcher;
   TabController? _leftPaneTabController;
 
@@ -1007,11 +1003,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _initialPageNumber = widget.tab.pageNumber;
     pdfController = PdfViewerController();
     widget.tab.pdfViewerController = pdfController;
-    _resolvedPdfPath = widget.tab.book.path;
     _searchIndexRestorer = PdfSearchIndexRestorer(
       widget.tab.pdfSearchCurrentMatchIndex,
     );
-    _pdfDocumentRef = _createDocumentRef();
 
     final settingsBloc = context.read<SettingsBloc>();
     final initialGlobalLayoutMode = settingsBloc.state.pdfBookViewByDefault
@@ -1808,18 +1802,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       panAxis: PanAxis.free,
       interactionDelegateProvider: _scrollPhysicsProvider,
       onDocumentLoadFinished: (documentRef, succeeded) {
-        if (!mounted) return;
-        if (!succeeded) {
-          _bloc.add(
-            pdf_events.SetLoadingState(
-              isLoading: false,
-              succeeded: false,
-              error: documentRef.resolveListenable().error,
-            ),
-          );
-          return;
-        }
-        _bloc.add(const pdf_events.SetLoadingState(isLoading: false));
+        if (!mounted || !identical(documentRef, _pdfDocumentRef)) return;
+        _failedPdfDocument = succeeded ? null : documentRef.resolveListenable();
+        _bloc.add(
+          pdf_events.SetLoadingState(
+            isLoading: false,
+            succeeded: succeeded,
+            error: _failedPdfDocument?.error,
+          ),
+        );
       },
       backgroundColor: _pdfViewerBgColor(),
       pageImageColorFilter: pdfPageColorFilter(Theme.of(context).brightness),
@@ -2119,9 +2110,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     }
   }
 
-  PdfDocumentRef _createDocumentRef() {
+  PdfDocumentRef _createDocumentRef(String path) {
     return PdfFontFallback.documentRef(
-      _resolvedPdfPath,
+      path,
       // תמיד progressive: pdfrx מציג את העמוד הראשון מיד במקום
       // להמתין למטא-דאטה של כל העמודים.
       useProgressiveLoading: true,
@@ -2138,7 +2129,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   PdfLayoutMode get _layoutModeBehindErrorOverlay =>
       widget.tab.savedLayoutMode ?? PdfLayoutMode.regularView;
 
-  Widget _buildPdfViewerFromFile(String filePath) {
+  Widget _buildPdfViewerFromFile() {
     return BlocBuilder<PdfBookBloc, PdfBookState>(
       bloc: _bloc,
       buildWhen: (prev, curr) {
@@ -2155,7 +2146,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         return layoutModeFor(prev) != layoutModeFor(curr);
       },
       builder: (context, state) {
-        if (!pdfViewerStaysMountedFor(state) || !_pdfFileExists) {
+        if (!pdfViewerStaysMountedFor(state) || _resolvedPdfPath == null) {
           return const SizedBox.shrink();
         }
 
@@ -4950,22 +4941,30 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           (curr is PdfBookError &&
               curr.autoRetry &&
               !(prev is PdfBookError && prev.autoRetry)) ||
-          (curr is PdfBookLoading &&
-              (!_pdfFileExists || curr.book.path != _resolvedPdfPath)),
+          (curr is PdfBookLoading && curr.book.path != _resolvedPdfPath),
       listener: (context, state) {
         if (state is PdfBookLoading) {
-          _adoptCheckedPath(state);
-          final document = _pdfDocumentRef.resolveListenable();
-          // החלפת reference באותו מפתח אינה מאפסת כישלון שמור ב-pdfrx.
-          if (document.error != null) {
-            unawaited(document.load(forceReload: true));
+          final path = state.book.path;
+          if (path != _resolvedPdfPath) {
+            setState(() {
+              _resolvedPdfPath = path;
+              _pdfDocumentRef = _createDocumentRef(path);
+              _failedPdfDocument = null;
+            });
+            return;
+          }
+          final failedDocument = _failedPdfDocument;
+          // resolveListenable יוצר רשומה במטמון גם כשהצפיין טרם נרשם אליה.
+          if (failedDocument != null && failedDocument.error != null) {
+            unawaited(failedDocument.load(forceReload: true));
           }
           return;
         }
         // retry אוטומטי שקט — בדיוק כמו לחיצה על "נסה שוב"
-        setState(() {
-          _pdfDocumentRef = _createDocumentRef();
-        });
+        final path = _resolvedPdfPath;
+        if (path != null) {
+          setState(() => _pdfDocumentRef = _createDocumentRef(path));
+        }
         _bloc.add(const pdf_events.RetryLoad());
       },
       child: Stack(
@@ -4977,7 +4976,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                 key: _pdfViewportBoundaryKey,
                 child: Stack(
                   children: [
-                    _buildPdfViewerFromFile(_resolvedPdfPath),
+                    _buildPdfViewerFromFile(),
                     BlocBuilder<PdfBookBloc, PdfBookState>(
                       buildWhen: (prev, curr) {
                         if (prev is PdfBookLoaded && curr is PdfBookLoaded) {
@@ -5175,16 +5174,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         ],
       ),
     );
-  }
-
-  void _adoptCheckedPath(PdfBookLoading state) {
-    setState(() {
-      if (state.book.path != _resolvedPdfPath) {
-        _resolvedPdfPath = state.book.path;
-        _pdfDocumentRef = _createDocumentRef();
-      }
-      _pdfFileExists = true;
-    });
   }
 
   Widget _buildLeftPaneContent(bool showLeftPane) {
@@ -5983,6 +5972,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     BuildContext context,
   ) {
     final isCompact = AppDensity.of(context).isCompact;
+    final onPrint = _resolvedPdfPath == null
+        ? null
+        : () => _handlePrintPress(context);
     return [
       (
         10,
@@ -6039,7 +6031,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                 : null,
             icon: FluentIcons.print_24_regular,
             tooltip: 'הדפס',
-            onPressed: () => _handlePrintPress(context),
+            onPressed: onPrint,
             compact: isCompact,
           ),
         ),
@@ -6120,7 +6112,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                 widget: const SizedBox.shrink(),
                 icon: FluentIcons.print_24_regular,
                 tooltip: 'הדפס',
-                onPressed: () => _handlePrintPress(context),
+                onPressed: onPrint,
               ),
               ActionButtonData(
                 widget: const SizedBox.shrink(),
@@ -6661,16 +6653,16 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   }
 
   Future<void> _handlePrintPress(BuildContext context) async {
-    if (!context.mounted) return;
+    final path = _resolvedPdfPath;
+    if (!context.mounted || path == null) return;
     context.read<TourCubit>().recordInteraction(
       TourInteraction(type: TourInteractionType.printUsed),
     );
-    final file = File(_resolvedPdfPath);
     final currentPage = widget.tab.pdfViewerController.isReady
         ? (widget.tab.pdfViewerController.pageNumber ?? widget.tab.pageNumber)
         : widget.tab.pageNumber;
     final currentLayoutMode = switch (_bloc.state) {
-      PdfBookInitial initial => initial.layoutMode,
+      PdfBookLoading loading => loading.layoutMode,
       PdfBookLoaded loaded => loaded.layoutMode,
       _ => PdfLayoutMode.regularView,
     };
@@ -6687,7 +6679,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       builder: (_) => PrintingScreen(
         data: Future.value(''),
         bookId: widget.tab.book.title,
-        pdfFilePath: file.path,
+        pdfFilePath: path,
         initialPage: initialPrintPage,
         isBookView: currentLayoutMode.isBookView,
         pdfOutline: widget.tab.outline.value ?? [],
