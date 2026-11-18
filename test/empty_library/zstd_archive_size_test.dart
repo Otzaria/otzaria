@@ -153,7 +153,7 @@ void main() {
         supportsLargeFiles: false,
         largestFileBytes: measuredDatabaseBytes,
       ),
-      isTrue,
+      isFalse,
     );
   });
 
