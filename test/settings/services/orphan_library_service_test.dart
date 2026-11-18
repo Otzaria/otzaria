@@ -114,7 +114,7 @@ void main() {
 
       await OrphanLibraryService.delete(
         info,
-        redetect: () => OrphanLibraryService.evaluateCandidate(
+        redetect: () => OrphanLibraryService.validateCandidate(
           candidateRoot: root,
           activePaths: const [],
         ),
@@ -133,7 +133,7 @@ void main() {
       await expectLater(
         OrphanLibraryService.delete(
           info,
-          redetect: () => OrphanLibraryService.evaluateCandidate(
+          redetect: () => OrphanLibraryService.validateCandidate(
             candidateRoot: root,
             activePaths: [p.join(root, 'books')],
           ),
@@ -142,6 +142,60 @@ void main() {
       );
       expect(await Directory(root).exists(), isTrue);
     });
+
+    test('משאיר את שני העותקים כשהאימות החוזר מצא נתיב אחר', () async {
+      final root = await createLibraryCopy(p.join(tempDir.path, 'otzaria'));
+      final other = await createLibraryCopy(p.join(tempDir.path, 'other'));
+
+      await expectLater(
+        OrphanLibraryService.delete(
+          OrphanLibraryInfo(path: root, sizeBytes: 100),
+          redetect: () => OrphanLibraryService.validateCandidate(
+            candidateRoot: other,
+            activePaths: const [],
+          ),
+        ),
+        throwsStateError,
+      );
+      expect(await Directory(root).exists(), isTrue);
+      expect(await Directory(other).exists(), isTrue);
+    });
+
+    test('כשל בסריקת ענף מונע התחלה של מחיקה', () async {
+      final root = await createLibraryCopy(p.join(tempDir.path, 'otzaria'));
+      final blocked = Directory(p.join(root, 'index', 'nested'));
+      final entry = File(p.join(blocked.path, 'entry'));
+      await entry.create(recursive: true);
+      final info = (await OrphanLibraryService.evaluateCandidate(
+        candidateRoot: root,
+        activePaths: const [],
+      ))!;
+
+      try {
+        expect((await Process.run('chmod', ['000', blocked.path])).exitCode, 0);
+        await expectLater(
+          OrphanLibraryService.delete(
+            info,
+            redetect: () => OrphanLibraryService.validateCandidate(
+              candidateRoot: root,
+              activePaths: const [],
+            ),
+          ),
+          throwsA(
+            isA<FileSystemException>().having(
+              (error) => error.path,
+              'path',
+              blocked.path,
+            ),
+          ),
+        );
+      } finally {
+        await Process.run('chmod', ['700', blocked.path]);
+      }
+
+      expect(await File(p.join(root, 'books', 'seforim.db')).length(), 100);
+      expect(await entry.exists(), isTrue);
+    }, skip: Platform.isWindows);
   });
 
   test('בדיקת רישום ההסרה רצה ב-isolate עזר ומחזירה תשובה', () async {

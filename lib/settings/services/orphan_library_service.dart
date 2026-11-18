@@ -21,6 +21,11 @@ abstract class OrphanLibraryService {
   /// מחזיר null כשאין עותק כזה, או כשלא בטוח להציע מחיקה: התקנה מערכתית או
   /// ניידת, התקנת מנהל אחרת שקיימת במחשב, או נתיב פעיל שיושב תחת התיקייה.
   static Future<OrphanLibraryInfo?> detect() async {
+    final root = await _detectPath();
+    return root == null ? null : _measure(root);
+  }
+
+  static Future<String?> _detectPath() async {
     if (!Platform.isWindows || AppPaths.isPortable) return null;
     if (await AppPaths.detectInstallMode() != InstallMode.perUser) return null;
     // התקנת מנהל במחשב (גם של משתמש אחר) עשויה להשתמש ב-ProgramData באופן
@@ -30,7 +35,7 @@ abstract class OrphanLibraryService {
 
     final programData =
         Platform.environment['ProgramData'] ?? r'C:\ProgramData';
-    return evaluateCandidate(
+    return validateCandidate(
       candidateRoot: p.join(programData, 'otzaria'),
       activePaths: [
         await AppPaths.getLibraryPath(),
@@ -40,10 +45,21 @@ abstract class OrphanLibraryService {
     );
   }
 
-  /// ליבת הזיהוי: [candidateRoot] נחשב יתום רק כשקיימת בו תיקיית `books`
-  /// לא-ריקה ואף נתיב מ-[activePaths] אינו יושב בתוכו.
   @visibleForTesting
   static Future<OrphanLibraryInfo?> evaluateCandidate({
+    required String candidateRoot,
+    required List<String> activePaths,
+  }) async {
+    final root = await validateCandidate(
+      candidateRoot: candidateRoot,
+      activePaths: activePaths,
+    );
+    return root == null ? null : _measure(root);
+  }
+
+  /// מחזיר נתיב מנורמל כשהתיקייה מכילה `books` לא-ריקה ואין בה נתיב פעיל.
+  @visibleForTesting
+  static Future<String?> validateCandidate({
     required String candidateRoot,
     required List<String> activePaths,
   }) async {
@@ -62,20 +78,26 @@ abstract class OrphanLibraryService {
     if (!await books.exists()) return null;
     if (await books.list().isEmpty) return null;
 
-    return OrphanLibraryInfo(path: root, sizeBytes: await _directorySize(root));
+    return root;
   }
+
+  static Future<OrphanLibraryInfo> _measure(String root) async =>
+      OrphanLibraryInfo(path: root, sizeBytes: await _directorySize(root));
 
   /// מוחק את העותק היתום. מאמת מחדש שהוא עדיין יתום לפני המחיקה — הגנה מפני
   /// נתיב פעיל שהשתנה בין הזיהוי ללחיצה.
   static Future<void> delete(
     OrphanLibraryInfo info, {
-    @visibleForTesting Future<OrphanLibraryInfo?> Function()? redetect,
+    @visibleForTesting Future<String?> Function()? redetect,
   }) async {
-    final current = await (redetect ?? detect)();
-    if (current == null || !p.equals(current.path, info.path)) {
+    final current = await (redetect ?? _detectPath)();
+    if (current == null || !p.equals(current, info.path)) {
       throw StateError('העותק אינו מזוהה עוד כיתום — המחיקה בוטלה');
     }
-    await Directory(info.path).delete(recursive: true);
+    final directory = Directory(current);
+    // שגיאת סריקה צריכה להתגלות לפני שהמחיקה משנה את העץ.
+    await _listTree(directory).drain<void>();
+    await directory.delete(recursive: true);
   }
 
   /// AppId של המתקין — רשומת ההסרה ב-HKLM נכתבת רק בהתקנת מנהל
@@ -114,11 +136,12 @@ abstract class OrphanLibraryService {
     );
   }
 
+  static Stream<FileSystemEntity> _listTree(Directory directory) =>
+      directory.list(recursive: true, followLinks: false);
+
   static Future<int> _directorySize(String path) async {
     var total = 0;
-    await for (final entity in Directory(
-      path,
-    ).list(recursive: true, followLinks: false)) {
+    await for (final entity in _listTree(Directory(path))) {
       if (entity is File) {
         try {
           total += await entity.length();
