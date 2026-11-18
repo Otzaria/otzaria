@@ -186,7 +186,7 @@ import 'package:otzaria/plugins/services/plugin_text_occurrence_service.dart';
 import 'package:otzaria/plugins/services/text_source_map_service.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
-import 'package:otzaria/utils/calendar_days.dart';
+import 'package:otzaria/plugins/bridge/plugin_jewish_date_payload_builder.dart';
 
 /// גופן הממשק שאוצריא מוסרת לתוספים: sans מובנה שנשאר חד ב-11-12px.
 /// גופן הקריאה (`fontFamily`) אינו תחליף לו — הוא מצויר ל-25px,
@@ -7690,121 +7690,8 @@ class PluginBridgeAdapter {
   // flutter_local_notifications דוחה מזהה שאינו נכנס ב-32 ביט.
   static int _newNotificationId() => math.Random().nextInt(0x7FFFFFFF);
 
-  Map<String, dynamic> _buildJewishDatePayload(DateTime date, bool inIsrael) {
-    final jewishCalendar = JewishCalendar.fromDateTime(date)
-      ..inIsrael = inIsrael;
-    final formatter = HebrewDateFormatter()..hebrewFormat = true;
-
-    return {
-      'year': jewishCalendar.getJewishYear(),
-      'month': jewishCalendar.getJewishMonth(),
-      'day': jewishCalendar.getJewishDayOfMonth(),
-      'gregorian': date.toIso8601String(),
-      'monthName': formatter.formatMonth(jewishCalendar),
-      'isLeapYear': jewishCalendar.isJewishLeapYear(),
-      'isShabbat': jewishCalendar.getDayOfWeek() == 7,
-      'parasha': _upcomingParasha(date, inIsrael, formatter),
-      'dafYomi': _buildDafYomiPayload(jewishCalendar),
-      'holidays': _buildHolidayPayloads(jewishCalendar, formatter),
-    };
-  }
-
-  /// דף היומי (בבלי) לתאריך העברי הנתון. `null` עבור תאריכים שקדמו לתחילת
-  /// המחזור הראשון (י"ח באלול תרפ"ג / 11.9.1923), שלגביהם הספרייה זורקת.
-  Map<String, dynamic>? _buildDafYomiPayload(JewishCalendar jewishCalendar) {
-    try {
-      final daf = jewishCalendar.getDafYomiBavli();
-      return {'masechet': daf.getMasechta(), 'daf': daf.getDaf()};
-    } on ArgumentError {
-      return null;
-    }
-  }
-
-  String _upcomingParasha(
-    DateTime date,
-    bool inIsrael,
-    HebrewDateFormatter formatter,
-  ) {
-    final dayOfWeek = date.weekday;
-    // Dart weekday: Mon=1 … Sat=6, Sun=7. Shabbat = Saturday = 6.
-    final daysUntilShabbat = dayOfWeek == 6 ? 0 : (6 - dayOfWeek) % 7;
-    final shabbatDate = addCalendarDays(date, daysUntilShabbat);
-    final shabbatCalendar = JewishCalendar.fromDateTime(shabbatDate)
-      ..inIsrael = inIsrael;
-    return formatter.formatParsha(shabbatCalendar);
-  }
-
-  List<Map<String, String>> _buildHolidayPayloads(
-    JewishCalendar jewishCalendar,
-    HebrewDateFormatter formatter,
-  ) {
-    final holidays = <Map<String, String>>[];
-    final seenLabels = <String>{};
-
-    void addHoliday(String label, String kind) {
-      final normalizedLabel = label.trim();
-      if (normalizedLabel.isEmpty || !seenLabels.add(normalizedLabel)) {
-        return;
-      }
-      holidays.add({'text': normalizedLabel, 'kind': kind});
-    }
-
-    final yomTovLabel = formatter.formatYomTov(jewishCalendar);
-    if (yomTovLabel.isNotEmpty) {
-      final month = jewishCalendar.getJewishMonth();
-      final day = jewishCalendar.getJewishDayOfMonth();
-      final idx = jewishCalendar.getYomTovIndex();
-
-      // לימים טובים של פסח יש שמות ספציפיים שהספרייה לא מבדילה ביניהם
-      if (idx == JewishCalendar.PESACH) {
-        if (month == 1 && day == 21) {
-          addHoliday('שביעי של פסח', 'yomTov');
-        } else if (month == 1 && day == 22) {
-          addHoliday('אחרון של פסח', 'yomTov');
-        } else if (month == 1 && day == 16) {
-          addHoliday('פסח שני', 'yomTov');
-        } else {
-          addHoliday(
-            yomTovLabel,
-            _holidayKindForLabel(yomTovLabel, jewishCalendar),
-          );
-        }
-      } else {
-        for (final label in yomTovLabel.split(',')) {
-          addHoliday(label, _holidayKindForLabel(label, jewishCalendar));
-        }
-      }
-    }
-
-    if (jewishCalendar.isErevRoshChodesh()) {
-      addHoliday(formatter.formatErevRoshChodesh(jewishCalendar), 'special');
-    }
-
-    if (jewishCalendar.isRoshChodesh()) {
-      addHoliday(formatter.formatRoshChodesh(jewishCalendar), 'roshChodesh');
-    }
-
-    return holidays;
-  }
-
-  String _holidayKindForLabel(String label, JewishCalendar jewishCalendar) {
-    final normalizedLabel = label.trim();
-    if (normalizedLabel.contains('ראש חודש') ||
-        normalizedLabel.contains('ר"ח')) {
-      return 'roshChodesh';
-    }
-
-    if (jewishCalendar.isTaanis() &&
-        jewishCalendar.getYomTovIndex() != JewishCalendar.YOM_KIPPUR) {
-      return 'taanit';
-    }
-
-    if (jewishCalendar.isYomTovAssurBemelacha()) {
-      return 'yomTov';
-    }
-
-    return 'special';
-  }
+  Map<String, dynamic> _buildJewishDatePayload(DateTime date, bool inIsrael) =>
+      PluginJewishDatePayloadBuilder.build(date, inIsrael: inIsrael);
 
   Future<List<String>> _getGrantedPermissions() async {
     return _pluginRepo.getGrantedPermissionNames(plugin.pluginId);
