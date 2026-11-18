@@ -73,8 +73,10 @@ String formatHebrewNightLabel(
   DateTime moment, {
   required bool advanceToNextDay,
 }) {
+  final hour = moment.hour.toString().padLeft(2, '0');
+  final minute = moment.minute.toString().padLeft(2, '0');
   final time =
-      '$_ltrIsolateStart${moment.hour.toString().padLeft(2, '0')}:${moment.minute.toString().padLeft(2, '0')}${secondsMarker(moment)}$_ltrIsolateEnd';
+      '$_ltrIsolateStart$hour:$minute${secondsMarker(moment)}$_ltrIsolateEnd';
   final jewishDate = JewishDate.fromDateTime(
     DateTime(moment.year, moment.month, moment.day),
   );
