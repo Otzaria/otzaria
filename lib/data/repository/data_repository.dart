@@ -721,11 +721,43 @@ class _ScoredBookSearchEntry {
   });
 }
 
+// כשמותר תיקון אחד, אי-התאמה ראשונה קובעת את נקודת העריכה.
+bool _oneEditAtMost(String shorter, String longer) {
+  final length = shorter.length;
+  var index = 0;
+  while (index < length &&
+      shorter.codeUnitAt(index) == longer.codeUnitAt(index)) {
+    index++;
+  }
+  if (index == length) return true;
+
+  final offset = longer.length - length;
+  if (offset == 0) {
+    final next = index + 1;
+    if (next < length &&
+        shorter.codeUnitAt(index) == longer.codeUnitAt(next) &&
+        shorter.codeUnitAt(next) == longer.codeUnitAt(index)) {
+      index += 2;
+    } else {
+      index++;
+    }
+  }
+
+  for (; index < length; index++) {
+    if (shorter.codeUnitAt(index) != longer.codeUnitAt(index + offset)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 // Damerau-Levenshtein (OSA) הבודק רק האם המרחק ≤ k, עם שורות מתגלגלות
 // ויציאה מוקדמת. הנרמול משאיר תווי BMP בלבד, לכן codeUnit == תו.
 bool _editDistanceAtMost(String a, String b, int k) {
   final la = a.length;
   final lb = b.length;
+  if (k == 1) return la <= lb ? _oneEditAtMost(a, b) : _oneEditAtMost(b, a);
+
   final outsideBand = k + 1;
   var prev2 = List<int>.filled(lb + 1, outsideBand);
   var prev = List<int>.generate(lb + 1, (j) => j <= k ? j : outsideBand);

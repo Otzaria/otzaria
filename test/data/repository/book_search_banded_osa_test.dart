@@ -61,6 +61,22 @@ void main() {
     }
   });
 
+  test('one-edit matching preserves the unchanged suffix', () {
+    const pairs = [
+      ('abcdef', 'abxcdef', true),
+      ('abcdef', 'abqdef', true),
+      ('aabcde', 'abacde', true),
+      ('abcdef', 'abcedf', true),
+      ('abcdef', 'abxcdyf', false),
+      ('abcdef', 'bacdez', false),
+      ('abcdef', 'cbadef', false),
+    ];
+    for (final (a, b, expected) in pairs) {
+      expect(bookSearchWordPairMatches(a, b), expected, reason: '$a / $b');
+      expect(bookSearchWordPairMatches(b, a), expected, reason: '$b / $a');
+    }
+  });
+
   test('adjacent transposition survives at either edge of the band', () {
     const pairs = [
       ('abcde', 'bacde'),
