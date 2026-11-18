@@ -7,15 +7,21 @@ import 'package:otzaria/reports/repository/sent_report_history.dart';
 import 'package:otzaria/services/sent_reports_counter.dart';
 
 void main() {
-  test('היסטוריה מוגבלת שומרת דחיות בלי לספור אותן', () async {
+  late PendingReportStore store;
+
+  setUp(() async {
     final temp = await Directory.systemTemp.createTemp('sent_report_history_');
     final db = UserStateDatabase.openAt('${temp.path}/user_state.db');
+    store = PendingReportStore(database: db);
     addTearDown(() async {
       db.close();
       await temp.delete(recursive: true);
     });
-    const kind = 'error_reports_queue/sent_reports';
-    final store = PendingReportStore(database: db);
+  });
+
+  const kind = 'error_reports_queue/sent_reports';
+
+  test('היסטוריה מוגבלת שומרת דחיות בלי לספור אותן', () async {
     final history = SentReportHistory<Map<String, dynamic>>(
       store: store,
       counter: SentReportsCounter.inMemory(),
@@ -59,5 +65,30 @@ void main() {
     await history.clear();
     expect(await history.list(), isEmpty);
     expect(await history.total(), 0);
+  });
+
+  test('סיכום קורא מזהים וספירה לפי הסוג והערכים השמורים', () async {
+    final firstId = await store.add(kind, {'id': '42'});
+    final secondId = await store.add(kind, {
+      'id': '42',
+      'rejectionReason': '',
+    });
+    await store.add(kind, {'id': 42, 'rejectionReason': null});
+    await store.add('other/sent_reports', {'id': '42'});
+
+    final summary = await store.readHistorySummary(
+      kind,
+      matchId: (field: 'id', value: '42'),
+      rejectionField: 'rejectionReason',
+    );
+    expect(summary.keptCount, 2);
+    expect(summary.matchingIds, unorderedEquals([firstId, secondId]));
+
+    final missing = await store.readHistorySummary(
+      'empty',
+      matchId: (field: 'id', value: '42'),
+    );
+    expect(missing.keptCount, 0);
+    expect(missing.matchingIds, isEmpty);
   });
 }

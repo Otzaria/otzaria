@@ -34,7 +34,11 @@ class SentReportHistory<T> {
 
   Future<int> total() async {
     final total = await _counter.read();
-    return max(total, await _keptCount());
+    final summary = await _store.readHistorySummary(
+      _kind,
+      rejectionField: _rejectionField,
+    );
+    return max(total, summary.keptCount);
   }
 
   Future<T?> find(String reportId) async {
@@ -63,24 +67,19 @@ class SentReportHistory<T> {
     Map<String, dynamic> payload, {
     bool countAsSent = true,
   }) async {
-    final previousCount = await _keptCount();
-    final existing = await _idsOf(reportId);
-    await _store.deleteIds(existing);
+    final summary = await _store.readHistorySummary(
+      _kind,
+      matchId: (field: _idField, value: reportId),
+      rejectionField: _rejectionField,
+    );
+    await _store.deleteIds(summary.matchingIds);
     await _store.add(_kind, payload);
     await _store.trimKind(_kind, _limit);
-    if (countAsSent && existing.isEmpty) {
-      await _counter.increment(floor: previousCount);
+    if (countAsSent && summary.matchingIds.isEmpty) {
+      await _counter.increment(floor: summary.keptCount);
     }
   }
 
   Future<List<int>> _idsOf(String reportId) =>
       _store.idsWhere(_kind, _idField, reportId);
-
-  Future<int> _keptCount() async {
-    final rejectionField = _rejectionField;
-    if (rejectionField == null) return _store.countByKind(_kind);
-    return (await _store.listByKind(
-      _kind,
-    )).where((row) => row.payload[rejectionField] == null).length;
-  }
 }
