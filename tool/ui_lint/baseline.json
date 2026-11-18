@@ -194,7 +194,7 @@
         {"scope":"_ClosingQuote.build","fp":"9dd646fd","n":2},
         {"scope":"_MemorialCard.build","fp":"61a39db6","n":1}
       ],
-      "lib/text_book/view/commentary_list_base.dart": [
+      "lib/text_book/view/commentary_list_items.dart": [
         {"scope":"_CommentaryGroupHeader.build","fp":"8181d0d8","n":1},
         {"scope":"_CommentaryLinkItemState.build","fp":"017a4b93","n":1}
       ],
@@ -889,7 +889,9 @@
         {"scope":"_MergedSiblingsSectionState.build","fp":"d5f7a13f","n":1}
       ],
       "lib/text_book/view/commentary_list_base.dart": [
-        {"scope":"CommentaryListBaseState.build","fp":"373e4811","n":1},
+        {"scope":"CommentaryListBaseState.build","fp":"373e4811","n":1}
+      ],
+      "lib/text_book/view/commentary_list_items.dart": [
         {"scope":"_NotesCommentaryWidgetState.build","fp":"4a334ce9","n":1}
       ],
       "lib/tools/calendar/dialogs/calendar_event_dialog.dart": [
