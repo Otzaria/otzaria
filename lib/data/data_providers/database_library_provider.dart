@@ -2233,6 +2233,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   final _attachedCachedKeys = _BookKeySet();
   final Map<String, Map<int, String>> _attachedCategoryPaths = {};
   final Map<String, _PendingAttachedCatalog> _pendingAttachedCatalogs = {};
+  final _attachedCatalogPrefetches =
+      Map<AttachedLibrary, Future<AttachedCatalogRows>>.identity();
 
   /// זמן ההמתנה לקטלוג של מסד מצורף אחד. מסד שלא ענה בזמן מסומן לא-זמין,
   /// והעץ נבנה בלעדיו; כשהקריאה מסתיימת המסד חוזר והעץ מתרענן.
@@ -3758,6 +3760,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     _userBooksCategoryIds.clear();
     _attachedCachedKeys.clear();
     _attachedCategoryPaths.clear();
+    _attachedCatalogPrefetches.clear();
     _invalidateDatabaseBookKeys();
     _bundledTalmudBavliDirectoryCache = null;
     _selectableVersionKeysFutures.clear();
@@ -3849,6 +3852,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
           await repository.database.database,
           await repository.database.capabilities,
         );
+    final attachedPrefetchGeneration = _databaseBookKeysGeneration;
+    final prefetchedAttachedCatalogs = _prefetchAttachedCatalogs();
     final allDbBooks = catalogRows.books;
     // לפני הסינון לפי נתיב: הקאש המשותף מחזיק את כל הספרים.
     BooksCache.instance.seedFromRows(
@@ -3943,7 +3948,13 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     // צירוף ספרים מתיקיות מותאמות אישית מ-user_books.db תחת קטגוריית
     // "ספרים אישיים" באותו עץ.
     await _appendUserBooksToLibrary(library, metadata);
-    await _appendAttachedLibraries(library, metadata);
+    await _appendAttachedLibraries(
+      library,
+      metadata,
+      attachedPrefetchGeneration == _databaseBookKeysGeneration
+          ? prefetchedAttachedCatalogs
+          : const {},
+    );
     _attachCatalogBookVersions(library);
 
     // Mark titles as cached
@@ -4393,12 +4404,49 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     }
   });
 
+  Map<AttachedLibrary, Future<AttachedCatalogRows>> _prefetchAttachedCatalogs() {
+    final prefetched =
+        Map<AttachedLibrary, Future<AttachedCatalogRows>>.identity();
+    for (final attached in AttachedLibraryRegistry.instance.visibleLibraries) {
+      if (attached.source == null ||
+          _pendingAttachedCatalogs.containsKey(attached.path)) {
+        continue;
+      }
+      prefetched[attached] = _attachedCatalogPrefetches.putIfAbsent(
+        attached,
+        () {
+          final read = _startAttachedCatalogRead(attached);
+          void release(Object? _) {
+            if (identical(_attachedCatalogPrefetches[attached], read)) {
+              _attachedCatalogPrefetches.remove(attached);
+            }
+          }
+
+          read.then(release, onError: release);
+          return read;
+        },
+      );
+    }
+    return prefetched;
+  }
+
+  Future<AttachedCatalogRows> _startAttachedCatalogRead(
+    AttachedLibrary attached,
+  ) => Future.sync(
+    () => attachedCatalogReader((
+      path: attached.path,
+      untrusted: true,
+      immutable: attached.immutable,
+    )),
+  );
+
   /// מצרף לעץ את ספרי המסדים המצורפים הגלויים, לפי סדר העדיפות: תחת
   /// `ספרים אישיים/<שם המסד>`, או ממוזגים לקטגוריות הספרייה לפי שם. מסד שאינו
   /// נגיש מדולג; כשל במסד אחד אינו פוגע באחרים.
   Future<void> _appendAttachedLibraries(
     Library library,
     Map<String, Map<String, dynamic>> metadata,
+    Map<AttachedLibrary, Future<AttachedCatalogRows>> prefetched,
   ) async {
     _attachedCachedKeys.clear();
     _attachedCategoryPaths.clear();
@@ -4409,10 +4457,11 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       for (final attached in AttachedLibraryRegistry.instance.visibleLibraries)
         if (attached.source != null) attached,
     ];
-    // כל המסדים נקראים במקביל, וכל אחד מוגבל בזמן בנפרד.
-    final catalogs = await Future.wait(
-      attachedLibraries.map(_readAttachedCatalog),
-    );
+    // המיזוג משתמש ברשימה העדכנית; קריאה מוקדמת משמשת רק את אותו מופע מסד.
+    final catalogs = await Future.wait([
+      for (final attached in attachedLibraries)
+        _readAttachedCatalog(attached, prefetched[attached]),
+    ]);
     for (var i = 0; i < attachedLibraries.length; i++) {
       final attached = attachedLibraries[i];
       final rows = catalogs[i];
@@ -4441,17 +4490,14 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   /// שלא הסתיימה ב-[attachedCatalogTimeout], מסמנים את המסד לא-זמין.
   Future<AttachedCatalogRows?> _readAttachedCatalog(
     AttachedLibrary attached,
+    Future<AttachedCatalogRows>? prefetched,
   ) async {
     final path = attached.path;
     final attachedRepository = AttachedLibrariesRepository.instance;
     final pending = _pendingAttachedCatalogs.putIfAbsent(path, () {
       attachedRepository.setLoading(path, loading: true);
       return _PendingAttachedCatalog(
-        attachedCatalogReader((
-          path: path,
-          untrusted: true,
-          immutable: attached.immutable,
-        )),
+        prefetched ?? _startAttachedCatalogRead(attached),
       );
     });
     try {

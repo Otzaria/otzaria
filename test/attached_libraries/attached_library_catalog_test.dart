@@ -606,6 +606,57 @@ void main() {
           .status;
     }
 
+    test('קריאת מסד מצורף מתחילה לפני פתיחת המסד האישי', () async {
+      final library = await attach(
+        attachedFixture('במקביל', SeforimFixtureVariant.full),
+      );
+      await UserBooksDatabaseHolder.instance.repository;
+      await UserBooksDatabaseHolder.instance.close();
+
+      var startedBeforeUserBooks = false;
+      DatabaseLibraryProvider.attachedCatalogReader = (target) async {
+        startedBeforeUserBooks =
+            UserBooksDatabaseHolder.instance.repositoryIfInitialized == null;
+        return readAttachedCatalogSync(target);
+      };
+
+      final catalog = await buildCatalog();
+      expect(startedBeforeUserBooks, isTrue);
+      expect(
+        UserBooksDatabaseHolder.instance.repositoryIfInitialized,
+        isNotNull,
+      );
+      expect(
+        _child(_child(catalog, _personalRoot)!, library.displayName),
+        isNotNull,
+      );
+    });
+
+    test('מיזוג מדלג על מסד שהוסתר במהלך קריאה מוקדמת', () async {
+      final hidden = await attach(
+        attachedFixture('מוסתר', SeforimFixtureVariant.full),
+      );
+      final visible = await attach(
+        attachedFixture('גלוי', SeforimFixtureVariant.full),
+      );
+      DatabaseLibraryProvider.attachedCatalogReader = (target) async {
+        if (target.path == hidden.path) {
+          registry.update([
+            for (final library in registry.libraries)
+              library.path == hidden.path
+                  ? library.copyWith(hidden: true)
+                  : library,
+          ]);
+        }
+        return readAttachedCatalogSync(target);
+      };
+
+      final catalog = await buildCatalog();
+      final personal = _child(catalog, _personalRoot)!;
+      expect(_child(personal, hidden.displayName), isNull);
+      expect(_child(personal, visible.displayName), isNotNull);
+    });
+
     test('מסד שנתקע: העץ נבנה בלעדיו, והוא מצטרף כשהקריאה מסתיימת', () async {
       final fast = await attach(
         attachedFixture('מהיר', SeforimFixtureVariant.full),
