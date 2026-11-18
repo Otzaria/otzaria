@@ -570,6 +570,47 @@ void main() {
         expect(kept.single.targetTitle, 'מגילה');
       });
 
+      test('קישור מפירוש אישי לפירוש רשמי לא מתהפך', () async {
+        final f = writeCsv(
+          'הכי גרסינן מגילה_links.json',
+          '[{"line_index_1": 5, "line_index_2": 3, '
+              '"path_2": "רש״י על מגילה.txt", '
+              '"Conection Type": "commentary"}]',
+        );
+        final result = await UserContentImporter.importFiles(
+          [f],
+          db,
+          locateBook: (title) async => switch (title) {
+            'הכי גרסינן מגילה' => (
+              isUserBook: true,
+              categoryId: 1,
+              totalLines: 2000,
+            ),
+            'רש״י על מגילה' => (
+              isUserBook: false,
+              categoryId: 5,
+              totalLines: 200,
+            ),
+            _ => null,
+          },
+        );
+        expect(result.errors, isEmpty);
+        expect(result.linksApplied, 1);
+        final kept = await repo.forwardUserLinks(
+          'הכי גרסינן מגילה',
+          sourceIsUserBook: true,
+        );
+        expect(kept.single.targetTitle, 'רש״י על מגילה');
+        expect(kept.single.connectionType, LinkTypes.commentary);
+        expect(
+          await repo.forwardUserLinks(
+            'רש״י על מגילה',
+            sourceIsUserBook: false,
+          ),
+          isEmpty,
+        );
+      });
+
       test('כמה עוגנים באותו צמד-שורות נשמרים כרשומות נפרדות', () async {
         final f = writeCsv(
           'מגילה_links.json',
