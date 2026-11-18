@@ -424,6 +424,45 @@ void main() {
       },
     );
 
+    test('נתיבי כותרות בקובץ טקסט נשמרים בין התאמות עוקבות', () async {
+      await File(path.join(libraryPath, 'בראשית.txt')).writeAsString(
+        [
+          '<h5>ישן</h5>',
+          '<h1>ספר</h1><h1>כפול</h1><h4>פרט</h4>',
+          'אב אב',
+          '<h3>&nbsp;</h3><h3>סעיף</h3>',
+          'אב',
+          '<h2>פרק</h2><h6><b>עמוק</b></h6>',
+          'אב',
+          '<h1>חדש</h1>',
+          'אב',
+          '<h4>אחרון</h4>',
+          'אב',
+        ].join('\n'),
+      );
+      final expected = [
+        (3, 'ספר, פרט, ישן'),
+        (3, 'ספר, פרט, ישן'),
+        (5, 'ספר, סעיף, פרט, ישן'),
+        (7, 'ספר, פרק, סעיף, פרט, עמוק'),
+        (9, 'חדש, פרק, סעיף, עמוק'),
+        (11, 'חדש, פרק, סעיף, אחרון, עמוק'),
+      ];
+
+      Future<List<(int, String)>> search({int limit = 1000}) async {
+        final results = await GimatriaSearch.searchInFiles(
+          [libraryPath],
+          3,
+          maxPhraseWords: 1,
+          fileLimit: limit,
+        );
+        return [for (final result in results) (result.line, result.path)];
+      }
+
+      expect(await search(limit: 2), expected.take(2));
+      expect(await search(), expected);
+    });
+
     test('מקף ופסק מפרידים בין מילים גם בחיפוש קבצים', () async {
       final folder = path.join(tempDir.path, 'txtbooks');
       await Directory(folder).create(recursive: true);
