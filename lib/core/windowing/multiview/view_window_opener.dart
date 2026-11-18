@@ -15,6 +15,7 @@ import 'package:otzaria/core/windowing/multiview/multiview_flag.dart';
 import 'package:otzaria/core/windowing/multiview/view_focus_sync.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_native.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_registry.dart';
+import 'package:otzaria/core/windowing/multiview/window_event_log.dart';
 import 'package:otzaria/core/windowing/new_window_placement.dart';
 import 'package:otzaria/core/windowing/runner_window_channel.dart';
 import 'package:otzaria/core/windowing/window_opener.dart';
@@ -190,6 +191,7 @@ class ViewWindowOpener implements WindowOpener {
   Future<bool> _serialized(Future<bool> Function() body) {
     final result = _queue.then((_) => body()).catchError((Object e) {
       debugPrint('ViewWindowOpener failed: $e');
+      WindowEventLog.instance.addFailure('openerFailed', e);
       return false;
     });
     _queue = result.then<void>((_) {}, onError: (_) {});
@@ -270,6 +272,7 @@ class ViewWindowOpener implements WindowOpener {
     for (final slot in slots) {
       if (!await _serialized(() => _openSession(slot))) {
         debugPrint('שחזור חלונות נעצר: פתיחת חלון למשבצת $slot נכשלה');
+        WindowEventLog.instance.add('restoreStopped', {'slot': slot});
         return;
       }
       _pendingRestore.remove(slot);
@@ -352,6 +355,10 @@ class ViewWindowOpener implements WindowOpener {
   @override
   Future<void> reportOpenWindowFailure() async {
     final info = await windowCount();
+    WindowEventLog.instance.add('openRefused', {
+      'count': info?.count,
+      'max': info?.max,
+    });
     if (info != null && info.count >= info.max) {
       UiSnack.show(WindowMessages.windowLimitReached(info.max));
     } else {
@@ -373,13 +380,28 @@ class ViewWindowOpener implements WindowOpener {
       initialTab: tab,
       slot: slot,
     );
+    final log = WindowEventLog.instance;
+    log.add('open', {
+      'slot': slot,
+      'created': entry != null,
+      'withTab': tab != null,
+      'maximized': maximized,
+      if (bounds != null) ...{
+        'requestedBounds': bounds.toString(),
+        'requestedBoundsUnit': _native is CocoaViewWindowNative
+            ? 'screenPoints'
+            : 'physicalPixels',
+      },
+    });
     if (entry == null) {
       tab?.dispose();
       return false;
     }
+    final watch = Stopwatch()..start();
     try {
       await _place(entry, origin: origin, bounds: bounds, size: size);
       await entry.firstFrame.timeout(firstFrameTimeout);
+      log.add('firstFrame', {'slot': slot, 'ms': watch.elapsedMilliseconds});
       bool live() =>
           registry.windows.contains(entry) &&
           !entry.isClosing &&
@@ -391,9 +413,14 @@ class ViewWindowOpener implements WindowOpener {
       await _native.reveal(hwnd);
       if (!live()) return false;
       ViewFocusSync.viewWindowRevealed(entry.handle.view.viewId);
+      log.add('revealed', {'slot': slot, 'ms': watch.elapsedMilliseconds});
       return true;
     } catch (error) {
       debugPrint('View window failed to open: $error');
+      log.addFailure('openFailed', error, {
+        'slot': slot,
+        'ms': watch.elapsedMilliseconds,
+      });
       entry.endSession();
       entry.takeInitialTab()?.dispose();
       entry.handle.destroy();

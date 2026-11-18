@@ -8,6 +8,7 @@ import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/core/windowing/multiview/host_window_app_window_controller.dart';
 import 'package:otzaria/core/windowing/multiview/multiview_flag.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_native.dart';
+import 'package:otzaria/core/windowing/multiview/window_event_log.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
 
@@ -55,6 +56,7 @@ class ViewWindowEntry {
   bool _sessionEnded = false;
 
   final Completer<void> _firstFrame = Completer<void>();
+  final DateTime openedAt = DateTime.now();
 
   /// מסתיים בפריים הראשון של החלון.
   Future<void> get firstFrame => _firstFrame.future;
@@ -144,6 +146,33 @@ class ViewWindowRegistry extends ChangeNotifier {
     return entry;
   }
 
+  /// מצב חלונות ה-Dart לדוח, כולל מידות התצוגה ואזור התוכן.
+  Future<List<Map<String, Object?>>> describe() async {
+    final result = <Map<String, Object?>>[];
+    for (final entry in _windows.toList()) {
+      final handle = entry.handle;
+      if (handle.isDestroyed) continue;
+      final hwnd = handle.nativeHandle;
+      final view = handle.view;
+      final physicalSize = view.physicalSize;
+      final contentSize = handle.logicalContentSize;
+      result.add({
+        'slot': entry.slot,
+        'aliveMs': DateTime.now().difference(entry.openedAt).inMilliseconds,
+        'firstFrame': entry._firstFrame.isCompleted,
+        'closing': entry.isClosing,
+        'maximized': handle.isMaximized,
+        'minimized': handle.isMinimized,
+        'viewSizePx': '${physicalSize.width}x${physicalSize.height}',
+        'viewDevicePixelRatio': view.devicePixelRatio,
+        'windowContentSizeLogical':
+            '${contentSize.width}x${contentSize.height}',
+        'visible': hwnd == null ? null : await _native.isVisible(hwnd),
+      });
+    }
+    return result;
+  }
+
   bool isSlotOpen(int slot) => _windows.any((w) => w.slot == slot);
 
   /// המשבצת הפנויה הראשונה מ-2, בלי [excluding] (משבצות שממתינות לשחזור).
@@ -174,6 +203,11 @@ class ViewWindowRegistry extends ChangeNotifier {
 
   bool _detach(ViewWindowEntry entry) {
     if (!_windows.remove(entry)) return false;
+    WindowEventLog.instance.add('closed', {
+      'slot': entry.slot,
+      'firstFrame': entry._firstFrame.isCompleted,
+      'aliveMs': DateTime.now().difference(entry.openedAt).inMilliseconds,
+    });
     entry.handle.markDestroyed();
     entry.endSession();
     entry.closeHandler = null;

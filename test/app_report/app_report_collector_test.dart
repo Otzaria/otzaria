@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:ffi' show Abi;
 import 'dart:io';
 
+import 'package:otzaria/core/windowing/multiview/window_event_log.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
@@ -96,6 +97,20 @@ void main() {
         'prefixes': true,
       }),
     );
+  });
+
+  test('אבחון: יומן החלונות נכלל', () async {
+    final previous = WindowEventLog.instance;
+    WindowEventLog.instance = WindowEventLog()..add('openFailed', {'slot': 2});
+    addTearDown(() => WindowEventLog.instance = previous);
+
+    final diagnostics = await AppReportCollector(
+      redactor: redactor,
+      clock: () => now,
+    ).collectDiagnostics();
+    final windows = diagnostics['windows'] as Map;
+    expect(windows['open'], isEmpty);
+    expect((windows['events'] as List).single, containsPair('slot', 2));
   });
 
   test('אבחון: תוצאת חימום WebView2 נכללת במצב', () async {
@@ -402,6 +417,7 @@ void main() {
       expect(diagnostics.containsKey('context'), isFalse);
       expect(diagnostics.containsKey('inputFocus'), isFalse);
       expect(diagnostics.containsKey('searches'), isFalse);
+      expect(diagnostics.containsKey('windows'), isFalse);
       expect(diagnostics.containsKey('previousRun'), isFalse);
     });
 
