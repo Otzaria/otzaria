@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -248,7 +249,7 @@ class _TextDisplayPopupPanelState extends State<TextDisplayPopupPanel> {
             if (shared)
               TextDisplayProfileEditor.holyNamesTile(
                 context,
-                subtitle: 'בגוף הספר ובמפרשים',
+                subtitle: context.settingsText('בגוף הספר ובמפרשים'),
                 shown: sections.every(
                   (s) => TextDisplayProfileEditor.holyNamesShown(s.profile),
                 ),
@@ -428,7 +429,6 @@ class TextBookDisplayPanel extends StatelessWidget {
                   state.displayProfile(target: target),
                   next,
                 ),
-                includeTeamimSelector: target == TextTarget.body,
               ),
           ],
           footer: settings.enablePerBookSettings
