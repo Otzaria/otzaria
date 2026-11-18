@@ -1103,32 +1103,44 @@ class BackupService {
       if (backedUp == null) continue;
 
       // מהחדש לישן לפני הגזירה, כדי שהמכסה תשמיט את הישנים ולא את החדשים.
-      final sent = BackupReportQueue.merge(
-        await _storedReports(store, queue.sentKind),
-        BackupReportQueue.reportList(backedUp['sent']),
-      )..sort(
-        (a, b) => BackupReportQueue.reportTime(b).compareTo(
-          BackupReportQueue.reportTime(a),
-        ),
-      );
+      final sent =
+          BackupReportQueue.merge(
+            await _storedReports(store, queue.sentKind),
+            BackupReportQueue.reportList(backedUp['sent']),
+          )..sort(
+            (a, b) => BackupReportQueue.reportTime(b).compareTo(
+              BackupReportQueue.reportTime(a),
+            ),
+          );
       if (sent.length > queue.maxSent) {
         sent.removeRange(queue.maxSent, sent.length);
       }
-      final sentIds = sent.map(BackupReportQueue.reportId).whereType<String>().toSet();
-      final pending = BackupReportQueue.merge(
-        await _storedReports(
-          store,
-          queue.pendingKind,
-          additionalKind: queue.section == AppReportService.queueBoxName
-              ? AppReportService.currentPendingKind
-              : null,
-        ),
-        [
-          ...BackupReportQueue.reportList(backedUp['pending']),
-          if (queue.section == AppReportService.queueBoxName)
-            ...BackupReportQueue.reportList(backedUp[appReportsBackupPendingV2]),
-        ],
-      ).where((report) => !sentIds.contains(BackupReportQueue.reportId(report))).toList();
+      final sentIds = sent
+          .map(BackupReportQueue.reportId)
+          .whereType<String>()
+          .toSet();
+      final pending =
+          BackupReportQueue.merge(
+                await _storedReports(
+                  store,
+                  queue.pendingKind,
+                  additionalKind: queue.section == AppReportService.queueBoxName
+                      ? AppReportService.currentPendingKind
+                      : null,
+                ),
+                [
+                  ...BackupReportQueue.reportList(backedUp['pending']),
+                  if (queue.section == AppReportService.queueBoxName)
+                    ...BackupReportQueue.reportList(
+                      backedUp[appReportsBackupPendingV2],
+                    ),
+                ],
+              )
+              .where(
+                (report) =>
+                    !sentIds.contains(BackupReportQueue.reportId(report)),
+              )
+              .toList();
 
       await _replaceReports(
         store,
