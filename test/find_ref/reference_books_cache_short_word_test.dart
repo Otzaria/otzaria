@@ -35,7 +35,7 @@ void main() {
     expect(cache.search('משפטט ג').single.bookId, 1);
   });
 
-  test('המסננת משמרת הכלה וכתיב חלופי מחוץ לטווח מרחק העריכה', () {
+  test('המסננת משמרת הכלה וכתיב חלופי מחוץ לטווח מרחק העריכה', () async {
     seedLibrary(const [
       (id: 1, title: 'ב זזברכתמלכיםחדשה', acronyms: []),
       (id: 2, title: 'ב זזמקוואותחדשה', acronyms: []),
@@ -46,12 +46,20 @@ void main() {
     ]);
     final cache = ReferenceBooksCache.instance;
 
-    expect(cache.search('ברכת ב').map((h) => h.bookId), unorderedEquals([1, 5]));
+    final indexReady = cache.prepareFuzzyVocabularyIndexForTesting();
+    expect(
+      cache.search('ברכת ב').map((h) => h.bookId),
+      unorderedEquals([1, 5]),
+    );
+    await indexReady;
     expect(cache.search('מקואות ב').map((h) => h.bookId), [2]);
     expect(cache.search('שורש ב').map((h) => h.bookId), [3]);
     expect(cache.search('משפט ב').map((h) => h.bookId), [4]);
 
+    final oldIndexReady = cache.prepareFuzzyVocabularyIndexForTesting();
+    await Future<void>.delayed(Duration.zero);
     seedLibrary(const [(id: 7, title: 'ב זזברכתמלכיםחדשה', acronyms: [])]);
+    await oldIndexReady;
     expect(cache.search('ברכת ב').map((h) => h.bookId), [7]);
   });
 

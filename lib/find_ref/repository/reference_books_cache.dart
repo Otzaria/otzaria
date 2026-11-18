@@ -242,6 +242,11 @@ class ReferenceBooksCache {
       }
 
       _isLoaded = true;
+      unawaited(
+        _official._prepareFuzzyVocabularyIndex().catchError((Object e) {
+          debugPrint('[ReferenceBooksCache] Fuzzy vocabulary index failed: $e');
+        }),
+      );
       debugPrint(
         '[ReferenceBooksCache] Ready with ${BooksCache.instance.books.length} DB books'
         ' + ${_fsPdfBooks.length} FS PDF books',
@@ -592,6 +597,10 @@ class ReferenceBooksCache {
     _official.installFuzzyVocabulary(booksByWord);
     _isLoaded = true;
   }
+
+  @visibleForTesting
+  Future<void> prepareFuzzyVocabularyIndexForTesting() =>
+      _official._prepareFuzzyVocabularyIndex();
 
   /// בדיקות בלבד — חושף את מצב מטמון ה-outline (filePath → Future של ערכי
   /// outline) כדי לבדוק אילו קבצים נטענו.
@@ -1112,7 +1121,7 @@ class BookTitleIndex {
   /// כל המילים השונות שבכותרות ובכינויים, ומזהי הספרים לכל מילה. הספרייה
   /// כולה מכילה ~6,900 מילים שונות בלבד, ולכן ההתאמה המקורבת רצה עליהן פעם
   /// אחת לכל מילת שאילתה במקום על ~190,000 המילים שבספרים.
-  final List<String> _fuzzyVocabulary = <String>[];
+  List<String> _fuzzyVocabulary = const [];
   final List<Iterable<int>> _fuzzyVocabularyBooks = <Iterable<int>>[];
   _FuzzyVocabularyIndex? _fuzzyVocabularyIndex;
   final Map<String, Set<int>> _exactShortWordBooks = <String, Set<int>>{};
@@ -1464,11 +1473,10 @@ class BookTitleIndex {
     _fuzzyWordCandidates.clear();
     _fuzzyVocabularyIndex = null;
     _exactShortWordBooks.clear();
-    _fuzzyVocabulary.clear();
+    _fuzzyVocabulary = booksByWord.keys.toList(growable: false);
     _fuzzyVocabularyBooks.clear();
     for (final entry in booksByWord.entries) {
       final ids = Uint32List.fromList(entry.value);
-      _fuzzyVocabulary.add(entry.key);
       if (entry.key.length < _minFuzzyWordLength) {
         final books = ids.toSet();
         _exactShortWordBooks[entry.key] = books;
@@ -1477,6 +1485,17 @@ class BookTitleIndex {
         _fuzzyVocabularyBooks.add(ids);
       }
     }
+  }
+
+  Future<void> _prepareFuzzyVocabularyIndex() async {
+    final words = _fuzzyVocabulary;
+    if (words.isEmpty) return;
+
+    // שאילתה שממתינה לחימום יכולה להמשיך לפני שליחת המילים ל-isolate.
+    await Future<void>.delayed(Duration.zero);
+    if (!identical(words, _fuzzyVocabulary)) return;
+    final index = await compute(_FuzzyVocabularyIndex.new, words);
+    if (identical(words, _fuzzyVocabulary)) _fuzzyVocabularyIndex = index;
   }
 
   /// מזהי הספרים שבהם לכל אחת מ-[queryWords] יש מילה מתאימה — קבוצת-העל של
@@ -1522,12 +1541,18 @@ class BookTitleIndex {
     if (cached != null) return cached;
 
     final books = <int>{};
-    final index = _fuzzyVocabularyIndex ??= _FuzzyVocabularyIndex(
-      _fuzzyVocabulary,
-    );
-    for (final i in index.candidatesFor(word)) {
-      if (bookSearchWordPairMatches(word, _fuzzyVocabulary[i])) {
-        books.addAll(_fuzzyVocabularyBooks[i]);
+    final index = _fuzzyVocabularyIndex;
+    if (index == null) {
+      for (var i = 0; i < _fuzzyVocabulary.length; i++) {
+        if (bookSearchWordPairMatches(word, _fuzzyVocabulary[i])) {
+          books.addAll(_fuzzyVocabularyBooks[i]);
+        }
+      }
+    } else {
+      for (final i in index.candidatesFor(word)) {
+        if (bookSearchWordPairMatches(word, _fuzzyVocabulary[i])) {
+          books.addAll(_fuzzyVocabularyBooks[i]);
+        }
       }
     }
 
