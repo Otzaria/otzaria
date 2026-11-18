@@ -2109,7 +2109,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                 bookId: commentaryBookId,
                 source: widget.reportBook?.source ?? BookSource.official,
                 index: index,
-                selectedText: capturedText,
+                selectedText: sourceText,
                 protection: () => _textProtection(state),
               ),
             ),

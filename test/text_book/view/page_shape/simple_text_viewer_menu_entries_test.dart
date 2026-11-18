@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/book_common/models/commentator_group.dart';
+import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
@@ -42,6 +46,9 @@ void main() {
     List<String> availableCommentators = const [],
     bool isMainText = true,
     TextBook? reportBook,
+    List<String> content = const ['שורה א'],
+    Map<int, List<Link>> anchorLinksByLine = const {},
+    int? selectLine,
     PluginMenuClickRecorder? recorder,
     void Function(List<AppContextMenuEntry> entries)? onMenu,
   }) async {
@@ -72,12 +79,13 @@ void main() {
           child: (recorder?.wrap ?? (Widget child) => child)(
             Scaffold(
               body: SimpleTextViewer(
-                content: const ['שורה א'],
+                content: content,
                 fontSize: 18,
                 openBookCallback: (_) {},
                 isMainText: isMainText,
                 bookTitle: isMainText ? null : 'רש"י על ספר בדיקה',
                 reportBook: reportBook,
+                anchorLinksByLine: anchorLinksByLine,
                 onOpenCommentatorsPane: () {},
                 onOpenCommentatorsPaneWithFilter: () {},
               ),
@@ -88,7 +96,20 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final regionFinder = find.byType(AppContextMenuRegion).first;
+    final regionFinder = find.byType(AppContextMenuRegion).at(selectLine ?? 0);
+    if (selectLine != null) {
+      final renderedText = tester.allRenderObjects
+          .whereType<RenderParagraph>()
+          .map((paragraph) => paragraph.text.toPlainText())
+          .singleWhere(
+            (text) => text.contains(content[selectLine].split(' ').first),
+          );
+      expect(renderedText, contains('(ז)'));
+      tester
+          .widget<SelectableRegion>(find.byType(SelectableRegion))
+          .onSelectionChanged!(SelectedContent(plainText: renderedText));
+      await tester.pump();
+    }
     List<String> build() {
       final region = tester.widget<AppContextMenuRegion>(regionFinder);
       final entries = region.menuBuilder(
@@ -204,6 +225,78 @@ void main() {
     );
     expect(menu, isNot(contains('העתק קישור ישיר')));
   });
+
+  for (final source in [BookSource.official, BookSource.attached('test-db')]) {
+    testWidgets(
+      'commentary link highlights source text from ${source.wireKey}',
+      (
+        tester,
+      ) async {
+        const sourceText = 'בראשית ברא העולם';
+        final checkedSources = <BookSource>[];
+        BookProtectionRepository.instance.debugRepositoryFor = (source) async {
+          checkedSources.add(source);
+          return null;
+        };
+        addTearDown(BookProtectionRepository.instance.debugReset);
+
+        late List<AppContextMenuEntry> entries;
+        await menuFor(
+          tester,
+          isMainText: false,
+          reportBook: TextBook(title: 'פירוש בדיקה', id: 9, source: source),
+          content: const ['שורה קודמת', sourceText],
+          anchorLinksByLine: {
+            2: [
+              Link(
+                heRef: 'שער הציון, ז',
+                index1: 2,
+                index2: 1,
+                path2: 'שער הציון',
+                connectionType: 'commentary',
+                anchorStart: 7,
+                anchorLabel: 'ז',
+              ),
+            ],
+          },
+          selectLine: 1,
+          onMenu: (menu) => entries = menu,
+        );
+        String? clipboard;
+        final messenger =
+            TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+        messenger.setMockMethodCallHandler(SystemChannels.platform, (
+          call,
+        ) async {
+          if (call.method == 'Clipboard.setData') {
+            clipboard = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        });
+        addTearDown(
+          () =>
+              messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+        );
+
+        entries.first.iconRowActions!
+            .singleWhere((action) => action.label == 'קישור')
+            .submenuBuilder!()
+            .singleWhere((action) => action.label.contains('הדגשת הטקסט'))
+            .onTap!();
+        await tester.pumpAndSettle();
+
+        final link = Uri.parse(clipboard!);
+        expect(link.path, '/book/9');
+        expect(link.queryParameters['index'], '1');
+        expect(
+          link.queryParameters['source'],
+          source.isAttached ? 'db:test-db' : null,
+        );
+        expect(link.queryParameters['m'], sourceText);
+        expect(checkedSources, [source]);
+      },
+    );
+  }
 
   testWidgets('a commentary column gives reader-commentary items its line', (
     tester,
