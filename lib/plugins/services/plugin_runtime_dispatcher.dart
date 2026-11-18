@@ -3,7 +3,6 @@ import 'dart:collection';
 
 import 'dart:convert';
 
-import 'package:otzaria/plugins/services/plugin_runtime_state.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -31,6 +30,7 @@ import 'package:otzaria/plugins/services/plugin_search_field_session_service.dar
 import 'package:otzaria/plugins/services/plugin_startup_contributions_service.dart';
 import 'package:otzaria/plugins/services/plugin_unsaved_changes_registry.dart';
 import 'package:otzaria/plugins/services/plugin_webview_focus.dart';
+import 'package:otzaria/plugins/services/plugin_runtime_state.dart';
 
 export 'plugin_runtime_state.dart' show PluginInstanceHost;
 
