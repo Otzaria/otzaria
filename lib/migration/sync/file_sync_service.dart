@@ -347,8 +347,7 @@ class FileSyncService {
     if (personalCategory == null) {
       return const _PersonalBooksSnapshot(
         personalCategoryId: null,
-        booksByCategory: {},
-        sourceNamesById: {},
+        booksBySource: {},
       );
     }
 
@@ -370,10 +369,27 @@ class FileSyncService {
       }
     }
 
+    final booksBySource = <String, List<_PersonalFolderBook>>{};
+    var order = 0;
+    for (final categoryBooks in booksByCategory.values) {
+      for (final book in categoryBooks) {
+        final sourceName = sourceNamesById[book.sourceId];
+        if (sourceName == null) continue;
+        final legacy = sourceName == CustomFolderSource.legacyExternalSourceName;
+        if (!legacy && !sourceName.startsWith(CustomFolderSource.prefix)) {
+          continue;
+        }
+        (booksBySource[sourceName] ??= []).add((
+          order: order++,
+          book: book,
+          legacy: legacy,
+        ));
+      }
+    }
+
     return _PersonalBooksSnapshot(
       personalCategoryId: personalCategory.id,
-      booksByCategory: booksByCategory,
-      sourceNamesById: sourceNamesById,
+      booksBySource: booksBySource,
     );
   }
 
@@ -402,69 +418,56 @@ class FileSyncService {
 
     final folderSourceName = _buildCustomFolderSourceName(folderPath);
 
+    bool matchesLegacyPath(Book book) {
+      final bookPath = book.filePath;
+      return bookPath != null &&
+          bookPath.isNotEmpty &&
+          _isPathInsideFolder(bookPath, folderPath) &&
+          !_belongsToDeeperFolder(
+            bookPath,
+            folderPath,
+            otherConfiguredFolderPaths,
+          );
+    }
+
     final categoryByBookId = <int, int>{};
-    for (final entry in snap.booksByCategory.entries) {
-      final categoryId = entry.key;
-      for (final book in entry.value) {
-        final sourceName = snap.sourceNamesById[book.sourceId];
-        // שיוך לפי שם ה-source; לפי נתיב רק למקור ה-legacy ('external'), שלא
-        // ייגע בספרי מקור אחר, ורק לתיקייה העמוקה ביותר (מחיקת אב לא תגרור בן).
-        final bookPath = book.filePath;
-        final belongsToFolder =
-            sourceName == folderSourceName ||
-            (sourceName == CustomFolderSource.legacyExternalSourceName &&
-                bookPath != null &&
-                bookPath.isNotEmpty &&
-                _isPathInsideFolder(bookPath, folderPath) &&
-                !_belongsToDeeperFolder(
-                  bookPath,
-                  folderPath,
-                  otherConfiguredFolderPaths,
-                ));
-        if (!belongsToFolder) continue;
-        if (keepKeys != null) {
-          // עותק עצמאי (filePath=null) שורד מחיקת הקובץ ונמחק רק דרך הספרייה;
-          // ה-prune מוחק רק ספר file-backed שקובצו נעלם.
-          if (!book.isFileBacked) continue;
-          final key =
-              '${book.categoryId}|${book.title}|'
-              '${(book.fileType ?? '').toLowerCase()}';
-          if (keepKeys.contains(key)) continue;
-        }
-
-        // ה-snapshot קודם לסריקה, שעשויה לשנות source/אחסון של הרשומה. מאמתים
-        // מחדש רק מועמד למחיקה, כדי לא למחוק לפי שיוך מיושן.
-        final currentBook = await repo.getBook(book.id);
-        if (currentBook == null) continue;
-        final currentSourceName = (await repo.getSourceById(
-          currentBook.sourceId,
-        ))?.name;
-        final currentPath = currentBook.filePath;
-        final stillBelongsToFolder =
-            currentSourceName == folderSourceName ||
-            (currentSourceName == CustomFolderSource.legacyExternalSourceName &&
-                currentPath != null &&
-                currentPath.isNotEmpty &&
-                _isPathInsideFolder(currentPath, folderPath) &&
-                !_belongsToDeeperFolder(
-                  currentPath,
-                  folderPath,
-                  otherConfiguredFolderPaths,
-                ));
-        if (!stillBelongsToFolder) continue;
-        if (keepKeys != null) {
-          if (!currentBook.isFileBacked) continue;
-          final currentKey =
-              '${currentBook.categoryId}|${currentBook.title}|'
-              '${(currentBook.fileType ?? '').toLowerCase()}';
-          if (keepKeys.contains(currentKey)) continue;
-        }
-
-        _log.info(
-          'Removing book from DB: "${currentBook.title}" (id=${currentBook.id})',
-        );
-        categoryByBookId[currentBook.id] = categoryId;
+    for (final candidate in snap.booksForSource(folderSourceName)) {
+      final book = candidate.book;
+      if (candidate.legacy && !matchesLegacyPath(book)) continue;
+      if (keepKeys != null) {
+        // עותק עצמאי (filePath=null) שורד מחיקת הקובץ ונמחק רק דרך הספרייה;
+        // ה-prune מוחק רק ספר file-backed שקובצו נעלם.
+        if (!book.isFileBacked) continue;
+        final key =
+            '${book.categoryId}|${book.title}|'
+            '${(book.fileType ?? '').toLowerCase()}';
+        if (keepKeys.contains(key)) continue;
       }
+
+      // ה-snapshot קודם לסריקה, שעשויה לשנות source/אחסון של הרשומה. מאמתים
+      // מחדש רק מועמד למחיקה, כדי לא למחוק לפי שיוך מיושן.
+      final currentBook = await repo.getBook(book.id);
+      if (currentBook == null) continue;
+      final currentSourceName = (await repo.getSourceById(
+        currentBook.sourceId,
+      ))?.name;
+      final stillBelongsToFolder =
+          currentSourceName == folderSourceName ||
+          (currentSourceName == CustomFolderSource.legacyExternalSourceName &&
+              matchesLegacyPath(currentBook));
+      if (!stillBelongsToFolder) continue;
+      if (keepKeys != null) {
+        if (!currentBook.isFileBacked) continue;
+        final currentKey =
+            '${currentBook.categoryId}|${currentBook.title}|'
+            '${(currentBook.fileType ?? '').toLowerCase()}';
+        if (keepKeys.contains(currentKey)) continue;
+      }
+
+      _log.info(
+        'Removing book from DB: "${currentBook.title}" (id=${currentBook.id})',
+      );
+      categoryByBookId[currentBook.id] = book.categoryId;
     }
 
     // קטגוריה שספרה נכשל במחיקה אינה ריקה, ולכן לא תימחק.
@@ -948,16 +951,38 @@ class _FolderScanCaches {
   }
 }
 
+typedef _PersonalFolderBook = ({int order, Book book, bool legacy});
+
 /// תמונת-מצב של עץ הספרים האישיים לסנכרון אחד — נבנית פעם אחת ומשותפת לכל
 /// ה-prune-ים של התיקיות, במקום סריקת עץ נפרדת לכל תיקייה.
 class _PersonalBooksSnapshot {
   final int? personalCategoryId;
-  final Map<int, List<Book>> booksByCategory;
-  final Map<int, String?> sourceNamesById;
+  final Map<String, List<_PersonalFolderBook>> _booksBySource;
 
   const _PersonalBooksSnapshot({
     required this.personalCategoryId,
-    required this.booksByCategory,
-    required this.sourceNamesById,
-  });
+    required Map<String, List<_PersonalFolderBook>> booksBySource,
+  }) : _booksBySource = booksBySource;
+
+  Iterable<_PersonalFolderBook> booksForSource(String sourceName) sync* {
+    final direct = _booksBySource[sourceName] ?? const <_PersonalFolderBook>[];
+    final legacy = _booksBySource[CustomFolderSource.legacyExternalSourceName];
+    if (legacy == null) {
+      yield* direct;
+      return;
+    }
+
+    // שתי הרשימות נבנו בסדר הקטגוריות והספרים המקורי.
+    var nextDirect = 0;
+    for (final candidate in legacy) {
+      while (nextDirect < direct.length &&
+          direct[nextDirect].order < candidate.order) {
+        yield direct[nextDirect++];
+      }
+      yield candidate;
+    }
+    while (nextDirect < direct.length) {
+      yield direct[nextDirect++];
+    }
+  }
 }
