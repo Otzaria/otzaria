@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:otzaria/widgets/misc/smooth_wheel_scroll.dart';
 import 'package:pdfrx/pdfrx.dart';
 
@@ -24,6 +25,16 @@ class StoppablePdfScrollPhysicsProvider
 
   /// עוצר אנימציית גלילה/זום שבדרך; ללא delegate פעיל אין פעולה.
   void stop() => _delegate?.stop();
+
+  /// גלילה מונפשת כמו הגלגלת, בלי מסלול הגלגלת של pdfrx שהופך Ctrl לזום.
+  /// ה-delegate הפיזיקלי לא קורא את המדדים ב-pan.
+  void pan(Offset delta) => _delegate?.pan(delta, _panMetrics);
+
+  static const _panMetrics = PdfViewerLayoutMetrics(
+    minScale: 1,
+    maxScale: 1,
+    coverScale: 1,
+  );
 
   // זהות לפי המופע: pdfrx יוצר delegate חדש בכל שינוי provider, והמסך מחזיק
   // מופע יחיד לכל חיי ה-viewer.

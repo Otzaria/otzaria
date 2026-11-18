@@ -1,4 +1,5 @@
 // PageDown/PageUp מדפדפים בקורא ה-PDF כמו ←/→ (issue #3272).
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -137,6 +138,39 @@ void main() {
     expect(readerFocus.hasFocus, isTrue);
     expect(readerFocus.hasPrimaryFocus, isFalse);
   }
+
+  testWidgets('חץ אנכי קוטע ניווט פעיל וגולל צעד אחד', (tester) async {
+    final (_, tab) = await pumpBook(tester);
+    final controller = tab.pdfViewerController;
+    final document = controller.document;
+    try {
+      await controller.goToPage(pageNumber: 4, duration: Duration.zero);
+      Focus.of(tester.element(find.byType(PdfViewer))).requestFocus();
+      await tester.pump();
+
+      final destination = controller.value.clone();
+      final start = destination.getTranslation();
+      destination.setTranslationRaw(start.x, start.y - 450, start.z);
+      unawaited(
+        controller.goTo(destination, duration: const Duration(seconds: 1)),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 160));
+      final beforeArrow = controller.value.getTranslation().y;
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      for (var frame = 0; frame < 70; frame++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(
+        controller.value.getTranslation().y,
+        closeTo(beforeArrow - 100, 1),
+      );
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await disposePdfDocument(tester, document);
+    }
+  });
 
   for (final isMac in [false, true]) {
     testWidgets(
