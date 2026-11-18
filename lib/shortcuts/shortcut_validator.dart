@@ -21,6 +21,9 @@ class ShortcutValidator {
   static const String openAdvancedSearchKey =
       'key-shortcut-open-advanced-search';
 
+  /// פתיחת טופס "דיווח על תקלה בתוכנה" — אופציונלי, ללא ברירת מחדל.
+  static const String openAppReportKey = 'key-shortcut-open-app-report';
+
   /// פתיחת חלון אוצריא נוסף — פעיל רק בפלטפורמה שתומכת בריבוי חלונות.
   static const String openNewWindowKey = 'key-shortcut-open-new-window';
 
@@ -200,6 +203,7 @@ class ShortcutValidator {
     'key-shortcut-open-reading-screen',
     'key-shortcut-open-new-search',
     openAdvancedSearchKey,
+    openAppReportKey,
     'key-shortcut-open-settings',
     'key-shortcut-open-more',
     'key-shortcut-open-bookmarks',
@@ -279,6 +283,7 @@ class ShortcutValidator {
     'key-shortcut-open-reading-screen': 'ctrl+r',
     'key-shortcut-open-new-search': 'ctrl+shift+f',
     openAdvancedSearchKey: '',
+    openAppReportKey: '',
     'key-shortcut-open-settings': 'ctrl+comma',
     'key-shortcut-open-more': 'ctrl+m',
     'key-shortcut-open-bookmarks': 'ctrl+shift+b',
@@ -347,6 +352,7 @@ class ShortcutValidator {
     'key-shortcut-open-reading-screen': 'עיון',
     'key-shortcut-open-new-search': 'חיפוש חדש בכל הספרים',
     openAdvancedSearchKey: 'חיפוש מתקדם',
+    openAppReportKey: 'דיווח על תקלה בתוכנה',
     'key-shortcut-open-settings': 'הגדרות',
     'key-shortcut-open-more': 'כלים',
     'key-shortcut-open-bookmarks': 'סימניות',

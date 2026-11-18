@@ -25,6 +25,7 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
+import 'package:otzaria/app_report/view/app_report_dialog.dart';
 import 'package:otzaria/bookmarks/view/bookmark_screen.dart';
 import 'package:otzaria/bookmarks/view/save_group_bookmark_dialog.dart';
 import 'package:otzaria/history/view/history_screen.dart';
@@ -217,6 +218,7 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     final advancedSearchShortcut = shortcutOf(
       ShortcutValidator.openAdvancedSearchKey,
     );
+    final appReportShortcut = shortcutOf(ShortcutValidator.openAppReportKey);
     final settingsShortcut = shortcutOf('key-shortcut-open-settings');
     final moreShortcut = shortcutOf('key-shortcut-open-more');
     final bookmarksShortcut = shortcutOf('key-shortcut-open-bookmarks');
@@ -488,6 +490,13 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
           initialSearchMode: SearchMode.advanced,
         ),
       );
+      return KeyEventResult.handled;
+    }
+
+    if (appReportShortcut.isNotEmpty &&
+        ShortcutHelper.matchesShortcut(event, appReportShortcut)) {
+      if (!closeOverlayRoutes()) return KeyEventResult.handled;
+      showAppReportDialog(context);
       return KeyEventResult.handled;
     }
 

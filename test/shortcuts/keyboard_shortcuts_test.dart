@@ -477,6 +477,7 @@ void main() {
         initialState: SettingsState.initial().copyWith(
           shortcuts: const {
             'key-shortcut-open-advanced-search': 'ctrl+shift+g',
+            'key-shortcut-open-app-report': 'ctrl+shift+j',
           },
         ),
       );
@@ -544,6 +545,52 @@ void main() {
 
       final dialog = tester.widget<SearchDialog>(find.byType(SearchDialog));
       expect(dialog.initialSearchMode, SearchMode.advanced);
+    });
+
+    testWidgets('פותח את טופס הדיווח על תקלה בתוכנה', (tester) async {
+      final tabsBloc = _StubTabsBloc(
+        const TabsState(tabs: [], currentTabIndex: 0),
+      );
+      final historyBloc = _StubHistoryBloc();
+      final navigationBloc = _StubNavigationBloc();
+      addTearDown(() async {
+        await tabsBloc.close();
+        await historyBloc.close();
+        await navigationBloc.close();
+      });
+
+      await tester.pumpWidget(
+        MultiBlocProvider(
+          providers: [
+            BlocProvider<SettingsBloc>.value(value: settingsBlocLocal),
+            BlocProvider<TabsBloc>.value(value: tabsBloc),
+            BlocProvider<HistoryBloc>.value(value: historyBloc),
+            BlocProvider<NavigationBloc>.value(value: navigationBloc),
+            BlocProvider<IndexingBloc>.value(value: indexingBloc),
+            BlocProvider<LibraryBloc>.value(value: libraryBloc),
+            Provider<FocusRepository>.value(value: FocusRepository()),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: KeyboardShortcuts(
+                onFindRefRequested: () {},
+                child: const SizedBox(width: 100, height: 100),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyJ);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyJ);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+
+      expect(find.byType(AppReportDialog), findsOneWidget);
     });
   });
 
