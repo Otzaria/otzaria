@@ -15,6 +15,7 @@ import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/widgets/smart_text/inline_html_document.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
 /// עריכה מקומית בפסקת מקור, ללא היסטים או עוגנים של נוסח אחר.
@@ -475,7 +476,11 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
             onPointerDown: _editorPointerDown,
             onPointerUp: _editorPointerUp,
             onPointerCancel: (_) => _downAt = null,
-            child: _buildEditor(),
+            // כמו הקורא: תבנית הדגשה מדויקת שמגיעה אחרי הציור מצוירת מחדש.
+            child: ListenableBuilder(
+              listenable: utils.highlightPatternRevision,
+              builder: (context, _) => _buildEditor(),
+            ),
           ),
         ),
       ),
@@ -506,7 +511,13 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   }
 
   ColorScheme? _colors;
-  ({String text, RenderSettings settings, ColorScheme colors})? _highlightKey;
+  ({
+    String text,
+    RenderSettings settings,
+    ColorScheme colors,
+    int revision,
+  })?
+  _highlightKey;
   List<CorrectionHighlight> _highlights = const [];
 
   /// הדגשת החיפוש בטקסט שאינו הטקסט של התצוגה הרגילה: אותו עיבוד בדיוק
@@ -518,7 +529,12 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     if (settings.searchText.isEmpty || text.isEmpty || colors == null) {
       return const [];
     }
-    final key = (text: text, settings: settings, colors: colors);
+    final key = (
+      text: text,
+      settings: settings,
+      colors: colors,
+      revision: utils.highlightPatternRevision.value,
+    );
     if (_highlightKey == key) return _highlights;
     _highlightKey = key;
     final html = SearchHighlightCss.resolve(

@@ -7,6 +7,9 @@ import 'package:otzaria/plugins/repository/plugin_correction_draft_repository.da
 import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
 import 'package:otzaria/plugins/view/plugin_correction_paragraph.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
+import 'package:otzaria_search_engine/otzaria_search_engine.dart'
+    show HighlightPattern;
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 import '../../test_helpers/activate_correction_paragraph.dart';
@@ -645,6 +648,49 @@ void main() {
       expect(
         marks(editorSpan(tester)).map((e) => e.split('|').first),
         ['ברא', 'בָּרָא', 'בָּרָא'],
+      );
+      await finish(tester, service);
+    });
+
+    testWidgets('תבנית הדגשה מדויקת שמגיעה אחרי הציור מדגישה גם בעורך', (
+      tester,
+    ) async {
+      // שאילתה ייחודית לבדיקה: מטמון התבניות גלובלי לקובץ.
+      const query = 'בראשית';
+      final service = await pumpSearch(
+        tester,
+        const RenderSettings(searchText: query),
+      );
+      await activateCorrectionParagraph(tester, find.byType(SmartTextWidget));
+      // אחרי עריכה העורך מדגיש בעצמו ולא מהעלים של התצוגה הרגילה.
+      final editor = tester.widget<EditableText>(find.byType(EditableText));
+      editor.controller.value = TextEditingValue(
+        text: 'x ${editor.controller.text}',
+      );
+      await tester.pump();
+      expect(
+        marks(editorSpan(tester)).map((e) => e.split('|').first),
+        ['בְּרֵאשִׁית'],
+      );
+      await tester.runAsync(
+        () => utils.primeHighlightPattern(
+          searchQuery: query,
+          searchOptions: const {},
+          alternativeWords: const {},
+          spacingValues: const {},
+          searchDistance: 0,
+          isFuzzy: false,
+          fetch: () async => const HighlightPattern(
+            combinedPattern: 'אֱלֹהִים',
+            wordPatterns: ['אֱלֹהִים'],
+            wordBoundaryEligible: [true],
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(
+        marks(editorSpan(tester)).map((e) => e.split('|').first),
+        ['אֱלֹהִים'],
       );
       await finish(tester, service);
     });
