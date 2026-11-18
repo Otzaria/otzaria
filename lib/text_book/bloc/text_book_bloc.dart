@@ -823,6 +823,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       resetInlineNotesStateForNewBook();
 
       final initial = state as TextBookInitial;
+      // A restored tab's selection takes precedence over per-book defaults,
+      // including an intentionally empty selection.
+      _userTouchedCommentators = initial.hasExplicitCommentators;
       book = initial.book;
       searchText = initial.searchText;
       highlightText = initial.highlightText;
