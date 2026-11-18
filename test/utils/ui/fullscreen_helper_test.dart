@@ -26,15 +26,19 @@ void main() {
       expect(FullscreenHelper.isContextAllowed(Screen.reading, true), isTrue);
     });
 
+    test('מתיר חיפוש עם טאב פתוח, אך לא כשאין טאבים', () {
+      expect(FullscreenHelper.isContextAllowed(Screen.search, true), isTrue);
+      expect(FullscreenHelper.isContextAllowed(Screen.search, false), isFalse);
+    });
+
     test('חוסם בעיון ללא טאבים פתוחים', () {
       expect(FullscreenHelper.isContextAllowed(Screen.reading, false), isFalse);
     });
 
-    test('חוסם בספרייה/חיפוש/איתור/הגדרות', () {
+    test('חוסם בספרייה/איתור/הגדרות', () {
       for (final screen in [
         Screen.library,
         Screen.find,
-        Screen.search,
         Screen.settings,
       ]) {
         expect(
@@ -68,6 +72,39 @@ void main() {
           hasOpenTabs: true,
         ),
         isFalse,
+      );
+    });
+
+    test('ב-Windows מעבר מעיון לחיפוש משמר fullscreen ו-layout אימרסיבי', () {
+      expect(
+        FullscreenHelper.shouldExitFullscreenOnNavigation(
+          platform: TargetPlatform.windows,
+          isFullscreen: true,
+          screen: Screen.search,
+          hasOpenTabs: true,
+        ),
+        isFalse,
+      );
+      expect(
+        FullscreenHelper.shouldUseImmersiveLayout(
+          platform: TargetPlatform.windows,
+          isFullscreen: true,
+          screen: Screen.search,
+          hasOpenTabs: true,
+        ),
+        isTrue,
+      );
+    });
+
+    test('חיפוש ללא טאבים אינו משמר fullscreen', () {
+      expect(
+        FullscreenHelper.shouldExitFullscreenOnNavigation(
+          platform: TargetPlatform.windows,
+          isFullscreen: true,
+          screen: Screen.search,
+          hasOpenTabs: false,
+        ),
+        isTrue,
       );
     });
 
