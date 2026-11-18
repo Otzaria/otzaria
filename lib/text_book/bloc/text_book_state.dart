@@ -336,9 +336,6 @@ class TextBookLoaded extends TextBookState {
   /// יעד בקשת החיפוש האחרונה; המזהה מבדיל גם בין לחיצות על אותה תוצאה.
   final ({int line, int requestId})? searchResultNavigation;
 
-  /// מזהה הבחירה הפעילה מקישור, להצגת המפרשים שמתחת לפסקה.
-  final int linkSelectionRequestId;
-
   /// כל הקטעים שנבחרו להצגת מפרשים (Ctrl+לחיצה). [selectedIndex] תמיד נכלל בו
   /// כשאינו null. ריק = אין בחירה.
   final Set<int> selectedIndices;
@@ -436,7 +433,6 @@ class TextBookLoaded extends TextBookState {
     required this.visibleIndices,
     this.selectedIndex,
     this.searchResultNavigation,
-    this.linkSelectionRequestId = 0,
     this.selectedIndices = const {},
     required this.pinLeftPane,
     required this.searchText,
@@ -649,7 +645,6 @@ class TextBookLoaded extends TextBookState {
     int? selectedIndex,
     ({int line, int requestId})? searchResultNavigation,
     bool clearSearchResultNavigation = false,
-    int? linkSelectionRequestId,
     bool clearSelectedIndex = false,
     Set<int>? selectedIndices,
     bool clearSelectedIndices = false,
@@ -798,8 +793,6 @@ class TextBookLoaded extends TextBookState {
       searchResultNavigation: clearSearchResultNavigation
           ? null
           : searchResultNavigation ?? this.searchResultNavigation,
-      linkSelectionRequestId:
-          linkSelectionRequestId ?? this.linkSelectionRequestId,
       selectedIndices: clearSelectedIndices
           ? const {}
           : (selectedIndices ?? this.selectedIndices),
@@ -902,7 +895,6 @@ class TextBookLoaded extends TextBookState {
     visibleIndices,
     selectedIndex,
     searchResultNavigation,
-    linkSelectionRequestId,
     _SetProp(selectedIndices),
     pinLeftPane,
     searchText,

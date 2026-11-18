@@ -4,7 +4,6 @@ import 'dart:async';
 
 import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
@@ -63,20 +62,6 @@ class TextBookTab extends OpenedTab {
 
   /// הסעיף המודגש, שנשאר קבוע גם כשהמיקום הנוכחי משתנה; null משתמש ב-[index].
   final int? pinpointHighlightSectionIndex;
-
-  /// שורה שקישור ביקש לבחור בפתיחה הזאת. הערך אינו נשמר בשולחן העבודה.
-  int? get linkSelectedLine => _linkSelectedLine;
-  int? _linkSelectedLine;
-
-  /// מחליף בחירה ממתינה, גם לפני שנוצר הקורא של הכרטיסייה.
-  void updateLinkSelection(int? line) {
-    final currentBloc = _bloc;
-    if (currentBloc == null) {
-      _linkSelectedLine = line;
-    } else {
-      currentBloc.add(SelectLineWhenVisible(line));
-    }
-  }
 
   /// נבנה בגישה הראשונה בלבד: פענוח ושמירת שולחן עבודה אינם צריכים BLoC חי.
   TextBookBloc get bloc => _bloc ??= _createBloc();
@@ -175,7 +160,6 @@ class TextBookTab extends OpenedTab {
     super.dedupeKey,
     this.pinpointHighlight,
     this.pinpointHighlightSectionIndex,
-    this._linkSelectedLine,
     @visibleForTesting TextBookBloc? blocOverride,
     // מהדורה חלופית מקבלת כותרת טאב עם שם המהדורה, להבחנה מהנוסח הממוזג.
   }) : _index = initialReadingAnchor?.line ?? index,
@@ -238,7 +222,6 @@ class TextBookTab extends OpenedTab {
         repository: TextBookRepository(fileSystem: FileSystemData.instance),
         initialState: _initialState,
         readingPosition: lines.position,
-        linkSelectedLine: linkSelectedLine,
       ),
     );
     if (_isDisposed) created.close();

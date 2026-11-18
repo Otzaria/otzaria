@@ -405,7 +405,6 @@ class _CombinedViewState extends State<CombinedView> {
   bool _disposed = false;
   final Map<int, GlobalKey> _commentaryCardKeys = {};
   int? _commentaryRevealLine;
-  int _lastLinkSelectionRequestId = 0;
   int _commentaryRevealGeneration = 0;
   bool _commentaryRevealSelectionObserved = false;
   bool _commentaryRevealAtEnd = false;
@@ -980,21 +979,6 @@ class _CombinedViewState extends State<CombinedView> {
       _clearSelectionBeforeJump();
     }
     _scrollToInitialPosition(state);
-    final selectedLine = state.selectedIndex;
-    final linkRequest = state.linkSelectionRequestId;
-    final current = _textBookBloc.state;
-    if (!widget.isPreviewMode &&
-        widget.showCommentaryAsExpansionTiles &&
-        selectedLine != null &&
-        linkRequest != 0 &&
-        linkRequest != _lastLinkSelectionRequestId &&
-        current is TextBookLoaded &&
-        current.linkSelectionRequestId == linkRequest &&
-        current.selectedIndex == selectedLine &&
-        _hasCommentaries(current, selectedLine)) {
-      _lastLinkSelectionRequestId = linkRequest;
-      _revealCommentaryCardBelow(selectedLine);
-    }
     final line = _commentaryRevealLine;
     if (line == null) return;
     if (state.selectedIndex == line && state.selectedIndices.contains(line)) {
@@ -1012,7 +996,6 @@ class _CombinedViewState extends State<CombinedView> {
 
   void _resetBookState() {
     _cancelCommentaryReveal();
-    _lastLinkSelectionRequestId = 0;
     _cancelPendingAnchorHover();
     LinkPreviewOverlay.dismiss(window: AppWindowKeys.of(context));
     _activeAnchorLine = null;

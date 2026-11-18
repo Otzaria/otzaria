@@ -414,45 +414,6 @@ void main() {
       await _closeBlocAndAllowDeferredDispose(bloc);
     });
 
-    for (final (name, line) in [('בחירה', 12), ('ביטול בחירה ממתינה', null)]) {
-      test('ניווט בטאב פתוח מעביר $name', () async {
-        final bloc = _newBloc(_FakeTabsRepository());
-        final recorder = _RecordingTextBookBloc(loaded: true);
-        final existingTab = TextBookTab(
-          book: TextBook(title: 'ספר א', categoryId: 1),
-          index: 0,
-          blocOverride: recorder,
-        );
-
-        bloc.add(AddTab(existingTab));
-        bloc.add(AddTab(_createTextTab('ספר ב', index: 0, categoryId: 2)));
-        await bloc.stream.firstWhere((s) => s.tabs.length == 2);
-
-        bloc.add(
-          OpenOrFocusTab(
-            TextBookTab(
-              book: TextBook(title: 'ספר א', categoryId: 1),
-              index: 12,
-              linkSelectedLine: line,
-            ),
-            navigateToPositionIfReused: true,
-          ),
-        );
-        await bloc.stream.firstWhere(
-          (s) => s.tabs.length == 2 && s.currentTabIndex == 0,
-        );
-
-        expect(
-          recorder.received.whereType<SelectLineWhenVisible>().map(
-            (e) => e.line,
-          ),
-          [line],
-        );
-
-        await _closeBlocAndAllowDeferredDispose(bloc);
-      });
-    }
-
     test('טאב טקסט שטרם נטען מקבל את החיפוש רק כשהוא מגיע ל-Loaded', () async {
       // טאב ששוחזר ולא נצפה עדיין נשאר ב-TextBookInitial, ושם UpdateSearchText
       // נזרק בשקט — כל התצורה הייתה נעלמת.
