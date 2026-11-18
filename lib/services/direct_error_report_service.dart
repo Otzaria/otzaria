@@ -7,6 +7,8 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:http/http.dart' as http;
 import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/core/user_state/pending_report_store.dart';
+import 'package:otzaria/reports/report_queue_flush.dart';
+import 'package:otzaria/reports/repository/sent_report_history.dart';
 import 'package:otzaria/services/offline_report_script_builder.dart';
 import 'package:otzaria/services/sent_reports_counter.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -85,22 +87,15 @@ class DirectErrorReportService {
   static const String sentReportsKey = 'sent_reports';
   static const int maxSentReportsToKeep = 100;
   static const Duration _timeout = Duration(seconds: 10);
-  static const Duration _flushInterval = Duration(minutes: 5);
   static const int _maxQueuedFlushPerRun = 20;
   static const String _otzariaDirectReportTarget = 'אוצריא';
   static const String _sefariaDirectReportTarget = 'ספריא';
 
-  static Timer? _flushTimer;
-  static bool _isFlushing = false;
-  static Completer<void>? _flushInFlight;
+  static final _flush = ReportQueueFlush();
 
   /// עוצר את השליחה האוטומטית וממתין לשליחה שבאמצע, כדי שכתיבה חיצונית לתור
   /// (שחזור מגיבוי) לא תדרוס אותה. `startAutomaticFlush` מפעיל מחדש בעלייה.
-  static Future<void> suspendAutomaticFlush() async {
-    _flushTimer?.cancel();
-    _flushTimer = null;
-    await _flushInFlight?.future;
-  }
+  static Future<void> suspendAutomaticFlush() => _flush.suspend();
 
   /// סוגי התור במסד המשותף — זהים למפתחות שהמיגרציה מ-Hive יצרה.
   static const String pendingKind = '$queueBoxName/$pendingReportsKey';
@@ -108,7 +103,7 @@ class DirectErrorReportService {
 
   final http.Client _client;
   final PendingReportStore _reports;
-  final SentReportsCounter _sentCounter;
+  final SentReportHistory<DirectErrorReport> _sentHistory;
 
   DirectErrorReportService({
     http.Client? client,
@@ -116,12 +111,16 @@ class DirectErrorReportService {
     SentReportsCounter? sentCounter,
   }) : _client = client ?? http.Client(),
        _reports = reportStore ?? PendingReportStore.instance,
-       _sentCounter =
-           sentCounter ??
-           SentReportsCounter(
-             boxName: queueBoxName,
-             database: reportStore?.database,
-           );
+       _sentHistory = SentReportHistory(
+         store: reportStore,
+         counter: sentCounter,
+         boxName: queueBoxName,
+         kind: sentKind,
+         idField: 'id',
+         limit: maxSentReportsToKeep,
+         fromJson: DirectErrorReport.fromJson,
+         rejectionField: 'rejectionReason',
+       );
 
   /// לקריאה לפני onWindowClose במופע הארוך-טווח (של `startAutomaticFlush`):
   /// ב-Windows admin install ניקוי socket handles ביציאה תוקע לכמה שניות.
@@ -170,25 +169,15 @@ class DirectErrorReportService {
   }
 
   /// היסטוריית הנשלחים מוצגת מהחדש לישן, ולכן הפוכה לסדר ההוספה.
-  Future<List<DirectErrorReport>> getSentReports() async {
-    return (await _reports.listByKind(sentKind)).reversed.map(_decode).toList();
-  }
+  Future<List<DirectErrorReport>> getSentReports() => _sentHistory.list();
 
-  Future<void> deleteSentReport(String reportId) async {
-    await _reports.deleteIds(await _rowIdsOf(sentKind, reportId));
-  }
+  Future<void> deleteSentReport(String reportId) =>
+      _sentHistory.delete(reportId);
 
   /// כל הדיווחים שנשלחו אי-פעם — לא רק אלה שנשארו בהיסטוריה.
-  Future<int> getSentReportsTotal() async {
-    final total = await _sentCounter.read();
-    final kept = _sentReportsCount(await _reports.listByKind(sentKind));
-    return total > kept ? total : kept;
-  }
+  Future<int> getSentReportsTotal() => _sentHistory.total();
 
-  Future<void> clearSentReports() async {
-    await _reports.deleteAllOfKind(sentKind);
-    await _sentCounter.reset();
-  }
+  Future<void> clearSentReports() => _sentHistory.clear();
 
   /// מעדכן דיווח בתור. תוכן ששונה מקבל `report_id` חדש: ייתכן שהגרסה הקודמת
   /// כבר נקלטה בשרת, ואותו מזהה עם תוכן אחר נדחה שם ב-409.
@@ -224,14 +213,13 @@ class DirectErrorReportService {
   }
 
   Future<void> deletePendingReport(String reportId) async {
-    await _reports.deleteIds(await _rowIdsOf(pendingKind, reportId));
+    await _reports.deleteIds(
+      await _reports.idsWhere(pendingKind, 'id', reportId),
+    );
   }
 
   static DirectErrorReport _decode(PendingReport row) =>
       DirectErrorReport.fromJson(row.payload);
-
-  Future<List<int>> _rowIdsOf(String kind, String reportId) =>
-      _reports.idsWhere(kind, 'id', reportId);
 
   Future<PendingReport?> _rowOf(String kind, String reportId) =>
       _reports.findByPayloadId(kind, reportId);
@@ -387,13 +375,9 @@ class DirectErrorReportService {
   Future<int> flushPendingReports({
     bool onlyAutomaticRetry = false,
   }) async {
-    if (_isOfflineMode || _isFlushing) {
-      return 0;
-    }
+    if (_isOfflineMode) return 0;
 
-    _isFlushing = true;
-    final inFlight = _flushInFlight = Completer<void>();
-    try {
+    return _flush.run(() async {
       final rowsToAttempt = await _reports.listByKind(
         pendingKind,
         whereField: onlyAutomaticRetry ? 'queueType' : null,
@@ -436,22 +420,11 @@ class DirectErrorReportService {
       }
 
       return sentCount;
-    } finally {
-      _isFlushing = false;
-      _flushInFlight = null;
-      inFlight.complete();
-    }
+    });
   }
 
   Future<void> startAutomaticFlush() async {
-    if (_flushTimer != null) {
-      return;
-    }
-
-    unawaited(flushPendingReports(onlyAutomaticRetry: true));
-    _flushTimer = Timer.periodic(_flushInterval, (_) {
-      unawaited(flushPendingReports(onlyAutomaticRetry: true));
-    });
+    _flush.start(() => flushPendingReports(onlyAutomaticRetry: true));
   }
 
   /// הכתובת נשמרת בהגדרה המשותפת גם לדיווח על התוכנה, ולכן נבדקת באותו כלל.
@@ -478,20 +451,7 @@ class DirectErrorReportService {
   Future<void> _saveSentReport(
     DirectErrorReport report, {
     bool countAsSent = true,
-  }) async {
-    final sentRows = await _reports.listByKind(sentKind);
-    final kept = _sentReportsCount(sentRows);
-    final existing = sentRows.where((row) => row.payload['id'] == report.id);
-    await _reports.deleteIds(existing.map((row) => row.id));
-    await _reports.add(sentKind, report.toJson());
-    await _reports.trimKind(sentKind, maxSentReportsToKeep);
-    if (countAsSent && existing.isEmpty) {
-      await _sentCounter.increment(floor: kept);
-    }
-  }
-
-  static int _sentReportsCount(List<PendingReport> rows) =>
-      rows.where((row) => row.payload['rejectionReason'] == null).length;
+  }) => _sentHistory.save(report.id, report.toJson(), countAsSent: countAsSent);
 
   /// הרשומה להיסטוריית הנשלחים: הצעת תיקון מסומנת אם השרת תמך בה.
   DirectErrorReport _sentRecord(
