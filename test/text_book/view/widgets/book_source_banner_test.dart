@@ -226,16 +226,17 @@ void main() {
 }
 
 List<TextSpan> _linkSpans(WidgetTester tester) {
-  final rich = tester.widget<RichText>(
+  final spans = <TextSpan>[];
+  for (final rich in tester.widgetList<RichText>(
     find.descendant(
       of: find.byType(BookSourceBanner),
       matching: find.byType(RichText),
     ),
-  );
-  final spans = <TextSpan>[];
-  rich.text.visitChildren((span) {
-    if (span is TextSpan && span.recognizer != null) spans.add(span);
-    return true;
-  });
+  )) {
+    rich.text.visitChildren((span) {
+      if (span is TextSpan && span.recognizer != null) spans.add(span);
+      return true;
+    });
+  }
   return spans;
 }
