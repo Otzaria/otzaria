@@ -50,6 +50,10 @@ import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/utils/file/toc_parser.dart';
 import 'package:otzaria/utils/file/markdown_to_otzaria.dart';
 
+class _RetryLinkSelection extends TextBookSelectionEvent {
+  const _RetryLinkSelection();
+}
+
 class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   // השאילתה עצמה רצה ב-Isolate, אבל כל טעינה גוררת פענוח התוצאה, מיזוג
   // הקישורים ובנייה מחדש של חלונית המפרשים על ה-thread שמצייר. הסף — ולא
@@ -127,6 +131,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   SearchQuerySemantics _highlightSemantics = SearchQuerySemantics.regular;
   VoidCallback? _releaseHighlightPattern;
   int _searchResultRequestId = 0;
+  int _linkSelectionRequestId = 0;
   DateTime? _lastVisibleIndicesDispatchAt;
   bool _listeningToReadingPosition = false;
   int? _loadedLinksStart;
@@ -195,8 +200,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   // pinpoint highlight ממתין להחלה כשה-bloc יגיע ל-Loaded
   ({String text, int? sectionIndex})? _pendingPinpoint;
 
-  /// Line a deep link asked to select. It waits for the reader to show the
-  /// line, because a selection far from the visible window is dropped.
+  // היעד ממתין למדידה של הקורא כדי שלא ייבחר באמצע גלילה.
   int? _pendingLinkSelection;
 
   @visibleForTesting
@@ -243,11 +247,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<ClearDisplayOverrides>(_onClearDisplayOverrides);
     on<ToggleContinuousReadingMode>(_onToggleContinuousReadingMode);
     on<UpdateVisibleIndecies>(_onUpdateVisibleIndecies);
-    on<UpdateSelectedIndex>(_onUpdateSelectedIndex);
+    on<TextBookSelectionEvent>(_onSelectionEvent);
     on<HighlightLine>(_onHighlightLine);
     on<ClearHighlightedLine>(_onClearHighlightedLine);
     on<ApplyMarkHighlight>(_onApplyMarkHighlight);
-    on<SelectLineWhenVisible>(_onSelectLineWhenVisible);
     on<TogglePinLeftPane>(_onTogglePinLeftPane);
     on<UpdateSearchText>(_onUpdateSearchText);
     on<UpdateSearchResultLines>(_onUpdateSearchResultLines);
@@ -1590,6 +1593,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
               index == null && currentState.selectedIndex != null,
           clearSearchResultNavigation:
               index == null && currentState.selectedIndex != null,
+          linkSelectionRequestId: index == null ? 0 : null,
           selectedIndices: newIndices,
           clearSelectedIndices: newIndices.isEmpty,
           visibleLinks: visibleLinks,
@@ -1837,7 +1841,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   void _onReadingPosition() {
     final currentState = state;
     if (currentState is! TextBookLoaded) return;
-    _applyPendingLinkSelection();
+    if (_pendingLinkSelection != null) add(const _RetryLinkSelection());
     final visibleIndicesNow = _currentVisibleLines();
     if (visibleIndicesNow.isEmpty ||
         !_hasMeaningfulVisibleIndicesChange(
@@ -1911,31 +1915,46 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         currentIndices.last != nextIndices.last;
   }
 
-  void _onSelectLineWhenVisible(
-    SelectLineWhenVisible event,
+  void _onSelectionEvent(
+    TextBookSelectionEvent event,
     Emitter<TextBookState> emit,
   ) {
-    _pendingLinkSelection = event.line;
-    _applyPendingLinkSelection();
-  }
+    // כל הבחירות מעובדות באותו תור, בלי ששידור חוזר יעקוף פעולה מאוחרת.
+    if (event is UpdateSelectedIndex) {
+      _pendingLinkSelection = null;
+      _updateSelectedIndex(event, emit);
+      return;
+    }
+    if (event is SelectLineWhenVisible) _pendingLinkSelection = event.line;
 
-  /// Sends the click's own event, so a link and a click end in the same state.
-  void _applyPendingLinkSelection() {
     final line = _pendingLinkSelection;
-    if (line == null || state is! TextBookLoaded) return;
-    if (!_currentVisibleLines().contains(line)) return;
+    final current = state;
+    if (line == null || current is! TextBookLoaded) return;
+    if (line < 0 || line >= current.content.length) {
+      _pendingLinkSelection = null;
+      return;
+    }
+    final position = readingPosition?.value;
+    if (position == null ||
+        position.isTarget ||
+        !position.visibleLines.contains(line)) {
+      return;
+    }
     _pendingLinkSelection = null;
-    add(UpdateSelectedIndex(line));
+    _updateSelectedIndex(
+      UpdateSelectedIndex(line),
+      emit,
+      linkSelectionRequestId: ++_linkSelectionRequestId,
+    );
   }
 
-  void _onUpdateSelectedIndex(
+  void _updateSelectedIndex(
     UpdateSelectedIndex event,
-    Emitter<TextBookState> emit,
-  ) {
-    // Any selection, including the reader's own click, ends the wait.
-    _pendingLinkSelection = null;
-    if (state is! TextBookLoaded) return;
-    final currentState = state as TextBookLoaded;
+    Emitter<TextBookState> emit, {
+    int linkSelectionRequestId = 0,
+  }) {
+    final currentState = state;
+    if (currentState is! TextBookLoaded) return;
 
     final Set<int> newIndices;
     final int? newPrimary;
@@ -1968,6 +1987,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
             ? (line: event.index!, requestId: ++_searchResultRequestId)
             : null,
         clearSearchResultNavigation: event is! SelectSearchResult,
+        linkSelectionRequestId: linkSelectionRequestId,
         selectedIndex: newPrimary,
         clearSelectedIndex: newPrimary == null,
         selectedIndices: newIndices,

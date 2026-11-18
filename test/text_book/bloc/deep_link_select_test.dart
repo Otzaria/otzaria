@@ -38,10 +38,9 @@ void main() {
       expect(_loaded(bloc).selectedIndices, {10});
     });
 
-    test('a position published before the load is used by the load', () async {
-      final position = ValueNotifier<ReadingPosition?>(
-        ReadingPosition.target(10),
-      );
+    test('a measured position published before load is used', () async {
+      final position = ValueNotifier<ReadingPosition?>(null);
+      _show(position, [10, 11, 12]);
       final bloc = await _loadedBloc(position, linkSelectedLine: 10);
       addTearDown(bloc.close);
 
@@ -108,21 +107,45 @@ void main() {
       // scrollToLine publishes the target first and measures after landing.
       position.value = ReadingPosition.target(30);
       bloc.add(const SelectLineWhenVisible(30));
-      await _waitFor(
-        () => _loaded(bloc).selectedIndex == 30,
-        description: 'line selected',
-      );
+      await _settle();
+      expect(_loaded(bloc).selectedIndex, isNull);
 
       _show(position, [30, 31, 32]);
       await _waitFor(
-        () => _loaded(bloc).visibleIndices.contains(32),
-        description: 'visible window updated',
+        () =>
+            _loaded(bloc).visibleIndices.contains(32) &&
+            _loaded(bloc).selectedIndex == 30,
+        description: 'line selected after landing',
       );
       expect(_loaded(bloc).selectedIndex, 30);
     });
   });
 
-  test('a link and a click end in the same state', () async {
+  test('explicit navigation without select cancels a waiting link', () async {
+    final position = ValueNotifier<ReadingPosition?>(null);
+    final bloc = await _loadedBloc(position, linkSelectedLine: 30);
+    addTearDown(bloc.close);
+
+    bloc.add(const SelectLineWhenVisible(null));
+    _show(position, [30, 31, 32]);
+    await _settle();
+
+    expect(_loaded(bloc).selectedIndex, isNull);
+  });
+
+  test('a link past the end leaves no pending selection', () async {
+    final position = ValueNotifier<ReadingPosition?>(null);
+    final bloc = await _loadedBloc(position, linkSelectedLine: 40);
+    addTearDown(bloc.close);
+
+    _show(position, [38, 39]);
+    await _settle();
+
+    expect(_loaded(bloc).selectedIndex, isNull);
+    expect(bloc.pendingLinkSelectionForTesting, isNull);
+  });
+
+  test('a link and a click select the same lines and commentaries', () async {
     final linkPosition = ValueNotifier<ReadingPosition?>(null);
     final link = await _loadedBloc(linkPosition, linkSelectedLine: 10);
     addTearDown(link.close);
@@ -172,6 +195,39 @@ void main() {
 
     expect(_loaded(bloc).selectedIndex, isNot(30));
     expect(bloc.pendingLinkSelectionForTesting, isNull);
+  });
+
+  test(
+    'a later waiting deep link takes priority over an earlier queued selection',
+    () async {
+      final position = ValueNotifier<ReadingPosition?>(null);
+      final bloc = await _loadedBloc(position);
+      addTearDown(bloc.close);
+      _show(position, [10, 11, 12]);
+      await _settle();
+
+      bloc.add(const SelectLineWhenVisible(10));
+      bloc.add(const SelectLineWhenVisible(30));
+      await _settle();
+      _show(position, [30, 31, 32]);
+      await _settle();
+
+      expect(_loaded(bloc).selectedIndex, 30);
+    },
+  );
+
+  test('a later click wins when a deep link is already visible', () async {
+    final position = ValueNotifier<ReadingPosition?>(null);
+    final bloc = await _loadedBloc(position);
+    addTearDown(bloc.close);
+    _show(position, [10, 11, 12]);
+    await _settle();
+
+    bloc.add(const SelectLineWhenVisible(10));
+    bloc.add(const UpdateSelectedIndex(11));
+    await _settle();
+
+    expect(_loaded(bloc).selectedIndex, 11);
   });
 
   test('the selection is applied once', () async {

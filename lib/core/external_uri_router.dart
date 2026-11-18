@@ -53,8 +53,7 @@ class OpenPluginAction extends ExternalUriAction {
 /// [searchQuery] — מחרוזת חיפוש להדגשה (אופציונלי).
 /// [markSection] — כאשר `true`, מדגיש את כל תוכן המקטע ב-[index].
 /// [markText] — כאשר מוגדר, מדגיש את הטקסט הספציפי הזה בתוך המקטע.
-/// [selectLine] — when `true`, the paragraph at [index] gets the same focus
-/// a click gives it, so the commentaries align to it. Requires [index].
+/// [selectLine] — בוחר את הפסקה שב־[index] ומציג את המפרשים שלה.
 ///
 /// סדר עדיפות להדגשה: [markText] > [markSection] > [searchQuery].
 class OpenBookAction extends ExternalUriAction {
@@ -725,8 +724,6 @@ class ExternalUriRouter {
       final rawMark = queryParameters['m']?.trim();
       final markText = (rawMark == null || rawMark.isEmpty) ? null : rawMark;
 
-      // select — boolean flag like mark; without an index there is no
-      // paragraph to select, so it is ignored.
       final selectLine = index != null && queryParameters.containsKey('select');
 
       // אכיפת עדיפות m > mark > q: אם יש סימון מקומי (m או mark), q מתעלם

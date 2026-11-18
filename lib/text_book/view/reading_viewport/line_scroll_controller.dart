@@ -345,7 +345,7 @@ class LineScrollController {
     if (line < 0) return;
     _activeTarget = null;
     _forgetMeasured();
-    _publish(ReadingPosition.target(line));
+    _publish(ReadingPosition(topLine: line, visibleLines: [line]));
   }
 
   /// המדידה האחרונה של הרשימה אינה המיקום עוד; בלי זה חיבור מחדש היה חוזר אליה.

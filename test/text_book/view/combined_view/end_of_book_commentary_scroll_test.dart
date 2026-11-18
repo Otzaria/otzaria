@@ -85,6 +85,7 @@ void main() {
     ReadingAnchor? initialAnchor,
     BookProtection protection = BookProtection.none,
     void Function(TextBookTab tab)? afterFirstFrame,
+    bool selectFromLink = false,
   }) async {
     final lines = content ?? _content;
     tester.view.physicalSize = surfaceSize;
@@ -188,12 +189,22 @@ void main() {
       );
     }
 
-    final target = find.byKey(ValueKey('html_${_title}_$paragraph'));
-    final rect = tester.getRect(target);
-    await tester.tapAt(
-      tapPoint?.call(rect) ?? rect.bottomCenter - const Offset(0, 10),
-      kind: PointerDeviceKind.mouse,
-    );
+    if (selectFromLink) {
+      bloc.emitForTest(
+        (bloc.state as TextBookLoaded).copyWith(
+          selectedIndex: paragraph,
+          selectedIndices: {paragraph},
+          linkSelectionRequestId: 1,
+        ),
+      );
+    } else {
+      final target = find.byKey(ValueKey('html_${_title}_$paragraph'));
+      final rect = tester.getRect(target);
+      await tester.tapAt(
+        tapPoint?.call(rect) ?? rect.bottomCenter - const Offset(0, 10),
+        kind: PointerDeviceKind.mouse,
+      );
+    }
     await tester.pump(const Duration(milliseconds: 301));
     await tester.pump();
     await tester.pump();
@@ -367,6 +378,16 @@ void main() {
   });
 
   group('בחירת פסקה בסוף הספר לא מקפיצה את הרשימה אחורה (issue #1798)', () {
+    testWidgets('בחירה מקישור חושפת כרטיס מפרשים מתחת לפסקה', (tester) async {
+      final result = await tapParagraph(
+        tester,
+        _lastIndex - 1,
+        selectFromLink: true,
+      );
+      expect(result.card.top, greaterThanOrEqualTo(0));
+      expect(result.card.bottom, lessThanOrEqualTo(880));
+    });
+
     testWidgets('כרטיס לפני שורת סיום גבוהה מקבל עדיפות בתוך המסך', (
       tester,
     ) async {

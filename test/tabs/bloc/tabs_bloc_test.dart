@@ -414,8 +414,8 @@ void main() {
       await _closeBlocAndAllowDeferredDispose(bloc);
     });
 
-    for (final (name, line) in [('passes', 12), ('does not pass', null)]) {
-      test('focusing an open tab $name a link selection to it', () async {
+    for (final (name, line) in [('בחירה', 12), ('ביטול בחירה ממתינה', null)]) {
+      test('ניווט בטאב פתוח מעביר $name', () async {
         final bloc = _newBloc(_FakeTabsRepository());
         final recorder = _RecordingTextBookBloc(loaded: true);
         final existingTab = TextBookTab(
@@ -446,7 +446,7 @@ void main() {
           recorder.received.whereType<SelectLineWhenVisible>().map(
             (e) => e.line,
           ),
-          line == null ? isEmpty : [line],
+          [line],
         );
 
         await _closeBlocAndAllowDeferredDispose(bloc);

@@ -187,7 +187,11 @@ class UpdateVisibleIndecies extends TextBookEvent {
   List<Object?> get props => [visibleIndecies];
 }
 
-class UpdateSelectedIndex extends TextBookEvent {
+abstract class TextBookSelectionEvent extends TextBookEvent {
+  const TextBookSelectionEvent();
+}
+
+class UpdateSelectedIndex extends TextBookSelectionEvent {
   final int? index;
 
   /// Ctrl+לחיצה: מוסיף/מסיר את [index] מהבחירה הקיימת במקום להחליפה.
@@ -239,11 +243,9 @@ class ApplyMarkHighlight extends TextBookEvent {
   ];
 }
 
-/// Selects [line] as a click would, once the reader shows it (deep link
-/// `?select`). Sent to a tab that is already open; a new tab gets the line
-/// through the bloc constructor.
-class SelectLineWhenVisible extends TextBookEvent {
-  final int line;
+/// בוחר את [line] כשהקורא מציג אותה. ערך null מבטל בקשה ממתינה.
+class SelectLineWhenVisible extends TextBookSelectionEvent {
+  final int? line;
 
   const SelectLineWhenVisible(this.line);
 

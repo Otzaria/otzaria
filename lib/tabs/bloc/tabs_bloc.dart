@@ -639,10 +639,6 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
           incomingTab: event.tab,
         );
       }
-      _propagateLinkSelectionToExistingTab(
-        existingTab: matchingTab,
-        incomingTab: event.tab,
-      );
       // ההדגשה מדייקת את היעד בתוך השורה, אחרי הניווט למיקום המפורש.
       _propagatePinpointHighlightToExistingTab(
         existingTab: matchingTab,
@@ -919,21 +915,6 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     return null;
   }
 
-  /// The incoming tab is disposed, so its deep link selection moves to the
-  /// open tab. Called after the navigation, which publishes the target line.
-  void _propagateLinkSelectionToExistingTab({
-    required OpenedTab existingTab,
-    required OpenedTab incomingTab,
-  }) {
-    if (incomingTab is! TextBookTab) return;
-    final line = incomingTab.linkSelectedLine;
-    if (line == null) return;
-    _resolveTextBookTab(
-      existingTab,
-      incomingTab,
-    )?.bloc.add(SelectLineWhenVisible(line));
-  }
-
   /// מנווט טאב קיים למיקום של הטאב הנכנס (index ב‑TextBook, pageNumber ב‑PDF).
   /// משמש כשפתיחת סימניה/היסטוריה ממחזרת טאב קיים — המשתמש בחר מיקום ספציפי
   /// ולא רק את הספר.
@@ -971,6 +952,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
+      targetText.updateLinkSelection(incomingTab.linkSelectedLine);
       if (!PluginTextReaderRegistry.instance.usesPlugin(targetText)) {
         unawaited(navigation);
         return;
