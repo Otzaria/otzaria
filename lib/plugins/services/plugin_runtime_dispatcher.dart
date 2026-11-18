@@ -2,6 +2,10 @@ import 'dart:async';
 import 'dart:collection';
 
 import 'package:otzaria/plugins/services/plugin_runtime_state.dart';
+
+export 'plugin_runtime_state.dart' show PluginInstanceHost;
+
+typedef PluginInstanceId = String;
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
