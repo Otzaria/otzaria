@@ -18,7 +18,7 @@ String _sourceNameForFolder(String folderPath) {
 }
 
 class _BookReadsRepository extends SeforimRepository {
-  _BookReadsRepository(MyDatabase database, this._snapshot) : super(database);
+  _BookReadsRepository(super.database, this._snapshot);
 
   final List<Book> _snapshot;
   final bookReads = <int>[];

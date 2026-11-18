@@ -961,8 +961,8 @@ class _PersonalBooksSnapshot {
 
   const _PersonalBooksSnapshot({
     required this.personalCategoryId,
-    required Map<String, List<_PersonalFolderBook>> booksBySource,
-  }) : _booksBySource = booksBySource;
+    required this._booksBySource,
+  });
 
   Iterable<_PersonalFolderBook> booksForSource(String sourceName) sync* {
     final direct = _booksBySource[sourceName] ?? const <_PersonalFolderBook>[];
