@@ -1450,12 +1450,24 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       view: currentState.activeView,
       channel: TextChannel.display,
     );
+    final merged = currentState.displayOverrides.merged(slot, event.patch);
+    // שינוי שבוטל (חזר לערך שנורש) נמחק מהעקיפה — כך "איפוס" לא מוצג לשווא.
+    final base = TextDisplayResolver.resolve(
+      slot: slot,
+      layers: [
+        merged.without(slot),
+        currentState.bookDisplayLayer,
+        ...currentState.displayPolicy.layersFor(
+          isTanach: currentState.isTanach,
+        ),
+      ],
+    );
+    final pruned = merged.patchFor(slot).pruneAgainst(base);
     emit(
       currentState.copyWith(
-        displayOverrides: currentState.displayOverrides.merged(
-          slot,
-          event.patch,
-        ),
+        displayOverrides: pruned.isEmpty
+            ? merged.without(slot)
+            : merged.withSlot(slot, pruned),
         selectedIndex: currentState.selectedIndex,
       ),
     );
