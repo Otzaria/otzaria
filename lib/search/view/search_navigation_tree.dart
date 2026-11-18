@@ -596,7 +596,7 @@ class SearchNavigationTree extends StatelessWidget {
     // ספר ללא תוצאות מוסתר כאן בדיוק כמו בעץ: בחירתו הייתה מרוקנת את
     // התוצאות ומשאירה סינון שלא מיוצג בעץ אחרי ניקוי שדה האיתור.
     final matches = <_FilteredBook>[];
-    for (final entry in _catalogue.filterEntries) {
+    for (final entry in _catalogue.filterCandidates(facetCounts)) {
       if (!entry.haystack.contains(query) &&
           (!hasMultipleWords ||
               words.any((word) => !entry.haystack.contains(word)))) {
@@ -641,13 +641,41 @@ class _SearchTreeCatalogue {
   _CategoryProjection of(Category category) =>
       _categories[category] ??= _CategoryProjection(category);
 
-  late final List<_FilterEntry> filterEntries = _collectFilterEntries();
+  late final List<_FilterEntry> _filterEntries = _collectFilterEntries();
+  late final _filterEntriesByFacet = _indexFilterEntries();
+
+  Map<String, List<_FilterEntry>> _indexFilterEntries() {
+    final index = <String, List<_FilterEntry>>{};
+    for (final entry in _filterEntries) {
+      (index[entry.facet] ??= []).add(entry);
+    }
+    return index;
+  }
+
+  Iterable<_FilterEntry> filterCandidates(Map<String, int> counts) {
+    if (counts.isEmpty) return const [];
+    // כשמרבית הקטלוג מועמד, מעבר על הסדר הקיים זול מאיסוף ומיון.
+    final limit = _filterEntries.length ~/ 8;
+    if (counts.length > limit) return _filterEntries;
+
+    final candidates = <_FilterEntry>[];
+    for (final count in counts.entries) {
+      if (count.value == 0) continue;
+      final books = _filterEntriesByFacet[count.key];
+      if (books == null) continue;
+      if (candidates.length + books.length > limit) return _filterEntries;
+      candidates.addAll(books);
+    }
+    return candidates..sort((a, b) => a.index.compareTo(b.index));
+  }
 
   List<_FilterEntry> _collectFilterEntries() {
     final entries = <_FilterEntry>[];
     void collect(Category category) {
       final projection = of(category);
-      entries.addAll(projection.orderedBooks.map(_FilterEntry.new));
+      for (final book in projection.orderedBooks) {
+        entries.add(_FilterEntry(book, entries.length));
+      }
       for (final sub in projection.orderedSubCategories) {
         collect(sub);
       }
@@ -699,8 +727,9 @@ class _CategoryProjection {
 /// ספר ברשימת הסינון; הכותרת המנורמלת וה-facet מחושבים בפעם הראשונה שנדרשים.
 class _FilterEntry {
   final Book book;
+  final int index;
 
-  _FilterEntry(this.book);
+  _FilterEntry(this.book, this.index);
 
   late final String haystack = normalizeBookTitle(book.title).toLowerCase();
 
