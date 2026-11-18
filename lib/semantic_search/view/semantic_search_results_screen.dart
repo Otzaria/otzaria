@@ -10,8 +10,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/messages/semantic_search_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
+import 'package:otzaria/library/bloc/library_bloc.dart';
+import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/view/book_preview_panel.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
@@ -93,6 +94,7 @@ class _SemanticSearchResultsScreenState
 
   Map<String, int> _facetCountsCache = const {};
   List<SemanticResultItem>? _facetCountsItems;
+  Library? _facetCountsLibrary;
   Future<void> _freshnessChecks = Future.value();
   int _freshnessResultCount = 0;
   int _previewRequestId = 0;
@@ -201,15 +203,22 @@ class _SemanticSearchResultsScreenState
   }
 
   /// ספירה לפי קטגוריה של התוצאות שמוצגות כעת.
-  Map<String, int> _facetCounts(SemanticResultsState state) {
-    if (identical(state.items, _facetCountsItems)) return _facetCountsCache;
-    final library = context.read<LibraryBloc>().state.library;
-    if (library == null) return const {};
-    _facetCountsItems = state.items;
-    return _facetCountsCache = FacetHelper.buildFacetCountsFromResults(
-      state.items,
-      widget.tab.searchBloc.booksByIndexedFilePath(library),
-    );
+  Map<String, int> _facetCounts(
+    List<SemanticResultItem> items,
+    Library? library,
+  ) {
+    if (identical(items, _facetCountsItems) &&
+        identical(library, _facetCountsLibrary)) {
+      return _facetCountsCache;
+    }
+    _facetCountsItems = items;
+    _facetCountsLibrary = library;
+    return _facetCountsCache = library == null || items.isEmpty
+        ? const {}
+        : FacetHelper.buildFacetCountsFromResultPaths(
+            items.map((item) => item.filePath),
+            widget.tab.searchBloc.booksByIndexedFilePath(library),
+          );
   }
 
   /// מאמת רק תוצאות חדשות, בתור סדרתי שאינו מעכב את הצגתן.
@@ -501,6 +510,9 @@ class _SemanticSearchResultsScreenState
           },
           buildWhen: semanticLayoutNeedsRebuild,
           builder: (context, state) {
+            final library = context.select<LibraryBloc, Library?>(
+              (bloc) => bloc.state.library,
+            );
             final loading = state.status == SemanticResultsStatus.loading;
             return SearchResultsLayout(
               tab: widget.tab,
@@ -527,7 +539,7 @@ class _SemanticSearchResultsScreenState
                 },
               ),
               facetPane: SemanticFacetFiltering(
-                facetCounts: _facetCounts(state),
+                facetCounts: _facetCounts(state.items, library),
                 selectedFacets: _currentFacets,
                 scopeFacets: widget.tab.options.facets,
                 isLoading: loading,

@@ -174,6 +174,7 @@ void main() {
     FakeResultsSource? injectedSource,
     SemanticQueryOptions? initialOptions,
     Library? library,
+    Stream<LibraryState> libraryStates = const Stream.empty(),
     double? paneWidth,
     bool platformSupported = true,
     IndexingBloc? indexingBloc,
@@ -217,7 +218,7 @@ void main() {
     final libraryBloc = _MockLibraryBloc();
     whenListen(
       libraryBloc,
-      const Stream<LibraryState>.empty(),
+      libraryStates,
       initialState: LibraryState(library: library),
     );
     addTearDown(() async {
@@ -257,6 +258,36 @@ void main() {
     await settle(tester);
     return (recorder: recorder, tabs: tabs, tab: tab, source: source);
   }
+
+  testWidgets('ספירות החיפוש מתעדכנות כשהספר עובר קטגוריה בספרייה', (
+    tester,
+  ) async {
+    Library libraryWithBook(String categoryPath) => Library(categories: [])
+      ..books.add(TextBook(id: 1, title: 'ספר 1', categoryPath: categoryPath));
+
+    final libraryStates = StreamController<LibraryState>();
+    addTearDown(libraryStates.close);
+    final harness = await pumpScreen(
+      tester,
+      library: libraryWithBook('/הלכה'),
+      libraryStates: libraryStates.stream,
+      injectedSource: FakeResultsSource(items: [resultItem(1)]),
+    );
+    final items = harness.tab.resultsBloc.state.items;
+    Map<String, int> counts() => tester
+        .widget<SemanticFacetFiltering>(
+          find.byType(SemanticFacetFiltering, skipOffstage: false),
+        )
+        .facetCounts;
+
+    expect(counts(), {'/': 1, '/הלכה': 1, '/הלכה/id:1': 1});
+
+    libraryStates.add(LibraryState(library: libraryWithBook('/משנה')));
+    await settle(tester);
+
+    expect(harness.tab.resultsBloc.state.items, same(items));
+    expect(counts(), {'/': 1, '/משנה': 1, '/משנה/id:1': 1});
+  });
 
   testWidgets('restart replaces the list and returns its scroll to zero', (
     tester,
