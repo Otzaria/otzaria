@@ -24,6 +24,7 @@ import 'package:otzaria/data/data_providers/book_text_reader.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/data/data_providers/official_catalog_rows.dart';
+import 'package:otzaria/data/data_providers/pending_attached_catalog.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_catalog_reader.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
@@ -77,6 +78,7 @@ import 'package:path/path.dart' as p;
 
 export 'package:otzaria/data/data_providers/attached_catalog_reader.dart';
 export 'package:otzaria/data/data_providers/category_merge_targets.dart';
+export 'package:otzaria/data/data_providers/pending_attached_catalog.dart';
 export 'package:otzaria/data/data_providers/personal_books_operation_queue.dart'
     show PersonalBooksOperationQueue;
 export 'package:otzaria/data/data_providers/scan_result.dart';
@@ -128,17 +130,6 @@ class _AttachedCatalogBuild {
         library.priority * _kAttachedMergedOrderStride +
         own.clamp(0, _kAttachedMergedOrderStride - 1);
   }
-}
-
-/// קריאת קטלוג של מסד מצורף שעדיין רצה, כולל אחרי שבניית העץ ויתרה עליה.
-class _PendingAttachedCatalog {
-  _PendingAttachedCatalog(this.future) {
-    future.then((_) => done = true, onError: (_) => done = true);
-  }
-
-  final Future<AttachedCatalogRows> future;
-  bool done = false;
-  bool timedOut = false;
 }
 
 typedef _ExternalWriteBatch = ({
@@ -1914,7 +1905,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   /// (slug) הוא חלק מהמפתח ומנתיבי הקטגוריות.
   final _attachedCachedKeys = BookKeySet();
   final Map<String, Map<int, String>> _attachedCategoryPaths = {};
-  final Map<String, _PendingAttachedCatalog> _pendingAttachedCatalogs = {};
+  final Map<String, PendingAttachedCatalog<AttachedCatalogRows>>
+  _pendingAttachedCatalogs = {};
 
   /// זמן ההמתנה לקטלוג של מסד מצורף אחד. מסד שלא ענה בזמן מסומן לא-זמין,
   /// והעץ נבנה בלעדיו; כשהקריאה מסתיימת המסד חוזר והעץ מתרענן.
@@ -4131,7 +4123,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     final attachedRepository = AttachedLibrariesRepository.instance;
     final pending = _pendingAttachedCatalogs.putIfAbsent(path, () {
       attachedRepository.setLoading(path, loading: true);
-      return _PendingAttachedCatalog(
+      return PendingAttachedCatalog(
         attachedCatalogReader((
           path: path,
           untrusted: true,
