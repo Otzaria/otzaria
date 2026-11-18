@@ -133,6 +133,10 @@ void main() {
       await tester.pumpWidget(_wrap(BookSourceBanner(text: longText)));
 
       expect(find.text('הצג פרטים'), findsOneWidget);
+      expect(
+        tester.getSemantics(find.text('הצג פרטים')),
+        isSemantics(isButton: true, hasExpandedState: true, isExpanded: false),
+      );
       expect(find.textContaining('המשך קישור נשמר'), findsNothing);
       expect(_linkSpans(tester), isEmpty);
 
@@ -140,6 +144,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('הסתר פרטים'), findsOneWidget);
+      expect(
+        tester.getSemantics(find.text('הסתר פרטים')),
+        isSemantics(isButton: true, hasExpandedState: true, isExpanded: true),
+      );
       expect(find.textContaining('המשך קישור נשמר'), findsOneWidget);
       expect(_linkSpans(tester), hasLength(1));
 

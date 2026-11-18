@@ -257,6 +257,39 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('רווח על כפתור קרדיט המקור מרחיב אותו בלי לגלול', (
+    tester,
+  ) async {
+    final lines = LineScrollController();
+    addTearDown(lines.dispose);
+    await _pumpMarkedViewer(
+      tester,
+      lines: [for (var i = 0; i < 100; i++) 'שורה $i'],
+      lineScroll: lines,
+      protection: BookProtection(
+        bannerText: 'קרדיט למקור הספר\n${'תנאי הרישיון ' * 80}',
+      ),
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pumpAndSettle();
+    final position = lines.itemController.scrollController!.position;
+    final before = position.pixels;
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.space);
+    await tester.pumpAndSettle();
+    expect(find.text('הסתר פרטים').hitTestable(), findsOneWidget);
+    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.space);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.space);
+    await tester.pumpAndSettle();
+    expect(find.text('הסתר פרטים').hitTestable(), findsOneWidget);
+    expect(position.pixels, before);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(find.text('הצג פרטים').hitTestable(), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('החלפת ספר באותו State מנתקת את הבקר הישן ונפתחת בעוגן החדש', (
     tester,
   ) async {

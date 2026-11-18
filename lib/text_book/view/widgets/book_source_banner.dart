@@ -1,9 +1,12 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/misc/expanding_chevron.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// משווה את שדות הזהות שקובעים את מקור הספר. במסלול side-by-side ה-widget
@@ -168,6 +171,23 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (longBanner)
+              Shortcuts(
+                // מקש הרווח משמש גם לגלילה בקורא שמכיל את הכפתור.
+                shortcuts: const {
+                  SingleActivator(
+                    LogicalKeyboardKey.space,
+                    includeRepeats: false,
+                  ): ActivateIntent(),
+                  SingleActivator(LogicalKeyboardKey.space): DoNothingIntent(),
+                },
+                child: ActionButton.ghost(
+                  text: _expanded ? 'הסתר פרטים' : 'הצג פרטים',
+                  iconWidget: ExpandingChevron(isExpanded: _expanded),
+                  iconAlignment: IconAlignment.end,
+                  onPressed: () => setState(() => _expanded = !_expanded),
+                ),
+              ),
             Text.rich(
               TextSpan(
                 style: textStyle,
@@ -189,11 +209,6 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
               maxLines: longBanner && !_expanded ? 2 : null,
               overflow: longBanner && !_expanded ? TextOverflow.ellipsis : null,
             ),
-            if (longBanner)
-              TextButton(
-                onPressed: () => setState(() => _expanded = !_expanded),
-                child: Text(_expanded ? 'הסתר פרטים' : 'הצג פרטים'),
-              ),
           ],
         ),
       ),
