@@ -318,7 +318,7 @@ void main() {
 
       final restored = restoreSelectedTextLineBreaks(
         selectedText: '${repeated}Xסוף',
-        visibleLines: ['${repeated}ג$repeated', 'סוף'],
+        visibleLines: ['$repeatedג$repeated', 'סוף'],
       );
 
       expect(restored, '$repeated\nX\nסוף');
