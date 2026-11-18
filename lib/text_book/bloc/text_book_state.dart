@@ -161,6 +161,9 @@ class TextBookInitial extends TextBookState {
   final bool splitedView;
   final bool showPageShapeView;
 
+  /// A restored tab owns its selection, even when the selection is empty.
+  final bool hasExplicitCommentators;
+
   /// טקסט להדגשה בלבד — לא מפעיל חלונית חיפוש.
   final String highlightText;
 
@@ -194,6 +197,7 @@ class TextBookInitial extends TextBookState {
     this.pinpointHighlightText,
     this.searchOrigin = InBookSearchOrigin.inBook,
     this.searchTemplate,
+    this.hasExplicitCommentators = false,
   ]);
 
   // קונסטרקטור עם פרמטרים בשם
@@ -212,6 +216,7 @@ class TextBookInitial extends TextBookState {
     this.searchOrigin = InBookSearchOrigin.inBook,
     this.searchTemplate,
     this.initialSearchResultLines,
+    this.hasExplicitCommentators = false,
     bool? splitedView,
     this.showPageShapeView = false,
     this.highlightText = '',
@@ -237,6 +242,7 @@ class TextBookInitial extends TextBookState {
     _SetProp(initialSearchResultLines),
     splitedView,
     showPageShapeView,
+    hasExplicitCommentators,
     pinpointHighlightIndex,
     pinpointHighlightText,
   ];
