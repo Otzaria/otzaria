@@ -67,7 +67,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
   /// חצי-מחזור הבהוב (תואם ל-_kCursorBlinkHalfPeriod של Flutter).
   static const Duration _blinkHalfPeriod = Duration(milliseconds: 500);
 
-  /// משך ההבהוב מאז הפעולה האחרונה; אחריו הסמן נעלם עד הפעולה הבאה.
+  /// משך ההבהוב מאז הפעולה האחרונה; אחריו הסמן נשאר גלוי עד לפעולה הבאה.
   static const Duration _blinkTimeout = Duration(seconds: 8);
 
   late TextEditingController _effectiveController;
@@ -311,7 +311,9 @@ class _RtlTextFieldState extends State<RtlTextField> {
   void _onBlinkTick(Timer timer) {
     _blinkTicks++;
     if (_blinkHalfPeriod * _blinkTicks >= _blinkTimeout) {
-      _stopCursorBlink(); // תמה תקופת ההבהוב — הסמן נעלם
+      timer.cancel();
+      _blinkTimer = null;
+      _setCursorVisible(true); // ההבהוב מסתיים, אבל הסמן נשאר גלוי בפוקוס
       return;
     }
     _setCursorVisible(!_cursorVisible);
@@ -382,7 +384,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
           : widget.inputFormatters,
       obscureText: widget.obscureText,
       cursorWidth: 1.0, // דק יותר מברירת המחדל (2.0)
-      // שקוף בשלב ה"כבוי" של ההבהוב ולאחר שנעצר (ראו ניהול ההבהוב למעלה)
+      // שקוף רק בשלב ה"כבוי" של ההבהוב (ראו ניהול ההבהוב למעלה)
       cursorColor: _cursorVisible ? widget.cursorColor : Colors.transparent,
       // ברירת המחדל max מציירת בטקסט RTL רב-שורתי כל בחירה עד הקצה השמאלי.
       selectionWidthStyle: ui.BoxWidthStyle.tight,
