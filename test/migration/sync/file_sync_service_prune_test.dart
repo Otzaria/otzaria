@@ -843,6 +843,7 @@ void main() {
         );
 
     final rootBook = await addBook(personal, legacy, null);
+    final sourceSibling = await addBook(bySource.$1, source, null);
     final sourceBook = await addBook(bySource.$2, source, null);
     final pathBook = await addBook(
       byPath.$2,
@@ -855,6 +856,16 @@ void main() {
       path.join('$folder-copy', 'ספר.txt'),
     );
 
+    var rowsChecked = 0;
+    expect(
+      await repository.hasCustomFolderOwnership(bySource.$1, (sourceName, _) {
+        rowsChecked++;
+        return sourceName == _sourceNameForFolder(folder);
+      }),
+      isTrue,
+    );
+    expect(rowsChecked, 1);
+
     final service = (await FileSyncService.getInstance(
       repository,
       userBooksRepository: repository,
@@ -866,7 +877,7 @@ void main() {
     final books = await repository.getAllBooksLean();
     expect(
       books.map((book) => book.id),
-      unorderedEquals([rootBook, sourceBook, pathBook]),
+      unorderedEquals([rootBook, sourceSibling, sourceBook, pathBook]),
     );
     expect(books.map((book) => book.id), isNot(contains(staleBook)));
     expect(await repository.getCategory(stale.$1), isNull);

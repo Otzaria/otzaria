@@ -213,34 +213,6 @@ class FileSyncService {
     );
   }
 
-  Future<Set<int>> _configuredFolderCategoryIds(
-    int personalCategoryId,
-    List<CustomFolder> customFolders,
-  ) async {
-    if (customFolders.isEmpty) return const <int>{};
-    final sourceNames = {
-      for (final folder in customFolders)
-        _buildCustomFolderSourceName(folder.path),
-    };
-    final rows = await _customFoldersRepo.getCustomFolderOwnershipRows(
-      personalCategoryId,
-    );
-    final configuredCategoryIds = <int>{};
-    for (final row in rows) {
-      if (configuredCategoryIds.contains(row.folderCategoryId)) continue;
-      final bookPath = row.filePath;
-      if (sourceNames.contains(row.sourceName) ||
-          (bookPath != null &&
-              bookPath.isNotEmpty &&
-              customFolders.any(
-                (folder) => _isPathInsideFolder(bookPath, folder.path),
-              ))) {
-        configuredCategoryIds.add(row.folderCategoryId);
-      }
-    }
-    return configuredCategoryIds;
-  }
-
   /// מוחק מה-DB של תיקיות מותאמות אישית את התיקיות שכבר לא מוגדרות
   /// בהגדרות. פועל על user_books.db (דרך `_customFoldersRepo`).
   Future<void> pruneRemovedCustomFoldersFromDatabase(
@@ -259,14 +231,24 @@ class FileSyncService {
       personalCategory.id,
     );
 
-    if (personalSubCategories.isEmpty) return;
-    final configuredCategoryIds = await _configuredFolderCategoryIds(
-      personalCategory.id,
-      customFolders,
-    );
-    final staleFolderCategories = personalSubCategories.where(
-      (category) => !configuredCategoryIds.contains(category.id),
-    );
+    final sourceNames = {
+      for (final folder in customFolders)
+        _buildCustomFolderSourceName(folder.path),
+    };
+    bool ownsBook(String? sourceName, String? bookPath) =>
+        sourceNames.contains(sourceName) ||
+        (bookPath != null &&
+            bookPath.isNotEmpty &&
+            customFolders.any(
+              (folder) => _isPathInsideFolder(bookPath, folder.path),
+            ));
+
+    final staleFolderCategories = [
+      for (final category in personalSubCategories)
+        if (customFolders.isEmpty ||
+            !await repo.hasCustomFolderOwnership(category.id, ownsBook))
+          category,
+    ];
     if (staleFolderCategories.isEmpty) return;
 
     final bookIds = <int>[];
@@ -345,7 +327,8 @@ class FileSyncService {
       for (final book in categoryBooks) {
         final sourceName = sourceNamesById[book.sourceId];
         if (sourceName == null) continue;
-        final legacy = sourceName == CustomFolderSource.legacyExternalSourceName;
+        final legacy =
+            sourceName == CustomFolderSource.legacyExternalSourceName;
         if (!legacy && !sourceName.startsWith(CustomFolderSource.prefix)) {
           continue;
         }

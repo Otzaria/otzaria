@@ -360,36 +360,48 @@ class SeforimRepository {
     return result.map((row) => row['descendantId'] as int).toList();
   }
 
-  /// פרטי השיוך של ספרים לכל ענף ישיר מתחת לקטגוריית הספרים האישיים.
-  Future<List<({int folderCategoryId, String? sourceName, String? filePath})>>
-  getCustomFolderOwnershipRows(int personalCategoryId) async {
+  /// האם בענף יש ספר שהמקור או הנתיב שלו מוכיחים שיוך לתיקייה מוגדרת.
+  Future<bool> hasCustomFolderOwnership(
+    int categoryId,
+    bool Function(String? sourceName, String? filePath) ownsBook,
+  ) async {
     final capabilities = await _capabilities;
     if (!capabilities.hasCategoryClosure || !capabilities.hasBookCategories) {
-      return const [];
+      return false;
     }
     final filePath = capabilities.column('book', 'filePath', qualifier: 'b');
-    final hasSource =
-        capabilities.hasColumn('book', 'sourceId') &&
-        capabilities.hasColumn('source', 'name');
+    final hasSource = capabilities.hasColumn('source', 'name');
+    final sourceId = capabilities.hasColumn('book', 'sourceId')
+        ? 'COALESCE(b.sourceId, 0)'
+        : '0';
     final sourceName = hasSource ? 's.name' : 'NULL';
-    final sourceJoin = hasSource ? 'LEFT JOIN source s ON s.id = b.sourceId' : '';
+    final sourceJoin = hasSource
+        ? 'LEFT JOIN source s ON s.id = $sourceId'
+        : '';
     final db = await _database.database;
-    final rows = db.select('''
-      SELECT folder.id AS folderCategoryId, $sourceName AS sourceName, $filePath
-      FROM category folder
-      JOIN category_closure c ON c.ancestorId = folder.id
-      JOIN book b ON b.categoryId = c.descendantId
+    // מתחילים בצאצאי הענף, כדי לעצור בלי לסרוק ספרים מחוץ לענף.
+    final statement = db.prepare('''
+      SELECT $sourceName AS sourceName, $filePath
+      FROM category_closure c
+      CROSS JOIN book b ON b.categoryId = c.descendantId
       $sourceJoin
-      WHERE folder.parentId = ?
-    ''', [personalCategoryId]);
-    return [
-      for (final row in rows)
-        (
-          folderCategoryId: row['folderCategoryId'] as int,
-          sourceName: row['sourceName'] as String?,
-          filePath: row['filePath'] as String?,
-        ),
-    ];
+      WHERE c.ancestorId = ?
+    ''');
+    try {
+      final cursor = statement.selectCursor([categoryId]);
+      while (cursor.moveNext()) {
+        final row = cursor.current;
+        if (ownsBook(
+          row['sourceName'] as String?,
+          row['filePath'] as String?,
+        )) {
+          return true;
+        }
+      }
+      return false;
+    } finally {
+      statement.close();
+    }
   }
 
   // --- Categories ---
