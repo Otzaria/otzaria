@@ -1451,11 +1451,12 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       channel: TextChannel.display,
     );
     final merged = currentState.displayOverrides.merged(slot, event.patch);
-    // שינוי שבוטל (חזר לערך שנורש) נמחק מהעקיפה — כך "איפוס" לא מוצג לשווא.
+    // שינוי שבוטל (חזר לערך שמוגדר לספר) נמחק מהעקיפה — כך "איפוס" לא מוצג
+    // לשווא. ההשוואה בלי עקיפות הכרטיסייה בחריצים אחרים: ערך שנבחר במפורש
+    // למפרשים נשאר גם כשהוא שווה לעקיפה של גוף הספר, כדי שלא יתחיל לעקוב אחריו.
     final base = TextDisplayResolver.resolve(
       slot: slot,
       layers: [
-        merged.without(slot),
         currentState.bookDisplayLayer,
         ...currentState.displayPolicy.layersFor(
           isTanach: currentState.isTanach,
