@@ -14,7 +14,6 @@ import 'package:otzaria/core/windowing/device_chrome.dart';
 import 'package:otzaria/core/windowing/window_caption_hit_test.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_top_bar.dart';
-import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -58,6 +57,7 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
 import 'package:otzaria/update/my_update_widget.dart';
 import 'package:otzaria/widgets/controls/app_icon_button.dart';
+import 'package:otzaria/navigation/view/tab_background_painter.dart';
 
 /// שורת הכותרת בסגנון הקריאה, ברקע הקריאה ובלי קו: בעיון עם כרטיסייה פתוחה
 /// ובחיפוש, כשהכרטיסיות ברצועה שבשורה והפעילה מתמזגת עם הקריאה. במצב
@@ -152,11 +152,9 @@ const double _kTabIconMinWidth = 100.0;
 
 /// הרקע של הכרטיסיה ממשיך מתחת לסרגל בפיקסל אחד: התוכן שמתחתיו מכסה אותו, וקצהו
 /// המוחלק ברוחב שברירי נמהל בצבע הכרטיסיה ולא ברקע הסרגל (קו בהיר דק).
-const double _kTabBottomBleed = 1.0;
 
 /// רדיוס הקשת שמחברת את תחתית הכרטיסייה הנבחרת לסרגל. זו צורת הכרטיסייה ולא
 /// פינת רכיב, ולכן אינה ברדיוס 8.
-const double _kTabFlareRadius = 15.0;
 
 /// רוחבי הטאבים בשורה: הנבחר עשוי להיות רחב מהשאר (ראה [_kTabSelectedMinWidth]).
 typedef _TabWidths = ({double selected, double unselected});
@@ -296,7 +294,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
             // הקיימים — ולכן שום דבר אינו צריך להזמין מקום, ושום דבר אינו
             // נצבע מעליה.
             // "לבן" (#2850): קו כהה דק בתחתית השורה גם בסגנון הקריאה. הכרטיסיה
-            // הפעילה מכסה אותו מתחתיה ומוקפת באותו קו (_TabBackgroundPainter),
+            // הפעילה מכסה אותו מתחתיה ומוקפת באותו קו (TabBackgroundPainter),
             // ולכן היא ממשיכה לתוך סרגל הספר כמו לשונית.
             final regionBorder = AppSurfaces.regionBorder(context);
             final topBar = SizedBox(
@@ -1109,7 +1107,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       inSelection: inSelection,
     );
     if (color == null) return null;
-    return _TabBackgroundPainter(
+    return TabBackgroundPainter(
       color,
       bodyHeight: _tabBodyHeight,
       borderColor: TabStateColors.border(context, inSelection: inSelection),
@@ -1145,7 +1143,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
     );
     return color == null
         ? null
-        : _TabBackgroundPainter(color, bodyHeight: _tabBodyHeight);
+        : TabBackgroundPainter(color, bodyHeight: _tabBodyHeight);
   }
 
   /// כרטיסיה שהצטמצמה מתחת ל-[_kTabContentMinWidth]. כל שכבות האינטראקציה
@@ -1655,147 +1653,6 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       onCloseSelectedTabs: () => closeSelectedTabs(context),
     );
   }
-}
-
-class _TabBackgroundPainter extends CustomPainter {
-  final Color color;
-
-  /// מסגרת סביב גוף הכרטיסיה (בלי הכנפיים התחתונות), לבחירה מרובה.
-  final Color? borderColor;
-
-  /// קו סביב הכרטיסיה כולה, כולל הכנפיים, שנפגש בקו התחתון של השורה.
-  final Color? flareOutline;
-
-  /// גובה גוף הכרטיסיה, שממורכז בגובה הסרגל.
-  final double bodyHeight;
-
-  _TabBackgroundPainter(
-    this.color, {
-    required this.bodyHeight,
-    this.borderColor,
-    this.flareOutline,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    final path = Path();
-    const topRadius = AppTokens.radius;
-    const bottomRadius = _kTabFlareRadius;
-
-    // הצורה יושבת בתוך הגבולות, מ-[topInset] ועד `size.height`, ומוסיפה רק
-    // [_kTabBottomBleed] מתחת לסרגל — ראו [_topBarHeight]. המירכוז נעשה כאן ולא
-    // בפריסה, כי ה-widget מקבל את כל גובה הסרגל והכרטיסיה נמוכה ממנו.
-    final topInset = math.max(0.0, (size.height - bodyHeight) / 2);
-
-    path.moveTo(-bottomRadius, size.height + _kTabBottomBleed);
-    path.lineTo(-bottomRadius, size.height);
-
-    path.arcToPoint(
-      Offset(0, size.height - bottomRadius),
-      radius: const Radius.circular(bottomRadius),
-      clockwise: false,
-    );
-
-    path.lineTo(0, topInset + topRadius);
-
-    path.arcToPoint(
-      Offset(topRadius, topInset),
-      radius: const Radius.circular(topRadius),
-    );
-
-    path.lineTo(size.width - topRadius, topInset);
-
-    path.arcToPoint(
-      Offset(size.width, topInset + topRadius),
-      radius: const Radius.circular(topRadius),
-    );
-
-    path.lineTo(size.width, size.height - bottomRadius);
-
-    path.arcToPoint(
-      Offset(size.width + bottomRadius, size.height),
-      radius: const Radius.circular(bottomRadius),
-      clockwise: false,
-    );
-
-    path.lineTo(size.width + bottomRadius, size.height + _kTabBottomBleed);
-
-    path.close();
-    canvas.drawPath(path, paint);
-
-    final flare = flareOutline;
-    if (flare != null) {
-      // אותה צורה בלי הבסיס, חצי קו פנימה. הקו של השורה הוא מסגרת ה-Container
-      // שמכווצת את התוכן, ולכן הוא יושב מיד מתחת לצייר: הכנפיים נגמרות בתוכו.
-      const i = AppTokens.borderThin / 2;
-      final h = size.height;
-      final outline = Path()
-        ..moveTo(-bottomRadius, h + i)
-        ..arcToPoint(
-          Offset(i, h - bottomRadius),
-          radius: const Radius.circular(bottomRadius),
-          clockwise: false,
-        )
-        ..lineTo(i, topInset + topRadius)
-        ..arcToPoint(
-          Offset(topRadius, topInset + i),
-          radius: const Radius.circular(topRadius - i),
-        )
-        ..lineTo(size.width - topRadius, topInset + i)
-        ..arcToPoint(
-          Offset(size.width - i, topInset + topRadius),
-          radius: const Radius.circular(topRadius - i),
-        )
-        ..lineTo(size.width - i, h - bottomRadius)
-        ..arcToPoint(
-          Offset(size.width + bottomRadius, h + i),
-          radius: const Radius.circular(bottomRadius),
-          clockwise: false,
-        );
-      canvas.drawPath(
-        outline,
-        Paint()
-          ..color = flare
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = AppTokens.borderThin,
-      );
-    }
-
-    final border = borderColor;
-    if (border == null) return;
-    const inset = AppTokens.multiSelectedBorderWidth / 2;
-    final outline = Path()
-      ..moveTo(inset, size.height)
-      ..lineTo(inset, topInset + topRadius)
-      ..arcToPoint(
-        Offset(topRadius, topInset + inset),
-        radius: const Radius.circular(topRadius - inset),
-      )
-      ..lineTo(size.width - topRadius, topInset + inset)
-      ..arcToPoint(
-        Offset(size.width - inset, topInset + topRadius),
-        radius: const Radius.circular(topRadius - inset),
-      )
-      ..lineTo(size.width - inset, size.height);
-    canvas.drawPath(
-      outline,
-      Paint()
-        ..color = border
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = AppTokens.multiSelectedBorderWidth,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _TabBackgroundPainter oldDelegate) =>
-      oldDelegate.color != color ||
-      oldDelegate.bodyHeight != bodyHeight ||
-      oldDelegate.borderColor != borderColor ||
-      oldDelegate.flareOutline != flareOutline;
 }
 
 /// מזהה לחיצה כפולה לאזור הריק של שורת הטאבים בלבד. הדחייה חייבת להיות
