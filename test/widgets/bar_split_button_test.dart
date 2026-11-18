@@ -203,7 +203,8 @@ void main() {
       expect(overlay.resolve({WidgetState.focused})!.a, closeTo(0.10, 0.005));
       expect(overlay.resolve(<WidgetState>{}), isNull);
       expect(inkWell.splashColor!.a, closeTo(0.10, 0.005));
-      expect(inkWell.highlightColor, Colors.transparent);
+      // ההדגשה בלחיצה באה מ-overlayColor (pressed), בלי highlightColor נפרד.
+      expect(inkWell.highlightColor, isNull);
     }
   });
 
