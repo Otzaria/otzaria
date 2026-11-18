@@ -84,6 +84,11 @@ String _icsWithEvents(List<String> uids) {
   return buffer.toString();
 }
 
+String _largeIcsWithEvent(String uid) => _icsWithEvents([uid]).replaceFirst(
+  'END:VCALENDAR\n',
+  '${'X-PADDING:1234567890\n' * 125000}END:VCALENDAR\n',
+);
+
 void main() {
   setUpAll(() {
     tz_data.initializeTimeZones();
@@ -111,6 +116,24 @@ void main() {
         },
       ),
     );
+  }
+
+  Future<(CalendarCubit, CalendarCubit)> buildTwoWindows() async {
+    final owner = CalendarAlertsOwner(
+      store: RepositoryCalendarAlertsStore(settings),
+      notifications: _FakeNotificationService(),
+    );
+    addTearDown(() async {
+      await owner.idle;
+      owner.dispose();
+    });
+    final alerts = LocalCalendarAlertsClient(owner);
+    final firstWindow = buildCubit(alertsClient: alerts);
+    final secondWindow = buildCubit(alertsClient: alerts);
+    addTearDown(firstWindow.close);
+    addTearDown(secondWindow.close);
+    await Future.wait([firstWindow.initialized, secondWindow.initialized]);
+    return (firstWindow, secondWindow);
   }
 
   setUp(() {
@@ -152,20 +175,7 @@ void main() {
   });
 
   test('ייבוא מאוחר מחליף אירוע מייבוא גדול שהתחיל בחלון אחר', () async {
-    final owner = CalendarAlertsOwner(
-      store: RepositoryCalendarAlertsStore(settings),
-      notifications: _FakeNotificationService(),
-    );
-    addTearDown(() async {
-      await owner.idle;
-      owner.dispose();
-    });
-    final alerts = LocalCalendarAlertsClient(owner);
-    final firstWindow = buildCubit(alertsClient: alerts);
-    final secondWindow = buildCubit(alertsClient: alerts);
-    addTearDown(firstWindow.close);
-    addTearDown(secondWindow.close);
-    await Future.wait([firstWindow.initialized, secondWindow.initialized]);
+    final (firstWindow, secondWindow) = await buildTwoWindows();
 
     final original = _icsWithEvents(['shared']);
     final large = original.replaceFirst(
@@ -221,6 +231,37 @@ void main() {
     await cubit.close();
   });
 
+  test('הוספת מנויים במקביל שומרת את כל המנויים ואירועיהם', () async {
+    final (firstWindow, secondWindow) = await buildTwoWindows();
+    final largeResponse = Completer<String>();
+    pendingFetch = largeResponse;
+    final first = firstWindow.addIcsSubscription(
+      name: 'יומן ראשון',
+      url: 'https://example.com/first.ics',
+    );
+    final smallResponse = Completer<String>();
+    pendingFetch = smallResponse;
+    final smallImports = [
+      for (var i = 1; i <= 6; i++)
+        secondWindow.addIcsSubscription(
+          name: 'יומן $i',
+          url: 'https://example.com/$i.ics',
+        ),
+    ];
+    largeResponse.complete(_largeIcsWithEvent('ראשון'));
+    smallResponse.complete(_icsWithEvents(['שני']));
+    expect(await Future.wait([first, ...smallImports]), everyElement(1));
+
+    final subscriptions =
+        jsonDecode(settings.savedIcsSubscriptionsJson) as List;
+    expect(subscriptions, hasLength(7));
+    final events = jsonDecode(settings.savedEventsJson) as List;
+    expect(
+      events.map((item) => item['icsSourceId']),
+      unorderedEquals(subscriptions.map((item) => item['id'])),
+    );
+  });
+
   test('רענון מחליף את אירועי המנוי ומשאיר אירועי משתמש', () async {
     final cubit = buildCubit();
     await cubit.initialized;
@@ -246,6 +287,34 @@ void main() {
     );
     expect(cubit.state.events.any((e) => e.title == 'אירוע a1'), isFalse);
     await cubit.close();
+  });
+
+  test('רענון גדול שומר על סדר הגעת התשובות בין חלונות', () async {
+    final (firstWindow, secondWindow) = await buildTwoWindows();
+    await firstWindow.addIcsSubscription(
+      name: 'יומן',
+      url: 'https://example.com/cal.ics',
+    );
+    final subscriptionId = firstWindow.state.icsSubscriptions.single.id;
+
+    final oldResponse = Completer<String>();
+    pendingFetch = oldResponse;
+    final firstRefresh = firstWindow.refreshIcsSubscriptions(
+      onlyId: subscriptionId,
+    );
+    final newResponse = Completer<String>();
+    pendingFetch = newResponse;
+    final secondRefresh = secondWindow.refreshIcsSubscriptions(
+      onlyId: subscriptionId,
+    );
+    oldResponse.complete(_largeIcsWithEvent('ישן'));
+    newResponse.complete(_icsWithEvents(['חדש']));
+    await Future.wait([firstRefresh, secondRefresh]);
+
+    final saved = jsonDecode(settings.savedEventsJson) as List;
+    expect(saved.single, containsPair('title', 'אירוע חדש'));
+    expect(firstWindow.state.events.single.title, 'אירוע חדש');
+    expect(secondWindow.state.events.single.title, 'אירוע חדש');
   });
 
   test('כשל בהורדה בזמן רענון שומר את האירועים הקיימים ורושם שגיאה', () async {

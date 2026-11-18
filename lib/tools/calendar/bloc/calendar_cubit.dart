@@ -65,8 +65,8 @@ class _DefaultPluginSource implements CalendarPluginSource {
 class CalendarCubit extends Cubit<CalendarState> {
   final SettingsRepository _settingsRepository;
 
-  // ייבוא גדול שומר על סדר השמירה גם מול ייבוא בחלון אחר.
-  static final _pendingIcsImports = Expando<Future<void>>();
+  // שומר על סדר השמירה לכל מקור גם מול פענוח בחלון אחר.
+  static final _pendingIcsUpdates = Expando<Map<String?, Future<void>>>();
 
   /// כל שינוי במצב ההתראות עובר דרך הבעלים; ה-cubit מציג את מה שאישר.
   final CalendarAlertsClient _alerts;
@@ -1187,28 +1187,37 @@ class CalendarCubit extends Cubit<CalendarState> {
   ///
   /// המזהים נגזרים מה-UID שבקובץ, כך שייבוא חוזר של אותו קובץ מעדכן
   /// אירועים קיימים במקום לשכפל אותם.
-  Future<int> importIcsContent(String content) async {
-    final previous = _pendingIcsImports[_alerts];
+  Future<int> importIcsContent(String content) =>
+      _runIcsUpdateInOrder(null, () async {
+        if (isClosed) return 0;
+        final parsed = await IcsCalendarService.parseIcsAsync(content);
+        if (isClosed || parsed.isEmpty) return 0;
+        emit(
+          state.copyWith(
+            events: [..._upsertedUserEvents(parsed), ..._pluginEvents],
+          ),
+        );
+        final ack = await _send('replaceSourceEvents', {
+          'kind': 'file',
+          'events': [for (final e in parsed) _eventJson(e)],
+        });
+        return ack.ok ? parsed.length : 0;
+      });
+
+  Future<T> _runIcsUpdateInOrder<T>(
+    String? sourceId,
+    Future<T> Function() update,
+  ) async {
+    final pending = _pendingIcsUpdates[_alerts] ??= {};
+    final previous = pending[sourceId];
     final completed = Completer<void>();
-    _pendingIcsImports[_alerts] = completed.future;
+    pending[sourceId] = completed.future;
     try {
       if (previous != null) await previous;
-      if (isClosed) return 0;
-      final parsed = await IcsCalendarService.parseIcsAsync(content);
-      if (isClosed || parsed.isEmpty) return 0;
-      emit(
-        state.copyWith(
-          events: [..._upsertedUserEvents(parsed), ..._pluginEvents],
-        ),
-      );
-      final ack = await _send('replaceSourceEvents', {
-        'kind': 'file',
-        'events': [for (final e in parsed) _eventJson(e)],
-      });
-      return ack.ok ? parsed.length : 0;
+      return await update();
     } finally {
-      if (identical(_pendingIcsImports[_alerts], completed.future)) {
-        _pendingIcsImports[_alerts] = null;
+      if (identical(pending[sourceId], completed.future)) {
+        pending.remove(sourceId);
       }
       completed.complete();
     }
@@ -1225,7 +1234,7 @@ class CalendarCubit extends Cubit<CalendarState> {
       final body = await _icsCalendarService.fetchIcs(url);
       if (isClosed) return null;
       final subscription = IcsSubscription(
-        id: 'icssub_${DateTime.now().millisecondsSinceEpoch}',
+        id: 'icssub_${generateCalendarEventId()}',
         name: name,
         url: url,
         lastRefresh: DateTime.now(),
@@ -1296,33 +1305,10 @@ class CalendarCubit extends Cubit<CalendarState> {
       try {
         final body = await _icsCalendarService.fetchIcs(subscription.url);
         if (isClosed) return;
-        final parsed = await IcsCalendarService.parseIcsAsync(
-          body,
-          sourceId: subscription.id,
+        await _runIcsUpdateInOrder(
+          subscription.id,
+          () => _applyIcsRefresh(subscription.id, body),
         );
-        if (isClosed) return;
-        if (!state.icsSubscriptions.any((s) => s.id == subscription.id)) {
-          continue;
-        }
-        final events = [
-          ...state.events.where((e) => e.icsSourceId != subscription.id),
-          ...parsed,
-        ];
-        final refreshedAt = DateTime.now();
-        final subscriptions = state.icsSubscriptions
-            .map(
-              (s) => s.id == subscription.id
-                  ? s.copyWith(lastRefresh: refreshedAt)
-                  : s,
-            )
-            .toList();
-        emit(state.copyWith(events: events, icsSubscriptions: subscriptions));
-        await _send('replaceSourceEvents', {
-          'kind': 'ics',
-          'sourceId': subscription.id,
-          'events': [for (final e in parsed) _eventJson(e)],
-          'lastRefresh': refreshedAt.millisecondsSinceEpoch,
-        });
       } catch (e) {
         error =
             'רענון "${subscription.name}" נכשל: '
@@ -1332,6 +1318,33 @@ class CalendarCubit extends Cubit<CalendarState> {
     }
 
     emit(state.copyWith(icsRefreshInProgress: false, icsSyncError: error));
+  }
+
+  Future<void> _applyIcsRefresh(String sourceId, String body) async {
+    if (isClosed) return;
+    final parsed = await IcsCalendarService.parseIcsAsync(
+      body,
+      sourceId: sourceId,
+    );
+    if (isClosed || !state.icsSubscriptions.any((s) => s.id == sourceId)) {
+      return;
+    }
+
+    final events = [
+      ...state.events.where((e) => e.icsSourceId != sourceId),
+      ...parsed,
+    ];
+    final refreshedAt = DateTime.now();
+    final subscriptions = state.icsSubscriptions
+        .map((s) => s.id == sourceId ? s.copyWith(lastRefresh: refreshedAt) : s)
+        .toList();
+    emit(state.copyWith(events: events, icsSubscriptions: subscriptions));
+    await _send('replaceSourceEvents', {
+      'kind': 'ics',
+      'sourceId': sourceId,
+      'events': [for (final e in parsed) _eventJson(e)],
+      'lastRefresh': refreshedAt.millisecondsSinceEpoch,
+    });
   }
 
   /// אירועי המשתמש אחרי החלפת [updates] לפי מזהה.
