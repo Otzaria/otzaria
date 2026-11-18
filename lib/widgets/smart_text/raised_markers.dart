@@ -235,11 +235,13 @@ class RaisedMarkers {
         scale = kFootnoteMarkerScale;
         italic = true;
         clickable = true;
+        useLinkColor = true;
       } else if (match[8] != null) {
         // סמן-אות של הערה בספר אחר — מטריקות raised-sup, עם הפניית ריחוף.
         rawContent = match[8]!;
         scale = kHtmlSmallerFontScale;
         clickable = true;
+        useLinkColor = true;
       } else {
         // אות מפרש — צבע קישור, וריאנט טיפוגרפי קבוע למפרש, רקע כשפעילה.
         rawContent = match[7] ?? '';
