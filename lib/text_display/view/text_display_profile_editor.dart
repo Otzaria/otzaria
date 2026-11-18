@@ -4,7 +4,6 @@ import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
-import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria_context_menu/otzaria_context_menu.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
@@ -111,7 +110,10 @@ abstract final class TextDisplayProfileEditor {
       required ValueChanged<MarkVisibility> onValue,
     }) {
       return Padding(
-        padding: const EdgeInsetsDirectional.fromSTEB(10, 1, 10, 1),
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: AppTokens.spaceSMD,
+          vertical: AppTokens.space2XS,
+        ),
         child: Row(
           children: [
             Icon(
@@ -119,7 +121,7 @@ abstract final class TextDisplayProfileEditor {
               size: metrics.iconSize,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: AppTokens.spaceSM),
             Expanded(
               child: Text(title, style: itemStyle),
             ),
@@ -148,7 +150,10 @@ abstract final class TextDisplayProfileEditor {
       ),
       if (includeTeamimSelector)
         Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(10, 1, 10, 1),
+          padding: const EdgeInsetsDirectional.symmetric(
+            horizontal: AppTokens.spaceSMD,
+            vertical: AppTokens.space2XS,
+          ),
           child: Row(
             children: [
               Icon(
@@ -156,7 +161,7 @@ abstract final class TextDisplayProfileEditor {
                 size: metrics.iconSize,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: AppTokens.spaceSM),
               Expanded(
                 child: Text(
                   t('טעמי המקרא'),
@@ -169,7 +174,7 @@ abstract final class TextDisplayProfileEditor {
                 onChanged: onChanged,
                 textStyle: itemStyle,
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: AppTokens.spaceSM),
               teamimSwitch(context, profile: profile, onChanged: onChanged),
             ],
           ),
@@ -212,12 +217,13 @@ abstract final class TextDisplayProfileEditor {
       button: true,
       toggled: linked,
       child: Material(
-        color: linked ? cs.primary.withValues(alpha: 0.10) : Colors.transparent,
+        color: linked ? AppSurfaces.followChipFill(cs) : Colors.transparent,
+        // ui-lint: allow UIL-019 — תג בחירה בצורת גלולה, כמו חצי BarSplitButton (הכרעת בעל הפרויקט 18.11, DD-32)
         shape: StadiumBorder(
           side: BorderSide(
             width: linked ? 1.5 : 1,
             color: linked
-                ? cs.primary.withValues(alpha: 0.45)
+                ? AppSurfaces.followChipBorder(cs)
                 : cs.outlineVariant,
           ),
         ),
@@ -279,20 +285,20 @@ abstract final class TextDisplayProfileEditor {
       trackColor: WidgetStateProperty.resolveWith((states) {
         if (!linked) return null;
         return states.contains(WidgetState.selected)
-            ? cs.primary.withValues(alpha: 0.45)
+            ? AppSurfaces.linkedSwitchTrack(cs)
             : cs.surfaceContainerHighest;
       }),
       trackOutlineColor: WidgetStateProperty.resolveWith((states) {
         if (!linked) return null;
         return states.contains(WidgetState.selected)
             ? Colors.transparent
-            : cs.outline.withValues(alpha: 0.6);
+            : AppSurfaces.linkedSwitchOutline(cs);
       }),
       thumbColor: WidgetStateProperty.resolveWith((states) {
         if (!linked) return null;
         return states.contains(WidgetState.selected)
             ? cs.surface
-            : cs.outline.withValues(alpha: 0.7);
+            : AppSurfaces.linkedSwitchThumb(cs);
       }),
     );
     return Semantics(
@@ -337,7 +343,10 @@ abstract final class TextDisplayProfileEditor {
         Theme.of(context).extension<AppMenuMetrics>() ??
         AppMenuMetrics.create(compactMenus: false);
     return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(10, 1, 10, 1),
+      padding: const EdgeInsetsDirectional.symmetric(
+        horizontal: AppTokens.spaceSMD,
+        vertical: AppTokens.space2XS,
+      ),
       child: Row(
         children: [
           Icon(
@@ -345,7 +354,7 @@ abstract final class TextDisplayProfileEditor {
             size: metrics.iconSize,
             color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: AppTokens.spaceSM),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

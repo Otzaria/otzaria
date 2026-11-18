@@ -158,20 +158,8 @@ class _BarSplitButtonState<T> extends State<BarSplitButton<T>> {
           customBorder: RoundedRectangleBorder(
             borderRadius: borderRadius.resolve(direction),
           ),
-          overlayColor: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.pressed)) {
-              return fg.withValues(alpha: 0.1);
-            }
-            if (states.contains(WidgetState.hovered)) {
-              return fg.withValues(alpha: 0.08);
-            }
-            if (states.contains(WidgetState.focused)) {
-              return fg.withValues(alpha: 0.1);
-            }
-            return null;
-          }),
-          splashColor: fg.withValues(alpha: 0.1),
-          highlightColor: Colors.transparent,
+          overlayColor: AppSurfaces.barSplitOverlay(fg),
+          splashColor: AppSurfaces.barSplitPressed(fg),
           child: SizedBox(
             width: width,
             height: height,

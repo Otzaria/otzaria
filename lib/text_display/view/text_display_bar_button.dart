@@ -204,9 +204,9 @@ class _TextDisplayPopupPanelState extends State<TextDisplayPopupPanel> {
               // מרווח נדיב סביב הכותרת — שלא ייראה עמוס.
               padding: const EdgeInsets.fromLTRB(
                 AppTokens.spaceSM,
-                10,
+                AppTokens.spaceSMD,
                 AppTokens.spaceSM,
-                10,
+                AppTokens.spaceSMD,
               ),
               // הכותרת, ושם התצוגה (צורת הדף / תצוגה רגילה) בשורה מתחתיה.
               child: Column(
@@ -234,7 +234,7 @@ class _TextDisplayPopupPanelState extends State<TextDisplayPopupPanel> {
               ),
             ),
             const Divider(height: 1),
-            const SizedBox(height: 6),
+            const SizedBox(height: AppTokens.spaceSM),
             // גוף הספר, ומיד אחריו "שמות הקודש" — מתג משותף לכל המקטעים.
             _SectionTitle(sections.first.title),
             const SizedBox(height: 4),
@@ -286,7 +286,8 @@ class _TextDisplayPopupPanelState extends State<TextDisplayPopupPanel> {
                   preferredHolyName: preferredHolyName,
                   includeHolyNames: false,
                 ),
-              if (_expanded.contains(i)) const SizedBox(height: 6),
+              if (_expanded.contains(i))
+                const SizedBox(height: AppTokens.spaceSM),
             ],
             const Divider(height: 1),
             // שורת ההסבר בסגנון מערכת העיצוב: אייקון מידע, טקסט, ואיפוס עם אייקון.
@@ -485,18 +486,20 @@ class _CollapsibleSectionTitle extends StatelessWidget {
         AppMenuMetrics.create(compactMenus: false);
     // נראה כמו פריט תפריט עם תת-תפריט: שורה מלאה, אייקון, טקסט וחץ.
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: const EdgeInsets.all(AppTokens.spaceSM),
       child: Material(
         // הצבע הראשי של התוכנה (חום בערכת ברירת המחדל).
         color: expanded ? cs.primaryContainer : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: AppTokens.borderRadiusAll,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
           child: SizedBox(
             height: metrics.itemHeight,
             child: Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(6, 0, 6, 0),
+              padding: const EdgeInsetsDirectional.symmetric(
+                horizontal: AppTokens.spaceSM,
+              ),
               child: Row(
                 children: [
                   Icon(
@@ -504,7 +507,7 @@ class _CollapsibleSectionTitle extends StatelessWidget {
                     size: metrics.iconSize,
                     color: expanded ? cs.onPrimaryContainer : cs.primary,
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: AppTokens.spaceSM),
                   Expanded(
                     child: Text(
                       text,
@@ -517,10 +520,10 @@ class _CollapsibleSectionTitle extends StatelessWidget {
                   ),
                   AnimatedRotation(
                     turns: expanded ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 150),
+                    duration: AppMotion.duration(context, AppTokens.animFast),
                     child: Icon(
                       FluentIcons.chevron_down_16_regular,
-                      size: 16,
+                      size: AppTokens.iconSM,
                       color: expanded ? cs.onPrimaryContainer : cs.primary,
                     ),
                   ),

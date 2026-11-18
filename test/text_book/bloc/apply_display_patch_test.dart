@@ -280,9 +280,6 @@ void main() {
       expect(state.removeNikud, isTrue, reason: 'הגוף');
       expect(state.commentaryRemoveNikud, isFalse, reason: 'המפרשים');
     },
-    // באג ידוע: _onApplyDisplayPatch משווה לבסיס בלי עקיפות הכרטיסייה, ולכן
-    // "הצג" למפרשים (שווה לבסיס) נמחק, והמפרשים ממשיכים לרשת "הסתר" מהגוף.
-    skip: 'באג פתוח ב-_onApplyDisplayPatch — ראו דוח ה-QA',
   );
 
   blocTest<TextBookBloc, TextBookState>(

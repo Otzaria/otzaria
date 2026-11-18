@@ -1451,19 +1451,23 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       channel: TextChannel.display,
     );
     final merged = currentState.displayOverrides.merged(slot, event.patch);
-    // שינוי שבוטל (חזר לערך שמוגדר לספר) נמחק מהעקיפה — כך "איפוס" לא מוצג
-    // לשווא. ההשוואה בלי עקיפות הכרטיסייה בחריצים אחרים: ערך שנבחר במפורש
-    // למפרשים נשאר גם כשהוא שווה לעקיפה של גוף הספר, כדי שלא יתחיל לעקוב אחריו.
-    final base = TextDisplayResolver.resolve(
+    // שינוי שבוטל נמחק מהעקיפה — כך "איפוס" לא מוצג לשווא. שדה נמחק רק אם
+    // הוא שווה גם למה שהיה נורש עם שאר עקיפות הכרטיסייה (אחרת המחיקה הייתה
+    // משנה את התצוגה, למשל ניקוד מוצג במפרשים כשבגוף הוא מוסתר) וגם בלעדיהן
+    // (אחרת המפרשים היו מתחילים לעקוב אחרי הגוף).
+    final bookLayers = [
+      currentState.bookDisplayLayer,
+      ...currentState.displayPolicy.layersFor(isTanach: currentState.isTanach),
+    ];
+    final inherited = TextDisplayResolver.resolve(
       slot: slot,
-      layers: [
-        currentState.bookDisplayLayer,
-        ...currentState.displayPolicy.layersFor(
-          isTanach: currentState.isTanach,
-        ),
-      ],
+      layers: [merged.without(slot), ...bookLayers],
     );
-    final pruned = merged.patchFor(slot).pruneAgainst(base);
+    final ofBook = TextDisplayResolver.resolve(slot: slot, layers: bookLayers);
+    final patch = merged.patchFor(slot);
+    final pruned = patch
+        .pruneAgainst(inherited)
+        .merge(patch.pruneAgainst(ofBook));
     emit(
       currentState.copyWith(
         displayOverrides: pruned.isEmpty
