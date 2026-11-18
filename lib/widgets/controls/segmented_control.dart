@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
+import 'package:otzaria/widgets/misc/ui_label_nudge.dart';
 
 /// אפשרות יחידה ב-[AppSegmentedControl]
 ///
@@ -229,12 +230,14 @@ class AppSegmentedControl<T> extends StatelessWidget {
             // ואז maxLines חותך אותו למילה הראשונה.
             label: _markIf(
               markSelected && o.value == currentValue,
-              Text(
-                narrow ? o.shortLabel ?? o.label : o.label,
-                key: o.labelKey,
-                maxLines: maxLabelLines,
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
+              UiLabelNudge(
+                child: Text(
+                  narrow ? o.shortLabel ?? o.label : o.label,
+                  key: o.labelKey,
+                  maxLines: maxLabelLines,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ),
             icon: hasIcons ? _buildOptionIcon(o) : null,
