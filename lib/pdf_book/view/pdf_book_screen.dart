@@ -58,6 +58,7 @@ import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart' as pdf_events;
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/pdf_book/utils/pdf_spread_layout.dart';
 import 'package:otzaria/pdf_book/utils/pdf_render_scale.dart';
+import 'package:otzaria/pdf_book/utils/pdf_viewer_lifecycle_policy.dart';
 import 'package:otzaria/pdf_book/utils/pdf_image_budget.dart';
 import 'package:otzaria/pdf_book/utils/pdf_book_layout.dart';
 import 'package:otzaria/pdf_book/utils/pdf_search_index_restorer.dart';
@@ -145,6 +146,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 
 export 'package:otzaria/pdf_book/utils/pdf_book_layout.dart';
+export 'package:otzaria/pdf_book/utils/pdf_viewer_lifecycle_policy.dart';
 export 'package:otzaria/pdf_book/utils/pdf_viewport_geometry.dart';
 
 /// תקציב מטמון התמונות של טאב PDF, המתחלק בין חלוניותיו.
@@ -230,12 +232,6 @@ PdfViewerCalculateCurrentPageNumberFunction pdfCurrentPageCalculatorFor(
     : (visibleRect, pageRects, controller) =>
           pdfTopmostVisiblePage(visibleRect, pageRects);
 
-/// מתחת לכפתור "נסה שוב" הצפיין נשאר פתוח, כדי שפתיחה איטית שתסתיים תגבור
-/// על השגיאה; הסרתו נוטשת את הפתיחה (#1930). ב-retry אוטומטי הוא נבנה מחדש.
-@visibleForTesting
-bool pdfViewerStaysMountedFor(PdfBookState state) =>
-    !(state is PdfBookError && state.autoRetry);
-
 class PdfBookScreen extends StatefulWidget {
   final PdfBookTab tab;
   final bool isInCombinedView;
@@ -252,63 +248,6 @@ class PdfBookScreen extends StatefulWidget {
 
   @override
   State<PdfBookScreen> createState() => _PdfBookScreenState();
-}
-
-/// האם יש לחשב מחדש את טווח השורות (currentTextLineNumber/End) בעקבות
-/// מעבר בין מצבי תצוגה. הטווח תלוי במצב — בתצוגת ספר הוא מכסה את שני עמודי
-/// הספירייד, וברגילה עמוד יחיד — לכן מעבר מצב מחייב חישוב מחדש, אחרת טווח
-/// המפרשים נשאר של המצב הקודם. ה-baseline (previous=null) לא מטריגר חישוב.
-@visibleForTesting
-bool shouldRecomputeLineRangeOnLayoutModeChange(
-  PdfLayoutMode? previous,
-  PdfLayoutMode current,
-) {
-  return previous != null && previous != current;
-}
-
-/// האם דפדוף חדש מבטל את הדפדופים הממתינים בתור: לחיצה בכיוון ההפוך
-/// לממתינים מרוקנת אותם, כך שהאנימציה שבאוויר מסיימת והבאה הפוכה ממנה.
-@visibleForTesting
-bool shouldDropPendingPageTurns<T>({
-  required Iterable<T> pendingDirections,
-  required T incomingDirection,
-}) {
-  return pendingDirections.any((d) => d != incomingDirection);
-}
-
-/// משך דפדוף כשממתינים [pendingTurns] נוספים בתור: 1/(n+1) מהמשך הבודד, כך
-/// שתור של לחיצות מהירות מתקצר ככל שהוא ארוך יותר.
-@visibleForTesting
-Duration pdfQueuedPageTurnDuration(Duration single, int pendingTurns) =>
-    Duration(microseconds: single.inMicroseconds ~/ (max(0, pendingTurns) + 1));
-
-/// מחזירה את מספר העמוד הנוכחי של ה-controller רק אם הוא מחובר ומוכן.
-///
-/// [isReady] - האם ה-controller מחובר ל-PdfViewer (`controller.isReady`).
-/// [readPageNumber] - קריאה ל-`controller.pageNumber`.
-///
-/// הגישה ל-`controller.pageNumber` משתמשת ב-null check operator פנימי
-/// (`_state!`), ולכן זורקת אם ה-PdfViewer התנתק במהלך `await` ב-`onViewerReady`.
-/// העטיפה הזו מוודאת שלא ניגשים ל-`pageNumber` כש-ה-controller אינו מוכן,
-/// ומחזירה `null` במקום לקרוס.
-@visibleForTesting
-int? resolveReadyPdfPageNumber({
-  required bool isReady,
-  required int? Function() readPageNumber,
-}) {
-  return isReady ? readPageNumber() : null;
-}
-
-/// ה-layout של [controller], או null אם עוד לא חושב: ב-pdfrx `isReady` נעשה
-/// true לפני חישוב ה-layout, ו-`controller.layout` זורק בחלון הזה.
-@visibleForTesting
-PdfPageLayout? pdfReadyLayoutOrNull(PdfViewerController controller) {
-  if (!controller.isReady) return null;
-  try {
-    return controller.layout;
-  } catch (_) {
-    return null;
-  }
 }
 
 /// בונה את פריט תפריט ההקשר "קישורים" עבור PDF.
