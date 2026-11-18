@@ -93,11 +93,13 @@ class RenderReaderParagraphLines extends RenderProxyBox {
   set lines(List<ReaderParagraphLineData> value) {
     if (listEquals(value, _lines)) return;
     _lines = value;
+    _linePositions = null;
     _rects.clear();
     markNeedsPaint();
   }
 
   RenderParagraph? _paragraph;
+  Map<int, int>? _linePositions;
   final Map<int, List<Rect>> _rects = {};
 
   @override
@@ -125,11 +127,28 @@ class RenderReaderParagraphLines extends RenderProxyBox {
     return _paragraph = found;
   }
 
-  TextRange? rangeForLine(int lineIndex) {
-    for (final line in _lines) {
-      if (line.lineIndex == lineIndex) return line.range;
+  Map<int, int> _indexLinePositions() {
+    final positions = <int, int>{};
+    for (var i = 0; i < _lines.length; i++) {
+      positions.putIfAbsent(_lines[i].lineIndex, () => i);
     }
-    return null;
+    return positions;
+  }
+
+  int? _positionOfLine(int lineIndex) {
+    // בפסקאות קצרות סריקה חוסכת הקצאת מפה.
+    if (_lines.length <= 8) {
+      for (var i = 0; i < _lines.length; i++) {
+        if (_lines[i].lineIndex == lineIndex) return i;
+      }
+      return null;
+    }
+    return (_linePositions ??= _indexLinePositions())[lineIndex];
+  }
+
+  TextRange? rangeForLine(int lineIndex) {
+    final position = _positionOfLine(lineIndex);
+    return position == null ? null : _lines[position].range;
   }
 
   /// מלבני השורה בגובה שורת התצוגה המלא, במרחב של הפסקה. מקטעים מופרדים
@@ -205,8 +224,8 @@ class RenderReaderParagraphLines extends RenderProxyBox {
   ({double top, double bottom})? flowExtent(int lineIndex) {
     final extent = lineExtent(lineIndex);
     if (extent == null) return null;
-    final at = _lines.indexWhere((line) => line.lineIndex == lineIndex);
-    if (at < 0 || at + 1 >= _lines.length) return extent;
+    final at = _positionOfLine(lineIndex);
+    if (at == null || at + 1 >= _lines.length) return extent;
     final next = lineExtent(_lines[at + 1].lineIndex);
     if (next == null || next.top >= extent.bottom) return extent;
     return (
