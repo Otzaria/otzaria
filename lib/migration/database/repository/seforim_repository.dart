@@ -360,6 +360,38 @@ class SeforimRepository {
     return result.map((row) => row['descendantId'] as int).toList();
   }
 
+  /// פרטי השיוך של ספרים לכל ענף ישיר מתחת לקטגוריית הספרים האישיים.
+  Future<List<({int folderCategoryId, String? sourceName, String? filePath})>>
+  getCustomFolderOwnershipRows(int personalCategoryId) async {
+    final capabilities = await _capabilities;
+    if (!capabilities.hasCategoryClosure || !capabilities.hasBookCategories) {
+      return const [];
+    }
+    final filePath = capabilities.column('book', 'filePath', qualifier: 'b');
+    final hasSource =
+        capabilities.hasColumn('book', 'sourceId') &&
+        capabilities.hasColumn('source', 'name');
+    final sourceName = hasSource ? 's.name' : 'NULL';
+    final sourceJoin = hasSource ? 'LEFT JOIN source s ON s.id = b.sourceId' : '';
+    final db = await _database.database;
+    final rows = db.select('''
+      SELECT folder.id AS folderCategoryId, $sourceName AS sourceName, $filePath
+      FROM category folder
+      JOIN category_closure c ON c.ancestorId = folder.id
+      JOIN book b ON b.categoryId = c.descendantId
+      $sourceJoin
+      WHERE folder.parentId = ?
+    ''', [personalCategoryId]);
+    return [
+      for (final row in rows)
+        (
+          folderCategoryId: row['folderCategoryId'] as int,
+          sourceName: row['sourceName'] as String?,
+          filePath: row['filePath'] as String?,
+        ),
+    ];
+  }
+
   // --- Categories ---
 
   /// Retrieves all categories.
@@ -509,6 +541,10 @@ class SeforimRepository {
       pubDates: pubDates,
     );
   }
+
+  /// ספרי קטגוריה ללא טעינת היחסים, כשדרושים רק שדות שורת הספר.
+  Future<List<Book>> getBooksByCategoryLean(int categoryId) =>
+      _database.bookDao.getBooksByCategory(categoryId);
 
   /// Retrieves all books in a specific category.
   ///
