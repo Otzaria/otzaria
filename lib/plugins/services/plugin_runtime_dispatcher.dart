@@ -1,6 +1,7 @@
 import 'dart:async';
-import 'dart:collection';
+
 import 'dart:convert';
+
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -28,145 +29,13 @@ import 'package:otzaria/plugins/services/plugin_search_field_session_service.dar
 import 'package:otzaria/plugins/services/plugin_startup_contributions_service.dart';
 import 'package:otzaria/plugins/services/plugin_unsaved_changes_registry.dart';
 import 'package:otzaria/plugins/services/plugin_webview_focus.dart';
+import 'package:otzaria/plugins/services/plugin_runtime_state.dart';
 
-enum _PluginRuntimeShutdownMode { idle, restart, exit }
+export 'plugin_runtime_state.dart' show PluginInstanceHost;
 
-/// מזהה ייחודי לכל instance של webview (foreground/background) של אותו plugin.
 typedef PluginInstanceId = String;
 
-enum _PluginSuspensionState {
-  active,
-  hidden,
-  suspendRequested,
-  suspendedConfirmed,
-  resumeRequested,
-  failed,
-}
-
-/// ה-WebView של מופע קדמי, שהדיספצ'ר יכול לבקש ממנו לשחרר ולהקים מחדש.
-abstract interface class PluginInstanceHost {
-  /// משחרר את ה-WebView (פינוי). המופע נשאר רשום.
-  void releaseWebView();
-
-  /// מקים WebView חדש. נקרא רק כשהמופע מוצג.
-  void restoreWebView();
-
-  /// מותר לפנות את המופע (למשל לא תוסף פיתוח).
-  bool get canDiscard;
-}
-
-/// אירוע שהגיע בזמן השהיה וממתין ל-resume.
-class _QueuedEvent {
-  const _QueuedEvent(
-    this.topic,
-    this.json, {
-    required this.targeted,
-    this.isCurrent,
-  });
-  final String topic;
-  final String json;
-
-  /// אירוע ממוקד אינו דורש הרשאת subscribe.
-  final bool targeted;
-  final bool Function()? isCurrent;
-}
-
-class _BootRestoreReason {
-  _BootRestoreReason(this.value);
-  final PluginRestoreReason value;
-}
-
-/// מופע ריצה יחיד של תוסף — כל המצב שהיה מפוזר במפות per-plugin חי כאן.
-class _PluginInstance {
-  _PluginInstance({required this.pluginId, required this.instanceId});
-
-  final String pluginId;
-  final PluginInstanceId instanceId;
-
-  PluginRuntime? runtime;
-  int? viewId;
-  Future<void> Function()? reloadCallback;
-  Object? reloadToken;
-  PluginInstanceHost? host;
-  Object? hostToken;
-  Future<void> lifecycleLock = Future.value();
-
-  _PluginSuspensionState suspensionState = _PluginSuspensionState.active;
-
-  /// חסימת מסירה אינה אישור שהמנוע הקפיא JavaScript.
-  bool get eventsPaused => suspensionState != _PluginSuspensionState.active;
-  DateTime? suspendedAt;
-  DateTime? lastDiscardedAt;
-  Object? restoreRetentionToken;
-  int suspendAttempts = 0;
-  int suspendConfirmed = 0;
-  int suspendFailures = 0;
-  int suspendCancelled = 0;
-  int? lastResumeMicros;
-
-  /// ה-WebView שוחרר (פינוי או נפילה), והמופע ייטען מחדש כשיוצג.
-  bool released = false;
-
-  /// ה-boot של הדף הנוכחי הסתיים.
-  bool ready = false;
-
-  /// קריאות RPC פתוחות — מופע עסוק אינו מפונה.
-  int busyCount = 0;
-
-  /// סיבת הטעינה הבאה של הדף, עבור `restore` ב-boot.
-  _BootRestoreReason? nextBootReason;
-
-  /// בקשת פוקוס מקלדת שהגיעה לפני שה-WebView היה מוכן (הטאב נפתח לפני
-  /// שנוצר, או שה-resume עוד רץ) — תתבצע ברגע שיהיה.
-  bool pendingKeyboardFocus = false;
-
-  /// ראה [PluginWebViewFocus.request]; false אם אחת הבקשות שנזכרו דרשה זאת.
-  bool pendingFocusTrustsPage = true;
-
-  /// אירועים שהוזרקו בזמן השעיה וממתינים למסירה חוזרת אחרי boot. מקודדים
-  /// רק במסירה, לפי אפשרויות האירועים של הדף שנטען.
-  final List<({String topic, Map<String, dynamic> payload, DateTime at})>
-  pendingRedeliveries = [];
-
-  /// אירועי מצב לפי מפתח (האחרון גובר ועובר לסוף), וחד-פעמיים לפי ההגעה.
-  final LinkedHashMap<String, _QueuedEvent> queued = LinkedHashMap();
-  int queuedOneShots = 0;
-
-  /// חלון החסד להשלמת טיפול אסינכרוני לפני הקפאה חוזרת.
-  Timer? graceTimer;
-
-  /// נושאים שהדף ביקש בהם את טקסט הספר כפי שנשמר (`events.setOptions`).
-  final Set<String> rawDivineNamesTopics = {};
-
-  /// מתחלף בכל דף חדש, כדי ש-`events.setOptions` של דף קודם לא יחול עליו.
-  int eventOptionsGeneration = 0;
-
-  void resetEventOptions() {
-    rawDivineNamesTopics.clear();
-    eventOptionsGeneration++;
-    lifecycleLock = Future.value();
-    ready = false;
-  }
-
-  bool get isBackground => instanceId == PluginInstanceIds.background;
-
-  void clearQueue() {
-    queued.clear();
-    queuedOneShots = 0;
-  }
-}
-
-/// מצב הנראות של חלון אחד (תצוגה אחת).
-class _WindowVisibility {
-  Set<PluginInstanceKey> visibleKeys = const {};
-  bool readerScreenVisible = true;
-  bool shown = true;
-  bool minimized = false;
-
-  bool get isForeground => readerScreenVisible && shown && !minimized;
-
-  bool get showsPlugins => isForeground && visibleKeys.isNotEmpty;
-}
+enum _PluginRuntimeShutdownMode { idle, restart, exit }
 
 class PluginRuntimeDispatcher {
   static final PluginRuntimeDispatcher instance = PluginRuntimeDispatcher._();
@@ -175,7 +44,7 @@ class PluginRuntimeDispatcher {
   /// כל מופעי הריצה החיים, לפי מפתח (pluginId, instanceId). תוסף יכול לרוץ
   /// בכמה מופעים במקביל: טאבים קדמיים (PluginTabPage) + מופע רקע
   /// (PluginBackgroundHost) שהוער עצל דרך `contributes.startup`.
-  final Map<PluginInstanceKey, _PluginInstance> _instances = {};
+  final Map<PluginInstanceKey, PluginRuntimeInstance> _instances = {};
 
   /// אינדקס לשאילתות ברמת התוסף. סדר ההכנסה נשמר — "האחרון שנרשם".
   final Map<String, Set<PluginInstanceKey>> _instancesByPlugin = {};
@@ -257,8 +126,8 @@ class PluginRuntimeDispatcher {
   //
   // הנראות נשמרת לכל חלון לפי viewId: מופע רץ אם הוא מוצג בחלון כלשהו שמסך
   // העיון שלו גלוי והוא עצמו מוצג. בלי ריבוי חלונות קיים רק החלון הראשי.
-  final Map<int, _WindowVisibility> _windows = {
-    mainViewId: _WindowVisibility(),
+  final Map<int, PluginWindowVisibility> _windows = {
+    mainViewId: PluginWindowVisibility(),
   };
   bool _appVisible = true;
   Set<PluginInstanceKey> _runningForegroundKeys = const {};
@@ -266,8 +135,8 @@ class PluginRuntimeDispatcher {
   /// התצוגה של החלון הראשי (ה-implicit view).
   static const int mainViewId = 0;
 
-  _WindowVisibility _window(int? viewId) =>
-      _windows.putIfAbsent(viewId ?? mainViewId, _WindowVisibility.new);
+  PluginWindowVisibility _window(int? viewId) =>
+      _windows.putIfAbsent(viewId ?? mainViewId, PluginWindowVisibility.new);
 
   Set<PluginInstanceKey> get _visibleInstanceKeys => _windows.length == 1
       ? _windows.values.single.visibleKeys
@@ -291,11 +160,11 @@ class PluginRuntimeDispatcher {
   PluginInstanceKey _keyOf(String pluginId, PluginInstanceId instanceId) =>
       (pluginId: pluginId, instanceId: instanceId);
 
-  _PluginInstance _instanceFor(String pluginId, PluginInstanceId instanceId) {
+  PluginRuntimeInstance _instanceFor(String pluginId, PluginInstanceId instanceId) {
     final key = _keyOf(pluginId, instanceId);
     final instance = _instances.putIfAbsent(
       key,
-      () => _PluginInstance(pluginId: pluginId, instanceId: instanceId),
+      () => PluginRuntimeInstance(pluginId: pluginId, instanceId: instanceId),
     );
     _instancesByPlugin
         .putIfAbsent(pluginId, () => <PluginInstanceKey>{})
@@ -410,7 +279,7 @@ class PluginRuntimeDispatcher {
     instance
       ..viewId = viewId
       ..runtime = runtime
-      ..suspensionState = _PluginSuspensionState.active
+      ..suspensionState = PluginSuspensionState.active
       ..suspendedAt = null
       ..busyCount = 0
       ..released = false
@@ -463,7 +332,7 @@ class PluginRuntimeDispatcher {
     // ניווט מחליף את דף ה-JS, לא את ה-runtime הנייטיבי. מבטלים השהיה
     // ישנה מיד כדי שגם boot של דף מוסתר יוכל להסתיים; onReady יקפיאו מחדש.
     final generation = instance.eventOptionsGeneration;
-    instance.suspensionState = _PluginSuspensionState.resumeRequested;
+    instance.suspensionState = PluginSuspensionState.resumeRequested;
     final resume = () async {
       final succeeded = await _setNativeSuspended(
         runtime,
@@ -473,8 +342,8 @@ class PluginRuntimeDispatcher {
       );
       if (!_ownsLifecycle(key, instance, runtime, generation)) return;
       instance.suspensionState = succeeded
-          ? _PluginSuspensionState.active
-          : _PluginSuspensionState.failed;
+          ? PluginSuspensionState.active
+          : PluginSuspensionState.failed;
       if (succeeded) instance.suspendedAt = null;
     }();
     instance.lifecycleLock = resume.catchError((Object error) {
@@ -700,7 +569,7 @@ class PluginRuntimeDispatcher {
         _eventTimedOutRuntimes.remove(instance.runtime);
       }
       instance.runtime = null;
-      instance.suspensionState = _PluginSuspensionState.active;
+      instance.suspensionState = PluginSuspensionState.active;
       instance.suspendedAt = null;
       instance.released = false;
       instance.ready = false;
@@ -755,10 +624,10 @@ class PluginRuntimeDispatcher {
     instance.runtime = null;
     instance.released = true;
     instance.ready = false;
-    instance.suspensionState = _PluginSuspensionState.active;
+    instance.suspensionState = PluginSuspensionState.active;
     instance.suspendedAt = null;
     instance.busyCount = 0;
-    instance.nextBootReason = _BootRestoreReason(reason);
+    instance.nextBootReason = PluginBootRestoreReason(reason);
     instance.resetEventOptions();
     instance.clearQueue();
     instance.graceTimer?.cancel();
@@ -776,7 +645,7 @@ class PluginRuntimeDispatcher {
     );
   }
 
-  void _releaseRestoreRetention(_PluginInstance instance) {
+  void _releaseRestoreRetention(PluginRuntimeInstance instance) {
     final token = instance.restoreRetentionToken;
     if (token == null) return;
     PluginRestoreStateStore.instance.releaseRetention(
@@ -855,7 +724,7 @@ class PluginRuntimeDispatcher {
   }
 
   void _reclaimKeyboardIfPluginsLeft(
-    _WindowVisibility window,
+    PluginWindowVisibility window,
     bool showedPlugins,
     int? viewId,
   ) {
@@ -901,12 +770,12 @@ class PluginRuntimeDispatcher {
       final runtime = instance?.runtime;
       if (runtime == null ||
           instance?.suspensionState !=
-              _PluginSuspensionState.suspendRequested ||
+              PluginSuspensionState.suspendRequested ||
           defaultTargetPlatform != TargetPlatform.windows) {
         continue;
       }
       // Resume מבטל TrySuspend ממתין; אין להמתין למנעול שמחזיק אותה בקשה.
-      instance!.suspensionState = _PluginSuspensionState.resumeRequested;
+      instance!.suspensionState = PluginSuspensionState.resumeRequested;
       unawaited(
         runtime
             .cancelPendingSuspend()
@@ -942,7 +811,7 @@ class PluginRuntimeDispatcher {
     _resetWindows();
     _runningForegroundKeys = const {};
     for (final instance in _instances.values) {
-      instance.suspensionState = _PluginSuspensionState.active;
+      instance.suspensionState = PluginSuspensionState.active;
       instance.suspendedAt = null;
       instance.pendingKeyboardFocus = false;
       instance.pendingFocusTrustsPage = true;
@@ -968,7 +837,7 @@ class PluginRuntimeDispatcher {
 
   void _resetWindows() => _windows
     ..clear()
-    ..[mainViewId] = _WindowVisibility();
+    ..[mainViewId] = PluginWindowVisibility();
 
   /// נקרא ע"י [PluginTabPage] כשה-WebView שלו סיים להיטען (אחרי boot).
   /// אם המופע נטען בזמן שאינו מוצג (למשל המשתמש עבר לטאב אחר לפני שהטעינה
@@ -1145,12 +1014,12 @@ class PluginRuntimeDispatcher {
         _desiredForegroundKeys.contains(key)) {
       return;
     }
-    if (instance.suspensionState == _PluginSuspensionState.suspendedConfirmed ||
-        instance.suspensionState == _PluginSuspensionState.hidden) {
+    if (instance.suspensionState == PluginSuspensionState.suspendedConfirmed ||
+        instance.suspensionState == PluginSuspensionState.hidden) {
       return;
     }
     final generation = instance.eventOptionsGeneration;
-    instance.suspensionState = _PluginSuspensionState.suspendRequested;
+    instance.suspensionState = PluginSuspensionState.suspendRequested;
     instance.suspendedAt ??= clock();
     // המשתמש עזב את הטאב — בקשת פוקוס שנזכרה תחטוף את המקלדת מהטאב החדש.
     instance.pendingKeyboardFocus = false;
@@ -1176,27 +1045,27 @@ class PluginRuntimeDispatcher {
       await _resumeForeground(key);
       return;
     }
-    if (instance.suspensionState == _PluginSuspensionState.resumeRequested) {
+    if (instance.suspensionState == PluginSuspensionState.resumeRequested) {
       instance.suspendCancelled++;
       // ההחייאה ביטלה pause, אבל המשתמש כבר הסתיר שוב את הטאב.
       await _suspendForeground(key);
       return;
     }
     if (!succeeded) {
-      instance.suspensionState = _PluginSuspensionState.failed;
+      instance.suspensionState = PluginSuspensionState.failed;
       instance.suspendFailures++;
     } else if (defaultTargetPlatform == TargetPlatform.windows) {
-      instance.suspensionState = _PluginSuspensionState.suspendedConfirmed;
+      instance.suspensionState = PluginSuspensionState.suspendedConfirmed;
       instance.suspendConfirmed++;
     } else {
-      instance.suspensionState = _PluginSuspensionState.hidden;
+      instance.suspensionState = PluginSuspensionState.hidden;
     }
     _scheduleDiscardCheck();
   }
 
   bool _ownsLifecycle(
     PluginInstanceKey key,
-    _PluginInstance instance,
+    PluginRuntimeInstance instance,
     PluginRuntime runtime,
     int generation,
   ) =>
@@ -1234,7 +1103,7 @@ class PluginRuntimeDispatcher {
     if (instance == null || runtime == null) return false;
     final generation = instance.eventOptionsGeneration;
     final elapsed = Stopwatch()..start();
-    instance.suspensionState = _PluginSuspensionState.resumeRequested;
+    instance.suspensionState = PluginSuspensionState.resumeRequested;
     final succeeded = await _setNativeSuspended(
       runtime,
       key,
@@ -1244,10 +1113,10 @@ class PluginRuntimeDispatcher {
     if (!_ownsLifecycle(key, instance, runtime, generation)) return false;
     instance.lastResumeMicros = elapsed.elapsedMicroseconds;
     if (!succeeded) {
-      instance.suspensionState = _PluginSuspensionState.failed;
+      instance.suspensionState = PluginSuspensionState.failed;
       return false;
     }
-    instance.suspensionState = _PluginSuspensionState.active;
+    instance.suspensionState = PluginSuspensionState.active;
     instance.suspendedAt = null;
     _eventTimedOutRuntimes.remove(runtime);
     await _dispatchLifecycleEvent(runtime, key.pluginId, 'plugin.resumed');
@@ -1269,7 +1138,7 @@ class PluginRuntimeDispatcher {
     final generation = instance.eventOptionsGeneration;
     final events = instance.queued.values.toList(growable: false);
     instance.clearQueue();
-    final allowed = <_QueuedEvent>[];
+    final allowed = <PluginQueuedEvent>[];
     for (final event in events) {
       if ((event.isCurrent?.call() ?? true) &&
           (event.targeted ||
@@ -1302,7 +1171,7 @@ class PluginRuntimeDispatcher {
   }
 
   void _enqueue(
-    _PluginInstance instance,
+    PluginRuntimeInstance instance,
     String? queueKey,
     String topic,
     String json, {
@@ -1326,7 +1195,7 @@ class PluginRuntimeDispatcher {
     } else {
       instance.queued.remove(key);
     }
-    instance.queued[key] = _QueuedEvent(
+    instance.queued[key] = PluginQueuedEvent(
       topic,
       json,
       targeted: targeted,
@@ -1419,20 +1288,20 @@ class PluginRuntimeDispatcher {
         }
       });
 
-  bool _isDiscardExempt(_PluginInstance instance) =>
+  bool _isDiscardExempt(PluginRuntimeInstance instance) =>
       _discardBlocker(instance) != null;
 
   /// First blocking reason, in the same order used by the discard policy.
   /// Returning a reason instead of a bool does not relax any exemption.
-  String? _discardBlocker(_PluginInstance instance) {
+  String? _discardBlocker(PluginRuntimeInstance instance) {
     final key = _keyOf(instance.pluginId, instance.instanceId);
     final pluginId = instance.pluginId;
     final host = instance.host;
     if (host == null) return 'noHost';
     if (!host.canDiscard) return 'hostDisallowsDiscard';
     if (!instance.ready) return 'notReady';
-    if (instance.suspensionState == _PluginSuspensionState.suspendRequested ||
-        instance.suspensionState == _PluginSuspensionState.resumeRequested) {
+    if (instance.suspensionState == PluginSuspensionState.suspendRequested ||
+        instance.suspensionState == PluginSuspensionState.resumeRequested) {
       return 'lifecyclePending';
     }
     if (!PluginRestoreStateStore.instance.has(key)) return 'noRestoreState';
@@ -1515,7 +1384,7 @@ class PluginRuntimeDispatcher {
       final isHidden = hasController && !desired.contains(key);
       final isSuspended =
           hasController &&
-          instance.suspensionState == _PluginSuspensionState.suspendedConfirmed;
+          instance.suspensionState == PluginSuspensionState.suspendedConfirmed;
       final candidate =
           isHidden && instance.eventsPaused && instance.suspendedAt != null;
       final blocker = candidate ? _discardBlocker(instance) : null;
@@ -1523,11 +1392,11 @@ class PluginRuntimeDispatcher {
       if (isSuspended) suspended++;
       if (isHidden) hidden++;
       if (hasController &&
-          instance.suspensionState == _PluginSuspensionState.suspendRequested) {
+          instance.suspensionState == PluginSuspensionState.suspendRequested) {
         suspendRequested++;
       }
       if (hasController &&
-          instance.suspensionState == _PluginSuspensionState.failed) {
+          instance.suspensionState == PluginSuspensionState.failed) {
         failed++;
       }
       if (instance.released) released++;
@@ -2135,7 +2004,7 @@ class PluginRuntimeDispatcher {
   }
 
   void _addRedelivery(
-    _PluginInstance instance,
+    PluginRuntimeInstance instance,
     String topic,
     Map<String, dynamic> payload,
   ) {
@@ -2205,9 +2074,9 @@ class PluginRuntimeDispatcher {
           // הדף בדרך ל-reload: מחזירים את דגל ההשעיה כדי שגם ניסיון חוזר
           // של השירות (retry אחרי 8 שניות) יעבור דרך המסלול המאומת הזה
           // ויירשם למסירה חוזרת — ולא ייבלע ב-eval רגיל על דף באמצע טעינה.
-          instance.suspensionState = _PluginSuspensionState.hidden;
+          instance.suspensionState = PluginSuspensionState.hidden;
           instance.ready = false;
-          instance.nextBootReason = _BootRestoreReason(
+          instance.nextBootReason = PluginBootRestoreReason(
             PluginRestoreReason.reloaded,
           );
           try {
