@@ -115,6 +115,9 @@ class AppContextMenuEntry {
   // חלונית תצוגה מקדימה צפה שנפתחת ברפרוף על השורה בתפריט.
   final WidgetBuilder? hoverPreviewBuilder;
 
+  /// פריט פעולה שמופיע ברמה העליונה רק לאחר קבלת תוצאה.
+  final Future<AppContextMenuEntry?>? deferredEntry;
+
   /// כשמוגדר, הערך מרונדר כשורה אופקית של כפתורי אייקון בראש התפריט
   /// (סגנון Windows 11) במקום שורת טקסט רגילה.
   final List<AppContextMenuIconAction>? iconRowActions;
@@ -136,6 +139,7 @@ class AppContextMenuEntry {
     this.childrenBuilder,
     this.childrenRefreshStream,
     this.hoverPreviewBuilder,
+    this.deferredEntry,
   }) : iconRowActions = null,
        colorRowActions = null,
        isDivider = false;
@@ -160,7 +164,8 @@ class AppContextMenuEntry {
       children = null,
       childrenBuilder = null,
       childrenRefreshStream = null,
-      hoverPreviewBuilder = null;
+      hoverPreviewBuilder = null,
+      deferredEntry = null;
 
   const AppContextMenuEntry.colorRow(List<AppContextMenuColorAction> actions)
     : assert(actions.length > 0, 'colorRow דורש לפחות צבע אחד'),
@@ -181,7 +186,8 @@ class AppContextMenuEntry {
       children = null,
       childrenBuilder = null,
       childrenRefreshStream = null,
-      hoverPreviewBuilder = null;
+      hoverPreviewBuilder = null,
+      deferredEntry = null;
 
   const AppContextMenuEntry.divider()
     : key = null,
@@ -201,7 +207,8 @@ class AppContextMenuEntry {
       childrenRefreshStream = null,
       hoverPreviewBuilder = null,
       iconRowActions = null,
-      colorRowActions = null;
+      colorRowActions = null,
+      deferredEntry = null;
 }
 
 bool hasEnabledAppContextMenuEntries(List<AppContextMenuEntry> entries) {

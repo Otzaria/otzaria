@@ -57,17 +57,20 @@ AppContextMenuEntry buildLinkContextMenuEntry({
   bool? removeNikud,
   bool? removePunctuation,
   double? maxFontSize,
+  String labelPrefix = '',
+  IconData? icon,
 }) {
   return AppContextMenuEntry(
-    label: link.fallbackDisplayReference,
+    label: '$labelPrefix${link.fallbackDisplayReference}',
     labelWidget: FutureBuilder<String>(
       future: link.displayReference,
       builder: (context, snapshot) => Text(
-        snapshot.data ?? link.fallbackDisplayReference,
+        '$labelPrefix${snapshot.data ?? link.fallbackDisplayReference}',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
     ),
+    icon: icon,
     onTap: onTap,
     hoverPreviewBuilder: (context) => LinkHoverPreviewContent(
       link: link,

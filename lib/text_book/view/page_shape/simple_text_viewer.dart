@@ -2153,6 +2153,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       final sourceLink = _siblingController!.sourceLinkForLine(
         state.linksByLine,
         index + 1,
+        queriedLinks: _paragraphCommentatorsCache.referenceLinks(
+          state.book,
+          index,
+        ),
       );
       final siblingEntry = _siblingController!.buildEntry(
         lineIndex: index,
@@ -2163,6 +2167,20 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         onNavigate: (link) =>
             openLinkTarget(link, (tab) => widget.openBookCallback(tab)),
       );
+      final sourceEntry = _siblingController!.buildSourceEntry(
+        sourceLink: sourceLink,
+        pendingLinks: sourceLink == null
+            ? _paragraphCommentatorsCache.pendingReferenceLinks(
+                state.book,
+                index,
+              )
+            : null,
+        displayProfile: state.commentaryDisplayProfile,
+        maxFontSize: widget.fontSize,
+        onNavigate: (link) =>
+            openLinkTarget(link, (tab) => widget.openBookCallback(tab)),
+      );
+      if (sourceEntry != null) entries.add(sourceEntry);
       if (siblingEntry != null) entries.add(siblingEntry);
     }
 

@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/models/link_types.dart';
+import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
@@ -86,6 +90,68 @@ void main() {
   }
 
   group('תפריט הטקסט הראשי', () {
+    testWidgets('מעבר למקור מופיע בתפריט הפתוח אחרי טעינת השורה', (
+      tester,
+    ) async {
+      final links = Completer<List<Link>>();
+      final bloc = _RecordingTextBookBloc(
+        _loadedState(),
+        loadLinks: () => links.future,
+      );
+      addTearDown(bloc.close);
+      final openedBooks = <({String title, int index})>[];
+      await pumpViewer(
+        tester,
+        textBookBloc: bloc,
+        viewer: SimpleTextViewer(
+          content: const ['שורה א'],
+          fontSize: 18,
+          openBookCallback: (tab) {
+            final textTab = tab as TextBookTab;
+            openedBooks.add((title: textTab.book.title, index: textTab.index));
+            textTab.dispose();
+          },
+          isMainText: true,
+        ),
+      );
+
+      await openContextMenu(tester);
+      expect(find.text('קישורים'), findsOneWidget);
+      final target = find.textContaining('מעבר למקור: מקור מוצהר');
+      expect(target, findsNothing);
+
+      links.complete([
+        Link(
+          heRef: 'ציטוט אחר א',
+          index1: 1,
+          path2: 'ציטוט אחר',
+          index2: 1,
+          connectionType: LinkTypes.source,
+        ),
+        Link(
+          heRef: 'מקור מוצהר א',
+          index1: 1,
+          path2: 'מקור מוצהר',
+          index2: 2,
+          connectionType: LinkTypes.source,
+          baseProvenance: 2,
+          start: 0,
+          end: 1,
+        ),
+      ]);
+      await tester.pumpAndSettle();
+
+      expect(target, findsOneWidget);
+      expect(find.textContaining('מעבר למקור: ציטוט אחר'), findsNothing);
+      await tester.tap(target);
+      await tester.pumpAndSettle();
+      expect(openedBooks, [(title: 'מקור מוצהר', index: 1)]);
+      expect(
+        (bloc.repository as _TestTextBookRepository).requestedRanges,
+        [(startIndex: 0, endIndex: 0)],
+      );
+    });
+
     testWidgets('כולל תת-תפריט "מפרשים" עם פתיחת החלונית ובחירת מפרשים', (
       tester,
     ) async {
@@ -585,12 +651,15 @@ TextBookLoaded _loadedState({
 
 class _RecordingTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     implements TextBookBloc {
-  _RecordingTextBookBloc(super.initialState)
-    : repository = _TestTextBookRepository(
-        initialState is TextBookLoaded
-            ? initialState.availableCommentators
-            : const [],
-      ) {
+  _RecordingTextBookBloc(
+    super.initialState, {
+    Future<List<Link>> Function()? loadLinks,
+  }) : repository = _TestTextBookRepository(
+         initialState is TextBookLoaded
+             ? initialState.availableCommentators
+             : const [],
+         loadLinks: loadLinks,
+       ) {
     on<TextBookEvent>((event, emit) => received.add(event));
   }
 
@@ -604,9 +673,10 @@ class _RecordingTextBookBloc extends Bloc<TextBookEvent, TextBookState>
 }
 
 class _TestTextBookRepository implements TextBookRepository {
-  _TestTextBookRepository(this.commentators);
+  _TestTextBookRepository(this.commentators, {this.loadLinks});
 
   final List<String> commentators;
+  final Future<List<Link>> Function()? loadLinks;
   final List<({int startIndex, int endIndex})> requestedRanges = [];
 
   @override
@@ -617,6 +687,8 @@ class _TestTextBookRepository implements TextBookRepository {
     Iterable<String>? targetBookTitles,
   }) async {
     requestedRanges.add((startIndex: startIndex, endIndex: endIndex));
+    final loader = loadLinks;
+    if (loader != null) return loader();
     return [
       for (final title in commentators)
         Link(

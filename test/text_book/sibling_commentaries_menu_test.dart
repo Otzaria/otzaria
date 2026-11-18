@@ -88,6 +88,26 @@ void main() {
       c.dispose();
     });
 
+    test('buildSourceEntry מנווט למקור ומציג תצוגה מקדימה בריחוף', () {
+      final c = SiblingCommentariesController(loadSiblings: (_) async => []);
+      expect(
+        c.buildSourceEntry(sourceLink: null, onNavigate: (_) {}),
+        isNull,
+      );
+      Link? navigated;
+      final source = _sourceLink();
+      final entry = c.buildSourceEntry(
+        sourceLink: source,
+        onNavigate: (link) => navigated = link,
+      )!;
+      expect(entry.label, 'מעבר למקור: ${source.fallbackDisplayReference}');
+      expect(entry.hoverPreviewBuilder, isNotNull);
+      expect(entry.childrenBuilder, isNull);
+      entry.onTap!();
+      expect(navigated, same(source));
+      c.dispose();
+    });
+
     test('buildEntry בונה תווית "מפרשים נוספים על ..." עם תת-תפריט', () {
       final c = SiblingCommentariesController(loadSiblings: (_) async => []);
       final entry = c.buildEntry(

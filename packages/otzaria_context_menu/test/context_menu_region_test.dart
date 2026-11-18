@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -123,6 +125,93 @@ void main() {
       expect(escapes.handlers, isEmpty);
     },
   );
+
+  testWidgets('a deferred action fits a menu near the bottom edge', (
+    tester,
+  ) async {
+    const viewport = Size(240, 160);
+    await tester.binding.setSurfaceSize(viewport);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final focus = FocusNode();
+    addTearDown(focus.dispose);
+    final pending = Completer<AppContextMenuEntry?>();
+    var opened = 0;
+    var activated = 0;
+    const label = 'פעולה שמתקבלת מהטעינה וכוללת תיאור ארוך';
+    final key = await _mount(
+      tester,
+      escapes: escapes,
+      focus: focus,
+      onMenuOpening: (_, _) => opened++,
+      entries: () => [
+        const AppContextMenuEntry(label: 'פעולה ראשונה'),
+        AppContextMenuEntry(
+          label: null,
+          enabled: false,
+          deferredEntry: pending.future,
+        ),
+      ],
+    );
+
+    await key.currentState!.openMenuAt(const Offset(215, 125));
+    await tester.pumpAndSettle();
+    expect(find.text('פעולה ראשונה'), findsOneWidget);
+    expect(find.text(label), findsNothing);
+
+    pending.complete(
+      AppContextMenuEntry(label: label, onTap: () => activated++),
+    );
+    await tester.pumpAndSettle();
+
+    final item = find.widgetWithText(MenuItemButton, label);
+    final rect = tester.getRect(item);
+    expect(rect.left, greaterThanOrEqualTo(0));
+    expect(rect.right, lessThanOrEqualTo(viewport.width));
+    expect(rect.bottom, lessThanOrEqualTo(viewport.height));
+    expect(opened, 1);
+    expect(focus.hasPrimaryFocus, isTrue);
+    await tester.tap(item);
+    await tester.pumpAndSettle();
+    expect(activated, 1);
+    expect(find.text(label), findsNothing);
+  });
+
+  testWidgets('a replaced menu ignores its former deferred action', (
+    tester,
+  ) async {
+    final first = Completer<AppContextMenuEntry?>();
+    final second = Completer<AppContextMenuEntry?>();
+    var pending = first;
+    final key = await _mount(
+      tester,
+      escapes: escapes,
+      entries: () => [
+        const AppContextMenuEntry(label: 'פעולה ראשונה'),
+        AppContextMenuEntry(
+          label: null,
+          enabled: false,
+          deferredEntry: pending.future,
+        ),
+      ],
+    );
+
+    await key.currentState!.openMenuAt(const Offset(90, 80));
+    await tester.pumpAndSettle();
+    pending = second;
+    await key.currentState!.openMenuAt(const Offset(135, 145));
+    await tester.pumpAndSettle();
+    final row = find.text('פעולה ראשונה');
+    final position = tester.getRect(row);
+
+    first.complete(const AppContextMenuEntry(label: 'פעולה מתפריט קודם'));
+    second.complete(null);
+    await tester.pumpAndSettle();
+
+    expect(find.text('פעולה מתפריט קודם'), findsNothing);
+    expect(tester.getRect(row), position);
+    expect(find.byType(MenuItemButton), findsOneWidget);
+    expect(escapes.handlers, hasLength(1));
+  });
 
   testWidgets(
     'opening hook runs before the overlay and receives its position',

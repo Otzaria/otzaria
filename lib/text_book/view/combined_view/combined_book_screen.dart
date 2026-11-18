@@ -1535,6 +1535,22 @@ class _CombinedViewState extends State<CombinedView> {
         final sourceLink = _siblingController.sourceLinkForLine(
           state.linksByLine,
           paragraphIndex + 1,
+          queriedLinks: _paragraphCommentatorsCache.referenceLinks(
+            state.book,
+            paragraphIndex,
+          ),
+        );
+        final sourceEntry = _siblingController.buildSourceEntry(
+          sourceLink: sourceLink,
+          pendingLinks: sourceLink == null
+              ? _paragraphCommentatorsCache.pendingReferenceLinks(
+                  state.book,
+                  paragraphIndex,
+                )
+              : null,
+          displayProfile: state.commentaryDisplayProfile,
+          maxFontSize: widget.textSize,
+          onNavigate: (link) => openLinkTarget(link, _openTab),
         );
         final entry = _siblingController.buildEntry(
           lineIndex: paragraphIndex,
@@ -1544,9 +1560,7 @@ class _CombinedViewState extends State<CombinedView> {
           maxFontSize: widget.textSize,
           onNavigate: (link) => openLinkTarget(link, _openTab),
         );
-        return entry == null
-            ? const <AppContextMenuEntry>[]
-            : <AppContextMenuEntry>[entry];
+        return <AppContextMenuEntry>[?sourceEntry, ?entry];
       }(),
       ...buildReaderDictionaryEntries(
         context: context,

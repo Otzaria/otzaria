@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/models/link_types.dart';
@@ -42,10 +43,15 @@ class SiblingCommentariesController {
   /// כשהשורה אינה בספר מפרש — ואז אין להציג את הפריט כלל.
   /// לשורה יכולים להיות כמה קישורי SOURCE; נבחר בעל ה-[Link.baseProvenance]
   /// הגבוה — יחס הבסיס המוצהר ולא ציטוט לטרלי שנשמר במסד בכיוון ההפוך.
-  Link? sourceLinkForLine(Map<int, List<Link>> linksByLine, int lineIndex) {
-    final links = linksByLine[lineIndex];
-    if (links == null) return null;
-    Link? best;
+  Link? sourceLinkForLine(
+    Map<int, List<Link>> linksByLine,
+    int lineIndex, {
+    List<Link>? queriedLinks,
+  }) =>
+      _preferredSource(queriedLinks, _preferredSource(linksByLine[lineIndex]));
+
+  Link? _preferredSource(List<Link>? links, [Link? best]) {
+    if (links == null) return best;
     for (final link in links) {
       if (!LinkTypes.isVirtualSource(link.connectionType)) continue;
       if (best == null || link.baseProvenance > best.baseProvenance) {
@@ -53,6 +59,37 @@ class SiblingCommentariesController {
       }
     }
     return best;
+  }
+
+  /// מעבר ישיר למקור, עם ריחוף. כשהשורה בטעינה הפריט מופיע עם קבלת המקור.
+  AppContextMenuEntry? buildSourceEntry({
+    required Link? sourceLink,
+    required void Function(Link link) onNavigate,
+    Future<List<Link>?>? pendingLinks,
+    TextDisplayProfile? displayProfile,
+    double? maxFontSize,
+  }) {
+    AppContextMenuEntry entryFor(Link link) => buildLinkContextMenuEntry(
+      link: link,
+      labelPrefix: 'מעבר למקור: ',
+      icon: FluentIcons.book_open_24_regular,
+      displayProfile: displayProfile,
+      maxFontSize: maxFontSize,
+      onTap: () => onNavigate(link),
+    );
+
+    if (sourceLink != null) return entryFor(sourceLink);
+    if (pendingLinks == null) return null;
+    final generation = _generation;
+    return AppContextMenuEntry(
+      label: null,
+      enabled: false,
+      deferredEntry: pendingLinks.then((links) {
+        if (generation != _generation || _refresh.isClosed) return null;
+        final link = _preferredSource(links);
+        return link == null ? null : entryFor(link);
+      }),
+    );
   }
 
   /// בונה את פריט התפריט "מפרשים נוספים על <כתובת המקור>", או null כשאין מקור
