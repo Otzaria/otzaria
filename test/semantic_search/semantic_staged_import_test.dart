@@ -454,14 +454,17 @@ void main() {
         installModelFiles(root);
         final manifest =
             jsonDecode(_manifest(version: 31)) as Map<String, dynamic>;
+        final model = manifest['identity']['model'] as Map<String, dynamic>;
+        // שומרים את ה־UInt64 המדויק במקום לקודד מחדש את ה־double מהפענוח.
+        model['chunking_identity'] = '__chunking_identity__';
         switch (source) {
           case 'old version':
             manifest['toLibraryVersion'] = 30;
             manifest['libraryReleaseTag'] = _tag;
           case 'foreign family':
-            manifest['identity']['model']['family_id'] = 'foreign';
+            model['family_id'] = 'foreign';
           case 'wrong chunking':
-            manifest['identity']['model']['chunking_identity'] = -1;
+            model['chunking_identity'] = 1;
           case 'invalid manifest':
             manifest['segment'] = 'invalid';
           case 'partial':
@@ -478,6 +481,12 @@ void main() {
         if (source == 'ready split') {
           manifest['files'][0]['file'] = '$_segmentName.part-000';
         }
+        final manifestJson = jsonEncode(manifest).replaceFirst(
+          '"__chunking_identity__"',
+          BigInt.from(
+            _chunkingOf(SemanticVectorsFamily.pardesWindows),
+          ).toUnsigned(64).toString(),
+        );
         if (source == 'old model') {
           write(staged('meivin-round2-onnx', 'query.int8.onnx'), 'old');
         } else {
@@ -503,7 +512,7 @@ void main() {
           if (source != 'no manifest') {
             write(
               staged(kSemanticImportVectorsFolderName, _manifestName),
-              jsonEncode(manifest),
+              manifestJson,
             );
           }
         }
@@ -544,7 +553,7 @@ void main() {
         if (source.startsWith('ready')) {
           expect(
             backend.installRequests.single.manifestJson,
-            jsonEncode(manifest),
+            manifestJson,
           );
           expect(
             backend.installedBytes.single,

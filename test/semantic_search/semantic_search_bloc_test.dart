@@ -175,12 +175,13 @@ void main() {
       addTearDown(repository.releaseForLibraryMove);
 
       await tester.runAsync(() async {
+        final availability = await repository.refresh();
+        expect(availability.phase, SemanticAvailabilityPhase.ready);
         await tester.pumpWidget(
           app(
             SemanticDataPanel(repository: repository, platformSupported: true),
           ),
         );
-        await repository.refresh();
       });
       await tester.pumpAndSettle();
 
