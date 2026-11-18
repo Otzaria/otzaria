@@ -8,25 +8,13 @@ List<TocEntry> filterTocEntriesForSearch(
   List<TocEntry> entries,
   String rawQuery,
 ) {
-  final normalizedQuery = _normalizeQuery(rawQuery);
-  if (normalizedQuery.isEmpty) return [];
+  final query = normalizeFindQuery(rawQuery);
+  if (query.isEmpty) return [];
 
-  final filtered = _buildFilteredEntries(entries, normalizedQuery);
-  return _sortEntriesByRelevance(filtered);
-}
-
-String _normalizeQuery(String rawQuery) {
-  return normalizeFindQuery(rawQuery);
-}
-
-bool _isBookTitle(
-  TocEntry entry,
-  int depth,
-  int index,
-  bool isFirstEntry,
-) {
-  return (depth == 0 && index == 0) ||
-      (entry.level <= 1 && index == 0 && isFirstEntry);
+  return [
+    for (final entry in _filterEntries(entries, query, skipFirst: true))
+      entry.toTocEntry(null),
+  ];
 }
 
 /// הנרמול אינו תלוי בשאילתה, ולכן נשמר בין הקלדה להקלדה.
@@ -50,129 +38,100 @@ String _rankFullText(TocEntry entry) {
       : normalizeFindRankText(entry.fullText);
 }
 
-/// מפתחות הדירוג של העותק המסונן. נקבעים בזמן הסינון מתוך הערך המקורי,
-/// ששם המטמונים חיים בין חיפוש לחיפוש (העותקים נוצרים מחדש בכל חיפוש).
-final Expando<_RankKeys> _rankKeysCache = Expando<_RankKeys>();
-
-class _RankKeys {
+class _RetainedEntry {
+  final TocEntry source;
+  final List<_RetainedEntry> children;
   final int rank;
   final int lengthDelta;
 
-  const _RankKeys(this.rank, this.lengthDelta);
-}
+  const _RetainedEntry(
+    this.source,
+    this.children, {
+    this.rank = 6,
+    this.lengthDelta = 0,
+  });
 
-/// מסננת ענף במעבר יחיד ומחזירה עותק רק אם הוא או צאצא שלו תואמים.
-TocEntry? _filterEntry(
-  TocEntry entry,
-  String query, {
-  required int depth,
-  required int index,
-  required bool isFirstEntry,
-  TocEntry? parent,
-}) {
-  final isBookTitle = _isBookTitle(entry, depth, index, isFirstEntry);
-  final selfMatches =
-      !isBookTitle &&
-      findNormalizedTextMatches(
-        normalizedQuery: query,
-        normalizedPrimaryText: _matchText(entry),
-      );
-  // רוב הכותרות הן עלים שאינם תואמים — נפסלים לפני השכפול.
-  if (!selfMatches && entry.children.isEmpty) return null;
-
-  final cloned = TocEntry(
-    text: entry.text,
-    index: entry.index,
-    level: entry.level,
-    parent: parent,
-  );
-
-  final children = <TocEntry>[];
-  for (int i = 0; i < entry.children.length; i++) {
-    final child = _filterEntry(
-      entry.children[i],
-      query,
-      depth: depth + 1,
-      index: i,
-      isFirstEntry: false,
-      parent: cloned,
+  TocEntry toTocEntry(TocEntry? parent) {
+    final entry = TocEntry(
+      text: source.text,
+      index: source.index,
+      level: source.level,
+      parent: parent,
     );
-    if (child != null) children.add(child);
+    if (children.isNotEmpty) {
+      entry.children = [for (final child in children) child.toTocEntry(entry)];
+    }
+    return entry;
   }
-  cloned.children = children;
-
-  if (!selfMatches && children.isEmpty) return null;
-  // ערך שצאצאיו תואמים נשאר בסדר הספר (rank 6), אלא אם השאילתה היא מילים
-  // שלמות בשמו: "ח" מקדימה את "פרק ח", אך לא את "חושן משפט".
-  if (children.isNotEmpty &&
-      !(selfMatches && ' ${_matchText(entry)} '.contains(' $query '))) {
-    return cloned;
-  }
-
-  final rankText = _rankText(entry);
-  final rankFullText = _rankFullText(entry);
-  _rankKeysCache[cloned] = _RankKeys(
-    findNormalizedTextMatchRank(
-      normalizedQuery: query,
-      normalizedPrimaryText: rankText,
-      normalizedSecondaryText: rankFullText,
-    ),
-    findNormalizedTextMatchLengthDelta(
-      normalizedQuery: query,
-      normalizedPrimaryText: rankText,
-      normalizedSecondaryText: rankFullText,
-    ),
-  );
-  return cloned;
 }
 
-List<TocEntry> _buildFilteredEntries(
+List<_RetainedEntry> _filterEntries(
   List<TocEntry> entries,
+  String query, {
+  bool skipFirst = false,
+}) {
+  List<_RetainedEntry>? kept;
+  for (var i = 0; i < entries.length; i++) {
+    final entry = entries[i];
+    final selfMatches =
+        !(skipFirst && i == 0) &&
+        findNormalizedTextMatches(
+          normalizedQuery: query,
+          normalizedPrimaryText: _matchText(entry),
+        );
+    final children = _filterEntries(entry.children, query);
+    if (!selfMatches && children.isEmpty) continue;
+
+    // אב לצאצא תואם נשאר בסדר הספר, אלא אם השאילתה תואמת מילים שלמות בשמו.
+    final rankByTitle =
+        children.isEmpty ||
+        (selfMatches && ' ${_matchText(entry)} '.contains(' $query '));
+    (kept ??= []).add(
+      rankByTitle
+          ? _rankEntry(entry, children, query)
+          : _RetainedEntry(entry, children),
+    );
+  }
+
+  if (kept == null) return const [];
+  if (kept.length > 1) kept.sort(_compareRelevance);
+  return kept;
+}
+
+_RetainedEntry _rankEntry(
+  TocEntry entry,
+  List<_RetainedEntry> children,
   String query,
 ) {
-  final result = <TocEntry>[];
-  for (int i = 0; i < entries.length; i++) {
-    final filtered = _filterEntry(
-      entries[i],
-      query,
-      depth: 0,
-      index: i,
-      isFirstEntry: true,
-    );
-    if (filtered != null) result.add(filtered);
-  }
-  return result;
+  final rankText = _rankText(entry);
+  final rankFullText = _rankFullText(entry);
+  return _RetainedEntry(
+    entry,
+    children,
+    rank: findNormalizedTextMatchRank(
+      normalizedQuery: query,
+      normalizedPrimaryText: rankText,
+      normalizedSecondaryText: rankFullText,
+    ),
+    lengthDelta: findNormalizedTextMatchLengthDelta(
+      normalizedQuery: query,
+      normalizedPrimaryText: rankText,
+      normalizedSecondaryText: rankFullText,
+    ),
+  );
 }
 
-/// ממיינת לפי מפתחות הדירוג שחושבו פעם אחת ב-[_filterEntry].
-List<TocEntry> _sortEntriesByRelevance(List<TocEntry> entries) {
-  const fallback = _RankKeys(6, 0);
-  final sorted = List<TocEntry>.from(entries)
-    ..sort((a, b) {
-      final keysA = _rankKeysCache[a] ?? fallback;
-      final keysB = _rankKeysCache[b] ?? fallback;
+int _compareRelevance(_RetainedEntry a, _RetainedEntry b) {
+  final rank = a.rank.compareTo(b.rank);
+  if (rank != 0) return rank;
 
-      final rankCompare = keysA.rank.compareTo(keysB.rank);
-      if (rankCompare != 0) return rankCompare;
-
-      // length-delta רלוונטי רק לערכים שדורגו לפי שמם; ערכי-אב בסדר הספר
-      // (rank 6) אינם נדרגים לפי אורך.
-      if (keysA.rank < 6) {
-        final lengthCompare = keysA.lengthDelta.compareTo(keysB.lengthDelta);
-        if (lengthCompare != 0) return lengthCompare;
-      }
-
-      final levelCompare = a.level.compareTo(b.level);
-      if (levelCompare != 0) return levelCompare;
-
-      return a.index.compareTo(b.index);
-    });
-
-  for (final entry in sorted) {
-    if (entry.children.isNotEmpty) {
-      entry.children = _sortEntriesByRelevance(entry.children);
-    }
+  if (a.rank < 6) {
+    final length = a.lengthDelta.compareTo(b.lengthDelta);
+    if (length != 0) return length;
   }
 
-  return sorted;
+  final level = a.source.level.compareTo(b.source.level);
+  if (level != 0) return level;
+
+  return a.source.index.compareTo(b.source.index);
 }
