@@ -8,6 +8,7 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -138,5 +139,42 @@ void main() {
 
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
     expect(tab.navNextSegmentNotifier.value, 1);
+  });
+
+  testWidgets('מקש שבוטל בהגדרות אינו מנווט, ומקש שהוקצה מחדש מנווט '
+      '(issue #2851)', (tester) async {
+    await Settings.setValue<String>('key-shortcut-next-segment-reader', '');
+    await Settings.setValue<String>('key-shortcut-prev-segment-reader', '');
+    await Settings.setValue<String>(
+      'key-shortcut-next-toc-reader',
+      'arrowright',
+    );
+    addTearDown(
+      () => Settings.init(cacheProvider: MemoryCacheProvider()),
+    );
+    final tab = await _mount(tester);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    expect(_counts(tab), [0, 0, 0, 1]);
+  });
+
+  testWidgets('ב-Mac Cmd+← ו-Control+← לדף/פרק הבא, ו-← לבד לקטע הבא', (
+    tester,
+  ) async {
+    ShortcutHelper.isMacForTesting = true;
+    addTearDown(() => ShortcutHelper.isMacForTesting = null);
+    final tab = await _mount(tester);
+
+    for (final modifier in [
+      LogicalKeyboardKey.metaLeft,
+      LogicalKeyboardKey.controlLeft,
+    ]) {
+      await tester.sendKeyDownEvent(modifier);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.sendKeyUpEvent(modifier);
+    }
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    expect(_counts(tab), [0, 1, 0, 2]);
   });
 }
