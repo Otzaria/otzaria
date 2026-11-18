@@ -44,14 +44,11 @@ class PluginCorrectionParagraph extends StatefulWidget {
 }
 
 /// מיקום אופקי של הסמן בעת מעבר בין פסקאות בחיצים, כדי שהסמן ינחת באותו מקום
-/// בשורה הסמוכה ולא בסוף השורה.
+/// בשורה הסמוכה ולא בסוף השורה. קיים רק עד שמעבר המיקוד מסתיים.
 class _CaretHandoff {
   final double dx;
   final bool movedDown;
-  final DateTime at = DateTime.now();
   _CaretHandoff(this.dx, this.movedDown);
-  bool get fresh =>
-      DateTime.now().difference(at) < const Duration(milliseconds: 800);
 }
 
 class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
@@ -79,9 +76,11 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   Offset? _editPosition;
   final GlobalKey _originalKey = GlobalKey();
 
-  /// גובה הפסקה הרגילה ברגע ההפעלה: שדה העריכה אינו נמוך ממנו, כדי שהחלפת
-  /// התצוגה לא תשנה את גובה הפסקה ולא תזיז את הגלילה. מתבטל עם התיקון הראשון.
+  /// גובה הפסקה הרגילה ברגע ההפעלה, והרוחב שהיה לה אז: שדה העריכה אינו נמוך
+  /// מהגובה, כדי שהחלפת התצוגה לא תשנה את גובה הפסקה ולא תזיז את הגלילה.
+  /// הנעילה חלה רק ברוחב ובהגדרות שבהם נמדדה, ומתבטלת עם התיקון הראשון.
   double? _lockedHeight;
+  double? _lockedWidth;
   String? _lastRejection;
   DateTime _lastRejectionAt = DateTime.fromMillisecondsSinceEpoch(0);
   PluginCorrectionSessionService get _registry =>
@@ -105,6 +104,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     if (widget.sessionActive && (!oldWidget.sessionActive || serviceChanged)) {
       _activate();
     }
+    if (oldWidget.settings != widget.settings) _lockedHeight = null;
     if (widget.sessionActive) _syncText();
   }
 
@@ -157,7 +157,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
       return;
     }
     setState(() => _showEditor = false);
-    if (!refocusReader || _corrected) return;
+    if (!refocusReader) return;
     // הפוקוס חוזר לקורא (ולא לפסקה), כדי שחצים וגלילה ימשיכו לעבוד.
     final reader = Focus.maybeOf(context, createDependency: false);
     if (reader == null || reader is FocusScopeNode) {
@@ -197,7 +197,6 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     final handoff = _handoff;
     if (!_focus!.hasFocus || handoff == null) return;
     _handoff = null;
-    if (!handoff.fresh) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final context = _focus?.context;
       if (!mounted || _controller == null || context == null) return;
@@ -219,8 +218,16 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   }
 
   void _lockOriginalHeight() {
-    final height = _originalKey.currentContext?.size?.height;
-    if (height != null && height.isFinite && height > 0) _lockedHeight = height;
+    final size = _originalKey.currentContext?.size;
+    final box = context.findRenderObject();
+    if (size == null ||
+        box is! RenderBox ||
+        !size.height.isFinite ||
+        size.height <= 0) {
+      return;
+    }
+    _lockedHeight = size.height;
+    _lockedWidth = box.constraints.maxWidth;
   }
 
   void _startEditing({Offset? position}) {
@@ -252,6 +259,11 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   KeyEventResult _onEditorKey(FocusNode node, KeyEvent event) {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
     final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.escape) {
+      // Escape יוצא מהעריכה: התיקון נשאר, והמיקוד חוזר לקורא.
+      _stopEditing(refocusReader: true);
+      return KeyEventResult.handled;
+    }
     final up = key == LogicalKeyboardKey.arrowUp;
     if (!up && key != LogicalKeyboardKey.arrowDown) {
       return KeyEventResult.ignored;
@@ -297,7 +309,14 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     final moved = FocusScope.of(node.context!).focusInDirection(
       up ? TraversalDirection.up : TraversalDirection.down,
     );
-    if (!moved) _handoff = null;
+    // מיקוד שנחת ברכיב שאינו פסקה אינו משאיר מיקום לפסקה שתקבל מיקוד אחר כך.
+    scheduleMicrotask(() {
+      final target = FocusManager.instance.primaryFocus?.context;
+      if (target?.findAncestorStateOfType<_PluginCorrectionParagraphState>() ==
+          null) {
+        _handoff = null;
+      }
+    });
     return moved ? KeyEventResult.handled : KeyEventResult.ignored;
   }
 
@@ -445,15 +464,19 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
               : BorderSide.none,
         ),
       ),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          minHeight: _corrected ? 0 : (_lockedHeight ?? 0),
-        ),
-        child: Listener(
-          onPointerDown: _editorPointerDown,
-          onPointerUp: _editorPointerUp,
-          onPointerCancel: (_) => _downAt = null,
-          child: _buildEditor(),
+      child: LayoutBuilder(
+        builder: (context, constraints) => ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: _corrected || _lockedWidth != constraints.maxWidth
+                ? 0
+                : (_lockedHeight ?? 0),
+          ),
+          child: Listener(
+            onPointerDown: _editorPointerDown,
+            onPointerUp: _editorPointerUp,
+            onPointerCancel: (_) => _downAt = null,
+            child: _buildEditor(),
+          ),
         ),
       ),
     );
@@ -546,7 +569,6 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
         controller: _controller!,
         focusNode: _focus!,
         strutStyle: line?.strutStyle,
-        scrollPadding: EdgeInsets.zero,
         maxLines: null,
         minLines: 1,
         textInputAction: TextInputAction.newline,

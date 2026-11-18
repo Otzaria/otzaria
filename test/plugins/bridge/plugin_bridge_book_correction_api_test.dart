@@ -4,6 +4,9 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/user_state/pending_report_store.dart';
+import 'package:otzaria/core/user_state/user_state_database.dart';
+import 'package:otzaria/services/sent_reports_counter.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
@@ -61,8 +64,8 @@ class _StubPluginRegistryRepository extends PluginRegistryRepository {
   Future<bool?> getPermission(String pluginId, String permission) async => true;
 }
 
-InstalledPlugin _plugin() => InstalledPlugin(
-  pluginId: 'test.plugin',
+InstalledPlugin _plugin([String id = 'test.plugin']) => InstalledPlugin(
+  pluginId: id,
   name: 'Test Plugin',
   version: '1.0.0',
   installPath: '/',
@@ -71,7 +74,7 @@ InstalledPlugin _plugin() => InstalledPlugin(
   pinned: true,
   manifest: PluginManifest(
     schemaVersion: 1,
-    id: 'test.plugin',
+    id: id,
     name: 'Test Plugin',
     version: '1.0.0',
     description: '',
@@ -121,8 +124,10 @@ void main() {
 
   PluginBridgeAdapter buildAdapter({
     PluginBookCorrectionService? bookCorrectionService,
+    DirectErrorReportService? directReportService,
+    String pluginId = 'test.plugin',
   }) => PluginBridgeAdapter(
-    _plugin(),
+    _plugin(pluginId),
     dependencies: PluginBridgeDependencies(
       historyBloc: _MockHistoryBloc(),
       tabsBloc: _StubTabsBloc(),
@@ -139,6 +144,7 @@ void main() {
     ),
     pluginRepository: _StubPluginRegistryRepository(),
     bookCorrectionService: bookCorrectionService,
+    directReportService: directReportService,
   );
 
   setUp(() {
@@ -152,6 +158,54 @@ void main() {
       );
 
   group('feedback.getBookCorrectionStatus', () {
+    late Directory temporary;
+    late UserStateDatabase database;
+    setUp(() {
+      temporary = Directory.systemTemp.createTempSync('correction-status-');
+      database = UserStateDatabase.openAt(path.join(temporary.path, 'u.db'));
+    });
+    tearDown(() {
+      database.close();
+      temporary.deleteSync(recursive: true);
+    });
+
+    test('המזהה מצומד לתוסף: תוסף אחר אינו רואה דיווח של תוסף', () async {
+      final store = PendingReportStore(database: database);
+      await store.add(
+        DirectErrorReportService.sentKind,
+        DirectErrorReport(
+          id: PluginBookCorrectionService.nativeReportId('test.plugin', 'r1'),
+          senderEmail: 'user@example.com',
+          subject: 'בדיקה',
+          bookTitle: 'ספר',
+          currentRef: 'פרק א',
+          lineNumber: 1,
+          selectedText: 'א',
+          errorDetails: 'ב',
+          contextText: 'ג',
+          filePath: 'book.txt',
+          sourceFolder: 'local',
+          createdAt: DateTime.utc(2026),
+        ).toJson(),
+      );
+      final direct = DirectErrorReportService(
+        reportStore: store,
+        sentCounter: SentReportsCounter.inMemory(),
+      );
+      Future<Object?> status(String plugin) async =>
+          (await buildAdapter(
+                pluginId: plugin,
+                directReportService: direct,
+              ).execute('feedback', 'getBookCorrectionStatus', {
+                'reportId': 'r1',
+              }))
+              as Map;
+      final owner = await status('test.plugin') as Map;
+      final other = await status('other.plugin') as Map;
+      expect(owner['status'], 'sent');
+      expect(other['status'], 'unknown');
+    });
+
     for (final args in <Map<String, dynamic>>[
       {},
       {'reportId': 42},

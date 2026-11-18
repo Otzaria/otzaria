@@ -677,10 +677,12 @@ class PluginBridgeAdapter {
     PluginHighlightRegistry? highlightRegistry,
     PluginReportService? reportService,
     PluginBookCorrectionService? bookCorrectionService,
+    DirectErrorReportService? directReportService,
     PluginSearchFieldSessionService? searchFieldSessions,
   }) : _pluginRepo = pluginRepository ?? PluginRegistryRepository(),
        _pluginReportService = reportService,
        _pluginBookCorrectionService = bookCorrectionService,
+       _directBookReportService = directReportService,
        // שירות שהוזרק (בדיקות) מקבל בעלים פרטי; אחרת הבעלים של החלון.
        _alerts =
            alertsClient ??
@@ -7083,10 +7085,13 @@ class PluginBridgeAdapter {
     Map<String, dynamic> args,
   ) async {
     final id = args['reportId'];
-    if (id is! String || !RegExp(r'^[a-zA-Z0-9_.:-]{1,160}$').hasMatch(id)) {
+    if (id is! String || !PluginBookCorrectionService.isValidReportId(id)) {
       throw Exception('error.invalid_params: מזהה הדיווח אינו תקין.');
     }
-    final nativeId = '${plugin.pluginId}:$id';
+    final nativeId = PluginBookCorrectionService.nativeReportId(
+      plugin.pluginId,
+      id,
+    );
     final direct = _directBookReportService ??= DirectErrorReportService();
     return {
       'status': await direct.lookupReportStatus(nativeId),

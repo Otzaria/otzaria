@@ -45,6 +45,16 @@ class PluginBookCorrectionService {
     DateTime Function()? now,
   }) : now = now ?? DateTime.now;
 
+  static final RegExp _reportIdPattern = RegExp(r'^[a-zA-Z0-9_.:-]{1,160}$');
+
+  /// מזהה דיווח שהתוסף בוחר.
+  static bool isValidReportId(String id) => _reportIdPattern.hasMatch(id);
+
+  /// המזהה המקומי של אוצריא לדיווח של תוסף: מרחב שמות לכל תוסף, כך שתוסף
+  /// פוגש רק דיווחים שלו.
+  static String nativeReportId(String pluginId, String reportId) =>
+      '$pluginId:$reportId';
+
   Future<Map<String, dynamic>> submit({
     required String pluginId,
     required Map<String, dynamic> args,
@@ -64,7 +74,7 @@ class PluginBookCorrectionService {
     final start = args['sourceStart'];
     final end = args['sourceEnd'];
     if (id is! String ||
-        !RegExp(r'^[a-zA-Z0-9_.:-]{1,160}$').hasMatch(id) ||
+        !isValidReportId(id) ||
         first is! int ||
         first < 0 ||
         last is! int ||
@@ -188,7 +198,7 @@ class PluginBookCorrectionService {
     ].join('\n');
     const fit = DirectErrorReport.fitDisplayField;
     final report = DirectErrorReport(
-      id: '$pluginId:$id',
+      id: nativeReportId(pluginId, id),
       senderEmail: email,
       schemaVersion: DirectErrorReport.currentSchemaVersion,
       reportKind: correction == null

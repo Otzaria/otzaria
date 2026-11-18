@@ -254,6 +254,23 @@ void main() {
     );
   });
 
+  test('דיווח שהשרת דחה סופית מדווח rejected', () async {
+    final repository = _Queue(store, DirectErrorReportService.pendingKind);
+    await repository.overwrite([
+      _buildReport(
+        id: 'plugin:bad-1',
+        queueType: DirectErrorReportQueueType.automaticRetry,
+      ),
+    ]);
+    final service = DirectErrorReportService(
+      client: MockClient((_) async => http.Response('bad request', 400)),
+      reportStore: store,
+      sentCounter: SentReportsCounter.inMemory(),
+    );
+    await service.flushPendingReports();
+    expect(await service.lookupReportStatus('plugin:bad-1'), 'rejected');
+  });
+
   group('DirectErrorReportService.flushPendingReports', () {
     test('automatic flush sends only retryable queued reports', () async {
       final repository = _Queue(store, DirectErrorReportService.pendingKind);

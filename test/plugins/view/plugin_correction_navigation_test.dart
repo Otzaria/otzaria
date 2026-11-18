@@ -354,7 +354,7 @@ void main() {
     await tester.runAsync(() => service.flushAll());
   });
 
-  testWidgets('לחיצה על פסקה בקצה התחתון של התצוגה אינה גוללת את הדף', (
+  testWidgets('לחיצה על שורה חתוכה בקצה התחתון של התצוגה אינה גוללת את הדף', (
     tester,
   ) async {
     final service = await begin(tester);
@@ -369,7 +369,7 @@ void main() {
               controller: scroll,
               child: Column(
                 children: [
-                  const SizedBox(height: 670),
+                  const SizedBox(height: 690),
                   PluginCorrectionParagraph(
                     tabId: 'tab',
                     sectionIndex: 0,
@@ -390,9 +390,11 @@ void main() {
         ),
       ),
     );
-    // הפסקה תופסת את 28 הפיקסלים האחרונים בתצוגה (גובה 600, גלילה 100).
-    expect(tester.getRect(find.text('קריאה 0')).bottom, lessThanOrEqualTo(600));
-    await tester.tap(find.text('קריאה 0'));
+    // הפסקה מתחילה 10 פיקסלים לפני סוף התצוגה (גובה 600, גלילה 100): רק
+    // חלקה העליון נראה, ולחיצה עליו לא אמורה לחשוף את שאר הסמן בגלילה.
+    final paragraph = tester.getRect(find.byType(PluginCorrectionParagraph));
+    expect(paragraph.top, 590);
+    await tester.tapAt(Offset(paragraph.center.dx, 595));
     await tester.pumpAndSettle();
     expect(find.byType(EditableText), findsOneWidget);
     expect(scroll.offset, 100);
@@ -666,6 +668,310 @@ void main() {
       );
       await tester.pump();
       expect(marks(editorSpan(tester)), expected);
+      await finish(tester, service);
+    });
+  });
+
+  Future<PluginCorrectionSessionService> beginTexts(
+    WidgetTester tester,
+    List<String> texts,
+  ) async {
+    final db = sqlite3.openInMemory();
+    addTearDown(db.close);
+    final service = PluginCorrectionSessionService()
+      ..draftRepository = PluginCorrectionDraftRepository.direct(db);
+    addTearDown(service.dispose);
+    await tester.runAsync(
+      () => service.begin(
+        owner: 'owner',
+        tabId: 'tab',
+        bookId: 'ספר',
+        bookUid: 'id:1',
+        libraryVersion: '1',
+        loadSource: (index) async => texts[index],
+      ),
+    );
+    return service;
+  }
+
+  Widget paragraphs(
+    PluginCorrectionSessionService service,
+    List<String> texts, {
+    RenderSettings settings = const RenderSettings(fontSize: 14),
+    double width = 400,
+    List<Widget> between = const [],
+    Widget Function(int index, String text)? original,
+  }) => MaterialApp(
+    home: Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        body: Align(
+          alignment: Alignment.topRight,
+          child: SizedBox(
+            width: width,
+            child: Column(
+              children: [
+                for (var i = 0; i < texts.length; i++) ...[
+                  PluginCorrectionParagraph(
+                    tabId: 'tab',
+                    sectionIndex: i,
+                    sourceText: texts[i],
+                    settings: settings,
+                    original: original?.call(i, texts[i]) ?? Text('קריאה $i'),
+                    service: service,
+                    sessionActive: true,
+                  ),
+                  if (i == 0) ...between,
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  testWidgets('גובה שורות העורך זהה לקורא גם עם מילה גדולה בשורה', (
+    tester,
+  ) async {
+    // <big> מותח את השורה שהוא בה, אלא אם יש קו בסיס לגובה השורה.
+    final text = [
+      'אבגד הוזח טיכל מנסע',
+      '<big>פצקר</big>',
+      'שתאב גדהו זחטי כלמנ סעפצ קרשת אבגד הוזח טיכל',
+    ].join(' ');
+    final plain = text.replaceAll(RegExp('<[^>]*>'), '');
+    final service = await beginTexts(tester, [text]);
+    const settings = RenderSettings(fontSize: 10, lineHeight: 1.5);
+    await tester.pumpWidget(
+      paragraphs(
+        service,
+        [text],
+        settings: settings,
+        width: 120,
+        original: (_, source) =>
+            SmartTextWidget(text: source, settings: settings),
+      ),
+    );
+    final reading = tester.renderObject<RenderParagraph>(
+      find.descendant(
+        of: find.byType(SmartTextWidget),
+        matching: find.byType(RichText),
+      ),
+    );
+    List<double> lineTops(double Function(int) top) {
+      final tops = <double>[top(0)];
+      for (var i = 1; i < plain.length; i++) {
+        if (top(i) > tops.last + 1) tops.add(top(i));
+      }
+      return tops;
+    }
+
+    final originalTops = lineTops(
+      (i) => reading.getOffsetForCaret(TextPosition(offset: i), Rect.zero).dy,
+    );
+    expect(originalTops.length, greaterThan(3));
+    final before = tester.getSize(find.byType(PluginCorrectionParagraph));
+    await tester.tapAt(tester.getCenter(find.byType(SmartTextWidget)));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(const Duration(milliseconds: 400));
+    final render = tester
+        .state<EditableTextState>(find.byType(EditableText))
+        .renderEditable;
+    final editorTops = lineTops(
+      (i) => render.getLocalRectForCaret(TextPosition(offset: i)).top,
+    );
+    expect(editorTops, originalTops);
+    expect(tester.getSize(find.byType(PluginCorrectionParagraph)), before);
+    await finish(tester, service);
+  });
+
+  testWidgets('חץ בין פסקאות באורכים שונים נוחת בדיוק באותה עמודה', (
+    tester,
+  ) async {
+    const short = 'אבגדהוזחטיכלמנסעפצקר';
+    const long = 'שתאבגדהוזחטיכלמנסעפצקרשתאבגדהוזחטיכלמנסעפצקרשתאבגדהוזחטי';
+    final service = await beginTexts(tester, [short, long]);
+    await tester.pumpWidget(paragraphs(service, [short, long]));
+    await activateCorrectionParagraph(tester, find.text('קריאה 0'));
+    await tester.pump();
+    EditableText editor() =>
+        tester.widget<EditableText>(find.byType(EditableText));
+    final first = tester
+        .state<EditableTextState>(find.byType(EditableText))
+        .renderEditable;
+    expect(
+      first.getLineAtOffset(const TextPosition(offset: 0)).end,
+      short.length,
+      reason: 'הפסקה הקצרה בשורה אחת',
+    );
+    editor().controller.selection = const TextSelection.collapsed(offset: 7);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+    expect(editor().controller.text, long);
+    expect(editor().controller.selection.baseOffset, 7);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.pumpAndSettle();
+    expect(editor().controller.text, short);
+    expect(editor().controller.selection.baseOffset, 7);
+    editor().controller.selection = const TextSelection.collapsed(offset: 15);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+    expect(editor().controller.selection.baseOffset, 15);
+    await finish(tester, service);
+  });
+
+  testWidgets(
+    'מעבר מיקוד לרכיב אחר אינו משאיר עמודה לפסקה שתקבל מיקוד אחר כך',
+    (
+      tester,
+    ) async {
+      const short = 'אבגדהוזחטיכלמנסעפצקר';
+      const long = 'שתאבגדהוזחטיכלמנסעפצקרשתאבגדהוזחטיכלמנסעפצקרשתאבגדהוזחטי';
+      final service = await beginTexts(tester, [short, long]);
+      await tester.pumpWidget(
+        paragraphs(
+          service,
+          [short, long],
+          between: [TextButton(onPressed: () {}, child: const Text('לחצן'))],
+        ),
+      );
+      await activateCorrectionParagraph(tester, find.text('קריאה 0'));
+      await tester.pump();
+      tester
+          .widget<EditableText>(find.byType(EditableText))
+          .controller
+          .selection = const TextSelection.collapsed(
+        offset: 9,
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      await tester.pump();
+      final editor = tester.widget<EditableText>(find.byType(EditableText));
+      expect(editor.controller.text, long);
+      expect(editor.controller.selection.baseOffset, isNot(9));
+      await finish(tester, service);
+    },
+  );
+
+  group('גובה נעול', () {
+    const long = 'אבגד הוזח טיכל מנסע פצקר שתאב גדהו זחטי כלמנ סעפצ קרשת';
+
+    Future<PluginCorrectionSessionService> pumpLocked(
+      WidgetTester tester, {
+      required RenderSettings settings,
+      required double width,
+    }) async {
+      final service = await beginTexts(tester, [long]);
+      await tester.pumpWidget(
+        paragraphs(
+          service,
+          [long],
+          settings: settings,
+          width: width,
+          original: (_, text) => Text(
+            text,
+            style: TextStyle(
+              fontSize: settings.fontSize,
+              height: settings.lineHeight,
+            ),
+          ),
+        ),
+      );
+      return service;
+    }
+
+    testWidgets('שינוי רוחב בזמן עריכה מבטל את נעילת הגובה', (tester) async {
+      const settings = RenderSettings(fontSize: 14);
+      final service = await pumpLocked(tester, settings: settings, width: 100);
+      await tester.tapAt(tester.getCenter(find.text(long)));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump(const Duration(milliseconds: 400));
+      final narrow = tester.getSize(find.byType(PluginCorrectionParagraph));
+      await tester.pumpWidget(
+        paragraphs(
+          service,
+          [long],
+          settings: settings,
+          width: 400,
+          original: (_, text) => Text(text),
+        ),
+      );
+      await tester.pump();
+      expect(
+        tester.getSize(find.byType(PluginCorrectionParagraph)).height,
+        lessThan(narrow.height),
+      );
+      await finish(tester, service);
+    });
+
+    testWidgets('שינוי גודל גופן בזמן עריכה מבטל את נעילת הגובה', (
+      tester,
+    ) async {
+      const big = RenderSettings(fontSize: 20);
+      final service = await pumpLocked(tester, settings: big, width: 200);
+      await tester.tapAt(tester.getCenter(find.text(long)));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump(const Duration(milliseconds: 400));
+      final before = tester.getSize(find.byType(PluginCorrectionParagraph));
+      await tester.pumpWidget(
+        paragraphs(
+          service,
+          [long],
+          settings: const RenderSettings(fontSize: 10),
+          width: 200,
+          original: (_, text) => Text(text),
+        ),
+      );
+      await tester.pump();
+      expect(
+        tester.getSize(find.byType(PluginCorrectionParagraph)).height,
+        lessThan(before.height),
+      );
+      await finish(tester, service);
+    });
+  });
+
+  group('Escape', () {
+    testWidgets('יוצא מהעריכה בפסקה שלא תוקנה וחוזר לקורא', (tester) async {
+      final service = await begin(tester);
+      await pump(tester, service);
+      await activateCorrectionParagraph(tester, find.text('קריאה 0'));
+      await tester.pump();
+      expect(find.byType(EditableText), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(EditableText), findsNothing);
+      expect(find.text('קריאה 0'), findsOneWidget);
+      await finish(tester, service);
+    });
+
+    testWidgets('בפסקה שתוקנה משאיר את התיקון ומוציא את המיקוד', (
+      tester,
+    ) async {
+      final service = await begin(tester);
+      await pump(tester, service);
+      await activateCorrectionParagraph(tester, find.text('קריאה 0'));
+      await tester.showKeyboard(find.byType(EditableText));
+      await tester.pump(const Duration(seconds: 1));
+      tester.testTextInput.updateEditingValue(
+        TextEditingValue(
+          text: '${sources[0]}!',
+          selection: TextSelection.collapsed(offset: sources[0].length + 1),
+        ),
+      );
+      await tester.pump(const Duration(seconds: 1));
+      expect(service.editableText('tab', 0, sources[0]), '${sources[0]}!');
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      final editor = tester.widget<EditableText>(find.byType(EditableText));
+      expect(editor.focusNode.hasFocus, isFalse);
+      expect(service.editableText('tab', 0, sources[0]), '${sources[0]}!');
       await finish(tester, service);
     });
   });
