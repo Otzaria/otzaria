@@ -277,7 +277,7 @@ ReadingSegments readingSegmentsOf(TextBookLoaded state) {
     contentVersion: state.contentVersion,
     contentChanges: state.contentChanges,
   );
-  final changes = state.contentChanges;
+  final changes = layout.continuous ? state.contentChanges : null;
   final previousContent = changes?.previousContent;
   if (changes != null && previousContent != null) {
     final before = _segmentsByContent[previousContent];

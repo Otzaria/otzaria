@@ -2299,6 +2299,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     _setLoadedContentFlags(currentState.book, nextLoadedFlags);
     markAllRanges();
 
+    final previousContinuousState = currentState.continuousReadingMode
+        ? currentState
+        : null;
     emit(
       _withInlineNotesCommentator(
         currentState.copyWith(
@@ -2307,8 +2310,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           loadedLineFlags: _loadedContentFlags,
           contentChanges: ContentLineChanges(
             fromVersion: currentState.contentVersion,
-            previousContent: currentState.content,
-            previousLoadedLineFlags: currentState.loadedLineFlags,
+            previousContent: previousContinuousState?.content,
+            previousLoadedLineFlags: previousContinuousState?.loadedLineFlags,
             ranges: [
               if (!hasTrackedFlags && nextContent.isNotEmpty)
                 (first: 0, last: nextContent.length - 1)

@@ -275,6 +275,28 @@ void main() {
       expect(afterLoad[3].text, isNot(contains('טקסט מתוקן')));
     });
 
+    test('עדכון במצב רגיל בונה רק את השורות שנדרשות לאחריו', () {
+      final normal = _state(content: _lines, continuous: false);
+      final before = readingSegmentsOf(normal);
+      final unchanged = before[1];
+
+      final updated = normal.copyWith(
+        content: List<String>.of(normal.content)..[13] = 'שורה מתוקנת',
+        contentVersion: 1,
+        contentChanges: ContentLineChanges(
+          fromVersion: 0,
+          previousContent: normal.content,
+          ranges: [(first: 13, last: 13)],
+        ),
+      );
+      final after = readingSegmentsOf(updated);
+
+      expect(after.debugBuiltCount, 0);
+      expect(after[1], isNot(same(unchanged)));
+      expect(after[13].text, 'שורה מתוקנת');
+      expect(after.changedLinesSince(before), [(first: 13, last: 13)]);
+    });
+
     test('מקטע בנוי דורש דלתא מהגרסה הקודמת באותה פריסה', () {
       final original = _state(content: _lines);
       final first = readingSegmentsOf(original)[1];
