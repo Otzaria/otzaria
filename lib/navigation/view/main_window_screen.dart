@@ -3821,9 +3821,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
               child: MySettingsScreen(
                 key: _settingsScreenKey,
                 controller: _settingsScreenController,
-                onDesktopBack: () => this.context.read<NavigationBloc>().add(
-                  NavigateToScreen(_screenBeforeSettings),
-                ),
               ),
             );
 
