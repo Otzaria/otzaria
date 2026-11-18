@@ -412,6 +412,13 @@ typedef AramaicMatchGroups = ({
   int hiddenContainingKeys,
 });
 
+/// נתוני מילון ראשי התיבות שנבנים יחד בזמן הטעינה.
+typedef AcronymIndex = ({
+  Map<String, List<String>> byKey,
+  Map<String, String> originalByKey,
+  List<String> sortedKeys,
+});
+
 typedef AramaicIndex = ({
   List<AramaicDictionaryEntry> entries,
   Set<String> terms,
@@ -458,7 +465,7 @@ class DictionaryLookupRepository {
   );
 
   List<AcronymCatalogEntry>? _acronymCatalog;
-  List<String>? _sortedAcronymKeys;
+  List<String> _sortedAcronymKeys = const [];
   Map<String, List<String>> _acronymsByKey = <String, List<String>>{};
   Map<String, String> _originalAcronymByKey = <String, String>{};
   List<AramaicDictionaryEntry> _aramaicEntries = <AramaicDictionaryEntry>[];
@@ -601,7 +608,7 @@ class DictionaryLookupRepository {
       return const <AcronymDictionaryEntry>[];
     }
 
-    final keys = _sortedAcronymKeys ??= (_acronymsByKey.keys.toList()..sort());
+    final keys = _sortedAcronymKeys;
     final matches = <AcronymDictionaryEntry>[];
     for (
       var i = lowerBound(keys, normalized);
@@ -845,11 +852,10 @@ class DictionaryLookupRepository {
     _acronymsByKey = index.byKey;
     _originalAcronymByKey = index.originalByKey;
     _acronymCatalog = null;
-    _sortedAcronymKeys = null;
+    _sortedAcronymKeys = index.sortedKeys;
   }
 
-  static ({Map<String, List<String>> byKey, Map<String, String> originalByKey})
-  _buildAcronymIndex(Map<String, List<String>> acronyms) {
+  static AcronymIndex _buildAcronymIndex(Map<String, List<String>> acronyms) {
     final normalizedAcronyms = <String, List<String>>{};
     final originalAcronyms = <String, String>{};
 
@@ -876,6 +882,7 @@ class DictionaryLookupRepository {
         ),
       ),
       originalByKey: originalAcronyms,
+      sortedKeys: normalizedAcronyms.keys.toList()..sort(),
     );
   }
 
@@ -960,20 +967,16 @@ class DictionaryLookupRepository {
     _laazByRashiLine = byRashiLine;
   }
 
-  static Future<
-    ({Map<String, List<String>> byKey, Map<String, String> originalByKey})
-  >
-  _defaultLoadAcronymIndex() async {
+  static Future<AcronymIndex> _defaultLoadAcronymIndex() async {
     final String jsonString = await rootBundle.loadString(
       'assets/Acronyms.json',
     );
-    // נרמול 13 אלף המפתחות תוקע פריימים על ה-UI isolate, ולכן רץ יחד עם הפענוח.
+    // נרמול ומיון המפתחות רצים עם הפענוח כדי למנוע חסימה של הממשק.
     return compute(decodeAcronymIndex, jsonString);
   }
 
   @visibleForTesting
-  static ({Map<String, List<String>> byKey, Map<String, String> originalByKey})
-  decodeAcronymIndex(String jsonString) {
+  static AcronymIndex decodeAcronymIndex(String jsonString) {
     final jsonData = _decodeJsonObject(jsonString);
 
     return _buildAcronymIndex(
@@ -1130,7 +1133,7 @@ class DictionaryLookupRepository {
 
   void _resetAcronymsCache() {
     _acronymCatalog = null;
-    _sortedAcronymKeys = null;
+    _sortedAcronymKeys = const [];
     _acronymsByKey = <String, List<String>>{};
     _originalAcronymByKey = <String, String>{};
   }
