@@ -147,13 +147,11 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
         if (!isOfflineMode || _lines[i].every((s) => s.url == null)) i,
     ];
     if (lineIndices.isEmpty) return const SizedBox.shrink();
-    final longBanner = lineIndices.fold<int>(
-          0,
-          (length, i) => length + _lines[i].fold<int>(
-            0,
-            (lineLength, segment) => lineLength + segment.text.length,
-          ),
-        ) > _collapseThreshold;
+    final longBanner =
+        lineIndices
+            .expand((i) => _lines[i])
+            .fold<int>(0, (n, s) => n + s.text.length) >
+        _collapseThreshold;
     final visibleLines = longBanner && !_expanded
         ? lineIndices.take(1)
         : lineIndices;

@@ -127,7 +127,8 @@ void main() {
     testWidgets('long source details start collapsed and can be expanded', (
       tester,
     ) async {
-      final longText = '${'קרדיט ארוך ' * 40}\n'
+      final longText =
+          '${'קרדיט ארוך ' * 40}\n'
           'המשך [קישור](https://example.org) נשמר';
       await tester.pumpWidget(_wrap(BookSourceBanner(text: longText)));
 
