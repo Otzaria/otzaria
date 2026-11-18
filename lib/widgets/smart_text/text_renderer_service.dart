@@ -308,27 +308,31 @@ class TextRendererService {
   /// גופן/יישור נשארים בברירת מחדל) — אחרת שינוי גודל גופן מרוקן את המטמון.
   /// חובה לעדכן כאן כל שדה חדש ש-processText יתחיל להשתמש בו.
   static RenderSettings _processingOnlySettings(RenderSettings settings) {
+    const defaults = RenderSettings();
+    final search = settings.searchText.isEmpty ? defaults : settings;
     return RenderSettings(
       removeNikud: settings.removeNikud,
       removePunctuation: settings.removePunctuation,
       removeTeamim: settings.removeTeamim,
       replaceHolyNames: settings.replaceHolyNames,
-      holyNameStyle: settings.holyNameStyle,
+      holyNameStyle: settings.replaceHolyNames
+          ? settings.holyNameStyle
+          : defaults.holyNameStyle,
       substituteDivineNames: settings.substituteDivineNames,
-      searchText: settings.searchText,
-      currentSearchIndex: settings.currentSearchIndex,
-      searchOptions: settings.searchOptions,
-      alternativeWords: settings.alternativeWords,
-      spacingValues: settings.spacingValues,
-      isFuzzySearch: settings.isFuzzySearch,
-      searchDistance: settings.searchDistance,
-      matchPolicy: settings.matchPolicy,
-      isSearchResultLine: settings.isSearchResultLine,
+      searchText: search.searchText,
+      currentSearchIndex: search.currentSearchIndex,
+      searchOptions: search.searchOptions,
+      alternativeWords: search.alternativeWords,
+      spacingValues: search.spacingValues,
+      isFuzzySearch: search.isFuzzySearch,
+      searchDistance: search.searchDistance,
+      matchPolicy: search.matchPolicy,
+      isSearchResultLine: search.isSearchResultLine,
       formatParentheses: settings.formatParentheses,
-      highlightYellowBackground: settings.highlightYellowBackground,
-      partialWordHighlight: settings.partialWordHighlight,
-      previousLineText: settings.previousLineText,
-      nextLineText: settings.nextLineText,
+      highlightYellowBackground: search.highlightYellowBackground,
+      partialWordHighlight: search.partialWordHighlight,
+      previousLineText: search.previousLineText,
+      nextLineText: search.nextLineText,
     );
   }
 
