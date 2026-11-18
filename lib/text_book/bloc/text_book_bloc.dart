@@ -2307,6 +2307,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           loadedLineFlags: _loadedContentFlags,
           contentChanges: ContentLineChanges(
             fromVersion: currentState.contentVersion,
+            previousContent: currentState.content,
+            previousLoadedLineFlags: currentState.loadedLineFlags,
             ranges: [
               if (!hasTrackedFlags && nextContent.isNotEmpty)
                 (first: 0, last: nextContent.length - 1)
