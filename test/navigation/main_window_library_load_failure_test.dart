@@ -47,6 +47,7 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/settings/search/settings_search_field.dart';
 import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
@@ -71,6 +72,7 @@ void main() {
   late Directory dataRoot;
   setUpAll(() async {
     registerFallbackValue(DropOrphanedIndexEntries(Library(categories: [])));
+    registerFallbackValue(const NavigateToScreen(Screen.library));
     dataRoot = await Directory.systemTemp.createTemp('main-window-load-test-');
     AppPaths.debugOverrideDataRootPath(dataRoot.path);
   });
@@ -485,6 +487,35 @@ void main() {
     },
     variant: TargetPlatformVariant.only(TargetPlatform.windows),
   );
+  testWidgets(
+    'ESC במסך ההגדרות בלי חיפוש אינו עוזב את ההגדרות (issue #4513)',
+    (tester) async {
+      final harness = await _pumpMainWindow(
+        tester,
+        Future.value(Library(categories: [])),
+        isLoading: false,
+        size: const Size(1400, 900),
+        initialScreen: Screen.library,
+      );
+      await tester.pumpAndSettle();
+      harness.navigationChanges.add(
+        NavigationState(currentScreen: Screen.settings),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(SettingsSearchField));
+      await tester.pump();
+      clearInteractions(harness.navigation);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+
+      verifyNever(
+        () => harness.navigation.add(any(that: isA<NavigateToScreen>())),
+      );
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.windows),
+  );
 }
 
 class _StubTab extends OpenedTab {
@@ -503,12 +534,14 @@ class _Harness {
     this.initialState,
     this.indexing,
     this.navigationChanges,
+    this.navigation,
   );
 
   final StreamController<LibraryState> libraryChanges;
   final StreamController<NavigationState> navigationChanges;
   final LibraryState initialState;
   final _IndexingBloc indexing;
+  final _NavigationBloc navigation;
 }
 
 Future<_Harness> _pumpMainWindow(
@@ -653,7 +686,13 @@ Future<_Harness> _pumpMainWindow(
     ),
   );
   await tester.pump();
-  return _Harness(libraryChanges, initialState, indexing, navigationChanges);
+  return _Harness(
+    libraryChanges,
+    initialState,
+    indexing,
+    navigationChanges,
+    navigation,
+  );
 }
 
 class _NavigationBloc extends MockBloc<NavigationEvent, NavigationState>
