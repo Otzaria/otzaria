@@ -40,6 +40,10 @@ abstract class PluginMessages {
       'תוסף זה כבר מותקן אצלך, באותה הגרסה. '
       'להתקנה מחדש השתמש בקישור עם overwrite=true.';
 
+  static const String pluginPickerRequiresNewInstallation =
+      'כבר קיימת התקנה או נתונים עבור תוסף זה. לעדכון מקובץ, פתח את '
+      '״כלים ותוספים״ ובחר ״התקן תוסף חדש״.';
+
   static String newerVersionInstalled(
     String pluginName,
     String installedVersion,

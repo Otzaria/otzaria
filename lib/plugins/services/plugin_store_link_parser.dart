@@ -65,6 +65,9 @@ class PluginStoreLinkParser {
     );
   }
 
+  /// מזהה המניפסט המשמש לניתוב בקשת הבורר מממשק החנות.
+  static const storePluginId = 'otzaria.plugins_directory';
+
   /// מארחי החנות הרשמית — רק אליהם נשלחת גרסת האוצריא.
   static const _storeHosts = {'otzaria.org', 'www.otzaria.org'};
 

@@ -23,6 +23,7 @@ import 'package:otzaria/plugins/services/plugin_file_server.dart';
 import 'package:otzaria/plugins/services/plugin_file_download_service.dart';
 import 'package:otzaria/plugins/services/plugin_network_access_resolver.dart';
 import 'package:otzaria/plugins/services/plugin_fs_service.dart';
+import 'package:otzaria/plugins/services/plugin_store_link_parser.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/plugins/services/plugin_user_folder_grants.dart';
 import 'package:otzaria/search/search_repository.dart';
@@ -92,8 +93,13 @@ class _Registry extends PluginRegistryRepository {
       kv['$namespace/$key'];
 }
 
-InstalledPlugin _plugin({bool networkEnabled = false}) => InstalledPlugin(
-  pluginId: 'test.plugin',
+InstalledPlugin _plugin({
+  bool networkEnabled = false,
+  String id = 'test.plugin',
+  String sourceType = 'packaged',
+}) => InstalledPlugin(
+  pluginId: id,
+  sourceType: sourceType,
   name: 'Test Plugin',
   version: '1.0.0',
   installPath: '/',
@@ -102,7 +108,7 @@ InstalledPlugin _plugin({bool networkEnabled = false}) => InstalledPlugin(
   pinned: true,
   manifest: PluginManifest(
     schemaVersion: 1,
-    id: 'test.plugin',
+    id: id,
     name: 'Test Plugin',
     version: '1.0.0',
     description: '',
@@ -261,6 +267,8 @@ void main() {
   var folderPickerCalls = 0;
   var consent = true;
   final consentDialogs = <({String title, String content, String subtitle})>[];
+  var localInstallRequests = 0;
+  var localInstallDelivered = true;
 
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
@@ -279,6 +287,8 @@ void main() {
     folderPickerCalls = 0;
     consent = true;
     consentDialogs.clear();
+    localInstallRequests = 0;
+    localInstallDelivered = true;
   });
 
   tearDown(() async {
@@ -291,8 +301,9 @@ void main() {
     PluginFsService? fsService,
     PluginFileDownloadService? downloader,
     bool networkEnabled = false,
+    InstalledPlugin? plugin,
   }) => PluginBridgeAdapter(
-    _plugin(networkEnabled: networkEnabled),
+    plugin ?? _plugin(networkEnabled: networkEnabled),
     dependencies: PluginBridgeDependencies(
       historyBloc: _MockHistoryBloc(),
       tabsBloc: _MockTabsBloc(),
@@ -313,6 +324,10 @@ void main() {
             ));
             return consent;
           },
+      requestLocalPluginInstall: () async {
+        localInstallRequests++;
+        return localInstallDelivered;
+      },
       pickFolder: ({title}) async {
         folderPickerCalls++;
         return pickedFolder;
@@ -336,7 +351,7 @@ void main() {
 
   /// תיקייה מאושרת עם מבנה קטן: שני מסמכים, תת-תיקייה ושאריות שמסוננות.
   Future<({PluginBridgeAdapter adapter, String token, Directory root})>
-  grantedFolder({PluginFsService? fsService}) async {
+  grantedFolder({PluginFsService? fsService, InstalledPlugin? plugin}) async {
     final root = Directory(p.join(temp.path, 'שיעורים'))..createSync();
     File(p.join(root.path, 'בראשית.docx')).writeAsStringSync('docx-bytes');
     File(p.join(root.path, 'notes.txt')).writeAsStringSync('txt');
@@ -344,7 +359,7 @@ void main() {
     Directory(p.join(root.path, 'חורף')).createSync();
     File(p.join(root.path, 'חורף', 'נח.docx')).writeAsStringSync('noach');
     pickedFolder = root.path;
-    final adapter = buildAdapter(fsService: fsService);
+    final adapter = buildAdapter(fsService: fsService, plugin: plugin);
     final res = await adapter.execute('fs', 'pickUserFolder', {}) as Map;
     return (
       adapter: adapter,
@@ -1085,6 +1100,74 @@ void main() {
       expect(resolved['token'], file['token']);
     },
   );
+
+  group('plugin.requestInstall פותח בורר חבילות של אוצריא', () {
+    final store = _plugin(id: PluginStoreLinkParser.storePluginId);
+    const downloadUrl = 'https://otzaria.org/api/plugins/x/download';
+
+    Future<Object?> request(
+      PluginBridgeAdapter adapter,
+      Map<String, dynamic> args,
+    ) => adapter.execute('plugin', 'requestInstall', args);
+
+    test('בקשה מקומית מציינת רק אם הבורר קיבל את הבקשה', () async {
+      final adapter = buildAdapter(plugin: store);
+      registry.permissions['fs.user_files.read'] = false;
+      expect(await request(adapter, {'local': true}), isTrue);
+
+      localInstallDelivered = false;
+      expect(await request(adapter, {'local': true}), isFalse);
+      expect(localInstallRequests, 2);
+    });
+
+    test('נתיבים, טוקנים וכתובת אינם מועברים לבורר', () async {
+      final adapter = buildAdapter(plugin: store);
+      for (final args in <Map<String, dynamic>>[
+        {'local': true, 'path': 'plugin.otzplugin'},
+        {'local': true, 'folderToken': 'folder'},
+        {'local': true, 'token': 'token'},
+        {'local': true, 'url': downloadUrl},
+        {'local': true, 'callback': null},
+        {'local': 'true'},
+        {'local': false, 'url': downloadUrl},
+        {'folderToken': 'folder', 'path': 'plugin.otzplugin'},
+        {'path': 'plugin.otzplugin', 'url': downloadUrl},
+        {'folderToken': 'folder', 'url': downloadUrl},
+      ]) {
+        await expectLater(
+          request(adapter, args),
+          _throwsCode('error.invalid_params'),
+          reason: args.toString(),
+        );
+      }
+      expect(localInstallRequests, 0);
+    });
+
+    test('בקשת URL קיימת נשארת במסלול ההורדה', () async {
+      final adapter = buildAdapter(plugin: store);
+      await expectLater(
+        request(adapter, {'folderToken': null, 'url': downloadUrl}),
+        _throwsCode('error.unavailable: install not wired'),
+      );
+      expect(localInstallRequests, 0);
+    });
+
+    test('הבורר בממשק החנות אינו מוצע לתוספים אחרים או לפיתוח', () async {
+      for (final plugin in [
+        _plugin(),
+        _plugin(
+          id: PluginStoreLinkParser.storePluginId,
+          sourceType: 'development',
+        ),
+      ]) {
+        await expectLater(
+          request(buildAdapter(plugin: plugin), {'local': true}),
+          _throwsCode('error.forbidden'),
+        );
+      }
+      expect(localInstallRequests, 0);
+    });
+  });
 
   group('גישה קבועה כוללת את ההרשאה של ui.pickFolder', () {
     test(

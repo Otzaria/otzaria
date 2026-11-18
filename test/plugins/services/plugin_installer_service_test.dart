@@ -11,6 +11,7 @@ import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/models/plugin_permission_grant.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/plugin_installer_service.dart';
+import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as p;
 
@@ -402,6 +403,36 @@ void main() {
         '$pluginId|app.startup_contributions': false,
         '$pluginId|reader.open': true,
       });
+    });
+
+    test('התקנה חדשה מהחנות משאירה נתוני תוסף קודמים במקומם', () async {
+      const pluginId = 'test.orphan.data';
+      final dataDir = await Directory(
+        await AppPaths.getPluginDataPath(pluginId),
+      ).create(recursive: true);
+      final userFile = File(p.join(dataDir.path, 'saved.txt'));
+      await userFile.writeAsString('נתונים קיימים');
+      final stagedDir = await tempDir.createTemp('staged_');
+      await File(p.join(stagedDir.path, 'index.html')).writeAsString('<html/>');
+      final manifest = _buildInstalledManifest(
+        id: pluginId,
+        version: '1.0.0',
+        name: 'Local package',
+        permissions: const [],
+      );
+
+      await expectLater(
+        installer.finalizeNewInstall(
+          stagedDir.path,
+          manifest,
+          grantedPermissions: const {},
+        ),
+        throwsA(isA<PluginInstallIdentityInUse>()),
+      );
+
+      expect(await userFile.readAsString(), 'נתונים קיימים');
+      expect(await stagedDir.exists(), isFalse);
+      expect(repository.savedPlugins, isEmpty);
     });
 
     test('finalizeInstall rejects an incomplete permission map', () async {

@@ -10,6 +10,7 @@ import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
 import 'package:otzaria/update/app_release_version.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
+import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/plugins/services/plugin_manifest_validator.dart';
 import 'package:otzaria/plugins/services/plugin_extended_validator.dart';
 import 'package:otzaria/plugins/utils/plugin_version_utils.dart';
@@ -164,6 +165,33 @@ class PluginInstallerService {
     required Map<String, bool> grantedPermissions,
     InstalledPlugin? expectedPlugin,
     Map<String, bool> expectedPermissions = const {},
+  }) => _finalizeInstall(
+    tempDirPath,
+    manifest,
+    grantedPermissions: grantedPermissions,
+    expectedPlugin: expectedPlugin,
+    expectedPermissions: expectedPermissions,
+  );
+
+  /// מתקין חבילה רק כאשר המזהה פנוי ואין עבורו נתונים שמורים.
+  Future<void> finalizeNewInstall(
+    String tempDirPath,
+    PluginManifest manifest, {
+    required Map<String, bool> grantedPermissions,
+  }) => _finalizeInstall(
+    tempDirPath,
+    manifest,
+    grantedPermissions: grantedPermissions,
+    requireNewInstallation: true,
+  );
+
+  Future<void> _finalizeInstall(
+    String tempDirPath,
+    PluginManifest manifest, {
+    required Map<String, bool> grantedPermissions,
+    InstalledPlugin? expectedPlugin,
+    Map<String, bool> expectedPermissions = const {},
+    bool requireNewInstallation = false,
   }) async {
     final tempDir = Directory(tempDirPath);
     Directory? stagedInstallDir;
@@ -216,7 +244,20 @@ class PluginInstallerService {
         userOrder: newUserOrder,
       );
 
-      if (expectedPlugin == null) {
+      if (requireNewInstallation) {
+        if (await Directory(
+              await AppPaths.getPluginDataPath(manifest.id),
+            ).exists() ||
+            await Directory(
+              await AppPaths.getPluginCachePath(manifest.id),
+            ).exists()) {
+          throw const PluginInstallIdentityInUse();
+        }
+        await _repository.createPluginWithPermissions(
+          plugin,
+          Map.unmodifiable(grantedPermissions),
+        );
+      } else if (expectedPlugin == null) {
         await _repository.savePluginWithPermissions(
           plugin,
           Map.unmodifiable(grantedPermissions),
