@@ -235,6 +235,126 @@ void main() {
       expect(after[3].text, startsWith('פסוק 1 בפרק 2 פסוק 2 בפרק 2'));
     });
 
+    test('דלתא משמרת מקטעים בנויים מחוץ לטווח שהשתנה', () {
+      final flags = List<bool>.filled(_lines.length, true)..[13] = false;
+      final content = List<String>.of(_lines)..[13] = '';
+      final partial = _state(content: content, loadedLineFlags: flags);
+      final before = readingSegmentsOf(partial);
+      final unchanged = before[1];
+      final unloaded = before[3];
+      expect(unloaded.isLoaded, isFalse);
+
+      final loaded = partial.copyWith(
+        loadedLineFlags: List<bool>.of(flags)..[13] = true,
+        contentVersion: 1,
+        contentChanges: ContentLineChanges(
+          fromVersion: 0,
+          previousContent: partial.content,
+          previousLoadedLineFlags: partial.loadedLineFlags,
+          ranges: [(first: 13, last: 13)],
+        ),
+      );
+      final afterLoad = readingSegmentsOf(loaded);
+      expect(afterLoad[1], same(unchanged));
+      expect(afterLoad[3], isNot(same(unloaded)));
+      expect(afterLoad[3].isLoaded, isTrue);
+
+      final corrected = loaded.copyWith(
+        content: List<String>.of(content)..[13] = 'טקסט מתוקן',
+        contentVersion: 2,
+        contentChanges: ContentLineChanges(
+          fromVersion: 1,
+          previousContent: loaded.content,
+          previousLoadedLineFlags: loaded.loadedLineFlags,
+          ranges: [(first: 13, last: 13)],
+        ),
+      );
+      final afterCorrection = readingSegmentsOf(corrected);
+      expect(afterCorrection[1], same(unchanged));
+      expect(afterCorrection[3].text, contains('טקסט מתוקן'));
+      expect(afterLoad[3].text, isNot(contains('טקסט מתוקן')));
+    });
+
+    test('עדכון במצב רגיל בונה רק את השורות שנדרשות לאחריו', () {
+      final normal = _state(content: _lines, continuous: false);
+      final before = readingSegmentsOf(normal);
+      final unchanged = before[1];
+
+      final updated = normal.copyWith(
+        content: List<String>.of(normal.content)..[13] = 'שורה מתוקנת',
+        contentVersion: 1,
+        contentChanges: ContentLineChanges(
+          fromVersion: 0,
+          previousContent: normal.content,
+          ranges: [(first: 13, last: 13)],
+        ),
+      );
+      final after = readingSegmentsOf(updated);
+
+      expect(after.debugBuiltCount, 0);
+      expect(after[1], isNot(same(unchanged)));
+      expect(after[13].text, 'שורה מתוקנת');
+      expect(after.changedLinesSince(before), [(first: 13, last: 13)]);
+    });
+
+    test('מקטע בנוי דורש דלתא מהגרסה הקודמת באותה פריסה', () {
+      final original = _state(content: _lines);
+      final first = readingSegmentsOf(original)[1];
+      final missingPredecessor = original.copyWith(
+        content: List<String>.of(_lines),
+        contentVersion: 2,
+        contentChanges: ContentLineChanges(
+          fromVersion: 1,
+          previousContent: original.content,
+          ranges: [(first: 13, last: 13)],
+        ),
+      );
+      final afterGap = readingSegmentsOf(missingPredecessor);
+      expect(afterGap[1], isNot(same(first)));
+
+      final normal = missingPredecessor.copyWith(
+        continuousReadingMode: false,
+        contentVersion: 3,
+        contentChanges: ContentLineChanges(
+          fromVersion: 2,
+          previousContent: missingPredecessor.content,
+          ranges: [(first: 13, last: 13)],
+        ),
+      );
+      expect(readingSegmentsOf(normal)[1].sourceLineIndices, [1]);
+
+      final otherReader = _state(content: _lines).copyWith(
+        contentVersion: 3,
+        contentChanges: ContentLineChanges(
+          fromVersion: 2,
+          previousContent: missingPredecessor.content,
+          ranges: [(first: 13, last: 13)],
+        ),
+      );
+      expect(readingSegmentsOf(otherReader)[1], isNot(same(afterGap[1])));
+    });
+
+    test('טעינה מחדש באותה גרסה אינה משחזרת טקסט מהטעינה הקודמת', () {
+      final original = _state(content: _lines);
+      final oldSegment = readingSegmentsOf(original)[1];
+      final reloaded = original.copyWith(
+        content: List<String>.of(_lines)..[1] = 'טקסט מהטעינה החדשה',
+      );
+      final prefetched = reloaded.copyWith(
+        content: List<String>.of(reloaded.content)..[13] = 'שורה חדשה',
+        contentVersion: 1,
+        contentChanges: ContentLineChanges(
+          fromVersion: 0,
+          previousContent: reloaded.content,
+          ranges: [(first: 13, last: 13)],
+        ),
+      );
+
+      final segment = readingSegmentsOf(prefetched)[1];
+      expect(segment, isNot(same(oldSegment)));
+      expect(segment.text, startsWith('טקסט מהטעינה החדשה'));
+    });
+
     test('TOC חדש כמופע וזהה בתוכנו מחזיר את אותה פריסה', () {
       final controller = Object();
       final state = _state(content: _lines, readerIdentity: controller);

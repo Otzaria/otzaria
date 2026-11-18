@@ -552,6 +552,7 @@ void main() {
     expect(updated.content, ['א', 'שורה מתוקנת', '', 'ד']);
     expect(updated.contentChanges?.fromVersion, selected.contentVersion);
     expect(updated.contentChanges?.ranges, [(first: 1, last: 1)]);
+    expect(updated.contentChanges?.previousContent, isNull);
     expect(updated.selectedIndex, 2);
     expect(updated.selectedIndices, {2});
     expect(updated.visibleIndices, [2]);

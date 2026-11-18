@@ -173,6 +173,23 @@ class ReadingSegments {
     _cachedCharacters = characters;
   }
 
+  void _reuseUnchanged(ReadingSegments before, ContentLineChanges changes) {
+    if (!identical(layout, before.layout) ||
+        !identical(readerIdentity, before.readerIdentity) ||
+        !changes.matchesPreviousFlags(before.loadedLineFlags) ||
+        changes.fromVersion != before.contentVersion ||
+        contentVersion <= before.contentVersion) {
+      return;
+    }
+    for (final entry in before._built.entries) {
+      final segment = entry.value;
+      if (!changes.affects(segment.startLineIndex, segment.endLineIndex)) {
+        _built[entry.key] = segment;
+        _cachedCharacters += segment.text.length;
+      }
+    }
+  }
+
   ReadingSegment get first => this[0];
 
   ReadingSegment get last => this[length - 1];
@@ -260,6 +277,12 @@ ReadingSegments readingSegmentsOf(TextBookLoaded state) {
     contentVersion: state.contentVersion,
     contentChanges: state.contentChanges,
   );
+  final changes = layout.continuous ? state.contentChanges : null;
+  final previousContent = changes?.previousContent;
+  if (changes != null && previousContent != null) {
+    final before = _segmentsByContent[previousContent];
+    if (before != null) segments._reuseUnchanged(before, changes);
+  }
   _segmentsByContent[state.content] = segments;
   segments.retainVisibleItems(state.visibleIndices.map(layout.itemForLine));
   return segments;
