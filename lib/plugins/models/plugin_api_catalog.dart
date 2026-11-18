@@ -469,6 +469,11 @@ const Map<String, PluginApiMethod> pluginApiMethods = {
     '0.9.98.1',
     hasPermissionHint: true,
   ),
+  'feedback.getBookCorrectionStatus': PluginApiMethod(
+    'feedback.send_email',
+    '0.9.99',
+    hasPermissionHint: true,
+  ),
   'feedback.report': PluginApiMethod(null, '0.9.97'),
   'feedback.hasReporterEmail': PluginApiMethod(null, '0.9.97'),
   'history.list': PluginApiMethod(

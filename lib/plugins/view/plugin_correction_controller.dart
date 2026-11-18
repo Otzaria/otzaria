@@ -1,8 +1,15 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
+import 'package:html/dom.dart' as dom;
+import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/plugins/services/plugin_correction_text.dart';
 import 'package:otzaria/text_book/view/text_correction_editor.dart'
     show TextDiffOp, computeTextDiff;
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
+import 'package:otzaria/widgets/smart_text/inline_html_document.dart'
+    show parseCssColor;
 import 'package:otzaria/widgets/smart_text/simple_inline_html.dart';
 
 /// עיצוב תו בעורך: תת-קבוצה של תגיות המקור שהעורך יודע להציג.
@@ -16,6 +23,62 @@ typedef CorrectionFormat = ({
   String? heading,
 });
 
+/// הדגשת חיפוש בטווח של הטקסט שבעורך: צבע טקסט ו/או רקע.
+typedef CorrectionHighlight = ({
+  int start,
+  int end,
+  Color? color,
+  Color? background,
+});
+
+/// הטווחים הצבעוניים ב-[html] (תוצר העיבוד של הקורא אחרי פתרון צבעי
+/// ההדגשה), לפי מקומם ב-[text]. ריק כשהטקסט שב-[html] שונה מ-[text]: אז
+/// הטווחים אינם מתאימים לטקסט שבעורך.
+List<CorrectionHighlight> coloredRanges(String html, String text) {
+  final ranges = <CorrectionHighlight>[];
+  final plain = StringBuffer();
+  void walk(dom.Node node, Color? color, Color? background) {
+    if (node is dom.Text) {
+      final start = plain.length;
+      plain.write(node.data);
+      if ((color != null || background != null) && node.data.isNotEmpty) {
+        ranges.add((
+          start: start,
+          end: plain.length,
+          color: color,
+          background: background,
+        ));
+      }
+      return;
+    }
+    var ownColor = color;
+    var ownBackground = background;
+    final style = node is dom.Element ? node.attributes['style'] : null;
+    for (final declaration in style?.split(';') ?? const <String>[]) {
+      final colon = declaration.indexOf(':');
+      if (colon < 0) continue;
+      final value = declaration.substring(colon + 1).trim();
+      switch (declaration.substring(0, colon).trim()) {
+        case 'color':
+          ownColor = parseCssColor(value) ?? ownColor;
+        case 'background-color':
+          ownBackground = parseCssColor(value) ?? ownBackground;
+      }
+    }
+    for (final child in node.nodes) {
+      walk(child, ownColor, ownBackground);
+    }
+  }
+
+  for (final node in html_parser.parseFragment(html).nodes) {
+    walk(node, null, null);
+  }
+  return plain.toString() == text ? ranges : const [];
+}
+
+const int _maqaf = 0x05BE;
+const int _paseq = 0x05C0;
+
 const CorrectionFormat _plainFormat = (
   bold: false,
   italic: false,
@@ -28,6 +91,12 @@ const CorrectionFormat _plainFormat = (
 
 /// בקר העורך: מסתיר את הרווחים שנוצרו מתגיות בלוק בקצוות, ומציג את עיצוב
 /// המקור. טקסט שהוקלד יורש את עיצוב התו שלפניו (או של הטקסט שהוחלף).
+///
+/// העורך מציג בדיוק את הטקסט שהקורא מציג: ניקוד, טעמים, מקף ופסק מטופלים
+/// לפי [removeNikud] ו-[removeTeamim] בעזרת אותה פונקציה של הקורא
+/// ([utils.removeMarks]). מה שהקורא מסתיר נשמר במקור: [forService] ממפה כל
+/// עריכה בחזרה לנוסח המלא, כך שאותיות שלא נגעו בהן שומרות את הסימנים שלהן
+/// (תו שמוצג כרווח, כמו מקף, חוזר להיות מקף) ורק הטקסט שהוקלד נכנס בלעדיהם.
 class PluginCorrectionController extends TextEditingController {
   late PluginCorrectionText source;
   String? _sourceText;
@@ -39,8 +108,35 @@ class PluginCorrectionController extends TextEditingController {
   TextEditingValue? _editingValue;
   Object _formatSource = Object();
   List<({int end, CorrectionFormat format})> _runs = const [];
+  bool _removeNikud = false;
+  bool _removeTeamim = false;
+  final Map<int, int> _shownUnits = {};
+  ({String base, _EditorView view})? _viewCache;
+  List<CorrectionHighlight> Function(String text)? _highlightRanges;
+  List<TextSpan>? Function(String text)? _readingLeaves;
 
-  PluginCorrectionController(String raw) {
+  /// הטקסט הגלוי כולל הסימנים שהקורא מסתיר, כפי שהוא במצב האחרון שהעורך סונכרן אליו.
+  String _base = '';
+
+  PluginCorrectionController(
+    String raw, {
+    bool removeNikud = false,
+    bool removeTeamim = false,
+  }) {
+    setHiddenMarks(removeNikud: removeNikud, removeTeamim: removeTeamim);
+    setSource(raw);
+  }
+
+  /// שינוי המצב טוען מחדש את המקור: הטקסט והעיצוב נגזרים שוב לפי הדגלים.
+  void setHiddenMarks({required bool removeNikud, required bool removeTeamim}) {
+    if (_removeNikud == removeNikud && _removeTeamim == removeTeamim) return;
+    _removeNikud = removeNikud;
+    _removeTeamim = removeTeamim;
+    _shownUnits.clear();
+    _viewCache = null;
+    final raw = _sourceText;
+    if (raw == null) return;
+    _sourceText = null;
     setSource(raw);
   }
 
@@ -51,9 +147,8 @@ class PluginCorrectionController extends TextEditingController {
     final formats = _sourceFormats(source);
     final text = forEditor(source.plain);
     _sourceEditorText = text;
-    _sourceEditorFormats = formats.sublist(
-      _prefix.length,
-      formats.length - _suffix.length,
+    _sourceEditorFormats = _editorFormats(
+      formats.sublist(_prefix.length, formats.length - _suffix.length),
     );
     _formats = _sourceEditorFormats;
     _formatSource = Object();
@@ -75,6 +170,8 @@ class PluginCorrectionController extends TextEditingController {
         _formats = newValue.expandFormats();
         _runs = newValue.runs;
       }
+      // ביטול וביצוע חוזר (טקסט שונה) מחזירים גם את המקור המלא של אותו ערך.
+      if (newValue.text != text) _base = newValue.base;
     } else if (newValue.text != text) {
       _formats =
           !newValue.selection.isValid && newValue.text == _sourceEditorText
@@ -119,6 +216,7 @@ class PluginCorrectionController extends TextEditingController {
       value,
       source: _formatSource,
       runs: _runs,
+      base: _base,
     );
   }
 
@@ -200,6 +298,73 @@ class PluginCorrectionController extends TextEditingController {
   }
 
   String forEditor(String canonical) {
+    final visible = _visibleOf(canonical);
+    _base = visible;
+    return _viewOf(visible).text;
+  }
+
+  /// הטקסט בעורך כבר שווה ל-[canonical] (כולל רווחים שהוקלדו בשוליים): רק
+  /// מעדכנים את בסיס הסימנים המוסתרים, בלי לגעת בעורך או בשוליים.
+  void adopt(String canonical) {
+    final end = canonical.length - _suffix.length;
+    _base =
+        canonical.startsWith(_prefix) &&
+            canonical.endsWith(_suffix) &&
+            end >= _prefix.length
+        ? canonical.substring(_prefix.length, end)
+        : canonical;
+  }
+
+  /// מה שהקורא מציג במקום יחידת קוד בודדת: -1 כשהיא מוסתרת. ההכרעה היא של
+  /// [utils.removeMarks] עצמה, ולכן העורך אינו מחזיק רשימת תווים משלו.
+  int _shownUnit(int unit) => _shownUnits.putIfAbsent(unit, () {
+    final shown = utils.removeMarks(
+      String.fromCharCode(unit),
+      nikud: _removeNikud,
+      teamim: _removeTeamim,
+    );
+    return shown.isEmpty ? -1 : shown.codeUnitAt(0);
+  });
+
+  bool get _hidesMarks => _removeNikud || _removeTeamim;
+
+  /// הטקסט שהקורא מציג עבור [base], ולכל תו בו את מקומו ב-[base]. כל תו מוצג
+  /// כפי ש-[utils.removeMarks] מציגה אותו, חוץ מפסק אחרי רווח או מקף: הוא מוחק
+  /// גם את הרווח שנוצר מהם (כמו ב-[utils.removeMarks] עם הסתרת טעמים בלבד).
+  _EditorView _viewOf(String base) {
+    final cached = _viewCache;
+    if (cached != null && cached.base == base) return cached.view;
+    final projected = <int>[];
+    final origin = <int>[];
+    for (var i = 0; i < base.length; i++) {
+      final unit = base.codeUnitAt(i);
+      final shown = _shownUnit(unit);
+      if (shown >= 0) {
+        projected.add(shown);
+        origin.add(i);
+      } else if (_removeTeamim &&
+          !_removeNikud &&
+          unit == _paseq &&
+          i > 0 &&
+          (base.codeUnitAt(i - 1) == 0x20 ||
+              base.codeUnitAt(i - 1) == _maqaf)) {
+        projected.removeLast();
+        origin.removeLast();
+      }
+    }
+    final view = _EditorView(String.fromCharCodes(projected), origin);
+    _viewCache = (base: base, view: view);
+    return view;
+  }
+
+  /// עיצוב הטקסט שבעורך, מתוך עיצוב הטקסט הגלוי ([_base]): תו מוסתר אינו תו
+  /// בעורך, ולכן גם העיצוב שלו יוצא.
+  List<CorrectionFormat> _editorFormats(List<CorrectionFormat> visible) {
+    if (!_hidesMarks) return visible;
+    return [for (final index in _viewOf(_base).origin) visible[index]];
+  }
+
+  String _visibleOf(String canonical) {
     final prefix = source.plain.substring(0, source.visibleStart);
     final suffix = source.plain.substring(source.visibleEnd);
     _prefix = '';
@@ -214,7 +379,68 @@ class PluginCorrectionController extends TextEditingController {
     return canonical.substring(prefix.length, canonical.length - suffix.length);
   }
 
-  String forService(String visible) => _prefix + visible + _suffix;
+  /// פונקציה טהורה: אינה משנה מצב, ולכן בטוחה לבדיקות ואימות לפני החלה.
+  String forService(String visible, {String? base}) =>
+      _prefix + _merge(base ?? _base, visible) + _suffix;
+
+  /// כמו [forService] לערך עריכה: ערך שנשמר בהיסטוריית הביטול נושא את המקור
+  /// המלא שאליו הוא ממוזג, ולכן ביטול וביצוע חוזר מחזירים אותו בדיוק.
+  String forServiceValue(TextEditingValue value) => forService(
+    value.text,
+    base:
+        value is _FormattedEditingValue &&
+            identical(value.source, _formatSource) &&
+            value.text != text
+        ? value.base
+        : null,
+  );
+
+  /// מחיל על [base] את ההבדל בין הטקסט שהעורך מציג עבורו לבין [visible]. הטווח
+  /// שהשתנה מוחלף בלבד; סימנים מוסתרים של תווים שלא השתנו נשמרים.
+  String _merge(String base, String visible) {
+    if (!_hidesMarks) return visible;
+    // סימנים שהוקלדו או הודבקו בזמן שהקורא מסתיר אותם אינם נכנסים למקור, כדי שלא
+    // יוכפלו על הקיימים ולא ישבשו עריכות הבאות.
+    visible = utils.removeMarks(
+      visible,
+      nikud: _removeNikud,
+      teamim: _removeTeamim,
+    );
+    final view = _viewOf(base);
+    final plain = view.text;
+    final map = view.origin;
+    if (plain == visible) return base;
+    var prefix = 0;
+    while (prefix < plain.length &&
+        prefix < visible.length &&
+        plain.codeUnitAt(prefix) == visible.codeUnitAt(prefix)) {
+      prefix++;
+    }
+    var suffix = 0;
+    while (suffix < plain.length - prefix &&
+        suffix < visible.length - prefix &&
+        plain.codeUnitAt(plain.length - 1 - suffix) ==
+            visible.codeUnitAt(visible.length - 1 - suffix)) {
+      suffix++;
+    }
+    final start = prefix < plain.length ? map[prefix] : base.length;
+    final end = suffix == 0 ? base.length : map[plain.length - suffix];
+    return base.substring(0, start) +
+        visible.substring(prefix, visible.length - suffix) +
+        base.substring(end);
+  }
+
+  /// טווחי ההדגשה של החיפוש בטקסט נתון, כפי שהקורא מדגיש אותו. נקבע בזמן
+  /// בנייה של הפסקה, ולכן אינו מודיע למאזינים: הבנייה עצמה קוראת שוב
+  /// ל-[buildTextSpan].
+  set highlightRanges(List<CorrectionHighlight> Function(String text)? value) =>
+      _highlightRanges = value;
+
+  /// העלים המעוצבים של התצוגה הרגילה לטקסט נתון, או null כשהטקסט שונה ממנה.
+  /// כל עוד הטקסט בעורך זהה לה, העורך מצויר בדיוק כמוה (כולל הדגשת החיפוש).
+  /// נקבע בזמן בנייה.
+  set readingLeaves(List<TextSpan>? Function(String text)? value) =>
+      _readingLeaves = value;
 
   @override
   TextSpan buildTextSpan({
@@ -222,13 +448,84 @@ class PluginCorrectionController extends TextEditingController {
     TextStyle? style,
     required bool withComposing,
   }) {
+    final composing = withComposing && value.isComposingRangeValid;
+    final reading = composing ? null : _readingLeaves?.call(text);
+    if (reading != null) return TextSpan(style: style, children: reading);
+    final formatted = _formattedChildren(context, style, withComposing);
+    final highlights = _highlightRanges?.call(text) ?? const [];
+    if (highlights.isEmpty) {
+      return formatted == null
+          ? super.buildTextSpan(
+              context: context,
+              style: style,
+              withComposing: withComposing,
+            )
+          : TextSpan(style: style, children: formatted);
+    }
+    // ההדגשה מונחת מעל העלים: כל עלה נחתך בגבולות ההדגשה ושומר על סגנונו.
+    final leaves =
+        formatted ??
+        _leavesOf(
+          super.buildTextSpan(
+            context: context,
+            style: style,
+            withComposing: withComposing,
+          ),
+        );
+    final spans = <InlineSpan>[];
+    var leafStart = 0;
+    for (final leaf in leaves) {
+      final leafText = leaf.text ?? '';
+      final leafEnd = leafStart + leafText.length;
+      var from = leafStart;
+      while (from < leafEnd) {
+        final active = highlights
+            .where((range) => range.start <= from && from < range.end)
+            .firstOrNull;
+        var until = active == null ? leafEnd : min(active.end, leafEnd);
+        if (active == null) {
+          for (final range in highlights) {
+            if (range.start > from && range.start < until) until = range.start;
+          }
+        }
+        spans.add(
+          TextSpan(
+            text: leafText.substring(from - leafStart, until - leafStart),
+            style: active == null
+                ? leaf.style
+                : (leaf.style ?? const TextStyle()).merge(
+                    TextStyle(
+                      color: active.color,
+                      // כמו הקורא: הרקע הוא צבע של Paint ולא backgroundColor.
+                      background: active.background == null
+                          ? null
+                          : (Paint()..color = active.background!),
+                    ),
+                  ),
+          ),
+        );
+        from = until;
+      }
+      leafStart = leafEnd;
+    }
+    return TextSpan(style: style, children: spans);
+  }
+
+  /// העלים של טקסט שהשדה בנה בעצמו: הטקסט כולו, או שלושה חלקים כשיש הרכבה.
+  static List<TextSpan> _leavesOf(TextSpan span) => [
+    if (span.text != null) TextSpan(text: span.text),
+    ...?span.children?.cast<TextSpan>(),
+  ];
+
+  /// עלי העיצוב של המקור, או null כשהטקסט פשוט או שהעיצוב אינו מיושר אליו.
+  List<TextSpan>? _formattedChildren(
+    BuildContext context,
+    TextStyle? style,
+    bool withComposing,
+  ) {
     if (_formats.length != text.length ||
         _formats.every((format) => format == _plainFormat)) {
-      return super.buildTextSpan(
-        context: context,
-        style: style,
-        withComposing: withComposing,
-      );
+      return null;
     }
     final composing = withComposing && value.isComposingRangeValid
         ? value.composing
@@ -255,7 +552,7 @@ class PluginCorrectionController extends TextEditingController {
       );
       start = end;
     }
-    return TextSpan(style: style, children: children);
+    return children;
   }
 
   static TextStyle? _resolve(
@@ -496,6 +793,7 @@ class _FormattedEditingValue extends TextEditingValue {
     TextEditingValue value, {
     required this.source,
     required this.runs,
+    required this.base,
   }) : super(
          text: value.text,
          selection: value.selection,
@@ -504,6 +802,9 @@ class _FormattedEditingValue extends TextEditingValue {
 
   final Object source;
   final List<({int end, CorrectionFormat format})> runs;
+
+  /// הטקסט הגלוי המלא (כולל סימנים מוסתרים) שאליו הערך הזה ממוזג.
+  final String base;
 
   List<CorrectionFormat> expandFormats() {
     final result = <CorrectionFormat>[];
@@ -527,7 +828,15 @@ class _FormattedEditingValue extends TextEditingValue {
       composing: composing,
     );
     return text == null || text == this.text
-        ? _FormattedEditingValue(result, source: source, runs: runs)
+        ? _FormattedEditingValue(result, source: source, runs: runs, base: base)
         : result;
   }
+}
+
+/// הטקסט שהקורא מציג עבור מקור, ולכל תו בו את מקומו במקור.
+class _EditorView {
+  const _EditorView(this.text, this.origin);
+
+  final String text;
+  final List<int> origin;
 }

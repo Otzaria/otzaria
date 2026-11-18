@@ -681,10 +681,12 @@ class PluginBridgeAdapter {
     PluginHighlightRegistry? highlightRegistry,
     PluginReportService? reportService,
     PluginBookCorrectionService? bookCorrectionService,
+    DirectErrorReportService? directReportService,
     PluginSearchFieldSessionService? searchFieldSessions,
   }) : _pluginRepo = pluginRepository ?? PluginRegistryRepository(),
        _pluginReportService = reportService,
        _pluginBookCorrectionService = bookCorrectionService,
+       _directBookReportService = directReportService,
        // שירות שהוזרק (בדיקות) מקבל בעלים פרטי; אחרת הבעלים של החלון.
        _alerts =
            alertsClient ??
@@ -6972,6 +6974,8 @@ class PluginBridgeAdapter {
     switch (action) {
       case 'submitBookCorrection':
         return _submitBookCorrection(args);
+      case 'getBookCorrectionStatus':
+        return _getBookCorrectionStatus(args);
       case 'sendEmail':
         final to = args['to'] as String?;
         final subject = args['subject'] as String?;
@@ -7077,6 +7081,27 @@ class PluginBridgeAdapter {
           'error.unknown_method: Unknown action in feedback: $action',
         );
     }
+  }
+
+  /// מצב דיווח תיקון שהתוסף עצמו שלח. המזהה המקומי של אוצריא נבנה כאן מהמזהה
+  /// של התוסף, ולכן תוסף יכול לשאול רק על דיווחים שלו, ושום תוכן אינו נחשף.
+  Future<Map<String, dynamic>> _getBookCorrectionStatus(
+    Map<String, dynamic> args,
+  ) async {
+    final id = args['reportId'];
+    if (id is! String || !PluginBookCorrectionService.isValidReportId(id)) {
+      throw Exception('error.invalid_params: מזהה הדיווח אינו תקין.');
+    }
+    final nativeId = PluginBookCorrectionService.nativeReportId(
+      plugin.pluginId,
+      id,
+    );
+    final direct = _directBookReportService ??= DirectErrorReportService();
+    return {
+      'status': await direct.lookupReportStatus(nativeId),
+      'reportId': id,
+      'nativeReportId': nativeId,
+    };
   }
 
   Future<Map<String, dynamic>> _submitBookCorrection(

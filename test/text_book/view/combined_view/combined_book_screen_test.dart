@@ -330,13 +330,14 @@ void main() {
           );
           await tester.pump();
           expect((await latestSnapshot())['revision'], 3);
-          for (final rejected in ['שתי\nפסקאות', '<b>תגית</b>']) {
+          // ירידת שורה מותרת (פיצול פסקה); תגיות וישויות נדחות.
+          for (final rejected in ['<b>תגית</b>', 'ישות &amp; אסורה']) {
             await tester.enterText(firstEditor, rejected);
             await tester.pump();
             expect(editor.controller!.text, 'עריכה ישירה אחרונה 😀ק');
             expect((await latestSnapshot())['revision'], 3);
           }
-          editor.controller!.text = 'הדבקה ידנית\nשאינה פסקה אחת';
+          editor.controller!.text = 'הדבקה ידנית <i>עם תגית</i>';
           editor.onChanged!(editor.controller!.text);
           await tester.pump();
           expect(editor.controller!.text, 'עריכה ישירה אחרונה 😀ק');

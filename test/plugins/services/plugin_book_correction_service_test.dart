@@ -300,6 +300,32 @@ void main() {
       });
     });
 
+    test('הצעה עם ירידת שורה אינה תיקון מובנה ונשלחת רק כטקסט חופשי', () async {
+      await expectLater(
+        submit(
+          ['אחד שניים'],
+          'אחד שניים',
+          'אחד\nשניים',
+          start: 0,
+          end: 9,
+          extra: {'requireTextCorrection': true},
+        ),
+        coded('error.text_correction_unavailable'),
+      );
+      expect(deliveries, 0);
+      final result = await submit(
+        ['אחד שניים'],
+        'אחד שניים',
+        'אחד\nשניים',
+        start: 0,
+        end: 9,
+        extra: {'forceFreeText': true},
+      );
+      expect(result['reportKind'], 'free_text');
+      expect(report.correction, isNull);
+      expect(report.errorDetails, contains('אחד\nשניים'));
+    });
+
     test('שינוי שחוצה HTML נדחה בלי לשלוח', () async {
       await expectLater(
         submit(

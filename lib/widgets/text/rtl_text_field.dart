@@ -956,17 +956,41 @@ class _HardBreakController extends TextEditingController {
     TextStyle? style,
     required bool withComposing,
   }) {
-    if (source.text != text) {
-      return super.buildTextSpan(
-        context: context,
-        style: style,
-        withComposing: withComposing,
-      );
-    }
-    return source.buildTextSpan(
+    final span = source.buildTextSpan(
       context: context,
       style: style,
       withComposing: withComposing,
+    );
+    if (source.text == text) return span;
+    // הטקסט כאן מורחב ל-\r\n: מרחיבים גם את העלים של ה-controller של הקורא,
+    // כדי שעיצוב והדגשה לא ילכו לאיבוד בפסקה עם שבירות שורה.
+    final expanded = _expandSpan(span);
+    if (expanded != null &&
+        expanded.toPlainText(includeSemanticsLabels: false) == text) {
+      return expanded;
+    }
+    return super.buildTextSpan(
+      context: context,
+      style: style,
+      withComposing: withComposing,
+    );
+  }
+
+  static final RegExp _newline = RegExp(r'\r\n|\n');
+
+  /// null כשיש בעץ משהו שאינו טקסט, ואז אי אפשר להבטיח שההרחבה מדויקת.
+  static TextSpan? _expandSpan(TextSpan span) {
+    final children = <InlineSpan>[];
+    for (final child in span.children ?? const <InlineSpan>[]) {
+      if (child is! TextSpan) return null;
+      final expanded = _expandSpan(child);
+      if (expanded == null) return null;
+      children.add(expanded);
+    }
+    return TextSpan(
+      text: span.text?.replaceAll(_newline, '\r\n'),
+      children: children.isEmpty ? null : children,
+      style: span.style,
     );
   }
 }

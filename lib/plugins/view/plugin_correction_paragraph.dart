@@ -1,12 +1,21 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/plugin_messages.dart';
 import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
 import 'package:otzaria/plugins/view/plugin_correction_controller.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/theme/search_highlight_css.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/widgets/smart_text/inline_html_document.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
+import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
 /// עריכה מקומית בפסקת מקור, ללא היסטים או עוגנים של נוסח אחר.
@@ -35,7 +44,31 @@ class PluginCorrectionParagraph extends StatefulWidget {
       _PluginCorrectionParagraphState();
 }
 
+/// מיקום אופקי של הסמן בעת מעבר בין פסקאות בחיצים, כדי שהסמן ינחת באותו מקום
+/// בשורה הסמוכה ולא בסוף השורה. קיים רק עד שמעבר המיקוד מסתיים.
+class _CaretHandoff {
+  final double dx;
+  final bool movedDown;
+  _CaretHandoff(this.dx, this.movedDown);
+}
+
 class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
+  static _CaretHandoff? _handoff;
+
+  /// הפסקה היחידה שפתוחה כרגע לעריכה בלי שתוקנה. מצב העריכה הוא דגל ולא שיקוף
+  /// של הפוקוס: אזור הבחירה של הקורא לוקח פוקוס באמצע כל לחיצה ממושכת, ולכן
+  /// איבוד פוקוס אינו סוגר את העורך, וסימון טקסט בעכבר, הדבקה מתפריט וחזרה
+  /// מחלון אחר ממשיכים לעבוד.
+  static _PluginCorrectionParagraphState? _active;
+  Timer? _tapTimer;
+
+  /// טיימר של 300 מילישניות שמסיים את [_suppressReveal] אחרי הפעלה בלחיצת עכבר:
+  /// השורה שנלחצה כבר גלויה, ולכן בזמן הזה השדה אינו גולל את עצמו "כדי לחשוף
+  /// את הסמן" (20 פיקסלים מכל קצה) והדף אינו זז מתחת לעכבר.
+  Timer? _revealTimer;
+  bool _suppressReveal = false;
+  Offset? _lastTapUp;
+  Offset? _downAt;
   bool _editable = false;
   bool _corrected = false;
   bool _showEditor = false;
@@ -43,6 +76,13 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   FocusNode? _focus;
   FocusNode? _activationFocus;
   Offset? _editPosition;
+  final GlobalKey _originalKey = GlobalKey();
+
+  /// גובה הפסקה הרגילה ברגע ההפעלה, והרוחב שלה באותו רגע: שדה העריכה אינו נמוך
+  /// מהגובה, כדי שהחלפת התצוגה לא תשנה את גובה הפסקה ולא תזיז את הגלילה.
+  /// הנעילה חלה רק ברוחב ובהגדרות שבהם נמדדה, ומתבטלת עם התיקון הראשון.
+  double? _lockedHeight;
+  double? _lockedWidth;
   String? _lastRejection;
   DateTime _lastRejectionAt = DateTime.fromMillisecondsSinceEpoch(0);
   PluginCorrectionSessionService get _registry =>
@@ -66,6 +106,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     if (widget.sessionActive && (!oldWidget.sessionActive || serviceChanged)) {
       _activate();
     }
+    if (oldWidget.settings != widget.settings) _lockedHeight = null;
     if (widget.sessionActive) _syncText();
   }
 
@@ -75,6 +116,8 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   }
 
   void _disposeEditor() {
+    _cancelTimers();
+    if (_active == this) _active = null;
     _controller?.dispose();
     _focus?.dispose();
     _activationFocus?.dispose();
@@ -86,15 +129,119 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     _showEditor = false;
   }
 
+  void _claimActive() {
+    if (_active == this) return;
+    _active?._stopEditing();
+    _active = this;
+  }
+
+  void _cancelTimers() {
+    _clearTap();
+    _revealTimer?.cancel();
+    _revealTimer = null;
+    _suppressReveal = false;
+  }
+
+  void _clearTap() {
+    _tapTimer?.cancel();
+    _tapTimer = null;
+    _lastTapUp = null;
+  }
+
+  /// סוגר עורך של פסקה שלא תוקנה ומחזיר את התצוגה הרגילה. פסקה שתוקנה נשארת
+  /// עורך בכל מקרה.
+  void _stopEditing({bool refocusReader = false}) {
+    _clearTap();
+    if (_active == this) _active = null;
+    if (!_showEditor) return;
+    if (!mounted) {
+      _showEditor = false;
+      return;
+    }
+    setState(() => _showEditor = false);
+    if (!refocusReader) return;
+    // הפוקוס חוזר לקורא (ולא לפסקה), כדי שחצים וגלילה ימשיכו לעבוד.
+    final reader = Focus.maybeOf(context, createDependency: false);
+    if (reader == null || reader is FocusScopeNode) {
+      _focus?.unfocus(disposition: UnfocusDisposition.scope);
+    } else {
+      reader.requestFocus();
+    }
+  }
+
+  void _editorPointerDown(PointerDownEvent event) {
+    _downAt = null;
+    if (_corrected || event.buttons != kPrimaryButton) return;
+    final last = _lastTapUp;
+    if (_tapTimer?.isActive == true &&
+        last != null &&
+        (event.position - last).distance <= kDoubleTapSlop) {
+      // לחיצה כפולה על פסקה שלא תוקנה יוצאת ממצב העריכה.
+      _stopEditing(refocusReader: true);
+      return;
+    }
+    _downAt = event.position;
+  }
+
+  void _editorPointerUp(PointerUpEvent event) {
+    final down = _downAt;
+    _downAt = null;
+    _clearTap();
+    // גרירה (סימון טקסט) אינה לחיצה.
+    if (down == null || (event.position - down).distance > kTouchSlop) return;
+    _lastTapUp = event.position;
+    _tapTimer = Timer(kDoubleTapTimeout, _clearTap);
+  }
+
   void _focusChanged() {
-    if (mounted) setState(() => _showEditor = _focus!.hasFocus);
+    if (!mounted) return;
+    if (_focus!.hasFocus) _claimActive();
+    final handoff = _handoff;
+    if (!_focus!.hasFocus || handoff == null) return;
+    _handoff = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final context = _focus?.context;
+      if (!mounted || _controller == null || context == null) return;
+      if (!context.mounted) return;
+      final editor = context.findAncestorStateOfType<EditableTextState>();
+      if (editor == null) return;
+      final render = editor.renderEditable;
+      final half = render.preferredLineHeight / 2;
+      final y = handoff.movedDown ? half : render.size.height - half;
+      final point = render.localToGlobal(Offset(0, y));
+      _controller!.selection = TextSelection.fromPosition(
+        render.getPositionForPoint(Offset(handoff.dx, point.dy)),
+      );
+    });
   }
 
   void _activationFocusChanged() {
     if (_activationFocus!.hasPrimaryFocus) _startEditing();
   }
 
+  void _lockOriginalHeight() {
+    final size = _originalKey.currentContext?.size;
+    final box = context.findRenderObject();
+    if (size == null ||
+        box is! RenderBox ||
+        !size.height.isFinite ||
+        size.height <= 0) {
+      return;
+    }
+    _lockedHeight = size.height;
+    _lockedWidth = box.constraints.maxWidth;
+  }
+
   void _startEditing({Offset? position}) {
+    _claimActive();
+    if (position != null) {
+      _suppressReveal = true;
+      _revealTimer?.cancel();
+      _revealTimer = Timer(const Duration(milliseconds: 300), () {
+        _suppressReveal = false;
+      });
+    }
+    _lockOriginalHeight();
     setState(() => _showEditor = true);
     _focus!.requestFocus();
     if (position == null) return;
@@ -109,23 +256,102 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     });
   }
 
+  /// Escape יוצא מהעריכה. חץ מעלה/מטה בשורה הראשונה/האחרונה של הפסקה עובר
+  /// לפסקה הסמוכה, כדי שאפשר יהיה לנוע בין פסקאות במקלדת ולא רק לצדדים.
+  KeyEventResult _onEditorKey(FocusNode node, KeyEvent event) {
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.escape) {
+      // Escape יוצא מהעריכה: התיקון נשאר, והמיקוד חוזר לקורא.
+      _stopEditing(refocusReader: true);
+      return KeyEventResult.handled;
+    }
+    final up = key == LogicalKeyboardKey.arrowUp;
+    if (!up && key != LogicalKeyboardKey.arrowDown) {
+      return KeyEventResult.ignored;
+    }
+    final keyboard = HardwareKeyboard.instance;
+    final controller = _controller;
+    final editor = node.context?.findAncestorStateOfType<EditableTextState>();
+    if (controller == null ||
+        editor == null ||
+        keyboard.isShiftPressed ||
+        keyboard.isControlPressed ||
+        keyboard.isAltPressed ||
+        keyboard.isMetaPressed ||
+        !editor.textEditingValue.selection.isValid ||
+        !editor.textEditingValue.selection.isCollapsed) {
+      return KeyEventResult.ignored;
+    }
+    // הבחירה והטקסט נלקחים מהשדה עצמו (לא מהבקר החיצוני): בשדה רב-שורתי הם
+    // כוללים ירידות שורה מורחבות, וההיסטים של הבקר החיצוני אינם תואמים.
+    final value = editor.textEditingValue;
+    final render = editor.renderEditable;
+    final extent = value.selection.extent;
+    final line = render.getLineAtOffset(extent);
+    // בתוך פסקה של כמה שורות החצים נשארים של שדה הטקסט; רק בשורה הראשונה או
+    // האחרונה של הפסקה עוברים לפסקה הסמוכה.
+    final atEdge = up ? line.start <= 0 : line.end >= value.text.length;
+    final caret = render.getLocalRectForCaret(extent);
+    if (!atEdge) {
+      // הזזת הסמן לשורה הסמוכה בתוך הפסקה נעשית כאן במפורש, באותו מקום
+      // אופקי, ולא נשארת לקיצורי העריכה הגלובליים שאינם מגיעים לשדה.
+      final step = render.preferredLineHeight * (up ? -1 : 1);
+      final target = render.getPositionForPoint(
+        render.localToGlobal(Offset(caret.center.dx, caret.center.dy + step)),
+      );
+      editor.userUpdateTextEditingValue(
+        value.copyWith(selection: TextSelection.fromPosition(target)),
+        SelectionChangedCause.keyboard,
+      );
+      return KeyEventResult.handled;
+    }
+    final point = render.localToGlobal(caret.center);
+    _handoff = _CaretHandoff(point.dx, !up);
+    final moved = FocusScope.of(node.context!).focusInDirection(
+      up ? TraversalDirection.up : TraversalDirection.down,
+    );
+    // מיקוד שנחת ברכיב שאינו פסקה אינו משאיר מיקום לפסקה שתקבל מיקוד אחר כך.
+    scheduleMicrotask(() {
+      final target = FocusManager.instance.primaryFocus?.context;
+      if (target?.findAncestorStateOfType<_PluginCorrectionParagraphState>() ==
+          null) {
+        _handoff = null;
+      }
+    });
+    return moved ? KeyEventResult.handled : KeyEventResult.ignored;
+  }
+
   bool _syncText() {
     if (!_registry.canEditParagraph(widget.tabId, widget.sourceText)) {
       return false;
     }
-    if (_controller == null) {
-      _controller = PluginCorrectionController(widget.sourceText);
-      _focus = FocusNode()..addListener(_focusChanged);
+    var controller = _controller;
+    if (controller == null) {
+      // מה שהקורא מסתיר (ניקוד, טעמים) מוסתר גם בעורך; הוא נשמר במקור.
+      controller = _controller = PluginCorrectionController(
+        widget.sourceText,
+        removeNikud: widget.settings.removeNikud,
+        removeTeamim: widget.settings.removeTeamim,
+      );
+      _focus = FocusNode(onKeyEvent: _onEditorKey)..addListener(_focusChanged);
       _activationFocus = FocusNode()..addListener(_activationFocusChanged);
+    } else {
+      controller.setHiddenMarks(
+        removeNikud: widget.settings.removeNikud,
+        removeTeamim: widget.settings.removeTeamim,
+      );
+      controller.setSource(widget.sourceText);
     }
-    final controller = _controller!;
-    controller.setSource(widget.sourceText);
     final canonical = _registry.editableText(
       widget.tabId,
       widget.sectionIndex,
       widget.sourceText,
     );
-    if (controller.forService(controller.text) == canonical) return false;
+    if (controller.forService(controller.text) == canonical) {
+      controller.adopt(canonical);
+      return false;
+    }
     final text = controller.forEditor(canonical);
     if (controller.text == text) return false;
     final selection = controller.selection;
@@ -186,7 +412,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
         widget.tabId,
         widget.sectionIndex,
         widget.sourceText,
-        _controller!.forService(newValue.text),
+        _controller!.forServiceValue(newValue),
       );
       return newValue;
     } on PluginCorrectionException catch (error) {
@@ -222,9 +448,9 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
         focusNode: _activationFocus,
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
-          onDoubleTapDown: (details) => _editPosition = details.globalPosition,
-          onDoubleTap: () => _startEditing(position: _editPosition),
-          child: widget.original,
+          onTapDown: (details) => _editPosition = details.globalPosition,
+          onTap: () => _startEditing(position: _editPosition),
+          child: KeyedSubtree(key: _originalKey, child: widget.original),
         ),
       );
     }
@@ -241,50 +467,208 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
               : BorderSide.none,
         ),
       ),
-      child: _buildEditor(),
+      child: LayoutBuilder(
+        builder: (context, constraints) => ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: _corrected || _lockedWidth != constraints.maxWidth
+                ? 0
+                : (_lockedHeight ?? 0),
+          ),
+          child: Listener(
+            onPointerDown: _editorPointerDown,
+            onPointerUp: _editorPointerUp,
+            onPointerCancel: (_) => _downAt = null,
+            // כמו הקורא: תבנית הדגשה מדויקת שמגיעה אחרי הציור מצוירת מחדש.
+            child: ListenableBuilder(
+              listenable: utils.highlightPatternRevision,
+              builder: (context, _) => _buildEditor(),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
+  /// שדה טקסט שומר לסמן [_caretMargin] פיקסלים בקצה השורה (רווח של 1 ועובי
+  /// הסמן של [RtlTextField], 1). [_CaretRoom] מרחיב את השדה בגודל הזה, ולכן
+  /// השורות בעורך נשברות באותו רוחב כמו בתצוגה הרגילה.
+  static const double _caretMargin = 2.0;
+
+  Widget _matchReadingWidth(Widget editor) =>
+      _CaretRoom(suppressReveal: () => _suppressReveal, child: editor);
+
+  InlineHtmlLine? _readingLine;
+  List<TextSpan>? _readingLeaves;
+
+  /// העלים של התצוגה הרגילה (מודגש, סוגריים מוקטנים וכו') כל עוד הטקסט בעורך
+  /// זהה לטקסט שלה. כך פסקה שנפתחת לעריכה נשברת לשורות בדיוק כמו בתצוגה הרגילה,
+  /// ואינה קופצת. אחרי שינוי בטקסט העורך חוזר לטקסט פשוט.
+  List<TextSpan>? _leavesFor(String text) {
+    final line = _readingLine;
+    if (line == null || line.document.plainText != text) return null;
+    return _readingLeaves ??= [
+      for (final run in line.document.runs)
+        TextSpan(text: run.text, style: run.style),
+    ];
+  }
+
+  ColorScheme? _colors;
+  ({
+    String text,
+    RenderSettings settings,
+    ColorScheme colors,
+    int revision,
+  })?
+  _highlightKey;
+  List<CorrectionHighlight> _highlights = const [];
+
+  /// הדגשת החיפוש בטקסט שאינו הטקסט של התצוגה הרגילה: אותו עיבוד בדיוק
+  /// ([TextRendererService.processText], כולל ההתאמה של החיפוש ופתרון הצבעים)
+  /// על הטקסט שבעורך, ומתוך ה-HTML שהתקבל נלקחים הטווחים הצבועים.
+  List<CorrectionHighlight> _highlightsFor(String text) {
+    final settings = widget.settings;
+    final colors = _colors;
+    if (settings.searchText.isEmpty || text.isEmpty || colors == null) {
+      return const [];
+    }
+    final key = (
+      text: text,
+      settings: settings,
+      colors: colors,
+      revision: utils.highlightPatternRevision.value,
+    );
+    if (_highlightKey == key) return _highlights;
+    _highlightKey = key;
+    final html = SearchHighlightCss.resolve(
+      TextRendererService.processText(_escape.convert(text), settings),
+      colors,
+    );
+    return _highlights = coloredRanges(html, text);
+  }
+
+  static const _escape = HtmlEscape(HtmlEscapeMode.element);
+
   Widget _buildEditor() {
     final settings = widget.settings;
-    final family = AppFonts.taamimSafeFontFamily(
-      settings.fontFamily,
-      widget.sourceText,
+    // אותו עיבוד, אותו גופן ואותו סגנון שורה כמו ב-SmartTextWidget.
+    final colors = Theme.of(context).colorScheme;
+    final html = SearchHighlightCss.resolve(
+      TextRendererService.processText(widget.sourceText, settings),
+      colors,
     );
-    return RtlTextField(
-      controller: _controller!,
-      focusNode: _focus!,
-      maxLines: null,
-      minLines: 1,
-      textInputAction: TextInputAction.done,
-      textAlign: settings.justifyText ? TextAlign.justify : TextAlign.right,
-      decoration: const InputDecoration(
-        border: InputBorder.none,
-        isDense: true,
-        contentPadding: EdgeInsets.zero,
+    _colors = colors;
+    final family = AppFonts.taamimSafeFontFamily(settings.fontFamily, html);
+    final textStyle = TextStyle(
+      fontSize: settings.fontSize,
+      fontFamily: AppFonts.renderFontFamily(family),
+      fontWeight: settings.fontWeight,
+      fontVariations: AppFonts.boldFontVariations(
+        family,
+        settings.fontWeight ?? FontWeight.normal,
       ),
-      style: TextStyle(
-        fontSize: settings.fontSize,
-        fontFamily: AppFonts.renderFontFamily(family),
-        fontWeight: settings.fontWeight,
-        fontVariations: AppFonts.boldFontVariations(
-          family,
-          settings.fontWeight ?? FontWeight.normal,
+      height: settings.lineHeight,
+    );
+    final line = InlineHtmlDocument.parseLine(html, textStyle);
+    if (!identical(line, _readingLine)) {
+      _readingLine = line;
+      _readingLeaves = null;
+    }
+    // שדה טקסט ממזג מתחת לסגנון את bodyLarge של ערכת הנושא (ריווח אותיות 0.5),
+    // והתצוגה הרגילה יורשת את סגנון ברירת המחדל של הקורא. ריווח שונה מזיז כל
+    // מילה ושובר שורות אחרת, ולכן הריווח נלקח במפורש מאותו מקור.
+    final inherited = DefaultTextStyle.of(context).style;
+    // ההדגשה והעלים נקבעים בבקר, כי הוא שמצייר את הטקסט (גם מאחורי עוקף
+    // שבירות השורה של השדה).
+    _controller!
+      ..highlightRanges = _highlightsFor
+      ..readingLeaves = line == null ? null : _leavesFor;
+    return _matchReadingWidth(
+      RtlTextField(
+        controller: _controller!,
+        focusNode: _focus!,
+        maxLines: null,
+        minLines: 1,
+        textInputAction: TextInputAction.newline,
+        textAlign: settings.justifyText ? TextAlign.justify : TextAlign.right,
+        decoration: const InputDecoration(
+          border: InputBorder.none,
+          isDense: true,
+          contentPadding: EdgeInsets.zero,
         ),
-        height: settings.lineHeight,
+        style: (line?.style ?? textStyle).copyWith(
+          letterSpacing: inherited.letterSpacing ?? 0,
+          wordSpacing: inherited.wordSpacing ?? 0,
+        ),
+        inputFormatters: [TextInputFormatter.withFunction(_validate)],
+        onChanged: _applyText,
       ),
-      inputFormatters: [TextInputFormatter.withFunction(_validate)],
-      onChanged: _applyText,
-      onSubmitted: (_) => _focus!.unfocus(),
     );
   }
 
   @override
   void dispose() {
+    _cancelTimers();
+    if (_active == this) _active = null;
     _registry.removeListener(_changed);
     _controller?.dispose();
     _focus?.dispose();
     _activationFocus?.dispose();
     super.dispose();
+  }
+}
+
+/// מניח את העורך ברוחב ההורה ועוד [_PluginCorrectionParagraphState._caretMargin],
+/// וגודלו כלפי ההורה נשאר רוחב ההורה. התוספת חורגת ימינה (הטקסט מצויר מקצה
+/// שמאל), ולכן אזור הטקסט רוחבו בדיוק כמו בתצוגה הרגילה.
+class _CaretRoom extends SingleChildRenderObjectWidget {
+  const _CaretRoom({required this.suppressReveal, required super.child});
+
+  final bool Function() suppressReveal;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderCaretRoom(suppressReveal);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderCaretRoom renderObject) {
+    renderObject.suppressReveal = suppressReveal;
+  }
+}
+
+class _RenderCaretRoom extends RenderProxyBox {
+  _RenderCaretRoom(this.suppressReveal);
+
+  bool Function() suppressReveal;
+
+  @override
+  void showOnScreen({
+    RenderObject? descendant,
+    Rect? rect,
+    Duration duration = Duration.zero,
+    Curve curve = Curves.ease,
+  }) {
+    if (suppressReveal()) return;
+    super.showOnScreen(
+      descendant: descendant,
+      rect: rect,
+      duration: duration,
+      curve: curve,
+    );
+  }
+
+  @override
+  void performLayout() {
+    final child = this.child;
+    if (child == null || !constraints.hasBoundedWidth) {
+      super.performLayout();
+      return;
+    }
+    final width =
+        constraints.maxWidth + _PluginCorrectionParagraphState._caretMargin;
+    child.layout(
+      constraints.copyWith(minWidth: width, maxWidth: width),
+      parentUsesSize: true,
+    );
+    size = constraints.constrain(Size(constraints.maxWidth, child.size.height));
   }
 }

@@ -146,6 +146,28 @@ void main() {
       },
     );
 
+    testWidgets('עיצוב והדגשה של ה-controller נשמרים בפסקה עם שבירות שורה', (
+      tester,
+    ) async {
+      final controller = _StyledController(text: 'אב\nגד');
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        host(RtlTextField(controller: controller, maxLines: null)),
+      );
+      await tester.pump();
+
+      final editable = tester.widget<EditableText>(find.byType(EditableText));
+      final span = editable.controller.buildTextSpan(
+        context: tester.element(find.byType(EditableText)),
+        withComposing: false,
+      );
+      expect(span.toPlainText(includeSemanticsLabels: false), 'אב\r\nגד');
+      final leaves = span.children!.cast<TextSpan>();
+      expect(leaves.first.style?.fontWeight, FontWeight.bold);
+      expect(controller.text, 'אב\nגד');
+    });
+
     testWidgets('שדה חד-שורתי (ברירת מחדל) אינו מופעל — ללא שינוי התנהגות', (
       tester,
     ) async {
@@ -345,4 +367,24 @@ void main() {
       },
     );
   });
+}
+
+/// מצייר את כל הטקסט מודגש, כמו בקר של קורא שמעצב את הטקסט שלו.
+class _StyledController extends TextEditingController {
+  _StyledController({super.text});
+
+  @override
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    TextStyle? style,
+    required bool withComposing,
+  }) => TextSpan(
+    style: style,
+    children: [
+      TextSpan(
+        text: text,
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+    ],
+  );
 }

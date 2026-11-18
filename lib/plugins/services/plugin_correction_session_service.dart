@@ -1216,13 +1216,19 @@ class PluginCorrectionSessionService extends ChangeNotifier {
     if (text.length > maxTextLength) {
       _fail('error.limit_exceeded', 'טקסט הפסקה גדול מדי.');
     }
-    if (_unsupportedText.hasMatch(text)) {
-      _fail('error.unsupported_context', 'נתמך רק טקסט פשוט בתוך פסקה אחת.');
+    // ירידת שורה מותרת בהצעה: זה פיצול הפסקה. מקור הפסקה נבדק ב-
+    // [_unsupportedText] ואינו כולל ירידות שורה.
+    if (_unsupportedProposed.hasMatch(text)) {
+      _fail('error.unsupported_context', 'נתמך רק טקסט פשוט, ללא תגיות.');
     }
     if (!_validUtf16(text)) {
       _fail('error.invalid_params', 'הטקסט מכיל תו פגום.');
     }
   }
+
+  static final _unsupportedProposed = RegExp(
+    r'[<>\r\u2028\u2029]|&(?:#[xX]?[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);',
+  );
 
   static final _unsupportedText = RegExp(
     r'[<>\r\n  ]|&(?:#[xX]?[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);',
