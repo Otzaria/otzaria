@@ -141,6 +141,10 @@ void main() {
         find.byKey(const ValueKey('semantic-data-quantization')),
         findsNothing,
       );
+      expect(
+        find.byKey(const ValueKey('semantic-data-model-choice')),
+        findsNothing,
+      );
 
       await tester.runAsync(() async {
         consent.set(SearchFeedbackConsent.declined);
@@ -161,6 +165,110 @@ void main() {
       expect(
         find.byKey(const ValueKey('semantic-data-download')),
         findsNothing,
+      );
+    });
+
+    testWidgets('התקנת פרדס מציגה רישיון AGPL ללא בחירת מודל', (tester) async {
+      installModelFiles(root);
+      final backend = FakeBackend()..vectors = installedV30;
+      final repository = buildRepository(root: root, backend: backend);
+      addTearDown(repository.releaseForLibraryMove);
+
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          app(
+            SemanticDataPanel(repository: repository, platformSupported: true),
+          ),
+        );
+        await repository.refresh();
+      });
+      await tester.pumpAndSettle();
+
+      expect(find.text('הנתונים מותקנים ומוכנים'), findsOneWidget);
+      expect(
+        find.text('רכיב החיפוש מופץ ברישיון AGPL-3.0'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('semantic-data-license')), findsOne);
+      expect(
+        find.byKey(const ValueKey('semantic-data-model-choice')),
+        findsNothing,
+      );
+      expect(find.textContaining('מייבין'), findsNothing);
+      expect(find.textContaining('ניסיוני'), findsNothing);
+      expect(find.textContaining('לשימוש אישי בלבד'), findsNothing);
+    });
+
+    testWidgets('ממתין לפרסום פרדס ומתקין בלחיצה על נסה שוב לאחר הפרסום', (
+      tester,
+    ) async {
+      final locator = FakeLocator();
+      final backend = FakeBackend();
+      final repository = buildRepository(
+        root: root,
+        locator: locator,
+        backend: backend,
+      );
+      addTearDown(repository.releaseForLibraryMove);
+
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          app(
+            SemanticDataPanel(repository: repository, platformSupported: true),
+          ),
+        );
+        await waitFor(
+          () =>
+              repository.availability.phase ==
+              SemanticAvailabilityPhase.needsDownload,
+        );
+      });
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('semantic-data-download')));
+      await tester.runAsync(() async {
+        await waitFor(
+          () =>
+              repository.availability.phase ==
+              SemanticAvailabilityPhase.vectorsNotPublished,
+        );
+      });
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'הנתונים לגרסת הספרייה 30 עוד לא פורסמו. הם יורדו כשיתפרסמו.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('הנתונים מותקנים ומוכנים'), findsNothing);
+      expect(find.textContaining('מייבין'), findsNothing);
+      expect(
+        find.byKey(const ValueKey('semantic-data-license')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('semantic-data-model-choice')),
+        findsNothing,
+      );
+      expect(find.byKey(const ValueKey('semantic-data-retry')), findsOne);
+
+      locator.release = releaseV30();
+      await tester.tap(find.byKey(const ValueKey('semantic-data-retry')));
+      await tester.runAsync(() async {
+        await waitFor(
+          () =>
+              repository.availability.phase == SemanticAvailabilityPhase.ready,
+        );
+      });
+      await tester.pumpAndSettle();
+
+      expect(backend.installRequests, hasLength(1));
+      expect(find.text('הנתונים מותקנים ומוכנים'), findsOneWidget);
+      expect(find.byKey(const ValueKey('semantic-data-retry')), findsNothing);
+      expect(
+        find.text('רכיב החיפוש מופץ ברישיון AGPL-3.0'),
+        findsOneWidget,
       );
     });
   });

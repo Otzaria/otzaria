@@ -1,7 +1,7 @@
 import 'dart:convert';
+import 'dart:developer' show log;
 
 import 'package:crypto/crypto.dart';
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import 'package:otzaria/library_update/services/github_rate_limit.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
@@ -140,10 +140,10 @@ class SemanticVectorsReleaseLocator {
       }.contains(failure.kind)) {
         rethrow;
       }
-      debugPrint('[SemanticSearch] delta chain unusable: $failure');
+      log('delta chain unusable: $failure', name: 'SemanticSearch');
       return null;
     } on FormatException catch (error) {
-      debugPrint('[SemanticSearch] delta chain unusable: $error');
+      log('delta chain unusable: $error', name: 'SemanticSearch');
       return null;
     } finally {
       client.close();

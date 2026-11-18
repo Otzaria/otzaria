@@ -10,9 +10,9 @@ enum SemanticQuantization {
   /// דיוק נוסף, רק כאשר פורסמה חבילה תואמת.
   fp32;
 
-  /// שם הגרף בחבילת המודל, למשל `query.int8.onnx`.
+  /// שם הגרף בחבילת המודל.
   String get modelFileName => switch (this) {
-    int8 => 'query.int8.onnx',
+    int8 => 'model.onnx',
     fp32 => 'document.fp32.onnx',
   };
 
@@ -147,15 +147,6 @@ int readSemanticChunkingIdentity(Object? decoded, String rawJson) {
     }
   }
   throw const FormatException('chunking_identity אינו UInt64 תקין');
-}
-
-/// בחירת מודל: Meivin נשאר ברירת המחדל; פרדס דורש סט וקטורים נפרד.
-enum SemanticModelChoice {
-  meivin,
-  pardesQa491;
-
-  static SemanticModelChoice parse(String? value) =>
-      values.asNameMap()[value] ?? meivin;
 }
 
 const String kCompactPardesModelFamilyId = 'otzaria/Pardes-QA491-int8-384';

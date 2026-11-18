@@ -1,11 +1,10 @@
 import 'package:equatable/equatable.dart';
 
 import 'semantic_model_identity.dart';
-import 'semantic_paths.dart';
 import 'semantic_vectors_family.dart';
 
 /// שם קובץ הרישיון בחבילת המודל.
-const String kSemanticModelLicenseFileName = 'LICENSE';
+const String kSemanticModelLicenseFileName = 'LICENSE-AGPL-3.0.txt';
 
 /// קובץ אחד ב-release של המודל, עם ה-SHA-256 שלו נעוץ בקוד.
 class SemanticModelFile extends Equatable {
@@ -34,8 +33,8 @@ class SemanticModelFile extends Equatable {
 class SemanticModelRelease extends Equatable {
   final String baseUrl;
 
-  /// משפחה מפורשת למודל חדש; null שומר על מדיניות משפחות Meivin הישנה.
-  final SemanticVectorsFamily? family;
+  /// משפחת הוקטורים התואמת לחבילת המודל.
+  final SemanticVectorsFamily family;
   final SemanticModelFile graph;
   final SemanticModelFile tokenizer;
 
@@ -51,7 +50,7 @@ class SemanticModelRelease extends Equatable {
 
   const SemanticModelRelease({
     required this.baseUrl,
-    this.family,
+    this.family = SemanticVectorsFamily.pardesWindows,
     this.notice,
     required this.graph,
     required this.tokenizer,
@@ -87,51 +86,6 @@ class SemanticModelRelease extends Equatable {
 const Map<SemanticQuantization, SemanticModelRelease?>
 kSemanticModelReleases = {
   SemanticQuantization.int8: SemanticModelRelease(
-    baseUrl:
-        'https://github.com/Otzaria/otzaria-semantic-search/releases/download/model-meivin-qa491-int8-v1',
-    graph: SemanticModelFile(
-      name: 'query.int8.onnx',
-      size: 42625431,
-      sha256:
-          '82b87180616cee55357b90858f327f4d98b86b2e5589f6771d50b788ad383597',
-    ),
-    passageGraph: SemanticModelFile(
-      name: 'document.fp32.onnx',
-      size: 168145648,
-      sha256:
-          '46ba402ce20693d0a3b65aa557a368a3535bbb2a5a1f559d848e803788f7b667',
-    ),
-    tokenizer: SemanticModelFile(
-      name: kSemanticTokenizerFileName,
-      size: 2191362,
-      sha256:
-          '0664287976ecb078bdfd8f5e5515dc87d8cb7f985a79a481aa1cdf7a7321c0e9',
-      zipped: SemanticModelFile(
-        name: '$kSemanticTokenizerFileName.zip',
-        size: 445252,
-        sha256:
-            '07353eea8a9e5036f5a50691424b7818fa7768a3f5220a8daf8505f4b8bd3da0',
-      ),
-    ),
-    identity: SemanticModelFile(
-      name: kSemanticModelIdentityFileName,
-      size: 634,
-      sha256:
-          '58227b5df294a2c20a706482de5d431875941f22ee5007cf20ddc84536801fad',
-    ),
-    license: SemanticModelFile(
-      name: kSemanticModelLicenseFileName,
-      size: 3992,
-      sha256:
-          '92267258dabd9077849cc5ab63a5b0b0b3ca9849e1112fd0d13d9691df7e0739',
-    ),
-  ),
-  SemanticQuantization.fp32: null,
-};
-
-/// פרדס נבחר במפורש ורק עם סט וקטורים תואם.
-const Map<SemanticQuantization, SemanticModelRelease?> kPardesModelReleases = {
-  SemanticQuantization.int8: SemanticModelRelease(
     family: SemanticVectorsFamily.pardesWindows,
     notice: SemanticModelFile(
       name: 'Pardes_NOTICE.txt',
@@ -160,7 +114,7 @@ const Map<SemanticQuantization, SemanticModelRelease?> kPardesModelReleases = {
           '317b75deb75b1158a327934173cf55dab63843002688746e9aa54bd09b383a76',
     ),
     license: SemanticModelFile(
-      name: 'LICENSE-AGPL-3.0.txt',
+      name: kSemanticModelLicenseFileName,
       size: 36318,
       sha256:
           '6fce79142e9d5f34747ea752013fb203f84611552faeca96b78c76de9119dafd',

@@ -38,10 +38,7 @@ void main() {
     expect(c['readableDbSchemaVersion'], isA<int>());
     expect(c['reportsQueueFormat'], 1);
     expect(c['pluginInstallResults'], 1);
-    // פרדס נבחר במפורש, ולכן אינו קודם למשפחות ברירת המחדל.
     expect(c['semanticVectorFamilies'], [
-      'vectors-qa491-windows',
-      'vectors-qa491',
       'vectors-pardesqa491-windows',
     ]);
     expect(content(build: '99800')['appVersion'], '0.9.98');
