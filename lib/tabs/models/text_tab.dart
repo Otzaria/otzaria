@@ -187,6 +187,7 @@ class TextBookTab extends OpenedTab {
       _index,
       openLeftPane,
       commentators ?? [],
+      hasExplicitCommentators: commentators != null,
       searchText: searchText,
       searchOrigin: searchOrigin,
       searchTemplate: searchTemplate,
@@ -316,7 +317,9 @@ class TextBookTab extends OpenedTab {
           json['pinpointHighlightSectionIndex'] is int
           ? json['pinpointHighlightSectionIndex'] as int
           : null,
-      commentators: List<String>.from(json['commentators']),
+      commentators: json['commentators'] is List
+          ? List<String>.from(json['commentators'])
+          : null,
       splitedView: splitedView,
       showPageShapeView: json['showPageShapeView'] ?? false,
       openLeftPane: shouldOpenLeftPane,
