@@ -6,6 +6,7 @@ import 'package:otzaria/data/sqlite/sqlite3_api.dart';
 import 'package:otzaria/plugins/repository/plugin_correction_draft_repository.dart';
 import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
 import 'package:otzaria/plugins/view/plugin_correction_paragraph.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 import '../../test_helpers/activate_correction_paragraph.dart';
@@ -493,12 +494,43 @@ void main() {
       style: editor.style,
       withComposing: false,
     );
+    final hit = AppSurfaces.searchHit(
+      Theme.of(tester.element(find.byType(EditableText))).colorScheme,
+    );
     final marked = (span.children ?? const <InlineSpan>[])
         .whereType<TextSpan>()
-        .where((part) => part.style?.backgroundColor == const Color(0xFFFFFF00))
+        .where((part) => part.style?.color == hit)
         .map((part) => part.text)
         .toList();
     expect(marked, ['ראשונה']);
+    await finish(tester, service);
+  });
+
+  testWidgets('חיפוש נשאר מודגש בעורך גם אחרי שהטקסט שונה', (tester) async {
+    final service = await begin(tester);
+    await pump(tester, service, searchText: 'ראשונה');
+    await activateCorrectionParagraph(tester, find.text('קריאה 0'));
+    await tester.pump();
+    final editor = tester.widget<EditableText>(find.byType(EditableText));
+    editor.controller.value = TextEditingValue(
+      text: 'ראשונה, ${editor.controller.text}',
+    );
+    await tester.pump();
+    final span = editor.controller.buildTextSpan(
+      context: tester.element(find.byType(EditableText)),
+      style: editor.style,
+      withComposing: false,
+    );
+    final hit = AppSurfaces.searchHit(
+      Theme.of(tester.element(find.byType(EditableText))).colorScheme,
+    );
+    expect(
+      (span.children ?? const <InlineSpan>[])
+          .whereType<TextSpan>()
+          .where((part) => part.style?.color == hit)
+          .map((part) => part.text),
+      ['ראשונה', 'ראשונה'],
+    );
     await finish(tester, service);
   });
 }

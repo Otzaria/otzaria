@@ -3,6 +3,7 @@ import 'package:otzaria/plugins/services/plugin_correction_text.dart';
 import 'package:otzaria/text_book/view/text_correction_editor.dart'
     show TextDiffOp, computeTextDiff;
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/widgets/smart_text/simple_inline_html.dart';
 
 /// ניקוד וטעמים בלבד (U+0591–U+05C7). מקף, פסק, סוף פסוק ונון הפוכה הם
@@ -54,13 +55,16 @@ class PluginCorrectionController extends TextEditingController {
   TextEditingValue? _editingValue;
   Object _formatSource = Object();
   List<({int end, CorrectionFormat format})> _runs = const [];
-  bool _hideNikud;
+  bool _hideNikud = false;
+  String _highlightText = '';
+  bool _highlightAsMark = false;
+  List<TextSpan>? Function(String text)? _readingLeaves;
 
   /// הטקסט הגלוי כולל ניקוד, כפי שהוא במצב האחרון שהעורך סונכרן אליו.
   String _base = '';
 
-  PluginCorrectionController(String raw, {bool hideNikud = false})
-    : _hideNikud = hideNikud {
+  PluginCorrectionController(String raw, {bool hideNikud = false}) {
+    this.hideNikud = hideNikud;
     setSource(raw);
   }
 
@@ -337,19 +341,89 @@ class PluginCorrectionController extends TextEditingController {
   static bool _isHighSurrogate(int c) => c >= 0xD800 && c <= 0xDBFF;
   static bool _isLowSurrogate(int c) => c >= 0xDC00 && c <= 0xDFFF;
 
+  /// הטקסט שהחיפוש מדגיש בעורך, כמו בתצוגה הרגילה. נקבע בזמן בנייה של הפסקה,
+  /// ולכן אינו מודיע למאזינים: הבנייה עצמה קוראת שוב ל-[buildTextSpan].
+  set highlightText(String value) => _highlightText = value;
+
+  /// הדגשה כסימון עם רקע (כמו ספר שמוגדר להדגשת חיפוש ברקע) ולא כצבע טקסט.
+  set highlightAsMark(bool value) => _highlightAsMark = value;
+
+  /// העלים המעוצבים של התצוגה הרגילה לטקסט נתון, או null כשהטקסט שונה ממנה.
+  /// כל עוד הטקסט בעורך זהה לה, העורך מצויר בדיוק כמוה. נקבע בזמן בנייה.
+  set readingLeaves(List<TextSpan>? Function(String text)? value) =>
+      _readingLeaves = value;
+
   @override
   TextSpan buildTextSpan({
     required BuildContext context,
     TextStyle? style,
     required bool withComposing,
   }) {
+    final composing = withComposing && value.isComposingRangeValid;
+    final query = composing ? '' : _highlightText.trim();
+    final reading = composing ? null : _readingLeaves?.call(text);
+    if (query.isEmpty && reading == null) {
+      final children = _formattedChildren(context, style, withComposing);
+      return children == null
+          ? super.buildTextSpan(
+              context: context,
+              style: style,
+              withComposing: withComposing,
+            )
+          : TextSpan(style: style, children: children);
+    }
+    final leaves =
+        reading ??
+        _formattedChildren(context, style, false) ??
+        [TextSpan(text: text)];
+    if (query.isEmpty) return TextSpan(style: style, children: leaves);
+    // ההדגשה מונחת מעל העלים: כל עלה נחתך בגבולות ההתאמה ושומר על סגנונו.
+    final colors = Theme.of(context).colorScheme;
+    final marked = _highlightAsMark
+        ? TextStyle(
+            backgroundColor: AppSurfaces.permanentMark(colors),
+            color: AppSurfaces.onPermanentMark(colors),
+          )
+        : TextStyle(color: AppSurfaces.searchHit(colors));
+    final spans = <InlineSpan>[];
+    var leafStart = 0;
+    var match = text.indexOf(query);
+    for (final leaf in leaves) {
+      final leafText = leaf.text ?? '';
+      final leafEnd = leafStart + leafText.length;
+      var from = leafStart;
+      while (from < leafEnd) {
+        while (match >= 0 && match + query.length <= from) {
+          match = text.indexOf(query, match + query.length);
+        }
+        final inMatch = match >= 0 && match <= from;
+        final until = inMatch
+            ? (match + query.length < leafEnd ? match + query.length : leafEnd)
+            : (match >= 0 && match < leafEnd ? match : leafEnd);
+        spans.add(
+          TextSpan(
+            text: leafText.substring(from - leafStart, until - leafStart),
+            style: inMatch
+                ? (leaf.style ?? const TextStyle()).merge(marked)
+                : leaf.style,
+          ),
+        );
+        from = until;
+      }
+      leafStart = leafEnd;
+    }
+    return TextSpan(style: style, children: spans);
+  }
+
+  /// עלי העיצוב של המקור, או null כשהטקסט פשוט או שהעיצוב אינו מיושר אליו.
+  List<TextSpan>? _formattedChildren(
+    BuildContext context,
+    TextStyle? style,
+    bool withComposing,
+  ) {
     if (_formats.length != text.length ||
         _formats.every((format) => format == _plainFormat)) {
-      return super.buildTextSpan(
-        context: context,
-        style: style,
-        withComposing: withComposing,
-      );
+      return null;
     }
     final composing = withComposing && value.isComposingRangeValid
         ? value.composing
@@ -376,7 +450,7 @@ class PluginCorrectionController extends TextEditingController {
       );
       start = end;
     }
-    return TextSpan(style: style, children: children);
+    return children;
   }
 
   static TextStyle? _resolve(

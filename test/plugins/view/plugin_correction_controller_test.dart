@@ -4,6 +4,8 @@ import 'package:otzaria/plugins/view/plugin_correction_controller.dart';
 
 void main() {
   _nikudTests();
+  _nikudFormatTests();
+  _highlightTests();
   for (final source in ['<br>אב', 'אב<br>', '<br>אב<br>']) {
     test('המרה סימטרית גם כשהתיקון הסיר את שולי $source', () {
       final controller = PluginCorrectionController(source);
@@ -452,5 +454,127 @@ void _nikudTests() {
     final controller = PluginCorrectionController('א😀ב', hideNikud: true);
     addTearDown(controller.dispose);
     expect(controller.forService('א😁ב'), 'א😁ב');
+  });
+}
+
+void _nikudFormatTests() {
+  const source = 'אב <b>שָׁלוֹם</b> גד';
+
+  test('ספר ללא ניקוד: העיצוב מיושר לטקסט שבעורך', () {
+    final controller = PluginCorrectionController(source, hideNikud: true);
+    addTearDown(controller.dispose);
+    expect(controller.text, 'אב שלום גד');
+    expect(controller.formats, hasLength(controller.text.length));
+    expect(controller.formats.map((f) => f.bold), [
+      for (var i = 0; i < controller.text.length; i++) i >= 3 && i <= 6,
+    ]);
+  });
+
+  test('ספר ללא ניקוד: מחיקה והוספה שומרות על עיצוב מיושר וניקוד במקור', () {
+    final controller = PluginCorrectionController(source, hideNikud: true);
+    addTearDown(controller.dispose);
+    controller.value = const TextEditingValue(
+      text: 'אב שלו גד',
+      selection: TextSelection.collapsed(offset: 6),
+    );
+    expect(controller.formats, hasLength(controller.text.length));
+    expect(controller.formats[5].bold, isTrue);
+    expect(controller.formats[7].bold, isFalse);
+    expect(controller.forService(controller.text), 'אב שָׁלוֹ גד');
+    controller.value = const TextEditingValue(
+      text: 'אב שלוח גד',
+      selection: TextSelection.collapsed(offset: 7),
+    );
+    expect(controller.formats, hasLength(controller.text.length));
+    expect(controller.formats[6].bold, isTrue);
+    expect(controller.forService(controller.text), 'אב שָׁלוֹח גד');
+  });
+
+  test('שינוי hideNikud אחרי היצירה גוזר מחדש את הטקסט והעיצוב', () {
+    final controller = PluginCorrectionController(source);
+    addTearDown(controller.dispose);
+    expect(controller.formats, hasLength('אב שָׁלוֹם גד'.length));
+    controller.hideNikud = true;
+    expect(controller.text, 'אב שלום גד');
+    expect(controller.formats, hasLength(controller.text.length));
+    expect(controller.formats[3].bold, isTrue);
+    controller.hideNikud = false;
+    expect(controller.text, 'אב שָׁלוֹם גד');
+    expect(controller.formats, hasLength(controller.text.length));
+  });
+
+  test('שחזור טיוטה בספר ללא ניקוד שומר עיצוב מיושר', () {
+    final controller = PluginCorrectionController(source, hideNikud: true);
+    addTearDown(controller.dispose);
+    controller.restoreDraftValue(const TextEditingValue(text: 'אב שלום גדה'));
+    expect(controller.formats, hasLength(controller.text.length));
+    expect(controller.formats[3].bold, isTrue);
+  });
+}
+
+void _highlightTests() {
+  Future<TextSpan> build(
+    WidgetTester tester,
+    PluginCorrectionController controller,
+  ) async {
+    late TextSpan span;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            span = controller.buildTextSpan(
+              context: context,
+              style: const TextStyle(fontSize: 20),
+              withComposing: false,
+            );
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+    return span;
+  }
+
+  testWidgets('הדגשת חיפוש נחתכת בגבולות העיצוב ושומרת עליו', (tester) async {
+    final controller = PluginCorrectionController('אב <b>גד</b> הו')
+      ..highlightText = 'ב ג';
+    addTearDown(controller.dispose);
+    final span = await build(tester, controller);
+    final leaves = span.children!.cast<TextSpan>();
+    expect(leaves.map((l) => l.text).join(), 'אב גד הו');
+    final marked = leaves.where((l) => l.style?.color != null).toList();
+    expect(marked.map((l) => l.text), ['ב ', 'ג']);
+    expect(marked[0].style?.fontWeight, isNot(FontWeight.bold));
+    expect(marked[1].style?.fontWeight, FontWeight.bold);
+  });
+
+  testWidgets('עלי התצוגה הרגילה מחליפים את העיצוב רק כשהטקסט זהה להם', (
+    tester,
+  ) async {
+    const own = TextStyle(fontStyle: FontStyle.italic);
+    final controller = PluginCorrectionController('אבג')
+      ..readingLeaves = (text) =>
+          text == 'אבג' ? [const TextSpan(text: 'אבג', style: own)] : null;
+    addTearDown(controller.dispose);
+    var span = await build(tester, controller);
+    expect(span.children!.single.style, own);
+    controller.value = const TextEditingValue(text: 'אבגד');
+    span = await build(tester, controller);
+    expect(span.children, isNull);
+    expect(span.toPlainText(), 'אבגד');
+  });
+
+  testWidgets('הדגשת חיפוש מונחת על עלי התצוגה הרגילה', (tester) async {
+    const own = TextStyle(fontStyle: FontStyle.italic);
+    final controller = PluginCorrectionController('אבג')
+      ..highlightText = 'ב'
+      ..readingLeaves = (text) => [TextSpan(text: text, style: own)];
+    addTearDown(controller.dispose);
+    final span = await build(tester, controller);
+    final leaves = span.children!.cast<TextSpan>();
+    expect(leaves.map((l) => l.text), ['א', 'ב', 'ג']);
+    expect(leaves[1].style?.fontStyle, FontStyle.italic);
+    expect(leaves[1].style?.color, isNotNull);
+    expect(leaves[0].style?.color, isNull);
   });
 }

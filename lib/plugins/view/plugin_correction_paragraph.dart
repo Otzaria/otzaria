@@ -500,12 +500,16 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     // והתצוגה הרגילה יורשת את סגנון ברירת המחדל של הקורא. ריווח שונה מזיז כל
     // מילה ושובר שורות אחרת, ולכן הריווח נלקח במפורש מאותו מקור.
     final inherited = DefaultTextStyle.of(context).style;
+    // ההדגשה והעלים נקבעים בבקר, כי הוא שמצייר את הטקסט (גם מאחורי עוקף
+    // שבירות השורה של השדה).
+    _controller!
+      ..highlightText = settings.searchText
+      ..highlightAsMark = settings.highlightYellowBackground
+      ..readingLeaves = line == null ? null : _leavesFor;
     return _matchReadingWidth(
       RtlTextField(
         controller: _controller!,
         focusNode: _focus!,
-        highlightText: settings.searchText,
-        formattedLeaves: line == null ? null : _leavesFor,
         strutStyle: line?.strutStyle,
         scrollPadding: EdgeInsets.zero,
         maxLines: null,
