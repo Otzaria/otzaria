@@ -390,7 +390,7 @@ class PluginCorrectionController extends TextEditingController {
       _prefix + _merge(base ?? _base, visible) + _suffix;
 
   /// כמו [forService] לערך עריכה: ערך שנשמר בהיסטוריית הביטול נושא את המקור
-  /// המלא שהיה בעת יצירתו, ולכן ביטול וביצוע חוזר מחזירים אותו בדיוק.
+  /// המלא שאליו הוא ממוזג, ולכן ביטול וביצוע חוזר מחזירים אותו בדיוק.
   String forServiceValue(TextEditingValue value) => forService(
     value.text,
     base:
@@ -405,8 +405,8 @@ class PluginCorrectionController extends TextEditingController {
   /// שהשתנה מוחלף בלבד; סימנים מוסתרים של תווים שלא השתנו נשמרים.
   String _merge(String base, String visible) {
     if (!_hidesMarks) return visible;
-    // סימנים שהוקלדו או הודבקו בזמן שהקורא מסתיר אותם אינם נכנסים למקור: אחרת
-    // הם היו מוכפלים על הקיימים ומשבשים עריכות הבאות.
+    // סימנים שהוקלדו או הודבקו בזמן שהקורא מסתיר אותם אינם נכנסים למקור, כדי שלא
+    // יוכפלו על הקיימים ולא ישבשו עריכות הבאות.
     visible = utils.removeMarks(
       visible,
       nikud: _removeNikud,

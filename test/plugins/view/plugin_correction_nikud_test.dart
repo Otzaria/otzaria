@@ -142,7 +142,7 @@ void main() {
           style: editor.style,
           withComposing: false,
         );
-        // העלים של הקורא בשימוש: אילו הטקסט היה שונה, העורך היה טקסט פשוט.
+        // העלים של הקורא בשימוש: טקסט שונה מהקורא מצויר כטקסט פשוט.
         expect(span.children, isNotNull);
         expect(span.toPlainText(), readingText);
         await tester.pumpWidget(const SizedBox.shrink());

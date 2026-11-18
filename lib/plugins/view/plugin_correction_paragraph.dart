@@ -55,9 +55,9 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   static _CaretHandoff? _handoff;
 
   /// הפסקה היחידה שפתוחה כרגע לעריכה בלי שתוקנה. מצב העריכה הוא דגל ולא שיקוף
-  /// של הפוקוס: אזור הבחירה של הקורא לוקח פוקוס באמצע כל לחיצה ממושכת, ואילו
-  /// העורך היה נסגר איתו אי אפשר היה לסמן טקסט בעכבר, להדביק מתפריט או לחזור
-  /// מחלון אחר.
+  /// של הפוקוס: אזור הבחירה של הקורא לוקח פוקוס באמצע כל לחיצה ממושכת, ולכן
+  /// איבוד פוקוס אינו סוגר את העורך, וסימון טקסט בעכבר, הדבקה מתפריט וחזרה
+  /// מחלון אחר ממשיכים לעבוד.
   static _PluginCorrectionParagraphState? _active;
   Timer? _tapTimer;
 
@@ -76,7 +76,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   Offset? _editPosition;
   final GlobalKey _originalKey = GlobalKey();
 
-  /// גובה הפסקה הרגילה ברגע ההפעלה, והרוחב שהיה לה אז: שדה העריכה אינו נמוך
+  /// גובה הפסקה הרגילה ברגע ההפעלה, והרוחב שלה באותו רגע: שדה העריכה אינו נמוך
   /// מהגובה, כדי שהחלפת התצוגה לא תשנה את גובה הפסקה ולא תזיז את הגלילה.
   /// הנעילה חלה רק ברוחב ובהגדרות שבהם נמדדה, ומתבטלת עם התיקון הראשון.
   double? _lockedHeight;
@@ -494,8 +494,8 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   List<TextSpan>? _readingLeaves;
 
   /// העלים של התצוגה הרגילה (מודגש, סוגריים מוקטנים וכו') כל עוד הטקסט בעורך
-  /// זהה לטקסט שלה. כך פסקה שנפתחת לעריכה נשברת לשורות בדיוק כמו קודם, ואינה
-  /// קופצת. אחרי שינוי בטקסט העורך חוזר לטקסט פשוט.
+  /// זהה לטקסט שלה. כך פסקה שנפתחת לעריכה נשברת לשורות בדיוק כמו בתצוגה הרגילה,
+  /// ואינה קופצת. אחרי שינוי בטקסט העורך חוזר לטקסט פשוט.
   List<TextSpan>? _leavesFor(String text) {
     final line = _readingLine;
     if (line == null || line.document.plainText != text) return null;
@@ -568,7 +568,6 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
       RtlTextField(
         controller: _controller!,
         focusNode: _focus!,
-        strutStyle: line?.strutStyle,
         maxLines: null,
         minLines: 1,
         textInputAction: TextInputAction.newline,
