@@ -76,6 +76,9 @@ List<CorrectionHighlight> coloredRanges(String html, String text) {
   return plain.toString() == text ? ranges : const [];
 }
 
+const int _maqaf = 0x05BE;
+const int _paseq = 0x05C0;
+
 const CorrectionFormat _plainFormat = (
   bold: false,
   italic: false,
@@ -123,9 +126,6 @@ class PluginCorrectionController extends TextEditingController {
     setHiddenMarks(removeNikud: removeNikud, removeTeamim: removeTeamim);
     setSource(raw);
   }
-
-  bool get removeNikud => _removeNikud;
-  bool get removeTeamim => _removeTeamim;
 
   /// שינוי המצב טוען מחדש את המקור: הטקסט והעיצוב נגזרים שוב לפי הדגלים.
   void setHiddenMarks({required bool removeNikud, required bool removeTeamim}) {
@@ -328,37 +328,31 @@ class PluginCorrectionController extends TextEditingController {
 
   bool get _hidesMarks => _removeNikud || _removeTeamim;
 
-  /// הטקסט שהקורא מציג עבור [base], ולכל תו בו את מקומו ב-[base].
+  /// הטקסט שהקורא מציג עבור [base], ולכל תו בו את מקומו ב-[base]. כל תו מוצג
+  /// כפי ש-[utils.removeMarks] מציגה אותו, חוץ מפסק אחרי רווח או מקף: הוא מוחק
+  /// גם את הרווח שנוצר מהם (כמו ב-[utils.removeMarks] עם הסתרת טעמים בלבד).
   _EditorView _viewOf(String base) {
     final cached = _viewCache;
     if (cached != null && cached.base == base) return cached.view;
-    final projected = StringBuffer();
+    final projected = <int>[];
     final origin = <int>[];
     for (var i = 0; i < base.length; i++) {
-      final shown = _shownUnit(base.codeUnitAt(i));
-      if (shown < 0) continue;
-      projected.writeCharCode(shown);
-      origin.add(i);
-    }
-    final text = utils.removeMarks(
-      base,
-      nikud: _removeNikud,
-      teamim: _removeTeamim,
-    );
-    final projectedText = projected.toString();
-    var map = origin;
-    if (projectedText != text) {
-      // פסק מוחק גם את הרווח שלפניו, וזה תלוי בהקשר: התווים שנמחקו נקבעים
-      // בהתאמה מהסוף להתחלה, שבה הרווח שצמוד לפסק הוא זה שנמחק.
-      map = List.filled(text.length, base.length);
-      var j = text.length - 1;
-      for (var i = projectedText.length - 1; i >= 0 && j >= 0; i--) {
-        if (projectedText.codeUnitAt(i) == text.codeUnitAt(j)) {
-          map[j--] = origin[i];
-        }
+      final unit = base.codeUnitAt(i);
+      final shown = _shownUnit(unit);
+      if (shown >= 0) {
+        projected.add(shown);
+        origin.add(i);
+      } else if (_removeTeamim &&
+          !_removeNikud &&
+          unit == _paseq &&
+          i > 0 &&
+          (base.codeUnitAt(i - 1) == 0x20 ||
+              base.codeUnitAt(i - 1) == _maqaf)) {
+        projected.removeLast();
+        origin.removeLast();
       }
     }
-    final view = _EditorView(text, map);
+    final view = _EditorView(String.fromCharCodes(projected), origin);
     _viewCache = (base: base, view: view);
     return view;
   }
@@ -422,12 +416,6 @@ class PluginCorrectionController extends TextEditingController {
         plain.codeUnitAt(prefix) == visible.codeUnitAt(prefix)) {
       prefix++;
     }
-    // לא חותכים באמצע זוג surrogate.
-    if (prefix > 0 &&
-        prefix < plain.length &&
-        _isHighSurrogate(plain.codeUnitAt(prefix - 1))) {
-      prefix--;
-    }
     var suffix = 0;
     while (suffix < plain.length - prefix &&
         suffix < visible.length - prefix &&
@@ -435,19 +423,12 @@ class PluginCorrectionController extends TextEditingController {
             visible.codeUnitAt(visible.length - 1 - suffix)) {
       suffix++;
     }
-    if (suffix > 0 &&
-        _isLowSurrogate(plain.codeUnitAt(plain.length - suffix))) {
-      suffix--;
-    }
     final start = prefix < plain.length ? map[prefix] : base.length;
     final end = suffix == 0 ? base.length : map[plain.length - suffix];
     return base.substring(0, start) +
         visible.substring(prefix, visible.length - suffix) +
         base.substring(end);
   }
-
-  static bool _isHighSurrogate(int c) => c >= 0xD800 && c <= 0xDBFF;
-  static bool _isLowSurrogate(int c) => c >= 0xDC00 && c <= 0xDFFF;
 
   /// טווחי ההדגשה של החיפוש בטקסט נתון, כפי שהקורא מדגיש אותו. נקבע בזמן
   /// בנייה של הפסקה, ולכן אינו מודיע למאזינים: הבנייה עצמה קוראת שוב

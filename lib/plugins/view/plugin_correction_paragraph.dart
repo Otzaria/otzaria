@@ -62,8 +62,9 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   static _PluginCorrectionParagraphState? _active;
   Timer? _tapTimer;
 
-  /// הפעלה בלחיצת עכבר: השורה שנלחצה כבר גלויה, ולכן השדה אינו גולל את עצמו
-  /// "כדי לחשוף את הסמן" (20 פיקסלים מכל קצה) והדף אינו זז מתחת לעכבר.
+  /// טיימר של 300 מילישניות שמסיים את [_suppressReveal] אחרי הפעלה בלחיצת עכבר:
+  /// השורה שנלחצה כבר גלויה, ולכן בזמן הזה השדה אינו גולל את עצמו "כדי לחשוף
+  /// את הסמן" (20 פיקסלים מכל קצה) והדף אינו זז מתחת לעכבר.
   Timer? _revealTimer;
   bool _suppressReveal = false;
   Offset? _lastTapUp;
@@ -255,8 +256,8 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     });
   }
 
-  /// חץ מעלה/מטה בשורה הראשונה/האחרונה של הפסקה עובר לפסקה הסמוכה, כדי
-  /// שאפשר יהיה לנוע בין פסקאות במקלדת ולא רק לצדדים.
+  /// Escape יוצא מהעריכה. חץ מעלה/מטה בשורה הראשונה/האחרונה של הפסקה עובר
+  /// לפסקה הסמוכה, כדי שאפשר יהיה לנוע בין פסקאות במקלדת ולא רק לצדדים.
   KeyEventResult _onEditorKey(FocusNode node, KeyEvent event) {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
     final key = event.logicalKey;
@@ -325,22 +326,23 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     if (!_registry.canEditParagraph(widget.tabId, widget.sourceText)) {
       return false;
     }
-    if (_controller == null) {
-      _controller = PluginCorrectionController(
+    var controller = _controller;
+    if (controller == null) {
+      // מה שהקורא מסתיר (ניקוד, טעמים) מוסתר גם בעורך; הוא נשמר במקור.
+      controller = _controller = PluginCorrectionController(
         widget.sourceText,
         removeNikud: widget.settings.removeNikud,
         removeTeamim: widget.settings.removeTeamim,
       );
       _focus = FocusNode(onKeyEvent: _onEditorKey)..addListener(_focusChanged);
       _activationFocus = FocusNode()..addListener(_activationFocusChanged);
+    } else {
+      controller.setHiddenMarks(
+        removeNikud: widget.settings.removeNikud,
+        removeTeamim: widget.settings.removeTeamim,
+      );
+      controller.setSource(widget.sourceText);
     }
-    final controller = _controller!;
-    // מה שהקורא מסתיר (ניקוד, טעמים) מוסתר גם בעורך; הוא נשמר במקור.
-    controller.setHiddenMarks(
-      removeNikud: widget.settings.removeNikud,
-      removeTeamim: widget.settings.removeTeamim,
-    );
-    controller.setSource(widget.sourceText);
     final canonical = _registry.editableText(
       widget.tabId,
       widget.sectionIndex,
@@ -488,8 +490,8 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   }
 
   /// שדה טקסט שומר לסמן [_caretMargin] פיקסלים בקצה השורה (רווח של 1 ועובי
-  /// הסמן של [RtlTextField], 1). בלי פיצוי השורות בעורך צרות מהתצוגה הרגילה,
-  /// ובפסקה ארוכה ומיושרת מילים עוברות שורה והטקסט זז מתחת לעין.
+  /// הסמן של [RtlTextField], 1). [_CaretRoom] מרחיב את השדה בגודל הזה, ולכן
+  /// השורות בעורך נשברות באותו רוחב כמו בתצוגה הרגילה.
   static const double _caretMargin = 2.0;
 
   Widget _matchReadingWidth(Widget editor) =>

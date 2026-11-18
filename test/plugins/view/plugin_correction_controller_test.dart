@@ -628,6 +628,7 @@ void _highlightTests() {
 void _hiddenMarksTests() {
   const tanakh = 'בְּרֵאשִׁ֖ית בָּרָ֣א אֱלֹהִ֑ים אֵ֣ת־הַשָּׁמַ֔יִם';
   const paseq = 'וַיֹּ֥אמֶר ׀ אֱלֹהִ֖ים ־ יְהִ֣י ׀־ אֽוֹר';
+  const emoji = 'אָ😀בֶּ֣ ג😁ד';
   const combos = [(false, false), (true, false), (false, true), (true, true)];
 
   String reading(String text, bool nikud, bool teamim) =>
@@ -643,7 +644,7 @@ void _hiddenMarksTests() {
           );
 
       test('הטקסט בעורך שווה לטקסט של הקורא, וללא עריכה המקור זהה', () {
-        for (final source in [tanakh, paseq]) {
+        for (final source in [tanakh, paseq, emoji]) {
           final controller = make(source);
           addTearDown(controller.dispose);
           expect(controller.text, reading(source, nikud, teamim));
@@ -674,7 +675,7 @@ void _hiddenMarksTests() {
       });
 
       test('כל עריכה בודדת מתמפה למקור שהקורא מציג כפי שנערך', () {
-        for (final source in [tanakh, paseq]) {
+        for (final source in [tanakh, paseq, emoji]) {
           final controller = make(source);
           addTearDown(controller.dispose);
           final text = controller.text;
@@ -709,6 +710,52 @@ void _hiddenMarksTests() {
       controller.forService('בראשית ברא אלהים אתם השמים'),
       tanakh.replaceFirst('אֵ֣ת־', 'אֵ֣תם־'),
     );
+  });
+
+  test('פסק אחרי רווח ומקף: כל מחיקה של טווח מתמפה למקור שהקורא מציג כך', () {
+    // המקף והרווח והפסק מוצגים יחד כרווח אחד, והמחיקה של הרווח הזה (עם האות
+    // או בלעדיה) אינה משאירה מקף שמוצג כרווח.
+    for (final source in ['־ ׀ל', 'א  ׀ ב', 'א ׀ ׀ב', 'א־ ׀ל']) {
+      final controller = PluginCorrectionController(source, removeTeamim: true);
+      addTearDown(controller.dispose);
+      final text = controller.text;
+      for (var i = 0; i <= text.length; i++) {
+        for (var j = i; j <= text.length; j++) {
+          final edited = text.replaceRange(i, j, '');
+          expect(
+            reading(controller.forService(edited), false, true),
+            edited,
+            reason: '$source @ [$i,$j)',
+          );
+        }
+      }
+    }
+  });
+
+  group('forServiceValue ממזג מול המקור המלא של הערך רק כשהוא עדיין תקף', () {
+    test('ערך מהיסטוריה של מקור קודם ממוזג מול המקור הנוכחי', () {
+      final controller = PluginCorrectionController(
+        'שָׁלוֹם',
+        removeNikud: true,
+      );
+      addTearDown(controller.dispose);
+      controller.value = const TextEditingValue(text: 'שלומ');
+      final stale = controller.value;
+      controller.setSource('עוֹלָם');
+      expect(controller.forServiceValue(stale), 'שלומ');
+    });
+
+    test('ערך בטקסט הנוכחי ממוזג מול המקור המעודכן ולא מול הישן', () {
+      final controller = PluginCorrectionController(
+        'שָׁלוֹם',
+        removeNikud: true,
+      );
+      addTearDown(controller.dispose);
+      final stale = controller.value;
+      // המקור השתנה מבחוץ בניקוד בלבד: הטקסט בעורך נשאר זהה.
+      expect(controller.forEditor('שֻׁלוֹם'), controller.text);
+      expect(controller.forServiceValue(stale), 'שֻׁלוֹם');
+    });
   });
 
   test('העיצוב מוקרן לטקסט הגלוי באותו מיפוי', () {
