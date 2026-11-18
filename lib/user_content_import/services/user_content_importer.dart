@@ -814,7 +814,8 @@ class UserContentImporter {
       final flip =
           LinkTypes.isDependentTextLink(connectionType) &&
           source.isUserBook &&
-          !target.isUserBook;
+          !target.isUserBook &&
+          !row.targetTitle.contains(' על ');
       out.add(
         flip
             ? UserLinkRecord(
