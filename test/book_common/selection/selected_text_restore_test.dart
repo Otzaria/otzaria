@@ -313,6 +313,17 @@ void main() {
       expect(restored, 'דאב\nX\nהוז');
     });
 
+    test('שחזור סלחני מאתר סיומת ארוכה בשורה חזרתית', () {
+      final repeated = 'אב' * 80;
+
+      final restored = restoreSelectedTextLineBreaks(
+        selectedText: '${repeated}Xסוף',
+        visibleLines: ['$repeatedג$repeated', 'סוף'],
+      );
+
+      expect(restored, '$repeated\nX\nסוף');
+    });
+
     test('בחירה שאינה בשורה ארוכה אינה ריבועית באורך השורה', () {
       final line = 'והנה בשולחן ערוך כתב המחבר ' * 8000;
       final stopwatch = Stopwatch()..start();
