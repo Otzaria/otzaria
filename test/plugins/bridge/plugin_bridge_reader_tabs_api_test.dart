@@ -95,6 +95,9 @@ class _LoadedReaderBloc extends Bloc<TextBookEvent, TextBookState>
         ),
       ),
     );
+    // ניווט בטאב קיים שולח תמיד SelectLineWhenVisible (null מבטל בחירה
+    // ממתינה מקישור); לקורא המדומה אין בחירה, ולכן האירוע נבלע.
+    on<TextBookSelectionEvent>((event, emit) {});
   }
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
