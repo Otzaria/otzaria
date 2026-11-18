@@ -45,6 +45,8 @@ class PageShapeSettingsPanel extends StatefulWidget {
   final String? currentBottom;
   final String? currentBottomRight;
   final String? currentWorkspaceId;
+  final int configurationGeneration;
+  final bool? applyTextMaxWidth;
 
   /// מפרשי-על שאפשר להציג בטור יחיד: מפרש-על ← המפרש שעליו הוא מפרש.
   final Map<String, String> superCommentatorParents;
@@ -66,6 +68,8 @@ class PageShapeSettingsPanel extends StatefulWidget {
     this.currentBottom,
     this.currentBottomRight,
     this.currentWorkspaceId,
+    this.configurationGeneration = 0,
+    this.applyTextMaxWidth,
     this.superCommentatorParents = const {},
     this.onSettingsChanged,
     this.onReset,
@@ -112,6 +116,14 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
   @override
   void didUpdateWidget(covariant PageShapeSettingsPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.configurationGeneration != widget.configurationGeneration) {
+      _loadCurrentSettings();
+    }
+    if (oldWidget.applyTextMaxWidth != widget.applyTextMaxWidth) {
+      _applyTextMaxWidth =
+          widget.applyTextMaxWidth ??
+          PageShapeSettingsManager.getApplyTextMaxWidth();
+    }
     if (oldWidget.currentLeft != widget.currentLeft) {
       _leftCommentator = widget.currentLeft;
     }
@@ -197,7 +209,9 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
             SettingsRepository.keyPageShapeBottomFont,
           ) ??
           AppFonts.defaultFont;
-      _applyTextMaxWidth = PageShapeSettingsManager.getApplyTextMaxWidth();
+      _applyTextMaxWidth =
+          widget.applyTextMaxWidth ??
+          PageShapeSettingsManager.getApplyTextMaxWidth();
       _highlightRelatedCommentators =
           PageShapeSettingsManager.getHighlightSetting(
             widget.bookTitle,

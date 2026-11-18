@@ -12,6 +12,12 @@ enum PageShapeDisplaySettingsScope {
   global,
 }
 
+typedef PageShapeConfiguration = ({
+  String? key,
+  Map<String, String?>? commentators,
+  Map<String, bool> visibility,
+});
+
 /// מנהל הגדרות צורת הדף - שומר ומטעין את בחירת המפרשים
 ///
 /// סדר עדיפות בטעינה: ספר בשולחן העבודה → ספר → קטגוריה → ברירת מחדל (JSON)
@@ -52,6 +58,22 @@ class PageShapeSettingsManager {
   ];
 
   static const double defaultCommentaryFontSize = 16.0;
+
+  /// שינוי במפתח שעשוי להשפיע על תצורת הקריאה בצורת הדף.
+  static Stream<String> get configurationChanges => Settings.changes.where(
+    (key) =>
+        key == _applyTextMaxWidthKey ||
+        const [
+          _bookConfigPrefix,
+          _workspaceConfigPrefix,
+          _categoryConfigPrefix,
+          _useBookSettingsPrefix,
+          _useWorkspaceSettingsPrefix,
+          _globalVisibilityPrefix,
+          _bookVisibilityPrefix,
+          _workspaceVisibilityPrefix,
+        ].any(key.startsWith),
+  );
 
   // ==================== עזר לקטגוריות ====================
   // הלוגיקה המשותפת (פירוק heCategories, סינון קטגוריות כלליות) יושבת
@@ -189,6 +211,26 @@ class PageShapeSettingsManager {
     return _parseConfiguration(Settings.getValue<String>(key));
   }
 
+  /// בחירת המפרשים ונראות הטורים האפקטיביות לספר הפתוח.
+  static PageShapeConfiguration loadReaderConfiguration(
+    String bookTitle, {
+    String? heCategories,
+    String? workspaceId,
+  }) {
+    final key = _activeConfigurationKey(
+      bookTitle,
+      heCategories: heCategories,
+      workspaceId: workspaceId,
+    );
+    return (
+      key: key,
+      commentators: key == null
+          ? null
+          : _parseConfiguration(Settings.getValue<String>(key)),
+      visibility: _getColumnVisibility(bookTitle, workspaceId, key),
+    );
+  }
+
   /// מפתח ההגדרה השמורה שחלה על הספר, או null אם אין (ייטען מ-JSON).
   static String? _activeConfigurationKey(
     String bookTitle, {
@@ -283,9 +325,9 @@ class PageShapeSettingsManager {
     Map<String, bool>? columnVisibility,
   }) async {
     final String key;
+    var savedConfig = config;
     if (saveToWorkspaceId != null && saveToWorkspaceId.isNotEmpty) {
       key = _workspaceConfigKey(saveToWorkspaceId, bookTitle);
-      await Settings.setValue<String>(key, _serializeConfiguration(config));
     } else if (saveToCategory != null) {
       key = '$_categoryConfigPrefix$saveToCategory';
       // שמירה לקטגוריה - שומרים רק את השמות הבסיסיים של המפרשים
@@ -310,19 +352,21 @@ class PageShapeSettingsManager {
           ),
         );
       });
-      await Settings.setValue<String>(key, _serializeConfiguration(baseConfig));
+      savedConfig = baseConfig;
     } else {
       // שמירה לספר ספציפי - שומרים את השמות המלאים
       key = '$_bookConfigPrefix$bookTitle';
-      await Settings.setValue<String>(key, _serializeConfiguration(config));
     }
 
-    if (columnVisibility != null) {
-      await Settings.setValue<String>(
-        '$key$_hiddenColumnsSuffix',
-        _columns.where((c) => columnVisibility[c] == false).join(','),
-      );
-    }
+    // שני הערכים נכנסים למטמון לפני שמאזינים יכולים לקרוא את הצירוף.
+    await Future.wait([
+      Settings.setValue<String>(key, _serializeConfiguration(savedConfig)),
+      if (columnVisibility != null)
+        Settings.setValue<String>(
+          '$key$_hiddenColumnsSuffix',
+          _columns.where((c) => columnVisibility[c] == false).join(','),
+        ),
+    ]);
   }
 
   /// המרת הגדרות למחרוזת
@@ -407,6 +451,14 @@ class PageShapeSettingsManager {
       heCategories: heCategories,
       workspaceId: workspaceId,
     );
+    return _getColumnVisibility(bookTitle, workspaceId, configKey);
+  }
+
+  static Map<String, bool> _getColumnVisibility(
+    String bookTitle,
+    String? workspaceId,
+    String? configKey,
+  ) {
     final hidden = configKey == null
         ? null
         : Settings.getValue<String>('$configKey$_hiddenColumnsSuffix');
@@ -538,8 +590,10 @@ class PageShapeSettingsManager {
 
   /// מחיקת בחירת מפרשים יחד עם הטורים המוסתרים שנשמרו לצידה.
   static Future<void> _removeConfiguration(String key) async {
-    await Settings.setValue<String?>(key, null);
-    await Settings.setValue<String?>('$key$_hiddenColumnsSuffix', null);
+    await Future.wait([
+      Settings.setValue<String?>(key, null),
+      Settings.setValue<String?>('$key$_hiddenColumnsSuffix', null),
+    ]);
   }
 
   /// איפוס הגדרות תצוגה פר-ספר בלבד (הדגשה ונראות טורים)
