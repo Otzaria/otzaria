@@ -369,6 +369,9 @@ class PluginBridgeDependencies {
   })?
   requestPluginInstall;
 
+  /// מבקשת לפתוח את בורר החבילות של אוצריא. התשובה מציינת אם הבקשה התקבלה.
+  final Future<bool> Function()? requestLocalPluginInstall;
+
   /// פותח דיאלוג בחירת תיקייה ומחזיר את הנתיב שנבחר, או `null` אם המשתמש
   /// ביטל. אופציונלי — אם לא סופק, האדפטר משתמש ב-[FilePicker.getDirectoryPath].
   /// קיים בעיקר כדי לאפשר הזרקה בבדיקות (בחירת תיקייה אמיתית אינה זמינה בהן).
@@ -545,6 +548,7 @@ class PluginBridgeDependencies {
     required this.showConfirmDialog,
     required this.showWarningDialog,
     this.requestPluginInstall,
+    this.requestLocalPluginInstall,
     this.pickFolder,
     this.pickFile,
     this.pickSaveLocation,
@@ -8143,6 +8147,23 @@ class PluginBridgeAdapter {
   ) async {
     switch (action) {
       case 'requestInstall':
+        if (args.containsKey('local')) {
+          if (!identical(args['local'], true) || args.length != 1) {
+            throw Exception('error.invalid_params: expected only local: true');
+          }
+          if (plugin.pluginId != PluginStoreLinkParser.storePluginId ||
+              plugin.isDevelopment) {
+            throw Exception('error.forbidden: store file picker unavailable');
+          }
+          final pickArchive = _dependencies.requestLocalPluginInstall;
+          if (pickArchive == null) {
+            throw Exception('error.unavailable: install not wired');
+          }
+          return pickArchive();
+        }
+        if (args['folderToken'] != null || args['path'] != null) {
+          throw Exception('error.invalid_params: file paths are unsupported');
+        }
         final url = args['url'] as String?;
         if (url == null) throw Exception('error.invalid_params: url required');
         final cb = _dependencies.requestPluginInstall;

@@ -1552,6 +1552,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
             tempDirPath: state.tempDirPath,
             previousVersion: state.previousVersion,
             previousGrantedPermissions: state.previousGrantedPermissions,
+            requireNewInstallation: state.requireNewInstallation,
             reportContext: state.reportContext,
             isOfflineMode: isOfflineMode,
           ),

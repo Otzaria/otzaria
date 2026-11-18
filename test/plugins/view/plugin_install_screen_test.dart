@@ -113,6 +113,7 @@ Future<void> _openDialog(
   Map<String, bool> previousGrantedPermissions = const {},
   PluginInstallReportContext? reportContext,
   bool isOfflineMode = false,
+  bool requireNewInstallation = false,
   double screenHeight = 900,
 }) async {
   // רוחב 1400 מדמה דסקטופ — הדיאלוג מקבל width = 1400 * 0.5 = 700px,
@@ -143,6 +144,7 @@ Future<void> _openDialog(
                       previousGrantedPermissions: previousGrantedPermissions,
                       reportContext: reportContext,
                       isOfflineMode: isOfflineMode,
+                      requireNewInstallation: requireNewInstallation,
                     ),
                   ),
                 ),
@@ -162,6 +164,24 @@ Future<void> _openDialog(
 // ────────────────────────────────────────────────
 
 void main() {
+  testWidgets('אישור חבילה מקומית שומר על הדרישה למזהה פנוי', (tester) async {
+    final bloc = _TestableBloc(processEvents: false);
+    addTearDown(bloc.close);
+    await _openDialog(
+      tester,
+      bloc,
+      _manifest(),
+      requireNewInstallation: true,
+    );
+
+    await tester.tap(find.text('התקן'));
+    await tester.pumpAndSettle();
+
+    final event = bloc.capturedEvents.whereType<ConfirmPluginInstall>().single;
+    expect(event.tempDirPath, '/tmp/t');
+    expect(event.requireNewInstallation, isTrue);
+  });
+
   late _TestableBloc bloc;
 
   setUp(() {

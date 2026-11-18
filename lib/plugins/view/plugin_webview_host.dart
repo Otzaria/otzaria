@@ -23,6 +23,7 @@ import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
 import 'package:otzaria/plugins/bridge/plugin_bridge_adapter.dart';
 import 'package:otzaria/plugins/bridge/plugin_bridge_handler.dart';
+import 'package:otzaria/plugins/view/plugin_actions.dart';
 import 'package:otzaria/plugins/view/plugin_confirmation_dialog.dart';
 import 'package:otzaria/plugins/bridge/plugin_reference_resolver.dart';
 import 'package:otzaria/plugins/bridge/plugin_save_target.dart';
@@ -338,6 +339,16 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
             storeOnly: true,
           ),
         );
+      },
+      requestLocalPluginInstall: () async {
+        final ctx = adapter.rpcWindowContext ?? dialogContext;
+        final key = (pluginId: plugin.pluginId, instanceId: instanceId);
+        if (ctx == null ||
+            !ctx.mounted ||
+            !PluginRuntimeDispatcher.instance.isInstanceShown(key)) {
+          return false;
+        }
+        return pickAndInstallPluginArchive(ctx, requestedByPlugin: true);
       },
       pickFolder: ({String? title}) async {
         final ctx = await _verifiedDialogContext();

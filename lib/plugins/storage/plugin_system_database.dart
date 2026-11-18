@@ -11,6 +11,11 @@ import 'package:otzaria/plugins/models/plugin_published_record.dart';
 import 'package:otzaria/migration/database/sqlite3_utils.dart';
 import 'package:otzaria/plugins/storage/plugin_correction_draft_store.dart';
 
+/// מזהה שכבר משויך להתקנה או לנתונים שמורים של תוסף.
+class PluginInstallIdentityInUse implements Exception {
+  const PluginInstallIdentityInUse();
+}
+
 class PluginSystemDatabase {
   PluginSystemDatabase._();
   static final PluginSystemDatabase instance = PluginSystemDatabase._();
@@ -221,6 +226,7 @@ class PluginSystemDatabase {
     Map<String, bool> permissions, {
     InstalledPlugin? expectedPlugin,
     Map<String, bool> expectedPermissions = const {},
+    bool requireNewInstallation = false,
   }) async {
     final db = await database;
     applyPluginInstall(
@@ -229,6 +235,7 @@ class PluginSystemDatabase {
       permissions,
       expectedPlugin: expectedPlugin,
       expectedPermissions: expectedPermissions,
+      requireNewInstallation: requireNewInstallation,
     );
   }
 
@@ -239,8 +246,27 @@ class PluginSystemDatabase {
     Map<String, bool> permissions, {
     InstalledPlugin? expectedPlugin,
     Map<String, bool> expectedPermissions = const {},
+    bool requireNewInstallation = false,
   }) {
     _inSavepoint(db, 'sp_plugin_install', () {
+      if (requireNewInstallation &&
+          db
+              .select(
+                '''
+            SELECT 1 FROM plugin_installation WHERE plugin_id = ?1
+            UNION ALL
+            SELECT 1 FROM plugin_permission_grant WHERE plugin_id = ?1
+            UNION ALL
+            SELECT 1 FROM plugin_kv_store WHERE plugin_id = ?1
+            UNION ALL
+            SELECT 1 FROM plugin_published_record WHERE plugin_id = ?1
+            LIMIT 1
+            ''',
+                [plugin.pluginId],
+              )
+              .isNotEmpty) {
+        throw const PluginInstallIdentityInUse();
+      }
       // הבדיקה והכתיבה באותה טרנזקציה: הסרה או החלטת משתמש מבטלות שדרוג אוטומטי.
       if (expectedPlugin != null) {
         final rows = db.select(

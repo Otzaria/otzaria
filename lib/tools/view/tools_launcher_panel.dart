@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:collection/collection.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -240,22 +239,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
   }
 
   Future<void> _installPlugin() async {
-    final verified = await verifySaferModePassword(context);
-    if (!verified || !mounted) return;
-    final result = await withFilePickerOwner(
-      context,
-      (picker) => picker.pickFile(
-        type: FileType.custom,
-        allowedExtensions: ['otzplugin'],
-        windowsOptions: modalWindowsOptions(context),
-        linuxOptions: kModalLinuxOptions,
-      ),
-    );
-    final path = result?.path;
-    if (path == null || !mounted) return;
-    context.read<PluginSystemBloc>().add(
-      InstallPluginRequested(path, isUserInitiated: true),
-    );
+    await pickAndInstallPluginArchive(context);
   }
 
   Future<void> _loadDevPlugin() async {
