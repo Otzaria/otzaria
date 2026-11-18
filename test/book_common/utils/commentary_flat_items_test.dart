@@ -87,5 +87,50 @@ void main() {
       expect(items, hasLength(1));
       expect(items[0].showDivider, isFalse);
     });
+
+    test('הקישור הקודם מתחשב בסינון ובהופעה הראשונה של כפילות', () {
+      final first = _link('רש"י', 1);
+      final repeated = _link('רש"י', 2);
+      final filtered = _link('רש"י', 3);
+      final middle = _link('רש"י', 4);
+      final tail = _link('רש"י', 5);
+      final group = LinkGroup(
+        bookTitle: 'רש"י',
+        links: [first, repeated, filtered, middle, repeated, tail],
+      );
+      final items = buildCommentaryFlatItems(
+        groups: [group, ramban],
+        isGroupExpanded: (_) => true,
+        linkKey: _key,
+        headerIndexOut: {},
+        linkIndexOut: {},
+        isLinkVisible: (key) => key != _key(filtered),
+      );
+
+      expect(
+        [
+          for (final item in items)
+            if (item.link != null && item.link != filtered)
+              item.previousVisibleLink,
+        ],
+        [null, first, repeated, first, repeated, null],
+      );
+    });
+
+    test('לקישור כפול בתחילת הקבוצה אין קישור קודם', () {
+      final first = _link('רש"י', 1);
+      final middle = _link('רש"י', 2);
+      final group = LinkGroup(bookTitle: 'רש"י', links: [first, middle, first]);
+      final items = buildCommentaryFlatItems(
+        groups: [group],
+        isGroupExpanded: (_) => true,
+        linkKey: _key,
+        headerIndexOut: {},
+        linkIndexOut: {},
+        isLinkVisible: (_) => true,
+      );
+
+      expect(items.last.previousVisibleLink, isNull);
+    });
   });
 }

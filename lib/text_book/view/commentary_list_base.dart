@@ -338,6 +338,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
   int _flatItemsRevision = 0;
   ({
     List<CommentaryGroup> groups,
+    List<Link>? keyedLinks,
     Map<String, bool> expansion,
     List<CommentaryFlatItem> items,
   })?
@@ -522,6 +523,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     final snapshot = _flatSnapshot;
     if (snapshot != null &&
         identical(snapshot.groups, groups) &&
+        identical(snapshot.keyedLinks, _keyedLinks) &&
         groups.every(
           (group) =>
               snapshot.expansion[group.bookTitle] ==
@@ -537,6 +539,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
       linkKey: _getLinkKey,
       headerIndexOut: headerIdx,
       linkIndexOut: linkIdx,
+      isLinkVisible: _itemKeys.containsKey,
     );
     _groupHeaderFlatIndex = headerIdx;
     _linkFlatIndex = linkIdx;
@@ -547,6 +550,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     _flatItemsRevision++;
     _flatSnapshot = (
       groups: groups,
+      keyedLinks: _keyedLinks,
       expansion: {
         for (final group in groups)
           group.bookTitle: _expansionStates[group.bookTitle] ?? _allExpanded,
@@ -1654,6 +1658,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
   // מטמון כתובות שורות המקור להכרעת הסתרת כותרת (issue #896); מתאפס עם ה-TOC.
   Object? _sourceRefTocIdentity;
   final Map<int, String> _sourceRefByIndex = {};
+  final _groupSharesSource = Expando<bool>();
 
   String _sourceRefFor(TextBookLoaded state, int index1) {
     if (!identical(_sourceRefTocIdentity, state.tableOfContents)) {
@@ -1673,7 +1678,11 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     TextBookLoaded state,
     String displayTitle,
   ) {
-    if (!groupSharesSingleSource(group.links)) return true;
+    // קבוצות המפרשים נוצרות עם רשימת קישורים שאינה ניתנת לשינוי.
+    final sharesSource = _groupSharesSource[group] ??= groupSharesSingleSource(
+      group.links,
+    );
+    if (!sharesSource) return true;
     return !commentaryTitleMatchesReadingLocation(
       displayTitle: displayTitle,
       targetBookTitle: group.bookTitle,
@@ -1691,19 +1700,13 @@ class CommentaryListBaseState extends State<CommentaryListBase>
   Widget _buildLinkItem(
     CommentaryGroup group,
     Link link,
+    Link? previousLink,
     TextBookLoaded state,
   ) {
     final generation = _searchBloc.generation;
     final key = _getLinkKey(link);
     // שומרים את הרשימה בזמן חישוב הסדר, אך לא מציירים קישור שכבר הוסר.
     if (!_itemKeys.containsKey(key)) return const SizedBox.shrink();
-    Link? previousLink;
-    for (var i = group.links.indexOf(link) - 1; i >= 0; i--) {
-      if (_itemKeys.containsKey(_getLinkKey(group.links[i]))) {
-        previousLink = group.links[i];
-        break;
-      }
-    }
     return _CommentaryLinkItem(
       key: ValueKey(key),
       link: link,
@@ -2170,7 +2173,12 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                               final link = item.link;
                               final child = link == null
                                   ? _buildGroupHeader(item.group)
-                                  : _buildLinkItem(item.group, link, state);
+                                  : _buildLinkItem(
+                                      item.group,
+                                      link,
+                                      item.previousVisibleLink,
+                                      state,
+                                    );
                               return KeyedSubtree(
                                 key: _flatItemKey(item),
                                 child: item.showDivider
