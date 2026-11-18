@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:otzaria/work_status/work_status_cubit.dart';
+import 'package:otzaria/navigation/view/tab_background_painter.dart';
 import 'package:otzaria/navigation/view/tab_visuals.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -381,45 +382,48 @@ void main() {
     expect(tabsWithTwinTitle([second, first, search, tool]), isEmpty);
   });
 
-  testWidgets('בכרטיסיות רבות וצרות המיקום של התאומות נשאר גלוי (issue #5146)', (
-    tester,
-  ) async {
-    final tabs = [
-      for (var i = 1; i <= 8; i++)
-        _makeTextTab('שולחן ערוך אורח חיים', currentTitle: 'סימן $i'),
-    ];
-    final tabsBloc = _TestTabsBloc(TabsState(tabs: tabs, currentTabIndex: 0));
-    final navigationBloc = _TestNavigationBloc(
-      const NavigationState(currentScreen: Screen.reading),
-    );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
-
-    addTearDown(() async {
-      for (final tab in tabs) {
-        tab.dispose();
-      }
-      await tabsBloc.close();
-      await navigationBloc.close();
-      await settingsBloc.close();
-    });
-
-    await _setSurfaceSize(tester, const Size(1200, 800));
-    await _pumpTitleBar(
+  testWidgets(
+    'בכרטיסיות רבות וצרות המיקום של התאומות נשאר גלוי (issue #5146)',
+    (
       tester,
-      tabsBloc: tabsBloc,
-      navigationBloc: navigationBloc,
-      settingsBloc: settingsBloc,
-    );
+    ) async {
+      final tabs = [
+        for (var i = 1; i <= 8; i++)
+          _makeTextTab('שולחן ערוך אורח חיים', currentTitle: 'סימן $i'),
+      ];
+      final tabsBloc = _TestTabsBloc(TabsState(tabs: tabs, currentTabIndex: 0));
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
 
-    // הכותרת המלאה אינה נכנסת, ולכן המיקום מרונדר בנפרד משם הספר הנחתך.
-    for (var i = 1; i <= 8; i++) {
-      final locationAlone =
-          find.text(', סימן $i').evaluate().length +
-          find.text('סימן $i').evaluate().length;
-      expect(locationAlone, 1, reason: 'המיקום של כרטיסיה $i נחתך');
-    }
-    expect(tester.takeException(), isNull);
-  });
+      addTearDown(() async {
+        for (final tab in tabs) {
+          tab.dispose();
+        }
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+      });
+
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+      );
+
+      // הכותרת המלאה אינה נכנסת, ולכן המיקום מרונדר בנפרד משם הספר הנחתך.
+      for (var i = 1; i <= 8; i++) {
+        final locationAlone =
+            find.text(', סימן $i').evaluate().length +
+            find.text('סימן $i').evaluate().length;
+        expect(locationAlone, 1, reason: 'המיקום של כרטיסיה $i נחתך');
+      }
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('כרטיסיה שכותרתה נכנסת במלואה אינה מקבלת tooltip', (
     tester,
@@ -829,9 +833,7 @@ void main() {
       await pumpTabs(tester, [_makeTextTab('ספר א'), _makeTextTab('ספר ב')]);
 
       final painted = find.byWidgetPredicate(
-        (w) =>
-            w is CustomPaint &&
-            w.painter.runtimeType.toString() == '_TabBackgroundPainter',
+        (w) => w is CustomPaint && w.painter is TabBackgroundPainter,
       );
       final size = tester.getSize(painted);
       expect(
@@ -2562,9 +2564,7 @@ void main() {
               matching: find.byType(CustomPaint),
             ),
           )
-          .where(
-            (w) => w.painter.runtimeType.toString() == '_TabBackgroundPainter',
-          )
+          .where((w) => w.painter is TabBackgroundPainter)
           .length;
       expect(paintedTabs, 3);
     });
@@ -2609,9 +2609,7 @@ void main() {
       // הצייר של הכרטיסיה הפעילה — היחיד מסוגו כשאין בחירה מרובה וריחוף.
       final painted = tester
           .widgetList<CustomPaint>(find.byType(CustomPaint))
-          .where(
-            (w) => w.painter.runtimeType.toString() == '_TabBackgroundPainter',
-          )
+          .where((w) => w.painter is TabBackgroundPainter)
           .toList();
       expect(painted, hasLength(1), reason: 'רק הכרטיסיה הפעילה נצבעת');
 
