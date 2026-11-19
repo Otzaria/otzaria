@@ -246,6 +246,62 @@ void main() {
     await closeScreen(tester);
   });
 
+  testWidgets('תפריט היעד שנפתח בזמן ההדפסה לא מקבל את תוצאת המסך', (
+    tester,
+  ) async {
+    final platform = await openScreen(tester);
+
+    await tester.tap(find.text('הדפסה'));
+    await tester.pump();
+    await tester.tap(find.text('הדפס'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('שמור ל-PDF'), findsWidgets);
+
+    platform.job!.complete(true);
+    await tester.pump();
+    await pumpFrames(tester);
+
+    expect(tester.takeException(), isNull);
+    expect(routeResult, isTrue);
+    expect(find.byType(PrintingScreen), findsNothing);
+    expect(find.text('שמור ל-PDF'), findsNothing);
+    await closeScreen(tester);
+  });
+
+  testWidgets('סיום הדפסה משאיר דיאלוג אחר מעל תפריט ההדפסה', (
+    tester,
+  ) async {
+    final platform = await openScreen(tester);
+    await tester.tap(find.text('הדפסה'));
+    await tester.pump();
+    await tester.tap(find.text('הדפס'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('שמור ל-PDF'), findsWidgets);
+
+    final otherDialog = showDialog<int>(
+      context: navigatorKey.currentContext!,
+      builder: (_) => const Center(child: Text('דיאלוג אחר')),
+    );
+    await tester.pump();
+    await pumpFrames(tester);
+
+    platform.job!.complete(true);
+    await tester.pump();
+    await pumpFrames(tester);
+    expect(tester.takeException(), isNull);
+    expect(routeResult, isTrue);
+    expect(find.text('דיאלוג אחר'), findsOneWidget);
+    expect(find.byType(PrintingScreen, skipOffstage: false), findsNothing);
+    expect(find.text('שמור ל-PDF', skipOffstage: false), findsNothing);
+
+    navigatorKey.currentState!.pop(7);
+    await tester.pump();
+    expect(await otherDialog, 7);
+    await closeScreen(tester);
+  });
+
   testWidgets('אחרי המסירה המסך ממתין לתוצאה האמיתית והממשק ממשיך להגיב', (
     tester,
   ) async {
