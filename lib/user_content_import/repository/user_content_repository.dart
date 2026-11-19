@@ -187,15 +187,16 @@ class UserContentRepository {
 
     for (var position = 0; position < structures.length; position++) {
       final structure = structures[position];
-      // מבנה באותו שם ממקור אחר נדרס — יחד עם ערכיו, שאחרת היו מתייתמים.
+      final oldKey = structure.key == 'Parasha' ? 'פרשות' : structure.key;
+      // מבנה באותו שם ממקור אחר נדרס יחד עם כותרותיו, גם במפתח הישן.
       db.execute(
         'DELETE FROM user_alt_toc_entry WHERE structureId IN '
-        '(SELECT id FROM user_alt_toc_structure WHERE bookId = ? AND key = ?)',
-        [bookId, structure.key],
+        '(SELECT id FROM user_alt_toc_structure WHERE bookId = ? AND key IN (?, ?))',
+        [bookId, structure.key, oldKey],
       );
       db.execute(
-        'DELETE FROM user_alt_toc_structure WHERE bookId = ? AND key = ?',
-        [bookId, structure.key],
+        'DELETE FROM user_alt_toc_structure WHERE bookId = ? AND key IN (?, ?)',
+        [bookId, structure.key, oldKey],
       );
       db.execute(
         'INSERT INTO user_alt_toc_structure '

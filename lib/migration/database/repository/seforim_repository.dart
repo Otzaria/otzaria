@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:logging/logging.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
+import 'package:otzaria/user_content_import/repository/user_alt_toc_repository.dart';
 
 import '../../../book_protection/utils/banner_title.dart';
 import '../../../utils/text/ref_key.dart';
@@ -69,8 +70,7 @@ class SeforimRepository {
 
   /// קאש LRU לערכי AltToc (כותרות-משנה) לכל ספר, ממוינים לפי segment, חסום
   /// לפי מספר הערכים — כמו [_tocCache].
-  final Map<int, List<AltTocIndexEntry>> _altTocCache =
-      <int, List<AltTocIndexEntry>>{};
+  final _altTocCache = <(int, bool), List<AltTocIndexEntry>>{};
   int _altTocCacheEntryCount = 0;
 
   /// הספר הגדול ביותר כ-28 אלף ערכים; כ-5MB של אובייקטים.
@@ -95,7 +95,10 @@ class SeforimRepository {
   void _invalidateTocCache({int? bookId}) {
     if (bookId != null) {
       _tocCacheEntryCount -= _tocCache.remove(bookId)?.all.length ?? 0;
-      _altTocCacheEntryCount -= _altTocCache.remove(bookId)?.length ?? 0;
+      _altTocCacheEntryCount -=
+          _altTocCache.remove((bookId, false))?.length ?? 0;
+      _altTocCacheEntryCount -=
+          _altTocCache.remove((bookId, true))?.length ?? 0;
     } else {
       _tocCache.clear();
       _tocCacheEntryCount = 0;
@@ -113,11 +116,11 @@ class SeforimRepository {
   }
 
   List<AltTocIndexEntry> _putAltTocCache(
-    int bookId,
+    (int, bool) key,
     List<AltTocIndexEntry> entries,
   ) {
-    _altTocCacheEntryCount -= _altTocCache.remove(bookId)?.length ?? 0;
-    _altTocCache[bookId] = entries;
+    _altTocCacheEntryCount -= _altTocCache.remove(key)?.length ?? 0;
+    _altTocCache[key] = entries;
     _altTocCacheEntryCount += entries.length;
     while (_altTocCacheEntryCount > _altTocCacheMaxEntries &&
         _altTocCache.length > 1) {
@@ -149,7 +152,8 @@ class SeforimRepository {
   int get debugAltTocCacheEntryCount => _altTocCacheEntryCount;
 
   @visibleForTesting
-  Iterable<int> get debugAltTocCachedBookIds => _altTocCache.keys;
+  Iterable<int> get debugAltTocCachedBookIds =>
+      _altTocCache.keys.map((key) => key.$1);
 
   int? _lastDataVersion;
 
@@ -3015,6 +3019,56 @@ extension BookAcronymRepository on SeforimRepository {
     return matches.map((e) => e.toTocMap()).toList();
   }
 
+  /// מחפש בכותרות שיובאו לספר אישי. היעד הוא מיקום בקובץ הספר.
+  Future<List<Map<String, dynamic>>> getUserAltTocEntriesForReference(
+    int bookId,
+    String bookTitle, {
+    required List<String> queryTokens,
+  }) async {
+    if (queryTokens.isEmpty) return const [];
+    final key = (bookId, true);
+    var entries = _altTocCache.remove(key);
+    if (entries != null) {
+      _altTocCache[key] = entries;
+    } else {
+      if (!(await _capabilities).hasUserAltToc) return const [];
+      final rows = await UserAltTocRepository(_database).entriesForBook(bookId);
+      final lines = UserAltTocRepository.navigationLines(rows);
+      final book = AltTocBook(bookId, bookTitle, 0);
+      final tokens = _AltTocTokenPool();
+      final built = <int, AltTocIndexEntry>{};
+      for (final row in rows) {
+        final line = lines[row.id];
+        if (line == null) continue;
+        built[row.id] = AltTocIndexEntry(
+          id: row.id,
+          book: book,
+          parent: built[row.parentId],
+          text: row.text,
+          segment: line,
+          level: row.level,
+          dbLineId: 0,
+          ownTokens: tokens.tokensOf(row.text),
+        );
+      }
+      entries = _putAltTocCache(
+        key,
+        built.values.toList()..sort((a, b) {
+          final byLine = a.segment.compareTo(b.segment);
+          if (byLine != 0) return byLine;
+          final byLevel = a.level.compareTo(b.level);
+          return byLevel != 0 ? byLevel : a.id.compareTo(b.id);
+        }),
+      );
+    }
+    return _searchAltTocFlat(
+      entries,
+      queryTokens,
+      ownTokensOf: (entry) => entry.ownTokens,
+      pathTokensOf: (entry) => entry.pathTokens,
+    ).map((entry) => entry.toTocMap()).toList();
+  }
+
   /// הטוקן האחרון חייב להופיע בעלה, כדי שחיפוש הורה לא יציף את כל ילדיו.
   Iterable<T> _searchAltTocFlat<T>(
     List<T> entries,
@@ -3104,8 +3158,9 @@ extension BookAcronymRepository on SeforimRepository {
     int bookId,
     String bookTitle,
   ) async {
-    final cached = _altTocCache.remove(bookId);
-    if (cached != null) return _altTocCache[bookId] = cached;
+    final key = (bookId, false);
+    final cached = _altTocCache.remove(key);
+    if (cached != null) return _altTocCache[key] = cached;
     if (!(await _capabilities).hasAltToc) return const [];
 
     final db = await _database.database;
@@ -3168,7 +3223,7 @@ extension BookAcronymRepository on SeforimRepository {
       },
       compareSegments: (a, b) => a.segment.compareTo(b.segment),
     );
-    return _putAltTocCache(bookId, entries);
+    return _putAltTocCache(key, entries);
   }
 
   /// מזהי כל הספרים שיש להם מבנה AltToc — מאפשר לצרכן לדלג על שאילתות

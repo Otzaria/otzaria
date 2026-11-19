@@ -519,6 +519,77 @@ void main() {
       );
     });
 
+    test('ספר אישי: כותרת מקובץ הכותרות ("פרשת ויצא") נמצאת', () async {
+      // MyDatabase יוצר את טבלאות user_alt_toc_* בפתיחה.
+      await userDb.database;
+      execute(
+        'INSERT INTO book (id, categoryId, sourceId, title, orderIndex) '
+        'VALUES (61, ?, 1, ?, 3)',
+        [SeforimFixtureIds.torahCategoryId, 'קונטרס פרשיות'],
+      );
+      execute(
+        'INSERT INTO user_alt_toc_structure (id, bookId, key, heTitle, source) '
+        "VALUES (5, 61, 'Parasha', 'פרשות', 'test')",
+      );
+      execute(
+        'INSERT INTO user_alt_toc_entry (structureId, parentId, level, text, '
+        "lineIndex) VALUES (5, NULL, 1, 'פרשת ויצא', 17)",
+      );
+      final repo = _repo(
+        books: const [],
+        openUserBooksRepository: () async => SeforimRepository(userDb),
+      );
+
+      final results = await repo.findRefs(
+        'קונטרס פרשיות ויצא',
+        includePersonalBooks: true,
+      );
+
+      expect(
+        results
+            .where((r) => r.source == BookSource.user && r.bookId == 61)
+            .map((r) => (r.reference, r.segment, r.isAltToc)),
+        contains(('קונטרס פרשיות פרשת ויצא', 17, true)),
+      );
+    });
+
+    test('ספר אישי: כותרת פרשה ישנה בלי שורה נפתחת בצאצא הראשון', () async {
+      await userDb.database;
+      execute(
+        'INSERT INTO book (id, categoryId, sourceId, title, orderIndex) '
+        'VALUES (62, ?, 1, ?, 3)',
+        [SeforimFixtureIds.torahCategoryId, 'ספר כותרות ותיק'],
+      );
+      execute(
+        'INSERT INTO user_alt_toc_structure (id, bookId, key, heTitle, source) '
+        "VALUES (6, 62, 'פרשות', 'פרשות', 'test')",
+      );
+      execute(
+        'INSERT INTO user_alt_toc_entry (id, structureId, parentId, level, '
+        'text, lineIndex) VALUES '
+        "(11, 6, NULL, 1, 'פרשת ויצא', NULL), "
+        "(12, 6, 11, 2, 'פתיחה', NULL), "
+        "(13, 6, 12, 3, 'חלק ראשון', 17), "
+        "(14, 6, 11, 2, 'חלק שני', 22)",
+      );
+      final repo = _repo(
+        books: const [],
+        openUserBooksRepository: () async => SeforimRepository(userDb),
+      );
+
+      final results = await repo.findRefs(
+        'ספר כותרות ותיק ויצא',
+        includePersonalBooks: true,
+      );
+
+      expect(
+        results
+            .where((r) => r.source == BookSource.user && r.bookId == 62)
+            .map((r) => (r.reference, r.segment, r.isAltToc)),
+        contains(('ספר כותרות ותיק פרשת ויצא', 17, true)),
+      );
+    });
+
     test('ספר שנוסף למסד אחרי החיפוש הראשון נמצא', () async {
       final repo = _repo(
         books: const [],
