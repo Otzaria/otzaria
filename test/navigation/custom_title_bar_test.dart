@@ -2879,10 +2879,10 @@ void main() {
           .tooltip!;
 
       final shortcut = ShortcutHelper.formatShortcutForDisplay('ctrl+w');
-      expect(closeTooltipOf('ספר א'), 'סגור כרטיסיה ($shortcut)');
+      expect(closeTooltipOf('ספר א'), 'סגור כרטיסייה ($shortcut)');
       expect(
         closeTooltipOf('ספר ב'),
-        'סגור כרטיסיה',
+        'סגור כרטיסייה',
         reason: 'הקיצור סוגר רק את הטאב הפעיל',
       );
     });

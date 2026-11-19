@@ -1239,7 +1239,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
     final isSelected = index == state.currentTabIndex;
     final closeTabShortcut =
         Settings.getValue<String>('key-shortcut-close-tab') ?? 'ctrl+w';
-    final closeTabLabel = context.settingsText('סגור כרטיסיה');
+    final closeTabLabel = context.settingsText('סגור כרטיסייה');
     // קיצור הסגירה פועל רק על הכרטיסיה הפעילה.
     final closeTabTooltip = isSelected
         ? '$closeTabLabel '

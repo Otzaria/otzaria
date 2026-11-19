@@ -440,7 +440,7 @@ void main() {
   testWidgets('כפתור ה-X של הכרטיסיה הפעילה סוגר אותה', (tester) async {
     await pumpPanel(tester);
 
-    final closeButton = find.byTooltip('סגור כרטיסיה');
+    final closeButton = find.byTooltip('סגור כרטיסייה');
     expect(closeButton, findsOneWidget, reason: 'X מוצג בכרטיסיה הפעילה בלבד');
     tester
         .widget<IconButton>(
@@ -461,7 +461,7 @@ void main() {
     // בדסקטופ הגרירה מיידית, ולכן זה המסלול שבו לחיצה על ה-X עלולה להיבלע.
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
     await pumpPanel(tester, collapsed: true);
-    final closeButton = find.byTooltip('סגור כרטיסיה');
+    final closeButton = find.byTooltip('סגור כרטיסייה');
     expect(closeButton, findsNothing, reason: 'בלי ריחוף אין X');
 
     final strip = tester.getRect(find.byType(VerticalReadingTabStrip));
@@ -723,7 +723,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('הצמד כרטיסיה'), findsOneWidget);
+    expect(find.text('הצמד כרטיסייה'), findsOneWidget);
     expect(find.text('סגור הכל'), findsOneWidget);
 
     await tester.tap(find.text('סגור הכל'));
@@ -786,7 +786,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final moves = tabsBloc.addedEvents.whereType<MoveTab>().toList();
-    final menuOpen = find.text('הצמד כרטיסיה').evaluate().isNotEmpty;
+    final menuOpen = find.text('הצמד כרטיסייה').evaluate().isNotEmpty;
     debugDefaultTargetPlatformOverride = null;
 
     expect(menuOpen, isTrue);
@@ -799,14 +799,14 @@ void main() {
       await pumpPanel(tester);
 
       final gesture = await tester.startGesture(
-        tester.getCenter(find.byTooltip('סגור כרטיסיה')),
+        tester.getCenter(find.byTooltip('סגור כרטיסייה')),
         kind: PointerDeviceKind.touch,
       );
       await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
       await gesture.up();
       await tester.pumpAndSettle();
 
-      expect(find.text('הצמד כרטיסיה'), findsOneWidget);
+      expect(find.text('הצמד כרטיסייה'), findsOneWidget);
       expect(tabsBloc.addedEvents.whereType<RemoveTab>(), isEmpty);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.windows),
@@ -888,7 +888,7 @@ void main() {
           expect(moves, hasLength(1));
           expect(moves.single.tab, same(tabs[0]));
           expect(moves.single.newIndex, 2);
-          expect(find.text('הצמד כרטיסיה'), findsNothing);
+          expect(find.text('הצמד כרטיסייה'), findsNothing);
         },
         variant: TargetPlatformVariant.only(TargetPlatform.windows),
       );
@@ -919,7 +919,7 @@ void main() {
             await tester.pumpAndSettle();
             expect(scrollable.position.pixels, greaterThan(before));
             expect(tabsBloc.addedEvents.whereType<MoveTab>(), isEmpty);
-            expect(find.text('הצמד כרטיסיה'), findsNothing);
+            expect(find.text('הצמד כרטיסייה'), findsNothing);
           }
         },
         variant: TargetPlatformVariant.only(TargetPlatform.windows),
@@ -935,7 +935,7 @@ void main() {
     await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
     await gesture.up();
     await tester.pumpAndSettle();
-    expect(find.text('הצמד כרטיסיה'), findsOneWidget);
+    expect(find.text('הצמד כרטיסייה'), findsOneWidget);
     expect(tabsBloc.addedEvents.whereType<MoveTab>(), isEmpty);
   }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
@@ -1017,7 +1017,7 @@ void main() {
     expect(
       find.descendant(
         of: row('ספר ב'),
-        matching: find.byTooltip('סגור כרטיסיה'),
+        matching: find.byTooltip('סגור כרטיסייה'),
       ),
       findsOneWidget,
       reason: 'הכרטיסיה הפעילה מציגה X',
