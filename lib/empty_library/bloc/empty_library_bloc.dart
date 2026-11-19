@@ -30,6 +30,7 @@ import 'package:otzaria/empty_library/services/library_package/library_package.d
 import 'package:otzaria/empty_library/services/library_package/library_package_extractor.dart';
 import 'package:otzaria/empty_library/services/library_package/library_package_importer.dart';
 import 'package:otzaria/empty_library/services/library_package/library_source.dart';
+import 'package:otzaria/empty_library/services/archive_size_probe.dart';
 import 'package:otzaria/empty_library/services/library_space_estimate.dart';
 import 'package:otzaria/library_update/services/library_access_gate.dart';
 import 'package:otzaria/library_update/services/companion_assets_service.dart';
@@ -108,7 +109,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     on<UpdateLibraryRequested>(_onUpdateLibraryRequested);
     on<CheckDiskSpaceRequested>(_onCheckDiskSpaceRequested);
     on<StorageLocationSelected>(_onStorageLocationSelected);
-    // בדיקת מקום פנוי מתבצעת מיד — כפתור ההורדה מושבת עד להשלמתה
+    // בודקים שהאחסון זמין. בדיקת המקום עצמה כוללת את קבצי ההמשך.
     add(CheckDiskSpaceRequested());
   }
 
@@ -1156,18 +1157,14 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     }
   }
 
-  /// בודק שיש מקום להורדה ולחילוץ, לפי הגדלים האמיתיים של [assets] כשהם
-  /// ידועים ולפי [measuredLibraryDownload] לפני כן.
-  ///
-  /// [downloadSize] הוא השטח הנוסף להורדה ולחיבור, בניכוי קבצים למחזור.
-  /// מחזיר הודעת שגיאה, או null כשהכול תקין.
+  /// בודק זמינות אחסון, ואחרי זיהוי הנכסים וקבצי ההמשך גם מקום פנוי.
   Future<String?> _checkSpaceForDownload({
-    int? downloadSize,
+    DownloadSpace? downloadSpace,
     List<_DownloadAsset>? assets,
     String? libraryPath,
   }) async {
     final checker = downloadSpaceChecker;
-    if (checker != null) return checker(downloadSize);
+    if (checker != null) return checker(downloadSpace?.peak);
     if (!Platform.isAndroid) return null;
 
     // הספרייה שמורה על כרטיס SD שאינו זמין כרגע — הורדה חדשה תיצור ספרייה
@@ -1182,30 +1179,36 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
           'יש להכניס את הכרטיס ולהפעיל מחדש את האפליקציה.';
     }
 
+    if (assets == null || downloadSpace == null) return null;
     final sizes = <ArchiveSize>[];
     int? largestFile;
-    // בלי Content-Length משתמשים בגדלים שנמדדו במקום לספור את הנכס כאפס.
-    if (assets == null || assets.any((asset) => asset.compressedSize <= 0)) {
-      sizes.addAll(measuredLibraryDownload);
-    } else {
-      for (final asset in assets) {
-        final compressed = asset.compressedSize;
-        final contentSize = asset.isCompressed
-            ? await _probeArchiveContentSize(asset)
-            : compressed;
-        final extracted = extractedSizeOf(
-          compressed,
-          archiveContentSize: contentSize,
-          fallbackRatio: _fallbackExpansion(asset),
-        );
-        sizes.add((compressed: compressed, extracted: extracted));
-        if (!asset.isTar && contentSize == extracted) {
-          largestFile = math.max(largestFile ?? 0, extracted);
-        }
+    for (final asset in assets) {
+      final knownCompressed = asset.compressedSize > 0;
+      final compressed = knownCompressed
+          ? asset.compressedSize
+          : asset.measuredSize.compressed;
+      final contentSize = asset.isCompressed
+          ? await _probeArchiveContentSize(asset)
+          : (knownCompressed ? compressed : null);
+      final measuredSize = knownCompressed
+          ? null
+          : asset.measuredSize.extracted;
+      final extracted = asset.isMainDb
+          ? estimatedDatabaseExtractedSize(
+              compressed,
+              firstFrameSize: contentSize ?? measuredSize,
+            )
+          : extractedSizeOf(
+              compressed,
+              archiveContentSize: contentSize ?? measuredSize,
+              fallbackRatio: _fallbackExpansion(asset),
+            );
+      sizes.add((compressed: compressed, extracted: extracted));
+      // גם כותרת ה-frame הראשון לבדה מספיקה להוכיח חריגה ממגבלת קובץ.
+      if (!asset.isTar && contentSize != null) {
+        largestFile = math.max(largestFile ?? 0, contentSize);
       }
     }
-    final downloadNeed =
-        downloadSize ?? sizes.fold<int>(0, (sum, s) => sum + s.compressed);
 
     final target =
         libraryPath ??
@@ -1230,14 +1233,17 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       library,
       isAndroid: true,
     );
-    // על אותו כונן הארכיונים נמחקים אחד-אחד בזמן החילוץ, ולכן רק השיא נספר.
+    // שיא החיבור מסתיים לפני החילוץ; רק הארכיונים המחוברים נשארים לחילוץ.
     return insufficientSpaceMessage([
       if (sameVolume)
         VolumeSpaceNeed(
           label: 'הורדה וחילוץ הספרייה',
           volumeId: library.volumeId,
           requiredBytes: withSafetyMargin(
-            downloadNeed + peakExtractionGrowth(sizes),
+            math.max(
+              downloadSpace.peak,
+              downloadSpace.retained + peakExtractionGrowth(sizes),
+            ),
           ),
           freeBytes: library.freeBytes,
         )
@@ -1245,7 +1251,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         VolumeSpaceNeed(
           label: 'קבצי ההורדה הזמניים',
           volumeId: null,
-          requiredBytes: withSafetyMargin(downloadNeed),
+          requiredBytes: withSafetyMargin(downloadSpace.peak),
           freeBytes: temp.freeBytes,
         ),
         VolumeSpaceNeed(
@@ -1269,8 +1275,20 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     return ExpansionFallback.database;
   }
 
-  /// גודל מלא מוכח רק לארכיון קטן שאינו מפוצל; הגדולים נשארים אומדן.
+  /// ה-DB גדול ומפוצל: קוראים רק כותרת 18 בייטים של החלק הראשון.
+  /// לנכסים קטנים אחרים בודקים כרגיל את כל ה-frames.
   Future<int?> _probeArchiveContentSize(_DownloadAsset asset) async {
+    if (asset.isMainDb) {
+      final split = asset.split;
+      final url = split != null && split.parts.isNotEmpty
+          ? split.parts.first.downloadUrl
+          : asset.resolvedUrl ?? asset.url;
+      return probeZstdFrameContentSize(
+        url,
+        client: _httpClient,
+        timeout: downloadConnectTimeout,
+      );
+    }
     if (asset.split != null ||
         asset.compressedSize <= 0 ||
         asset.compressedSize > zstdSizeProbeMaxBytes) {
@@ -1453,6 +1471,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       final assets = <_DownloadAsset>[
         _DownloadAsset(
           url: latestAsset.downloadUrl,
+          measuredSize: measuredDatabaseArchive,
           tempFileName: 'otzaria_${latestAsset.assetName}',
           downloadTitle: 'מוריד את ספריית אוצריא',
           extractTitle: 'מחלץ את ספריית אוצריא',
@@ -1466,6 +1485,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
           url:
               talmudRelease?.assetUrl ??
               'https://github.com/Otzaria/otzaria-library/releases/latest/download/talmud_bavli_latest.tar.zst',
+          measuredSize: measuredTalmudArchive,
           tempFileName: 'otzaria_talmud_bavli.tar.zst',
           downloadTitle: 'מוריד את התלמוד הבבלי',
           extractTitle: 'מחלץ את התלמוד הבבלי',
@@ -1475,6 +1495,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         _DownloadAsset(
           url:
               'https://github.com/Otzaria/otzar-HB_catalog/releases/latest/download/otzar-HB_catalog.db.zst',
+          measuredSize: measuredCatalogArchive,
           tempFileName: 'otzaria_otzar-HB_catalog.db.zst',
           downloadTitle: 'מוריד את הקטלוגים',
           extractTitle: 'מחלץ את הקטלוגים',
@@ -1487,6 +1508,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
           url:
               lexicalRelease?.downloadUrl.toString() ??
               'https://github.com/Otzaria/SeforimMagicIndexer/releases/latest/download/${DatabaseConstants.lexicalReleaseAssetFileNames.first}',
+          measuredSize: measuredLexicalArchive,
           tempFileName: 'otzaria_lexical.db',
           downloadTitle: 'מוריד מילון לחיפוש המקורב',
           extractTitle: 'מתקין מילון לחיפוש המקורב',
@@ -1531,23 +1553,36 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         (sum, a) => sum + a.compressedSize,
       );
 
-      // כולל שטח חיבור לחלקים, בניכוי ההורדות שניתן להמשיך מהן.
-      var downloadNeeded = 0;
-      for (final asset in assets.where((asset) => !asset.skipped)) {
-        downloadNeeded += await additionalDownloadBytes(
-          destPath: path.join(Directory.systemTemp.path, asset.tempFileName),
-          identity: asset.identity!,
-          size: asset.compressedSize,
-          split: asset.split,
+      // הנכסים מורדים לפי הסדר. בין שתי הורדות נשאר רק הארכיון המחובר.
+      final activeAssets = assets.where((asset) => !asset.skipped).toList();
+      DownloadSpace downloadSpace = (peak: 0, retained: 0);
+      for (final asset in activeAssets) {
+        final measuredBytes = asset.measuredSize.compressed;
+        final space = asset.compressedSize > 0
+            ? await additionalDownloadSpace(
+                destPath: path.join(
+                  Directory.systemTemp.path,
+                  asset.tempFileName,
+                ),
+                identity: asset.identity!,
+                size: asset.compressedSize,
+                split: asset.split,
+              )
+            : (peak: measuredBytes, retained: measuredBytes);
+        downloadSpace = (
+          peak: math.max(
+            downloadSpace.peak,
+            downloadSpace.retained + space.peak,
+          ),
+          retained: downloadSpace.retained + space.retained,
         );
       }
       final spaceError = await _checkSpaceForDownload(
-        downloadSize: grandTotal > 0 ? downloadNeeded : null,
-        assets: assets.where((asset) => !asset.skipped).toList(),
+        downloadSpace: downloadSpace,
+        assets: activeAssets,
         libraryPath: libraryPath,
       );
       if (spaceError != null) {
-        _downloadDisabledReason = spaceError;
         emit(_error(errorMessage: spaceError));
         return;
       }
@@ -1560,7 +1595,6 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
 
       // שלב 1 — הורדת כל הקבצים יחד (פס וזמן משוער מאוחדים). הזמן המשוער כולל
       // גם את החיבור והחילוץ שאחרי ההורדה.
-      final activeAssets = assets.where((asset) => !asset.skipped);
       final eta = _EtaLine(
         grandTotal > 0 && activeAssets.every((a) => a.compressedSize > 0)
             ? (DownloadEtaEstimator()..planPhases([
@@ -2277,6 +2311,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
 class _DownloadAsset {
   _DownloadAsset({
     required this.url,
+    required this.measuredSize,
     required this.tempFileName,
     required this.downloadTitle,
     required this.extractTitle,
@@ -2291,6 +2326,7 @@ class _DownloadAsset {
 
   /// כתובת ההורדה (לפני פתרון redirect).
   final String url;
+  final ArchiveSize measuredSize;
 
   /// שם קובץ ה-temp הקבוע (נשמר בין ניסיונות לצורך resume).
   final String tempFileName;

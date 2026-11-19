@@ -25,37 +25,45 @@ Future<int> reusableDownloadBytes(
   }
 }
 
-/// תוספת השטח להורדה ולחיבור, בניכוי בייטים שניתנים להמשך לפי חוזה המוריד.
-Future<int> additionalDownloadBytes({
+/// תפוסה נוספת בשיא החיבור, ומה שנשאר ממנו לקראת החילוץ.
+typedef DownloadSpace = ({int peak, int retained});
+
+/// תוספת השטח, בניכוי בייטים שניתנים להמשך לפי חוזה המוריד.
+Future<DownloadSpace> additionalDownloadSpace({
   required String destPath,
   required String identity,
   required int size,
   SplitAsset? split,
 }) async {
   if (split == null) {
-    if (size <= 0) return 0;
-    return size - await reusableDownloadBytes(destPath, identity, size);
+    final remaining = size <= 0
+        ? 0
+        : size - await reusableDownloadBytes(destPath, identity, size);
+    return (peak: remaining, retained: remaining);
   }
   final joined = await reusableDownloadBytes(
     destPath,
     '$identity|joined:${split.sha256}',
     split.size,
   );
-  if (joined == split.size) return 0;
-  // Verified parts stay available for retry until the joined archive commits.
-  var needed = split.size * 2;
+  if (joined == split.size) return (peak: 0, retained: 0);
+  var reusableParts = 0;
   for (var i = 0; i < split.parts.length; i++) {
     final part = split.parts[i];
-    needed -= await reusableDownloadBytes(
+    reusableParts += await reusableDownloadBytes(
       PatchDownloader.splitPartPath(destPath, i),
       '$identity|${part.name}|${part.sha256}',
       part.size,
     );
   }
-  return needed;
+  // החלקים נשארים עד שהארכיון המחובר נשמר, ונמחקים לפני החילוץ.
+  return (
+    peak: split.size * 2 - reusableParts,
+    retained: split.size - reusableParts,
+  );
 }
 
-/// האם נשמר קובץ חלקי של הנכס שהמוריד ימשיך ממנו (ראו [additionalDownloadBytes]).
+/// האם נשמר קובץ חלקי של הנכס שהמוריד ימשיך ממנו (ראו [additionalDownloadSpace]).
 Future<bool> hasReusableDownload({
   required String destPath,
   required String identity,
