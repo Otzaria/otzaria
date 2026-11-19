@@ -256,6 +256,41 @@ void main() {
       final noteIdx = result.indexOf('הערת שוליים');
       expect(noteIdx, greaterThan(paraIdx));
     });
+
+    // issue #2682: הדגשה בתוך הערה נמחקה, ומעבר פסקה בהערה הוצג כרווח.
+    test('הערת שוליים שומרת הדגשה ומעברי פסקה ושורה', () {
+      final documentXml =
+          '<?xml version="1.0" encoding="UTF-8"?>'
+          '<w:document $_xmlNs><w:body><w:p><w:r><w:t>טקסט</w:t></w:r>'
+          '<w:r><w:footnoteReference w:id="1"/></w:r></w:p></w:body>'
+          '</w:document>';
+      final footnotesXml =
+          '<?xml version="1.0" encoding="UTF-8"?>'
+          '<w:footnotes $_xmlNs><w:footnote w:id="1">'
+          '<w:p><w:r><w:footnoteRef/></w:r>'
+          '<w:r><w:t xml:space="preserve"> פסקה </w:t></w:r>'
+          '<w:r><w:rPr><w:bCs/></w:rPr><w:t>מודגשת</w:t></w:r>'
+          '<w:r><w:rPr><w:b w:val="0"/></w:rPr><w:t xml:space="preserve"> '
+          'וסוף &amp; &lt;x&gt;</w:t><w:br/><w:t>שורה</w:t></w:r></w:p>'
+          '<w:p><w:r><w:t>פסקה שנייה</w:t></w:r></w:p>'
+          '</w:footnote></w:footnotes>';
+
+      final result = docxToText(
+        _buildDocx(
+          _utf8Xml(documentXml),
+          footnotesXmlBytes: _utf8Xml(footnotesXml),
+        ),
+        'בדיקה',
+      );
+
+      expect(
+        result,
+        contains(
+          '<i class="footnote">פסקה <b>מודגשת</b> וסוף &amp; &lt;x&gt;'
+          '<br>שורה<br>פסקה שנייה</i>',
+        ),
+      );
+    });
   });
 
   group('docxToText - כותרות לפי שם הסגנון', () {

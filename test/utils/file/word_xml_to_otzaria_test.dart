@@ -308,6 +308,23 @@ void main() {
       expect('הערה'.allMatches(out).length, 1);
     });
 
+    // issue #2682: הערה inline רב-פסקתית הודבקה למילה אחת, וההדגשה נמחקה.
+    test('הערת שוליים inline שומרת הדגשה ומעבר פסקה', () {
+      final out = _convert(
+        _wordMl2003(
+          '<w:p><w:r><w:t>גוף</w:t></w:r>'
+          '<w:r><w:footnote><w:p><w:r><w:rPr><w:b/></w:rPr>'
+          '<w:t>ראשונה</w:t></w:r></w:p>'
+          '<w:p><w:r><w:t>שנייה</w:t></w:r></w:p>'
+          '</w:footnote></w:r></w:p>',
+        ),
+      );
+      expect(
+        out,
+        contains('<i class="footnote"><b>ראשונה</b><br>שנייה</i>'),
+      );
+    });
+
     test('תמונה מ-w:binData לפי src של wordml://', () {
       final out = _convert(
         _wordMl2003(
