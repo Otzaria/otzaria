@@ -91,6 +91,10 @@ void main() {
     test('אין FCS: fallback נגזר מגודל הארכיון, בלי קבוע קשיח', () {
       expect(estimatedDatabaseExtractedSize(1000), 2500);
     });
+
+    test('אין FCS או גודל ארכיון: משתמשים בגודל המסד שנמדד', () {
+      expect(estimatedDatabaseExtractedSize(0), measuredDatabaseBytes);
+    });
   });
 
   group('extractedSizeOf', () {

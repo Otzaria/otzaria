@@ -2,6 +2,7 @@ import 'package:otzaria/core/download_network_policy.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/app_paths.dart';
@@ -836,13 +837,14 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     final newDbPath = '$dbPath.new';
     final resumeToken = _fullDbResumeToken(asset);
     final frameSize = await fullDbSizeProbe(asset);
+    _throwIfCancelled(isCancelled);
     final extractedDbSize = withSafetyMargin(
       estimatedDatabaseExtractedSize(asset.size, firstFrameSize: frameSize),
     );
     await ensureDiskSpaceForFullDownload(
       archivePath: archivePath,
       extractedDbSize: extractedDbSize,
-      archiveNeeded: await additionalDownloadBytes(
+      archiveSpace: await additionalDownloadSpace(
         destPath: archivePath,
         identity: resumeToken,
         size: asset.size,
@@ -984,7 +986,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
   @visibleForTesting
   Future<void> ensureDiskSpaceForFullDownload({
     required String archivePath,
-    required int archiveNeeded,
+    required DownloadSpace archiveSpace,
     required String dbDir,
     required int extractedDbSize,
   }) async {
@@ -1000,7 +1002,10 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       isAndroid: isAndroid,
     );
     if (sameVolume) {
-      final needed = archiveNeeded + extractedDbSize;
+      final needed = math.max(
+        archiveSpace.peak,
+        archiveSpace.retained + extractedDbSize,
+      );
       if (archiveInfo.freeBytes >= 0 && archiveInfo.freeBytes < needed) {
         throw LibraryUpdateDiskSpaceException(
           'אין מספיק מקום פנוי בכונן: נדרש ~${gb(needed)}GB להורדה ולחילוץ '
@@ -1009,9 +1014,10 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       }
       return;
     }
-    if (archiveInfo.freeBytes >= 0 && archiveInfo.freeBytes < archiveNeeded) {
+    if (archiveInfo.freeBytes >= 0 &&
+        archiveInfo.freeBytes < archiveSpace.peak) {
       throw LibraryUpdateDiskSpaceException(
-        'אין מספיק מקום פנוי להורדת הספרייה: נדרש ~${gb(archiveNeeded)}GB, '
+        'אין מספיק מקום פנוי להורדת הספרייה: נדרש ~${gb(archiveSpace.peak)}GB, '
         'פנוי ${gb(archiveInfo.freeBytes)}GB',
       );
     }

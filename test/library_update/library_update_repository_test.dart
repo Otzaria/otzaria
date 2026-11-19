@@ -923,6 +923,54 @@ void main() {
       );
     });
 
+    test('שיא חיבור חלקי v38 אינו נספר לתוך שיא החילוץ', () async {
+      final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
+      _writeDb(dbPath, version: 1, marker: 'old');
+      const partSizes = [1992294400, 254447448];
+      final asset = ReleaseAsset.fromSplit(
+        const ReleaseAsset(
+          name: 'seforim-schema7.db.zst.manifest.json',
+          downloadUrl: 'https://x/manifest',
+          size: 589,
+        ),
+        SplitAsset(
+          archive: 'seforim-schema7.db.zst',
+          manifestName: 'seforim-schema7.db.zst.manifest.json',
+          size: 2246741848,
+          sha256: 'a' * 64,
+          parts: [
+            for (final (index, size) in partSizes.indexed)
+              SplitAssetPart(
+                name: 'part-$index',
+                size: size,
+                sha256: 'b' * 64,
+                downloadUrl: 'https://x/part-$index',
+              ),
+          ],
+        ),
+      );
+      final splitPlan = LibraryUpdatePlan.fullDownload(
+        localVersion: 1,
+        targetVersion: 2,
+        asset: asset,
+        releaseTag: 'v2',
+      );
+      LibraryUpdateRepository withFreeBytes(int freeBytes) => repo(
+        (_) async => DiskSpaceInfo(volumeId: 'same', freeBytes: freeBytes),
+        dbPath,
+        frameSize: 4418928640,
+      );
+
+      await expectLater(
+        withFreeBytes(7000000000).applyFullDownload(splitPlan),
+        throwsA(isNot(isA<LibraryUpdateDiskSpaceException>())),
+      );
+      await expectLater(
+        withFreeBytes(6900000000).applyFullDownload(splitPlan),
+        throwsA(isA<LibraryUpdateDiskSpaceException>()),
+      );
+    });
+
     test('גודל frame גדול מהשטח הפנוי נחסם לפני הורדה', () async {
       final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
       _writeDb(dbPath, version: 1, marker: 'old');
@@ -1002,7 +1050,7 @@ void main() {
                 : DiskSpaceInfo(volumeId: '/dev/fuse', freeBytes: dbFree),
           ).ensureDiskSpaceForFullDownload(
             archivePath: archivePath,
-            archiveNeeded: 2 * oneGb,
+            archiveSpace: (peak: 2 * oneGb, retained: 2 * oneGb),
             dbDir: dbDir,
             extractedDbSize: 4418928640,
           );

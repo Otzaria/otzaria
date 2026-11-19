@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:http/http.dart' as http;
 import 'package:otzaria/core/download_http_client.dart';
 import 'package:otzaria/empty_library/services/library_space_estimate.dart';
@@ -13,28 +15,40 @@ Future<int?> probeZstdFrameContentSize(
   Duration timeout = const Duration(seconds: 8),
 }) async {
   final ownsClient = client == null;
-  final httpClient = client ?? http.Client();
-  try {
+  final httpClient = createDownloadClient(client);
+  final abort = Completer<void>();
+  StreamIterator<List<int>>? body;
+
+  Future<int?> readHeader() async {
     final response = await sendGetFollowingRedirects(
-      createDownloadClient(httpClient),
+      httpClient,
       Uri.parse(url),
       headers: const {'Range': 'bytes=0-17'},
       stallTimeout: timeout,
+      abortTrigger: abort.future,
     );
-    if (response.statusCode != 200 && response.statusCode != 206) {
+    if (abort.isCompleted ||
+        (response.statusCode != 200 && response.statusCode != 206)) {
       await response.stream.listen((_) {}).cancel();
       return null;
     }
 
     final header = <int>[];
-    await for (final chunk in response.stream) {
-      header.addAll(chunk.take(18 - header.length));
+    final chunks = body = StreamIterator(response.stream);
+    while (await chunks.moveNext()) {
+      header.addAll(chunks.current.take(18 - header.length));
       if (header.length == 18) break;
     }
     return zstdFrameContentSize(header);
+  }
+
+  try {
+    return await readHeader().timeout(timeout);
   } catch (_) {
     return null;
   } finally {
+    abort.complete();
+    unawaited(body?.cancel().catchError((Object _) {}));
     if (ownsClient) httpClient.close();
   }
 }

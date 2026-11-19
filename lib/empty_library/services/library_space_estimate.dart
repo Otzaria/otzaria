@@ -33,13 +33,29 @@ typedef ArchiveSize = ({int compressed, int extracted});
 /// seforim.db ב-release v38 (נובמבר 2026), כאשר אין גודל עדכני מהרשת.
 const int measuredDatabaseBytes = 4418928640;
 
-/// הנכסים של הורדה ראשונית בגדלים שנמדדו (DB, תלמוד, קטלוג, מילון), לבדיקת
-/// הסף לפני שהגדלים האמיתיים ידועים.
+/// הנכסים של הורדה ראשונית בגדלים שנמדדו, כשגודל חסר במטא-דאטה.
+const ArchiveSize measuredDatabaseArchive = (
+  compressed: 2246741848,
+  extracted: measuredDatabaseBytes,
+);
+const ArchiveSize measuredTalmudArchive = (
+  compressed: 472000000,
+  extracted: 473500000,
+);
+const ArchiveSize measuredCatalogArchive = (
+  compressed: 6000000,
+  extracted: 37600000,
+);
+const ArchiveSize measuredLexicalArchive = (
+  compressed: 57000000,
+  extracted: 57000000,
+);
+
 const List<ArchiveSize> measuredLibraryDownload = [
-  (compressed: 2246741848, extracted: measuredDatabaseBytes),
-  (compressed: 472000000, extracted: 473500000),
-  (compressed: 6000000, extracted: 37600000),
-  (compressed: 57000000, extracted: 57000000),
+  measuredDatabaseArchive,
+  measuredTalmudArchive,
+  measuredCatalogArchive,
+  measuredLexicalArchive,
 ];
 
 /// `Frame_Content_Size` מכותרת ה-frame הראשון, או null כשאינו רשום
@@ -161,8 +177,8 @@ int extractedSizeOf(
   required double fallbackRatio,
 }) => archiveContentSize ?? (compressedSize * fallbackRatio).ceil();
 
-/// גודל ה-DB לפי כותרת ה-frame הראשון. רצפה לפי גודל דחוס מגינה
-/// מפני ארכיון עתידי עם יותר מ-frame אחד, כשהראשון אינו כל ה-DB.
+/// גודל ה-DB לפי כותרת ה-frame הראשון. אם הפורמט ישתנה למספר frames,
+/// הגודל המחולץ הכולל ידרוש מטא-דאטה נוספת; הרצפה כאן היא אומדן בלבד.
 /// בהיעדר FCS נשאר אומדן שמרני התלוי בגודל ה-release, ולא בקבוע ישן.
 int estimatedDatabaseExtractedSize(
   int compressedSize, {
@@ -171,6 +187,7 @@ int estimatedDatabaseExtractedSize(
   if (firstFrameSize != null && firstFrameSize > 0) {
     return math.max(firstFrameSize, (compressedSize * 1.9).ceil());
   }
+  if (compressedSize <= 0) return measuredDatabaseBytes;
   return extractedSizeOf(
     compressedSize,
     fallbackRatio: ExpansionFallback.database,

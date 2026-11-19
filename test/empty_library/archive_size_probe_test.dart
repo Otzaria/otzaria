@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -68,5 +70,57 @@ void main() {
       ),
       isNull,
     );
+  });
+
+  test('a server returning 200 is not read beyond the header', () async {
+    var cancelled = false;
+    final body = StreamController<List<int>>(onCancel: () => cancelled = true);
+    addTearDown(body.close);
+    body.add([..._header(4418928640), 0, 0, 0, 0, 0]);
+    final client = MockClient.streaming(
+      (_, _) async => http.StreamedResponse(body.stream, 200),
+    );
+    addTearDown(client.close);
+
+    expect(
+      await probeZstdFrameContentSize(
+        'https://example.invalid/part-000',
+        client: client,
+      ),
+      4418928640,
+    );
+    expect(cancelled, isTrue);
+  });
+
+  testWidgets('slow chunks cannot extend the deadline for the probe', (
+    tester,
+  ) async {
+    var cancelled = false;
+    final body = StreamController<List<int>>(onCancel: () => cancelled = true);
+    addTearDown(body.close);
+    final client = MockClient.streaming(
+      (_, _) async => http.StreamedResponse(body.stream, 206),
+    );
+    addTearDown(client.close);
+
+    var finished = false;
+    final probe =
+        probeZstdFrameContentSize(
+          'https://example.invalid/part-000',
+          client: client,
+          timeout: const Duration(milliseconds: 60),
+        ).then((size) {
+          finished = true;
+          return size;
+        });
+    await tester.pump();
+    body.add([0x28]);
+    await tester.pump(const Duration(milliseconds: 30));
+    body.add([0xB5]);
+    await tester.pump(const Duration(milliseconds: 30));
+
+    expect(finished, isTrue);
+    expect(await probe, isNull);
+    expect(cancelled, isTrue);
   });
 }
