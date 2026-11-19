@@ -40,6 +40,7 @@ import 'package:otzaria/text_display/view/text_display_bar_button.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/book_common/utils/category_settings_utils.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
+import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
@@ -746,7 +747,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
         onNextMajor: _navigateToNextHeading,
       ),
       child: Scaffold(
-        body: Column(
+        body: AppTopBarLayout(
           children: [
             _buildAppTopBar(context),
             Expanded(
