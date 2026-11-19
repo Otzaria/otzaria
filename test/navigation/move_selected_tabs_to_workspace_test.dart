@@ -218,7 +218,7 @@ void main() {
       contains('Failed to update workspace tabs'),
     );
     expect(workspaceBloc.state.isChangingTabs, isFalse);
-    expect(find.text('הכרטיסיה הועברה לשולחן העבודה "יעד"'), findsOneWidget);
+    expect(find.text('הכרטיסייה הועברה לשולחן העבודה "יעד"'), findsOneWidget);
     await tester.pump(const Duration(seconds: 10));
     await tester.pumpAndSettle();
   });
@@ -289,7 +289,7 @@ void main() {
       'ספר ג',
     ]);
     expect(env.targetTitles(), ['ספר ביעד']);
-    expect(find.text('הכרטיסיה הועברה לשולחן העבודה "יעד"'), findsNothing);
+    expect(find.text('הכרטיסייה הועברה לשולחן העבודה "יעד"'), findsNothing);
     await tester.pump(const Duration(seconds: 10));
     await tester.pumpAndSettle();
   });
@@ -350,7 +350,7 @@ void main() {
         await env.moveToTarget(
           tester,
           rightClickOn: 'ספר ג',
-          snack: 'הכרטיסיה הועברה לשולחן העבודה "יעד"',
+          snack: 'הכרטיסייה הועברה לשולחן העבודה "יעד"',
         );
 
         expect(env.tabsBloc.state.tabs.map((t) => t.title), [
@@ -397,7 +397,7 @@ void main() {
             rightClickOn: tabs[scenario.clicked].title,
             snack: movingGroup
                 ? '${scenario.selected.length} כרטיסיות הועברו לשולחן העבודה "יעד"'
-                : 'הכרטיסיה הועברה לשולחן העבודה "יעד"',
+                : 'הכרטיסייה הועברה לשולחן העבודה "יעד"',
           );
 
           expect(env.tabsBloc.state.currentTab!.title, scenario.next);

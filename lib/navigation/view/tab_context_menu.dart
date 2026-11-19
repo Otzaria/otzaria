@@ -242,8 +242,8 @@ List<AppContextMenuEntry> buildTabContextMenuEntries(
   final entries = <AppContextMenuEntry>[
     AppContextMenuEntry(
       label: tab.isPinned
-          ? context.settingsText('בטל הצמדת כרטיסיה')
-          : context.settingsText('הצמד כרטיסיה'),
+          ? context.settingsText('בטל הצמדת כרטיסייה')
+          : context.settingsText('הצמד כרטיסייה'),
       onTap: () => context.read<TabsBloc>().add(TogglePinTab(tab)),
     ),
     if (inSelection)
