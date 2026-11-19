@@ -564,17 +564,20 @@ void main() {
 
   test('Issue #5500: colon note marks only the punctuation', () {
     const raw = 'אבג: דהו';
-    final html = render(raw, notes: [
-      _note(anchorText: ':', anchorStart: raw.indexOf(':')),
-    ]);
+    final html = render(
+      raw,
+      notes: [
+        _note(anchorText: ':', anchorStart: raw.indexOf(':')),
+      ],
+    );
     expect(html, contains('$noteOpen:</a>'));
     expect(html, startsWith('אבג'));
     expect(html, endsWith(' דהו'));
   });
 
-  test('Issue #5500: missing word anchor never underlines the entire line', () {
-    const raw = 'אבג: דהו';
-    final html = render(raw, notes: [_note(anchorText: 'מילה חסרה')]);
+  test('הערה על נקודתיים שאינם בשורה אינה מסמנת את כל השורה (issue #5500)', () {
+    const raw = 'אבג דהו';
+    final html = render(raw, notes: [_note(anchorText: ':')]);
     expect(html, raw);
   });
 

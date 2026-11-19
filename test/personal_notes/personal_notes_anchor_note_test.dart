@@ -1,9 +1,11 @@
 import 'dart:math';
 
+import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/services/personal_notes_service.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
+import 'package:otzaria/text_book/utils/note_inline_render.dart';
 
 class _MemoryNotesDb implements PersonalNotesDatabase {
   final notes = <String, PersonalNote>{};
@@ -208,4 +210,28 @@ void main() {
     final range = await add(lineNumber: 3, endLineNumber: 4);
     expect(PersonalNote.fromJson(range.toJson()).endLineNumber, 4);
   });
+
+  test(
+    'הערה על נקודתיים מעוגנת לנקודתיים ולא לכל השורה (issue #5500)',
+    () async {
+      const colonLine = 'משנה א: אלו דברים שאין להם שיעור: הפאה';
+      final note = await add(
+        content: 'שורה ראשונה\n$colonLine',
+        selectedText: ':',
+        occurrenceIndex: 1,
+      );
+
+      expect(note.anchorText, ':');
+      expect(note.anchorStart, colonLine.lastIndexOf(':'));
+      expect(note.anchorEnd, colonLine.lastIndexOf(':') + 1);
+      final html = buildAnnotatedLineHtml(
+        rawLine: colonLine,
+        notesForLine: [note],
+        lineIndex0: 1,
+        underlineColor: const Color(0xFF000000),
+      );
+      expect(html, startsWith('משנה א: אלו דברים שאין להם שיעור<a '));
+      expect(html, endsWith(':</a> הפאה'));
+    },
+  );
 }

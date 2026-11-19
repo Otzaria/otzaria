@@ -90,10 +90,11 @@ String buildAnnotatedLineHtml({
         addNoteSpan(expanded.start, expanded.end, note.id);
         continue;
       }
-      // Unresolved word anchors must never spread across the entire line.
-      continue;
+      // פיסוק שלא נמצא (למשל כשהפיסוק מוסתר) אינו מסמן את כל השורה.
+      if (isPunctuationOnlyAnchor(note.anchorText!)) continue;
+      // לא נמצא הביטוי — נופלים לסימון כל השורה.
     }
-    // הערת-שורה-שלמה בלבד: סימון כל השורה.
+    // הערת-שורה-שלמה (או נפילה מאיתור כושל): סימון כל השורה.
     addNoteSpan(0, rawLine.length, note.id);
   }
 

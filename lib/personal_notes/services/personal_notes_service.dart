@@ -612,7 +612,8 @@ class PersonalNotesService {
       final anchor = normalizeAnchorText(note.anchorText!);
       return anchor.isNotEmpty
           ? lineContainsAnchorText(lineContent, anchor)
-          : locateAnchor(rawLine: lineContent, anchorText: note.anchorText!) != null;
+          : locateAnchor(rawLine: lineContent, anchorText: note.anchorText!) !=
+                null;
     }
     return _displayTitleExistsInLine(note.displayTitle, lineContent);
   }

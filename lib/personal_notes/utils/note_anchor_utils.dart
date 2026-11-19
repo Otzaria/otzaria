@@ -181,6 +181,10 @@ String normalizeAnchorText(String text) => projectLine(
   plainText: true,
 ).normalized.trim();
 
+/// בחירה של סימני פיסוק בלבד (למשל `:`), שמעוגנת לפי הפיסוק עצמו.
+bool isPunctuationOnlyAnchor(String text) =>
+    text.trim().isNotEmpty && normalizeAnchorText(text).isEmpty;
+
 /// האם [normalizedText] (מ-[normalizeAnchorText]) נמצא ב-[rawLine], גם כפי
 /// שנשמר כשהסתרת הפיסוק עוד הדביקה מילים.
 bool lineContainsAnchorText(String rawLine, String normalizedText) =>
@@ -335,7 +339,11 @@ NoteAnchorRange? locateAnchor({
   // Keep punctuation-only selections as precise anchors instead of whole-line notes.
   final punctuationOnly = normalized.isEmpty && anchorText.trim().isNotEmpty;
   final needle = punctuationOnly
-      ? projectLine(anchorText, plainText: true, keepPunctuation: true).normalized.trim()
+      ? projectLine(
+          anchorText,
+          plainText: true,
+          keepPunctuation: true,
+        ).normalized.trim()
       : normalized;
   if (needle.isEmpty) return null;
 
@@ -370,8 +378,12 @@ NoteAnchorRange? locateAnchor({
         }
       }
     }
-    final before = punctuationOnly ? (prefix ?? '') : _withoutPunctuation(prefix);
-    final after = punctuationOnly ? (suffix ?? '') : _withoutPunctuation(suffix);
+    final before = punctuationOnly
+        ? (prefix ?? '')
+        : _withoutPunctuation(prefix);
+    final after = punctuationOnly
+        ? (suffix ?? '')
+        : _withoutPunctuation(suffix);
     for (final start in occurrences) {
       final end = start + needle.length;
       final rawStart = p.rawIndex[start];
@@ -419,7 +431,11 @@ ComputedAnchor? computeAnchorForSelection({
   final normalized = normalizeAnchorText(selectedText);
   final punctuationOnly = normalized.isEmpty && selectedText.trim().isNotEmpty;
   final needle = punctuationOnly
-      ? projectLine(selectedText, plainText: true, keepPunctuation: true).normalized.trim()
+      ? projectLine(
+          selectedText,
+          plainText: true,
+          keepPunctuation: true,
+        ).normalized.trim()
       : normalized;
   if (needle.isEmpty) return null;
 
