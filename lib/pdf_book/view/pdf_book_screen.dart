@@ -1215,6 +1215,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     otz_links.Link link,
   ) async {
     final textBook = TextBook(
+      id: link.targetBookId,
       title: utils.getTitleFromPath(link.path2),
       source: link.targetSource,
       categoryId: link.targetCategoryId,
@@ -1232,6 +1233,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         ignoreHistory: true,
         requiresStableLayout: true,
         insertAdjacent: true,
+        navigateToPositionIfReused: true,
       );
       return;
     }
@@ -1240,8 +1242,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       textBook,
       textIndex,
       '',
-      ignoreHistory: false,
+      explicitIndex: true,
       insertAdjacent: true,
+      navigateToPositionIfReused: true,
     );
   }
 
@@ -5750,15 +5753,16 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     if (!context.mounted) return;
 
     if (index == null) {
-      UiSnack.show(PdfMessages.textLocationNotFoundOpeningAtStart);
+      UiSnack.show(PdfMessages.textLocationNotFound);
     }
     openBook(
       context,
       textBook,
-      index ?? 0,
+      index,
       '',
       ignoreHistory: true,
       insertAdjacent: true,
+      navigateToPositionIfReused: true,
     );
   }
 

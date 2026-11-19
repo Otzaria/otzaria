@@ -7,8 +7,7 @@ abstract class PdfMessages {
   static const String directLinkUnavailableForBook =
       'קישור ישיר אינו זמין לספר זה';
   static const String perBookSettingsReset = 'ההגדרות האישיות לספר זה אופסו';
-  static const String textLocationNotFoundOpeningAtStart =
-      'לא נמצא מיקום תואם בטקסט — הספר נפתח מתחילתו';
+  static const String textLocationNotFound = 'לא נמצא מיקום תואם בטקסט';
   static const String noTextLayer =
       'ספר זה הוא סריקה בלבד ואינו מכיל טקסט, ולכן לא ניתן לחפש בתוכו';
   static const String advancedSearchUnavailableInTalmudPdf =

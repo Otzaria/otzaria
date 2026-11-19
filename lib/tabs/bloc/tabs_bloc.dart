@@ -592,14 +592,16 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       );
       return;
     }
-    // הכותרת משמשת רק להשוואה מול חלונית של אותו ספר; בלעדיה נחסכת טעינת
-    // תוכן העניינים לפני הוספת הטאב, והקורא טוען אותו ממילא.
-    final hasSameBook = state.tabs
-        .expand(leafPanes)
-        .any((open) => _isSameBook(open, event.tab));
-    final targetTitle =
-        hasSameBook &&
-            (!event.matchHistorySlot || event.tab.historySlot == null)
+    final ignoreLocation =
+        event.matchBookOnly || event.navigateToPositionIfReused;
+    // צריך כותרת (ולפעמים TOC) רק כשמשווים מיקומים באותו ספר.
+    final needsTitle =
+        !ignoreLocation &&
+        (!event.matchHistorySlot || event.tab.historySlot == null) &&
+        state.tabs
+            .expand(leafPanes)
+            .any((open) => _isSameBook(open, event.tab));
+    final targetTitle = needsTitle
         ? await _resolveTabLocationTitle(
             event.tab,
             explicitTitle: event.targetTitle,
@@ -608,8 +610,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     final matchingIndex = await _findMatchingTopLevelTabIndex(
       event.tab,
       targetTitle,
-      // סימניה או deep link מנווטים בספר הפתוח גם כשהכותרת המבוקשת שונה.
-      ignoreLocation: event.navigateToPositionIfReused,
+      ignoreLocation: ignoreLocation,
       matchHistorySlot: event.matchHistorySlot,
     );
 
@@ -618,7 +619,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         state.tabs[matchingIndex],
         event.tab,
         targetTitle,
-        ignoreLocation: event.navigateToPositionIfReused,
+        ignoreLocation: ignoreLocation,
         matchHistorySlot: event.matchHistorySlot,
       );
       final matchingTab = matchingPane ?? state.tabs[matchingIndex];

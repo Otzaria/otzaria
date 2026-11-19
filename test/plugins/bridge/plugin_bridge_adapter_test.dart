@@ -226,6 +226,7 @@ class _RecordingReaderCoordinator extends BookOpenCoordinator {
     OpenedTab tab, {
     bool insertAdjacent = false,
     bool navigateToPositionIfReused = false,
+    bool matchBookOnly = false,
     bool inSidePane = false,
     bool navigate = true,
     bool captureHistory = true,
