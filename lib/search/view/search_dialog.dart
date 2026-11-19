@@ -530,6 +530,7 @@ class _SearchDialogState extends State<SearchDialog> {
               child: FilterChip(
                 label: Text(context.settingsText(key)),
                 visualDensity: VisualDensity.compact,
+                showCheckmark: false,
                 selected: _searchTab.globalSearchOptions[key] ?? false,
                 onSelected:
                     disabledOptionIds.contains(
@@ -562,6 +563,7 @@ class _SearchDialogState extends State<SearchDialog> {
         key: const ValueKey('search-word-order-chip'),
         label: Text(context.settingsText('שמור על סדר המילים המקורי')),
         visualDensity: VisualDensity.compact,
+        showCheckmark: false,
         selected: !state.anyOrder,
         onSelected: (keepOrder) => _searchTab.searchBloc.add(
           _usesStagedSubmit
@@ -1809,6 +1811,7 @@ class _SearchDialogState extends State<SearchDialog> {
             key: ValueKey('plugin-search-dialog-$pluginId-${item.id}'),
             label: Text(item.title),
             visualDensity: VisualDensity.compact,
+            showCheckmark: false,
             selected: _pluginSelectionValue(pluginId, item),
             onSelected: (value) =>
                 _updatePluginSearchSelection(pluginId, item, value),

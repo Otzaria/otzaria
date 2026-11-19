@@ -673,6 +673,8 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
       final chip = FilterChip(
         label: Text(option),
         visualDensity: VisualDensity.compact,
+        // בלי וי: הוא מרחיב את הצ'יפ ומזיז את השכנים ב-Wrap (#5562).
+        showCheckmark: false,
         selected: isChecked,
         onSelected: !disabled
             ? (selected) {
