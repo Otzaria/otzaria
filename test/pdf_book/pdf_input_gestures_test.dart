@@ -279,6 +279,56 @@ void main() {
     await finish(tester);
   });
 
+  // זום שהגיע ממקור אחר אחרי האנימציה לא משאיר יעד ישן שמעוות את האיפוס.
+  testWidgets('איפוס הזום אחרי זום חיצוני חוזר ל-100%', (tester) async {
+    await pumpScreen(tester);
+    final controller = tab.pdfViewerController;
+    final bloc = tester.element(find.byType(PdfViewer)).read<PdfBookBloc>();
+    bloc.add(UpdateZoom(controller.currentZoom));
+    await tester.pump();
+
+    bloc.add(const ZoomIn());
+    for (var frame = 0; frame < 40; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await controller.setZoom(
+      controller.centerPosition,
+      2.0,
+      duration: Duration.zero,
+    );
+    await tester.pump();
+    bloc.add(const ResetZoom());
+    for (var frame = 0; frame < 40; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(controller.currentZoom, closeTo(1.0, 0.001));
+    await finish(tester);
+  });
+
+  testWidgets('התאמה באמצע אנימציית זום אינה נדרסת', (tester) async {
+    await pumpScreen(tester);
+    final controller = tab.pdfViewerController;
+    final bloc = tester.element(find.byType(PdfViewer)).read<PdfBookBloc>();
+    final zoom = controller.currentZoom;
+    bloc.add(UpdateZoom(zoom));
+    await tester.pump();
+
+    bloc.add(const ZoomIn());
+    await tester.pump(const Duration(milliseconds: 16));
+    bloc.add(
+      FitZoom(
+        zoom: zoom * 0.8,
+        center: controller.centerPosition,
+        animate: true,
+      ),
+    );
+    for (var frame = 0; frame < 40; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(controller.currentZoom / zoom, closeTo(0.8, 0.001));
+    await finish(tester);
+  });
+
   testWidgets('מגע אנכי מזיז PDF רחב בלי מעבר טאב', (tester) async {
     await pumpScreen(tester);
     final controller = tab.pdfViewerController;

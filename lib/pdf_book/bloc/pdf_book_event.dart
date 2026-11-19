@@ -290,7 +290,13 @@ class LoadPerBookSettings extends PdfBookEvent {
 
 /// Save per-book settings
 class SavePerBookSettings extends PdfBookEvent {
-  const SavePerBookSettings();
+  /// The zoom being animated to; the controller still has the old one.
+  final double? zoom;
+
+  const SavePerBookSettings({this.zoom});
+
+  @override
+  List<Object?> get props => [zoom];
 }
 
 /// Reset per-book settings

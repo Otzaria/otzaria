@@ -549,6 +549,7 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
         pdfController,
       );
     } else {
+      animator?.stop();
       pdfController.setZoom(
         center ?? pdfController.centerPosition,
         zoom,
@@ -561,7 +562,7 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
 
     emit(current.copyWith(zoom: zoom, showZoomBar: true));
     _startZoomBarTimer(emit);
-    add(const SavePerBookSettings());
+    add(SavePerBookSettings(zoom: zoom));
   }
 
   Future<void> _onSetLayoutMode(
@@ -854,7 +855,7 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
 
     double? zoom;
     try {
-      zoom = zoomAnimator?.zoomTarget ?? pdfController.value.zoom;
+      zoom = event.zoom ?? zoomAnimator?.zoomTarget ?? pdfController.value.zoom;
     } catch (e) {
       debugPrint('Warning: Could not get zoom from controller: $e');
     }

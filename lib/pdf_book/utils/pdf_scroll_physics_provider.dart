@@ -79,25 +79,38 @@ class _ZoomTargetTracker implements PdfViewerScrollInteractionDelegate {
   PdfViewerController? _controller;
   double? _zoomTarget;
 
-  double? get zoomTarget {
+  double? _lastZoom;
+
+  double? get zoomTarget => _zoomTarget;
+
+  /// היעד נמחק בנחיתה. זום שהתרחק ממנו בא ממקור אחר (goTo, setZoom), ואז
+  /// גם האנימציה נעצרת — אחרת ה-delegate היה מושך בחזרה ליעד הישן.
+  void _onControllerChanged() {
     final controller = _controller;
     final target = _zoomTarget;
-    if (controller == null || target == null || !controller.isReady) {
-      return null;
+    if (controller == null || !controller.isReady) return;
+    final zoom = controller.currentZoom;
+    final last = _lastZoom;
+    _lastZoom = zoom;
+    if (target == null) return;
+    if ((zoom - target).abs() < 1e-6) {
+      _zoomTarget = null;
+    } else if (last != null &&
+        (zoom - target).abs() > (last - target).abs() + 1e-6) {
+      stop();
     }
-    // ה-delegate נוחת בדיוק על היעד בסיום.
-    if ((controller.currentZoom - target).abs() < 1e-6) _zoomTarget = null;
-    return _zoomTarget;
   }
 
   @override
   void init(PdfViewerController controller, TickerProvider vsync) {
-    _controller = controller;
+    _controller?.removeListener(_onControllerChanged);
+    _controller = controller..addListener(_onControllerChanged);
     _inner.init(controller, vsync);
   }
 
   @override
   void dispose() {
+    _controller?.removeListener(_onControllerChanged);
     _zoomTarget = null;
     _controller = null;
     _inner.dispose();
@@ -124,7 +137,8 @@ class _ZoomTargetTracker implements PdfViewerScrollInteractionDelegate {
   ) {
     final controller = _controller;
     if (controller != null && controller.isReady) {
-      _zoomTarget = ((zoomTarget ?? controller.currentZoom) * scale).clamp(
+      _lastZoom = controller.currentZoom;
+      _zoomTarget = ((_zoomTarget ?? controller.currentZoom) * scale).clamp(
         layoutMetrics.minScale,
         layoutMetrics.maxScale,
       );
