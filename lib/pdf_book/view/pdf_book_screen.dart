@@ -4998,7 +4998,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       shown: shown,
       fits: fits,
       toPage: pdfNextFitIsPage(
-        zoom: controller.currentZoom,
+        zoom: _scrollPhysicsProvider.zoomTarget ?? controller.currentZoom,
         widthZoom: fits.width,
       ),
     );

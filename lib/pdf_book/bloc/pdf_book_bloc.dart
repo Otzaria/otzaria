@@ -540,23 +540,14 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     if (current is! PdfBookLoaded) return;
 
     final animator = zoomAnimator;
-    // מצב ה-bloc מתעדכן בזום הביניים; לחיצה רצופה נמדדת מהיעד שבדרך.
-    final zoom = zoomFrom(animator?.zoomTarget ?? current.zoom);
-    if (center == null && animate && animator != null) {
-      animator.zoomTo(
-        zoom,
-        pdfController.viewSize.center(Offset.zero),
-        pdfController,
-      );
-    } else {
+    final requestedZoom = zoomFrom(animator?.zoomTarget ?? current.zoom);
+    final zoom = animate && animator != null && center == null
+        ? requestedZoom.clamp(pdfController.minScale, pdfController.maxScale)
+        : requestedZoom;
+    final zoomCenter = center ?? pdfController.centerPosition;
+    if (!animate || animator?.zoomTo(zoom, zoomCenter) != true) {
       animator?.stop();
-      pdfController.setZoom(
-        center ?? pdfController.centerPosition,
-        zoom,
-        duration: animate && center != null
-            ? const Duration(milliseconds: 150)
-            : Duration.zero,
-      );
+      pdfController.setZoom(zoomCenter, zoom, duration: Duration.zero);
     }
     tab.savedZoom = zoom;
 

@@ -1,3 +1,4 @@
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:otzaria/widgets/misc/smooth_wheel_scroll.dart';
 import 'package:pdfrx/pdfrx.dart';
@@ -14,18 +15,17 @@ class StoppablePdfScrollPhysicsProvider
              // ברירת המחדל של pdfrx (12/שנייה) היא 250ms ל-95% מהדרך, כמעט
              // כפול מגלילת הטקסט — מעבר בין ספר ל-PDF הרגיש כשינוי מהירות.
              panFriction: SmoothWheelScroll.decayRatePerMs * 1000,
-             zoomFriction: SmoothWheelScroll.decayRatePerMs * 1000,
            );
 
   /// ה-delegate שאליו מועברת העבודה בפועל.
   final PdfViewerScrollInteractionDelegateProvider inner;
-  _ZoomTargetTracker? _delegate;
+  _PdfToolbarZoomDelegate? _delegate;
 
   @override
   PdfViewerScrollInteractionDelegate create() =>
-      _delegate = _ZoomTargetTracker(inner.create());
+      _delegate = _PdfToolbarZoomDelegate(inner.create());
 
-  /// יעד הזום של אנימציה שבדרך (מכפתור או מ-Ctrl+גלגלת), או null.
+  /// יעד הזום של פעולת סרגל שבדרך, או null.
   double? get zoomTarget => _delegate?.zoomTarget;
 
   /// עוצר אנימציית גלילה/זום שבדרך; ללא delegate פעיל אין פעולה.
@@ -41,26 +41,9 @@ class StoppablePdfScrollPhysicsProvider
     coverScale: 1,
   );
 
-  /// זום מונפש ל-[zoom] סביב [localFocalPoint], באותה החלקה כמו Ctrl+גלגלת.
-  /// ה-delegate מכפיל את היעד שבדרך, ולכן המקדם נמדד ממנו ולא מהזום הנוכחי.
-  void zoomTo(
-    double zoom,
-    Offset localFocalPoint,
-    PdfViewerController controller,
-  ) {
-    final delegate = _delegate;
-    if (delegate == null || !controller.isReady) return;
-    delegate.zoom(
-      zoom / (delegate.zoomTarget ?? controller.currentZoom),
-      localFocalPoint,
-      PdfViewerLayoutMetrics(
-        minScale: controller.minScale,
-        maxScale: controller.maxScale,
-        coverScale: controller.coverScale,
-        alternativeFitScale: controller.alternativeFitScale,
-      ),
-    );
-  }
+  /// זום מונפש למיקום המסמך [center]. ללא צפיין פעיל מחזיר false.
+  bool zoomTo(double zoom, Offset center) =>
+      _delegate?.zoomTo(zoom, center) ?? false;
 
   // זהות לפי המופע: pdfrx יוצר delegate חדש בכל שינוי provider, והמסך מחזיק
   // מופע יחיד לכל חיי ה-viewer.
@@ -71,61 +54,98 @@ class StoppablePdfScrollPhysicsProvider
   int get hashCode => identityHashCode(this);
 }
 
-/// עוקב אחרי יעד הזום שה-delegate הפיזיקלי צובר; היעד שלו עצמו פרטי.
-class _ZoomTargetTracker implements PdfViewerScrollInteractionDelegate {
-  _ZoomTargetTracker(this._inner);
+class _PdfToolbarZoomDelegate implements PdfViewerScrollInteractionDelegate {
+  _PdfToolbarZoomDelegate(this._inner);
 
+  static const _duration = Duration(milliseconds: 150);
   final PdfViewerScrollInteractionDelegate _inner;
   PdfViewerController? _controller;
+  TickerProvider? _vsync;
+  Ticker? _zoomTicker;
+  Matrix4? _lastZoomMatrix;
   double? _zoomTarget;
+  bool _writingZoomMatrix = false;
 
-  double? _lastZoom;
-
-  double? get zoomTarget => _zoomTarget;
-
-  /// היעד נמחק בנחיתה. זום שהתרחק ממנו בא ממקור אחר (goTo, setZoom), ואז
-  /// גם האנימציה נעצרת — אחרת ה-delegate היה מושך בחזרה ליעד הישן.
-  void _onControllerChanged() {
+  double? get zoomTarget {
     final controller = _controller;
-    final target = _zoomTarget;
-    if (controller == null || !controller.isReady) return;
-    final zoom = controller.currentZoom;
-    final last = _lastZoom;
-    _lastZoom = zoom;
-    if (target == null) return;
-    if ((zoom - target).abs() < 1e-6) {
-      _zoomTarget = null;
-    } else if (last != null &&
-        (zoom - target).abs() > (last - target).abs() + 1e-6) {
-      stop();
+    if (controller == null || !controller.isReady) return null;
+    return _writingZoomMatrix || controller.value == _lastZoomMatrix
+        ? _zoomTarget
+        : null;
+  }
+
+  bool zoomTo(double zoom, Offset center) {
+    final controller = _controller;
+    final vsync = _vsync;
+    if (controller == null || !controller.isReady || vsync == null) {
+      return false;
     }
+    stop();
+    controller.stopInteractiveViewerAnimation();
+    final begin = controller.value;
+    final end = controller.makeMatrixInSafeRange(
+      controller.calcMatrixFor(center, zoom: zoom),
+      forceClamp: true,
+    );
+    if (begin == end) return true;
+
+    final tween = Matrix4Tween(begin: begin, end: end);
+    _lastZoomMatrix = begin;
+    _zoomTarget = zoom;
+    _zoomTicker = vsync.createTicker((elapsed) {
+      if (zoomTarget == null) {
+        _stopZoom();
+        return;
+      }
+      final progress = (elapsed.inMicroseconds / _duration.inMicroseconds)
+          .clamp(0.0, 1.0);
+      if (progress == 0) return;
+      // setZoom מאפס את טיקר הניווט של pdfrx. כתיבת מטריצה מנורמלת מאפשרת לניווט לגבור.
+      _writingZoomMatrix = true;
+      try {
+        controller.value = tween.transform(
+          Curves.easeInOut.transform(progress),
+        );
+      } finally {
+        _writingZoomMatrix = false;
+      }
+      _lastZoomMatrix = controller.value;
+      if (progress == 1) _stopZoom();
+    })..start();
+    return true;
+  }
+
+  void _stopZoom() {
+    _zoomTicker?.dispose();
+    _zoomTicker = null;
+    _lastZoomMatrix = null;
+    _zoomTarget = null;
   }
 
   @override
   void init(PdfViewerController controller, TickerProvider vsync) {
-    _controller?.removeListener(_onControllerChanged);
-    _controller = controller..addListener(_onControllerChanged);
+    _controller = controller;
+    _vsync = vsync;
     _inner.init(controller, vsync);
   }
 
   @override
   void dispose() {
-    _controller?.removeListener(_onControllerChanged);
-    _zoomTarget = null;
+    _stopZoom();
     _controller = null;
+    _vsync = null;
     _inner.dispose();
   }
 
   @override
   void stop() {
-    _zoomTarget = null;
+    _stopZoom();
     _inner.stop();
   }
 
-  // pan עוצר את אנימציית הזום של ה-delegate.
   @override
   void pan(Offset delta, PdfViewerLayoutMetrics layoutMetrics) {
-    _zoomTarget = null;
+    _stopZoom();
     _inner.pan(delta, layoutMetrics);
   }
 
@@ -135,14 +155,7 @@ class _ZoomTargetTracker implements PdfViewerScrollInteractionDelegate {
     Offset focalPoint,
     PdfViewerLayoutMetrics layoutMetrics,
   ) {
-    final controller = _controller;
-    if (controller != null && controller.isReady) {
-      _lastZoom = controller.currentZoom;
-      _zoomTarget = ((_zoomTarget ?? controller.currentZoom) * scale).clamp(
-        layoutMetrics.minScale,
-        layoutMetrics.maxScale,
-      );
-    }
+    _stopZoom();
     _inner.zoom(scale, focalPoint, layoutMetrics);
   }
 }

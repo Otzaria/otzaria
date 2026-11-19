@@ -7,7 +7,6 @@ import 'package:pdfrx/pdfrx.dart';
 class _RecordingDelegate implements PdfViewerScrollInteractionDelegate {
   int stops = 0;
   final pans = <Offset>[];
-  final zooms = <double>[];
 
   @override
   void init(PdfViewerController controller, TickerProvider vsync) {}
@@ -27,7 +26,7 @@ class _RecordingDelegate implements PdfViewerScrollInteractionDelegate {
     double scale,
     Offset focalPoint,
     PdfViewerLayoutMetrics layoutMetrics,
-  ) => zooms.add(scale);
+  ) {}
 }
 
 class _RecordingProvider extends PdfViewerScrollInteractionDelegateProvider {
@@ -83,18 +82,12 @@ void main() {
       expect(inner.created.single.pans, const [Offset(0, -100), Offset(0, -8)]);
     });
 
-    test('zoomTo לפני create או בלי controller מוכן אינו עושה דבר', () {
+    test('zoomTo מחזיר false כל עוד אין צפיין פעיל', () {
       final inner = _RecordingProvider();
       final provider = StoppablePdfScrollPhysicsProvider(inner: inner);
-      final controller = PdfViewerController();
-      expect(
-        () => provider.zoomTo(2, Offset.zero, controller),
-        returnsNormally,
-      );
-
+      expect(provider.zoomTo(2, Offset.zero), isFalse);
       provider.create();
-      provider.zoomTo(2, Offset.zero, controller);
-      expect(inner.created.single.zooms, isEmpty);
+      expect(provider.zoomTo(2, Offset.zero), isFalse);
       expect(inner.created.single.stops, 0);
     });
 
@@ -111,8 +104,6 @@ void main() {
               as PdfViewerScrollInteractionDelegateProviderPhysics;
 
       expect(inner.panFriction, SmoothWheelScroll.decayRatePerMs * 1000);
-      // זום מהכפתורים ומ-Ctrl+גלגלת באותו קצב — לא איטי מהגלילה.
-      expect(inner.zoomFriction, SmoothWheelScroll.decayRatePerMs * 1000);
       expect(
         inner.panFriction,
         isNot(

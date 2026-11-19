@@ -61,10 +61,7 @@ void main() {
     directory.deleteSync(recursive: true);
   });
 
-  Future<void> pumpUntil(
-    WidgetTester tester,
-    bool Function() condition,
-  ) async {
+  Future<void> pumpUntil(WidgetTester tester, bool Function() condition) async {
     for (var i = 0; i < 100 && !condition(); i++) {
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 10)),
@@ -198,13 +195,9 @@ void main() {
     final first = controller.visibleRect.top;
     expect(first, greaterThan(initial));
     expect(first - initial, lessThan(controller.layout.pageLayouts[1].height));
-    tester.binding.handleAppLifecycleStateChanged(
-      AppLifecycleState.hidden,
-    );
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
     await tester.pump(const Duration(hours: 8));
-    tester.binding.handleAppLifecycleStateChanged(
-      AppLifecycleState.resumed,
-    );
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump();
     final resumed = controller.visibleRect.top;
     await wheel(tester);
@@ -329,6 +322,61 @@ void main() {
     await finish(tester);
   });
 
+  testWidgets('ניווט מונפש לעמוד גובר על זום מהסרגל', (tester) async {
+    await pumpScreen(tester);
+    final controller = tab.pdfViewerController;
+    final bloc = tester.element(find.byType(PdfViewer)).read<PdfBookBloc>();
+    bloc.add(UpdateZoom(controller.currentZoom));
+    await tester.pump();
+    bloc.add(const ZoomIn());
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump(const Duration(milliseconds: 16));
+
+    var navigationCompleted = false;
+    controller.goToPage(pageNumber: 7).then((_) => navigationCompleted = true);
+    for (var frame = 0; frame < 40; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(controller.pageNumber, 7);
+    expect(navigationCompleted, isTrue);
+    await finish(tester);
+  });
+
+  testWidgets('לחיצה כפולה מהירה על התאמה חוזרת ליעד ההתחלתי', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1440, 850);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    await pumpScreen(tester);
+    final controller = tab.pdfViewerController;
+    final shown = controller.layout.pageLayouts[controller.pageNumber! - 1];
+    final fits = pdfFitZooms(
+      shown: shown,
+      viewSize: controller.viewSize,
+      margin: controller.params.margin,
+    );
+    expect(fits.page, lessThan(fits.width * 0.98));
+    await controller.setZoom(
+      controller.centerPosition,
+      fits.width,
+      duration: Duration.zero,
+    );
+    await tester.pump();
+    final toPage = find.byTooltip(pdfFitButtonVisual(nextIsPage: true).tooltip);
+    final toWidth = find.byTooltip(
+      pdfFitButtonVisual(nextIsPage: false).tooltip,
+    );
+    expect(toPage, findsOneWidget);
+    await tester.tap(toPage);
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.tap(toWidth.evaluate().isNotEmpty ? toWidth : toPage);
+    for (var frame = 0; frame < 40; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(controller.currentZoom, closeTo(fits.width, 0.001));
+    await finish(tester);
+  });
+
   testWidgets('מגע אנכי מזיז PDF רחב בלי מעבר טאב', (tester) async {
     await pumpScreen(tester);
     final controller = tab.pdfViewerController;
@@ -376,9 +424,7 @@ void main() {
     await finish(tester);
   });
 
-  testWidgets('צביטת מגע עם הזזה מגדילה את ה-PDF בלי מעבר טאב', (
-    tester,
-  ) async {
+  testWidgets('צביטת מגע עם הזזה מגדילה את ה-PDF בלי מעבר טאב', (tester) async {
     await pumpScreen(tester);
     final controller = tab.pdfViewerController;
     final viewer = find.byType(PdfViewer);
@@ -500,9 +546,7 @@ void main() {
   for (final interruptedScale in [1.0, 1.2]) {
     testWidgets(
       'מחוות trackpad חדשה אחרי resume אינה יורשת נעילת ציר ישנה: scale=$interruptedScale',
-      (
-        tester,
-      ) async {
+      (tester) async {
         await pumpScreen(tester);
         final controller = tab.pdfViewerController;
         await controller.setZoom(
