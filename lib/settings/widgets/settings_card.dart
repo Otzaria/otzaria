@@ -646,6 +646,9 @@ class SettingsSwitchTile extends StatefulWidget {
   final ValueChanged<bool>? onChanged;
   final bool enabled;
 
+  /// פעולות קטנות לפני המתג; במסך צר הן והמתג יורדים מתחת לטקסט.
+  final List<Widget> extraActions;
+
   const SettingsSwitchTile({
     super.key,
     this.icon,
@@ -658,6 +661,7 @@ class SettingsSwitchTile extends StatefulWidget {
     required this.value,
     this.onChanged,
     this.enabled = true,
+    this.extraActions = const [],
   });
 
   @override
@@ -695,6 +699,8 @@ class _SettingsSwitchTileState extends State<SettingsSwitchTile> {
       skipTraversal: true,
       onKeyEvent: (_, event) {
         if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        // Enter על כפתור מ-extraActions שייך לכפתור, לא למתג.
+        if (!_focusNode.hasPrimaryFocus) return KeyEventResult.ignored;
         if (event.logicalKey == LogicalKeyboardKey.enter ||
             event.logicalKey == LogicalKeyboardKey.space) {
           _toggle();
@@ -712,11 +718,13 @@ class _SettingsSwitchTileState extends State<SettingsSwitchTile> {
         subtitleColor: widget.subtitleColor,
         enabled: widget.enabled,
         focusNode: _focusNode,
-        responsiveActions: false,
+        // עם פעולות נוספות הכותרת עלולה להיקטע במסך צר; אז הן יורדות מתחתיה.
+        responsiveActions: widget.extraActions.isNotEmpty,
         onTap: widget.enabled && widget.onChanged != null
             ? () => _toggle()
             : null,
         actions: [
+          ...widget.extraActions,
           ExcludeFocus(
             child: Switch(
               value: widget.value,

@@ -15,6 +15,7 @@ import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/diagnostics/app_context_snapshot.dart';
 import 'package:otzaria/core/diagnostics/developer_diagnostics.dart';
 import 'package:otzaria/core/info/os_version.dart';
+import 'package:otzaria/find_ref/find_ref_preference_store.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
@@ -173,6 +174,94 @@ void main() {
       diagnostics['state'],
       containsPair('commentatorsFontFamily', AppFonts.defaultCommentatorsFont),
     );
+  });
+
+  group('אבחון: הסדר האישי באיתור', () {
+    setUp(() async {
+      await Settings.init(cacheProvider: MemorySettingsCache());
+      await FindRefPreferenceStore.setEnabled(true);
+      FindRefPreferenceStore.clear();
+    });
+
+    test('מאגר ריק', () async {
+      final diagnostics = await AppReportCollector(
+        redactor: redactor,
+        clock: () => now,
+      ).collectDiagnostics();
+      expect((diagnostics['state'] as Map)['findRefPersonalOrder'], {
+        'enabled': true,
+        'books': 0,
+        'bases': 0,
+        'booksAffecting': 0,
+        'basesAffecting': 0,
+      });
+    });
+
+    test('כמה ספרים מעל סף הזיקה', () {
+      FindRefPreferenceStore.recordOpen((key: 'o|1', title: 'א'));
+      for (var i = 0; i < 3; i++) {
+        FindRefPreferenceStore.recordOpen((key: 'o|9', title: 'ט'));
+      }
+      // o|9 דועך ל-2.10, ו-o|4 מגיע ל-5.30.
+      for (var i = 0; i < 6; i++) {
+        FindRefPreferenceStore.recordOpen((key: 'o|4', title: 'ד'));
+      }
+
+      final summary = AppReportCollector.findRefPersonalOrderSummary();
+      expect(summary['books'], 3);
+      expect(summary['booksAffecting'], 2);
+      expect(summary['basesAffecting'], 2);
+      expect(summary, isNot(contains('booksStrong')));
+    });
+
+    test('ספר בסיס מעל הסף נספר גם כשאף מפרש שלו לא הגיע לסף', () {
+      // שלושה מפרשים שונים על אותו ספר: כל אחד נפתח פעם אחת בלבד.
+      for (final id in [21, 22, 23]) {
+        FindRefPreferenceStore.recordOpen(
+          (key: 'o|$id', title: 'מפרש $id'),
+          baseBooks: [(key: 'o|20', title: 'עירובין')],
+        );
+      }
+
+      final summary = AppReportCollector.findRefPersonalOrderSummary();
+      expect(summary['booksAffecting'], 0);
+      expect(summary['basesAffecting'], 1);
+    });
+
+    test('כשל בתקציר אינו מפיל את שאר שדות המצב', () async {
+      await Settings.setValue<int>(FindRefPreferenceStore.scoresKey, 5);
+      final diagnostics = await AppReportCollector(
+        redactor: redactor,
+        clock: () => now,
+      ).collectDiagnostics();
+      final state = diagnostics['state'] as Map;
+      expect(state['findRefPersonalOrder'], contains('error'));
+      expect(state, contains('fontFamily'));
+    });
+
+    test('מונים, ניקוד וכותרת רק לספר רשמי, גם כשהמתג כבוי', () async {
+      FindRefPreferenceStore.recordOpen((key: 'u|5', title: 'קובץ אישי'));
+      FindRefPreferenceStore.recordOpen(
+        (key: 'o|21', title: 'רשב"א על עירובין'),
+        baseBooks: [(key: 'o|20', title: 'עירובין')],
+      );
+      FindRefPreferenceStore.recordOpen((key: r'f|C:\x.pdf', title: 'x'));
+      await FindRefPreferenceStore.setEnabled(false);
+
+      expect(AppReportCollector.findRefPersonalOrderSummary(), {
+        'enabled': false,
+        'books': 3,
+        'bases': 4,
+        'booksAffecting': 0,
+        'basesAffecting': 0,
+        'topBooks': ['1.00 f', '0.95 o|21 רשב"א על עירובין', '0.90 u|5'],
+        'topBases': [
+          '1.00 f',
+          '0.95 o|20 עירובין',
+          '0.95 o|21 רשב"א על עירובין',
+        ],
+      });
+    });
   });
 
   test('אבחון: פרופיל המשתמש מוסתר בכל המבנה', () async {

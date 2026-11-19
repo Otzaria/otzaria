@@ -699,6 +699,19 @@ class SeforimRepository {
     };
   }
 
+  /// כל טבלת `book_base_text` עם כותרת ספר הבסיס; ריק במסד שאין בו הטבלה.
+  Future<List<Map<String, dynamic>>> loadBookBaseTexts() async {
+    if (!(await _capabilities).has('book_base_text')) return const [];
+    final db = await _database.database;
+    return db
+        .select(
+          'SELECT bt.bookId AS bookId, bt.baseBookId AS baseBookId, '
+          'b.title AS baseTitle FROM book_base_text bt '
+          'JOIN book b ON b.id = bt.baseBookId',
+        )
+        .toMapList();
+  }
+
   // Insert an author and return its ID
   Future<int> insertAuthor(String name) async {
     // Check if author already exists
