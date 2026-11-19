@@ -194,6 +194,8 @@ class TrackedBookTitleSearch {
   void _onStall() {
     _stallTimer = null;
     if (_finished || _stallLogged) return;
+    // הקלדות נוספות בזמן תקיעה פותחות חיפושים שנתקעים באותו מקום — רשומה אחת מספיקה.
+    if (_owner._active.any((search) => search._stallLogged)) return;
     _stallLogged = true;
     _owner._log(
       'Library title search stall',

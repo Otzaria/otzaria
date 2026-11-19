@@ -298,15 +298,15 @@ class DataRepository {
       final catalog = cached != null && cached.matches(key)
           ? cached
           : _BookSearchCatalog.build(key, acronyms, generations);
+      tracked
+        ..catalogBuilt(catalog.books.length)
+        ..enter(BookTitleSearchStage.worker);
 
       if (supersedeKey != null &&
           !identical(_pendingBookSearches[supersedeKey], request)) {
         throw const BookSearchSupersededException();
       }
       if (reuseCatalog) _bookSearchCatalog = catalog;
-      tracked
-        ..catalogBuilt(catalog.books.length)
-        ..enter(BookTitleSearchStage.worker);
       final matches = await _bookSearchWorker.search(
         catalog.entries,
         BookSearchQuery(

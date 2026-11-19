@@ -83,6 +83,25 @@ void main() {
     });
   });
 
+  test('חיפושים נוספים שנתקעים באותו זמן אינם מוסיפים רשומות', () {
+    fakeAsync((async) {
+      final searches = registry(async);
+      final first = searches.start(words: 1, wholeLibrary: true)
+        ..enter(BookTitleSearchStage.acronyms);
+      async.elapse(const Duration(seconds: 10));
+      final second = searches.start(words: 2, wholeLibrary: true)
+        ..enter(BookTitleSearchStage.acronyms);
+      async.elapse(const Duration(seconds: 70));
+      expect(written.single.title, 'Library title search stall');
+      expect(written.single.details['Active searches'], '2');
+
+      second.finish();
+      first.finish();
+      expect(written.last.title, 'Library title search stall resolved');
+      expect(written, hasLength(2));
+    });
+  });
+
   test('קטלוג ריק בחיפוש בכל הספרייה נרשם פעם אחת בלבד', () {
     fakeAsync((async) {
       final searches = registry(async);
