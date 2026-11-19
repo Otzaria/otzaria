@@ -585,6 +585,7 @@ void main() {
       VoidCallback? onTap,
       ThemeData? theme,
       TextDirection direction = TextDirection.ltr,
+      DateTime? date,
     }) => MaterialApp(
       theme: theme,
       builder: (context, child) => MediaQuery(
@@ -604,8 +605,8 @@ void main() {
                 child: buildDayCell(
                   context,
                   cubit.state,
-                  _date,
-                  JewishDate.fromDateTime(_date),
+                  date ?? _date,
+                  JewishDate.fromDateTime(date ?? _date),
                   false,
                   onTap ?? () {},
                   () {},
@@ -628,6 +629,78 @@ void main() {
         );
       }
     }
+
+    testWidgets('אירוע משתמש לא נדחק מהתא ביום עמוס במועדים (issue #4820)', (
+      tester,
+    ) async {
+      // א' טבת: ראש חודש בחנוכה, שני מועדים בתא.
+      final busyDay = JewishDate.initDate(
+        jewishYear: 5787,
+        jewishMonth: JewishDate.TEVES,
+        jewishDayOfMonth: 1,
+      ).getGregorianCalendar();
+      final covered = <int>{};
+      for (final userEvents in [1, 2]) {
+        await cubit.addEvent(
+          title: 'שיעור $userEvents',
+          baseGregorianDate: busyDay,
+          recurrenceType: RecurrenceType.none,
+          eventTime: TimeOfDay(hour: 17 + userEvents, minute: 0),
+        );
+        for (var height = 40.0; height <= 200; height += 5) {
+          await tester.pumpWidget(
+            cellApp(
+              width: 150,
+              height: height,
+              date: busyDay,
+              direction: TextDirection.rtl,
+            ),
+          );
+          await tester.pumpAndSettle();
+          final slots = tester
+              .widget<DayExtras>(find.byType(DayExtras))
+              .maxVisibleItems;
+          if (slots < 1) continue;
+          covered.add(slots);
+          final scenario = 'events=$userEvents height=$height slots=$slots';
+          final inCell = find.descendant(
+            of: find.byType(DayExtras),
+            matching: find.byWidgetPredicate((w) => w is Text),
+          );
+          final texts = [
+            for (final e in inCell.evaluate())
+              (e.widget as Text).data ??
+                  (e.widget as Text).textSpan!.toPlainText(),
+          ];
+          final shownEvents = texts.where((t) => t.contains('שיעור')).length;
+          final shownHolidays = texts
+              .where((t) => !t.contains('שיעור') && !t.startsWith('+'))
+              .length;
+          expect(
+            texts.any((t) => t.contains('שיעור 1')),
+            isTrue,
+            reason: scenario,
+          );
+          if (slots >= 2) {
+            expect(shownHolidays, greaterThan(0), reason: scenario);
+          }
+          final hidden = 2 + userEvents - shownEvents - shownHolidays;
+          expect(
+            find.text('+$hidden'),
+            hidden > 0 ? findsOneWidget : findsNothing,
+            reason: scenario,
+          );
+          if (hidden == 0) {
+            expect(
+              texts.indexWhere((t) => t.contains('שיעור')),
+              2,
+              reason: scenario,
+            );
+          }
+        }
+      }
+      expect(covered, containsAll([1, 2, 3, 4]));
+    });
 
     testWidgets('+N סופר את הפריטים שאינם מוצגים גם כשהוא מחליף שורה', (
       tester,
