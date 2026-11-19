@@ -1114,7 +1114,7 @@ class BookTitleIndex {
   /// [titleMatchTokens] של [_matchTitles], בעצלתיים — רק מעטים מגיעים למסלול שצריך אותם.
   final Map<int, Set<String>> _matchTitleTokens = <int, Set<String>>{};
 
-  /// כינויי הספר ב-[bookNameSpellingForm], לפי אותו סדר. נבנים מחדש כשהקאש נטען מחדש.
+  /// כינויי הספר ב-[bookNameAcronymForm], לפי אותו סדר. נבנים מחדש כשהקאש נטען מחדש.
   final Map<int, (List<String>, List<String>)> _matchAcronyms =
       <int, (List<String>, List<String>)>{};
 
@@ -1199,17 +1199,16 @@ class BookTitleIndex {
           : scans.putIfAbsent(q, () {
               final words = q.split(' ');
               final mq = bookNameMatchForm(q);
-              final aq = [
-                bookNameSpellingForm(q),
-                if (mq != bookNameSpellingForm(q)) mq,
-              ];
+              final sq = bookNameAcronymForm(q);
+              final amq = bookNameAcronymForm(mq);
+              final aq = [sq, if (amq != sq) amq];
               return _QueryScan(
                 q,
                 mq,
                 aq,
                 words,
-                // מסננת הביגרמים חוסכת את המעבר על כינויי כל הספרים — כינוי שמתאים
-                // לצורה של השאילתה מכיל כל ביגרם שלה, כי הכינויים אינם משמיטים ה"א.
+                // מסננת הביגרמים חוסכת את המעבר על כינויי כל הספרים — כינוי מתאים מכיל כל
+                // ביגרם של השאילתה: אין השמטת ה"א, והשמטת " על" אינה יוצרת ביגרם חדש.
                 [for (final form in aq) _acronymCandidates(form)],
                 // בלעדיה כל שאילתה הייתה מריצה מרחק-עריכה על כל ספר.
                 _fuzzyCandidateBooks(words),
@@ -1436,7 +1435,7 @@ class BookTitleIndex {
   List<String> _matchAcronymsFor(int bookId, List<String> acronyms) {
     final cached = _matchAcronyms[bookId];
     if (cached != null && identical(cached.$1, acronyms)) return cached.$2;
-    final forms = acronyms.map(bookNameSpellingForm).toList(growable: false);
+    final forms = acronyms.map(bookNameAcronymForm).toList(growable: false);
     _matchAcronyms[bookId] = (acronyms, forms);
     return forms;
   }
@@ -1817,7 +1816,7 @@ class _QueryScan {
   /// [q] ב-[bookNameMatchForm] — מול כותרות.
   final String mq;
 
-  /// צורות [q] מול כינויים: [bookNameSpellingForm], ו-[mq] כשהיא שונה ממנה.
+  /// צורות [q] ו-[mq] מול כינויים, ב-[bookNameAcronymForm] (בלי כפילות).
   final List<String> acronymQueries;
   final List<String> words;
   late final List<String> matchWords = words

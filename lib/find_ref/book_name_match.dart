@@ -1,7 +1,7 @@
 /// צורת ההשוואה של שמות ספרים וכינויים באיתור מקורות, מעל [normalizeForFindRefMatch].
 ///
 /// חלה רק בהחלטה אם יש התאמה; התוצאה נושאת את הצורה הרגילה, כי בחיפוש הכותרות
-/// הפנימיות "דיינים" אינו "דינים". כינויים מושווים ב-[bookNameSpellingForm] בלבד.
+/// הפנימיות "דיינים" אינו "דינים". כינויים מושווים ב-[bookNameAcronymForm] בלבד.
 library;
 
 /// ראשי-תיבות שה"א הידיעה באה לפניהם ("הרמב"ם"), כפי שהכריע מחקר השמות של הספרייה.
@@ -30,6 +30,13 @@ String bookNameSpellingForm(String text) =>
     text.contains('וו') || text.contains('יי')
     ? text.replaceAll('וו', 'ו').replaceAll('יי', 'י')
     : text;
+
+/// צורת ההשוואה בין שאילתה לכינוי: [bookNameSpellingForm] בלי "על" שבין שתי
+/// מילים — כינויים נשמרו פעם "רשבא על בק" ופעם "רשבא בב" (#5599).
+String bookNameAcronymForm(String text) {
+  final t = bookNameSpellingForm(text);
+  return t.contains(' על ') ? t.replaceAll(' על ', ' ') : t;
+}
 
 const int _vav = 0x05D5;
 const int _yod = 0x05D9;
