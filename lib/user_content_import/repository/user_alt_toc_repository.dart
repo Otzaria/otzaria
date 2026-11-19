@@ -1,3 +1,4 @@
+import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/models/alt_toc_entry.dart';
 import 'package:otzaria/migration/models/alt_toc_structure.dart';
@@ -5,6 +6,14 @@ import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/text_book/utils/inline_section_markers.dart'
     show parashaHeadingLabel;
+
+typedef UserAltTocRow = ({
+  int id,
+  int? parentId,
+  int level,
+  int? lineIndex,
+  String text,
+});
 
 /// קריאת הכותרות החלופיות ('כותרות') של ספרים אישיים מ-user_books.db,
 /// באותם מודלים שהלשונית מקבלת מהספרייה הרשמית.
@@ -46,7 +55,7 @@ class UserAltTocRepository {
         AltTocStructure(
           id: row['id'] as int,
           bookId: row['bookId'] as int,
-          key: row['key'] as String,
+          key: row['key'] == 'פרשות' ? 'Parasha' : row['key'] as String,
           title: row['heTitle'] as String,
           heTitle: row['heTitle'] as String,
           source: BookSource.user,
@@ -75,44 +84,61 @@ class UserAltTocRepository {
   }
 
   /// הערכים עם השורה שלהם (null לכותרת-אב בלי שורה), בסדר הקובץ.
-  Future<
-    List<({int id, int? parentId, int level, int? lineIndex, String text})>
-  >
-  entriesWithLineIndex(int structureId) async {
+  Future<List<UserAltTocRow>> entriesWithLineIndex(int structureId) async {
     final db = await _db.database;
-    return [
-      for (final row in db.select(
-        'SELECT id, parentId, level, lineIndex, text FROM user_alt_toc_entry '
-        'WHERE structureId = ? ORDER BY id',
-        [structureId],
-      ))
-        (
-          id: row['id'] as int,
-          parentId: row['parentId'] as int?,
-          level: row['level'] as int,
-          lineIndex: row['lineIndex'] as int?,
-          text: row['text'] as String,
-        ),
-    ];
+    return db
+        .select(
+          'SELECT id, parentId, level, lineIndex, text FROM user_alt_toc_entry '
+          'WHERE structureId = ? ORDER BY id',
+          [structureId],
+        )
+        .map(_entryRow)
+        .toList();
+  }
+
+  /// ערכי כל המבנים החלופיים של הספר לפי סדר הייבוא.
+  Future<List<UserAltTocRow>> entriesForBook(int bookId) async {
+    final db = await _db.database;
+    return db
+        .select(
+          'SELECT e.id, e.parentId, e.level, e.lineIndex, e.text '
+          'FROM user_alt_toc_entry e '
+          'JOIN user_alt_toc_structure s ON s.id = e.structureId '
+          'WHERE s.bookId = ? ORDER BY e.id',
+          [bookId],
+        )
+        .map(_entryRow)
+        .toList();
+  }
+
+  static UserAltTocRow _entryRow(sqlite3.Row row) => (
+    id: row['id'] as int,
+    parentId: row['parentId'] as int?,
+    level: row['level'] as int,
+    lineIndex: row['lineIndex'] as int?,
+    text: row['text'] as String,
+  );
+
+  /// לכותרת-אב ללא שורה, מחזיר את שורת הצאצא הראשון לפי סדר הייבוא.
+  static Map<int, int> navigationLines(List<UserAltTocRow> rows) {
+    final lines = <int, int>{};
+    // הייבוא שומר כל אב לפני ילדיו. מעבר מהסוף משאיר לצדם את הצאצא הראשון.
+    for (final row in rows.reversed) {
+      final line = row.lineIndex ?? lines[row.id];
+      if (line == null) continue;
+      lines[row.id] = line;
+      final parent = row.parentId;
+      if (parent != null) lines[parent] = line;
+    }
+    return lines;
   }
 
   /// הקישור לשורת הכותרת. לכותרת-אב בלי שורה — שורת הצאצא הראשון שיש לו.
   Future<List<Link>> linksForEntry(int structureId, int entryId) async {
     final all = await entriesWithLineIndex(structureId);
-    final byId = {for (final e in all) e.id: e};
-    final entry = byId[entryId];
+    final entry = all.where((row) => row.id == entryId).firstOrNull;
     if (entry == null) return const [];
-
-    int? lineIndex = entry.lineIndex;
-    if (lineIndex == null) {
-      for (final candidate in all) {
-        if (candidate.lineIndex != null &&
-            _isDescendant(candidate.id, entryId, byId)) {
-          lineIndex = candidate.lineIndex;
-          break;
-        }
-      }
-    }
+    final lineIndex = entry.lineIndex ?? navigationLines(all)[entryId];
     if (lineIndex == null) return const [];
 
     final db = await _db.database;
@@ -152,10 +178,7 @@ class UserAltTocRepository {
   /// סימני החלוקה (עלי סימנים/סעיפים) והכותרות המוזרקות של הספר: כותרות
   /// הנושא כמות שהן, וכותרות הפרשה בצורת "פרשת…".
   Future<
-    ({
-      Map<int, String> markers,
-      List<({int lineIndex, String label})> headings,
-    })
+    ({Map<int, String> markers, List<({int lineIndex, String label})> headings})
   >
   inlineSectionRows(int bookId) async {
     final db = await _db.database;
@@ -169,36 +192,40 @@ class UserAltTocRepository {
     )) {
       markers[row['lineIndex'] as int] = row['text'] as String;
     }
-    // כמו במסד הרשמי: נושאים בכל הרמות, ופרשות ברמה העליונה בלבד (עליות
-    // שתחתיהן אינן מוזרקות). שם שאינו שם פרשה ("הקדמה") אינו מוזרק.
-    final headings = <({int lineIndex, String label})>[];
-    for (final row in db.select(
-      'SELECT s.key, e.lineIndex, e.text FROM user_alt_toc_structure s '
+    final rows = db.select(
+      'SELECT s.key, e.id, e.parentId, e.level, e.lineIndex, e.text '
+      'FROM user_alt_toc_structure s '
       'JOIN user_alt_toc_entry e ON e.structureId = s.id '
-      'WHERE s.bookId = ? AND e.lineIndex IS NOT NULL '
-      "AND (s.key = 'Topic' OR (s.key = 'Parasha' AND e.parentId IS NULL)) "
-      'ORDER BY e.lineIndex, e.level',
+      "WHERE s.bookId = ? AND ((s.key = 'Topic' AND e.lineIndex IS NOT NULL) "
+      "OR s.key IN ('Parasha', 'פרשות')) ORDER BY e.id",
       [bookId],
-    )) {
+    );
+    final lines = navigationLines(rows.map(_entryRow).toList());
+    final ordered = <({int lineIndex, int level, String label})>[];
+    for (final row in rows) {
+      final isTopic = row['key'] == 'Topic';
+      if (!isTopic && row['parentId'] != null) continue;
+      final lineIndex = lines[row['id']];
+      if (lineIndex == null) continue;
       final text = row['text'] as String;
-      final label = row['key'] == 'Parasha' ? parashaHeadingLabel(text) : text;
-      if (label == null) continue;
-      headings.add((lineIndex: row['lineIndex'] as int, label: label));
+      final label = isTopic ? text : parashaHeadingLabel(text);
+      if (label != null) {
+        ordered.add((
+          lineIndex: lineIndex,
+          level: row['level'] as int,
+          label: label,
+        ));
+      }
     }
-    return (markers: markers, headings: headings);
-  }
-
-  static bool _isDescendant(
-    int id,
-    int ancestorId,
-    Map<int, ({int id, int? parentId, int level, int? lineIndex, String text})>
-    byId,
-  ) {
-    var current = byId[id]?.parentId;
-    while (current != null) {
-      if (current == ancestorId) return true;
-      current = byId[current]?.parentId;
-    }
-    return false;
+    ordered.sort((a, b) {
+      final byLine = a.lineIndex.compareTo(b.lineIndex);
+      return byLine != 0 ? byLine : a.level.compareTo(b.level);
+    });
+    return (
+      markers: markers,
+      headings: [
+        for (final row in ordered) (lineIndex: row.lineIndex, label: row.label),
+      ],
+    );
   }
 }

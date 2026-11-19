@@ -2435,7 +2435,7 @@ class FindRefRepository {
     if (invalidateCache) {
       await repository.invalidateTocCacheIfChangedExternally();
     }
-    return _tocOf(repository, book);
+    return _tocOf(repository, book, includeUserAltToc: true);
   };
 
   /// ה-TOC של ספר משני; ריק עם זנב ראש-תיבות — חיפוש חוזר בלעדיו, כמו במסד הרשמי.
@@ -2443,8 +2443,9 @@ class FindRefRepository {
   /// הכותרות של ספר אישי), כמו ה-AltToc בקטלוג הרשמי.
   static Future<List<Map<String, dynamic>>> _secondaryToc(
     SeforimRepository repository,
-    _SecondaryTocRequest book,
-  ) async {
+    _SecondaryTocRequest book, {
+    required bool includeUserAltToc,
+  }) async {
     var toc = await repository.getTocEntriesForReference(
       book.bookId,
       book.bookTitle,
@@ -2458,13 +2459,14 @@ class FindRefRepository {
         queryTokens: fallback,
       );
     }
-    if (toc.any((entry) => entry['partialMatch'] != true)) return toc;
-    final alt = await repository.getAltTocEntriesForReference(
+    if (!includeUserAltToc ||
+        toc.any((entry) => entry['partialMatch'] != true)) {
+      return toc;
+    }
+    final alt = await repository.getUserAltTocEntriesForReference(
       book.bookId,
       book.bookTitle,
-      queryTokens: toc.isEmpty && fallback != null
-          ? fallback
-          : book.queryTokens,
+      queryTokens: fallback ?? book.queryTokens,
     );
     if (alt.isEmpty) return toc;
     return [
@@ -2563,10 +2565,15 @@ class FindRefRepository {
   /// כשל בספר אחד אינו מונע איתור בשאר הספרים.
   static Future<List<Map<String, dynamic>>> _tocOf(
     SeforimRepository repository,
-    _SecondaryTocRequest book,
-  ) async {
+    _SecondaryTocRequest book, {
+    bool includeUserAltToc = false,
+  }) async {
     try {
-      return await _secondaryToc(repository, book);
+      return await _secondaryToc(
+        repository,
+        book,
+        includeUserAltToc: includeUserAltToc,
+      );
     } catch (e) {
       debugPrint('[FindRef] secondary TOC lookup failed: $e');
       return const [];
