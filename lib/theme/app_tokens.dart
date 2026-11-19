@@ -52,6 +52,11 @@ class AppTokens {
     borderRadius: borderRadiusAll,
   );
 
+  /// גלולה — רק לתג "לפי הגדרה אחרת" ליד מתג ("כמו הניקוד", DD-32), בדומה
+  /// לגלולה של BarSplitButton. כל שאר הפינות מ־[roundedShape].
+  static StadiumBorder followChipShape(BorderSide side) =>
+      StadiumBorder(side: side);
+
   // ── Typography Scale — מקור ה-textTheme ב-AppThemeData (DD-02) ——————
   static const double fontXS = 11;
   static const double fontSM = 12;

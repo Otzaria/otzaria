@@ -218,9 +218,8 @@ abstract final class TextDisplayProfileEditor {
       toggled: linked,
       child: Material(
         color: linked ? AppSurfaces.followChipFill(cs) : Colors.transparent,
-        // ui-lint: allow UIL-019 — תג בחירה בצורת גלולה, כמו חצי BarSplitButton (הכרעת בעל הפרויקט 18.11, DD-32)
-        shape: StadiumBorder(
-          side: BorderSide(
+        shape: AppTokens.followChipShape(
+          BorderSide(
             width: linked ? 1.5 : 1,
             color: linked
                 ? AppSurfaces.followChipBorder(cs)
