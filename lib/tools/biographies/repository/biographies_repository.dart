@@ -131,9 +131,10 @@ class BiographiesRepository {
 
     // Built once per call, not in every comparison of the sort.
     final wholeWordPattern = RegExp('(^|\\s)${RegExp.escape(query)}(\$|\\s)');
-    final words = query.split(RegExp(r'\s+'));
+    final titleVariant = _cohenVariantPhrase(query);
 
     final ranked = <_RankedBiography>[];
+    final variants = <_RankedBiography>[];
     for (final bio in entries) {
       final names = _normalizedNames[bio] ??= [
         _normalize(bio.name),
@@ -141,52 +142,72 @@ class BiographiesRepository {
       ];
       // A match on the name ranks before an equal match on another name, but
       // an exact other name ("הרמב"ם") ranks before a partial match on a name.
-      var rank = _matchRank(names.first, query, wholeWordPattern, words) * 2;
+      var rank =
+          _matchRank(names.first, query, wholeWordPattern, titleVariant) * 2;
       for (var i = 1; i < names.length; i++) {
         final aliasRank =
-            _matchRank(names[i], query, wholeWordPattern, words) * 2 + 1;
+            _matchRank(names[i], query, wholeWordPattern, titleVariant) * 2 + 1;
         if (aliasRank < rank) rank = aliasRank;
       }
-      if (rank < _noMatch * 2) ranked.add(_RankedBiography(bio, rank));
+      if (rank < _titleVariantRank * 2) {
+        ranked.add(_RankedBiography(bio, rank));
+      } else if (rank < _noMatch * 2) {
+        variants.add(_RankedBiography(bio, rank));
+      }
     }
 
-    ranked.sort((a, b) {
+    int compare(_RankedBiography a, _RankedBiography b) {
       final rankCompare = a.rank.compareTo(b.rank);
       if (rankCompare != 0) return rankCompare;
       return a.bio.name.compareTo(b.bio.name);
-    });
+    }
 
-    return ranked.map((r) => r.bio).toList();
+    // List.sort is unstable for ties. Keep the original matches sorted alone.
+    ranked.sort(compare);
+    variants.sort(compare);
+    return [for (final r in ranked) r.bio, for (final r in variants) r.bio];
   }
 
+  static const int _titleVariantRank = 4;
   static const int _noMatch = 5;
 
   /// The name and other names after [_normalize], kept between keystrokes.
   static final _normalizedNames = Expando<List<String>>();
 
-  /// Lower is closer: exact < starts with < whole word < contains < contains
-  /// every word of the query, in any order and with or without a leading ה'
-  /// ("שבתי כהן" finds "שבתי הכהן" and the other way round).
+  static const _wordSeparator = r'''[^\p{L}\p{M}\p{N}"']''';
+  static final _wordSeparators = RegExp('$_wordSeparator+', unicode: true);
+
+  // An explicit הכהן in the query remains specific to that spelling.
+  static RegExp? _cohenVariantPhrase(String query) {
+    if (!query.contains('כהן')) return null;
+    final words = query.split(_wordSeparators).where((word) => word.isNotEmpty);
+    if (words.length < 2 || !words.contains('כהן')) return null;
+    final phrase = words
+        .map((word) => word == 'כהן' ? 'ה?כהן' : RegExp.escape(word))
+        .join('$_wordSeparator+');
+    return RegExp(
+      '(?:^|$_wordSeparator)$phrase(?:\$|$_wordSeparator)',
+      unicode: true,
+    );
+  }
+
+  /// Lower is closer: exact < starts with < whole word < contains < alternate title.
   static int _matchRank(
     String name,
     String query,
     RegExp wholeWordPattern,
-    List<String> words,
+    RegExp? titleVariant,
   ) {
     if (name == query) return 0;
     if (name.startsWith(query)) return 1;
     // A whole-word match is also a contains match; most names have neither.
     if (!name.contains(query)) {
-      final allWords =
-          words.length > 1 &&
-          words.every(
-            (w) =>
-                name.contains(w) ||
-                (w.length > 1 &&
-                    w.startsWith('ה') &&
-                    name.contains(w.substring(1))),
-          );
-      return allWords ? 4 : _noMatch;
+      if (titleVariant != null &&
+          name.contains('כהן') &&
+          titleVariant.hasMatch(name)) {
+        return _titleVariantRank;
+      }
+      return _noMatch;
     }
     return wholeWordPattern.hasMatch(name) ? 2 : 3;
   }
