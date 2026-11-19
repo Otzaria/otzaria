@@ -15,8 +15,13 @@ class TouchTabSwipeRecognizer extends HorizontalDragGestureRecognizer {
 
   final Map<int, Offset> _downPointers = {};
 
+  /// התזוזה המצטברת של האצבע הראשונה במחווה האחרונה, בשני הצירים.
+  Offset get pan => _pan;
+  Offset _pan = Offset.zero;
+
   @override
   void addAllowedPointer(PointerDownEvent event) {
+    if (_downPointers.isEmpty) _pan = Offset.zero;
     _downPointers[event.pointer] = Offset.zero;
     super.addAllowedPointer(event);
   }
@@ -24,6 +29,7 @@ class TouchTabSwipeRecognizer extends HorizontalDragGestureRecognizer {
   @override
   void handleEvent(PointerEvent event) {
     if (event is PointerMoveEvent) {
+      if (event.pointer == _downPointers.keys.first) _pan += event.delta;
       _downPointers[event.pointer] =
           _downPointers[event.pointer]! + event.delta;
     } else if (event is PointerUpEvent || event is PointerCancelEvent) {

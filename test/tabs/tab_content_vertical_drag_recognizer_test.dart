@@ -52,8 +52,10 @@ void main() {
     expect(await swipeStarted(tester, contentIsWebView: true), isFalse);
   });
 
-  testWidgets('מעל PDF הבולען ממתין לגלילה של התוכן (#1982)', (tester) async {
-    // אין כאן מזהה גלילה של PDF, ולכן ההחלקה זוכה לפני הסף הכפול.
+  testWidgets('בלי WebView נשמר הסף הכפול שממתין לגלילת PDF (#1982)', (
+    tester,
+  ) async {
+    // אין כאן מזהה גלילה של תוכן, ולכן ההחלקה זוכה לפני הסף הכפול.
     expect(await swipeStarted(tester, contentIsWebView: false), isTrue);
   });
 }

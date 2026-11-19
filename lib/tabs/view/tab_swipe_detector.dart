@@ -81,7 +81,7 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
                 TabContentVerticalDragRecognizer
               >(
                 () => TabContentVerticalDragRecognizer(
-                  contentIsWebView: widget.activePaneIsWebView,
+                  contentIsWebView: () => widget.activePaneIsWebView(),
                 ),
                 (recognizer) => recognizer.onStart = (_) {},
               ),
@@ -136,9 +136,11 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
       ..onEnd = (details) {
         _settle(
           details.velocity.pixelsPerSecond.dx,
-          crossAxisDistance: recognizer is TrackpadTabSwipeRecognizer
-              ? recognizer.pan.dy.abs()
-              : 0,
+          crossAxisDistance: switch (recognizer) {
+            TrackpadTabSwipeRecognizer() => recognizer.pan.dy.abs(),
+            TouchTabSwipeRecognizer() => recognizer.pan.dy.abs(),
+            _ => 0,
+          },
         );
       }
       ..onCancel = () {

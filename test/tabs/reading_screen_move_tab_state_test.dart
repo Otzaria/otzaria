@@ -754,6 +754,56 @@ void main() {
             expectTab(tester, bloc, 2);
           }
         });
+
+        testWidgets('$name: גלילה אנכית במגע שמתחילה בסטייה אופקית (#3048)', (
+          tester,
+        ) async {
+          final bloc = await pumpMiddle(tester, textDirection: textDirection);
+          final detector = tester.widget<RawGestureDetector>(
+            find.byWidgetPredicate(
+              (w) => w is RawGestureDetector && w.child is PageView,
+            ),
+          );
+          // תוכן בלי מזהי גלילה, כמו PDF שה-pan שלו הפסיד להחלקה.
+          final entry = OverlayEntry(
+            builder: (_) => Positioned.fill(
+              child: RawGestureDetector(
+                gestures: detector.gestures,
+                child: const ColoredBox(color: Colors.white),
+              ),
+            ),
+          );
+          Overlay.of(tester.element(find.byType(PageView))).insert(entry);
+          addTearDown(() {
+            entry.remove();
+            entry.dispose();
+          });
+          await tester.pump();
+          final center = tester.getCenter(find.byType(PageView));
+          for (final sign in [forward, -forward]) {
+            final gesture = await tester.startGesture(
+              center,
+              kind: PointerDeviceKind.touch,
+            );
+            var ms = 0;
+            for (final delta in [
+              Offset(sign * 30, -2),
+              Offset(sign * 20, -78),
+              Offset(sign * 15, -100),
+              Offset(sign * 15, -120),
+            ]) {
+              ms += 10;
+              await gesture.moveBy(
+                delta,
+                timeStamp: Duration(milliseconds: ms),
+              );
+              await tester.pump(const Duration(milliseconds: 10));
+            }
+            await gesture.up(timeStamp: Duration(milliseconds: ms + 10));
+            await tester.pumpAndSettle();
+            expectTab(tester, bloc, 2);
+          }
+        });
       }
     });
 
