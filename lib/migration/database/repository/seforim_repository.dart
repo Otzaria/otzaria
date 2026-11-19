@@ -2243,34 +2243,67 @@ extension BookAcronymRepository on SeforimRepository {
         ? await _buildAltTocCacheForBook(bookId, bookTitle)
         : const <AltTocIndexEntry>[];
     if (compactEntries?.isNotEmpty ?? altCache.isNotEmpty) {
-      // ציטוט דף, או טוקן בודד שה-AltToc כבר מוצא ("זהר לו"), מטופלים שם.
-      // אחרת ("בית יוסף תקיב") מותר לדלג על חלק ביניים, בהתאמה לכותרת היעד עצמה.
-      if (_isDafCitationForAltTocFallback(queryTokens) ||
-          (queryTokens.length == 1 &&
-              (index != null
-                  ? _searchAltTocFlat(
-                      compactEntries!,
-                      queryTokens,
-                      ownTokensOf: index._ownTokensOf,
-                      pathTokensOf: index.refTokensOf,
-                      refMaskOf: (i) => index.refMasks[i],
-                    ).isNotEmpty
-                  : _searchAltTocFlat(
-                      altCache,
-                      queryTokens,
-                      ownTokensOf: (entry) => entry.ownTokens,
-                      pathTokensOf: (entry) => entry.pathTokens,
-                    ).isNotEmpty))) {
+      late final hasAltMatch = index != null
+          ? _searchAltTocFlat(
+              compactEntries!,
+              queryTokens,
+              ownTokensOf: index._ownTokensOf,
+              pathTokensOf: index.refTokensOf,
+              refMaskOf: (i) => index.refMasks[i],
+            ).isNotEmpty
+          : _searchAltTocFlat(
+              altCache,
+              queryTokens,
+              ownTokensOf: (entry) => entry.ownTokens,
+              pathTokensOf: (entry) => entry.pathTokens,
+            ).isNotEmpty;
+
+      final isDafCitation = _isDafCitationForAltTocFallback(queryTokens);
+      if (queryTokens.length == 1 && hasAltMatch) return const [];
+      if (isDafCitation &&
+          (queryTokens.contains('דף') || queryTokens.contains('עמוד'))) {
         return const [];
       }
-      return _searchTocFlat(
+      if (!isDafCitation) {
+        final strict = _searchTocFlat(
+          cache,
+          queryTokens,
+          requireAllTokensInOwnHeading: true,
+        );
+        if (strict.isNotEmpty) return strict.map((e) => e.toMap()).toList();
+      }
+
+      // אות א/ב יכולה לציין גם סעיף קטן וגם עמוד. התאמה תחת סימן
+      // מותרת רק כשהמבנה החלופי אינו מציע יעד קיים.
+      final underTitle = _searchUnderTitleHeading(
         cache,
         queryTokens,
-        requireAllTokensInOwnHeading: true,
-      ).map((e) => e.toMap()).toList();
+        simanimOnly: isDafCitation,
+      );
+      if (underTitle.isEmpty || hasAltMatch) return const [];
+      return underTitle.map((e) => e.toMap()).toList();
     }
 
-    return _searchTocFlat(cache, queryTokens).map((e) => e.toMap()).toList();
+    final flat = _searchTocFlat(cache, queryTokens);
+    return (flat.isEmpty ? _searchUnderTitleHeading(cache, queryTokens) : flat)
+        .map((e) => e.toMap())
+        .toList();
+  }
+
+  /// שם הספר כבר נצרך מהשאילתה, וכשכותרת שם הספר היא השורש ("חוות דעת צד י")
+  /// מנסים שוב מילדיה. רק התאמה שלמה, כדי לא להחליף "לא נמצא" בניחוש.
+  List<_CachedTocEntry> _searchUnderTitleHeading(
+    _TocBookCache cache,
+    List<String> tokens, {
+    bool simanimOnly = false,
+  }) {
+    final children = cache.titleHeadingChildren;
+    if (children.isEmpty) return const [];
+    final roots = simanimOnly
+        ? children.where((e) => e.ownTokens.firstOrNull == 'סימן').toList()
+        : children;
+    final result = _searchTocHierarchically(cache, tokens, roots: roots);
+    return result.complete ? result.matches : const [];
   }
 
   /// [parseDafCitation] מקבל בכוונה כל רצף קצר של אותיות עבריות, כדי לתמוך
@@ -2740,6 +2773,7 @@ extension BookAcronymRepository on SeforimRepository {
       all: built,
       rootEntries: rootEntries,
       childrenByParentId: childrenByParentId,
+      titleHeadingChildren: childrenByParentId[titleHeadingId] ?? const [],
       titleHeadingTokens: titleHeadingId == null
           ? const []
           : tokensByTextId[roots.single.textId]!,
@@ -2753,20 +2787,22 @@ extension BookAcronymRepository on SeforimRepository {
   /// [complete] = false כשהירידה נעצרה לפני סוף השאילתה ("פרק א" ל"א ב").
   ({List<_CachedTocEntry> matches, bool complete}) _searchTocHierarchically(
     _TocBookCache cache,
-    List<String> tokens,
-  ) {
+    List<String> tokens, {
+    List<_CachedTocEntry>? roots,
+  }) {
+    final rootEntries = roots ?? cache.rootEntries;
     // קיצור ציטוט-דף: כשהרמה העליונה מורכבת מערכי "דף" (מסכת גמרא רגילה)
     // והשאילתה היא ציטוט דף, התאמה מיקומית מכריעה — גם כשהתוצאה ריקה.
     // נפילה לחיפוש הרגיל הייתה מציפה: טוקן "ב" בודד נתפס ע"י סימון צד ע"ב
     // של כל דף (פירוש דליל שאין בו דף ב' החזיר את דפי ה:/ו:/ז:).
     final cite = parseDafCitation(tokens);
     if (cite != null) {
-      final rootHasDaf = cache.rootEntries.any(
+      final rootHasDaf = rootEntries.any(
         (e) => e.ownTokens.isNotEmpty && e.ownTokens.first == 'דף',
       );
       if (rootHasDaf) {
         return (
-          matches: cache.rootEntries
+          matches: rootEntries
               .where((e) => matchDafCitation(e.ownTokens, cite) == true)
               .toList(),
           complete: true,
@@ -2774,7 +2810,7 @@ extension BookAcronymRepository on SeforimRepository {
       }
     }
 
-    var searchScope = cache.rootEntries;
+    var searchScope = rootEntries;
     var currentMatches = <_CachedTocEntry>[];
 
     for (var i = 0; i < tokens.length; i++) {
@@ -3298,6 +3334,9 @@ class _TocBookCache {
   /// מיפוי id → ילדים ישירים (ממוינים לפי segment).
   final Map<int, List<_CachedTocEntry>> childrenByParentId;
 
+  /// ילדי כותרת שם הספר, כשהיא השורש היחיד של ה-TOC.
+  final List<_CachedTocEntry> titleHeadingChildren;
+
   /// מילות השורש שקוצר בתצוגה; משותפות רק לספר שכל ערכיו תחת אותו שורש.
   final List<String> titleHeadingTokens;
 
@@ -3315,6 +3354,7 @@ class _TocBookCache {
     required this.all,
     required this.rootEntries,
     required this.childrenByParentId,
+    this.titleHeadingChildren = const [],
     this.hasBareDafHeadings = false,
     this.titleHeadingTokens = const [],
   });
