@@ -29,7 +29,7 @@ environment:
   sdk: ">=3.12.0 <4.0.0"
 
 dependencies:
-  sentry_flutter: ^10.4.0
+  sentry_flutter: ^10.6.0
   flutter:
     sdk: flutter
   otzaria_context_menu:
@@ -247,13 +247,6 @@ dependency_overrides:
       url: https://github.com/Otzaria/flutter_local_notifications
       ref: 0943fb8a6ee58b2aaabc578835d0019e54b3133e
       path: flutter_local_notifications_windows
-  # TODO: להחזיר ל-pub.dev כשימוזג וישוחרר getsentry/sentry-dart#4094 (ענף feat/nonblocking-native-init:
-  # טעינת sentry.dll, sentry_init, עדכוני ה-scope וה-close ב-worker isolate ב-Windows).
-  sentry_flutter:
-    git:
-      url: https://github.com/Otzaria/sentry-dart
-      ref: c3a1edeb3a0a509720ea8561122eaecf46d21c36
-      path: packages/flutter
   # TODO: לחזור ל-pub.dev (printing, pdf, pdf_widget_wrapper) אחרי מיזוג ושחרור DavBfr/dart_pdf#1976, #1984-#1988,
   # #1993-#1996, #2005, #2008-#2027. קומיט בענף otzaria/integration.
   printing:
