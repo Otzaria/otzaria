@@ -823,6 +823,13 @@ class _SearchDialogState extends State<SearchDialog> {
                 ..clear()
                 ..addAll(bookmark.spacingValues!);
             }
+            // היקף ריק בהיסטוריה פירושו כל הספרייה (כמו במסך ההיסטוריה).
+            final scope = bookmark.searchScopeFacets;
+            setState(
+              () => _scopeSelection = scope == null || scope.isEmpty
+                  ? {'/'}
+                  : scope.toSet(),
+            );
 
             _historyMenuController.close();
             _searchTab.searchFieldFocusNode.requestFocus();
