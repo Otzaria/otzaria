@@ -27,12 +27,26 @@ class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-/// שורת "ציוני המפרשים" בפאנל הסרגל חלה גם על המפרשים (#2372).
+/// המתג בשורה שהכותרת שלה [title]; [last] — המופע האחרון (מקטע המפרשים).
+Finder _switchOf(String title, {bool last = false}) {
+  final text = last ? find.text(title).last : find.text(title).first;
+  final row = find.ancestor(of: text, matching: find.byType(Row)).first;
+  return find.descendant(of: row, matching: find.byType(Switch));
+}
+
+Future<void> _tap(WidgetTester tester, Finder finder) async {
+  await tester.ensureVisible(finder);
+  await tester.pumpAndSettle();
+  await tester.tap(finder);
+  await tester.pumpAndSettle();
+}
+
+/// חלונית הסרגל מעל TextBookBloc אמיתי.
 void main() {
   setUpAll(() => Settings.init(cacheProvider: MemoryCacheProvider()));
 
-  testWidgets('ציוני המפרשים בפאנל: שינוי למפרשים לא נוגע בגוף', (
-    tester,
+  Future<TextBookBloc> pumpPanel(
+    WidgetTester tester,
   ) async {
     final book = TextBook(title: 'ספר בדיקה');
     final bloc = TextBookBloc(
@@ -82,15 +96,22 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    return bloc;
+  }
 
-    // טבלה: שם השורה פעם אחת, ותא לכל מקטע (q12 Q7).
+  /// שורת "ציוני המפרשים" בפאנל הסרגל חלה גם על המפרשים (#2372).
+  testWidgets('ציוני המפרשים בפאנל: שינוי למפרשים לא נוגע בגוף', (
+    tester,
+  ) async {
+    final bloc = await pumpPanel(tester);
+
+    // מקטע המפרשים מקופל: רק שורת הציונים של גוף הספר גלויה.
     expect(find.text('ציוני המפרשים'), findsOneWidget);
+    await _tap(tester, find.text('מפרשים'));
+    expect(find.text('ציוני המפרשים'), findsNWidgets(2));
 
-    // "הסתר" האחרון בפאנל שייך לשורת הציונים של מקטע המפרשים.
-    final hide = find.text('הסתר').last;
-    await tester.ensureVisible(hide);
-    await tester.tap(hide);
-    await tester.pumpAndSettle();
+    // שורת הציונים האחרונה שייכת למקטע המפרשים.
+    await _tap(tester, _switchOf('ציוני המפרשים', last: true));
 
     final state = bloc.state as TextBookLoaded;
     expect(
@@ -108,5 +129,17 @@ void main() {
           .showAnchorMarkers,
       isFalse,
     );
+  });
+
+  testWidgets('"איפוס" מנקה את כל העקיפות', (tester) async {
+    final bloc = await pumpPanel(tester);
+
+    await _tap(tester, _switchOf('ניקוד'));
+    await _tap(tester, find.text('איפוס'));
+
+    final state = bloc.state as TextBookLoaded;
+    expect(state.displayOverrides.isEmpty, isTrue);
+    expect(state.bodyDisplayProfile.removeNikud, isFalse);
+    expect(find.text('איפוס'), findsNothing);
   });
 }

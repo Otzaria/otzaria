@@ -6,8 +6,11 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/settings/tabs/text_display_settings_section.dart';
+import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' show HolyNameStyle;
+import 'package:otzaria/widgets/controls/segmented_control.dart';
+import 'package:otzaria/widgets/misc/app_dropdown_field.dart';
 import 'package:otzaria/widgets/layout/expandable_card.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
@@ -37,6 +40,17 @@ Finder _caseSection(String bookClass, TextDisplaySlot slot) =>
 
 Finder _inSection(Finder section, String text) =>
     find.descendant(of: section, matching: find.text(text));
+
+/// המתג של שורה בכרטיס (ניקוד, סימני פיסוק, ציוני המפרשים).
+Finder _switchTile(Finder scope, String title) => find.descendant(
+  of: find
+      .ancestor(
+        of: find.descendant(of: scope, matching: find.text(title)),
+        matching: find.byType(SettingsSwitchTile),
+      )
+      .first,
+  matching: find.byType(Switch),
+);
 
 void main() {
   setUpAll(() => Settings.init(cacheProvider: MemoryCacheProvider()));
@@ -110,8 +124,8 @@ void main() {
       // שורת הציונים מוצגת גם בעורך המפרשים (#2372).
       expect(_inSection(section, 'ציוני המפרשים'), findsOneWidget);
 
-      // "הסתר" הראשון בעורך שייך לשורת הניקוד.
-      await tapVisible(tester, _inSection(section, 'הסתר').first);
+      // הניקוד מוצג (יורש מהתצוגה); המתג מסתיר אותו.
+      await tapVisible(tester, _switchTile(section, 'ניקוד'));
 
       expect(
         bloc.state.textDisplayPolicy.general.patchFor(
@@ -201,7 +215,7 @@ void main() {
     final section = _caseSection('general', TextDisplaySlot.commentaryDisplay);
 
     await tapVisible(tester, _inSection(section, 'במפרשים'));
-    await tapVisible(tester, _inSection(section, 'הסתר').first);
+    await tapVisible(tester, _switchTile(section, 'ניקוד'));
 
     expect(
       bloc.state.textDisplayPolicy.general.patchFor(
@@ -312,10 +326,9 @@ void main() {
             matching: find.byType(ExpandableCard),
           )
           .first;
-      await tapVisible(
-        tester,
-        find.descendant(of: picker, matching: find.text('הצג')).first,
-      );
+      final nikud = _switchTile(picker, 'ניקוד');
+      expect(tester.widget<Switch>(nikud).value, isFalse);
+      await tapVisible(tester, nikud);
 
       final policy = bloc.state.textDisplayPolicy;
       expect(
@@ -351,7 +364,7 @@ void main() {
     final section = _caseSection('tanach', TextDisplaySlot.root);
 
     await tapVisible(tester, _inSection(section, 'בתנ"ך'));
-    await tapVisible(tester, _inSection(section, 'הסתר').first);
+    await tapVisible(tester, _switchTile(section, 'ניקוד'));
 
     expect(
       bloc.state.textDisplayPolicy.tanach.patchFor(TextDisplaySlot.root),
@@ -360,5 +373,144 @@ void main() {
         holyName: HolyNameDisplay.kufKuf,
       ),
     );
+  });
+
+  group('פקדי הכרטיס (DD-32)', () {
+    Future<_PolicySettingsBloc> pumpRoot(
+      WidgetTester tester,
+      TextDisplayPolicy policy,
+    ) async {
+      final bloc = _PolicySettingsBloc(policy);
+      addTearDown(bloc.close);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(size: Size(1400, 900)),
+            child: Scaffold(
+              body: BlocProvider<SettingsBloc>.value(
+                value: bloc,
+                child: const SingleChildScrollView(
+                  child: TextDisplaySettingsCard(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return bloc;
+    }
+
+    testWidgets('ניקוד, סימני פיסוק וציוני המפרשים — מתגים', (tester) async {
+      final bloc = await pumpRoot(tester, TextDisplayPolicy.empty);
+      final card = find.byType(TextDisplaySettingsCard);
+
+      for (final title in ['ניקוד', 'סימני פיסוק', 'ציוני המפרשים']) {
+        final toggle = _switchTile(card, title);
+        expect(toggle, findsOneWidget, reason: title);
+        expect(tester.widget<Switch>(toggle).value, isTrue, reason: title);
+      }
+      // אין יותר בורר "הצג | הסתר".
+      expect(find.text('הצג'), findsNothing);
+      expect(find.text('הסתר'), findsNothing);
+
+      await tapVisible(tester, _switchTile(card, 'סימני פיסוק'));
+      expect(
+        bloc.state.textDisplayPolicy.resolve(TextDisplaySlot.root).punctuation,
+        MarkVisibility.hide,
+      );
+      expect(
+        tester.widget<Switch>(_switchTile(card, 'סימני פיסוק')).value,
+        isFalse,
+      );
+
+      // לחיצה על השורה עצמה (לא על המתג) משנה גם היא.
+      await tapVisible(
+        tester,
+        find.descendant(of: card, matching: find.text('ציוני המפרשים')),
+      );
+      expect(
+        bloc.state.textDisplayPolicy
+            .resolve(TextDisplaySlot.root)
+            .anchorMarkers,
+        MarkVisibility.hide,
+      );
+    });
+
+    testWidgets('שם הוי"ה — תפריט עם חמשת הנוסחים', (tester) async {
+      final bloc = await pumpRoot(tester, TextDisplayPolicy.empty);
+      final dropdown = find.byType(AppDropdownField<HolyNameDisplay>);
+      expect(dropdown, findsOneWidget);
+      final entries = tester
+          .widget<AppDropdownField<HolyNameDisplay>>(dropdown)
+          .entries;
+      expect(
+        entries.map((e) => e.value).toSet(),
+        HolyNameDisplay.values.toSet(),
+      );
+      expect(entries.map((e) => e.label), [
+        'ככתבו',
+        'יקוק',
+        'ידוד',
+        "ה'",
+        'יי',
+      ]);
+
+      await tapVisible(tester, dropdown);
+      await tapVisible(tester, find.text('ידוד').last);
+      expect(
+        bloc.state.textDisplayPolicy.resolve(TextDisplaySlot.root).holyName,
+        HolyNameDisplay.daletDalet,
+      );
+    });
+
+    testWidgets('שאר שמות הקודש — בורר "ככתבם | בכינוי"', (tester) async {
+      final bloc = await pumpRoot(tester, TextDisplayPolicy.empty);
+      final segmented = find.byType(AppSegmentedControl<DivineNamesDisplay>);
+      expect(segmented, findsOneWidget);
+      expect(
+        find.descendant(of: segmented, matching: find.text('ככתבם')),
+        findsOneWidget,
+      );
+      final substitute = find.descendant(
+        of: segmented,
+        matching: find.text('בכינוי'),
+      );
+      expect(substitute, findsOneWidget);
+
+      await tapVisible(tester, substitute);
+      expect(
+        bloc.state.textDisplayPolicy.resolve(TextDisplaySlot.root).divineNames,
+        DivineNamesDisplay.substitute,
+      );
+    });
+
+    testWidgets('טעמי המקרא: התג "כמו הניקוד" ומתג', (tester) async {
+      final bloc = await pumpRoot(tester, TextDisplayPolicy.empty);
+      TeamimVisibility teamim() =>
+          bloc.state.textDisplayPolicy.resolve(TextDisplaySlot.root).teamim;
+      final card = find.byType(TextDisplaySettingsCard);
+      final chip = find.descendant(
+        of: card,
+        matching: find.text('כמו הניקוד'),
+      );
+      expect(chip, findsOneWidget);
+      expect(teamim(), TeamimVisibility.followNikud);
+
+      // ניתוק: נשארים על המצב בפועל (הניקוד מוצג → הטעמים מוצגים).
+      await tapVisible(tester, chip);
+      expect(teamim(), TeamimVisibility.show);
+
+      await tapVisible(tester, chip);
+      expect(teamim(), TeamimVisibility.followNikud);
+
+      // המתג כשהתג בחור קובע ערך מפורש ומבטל את הקישור.
+      final row = find.ancestor(of: chip, matching: find.byType(Row)).first;
+      await tapVisible(
+        tester,
+        find.descendant(of: row, matching: find.byType(Switch)),
+      );
+      expect(teamim(), TeamimVisibility.hide);
+    });
   });
 }
