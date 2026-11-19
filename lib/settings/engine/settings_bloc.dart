@@ -97,6 +97,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       _onUpdatePersonalNotesCollapsedByDefault,
     );
     on<UpdateCompactMenuMode>(_onUpdateCompactMenuMode);
+    on<UpdateFullscreenAutoHideToolbar>(_onUpdateFullscreenAutoHideToolbar);
     on<UpdateAutoSync>(_onUpdateAutoSync);
     on<UpdateUpdateCheckFrequency>(_onUpdateUpdateCheckFrequency);
     on<UpdateRestoreAllWindows>(_onUpdateRestoreAllWindows);
@@ -238,6 +239,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
           settings['personalNotesCollapsedByDefault'] ?? true,
       compactMenuMode: settings['compactMenuMode'] ?? false,
       compactMenuModeIsSet: settings['compactMenuMode'] != null,
+      fullscreenAutoHideToolbar: settings['fullscreenAutoHideToolbar'] ?? true,
       autoSync: settings['autoSync'] ?? true,
       updateCheckFrequency: settings['updateCheckFrequency'] ?? '',
       restoreAllWindows: settings['restoreAllWindows'] ?? false,
@@ -445,6 +447,14 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
         compactMenuModeIsSet: value != null,
       ),
     );
+  }
+
+  Future<void> _onUpdateFullscreenAutoHideToolbar(
+    UpdateFullscreenAutoHideToolbar event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateFullscreenAutoHideToolbar(event.autoHide);
+    emit(state.copyWith(fullscreenAutoHideToolbar: event.autoHide));
   }
 
   Future<void> _onUpdateReadingTabsPlacement(

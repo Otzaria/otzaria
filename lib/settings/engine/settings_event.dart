@@ -534,6 +534,15 @@ class UpdateCompactMenuMode extends SettingsEvent {
   List<Object?> get props => [compactMenuMode];
 }
 
+class UpdateFullscreenAutoHideToolbar extends SettingsEvent {
+  final bool autoHide;
+
+  const UpdateFullscreenAutoHideToolbar(this.autoHide);
+
+  @override
+  List<Object?> get props => [autoHide];
+}
+
 class UpdateReadingTabsPlacement extends SettingsEvent {
   final String placement;
 

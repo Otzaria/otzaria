@@ -1065,7 +1065,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                   selectedColumnForNote: _selectedColumnForNote,
                 ),
                 child: Scaffold(
-                  body: Column(
+                  body: AppTopBarLayout(
                     children: [
                       // בטלפון הסרגל נעלם בגלילה למטה וחוזר בגלילה למעלה
                       // או בהקשה (ChromeAutoHideScope בחלון הראשי).

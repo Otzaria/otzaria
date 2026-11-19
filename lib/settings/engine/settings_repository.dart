@@ -196,6 +196,10 @@ class SettingsRepository {
   static const String keyPersonalNotesCollapsedByDefault =
       'key-personal-notes-collapsed';
   static const String keyCompactMenuMode = 'key-compact-menu-mode';
+  static const String keyFullscreenAutoHideToolbar =
+      'key-fullscreen-auto-hide-toolbar';
+  static const String keyFullscreenToolbarHintShown =
+      'key-fullscreen-toolbar-hint-shown';
 
   /// מיקום רצועת כרטיסיות העיון: `top` בשורת הכותרת, `side` בעמודה אנכית.
   static const String keyReadingTabsPlacement = 'key-reading-tabs-placement';
@@ -391,6 +395,8 @@ class SettingsRepository {
     keyEnableHtmlLinks,
     keyPersonalNotesCollapsedByDefault,
     keyCompactMenuMode,
+    keyFullscreenAutoHideToolbar,
+    keyFullscreenToolbarHintShown,
     keyReadingTabsPlacement,
     keyReadingTabsColumnWidth,
     keyReadingTabsColumnCollapsed,
@@ -643,6 +649,10 @@ class SettingsRepository {
       'compactMenuMode': _settings.getValue<bool?>(
         keyCompactMenuMode,
         defaultValue: null,
+      ),
+      'fullscreenAutoHideToolbar': _settings.getValue<bool>(
+        keyFullscreenAutoHideToolbar,
+        defaultValue: true,
       ),
       'autoSync': _settings.getValue<bool>(keyAutoSync, defaultValue: true),
       'updateCheckFrequency': _settings.getValue<String>(
@@ -1078,6 +1088,10 @@ class SettingsRepository {
     } else {
       await _settings.setValue(keyCompactMenuMode, value);
     }
+  }
+
+  Future<void> updateFullscreenAutoHideToolbar(bool value) async {
+    await _settings.setValue(keyFullscreenAutoHideToolbar, value);
   }
 
   Future<void> updateReadingTabsPlacement(String value) async {

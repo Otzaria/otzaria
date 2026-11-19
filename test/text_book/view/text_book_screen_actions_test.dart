@@ -18,6 +18,7 @@ import 'package:otzaria/core/windowing/app_window_scope.dart';
 import 'package:otzaria/core/windowing/last_active_window.dart';
 import 'package:otzaria/core/windowing/device_chrome.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
+import 'package:otzaria/core/windowing/window_fullscreen_top_bar.dart';
 import 'package:otzaria/shortcuts/keyboard_shortcuts.dart';
 import 'package:window_manager/window_manager.dart' show TitleBarStyle;
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
@@ -38,6 +39,7 @@ import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/text_book_messages.dart';
+import 'package:otzaria/core/messages/window_messages.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
@@ -2210,12 +2212,16 @@ void main() {
       await tester.pump();
       expect(fullscreen.state, isTrue);
       expect(geometry.calls, ['titleBar', 'fullScreen:true']);
+      await tester.pump();
+      expect(find.text(WindowMessages.fullscreenToolbarHint), findsOneWidget);
 
       geometry.calls.clear();
       await tester.sendKeyEvent(LogicalKeyboardKey.f11);
       await tester.pump();
       expect(fullscreen.state, isFalse);
       expect(geometry.calls, ['fullScreen:false', 'titleBar']);
+      // ההודעה מוצגת פעם אחת בלבד, ונסגרת מעצמה.
+      await tester.pump(const Duration(seconds: 7));
     }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
   });
 
@@ -2778,7 +2784,9 @@ Future<void> _pumpTextBookScreen(
                   controller: _PluginWindow(),
                   geometry: geometry ?? _PluginWindow(),
                   keys: windowKeys,
-                  child: screen,
+                  child: fullscreenCubit == null
+                      ? screen
+                      : WindowFullscreenTopBarScope(child: screen),
                 ),
         ),
       ),

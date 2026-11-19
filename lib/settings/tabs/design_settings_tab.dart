@@ -96,6 +96,21 @@ class DesignSettingsTab extends StatelessWidget {
       ],
     ),
     SettingsSearchEntry(
+      id: 'design.display.fullscreen_auto_hide_toolbar',
+      title: 'הסתרת סרגל הכלים במסך מלא',
+      subtitle: 'במסך מלא הסרגל יוצג רק כשהעכבר בראש המסך',
+      tab: SettingsTab.design,
+      cardId: 'design.display',
+      keywords: [
+        'מסך מלא',
+        'ריכוז',
+        'סרגל',
+        'הסתרה',
+        'מופעל',
+        'לא מופעל',
+      ],
+    ),
+    SettingsSearchEntry(
       id: 'design.pdf.book_view',
       title: 'תצוגת ספר בPDF',
       subtitle: 'פתיחת ספרי PDF בתצוגת ספר או רגילה',
@@ -289,7 +304,7 @@ class DesignSettingsTab extends StatelessWidget {
                 ),
 
                 // "צפיפות ממשק" גם בטלפון: שם היא מצומצמת כברירת מחדל, והבחירה
-                // ב"רגיל" נשמרת (DD-15). "מיקום הכרטיסיות" רק במחשב.
+                // ב"רגיל" נשמרת (DD-15). "מיקום הכרטיסיות" והסתרת הסרגל רק במחשב.
                 SettingsCard(
                   cardId: 'design.display',
                   title: context.settingsText('תצוגה'),
@@ -361,6 +376,24 @@ class DesignSettingsTab extends StatelessWidget {
                         onChanged: (value) {
                           context.read<SettingsBloc>().add(
                             UpdateReadingTabsPlacement(value),
+                          );
+                        },
+                      ),
+                    if (!DeviceChrome.isMobile)
+                      SettingsSwitchTile(
+                        icon: FluentIcons.full_screen_maximize_24_regular,
+                        title: context.settingsText(
+                          'הסתרת סרגל הכלים במסך מלא',
+                        ),
+                        subtitle: context.settingsText(
+                          state.fullscreenAutoHideToolbar
+                              ? 'הסרגל יוצג כשהעכבר בראש המסך'
+                              : 'הסרגל יוצג תמיד',
+                        ),
+                        value: state.fullscreenAutoHideToolbar,
+                        onChanged: (value) {
+                          context.read<SettingsBloc>().add(
+                            UpdateFullscreenAutoHideToolbar(value),
                           );
                         },
                       ),
