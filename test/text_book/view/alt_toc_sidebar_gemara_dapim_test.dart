@@ -54,7 +54,10 @@ void main() {
   final previousDataRoot = AppPaths.cachedDataRootPath;
   late Directory tempDir;
 
-  Future<void> setUpDb({required bool mapsToNextPage}) async {
+  Future<void> setUpDb({
+    required bool mapsToNextPage,
+    String structureKey = 'GemaraDapim',
+  }) async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
     tempDir = await Directory.systemTemp.createTemp('otzaria_gemara_dapim');
     final libraryPath = p.join(tempDir.path, 'library');
@@ -67,7 +70,9 @@ void main() {
       ),
     ).renameSync(dbPath);
     final db = sqlite3.sqlite3.open(dbPath);
-    db.execute("UPDATE alt_toc_structure SET key = 'GemaraDapim' WHERE id = 1");
+    db.execute('UPDATE alt_toc_structure SET key = ? WHERE id = 1', [
+      structureKey,
+    ]);
     db.execute('INSERT INTO tocText VALUES (3, ?), (4, ?), (5, ?), (6, ?)', [
       _parent,
       _firstChild,
@@ -198,6 +203,19 @@ void main() {
       });
     }
   }
+  testWidgets('לחיצה על כותרת אב במבנה רגיל חושפת את הבן הממופה', (
+    tester,
+  ) async {
+    await tester.runAsync(
+      () => setUpDb(mapsToNextPage: false, structureKey: 'Book'),
+    );
+    final bloc = await pumpSidebar(tester);
+    expect(find.text(_firstChild), findsNothing);
+    await tester.tap(find.text(_parent));
+    await _settleRealAsync(tester);
+    await readerAt(tester, bloc, 1);
+    expect(selected(tester), [_firstChild]);
+  });
 }
 
 /// שאילתות המסד רצות ב-isolate וזקוקות לזמן אמיתי, בזו אחר זו.

@@ -1050,29 +1050,48 @@ Future<void> main() async {
       return clean.indexOf(marker) / clean.length;
     }
 
+    test('כותרת עמוד רגילה עדיין מזהה רק סוגריים מרובעים', () {
+      expect(bracketMarkerFractionInLine('א (דף ח:) ב', 'דף ח:'), 0);
+    });
+
+    test('סיומת אחרי מקף במבנה רגיל היא חלק מהסמן', () {
+      expect(
+        bracketMarkerFractionInLine('א [פרק א – מבוא] ב', 'פרק א – מבוא'),
+        greaterThan(0),
+      );
+      expect(bracketMarkerFractionInLine('א [פרק א] ב', 'פרק א – מבוא'), 0);
+    });
+
     test('סמן בסוגריים עגולים בתוך שורה עם HTML', () {
       expect(
-        bracketMarkerFractionInLine(rif, 'דף ב:'),
+        bracketMarkerFractionInLine(rif, 'דף ב:', gemaraDapim: true),
         closeTo(at('(דף ב:)'), 0.001),
       );
-      expect(bracketMarkerFractionInLine(rif, 'דף ב:'), greaterThan(0));
+      expect(
+        bracketMarkerFractionInLine(rif, 'דף ב:', gemaraDapim: true),
+        greaterThan(0),
+      );
     });
 
     test('עמוד א ועמוד ב נבדלים, והפניה "ע"ש" מתעלמת', () {
       expect(
-        bracketMarkerFractionInLine(rif, 'דף ח.'),
+        bracketMarkerFractionInLine(rif, 'דף ח.', gemaraDapim: true),
         closeTo(at('(דף ח.)'), 0.001),
       );
       expect(
-        bracketMarkerFractionInLine(rif, 'דף ח:'),
+        bracketMarkerFractionInLine(rif, 'דף ח:', gemaraDapim: true),
         closeTo(at('(דף ח:)'), 0.001),
       );
-      expect(bracketMarkerFractionInLine(rif, 'דף ט:'), 0);
+      expect(bracketMarkerFractionInLine(rif, 'דף ט:', gemaraDapim: true), 0);
     });
 
     test('כותרת משנה עם מיקום אחרי מקף', () {
       expect(
-        bracketMarkerFractionInLine(rif, 'דף ח: – רי"ף דף ג:'),
+        bracketMarkerFractionInLine(
+          rif,
+          'דף ח: – רי"ף דף ג:',
+          gemaraDapim: true,
+        ),
         closeTo(at('(דף ח:)'), 0.001),
       );
     });
@@ -1081,15 +1100,15 @@ Future<void> main() async {
       const line = 'אלף בית (דף יז ע"א) גימל (דף ג ע״ב) דלת';
       final clean = cleanLineForSearch(line);
       expect(
-        bracketMarkerFractionInLine(line, 'דף יז.'),
+        bracketMarkerFractionInLine(line, 'דף יז.', gemaraDapim: true),
         closeTo(clean.indexOf('(דף יז') / clean.length, 0.001),
       );
       expect(
-        bracketMarkerFractionInLine(line, 'דף ג:'),
+        bracketMarkerFractionInLine(line, 'דף ג:', gemaraDapim: true),
         closeTo(clean.indexOf('(דף ג ') / clean.length, 0.001),
       );
-      expect(bracketMarkerFractionInLine(line, 'דף ג.'), 0);
-      expect(bracketMarkerFractionInLine(line, 'דף יז:'), 0);
+      expect(bracketMarkerFractionInLine(line, 'דף ג.', gemaraDapim: true), 0);
+      expect(bracketMarkerFractionInLine(line, 'דף יז:', gemaraDapim: true), 0);
     });
   });
 

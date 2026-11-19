@@ -562,7 +562,11 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
     final changed = matches
         .where((match) => _activeEntryIds[match.structureId] != match.entryId)
         .where(
-          (match) => !_keepsClickedEntry(match.structureId, lineIndex),
+          (match) => !_keepsClickedEntry(
+            match.structureId,
+            match.entryId,
+            lineIndex,
+          ),
         )
         .toList();
     if (changed.isEmpty) return;
@@ -629,14 +633,26 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
     }
   }
 
-  /// כמה ערכים יכולים להיפתח באותה שורה (דפים בפסקה אחת, אב ובנו), והמסד ממפה
-  /// אותה לאחד מהם — לכן הערך שנלחץ נשאר מסומן כל עוד השורה לא התחלפה.
-  bool _keepsClickedEntry(int structureId, int lineIndex) {
+  bool _isGemaraDapim(int structureId) =>
+      _structures.any((s) => s.id == structureId && s.key == 'GemaraDapim');
+
+  /// בדפי הגמרא שומרים את העוגן שנלחץ באותה פסקה. במבנים אחרים
+  /// רק כותרות אחיות באותה שורה חולקות עוגן.
+  bool _keepsClickedEntry(int structureId, int entryId, int lineIndex) {
     final selected = _selectedEntries[structureId];
-    return structureId != kDibburimStructureId &&
-        selected != null &&
-        selected.lineIndex == lineIndex &&
-        selected.entryId == _activeEntryIds[structureId];
+    if (selected?.lineIndex != lineIndex) return false;
+    final activeId = _activeEntryIds[structureId];
+    if (activeId == null || structureId == kDibburimStructureId) return false;
+    if (_isGemaraDapim(structureId)) return selected!.entryId == activeId;
+
+    final tree = _trees[structureId];
+    final active = tree?.entryById(activeId);
+    final resolved = tree?.entryById(entryId);
+    return active != null &&
+        resolved != null &&
+        active.lineId != null &&
+        active.lineId == resolved.lineId &&
+        active.parentId == resolved.parentId;
   }
 
   void _selectEntry(int structureId, int entryId, int lineIndex) {
@@ -722,7 +738,11 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
   }
 
   /// גלילת הספר הפתוח לשורה [lineIndex], ולסמן `[markerTitle…]` כשהוא בתוכה.
-  Future<void> _scrollToLine(int lineIndex, {String? markerTitle}) async {
+  Future<void> _scrollToLine(
+    int lineIndex, {
+    String? markerTitle,
+    bool gemaraDapim = false,
+  }) async {
     final request = ++_navigationRequest;
     final bloc = context.read<TextBookBloc>();
     final state = bloc.state;
@@ -750,7 +770,11 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
       lineIndex,
       intraLineFraction: line == null || markerTitle == null
           ? 0
-          : bracketMarkerFractionInLine(line, markerTitle),
+          : bracketMarkerFractionInLine(
+              line,
+              markerTitle,
+              gemaraDapim: gemaraDapim,
+            ),
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
     );
@@ -765,12 +789,17 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
     );
   }
 
-  Future<void> _openLink(Link link, {String? markerTitle}) async {
+  Future<void> _openLink(
+    Link link, {
+    String? markerTitle,
+    bool gemaraDapim = false,
+  }) async {
     if (link.path2 == widget.book.title) {
       // Ensure index is at least 0 to prevent RangeError
       await _scrollToLine(
         (link.index2 - 1).clamp(0, double.maxFinite).toInt(),
         markerTitle: markerTitle,
+        gemaraDapim: gemaraDapim,
       );
     } else {
       context.read<TabsBloc>().add(
@@ -872,7 +901,11 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
           if (link.path2 == widget.book.title) {
             _selectEntry(structureId, linkEntry.id, link.index2 - 1);
           }
-          await _openLink(link, markerTitle: linkEntry.text);
+          await _openLink(
+            link,
+            markerTitle: linkEntry.text,
+            gemaraDapim: _isGemaraDapim(structureId),
+          );
         }
       } else {
         UiSnack.show(TextBookMessages.headingLinkNotFound);
