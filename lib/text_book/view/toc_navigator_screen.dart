@@ -8,6 +8,8 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart'
+    show HolyNameStyle, replaceHolyNames;
 import 'package:flutter/scheduler.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:otzaria/widgets/navigation/nav_tree_collapse_all_button.dart';
@@ -404,6 +406,7 @@ class _TocViewerState extends State<TocViewer>
     required bool isExpanded,
     bool isGroupStart = false,
     bool isGroupEnd = false,
+    HolyNameStyle? holyNameStyle,
   }) {
     void navigateToEntry() {
       // לחיצה בתוצאות החיפוש מעבירה לשם גם את סימון הדפדוף בחיצים.
@@ -415,7 +418,10 @@ class _TocViewerState extends State<TocViewer>
     final bool selected = _highlightedEntryIndex != null
         ? _highlightedEntryIndex == entry.index
         : activeIndex == entry.index;
-    final title = showFullText ? entry.fullText : entry.text;
+    final text = showFullText ? entry.fullText : entry.text;
+    final title = holyNameStyle == null
+        ? text
+        : replaceHolyNames(text, style: holyNameStyle);
     // רמות ה-TOC מתחילות ב-1, ורמת ההזחה של עץ הניווט מתחילה ב-0.
     final level = (entry.level - 1).clamp(0, 100);
 
@@ -553,6 +559,7 @@ class _TocViewerState extends State<TocViewer>
     required bool isSearching,
     required String title,
     required _TocDisplayData display,
+    HolyNameStyle? holyNameStyle,
   }) {
     return ScrollablePositionedList.builder(
       itemScrollController: _virtualScrollController,
@@ -581,6 +588,7 @@ class _TocViewerState extends State<TocViewer>
             isExpanded: item.isExpanded,
             isGroupStart: index == 1,
             isGroupEnd: index == flat.length,
+            holyNameStyle: holyNameStyle,
           ),
         );
       },
@@ -624,7 +632,9 @@ class _TocViewerState extends State<TocViewer>
                 previous.tableOfContents,
                 current.tableOfContents,
               ) ||
-              _activeTocIndex(previous) != _activeTocIndex(current);
+              _activeTocIndex(previous) != _activeTocIndex(current) ||
+              previous.bodyDisplayProfile.holyName !=
+                  current.bodyDisplayProfile.holyName;
         },
         builder: (context, state) {
           if (state is! TextBookLoaded) return const Center();
@@ -676,6 +686,7 @@ class _TocViewerState extends State<TocViewer>
                         isSearching: display.isSearching,
                         title: state.book.title,
                         display: display,
+                        holyNameStyle: state.bodyDisplayProfile.holyName.style,
                       ),
                     ),
                   ),

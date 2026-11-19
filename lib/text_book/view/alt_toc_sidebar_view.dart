@@ -25,6 +25,8 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/utils/dibburim_structure.dart';
 import 'package:otzaria/text_book/utils/inline_section_markers.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart'
+    show HolyNameStyle, replaceHolyNames;
 import 'package:otzaria/text_book/utils/section_search_utils.dart'
     show bracketMarkerFractionInLine;
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
@@ -936,9 +938,24 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
     }
   }
 
+  HolyNameStyle? _holyNameStyle;
+
+  /// הסתרת שם השם חלה גם על הכותרות החלופיות, כמו על גוף הטקסט.
+  String _entryTitle(AltTocEntry entry) {
+    final text = entry.text ?? '';
+    final style = _holyNameStyle;
+    return style == null ? text : replaceHolyNames(text, style: style);
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    _holyNameStyle = context.select((TextBookBloc bloc) {
+      final state = bloc.state;
+      return state is TextBookLoaded
+          ? state.bodyDisplayProfile.holyName.style
+          : null;
+    });
 
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -1108,7 +1125,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
             isGroupStart: index == 1,
             isGroupEnd: index == matches.length,
             child: NavTreeTile.heading(
-              title: entry.text ?? '',
+              title: _entryTitle(entry),
               level: 0,
               isSelected: isSelected,
               onTap: () {
@@ -1252,7 +1269,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
         () => ValueNotifier(0),
       ),
       builder: (context, _, _) => NavTreeTile.heading(
-        title: entry.text ?? '',
+        title: _entryTitle(entry),
         level: level,
         isSelected: entry.id == _activeEntryIds[structureId],
         isExpanded: isExpanded,
