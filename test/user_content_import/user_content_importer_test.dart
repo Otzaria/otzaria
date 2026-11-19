@@ -438,12 +438,14 @@ void main() {
         String title,
       ) async => switch (title) {
         'מגילה' => (
+          title: title,
           isUserBook: false,
           categoryId: 5,
           totalLines: 200,
           isDependentOnly: false,
         ),
         'הכי גרסינן מגילה' => (
+          title: title,
           isUserBook: true,
           categoryId: 1,
           totalLines: 2000,
@@ -588,12 +590,14 @@ void main() {
           db,
           locateBook: (title) async => switch (title) {
             'הכי גרסינן מגילה' => (
+              title: title,
               isUserBook: true,
               categoryId: 1,
               totalLines: 2000,
               isDependentOnly: false,
             ),
             'רש״י על מגילה' => (
+              title: title,
               isUserBook: false,
               categoryId: 5,
               totalLines: 200,
@@ -941,6 +945,7 @@ void main() {
           db,
           locateBook: (title) async => title == 'ביאורי יוסף'
               ? (
+                  title: title,
                   isUserBook: true,
                   categoryId: 1,
                   totalLines: 50,
@@ -971,6 +976,7 @@ void main() {
           db,
           locateBook: (title) async => title == 'ביאורי יוסף'
               ? (
+                  title: title,
                   isUserBook: true,
                   categoryId: 1,
                   totalLines: 50,
