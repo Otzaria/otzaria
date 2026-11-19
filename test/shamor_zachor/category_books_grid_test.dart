@@ -1,13 +1,17 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/theme/app_theme_data.dart';
 import 'package:provider/provider.dart';
 import 'package:otzaria/tools/shamor_zachor/models/book_model.dart';
 import 'package:otzaria/tools/shamor_zachor/models/progress_model.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/widgets/category_books_grid.dart';
+
+import '../support/golden_fonts.dart';
 
 class _FakeDataProvider extends ShamorZachorDataProvider {
   _FakeDataProvider(this.removeCompleter, {this.trackedIds = const {}});
@@ -83,6 +87,29 @@ class _FakeProgressProvider extends ShamorZachorProgressProvider {
     clearedBookId = bookId;
     await clearCompleter.future;
   }
+}
+
+/// הגדלת טקסט לא-לינארית כמו באנדרואיד 14 ב-200%: גופן קטן מוכפל, גופן של
+/// 100 ומעלה לא גדל (הטבלה של FontScaleConverterFactory).
+class _AndroidNonlinearTextScaler extends TextScaler {
+  const _AndroidNonlinearTextScaler();
+
+  static const _sp = <double>[0, 8, 10, 12, 14, 18, 20, 24, 30, 100];
+  static const _dp = <double>[0, 16, 20, 24, 26, 30, 34, 36, 38, 100];
+
+  @override
+  double scale(double fontSize) {
+    for (var i = 1; i < _sp.length; i++) {
+      if (fontSize <= _sp[i]) {
+        final t = (fontSize - _sp[i - 1]) / (_sp[i] - _sp[i - 1]);
+        return _dp[i - 1] + t * (_dp[i] - _dp[i - 1]);
+      }
+    }
+    return fontSize;
+  }
+
+  @override
+  double get textScaleFactor => 2.0;
 }
 
 void main() {
@@ -225,6 +252,129 @@ void main() {
 
     addTearDown(() => tester.binding.setSurfaceSize(null));
   });
+
+  for (final (name, textScaler) in [
+    ('0.85', const TextScaler.linear(0.85)),
+    ('1.0', const TextScaler.linear(1.0)),
+    ('1.5', const TextScaler.linear(1.5)),
+    ('Android 200%', const _AndroidNonlinearTextScaler()),
+  ]) {
+    testWidgets(
+      'scrolling over a book card scrolls the page, and the card shows all '
+      'its content (issue #5313, text scale $name)',
+      (tester) async {
+        await loadGoldenFonts();
+        await tester.binding.setSurfaceSize(const Size(432, 600));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+
+        const longName = 'ספר עם שם ארוך במיוחד שנפרש על פני שתי שורות בכרטיס';
+        BookDetails details(int id) => BookDetails(
+          contentType: 'text',
+          isCustom: true,
+          id: id,
+          categoryPath: 'תלמוד בבלי',
+          parts: const [BookPart(name: 'ראשי', startPage: 1, endPage: 1)],
+        );
+        final category = BookCategory(
+          name: 'תלמוד בבלי',
+          contentType: 'text',
+          books: {
+            longName: details(1),
+            'שבת': details(2),
+            for (int id = 3; id <= 12; id++) 'ספר $id': details(id),
+          },
+          defaultStartPage: 1,
+          isCustom: false,
+          sourceFile: 'test',
+        );
+
+        await tester.pumpWidget(
+          MultiProvider(
+            providers: [
+              ChangeNotifierProvider<ShamorZachorDataProvider>.value(
+                value: _FakeDataProvider(Completer<void>()),
+              ),
+              ChangeNotifierProvider<ShamorZachorProgressProvider>.value(
+                value: _FakeProgressProvider(
+                  Completer<void>(),
+                  progressById: {
+                    1: {
+                      '0': PageProgress(
+                        learn: true,
+                        review1: true,
+                        review2: true,
+                        review3: true,
+                      ),
+                    },
+                  },
+                ),
+              ),
+            ],
+            child: MaterialApp(
+              theme: AppThemeData.light(
+                ColorScheme.fromSeed(seedColor: Colors.blue),
+                compactMenuMode: false,
+              ).copyWith(platform: goldenPlatform),
+              builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(textScaler: textScaler),
+                child: Directionality(
+                  textDirection: TextDirection.rtl,
+                  child: child!,
+                ),
+              ),
+              home: Scaffold(
+                body: CategoryBooksGrid(
+                  categoryName: 'תלמוד בבלי',
+                  topLevelName: 'תלמוד בבלי',
+                  category: category,
+                  onBookSelected: (_, _, _) {},
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final grid = tester.widget<GridView>(find.byType(GridView));
+        final delegate =
+            grid.gridDelegate as SliverGridDelegateWithMaxCrossAxisExtent;
+        expect(delegate.mainAxisExtent, greaterThanOrEqualTo(264));
+        expect(find.text('הושלם'), findsOneWidget);
+
+        // הראשון הוא הדף; האחרים — הגלילה של כל כרטיס.
+        final positions = tester
+            .stateList<ScrollableState>(find.byType(Scrollable))
+            .map((state) => state.position)
+            .toList();
+        final page = positions.first;
+        final cards = positions.skip(1).toList();
+        expect(cards, isNotEmpty);
+        for (final card in cards) {
+          expect(card.maxScrollExtent, 0, reason: 'card content is cut off');
+        }
+
+        final longCard = tester.getCenter(find.text(longName));
+        await tester.sendEventToBinding(
+          PointerScrollEvent(
+            position: longCard,
+            scrollDelta: const Offset(0, 40),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(page.pixels, 40);
+
+        await tester.dragFrom(longCard, const Offset(0, -120));
+        await tester.pumpAndSettle();
+        expect(page.pixels, greaterThan(40));
+        for (final card in cards) {
+          expect(card.pixels, 0);
+        }
+      },
+      timeout: const Timeout(Duration(seconds: 60)),
+    );
+  }
 
   testWidgets('tracked book appears under "in progress" without any progress', (
     tester,
