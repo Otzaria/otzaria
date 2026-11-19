@@ -372,7 +372,7 @@ class UserRegexSnippetHighlighter {
 }
 
 /// מיקום יחסי (0..1) בשורה [rawLine] של סמן [title] (עד ` – `): `[דף ו טור א]`
-/// ל"דף ו", `(דף ח:)` או `(דף ח ע"ב)` ל"דף ח:". 0 כשאין סמן.
+/// ל"דף ו"; סוגריים עגולים רק לכותרת עמוד: `(דף ח:)` או `(דף ח ע"ב)` ל"דף ח:".
 double bracketMarkerFractionInLine(String rawLine, String title) {
   final key = title.split(' – ').first.trim();
   final clean = cleanLineForSearch(rawLine);
@@ -383,10 +383,10 @@ double bracketMarkerFractionInLine(String rawLine, String title) {
     ':' => 'ב',
     _ => null,
   };
-  var pattern = '\\[$k[\\] ]|\\($k\\)';
+  var pattern = '\\[$k[\\] ]';
   if (amud != null) {
     final base = RegExp.escape(key.substring(0, key.length - 1).trim());
-    pattern += '|\\($base ע["״]$amud\\)';
+    pattern += '|\\($k\\)|\\($base ע["״]$amud\\)';
   }
   final offset = RegExp(pattern).firstMatch(clean)?.start ?? 0;
   return (offset / clean.length).clamp(0.0, 1.0);

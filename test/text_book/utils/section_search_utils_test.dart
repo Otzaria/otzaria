@@ -1034,6 +1034,11 @@ Future<void> main() async {
       expect(bracketMarkerFractionInLine(line, ''), 0);
       expect(bracketMarkerFractionInLine('דף ז בלי סוגריים', 'דף ז'), 0);
     });
+
+    test('הפניה בסוגריים עגולים בכותרת שאינה עמוד — נשארים בתחילת השורה', () {
+      expect(bracketMarkerFractionInLine('אלף בית (סעיף א) גימל', 'סעיף א'), 0);
+      expect(bracketMarkerFractionInLine('אלף (דף ז) בית', 'דף ז'), 0);
+    });
   });
 
   group('bracketMarkerFractionInLine — דפי הגמרא ברי"ף (issue #5506)', () {

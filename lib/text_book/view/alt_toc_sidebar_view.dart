@@ -168,7 +168,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
   // Active entry and scroll state are scoped to a structure: a line may belong
   // to several alternative structures at once.
   final Map<int, int> _activeEntryIds = {};
-  final Map<int, int> _selectedEntryLineIndices = {};
+  final Map<int, ({int entryId, int lineIndex})> _selectedEntries = {};
   int _navigationRequest = 0;
   final Map<int, int> _lastScrolledEntryIds = {};
 
@@ -562,11 +562,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
     final changed = matches
         .where((match) => _activeEntryIds[match.structureId] != match.entryId)
         .where(
-          (match) => !_sharesLineWithActive(
-            match.structureId,
-            match.entryId,
-            lineIndex,
-          ),
+          (match) => !_keepsClickedEntry(match.structureId, lineIndex),
         )
         .toList();
     if (changed.isEmpty) return;
@@ -633,24 +629,18 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
     }
   }
 
-  /// אחים שנפתחים באותה שורה (דפים בפסקה אחת) ממופים במסד לאחרון שבהם,
-  /// ולכן האח שנבחר בלחיצה נשאר מסומן כל עוד השורה לא התחלפה.
-  bool _sharesLineWithActive(int structureId, int entryId, int lineIndex) {
-    if (_selectedEntryLineIndices[structureId] != lineIndex) return false;
-    final activeId = _activeEntryIds[structureId];
-    if (activeId == null || structureId == kDibburimStructureId) return false;
-    final tree = _trees[structureId];
-    final active = tree?.entryById(activeId);
-    final resolved = tree?.entryById(entryId);
-    return active != null &&
-        resolved != null &&
-        active.lineId != null &&
-        active.lineId == resolved.lineId &&
-        active.parentId == resolved.parentId;
+  /// כמה ערכים יכולים להיפתח באותה שורה (דפים בפסקה אחת, אב ובנו), והמסד ממפה
+  /// אותה לאחד מהם — לכן הערך שנלחץ נשאר מסומן כל עוד השורה לא התחלפה.
+  bool _keepsClickedEntry(int structureId, int lineIndex) {
+    final selected = _selectedEntries[structureId];
+    return structureId != kDibburimStructureId &&
+        selected != null &&
+        selected.lineIndex == lineIndex &&
+        selected.entryId == _activeEntryIds[structureId];
   }
 
   void _selectEntry(int structureId, int entryId, int lineIndex) {
-    _selectedEntryLineIndices[structureId] = lineIndex;
+    _selectedEntries[structureId] = (entryId: entryId, lineIndex: lineIndex);
     final previous = _activeEntryIds[structureId];
     if (previous == entryId) return;
     _selectionTicks[previous]?.value++;
