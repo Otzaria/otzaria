@@ -3149,7 +3149,9 @@ class _CombinedViewState extends State<CombinedView> {
               ?.findRenderObject();
           if (target is! RenderBox || !target.hasSize) return null;
           final offset = target.localToGlobal(Offset.zero, ancestor: item);
-          return offset & target.size;
+          // הכרטיס (עד 75% מהמסך) יורד עד רבע המסך כדי שתחילת המקור לא תיחתך.
+          final shift = (offset.dy - height * 0.15).clamp(0.0, height * 0.1);
+          return offset.translate(0, -shift) & target.size;
         },
       ),
     );
