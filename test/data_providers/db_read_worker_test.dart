@@ -1832,6 +1832,16 @@ void main() {
       expect(DbReadWorker.sentMessageCount - before, 1);
     });
 
+    test('heRef שהוא רק מספר השורה אינו כתובת (issue #4902)', () async {
+      final db = sqlite3.sqlite3.open(dbPath);
+      db.execute("UPDATE line SET heRef = 'מפרש 3' WHERE id = 202");
+      db.close();
+
+      final commentary = TextBook(id: 2, title: 'מפרש', categoryId: 7);
+      expect(await heRefFromDbLine(commentary, 2), isNull);
+      expect(await heRefFromDbLine(commentary, 1), 'מפרש א, 2');
+    });
+
     test('כותרות ספרי המסד נטענות ב-worker', () async {
       final provider = DatabaseLibraryProvider.instance..clearCache();
       final before = DbReadWorker.sentMessageCount;
