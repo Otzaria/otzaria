@@ -69,7 +69,7 @@ class AppIconButton extends StatelessWidget {
       padding: EdgeInsets.zero,
       constraints: BoxConstraints.tightFor(width: side, height: side),
       style: IconButton.styleFrom(
-        shape: const CircleBorder(),
+        shape: AppTokens.roundedShape,
         tapTargetSize: tapTargetSize,
         visualDensity: VisualDensity.standard,
       ),
