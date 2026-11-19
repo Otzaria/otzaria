@@ -5,6 +5,7 @@ import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:otzaria/data/cache/generation_cache.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/repository/book_search_worker.dart';
+import 'package:otzaria/data/repository/book_title_search_diagnostics.dart';
 import 'package:otzaria/find_ref/book_name_match.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
@@ -232,6 +233,13 @@ class DataRepository {
   }) async {
     final request = Object();
     if (supersedeKey != null) _pendingBookSearches[supersedeKey] = request;
+    final tracked = BookTitleSearchDiagnostics.instance.start(
+      words: query.trim().isEmpty
+          ? 0
+          : query.trim().split(RegExp(r'\s+')).length,
+      wholeLibrary: category == null && !extraBooksOnly,
+      repositoryState: describeBookSearchState,
+    );
     try {
       final BooksAndCategoriesSearch empty = (
         books: const <Book>[],
@@ -247,7 +255,9 @@ class DataRepository {
         return empty;
       }
 
+      tracked.enter(BookTitleSearchStage.library);
       final scope = extraBooksOnly ? null : category ?? await library;
+      tracked.enter(BookTitleSearchStage.externalCatalogs);
       final otzar = !extraBooksOnly && includeOtzar
           ? await otzarBooks
           : const <Book>[];
@@ -260,12 +270,15 @@ class DataRepository {
 
       final acronyms = AcronymsCache.instance;
       final generations = GenerationCache.instance;
+      tracked.enter(BookTitleSearchStage.acronyms);
       await acronyms.warmUp();
+      tracked.enter(BookTitleSearchStage.attachedAcronyms);
       // מסד מצורף איטי (כונן רשת) אינו מעכב את החיפוש — הקריאה נמשכת ב-isolate.
       await acronyms.warmUpAttached().timeout(
         attachedAcronymsWait,
         onTimeout: () {},
       );
+      tracked.enter(BookTitleSearchStage.generations);
       await generations.warmUp();
 
       if (supersedeKey != null &&
@@ -280,6 +293,7 @@ class DataRepository {
         acronymsRevision: acronyms.revision,
         generationsRevision: generations.revision,
       );
+      tracked.enter(BookTitleSearchStage.catalog);
       final cached = reuseCatalog ? _bookSearchCatalog : null;
       final catalog = cached != null && cached.matches(key)
           ? cached
@@ -290,6 +304,9 @@ class DataRepository {
         throw const BookSearchSupersededException();
       }
       if (reuseCatalog) _bookSearchCatalog = catalog;
+      tracked
+        ..catalogBuilt(catalog.books.length)
+        ..enter(BookTitleSearchStage.worker);
       final matches = await _bookSearchWorker.search(
         catalog.entries,
         BookSearchQuery(
@@ -314,6 +331,7 @@ class DataRepository {
           categories.add(catalog.categories[index - catalog.books.length]);
         }
       }
+      tracked.found(books: books.length, categories: categories.length);
       // סינון נושאים פעיל מסתיר את קבוצת התיקיות — לקטגוריה אין נושאים.
       return (
         books: books,
@@ -322,12 +340,26 @@ class DataRepository {
             : categories,
         bookMatchKinds: bookMatchKinds,
       );
+    } catch (error) {
+      tracked.finish(error);
+      rethrow;
     } finally {
+      tracked.finish();
       if (identical(_pendingBookSearches[supersedeKey], request)) {
         _pendingBookSearches.remove(supersedeKey);
       }
     }
   }
+
+  /// מצב ה-worker והמטמונים שחיפוש שמות הספרים ממתין להם, לדוח האבחון.
+  Map<String, Object?> describeBookSearchState() => {
+    'libraryLoaded': _lastSuccessfulLibrary != null,
+    'libraryLoading': _libraryFuture != null,
+    'catalogBooks': _bookSearchCatalog?.books.length,
+    'acronymsLoaded': AcronymsCache.instance.isLoaded,
+    'generationsLoaded': GenerationCache.instance.isLoaded,
+    'worker': _bookSearchWorker.describe(),
+  };
 
   String _normalizeForSearch(String input) => _normalizeBookSearchText(input);
 }

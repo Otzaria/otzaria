@@ -24,6 +24,7 @@ import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/webview2_creation_diagnostics.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
+import 'package:otzaria/data/repository/book_title_search_diagnostics.dart';
 import 'package:otzaria/search/active_lexical_searches.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -97,6 +98,30 @@ void main() {
         'prefixes': true,
       }),
     );
+  });
+
+  test('אבחון: מצב חיפוש שמות הספרים נכלל', () async {
+    final previous = BookTitleSearchDiagnostics.instance;
+    final searches = BookTitleSearchDiagnostics.instance =
+        BookTitleSearchDiagnostics(stallThreshold: null);
+    addTearDown(() => BookTitleSearchDiagnostics.instance = previous);
+    final search = searches.start(
+      words: 2,
+      wholeLibrary: true,
+      repositoryState: () => {'acronymsLoaded': true},
+    )..enter(BookTitleSearchStage.generations);
+    addTearDown(search.finish);
+
+    final diagnostics = await AppReportCollector(
+      redactor: redactor,
+      clock: () => now,
+    ).collectDiagnostics();
+    final collected = diagnostics['bookTitleSearch'] as Map;
+    expect(
+      (collected['active'] as List).single,
+      containsPair('stage', 'generations'),
+    );
+    expect(collected['repository'], {'acronymsLoaded': true});
   });
 
   test('אבחון: יומן החלונות נכלל', () async {
