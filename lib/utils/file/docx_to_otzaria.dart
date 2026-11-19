@@ -40,7 +40,8 @@ import 'package:xml/xml.dart' as xml;
 /// תא פותח אינו נמחק, וכותרת עוברת trim.
 /// v15: קישורי OOXML ו-WordML 2003 נשמרים כ-`<a href="…">` מאומתים,
 /// וסימניות יעד הופכות לעוגנים באותה שורת פלט — גם כשאינן כותרות.
-const int kOoxmlWordConverterVersion = 15;
+/// v16: גוף הערת שוליים שומר הדגשה, ומעבר פסקה/שורה בו הוא `<br>`.
+const int kOoxmlWordConverterVersion = 16;
 
 // Windows-1255 Hebrew range: 0xC0–0xD8 and 0xE0–0xFA map to Unicode with offset 1264.
 // 0xE0 (224) + 1264 = 1488 = U+05D0 = א, ... 0xFA (250) + 1264 = 1514 = U+05EA = ת
@@ -849,10 +850,7 @@ String _renderParagraphInline(xml.XmlElement paragraph, _DocxContext ctx) {
       if (id != null && ctx.footnotes.containsKey(id)) {
         target.add(
           _Seg.raw(
-            otzariaFootnote(
-              ctx.footnoteCounter.next(),
-              escapeHtmlText(ctx.footnotes[id]!),
-            ),
+            otzariaFootnote(ctx.footnoteCounter.next(), ctx.footnotes[id]!),
           ),
         );
       }
@@ -863,7 +861,7 @@ String _renderParagraphInline(xml.XmlElement paragraph, _DocxContext ctx) {
     // ה-run עצמו. בלי הטיפול כאן הוא היה זולג לגוף הפסקה כטקסט רגיל.
     final inlineFootnote = run.getElement('w:footnote');
     if (inlineFootnote != null) {
-      final body = escapeHtmlText(inlineFootnote.innerText).trim();
+      final body = _footnoteHtml(inlineFootnote);
       if (body.isNotEmpty) {
         target.add(_Seg.raw(otzariaFootnote(ctx.footnoteCounter.next(), body)));
       }
@@ -1182,24 +1180,57 @@ String? _buildTableHtml(xml.XmlElement table, _DocxContext ctx) {
   return '${otzariaTableOpen(attributes: dir)}$rows</table>';
 }
 
-/// טקסט הערת שוליים כשורה אחת.
-///
-/// גבול פסקה, `w:br` ו-`w:tab` הופכים לרווח: חיבור כל ה-`w:t` במחרוזת ריקה
-/// מדביק את המילה האחרונה של פסקה אחת לראשונה של הבאה, והחיפוש על הצירוף
-/// מפסיק למצוא. אותה תבנית בדיוק בממירי ODT ו-Word הבינארי.
-String _footnoteText(xml.XmlElement footnote) {
-  final buffer = StringBuffer();
+final _footnoteWhitespace = RegExp(r'\s+');
+
+/// גוף הערה בשורת HTML אחת. עטיפת ההערה מסתיימת ב-</i> הראשון, לכן נשמרת
+/// כאן רק הדגשה. מפרידים בין מקטעי טקסט לפני שמוסיפים את תגי ההדגשה.
+String _footnoteHtml(xml.XmlElement footnote) {
+  final segs = <_Seg>[];
+  var pendingBreaks = 0;
+  var pendingSpace = false;
   for (final node in footnote.descendantElements) {
-    switch (node.name.qualified) {
-      case 'w:t':
-        buffer.write(node.innerText);
-      case 'w:p':
-      case 'w:br':
-      case 'w:tab':
-        buffer.write(' ');
+    if (node.name.qualified == 'w:p') {
+      pendingBreaks++;
+      continue;
+    }
+    if (node.name.qualified != 'w:r') continue;
+    final rPr = node.getElement('w:rPr');
+    final bold =
+        _isOnOff(rPr?.getElement('w:b')) || _isOnOff(rPr?.getElement('w:bCs'));
+    final open = bold ? '<b>' : '';
+    final close = bold ? '</b>' : '';
+    for (final child in node.childElements) {
+      switch (child.name.qualified) {
+        case 'w:br':
+          pendingBreaks++;
+        case 'w:tab':
+          pendingSpace = true;
+        case 'w:t':
+          final text = child.innerText.replaceAll(_footnoteWhitespace, ' ');
+          if (text.isEmpty) continue;
+          final trimmed = text.trim();
+          if (trimmed.isEmpty) {
+            pendingSpace = true;
+            continue;
+          }
+          if (segs.isNotEmpty) {
+            if (pendingBreaks > 0) {
+              segs.add(_Seg.raw('<br>' * pendingBreaks));
+            } else if (pendingSpace || text.startsWith(' ')) {
+              segs.add(
+                segs.last.open == open
+                    ? _Seg(open, close, ' ')
+                    : const _Seg('', '', ' '),
+              );
+            }
+          }
+          segs.add(_Seg(open, close, escapeHtmlText(trimmed)));
+          pendingBreaks = 0;
+          pendingSpace = text.endsWith(' ');
+      }
     }
   }
-  return buffer.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
+  return _renderSegs(segs);
 }
 
 /// Extracts footnotes from the document
@@ -1221,7 +1252,7 @@ Map<String, String> _extractFootnotes(Archive archive) {
           final id = footnote.getAttribute('w:id');
           if (id != null && id != '-1' && id != '0') {
             // Skip automatic footnotes
-            footnotes[id] = _footnoteText(footnote);
+            footnotes[id] = _footnoteHtml(footnote);
           }
         }
       } catch (_) {
