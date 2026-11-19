@@ -96,6 +96,66 @@ void main() {
     });
   });
 
+  test('Issue #5500: selection of only a colon retains its exact offset', () {
+    const raw = 'אבג: דהו: זחט';
+    final anchor = computeAnchorForSelection(
+      rawLine: raw,
+      selectedText: ':',
+      selectionColumnHint: raw.lastIndexOf(':'),
+    );
+    expect(anchor, isNotNull);
+    expect(anchor!.start, raw.lastIndexOf(':'));
+    expect(anchor.end, anchor.start + 1);
+
+    final restored = locateAnchor(
+      rawLine: raw,
+      anchorText: ':',
+      prefix: anchor.prefix,
+      suffix: anchor.suffix,
+      hintStart: anchor.start,
+    );
+    expect(restored, isNotNull);
+    expect(raw.substring(restored!.start, restored.end), ':');
+    expect(restored.start, anchor.start);
+  });
+
+  test('Issue #5500: punctuation anchor can be restored through HTML', () {
+    const raw = '<b>אבג:</b> דהו:';
+    final anchor = computeAnchorForSelection(
+      rawLine: raw,
+      selectedText: ':',
+      occurrenceIndex: 1,
+    );
+    expect(anchor, isNotNull);
+    final restored = locateAnchor(
+      rawLine: raw,
+      anchorText: ':',
+      prefix: anchor!.prefix,
+      suffix: anchor.suffix,
+      hintStart: anchor.start,
+    );
+    expect(restored?.start, raw.lastIndexOf(':'));
+    expect(restored?.end, raw.lastIndexOf(':') + 1);
+  });
+
+  test('matches overlapping punctuation selections by source offset', () {
+    const raw = 'א:::ב';
+    final anchor = computeAnchorForSelection(
+      rawLine: raw,
+      selectedText: '::',
+      sourceSelectionOffset: 2,
+      sourceSelectionText: raw,
+    );
+    expect(anchor?.start, 2);
+    expect(anchor?.end, 4);
+  });
+
+  test('keeps a visible Hebrew sof pasuq rather than dropping its anchor', () {
+    const raw = 'בְּרֵאשִׁית א׃';
+    final anchor = computeAnchorForSelection(rawLine: raw, selectedText: '׃');
+    expect(anchor?.start, raw.indexOf('׃'));
+  });
+
   group('computeAnchorForSelection', () {
     test('מחזיר offset והקשר עבור טקסט שנבחר', () {
       const raw = 'בראשית ברא אלהים את השמים ואת הארץ';

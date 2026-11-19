@@ -1,9 +1,11 @@
 import 'dart:math';
 
+import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/services/personal_notes_service.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
+import 'package:otzaria/text_book/utils/note_inline_render.dart';
 
 class _MemoryNotesDb implements PersonalNotesDatabase {
   final notes = <String, PersonalNote>{};
@@ -208,4 +210,74 @@ void main() {
     final range = await add(lineNumber: 3, endLineNumber: 4);
     expect(PersonalNote.fromJson(range.toJson()).endLineNumber, 4);
   });
+
+  test(
+    'הערה על נקודתיים מעוגנת לנקודתיים ולא לכל השורה (issue #5500)',
+    () async {
+      const colonLine = 'משנה א: אלו דברים שאין להם שיעור: הפאה';
+      final note = await add(
+        content: 'שורה ראשונה\n$colonLine',
+        selectedText: ':',
+        occurrenceIndex: 1,
+      );
+
+      expect(note.anchorText, ':');
+      expect(note.anchorStart, colonLine.lastIndexOf(':'));
+      expect(note.anchorEnd, colonLine.lastIndexOf(':') + 1);
+      final html = buildAnnotatedLineHtml(
+        rawLine: colonLine,
+        notesForLine: [note],
+        lineIndex0: 1,
+        underlineColor: const Color(0xFF000000),
+      );
+      expect(html, startsWith('משנה א: אלו דברים שאין להם שיעור<a '));
+      expect(html, endsWith(':</a> הפאה'));
+    },
+  );
+  test('removed colon does not relocate the note to another Mishnah', () async {
+    const oldBook =
+        'משנה ראשונה עם נקודתיים:\nמשנה שנייה מדויקת מאוד:\nמשנה שלישית עם נקודתיים:';
+    const updatedBook =
+        'משנה ראשונה עם נקודתיים:\nמשנה שנייה מדויקת מאוד\nמשנה שלישית עם נקודתיים:';
+    final note = await add(content: oldBook, selectedText: ':');
+    expect(note.lineNumber, 2);
+    final reopened = (await service.loadNotes(
+      bookId: 'ספר',
+      bookContent: updatedBook,
+    )).single;
+    expect(reopened.status, PersonalNoteStatus.missing);
+    expect(reopened.lineNumber, isNull);
+  });
+
+  test('inserted Mishnah with same punctuation does not steal note', () async {
+    const oldBook =
+        'משנה ראשונה עם נקודתיים:\nמשנה שנייה מדויקת מאוד:\nמשנה שלישית עם נקודתיים:';
+    const updatedBook =
+        'משנה ראשונה עם נקודתיים:\nמשנה חדשה ובלתי קשורה:\nמשנה שנייה מדויקת מאוד:\nמשנה שלישית עם נקודתיים:';
+    final note = await add(content: oldBook, selectedText: ':');
+    expect(note.lineNumber, 2);
+    final reopened = (await service.loadNotes(
+      bookId: 'ספר',
+      bookContent: updatedBook,
+    )).single;
+    expect(reopened.lineNumber, 3);
+  });
+  test(
+    'punctuation note is not relocated between two identical candidates',
+    () async {
+      const text = 'משנה שנייה מדויקת מאוד:';
+      final note = await add(
+        content: 'ראשונה\n$text\nשלישית',
+        selectedText: ':',
+      );
+      expect(note.lineNumber, 2);
+
+      final reopened = (await service.loadNotes(
+        bookId: 'ספר',
+        bookContent: '$text\nשורה אחרת\n$text',
+      )).single;
+      expect(reopened.status, PersonalNoteStatus.missing);
+      expect(reopened.lineNumber, isNull);
+    },
+  );
 }
