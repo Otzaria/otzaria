@@ -42,6 +42,53 @@ void main() {
   _FakeIndexingRepository repositoryOf(IndexingBloc bloc) =>
       (bloc as _FakeIndexingBloc).repository;
 
+  group('מקום פנוי בכונן האינדקס', () {
+    const mb = 1024 * 1024;
+
+    Future<({List<String> warnings, int checks})> index({
+      required int freeBytes,
+      int runs = 1,
+      int books = 1,
+    }) async {
+      final warnings = <String>[];
+      var checks = 0;
+      final bloc = IndexingBloc(
+        _FakeIndexingRepository(),
+        reportFailures: (result, elapsed) {},
+        indexFreeBytes: () async {
+          checks++;
+          return freeBytes;
+        },
+        showLowIndexDiskSpace: warnings.add,
+      );
+      for (var i = 0; i < runs; i++) {
+        final settled = Completer<void>();
+        bloc.add(
+          StartIndexing(libraryWithBooks(books), onSettled: settled.complete),
+        );
+        await settled.future.timeout(const Duration(seconds: 2));
+      }
+      await pumpEventQueue();
+      await bloc.close();
+      return (warnings: warnings, checks: checks);
+    }
+
+    test('כונן כמעט מלא: אזהרה אחת, גם בכמה ריצות', () async {
+      final result = await index(freeBytes: 189 * mb, runs: 2);
+      expect(result.warnings, hasLength(1));
+      expect(result.warnings.single, contains('189 MB'));
+    });
+
+    test('בלי אזהרה כשיש מקום או כשהמקום לא ידוע', () async {
+      expect((await index(freeBytes: 10 * 1024 * mb)).warnings, isEmpty);
+      expect((await index(freeBytes: -1)).warnings, isEmpty);
+    });
+
+    test('אין ספרים לאינדוקס: לא בודקים את הכונן', () async {
+      expect((await index(freeBytes: 189 * mb, books: 0)).checks, 0);
+    });
+  });
+
   group('StartIndexing', () {
     test('בקשת איחוד מפורשת נשמרת בניקוי בתור העבודה', () async {
       final repository = _FakeIndexingRepository();
