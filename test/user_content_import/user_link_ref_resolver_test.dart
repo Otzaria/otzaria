@@ -440,6 +440,45 @@ void main() {
       expect(links.single.targetTitle, commentary);
     });
 
+    test('כתיבים קרובים ברשמי ובמצורף אינם מצמידים לספר שרירותי', () async {
+      await addBook(officialDb, riaf, isBaseBook: true);
+      await addBook(userDb, commentary);
+      final attachedDb = MyDatabase.withPath(
+        p.join(directory.path, 'other.db'),
+      );
+      addTearDown(attachedDb.close);
+      await addBook(attachedDb, 'רי״ף שבת', isBaseBook: true);
+      final attached = AttachedLinkBooks.open([
+        (
+          slug: 'attached',
+          path: attachedDb.path,
+          immutable: false,
+          visible: true,
+        ),
+      ]);
+      addTearDown(attached.close);
+
+      final result = await importNative(
+        'ריף שבת_links.json',
+        nativeRow,
+        attached: attached,
+      );
+
+      expect(result.errors.single, contains('יותר מספר אחד'));
+      expect(result.linksApplied, 0);
+    });
+
+    test('הסרת סוגריים או רווחים אינה תחליף לגרשיים', () async {
+      await addBook(officialDb, riaf, isBaseBook: true);
+      await addBook(userDb, commentary);
+
+      for (final title in ['ריף <שבת>', 'ריף  שבת']) {
+        final result = await importNative('${title}_links.json', nativeRow);
+        expect(result.errors.single, contains('לא נמצא בספרייה'));
+        expect(result.linksApplied, 0);
+      }
+    });
+
     test('שני כתיבים שמתנרמלים לאותה כותרת: לא נמצא, בלי חריגה', () async {
       await addBook(userDb, riaf);
       await addBook(officialDb, 'רי״ף שבת');

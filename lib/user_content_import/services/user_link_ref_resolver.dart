@@ -2,7 +2,6 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
-import 'package:otzaria/library/models/library.dart' show normalizeBookTitle;
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart';
@@ -126,11 +125,22 @@ Future<LocatedUserLinkBook?> locateUserLinkBook(String title) =>
 class AmbiguousUserLinkBookException implements Exception {
   final String title;
 
-  const AmbiguousUserLinkBookException(this.title);
+  const AmbiguousUserLinkBookException(this.title, {this.normalized = false});
+
+  final bool normalized;
+
+  String get details =>
+      normalized ? 'מתאים ליותר מספר אחד' : 'קיים גם בספרייה האישית וגם ברשמית';
 }
 
 class UnavailableUserLinkCatalogException implements Exception {
-  const UnavailableUserLinkCatalogException();
+  const UnavailableUserLinkCatalogException({this.attached = false});
+
+  final bool attached;
+
+  String get message => attached
+      ? 'לא ניתן לבדוק את המסדים המצורפים'
+      : 'לא ניתן לבדוק את הספרייה הרשמית';
 }
 
 @visibleForTesting
@@ -143,20 +153,24 @@ Future<LocatedUserLinkBook?> locateUserLinkBookInRepositories(
   title,
 );
 
-/// כותרות המסד לפי [normalizeBookTitle], נבנות פעם אחת לכל מאתר ולא לכל החטאה.
-typedef _LooseTitles =
-    Map<SeforimRepository, Future<Map<String, List<String>>>>;
+final _titleQuotes = RegExp('["\'״׳]');
+String _looseTitleKey(String title) => title.replaceAll(_titleQuotes, '');
 
-Future<Map<String, List<String>>> _looseTitlesOf(SeforimRepository repo) async {
+typedef _LooseTitles =
+    Map<SeforimRepository, Future<Map<String, List<String>>?>>;
+
+Future<Map<String, List<String>>?> _looseTitlesOf(
+  SeforimRepository repo,
+) async {
   final byKey = <String, List<String>>{};
   try {
     for (final row in await repo.database.bookDao.selectAllLocalBooksSlim()) {
       final title = row['title'] as String;
-      (byKey[normalizeBookTitle(title)] ??= []).add(title);
+      (byKey[_looseTitleKey(title)] ??= []).add(title);
     }
   } on Exception catch (e) {
-    // כמו לפני הגיבוי: ספר שלא נמצא בהתאמה מדויקת פשוט אינו נמצא.
     debugPrint('⚠️ [UserLinkBookLocator] $e');
+    return null;
   }
   return byKey;
 }
@@ -187,22 +201,22 @@ Future<LocatedUserLinkBook?> _locateIn(
   var book = userBook ?? officialBook;
   if (book == null) {
     // שם קובץ ב-Windows אינו יכול להכיל ", ולכן `ריף שבת` מכוון ל-`רי"ף שבת`.
-    final key = normalizeBookTitle(title);
+    final key = _looseTitleKey(title);
+    if (key.isEmpty) return null;
     final cache = looseTitles ?? {};
-    final loose = [
-      for (final (isUser, repo) in [
-        (true, userRepository),
-        (false, officialRepository),
-      ])
-        if (repo != null)
-          for (final match
-              in (await cache.putIfAbsent(
-                    repo,
-                    () => _looseTitlesOf(repo),
-                  ))[key] ??
-                  const <String>[])
-            (isUser, repo, match),
-    ];
+    final loose = <(bool, SeforimRepository, String)>[];
+    for (final (isUser, repo) in [
+      (true, userRepository),
+      (false, officialRepository),
+    ]) {
+      if (repo == null) continue;
+      final titles = await cache.putIfAbsent(repo, () => _looseTitlesOf(repo));
+      // מסד שלא נסרק עלול להכיל כותרת נוספת; אין לבחור כתיב קרוב על סמך היתר.
+      if (titles == null) return null;
+      for (final match in titles[key] ?? const <String>[]) {
+        loose.add((isUser, repo, match));
+      }
+    }
     if (loose.length != 1) return null;
     final (isUser, repo, match) = loose.single;
     isUserBook = isUser;
@@ -323,7 +337,27 @@ class AttachedLinkBooks {
         Future<({String slug, int totalLines, bool isDependentOnly})?>
       >{};
 
+  final _LooseTitles _looseTitles = {};
+
   bool get isEmpty => _libraries.isEmpty;
+
+  /// האם מסד מצורף גלוי מכיל מתחרה למועמד שנמצא לאחר הסרת גרשיים.
+  Future<bool> hasLooseTitle(String title) async {
+    final key = _looseTitleKey(title);
+    for (final library in _libraries) {
+      if (!library.visible) continue;
+      final repo = library.repository;
+      final titles = await _looseTitles.putIfAbsent(
+        repo,
+        () => _looseTitlesOf(repo),
+      );
+      if (titles == null) {
+        throw const UnavailableUserLinkCatalogException(attached: true);
+      }
+      if (titles.containsKey(key)) return true;
+    }
+    return false;
+  }
 
   /// הספר [title] במסד [slug], או — בלי slug — במסד הגלוי הראשון שמכיל אותו.
   Future<({String slug, int totalLines, bool isDependentOnly})?> locate(

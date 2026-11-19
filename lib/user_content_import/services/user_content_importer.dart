@@ -712,43 +712,44 @@ class UserContentImporter {
       errors.add('$fileName ${err.message} (שורה ${err.lineNumber})');
     }
 
-    // אישי/רשמי קודמים; ספר שאין בהם נלקח מהמסד המצורף הגלוי הראשון שמכיל אותו.
-    // כתיב קרוב באישי/רשמי אינו גובר על [title] עצמו במסד מצורף.
+    // התאמה מדויקת קודמת לכתיב קרוב, גם אם היא במסד מצורף.
     Future<_LocatedLinkBook?> locate(String title) async {
       final found = await locateBook(title);
-      if (found != null &&
-          (found.title == title || await attached.locate(title) == null)) {
-        return (
-          title: found.title,
-          isUserBook: found.isUserBook,
-          categoryId: found.categoryId,
-          totalLines: found.totalLines,
-          isDependentOnly: found.isDependentOnly,
-          db: null,
-        );
+      if (found?.title != title) {
+        final inAttached = await attached.locate(title);
+        if (inAttached != null) {
+          return (
+            title: title,
+            isUserBook: false,
+            categoryId: null,
+            totalLines: inAttached.totalLines,
+            isDependentOnly: inAttached.isDependentOnly,
+            db: inAttached.slug,
+          );
+        }
+        if (found != null && await attached.hasLooseTitle(title)) {
+          throw AmbiguousUserLinkBookException(title, normalized: true);
+        }
       }
-      final inAttached = await attached.locate(title);
-      if (inAttached == null) return null;
+      if (found == null) return null;
       return (
-        title: title,
-        isUserBook: false,
-        categoryId: null,
-        totalLines: inAttached.totalLines,
-        isDependentOnly: inAttached.isDependentOnly,
-        db: inAttached.slug,
+        title: found.title,
+        isUserBook: found.isUserBook,
+        categoryId: found.categoryId,
+        totalLines: found.totalLines,
+        isDependentOnly: found.isDependentOnly,
+        db: null,
       );
     }
 
     final _LocatedLinkBook? source;
     try {
       source = await locate(baseTitle);
-    } on AmbiguousUserLinkBookException {
-      errors.add(
-        '$fileName: ספר הבסיס "$baseTitle" קיים גם בספרייה האישית וגם ברשמית',
-      );
+    } on AmbiguousUserLinkBookException catch (e) {
+      errors.add('$fileName: ספר הבסיס "$baseTitle" ${e.details}');
       return;
-    } on UnavailableUserLinkCatalogException {
-      errors.add('$fileName: לא ניתן לבדוק את הספרייה הרשמית');
+    } on UnavailableUserLinkCatalogException catch (e) {
+      errors.add('$fileName: ${e.message}');
       return;
     }
     if (source == null) {
@@ -763,14 +764,12 @@ class UserContentImporter {
       if (!targetCache.containsKey(row.targetTitle)) {
         try {
           targetCache[row.targetTitle] = await locate(row.targetTitle);
-        } on AmbiguousUserLinkBookException {
+        } on AmbiguousUserLinkBookException catch (e) {
           ambiguousTargets.add(row.targetTitle);
-          errors.add(
-            '$fileName: ספר היעד "${row.targetTitle}" קיים גם בספרייה האישית וגם ברשמית',
-          );
+          errors.add('$fileName: ספר היעד "${row.targetTitle}" ${e.details}');
           continue;
-        } on UnavailableUserLinkCatalogException {
-          errors.add('$fileName: לא ניתן לבדוק את הספרייה הרשמית');
+        } on UnavailableUserLinkCatalogException catch (e) {
+          errors.add('$fileName: ${e.message}');
           return;
         }
       }
