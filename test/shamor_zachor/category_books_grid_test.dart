@@ -254,6 +254,7 @@ void main() {
   });
 
   for (final (name, textScaler) in [
+    ('0.85', const TextScaler.linear(0.85)),
     ('1.0', const TextScaler.linear(1.0)),
     ('1.5', const TextScaler.linear(1.5)),
     ('Android 200%', const _AndroidNonlinearTextScaler()),
@@ -263,7 +264,7 @@ void main() {
       'its content (issue #5313, text scale $name)',
       (tester) async {
         await loadGoldenFonts();
-        await tester.binding.setSurfaceSize(const Size(900, 600));
+        await tester.binding.setSurfaceSize(const Size(432, 600));
         addTearDown(() => tester.binding.setSurfaceSize(null));
 
         const longName = 'ספר עם שם ארוך במיוחד שנפרש על פני שתי שורות בכרטיס';
@@ -297,7 +298,7 @@ void main() {
                 value: _FakeProgressProvider(
                   Completer<void>(),
                   progressById: {
-                    2: {
+                    1: {
                       '0': PageProgress(
                         learn: true,
                         review1: true,
@@ -318,7 +319,10 @@ void main() {
                 data: MediaQuery.of(
                   context,
                 ).copyWith(textScaler: textScaler),
-                child: child!,
+                child: Directionality(
+                  textDirection: TextDirection.rtl,
+                  child: child!,
+                ),
               ),
               home: Scaffold(
                 body: CategoryBooksGrid(
@@ -332,6 +336,12 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
+
+        final grid = tester.widget<GridView>(find.byType(GridView));
+        final delegate =
+            grid.gridDelegate as SliverGridDelegateWithMaxCrossAxisExtent;
+        expect(delegate.mainAxisExtent, greaterThanOrEqualTo(264));
+        expect(find.text('הושלם'), findsOneWidget);
 
         // הראשון הוא הדף; האחרים — הגלילה של כל כרטיס.
         final positions = tester

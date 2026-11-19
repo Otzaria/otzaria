@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
@@ -351,9 +353,9 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
           maxCrossAxisExtent: 350,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
-          // כל הכרטיס נכנס בתא, אחרת הוא נגלל בתוך עצמו ובולע את גלילת הדף.
-          // scale(1) ולא scale(264): בהגדלה הלא-לינארית של אנדרואיד 264 לא גדל.
-          mainAxisExtent: 264 * MediaQuery.textScalerOf(context).scale(1),
+          // scale(1) תומך בהגדלה לא-לינארית, והטבעות והריפוד לא מצטמצמים.
+          mainAxisExtent:
+              264 * math.max(1.0, MediaQuery.textScalerOf(context).scale(1)),
         ),
         itemCount: books.length,
         itemBuilder: (context, index) {
