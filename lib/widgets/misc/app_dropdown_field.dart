@@ -2,10 +2,12 @@ import 'dart:math';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
+import 'package:otzaria/widgets/misc/ui_label_nudge.dart';
 
 class AppDropdownField<T> extends StatefulWidget {
   final T? value;
@@ -67,6 +69,10 @@ class AppDropdownField<T> extends StatefulWidget {
 }
 
 class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
+  static const double _startPadding = AppTokens.spaceMD;
+  static const double _endPadding = AppTokens.spaceSM;
+  static const double _arrowGap = 8;
+
   final GlobalKey _anchorKey = GlobalKey();
   final FocusNode _focusNode = FocusNode();
   bool _menuOpen = false;
@@ -194,10 +200,12 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
         Flexible(
           child:
               customLabelWidget ??
-              Text(
-                _selectedLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              UiLabelNudge(
+                child: Text(
+                  _selectedLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
         ),
       ],
@@ -209,21 +217,36 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
       style: FilledButton.styleFrom(
         minimumSize: const Size(double.infinity, 40),
         padding: const EdgeInsetsDirectional.fromSTEB(
-          AppTokens.spaceMD,
+          _startPadding,
           0,
-          AppTokens.spaceSM,
+          _endPadding,
           0,
         ),
       ),
       // הרוחב הסופי נקבע ע"י ההורה (Expanded/SizedBox למטה) — לכן תמיד
       // ממלאים אותו במלואו, כדי שהחץ יישאר צמוד לקצה הכפתור.
-      child: Row(
-        mainAxisSize: MainAxisSize.max,
-        children: [
-          Expanded(child: content),
-          const SizedBox(width: 8),
-          Icon(FluentIcons.chevron_down_24_regular),
-        ],
+      child: Builder(
+        builder: (context) {
+          // האייקון בגודל של הכפתור (IconTheme שלו), ולכן נקרא מתוכו.
+          // מרכז השטח של התווית רחוק ממרכז הכפתור בחצי ההפרש בין הצדדים:
+          // בסוף ריווח, חץ ורווח; בהתחלה ריווח בלבד.
+          final shift =
+              (_endPadding +
+                  (IconTheme.of(context).size ?? 24) +
+                  _arrowGap -
+                  _startPadding) /
+              2;
+          return Row(
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              Expanded(
+                child: _CenterOnButton(shift: shift, child: content),
+              ),
+              const SizedBox(width: _arrowGap),
+              Icon(FluentIcons.chevron_down_24_regular),
+            ],
+          );
+        },
       ),
     );
 
@@ -286,6 +309,85 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
           field,
         ],
       ),
+    );
+  }
+}
+
+/// ממרכז את התווית על כל רוחב הכפתור, ולא רק על השטח שבין הקצה לחץ: הכפתור
+/// הוא כמוסה אחת, והחץ הוא סימן בצד. [shift] הוא המרחק ממרכז השטח של
+/// התווית למרכז הכפתור, לכיוון החץ.
+/// תווית ארוכה זזה פחות, עד שהיא נוגעת בשטח של החץ, ולכן לעולם אינה נחתכת
+/// מוקדם יותר משהייתה נחתכת בלי המרכוז.
+class _CenterOnButton extends SingleChildRenderObjectWidget {
+  const _CenterOnButton({required this.shift, required super.child});
+
+  final double shift;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderCenterOnButton(shift, Directionality.of(context));
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderCenterOnButton renderObject,
+  ) {
+    renderObject
+      ..shift = shift
+      ..textDirection = Directionality.of(context);
+  }
+}
+
+class _RenderCenterOnButton extends RenderShiftedBox {
+  _RenderCenterOnButton(this._shift, this._textDirection) : super(null);
+
+  double _shift;
+  set shift(double value) {
+    if (value == _shift) return;
+    _shift = value;
+    markNeedsLayout();
+  }
+
+  TextDirection _textDirection;
+  set textDirection(TextDirection value) {
+    if (value == _textDirection) return;
+    _textDirection = value;
+    markNeedsLayout();
+  }
+
+  Size _sizeFor(BoxConstraints constraints, Size childSize) =>
+      constraints.constrain(
+        Size(
+          constraints.hasBoundedWidth ? constraints.maxWidth : childSize.width,
+          childSize.height,
+        ),
+      );
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) {
+    final child = this.child;
+    if (child == null) return constraints.smallest;
+    return _sizeFor(constraints, child.getDryLayout(constraints.loosen()));
+  }
+
+  @override
+  void performLayout() {
+    final child = this.child;
+    if (child == null) {
+      size = constraints.smallest;
+      return;
+    }
+    child.layout(constraints.loosen(), parentUsesSize: true);
+    size = _sizeFor(constraints, child.size);
+    final free = max(0.0, size.width - child.size.width);
+    // לכיוון החץ (הקצה הסופי), אבל לא מעבר לשטח של התווית.
+    final toEnd = max(-free / 2, min(_shift, free / 2));
+    final dx = _textDirection == TextDirection.rtl
+        ? free / 2 - toEnd
+        : free / 2 + toEnd;
+    (child.parentData! as BoxParentData).offset = Offset(
+      dx,
+      (size.height - child.size.height) / 2,
     );
   }
 }

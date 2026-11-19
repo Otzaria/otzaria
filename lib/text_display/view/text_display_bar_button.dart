@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -107,6 +108,21 @@ class TextDisplayPopupPanel extends StatefulWidget {
 
   static const double width = 300;
 
+  /// הנוסח שהמשתמש בחר לשם הוי"ה — מחריץ השורש של ההגדרות הכלליות.
+  /// בלי הגדרות זמינות — יקוק (ברירת המחדל של התוכנה).
+  static HolyNameDisplay _preferredHolyName(BuildContext context) {
+    try {
+      return context
+          .read<SettingsBloc>()
+          .state
+          .textDisplayPolicy
+          .resolve(TextDisplaySlot.root)
+          .holyName;
+    } catch (_) {
+      return HolyNameDisplay.kufKuf;
+    }
+  }
+
   @override
   State<TextDisplayPopupPanel> createState() => _TextDisplayPopupPanelState();
 }
@@ -149,6 +165,11 @@ class _TextDisplayPopupPanelState extends State<TextDisplayPopupPanel> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final preferredHolyName = TextDisplayPopupPanel._preferredHolyName(
+      context,
+    );
+    final shared = sections.length > 1;
+    // Esc סוגר את החלונית (הפוקוס עובר אליה כשהיא נפתחת).
     return Focus(
       focusNode: _focusNode,
       autofocus: true,
@@ -160,11 +181,16 @@ class _TextDisplayPopupPanelState extends State<TextDisplayPopupPanel> {
         }
         return KeyEventResult.ignored;
       },
-      child: _buildPanel(context, theme),
+      child: _buildPanel(context, theme, preferredHolyName, shared),
     );
   }
 
-  Widget _buildPanel(BuildContext context, ThemeData theme) {
+  Widget _buildPanel(
+    BuildContext context,
+    ThemeData theme,
+    HolyNameDisplay preferredHolyName,
+    bool shared,
+  ) {
     return SizedBox(
       width: TextDisplayPopupPanel.width,
       child: Padding(
@@ -174,14 +200,42 @@ class _TextDisplayPopupPanelState extends State<TextDisplayPopupPanel> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            AppDialogHeader(
-              title: 'תצוגת הטקסט',
-              subtitle: widget.viewLabel,
-              compact: true,
-              subtitleMaxLines: 1,
-              onClose: () => Navigator.of(context).pop(),
+            Padding(
+              // מרווח נדיב סביב הכותרת — שלא ייראה עמוס.
+              padding: const EdgeInsets.fromLTRB(
+                AppTokens.spaceSM,
+                AppTokens.spaceSMD,
+                AppTokens.spaceSM,
+                AppTokens.spaceSMD,
+              ),
+              // הכותרת, ושם התצוגה (צורת הדף / תצוגה רגילה) בשורה מתחתיה.
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'תצוגת הטקסט',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontSize:
+                          (theme.textTheme.titleMedium?.fontSize ?? 16) + 2,
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    widget.viewLabel,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
+            const Divider(height: 1),
             const SizedBox(height: AppTokens.spaceSM),
+            // גוף הספר, ומיד אחריו "שמות הקודש" — מתג משותף לכל המקטעים.
             _SectionTitle(sections.first.title),
             const SizedBox(height: 4),
             ...TextDisplayProfileEditor.popupTiles(
@@ -189,7 +243,29 @@ class _TextDisplayPopupPanelState extends State<TextDisplayPopupPanel> {
               profile: sections.first.profile,
               onChanged: sections.first.onChanged,
               includeTeamimSelector: sections.first.includeTeamimSelector,
+              preferredHolyName: preferredHolyName,
+              includeHolyNames: !shared,
             ),
+            if (shared)
+              TextDisplayProfileEditor.holyNamesTile(
+                context,
+                subtitle: context.settingsText('בגוף הספר ובמפרשים'),
+                shown: sections.every(
+                  (s) => TextDisplayProfileEditor.holyNamesShown(s.profile),
+                ),
+                onShown: (show) {
+                  for (final s in sections) {
+                    s.onChanged(
+                      TextDisplayProfileEditor.withHolyNames(
+                        s.profile,
+                        show: show,
+                        preferred: preferredHolyName,
+                      ),
+                    );
+                  }
+                },
+              ),
+            // שאר המקטעים (מפרשים) — בתחתית, מקופלים, נפתחים בלחיצה.
             for (final (i, section) in sections.indexed.skip(1)) ...[
               // רווח מהשורה שמעל לפני המפרשים.
               const SizedBox(height: 8),
@@ -207,6 +283,8 @@ class _TextDisplayPopupPanelState extends State<TextDisplayPopupPanel> {
                   profile: section.profile,
                   onChanged: section.onChanged,
                   includeTeamimSelector: section.includeTeamimSelector,
+                  preferredHolyName: preferredHolyName,
+                  includeHolyNames: false,
                 ),
               if (_expanded.contains(i))
                 const SizedBox(height: AppTokens.spaceSM),

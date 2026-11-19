@@ -1521,16 +1521,17 @@ void main() {
           description: 'TextBookLoaded',
         );
 
+        // ערכים ששונים מברירת המחדל — ערך שזהה לה נמחק מהעקיפה.
         bloc.add(
           const ApplyDisplayPatch(
             target: TextTarget.commentary,
-            patch: TextDisplayPatch(nikud: MarkVisibility.show),
+            patch: TextDisplayPatch(nikud: MarkVisibility.hide),
           ),
         );
         bloc.add(
           const ApplyDisplayPatch(
             target: TextTarget.commentary,
-            patch: TextDisplayPatch(punctuation: MarkVisibility.show),
+            patch: TextDisplayPatch(punctuation: MarkVisibility.hide),
           ),
         );
         await _waitFor(
@@ -1555,8 +1556,8 @@ void main() {
         );
 
         final state = bloc.state as TextBookLoaded;
-        expect(state.commentaryRemoveNikudOverride, isFalse);
-        expect(state.commentaryRemovePunctuationOverride, isFalse);
+        expect(state.commentaryRemoveNikudOverride, isTrue);
+        expect(state.commentaryRemovePunctuationOverride, isTrue);
 
         await bloc.close();
       },
@@ -2345,8 +2346,8 @@ TextBookBloc _createBloc({
 
 bool _commentaryOverridesApplied(TextBookState state) =>
     state is TextBookLoaded &&
-    state.commentaryRemoveNikudOverride == false &&
-    state.commentaryRemovePunctuationOverride == false;
+    state.commentaryRemoveNikudOverride == true &&
+    state.commentaryRemovePunctuationOverride == true;
 
 class _TransitionRecorder extends BlocObserver {
   _TransitionRecorder(this.transitions);

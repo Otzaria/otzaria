@@ -1450,12 +1450,59 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       view: currentState.activeView,
       channel: TextChannel.display,
     );
+    final overrides = currentState.displayOverrides;
+    final previous = overrides.patchFor(slot);
+    final bookLayers = [
+      currentState.bookDisplayLayer,
+      ...currentState.displayPolicy.layersFor(isTanach: currentState.isTanach),
+    ];
+    final inherited = TextDisplayResolver.resolve(
+      slot: slot,
+      layers: [overrides.without(slot), ...bookLayers],
+    );
+    final ofBook = TextDisplayResolver.resolve(slot: slot, layers: bookLayers);
+    final patch = event.patch;
+    final retained = patch
+        .pruneAgainst(inherited)
+        .merge(patch.pruneAgainst(ofBook));
+
+    // רק ביטול של שינוי קיים מסיר עקיפה; בחירה מפורשת נשמרת.
+    bool wasReverted<T>(T? before, T? after, T? keep) =>
+        before != null && after != null && before != after && keep == null;
+
+    final next = previous
+        .merge(patch)
+        .copyWith(
+          clearNikud: wasReverted(previous.nikud, patch.nikud, retained.nikud),
+          clearTeamim: wasReverted(
+            previous.teamim,
+            patch.teamim,
+            retained.teamim,
+          ),
+          clearPunctuation: wasReverted(
+            previous.punctuation,
+            patch.punctuation,
+            retained.punctuation,
+          ),
+          clearHolyName: wasReverted(
+            previous.holyName,
+            patch.holyName,
+            retained.holyName,
+          ),
+          clearAnchorMarkers: wasReverted(
+            previous.anchorMarkers,
+            patch.anchorMarkers,
+            retained.anchorMarkers,
+          ),
+          clearDivineNames: wasReverted(
+            previous.divineNames,
+            patch.divineNames,
+            retained.divineNames,
+          ),
+        );
     emit(
       currentState.copyWith(
-        displayOverrides: currentState.displayOverrides.merged(
-          slot,
-          event.patch,
-        ),
+        displayOverrides: overrides.withSlot(slot, next),
         selectedIndex: currentState.selectedIndex,
       ),
     );
