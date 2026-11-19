@@ -117,6 +117,31 @@ void main() {
       ),
     );
 
+    testWidgets('typing cancels in-flight work before the debounced search', (tester) async {
+      final immediate = <String>[];
+      final debounced = <String>[];
+      await pumpIn(
+        tester,
+        340,
+        SearchPaneBase(
+          searchController: controller,
+          focusNode: focusNode,
+          resultsWidget: const SizedBox.shrink(),
+          isNoResults: false,
+          resetSearchCallback: () {},
+          onSearchInput: immediate.add,
+          onSearchTextChanged: debounced.add,
+        ),
+      );
+
+      await tester.enterText(find.byType(EditableText), 'שבת שלום');
+      expect(immediate, ['שבת שלום']);
+      expect(debounced, isEmpty);
+
+      await tester.pump(kSearchFieldDebounce);
+      expect(debounced, ['שבת שלום']);
+    });
+
     testWidgets(
       'סינון פעיל בשורת הפעולות: התווית גלויה בלי לצמצם את הקלט',
       (tester) async {
