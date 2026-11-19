@@ -1200,6 +1200,13 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           searchableInBookQuery(searchTextController.text) != null &&
           !_isSearching,
       errorMessage: _searchErrorMessage,
+      onSearchInput: (_) {
+        // Cancel an expensive in-flight engine query as soon as the user
+        // resumes typing, instead of making it compete with keyboard input
+        // until the debounced replacement search starts.
+        ++_activeSearchRequestId;
+        _engineSearch.cancel();
+      },
       onSearchTextChanged: (_) {
         // value מה-debounce עשוי להקדים שאילתה חיצונית שכבר נכתבה לשדה.
         final query = searchableInBookQuery(searchTextController.text);
