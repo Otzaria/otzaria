@@ -83,7 +83,7 @@ void main() {
       userDb,
       locateBook: locate,
     );
-    expect(result.errors.single, contains('גם בספרייה האישית וגם ברשמית'));
+    expect(result.errors.single, contains('ביותר ממקור אחד'));
     expect(result.linksApplied, 0);
     expect(
       await UserContentRepository(userDb).forwardUserLinks(
@@ -112,9 +112,39 @@ void main() {
       locateBook: locate,
     );
     expect(result.errors.single, contains('ספר הבסיס'));
-    expect(result.errors.single, contains('גם בספרייה האישית וגם ברשמית'));
+    expect(result.errors.single, contains('ביותר ממקור אחד'));
     expect(result.linksApplied, 0);
   });
+
+  for (final sourceCollision in [true, false]) {
+    test('native דוחה כותרת כפולה במסד מצורף (מקור: $sourceCollision)', () async {
+      await addBook(userDb, 'אישי');
+      await addBook(officialDb, 'רשמי');
+      final attached = AttachedLinkBooks.open([
+        (
+          slug: 'attached',
+          path: officialDb.path,
+          immutable: false,
+          visible: true,
+        ),
+      ]);
+      addTearDown(attached.close);
+      final result = await UserContentImporter.importContents(
+        [
+          ImportedFile(
+            name: '${sourceCollision ? 'רשמי' : 'אישי'}_links.json',
+            content: '[{"line_index_1": 1, "line_index_2": 2, '
+                '"path_2": "${sourceCollision ? 'אישי' : 'רשמי'}.txt"}]',
+          ),
+        ],
+        userDb,
+        locateBook: locate,
+        attachedBooks: attached,
+      );
+      expect(result.errors.single, contains('קיים ביותר ממקור אחד'));
+      expect(result.linksApplied, 0);
+    });
+  }
 
   test('ספרייה אישית עצמאית ללא מסד רשמי עדיין נקלטת', () async {
     await addBook(userDb, 'בסיס');
