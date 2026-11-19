@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/widgets.dart';
 
-/// מרכוז אנכי של תווית ממשק בעברית בתוך פקד (בורר מקטעים, תפריט נפתח).
+/// מרכוז אנכי של תווית ממשק בעברית בתוך פקד (כרגע: הערך בתפריט הנפתח).
 ///
 /// ב-Windows גופן הממשק הוא Segoe UI. המרווח שלו מעל קו הבסיס גדול בהרבה
 /// מהמרווח שמתחתיו, והאותיות העבריות (בלי עולים ויורדים, חוץ מ-ק ו-ל) תופסות

@@ -329,15 +329,15 @@ void main() {
       tester.widget<ExpandableSettingsTile>(backupSection()).isExpanded,
       isTrue,
     );
-    // התווית עטופה (UiLabelNudge) — מחפשים את הבורר שמעל הטקסט.
-    final mode = find
-        .ancestor(
-          of: find.text('גבה הכל'),
-          matching: find.byWidgetPredicate(
-            (widget) => widget is SegmentedButton,
+    final mode = find.byWidgetPredicate(
+      (widget) =>
+          widget is SegmentedButton &&
+          widget.segments.any(
+            (segment) =>
+                segment.label is Text &&
+                (segment.label as Text).data == 'גבה הכל',
           ),
-        )
-        .first;
+    );
     expect(
       tester.widget<SegmentedButton>(mode).selected.single.toString(),
       endsWith('.all'),
