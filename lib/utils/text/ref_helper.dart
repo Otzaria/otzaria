@@ -30,18 +30,13 @@ Future<String?> refFromDbLine(TextBook book, int index) => _lineRefFromDb(
 );
 
 /// כתובת השורה המלאה מה-DB, עד רמת הפסוק/ההלכה; `null` לספר
-/// שאינו ב-DB או לשורה בלי `heRef` (כותרות, ספרי קבצים). heRef שהוא רק
-/// שם הספר ומספר השורה (ספרים בלי חלוקה, כמו "ערוך לנר על יבמות 353") אינו
-/// כתובת — `null`, כדי שייפלו לנתיב הכותרות.
-Future<String?> heRefFromDbLine(TextBook book, int index) async {
-  final heRef = await _lineRefFromDb(
-    book,
-    index,
-    'heRef',
-    (repo, bookId) => repo.getLineHeRef(bookId, index),
-  );
-  return heRef == '${book.title} ${index + 1}' ? null : heRef;
-}
+/// שאינו ב-DB או לשורה בלי `heRef` (כותרות, ספרי קבצים).
+Future<String?> heRefFromDbLine(TextBook book, int index) => _lineRefFromDb(
+  book,
+  index,
+  'heRef',
+  (repo, bookId) => repo.getLineHeRef(bookId, index),
+);
 
 /// ספר רשמי נקרא ב-[DbReadWorker]: שאילתה סינכרונית על ה-UI תוקעת את
 /// החלון כשהדיסק איטי. ספרים אישיים ומצורפים נקראים מהמאגר שלהם.
