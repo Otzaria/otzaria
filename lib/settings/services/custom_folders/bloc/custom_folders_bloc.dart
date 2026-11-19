@@ -505,7 +505,9 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
           importFiles: await library.list(),
           message: outcome.ok ? successMessage : null,
           error: outcome.ok
-              ? null
+              ? (outcome.skipped.isEmpty
+                    ? null
+                    : 'קבצים שלא נקלטו:\n${outcome.skipped.take(10).join('\n')}')
               : '$failurePrefix:\n${outcome.allErrors.take(10).join('\n')}',
         ),
       );

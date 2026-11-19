@@ -83,7 +83,7 @@ void main() {
       userDb,
       locateBook: locate,
     );
-    expect(result.errors.single, contains('גם בספרייה האישית וגם ברשמית'));
+    expect(result.errors.single, contains('ביותר ממקור אחד'));
     expect(result.linksApplied, 0);
     expect(
       await UserContentRepository(userDb).forwardUserLinks(
@@ -112,7 +112,7 @@ void main() {
       locateBook: locate,
     );
     expect(result.errors.single, contains('ספר הבסיס'));
-    expect(result.errors.single, contains('גם בספרייה האישית וגם ברשמית'));
+    expect(result.errors.single, contains('ביותר ממקור אחד'));
     expect(result.linksApplied, 0);
   });
 

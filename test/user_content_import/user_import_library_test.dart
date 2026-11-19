@@ -5,9 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' show sqlite3;
 import 'package:otzaria/migration/database/daos/database.dart';
+import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/user_content_import/models/user_import_models.dart';
 import 'package:otzaria/user_content_import/repository/user_content_repository.dart';
 import 'package:otzaria/user_content_import/services/user_import_library.dart';
+import 'package:otzaria/user_content_import/services/user_link_ref_resolver.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
@@ -490,6 +492,119 @@ void main() {
       final id = (await library.list()).single.id;
       expect((await library.setEnabled(id, true)).ok, isTrue);
       expect(await storedLinks(), hasLength(1));
+    });
+
+    // #5222: קובץ native שמור שנעשה דו-משמעי כשמסד מצורף עם ספר באותו שם
+    // נעשה גלוי — מדולג ומדווח, בלי לחסום ייבוא או השהיה של קבצים אחרים.
+    group('ספר דו-משמעי מול מסד מצורף', () {
+      late MyDatabase officialDb;
+
+      Future<void> addBook(MyDatabase target, String title) async {
+        final raw = await target.database;
+        raw.execute('PRAGMA foreign_keys = OFF');
+        raw.execute("INSERT OR IGNORE INTO source (id, name) VALUES (1, 'x')");
+        raw.execute(
+          'INSERT INTO book (categoryId, sourceId, title, totalLines) '
+          'VALUES (1, 1, ?, 10)',
+          [title],
+        );
+      }
+
+      UserImportLibrary libraryWith({required bool attachedVisible}) {
+        final attached = AttachedLinkBooks.open([
+          (
+            slug: 'attached',
+            path: p.join(tempDir.path, 'attached.db'),
+            immutable: false,
+            visible: attachedVisible,
+          ),
+        ]);
+        addTearDown(attached.close);
+        return UserImportLibrary(
+          db,
+          resolveRef:
+              ({
+                required targetTitle,
+                required targetCategoryId,
+                required targetIsUserBook,
+                required ref,
+              }) async => int.tryParse(ref),
+          sourceExists:
+              ({required title, categoryId, required isUserBook}) async => true,
+          locateBook: (title) => locateUserLinkBookInRepositories(
+            title,
+            userRepository: SeforimRepository(db),
+            officialRepository: SeforimRepository(officialDb),
+          ),
+          attachedBooks: attached,
+        );
+      }
+
+      String nativeFile(String base, String target) => write(
+        '${base}_links.json',
+        '[{"line_index_1": 1, "line_index_2": 2, "path_2": "$target.txt"}]',
+      );
+
+      Future<List<UserLinkRecord>> nativeLinks() =>
+          repo.forwardUserLinks('רשמי', sourceIsUserBook: false);
+
+      setUp(() async {
+        officialDb = MyDatabase.withPath(p.join(tempDir.path, 'official.db'));
+        await addBook(db, 'אישי');
+        await addBook(officialDb, 'רשמי');
+        final attachedDb = MyDatabase.withPath(
+          p.join(tempDir.path, 'attached.db'),
+        );
+        await addBook(attachedDb, 'רשמי');
+        attachedDb.close();
+
+        final before = await libraryWith(
+          attachedVisible: false,
+        ).addFiles([nativeFile('רשמי', 'אישי'), linksFile('קישורים.csv')]);
+        expect(before.allErrors, isEmpty);
+        expect(await nativeLinks(), hasLength(1));
+      });
+
+      tearDown(() => officialDb.close());
+
+      test('ייבוא נוסף מצליח והקובץ הדו-משמעי מדולג ומדווח', () async {
+        final outcome = await libraryWith(
+          attachedVisible: true,
+        ).addFiles([linksFile('ברכות.links.csv', sourceLine: 5)]);
+
+        expect(outcome.ok, isTrue);
+        expect(outcome.added.linksApplied, 1);
+        expect(outcome.skipped, contains(contains('רשמי_links.json')));
+        expect(await nativeLinks(), isEmpty);
+        expect(
+          (await storedLinks()).map((l) => l.sourceLineIndex),
+          unorderedEquals([2, 4]),
+        );
+        expect((await library.list()).every((f) => f.enabled), isTrue);
+      });
+
+      test('השהיית קובץ אחר מצליחה', () async {
+        final csv = (await library.list()).firstWhere(
+          (f) => f.name == 'קישורים.csv',
+        );
+        final outcome = await libraryWith(
+          attachedVisible: true,
+        ).setEnabled(csv.id, false);
+
+        expect(outcome.ok, isTrue);
+        expect(outcome.skipped, isNotEmpty);
+        expect(await storedLinks(), isEmpty);
+      });
+
+      test('קובץ חדש דו-משמעי נחסם', () async {
+        final outcome = await libraryWith(
+          attachedVisible: true,
+        ).addFiles([nativeFile('אישי', 'רשמי')]);
+
+        expect(outcome.ok, isFalse);
+        expect(outcome.errors, contains(contains('ביותר ממקור אחד')));
+        expect(await storedLinks(), hasLength(1));
+      });
     });
   });
 }

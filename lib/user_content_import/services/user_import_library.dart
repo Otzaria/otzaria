@@ -58,15 +58,19 @@ class UserImportLibraryResult {
   final UserImportResult added;
   final List<String> errors;
 
+  /// קבצים שמורים שדולגו בבנייה (ספר דו-משמעי) — מדווחים אך אינם כישלון.
+  final List<String> skipped;
+
   const UserImportLibraryResult({
     required this.rebuild,
     this.added = const UserImportResult(),
     this.errors = const [],
+    this.skipped = const [],
   });
 
   bool get ok => errors.isEmpty && rebuild.errors.isEmpty;
 
-  List<String> get allErrors => [...errors, ...rebuild.errors];
+  List<String> get allErrors => [...errors, ...rebuild.errors, ...skipped];
 }
 
 /// קובצי הייבוא נשמרים על תוכנם, וכל שינוי בונה מחדש מכלל הפעילים — כך ייצוא
@@ -80,12 +84,14 @@ class UserImportLibrary {
   final UserLinkRefResolver? resolveRef;
   final UserLinkSourceChecker? sourceExists;
   final UserLinkBookLocator? locateBook;
+  final AttachedLinkBooks? attachedBooks;
 
   UserImportLibrary(
     this._db, {
     this.resolveRef,
     this.sourceExists,
     this.locateBook,
+    this.attachedBooks,
   }) : _holder =
            identical(
              UserBooksDatabaseHolder.instance.repositoryIfInitialized?.database,
@@ -220,6 +226,7 @@ class UserImportLibrary {
     return UserImportLibraryResult(
       rebuild: rebuild,
       added: ingest?.selectedCounts ?? const UserImportResult(),
+      skipped: ingest?.skipped ?? const [],
     );
   }
 
@@ -348,7 +355,10 @@ class UserImportLibrary {
   ];
 
   Future<UserImportIngest> _ingest(List<ImportedFile> files) {
-    if (resolveRef == null && sourceExists == null && locateBook == null) {
+    if (resolveRef == null &&
+        sourceExists == null &&
+        locateBook == null &&
+        attachedBooks == null) {
       return UserContentImporter.ingestContentsInBackground(files, _db);
     }
     return UserContentImporter.ingestContents(
@@ -357,6 +367,7 @@ class UserImportLibrary {
       resolveRef: resolveRef ?? resolveUserLinkTargetLine,
       sourceExists: sourceExists ?? userLinkSourceBookExists,
       locateBook: locateBook ?? locateUserLinkBook,
+      attachedBooks: attachedBooks,
     );
   }
 
