@@ -1770,11 +1770,11 @@ class _PrintingScreenState extends State<PrintingScreen> {
         if (mounted) setState(() => _printProgress = null);
         if (printed) UiSnack.show(PdfMessages.printSent);
         if (printed && context.mounted) {
-          Navigator.of(context).pop(true);
+          _closeWithSuccess(context);
         }
       case _PrintDestination.pdf:
         if (await _saveToFile(_ExportFormat.pdf) && context.mounted) {
-          Navigator.of(context).pop(true);
+          _closeWithSuccess(context);
         }
       case _PrintDestination.word:
         if (!_supportsWord) {
@@ -1782,9 +1782,21 @@ class _PrintingScreenState extends State<PrintingScreen> {
           return;
         }
         if (await _saveToFile(_ExportFormat.word) && context.mounted) {
-          Navigator.of(context).pop(true);
+          _closeWithSuccess(context);
         }
     }
+  }
+
+  /// תפריט שנפתח בזמן ההדפסה או השמירה (למשל בחירת היעד) נסגר קודם, כדי שהתוצאה
+  /// תגיע למסך ולא לתפריט.
+  void _closeWithSuccess(BuildContext context) {
+    final navigator = Navigator.of(context);
+    final route = ModalRoute.of(context);
+    if (route != null) {
+      if (!route.isActive) return;
+      navigator.popUntil((r) => r == route);
+    }
+    navigator.pop(true);
   }
 
   Future<bool> _saveToFile(_ExportFormat selectedFormat) async {
