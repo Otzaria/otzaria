@@ -1,5 +1,6 @@
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/data/data_providers/link_visibility_sql.dart';
+
 import '../../models/link.dart';
 import '../db_capabilities.dart';
 import '../sqlite3_utils.dart';
@@ -158,14 +159,14 @@ class LinkDao {
     if (query == null) return const [];
     final db = await database;
     final rows = db.select(query, [bookId]).toMapList();
-    if (rows.isEmpty || !capabilities.has('book_base_text')) return rows;
-    final declared = {
-      for (final row in db.select(
-        'SELECT bookId FROM book_base_text WHERE baseBookId = ?',
-        [bookId],
-      ))
-        row['bookId'] as int,
-    };
+    if (rows.isEmpty || !capabilities.hasBookBaseTexts) return rows;
+    final declared = db
+        .select('SELECT bookId FROM book_base_text WHERE baseBookId = ?', [
+          bookId,
+        ])
+        .map((row) => row['bookId'])
+        .whereType<int>()
+        .toSet();
     for (final row in rows) {
       if (declared.contains(row['targetBookId'])) row['declaredBase'] = true;
     }
@@ -192,14 +193,7 @@ class LinkDao {
     );
     if (query == null) return const [];
     final db = await database;
-    return db.select(
-      query,
-      [
-        bookId,
-        startLineIndex,
-        endLineIndex,
-      ],
-    ).toMapList();
+    return db.select(query, [bookId, startLineIndex, endLineIndex]).toMapList();
   }
 
   /// מחזיר את הקישורים למפרשים על טווח שורות המקור [`startLineIndex`,
@@ -225,16 +219,13 @@ class LinkDao {
     );
     if (query == null) return const [];
     final db = await database;
-    return db.select(
-      query,
-      [
-        exactSourceLineIndex,
-        bookId,
-        startLineIndex,
-        endLineIndex,
-        excludeBookId,
-      ],
-    ).toMapList();
+    return db.select(query, [
+      exactSourceLineIndex,
+      bookId,
+      startLineIndex,
+      endLineIndex,
+      excludeBookId,
+    ]).toMapList();
   }
 
   /// מחזיר את מפרשי ברירת המחדל של הספר [bookId], ממוינים לפי `position`.
