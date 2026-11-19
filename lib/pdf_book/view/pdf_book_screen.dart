@@ -1232,6 +1232,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         ignoreHistory: true,
         requiresStableLayout: true,
         insertAdjacent: true,
+        navigateToPositionIfReused: true,
       );
       return;
     }
@@ -1242,6 +1243,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       '',
       ignoreHistory: false,
       insertAdjacent: true,
+      navigateToPositionIfReused: true,
     );
   }
 
@@ -5759,6 +5761,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       '',
       ignoreHistory: true,
       insertAdjacent: true,
+      navigateToPositionIfReused: true,
     );
   }
 
