@@ -417,15 +417,14 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
       );
       // כל כשל apply (וגם סטייה שהתגלתה אחרי commit) מנותב להורדה מלאה — אחרת
       // כשל שאינו אי-התאמת תוכן משאיר את המשתמש בלולאת שגיאה עד עדכון אפליקציה.
+      final diskFull = _isDiskFull(applyError);
       final mismatchReason = drift != null
           ? LibraryMessages.libraryContentDriftAfterUpdate
-          : applyError is PatchApplyException
+          : !diskFull && applyError is PatchApplyException
           ? _applyMismatchReason(applyError)
           : null;
       if (mismatchReason != null) {
-        final fallback = plan.toFullDownloadFallback(
-          reason: mismatchReason,
-        );
+        final fallback = plan.toFullDownloadFallback(reason: mismatchReason);
         if (fallback != null) {
           emit(
             LibraryUpdateState(
@@ -452,7 +451,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
           // חוסר מקום אינו מציע הורדה מלאה — היא דורשת עוד יותר מקום.
           message: canResume
               ? LibraryMessages.downloadPausedResumable
-              : _isDiskFull(applyError)
+              : diskFull
               ? LibraryMessages.updateDiskSpaceError
               : 'שגיאה בהחלת העדכון',
           hasUpdate: partial?.hasDatabaseChanges ?? false,
@@ -837,12 +836,12 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
   static bool _isDiskFull(Object error) => switch (error) {
     LibraryUpdateDiskSpaceException() => true,
     SqliteException(resultCode: 13) => true, // SQLITE_FULL
-    // ENOSPC, ERROR_DISK_FULL
-    FileSystemException(osError: OSError(errorCode: 28 || 112)) => true,
-    // ERROR_HANDLE_DISK_FULL; בלינוקס 39 הוא ENOTEMPTY.
-    FileSystemException(osError: OSError(errorCode: 39))
-        when Platform.isWindows =>
-      true,
+    PatchApplyException(:final cause?) => _isDiskFull(cause),
+    // קודי Win32 ו-errno חופפים, אבל משמעותם שונה.
+    FileSystemException(osError: OSError(:final errorCode)) =>
+      Platform.isWindows
+          ? errorCode == 112 || errorCode == 39
+          : errorCode == 28,
     _ => false,
   };
 

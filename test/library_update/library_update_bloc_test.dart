@@ -2013,6 +2013,16 @@ void main() {
         ),
       ),
       (
+        'SQLITE_FULL עטוף',
+        PatchApplyException(
+          'Patch attach failed',
+          cause: SqliteException(
+            extendedResultCode: 13,
+            message: 'database or disk is full',
+          ),
+        ),
+      ),
+      (
         'צעד מאוחר',
         PartiallyAppliedLibraryDeltaException(
           cause: _diskFullWrite(),
@@ -2038,6 +2048,32 @@ void main() {
         ],
       );
     }
+
+    blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+      'קוד חוסר מקום ממערכת הפעלה אחרת אינו מוצג כחוסר מקום',
+      build: () => _bloc(
+        _FakeService(
+          deltaWithFallbackPlan,
+          applyError: FileSystemException(
+            'Write failed',
+            'seforim.db',
+            OSError('Other filesystem error', Platform.isWindows ? 28 : 112),
+          ),
+        ),
+      ),
+      act: (b) => b.add(const StartLibraryUpdate()),
+      skip: 1,
+      expect: () => [
+        isA<LibraryUpdateState>()
+            .having((s) => s.status, 'status', LibraryUpdateStatus.error)
+            .having((s) => s.message, 'message', 'שגיאה בהחלת העדכון')
+            .having(
+              (s) => s.errorMessage,
+              'detail',
+              contains('Other filesystem error'),
+            ),
+      ],
+    );
 
     blocTest<LibraryUpdateBloc, LibraryUpdateState>(
       'כשל hash אחרי apply אינו מוצג בטעות כסטיית DB מקומי',
