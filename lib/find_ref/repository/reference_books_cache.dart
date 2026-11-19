@@ -1214,7 +1214,7 @@ class BookTitleIndex {
                 (direct: direct, relaxed: aq),
                 words,
                 // מסננת הביגרמים חוסכת את המעבר על כינויי כל הספרים — כינוי מתאים מכיל כל
-                // ביגרם של השאילתה: אין השמטת ה"א, והשמטת " על" אינה יוצרת ביגרם חדש.
+                // ביגרם של השאילתה: אין השמטת ה"א, והשמטת מילה שלמה אינה יוצרת ביגרם חדש.
                 [
                   for (final form in direct) _acronymCandidates(form),
                   for (final form in aq)

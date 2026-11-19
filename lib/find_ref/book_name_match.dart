@@ -31,12 +31,23 @@ String bookNameSpellingForm(String text) =>
     ? text.replaceAll('וו', 'ו').replaceAll('יי', 'י')
     : text;
 
-/// צורת ההשוואה בין שאילתה לכינוי: [bookNameSpellingForm] בלי "על" שבין שתי
-/// מילים — כינויים נשמרו פעם "רשבא על בק" ופעם "רשבא בב" (#5599).
+/// צורת ההשוואה בין שאילתה לכינוי: [bookNameSpellingForm] בלי "על" ובלי "מסכת"/"מס"
+/// שאחרי המילה הראשונה — הכינויים כוללים אותן לסירוגין (#5599, #5609).
 String bookNameAcronymForm(String text) {
   final t = bookNameSpellingForm(text);
-  return t.contains(' על ') ? t.replaceAll(' על ', ' ') : t;
+  if (!t.contains(' על ') && !t.contains(' מס')) return t;
+  final words = t.split(' ');
+  return [
+    for (var i = 0; i < words.length; i++)
+      if (i == 0 ||
+          !(isTractateWord(words[i]) ||
+              (words[i] == 'על' && i < words.length - 1)))
+        words[i],
+  ].join(' ');
 }
+
+/// "מסכת" / "מס'" — מילת קישור, ולא חלק מזהה בשם הספר.
+bool isTractateWord(String word) => word == 'מסכת' || word == 'מס';
 
 const int _vav = 0x05D5;
 const int _yod = 0x05D9;
