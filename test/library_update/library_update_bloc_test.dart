@@ -5,7 +5,9 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/foreground_work.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
+import 'package:otzaria/data/sqlite/sqlite3_api.dart' show SqliteException;
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
+import 'package:otzaria/library_update/library_update_work_status.dart';
 import 'package:otzaria/library_update/repository/library_update_repository.dart';
 import 'package:otzaria/library_update/services/companion_assets_service.dart';
 import 'package:otzaria/library_update/services/github_rate_limit.dart';
@@ -464,6 +466,24 @@ class _RaceCompanionService extends CompanionAssetsService {
     return false;
   }
 }
+
+/// הטקסט שהמשתמש רואה בחיווי עדכון הספרייה.
+String? _visibleText(LibraryUpdateState state) => libraryUpdateWorkStatusItem(
+  state,
+  onRetry: () {},
+  onChooseDelta: () {},
+  onChooseFullDownload: () {},
+)?.message;
+
+/// הדיסק התמלא בזמן כתיבת קובץ — ERROR_DISK_FULL ב-Windows, ENOSPC במקומות אחרים.
+FileSystemException _diskFullWrite() => FileSystemException(
+  'Write failed',
+  'seforim.db.zst',
+  OSError(
+    'There is not enough space on the disk.',
+    Platform.isWindows ? 112 : 28,
+  ),
+);
 
 LibraryUpdateBloc _bloc(
   LibraryUpdateService service, {
@@ -1220,6 +1240,27 @@ void main() {
     );
 
     blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+      'דיסק מלא באמצע הורדה מלאה → הודעת מקום בעברית, בלי טקסט גולמי (issue #4395)',
+      build: () =>
+          _bloc(_NetworkFailingFullDownloadService(fullPlan, _diskFullWrite())),
+      seed: () => LibraryUpdateState(
+        status: LibraryUpdateStatus.needsFullConfirmation,
+        plan: fullPlan,
+      ),
+      act: (b) => b.add(const ConfirmFullDownload()),
+      skip: 1,
+      expect: () => [
+        isA<LibraryUpdateState>()
+            .having((s) => s.status, 'status', LibraryUpdateStatus.error)
+            .having(
+              _visibleText,
+              'visible text',
+              LibraryMessages.updateDiskSpaceError,
+            ),
+      ],
+    );
+
+    blocTest<LibraryUpdateBloc, LibraryUpdateState>(
       'קטיעת רשת בהורדה מלאה → פרט הכשל הוא ההודעה העברית של ה-updater',
       build: () => _bloc(
         _NetworkFailingFullDownloadService(
@@ -1961,6 +2002,42 @@ void main() {
             .having((s) => s.errorMessage, 'errorMessage', contains('3.0GB')),
       ],
     );
+
+    // הבדיקה המקדימה עברה, והדיסק התמלא רק בזמן הכתיבה עצמה.
+    for (final (label, error) in <(String, Object)>[
+      (
+        'SQLITE_FULL',
+        SqliteException(
+          extendedResultCode: 13,
+          message: 'database or disk is full',
+        ),
+      ),
+      (
+        'צעד מאוחר',
+        PartiallyAppliedLibraryDeltaException(
+          cause: _diskFullWrite(),
+          appliedResult: const LibraryDeltaApplyResult(appliedSteps: 1),
+        ),
+      ),
+    ]) {
+      blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+        'דיסק מלא באמצע החלת דלתא ($label) → הודעת מקום בעברית, בלי טקסט '
+        'גולמי ובלי הצעת הורדה מלאה (issue #4395)',
+        build: () =>
+            _bloc(_FakeService(deltaWithFallbackPlan, applyError: error)),
+        act: (b) => b.add(const StartLibraryUpdate()),
+        skip: 1,
+        expect: () => [
+          isA<LibraryUpdateState>()
+              .having((s) => s.status, 'status', LibraryUpdateStatus.error)
+              .having(
+                _visibleText,
+                'visible text',
+                LibraryMessages.updateDiskSpaceError,
+              ),
+        ],
+      );
+    }
 
     blocTest<LibraryUpdateBloc, LibraryUpdateState>(
       'כשל hash אחרי apply אינו מוצג בטעות כסטיית DB מקומי',
