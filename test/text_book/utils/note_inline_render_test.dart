@@ -562,6 +562,22 @@ void main() {
     expect(_maxAnchorDepthOfWellFormed(html), 1);
   });
 
+  test('Issue #5500: colon note marks only the punctuation', () {
+    const raw = 'אבג: דהו';
+    final html = render(raw, notes: [
+      _note(anchorText: ':', anchorStart: raw.indexOf(':')),
+    ]);
+    expect(html, contains('$noteOpen:</a>'));
+    expect(html, startsWith('אבג'));
+    expect(html, endsWith(' דהו'));
+  });
+
+  test('Issue #5500: missing word anchor never underlines the entire line', () {
+    const raw = 'אבג: דהו';
+    final html = render(raw, notes: [_note(anchorText: 'מילה חסרה')]);
+    expect(html, raw);
+  });
+
   test('שורה שכבר סומנה אינה מסומנת שוב', () {
     final once = render('אבגד הוזח', notes: [_note()]);
     expect(
