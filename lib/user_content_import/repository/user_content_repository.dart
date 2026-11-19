@@ -540,7 +540,8 @@ class UserContentRepository {
   /// כולל). כשידועה קטגוריית המקור מסננים גם לפיה; שורות בלי קטגוריה עוברות.
   ///
   /// קישור-טווח נכלל גם כששורת הפתיחה שלו לפני החלון והטווח נמשך לתוכו —
-  /// אחרת גלילה לאמצע טווח הייתה מאבדת את הקישור.
+  /// אחרת גלילה לאמצע טווח הייתה מאבדת את הקישור. [startLines] מצמצם לקישורים
+  /// שמתחילים בשורות אלה.
   Future<List<UserLinkRecord>> forwardUserLinks(
     String sourceTitle, {
     required bool sourceIsUserBook,
@@ -548,6 +549,7 @@ class UserContentRepository {
     int? sourceCategoryId,
     int? startLineIndex,
     int? endLineIndex,
+    Set<int>? startLines,
   }) async {
     final db = await _db.database;
     final categoryClause = sourceCategoryId != null
@@ -558,15 +560,20 @@ class UserContentRepository {
         ? 'AND sourceLineIndex <= ? '
               'AND COALESCE(sourceLineIndexEnd, sourceLineIndex) >= ?'
         : '';
+    final startsClause = startLines == null
+        ? ''
+        : 'AND sourceLineIndex IN (${List.filled(startLines.length, '?').join(',')})';
     final rows = db.select(
       'SELECT * FROM user_link WHERE sourceTitle = ? AND sourceIsUserBook = ? '
-      'AND sourceDb IS ? $categoryClause $rangeClause ORDER BY sourceLineIndex',
+      'AND sourceDb IS ? $categoryClause $rangeClause $startsClause '
+      'ORDER BY sourceLineIndex',
       [
         sourceTitle,
         sourceIsUserBook ? 1 : 0,
         sourceDb,
         ?sourceCategoryId,
         if (hasRange) ...[endLineIndex, startLineIndex],
+        ...?startLines,
       ],
     );
     return rows.map(_fromRow).toList();
@@ -583,6 +590,7 @@ class UserContentRepository {
     int? targetCategoryId,
     int? startLineIndex,
     int? endLineIndex,
+    Set<int>? startLines,
   }) async {
     final db = await _db.database;
     // כשידועה קטגוריית היעד, מסננים גם לפיה (כדי לא לערבב בין שני ספרי-יעד
@@ -595,10 +603,13 @@ class UserContentRepository {
         ? 'AND ul.targetLineIndex <= ? '
               'AND COALESCE(ul.targetLineIndexEnd, ul.targetLineIndex) >= ?'
         : '';
+    final startsClause = startLines == null
+        ? ''
+        : 'AND ul.targetLineIndex IN (${List.filled(startLines.length, '?').join(',')})';
     final rows = db.select(
       'SELECT ul.* FROM user_link ul '
       'WHERE ul.targetTitle = ? AND ul.targetIsUserBook = ? '
-      'AND ul.targetDb IS ? $categoryClause $rangeClause '
+      'AND ul.targetDb IS ? $categoryClause $rangeClause $startsClause '
       'ORDER BY ul.targetLineIndex',
       [
         targetTitle,
@@ -606,6 +617,7 @@ class UserContentRepository {
         targetDb,
         ?targetCategoryId,
         if (hasRange) ...[endLineIndex, startLineIndex],
+        ...?startLines,
       ],
     );
     return rows.map(_fromRow).toList();

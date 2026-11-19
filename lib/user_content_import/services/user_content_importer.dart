@@ -1072,27 +1072,28 @@ const String kUnrecognizedImportFileMessage =
 
 /// בצמד-שורות, כל `anchorStart` שונה הוא רשומה נפרדת; רשומה חסרת-עוגן (הצד
 /// ההפוך של צמד דו-כיווני) נבלעת במעוגנת ומשלימה לה heRef.
-@visibleForTesting
 List<UserLinkRecord> mergeUserLinks(List<UserLinkRecord> links) {
   final groups = <String, List<UserLinkRecord>>{};
   for (final link in links) {
-    final key = [
-      link.sourceIsUserBook,
-      link.sourceCategoryId,
-      link.sourceTitle,
-      link.sourceLineIndex,
-      link.targetIsUserBook,
-      link.targetCategoryId,
-      link.targetTitle,
-      link.targetLineIndex,
-      link.connectionType,
-      link.sourceDb,
-      link.targetDb,
-    ].join('|');
-    (groups[key] ??= []).add(link);
+    (groups[userLinkKey(link)] ??= []).add(link);
   }
   return [for (final group in groups.values) ..._mergeLinkGroup(group)];
 }
+
+/// צמד-השורות של הקישור — המפתח שלפיו [mergeUserLinks] ממזג (בלי עוגן וטווח).
+String userLinkKey(UserLinkRecord link) => [
+  link.sourceIsUserBook,
+  link.sourceCategoryId,
+  link.sourceTitle,
+  link.sourceLineIndex,
+  link.targetIsUserBook,
+  link.targetCategoryId,
+  link.targetTitle,
+  link.targetLineIndex,
+  link.connectionType,
+  link.sourceDb,
+  link.targetDb,
+].join('|');
 
 List<UserLinkRecord> _mergeLinkGroup(List<UserLinkRecord> group) {
   if (group.length == 1) return group;
