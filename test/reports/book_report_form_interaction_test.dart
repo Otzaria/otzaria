@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/reports/bloc/book_report_draft_cubit.dart';
 import 'package:otzaria/reports/repository/report_draft_store.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
@@ -34,6 +35,11 @@ void main() {
 
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
+    // שמירה בתור דורשת כתובת לחזרה; כאן היא כבר שמורה.
+    await Settings.setValue<String>(
+      SettingsRepository.keyErrorReportSenderEmail,
+      'reader@example.com',
+    );
   });
 
   testWidgets('focus and caret changes do not autosave a book report', (

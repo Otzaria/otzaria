@@ -12,6 +12,7 @@ import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/dialogs/error_report_sender_email_dialog.dart';
+import 'package:otzaria/reports/view/report_sender_email_field.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
@@ -295,8 +296,10 @@ class _ErrorReportsPanelState extends State<ErrorReportsPanel> {
       selectedText: report.selectedText,
       errorDetails: report.errorDetails,
       contextText: report.contextText,
+      senderEmail: report.senderEmail,
     );
     final hasChanges = ValueNotifier(false);
+    final emailField = GlobalKey<ReportSenderEmailFieldState>();
 
     final confirmed = await showTwoActionsDialog(
       context: context,
@@ -307,12 +310,14 @@ class _ErrorReportsPanelState extends State<ErrorReportsPanel> {
       confirmText: context.settingsText('שמור'),
       handleEnterKey: false,
       isDirty: hasChanges,
+      onConfirm: () => emailField.currentState?.validate() ?? true,
       customContent: wrapWithReportScope(
         context,
         SizedBox(
           width: 560,
           child: _PendingReportEditFields(
             initialValues: editValues,
+            emailField: emailField,
             correction: report.correction,
             onChanged: (values) {
               editValues = values;
@@ -321,6 +326,7 @@ class _ErrorReportsPanelState extends State<ErrorReportsPanel> {
                   values.selectedText != report.selectedText ||
                   values.errorDetails != report.errorDetails ||
                   values.contextText != report.contextText ||
+                  values.senderEmail.trim() != report.senderEmail ||
                   (draft != null && draft.correction != report.correction);
             },
           ),
@@ -346,8 +352,10 @@ class _ErrorReportsPanelState extends State<ErrorReportsPanel> {
         );
         return;
       }
+      final senderEmail = editValues.senderEmail.trim();
       await DirectErrorReportService().updatePendingReport(
         report.copyWith(
+          senderEmail: senderEmail,
           selectedText: replaceLoneSurrogates(editValues.selectedText.trim()),
           errorDetails: replaceLoneSurrogates(editValues.errorDetails.trim()),
           contextText: replaceLoneSurrogates(editValues.contextText.trim()),
@@ -466,12 +474,14 @@ class _PendingReportEditValues {
   final String selectedText;
   final String errorDetails;
   final String contextText;
+  final String senderEmail;
   final TextCorrectionDraft? correctionDraft;
 
   const _PendingReportEditValues({
     required this.selectedText,
     required this.errorDetails,
     required this.contextText,
+    required this.senderEmail,
     this.correctionDraft,
   });
 }
@@ -479,6 +489,7 @@ class _PendingReportEditValues {
 class _PendingReportEditFields extends StatefulWidget {
   final _PendingReportEditValues initialValues;
   final ValueChanged<_PendingReportEditValues> onChanged;
+  final GlobalKey<ReportSenderEmailFieldState> emailField;
 
   /// בדיווח הצעת תיקון נפתח אותו עורך כמו בטופס המקורי.
   final TextCorrection? correction;
@@ -486,6 +497,7 @@ class _PendingReportEditFields extends StatefulWidget {
   const _PendingReportEditFields({
     required this.initialValues,
     required this.onChanged,
+    required this.emailField,
     this.correction,
   });
 
@@ -498,6 +510,7 @@ class _PendingReportEditFieldsState extends State<_PendingReportEditFields> {
   late final TextEditingController _selectedTextController;
   late final TextEditingController _detailsController;
   late final TextEditingController _contextController;
+  late final TextEditingController _emailController;
   TextCorrectionDraft? _draft;
 
   @override
@@ -512,6 +525,9 @@ class _PendingReportEditFieldsState extends State<_PendingReportEditFields> {
     _contextController = TextEditingController(
       text: widget.initialValues.contextText,
     );
+    _emailController = TextEditingController(
+      text: widget.initialValues.senderEmail,
+    );
   }
 
   @override
@@ -519,6 +535,7 @@ class _PendingReportEditFieldsState extends State<_PendingReportEditFields> {
     _selectedTextController.dispose();
     _detailsController.dispose();
     _contextController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
@@ -528,6 +545,7 @@ class _PendingReportEditFieldsState extends State<_PendingReportEditFields> {
         selectedText: _selectedTextController.text,
         errorDetails: _detailsController.text,
         contextText: _contextController.text,
+        senderEmail: _emailController.text,
         correctionDraft: _draft,
       ),
     );
@@ -565,6 +583,8 @@ class _PendingReportEditFieldsState extends State<_PendingReportEditFields> {
                 contentPadding: const EdgeInsets.only(top: 12, bottom: 12),
               ),
             ),
+            const SizedBox(height: 12),
+            _buildEmailField(context),
           ],
         ),
       );
@@ -626,8 +646,18 @@ class _PendingReportEditFieldsState extends State<_PendingReportEditFields> {
               ),
             ),
           ),
+          const SizedBox(height: 12),
+          _buildEmailField(context),
         ],
       ),
     );
   }
+
+  /// הכתובת שתצורף לדיווח הזה בלבד. כתובת הזיהוי הכללית נערכת בראש הלוח.
+  Widget _buildEmailField(BuildContext context) => ReportSenderEmailField(
+    key: widget.emailField,
+    controller: _emailController,
+    isRequired: true,
+    onChanged: (_) => _notifyChanged(),
+  );
 }

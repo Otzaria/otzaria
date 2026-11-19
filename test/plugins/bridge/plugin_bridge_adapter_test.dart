@@ -6603,6 +6603,7 @@ Future<void> main() async {
   group('PluginBridgeAdapter feedback.report', () {
     PluginBridgeDependencies buildDeps({
       required Future<bool> Function(String title, String content) onConfirm,
+      Future<String?> Function(String initialEmail)? onSenderConfirm,
     }) {
       return PluginBridgeDependencies(
         historyBloc: _MockHistoryBloc(),
@@ -6618,6 +6619,14 @@ Future<void> main() async {
         themePayloadBuilder: () => <String, dynamic>{},
         showConfirmDialog: ({required title, required content}) =>
             onConfirm(title, content),
+        showReportSenderDialog: onSenderConfirm == null
+            ? null
+            : ({
+                required title,
+                required content,
+                required initialEmail,
+                required emailRequired,
+              }) => onSenderConfirm(initialEmail),
         showWarningDialog:
             ({required title, required content, required subtitle}) async =>
                 true,
@@ -6628,10 +6637,14 @@ Future<void> main() async {
       required Future<bool> Function(String title, String content) onConfirm,
       required http.Client client,
       _InMemoryPluginReportQueue? queue,
+      Future<String?> Function(String initialEmail)? onSenderConfirm,
     }) {
       return PluginBridgeAdapter(
         _buildInstalledPlugin(),
-        dependencies: buildDeps(onConfirm: onConfirm),
+        dependencies: buildDeps(
+          onConfirm: onConfirm,
+          onSenderConfirm: onSenderConfirm,
+        ),
         pluginRepository: _StubPluginRegistryRepository(),
         reportService: PluginReportService(
           client: client,
@@ -6790,6 +6803,108 @@ Future<void> main() async {
       });
 
       expect(body['reporterEmail'], 'saved@example.com');
+    });
+
+    test('כתובת שנערכה בחלון האישור היא זו שנשלחת', () async {
+      await Settings.setValue<String>(
+        SettingsRepository.keyErrorReportSenderEmail,
+        'old@example.com',
+      );
+      var plainConfirmCalls = 0;
+      String? shownEmail;
+      late Map<String, dynamic> body;
+      final adapter = buildAdapter(
+        onConfirm: (_, _) async {
+          plainConfirmCalls++;
+          return true;
+        },
+        // המשתמש מחליף את הכתובת בשדה שבחלון ואז מאשר.
+        onSenderConfirm: (initialEmail) async {
+          shownEmail = initialEmail;
+          return 'new@example.com';
+        },
+        client: MockClient((request) async {
+          body = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response('{"success":true}', 200);
+        }),
+      );
+
+      await adapter.execute('feedback', 'report', {'details': 'משהו'});
+
+      expect(plainConfirmCalls, 0);
+      expect(shownEmail, 'old@example.com');
+      expect(body['reporterEmail'], 'new@example.com');
+      // כמו בדיווח על תקלה: כתובת תקינה שהוקלדה נשמרת לפעם הבאה.
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyErrorReportSenderEmail),
+        'new@example.com',
+      );
+    });
+
+    test('כתובת שהתוסף מילא מראש נשלחת אך אינה נשמרת', () async {
+      await Settings.setValue<String>(
+        SettingsRepository.keyErrorReportSenderEmail,
+        '',
+      );
+      late Map<String, dynamic> body;
+      final adapter = buildAdapter(
+        onConfirm: (_, _) async => true,
+        // המשתמש אישר בלי לשנות את מה שהתוסף מילא.
+        onSenderConfirm: (initialEmail) async => initialEmail,
+        client: MockClient((request) async {
+          body = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response('{"success":true}', 200);
+        }),
+      );
+
+      await adapter.execute('feedback', 'report', {
+        'details': 'משהו',
+        'reporterEmail': 'plugin@example.com',
+      });
+
+      expect(body['reporterEmail'], 'plugin@example.com');
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyErrorReportSenderEmail),
+        '',
+      );
+    });
+
+    test('כתובת לא תקינה מהחלון אינה נשלחת', () async {
+      var posted = false;
+      final adapter = buildAdapter(
+        onConfirm: (_, _) async => true,
+        onSenderConfirm: (_) async => 'foo@',
+        client: MockClient((_) async {
+          posted = true;
+          return http.Response('{}', 200);
+        }),
+      );
+
+      final result = await adapter.execute('feedback', 'report', {
+        'details': 'משהו',
+      });
+
+      expect(result, 'cancelled');
+      expect(posted, isFalse);
+    });
+
+    test('ביטול בחלון הכתובת אינו שולח', () async {
+      var posted = false;
+      final adapter = buildAdapter(
+        onConfirm: (_, _) async => true,
+        onSenderConfirm: (_) async => null,
+        client: MockClient((_) async {
+          posted = true;
+          return http.Response('{}', 200);
+        }),
+      );
+
+      final result = await adapter.execute('feedback', 'report', {
+        'details': 'משהו',
+      });
+
+      expect(result, 'cancelled');
+      expect(posted, isFalse);
     });
 
     test('כתובת מהתוסף משמשת רק כשאין כתובת שמורה', () async {
