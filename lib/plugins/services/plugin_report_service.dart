@@ -148,7 +148,7 @@ class PluginReportService {
     final attemptResult = await _trySend(record);
     if (attemptResult.isSuccess) {
       await _saveSentReport(record);
-      unawaited(flushPendingReports());
+      _flush.runInBackground(flushPendingReports);
       return PluginReportDeliveryStatus.sent;
     }
 
