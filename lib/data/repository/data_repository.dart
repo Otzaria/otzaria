@@ -354,7 +354,7 @@ class DataRepository {
   /// מצב ה-worker והמטמונים שחיפוש שמות הספרים ממתין להם, לדוח האבחון.
   Map<String, Object?> describeBookSearchState() => {
     'libraryLoaded': _lastSuccessfulLibrary != null,
-    'libraryLoading': _libraryFuture != null,
+    'libraryFutureCached': _libraryFuture != null,
     'catalogBooks': _bookSearchCatalog?.books.length,
     'acronymsLoaded': AcronymsCache.instance.isLoaded,
     'generationsLoaded': GenerationCache.instance.isLoaded,
