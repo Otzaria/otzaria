@@ -169,6 +169,19 @@ void main() {
       Map<String, dynamic>.from(json)..remove('selectedIndices'),
     );
     addTearDown(legacy.dispose);
-    expect(legacy.toJson()['selectedIndices'], isEmpty);
+    expect(legacy.toJson().containsKey('selectedIndices'), isFalse);
+    // בחירה יחידה לא מוסיפה את השדה לשמירה.
+    expect(
+      openOn(sourceWith(book, {7}), book).toJson(),
+      isNot(contains('selectedIndices')),
+    );
+  });
+
+  testWidgets('שורות ששוחזרו מעבר לסוף הספר יורדות בפתיחה', (tester) async {
+    final book = TextBook(title: 'בראשית');
+    final tab = openOn(sourceWith(book, {3, 5}), book)..selectedIndices.add(99);
+
+    expect(await shownIndexes(tester, tab), [3, 5]);
+    expect(tab.selectedIndices, {3, 5});
   });
 }
