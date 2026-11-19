@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/text_display/view/text_display_bar_button.dart';
-import 'package:otzaria/widgets/misc/app_dropdown_field.dart';
+import 'package:otzaria/text_display/view/text_display_profile_editor.dart';
 
-/// חלונית "תצוגת הטקסט" שומרת את בחירות התצוגה לכל מקטע.
+/// חלונית "תצוגת הטקסט" כרשימת מתגים: מקטע המפרשים מקופל, "שמות הקודש"
+/// משותף לכל המקטעים, ותג "כמו הניקוד" ליד מתג הטעמים.
 void main() {
   /// מארח את החלונית עם פרופיל לכל מקטע שמתעדכן בכל שינוי.
   Future<List<TextDisplayProfile>> pumpPanel(
@@ -73,12 +74,13 @@ void main() {
     expect(find.text('מפרשים'), findsOneWidget);
     // רק השורות של גוף הספר גלויות.
     expect(find.text('ציוני המפרשים'), findsOneWidget);
-    expect(find.byType(Switch), findsNWidgets(4));
+    expect(find.byType(Switch), findsNWidgets(5));
 
     await tapAndSettle(tester, find.text('מפרשים'));
     expect(find.text('ציוני המפרשים'), findsNWidgets(2));
     expect(find.text('ניקוד'), findsNWidgets(2));
-    expect(find.text('שאר שמות הקודש'), findsNWidgets(2));
+    // שמות הקודש אינם חוזרים בתוך מקטע המפרשים — המתג המשותף בלבד.
+    expect(find.text('שמות הקודש'), findsOneWidget);
 
     await tapAndSettle(tester, find.text('מפרשים'));
     expect(find.text('ציוני המפרשים'), findsOneWidget);
@@ -100,34 +102,98 @@ void main() {
     expect(current[1].punctuation, MarkVisibility.hide);
   });
 
-  testWidgets('נוסחי שמות הקודש נשמרים בנפרד לכל מקטע', (tester) async {
-    final current = await pumpPanel(
-      tester,
-      profiles: const [
-        TextDisplayProfile.defaults,
-        TextDisplayProfile.defaults,
-      ],
-    );
-    await tapAndSettle(tester, find.text('מפרשים'));
+  testWidgets(
+    'המתג המשותף "שמות הקודש" משנה את שני המקטעים: הצג — ככתבם, הסתר — יקוק ובכינוי',
+    (tester) async {
+      final current = await pumpPanel(
+        tester,
+        profiles: const [
+          TextDisplayProfile.defaults,
+          TextDisplayProfile.defaults,
+        ],
+      );
+      expect(find.text('בגוף הספר ובמפרשים'), findsOneWidget);
+      // ברירת המחדל: יקוק וככתבם — מצב מעורב נחשב מוסתר.
+      expect(tester.widget<Switch>(switchOf('שמות הקודש')).value, isFalse);
 
-    final dropdowns = find.byType(AppDropdownField<HolyNameDisplay>);
-    expect(dropdowns, findsNWidgets(2));
-    final commentary = tester.widget<AppDropdownField<HolyNameDisplay>>(
-      dropdowns.last,
+      await tapAndSettle(tester, switchOf('שמות הקודש'));
+      for (final p in current) {
+        expect(p.holyName, HolyNameDisplay.asIs);
+        expect(p.divineNames, DivineNamesDisplay.asIs);
+      }
+      expect(tester.widget<Switch>(switchOf('שמות הקודש')).value, isTrue);
+
+      await tapAndSettle(tester, switchOf('שמות הקודש'));
+      // בלי הגדרות זמינות — הנוסח של ברירת המחדל, יקוק.
+      for (final p in current) {
+        expect(p.holyName, HolyNameDisplay.kufKuf);
+        expect(p.divineNames, DivineNamesDisplay.substitute);
+      }
+      expect(tester.widget<Switch>(switchOf('שמות הקודש')).value, isFalse);
+    },
+  );
+
+  test('withHolyNames: הנוסח המועדף בהסתרה, ו"ככתבו" כמועדף הופך ליקוק', () {
+    const shown = TextDisplayProfile(holyName: HolyNameDisplay.asIs);
+    expect(
+      TextDisplayProfileEditor.withHolyNames(
+        shown,
+        show: false,
+        preferred: HolyNameDisplay.hehApostrophe,
+      ),
+      const TextDisplayProfile(
+        holyName: HolyNameDisplay.hehApostrophe,
+        divineNames: DivineNamesDisplay.substitute,
+      ),
     );
     expect(
-      commentary.entries.map((entry) => entry.value),
-      unorderedEquals(HolyNameDisplay.values),
+      TextDisplayProfileEditor.withHolyNames(
+        shown,
+        show: false,
+        preferred: HolyNameDisplay.asIs,
+      ).holyName,
+      HolyNameDisplay.kufKuf,
     );
-    await tapAndSettle(tester, dropdowns.last);
-    await tapAndSettle(tester, find.text('ידוד').hitTestable());
-    expect(current[1].holyName, HolyNameDisplay.daletDalet);
-    expect(current[1].divineNames, DivineNamesDisplay.asIs);
+    // נוסח קיים (מצב מעורב) נשמר בהסתרה.
+    expect(
+      TextDisplayProfileEditor.withHolyNames(
+        const TextDisplayProfile(holyName: HolyNameDisplay.daletDalet),
+        show: false,
+        preferred: HolyNameDisplay.hehApostrophe,
+      ),
+      const TextDisplayProfile(
+        holyName: HolyNameDisplay.daletDalet,
+        divineNames: DivineNamesDisplay.substitute,
+      ),
+    );
+    expect(
+      TextDisplayProfileEditor.holyNamesShown(
+        TextDisplayProfileEditor.withHolyNames(
+          TextDisplayProfile.defaults,
+          show: true,
+          preferred: HolyNameDisplay.kufKuf,
+        ),
+      ),
+      isTrue,
+    );
+  });
 
-    await tapAndSettle(tester, find.text('בכינוי').last);
-    expect(current[1].holyName, HolyNameDisplay.daletDalet);
-    expect(current[1].divineNames, DivineNamesDisplay.substitute);
-    expect(current[0], TextDisplayProfile.defaults);
+  testWidgets('מקטע אחד (PDF): בלי מתג משותף, ו"שמות הקודש" בתוך המקטע', (
+    tester,
+  ) async {
+    final current = await pumpPanel(
+      tester,
+      profiles: const [TextDisplayProfile.defaults],
+      titles: const ['גוף הספר'],
+    );
+
+    expect(find.text('בגוף הספר ובמפרשים'), findsNothing);
+    expect(find.text('שמות הקודש'), findsOneWidget);
+    expect(find.text('מפרשים'), findsNothing);
+
+    await tapAndSettle(tester, switchOf('שמות הקודש'));
+    expect(current[0].holyName, HolyNameDisplay.asIs);
+    expect(current[0].divineNames, DivineNamesDisplay.asIs);
   });
 
   testWidgets('"איפוס" מוצג רק כשיש עקיפה', (tester) async {

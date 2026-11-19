@@ -64,7 +64,7 @@ void main() {
     '(issue #1399)',
     (tester) async {
       final closeTooltip =
-          'סגור כרטיסיה (${ShortcutHelper.formatShortcutForDisplay('ctrl+w')})';
+          'סגור כרטיסייה (${ShortcutHelper.formatShortcutForDisplay('ctrl+w')})';
       final tab = _makeTextTab('ספר א', currentTitle: 'פרק א');
       final tabsBloc = _TestTabsBloc(
         TabsState(tabs: [tab], currentTabIndex: 0),

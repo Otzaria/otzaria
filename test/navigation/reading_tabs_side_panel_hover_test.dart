@@ -196,7 +196,7 @@ void main() {
       );
       final close = find.descendant(
         of: row,
-        matching: find.byTooltip('סגור כרטיסיה'),
+        matching: find.byTooltip('סגור כרטיסייה'),
       );
       expect(close, findsOneWidget);
       final closePoint = tester.getCenter(close);

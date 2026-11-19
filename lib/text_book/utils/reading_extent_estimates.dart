@@ -62,14 +62,19 @@ class ReadingExtentEstimates {
   }
 
   void update(ReadingSegments next) {
-    final changes = next.changedLinesSince(segments);
+    final changedReader = !identical(
+      next.readerIdentity,
+      segments.readerIdentity,
+    );
+    final changes = changedReader ? null : next.changedLinesSince(segments);
     segments = next;
     if (changes == null) {
       _fullRefresh = true;
       _pendingRanges.clear();
-      if (_counts.length != next.content.length) {
+      if (changedReader || _counts.length != next.content.length) {
         _counts = Int32List(next.content.length);
         _counts.fillRange(0, _counts.length, -1);
+        _unloadedLineChars = 200;
       }
     } else if (!_fullRefresh) {
       _pendingRanges.addAll(changes);
@@ -123,18 +128,39 @@ class ReadingExtentEstimates {
         return (full: false, ranges: <ContentLineRange>[]);
       }
       if (_fullRefresh) continue;
+      final hasUnloaded = result.loaded != result.counts.length;
+      var meanMayChange = !hasUnloaded;
+      var known = result.loaded;
+      var chars = result.chars;
       var cursor = 0;
       for (final range in ranges) {
         final length = range.last - range.first + 1;
-        _counts.setRange(range.first, range.last + 1, result.counts, cursor);
+        if (hasUnloaded) {
+          for (var i = 0; i < length; i++) {
+            final previous = _counts[range.first + i];
+            final count = result.counts[cursor + i];
+            if (count < 0 && previous >= 0) {
+              result.counts[cursor + i] = previous;
+              known++;
+              chars += previous;
+            } else if (count >= 0 && count != previous) {
+              meanMayChange = true;
+            }
+          }
+        }
+        if (!full) {
+          _counts.setRange(range.first, range.last + 1, result.counts, cursor);
+        }
         cursor += length;
       }
       debugCountedLines += cursor;
       if (full) {
         replacedAll = true;
-        _unloadedLineChars = result.loaded == 0
-            ? 200
-            : result.chars / result.loaded;
+        _counts = result.counts;
+        // שחרור תוכן בלבד לא משנה את ברירת המחדל שנקבעה לפני החימום.
+        if (meanMayChange) {
+          _unloadedLineChars = known == 0 ? 200 : chars / known;
+        }
       }
       applied.addAll(ranges);
     }

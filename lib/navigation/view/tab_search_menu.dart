@@ -308,7 +308,7 @@ class _TabSearchPanelState extends State<TabSearchPanel> {
                   isHighlighted: i == _highlighted,
                   onTap: _entryActions[i],
                   trailingIcon: FluentIcons.dismiss_24_regular,
-                  trailingTooltip: context.settingsText('סגור כרטיסיה'),
+                  trailingTooltip: context.settingsText('סגור כרטיסייה'),
                   onTrailing: () => closeTabWithHistory(context, tab),
                 ),
             ],
@@ -328,7 +328,7 @@ class _TabSearchPanelState extends State<TabSearchPanel> {
                   isHighlighted: openTabs.length + i == _highlighted,
                   onTap: _entryActions[openTabs.length + i],
                   trailingIcon: FluentIcons.arrow_undo_24_regular,
-                  trailingTooltip: context.settingsText('שחזר כרטיסיה'),
+                  trailingTooltip: context.settingsText('שחזר כרטיסייה'),
                   onTrailing: () =>
                       context.read<TabsBloc>().add(RestoreClosedTab(tab)),
                 ),

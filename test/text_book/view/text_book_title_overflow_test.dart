@@ -19,6 +19,7 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/text_display/models/text_display_policy.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/text_book_screen.dart';
@@ -27,6 +28,7 @@ import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_pro
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
 import 'package:otzaria/utils/file/toc_parser.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart' show HolyNameStyle;
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/navigation/reader_nav_center.dart';
@@ -81,9 +83,12 @@ void main() {
     String? author,
     bool isInCombinedView = false,
     Size size = const Size(1400, 900),
+    TextDisplayPolicy? displayPolicy,
   }) async {
     final book = TextBook(title: bookTitle, author: author);
-    final bloc = StubTextBookBloc(_loadedState(book, currentTitle));
+    final bloc = StubTextBookBloc(
+      _loadedState(book, currentTitle, displayPolicy: displayPolicy),
+    );
     final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
     final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
     final settingsBloc = StubSettingsBloc(SettingsState.initial());
@@ -322,6 +327,27 @@ void main() {
     });
   });
 
+  testWidgets('הסתרת שם השם חלה גם על הכותרת בסרגל העליון (#3543)', (
+    tester,
+  ) async {
+    await pumpWithTitle(
+      tester,
+      bookTitle: 'ספר בדיקה',
+      currentTitle: 'ספר בדיקה, ברכת יהוה',
+      displayPolicy: TextDisplayPolicy.fromLegacy(
+        defaultRemoveNikud: false,
+        removeNikudFromTanach: false,
+        defaultRemovePunctuation: false,
+        showTeamim: true,
+        replaceHolyNames: true,
+        holyNameStyle: HolyNameStyle.kufKuf,
+      ),
+    );
+
+    expect(find.textContaining('יהוה'), findsNothing);
+    expect(find.textContaining('ברכת יקוק'), findsOneWidget);
+  });
+
   group('combined view title alignment', () {
     testWidgets('the title is centered like in a regular tab', (tester) async {
       await pumpWithTitle(
@@ -393,8 +419,13 @@ List<Rect> _titleTextRects(WidgetTester tester) {
   return rects;
 }
 
-TextBookLoaded _loadedState(TextBook book, String currentTitle) {
+TextBookLoaded _loadedState(
+  TextBook book,
+  String currentTitle, {
+  TextDisplayPolicy? displayPolicy,
+}) {
   return TextBookLoaded(
+    displayPolicy: displayPolicy,
     book: book,
     showLeftPane: false,
     content: const ['שורה א', 'שורה ב', 'שורה ג'],

@@ -98,7 +98,7 @@ abstract class LibraryMessages {
 
   static String tabsMovedToWorkspace(int count, String workspaceName) =>
       count == 1
-      ? 'הכרטיסיה הועברה לשולחן העבודה "$workspaceName"'
+      ? 'הכרטיסייה הועברה לשולחן העבודה "$workspaceName"'
       : '$count כרטיסיות הועברו לשולחן העבודה "$workspaceName"';
 
   /// השולחן נמחק בחלון אחר בין בניית התפריט לבחירה.

@@ -77,6 +77,9 @@ class _CommentaryLinkItem extends StatefulWidget {
   final Function(OpenedTab) openBookCallback;
   final TextDisplayProfile displayProfile;
   final TextDisplayProfile copyDisplayProfile;
+
+  /// ציוני המפרשים מוצגים בגוף הספר — רק אז יש לאות הסימון מקבילה בטקסט.
+  final bool showAnchorMarker;
   final bool showSearch;
   final ValueListenable<String> searchQueryListenable;
   final ValueListenable<int> currentSearchIndexListenable;
@@ -121,6 +124,7 @@ class _CommentaryLinkItem extends StatefulWidget {
     required this.openBookCallback,
     required this.displayProfile,
     required this.copyDisplayProfile,
+    required this.showAnchorMarker,
     required this.showSearch,
     required this.searchQueryListenable,
     required this.currentSearchIndexListenable,
@@ -246,7 +250,8 @@ class _CommentaryLinkItemState extends State<_CommentaryLinkItem> {
                               true);
                       // קישור עם עוגן-מילה: אות הסימון שמופיעה בגוף הטקסט
                       // נשמרת גם כשהכותרת מוסתרת — היא הקישור הוויזואלי להערה.
-                      final markerText = link.anchorStart != null
+                      final markerText =
+                          widget.showAnchorMarker && link.anchorStart != null
                           ? anchorMarkerText(link)
                           : null;
                       if (!showTitle && markerText == null) {

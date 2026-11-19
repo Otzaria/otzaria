@@ -316,7 +316,7 @@ class ToolTabScreenState extends State<ToolTabScreen>
         Padding(
           padding: const EdgeInsets.only(bottom: AppTokens.spaceXL),
           child: ActionButton.neutral(
-            text: 'סגור כרטיסיה',
+            text: 'סגור כרטיסייה',
             onPressed: () =>
                 context.read<TabsBloc>().add(RemoveTab(widget.tab)),
           ),

@@ -65,7 +65,10 @@ import 'package:otzaria/tabs/view/pane_drag_handle.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
+import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/tabs/tabs_repository.dart';
+import 'package:otzaria/utils/file/page_converter.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/view/toc_navigator_screen.dart';
@@ -1029,65 +1032,85 @@ void main() {
       },
     );
 
-    testWidgets('הלחצן למהדורה המובנית כתוב "פתח בתצוגת PDF"', (
-      tester,
-    ) async {
-      final book = TextBook(title: 'ספר בדיקה');
-      final pdfBook = PdfBook(title: 'ספר בדיקה', path: 'ספר בדיקה.pdf');
-      DataRepository.instance.library = Future.value(
-        Library(
-          categories: [
-            Category(
-              title: 'קטגוריה',
-              description: '',
-              shortDescription: '',
-              order: 1,
-              subCategories: [],
-              books: [book, pdfBook],
-              parent: null,
-            ),
-          ],
-        ),
-      );
-
-      final bloc = _TestTextBookBloc(_loadedState(book));
-      final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
-      final tabsBloc = _TestTabsBloc(
-        TabsState(tabs: [tab], currentTabIndex: 0),
-      );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
-
-      addTearDown(() async {
-        await tester.pumpWidget(const SizedBox.shrink());
-        await tester.pump();
-        await bloc.close();
-        await tabsBloc.close();
-        await settingsBloc.close();
-        tab.dispose();
-      });
-
-      await _setSurfaceSize(tester, const Size(1600, 900));
-      await _pumpTextBookScreen(
+    for (final mappedPage in [null, 5]) {
+      testWidgets('מעבר ל-PDF שכבר פתוח כשעמוד המיפוי הוא $mappedPage', (
         tester,
-        tab: tab,
-        textBookBloc: bloc,
-        tabsBloc: tabsBloc,
-        settingsBloc: settingsBloc,
-        focusRepository: focusRepository,
-        shamorZachorDataProvider: shamorZachorDataProvider,
-        shamorZachorProgressProvider: shamorZachorProgressProvider,
-        bookmarkBloc: bookmarkBloc,
-        personalNotesBloc: personalNotesBloc,
-        tourCubit: tourCubit,
-        isInCombinedView: false,
-      );
-      // איתור המהדורות המקבילות נדחה ל-listener של טעינת התוכן.
-      bloc.emitStateForTest(_loadedState(book));
-      await tester.pumpAndSettle();
+      ) async {
+        final book = _PdfMappingBook();
+        final pdfBook = PdfBook(title: book.title, path: '${book.title}.pdf');
+        DataRepository.instance.library = Future.value(
+          Library(
+            categories: [
+              Category(
+                title: 'קטגוריה',
+                description: '',
+                shortDescription: '',
+                order: 1,
+                subCategories: [],
+                books: [book, pdfBook],
+                parent: null,
+              ),
+            ],
+          ),
+        );
+        pdfAnchorsReaderForTesting = (_) async => mappedPage == null
+            ? const []
+            : [(page: mappedPage, ref: 'פרק א'), (page: 20, ref: 'פרק ב')];
+        addTearDown(() => pdfAnchorsReaderForTesting = null);
+        await tester.runAsync(() async {
+          expect(await textToPdfPage(book, 0, pdfBook: pdfBook), mappedPage);
+        });
 
-      expect(find.byTooltip('פתח בתצוגת PDF'), findsOneWidget);
-      expect(find.byTooltip('פתח מהדורה מקבילה'), findsNothing);
-    });
+        final bloc = _TestTextBookBloc(_loadedState(book));
+        final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
+        final pdfTab = PdfBookTab(book: pdfBook, pageNumber: 11);
+        final session = WindowTabsSession(slot: () => null);
+        final tabsBloc = TabsBloc(
+          repository: TabsRepository(window: session),
+          session: session,
+          disposeDelay: Duration.zero,
+        );
+        tabsBloc
+          ..add(AddTab(pdfTab))
+          ..add(AddTab(tab));
+        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+        addTearDown(() async {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump();
+          await tabsBloc.close();
+          await bloc.close();
+          await settingsBloc.close();
+        });
+
+        await _setSurfaceSize(tester, const Size(1600, 900));
+        await _pumpTextBookScreen(
+          tester,
+          tab: tab,
+          textBookBloc: bloc,
+          tabsBloc: tabsBloc,
+          settingsBloc: settingsBloc,
+          focusRepository: focusRepository,
+          shamorZachorDataProvider: shamorZachorDataProvider,
+          shamorZachorProgressProvider: shamorZachorProgressProvider,
+          bookmarkBloc: bookmarkBloc,
+          personalNotesBloc: personalNotesBloc,
+          tourCubit: tourCubit,
+          isInCombinedView: false,
+        );
+        bloc.emitStateForTest(_loadedState(book));
+        await tester.pumpAndSettle();
+
+        expect(tabsBloc.state.currentTab, same(tab));
+        expect(find.byTooltip('פתח מהדורה מקבילה'), findsNothing);
+        await tester.tap(find.byTooltip('פתח בתצוגת PDF'));
+        await tester.pumpAndSettle();
+
+        expect(tabsBloc.state.tabs, [pdfTab, tab]);
+        expect(tabsBloc.state.currentTab, same(pdfTab));
+        expect(pdfTab.pageNumber, mappedPage ?? 11);
+      });
+    }
 
     testWidgets('לספר עם נוסחאות התפריט פותח את רשימת הנוסחאות', (
       tester,
@@ -2938,6 +2961,16 @@ class _NoTocBook extends TextBook {
 
   @override
   Future<List<TocEntry>> get tableOfContents async => const [];
+}
+
+class _PdfMappingBook extends TextBook {
+  _PdfMappingBook() : super(title: 'ספר בדיקה');
+
+  @override
+  Future<List<TocEntry>> get tableOfContents async => [
+    TocEntry(text: 'פרק א', index: 0, level: 1),
+    TocEntry(text: 'פרק ב', index: 10, level: 1),
+  ];
 }
 
 class _TestHistoryBloc extends Cubit<HistoryState> implements HistoryBloc {

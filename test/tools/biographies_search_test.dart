@@ -70,6 +70,55 @@ void main() {
       expect(BiographiesRepository.filter(hebrew, 'הרמב"ם'), hebrew);
     });
 
+    test('מוצא תואר עם או בלי ה״א הידיעה (issue #5550)', () {
+      final entries = [
+        _bio('רבי שבתי הכהן', appelations: ['הש"ך']),
+        _bio('רבי שבתי סופר'),
+        _bio('שבתי כהן מוורשה'),
+      ];
+
+      // הכתיב המקורי מקבל קדימות.
+      expect(
+        BiographiesRepository.filter(entries, 'שבתי כהן').map((b) => b.name),
+        ['שבתי כהן מוורשה', 'רבי שבתי הכהן'],
+      );
+      // כשה״א הידיעה מופיעה בשאילתה, אין הרחבה לכתיב בלעדיה.
+      expect(
+        BiographiesRepository.filter(entries, 'שבתי הכהן').map((b) => b.name),
+        ['רבי שבתי הכהן'],
+      );
+    });
+
+    test('תואר מקביל נתמך גם בכינוי ובין מילים המחוברות במקף', () {
+      final entries = [
+        _bio('שם אחר', appelations: ['ברוך־הכהן']),
+        _bio('הכהן ברוך'),
+        _bio('ברוך הכהן־גדול'),
+        _bio('ברוך הכהןד'),
+        _bio('ברוך יהודה הכהן'),
+      ];
+
+      expect(
+        BiographiesRepository.filter(entries, 'ברוך כהן').map((b) => b.name),
+        ['ברוך הכהן־גדול', 'שם אחר'],
+      );
+    });
+
+    test('ההתאמה המורחבת דורשת מילים נפרדות בסדר השאילתה', () {
+      final entries = [
+        _bio('רבי שבתי הכהן'),
+        _bio('משה אבן עזרא'),
+        _bio('רבינו משה בן מימון'),
+        _bio('רבי יהודה לל'),
+        _bio('רבי יחיאל הלל'),
+        _bio("רבי לוי יצחק מברדיצ'ב"),
+      ];
+
+      for (final query in ['כהן כהן', 'בן משה', 'יהודה הלל', 'רבי הלוי']) {
+        expect(BiographiesRepository.filter(entries, query), isEmpty);
+      }
+    });
+
     test('בדירוג שווה ממוין לפי שם', () {
       final entries = [_bio('אב יוסף'), _bio('אב דוד')];
       expect(BiographiesRepository.filter(entries, 'אב').map((b) => b.name), [

@@ -23,8 +23,8 @@ import 'package:otzaria/utils/text/inline_style.dart';
 /// `ooxml` ו-`word-xml` חולקים טביעה — Flat OPC מגיע לאותו מנוע ומייצר פלט
 /// זהה בייט-בבייט. אי-שוויון ביניהם הוא סימן שהמנוע הותקף מכיוון אחד בלבד.
 const Map<String, ({int version, String fingerprint})> _pinned = {
-  'ooxml': (version: 15, fingerprint: 'd810aa9cf47cbdef'),
-  'word-xml': (version: 1015, fingerprint: 'd810aa9cf47cbdef'),
+  'ooxml': (version: 16, fingerprint: '6cd6b6c9a4e66142'),
+  'word-xml': (version: 1016, fingerprint: '6cd6b6c9a4e66142'),
   'odt': (version: 7, fingerprint: 'e7114c864beedc1d'),
   'rtf': (version: 8, fingerprint: 'cfa322a43935a572'),
   'legacy-word': (version: 9, fingerprint: 'e39829bc7e2dd94f'),
@@ -73,7 +73,7 @@ const _ooxmlBody =
     '<w:tr><w:tc><w:tcPr><w:vMerge/></w:tcPr>'
     '<w:p><w:r><w:t>המשך</w:t></w:r></w:p></w:tc></w:tr></w:tbl>';
 
-/// הערת שוליים בת שתי פסקאות — גבול הפסקה חייב להיות רווח.
+/// הערת שוליים בת שתי פסקאות — גבול הפסקה חייב להיות `<br>`.
 const _ooxmlFootnotes =
     '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/'
     'wordprocessingml/2006/main"><w:footnote w:id="2">'

@@ -31,9 +31,10 @@ class BookOpenCoordinator {
     this.layoutWidth,
   });
 
+  /// מיקום חסר משאיר את הטאב הפתוח במקומו, או פותח עם מיקום ברירת המחדל.
   void openBook(
     Book book,
-    int index,
+    int? index,
     String searchQuery, {
     bool ignoreHistory = false,
     bool explicitIndex = false,
@@ -52,7 +53,7 @@ class BookOpenCoordinator {
   }) {
     final tab = buildTab(
       book,
-      index,
+      index ?? (book is PdfBook ? 1 : 0),
       searchQuery,
       ignoreHistory: ignoreHistory,
       explicitIndex: explicitIndex,
@@ -67,7 +68,8 @@ class BookOpenCoordinator {
     openTab(
       tab,
       insertAdjacent: insertAdjacent,
-      navigateToPositionIfReused: navigateToPositionIfReused,
+      navigateToPositionIfReused: index != null && navigateToPositionIfReused,
+      matchBookOnly: index == null,
       inSidePane: inSidePane,
       navigate: navigate,
       captureHistory: captureHistory,
@@ -84,6 +86,7 @@ class BookOpenCoordinator {
     OpenedTab tab, {
     bool insertAdjacent = false,
     bool navigateToPositionIfReused = false,
+    bool matchBookOnly = false,
     bool inSidePane = false,
     bool navigate = true,
     bool captureHistory = true,
@@ -105,6 +108,7 @@ class BookOpenCoordinator {
               tab,
               insertAdjacent: insertAdjacent,
               navigateToPositionIfReused: navigateToPositionIfReused,
+              matchBookOnly: matchBookOnly,
             ),
     );
     if (navigate) showReadingScreen();

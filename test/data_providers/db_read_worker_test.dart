@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:fake_async/fake_async.dart';
+import 'package:otzaria/bookmarks/utils/bookmark_from_tab.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/app_paths.dart';
@@ -22,10 +23,12 @@ import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/database/untrusted_database.dart';
 import 'package:otzaria/migration/models/book.dart' as db_models;
 import 'package:otzaria/migration/models/category.dart' as db_models;
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/search/library_line_source.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:path/path.dart' as path;
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
@@ -1830,6 +1833,70 @@ void main() {
       final book = TextBook(id: 1, title: 'בראשית', categoryId: 7);
       expect(await heRefFromDbLine(book, 3), 'בראשית א, 4');
       expect(DbReadWorker.sentMessageCount - before, 1);
+    });
+
+    test('heRef מחזיר את כתובות המסד גם אם הן כוללות מספר בלבד', () async {
+      final db = sqlite3.sqlite3.open(dbPath);
+      db.execute("UPDATE line SET heRef = 'מפרש 3' WHERE id = 202");
+      db.close();
+
+      final commentary = TextBook(id: 2, title: 'מפרש', categoryId: 7);
+      expect(await heRefFromDbLine(commentary, 2), 'מפרש 3');
+      expect(await heRefFromDbLine(commentary, 1), 'מפרש א, 2');
+    });
+
+    test('סימניה מעדיפה דף ושומרת מספר שורה כשיש רק שם ספר', () async {
+      final db = sqlite3.sqlite3.open(dbPath);
+      try {
+        db.execute("UPDATE line SET heRef = 'מפרש 2' WHERE id = 201");
+        db.execute("UPDATE line SET heRef = 'מפרש 3' WHERE id = 202");
+        db.execute(
+          "INSERT INTO tocText (id, text) VALUES (3, 'מפרש'), (4, 'דף יג:')",
+        );
+        db.execute(
+          'INSERT INTO tocEntry (id, bookId, parentId, textId, level, lineIndex) '
+          'VALUES (3, 2, NULL, 3, 1, 0), (4, 2, 3, 4, 2, 2)',
+        );
+        db.execute(
+          'INSERT INTO line_toc (lineId, tocEntryId) VALUES (201, 3), (202, 4)',
+        );
+      } finally {
+        db.close();
+      }
+
+      final book = TextBook(id: 2, title: 'מפרש', categoryId: 7);
+      for (final (index, ref) in [(1, 'מפרש 2'), (2, 'מפרש, דף יג:')]) {
+        final tab = TextBookTab(book: book, index: index);
+        addTearDown(tab.dispose);
+        final bookmark = await bookmarkFromReadingTab(
+          tab,
+          useStoredPositionFallback: true,
+        );
+        expect(bookmark?.ref, ref);
+        expect(bookmark?.index, index);
+      }
+    });
+
+    test('סימניה משמרת כותרת ממוספרת בספר אישי', () async {
+      final repo = await UserBooksDatabaseHolder.instance.repository;
+      final db = await repo.database.database;
+      db.execute(
+        "INSERT INTO book (id, categoryId, sourceId, title) VALUES (1, 1, 1, 'ספר אישי')",
+      );
+      db.execute(
+        'INSERT INTO line (id, bookId, lineIndex, content, heRef) '
+        "VALUES (1, 1, 0, '<h1>ספר אישי 1</h1>', 'ספר אישי 1')",
+      );
+      final book = TextBook(id: 1, title: 'ספר אישי', source: BookSource.user);
+      final tab = TextBookTab(book: book, index: 0);
+      addTearDown(tab.dispose);
+
+      expect(await heRefFromDbLine(book, 0), 'ספר אישי 1');
+      final bookmark = await bookmarkFromReadingTab(
+        tab,
+        useStoredPositionFallback: true,
+      );
+      expect(bookmark?.ref, 'ספר אישי 1');
     });
 
     test('כותרות ספרי המסד נטענות ב-worker', () async {

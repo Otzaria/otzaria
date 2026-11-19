@@ -77,6 +77,8 @@ import 'package:otzaria/text_book/view/alt_toc_sidebar_view.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/utils/file/page_converter.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart'
+    show replaceHolyNames;
 import 'package:otzaria/book_common/view/book_source_dialog.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_screen.dart'
     show PageShapeColumnsControl;
@@ -1175,10 +1177,15 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       return const SizedBox.shrink();
     }
 
+    // הסתרת שם השם חלה גם על הכותרת, כמו על גוף הטקסט.
+    final holyNameStyle = state.bodyDisplayProfile.holyName.style;
+    String hideHolyNames(String text) => holyNameStyle == null
+        ? text
+        : replaceHolyNames(text, style: holyNameStyle);
+
     // שימוש בפונקציה העזר להוספת שם הספר
-    String displayText = addBookTitleToRef(
-      state.currentTitle!,
-      state.book.title,
+    String displayText = hideHolyNames(
+      addBookTitleToRef(state.currentTitle!, state.book.title),
     );
 
     // בכרטיסייה של נוסח חלופי הכותרת זהה לזו של הנוסח הראשי; שם המהדורה הוא מה
@@ -1207,7 +1214,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         // כשהכותרת בפורמט "שם הספר, מיקום" מציגים אותם כשני חלקים: השם מתקצר
         // (ellipsis) לפי המקום הפנוי, אך המיקום נשאר גלוי במלואו — נחוץ לחברותא
         // שבה אין מידע אחר על המיקום.
-        final namePrefix = '${state.book.title}, ';
+        final namePrefix = hideHolyNames('${state.book.title}, ');
         // מיקום שאינו משאיר לצדו מקום אף ל"..." של השם חייב להיחתך כמחרוזת
         // אחת — כשני חלקים ה-Row גולש מהסרגל ומצייר את פס האזהרה (#891).
         final hasSeparateLocation =
@@ -2218,6 +2225,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       ignoreHistory: true,
       requiresStableLayout: true,
       insertAdjacent: true,
+      navigateToPositionIfReused: true,
     );
   }
 
@@ -2272,16 +2280,17 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     if (!context.mounted) return;
 
     if (index == null) {
-      UiSnack.show(TextBookMessages.pdfLocationNotFoundOpeningAtStart);
+      UiSnack.show(TextBookMessages.pdfLocationNotFound);
     }
     openBook(
       context,
       _pdfBook!,
-      index ?? 1,
+      index,
       '',
       ignoreHistory: true,
       requiresStableLayout: true,
       insertAdjacent: true,
+      navigateToPositionIfReused: true,
     );
   }
 
@@ -3217,16 +3226,17 @@ void _togglePdfView(
   if (!context.mounted) return;
 
   if (index == null) {
-    UiSnack.show(TextBookMessages.pdfLocationNotFoundOpeningAtStart);
+    UiSnack.show(TextBookMessages.pdfLocationNotFound);
   }
   openBook(
     context,
     book,
-    index ?? 1,
+    index,
     '',
     ignoreHistory: true,
     requiresStableLayout: true,
     insertAdjacent: true,
+    navigateToPositionIfReused: true,
   );
 }
 
