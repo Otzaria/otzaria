@@ -496,7 +496,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
         msg.hwnd != nullptr) {
       const HWND root = ::GetAncestor(msg.hwnd, GA_ROOT);
       wchar_t window_class[64] = {};
-      if (root && ::GetClassNameW(root, window_class, 64) &&
+      // FLASHW_STOP שולח WM_NCACTIVATE, ובחלון פעיל זה focus שמשחרר את Ctrl.
+      // Windows מהבהב רק חלון שסורב לו SetForegroundWindow, כלומר לא בחזית.
+      if (root && root != ::GetForegroundWindow() &&
+          ::GetClassNameW(root, window_class, 64) &&
           (::wcscmp(window_class, kFlutterWindowClassName) == 0 ||
            ::wcscmp(window_class, kDartHostWindowClassName) == 0)) {
         FLASHWINFO flash = {sizeof(FLASHWINFO), root, FLASHW_STOP, 0, 0};
