@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
@@ -634,12 +633,6 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (Platform.isAndroid || Platform.isIOS) {
-      return Center(
-        child: Text(context.settingsText('קיצורי מקשים זמינים רק בדסקטופ')),
-      );
-    }
-
     return SettingsTabScrollView(
       child: ToolPanelWrapper(
         // עוטף ב-BlocBuilder כדי לרענן את רשימת הטיילים והכרטיס "הוסף קיצור"
