@@ -59,11 +59,14 @@ def read_native_pin(root):
         section = found.group(1)
 
         def field(key, indent):
-            return re.findall(rf"(?m)^{' ' * indent}{re.escape(key)}: (.+?)\r?$", section)
+            # pub writes these values with or without double quotes, depending on its version.
+            return [value[1:-1] if len(value) > 1 and value[0] == value[-1] == '"' else value
+                    for value in re.findall(rf"(?m)^{' ' * indent}{re.escape(key)}: (.+?)\r?$",
+                                            section)]
 
         require(field("source", 4) == ["git"], f"Not a Git dependency: {name}")
         require(field("path", 6) == [name], f"Unexpected Git path: {name}")
-        require(field("url", 6) == ['"https://github.com/Otzaria/flutter_inappwebview"'],
+        require(field("url", 6) == ["https://github.com/Otzaria/flutter_inappwebview"],
                 f"Unexpected Git source: {name}")
         require(field("ref", 6) == [expected] and field("resolved-ref", 6) == [expected],
                 f"Mixed or unresolved native pin in pubspec.lock: {name}")

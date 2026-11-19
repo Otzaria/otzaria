@@ -58,6 +58,13 @@ class NativePinContractTests(unittest.TestCase):
     def test_matching_manifest_and_all_eight_lock_entries(self):
         self.assertEqual(probe.read_native_pin(self.root), NATIVE_TEST_PIN)
 
+    def test_accepts_quoted_lock_references(self):
+        lock = self.root / "pubspec.lock"
+        lock.write_text(lock.read_text().replace(
+            f"ref: {NATIVE_TEST_PIN}\n", f'ref: "{NATIVE_TEST_PIN}"\n'))
+        self.assertIn(f'resolved-ref: "{NATIVE_TEST_PIN}"', lock.read_text())
+        self.assertEqual(probe.read_native_pin(self.root), NATIVE_TEST_PIN)
+
     def test_rejects_mismatched_or_missing_explicit_manifest_reference(self):
         manifest = self.root / "pubspec.yaml"
         original = manifest.read_text()
