@@ -243,6 +243,8 @@ class _ReadingScreenState extends State<ReadingScreen>
     if (_isTouchPlatform) return child;
     return TabSwipeDetector(
       controller: _pageController,
+      tabContentIsWebView: () =>
+          mounted && paneShowsPlugin(context.read<TabsBloc>().state.currentTab),
       onActiveChanged: (active) {
         _suppressPageSync = active;
         // משלים שינוי טאב שקרה באמצע ההחלקה ונבלע בדיכוי.
