@@ -183,8 +183,31 @@ class PluginSystemDatabase {
 
   // --- CRUD for Installed Plugins ---
 
+  /// הרשימה המפוענחת האחרונה, עם החיבור ומוני השינויים שמולם נקראה.
+  /// `total_changes` סופר כתיבות בחיבור הזה ו-`data_version` כתיבות מחיבורים
+  /// אחרים, כך שהרשימה נקראת שוב רק אחרי שינוי במסד.
+  (Database, Object?, Object?, List<InstalledPlugin>)? _installedPlugins;
+
   Future<List<InstalledPlugin>> getAllInstalledPlugins() async {
     final db = await database;
+    final version = db
+        .select(
+          'SELECT total_changes() AS c, data_version AS v '
+          'FROM pragma_data_version',
+        )
+        .single;
+    if (_installedPlugins
+        case (
+          final cachedDb,
+          final changes,
+          final dataVersion,
+          final plugins,
+        )
+        when identical(cachedDb, db) &&
+            changes == version['c'] &&
+            dataVersion == version['v']) {
+      return List.of(plugins);
+    }
     final maps = db.select('''
       SELECT p.*,
         COALESCE((
@@ -197,7 +220,11 @@ class PluginSystemDatabase {
         ), 0) AS run_on_startup_granted
       FROM plugin_installation p
     ''').toMapList();
-    return maps.map((map) => InstalledPlugin.fromDbMap(map)).toList();
+    final plugins = List<InstalledPlugin>.unmodifiable(
+      maps.map(InstalledPlugin.fromDbMap),
+    );
+    _installedPlugins = (db, version['c'], version['v'], plugins);
+    return List.of(plugins);
   }
 
   Future<bool> hasEnabledPlugin() async => readHasEnabledPlugin(await database);
