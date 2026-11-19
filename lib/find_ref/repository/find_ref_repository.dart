@@ -2439,22 +2439,46 @@ class FindRefRepository {
   };
 
   /// ה-TOC של ספר משני; ריק עם זנב ראש-תיבות — חיפוש חוזר בלעדיו, כמו במסד הרשמי.
+  /// כשאין בו התאמה מלאה — הכותרות החלופיות של הספר ("פרשת ויצא" מקובץ
+  /// הכותרות של ספר אישי), כמו ה-AltToc בקטלוג הרשמי.
   static Future<List<Map<String, dynamic>>> _secondaryToc(
     SeforimRepository repository,
     _SecondaryTocRequest book,
   ) async {
-    final toc = await repository.getTocEntriesForReference(
+    var toc = await repository.getTocEntriesForReference(
       book.bookId,
       book.bookTitle,
       queryTokens: book.queryTokens,
     );
     final fallback = book.fallbackTokens;
-    if (toc.isNotEmpty || fallback == null) return toc;
-    return repository.getTocEntriesForReference(
+    if (toc.isEmpty && fallback != null) {
+      toc = await repository.getTocEntriesForReference(
+        book.bookId,
+        book.bookTitle,
+        queryTokens: fallback,
+      );
+    }
+    if (toc.any((entry) => entry['partialMatch'] != true)) return toc;
+    final alt = await repository.getAltTocEntriesForReference(
       book.bookId,
       book.bookTitle,
-      queryTokens: fallback,
+      queryTokens: toc.isEmpty && fallback != null
+          ? fallback
+          : book.queryTokens,
     );
+    if (alt.isEmpty) return toc;
+    return [
+      ...toc,
+      for (final entry in alt)
+        {
+          ...entry,
+          'reference': qualifyAltTocReference(
+            book.bookTitle,
+            entry['reference'] as String,
+          ),
+          'altToc': true,
+        },
+    ];
   }
 
   /// מזהה חיבור ייחודי גם בין מופעי worker: מונה החיבורים מתאפס ב-isolate חדש.
@@ -2808,6 +2832,7 @@ class FindRefRepository {
         required int segment,
         int tocLevel = 1,
         int sourceLineId = 0,
+        bool isAltToc = false,
         bool isSourceLine = false,
         bool isPartialTocMatch = false,
       }) => DbReferenceResult(
@@ -2823,6 +2848,7 @@ class FindRefRepository {
         bookPath: bookPath,
         sourceLineId: sourceLineId,
         source: source,
+        isAltToc: isAltToc,
         isSourceLine: isSourceLine,
         isPartialTocMatch: isPartialTocMatch,
       );
@@ -2854,6 +2880,7 @@ class FindRefRepository {
             segment: entry['segment'] as int,
             tocLevel: entry['level'] as int,
             sourceLineId: entry['dbLineId'] as int? ?? 0,
+            isAltToc: entry['altToc'] == true,
             isPartialTocMatch: entry['partialMatch'] == true,
           ),
         );

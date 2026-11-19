@@ -519,6 +519,40 @@ void main() {
       );
     });
 
+    test('ספר אישי: כותרת מקובץ הכותרות ("פרשת ויצא") נמצאת', () async {
+      // MyDatabase יוצר את טבלאות user_alt_toc_* בפתיחה.
+      await userDb.database;
+      execute(
+        'INSERT INTO book (id, categoryId, sourceId, title, orderIndex) '
+        'VALUES (61, ?, 1, ?, 3)',
+        [SeforimFixtureIds.torahCategoryId, 'קונטרס פרשיות'],
+      );
+      execute(
+        'INSERT INTO user_alt_toc_structure (id, bookId, key, heTitle, source) '
+        "VALUES (5, 61, 'Parasha', 'פרשות', 'test')",
+      );
+      execute(
+        'INSERT INTO user_alt_toc_entry (structureId, parentId, level, text, '
+        "lineIndex) VALUES (5, NULL, 1, 'פרשת ויצא', 17)",
+      );
+      final repo = _repo(
+        books: const [],
+        openUserBooksRepository: () async => SeforimRepository(userDb),
+      );
+
+      final results = await repo.findRefs(
+        'קונטרס פרשיות ויצא',
+        includePersonalBooks: true,
+      );
+
+      expect(
+        results
+            .where((r) => r.source == BookSource.user && r.bookId == 61)
+            .map((r) => (r.reference, r.segment, r.isAltToc)),
+        contains(('קונטרס פרשיות פרשת ויצא', 17, true)),
+      );
+    });
+
     test('ספר שנוסף למסד אחרי החיפוש הראשון נמצא', () async {
       final repo = _repo(
         books: const [],

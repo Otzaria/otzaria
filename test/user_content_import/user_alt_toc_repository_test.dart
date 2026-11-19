@@ -178,4 +178,31 @@ void main() {
       );
     },
   );
+
+  test('פרשות מוזרקות ככותרת "פרשת…" ברמה העליונה בלבד', () async {
+    await UserContentRepository(db).replaceBookHeadings(bookId, [
+      UserAltTocStructureData(
+        key: 'Parasha',
+        heTitle: 'פרשות',
+        entries: [
+          entry('ויצא', line: 3, hasChildren: true),
+          entry('עליה א', level: 2, line: 3, parent: 0),
+          entry('פרשת וישלח', line: 7),
+          entry('הקדמה', line: 0),
+        ],
+      ),
+    ], source: 'parasha');
+
+    final rows = await reader.inlineSectionRows(bookId);
+
+    expect(
+      [
+        for (final h in rows.headings)
+          if (h.label.startsWith('פרשת')) (h.lineIndex, h.label),
+      ],
+      [(3, 'פרשת ויצא'), (7, 'פרשת וישלח')],
+    );
+    expect(rows.headings.map((h) => h.label), isNot(contains('עליה א')));
+    expect(rows.headings.map((h) => h.label), isNot(contains('הקדמה')));
+  });
 }

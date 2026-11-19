@@ -3,6 +3,8 @@ import 'package:otzaria/migration/models/alt_toc_entry.dart';
 import 'package:otzaria/migration/models/alt_toc_structure.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/text_book/utils/inline_section_markers.dart'
+    show parashaHeadingLabel;
 
 /// קריאת הכותרות החלופיות ('כותרות') של ספרים אישיים מ-user_books.db,
 /// באותם מודלים שהלשונית מקבלת מהספרייה הרשמית.
@@ -147,7 +149,8 @@ class UserAltTocRepository {
     return rows.isEmpty ? null : rows.first['id'] as int;
   }
 
-  /// סימני החלוקה (עלי סימנים/סעיפים) וכותרות הנושא הגולמיות של הספר.
+  /// סימני החלוקה (עלי סימנים/סעיפים) והכותרות המוזרקות של הספר: כותרות
+  /// הנושא כמות שהן, וכותרות הפרשה בצורת "פרשת…".
   Future<
     ({
       Map<int, String> markers,
@@ -166,16 +169,22 @@ class UserAltTocRepository {
     )) {
       markers[row['lineIndex'] as int] = row['text'] as String;
     }
-    final headings = [
-      for (final row in db.select(
-        'SELECT e.lineIndex, e.text FROM user_alt_toc_structure s '
-        'JOIN user_alt_toc_entry e ON e.structureId = s.id '
-        "WHERE s.bookId = ? AND s.key = 'Topic' AND e.lineIndex IS NOT NULL "
-        'ORDER BY e.lineIndex, e.level',
-        [bookId],
-      ))
-        (lineIndex: row['lineIndex'] as int, label: row['text'] as String),
-    ];
+    // כמו במסד הרשמי: נושאים בכל הרמות, ופרשות ברמה העליונה בלבד (עליות
+    // שתחתיהן אינן מוזרקות). שם שאינו שם פרשה ("הקדמה") אינו מוזרק.
+    final headings = <({int lineIndex, String label})>[];
+    for (final row in db.select(
+      'SELECT s.key, e.lineIndex, e.text FROM user_alt_toc_structure s '
+      'JOIN user_alt_toc_entry e ON e.structureId = s.id '
+      'WHERE s.bookId = ? AND e.lineIndex IS NOT NULL '
+      "AND (s.key = 'Topic' OR (s.key = 'Parasha' AND e.parentId IS NULL)) "
+      'ORDER BY e.lineIndex, e.level',
+      [bookId],
+    )) {
+      final text = row['text'] as String;
+      final label = row['key'] == 'Parasha' ? parashaHeadingLabel(text) : text;
+      if (label == null) continue;
+      headings.add((lineIndex: row['lineIndex'] as int, label: label));
+    }
     return (markers: markers, headings: headings);
   }
 

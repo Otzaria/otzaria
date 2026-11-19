@@ -135,6 +135,10 @@ class DbCapabilities {
       has('tocText');
   bool get hasLineAltToc => hasAltToc && has('line_alt_toc');
 
+  /// כותרות חלופיות של ספרים אישיים (user_books.db), מקושרות ל-lineIndex.
+  bool get hasUserAltToc =>
+      has('user_alt_toc_structure') && has('user_alt_toc_entry');
+
   /// קישורים דורשים גם את סוגי החיבור ואת השורות שהם מצביעים עליהן.
   bool get hasLinks => hasLines && has('link') && has('connection_type');
   bool get hasLinkAnchors => hasLinks && has('link_anchor');

@@ -2525,13 +2525,26 @@ extension BookAcronymRepository on SeforimRepository {
           (match['segment'], match['level'], match['reference']),
       };
       final db = await _database.database;
+      final capabilities = await _capabilities;
+      // ערכי ספר אישי נושאים מזהים שליליים (ראה [_userAltTocEntries]), וכך גם
+      // המבנים שלהם כאן — כדי שלא יתערבבו במבני alt_toc_structure.
       final structures = {
-        for (final row in db.select(
-          'SELECT e.id, e.structureId FROM alt_toc_entry e '
-          'JOIN alt_toc_structure s ON s.id = e.structureId WHERE s.bookId = ?',
-          [bookId],
-        ))
-          row['id'] as int: row['structureId'] as int,
+        if (capabilities.hasAltToc)
+          for (final row in db.select(
+            'SELECT e.id, e.structureId FROM alt_toc_entry e '
+            'JOIN alt_toc_structure s ON s.id = e.structureId '
+            'WHERE s.bookId = ?',
+            [bookId],
+          ))
+            row['id'] as int: row['structureId'] as int,
+        if (capabilities.hasUserAltToc)
+          for (final row in db.select(
+            'SELECT e.id, e.structureId FROM user_alt_toc_entry e '
+            'JOIN user_alt_toc_structure s ON s.id = e.structureId '
+            'WHERE s.bookId = ?',
+            [bookId],
+          ))
+            -(row['id'] as int): -(row['structureId'] as int),
       };
       final entries = await _buildAltTocCacheForBook(
         bookId,
@@ -3106,13 +3119,17 @@ extension BookAcronymRepository on SeforimRepository {
   ) async {
     final cached = _altTocCache.remove(bookId);
     if (cached != null) return _altTocCache[bookId] = cached;
-    if (!(await _capabilities).hasAltToc) return const [];
+    final capabilities = await _capabilities;
+    if (!capabilities.hasAltToc && !capabilities.hasUserAltToc) {
+      return const [];
+    }
 
     final db = await _database.database;
 
-    final rawEntries = db
-        .select(
-          '''
+    final rawEntries = capabilities.hasAltToc
+        ? db
+              .select(
+                '''
         SELECT e.id, t.text, e.level, e.lineId, e.parentId, e.textId
         FROM alt_toc_entry e
         JOIN tocText t ON e.textId = t.id
@@ -3120,9 +3137,10 @@ extension BookAcronymRepository on SeforimRepository {
             SELECT id FROM alt_toc_structure WHERE bookId = ?
         )
       ''',
-          [bookId],
-        )
-        .toMapList();
+                [bookId],
+              )
+              .toMapList()
+        : <Map<String, dynamic>>[];
 
     final lineIndexes = rawEntries.isEmpty
         ? const <int, int>{}
@@ -3157,7 +3175,11 @@ extension BookAcronymRepository on SeforimRepository {
       );
     }
 
-    final entries = [for (final id in rowsById.keys) entryFor(id)!];
+    final entries = [
+      for (final id in rowsById.keys) entryFor(id)!,
+      if (capabilities.hasUserAltToc)
+        ..._userAltTocEntries(db, book, tokens),
+    ];
     _sortAltTocForBook(
       entries,
       compareKeys: (a, b) {
@@ -3169,6 +3191,51 @@ extension BookAcronymRepository on SeforimRepository {
       compareSegments: (a, b) => a.segment.compareTo(b.segment),
     );
     return _putAltTocCache(bookId, entries);
+  }
+
+  /// הכותרות החלופיות שיובאו לספר אישי ('כותרות') — ב-user_alt_toc_*, ולא
+  /// ב-alt_toc_*: לספר אישי אין שורות במסד, והערך נושא את ה-lineIndex עצמו.
+  /// המזהים שליליים (`-user_alt_toc_entry.id`), כדי שלא יתנגשו בערכי
+  /// alt_toc_entry של אותו מסד.
+  List<AltTocIndexEntry> _userAltTocEntries(
+    sqlite3.Database db,
+    AltTocBook book,
+    _AltTocTokenPool tokens,
+  ) {
+    final rows = db.select(
+      '''
+      SELECT e.id, e.text, e.level, e.lineIndex, e.parentId
+      FROM user_alt_toc_entry e
+      WHERE e.structureId IN (
+          SELECT id FROM user_alt_toc_structure WHERE bookId = ?
+      )
+      ''',
+      [book.id],
+    );
+    final rowsById = {for (final r in rows) -(r['id'] as int): r};
+    final built = <int, AltTocIndexEntry>{};
+
+    AltTocIndexEntry? entryFor(int? id) {
+      if (id == null) return null;
+      final existing = built[id];
+      if (existing != null) return existing;
+      final row = rowsById[id];
+      if (row == null) return null;
+      final text = row['text'] as String;
+      final parentId = row['parentId'] as int?;
+      return built[id] = AltTocIndexEntry(
+        id: id,
+        book: book,
+        parent: entryFor(parentId == null ? null : -parentId),
+        text: text,
+        segment: row['lineIndex'] as int? ?? 0,
+        level: row['level'] as int,
+        dbLineId: 0,
+        ownTokens: tokens.tokensOf(text),
+      );
+    }
+
+    return [for (final id in rowsById.keys) entryFor(id)!];
   }
 
   /// מזהי כל הספרים שיש להם מבנה AltToc — מאפשר לצרכן לדלג על שאילתות
