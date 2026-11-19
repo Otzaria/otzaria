@@ -482,6 +482,8 @@ export type SearchWordMatchMode = 'all' | 'anyWord' | 'mostWords' | 'atLeast';
 /** פרמטרי `search.query` — כל מה שמסך החיפוש של אוצריא שולח למנוע. */
 export interface SearchQueryParams {
   query: string;
+  /** Explicit /…/ regex search (max 300 characters). Invalid patterns return error.invalid_params. Cannot combine with negative, fuzzy, proximity or per-word options. */
+  regex?: boolean;
   negativeQuery?: string;
   mode?: SearchMode;
   order?: SearchOrder;

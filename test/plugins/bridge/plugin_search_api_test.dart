@@ -25,6 +25,42 @@ Future<void> main() async {
       expect(request.offset, 0);
     });
 
+    test('regex uses native engine syntax without sanitization', () {
+      final ordinary = PluginSearchRequest.fromArgs({'query': '/מש.ה/'});
+      expect(ordinary.regex, isFalse);
+      expect(ordinary.sanitizedQuery, isNot('/מש.ה/'));
+      final regex = PluginSearchRequest.fromArgs({
+        'query': '/מש.ה/',
+        'regex': true,
+      });
+      expect(regex.regex, isTrue);
+      expect(regex.sanitizedQuery, '/מש.ה/');
+    }, skip: !engineReady);
+
+    test('regex rejects malformed patterns and incompatible parameters', () {
+      for (final query in ['מש.ה', '/[א-ת/', '/']) {
+        expect(
+          () => PluginSearchRequest.fromArgs({'query': query, 'regex': true}),
+          throwsA(isA<Exception>().having(
+            (e) => e.toString(), 'message', contains('error.invalid_params'),
+          )),
+        );
+      }
+      for (final args in [
+        {'query': '/מש.ה/', 'regex': true, 'mode': 'fuzzy'},
+        {'query': '/מש.ה/', 'regex': true, 'negativeQuery': 'שבת', 'mode': 'advanced'},
+        {'query': '/מש.ה/', 'regex': true, 'distance': 2},
+        {'query': '/מש.ה/', 'regex': true, 'options': {'חלק ממילה': true}},
+      ]) {
+        expect(() => PluginSearchRequest.fromArgs(args), throwsA(isA<Exception>()));
+      }
+    }, skip: !engineReady);
+
+    test('regex flag requires boolean', () {
+      expect(() => PluginSearchRequest.fromArgs({'query': 'א', 'regex': 'true'}),
+          throwsA(isA<Exception>()));
+    });
+
     test('שאילתה ריקה נדחית', () {
       expect(
         () => PluginSearchRequest.fromArgs({'query': '   '}),
