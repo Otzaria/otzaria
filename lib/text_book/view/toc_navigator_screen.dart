@@ -575,7 +575,12 @@ class _TocViewerState extends State<TocViewer>
         if (index == 0) {
           return KeyedSubtree(
             key: const ValueKey('toc-tree-header'),
-            child: _buildTreeHeader(title, display),
+            child: _buildTreeHeader(
+              holyNameStyle == null
+                  ? title
+                  : replaceHolyNames(title, style: holyNameStyle),
+              display,
+            ),
           );
         }
         final item = flat[index - 1];

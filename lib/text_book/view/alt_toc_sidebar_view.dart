@@ -940,9 +940,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
 
   HolyNameStyle? _holyNameStyle;
 
-  /// הסתרת שם השם חלה גם על הכותרות החלופיות, כמו על גוף הטקסט.
-  String _entryTitle(AltTocEntry entry) {
-    final text = entry.text ?? '';
+  String _displayTitle(String text) {
     final style = _holyNameStyle;
     return style == null ? text : replaceHolyNames(text, style: style);
   }
@@ -1066,7 +1064,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             NavTreeHeader(
-                              title: widget.book.title,
+                              title: _displayTitle(widget.book.title),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -1112,7 +1110,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
         itemBuilder: (context, index) {
           if (index == 0) {
             return NavTreeHeader(
-              title: widget.book.title,
+              title: _displayTitle(widget.book.title),
               trailing: const NavPanelSearchToggle(),
             );
           }
@@ -1125,7 +1123,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
             isGroupStart: index == 1,
             isGroupEnd: index == matches.length,
             child: NavTreeTile.heading(
-              title: _entryTitle(entry),
+              title: _displayTitle(entry.text ?? ''),
               level: 0,
               isSelected: isSelected,
               onTap: () {
@@ -1140,7 +1138,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
   }
 
   String _structureTitle(AltTocStructure structure) =>
-      structure.heTitle ?? structure.title ?? structure.key;
+      _displayTitle(structure.heTitle ?? structure.title ?? structure.key);
 
   Widget _buildStructureChips() {
     return Padding(
@@ -1269,7 +1267,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
         () => ValueNotifier(0),
       ),
       builder: (context, _, _) => NavTreeTile.heading(
-        title: _entryTitle(entry),
+        title: _displayTitle(entry.text ?? ''),
         level: level,
         isSelected: entry.id == _activeEntryIds[structureId],
         isExpanded: isExpanded,
