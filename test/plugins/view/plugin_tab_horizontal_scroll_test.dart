@@ -83,7 +83,10 @@ void main() {
       expect(controller.page, 1);
       expect(webViewPans, isNotEmpty);
     },
-    variant: TargetPlatformVariant.desktop(),
+    variant: TargetPlatformVariant({
+      TargetPlatform.windows,
+      TargetPlatform.linux,
+    }),
   );
 
   testWidgets(
@@ -104,11 +107,14 @@ void main() {
       expect(controller.page, 1);
       expect(webViewTouchMoves, greaterThan(0));
     },
-    variant: TargetPlatformVariant.desktop(),
+    variant: TargetPlatformVariant({
+      TargetPlatform.windows,
+      TargetPlatform.linux,
+    }),
   );
 
   testWidgets(
-    'במובייל ה-PageView מחליק בעצמו, ועטיפת התוסף לא נוספת',
+    'במובייל ובמקינטוש עטיפת התוסף לא נוספת',
     (tester) async {
       await tester.pumpWidget(
         Directionality(
@@ -121,6 +127,8 @@ void main() {
     variant: TargetPlatformVariant({
       TargetPlatform.android,
       TargetPlatform.iOS,
+      // ב-macOS ה-WebView מעביר רק החלקה שהדף לא השתמש בה (#3161).
+      TargetPlatform.macOS,
     }),
   );
 }

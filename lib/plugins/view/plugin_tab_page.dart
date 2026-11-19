@@ -127,12 +127,36 @@ Set<Factory<OneSequenceGestureRecognizer>>? pluginTabWebViewGestureRecognizers({
 
 /// ה-WebView ומעליו מחוון טעינה. רשימת הילדים קבועה, כך שהסתרת המחוון אינה
 /// מחליפה את ההורה של ה-WebView — החלפה כזו הורסת אותו וטוענת מאפס.
+///
+/// ב-Windows וב-Linux ה-WebView מקבל את הגלילה דרך Listener ולא מתחרה בזירת
+/// המחוות, ולכן החלקת הכרטיסיות זכתה גם בגלילה אופקית בתוך התוסף (issue #3640).
+/// המזהה האופקי כאן זוכה לפניה, כמו רכיב Flutter שנגלל לרוחב. ב-macOS ה-WebView
+/// מעביר ל-Flutter רק החלקה שהדף לא השתמש בה (#3161), ולכן אין צורך בו.
 @visibleForTesting
 Widget buildPluginTabBody({required Widget webView, required bool loading}) =>
     Stack(
       fit: StackFit.passthrough,
       children: [
-        webView,
+        switch (defaultTargetPlatform) {
+          TargetPlatform.windows || TargetPlatform.linux => RawGestureDetector(
+            gestures: {
+              HorizontalDragGestureRecognizer:
+                  GestureRecognizerFactoryWithHandlers<
+                    HorizontalDragGestureRecognizer
+                  >(
+                    () => HorizontalDragGestureRecognizer(
+                      supportedDevices: const {
+                        PointerDeviceKind.trackpad,
+                        PointerDeviceKind.touch,
+                      },
+                    ),
+                    (recognizer) => recognizer.onStart = (_) {},
+                  ),
+            },
+            child: webView,
+          ),
+          _ => webView,
+        },
         Visibility(visible: loading, child: const LoadingIndicator()),
       ],
     );
