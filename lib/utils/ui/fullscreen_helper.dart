@@ -13,8 +13,7 @@ import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 class FullscreenHelper {
   /// מסך מלא זמין בטאבים של עיון וחיפוש, כולל טאבי כלים ותוספים.
   static bool isContextAllowed(Screen screen, bool hasOpenTabs) {
-    return hasOpenTabs &&
-        (screen == Screen.reading || screen == Screen.search);
+    return hasOpenTabs && (screen == Screen.reading || screen == Screen.search);
   }
 
   /// בודקת אם ההקשר הנוכחי (המסך והטאבים הפתוחים) מתיר מסך מלא.
