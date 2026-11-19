@@ -5,11 +5,14 @@ import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/text_display/view/text_display_bar_button.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
 
-/// החלונית צרה ונכנסת גם לחלון צר (#3031). אין בה X: היא נסגרת ב-Esc
-/// ובלחיצה מחוץ לה, כמו כל תפריט.
+/// החלונית נסגרת בכפתור, ב-Esc ובלחיצה מחוץ לה (#3031).
 void main() {
-  Future<void> pumpAndOpen(WidgetTester tester, double width) async {
-    tester.view.physicalSize = Size(width, 700);
+  Future<void> pumpAndOpen(
+    WidgetTester tester,
+    double width, {
+    double height = 700,
+  }) async {
+    tester.view.physicalSize = Size(width, height);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
@@ -51,7 +54,7 @@ void main() {
   }
 
   for (final width in [420.0, 900.0]) {
-    testWidgets('חלונית תצוגת הטקסט ברוחב $width: נכנסת לרוחב, כותרת בלי X', (
+    testWidgets('חלונית תצוגת הטקסט ברוחב $width: נכנסת לרוחב עם כפתור סגירה', (
       tester,
     ) async {
       await pumpAndOpen(tester, width);
@@ -67,7 +70,6 @@ void main() {
       expect(rect.left, greaterThanOrEqualTo(0));
       expect(rect.right, lessThanOrEqualTo(width));
 
-      // כותרת ושם התצוגה מתחתיה — בלי רצועת הדיאלוג ובלי כפתור סגירה.
       expect(
         find.descendant(of: panel, matching: find.text('תצוגת הטקסט')),
         findsOneWidget,
@@ -78,15 +80,20 @@ void main() {
       );
       expect(
         find.descendant(of: panel, matching: find.byType(AppDialogHeader)),
-        findsNothing,
+        findsOneWidget,
       );
-      expect(find.byTooltip('סגור'), findsNothing);
-      expect(
-        find.descendant(of: panel, matching: find.byType(IconButton)),
-        findsNothing,
-      );
+      expect(find.byTooltip('סגור').hitTestable(), findsOneWidget);
     });
   }
+
+  testWidgets('כפתור הסגירה זמין גם בחלון צר וקצר', (tester) async {
+    await pumpAndOpen(tester, 420, height: 290);
+    final close = find.byTooltip('סגור').hitTestable();
+    expect(close, findsOneWidget);
+    await tester.tap(close);
+    await tester.pumpAndSettle();
+    expect(find.byType(TextDisplayPopupPanel), findsNothing);
+  });
 
   testWidgets('Esc סוגר את החלונית', (tester) async {
     await pumpAndOpen(tester, 900);
