@@ -482,10 +482,11 @@ export type SearchWordMatchMode = 'all' | 'anyWord' | 'mostWords' | 'atLeast';
 /** פרמטרי `search.query` — כל מה שמסך החיפוש של אוצריא שולח למנוע. */
 export interface SearchQueryParams {
   query: string;
-  /** `true` = `query` הוא רג'קס עטוף `/…/` (עד 300 תווים) שעובר למנוע כמו שהוא. רק עם `mode: 'exact'`; רג'קס לא תקין או שילוב עם שלילה, אפשרויות, חלופות, מרווחים או `wordMatchMode` מחזירים `error.invalid_params`. */
+  /** `true` = `query` הוא רג'קס עטוף `/…/` (עד 300 תווים) במצב `exact`. ברירת המחדל היא סדר הספרייה וללא איחוד. פרמטרים שאינם נתמכים מחזירים `error.invalid_params`. */
   regex?: boolean;
   negativeQuery?: string;
   mode?: SearchMode;
+  /** ברג'קס חוצה רווחים נתמך רק `catalogue`. */
   order?: SearchOrder;
   /** נחתך ל-500; יחד עם offset אסור לעבור את חלון 10,000 התוצאות. */
   limit?: number;
@@ -494,6 +495,7 @@ export interface SearchQueryParams {
   /** במצב fuzzy הטווח הנתמך הוא 0–2. */
   distance?: number;
   proximityScope?: SearchProximityScope;
+  /** ברג'קס נתמך רק `none`. */
   grouping?: SearchGrouping;
   wordMatchMode?: SearchWordMatchMode;
   /** חוקי רק ב-advanced יחד עם wordMatchMode: 'atLeast'. */
@@ -549,7 +551,7 @@ export interface SearchQueryChunk {
   /** מספר ה-chunk, החל מ-0. */
   sequence: number;
   results: SearchQueryHit[];
-  /** זמין מה-chunk הראשון; null רק אם המנוע טרם החזיר ספירה. */
+  /** הספירה, או null עד שהיא זמינה. ברג'קס חוצה רווחים הספירה עשויה להגיע אחרי התוצאות. */
   total: number | null;
   groupCount: number | null;
   /** `true` = שאילתה רחבה מדי; התוצאות והספירה חלקיות. */

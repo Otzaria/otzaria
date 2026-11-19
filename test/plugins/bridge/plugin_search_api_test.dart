@@ -35,6 +35,40 @@ Future<void> main() async {
       });
       expect(regex.regex, isTrue);
       expect(regex.sanitizedQuery, '/מש.ה/');
+      expect(regex.order, engine.ResultsOrder.catalogue);
+    }, skip: engineReady ? false : searchEngineSkipReason);
+
+    test('regex מכבד את אפשרויות המיון והאיחוד של המנוע', () {
+      final term = PluginSearchRequest.fromArgs({
+        'query': '/מש.ה/',
+        'regex': true,
+        'order': 'generation',
+        'grouping': 'none',
+      });
+      expect(term.order, engine.ResultsOrder.generation);
+      expect(term.grouping, isNull);
+
+      final crossSpace = PluginSearchRequest.fromArgs({
+        'query': r'/שמע \S+ ישראל/',
+        'regex': true,
+      });
+      expect(crossSpace.order, engine.ResultsOrder.catalogue);
+
+      for (final args in [
+        {'query': '/מש.ה/', 'grouping': 'identicalText'},
+        {'query': r'/שמע \S+ ישראל/', 'order': 'generation'},
+      ]) {
+        expect(
+          () => PluginSearchRequest.fromArgs({...args, 'regex': true}),
+          throwsA(
+            isA<Exception>().having(
+              (error) => error.toString(),
+              'message',
+              contains('error.invalid_params'),
+            ),
+          ),
+        );
+      }
     }, skip: engineReady ? false : searchEngineSkipReason);
 
     test(

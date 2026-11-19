@@ -5,8 +5,8 @@ import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/search/book_facet.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_query_builder.dart';
-import 'package:otzaria/search/utils/user_regex_query.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
+import 'package:otzaria/search/utils/user_regex_query.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart'
     show removeAttachedMarks;
@@ -630,11 +630,13 @@ class PluginSearchRequest {
       SearchMode.exact,
     );
     _rejectParametersUnsupportedByMode(args, searchMode);
-    if (args['regex'] == true) {
-      if (searchMode != SearchMode.exact) {
-        PluginSearchApi._invalid('regex: true requires mode: "exact"');
-      }
-      if (!UserRegexQuery.isValid(query)) {
+    final regex = args['regex'] == true;
+    if (regex && searchMode != SearchMode.exact) {
+      PluginSearchApi._invalid('regex: true requires mode: "exact"');
+    }
+    final regexPlan = regex ? UserRegexQuery.plan(query) : null;
+    if (regex) {
+      if (regexPlan == null) {
         PluginSearchApi._invalid(
           'query must be a valid /…/ regex (max 300 characters)',
         );
@@ -725,18 +727,34 @@ class PluginSearchRequest {
       );
     }
 
+    final order = PluginSearchApi._enumArg(
+      PluginSearchApi.resultOrders,
+      args['order'],
+      regex ? engine.ResultsOrder.catalogue : engine.ResultsOrder.relevance,
+    );
+    final grouping = PluginSearchApi._enumArg(
+      PluginSearchApi.groupingModes,
+      args['grouping'],
+      ResultGroupingMode.none,
+    ).engineGrouping;
+    if (regex && grouping != null) {
+      PluginSearchApi._invalid('grouping is not supported with regex: true');
+    }
+    if (regexPlan?.kind == engine.UserRegexKind.crossSpace &&
+        order != engine.ResultsOrder.catalogue) {
+      PluginSearchApi._invalid(
+        'cross-space regex requires order: "catalogue"',
+      );
+    }
+
     return PluginSearchRequest(
       query: query,
-      regex: args['regex'] == true,
+      regex: regex,
       negativeQuery: args['negativeQuery'] as String? ?? '',
       limit: limit,
       offset: offset,
       searchMode: searchMode,
-      order: PluginSearchApi._enumArg(
-        PluginSearchApi.resultOrders,
-        args['order'],
-        engine.ResultsOrder.relevance,
-      ),
+      order: order,
       distance: distance,
       negativeDistance: PluginSearchApi._intArg(
         args['negativeDistance'],
@@ -749,11 +767,7 @@ class PluginSearchRequest {
         args['negativeProximityScope'],
         proximityScope,
       ),
-      grouping: PluginSearchApi._enumArg(
-        PluginSearchApi.groupingModes,
-        args['grouping'],
-        ResultGroupingMode.none,
-      ).engineGrouping,
+      grouping: grouping,
       wordMatchMode: wordMatchMode,
       wordMatchCount: wordMatchCount,
       anyOrder: anyOrder,
