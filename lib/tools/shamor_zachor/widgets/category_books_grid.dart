@@ -347,12 +347,13 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
         padding: shrinkWrap ? EdgeInsets.zero : const EdgeInsets.all(16),
         physics: shrinkWrap ? const NeverScrollableScrollPhysics() : null,
         shrinkWrap: shrinkWrap,
-        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
           maxCrossAxisExtent: 350,
-          childAspectRatio: 1.5,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
-          mainAxisExtent: 192,
+          // כל הכרטיס נכנס בתא, אחרת הוא נגלל בתוך עצמו ובולע את גלילת הדף.
+          // scale(1) ולא scale(264): בהגדלה הלא-לינארית של אנדרואיד 264 לא גדל.
+          mainAxisExtent: 264 * MediaQuery.textScalerOf(context).scale(1),
         ),
         itemCount: books.length,
         itemBuilder: (context, index) {
