@@ -124,9 +124,25 @@ void main() {
           await repo.getAvailableCommentators(_Ids.bereshitId),
           expectLinks ? hasLength(1) : isEmpty,
         );
+        final commentatorRows = await repo.database.linkDao
+            .selectCommentatorsByBook(_Ids.bereshitId);
+        expect(commentatorRows, expectLinks ? isNotEmpty : isEmpty);
         expect(
-          await repo.database.linkDao.selectCommentatorsByBook(_Ids.bereshitId),
-          expectLinks ? isNotEmpty : isEmpty,
+          commentatorRows.map((row) => row['collectiveTitleHe']),
+          everyElement(isNull),
+          reason: 'מסד בלי book.collectiveTitleHe מחזיר NULL',
+        );
+        expect(
+          await repo.database.linkDao.selectCommentatorIdentities([
+            _Ids.rashiTitle,
+          ]),
+          [
+            {
+              'title': _Ids.rashiTitle,
+              'collectiveTitleHe': null,
+              'baseBookTitle': null,
+            },
+          ],
         );
         final generation = await repo.getBookGenerationInfo(_Ids.rashiId);
         expect(generation?.generationName, minimal ? isNull : 'ראשונים');
@@ -324,6 +340,54 @@ void main() {
       );
       expect(marks.markers, isEmpty);
     });
+  });
+
+  test('book.collectiveTitleHe מוחזר עם מפרשי הספר', () async {
+    final tempDir = await Directory.systemTemp.createTemp('otzaria_collective');
+    final dbPath = SeforimFixtureDb.create(tempDir, SeforimFixtureVariant.full);
+    final db = sqlite3.sqlite3.open(dbPath);
+    try {
+      db.execute('ALTER TABLE book ADD COLUMN collectiveTitleHe TEXT');
+      db.execute("UPDATE book SET collectiveTitleHe = 'רש״י' WHERE id = ?", [
+        _Ids.rashiId,
+      ]);
+      db.execute(
+        'CREATE TABLE book_base_text (bookId INTEGER NOT NULL, '
+        'baseBookId INTEGER NOT NULL, PRIMARY KEY (bookId, baseBookId))',
+      );
+      db.execute('INSERT INTO book_base_text VALUES (?, ?)', [
+        _Ids.rashiId,
+        _Ids.bereshitId,
+      ]);
+    } finally {
+      db.close();
+    }
+    final database = MyDatabase.withPath(dbPath, readOnly: true);
+    try {
+      final rows = await database.linkDao.selectCommentatorsByBook(
+        _Ids.bereshitId,
+      );
+      expect(rows.map((row) => row['collectiveTitleHe']), ['רש״י']);
+      expect(
+        await database.linkDao.selectCommentatorIdentities([
+          _Ids.rashiTitle,
+          'רש"י',
+        ]),
+        [
+          {
+            'title': _Ids.rashiTitle,
+            'collectiveTitleHe': 'רש״י',
+            'baseBookTitle': _Ids.bereshitTitle,
+          },
+        ],
+        reason: 'רק כותרת של ספר קיים מוחזרת',
+      );
+    } finally {
+      database.close();
+      try {
+        await tempDir.delete(recursive: true);
+      } catch (_) {}
+    }
   });
 
   group('ספר לפי כותרת וקטגוריה במסד עם קטגוריות', () {
