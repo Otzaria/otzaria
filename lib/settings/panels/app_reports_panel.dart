@@ -15,7 +15,7 @@ import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/panels/report_panel_widgets.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/theme/app_input_tokens.dart';
-import 'package:otzaria/settings/services/safer_mode_guard.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/utils/file/save_file_with_extension.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
@@ -170,25 +170,27 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
                 if (sent.isNotEmpty)
                   Padding(
                     padding: const EdgeInsetsDirectional.only(
-                      start: 16,
-                      end: 16,
-                      bottom: 12,
+                      start: AppTokens.spaceMD,
+                      end: AppTokens.spaceMD,
+                      bottom: AppTokens.spaceSMD,
                     ),
                     child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
+                      spacing: AppTokens.spaceSM,
+                      runSpacing: AppTokens.spaceSM,
                       children: [
                         ActionButton.neutral(
                           text: context.settingsText('ייצא היסטוריה'),
                           icon: FluentIcons.arrow_download_24_regular,
-                          isLoading: _isExportingHistory,
-                          onPressed: () => _exportHistory(includeText: false),
+                          onPressed: _isExportingHistory
+                              ? null
+                              : () => _exportHistory(includeText: false),
                         ),
                         ActionButton.neutral(
                           text: context.settingsText('ייצא עם תוכן הדיווחים'),
                           icon: FluentIcons.document_text_24_regular,
-                          isLoading: _isExportingHistory,
-                          onPressed: () => _exportHistory(includeText: true),
+                          onPressed: _isExportingHistory
+                              ? null
+                              : () => _exportHistory(includeText: true),
                         ),
                       ],
                     ),
@@ -446,26 +448,31 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
   );
 
   Future<void> _exportHistory({required bool includeText}) async {
-    if (_isExportingHistory || !await verifySaferModePassword(context)) return;
-    if (!mounted) return;
-    if (includeText) {
-      final confirmed = await showTwoActionsDialog(
-        context: context,
-        title: context.settingsText('ייצוא תוכן הדיווחים'),
-        content: context.settingsText(
-          'הקובץ יכיל תיאורים ושלבים שנכתבו בדיווחים, '
-          'ועלול לכלול מידע אישי. שמרו אותו במקום מוגן.',
-        ),
-        cancelText: context.settingsText('ביטול'),
-        confirmText: context.settingsText('ייצא כולל תוכן'),
-      );
-      if (confirmed != true || !mounted) return;
-    }
-
+    if (_isExportingHistory) return;
     setState(() => _isExportingHistory = true);
     try {
+      if (includeText) {
+        final confirmed = await showChoiceDialog<bool>(
+          context: context,
+          title: context.settingsText('ייצוא תוכן הדיווחים'),
+          content: context.settingsText(
+            'הקובץ יכלול כותרות, תיאורים ושלבי שחזור, שעשויים להכיל '
+            'כתובות מייל, נתיבי קבצים ומידע אישי אחר שנכתב בהם. '
+            'שדה כתובת המייל והצרופות לא ייכללו. שמרו את הקובץ במקום מוגן.',
+          ),
+          cancelText: context.settingsText('ביטול'),
+          choices: [
+            AppDialogChoice(
+              label: context.settingsText('ייצא כולל תוכן'),
+              value: true,
+            ),
+          ],
+        );
+        if (confirmed != true || !mounted) return;
+      }
+
       final reports = await _service.getSentReports();
-      if (!mounted) return;
+      if (!mounted || reports.isEmpty) return;
       final directory = await getDownloadsDirectory();
       if (!mounted) return;
       final payload = serializeSentAppReportHistory(
@@ -483,15 +490,15 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
         bytes: Uint8List.fromList(utf8.encode(payload)),
       );
       if (path != null && mounted) {
-        UiSnack.showSuccess(context.settingsText('היסטוריית הדיווחים נשמרה'));
+        UiSnack.showSuccess(
+          context.settingsText(ReportMessages.historyExportSaved),
+        );
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('Sent app report history export failed: $e\n$stackTrace');
       if (mounted) {
         UiSnack.showError(
-          context.settingsText(
-            'שגיאה בייצוא היסטוריית הדיווחים: {error}',
-            args: {'error': e},
-          ),
+          context.settingsText(ReportMessages.historyExportFailed),
         );
       }
     } finally {
@@ -691,8 +698,7 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
   }
 }
 
-/// Exports every locally retained sent report without large binary attachments,
-/// crash dumps, email addresses or diagnostic traces.
+/// מייצא את ההיסטוריה המקומית. שדה המייל והצרופות מושמטים תמיד.
 @visibleForTesting
 String serializeSentAppReportHistory(
   List<AppReport> reports, {
@@ -705,7 +711,6 @@ String serializeSentAppReportHistory(
       {
         'reportId': report.reportId,
         'type': report.type.name,
-        'title': report.title,
         'createdAt': report.createdAt.toUtc().toIso8601String(),
         if (report.sentAt != null)
           'sentAt': report.sentAt!.toUtc().toIso8601String(),
@@ -713,7 +718,14 @@ String serializeSentAppReportHistory(
         if (report.issueNumber != null) 'issueNumber': report.issueNumber,
         if (report.issueUrl != null) 'issueUrl': report.issueUrl,
         'merged': report.merged,
+        'issuePending': report.issuePending,
+        if (report.isCarriedByOfflineUpdate) ...{
+          'carriedBy': kCarriedByOfflineUpdate,
+          if (report.carriedAt != null)
+            'carriedAt': report.carriedAt!.toUtc().toIso8601String(),
+        },
         if (includeText) ...{
+          'title': report.title,
           'description': report.description,
           'stepsToReproduce': report.stepsToReproduce,
         },
