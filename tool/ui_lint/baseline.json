@@ -323,9 +323,6 @@
         {"scope":"_FindRefDialogState._buildResultTile","fp":"aac1e49f","n":1},
         {"scope":"_FindRefDialogState._buildSuggestionsLabel","fp":"a7c1dfe6","n":1}
       ],
-      "lib/history/view/history_screen.dart": [
-        {"scope":"_searchTitleSpan","fp":"a8c1e179","n":1}
-      ],
       "lib/library/view/book_preview_panel.dart": [
         {"scope":"_BookPreviewPanelState.build","fp":"a9c1e30c","n":1},
         {"scope":"_BookPreviewPanelState.build","fp":"adc1e958","n":1}
