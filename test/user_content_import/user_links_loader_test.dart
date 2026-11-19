@@ -238,6 +238,93 @@ void main() {
     expect(await titles(), unorderedEquals(['מפרש', 'מפרש חדש']));
   });
 
+  group('קישור שנשמר בכמה מקורות, עם טווח (issue #4852)', () {
+    setUp(() async {
+      await Settings.init(cacheProvider: MemoryCacheProvider());
+      final tempDir = await Directory.systemTemp.createTemp('user_link_4852');
+      final previousRoot = AppPaths.cachedDataRootPath;
+      await UserBooksDatabaseHolder.instance.close();
+      AppPaths.debugOverrideDataRootPath(p.join(tempDir.path, 'data'));
+      addTearDown(() async {
+        await UserBooksDatabaseHolder.instance.close();
+        AppPaths.debugOverrideDataRootPath(previousRoot);
+        await tempDir.delete(recursive: true);
+      });
+    });
+
+    Future<UserContentRepository> repository() async => UserContentRepository(
+      (await UserBooksDatabaseHolder.instance.repository).database,
+    );
+
+    Future<List<Link>> load(
+      String title,
+      BookSource source,
+      int from,
+      int to,
+    ) => loadUserLinksForBook(
+      bookTitle: title,
+      bookCategoryId: null,
+      source: source,
+      startLineIndex: from,
+      endLineIndex: to,
+    );
+
+    const ranged = UserLinkRecord(
+      sourceTitle: 'בסיס',
+      sourceIsUserBook: false,
+      sourceLineIndex: 3,
+      sourceLineIndexEnd: 5,
+      targetTitle: 'מפרש',
+      targetIsUserBook: true,
+      targetRef: 'מפרש ג',
+      targetLineIndex: 9,
+      targetLineIndexEnd: 11,
+      connectionType: 'REFERENCE',
+    );
+
+    test('הצד ההפוך שומר את טווח המקור', () async {
+      await (await repository()).upsertUserLink(ranged);
+
+      final inverse = (await load('מפרש', BookSource.user, 9, 9)).single;
+      expect((inverse.index1, inverse.index1End), (10, 12));
+      expect((inverse.index2, inverse.index2End), (4, 6));
+    });
+
+    test('הרשומה העשירה שורדת בשני הספרים ובכל חלון', () async {
+      final ucr = await repository();
+      await ucr.upsertUserLink(
+        const UserLinkRecord(
+          sourceTitle: 'בסיס',
+          sourceIsUserBook: false,
+          sourceLineIndex: 3,
+          targetTitle: 'מפרש',
+          targetIsUserBook: true,
+          targetLineIndex: 9,
+          connectionType: 'REFERENCE',
+        ),
+        source: 'ידני',
+      );
+      await ucr.upsertUserLink(ranged, source: 'תיקייה');
+
+      for (final (from, to) in [(0, 3), (3, 3), (4, 5)]) {
+        final forward = (await load(
+          'בסיס',
+          BookSource.official,
+          from,
+          to,
+        )).single;
+        expect(forward.heRef, 'מפרש ג', reason: 'חלון $from-$to');
+        expect((forward.index1, forward.index1End), (4, 6));
+        expect((forward.index2, forward.index2End), (10, 12));
+      }
+      for (final (from, to) in [(0, 9), (9, 9), (10, 11)]) {
+        final inverse = (await load('מפרש', BookSource.user, from, to)).single;
+        expect((inverse.index1, inverse.index1End), (10, 12));
+        expect((inverse.index2, inverse.index2End), (4, 6));
+      }
+    });
+  });
+
   group('מחזור החיים של קריאות המשתמש', () {
     final holder = UserBooksDatabaseHolder.instance;
     late Directory tempDir;
