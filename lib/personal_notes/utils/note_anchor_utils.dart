@@ -331,17 +331,23 @@ NoteAnchorRange? locateAnchor({
   String? hintSourceLine,
   bool plainText = false,
 }) {
-  final needle = normalizeAnchorText(anchorText);
+  final normalized = normalizeAnchorText(anchorText);
+  // Keep punctuation-only selections as precise anchors instead of whole-line notes.
+  final punctuationOnly = normalized.isEmpty && anchorText.trim().isNotEmpty;
+  final needle = punctuationOnly
+      ? projectLine(anchorText, plainText: true, keepPunctuation: true).normalized.trim()
+      : normalized;
   if (needle.isEmpty) return null;
 
   NoteAnchorRange? best;
   var bestScore = -1;
   var bestDistance = double.infinity;
-  for (final joinAtPunctuation in [false, true]) {
+  for (final joinAtPunctuation in punctuationOnly ? [false] : [false, true]) {
     final p = projectLine(
       rawLine,
       omitInjectedAnchorMarkers: hintSourceLine != null,
       joinAtPunctuation: joinAtPunctuation,
+      keepPunctuation: punctuationOnly,
       plainText: plainText,
     );
     final occurrences = _allOccurrences(p.normalized, needle);
@@ -355,6 +361,7 @@ NoteAnchorRange? locateAnchor({
         final source = projectLine(
           hintSourceLine,
           joinAtPunctuation: joinAtPunctuation,
+          keepPunctuation: punctuationOnly,
         );
         final offset = p.normalized.indexOf(source.normalized);
         if (source.normalized.isNotEmpty && offset >= 0) {
@@ -363,8 +370,8 @@ NoteAnchorRange? locateAnchor({
         }
       }
     }
-    final before = _withoutPunctuation(prefix);
-    final after = _withoutPunctuation(suffix);
+    final before = punctuationOnly ? (prefix ?? '') : _withoutPunctuation(prefix);
+    final after = punctuationOnly ? (suffix ?? '') : _withoutPunctuation(suffix);
     for (final start in occurrences) {
       final end = start + needle.length;
       final rawStart = p.rawIndex[start];
@@ -409,10 +416,14 @@ ComputedAnchor? computeAnchorForSelection({
   bool punctuationHidden = false,
   int? occurrenceIndex,
 }) {
-  final needle = normalizeAnchorText(selectedText);
+  final normalized = normalizeAnchorText(selectedText);
+  final punctuationOnly = normalized.isEmpty && selectedText.trim().isNotEmpty;
+  final needle = punctuationOnly
+      ? projectLine(selectedText, plainText: true, keepPunctuation: true).normalized.trim()
+      : normalized;
   if (needle.isEmpty) return null;
 
-  final p = projectLine(rawLine);
+  final p = projectLine(rawLine, keepPunctuation: punctuationOnly);
   final occurrences = _allOccurrences(p.normalized, needle);
   if (occurrences.isEmpty) return null;
   if (occurrenceIndex != null &&
@@ -423,7 +434,11 @@ ComputedAnchor? computeAnchorForSelection({
   int matchStart = occurrences.first;
   int? normalizedHint;
   if (sourceSelectionOffset != null && sourceSelectionText != null) {
-    final source = projectLine(sourceSelectionText, plainText: true);
+    final source = projectLine(
+      sourceSelectionText,
+      plainText: true,
+      keepPunctuation: punctuationOnly,
+    );
     final offset = p.normalized.indexOf(source.normalized);
     if (source.normalized.isNotEmpty && offset >= 0) {
       normalizedHint =
