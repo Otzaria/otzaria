@@ -41,6 +41,15 @@ abstract interface class SemanticEngineBackend {
     required SemanticCancelHandle cancel,
   });
 
+  /// מזהה זול של דור וקטורים תקין; null כשאי אפשר לאמת מטמון קודם.
+  Future<String?> coveredBooksStamp(String vectorsDir);
+
+  /// הספרים באינדקס הפתוח שיש להם וקטורים בסט; מעבר על כל האינדקס.
+  Future<SemanticCoveredBooksSummary> coveredBooks(
+    String vectorsDir, {
+    required SemanticCancelHandle cancel,
+  });
+
   /// פותח את הסט והמודל לקריאה ומחזיר את המצב שאחרי הפתיחה.
   Future<SemanticBackendStatus> open(SemanticOpenRequest request);
 
@@ -104,6 +113,15 @@ class UnavailableSemanticEngineBackend implements SemanticEngineBackend {
 
   @override
   Future<SemanticCoverageSummary> coverage(
+    String vectorsDir, {
+    required SemanticCancelHandle cancel,
+  }) => Future.error(_unavailable);
+
+  @override
+  Future<String?> coveredBooksStamp(String vectorsDir) async => null;
+
+  @override
+  Future<SemanticCoveredBooksSummary> coveredBooks(
     String vectorsDir, {
     required SemanticCancelHandle cancel,
   }) => Future.error(_unavailable);

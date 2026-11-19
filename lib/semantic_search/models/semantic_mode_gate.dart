@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:otzaria/data/book_identity.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';
@@ -51,15 +52,22 @@ List<String> semanticScopeFacets(Iterable<String> selection) {
   return facets..sort();
 }
 
+/// האם יש בבחירה ספר או קטגוריה שדורשים בדיקת כיסוי.
+bool needsSemanticScopeCoverage(Iterable<String> selection) => selection.any(
+  (facet) => facet != '/' && !FacetHelper.isDimensionFacet(facet),
+);
+
 /// האם facet של ספר או קטגוריה נתמך, לפני נרמול של בחירת כל הספרייה.
 bool isSemanticScopeFacetSupported(
   String facet, {
   bool includeLexical = false,
   bool Function(String facet)? isOfficialCategory,
+  bool Function(String facet)? isCoveredFacet,
 }) {
   if (includeLexical || facet == '/' || FacetHelper.isDimensionFacet(facet)) {
     return true;
   }
+  if (isCoveredFacet != null) return isCoveredFacet(facet);
   if (BookDatabaseResolver.likelySource(categoryPath: facet) !=
       BookSource.official) {
     return false;
@@ -92,3 +100,46 @@ bool Function(String facet)? officialCategoryFilter(Library? library) {
 bool _hasOfficialBook(Category category) =>
     category.books.any((book) => book.source.isOfficial) ||
     category.subCategories.any(_hasOfficialBook);
+
+final Expando<(Set<String>, Set<String>)> _coveredFacetsCache = Expando();
+
+/// האם ל-facet של ספר יש וקטורים, או שבקטגוריה יש ספר כזה; `null` כשהספרייה
+/// או הספרים המכוסים ([coveredFilePaths], לפי filePath באינדקס) לא ידועים.
+bool Function(String facet)? coveredFacetFilter(
+  Library? library,
+  Set<String>? coveredFilePaths,
+) {
+  if (library == null || coveredFilePaths == null) return null;
+  final cached = _coveredFacetsCache[library];
+  final facets = cached != null && identical(cached.$1, coveredFilePaths)
+      ? cached.$2
+      : _coveredFacets(library, coveredFilePaths);
+  _coveredFacetsCache[library] = (coveredFilePaths, facets);
+  return facets.contains;
+}
+
+Set<String> _coveredFacets(Library library, Set<String> coveredFilePaths) {
+  final facets = <String>{};
+  bool visit(Category category) {
+    var covered = false;
+    for (final book in category.books) {
+      if (coveredFilePaths.contains(BookIdentity.indexedFilePath(book))) {
+        facets.add(
+          FacetHelper.buildBookFacet(
+            FacetHelper.resolveCategoryPath(book),
+            book,
+          ),
+        );
+        covered = true;
+      }
+    }
+    for (final child in category.subCategories) {
+      if (visit(child)) covered = true;
+    }
+    if (covered) facets.add(FacetHelper.categoryFacet(category));
+    return covered;
+  }
+
+  visit(library);
+  return facets;
+}

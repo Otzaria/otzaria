@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/search/search_engine_gateway.dart';
@@ -8,6 +9,7 @@ import 'package:otzaria/semantic_search/repository/semantic_platform_support.dar
 import 'package:otzaria/semantic_search/models/semantic_engine_models.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
+import 'package:path/path.dart' as p;
 
 const onnxStatus = SemanticStatus(
   state: SemanticState.ready,
@@ -53,6 +55,25 @@ class _FakeEngine implements SearchEngine {
   Object? failure;
   Completer<void>? searchPause;
   SemanticStatus status = onnxStatus;
+  bool vectorsRecovered = false;
+
+  @override
+  Future<SemanticVectorsInfo> semanticVectorsInfo({
+    required String vectorsDir,
+  }) async => SemanticVectorsInfo(
+    present: true,
+    identityDigest: 'ab' * 32,
+    modelFamilyId: 'model-family',
+    libraryVersion: 30,
+    libraryReleaseTag: 'v30-test',
+    generation: BigInt.one,
+    segments: const [],
+    slotsLive: BigInt.one,
+    slotsDead: BigInt.zero,
+    bytesOnDisk: BigInt.one,
+    needsCompaction: false,
+    recoveredFromPrevious: vectorsRecovered,
+  );
 
   @override
   Future<SemanticStatus> semanticStatus() async => status;
@@ -200,6 +221,23 @@ void main() {
       expect(summary.modelFamilyId, present ? 'previous-model-family' : '');
       expect(summary.identityDigest, present ? 'ab' * 32 : '');
     }
+  });
+
+  test('מטמון הכיסוי מזהה התקנה מחדש עם אותו מספר דור', () async {
+    final directory = await Directory.systemTemp.createTemp('vectors-stamp');
+    addTearDown(() => directory.delete(recursive: true));
+    final pointer = File(p.join(directory.path, 'CURRENT'));
+    final first = '{"generation":1,"set_sha256":"digest-one"}';
+    final second = '{"generation":1,"set_sha256":"digest-two"}';
+
+    await pointer.writeAsString(first);
+    expect(await adapter.coveredBooksStamp(directory.path), first);
+
+    await pointer.writeAsString(second);
+    expect(await adapter.coveredBooksStamp(directory.path), second);
+
+    engine.vectorsRecovered = true;
+    expect(await adapter.coveredBooksStamp(directory.path), isNull);
   });
 
   test('installVectors מעביר את כל השדות ומחזיר את הדוח', () async {
