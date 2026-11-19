@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
@@ -7,6 +9,7 @@ import 'package:otzaria/core/internet_connectivity.dart';
 import 'package:otzaria/core/foreground_work.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/update_source_reachability.dart';
+import 'package:otzaria/data/sqlite/sqlite3_api.dart' show SqliteException;
 import 'package:otzaria/library_update/services/companion_assets_service.dart';
 import 'package:otzaria/library_update/services/github_rate_limit.dart';
 import 'package:otzaria/utils/text/byte_size_text.dart';
@@ -446,11 +449,10 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
       emit(
         LibraryUpdateState(
           status: LibraryUpdateStatus.error,
-          // חוסר מקום אינו כשל החלה: הוא נבדק לפני ההורדה, ולכן גם אינו מציע
-          // הורדה מלאה — היא דורשת עוד יותר מקום.
+          // חוסר מקום אינו מציע הורדה מלאה — היא דורשת עוד יותר מקום.
           message: canResume
               ? LibraryMessages.downloadPausedResumable
-              : applyError is LibraryUpdateDiskSpaceException
+              : _isDiskFull(applyError)
               ? LibraryMessages.updateDiskSpaceError
               : 'שגיאה בהחלת העדכון',
           hasUpdate: partial?.hasDatabaseChanges ?? false,
@@ -539,7 +541,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
           status: LibraryUpdateStatus.error,
           message: canResume
               ? LibraryMessages.downloadPausedResumable
-              : e is LibraryUpdateDiskSpaceException
+              : _isDiskFull(e)
               ? LibraryMessages.updateDiskSpaceError
               : 'שגיאה בהורדה המלאה',
           // fallback אחרי דלתא חלקית: ההורדה המלאה נכשלה, אבל הצעדים שכבר
@@ -824,8 +826,25 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     if (PatchDownloader.isTransientNetworkError(error)) {
       return LibraryMessages.updateNetworkInterrupted;
     }
+    // לחריגה הגולמית אין פרט עברי; חריגת הבדיקה המקדימה נושאת את הנפחים.
+    if (error is! LibraryUpdateDiskSpaceException && _isDiskFull(error)) {
+      return LibraryMessages.updateDiskSpaceError;
+    }
     return error.toString();
   }
+
+  /// חוסר מקום מהבדיקה המקדימה, או דיסק שהתמלא באמצע הכתיבה.
+  static bool _isDiskFull(Object error) => switch (error) {
+    LibraryUpdateDiskSpaceException() => true,
+    SqliteException(resultCode: 13) => true, // SQLITE_FULL
+    // ENOSPC, ERROR_DISK_FULL
+    FileSystemException(osError: OSError(errorCode: 28 || 112)) => true,
+    // ERROR_HANDLE_DISK_FULL; בלינוקס 39 הוא ENOTEMPTY.
+    FileSystemException(osError: OSError(errorCode: 39))
+        when Platform.isWindows =>
+      true,
+    _ => false,
+  };
 
   void _logUpdateError(String stage, Object e, StackTrace st) {
     debugPrint('[LibraryUpdate] ERROR in $stage: $e\n$st');
