@@ -2263,14 +2263,37 @@ extension BookAcronymRepository on SeforimRepository {
                     ).isNotEmpty))) {
         return const [];
       }
-      return _searchTocFlat(
+      final strict = _searchTocFlat(
         cache,
         queryTokens,
         requireAllTokensInOwnHeading: true,
-      ).map((e) => e.toMap()).toList();
+      );
+      return (strict.isEmpty
+              ? _searchUnderTitleHeading(cache, queryTokens)
+              : strict)
+          .map((e) => e.toMap())
+          .toList();
     }
 
-    return _searchTocFlat(cache, queryTokens).map((e) => e.toMap()).toList();
+    final flat = _searchTocFlat(cache, queryTokens);
+    return (flat.isEmpty ? _searchUnderTitleHeading(cache, queryTokens) : flat)
+        .map((e) => e.toMap())
+        .toList();
+  }
+
+  /// שם הספר כבר נצרך מהשאילתה, וכשכותרת שם הספר היא השורש ("חוות דעת צד י")
+  /// מנסים שוב מילדיה. רק התאמה שלמה, כדי לא להחליף "לא נמצא" בניחוש.
+  List<_CachedTocEntry> _searchUnderTitleHeading(
+    _TocBookCache cache,
+    List<String> tokens,
+  ) {
+    if (cache.titleHeadingChildren.isEmpty) return const [];
+    final result = _searchTocHierarchically(
+      cache,
+      tokens,
+      roots: cache.titleHeadingChildren,
+    );
+    return result.complete ? result.matches : const [];
   }
 
   /// [parseDafCitation] מקבל בכוונה כל רצף קצר של אותיות עבריות, כדי לתמוך
@@ -2740,6 +2763,7 @@ extension BookAcronymRepository on SeforimRepository {
       all: built,
       rootEntries: rootEntries,
       childrenByParentId: childrenByParentId,
+      titleHeadingChildren: childrenByParentId[titleHeadingId] ?? const [],
       titleHeadingTokens: titleHeadingId == null
           ? const []
           : tokensByTextId[roots.single.textId]!,
@@ -2753,20 +2777,22 @@ extension BookAcronymRepository on SeforimRepository {
   /// [complete] = false כשהירידה נעצרה לפני סוף השאילתה ("פרק א" ל"א ב").
   ({List<_CachedTocEntry> matches, bool complete}) _searchTocHierarchically(
     _TocBookCache cache,
-    List<String> tokens,
-  ) {
+    List<String> tokens, {
+    List<_CachedTocEntry>? roots,
+  }) {
+    final rootEntries = roots ?? cache.rootEntries;
     // קיצור ציטוט-דף: כשהרמה העליונה מורכבת מערכי "דף" (מסכת גמרא רגילה)
     // והשאילתה היא ציטוט דף, התאמה מיקומית מכריעה — גם כשהתוצאה ריקה.
     // נפילה לחיפוש הרגיל הייתה מציפה: טוקן "ב" בודד נתפס ע"י סימון צד ע"ב
     // של כל דף (פירוש דליל שאין בו דף ב' החזיר את דפי ה:/ו:/ז:).
     final cite = parseDafCitation(tokens);
     if (cite != null) {
-      final rootHasDaf = cache.rootEntries.any(
+      final rootHasDaf = rootEntries.any(
         (e) => e.ownTokens.isNotEmpty && e.ownTokens.first == 'דף',
       );
       if (rootHasDaf) {
         return (
-          matches: cache.rootEntries
+          matches: rootEntries
               .where((e) => matchDafCitation(e.ownTokens, cite) == true)
               .toList(),
           complete: true,
@@ -2774,7 +2800,7 @@ extension BookAcronymRepository on SeforimRepository {
       }
     }
 
-    var searchScope = cache.rootEntries;
+    var searchScope = rootEntries;
     var currentMatches = <_CachedTocEntry>[];
 
     for (var i = 0; i < tokens.length; i++) {
@@ -3298,6 +3324,9 @@ class _TocBookCache {
   /// מיפוי id → ילדים ישירים (ממוינים לפי segment).
   final Map<int, List<_CachedTocEntry>> childrenByParentId;
 
+  /// ילדי כותרת שם הספר, כשהיא השורש היחיד של ה-TOC.
+  final List<_CachedTocEntry> titleHeadingChildren;
+
   /// מילות השורש שקוצר בתצוגה; משותפות רק לספר שכל ערכיו תחת אותו שורש.
   final List<String> titleHeadingTokens;
 
@@ -3315,6 +3344,7 @@ class _TocBookCache {
     required this.all,
     required this.rootEntries,
     required this.childrenByParentId,
+    this.titleHeadingChildren = const [],
     this.hasBareDafHeadings = false,
     this.titleHeadingTokens = const [],
   });
