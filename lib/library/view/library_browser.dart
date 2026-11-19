@@ -1167,6 +1167,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
   // מפת סוגי ההתאמה מתחלפת עם כל חיפוש, ולכן מזהה את התוצאות שנספרו.
   WeakReference<Map<Book, int>>? _matchCountsSource;
+  List<String>? _matchCountsTopics;
   Map<LibraryMatchFilter, int> _matchCountsCache = const {};
 
   Widget? _buildMatchFilterSelection(
@@ -1176,10 +1177,13 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     final results = state.searchResults;
     final kinds = state.searchMatchKinds;
     if (results == null || kinds == null) return null;
-    if (!identical(kinds, _matchCountsSource?.target)) {
+    final topics = state.selectedTopics;
+    if (!identical(kinds, _matchCountsSource?.target) ||
+        !identical(topics, _matchCountsTopics)) {
       _matchCountsSource = WeakReference(kinds);
+      _matchCountsTopics = topics;
       final counts = <LibraryMatchFilter, int>{};
-      for (final book in _visibleBooks(results)) {
+      for (final book in _filterByTopics(_visibleBooks(results), topics)) {
         final bookKinds = kinds[book] ?? 0;
         for (final filter in LibraryMatchFilter.values) {
           final bit = filter.bookKind?.bit;
@@ -1188,19 +1192,23 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           }
         }
       }
-      final folders = state.searchCategoryResults?.length ?? 0;
+      final folders = _filterByTopics(
+        state.searchCategoryResults ?? const <Category>[],
+        topics,
+      ).length;
       if (folders > 0) counts[LibraryMatchFilter.folders] = folders;
       _matchCountsCache = counts;
     }
     final counts = _matchCountsCache;
-    // סינון לפי סוג יחיד לא משנה דבר.
-    if (counts.length < 2) return null;
+    final selected = state.selectedMatchFilters;
+    // סינון לפי סוג יחיד לא משנה דבר; צ'יפ שנבחר נשאר כדי שאפשר יהיה לבטלו.
+    if (counts.length < 2 && selected.isEmpty) return null;
 
     final colors = Theme.of(context).colorScheme;
     return FilterChipsSelector<LibraryMatchFilter>(
       items: [
         for (final filter in LibraryMatchFilter.values)
-          if (counts.containsKey(filter)) filter,
+          if (counts.containsKey(filter) || selected.contains(filter)) filter,
       ],
       selectedItems: state.selectedMatchFilters.toList(),
       labelBuilder: (filter) => filter.label,
@@ -1213,7 +1221,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       chipBuilder: (context, filter, isSelected) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
         child: Chip(
-          label: Text('${filter.label} (${counts[filter]})'),
+          label: Text('${filter.label} (${counts[filter] ?? 0})'),
           backgroundColor: isSelected ? colors.secondaryContainer : null,
           labelStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
             color: isSelected ? colors.onSecondaryContainer : null,

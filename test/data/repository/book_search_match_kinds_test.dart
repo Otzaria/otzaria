@@ -38,6 +38,13 @@ void main() {
       author: 'רבי חיים אבולעפיה',
       topics: '',
     ),
+    BookSearchEntry(
+      index: 5,
+      title: 'ספר המצות',
+      author: '',
+      topics: '',
+      categoryPath: 'ספרי מצוות',
+    ),
   ];
 
   Map<int, Set<BookMatchKind>> kindsFor(String query) {
@@ -71,6 +78,10 @@ void main() {
 
   test('מילה שתאמה רק בכתיב דומה מסומנת ככזו', () {
     expect(kindsFor('אבועלפיה')[4], {BookMatchKind.spelling});
+  });
+
+  test('כתיב דומה בשם נשאר כזה גם כשהמילה מופיעה מילולית בנתיב', () {
+    expect(kindsFor('מצוות')[5], {BookMatchKind.spelling});
   });
 
   test('בלי מסנן הכול מוצג; עם מסנן — רק הסוגים שנבחרו', () {
@@ -107,5 +118,22 @@ void main() {
       LibraryMatchFilter.showsFolders(const {LibraryMatchFilter.folders}),
       isTrue,
     );
+  });
+
+  test('present מחזיר רק סוגים שיש להם תוצאות', () {
+    expect(
+      LibraryMatchFilter.present([
+        BookMatchKind.title.bit,
+        BookMatchKind.author.bit | BookMatchKind.spelling.bit,
+      ], hasFolders: false),
+      {
+        LibraryMatchFilter.title,
+        LibraryMatchFilter.author,
+        LibraryMatchFilter.spelling,
+      },
+    );
+    expect(LibraryMatchFilter.present(const [], hasFolders: true), {
+      LibraryMatchFilter.folders,
+    });
   });
 }

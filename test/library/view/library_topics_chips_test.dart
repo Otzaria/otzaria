@@ -152,7 +152,10 @@ List<LibraryMatchFilter> _matchChipItems(WidgetTester tester) => tester
     .items;
 
 /// תוצאות 'טור' כמו בדיווח #4232: שם, מחבר, תיקיית הספר וכרטיס תיקייה.
-LibraryState _turResults({Set<LibraryMatchFilter> filters = const {}}) {
+LibraryState _turResults({
+  Set<LibraryMatchFilter> filters = const {},
+  List<String>? topics,
+}) {
   final library = Library(categories: []);
   final tur = TextBook(title: 'טור', topics: 'הלכה, ראשונים');
   final einYitzchak = TextBook(title: 'עין יצחק', topics: 'שות, אחרונים');
@@ -176,6 +179,7 @@ LibraryState _turResults({Set<LibraryMatchFilter> filters = const {}}) {
       ..[einYitzchak] = BookMatchKind.author.bit
       ..[prisha] = BookMatchKind.folder.bit,
     selectedMatchFilters: filters,
+    selectedTopics: topics,
     searchQuery: 'טור',
   );
 }
@@ -329,6 +333,22 @@ void main() {
     expect(find.text('עין יצחק'), findsNothing);
     expect(find.text('פרישה'), findsNothing);
     expect(find.text('טורי זהב'), findsOneWidget);
+    tester.takeException();
+  });
+
+  testWidgets("הספירות לפי הנושא שנבחר, וצ'יפ שנבחר נשאר גם בלי תוצאות", (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      _turResults(
+        filters: {LibraryMatchFilter.folders},
+        topics: ['ראשונים'],
+      ),
+    );
+    expect(find.text('מחבר (1)'), findsOneWidget);
+    expect(find.text('תיקיות (0)'), findsOneWidget);
+    expect(_matchChipItems(tester), contains(LibraryMatchFilter.folders));
     tester.takeException();
   });
 }

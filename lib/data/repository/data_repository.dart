@@ -633,7 +633,13 @@ BookSearchMatches _searchPreparedEntries(
       filtered.add((
         entry: entry,
         viaCategoryOnly: viaCategoryOnly,
-        kinds: _bookMatchKinds(entry, queryWords, viaCategoryOnly),
+        kinds: _bookMatchKinds(
+          entry,
+          queryWords,
+          viaCategoryOnly,
+          matchesBookFields: (word) =>
+              wordMatchesEntry(word, entry.searchWords),
+        ),
       ));
     }
   }
@@ -703,13 +709,14 @@ BookSearchMatches _searchPreparedEntries(
   );
 }
 
-/// התאמה מילולית (מחרוזת מוכלת) קובעת את השדה; מילה שלא נמצאה כך באף שדה
-/// תאמה רק בכתיב דומה.
+/// התאמה מילולית (מחרוזת מוכלת) קובעת את השדה; מילה שתאמה לשדות הספר רק
+/// בהתאמה סלחנית היא כתיב דומה, גם אם היא מופיעה מילולית בנתיב.
 int _bookMatchKinds(
   _PreparedBookSearchEntry entry,
   List<String> queryWords,
-  bool viaCategoryOnly,
-) {
+  bool viaCategoryOnly, {
+  required bool Function(String word) matchesBookFields,
+}) {
   var kinds = viaCategoryOnly ? BookMatchKind.folder.bit : 0;
   for (final word in queryWords) {
     var literal = false;
@@ -725,7 +732,7 @@ int _bookMatchKinds(
       kinds |= BookMatchKind.acronym.bit;
       literal = true;
     }
-    if (!literal && !entry.categoryWords.any((c) => c.contains(word))) {
+    if (!literal && matchesBookFields(word)) {
       kinds |= BookMatchKind.spelling.bit;
     }
   }

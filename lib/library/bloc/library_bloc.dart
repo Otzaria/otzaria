@@ -839,6 +839,12 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
           searchResults: results,
           searchCategoryResults: found.categories,
           searchMatchKinds: found.bookMatchKinds,
+          selectedMatchFilters: state.selectedMatchFilters.intersection(
+            LibraryMatchFilter.present(
+              found.bookMatchKinds.values,
+              hasFolders: found.categories.isNotEmpty,
+            ),
+          ),
           previewBook: keptPreview ?? firstBook,
           isSearching: false,
         ),
