@@ -1787,16 +1787,16 @@ class _PrintingScreenState extends State<PrintingScreen> {
     }
   }
 
-  /// תפריט שנפתח בזמן ההדפסה או השמירה (למשל בחירת היעד) נסגר קודם, כדי שהתוצאה
-  /// תגיע למסך ולא לתפריט.
   void _closeWithSuccess(BuildContext context) {
-    final navigator = Navigator.of(context);
     final route = ModalRoute.of(context);
-    if (route != null) {
-      if (!route.isActive) return;
-      navigator.popUntil((r) => r == route);
+    final navigator = route?.navigator;
+    if (route == null || navigator == null || !route.isActive) return;
+    dismissAnchoredAppMenus(route);
+    if (route.isCurrent) {
+      navigator.pop(true);
+    } else {
+      navigator.removeRoute(route, true);
     }
-    navigator.pop(true);
   }
 
   Future<bool> _saveToFile(_ExportFormat selectedFormat) async {
