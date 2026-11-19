@@ -3,6 +3,8 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/settings/l10n/settings_language.dart';
+import 'package:otzaria/settings/search/settings_search_index.dart';
 import 'package:otzaria/settings/tabs/design_settings_tab.dart';
 
 import '../../helpers/memory_settings_cache.dart';
@@ -34,5 +36,20 @@ void main() {
       (e) => e.id == 'design.pdf.book_view',
     );
     expect(entry.title, 'תצוגת ספר ב-PDF');
+  });
+
+  test('הגדרת תצוגת ספר נמצאת גם בחיפוש הכותרת בלי המקף', () {
+    for (final language in [
+      SettingsLanguage.source,
+      SettingsLanguage.english,
+    ]) {
+      expect(
+        SettingsSearchIndex.search(
+          'תצוגת ספר בPDF',
+          language: language,
+        ).map((entry) => entry.id),
+        contains('design.pdf.book_view'),
+      );
+    }
   });
 }

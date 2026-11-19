@@ -101,7 +101,15 @@ class DesignSettingsTab extends StatelessWidget {
       subtitle: 'פתיחת ספרי PDF בתצוגת ספר או רגילה',
       tab: SettingsTab.design,
       cardId: 'design.pdf',
-      keywords: ['pdf', 'תצוגה', 'תצוגת ספר', 'רגילה', 'מופעל', 'לא מופעל'],
+      keywords: [
+        'pdf',
+        'תצוגה',
+        'תצוגת ספר',
+        'תצוגת ספר בPDF',
+        'רגילה',
+        'מופעל',
+        'לא מופעל',
+      ],
     ),
     SettingsSearchEntry(
       id: 'design.pdf.talmud_bavli_format',
