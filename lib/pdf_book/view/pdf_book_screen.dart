@@ -570,6 +570,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         matchPolicy: widget.tab.matchPolicy,
         layoutMode: initialLayoutMode,
       ),
+      zoomAnimator: _scrollPhysicsProvider,
     );
 
     _loadInitialLayoutMode();
@@ -5040,6 +5041,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         center: toPage
             ? shown.center
             : Offset(shown.center.dx, controller.centerPosition.dy),
+        animate: true,
       ),
     );
   }

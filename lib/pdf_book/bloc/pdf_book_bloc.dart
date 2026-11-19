@@ -10,6 +10,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/pdf_book/models/pdf_reading_location.dart';
+import 'package:otzaria/pdf_book/utils/pdf_scroll_physics_provider.dart';
 import 'package:otzaria/pdf_book/utils/pdf_viewer_activity.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -48,6 +49,9 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
   final PdfViewerController pdfController;
   final PdfrxInitializer _pdfrxInit;
 
+  /// מנפיש את הזום מהכפתורים; בלעדיו הזום מוחל מיד.
+  final StoppablePdfScrollPhysicsProvider? zoomAnimator;
+
   /// זמן המתנה עד ל-retry אוטומטי שקט (ברירת מחדל: 3 שניות).
   final Duration _autoRetryDelay;
 
@@ -73,6 +77,7 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     required PdfBookInitial initialState,
     Duration? loadTimeout,
     PdfrxInitializer? pdfrxInit,
+    this.zoomAnimator,
   }) : pdfController = tab.pdfViewerController,
        _autoRetryDelay = loadTimeout ?? const Duration(seconds: 3),
        _showButtonDelay = loadTimeout ?? const Duration(seconds: 6),
@@ -512,29 +517,46 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
   void _onZoomOut(ZoomOut event, Emitter<PdfBookState> emit) =>
       _applyZoom(emit, (zoom) => zoom / 1.1);
 
-  void _onFitZoom(FitZoom event, Emitter<PdfBookState> emit) =>
-      _applyZoom(emit, (_) => event.zoom, center: event.center);
+  void _onFitZoom(FitZoom event, Emitter<PdfBookState> emit) => _applyZoom(
+    emit,
+    (_) => event.zoom,
+    center: event.center,
+    animate: event.animate,
+  );
 
   void _onResetZoom(ResetZoom event, Emitter<PdfBookState> emit) =>
       _applyZoom(emit, (_) => 1.0);
 
-  /// זום מכפתורי הסרגל ומהקיצורים: מוחל מיד (בלי אנימציה) סביב [center]
-  /// או מרכז התצוגה, נשמר בטאב ובהגדרות הספר, וסרגל הזום מוצג.
+  /// זום מכפתורי הסרגל ומהקיצורים סביב [center] או מרכז התצוגה, נשמר
+  /// בטאב ובהגדרות הספר, וסרגל הזום מוצג.
   void _applyZoom(
     Emitter<PdfBookState> emit,
     double Function(double zoom) zoomFrom, {
     Offset? center,
+    bool animate = true,
   }) {
     if (!pdfController.isReady) return;
     final current = state;
     if (current is! PdfBookLoaded) return;
 
-    final zoom = zoomFrom(current.zoom);
-    pdfController.setZoom(
-      center ?? pdfController.centerPosition,
-      zoom,
-      duration: Duration.zero,
-    );
+    final animator = zoomAnimator;
+    // מצב ה-bloc מתעדכן בזום הביניים; לחיצה רצופה נמדדת מהיעד שבדרך.
+    final zoom = zoomFrom(animator?.zoomTarget ?? current.zoom);
+    if (center == null && animate && animator != null) {
+      animator.zoomTo(
+        zoom,
+        pdfController.viewSize.center(Offset.zero),
+        pdfController,
+      );
+    } else {
+      pdfController.setZoom(
+        center ?? pdfController.centerPosition,
+        zoom,
+        duration: animate && center != null
+            ? const Duration(milliseconds: 150)
+            : Duration.zero,
+      );
+    }
     tab.savedZoom = zoom;
 
     emit(current.copyWith(zoom: zoom, showZoomBar: true));
@@ -832,7 +854,7 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
 
     double? zoom;
     try {
-      zoom = pdfController.value.zoom;
+      zoom = zoomAnimator?.zoomTarget ?? pdfController.value.zoom;
     } catch (e) {
       debugPrint('Warning: Could not get zoom from controller: $e');
     }

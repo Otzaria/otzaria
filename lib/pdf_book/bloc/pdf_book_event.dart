@@ -144,14 +144,20 @@ class ResetZoom extends PdfBookEvent {
 }
 
 /// Zoom to [zoom] around the document point [center] (fit page / fit width).
+/// [animate] is for the user's toggle; fitting after a relayout jumps.
 class FitZoom extends PdfBookEvent {
   final double zoom;
   final Offset center;
+  final bool animate;
 
-  const FitZoom({required this.zoom, required this.center});
+  const FitZoom({
+    required this.zoom,
+    required this.center,
+    this.animate = false,
+  });
 
   @override
-  List<Object?> get props => [zoom, center];
+  List<Object?> get props => [zoom, center, animate];
 }
 
 /// Set layout mode directly
