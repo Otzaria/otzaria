@@ -25,13 +25,13 @@ class TabSwipeDetector extends StatefulWidget {
     required this.controller,
     required this.onActiveChanged,
     required this.child,
-    this.activePaneIsWebView = _never,
+    this.tabContentIsWebView = _never,
   });
 
   final PageController? controller;
 
-  /// האם החלונית הפעילה מציגה WebView (תוסף), שבו גלילה במגע לא מתחרה בזירה.
-  final bool Function() activePaneIsWebView;
+  /// האם הטאב כולו הוא WebView, שבו גלילה במגע לא מתחרה בזירה.
+  final bool Function() tabContentIsWebView;
 
   static bool _never() => false;
 
@@ -81,7 +81,7 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
                 TabContentVerticalDragRecognizer
               >(
                 () => TabContentVerticalDragRecognizer(
-                  contentIsWebView: () => widget.activePaneIsWebView(),
+                  contentIsWebView: () => widget.tabContentIsWebView(),
                 ),
                 (recognizer) => recognizer.onStart = (_) {},
               ),

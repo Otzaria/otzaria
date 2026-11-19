@@ -58,4 +58,43 @@ void main() {
     // אין כאן מזהה גלילה של תוכן, ולכן ההחלקה זוכה לפני הסף הכפול.
     expect(await swipeStarted(tester, contentIsWebView: false), isTrue);
   });
+
+  testWidgets('תזוזה אנכית של אצבע אחת אינה מבטלת החלקה בשתי אצבעות', (
+    tester,
+  ) async {
+    Offset? panAtEnd;
+    late TouchTabSwipeRecognizer swipe;
+    await tester.pumpWidget(
+      RawGestureDetector(
+        behavior: HitTestBehavior.opaque,
+        gestures: {
+          TabContentVerticalDragRecognizer:
+              GestureRecognizerFactoryWithHandlers<
+                TabContentVerticalDragRecognizer
+              >(
+                TabContentVerticalDragRecognizer.new,
+                (recognizer) => recognizer.onStart = (_) {},
+              ),
+          TouchTabSwipeRecognizer:
+              GestureRecognizerFactoryWithHandlers<TouchTabSwipeRecognizer>(
+                () => swipe = TouchTabSwipeRecognizer(
+                  singleFingerPansContent: () => false,
+                ),
+                (recognizer) => recognizer.onEnd = (_) => panAtEnd = swipe.pan,
+              ),
+        },
+        child: const SizedBox.expand(),
+      ),
+    );
+    final first = await tester.startGesture(const Offset(250, 250));
+    final second = await tester.startGesture(const Offset(300, 250));
+    await first.moveBy(const Offset(28, 0));
+    await second.moveBy(const Offset(28, 0));
+    await first.moveBy(const Offset(0, 150));
+    await first.up();
+    await second.moveBy(const Offset(120, 0));
+    await second.up();
+
+    expect(panAtEnd, Offset.zero);
+  });
 }
