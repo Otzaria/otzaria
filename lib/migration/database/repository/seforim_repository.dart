@@ -2243,36 +2243,45 @@ extension BookAcronymRepository on SeforimRepository {
         ? await _buildAltTocCacheForBook(bookId, bookTitle)
         : const <AltTocIndexEntry>[];
     if (compactEntries?.isNotEmpty ?? altCache.isNotEmpty) {
-      // ציטוט דף, או טוקן בודד שה-AltToc כבר מוצא ("זהר לו"), מטופלים שם.
-      // אחרת ("בית יוסף תקיב") מותר לדלג על חלק ביניים, בהתאמה לכותרת היעד עצמה.
-      if (_isDafCitationForAltTocFallback(queryTokens) ||
-          (queryTokens.length == 1 &&
-              (index != null
-                  ? _searchAltTocFlat(
-                      compactEntries!,
-                      queryTokens,
-                      ownTokensOf: index._ownTokensOf,
-                      pathTokensOf: index.refTokensOf,
-                      refMaskOf: (i) => index.refMasks[i],
-                    ).isNotEmpty
-                  : _searchAltTocFlat(
-                      altCache,
-                      queryTokens,
-                      ownTokensOf: (entry) => entry.ownTokens,
-                      pathTokensOf: (entry) => entry.pathTokens,
-                    ).isNotEmpty))) {
+      late final hasAltMatch = index != null
+          ? _searchAltTocFlat(
+              compactEntries!,
+              queryTokens,
+              ownTokensOf: index._ownTokensOf,
+              pathTokensOf: index.refTokensOf,
+              refMaskOf: (i) => index.refMasks[i],
+            ).isNotEmpty
+          : _searchAltTocFlat(
+              altCache,
+              queryTokens,
+              ownTokensOf: (entry) => entry.ownTokens,
+              pathTokensOf: (entry) => entry.pathTokens,
+            ).isNotEmpty;
+
+      final isDafCitation = _isDafCitationForAltTocFallback(queryTokens);
+      if (queryTokens.length == 1 && hasAltMatch) return const [];
+      if (isDafCitation &&
+          (queryTokens.contains('דף') || queryTokens.contains('עמוד'))) {
         return const [];
       }
-      final strict = _searchTocFlat(
+      if (!isDafCitation) {
+        final strict = _searchTocFlat(
+          cache,
+          queryTokens,
+          requireAllTokensInOwnHeading: true,
+        );
+        if (strict.isNotEmpty) return strict.map((e) => e.toMap()).toList();
+      }
+
+      // אות א/ב יכולה לציין גם סעיף קטן וגם עמוד. התאמה תחת סימן
+      // מותרת רק כשהמבנה החלופי אינו מציע יעד קיים.
+      final underTitle = _searchUnderTitleHeading(
         cache,
         queryTokens,
-        requireAllTokensInOwnHeading: true,
+        simanimOnly: isDafCitation,
       );
-      return (strict.isEmpty
-              ? _searchUnderTitleHeading(cache, queryTokens)
-              : strict)
-          .map((e) => e.toMap())
-          .toList();
+      if (underTitle.isEmpty || hasAltMatch) return const [];
+      return underTitle.map((e) => e.toMap()).toList();
     }
 
     final flat = _searchTocFlat(cache, queryTokens);
@@ -2285,14 +2294,15 @@ extension BookAcronymRepository on SeforimRepository {
   /// מנסים שוב מילדיה. רק התאמה שלמה, כדי לא להחליף "לא נמצא" בניחוש.
   List<_CachedTocEntry> _searchUnderTitleHeading(
     _TocBookCache cache,
-    List<String> tokens,
-  ) {
-    if (cache.titleHeadingChildren.isEmpty) return const [];
-    final result = _searchTocHierarchically(
-      cache,
-      tokens,
-      roots: cache.titleHeadingChildren,
-    );
+    List<String> tokens, {
+    bool simanimOnly = false,
+  }) {
+    final children = cache.titleHeadingChildren;
+    if (children.isEmpty) return const [];
+    final roots = simanimOnly
+        ? children.where((e) => e.ownTokens.firstOrNull == 'סימן').toList()
+        : children;
+    final result = _searchTocHierarchically(cache, tokens, roots: roots);
     return result.complete ? result.matches : const [];
   }
 

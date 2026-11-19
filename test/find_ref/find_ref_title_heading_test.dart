@@ -267,14 +267,14 @@ void main() {
     }
   });
 
-  test('סימן וסעיף קטן תחת כותרת שם הספר, כשיש לספר מבנה חלופי', () async {
+  const title = 'חוות דעת חדושים';
+  Future<SeforimRepository> seferWithSimanim({bool alternate = false}) async {
     final dir = await Directory.systemTemp.createTemp('otzaria_title_heading');
     final database = MyDatabase.withPath('${dir.path}/seforim.db');
     addTearDown(() async {
       database.close();
       await dir.delete(recursive: true);
     });
-    const title = 'חוות דעת חדושים';
     final db = await database.database;
     db.execute("INSERT INTO category(id,title,level) VALUES(1,'ספרייה',0)");
     db.execute("INSERT INTO source(id,name) VALUES(1,'MoreBooks')");
@@ -290,6 +290,7 @@ void main() {
       (id: 4, parent: 1, level: 2, text: 'סימן צד'),
       (id: 5, parent: 4, level: 3, text: 'א'),
       (id: 6, parent: 4, level: 3, text: 'י'),
+      (id: 9, parent: 4, level: 3, text: 'ב'),
     ];
     final textIds = <String, int>{};
     for (final (i, e) in toc.indexed) {
@@ -311,23 +312,64 @@ void main() {
       "INSERT INTO alt_toc_structure(id,bookId,key,heTitle) "
       "VALUES(1,1,'SimanNames','הלכות וסימנים')",
     );
-    db.execute("INSERT INTO tocText(id,text) VALUES(7,'הלכות בשר בחלב')");
+    db.execute("INSERT INTO tocText(id,text) VALUES(7,?)", [
+      alternate ? '[סימן צד] הלכות בשר בחלב' : 'הלכות בשר בחלב',
+    ]);
     db.execute(
       'INSERT INTO alt_toc_entry(id,structureId,parentId,textId,level,lineId) '
       'VALUES(1,1,NULL,7,0,104)',
     );
+    if (alternate) {
+      db.execute("INSERT INTO tocText(id,text) VALUES(8,'אות י')");
+      db.execute(
+        'INSERT INTO alt_toc_entry(id,structureId,parentId,textId,level,lineId) '
+        'VALUES(2,1,1,8,1,103)',
+      );
+    }
     final seforim = SeforimRepository(database);
     await seforim.ensureInitialized();
 
-    final rows = await seforim.getTocEntriesForReference(
-      1,
-      title,
-      queryTokens: ['צד', 'י'],
+    return seforim;
+  }
+
+  test('סימן וסעיף קטן תחת כותרת שם הספר, כשיש לספר מבנה חלופי', () async {
+    final seforim = await seferWithSimanim();
+    for (final (letter, segment) in [('א', 4), ('ב', 6), ('י', 5)]) {
+      final rows = await seforim.getTocEntriesForReference(
+        1,
+        title,
+        queryTokens: ['צד', letter],
+      );
+      expect(rows.map((e) => (e['reference'], e['segment'])), [
+        ('$title סימן צד $letter', segment),
+      ]);
+      expect(rows.single['partialMatch'], isNull);
+    }
+    expect(
+      await seforim.getTocEntriesForReference(
+        1,
+        title,
+        queryTokens: ['דף', 'צד', 'א'],
+      ),
+      isEmpty,
     );
-    expect(rows.map((e) => (e['reference'], e['segment'])), [
-      ('$title סימן צד י', 5),
-    ]);
-    expect(rows.single['partialMatch'], isNull);
+  });
+
+  test('יעד קישור קיים בתוכן העניינים החלופי נשמר', () async {
+    final seforim = await seferWithSimanim(alternate: true);
+    final resolveRef = userLinkResolversFor(
+      seforim.database,
+      officialRepository: seforim,
+    ).resolveRef;
+    expect(
+      await resolveRef(
+        targetTitle: title,
+        targetCategoryId: null,
+        targetIsUserBook: false,
+        ref: 'צד י',
+      ),
+      2,
+    );
   });
 
   test('כותרת בהמשך הספר אינה מקוצרת', () async {
