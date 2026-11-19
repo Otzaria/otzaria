@@ -823,6 +823,19 @@ class _SearchDialogState extends State<SearchDialog> {
                 ..clear()
                 ..addAll(bookmark.spacingValues!);
             }
+            // רשומות ההיסטוריה של החיפוש הן מילוליות. חיפוש חכם עשוי שלא
+            // לתמוך בהיקף השמור, למשל כשהוא מוגבל לספר אישי.
+            if (widget.bookTitle == null &&
+                widget.onSearch == null &&
+                !widget.returnResultOnSubmit &&
+                !_isSemanticActive) {
+              final scope = bookmark.searchScopeFacets;
+              setState(
+                () => _scopeSelection = scope == null || scope.isEmpty
+                    ? {'/'}
+                    : scope.toSet(),
+              );
+            }
 
             _historyMenuController.close();
             _searchTab.searchFieldFocusNode.requestFocus();

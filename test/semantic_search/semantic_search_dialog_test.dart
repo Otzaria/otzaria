@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/models/book_source.dart';
@@ -27,6 +28,7 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/view/enhanced_search_field.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
+import 'package:otzaria/search/view/search_history_menu.dart';
 import 'package:otzaria/search/view/search_scope_menu.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/models/books.dart';
@@ -166,6 +168,7 @@ void main() {
     SearchingTab? editTab,
     FakeConsentStore? injectedConsent,
     Library? library,
+    List<Bookmark> historyEntries = const [],
     bool showMessages = false,
   }) async {
     final repository = _FakeRepository(availability);
@@ -188,7 +191,7 @@ void main() {
     whenListen(
       history,
       const Stream<HistoryState>.empty(),
-      initialState: HistoryLoaded([]),
+      initialState: HistoryLoaded(historyEntries),
     );
     whenListen(
       indexing,
@@ -1061,6 +1064,51 @@ void main() {
         await tester.pump();
       });
     }
+
+    testWidgets('בחירה מההיסטוריה משאירה את היקף החיפוש החכם', (
+      tester,
+    ) async {
+      final tab = SemanticSearchTab(
+        options: const SemanticQueryOptions(
+          query: 'צדקה',
+          facets: ['/הלכה', '/era/ראשונים'],
+          includeLexical: false,
+          groupIdenticalText: false,
+        ),
+        createResultsBloc: (_) =>
+            buildResultsBloc(source: null, recorder: RecordingRecorder()),
+      );
+      addTearDown(tab.dispose);
+      await pumpDialog(
+        tester,
+        _availability(SemanticAvailabilityPhase.ready),
+        editTab: tab,
+        library: scopeLibrary(),
+        historyEntries: [
+          Bookmark(
+            ref: 'חסד',
+            book: TextBook(title: 'חסד'),
+            index: 0,
+            isSearch: true,
+            searchScopeFacets: const ['/הלכה/uid:2'],
+          ),
+        ],
+      );
+      await tester.tap(find.byTooltip('היסטוריית חיפושים'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(searchHistoryMenuKey),
+          matching: find.text('חסד'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('search-dialog-submit')));
+      await tester.pumpAndSettle();
+
+      expect(tab.options.query, 'חסד');
+      expect(tab.options.facets, ['/era/ראשונים', '/הלכה']);
+    });
 
     testWidgets('עריכת חיפוש חכם אינה מחליפה את ההיקף כשהצמצום לא נתמך', (
       tester,
