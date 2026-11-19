@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'dart:isolate';
+import 'dart:math' show min;
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:hive_ce/hive.dart';
 import 'package:path/path.dart' as p;
@@ -451,17 +452,77 @@ class BackupService {
   static bool isPortableSettingKey(String key) =>
       !isNonSettingKey(key) && !nonPortableSettingsKeys.contains(key);
 
-  /// גיבוי גדול נמשך שניות בקידוד JSON ו-UTF-8, ולכן נכתב מחוץ ל-isolate הראשי.
+  /// גיבוי גדול נמשך שניות בקידוד JSON ו-UTF-8. העברת המפה ל-isolate אחר
+  /// מעתיקה אותה בבת אחת ב-isolate הקורא, לאט מהקידוד עצמו (#5059), ולכן
+  /// הקידוד נעשה כאן במקטעים, וה-UI מקבל תור ביניהם.
   @visibleForTesting
   static Future<int> writeBackupJson(
     String path,
     Map<String, dynamic> data,
-  ) => Isolate.run(() async {
-    final jsonString = json.encode(data);
+  ) async {
     // כתיבה סינכרונית מחזיקה TypedDataAcquire ומעכבת GC גם ב-isolates אחרים.
-    await File(path).writeAsString(jsonString);
-    return jsonString.length;
-  });
+    final sink = File(path).openWrite();
+    final pending = StringBuffer();
+    final slice = Stopwatch()..start();
+    var length = 0;
+    try {
+      for (final chunk in _jsonChunks(data)) {
+        pending.write(chunk);
+        if (slice.elapsedMilliseconds < 8) continue;
+        length += pending.length;
+        sink.write(pending);
+        pending.clear();
+        await sink.flush();
+        slice.reset();
+      }
+      length += pending.length;
+      sink.write(pending);
+      await sink.close();
+    } catch (_) {
+      // קובץ קטוע נראה כגיבוי לכל דבר ברשימה וברוטציה.
+      await sink.close().catchError((_) {});
+      if (await File(path).exists()) await File(path).delete();
+      rethrow;
+    }
+    return length;
+  }
+
+  /// הפלט של `json.encode(value)`, בחלקים קטנים: כל ערך במפה וברשימה בנפרד,
+  /// ומחרוזת ארוכה (base64 בגיבוי ידני) במקטעים שאינם חוצים תו כפול.
+  static Iterable<String> _jsonChunks(Object? value) sync* {
+    if (value is Map) {
+      var separator = '{';
+      for (final entry in value.entries) {
+        yield '$separator${json.encode(entry.key as String)}:';
+        yield* _jsonChunks(entry.value);
+        separator = ',';
+      }
+      yield separator == '{' ? '{}' : '}';
+    } else if (value is List) {
+      var separator = '[';
+      for (final item in value) {
+        yield separator;
+        yield* _jsonChunks(item);
+        separator = ',';
+      }
+      yield separator == '[' ? '[]' : ']';
+    } else if (value is String && value.length > 65536) {
+      yield '"';
+      for (var start = 0; start < value.length;) {
+        var end = min(start + 65536, value.length);
+        if (end < value.length &&
+            (value.codeUnitAt(end - 1) & 0xFC00) == 0xD800) {
+          end--;
+        }
+        final part = json.encode(value.substring(start, end));
+        yield part.substring(1, part.length - 1);
+        start = end;
+      }
+      yield '"';
+    } else {
+      yield json.encode(value);
+    }
+  }
 
   static Future<List<Map<String, dynamic>>> _backupBookmarks() async {
     final repo = BookmarkRepository();
