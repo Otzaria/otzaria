@@ -120,6 +120,7 @@ String injectLinkAnchorMarkers({
       visibleAtRaw[rawOffset] ??= _visibleOffsetAtRaw(rawLine, rawOffset);
   _VisibleChars? visibleChars;
   ({int count, int maxEnd})? rangeBounds;
+  List<Match>? noteMarkers;
   for (var linkIndex = 0; linkIndex < anchorLinks.length; linkIndex++) {
     final link = anchorLinks[linkIndex];
     // continue ולא סינון מראש: האינדקס מזהה את הקישור ב-href של הסמן.
@@ -162,21 +163,32 @@ String injectLinkAnchorMarkers({
           rawStart -= 5;
           rawEnd += 6;
         }
-        if (rawStart < rawEnd) {
-          // עם lineIndex הטווח לחיץ/מרחף (a); בלעדיו — סימון בלבד (span).
-          final tag = lineIndex == null ? 'span' : 'a';
-          final href = lineIndex == null
-              ? ''
-              : ' href="otzaria://anchor?ref=${lineIndex}_$linkIndex&range=1"';
+        // עם lineIndex הטווח לחיץ/מרחף (a); בלעדיו — סימון בלבד (span).
+        final tag = lineIndex == null ? 'span' : 'a';
+        final href = lineIndex == null
+            ? ''
+            : ' href="otzaria://anchor?ref=${lineIndex}_$linkIndex&range=1"';
+        void addRange(int end) {
+          if (rawStart >= end) return;
           ranges.add(
             HtmlWrapRange(
               start: rawStart,
-              end: rawEnd,
+              end: end,
               openTag: '<$tag class="link-anchor-range"$href>',
               closeTag: '</$tag>',
             ),
           );
         }
+
+        // ציטוט שנכנס לגוף הערה כולל בשורה המלאה את סמן ההערה שלפניו. עטיפת
+        // הסמן מציגה אותו פעמיים — בשורה ובציור המורם (issue #5030).
+        for (final marker
+            in noteMarkers ??= _noteMarkerRegExp.allMatches(rawLine).toList()) {
+          if (marker.end <= rawStart || marker.start >= rawEnd) continue;
+          addRange(marker.start);
+          rawStart = marker.end;
+        }
+        addRange(rawEnd);
       } else {
         if (rangesOnly) continue;
         final letter = _letterFor(link, span.label);
@@ -207,6 +219,14 @@ String injectLinkAnchorMarkers({
   var result = ranges.isEmpty ? rawLine : wrapHtmlRanges(rawLine, ranges);
   return _injectAtVisibleOffsets(result, points);
 }
+
+/// סמן הערת שוליים: `<sup class="footnote-marker">`, או הסמן הלחיץ שהחליף
+/// אותו (book-note-marker, numbered-note-marker).
+final _noteMarkerRegExp = RegExp(
+  r'<(sup|a)\b[^>]*note-marker\b[^>]*>.*?</\1>',
+  caseSensitive: false,
+  dotAll: true,
+);
 
 bool _isLinkerLink(Link link) =>
     LinkTypes.normalize(link.connectionType) == LinkTypes.linker;
