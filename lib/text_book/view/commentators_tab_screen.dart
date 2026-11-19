@@ -767,7 +767,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
                   onToggleNavPane: _toggleNavPane,
                 ),
                 child: Scaffold(
-                  body: Column(
+                  body: AppTopBarLayout(
                     children: [
                       _buildAppBar(context, state, chapters),
                       Expanded(
