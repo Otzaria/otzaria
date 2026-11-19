@@ -19,6 +19,9 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/utils/commentary_title_visibility.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
+import 'package:otzaria/text_display/models/text_display_layer.dart';
+import 'package:otzaria/text_display/models/text_display_profile.dart';
+import 'package:otzaria/text_display/models/text_display_slot.dart';
 import '../../test_helpers/fake_commentary_library_provider.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 import '../../test_helpers/stub_text_book_bloc.dart';
@@ -267,6 +270,77 @@ void main() {
       );
       expect(find.textContaining('מפרש בדיקה, ג ב'), findsNothing);
     });
+
+    testWidgets(
+      'ציוני מפרשים כבויים בגוף — אות הסימון אינה נשארת לבד (issue #3599)',
+      (tester) async {
+        final link = _link(
+          heRef: 'מפרש בדיקה, ג ב',
+          index1: 1,
+          index2: 5,
+          anchorStart: 0,
+          anchorLabel: 'א',
+        );
+        final state = _withBodyMarkersHidden(_loadedState(links: [link]));
+        final bloc = StubTextBookBloc(state);
+        addTearDown(() async => bloc.close());
+
+        await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
+
+        expect(find.text(_kFakeContent), findsOneWidget);
+        expect(_markerText(), findsNothing);
+        expect(find.textContaining('מפרש בדיקה, ג ב'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'ציוני מפרשים כבויים בגוף — הכותרת מוצגת בלי אות הסימון (issue #3599)',
+      (tester) async {
+        final link = _link(
+          heRef: 'מפרש בדיקה, סימן ב',
+          index1: 1,
+          index2: 2,
+          anchorStart: 0,
+          anchorLabel: 'א',
+        );
+        final state = _withBodyMarkersHidden(_loadedState(links: [link]));
+        final bloc = StubTextBookBloc(state);
+        addTearDown(() async => bloc.close());
+
+        await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
+
+        expect(find.text('מפרש בדיקה, סימן ב'), findsOneWidget);
+        expect(_markerText(), findsNothing);
+      },
+    );
+
+    testWidgets('כיבוי ציוני המפרשים בגוף מסיר את אות הסימון מהחלונית הפתוחה '
+        '(issue #3599)', (tester) async {
+      final link = _link(
+        heRef: 'מפרש בדיקה, סימן ב',
+        index1: 1,
+        index2: 2,
+        anchorStart: 0,
+        anchorLabel: 'א',
+      );
+      final shown = _loadedState(links: [link]);
+      final bloc = EmittingStubTextBookBloc(shown);
+      addTearDown(() async => bloc.close());
+
+      await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
+      expect(_markerText(), findsOneWidget);
+
+      bloc.emitState(_withBodyMarkersHidden(shown));
+      await tester.pumpAndSettle();
+
+      expect(_markerText(), findsNothing);
+      expect(find.text('מפרש בדיקה, סימן ב'), findsOneWidget);
+
+      bloc.emitState(shown);
+      await tester.pumpAndSettle();
+
+      expect(_markerText(), findsOneWidget);
+    });
   });
 
   group('CommentaryListBase - כותרת שחוזרת על הקודמת (#4616)', () {
@@ -436,6 +510,24 @@ Link _link({
     anchorLabel: anchorLabel,
   );
 }
+
+/// ציוני המפרשים כבויים בגוף הספר (כמו בכפתור התצוגה של הכרטיסייה).
+TextBookLoaded _withBodyMarkersHidden(TextBookLoaded state) {
+  final hidden = state.copyWith(
+    displayOverrides: TextDisplayLayer({
+      TextDisplaySlot.root: const TextDisplayPatch(
+        anchorMarkers: MarkVisibility.hide,
+      ),
+    }),
+  );
+  expect(hidden.bodyDisplayProfile.showAnchorMarkers, isFalse);
+  return hidden;
+}
+
+/// אות הסימון א בכל אחד מסוגרי הווריאנטים, לבד או לפני כותרת.
+Finder _markerText() => find.byWidgetPredicate(
+  (w) => w is Text && RegExp(r'[(\[{]א[)\]}]').hasMatch(w.data ?? ''),
+);
 
 TextBookLoaded _loadedState({
   required List<Link> links,
