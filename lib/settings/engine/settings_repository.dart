@@ -113,8 +113,6 @@ class SettingsRepository {
   static const String keySearchFeedbackConsentVersion =
       'key-search-feedback-consent-version';
 
-  static const String keySemanticModelChoice = 'key-semantic-model-choice';
-
   /// דיוק מודל השאילתות של החיפוש הסמנטי: `int8` (ברירת מחדל) / `fp32`.
   static const String keySemanticModelQuantization =
       'key-semantic-model-quantization';
@@ -357,7 +355,6 @@ class SettingsRepository {
     keyAppCrashReportMode,
     keySearchFeedbackConsent,
     keySearchFeedbackConsentVersion,
-    keySemanticModelChoice,
     keySemanticModelQuantization,
     keySemanticDataEnabled,
     keySemanticDownloadPaused,

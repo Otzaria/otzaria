@@ -24,11 +24,11 @@ void main() {
       expect(paths.root, root);
       expect(
         paths.modelDirectory,
-        p.join(root, 'otzaria', 'meivin-qa491-onnx'),
+        p.join(root, 'otzaria', 'pardesqa491-onnx'),
       );
       expect(
         paths.modelFile(SemanticQuantization.int8),
-        p.join(paths.modelDirectory, 'query.int8.onnx'),
+        p.join(paths.modelDirectory, 'model.onnx'),
       );
       expect(
         paths.modelFile(SemanticQuantization.fp32),
@@ -50,16 +50,16 @@ void main() {
 
       expect(
         identity.familyId,
-        'otzaria/Meivin-Embed-QA491-native256',
+        kCompactPardesModelFamilyId,
       );
-      expect(identity.embeddingDim, 256);
+      expect(identity.embeddingDim, 384);
       expect(
         identity.packageFor(SemanticQuantization.int8)?.checksum,
-        'e90a67be02c077990c7bc2a6485f6872769ac2a71eb9779d25ceb1fcd97ac9b3',
+        'edb0b74909ef0ae63ddaa1f47e909c18dc1584908a926471636f759e2de43365',
       );
       expect(
         identity.packageFor(SemanticQuantization.fp32)?.checksum,
-        '5f80c47d3310a21fcc0c2f541fbb5732ba254555ef45afc2712cab63c8a33059',
+        isNull,
       );
       expect(identity.rawJson, bundledModelJson());
     });
@@ -217,7 +217,7 @@ void main() {
       expect(paths.vectorsDirectory, p.join('D:', 'lib', 'vectors'));
       expect(
         paths.modelDirectory,
-        p.join('D:', 'lib', 'otzaria', 'db', 'meivin-qa491-onnx'),
+        p.join('D:', 'lib', 'otzaria', 'db', 'pardesqa491-onnx'),
       );
     });
 

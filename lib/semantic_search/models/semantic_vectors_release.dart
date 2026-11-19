@@ -81,7 +81,7 @@ class SemanticVectorsRelease extends Equatable {
     this.identityDigest = '',
     this.modelFamilyId = '',
     this.chunkingIdentity,
-    this.family = SemanticVectorsFamily.anchor,
+    this.family = SemanticVectorsFamily.pardesWindows,
   });
 
   /// פרטי הזהות כפי שהם במניפסט [manifest].
