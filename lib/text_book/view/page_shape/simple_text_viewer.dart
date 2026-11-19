@@ -358,8 +358,10 @@ int resolvePageShapeNavigationBaseIndex({
   return selectedIndex ?? 0;
 }
 
-/// סמן הבחירה מצויר בריפוד הימני של הרשימה, מחוץ לטקסט.
-const _readerListPadding = EdgeInsets.all(4);
+/// סמן הבחירה מצויר ב-[_markerGutter] הפנימיים של הריפוד הימני, מחוץ לטקסט;
+/// שאר הריפוד מרחיק את הטקסט מאזור הלחיצה של המסילה.
+const _markerGutter = 4.0;
+const _readerListPadding = EdgeInsets.symmetric(horizontal: 12, vertical: 4);
 
 /// תצוגת טקסט פשוטה - משמשת גם לטקסט המרכזי וגם למפרשים
 class SimpleTextViewer extends StatefulWidget {
@@ -3537,14 +3539,14 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                 ? ReaderLineGutter(
                     color: markerColor,
                     selectedLines: selectedLines,
-                    gutter: _readerListPadding.right,
+                    gutter: _markerGutter,
                     child: gutterChild,
                   )
                 : CustomPaint(
                     foregroundPainter: isSelected
                         ? SelectionGutterPainter(
                             markerColor,
-                            gutter: _readerListPadding.right,
+                            gutter: _markerGutter,
                           )
                         : null,
                     child: gutterChild,

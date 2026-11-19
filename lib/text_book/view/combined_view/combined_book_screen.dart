@@ -323,10 +323,10 @@ typedef _CommentaryScrollTarget = ({
 
 final _detailsTag = RegExp(r'<details\b', caseSensitive: false);
 
-/// שוליים משני צדי הפריטים: בימניים מצויר סמן הבחירה, והשמאליים שומרים על
-/// מרכוז עמודת הטקסט.
+/// שוליים משני צדי הפריטים: בימניים מצויר סמן הבחירה והם מרחיקים את הטקסט
+/// מאזור הלחיצה של המסילה; השמאליים שומרים על מרכוז עמודת הטקסט.
 const _selectionGutter = EdgeInsets.symmetric(
-  horizontal: kSelectionGutterWidth,
+  horizontal: kTextColumnMinMargin,
 );
 
 class _ChildBuilder extends StatelessWidget {
@@ -3067,13 +3067,13 @@ class _CombinedViewState extends State<CombinedView> {
       return ReaderLineGutter(
         color: color,
         selectedLines: selectedLines,
-        gutter: _selectionGutter.right,
+        gutter: kSelectionGutterWidth,
         child: child,
       );
     }
     return CustomPaint(
       painter: isSelected
-          ? SelectionGutterPainter(color, gutter: _selectionGutter.right)
+          ? SelectionGutterPainter(color, gutter: kSelectionGutterWidth)
           : null,
       child: child,
     );
