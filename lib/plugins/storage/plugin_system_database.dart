@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
+import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
 import 'package:otzaria/plugins/models/plugin_permission_grant.dart';
 import 'package:otzaria/plugins/models/plugin_published_record.dart';
@@ -15,6 +16,8 @@ import 'package:otzaria/plugins/storage/plugin_correction_draft_store.dart';
 class PluginInstallIdentityInUse implements Exception {
   const PluginInstallIdentityInUse();
 }
+
+typedef _InstalledPluginSnapshot = (InstalledPlugin, Map<String, dynamic>);
 
 class PluginSystemDatabase {
   PluginSystemDatabase._();
@@ -183,30 +186,27 @@ class PluginSystemDatabase {
 
   // --- CRUD for Installed Plugins ---
 
-  /// הרשימה המפוענחת האחרונה, עם החיבור ומוני השינויים שמולם נקראה.
-  /// `total_changes` סופר כתיבות בחיבור הזה ו-`data_version` כתיבות מחיבורים
-  /// אחרים, כך שהרשימה נקראת שוב רק אחרי שינוי במסד.
-  (Database, Object?, Object?, List<InstalledPlugin>)? _installedPlugins;
+  // מוני החיבור מזהים שינויים מקומיים וכתיבות מחיבורי SQLite אחרים.
+  (Database, int, int, List<_InstalledPluginSnapshot>)? _installedPlugins;
 
   Future<List<InstalledPlugin>> getAllInstalledPlugins() async {
     final db = await database;
-    final version = db
-        .select(
-          'SELECT total_changes() AS c, data_version AS v '
-          'FROM pragma_data_version',
-        )
-        .single;
+    // total_changes כולל גם כתיבות שבסוף בוטלו.
+    final version = db.autocommit
+        ? db
+              .select(
+                'SELECT total_changes() AS c, data_version AS v '
+                'FROM pragma_data_version',
+              )
+              .single
+        : null;
     if (_installedPlugins
-        case (
-          final cachedDb,
-          final changes,
-          final dataVersion,
-          final plugins,
-        )
-        when identical(cachedDb, db) &&
+        case (final cachedDb, final changes, final dataVersion, final plugins)
+        when version != null &&
+            identical(cachedDb, db) &&
             changes == version['c'] &&
             dataVersion == version['v']) {
-      return List.of(plugins);
+      return _copyInstalledPlugins(plugins);
     }
     final maps = db.select('''
       SELECT p.*,
@@ -220,12 +220,40 @@ class PluginSystemDatabase {
         ), 0) AS run_on_startup_granted
       FROM plugin_installation p
     ''').toMapList();
-    final plugins = List<InstalledPlugin>.unmodifiable(
-      maps.map(InstalledPlugin.fromDbMap),
+    final plugins = maps.map(InstalledPlugin.fromDbMap).toList();
+    if (version == null) return plugins;
+
+    final snapshots = [
+      for (final plugin in plugins) (plugin, plugin.manifest.toJson()),
+    ];
+    _installedPlugins = (
+      db,
+      version['c'] as int,
+      version['v'] as int,
+      snapshots,
     );
-    _installedPlugins = (db, version['c'], version['v'], plugins);
-    return List.of(plugins);
+    return _copyInstalledPlugins(snapshots);
   }
+
+  // רשימות ומפות במניפסט ניתנות לשינוי, גם בעומק התרומות הדקלרטיביות.
+  static List<InstalledPlugin> _copyInstalledPlugins(
+    List<_InstalledPluginSnapshot> plugins,
+  ) => [
+    for (final (plugin, manifest) in plugins)
+      plugin.copyWith(
+        manifest: PluginManifest.fromJson(
+          _copyJsonValue(manifest) as Map<String, dynamic>,
+        ),
+      ),
+  ];
+
+  static Object? _copyJsonValue(Object? value) => switch (value) {
+    Map<String, dynamic> map => map.map(
+      (key, child) => MapEntry(key, _copyJsonValue(child)),
+    ),
+    List<Object?> list => [for (final child in list) _copyJsonValue(child)],
+    _ => value,
+  };
 
   Future<bool> hasEnabledPlugin() async => readHasEnabledPlugin(await database);
 
@@ -1082,6 +1110,7 @@ class PluginSystemDatabase {
     final db = _database;
     if (db != null) closeWithCheckpoint(db);
     _database = null;
+    _installedPlugins = null;
   }
 
   Future<void> lockForStorageMove(String requestId) async {
@@ -1126,6 +1155,7 @@ class PluginSystemDatabase {
     _pendingReads.clear();
     _database?.close();
     _database = null;
+    _installedPlugins = null;
     _opening = null;
     _storageMoveRequestId = null;
     _storageMoveReleased = null;

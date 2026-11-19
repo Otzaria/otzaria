@@ -19,6 +19,18 @@ InstalledPlugin _plugin(String id, {String version = '1.0.0'}) {
     'version': version,
     'entrypoint': 'index.html',
     'permissions': [pluginNetworkAccessPermission],
+    'contributes': {
+      'startup': {
+        'toolbarItems': [
+          {
+            'id': 'menu',
+            'children': [
+              {'id': 'item'},
+            ],
+          },
+        ],
+      },
+    },
   });
   return InstalledPlugin(
     pluginId: id,
@@ -63,13 +75,43 @@ void main() {
 
     expect(second, hasLength(3));
     for (var i = 0; i < first.length; i++) {
-      expect(second[i], same(first[i]));
+      expect(second[i], isNot(same(first[i])));
+      expect(second[i].installedAt, same(first[i].installedAt));
+      expect(second[i].updatedAt, same(first[i].updatedAt));
     }
   });
 
   test('שינוי הרשימה שהוחזרה אינו משפיע על הקריאה הבאה', () async {
     (await db.getAllInstalledPlugins()).clear();
     expect(await db.getAllInstalledPlugins(), hasLength(3));
+  });
+
+  test('שינוי במניפסט המוחזר אינו משנה את התוספים במטמון', () async {
+    final first = await read('p1');
+    first.manifest.permissions.clear();
+    final children =
+        first.manifest.startup!.toolbarItems.single['children'] as List;
+    (children.single as Map)['id'] = 'changed';
+
+    final second = await read('p1');
+    expect(second.manifest.permissions, [pluginNetworkAccessPermission]);
+    expect(second.manifest.startup!.toolbarItems.single['children'], [
+      {'id': 'item'},
+    ]);
+  });
+
+  test('קריאה בטרנזקציה שבוטלה אינה נשמרת במטמון', () async {
+    final connection = await db.database;
+    connection.execute('BEGIN');
+    try {
+      connection.execute(
+        "UPDATE plugin_installation SET version = '9.9.9' WHERE plugin_id = 'p1'",
+      );
+      expect((await read('p1')).version, '9.9.9');
+    } finally {
+      connection.execute('ROLLBACK');
+    }
+    expect((await read('p1')).version, '1.0.0');
   });
 
   test('כל כתיבה לתוספים או להרשאות נראית בקריאה הבאה', () async {
