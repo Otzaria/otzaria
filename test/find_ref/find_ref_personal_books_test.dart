@@ -239,6 +239,27 @@ void main() {
       ]);
     });
 
+    test('ספר מתאים לתיקייה בשם ספר, אך לא לספר זמנים', () async {
+      final repo = _repo(
+        books: [
+          _book(1, 'הלכות לדוגמה', folders: const ['ספרים אישיים', 'ספר']),
+          _book(
+            2,
+            'הלכות לדוגמה',
+            folders: const ['ספרים אישיים', 'ספר זמנים'],
+          ),
+        ],
+        userToc: (_, _, {queryTokens}) async => const [],
+      );
+      addTearDown(repo.disposeForTesting);
+
+      final refs = await repo.findRefs(
+        'הלכות לדוגמה ספר',
+        includePersonalBooks: true,
+      );
+      expect(refs.map((ref) => ref.bookId), [1]);
+    });
+
     test('מילת תיקייה נדרשת במלואה: "רא"ש" אינו תחילית של "ראשונים"', () async {
       final repo = _repo(
         books: [
