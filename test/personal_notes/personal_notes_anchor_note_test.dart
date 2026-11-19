@@ -234,4 +234,50 @@ void main() {
       expect(html, endsWith(':</a> הפאה'));
     },
   );
+  test('removed colon does not relocate the note to another Mishnah', () async {
+    const oldBook =
+        'משנה ראשונה עם נקודתיים:\nמשנה שנייה מדויקת מאוד:\nמשנה שלישית עם נקודתיים:';
+    const updatedBook =
+        'משנה ראשונה עם נקודתיים:\nמשנה שנייה מדויקת מאוד\nמשנה שלישית עם נקודתיים:';
+    final note = await add(content: oldBook, selectedText: ':');
+    expect(note.lineNumber, 2);
+    final reopened = (await service.loadNotes(
+      bookId: 'ספר',
+      bookContent: updatedBook,
+    )).single;
+    expect(reopened.status, PersonalNoteStatus.missing);
+    expect(reopened.lineNumber, isNull);
+  });
+
+  test('inserted Mishnah with same punctuation does not steal note', () async {
+    const oldBook =
+        'משנה ראשונה עם נקודתיים:\nמשנה שנייה מדויקת מאוד:\nמשנה שלישית עם נקודתיים:';
+    const updatedBook =
+        'משנה ראשונה עם נקודתיים:\nמשנה חדשה ובלתי קשורה:\nמשנה שנייה מדויקת מאוד:\nמשנה שלישית עם נקודתיים:';
+    final note = await add(content: oldBook, selectedText: ':');
+    expect(note.lineNumber, 2);
+    final reopened = (await service.loadNotes(
+      bookId: 'ספר',
+      bookContent: updatedBook,
+    )).single;
+    expect(reopened.lineNumber, 3);
+  });
+  test(
+    'punctuation note is not relocated between two identical candidates',
+    () async {
+      const text = 'משנה שנייה מדויקת מאוד:';
+      final note = await add(
+        content: 'ראשונה\n$text\nשלישית',
+        selectedText: ':',
+      );
+      expect(note.lineNumber, 2);
+
+      final reopened = (await service.loadNotes(
+        bookId: 'ספר',
+        bookContent: '$text\nשורה אחרת\n$text',
+      )).single;
+      expect(reopened.status, PersonalNoteStatus.missing);
+      expect(reopened.lineNumber, isNull);
+    },
+  );
 }

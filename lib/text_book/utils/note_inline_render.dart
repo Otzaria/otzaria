@@ -82,6 +82,11 @@ String buildAnnotatedLineHtml({
         suffix: note.anchorSuffix,
         hintStart: note.anchorStart,
         hintSourceLine: sourceLine,
+        // בשורת המקור, סימן זהה בלי ההקשר השמור יכול להיות מופע אחר.
+        requirePunctuationContext:
+            (sourceLine == null || sourceLine == rawLine) &&
+            ((note.anchorPrefix?.isNotEmpty ?? false) ||
+                (note.anchorSuffix?.isNotEmpty ?? false)),
       );
       if (range != null) {
         final expanded = replaceHolyNames

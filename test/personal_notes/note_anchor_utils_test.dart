@@ -138,6 +138,24 @@ void main() {
     expect(restored?.end, raw.lastIndexOf(':') + 1);
   });
 
+  test('matches overlapping punctuation selections by source offset', () {
+    const raw = 'א:::ב';
+    final anchor = computeAnchorForSelection(
+      rawLine: raw,
+      selectedText: '::',
+      sourceSelectionOffset: 2,
+      sourceSelectionText: raw,
+    );
+    expect(anchor?.start, 2);
+    expect(anchor?.end, 4);
+  });
+
+  test('keeps a visible Hebrew sof pasuq rather than dropping its anchor', () {
+    const raw = 'בְּרֵאשִׁית א׃';
+    final anchor = computeAnchorForSelection(rawLine: raw, selectedText: '׃');
+    expect(anchor?.start, raw.indexOf('׃'));
+  });
+
   group('computeAnchorForSelection', () {
     test('מחזיר offset והקשר עבור טקסט שנבחר', () {
       const raw = 'בראשית ברא אלהים את השמים ואת הארץ';

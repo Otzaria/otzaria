@@ -581,6 +581,24 @@ void main() {
     expect(html, raw);
   });
 
+  test('succeeds only on the contextual punctuation in the source line', () {
+    const original = 'אבג: דהו אחרי הסימן: זחט';
+    final anchor = computeAnchorForSelection(
+      rawLine: original,
+      selectedText: ':',
+      occurrenceIndex: 1,
+    )!;
+    final note = _note(
+      anchorText: ':',
+      anchorStart: anchor.start,
+      anchorPrefix: anchor.prefix,
+      anchorSuffix: anchor.suffix,
+    );
+    expect(render(original, notes: [note]), contains('$noteOpen:</a> זחט'));
+    const changed = 'אבג: דהו אחרי הסימן זחט';
+    expect(render(changed, notes: [note]), changed);
+  });
+
   test('שורה שכבר סומנה אינה מסומנת שוב', () {
     final once = render('אבגד הוזח', notes: [_note()]);
     expect(
