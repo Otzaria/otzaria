@@ -1602,8 +1602,10 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     Emitter<TabsState> emit,
   ) async {
     if (!state.tabs.contains(event.keepTab)) return;
-    // כמו ב"סגור הכל": המוצמדות נשארות (issue #4950).
-    bool keep(OpenedTab tab) => tab == event.keepTab || tab.isPinned;
+    bool keep(OpenedTab tab) =>
+        tab == event.keepTab ||
+        tab.isPinned ||
+        !(event.confirmedTabs?.contains(tab) ?? true);
     for (var i = state.tabs.length - 1; i >= 0; i--) {
       final tab = state.tabs[i];
       if (!keep(tab)) {

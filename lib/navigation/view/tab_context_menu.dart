@@ -193,11 +193,11 @@ Future<void> closeOtherTabsConfirmed(
   OpenedTab keepTab,
 ) async {
   final tabsBloc = context.read<TabsBloc>();
-  final closing = tabsBloc.state.tabs.where(
-    (t) => t != keepTab && !t.isPinned,
-  );
+  final closing = tabsBloc.state.tabs
+      .where((t) => t != keepTab && !t.isPinned)
+      .toSet();
   if (!await confirmCloseTabs(context, closing)) return;
-  tabsBloc.add(CloseOtherTabs(keepTab));
+  tabsBloc.add(CloseOtherTabs(keepTab, confirmedTabs: closing));
 }
 
 /// סוגר את הכרטיסיות שאחרי [tab] ברצועה, מלבד המוצמדות.
