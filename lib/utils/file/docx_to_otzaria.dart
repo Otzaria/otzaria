@@ -1180,43 +1180,57 @@ String? _buildTableHtml(xml.XmlElement table, _DocxContext ctx) {
   return '${otzariaTableOpen(attributes: dir)}$rows</table>';
 }
 
-/// גוף הערת שוליים כ-HTML של שורה אחת: הדגשה נשמרת, וגבול פסקה ו-`w:br`
-/// הופכים ל-`<br>` (issue #2682). `<br>` הוא גם גבול מילה לחיפוש, כך שמילים
-/// משני צדיו אינן נדבקות. נטוי אינו נשמר: `<i>` מקונן היה סוגר את
-/// `<i class="footnote">` מוקדם מדי בשכבת התצוגה.
+final _footnoteWhitespace = RegExp(r'\s+');
+
+/// גוף הערה בשורת HTML אחת. עטיפת ההערה מסתיימת ב-</i> הראשון, לכן נשמרת
+/// כאן רק הדגשה. מפרידים בין מקטעי טקסט לפני שמוסיפים את תגי ההדגשה.
 String _footnoteHtml(xml.XmlElement footnote) {
   final segs = <_Seg>[];
-  xml.XmlElement? lastParagraph;
-  for (final run in footnote.findAllElements('w:r')) {
-    final text = StringBuffer();
-    for (final child in run.childElements) {
-      switch (child.name.qualified) {
-        case 'w:t':
-          text.write(escapeHtmlText(child.innerText));
-        case 'w:br':
-          text.write('<br>');
-        case 'w:tab':
-          text.write(' ');
-      }
+  var pendingBreaks = 0;
+  var pendingSpace = false;
+  for (final node in footnote.descendantElements) {
+    if (node.name.qualified == 'w:p') {
+      pendingBreaks++;
+      continue;
     }
-    if (text.isEmpty) continue;
-    final paragraph = run.ancestorElements.firstWhere(
-      (e) => e.name.qualified == 'w:p',
-      orElse: () => footnote,
-    );
-    if (lastParagraph != null && paragraph != lastParagraph) {
-      segs.add(const _Seg.raw('<br>'));
-    }
-    lastParagraph = paragraph;
-    final rPr = run.getElement('w:rPr');
+    if (node.name.qualified != 'w:r') continue;
+    final rPr = node.getElement('w:rPr');
     final bold =
         _isOnOff(rPr?.getElement('w:b')) || _isOnOff(rPr?.getElement('w:bCs'));
-    segs.add(_Seg(bold ? '<b>' : '', bold ? '</b>' : '', text.toString()));
+    final open = bold ? '<b>' : '';
+    final close = bold ? '</b>' : '';
+    for (final child in node.childElements) {
+      switch (child.name.qualified) {
+        case 'w:br':
+          pendingBreaks++;
+        case 'w:tab':
+          pendingSpace = true;
+        case 'w:t':
+          final text = child.innerText.replaceAll(_footnoteWhitespace, ' ');
+          if (text.isEmpty) continue;
+          final trimmed = text.trim();
+          if (trimmed.isEmpty) {
+            pendingSpace = true;
+            continue;
+          }
+          if (segs.isNotEmpty) {
+            if (pendingBreaks > 0) {
+              segs.add(_Seg.raw('<br>' * pendingBreaks));
+            } else if (pendingSpace || text.startsWith(' ')) {
+              segs.add(
+                segs.last.open == open
+                    ? _Seg(open, close, ' ')
+                    : const _Seg('', '', ' '),
+              );
+            }
+          }
+          segs.add(_Seg(open, close, escapeHtmlText(trimmed)));
+          pendingBreaks = 0;
+          pendingSpace = text.endsWith(' ');
+      }
+    }
   }
-  return _renderSegs(segs)
-      .replaceAll(RegExp(r'\s+'), ' ')
-      .replaceAll(RegExp(r' ?<br> ?'), '<br>')
-      .replaceAll(RegExp(r'^(?: |<br>)+|(?: |<br>)+$'), '');
+  return _renderSegs(segs);
 }
 
 /// Extracts footnotes from the document

@@ -325,6 +325,25 @@ void main() {
       );
     });
 
+    test('הערת שוליים inline עם רווח מודגש בלבד אינה נספרת', () {
+      final out = _convert(
+        _wordMl2003(
+          '<w:p><w:r><w:t>גוף</w:t></w:r>'
+          '<w:r><w:footnote><w:p><w:r><w:rPr><w:b/></w:rPr>'
+          '<w:t xml:space="preserve"> </w:t></w:r></w:p></w:footnote></w:r>'
+          '<w:r><w:footnote><w:p><w:r><w:t>הערה</w:t></w:r></w:p>'
+          '</w:footnote></w:r></w:p>',
+        ),
+      );
+      expect(
+        out,
+        contains(
+          '<sup class="footnote-marker">1</sup><i class="footnote">הערה</i>',
+        ),
+      );
+      expect('class="footnote"'.allMatches(out).length, 1);
+    });
+
     test('תמונה מ-w:binData לפי src של wordml://', () {
       final out = _convert(
         _wordMl2003(
