@@ -447,6 +447,27 @@ void main() {
       );
     });
 
+    // issue #4822: פסקה של כמה שורות שנבחרה באמצע המסך עולה לראש המסך, אך
+    // השורה הראשונה שלה לא נחתכת כשהכרטיס נכנס כולו מתחתיה.
+    testWidgets('פסקה רגילה — תחילתה נשארת במסך (issue #4822)', (
+      tester,
+    ) async {
+      const paragraph = 7;
+      final result = await tapParagraph(
+        tester,
+        paragraph,
+        jumpIndex: 5,
+        content: [
+          for (var i = 0; i < 20; i++)
+            'פסקה$i ${List.filled(12, 'מילה$i').join(' ')}',
+        ],
+      );
+      final source = result.after[paragraph]!;
+      expect(source.itemLeadingEdge, greaterThanOrEqualTo(-1e-3));
+      expect(source.itemLeadingEdge, lessThan(0.15));
+      expect(result.card.bottom, lessThanOrEqualTo(880));
+    });
+
     testWidgets('פסקה גבוהה מהמסך — הכרטיס מוצג מיד', (tester) async {
       const paragraph = 5;
       final result = await tapParagraph(
