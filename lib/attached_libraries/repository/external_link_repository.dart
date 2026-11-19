@@ -1208,11 +1208,17 @@ _SyncResult _syncIndex(_SyncArgs args, SendPort progress) {
       final signature = _signatureFor(wireKey, targets);
       final previous = stored[job.slug];
       final decision = resumeDecision(job, previous, signature);
-      final resuming = decision.resume;
-      if (!resuming &&
+      if (!decision.resume &&
           _isCurrentOrMarked(previous, job.fingerprint, signature)) {
         continue;
       }
+      // שורות יעד נכתבות רק בסיום: הן של אינדקס קודם שהושלם, לא של בנייה שנקטעה.
+      final resuming =
+          decision.resume &&
+          db.select(
+            'SELECT 1 FROM $_targetTable WHERE sourceSlug = ? LIMIT 1',
+            [job.slug],
+          ).isEmpty;
       // הסימון ומחיקת האינדקס הישן אטומיים. שורות בלי יעד ב-_targetTable
       // אינן מוגשות, ולכן כתיבה במנות אינה חושפת אינדקס חלקי.
       _transaction(db, () {
@@ -1221,7 +1227,7 @@ _SyncResult _syncIndex(_SyncArgs args, SendPort progress) {
           job.fingerprint,
           _buildingMarker(
             signature,
-            suffix: decision.autoRows == null
+            suffix: !resuming || decision.autoRows == null
                 ? ''
                 : _autoSuffix(decision.autoRows!),
           ),
