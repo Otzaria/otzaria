@@ -45,6 +45,8 @@ import 'package:otzaria/tools/tool_catalog_entry.dart';
 import 'package:otzaria/history/view/history_screen.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/bookmarks/view/bookmark_screen.dart';
+import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
+import 'package:otzaria/workspaces/bloc/workspace_state.dart';
 import 'package:otzaria/workspaces/view/workspace_switcher_dialog.dart';
 import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
@@ -461,19 +463,24 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                   ),
                   onPressed: () => _showBookmarksDialog(context),
                 ),
-                AppIconButton(
-                  size: AppIconButtonSize.small,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  icon: const Icon(FluentIcons.add_square_24_regular),
-                  tooltip: context.settingsText(
-                    'החלף שולחן עבודה ({shortcut})',
-                    args: {
-                      'shortcut': ShortcutHelper.formatShortcutForDisplay(
-                        workspaceShortcut,
-                      ),
-                    },
+                BlocSelector<WorkspaceBloc, WorkspaceState, String?>(
+                  selector: (state) => state.activeWorkspace?.name,
+                  builder: (context, activeWorkspaceName) => AppIconButton(
+                    size: AppIconButtonSize.small,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    icon: const Icon(FluentIcons.add_square_24_regular),
+                    tooltip: context.settingsText(
+                      'החלף שולחן עבודה ({shortcut})',
+                      args: {
+                        'shortcut': ShortcutHelper.formatShortcutForDisplay(
+                          workspaceShortcut,
+                        ),
+                      },
+                    ) + (activeWorkspaceName == null
+                        ? ''
+                        : '\n$activeWorkspaceName'),
+                    onPressed: () => _showSaveWorkspaceDialog(context),
                   ),
-                  onPressed: () => _showSaveWorkspaceDialog(context),
                 ),
               ],
             ),
