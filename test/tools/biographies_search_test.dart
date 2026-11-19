@@ -70,6 +70,25 @@ void main() {
       expect(BiographiesRepository.filter(hebrew, 'הרמב"ם'), hebrew);
     });
 
+    test('מוצא שם שמכיל את כל מילות החיפוש גם כשאינן רצופות (issue #5550)', () {
+      final entries = [
+        _bio('רבי שבתי הכהן', appelations: ['הש"ך']),
+        _bio('רבי שבתי סופר'),
+        _bio('שבתי כהן מוורשה'),
+      ];
+
+      // התאמה רצופה קודמת להתאמה של כל המילים.
+      expect(
+        BiographiesRepository.filter(entries, 'שבתי כהן').map((b) => b.name),
+        ['שבתי כהן מוורשה', 'רבי שבתי הכהן'],
+      );
+      // ה' בתחילת מילה בחיפוש אינה חובה בשם.
+      expect(
+        BiographiesRepository.filter(entries, 'שבתי הכהן').map((b) => b.name),
+        ['רבי שבתי הכהן', 'שבתי כהן מוורשה'],
+      );
+    });
+
     test('בדירוג שווה ממוין לפי שם', () {
       final entries = [_bio('אב יוסף'), _bio('אב דוד')];
       expect(BiographiesRepository.filter(entries, 'אב').map((b) => b.name), [
