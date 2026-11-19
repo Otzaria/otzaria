@@ -22,6 +22,7 @@ class SearchPaneBase extends StatefulWidget {
     required this.isNoResults,
     this.errorMessage,
     this.onSearchTextChanged,
+    this.onSearchInput,
     required this.resetSearchCallback,
     this.hintText,
     this.onAdvancedSearch,
@@ -47,6 +48,8 @@ class SearchPaneBase extends StatefulWidget {
   /// ריק לגיטימי.
   final String? errorMessage;
   final ValueChanged<String>? onSearchTextChanged;
+  /// Called immediately on input, before the debounced search callback.
+  final ValueChanged<String>? onSearchInput;
   final VoidCallback resetSearchCallback;
   final String? hintText;
   final VoidCallback? onAdvancedSearch;
@@ -124,6 +127,8 @@ class _SearchPaneBaseState extends State<SearchPaneBase> {
     final host = NavPanelSearchScope.hostOf(context);
     final isActiveSlot = slot == null || host == null || host.activeTab == slot;
     void onClear() {
+      _debounceTimer?.cancel();
+      widget.onSearchInput?.call('');
       widget.onSearchTextChanged?.call('');
       widget.resetSearchCallback();
       widget.focusNode.requestFocus();
@@ -148,8 +153,10 @@ class _SearchPaneBaseState extends State<SearchPaneBase> {
           focusNode: widget.focusNode,
           autofocus: _autofocus ??= isActiveSlot,
           hintText: widget.hintText ?? '',
-          onChanged: (value) =>
-              _debounce(() => widget.onSearchTextChanged?.call(value)),
+          onChanged: (value) {
+            widget.onSearchInput?.call(value);
+            _debounce(() => widget.onSearchTextChanged?.call(value));
+          },
           onSubmitted: (_) {
             widget.onSubmitted?.call();
             widget.focusNode.requestFocus();
