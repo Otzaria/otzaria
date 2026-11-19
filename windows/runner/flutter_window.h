@@ -24,6 +24,8 @@ class FlutterWindow : public Win32Window {
                          bool headless = false);
   virtual ~FlutterWindow();
 
+  void StopAttentionFlash(HWND target);
+
  protected:
   // Win32Window:
   bool OnCreate() override;
@@ -55,6 +57,7 @@ class FlutterWindow : public Win32Window {
   bool headless_ = false;
   // המשתמש סגר את החלון: הוא מוסתר ולא נהרס. להבדיל מחלון שטרם נחשף.
   bool closed_by_user_ = false;
+  HWND attention_flash_target_ = nullptr;
 
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;

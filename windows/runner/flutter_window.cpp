@@ -1078,6 +1078,14 @@ void FlutterWindow::OnWindowHidden() {
   ::PostQuitMessage(0);
 }
 
+void FlutterWindow::StopAttentionFlash(HWND target) {
+  const HWND previous = attention_flash_target_;
+  attention_flash_target_ = target;
+  FLASHWINFO flash = {sizeof(FLASHWINFO), target, FLASHW_STOP, 0, 0};
+  ::FlashWindowEx(&flash);
+  attention_flash_target_ = previous;
+}
+
 LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
@@ -1123,6 +1131,12 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
       }
     }
     return 0;
+  }
+
+  // FLASHW_STOP שולח WM_NCACTIVATE סינכרוני בלי שינוי מיקוד.
+  // העברה ל-window_manager הייתה משחררת את Ctrl לפני אירוע הגלילה.
+  if (message == WM_NCACTIVATE && wparam && hwnd == attention_flash_target_) {
+    return Win32Window::MessageHandler(hwnd, message, wparam, lparam);
   }
 
   // Give Flutter, including plugins, an opportunity to handle window messages.
