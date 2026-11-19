@@ -266,10 +266,11 @@ class DayExtras extends StatelessWidget {
     final brightness = Theme.of(context).brightness;
     final events = context.read<CalendarCubit>().eventsForDate(date);
     final strut = _lineStrut(context, compact);
+    final jewishEvents = _calcJewishEvents(jewishCalendar);
 
     // inDialog: שורה מלאה בחלונית "כל הפריטים", בלי קיצור ובלי צבעי בחירה.
     final items = <Widget Function(bool inDialog)>[
-      for (final e in _calcJewishEvents(jewishCalendar))
+      for (final e in jewishEvents)
         (inDialog) => Text(
           e,
           maxLines: inDialog ? null : 1,
@@ -327,7 +328,18 @@ class DayExtras extends StatelessWidget {
     ];
 
     final hiddenCount = items.length - maxVisibleItems;
-    final lines = [for (final item in items.take(maxVisibleItems)) item(false)];
+    // מועדי היום לא דוחקים מהתא את כל האירועים של המשתמש; הנותרים ב-+N.
+    final shownJewish = (maxVisibleItems - (events.isEmpty ? 0 : 1)).clamp(
+      0,
+      jewishEvents.length,
+    );
+    final lines = [
+      for (final item in [
+        ...items.take(shownJewish),
+        ...items.skip(jewishEvents.length),
+      ].take(maxVisibleItems))
+        item(false),
+    ];
     if (hiddenCount > 0) {
       final lastItem = lines.last;
       final minRowWidth = MediaQuery.textScalerOf(context).scale(44);
