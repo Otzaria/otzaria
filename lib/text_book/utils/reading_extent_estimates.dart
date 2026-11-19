@@ -125,16 +125,23 @@ class ReadingExtentEstimates {
       if (_fullRefresh) continue;
       var cursor = 0;
       for (final range in ranges) {
-        final length = range.last - range.first + 1;
-        _counts.setRange(range.first, range.last + 1, result.counts, cursor);
-        cursor += length;
+        for (var line = range.first; line <= range.last; line++) {
+          final count = result.counts[cursor++];
+          // שורה ששוחררה מהזיכרון (טאב רקע) לא השתנתה: הספירה הידועה נשמרת.
+          if (count >= 0) _counts[line] = count;
+        }
       }
       debugCountedLines += cursor;
       if (full) {
         replacedAll = true;
-        _unloadedLineChars = result.loaded == 0
-            ? 200
-            : result.chars / result.loaded;
+        var chars = 0;
+        var known = 0;
+        for (final count in _counts) {
+          if (count < 0) continue;
+          chars += count;
+          known++;
+        }
+        _unloadedLineChars = known == 0 ? 200 : chars / known;
       }
       applied.addAll(ranges);
     }
