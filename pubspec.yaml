@@ -130,7 +130,7 @@ dependencies:
   googleapis_auth: ^2.3.5
   characters: ^1.4.1
   collection: ^1.19.1
-  otzaria_search_engine: ^7.2.0
+  otzaria_search_engine: ^7.4.0
   # חוזה הדיווחים מול השרת, משותף עם "עדכוני אוצריא" (Dart טהור).
   otzaria_report_contract:
     path: packages/otzaria_report_contract
