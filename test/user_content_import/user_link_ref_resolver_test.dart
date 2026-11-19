@@ -116,6 +116,48 @@ void main() {
     expect(result.linksApplied, 0);
   });
 
+  // #5222: ספר במסד מצורף בשם של ספר רשמי — native אינו יכול לדעת לאיזה מהם
+  // התכוון הקובץ, ולכן אסור לו להיקשר בשקט לרשמי.
+  for (final baseCollides in [true, false]) {
+    test(
+      'native דוחה כותרת שקיימת גם במסד מצורף (בסיס: $baseCollides)',
+      () async {
+        await addBook(userDb, 'אישי');
+        await addBook(officialDb, 'רשמי');
+        final attachedDb = MyDatabase.withPath(
+          p.join(directory.path, 'attached.db'),
+        );
+        await addBook(attachedDb, 'רשמי');
+        attachedDb.close();
+        final attached = AttachedLinkBooks.open([
+          (
+            slug: 'attached',
+            path: attachedDb.path,
+            immutable: false,
+            visible: true,
+          ),
+        ]);
+        addTearDown(attached.close);
+
+        final result = await UserContentImporter.importContents(
+          [
+            ImportedFile(
+              name: '${baseCollides ? 'רשמי' : 'אישי'}_links.json',
+              content:
+                  '[{"line_index_1": 1, "line_index_2": 2, '
+                  '"path_2": "${baseCollides ? 'אישי' : 'רשמי'}.txt"}]',
+            ),
+          ],
+          userDb,
+          locateBook: locate,
+          attachedBooks: attached,
+        );
+        expect(result.errors.single, contains('ביותר ממקור אחד'));
+        expect(result.linksApplied, 0);
+      },
+    );
+  }
+
   test('ספרייה אישית עצמאית ללא מסד רשמי עדיין נקלטת', () async {
     await addBook(userDb, 'בסיס');
     await addBook(userDb, 'יעד');
