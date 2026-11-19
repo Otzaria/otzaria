@@ -289,6 +289,60 @@ void main() {
     expect(bloc.state.currentTabIndex, 1);
   });
 
+  // צביטה בלוח מגע מעל תוסף (#3972): ה-WebView לא מתחרה בזירה, ותזוזה
+  // אופקית קלה של מרכז הצביטה הספיקה כדי להעביר טאב.
+  for (final (name, scale, expectedIndex) in [
+    ('צביטה עם סטייה אופקית מעל WebView אינה מעבירה טאב', 1.3, 1),
+    ('החלקה עם רעש scale מעל WebView עדיין מעבירה טאב', 1.0005, 2),
+  ]) {
+    testWidgets(name, (tester) async {
+      final tabs = [_tab('א'), _tab('ב'), _tab('ג')];
+      addTearDown(() {
+        for (final tab in tabs) {
+          tab.dispose();
+        }
+      });
+      final bloc = await pumpReadingScreen(tester, tabs, currentTabIndex: 1);
+      final detector = tester.widget<RawGestureDetector>(
+        find.byWidgetPredicate(
+          (widget) => widget is RawGestureDetector && widget.child is PageView,
+        ),
+      );
+      final overlay = Overlay.of(tester.element(find.byType(PageView)));
+      final entry = OverlayEntry(
+        builder: (_) => Positioned.fill(
+          child: RawGestureDetector(
+            gestures: detector.gestures,
+            child: const ColoredBox(color: Colors.white),
+          ),
+        ),
+      );
+      overlay.insert(entry);
+      addTearDown(() {
+        entry.remove();
+        entry.dispose();
+      });
+      await tester.pump();
+      final gesture = await tester.createGesture(
+        kind: PointerDeviceKind.trackpad,
+      );
+      const center = Offset(400, 400);
+      await gesture.panZoomStart(center, timeStamp: Duration.zero);
+      for (var i = 1; i <= 5; i++) {
+        await gesture.panZoomUpdate(
+          center,
+          pan: Offset(-30.0 * i, 0),
+          scale: 1 + (scale - 1) * i / 5,
+          timeStamp: Duration(milliseconds: 10 * i),
+        );
+        await tester.pump();
+      }
+      await gesture.panZoomEnd(timeStamp: const Duration(milliseconds: 60));
+      await tester.pumpAndSettle();
+      expect(bloc.state.currentTabIndex, expectedIndex);
+    });
+  }
+
   group('החלקת trackpad — גרירה הדרגתית והתיישבות', () {
     PageController pageControllerOf(WidgetTester tester) =>
         tester.widget<PageView>(find.byType(PageView)).controller!;
