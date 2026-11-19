@@ -210,10 +210,13 @@ class AdoptTab extends TabsEvent {
 class CloseOtherTabs extends TabsEvent {
   final OpenedTab keepTab;
 
-  const CloseOtherTabs(this.keepTab);
+  /// הכרטיסיות שנבדקו באישור הסגירה, לפני שהרשימה יכלה להשתנות.
+  final Set<OpenedTab>? confirmedTabs;
+
+  const CloseOtherTabs(this.keepTab, {this.confirmedTabs});
 
   @override
-  List<Object?> get props => [keepTab];
+  List<Object?> get props => [keepTab, confirmedTabs];
 }
 
 class CloneTab extends TabsEvent {

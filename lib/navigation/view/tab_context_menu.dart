@@ -187,15 +187,17 @@ Future<void> closeAllTabsWithHistory(BuildContext context) async {
   tabsBloc.add(CloseAllTabs());
 }
 
-/// סוגר את כל הכרטיסיות מלבד [keepTab].
+/// סוגר את כל הכרטיסיות מלבד [keepTab] והמוצמדות.
 Future<void> closeOtherTabsConfirmed(
   BuildContext context,
   OpenedTab keepTab,
 ) async {
   final tabsBloc = context.read<TabsBloc>();
-  final closing = tabsBloc.state.tabs.where((t) => t != keepTab);
+  final closing = tabsBloc.state.tabs
+      .where((t) => t != keepTab && !t.isPinned)
+      .toSet();
   if (!await confirmCloseTabs(context, closing)) return;
-  tabsBloc.add(CloseOtherTabs(keepTab));
+  tabsBloc.add(CloseOtherTabs(keepTab, confirmedTabs: closing));
 }
 
 /// סוגר את הכרטיסיות שאחרי [tab] ברצועה, מלבד המוצמדות.
