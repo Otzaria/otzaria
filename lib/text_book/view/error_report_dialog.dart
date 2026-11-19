@@ -34,6 +34,7 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/dialogs/error_report_sender_email_dialog.dart';
+import 'package:otzaria/reports/view/report_sender_email_field.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -1420,6 +1421,8 @@ class _RegularReportTabState extends State<RegularReportTab> {
       Theme.of(context).brightness == Brightness.dark;
 
   final TextEditingController _detailsController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final _emailKey = GlobalKey<ReportSenderEmailFieldState>();
   final _quoteSelectionNotifier = SelectionListenerNotifier();
   final _quoteSelectionKey = GlobalKey();
   late _ReportMode _mode;
@@ -1477,6 +1480,8 @@ class _RegularReportTabState extends State<RegularReportTab> {
         ? _ReportMode.freeText
         : _ReportMode.correction;
     _detailsController.text = form?['details'] as String? ?? '';
+    // לא נשמרת בטיוטה: טיוטה ישנה לא תדרוס כתובת שהשתנתה מאז בהגדרות.
+    _emailController.text = DirectErrorReportService().senderEmail;
     _editorText =
         form?['proposedText'] as String? ??
         widget.correctionTemplate?.target ??
@@ -1503,6 +1508,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
   void dispose() {
     _quoteSelectionNotifier.dispose();
     _detailsController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
@@ -1511,6 +1517,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
     ReportedErrorData data,
   ) async {
     if (_validating || !_canSubmit) return;
+    if (!await _ensureValidEmail()) return;
     setState(() => _validating = true);
     try {
       final error = await widget.validateBeforeSubmit?.call(data);
@@ -1518,6 +1525,12 @@ class _RegularReportTabState extends State<RegularReportTab> {
       if (error != null) {
         UiSnack.showError(error);
         return;
+      }
+      final email = _emailController.text.trim();
+      final reportService = DirectErrorReportService();
+      if (email != reportService.senderEmail) {
+        await reportService.saveSenderEmail(email);
+        if (!mounted) return;
       }
       widget.onActionSelected(action, data);
     } finally {
@@ -1863,6 +1876,13 @@ class _RegularReportTabState extends State<RegularReportTab> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  ReportSenderEmailField(
+                    key: _emailKey,
+                    controller: _emailController,
+                    isRequired: true,
+                    enabled: !_validating,
+                  ),
                 ],
               ),
             ),
@@ -1891,12 +1911,19 @@ class _RegularReportTabState extends State<RegularReportTab> {
   bool get _offline =>
       Settings.getValue<bool>(SettingsRepository.keyOfflineMode) ?? false;
 
+  Future<bool> _ensureValidEmail() async {
+    if (_emailKey.currentState?.validate() ?? true) return true;
+    await Scrollable.ensureVisible(_emailKey.currentContext!);
+    return false;
+  }
+
   Future<void> _confirmAndSendDirect() async {
     final reportData = _reportData;
     if (_offline) {
       await _submitValidated(ErrorReportAction.saveForLater, reportData);
       return;
     }
+    if (!await _ensureValidEmail() || !mounted) return;
     final shouldSend = await showTwoActionsDialog(
       context: context,
       title: context.settingsText('אישור שליחת דיווח'),
