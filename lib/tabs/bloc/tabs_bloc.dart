@@ -1601,26 +1601,28 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     CloseOtherTabs event,
     Emitter<TabsState> emit,
   ) async {
+    if (!state.tabs.contains(event.keepTab)) return;
+    // כמו ב"סגור הכל": המוצמדות נשארות (issue #4950).
+    bool keep(OpenedTab tab) => tab == event.keepTab || tab.isPinned;
     for (var i = state.tabs.length - 1; i >= 0; i--) {
       final tab = state.tabs[i];
-      if (tab != event.keepTab) {
+      if (!keep(tab)) {
         _rememberClosedTab(tab, i);
       }
     }
-    final tabsToDispose = state.tabs
-        .where((tab) => tab != event.keepTab)
-        .toList();
+    final tabsToDispose = state.tabs.where((tab) => !keep(tab)).toList();
 
-    final newTabs = [event.keepTab];
+    final newTabs = state.tabs.where(keep).toList();
+    final newIndex = newTabs.indexOf(event.keepTab);
 
     emit(
       state.copyWith(
         tabs: newTabs,
-        currentTabIndex: 0,
+        currentTabIndex: newIndex,
         selectedTabs: const <OpenedTab>[],
       ),
     );
-    _scheduleSave(newTabs, 0);
+    _scheduleSave(newTabs, newIndex);
 
     for (final tab in tabsToDispose) {
       _disposeTabLater(tab);
