@@ -14,6 +14,11 @@ void main() {
     (id: 6361, title: 'שות בית דוד', acronyms: []),
     (id: 6225, title: 'בית הלוי חלק א', acronyms: []),
     (id: 3901, title: 'ב"ח', acronyms: []),
+    (
+      id: 2321,
+      title: 'הגהות הב"ח על רי"ף תענית',
+      acronyms: ['תשובות הבח על רי"ף תענית'],
+    ),
     (id: 2325, title: 'הגהות הב"ח על רי"ף מכות', acronyms: ['הבח']),
     (
       id: 5797,
@@ -85,7 +90,7 @@ void main() {
       final refs = await repo.findRefs(query);
       expect(
         refs.map((r) => r.reference),
-        contains('תשובות בית חדש'),
+        ['תשובות בית חדש'],
         reason: query,
       );
     }

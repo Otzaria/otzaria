@@ -1296,7 +1296,32 @@ class FindRefRepository {
     );
     final swappedDetection = _detectBooks(swappedBooks, swapped);
     if (swappedDetection.phraseTokenCount < 2) return results;
-    return resultsFor(swapped, swappedBooks, swappedDetection);
+
+    final swappedResults = await resultsFor(
+      swapped,
+      swappedBooks,
+      swappedDetection,
+    );
+    if (query.dibbur != null ||
+        swappedDetection.phraseTokenCount != swapped.length) {
+      return swappedResults;
+    }
+    // בהחלפת סוגה, שם או כינוי מלא עדיפים על כינוי ארוך שרק מתחיל
+    // באותן מילים ("תשובות בח" לעומת "תשובות הבח על רי״ף תענית").
+    final exactBooks = {
+      for (final hit in swappedDetection.hits)
+        if (hit.namesBookExactly)
+          _bookKey(BookSource.official, hit.bookId, hit.filePath),
+    };
+    if (exactBooks.isEmpty) return swappedResults;
+    final exactResults = [
+      for (final result in swappedResults)
+        if (exactBooks.contains(
+          _bookKey(result.source, result.bookId, result.filePath),
+        ))
+          result,
+    ];
+    return exactResults.isEmpty ? swappedResults : exactResults;
   }
 
   static const _genrePrefixes = {'שות', 'תשובות'};
