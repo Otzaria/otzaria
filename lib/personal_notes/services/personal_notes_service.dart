@@ -498,7 +498,9 @@ class PersonalNotesService {
     );
     if (computed == null) return null;
     return (
-      text: normalizeAnchorText(selectedText),
+      text: normalizeAnchorText(selectedText).isEmpty
+          ? selectedText.trim()
+          : normalizeAnchorText(selectedText),
       prefix: computed.prefix,
       suffix: computed.suffix,
       start: computed.start,
@@ -608,7 +610,9 @@ class PersonalNotesService {
   bool _noteMatchesLine(PersonalNote note, String lineContent) {
     if (_hasAnchor(note)) {
       final anchor = normalizeAnchorText(note.anchorText!);
-      return anchor.isNotEmpty && lineContainsAnchorText(lineContent, anchor);
+      return anchor.isNotEmpty
+          ? lineContainsAnchorText(lineContent, anchor)
+          : locateAnchor(rawLine: lineContent, anchorText: note.anchorText!) != null;
     }
     return _displayTitleExistsInLine(note.displayTitle, lineContent);
   }
