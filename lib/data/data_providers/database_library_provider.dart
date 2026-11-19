@@ -2536,11 +2536,13 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     final generation = _databaseBookKeysGeneration;
     var result = (path: candidatePaths.first, exists: false);
     for (final candidatePath in candidatePaths) {
-      final exists = await Directory(candidatePath).exists();
-      // חילוץ שנקטע משאיר תיקייה עם PDF חלקי וסימון-ביניים; מתעלמים ממנה עד
-      // שההתקנה תושלם, אחרת הספרייה תציג מסכתות עם קבצים חסרים.
-      if (exists &&
-          !DatabaseConstants.isTalmudBavliInstallInProgress(candidatePath)) {
+      final dir = Directory(candidatePath);
+      // תיקייה ריקה אינה גוברת על מיקום חלופי שמכיל את קובצי המסכתות.
+      if (await dir.exists() &&
+          !DatabaseConstants.isTalmudBavliInstallInProgress(candidatePath) &&
+          await dir.list().any(
+            (entry) => entry is File && entry.path.toLowerCase().endsWith('.pdf'),
+          )) {
         result = (path: candidatePath, exists: true);
         break;
       }
