@@ -712,9 +712,13 @@ class UserContentImporter {
       errors.add('$fileName ${err.message} (שורה ${err.lineNumber})');
     }
 
-    // אישי/רשמי קודמים; ספר שאין בהם נלקח מהמסד המצורף הגלוי הראשון שמכיל אותו.
+    // כותרת המופיעה בספרייה האישית/הרשמית וגם במסד מצורף היא דו-משמעית.
     Future<_LocatedLinkBook?> locate(String title) async {
       final found = await locateBook(title);
+      final inAttached = await attached.locate(title);
+      if (found != null && inAttached != null) {
+        throw AmbiguousUserLinkBookException(title);
+      }
       if (found != null) {
         return (
           isUserBook: found.isUserBook,
@@ -724,7 +728,6 @@ class UserContentImporter {
           db: null,
         );
       }
-      final inAttached = await attached.locate(title);
       if (inAttached == null) return null;
       return (
         isUserBook: false,
@@ -740,7 +743,7 @@ class UserContentImporter {
       source = await locate(baseTitle);
     } on AmbiguousUserLinkBookException {
       errors.add(
-        '$fileName: ספר הבסיס "$baseTitle" קיים גם בספרייה האישית וגם ברשמית',
+        '$fileName: ספר הבסיס "$baseTitle" קיים ביותר ממקור אחד (אישי, רשמי או מסד מצורף)',
       );
       return;
     } on UnavailableUserLinkCatalogException {
@@ -762,7 +765,7 @@ class UserContentImporter {
         } on AmbiguousUserLinkBookException {
           ambiguousTargets.add(row.targetTitle);
           errors.add(
-            '$fileName: ספר היעד "${row.targetTitle}" קיים גם בספרייה האישית וגם ברשמית',
+            '$fileName: ספר היעד "${row.targetTitle}" קיים ביותר ממקור אחד (אישי, רשמי או מסד מצורף)',
           );
           continue;
         } on UnavailableUserLinkCatalogException {
