@@ -145,6 +145,11 @@ class DbCapabilities {
   bool get hasLinkSuppressedSide => hasLinks && has('link_suppressed_side');
   bool get hasLinkBaseProvenance => hasColumn('link', 'baseProvenance');
 
+  /// הצהרות על ספרי בסיס, המשמשות לסיווג מפרשים עם מעט קישורים.
+  bool get hasBookBaseTexts =>
+      hasColumn('book_base_text', 'bookId') &&
+      hasColumn('book_base_text', 'baseBookId');
+
   /// מהדורות: book_version בלי version_line (או להפך) אינה שמישה.
   bool get hasBookVersions =>
       hasBooks && has('book_version') && has('version_line');
