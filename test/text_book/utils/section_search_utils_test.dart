@@ -1036,6 +1036,58 @@ Future<void> main() async {
     });
   });
 
+  group('bracketMarkerFractionInLine — דפי הגמרא ברי"ף (issue #5506)', () {
+    const rif =
+        "<b><big>גמ'</big></b> (דף ב:) תנו רבנן אלף בית גימל (דף ח: ע\"ש) "
+        'דלת הא (דף ח.) וו זין (דף ח:) חית טית';
+    double at(String marker) {
+      final clean = cleanLineForSearch(rif);
+      return clean.indexOf(marker) / clean.length;
+    }
+
+    test('סמן בסוגריים עגולים בתוך שורה עם HTML', () {
+      expect(
+        bracketMarkerFractionInLine(rif, 'דף ב:'),
+        closeTo(at('(דף ב:)'), 0.001),
+      );
+      expect(bracketMarkerFractionInLine(rif, 'דף ב:'), greaterThan(0));
+    });
+
+    test('עמוד א ועמוד ב נבדלים, והפניה "ע"ש" מתעלמת', () {
+      expect(
+        bracketMarkerFractionInLine(rif, 'דף ח.'),
+        closeTo(at('(דף ח.)'), 0.001),
+      );
+      expect(
+        bracketMarkerFractionInLine(rif, 'דף ח:'),
+        closeTo(at('(דף ח:)'), 0.001),
+      );
+      expect(bracketMarkerFractionInLine(rif, 'דף ט:'), 0);
+    });
+
+    test('כותרת משנה עם מיקום אחרי מקף', () {
+      expect(
+        bracketMarkerFractionInLine(rif, 'דף ח: – רי"ף דף ג:'),
+        closeTo(at('(דף ח:)'), 0.001),
+      );
+    });
+
+    test('צורת ע"א / ע"ב, בגרשיים ובמירכאות', () {
+      const line = 'אלף בית (דף יז ע"א) גימל (דף ג ע״ב) דלת';
+      final clean = cleanLineForSearch(line);
+      expect(
+        bracketMarkerFractionInLine(line, 'דף יז.'),
+        closeTo(clean.indexOf('(דף יז') / clean.length, 0.001),
+      );
+      expect(
+        bracketMarkerFractionInLine(line, 'דף ג:'),
+        closeTo(clean.indexOf('(דף ג ') / clean.length, 0.001),
+      );
+      expect(bracketMarkerFractionInLine(line, 'דף ג.'), 0);
+      expect(bracketMarkerFractionInLine(line, 'דף יז:'), 0);
+    });
+  });
+
   group('noteAnchorFractionInLine (issue #2532)', () {
     PersonalNote note({String? anchorText, int? anchorStart}) => PersonalNote(
       id: 'n',
