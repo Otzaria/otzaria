@@ -713,10 +713,13 @@ class UserContentImporter {
     }
 
     // אישי/רשמי קודמים; ספר שאין בהם נלקח מהמסד המצורף הגלוי הראשון שמכיל אותו.
+    // כתיב קרוב באישי/רשמי אינו גובר על [title] עצמו במסד מצורף.
     Future<_LocatedLinkBook?> locate(String title) async {
       final found = await locateBook(title);
-      if (found != null) {
+      if (found != null &&
+          (found.title == title || await attached.locate(title) == null)) {
         return (
+          title: found.title,
           isUserBook: found.isUserBook,
           categoryId: found.categoryId,
           totalLines: found.totalLines,
@@ -727,6 +730,7 @@ class UserContentImporter {
       final inAttached = await attached.locate(title);
       if (inAttached == null) return null;
       return (
+        title: title,
         isUserBook: false,
         categoryId: null,
         totalLines: inAttached.totalLines,
@@ -820,12 +824,12 @@ class UserContentImporter {
       out.add(
         flip
             ? UserLinkRecord(
-                sourceTitle: row.targetTitle,
+                sourceTitle: target.title,
                 sourceCategoryId: target.categoryId,
                 sourceIsUserBook: target.isUserBook,
                 sourceDb: target.db,
                 sourceLineIndex: row.targetLineNumber - 1,
-                targetTitle: baseTitle,
+                targetTitle: source.title,
                 targetCategoryId: source.categoryId,
                 targetIsUserBook: source.isUserBook,
                 targetDb: source.db,
@@ -839,12 +843,12 @@ class UserContentImporter {
                 connectionType: connectionType,
               )
             : UserLinkRecord(
-                sourceTitle: baseTitle,
+                sourceTitle: source.title,
                 sourceCategoryId: source.categoryId,
                 sourceIsUserBook: source.isUserBook,
                 sourceDb: source.db,
                 sourceLineIndex: row.sourceLineNumber - 1,
-                targetTitle: row.targetTitle,
+                targetTitle: target.title,
                 targetCategoryId: target.categoryId,
                 targetIsUserBook: target.isUserBook,
                 targetDb: target.db,
@@ -954,6 +958,7 @@ class UserContentImporter {
 }
 
 typedef _LocatedLinkBook = ({
+  String title,
   bool isUserBook,
   int? categoryId,
   int totalLines,

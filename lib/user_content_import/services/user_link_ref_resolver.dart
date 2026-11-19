@@ -2,6 +2,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/library/models/library.dart' show normalizeBookTitle;
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart';
@@ -105,6 +106,7 @@ Future<Book?> _bookByTitle(
 }
 
 typedef LocatedUserLinkBook = ({
+  String title,
   bool isUserBook,
   int? categoryId,
   int totalLines,
@@ -141,17 +143,37 @@ Future<LocatedUserLinkBook?> locateUserLinkBookInRepositories(
   title,
 );
 
+/// כותרות המסד לפי [normalizeBookTitle], נבנות פעם אחת לכל מאתר ולא לכל החטאה.
+typedef _LooseTitles =
+    Map<SeforimRepository, Future<Map<String, List<String>>>>;
+
+Future<Map<String, List<String>>> _looseTitlesOf(SeforimRepository repo) async {
+  final byKey = <String, List<String>>{};
+  try {
+    for (final row in await repo.database.bookDao.selectAllLocalBooksSlim()) {
+      final title = row['title'] as String;
+      (byKey[normalizeBookTitle(title)] ??= []).add(title);
+    }
+  } on Exception catch (e) {
+    // כמו לפני הגיבוי: ספר שלא נמצא בהתאמה מדויקת פשוט אינו נמצא.
+    debugPrint('⚠️ [UserLinkBookLocator] $e');
+  }
+  return byKey;
+}
+
 Future<LocatedUserLinkBook?> _locateIn(
   Future<SeforimRepository?> Function(bool isUserBook) repositoryFor,
-  String title,
-) async {
+  String title, [
+  _LooseTitles? looseTitles,
+]) async {
   final userRepository = await repositoryFor(true);
   final userBook = userRepository == null
       ? null
       : await _bookByTitle(userRepository, title, null);
+  final SeforimRepository? officialRepository;
   Book? officialBook;
   try {
-    final officialRepository = await repositoryFor(false);
+    officialRepository = await repositoryFor(false);
     officialBook = officialRepository == null
         ? null
         : await _bookByTitle(officialRepository, title, null);
@@ -161,10 +183,35 @@ Future<LocatedUserLinkBook?> _locateIn(
   if (userBook != null && officialBook != null) {
     throw AmbiguousUserLinkBookException(title);
   }
-  final book = userBook ?? officialBook;
-  if (book == null) return null;
+  var isUserBook = userBook != null;
+  var book = userBook ?? officialBook;
+  if (book == null) {
+    // שם קובץ ב-Windows אינו יכול להכיל ", ולכן `ריף שבת` מכוון ל-`רי"ף שבת`.
+    final key = normalizeBookTitle(title);
+    final cache = looseTitles ?? {};
+    final loose = [
+      for (final (isUser, repo) in [
+        (true, userRepository),
+        (false, officialRepository),
+      ])
+        if (repo != null)
+          for (final match
+              in (await cache.putIfAbsent(
+                    repo,
+                    () => _looseTitlesOf(repo),
+                  ))[key] ??
+                  const <String>[])
+            (isUser, repo, match),
+    ];
+    if (loose.length != 1) return null;
+    final (isUser, repo, match) = loose.single;
+    isUserBook = isUser;
+    book = await _bookByTitle(repo, match, null);
+    if (book == null) return null;
+  }
   return (
-    isUserBook: userBook != null,
+    title: book.title,
+    isUserBook: isUserBook,
     categoryId: book.categoryId,
     totalLines: book.totalLines,
     isDependentOnly: _isDependentOnly(book),
@@ -189,6 +236,7 @@ userLinkResolversFor(
 }) {
   final userRepo = SeforimRepository(userDb);
   final locatedBooks = <String, Future<LocatedUserLinkBook?>>{};
+  final _LooseTitles looseTitles = {};
   Future<SeforimRepository?> repositoryFor(bool isUserBook) async {
     if (isUserBook) return userRepo;
     if (officialError != null) throw officialError;
@@ -217,7 +265,7 @@ userLinkResolversFor(
             _bookExists(await repositoryFor(isUserBook), title, categoryId),
     locateBook: (title) => locatedBooks.putIfAbsent(
       title,
-      () => _locateIn(repositoryFor, title),
+      () => _locateIn(repositoryFor, title, looseTitles),
     ),
   );
 }
