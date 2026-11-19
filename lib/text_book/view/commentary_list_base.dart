@@ -1717,6 +1717,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
       openBookCallback: widget.openBookCallback,
       displayProfile: state.commentaryDisplayProfile,
       copyDisplayProfile: _commentaryCopyProfile(state),
+      showAnchorMarker: state.bodyDisplayProfile.showAnchorMarkers,
       showSearch: widget.showSearch,
       searchQueryListenable: _searchQueryNotifier,
       currentSearchIndexListenable: _currentSearchIndexNotifier,

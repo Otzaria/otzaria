@@ -5,7 +5,6 @@ import 'package:otzaria/text_display/models/text_display_profile.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
-import 'package:otzaria/widgets/misc/app_dropdown_field.dart';
 import 'package:otzaria_context_menu/otzaria_context_menu.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 
@@ -46,21 +45,6 @@ abstract final class TextDisplayProfileEditor {
           punctuation: v ? MarkVisibility.show : MarkVisibility.hide,
         ),
       ),
-      _holyName(t),
-      _divineNames(t),
-      _SwitchField(
-        icon: OtzariaIcons.text_font_hebrew_24_filled,
-        title: t('ציוני המפרשים'),
-        subtitle: t('אותיות הציון שבטקסט, למשל (א)'),
-        read: (p) => p.anchorMarkers == MarkVisibility.show,
-        write: (p, v) => p.copyWith(
-          anchorMarkers: v ? MarkVisibility.show : MarkVisibility.hide,
-        ),
-      ),
-    ];
-  }
-
-  static _DropdownField<HolyNameDisplay> _holyName(String Function(String) t) =>
       _DropdownField<HolyNameDisplay>(
         icon: OtzariaIcons.alef_lock_24_filled,
         title: t('שם הוי"ה'),
@@ -73,31 +57,44 @@ abstract final class TextDisplayProfileEditor {
         ],
         read: (p) => p.holyName,
         write: (p, v) => p.copyWith(holyName: v),
-      );
-
-  static _SegmentField<DivineNamesDisplay> _divineNames(
-    String Function(String) t,
-  ) => _SegmentField<DivineNamesDisplay>(
-    icon: OtzariaIcons.alef_crown_24_filled,
-    title: t('שאר שמות הקודש'),
-    subtitle: t('אלהים, שדי, צבאות ועוד — בספרים שבהם השמות מסומנים'),
-    options: [
-      SegmentOption(value: DivineNamesDisplay.asIs, label: t('ככתבם')),
-      SegmentOption(
-        value: DivineNamesDisplay.substitute,
-        label: t('בכינוי'),
       ),
-    ],
-    read: (p) => p.divineNames,
-    write: (p, v) => p.copyWith(divineNames: v),
-  );
+      _SegmentField<DivineNamesDisplay>(
+        icon: OtzariaIcons.alef_crown_24_filled,
+        title: t('שאר שמות הקודש'),
+        subtitle: t('אלהים, שדי, צבאות ועוד — בספרים שבהם השמות מסומנים'),
+        options: [
+          SegmentOption(value: DivineNamesDisplay.asIs, label: t('ככתבם')),
+          SegmentOption(
+            value: DivineNamesDisplay.substitute,
+            label: t('בכינוי'),
+          ),
+        ],
+        read: (p) => p.divineNames,
+        write: (p, v) => p.copyWith(divineNames: v),
+      ),
+      _SwitchField(
+        icon: OtzariaIcons.text_font_hebrew_24_filled,
+        title: t('ציוני המפרשים'),
+        subtitle: t('אותיות הציון שבטקסט, למשל (א)'),
+        read: (p) => p.anchorMarkers == MarkVisibility.show,
+        write: (p, v) => p.copyWith(
+          anchorMarkers: v ? MarkVisibility.show : MarkVisibility.hide,
+        ),
+      ),
+    ];
+  }
 
-  /// פקדים צפופים למקטע בחלונית הסרגל.
+  /// פקדים צפופים לחלונית הסרגל. שמות הקודש מוצגים כאן כמתג אחד שמחליף
+  /// יחד את שם הוי"ה ואת שאר השמות; בחירת הנוסח נשארת בהגדרות המלאות.
+  ///
+  /// [preferredHolyName] — הנוסח שהמשתמש בחר לשם הוי"ה, לשימוש בהסתרה.
   static List<Widget> popupTiles(
     BuildContext context, {
     required TextDisplayProfile profile,
     required ValueChanged<TextDisplayProfile> onChanged,
     bool includeTeamimSelector = true,
+    HolyNameDisplay preferredHolyName = HolyNameDisplay.kufKuf,
+    bool includeHolyNames = true,
   }) {
     final t = context.settingsText;
     // אותם גדלים כמו בשאר התפריטים בתוכנה.
@@ -144,33 +141,6 @@ abstract final class TextDisplayProfileEditor {
       );
     }
 
-    Widget choiceRow(_Field field, Widget control) => Padding(
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: AppTokens.spaceSMD,
-        vertical: AppTokens.space2XS,
-      ),
-      child: Row(
-        children: [
-          Icon(
-            field.icon,
-            size: metrics.iconSize,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: AppTokens.spaceSM),
-          Expanded(
-            flex: 2,
-            child: Tooltip(
-              message: field.subtitle ?? field.title,
-              child: Text(field.title, style: itemStyle),
-            ),
-          ),
-          Flexible(flex: 3, child: control),
-        ],
-      ),
-    );
-
-    final holyName = _holyName(t);
-    final divineNames = _divineNames(t);
     return [
       visibilityRow(
         icon: OtzariaIcons.alef_niqqud_24_filled,
@@ -221,26 +191,14 @@ abstract final class TextDisplayProfileEditor {
         value: profile.anchorMarkers,
         onValue: (v) => onChanged(profile.copyWith(anchorMarkers: v)),
       ),
-      choiceRow(
-        holyName,
-        AppDropdownField<HolyNameDisplay>(
-          semanticLabel: holyName.title,
-          entries: holyName.entries,
-          value: profile.holyName,
-          onSelected: (value) {
-            if (value != null) onChanged(profile.copyWith(holyName: value));
-          },
+      if (includeHolyNames)
+        holyNamesTile(
+          context,
+          shown: holyNamesShown(profile),
+          onShown: (show) => onChanged(
+            withHolyNames(profile, show: show, preferred: preferredHolyName),
+          ),
         ),
-      ),
-      choiceRow(
-        divineNames,
-        AppSegmentedControl<DivineNamesDisplay>(
-          options: divineNames.options,
-          maxLabelLines: 2,
-          currentValue: profile.divineNames,
-          onChanged: (value) => onChanged(profile.copyWith(divineNames: value)),
-        ),
-      ),
     ];
   }
 
@@ -345,6 +303,87 @@ abstract final class TextDisplayProfileEditor {
     return Semantics(
       label: context.settingsText('טעמי המקרא'),
       child: control,
+    );
+  }
+
+  /// שמות הקודש מוצגים רק כששם הוי"ה וגם שאר השמות ככתבם; מצב מעורב = מוסתר.
+  static bool holyNamesShown(TextDisplayProfile profile) =>
+      profile.holyName == HolyNameDisplay.asIs &&
+      profile.divineNames == DivineNamesDisplay.asIs;
+
+  /// הצג: שניהם ככתבם. הסתר: נוסח קיים נשמר; אחרת הנוסח המועדף,
+  /// ו"ככתבו" הופך ליקוק. שאר השמות — בכינוי.
+  static TextDisplayProfile withHolyNames(
+    TextDisplayProfile profile, {
+    required bool show,
+    required HolyNameDisplay preferred,
+  }) => show
+      ? profile.copyWith(
+          holyName: HolyNameDisplay.asIs,
+          divineNames: DivineNamesDisplay.asIs,
+        )
+      : profile.copyWith(
+          holyName: profile.holyName != HolyNameDisplay.asIs
+              ? profile.holyName
+              : preferred != HolyNameDisplay.asIs
+              ? preferred
+              : HolyNameDisplay.kufKuf,
+          divineNames: DivineNamesDisplay.substitute,
+        );
+
+  /// שורת "שמות הקודש" בסגנון שאר שורות החלונית.
+  static Widget holyNamesTile(
+    BuildContext context, {
+    required bool shown,
+    required ValueChanged<bool> onShown,
+    String? subtitle,
+  }) {
+    final metrics =
+        Theme.of(context).extension<AppMenuMetrics>() ??
+        AppMenuMetrics.create(compactMenus: false);
+    return Padding(
+      padding: const EdgeInsetsDirectional.symmetric(
+        horizontal: AppTokens.spaceSMD,
+        vertical: AppTokens.space2XS,
+      ),
+      child: Row(
+        children: [
+          Icon(
+            OtzariaIcons.alef_crown_24_filled,
+            size: metrics.iconSize,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: AppTokens.spaceSM),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  context.settingsText('שמות הקודש'),
+                  style: TextStyle(fontSize: metrics.fontSize),
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: metrics.fontSize - 2,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Semantics(
+            label: context.settingsText('שמות הקודש'),
+            child: Switch(
+              value: shown,
+              onChanged: onShown,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -454,18 +493,12 @@ final class _TeamimField extends _Field {
       // מדידה מדויקת במקום ההערכה הכללית של SettingsActionTile.
       final scaler = MediaQuery.textScalerOf(context);
       final direction = Directionality.of(context);
-      double measure(String text, TextStyle? style) {
-        final painter = TextPainter(
-          text: TextSpan(text: text, style: style),
-          textDirection: direction,
-          textScaler: scaler,
-          maxLines: 1,
-        )..layout();
-        final width = painter.width;
-        painter.dispose();
-        return width;
-      }
-
+      double measure(String text, TextStyle? style) => (TextPainter(
+        text: TextSpan(text: text, style: style),
+        textDirection: direction,
+        textScaler: scaler,
+        maxLines: 1,
+      )..layout()).width;
       final bodyStyle = Theme.of(context).textTheme.bodyMedium;
       const iconArea = 56.0, hPadding = 32.0, chipPadding = 24.0;
       const switchWidth = 60.0, gaps = AppTokens.spaceSM + 12;

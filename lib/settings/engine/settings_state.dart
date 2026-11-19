@@ -229,7 +229,7 @@ class SettingsState extends Equatable {
       seedColor: AppSeedColors.defaultLight,
       darkSeedColor: AppSeedColors.defaultDark,
       textMaxWidth: 0, // 0 = רוחב מלא; חיובי = רוחב יעד בפיקסלים לוגיים
-      fontSize: 16,
+      fontSize: AppFonts.defaultReadingSize,
       fontFamily: AppFonts.defaultFont,
       commentatorsFontFamily: AppFonts.defaultCommentatorsFont,
       commentatorsFontSize: 22,

@@ -21,7 +21,12 @@ class _FakeTextBookRepository extends TextBookRepository {
 
 class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
     implements SettingsBloc {
-  _FakeSettingsBloc() : super(SettingsState.initial());
+  _FakeSettingsBloc([TextDisplayPolicy? policy])
+    : super(
+        policy == null
+            ? SettingsState.initial()
+            : SettingsState.initial().copyWith(textDisplayPolicy: policy),
+      );
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -46,14 +51,15 @@ void main() {
   setUpAll(() => Settings.init(cacheProvider: MemoryCacheProvider()));
 
   Future<TextBookBloc> pumpPanel(
-    WidgetTester tester,
-  ) async {
+    WidgetTester tester, {
+    TextDisplayPolicy? settingsPolicy,
+  }) async {
     final book = TextBook(title: 'ספר בדיקה');
     final bloc = TextBookBloc(
       repository: _FakeTextBookRepository(),
       initialState: TextBookInitial.named(book, 0, true, const []),
     );
-    final settings = _FakeSettingsBloc();
+    final settings = _FakeSettingsBloc(settingsPolicy);
     addTearDown(bloc.close);
     addTearDown(settings.close);
     // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
@@ -131,6 +137,24 @@ void main() {
     );
   });
 
+  testWidgets('שינוי שבוטל נמחק מהעקיפה, ו"איפוס" נעלם', (tester) async {
+    final bloc = await pumpPanel(tester);
+    expect(find.text('איפוס'), findsNothing);
+
+    await _tap(tester, _switchOf('סימני פיסוק'));
+    expect(
+      (bloc.state as TextBookLoaded).bodyDisplayProfile.removePunctuation,
+      isTrue,
+    );
+    expect(find.text('איפוס'), findsOneWidget);
+
+    await _tap(tester, _switchOf('סימני פיסוק'));
+    final state = bloc.state as TextBookLoaded;
+    expect(state.bodyDisplayProfile.removePunctuation, isFalse);
+    expect(state.displayOverrides.isEmpty, isTrue);
+    expect(find.text('איפוס'), findsNothing);
+  });
+
   testWidgets('"איפוס" מנקה את כל העקיפות', (tester) async {
     final bloc = await pumpPanel(tester);
 
@@ -142,4 +166,54 @@ void main() {
     expect(state.bodyDisplayProfile.removeNikud, isFalse);
     expect(find.text('איפוס'), findsNothing);
   });
+
+  testWidgets(
+    '"שמות הקודש" המשותף: הצג — ככתבם בשני המקטעים; הסתר — הנוסח מההגדרות ובכינוי',
+    (tester) async {
+      // בהגדרות נבחר הנוסח ה' לשם הוי"ה.
+      final bloc = await pumpPanel(
+        tester,
+        settingsPolicy: TextDisplayPolicy(
+          general: TextDisplayLayer({
+            TextDisplaySlot.root: const TextDisplayPatch(
+              holyName: HolyNameDisplay.hehApostrophe,
+            ),
+          }),
+          tanach: TextDisplayLayer.empty,
+        ),
+      );
+      expect(find.text('בגוף הספר ובמפרשים'), findsOneWidget);
+      expect(find.text('שמות הקודש'), findsOneWidget);
+
+      await _tap(tester, _switchOf('שמות הקודש'));
+      var state = bloc.state as TextBookLoaded;
+      for (final target in TextTarget.values) {
+        final profile = state.displayProfile(target: target);
+        expect(profile.holyName, HolyNameDisplay.asIs, reason: target.name);
+        expect(
+          profile.divineNames,
+          DivineNamesDisplay.asIs,
+          reason: target.name,
+        );
+      }
+      expect(tester.widget<Switch>(_switchOf('שמות הקודש')).value, isTrue);
+
+      await _tap(tester, _switchOf('שמות הקודש'));
+      state = bloc.state as TextBookLoaded;
+      for (final target in TextTarget.values) {
+        final profile = state.displayProfile(target: target);
+        expect(
+          profile.holyName,
+          HolyNameDisplay.hehApostrophe,
+          reason: target.name,
+        );
+        expect(
+          profile.divineNames,
+          DivineNamesDisplay.substitute,
+          reason: target.name,
+        );
+      }
+      expect(tester.widget<Switch>(_switchOf('שמות הקודש')).value, isFalse);
+    },
+  );
 }

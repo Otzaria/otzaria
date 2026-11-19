@@ -1740,6 +1740,22 @@ void main() {
       await _closeBlocAndAllowDeferredDispose(bloc);
     });
 
+    test(
+      'CloseOtherTabs משאיר כרטיסיות מוצמדות, כמו CloseAllTabs (#4950)',
+      () async {
+        final (bloc, tabs) = await openFour();
+        tabs[0].isPinned = true;
+
+        bloc.add(CloseOtherTabs(tabs[2]));
+        await bloc.stream.firstWhere((s) => s.tabs.length < 4);
+
+        expect(bloc.state.tabs.map((t) => t.title), ['א', 'ג']);
+        expect(bloc.state.currentTab, same(tabs[2]));
+        expect(await restoreAll(bloc, 2), ['א', 'ב', 'ג', 'ד']);
+        await _closeBlocAndAllowDeferredDispose(bloc);
+      },
+    );
+
     test('AdoptTab ושחזור סדרתי מחזירים את הסדר המקורי', () async {
       final (bloc, _) = await openFour();
 

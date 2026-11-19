@@ -204,8 +204,8 @@ Three parts, all mandatory:
 2. **Reveal gate with a timeout** — never an unguarded `await` on the completer.
    **Exception:** a step that makes a synchronous native call (e.g. building the Sentry options over FFI in
    `_initializeSentry`) awaits the reveal with **no** timeout. Running it before reveal is the
-   #1192 block itself, and it would hit exactly the machines whose reveal is slow. Our
-   sentry_flutter fork loads `sentry.dll` and runs `sentry_init` on helper isolates (#3422).
+   #1192 block itself, and it would hit exactly the machines whose reveal is slow. On Windows,
+   sentry_flutter loads `sentry.dll` and runs `sentry_init` on a worker isolate (#3422).
 3. **Non-fatal failure** — a startup step must never abort the boot. It logs through
    `_logNonFatalInitializationError` and returns.
 

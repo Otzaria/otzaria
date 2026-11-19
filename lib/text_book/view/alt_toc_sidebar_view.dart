@@ -25,6 +25,8 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/utils/dibburim_structure.dart';
 import 'package:otzaria/text_book/utils/inline_section_markers.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart'
+    show HolyNameStyle, replaceHolyNames;
 import 'package:otzaria/text_book/utils/section_search_utils.dart'
     show bracketMarkerFractionInLine;
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
@@ -936,9 +938,22 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
     }
   }
 
+  HolyNameStyle? _holyNameStyle;
+
+  String _displayTitle(String text) {
+    final style = _holyNameStyle;
+    return style == null ? text : replaceHolyNames(text, style: style);
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    _holyNameStyle = context.select((TextBookBloc bloc) {
+      final state = bloc.state;
+      return state is TextBookLoaded
+          ? state.bodyDisplayProfile.holyName.style
+          : null;
+    });
 
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -1049,7 +1064,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             NavTreeHeader(
-                              title: widget.book.title,
+                              title: _displayTitle(widget.book.title),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -1095,7 +1110,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
         itemBuilder: (context, index) {
           if (index == 0) {
             return NavTreeHeader(
-              title: widget.book.title,
+              title: _displayTitle(widget.book.title),
               trailing: const NavPanelSearchToggle(),
             );
           }
@@ -1108,7 +1123,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
             isGroupStart: index == 1,
             isGroupEnd: index == matches.length,
             child: NavTreeTile.heading(
-              title: entry.text ?? '',
+              title: _displayTitle(entry.text ?? ''),
               level: 0,
               isSelected: isSelected,
               onTap: () {
@@ -1123,7 +1138,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
   }
 
   String _structureTitle(AltTocStructure structure) =>
-      structure.heTitle ?? structure.title ?? structure.key;
+      _displayTitle(structure.heTitle ?? structure.title ?? structure.key);
 
   Widget _buildStructureChips() {
     return Padding(
@@ -1252,7 +1267,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
         () => ValueNotifier(0),
       ),
       builder: (context, _, _) => NavTreeTile.heading(
-        title: entry.text ?? '',
+        title: _displayTitle(entry.text ?? ''),
         level: level,
         isSelected: entry.id == _activeEntryIds[structureId],
         isExpanded: isExpanded,

@@ -233,31 +233,78 @@ void main() {
       );
     });
 
-    testWidgets('הטקסט ממורכז בשטח התוכן של הכפתור, לא צמוד לצד אחד', (
-      tester,
-    ) async {
-      await pumpDropdown<String>(
-        tester,
-        value: 'a',
-        entries: const [AppMenuEntry<String>(value: 'a', label: 'קצר')],
-        onSelected: (_) {},
+    for (final direction in TextDirection.values) {
+      testWidgets(
+        'הטקסט ממורכז על כל רוחב הכפתור, לא רק על השטח שלפני החץ (${direction.name})',
+        (tester) async {
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Directionality(
+                textDirection: direction,
+                child: Scaffold(
+                  body: Center(
+                    child: SizedBox(
+                      width: 240,
+                      child: AppDropdownField<String>(
+                        value: 'a',
+                        entries: const [
+                          AppMenuEntry<String>(value: 'a', label: 'קצר'),
+                        ],
+                        onSelected: (_) {},
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+
+          final buttonRect = tester.getRect(find.byType(FilledButton));
+          final textRect = tester.getRect(find.text('קצר'));
+
+          expect(
+            (textRect.center.dx - buttonRect.center.dx).abs(),
+            lessThan(1.5),
+            reason: 'הכפתור הוא כמוסה אחת — הטקסט במרכזה, והחץ סימן בצד',
+          );
+        },
+      );
+    }
+
+    testWidgets('תווית ארוכה לא נדחפת אל החץ', (tester) async {
+      const label = 'זוהי תווית ארוכה מאוד שאינה נכנסת ברוחב הכפתור כלל';
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 160,
+                  child: AppDropdownField<String>(
+                    value: 'a',
+                    entries: const [
+                      AppMenuEntry<String>(value: 'a', label: label),
+                    ],
+                    onSelected: (_) {},
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       );
 
       final buttonRect = tester.getRect(find.byType(FilledButton));
       final iconRect = tester.getRect(
         find.byIcon(FluentIcons.chevron_down_24_regular),
       );
-      final textRect = tester.getRect(find.text('קצר'));
+      final textRect = tester.getRect(find.text(label));
 
-      // שטח התוכן הוא בין תחילת הכפתור לתחילת אזור החץ.
-      final contentCenter = (buttonRect.left + iconRect.left) / 2;
-      final textCenter = (textRect.left + textRect.right) / 2;
-
-      expect(
-        (textCenter - contentCenter).abs(),
-        lessThan(6),
-        reason: 'הטקסט אמור להיות ממורכז בשטח התוכן, לא צמוד לקצה אחד',
-      );
+      // ב-RTL החץ משמאל: הטקסט נגמר לפני החץ ולא חורג מהכפתור.
+      expect(textRect.left, greaterThanOrEqualTo(iconRect.right));
+      expect(textRect.right, lessThanOrEqualTo(buttonRect.right));
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets(

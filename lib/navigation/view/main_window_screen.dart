@@ -424,8 +424,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
   bool _tourOverlayInsertScheduled = false;
   bool _tourOpenedOverflowMenu = false;
   late Screen _lastScreen;
-  // עוקב אחר מצב ההגדרות הקודם לצורך dispatch ספציפי
-  SettingsState? _prevSettingsState;
+  late SettingsState _prevSettingsState;
   late IndexUpdateMode _indexUpdateMode;
   // עוקב אחר מצב הלוח הקודם לצורך dispatch ספציפי
   CalendarState? _prevCalendarState;
@@ -688,7 +687,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
     StartupTimeline.instance.markOnce('mainScreenInit');
     _role = AppWindowScope.roleOf(context);
     _duties = ProcessDuties.of(context);
-    _indexUpdateMode = context.read<SettingsBloc>().state.indexUpdateMode;
+    _prevSettingsState = context.read<SettingsBloc>().state;
+    _indexUpdateMode = _prevSettingsState.indexUpdateMode;
     // מאזין לזרם סטטי בלבד: המאגר הסמנטי לא נוצר עד שמשתמשים בו.
     _semanticWorkStatusSub = SemanticSearchRepository.sharedAvailabilityChanges
         .listen((availability) {
@@ -3433,7 +3433,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
                   previous.settingsLanguageCode != current.settingsLanguageCode;
             },
             listener: (context, current) {
-              final previous = _prevSettingsState ?? SettingsState.initial();
+              final previous = _prevSettingsState;
               _prevSettingsState = current;
 
               // --- settings.changed: one event per changed key (allowlist only) ---
