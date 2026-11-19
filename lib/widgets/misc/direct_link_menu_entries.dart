@@ -59,7 +59,12 @@ List<AppContextMenuSubAction> buildDirectLinkSubmenuActions({
                         ) ??
                         link;
                   }
-                  await copyLinkToClipboard(link);
+                  await copyLinkToClipboard(
+                    link,
+                    sectionMarkAlternative: e.kind == DirectLinkKind.textMark
+                        ? buildSectionMarkLink(bookId, index, source: source)
+                        : null,
+                  );
                 },
         ),
       )

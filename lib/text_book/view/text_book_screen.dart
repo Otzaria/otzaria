@@ -2843,7 +2843,14 @@ bool _handleGlobalKeyEvent(
       } else if (link == null) {
         UiSnack.showError(TextBookMessages.selectTextForMarkLink);
       } else {
-        copyLinkToClipboard(link);
+        copyLinkToClipboard(
+          link,
+          sectionMarkAlternative: buildSectionMarkLink(
+            bookId,
+            index,
+            source: state.book.source,
+          ),
+        );
       }
       return true;
     }
