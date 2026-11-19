@@ -245,6 +245,10 @@ abstract class SettingsMessages {
   static const String perBookSettingsResetFailed =
       'איפוס ההגדרות האישיות של הספרים נכשל';
 
+  // ── איתור מותאם אישית (find_ref_personal_order_tile) ───────────────────
+
+  static const String findRefPersonalOrderReset = 'האיתור חזר לסדר הרגיל';
+
   // ── קטלוג חיצוני (external_catalog_settings_helper) ────────────────────
 
   static const String noCatalogNoExternalBooks =

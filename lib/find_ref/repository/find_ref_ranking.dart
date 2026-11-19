@@ -250,6 +250,24 @@ int compareFindRefRelevance(
   FindRefRankKey<Object?> b,
   FindRefRankQuery query,
 ) {
+  final classCmp = compareFindRefMatchClass(a, b, query);
+  if (classCmp != 0) return classCmp;
+
+  // 7. סדר ספר בספרייה
+  final orderCmp = a.orderIndex.compareTo(b.orderIndex);
+  if (orderCmp != 0) return orderCmp;
+
+  // 8. סדר: TOC L1 < TOC L2 < AltToc < TOC L3+
+  return a.specificity.compareTo(b.specificity);
+}
+
+/// מחלקת ההתאמה: כל מפתחות הרלוונטיות שלפני סדר המדף. שתי תוצאות ששוות
+/// בה מוכרעות היום רק לפי מקום הספר בספרייה.
+int compareFindRefMatchClass(
+  FindRefRankKey<Object?> a,
+  FindRefRankKey<Object?> b,
+  FindRefRankQuery query,
+) {
   // בשאילתת ד"ה הדיבור הוא התשובה, גם כשהספר שלו אינו הספר שנקרא בשמו.
   if (a.answersDibbur != b.answersDibbur) return a.answersDibbur ? -1 : 1;
 
@@ -341,13 +359,7 @@ int compareFindRefRelevance(
   if (aPartial != (b.specificity >= _partialTocRankOffset)) {
     return aPartial ? 1 : -1;
   }
-
-  // 7. סדר ספר בספרייה
-  final orderCmp = a.orderIndex.compareTo(b.orderIndex);
-  if (orderCmp != 0) return orderCmp;
-
-  // 8. סדר: TOC L1 < TOC L2 < AltToc < TOC L3+
-  return a.specificity.compareTo(b.specificity);
+  return 0;
 }
 
 /// מקום המילה הראשונה של השאילתה בכותרת; 0 כשאינה בה (כינוי, ראשי-תיבות)
@@ -376,4 +388,76 @@ int compareFindRefRank(
     b.reference,
     b.segment,
   );
+}
+
+/// כמה שורות ראשונות של ספר מועדף מוקדמות; שאר שורותיו נשארות במקומן.
+const int findRefPersonalRowsPerBook = 2;
+
+/// כמה שורות של ספרים מועדפים נוספות לכל היותר מעבר לחיתוך.
+const int findRefPersonalMaxAdditions = 6;
+
+/// סידור אישי **אחרי** הדירוג: מזיז שורות בתוך [kept] (אינדקסים ב-[sorted],
+/// בסדר עולה) ומוסיף מעטות — לעולם אינו גורע. [cutoff] — אורך הרצף שנחתך.
+List<int> personalizeFindRefOrder(
+  List<FindRefRankKey<Object?>> sorted,
+  List<int> kept,
+  FindRefRankQuery query, {
+  required int cutoff,
+  required List<String?> books,
+  required List<double> affinities,
+}) {
+  bool isPartial(int i) => sorted[i].specificity >= _partialTocRankOffset;
+
+  // מועמדי ההקדמה: השורות הראשונות של כל ספר מועדף שענו על כל השאילתה.
+  final candidates = <int>{};
+  final rowsPerBook = <String, int>{};
+  for (var i = 0; i < sorted.length; i++) {
+    final book = books[i];
+    if (book == null || affinities[i] <= 0 || isPartial(i)) continue;
+    final taken = rowsPerBook[book] ?? 0;
+    if (taken >= findRefPersonalRowsPerBook) continue;
+    rowsPerBook[book] = taken + 1;
+    candidates.add(i);
+  }
+  if (candidates.isEmpty || kept.isEmpty) return kept;
+
+  final included = kept.toSet();
+  // אחרי [cutoff] נשארה רק מכסת הזנב של #839, שאינה גבול לתוספות.
+  if (cutoff > 0 && cutoff < sorted.length) {
+    final boundary = sorted[cutoff - 1];
+    var additions = 0;
+    for (final i in candidates) {
+      if (additions >= findRefPersonalMaxAdditions) break;
+      if (included.contains(i)) continue;
+      // רק שורה שמחלקת ההתאמה שלה אינה גרועה משל האחרונה שבחיתוך.
+      if (compareFindRefMatchClass(sorted[i], boundary, query) > 0) continue;
+      included.add(i);
+      additions++;
+    }
+  }
+
+  // התוספות נכנסות במקומן בסדר הדירוג; מכאן רק מועמדים זזים, שורה-שורה
+  // כלפי מעלה, ונעצרים בחוסם הראשון — כך שאר השורות נשארות בסדרן.
+  final order = included.toList()..sort();
+  // מי שאינו מועמד נחשב חסר זיקה — גם שורה שלישית ואילך של ספר מועדף,
+  // ולכן שתי הראשונות של כל ספר מועדף קודמות לשורות הנוספות של אחר.
+  double boost(int i) => candidates.contains(i) ? affinities[i] : 0;
+  for (final candidate in candidates) {
+    var at = order.indexOf(candidate);
+    if (at < 0) continue;
+    while (at > 0) {
+      final above = order[at - 1];
+      // עוקפים רק שורה מאותה מחלקה, פחות מועדפת, ושאינה ספציפית יותר.
+      if (compareFindRefMatchClass(sorted[above], sorted[candidate], query) !=
+              0 ||
+          boost(above) >= boost(candidate) ||
+          sorted[above].specificity < sorted[candidate].specificity) {
+        break;
+      }
+      order[at] = above;
+      order[--at] = candidate;
+    }
+  }
+
+  return order;
 }

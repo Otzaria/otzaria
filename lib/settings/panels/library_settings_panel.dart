@@ -6,6 +6,7 @@ import 'package:otzaria/external_catalog/repository/external_catalog_repository.
 import 'package:otzaria/external_catalog/view/external_catalog_settings_helper.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/settings/l10n/settings_text.dart';
+import 'package:otzaria/settings/panels/find_ref_personal_order_tile.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
@@ -43,6 +44,25 @@ class LibrarySettingsPanel extends StatefulWidget {
       tab: SettingsTab.library,
       cardId: 'library.display',
       keywords: ['תצוגה מקדימה', 'preview', 'מופעל', 'לא מופעל'],
+    ),
+    SettingsSearchEntry(
+      id: 'library.display.find_ref_personal_order',
+      title: 'איתור מותאם אישית',
+      subtitle: 'ספרים שפתחת לאחרונה מהאיתור יוקדמו בתוצאות',
+      tab: SettingsTab.library,
+      cardId: 'library.display',
+      keywords: [
+        'איתור',
+        'סדר',
+        'אישי',
+        'איפוס',
+        'find',
+        'personalized',
+        'ranking',
+        'reset',
+        'מופעל',
+        'לא מופעל',
+      ],
     ),
     SettingsSearchEntry(
       id: 'library.external.local_hebrewbooks',
@@ -164,6 +184,7 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
                     );
                   },
                 ),
+                const FindRefPersonalOrderTile(),
               ],
             ),
 
