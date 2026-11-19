@@ -173,6 +173,26 @@ void main() {
       expect(link!, startsWith('otzaria://open/book/1?index=5&m='));
     });
 
+    test('הקישור לא עובר 255 תווים, מגבלת היפר-קישור בוורד (issue #2590)', () {
+      // otzaria://open/book/1234?index=42&m= הוא 36 תווים, ואות עברית מקודדת ל-6.
+      final fits = buildTextMarkLink(1234, 42, 'abc${'א' * 36}');
+      expect(fits, hasLength(255));
+      expect(fits, contains('&m=abc%D7%90'));
+
+      final selection = List.filled(15, 'בראשית').join(' ');
+      for (final link in [
+        buildTextMarkLink(1234, 42, 'abcd${'א' * 36}'),
+        buildDirectLinkSubmenuEntries(
+          bookId: 1234,
+          index: 42,
+          selectedText: selection,
+        ).singleWhere((e) => e.kind == DirectLinkKind.textMark).link,
+      ]) {
+        expect(link!.length, lessThanOrEqualTo(255));
+        expect(link, buildSectionMarkLink(1234, 42));
+      }
+    });
+
     // Property 4: טקסט ריק מחזיר null — Validates: Requirements 5.5
     test('Property 4: טקסט ריק מחזיר null', () {
       for (final emptyText in ['', ' ', '   ', '\t', '\n', '\r\n']) {
