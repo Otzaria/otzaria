@@ -77,6 +77,23 @@ void main() {
       },
     );
 
+    test('תיקיית PDF ראשית ריקה אינה מסתירה קבצים בתיקיית הגיבוי', () async {
+      final candidates = DatabaseConstants.getTalmudBavliDirectoryPaths(
+        tempDir.path,
+        'Otzaria',
+      );
+      expect(candidates, hasLength(2));
+      await Directory(candidates.first).create(recursive: true);
+      final fallback = await Directory(candidates.last).create(recursive: true);
+      final pdf = await File(path.join(fallback.path, 'ברכות.pdf'))
+          .writeAsBytes(const [37, 80, 68, 70]);
+
+      final provider = FileSystemLibraryProvider.instance;
+      final books = await provider.loadBooks({});
+      expect(books[DatabaseConstants.talmudBavliFolderName]!.single.filePath,
+          pdf.path);
+    });
+
     test('ספרים אישיים קודמים לקובצי בבלי בקטגוריה משותפת', () async {
       const category = DatabaseConstants.talmudBavliFolderName;
       final personalDir = await Directory(
