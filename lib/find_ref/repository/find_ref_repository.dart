@@ -1254,21 +1254,74 @@ class FindRefRepository {
         (queryTokens, books, detection) = (stripped, retryBooks, retry);
       }
     }
-    final search = _FindRefSearch(
-      rawQuery: query.ref,
-      queryTokens: queryTokens,
-      dibburPrefix: query.dibbur?.prefix,
-      visibility: visibility,
-      books: books,
-      detection: detection,
-      bookMatchRanks: _bookMatchRanks(detection, queryTokens),
-      includePersonalBooks: includePersonalBooks,
-      userBooks: userBooks,
-    );
+    Future<List<DbReferenceResult>> resultsFor(
+      List<String> tokens,
+      _BookSearch books,
+      _BookDetection detection,
+    ) {
+      final search = _FindRefSearch(
+        rawQuery: query.ref,
+        queryTokens: tokens,
+        dibburPrefix: query.dibbur?.prefix,
+        visibility: visibility,
+        books: books,
+        detection: detection,
+        bookMatchRanks: _bookMatchRanks(detection, tokens),
+        includePersonalBooks: includePersonalBooks,
+        userBooks: userBooks,
+      );
+      return tokens.length == 1
+          ? _singleWordResults(search)
+          : _multiWordResults(search, repository);
+    }
 
-    return queryTokens.length == 1
-        ? _singleWordResults(search)
-        : _multiWordResults(search, repository);
+    final results = await resultsFor(queryTokens, books, detection);
+    final original = query.tokens;
+    if (results.isNotEmpty ||
+        original.length < 2 ||
+        !_genrePrefixes.contains(original.first)) {
+      return results;
+    }
+    throwIfSearchCancelled();
+    // "שו"ת הב"ח" הוא "תשובות בית חדש": בלי תוצאה מנסים את הסוגה השנייה.
+    // מילת הסוגה לבדה אינה מזהה ספר.
+    final swapped = [
+      _genrePrefixes.firstWhere((g) => g != original.first),
+      ...original.skip(1),
+    ];
+    final swappedBooks = _BookSearch(
+      injected: searchReferenceBooks,
+      queryTokens: swapped,
+      visibility: visibility,
+    );
+    final swappedDetection = _detectBooks(swappedBooks, swapped);
+    if (swappedDetection.phraseTokenCount < 2) return results;
+
+    final swappedResults = await resultsFor(
+      swapped,
+      swappedBooks,
+      swappedDetection,
+    );
+    if (query.dibbur != null ||
+        swappedDetection.phraseTokenCount != swapped.length) {
+      return swappedResults;
+    }
+    // בהחלפת סוגה, שם או כינוי מלא עדיפים על כינוי ארוך שרק מתחיל
+    // באותן מילים ("תשובות בח" לעומת "תשובות הבח על רי״ף תענית").
+    final exactBooks = {
+      for (final hit in swappedDetection.hits)
+        if (hit.namesBookExactly)
+          _bookKey(BookSource.official, hit.bookId, hit.filePath),
+    };
+    if (exactBooks.isEmpty) return swappedResults;
+    final exactResults = [
+      for (final result in swappedResults)
+        if (exactBooks.contains(
+          _bookKey(result.source, result.bookId, result.filePath),
+        ))
+          result,
+    ];
+    return exactResults.isEmpty ? swappedResults : exactResults;
   }
 
   static const _genrePrefixes = {'שות', 'תשובות'};
