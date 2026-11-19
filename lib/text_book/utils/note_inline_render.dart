@@ -90,9 +90,10 @@ String buildAnnotatedLineHtml({
         addNoteSpan(expanded.start, expanded.end, note.id);
         continue;
       }
-      // לא נמצא הביטוי — נופלים לסימון כל השורה.
+      // Unresolved word anchors must never spread across the entire line.
+      continue;
     }
-    // הערת-שורה-שלמה (או נפילה מאיתור כושל): סימון כל השורה.
+    // הערת-שורה-שלמה בלבד: סימון כל השורה.
     addNoteSpan(0, rawLine.length, note.id);
   }
 
