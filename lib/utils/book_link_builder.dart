@@ -73,7 +73,8 @@ String buildSectionMarkLink(
 
 /// בניית קישור למקטע עם הדגשת טקסט ספציפי.
 /// text ריק או רווחים בלבד → מחזיר null (לא לבנות קישור).
-/// ערכי index שליליים מוחלפים ב-0.
+/// ערכי index שליליים מוחלפים ב-0. קישור ארוך מ-255 תווים (מגבלת היפר-קישור
+/// בוורד) מוחלף בקישור עם הדגשת המקטע.
 String? buildTextMarkLink(
   int bookId,
   int index,
@@ -82,8 +83,11 @@ String? buildTextMarkLink(
 }) {
   final trimmed = text.trim();
   if (trimmed.isEmpty) return null;
-  final encoded = Uri.encodeComponent(trimmed);
-  return 'otzaria://open/book/$bookId${_queryPrefix(source)}index=${index < 0 ? 0 : index}&m=$encoded';
+  final link =
+      'otzaria://open/book/$bookId${_queryPrefix(source)}index=${index < 0 ? 0 : index}&m=${Uri.encodeComponent(trimmed)}';
+  return link.length <= 255
+      ? link
+      : buildSectionMarkLink(bookId, index, source: source);
 }
 
 /// בניית רשימת פריטי תת-תפריט "העתק קישור ישיר" עבור תפריט הלחיצה הימנית.
