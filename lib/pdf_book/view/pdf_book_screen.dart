@@ -4498,7 +4498,16 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                 key: _pdfViewportBoundaryKey,
                 child: Stack(
                   children: [
-                    _buildPdfViewerFromFile(),
+                    // תעלה לפס הגלילה האנכי (מימין בכל כיוון, כמו הפס), כדי
+                    // שלא יכסה את הדף.
+                    Row(
+                      textDirection: TextDirection.ltr,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(child: _buildPdfViewerFromFile()),
+                        const SizedBox(width: _verticalScrollbarGutter),
+                      ],
+                    ),
                     BlocBuilder<PdfBookBloc, PdfBookState>(
                       buildWhen: (prev, curr) {
                         if (prev is PdfBookLoaded && curr is PdfBookLoaded) {
