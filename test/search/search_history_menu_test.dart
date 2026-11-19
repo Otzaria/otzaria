@@ -141,4 +141,25 @@ Future<void> main() async {
     },
     skip: !engineReady,
   );
+
+  testWidgets('רשומה ותיקה מציגה את הנוסח השמור כשהפיצול הנוכחי שונה', (
+    tester,
+  ) async {
+    const storedRef = 'רמב"ם תורה';
+    await _pump(tester, [
+      Bookmark(
+        ref: storedRef,
+        book: TextBook(title: storedRef),
+        index: 0,
+        isSearch: true,
+        searchOptions: {
+          'רמב_0': {'קידומות דקדוקיות': true},
+          'תורה_2': {'סיומות': true},
+        },
+      ),
+    ]);
+
+    expect(find.text(storedRef), findsOneWidget);
+    expect(find.byTooltip(storedRef), findsOneWidget);
+  }, skip: !engineReady);
 }

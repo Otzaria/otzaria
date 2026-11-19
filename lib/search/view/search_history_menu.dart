@@ -162,6 +162,12 @@ class _SearchHistoryRow extends StatelessWidget {
         theme.extension<AppMenuMetrics>() ??
         AppMenuMetrics.create(compactMenus: false);
     final touch = theme.materialTapTargetSize == MaterialTapTargetSize.padded;
+    final formattedTitle = searchTitleSpan(context, entry);
+    // חוקי הפיצול יכולים להשתנות בין גרסאות. התפריט מציג את הנוסח שנשמר.
+    final title =
+        formattedTitle != null && formattedTitle.toPlainText() == entry.ref
+        ? formattedTitle
+        : TextSpan(text: entry.ref);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppTokens.space2XS),
       child: Material(
@@ -191,8 +197,7 @@ class _SearchHistoryRow extends StatelessWidget {
                     child: Tooltip(
                       message: entry.ref,
                       child: Text.rich(
-                        searchTitleSpan(context, entry) ??
-                            TextSpan(text: entry.ref),
+                        title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodyMedium?.copyWith(
