@@ -272,7 +272,7 @@ void main() {
           '<w:r><w:rPr><w:bCs/></w:rPr><w:t>מודגשת</w:t></w:r>'
           '<w:r><w:rPr><w:b w:val="0"/></w:rPr><w:t xml:space="preserve"> '
           'וסוף &amp; &lt;x&gt;</w:t><w:br/><w:t>שורה</w:t></w:r></w:p>'
-          '<w:p><w:r><w:t>פסקה שנייה</w:t></w:r></w:p>'
+          '<w:p><w:r><w:t>פסקה שנייה</w:t><w:br/></w:r></w:p>'
           '</w:footnote></w:footnotes>';
 
       final result = docxToText(

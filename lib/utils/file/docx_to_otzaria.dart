@@ -40,7 +40,8 @@ import 'package:xml/xml.dart' as xml;
 /// תא פותח אינו נמחק, וכותרת עוברת trim.
 /// v15: קישורי OOXML ו-WordML 2003 נשמרים כ-`<a href="…">` מאומתים,
 /// וסימניות יעד הופכות לעוגנים באותה שורת פלט — גם כשאינן כותרות.
-const int kOoxmlWordConverterVersion = 15;
+/// v16: גוף הערת שוליים שומר הדגשה, ומעבר פסקה/שורה בו הוא `<br>`.
+const int kOoxmlWordConverterVersion = 16;
 
 // Windows-1255 Hebrew range: 0xC0–0xD8 and 0xE0–0xFA map to Unicode with offset 1264.
 // 0xE0 (224) + 1264 = 1488 = U+05D0 = א, ... 0xFA (250) + 1264 = 1514 = U+05EA = ת
@@ -849,10 +850,7 @@ String _renderParagraphInline(xml.XmlElement paragraph, _DocxContext ctx) {
       if (id != null && ctx.footnotes.containsKey(id)) {
         target.add(
           _Seg.raw(
-            otzariaFootnote(
-              ctx.footnoteCounter.next(),
-              escapeHtmlText(ctx.footnotes[id]!),
-            ),
+            otzariaFootnote(ctx.footnoteCounter.next(), ctx.footnotes[id]!),
           ),
         );
       }
@@ -863,7 +861,7 @@ String _renderParagraphInline(xml.XmlElement paragraph, _DocxContext ctx) {
     // ה-run עצמו. בלי הטיפול כאן הוא היה זולג לגוף הפסקה כטקסט רגיל.
     final inlineFootnote = run.getElement('w:footnote');
     if (inlineFootnote != null) {
-      final body = escapeHtmlText(inlineFootnote.innerText).trim();
+      final body = _footnoteHtml(inlineFootnote);
       if (body.isNotEmpty) {
         target.add(_Seg.raw(otzariaFootnote(ctx.footnoteCounter.next(), body)));
       }
@@ -1182,24 +1180,43 @@ String? _buildTableHtml(xml.XmlElement table, _DocxContext ctx) {
   return '${otzariaTableOpen(attributes: dir)}$rows</table>';
 }
 
-/// טקסט הערת שוליים כשורה אחת.
-///
-/// גבול פסקה, `w:br` ו-`w:tab` הופכים לרווח: חיבור כל ה-`w:t` במחרוזת ריקה
-/// מדביק את המילה האחרונה של פסקה אחת לראשונה של הבאה, והחיפוש על הצירוף
-/// מפסיק למצוא. אותה תבנית בדיוק בממירי ODT ו-Word הבינארי.
-String _footnoteText(xml.XmlElement footnote) {
-  final buffer = StringBuffer();
-  for (final node in footnote.descendantElements) {
-    switch (node.name.qualified) {
-      case 'w:t':
-        buffer.write(node.innerText);
-      case 'w:p':
-      case 'w:br':
-      case 'w:tab':
-        buffer.write(' ');
+/// גוף הערת שוליים כ-HTML של שורה אחת: הדגשה נשמרת, וגבול פסקה ו-`w:br`
+/// הופכים ל-`<br>` (issue #2682). `<br>` הוא גם גבול מילה לחיפוש, כך שמילים
+/// משני צדיו אינן נדבקות. נטוי אינו נשמר: `<i>` מקונן היה סוגר את
+/// `<i class="footnote">` מוקדם מדי בשכבת התצוגה.
+String _footnoteHtml(xml.XmlElement footnote) {
+  final segs = <_Seg>[];
+  xml.XmlElement? lastParagraph;
+  for (final run in footnote.findAllElements('w:r')) {
+    final text = StringBuffer();
+    for (final child in run.childElements) {
+      switch (child.name.qualified) {
+        case 'w:t':
+          text.write(escapeHtmlText(child.innerText));
+        case 'w:br':
+          text.write('<br>');
+        case 'w:tab':
+          text.write(' ');
+      }
     }
+    if (text.isEmpty) continue;
+    final paragraph = run.ancestorElements.firstWhere(
+      (e) => e.name.qualified == 'w:p',
+      orElse: () => footnote,
+    );
+    if (lastParagraph != null && paragraph != lastParagraph) {
+      segs.add(const _Seg.raw('<br>'));
+    }
+    lastParagraph = paragraph;
+    final rPr = run.getElement('w:rPr');
+    final bold =
+        _isOnOff(rPr?.getElement('w:b')) || _isOnOff(rPr?.getElement('w:bCs'));
+    segs.add(_Seg(bold ? '<b>' : '', bold ? '</b>' : '', text.toString()));
   }
-  return buffer.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
+  return _renderSegs(segs)
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .replaceAll(RegExp(r' ?<br> ?'), '<br>')
+      .replaceAll(RegExp(r'^(?: |<br>)+|(?: |<br>)+$'), '');
 }
 
 /// Extracts footnotes from the document
@@ -1221,7 +1238,7 @@ Map<String, String> _extractFootnotes(Archive archive) {
           final id = footnote.getAttribute('w:id');
           if (id != null && id != '-1' && id != '0') {
             // Skip automatic footnotes
-            footnotes[id] = _footnoteText(footnote);
+            footnotes[id] = _footnoteHtml(footnote);
           }
         }
       } catch (_) {
