@@ -48,6 +48,16 @@ class UserContentRepository {
     'user_attached_book_version': "source = '$manualImportSource'",
   };
 
+  /// האם יש משהו ש-[clearAllUserContent] ימחק. EXISTS בלבד — זול.
+  Future<bool> hasManualContent() async {
+    final db = await _db.database;
+    return _manualContentFilters.entries.any(
+      (e) => db
+          .select('SELECT 1 FROM ${e.key} WHERE ${e.value} LIMIT 1')
+          .isNotEmpty,
+    );
+  }
+
   static String _baselineTable(String table) => 'import_baseline_$table';
 
   /// שומר את הנתונים הידניים הקיימים כבסיס שכל בנייה מחדש משחזרת. כך ייבוא

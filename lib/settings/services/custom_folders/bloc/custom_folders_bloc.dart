@@ -426,6 +426,7 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
         state.copyWith(
           isSyncing: false,
           importFiles: importFiles,
+          hasUserContent: await library.hasContent(),
           message:
               _importSummary(imp) ??
               (imp.errors.isEmpty
@@ -447,7 +448,13 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
     try {
       final userDb =
           (await UserBooksDatabaseHolder.instance.repository).database;
-      emit(state.copyWith(importFiles: await UserImportLibrary(userDb).list()));
+      final library = UserImportLibrary(userDb);
+      emit(
+        state.copyWith(
+          importFiles: await library.list(),
+          hasUserContent: await library.hasContent(),
+        ),
+      );
     } catch (e) {
       emit(state.copyWith(error: 'טעינת רשימת קובצי הייבוא נכשלה: $e'));
     }
@@ -503,6 +510,7 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
         state.copyWith(
           isSyncing: false,
           importFiles: await library.list(),
+          hasUserContent: await library.hasContent(),
           message: outcome.ok ? successMessage : null,
           error: outcome.ok
               ? null
