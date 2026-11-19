@@ -28,7 +28,7 @@ class ReportQueueFlush {
   /// ואינו יוצא כשגיאה לא מטופלת; הדיווחים נשארים בתור לסבב הבא.
   void runInBackground(Future<int> Function() flush) {
     unawaited(
-      flush().then<void>(
+      Future<int>.sync(flush).then<void>(
         (_) {},
         onError: (Object error, StackTrace stackTrace) {
           if (_failureLogged) return;

@@ -12,6 +12,7 @@ import 'package:otzaria/core/user_state/pending_report_store.dart';
 import 'package:otzaria/core/user_state/user_state_database.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart';
 import 'package:otzaria/plugins/services/plugin_report_service.dart';
+import 'package:otzaria/reports/report_queue_flush.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/services/sent_reports_counter.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -208,6 +209,17 @@ void main() {
     if (!log.existsSync()) return 0;
     return 'disk I/O error'.allMatches(log.readAsStringSync()).length;
   }
+
+  test('כשל סינכרוני בהפעלת שליחת הרקע נרשם', () async {
+    final flush = ReportQueueFlush();
+    addTearDown(flush.suspend);
+
+    flush.start(() => throw const FileSystemException('disk I/O error'));
+    await pumpEventQueue();
+
+    expect(await loggedFailures(), 1);
+    await flush.suspend();
+  });
 
   for (final MapEntry(key: name, value: build) in _queues.entries) {
     test(
