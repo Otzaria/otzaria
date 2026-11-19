@@ -638,7 +638,12 @@ Future<void> main() async {
           return true;
         });
         expect(optionSpans, hasLength(1));
-        expect(optionSpans.first.style?.fontSize, 13);
+        expect(
+          optionSpans.first.style?.fontSize,
+          Theme.of(
+            tester.element(find.byWidget(title)),
+          ).textTheme.bodySmall?.fontSize,
+        );
         expect(optionSpans.first.style?.fontWeight, FontWeight.normal);
         expect(optionSpans.first.style?.color, isNotNull);
       },
