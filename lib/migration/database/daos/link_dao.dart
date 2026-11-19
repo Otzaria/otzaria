@@ -145,13 +145,31 @@ class LinkDao {
         .replaceFirst(sourceLineJoin, 'CROSS JOIN line sl');
   }
 
+  /// מפרש שמצהיר על [bookId] כספר הבסיס שלו (`book_base_text`) מסומן
+  /// ב-`declaredBase: true`.
   Future<List<Map<String, dynamic>>> selectCommentatorsByBook(
     int bookId,
   ) async {
-    final query = await _visibilityAwareQuery('selectCommentatorsByBook');
+    final capabilities = await _capabilities;
+    final query = await _visibilityAwareQuery(
+      'selectCommentatorsByBook',
+      capabilities: capabilities,
+    );
     if (query == null) return const [];
     final db = await database;
-    return db.select(query, [bookId]).toMapList();
+    final rows = db.select(query, [bookId]).toMapList();
+    if (rows.isEmpty || !capabilities.has('book_base_text')) return rows;
+    final declared = {
+      for (final row in db.select(
+        'SELECT bookId FROM book_base_text WHERE baseBookId = ?',
+        [bookId],
+      ))
+        row['bookId'] as int,
+    };
+    for (final row in rows) {
+      if (declared.contains(row['targetBookId'])) row['declaredBase'] = true;
+    }
+    return rows;
   }
 
   /// מחזיר את כל המפרשים על טווח שורות המקור [`startLineIndex`, `endLineIndex`)
