@@ -1450,29 +1450,12 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       view: currentState.activeView,
       channel: TextChannel.display,
     );
-    final merged = currentState.displayOverrides.merged(slot, event.patch);
-    // שינוי שבוטל נמחק מהעקיפה — כך "איפוס" לא מוצג לשווא. שדה נמחק רק אם
-    // הוא שווה גם למה שהיה נורש עם שאר עקיפות הכרטיסייה (אחרת המחיקה הייתה
-    // משנה את התצוגה, למשל ניקוד מוצג במפרשים כשבגוף הוא מוסתר) וגם בלעדיהן
-    // (אחרת המפרשים היו מתחילים לעקוב אחרי הגוף).
-    final bookLayers = [
-      currentState.bookDisplayLayer,
-      ...currentState.displayPolicy.layersFor(isTanach: currentState.isTanach),
-    ];
-    final inherited = TextDisplayResolver.resolve(
-      slot: slot,
-      layers: [merged.without(slot), ...bookLayers],
-    );
-    final ofBook = TextDisplayResolver.resolve(slot: slot, layers: bookLayers);
-    final patch = merged.patchFor(slot);
-    final pruned = patch
-        .pruneAgainst(inherited)
-        .merge(patch.pruneAgainst(ofBook));
     emit(
       currentState.copyWith(
-        displayOverrides: pruned.isEmpty
-            ? merged.without(slot)
-            : merged.withSlot(slot, pruned),
+        displayOverrides: currentState.displayOverrides.merged(
+          slot,
+          event.patch,
+        ),
         selectedIndex: currentState.selectedIndex,
       ),
     );

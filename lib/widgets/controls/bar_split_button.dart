@@ -41,8 +41,7 @@ class BarSplitButton<T> extends StatefulWidget {
   final ValueChanged<T>? onSelected;
 
   /// כשמוגדר, החץ מפעיל אותו (עם ההקשר של העוגן) במקום לפתוח את [entries].
-  /// ה-Future מסתיים כשהחלון נסגר — עד אז החץ מוצג הפוך.
-  final Future<void> Function(BuildContext anchorContext)? onArrowPressed;
+  final void Function(BuildContext anchorContext)? onArrowPressed;
 
   /// הפריט המסומן בתפריט (✓).
   final T? initialValue;
@@ -71,23 +70,11 @@ class BarSplitButton<T> extends StatefulWidget {
 class _BarSplitButtonState<T> extends State<BarSplitButton<T>> {
   final GlobalKey _anchorKey = GlobalKey();
 
-  /// החלון שנפתח מהחץ פתוח כרגע — החץ מתהפך עד שייסגר (בכל דרך שהיא).
-  bool _menuOpen = false;
-
   Future<void> _openMenu() async {
     final anchorContext = _anchorKey.currentContext;
-    if (anchorContext == null || _menuOpen) return;
-    setState(() => _menuOpen = true);
-    try {
-      await _showMenu(anchorContext);
-    } finally {
-      if (mounted) setState(() => _menuOpen = false);
-    }
-  }
-
-  Future<void> _showMenu(BuildContext anchorContext) async {
+    if (anchorContext == null) return;
     if (widget.onArrowPressed != null) {
-      await widget.onArrowPressed!(anchorContext);
+      widget.onArrowPressed!(anchorContext);
       return;
     }
     final onSelected = widget.onSelected;
@@ -133,33 +120,25 @@ class _BarSplitButtonState<T> extends State<BarSplitButton<T>> {
     final double arrowWidth = widget.compact
         ? BarSplitButton.compactArrowWidth
         : BarSplitButton.regularArrowWidth;
-    // פינות מעוגלות קלות (רדיוס התוכנה) בצד החיצוני בלבד — לא חצי עיגול.
-    // שני החצאים יחד = מלבן אחד עם פינות מעוגלות.
-    const radius = Radius.circular(AppTokens.radius);
+    final radius = Radius.circular(height / 2);
     final direction = Directionality.of(context);
 
-    // ריחוף ולחיצה כמו ב-IconButton של BarButton.icon (bar_button.dart):
-    // IconButton.styleFrom(foregroundColor: fg) נותן ריחוף fg@8%, ולחיצה
-    // ופוקוס fg@10%, בלי highlight נפרד.
     Widget half({
       required Widget child,
       required VoidCallback? onTap,
       required String tooltip,
       required double width,
-      required Color fg,
       required BorderRadiusDirectional borderRadius,
     }) {
       return ContainedTooltip(
         message: tooltip,
         child: InkWell(
           onTap: onTap,
-          // מעוגל רק בצד החיצוני, שטוח מול הקו המפריד — חצי של כמוסה אחת.
-          // customBorder חותך את ההדגשה לצורה.
+          // customBorder ולא borderRadius: כך ההדגשה נחתכת לצורה במקום להצטייר כמלבן מעוגל,
+          // ש-Impeller מצייר עם "מדרגה" כשהרדיוס גדול מחצי הרוחב.
           customBorder: RoundedRectangleBorder(
             borderRadius: borderRadius.resolve(direction),
           ),
-          overlayColor: AppSurfaces.barSplitOverlay(fg),
-          splashColor: AppSurfaces.barSplitPressed(fg),
           child: SizedBox(
             width: width,
             height: height,
@@ -192,8 +171,9 @@ class _BarSplitButtonState<T> extends State<BarSplitButton<T>> {
                 tooltip: widget.tooltip,
                 onTap: widget.onPressed,
                 width: actionWidth,
-                fg: foreground(actionEnabled),
-                borderRadius: BorderRadiusDirectional.horizontal(start: radius),
+                borderRadius: BorderRadiusDirectional.horizontal(
+                  start: radius,
+                ),
                 child: Icon(
                   widget.icon,
                   size: 20,
@@ -209,18 +189,11 @@ class _BarSplitButtonState<T> extends State<BarSplitButton<T>> {
                 tooltip: widget.menuTooltip,
                 onTap: menuEnabled ? _openMenu : null,
                 width: arrowWidth,
-                fg: foreground(menuEnabled),
                 borderRadius: BorderRadiusDirectional.horizontal(end: radius),
-                // החץ מתהפך כשהחלון פתוח, סביב מרכז האייקון.
-                child: AnimatedRotation(
-                  turns: _menuOpen ? 0.5 : 0,
-                  duration: AppTokens.animFast,
-                  curve: Curves.easeInOut,
-                  child: Icon(
-                    FluentIcons.chevron_down_16_regular,
-                    size: 14,
-                    color: foreground(menuEnabled),
-                  ),
+                child: Icon(
+                  FluentIcons.chevron_down_16_regular,
+                  size: 14,
+                  color: foreground(menuEnabled),
                 ),
               ),
             ],
