@@ -3285,6 +3285,10 @@ class FindRefRepository {
       if (bare == null || !leafTokens.contains(bare)) return false;
       matched.add(bare);
     }
+    // "ספר" לבדו אינו מספיק לשם תיקייה ארוך יותר ("ספר זמנים").
+    if (leafWords.length > 1 && matched.every((t) => t == 'ספר')) {
+      return false;
+    }
     if (!wholeName) return true;
     for (var i = 0; i < leafWords.length; i++) {
       final word = leafWords[i];
