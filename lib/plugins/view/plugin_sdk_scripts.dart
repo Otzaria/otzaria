@@ -90,9 +90,28 @@ const String _hostShortcutsJs = r'''
     // ועדיין אפשר למנוע את פעולת ברירת המחדל לפני סיום האירוע.
     window.removeEventListener('keydown', _forwardHostShortcut);
     window.addEventListener('keydown', _forwardHostShortcut);
+    // קיצורי לשוניות בשדה עריכה (#3942) נדחים לסוף שלב ה-document, כדי
+    // שגם מאזין window שהתוסף רשם באמצע ההקשה יקדים את המארח.
+    document.removeEventListener('keydown', _forwardLast);
+    if (_isFieldTabShortcut(e)) {
+      document.addEventListener('keydown', _forwardLast);
+    }
   }, true);
+  function _forwardLast() {
+    document.removeEventListener('keydown', _forwardLast);
+    window.removeEventListener('keydown', _forwardHostShortcut);
+    window.addEventListener('keydown', _forwardHostShortcut);
+  }
+  var _tabShortcutIds =
+      /^key-shortcut-(close-tab|close-all-tabs|restore-closed-tab)$/;
+  function _isFieldTabShortcut(e) {
+    var match = window.__otzariaMatchHostShortcut(e, window.__otzariaHostShortcuts);
+    return !!match && _tabShortcutIds.test(match.id) &&
+        window.__otzariaIsEditableTarget(e);
+  }
   // שלב bubble: קיצור שהתוסף טיפל בו (preventDefault) נשאר שלו. בשדה עריכה
-  // מועברים הקיצורים הקבועים וחיפוש חדש; קיצורי עריכה (Ctrl+K, Ctrl+H) נשארים.
+  // מועברים הקבועים, חיפוש חדש וקיצורי הלשוניות; קיצורי עריכה (Ctrl+K, Ctrl+H)
+  // נשארים.
   function _forwardHostShortcut(e) {
     if (!window.flutter_inappwebview || e.key === 'Escape') return;
     if (e.repeat || e.defaultPrevented) return;
@@ -100,6 +119,7 @@ const String _hostShortcutsJs = r'''
     if (!match) return;
     if (match.id.indexOf('fixed:') !== 0 &&
         match.id !== 'key-shortcut-open-new-search' &&
+        !_tabShortcutIds.test(match.id) &&
         window.__otzariaIsEditableTarget(e)) {
       return;
     }
