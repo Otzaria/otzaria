@@ -26,6 +26,7 @@ import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart' show bookIdentity;
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/library/models/library_match_filter.dart';
 import 'package:otzaria/library/models/library_navigation_history.dart';
 import 'package:otzaria/library/view/library_history_navigation.dart';
 import 'package:otzaria/library/models/library_book_selection.dart';
@@ -624,7 +625,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                 p.searchResults != c.searchResults ||
                 p.searchCategoryResults != c.searchCategoryResults ||
                 (_showsEmptyState && p.searchQuery != c.searchQuery) ||
-                p.selectedTopics != c.selectedTopics,
+                p.selectedTopics != c.selectedTopics ||
+                p.selectedMatchFilters != c.selectedMatchFilters,
             builder: (context, state) {
               if (state.error != null) {
                 return OtzariaErrorState(
@@ -1154,6 +1156,93 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       ),
     );
   }
+
+  /// שורת סוג ההתאמה מעל שורת הנושאים.
+  Widget? _buildResultFilters(BuildContext context, LibraryState state) {
+    final matchRow = _buildMatchFilterSelection(context, state);
+    final topicsRow = _buildTopicsSelection(context, state);
+    if (matchRow == null || topicsRow == null) return matchRow ?? topicsRow;
+    return Column(children: [matchRow, topicsRow]);
+  }
+
+  // מפת סוגי ההתאמה מתחלפת עם כל חיפוש, ולכן מזהה את התוצאות שנספרו.
+  WeakReference<Map<Book, int>>? _matchCountsSource;
+  Map<LibraryMatchFilter, int> _matchCountsCache = const {};
+
+  Widget? _buildMatchFilterSelection(
+    BuildContext context,
+    LibraryState state,
+  ) {
+    final results = state.searchResults;
+    final kinds = state.searchMatchKinds;
+    if (results == null || kinds == null) return null;
+    if (!identical(kinds, _matchCountsSource?.target)) {
+      _matchCountsSource = WeakReference(kinds);
+      final counts = <LibraryMatchFilter, int>{};
+      for (final book in _visibleBooks(results)) {
+        final bookKinds = kinds[book] ?? 0;
+        for (final filter in LibraryMatchFilter.values) {
+          final bit = filter.bookKind?.bit;
+          if (bit != null && bookKinds & bit != 0) {
+            counts[filter] = (counts[filter] ?? 0) + 1;
+          }
+        }
+      }
+      final folders = state.searchCategoryResults?.length ?? 0;
+      if (folders > 0) counts[LibraryMatchFilter.folders] = folders;
+      _matchCountsCache = counts;
+    }
+    final counts = _matchCountsCache;
+    // סינון לפי סוג יחיד לא משנה דבר.
+    if (counts.length < 2) return null;
+
+    final colors = Theme.of(context).colorScheme;
+    return FilterChipsSelector<LibraryMatchFilter>(
+      items: [
+        for (final filter in LibraryMatchFilter.values)
+          if (counts.containsKey(filter)) filter,
+      ],
+      selectedItems: state.selectedMatchFilters.toList(),
+      labelBuilder: (filter) => filter.label,
+      wrapAlignment: WrapAlignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+      onSelectionChanged: (list) {
+        context.read<LibraryBloc>().add(SelectMatchFilters(list.toSet()));
+        _refocusSearchBar();
+      },
+      chipBuilder: (context, filter, isSelected) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+        child: Chip(
+          label: Text('${filter.label} (${counts[filter]})'),
+          backgroundColor: isSelected ? colors.secondaryContainer : null,
+          labelStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: isSelected ? colors.onSecondaryContainer : null,
+          ),
+          labelPadding: EdgeInsets.zero,
+        ),
+      ),
+    );
+  }
+
+  /// תוצאות האיתור אחרי סינון הנושאים וסוג ההתאמה, לפי סדר התצוגה.
+  List<Book> _displayedSearchBooks(LibraryState state, List<Book> visible) {
+    final books = _filterByTopics(visible, state.selectedTopics);
+    final filters = state.selectedMatchFilters;
+    if (filters.isEmpty) return books;
+    final kinds = state.searchMatchKinds ?? const <Book, int>{};
+    return [
+      for (final book in books)
+        if (LibraryMatchFilter.showsBook(filters, kinds[book] ?? 0)) book,
+    ];
+  }
+
+  List<Category> _displayedSearchCategories(LibraryState state) =>
+      LibraryMatchFilter.showsFolders(state.selectedMatchFilters)
+      ? _filterByTopics(
+          state.searchCategoryResults ?? const <Category>[],
+          state.selectedTopics,
+        )
+      : const [];
 
   // ── Body row ──────────────────────────────────────────────────────────────
 
@@ -1695,21 +1784,18 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               final repo = context.read<FocusRepository>();
               return _buildEmptyState(context, state, settingsState, repo);
             }
-            final displayBooks = _filterByTopics(books, state.selectedTopics);
-            final displayCategories = _filterByTopics(
-              categories,
-              state.selectedTopics,
-            );
+            final displayBooks = _displayedSearchBooks(state, books);
+            final displayCategories = _displayedSearchCategories(state);
             final displayLimit = min(
               displayBooks.length,
               _kSearchGridBooksCap,
             );
-            final topicsHeader = _buildTopicsSelection(context, state);
+            final filtersHeader = _buildResultFilters(context, state);
             return SingleChildScrollView(
               key: PageStorageKey(state.currentCategory),
               child: Column(
                 children: [
-                  ?topicsHeader,
+                  ?filtersHeader,
                   if (displayBooks.isNotEmpty)
                     _buildSearchResultsGrid(displayBooks, displayLimit),
                   if (displayCategories.isNotEmpty)
@@ -1731,9 +1817,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             return _buildEmptyState(context, state, settingsState, repo);
           }
           return _buildSearchListView(
-            _filterByTopics(visibleResults, state.selectedTopics),
-            _buildTopicsSelection(context, state),
-            categories: _filterByTopics(categories, state.selectedTopics),
+            _displayedSearchBooks(state, visibleResults),
+            _buildResultFilters(context, state),
+            categories: _displayedSearchCategories(state),
           );
         }
         return _buildListView(state.currentCategory!);
@@ -1976,10 +2062,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     final isGrid = context.read<SettingsBloc>().state.libraryViewMode == 'grid';
     final results = state.searchResults;
     if (results != null) {
-      final books = _filterByTopics(
-        _visibleBooks(results),
-        state.selectedTopics,
-      );
+      final books = _displayedSearchBooks(state, _visibleBooks(results));
       return isGrid ? books.take(_kSearchGridBooksCap).toList() : books;
     }
     final category = state.currentCategory;

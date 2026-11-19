@@ -18,6 +18,7 @@ import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/library/hidden/hidden_library_filter.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/library/models/library_match_filter.dart';
 import 'package:otzaria/library/models/library_navigation_history.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
@@ -101,6 +102,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     on<TravelLibraryHistory>(_onTravelLibraryHistory);
     on<SearchBooks>(_onSearchBooks);
     on<SelectTopics>(_onSelectTopics);
+    on<SelectMatchFilters>(_onSelectMatchFilters);
     on<UpdateSearchQuery>(_onUpdateSearchQuery);
     on<SelectBookForPreview>(_onSelectBookForPreview);
     on<SelectCategoryForPreview>(_onSelectCategoryForPreview);
@@ -742,6 +744,9 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     emit(
       state.copyWith(
         searchQuery: event.query,
+        selectedMatchFilters: event.query == state.searchQuery
+            ? null
+            : const {},
         searchResults: state.searchResults,
         searchCategoryResults: state.searchCategoryResults,
       ),
@@ -833,6 +838,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         state.copyWith(
           searchResults: results,
           searchCategoryResults: found.categories,
+          searchMatchKinds: found.bookMatchKinds,
           previewBook: keptPreview ?? firstBook,
           isSearching: false,
         ),
@@ -879,14 +885,34 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
   void _onSelectTopics(
     SelectTopics event,
     Emitter<LibraryState> emit,
-  ) {
+  ) => _emitFilteredPreview(
+    emit,
+    topics: event.topics,
+    filters: state.selectedMatchFilters,
+  );
+
+  void _onSelectMatchFilters(
+    SelectMatchFilters event,
+    Emitter<LibraryState> emit,
+  ) => _emitFilteredPreview(
+    emit,
+    topics: state.selectedTopics ?? const [],
+    filters: event.filters,
+  );
+
+  void _emitFilteredPreview(
+    Emitter<LibraryState> emit, {
+    required List<String> topics,
+    required Set<LibraryMatchFilter> filters,
+  }) {
     // The preview only needs the first matching book, preferring text over
     // PDF. Avoid allocating an entire filtered result list and a topic set for
     // every book when the library search returns thousands of results.
     Book? firstBook;
     final results = state.searchResults;
+    final kinds = state.searchMatchKinds ?? const <Book, int>{};
     if (results != null && results.isNotEmpty) {
-      final selected = event.topics.toSet();
+      final selected = topics.toSet();
       Book? firstMatch;
       for (final book in results) {
         if (selected.isNotEmpty &&
@@ -897,6 +923,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
                 )) {
           continue;
         }
+        if (!LibraryMatchFilter.showsBook(filters, kinds[book] ?? 0)) continue;
         firstMatch ??= book;
         if (book is TextBook) {
           firstBook = book;
@@ -908,14 +935,15 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
 
     emit(
       state.copyWith(
-        selectedTopics: event.topics,
+        selectedTopics: topics,
+        selectedMatchFilters: filters,
         previewBook: firstBook,
         // A nonempty filter with no matching result must not keep showing
         // a preview of a book that is no longer in the filtered list.
         clearPreviewBook:
             results != null &&
             results.isNotEmpty &&
-            event.topics.isNotEmpty &&
+            (topics.isNotEmpty || filters.isNotEmpty) &&
             firstBook == null,
         searchResults: state.searchResults,
         searchCategoryResults: state.searchCategoryResults,

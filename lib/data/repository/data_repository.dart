@@ -217,8 +217,7 @@ class DataRepository {
   /// החיצוניים והתיקיות.
   /// [reuseCatalog] מיועד לקוראים שמחליפים את [category] ו-[extraBooks]
   /// כאשר תוכנם מתעדכן, במקום לשנות את האובייקטים שפורסמו לחיפוש.
-  Future<({List<Book> books, List<Category> categories})>
-  findBooksAndCategories(
+  Future<BooksAndCategoriesSearch> findBooksAndCategories(
     String query,
     Category? category, {
     List<String>? topics,
@@ -234,7 +233,11 @@ class DataRepository {
     final request = Object();
     if (supersedeKey != null) _pendingBookSearches[supersedeKey] = request;
     try {
-      const empty = (books: <Book>[], categories: <Category>[]);
+      final BooksAndCategoriesSearch empty = (
+        books: const <Book>[],
+        categories: const <Category>[],
+        bookMatchKinds: const <Book, int>{},
+      );
       final normalizedQuery = _normalizeForSearch(query);
       final queryWords = normalizedQuery
           .split(RegExp(r'\s+'))
@@ -287,7 +290,7 @@ class DataRepository {
         throw const BookSearchSupersededException();
       }
       if (reuseCatalog) _bookSearchCatalog = catalog;
-      final matchingIndices = await _bookSearchWorker.search(
+      final matches = await _bookSearchWorker.search(
         catalog.entries,
         BookSearchQuery(
           queryWords: queryWords,
@@ -300,9 +303,13 @@ class DataRepository {
 
       final books = <Book>[];
       final categories = <Category>[];
-      for (final index in matchingIndices) {
+      final bookMatchKinds = Map<Book, int>.identity();
+      for (var i = 0; i < matches.indices.length; i++) {
+        final index = matches.indices[i];
         if (index < catalog.books.length) {
-          books.add(catalog.books[index]);
+          final book = catalog.books[index];
+          books.add(book);
+          bookMatchKinds[book] = matches.kinds[i];
         } else {
           categories.add(catalog.categories[index - catalog.books.length]);
         }
@@ -313,6 +320,7 @@ class DataRepository {
         categories: (topics?.isNotEmpty ?? false)
             ? const <Category>[]
             : categories,
+        bookMatchKinds: bookMatchKinds,
       );
     } finally {
       if (identical(_pendingBookSearches[supersedeKey], request)) {
@@ -323,6 +331,13 @@ class DataRepository {
 
   String _normalizeForSearch(String input) => _normalizeBookSearchText(input);
 }
+
+/// [bookMatchKinds] ממפה כל ספר בתוצאות (לפי זהות) למסכת [BookMatchKind].
+typedef BooksAndCategoriesSearch = ({
+  List<Book> books,
+  List<Category> categories,
+  Map<Book, int> bookMatchKinds,
+});
 
 typedef _BookSearchCatalogKey = ({
   Category? scope,
@@ -468,6 +483,24 @@ class BookSearchQuery {
   });
 }
 
+/// במה ספר תאם לחיפוש הספרייה. לספר יכולים להיות כמה סוגים; נשמרים כמסכת ביטים.
+enum BookMatchKind {
+  title,
+  author,
+  acronym,
+
+  /// רק נתיב התיקיות של הספר תאם, לא הספר עצמו.
+  folder,
+
+  /// לפחות מילה אחת תאמה רק בכתיב דומה (מרחק עריכה, כתיב מלא/חסר).
+  spelling;
+
+  int get bit => 1 << index;
+}
+
+/// אינדקסי ההתאמות בסדר התצוגה, ולצד כל אחד מסכת [BookMatchKind] שלו.
+typedef BookSearchMatches = ({List<int> indices, List<int> kinds});
+
 @visibleForTesting
 List<int> filterBookSearchEntries({
   required List<BookSearchEntry> entries,
@@ -475,14 +508,16 @@ List<int> filterBookSearchEntries({
   required List<String> topics,
   required bool sortByRatio,
   required String normalizedQuery,
-}) => PreparedBookSearchIndex(entries).search(
-  BookSearchQuery(
-    queryWords: queryWords,
-    topics: topics,
-    sortByRatio: sortByRatio,
-    normalizedQuery: normalizedQuery,
-  ),
-);
+}) => PreparedBookSearchIndex(entries)
+    .search(
+      BookSearchQuery(
+        queryWords: queryWords,
+        topics: topics,
+        sortByRatio: sortByRatio,
+        normalizedQuery: normalizedQuery,
+      ),
+    )
+    .indices;
 
 /// רשומות החיפוש אחרי נרמול. נבנה פעם אחת לכל גרסת ספרייה ומשרת כל הקלדה.
 class PreparedBookSearchIndex {
@@ -491,7 +526,7 @@ class PreparedBookSearchIndex {
 
   final List<_PreparedBookSearchEntry> _entries;
 
-  List<int> search(BookSearchQuery query) => _searchPreparedEntries(
+  BookSearchMatches search(BookSearchQuery query) => _searchPreparedEntries(
     _entries,
     queryWords: query.queryWords,
     topics: query.topics,
@@ -537,6 +572,7 @@ _PreparedBookSearchEntry _prepareEntry(
   return _PreparedBookSearchEntry(
     index: entry.index,
     normalizedTitle: normalizedTitle,
+    normalizedAuthor: normalizedAuthor,
     searchWords: searchWords,
     categoryWords: categoryWords,
     rawTopics: entry.topics,
@@ -547,7 +583,7 @@ _PreparedBookSearchEntry _prepareEntry(
   );
 }
 
-List<int> _searchPreparedEntries(
+BookSearchMatches _searchPreparedEntries(
   List<_PreparedBookSearchEntry> preparedEntries, {
   required List<String> queryWords,
   required List<String> topics,
@@ -570,7 +606,8 @@ List<int> _searchPreparedEntries(
   // התאמה שהושגה רק דרך נתיב התיקיות מסומנת — היא מדורגת מתחת לכל התאמה
   // בכותרת/מחבר/כינוי, כדי ששאילתת 'הלכה' לא תקבור ספר בשם הזה תחת כל
   // הספרים שיושבים בתיקייה בשם הזה.
-  final filtered = <({_PreparedBookSearchEntry entry, bool viaCategoryOnly})>[];
+  final filtered =
+      <({_PreparedBookSearchEntry entry, bool viaCategoryOnly, int kinds})>[];
   for (final entry in preparedEntries) {
     if (topics.isNotEmpty &&
         !topics.every((topic) => entry.topics.contains(topic))) {
@@ -593,17 +630,26 @@ List<int> _searchPreparedEntries(
       break;
     }
     if (matches) {
-      filtered.add((entry: entry, viaCategoryOnly: viaCategoryOnly));
+      filtered.add((
+        entry: entry,
+        viaCategoryOnly: viaCategoryOnly,
+        kinds: _bookMatchKinds(entry, queryWords, viaCategoryOnly),
+      ));
     }
   }
 
   if (sortByRatio) {
     final scored =
         [
-          for (final (entry: entry, viaCategoryOnly: viaCategoryOnly)
+          for (final (
+                entry: entry,
+                viaCategoryOnly: viaCategoryOnly,
+                kinds: kinds,
+              )
               in filtered)
             _ScoredBookSearchEntry(
               index: entry.index,
+              kinds: kinds,
               // כותרת מדויקת > מכילה > מילים לפי הסדר > כינוי > מילולי > fuzzy > נתיב.
               // בתוך כל שכבה: דור ואז ratio, כדי שספר יסוד לא ייקבר תחת פירושים.
               tier: viaCategoryOnly
@@ -645,10 +691,45 @@ List<int> _searchPreparedEntries(
           return a.index.compareTo(b.index);
         });
 
-    return [for (final entry in scored) entry.index];
+    return (
+      indices: [for (final entry in scored) entry.index],
+      kinds: [for (final entry in scored) entry.kinds],
+    );
   }
 
-  return [for (final match in filtered) match.entry.index];
+  return (
+    indices: [for (final match in filtered) match.entry.index],
+    kinds: [for (final match in filtered) match.kinds],
+  );
+}
+
+/// התאמה מילולית (מחרוזת מוכלת) קובעת את השדה; מילה שלא נמצאה כך באף שדה
+/// תאמה רק בכתיב דומה.
+int _bookMatchKinds(
+  _PreparedBookSearchEntry entry,
+  List<String> queryWords,
+  bool viaCategoryOnly,
+) {
+  var kinds = viaCategoryOnly ? BookMatchKind.folder.bit : 0;
+  for (final word in queryWords) {
+    var literal = false;
+    if (entry.normalizedTitle.contains(word)) {
+      kinds |= BookMatchKind.title.bit;
+      literal = true;
+    }
+    if (entry.normalizedAuthor.contains(word)) {
+      kinds |= BookMatchKind.author.bit;
+      literal = true;
+    }
+    if (entry.acronyms.any((a) => a.contains(word))) {
+      kinds |= BookMatchKind.acronym.bit;
+      literal = true;
+    }
+    if (!literal && !entry.categoryWords.any((c) => c.contains(word))) {
+      kinds |= BookMatchKind.spelling.bit;
+    }
+  }
+  return kinds;
 }
 
 /// האם כל מילות השאילתה מופיעות כמילים שלמות בכותרת, לפי סדרן.
@@ -668,6 +749,7 @@ bool _titleHasQueryWordsInOrder(
 class _PreparedBookSearchEntry {
   final int index;
   final String normalizedTitle;
+  final String normalizedAuthor;
 
   /// כל המילים המנורמלות של הכותרת, המחבר והכינויים — מאוחדות לבדיקה אחת.
   final Set<String> searchWords;
@@ -690,6 +772,7 @@ class _PreparedBookSearchEntry {
   _PreparedBookSearchEntry({
     required this.index,
     required this.normalizedTitle,
+    required this.normalizedAuthor,
     required this.searchWords,
     required this.categoryWords,
     required this.rawTopics,
@@ -702,6 +785,7 @@ class _PreparedBookSearchEntry {
 
 class _ScoredBookSearchEntry {
   final int index;
+  final int kinds;
   final int tier;
   final int eraOrder;
   final BookSource source;
@@ -712,6 +796,7 @@ class _ScoredBookSearchEntry {
 
   _ScoredBookSearchEntry({
     required this.index,
+    required this.kinds,
     required this.tier,
     required this.eraOrder,
     required this.source,

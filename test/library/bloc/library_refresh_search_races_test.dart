@@ -38,8 +38,7 @@ class _Repository extends DataRepository {
   String? staleFailureQuery;
 
   @override
-  Future<({List<Book> books, List<Category> categories})>
-  findBooksAndCategories(
+  Future<BooksAndCategoriesSearch> findBooksAndCategories(
     String query,
     Category? category, {
     List<String>? topics,
@@ -57,7 +56,7 @@ class _Repository extends DataRepository {
       await staleFailureGate!.future;
       throw StateError('Delayed failure from a superseded search');
     }
-    final ({List<Book> books, List<Category> categories}) found;
+    final BooksAndCategoriesSearch found;
     try {
       found = await super.findBooksAndCategories(
         query,
