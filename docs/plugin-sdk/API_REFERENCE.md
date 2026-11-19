@@ -1814,16 +1814,17 @@ for await (const chunk of chunks) {
 | פרמטר | ברירת מחדל | משמעות |
 |-------|-----------|--------|
 | `query` | — (חובה) | מחרוזת החיפוש |
+| `regex` | `false` | `true` = `query` הוא רג'קס עטוף `/…/` (עד 300 תווים), והוא עובר למנוע כמו שהוא, כמו בחיפוש `/…/` של האפליקציה. בלעדיו השאילתה מנוקה כטקסט רגיל. רק עם `mode: 'exact'`; רג'קס לא תקין, וכל שילוב עם `negativeQuery`, `options`, `wordOptions`, `alternativeWords`, `customSpacing`, `distance`, `proximityScope`, `wordMatchMode`, `wordMatchCount`, `anyOrder` או המקבילים השליליים, מחזירים `error.invalid_params` |
 | `negativeQuery` | `''` | מילים ש**לא** יופיעו בתוצאה |
 | `mode` | `'exact'` | `'exact'` מדויק, `'advanced'` מתקדם (אפשרויות/חלופות/מרווחים), `'fuzzy'` מקורב (מרחק עריכה) |
 | `limit` / `offset` | `50` / `0` | דפדוף. `limit` נחתך ל-500, ו-`offset + limit` הממשיים אינם יכולים לעלות על 10,000 |
-| `order` | `'relevance'` | `'relevance'` \| `'catalogue'` (סדר הספרייה) \| `'generation'` (סדר הדורות) |
+| `order` | `'relevance'` (ברג'קס `'catalogue'`) | `'relevance'` \| `'catalogue'` (סדר הספרייה) \| `'generation'` (סדר הדורות). ברג'קס חוצה רווחים נתמך רק `'catalogue'` |
 | `distance` | `0` | מספר המילים המותר בין מילות החיפוש; במצב `'fuzzy'` הטווח הוא 0–2 |
 | `proximityScope` | `'wordDistance'` | `'wordDistance'` מרווח מילים \| `'sameParagraph'` באותה פסקה \| `'sameSection'` תחת אותה כותרת |
 | `wordMatchMode` | `'all'` | `'all'` \| `'anyWord'` \| `'mostWords'` \| `'atLeast'` |
 | `wordMatchCount` | `2` | מספר המילים הנדרש; ניתן לשלוח רק עם `mode: 'advanced'` ו-`wordMatchMode: 'atLeast'` |
 | `anyOrder` (מגרסה 0.9.98.1) | `false` | `true` = אותו מרווח כמו בחיפוש לפי הסדר (`distance`), אבל המילים יכולות להופיע בכל סדר; חל גם על `negativeQuery` ואינו משפיע על שאילתה של מילה אחת. נדחה במצב `'fuzzy'`, עם `proximityScope` שאינו `'wordDistance'`, עם `wordMatchMode` שאינו `'all'` ועם `customSpacing` |
-| `grouping` | `'none'` | `'none'` \| `'sameSection'` (איחוד לפי סעיף) \| `'identicalText'` (איחוד טקסט זהה) |
+| `grouping` | `'none'` | `'none'` \| `'sameSection'` (איחוד לפי סעיף) \| `'identicalText'` (איחוד טקסט זהה). ברג'קס נתמך רק `'none'` |
 | `options` | `{}` | אפשרויות מילה שחלות על **כל** מילות השאילתה |
 | `wordOptions` | `{}` | אפשרויות פר-מילה במפתח `"{מילה}_{אינדקס}"`; גובר על `options` |
 | `alternativeWords` | `{}` | מילים חלופיות לפי אינדקס מילה: `{ "0": ["אהבת", "יאהב"] }` |
@@ -1831,6 +1832,9 @@ for await (const chunk of chunks) {
 | `negativeDistance`, `negativeProximityScope`, `negativeOptions`, `negativeWordOptions`, `negativeAlternativeWords`, `negativeCustomSpacing` | כמו החיוביים | אותם פרמטרים עבור `negativeQuery` |
 | `includeBookCounts` | `false` | להחזיר גם ספירת תוצאות לפי ספר |
 | `rawDivineNames` (מגרסה 0.9.98.1) | `false` | `true` = `text` של התוצאות עם שם הוי"ה כפי שנשמר. ⚠️ ראו [האזהרה](#rawdivinenames--טקסט-כפי-שנשמר) |
+
+ברג'קס חוצה רווחים המנוע שומר עד 100,000 שורות תואמות. שאילתה שחורגת
+ממגבלות העבודה של המנוע מסומנת ב-`truncated`.
 
 **היקף החיפוש** (ניתן לשלב; ריק = כל הספרייה):
 
@@ -1848,9 +1852,11 @@ for await (const chunk of chunks) {
 
 **פלט — `AsyncIterable` של chunks**
 
-הקריאה אינה מחזירה `Promise` ואינה ממתינה לכל התוצאות. משתמשים ב־`for await`;
-הפסקת הלולאה (`break` או `return`) מבטלת את החיפוש בצד אוצריא. ה־chunk הראשון
-נושא את הספירות, והבאים נושאים עד 50 תוצאות כל אחד.
+משתמשים ב־`for await` כדי לקבל תוצאות בהדרגה. הפסקת הלולאה
+(`break` או `return`) מבטלת את החיפוש בצד אוצריא. כל chunk
+נושא עד 50 תוצאות. ברג'קס חוצה רווחים התוצאות עשויות להגיע לפני הספירה.
+במנות האלה `total` הוא `null`, והמנה של הספירה מגיעה בסיום הסריקה.
+ברוב החיפושים הספירות מגיעות במנה הראשונה.
 
 > **צרכן איטי קוטע את הזרם.** ה-SDK מחזיק תור של 256 chunks; אם הלולאה אינה
 > מדביקה את הקצב, הזרם נכשל עם `Stream consumer is too slow` והחיפוש מבוטל.
@@ -1872,7 +1878,7 @@ for await (const chunk of chunks) {
     merged: [{ id, type, bookId, source, book, categoryPath, reference, index }]
                             // רק כשיש איחוד; לכל אח זהות וקטגוריה מלאות
   }],
-  total: 812,             // סך ההתאמות; זמין מה-chunk הראשון
+  total: 812,             // סך ההתאמות, או null עד שהספירה זמינה
   groupCount: null,       // מספר הקבוצות כש-grouping פעיל, אחרת null
   truncated: false,       // true = שאילתה רחבה מדי, התוצאות והספירה חלקיות
   limit: 100, offset: 0,
