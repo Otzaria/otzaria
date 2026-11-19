@@ -46,6 +46,9 @@ class OpenOrFocusTab extends TabsEvent {
   /// מנווט את הטאב הממוחזר למיקום הנכנס כשנבחר יעד מפורש בסימניה או קישור.
   final bool navigateToPositionIfReused;
 
+  /// מאפשר למקד לפי זהות הספר גם כשאין יעד גלילה ידוע.
+  final bool matchBookOnly;
+
   /// פתיחה ברקע: תמיד טאב חדש (בלי מיקוד טאב קיים), והמשתמש נשאר על הנוכחי.
   final bool inBackground;
 
@@ -54,6 +57,7 @@ class OpenOrFocusTab extends TabsEvent {
     this.targetTitle,
     this.insertAdjacent = false,
     this.navigateToPositionIfReused = false,
+    this.matchBookOnly = false,
     this.matchHistorySlot = false,
     this.inBackground = false,
   });
@@ -64,6 +68,7 @@ class OpenOrFocusTab extends TabsEvent {
     targetTitle,
     insertAdjacent,
     navigateToPositionIfReused,
+    matchBookOnly,
     matchHistorySlot,
     inBackground,
   ];

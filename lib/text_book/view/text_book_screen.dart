@@ -2280,12 +2280,12 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     if (!context.mounted) return;
 
     if (index == null) {
-      UiSnack.show(TextBookMessages.pdfLocationNotFoundOpeningAtStart);
+      UiSnack.show(TextBookMessages.pdfLocationNotFound);
     }
     openBook(
       context,
       _pdfBook!,
-      index ?? 1,
+      index,
       '',
       ignoreHistory: true,
       requiresStableLayout: true,
@@ -3226,12 +3226,12 @@ void _togglePdfView(
   if (!context.mounted) return;
 
   if (index == null) {
-    UiSnack.show(TextBookMessages.pdfLocationNotFoundOpeningAtStart);
+    UiSnack.show(TextBookMessages.pdfLocationNotFound);
   }
   openBook(
     context,
     book,
-    index ?? 1,
+    index,
     '',
     ignoreHistory: true,
     requiresStableLayout: true,

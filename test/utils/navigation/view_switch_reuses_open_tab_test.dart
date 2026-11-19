@@ -23,10 +23,10 @@ void main() {
 
   test('טקסט→PDF בכפתור ובקיצור מנווטים לטאב קיים', () {
     expect(
-      _callBlock(textScreen, '_pdfBook!,\n      index ?? 1'),
+      _callBlock(textScreen, '_pdfBook!,\n      index'),
       contains(flag),
     );
-    expect(_callBlock(textScreen, 'book,\n    index ?? 1'), contains(flag));
+    expect(_callBlock(textScreen, 'book,\n    index'), contains(flag));
   });
 
   test('טקסט→ספר מקביל (טור/שולחן ערוך) מנווט לטאב קיים', () {
@@ -38,7 +38,7 @@ void main() {
 
   test('PDF→טקסט ויעד קישור בבבלי מנווטים לטאב קיים', () {
     expect(
-      _callBlock(pdfScreen, 'textBook,\n      index ?? 0'),
+      _callBlock(pdfScreen, 'textBook,\n      index'),
       contains(flag),
     );
     expect(
