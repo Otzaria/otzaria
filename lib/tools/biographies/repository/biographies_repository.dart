@@ -131,6 +131,7 @@ class BiographiesRepository {
 
     // Built once per call, not in every comparison of the sort.
     final wholeWordPattern = RegExp('(^|\\s)${RegExp.escape(query)}(\$|\\s)');
+    final words = query.split(RegExp(r'\s+'));
 
     final ranked = <_RankedBiography>[];
     for (final bio in entries) {
@@ -140,9 +141,10 @@ class BiographiesRepository {
       ];
       // A match on the name ranks before an equal match on another name, but
       // an exact other name ("הרמב"ם") ranks before a partial match on a name.
-      var rank = _matchRank(names.first, query, wholeWordPattern) * 2;
+      var rank = _matchRank(names.first, query, wholeWordPattern, words) * 2;
       for (var i = 1; i < names.length; i++) {
-        final aliasRank = _matchRank(names[i], query, wholeWordPattern) * 2 + 1;
+        final aliasRank =
+            _matchRank(names[i], query, wholeWordPattern, words) * 2 + 1;
         if (aliasRank < rank) rank = aliasRank;
       }
       if (rank < _noMatch * 2) ranked.add(_RankedBiography(bio, rank));
@@ -157,17 +159,35 @@ class BiographiesRepository {
     return ranked.map((r) => r.bio).toList();
   }
 
-  static const int _noMatch = 4;
+  static const int _noMatch = 5;
 
   /// The name and other names after [_normalize], kept between keystrokes.
   static final _normalizedNames = Expando<List<String>>();
 
-  /// Lower is closer: exact < starts with < whole word < contains.
-  static int _matchRank(String name, String query, RegExp wholeWordPattern) {
+  /// Lower is closer: exact < starts with < whole word < contains < contains
+  /// every word of the query, in any order and with or without a leading ה'
+  /// ("שבתי כהן" finds "שבתי הכהן" and the other way round).
+  static int _matchRank(
+    String name,
+    String query,
+    RegExp wholeWordPattern,
+    List<String> words,
+  ) {
     if (name == query) return 0;
     if (name.startsWith(query)) return 1;
     // A whole-word match is also a contains match; most names have neither.
-    if (!name.contains(query)) return _noMatch;
+    if (!name.contains(query)) {
+      final allWords =
+          words.length > 1 &&
+          words.every(
+            (w) =>
+                name.contains(w) ||
+                (w.length > 1 &&
+                    w.startsWith('ה') &&
+                    name.contains(w.substring(1))),
+          );
+      return allWords ? 4 : _noMatch;
+    }
     return wholeWordPattern.hasMatch(name) ? 2 : 3;
   }
 
