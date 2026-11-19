@@ -488,7 +488,8 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
     } catch (e) {
       if (mounted) {
         UiSnack.showError(
-          context.settingsText('שגיאה בייצוא היסטוריית הדיווחים: {error}',
+          context.settingsText(
+            'שגיאה בייצוא היסטוריית הדיווחים: {error}',
             args: {'error': e},
           ),
         );

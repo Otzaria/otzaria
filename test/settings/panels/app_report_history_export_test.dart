@@ -6,7 +6,7 @@ import 'package:otzaria/settings/panels/app_reports_panel.dart'
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 void main() {
-  test('export retains all rows but excludes private text by default (#4447)', () {
+  test('export keeps all rows, hides private text by default (#4447)', () {
     final reports = List.generate(
       101,
       (index) => AppReport(
