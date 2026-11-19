@@ -89,6 +89,45 @@ void main() {
     expect(File(path).existsSync(), isFalse);
   });
 
+  test('גיבוי מתפרסם רק לאחר גמר הכתיבה', () async {
+    final file = File(p.join(tempDir.path, 'backup.json'));
+    bool? visibleBeforePublish;
+    final data = {
+      'head': _JsonValue(() {
+        sleep(const Duration(milliseconds: 12));
+        return 'ראש';
+      }),
+      'tail': _JsonValue(() {
+        visibleBeforePublish = file.existsSync();
+        return 'סוף';
+      }),
+    };
+
+    await BackupService.writeBackupJson(file.path, data);
+
+    expect(visibleBeforePublish, isFalse);
+    expect(await file.readAsString(), '{"head":"ראש","tail":"סוף"}');
+    expect(await tempDir.list().map((entity) => entity.path).toList(), [
+      file.path,
+    ]);
+  });
+
+  test('כשל קידוד משאיר את הגיבוי הקודם', () async {
+    final file = File(p.join(tempDir.path, 'backup.json'));
+    const previous = '{"title":"הגיבוי הקודם"}';
+    await file.writeAsString(previous);
+
+    await expectLater(
+      BackupService.writeBackupJson(file.path, {'bad': DateTime(2026)}),
+      throwsA(isA<JsonUnsupportedObjectError>()),
+    );
+
+    expect(await file.readAsString(), previous);
+    expect(await tempDir.list().map((entity) => entity.path).toList(), [
+      file.path,
+    ]);
+  });
+
   test('שגיאת כתיבה מוחזרת למי שממתין לגיבוי', () async {
     await expectLater(
       BackupService.writeBackupJson(
@@ -98,4 +137,12 @@ void main() {
       throwsA(isA<FileSystemException>()),
     );
   });
+}
+
+class _JsonValue {
+  const _JsonValue(this._encode);
+
+  final String Function() _encode;
+
+  String toJson() => _encode();
 }

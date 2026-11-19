@@ -460,31 +460,39 @@ class BackupService {
     String path,
     Map<String, dynamic> data,
   ) async {
-    // כתיבה סינכרונית מחזיקה TypedDataAcquire ומעכבת GC גם ב-isolates אחרים.
-    final sink = File(path).openWrite();
-    final pending = StringBuffer();
-    final slice = Stopwatch()..start();
-    var length = 0;
+    // רשימת הגיבויים מסתמכת על שם הקובץ. מפרסמים אותו רק לאחר סיום הכתיבה.
+    final target = File(path).absolute;
+    final staging = await target.parent.createTemp('.backup-');
     try {
-      for (final chunk in _jsonChunks(data)) {
-        pending.write(chunk);
-        if (slice.elapsedMilliseconds < 8) continue;
+      final staged = File(p.join(staging.path, 'manifest.tmp'));
+      final output = await staged.open(mode: FileMode.write);
+      final pending = StringBuffer();
+      final slice = Stopwatch()..start();
+      var length = 0;
+      try {
+        for (final chunk in _jsonChunks(data)) {
+          pending.write(chunk);
+          if (slice.elapsedMilliseconds < 8) continue;
+          length += pending.length;
+          await output.writeString(pending.toString());
+          pending.clear();
+          slice.reset();
+        }
         length += pending.length;
-        sink.write(pending);
-        pending.clear();
-        await sink.flush();
-        slice.reset();
+        await output.writeString(pending.toString());
+        await output.flush();
+      } finally {
+        await output.close();
       }
-      length += pending.length;
-      sink.write(pending);
-      await sink.close();
-    } catch (_) {
-      // קובץ קטוע נראה כגיבוי לכל דבר ברשימה וברוטציה.
-      await sink.close().catchError((_) {});
-      if (await File(path).exists()) await File(path).delete();
-      rethrow;
+      await staged.rename(target.path);
+      return length;
+    } finally {
+      try {
+        await staging.delete(recursive: true);
+      } on FileSystemException catch (error) {
+        _logger.warning('Failed to clean up temporary backup: $error');
+      }
     }
-    return length;
   }
 
   /// הפלט של `json.encode(value)`, בחלקים קטנים: כל ערך במפה וברשימה בנפרד,
