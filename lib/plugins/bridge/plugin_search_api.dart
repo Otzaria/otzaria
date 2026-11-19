@@ -608,7 +608,12 @@ class PluginSearchRequest {
     if (args['negativeQuery'] != null && args['negativeQuery'] is! String) {
       PluginSearchApi._invalid('negativeQuery must be a string');
     }
-    for (final key in ['includeBookCounts', 'baseBooksOnly', 'anyOrder', 'regex']) {
+    for (final key in [
+      'includeBookCounts',
+      'baseBooksOnly',
+      'anyOrder',
+      'regex',
+    ]) {
       if (args[key] != null && args[key] is! bool) {
         PluginSearchApi._invalid('$key must be a boolean');
       }
@@ -630,14 +635,27 @@ class PluginSearchRequest {
         PluginSearchApi._invalid('regex: true requires mode: "exact"');
       }
       if (!UserRegexQuery.isValid(query)) {
-        PluginSearchApi._invalid('query must be a valid /…/ regex (max 300 characters)');
+        PluginSearchApi._invalid(
+          'query must be a valid /…/ regex (max 300 characters)',
+        );
       }
       const incompatible = [
-        'negativeQuery', 'negativeDistance', 'negativeProximityScope',
-        'negativeOptions', 'negativeWordOptions', 'negativeAlternativeWords',
-        'negativeCustomSpacing', 'options', 'wordOptions', 'alternativeWords',
-        'customSpacing', 'distance', 'proximityScope', 'wordMatchMode',
-        'wordMatchCount', 'anyOrder',
+        'negativeQuery',
+        'negativeDistance',
+        'negativeProximityScope',
+        'negativeOptions',
+        'negativeWordOptions',
+        'negativeAlternativeWords',
+        'negativeCustomSpacing',
+        'options',
+        'wordOptions',
+        'alternativeWords',
+        'customSpacing',
+        'distance',
+        'proximityScope',
+        'wordMatchMode',
+        'wordMatchCount',
+        'anyOrder',
       ];
       for (final key in incompatible) {
         if (_isPresent(args[key])) {
@@ -850,8 +868,9 @@ class PluginSearchRequest {
     }
   }
 
-  String get sanitizedQuery =>
-      regex ? SearchQueryBuilder.engineQuery(query) : SearchQueryBuilder.sanitizeQuery(query);
+  String get sanitizedQuery => regex
+      ? SearchQueryBuilder.engineQuery(query)
+      : SearchQueryBuilder.sanitizeQuery(query);
 
   String get sanitizedNegativeQuery =>
       SearchQueryBuilder.sanitizeQuery(negativeQuery);

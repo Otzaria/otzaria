@@ -5756,6 +5756,36 @@ Future<void> main() async {
       skip: engineReady ? false : searchEngineSkipReason,
     );
 
+    test(
+      'search.query עם regex: true מעביר את /…/ למנוע בלי ניקוי (issue #5516)',
+      () async {
+        final stub = _StubSearchRepository()
+          ..updates = [const SearchStreamUpdate(results: [], truncated: false)];
+        final adapter = buildAdapter(
+          books: [TextBook(id: 10, title: 'בראשית')],
+          searchRepository: stub,
+        );
+        Future<Object?> run(Map<String, dynamic> args) => adapter.execute(
+          'search',
+          'query',
+          args,
+          eventSink: (topic, payload) async {},
+        );
+
+        await run({
+          'query': '/מש.ה/',
+          'regex': true,
+          '__streamId': 'test_search_regex',
+        });
+        expect(stub.captured!['query'], '/מש.ה/');
+
+        await run({'query': '/מש.ה/', '__streamId': 'test_search_plain'});
+        expect(stub.captured!['query'], isNot('/מש.ה/'));
+        expect(stub.streamWithCountsCalls, 2);
+      },
+      skip: engineReady ? false : searchEngineSkipReason,
+    );
+
     for (final identity in [
       {'id': 10},
       {'bookUid': 'id:10'},

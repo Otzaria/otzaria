@@ -482,7 +482,7 @@ export type SearchWordMatchMode = 'all' | 'anyWord' | 'mostWords' | 'atLeast';
 /** פרמטרי `search.query` — כל מה שמסך החיפוש של אוצריא שולח למנוע. */
 export interface SearchQueryParams {
   query: string;
-  /** Explicit /…/ regex search (max 300 characters). Invalid patterns return error.invalid_params. Cannot combine with negative, fuzzy, proximity or per-word options. */
+  /** `true` = `query` הוא רג'קס עטוף `/…/` (עד 300 תווים) שעובר למנוע כמו שהוא. רק עם `mode: 'exact'`; רג'קס לא תקין או שילוב עם שלילה, אפשרויות, חלופות, מרווחים או `wordMatchMode` מחזירים `error.invalid_params`. */
   regex?: boolean;
   negativeQuery?: string;
   mode?: SearchMode;

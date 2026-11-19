@@ -1814,6 +1814,7 @@ for await (const chunk of chunks) {
 | פרמטר | ברירת מחדל | משמעות |
 |-------|-----------|--------|
 | `query` | — (חובה) | מחרוזת החיפוש |
+| `regex` | `false` | `true` = `query` הוא רג'קס עטוף `/…/` (עד 300 תווים), והוא עובר למנוע כמו שהוא, כמו בחיפוש `/…/` של האפליקציה. בלעדיו השאילתה מנוקה כטקסט רגיל. רק עם `mode: 'exact'`; רג'קס לא תקין, וכל שילוב עם `negativeQuery`, `options`, `wordOptions`, `alternativeWords`, `customSpacing`, `distance`, `proximityScope`, `wordMatchMode`, `wordMatchCount`, `anyOrder` או המקבילים השליליים, מחזירים `error.invalid_params` |
 | `negativeQuery` | `''` | מילים ש**לא** יופיעו בתוצאה |
 | `mode` | `'exact'` | `'exact'` מדויק, `'advanced'` מתקדם (אפשרויות/חלופות/מרווחים), `'fuzzy'` מקורב (מרחק עריכה) |
 | `limit` / `offset` | `50` / `0` | דפדוף. `limit` נחתך ל-500, ו-`offset + limit` הממשיים אינם יכולים לעלות על 10,000 |
