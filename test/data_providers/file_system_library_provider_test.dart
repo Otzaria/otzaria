@@ -77,22 +77,53 @@ void main() {
       },
     );
 
-    test('תיקיית PDF ראשית ריקה אינה מסתירה קבצים בתיקיית הגיבוי', () async {
-      final candidates = DatabaseConstants.getTalmudBavliDirectoryPaths(
-        tempDir.path,
-        'Otzaria',
-      );
-      expect(candidates, hasLength(2));
-      await Directory(candidates.first).create(recursive: true);
-      final fallback = await Directory(candidates.last).create(recursive: true);
-      final pdf = await File(path.join(fallback.path, 'ברכות.pdf'))
-          .writeAsBytes(const [37, 80, 68, 70]);
+    for (final scenario in ['empty', 'installing', 'unreadable version']) {
+      test('uses the fallback when the primary is $scenario', () async {
+        final candidates = DatabaseConstants.getTalmudBavliDirectoryPaths(
+          tempDir.path,
+          'Otzaria',
+        );
+        final primary = await Directory(
+          candidates.first,
+        ).create(recursive: true);
+        final fallback = await Directory(
+          candidates.last,
+        ).create(recursive: true);
+        final pdf = await File(
+          path.join(fallback.path, 'ברכות.pdf'),
+        ).writeAsString('%PDF');
+        if (scenario != 'empty') {
+          await File(
+            path.join(primary.path, 'ברכות.pdf'),
+          ).writeAsString('%PDF');
+          final marker = File(
+            DatabaseConstants.talmudBavliVersionFilePath(primary.path),
+          );
+          if (scenario == 'installing') {
+            await marker.writeAsString(
+              DatabaseConstants.talmudBavliInstallingMarker,
+            );
+          } else {
+            await marker.writeAsBytes([0xff]);
+          }
+        }
 
-      final provider = FileSystemLibraryProvider.instance;
-      final books = await provider.loadBooks({});
-      expect(books[DatabaseConstants.talmudBavliFolderName]!.single.filePath,
-          pdf.path);
-    });
+        final provider = FileSystemLibraryProvider.instance;
+        final books = await provider.loadBooks({});
+        final book = books[DatabaseConstants.talmudBavliFolderName]!.single;
+        expect(book, isA<PdfBook>());
+        expect((book as PdfBook).path, pdf.path);
+        final paths = await provider.keyToPath;
+        expect(
+          paths[BookCompositeKey.create(
+            title: 'ברכות',
+            categoryId: DatabaseConstants.talmudBavliFolderName.hashCode,
+            fileType: 'pdf',
+          ).toStorageKey()],
+          pdf.path,
+        );
+      });
+    }
 
     test('ספרים אישיים קודמים לקובצי בבלי בקטגוריה משותפת', () async {
       const category = DatabaseConstants.talmudBavliFolderName;
@@ -125,10 +156,13 @@ void main() {
         category,
       ]);
       expect((await physicalPathsFuture).values, [textBook.path, pdfBook.path]);
-      expect([
-        for (final book in books)
-          paths[BookCompositeKey.fromBook(book)!.toStorageKey()],
-      ], [textBook.path, pdfBook.path]);
+      expect(
+        [
+          for (final book in books)
+            paths[BookCompositeKey.fromBook(book)!.toStorageKey()],
+        ],
+        [textBook.path, pdfBook.path],
+      );
     });
 
     test('טעינה מקבילה מספקת נתיבים לקטלוג ולמפתחות ישנים', () async {
