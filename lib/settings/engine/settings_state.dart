@@ -12,6 +12,9 @@ import 'package:otzaria/utils/text/text_manipulation.dart' show HolyNameStyle;
 class SettingsState extends Equatable {
   final bool isDarkMode;
   final bool followSystemTheme;
+
+  /// דף הספר בהיר גם כשהממשק כהה (issue #2435).
+  final bool lightReaderPageInDarkMode;
   final Color seedColor;
   final Color darkSeedColor;
   // רוחב מקסימלי לטקסט: שלילי = רמה באחוזים (-2 = 90%), 0 = ללא הגבלה,
@@ -154,6 +157,7 @@ class SettingsState extends Equatable {
   SettingsState({
     required this.isDarkMode,
     required this.followSystemTheme,
+    this.lightReaderPageInDarkMode = false,
     required this.seedColor,
     required this.darkSeedColor,
     required this.textMaxWidth,
@@ -268,6 +272,7 @@ class SettingsState extends Equatable {
   SettingsState copyWith({
     bool? isDarkMode,
     bool? followSystemTheme,
+    bool? lightReaderPageInDarkMode,
     Color? seedColor,
     Color? darkSeedColor,
     double? textMaxWidth,
@@ -364,6 +369,8 @@ class SettingsState extends Equatable {
       textDisplayPolicy: policy,
       isDarkMode: isDarkMode ?? this.isDarkMode,
       followSystemTheme: followSystemTheme ?? this.followSystemTheme,
+      lightReaderPageInDarkMode:
+          lightReaderPageInDarkMode ?? this.lightReaderPageInDarkMode,
       seedColor: seedColor ?? this.seedColor,
       darkSeedColor: darkSeedColor ?? this.darkSeedColor,
       textMaxWidth: textMaxWidth ?? this.textMaxWidth,
@@ -472,6 +479,7 @@ class SettingsState extends Equatable {
   List<Object?> get props => [
     isDarkMode,
     followSystemTheme,
+    lightReaderPageInDarkMode,
     seedColor,
     darkSeedColor,
     textMaxWidth,

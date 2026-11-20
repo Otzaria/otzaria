@@ -295,3 +295,54 @@ class ReaderSurfaceScope extends StatelessWidget {
     );
   }
 }
+
+/// תמת הבהיר של האפליקציה לדף הספר, כשההגדרה "דף הספר בהיר גם במצב כהה"
+/// דולקת (issue #2435); `null` כשהיא כבויה.
+class ReaderPageTheme extends InheritedWidget {
+  const ReaderPageTheme({super.key, required this.light, required super.child});
+
+  final ThemeData? light;
+
+  /// התמה של דף הספר: הבהירה כשההגדרה דולקת והממשק כהה, ואחרת התמה הקרובה.
+  static ThemeData of(BuildContext context) {
+    final theme = Theme.of(context);
+    final light = context
+        .dependOnInheritedWidgetOfExactType<ReaderPageTheme>()
+        ?.light;
+    return light != null && theme.brightness == Brightness.dark ? light : theme;
+  }
+
+  @override
+  bool updateShouldNotify(ReaderPageTheme oldWidget) =>
+      light != oldWidget.light;
+}
+
+/// דף הספר (טקסט, מפרשים, צורת הדף) בתמה של [ReaderPageTheme] ועל רקע הקריאה
+/// שלה: בממשק כהה עם ההגדרה דולקת הדף בהיר, והסרגלים והחלוניות שסביבו כהים.
+class ReaderPageScope extends StatelessWidget {
+  const ReaderPageScope({super.key, required this.child});
+
+  final Widget child;
+
+  // מבנה קבוע בשני המצבים: החלפת ההגדרה צובעת מחדש בלי לבנות את הקורא מאפס
+  // ובלי לאבד את מקום הגלילה. הרקע נצבע רק כשהדף שונה מהממשק, ובשאר
+  // המקרים הוא נשאר של המשטח שמתחת (כרטיס החלונית, למשל).
+  @override
+  Widget build(BuildContext context) {
+    final page = ReaderPageTheme.of(context);
+    final differs = page.brightness != Theme.of(context).brightness;
+    return Theme(
+      data: page,
+      child: ReaderSurfaceScope(
+        child: Builder(
+          builder: (context) => ColoredBox(
+            color: differs
+                ? AppSurfaceColors.of(context).readerBackground
+                : Colors.transparent,
+            child: Material(type: MaterialType.transparency, child: child),
+          ),
+        ),
+      ),
+    );
+  }
+}

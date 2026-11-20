@@ -42,6 +42,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<LoadSettings>(_onLoadSettings);
     on<UpdateDarkMode>(_onUpdateDarkMode);
     on<UpdateFollowSystemTheme>(_onUpdateFollowSystemTheme);
+    on<UpdateLightReaderPageInDarkMode>(_onUpdateLightReaderPageInDarkMode);
     on<UpdateThemeMode>(_onUpdateThemeMode);
     on<UpdateSeedColor>(_onUpdateSeedColor);
     on<UpdateDarkSeedColor>(_onUpdateDarkSeedColor);
@@ -188,6 +189,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     return SettingsState(
       isDarkMode: settings['isDarkMode'],
       followSystemTheme: settings['followSystemTheme'] ?? false,
+      lightReaderPageInDarkMode: settings['lightReaderPageInDarkMode'] ?? false,
       seedColor: settings['seedColor'],
       darkSeedColor: settings['darkSeedColor'],
       textMaxWidth: settings['textMaxWidth'],
@@ -551,6 +553,14 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   ) async {
     await _repository.updateDarkMode(event.isDarkMode);
     emit(state.copyWith(isDarkMode: event.isDarkMode));
+  }
+
+  Future<void> _onUpdateLightReaderPageInDarkMode(
+    UpdateLightReaderPageInDarkMode event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateLightReaderPageInDarkMode(event.enabled);
+    emit(state.copyWith(lightReaderPageInDarkMode: event.enabled));
   }
 
   Future<void> _onUpdateFollowSystemTheme(
