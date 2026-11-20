@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:otzaria/search/utils/hebrew_layout_suggestion.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/widgets/feedback/app_info_banner.dart';
-import 'package:otzaria/widgets/text/app_inline_link.dart';
 
 /// באנר "האם התכוונת ל..." לטקסט שהוקלד בעברית במצב מקלדת אנגלי
 /// (issue #975). מוצג רק כשההמרה לפי מיקום המקשים מניבה טקסט עברי, ואינו
@@ -61,9 +60,12 @@ class LayoutFixSuggestionBanner extends StatelessWidget {
             const TextSpan(text: 'האם התכוונת לחפש: '),
             TextSpan(
               text: suggestion,
-              style: AppInlineLink.styleOf(
-                context,
-                const TextStyle(fontWeight: FontWeight.w600),
+              // צבע ההודעה של הטון (onTertiaryContainer) בלי לעבור ל-primary:
+              // על tertiaryContainer בערכה נייטרלית primary הוא ההפך מצבע
+              // ההודעה (שחור מול לבן). הקו התחתון מסמן שזה לחיץ.
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                decoration: TextDecoration.underline,
               ),
             ),
             const TextSpan(text: '?'),

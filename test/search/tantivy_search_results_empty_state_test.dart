@@ -12,6 +12,7 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
 
 class MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
     implements SettingsBloc {}
@@ -83,6 +84,65 @@ void main() {
       findsOneWidget,
     );
   });
+
+  // כשל חיפוש מוצג כמצב שגיאה אחיד (אייקון, כותרת, דרך חזרה), לא כטקסט אדום.
+  testWidgets(
+    'כשל חיפוש בלי תוצאות מציג מצב שגיאה אחיד עם דרך לערוך את החיפוש',
+    (
+      WidgetTester tester,
+    ) async {
+      final searchBloc = RecordingSearchBloc(
+        const SearchState(
+          searchQuery: 'בדיקה',
+          results: [],
+          errorMessage: 'אירעה שגיאה בעת החיפוש',
+        ),
+      );
+      final settingsBloc = MockSettingsBloc();
+      final tab = SearchingTab('חיפוש', 'בדיקה');
+      var edited = 0;
+
+      whenListen(
+        settingsBloc,
+        const Stream<SettingsState>.empty(),
+        initialState: SettingsState.initial(),
+      );
+
+      addTearDown(() async {
+        tab.dispose();
+        await searchBloc.close();
+        await settingsBloc.close();
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<SearchBloc>.value(value: searchBloc),
+              BlocProvider<SettingsBloc>.value(value: settingsBloc),
+            ],
+            child: Scaffold(
+              body: SizedBox(
+                height: 500,
+                child: TantivySearchResults(
+                  tab: tab,
+                  onEditSearch: () => edited++,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byType(OtzariaErrorState), findsOneWidget);
+      expect(find.text('אירעה שגיאה בעת החיפוש'), findsOneWidget);
+      expect(find.text('אין תוצאות'), findsNothing);
+
+      await tester.tap(find.text('ערוך חיפוש'));
+      expect(edited, 1);
+    },
+  );
 
   testWidgets(
     'חיפוש שנחתך לאפס תוצאות מציג הודעת מגבלת חיפוש ולא "אין תוצאות"',

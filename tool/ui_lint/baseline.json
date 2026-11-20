@@ -8,9 +8,6 @@
       "lib/library/view/grid_items.dart": [
         {"scope":"_libraryInfoButton","fp":"5ba189c4","n":1}
       ],
-      "lib/search/view/enhanced_search_field.dart": [
-        {"scope":"_EnhancedSearchFieldState.build","fp":"5ba189c4","n":1}
-      ],
       "lib/settings/dialogs/safer_mode_password_dialog.dart": [
         {"scope":"_SaferModePasswordDialogState.build","fp":"5ba189c4","n":1},
         {"scope":"_SaferModeSetPasswordDialogState.build","fp":"5ba189c4","n":2}

@@ -150,28 +150,37 @@ class SemanticResultCard extends StatelessWidget {
         ),
         Padding(
           padding: const EdgeInsets.only(top: 2),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              if (titleText.isNotEmpty)
-                Expanded(
-                  child: Text(
-                    titleText,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: colorScheme.onSurfaceVariant,
+          child: LayoutBuilder(
+            builder: (context, constraints) => Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                if (titleText.isNotEmpty)
+                  Expanded(
+                    child: Text(
+                      titleText,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                  )
+                else
+                  const Spacer(),
+                if (item.textStatus == TextStatus.ok) ...[
+                  const SizedBox(width: AppTokens.spaceSM),
+                  // לא Flexible: Flex היה מחלק את המקום 50/50 וקוטע את הכותרת גם
+                  // כשהתווית קצרה. התווית תופסת את רוחבה, עד חצי מהשורה.
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: constraints.maxWidth / 2,
+                    ),
+                    child: SemanticSourceLabel(source: item.source),
                   ),
-                )
-              else
-                const Spacer(),
-              if (item.textStatus == TextStatus.ok) ...[
-                const SizedBox(width: AppTokens.spaceSM),
-                SemanticSourceLabel(source: item.source),
+                ],
               ],
-            ],
+            ),
           ),
         ),
         const SizedBox(height: 8),

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -536,6 +537,96 @@ void main() {
 
     expect(harness.tab.previewTarget.value, isNull);
     expect(harness.tabsBloc.openedTabs, hasLength(1));
+  });
+
+  group('Enter במקלדת (סבב ב\', סעיף 37)', () {
+    /// צומת הפוקוס של כרטיס התוצאה (ה-InkWell שלו), כמו אחרי Tab: הצומת הקרוב
+    /// מעל תוכן הכרטיס.
+    FocusNode cardFocusNode(WidgetTester tester) =>
+        Focus.of(tester.element(find.byType(EngineResultCard).first));
+
+    Future<void> pressEnter(WidgetTester tester) async {
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      for (var i = 0; i < 6; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+    }
+
+    testWidgets('Enter על תוצאה שעדיין לא מוצגת רק מציג אותה בתצוגה מקדימה', (
+      tester,
+    ) async {
+      final harness = await pumpResults(tester, showPreviewPane: true);
+      cardFocusNode(tester).requestFocus();
+      await tester.pump();
+
+      await pressEnter(tester);
+
+      expect(harness.tab.previewTarget.value?.segment, 389);
+      expect(harness.tabsBloc.openedTabs, isEmpty);
+    });
+
+    testWidgets('Enter שני, אחרי שהתוצאה הוצגה בתצוגה המקדימה, פותח את הספר', (
+      tester,
+    ) async {
+      final harness = await pumpResults(tester, showPreviewPane: true);
+      cardFocusNode(tester).requestFocus();
+      await tester.pump();
+      await pressEnter(tester);
+      expect(harness.tab.previewTarget.value, isNotNull);
+      expect(harness.tabsBloc.openedTabs, isEmpty);
+
+      await pressEnter(tester);
+
+      expect(harness.tabsBloc.openedTabs, hasLength(1));
+    });
+
+    testWidgets('Enter על הכרטיס של התוצאה שמוצגת עכשיו פותח את הספר', (
+      tester,
+    ) async {
+      final harness = await pumpResults(tester, showPreviewPane: true);
+      await singleTap(tester, harness.resultFinder);
+      expect(harness.tab.previewTarget.value, isNotNull);
+
+      cardFocusNode(tester).requestFocus();
+      await tester.pump();
+      await pressEnter(tester);
+
+      expect(harness.tabsBloc.openedTabs, hasLength(1));
+      expect(harness.tab.previewTarget.value, isNotNull);
+    });
+
+    testWidgets('כשהתצוגה המקדימה כבויה Enter על הכרטיס פותח את הספר', (
+      tester,
+    ) async {
+      final harness = await pumpResults(
+        tester,
+        showPreviewPane: true,
+        searchShowPreview: false,
+      );
+      cardFocusNode(tester).requestFocus();
+      await tester.pump();
+
+      await pressEnter(tester);
+
+      expect(harness.tab.previewTarget.value, isNull);
+      expect(harness.tabsBloc.openedTabs, hasLength(1));
+    });
+
+    testWidgets('Enter עם Ctrl לא פותח את הספר מהתצוגה המקדימה', (
+      tester,
+    ) async {
+      final harness = await pumpResults(tester, showPreviewPane: true);
+      await singleTap(tester, harness.resultFinder);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await pressEnter(tester);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+
+      expect(harness.tabsBloc.openedTabs, isEmpty);
+    });
   });
 }
 

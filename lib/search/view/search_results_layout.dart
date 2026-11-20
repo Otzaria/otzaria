@@ -23,6 +23,10 @@ import 'package:otzaria/theme/app_motion.dart';
 /// בדיוק כשאין מקום לשני ה-dropdown ברוחב מלא.
 const double _kMenusCollapseWidth = 900;
 
+/// רוחב הסרגל שמתחתיו מילות החיפוש עוברות לשורה שנייה ברוחב מלא: בטלפון נשארים
+/// להן במרכז הסרגל כ-80 פיקסלים בלבד, ומהשאילתה רואים 2-3 אותיות.
+const double _kQuerySecondRowBelow = 600;
+
 /// פריסת מסך תוצאות החיפוש, משותפת לחיפוש הרגיל ולחיפוש החכם: סרגל עליון
 /// עם מילות החיפוש והמונים, חלונית הקטגוריות והתוצאות.
 class SearchResultsLayout extends StatefulWidget {
@@ -128,7 +132,12 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
           }
         }
         final collapseMenus = constraints.maxWidth < _kMenusCollapseWidth;
-        if (isNarrow) return _buildForSmallScreens(collapseMenus);
+        if (isNarrow) {
+          return _buildForSmallScreens(
+            collapseMenus,
+            queryOnSecondRow: constraints.maxWidth < _kQuerySecondRowBelow,
+          );
+        }
         return _buildForWideScreens(collapseMenus);
       },
     );
@@ -139,14 +148,20 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
   BoxDecoration _resultsDecoration(BuildContext context) =>
       BoxDecoration(color: AppSurfaces.panelBackground(context));
 
-  Widget _buildForSmallScreens(bool collapseMenus) {
+  Widget _buildForSmallScreens(
+    bool collapseMenus, {
+    required bool queryOnSecondRow,
+  }) {
     return Container(
       clipBehavior: Clip.hardEdge,
       decoration: const BoxDecoration(),
       child: Column(
         children: [
           ?widget.header,
-          _buildSearchTopBar(collapseMenus: collapseMenus),
+          _buildSearchTopBar(
+            collapseMenus: collapseMenus,
+            queryOnSecondRow: queryOnSecondRow,
+          ),
           ...widget.banners,
           Expanded(
             child: Stack(
@@ -274,10 +289,14 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
   Widget _buildSearchTopBar({
     required bool collapseMenus,
     bool isWideLayout = false,
+    bool queryOnSecondRow = false,
   }) {
     final hasQuery = widget.hasQuery;
+    // מילות החיפוש בשורה שנייה: השורה הראשונה נשארת לכפתורים, בלי לשמור במרכזה
+    // מקום למילים.
+    final secondRowQuery = hasQuery && queryOnSecondRow;
     return AppTopBar(
-      minCenterWidth: ReaderNavCenter.minTitleWidth,
+      minCenterWidth: secondRowQuery ? 0.0 : ReaderNavCenter.minTitleWidth,
       leadingItems: [
         AppTopBarItem(
           widget: ValueListenableBuilder<bool>(
@@ -289,9 +308,12 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
           ),
         ),
       ],
-      center: hasQuery
+      center: secondRowQuery
+          ? null
+          : hasQuery
           ? _buildQueryDisplay(context, showLabel: isWideLayout)
           : const SizedBox.shrink(),
+      secondaryRow: secondRowQuery ? _buildQuerySecondRow(context) : null,
       trailingItems: hasQuery
           ? [
               AppTopBarItem(
@@ -311,6 +333,17 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
           : const [],
     );
   }
+
+  /// מילות החיפוש בשורה שנייה של הסרגל, ברוחב מלא (חלון צר מ-600).
+  Widget _buildQuerySecondRow(BuildContext context) => Padding(
+    padding: EdgeInsets.symmetric(
+      horizontal: AppTopBar.horizontalPadding(
+        AppDensity.of(context).isCompact,
+      ),
+      vertical: 4,
+    ),
+    child: _buildQueryDisplay(context, showLabel: false, expand: true),
+  );
 
   /// לחצן עין לכיבוי/הפעלה קבועים של התצוגה המקדימה של תוצאות — כמו בספרייה.
   Widget _buildPreviewToggleButton() {
@@ -340,7 +373,11 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
   /// מילות החיפוש בתוך סרגל בעיצוב שדה החיפוש; לחיצה עליו פותחת את דיאלוג
   /// העריכה. בפריסה הצרה התווית 'חיפוש' מושמטת — היא משכפלת את שם הכרטיסייה
   /// ובולעת כמחצית מהמרחב שנשמר למילות החיפוש.
-  Widget _buildQueryDisplay(BuildContext context, {required bool showLabel}) {
+  Widget _buildQueryDisplay(
+    BuildContext context, {
+    required bool showLabel,
+    bool expand = false,
+  }) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -355,6 +392,7 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
           const SizedBox(width: AppTokens.spaceSM),
         ],
         Flexible(
+          fit: expand ? FlexFit.tight : FlexFit.loose,
           child: OtzariaSearchDisplayBar(
             icon: FluentIcons.edit_24_regular,
             tooltip: 'ערוך חיפוש',

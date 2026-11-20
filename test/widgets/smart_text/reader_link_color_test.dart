@@ -206,7 +206,7 @@ void main() {
             ),
           )
           .color!;
-      expect(foreground, cs.primary);
+      expect(foreground, cs.onTertiaryContainer);
       expect(tester.widget<Icon>(find.byType(Icon)).color, foreground);
       final luminances = [
         foreground.computeLuminance(),
