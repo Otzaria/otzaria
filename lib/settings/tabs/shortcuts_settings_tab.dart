@@ -120,6 +120,15 @@ class ShortcutsSettingsTab extends StatefulWidget {
       keywords: ['הגדרות', 'ctrl+comma', 'מקלדת'],
     ),
     SettingsSearchEntry(
+      id: 'shortcuts.nav.shortcuts_list',
+      title: 'קיצור לרשימת קיצורי המקשים',
+      subtitle: 'פתיחת רשימת קיצורי המקשים בהגדרות',
+      tab: SettingsTab.shortcuts,
+      cardId: 'shortcuts.nav',
+      expandSection: ShortcutValidator.openShortcutsListKey,
+      keywords: ['קיצורים', 'רשימה', 'ctrl+/', 'מקלדת'],
+    ),
+    SettingsSearchEntry(
       id: 'shortcuts.nav.tools',
       title: 'קיצור לכלים',
       subtitle: 'פתיחת מסך הכלים',
@@ -848,6 +857,12 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
               settingKey: 'key-shortcut-open-settings',
               label: context.settingsText('הגדרות'),
               icon: FluentIcons.settings_24_regular,
+              allShortcuts: _shortcutsList,
+            ),
+            _ShortcutTile(
+              settingKey: ShortcutValidator.openShortcutsListKey,
+              label: context.settingsText('רשימת קיצורי המקשים'),
+              icon: FluentIcons.keyboard_24_regular,
               allShortcuts: _shortcutsList,
             ),
             _ShortcutTile(
