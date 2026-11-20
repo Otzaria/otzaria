@@ -17,6 +17,9 @@ import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 
+/// מעל אורך זה טיוטה נשמרת בהשהיה ארוכה יותר מההקלדה.
+const int largeDraftLength = 10000;
+
 class InlineNoteEditor extends StatefulWidget {
   final PersonalNote? note;
   final String? referenceText;
@@ -210,11 +213,14 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
   void _scheduleDraftSave() {
     if (_isDone) return;
     _draftSaveTimer?.cancel();
-    _draftSaveTimer = Timer(
-      const Duration(milliseconds: 250),
-      _persistDraftInBackground,
-    );
+    _draftSaveTimer = Timer(_draftSaveDelay(), _persistDraftInBackground);
   }
+
+  // כל שמירה מקודדת את ההערה כולה על ה-UI וכותבת אותה לקופסת ההגדרות.
+  Duration _draftSaveDelay() =>
+      _controller.quillController.document.length > largeDraftLength
+      ? const Duration(seconds: 2)
+      : const Duration(milliseconds: 250);
 
   void _persistDraftInBackground() {
     unawaited(

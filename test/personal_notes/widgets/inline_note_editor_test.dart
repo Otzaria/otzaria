@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
 import 'package:otzaria/personal_notes/widgets/inline_note_editor.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
@@ -50,6 +51,49 @@ void main() {
     expect(saved, hasLength(1));
     expect(saved.single.contentPlain, 'שורה ראשונה\nשורה שנייה');
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('טיוטה ארוכה נשמרת בהשהיה ארוכה, וקצרה מיד (#5131)', (
+    tester,
+  ) async {
+    Future<String?> draft(int line) async =>
+        (await PersonalNoteDraftService().loadDraft(
+          bookId: 'ספר טיוטות',
+          lineNumber: line,
+        ))?.contentPlain;
+    Future<quill.QuillController> open(int line) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: InlineNoteEditor(
+              key: ValueKey(line),
+              bookId: 'ספר טיוטות',
+              draftLineNumber: line,
+              linkableNotes: const [],
+              onSave: (_) {},
+              onCancel: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      return tester
+          .widget<quill.QuillEditor>(find.byType(quill.QuillEditor))
+          .controller;
+    }
+
+    (await open(1)).document.insert(0, 'קצרה');
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(await draft(1), 'קצרה');
+
+    final long = 'א' * (largeDraftLength + 1);
+    (await open(2)).document.insert(0, long);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(await draft(2), isNull);
+    await tester.pump(const Duration(seconds: 2));
+    expect(await draft(2), long);
+
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('InlineNoteEditor תופס פוקוס מיד בעלייה', (tester) async {
