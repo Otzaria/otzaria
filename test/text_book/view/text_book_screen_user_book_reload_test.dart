@@ -1,19 +1,23 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_state.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/data/book_identity.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
+import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/migration/sync/file_sync_service.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
@@ -25,6 +29,8 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
+import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -77,16 +83,15 @@ void main() {
   );
   final officialBook = TextBook(id: 5, title: 'ספר רשמי');
 
-  Future<List<TabsEvent>> reloadLibrary(
-    WidgetTester tester, {
-    required TextBook openBook,
-    List<Book>? changedBooks,
-    bool userContentChanged = false,
+  Future<_TestTabsBloc> pumpReader(
+    WidgetTester tester,
+    TextBook openBook, {
+    required _TestLibraryBloc libraryBloc,
+    CustomFoldersBloc? customFoldersBloc,
   }) async {
     final bloc = _TestTextBookBloc(_loadedState(openBook));
     final tab = TextBookTab(book: openBook, index: 0, blocOverride: bloc);
     final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
-    final libraryBloc = _TestLibraryBloc();
     final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final bookmarkBloc = _TestBookmarkBloc();
     final tourCubit = TourCubit();
@@ -101,6 +106,7 @@ void main() {
         bloc,
         tabsBloc,
         libraryBloc,
+        ?customFoldersBloc,
         settingsBloc,
         bookmarkBloc,
         tourCubit,
@@ -137,6 +143,8 @@ void main() {
             BlocProvider<TextBookBloc>.value(value: bloc),
             BlocProvider<TabsBloc>.value(value: tabsBloc),
             BlocProvider<LibraryBloc>.value(value: libraryBloc),
+            if (customFoldersBloc != null)
+              BlocProvider<CustomFoldersBloc>.value(value: customFoldersBloc),
             BlocProvider<SettingsBloc>.value(value: settingsBloc),
             BlocProvider<BookmarkBloc>.value(value: bookmarkBloc),
             BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
@@ -156,6 +164,21 @@ void main() {
     );
     await _settleRealAsync(tester);
     tabsBloc.events.clear();
+    return tabsBloc;
+  }
+
+  Future<List<TabsEvent>> reloadLibrary(
+    WidgetTester tester, {
+    required TextBook openBook,
+    List<Book>? changedBooks,
+    bool userContentChanged = false,
+  }) async {
+    final libraryBloc = _TestLibraryBloc();
+    final tabsBloc = await pumpReader(
+      tester,
+      openBook,
+      libraryBloc: libraryBloc,
+    );
 
     final library = Library(categories: const []);
     libraryBloc.emitForTest(LibraryState(library: library, isLoading: true));
@@ -218,6 +241,60 @@ void main() {
     );
 
     expect(events.whereType<ReplaceTab>(), isEmpty);
+  });
+
+  group('F5 מרענן ספר אישי פתוח (issue #5296)', () {
+    final folder = p.join('ספרים', 'אישיים');
+    late List<String?> scannedFolders;
+    late List<RefreshLibrary> refreshes;
+
+    Future<void> pressF5(WidgetTester tester, TextBook openBook) async {
+      scannedFolders = [];
+      refreshes = [];
+      final customFolders = CustomFoldersBloc(
+        addLibraryEvent: (event) => refreshes.add(event as RefreshLibrary),
+        loadFolders: () => [
+          CustomFolder(path: folder, addedAt: DateTime(2026)),
+        ],
+        syncFolders: (folders, {String? onlyFolderPath}) async {
+          scannedFolders.add(onlyFolderPath);
+          return const FileSyncResult(updatedBooks: 1, updatedBookIds: [5]);
+        },
+      );
+      await pumpReader(
+        tester,
+        openBook,
+        libraryBloc: _TestLibraryBloc(),
+        customFoldersBloc: customFolders,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.f5);
+      await _settleRealAsync(tester);
+    }
+
+    testWidgets('סורק את תיקיית הספר, והרענון מסמן את הספר כשהשתנה', (
+      tester,
+    ) async {
+      await pressF5(
+        tester,
+        TextBook(
+          id: 5,
+          title: 'ספר אישי',
+          source: BookSource.user,
+          filePath: p.join(folder, 'משנה', 'ספר אישי.docx'),
+        ),
+      );
+
+      expect(scannedFolders, [folder]);
+      expect(refreshes.single.changedBookKeys, {
+        BookIdentity.keyOf(userBook),
+      });
+    });
+
+    testWidgets('ספר מהספרייה הרשמית אינו נסרק', (tester) async {
+      await pressF5(tester, officialBook);
+
+      expect(scannedFolders, isEmpty);
+    });
   });
 }
 
