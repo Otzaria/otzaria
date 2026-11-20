@@ -104,6 +104,7 @@ import 'package:otzaria/text_book/view/selection/plugin_selection_payload.dart';
 import 'package:otzaria/core/messages/plugin_messages.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
+import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
@@ -2667,6 +2668,17 @@ Future<void> _setFontSize(
   return savePerBookDisplaySettings(context, state, fontSize: size);
 }
 
+Future<void> _rescanPersonalBook(CustomFoldersBloc bloc, TextBook book) async {
+  final done = bloc.stream.firstWhere((state) => !state.isSyncing);
+  bloc.add(RescanCustomFolders(folderOfFile: book.filePath));
+  final result = await done;
+  if (result.error != null) {
+    UiSnack.showError(result.error!);
+  } else if (result.message != null) {
+    UiSnack.show(result.message!);
+  }
+}
+
 bool _handleGlobalKeyEvent(
   KeyEvent event,
   BuildContext context,
@@ -2698,6 +2710,9 @@ bool _handleGlobalKeyEvent(
       '';
   final togglePdfShortcut =
       ShortcutValidator.getShortcutValue(ShortcutValidator.togglePdfViewKey) ??
+      '';
+  final refreshBookShortcut =
+      ShortcutValidator.getShortcutValue(ShortcutValidator.refreshBookKey) ??
       '';
   final copyBookLinkShortcut =
       ShortcutValidator.getShortcutValue(ShortcutValidator.copyBookLinkKey) ??
@@ -2779,6 +2794,16 @@ bool _handleGlobalKeyEvent(
       fontSize: state.fontSize,
       bookTitle: state.book.title,
       savedSelectedIndex: reportLineIndex,
+    );
+    return true;
+  }
+
+  // רענון ספר אישי: הסריקה מעדכנת אותו, ו-_libraryReloadSub טוען את הטאב מחדש.
+  if (refreshBookShortcut.isNotEmpty &&
+      state.book.isUserBook &&
+      ShortcutHelper.matchesShortcut(event, refreshBookShortcut)) {
+    unawaited(
+      _rescanPersonalBook(context.read<CustomFoldersBloc>(), state.book),
     );
     return true;
   }
