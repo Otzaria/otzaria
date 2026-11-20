@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:path/path.dart' as p;
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
@@ -801,7 +802,8 @@ class _BookActionsMenuButtonState extends State<BookActionsMenuButton> {
 }
 
 /// תפריט "אפשרויות נוספות" של תיקייה אישית — מחיקה מהספרייה, כמו לספר אישי.
-/// מוצג רק לתיקייה שהמשתמש הוסיף (ילד ישיר של "ספרים אישיים"), אחרת נעלם.
+/// מוצג רק לתיקייה שהמשתמש הוסיף: ילד ישיר של "ספרים אישיים", או קטגוריה
+/// בשורש שבאה מתיקייה ממוזגת אחת (issue #4663). אחרת נעלם.
 class CategoryActionsMenuButton extends StatelessWidget {
   final Category category;
 
@@ -810,9 +812,11 @@ class CategoryActionsMenuButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final parent = category.parent;
-    if (parent == null ||
-        parent.title != _kPersonalRootTitle ||
-        parent.parent is! Library ||
+    final underPersonalRoot =
+        parent?.title == _kPersonalRootTitle && parent?.parent is Library;
+    final mergedRoot =
+        parent is Library && category.title != _kPersonalRootTitle;
+    if ((!underPersonalRoot && !mergedRoot) ||
         category.personalSource?.isUser != true) {
       return const SizedBox.shrink();
     }
@@ -822,7 +826,9 @@ class CategoryActionsMenuButton extends StatelessWidget {
       ({CustomFolder? folder, bool isSyncing})
     >(
       selector: (state) => (
-        folder: _customFolderOf(category, state.folders),
+        folder: underPersonalRoot
+            ? _customFolderOf(category, state.folders)
+            : _mergedFolderOf(category, state.folders),
         isSyncing: state.isSyncing,
       ),
       builder: (context, selection) {
@@ -875,6 +881,27 @@ CustomFolder? _customFolderOf(Category category, List<CustomFolder> folders) {
   return matches.length == 1 ? matches.single : null;
 }
 
+/// תיקייה ממוזגת אינה מופיעה בעץ בשמה — תתי-התיקיות שלה מתמזגות בשורש
+/// הספרייה. הקטגוריה שייכת לתיקייה המוגדרת היחידה שכל קובצי ספריה בתוכה.
+CustomFolder? _mergedFolderOf(Category category, List<CustomFolder> folders) {
+  final roots = [
+    for (final folder in folders)
+      (folder, CustomFolderSource.normalizePath(folder.path)),
+  ];
+  CustomFolder? owner;
+  for (final book in category.getAllBooks()) {
+    final filePath = book.filePath;
+    if (filePath == null) return null;
+    final normalized = CustomFolderSource.normalizePath(filePath);
+    final matches = roots.where((r) => p.isWithin(r.$2, normalized));
+    if (matches.length != 1) return null;
+    final folder = matches.single.$1;
+    if (owner != null && !identical(owner, folder)) return null;
+    owner = folder;
+  }
+  return owner;
+}
+
 Future<void> _showDeleteFolderDialog(
   BuildContext context,
   String title,
@@ -885,11 +912,16 @@ Future<void> _showDeleteFolderDialog(
     UiSnack.show(LibraryMessages.folderRemovalBusy);
     return;
   }
+  // תיקייה ממוזגת מוצגת בשם תת-התיקייה, וההסרה כוללת את כל התיקייה.
+  final origin = title == folder.name
+      ? ''
+      : 'הקטגוריה "$title" באה מהתיקייה האישית "${folder.name}".\n';
   final confirmed = await showWarningDialog(
     context: context,
     title: 'למחוק את התיקייה?',
     content:
-        'התיקייה "$title" וספריה יוסרו מהספרייה.\n'
+        '$origin'
+        'התיקייה "${folder.name}" וספריה יוסרו מהספרייה.\n'
         'הקבצים המקוריים בדיסק לא יימחקו.',
     cancelText: 'ביטול',
     confirmText: 'מחק',
@@ -906,7 +938,7 @@ Future<void> _showDeleteFolderDialog(
   if (error != null) {
     UiSnack.showError(error);
   } else {
-    UiSnack.show(LibraryMessages.folderDeletedFromLibrary(title));
+    UiSnack.show(LibraryMessages.folderDeletedFromLibrary(folder.name));
   }
 }
 
