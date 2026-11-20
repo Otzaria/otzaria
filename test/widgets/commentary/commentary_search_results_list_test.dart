@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/book_common/utils/commentary_search_utils.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/widgets/commentary/commentary_search_results_list.dart';
 
 import '../../helpers/memory_settings_cache.dart';
@@ -155,6 +156,28 @@ Future<void> main() async {
       for (final span in spans) {
         expect(span.style?.fontFamily, expected, reason: span.text);
       }
+    });
+
+    rustTest('למילת החיפוש יש רקע, כמו בשאר כרטיסי התוצאות (issue #3127)', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        query: 'שבידו',
+        snippets: [_snippet('מאירי', 'כל שבידו נאמן', 0)],
+      );
+      final context = tester.element(find.byType(CommentarySearchResultsList));
+      final root =
+          tester.widget<RichText>(find.byType(RichText).last).text as TextSpan;
+      TextSpan? hit;
+      root.visitChildren((span) {
+        if (span is TextSpan && span.text == 'שבידו') hit = span;
+        return hit == null;
+      });
+      expect(
+        hit?.style?.backgroundColor,
+        AppSurfaces.searchHitBackground(Theme.of(context).colorScheme),
+      );
     });
 
     rustTest('לחיצה על קטע מדווחת את ה-globalIndex שלו', (tester) async {
