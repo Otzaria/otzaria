@@ -1,5 +1,5 @@
 // ריחוף מעל כרטיסיה משנה רק אותה ואת המפריד של שכנתה, ולכן אינו בונה מחדש
-// את שאר הכרטיסיות; ה-X שמוצג רק בריחוף עדיין מופיע ונעלם.
+// את שאר הכרטיסיות; בכרטיסיה צרה שאינה נבחרת הריחוף אינו מציג X.
 import 'package:otzaria/work_status/work_status_cubit.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -114,18 +114,20 @@ void main() {
     expect(tabRebuilds, lessThanOrEqualTo(8));
   });
 
-  testWidgets('ה-X של כרטיסיה צרה מופיע בריחוף ונעלם ביציאה', (tester) async {
+  testWidgets('ה-X של כרטיסיה צרה אינו מופיע בריחוף (issue #3797)', (
+    tester,
+  ) async {
     final harness = await pumpTitleBar(tester, width: 900);
     final closeButtons = find.byTooltip('סגור כרטיסייה');
     expect(closeButtons, findsNothing);
 
     await harness.mouse.moveTo(tester.getCenter(find.text('ספר 5')));
     await tester.pumpAndSettle();
-    expect(closeButtons, findsOneWidget);
+    expect(closeButtons, findsNothing);
 
     await harness.mouse.moveTo(tester.getCenter(find.text('ספר 7')));
     await tester.pumpAndSettle();
-    expect(closeButtons, findsOneWidget);
+    expect(closeButtons, findsNothing);
 
     await harness.mouse.moveTo(const Offset(10, 700));
     await tester.pumpAndSettle();

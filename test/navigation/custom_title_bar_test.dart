@@ -763,8 +763,8 @@ void main() {
       expect(find.text('חיפוש: קקק'), findsNothing);
     });
 
-    // במרחב ביניים האייקון לא נכנס לצד ה-X שבריחוף, ולכן הוא נעדר גם במנוחה;
-    // המצב לא משתנה עם הריחוף.
+    // במרחב ביניים האייקון לא נכנס לצד ה-X של הכרטיסיה כשהיא נבחרת, ולכן הוא
+    // נעדר גם במנוחה; המצב לא משתנה עם הריחוף.
     for (final (count, iconShown) in [(10, true), (14, false)]) {
       testWidgets(
         'אייקון החיפוש בכרטיסיה צרה (${count + 1} כרטיסיות) יציב בריחוף',
@@ -797,8 +797,8 @@ void main() {
               of: searchTab,
               matching: find.byIcon(FluentIcons.dismiss_24_regular),
             ),
-            findsOneWidget,
-            reason: 'הריחוף חושף את ה-X',
+            findsNothing,
+            reason: 'בכרטיסיה צרה שאינה נבחרת אין X גם בריחוף (issue #3797)',
           );
           expectStable();
           expect(tester.takeException(), isNull);
@@ -2178,11 +2178,11 @@ void main() {
       );
     });
 
-    testWidgets('ה-X של טאב צר תחת ריחוף שורד בנייה מחדש של שורת הטאבים', (
+    testWidgets('ריחוף על טאב צר שאינו נבחר אינו חושף X, גם אחרי בנייה מחדש', (
       tester,
     ) async {
-      // בטאב צר שאינו נבחר ה-X מוצג רק בריחוף. כשמצב הריחוף לא שרד בנייה מחדש
-      // של השורה, ה-IconButton נמחק מתחת לסמן ולחיצה עליו לא סגרה את הטאב.
+      // בטאב צר שאינו נבחר אין X גם בריחוף: לחיצה למעבר אליו נפלה על ה-X
+      // וסגרה אותו (issue #3797). הוא נסגר בלחיצה אמצעית או בתפריט.
       final tabs = List.generate(10, (i) => _makeTextTab('ספר מספר $i'));
       final tabsBloc = _TestTabsBloc(
         TabsState(tabs: tabs, currentTabIndex: 0),
@@ -2227,27 +2227,14 @@ void main() {
       await gesture.addPointer(location: tester.getCenter(hoveredTab));
       addTearDown(gesture.removePointer);
       await tester.pumpAndSettle();
-      expect(closeButton, findsOneWidget, reason: 'ריחוף חושף את ה-X');
+      expect(closeButton, findsNothing, reason: 'ריחוף אינו חושף X');
 
       // בנייה מחדש של השורה מסיבה חיצונית — כמו setState של המסך העוטף.
       tester.element(find.byType(CustomTitleBar)).markNeedsBuild();
       await tester.pumpAndSettle();
 
-      expect(
-        closeButton,
-        findsOneWidget,
-        reason: 'ה-X חייב להישאר תחת הסמן גם אחרי בנייה מחדש',
-      );
-      tester
-          .widget<IconButton>(
-            find.ancestor(of: closeButton, matching: find.byType(IconButton)),
-          )
-          .onPressed!();
-      await tester.pump();
-      expect(
-        tabsBloc.addedEvents.whereType<RemoveTab>().map((e) => e.tab),
-        contains(same(tabs[3])),
-      );
+      expect(closeButton, findsNothing);
+      expect(tabsBloc.addedEvents.whereType<RemoveTab>(), isEmpty);
     });
 
     testWidgets('בצפיפות הטאב הנבחר שומר רוחב מזערי וכפתור ה-X שלו נשאר', (
@@ -2893,6 +2880,7 @@ void main() {
   ) async {
     // 6 טאבים ברוחב צר (מתחת לתקרה) — סגירה רגילה תרחיב את הנותרים. כל עוד
     // העכבר בשורה הרוחב אמור להישאר קפוא כדי שה-X של הטאב הבא יישאר תחת הסמן.
+    // רחבים מ-80, שבהם ה-X מוצג גם בטאב שאינו נבחר (issue #3797).
     final tabs = List.generate(6, (i) => _makeTextTab('ספר מספר $i'));
     final tabsBloc = _ClosingTabsBloc(
       TabsState(tabs: tabs, currentTabIndex: 0),
@@ -2913,7 +2901,7 @@ void main() {
       await historyBloc.close();
     });
 
-    await _setSurfaceSize(tester, const Size(700, 800));
+    await _setSurfaceSize(tester, const Size(1000, 800));
     await _pumpTitleBar(
       tester,
       tabsBloc: tabsBloc,
@@ -2935,6 +2923,7 @@ void main() {
         .toList();
 
     final widthBefore = tabWidths().first;
+    expect(widthBefore, inInclusiveRange(80.0, 139.0));
 
     // מביאים את העכבר אל מרכז השורה (hover) — כך _pointerInsideTabStrip=true.
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
@@ -3294,52 +3283,76 @@ void main() {
           (c) => c.constraints == BoxConstraints.tightFor(width: 1, height: 24),
         );
 
-    testWidgets('ה-X מוצג בריחוף גם בכרטיסיה צרה מאוד', (tester) async {
-      // 20 כרטיסיות ברוחב 900 → ~25px לכרטיסיה, פחות מרוחב ה-X המלא.
-      await pumpTabs(tester, 20);
-
-      final tab = find.byType(Tab).at(5);
-      final closeButton = find.descendant(
-        of: tab,
+    // issue #3797: בכרטיסיות צפופות ה-X הופיע בריחוף, ולחיצה כדי לעבור
+    // לכרטיסיה סגרה אותה. מתחת ל-80px ה-X רק בכרטיסיה הנבחרת.
+    group('dense tabs: no X on inactive hover (issue #3797)', () {
+      Finder closeOf(int index) => find.descendant(
+        of: find.byType(Tab).at(index),
         matching: find.byIcon(FluentIcons.dismiss_24_regular),
       );
-      expect(closeButton, findsNothing, reason: 'בלי ריחוף ה-X מוסתר');
 
-      await hoverAt(tester, tester.getCenter(tab));
-      expect(
-        closeButton,
-        findsOneWidget,
-        reason: 'ה-X מצטמצם לרוחב שנותר במקום להיעלם',
-      );
+      testWidgets('20 tabs: hovering an inactive tab shows no X', (
+        tester,
+      ) async {
+        // 20 כרטיסיות ברוחב 900 → ~25px לכרטיסיה, פחות מרוחב ה-X המלא.
+        await pumpTabs(tester, 20);
+        expect(closeOf(0), findsOneWidget, reason: 'בכרטיסיה הנבחרת יש X');
+
+        await hoverAt(tester, tester.getCenter(find.byType(Tab).at(5)));
+        expect(closeOf(5), findsNothing);
+        expect(closeOf(0), findsOneWidget);
+      });
+
+      testWidgets('20 tabs: a click right of centre switches, never closes', (
+        tester,
+      ) async {
+        await pumpTabs(tester, 20);
+        final tabRect = tester.getRect(find.byType(Tab).at(5));
+        final gesture = await hoverAt(tester, tabRect.center);
+        // ה-X נמצא בקצה, משמאל לכותרת בכיוון RTL.
+        await gesture.down(Offset(tabRect.left + 3, tabRect.center.dy));
+        await tester.pump();
+        await gesture.up();
+        await tester.pump();
+
+        expect(
+          tabsBloc.addedEvents.whereType<SetCurrentTab>().map((e) => e.index),
+          contains(5),
+        );
+        expect(tabsBloc.addedEvents.whereType<RemoveTab>(), isEmpty);
+      });
     });
 
     // issue #3276: ה-X של כרטיסיה צרה בריחוף תפס את רוב רוחבה, ולחיצה עליה
     // כדי לעבור אליה סגרה אותה.
     group('לחיצה על כרטיסיה צרה בריחוף בוחרת ולא סוגרת (issue #3276)', () {
-      /// מרחף מעל הכרטיסיה השישית, מוודא שה-X שלה מוצג, ולוחץ ב-[clickAt].
+      /// מרחף מעל הכרטיסיה השישית ולוחץ ב-[clickAt]. ה-X של כרטיסיה צרה
+      /// מוצג רק בנבחרת (issue #3797), ולכן גודלו נבדק בכרטיסיה הראשונה.
       Future<void> hoverAndClick(
         WidgetTester tester, {
         required int closeButtonCount,
-        required Offset Function(Rect tabRect, List<Rect> closeRects) clickAt,
+        required Offset Function(Rect tabRect) clickAt,
       }) async {
         final tab = find.byType(Tab).at(5);
         final tabRect = tester.getRect(tab);
         final gesture = await hoverAt(tester, tabRect.center);
+        expect(
+          find.descendant(of: tab, matching: find.byType(IconButton)),
+          findsNothing,
+          reason: 'בכרטיסיה צרה שאינה נבחרת אין X גם בריחוף (issue #3797)',
+        );
+        final selected = find.byType(Tab).first;
         final closeButtons = find.descendant(
-          of: tab,
+          of: selected,
           matching: find.byType(IconButton),
         );
-        expect(
-          closeButtons,
-          findsNWidgets(closeButtonCount),
-          reason: 'ה-X עדיין מופיע בריחוף על כרטיסיה צרה (issue #1133)',
-        );
-
+        expect(closeButtons, findsNWidgets(closeButtonCount));
         final closeRects = [
           for (final e in closeButtons.evaluate())
             tester.getRect(find.byWidget(e.widget)),
         ];
-        await gesture.down(clickAt(tabRect, closeRects));
+
+        await gesture.down(clickAt(tabRect));
         await tester.pump();
         await gesture.up();
         await tester.pump();
@@ -3354,7 +3367,7 @@ void main() {
 
         expect(
           closeRects.fold<double>(0, (sum, r) => sum + r.width),
-          lessThan(tabRect.width / 2),
+          lessThan(tester.getRect(selected).width / 2),
           reason: 'רוב הכרטיסיה נשאר אזור בחירה ולא אזור סגירה',
         );
       }
@@ -3366,7 +3379,7 @@ void main() {
           await hoverAndClick(
             tester,
             closeButtonCount: 1,
-            clickAt: (tabRect, _) => tabRect.center,
+            clickAt: (tabRect) => tabRect.center,
           );
         });
       }
@@ -3375,7 +3388,7 @@ void main() {
         await pumpTabs(
           tester,
           10,
-          makeTab: (i) => i == 5
+          makeTab: (i) => i == 0 || i == 5
               ? CombinedTab(
                   rightTab: _makeTextTab('ימין'),
                   leftTab: _makeTextTab('שמאל'),
@@ -3385,11 +3398,7 @@ void main() {
         await hoverAndClick(
           tester,
           closeButtonCount: 2,
-          // בין שני ה-X נמצאת כותרת של אחת החלוניות, בכל כיוון פריסה.
-          clickAt: (tabRect, closeRects) => Offset(
-            (closeRects.first.center.dx + closeRects.last.center.dx) / 2,
-            tabRect.center.dy,
-          ),
+          clickAt: (tabRect) => tabRect.center,
         );
       });
     });
