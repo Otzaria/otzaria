@@ -76,6 +76,7 @@ class TourCubit extends Cubit<TourState> {
   final Set<String> _openedTextBooks = <String>{};
   bool _hasOpenedTextBookThisSession = false;
   int _textSelectionCount = 0;
+  bool _linkHighlightSeen = false;
   bool _hasRegisteredCommentaryOpportunity = false;
   bool _commentaryOpportunityOpen = false;
   int _commentaryOpportunityScore = 0;
@@ -331,6 +332,13 @@ class TourCubit extends Cubit<TourState> {
       case TourInteractionType.systemSettingsOpened:
         _markTipResolved(LiveTipId.backupHint);
         break;
+      case TourInteractionType.linkHighlightShown:
+        _linkHighlightSeen = true;
+        break;
+      case TourInteractionType.linkHighlightCleared:
+        _linkHighlightSeen = false;
+        _markTipResolved(LiveTipId.linkHighlightHint);
+        break;
       case TourInteractionType.currentTabChanged:
       case TourInteractionType.readerPositionChanged:
         if (_isInteractionRelevantToOpportunity(interaction)) {
@@ -401,6 +409,11 @@ class TourCubit extends Cubit<TourState> {
         _commentaryOpportunityOpen &&
         _commentaryOpportunityScore >= 3) {
       return LiveTipId.commentaryHint;
+    }
+
+    // טיפ הקשרי: נדרש ברגע שההדגשה מופיעה, ולכן אינו ממתין לסף הפעלות.
+    if (_canShowTip(LiveTipId.linkHighlightHint) && _linkHighlightSeen) {
+      return LiveTipId.linkHighlightHint;
     }
 
     if (_canShowTip(LiveTipId.bookSourceHint) &&

@@ -1070,6 +1070,7 @@
   "כמעט לכל פעולה באוצריא יש קיצור מקלדת, ואפשר גם להתאים אותו אישית. היכנסו להגדרות ← קיצורי מקלדת כדי לצפות בכל הקיצורים ולשנות אותם להרגלי העבודה שלכם.": "Almost everything in Otzaria has a keyboard shortcut, and you can change any of them. Go to Settings → Keyboard Shortcuts to view or change them.",
   "אפשר להדפיס את הפרק הנוכחי ישירות מסרגל הכלים של הספר — כולל המפרשים המוצגים. לחצו על כפתור ההדפסה ובחרו את הפורמט המתאים.": "You can print the current perek straight from the sefer toolbar — including the meforshim on screen. Press the print button and pick the format you want.",
   "אוצריא מגבה אוטומטית את הסימניות, ההיסטוריה וההערות שלך. בהגדרות ← מערכת אפשר לייצא את הגיבוי לקובץ ולשחזר אותו בכל עת — גם לאחר התקנה מחדש.": "Otzaria automatically backs up your bookmarks, history and notes. In Settings → System you can export the backup to a file and restore it any time.",
+  "הסימון הצהוב מגיע מהקישור שפתחת. לחיצה על Esc מסירה אותו.": "The yellow highlight comes from the link you opened. Press Esc to remove it.",
   "@@comment_library": "מסך הספרייה (issue #1101)",
   "העדכון הושלם": "Update complete",
   "הספרייה מעודכנת": "Library is up to date",
