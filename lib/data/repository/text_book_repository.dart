@@ -263,6 +263,37 @@ class TextBookRepository {
     return mergeExtraLinks(base, [...userLinks, ...externalLinks]);
   }
 
+  /// הקישורים שספרים אחרים שומרים אל השורות [startIndex]..[endIndex] (0-based)
+  /// של [book], כפי שנשמרו: סוג מקורי, בלי סינוני תצוגה. [Link.index1] היא
+  /// השורה ב-[book], ו-[Link.path2]/[Link.index2] — הספר והשורה ששומרים את
+  /// הקישור. רק מהמסד של הספר עצמו (רשמי או מצורף); אחרת — ריק.
+  Future<List<Link>> getIncomingLinksInRange(
+    TextBook book, {
+    required int startIndex,
+    required int endIndex,
+  }) async {
+    final categoryId = book.categoryId;
+    final fileType = book.fileType ?? 'txt';
+    if (categoryId == null) return const [];
+    final provider = book.source.isAttached
+        ? DatabaseLibraryProvider.instance
+        : LibraryProviderManager.instance.getProviderForBook(
+            book.title,
+            categoryId: categoryId,
+            fileType: fileType,
+          );
+    if (provider is! DatabaseLibraryProvider) return const [];
+    return provider.getLinksForBookRange(
+      book.title,
+      categoryId,
+      fileType,
+      startLineIndex: startIndex,
+      endLineIndex: endIndex,
+      source: book.source.isAttached ? book.source : BookSource.official,
+      incoming: true,
+    );
+  }
+
   /// מוסיף ל-[base] את [extra] בלי כפילויות: קישור הדדי בין שני מסדים (A→B
   /// ו-B→A) או שורה כפולה ב-`external_link` מופיעים פעם אחת.
   @visibleForTesting

@@ -1383,6 +1383,22 @@ const { data } = await Otzaria.call('library.getCommentators', {
   `rawDivineNames: true` מחזיר אותו כפי שנשמר (⚠️ [האזהרה](#rawdivinenames--טקסט-כפי-שנשמר)).
   ערך שאינו בוליאני נדחה ב-`error.invalid_params` גם בלי `includeAnchors`.
   `targetHeRef` ו-`targetTitle` הם מפתחות ונשארים תמיד כפי שנשמרו.
+- `direction` (מ-0.9.99) — `'outgoing'` (ברירת המחדל: התשובה הרגילה, בלי שינוי),
+  `'incoming'` או `'both'`. `'incoming'` מחזיר את הקישורים שספרים אחרים שומרים
+  **אל** שורות החלון — למשל מסורת הש"ס שנשמרה רק בצד השני — כפי שנשמרו: בסוג
+  החיבור המקורי ובלי סינוני התצוגה של הממשק. כל רשומה נכנסת היא הקישור
+  השמור: `sourceTitle`/`sourceLine`/`sourceLineEnd`/`sourceHeRef` — הספר
+  והשורה ששומרים אותו, `sourceSource` ו-`sourceCategoryId` — זהות הספר (כמו
+  `targetSource`/`targetCategoryId` ביוצאים, כך שספרים שווי-שם ממסדים שונים
+  נבדלים), `targetLine` — השורה בחלון. `connectionTypes`, `targetTitles`
+  ו-`targetTitlePrefixes` חלים בנכנסים על הספר האחר (`sourceTitle`);
+  `includeAnchors` אינו חל עליהם. הקישורים הנכנסים נקראים מהמסד של הספר עצמו
+  (הרשמי או המסד המצורף); קישורי-משתמש וקישורים בין מסדים אינם נכללים בהם.
+  `'both'` — היוצאים ואחריהם הנכנסים, ובכל רשומה `direction`. קישור הפניה
+  שהממשק מציג גם בצד השני עשוי להופיע בה פעמיים: פעם כיוצא (כפי שהוא מוצג
+  בספר) ופעם כנכנס (כפי שנשמר). המגבלות (חלון, 2,000 רשומות, `truncated`) חלות
+  על התשובה כולה. ערך אחר: `error.invalid_params`. גרסה קודמת מתעלמת מהפרמטר
+  ומחזירה יוצאים — רשומה בלי `direction` היא יוצאת.
 
 ```javascript
 const { data } = await Otzaria.call('library.getLinks', {
@@ -1409,6 +1425,22 @@ const { data } = await Otzaria.call('library.getLinks', {
 //     anchor: { start: 4, end: 9, label: "א" }  // רק עם includeAnchors
 //   }]
 // }
+```
+
+```javascript
+// direction: 'incoming' — מסורת הש"ס שמצביעה אל הדף
+const { data } = await Otzaria.call('library.getLinks', {
+  bookId: 'שבת', startLine: 120, endLine: 140,
+  direction: 'incoming', connectionTypes: ['MESORAT_HASHAS']
+});
+// { truncated: false,
+//   links: [{
+//     direction: "incoming",
+//     sourceTitle: "עירובין", sourceLine: 210, sourceLineEnd: null,
+//     sourceHeRef: "עירובין יג, ב", sourceSource: "o", sourceCategoryId: 31,
+//     targetLine: 131,           // השורה בחלון
+//     connectionType: "MESORAT_HASHAS", isCommentary: false
+//   }] }
 ```
 
 ### `library.getLineNotes`
