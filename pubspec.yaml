@@ -165,7 +165,7 @@ dependencies:
   flutter_quill:
     git:
       url: https://github.com/Otzaria/flutter-quill
-      ref: 4d40c5b1bd1d56733277753a0bd6800ea987b912
+      ref: 88f594ee8378f403bf308ce57ca83920d2677f8f
   # הפורק Otzaria/flutter_inappwebview מתוחזק אצלנו (upstream אינו פעיל).
   # כל ה-overrides מוצמדים לאותו קומיט.
   flutter_inappwebview:

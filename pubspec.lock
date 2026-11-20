@@ -722,8 +722,8 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "4d40c5b1bd1d56733277753a0bd6800ea987b912"
-      resolved-ref: "4d40c5b1bd1d56733277753a0bd6800ea987b912"
+      ref: "88f594ee8378f403bf308ce57ca83920d2677f8f"
+      resolved-ref: "88f594ee8378f403bf308ce57ca83920d2677f8f"
       url: "https://github.com/Otzaria/flutter-quill"
     source: git
     version: "11.6.0"

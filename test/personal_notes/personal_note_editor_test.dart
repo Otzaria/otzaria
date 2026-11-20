@@ -59,12 +59,23 @@ void main() {
   testWidgets('סמן ההקלדה בעורך דק כמו בשאר שדות הטקסט (#2531)', (
     tester,
   ) async {
-    await pumpEditorWith(tester, 'שלום');
+    final controller = await pumpEditorWith(tester, 'שלום\nשורה נוספת');
 
-    final rawEditor = tester.widget<quill.QuillRawEditor>(
+    final editor = tester.state<quill.QuillRawEditorState>(
       find.byType(quill.QuillRawEditor),
     );
-    expect(rawEditor.config.cursorStyle.width, 1);
+    expect(editor.widget.config.cursorStyle.width, 1);
+    editor.widget.config.focusNode.requestFocus();
+    await tester.pump();
+
+    controller.updateSelection(
+      const TextSelection.collapsed(offset: 6),
+      quill.ChangeSource.local,
+    );
+    await tester.pump(Duration.zero, EnginePhase.build);
+    final needsLayout = editor.renderEditor.debugNeedsLayout;
+    await tester.pump();
+    expect(needsLayout, isFalse);
   });
 
   // תפריט העריכה הוא הדרך לגזור ולהדביק בלי מקלדת.
