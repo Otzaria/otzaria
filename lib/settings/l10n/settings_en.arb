@@ -560,6 +560,8 @@
   "הוספת הערה": "Add a Note",
   "דווח על טעות בספר": "Report an Error in the Book",
   "פועל כשיש טקסט מסומן או קטע נבחר": "Works when text is selected or a section is chosen",
+  "רענון ספר אישי": "Refresh Personal Book",
+  "טוען מחדש ספר אישי פתוח אחרי שינוי בקובץ שלו": "Reloads an open personal book after its file was changed",
   "סגור ספר נוכחי": "Close the Current Tab",
   "סגור כל הספרים": "Close all Tabs",
   "פתח כרטיסייה אחרונה שנסגרה": "Reopen the Last Closed Tab",
