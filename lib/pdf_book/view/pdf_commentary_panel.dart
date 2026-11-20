@@ -2410,7 +2410,7 @@ String _pdfCommentaryLinkTitle(
 ) {
   final marker = link.anchorStart == null ? null : anchorMarkerText(link);
   return _pdfCommentaryTitle(
-    marker == null ? title : '$marker $title',
+    marker == null ? title : anchoredLinkTitle(link, marker, title),
     settings,
   );
 }
