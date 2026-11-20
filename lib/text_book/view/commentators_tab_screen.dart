@@ -40,9 +40,11 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/widgets/layout/reading_area_width.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
+import 'package:otzaria/widgets/layout/side_pane_specs.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:positioned_sliver_list/positioned_list.dart';
@@ -293,11 +295,13 @@ CommentatorsVerseStep? computeVerseStep(
 }
 
 /// רוחב חלונית הניווט בכרטיסיית המפרשים.
-const double _kNavPaneWidth = 320;
+final double _kNavPaneWidth =
+    SidePaneSpecs.textCommentatorsTabNav.fixedPaneWidth!;
 
 /// המקום המינימלי לתוכן כדי שחלונית הניווט תידחק ליד התוכן. מתחת לזה היא
 /// נפתחת כ-overlay, ואין טעם בכפתור נעיצה.
-const double _kNavMinMainContentWidth = 400;
+final double _kNavMinMainContentWidth =
+    SidePaneSpecs.textCommentatorsTabNav.minMainContentWidth;
 
 class CommentatorsTabScreen extends StatefulWidget {
   final CommentatorsTab tab;
@@ -448,6 +452,19 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
   final _typeSelection = CommentaryTypeSelection();
   bool _navPaneOpen = false;
   bool _pinLeftPane = false;
+
+  // נעוצה אך מוסתרת: בחלון צר החלונית הנעוצה היא שכבה, והמשתמש סגר אותה
+  // (הקשה על ההצללה, Esc או כפתור הניווט). הנעיצה נשמרת, והחלונית נפתחת שוב
+  // כשהחלון מתרחב.
+  bool _pinnedOverlayDismissed = false;
+
+  // האם החלונית לצד התוכן (דחיקה) ולא שכבה עליו, לפי הפריסה האחרונה.
+  bool _navPaneBesideBook = true;
+
+  // הפתיחות בפועל: נעוצה פתוחה תמיד, חוץ משכבה שנסגרה; אחרת לפי המשתמש.
+  bool get _navPaneShown =>
+      _pinLeftPane ? !_pinnedOverlayDismissed : _navPaneOpen;
+
   // רשימת המפרשים הנבחרים (עצמאית לחלונית זו, מסונכרנת פעם אחת עם מקור הפתיחה)
   List<String>? _selectedCommentatorsOverride;
   final _commentarySearchController = TextEditingController();
@@ -796,18 +813,15 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
                         child: Stack(
                           children: [
                             NavSidePanel(
-                              isOpen: _navPaneOpen || _pinLeftPane,
+                              isOpen: _navPaneShown,
                               isPinned: _pinLeftPane,
                               isGloballyPinned:
                                   Settings.getValue<bool>(
                                     SettingsRepository.keyPinSidebar,
                                   ) ??
                                   false,
-                              onClose: () {
-                                if (!_pinLeftPane) {
-                                  setState(() => _navPaneOpen = false);
-                                }
-                              },
+                              onClose: _closeNavPane,
+                              onLayoutModeChanged: _onNavPaneLayoutMode,
                               alignment: AlignmentDirectional.centerEnd,
                               paneWidth: _kNavPaneWidth,
                               minMainContentWidth: _kNavMinMainContentWidth,
@@ -975,16 +989,50 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
       _navigateVerse(chapters, forward: true);
 
   void _openSearchPane() {
-    setState(() => _navPaneOpen = true);
+    setState(_showNavPane);
     _navTabController.animateTo(_searchTabIndex);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _searchFocusNode.requestFocus();
     });
   }
 
+  /// פתיחה מפורשת: גם שכבה נעוצה שנסגרה חוזרת.
+  void _showNavPane() {
+    _navPaneOpen = true;
+    _pinnedOverlayDismissed = false;
+  }
+
+  /// בקשת סגירה מהחלונית: הקשה על ההצללה, Esc, או הסגירה האוטומטית בצמצום.
+  /// חלונית לא נעוצה נסגרת. נעוצה בשכבה (חלון צר) נסגרת כשכבה בלבד והנעיצה
+  /// נשמרת. נעוצה לצד התוכן אינה נסגרת: אין הצללה ו-Esc, והסגירה האוטומטית
+  /// בצמצום מגיעה לפני הדיווח על הפריסה הצרה ולכן נבלעת כאן, כמו תמיד.
+  void _closeNavPane() {
+    if (!_pinLeftPane) {
+      setState(() => _navPaneOpen = false);
+    } else if (!_navPaneBesideBook) {
+      setState(() => _pinnedOverlayDismissed = true);
+    }
+  }
+
+  void _onNavPaneLayoutMode(bool besideBook) {
+    if (!mounted || besideBook == _navPaneBesideBook) return;
+    setState(() {
+      _navPaneBesideBook = besideBook;
+      // בהרחבה החלונית הנעוצה חוזרת מעצמה.
+      if (besideBook) _pinnedOverlayDismissed = false;
+    });
+  }
+
   void _toggleNavPane() {
-    setState(() => _navPaneOpen = !_navPaneOpen);
-    if (_navPaneOpen && _navTabController.index == 0) {
+    setState(() {
+      if (!_pinLeftPane) {
+        _navPaneOpen = !_navPaneOpen;
+      } else if (!_navPaneBesideBook) {
+        // נעוצה בשכבה: הכפתור סוגר ופותח את השכבה. לצד התוכן היא פתוחה תמיד.
+        _pinnedOverlayDismissed = !_pinnedOverlayDismissed;
+      }
+    });
+    if (_navPaneShown && _navTabController.index == 0) {
       _scrollNavToSelectedChapter();
       if (!_pinLeftPane) _focusNavigationSearch();
     }
@@ -993,7 +1041,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
   void _focusNavigationSearch() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted ||
-          !(_navPaneOpen || _pinLeftPane) ||
+          !_navPaneShown ||
           _navTabController.index != 0 ||
           !TickerMode.valuesOf(context).enabled ||
           ModalRoute.of(context)?.isCurrent == false ||
@@ -1007,7 +1055,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
   }
 
   void _openCommentatorsSelectionPane() {
-    setState(() => _navPaneOpen = true);
+    setState(_showNavPane);
     _navTabController.animateTo(_commentatorsTabIndex);
   }
 
@@ -1069,7 +1117,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
       title: 'מפרשים על ${state.book.title}',
       prevMajorTooltip: 'הפרק הקודם',
       nextMajorTooltip: 'הפרק הבא',
-      navPaneOpen: _navPaneOpen,
+      navPaneOpen: _navPaneShown,
       navPanePinned: _pinLeftPane,
       canPinNavPane: NavSidePanel.canPin(
         context,
@@ -1078,7 +1126,12 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
       ),
       onToggleNavPane: _toggleNavPane,
       onTogglePin: () {
-        setState(() => _pinLeftPane = !_pinLeftPane);
+        setState(() {
+          _pinLeftPane = !_pinLeftPane;
+          // שכבה שנסגרה נשארת סגורה גם אחרי ביטול הנעיצה.
+          if (!_pinLeftPane && _pinnedOverlayDismissed) _navPaneOpen = false;
+          _pinnedOverlayDismissed = false;
+        });
         if (_pinLeftPane && !_navPaneOpen) _focusNavigationSearch();
       },
       onPrevMajor: () => _navigateToPrevChapter(chapters),
@@ -1137,15 +1190,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
     final groups = state.commentatorGroups;
     final selected = _selectedCommentatorsOverride ?? state.activeCommentators;
     if (groups.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text(
-            'טוען מפרשים...',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ),
-      );
+      return const LoadingIndicator.compact(message: 'טוען מפרשים...');
     }
     final chapters = _getChapters(state.tableOfContents);
     final indexes =

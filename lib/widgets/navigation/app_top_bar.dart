@@ -203,8 +203,6 @@ class _ShadowBelowOnlyClipper extends CustomClipper<Rect> {
   bool shouldReclip(covariant CustomClipper<Rect> oldClipper) => false;
 }
 
-const Duration _kAnimDuration = Duration(milliseconds: 220);
-
 class _AppTopBarState extends State<AppTopBar>
     with SingleTickerProviderStateMixin {
   late final AnimationController _anim;
@@ -220,7 +218,7 @@ class _AppTopBarState extends State<AppTopBar>
     final initial = widget.secondaryRowVisible?.value != false ? 1.0 : 0.0;
     _anim = AnimationController(
       vsync: this,
-      duration: _kAnimDuration,
+      duration: AppTokens.animNormal,
       value: initial,
     );
     _progress = CurvedAnimation(parent: _anim, curve: Curves.easeInOut);
@@ -233,7 +231,7 @@ class _AppTopBarState extends State<AppTopBar>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _anim.duration = AppMotion.duration(context, _kAnimDuration);
+    _anim.duration = AppMotion.duration(context, AppTokens.animNormal);
     final isCompact = AppDensity.of(context).isCompact;
     // גובה הסרגל השתנה — מעדכנים את totalHeightNotifier אחרי ה-frame.
     if (_isCompact != null && _isCompact != isCompact) {
@@ -395,20 +393,28 @@ class _AppTopBarState extends State<AppTopBar>
       ...AppTopBarScope._collect(context, isCompact, leading: false),
     ];
 
+    // בחלונית צרה (פיצול במינימום) הפריטים לא נכנסים: הם נגללים, ולא נחתכים
+    // ומשאירים את הפעולה בלי גישה. מתחת לרוחב הפנוי אין הבדל מראה.
     final leadingWidget = leadingItems.isEmpty
         ? null
-        : Row(
-            mainAxisSize: MainAxisSize.min,
-            children: _itemsToWidgets(context, leadingItems),
+        : SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: _itemsToWidgets(context, leadingItems),
+            ),
           );
 
     final trailingWidget = trailingItems.isEmpty
         ? null
-        : Row(
-            mainAxisSize: MainAxisSize.min,
-            children: _itemsToWidgets(
-              context,
-              trailingItems,
+        : SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: _itemsToWidgets(
+                context,
+                trailingItems,
+              ),
             ),
           );
 

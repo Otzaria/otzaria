@@ -930,6 +930,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'טרם נבחר מיקום': 'No Location Chosen Yet',
     'י-ה-ו-ה יוצג כ-י-ק-ו-ק': 'The Divine Name is shown in a substituted spelling',
     'ידוד': 'Y-Dalet-V-Dalet',
+    'ידית שינוי גודל — גרירה או חצים': 'Resize handle — drag or use the arrow keys',
     'ידני': 'Manual',
     'יומי': 'Daily',
     'יומן מקישור (ICS)': 'Calendar from link (ICS)',

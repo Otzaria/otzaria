@@ -126,6 +126,9 @@ class AppTokens {
   static const double dragHandleCompactHitSize = 18;
   static const double dragHandleRegularHitSize = 24;
 
+  /// שטח הלחיצה של הידית במסך מגע (ערכת נושא במצב מגע).
+  static const double dragHandleTouchHitSize = 32;
+
   // ── Panel Tab ————————————————————————————————
   static const double panelTabHeight = 44;
   static const double panelTabIconSize = 16;

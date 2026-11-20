@@ -11,6 +11,7 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/controls/bar_button.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/middle_click_autoscroll.dart';
 
@@ -269,12 +270,28 @@ class _VerticalTabRow extends StatelessWidget {
                   ? Stack(
                       children: [
                         Positioned.fill(
-                          child: Tooltip(
-                            message: tooltipMessage,
-                            child: Center(
-                              child: leading ?? buildTabFallbackIcon(context),
-                            ),
-                          ),
+                          // במגע: manual, כך שלחיצה ארוכה פותחת את תפריט הכרטיסיה
+                          // (וסגירה) ולא את ה-tooltip. בעכבר ה-tooltip הרגיל
+                          // נשאר, גם בלחיצה ארוכה.
+                          child: BarButton.isTouch(context)
+                              ? TabTitleTooltip(
+                                  message: tooltipMessage,
+                                  title: displayTitle,
+                                  alwaysShow: true,
+                                  child: Center(
+                                    child:
+                                        leading ??
+                                        buildTabFallbackIcon(context),
+                                  ),
+                                )
+                              : Tooltip(
+                                  message: tooltipMessage,
+                                  child: Center(
+                                    child:
+                                        leading ??
+                                        buildTabFallbackIcon(context),
+                                  ),
+                                ),
                         ),
                         if (showClose)
                           PositionedDirectional(

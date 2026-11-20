@@ -30,6 +30,10 @@ class AppMotion {
   static Duration controller(Duration duration) =>
       reducedByPlatform ? Duration.zero : duration;
 
+  /// הפיכת דף ב־PDF: משך אחד לכל המסכים (הכרעת בעל הפרויקט 18.11). עובר דרך
+  /// [controller] או [duration], ולכן מתאפס בהפחתת אנימציות.
+  static const Duration pageTurn = Duration(milliseconds: 500);
+
   /// משך החלפת לשונית ל-`TabController.animationDuration`.
   static Duration get tabSwitch => controller(AppTokens.animPanelSlide);
 

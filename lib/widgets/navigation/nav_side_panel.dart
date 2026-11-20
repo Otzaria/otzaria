@@ -190,7 +190,14 @@ class _NavPanelTabHeaderState extends State<NavPanelTabHeader> {
         size: AppTokens.panelTabIconSize,
       ),
     );
-    return PanelTab.buildTab(iconWidget, data.label);
+    final label = data.label;
+    if (label != null && !PanelTab.labelFits(context)) {
+      return PanelTab.buildTab(
+        Tooltip(message: label, child: iconWidget),
+        null,
+      );
+    }
+    return PanelTab.buildTab(iconWidget, label);
   }
 }
 

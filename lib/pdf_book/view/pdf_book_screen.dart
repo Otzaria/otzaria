@@ -117,6 +117,7 @@ import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
+import 'package:otzaria/widgets/layout/side_pane_specs.dart';
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 import 'package:otzaria/plugins/utils/plugin_toolbar_actions.dart';
 import 'package:otzaria/widgets/navigation/book_view_actions.dart';
@@ -173,7 +174,8 @@ class PdfBookScreen extends StatefulWidget {
 
 /// המקום המינימלי לקורא כדי שחלונית הניווט תידחק ליד התוכן. מתחת לזה היא
 /// נפתחת כ-overlay, ואין טעם בכפתור נעיצה.
-const double _kNavMinMainContentWidth = 200;
+final double _kNavMinMainContentWidth =
+    SidePaneSpecs.pdfReaderNav.minMainContentWidth;
 
 class _PdfBookScreenState extends State<PdfBookScreen>
     with
@@ -351,7 +353,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   /// כפולות רחוקות מהנוכחית מעבר לטווח הזה לא מרונדרות ומפונות מהמטמון.
   /// בעמודים: ±כפולה אחת — בדיוק מה ש-[_schedulePrerenderForAdjacentSpreads] מרנדר.
   static const int _kSpreadKeepRange = 2;
-  static const Duration _kPageTurnDuration = Duration(milliseconds: 500);
 
   /// כיוון הדפדוף האחרון — קובע איזו כפולה שכנה תרונדר ראשונה.
   _BookPageTurnDirection _lastTurnDirection = _BookPageTurnDirection.next;
@@ -561,7 +562,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     );
     _pageTurnController = AnimationController(
       vsync: this,
-      duration: _kPageTurnDuration,
+      duration: AppMotion.controller(AppMotion.pageTurn),
     );
     if (widget.tab.pageNumber < 1) {
       widget.tab.pageNumber = 1;
@@ -1608,6 +1609,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         final shouldShowLeftPane = resolveInitialReadingLeftPaneVisibility(
           explicitOpen: widget.tab.showLeftPane.value,
           screenWidth: mounted ? readingLayoutWidthOf(context) : null,
+          minMainContentWidth: _kNavMinMainContentWidth,
         );
         if (currentSession()) {
           if (shouldShowLeftPane) {
@@ -2906,8 +2908,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
     try {
       if (!commit) {
-        final duration = Duration(
-          milliseconds: max(80, (250 * progress).round()),
+        final duration = AppMotion.duration(
+          context,
+          Duration(milliseconds: max(80, (250 * progress).round())),
         );
         await _pageTurnController.animateBack(
           0.0,
@@ -2919,10 +2922,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
       _lastInitiatedTargetPage = targetPage;
       final flingBoost = (velocity / 3000).clamp(0.0, 1.0);
-      final duration = Duration(
-        milliseconds: max(
-          100,
-          (420 * (1.0 - progress) * (1.0 - 0.5 * flingBoost)).round(),
+      final duration = AppMotion.duration(
+        context,
+        Duration(
+          milliseconds: max(
+            100,
+            (420 * (1.0 - progress) * (1.0 - 0.5 * flingBoost)).round(),
+          ),
         ),
       );
 
@@ -3515,8 +3521,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       }
       final hasCachedTarget = _spreadCache.containsKey(targetSpreadStartPage);
       _pageTurnController.duration = pdfQueuedPageTurnDuration(
-        _kPageTurnDuration,
+        AppMotion.pageTurn,
         _pendingPageTurns.length,
+        reduced: mounted && AppMotion.reduced(context),
       );
 
       if (hasCachedTarget) {
@@ -4385,8 +4392,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                       minMainContentWidth: _kNavMinMainContentWidth,
                       onClose: () => _setLeftPaneVisibility(false),
                       isResizable: true,
-                      minPaneWidth: 200,
-                      maxPaneWidth: 600,
+                      minPaneWidth: SidePaneSpecs.pdfReaderNav.minPaneWidth,
+                      maxPaneWidth: SidePaneSpecs.pdfReaderNav.maxPaneWidth,
                       autoHandleResponsiveVisibility: false,
                       onLayoutModeChanged: (usesPushLayout) {
                         if (_isChoosingPersonalNotePoint &&
@@ -4431,11 +4438,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                                 _rightPaneUsesPushLayout),
                         alignment: AlignmentDirectional.centerStart,
                         paneWidth: rightPaneWidth,
-                        minMainContentWidth: 200,
+                        minMainContentWidth: SidePaneSpecs
+                            .pdfReaderCommentary
+                            .minMainContentWidth,
                         onClose: () => _setRightPaneVisibility(false),
                         isResizable: true,
-                        minPaneWidth: 250,
-                        maxPaneWidth: 600,
+                        minPaneWidth:
+                            SidePaneSpecs.pdfReaderCommentary.minPaneWidth,
+                        maxPaneWidth:
+                            SidePaneSpecs.pdfReaderCommentary.maxPaneWidth,
                         autoHandleResponsiveVisibility: false,
                         onLayoutModeChanged: (usesPushLayout) {
                           if (_isChoosingPersonalNotePoint &&
@@ -6209,7 +6220,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     // pdfrx מנהל worker יחיד: PdfViewer פעיל ורסטור התצוגה המקדימה תוקעים
     // זה את זה, ולכן המציג מנותק כל עוד מסך ההדפסה פתוח.
     setState(() => _pdfViewerSuspended = true);
-    await showDialog(
+    await showDialogUntilTornDown(
       context: context,
       barrierDismissible: false,
       builder: (_) => PrintingScreen(

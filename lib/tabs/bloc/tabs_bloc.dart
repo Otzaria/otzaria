@@ -12,6 +12,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/pre_close_registry.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
+import 'package:otzaria/tabs/view/pane_drop_geometry.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/models/books.dart';
@@ -47,6 +48,25 @@ class _ClosedTabEntry {
     required this.tab,
     required this.originalIndex,
   });
+}
+
+/// רוחב אזור הקריאה לכל [TabsBloc], כפי שמסך הקריאה מדווח בכל בנייה. נשמר
+/// לפי זהות ה-bloc ולא כשדה בו: כל חלון הוא bloc אחר ברוחב אחר, ואין צורך
+/// שכל מחליף של ה-bloc יממש ממשק נוסף.
+final Expando<double> _readingAreaWidths = Expando<double>('readingAreaWidth');
+
+/// מסך הקריאה מדווח את רוחב האזור שלו, לשער הפיצול ([canSplitReadingArea]).
+void reportReadingAreaWidth(TabsBloc bloc, double width) {
+  _readingAreaWidths[bloc] = width;
+}
+
+/// האם באזור הקריאה של [bloc] יש מקום לשתי חלוניות קריאות ([canSplitPane]).
+/// עוד לא דווח רוחב: אין הגבלה. כך פתיחה לצד או "הצג לצד" לא יוצרות שתי
+/// חלוניות בלי מקום קריאה לאף אחת.
+bool canSplitReadingArea(TabsBloc bloc) {
+  final width = _readingAreaWidths[bloc];
+  return width == null ||
+      canSplitPane(Size(width, 0), platform: defaultTargetPlatform);
 }
 
 class TabsBloc extends Bloc<TabsEvent, TabsState> {
@@ -488,7 +508,10 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
   Future<void> _onAddTab(AddTab event, Emitter<TabsState> emit) async {
     debugPrint('DEBUG: הוספת טאב חדש - ${event.tab.title}');
-    final tab = await _withCompanion(event.tab);
+    // ספר מלווה נפתח כפיצול, ולכן עובר באותו שער רוחב כמו שאר מסלולי הפיצול.
+    final tab = canSplitReadingArea(this)
+        ? await _withCompanion(event.tab)
+        : event.tab;
     if (!_insertTab(event, tab, emit.call)) _disposeTabLater(tab);
   }
 
@@ -1752,6 +1775,8 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     if (event.rightTab is CombinedTab || event.leftTab is CombinedTab) return;
     // אותו טאב בשני הצדדים יוצר מפתח חלונית כפול.
     if (identical(event.rightTab, event.leftTab)) return;
+    // אין מקום לשתי חלוניות קריאות: הטאבים נשארים כרטיסיות נפרדות.
+    if (!canSplitReadingArea(this)) return;
 
     // שומרים על זהות החלוניות כדי לשמר את מצב הקריאה.
     final combinedTab = CombinedTab(
@@ -1796,6 +1821,12 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         identical(current, event.tab) ||
         _isSameBook(current, event.tab)) {
       if (!identical(current, event.tab)) _disposeTabLater(event.tab);
+      return;
+    }
+
+    // אין מקום לשתי חלוניות קריאות: הספר נפתח ככרטיסייה, כמו בלי פיצול.
+    if (!canSplitReadingArea(this)) {
+      await _onOpenOrFocusTab(OpenOrFocusTab(event.tab), emit);
       return;
     }
 

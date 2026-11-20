@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -119,10 +121,20 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
   bool _isDragging = false;
   // snapshot של מצב תחילת גרירה
   bool? _dragStartedInWideMode;
+  // הרוחב הפנוי לחלונית ולתוכן, מהבנייה האחרונה (גם אם החלון משתנה בזמן גרירה).
+  double _availableWidth = double.infinity;
 
   // דוחים תוכן כבד עד הפתיחה, אלא אם הוא נחוץ לעבודה ברקע.
   // תוכן שכבר נבנה נשמר גם בסגירה כדי לשמור state.
   bool _paneEverOpened = false;
+
+  // האם החלונית נסגרה בידי המשתמש: כל סגירה שאינה הסגירה האוטומטית בצמצום
+  // (שכבה, כפתור, קיצור). נפתחת מחדש בהרחבה רק כשזה false, כלומר כשנסגרה
+  // אוטומטית או שהמסך עצמו פתח אותה סגורה. פתיחה מאפסת.
+  bool _closedByUser = false;
+
+  // הסגירה האוטומטית בצמצום בדרך: הסגירה שתגיע מההורה בעקבותיה אינה של המשתמש.
+  bool _autoClosePending = false;
 
   // שלוש הפריסות בונות עצים שונים; המפתח מעביר את התוכן ביניהן בלי לבנות אותו
   // מחדש — אחרת נעיצה/ביטול נעיצה מאפסים את מיקום הקריאה.
@@ -175,12 +187,27 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
   @override
   void didUpdateWidget(AdaptiveSidePane oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // סגירה באמצע גרירה מפרקת את הידית בלי onPanEnd, ו-_onDragEnd הוא המקום
+    // היחיד שמאפס את מצב הגרירה: בלי איפוס הפריסה נשארת קפואה על מצב תחילת
+    // הגרירה והסגירה והפתיחה האוטומטיות כבויות. הגרירה שנקטעה נשמרת כמו
+    // גרירה שהסתיימה, אחרי הפריים (ה-parent נמצא עכשיו באמצע בנייה).
+    if (oldWidget.isOpen && !widget.isOpen && _isDragging) {
+      _isDragging = false;
+      _dragStartedInWideMode = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onPaneResizeEnd?.call();
+      });
+    }
     // עדכון הרוחב הפנימי כשה-parent שולח רוחב חדש — אבל לא בזמן גרירה
     if (!_isDragging && oldWidget.paneWidth != widget.paneWidth) {
       _livePaneWidth.value = widget.paneWidth;
     }
     if ((widget.isOpen || widget.maintainState) && !_paneEverOpened) {
       _paneEverOpened = true;
+    }
+    if (oldWidget.isOpen != widget.isOpen) {
+      _closedByUser = !widget.isOpen && !_autoClosePending;
+      _autoClosePending = false;
     }
     // החלונית הסגורה נשארת בעץ: שורה ממוקדת בה הייתה בולעת את החיצים של הספר.
     // unfocus של הצומת העוטף ולא של הממוקד: אחרת הפוקוס נשאר ב-scope שבתוך החלונית.
@@ -221,13 +248,21 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
 
     if (previous == true && !hasRoomForSideBySide && widget.isOpen) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && widget.isOpen) widget.onClose();
+        if (!mounted || !widget.isOpen) return;
+        _autoClosePending = true;
+        widget.onClose();
+        // ההורה אינו חייב לסגור (נעיצה): אז אין שינוי ב-isOpen שיאפס את הדגל,
+        // וסגירה מאוחרת של המשתמש הייתה נספרת כאוטומטית.
+        WidgetsBinding.instance
+          ..addPostFrameCallback((_) => _autoClosePending = false)
+          ..ensureVisualUpdate();
       });
     }
 
     if (previous == false &&
         hasRoomForSideBySide &&
         !widget.isOpen &&
+        !_closedByUser &&
         widget.onOpen != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && !widget.isOpen) widget.onOpen!.call();
@@ -303,19 +338,40 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     );
   }
 
+  /// הרוחב המרבי שאפשר לגרור אליו. במצב דחיקה זה מה ששומר [minMainContentWidth]
+  /// לתוכן (ועם הרווחים של הפריסה הרחבה): בלי זה הגרירה נראית תקינה, ובשחרור
+  /// המצב מוערך מחדש והחלונית הופכת לשכבה או נסגרת. בפריסה הצרה (שכבה) התקרה
+  /// היא מה שנראה על המסך, כדי שלא יהיה אזור מת שבו הגרירה פנימה לא משנה דבר.
+  double _dragCeiling() {
+    final room = _dragStartedInWideMode == false
+        ? _availableWidth - _kNarrowSideGap * 2
+        : _availableWidth -
+              widget.minMainContentWidth -
+              _wideOuterSideGap -
+              _wideInnerSideGap;
+    final ceiling = room < (widget.maxPaneWidth ?? double.infinity)
+        ? room
+        : widget.maxPaneWidth ?? double.infinity;
+    return ceiling < widget.minPaneWidth ? widget.minPaneWidth : ceiling;
+  }
+
   void _onDragStart(bool currentlyWide) {
     if (_isDragging) return;
     setState(() {
       _dragStartedInWideMode = currentlyWide;
       _isDragging = true;
     });
+    // רוחב שמור גדול מהחלון: בשכבה מוצג חתוך, והערך הפנימי חייב להתאים למה
+    // שנראה, אחרת הגרירה הראשונה לא עושה כלום.
+    final ceiling = _dragCeiling();
+    if (_livePaneWidth.value > ceiling) _livePaneWidth.value = ceiling;
   }
 
   void _onDragDelta(double delta, bool paneOnRight) {
     final effectiveDelta = paneOnRight ? -delta : delta;
     final nextWidth = (_livePaneWidth.value + effectiveDelta).clamp(
       widget.minPaneWidth,
-      widget.maxPaneWidth ?? double.infinity,
+      _dragCeiling(),
     );
     _livePaneWidth.value = nextWidth;
     // מעדכן את ה-parent בזמן אמת (עבור מסכים שצריכים זאת), ללא setState
@@ -335,6 +391,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     return ResizableDragHandle(
       isVertical: true,
       showDivider: false,
+      invertSemanticDirection: paneOnRight,
       gripOffset: paneHandleGripOffset(context, paneOnRight: paneOnRight),
       onDragStart: () => _onDragStart(currentlyWide),
       onDragDelta: (delta) => _onDragDelta(delta, paneOnRight),
@@ -379,6 +436,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
   Widget _buildLayout(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        _availableWidth = constraints.maxWidth;
         final paneOnRight = _isPaneOnRight(context);
 
         // _livePaneWidth הוא ה-source of truth לרוחב: מתעדכן בזמן גרירה,
@@ -437,26 +495,10 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
       KeyedSubtree(key: _mainContentKey, child: widget.mainContent);
 
   Widget _buildWideLayout(BuildContext context, {required bool paneOnRight}) {
-    final showHandle =
-        widget.isOpen &&
-        widget.isResizable &&
-        widget.onPaneWidthChanged != null;
-
-    // כאן ה-Positioned נמדד מהקצה שמעבר לדופן הפנימית של הפאנל (בשונה מהפריסה
-    // הצרה), ולכן המרחק הוא הגלישה החוצה ולא הכניסה פנימה.
-    final outreach = showHandle ? handleHitOutreach(context) : 0.0;
-
-    // ה-handle לא תלוי ברוחב — מוגדר מחוץ ל-ValueListenableBuilder
-    final handleWidget = showHandle
-        // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
-        ? Positioned(
-            top: _wideTopGap,
-            bottom: _wideBottomGap,
-            left: paneOnRight ? _wideOuterSideGap - outreach : null,
-            right: paneOnRight ? null : _wideOuterSideGap - outreach,
-            child: _buildResizeHandle(paneOnRight, true),
-          )
-        : null;
+    // הידית יושבת מעל השורה כולה ולא בתוך משבצת החלונית: מה שגולש מחוץ
+    // למשבצת לא מקבל נגיעות (הוא מחוץ לגבולות ההורה), והיה גם מצויר מתחת
+    // לתוכן הראשי. כך כל שטח הלחיצה של הידית לחיץ, גם החלק שיוצא החוצה.
+    final canResize = widget.isResizable && widget.onPaneWidthChanged != null;
 
     // ה-slot של הפאנל עוטף ב-ValueListenableBuilder כדי לעדכן רק אותו בזמן גרירה
     final paneSlot = ValueListenableBuilder<double>(
@@ -498,37 +540,31 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
           );
         }
 
-        return Stack(
-          clipBehavior: Clip.none,
-          children: [
-            AnimatedContainer(
-              duration: _isDragging
-                  ? Duration.zero
-                  : AppMotion.duration(context, AppTokens.animPanelSlide),
-              curve: Curves.easeInOut,
-              width: widget.isOpen ? currentOccupied : 0,
-              child: ClipRect(
-                child: Align(
-                  alignment: paneOnRight
-                      // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
-                      ? Alignment.centerRight
-                      // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
-                      : Alignment.centerLeft,
-                  child: OverflowBox(
-                    maxWidth: currentOccupied,
-                    minWidth: 0,
-                    alignment: paneOnRight
-                        // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
-                        ? Alignment.centerRight
-                        // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
-                        : Alignment.centerLeft,
-                    child: paneSlotContent,
-                  ),
-                ),
+        return AnimatedContainer(
+          duration: _isDragging
+              ? Duration.zero
+              : AppMotion.duration(context, AppTokens.animPanelSlide),
+          curve: Curves.easeInOut,
+          width: widget.isOpen ? currentOccupied : 0,
+          child: ClipRect(
+            child: Align(
+              alignment: paneOnRight
+                  // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
+                  ? Alignment.centerRight
+                  // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
+                  : Alignment.centerLeft,
+              child: OverflowBox(
+                maxWidth: currentOccupied,
+                minWidth: 0,
+                alignment: paneOnRight
+                    // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
+                    ? Alignment.centerRight
+                    // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
+                    : Alignment.centerLeft,
+                child: paneSlotContent,
               ),
             ),
-            ?handleWidget,
-          ],
+          ),
         );
       },
     );
@@ -541,12 +577,54 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
           : [Expanded(child: mainContent), paneSlot],
     );
 
-    if (!widget.attachToTopEdge) return row;
+    if (!widget.attachToTopEdge && !canResize) return row;
 
     // במצב הצמדה מציירים עיגול קעור בפינה שבין החלונית לתוכן — טלאי בצבע
     // החלונית באזור התוכן, שמתעגל כלפי החלון הגדול.
     return Stack(
-      children: [row, _buildTopCornerFillet(paneOnRight)],
+      children: [
+        row,
+        if (widget.attachToTopEdge) _buildTopCornerFillet(paneOnRight),
+        if (canResize)
+          Positioned.fill(child: _buildWideHandleLayer(context, paneOnRight)),
+      ],
+    );
+  }
+
+  /// שכבת הידית בפריסה הרחבה. המיקום נגזר מהרוחב התפוס בפועל (כמו משבצת
+  /// החלונית, כולל אנימציית הפתיחה והגרירה), כך שהידית נעה יחד עם החלונית.
+  Widget _buildWideHandleLayer(BuildContext context, bool paneOnRight) {
+    return ValueListenableBuilder<double>(
+      valueListenable: _livePaneWidth,
+      builder: (context, liveWidth, _) {
+        final occupied = liveWidth + _wideOuterSideGap + _wideInnerSideGap;
+        return TweenAnimationBuilder<double>(
+          tween: Tween<double>(end: widget.isOpen ? occupied : 0),
+          duration: _isDragging
+              ? Duration.zero
+              : AppMotion.duration(context, AppTokens.animPanelSlide),
+          curve: Curves.easeInOut,
+          builder: (context, animatedOccupied, _) {
+            if (!widget.isOpen) return const SizedBox.shrink();
+            // הקצה הפנימי של הידית נכנס [kPaneHandleInnerReach] אל תוך
+            // החלונית; שאר שטח הלחיצה יוצא החוצה, אל התוכן.
+            final inset =
+                animatedOccupied - _wideOuterSideGap - kPaneHandleInnerReach;
+            return Stack(
+              children: [
+                // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
+                Positioned(
+                  top: _wideTopGap,
+                  bottom: _wideBottomGap,
+                  right: paneOnRight ? inset : null,
+                  left: paneOnRight ? null : inset,
+                  child: _buildResizeHandle(paneOnRight, true),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -712,6 +790,13 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
                       ? maxPaneWidth
                       : liveWidth;
                   final overhang = showHandle ? kPaneHandleInnerReach : 0.0;
+                  // חלונית רחבה כמעט כמו החלון: בלי הגבלה שטח הלחיצה של הידית
+                  // (שיוצא החוצה מהחלונית) היה יוצא מהחלון, ובמגע (32) לא נשאר
+                  // בו כמעט כלום. מגבילים כך שהידית כולה בתוך החלון.
+                  final handleInset = math.min(
+                    _kNarrowSideGap + currentWidth - overhang,
+                    math.max(0.0, maxWidth - handleHitSize(context)),
+                  );
 
                   return Stack(
                     children: [
@@ -744,12 +829,8 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
                         Positioned(
                           top: _kNarrowTopGap,
                           bottom: _kNarrowBottomGap,
-                          right: paneOnRight
-                              ? _kNarrowSideGap + currentWidth - overhang
-                              : null,
-                          left: paneOnRight
-                              ? null
-                              : _kNarrowSideGap + currentWidth - overhang,
+                          right: paneOnRight ? handleInset : null,
+                          left: paneOnRight ? null : handleInset,
                           child: AnimatedOpacity(
                             duration: AppMotion.duration(
                               context,
@@ -765,7 +846,15 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
                               offset: widget.isOpen
                                   ? Offset.zero
                                   : closedOffset,
-                              child: _buildResizeHandle(paneOnRight, false),
+                              // חלונית סגורה: הידית שקופה, ולכן לא תחנת Tab, לא מקבלת פוקוס
+                              // מקלדת ולא מוצגת לקורא מסך.
+                              child: ExcludeFocus(
+                                excluding: !widget.isOpen,
+                                child: ExcludeSemantics(
+                                  excluding: !widget.isOpen,
+                                  child: _buildResizeHandle(paneOnRight, false),
+                                ),
+                              ),
                             ),
                           ),
                         ),

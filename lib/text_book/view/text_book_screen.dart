@@ -117,13 +117,15 @@ import 'package:otzaria/text_book/utils/link_processing.dart'
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
+import 'package:otzaria/widgets/layout/side_pane_specs.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 
 /// המקום המינימלי לתוכן הספר כדי שחלונית הניווט תידחק ליד התוכן. מתחת לזה
 /// היא נפתחת כ-overlay, ואין טעם בכפתור נעיצה.
-const double _kNavMinMainContentWidth = 520;
+final double _kNavMinMainContentWidth =
+    SidePaneSpecs.textReaderNav.minMainContentWidth;
 
 // קבועים למצבי תצוגה (למניעת magic strings)
 const String _viewModeSplit = 'split';
@@ -2374,8 +2376,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         child: _buildHTMLViewer(state),
       ),
       isResizable: true,
-      minPaneWidth: 200,
-      maxPaneWidth: 600,
+      minPaneWidth: SidePaneSpecs.textReaderNav.minPaneWidth,
+      maxPaneWidth: SidePaneSpecs.textReaderNav.maxPaneWidth,
       onPaneWidthChanged: (nextWidth) {
         _sidebarWidth.value = nextWidth;
       },

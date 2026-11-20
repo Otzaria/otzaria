@@ -93,6 +93,11 @@ void main() {
       await tabsBloc.close();
     });
 
+    // חלון רחב מספיק לדחיקה: 520 לתוכן + 300 לחלונית + 22 רווחים = 842 (סעיף 20).
+    tester.view.physicalSize = const Size(1000, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
     await tester.pumpWidget(
       MaterialApp(
         home: MultiBlocProvider(

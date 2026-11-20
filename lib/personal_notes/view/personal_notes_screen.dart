@@ -51,6 +51,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
+import 'package:otzaria/widgets/layout/side_pane_specs.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/layout/meta_chip.dart';
@@ -426,12 +427,13 @@ class _PersonalNotesManagerScreenState
                     ],
                   ),
                   paneWidth: _navigationWidth,
-                  minMainContentWidth: 320,
+                  minMainContentWidth:
+                      SidePaneSpecs.personalNotes.minMainContentWidth,
                   onClose: () => setState(() => _isNavigationVisible = false),
                   onOpen: () => setState(() => _isNavigationVisible = true),
                   isResizable: true,
-                  minPaneWidth: 150,
-                  maxPaneWidth: 500,
+                  minPaneWidth: SidePaneSpecs.personalNotes.minPaneWidth,
+                  maxPaneWidth: SidePaneSpecs.personalNotes.maxPaneWidth,
                   onPaneWidthChanged: (nextWidth) {
                     _navigationWidth = nextWidth;
                   },

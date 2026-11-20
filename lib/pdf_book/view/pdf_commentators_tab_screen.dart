@@ -41,7 +41,9 @@ import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/book_common/utils/category_settings_utils.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
+import 'package:otzaria/widgets/layout/side_pane_specs.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 import 'package:otzaria/widgets/layout/reading_area_width.dart';
@@ -54,7 +56,12 @@ const int _kAllPara = -1;
 
 /// מסך כרטסיית המפרשים של PDF — עצמאי לחלוטין, כמו CommentatorsTabScreen.
 /// רוחב חלונית הניווט בכרטיסיית המפרשים.
-const double _kNavPaneWidth = 320;
+final double _kNavPaneWidth =
+    SidePaneSpecs.pdfCommentatorsTabNav.fixedPaneWidth!;
+
+/// המקום המינימלי לתוכן כדי שחלונית הניווט תידחק ליד התוכן.
+final double _kNavMinMainContentWidth =
+    SidePaneSpecs.pdfCommentatorsTabNav.minMainContentWidth;
 
 /// פסקאות (שורות טקסט לא-ריקות) בתוך הכותרת [headingIdx]; לכל היותר [limit].
 @visibleForTesting
@@ -137,6 +144,18 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
   /// האם פאנל הצד פתוח, והאם הוא נעוץ (לא נסגר אוטומטית)
   bool _navPaneOpen = false;
   bool _pinLeftPane = false;
+
+  /// נעוצה אך מוסתרת: בחלון צר החלונית הנעוצה היא שכבה, והמשתמש סגר אותה
+  /// (הקשה על ההצללה, Esc או כפתור הניווט). הנעיצה נשמרת, והחלונית נפתחת שוב
+  /// כשהחלון מתרחב.
+  bool _pinnedOverlayDismissed = false;
+
+  /// האם החלונית לצד התוכן (דחיקה) ולא שכבה עליו, לפי הפריסה האחרונה.
+  bool _navPaneBesideBook = true;
+
+  /// הפתיחות בפועל: נעוצה פתוחה תמיד, חוץ משכבה שנסגרה; אחרת לפי המשתמש.
+  bool get _navPaneShown =>
+      _pinLeftPane ? !_pinnedOverlayDismissed : _navPaneOpen;
 
   /// קבוצות המפרשים ללשונית הבחירה (נטענות מתוך links של ה-sourceTab)
   List<CommentatorGroup> _commentatorGroups = [];
@@ -368,7 +387,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
   }
 
   void _openSearchPanel() {
-    setState(() => _navPaneOpen = true);
+    setState(_showNavPane);
     _navTabController.animateTo(_searchTabIndex);
     // The tab listener focuses the field only when the tab changes.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -377,7 +396,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
   }
 
   void _openCommentatorsTab() {
-    setState(() => _navPaneOpen = true);
+    setState(_showNavPane);
     _navTabController.animateTo(_commentatorsTabIndex);
   }
 
@@ -716,16 +735,16 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
             _buildAppTopBar(context),
             Expanded(
               child: NavSidePanel(
-                isOpen: _navPaneOpen || _pinLeftPane,
+                isOpen: _navPaneShown,
                 isPinned: _pinLeftPane,
                 isGloballyPinned:
                     Settings.getValue<bool>(SettingsRepository.keyPinSidebar) ??
                     false,
                 alignment: AlignmentDirectional.centerEnd,
                 paneWidth: _kNavPaneWidth,
-                onClose: () {
-                  if (!_pinLeftPane) setState(() => _navPaneOpen = false);
-                },
+                minMainContentWidth: _kNavMinMainContentWidth,
+                onClose: _closeNavPane,
+                onLayoutModeChanged: _onNavPaneLayoutMode,
                 paneContent: NavPanelSearchScope(
                   host: _searchHost,
                   child: _buildSidePane(context),
@@ -798,9 +817,43 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
     );
   }
 
+  /// פתיחה מפורשת: גם שכבה נעוצה שנסגרה חוזרת.
+  void _showNavPane() {
+    _navPaneOpen = true;
+    _pinnedOverlayDismissed = false;
+  }
+
+  /// בקשת סגירה מהחלונית: הקשה על ההצללה, Esc, או הסגירה האוטומטית בצמצום.
+  /// חלונית לא נעוצה נסגרת. נעוצה בשכבה (חלון צר) נסגרת כשכבה בלבד והנעיצה
+  /// נשמרת. נעוצה לצד התוכן אינה נסגרת: אין הצללה ו-Esc, והסגירה האוטומטית
+  /// בצמצום מגיעה לפני הדיווח על הפריסה הצרה ולכן נבלעת כאן, כמו תמיד.
+  void _closeNavPane() {
+    if (!_pinLeftPane) {
+      setState(() => _navPaneOpen = false);
+    } else if (!_navPaneBesideBook) {
+      setState(() => _pinnedOverlayDismissed = true);
+    }
+  }
+
+  void _onNavPaneLayoutMode(bool besideBook) {
+    if (!mounted || besideBook == _navPaneBesideBook) return;
+    setState(() {
+      _navPaneBesideBook = besideBook;
+      // בהרחבה החלונית הנעוצה חוזרת מעצמה.
+      if (besideBook) _pinnedOverlayDismissed = false;
+    });
+  }
+
   void _toggleNavPane() {
-    setState(() => _navPaneOpen = !_navPaneOpen);
-    if (_navPaneOpen && _navTabController.index == 0) {
+    setState(() {
+      if (!_pinLeftPane) {
+        _navPaneOpen = !_navPaneOpen;
+      } else if (!_navPaneBesideBook) {
+        // נעוצה בשכבה: הכפתור סוגר ופותח את השכבה. לצד התוכן היא פתוחה תמיד.
+        _pinnedOverlayDismissed = !_pinnedOverlayDismissed;
+      }
+    });
+    if (_navPaneShown && _navTabController.index == 0) {
       _scrollNavToSelectedHeading();
       if (!_pinLeftPane) _focusNavigationSearch();
     }
@@ -809,7 +862,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
   void _focusNavigationSearch() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted ||
-          !(_navPaneOpen || _pinLeftPane) ||
+          !_navPaneShown ||
           _navTabController.index != 0 ||
           !TickerMode.valuesOf(context).enabled ||
           ModalRoute.of(context)?.isCurrent == false ||
@@ -927,12 +980,21 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
       titleMaxLines: 1,
       prevMajorTooltip: 'הכותרת הקודמת',
       nextMajorTooltip: 'הכותרת הבאה',
-      navPaneOpen: _navPaneOpen,
+      navPaneOpen: _navPaneShown,
       navPanePinned: _pinLeftPane,
-      canPinNavPane: NavSidePanel.canPin(context, paneWidth: _kNavPaneWidth),
+      canPinNavPane: NavSidePanel.canPin(
+        context,
+        paneWidth: _kNavPaneWidth,
+        minMainContentWidth: _kNavMinMainContentWidth,
+      ),
       onToggleNavPane: _toggleNavPane,
       onTogglePin: () {
-        setState(() => _pinLeftPane = !_pinLeftPane);
+        setState(() {
+          _pinLeftPane = !_pinLeftPane;
+          // שכבה שנסגרה נשארת סגורה גם אחרי ביטול הנעיצה.
+          if (!_pinLeftPane && _pinnedOverlayDismissed) _navPaneOpen = false;
+          _pinnedOverlayDismissed = false;
+        });
         if (_pinLeftPane && !_navPaneOpen) _focusNavigationSearch();
       },
       onPrevMajor: _navigateToPrevHeading,
@@ -977,15 +1039,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
   Widget _buildCommentatorsSelectionTab() {
     final visibility = _visibility;
     if (_commentatorGroups.isEmpty || visibility == null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text(
-            'טוען מפרשים...',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ),
-      );
+      return const LoadingIndicator.compact(message: 'טוען מפרשים...');
     }
     // מכל הקישורים הטעונים ולא מהקטע הנבחר: צ׳יפ שנגזר מהקטע נעלם בניווט
     // לקטע שאין בו אותו סוג. זהות הרשימה יציבה, ולכן ה-Expando של המימוש פוגע.

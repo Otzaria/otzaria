@@ -44,6 +44,7 @@ import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:otzaria/widgets/layout/reading_area_width.dart';
 import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
+import 'package:otzaria/widgets/layout/side_pane_specs.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -96,8 +97,10 @@ typedef PageShapeDefaultsLoader =
     Function(TextBook book, List<String> availableCommentators);
 
 /// רוחב חלונית הצד כשלא נשמר רוחב, ותקרתו — כחלק מרוחב המסך.
-const double _kSidebarDefaultFraction = 0.22;
-const double _kSidebarMaxFraction = 0.35;
+final double _kSidebarDefaultFraction =
+    SidePaneSpecs.pageShapeSidebar.defaultPaneFraction!;
+final double _kSidebarMaxFraction =
+    SidePaneSpecs.pageShapeSidebar.maxPaneFraction!;
 
 /// פעולות שמסך הספר מבקש מצורת הדף.
 abstract interface class PageShapeColumnsControl {
@@ -1835,9 +1838,12 @@ class _PageShapeScreenState extends State<PageShapeScreen>
                                 screen.maxWidth * _kSidebarDefaultFraction,
                             screen.maxWidth * _kSidebarMaxFraction,
                           ),
-                          minPaneWidth: 220,
+                          minPaneWidth:
+                              SidePaneSpecs.pageShapeSidebar.minPaneWidth,
                           maxPaneWidth: screen.maxWidth * _kSidebarMaxFraction,
-                          minMainContentWidth: 300,
+                          minMainContentWidth: SidePaneSpecs
+                              .pageShapeSidebar
+                              .minMainContentWidth,
                           isResizable: true,
                           scrollbarTopMargin: 0,
                           autoHandleResponsiveVisibility: false,

@@ -7,6 +7,7 @@ import 'package:otzaria/settings/l10n/settings_language.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/theme/app_seed_colors.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' show HolyNameStyle;
 
 class SettingsState extends Equatable {
@@ -254,7 +255,7 @@ class SettingsState extends Equatable {
       sidebarWidth: 300,
       facetFilteringWidth: 235,
       externalResultsFirst: false,
-      commentaryPaneWidth: 400,
+      commentaryPaneWidth: LayoutConstraints.commentaryPaneDefaultWidth,
       copyWithHeaders: 'none',
       copyHeaderFormat: 'same_line_after_brackets',
       libraryViewMode: 'grid',

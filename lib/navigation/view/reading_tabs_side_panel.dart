@@ -15,6 +15,7 @@ import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/theme/app_motion.dart';
@@ -86,6 +87,19 @@ class _ReadingTabsSidePanelState extends State<ReadingTabsSidePanel> {
     _updateHover();
   }
 
+  /// הרוחב הפנוי לעמודה ולתוכן, מהבנייה האחרונה.
+  double _availableWidth = double.infinity;
+
+  /// תקרת הרוחב: מה שנשאר אחרי [LayoutConstraints.minContentBesideTabsColumn]
+  /// לתוכן, אך לא פחות ממזערי העמודה ולא יותר ממקסימום ההגדרה.
+  double _widthCeiling() =>
+      (_availableWidth - LayoutConstraints.minContentBesideTabsColumn)
+          .clamp(
+            SettingsRepository.minReadingTabsColumnWidth,
+            SettingsRepository.maxReadingTabsColumnWidth,
+          )
+          .toDouble();
+
   void _onDragStart(double current) => _draggingWidth.value = current;
 
   void _onDragDelta(double delta) {
@@ -95,7 +109,7 @@ class _ReadingTabsSidePanelState extends State<ReadingTabsSidePanel> {
     final isRtl = Directionality.of(context) == TextDirection.rtl;
     final next = (current + (isRtl ? -delta : delta)).clamp(
       SettingsRepository.minReadingTabsColumnWidth,
-      SettingsRepository.maxReadingTabsColumnWidth,
+      _widthCeiling(),
     );
     _draggingWidth.value = next.toDouble();
   }
@@ -122,9 +136,19 @@ class _ReadingTabsSidePanelState extends State<ReadingTabsSidePanel> {
       builder: (context, dragging, child) {
         return LayoutBuilder(
           builder: (context, constraints) {
+            _availableWidth = constraints.maxWidth;
+            // שמור גדול מדי (חלון שהצטמצם): התוכן שומר על מקום מזערי, והערך
+            // השמור חוזר לפעול כשהחלון גדל.
+            // וגם לא צר מהמזערי (רוחב שמור ישן או פגום): שורת הכפתורים של
+            // הכותרת והידית צריכות אותו, במגע הידית לבדה 32.
+            final ceiling = _widthCeiling()
+                .clamp(0.0, constraints.maxWidth)
+                .toDouble();
             final expandedWidth = (dragging ?? savedWidth).clamp(
-              0.0,
-              constraints.maxWidth,
+              SettingsRepository.minReadingTabsColumnWidth
+                  .clamp(0.0, ceiling)
+                  .toDouble(),
+              ceiling,
             );
             final floating = collapsed && _hoverExpanded;
             final visuallyCollapsed = collapsed && !floating;
@@ -271,6 +295,8 @@ class _ReadingTabsSidePanelState extends State<ReadingTabsSidePanel> {
                   isVertical: true,
                   showDivider: false,
                   showIdleGrip: true,
+                  invertSemanticDirection:
+                      Directionality.of(context) == TextDirection.rtl,
                   onDragStart: () => _onDragStart(width),
                   onDragDelta: _onDragDelta,
                   onDragEnd: _onDragEnd,

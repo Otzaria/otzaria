@@ -29,6 +29,19 @@ void main() {
     });
   });
 
+  group('AppMotion.pageTurn', () {
+    testWidgets('הפיכת דף: חצי שנייה, ומתאפסת בהפחתת אנימציות', (tester) async {
+      expect(AppMotion.pageTurn, const Duration(milliseconds: 500));
+      expect(AppMotion.controller(AppMotion.pageTurn), AppMotion.pageTurn);
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      expect(AppMotion.controller(AppMotion.pageTurn), Duration.zero);
+    });
+  });
+
   group('AppMotion.controller', () {
     testWidgets('בלי העדפה: המשך כמו שהוא', (tester) async {
       const d = Duration(milliseconds: 450);

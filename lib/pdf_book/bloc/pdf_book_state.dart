@@ -3,6 +3,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 
 String _outlineNodeSignature(PdfOutlineNode n) =>
     '${n.title}|${n.dest?.pageNumber ?? -1}|[${n.children.map(_outlineNodeSignature).join(',')}]';
@@ -186,7 +187,7 @@ class PdfBookLoaded extends PdfBookState {
     this.pinLeftPane = false,
     this.sidebarWidth = 300.0,
     this.showRightPane = false,
-    this.rightPaneWidth = 300.0,
+    this.rightPaneWidth = LayoutConstraints.commentaryPaneDefaultWidth,
     this.searchText = '',
     this.searchOptions = const {},
     this.alternativeWords = const {},

@@ -337,6 +337,19 @@ void main() {
         expect(b.tab.showLeftPane.value, isTrue);
       },
     );
+
+    // רוחב חלונית המפרשים נשמר בהגדרות אבל לא נטען ב-PDF.
+    blocTest<PdfBookBloc, PdfBookState>(
+      'הרוחב השמור של חלונית המפרשים נטען בפתיחה',
+      setUp: () => Settings.setValue<double>('key-commentary-pane-width', 450),
+      tearDown: () =>
+          Settings.setValue<double>('key-commentary-pane-width', 400),
+      build: () => _makeBloc(_tab()),
+      seed: () => PdfBookLoading(book: _book()),
+      act: (b) =>
+          b.add(DocumentReady(documentRef: _FakeDocumentRef(), totalPages: 5)),
+      verify: (b) => expect((b.state as PdfBookLoaded).rightPaneWidth, 450),
+    );
   });
 
   // ──────────────────────────────────────────────────────────────────────────

@@ -32,6 +32,7 @@ import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
+import 'package:otzaria/widgets/layout/side_pane_specs.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/shortcuts/current_window_search_activator.dart';
@@ -552,12 +553,12 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
       isOpen: _isSidebarVisible,
       alignment: AlignmentDirectional.centerEnd,
       paneWidth: _sidebarWidth,
-      minMainContentWidth: 320,
+      minMainContentWidth: SidePaneSpecs.shamorZachor.minMainContentWidth,
       onClose: () => _setSidebarVisible(false),
       onOpen: () => _setSidebarVisible(true),
       isResizable: true,
-      minPaneWidth: 220,
-      maxPaneWidth: 420,
+      minPaneWidth: SidePaneSpecs.shamorZachor.minPaneWidth,
+      maxPaneWidth: SidePaneSpecs.shamorZachor.maxPaneWidth,
       onPaneWidthChanged: (nextWidth) {
         _sidebarWidth = nextWidth;
       },

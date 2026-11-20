@@ -13,6 +13,7 @@ import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
+import 'package:otzaria/widgets/layout/side_pane_specs.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/dialogs/calendar_event_dialog.dart';
 import 'package:otzaria/tools/calendar/dialogs/calendar_print_dialog.dart';
@@ -475,12 +476,12 @@ class CalendarWidgetState extends State<CalendarWidget> {
           ),
           paneContent: _buildSidePanel(context, state),
           paneWidth: _sidePanelWidth,
-          minMainContentWidth: LayoutConstraints.mainContentMinWidth,
+          minMainContentWidth: SidePaneSpecs.calendar.minMainContentWidth,
           onClose: _handleSidebarClosedByUser,
           autoHandleResponsiveVisibility: false,
           isResizable: true,
-          minPaneWidth: 280,
-          maxPaneWidth: 520,
+          minPaneWidth: SidePaneSpecs.calendar.minPaneWidth,
+          maxPaneWidth: SidePaneSpecs.calendar.maxPaneWidth,
           onPaneWidthChanged: (nextWidth) {
             _sidePanelWidth = nextWidth;
           },

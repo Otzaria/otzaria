@@ -141,7 +141,7 @@ void main() {
 
     expect(resizeEnded, isTrue);
     expect(paneWidth, isNot(300));
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
   testWidgets('onLayoutModeChanged מדווח push במסך רחב ו-overlay במסך צר', (
     tester,

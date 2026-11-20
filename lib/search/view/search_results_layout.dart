@@ -12,6 +12,7 @@ import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/bar_button.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
+import 'package:otzaria/widgets/layout/side_pane_specs.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/widgets/navigation/reader_nav_center.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
@@ -203,7 +204,10 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
                   final paneWidth =
                       (_facetPaneWidthOverride ??
                               settingsState.facetFilteringWidth)
-                          .clamp(220.0, 600.0);
+                          .clamp(
+                            SidePaneSpecs.searchFacets.minPaneWidth,
+                            SidePaneSpecs.searchFacets.maxPaneWidth!,
+                          );
                   return NavSidePanel(
                     isOpen: isOpen,
                     alignment: AlignmentDirectional.centerEnd,
@@ -214,11 +218,12 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
                     ),
                     paneContent: _buildFacetPane(),
                     paneWidth: paneWidth,
-                    minMainContentWidth: 300,
+                    minMainContentWidth:
+                        SidePaneSpecs.searchFacets.minMainContentWidth,
                     onClose: () => _setLeftPaneOpen(false),
                     isResizable: true,
-                    minPaneWidth: 220,
-                    maxPaneWidth: 600,
+                    minPaneWidth: SidePaneSpecs.searchFacets.minPaneWidth,
+                    maxPaneWidth: SidePaneSpecs.searchFacets.maxPaneWidth,
                     autoHandleResponsiveVisibility: false,
                     onPaneWidthChanged: (w) => _facetPaneWidthOverride = w,
                     onPaneResizeEnd: () {

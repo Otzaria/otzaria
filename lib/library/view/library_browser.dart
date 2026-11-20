@@ -58,6 +58,7 @@ import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
+import 'package:otzaria/widgets/layout/side_pane_specs.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
@@ -273,14 +274,15 @@ calculateLibraryPreviewPaneWidths({
   required String viewMode,
   double? paneWidthOverride,
 }) {
-  const preferredMinPaneWidth = 280.0;
-  const previewWidthFactorGrid = 0.35;
-  const previewWidthFactorList = 0.60;
-  final minPaneWidth = min(preferredMinPaneWidth, max(0.0, availableWidth));
+  const spec = SidePaneSpecs.libraryPreview;
+  final minPaneWidth = min(spec.minPaneWidth, max(0.0, availableWidth));
   final previewWidth = viewMode == 'list'
-      ? availableWidth * previewWidthFactorList
-      : availableWidth * previewWidthFactorGrid;
-  final maxPaneWidth = max(minPaneWidth, availableWidth - 230);
+      ? availableWidth * spec.defaultPaneFractionList!
+      : availableWidth * spec.defaultPaneFraction!;
+  final maxPaneWidth = max(
+    minPaneWidth,
+    availableWidth - spec.dragLeavesForMain!,
+  );
   final paneWidth = (paneWidthOverride ?? previewWidth)
       .clamp(minPaneWidth, maxPaneWidth)
       .toDouble();
@@ -1343,7 +1345,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           ),
           paneContent: _buildPreviewPane(settingsState),
           paneWidth: previewPaneWidths.paneWidth,
-          minMainContentWidth: 200,
+          minMainContentWidth: SidePaneSpecs.libraryPreview.minMainContentWidth,
           onClose: () => _hidePreviewPanel(settingsState),
           onOpen: () => _showPreviewPanel(settingsState),
           paneColor: Theme.of(ctx).colorScheme.surface,

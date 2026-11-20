@@ -14,8 +14,10 @@ import 'package:otzaria/pdf_book/utils/pdf_scroll_physics_provider.dart';
 import 'package:otzaria/pdf_book/utils/pdf_viewer_activity.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
+import 'package:otzaria/widgets/layout/side_pane_specs.dart';
 import 'package:otzaria/utils/file/file_book_path_resolver.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 import 'package:pdfrx/pdfrx.dart';
@@ -344,6 +346,7 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     final showLeftPane = resolveInitialReadingLeftPaneVisibility(
       explicitOpen: tab.showLeftPane.value,
       screenWidth: event.screenWidth,
+      minMainContentWidth: SidePaneSpecs.pdfReaderNav.minMainContentWidth,
     );
     // בלי סנכרון ה-notifier, כפתור הסגירה בסרגל מחשב כיוון הפוך ונתקע (issue #869)
     tab.showLeftPane.value = showLeftPane;
@@ -351,6 +354,11 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     final sidebarWidth = Settings.getValue<double>(
       'key-sidebar-width',
       defaultValue: 300,
+    )!;
+    // הרוחב השמור של חלונית המפרשים: נכתב בגרירה, וקודם לא נטען בפתיחה.
+    final rightPaneWidth = Settings.getValue<double>(
+      SettingsRepository.keyCommentaryPaneWidth,
+      defaultValue: LayoutConstraints.commentaryPaneDefaultWidth,
     )!;
 
     emit(
@@ -363,6 +371,7 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
         showLeftPane: showLeftPane,
         pinLeftPane: pinLeftPane,
         sidebarWidth: sidebarWidth,
+        rightPaneWidth: rightPaneWidth,
         searchText: searchText,
         searchOptions: searchOptions,
         alternativeWords: alternativeWords,

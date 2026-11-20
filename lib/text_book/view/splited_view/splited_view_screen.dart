@@ -26,6 +26,7 @@ import 'package:otzaria/tour/models/live_tip.dart';
 import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
+import 'package:otzaria/widgets/layout/side_pane_specs.dart';
 import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/models/links.dart';
@@ -236,9 +237,10 @@ class _SplitedViewScreenState extends State<SplitedViewScreen>
 
   ({double paneWidth, double minPaneWidth, double maxPaneWidth})
   _calculatePaneWidths(double availableWidth) {
-    const minPaneWidth = 280.0;
-    const minTextWidth = 300.0;
-    final maxPaneWidth = (availableWidth * 0.75).clamp(
+    const spec = SidePaneSpecs.splitView;
+    final minPaneWidth = spec.minPaneWidth;
+    final minTextWidth = spec.dragLeavesForMain!;
+    final maxPaneWidth = (availableWidth * spec.maxPaneFraction!).clamp(
       minPaneWidth,
       double.infinity,
     );
@@ -490,7 +492,8 @@ class _SplitedViewScreenState extends State<SplitedViewScreen>
                 isOpen: _paneOpen,
                 alignment: AlignmentDirectional.centerStart,
                 paneWidth: paneWidths.paneWidth,
-                minMainContentWidth: 200,
+                minMainContentWidth:
+                    SidePaneSpecs.splitView.minMainContentWidth,
                 onClose: _closePane,
                 paneContent: ValueListenableBuilder<String?>(
                   valueListenable: _savedSelectedText,
