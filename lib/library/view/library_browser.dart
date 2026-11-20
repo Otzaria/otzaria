@@ -1884,10 +1884,19 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       controller: _categoryGridController,
     );
     // לחיצה על רקע ריק (בין כרטיסים או מתחתם): כרטיס שנלחץ מנצח בזירת המחוות.
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: _returnPreviewToCurrent,
-      child: grid,
+    // הפוקוס עובר לרקע, אחרת הכרטיס נשאר צבוע בשכבת הפוקוס (#5607).
+    return Focus(
+      skipTraversal: true,
+      child: Builder(
+        builder: (context) => GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            Focus.of(context).requestFocus();
+            _returnPreviewToCurrent();
+          },
+          child: grid,
+        ),
+      ),
     );
   }
 
