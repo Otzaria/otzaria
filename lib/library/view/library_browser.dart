@@ -112,6 +112,7 @@ String libraryUpdateButtonTooltip(LibraryUpdateState state) =>
       LibraryUpdateStatus.disconnected => '${state.message} - לחץ לנסות שוב',
       LibraryUpdateStatus.needsFullConfirmation => state.message,
       LibraryUpdateStatus.needsRouteChoice => state.message,
+      LibraryUpdateStatus.needsDeltaConfirmation => state.message,
       LibraryUpdateStatus.blocked when !state.isUnsupportedByAppVersion =>
         state.message,
       _ when state.isBusy => state.message,

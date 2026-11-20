@@ -6,8 +6,9 @@ sealed class LibraryUpdateEvent extends Equatable {
   List<Object?> get props => [];
 }
 
-/// בקשה לבדוק ולהחיל עדכון. מסלול דלתא מוחל אוטומטית; מסלול הורדה מלאה
-/// עוצר וממתין ל-[ConfirmFullDownload].
+/// בקשה לבדוק ולהחיל עדכון. מסלול הורדה מלאה עוצר וממתין ל-[ConfirmFullDownload];
+/// מסלול דלתא עוצר להצגת הגודל וממתין ל-[ConfirmHeavyDelta], חוץ מעדכון קטן
+/// בבדיקה אוטומטית.
 class StartLibraryUpdate extends LibraryUpdateEvent {
   /// [automatic] — הבדיקה בעלייה, לא לחיצה של המשתמש.
   const StartLibraryUpdate({this.automatic = false});
@@ -20,12 +21,13 @@ class ConfirmFullDownload extends LibraryUpdateEvent {
   const ConfirmFullDownload();
 }
 
-/// המשתמש בחר במסלול הדלתא למרות שהחלתו צפויה להימשך זמן רב.
+/// המשתמש בחר במסלול הדלתא: אחרי שראה את גודל ההורדה, או למרות שהחלתו צפויה
+/// להימשך זמן רב.
 class ConfirmHeavyDelta extends LibraryUpdateEvent {
   const ConfirmHeavyDelta();
 }
 
-/// המשתמש בחר לדחות הורדה מלאה ולהישאר עם הגרסה הנוכחית.
+/// המשתמש בחר לדחות את ההורדה (מלאה או דלתא) ולהישאר עם הגרסה הנוכחית.
 class DeclineFullDownload extends LibraryUpdateEvent {
   const DeclineFullDownload();
 }

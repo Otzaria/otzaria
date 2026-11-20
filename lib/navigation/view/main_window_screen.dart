@@ -3391,6 +3391,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
                 onChooseFullDownload: () => context
                     .read<LibraryUpdateBloc>()
                     .add(const ConfirmFullDownload()),
+                onDecline: () => context.read<LibraryUpdateBloc>().add(
+                  const DeclineFullDownload(),
+                ),
                 collapsible: DeviceChrome.hasWindowCaption,
               );
               if (item == null) {

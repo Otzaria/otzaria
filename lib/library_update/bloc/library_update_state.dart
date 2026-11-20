@@ -25,6 +25,9 @@ enum LibraryUpdateStatus {
   /// מסלול הדלתא זמין אך החלתו ארוכה מאוד — המשתמש בוחר בינו לבין הורדה מלאה.
   needsRouteChoice,
 
+  /// נמצא עדכון דלתא — גודל ההורדה מוצג, והמשתמש מאשר או דוחה (#3722).
+  needsDeltaConfirmation,
+
   /// מצב חסום שדורש פעולה ידנית.
   blocked,
 
@@ -52,7 +55,8 @@ class LibraryUpdateState extends Equatable {
   final double? applyProgress;
 
   /// התוכנית שנבחרה — זמינה במצבי [LibraryUpdateStatus.needsFullConfirmation],
-  /// [LibraryUpdateStatus.needsRouteChoice] ו-[LibraryUpdateStatus.blocked].
+  /// [LibraryUpdateStatus.needsRouteChoice], [LibraryUpdateStatus.needsDeltaConfirmation]
+  /// ו-[LibraryUpdateStatus.blocked].
   final LibraryUpdatePlan? plan;
 
   /// מזהי ספרים (seforim.db) שתוכנם השתנה בעדכון דלתא — לרענון אינדקס החיפוש.

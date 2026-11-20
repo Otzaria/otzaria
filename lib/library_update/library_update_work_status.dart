@@ -30,9 +30,31 @@ WorkStatusItem? libraryUpdateWorkStatusItem(
   required VoidCallback onRetry,
   required VoidCallback onChooseDelta,
   required VoidCallback onChooseFullDownload,
+  required VoidCallback onDecline,
   bool collapsible = false,
 }) {
   final chipLabel = collapsible ? _kChipLabel : null;
+  if (state.status == LibraryUpdateStatus.needsDeltaConfirmation) {
+    return WorkStatusItem(
+      id: kLibraryUpdateWorkStatusId,
+      title: 'עדכון ספרייה',
+      message: state.message,
+      kind: WorkStatusKind.awaitingInput,
+      chipLabel: chipLabel,
+      actions: [
+        WorkStatusAction(
+          label: 'עדכן',
+          icon: FluentIcons.arrow_download_24_regular,
+          onPressed: onChooseDelta,
+        ),
+        WorkStatusAction(
+          label: 'לא עכשיו',
+          icon: FluentIcons.dismiss_24_regular,
+          onPressed: onDecline,
+        ),
+      ],
+    );
+  }
   // שתי אפשרויות שקולות — אין המלצה: הבחירה תלויה במהירות הרשת של המשתמש.
   if (state.status == LibraryUpdateStatus.needsRouteChoice) {
     return WorkStatusItem(
