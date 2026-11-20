@@ -54,6 +54,11 @@ void openPreparedTab(
   BuildContext context,
   OpenedTab tab, {
   bool insertAdjacent = false,
+  bool navigateToPositionIfReused = false,
 }) {
-  bookOpenCoordinatorOf(context).openTab(tab, insertAdjacent: insertAdjacent);
+  bookOpenCoordinatorOf(context).openTab(
+    tab,
+    insertAdjacent: insertAdjacent,
+    navigateToPositionIfReused: navigateToPositionIfReused,
+  );
 }
