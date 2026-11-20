@@ -1348,6 +1348,12 @@ export interface ReaderSelection {
    * 1-based page that was clicked, or where the selection starts; also given
    * as `sectionIndex`/`currentIndex`. From 0.9.98.1. */
   pageNumber?: number;
+  /** `library-book` context only: the book's category path, as in
+   * `library.getTree` (`/הלכה/משנה תורה`). There is no position: the
+   * selection holds only the book identity, `bookTitle`, `categoryPath` and
+   * an empty `text`; the event's `currentRef`/`currentIndex` are null.
+   * From 0.9.99. */
+  categoryPath?: string | null;
   /** Identity of the book the text belongs to (see `BookIdentity`). */
   id?: number | null;
   type?: BookType | null;
@@ -1655,7 +1661,12 @@ export type ContextMenuContext =
    * `ReaderSelection.pageNumber`. From 0.9.98.1. */
   | 'reader-pdf'
   /** Like `reader-pdf`, with selected text on the page. From 0.9.98.1. */
-  | 'reader-pdf-selection';
+  | 'reader-pdf-selection'
+  /** Right-click on a book in the library (tree row, grid card or search
+   * result). Opt-in. The selection carries the book identity and
+   * `categoryPath`, with no text or position. Not shown for external
+   * provider books. From 0.9.99. */
+  | 'library-book';
 
 export interface ContextMenuColor {
   id: string;
