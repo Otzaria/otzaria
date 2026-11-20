@@ -250,6 +250,18 @@ void main() {
     expect(report.errorDetails, contains('מוצע: ג'));
   });
 
+  test('מזהה דיווח: תווים ואורך תקינים, ומרחב שמות לפי תוסף', () {
+    expect(PluginBookCorrectionService.isValidReportId('a.b_c:d-1'), isTrue);
+    expect(PluginBookCorrectionService.isValidReportId('x' * 160), isTrue);
+    expect(PluginBookCorrectionService.isValidReportId(''), isFalse);
+    expect(PluginBookCorrectionService.isValidReportId('x' * 161), isFalse);
+    expect(PluginBookCorrectionService.isValidReportId('יש רווח'), isFalse);
+    expect(
+      PluginBookCorrectionService.nativeReportId('test.plugin', 'r1'),
+      'test.plugin:r1',
+    );
+  });
+
   group('reportKind ו-requireTextCorrection', () {
     late int deliveries;
     setUp(() {
