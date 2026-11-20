@@ -592,9 +592,12 @@ BookSearchMatches _searchPreparedEntries(
 }) {
   // מטמון לזוגות (מילת שאילתה, מילת טקסט) — מילים נפוצות ('מסכת', 'על')
   // חוזרות באלפי ספרים ומחושבות פעם אחת בלבד.
-  final pairMemo = {for (final word in queryWords) word: <String, bool>{}};
-  bool wordMatchesEntry(String queryWord, Set<String> searchWords) {
-    final memo = pairMemo[queryWord]!;
+  final pairMemo = [for (final _ in queryWords) <String, bool>{}];
+  bool wordMatchesEntry(
+    String queryWord,
+    Set<String> searchWords,
+    Map<String, bool> memo,
+  ) {
     for (final textWord in searchWords) {
       if (memo[textWord] ??= _wordPairMatches(queryWord, textWord)) {
         return true;
@@ -603,11 +606,12 @@ BookSearchMatches _searchPreparedEntries(
     return false;
   }
 
-  // התאמה שהושגה רק דרך נתיב התיקיות מסומנת — היא מדורגת מתחת לכל התאמה
-  // בכותרת/מחבר/כינוי, כדי ששאילתת 'הלכה' לא תקבור ספר בשם הזה תחת כל
-  // הספרים שיושבים בתיקייה בשם הזה.
-  final filtered =
-      <({_PreparedBookSearchEntry entry, bool viaCategoryOnly, int kinds})>[];
+  final sameSingleWord =
+      queryWords.length == 1 && queryWords.single == normalizedQuery;
+  final indices = <int>[];
+  final matchKinds = <int>[];
+  final scored = <_ScoredBookSearchEntry>[];
+  final matchedBookFields = List<bool>.filled(queryWords.length, false);
   for (final entry in preparedEntries) {
     if (topics.isNotEmpty &&
         !topics.every((topic) => entry.topics.contains(topic))) {
@@ -615,126 +619,115 @@ BookSearchMatches _searchPreparedEntries(
     }
     // מעבר יחיד: מילות הספר קודם, ומילות הנתיב רק למילה שנכשלה בהן. בדיקה
     // בשני מעברים נפרדים הכפילה את זמן החיפוש (~+30%).
+    // עוברים לנתיב רק למילה שלא התאימה בספר. שומרים את הבחירה לסיווג.
     var matches = true;
     var viaCategoryOnly = false;
-    for (final word in queryWords) {
-      if (wordMatchesEntry(word, entry.searchWords)) {
+    for (var i = 0; i < queryWords.length; i++) {
+      final word = queryWords[i];
+      final matchesBook = wordMatchesEntry(
+        word,
+        entry.searchWords,
+        pairMemo[i],
+      );
+      matchedBookFields[i] = matchesBook;
+      if (matchesBook) {
         continue;
       }
       if (entry.categoryWords.isNotEmpty &&
-          wordMatchesEntry(word, entry.categoryWords)) {
+          wordMatchesEntry(word, entry.categoryWords, pairMemo[i])) {
         viaCategoryOnly = true;
         continue;
       }
       matches = false;
       break;
     }
-    if (matches) {
-      filtered.add((
-        entry: entry,
-        viaCategoryOnly: viaCategoryOnly,
-        kinds: _bookMatchKinds(
-          entry,
-          queryWords,
-          viaCategoryOnly,
-          matchesBookFields: (word) =>
-              wordMatchesEntry(word, entry.searchWords),
-        ),
-      ));
+    if (!matches) continue;
+    final kinds = _bookMatchKinds(entry, queryWords, matchedBookFields);
+    if (!sortByRatio) {
+      indices.add(entry.index);
+      matchKinds.add(kinds);
+      continue;
     }
-  }
-
-  if (sortByRatio) {
-    final scored =
-        [
-          for (final (
-                entry: entry,
-                viaCategoryOnly: viaCategoryOnly,
-                kinds: kinds,
-              )
-              in filtered)
-            _ScoredBookSearchEntry(
-              index: entry.index,
-              kinds: kinds,
-              // כותרת מדויקת > מכילה > מילים לפי הסדר > כינוי > מילולי > fuzzy > נתיב.
-              // בתוך כל שכבה: דור ואז ratio, כדי שספר יסוד לא ייקבר תחת פירושים.
-              tier: viaCategoryOnly
-                  ? -2
-                  : entry.normalizedTitle == normalizedQuery
-                  ? 4
-                  : entry.normalizedTitle.contains(normalizedQuery)
-                  ? 3
-                  : _titleHasQueryWordsInOrder(
-                      entry.normalizedTitle,
-                      queryWords,
-                    )
-                  ? 2
-                  : entry.acronyms.any((a) => a.contains(normalizedQuery))
-                  ? 1
-                  : queryWords.every(
-                      (word) =>
-                          entry.searchWords.any((text) => text.contains(word)),
-                    )
-                  ? 0
-                  : -1,
-              eraOrder: entry.eraOrder,
-              source: entry.source,
-              isExternalCatalog: entry.isExternalCatalog,
-              normalizedQuery: normalizedQuery,
-              normalizedTitle: entry.normalizedTitle,
-            ),
-        ]..sort((a, b) {
-          if (a.isExternalCatalog != b.isExternalCatalog) {
-            return a.isExternalCatalog ? 1 : -1;
-          }
-          if (a.tier != b.tier) return b.tier.compareTo(a.tier);
-          if (a.eraOrder != b.eraOrder) return a.eraOrder.compareTo(b.eraOrder);
-          // בתוך אותו דור — רשמי, אחריו אישי, ואחריו מסד מצורף.
-          if (a.source.rank != b.source.rank) {
-            return a.source.rank.compareTo(b.source.rank);
-          }
-          if (a.ratio != b.ratio) return b.ratio.compareTo(a.ratio);
-          return a.index.compareTo(b.index);
-        });
-
-    return (
-      indices: [for (final entry in scored) entry.index],
-      kinds: [for (final entry in scored) entry.kinds],
+    scored.add(
+      _ScoredBookSearchEntry(
+        index: entry.index,
+        kinds: kinds,
+        // כותרת מדויקת > מכילה > מילים לפי הסדר > כינוי > מילולי > fuzzy > נתיב.
+        // בתוך כל שכבה: דור ואז ratio, כדי שספר יסוד לא ייקבר תחת פירושים.
+        tier: viaCategoryOnly
+            ? -2
+            : entry.normalizedTitle == normalizedQuery
+            ? 4
+            : (sameSingleWord
+                  ? kinds & BookMatchKind.title.bit != 0
+                  : entry.normalizedTitle.contains(normalizedQuery))
+            ? 3
+            : !sameSingleWord &&
+                  _titleHasQueryWordsInOrder(entry.normalizedTitle, queryWords)
+            ? 2
+            : (sameSingleWord
+                  ? kinds & BookMatchKind.acronym.bit != 0
+                  : entry.acronyms.any((a) => a.contains(normalizedQuery)))
+            ? 1
+            : kinds & BookMatchKind.spelling.bit == 0
+            ? 0
+            : -1,
+        eraOrder: entry.eraOrder,
+        source: entry.source,
+        isExternalCatalog: entry.isExternalCatalog,
+        normalizedQuery: normalizedQuery,
+        normalizedTitle: entry.normalizedTitle,
+      ),
     );
   }
 
+  if (!sortByRatio) return (indices: indices, kinds: matchKinds);
+  scored.sort((a, b) {
+    if (a.isExternalCatalog != b.isExternalCatalog) {
+      return a.isExternalCatalog ? 1 : -1;
+    }
+    if (a.tier != b.tier) return b.tier.compareTo(a.tier);
+    if (a.eraOrder != b.eraOrder) return a.eraOrder.compareTo(b.eraOrder);
+    // בתוך אותו דור — רשמי, אחריו אישי, ואחריו מסד מצורף.
+    if (a.source.rank != b.source.rank) {
+      return a.source.rank.compareTo(b.source.rank);
+    }
+    if (a.ratio != b.ratio) return b.ratio.compareTo(a.ratio);
+    return a.index.compareTo(b.index);
+  });
   return (
-    indices: [for (final match in filtered) match.entry.index],
-    kinds: [for (final match in filtered) match.kinds],
+    indices: [for (final entry in scored) entry.index],
+    kinds: [for (final entry in scored) entry.kinds],
   );
 }
 
-/// התאמה מילולית (מחרוזת מוכלת) קובעת את השדה; מילה שתאמה לשדות הספר רק
-/// בהתאמה סלחנית היא כתיב דומה, גם אם היא מופיעה מילולית בנתיב.
+/// התאמה מילולית לכל שדה, תוך שימוש בהתאמה שכבר חושבה לספר ולנתיב.
 int _bookMatchKinds(
   _PreparedBookSearchEntry entry,
   List<String> queryWords,
-  bool viaCategoryOnly, {
-  required bool Function(String word) matchesBookFields,
-}) {
-  var kinds = viaCategoryOnly ? BookMatchKind.folder.bit : 0;
-  for (final word in queryWords) {
-    var literal = false;
+  List<bool> matchedBookFields,
+) {
+  var kinds = 0;
+  for (var i = 0; i < queryWords.length; i++) {
+    if (!matchedBookFields[i]) {
+      kinds |= BookMatchKind.folder.bit;
+      continue;
+    }
+    final word = queryWords[i];
+    var literal = 0;
     if (entry.normalizedTitle.contains(word)) {
-      kinds |= BookMatchKind.title.bit;
-      literal = true;
+      literal |= BookMatchKind.title.bit;
     }
     if (entry.normalizedAuthor.contains(word)) {
-      kinds |= BookMatchKind.author.bit;
-      literal = true;
+      literal |= BookMatchKind.author.bit;
     }
-    if (entry.acronyms.any((a) => a.contains(word))) {
-      kinds |= BookMatchKind.acronym.bit;
-      literal = true;
+    for (final acronym in entry.acronyms) {
+      if (acronym.contains(word)) {
+        literal |= BookMatchKind.acronym.bit;
+        break;
+      }
     }
-    if (!literal && matchesBookFields(word)) {
-      kinds |= BookMatchKind.spelling.bit;
-    }
+    kinds |= literal == 0 ? BookMatchKind.spelling.bit : literal;
   }
   return kinds;
 }

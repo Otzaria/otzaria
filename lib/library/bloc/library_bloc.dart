@@ -818,37 +818,19 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         return;
       }
 
-      // בחירת הספר הראשון מתוצאות החיפוש לתצוגה מקדימה
-      Book? firstBook;
-      if (results.isNotEmpty) {
-        // העדפה לספר טקסט על פני PDF
-        firstBook = results.firstWhere(
-          (book) => book is TextBook,
-          orElse: () => results.first,
-        );
-      }
-
-      final previous = state.previewBook;
-      final keptPreview =
-          event.keepPreview && previous != null && results.contains(previous)
-          ? previous
-          : null;
-
-      emit(
-        state.copyWith(
-          searchResults: results,
-          searchCategoryResults: found.categories,
-          searchMatchKinds: found.bookMatchKinds,
-          selectedMatchFilters: state.selectedMatchFilters.intersection(
-            LibraryMatchFilter.present(
-              found.bookMatchKinds.values,
-              hasFolders: found.categories.isNotEmpty,
-            ),
+      final next = state.copyWith(
+        searchResults: results,
+        searchCategoryResults: found.categories,
+        searchMatchKinds: found.bookMatchKinds,
+        selectedMatchFilters: state.selectedMatchFilters.intersection(
+          LibraryMatchFilter.present(
+            found.bookMatchKinds.values,
+            hasFolders: found.categories.isNotEmpty,
           ),
-          previewBook: keptPreview ?? firstBook,
-          isSearching: false,
         ),
+        isSearching: false,
       );
+      _emitSearchPreview(emit, next, keepPreview: event.keepPreview);
     } on BookSearchSupersededException {
       // החיפוש החדש שהחליף אותו הוא שיעדכן את המצב.
     } catch (e, stackTrace) {
@@ -910,49 +892,51 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     Emitter<LibraryState> emit, {
     required List<String> topics,
     required Set<LibraryMatchFilter> filters,
+  }) => _emitSearchPreview(
+    emit,
+    state.copyWith(
+      selectedTopics: topics,
+      selectedMatchFilters: filters,
+      searchResults: state.searchResults,
+      searchCategoryResults: state.searchCategoryResults,
+    ),
+  );
+
+  void _emitSearchPreview(
+    Emitter<LibraryState> emit,
+    LibraryState next, {
+    bool keepPreview = false,
   }) {
-    // The preview only needs the first matching book, preferring text over
-    // PDF. Avoid allocating an entire filtered result list and a topic set for
-    // every book when the library search returns thousands of results.
-    Book? firstBook;
-    final results = state.searchResults;
-    final kinds = state.searchMatchKinds ?? const <Book, int>{};
-    if (results != null && results.isNotEmpty) {
-      final selected = topics.toSet();
-      Book? firstMatch;
-      for (final book in results) {
-        if (selected.isNotEmpty &&
-            !book.topics
-                .split(',')
-                .any(
-                  (topic) => selected.contains(topic.trim()),
-                )) {
-          continue;
-        }
-        if (!LibraryMatchFilter.showsBook(filters, kinds[book] ?? 0)) continue;
-        firstMatch ??= book;
-        if (book is TextBook) {
-          firstBook = book;
-          break;
-        }
-      }
-      firstBook ??= firstMatch;
+    final results = next.searchResults;
+    final previous = next.previewBook;
+    if (keepPreview &&
+        previous != null &&
+        next.matchesSearchBook(previous) &&
+        (results?.contains(previous) ?? false)) {
+      emit(next);
+      return;
     }
 
+    Book? preview;
+    for (final book in results ?? const <Book>[]) {
+      if (!next.matchesSearchBook(book)) continue;
+      preview ??= book;
+      if (book is TextBook) {
+        preview = book;
+        break;
+      }
+    }
     emit(
-      state.copyWith(
-        selectedTopics: topics,
-        selectedMatchFilters: filters,
-        previewBook: firstBook,
-        // A nonempty filter with no matching result must not keep showing
-        // a preview of a book that is no longer in the filtered list.
+      next.copyWith(
+        searchResults: results,
+        searchCategoryResults: next.searchCategoryResults,
+        previewBook: preview,
         clearPreviewBook:
             results != null &&
-            results.isNotEmpty &&
-            (topics.isNotEmpty || filters.isNotEmpty) &&
-            firstBook == null,
-        searchResults: state.searchResults,
-        searchCategoryResults: state.searchCategoryResults,
+            previous != null &&
+            preview == null &&
+            (next.selectedMatchFilters.isNotEmpty ||
+                (next.selectedTopics?.isNotEmpty ?? false)),
       ),
     );
   }

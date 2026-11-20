@@ -73,6 +73,20 @@ class LibraryState extends Equatable {
     this.userContentChanged = false,
   });
 
+  /// התאמה לסינון הפעיל בתוצאות, בתצוגה המקדימה ובפתיחה מהמקלדת.
+  bool matchesSearchBook(Book book) {
+    if (!LibraryMatchFilter.showsBook(
+      selectedMatchFilters,
+      searchMatchKinds?[book] ?? 0,
+    )) {
+      return false;
+    }
+    final topics = selectedTopics;
+    return topics == null ||
+        topics.isEmpty ||
+        book.topics.split(',').any((topic) => topics.contains(topic.trim()));
+  }
+
   /// מעבר "טעינה הסתיימה בהצלחה" — משמש להאזנה לריענון הספרייה (עדכון,
   /// החלפת מיקום) במקומות שמציגים נתונים הנגזרים ממנה, כמו גרסת הספרייה.
   static bool reloadCompleted(LibraryState previous, LibraryState current) =>

@@ -37,6 +37,7 @@ void main() {
       title: 'אור החיים',
       author: 'רבי חיים אבולעפיה',
       topics: '',
+      categoryPath: 'מדרש',
     ),
     BookSearchEntry(
       index: 5,
@@ -82,6 +83,21 @@ void main() {
 
   test('כתיב דומה בשם נשאר כזה גם כשהמילה מופיעה מילולית בנתיב', () {
     expect(kindsFor('מצוות')[5], {BookMatchKind.spelling});
+  });
+
+  test('התאמות לשם ולנתיב באותה שאילתה נשמרות בלי כתיב דומה', () {
+    expect(kindsFor('טור הלכה')[0], {
+      BookMatchKind.title,
+      BookMatchKind.author,
+      BookMatchKind.folder,
+    });
+  });
+
+  test('כתיב דומה בספר והתאמה לנתיב נשמרים יחד', () {
+    expect(kindsFor('אבועלפיה מדרש')[4], {
+      BookMatchKind.spelling,
+      BookMatchKind.folder,
+    });
   });
 
   test('בלי מסנן הכול מוצג; עם מסנן — רק הסוגים שנבחרו', () {

@@ -118,6 +118,52 @@ Future<void> main() async {
     );
   }
 
+  testWidgets('תפריט פתוח מפעיל את הפעולה שנבחרה אחרי שינוי ברשימת התוספים', (
+    tester,
+  ) async {
+    for (final id in ['second', 'third']) {
+      registry.registerPayload('$id.plugin', {
+        'id': id,
+        'type': 'checkbox',
+        'title': id,
+        'openPluginOnSubmit': true,
+        'resultsAction': 'Open $id',
+        'visibleInModes': ['advanced'],
+      });
+    }
+    await pump(tester, iconOnly: true);
+    await tester.tap(find.byTooltip('המשך בתוסף'));
+    await tester.pumpAndSettle();
+    expect(find.text('Open second'), findsOneWidget);
+
+    registry.removeAll('test.plugin');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Open second'));
+    await tester.pumpAndSettle();
+    expect(launches.single.$1, 'second.plugin');
+  });
+
+  testWidgets('תפריט פתוח מתעלם מפעולה שהוסרה', (tester) async {
+    registry.registerPayload('other.plugin', {
+      'id': 'other',
+      'type': 'checkbox',
+      'title': 'פעולה נוספת',
+      'openPluginOnSubmit': true,
+      'resultsAction': 'המשך בתוסף אחר',
+      'visibleInModes': ['advanced'],
+    });
+    await pump(tester, iconOnly: true);
+    await tester.tap(find.byTooltip('המשך בתוסף'));
+    await tester.pumpAndSettle();
+
+    registry.removeAll('other.plugin');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('המשך בתוסף אחר'));
+    await tester.pumpAndSettle();
+    expect(launches, isEmpty);
+  });
+
   testWidgets('מוצג רק אחרי שהחיפוש הסתיים, גם בלי תוצאות', (tester) async {
     final button = find.text('המשך במקור החיצוני');
     Future<void> emit(SearchState state) async {
@@ -374,10 +420,10 @@ Future<void> main() async {
     await pump(tester, iconOnly: true);
 
     // כפתור אחד: אצל שני כפתורי אייקון זהים אי אפשר להבדיל בלי tooltip.
-    expect(find.byType(AppPopupMenuButton<int>), findsOneWidget);
+    expect(find.byType(AppPopupMenuButton<(String, String)>), findsOneWidget);
     expect(find.text('המשך במקור הנוסף'), findsNothing);
 
-    await tester.tap(find.byType(AppPopupMenuButton<int>));
+    await tester.tap(find.byType(AppPopupMenuButton<(String, String)>));
     await tester.pumpAndSettle();
     expect(find.text('המשך במקור החיצוני'), findsOneWidget);
     await tester.tap(find.text('המשך במקור הנוסף'));

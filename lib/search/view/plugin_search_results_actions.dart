@@ -101,7 +101,17 @@ class PluginSearchResultsActions extends StatelessWidget {
         builder: (context, state) {
           final actions = actionsFor(registry, state);
           void open(String pluginId, String itemId) {
-            final payload = {'itemId': itemId, 'request': _request(state)};
+            if (!context.mounted) return;
+            final currentState = tab.searchBloc.state;
+            if (!actionsFor(registry, currentState).any(
+              (action) => action.$1 == pluginId && action.$2.id == itemId,
+            )) {
+              return;
+            }
+            final payload = {
+              'itemId': itemId,
+              'request': _request(currentState),
+            };
             if (launcher != null) {
               launcher!(pluginId, payload);
             } else {
@@ -216,20 +226,20 @@ class _NarrowBarActions extends StatelessWidget {
     if (actions.length > 1) {
       return Padding(
         padding: padding,
-        child: AppPopupMenuButton<int>(
+        child: AppPopupMenuButton<(String, String)>(
           tooltip: 'המשך בתוסף',
           icon: const Icon(FluentIcons.open_24_regular, size: AppTokens.iconMD),
           highlighted: true,
           constraints: _iconOnlyConstraints,
           entries: [
-            for (var i = 0; i < actions.length; i++)
+            for (final (pluginId, item) in actions)
               AppMenuEntry(
-                value: i,
-                label: actions[i].$2.resultsAction!,
-                icon: _iconOf(actions[i].$2),
+                value: (pluginId, item.id),
+                label: item.resultsAction!,
+                icon: _iconOf(item),
               ),
           ],
-          onSelected: (i) => onOpen(actions[i].$1, actions[i].$2.id),
+          onSelected: (action) => onOpen(action.$1, action.$2),
         ),
       );
     }
