@@ -20,4 +20,28 @@ void main() {
       );
     },
   );
+
+  test('לפני Windows 1903 ה-runner כופה HWND (קריסת GraphicsCapture, #4211)', () {
+    final runnerSource = File('windows/runner/main.cpp').readAsStringSync();
+    final policy = File(
+      'windows/runner/webview_backend_policy.h',
+    ).readAsStringSync();
+    // ההחלטה נבדקת ב-static_assert בכל בניית Windows; כאן רק החיווט שלה.
+    expect(policy, contains('kFirstReliableCaptureBuild = 18362'));
+    for (final check in [
+      'ShouldForceHwnd(false, 17763)',
+      '!ShouldForceHwnd(false, 18362)',
+      'ShouldForceHwnd(true, 26100)',
+    ]) {
+      expect(policy, contains('static_assert($check'));
+    }
+    expect(
+      runnerSource,
+      matches(
+        RegExp(
+          r'ShouldForceHwnd\(\s*::GetSystemMetrics\(SM_REMOTESESSION\) != 0,\s*webview_backend_policy::WindowsBuildNumber\(\)\)',
+        ),
+      ),
+    );
+  });
 }

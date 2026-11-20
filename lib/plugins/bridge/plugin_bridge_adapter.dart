@@ -153,6 +153,7 @@ import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
 import 'package:otzaria/plugins/services/plugin_store_link_parser.dart';
 import 'package:otzaria/plugins/services/plugin_report_service.dart';
 import 'package:otzaria/plugins/services/plugin_book_correction_service.dart';
+import 'package:otzaria/plugins/services/plugin_book_content_gate.dart';
 import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
 import 'package:otzaria/plugins/services/plugin_divine_names_filter.dart';
 import 'package:otzaria/plugins/services/plugin_biography_compatibility.dart';
@@ -875,6 +876,7 @@ class PluginBridgeAdapter {
     _activeNetworkFetchStreams.clear();
     _pendingNetworkFetchCancellations.clear();
     _clearPendingBookLoads();
+    PluginBookContentGate.cancelWaiters(this);
   }
 
   void dispose({bool removeRegistrations = true}) {
@@ -941,9 +943,11 @@ class PluginBridgeAdapter {
   }
 
   /// משתף טעינות מקבילות לפי UID ושומר טעינות שהסתיימו ב-LRU קצר.
+  /// [gated] = false להדפסה: לא נכנסת לתור ולא מצטרפת לטעינה של תוסף.
   Future<String> _loadBookRawText(
     Book book, {
     Duration shareFor = kPluginDefaultRpcTimeout,
+    bool gated = true,
   }) async {
     final revision = _bookContentRevision;
     if (_seenBookContentRevision != revision) {
@@ -958,10 +962,31 @@ class PluginBridgeAdapter {
       return cached;
     }
     final pending = _pendingBookLoads[key];
-    if (pending != null) return pending.result;
-    if (shareFor <= Duration.zero) return _readBookRawText(book);
-
-    final load = _readBookRawText(book);
+    if (pending != null && gated) {
+      final clock = Stopwatch()..start();
+      try {
+        return await pending.result;
+      } on PluginBookContentQueueTimeout {
+        // התור פג לפי התקציב של המתקשר הראשון; למתקשר הזה יש תקציב משלו.
+        if (identical(_pendingBookLoads[key]?.result, pending.result)) {
+          _pendingBookLoads.remove(key)!.expiry.cancel();
+        }
+        return _loadBookRawText(
+          book,
+          shareFor: shareFor - clock.elapsed,
+          gated: gated,
+        );
+      }
+    }
+    final load = gated
+        ? PluginBookContentGate.runLoad(
+            () => _readBookRawText(book),
+            pluginId: plugin.pluginId,
+            owner: this,
+            timeout: shareFor,
+          )
+        : _readBookRawText(book);
+    if (shareFor <= Duration.zero) return load;
     // ניסיון חוזר אחרי timeout יכול לטעון גם כשהקריאה הקודמת עדיין תקועה.
     final expiry = Timer(shareFor, () {
       _pendingBookLoads.remove(key);
@@ -1114,6 +1139,12 @@ class PluginBridgeAdapter {
       case 'fonts':
         return await _handleFonts(action, args);
       case 'library':
+        if (action == 'getBookContent') {
+          return await PluginBookContentGate.trackCall(
+            plugin.pluginId,
+            () => _handleLibrary(action, args),
+          );
+        }
         return await _handleLibrary(action, args);
       case 'search':
         return await _handleSearch(action, args, eventSink: eventSink);
@@ -1652,7 +1683,12 @@ class PluginBridgeAdapter {
         await _ensureBookTextAvailable(book ?? TextBook(title: bookId!));
         final rawNames = _rawDivineNamesArg(args);
         final rawText = book == null
-            ? await DataRepository.instance.getBookText(bookId!)
+            ? await PluginBookContentGate.runLoad(
+                () => DataRepository.instance.getBookText(bookId!),
+                pluginId: plugin.pluginId,
+                owner: this,
+                timeout: kPluginDefaultRpcTimeout - bookContentClock!.elapsed,
+              )
             : await _loadBookRawText(
                 book,
                 shareFor: kPluginDefaultRpcTimeout - bookContentClock!.elapsed,
@@ -5317,7 +5353,7 @@ class PluginBridgeAdapter {
       context: context,
       barrierDismissible: false,
       builder: (_) => PrintingScreen(
-        data: _loadBookRawText(book),
+        data: _loadBookRawText(book, gated: false),
         bookId: book.title,
         book: book,
         startLine: startLine,

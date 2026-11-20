@@ -121,6 +121,10 @@ void main() {
       clock: () => now,
     ).collectDiagnostics();
     expect(diagnostics['state'], containsPair('webview2Prewarm', 'ok 12ms'));
+    expect(
+      (diagnostics['state'] as Map).containsKey('webviewForcedHwnd'),
+      Platform.isWindows,
+    );
   });
 
   test('אבחון: ניסיונות פתיחת הספרים האחרונים, רק בהפעלה הנוכחית', () async {
