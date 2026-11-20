@@ -1791,6 +1791,7 @@
   "הצג היסטוריה ({shortcut})": "Show history ({shortcut})",
   "הצג סימניות ({shortcut})": "Show bookmarks ({shortcut})",
   "החלף שולחן עבודה ({shortcut})": "Switch workspace ({shortcut})",
+  "החלף שולחן עבודה ({shortcut}) · נוכחי: {name}": "Switch workspace ({shortcut}) · current: {name}",
   "צא ממסך מלא": "Exit full screen",
   "מסך מלא": "Full screen",
   "בטל הצמדה": "Unpin",

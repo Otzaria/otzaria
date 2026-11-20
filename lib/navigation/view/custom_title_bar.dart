@@ -45,6 +45,7 @@ import 'package:otzaria/tools/tool_catalog_entry.dart';
 import 'package:otzaria/history/view/history_screen.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/bookmarks/view/bookmark_screen.dart';
+import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/view/workspace_switcher_dialog.dart';
 import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
@@ -461,19 +462,32 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                   ),
                   onPressed: () => _showBookmarksDialog(context),
                 ),
-                AppIconButton(
-                  size: AppIconButtonSize.small,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  icon: const Icon(FluentIcons.add_square_24_regular),
-                  tooltip: context.settingsText(
-                    'החלף שולחן עבודה ({shortcut})',
-                    args: {
-                      'shortcut': ShortcutHelper.formatShortcutForDisplay(
-                        workspaceShortcut,
-                      ),
-                    },
-                  ),
-                  onPressed: () => _showSaveWorkspaceDialog(context),
+                // Builder: החלפת שולחן בונה מחדש רק את הכפתור. בלי
+                // WorkspaceBloc (בדיקות, חלון משני) ה-tooltip נשאר כמקודם.
+                Builder(
+                  builder: (context) {
+                    final name = context.select<WorkspaceBloc?, String?>(
+                      (bloc) => bloc?.state.activeWorkspace?.name,
+                    );
+                    final shortcut = ShortcutHelper.formatShortcutForDisplay(
+                      workspaceShortcut,
+                    );
+                    return AppIconButton(
+                      size: AppIconButtonSize.small,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      icon: const Icon(FluentIcons.add_square_24_regular),
+                      tooltip: name == null
+                          ? context.settingsText(
+                              'החלף שולחן עבודה ({shortcut})',
+                              args: {'shortcut': shortcut},
+                            )
+                          : context.settingsText(
+                              'החלף שולחן עבודה ({shortcut}) · נוכחי: {name}',
+                              args: {'shortcut': shortcut, 'name': name},
+                            ),
+                      onPressed: () => _showSaveWorkspaceDialog(context),
+                    );
+                  },
                 ),
               ],
             ),
