@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,11 +8,13 @@ import 'package:flutter_test/flutter_test.dart';
 // ignore: depend_on_referenced_packages
 import 'package:material_ui/material_ui.dart' as mui;
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
 import 'package:otzaria/pdf_book/view/pdf_scrollbar.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
+import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
@@ -26,7 +29,7 @@ import '../test_helpers/pdf_document_dispose.dart';
 import '../test_helpers/stub_settings_bloc.dart';
 
 void main() {
-  testWidgets('פס הגלילה האנכי בקורא PDF אינו מכסה את הדף (issue #4485)', (
+  testWidgets('תעלת הגלילה מופרדת מהדף ושומרת על יישור הדפדוף (#4485)', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1200, 800);
@@ -62,7 +65,7 @@ void main() {
     });
     final tab = PdfBookTab(
       book: PdfBook(title: 'ספר', path: path),
-      pageNumber: 1,
+      pageNumber: 3,
     );
     final tabsBloc = TabsBloc(repository: _TabsRepository());
     // ignore: invalid_use_of_visible_for_testing_member
@@ -111,6 +114,38 @@ void main() {
     expect(trackRect.width, greaterThan(0));
     // הסרגל בתעלה משלו מימין לצפיין, ולא מעל הדף עצמו.
     expect(viewerRect.right, lessThanOrEqualTo(trackRect.left));
+
+    Future<void> nextFrame() async {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 25)),
+      );
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+
+    bloc.add(const SetLayoutMode(PdfLayoutMode.bookView));
+    for (var i = 0; i < 60; i++) {
+      await nextFrame();
+    }
+    await tester.tapAt(tester.getCenter(find.byType(PdfViewer)));
+    await tester.sendKeyEvent(LogicalKeyboardKey.pageDown);
+
+    final animation = find.byWidgetPredicate(
+      (widget) =>
+          widget is CustomPaint &&
+          widget.painter.runtimeType.toString() ==
+              '_BookPageTurnBackgroundPainter',
+    );
+    ui.Image? source;
+    ui.Image? target;
+    for (var i = 0; i < 100 && target == null; i++) {
+      await nextFrame();
+      if (animation.evaluate().isEmpty) continue;
+      final dynamic painter = tester.widget<CustomPaint>(animation).painter;
+      source = painter.snapshot as ui.Image;
+      target = painter.targetSnapshot as ui.Image?;
+    }
+    expect(target, isNotNull);
+    expect((target!.width, target.height), (source!.width, source.height));
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 1));
