@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tools/biographies/data/author_biography_links.dart';
 import 'package:otzaria/tools/biographies/data/biographies_codec.dart';
 import 'package:otzaria/tools/biographies/models/biographies_bundle.dart';
@@ -25,6 +27,7 @@ class BiographiesRepository {
 
   final Future<String> Function() _updatedPathProvider;
   final Future<ByteData> Function(String key) _loadAsset;
+  final Future<List<Book>> Function() _libraryBooks;
 
   Future<BiographiesBundle>? _loading;
   Future<Map<String, String>>? _bundledAuthorLinks;
@@ -32,9 +35,13 @@ class BiographiesRepository {
   BiographiesRepository({
     Future<String> Function()? updatedPathProvider,
     Future<ByteData> Function(String key)? loadAsset,
+    Future<List<Book>> Function()? libraryBooks,
   }) : _updatedPathProvider =
            updatedPathProvider ?? AppPaths.getBiographiesPath,
-       _loadAsset = loadAsset ?? rootBundle.load;
+       _loadAsset = loadAsset ?? rootBundle.load,
+       _libraryBooks =
+           libraryBooks ??
+           (() async => (await DataRepository.instance.library).getAllBooks());
 
   /// Loads the bundle once; repeated (also concurrent) calls share the Future.
   ///
@@ -64,6 +71,48 @@ class BiographiesRepository {
       for (final item in ids.entries)
         if (entries[item.value] case final Biography entry) item.key: entry,
     };
+  }
+
+  /// Official library books by the id of the biography mapped to one of
+  /// their catalog authors (the catalog joins several authors with ", ").
+  Future<Map<String, List<Book>>> libraryBooksByBiography() async {
+    final links = await _loadAuthorLinks();
+    if (links.isEmpty) return const {};
+    final byId = <String, List<Book>>{};
+    for (final book in await _libraryBooks()) {
+      if (!book.isOfficialLibraryBook) continue;
+      final ids = {
+        for (final name in (book.author ?? '').split(', ')) ?links[name],
+      };
+      for (final id in ids) {
+        (byId[id] ??= []).add(book);
+      }
+    }
+    return byId;
+  }
+
+  /// The book of [books] that a work's [title] names: the book with this
+  /// title, or else its volumes "<title> על ...", the first of them only when
+  /// all are on one shelf. Anything else is too uncertain for a link.
+  static Book? bookForWork(String title, List<Book> books) {
+    title = _normalize(title);
+    var matches = [
+      for (final book in books)
+        if (_normalize(book.title) == title) book,
+    ];
+    if (matches.isEmpty) {
+      matches = [
+        for (final book in books)
+          if (_normalize(book.title).startsWith('$title על ')) book,
+      ];
+    }
+    if (matches.isEmpty ||
+        matches.any(
+          (book) => book.categoryPath != matches.first.categoryPath,
+        )) {
+      return null;
+    }
+    return matches.first;
   }
 
   Future<Map<String, String>> _loadAuthorLinks() async {
