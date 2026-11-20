@@ -787,5 +787,70 @@ void main() {
 
       expect(hit.matchRank, isNot(3));
     });
+
+    for (final (query, direct, relaxed) in [
+      (
+        'מהרש"א על שבועות',
+        (
+          id: 2847,
+          title: 'מהרש"א - חידושי אגדות על שבועות',
+          acronyms: ['מהרשא על שבועות'],
+        ),
+        (
+          id: 2935,
+          title: 'מהרש"א - חדושי הלכות על בבא קמא',
+          acronyms: ['מהרשא שבועות'],
+        ),
+      ),
+      (
+        'רידב"ז על סנהדרין',
+        (
+          id: 1611,
+          title: 'חידושי רידב"ז על תלמוד ירושלמי סנהדרין',
+          acronyms: ['רידבז על סנהדרין'],
+        ),
+        (
+          id: 1595,
+          title: 'חידושי רידב"ז על תלמוד ירושלמי שבת',
+          acronyms: ['רידבז סנהדרין'],
+        ),
+      ),
+      (
+        'תוספות על ב"ק',
+        (
+          id: 1925,
+          title: 'תוספות על בבא קמא',
+          acronyms: ['תוספות בק', 'תוספות על בק'],
+        ),
+        (id: 2076, title: 'פסקי תוספות על בבא קמא', acronyms: ['תוספות בק']),
+      ),
+    ]) {
+      test('"$query" מעדיף את הכינוי המפורש על ההתאמה בלי "על"', () async {
+        seedLibrary([relaxed, direct]);
+        final hits = ReferenceBooksCache.instance.search(query, limit: 1);
+        expect(hits.single.bookId, direct.id);
+        final allHits = ReferenceBooksCache.instance.search(query);
+        expect(
+          allHits
+              .where((hit) => hit.matchesExactAlias)
+              .map((hit) => hit.bookId),
+          [direct.id],
+        );
+        final results = await buildFindRefRepo().findRefs(query);
+        expect(results.first.bookId, direct.id);
+      });
+    }
+
+    test('שאילתה שמסתיימת ב"על" יכולה להתאים כתחילית מילולית', () {
+      seedLibrary(const [
+        (
+          id: 831,
+          title: 'תוספות רבי עקיבא איגר על משנה יומא',
+          acronyms: ['רעקא על יומא'],
+        ),
+      ]);
+      final hits = ReferenceBooksCache.instance.search('רעק"א על');
+      expect(hits.single.matchRank, 4);
+    });
   });
 }
