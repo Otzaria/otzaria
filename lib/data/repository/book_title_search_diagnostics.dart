@@ -29,14 +29,20 @@ class BookTitleSearchDiagnostics {
        _writeLog = writeLog ?? ErrorLogFile.appendInBackground;
 
   static BookTitleSearchDiagnostics instance = BookTitleSearchDiagnostics();
+  static const _maxActiveDetails = 32;
 
   /// `null` מכבה את רשומת התקיעה.
   final Duration? stallThreshold;
   final DateTime Function() _now;
   final SearchStallWriter _writeLog;
-  final List<TrackedBookTitleSearch> _active = [];
+  final Set<TrackedBookTitleSearch> _active = {};
   Map<String, Object?> Function()? _repositoryState;
   Map<String, Object?>? _last;
+  Timer? _stallTimer;
+  TrackedBookTitleSearch? _watchedSearch;
+  DateTime? _unsampledSince;
+  int? _stallId;
+  int _activeCount = 0;
   int _started = 0;
   int _failed = 0;
   int _superseded = 0;
@@ -58,12 +64,86 @@ class BookTitleSearchDiagnostics {
       wholeLibrary,
       _now(),
     );
-    _active.add(search);
-    final threshold = stallThreshold;
-    if (threshold != null) {
-      search._stallTimer = Timer(threshold, search._onStall);
+    _activeCount++;
+    // החיפושים הראשונים נשמרים לאבחון גם כשההמתנה חוסמת הקלדות נוספות.
+    if (_active.length < _maxActiveDetails) {
+      _active.add(search);
+      if (_active.length == 1) _watchOldest();
+    } else {
+      _unsampledSince ??= search.startedAt;
     }
     return search;
+  }
+
+  void _watchOldest() {
+    final threshold = stallThreshold;
+    if (threshold == null ||
+        _activeCount == 0 ||
+        _stallId != null ||
+        _stallTimer != null) {
+      return;
+    }
+    final oldest = _active.firstOrNull;
+    final unsampledSince = _unsampledSince;
+    final watchUnsampled =
+        unsampledSince != null &&
+        (oldest == null || unsampledSince.isBefore(oldest.startedAt));
+    final watched = _watchedSearch = watchUnsampled ? null : oldest;
+    final startedAt = watched?.startedAt ?? unsampledSince!;
+    final elapsed = _now().difference(startedAt);
+    _stallTimer = Timer(threshold - elapsed, () {
+      _stallTimer = null;
+      _watchedSearch = null;
+      final stallId = _stallId = watched?.id ?? ++_nextId;
+      final duration = '${threshold.inSeconds}s';
+      _log(
+        'Library title search stall',
+        watched == null
+            ? 'Pending book title searches not sampled by diagnostics '
+                  'did not clear within $duration'
+            : 'Book title search #${watched.id} did not finish within $duration',
+        {
+          if (watched != null) ...watched.describe(),
+          if (watched == null)
+            'Unsampled active searches': _activeCount - _active.length,
+          'Stall id': stallId,
+          'Active searches': _activeCount,
+        },
+      );
+    });
+  }
+
+  void _finished(TrackedBookTitleSearch search, String outcome) {
+    final last = _last = search.describe()..['outcome'] = outcome;
+    _active.remove(search);
+    _activeCount--;
+    if (_activeCount == _active.length) _unsampledSince = null;
+
+    final stallId = _stallId;
+    if (stallId != null) {
+      final oldest = _active.firstOrNull;
+      // כשיש חיפושים מחוץ למדגם, מחכים לסיומם לפני דיווח על התאוששות.
+      if (_activeCount > _active.length ||
+          (oldest != null &&
+              _now().difference(oldest.startedAt) >= stallThreshold!)) {
+        return;
+      }
+      _stallId = null;
+      _log(
+        'Library title search stall resolved',
+        'Book title search stall #$stallId ended (last: $outcome)',
+        {...last, 'Stall id': stallId, 'Active searches': _activeCount},
+      );
+    } else if (_watchedSearch == null
+        ? _activeCount > _active.length
+        : !identical(_watchedSearch, search)) {
+      return;
+    }
+
+    _stallTimer?.cancel();
+    _stallTimer = null;
+    _watchedSearch = null;
+    _watchOldest();
   }
 
   /// המפתח `bookTitleSearch` ב-diagnostics.json.
@@ -71,6 +151,8 @@ class BookTitleSearchDiagnostics {
     'started': _started,
     'failed': _failed,
     'superseded': _superseded,
+    'activeCount': _activeCount,
+    'stallId': ?_stallId,
     'active': [for (final search in _active) search.describe()],
     'last': ?_last,
     'repository': ?_describeRepository(),
@@ -117,8 +199,6 @@ class TrackedBookTitleSearch {
   int? _catalogBooks;
   int? _books;
   int? _categories;
-  Timer? _stallTimer;
-  bool _stallLogged = false;
   bool _finished = false;
 
   BookTitleSearchStage get stage => _stage;
@@ -162,18 +242,8 @@ class TrackedBookTitleSearch {
     } else if (error != null) {
       _owner._failed++;
     }
-    _owner._last = {...describe(), 'outcome': outcome};
     _finished = true;
-    _stallTimer?.cancel();
-    _stallTimer = null;
-    _owner._active.remove(this);
-    if (_stallLogged) {
-      _owner._log(
-        'Library title search stall resolved',
-        'Book title search #$id ended ($outcome)',
-        _owner._last!,
-      );
-    }
+    _owner._finished(this, outcome);
   }
 
   Map<String, Object?> describe() {
@@ -189,19 +259,5 @@ class TrackedBookTitleSearch {
       'books': ?_books,
       'categories': ?_categories,
     };
-  }
-
-  void _onStall() {
-    _stallTimer = null;
-    if (_finished || _stallLogged) return;
-    // הקלדות נוספות בזמן תקיעה פותחות חיפושים שנתקעים באותו מקום — רשומה אחת מספיקה.
-    if (_owner._active.any((search) => search._stallLogged)) return;
-    _stallLogged = true;
-    _owner._log(
-      'Library title search stall',
-      'Book title search #$id did not finish within '
-          '${_owner.stallThreshold?.inSeconds}s',
-      {...describe(), 'Active searches': _owner._active.length},
-    );
   }
 }

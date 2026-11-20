@@ -102,6 +102,119 @@ void main() {
     });
   });
 
+  test('תקיעה מסתיימת ביומן רק אחרי שכל החיפושים שנתקעו הסתיימו', () {
+    fakeAsync((async) {
+      final searches = registry(async);
+      final first = searches.start(words: 1, wholeLibrary: true)
+        ..enter(BookTitleSearchStage.acronyms);
+      async.elapse(const Duration(seconds: 10));
+      final second = searches.start(words: 2, wholeLibrary: true)
+        ..enter(BookTitleSearchStage.acronyms);
+      async.elapse(const Duration(seconds: 65));
+
+      expect(written.single.details['id'], '1');
+      first.finish();
+      expect(written, hasLength(1));
+      second.finish();
+      expect(written, hasLength(2));
+      expect(written.last.title, 'Library title search stall resolved');
+    });
+  });
+
+  test('החלפת הקריאה הנמדדת שומרת את סף הזמן של הקריאה הבאה', () {
+    fakeAsync((async) {
+      final searches = registry(async);
+      final first = searches.start(words: 1, wholeLibrary: true);
+      async.elapse(const Duration(seconds: 30));
+      final second = searches.start(words: 1, wholeLibrary: true)
+        ..enter(BookTitleSearchStage.worker);
+
+      async.elapse(const Duration(seconds: 15));
+      first.finish(const BookSearchSupersededException());
+      async.elapse(const Duration(seconds: 44));
+      expect(written, isEmpty);
+      async.elapse(const Duration(seconds: 1));
+      expect(written.single.details['id'], '2');
+
+      second.finish(StateError('private details'));
+      expect(written.last.error, contains('error:StateError'));
+      expect(
+        written.last.details.toString(),
+        isNot(contains('private details')),
+      );
+      expect(searches.collect()['failed'], 1);
+      expect(searches.collect()['superseded'], 1);
+    });
+  });
+
+  test('רצף ארוך של חיפושים תקועים שומר מדגם חסום וטיימר אחד', () {
+    fakeAsync((async) {
+      final searches = registry(async);
+      final pending = List.generate(
+        128,
+        (_) => searches.start(words: 1, wholeLibrary: true),
+      );
+      var collected = searches.collect();
+      final sample = collected['active'] as List;
+      expect(sample.length, lessThan(pending.length));
+      expect(collected['activeCount'], pending.length);
+      expect(sample.first, containsPair('id', 1));
+      expect(async.nonPeriodicTimerCount, 1);
+      async.elapse(const Duration(seconds: 60));
+      expect(written.single.details['id'], '1');
+
+      for (final search in pending.take(127)) {
+        search.finish();
+      }
+      expect(written, hasLength(1));
+      pending.last.finish();
+      expect(written, hasLength(2));
+      collected = searches.collect();
+      expect(collected['activeCount'], 0);
+      expect(collected['active'], isEmpty);
+      expect(async.nonPeriodicTimerCount, 0);
+    });
+  });
+
+  test('פעילות ממושכת מחוץ למדגם נרשמת בלי שיוך לחיפוש בודד', () {
+    fakeAsync((async) {
+      final searches = registry(async);
+      final sample = List.generate(
+        32,
+        (_) => searches.start(words: 1, wholeLibrary: true),
+      );
+      async.elapse(const Duration(seconds: 10));
+      final unsampled = searches.start(words: 1, wholeLibrary: true);
+      async.elapse(const Duration(seconds: 35));
+      for (final search in sample) {
+        search.finish();
+      }
+      expect(searches.collect()['active'], isEmpty);
+      expect(async.nonPeriodicTimerCount, 1);
+
+      // גמר של חיפוש חדש ומהיר לא מאפס את שעון הפעילות שמחוץ למדגם.
+      async.elapse(const Duration(seconds: 5));
+      searches.start(words: 1, wholeLibrary: true).finish();
+      final newer = searches.start(words: 1, wholeLibrary: true);
+      async.elapse(const Duration(seconds: 19));
+      expect(written, isEmpty);
+      async.elapse(const Duration(seconds: 1));
+
+      expect(written.single.title, 'Library title search stall');
+      expect(written.single.error, contains('not sampled'));
+      expect(written.single.details, isNot(contains('id')));
+      expect(written.single.details['Active searches'], '2');
+      expect(written.single.details['Unsampled active searches'], '1');
+      final stallId = written.single.details['Stall id'];
+      expect(stallId, isNotNull);
+      unsampled.finish();
+      expect(written.last.title, 'Library title search stall resolved');
+      expect(written.last.details['Stall id'], stallId);
+      newer.finish();
+      expect(async.nonPeriodicTimerCount, 0);
+    });
+  });
+
   test('קטלוג ריק בחיפוש בכל הספרייה נרשם פעם אחת בלבד', () {
     fakeAsync((async) {
       final searches = registry(async);

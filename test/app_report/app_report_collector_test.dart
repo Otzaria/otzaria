@@ -122,6 +122,13 @@ void main() {
       containsPair('stage', 'generations'),
     );
     expect(collected['repository'], {'acronymsLoaded': true});
+
+    final previousRun = await AppReportCollector(
+      redactor: redactor,
+      clock: () => now,
+      includeCurrentContext: false,
+    ).collectDiagnostics();
+    expect(previousRun, isNot(contains('bookTitleSearch')));
   });
 
   test('אבחון: יומן החלונות נכלל', () async {

@@ -233,13 +233,7 @@ class DataRepository {
   }) async {
     final request = Object();
     if (supersedeKey != null) _pendingBookSearches[supersedeKey] = request;
-    final tracked = BookTitleSearchDiagnostics.instance.start(
-      words: query.trim().isEmpty
-          ? 0
-          : query.trim().split(RegExp(r'\s+')).length,
-      wholeLibrary: category == null && !extraBooksOnly,
-      repositoryState: describeBookSearchState,
-    );
+    TrackedBookTitleSearch? tracking;
     try {
       final BooksAndCategoriesSearch empty = (
         books: const <Book>[],
@@ -251,6 +245,12 @@ class DataRepository {
           .split(RegExp(r'\s+'))
           .where((w) => w.isNotEmpty)
           .toList();
+      final tracked = tracking = BookTitleSearchDiagnostics.instance.start(
+        words: queryWords.length,
+        wholeLibrary:
+            !extraBooksOnly && (category == null || category is Library),
+        repositoryState: describeBookSearchState,
+      );
       if (queryWords.isEmpty) {
         return empty;
       }
@@ -341,10 +341,10 @@ class DataRepository {
         bookMatchKinds: bookMatchKinds,
       );
     } catch (error) {
-      tracked.finish(error);
+      tracking?.finish(error);
       rethrow;
     } finally {
-      tracked.finish();
+      tracking?.finish();
       if (identical(_pendingBookSearches[supersedeKey], request)) {
         _pendingBookSearches.remove(supersedeKey);
       }
