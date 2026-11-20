@@ -28,6 +28,14 @@ import '../../../test_helpers/memory_cache_provider.dart';
 class _MemorySessions extends WindowSessionStore {
   final Map<int, WindowSession> rows = {};
   final List<int> boundsWrites = [];
+  List<WindowSession> closed = const [];
+
+  @override
+  Future<List<WindowSession>> loadClosed() async => closed;
+
+  @override
+  Future<void> saveClosed(List<WindowSession> sessions) async =>
+      closed = sessions;
 
   @override
   Future<void> save(
