@@ -258,8 +258,6 @@ class ActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final button = _buildButton(context);
-    // טולטיפ שחוזר על [text] הגלוי מיותר. בטעינה הטקסט מוסתר, ואז הוא מוצג.
-    if (!isLoading && tooltipRepeatsLabel(tooltip, text)) return button;
     return ContainedTooltip(message: tooltip ?? '', child: button);
   }
 

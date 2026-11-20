@@ -184,7 +184,6 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                 const iconOnlyDeleteBelow = 560.0, splitDateBelow = 360.0;
                 final iconOnlyDelete = width < iconOnlyDeleteBelow;
                 final splitDate = width < splitDateBelow;
-                final dateLabel = formatEventDate(event.baseGregorianDate);
                 final eventColor = CalendarEventColors.colorForIndex(
                   event.displayColorIndex,
                   Theme.of(context).brightness,
@@ -242,11 +241,15 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                               ),
                             ),
                           Flexible(
-                            // ריחוף רק כשהכותרת נקטעת.
-                            child: OverflowTooltipText(
-                              text: event.title,
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            child: Tooltip(
+                              message: event.title,
+                              child: Text(
+                                event.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
                             ),
                           ),
                           if (event.googleEventId != null &&
@@ -325,9 +328,11 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                             child: _eventChip(
                               icon: OtzariaIcons.calendar_24_regular,
                               text: splitDate
-                                  ? dateLabel.replaceFirst(' • ', '\n')
-                                  : dateLabel,
-                              tooltip: dateLabel,
+                                  ? formatEventDate(
+                                      event.baseGregorianDate,
+                                    ).replaceFirst(' • ', '\n')
+                                  : formatEventDate(event.baseGregorianDate),
+                              tooltip: formatEventDate(event.baseGregorianDate),
                               tone: MetaChipTone.primary,
                               maxLines: splitDate ? 2 : 1,
                             ),
@@ -381,7 +386,7 @@ class _DeleteEventAction extends StatelessWidget {
   }
 }
 
-/// תגית מטא של אירוע, עם הטקסט המלא בריחוף כשהתווית נחתכת.
+/// תגית מטא של אירוע; הריחוף מציג את הטקסט המלא גם כשהוא נחתך.
 Widget _eventChip({
   required IconData icon,
   required String text,

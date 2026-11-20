@@ -234,20 +234,29 @@ class _BookListRow extends StatelessWidget {
     return ListTile(
       shape: Border(bottom: listDialogRowDivider(context)),
       leading: Icon(row.icon),
-      // הטקסט גלוי: רמז צף רק כשהוא נחתך.
-      title: OverflowTooltipText(
-        text: row.title,
-        style: TextStyle(
-          fontSize: AppTokens.fontMD + 1,
-          fontWeight: FontWeight.w600,
-          color: cs.onSurface,
+      title: Tooltip(
+        message: row.title,
+        child: Text(
+          row.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: AppTokens.fontMD + 1,
+            fontWeight: FontWeight.w600,
+            color: cs.onSurface,
+          ),
         ),
       ),
-      subtitle: OverflowTooltipText(
-        text: detailsLine,
-        style: TextStyle(
-          fontSize: AppTokens.fontSM,
-          color: cs.onSurfaceVariant,
+      subtitle: Tooltip(
+        message: detailsLine,
+        child: Text(
+          detailsLine,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: AppTokens.fontSM,
+            color: cs.onSurfaceVariant,
+          ),
         ),
       ),
     );
