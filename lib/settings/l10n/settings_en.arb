@@ -1418,6 +1418,8 @@
   "מתקין את הנתונים": "Installing the data",
   "בדוק שוב": "Check again",
   "תארו במילים שלכם את העניין שאתם מחפשים": "Describe in your own words the topic you are looking for",
+  "איך לנסח שאלה לחיפוש החכם": "How to phrase a smart search question",
+  "החיפוש החכם מחפש לפי המשמעות, ולא לפי המילים המדויקות.\n\n• תארו את העניין במילים שלכם, ולא כפי שאתם משערים שהוא כתוב בספרים.\n• ציינו את ההקשר והנסיבות: מי, מתי, באיזה מצב.\n• שאלה מפורטת, של כ-15 עד 30 מילים, מניבה בדרך כלל תוצאות טובות יותר משתיים-שלוש מילים. גם שאילתה קצרה מותרת.\n\nדוגמה: \"אדם ששכח לברך ברכת המזון ונזכר רק אחרי שיצא מהבית שבו אכל, האם עליו לחזור למקום שאכל בו או שאפשר לברך במקום שהוא נמצא בו?\"": "Smart search looks for meaning, not for the exact words.\n\n• Describe the topic in your own words, not the way you expect the books to phrase it.\n• Mention the context and circumstances: who, when, in what situation.\n• A detailed question of about 15 to 30 words usually gives better results than two or three words. Short queries are still allowed.\n\nExample: \"Someone forgot to say Grace after Meals and remembered only after leaving the house where they ate; must they go back there, or may they say it where they are now?\"",
   "שלב גם התאמה מילולית": "Also include word matches",
   "איחוד טקסטים זהים": "Merge identical texts",
   "החיפוש מדויק יותר כשמצמצמים אותו לספרים או לקטגוריות מסוימות.": "The search is more accurate when you narrow it to specific books or categories.",
