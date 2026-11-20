@@ -22,7 +22,7 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart'
         generateSmartHighlightPattern,
         splitQueryWords;
 import 'package:otzaria/search/utils/literal_search_pattern.dart'
-    show LiteralEdgeCheck, literalEdgeCheck;
+    show LiteralEdgeCheck, isOverlongSearchQuery, literalEdgeCheck;
 import 'package:otzaria/search/utils/user_regex_query.dart';
 
 export 'find_ref_text_matching.dart';
@@ -1653,6 +1653,8 @@ String highLight(
   String? nextLine,
 }) {
   if (searchQuery.isEmpty) return data;
+  // ציטוט (רקע צהוב) מודגש בשורה אחת בלבד, ולכן אורכו לא תוקע את ה-UI.
+  if (!yellowBackground && isOverlongSearchQuery(searchQuery)) return data;
 
   // בניית תבניות ההדגשה מתבצעת כולה במנוע החיפוש (Rust) — כולל וריאציות
   // כתיב, מילים חילופיות, סובלנות ניקוד ומרווחים בין מילים. המתאם המוכן
@@ -1969,7 +1971,9 @@ List<_HighlightMatch> _queryMatches(
   bool partialWordMatch,
   bool punctuationHidden,
 ) {
-  if (searchQuery.isEmpty) return const [];
+  if (searchQuery.isEmpty || isOverlongSearchQuery(searchQuery)) {
+    return const [];
+  }
   final compiled = _resolveHighlightPattern(
     searchQuery,
     const {},
