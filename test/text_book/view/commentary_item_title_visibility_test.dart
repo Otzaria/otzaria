@@ -341,6 +341,32 @@ void main() {
 
       expect(_markerText(), findsOneWidget);
     });
+
+    testWidgets('סימן מודפס שונה ממספר הרשומה — הכותרת בלי המספר הסותר '
+        '(issue #1979)', (tester) async {
+      final link = _link(
+        heRef: 'מפרש בדיקה, סימן ב, ד',
+        index1: 1,
+        index2: 2,
+        anchorStart: 0,
+        anchorLabel: 'ג',
+      );
+      final bloc = StubTextBookBloc(_loadedState(links: [link]));
+      addTearDown(() async => bloc.close());
+
+      await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
+
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is Text &&
+              RegExp(
+                r'^[(\[{]ג[)\]}] מפרש בדיקה, סימן ב$',
+              ).hasMatch(w.data ?? ''),
+        ),
+        findsOneWidget,
+      );
+    });
   });
 
   group('CommentaryListBase - כותרת שחוזרת על הקודמת (#4616)', () {

@@ -27,6 +27,53 @@ Link _anchorLink({
 }
 
 void main() {
+  group('כותרת הערה אינה מכפילה מספר רשומה סותר (issue #1979)', () {
+    // באר הגולה, שו"ע או"ח תרס"ד: הסימן המודפס [ג] מפנה לרשומה שה-heRef שלה
+    // מסתיים ב-ד, כי לפניה הערה ללא מספר ([•]).
+    Link beerHagolah(
+      String? label, {
+      String heRef = 'באר הגולה על שולחן ערוך אורח חיים תרסד, ד',
+    }) => _anchorLink(
+      heRef: heRef,
+      path2: 'באר הגולה על שולחן ערוך אורח חיים',
+      anchorStart: 12,
+      anchorLabel: label,
+    );
+    const reference = 'באר הגולה על שולחן ערוך אורח חיים, תרסד, ד';
+
+    test('סימן מודפס ששונה ממספר הרשומה — המספר מושמט', () {
+      expect(
+        anchoredLinkTitle(beerHagolah('ג'), '[ג]', reference),
+        '[ג] באר הגולה על שולחן ערוך אורח חיים, תרסד',
+      );
+    });
+
+    test('סימן שזהה למספר הרשומה — ללא שינוי', () {
+      expect(
+        anchoredLinkTitle(beerHagolah('ד'), '[ד]', reference),
+        '[ד] $reference',
+      );
+      expect(
+        anchoredLinkTitle(beerHagolah(null), '[ד]', reference),
+        '[ד] $reference',
+      );
+    });
+
+    test('סימן שאינו אות (•) — ללא שינוי', () {
+      expect(
+        anchoredLinkTitle(beerHagolah('•'), '[•]', reference),
+        '[•] $reference',
+      );
+    });
+
+    test('כתובת שאינה מסתיימת במספר הרשומה — הסימן אינו נוגע בה', () {
+      expect(
+        anchoredLinkTitle(beerHagolah('ג'), '[ג]', 'באר הגולה, תרסד'),
+        '[ג] באר הגולה, תרסד',
+      );
+    });
+  });
+
   group('anchorMarkerLetter', () {
     test('מעדיף את התווית השמורה במסד', () {
       final link = _anchorLink(
