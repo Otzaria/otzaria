@@ -37,14 +37,12 @@ class LinkAnchorVariant {
   final bool bold;
   final bool italic;
   final bool rashiScript;
-  final bool underline;
   final LinkAnchorDelimiter delimiter;
 
   const LinkAnchorVariant({
     this.bold = false,
     this.italic = false,
     this.rashiScript = false,
-    this.underline = false,
     this.delimiter = LinkAnchorDelimiter.parentheses,
   });
 }
@@ -57,14 +55,22 @@ const List<LinkAnchorVariant> kLinkAnchorVariants = [
   LinkAnchorVariant(bold: true, italic: true),
   LinkAnchorVariant(rashiScript: true),
   LinkAnchorVariant(rashiScript: true, bold: true),
-  LinkAnchorVariant(underline: true),
+  LinkAnchorVariant(rashiScript: true, italic: true),
   LinkAnchorVariant(bold: true, delimiter: LinkAnchorDelimiter.brackets),
   LinkAnchorVariant(italic: true, delimiter: LinkAnchorDelimiter.brackets),
-  LinkAnchorVariant(underline: true, delimiter: LinkAnchorDelimiter.brackets),
+  LinkAnchorVariant(
+    bold: true,
+    italic: true,
+    delimiter: LinkAnchorDelimiter.brackets,
+  ),
   LinkAnchorVariant(rashiScript: true, delimiter: LinkAnchorDelimiter.brackets),
   LinkAnchorVariant(bold: true, delimiter: LinkAnchorDelimiter.braces),
   LinkAnchorVariant(italic: true, delimiter: LinkAnchorDelimiter.braces),
-  LinkAnchorVariant(underline: true, delimiter: LinkAnchorDelimiter.braces),
+  LinkAnchorVariant(
+    bold: true,
+    italic: true,
+    delimiter: LinkAnchorDelimiter.braces,
+  ),
   LinkAnchorVariant(rashiScript: true, delimiter: LinkAnchorDelimiter.braces),
 ];
 
@@ -104,7 +110,6 @@ Map<String, String> linkAnchorVariantCss(LinkAnchorVariant? variant) {
     if (variant.bold) 'font-weight': 'bold',
     if (variant.italic) 'font-style': 'italic',
     if (variant.rashiScript) 'font-family': kLinkAnchorRashiFont,
-    if (variant.underline) 'text-decoration': 'underline',
   };
 }
 
@@ -124,6 +129,5 @@ TextStyle applyLinkAnchorVariant(LinkAnchorVariant? variant, TextStyle style) {
         ? AppFonts.boldFontVariations(fontFamily)
         : null,
     fontStyle: variant.italic ? FontStyle.italic : null,
-    decoration: variant.underline ? TextDecoration.underline : null,
   );
 }

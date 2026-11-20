@@ -1,5 +1,3 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -9,7 +7,7 @@ import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/search_highlight_css.dart';
 import 'package:otzaria/book_common/utils/link_anchor_variants.dart'
-    show kLinkAnchorMarkerScale, kLinkAnchorVariants;
+    show kLinkAnchorMarkerScale;
 import 'package:otzaria/text_book/utils/numbered_note_markers.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
 import 'package:otzaria/widgets/smart_text/raised_markers.dart';
@@ -1078,71 +1076,6 @@ void main() {
       );
     });
 
-    testWidgets('אות מפרש בסוגריים מסולסלים וקו: קו אחד בלבד (issue #2758)', (
-      tester,
-    ) async {
-      // שורת שו"ע כפי שצורת הדף מעבירה ל-SmartTextWidget: וריאנט 12 = {} + קו.
-      final overlay = await pump(
-        tester,
-        'יתגבר <i data-commentator="Turei Zahav" data-order="1"></i>'
-        '<a class="link-anchor link-anchor-12" href="otzaria://anchor?ref=0_0">'
-        '{ד}</a>כארי לעמוד בבוקר',
-        onAnchorTap: (_) {},
-      );
-      expect(
-        await inkBelowRaisedMarker(tester, overlay),
-        isEmpty,
-        reason: 'קו שני מתחת לאות המפרש',
-      );
-    });
-
-    testWidgets(
-      'קריאה רציפה: אות מפרש בווריאנט קו — קו אחד בלבד (issue #2758)',
-      (
-        tester,
-      ) async {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Directionality(
-              textDirection: TextDirection.rtl,
-              child: Scaffold(
-                body: Align(
-                  alignment: Alignment.topRight,
-                  child: SizedBox(
-                    width: 600,
-                    child: ContinuousReadingParagraph(
-                      lines: const [
-                        ContinuousReadingParagraphLine(
-                          lineIndex: 0,
-                          text: 'יתגבר {ד}כארי לעמוד בבוקר',
-                          htmlText:
-                              'יתגבר <a class="link-anchor link-anchor-12" '
-                              'href="otzaria://anchor?ref=0_0">{ד}</a>כארי '
-                              'לעמוד בבוקר',
-                          style: TextStyle(fontSize: 20),
-                        ),
-                      ],
-                      baseStyle: const TextStyle(fontSize: 20),
-                      onTapUrl: (_) async => true,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-        await tester.pumpAndSettle();
-        final overlay = tester.renderObject<RenderRaisedMarkerOverlay>(
-          find.byType(RaisedMarkerOverlay),
-        );
-        expect(
-          await inkBelowRaisedMarker(tester, overlay),
-          isEmpty,
-          reason: 'קו שני מתחת לאות המפרש',
-        );
-      },
-    );
-
     testWidgets('לחיצה על הציור המורם מפעילה את העוגן (הפניית hit-test)', (
       tester,
     ) async {
@@ -1379,51 +1312,4 @@ void main() {
       }
     },
   );
-}
-
-/// שורות "דיו" בין תחתית הציור המורם של אות המפרש (כולל הקו שלו) לתחתית
-/// מקום האות בשורה. קו תחתון שנשאר על הגליף השקוף שבשורה נצבע בצבע
-/// ה-decoration שבירושה מהנושא ומופיע כאן כקו שני כהה (issue #2758).
-Future<Set<int>> inkBelowRaisedMarker(
-  WidgetTester tester,
-  RenderRaisedMarkerOverlay overlay,
-) async {
-  final placement = overlay.debugPlacements().single;
-  expect(
-    kLinkAnchorVariants[placement.marker.variantIndex!].underline,
-    isTrue,
-  );
-  final paintedStyle = overlay.debugPaintedSpan(placement).style!;
-  expect(paintedStyle.decoration, TextDecoration.underline);
-  expect(paintedStyle.decorationColor?.a, isNot(0));
-  final boundary = tester.renderObject<RenderRepaintBoundary>(
-    find
-        .ancestor(
-          of: find.byType(RaisedMarkerOverlay),
-          matching: find.byType(RepaintBoundary),
-        )
-        .first,
-  );
-  final origin =
-      overlay.localToGlobal(Offset.zero) - boundary.localToGlobal(Offset.zero);
-  final (pixels, width) = (await tester.runAsync(() async {
-    final image = await boundary.toImage();
-    final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-    return (data!, image.width);
-  }))!;
-  int pixel(int x, int y) => pixels.getUint32((y * width + x) * 4);
-  final background = pixel(0, 0);
-  // מתחת לציור המורם (ולקו שלו) ועד תחתית מקום האות בשורה — רק רקע.
-  final inkRows = <int>{};
-  final rect = placement.anchorRect.shift(origin);
-  for (
-    var y = (placement.paintRect.bottom + origin.dy).ceil() + 1;
-    y < rect.bottom.ceil() + 4;
-    y++
-  ) {
-    for (var x = rect.left.ceil(); x < rect.right.floor(); x++) {
-      if (pixel(x, y) != background) inkRows.add(y);
-    }
-  }
-  return inkRows;
 }

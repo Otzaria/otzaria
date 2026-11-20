@@ -139,14 +139,14 @@ void main() {
         ).fontFamily,
         kLinkAnchorRashiFont,
       );
-      // וריאנט 5 = קו תחתון, סימנו המבחין של המפרש — חייב לשרוד את המצב הפעיל.
+      // וריאנט 1 = נטוי, סימנו המבחין של המפרש — חייב לשרוד את המצב הפעיל.
       expect(
         continuousStyleOf(
-          activeMarker(5),
+          activeMarker(1),
           '(א)',
           hideRaisedMarkers: false,
-        ).decoration,
-        TextDecoration.underline,
+        ).fontStyle,
+        FontStyle.italic,
       );
       // הווריאנט נשאר גם על הגליף השקוף — רוחב המקום חייב להתאים לציור.
       expect(
