@@ -214,5 +214,39 @@ void main() {
       expect(loadCount, 2);
       c.dispose();
     });
+    test(
+      'הצג את כל המפרשים: פותח את המקור עם כל המפרשים הנוספים (issue #4993)',
+      () async {
+        final c = SiblingCommentariesController(
+          loadSiblings: (_) async => [
+            _commentaryLink('ריטב"א'),
+            _commentaryLink('רא"ש'),
+            _commentaryLink('ריטב"א'),
+          ],
+        );
+        Link? openedSource;
+        List<String>? openedCommentators;
+        final source = _sourceLink();
+        final entry = c.buildEntry(
+          lineIndex: 1,
+          sourceLink: source,
+          onNavigate: (_) {},
+          onOpenAll: (link, commentators) {
+            openedSource = link;
+            openedCommentators = commentators;
+          },
+        )!;
+
+        entry.childrenBuilder!();
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        final loaded = entry.childrenBuilder!();
+        expect(loaded.first.label, 'הצג את כל המפרשים');
+        loaded.first.onTap!();
+        expect(openedSource, same(source));
+        expect(openedCommentators, ['ריטב"א', 'רא"ש']);
+        c.dispose();
+      },
+    );
   });
 }
