@@ -25,6 +25,18 @@ SELECT * FROM book WHERE title = ? AND categoryId = ? LIMIT 1;
 selectByTitleCategoryAndFileType:
 SELECT * FROM book WHERE title = ? AND categoryId = ? AND fileType = ? LIMIT 1;
 
+-- Title without " ' ׳ ״ (char codes 34, 39, 1523, 1524); LIMIT 2 detects ambiguity
+selectByQuotelessTitle:
+SELECT * FROM book
+WHERE REPLACE(REPLACE(REPLACE(REPLACE(title, char(34), ''), char(39), ''), char(1523), ''), char(1524), '') = ?
+LIMIT 2;
+
+selectByQuotelessTitleAndCategory:
+SELECT * FROM book
+WHERE categoryId = ?
+  AND REPLACE(REPLACE(REPLACE(REPLACE(title, char(34), ''), char(39), ''), char(1523), ''), char(1524), '') = ?
+LIMIT 2;
+
 insert:
 INSERT INTO book (categoryId, sourceId, title, heShortDesc, orderIndex, totalLines, isBaseBook,
     hasTargumConnection, hasReferenceConnection, hasSourceConnection, hasCommentaryConnection, hasOtherConnection,

@@ -736,7 +736,10 @@ class SeforimRepository {
         includeRelations: true,
       );
     }
-    final bookData = await _database.bookDao.getBookByTitle(title);
+    final dao = _database.bookDao;
+    final bookData =
+        await dao.getBookByTitle(title) ??
+        await dao.getUniqueBookByQuotelessTitle(title);
     if (bookData == null) return null;
 
     final authors = await _getBookAuthors(bookData.id);
@@ -760,10 +763,10 @@ class SeforimRepository {
         includeRelations: true,
       );
     }
-    final bookData = await _database.bookDao.getBookByTitleAndCategory(
-      title,
-      categoryId,
-    );
+    final dao = _database.bookDao;
+    final bookData =
+        await dao.getBookByTitleAndCategory(title, categoryId) ??
+        await dao.getUniqueBookByQuotelessTitle(title, categoryId: categoryId);
     if (bookData == null) return null;
 
     final authors = await _getBookAuthors(bookData.id);

@@ -25,12 +25,16 @@ class LibraryProviderManager {
   /// מפתחות לפי כותרת בסדר ההכנסה — לאיתור ספרים ויעדי קישורים.
   final Map<String, List<BookCompositeKey>> _keysByTitle = {};
 
+  /// כותרת ממופה לפי [normalizeBookTitle]; null כשכמה כותרות חולקות נרמול.
+  Map<String, String?>? _titleByNormalized;
+
   bool _isInitialized = false;
   Future<void>? _initializationFuture;
 
   void _mapBook(BookCompositeKey key, LibraryProvider provider) {
     if (!_bookToProvider.containsKey(key)) {
       (_keysByTitle[key.title] ??= []).add(key);
+      _titleByNormalized = null;
     }
     _bookToProvider[key] = provider;
   }
@@ -38,6 +42,7 @@ class LibraryProviderManager {
   void _clearBookMapping() {
     _bookToProvider.clear();
     _keysByTitle.clear();
+    _titleByNormalized = null;
   }
 
   /// Singleton instance
@@ -105,7 +110,41 @@ class LibraryProviderManager {
     );
   }
 
+  /// כותרת שמורה שאינה בקטלוג נפתרת לכותרת היחידה ששונה ממנה רק בגרשיים
+  /// ובריווח — ספרייה חדשה מחזירה גרשיים שנשמטו משמות הקבצים (#2766).
   BookCompositeKey? _resolveBookKey(
+    String title, {
+    int? categoryId,
+    String? fileType,
+    BookSource preferSource = BookSource.official,
+  }) {
+    final mappedTitle = _keysByTitle.containsKey(title)
+        ? title
+        : _uniqueTitleIgnoringQuotes(title);
+    if (mappedTitle == null) return null;
+    return _resolveMappedBookKey(
+      mappedTitle,
+      categoryId: categoryId,
+      fileType: fileType,
+      preferSource: preferSource,
+    );
+  }
+
+  String? _uniqueTitleIgnoringQuotes(String title) {
+    final index = _titleByNormalized ??= () {
+      final byNormalized = <String, String?>{};
+      for (final mapped in _keysByTitle.keys) {
+        final normalized = normalizeBookTitle(mapped);
+        byNormalized[normalized] = byNormalized.containsKey(normalized)
+            ? null
+            : mapped;
+      }
+      return byNormalized;
+    }();
+    return index[normalizeBookTitle(title)];
+  }
+
+  BookCompositeKey? _resolveMappedBookKey(
     String title, {
     int? categoryId,
     String? fileType,

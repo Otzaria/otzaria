@@ -1,0 +1,60 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/data/data_providers/book_composite_key.dart';
+import 'package:otzaria/data/data_providers/library_provider.dart';
+import 'package:otzaria/data/data_providers/library_provider_manager.dart';
+
+class _Provider implements LibraryProvider {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+BookCompositeKey _key(String title, int categoryId) =>
+    BookCompositeKey.create(title: title, categoryId: categoryId);
+
+void main() {
+  final manager = LibraryProviderManager.instance;
+
+  tearDown(manager.resetForTesting);
+
+  group('כותרת שנשמרה בלי גרשיים (#2766)', () {
+    test('כותרת ישנה נפתרת לספר המתוקן', () {
+      final provider = _Provider();
+      manager.seedMappingsForTesting(
+        mapping: {_key('שו״ת באר מרדכי', 7): provider},
+        providers: [provider],
+      );
+
+      expect(manager.getProviderForBook('שות באר מרדכי'), same(provider));
+      expect(
+        manager.getProviderForBook('שו"ת באר מרדכי', categoryId: 7),
+        same(provider),
+      );
+    });
+
+    test('התאמה מדויקת גוברת על התאמה בלי גרשיים', () {
+      final quoted = _Provider();
+      final plain = _Provider();
+      manager.seedMappingsForTesting(
+        mapping: {_key('שו״ת חכם', 1): quoted, _key('שות חכם', 2): plain},
+        providers: [quoted, plain],
+      );
+
+      expect(manager.getProviderForBook('שות חכם'), same(plain));
+      expect(manager.getProviderForBook('שו״ת חכם'), same(quoted));
+    });
+
+    test('כמה כותרות שמתנרמלות לאותה מחרוזת — לא מנחשים', () {
+      final first = _Provider();
+      final second = _Provider();
+      manager.seedMappingsForTesting(
+        mapping: {
+          _key('שו״ת דברי חיים', 1): first,
+          _key('שו"ת דברי חיים', 2): second,
+        },
+        providers: [first, second],
+      );
+
+      expect(manager.getProviderForBook('שות דברי חיים'), isNull);
+    });
+  });
+}
