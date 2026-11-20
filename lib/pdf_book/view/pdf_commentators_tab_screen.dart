@@ -784,7 +784,8 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
         context,
         TextDisplaySlot.commentaryDisplay.copyWith(channel: TextChannel.copy),
       ),
-      openBookCallback: (tab) => openPreparedTab(context, tab),
+      openBookCallback: (tab) =>
+          openPreparedTab(context, tab, navigateToPositionIfReused: true),
       fontSize: context.select(
         (SettingsBloc bloc) => bloc.state.commentatorsFontSize,
       ),
