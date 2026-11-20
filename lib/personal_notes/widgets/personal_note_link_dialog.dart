@@ -79,7 +79,11 @@ class _PersonalNoteLinkDialogState extends State<PersonalNoteLinkDialog> {
       if (lineNumber == null || lineNumber <= 0) return;
       final bookId = widget.bookId ?? '';
       final label = _labelOr('שורה $lineNumber');
-      final url = 'otzaria://book?bookId=$bookId&line=$lineNumber';
+      final url = Uri(
+        scheme: 'otzaria',
+        host: 'book',
+        queryParameters: {'bookId': bookId, 'line': '$lineNumber'},
+      ).toString();
       Navigator.of(context).pop(
         PersonalNoteLinkTarget(label: label, url: url),
       );

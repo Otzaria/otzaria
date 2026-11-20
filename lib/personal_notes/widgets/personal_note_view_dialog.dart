@@ -9,6 +9,7 @@ import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
 import 'package:otzaria/personal_notes/utils/note_link_detection.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_content_view.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
+import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 
@@ -105,7 +106,7 @@ class PersonalNoteViewDialog extends StatelessWidget {
       return;
     }
     final target = await (findNote ?? _storedNote)(targetId);
-    if (!context.mounted) return;
+    if (!context.mounted || ModalRoute.of(context)?.isCurrent != true) return;
     if (target == null) {
       UiSnack.show(NotesMessages.linkedNoteDeleted);
       return;
@@ -124,7 +125,13 @@ class PersonalNoteViewDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final edit = onEdit;
-    final openInBook = note.hasLocation ? onOpenInBook : null;
+    final openInBook = note.hasLocation && !note.isGeneralNote
+        ? onOpenInBook
+        : null;
+    final content = PersonalNoteContentView(
+      note: note,
+      onLinkTap: (url) => unawaited(_followLink(context, url)),
+    );
     return AppDialogFrame(
       title: _title,
       titleMaxLines: 2,
@@ -151,10 +158,9 @@ class PersonalNoteViewDialog extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ],
-      child: PersonalNoteContentView(
-        note: note,
-        onLinkTap: (url) => unawaited(_followLink(context, url)),
-      ),
+      child: note.contentFormat == PersonalNoteContentFormat.plain
+          ? AppSelectionArea(child: content)
+          : content,
     );
   }
 }

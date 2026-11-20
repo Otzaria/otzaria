@@ -320,18 +320,25 @@ class PersonalNotesDatabase {
     return complete;
   }
 
-  /// Batch insert multiple notes (for bulk restore/import)
-  /// Skips notes that already exist (by ID), or overwrites them with [replace]
+  /// מכניס הערות בעסקה אחת, ומדלג על מזהה קיים אלא אם נבחר [replace].
+  /// [resolveIds] מקבל בדיקת מזהים מאותה עסקה שבה ייכתבו ההערות.
   Future<int> batchInsertNotes(
     List<PersonalNote> notes, {
     bool replace = false,
+    List<PersonalNote> Function(bool Function(String) exists)? resolveIds,
   }) async {
     if (notes.isEmpty) return 0;
     final db = await database;
     int count = 0;
     final changedBooks = <String>{};
     withTransaction(db, () {
-      for (final note in notes) {
+      final prepared = resolveIds?.call(
+        (id) => db.select(
+          'SELECT 1 FROM $_tableNotes WHERE $_columnId = ?',
+          [id],
+        ).isNotEmpty,
+      );
+      for (final note in prepared ?? notes) {
         final m = _noteToMap(note);
         final cols = m.keys.join(', ');
         final placeholders = List.filled(m.length, '?').join(', ');

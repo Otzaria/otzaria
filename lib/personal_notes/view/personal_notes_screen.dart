@@ -1453,7 +1453,7 @@ class _PersonalNotesManagerScreenState
                     child: OverflowBox(
                       alignment: Alignment.topCenter,
                       minHeight: 0,
-                      maxHeight: 200,
+                      maxHeight: double.infinity,
                       child: IgnorePointer(
                         child: PersonalNoteContentView(
                           note: note,
@@ -1595,13 +1595,7 @@ class _PersonalNotesManagerScreenState
           context,
           url,
           source.bookId,
-          (line, {note}) => _openNoteInBook(
-            source.copyWith(
-              lineNumber: line,
-              status: PersonalNoteStatus.located,
-              clearPdfAnchor: true,
-            ),
-          ),
+          (line, {note}) => _openNoteInBook(source, linkedLine: line),
         ),
       );
 
@@ -1687,8 +1681,10 @@ class _PersonalNotesManagerScreenState
     }
   }
 
-  Future<void> _openNoteInBook(PersonalNote note) async {
-    if (note.lineNumber == null && note.pdfAnchor == null) {
+  Future<void> _openNoteInBook(PersonalNote note, {int? linkedLine}) async {
+    if (linkedLine == null &&
+        note.lineNumber == null &&
+        note.pdfAnchor == null) {
       UiSnack.show(NotesMessages.noteHasNoLocation);
       return;
     }
@@ -1715,19 +1711,19 @@ class _PersonalNotesManagerScreenState
       final tab =
           coordinator.buildTab(
                 book,
-                note.pdfAnchor?.pageNumber ?? note.lineNumber!,
+                linkedLine ?? note.pdfAnchor?.pageNumber ?? note.lineNumber!,
                 '',
                 ignoreHistory: true,
               )
               as PdfBookTab;
-      if (note.pdfAnchor case final anchor?) {
+      if (note.pdfAnchor case final anchor? when linkedLine == null) {
         tab.requestPersonalNoteNavigation(anchor);
       }
       coordinator.openTab(tab, navigateToPositionIfReused: true);
       return;
     }
 
-    final lineIndex = (note.lineNumber! - 1).clamp(0, 1 << 30);
+    final lineIndex = ((linkedLine ?? note.lineNumber!) - 1).clamp(0, 1 << 30);
     final tabsBloc = context.read<TabsBloc>();
     final previousSidebarTab = Settings.getValue<int>(
       'key-sidebar-tab-index-combined',

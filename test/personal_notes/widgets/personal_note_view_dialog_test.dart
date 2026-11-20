@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -89,6 +90,13 @@ void main() {
 
     expect(find.byType(PersonalNoteViewDialog), findsOneWidget);
     expect(find.textContaining('סוף ההערה'), findsOneWidget);
+    expect(
+      find.ancestor(
+        of: find.text(longText),
+        matching: find.byType(SelectionArea),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('כותרת a'), findsOneWidget);
     expect(find.text('ספר · דף ב'), findsOneWidget);
     expect(find.text('פתח בספר'), findsOneWidget);
@@ -144,6 +152,39 @@ void main() {
     expect(find.byType(PersonalNoteViewDialog), findsOneWidget);
     expect(find.text('תוכן היעד'), findsOneWidget);
     expect(find.text('כותרת b'), findsOneWidget);
+  });
+
+  testWidgets('תוצאת קישור מאוחר אינה סוגרת את המסך שמאחורי העיון', (
+    tester,
+  ) async {
+    await pumpHost(tester);
+    final navigator = Navigator.of(hostContext);
+    unawaited(
+      navigator.push<void>(
+        MaterialPageRoute(
+          builder: (_) => const Scaffold(body: Text('מסך קודם')),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final result = Completer<PersonalNote?>();
+    unawaited(
+      showPersonalNoteViewDialog(
+        hostContext,
+        _linkingNote(personalNoteLinkUrl('b')),
+        findNote: (_) => result.future,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(ActionChip, 'יעד'));
+    await tester.tap(find.text('סגור'));
+    await tester.pump();
+    result.complete(_note('b', content: 'תוכן היעד'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('מסך קודם'), findsOneWidget);
+    expect(find.byType(PersonalNoteViewDialog), findsNothing);
   });
 
   testWidgets('קישור להערה שנמחקה מודיע ונשאר בהערה הנוכחית', (tester) async {

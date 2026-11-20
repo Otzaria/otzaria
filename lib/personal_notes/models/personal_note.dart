@@ -30,8 +30,8 @@ enum PersonalNoteContentFormat {
 
 /// Represents a stored personal note.
 class PersonalNote extends Equatable {
-  /// מפתח ההערות הכלליות, שאינן שייכות לספר. `|` אסור בשם קובץ, ולכן אינו
-  /// כותרת של ספר. הערה כללית נשמרת כהערת ספר ([PersonalNoteStatus.book]).
+  /// מפתח שמור להערות שאינן שייכות לספר.
+  /// הערה כללית נשמרת כהערת ספר ([PersonalNoteStatus.book]).
   static const generalBookId = '|general';
 
   /// Unique note identifier.

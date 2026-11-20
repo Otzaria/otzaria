@@ -85,8 +85,11 @@ void main() {
     ],
   };
 
-  Future<void> pumpScreen(WidgetTester tester) async {
-    tester.view.physicalSize = const Size(2400, 1000);
+  Future<void> pumpScreen(
+    WidgetTester tester, {
+    Size size = const Size(2400, 1000),
+  }) async {
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final settingsBloc = SettingsBloc(repository: SettingsRepository());
@@ -197,4 +200,20 @@ void main() {
 
     await closeScreen(tester);
   });
+
+  testWidgets('נייד: הערה כללית חדשה זמינה בתפריט עוד פעולות', (tester) async {
+    await pumpScreen(tester, size: const Size(360, 800));
+    expect(find.byTooltip('הערה כללית חדשה'), findsNothing);
+    await tester.tap(find.byTooltip('עוד פעולות'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('הערה כללית חדשה'));
+    await tester.pumpAndSettle();
+
+    final editor = tester.widget<PersonalNoteEditorDialog>(
+      find.byType(PersonalNoteEditorDialog),
+    );
+    expect(editor.bookId, PersonalNote.generalBookId);
+    expect(tester.takeException(), isNull);
+    await closeScreen(tester);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 }

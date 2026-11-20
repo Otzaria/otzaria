@@ -78,7 +78,9 @@ class PersonalNotesImportExportService {
 
     for (var i = 0; i < notes.length; i++) {
       final note = notes[i];
-      final bookTitle = personalNotesBookDisplayTitle(note.bookId);
+      final bookTitle = note.isGeneralNote
+          ? personalNotesBookDisplayTitle(note.bookId)
+          : note.bookId;
       final title = (note.displayTitle?.trim().isNotEmpty ?? false)
           ? note.displayTitle!.trim()
           : bookTitle;
@@ -328,40 +330,15 @@ class PersonalNotesImportExportService {
               json.containsKey('pdfAnchor'),
             ),
     ];
-    // כל עותק מקבל מזהה חדש; קישור מהקובץ להערה קיימת עובר לעותק הראשון שלה.
-    final copyIds = <int, String>{};
-    final newIds = <String, String>{};
     if (strategy == NotesImportConflictStrategy.keepBoth) {
-      final storedIds = <String, bool>{};
-      final insertedIds = <String>{};
-      for (final (index, (note, _, _)) in notes.indexed) {
-        final id = note.id;
-        if (!insertedIds.contains(id) &&
-            !(storedIds[id] ??= await _database.getNote(id) != null)) {
-          insertedIds.add(id);
-          continue;
-        }
-        final copyId = copyIds[index] = _generateId();
-        if (storedIds[id]!) newIds.putIfAbsent(id, () => copyId);
-      }
+      return _importKeepingBoth([for (final (note, _, _) in notes) note]);
     }
     return _database.batchNotifications((batch) async {
       int inserted = 0;
       int updated = 0;
       int skipped = 0;
-      int duplicated = 0;
 
-      for (final (index, (imported, hasAnchorText, hasPdfAnchor))
-          in notes.indexed) {
-        final note = newIds.isEmpty
-            ? imported
-            : imported.copyWith(
-                content: remapPersonalNoteLinks(imported.content, newIds),
-                contentPlain: remapPersonalNoteLinks(
-                  imported.contentPlain,
-                  newIds,
-                ),
-              );
+      for (final (note, hasAnchorText, hasPdfAnchor) in notes) {
         final existing = await _database.getNote(note.id);
 
         if (existing == null) {
@@ -417,25 +394,72 @@ class PersonalNotesImportExportService {
             updated++;
             break;
           case NotesImportConflictStrategy.keepBoth:
-            await batch.insertNote(
-              note.copyWith(id: copyIds[index] ?? _generateId()),
-            );
-            duplicated++;
-            break;
+            throw StateError('keepBoth requires transactional import');
         }
       }
 
       // קובץ מגרסה ישנה מחזיק הערות של ספר אישי תחת הכותרת בלבד.
-      if (inserted + updated + duplicated > 0) {
+      if (inserted + updated > 0) {
         await _database.setUserBookKeysPending(true);
       }
       return NotesImportSummary(
         inserted: inserted,
         updated: updated,
         skipped: skipped,
-        duplicated: duplicated,
+        duplicated: 0,
       );
     });
+  }
+
+  Future<NotesImportSummary> _importKeepingBoth(
+    List<PersonalNote> notes,
+  ) async {
+    var duplicated = 0;
+    final count = await _database.batchInsertNotes(
+      notes,
+      resolveIds: (exists) {
+        final reserved = {for (final note in notes) note.id};
+        final stored = <String, bool>{};
+        final seen = <String>{};
+        final copies = <PersonalNote>[];
+        final targets = <String, String>{};
+        for (final note in notes) {
+          final id = note.id;
+          final alreadyStored = stored[id] ??= exists(id);
+          if (seen.add(id) && !alreadyStored) {
+            copies.add(note);
+            continue;
+          }
+          final generated = _generateId();
+          var copyId = generated;
+          for (
+            var suffix = 1;
+            reserved.contains(copyId) || exists(copyId);
+            suffix++
+          ) {
+            copyId = '${generated}_$suffix';
+          }
+          reserved.add(copyId);
+          copies.add(note.copyWith(id: copyId));
+          if (alreadyStored) targets.putIfAbsent(id, () => copyId);
+          duplicated++;
+        }
+        if (targets.isEmpty) return copies;
+        return [
+          for (final note in copies)
+            note.copyWith(
+              content: remapPersonalNoteLinks(note.content, targets),
+              contentPlain: remapPersonalNoteLinks(note.contentPlain, targets),
+            ),
+        ];
+      },
+    );
+    return NotesImportSummary(
+      inserted: count - duplicated,
+      updated: 0,
+      skipped: 0,
+      duplicated: duplicated,
+    );
   }
 
   String _generateId() {

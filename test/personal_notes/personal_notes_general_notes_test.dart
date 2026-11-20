@@ -1,14 +1,17 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
 import 'package:otzaria/personal_notes/services/personal_notes_import_export_service.dart';
 import 'package:otzaria/personal_notes/services/personal_notes_service.dart';
+import 'package:otzaria/personal_notes/services/personal_notes_user_book_keys.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
 import 'package:otzaria/personal_notes/utils/note_link_detection.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
@@ -162,6 +165,18 @@ void main() {
       expect(await PersonalNotesRepository().loadBookContent(_general), '');
     });
 
+    test('שיוך הערות מגיבוי לא מעביר הערה כללית לספר אישי', () async {
+      final note = _generalNote('g');
+      await database.batchInsertNotes([note]);
+      final userBook = TextBook(title: _general, source: BookSource.user);
+      await PersonalNotesUserBookKeys(
+        database: database,
+      ).assignPending(_library([userBook]));
+
+      expect(await database.loadNotes(_general), [note]);
+      expect(await database.loadNotes(personalNotesBookKey(userBook)), isEmpty);
+    });
+
     test('גיבוי JSON וייבוא שומרים את ההערה הכללית כפי שהיא', () async {
       final service = PersonalNotesImportExportService();
       final note = _generalNote('g1');
@@ -286,6 +301,7 @@ void main() {
     test('מזהה יעד רק בקישור להערה', () {
       expect(personalNoteLinkTarget(personalNoteLinkUrl('pn_1_ab')), 'pn_1_ab');
       expect(personalNoteLinkTarget('otzaria://note?line=4'), isNull);
+      expect(personalNoteLinkTarget('otzaria://note?id=%FF'), isNull);
       expect(personalNoteLinkTarget('otzaria://note-marker?id=x'), isNull);
       expect(personalNoteLinkTarget('otzaria://book?bookId=a&line=1'), isNull);
       expect(personalNoteLinkTarget('https://example.com'), isNull);
@@ -293,6 +309,18 @@ void main() {
 
     test('מחליף רק מזהים שבמפה, גם בתוך JSON של Delta', () {
       final delta = _linkDelta('א', 'old');
+      final encoded = personalNoteLinkUrl('ישן & /');
+      expect(personalNoteLinkTarget(encoded), 'ישן & /');
+      expect(
+        remapPersonalNoteLinks('ראה $encoded.', {'ישן & /': 'new'}),
+        'ראה ${personalNoteLinkUrl('new')}.',
+      );
+      expect(
+        remapPersonalNoteLinks('https://example.com/?target=$encoded', {
+          'ישן & /': 'new',
+        }),
+        'https://example.com/?target=$encoded',
+      );
       final remapped = remapPersonalNoteLinks(delta, {'old': 'new'});
       expect(
         jsonDecode(remapped)[1]['attributes']['link'],
@@ -304,5 +332,59 @@ void main() {
         'otzaria://note?id=old2',
       );
     });
+  });
+
+  test('ייבוא מקביל עם אותו שעון ומחולל אינו מאבד עותקים או קישורים', () async {
+    PersonalNotesImportExportService importer() =>
+        PersonalNotesImportExportService(
+          database: database,
+          random: Random(1),
+          now: () => DateTime.utc(2026, 11, 20),
+        );
+    final store = _note('target', content: 'מקור מקומי');
+    await database.insertNote(store);
+    final file = File('${root.path}/notes.json');
+    await file.writeAsString(
+      jsonEncode(
+        importer().buildExport(
+          notes: [
+            _note(
+              'source',
+              content: _linkDelta('יעד', 'target'),
+              format: PersonalNoteContentFormat.quillDelta,
+            ),
+            _note('target', content: 'עותק מיובא'),
+          ],
+        ),
+      ),
+    );
+
+    await Future.wait([
+      importer().importFromFile(
+        path: file.path,
+        strategy: NotesImportConflictStrategy.keepBoth,
+      ),
+      importer().importFromFile(
+        path: file.path,
+        strategy: NotesImportConflictStrategy.keepBoth,
+      ),
+    ]);
+
+    final notes = await database.loadNotes(store.bookId);
+    final sourceNotes = notes.where(
+      (n) => n.contentFormat == PersonalNoteContentFormat.quillDelta,
+    );
+    final targetIds = [
+      for (final note in sourceNotes)
+        personalNoteLinkTarget(
+          jsonDecode(note.content)[1]['attributes']['link'] as String,
+        ),
+    ];
+    expect(notes, hasLength(5));
+    expect(targetIds.toSet(), hasLength(2));
+    for (final id in targetIds) {
+      expect((await database.getNote(id!))?.content, 'עותק מיובא');
+    }
+    expect(await database.getNote(store.id), store);
   });
 }
