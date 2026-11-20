@@ -767,11 +767,9 @@ void main() {
     );
   });
 
-  testWidgets('במגע לחיצה ארוכה פותחת את תפריט ההקשר ואינה מסדרת מחדש', (
+  testWidgets('במגע לחיצה ארוכה וגרירה מסדרות מחדש ואינן פותחות תפריט', (
     tester,
   ) async {
-    // תפריט ההקשר זוכה בזירת המחוות מול הגרירה — התנהגות זהה לזו של הרצועה
-    // העליונה, שגם בה לחיצה ארוכה במגע פותחת תפריט.
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     await pumpPanel(tester);
 
@@ -789,8 +787,51 @@ void main() {
     final menuOpen = find.text('הצמד כרטיסייה').evaluate().isNotEmpty;
     debugDefaultTargetPlatformOverride = null;
 
+    expect(menuOpen, isFalse);
+    expect(moves, hasLength(1));
+  });
+
+  testWidgets('במגע לחיצה ארוכה ושחרור במקום פותחים את תפריט ההקשר', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    await pumpPanel(tester);
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('ספר א')),
+    );
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    final moves = tabsBloc.addedEvents.whereType<MoveTab>().toList();
+    final menuOpen = find.text('הצמד כרטיסייה').evaluate().isNotEmpty;
+    debugDefaultTargetPlatformOverride = null;
+
     expect(menuOpen, isTrue);
     expect(moves, isEmpty);
+  });
+
+  testWidgets('באנדרואיד לחיצה ארוכה על ה-X פותחת את תפריט הכרטיסיה', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    await pumpPanel(tester);
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byTooltip('סגור כרטיסייה').first),
+      kind: PointerDeviceKind.touch,
+    );
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    final menuOpen = find.text('הצמד כרטיסייה').evaluate().length;
+    final removes = tabsBloc.addedEvents.whereType<RemoveTab>().toList();
+    debugDefaultTargetPlatformOverride = null;
+
+    expect(menuOpen, 1);
+    expect(removes, isEmpty);
   });
 
   testWidgets(

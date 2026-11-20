@@ -5,6 +5,7 @@ import 'package:otzaria/navigation/view/reading_tab_strip.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/view/pane_drop_geometry.dart';
 import 'package:otzaria/tabs/view/pane_drop_target.dart';
+import 'package:otzaria/widgets/misc/app_context_menu.dart';
 
 class _StubTab extends OpenedTab {
   _StubTab(super.title);
@@ -23,6 +24,8 @@ class _StripLog {
   int? newIndex;
   int moves = 0;
   int dragStarts = 0;
+  int menusOpened = 0;
+  int droppedOutside = 0;
   int tabBuilds = 0;
   final List<OpenedTab> springOpened = [];
 
@@ -45,6 +48,7 @@ void main() {
     void Function(OpenedTab, PaneDropSide)? onPaneDrop,
     TextDirection textDirection = TextDirection.rtl,
     bool requireLongPress = false,
+    bool withContextMenu = false,
     // רוחב הרצועה. ברירת המחדל צמודה לכרטיסיות, אך במסך אמיתי היא רחבה
     // מהן — ואז מדידה מול גבולותיה במקום מול השורה מטה את מיקום ההכנסה.
     double? stripWidth,
@@ -71,14 +75,23 @@ void main() {
                   onReorder: log.reorder,
                   onDragStarted: (_, _) => log.dragStarts++,
                   onSpringOpen: log.springOpened.add,
+                  onDroppedOutside: (_) => log.droppedOutside++,
                   tabBuilder: (tab, index, width) {
                     log.tabBuilds++;
-                    return SizedBox(
+                    final content = SizedBox(
                       width: width,
                       child: ColoredBox(
                         color: const Color(0xFFDDDDDD),
                         child: Center(child: Text(tab.title)),
                       ),
+                    );
+                    if (!withContextMenu) return content;
+                    return AppContextMenuRegion(
+                      menuBuilder: (_, _) {
+                        log.menusOpened++;
+                        return const [];
+                      },
+                      child: content,
                     );
                   },
                 ),
@@ -512,6 +525,133 @@ void main() {
       );
 
       expect(find.byType(LongPressDraggable<OpenedTab>), findsOneWidget);
+    });
+
+    Future<void> touchLongPress(
+      WidgetTester tester,
+      String from, {
+      Offset moveBy = Offset.zero,
+    }) async {
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text(from)),
+        kind: PointerDeviceKind.touch,
+      );
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      if (moveBy != Offset.zero) {
+        await gesture.moveBy(moveBy / 2);
+        await tester.pump();
+        await gesture.moveBy(moveBy / 2);
+        await tester.pump();
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('במגע: לחיצה ארוכה וגרירה מזיזות כרטיסיה שיש לה תפריט הקשר', (
+      tester,
+    ) async {
+      final log = _StripLog();
+      await tester.pumpWidget(
+        host(
+          log: log,
+          tabs: [_StubTab('א'), _StubTab('ב'), _StubTab('ג')],
+          requireLongPress: true,
+          withContextMenu: true,
+        ),
+      );
+
+      await touchLongPress(tester, 'א', moveBy: const Offset(-250, 0));
+
+      expect(log.dragStarts, 1);
+      expect(log.moves, 1);
+      expect(log.menusOpened, 0);
+    });
+
+    testWidgets('במגע: לחיצה ארוכה ושחרור במקום פותחים את תפריט הכרטיסיה', (
+      tester,
+    ) async {
+      final log = _StripLog();
+      await tester.pumpWidget(
+        host(
+          log: log,
+          tabs: [_StubTab('א'), _StubTab('ב'), _StubTab('ג')],
+          requireLongPress: true,
+          withContextMenu: true,
+        ),
+      );
+
+      await touchLongPress(tester, 'ב');
+
+      expect(log.menusOpened, 1);
+      expect(log.moves, 0);
+      expect(log.droppedOutside, 0);
+    });
+
+    testWidgets('במגע: גרירה שחזרה לנקודת ההתחלה אינה פותחת תפריט', (
+      tester,
+    ) async {
+      final log = _StripLog();
+      await tester.pumpWidget(
+        host(
+          log: log,
+          tabs: [_StubTab('א'), _StubTab('ב'), _StubTab('ג')],
+          requireLongPress: true,
+          withContextMenu: true,
+        ),
+      );
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('ב')),
+        kind: PointerDeviceKind.touch,
+      );
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      await gesture.moveBy(const Offset(-80, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(80, 0));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(log.menusOpened, 0);
+    });
+
+    testWidgets('במגע: אצבע שנייה באמצע גרירה אינה פותחת תפריט', (
+      tester,
+    ) async {
+      final log = _StripLog();
+      await tester.pumpWidget(
+        host(
+          log: log,
+          tabs: [_StubTab('א'), _StubTab('ב'), _StubTab('ג')],
+          requireLongPress: true,
+          withContextMenu: true,
+        ),
+      );
+
+      final start = tester.getCenter(find.text('א'));
+      final first = await tester.startGesture(
+        start,
+        kind: PointerDeviceKind.touch,
+        pointer: 7,
+      );
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      final second = await tester.startGesture(
+        start,
+        kind: PointerDeviceKind.touch,
+        pointer: 8,
+      );
+      await tester.pump();
+      await second.up();
+      await tester.pump();
+      await first.moveBy(const Offset(-125, 0));
+      await tester.pump();
+      await first.moveBy(const Offset(-125, 0));
+      await tester.pump();
+      await first.up();
+      await tester.pumpAndSettle();
+
+      expect(log.moves, 1);
+      expect(log.menusOpened, 0);
     });
   });
 
