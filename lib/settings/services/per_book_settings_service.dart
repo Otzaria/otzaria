@@ -409,6 +409,8 @@ class PerBookSettings {
 /// הגדרות פר-ספר לספרי טקסט
 class TextBookPerBookSettings {
   final double? fontSize;
+  final double? commentatorsFontSize;
+  final double? lineHeight;
   final bool? commentatorsBelow; // true = מתחת, false = בצד
   final bool? removeNikud;
   final bool? removePunctuation;
@@ -435,6 +437,8 @@ class TextBookPerBookSettings {
 
   TextBookPerBookSettings({
     this.fontSize,
+    this.commentatorsFontSize,
+    this.lineHeight,
     this.commentatorsBelow,
     this.removeNikud,
     this.removePunctuation,
@@ -450,6 +454,9 @@ class TextBookPerBookSettings {
 
   Map<String, dynamic> toJson() => {
     if (fontSize != null) 'fontSize': fontSize,
+    if (commentatorsFontSize != null)
+      'commentatorsFontSize': commentatorsFontSize,
+    if (lineHeight != null) 'lineHeight': lineHeight,
     if (commentatorsBelow != null) 'commentatorsBelow': commentatorsBelow,
     if (removeNikud != null) 'removeNikud': removeNikud,
     if (removePunctuation != null) 'removePunctuation': removePunctuation,
@@ -470,6 +477,8 @@ class TextBookPerBookSettings {
   factory TextBookPerBookSettings.fromJson(Map<String, dynamic> json) {
     return TextBookPerBookSettings(
       fontSize: json['fontSize'] as double?,
+      commentatorsFontSize: (json['commentatorsFontSize'] as num?)?.toDouble(),
+      lineHeight: (json['lineHeight'] as num?)?.toDouble(),
       commentatorsBelow: json['commentatorsBelow'] as bool?,
       removeNikud: json['removeNikud'] as bool?,
       removePunctuation: json['removePunctuation'] as bool?,
@@ -501,6 +510,8 @@ class TextBookPerBookSettings {
 
   TextBookPerBookSettings copyWith({
     double? fontSize,
+    double? commentatorsFontSize,
+    double? lineHeight,
     bool? commentatorsBelow,
     bool? removeNikud,
     bool? removePunctuation,
@@ -515,6 +526,8 @@ class TextBookPerBookSettings {
   }) {
     return TextBookPerBookSettings(
       fontSize: fontSize ?? this.fontSize,
+      commentatorsFontSize: commentatorsFontSize ?? this.commentatorsFontSize,
+      lineHeight: lineHeight ?? this.lineHeight,
       commentatorsBelow: commentatorsBelow ?? this.commentatorsBelow,
       removeNikud: removeNikud ?? this.removeNikud,
       removePunctuation: removePunctuation ?? this.removePunctuation,

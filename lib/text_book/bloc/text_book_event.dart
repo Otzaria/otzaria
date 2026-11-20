@@ -111,6 +111,17 @@ class UpdateFontSize extends TextBookEvent {
   List<Object?> get props => [fontSize];
 }
 
+/// גודל גופן המפרשים / מרווח השורות של הספר הזה בלבד (#2306).
+class UpdateBookReadingMetrics extends TextBookEvent {
+  final double? commentatorsFontSize;
+  final double? lineHeight;
+
+  const UpdateBookReadingMetrics({this.commentatorsFontSize, this.lineHeight});
+
+  @override
+  List<Object?> get props => [commentatorsFontSize, lineHeight];
+}
+
 class ToggleLeftPane extends TextBookEvent {
   final bool show;
 

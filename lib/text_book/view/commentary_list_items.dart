@@ -74,6 +74,9 @@ class _CommentaryLinkItem extends StatefulWidget {
   /// הפריט המוצג הקודם באותה קבוצה; כותרת זהה לשלו אינה מוצגת שוב (#4616).
   final Link? previousLink;
   final double fontSize;
+
+  /// מרווח השורות שנשמר לספר (#2306); null = הכללי.
+  final double? lineHeight;
   final Function(OpenedTab) openBookCallback;
   final TextDisplayProfile displayProfile;
   final TextDisplayProfile copyDisplayProfile;
@@ -121,6 +124,7 @@ class _CommentaryLinkItem extends StatefulWidget {
     required this.link,
     this.previousLink,
     required this.fontSize,
+    this.lineHeight,
     required this.openBookCallback,
     required this.displayProfile,
     required this.copyDisplayProfile,
@@ -380,6 +384,7 @@ class _CommentaryLinkItemState extends State<_CommentaryLinkItem> {
                     key: ValueKey(widget.getLinkKey(link)),
                     link: link,
                     fontSize: widget.fontSize,
+                    lineHeight: widget.lineHeight,
                     openBookCallback: widget.openBookCallback,
                     displayProfile: widget.displayProfile,
                     searchQuery: searchQuery,
@@ -661,7 +666,7 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
       fontSize: widget.fontSize * 0.85,
       fontFamily: settingsState.commentatorsFontFamily,
       fontWeight: settingsState.commentatorsFontBold ? FontWeight.bold : null,
-      lineHeight: settingsState.lineHeight,
+      lineHeight: widget.state.lineHeight ?? settingsState.lineHeight,
       partialWordHighlight:
           book == null ||
           literalPartialWordMatch(

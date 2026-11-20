@@ -9,16 +9,22 @@ class UnloadedParagraphPlaceholder extends StatelessWidget {
     super.key,
     required this.lineCount,
     required this.fontSize,
+    this.lineHeight,
   });
 
   final int lineCount;
   final double fontSize;
 
+  /// מרווח השורות של הספר (#2306); null = ההגדרה הכללית.
+  final double? lineHeight;
+
   @override
   Widget build(BuildContext context) {
-    final lineHeight = context.select(
+    final globalLineHeight = context.select(
       (SettingsBloc bloc) => bloc.state.lineHeight,
     );
-    return SizedBox(height: lineCount * fontSize * lineHeight);
+    return SizedBox(
+      height: lineCount * fontSize * (lineHeight ?? globalLineHeight),
+    );
   }
 }

@@ -280,6 +280,10 @@ class TextBookLoaded extends TextBookState {
   final int contentVersion;
   final ContentLineChanges? contentChanges;
   final double fontSize;
+
+  /// גודל גופן המפרשים ומרווח השורות שנשמרו לספר זה (#2306); null = הכללי.
+  final double? commentatorsFontSize;
+  final double? lineHeight;
   final bool showSplitView;
   final bool showPageShapeView;
   final List<String> activeCommentators;
@@ -405,6 +409,8 @@ class TextBookLoaded extends TextBookState {
     this.contentVersion = 0,
     this.contentChanges,
     required this.fontSize,
+    this.commentatorsFontSize,
+    this.lineHeight,
     required this.showSplitView,
     this.showPageShapeView = false,
     required this.activeCommentators,
@@ -616,6 +622,8 @@ class TextBookLoaded extends TextBookState {
     int? contentVersion,
     ContentLineChanges? contentChanges,
     double? fontSize,
+    double? commentatorsFontSize,
+    double? lineHeight,
     bool? showLeftPane,
     bool? showSplitView,
     bool? showPageShapeView,
@@ -766,6 +774,8 @@ class TextBookLoaded extends TextBookState {
               ? this.contentChanges
               : null),
       fontSize: fontSize ?? this.fontSize,
+      commentatorsFontSize: commentatorsFontSize ?? this.commentatorsFontSize,
+      lineHeight: lineHeight ?? this.lineHeight,
       showLeftPane: showLeftPane ?? this.showLeftPane,
       showSplitView: showSplitView ?? this.showSplitView,
       showPageShapeView: showPageShapeView ?? this.showPageShapeView,
@@ -879,6 +889,8 @@ class TextBookLoaded extends TextBookState {
     contentVersion,
     content.length,
     fontSize,
+    commentatorsFontSize,
+    lineHeight,
     showLeftPane,
     showSplitView,
     showPageShapeView,
