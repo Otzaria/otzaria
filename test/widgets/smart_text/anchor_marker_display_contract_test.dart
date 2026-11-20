@@ -292,13 +292,14 @@ void main() {
       'd2d50be: כל וריאנט מוצג זהה במסך עיון ובקריאה רציפה, בגודל 0.7 (issue #2075)',
       (tester) async {
         for (var index = 0; index < kLinkAnchorVariants.length; index++) {
+          // ג אינה בשורה: סמן "כבדפוס" (issue #4394) הוא האות לבדה.
           final raw = _inject(
             line,
-            [_point('מפרש', 7)],
+            [_point('מפרש', 7, label: 'ג')],
             styles: {'מפרש': index},
           );
           await _pumpSmart(tester, raw);
-          final letter = wrapLinkAnchorLetter('א', index);
+          final letter = wrapLinkAnchorLetter('ג', index);
           final html = _widgetStyle(tester, letter);
           final continuous = _continuousStyle(raw, letter);
           final reason = 'וריאנט $index';

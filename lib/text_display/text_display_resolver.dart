@@ -26,6 +26,9 @@ class TextDisplayResolver {
       holyName: _first(layers, chain, (p) => p.holyName) ?? root.holyName,
       anchorMarkers:
           _first(layers, chain, (p) => p.anchorMarkers) ?? root.anchorMarkers,
+      anchorMarkerStyle:
+          _first(layers, chain, (p) => p.anchorMarkerStyle) ??
+          root.anchorMarkerStyle,
       divineNames:
           _first(layers, chain, (p) => p.divineNames) ?? root.divineNames,
     );
