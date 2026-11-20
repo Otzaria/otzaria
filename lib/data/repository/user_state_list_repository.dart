@@ -74,9 +74,19 @@ class UserStateListRepository<T> {
     T Function(Map<String, dynamic>) fromJson,
     Map<String, dynamic> Function(T) toJson,
     String label,
-  ) =>
-      (payload) =>
-          _entriesDecoder(fromJson, label)(payload).map(toJson).toList();
+  ) => (payload) {
+    final decoded = _decodeEntries(
+      UserStateListStore.decodePayload(payload),
+      fromJson,
+      label,
+    );
+    // רשומה שלא פוענחה נשמרת בגיבוי כמו ב-[mutate], ושחזור מחזיר אותה.
+    return [
+      ...decoded.items.map(toJson),
+      for (final entry in decoded.undecodable)
+        if (entry is Map) castMap(entry),
+    ];
+  };
 
   // static: closure במתודת מופע הייתה לוכדת את this, שאינו נשלח ל-isolate.
   static List<T> Function(String? payload) _entriesDecoder<T>(
@@ -110,6 +120,18 @@ class UserStateListRepository<T> {
   /// להחליף את מה שיש. לכל שינוי אחר השתמש ב-[mutate].
   Future<void> overwrite(List<T> items) =>
       _store.write(boxName, key, items.map(toJson).toList(), origin: _origin);
+
+  /// הפריטים שב-[raw] שמפוענחים; רשומה פגומה מדולגת, כמו ב-[load].
+  List<T> decodeJson(List<dynamic> raw) => _decode(raw).items;
+
+  /// שחזור מגיבוי: [overwrite] מ-JSON. רשומה שלא פוענחה נכתבת כמות שהיא.
+  Future<void> overwriteJson(List<dynamic> raw) {
+    final decoded = _decode(raw);
+    return _store.write(boxName, key, [
+      ...decoded.items.map(toJson),
+      ...decoded.undecodable,
+    ], origin: _origin);
+  }
 
   /// "מחק הכול" פירושו הכול, כולל מה שחלון אחר הוסיף בשנייה האחרונה.
   Future<void> clear() => _store.clear(boxName, key, origin: _origin);

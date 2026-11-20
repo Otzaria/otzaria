@@ -7,7 +7,6 @@ import 'package:hive_ce/hive.dart';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:logging/logging.dart';
-import 'package:otzaria/bookmarks/models/bookmark_group.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
@@ -15,7 +14,6 @@ import 'package:otzaria/attached_libraries/repository/attached_library_store.dar
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/bookmarks/repository/bookmark_repository.dart';
-import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
 import 'package:otzaria/history/history_repository.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
@@ -1311,13 +1309,11 @@ class BackupService {
     BackupImportCounts? counts,
   }) async {
     final repo = BookmarkRepository();
-    final bookmarks = bookmarksData
-        .map((data) => Bookmark.fromJson(data))
-        .toList();
     if (counts == null) {
-      await repo.replaceBookmarks(bookmarks);
+      await repo.overwriteJson(bookmarksData);
       return;
     }
+    final bookmarks = repo.decodeJson(bookmarksData);
     // `mutate` משמר סימנייה שנוספה בחלון אחר בין הקריאה לכתיבה.
     var added = 0;
     await repo.mutateBookmarks((current) {
@@ -1336,11 +1332,11 @@ class BackupService {
     BackupImportCounts? counts,
   }) async {
     final repo = BookmarkRepository();
-    final groups = groupsData.map(BookmarkGroup.fromJson).toList();
     if (counts == null) {
-      await repo.replaceGroups(groups);
+      await repo.replaceGroupsJson(groupsData);
       return;
     }
+    final groups = repo.decodeGroupsJson(groupsData);
     // `mutate`, as for bookmarks: a group added in another window meanwhile
     // must survive the import.
     var added = 0;
@@ -1358,11 +1354,11 @@ class BackupService {
     BackupImportCounts? counts,
   }) async {
     final repo = HistoryRepository();
-    final history = historyData.map((data) => Bookmark.fromJson(data)).toList();
     if (counts == null) {
-      await repo.replaceHistory(history);
+      await repo.overwriteJson(historyData);
       return;
     }
+    final history = repo.decodeJson(historyData);
     // ⚠️ `mutate` — ראו ההערה ב-`_restoreBookmarks`.
     var added = 0;
     await repo.mutateHistory((current) {

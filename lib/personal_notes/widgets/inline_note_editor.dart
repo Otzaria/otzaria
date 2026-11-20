@@ -71,6 +71,7 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
   final PersonalNoteDraftService _draftService = PersonalNoteDraftService();
   Object? _draftVersion;
   Timer? _draftSaveTimer;
+  Timer? _draftMaxWaitTimer;
   Timer? _focusRetryTimer;
   bool _isDone = false; // מונע שמירת טיוטה אחרי שמירה/ביטול
   bool _isSaving = false;
@@ -150,6 +151,7 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
   @override
   void dispose() {
     _draftSaveTimer?.cancel();
+    _draftMaxWaitTimer?.cancel();
     _focusRetryTimer?.cancel();
     unawaited(_documentChanges.cancel());
     widget.cancelRequest?.removeListener(_handleCancelRequest);
@@ -179,6 +181,7 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
       await onSave(result);
       _isDone = true;
       _draftSaveTimer?.cancel();
+      _draftMaxWaitTimer?.cancel();
       var clearedDraft = true;
       try {
         await _clearDraft();
@@ -214,6 +217,11 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
     if (_isDone) return;
     _draftSaveTimer?.cancel();
     _draftSaveTimer = Timer(_draftSaveDelay(), _persistDraftInBackground);
+    // ה-debounce מתאפס בכל הקשה; הקלדה רציפה נשמרת לפחות פעם ב-5 שניות.
+    _draftMaxWaitTimer ??= Timer(
+      const Duration(seconds: 5),
+      _persistDraftInBackground,
+    );
   }
 
   // כל שמירה מקודדת את ההערה כולה על ה-UI וכותבת אותה לקופסת ההגדרות.
@@ -223,6 +231,9 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
       : const Duration(milliseconds: 250);
 
   void _persistDraftInBackground() {
+    _draftSaveTimer?.cancel();
+    _draftMaxWaitTimer?.cancel();
+    _draftMaxWaitTimer = null;
     unawaited(
       _persistDraft().catchError((Object error) {
         debugPrint('Personal note draft autosave failed: $error');

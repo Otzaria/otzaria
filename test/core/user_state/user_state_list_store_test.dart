@@ -236,6 +236,38 @@ void main() {
       },
     );
 
+    test(
+      'loadJson שומר רשומה שלא פוענחה, ו-overwriteJson מחזיר אותה',
+      () async {
+        final db = UserStateDatabase.openAt(dbPath);
+        final store = UserStateListStore(database: db);
+        final raw = [
+          ...entries(2000),
+          {'broken': true},
+        ];
+        await store.write('history', 'history', raw);
+        final repository = UserStateListRepository<int>(
+          boxName: 'history',
+          key: 'history',
+          fromJson: (json) => json['v'] as int,
+          toJson: (value) => {'v': value},
+          decodeInBackground: true,
+          store: store,
+        );
+
+        final json = await repository.loadJson();
+        expect(json, hasLength(2001));
+        expect(json.last, {'broken': true});
+
+        await store.clear('history', 'history');
+        await repository.overwriteJson(json);
+        expect(await repository.load(), hasLength(2000));
+        expect((await store.read('history', 'history')).last, {'broken': true});
+        expect(repository.decodeJson(json), hasLength(2000));
+        db.close();
+      },
+    );
+
     test('רשימה קטנה נשארת בפענוח מקומי', () async {
       final db = UserStateDatabase.openAt(dbPath);
       final store = UserStateListStore(database: db);

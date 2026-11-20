@@ -1988,6 +1988,44 @@ void main() {
       await repository.syncBookOrder(library);
       expect(engine.pushedOrders, hasLength(2));
     });
+
+    test('שתי קריאות במקביל בונות פעם אחת ושולחות פעם אחת', () async {
+      IndexingRepository.invalidateBookOrder();
+      final engine = _CancellationRecordingEngine();
+      final repository = _FakeExtractionRepository(
+        _RecordingTantivyDataProvider(engine),
+      );
+      final library = Library(categories: [])
+        ..books.add(TextBook(id: 5, title: 'שבת'));
+
+      final built = await Future.wait([
+        IndexingRepository.buildBookOrder(library),
+        IndexingRepository.buildBookOrder(library),
+      ]);
+      expect(built.last, same(built.first));
+
+      IndexingRepository.invalidateBookOrder();
+      await Future.wait([
+        repository.syncBookOrder(library),
+        repository.syncBookOrder(library),
+      ]);
+      expect(engine.pushedOrders, hasLength(1));
+    });
+
+    test('invalidate באמצע בנייה אינו שולח את הסדר הישן', () async {
+      IndexingRepository.invalidateBookOrder();
+      final engine = _CancellationRecordingEngine();
+      final repository = _FakeExtractionRepository(
+        _RecordingTantivyDataProvider(engine),
+      );
+      final library = Library(categories: [])
+        ..books.add(TextBook(id: 5, title: 'שבת'));
+
+      final sync = repository.syncBookOrder(library);
+      IndexingRepository.invalidateBookOrder();
+      await sync;
+      expect(engine.pushedOrders, isEmpty);
+    });
   });
 
   group('IndexingRepository.runIndexing — שלב הבדיקה', () {

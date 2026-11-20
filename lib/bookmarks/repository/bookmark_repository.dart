@@ -43,6 +43,12 @@ class BookmarkRepository extends BaseListRepository<Bookmark> {
   Future<List<Map<String, dynamic>>> loadGroupsJson() =>
       _groupsRepository.loadJson();
 
+  List<BookmarkGroup> decodeGroupsJson(List<dynamic> raw) =>
+      _groupsRepository.decodeJson(raw);
+
+  Future<void> replaceGroupsJson(List<dynamic> raw) =>
+      _groupsRepository.overwriteJson(raw);
+
   Future<List<BookmarkGroup>> mutateGroups(
     List<BookmarkGroup> Function(List<BookmarkGroup> current) apply,
   ) async => _groupsRepository.mutate(apply);

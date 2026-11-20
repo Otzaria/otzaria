@@ -93,6 +93,15 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
     expect(await draft(2), long);
 
+    // הקלדה רציפה מאפסת את ה-debounce; התקרה שומרת בכל זאת.
+    final typing = await open(3);
+    typing.document.insert(0, long);
+    for (var second = 1; second <= 5; second++) {
+      await tester.pump(const Duration(seconds: 1));
+      if (second < 5) typing.document.insert(0, 'ב');
+    }
+    expect(await draft(3), startsWith('בבבב'));
+
     await tester.pumpWidget(const SizedBox());
   });
 

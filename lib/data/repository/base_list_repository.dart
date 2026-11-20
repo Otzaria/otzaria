@@ -34,6 +34,11 @@ abstract class BaseListRepository<T> {
   /// דריסה מוחלטת, בלי מיזוג. שחזור מגיבוי בלבד.
   Future<void> overwrite(List<T> items) async => _repo.overwrite(items);
 
+  List<T> decodeJson(List<dynamic> raw) => _repo.decodeJson(raw);
+
+  /// שחזור מגיבוי. ראו [UserStateListRepository.overwriteJson].
+  Future<void> overwriteJson(List<dynamic> raw) => _repo.overwriteJson(raw);
+
   Future<void> clear() async => _repo.clear();
 
   /// אות שהרשימה שונתה בחלון אחר.
