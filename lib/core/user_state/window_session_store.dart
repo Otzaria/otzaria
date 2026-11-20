@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:otzaria/core/user_state/user_state_database.dart';
+import 'package:otzaria/core/user_state/user_state_list_store.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart';
 
 /// סשן של חלון אחד כפי שנשמר בטבלת `window_sessions`.
@@ -19,6 +20,25 @@ class WindowSession {
   final int currentIndex;
   final String? activeWorkspaceId;
   final String? boundsJson;
+
+  Map<String, Object?> toJson() => {
+    'tabs': tabsJson,
+    'index': currentIndex,
+    'workspace': activeWorkspaceId,
+    'bounds': boundsJson,
+  };
+
+  /// סשן שאינו שייך למשבצת (חלון שנסגר); null כשהרשומה פגומה.
+  static WindowSession? fromJson(Object? json) => switch (json) {
+    {'tabs': final String tabs, 'index': final int index} => WindowSession(
+      slot: 0,
+      tabsJson: tabs,
+      currentIndex: index,
+      activeWorkspaceId: json['workspace'] as String?,
+      boundsJson: json['bounds'] as String?,
+    ),
+    _ => null,
+  };
 }
 
 /// סשני החלונות: לכל משבצת שורה אחת עם הכרטיסיות, הכרטיסיה הנוכחית,
@@ -33,6 +53,22 @@ class WindowSessionStore {
   static final WindowSessionStore instance = WindowSessionStore();
 
   final UserStateDatabase _database;
+  late final UserStateListStore _lists = UserStateListStore(
+    database: _database,
+  );
+
+  /// החלונות שנסגרו במכוון, מהישן לחדש, כדי ש-Ctrl+Shift+T יחזיר אותם גם
+  /// אחרי הפעלה מחדש (#5495). אינם נפתחים מעצמם בהפעלה.
+  Future<List<WindowSession>> loadClosed() async => [
+    for (final json in await _lists.read('window_sessions', 'closed'))
+      ?WindowSession.fromJson(json),
+  ];
+
+  Future<void> saveClosed(List<WindowSession> sessions) => _lists.write(
+    'window_sessions',
+    'closed',
+    [for (final s in sessions) s.toJson()],
+  );
 
   Future<void> save(
     int slot, {
