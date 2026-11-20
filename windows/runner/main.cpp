@@ -19,6 +19,7 @@
 #include "hang_monitor.h"
 #include "startup_watchdog.h"
 #include "utils.h"
+#include "webview_backend_policy.h"
 
 static const wchar_t* kSingleInstanceMutexName = L"OtzariaAppSingleInstance";
 static const wchar_t* kFlutterWindowClassName = L"FLUTTER_RUNNER_WIN32_WINDOW";
@@ -432,8 +433,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   }
 
   flutter::DartProject project(L"data");
-  // ב-RDP שיתוף ה-D3D surface של ה-composition נכשל (מסך ריק בתוספים); כופים HWND.
-  if (::GetSystemMetrics(SM_REMOTESESSION) &&
+  // לפני רישום התוספים: מנהל ה-WebView קורא את המשתנה כבר בבנייתו.
+  if (webview_backend_policy::ShouldForceHwnd(
+          ::GetSystemMetrics(SM_REMOTESESSION) != 0,
+          webview_backend_policy::WindowsBuildNumber()) &&
       ::GetEnvironmentVariableW(L"FLUTTER_INAPPWEBVIEW_WINDOWS_FORCE_HWND",
                                 nullptr, 0) == 0) {
     ::SetEnvironmentVariableW(L"FLUTTER_INAPPWEBVIEW_WINDOWS_FORCE_HWND", L"1");
