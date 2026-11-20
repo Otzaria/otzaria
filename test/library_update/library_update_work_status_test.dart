@@ -11,6 +11,7 @@ void main() {
     VoidCallback? onRetry,
     VoidCallback? onChooseDelta,
     VoidCallback? onChooseFullDownload,
+    VoidCallback? onDecline,
     bool collapsible = false,
   }) => libraryUpdateWorkStatusItem(
     state,
@@ -18,9 +19,30 @@ void main() {
     onRetry: onRetry ?? () {},
     onChooseDelta: onChooseDelta ?? () {},
     onChooseFullDownload: onChooseFullDownload ?? () {},
+    onDecline: onDecline ?? () {},
   );
 
   group('libraryUpdateWorkStatusItem', () {
+    test('אישור גודל עדכון דלתא: "עדכן" ו"לא עכשיו" (issue #3722)', () {
+      final calls = <String>[];
+      final result = item(
+        const LibraryUpdateState(
+          status: LibraryUpdateStatus.needsDeltaConfirmation,
+          message: 'עדכון ספרייה זמין',
+        ),
+        onChooseDelta: () => calls.add('delta'),
+        onDecline: () => calls.add('decline'),
+      )!;
+
+      expect(result.kind, WorkStatusKind.awaitingInput);
+      expect(result.message, 'עדכון ספרייה זמין');
+      expect(result.actions.map((a) => a.label), ['עדכן', 'לא עכשיו']);
+      for (final action in result.actions) {
+        action.onPressed();
+      }
+      expect(calls, ['delta', 'decline']);
+    });
+
     test('מנותק אינו יוצר פריט חיווי כלל — זו הרגרסיה שהתלוננו עליה', () {
       expect(
         item(
