@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'dart:convert';
 
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
@@ -79,6 +78,7 @@ class PluginRuntimeDispatcher {
   /// נושאי מצב: מופע מושהה מקבל ב-resume רק את האחרון מכל מפתח.
   static const Set<String> _stateTopics = {
     'theme.changed',
+    'ui.fullscreenChanged',
     'navigation.changed',
     'workspace.changed',
     'settings.changed',
@@ -160,7 +160,10 @@ class PluginRuntimeDispatcher {
   PluginInstanceKey _keyOf(String pluginId, PluginInstanceId instanceId) =>
       (pluginId: pluginId, instanceId: instanceId);
 
-  PluginRuntimeInstance _instanceFor(String pluginId, PluginInstanceId instanceId) {
+  PluginRuntimeInstance _instanceFor(
+    String pluginId,
+    PluginInstanceId instanceId,
+  ) {
     final key = _keyOf(pluginId, instanceId);
     final instance = _instances.putIfAbsent(
       key,
@@ -769,8 +772,7 @@ class PluginRuntimeDispatcher {
       final instance = _instances[key];
       final runtime = instance?.runtime;
       if (runtime == null ||
-          instance?.suspensionState !=
-              PluginSuspensionState.suspendRequested ||
+          instance?.suspensionState != PluginSuspensionState.suspendRequested ||
           defaultTargetPlatform != TargetPlatform.windows) {
         continue;
       }

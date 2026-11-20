@@ -18,6 +18,7 @@ import 'package:otzaria/plugins/models/plugin_toolbar_item.dart';
 import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
 import 'package:otzaria/plugins/models/plugin_when_condition.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
+import 'package:otzaria/plugins/services/plugin_design_rules.dart';
 import 'package:otzaria/plugins/services/plugin_settings_access_policy.dart';
 import 'package:otzaria/plugins/services/plugin_external_editions_registry.dart';
 import 'package:otzaria/plugins/services/plugin_toolbar_registry.dart';
@@ -75,6 +76,8 @@ const Set<String> _knownEvents = {
   'reader.textReaderCommand',
   'reader.inBookSearch.requested',
   'ui.messageClicked',
+  // מצב המסך המלא של החלון השתנה; הרשאת בסיס, ללא הצהרה (מ-0.9.99).
+  'ui.fullscreenChanged',
   'plugin.page_opened',
   'contextMenu.itemClicked',
   'contextMenu.colorClicked',
@@ -1706,16 +1709,6 @@ class PluginExtendedValidator {
 
   // ===== Design compliance =====
 
-  static const Set<String> _allowedColorKeywords = {
-    'inherit',
-    'initial',
-    'unset',
-    'revert',
-    'currentcolor',
-    'transparent',
-    'none',
-  };
-
   static final RegExp _namedColorRe = RegExp(
     r'\b(black|white|red|green|blue|yellow|gray|grey|purple|orange|pink|brown|cyan|magenta|silver|gold|maroon|navy|teal|olive|aqua|fuchsia|lime|violet|indigo|coral|crimson|salmon|khaki|beige|ivory|wheat|tan|chocolate|tomato|turquoise|orchid)\b',
     caseSensitive: false,
@@ -1796,7 +1789,7 @@ class PluginExtendedValidator {
     }
 
     for (final chunk in cssChunks) {
-      var stripped = _stripCssComments(chunk.css);
+      var stripped = _stripSkippedAtRules(_stripCssComments(chunk.css));
       // הגדרות של CSS custom properties (`--color-foo: #xxx;`,
       // `--font-size-base: 18px;`, וכד') מותרות במפורש לפי DESIGN_GUIDE —
       // הן ברירות מחדל לפני applyTheme. מוציאים אותן מהמחרוזת לפני סריקה
@@ -1837,7 +1830,7 @@ class PluginExtendedValidator {
         final value = (propMatch.group(2) ?? '').trim();
         if (RegExp(r'var\s*\(').hasMatch(value)) continue;
         final firstToken = value.split(RegExp(r'[\s,]'))[0].toLowerCase();
-        if (_allowedColorKeywords.contains(firstToken)) continue;
+        if (pluginDesignColorKeywords.contains(firstToken)) continue;
         if (RegExp(r'^[\d.]+(px|em|rem|%)?$').hasMatch(firstToken)) continue;
         if (_namedColorRe.hasMatch(value)) {
           final preview = value.length > 40 ? value.substring(0, 40) : value;
@@ -1849,23 +1842,28 @@ class PluginExtendedValidator {
         }
       }
 
-      // 4. font-family שאינו var(--font-*)
+      // 4. font-family שאינו var(--font-*) ואינו מילת מפתח מותרת
       for (final m in RegExp(
         r'font-family\s*:\s*([^;}]+)',
         caseSensitive: false,
       ).allMatches(stripped)) {
         final value = (m.group(1) ?? '').trim();
-        if (!RegExp(
+        if (RegExp(
           r'var\s*\(\s*--font',
           caseSensitive: false,
         ).hasMatch(value)) {
-          final preview = value.length > 50 ? value.substring(0, 50) : value;
-          addOnce(
-            'font-family',
-            '${chunk.name}: font-family מקודד ("$preview"). חובה var(--font-main)',
-          );
-          break;
+          continue;
         }
+        if (pluginDesignFontFamilyKeywords.contains(value.toLowerCase())) {
+          continue;
+        }
+        final preview = value.length > 50 ? value.substring(0, 50) : value;
+        addOnce(
+          'font-family',
+          '${chunk.name}: font-family מקודד ("$preview"). '
+              '$pluginDesignFontFamilyHint',
+        );
+        break;
       }
 
       // 5. font-size ב-px קבוע
@@ -1889,9 +1887,8 @@ class PluginExtendedValidator {
           final preview = value.length > 30 ? value.substring(0, 30) : value;
           addOnce(
             'font-size-px',
-            '${chunk.name}: font-size ב-px קבוע ("$preview"). חובה em/rem או '
-                'var(--font-size-base) (px מותר רק בסלקטור פס הכותרת — ראו '
-                'DESIGN_GUIDE.md)',
+            '${chunk.name}: font-size ב-px קבוע ("$preview"). '
+                '$pluginDesignFontSizeHint',
           );
           break;
         }
@@ -1910,7 +1907,8 @@ class PluginExtendedValidator {
           final preview = value.length > 30 ? value.substring(0, 30) : value;
           addOnce(
             'radius-px',
-            '${chunk.name}: border-radius ב-px קבוע ("$preview"). חובה var(--radius-sm/md/lg/pill)',
+            '${chunk.name}: border-radius ב-px קבוע ("$preview"). '
+                '$pluginDesignRadiusHint',
           );
           break;
         }
@@ -1945,11 +1943,23 @@ class PluginExtendedValidator {
   }
 
   /// פס כותרת התוסף — הסלקטור המוסכם ב-DESIGN_GUIDE (`.topbar` / `.top-bar`).
-  static bool _isTopBarSelector(String selector) =>
-      RegExp(r'top-?bar', caseSensitive: false).hasMatch(selector);
+  static bool _isTopBarSelector(String selector) => RegExp(
+    pluginDesignTopBarSelectorPattern,
+    caseSensitive: false,
+  ).hasMatch(selector);
 
   static String _stripCssComments(String css) =>
       css.replaceAll(RegExp(r'/\*[\s\S]*?\*/'), '');
+
+  /// מוציא כללי @ שאינם נבדקים (`@font-face`: שם הגופן שם הוא ההגדרה עצמה).
+  static String _stripSkippedAtRules(String css) => css.replaceAll(
+    RegExp(
+      '@(?:${pluginDesignSkippedAtRules.join('|')})'
+      r'\s*\{[^}]*\}',
+      caseSensitive: false,
+    ),
+    '',
+  );
 }
 
 class _ApiUsage {

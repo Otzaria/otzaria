@@ -178,6 +178,7 @@ Map<String, Object?> buildPluginSpec(Directory root) {
   final env = _ConstEnv();
   for (final relative in const [
     'lib/plugins/services/plugin_extended_validator.dart',
+    'lib/plugins/services/plugin_design_rules.dart',
     'lib/plugins/models/plugin_valid_permissions.dart',
     'lib/plugins/services/plugin_manifest_validator.dart',
     'lib/plugins/services/plugin_settings_access_policy.dart',
@@ -241,6 +242,27 @@ Map<String, Object?> buildPluginSpec(Directory root) {
     'versions': {
       'whenCondition': env.stringConst('_whenConditionMinVersion'),
       'headless': env.stringConst('_headlessMinVersion'),
+    },
+    // כללי בדיקת העיצוב (plugin_design_rules.dart). כלי ה-JS צורכים אותם
+    // מכאן במקום לשכפל, כדי שכלל או הודעה לא ישתנו רק במימוש אחד.
+    'designRules': {
+      'colorKeywords': sorted(
+        env.stringCollection('pluginDesignColorKeywords'),
+      ),
+      'fontFamilyKeywords': sorted(
+        env.stringCollection('pluginDesignFontFamilyKeywords'),
+      ),
+      'topBarSelectorPattern': env.stringConst(
+        'pluginDesignTopBarSelectorPattern',
+      ),
+      'skippedAtRules': sorted(
+        env.stringCollection('pluginDesignSkippedAtRules'),
+      ),
+      'hints': {
+        'fontFamily': env.stringConst('pluginDesignFontFamilyHint'),
+        'fontSizePx': env.stringConst('pluginDesignFontSizeHint'),
+        'radiusPx': env.stringConst('pluginDesignRadiusHint'),
+      },
     },
   };
 }

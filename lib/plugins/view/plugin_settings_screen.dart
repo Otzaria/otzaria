@@ -223,6 +223,9 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen> {
         return AppDialogFrame(
           icon: FluentIcons.shield_keyhole_24_regular,
           title: 'ניהול הרשאות: ${currentPlugin.name}',
+          // שם תוסף ארוך בהגדלת טקסט היה דוחף את הגוף מחוץ לחלון; השם המלא
+          // נשאר ברמז ובראש הגוף (_PluginIdentity).
+          titleMaxLines: 2,
           size: AppDialogSize.medium,
           child: SingleChildScrollView(
             child: Column(

@@ -183,7 +183,8 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
   'app.open_url': PluginPermissionInfo(
     label: 'פתיחת קישורים בדפדפן',
     icon: FluentIcons.open_24_regular,
-    description: 'התוסף יכול לפתוח כתובת של אתר באינטרנט בדפדפן שלך, או את אפליקציית זית',
+    description:
+        'התוסף יכול לפתוח כתובת של אתר באינטרנט בדפדפן שלך, או את אפליקציית זית',
   ),
   'app.run_on_startup': PluginPermissionInfo(
     label: 'טעינה אוטומטית ברקע',
@@ -572,6 +573,11 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
     label: 'אירועי ערכת נושא',
     icon: FluentIcons.color_24_regular,
     description: 'התוסף יקבל עדכון בכל פעם שאתה מחליף ערכת נושא',
+  ),
+  'events.subscribe:ui.fullscreenChanged': PluginPermissionInfo(
+    label: 'אירועי מסך מלא',
+    icon: FluentIcons.full_screen_maximize_24_regular,
+    description: 'התוסף יקבל עדכון בכל פעם שהחלון נכנס למסך מלא או יוצא ממנו',
   ),
   'events.subscribe:settings.changed': PluginPermissionInfo(
     label: 'אירועי הגדרות',

@@ -224,7 +224,7 @@ Otzaria.on('plugin.boot', (payload) => {
 });
 
 Otzaria.on('theme.changed', (theme) => {
-  applyTheme(theme.colorScheme);
+  applyTheme(theme); // ראו DESIGN_GUIDE.md
 });
 
 // ביטול הרשמה:
@@ -249,6 +249,7 @@ Otzaria.off('calendar.date_changed', handler); // חייב להיות אותו r
 | `plugin.suspended` | 🔁 חוזר | (ללא) — ראה §השהיה ברקע |
 | `plugin.resumed` | 🔁 חוזר | (ללא) — ראה §השהיה ברקע |
 | `theme.changed` | 🔁 חוזר | `ThemePayload` |
+| `ui.fullscreenChanged` | 🔁 חוזר | `{ fullscreen: boolean }` (מ-0.9.99) |
 | `navigation.changed` | 🔁 חוזר | `{ screen: string }` |
 | `reader.current_book_changed` | 🔁 חוזר | `{ bookId: string, id: number?, type: string?, source: string?, index: number }` |
 | `calendar.date_changed` | 🔁 חוזר | `{ date: string }` |
@@ -664,32 +665,20 @@ await Otzaria.call('publishedData.upsert', {
 
 ## ניהול ערכת נושא
 
-כדי שהתוסף ייראה כמו חלק מאוצריא, יש לאמץ את ה-colorScheme המתקבל ב-boot.
+כדי שהתוסף ייראה כמו חלק מאוצריא, יש לאמץ את ה-theme המתקבל ב-`plugin.boot`, ולעדכן אותו ב-`theme.changed`. **ה-`applyTheme` המלא, טבלת הטוקנים (שדה ב-payload ← משתנה CSS ← שימוש), המצבים, הרכיבים והכללים שהוולידטור אוכף נמצאים ב-[DESIGN_GUIDE.md](DESIGN_GUIDE.md#ערכת-נושא)**; כאן רק השלד:
 
 ```javascript
-function applyTheme(theme) {
-  const cs = theme.colorScheme;
-  const root = document.documentElement;
-  root.style.setProperty('--primary',   cs.primary);
-  root.style.setProperty('--onPrimary', cs.onPrimary);
-  root.style.setProperty('--surface',   cs.surface);
-  root.style.setProperty('--onSurface', cs.onSurface);
-  root.style.setProperty('--outline',   cs.outline);
-  root.style.setProperty('--error',     cs.error);
-  if (theme.typography?.fontFamily) {
-    root.style.setProperty('--font', `'${theme.typography.fontFamily}', serif`);
-  }
-}
-
-Otzaria.on('plugin.boot',    (p) => applyTheme(p.theme));
-Otzaria.on('theme.changed',  applyTheme);   // ← חשוב! מעדכן בזמן אמת
+Otzaria.on('plugin.boot',   (p) => applyTheme(p.theme));
+Otzaria.on('theme.changed', applyTheme);   // מעדכן בזמן אמת; הרשאת בסיס, אין להצהיר עליה
 ```
+
+> **שימו לב:** `applyTheme` מקבלת את ה-theme **כולו** (`payload.theme`), לא את `colorScheme` בלבד. שמות המשתנים הם `--color-*`, `--surface-*`, `--font-*` וכו' כפי שבטבלה: הוולידטור מצפה ל-`var(--color-*)`.
 
 > **גופנים — אין צורך לארוז:** כל הגופנים המובנים, וגם גופן מערכת שהמשתמש בחר בהגדרות, רשומים כ-`@font-face` ב-WebView של התוסף לפני ה-`plugin.boot`. לפני ה-boot אוצריא ממתינה עד 1.5 שניות לטעינת המשפחות שב-`theme.typography` (`fontFamily`, `commentatorsFontFamily`, `uiFontFamily`); ב-macOS, ב-iOS ובמסלול החלופי אין המתנה, ושאר המשפחות נטענות בשימוש הראשון. למדידה ודאית — `await document.fonts.load(...)` לפניה. אם טעינת הגופנים המקומיים נכשלת או מתעכבת, אוצריא מטביעה אותם כ-`data:` לפני ה-boot. לשמירה ולייצוא השתמשו ב-`fonts.resolveFamilies`, שמחזיר תמיד כללים עם בייטים מוטבעים. ניתן להפנות אליהם ישירות מ-CSS. השאירו תמיד `serif` (ועדיף גם `'David'`) בסוף שרשרת ה-`font-family`, למשפחה שאינה קיימת במכונה.
 
 > **כותרת התוסף — בפס עליון, לא בגוף התוכן:** התוסף נפתח כטאב קריאה ואוצריא אינה מציירת כותרת מעל ה-WebView. שם התוסף חייב להופיע בפס עליון קבוע ברקע `colorScheme.surfaceContainerHigh` — אותו צבע וגובה כמו הסרגל העליון של מסכי הספרים. ראה [DESIGN\_GUIDE.md § סרגל כותרת התוסף](DESIGN_GUIDE.md#סרגל-כותרת-התוסף-top-bar) ומתכון מלא ב-[COOKBOOK.md § 4](COOKBOOK.md#4-סרגל-כותרת-התוסף-top-bar).
 
-> מדריך עיצוב מלא — Color Roles, צורות, טיפוגרפיה, כפתורים, כרטיסים ואנימציות — ב-[DESIGN_GUIDE.md](DESIGN_GUIDE.md).
+> מדריך עיצוב מלא — ערכת נושא וטבלת טוקנים, מצבים וניגודיות, טיפוגרפיה, כפתורים, שדות, כרטיסים, תפריטים, התראות, טעינה/ריק/שגיאה, חלוניות, טבלאות, מגע וחלונות קטנים, מסך מלא ותאימות גרסאות — ב-[DESIGN_GUIDE.md](DESIGN_GUIDE.md), עם תוסף דוגמה שאפשר להריץ: [`examples/design-gallery`](examples/design-gallery).
 
 ---
 
@@ -1563,7 +1552,7 @@ otzaria://open/plugin/<plugin-id>
 | קובץ | תוכן |
 |------|------|
 | [`API_REFERENCE.md`](API_REFERENCE.md) | תיעוד מלא של כל ה-API — כל method עם פרמטרים, ערכי החזרה ודוגמאות |
-| [`DESIGN_GUIDE.md`](DESIGN_GUIDE.md) | מדריך עיצוב מלא — Color Roles, צורות, טיפוגרפיה, כפתורים, כרטיסים ואנימציות |
+| [`DESIGN_GUIDE.md`](DESIGN_GUIDE.md) | מדריך עיצוב מלא: טבלת טוקנים, רכיבים, מצבים, מגע, מסך מלא ותאימות גרסאות, עם תוסף הדוגמה [`design-gallery`](examples/design-gallery) |
 | [`COOKBOOK.md`](COOKBOOK.md) | מתכוני קוד מעשיים — גופן מותאם אישית, אייקונים מאוצריא, וחלונית הגדרות בסגנון "לוח שנה" |
 | [`ICONS.md`](ICONS.md) | ספריות האייקונים הזמינות לתוסף — רשימת אייקוני אוצריא (מגונררת מהספרייה), כלל ההכרעה מול פלואנט, והתחיליות `otzaria:` / `fluent:` |
 | [`otzaria_plugin.d.ts`](otzaria_plugin.d.ts) | הגדרות TypeScript עבור האובייקט הגלובלי `Otzaria`. ניתן לכלול בפרויקטי TypeScript של תוספים לקבלת השלמה אוטומטית (autocomplete) ב-IDE. אינו נטען בריצה — האובייקט עצמו מוזרק על-ידי ה-host. |

@@ -26,6 +26,7 @@ import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/plugins/plugin_constants.dart';
 import 'package:otzaria/theme/app_density.dart';
+import 'package:otzaria/theme/app_seed_colors.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/theme/app_surface_colors.dart';
 import 'package:otzaria/theme/app_theme_data.dart';
@@ -227,12 +228,15 @@ Map<String, dynamic> buildThemePayload(BuildContext context) {
 /// נצרך כשמדווחים על שינוי theme בזמן אמת: ה-`MaterialApp` מתעדכן רק ב-frame
 /// הבא, כך ש-`Theme.of(context)` עדיין מחזיר את הצבעים הישנים. בנייה מ-scheme
 /// שמחושב ישירות מההגדרות מבטיחה שהתוסף יקבל את הצבעים הנכונים.
-/// [surfaces] חסר — המשטחים מחושבים מ-[cs], כמו ב-[AppThemeData].
+/// [surfaces] חסר — המשטחים מחושבים מ-[cs] ומ-[variant] (הערכה של הזרע
+/// שממנו נבנתה [cs]), כמו ב-[AppThemeData]. [variant] קובע אם יש קו אזורים
+/// (`regionBorder`, רק ב"לבן" בבהיר).
 Map<String, dynamic> buildThemePayloadFromScheme(
   ColorScheme cs, {
   required bool isDark,
   required AppDensity density,
   AppSurfaceColors? surfaces,
+  AppThemeVariant variant = AppThemeVariant.standard,
 }) {
   String hex(Color c) =>
       '#${c.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}';
@@ -251,7 +255,9 @@ Map<String, dynamic> buildThemePayloadFromScheme(
       22.0;
   final lineHeight =
       Settings.getValue<double>(SettingsRepository.keyLineHeight) ?? 1.5;
-  final surface = surfaces ?? AppSurfaceColors.fromScheme(cs);
+  final surface =
+      surfaces ?? AppSurfaceColors.fromScheme(cs, variant: variant);
+  String? hexOrNull(Color? c) => c == null ? null : hex(c);
 
   return {
     'mode': isDark ? 'dark' : 'light',
@@ -303,6 +309,11 @@ Map<String, dynamic> buildThemePayloadFromScheme(
       'panel': hex(surface.panelBackground),
       'card': hex(surface.card),
       'topBar': hex(surface.topBarBackground),
+      'regionBorder': hexOrNull(surface.regionBorder),
+      'warning': hex(surface.warning),
+      'onWarning': hex(surface.onWarning),
+      'warningContainer': hex(surface.warningContainer),
+      'onWarningContainer': hex(surface.onWarningContainer),
     },
     'radius': AppTokens.radius,
     'spacing': {

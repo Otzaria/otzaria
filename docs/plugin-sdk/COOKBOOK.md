@@ -30,12 +30,16 @@
 ### מתכון א' — להפנות לגופן מובנה בשם
 
 ```css
+:root {
+  --font-prayer: 'FrankRuhlCLM', 'David', serif;
+}
+
 .prayer {
-  font-family: 'FrankRuhlCLM', 'David', serif;
+  font-family: var(--font-prayer);
 }
 ```
 
-זה הכל. אם הגופן רשום ב-WebView הוא ייטען; אחרת ה-fallback תופס.
+זה הכל. אם הגופן רשום ב-WebView הוא ייטען; אחרת ה-fallback תופס. את רשימת הגופנים מגדירים כ-custom property (`--font-*`), כי ולידציית העיצוב פוסלת `font-family` מקודד (ראו [DESIGN_GUIDE.md § מה הוולידטור אוכף](DESIGN_GUIDE.md#מה-הוולידטור-אוכף)).
 
 ### מתכון ב' (מומלץ) — לעקוב אחרי הגופן שהמשתמש בחר באוצריא
 
@@ -52,7 +56,7 @@ let userFont = '';      // בחירת המשתמש בתוסף (אם הוספת �
 function applyFont() {
   const family = userFont || themeFont || 'FrankRuhlCLM';
   document.documentElement.style.setProperty(
-    '--prayer-font', `'${family}', ${FONT_FALLBACK}`,
+    '--font-prayer', `'${family}', ${FONT_FALLBACK}`,
   );
 }
 
@@ -65,14 +69,16 @@ function applyTheme(theme) {
 }
 
 Otzaria.on('plugin.boot', (p) => applyTheme(p.theme));
-// ⚠️ דורש הרשאה: events.subscribe:theme.changed
+// events.subscribe:theme.changed היא הרשאת בסיס: אין להצהיר עליה
 Otzaria.on('theme.changed', applyTheme);
 ```
 
 וב-CSS משתמשים במשתנה:
 
 ```css
-.prayer { font-family: var(--prayer-font, 'FrankRuhlCLM', serif); }
+.prayer {
+  font-family: var(--font-prayer);
+}
 ```
 
 ### מתכון ג' — בורר גופן בתוך התוסף
@@ -104,7 +110,7 @@ function buildFontPicker(container) {
 
 ### מתכון ד' (מתקדם) — לארוז גופן משלך
 
-רק אם אתה צריך גופן ש**אינו** ברשימה המובנית. הנח את הקובץ בתוך התוסף והפנה אליו בנתיב יחסי:
+רק אם אתה צריך גופן ש**אינו** ברשימה המובנית. הנח את הקובץ בתוך התוסף וטען אותו עם `FontFace` מ-JS:
 
 ```
 my-plugin/
@@ -114,16 +120,23 @@ my-plugin/
     └── MyFont.woff2
 ```
 
-```css
-@font-face {
-  font-family: 'MyFont';
-  src: url('../fonts/MyFont.woff2') format('woff2');
-  font-display: swap;
-}
-.special { font-family: 'MyFont', 'David', serif; }
+```javascript
+// הנתיב יחסי לדף (index.html), לא לקובץ ה-CSS
+const face = new FontFace('MyFont', "url('fonts/MyFont.woff2') format('woff2')");
+document.fonts.add(await face.load());
 ```
 
-> השתמש ב-`woff2` (קל משמעותית מ-`ttf`) כדי לא לנפח את גודל התוסף. הנתיב יחסי לקובץ ה-CSS — אסור להפנות לקבצים מחוץ לתיקיית התוסף.
+```css
+:root {
+  --font-special: 'MyFont', 'David', serif;
+}
+
+.special {
+  font-family: var(--font-special);
+}
+```
+
+> **למה לא `@font-face` ב-CSS?** הבודק שבאפליקציה (`otzaria pack-plugin` ומצב פיתוח) מדלג על `font-family` שבתוך `@font-face`, אבל הבודק של החנות ושל ה-Action עדיין פוסל אותו, כי שם `font-family` מקודד נבדק גם בכלל הזה. עד שהוא יתעדכן, `FontFace` מ-JS עובר את שני הבודקים. (`FontFace` מ-JS לא נבדק בתוך WebView חי של אוצריא.) השתמש ב-`woff2` (קל משמעותית מ-`ttf`) כדי לא לנפח את גודל התוסף, ואסור להפנות לקבצים מחוץ לתיקיית התוסף.
 
 ---
 
@@ -168,22 +181,31 @@ await Otzaria.call('reader.addContextMenuItem', {
 כדי שיירש את צבע הטקסט/ה-theme במקום צבע קשיח:
 
 ```html
-<button class="tool-btn" aria-label="הגדרות" title="הגדרות">
+<button class="tool-btn" aria-label="חיפוש" title="חיפוש">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-       stroke-width="2" aria-hidden="true">
-    <circle cx="12" cy="12" r="3"/>
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+       stroke-width="2" stroke-linecap="round" aria-hidden="true">
+    <circle cx="11" cy="11" r="7"/>
+    <path d="m20 20-4-4"/>
   </svg>
 </button>
 ```
 
 ```css
-.tool-btn { color: var(--color-on-surface-variant); }       /* צבע האייקון = currentColor */
-.tool-btn:hover { color: var(--color-on-surface); }
-.tool-btn svg { width: 21px; height: 21px; }
+.tool-btn {
+  color: var(--color-on-surface-variant); /* צבע האייקון = currentColor */
+}
+
+.tool-btn:hover {
+  color: var(--color-on-surface);
+}
+
+.tool-btn svg {
+  width: 20px;
+  height: 20px;
+}
 ```
 
-> **אל תקבע צבע קשיח** ב-`fill`/`stroke`. השתמש ב-`currentColor` ושלוט בצבע דרך `color` עם משתני ה-theme — כך האייקון מתאים אוטומטית למצב כהה/בהיר.
+> **אל תקבע צבע קשיח** ב-`fill`/`stroke`. השתמש ב-`currentColor` ושלוט בצבע דרך `color` עם משתני ה-theme — כך האייקון מתאים אוטומטית למצב כהה/בהיר. גדלים, מצבים והרישיון של ספריית האייקונים: [DESIGN_GUIDE.md § אייקונים בתוך הדף](DESIGN_GUIDE.md#אייקונים-בתוך-הדף).
 
 ---
 
@@ -194,25 +216,16 @@ await Otzaria.call('reader.addContextMenuItem', {
 לבחירה יחידה ו**מתגי switch** ל-on/off. כל הצבעים מ-theme, השמירה מיידית.
 
 הערכים כאן תואמים את הרכיבים האמיתיים: `ContextOverlayPanel`, `SettingsCard`,
-`SegmentedSettingsTile` ו-`SwitchSettingsTile`.
+`SegmentedSettingsTile` ו-`SwitchSettingsTile`, חוץ מהרוחב: 340, כמו חלונית צד בכל מסמכי העיצוב
+(`LayoutConstraints.sidePaneWidth`, DD-28), ולא 400 שהוא ברירת המחדל הנוכחית בקוד של `ContextOverlayPanel`.
 
 ### א. משתני ה-theme הנדרשים
 
-הפאנל משתמש בכמה תפקידי צבע מעבר לבסיסיים. הרחב את `applyTheme` (מ-[DESIGN_GUIDE.md](DESIGN_GUIDE.md#פונקציית-applytheme)) כך שיכלול:
+הפאנל משתמש במשטח `surface-top-bar` ובתפקידי הצבע `secondary-container`, `outline-variant` ו-`scrim`. `applyTheme` ב-[DESIGN_GUIDE.md](DESIGN_GUIDE.md#פונקציית-applytheme) מציב את כל תפקידי הצבע, ולכן אין צורך להרחיב אותו. הצל והכיסוי הם `--shadow-floating` ו-`--scrim` מ-`:root` (מוגדרים בדוגמה שם, ובקובץ `css/tokens.css` של הגלריה). את הצורה של המתג מגדירים כ-custom property, כדי שלא יהיה `border-radius` קשיח:
 
-```javascript
-function applyTheme(theme) {
-  if (!theme || !theme.colorScheme) return;
-  const cs = theme.colorScheme;
-  const r = document.documentElement;
-  // ... המיפויים הבסיסיים (primary, surface וכו') ...
-  r.style.setProperty('--color-on-surface-variant',        cs.onSurfaceVariant);
-  r.style.setProperty('--color-surface-container-high',    cs.surfaceContainerHigh);
-  r.style.setProperty('--color-surface-container-highest', cs.surfaceContainerHighest);
-  r.style.setProperty('--color-secondary-container',       cs.secondaryContainer);
-  r.style.setProperty('--color-on-secondary-container',    cs.onSecondaryContainer);
-  r.style.setProperty('--color-outline-variant',           cs.outlineVariant);
-  r.style.setProperty('--color-scrim',                     cs.scrim);
+```css
+:root {
+  --switch-radius: 13px; /* חצי מגובה המתג */
 }
 ```
 
@@ -261,7 +274,7 @@ function applyTheme(theme) {
 /* ── Scrim ─────────────────────────────────────── */
 .overlay-scrim {
   position: fixed; inset: 0;
-  background: var(--color-scrim, #000);
+  background: var(--color-scrim);
   opacity: 0; pointer-events: none;
   transition: opacity 0.2s;
   z-index: 100;
@@ -272,12 +285,12 @@ function applyTheme(theme) {
 .overlay-panel {
   position: fixed;
   top: 10px; bottom: 12px;
-  inset-inline-start: 10px;   /* ב-RTL: הקצה השמאלי הפיזי — כמו ContextOverlayPanel */
-  width: min(400px, 92vw);
-  background: var(--color-surface-container-high);
+  inset-inline-end: 10px;     /* ב-RTL end הוא הקצה השמאלי הפיזי — כמו ContextOverlayPanel */
+  width: min(340px, 92vw);
+  background: var(--surface-top-bar, var(--color-surface-container-high)); /* מארח לפני 0.9.99: בלי surfaces */
   color: var(--color-on-surface);
-  border-radius: 8px;         /* AppTokens.radius */
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  border-radius: var(--radius);   /* AppTokens.radius */
+  box-shadow: var(--shadow-floating);
   display: flex; flex-direction: column; overflow: hidden;
   z-index: 101;
   opacity: 0; transform: translateX(-30px); pointer-events: none;
@@ -295,7 +308,7 @@ function applyTheme(theme) {
 /* ── Card (כמו SettingsCard) ───────────────────── */
 .settings-card {
   background: var(--color-surface);
-  border-radius: 8px;         /* AppTokens.radius */
+  border-radius: var(--radius);   /* AppTokens.radius */
   overflow: hidden;
   margin-top: 16px;
 }
@@ -321,7 +334,7 @@ function applyTheme(theme) {
 .segmented {
   display: inline-flex;
   border: 1px solid var(--color-outline);
-  border-radius: 8px;          /* AppTokens.radius */
+  border-radius: var(--radius);   /* AppTokens.radius */
   overflow: hidden;
   flex: 0 0 auto;
 }
@@ -329,7 +342,7 @@ function applyTheme(theme) {
   border: none; background: var(--color-surface);
   color: var(--color-on-surface-variant);
   height: 40px; padding: 0 14px;
-  font-family: inherit; font-size: 0.95rem; cursor: pointer;
+  font-family: var(--font-ui); font-size: 0.95rem; cursor: pointer;
   transition: background 0.15s;
 }
 .segmented button + button { border-inline-start: 1px solid var(--color-outline); }
@@ -340,7 +353,7 @@ function applyTheme(theme) {
 
 /* ── Switch (M3, כמו SwitchSettingsTile) ───────── */
 .switch {
-  width: 46px; height: 26px; border-radius: 999px;
+  width: 46px; height: 26px; border-radius: var(--switch-radius);
   border: 2px solid var(--color-outline);
   background: var(--color-surface-container-highest);
   position: relative; cursor: pointer; transition: 0.2s; flex: 0 0 auto;
@@ -408,10 +421,11 @@ setToggle('set-israel', isInIsrael, (v) => {
 
 | פריט | ערך | מקור באוצריא |
 |------|-----|--------------|
-| צד פתיחת הפאנל | קצה שמאל פיזי (ב-RTL), `inset-inline-start: 10px` | `ContextOverlayPanel` (`centerEnd`) |
+| צד פתיחת הפאנל | קצה שמאל פיזי (ב-RTL), `inset-inline-end: 10px` | `ContextOverlayPanel` (`centerEnd`) |
 | scrim | `colorScheme.scrim` ב-30% | `cs.scrim.withValues(alpha: 0.30)` |
 | רדיוס פאנל | 8px | `AppTokens.radius` |
-| רקע פאנל | `surfaceContainerHigh` | `ContextOverlayPanel` |
+| רוחב פאנל | 340 | `LayoutConstraints.sidePaneWidth` (DD-28) |
+| רקע פאנל | `surfaces.topBar` (`--surface-top-bar`), כמו הסרגל העליון | חלונית צד: DESIGN_SYSTEM 3.6; ב-`ContextOverlayPanel` זהו `navPanelBackground`, שווה לצבע הסרגל |
 | אנימציה | slide 300ms + fade 200ms | `animPanelSlide` / `animPanelOpacity` |
 | רדיוס כרטיס | 8px | `AppTokens.radius` (`SettingsCard`) |
 | כותרת כרטיס | בצבע `primary`, מודגשת | `SettingsCard.titleStyleOf` |
@@ -426,7 +440,7 @@ setToggle('set-israel', isInIsrael, (v) => {
 ## 4. סרגל כותרת התוסף (Top Bar)
 
 התוסף נפתח כטאב קריאה, ליד טאבים של ספרים, ואוצריא **אינה** מציירת כותרת מעל ה-WebView.
-לכן **שם התוסף חייב להופיע בפס עליון קבוע ברקע `surfaceContainerHigh` מה-API** — אותו צבע ואותו גובה
+לכן **שם התוסף חייב להופיע בפס עליון קבוע ברקע `surfaces.topBar` מה-API** (`surfaceContainerHigh`) — אותו צבע ואותו גובה
 כמו הסרגל העליון של מסכי הספרים. כותרת ענקית בגוף התוכן, שגוללת עם התוכן ונחתכת בחלון צר, שוברת את האחידות.
 
 העקרונות והערכים המדויקים ב-[DESIGN_GUIDE.md § סרגל כותרת התוסף](DESIGN_GUIDE.md#סרגל-כותרת-התוסף-top-bar).
@@ -434,12 +448,7 @@ setToggle('set-israel', isInIsrael, (v) => {
 
 ### א. משתני ה-theme הנדרשים
 
-הפס צריך שני תפקידי צבע מעבר לבסיסיים (הוסף ל-`applyTheme`):
-
-```javascript
-r.style.setProperty('--color-surface-container-high', cs.surfaceContainerHigh); // רקע הפס
-r.style.setProperty('--color-on-surface-variant',     cs.onSurfaceVariant);     // כותרת משנה
-```
+הפס משתמש ב-`--surface-top-bar` (רקע הפס) וב-`--color-on-surface-variant` (כותרת משנה). שניהם מוצבים על ידי `applyTheme` ב-[DESIGN_GUIDE.md](DESIGN_GUIDE.md#פונקציית-applytheme); אין צורך להרחיב אותו.
 
 ### ב. ה-HTML
 
@@ -484,41 +493,42 @@ body { overflow: hidden; }          /* הגלילה בתוכן, לא בעמוד 
 
 /* ── הפס ─────────────────────────────────────────── */
 .topbar {
-  display: flex; align-items: center; gap: 10px;
-  height: 56px; padding: 0 16px;
-  background: var(--color-surface-container-high);
+  display: flex; align-items: center; gap: var(--space-smd);
+  height: var(--top-bar-height);    /* מ-density: 56, או 44 בצפיפות מצומצמת */
+  padding: 0 var(--space-md);
+  background: var(--surface-top-bar);
   flex-shrink: 0;                   /* לא נדחס כשהתוכן גדל */
 }
 .topbar h1 {
   margin: 0;
-  font-size: 16px;                  /* px קשיח — ראה המלכוד למטה */
+  font-size: 18px;                  /* px קשיח — ראה המלכוד למטה */
   font-weight: 600;
   color: var(--color-on-surface);
   white-space: nowrap;
 }
 
 /* שלוש קבוצות בשורה אחת; min-width:0 מאפשר לטקסט להתקצר במקום לדחוף */
-.topbar-side { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.topbar-side { display: flex; align-items: center; gap: var(--space-smd); flex: 1; min-width: 0; }
 .topbar-end  { justify-content: flex-end; }
 
 /* ── בורר הקשר (chip) ────────────────────────────── */
 .topbar-chip {
   display: inline-flex; align-items: center; gap: 6px;
-  font-family: inherit; font-size: 12px; font-weight: 600;
+  font-family: var(--font-ui); font-size: var(--text-meta); font-weight: 600;
   background: var(--color-secondary-container);
   color: var(--color-on-secondary-container);
   border: none; border-radius: var(--radius);
-  padding: 5px 12px; cursor: pointer; white-space: nowrap;
+  padding: var(--space-xs) var(--space-smd); cursor: pointer; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis;
 }
 
 /* ── ניווט פנימי (pills) ─────────────────────────── */
 .topbar-nav { display: flex; gap: 4px; flex: 0 0 auto; }
 .nav-btn {
-  font-family: inherit; font-size: 13px; font-weight: 600;
+  font-family: var(--font-ui); font-size: var(--text-body-sm); font-weight: 600;
   background: transparent; color: var(--color-on-surface-variant);
   border: none; border-radius: var(--radius);
-  padding: 6px 14px; cursor: pointer; white-space: nowrap;
+  padding: var(--space-sm) var(--space-md); cursor: pointer; white-space: nowrap;
   transition: background 0.15s, color 0.15s;
 }
 .nav-btn.active {
@@ -529,20 +539,22 @@ body { overflow: hidden; }          /* הגלילה בתוכן, לא בעמוד 
 /* ── כפתור פעולה ─────────────────────────────────── */
 .topbar-btn {
   display: inline-flex; align-items: center; gap: 6px;
-  font-family: inherit; font-size: 13px;
+  font-family: var(--font-ui); font-size: var(--text-body-sm);
   background: transparent; border: none; border-radius: var(--radius);
   color: var(--color-on-surface-variant);
-  padding: 6px 10px; cursor: pointer;
+  min-height: var(--tap-target); padding: 0 var(--space-smd); cursor: pointer;
 }
 .topbar-btn:hover { color: var(--color-on-surface); }
 .topbar-btn svg { width: 20px; height: 20px; }
 
 /* ── התוכן — הוא שגולל ───────────────────────────── */
-.app-content { flex: 1; min-width: 0; overflow-y: auto; padding: 16px; }
+.app-content {
+  flex: 1; min-width: 0; overflow-y: auto; padding: var(--space-md);
+  container-type: inline-size;
+}
 
-/* ── מסך צר: פס נמוך, בלי הניווט המרכזי ──────────── */
-@media (max-width: 600px) {
-  .topbar { height: 44px; padding: 0 10px; }
+/* ── מקום צר: בלי הניווט המרכזי. הגובה לא משתנה כאן: הוא מ-density ── */
+@container (max-width: 600px) {
   .topbar-nav { display: none; }   /* העבר את הניווט לתפריט/תחתית */
 }
 ```
@@ -552,18 +564,19 @@ body { overflow: hidden; }          /* הגלילה בתוכן, לא בעמוד 
 | מלכוד | מה קורה | הפתרון |
 |-------|---------|--------|
 | `body { min-height: 100vh }` | העמוד כולו גולל, הכותרת נעלמת בגלילה ונחתכת בחלון נמוך | `height: 100%` + `overflow: hidden`, והגלילה ב-`.app-content` |
-| כותרת הפס ב-`em` | `typography.fontSize` הוא גודל גופן **הספר** (עד 36px) — הפס מתפוצץ ולא מתיישר עם הסרגל של אוצריא לידו | `font-size: 16px` — px קשיח **בפס בלבד**; תוכן התוסף נשאר יחסי |
+| כותרת הפס ב-`em` | `typography.fontSize` הוא גודל גופן **הספר** (עד 36px) — הפס מתפוצץ ולא מתיישר עם הסרגל של אוצריא לידו | `font-size: 18px` — px קשיח **בפס בלבד**; תוכן התוסף נשאר ביחידות יחסיות או ב-`--text-*` |
+| `@media (max-width: 600px) { .topbar { height: 44px } }` | בחלון צר במחשב (420-600) אוצריא נשארת בצפיפות רגילה, והפס שלכם נמוך משלה | `height: var(--top-bar-height)`; ב-`@container` משנים רק פריסה |
 | בלי `flex-shrink: 0` על הפס | תוכן גבוה דוחס את הפס והכותרת נחתכת | `flex-shrink: 0` |
 | בלי `min-width: 0` על הקבוצות | טקסט ארוך דוחף את הפעולות מחוץ לחלון | `min-width: 0` + `text-overflow: ellipsis` |
-| רקע קשיח לפס (`#f5f0e8`) | הפס לא מתחלף במצב כהה או בהחלפת ערכת צבעים | `var(--color-surface-container-high)` + `theme.changed` |
+| רקע קשיח לפס (`#f5f0e8`) | הפס לא מתחלף במצב כהה או בהחלפת ערכת צבעים | `var(--surface-top-bar)` + `theme.changed` |
 
 ### למה אלה הערכים?
 
 | פריט | ערך | מקור באוצריא |
 |------|-----|--------------|
-| רקע הפס | `surfaceContainerHigh` | `AppSurfaces.topBarBackground` |
-| גובה הפס | 56px · 44px במסך צר | `AppTopBar.barHeight` (`AppDensity.topBarHeight`) |
-| כותרת | 16px, `w600`, `onSurface` | `AppTopBar.titleStyle` |
+| רקע הפס | `surfaces.topBar` (`surfaceContainerHigh`) | `AppSurfaces.topBarBackground` |
+| גובה הפס | `density.topBarHeight`: 56, או 44 בצפיפות מצומצמת | `AppTopBar.barHeight` (`AppDensity.topBarHeight`) |
+| כותרת | 18px, `w600`, `onSurface` | `AppTopBar.titleStyle` (`titleLarge`) |
 | כותרת משנה / מחבר | 12px, `w400`, `onSurfaceVariant` | `AppTopBar.subtitleStyle` |
 | pill ניווט פעיל | `secondaryContainer` / `onSecondaryContainer` | סרגל הניווט הצדי |
 

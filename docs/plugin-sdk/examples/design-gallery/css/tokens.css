@@ -1,0 +1,118 @@
+/*
+ * טוקנים: ערכי ברירת מחדל לפני שה-theme מגיע (plugin.boot), ולמארח ישן שאינו
+ * שולח חלק מהשדות. applyTheme (js/theme.js) דורס אותם. כאן אין שום כלל
+ * שאינו הגדרת custom property, ולכן הוולידטור אינו בודק אותם כצבעים קשיחים.
+ *
+ * הרשימה הקנונית: DESIGN_GUIDE.md § טבלת הטוקנים.
+ */
+:root {
+  color-scheme: light;
+
+  /* ── תפקידי צבע (colorScheme) — ברירת מחדל: M3 בהיר ── */
+  --color-primary: #6750a4;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #eaddff;
+  --color-on-primary-container: #21005d;
+  --color-secondary: #625b71;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #e8def8;
+  --color-on-secondary-container: #1d192b;
+  --color-tertiary: #7d5260;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #ffd8e4;
+  --color-on-tertiary-container: #31111d;
+  --color-surface: #fffbfe;
+  --color-on-surface: #1c1b1f;
+  --color-on-surface-variant: #49454f;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f7f2fa;
+  --color-surface-container: #f3edf7;
+  --color-surface-container-high: #ece6f0;
+  --color-surface-container-highest: #e6e0e9;
+  --color-error: #b3261e;
+  --color-on-error: #ffffff;
+  --color-error-container: #f9dedc;
+  --color-on-error-container: #410e0b;
+  --color-outline: #79747e;
+  --color-outline-variant: #cac4d0;
+  --color-inverse-surface: #322f35;
+  --color-on-inverse-surface: #f5eff7;
+  --color-inverse-primary: #d0bcff;
+  --color-shadow: #000000;
+  --color-scrim: #000000;
+  --color-surface-tint: #6750a4;
+
+  /* ── צורה, ריווח, גבהים (theme.radius / spacing / density) ── */
+  --radius: 8px;
+  --space-2xs: 2px;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-smd: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --top-bar-height: 56px;
+  --field-height: 48px;
+
+  /* שטח לחיצה מינימלי: 40 בעכבר, 48 במגע (DESIGN_SYSTEM 2.5.6). */
+  --tap-target: 40px;
+
+  /* ── גופנים (theme.typography) ── */
+  --font-ui: system-ui, 'Segoe UI', 'Noto Sans Hebrew', sans-serif;
+  --font-main: 'FrankRuhlCLM', 'David', serif;
+  --font-commentary: 'NotoRashiHebrew', 'David', serif;
+  --font-mono: ui-monospace, 'Cascadia Mono', consolas, monospace;
+  --font-size-reading: 25px;
+  --font-size-commentary: 22px;
+  --line-height-reading: 1.5;
+
+  /* ── סולם הטקסט של הממשק (DESIGN_SYSTEM 2.4.1): קבוע, לא תלוי בגופן הקריאה ── */
+  --text-headline: 22px;
+  --text-title: 18px;
+  --text-section: 16px;
+  --text-body: 16px;
+  --text-body-sm: 14px;
+  --text-meta: 12px;
+  --text-micro: 11px;
+
+  /* ── תנועה ── */
+  --motion-fast: 150ms;
+  --motion-normal: 250ms;
+}
+
+/* מגע: שטח לחיצה 48. pointer:coarse = עיקר הקלט הוא אצבע, ולא רוחב המסך. */
+@media (pointer: coarse) {
+  :root {
+    --tap-target: 48px;
+  }
+}
+
+/*
+ * טוקנים נגזרים. מוגדרים גם על .theme-scope: custom property שנגזרת מ-var()
+ * מחושבת באלמנט שבו היא הוגדרה, ולכן בסביבה שבה ערכת הנושא מוחלת על אלמנט
+ * (מסגרות המטריצה) חייבים להגדיר אותם מחדש שם.
+ */
+:root,
+.theme-scope {
+  --surface-reader: var(--color-surface);
+  --surface-panel: var(--color-surface);
+  --surface-card: var(--color-surface);
+  --surface-top-bar: var(--color-surface-container-high);
+  /* קו בין אזורים: קיים רק בערכת "לבן" בבהיר, ושקוף בכל ערכה אחרת. */
+  --surface-region-border: transparent;
+  /* אזהרה: במארח ישן שאינו שולח אותה, הקרוב הוא tertiary. */
+  --surface-warning: var(--color-tertiary);
+  --surface-on-warning: var(--color-on-tertiary);
+  --surface-warning-container: var(--color-tertiary-container);
+  --surface-on-warning-container: var(--color-on-tertiary-container);
+
+  --state-hover: color-mix(in srgb, var(--color-on-surface) 8%, transparent);
+  --state-pressed: color-mix(in srgb, var(--color-on-surface) 12%, transparent);
+  --disabled-fg: color-mix(in srgb, var(--color-on-surface) 38%, transparent);
+  --disabled-bg: color-mix(in srgb, var(--color-on-surface) 12%, transparent);
+  --focus-ring: 2px solid var(--color-primary);
+
+  /* צל: רק לתפריט, tooltip וחלונית צפה (DD-12). הצבע מ-colorScheme.shadow. */
+  --shadow-floating: 0 2px 8px color-mix(in srgb, var(--color-shadow) 24%, transparent);
+  --scrim: color-mix(in srgb, var(--color-scrim) 32%, transparent);
+}

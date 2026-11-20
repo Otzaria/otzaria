@@ -493,25 +493,28 @@ const { data } = await Otzaria.call('app.getTheme');
 //     lineHeight:             1.5,
 //     commentatorsFontFamily: "NotoRashiHebrew",
 //     commentatorsFontSize:   22,
-//     uiFontFamily:           "Rubik",           // גופן הממשק — כפתורים ותפריטים
+//     uiFontFamily:           "Rubik",           // גופן ממשק לתאימות (0.9.97); מארח ישן בלי uiFont
 //     uiFont:                 "'Segoe UI', …, system-ui, sans-serif", // גופן הממשק של אוצריא עצמה (0.9.99)
 //   },
 //   // מ-0.9.99 — אופציונליים, חסרים במארח ישן:
-//   surfaces: { reader: "#...", panel: "#...", card: "#...", topBar: "#..." },
+//   surfaces: { reader: "#...", panel: "#...", card: "#...", topBar: "#...",
+//               regionBorder: "#..." | null,   // קו בין אזורים: רק ב"לבן" בבהיר
+//               warning: "#...", onWarning: "#...",
+//               warningContainer: "#...", onWarningContainer: "#..." },
 //   radius:   8,
 //   spacing:  { "2xs": 2, xs: 4, sm: 8, smd: 12, md: 16, lg: 24, xl: 32 },
 //   density:  { compact: false, topBarHeight: 56, fieldHeight: 48 }
 // }
 ```
 
-> **משטחים, ריווח וצפיפות (מ-0.9.99):** `surfaces` הם רקעי המסכים של אוצריא כפי שהם מצוירים בפועל. במצב כהה רקע הלוח אינו אף תפקיד של `colorScheme`, ולכן תוסף שרוצה להיראות כמו מסך כלים מקורי צובע את הטאב ב-`surfaces.panel` ואת פס הכותרת ב-`surfaces.topBar`. `density` משקף את ההגדרה "צפיפות ממשק", ו-`theme.changed` נשלח גם כשהיא משתנה. כל השדות האלה נוספו בלי לשנות שדה קיים, ולכן תוסף שמשתמש בהם צריך ערך ברירת מחדל למארח ישן, או `minAppVersion` של `0.9.99`.
+> **משטחים, ריווח וצפיפות (מ-0.9.99):** `surfaces` הם רקעי המסכים של אוצריא כפי שהם מצוירים בפועל. במצב כהה רקע הלוח אינו אף תפקיד של `colorScheme`, ולכן תוסף שרוצה להיראות כמו מסך כלים מקורי צובע את הטאב ב-`surfaces.panel` ואת פס הכותרת ב-`surfaces.topBar`. `surfaces.regionBorder` הוא הקו הדק בין אזורים שאוצריא מציירת בערכת "לבן" בבהיר (שבה פס הכותרת והגוף כמעט באותו לבן), ו-`null` בכל ערכה אחרת. `surfaces.warning`, `onWarning`, `warningContainer` ו-`onWarningContainer` הם צבעי האזהרה של האפליקציה (שבב ובאנר אזהרה). `density` משקף את ההגדרה "צפיפות ממשק", ו-`theme.changed` נשלח גם כשהיא משתנה. כל השדות האלה נוספו בלי לשנות שדה קיים, ולכן תוסף שמשתמש בהם צריך ערך ברירת מחדל למארח ישן, או `minAppVersion` של `0.9.99`.
 
 הצבעים הם **Material Design 3 Color Roles** בפורמט hex RGB (`#rrggbb`).
 ראה [DESIGN_GUIDE.md](DESIGN_GUIDE.md) להסבר מלא על השימוש בהם.
 
 > **`surfaceContainerHigh` — רקע פס הכותרת שלך.** התוסף נפתח כטאב קריאה ואוצריא אינה מציירת כותרת מעל ה-WebView; שם התוסף חייב להופיע בפס עליון קבוע בצבע הזה, כדי שיתיישר עם הסרגל העליון של מסכי הספרים. ראה [DESIGN\_GUIDE.md § סרגל כותרת התוסף](DESIGN_GUIDE.md#סרגל-כותרת-התוסף-top-bar).
 
-> **גופנים מוטמעים אוטומטית:** כל הגופנים המובנים של אוצריא (`FrankRuhlCLM`, `TaameyDavidCLM`, `Shofar`, `NotoRashiHebrew`, `KeterYG`, `NotoSerifHebrew`, `Tinos`, `Rubik`, `TaameyAshkenaz`) נטענים ב-WebView של התוסף כ-`@font-face` עוד לפני ה-`plugin.boot`, ואיתם גם גופן מערכת שהמשתמש בחר בהגדרות. אין צורך לארוז קבצי גופן — מספיק `font-family: 'FrankRuhlCLM', serif;`. כל משפחה נשלחת עם ה-face הבולד האמיתי שלה (או עם טווח משקלים בגופן משתנה), כך ש-`font-weight: bold` מקבל ציור אות אמיתי ולא עיבוי מלאכותי. לממשק עצמו השתמש ב-`uiFontFamily` ולא בגופן הקריאה — גופן ספרים בכפתור בן 12px נראה מטושטש.
+> **גופנים מוטמעים אוטומטית:** כל הגופנים המובנים של אוצריא (`FrankRuhlCLM`, `TaameyDavidCLM`, `Shofar`, `NotoRashiHebrew`, `KeterYG`, `NotoSerifHebrew`, `Tinos`, `Rubik`, `TaameyAshkenaz`) נטענים ב-WebView של התוסף כ-`@font-face` עוד לפני ה-`plugin.boot`, ואיתם גם גופן מערכת שהמשתמש בחר בהגדרות. אין צורך לארוז קבצי גופן — מספיק `font-family: 'FrankRuhlCLM', serif;`. כל משפחה נשלחת עם ה-face הבולד האמיתי שלה (או עם טווח משקלים בגופן משתנה), כך ש-`font-weight: bold` מקבל ציור אות אמיתי ולא עיבוי מלאכותי. לממשק עצמו השתמש ב-`typography.uiFont` (גופן הממשק של אוצריא, מ-0.9.99; ב-CSS `var(--font-ui)`), ובמארח ישן ב-`uiFontFamily` (Rubik), ולא בגופן הקריאה — גופן ספרים בכפתור בן 12px נראה מטושטש.
 
 ### `app.getLocale`
 מחזיר את שפת הממשק שבחר המשתמש (או שפת המערכת, בזיהוי אוטומטי) ואת כיוון
@@ -3995,13 +3998,18 @@ await Otzaria.call('ui.setTabInfo', { title: null, tooltip: null });
 - כניסה רק כשמסך מלא מותר: במסך העיון, עם כרטיסיה פתוחה. אחרת `error.forbidden`.
 - **אף פעם לא דביק:** Escape (גם כשהפוקוס בתוך התוסף), "חזור" באנדרואיד,
   וכפתור היציאה שבסרגל יוצאים ממסך מלא בכל מקרה, ובלי לשאול את התוסף. גם מעבר
-  למסך אחר יוצא. אל תניחו שאתם עדיין במסך מלא: קראו למצב מחדש אם צריך.
+  למסך אחר יוצא. אל תניחו שאתם עדיין במסך מלא: האזינו ל-[`ui.fullscreenChanged`](#event-uifullscreenchanged)
+  והחליפו תווית כפתור לפי `fullscreen` שבו, לא לפי הלחיצה שלכם.
 - יציאה (`false`) תמיד מותרת, גם בלי פעולת משתמש, וכשכבר לא במסך מלא אינה
   עושה דבר.
 
 ```javascript
 fullscreenButton.addEventListener('click', () => {
   Otzaria.call('ui.setFullscreen', { fullscreen: true });
+});
+// התווית עוקבת אחרי המצב האמיתי, גם כשיוצאים ב-Escape
+Otzaria.on('ui.fullscreenChanged', ({ fullscreen }) => {
+  fullscreenButton.textContent = fullscreen ? 'יציאה ממסך מלא' : 'מסך מלא';
 });
 ```
 
@@ -4865,9 +4873,9 @@ const { data } = await Otzaria.call('notifications.showInApp', {
 ```
 
 **סוגי התראות:**
-- `info` - הודעה רגילה (כחול)
-- `success` - הודעת הצלחה (ירוק)
-- `error` - הודעת שגיאה (אדום)
+- `info` - הודעה רגילה (רקע `surfaceContainerHighest`, בלי צבע מיוחד; 6 שניות)
+- `success` - הודעת הצלחה (זהה ל-`info` בצבע, עם אייקון סימון; 3 שניות. אין גוון ירוק)
+- `error` - הודעת שגיאה (רקע `errorContainer`; 3 שניות). אין סוג `warning`: ערך אחר נופל ל-`info`
 
 **התראה לחיצה (מגרסה 0.9.97):** נתמכים אותם `tapEvent`/`tapPayload`/`tapOpenPlugin`
 כמו ב-`ui.showMessage` — שימושי במיוחד להתראה ממופע רקע שמזמינה את המשתמש
@@ -5763,7 +5771,8 @@ Otzaria.on('reader.selection_changed', (data) => {
 - `plugin.ready` - נורה אחרי boot (ללא הרשאה)
 - `plugin.suspended` - התוסף הושהה (יציאה מלשונית התוסף, מזעור החלון, או מעבר של האפליקציה לרקע במובייל). ללא הרשאה — ראה §השהיה ברקע ב-README
 - `plugin.resumed` - התוסף חזר מהשהיה (ללא הרשאה)
-- `theme.changed` - שינוי בערכת הצבעים (הרשאה: `events.subscribe:theme.changed`)
+- `theme.changed` - שינוי בערכת הנושא: הערכה, בהיר/כהה (גם כשהמערכת מחליפה ו"עקוב אחר המערכת" פעיל: מ-0.9.99, קודם לא נשלח), גופן קריאה או "צפיפות ממשק" (מ-0.9.99). ה-payload מלא. הרשאת בסיס (מ-0.9.97): אין צורך להצהיר עליה. [פירוט](DESIGN_GUIDE.md#מתי-נשלח-themechanged)
+- `ui.fullscreenChanged` - מצב המסך המלא של החלון שבו התוסף מוצג השתנה; payload: `{ fullscreen: boolean }`. הרשאת בסיס (מ-0.9.99): אין צורך להצהיר עליה. ראו [`ui.fullscreenChanged`](#event-uifullscreenchanged)
 - `navigation.changed` - מעבר בין מסכים ראשיים בלבד (library ↔ reading ↔ more ↔ settings) (הרשאה: `events.subscribe:navigation.changed`)
 - `reader.current_book_changed` - שינוי הספר/טאב הפעיל בלבד (הרשאה: `events.subscribe:reader.current_book_changed`)
 - `reader.current_ref_changed` - שינוי מיקום הקריאה הנוכחי (דף, פרק, סעיף) - **זה האירוע למעקב אחרי מיקום!** (הרשאה: `events.subscribe:reader.current_ref_changed`)
@@ -5774,6 +5783,32 @@ Otzaria.on('reader.selection_changed', (data) => {
 - `plugin.permissions_changed` - שינוי הרשאות (מחזיר `{ permissions: string[] }` - רשימת כל ההרשאות המאושרות) (הרשאה: `events.subscribe:plugin.permissions_changed`)
 - `search.completed` - חיפוש טקסט מלא בטאב חיפוש של אוצריא הסתיים בהצלחה, עם המונה הסופי (הרשאה: `events.subscribe:search.completed`, מגרסה 0.9.99; ראו [`search.completed`](#event-searchcompleted))
 - `search.fieldAction.invoked` / `search.fieldAction.stopRequested` / `search.fieldAction.ended` - סשן של כפתור התוסף בשדה חיפוש. נשלחים רק לתוסף הבעלים, ללא הרשאת subscribe (מגרסה 0.9.98.1; ראו [כפתורים בשדות החיפוש](#כפתורים-בשדות-החיפוש-searchfieldactions))
+
+### Event: `ui.fullscreenChanged`
+
+מגרסה 0.9.99. אירוע שידור לקריאה בלבד: מצב המסך המלא של החלון שבו התוסף מוצג
+השתנה. הוא נשלח בכל שינוי, לא רק כשהתוסף ביקש אותו: כפתור המסך המלא, F11,
+Escape, "חזור" באנדרואיד, או יציאה אוטומטית כשהמשתמש עובר למסך אחר. ערך זהה
+למצב הנוכחי אינו נשלח שוב.
+
+- **payload:** `{ fullscreen: boolean }`, המצב החדש.
+- **הרשאה:** הרשאת בסיס (`events.subscribe:ui.fullscreenChanged`): אין צורך
+  להצהיר עליה ואין מה לאשר.
+- **חלון:** האירוע מגיע רק לתוסף שמוצג בחלון ששינה מצב, ולא לתוסף בחלון אחר.
+- **אירוע מצב:** תוסף מושהה (יצא מהלשונית) מקבל אחרי `plugin.resumed` רק את המצב
+  האחרון, כמו `theme.changed`.
+- **אין שליחה בטעינה:** האירוע מדווח על שינוי. תוסף שנפתח או נטען מחדש כשהחלון
+  כבר במסך מלא לא יקבל אירוע עד השינוי הבא, ולכן התווית ההתחלתית היא "מסך מלא"
+  והיא מתעדכנת לפי האירוע.
+- **מארח ישן** (לפני 0.9.99): האירוע אינו נשלח. הרישום אליו אינו שגיאה, ולכן
+  תוסף שתומך גם בו משאיר את התווית הרגילה.
+
+```javascript
+Otzaria.on('ui.fullscreenChanged', ({ fullscreen }) => {
+  fullscreenButton.textContent = fullscreen ? 'יציאה ממסך מלא' : 'מסך מלא';
+  document.body.classList.toggle('is-fullscreen', fullscreen);
+});
+```
 
 ### Event: `search.completed`
 
@@ -5897,7 +5932,7 @@ Otzaria.on('plugin.boot', async (payload) => {
 
 // האזנה לשינוי ערכת צבעים
 Otzaria.on('theme.changed', (theme) => {
-  document.body.style.background = theme.colorScheme.surface;
+  applyTheme(theme); // הפונקציה המלאה: DESIGN_GUIDE.md § פונקציית applyTheme
 });
 
 // האזנה לשינוי ספר

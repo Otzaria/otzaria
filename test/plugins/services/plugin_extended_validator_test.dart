@@ -959,6 +959,22 @@ void main() {
     );
   });
 
+  group('ui.fullscreenChanged', () {
+    test('האירוע מוכר ואינו דורש הצהרת הרשאה', () {
+      final report = _runOn(
+        tempDir,
+        files: {
+          'index.html': '<!doctype html><html lang="he" dir="rtl"></html>',
+          'app.js': "Otzaria.on('ui.fullscreenChanged', (e) => e.fullscreen);",
+        },
+      );
+      expect(
+        report.warnings.where((w) => w.contains('fullscreenChanged')),
+        isEmpty,
+      );
+    });
+  });
+
   group('design compliance', () {
     test('HTML root must declare dir="rtl" lang="he"', () {
       final report = _runOn(

@@ -131,6 +131,18 @@ export interface ThemeSurfaces {
   card: string;
   /** רקע הסרגל העליון (AppTopBar) — רקע פס הכותרת של התוסף. */
   topBar: string;
+  /** הקו הדק בין אזורי החלון (`#rrggbb`). אוצריא מציירת אותו רק בערכת "לבן"
+   *  בבהיר, שבה האזורים כמעט באותו לבן; גם הקו סביב פריט נבחר בה הוא באותו צבע.
+   *  `null` בכל ערכה אחרת, שם כל אזור שומר על ההפרדה שלו בגוון. */
+  regionBorder: string | null;
+  /** אזהרה: אייקון, מסגרת וטקסט מודגש (כמו `MetaChip.warning` ו-`AppInfoBanner.warning`). */
+  warning: string;
+  /** טקסט ואייקון על `warning`. */
+  onWarning: string;
+  /** רקע של באנר, הודעה או תגית אזהרה. */
+  warningContainer: string;
+  /** טקסט ואייקון על `warningContainer`. */
+  onWarningContainer: string;
 }
 
 /** סולם הריווח של אוצריא, בפיקסלים. */
@@ -1883,6 +1895,13 @@ export interface OtzariaEventMap {
   'plugin.resumed': null;
   /** Theme / dark-mode changed. */
   'theme.changed': ThemePayload;
+  /**
+   * The app window entered or left fullscreen (from 0.9.99): the toolbar button,
+   * F11, Escape, Back on Android, or an automatic exit when the user navigates
+   * to another screen. Fired only to plugins shown in that window. A baseline
+   * permission: no declaration needed. Older hosts never fire it.
+   */
+  'ui.fullscreenChanged': { fullscreen: boolean };
   /** Top-level screen navigation changed. */
   /**
    * שים לב: 'more' אינו משודר יותר — כלים ותוספים חיים ככרטיסיות בתוך

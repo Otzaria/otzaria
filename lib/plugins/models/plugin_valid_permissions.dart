@@ -102,6 +102,7 @@ const pluginBaselinePermissions = <String>{
   'ui.feedback',
   'notifications.send',
   'events.subscribe:theme.changed',
+  'events.subscribe:ui.fullscreenChanged',
 };
 
 /// הרשאה חדשה (key) שהצהרה ותיקה (value) נחשבת כמכסה אותה —
@@ -316,6 +317,9 @@ const pluginValidPermissions = <String>[
 
   /// הרשמה לאירועי שינוי ערכת נושא
   'events.subscribe:theme.changed',
+
+  /// הרשמה לאירועי שינוי מצב מסך מלא של החלון
+  'events.subscribe:ui.fullscreenChanged',
 
   /// הרשמה לאירועי שינוי הגדרות
   'events.subscribe:settings.changed',

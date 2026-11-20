@@ -132,9 +132,9 @@ import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_install_decision.dart';
 import 'package:otzaria/plugins/utils/plugin_icon_resolver.dart';
-import 'package:otzaria/plugins/bridge/plugin_bridge_adapter.dart'
-    show buildThemePayloadFromScheme;
-import 'package:otzaria/theme/app_theme_data.dart' show AppThemeData;
+import 'package:otzaria/plugins/utils/platform_brightness_listener.dart';
+import 'package:otzaria/plugins/utils/plugin_fullscreen_event_forwarder.dart';
+import 'package:otzaria/plugins/utils/plugin_theme_changed_payload.dart';
 import 'package:otzaria/core/sequential_dialog_queue.dart';
 import 'package:otzaria/app_scope/external_activation_service.dart';
 import 'package:otzaria/core/external_uri_router.dart';
@@ -3117,9 +3117,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
     final seed = isDark ? settings.darkSeedColor : settings.seedColor;
     PluginRuntimeDispatcher.instance.dispatchEvent(
       'theme.changed',
-      buildThemePayloadFromScheme(
-        AppThemeData.createColorScheme(seed, brightness),
-        isDark: isDark,
+      buildThemeChangedPayload(
+        seed: seed,
+        brightness: brightness,
         density: density,
       ),
     );
@@ -3131,6 +3131,17 @@ class MainWindowScreenState extends State<MainWindowScreen>
   void _onEffectiveDensityChanged(AppDensity density) {
     if (density == _pluginThemeDensity) return;
     _dispatchThemeChanged(context.read<SettingsBloc>().state, density);
+  }
+
+  /// המערכת החליפה בהיר/כהה. רק ב"עקוב אחר המערכת" ה-MaterialApp מתחלף בלי
+  /// שההגדרות השתנו, ולכן theme.changed לא נשלח מ-[BlocListener] של ההגדרות.
+  void _onPlatformBrightnessChanged(Brightness _) {
+    final settings = context.read<SettingsBloc>().state;
+    if (!settings.followSystemTheme) return;
+    _dispatchThemeChanged(
+      settings,
+      _pluginThemeDensity ?? AppDensity.of(context),
+    );
   }
 
   @override
@@ -4124,7 +4135,13 @@ class MainWindowScreenState extends State<MainWindowScreen>
             // בהגדרות.
             child: AppDensityListener(
               onChanged: _onEffectiveDensityChanged,
-              child: content,
+              child: PlatformBrightnessListener(
+                onChanged: _onPlatformBrightnessChanged,
+                child: PluginFullscreenEventForwarder(
+                  dispatch: PluginRuntimeDispatcher.instance.dispatchEvent,
+                  child: content,
+                ),
+              ),
             ),
           ),
         ),

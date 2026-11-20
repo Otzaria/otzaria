@@ -1,0 +1,87 @@
+/*
+ * מסגרת התצוגה של הגלריה בלבד (מטריצת ערכות נושא x רוחבים). הרכיבים עצמם
+ * ב-components.css. שום דבר כאן אינו חלק ממה שתוסף אמור להעתיק.
+ */
+
+.view[hidden] {
+  display: none;
+}
+
+.matrix-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.matrix-controls-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.matrix {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.matrix-group-title {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+}
+
+.frame-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding-bottom: var(--space-sm);
+  overflow-x: auto;
+}
+
+.frame {
+  flex-shrink: 0;
+  max-width: none;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.frame-caption {
+  padding: var(--space-xs) var(--space-smd);
+  background: var(--color-inverse-surface);
+  color: var(--color-on-inverse-surface);
+  font-size: var(--text-meta);
+}
+
+.frame-body {
+  max-height: 640px;
+  overflow-y: auto;
+  container-type: inline-size;
+}
+
+.frame-body .topbar {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 5;
+}
+
+.frame-content {
+  padding: var(--space-md);
+}
+
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+[data-host-banner]:not(:empty) {
+  margin-bottom: var(--space-md);
+}
+
+/* המטריצה רחבה מעמודת התוכן הרגילה. */
+.page:has([data-view-panel='matrix']:not([hidden])) {
+  max-width: none;
+}
