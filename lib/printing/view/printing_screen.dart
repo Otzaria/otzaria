@@ -62,6 +62,7 @@ import 'package:otzaria/printing/view/widgets/printing_widgets.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
+import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
 
 enum _AnchorKind { header, altHeader, line }
 
@@ -2627,12 +2628,9 @@ class _PrintingScreenState extends State<PrintingScreen> {
         animation: _preview,
         builder: (context, _) {
           if (_preview.failed) {
-            return Center(
-              child: Icon(
-                FluentIcons.error_circle_24_regular,
-                color: colorScheme.error,
-                size: 48,
-              ),
+            return const OtzariaErrorState(
+              title: 'לא ניתן להכין תצוגה מקדימה',
+              isCompact: true,
             );
           }
 

@@ -936,7 +936,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
           );
         }
       } else {
-        UiSnack.show(TextBookMessages.headingLinkNotFound);
+        UiSnack.showWarning(TextBookMessages.headingLinkNotFound);
       }
     } catch (e) {
       debugPrint('Error handling leaf click: $e');
@@ -960,7 +960,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
       // Navigate to the first root entry
       _handleLeafClick(structure.id, roots.first);
     } else {
-      UiSnack.show(TextBookMessages.structureHeadingsNotFound);
+      UiSnack.showWarning(TextBookMessages.structureHeadingsNotFound);
     }
   }
 

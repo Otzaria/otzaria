@@ -67,7 +67,10 @@ import 'package:otzaria/text_book/view/commentators_list_screen.dart';
 import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/widgets/layout/commentators_filter_screen.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
+import 'package:otzaria/core/messages/common_messages.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
+import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
 import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
 import 'package:otzaria/widgets/misc/edge_drag_handoff.dart';
 import 'package:otzaria/widgets/misc/smooth_wheel_scroll.dart';
@@ -508,6 +511,15 @@ class CommentaryListBaseState extends State<CommentaryListBase>
       future: future,
     );
     return future;
+  }
+
+  /// קיבוץ הקישורים נכשל: מנקה את המטמון כדי שהבנייה הבאה תקבץ מחדש.
+  void _retryGrouping() {
+    setState(() {
+      _cachedGroupingSource = null;
+      _cachedGroupingSignature = null;
+      _cachedGroupsFuture = null;
+    });
   }
 
   Future<List<CommentaryGroup>> _getCachedGroups(List<Link> links) {
@@ -2184,8 +2196,17 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                           if (snapshot.hasError) {
                             _groupsReady = false;
                             _pendingScrollTarget = null;
-                            return Center(
-                              child: Text('שגיאה: ${snapshot.error}'),
+                            return OtzariaErrorState(
+                              title: CommonMessages.loadFailed,
+                              details: snapshot.error,
+                              isCompact: true,
+                              actions: [
+                                ActionButton.neutral(
+                                  text: 'נסה שוב',
+                                  icon: FluentIcons.arrow_clockwise_24_regular,
+                                  onPressed: _retryGrouping,
+                                ),
+                              ],
                             );
                           }
                           final bookScope = (

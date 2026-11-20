@@ -1447,7 +1447,7 @@ class _PersonalNotesManagerScreenState
                   ),
                 ],
                 const SizedBox(height: 8),
-                // מקצרים את התוכן ומגבילים את גובה התצוגה המקדימה בתוך הכרטיס.
+                // מקצרים את התוכן (maxPreviewChars) והכרטיס חותך אותו בגובהו; גובה בלתי מוגבל מונע overflow של התצוגה בתוך החיתוך.
                 Expanded(
                   child: ClipRect(
                     child: OverflowBox(

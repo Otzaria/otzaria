@@ -24,82 +24,101 @@ import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
 
 // LEFT/RIGHT swapped (flutter_quill doesn't flip them for RTL). UP/DOWN use
 // Quill's adjacentLineAction: Windows input can't find lines across blocks.
-const _rtlArrowShortcuts = <ShortcutActivator, Intent>{
-  // Horizontal navigation (RTL-swapped)
-  SingleActivator(LogicalKeyboardKey.arrowRight):
-      ExtendSelectionByCharacterIntent(forward: false, collapseSelection: true),
-  SingleActivator(LogicalKeyboardKey.arrowLeft):
-      ExtendSelectionByCharacterIntent(forward: true, collapseSelection: true),
-  SingleActivator(
-    LogicalKeyboardKey.arrowRight,
-    shift: true,
-  ): ExtendSelectionByCharacterIntent(
-    forward: false,
-    collapseSelection: false,
-  ),
-  SingleActivator(LogicalKeyboardKey.arrowLeft, shift: true):
-      ExtendSelectionByCharacterIntent(forward: true, collapseSelection: false),
-  SingleActivator(
-    LogicalKeyboardKey.arrowRight,
-    control: true,
-  ): ExtendSelectionToNextWordBoundaryIntent(
-    forward: false,
-    collapseSelection: true,
-  ),
-  SingleActivator(
-    LogicalKeyboardKey.arrowLeft,
-    control: true,
-  ): ExtendSelectionToNextWordBoundaryIntent(
-    forward: true,
-    collapseSelection: true,
-  ),
-  SingleActivator(
-    LogicalKeyboardKey.arrowRight,
-    control: true,
-    shift: true,
-  ): ExtendSelectionToNextWordBoundaryIntent(
-    forward: false,
-    collapseSelection: false,
-  ),
-  SingleActivator(
-    LogicalKeyboardKey.arrowLeft,
-    control: true,
-    shift: true,
-  ): ExtendSelectionToNextWordBoundaryIntent(
-    forward: true,
-    collapseSelection: false,
-  ),
-  // Vertical navigation (routed through Quill's adjacentLineAction)
-  SingleActivator(
-    LogicalKeyboardKey.arrowUp,
-  ): ExtendSelectionVerticallyToAdjacentLineIntent(
-    forward: false,
-    collapseSelection: true,
-  ),
-  SingleActivator(
-    LogicalKeyboardKey.arrowDown,
-  ): ExtendSelectionVerticallyToAdjacentLineIntent(
-    forward: true,
-    collapseSelection: true,
-  ),
-  SingleActivator(
-    LogicalKeyboardKey.arrowUp,
-    shift: true,
-  ): ExtendSelectionVerticallyToAdjacentLineIntent(
-    forward: false,
-    collapseSelection: false,
-  ),
-  SingleActivator(
-    LogicalKeyboardKey.arrowDown,
-    shift: true,
-  ): ExtendSelectionVerticallyToAdjacentLineIntent(
-    forward: true,
-    collapseSelection: false,
-  ),
-};
+// Word jumps use Option on macOS/iOS and Ctrl elsewhere, like the book text
+// (RtlSelectionShortcuts): Ctrl+arrow belongs to the system on macOS.
+Map<ShortcutActivator, Intent> personalNoteArrowShortcuts([
+  TargetPlatform? platform,
+]) {
+  final alt = usesAltForWordNavigation(platform);
+  SingleActivator word(LogicalKeyboardKey key, {bool shift = false}) =>
+      SingleActivator(key, alt: alt, control: !alt, shift: shift);
+  return <ShortcutActivator, Intent>{
+    // Horizontal navigation (RTL-swapped)
+    const SingleActivator(
+      LogicalKeyboardKey.arrowRight,
+    ): const ExtendSelectionByCharacterIntent(
+      forward: false,
+      collapseSelection: true,
+    ),
+    const SingleActivator(
+      LogicalKeyboardKey.arrowLeft,
+    ): const ExtendSelectionByCharacterIntent(
+      forward: true,
+      collapseSelection: true,
+    ),
+    const SingleActivator(
+      LogicalKeyboardKey.arrowRight,
+      shift: true,
+    ): const ExtendSelectionByCharacterIntent(
+      forward: false,
+      collapseSelection: false,
+    ),
+    const SingleActivator(
+      LogicalKeyboardKey.arrowLeft,
+      shift: true,
+    ): const ExtendSelectionByCharacterIntent(
+      forward: true,
+      collapseSelection: false,
+    ),
+    word(
+      LogicalKeyboardKey.arrowRight,
+    ): const ExtendSelectionToNextWordBoundaryIntent(
+      forward: false,
+      collapseSelection: true,
+    ),
+    word(
+      LogicalKeyboardKey.arrowLeft,
+    ): const ExtendSelectionToNextWordBoundaryIntent(
+      forward: true,
+      collapseSelection: true,
+    ),
+    word(
+      LogicalKeyboardKey.arrowRight,
+      shift: true,
+    ): const ExtendSelectionToNextWordBoundaryIntent(
+      forward: false,
+      collapseSelection: false,
+    ),
+    word(
+      LogicalKeyboardKey.arrowLeft,
+      shift: true,
+    ): const ExtendSelectionToNextWordBoundaryIntent(
+      forward: true,
+      collapseSelection: false,
+    ),
+    // Vertical navigation (routed through Quill's adjacentLineAction)
+    const SingleActivator(
+      LogicalKeyboardKey.arrowUp,
+    ): const ExtendSelectionVerticallyToAdjacentLineIntent(
+      forward: false,
+      collapseSelection: true,
+    ),
+    const SingleActivator(
+      LogicalKeyboardKey.arrowDown,
+    ): const ExtendSelectionVerticallyToAdjacentLineIntent(
+      forward: true,
+      collapseSelection: true,
+    ),
+    const SingleActivator(
+      LogicalKeyboardKey.arrowUp,
+      shift: true,
+    ): const ExtendSelectionVerticallyToAdjacentLineIntent(
+      forward: false,
+      collapseSelection: false,
+    ),
+    const SingleActivator(
+      LogicalKeyboardKey.arrowDown,
+      shift: true,
+    ): const ExtendSelectionVerticallyToAdjacentLineIntent(
+      forward: true,
+      collapseSelection: false,
+    ),
+  };
+}
 
 class PersonalNoteEditorResult {
   final String content;
@@ -595,9 +614,9 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody>
                                       'כתוב כאן... (${ShortcutHelper.formatShortcutForDisplay('ctrl+enter')} לשמירה)',
                                   customShortcuts:
                                       widget.onCancelShortcut == null
-                                      ? _rtlArrowShortcuts
+                                      ? personalNoteArrowShortcuts()
                                       : {
-                                          ..._rtlArrowShortcuts,
+                                          ...personalNoteArrowShortcuts(),
                                           // Quill דורס התאמת SingleActivator בקיצור המובנה.
                                           // LogicalKeySet משמר את קדימות קיצור הסגירה.
                                           LogicalKeySet(

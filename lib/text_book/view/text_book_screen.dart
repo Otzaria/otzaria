@@ -1216,9 +1216,12 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         final authorStyle = AppTopBar.subtitleStyle(
           context,
         ).copyWith(height: 1.1);
-        TextPainter measure(String text) => TextPainter(
-          text: TextSpan(text: text, style: titleStyle),
+        // הטקסט המצויר מוגדל בהגדלת הטקסט של המערכת, ולכן גם המדידה.
+        final textScaler = MediaQuery.textScalerOf(context);
+        TextPainter measure(String text, [TextStyle? style]) => TextPainter(
+          text: TextSpan(text: text, style: style ?? titleStyle),
           textDirection: Directionality.of(context),
+          textScaler: textScaler,
           maxLines: 1,
         )..layout(minWidth: 0, maxWidth: constraints.maxWidth);
 
@@ -1270,8 +1273,15 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                 ),
         );
 
-        // אם יש מחבר (או שם מהדורה), מציגים אותו מתחת לכותרת
-        final child = subtitle != null && subtitle.isNotEmpty
+        // אם יש מחבר (או שם מהדורה), מציגים אותו מתחת לכותרת, כל עוד שתי
+        // השורות נכנסות בגובה שהסרגל נותן (הוא קבוע, והגדלת הטקסט מגדילה
+        // את השורות). בלי מקום המחבר נשאר ב-tooltip.
+        final hasSubtitle = subtitle != null && subtitle.isNotEmpty;
+        final subtitleFits =
+            !constraints.hasBoundedHeight ||
+            textPainter.height + measure(subtitle ?? '', authorStyle).height <=
+                constraints.maxHeight;
+        final child = hasSubtitle && subtitleFits
             ? Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1288,7 +1298,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
               )
             : titleWidget;
 
-        if (textPainter.didExceedMaxLines) {
+        if (textPainter.didExceedMaxLines || (hasSubtitle && !subtitleFits)) {
           return Tooltip(
             message: subtitle != null ? '$displayText\n$subtitle' : displayText,
             child: child,
@@ -2227,7 +2237,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     );
     if (!mounted) return;
     if (target == null) {
-      UiSnack.show(TextBookMessages.pairedBookLocationNotFound);
+      UiSnack.showWarning(TextBookMessages.pairedBookLocationNotFound);
       return;
     }
     openBook(
