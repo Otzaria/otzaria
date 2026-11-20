@@ -163,32 +163,27 @@ String injectLinkAnchorMarkers({
           rawStart -= 5;
           rawEnd += 6;
         }
-        // עם lineIndex הטווח לחיץ/מרחף (a); בלעדיו — סימון בלבד (span).
-        final tag = lineIndex == null ? 'span' : 'a';
-        final href = lineIndex == null
-            ? ''
-            : ' href="otzaria://anchor?ref=${lineIndex}_$linkIndex&range=1"';
-        void addRange(int end) {
-          if (rawStart >= end) return;
+        if (rawStart < rawEnd) {
+          // עם lineIndex הטווח לחיץ/מרחף (a); בלעדיו — סימון בלבד (span).
+          final tag = lineIndex == null ? 'span' : 'a';
+          final href = lineIndex == null
+              ? ''
+              : ' href="otzaria://anchor?ref=${lineIndex}_$linkIndex&range=1"';
           ranges.add(
             HtmlWrapRange(
               start: rawStart,
-              end: end,
+              end: rawEnd,
               openTag: '<$tag class="link-anchor-range"$href>',
               closeTag: '</$tag>',
+              // עטיפה של סמן הערה בתוך קישור ציטוט מציירת אותו פעמיים.
+              exclusions: _isLinkerLink(link)
+                  ? (noteMarkers ??= _noteMarkerRegExp
+                        .allMatches(rawLine)
+                        .toList())
+                  : const [],
             ),
           );
         }
-
-        // ציטוט שנכנס לגוף הערה כולל בשורה המלאה את סמן ההערה שלפניו. עטיפת
-        // הסמן מציגה אותו פעמיים — בשורה ובציור המורם (issue #5030).
-        for (final marker
-            in noteMarkers ??= _noteMarkerRegExp.allMatches(rawLine).toList()) {
-          if (marker.end <= rawStart || marker.start >= rawEnd) continue;
-          addRange(marker.start);
-          rawStart = marker.end;
-        }
-        addRange(rawEnd);
       } else {
         if (rangesOnly) continue;
         final letter = _letterFor(link, span.label);
@@ -220,10 +215,10 @@ String injectLinkAnchorMarkers({
   return _injectAtVisibleOffsets(result, points);
 }
 
-/// סמן הערת שוליים: `<sup class="footnote-marker">`, או הסמן הלחיץ שהחליף
-/// אותו (book-note-marker, numbered-note-marker).
 final _noteMarkerRegExp = RegExp(
-  r'<(sup|a)\b[^>]*note-marker\b[^>]*>.*?</\1>',
+  r'<sup\b[^>]*\sclass\s*=\s*"\s*(?:[^\s">]+\s+)*footnote-marker'
+  r'(?:\s+[^\s">]+)*\s*"[^>]*>.*?</sup>'
+  r'|<a\b[^>]*\sclass\s*=\s*"book-note-marker"[^>]*>.*?</a>',
   caseSensitive: false,
   dotAll: true,
 );

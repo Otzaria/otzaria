@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart';
+import 'package:otzaria/text_book/utils/numbered_note_markers.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
 import 'package:otzaria/widgets/smart_text/raised_markers.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
@@ -92,5 +94,76 @@ void main() {
     final html = readerLine(linker(9, 20));
     expect(html, isNot(contains('link-anchor-range')));
     expect(visibleMarkerCount(html), 1);
+  });
+
+  test('ציטוטים חופפים שומרים על אותו יעד משני צדי הסמן', () {
+    final html = injectLinkAnchorMarkers(
+      rawLine: 'אב<sup class="footnote-marker">2</sup>גד',
+      anchorLinks: [linker(1, 5), linker(0, 4)],
+      styleIndexByCommentator: const {},
+      lineIndex: 19,
+      rangesOnly: true,
+    );
+    final anchors = html_parser
+        .parseFragment(html)
+        .querySelectorAll('a.link-anchor-range');
+    expect(anchors.map((anchor) => anchor.text), ['אב', 'ג']);
+    expect(
+      anchors.map((anchor) => anchor.attributes['href']),
+      List.filled(2, 'otzaria://anchor?ref=19_1&range=1'),
+    );
+  });
+
+  test('ציטוט של מספר שמזוהה כסמן פוטנציאלי נשאר לחיץ', () {
+    final html = injectLinkAnchorMarkers(
+      rawLine: addNumberedNoteMarkerLinks('א (1) ב (99) ג', lineIndex: 19),
+      anchorLinks: [linker(8, 12)],
+      styleIndexByCommentator: const {},
+      lineIndex: 19,
+    );
+    final anchors = html_parser
+        .parseFragment(html)
+        .querySelectorAll('a.link-anchor-range');
+    expect(anchors.single.text, '(99)');
+  });
+
+  test('ציטוט שחוצה שתי הערות שומר קישור בשורה ובגופי ההערות', () {
+    const line =
+        'אב<sup class="footnote-marker">1</sup>'
+        'גד<sup class="footnote-marker">2</sup>הו';
+    final notes =
+        (BookNotesBuilder()
+              ..add(19, 0, '1', 'בב', charPos: 3)
+              ..add(19, 1, '2', 'גג', charPos: 6))
+            .build();
+    String render(String rawLine, {int? note}) => injectLinkAnchorMarkers(
+      rawLine: rawLine,
+      anchorLinks: [linker(0, 12)],
+      styleIndexByCommentator: const {},
+      lineIndex: 19,
+      notes: notes.notesAt(19),
+      note: note,
+    );
+    final rendered = html_parser.parseFragment(
+      render(
+        addInlineNotePreviewLinks(line, lineIndex: 19, dbNotes: notes),
+      ),
+    );
+    expect(rendered.querySelectorAll('.book-note-marker').map((a) => a.text), [
+      '1',
+      '2',
+    ]);
+    expect(rendered.querySelectorAll('.link-anchor-range').map((a) => a.text), [
+      'אב',
+      'גד',
+      'הו',
+    ]);
+    for (final (index, body) in ['בב', 'גג'].indexed) {
+      final anchor = html_parser
+          .parseFragment(render(body, note: index))
+          .querySelector('.link-anchor-range')!;
+      expect(anchor.text, body);
+      expect(anchor.attributes['href'], 'otzaria://anchor?ref=19_0&range=1');
+    }
   });
 }
