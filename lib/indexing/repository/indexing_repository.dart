@@ -2310,9 +2310,16 @@ class IndexingRepository {
       library,
       keyOf: (book) => book as Book,
     );
+    final generation = _orderGeneration;
     final positions = <String, int>{};
     final entries = <String, BookOrderEntry>{};
+    final slice = Stopwatch()..start();
     for (var index = 0; index < orderedBooks.length; index++) {
+      // לולאה אחת על כל הספרייה תוקעת את ה-UI שניות (#5065).
+      if (slice.elapsedMilliseconds >= 8) {
+        await Future<void>.delayed(Duration.zero);
+        slice.reset();
+      }
       final book = orderedBooks[index];
       final identity = BookIdentity.keyOf(book);
       final position = positions.putIfAbsent(identity, () => index);
@@ -2324,19 +2331,22 @@ class IndexingRepository {
         generationOrder: chronologicalOrderForBook(book),
       );
     }
+    final result = entries.values.toList();
+    if (generation != _orderGeneration) return result;
     _bookOrderRanks = {
       for (final entry in entries.values) entry.filePath: entry.catalogueOrder,
     };
-    final result = entries.values.toList();
     _lastOrder = (library: library, entries: result);
     return result;
   }
 
   // אותו עץ נבנה פעם אחת לטעינה: הדחיפה בטעינה וריצות האינדוקס שאחריה חולקות אותו.
   static ({Library library, List<BookOrderEntry> entries})? _lastOrder;
+  static int _orderGeneration = 0;
 
   /// נקרא בכל טעינת ספרייה בכל חלון; הסדר נבנה מחדש כשיידרש.
   static void invalidateBookOrder() {
+    _orderGeneration++;
     _lastOrder = null;
     _bookOrderRanks = null;
   }
@@ -2356,6 +2366,8 @@ class IndexingRepository {
 
   static Map<String, int>? _bookOrderRanks;
 
+  ({SearchEngine engine, List<BookOrderEntry> entries})? _sentBookOrder;
+
   /// מיקום כל ספר במיפוי הסדר — כפי שהמנוע ממיין בסדר הקטלוג.
   static Future<Map<String, int>> bookOrderRanks() async {
     final cached = _bookOrderRanks;
@@ -2373,7 +2385,15 @@ class IndexingRepository {
     try {
       final entries = await buildBookOrder(library);
       final engine = await _tantivyDataProvider.engine;
+      // קידוד הרשימה ל-Rust רץ על ה-UI; אותה רשימה לאותו מנוע לא משנה דבר.
+      final sent = _sentBookOrder;
+      if (sent != null &&
+          identical(sent.engine, engine) &&
+          identical(sent.entries, entries)) {
+        return;
+      }
       await engine.setBookOrder(entries: entries);
+      _sentBookOrder = (engine: engine, entries: entries);
     } catch (e) {
       debugPrint('⚠️ עדכון סדר הספרים במנוע נכשל: $e');
     }

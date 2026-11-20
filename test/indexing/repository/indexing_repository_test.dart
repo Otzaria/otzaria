@@ -1970,6 +1970,26 @@ void main() {
     });
   });
 
+  group('מיפוי הסדר — שליחה למנוע', () {
+    test('אותו סדר אינו נשלח שוב לאותו מנוע', () async {
+      IndexingRepository.invalidateBookOrder();
+      final engine = _CancellationRecordingEngine();
+      final repository = _FakeExtractionRepository(
+        _RecordingTantivyDataProvider(engine),
+      );
+      final library = Library(categories: [])
+        ..books.add(TextBook(id: 5, title: 'שבת'));
+
+      await repository.syncBookOrder(library);
+      await repository.syncBookOrder(library);
+      expect(engine.pushedOrders, hasLength(1));
+
+      IndexingRepository.invalidateBookOrder();
+      await repository.syncBookOrder(library);
+      expect(engine.pushedOrders, hasLength(2));
+    });
+  });
+
   group('IndexingRepository.runIndexing — שלב הבדיקה', () {
     TextBook book(int id, String title) => TextBook(id: id, title: title);
 
