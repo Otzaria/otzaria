@@ -140,6 +140,47 @@ class CleanSpaceFormatterAdapter extends TextInputFormatter {
     for (final formatter in inner) {
       cleanNew = formatter.formatEditUpdate(cleanOld, cleanNew);
     }
-    return const HardBreakInputFormatter().formatEditUpdate(cleanOld, cleanNew);
+    final result = const HardBreakInputFormatter().formatEditUpdate(
+      cleanOld,
+      cleanNew,
+    );
+    // ערך מההיסטוריה שהטקסט שלו לא שונה שומר את הערך הנקי שהוא נושא.
+    final carried = newValue is HardBreakValue ? newValue.clean : null;
+    return carried != null && carried.text == cleanNew.text
+        ? HardBreakValue(result, carried)
+        : result;
+  }
+}
+
+/// ערך של שדה רב-שורתי שנושא גם את הערך הנקי התואם של ה-controller של הקורא,
+/// כדי שביטול וביצוע חוזר יחזירו גם את המטא-נתונים שלו (למשל עיצוב).
+class HardBreakValue extends TextEditingValue {
+  HardBreakValue(TextEditingValue raw, this.clean)
+    : super(
+        text: raw.text,
+        selection: raw.selection,
+        composing: raw.composing,
+      );
+
+  final TextEditingValue clean;
+
+  TextEditingValue get plain =>
+      TextEditingValue(text: text, selection: selection, composing: composing);
+
+  // undoStackModifier של Flutter קורא ל-copyWith, והערך הנקי חייב לשרוד אותו.
+  @override
+  TextEditingValue copyWith({
+    String? text,
+    TextSelection? selection,
+    TextRange? composing,
+  }) {
+    final result = super.copyWith(
+      text: text,
+      selection: selection,
+      composing: composing,
+    );
+    return text == null || text == this.text
+        ? HardBreakValue(result, clean)
+        : result;
   }
 }
