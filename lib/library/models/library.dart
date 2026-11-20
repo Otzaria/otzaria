@@ -158,7 +158,7 @@ class Library extends Category {
       final companions = book.category!.books
           .where(
             (b) =>
-                _normalizeTitle(b.title) == normalizedTitle &&
+                _normalizedTitleOf(b) == normalizedTitle &&
                 b.runtimeType == companionType,
           )
           .toList();
@@ -190,7 +190,7 @@ class Library extends Category {
     void collect(Category category) {
       for (final candidate in category.books) {
         if (candidate.runtimeType == companionType &&
-            _normalizeTitle(candidate.title) == normalizedTitle &&
+            _normalizedTitleOf(candidate) == normalizedTitle &&
             !_isCrossTraditionConflict(book, candidate)) {
           candidates.add(candidate);
         }
@@ -229,14 +229,23 @@ class Library extends Category {
       : book.externalLibraryId;
 
   String _normalizeTitle(String title) => normalizeBookTitle(title);
+
+  // כל חיפוש מלווה עובר על כל הספרייה (#5138). העץ משתנה במקום מכמה מסלולים,
+  // ולכן הזיכרון צמוד לספר עצמו, שכותרתו קבועה, ולא לאינדקס שעלול להתיישן.
+  static final Expando<String> _normalizedTitles = Expando('normalizedTitle');
+
+  static String _normalizedTitleOf(Book book) =>
+      _normalizedTitles[book] ??= normalizeBookTitle(book.title);
 }
+
+final _whitespaceRun = RegExp(r'\s+');
 
 /// מנרמל כותרת ספר להשוואה: רווחים עודפים, גרשיים וסוגריים משולשים.
 String normalizeBookTitle(String title) {
   if (_isNormalizedBookTitle(title)) return title;
   return title
       .trim()
-      .replaceAll(RegExp(r'\s+'), ' ')
+      .replaceAll(_whitespaceRun, ' ')
       .replaceAll('"', '')
       .replaceAll("'", '')
       .replaceAll('״', '')
