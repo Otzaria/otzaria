@@ -118,6 +118,14 @@ void main() {
     }
   });
 
+  test('הסבר הוספת הרכיבים מביא דוגמה מפורשת (issue #3160)', () {
+    final info = getPermissionInfo(pluginStartupContributionsPermission);
+
+    expect(info.label, 'הוספת רכיבים לתוכנה');
+    expect(info.description, contains('לחיצה ימנית על טקסט בספר'));
+    expect(info.description, contains('סרגל הכלים של הספר'));
+  });
+
   test('sensitive startup permissions are off by default', () {
     expect(
       pluginPermissionDefaultGrant(
