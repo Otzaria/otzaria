@@ -10,6 +10,7 @@ import 'package:otzaria/printing/shaped_text/shaper_font_scope.dart';
 import 'package:otzaria/printing/shaped_text/shaped_text_layout.dart';
 import 'package:otzaria/printing/shaped_text/shaped_text_widget.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_print_options.dart';
 import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
@@ -267,7 +268,10 @@ Future<void> _addDayPages(
                     vertical: 6,
                   ),
                   decoration: pw.BoxDecoration(
-                    border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+                    border: pw.Border.all(
+                      color: PdfColors.grey300,
+                      width: AppTokens.borderHairline,
+                    ),
                     borderRadius: pw.BorderRadius.circular(6),
                   ),
                   child: pw.Column(
@@ -643,7 +647,10 @@ pw.Widget _buildDayCellPdf({
   pw.Widget frame(List<pw.Widget> children) => pw.Container(
     padding: const pw.EdgeInsets.all(padding),
     decoration: pw.BoxDecoration(
-      border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+      border: pw.Border.all(
+        color: PdfColors.grey300,
+        width: AppTokens.borderHairline,
+      ),
     ),
     child: pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.end,
@@ -721,7 +728,10 @@ pw.Widget _buildWeekGrid(
         child: pw.Container(
           padding: const pw.EdgeInsets.all(4),
           decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+            border: pw.Border.all(
+              color: PdfColors.grey300,
+              width: AppTokens.borderHairline,
+            ),
           ),
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.end,

@@ -1077,7 +1077,7 @@ class _PersonalNotesManagerScreenState
           border: Border(
             bottom: BorderSide(
               color: Theme.of(context).dividerColor,
-              width: 0.5,
+              width: AppTokens.borderHairline,
             ),
           ),
         ),

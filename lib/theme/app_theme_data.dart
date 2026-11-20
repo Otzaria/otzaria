@@ -60,9 +60,11 @@ class AppThemeData {
         surfaceContainer: surfaces[3],
         surfaceContainerHigh: surfaces[4],
         surfaceContainerHighest: surfaces[5],
-        secondaryContainer: variant == AppThemeVariant.white
-            ? whiteSelectedFill
-            : null,
+        secondaryContainer: switch (variant) {
+          AppThemeVariant.white => whiteSelectedFill,
+          AppThemeVariant.parchment => parchmentSelectedFill,
+          AppThemeVariant.standard => null,
+        },
       );
     }
     return scheme;
@@ -73,6 +75,22 @@ class AppThemeData {
   /// ‏8% מעל לבן, ED), כדי ש"נבחר" ו"בריחוף" לא יתמזגו, ובכל מקום שבו
   /// "נבחר" נשען רק על הצבע הוא מסומן גם בקו ([AppSurfaceColors.selectedBorder]).
   static const Color whiteSelectedFill = Color(0xFFE0E0E0);
+
+  /// צבע הבחירה (secondaryContainer) של "פרגמנט" בבהיר. מה ש-tonalSpot הפיק
+  /// מהזרע היה ורדרד (FFDBCC) ובאותה בהירות כמו הלוח, 1.01:1 ממנו, והשורה
+  /// הנבחרת כמעט לא נבדלה מהרקע. חול כהה יותר, בגוון הערכה: 1.31:1 מהלוח
+  /// ו-1.44:1 מהקריאה והכרטיס (בדומה ל-1.32:1 של [whiteSelectedFill] מהלבן),
+  /// וטקסט הבחירה (onSecondaryContainer) 5.60:1, מעל סף 4.5:1.
+  static const Color parchmentSelectedFill = Color(0xFFD8C6A3);
+
+  /// צבע בחירת הטקסט (`TextSelectionThemeData.selectionColor`): הצבע הראשי
+  /// בשקיפות לפי בהירות. ברירת המחדל של Flutter, primary ב-40%, בכהה של סכמה
+  /// נייטרלית ("לבן", "אפור") כמעט לבנה, והטקסט מעליה ירד ל-3.24:1. ב-28% בכהה
+  /// הניגודיות הנמוכה ביותר על 14 הזרעים היא 4.76:1 (ב"לבן"); בבהיר 38%, כמו
+  /// שהיה בקירוב (הנמוכה ביותר 6.15:1).
+  static Color textSelection(ColorScheme cs) => cs.primary.withValues(
+    alpha: cs.brightness == Brightness.dark ? 0.28 : 0.38,
+  );
 
   static const Map<AppThemeVariant, List<Color>> _lightSurfaces = {
     // "לבן" בסגנון Windows הקלאסי (#2850): הקריאה לבנה, והסרגלים, החלוניות
@@ -193,6 +211,9 @@ class AppThemeData {
         style: _hoverButtonStyle(cs, cs.primary),
       ),
       tabBarTheme: _tabBarTheme(cs),
+      textSelectionTheme: TextSelectionThemeData(
+        selectionColor: textSelection(cs),
+      ),
       segmentedButtonTheme: _segmentedButtonTheme(cs, surfaces.selectedBorder),
       tooltipTheme: _tooltipTheme(cs, regionBorder: regionBorder),
       switchTheme: _switchTheme(cs),

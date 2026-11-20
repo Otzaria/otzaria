@@ -180,8 +180,12 @@ class AppSurfaces {
 
   /// סמן הצד של שורת מפרש הקשורה לשורה הנבחרת, בצורת הדף: אותו סמן כמו
   /// בשורה הנבחרת בטקסט הראשי (`primary`), בעוצמה מופחתת.
+  ///
+  /// בהיר 70% ובכהה 50%: במנוחה הסמן הוא רכיב ממשק ומגיע ל-3:1 מול הקריאה
+  /// והכרטיס בכל 14 הזרעים (הנמוך ביותר 3.06 בבהיר, 3.35 בכהה). ב-50% בבהיר
+  /// היה 2.13:1.
   static Color relatedLineMarker(ColorScheme cs) =>
-      cs.primary.withValues(alpha: 0.5);
+      cs.primary.withValues(alpha: cs.isDark ? 0.5 : 0.7);
 
   /// פס בצד תחילת השורה לפסקה שתוקנה מקומית בסשן תיקון של תוסף.
   static Color correctedParagraphMarker(ColorScheme cs) => cs.tertiary;
@@ -266,10 +270,14 @@ class AppSurfaces {
       cs.surfaceContainerHighest.withValues(alpha: isHovering ? 0.95 : 0.8);
 
   /// אגודל הסקרולבר המותאם — בולט בזמן גרירה, מעומעם במנוחה.
+  ///
+  /// במנוחה בהיר 65% ובכהה 50% מ-`onSurfaceVariant`: רכיב ממשק שמגיע ל-3:1 מול
+  /// הקריאה, הלוח והכרטיס בכל 14 הזרעים (הנמוך ביותר 3.19 בבהיר, 3.37 בכהה).
+  /// ב-40% היה 1.93:1 בבהיר ו-2.66:1 בכהה.
   static Color scrollbarThumb(ColorScheme cs, {required bool isDragging}) =>
       isDragging
       ? cs.primary.withValues(alpha: 0.8)
-      : cs.onSurfaceVariant.withValues(alpha: 0.4);
+      : cs.onSurfaceVariant.withValues(alpha: cs.isDark ? 0.5 : 0.65);
 
   /// רקע מתג קומפקטי בסגנון גלולה (מתגי דיאלוג החיפוש) — מודגש כשדלוק.
   static Color togglePill(ColorScheme cs, {required bool active}) => active

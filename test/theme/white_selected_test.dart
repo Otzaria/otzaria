@@ -26,7 +26,18 @@ final _others = <String, (Color, Brightness)>{
   'רגיל בהיר': (AppSeedColors.defaultLight, Brightness.light),
   'רגיל כהה': (AppSeedColors.defaultDark, Brightness.dark),
   'לבן כהה': (AppSeedColors.white, Brightness.dark),
+};
+
+/// "פרגמנט" בבהיר: צבע שורת הבחירה הוחלף (החלטה 23, `#D8C6A3`), ולכן הוא
+/// לא נבדק מול ערך M3 המקורי; שאר ההתנהגות (קו, בורר, כרטיס) כמו בשאר
+/// הערכות.
+final _parchmentLight = <String, (Color, Brightness)>{
   'פרגמנט': (AppSeedColors.parchment, Brightness.light),
+};
+
+final _othersWithParchment = <String, (Color, Brightness)>{
+  ..._others,
+  ..._parchmentLight,
 };
 
 Color? _selectedBorder(ThemeData t) =>
@@ -134,6 +145,11 @@ void main() {
         reason: name,
       );
     }
+    // "פרגמנט" בבהיר: צבע הבחירה החדש (החלטה 23), והקו והבורר כמו קודם.
+    final parchment = _theme(AppSeedColors.parchment, Brightness.light);
+    expect(parchment.colorScheme.secondaryContainer, const Color(0xFFD8C6A3));
+    expect(_selectedBorder(parchment), isNull);
+    expect(parchment.segmentedButtonTheme, const SegmentedButtonThemeData());
   });
 
   testWidgets('"לבן" בבהיר: כרטיס נבחר ומקטע נבחר במסגרת הבחירה', (
@@ -195,7 +211,7 @@ void main() {
     tester,
   ) async {
     for (final MapEntry(key: name, value: (seed, brightness))
-        in _others.entries) {
+        in _othersWithParchment.entries) {
       final t = _theme(seed, brightness);
       await _pump(tester, t, _card());
       expect(
@@ -270,7 +286,7 @@ void main() {
     expect(border.right, BorderSide.none);
 
     for (final MapEntry(key: name, value: (seed, brightness))
-        in _others.entries) {
+        in _othersWithParchment.entries) {
       expect(
         await selectedItemBorder(_theme(seed, brightness)),
         isNull,

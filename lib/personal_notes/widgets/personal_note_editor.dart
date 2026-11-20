@@ -604,6 +604,8 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody>
                                   // כמו שאר שדות הטקסט באפליקציה; ברירת המחדל של Quill היא 2.
                                   cursorWidth: 1,
                                   customStyles: personalNoteStyles(context),
+                                  customStyleBuilder:
+                                      personalNoteBackgroundInkStyle,
                                   autoFocus: widget.autofocus,
                                   expands: false,
                                   padding: const EdgeInsets.all(
@@ -908,7 +910,9 @@ class _PersonalNoteToolbar extends StatelessWidget {
                 id: ToolbarActionId.noteHighlight,
                 tooltip: 'הדגשה',
                 icon: FluentIcons.circle_highlight_24_regular,
-                attribute: const quill.BackgroundAttribute('#fff59d'),
+                attribute: const quill.BackgroundAttribute(
+                  personalNoteHighlightBackground,
+                ),
               ),
               tool(
                 id: ToolbarActionId.noteFontIncrease,

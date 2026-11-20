@@ -197,6 +197,7 @@ class _PersonalNoteContentViewState extends State<PersonalNoteContentView> {
           scrollController: _scrollController!,
           config: quill.QuillEditorConfig(
             customStyles: personalNoteStyles(styleContext),
+            customStyleBuilder: personalNoteBackgroundInkStyle,
             contextMenuBuilder: hostHasOwnMenu || useOwnMenu
                 ? (context, _) => const SizedBox.shrink()
                 : null,

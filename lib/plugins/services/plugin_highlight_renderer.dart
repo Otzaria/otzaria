@@ -1,9 +1,12 @@
 import 'package:characters/characters.dart';
+import 'package:flutter/painting.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/plugins/models/plugin_highlight.dart';
 import 'package:otzaria/plugins/models/text_source_map.dart';
 import 'package:otzaria/plugins/services/text_source_map_service.dart';
+import 'package:otzaria/theme/app_colors.dart';
+import 'package:otzaria/theme/readable_ink.dart';
 
 class PluginHighlightRenderer {
   final TextSourceMapService _sourceMapService;
@@ -233,7 +236,9 @@ class PluginHighlightRenderer {
       // Four-sided boxes are painted by PluginHighlightFrameOverlay. Box CSS
       // can turn inline RTL text into independently positioned widgets.
       if (style.foregroundColor != null)
-        'color: ${_rgba(style.foregroundColor!, 1)}',
+        'color: ${_rgba(style.foregroundColor!, 1)}'
+      else if (_inkOn(style, revealed: revealed) case final ink?)
+        'color: ${_rgba(ink, 1)}',
       if (style.underline || style.markerMode == 'underline')
         'text-decoration: underline',
       if (style.underline || style.markerMode == 'underline')
@@ -249,6 +254,64 @@ class PluginHighlightRenderer {
     ];
     return declarations.join('; ');
   }
+
+  /// צבע האותיות כשהתוסף לא קבע `foregroundColor`: בלעדיו האותיות בצבע
+  /// הערכה, ובכהה זה טקסט בהיר על צהוב בהיר (ברירת המחדל של התוסף). הצבע
+  /// נגזר מבהירות הרקע של ההדגשה ([readableInkOn]), ולכן מתאים לכל צבע שתוסף
+  /// בוחר ולא תלוי בערכה. מחזיר null כשהרקע אינו מצויר מתחת לאותיות (מסגרת,
+  /// קו תחתון, סימן שורה) או כשהוא שקוף כל כך שהקריאות תלויה בערכה.
+  ///
+  /// רקע שקוף (`opacity` או אלפא בצבע) נמזג על שני רקעי הקריאה הקיצוניים,
+  /// הלבן והכהה ([AppColors.darkScaffold]); צבע אותיות נקבע רק אם הוא קריא
+  /// (4.5:1) על שניהם. רקע אטום מקבל תמיד את הצבע הטוב ביותר.
+  String? _inkOn(PluginHighlightStyle style, {required bool revealed}) {
+    // הדגשה חשופה מצוירת ברקע אטום, בכל מצב.
+    if (!revealed && style.markerMode != 'text-background') return null;
+    final background = _color(style.backgroundColor);
+    final alpha = revealed ? 1.0 : background.a * style.opacity;
+    final opaque = alpha >= 0.99;
+    final fills = [
+      for (final reader in _readerBackgrounds)
+        Color.alphaBlend(background.withValues(alpha: alpha), reader),
+    ];
+    Color? best;
+    var bestWorst = 0.0;
+    for (final ink in [inkOnLightBackground, inkOnDarkBackground]) {
+      final worst = fills
+          .map((fill) => _contrast(ink, fill))
+          .reduce((a, b) => a < b ? a : b);
+      if (worst > bestWorst) {
+        bestWorst = worst;
+        best = ink;
+      }
+    }
+    return opaque || bestWorst >= 4.5 ? _hex(best!) : null;
+  }
+
+  static const _readerBackgrounds = [
+    AppColors.pageWhite,
+    AppColors.darkScaffold,
+  ];
+
+  static double _contrast(Color a, Color b) {
+    final la = a.computeLuminance() + 0.05;
+    final lb = b.computeLuminance() + 0.05;
+    return la > lb ? la / lb : lb / la;
+  }
+
+  /// `#rrggbb` או `#rrggbbaa` (האלפא בסוף, כמו ב-[_rgba]).
+  static Color _color(String hex) {
+    final value = hex.substring(1);
+    return Color.fromARGB(
+      value.length == 8 ? int.parse(value.substring(6, 8), radix: 16) : 255,
+      int.parse(value.substring(0, 2), radix: 16),
+      int.parse(value.substring(2, 4), radix: 16),
+      int.parse(value.substring(4, 6), radix: 16),
+    );
+  }
+
+  static String _hex(Color c) =>
+      '#${(c.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
 
   String _rgba(String hex, double opacity) {
     final value = hex.substring(1);

@@ -75,6 +75,12 @@ class AppTokens {
   /// קו דק: מסגרת ומפריד, וקו האזורים של "לבן" (`AppSurfaceColors.regionBorder`).
   static const double borderThin = 1;
 
+  /// קו דקיק: מפריד בין שורות בטבלה וברשימה, כשקו דק (1) כבד מדי.
+  static const double borderHairline = 0.5;
+
+  /// קו עבה: טבעת הבחירה והפוקוס סביב עיגול צבע, וסימון קצה של פסקה.
+  static const double borderThick = 3;
+
   // ── Scrollbar — פס אנכי בימין הפיזי, ברצועה משלו (AppScrollbar) ——————
   /// עובי האגודל. הפינות חצי ממנו (q10 Q10).
   static const double scrollbarThickness = 8;
