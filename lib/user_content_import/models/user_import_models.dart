@@ -66,6 +66,11 @@ const Set<String> kNativeConnectionTypes = {
   LinkTypes.footnotes,
 };
 
+/// סוג קישור לקובצי `<ספר>_links.json` בלבד: ציטוט בגוף הטקסט שנפתח ישר בספר
+/// היעד. נשמר כ-[LinkTypes.linker] עם העוגן, ולא כמפרש כמו `linker` (issue #4308).
+const String kInlineLinkerImportType = 'INLINE_LINKER';
+const String kInlineLinkerHebrewLabel = 'ציטוט בטקסט';
+
 /// נגזר מ-[LinkTypes.hebrewLabels], כך שסוג חדש ב-DB נתמך בייבוא מיד.
 /// [LinkTypes.altToc] מוחרג: הוא תוצר תוכן-עניינים חלופי ולא נשמר ב-user_link.
 final Set<String> kImportableConnectionTypes = Set.unmodifiable(
@@ -448,7 +453,8 @@ class ParsedNativeLink {
   final int? targetLineNumberEnd;
   final String? targetRefEnd;
 
-  /// שם connection_type ב-DB (אחד מ-[kNativeConnectionTypes]).
+  /// שם connection_type ב-DB (אחד מ-[kNativeConnectionTypes]), או
+  /// [kInlineLinkerImportType].
   final String connectionType;
 
   const ParsedNativeLink({
