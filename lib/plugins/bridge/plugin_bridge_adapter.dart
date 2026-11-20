@@ -943,7 +943,7 @@ class PluginBridgeAdapter {
   }
 
   /// משתף טעינות מקבילות לפי UID ושומר טעינות שהסתיימו ב-LRU קצר.
-  /// [gated] = false להדפסה, שאינה ממתינה לטעינות של תוספים.
+  /// [gated] = false להדפסה: לא נכנסת לתור ולא מצטרפת לטעינה של תוסף.
   Future<String> _loadBookRawText(
     Book book, {
     Duration shareFor = kPluginDefaultRpcTimeout,
@@ -962,7 +962,7 @@ class PluginBridgeAdapter {
       return cached;
     }
     final pending = _pendingBookLoads[key];
-    if (pending != null) {
+    if (pending != null && gated) {
       final clock = Stopwatch()..start();
       try {
         return await pending.result;

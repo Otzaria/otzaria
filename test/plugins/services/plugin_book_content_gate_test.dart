@@ -148,6 +148,44 @@ void main() {
     expect(PluginBookContentGate.diagnostics!['stalledLoads'], 0);
   });
 
+  test('תוסף עם טעינה תקועה לא טוען עוד, ותקרה תקועה נרשמת פעם אחת', () async {
+    PluginBookContentGate.stallAfter = const Duration(milliseconds: 20);
+    final reports = <List<String>>[];
+    PluginBookContentGate.reportStalledCeiling = (ids) =>
+        reports.add(ids.toList());
+    final stuck = Completer<void>();
+    addTearDown(() {
+      if (!stuck.isCompleted) stuck.complete();
+    });
+    final stuckA = [for (var i = 0; i < 2; i++) _run(() => stuck.future)];
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+
+    var aRan = false;
+    await expectLater(
+      _run(() async {
+        aRan = true;
+      }, timeout: const Duration(milliseconds: 50)),
+      _timeout,
+    );
+    expect(aRan, isFalse, reason: 'יש מקומות פנויים, אבל ל-a יש טעינה תקועה');
+    expect(await _run(() async => 'b', plugin: 'b'), 'b');
+    expect(reports, isEmpty);
+
+    final stuckB = [
+      for (var i = 0; i < 2; i++) _run(() => stuck.future, plugin: 'b'),
+    ];
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    expect(reports, [
+      ['scanner', 'b'],
+    ]);
+
+    stuck.complete();
+    await Future.wait([...stuckA, ...stuckB]);
+    expect(PluginBookContentGate.runningLoadsForTesting, 0);
+    expect(await _run(() async => 'again'), 'again');
+    expect(reports, hasLength(1));
+  });
+
   test('תוסף בלי טעינה פעילה עוקף תור, והמקומות ניתנים בסבב', () async {
     final starts = <String>[];
     final releases = <String, Completer<void>>{};
