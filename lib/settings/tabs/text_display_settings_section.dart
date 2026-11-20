@@ -460,6 +460,8 @@ class _TextDisplaySettingsCardState extends State<TextDisplaySettingsCard> {
         }}',
       if (patch.anchorMarkers case final v?)
         '${t('ציוני המפרשים')}: ${visibility(v)}',
+      if (patch.footnoteMarkers case final v?)
+        '${t('ציוני הערות שוליים')}: ${visibility(v)}',
     ];
     return parts.join(' · ');
   }

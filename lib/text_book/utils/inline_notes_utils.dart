@@ -212,6 +212,21 @@ String stripInlineNotes(String html) {
   return (result..write(html.substring(last))).toString();
 }
 
+/// סמני ההערות כפי שהם בשורה: `<sup class="footnote-marker">`, ועוגני הריחוף
+/// של סמני ההערות ([addInlineNotePreviewLinks], `addNumberedNoteMarkerLinks`),
+/// עם הרווח שלפניהם — כדי שלא יישאר רווח כפול.
+final RegExp _noteMarkerRegExp = RegExp(
+  r' ?(?:<a class="(?:book|numbered)-note-marker"[^>]*>.*?</a>|'
+  r'<sup\b[^>]*\bfootnote-marker\b[^>]*>.*?</sup>)',
+  caseSensitive: false,
+  dotAll: true,
+);
+
+/// מסיר את ציוני הערות השוליים, כשהם מוסתרים (issue #4389).
+String removeFootnoteMarkers(String html) => html.contains('note-marker')
+    ? html.replaceAll(_noteMarkerRegExp, '')
+    : html;
+
 /// מסיר גם את אות ההפניה וגם את גוף ההערה — לחיפוש ולאינדוקס, שבהם תגי ה-HTML
 /// נמחקים והשאריות היו נשארות כטקסט חשוף שמזהם את התוצאות.
 /// אות ההפניה מפרידה מילים באינדקס, ולכן במקומה נשאר רווח.

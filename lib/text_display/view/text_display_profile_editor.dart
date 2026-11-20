@@ -1,3 +1,4 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
@@ -79,6 +80,15 @@ abstract final class TextDisplayProfileEditor {
         read: (p) => p.anchorMarkers == MarkVisibility.show,
         write: (p, v) => p.copyWith(
           anchorMarkers: v ? MarkVisibility.show : MarkVisibility.hide,
+        ),
+      ),
+      _SwitchField(
+        icon: FluentIcons.text_footnote_24_filled,
+        title: t('ציוני הערות שוליים'),
+        subtitle: t('מספרי ההערות שבטקסט, למשל (9)'),
+        read: (p) => p.footnoteMarkers == MarkVisibility.show,
+        write: (p, v) => p.copyWith(
+          footnoteMarkers: v ? MarkVisibility.show : MarkVisibility.hide,
         ),
       ),
     ];
@@ -190,6 +200,12 @@ abstract final class TextDisplayProfileEditor {
         title: t('ציוני המפרשים'),
         value: profile.anchorMarkers,
         onValue: (v) => onChanged(profile.copyWith(anchorMarkers: v)),
+      ),
+      visibilityRow(
+        icon: FluentIcons.text_footnote_24_filled,
+        title: t('ציוני הערות שוליים'),
+        value: profile.footnoteMarkers,
+        onValue: (v) => onChanged(profile.copyWith(footnoteMarkers: v)),
       ),
       if (includeHolyNames)
         holyNamesTile(

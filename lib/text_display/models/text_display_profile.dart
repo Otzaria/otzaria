@@ -94,6 +94,9 @@ class TextDisplayProfile {
   /// ציוני המפרשים בגוף הטקסט — אותיות העוגן, למשל (א).
   final MarkVisibility anchorMarkers;
 
+  /// ציוני הערות השוליים שבגוף הטקסט, למשל (9) בחברותא (issue #4389).
+  final MarkVisibility footnoteMarkers;
+
   /// שאר שמות הקודש — כבוי כברירת מחדל עד לאישור הצורות.
   final DivineNamesDisplay divineNames;
 
@@ -103,6 +106,7 @@ class TextDisplayProfile {
     this.punctuation = MarkVisibility.show,
     this.holyName = HolyNameDisplay.kufKuf,
     this.anchorMarkers = MarkVisibility.show,
+    this.footnoteMarkers = MarkVisibility.show,
     this.divineNames = DivineNamesDisplay.asIs,
   });
 
@@ -121,6 +125,7 @@ class TextDisplayProfile {
   bool get replaceHolyNames => holyName != HolyNameDisplay.asIs;
   HolyNameStyle get holyNameStyle => holyName.style ?? HolyNameStyle.kufKuf;
   bool get showAnchorMarkers => anchorMarkers == MarkVisibility.show;
+  bool get hideFootnoteMarkers => footnoteMarkers == MarkVisibility.hide;
   bool get substituteDivineNames =>
       divineNames == DivineNamesDisplay.substitute;
 
@@ -130,6 +135,7 @@ class TextDisplayProfile {
     MarkVisibility? punctuation,
     HolyNameDisplay? holyName,
     MarkVisibility? anchorMarkers,
+    MarkVisibility? footnoteMarkers,
     DivineNamesDisplay? divineNames,
   }) {
     return TextDisplayProfile(
@@ -138,6 +144,7 @@ class TextDisplayProfile {
       punctuation: punctuation ?? this.punctuation,
       holyName: holyName ?? this.holyName,
       anchorMarkers: anchorMarkers ?? this.anchorMarkers,
+      footnoteMarkers: footnoteMarkers ?? this.footnoteMarkers,
       divineNames: divineNames ?? this.divineNames,
     );
   }
@@ -149,6 +156,7 @@ class TextDisplayProfile {
     punctuation: punctuation,
     holyName: holyName,
     anchorMarkers: anchorMarkers,
+    footnoteMarkers: footnoteMarkers,
     divineNames: divineNames,
   );
 
@@ -160,6 +168,7 @@ class TextDisplayProfile {
       punctuation == other.punctuation &&
       holyName == other.holyName &&
       anchorMarkers == other.anchorMarkers &&
+      footnoteMarkers == other.footnoteMarkers &&
       divineNames == other.divineNames;
 
   @override
@@ -169,6 +178,7 @@ class TextDisplayProfile {
     punctuation,
     holyName,
     anchorMarkers,
+    footnoteMarkers,
     divineNames,
   );
 
@@ -176,7 +186,8 @@ class TextDisplayProfile {
   String toString() =>
       'TextDisplayProfile(nikud: ${nikud.name}, teamim: ${teamim.name}, '
       'punctuation: ${punctuation.name}, holyName: ${holyName.name}, '
-      'anchorMarkers: ${anchorMarkers.name}, divineNames: ${divineNames.name})';
+      'anchorMarkers: ${anchorMarkers.name}, '
+      'footnoteMarkers: ${footnoteMarkers.name}, divineNames: ${divineNames.name})';
 }
 
 /// טלאי חלקי על פרופיל: שדה null = "ירש מלמעלה".
@@ -187,6 +198,7 @@ class TextDisplayPatch {
   final MarkVisibility? punctuation;
   final HolyNameDisplay? holyName;
   final MarkVisibility? anchorMarkers;
+  final MarkVisibility? footnoteMarkers;
   final DivineNamesDisplay? divineNames;
 
   const TextDisplayPatch({
@@ -195,6 +207,7 @@ class TextDisplayPatch {
     this.punctuation,
     this.holyName,
     this.anchorMarkers,
+    this.footnoteMarkers,
     this.divineNames,
   });
 
@@ -206,6 +219,7 @@ class TextDisplayPatch {
       punctuation == null &&
       holyName == null &&
       anchorMarkers == null &&
+      footnoteMarkers == null &&
       divineNames == null;
 
   bool get isNotEmpty => !isEmpty;
@@ -217,6 +231,7 @@ class TextDisplayPatch {
     punctuation: other.punctuation ?? punctuation,
     holyName: other.holyName ?? holyName,
     anchorMarkers: other.anchorMarkers ?? anchorMarkers,
+    footnoteMarkers: other.footnoteMarkers ?? footnoteMarkers,
     divineNames: other.divineNames ?? divineNames,
   );
 
@@ -227,6 +242,7 @@ class TextDisplayPatch {
     punctuation: punctuation,
     holyName: holyName,
     anchorMarkers: anchorMarkers,
+    footnoteMarkers: footnoteMarkers,
     divineNames: divineNames,
   );
 
@@ -238,6 +254,9 @@ class TextDisplayPatch {
     punctuation: punctuation == base.punctuation ? null : punctuation,
     holyName: holyName == base.holyName ? null : holyName,
     anchorMarkers: anchorMarkers == base.anchorMarkers ? null : anchorMarkers,
+    footnoteMarkers: footnoteMarkers == base.footnoteMarkers
+        ? null
+        : footnoteMarkers,
     divineNames: divineNames == base.divineNames ? null : divineNames,
   );
 
@@ -247,12 +266,14 @@ class TextDisplayPatch {
     MarkVisibility? punctuation,
     HolyNameDisplay? holyName,
     MarkVisibility? anchorMarkers,
+    MarkVisibility? footnoteMarkers,
     DivineNamesDisplay? divineNames,
     bool clearNikud = false,
     bool clearTeamim = false,
     bool clearPunctuation = false,
     bool clearHolyName = false,
     bool clearAnchorMarkers = false,
+    bool clearFootnoteMarkers = false,
     bool clearDivineNames = false,
   }) {
     return TextDisplayPatch(
@@ -263,6 +284,9 @@ class TextDisplayPatch {
       anchorMarkers: clearAnchorMarkers
           ? null
           : (anchorMarkers ?? this.anchorMarkers),
+      footnoteMarkers: clearFootnoteMarkers
+          ? null
+          : (footnoteMarkers ?? this.footnoteMarkers),
       divineNames: clearDivineNames ? null : (divineNames ?? this.divineNames),
     );
   }
@@ -273,6 +297,7 @@ class TextDisplayPatch {
     if (punctuation != null) 'punctuation': punctuation!.name,
     if (holyName != null) 'holyName': holyName!.name,
     if (anchorMarkers != null) 'anchorMarkers': anchorMarkers!.name,
+    if (footnoteMarkers != null) 'footnoteMarkers': footnoteMarkers!.name,
     if (divineNames != null) 'divineNames': divineNames!.name,
   };
 
@@ -284,6 +309,7 @@ class TextDisplayPatch {
         punctuation: MarkVisibility.fromJson(json['punctuation']),
         holyName: HolyNameDisplay.fromJson(json['holyName']),
         anchorMarkers: MarkVisibility.fromJson(json['anchorMarkers']),
+        footnoteMarkers: MarkVisibility.fromJson(json['footnoteMarkers']),
         divineNames: DivineNamesDisplay.fromJson(json['divineNames']),
       );
 
@@ -295,6 +321,7 @@ class TextDisplayPatch {
       punctuation == other.punctuation &&
       holyName == other.holyName &&
       anchorMarkers == other.anchorMarkers &&
+      footnoteMarkers == other.footnoteMarkers &&
       divineNames == other.divineNames;
 
   @override
@@ -304,6 +331,7 @@ class TextDisplayPatch {
     punctuation,
     holyName,
     anchorMarkers,
+    footnoteMarkers,
     divineNames,
   );
 
