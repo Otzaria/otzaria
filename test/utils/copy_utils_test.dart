@@ -211,4 +211,27 @@ void main() {
       expect(html, isNot(contains('</html>')));
     });
   });
+
+  group('title-only copy header (issue #4937)', () {
+    String format(String headerFormat, {String path = 'שבת ד, ג'}) =>
+        CopyUtils.formatTextWithHeaders(
+          originalText: 'טקסט',
+          copyWithHeaders: 'path_only',
+          copyHeaderFormat: headerFormat,
+          bookName: 'רשב"א',
+          currentPath: path,
+        );
+
+    test('מוסיף את הכותרת בלבד, בלי שם הספר', () {
+      expect(format('same_line_after_brackets'), 'טקסט (שבת ד, ג)');
+    });
+
+    test('שומר על עיצוב הכותרות שנבחר', () {
+      expect(format('separate_line_before'), 'שבת ד, ג\nטקסט');
+    });
+
+    test('בלי נתיב נופל לשם הספר ולא מדביק סוגריים ריקים', () {
+      expect(format('same_line_after_brackets', path: ''), 'טקסט (רשב"א)');
+    });
+  });
 }
