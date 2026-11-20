@@ -541,6 +541,22 @@ class DesignSettingsTab extends StatelessWidget {
                         UpdateSplitedView(value),
                       ),
                     ),
+                    // החץ שליד הפסקה פותח תמיד; כאן רק הלחיצה על הטקסט (#2835).
+                    SettingsSwitchTile(
+                      title: context.settingsText(
+                        'פתיחת המפרשים בלחיצה על הטקסט',
+                      ),
+                      subtitle: context.settingsText(
+                        state.commentaryOpensOnTextTap
+                            ? 'לחיצה על קטע פותחת וסוגרת את המפרשים שמתחתיו'
+                            : 'המפרשים נפתחים רק בחץ שליד הקטע',
+                      ),
+                      value: state.commentaryOpensOnTextTap,
+                      enabled: !state.splitedView,
+                      onChanged: (value) => context.read<SettingsBloc>().add(
+                        UpdateCommentaryOpensOnTextTap(value),
+                      ),
+                    ),
                   ],
                 ),
               ],
