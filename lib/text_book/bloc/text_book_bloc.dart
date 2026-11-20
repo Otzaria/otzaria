@@ -203,6 +203,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   // היעד ממתין למדידה של הקורא כדי שלא ייבחר באמצע גלילה.
   int? _pendingLinkSelection;
 
+  /// הדגשת שורה שהתבקשה לפני שהספר נטען; מוחלת במעבר ל-Loaded.
+  int? _pendingHighlightLine;
+
   @visibleForTesting
   int? get pendingLinkSelectionForTesting => _pendingLinkSelection;
 
@@ -1180,6 +1183,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
       _pendingPinpoint = null;
       _pendingFontSize = null;
+      if (_pendingHighlightLine case final line?) add(HighlightLine(line));
+      _pendingHighlightLine = null;
 
       _resetLoadedLinksWindow(book);
 
@@ -2054,7 +2059,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     HighlightLine event,
     Emitter<TextBookState> emit,
   ) {
-    if (state is! TextBookLoaded) return;
+    if (state is! TextBookLoaded) {
+      _pendingHighlightLine = event.lineIndex;
+      return;
+    }
     final currentState = state as TextBookLoaded;
     emit(currentState.copyWith(highlightedLine: event.lineIndex));
 

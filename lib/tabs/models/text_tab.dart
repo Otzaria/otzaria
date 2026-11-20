@@ -78,6 +78,19 @@ class TextBookTab extends OpenedTab {
     }
   }
 
+  /// שורה להדגשה רגעית כשהספר נפתח (מסימניה). הערך אינו נשמר בשולחן העבודה.
+  int? highlightLineOnOpen;
+
+  /// מדגיש לרגע את [line], גם לפני שנוצר הקורא של הכרטיסייה.
+  void highlightLine(int line) {
+    final currentBloc = _bloc;
+    if (currentBloc == null) {
+      highlightLineOnOpen = line;
+    } else {
+      currentBloc.add(HighlightLine(line));
+    }
+  }
+
   /// נבנה בגישה הראשונה בלבד: פענוח ושמירת שולחן עבודה אינם צריכים BLoC חי.
   TextBookBloc get bloc => _bloc ??= _createBloc();
   TextBookBloc? _bloc;
@@ -241,6 +254,7 @@ class TextBookTab extends OpenedTab {
         linkSelectedLine: linkSelectedLine,
       ),
     );
+    if (highlightLineOnOpen case final line?) created.add(HighlightLine(line));
     if (_isDisposed) created.close();
     return created;
   }
