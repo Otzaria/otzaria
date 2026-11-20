@@ -25,6 +25,7 @@ import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 // LEFT/RIGHT swapped (flutter_quill doesn't flip them for RTL). UP/DOWN use
 // Quill's adjacentLineAction: Windows input can't find lines across blocks.
@@ -404,7 +405,7 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody>
   }
 
   Future<void> _insertLink() async {
-    final result = await showDialog<PersonalNoteLinkTarget>(
+    final result = await showDialogUntilTornDown<PersonalNoteLinkTarget>(
       context: context,
       builder: (context) => PersonalNoteLinkDialog(
         bookId: widget.bookId,

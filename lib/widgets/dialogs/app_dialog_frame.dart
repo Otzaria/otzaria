@@ -54,6 +54,10 @@ enum AppDialogSize {
 /// [Dialog] עם [AppDialogHeader] — תג אייקון בתחילת הכותרת, איקס סגירה בסופה
 /// (מ-[AppDialogSize.medium]) וקו חוצץ מתחתיה — ואחריה [child] ושורת [actions]
 /// אופציונלית.
+/// ברירת המחדל לשורות הכותרת: כותרת ארוכה מאוד (שם שהמשתמש בחר) בהגדלת טקסט
+/// תופסת את כל החלון ודוחקת החוצה את התוכן והכפתורים.
+const int _kDefaultTitleMaxLines = 4;
+
 class AppDialogFrame extends StatelessWidget {
   const AppDialogFrame({
     super.key,
@@ -199,7 +203,7 @@ class AppDialogFrame extends StatelessWidget {
         AppDialogHeader(
           icon: icon,
           title: title,
-          titleMaxLines: titleMaxLines,
+          titleMaxLines: titleMaxLines ?? _kDefaultTitleMaxLines,
           subtitle: subtitle,
           subtitleMaxLines: subtitleMaxLines,
           leading: leading,

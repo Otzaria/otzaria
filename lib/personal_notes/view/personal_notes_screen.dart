@@ -609,7 +609,7 @@ class _PersonalNotesManagerScreenState
     if (!await verifySaferModePassword(context)) return;
     if (!mounted || !_canExportNotes) return;
     final exportSnapshot = _collectAllNotes();
-    final selection = await showDialog<NotesExportSelection>(
+    final selection = await showDialogUntilTornDown<NotesExportSelection>(
       context: context,
       builder: (context) => PersonalNotesExportDialog(
         allNotes: exportSnapshot,
@@ -795,7 +795,7 @@ class _PersonalNotesManagerScreenState
     final pickedPath = picked?.path;
     if (pickedPath == null) return;
 
-    final strategy = await showDialog<NotesImportConflictStrategy>(
+    final strategy = await showDialogUntilTornDown<NotesImportConflictStrategy>(
       context: context,
       builder: (context) => AppDialogFrame(
         // ארבע פעולות לא נכנסות בשורה אחת ברוחב small.
@@ -1556,7 +1556,7 @@ class _PersonalNotesManagerScreenState
       noteId: note.id,
     );
     if (!mounted) return;
-    await showDialog<PersonalNoteEditorResult>(
+    await showDialogUntilTornDown<PersonalNoteEditorResult>(
       context: context,
       builder: (context) => PersonalNoteEditorDialog(
         title: 'ערוך הערה',
@@ -1630,7 +1630,7 @@ class _PersonalNotesManagerScreenState
   Future<void> _deleteNote(PersonalNote note) async {
     final shouldDelete = await showConfirmationDialog(
       context: context,
-      title: 'מחיקת הערה',
+      title: 'למחוק את ההערה?',
       content: 'האם למחוק את ההערה לצמיתות?',
       confirmText: 'מחק',
       isDangerous: true,

@@ -361,7 +361,7 @@ double _timeColumnWidth(BuildContext context) =>
 
 Future<void> showZmanimSettingsDialog(BuildContext context) {
   final cubit = context.read<CalendarCubit>();
-  return showDialog<void>(
+  return showDialogUntilTornDown<void>(
     context: context,
     builder: (_) => BlocProvider.value(
       value: cubit,

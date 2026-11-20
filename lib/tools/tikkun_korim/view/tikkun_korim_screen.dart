@@ -34,6 +34,7 @@ import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/widgets_exports.dart' show showWarningDialog;
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 import 'package:otzaria/theme/app_motion.dart';
@@ -236,7 +237,7 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
       return;
     }
 
-    await showDialog<void>(
+    await showDialogUntilTornDown<void>(
       context: context,
       barrierDismissible: false,
       builder: (_) => PrintingScreen(

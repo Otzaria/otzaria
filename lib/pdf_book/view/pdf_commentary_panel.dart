@@ -84,6 +84,7 @@ import 'dart:async';
 import 'package:positioned_sliver_list/positioned_list.dart';
 import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// Type alias לתאימות - משתמש ב-LinkGroup מה-Service
 typedef CommentaryGroup = LinkGroup;
@@ -1329,7 +1330,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     if (!mounted) return;
 
     final bookTitle = widget.tab.book.title;
-    await showDialog<bool>(
+    await showDialogUntilTornDown<bool>(
       context: context,
       barrierDismissible: false,
       builder: (_) => PrintingScreen(

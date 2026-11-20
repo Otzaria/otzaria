@@ -17,7 +17,7 @@ import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/shortcuts/key_map.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/tools/tools_launcher_controller.dart';
-import 'package:flutter/material.dart' show showDialog;
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// תפריט המערכת של מק — ה-menu bar שבראש המסך.
 ///
@@ -205,7 +205,7 @@ class MacMenuBar extends StatelessWidget {
   static void _showDialog(Widget dialog) {
     final context = navigatorKey.currentContext;
     if (context == null || !_closeOverlayRoutes(context)) return;
-    showDialog(context: context, builder: (_) => dialog);
+    showDialogUntilTornDown(context: context, builder: (_) => dialog);
   }
 
   /// דיאלוג או תפריט פתוח נסגר לפני המעבר — בדיוק כמו במסלול הקיצורים.

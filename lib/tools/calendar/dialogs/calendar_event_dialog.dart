@@ -451,7 +451,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
   }) async {
     DateTime tempDate = initialDate;
     bool showHebrew = calendarDefaultShowHebrew(widget.state.calendarType);
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showDialogUntilTornDown<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setInnerState) => AppDialog.twoActions(
@@ -554,7 +554,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
     String unit = 'ימים';
     final quantityCtrl = TextEditingController(text: '1');
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showDialogUntilTornDown<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setInnerState) => AppDialog.twoActions(
@@ -785,7 +785,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
 
   /// מובייל: דיאלוג בחירת צבע.
   Future<void> _pickColorWithDialog() async {
-    await showDialog<void>(
+    await showDialogUntilTornDown<void>(
       context: context,
       builder: (dialogCtx) => AppDialog.singleAction(
         title: 'בחירת צבע',
@@ -1732,7 +1732,7 @@ Future<CalendarEventDialogResult?> showCalendarEventDialog({
   CustomEvent? existingEvent,
   DateTime? specificDate,
 }) {
-  return showDialog<CalendarEventDialogResult>(
+  return showDialogUntilTornDown<CalendarEventDialogResult>(
     context: context,
     builder: (_) => CalendarEventDialog(
       state: state,

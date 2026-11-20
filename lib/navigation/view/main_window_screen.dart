@@ -162,6 +162,7 @@ import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart'
     show getDafYomi, formatAmud;
 import 'package:otzaria/tools/calendar/helpers/daf_yomi_navigation.dart'
     show openDafYomiBook;
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// פריט מאוחד לסרגל הניווט הראשי — מייצג תוסף או כלי-מובנה שהוצמד לסרגל.
 ///
@@ -1566,7 +1567,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
         );
         return;
       }
-      final handled = await showDialog<bool>(
+      final handled = await showDialogUntilTornDown<bool>(
         context: context,
         builder: (_) => BlocProvider.value(
           value: bloc,
@@ -1592,7 +1593,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
         );
       }
     } else if (state is PluginSystemDevInstallRequiresPermissions) {
-      final handled = await showDialog<bool>(
+      final handled = await showDialogUntilTornDown<bool>(
         context: context,
         builder: (_) => PluginInstallScreen(
           manifest: state.manifest,
@@ -1782,10 +1783,16 @@ class MainWindowScreenState extends State<MainWindowScreen>
         );
         return true;
       case OpenHistoryAction():
-        showDialog(context: context, builder: (_) => const HistoryDialog());
+        showDialogUntilTornDown(
+          context: context,
+          builder: (_) => const HistoryDialog(),
+        );
         return true;
       case OpenBookmarksAction():
-        showDialog(context: context, builder: (_) => const BookmarksDialog());
+        showDialogUntilTornDown(
+          context: context,
+          builder: (_) => const BookmarksDialog(),
+        );
         return true;
       case ShowInfoAction():
         return await _showInfoReport(action);
@@ -4216,7 +4223,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     final focusRepository = FocusRepository.of(context);
     setState(() => _isSearchOpen = true);
 
-    showDialog(
+    showDialogUntilTornDown(
       context: context,
       builder: (context) => SearchDialog(existingTab: existingTab),
     ).then((_) {
@@ -4251,9 +4258,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
     final focusRepository = FocusRepository.of(context);
     setState(() => _isFindRefOpen = true);
 
-    showDialog(
+    showDialogUntilTornDown(
       context: context,
-      useRootNavigator: true,
       barrierColor: transparentBarrier ? Colors.transparent : null,
       builder: (context) => FindRefDialog(),
     ).then((_) {

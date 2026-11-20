@@ -193,13 +193,14 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
     final bloc = context.read<CustomFoldersBloc>();
     final confirmed = await showConfirmationDialog(
       context: context,
-      title: context.settingsText('הסרת תיקייה'),
+      title: context.settingsText('להסיר את התיקייה?'),
       icon: FluentIcons.delete_24_regular,
       content: context.settingsText(
         'האם להסיר את התיקייה "{name}" מהספרייה?\n'
         'הספרים יוסרו מהתוכנה, אך הקבצים המקוריים בדיסק לא יימחקו.',
         args: {'name': folder.name},
       ),
+      confirmText: context.settingsText('הסר'),
       isDangerous: false,
     );
     if (confirmed != true || !mounted) return;
@@ -804,14 +805,14 @@ class _UserContentImportTileState extends State<UserContentImportTile> {
     final bloc = context.read<CustomFoldersBloc>();
     final confirmed = await showWarningDialog(
       context: context,
-      title: context.settingsText('מחיקת נתונים מיובאים'),
+      title: context.settingsText('למחוק את הנתונים המיובאים?'),
       content: context.settingsText(
         'פעולה זו תמחק את כל הדורות, הקישורים, הכותרות והגרסאות שיובאו לתוכנה.',
       ),
       subtitle: context.settingsText(
         'הספרים עצמם לא יימחקו, וגם לא נתונים מקבצים שבתיקיות הספרים.',
       ),
-      confirmText: context.settingsText('מחק הכל'),
+      confirmText: context.settingsText('מחק'),
     );
     if (confirmed == true) bloc.add(const ClearUserContent());
   }

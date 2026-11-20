@@ -28,7 +28,7 @@ class UserImportFilesDialog extends StatelessWidget {
   static Future<void> show(BuildContext context) {
     final bloc = context.read<CustomFoldersBloc>()
       ..add(const LoadUserImportFiles());
-    return showDialog<void>(
+    return showDialogUntilTornDown<void>(
       context: context,
       // עוטף בשפת ההגדרות: דיאלוג נפתח מחוץ לתת-העץ של מסך ההגדרות ואינו
       // יורש את ה-SettingsTextScope שלו.
@@ -125,12 +125,12 @@ class _ImportFileRow extends StatelessWidget {
 
   Future<void> _delete(BuildContext context) async {
     final bloc = context.read<CustomFoldersBloc>();
-    // שם הקובץ מחוץ למפתח התרגום — אחרת כל קובץ היה מפתח נפרד בקטלוג.
-    // משתנה ולא קריאה בתוך אינטרפולציה, כדי שסורק המפתחות יראה אותה.
-    final title = context.settingsText('מחיקת קובץ מיובא');
     final confirmed = await showWarningDialog(
       context: context,
-      title: '$title: ${file.name}',
+      title: context.settingsText(
+        'למחוק את הקובץ המיובא "{name}"?',
+        args: {'name': file.name},
+      ),
       content: context.settingsText(
         'הקובץ יוסר והנתונים שהגיעו ממנו יימחקו מהתוכנה.',
       ),
@@ -158,8 +158,7 @@ class _ImportFileRow extends StatelessWidget {
       ),
       title: Text(
         file.name,
-        style: TextStyle(
-          fontSize: AppTokens.fontMD + 1,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
           fontWeight: FontWeight.w600,
           color: file.enabled ? cs.onSurface : disabledColor,
           // קובץ מושהה נשאר ברשימה; הקו מבדיל אותו מקובץ פעיל במבט אחד.

@@ -809,7 +809,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     if (widget.bookId == null) return;
     final confirmed = await showWarningDialog(
       context: context,
-      title: 'הסרת עמודה',
+      title: 'להסיר את העמודה?',
       content: 'האם להסיר את העמודה "${column.label}"?',
       subtitle: 'הסימונים שנשמרו בעמודה זו יימחקו',
       cancelText: 'ביטול',

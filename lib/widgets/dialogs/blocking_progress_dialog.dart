@@ -56,7 +56,6 @@ VoidCallback showBlockingProgress({
         DialogTheme.of(context).barrierColor ??
         Theme.of(context).dialogTheme.barrierColor ??
         AppSurfaces.scrim(Theme.of(context).colorScheme),
-    themes: InheritedTheme.capture(from: context, to: navigator.context),
     traversalEdgeBehavior: TraversalEdgeBehavior.closedLoop,
     builder: (_) => Directionality(
       textDirection: direction,

@@ -53,6 +53,7 @@ import 'package:otzaria/widgets/layout/side_pane_specs.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show MergedSibling, SemanticLexicalMode, TextStatus;
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// האם לבנות מחדש את מסגרת המסך (סרגל, מסננים, תצוגה מקדימה). סימון קטע
 /// והצבעה משנים רק כרטיסים, והרשימה הפנימית מאזינה ל-bloc בעצמה.
@@ -153,7 +154,7 @@ class _SemanticSearchResultsScreenState
   }
 
   void _openEditDialog() {
-    showDialog(
+    showDialogUntilTornDown(
       context: context,
       builder: (_) => SearchDialog(editTab: widget.tab),
     );

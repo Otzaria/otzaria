@@ -11,6 +11,7 @@ import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// Wrapper שבודק סיסמה לפני כניסה למסך מוגן במצב סייפר
 class SaferModeGuard extends StatefulWidget {
@@ -251,7 +252,7 @@ Future<bool> showSaferModePasswordDialog(
   required String hint,
 }) async {
   final repository = context.read<SettingsRepository>();
-  final verified = await showDialog<bool>(
+  final verified = await showDialogUntilTornDown<bool>(
     context: context,
     builder: settingsDialogBuilder(
       context,

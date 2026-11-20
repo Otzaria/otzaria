@@ -20,7 +20,7 @@ Future<HiddenLibrarySelection?> showHiddenBooksListDialog({
   required HiddenLibrarySelection hidden,
   required Map<String, String> titles,
 }) {
-  return showDialog<HiddenLibrarySelection>(
+  return showDialogUntilTornDown<HiddenLibrarySelection>(
     context: context,
     builder: settingsDialogBuilder(
       context,
@@ -97,8 +97,7 @@ class _HiddenBooksListDialogState extends State<_HiddenBooksListDialog> {
           // השם גלוי: רמז צף רק כשהוא נחתך.
           title: OverflowTooltipText(
             text: entry.label,
-            style: TextStyle(
-              fontSize: AppTokens.fontMD + 1,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w600,
               color: cs.onSurface,
             ),

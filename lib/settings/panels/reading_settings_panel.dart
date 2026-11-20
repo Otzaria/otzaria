@@ -12,6 +12,7 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// פאנל הגדרות תצוגת הספרים — משמש גם כ-overlay צף וגם כתוכן הדיאלוג
 /// ([showReadingSettingsDialog]). הגלילה מטופלת בתוך [TextSettingsTab].
@@ -99,7 +100,7 @@ void showReadingSettingsDialog() {
     return;
   }
 
-  showDialog(
+  showDialogUntilTornDown(
     context: dialogContext,
     builder: settingsDialogBuilder(
       dialogContext,

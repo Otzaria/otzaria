@@ -29,7 +29,7 @@ Future<void> showAppInfoDialog(
   title: report.topic.title,
   icon: report.topic.icon,
   size: AppDialogSize.medium,
-  confirmText: 'סגירה',
+  confirmText: 'סגור',
   customContent: AppInfoDialogContent(report: report),
 );
 
@@ -339,8 +339,7 @@ class _ListHeading extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: AppTokens.spaceSM),
       child: Text(
         text,
-        style: TextStyle(
-          fontSize: AppTokens.fontMD + 1,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
           fontWeight: FontWeight.bold,
           color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
@@ -440,8 +439,7 @@ class _FolderTileState extends State<_FolderTile> {
                   children: [
                     Text(
                       name,
-                      style: TextStyle(
-                        fontSize: AppTokens.fontMD + 1,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: cs.onSurface,
                       ),
@@ -594,8 +592,7 @@ class _AttachedLibraryTile extends StatelessWidget {
                   children: [
                     Text(
                       name.isEmpty ? '${library['slug']}' : name,
-                      style: TextStyle(
-                        fontSize: AppTokens.fontMD + 1,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: cs.onSurface,
                       ),

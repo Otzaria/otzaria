@@ -24,6 +24,7 @@ import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// פותח את טופס הדיווח על התוכנה. מחזיר את תוצאת השליחה, או null בביטול.
 Future<AppReportDeliveryResult?> showAppReportDialog(
@@ -34,7 +35,7 @@ Future<AppReportDeliveryResult?> showAppReportDialog(
   WidgetBuilder builder = (_) => AppReportDialog(createBloc: createBloc);
   if (dialogBuilder != null) builder = dialogBuilder(context, builder);
   builder = reportDialogBuilder(context, builder);
-  return showDialog<AppReportDeliveryResult>(
+  return showDialogUntilTornDown<AppReportDeliveryResult>(
     context: context,
     barrierDismissible: false,
     builder: builder,

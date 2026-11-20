@@ -5,6 +5,7 @@ import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/controls/app_color_swatch.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// שורת הגדרה לבחירת צבע בסיס.
 ///
@@ -26,7 +27,7 @@ class ColorPickerTile extends StatelessWidget {
   );
 
   void _showPicker(BuildContext context) {
-    showDialog<void>(
+    showDialogUntilTornDown<void>(
       context: context,
       builder: settingsDialogBuilder(
         context,

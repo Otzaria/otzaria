@@ -39,6 +39,7 @@ import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 class KeyboardShortcuts extends StatefulWidget {
   final Widget child;
@@ -518,7 +519,7 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
         onNewSearch();
       } else {
         if (!closeOverlayRoutes()) return KeyEventResult.handled;
-        showDialog(
+        showDialogUntilTornDown(
           context: context,
           builder: (context) => const SearchDialog(existingTab: null),
         );
@@ -528,7 +529,7 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
 
     if (advancedSearchShortcut.isNotEmpty &&
         ShortcutHelper.matchesShortcut(event, advancedSearchShortcut)) {
-      showDialog(
+      showDialogUntilTornDown(
         context: context,
         builder: (context) => const SearchDialog(
           existingTab: null,
@@ -572,7 +573,7 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     // סימניות
     if (ShortcutHelper.matchesShortcut(event, bookmarksShortcut)) {
       if (!closeOverlayRoutes()) return KeyEventResult.handled;
-      showDialog(
+      showDialogUntilTornDown(
         context: context,
         builder: (context) => const BookmarksDialog(),
       );
@@ -593,7 +594,7 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     // היסטוריה
     if (ShortcutHelper.matchesShortcut(event, historyShortcut)) {
       if (!closeOverlayRoutes()) return KeyEventResult.handled;
-      showDialog(
+      showDialogUntilTornDown(
         context: context,
         builder: (context) => const HistoryDialog(),
       );
@@ -603,7 +604,7 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     // החלף שולחן עבודה
     if (ShortcutHelper.matchesShortcut(event, workspaceShortcut)) {
       if (!closeOverlayRoutes()) return KeyEventResult.handled;
-      showDialog(
+      showDialogUntilTornDown(
         context: context,
         builder: (context) => const WorkspaceSwitcherDialog(),
       );

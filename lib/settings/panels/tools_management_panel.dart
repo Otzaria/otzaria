@@ -931,7 +931,7 @@ class _ActionBar extends StatelessWidget {
     final bloc = context.read<PluginSystemBloc>();
     final confirmed = await showWarningDialog(
       context: context,
-      title: context.settingsText('מחיקת תוספים'),
+      title: context.settingsText('למחוק את התוספים?'),
       content: context.settingsText(
         'האם למחוק {count} תוסף(ים)?\n\n• {names}',
         args: {'count': plugins.length, 'names': names},

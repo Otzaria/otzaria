@@ -170,7 +170,7 @@ void main() {
     await tester.tap(find.text('הסר תיקייה'));
     await tester.pumpAndSettle();
 
-    expect(find.text('הסרת תיקייה'), findsOneWidget);
+    expect(find.text('להסיר את התיקייה?'), findsOneWidget);
   });
 
   group('כפתורי הכרטיס', () {

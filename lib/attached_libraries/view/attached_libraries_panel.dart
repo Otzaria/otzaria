@@ -159,7 +159,7 @@ class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
     final bloc = context.read<AttachedLibrariesBloc>();
     final confirmed = await showWarningDialog(
       context: context,
-      title: context.settingsText('הסרת תיקיית מסדים'),
+      title: context.settingsText('להסיר את תיקיית המסדים?'),
       content: context.settingsText(
         'המסדים שבתיקייה "{name}" יוסרו מהספרייה. הקבצים עצמם לא יימחקו.',
         args: {'name': p.basename(folder)},
@@ -175,7 +175,7 @@ class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
     final isCopy = library.mode == AttachedLibraryMode.copy;
     final confirmed = await showWarningDialog(
       context: context,
-      title: context.settingsText('הסרת מסד'),
+      title: context.settingsText('להסיר את המסד?'),
       content: isCopy
           ? context.settingsText(
               'המסד "{name}" יוסר מהספרייה, והעותק שלו בתוכנה יימחק.',

@@ -191,6 +191,7 @@ import 'package:otzaria/plugins/services/text_source_map_service.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/plugins/bridge/plugin_jewish_date_payload_builder.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// גופן הממשק שאוצריא מוסרת לתוספים: sans מובנה שנשאר חד ב-11-12px.
 /// גופן הקריאה (`fontFamily`) אינו תחליף לו — הוא מצויר ל-25px,
@@ -5560,7 +5561,7 @@ class PluginBridgeAdapter {
       throw Exception('error.unavailable: No window to show the print screen');
     }
     final data = _loadBookRawText(book);
-    final printed = await showDialog<bool>(
+    final printed = await showDialogUntilTornDown<bool>(
       context: context,
       barrierDismissible: false,
       builder: (_) => PrintingScreen(
@@ -5599,7 +5600,7 @@ class PluginBridgeAdapter {
     if (!context.mounted) {
       throw Exception('error.unavailable: No window to show the print screen');
     }
-    final printed = await showDialog<bool>(
+    final printed = await showDialogUntilTornDown<bool>(
       context: context,
       barrierDismissible: false,
       builder: (_) => PrintingScreen(

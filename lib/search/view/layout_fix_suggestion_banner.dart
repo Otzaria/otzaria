@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/search/utils/hebrew_layout_suggestion.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
-import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 import 'package:otzaria/widgets/text/app_inline_link.dart';
 
@@ -74,8 +73,7 @@ class LayoutFixSuggestionBanner extends StatelessWidget {
             ? null
             : Text(
                 hint!,
-                style: TextStyle(
-                  fontSize: AppTokens.fontSM,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: cs.onTertiaryContainer,
                 ),
               ),

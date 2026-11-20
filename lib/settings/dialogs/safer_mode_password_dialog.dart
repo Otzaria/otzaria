@@ -252,9 +252,9 @@ class _SaferModeSetPasswordDialogState extends State<SaferModeSetPasswordDialog>
   Future<void> _handleClear() async {
     final confirmed = await showWarningDialog(
       context: context,
-      title: context.settingsText('הסרת סיסמה'),
+      title: context.settingsText('למחוק את הסיסמה?'),
       content: context.settingsText('לא תידרש עוד סיסמה לגישה להגדרות.'),
-      confirmText: context.settingsText('הסר סיסמה'),
+      confirmText: context.settingsText('מחק'),
     );
     if (confirmed != true || !mounted) return;
 

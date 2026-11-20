@@ -37,7 +37,7 @@ Future<bool> showDeletePluginDialog(
   }
   final confirmed = await showWarningDialog(
     context: context,
-    title: 'מחיקת תוסף סופית',
+    title: 'למחוק את התוסף סופית?',
     content: 'האם אתה בטוח שברצונך למחוק את התוסף "${plugin.name}"?',
     subtitle:
         'המחיקה תכלול את כל נתוני התוסף, המטמון והפעולות שלו, '
@@ -85,7 +85,7 @@ Future<bool?> showPluginSettingsDialog(
   BuildContext context,
   InstalledPlugin plugin,
 ) {
-  return showDialog<bool>(
+  return showDialogUntilTornDown<bool>(
     context: context,
     builder: settingsDialogBuilder(
       context,

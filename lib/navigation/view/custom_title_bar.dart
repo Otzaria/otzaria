@@ -59,6 +59,7 @@ import 'package:otzaria/tour/tour_target_keys.dart';
 import 'package:otzaria/update/my_update_widget.dart';
 import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:otzaria/navigation/view/tab_background_painter.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// שורת הכותרת בסגנון הקריאה, ברקע הקריאה ובלי קו: בעיון עם כרטיסייה פתוחה
 /// ובחיפוש, כשהכרטיסיות ברצועה שבשורה והפעילה מתמזגת עם הקריאה. במצב
@@ -1009,16 +1010,22 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
   // --- Helper Methods ---
 
   void _showHistoryDialog(BuildContext context) {
-    showDialog(context: context, builder: (context) => const HistoryDialog());
+    showDialogUntilTornDown(
+      context: context,
+      builder: (context) => const HistoryDialog(),
+    );
   }
 
   void _showBookmarksDialog(BuildContext context) {
-    showDialog(context: context, builder: (context) => const BookmarksDialog());
+    showDialogUntilTornDown(
+      context: context,
+      builder: (context) => const BookmarksDialog(),
+    );
   }
 
   void _showSaveWorkspaceDialog(BuildContext context) {
     context.read<HistoryBloc>().add(FlushHistory());
-    showDialog(
+    showDialogUntilTornDown(
       context: context,
       builder: (context) => const WorkspaceSwitcherDialog(),
     );

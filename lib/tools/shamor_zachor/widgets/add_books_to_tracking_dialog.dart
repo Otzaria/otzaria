@@ -21,6 +21,7 @@ import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import '../providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// פותח דיאלוג לבחירת ספרים מעץ הספרייה והוספתם למעקב בשמור וזכור.
 ///
@@ -29,7 +30,7 @@ Future<void> showAddBooksToTrackingDialog({
   required BuildContext context,
   required ShamorZachorDataProvider dataProvider,
 }) {
-  return showDialog<void>(
+  return showDialogUntilTornDown<void>(
     context: context,
     builder: (_) => AddBooksToTrackingDialog(dataProvider: dataProvider),
   );
@@ -288,8 +289,7 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
                 Expanded(
                   child: Text(
                     category.title,
-                    style: TextStyle(
-                      fontSize: AppTokens.fontMD + 1,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontWeight: level == 0
                           ? FontWeight.w700
                           : FontWeight.w500,
@@ -361,8 +361,7 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
               book.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: AppTokens.fontMD + 1,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: colorScheme.onSurface,
               ),
             ),

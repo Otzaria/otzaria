@@ -233,7 +233,7 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
     final title = p.basenameWithoutExtension(file.path);
     final confirmed = await showWarningDialog(
       context: context,
-      title: context.settingsText('מחיקת ספר'),
+      title: context.settingsText('למחוק את הספר?'),
       content: context.settingsText(
         'האם למחוק את "{title}" מהספרים האישיים?',
         args: {'title': title},

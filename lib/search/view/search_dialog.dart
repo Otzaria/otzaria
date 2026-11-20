@@ -55,6 +55,7 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
+import 'package:otzaria/widgets/misc/keyboard_dialog_navigation.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
@@ -1961,11 +1962,17 @@ class _SearchDialogState extends State<SearchDialog> {
         backgroundColor: AppSurfaces.panelBackground(context),
         child: FocusScope(
           onKeyEvent: (node, event) {
-            // תפיסת Enter ברמת הדיאלוג - FocusScope תופס אירועים מכל הילדים
+            // Enter מגיש חיפוש רק כשהפוקוס בשדה חד־שורתי או שאין רכיב שמגיב לו;
+            // על כפתור ממוקד (נקה, היסטוריה, מתג) הוא מפעיל אותו (DD-08).
             if (event is KeyDownEvent &&
                 event.logicalKey == LogicalKeyboardKey.enter) {
               // אם הפוקוס בתוך אפשרויות מתקדמות - תן לשדה לטפל
               if (_advancedControlsHasFocus.value) {
+                return KeyEventResult.ignored;
+              }
+              final focused = FocusManager.instance.primaryFocus?.context;
+              if (focused != null &&
+                  DialogKeyboardNavigator.focusedControlOwnsEnter(focused)) {
                 return KeyEventResult.ignored;
               }
               _performSearch();

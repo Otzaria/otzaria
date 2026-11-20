@@ -25,7 +25,7 @@ Future<void> showBooksListDialog({
   required BuildContext context,
   required List<Book> books,
 }) {
-  return showDialog<void>(
+  return showDialogUntilTornDown<void>(
     context: context,
     builder: settingsDialogBuilder(
       context,
@@ -237,8 +237,7 @@ class _BookListRow extends StatelessWidget {
       // הטקסט גלוי: רמז צף רק כשהוא נחתך.
       title: OverflowTooltipText(
         text: row.title,
-        style: TextStyle(
-          fontSize: AppTokens.fontMD + 1,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
           fontWeight: FontWeight.w600,
           color: cs.onSurface,
         ),

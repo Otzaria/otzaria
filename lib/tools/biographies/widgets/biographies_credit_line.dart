@@ -7,6 +7,7 @@ import 'package:otzaria/widgets/text/app_inline_link.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 import 'package:otzaria/widgets/dialogs/details_info_section.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// The author credit the license of the biographies requires, always visible
 /// under the list, with a link to the sources and their licenses.
@@ -16,7 +17,7 @@ class BiographiesCreditLine extends StatelessWidget {
   const BiographiesCreditLine({super.key, required this.bundle});
 
   void _showCredits(BuildContext context) {
-    showDialog<void>(
+    showDialogUntilTornDown<void>(
       context: context,
       builder: (_) => AppDialog.singleAction(
         title: 'מקורות וזכויות',

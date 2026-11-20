@@ -13,6 +13,7 @@ import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// המהדורות של [book] לרשימת הבחירה. לספר אישי — קובצי הגרסאות של קבוצתו.
 Future<List<BookVersionInfo>> loadBookVersions(Book book) async {
@@ -64,7 +65,7 @@ Future<void> showBookVersionsDialog(
   String? hint,
   void Function(Book target)? onVersionSelected,
 }) {
-  return showDialog<void>(
+  return showDialogUntilTornDown<void>(
     context: context,
     builder: (context) => BookVersionsDialog(
       book: book,

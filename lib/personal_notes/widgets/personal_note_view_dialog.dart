@@ -152,7 +152,7 @@ class PersonalNoteViewDialog extends StatelessWidget {
             icon: FluentIcons.edit_24_regular,
             onPressed: () => _closeThen(context, edit),
           ),
-        ActionButton.recommended(
+        ActionButton.neutral(
           text: 'סגור',
           autofocus: true,
           onPressed: () => Navigator.of(context).pop(),

@@ -1734,7 +1734,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     final tab = searchQuery != null && searchQuery.isNotEmpty
         ? SearchingTab.newSearch('חיפוש', searchQuery)
         : null;
-    showDialog(
+    showDialogUntilTornDown(
       context: context,
       builder: (context) => SearchDialog(existingTab: tab),
     );
@@ -3341,7 +3341,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   }
 
   void _openOtzarBook(ExternalLibraryBook book) {
-    showDialog(
+    showDialogUntilTornDown(
       context: context,
       builder: (ctx) => OtzarBookDialog(book: book),
     );

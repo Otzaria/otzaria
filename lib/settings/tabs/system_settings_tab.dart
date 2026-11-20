@@ -1259,7 +1259,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     }
     if (!context.mounted) return;
     final settingsBloc = context.read<SettingsBloc>();
-    final result = await showDialog<bool>(
+    final result = await showDialogUntilTornDown<bool>(
       context: context,
       builder: settingsDialogBuilder(
         context,
@@ -1714,7 +1714,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       changelog = notFoundText;
     }
     if (!context.mounted) return;
-    showDialog(
+    showDialogUntilTornDown(
       context: context,
       builder: settingsDialogBuilder(
         context,

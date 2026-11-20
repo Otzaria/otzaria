@@ -19,7 +19,7 @@ Future<HiddenLibrarySelection?> showHiddenBooksPickerDialog({
   required Library library,
   required HiddenLibrarySelection hidden,
 }) {
-  return showDialog<HiddenLibrarySelection>(
+  return showDialogUntilTornDown<HiddenLibrarySelection>(
     context: context,
     builder: settingsDialogBuilder(
       context,
@@ -299,11 +299,11 @@ class _HiddenBooksPickerDialogState extends State<_HiddenBooksPickerDialog> {
                                   category?.title ?? book!.title,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: AppTokens.fontMD + 1,
-                                    fontWeight: FontWeight.w600,
-                                    color: cs.onSurface,
-                                  ),
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        color: cs.onSurface,
+                                      ),
                                 ),
                               ),
                               subtitle: Row(

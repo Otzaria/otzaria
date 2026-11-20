@@ -83,8 +83,7 @@ class DetailsCard extends StatelessWidget {
                   Flexible(
                     child: Text(
                       title!,
-                      style: TextStyle(
-                        fontSize: AppTokens.fontMD + 1,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: cs.primary,
                       ),

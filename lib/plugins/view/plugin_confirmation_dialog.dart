@@ -29,7 +29,6 @@ class PluginConfirmationDialog {
           Theme.of(context).dialogTheme.barrierColor ??
           AppSurfaces.scrim(Theme.of(context).colorScheme),
       traversalEdgeBehavior: TraversalEdgeBehavior.closedLoop,
-      themes: InheritedTheme.capture(from: context, to: navigator.context),
       builder: (_) => Directionality(
         textDirection: direction,
         child: footer == null

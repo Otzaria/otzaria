@@ -365,7 +365,7 @@ class AboutSettingsTab extends StatelessWidget {
   Future<void> _openUrl(String url) => _launchUrl(url);
 
   void _openAdPopup(BuildContext context) {
-    showDialog(
+    showDialogUntilTornDown(
       context: context,
       barrierDismissible: true,
       builder: settingsDialogBuilder(

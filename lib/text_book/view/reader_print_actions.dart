@@ -17,11 +17,12 @@ import 'package:otzaria/printing/page_shape_print_policy.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:otzaria/text_book/view/reader_export_actions.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// פותח את [screen] כדיאלוג שלא נסגר בלחיצה בחוץ. כל פתיחה של מסך ההדפסה
 /// בקורא הטקסט ובחלונית המפרשים שלו עוברת כאן.
 Future<void> showPrintingScreen(BuildContext context, PrintingScreen screen) =>
-    showDialog<void>(
+    showDialogUntilTornDown<void>(
       context: context,
       barrierDismissible: false,
       builder: (_) => screen,

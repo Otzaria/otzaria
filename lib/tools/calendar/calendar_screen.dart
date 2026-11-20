@@ -474,7 +474,13 @@ class CalendarWidgetState extends State<CalendarWidget> {
                         // תוכן
                         Expanded(
                           child: isMobile
-                              ? _buildMobileLayout(context, state)
+                              ? _buildMobileLayout(
+                                  context,
+                                  state,
+                                  shortStacked:
+                                      constraints.maxHeight <
+                                      _kStackedSidePanelMinHeight,
+                                )
                               : _buildDesktopLayout(context, state),
                         ),
                       ],
@@ -561,7 +567,15 @@ class CalendarWidgetState extends State<CalendarWidget> {
     );
   }
 
-  Widget _buildMobileLayout(BuildContext context, CalendarState state) {
+  Widget _buildMobileLayout(
+    BuildContext context,
+    CalendarState state, {
+    required bool shortStacked,
+  }) {
+    // בגובה נמוך שני החלקים לא נכנסים יחד (תאי היום נלחצים לגובה של פיקסלים
+    // בודדים), ולכן החלונית שהמשתמש הציג מחליפה את הלוח, וכפתור "סגור חלונית"
+    // שבה מחזיר אותו.
+    final panelOnly = shortStacked && _isSidebarVisible;
     // במסך צר אין מקום לפריסה זה-לצד-זה (sideBySideMinWidth=840), אז במקום
     // להחביא את חלונית הצד מאחורי טוגל מוצגים אותה מתחת ללוח. חלוקה 3:2 —
     // הלוח (חלוקת התצוגה הראשית) מקבל את רוב המקום והזמנים/אירועים מתחת.
@@ -570,25 +584,27 @@ class CalendarWidgetState extends State<CalendarWidget> {
       children: [
         Column(
           children: [
-            Expanded(
-              flex: 3,
-              child: CalendarMainPanel(
-                state: state,
-                onCreateEvent: ({existingEvent, specificDate}) =>
-                    _showCreateEventDialog(
-                      context,
-                      state,
-                      existingEvent: existingEvent,
-                      specificDate: specificDate,
-                    ),
+            if (!panelOnly)
+              Expanded(
+                flex: 3,
+                child: CalendarMainPanel(
+                  state: state,
+                  onCreateEvent: ({existingEvent, specificDate}) =>
+                      _showCreateEventDialog(
+                        context,
+                        state,
+                        existingEvent: existingEvent,
+                        specificDate: specificDate,
+                      ),
+                ),
               ),
-            ),
             if (_isSidebarVisible) ...[
-              Divider(
-                height: 1,
-                thickness: 1,
-                color: Theme.of(context).colorScheme.outlineVariant,
-              ),
+              if (!panelOnly)
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
               Expanded(
                 flex: 2,
                 child: Padding(
@@ -837,7 +853,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
     ).then((count) {
       _isPrintDialogOpen = false;
       if (count == null || !context.mounted) return;
-      showDialog(
+      showDialogUntilTornDown(
         context: context,
         barrierDismissible: false,
         builder: (_) => PrintingScreen(

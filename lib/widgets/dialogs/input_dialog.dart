@@ -76,6 +76,8 @@ class _InputDialogState extends State<InputDialog>
       title: widget.title,
       icon: widget.icon ?? AppDialogIcons.input,
       size: AppDialogSize.small,
+      // הנימוק או הכותרת ארוכים בהגדלת טקסט, והשדה צריך להישאר נגיש בגלילה.
+      scrollable: true,
       onConfirm: _submit,
       actions: [
         ActionButton.neutral(

@@ -15,6 +15,7 @@ import 'package:otzaria/settings/panels/plugin_reports_panel.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// A tab of the reports dialog. [name] is also the settings search section.
 enum ReportsTab { books, app, plugins }
@@ -80,7 +81,7 @@ Future<void> showReportsManagementDialog(
     );
   }
   if (!context.mounted) return;
-  await showDialog<void>(
+  await showDialogUntilTornDown<void>(
     context: context,
     builder: settingsDialogBuilder(
       context,
