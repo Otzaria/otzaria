@@ -15,6 +15,7 @@ abstract class NotesMessages {
       '(עד ${NumberFormat('#,###', 'en').format(maxLength)} תווים)';
   static const String noteUpdated = 'ההערה עודכנה';
   static const String noteNoLongerExists = 'ההערה אינה קיימת עוד';
+  static const String linkedNoteDeleted = 'ההערה המקושרת נמחקה';
   static const String noteMovedToDifferentBook =
       'ההערה הועברה לספר אחר. יש לפתוח אותה מחדש לפני שמירה';
   static const String noteDeleted = 'ההערה נמחקה';

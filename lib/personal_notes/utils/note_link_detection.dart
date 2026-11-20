@@ -75,3 +75,27 @@ List<dynamic> linkifyDeltaOps(List<dynamic> ops) {
   }
   return result;
 }
+
+/// כתובת קישור להערה אישית לפי מזהה ההערה, שאינו משתנה בגיבוי ובשחזור.
+String personalNoteLinkUrl(String noteId) => 'otzaria://note?id=$noteId';
+
+/// מזהה ההערה שהקישור [url] מפנה אליה, או null כשאינו קישור להערה.
+String? personalNoteLinkTarget(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri == null || uri.scheme != 'otzaria' || uri.host != 'note') {
+    return null;
+  }
+  final id = uri.queryParameters['id'];
+  return id == null || id.isEmpty ? null : id;
+}
+
+final RegExp _noteLinkPattern = RegExp(r'otzaria://note\?id=([\w.\-]+)');
+
+/// מחליף ב-[text] קישורים להערות שמזהן מופיע ב-[ids] בקישור למזהה החדש.
+String remapPersonalNoteLinks(String text, Map<String, String> ids) {
+  if (ids.isEmpty) return text;
+  return text.replaceAllMapped(_noteLinkPattern, (match) {
+    final target = ids[match.group(1)];
+    return target == null ? match.group(0)! : personalNoteLinkUrl(target);
+  });
+}

@@ -25,8 +25,8 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
-import 'package:otzaria/personal_notes/widgets/personal_note_content_view.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
+import 'package:otzaria/personal_notes/widgets/personal_note_view_dialog.dart';
 import 'package:otzaria/personal_notes/widgets/notes_search_header.dart';
 import 'package:otzaria/personal_notes/widgets/note_tile.dart';
 import 'package:otzaria/personal_notes/widgets/inline_note_editor.dart';
@@ -1019,19 +1019,16 @@ Future<void> openNoteLink(
           break;
         }
       }
-      if (note == null) return;
-      if (note.lineNumber != null) {
-        onNavigateToLine(note.lineNumber!, note: note);
+      if (note?.lineNumber case final line?) {
+        onNavigateToLine(line, note: note);
         return;
       }
-      await showDialog<void>(
-        context: context,
-        builder: (context) => AppDialog.singleAction(
-          title: 'הערה מקושרת',
-          icon: FluentIcons.link_24_regular,
-          confirmText: 'סגור',
-          customContent: PersonalNoteContentView(note: note!),
-        ),
+      // הערה מספר אחר, כללית או שנמחקה — נטענת מהמסד.
+      await openLinkedPersonalNote(
+        context,
+        noteId,
+        onLinkTap: (_, url) =>
+            openNoteLink(context, url, currentBookId, onNavigateToLine),
       );
       return;
     default:

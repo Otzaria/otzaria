@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
 import 'package:otzaria/personal_notes/utils/note_anchor_utils.dart';
+import 'package:otzaria/personal_notes/utils/note_link_detection.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/printing/print_content_models.dart';
 
@@ -77,10 +78,11 @@ class PersonalNotesImportExportService {
 
     for (var i = 0; i < notes.length; i++) {
       final note = notes[i];
+      final bookTitle = personalNotesBookDisplayTitle(note.bookId);
       final title = (note.displayTitle?.trim().isNotEmpty ?? false)
           ? note.displayTitle!.trim()
-          : note.bookId;
-      final meta = <String>['ספר: ${note.bookId}'];
+          : bookTitle;
+      final meta = <String>[if (!note.isGeneralNote) 'ספר: $bookTitle'];
       if (note.lineNumber != null) meta.add('שורה: ${note.lineNumber}');
       meta.add('עודכן: ${_formatDate(note.updatedAt)}');
 
@@ -170,7 +172,7 @@ class PersonalNotesImportExportService {
           PrintBlock(
             kind: PrintBlockKind.heading,
             headingLevel: 1,
-            text: _escapeHtml(parsePersonalNotesBookKey(note.bookId).title),
+            text: _escapeHtml(personalNotesBookDisplayTitle(note.bookId)),
           ),
         );
       }
@@ -179,7 +181,7 @@ class PersonalNotesImportExportService {
       final refLabel = (ref?.isNotEmpty ?? false)
           ? ref
           : note.isBookNote
-          ? 'על הספר כולו'
+          ? (note.isGeneralNote ? null : 'על הספר כולו')
           : (note.hasLocation ? null : 'הערות ללא מיקום');
       final link = note.hasLocation ? sourceLink?.call(note) : null;
       if (refLabel != null &&
@@ -326,13 +328,40 @@ class PersonalNotesImportExportService {
               json.containsKey('pdfAnchor'),
             ),
     ];
+    // כל עותק מקבל מזהה חדש; קישור מהקובץ להערה קיימת עובר לעותק הראשון שלה.
+    final copyIds = <int, String>{};
+    final newIds = <String, String>{};
+    if (strategy == NotesImportConflictStrategy.keepBoth) {
+      final storedIds = <String, bool>{};
+      final insertedIds = <String>{};
+      for (final (index, (note, _, _)) in notes.indexed) {
+        final id = note.id;
+        if (!insertedIds.contains(id) &&
+            !(storedIds[id] ??= await _database.getNote(id) != null)) {
+          insertedIds.add(id);
+          continue;
+        }
+        final copyId = copyIds[index] = _generateId();
+        if (storedIds[id]!) newIds.putIfAbsent(id, () => copyId);
+      }
+    }
     return _database.batchNotifications((batch) async {
       int inserted = 0;
       int updated = 0;
       int skipped = 0;
       int duplicated = 0;
 
-      for (final (note, hasAnchorText, hasPdfAnchor) in notes) {
+      for (final (index, (imported, hasAnchorText, hasPdfAnchor))
+          in notes.indexed) {
+        final note = newIds.isEmpty
+            ? imported
+            : imported.copyWith(
+                content: remapPersonalNoteLinks(imported.content, newIds),
+                contentPlain: remapPersonalNoteLinks(
+                  imported.contentPlain,
+                  newIds,
+                ),
+              );
         final existing = await _database.getNote(note.id);
 
         if (existing == null) {
@@ -388,7 +417,9 @@ class PersonalNotesImportExportService {
             updated++;
             break;
           case NotesImportConflictStrategy.keepBoth:
-            await batch.insertNote(note.copyWith(id: _generateId()));
+            await batch.insertNote(
+              note.copyWith(id: copyIds[index] ?? _generateId()),
+            );
             duplicated++;
             break;
         }
