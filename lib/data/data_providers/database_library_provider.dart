@@ -452,6 +452,8 @@ const officialForwardWindowSql = '''win(id, bookId) AS (
 /// שספר מפרש יציג את מקורו. ב-v3 הקישור נשמר בכיוון קנוני אחד בלבד.
 /// שורות ה-anchors כוללות גם שורות מכוסות של קישורי-טווח (link_coverage,
 /// side=1) — כך קישור שהצד התלוי שלו משתרע על כמה שורות מופיע בכל שורה בטווח.
+/// [raw] — הקישורים הנכנסים כפי שנשמרו, לתוספים (`direction: 'incoming'`): כל
+/// הסוגים, בשם הסוג המקורי, בלי סינוני התצוגה (צד מדוכא, קישור בתוך הספר).
 List<Map<String, dynamic>> _loadInverseSourceRows(
   sqlite3.Database db,
   DbCapabilities capabilities,
@@ -459,25 +461,31 @@ List<Map<String, dynamic>> _loadInverseSourceRows(
   int? startLineIndex,
   int? endLineIndex,
   bool official = false,
+  bool raw = false,
 }) {
   final hasSuppressedSide = capabilities.hasLinkSuppressedSide;
   final dependentTypes = LinkTypes.dependentTextTypes.toList();
   // קישורי הפניה דו-כיווניים רק בסכמה שמספקת verdict נפרד לכל צד.
-  final types = LinkTypes.inverseQueryTypes(bidirectional: hasSuppressedSide);
+  final types = raw
+      ? const <String>[]
+      : LinkTypes.inverseQueryTypes(bidirectional: hasSuppressedSide);
   final typePlaceholders = List.filled(types.length, '?').join(', ');
-  final connectionTypeExpr = inverseConnectionTypeExpr(dependentTypes);
+  final connectionTypeExpr = raw
+      ? 'ct.name'
+      : inverseConnectionTypeExpr(dependentTypes);
   final hasRange = startLineIndex != null && endLineIndex != null;
   // בשאילתה ההפוכה השורה המוצגת היא צד היעד של הקישור השמור.
-  final suppressedFilter = suppressedSideFilter(
-    hasSuppressedSide,
-    displayedSide: 1,
-  );
+  final suppressedFilter = raw
+      ? ''
+      : suppressedSideFilter(hasSuppressedSide, displayedSide: 1);
   final hasLinkAnchor = capabilities.hasLinkAnchors;
   final hasLinkRanges = capabilities.hasLinkRanges;
   final referenceTypes = LinkTypes.referenceTypes
       .map((type) => "'$type'")
       .join(', ');
-  final inverseBookFilter = hasSuppressedSide
+  final inverseBookFilter = raw
+      ? ''
+      : hasSuppressedSide
       ? '''
         AND (l.sourceBookId != l.targetBookId OR (
           ct.name IN ($referenceTypes)
@@ -561,10 +569,10 @@ List<Map<String, dynamic>> _loadInverseSourceRows(
       JOIN line tl ON tl.id = a.anchorLineId
       JOIN line sl ON l.sourceLineId = sl.id
       JOIN book sb ON l.sourceBookId = sb.id
-      JOIN connection_type ct ON l.connectionTypeId = ct.id
+      ${raw ? 'LEFT JOIN' : 'JOIN'} connection_type ct ON l.connectionTypeId = ct.id
       $rangeEndJoin
       $anchorJoin
-      WHERE ct.name IN ($typePlaceholders)
+      WHERE ${raw ? '1=1' : 'ct.name IN ($typePlaceholders)'}
         $inverseBookFilter
         $suppressedFilter
       ORDER BY tl.lineIndex
@@ -995,6 +1003,7 @@ List<Map<String, dynamic>> _loadBookLinksRowsInRangeInIsolate({
   required int startLineIndex,
   required int endLineIndex,
   required List<String>? targetBookTitles,
+  bool incoming = false,
   ReadOnlyConnection? connection,
 }) {
   sqlite3.Database? db;
@@ -1011,6 +1020,17 @@ List<Map<String, dynamic>> _loadBookLinksRowsInRangeInIsolate({
       categoryId: categoryId,
     );
     if (bookId == null) return const [];
+    if (incoming) {
+      return _loadInverseSourceRows(
+        db,
+        capabilities,
+        bookId,
+        startLineIndex: startLineIndex,
+        endLineIndex: endLineIndex,
+        official: official,
+        raw: true,
+      );
+    }
 
     final hasLinkAnchor = capabilities.hasLinkAnchors;
     final hasLinkRanges = capabilities.hasLinkRanges;
@@ -1522,6 +1542,7 @@ Future<List<Map<String, Object?>>> _runBookLinksInRangeInIsolate({
   required int startLineIndex,
   required int endLineIndex,
   List<String>? targetBookTitles,
+  bool incoming = false,
 }) {
   return Isolate.run(
     () => _loadBookLinksRowsInRangeInIsolate(
@@ -1533,6 +1554,7 @@ Future<List<Map<String, Object?>>> _runBookLinksInRangeInIsolate({
       startLineIndex: startLineIndex,
       endLineIndex: endLineIndex,
       targetBookTitles: targetBookTitles,
+      incoming: incoming,
     ),
   );
 }
@@ -1720,6 +1742,7 @@ Object? runRangeRequestOnConnection(
       startLineIndex: args['startLineIndex'] as int,
       endLineIndex: args['endLineIndex'] as int,
       targetBookTitles: (args['targetBookTitles'] as List?)?.cast<String>(),
+      incoming: args['incoming'] as bool? ?? false,
       connection: connection,
     ),
     'inlineSectionMarks' => _loadInlineSectionMarksInIsolate(
@@ -4753,6 +4776,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     required int endLineIndex,
     Iterable<String>? targetBookTitles,
     BookSource source = BookSource.official,
+    bool incoming = false,
   }) async {
     final normalizedTargetBookTitles =
         targetBookTitles
@@ -4779,6 +4803,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         'startLineIndex': startLineIndex,
         'endLineIndex': endLineIndex,
         'targetBookTitles': normalizedTargetBookTitles,
+        if (incoming) 'incoming': true,
       },
       () => _runBookLinksInRangeInIsolate(
         target: target,
@@ -4789,6 +4814,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         startLineIndex: startLineIndex,
         endLineIndex: endLineIndex,
         targetBookTitles: normalizedTargetBookTitles,
+        incoming: incoming,
       ),
     );
 
