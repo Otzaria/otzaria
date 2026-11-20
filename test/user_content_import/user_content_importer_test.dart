@@ -512,6 +512,39 @@ void main() {
         expect(link.targetRefEnd, contains('ג'));
       });
 
+      test(
+        'ציטוט בטקסט נשמר כ-LINKER עם העוגן, בלי היפוך למפרש (issue #4308)',
+        () async {
+          // מקור אישי ויעד רשמי: קישור מפרש היה מתהפך לבסיס→מפרש.
+          final f = writeCsv(
+            'הכי גרסינן מגילה_links.json',
+            '[{"line_index_1": 5, "line_index_2": 3, '
+                '"start": 4, "end": 9, "heRef_2": "מגילה ב.", '
+                '"path_2": "מגילה.txt", "Conection Type": "ציטוט בטקסט"}]',
+          );
+          final result = await UserContentImporter.importFiles(
+            [f],
+            db,
+            locateBook: fakeLocator,
+          );
+          expect(result.errors, isEmpty);
+          final link = (await repo.forwardUserLinks(
+            'הכי גרסינן מגילה',
+            sourceIsUserBook: true,
+          )).single;
+          expect(link.connectionType, LinkTypes.linker);
+          expect(link.sourceLineIndex, 4);
+          expect(link.targetTitle, 'מגילה');
+          expect(link.targetLineIndex, 2);
+          expect(link.anchorStart, 4);
+          expect(link.anchorEnd, 9);
+          expect(
+            await repo.forwardUserLinks('מגילה', sourceIsUserBook: false),
+            isEmpty,
+          );
+        },
+      );
+
       test('צמד דו-כיווני מתלכד לרשומה אחת עם ה-ref נשמר', () async {
         // הקובץ של הבסיס (מגילה) + הקובץ ההפוך שהכלי יוצר למפרש.
         final canonical = writeCsv(
