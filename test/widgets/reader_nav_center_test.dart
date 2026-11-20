@@ -1,5 +1,6 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/settings_exports.dart';
@@ -268,6 +269,103 @@ void main() {
       expect(
         tester.getSize(find.byType(FittedBox)).width,
         lessThanOrEqualTo(86),
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    // #4945: מספר העמוד צמוד לכותרת, לא לחיצים שבקצות המרכז.
+    testWidgets('afterTitle צמוד לטקסט הכותרת, והקבוצה במרכז בין החיצים', (
+      tester,
+    ) async {
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
+      addTearDown(settingsBloc.close);
+
+      const titleKey = Key('title');
+      const afterTitleKey = Key('after-title');
+      await tester.pumpWidget(
+        _buildHarness(
+          settingsBloc: settingsBloc,
+          child: Directionality(
+            textDirection: TextDirection.rtl,
+            child: SizedBox(
+              width: 600,
+              child: ReaderNavCenter(
+                title: const Text(
+                  'מרדכי חול',
+                  key: titleKey,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                afterTitle: const SizedBox(
+                  key: afterTitleKey,
+                  width: 60,
+                  height: 20,
+                ),
+                prevMajorTooltip: 'פרק קודם',
+                prevMinorTooltip: 'קטע קודם',
+                nextMinorTooltip: 'קטע הבא',
+                nextMajorTooltip: 'פרק הבא',
+                onPrevMajor: () {},
+                onPrevMinor: () {},
+                onNextMinor: () {},
+                onNextMajor: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // הטקסט המצויר, לא התיבה של ה-Text (שיכולה להיות רחבה ממנו).
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find.byKey(titleKey),
+      );
+      final glyphs = paragraph.getBoxesForSelection(
+        const TextSelection(baseOffset: 0, extentOffset: 9),
+      );
+      final origin = paragraph.localToGlobal(Offset.zero);
+      final title = Rect.fromLTRB(
+        origin.dx + glyphs.map((b) => b.left).reduce((a, b) => a < b ? a : b),
+        origin.dy,
+        origin.dx + glyphs.map((b) => b.right).reduce((a, b) => a > b ? a : b),
+        origin.dy + paragraph.size.height,
+      );
+      final after = tester.getRect(find.byKey(afterTitleKey));
+      // ב-RTL מספר העמוד משמאל לכותרת: הרווח ביניהם קטן, לא הרווח שבין
+      // הכותרת הקצרה לחץ.
+      expect(title.left - after.right, inInclusiveRange(0, 12));
+
+      final prev = tester.getRect(find.byTooltip('קטע קודם'));
+      final next = tester.getRect(find.byTooltip('קטע הבא'));
+      final groupCenter = (title.right + after.left) / 2;
+      final navCenter = (prev.center.dx + next.center.dx) / 2;
+      expect(groupCenter, closeTo(navCenter, 1));
+    });
+
+    testWidgets('afterTitle ברוחב שנשאר קטן מהרווח: בלי גלישה', (tester) async {
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
+      addTearDown(settingsBloc.close);
+
+      await tester.pumpWidget(
+        _buildHarness(
+          settingsBloc: settingsBloc,
+          child: SizedBox(
+            // ארבעת החיצים נכנסים, ולכותרת ולמספר נשארים 4px: פחות מהרווח ביניהם.
+            width:
+                ReaderNavCenter.navButtonsWidth(compact: true, touch: true) + 4,
+            child: ReaderNavCenter(
+              title: const Text('בראשית, פרק א'),
+              afterTitle: const SizedBox(width: 60, height: 20),
+              prevMajorTooltip: 'פרק קודם',
+              prevMinorTooltip: 'קטע קודם',
+              nextMinorTooltip: 'קטע הבא',
+              nextMajorTooltip: 'פרק הבא',
+              onPrevMajor: () {},
+              onPrevMinor: () {},
+              onNextMinor: () {},
+              onNextMajor: () {},
+            ),
+          ),
+        ),
       );
       expect(tester.takeException(), isNull);
     });

@@ -459,7 +459,7 @@ class _PersonalNotesManagerScreenState
               ),
               (
                 tooltip: 'גיבוי הערות',
-                icon: FluentIcons.arrow_download_24_regular,
+                icon: OtzariaIcons.note_export_24_regular,
                 onPressed: _canExportNotes ? _exportNotes : null,
               ),
               (
@@ -492,7 +492,7 @@ class _PersonalNotesManagerScreenState
           center: OtzariaSearchField(
             controller: _searchController,
             focusNode: _searchFocusNode,
-            icon: OtzariaIcons.search_in_document_24_regular,
+            icon: OtzariaIcons.search_in_notes_24_regular,
             hintText: 'חפש בהערות...',
             onSubmitted: (_) => requestKeyboardFocus(),
             onChanged: (value) => _searchQuery.value = value,

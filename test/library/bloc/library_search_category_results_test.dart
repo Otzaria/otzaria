@@ -46,4 +46,23 @@ void main() {
       expect(preserved.searchCategoryResults, hasLength(1));
     });
   });
+
+  group('סוגי ההתאמה של תוצאות האיתור (issue #4232)', () {
+    test('נשמרים עם אותה רשימת תוצאות ונמחקים עם רשימה חדשה', () {
+      final results = <Book>[];
+      final withKinds = const LibraryState().copyWith(
+        searchResults: results,
+        searchMatchKinds: {},
+      );
+      expect(
+        withKinds.copyWith(searchResults: results).searchMatchKinds,
+        isNotNull,
+      );
+      expect(
+        withKinds.copyWith(searchResults: <Book>[]).searchMatchKinds,
+        isNull,
+      );
+      expect(withKinds.copyWith().searchMatchKinds, isNull);
+    });
+  });
 }

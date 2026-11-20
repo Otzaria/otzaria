@@ -358,11 +358,22 @@ class AppThemeData {
     }),
   );
 
+  /// רוחב מרבי של tooltip: טקסט ארוך עובר שורה בעמודת קריאה, ולא נפרס בשורה
+  /// אחת על כל החלון (#5250). קצר מזה נשאר ברוחב התוכן.
+  static const double _tooltipMaxWidth = 420;
+
   static TooltipThemeData _tooltipTheme(
     ColorScheme cs, {
     required Color? regionBorder,
   }) {
     return TooltipThemeData(
+      // minHeight כמו ברירת המחדל של Flutter, שה-theme מחליף כשיש לו constraints.
+      constraints: BoxConstraints(
+        minHeight: _isDesktopPlatform(defaultTargetPlatform) ? 24 : 32,
+        maxWidth: _tooltipMaxWidth,
+      ),
+      textAlign: TextAlign.center,
+      margin: const EdgeInsets.symmetric(horizontal: AppTokens.spaceSM),
       decoration: BoxDecoration(
         color: cs.surfaceContainerHigh,
         borderRadius: AppTokens.borderRadiusAll,

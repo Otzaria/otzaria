@@ -21,7 +21,7 @@ class TikkunVavKetiaSetting extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SettingsDropdownTile<TikkunVavKetia>(
-    icon: OtzariaIcons.alef_1_24_filled,
+    icon: OtzariaIcons.vav_stam_24_filled,
     stacked: stacked,
     title: context.settingsText('וי״ו קטיעא'),
     subtitle: context.settingsText('בתיבת שלום; בגופני סת״ם, אשורית וכתר'),

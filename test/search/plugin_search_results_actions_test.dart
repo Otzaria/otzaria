@@ -1,3 +1,4 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/app_window_controller.dart';
@@ -11,6 +12,12 @@ import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/view/plugin_search_results_actions.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/theme/app_density.dart';
+import 'package:otzaria/theme/app_seed_colors.dart';
+import 'package:otzaria/theme/app_theme_data.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/misc/app_menu_exports.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show ResultsOrder, SearchResult, SearchScope, TextStatus, WordMatchMode;
 
@@ -110,6 +117,52 @@ Future<void> main() async {
       ),
     );
   }
+
+  testWidgets('תפריט פתוח מפעיל את הפעולה שנבחרה אחרי שינוי ברשימת התוספים', (
+    tester,
+  ) async {
+    for (final id in ['second', 'third']) {
+      registry.registerPayload('$id.plugin', {
+        'id': id,
+        'type': 'checkbox',
+        'title': id,
+        'openPluginOnSubmit': true,
+        'resultsAction': 'Open $id',
+        'visibleInModes': ['advanced'],
+      });
+    }
+    await pump(tester, iconOnly: true);
+    await tester.tap(find.byTooltip('המשך בתוסף'));
+    await tester.pumpAndSettle();
+    expect(find.text('Open second'), findsOneWidget);
+
+    registry.removeAll('test.plugin');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Open second'));
+    await tester.pumpAndSettle();
+    expect(launches.single.$1, 'second.plugin');
+  });
+
+  testWidgets('תפריט פתוח מתעלם מפעולה שהוסרה', (tester) async {
+    registry.registerPayload('other.plugin', {
+      'id': 'other',
+      'type': 'checkbox',
+      'title': 'פעולה נוספת',
+      'openPluginOnSubmit': true,
+      'resultsAction': 'המשך בתוסף אחר',
+      'visibleInModes': ['advanced'],
+    });
+    await pump(tester, iconOnly: true);
+    await tester.tap(find.byTooltip('המשך בתוסף'));
+    await tester.pumpAndSettle();
+
+    registry.removeAll('other.plugin');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('המשך בתוסף אחר'));
+    await tester.pumpAndSettle();
+    expect(launches, isEmpty);
+  });
 
   testWidgets('מוצג רק אחרי שהחיפוש הסתיים, גם בלי תוצאות', (tester) async {
     final button = find.text('המשך במקור החיצוני');
@@ -320,6 +373,190 @@ Future<void> main() async {
     await tester.ensureVisible(last);
     expect(tester.getRect(last).left, greaterThanOrEqualTo(0));
     expect(tester.getRect(last).right, lessThanOrEqualTo(600));
+  });
+
+  testWidgets(
+    'הכפתור נכנס בגובה הסרגל בשתי הצפיפויות (בלי חיתוך בצפיפות מצומצמת)',
+    (tester) async {
+      for (final compact in [false, true]) {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppThemeData.light(
+              AppThemeData.createColorScheme(
+                AppSeedColors.defaultLight,
+                Brightness.light,
+              ),
+              compactMenuMode: compact,
+            ),
+            home: Scaffold(
+              body: PluginSearchResultsActions(tab: tab, registry: registry),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final barHeight =
+            (compact ? AppDensity.compact : AppDensity.regular).topBarHeight;
+        expect(
+          tester.getSize(find.byType(PluginSearchResultsActions)).height,
+          lessThanOrEqualTo(barHeight),
+          reason: 'compact=$compact',
+        );
+      }
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.windows),
+  );
+
+  testWidgets('בסרגל צר כמה פעולות הן תפריט אחד, לא אייקונים זהים', (
+    tester,
+  ) async {
+    registry.registerPayload('second.plugin', {
+      'id': 'other',
+      'type': 'checkbox',
+      'title': 'מקור נוסף',
+      'openPluginOnSubmit': true,
+      'resultsAction': 'המשך במקור הנוסף',
+      'visibleInModes': ['advanced'],
+    });
+    await pump(tester, iconOnly: true);
+
+    // כפתור אחד: אצל שני כפתורי אייקון זהים אי אפשר להבדיל בלי tooltip.
+    expect(find.byType(AppPopupMenuButton<(String, String)>), findsOneWidget);
+    expect(find.text('המשך במקור הנוסף'), findsNothing);
+
+    await tester.tap(find.byType(AppPopupMenuButton<(String, String)>));
+    await tester.pumpAndSettle();
+    expect(find.text('המשך במקור החיצוני'), findsOneWidget);
+    await tester.tap(find.text('המשך במקור הנוסף'));
+    await tester.pumpAndSettle();
+    expect(launches.map((l) => (l.$1, l.$2['itemId'])), [
+      ('second.plugin', 'other'),
+    ]);
+  });
+
+  group('אייקון מהתוסף (resultsActionIcon)', () {
+    Set<IconData> iconsOf(WidgetTester tester) => tester
+        .widgetList<Icon>(
+          find.descendant(
+            of: find.byType(PluginSearchResultsActions),
+            matching: find.byType(Icon),
+          ),
+        )
+        .map((icon) => icon.icon!)
+        .toSet();
+
+    void register({String? icon}) {
+      registry.removeAll('test.plugin');
+      registry.registerPayload('test.plugin', {
+        'id': 'external',
+        'type': 'checkbox',
+        'title': 'חפש במקור חיצוני',
+        'openPluginOnSubmit': true,
+        'resultsAction': 'המשך במקור החיצוני',
+        'visibleInModes': ['advanced'],
+        'resultsActionIcon': ?icon,
+      });
+    }
+
+    testWidgets('בסרגל, בשורה ובתפריט: האייקון שהתוסף הצהיר עליו', (
+      tester,
+    ) async {
+      register(icon: 'search_in_library_24_regular');
+      await pump(tester);
+      expect(
+        iconsOf(tester),
+        contains(OtzariaIcons.search_in_library_24_regular),
+      );
+      expect(iconsOf(tester), isNot(contains(FluentIcons.open_24_regular)));
+
+      await pump(tester, layout: PluginSearchResultsActionsLayout.inline);
+      expect(
+        iconsOf(tester),
+        contains(OtzariaIcons.search_in_library_24_regular),
+      );
+
+      await pump(tester, iconOnly: true);
+      expect(
+        iconsOf(tester),
+        contains(OtzariaIcons.search_in_library_24_regular),
+      );
+    });
+
+    testWidgets('בלי אייקון או עם שם לא מוכר: open, בלי קריסה', (tester) async {
+      for (final icon in [null, 'no_such_icon_24_regular']) {
+        register(icon: icon);
+        await pump(tester);
+        expect(tester.takeException(), isNull);
+        expect(iconsOf(tester), contains(FluentIcons.open_24_regular));
+      }
+    });
+  });
+
+  group('עיצוב הכפתור בסרגל', () {
+    ThemeData theme({bool compact = false}) => AppThemeData.light(
+      AppThemeData.createColorScheme(
+        AppSeedColors.defaultLight,
+        Brightness.light,
+      ),
+      compactMenuMode: compact,
+    );
+
+    testWidgets('כפתור tonal ברקע secondaryContainer, לא שקוף על הסרגל', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme(),
+          home: Scaffold(
+            body: PluginSearchResultsActions(tab: tab, registry: registry),
+          ),
+        ),
+      );
+      final button = find.byType(ActionButton);
+      expect(button, findsOneWidget);
+      final material = tester.widget<Material>(
+        find.descendant(of: button, matching: find.byType(Material)).first,
+      );
+      expect(
+        material.color,
+        theme().colorScheme.secondaryContainer,
+        reason: 'כפתור שקוף נבלע בסרגל; השכנים (מיון, איחוד) tonal',
+      );
+    });
+
+    testWidgets('בסרגל צר: כפתור אייקון tonal, ותפריט tonal לכמה פעולות', (
+      tester,
+    ) async {
+      Future<void> pumpNarrow() => tester.pumpWidget(
+        MaterialApp(
+          theme: theme(),
+          home: Scaffold(
+            body: PluginSearchResultsActions(
+              tab: tab,
+              registry: registry,
+              iconOnly: true,
+            ),
+          ),
+        ),
+      );
+      Color? background() {
+        final style = tester.widget<IconButton>(find.byType(IconButton)).style!;
+        return style.backgroundColor!.resolve({});
+      }
+
+      await pumpNarrow();
+      expect(background(), theme().colorScheme.secondaryContainer);
+
+      registry.registerPayload('second.plugin', {
+        'id': 'other',
+        'type': 'checkbox',
+        'title': 'מקור נוסף',
+        'openPluginOnSubmit': true,
+        'resultsAction': 'המשך במקור הנוסף',
+        'visibleInModes': ['advanced'],
+      });
+      await pumpNarrow();
+      expect(background(), theme().colorScheme.secondaryContainer);
+    });
   });
 
   testWidgets(

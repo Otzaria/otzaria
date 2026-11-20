@@ -835,6 +835,40 @@ void main() {
     expect(supportedVersion.errors, isEmpty);
   });
 
+  test('resultsActionIcon דורש minAppVersion 0.9.99 ואייקון לא מוכר מזהיר', () {
+    final startup = validStartup();
+    (startup['searchDialogItems'] as List).single
+      ..['openPluginOnSubmit'] = true
+      ..['resultsAction'] = 'המשך בתוסף'
+      ..['resultsActionIcon'] = 'search_in_library_24_regular';
+
+    final oldVersion = _run(
+      tempDir,
+      _manifest(minAppVersion: '0.9.98.3', startup: startup),
+    );
+    expect(oldVersion.errors, contains(contains('resultsActionIcon')));
+    expect(oldVersion.errors, contains(contains('0.9.99')));
+
+    final supportedVersion = _run(
+      tempDir,
+      _manifest(minAppVersion: '0.9.99', startup: startup),
+    );
+    expect(supportedVersion.errors, isEmpty);
+    expect(
+      supportedVersion.warnings.where((w) => w.contains('searchDialogItems')),
+      isEmpty,
+    );
+
+    (startup['searchDialogItems'] as List).single['resultsActionIcon'] =
+        'no_such_icon';
+    final unknownIcon = _run(
+      tempDir,
+      _manifest(minAppVersion: '0.9.99', startup: startup),
+    );
+    expect(unknownIcon.errors, isEmpty);
+    expect(unknownIcon.warnings, contains(contains('no_such_icon')));
+  });
+
   group('search.completed', () {
     Map<String, dynamic> completedManifest(String minAppVersion) => _manifest(
       minAppVersion: minAppVersion,

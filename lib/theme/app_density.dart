@@ -20,16 +20,13 @@ class AppDensity extends ThemeExtension<AppDensity> {
 
   final bool isCompact;
 
-  /// חלון קטן לצפיפות ברירת המחדל. שם "צפיפות ממשק" שלא נבחרה מצומצמת
-  /// (`SettingsState.compactMenuModeFor`), ובחירה מפורשת, גם "רגיל", נשמרת.
-  /// - בטלפון ובטאבלט ([DeviceChrome.isMobile]): הצד הקצר מתחת ל-600
-  ///   ([LayoutBreakpoints.compact]) — טלפון לאורך ולרוחב, או חצי מסך של 10".
-  /// - במחשב: רק חלון נמוך ([WindowClass.isShortOf], מתחת ל-480). מחשב נייד
-  ///   1366×768 בהגדלה של 125% מוגדל לכל המסך הוא כ-1093×566, ולפי הצד הקצר
-  ///   כל האפליקציה הייתה מתהפכת למצומצמת, ובחזרה כשהחלון יוצא ממצב מוגדל.
+  /// חלון קטן ל"אוטומטי". בטלפון ובטאבלט: הצד הקצר מתחת ל-600. במחשב: רוחב
+  /// מתחת ל-600 או גובה מתחת ל-480, ולא הצד הקצר (1366×768 ב-125% מוגדל הוא
+  /// 1093×566 ונשאר רגיל). כל חלון מחליט לפי גודלו.
   static bool isSmallWindow(Size size) => DeviceChrome.isMobile
       ? size.shortestSide < LayoutBreakpoints.compact
-      : size.height < LayoutBreakpoints.compactHeight;
+      : size.width < LayoutBreakpoints.compact ||
+            size.height < LayoutBreakpoints.compactHeight;
 
   /// גובה השורה הראשית של הסרגל העליון.
   double get topBarHeight => isCompact ? 44 : 56;

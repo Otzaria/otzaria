@@ -212,11 +212,17 @@ void main() {
     expect(center.dy, moreOrLessEquals(toolRect.center.dy, epsilon: 40));
     expect(toolRect.center.dx, isNot(moreOrLessEquals(_windowSize.width / 2)));
 
-    // אין רקע צבוע מתחת להודעה.
-    for (final material in tester.widgetList<Material>(
-      find.ancestor(of: message, matching: find.byType(Material)),
-    )) {
-      expect(material.type, MaterialType.transparency);
+    // אין רקע צבוע שמכסה את הכלי: רק כרטיס ההודעה (AppCard) צבוע.
+    for (final element
+        in find
+            .ancestor(of: message, matching: find.byType(Material))
+            .evaluate()) {
+      if ((element.widget as Material).type == MaterialType.transparency) {
+        continue;
+      }
+      final size = (element.renderObject! as RenderBox).size;
+      expect(size.width, lessThan(toolRect.width * 0.75));
+      expect(size.height, lessThan(toolRect.height * 0.75));
     }
 
     // לחיצה בזמן האנימציה עוברת לכלי: "חזרה" סוגר את הספר.

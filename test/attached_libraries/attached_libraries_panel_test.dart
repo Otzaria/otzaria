@@ -15,6 +15,7 @@ import 'package:otzaria/attached_libraries/repository/external_link_repository.d
 import 'package:otzaria/attached_libraries/view/attached_libraries_panel.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/widgets/layout/meta_chip.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 
 import '../helpers/memory_settings_cache.dart';
 
@@ -166,6 +167,25 @@ void main() {
     expect(find.text('הוסף תיקיית מסדים'), findsOneWidget);
     // מסד לא נגיש אינו מציע בחירת מיקום בעץ.
     expect(find.text('בנפרד'), findsNWidgets(2));
+  });
+
+  testWidgets('אייקון מסד הספרים: רגיל למצורף ולמוסתר, מלא למצורף פעיל', (
+    tester,
+  ) async {
+    await pumpPanel(
+      tester,
+      _FakeRepository([_library('ראשון'), _library('מוסתר', hidden: true)]),
+    );
+
+    // שורת "צירוף מסד" + המסד המוסתר: רגיל. המסד הפעיל: מלא.
+    expect(
+      find.byIcon(OtzariaIcons.library_database_24_regular),
+      findsNWidgets(2),
+    );
+    expect(
+      find.byIcon(OtzariaIcons.library_database_24_filled),
+      findsOneWidget,
+    );
   });
 
   group('מצבים זמניים בכרטיס', () {

@@ -1,6 +1,6 @@
 // q12 Q8, הערת בעל הפרויקט (4.11): במסך קטן "צפיפות ממשק" מצומצמת כברירת
 // מחדל, ובחירה מפורשת של המשתמש נשמרת. "מסך קטן" הוא טלפון, או חצי מסך של
-// 10" בטאבלט; במחשב רק חלון נמוך (סקירה r3).
+// 10" בטאבלט; במחשב חלון נמוך או צר (סקירה r3, ובהמשך רוחב מתחת ל-600).
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/device_chrome.dart';
@@ -63,17 +63,22 @@ void main() {
     });
   });
 
-  group('AppDensity.isSmallWindow במחשב: רק חלון נמוך', () {
+  group('AppDensity.isSmallWindow במחשב: חלון נמוך או צר', () {
     onDevice(false, () {
       test('מחשב נייד 1366×768 ב-125%, מוגדל (1093×566), אינו קטן', () {
         for (final size in const [
           Size(1093, 566),
           Size(1024, 600),
-          Size(512, 600),
-          Size(500, 900),
+          Size(600, 480),
           Size(1280, 800),
         ]) {
           expect(AppDensity.isSmallWindow(size), isFalse, reason: '$size');
+        }
+      });
+
+      test('חלון צר מ-600 קטן גם כשהוא גבוה', () {
+        for (final size in const [Size(512, 600), Size(500, 900)]) {
+          expect(AppDensity.isSmallWindow(size), isTrue, reason: '$size');
         }
       });
 

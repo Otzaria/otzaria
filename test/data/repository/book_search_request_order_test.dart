@@ -277,7 +277,7 @@ void main() {
     'supersession while collecting categories keeps the latest token',
     () async {
       final key = Object();
-      late Future<({List<Book> books, List<Category> categories})> newer;
+      late Future<BooksAndCategoriesSearch> newer;
       category.onCategories = () {
         newer = repository.findBooksAndCategories(
           'בית',
