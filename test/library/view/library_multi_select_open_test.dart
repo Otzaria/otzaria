@@ -1167,4 +1167,63 @@ void main() {
       });
     });
   }
+
+  group('חזרה לעיון מהספרייה (issue #4229)', () {
+    final book = TextBook(title: 'ספר בספרייה');
+    List<OpenedTab> tabs() => [
+      TextBookTab(book: TextBook(title: 'בראשית'), index: 0),
+      TextBookTab(book: TextBook(title: 'שמות'), index: 0),
+    ];
+    final returnButton = find.byTooltip('חזרה לעיון: בראשית');
+
+    void expectReturnedToReading(_Harness h) {
+      verify(
+        () => h.navigationBloc.add(const NavigateToScreen(Screen.reading)),
+      ).called(1);
+      verifyNever(() => h.tabsBloc.add(any()));
+    }
+
+    testWidgets('יש כרטיסיות פתוחות: הכפתור מציג את הכרטיסייה הנוכחית '
+        'ומחזיר אליה', (tester) async {
+      final h = await _pumpBrowser(
+        tester,
+        books: [book],
+        viewMode: 'grid',
+        openTabs: tabs(),
+      );
+      expect(returnButton, findsOneWidget);
+
+      await tester.tap(returnButton);
+      await tester.pump();
+      expectReturnedToReading(h);
+    });
+
+    testWidgets('Esc מחוץ לשדה טקסט מחזיר לעיון', (tester) async {
+      final h = await _pumpBrowser(
+        tester,
+        books: [book],
+        viewMode: 'grid',
+        openTabs: tabs(),
+      );
+      // Tab משדה החיפוש מעביר את הפוקוס לרשת הספרים.
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expectReturnedToReading(h);
+    });
+
+    testWidgets('אין כרטיסיות פתוחות: אין כפתור ו-Esc לא עובר לעיון', (
+      tester,
+    ) async {
+      final h = await _pumpBrowser(tester, books: [book], viewMode: 'grid');
+      expect(find.byTooltip(RegExp('^חזרה לעיון')), findsNothing);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      verifyNever(() => h.navigationBloc.add(any()));
+    });
+  });
 }
