@@ -285,8 +285,8 @@ void AppendContext(std::string* report) {
 
 }  // namespace crash_record
 
-// נקרא מ-Dart ב-FFI (leaf), רק כשההקשר משתנה. התו הראשון נכתב אחרון: קורא
-// בזמן כתיבה רואה מחרוזת ריקה ולא תערובת.
+// נקרא מ-Dart ב-FFI (leaf) כשההקשר משתנה. בלי נעילה: קריסה ב-thread אחר באמצע
+// עדכון עלולה לרשום שורה מעורבת; בתקיעה וב-WER הכותב עצור.
 extern "C" __declspec(dllexport) void OtzariaSetDiagnosticContext(
     const char* utf8, int32_t length) {
   using crash_record::g_wer;

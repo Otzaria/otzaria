@@ -10,9 +10,8 @@ import 'package:otzaria/app_report/services/unclean_exit_detector.dart';
 import 'package:path/path.dart' as p;
 import 'package:win32/win32.dart';
 
-/// מה שמערכת ההפעלה רשמה על סיום ההפעלה הקודמת: ב-Windows אירועי
-/// Application Error (1000) ו-Application Hang (1002), בלינוקס הריגת OOM.
-/// נקרא רק בדוח על סגירה לא תקינה; לעולם לא זורק.
+/// אירועי המערכת על סיום ההפעלה הקודמת: Application Error/Hang ב-Windows,
+/// הריגת OOM בלינוקס. רק בדוח על סגירה לא תקינה; לעולם לא זורק.
 Future<List<Map<String, Object?>>> readPreviousRunSystemEvents(
   SessionLock session, {
   DateTime? until,
@@ -131,14 +130,16 @@ String windowsEventQuery(String exe, DateTime start, DateTime end) {
       "@SystemTime<='${at(end)}']]] and *[EventData[Data='$name']]";
 }
 
-/// האירוע רק אם ה-pid שלו (הקסדצימלי, עם 0x או בלי) הוא של ההפעלה הקודמת.
-/// נתיבים נשמטים: הם עלולים להכיל את שם המשתמש.
+/// האירוע רק אם שדה ה-pid שלו (הקסדצימלי) הוא של ההפעלה הקודמת: ProcessId,
+/// או לפי המיקום בלי שמות (9 ב-1000, 3 ב-1002). נתיבים נשמטים (שם המשתמש).
 @visibleForTesting
 Map<String, Object?>? parseWindowsEvent(String xml, int pid) {
   final id = RegExp(r'<EventID[^>]*>(\d+)</EventID>').firstMatch(xml);
   final provider = RegExp(r"<Provider Name='([^']*)'").firstMatch(xml);
   final time = RegExp(r"SystemTime='([^']*)'").firstMatch(xml);
   final hex = pid.toRadixString(16);
+  final eventId = id == null ? null : int.parse(id.group(1)!);
+  final pidIndex = eventId == 1000 ? 9 : 3;
   var matchesPid = false;
   final data = <String, String>{};
   var index = 0;
@@ -147,19 +148,21 @@ Map<String, Object?>? parseWindowsEvent(String xml, int pid) {
   ).allMatches(xml)) {
     index++;
     final value = _unescape(match.group(2) ?? '').trim();
+    final name = match.group(1);
+    final isPidField = name == null ? index == pidIndex : name == 'ProcessId';
     final lower = value.toLowerCase();
-    if (lower == '0x$hex' || lower == hex) matchesPid = true;
+    if (isPidField && (lower == '0x$hex' || lower == hex)) matchesPid = true;
     if (value.isEmpty || value.contains(r'\') || data.length >= _maxFields) {
       continue;
     }
-    data[match.group(1) ?? '$index'] = value.length > _maxValueChars
+    data[name ?? '$index'] = value.length > _maxValueChars
         ? value.substring(0, _maxValueChars)
         : value;
   }
-  if (!matchesPid || id == null) return null;
+  if (!matchesPid || eventId == null) return null;
   return {
     'provider': provider?.group(1),
-    'eventId': int.parse(id.group(1)!),
+    'eventId': eventId,
     'time': time?.group(1),
     'data': data,
   };
@@ -190,14 +193,18 @@ Future<List<Map<String, Object?>>> _queryLinuxOom(
     '@${end.millisecondsSinceEpoch ~/ 1000 + 60}',
   ]);
   unawaited(process.stderr.drain<void>());
+  // מסננים על הזרם: יומן קרנל של ימים לא נשמר כולו בזיכרון.
   final output = process.stdout
       .transform(utf8.decoder)
       .transform(const LineSplitter())
+      .where((line) => isLinuxOomLine(line, pid))
+      .take(_maxEvents)
       .toList();
   try {
     final lines = await output.timeout(timeout);
+    process.kill();
     return [
-      for (final line in matchLinuxOomLines(lines, pid)) {'line': line},
+      for (final line in lines) {'line': line},
     ];
   } on TimeoutException {
     process.kill();
@@ -205,14 +212,10 @@ Future<List<Map<String, Object?>>> _queryLinuxOom(
   }
 }
 
-/// שורות הקרנל על הריגת התהליך, או על OOM כללי באותו זמן.
+/// שורת קרנל על הריגת התהליך הזה, או OOM שנגע ב-otzaria.
 @visibleForTesting
-List<String> matchLinuxOomLines(List<String> lines, int pid) => lines
-    .where(
-      (line) =>
-          line.contains('Killed process $pid ') ||
-          (line.contains('oom-kill:') && line.contains('pid=$pid,')) ||
-          line.contains('Out of memory'),
-    )
-    .take(_maxEvents)
-    .toList();
+bool isLinuxOomLine(String line, int pid) =>
+    line.contains('Killed process $pid ') ||
+    (line.contains('oom-kill:') && line.contains('pid=$pid,')) ||
+    (line.contains('Out of memory') &&
+        (line.contains('process $pid ') || line.contains('otzaria')));

@@ -44,8 +44,16 @@ void main() {
       expect((event!['data']! as Map)['4'], 'Quit');
     });
 
-    test('תהליך אחר: לא מצורף', () {
+    test('תהליך אחר: לא מצורף, גם כשה-hex שלו מופיע בשדה אחר', () {
       expect(parseWindowsEvent(_applicationError, 0x2000), isNull);
+      expect(parseWindowsEvent(_applicationHang, 0x2000), isNull);
+      expect(
+        parseWindowsEvent(
+          _applicationError.replaceAll('c0000005', '2000'),
+          0x2000,
+        ),
+        isNull,
+      );
     });
   });
 
@@ -62,13 +70,14 @@ void main() {
     expect(query, contains("Data='otzaria.exe'"));
   });
 
-  test('לינוקס: הריגת התהליך הזה ו-OOM כללי בלבד', () {
-    final lines = matchLinuxOomLines([
+  test('לינוקס: רק הריגת התהליך הזה או OOM של otzaria', () {
+    final lines = [
       'kernel: Out of memory: Killed process 4242 (otzaria) total-vm:1kB',
       'kernel: Killed process 42421 (other) total-vm:1kB',
       'kernel: oom-kill:constraint=CONSTRAINT_NONE,task=otzaria,pid=4242,uid=1',
       'kernel: usb 1-1: new device',
-    ], 4242);
+      'kernel: Out of memory: Killed process 77 (chrome) total-vm:1kB',
+    ].where((line) => isLinuxOomLine(line, 4242)).toList();
     expect(lines, hasLength(2));
     expect(lines.first, contains('Killed process 4242 '));
     expect(lines.last, contains('pid=4242,'));

@@ -15,13 +15,13 @@
 #include <cstdlib>
 
 #include "flutter/generated_plugin_registrant.h"
-#include "accessibility_probe.h"
 #include "drag_preview_window.h"
 #include "phantom_mouse_button_filter.h"
 #include "shift_key_normalizer.h"
 #include "snap_layouts.h"
 #include "splash_window.h"
 #include "hang_monitor.h"
+#include "accessibility_probe.h"
 #include "startup_watchdog.h"
 #include "utils.h"
 #include "window_centering.h"
@@ -997,10 +997,11 @@ bool FlutterWindow::OnCreate() {
       });
 
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
+  // ראשון בשרשרת = רץ אחרון: רואה רק בקשות נגישות שמסננים אחרים העבירו.
+  accessibility_probe::Install(flutter_controller_->view()->GetNativeWindow());
   InstallPhantomMouseButtonFilter(
       flutter_controller_->view()->GetNativeWindow());
   InstallShiftKeyNormalizer(flutter_controller_->view()->GetNativeWindow());
-  accessibility_probe::Install(flutter_controller_->view()->GetNativeWindow());
 
   // NOTE: the main window is intentionally NOT shown here. It stays hidden
   // until Dart reveals it (window_manager.show in presentMainWindow) once the

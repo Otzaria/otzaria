@@ -5,9 +5,8 @@ import 'dart:io';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 
-/// קריאות FFI לפונקציות שה-runner של Windows מייצא (`crash_record.cpp`,
-/// `accessibility_probe.cpp`). מחוץ ל-runner (בדיקות, פלטפורמות אחרות) אינן
-/// עושות דבר.
+/// FFI לפונקציות שה-runner של Windows מייצא (`crash_record.cpp`,
+/// `accessibility_probe.cpp`). מחוץ ל-runner אין מופע.
 class NativeDiagnosticsBridge {
   NativeDiagnosticsBridge._(this._setContext, this._firstAccessibilityRequest);
 

@@ -49,12 +49,16 @@ class AccessibilityDiagnostics {
   static String get contextLabel =>
       _enabled ? 'semantics=on@${_enabledAtMs}ms' : '';
 
-  /// מקטע האבחון בדוח.
+  /// מקטע האבחון בדוח. בלי binding (בדיקות, isolate עזר) מחזיר את מה שיש.
   static Map<String, Object?> describe() {
+    bool? enabled;
+    try {
+      enabled = _enabled;
+    } catch (_) {}
     final request = NativeDiagnosticsBridge.instance
         ?.firstAccessibilityRequest();
     return {
-      'semanticsEnabled': _enabled,
+      'semanticsEnabled': ?enabled,
       'semanticsFirstEnabledAtMs': ?_enabledAtMs,
       if (_enabledBeforeInstall) 'semanticsEnabledBeforeInstall': true,
       if (request != null) ...{
@@ -110,7 +114,8 @@ class _NativeCrashContextScopeState extends State<NativeCrashContextScope> {
     _subscriptions
       ..add(context.read<NavigationBloc>().stream.listen((_) => _push()))
       ..add(context.read<TabsBloc>().stream.listen((_) => _push()));
-    _push();
+    // לא בבניית הפריים הראשון: ההקשר הראשוני יכול לחכות פריים.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _push());
   }
 
   @override

@@ -62,9 +62,8 @@ class SessionContextSnapshot {
   /// התמונה שההפעלה הקודמת השאירה. נקראת פעם אחת, לפני הכתיבה הראשונה כאן.
   Future<Map<String, dynamic>?> get previous => _previous ??= _read();
 
-  /// התמונה רק אם נשמרה בהפעלה [session], ואירועי המערכת על סיומה. בלי
-  /// נעילה (ANR) אין זיהוי אמין של ההפעלה: מספר תהליך עלול להיות בשימוש
-  /// חוזר, וזמן יציאה אינו זמן התחלה.
+  /// התמונה רק אם נשמרה בהפעלה [session], ואירועי המערכת על סיומה. בלי נעילה
+  /// (ANR) אין זיהוי אמין: pid ממוחזר, וזמן יציאה אינו זמן התחלה.
   Future<Map<String, dynamic>?> previousFor(SessionLock? session) async {
     if (session == null) return null;
     final snapshot = await previous;
@@ -168,20 +167,30 @@ class SessionContextSnapshot {
     }
   }
 
+  static bool _diskCheckTimedOut = false;
+
   /// הכונן נבדק ב-isolate: כונן רשת מנותק עלול לעכב את הקריאה שניות.
   /// בלינוקס ובמק המקום הפנוי דורש תהליך `df`, ולכן רק ב-Windows.
   static Future<Map<String, Object?>> _defaultResources() async {
     final memory = memoryInfo();
-    if (!Platform.isWindows) return memory;
+    if (!Platform.isWindows || _diskCheckTimedOut) return memory;
     final library = Settings.isInitialized
         ? Settings.getValue<String>(SettingsRepository.keyLibraryPath)
         : null;
     final dir = library == null || library.isEmpty
         ? p.dirname(ErrorLogFile.resolvePath())
         : library;
-    final freeBytes = await Isolate.run(
-      () async => (await getDiskSpaceInfo(dir)).freeBytes,
-    ).timeout(const Duration(seconds: 10), onTimeout: () => -1);
+    final freeBytes =
+        await Isolate.run(
+          () async => (await getDiskSpaceInfo(dir)).freeBytes,
+        ).timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            // כונן שלא ענה פעם אחת לא נבדק שוב: כל בדיקה הייתה משאירה isolate תקוע.
+            _diskCheckTimedOut = true;
+            return -1;
+          },
+        );
     return {
       ...memory,
       if (freeBytes >= 0) 'libraryDriveFreeMb': freeBytes >> 20,
