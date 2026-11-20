@@ -3197,7 +3197,20 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   }
 
   void _openCategory(Category category) {
-    context.read<LibraryBloc>().add(NavigateToCategory(category));
+    // פתיחת מדף מסיימת את החיפוש: שאילתה שנשארת בתיבה רצה שוב בעלייה לתיקיית
+    // האב, ו-Backspace מוחק ממנה במקום לעלות מדף.
+    final bloc = context.read<LibraryBloc>();
+    final searchController = context
+        .read<FocusRepository>()
+        .librarySearchController;
+    if (searchController.text.isNotEmpty ||
+        (bloc.state.searchQuery?.isNotEmpty ?? false)) {
+      _searchDebounce?.cancel();
+      _searchDebounce = null;
+      searchController.clear();
+      bloc.add(const UpdateSearchQuery(''));
+    }
+    bloc.add(NavigateToCategory(category));
     _refocusSearchBar();
   }
 
