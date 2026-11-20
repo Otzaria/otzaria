@@ -2,8 +2,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/tools/biographies/models/biography.dart';
 import 'package:otzaria/tools/biographies/repository/biographies_repository.dart';
 
-Biography _bio(String name, {List<String> appelations = const []}) =>
-    Biography(id: name, name: name, knownAs: appelations);
+Biography _bio(
+  String name, {
+  List<String> appelations = const [],
+  List<String> works = const [],
+}) => Biography(
+  id: name,
+  name: name,
+  knownAs: appelations,
+  works: [for (final title in works) BiographyWork(title: title)],
+);
 
 void main() {
   group('BiographiesRepository.filter', () {
@@ -125,6 +133,59 @@ void main() {
         'אב דוד',
         'אב יוסף',
       ]);
+    });
+  });
+
+  group('חיפוש ביוגרפיות לפי שם חיבור (issue #4274)', () {
+    test('שם ספר מוצא את מחברו', () {
+      final entries = [
+        _bio('רבי אליהו מווילנא'),
+        _bio('רבינו בחיי אבן פקודה', works: ['חובות הלבבות']),
+      ];
+
+      expect(
+        BiographiesRepository.filter(entries, 'חובות הלבבות').single.name,
+        'רבינו בחיי אבן פקודה',
+      );
+    });
+
+    test('התאמה בשם או בכינוי קודמת להתאמה בשם חיבור', () {
+      final entries = [
+        _bio('רבינו בחיי אבן פקודה', works: ['חובות']),
+        _bio('פלוני', appelations: ['בעל החובות']),
+        _bio('רבי חובות הגדול'),
+      ];
+
+      expect(
+        BiographiesRepository.filter(entries, 'חובות').map((b) => b.name),
+        ['רבי חובות הגדול', 'פלוני', 'רבינו בחיי אבן פקודה'],
+      );
+    });
+
+    test('בין החיבורים: מדויק < מתחיל ב- < מילה שלמה < מכיל', () {
+      final entries = [
+        _bio('ד', works: ['ספר הלבבותיו']),
+        _bio('ג', works: ['חובות הלבבות']),
+        _bio('ב', works: ['הלבבות והנפש']),
+        _bio('א', works: ['שיר', 'הלבבות']),
+      ];
+
+      expect(
+        BiographiesRepository.filter(entries, 'הלבבות').map((b) => b.name),
+        ['א', 'ב', 'ג', 'ד'],
+      );
+    });
+
+    test('גרשיים עבריים בשם החיבור תואמים מירכאות רגילות', () {
+      final entries = [
+        _bio('רבי יעקב בן אשר', works: ['ארבעה טורים', 'פירוש בעל הטורים']),
+        _bio('רבי חיים בן עטר', works: ['אוה״ח']),
+      ];
+
+      expect(
+        BiographiesRepository.filter(entries, 'אוה"ח').single.name,
+        'רבי חיים בן עטר',
+      );
     });
   });
 
