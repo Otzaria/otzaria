@@ -80,12 +80,7 @@ class UserStateListRepository<T> {
       fromJson,
       label,
     );
-    // רשומה שלא פוענחה נשמרת בגיבוי כמו ב-[mutate], ושחזור מחזיר אותה.
-    return [
-      ...decoded.items.map(toJson),
-      for (final entry in decoded.undecodable)
-        if (entry is Map) castMap(entry),
-    ];
+    return decoded.items.map(toJson).toList();
   };
 
   // static: closure במתודת מופע הייתה לוכדת את this, שאינו נשלח ל-isolate.

@@ -9,6 +9,7 @@ import 'package:otzaria/bookmarks/models/bookmark_group.dart';
 import 'package:otzaria/bookmarks/repository/bookmark_repository.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/user_state/user_state_database.dart';
+import 'package:otzaria/core/user_state/user_state_list_store.dart';
 import 'package:otzaria/core/user_state/user_state_slot.dart';
 import 'package:otzaria/core/user_state/window_session_store.dart';
 import 'package:otzaria/core/windowing/runner_window_channel.dart';
@@ -129,19 +130,68 @@ void main() {
     await repo.mutateBookmarks((_) => [buildBookmark('מהגיבוי')]);
     final path = await createFullBackup();
     final data = jsonDecode(await File(path).readAsString()) as Map;
-    (data['bookmarks'] as List).add({'type': 'לא ידוע'});
+    (data['bookmarks'] as List).addAll([
+      {'type': 'לא ידוע'},
+      null,
+      17,
+    ]);
+    (data['bookmarkGroups'] as List).add(null);
+    (data['history'] as List).add(17);
     await File(path).writeAsString(jsonEncode(data));
     await repo.mutateBookmarks((_) => [buildBookmark('מקומי')]);
 
     final added = await importMerge(path);
 
     expect(added?.bookmarks, 1);
-    expect(added?.skipped, 1);
+    expect(added?.skipped, 5);
     expect(
       (await repo.loadBookmarks()).map((b) => b.book.title),
       ['מקומי', 'מהגיבוי'],
     );
   });
+
+  test(
+    'הגיבוי משמיט רשומות לא נתמכות, ושחזור מחליף משמר אותן מקובץ חיצוני',
+    () async {
+      final repo = BookmarkRepository();
+      final history = HistoryRepository();
+      final bookmark = buildBookmark('מהגיבוי').toJson();
+      const undecodable = [null, 17];
+      await repo.overwriteJson([bookmark, ...undecodable]);
+      await repo.replaceGroupsJson(undecodable);
+      await history.overwriteJson([bookmark, ...undecodable]);
+
+      final path = await createFullBackup();
+      final file = File(path);
+      final data = jsonDecode(await file.readAsString()) as Map;
+      final bookmarks = data['bookmarks'] as List;
+      final groups = data['bookmarkGroups'] as List;
+      final historyItems = data['history'] as List;
+      expect(bookmarks, hasLength(1));
+      expect(groups, isEmpty);
+      expect(historyItems, hasLength(1));
+      for (final items in [bookmarks, groups, historyItems]) {
+        items.addAll(undecodable);
+      }
+      await file.writeAsString(jsonEncode(data));
+
+      await repo.clearBookmarks();
+      await repo.replaceGroupsJson([]);
+      await history.clearHistory();
+      await BackupService.restoreFromBackup(path);
+
+      expect((await repo.loadBookmarks()).map((entry) => entry.book.title), [
+        'מהגיבוי',
+      ]);
+      final store = UserStateListStore.instance;
+      expect(
+        (await store.read('bookmarks', 'key-bookmarks')).skip(1),
+        undecodable,
+      );
+      expect(await store.read('bookmarks', 'key-bookmark-groups'), undecodable);
+      expect((await store.read('history', 'history')).skip(1), undecodable);
+    },
+  );
 
   test('סימניות והיסטוריה מתווספות, והמקומיות נשמרות', () async {
     final repo = BookmarkRepository();

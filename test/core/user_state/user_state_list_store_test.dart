@@ -237,13 +237,15 @@ void main() {
     );
 
     test(
-      'loadJson שומר רשומה שלא פוענחה, ו-overwriteJson מחזיר אותה',
+      'loadJson משמיט רשומות לא נתמכות, ו-overwriteJson משמר קלט גולמי',
       () async {
         final db = UserStateDatabase.openAt(dbPath);
         final store = UserStateListStore(database: db);
         final raw = [
           ...entries(2000),
           {'broken': true},
+          null,
+          17,
         ];
         await store.write('history', 'history', raw);
         final repository = UserStateListRepository<int>(
@@ -256,14 +258,17 @@ void main() {
         );
 
         final json = await repository.loadJson();
-        expect(json, hasLength(2001));
-        expect(json.last, {'broken': true});
+        expect(json, hasLength(2000));
 
         await store.clear('history', 'history');
-        await repository.overwriteJson(json);
+        await repository.overwriteJson(raw);
         expect(await repository.load(), hasLength(2000));
-        expect((await store.read('history', 'history')).last, {'broken': true});
-        expect(repository.decodeJson(json), hasLength(2000));
+        expect((await store.read('history', 'history')).skip(2000), [
+          {'broken': true},
+          null,
+          17,
+        ]);
+        expect(repository.decodeJson(raw), hasLength(2000));
         db.close();
       },
     );

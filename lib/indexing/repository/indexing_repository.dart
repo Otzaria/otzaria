@@ -2384,6 +2384,7 @@ class IndexingRepository {
 
   static Map<String, int>? _bookOrderRanks;
 
+  Future<void> _bookOrderWrites = Future<void>.value();
   ({SearchEngine engine, List<BookOrderEntry> entries})? _sentBookOrder;
 
   /// מיקום כל ספר במיפוי הסדר — כפי שהמנוע ממיין בסדר הקטלוג.
@@ -2403,24 +2404,22 @@ class IndexingRepository {
     final generation = _orderGeneration;
     try {
       final entries = await buildBookOrder(library);
-      final engine = await _tantivyDataProvider.engine;
-      // סדר של ספרייה שהוחלפה בינתיים היה דורס במנוע את הסדר החדש.
-      if (generation != _orderGeneration) return;
-      // קידוד הרשימה ל-Rust רץ על ה-UI; אותה רשימה לאותו מנוע לא משנה דבר.
-      final sent = _sentBookOrder;
-      if (sent != null &&
-          identical(sent.engine, engine) &&
-          identical(sent.entries, entries)) {
-        return;
-      }
-      final sending = engine.setBookOrder(entries: entries);
-      final record = _sentBookOrder = (engine: engine, entries: entries);
-      try {
-        await sending;
-      } catch (_) {
-        if (identical(_sentBookOrder, record)) _sentBookOrder = null;
-        rethrow;
-      }
+      // כתיבה שכבר הועברה למנוע אינה ניתנת לביטול. סדר חדש נשלח אחריה.
+      final write = _bookOrderWrites.then((_) async {
+        if (generation != _orderGeneration) return;
+        final engine = await _tantivyDataProvider.engine;
+        if (generation != _orderGeneration) return;
+        final sent = _sentBookOrder;
+        if (sent != null &&
+            identical(sent.engine, engine) &&
+            identical(sent.entries, entries)) {
+          return;
+        }
+        await engine.setBookOrder(entries: entries);
+        _sentBookOrder = (engine: engine, entries: entries);
+      });
+      _bookOrderWrites = write.then<void>((_) {}, onError: (Object _) {});
+      await write;
     } catch (e) {
       debugPrint('⚠️ עדכון סדר הספרים במנוע נכשל: $e');
     }

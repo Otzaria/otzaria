@@ -1024,13 +1024,13 @@ class BackupService {
             includes['bookmarksAndHistory'] == true) &&
         backupData.containsKey('bookmarks')) {
       await _restoreBookmarks(
-        (backupData['bookmarks'] as List).cast<Map<String, dynamic>>(),
+        backupData['bookmarks'] as List<Object?>,
         counts: counts,
       );
       // Older backups have no groups; the current ones are then kept.
       if (backupData.containsKey('bookmarkGroups')) {
         await _restoreBookmarkGroups(
-          (backupData['bookmarkGroups'] as List).cast<Map<String, dynamic>>(),
+          backupData['bookmarkGroups'] as List<Object?>,
           counts: counts,
         );
       }
@@ -1041,7 +1041,7 @@ class BackupService {
             includes['bookmarksAndHistory'] == true) &&
         backupData.containsKey('history')) {
       await _restoreHistory(
-        (backupData['history'] as List).cast<Map<String, dynamic>>(),
+        backupData['history'] as List<Object?>,
         counts: counts,
       );
     }
@@ -1305,7 +1305,7 @@ class BackupService {
 
   /// Restore bookmarks. [counts] לא ריק = ייבוא ממזג, והסימניות מתווספות.
   static Future<void> _restoreBookmarks(
-    List<Map<String, dynamic>> bookmarksData, {
+    List<Object?> bookmarksData, {
     BackupImportCounts? counts,
   }) async {
     final repo = BookmarkRepository();
@@ -1329,7 +1329,7 @@ class BackupService {
 
   /// Restore bookmark groups. [counts] לא ריק = ייבוא ממזג, והקבוצות מתווספות.
   static Future<void> _restoreBookmarkGroups(
-    List<Map<String, dynamic>> groupsData, {
+    List<Object?> groupsData, {
     BackupImportCounts? counts,
   }) async {
     final repo = BookmarkRepository();
@@ -1352,7 +1352,7 @@ class BackupService {
 
   /// Restore history. [counts] לא ריק = ייבוא ממזג, והרשומות מתווספות.
   static Future<void> _restoreHistory(
-    List<Map<String, dynamic>> historyData, {
+    List<Object?> historyData, {
     BackupImportCounts? counts,
   }) async {
     final repo = HistoryRepository();

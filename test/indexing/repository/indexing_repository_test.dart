@@ -2012,6 +2012,58 @@ void main() {
       expect(engine.pushedOrders, hasLength(1));
     });
 
+    test('סנכרון כפול ממתין לכתיבת הסדר למנוע', () async {
+      IndexingRepository.invalidateBookOrder();
+      final engine = _DelayedOrderEngine();
+      final repository = _FakeExtractionRepository(
+        _RecordingTantivyDataProvider(engine),
+      );
+      final library = Library(categories: [])
+        ..books.add(TextBook(id: 5, title: 'שבת'));
+
+      final first = repository.syncBookOrder(library);
+      await engine.firstWriteStarted.future;
+      var duplicateCompleted = false;
+      final second = repository.syncBookOrder(library).then((_) {
+        duplicateCompleted = true;
+      });
+      await Future<void>.delayed(Duration.zero);
+      final completedBeforeWrite = duplicateCompleted;
+      engine.finishFirstWrite.complete();
+      await Future.wait([first, second]);
+
+      expect(completedBeforeWrite, isFalse);
+      expect(engine.pushedOrders, hasLength(1));
+    });
+
+    test('סדר חדש נכתב אחרי שסדר ישן שכבר נשלח מסתיים', () async {
+      IndexingRepository.invalidateBookOrder();
+      final engine = _DelayedOrderEngine();
+      final repository = _FakeExtractionRepository(
+        _RecordingTantivyDataProvider(engine),
+      );
+      final original = TextBook(id: 5, title: 'שבת');
+      final replacement = TextBook(id: 19, title: 'נזיר');
+      final oldLibrary = Library(categories: [])..books.add(original);
+      final newLibrary = Library(categories: [])..books.add(replacement);
+
+      final first = repository.syncBookOrder(oldLibrary);
+      await engine.firstWriteStarted.future;
+      IndexingRepository.invalidateBookOrder();
+      final second = repository.syncBookOrder(newLibrary);
+      await Future<void>.delayed(Duration.zero);
+      engine.finishFirstWrite.complete();
+      await Future.wait([first, second]);
+
+      expect(
+        engine.pushedOrders.map((order) => order.single.filePath),
+        [
+          BookIdentity.indexedFilePath(original),
+          BookIdentity.indexedFilePath(replacement),
+        ],
+      );
+    });
+
     test('invalidate באמצע בנייה אינו שולח את הסדר הישן', () async {
       IndexingRepository.invalidateBookOrder();
       final engine = _CancellationRecordingEngine();
@@ -5619,3 +5671,17 @@ class _PathCountingCategory extends Category {
 
 Future<BigInt> _fakeContentFingerprint({required List<int> text}) async =>
     BigInt.from(1000 + text.length);
+
+class _DelayedOrderEngine extends _RecordingSearchEngine {
+  final firstWriteStarted = Completer<void>();
+  final finishFirstWrite = Completer<void>();
+
+  @override
+  Future<BigInt> setBookOrder({required List<BookOrderEntry> entries}) async {
+    if (!firstWriteStarted.isCompleted) {
+      firstWriteStarted.complete();
+      await finishFirstWrite.future;
+    }
+    return super.setBookOrder(entries: entries);
+  }
+}

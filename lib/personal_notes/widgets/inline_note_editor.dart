@@ -336,8 +336,13 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
       _draftSaveTimer?.cancel();
       _draftMaxWaitTimer?.cancel();
       _draftMaxWaitTimer = null;
-      await _clearDraft();
       _isDone = true;
+      try {
+        await _clearDraft();
+      } catch (_) {
+        _isDone = false;
+        rethrow;
+      }
       if (mounted) widget.onCancel();
     } catch (error) {
       if (mounted) UiSnack.showError(NotesMessages.noteDraftUpdateError(error));
