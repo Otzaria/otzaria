@@ -4,7 +4,10 @@ class FoundationalBookClassifier {
   static int? classify(String? categoryPath, String title) {
     if (categoryPath == null || categoryPath.isEmpty) return null;
 
-    final parts = _splitCategoryPath(categoryPath);
+    final parts = _partsByPath.putIfAbsent(
+      categoryPath,
+      () => List.unmodifiable(_splitCategoryPath(categoryPath)),
+    );
     if (parts.isEmpty) return null;
 
     const commentaryMarkers = {
@@ -86,6 +89,9 @@ class FoundationalBookClassifier {
 
     return null;
   }
+
+  // אלפי ספרים חולקים כל נתיב; הפיצול והנרמול רצים פעם אחת לנתיב (#5065).
+  static final Map<String, List<String>> _partsByPath = {};
 
   /// נתיב קטגוריה מגיע בשני פורמטים: "תנ\"ך, תורה" (join בפסיק —
   /// _categoryPathForBook / ReferenceBooksCache) או "/תנ\"ך/תורה"

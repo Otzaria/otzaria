@@ -24,6 +24,9 @@ class BackupImportCounts {
   int plugins = 0;
   int shamorZachorBooks = 0;
 
+  /// רשומות פגומות בגיבוי שלא ניתן היה לפענח ולכן לא יובאו. אינו חלק מ-[total].
+  int skipped = 0;
+
   int get total =>
       bookmarks +
       bookmarkGroups +

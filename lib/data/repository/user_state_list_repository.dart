@@ -59,6 +59,30 @@ class UserStateListRepository<T> {
     return _decode(raw).items;
   }
 
+  /// [load] ואחריו [toJson] לכל פריט. עם [decodeInBackground] שניהם רצים
+  /// ב-isolate, כדי שגיבוי של אלפי פריטים לא יבנה את ה-JSON על ה-UI.
+  Future<List<Map<String, dynamic>>> loadJson() async {
+    if (!decodeInBackground) return (await load()).map(toJson).toList();
+    return _store.readDecoded(
+      boxName,
+      key,
+      _jsonDecoder(fromJson, toJson, '$boxName/$key'),
+    );
+  }
+
+  static List<Map<String, dynamic>> Function(String? payload) _jsonDecoder<T>(
+    T Function(Map<String, dynamic>) fromJson,
+    Map<String, dynamic> Function(T) toJson,
+    String label,
+  ) => (payload) {
+    final decoded = _decodeEntries(
+      UserStateListStore.decodePayload(payload),
+      fromJson,
+      label,
+    );
+    return decoded.items.map(toJson).toList();
+  };
+
   // static: closure במתודת מופע הייתה לוכדת את this, שאינו נשלח ל-isolate.
   static List<T> Function(String? payload) _entriesDecoder<T>(
     T Function(Map<String, dynamic>) fromJson,
@@ -91,6 +115,18 @@ class UserStateListRepository<T> {
   /// להחליף את מה שיש. לכל שינוי אחר השתמש ב-[mutate].
   Future<void> overwrite(List<T> items) =>
       _store.write(boxName, key, items.map(toJson).toList(), origin: _origin);
+
+  /// הפריטים שב-[raw] שמפוענחים; רשומה פגומה מדולגת, כמו ב-[load].
+  List<T> decodeJson(List<dynamic> raw) => _decode(raw).items;
+
+  /// שחזור מגיבוי: [overwrite] מ-JSON. רשומה שלא פוענחה נכתבת כמות שהיא.
+  Future<void> overwriteJson(List<dynamic> raw) {
+    final decoded = _decode(raw);
+    return _store.write(boxName, key, [
+      ...decoded.items.map(toJson),
+      ...decoded.undecodable,
+    ], origin: _origin);
+  }
 
   /// "מחק הכול" פירושו הכול, כולל מה שחלון אחר הוסיף בשנייה האחרונה.
   Future<void> clear() => _store.clear(boxName, key, origin: _origin);

@@ -36,6 +36,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     '{count} פריטים': '{count} items',
     '{count} קבוצות סימניות': '{count} bookmark groups',
     '{count} רשומות היסטוריה': '{count} history entries',
+    '{count} רשומות פגומות בקובץ לא יובאו.': '{count} damaged records in the file were not imported.',
     '{count} שולחנות עבודה': '{count} workspaces',
     '{count} שמורים בתור': '{count} saved in the queue',
     '{count} תוספים': '{count} plugins',
