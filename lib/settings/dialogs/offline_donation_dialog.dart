@@ -106,7 +106,7 @@ class _DonationInstructions extends StatelessWidget {
                 children: [
                   Padding(
                     padding: const EdgeInsets.symmetric(
-                      vertical: AppTokens.spaceSM + 1,
+                      vertical: AppTokens.spaceSMD,
                     ),
                     child: AppInlineLink(
                       text: kNedarimDonationUrl,

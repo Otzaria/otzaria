@@ -421,7 +421,7 @@ Widget _buildBookDetailsContent(
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(
-                vertical: AppTokens.spaceSM + 1,
+                vertical: AppTokens.spaceSMD,
               ),
               child: pluginProviderName != null
                   ? Text('ספר מתוסף: $pluginProviderName')
@@ -598,7 +598,7 @@ class _MergedDescriptionSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSM + 1),
+      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSMD),
       child: Text.rich(
         TextSpan(
           style: TextStyle(

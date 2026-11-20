@@ -502,7 +502,7 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
                     ),
                   ],
                   style: const TextStyle(fontSize: 14),
-                  textAlign: TextAlign.right,
+                  textAlign: TextAlign.start,
                   onChanged: (text) {
                     if (isEnabled &&
                         _wordIndex != null &&
@@ -545,7 +545,7 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
                   ),
                 ),
                 style: const TextStyle(fontSize: 14),
-                textAlign: TextAlign.right,
+                textAlign: TextAlign.start,
                 onSubmitted: (text) {
                   if (text.trim().isNotEmpty) {
                     _addAlternative();
@@ -582,7 +582,7 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
             dense: true,
             title: Text(
               _currentAlternatives[index],
-              textAlign: TextAlign.right,
+              textAlign: TextAlign.start,
               style: const TextStyle(fontSize: 14),
             ),
             trailing: IconButton(
@@ -704,7 +704,7 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
     return Align(
       alignment: AlignmentDirectional.centerStart,
       child: Wrap(
-        spacing: 6,
+        spacing: AppTokens.spaceSM,
         runSpacing: 4,
         children: options.map(buildChip).toList(),
       ),

@@ -495,7 +495,7 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody>
                   child: Text(
                     widget.referenceText!,
                     style: referenceStyle,
-                    textAlign: TextAlign.right,
+                    textAlign: TextAlign.start,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),

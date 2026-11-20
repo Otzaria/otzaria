@@ -96,7 +96,7 @@ class IndexingWarning extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              textAlign: TextAlign.right,
+              textAlign: TextAlign.start,
               style: TextStyle(color: text),
             ),
           ),

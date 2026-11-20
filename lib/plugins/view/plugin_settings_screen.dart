@@ -427,8 +427,8 @@ class _PluginIdentity extends StatelessWidget {
         ),
         const SizedBox(height: AppTokens.spaceSM),
         Wrap(
-          spacing: AppTokens.spaceSM - 2,
-          runSpacing: AppTokens.spaceSM - 2,
+          spacing: AppTokens.spaceSM,
+          runSpacing: AppTokens.spaceSM,
           children: [
             MetaChip(
               icon: plugin.enabled

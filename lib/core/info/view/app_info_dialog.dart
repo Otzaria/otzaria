@@ -459,8 +459,8 @@ class _FolderTileState extends State<_FolderTile> {
           ),
           const SizedBox(height: AppTokens.spaceSM),
           Wrap(
-            spacing: AppTokens.spaceSM - 2,
-            runSpacing: AppTokens.spaceSM - 2,
+            spacing: AppTokens.spaceSM,
+            runSpacing: AppTokens.spaceSM,
             children: [
               if (!exists)
                 const MetaChip(
@@ -609,8 +609,8 @@ class _AttachedLibraryTile extends StatelessWidget {
           ),
           const SizedBox(height: AppTokens.spaceSM),
           Wrap(
-            spacing: AppTokens.spaceSM - 2,
-            runSpacing: AppTokens.spaceSM - 2,
+            spacing: AppTokens.spaceSM,
+            runSpacing: AppTokens.spaceSM,
             children: [
               if (!ok)
                 MetaChip(

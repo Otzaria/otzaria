@@ -167,7 +167,7 @@ class _CreditTile extends StatelessWidget {
     final licenseUrl = credit.licenseUrl;
     final license = credit.license;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSM + 1),
+      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSMD),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

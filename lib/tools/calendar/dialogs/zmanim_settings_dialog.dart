@@ -323,7 +323,7 @@ class _ZmanInfoButton extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Tooltip(
       message: explanation,
-      textAlign: TextAlign.right,
+      textAlign: TextAlign.start,
       waitDuration: const Duration(milliseconds: 300),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       margin: const EdgeInsets.all(12),

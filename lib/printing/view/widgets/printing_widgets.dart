@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:otzaria/settings/widgets/settings_card.dart';
+import 'package:otzaria/settings/widgets/settings_slider_tile.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -37,7 +38,7 @@ class PrintingSectionCard extends StatelessWidget {
           padding: const EdgeInsets.only(top: 12, bottom: 16),
           child: Row(
             children: [
-              Icon(icon, size: 20, color: colorScheme.primary),
+              Icon(icon, size: AppTokens.iconMD, color: colorScheme.primary),
               const SizedBox(width: 8),
               Text(title, style: SettingsCard.titleStyleOf(context)),
             ],
@@ -72,54 +73,16 @@ class PrintingSliderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Padding(
       padding: kPrintingRowPadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  color: colorScheme.onSurfaceVariant,
-                  fontSize: 13,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer,
-                  borderRadius: AppTokens.borderRadiusAll,
-                ),
-                child: Text(
-                  displayValue,
-                  style: TextStyle(
-                    color: colorScheme.onPrimaryContainer,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              trackHeight: 4,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-            ),
-            child: Slider(
-              value: value,
-              min: min,
-              max: max,
-              onChanged: onChanged,
-              onChangeEnd: onChangeEnd,
-            ),
-          ),
-        ],
+      child: SettingsSliderTile(
+        title: label,
+        valueLabel: displayValue,
+        value: value,
+        min: min,
+        max: max,
+        onChanged: onChanged,
+        onChangeEnd: onChangeEnd,
       ),
     );
   }
@@ -148,9 +111,8 @@ class PrintingDropdownRow extends StatelessWidget {
             width: 80,
             child: Text(
               label,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: colorScheme.onSurfaceVariant,
-                fontSize: 13,
               ),
             ),
           ),
@@ -187,9 +149,8 @@ class PrintingSwitchRow extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: TextStyle(
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: colorScheme.onSurface,
-                  fontSize: 14,
                 ),
               ),
             ),

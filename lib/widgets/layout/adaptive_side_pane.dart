@@ -311,12 +311,13 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
         elevation: AppTokens.elevation1,
         shadowColor: shadowColor,
         surfaceTintColor: Colors.transparent,
-        // הקצה הפנימי: הצד הפיזי של החלונית כבר נקבע ב-paneOnRight.
+        // הקצה הפנימי: הצד הפיזי של החלונית כבר נקבע ב-paneOnRight, וכאן הוא
+        // מתורגם לצד לפי כיוון (הקצה הפנימי של חלונית בימין הוא השמאלי).
         shape: innerEdge == null
             ? null
-            : paneOnRight
-            ? Border(left: innerEdge)
-            : Border(right: innerEdge),
+            : (paneOnRight != (Directionality.of(context) == TextDirection.rtl))
+            ? BorderDirectional(start: innerEdge)
+            : BorderDirectional(end: innerEdge),
         child: scrollbarWrapped,
       );
     }

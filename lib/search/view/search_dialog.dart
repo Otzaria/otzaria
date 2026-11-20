@@ -520,7 +520,7 @@ class _SearchDialogState extends State<SearchDialog> {
     return Align(
       alignment: AlignmentDirectional.centerStart,
       child: Wrap(
-        spacing: 6,
+        spacing: AppTokens.spaceSM,
         runSpacing: 4,
         children: [
           for (final key in keys)
@@ -1738,7 +1738,7 @@ class _SearchDialogState extends State<SearchDialog> {
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: Wrap(
-              spacing: 6,
+              spacing: AppTokens.spaceSM,
               runSpacing: 4,
               children: _buildPluginSearchChips(pluginItems),
             ),

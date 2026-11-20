@@ -71,7 +71,7 @@ class DetailsCard extends StatelessWidget {
           if (title != null) ...[
             Padding(
               padding: const EdgeInsets.only(
-                top: AppTokens.spaceSM + 2,
+                top: AppTokens.spaceSMD,
                 bottom: AppTokens.spaceSM,
               ),
               child: Row(
@@ -174,7 +174,7 @@ class DetailsInfoSection extends StatelessWidget {
     );
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSM + 1),
+      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSMD),
       // ברוחב טלפון שתי עמודות היו שוברות את הערך באמצע מילה.
       child: block || WindowClass.of(context).isCompact
           ? Column(
@@ -223,7 +223,7 @@ class DetailsText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSM + 1),
+      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSMD),
       child: Text(
         text,
         style: TextStyle(

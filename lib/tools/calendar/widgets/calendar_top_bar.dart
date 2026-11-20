@@ -810,7 +810,7 @@ class _CalendarTopBarState extends State<CalendarTopBar>
                     alignment: WrapAlignment.spaceBetween,
                     runAlignment: WrapAlignment.spaceBetween,
                     crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 10,
+                    spacing: AppTokens.spaceSMD,
                     runSpacing: 8,
                     children: [
                       viewSwitcher,

@@ -230,7 +230,7 @@ class _HistoryViewState extends State<HistoryView> {
                 child: Align(
                   alignment: AlignmentDirectional.centerEnd,
                   child: Wrap(
-                    spacing: 6,
+                    spacing: AppTokens.spaceSM,
                     children: workspaceNames.map((name) {
                       final selected = effectiveSelectedWorkspace == name;
                       return FilterChip(

@@ -1634,7 +1634,11 @@ class _StatusBadges extends StatelessWidget {
     if (chips.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: EdgeInsets.only(top: compact ? 0 : 4),
-      child: Wrap(spacing: 6, runSpacing: 6, children: chips),
+      child: Wrap(
+        spacing: AppTokens.spaceSM,
+        runSpacing: AppTokens.spaceSM,
+        children: chips,
+      ),
     );
   }
 

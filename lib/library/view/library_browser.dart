@@ -2592,7 +2592,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               child: LibraryOverflowTooltipText(
                 text: category.title,
                 maxLines: 1,
-                textAlign: TextAlign.right,
+                textAlign: TextAlign.start,
                 style: titleStyle,
               ),
             ),
@@ -2733,7 +2733,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                     LibraryOverflowTooltipText(
                       text: title,
                       maxLines: 1,
-                      textAlign: TextAlign.right,
+                      textAlign: TextAlign.start,
                       style: titleStyle,
                     ),
                     if (subtitle != null && subtitle.isNotEmpty)
@@ -2747,7 +2747,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                         LibraryOverflowTooltipText(
                           text: subtitle,
                           maxLines: 1,
-                          textAlign: TextAlign.right,
+                          textAlign: TextAlign.start,
                           style: subtitleStyle,
                         ),
                     if (pathCategories.isNotEmpty)
@@ -2763,7 +2763,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                       LibraryOverflowTooltipText(
                         text: pathLine,
                         maxLines: 1,
-                        textAlign: TextAlign.right,
+                        textAlign: TextAlign.start,
                         style: subtitleStyle?.copyWith(color: cs.secondary),
                       ),
                   ],

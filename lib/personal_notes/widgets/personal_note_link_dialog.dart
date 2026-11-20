@@ -162,6 +162,7 @@ class _PersonalNoteLinkDialogState extends State<PersonalNoteLinkDialog> {
                   RtlTextField(
                     controller: _urlController,
                     autofocus: true,
+                    // ui-lint: allow UIL-040 — כתובת אינטרנט היא LTR תמיד (JX-09)
                     textAlign: TextAlign.left,
                     decoration: InputDecoration(
                       labelText: 'כתובת הקישור',

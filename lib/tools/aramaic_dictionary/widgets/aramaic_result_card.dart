@@ -200,7 +200,7 @@ class _AramaicResultCardState extends State<AramaicResultCard> {
                 Expanded(
                   child: Wrap(
                     crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: AppTokens.spaceMD - 4,
+                    spacing: AppTokens.spaceSMD,
                     children: [
                       Text.rich(
                         TextSpan(
@@ -330,8 +330,8 @@ class _MeaningRow extends StatelessWidget {
               height: 24,
               alignment: Alignment.center,
               margin: const EdgeInsetsDirectional.only(
-                end: AppTokens.spaceSM + 2,
-                top: 6,
+                end: AppTokens.spaceSMD,
+                top: AppTokens.spaceSM,
               ),
               decoration: BoxDecoration(
                 color: cs.secondaryContainer,

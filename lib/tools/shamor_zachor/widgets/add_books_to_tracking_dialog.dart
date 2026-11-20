@@ -265,8 +265,8 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
             padding: EdgeInsetsDirectional.only(
               start: AppTokens.spaceMD + (level * AppTokens.spaceLG),
               end: AppTokens.spaceMD,
-              top: AppTokens.spaceSM + 2,
-              bottom: AppTokens.spaceSM + 2,
+              top: AppTokens.spaceSMD,
+              bottom: AppTokens.spaceSMD,
             ),
             child: Row(
               children: [
@@ -285,7 +285,7 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
                   size: 20,
                   color: colorScheme.primary,
                 ),
-                const SizedBox(width: AppTokens.spaceSM + 2),
+                const SizedBox(width: AppTokens.spaceSMD),
                 Expanded(
                   child: Text(
                     category.title,
@@ -371,7 +371,7 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
       subtitle: alreadyTracked || disabledReason != null
           ? Padding(
               padding: const EdgeInsetsDirectional.only(
-                start: 18 + AppTokens.spaceSM,
+                start: AppTokens.iconSM + AppTokens.spaceSM,
               ),
               child: Text(
                 alreadyTracked ? 'כבר במעקב' : disabledReason!,
