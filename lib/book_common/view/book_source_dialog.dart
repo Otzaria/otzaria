@@ -127,8 +127,9 @@ bool isTashmaSource(String? sourceFolder) {
 
 /// נקודת הזרקה לבדיקות: ספרי אוצר החכמה הממופים לספר אוצריא.
 @visibleForTesting
-Future<List<OtzarMappedBook>> Function(int otzariaId) otzarBooksForOtzariaId =
-    (id) => ExternalCatalogRepository.instance.getOtzarBooksForOtzariaId(id);
+Future<List<ExternalLibraryBook>> Function(int otzariaId)
+otzarBooksForOtzariaId = (id) =>
+    ExternalCatalogRepository.instance.getOtzarBooksForOtzariaId(id);
 
 /// נקודת הזרקה לבדיקות: פתיחת ספר באוצר החכמה (בתוכנה או באתר).
 @visibleForTesting
@@ -184,7 +185,7 @@ class _BookDetailsDialogContent extends StatefulWidget {
 class _BookDetailsDialogContentState extends State<_BookDetailsDialogContent> {
   late final Future<BookInformation> _informationFuture;
   final _scroll = ScrollController();
-  List<OtzarMappedBook> _otzarBooks = const [];
+  List<ExternalLibraryBook> _otzarBooks = const [];
   List<Biography> _authorBiographies = const [];
 
   @override
@@ -274,7 +275,7 @@ Widget _buildBookDetailsContent(
   BuildContext context,
   Book book,
   BookInformation information,
-  List<OtzarMappedBook> otzarBooks,
+  List<ExternalLibraryBook> otzarBooks,
   List<Biography> authorBiographies,
   ValueChanged<String> openBiography,
 ) {
@@ -358,7 +359,7 @@ Widget _buildBookDetailsContent(
         icon: OtzariaIcons.book_24_regular,
         value: 'פתח באוצר החכמה',
         tapTooltip: 'פתיחה בתוכנת אוצר החכמה כשהספר על הכונן, אחרת באתר',
-        onTap: () => _openInOtzar(mapped.book),
+        onTap: () => _openInOtzar(mapped),
       ),
   ];
 
@@ -437,22 +438,20 @@ Widget _buildBookDetailsContent(
 }
 
 /// גם לאותו כרך יש מהדורות; פרטים נוספים נדרשים רק כשהכותר והשנה חופפים.
-String _otzarBookLabel(OtzarMappedBook mapped, List<OtzarMappedBook> books) {
-  String baseLabel(OtzarMappedBook entry) {
-    final title = [
-      entry.book.title,
-      if (entry.volume != null && entry.volume != entry.book.title)
-        entry.volume!,
-    ].join(' – ');
-    final years = entry.book.pubDate?.trim() ?? '';
-    return years.isEmpty ? title : '$title ($years)';
+String _otzarBookLabel(
+  ExternalLibraryBook mapped,
+  List<ExternalLibraryBook> books,
+) {
+  String baseLabel(ExternalLibraryBook entry) {
+    final years = entry.pubDate?.trim() ?? '';
+    return years.isEmpty ? entry.title : '${entry.title} ($years)';
   }
 
   final label = baseLabel(mapped);
   if (books.where((entry) => baseLabel(entry) == label).length < 2) {
     return label;
   }
-  final details = [mapped.book.author, mapped.book.pubPlace].nonNulls
+  final details = [mapped.author, mapped.pubPlace].nonNulls
       .map((value) => value.trim())
       .where((value) => value.isNotEmpty)
       .join(', ');
