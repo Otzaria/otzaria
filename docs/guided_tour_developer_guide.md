@@ -410,6 +410,7 @@ LiveTipSpec(
 - מספר ההפעלות נשמר ב-`LiveTipStorage.launchCountKey` ומוגדל ב-`registerSession()` פעם אחת בכל עליית חלון.
 - בטיפ מבוסס-אינטראקציה (למשל `bookSourceHint`, `printHint`) בדוק את הסף ב-`_resolveNextLiveTip` דרך `_hasLaunchesAtLeast` בנוסף לתנאי האינטראקציה.
 - בטיפ מבוסס-טיימר (למשל `customFoldersHint`) הסף מוגדר ב-`DelayedTipSchedule` ונבדק ב-`registerSession()` לפני תזמון הטיימר.
+- חריג: טיפ הקשרי שנחוץ ברגע שהמצב מופיע אינו ממתין לסף. `linkHighlightHint` (issue #4919) מוצג בפעם הראשונה שספר נפתח עם הדגשה מקישור, ומלמד ש-Esc מסיר אותה; Esc עצמו (`linkHighlightCleared`) פותר אותו.
 
 ### טיפ מבוסס ותק שימוש (לא מבוסס אינטראקציה)
 

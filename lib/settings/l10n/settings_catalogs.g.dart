@@ -573,6 +573,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הסיור המקוצר הסתיים': 'The Short Tour is Done',
     'הסיור הסתיים!': 'The Tour is Done!',
     'הסיור יעבור על כל הפיצ׳רים המרכזיים של אוצריא.\nלחץ "אני מוכן" כשתהיה מוכן להתחיל.': 'The tour goes through everything Otzaria can do.\nPress "I\'m ready" when you want to begin.',
+    'הסימון הצהוב מגיע מהקישור שפתחת. לחיצה על Esc מסירה אותו.': 'The yellow highlight comes from the link you opened. Press Esc to remove it.',
     'הסימניות, ההערות, ההיסטוריה ושולחנות העבודה שבקובץ יתווספו לנתונים הקיימים. שום דבר לא יימחק, ההגדרות והכרטיסיות הפתוחות לא ישתנו, ושולחנות העבודה שבקובץ ייווספו כשולחנות חדשים.': 'The bookmarks, notes, history and workspaces in the file will be added to your existing data. Nothing is deleted, your settings and open tabs stay as they are, and the workspaces in the file are added as new ones.',
     'הספרייה': 'The Library',
     'הספרייה הועברה': 'Library Moved',
