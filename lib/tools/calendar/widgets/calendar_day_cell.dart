@@ -498,74 +498,68 @@ class HoverableDayCell extends StatefulWidget {
 }
 
 class _HoverableDayCellState extends State<HoverableDayCell> {
+  bool _showButton = false;
   bool _isHovered = false;
   Widget? _addButton;
+  ColorScheme? _addButtonScheme;
 
   // אותו מופע בין בנייה לבנייה: בבחירת יום ובריחוף כל התאים נבנים מחדש,
-  // ועדכון 42 הכפתורים היה רוב הזמן.
-  Widget _buildAddButton() {
-    return _addButton ??= _AddEventButton(onAdd: () => widget.onAdd());
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: Stack(
-        alignment: Alignment.topCenter,
-        children: [
-          Listener(
-            onPointerDown: (_) => setState(() => _isHovered = true),
-            child: widget.builder(_isHovered),
-          ),
-          // בשורת התאריכים, בין המספרים: מתחת לה באים החגים והאירועים, ושם
-          // כפתור גלוי תמיד היה מכסה אותם.
-          _buildAddButton(),
-        ],
+  // ועדכון 42 הכפתורים הנסתרים היה רוב הזמן.
+  Widget _buildAddButton(ColorScheme cs) {
+    if (_addButton != null && _addButtonScheme == cs) return _addButton!;
+    _addButtonScheme = cs;
+    return _addButton = TooltipTheme(
+      data: TooltipTheme.of(context).copyWith(verticalOffset: -40.0),
+      child: IconButton.filled(
+        tooltip: 'צור אירוע',
+        icon: const Icon(FluentIcons.add_24_regular, size: AppTokens.iconSM),
+        onPressed: () => widget.onAdd(),
+        style: IconButton.styleFrom(
+          minimumSize: const Size(24, 24),
+          backgroundColor: cs.primaryContainer,
+          foregroundColor: cs.onPrimaryContainer,
+          visualDensity: VisualDensity.compact,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          shape: AppTokens.roundedShape,
+        ),
       ),
     );
   }
-}
-
-/// כפתור "הוסף אירוע" בתא יום: תמיד גלוי כאייקון "+" שקט, ובריחוף עליו מקבל
-/// מילוי עגול (כמו כפתורי אייקון אחרים) ו־tooltip.
-class _AddEventButton extends StatefulWidget {
-  const _AddEventButton({required this.onAdd});
-
-  final VoidCallback onAdd;
-
-  @override
-  State<_AddEventButton> createState() => _AddEventButtonState();
-}
-
-class _AddEventButtonState extends State<_AddEventButton> {
-  bool _hovered = false;
-
-  // אותו מופע בין בניות: ריחוף משנה רק את המילוי שמסביב, לא את הכפתור.
-  late final Widget _button = AppIconButton(
-    size: AppIconButtonSize.small,
-    // בלי שטח מגע מורחב (48): הכפתור גלוי תמיד, ושטח כזה היה בולע לחיצות על
-    // שורת האירוע הראשונה שמתחתיו.
-    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    tooltip: 'הוסף אירוע',
-    icon: const Icon(FluentIcons.add_24_regular),
-    onPressed: widget.onAdd,
-  );
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: AnimatedContainer(
-        duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: _hovered ? cs.surfaceContainerHighest : Colors.transparent,
-        ),
-        child: _button,
+      onEnter: (_) => setState(() {
+        _showButton = true;
+        _isHovered = true;
+      }),
+      onExit: (_) => setState(() {
+        _showButton = false;
+        _isHovered = false;
+      }),
+      child: Stack(
+        alignment: Alignment.topCenter,
+        children: [
+          Listener(
+            onPointerDown: (_) => setState(() {
+              _showButton = true;
+              _isHovered = true;
+            }),
+            child: widget.builder(_isHovered),
+          ),
+          AnimatedOpacity(
+            opacity: _showButton ? 1.0 : 0.0,
+            duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: IgnorePointer(
+                ignoring: !_showButton,
+                child: _buildAddButton(cs),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -598,7 +592,9 @@ class _MoreItemsLabel extends StatelessWidget {
           onTap: onTap,
           borderRadius: AppTokens.borderRadiusAll,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppTokens.space2XS),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppTokens.space2XS,
+            ),
             child: Text(
               '+$hiddenCount',
               strutStyle: strut,
