@@ -300,6 +300,37 @@ void main() {
       });
     });
 
+    test(
+      'פיצול פסקה (ירידת שורה בהצעה) נשלח כדיווח חופשי, לא כתיקון',
+      () async {
+        final result = await submit(
+          ['אב גד'],
+          'אב גד',
+          'אב\nגד',
+          start: 0,
+          end: 5,
+        );
+        expect(result['reportKind'], 'free_text');
+        expect(report.correction, isNull);
+        expect(report.errorDetails, contains('אב\nגד'));
+      },
+    );
+
+    test('פיצול פסקה נדחה כשנדרש תיקון מובנה', () async {
+      await expectLater(
+        submit(
+          ['אב גד'],
+          'אב גד',
+          'אב\nגד',
+          start: 0,
+          end: 5,
+          extra: {'requireTextCorrection': true},
+        ),
+        coded('error.text_correction_unavailable'),
+      );
+      expect(deliveries, 0);
+    });
+
     test('שינוי שחוצה HTML נדחה בלי לשלוח', () async {
       await expectLater(
         submit(
