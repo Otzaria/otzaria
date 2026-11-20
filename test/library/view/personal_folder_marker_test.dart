@@ -468,6 +468,106 @@ void main() {
         },
       );
 
+      group('תיקייה ממוזגת לעץ הראשי (issue #4663)', () {
+        TextBook fileBook(String title, String filePath) => TextBook(
+          title: title,
+          source: BookSource.user,
+          categoryId: 7,
+          filePath: filePath,
+        );
+
+        testWidgets(
+          'קטגוריה בשורש שכל ספריה מתיקייה ממוזגת אחת מציעה להסיר את התיקייה',
+          (tester) async {
+            // במיזוג, "/home/me/הורדות" לא מופיעה בעץ בשמה: תת-התיקייה שלה
+            // "חידושי תורה" יושבת בשורש הספרייה.
+            final merged = _category(
+              'חידושי תורה',
+              books: [fileBook('א', '/home/me/הורדות/חידושי תורה/א.txt')],
+              subCategories: [
+                _category(
+                  'שבת',
+                  books: [
+                    fileBook('ב', '/home/me/הורדות/חידושי תורה/שבת/ב.txt'),
+                  ],
+                ),
+              ],
+            );
+            _library([
+              _category('תנ"ך', books: [_officialBook('בראשית')]),
+              merged,
+            ]);
+            final downloads = _folder('/home/me/הורדות');
+            final other = _folder('/home/me/מסמכים');
+            final harness = _FoldersHarness([other, downloads]);
+            await _pumpGridItem(tester, merged, bloc: harness.bloc);
+
+            await tester.tap(find.byTooltip('אפשרויות נוספות'));
+            await tester.pumpAndSettle();
+            await tester.tap(find.text('מחק מהספרייה'));
+            await tester.pumpAndSettle();
+
+            expect(find.text('למחוק את התיקייה?'), findsOneWidget);
+            expect(find.textContaining('"הורדות"'), findsOneWidget);
+            expect(harness.deletedFromDb, isEmpty);
+
+            await tester.tap(find.text('מחק'));
+            await tester.pumpAndSettle();
+
+            expect(harness.deletedFromDb, [downloads]);
+            expect(harness.saved.last, [other]);
+            expect(
+              find.text('התיקייה "הורדות" הוסרה מהספרייה'),
+              findsOneWidget,
+            );
+            UiSnack.hide();
+            await tester.pumpAndSettle();
+          },
+        );
+
+        testWidgets(
+          'אין הסרה לקטגוריה בשורש שאין לה תיקייה מוגדרת אחת בדיוק',
+          (tester) async {
+            final twoFolders = _category(
+              'חידושי תורה',
+              books: [
+                fileBook('א', '/home/me/הורדות/חידושי תורה/א.txt'),
+                fileBook('ב', '/home/me/מסמכים/חידושי תורה/ב.txt'),
+              ],
+            );
+            final unknown = _category(
+              'שיעורים',
+              books: [fileBook('ג', '/other/שיעורים/ג.txt')],
+            );
+            final mixed = _category(
+              'הלכה',
+              books: [
+                fileBook('ד', '/home/me/הורדות/הלכה/ד.txt'),
+                _officialBook('משנה ברורה'),
+              ],
+            );
+            final personalRoot = _category(
+              'ספרים אישיים',
+              books: [fileBook('ה', '/home/me/הורדות/ה.txt')],
+            );
+            _library([twoFolders, unknown, mixed, personalRoot]);
+            final harness = _FoldersHarness([
+              _folder('/home/me/הורדות'),
+              _folder('/home/me/מסמכים'),
+            ]);
+
+            for (final category in [twoFolders, unknown, mixed, personalRoot]) {
+              await _pumpGridItem(tester, category, bloc: harness.bloc);
+              expect(
+                find.byTooltip('אפשרויות נוספות'),
+                findsNothing,
+                reason: category.title,
+              );
+            }
+          },
+        );
+      });
+
       testWidgets('גם בתצוגת הרשימה שורת התיקייה האישית מציעה מחיקה', (
         tester,
       ) async {
