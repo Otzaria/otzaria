@@ -677,6 +677,7 @@ class _DraggableTabState extends State<_DraggableTab> {
   /// המצביע שבו מתבצעת הגרירה, לביטולה מבחוץ. ראו [_cancelDrag].
   int? _pointer;
   Offset? _downPosition;
+  bool _movedFromDown = false;
 
   /// מיקום שחרור של לחיצה ארוכה בלי תזוזה, לפתיחת תפריט הכרטיסיה.
   Offset? _menuOnRelease;
@@ -886,18 +887,28 @@ class _DraggableTabState extends State<_DraggableTab> {
 
     return Listener(
       onPointerDown: (event) {
+        // אצבע נוספת באמצע גרירה אינה מחליפה את מצביע הגרירה.
+        if (_dragging) return;
         _pointer = event.pointer;
         _downPosition = event.position;
+        _movedFromDown = false;
         _menuOnRelease = null;
+      },
+      onPointerMove: (event) {
+        final down = _downPosition;
+        if (event.pointer == _pointer &&
+            down != null &&
+            (event.position - down).distance > kTouchSlop) {
+          _movedFromDown = true;
+        }
       },
       // לחיצה ארוכה ששוחררה במקום היא בקשת תפריט ולא גרירה. ה-Listener רץ
       // לפני ה-Draggable, ולכן הסימון קיים כשהגרירה מסתיימת.
       onPointerUp: (event) {
-        final down = _downPosition;
         if (widget.requireLongPress &&
             _dragging &&
-            down != null &&
-            (event.position - down).distance <= kTouchSlop) {
+            event.pointer == _pointer &&
+            !_movedFromDown) {
           _menuOnRelease = event.position;
         }
       },
