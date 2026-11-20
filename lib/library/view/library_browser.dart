@@ -1102,6 +1102,32 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     LibraryState state,
   ) {
     if (state.searchResults == null) return null;
+    final author = state.authorFilter;
+    if (author != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+        child: Center(
+          child: Chip(
+            label: Text(
+              context.settingsText(
+                'מחבר: {author}',
+                args: {'author': author},
+              ),
+            ),
+            labelStyle: Theme.of(context).textTheme.labelSmall,
+            deleteIcon: const Icon(
+              FluentIcons.dismiss_24_regular,
+              size: AppTokens.iconXS,
+            ),
+            deleteButtonTooltipMessage: context.settingsText('נקה סינון'),
+            onDeleted: () {
+              context.read<LibraryBloc>().add(const ShowAuthorBooks(null));
+              _refocusSearchBar();
+            },
+          ),
+        ),
+      );
+    }
     const categoryTopics = [
       'תנך',
       'מדרש',
@@ -2621,6 +2647,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     required bool isSelected,
     required VoidCallback onTap,
     String? pathLine,
+    List<Category> pathCategories = const [],
+    VoidCallback? onSubtitleTap,
     VoidCallback? onDoubleTap,
     FocusNode? focusNode,
     Widget? trailing,
@@ -2689,13 +2717,29 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                       style: titleStyle,
                     ),
                     if (subtitle != null && subtitle.isNotEmpty)
-                      LibraryOverflowTooltipText(
-                        text: subtitle,
-                        maxLines: 1,
-                        textAlign: TextAlign.right,
-                        style: subtitleStyle,
-                      ),
-                    if (pathLine != null && pathLine.isNotEmpty)
+                      if (onSubtitleTap != null)
+                        _RowLinks(
+                          links: [(subtitle, onSubtitleTap)],
+                          tooltip: context.settingsText('כל ספרי המחבר'),
+                          style: subtitleStyle,
+                        )
+                      else
+                        LibraryOverflowTooltipText(
+                          text: subtitle,
+                          maxLines: 1,
+                          textAlign: TextAlign.right,
+                          style: subtitleStyle,
+                        ),
+                    if (pathCategories.isNotEmpty)
+                      _RowLinks(
+                        links: [
+                          for (final category in pathCategories)
+                            (category.title, () => _openCategory(category)),
+                        ],
+                        tooltip: context.settingsText('עבור לקטגוריה'),
+                        style: subtitleStyle?.copyWith(color: cs.secondary),
+                      )
+                    else if (pathLine != null && pathLine.isNotEmpty)
                       LibraryOverflowTooltipText(
                         text: pathLine,
                         maxLines: 1,
@@ -2771,7 +2815,11 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       leadingWidget: leadingWidget,
       title: book.title,
       subtitle: book.author,
+      onSubtitleTap: () => _showAuthorBooks(book.author!),
       pathLine: pathLine,
+      pathCategories: itemStyle == _LibraryListItemStyle.search
+          ? _bookCategoryPath(book)
+          : const [],
       level: level,
       itemStyle: itemStyle,
       isSelected: isSelected,
@@ -3195,6 +3243,25 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       _lastTourBookCardRect = rect;
     }
     return rect;
+  }
+
+  /// שרשרת התיקיות של הספר מתחת לשורש, לקישורים בשורת הנתיב.
+  List<Category> _bookCategoryPath(Book book) {
+    final path = <Category>[];
+    for (
+      var c = book.category;
+      c != null && c.parent != null && !identical(c, c.parent);
+      c = c.parent
+    ) {
+      path.insert(0, c);
+    }
+    return path;
+  }
+
+  void _showAuthorBooks(String author) {
+    _searchDebounce?.cancel();
+    context.read<FocusRepository>().librarySearchController.clear();
+    context.read<LibraryBloc>().add(ShowAuthorBooks(author));
   }
 
   void _openCategory(Category category) {
@@ -3661,4 +3728,58 @@ class _BookPointerActivationState extends State<_BookPointerActivation> {
       child: widget.builder(_bind, _bindFocus),
     ),
   );
+}
+
+/// קישורים בשורת ספר (מחבר, תיקיות הנתיב): לחיצה, Enter או רווח מפעילים
+/// אותם ולא את השורה. מחוץ למסלול הפוקוס, כמו תפריט השורה — חיצים ו-Tab
+/// עוצרים רק על השורות.
+class _RowLinks extends StatelessWidget {
+  const _RowLinks({
+    required this.links,
+    required this.tooltip,
+    required this.style,
+  });
+
+  final List<(String, VoidCallback)> links;
+  final String tooltip;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    final children = <Widget>[];
+    for (final (text, onTap) in links) {
+      if (children.isNotEmpty) children.add(Text(', ', style: style));
+      children.add(
+        Flexible(
+          child: CallbackShortcuts(
+            bindings: {
+              const SingleActivator(LogicalKeyboardKey.enter): onTap,
+              const SingleActivator(LogicalKeyboardKey.numpadEnter): onTap,
+              const SingleActivator(LogicalKeyboardKey.space): onTap,
+            },
+            child: Semantics(
+              link: true,
+              child: Tooltip(
+                message: tooltip,
+                child: InkWell(
+                  onTap: onTap,
+                  mouseCursor: SystemMouseCursors.click,
+                  borderRadius: AppTokens.borderRadiusAll,
+                  child: Text(
+                    text,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: style,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    return ExcludeFocusTraversal(
+      child: Row(mainAxisSize: MainAxisSize.min, children: children),
+    );
+  }
 }
