@@ -194,7 +194,7 @@ class _PluginReportsPanelState extends State<PluginReportsPanel> {
       setState(() {});
       UiSnack.showSuccess(ReportMessages.sentToOtzaria);
     } else {
-      UiSnack.show(ReportMessages.queuedAfterFailure('אוצריא'));
+      UiSnack.showWarning(ReportMessages.queuedAfterFailure('אוצריא'));
     }
   }
 

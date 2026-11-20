@@ -84,6 +84,11 @@ class BackupService {
   @visibleForTesting
   static int? debugMaxPluginBytesOverride;
 
+  /// נקרא בתחילת [createBackup]. בדיקות מחזיקות בו את היצירה באמצע כדי
+  /// לבדוק את הממשק בזמן שהיא רצה.
+  @visibleForTesting
+  static Future<void> Function()? debugBeforeCreateBackup;
+
   /// Get the backup directory path
   static Future<String> getBackupDirectory() async {
     final backupPath = await AppPaths.getBackupPath();
@@ -120,6 +125,7 @@ class BackupService {
     required bool includePlugins,
     bool isAutoBackup = false,
   }) async {
+    await debugBeforeCreateBackup?.call();
     final skippedSections = <String>[];
     final oversizedPlugins = <String>[];
     try {

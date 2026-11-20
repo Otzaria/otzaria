@@ -95,10 +95,12 @@ class SettingsCard extends StatelessWidget {
 
 // ── Helpers לטיפוגרפיה אחידה ──────────────────────────────────────────────────
 
+/// כותרת שורת הגדרה: עד שתי שורות ובכל מסכי ההגדרות, כדי שבחלון צר ובהגדלת
+/// טקסט היא לא תיקטע ב"..." אחרי מילה אחת.
 Widget _settingTitle(String text) => Text(
   text,
   style: AppTextStyles.settingTitle,
-  maxLines: 1,
+  maxLines: 2,
   overflow: TextOverflow.ellipsis,
 );
 
@@ -708,35 +710,42 @@ class _SettingsSwitchTileState extends State<SettingsSwitchTile> {
         }
         return KeyEventResult.ignored;
       },
-      child: SettingsActionTile.text(
-        icon: widget.icon,
-        rtlIcon: widget.rtlIcon,
-        iconColor: widget.iconColor,
-        title: widget.title,
-        subtitle: widget.subtitle,
-        subtitleLtr: widget.subtitleLtr,
-        subtitleColor: widget.subtitleColor,
-        enabled: widget.enabled,
-        focusNode: _focusNode,
-        // עם פעולות נוספות הכותרת עלולה להיקטע במסך צר; אז הן יורדות מתחתיה.
-        responsiveActions: widget.extraActions.isNotEmpty,
-        onTap: widget.enabled && widget.onChanged != null
-            ? () => _toggle()
-            : null,
-        actions: [
-          ...widget.extraActions,
-          ExcludeFocus(
-            child: Switch(
-              value: widget.value,
-              onChanged: widget.enabled && widget.onChanged != null
-                  ? (_) => _toggle()
-                  : null,
+      child: _mergeRowSemantics(
+        SettingsActionTile.text(
+          icon: widget.icon,
+          rtlIcon: widget.rtlIcon,
+          iconColor: widget.iconColor,
+          title: widget.title,
+          subtitle: widget.subtitle,
+          subtitleLtr: widget.subtitleLtr,
+          subtitleColor: widget.subtitleColor,
+          enabled: widget.enabled,
+          focusNode: _focusNode,
+          // עם פעולות נוספות הכותרת עלולה להיקטע במסך צר; אז הן יורדות מתחתיה.
+          responsiveActions: widget.extraActions.isNotEmpty,
+          onTap: widget.enabled && widget.onChanged != null
+              ? () => _toggle()
+              : null,
+          actions: [
+            ...widget.extraActions,
+            ExcludeFocus(
+              child: Switch(
+                value: widget.value,
+                onChanged: widget.enabled && widget.onChanged != null
+                    ? (_) => _toggle()
+                    : null,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
+
+  // צומת סמנטי אחד לשורה: שם, תיאור ומצב. בלי המיזוג הקורא מקריא את הטקסט
+  // כ"כפתור" ואת המתג בנפרד; עם extraActions המיזוג היה בולע את כפתוריהן.
+  Widget _mergeRowSemantics(Widget tile) =>
+      widget.extraActions.isEmpty ? MergeSemantics(child: tile) : tile;
 }
 
 // ── SettingsDropdownTile ──────────────────────────────────────────────────────

@@ -63,14 +63,21 @@ class SettingsSliderTile extends StatelessWidget {
             MetaChip(label: valueLabel),
           ],
         ),
-        Slider(
-          value: value,
-          min: min,
-          max: max,
-          divisions: divisions,
-          label: valueLabel,
-          onChanged: onChanged,
-          onChangeEnd: onChangeEnd,
+        MergeSemantics(
+          child: Semantics(
+            label: title,
+            child: Slider(
+              value: value,
+              min: min,
+              max: max,
+              divisions: divisions,
+              label: valueLabel,
+              // בלי זה הקורא מקריא אחוז מהטווח ("28%") במקום הערך שמוצג ("24").
+              semanticFormatterCallback: (_) => valueLabel,
+              onChanged: onChanged,
+              onChangeEnd: onChangeEnd,
+            ),
+          ),
         ),
       ],
     );

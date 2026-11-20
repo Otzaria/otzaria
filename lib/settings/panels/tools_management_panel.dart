@@ -607,18 +607,28 @@ class PluginSelectionBar extends StatelessWidget {
                         AppTokens.spaceSM,
                       ),
                       child: AppCard(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _SelectionHeader(
-                              selection: selection,
-                              plugins: plugins,
+                        // הסרגל מחוץ לאזור הגלילה: בחלון נמוך או בהגדלת טקסט
+                        // שורות הכפתורים היו תופסות את כל החלון ומשאירות את הרשימה
+                        // בלי מקום. מגבילים אותו וגוללים בתוכו.
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxHeight: MediaQuery.sizeOf(context).height * 0.45,
+                          ),
+                          child: SingleChildScrollView(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _SelectionHeader(
+                                  selection: selection,
+                                  plugins: plugins,
+                                ),
+                                _ActionBar(
+                                  selectedIds: selection.ids,
+                                  plugins: plugins,
+                                ),
+                              ],
                             ),
-                            _ActionBar(
-                              selectedIds: selection.ids,
-                              plugins: plugins,
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
@@ -1056,8 +1066,21 @@ class _DraggableSettingsPluginRow extends StatelessWidget {
         final cs = Theme.of(context).colorScheme;
         // גרירה מכל מקום בכרטיס פעילה תמיד מחוץ למצב בחירה (גם לתוסף מושבת) —
         // כפתורי הפעולה שבתוך הכרטיס תופסים לחיצה קצרה משלהם דרך ה-gesture arena.
+        // בטלפון וטאבלט הגרירה מתחילה רק אחרי לחיצה ארוכה: גרירה מיידית תופסת
+        // את האצבע ואי אפשר לגלול את הרשימה (כמו בכלי הכרטיסיות ובמשגר הכלים).
+        final isTouchPlatform = switch (defaultTargetPlatform) {
+          TargetPlatform.android || TargetPlatform.iOS => true,
+          _ => false,
+        };
         final draggableRow = row.isSelectionMode
             ? row
+            : isTouchPlatform
+            ? LongPressDraggable<String>(
+                data: plugin.pluginId,
+                dragAnchorStrategy: pointerDragAnchorStrategy,
+                feedback: _SettingsDragFeedback(plugin: plugin),
+                child: row,
+              )
             : Draggable<String>(
                 data: plugin.pluginId,
                 dragAnchorStrategy: pointerDragAnchorStrategy,
@@ -1334,6 +1357,48 @@ class _PluginRowState extends State<_PluginRow> {
     _menuKey.currentState?.openMenuAt(box.localToGlobal(local));
   }
 
+  /// "הזז למעלה/למטה" במצב בחירה. כשאין מקום לשני כפתורי הטקסט (חלון צר או
+  /// הגדלת טקסט) הם הופכים לכפתורי אייקון עם אותו טקסט ברמז; אחרת הכפתורים
+  /// ממלאים את כל רוחב השורה ודוחפים החוצה את שם התוסף.
+  Widget _moveButtons(BuildContext context) {
+    final up = context.settingsText('הזז למעלה');
+    final down = context.settingsText('הזז למטה');
+    final textWidth = MediaQuery.textScalerOf(context).scale(2 * 140.0 + 8);
+    if (widget.rowMaxWidth - _reservedWidth >= textWidth) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ActionButton.ghost(
+            icon: FluentIcons.arrow_up_24_regular,
+            text: up,
+            onPressed: widget.isFirst ? null : widget.onMoveUp,
+          ),
+          const SizedBox(width: 8),
+          ActionButton.ghost(
+            icon: FluentIcons.arrow_down_24_regular,
+            text: down,
+            onPressed: widget.isLast ? null : widget.onMoveDown,
+          ),
+        ],
+      );
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: up,
+          icon: const Icon(FluentIcons.arrow_up_24_regular),
+          onPressed: widget.isFirst ? null : widget.onMoveUp,
+        ),
+        IconButton(
+          tooltip: down,
+          icon: const Icon(FluentIcons.arrow_down_24_regular),
+          onPressed: widget.isLast ? null : widget.onMoveDown,
+        ),
+      ],
+    );
+  }
+
   /// אזור הפעולות של תוסף פעיל. מצב רגיל: כפתור ⋯ בלבד. בריחוף: האייקונים
   /// שנכנסים ברוחב הזמין לפי הסדר, ואם חלקם לא נכנסים — כפתור ⋯ לשאר.
   Widget _enabledTrailing(BuildContext context) {
@@ -1399,22 +1464,7 @@ class _PluginRowState extends State<_PluginRow> {
             ? _statusBadges(plugin, disabled: false, compact: true)
             : _statusBadges(plugin, disabled: false),
         trailing: widget.isSelectionMode
-            ? Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ActionButton.ghost(
-                    icon: FluentIcons.arrow_up_24_regular,
-                    text: context.settingsText('הזז למעלה'),
-                    onPressed: widget.isFirst ? null : widget.onMoveUp,
-                  ),
-                  const SizedBox(width: 8),
-                  ActionButton.ghost(
-                    icon: FluentIcons.arrow_down_24_regular,
-                    text: context.settingsText('הזז למטה'),
-                    onPressed: widget.isLast ? null : widget.onMoveDown,
-                  ),
-                ],
-              )
+            ? _moveButtons(context)
             : disabled
             ? Row(
                 mainAxisSize: MainAxisSize.min,
@@ -1592,11 +1642,7 @@ class _StatusBadges extends StatelessWidget {
     if (chips.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: EdgeInsets.only(top: compact ? 0 : 4),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        spacing: 6,
-        children: chips,
-      ),
+      child: Wrap(spacing: 6, runSpacing: 6, children: chips),
     );
   }
 
