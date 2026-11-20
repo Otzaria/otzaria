@@ -40,6 +40,7 @@ class PersonalNotesDatabase {
 
   static const _tableUserBookKeys = 'personal_notes_user_book_keys';
   static const _tableKeyMoves = 'personal_notes_key_moves';
+  static const _tableMeta = 'personal_notes_meta';
 
   PersonalNotesDatabase._();
 
@@ -79,6 +80,10 @@ class PersonalNotesDatabase {
       )
     ''');
     db.execute('INSERT OR IGNORE INTO $_tableUserBookKeys VALUES (1, 0, -1)');
+    db.execute(
+      'CREATE TABLE IF NOT EXISTS $_tableMeta '
+      '(key TEXT PRIMARY KEY, value TEXT NOT NULL)',
+    );
     db.execute('''
       CREATE TABLE IF NOT EXISTS $_tableKeyMoves (
         from_key TEXT NOT NULL,
@@ -328,6 +333,22 @@ class PersonalNotesDatabase {
     });
     _notifyChanges(changedBooks);
     return complete;
+  }
+
+  Future<String?> metaValue(String key) async {
+    final db = await database;
+    final rows = db.select('SELECT value FROM $_tableMeta WHERE key = ?', [
+      key,
+    ]);
+    return rows.isEmpty ? null : rows.first['value'] as String;
+  }
+
+  Future<void> setMetaValue(String key, String value) async {
+    final db = await database;
+    db.execute('INSERT OR REPLACE INTO $_tableMeta VALUES (?, ?)', [
+      key,
+      value,
+    ]);
   }
 
   /// מעביר את כל הערות [fromKey] אל [toKey] ורושם את המעבר, כדי שאפשר יהיה

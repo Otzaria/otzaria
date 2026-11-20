@@ -68,11 +68,14 @@ void main() {
     'יומן|user': 'רשימה ראשונה',
   };
 
-  PersonalNotesUserBookKeys migration({Map<String, String>? content}) =>
-      PersonalNotesUserBookKeys(
-        loadContent: (book) async =>
-            (content ?? contents)[personalNotesBookKey(book)] ?? '',
-      );
+  PersonalNotesUserBookKeys migration({
+    Map<String, String>? content,
+    String catalogVersion = 'unknown',
+  }) => PersonalNotesUserBookKeys(
+    loadContent: (book) async =>
+        (content ?? contents)[personalNotesBookKey(book)] ?? '',
+    catalogVersion: () async => catalogVersion,
+  );
 
   Future<Set<String>> idsUnder(String key) async =>
       (await database.loadNotes(key)).map((n) => n.id).toSet();
@@ -328,6 +331,18 @@ void main() {
       expect(moves.map((row) => [...row.values]), [
         ['שות באר מרדכי', 'שו״ת באר מרדכי', '["a"]'],
       ]);
+    });
+
+    test('נבדק פעם אחת לכל גרסת ספרייה', () async {
+      final library = [TextBook(id: 3, title: 'שו״ת באר מרדכי')];
+      await migration(catalogVersion: 'v1').assignPending(_library(library));
+      await database.insertNote(_note('late', 'שות באר מרדכי', 1, 'שורה'));
+
+      await migration(catalogVersion: 'v1').assignPending(_library(library));
+      expect(await idsUnder('שות באר מרדכי'), {'late'});
+
+      await migration(catalogVersion: 'v2').assignPending(_library(library));
+      expect(await idsUnder('שו״ת באר מרדכי'), {'late'});
     });
 
     test('כותרת ישנה שהיא גם ספר אישי — מכריעים לפי הטקסט', () async {

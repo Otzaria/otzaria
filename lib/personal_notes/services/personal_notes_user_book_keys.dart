@@ -7,6 +7,7 @@ import 'package:otzaria/personal_notes/services/personal_notes_service.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
 import 'package:otzaria/personal_notes/utils/note_text_utils.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
+import 'package:otzaria/services/data_collection_service.dart';
 
 typedef PersonalNotesBookContentLoader = Future<String> Function(Book book);
 
@@ -17,13 +18,19 @@ class PersonalNotesUserBookKeys {
     PersonalNotesDatabase? database,
     PersonalNotesService? service,
     PersonalNotesBookContentLoader? loadContent,
+    Future<String> Function()? catalogVersion,
   }) : _database = database ?? PersonalNotesDatabase.instance,
        _service = service ?? PersonalNotesService(),
-       _loadContent = loadContent ?? _loadFromRepository;
+       _loadContent = loadContent ?? _loadFromRepository,
+       _catalogVersion =
+           catalogVersion ?? DataCollectionService().readLibraryVersion;
 
   final PersonalNotesDatabase _database;
   final PersonalNotesService _service;
   final PersonalNotesBookContentLoader _loadContent;
+  final Future<String> Function() _catalogVersion;
+
+  static const _renamedTitlesMetaKey = 'renamed_titles_checked';
 
   static Future<void>? _running;
 
@@ -48,25 +55,23 @@ class PersonalNotesUserBookKeys {
     }
   }
 
-  static WeakReference<Library>? _renamedTitlesLibrary;
-  static int? _renamedTitlesGeneration;
-
   /// מפתח שאין לו ספר בקטלוג עובר לספר היחיד שכותרתו שונה רק בגרשיים —
   /// הספרייה מחזירה גרשיים לכותרות שנוצרו משמות קבצים (#2766).
   Future<void> _assignRenamedTitles(Library library) async {
-    // פעם אחת לכל קטלוג שנטען ולכל ייבוא הערות (שמעלה את הדור).
-    final generation = await _database.userBookKeysGeneration();
-    if (identical(_renamedTitlesLibrary?.target, library) &&
-        _renamedTitlesGeneration == generation) {
-      return;
-    }
+    // פעם אחת לכל גרסת ספרייה ולכל ייבוא הערות (שמעלה את הדור).
+    final version = await _catalogVersion();
+    final marker = '$version|${await _database.userBookKeysGeneration()}';
+    if (await _database.metaValue(_renamedTitlesMetaKey) == marker) return;
     final stored = await _database.listBooksWithNotes();
-    if (stored.isNotEmpty) await _moveRenamedTitles(library, stored);
-    _renamedTitlesLibrary = WeakReference(library);
-    _renamedTitlesGeneration = generation;
+    final complete =
+        stored.isEmpty || await _moveRenamedTitles(library, stored);
+    if (complete && version != 'unknown') {
+      await _database.setMetaValue(_renamedTitlesMetaKey, marker);
+    }
   }
 
-  Future<void> _moveRenamedTitles(
+  /// false כשמפתח נדחה עד להכרעת השיוך לספר האישי.
+  Future<bool> _moveRenamedTitles(
     Library library,
     List<BookNotesInfo> stored,
   ) async {
@@ -78,6 +83,7 @@ class PersonalNotesUserBookKeys {
     }
     // הערות בכותרת של ספר אישי ממתינות עדיין להכרעת השיוך לספר האישי.
     final userKeysPending = await _database.userBookKeysPending();
+    var complete = true;
     Map<String, String?>? byNormalized;
     for (final info in stored) {
       final key = info.bookId;
@@ -86,12 +92,14 @@ class PersonalNotesUserBookKeys {
       if (userKeysPending &&
           parsed.source == null &&
           userTitles.contains(parsed.title)) {
+        complete = false;
         continue;
       }
       byNormalized ??= _keysByNormalized(keys);
       final target = byNormalized[_normalizedNotesKey(key)];
       if (target != null) await _database.moveBookNotes(key, target);
     }
+    return complete;
   }
 
   static Book? _bookForRenamedKey(
