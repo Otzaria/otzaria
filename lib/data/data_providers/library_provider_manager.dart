@@ -130,23 +130,33 @@ class LibraryProviderManager {
     );
   }
 
-  /// הכותרת בקטלוג של ספר שנשמר בכותרת שאינה בו אך שונה רק בגרשיים, או null.
-  String? catalogTitleFor(String title) => _keysByTitle.containsKey(title)
-      ? null
-      : _uniqueTitleIgnoringQuotes(title);
+  /// הכותרת בקטלוג של ספר מ-[source] שנשמר בכותרת שאינה בו אך שונה רק
+  /// בגרשיים, או null.
+  String? catalogTitleFor(String title, {required BookSource source}) {
+    final exact = _keysByTitle[title];
+    if (exact != null && exact.any((key) => key.source == source)) return null;
+    return _uniqueTitleIgnoringQuotes(title, source: source);
+  }
 
-  String? _uniqueTitleIgnoringQuotes(String title) {
+  /// בלי [source] — מכל המקורות.
+  String? _uniqueTitleIgnoringQuotes(String title, {BookSource? source}) {
     final index = _titleByNormalized ??= () {
       final byNormalized = <String, String?>{};
-      for (final mapped in _keysByTitle.keys) {
+      void add(String key, String mapped) =>
+          byNormalized[key] = byNormalized.containsKey(key) ? null : mapped;
+      for (final MapEntry(key: mapped, value: keys) in _keysByTitle.entries) {
         final normalized = normalizeBookTitle(mapped);
-        byNormalized[normalized] = byNormalized.containsKey(normalized)
-            ? null
-            : mapped;
+        add(normalized, mapped);
+        for (final wireKey in {for (final key in keys) key.source.wireKey}) {
+          add('$wireKey\u0000$normalized', mapped);
+        }
       }
       return byNormalized;
     }();
-    return index[normalizeBookTitle(title)];
+    final normalized = normalizeBookTitle(title);
+    return index[source == null
+        ? normalized
+        : '${source.wireKey}\u0000$normalized'];
   }
 
   BookCompositeKey? _resolveMappedBookKey(

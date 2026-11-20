@@ -192,14 +192,10 @@ class BookDatabaseResolver {
     // לה גרשיים (#2766). התאמה מדויקת במסד מאוחר יותר גוברת עליה.
     for (final candidate in candidates) {
       final repository = candidate.repository;
-      final book =
-          (categoryId == null
-              ? null
-              : await repository.getUniqueBookByQuotelessTitle(
-                  title,
-                  categoryId: categoryId,
-                )) ??
-          await repository.getUniqueBookByQuotelessTitle(title);
+      final book = await repository.getUniqueBookByQuotelessTitle(
+        title,
+        categoryId: categoryId,
+      );
       if (book != null) {
         return ResolvedDbBookRecord(
           book: book,

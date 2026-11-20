@@ -199,7 +199,7 @@ void main() {
 
 /// שאילתות המסד רצות ב-isolate וזקוקות לזמן אמיתי, בזו אחר זו.
 Future<void> _settleRealAsync(WidgetTester tester) async {
-  for (var i = 0; i < 5; i++) {
+  for (var i = 0; i < 6; i++) {
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 200)),
     );

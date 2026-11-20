@@ -249,6 +249,15 @@ class TextBook extends Book {
     return bookText ?? '';
   }
 
+  /// הספר בכותרת שבקטלוג, כשנשמר לפני שהספרייה החזירה לכותרתו גרשיים (#2766).
+  TextBook withCatalogTitle() {
+    final catalogTitle = LibraryProviderManager.instance.catalogTitleFor(
+      title,
+      source: source,
+    );
+    return catalogTitle == null ? this : copyWith(title: catalogTitle);
+  }
+
   /// יוצר עותק של הספר עם שדות מעודכנים לפי הצורך.
   TextBook copyWith({
     int? id,

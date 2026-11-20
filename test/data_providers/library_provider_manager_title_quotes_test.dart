@@ -56,6 +56,35 @@ void main() {
       expect(provider.requestedTitles, ['שו״ת באר מרדכי']);
     });
 
+    test('catalogTitleFor מתאים רק כותרת מאותו מקור', () {
+      final provider = _Provider();
+      manager.seedMappingsForTesting(
+        mapping: {
+          BookCompositeKey.create(
+            title: 'שו״ת קיו',
+            categoryId: 1,
+            source: BookSource.user,
+          ): provider,
+          _key('שות קיו', 2): provider,
+          _key('שו״ת באר', 3): provider,
+        },
+        providers: [provider],
+      );
+
+      expect(
+        manager.catalogTitleFor('שות קיו', source: BookSource.user),
+        'שו״ת קיו',
+      );
+      expect(
+        manager.catalogTitleFor('שות קיו', source: BookSource.official),
+        isNull,
+      );
+      expect(
+        manager.catalogTitleFor('שות באר', source: BookSource.user),
+        isNull,
+      );
+    });
+
     test('התאמה מדויקת גוברת על התאמה בלי גרשיים', () {
       final quoted = _Provider();
       final plain = _Provider();

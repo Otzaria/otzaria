@@ -5,6 +5,7 @@ import 'package:otzaria/core/user_state/user_state_slot.dart';
 import 'package:otzaria/core/user_state/window_session_store.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_registry.dart';
 import 'package:otzaria/core/windowing/multiview/window_event_log.dart';
+import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/utils/file/hive_utils.dart';
@@ -169,6 +170,24 @@ class TabsRepository {
       if (!changed) return tab;
       return OpenedTab.fromJson(castMap(remappedJson));
     }).toList();
+  }
+
+  /// טאב שספר טקסט בו נשמר בכותרת שהקטלוג תיקן נבנה מחדש מה-JSON, ו-
+  /// [TextBookTab] מקבל בבנייה את הכותרת שבקטלוג (#2766).
+  List<OpenedTab> refreshCatalogTitles(List<OpenedTab> tabs) => tabs.map((tab) {
+    final json = tab.toJson();
+    return _hasRenamedTextBook(json) ? OpenedTab.fromJson(castMap(json)) : tab;
+  }).toList();
+
+  static bool _hasRenamedTextBook(dynamic node) {
+    if (node is Map) {
+      if (node['type'] == 'TextBook' && node['title'] is String) {
+        final book = TextBook.fromJson(castMap(node));
+        if (!identical(book.withCatalogTitle(), book)) return true;
+      }
+      return node.values.any(_hasRenamedTextBook);
+    }
+    return node is List && node.any(_hasRenamedTextBook);
   }
 
   dynamic _remapNode(

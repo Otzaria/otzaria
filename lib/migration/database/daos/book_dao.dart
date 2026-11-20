@@ -331,8 +331,8 @@ class BookDao {
     ]);
   }
 
-  /// הספר היחיד שכותרתו זהה ל-[title] בהתעלם מגרשיים, או null כשאין או כשיש
-  /// כמה. כותרות בספרייה ישנה נוצרו משמות קבצים בלי גרשיים (#2766).
+  /// הספר היחיד שכותרתו זהה ל-[title] בהתעלם מגרשיים — ב-[categoryId], ואם אין
+  /// בה כזה בכל המסד — או null כשאין או כשיש כמה (#2766).
   Future<Book?> getUniqueBookByQuotelessTitle(
     String title, {
     int? categoryId,
@@ -349,12 +349,17 @@ class BookDao {
     final quoteless = title.replaceAll(_titleQuotes, '');
     final byCategory =
         categoryId != null && (await _capabilities).hasBookCategories;
-    final books = byCategory
+    var books = byCategory
         ? await _selectMany(_queries['selectByQuotelessTitleAndCategory']!, [
             categoryId,
             quoteless,
           ])
-        : await _selectMany(_queries['selectByQuotelessTitle']!, [quoteless]);
+        : const <Book>[];
+    if (books.isEmpty) {
+      books = await _selectMany(_queries['selectByQuotelessTitle']!, [
+        quoteless,
+      ]);
+    }
     return books.length == 1 ? books.single : null;
   }
 
