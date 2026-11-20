@@ -21,6 +21,7 @@
 #include "snap_layouts.h"
 #include "splash_window.h"
 #include "hang_monitor.h"
+#include "accessibility_probe.h"
 #include "startup_watchdog.h"
 #include "utils.h"
 #include "window_centering.h"
@@ -996,6 +997,8 @@ bool FlutterWindow::OnCreate() {
       });
 
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
+  // ראשון בשרשרת = רץ אחרון: רואה רק בקשות נגישות שמסננים אחרים העבירו.
+  accessibility_probe::Install(flutter_controller_->view()->GetNativeWindow());
   InstallPhantomMouseButtonFilter(
       flutter_controller_->view()->GetNativeWindow());
   InstallShiftKeyNormalizer(flutter_controller_->view()->GetNativeWindow());

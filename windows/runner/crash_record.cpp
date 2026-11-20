@@ -4,8 +4,11 @@
 
 #include <werapi.h>
 
+#include <algorithm>
 #include <atomic>
+#include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -149,6 +152,7 @@ bool WriteRecord() {
   }
   report += g_crash_thread_id == g_main_thread_id ? "Thread: main\n"
                                                   : "Thread: other\n";
+  AppendContext(&report);
   startup_watchdog::AppendBuildIdentity(frames, &report);
   startup_watchdog::AppendStack(frames, &report);
   return startup_watchdog::AppendReport(report);
@@ -272,4 +276,30 @@ void BeginSession() {
   if (g_writer != nullptr) ::QueueUserAPC(WriteStartupLock, g_writer, 0);
 }
 
+void AppendContext(std::string* report) {
+  char context[sizeof(g_wer.context)];
+  ::memcpy(context, g_wer.context, sizeof(context));
+  context[sizeof(context) - 1] = '\0';
+  if (context[0] != '\0') *report += std::string("Context: ") + context + "\n";
+}
+
 }  // namespace crash_record
+
+// נקרא מ-Dart ב-FFI (leaf) כשההקשר משתנה. בלי נעילה: קריסה ב-thread אחר באמצע
+// עדכון עלולה לרשום שורה מעורבת; בתקיעה וב-WER הכותב עצור.
+extern "C" __declspec(dllexport) void OtzariaSetDiagnosticContext(
+    const char* utf8, int32_t length) {
+  using crash_record::g_wer;
+  char* target = g_wer.context;
+  const size_t size =
+      utf8 == nullptr || length <= 0
+          ? 0
+          : (std::min)(static_cast<size_t>(length), sizeof(g_wer.context) - 1);
+  target[0] = '\0';
+  std::atomic_thread_fence(std::memory_order_release);
+  if (size == 0) return;
+  ::memcpy(target + 1, utf8 + 1, size - 1);
+  target[size] = '\0';
+  std::atomic_thread_fence(std::memory_order_release);
+  target[0] = utf8[0];
+}

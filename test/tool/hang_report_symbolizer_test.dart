@@ -150,4 +150,40 @@ void main() {
       '  app.so+0x10c4  WidgetsBinding.drawFrame+0xc4',
     ]);
   });
+
+  test('שורות ההקשר והדגימה החוזרת של thread: רק פריימי app.so משתנים', () {
+    final symbols = DartSymbols.parse(debugElf());
+    final input = [
+      '=== App hang 2026-11-20T00:03:14Z ===',
+      'Context: semantics=on@1200ms; screen=reading; tabs=1; title=בראשית',
+      'Accessibility: first request UIA at 1180ms after launch',
+      'Main thread: CPU 0ms in last 250ms (waiting), in loader',
+      'Dart build-id: deadbeef',
+      'Stack (module+RVA):',
+      '  ntdll.dll+0x9f2e4',
+      '--- Thread 12 "io.worker", CPU 9ms (0ms in last 250ms), '
+          '0 more with this stack, in loader ---',
+      'Stack (module+RVA):',
+      '  app.so+0x10c4',
+      '--- Sample 1, 2000ms into the hang ---',
+      'Stack (module+RVA):',
+      '  ntdll.dll+0x9f2e4',
+      '--- Thread 12 "io.worker" again, CPU +0ms since previous capture ---',
+      'Stack (module+RVA):',
+      '  app.so+0x204f',
+      '--- 3 more threads omitted (record size cap) ---',
+    ];
+    final output = const LineSplitter().convert(
+      symbolizeHangReport('${input.join('\n')}\n', symbols),
+    );
+    expect(output, [
+      for (final line in input)
+        switch (line) {
+          '  app.so+0x10c4' => '  app.so+0x10c4  WidgetsBinding.drawFrame+0xc4',
+          '  app.so+0x204f' =>
+            '  app.so+0x204f  _InactiveElements._unmount+0x4f',
+          _ => line,
+        },
+    ]);
+  });
 }

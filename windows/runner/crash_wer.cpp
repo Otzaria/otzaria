@@ -159,6 +159,9 @@ std::string BuildRecord(const CrashWerContext& context,
   report += ::GetThreadId(info.hThread) == context.main_thread_id
                 ? "Thread: main\n"
                 : "Thread: other\n";
+  if (context.context[0] != '\0') {
+    report += std::string("Context: ") + context.context + "\n";
+  }
   if (context.build_commit[0] != '\0') {
     report += std::string("Build commit: ") + context.build_commit + "\n";
   }
@@ -240,6 +243,7 @@ HRESULT OutOfProcessExceptionEventCallback(
   context.log_path[ARRAYSIZE(context.log_path) - 1] = L'\0';
   context.version[sizeof(context.version) - 1] = '\0';
   context.build_commit[sizeof(context.build_commit) - 1] = '\0';
+  context.context[sizeof(context.context) - 1] = '\0';
   if (context.log_path[0] == L'\0') return S_OK;
   Append(context.log_path, BuildRecord(context, *info));
   return S_OK;

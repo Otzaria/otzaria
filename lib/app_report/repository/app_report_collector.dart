@@ -12,6 +12,7 @@ import 'package:otzaria/app_report/services/recent_book_opens.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/diagnostics/developer_diagnostics.dart';
 import 'package:otzaria/core/diagnostics/memory_info.dart';
+import 'package:otzaria/core/diagnostics/native_crash_context.dart';
 import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/core/info/app_info_service.dart';
 import 'package:otzaria/core/info/error_log_reader.dart';
@@ -284,6 +285,7 @@ class AppReportCollector {
   Map<String, dynamic> _stateInfo() {
     return {
       'portable': AppPaths.isPortable,
+      'accessibility': AccessibilityDiagnostics.describe(),
       'webview2Prewarm': ?WebView2CreationDiagnostics.prewarmOutcome,
       if (Settings.isInitialized) ...{
         'offlineMode':

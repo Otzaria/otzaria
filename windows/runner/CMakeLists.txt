@@ -10,6 +10,7 @@ add_executable(${BINARY_NAME} WIN32
   "crash_record.cpp"
   "flutter_window.cpp"
   "hang_monitor.cpp"
+  "accessibility_probe.cpp"
   "image_identity.cpp"
   "drag_preview_window.cpp"
   "jump_list_manager.cpp"

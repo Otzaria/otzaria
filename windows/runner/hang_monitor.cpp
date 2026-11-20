@@ -9,6 +9,8 @@
 #include <thread>
 #include <vector>
 
+#include "accessibility_probe.h"
+#include "crash_record.h"
 #include "native_exception_log.h"
 #include "startup_watchdog.h"
 
@@ -31,6 +33,15 @@ constexpr int kMaxExtraSamples = 3;
 constexpr ULONGLONG kSampleIntervalMs = 2000;
 constexpr int kMaxOtherThreads = 32;
 constexpr DWORD kCpuWindowMs = 250;
+// פחות מזה בחלון המדידה = ה-thread הראשי ממתין למישהו (safepoint, loader, COM).
+constexpr ULONGLONG kMainWaitingCpuMs = kCpuWindowMs / 10;
+// thread שעבד לפחות כך בחלון נדגם שוב עם הדגימות הנוספות.
+constexpr ULONGLONG kBusyThreadCpuMs = kCpuWindowMs / 5;
+constexpr size_t kMaxResampledThreads = 2;
+// הדוח לוקח 200KB מזנב errors.txt: threads רבים היו דוחקים רשומות קודמות.
+constexpr size_t kFirstReportThreadBytes = 48 * 1024;
+constexpr size_t kLaterReportThreadBytes = 12 * 1024;
+constexpr size_t kProcessThreadBytes = 96 * 1024;
 constexpr ULONGLONG kExceptionLeadMs = 10000;
 
 HWND g_window = nullptr;
@@ -96,24 +107,102 @@ struct OtherThread {
   std::string name;
   std::vector<ULONG_PTR> frames;
   int same_stack = 0;
+  bool in_loader = false;
 };
 
-// ה-UI יכול לחכות ל-thread אחר (למשל ל-safepoint של GC, #3332). threads של
-// Dart ושל המנוע מזוהים לפי פריים ב-flutter_windows.dll או ב-app.so.
-std::vector<OtherThread> CaptureOtherThreads() {
+#if defined(_M_X64)
+// RtlLookupFunctionEntry מחזיר את המקטע של הפריים; הפונקציה מתחילה ברשומה
+// הראשית שבסוף שרשרת UNW_FLAG_CHAININFO.
+ULONG_PTR FunctionBegin(DWORD64 image_base, PRUNTIME_FUNCTION function) {
+  for (int depth = 0; depth < 32; ++depth) {
+    const BYTE* info = reinterpret_cast<const BYTE*>(image_base) +
+                       function->UnwindData;
+    if (((info[0] >> 3) & UNW_FLAG_CHAININFO) == 0) break;
+    const BYTE codes = info[2];
+    function = reinterpret_cast<PRUNTIME_FUNCTION>(
+        const_cast<BYTE*>(info + 4 + ((codes + 1) & ~1) * 2));
+  }
+  return static_cast<ULONG_PTR>(image_base) + function->BeginAddress;
+}
+#endif
+
+// בלי סמלים: פונקציות ה-loader המיוצאות מ-ntdll נמצאות מתחת לכל טעינת DLL.
+// רק x64: פורמט ה-unwind של ARM64 שונה.
+bool InLoader(const std::vector<ULONG_PTR>& frames) {
+#if defined(_M_X64)
+  static const std::vector<ULONG_PTR> entries = [] {
+    std::vector<ULONG_PTR> found;
+    const HMODULE ntdll = ::GetModuleHandleW(L"ntdll.dll");
+    for (const char* name :
+         {"LdrLoadDll", "LdrUnloadDll", "LdrInitializeThunk"}) {
+      const FARPROC entry = ntdll ? ::GetProcAddress(ntdll, name) : nullptr;
+      if (entry) found.push_back(reinterpret_cast<ULONG_PTR>(entry));
+    }
+    return found;
+  }();
+  for (const ULONG_PTR frame : frames) {
+    DWORD64 image_base = 0;
+    const PRUNTIME_FUNCTION function =
+        ::RtlLookupFunctionEntry(frame - 1, &image_base, nullptr);
+    if (function == nullptr) continue;
+    const ULONG_PTR begin = FunctionBegin(image_base, function);
+    if (std::find(entries.begin(), entries.end(), begin) != entries.end()) {
+      return true;
+    }
+  }
+#else
+  (void)frames;
+#endif
+  return false;
+}
+
+struct ThreadCapture {
   std::vector<OtherThread> threads;
+  ULONGLONG main_recent_cpu_ms = 0;
+  bool main_cpu_known = false;
+  bool main_waiting = false;
+};
+
+// threads שעבדו בלכידה הראשונה, לדגימה חוזרת יחד עם ה-thread הראשי.
+struct BusyThread {
+  DWORD id = 0;
+  ULONGLONG cpu_ms = 0;
+  std::string name;
+};
+std::vector<BusyThread> g_busy_threads;
+// לכל חלקי ה-threads והדגימות החוזרות בכל התקיעות של התהליך.
+size_t g_thread_bytes_left = kProcessThreadBytes;
+
+// ה-UI יכול לחכות ל-thread אחר (safepoint של GC, #3332, loader, TSF). כשהראשי
+// עובד נלכדים רק threads של Flutter, וכשהוא ממתין כולם.
+ThreadCapture CaptureOtherThreads(bool first_report) {
+  ThreadCapture capture;
+  const DWORD main_thread = ::GetWindowThreadProcessId(g_window, nullptr);
+  const HANDLE main_handle =
+      ::OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, main_thread);
+  if (main_handle != nullptr) {
+    const ULONGLONG before = ThreadCpuMs(main_handle);
+    ::Sleep(kCpuWindowMs);
+    const ULONGLONG after = ThreadCpuMs(main_handle);
+    ::CloseHandle(main_handle);
+    capture.main_recent_cpu_ms = after - (std::min)(after, before);
+    capture.main_cpu_known = true;
+    capture.main_waiting = capture.main_recent_cpu_ms < kMainWaitingCpuMs;
+  }
+  // בתקיעות הבאות רק כשהראשי ממתין: כשהוא עצמו עובד, מחסניתו מספיקה.
+  if (!first_report && !capture.main_waiting) return capture;
   MODULEINFO flutter = {};
   const HMODULE module = ::GetModuleHandleW(L"flutter_windows.dll");
   if (module == nullptr ||
       !::GetModuleInformation(::GetCurrentProcess(), module, &flutter,
                               sizeof(flutter))) {
-    return threads;
+    return capture;
   }
   const HANDLE snapshot = ::CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
-  if (snapshot == INVALID_HANDLE_VALUE) return threads;
+  if (snapshot == INVALID_HANDLE_VALUE) return capture;
   const DWORD process = ::GetCurrentProcessId();
   const DWORD self = ::GetCurrentThreadId();
-  const DWORD main_thread = ::GetWindowThreadProcessId(g_window, nullptr);
+  std::vector<OtherThread> threads;
   THREADENTRY32 entry = {};
   entry.dwSize = sizeof(entry);
   for (BOOL more = ::Thread32First(snapshot, &entry); more;
@@ -152,45 +241,107 @@ std::vector<OtherThread> CaptureOtherThreads() {
     thread.name = ThreadName(thread.handle);
     ::CloseHandle(thread.handle);
     thread.handle = nullptr;
+    thread.in_loader = InLoader(thread.frames);
     const bool ours = std::any_of(
         thread.frames.begin(), thread.frames.end(), [&](ULONG_PTR frame) {
           return (frame >= begin && frame < end) ||
                  startup_watchdog::IsDartFrame(frame);
         });
-    if (ours) captured.push_back(std::move(thread));
+    if (ours || thread.in_loader || capture.main_waiting) {
+      captured.push_back(std::move(thread));
+    }
   }
 
   std::stable_sort(captured.begin(), captured.end(),
                    [](const OtherThread& a, const OtherThread& b) {
+                     if (a.in_loader != b.in_loader) return a.in_loader;
                      return a.recent_cpu_ms != b.recent_cpu_ms
                                 ? a.recent_cpu_ms > b.recent_cpu_ms
                                 : a.cpu_ms > b.cpu_ms;
                    });
-  std::vector<OtherThread> distinct;
   for (OtherThread& thread : captured) {
     const auto same = std::find_if(
-        distinct.begin(), distinct.end(),
+        capture.threads.begin(), capture.threads.end(),
         [&](const OtherThread& other) { return other.frames == thread.frames; });
-    if (same != distinct.end()) {
+    if (same != capture.threads.end()) {
       ++same->same_stack;
-    } else if (static_cast<int>(distinct.size()) < kMaxOtherThreads) {
-      distinct.push_back(std::move(thread));
+    } else if (static_cast<int>(capture.threads.size()) < kMaxOtherThreads) {
+      capture.threads.push_back(std::move(thread));
     }
   }
-  return distinct;
+  return capture;
 }
 
 void AppendOtherThreads(const std::vector<OtherThread>& threads,
-                        std::string* report) {
+                        size_t report_bytes, std::string* report) {
+  const size_t max_bytes = (std::min)(report_bytes, g_thread_bytes_left);
+  size_t used = 0;
+  int omitted = 0;
   for (const OtherThread& thread : threads) {
     char header[256];
     snprintf(header, sizeof(header),
              "--- Thread %lu \"%s\", CPU %llums (%llums in last %lums), "
-             "%d more with this stack ---\n",
+             "%d more with this stack%s ---\n",
              thread.id, thread.name.c_str(), thread.cpu_ms,
-             thread.recent_cpu_ms, kCpuWindowMs, thread.same_stack);
-    *report += header;
-    startup_watchdog::AppendStack(thread.frames, report);
+             thread.recent_cpu_ms, kCpuWindowMs, thread.same_stack,
+             thread.in_loader ? ", in loader" : "");
+    std::string section = header;
+    startup_watchdog::AppendStack(thread.frames, &section);
+    if (used + section.size() > max_bytes) {
+      ++omitted;
+      continue;
+    }
+    used += section.size();
+    *report += section;
+  }
+  g_thread_bytes_left -= used;
+  if (omitted > 0) {
+    char line[96];
+    snprintf(line, sizeof(line),
+             "--- %d more threads omitted (record size cap) ---\n", omitted);
+    *report += line;
+  }
+}
+
+void RememberBusyThreads(const std::vector<OtherThread>& threads) {
+  g_busy_threads.clear();
+  for (const OtherThread& thread : threads) {
+    if (g_busy_threads.size() >= kMaxResampledThreads) break;
+    if (thread.recent_cpu_ms < kBusyThreadCpuMs) continue;
+    g_busy_threads.push_back({thread.id, thread.cpu_ms, thread.name});
+  }
+}
+
+void AppendBusyThreadSamples(std::string* report) {
+  const DWORD process = ::GetCurrentProcessId();
+  for (BusyThread& busy : g_busy_threads) {
+    const HANDLE handle = ::OpenThread(THREAD_SUSPEND_RESUME |
+                                           THREAD_GET_CONTEXT |
+                                           THREAD_QUERY_LIMITED_INFORMATION,
+                                       FALSE, busy.id);
+    if (handle == nullptr) continue;
+    std::vector<ULONG_PTR> frames;
+    ULONGLONG cpu_ms = 0;
+    const bool ours = ::GetProcessIdOfThread(handle) == process;
+    if (ours) {
+      cpu_ms = ThreadCpuMs(handle);
+      startup_watchdog::CaptureThreadStack(handle, &frames);
+    }
+    ::CloseHandle(handle);
+    if (!ours) continue;
+    std::string section;
+    char header[192];
+    snprintf(header, sizeof(header),
+             "--- Thread %lu \"%s\" again, CPU +%llums since previous "
+             "capture ---\n",
+             busy.id, busy.name.c_str(),
+             cpu_ms - (std::min)(cpu_ms, busy.cpu_ms));
+    busy.cpu_ms = cpu_ms;
+    section = header;
+    startup_watchdog::AppendStack(frames, &section);
+    if (section.size() > g_thread_bytes_left) continue;
+    g_thread_bytes_left -= section.size();
+    *report += section;
   }
 }
 
@@ -221,15 +372,15 @@ void AppendMemory(std::string* report) {
   *report += line;
 }
 
-void ReportHang(const std::vector<ULONG_PTR>& frames, bool with_threads,
+void ReportHang(const std::vector<ULONG_PTR>& frames, bool first_report,
                 ULONGLONG hang_started_at, ULONGLONG detected_at) {
   const auto exception = native_exception_log::FindStackMatch(
       native_exception_log::ReadRecent(), frames,
       hang_started_at > kExceptionLeadMs ? hang_started_at - kExceptionLeadMs : 0,
       detected_at);
-  // רק בדוח הראשון: הרשימה ארוכה, ודוחות נוספים היו דוחקים רשומות קודמות.
-  const std::vector<OtherThread> threads =
-      with_threads ? CaptureOtherThreads() : std::vector<OtherThread>();
+  const ThreadCapture capture = CaptureOtherThreads(first_report);
+  const std::vector<OtherThread>& threads = capture.threads;
+  RememberBusyThreads(threads);
   std::vector<ULONG_PTR> all_frames = frames;
   for (const OtherThread& thread : threads) {
     all_frames.insert(all_frames.end(), thread.frames.begin(),
@@ -246,7 +397,18 @@ void ReportHang(const std::vector<ULONG_PTR>& frames, bool with_threads,
   snprintf(detected, sizeof(detected), "Detected: %llums after launch\n",
            MsSinceLaunch());
   report += detected;
+  crash_record::AppendContext(&report);
+  accessibility_probe::AppendFirstRequest(&report);
   AppendMemory(&report);
+  if (capture.main_cpu_known) {
+    char main_line[128];
+    snprintf(main_line, sizeof(main_line),
+             "Main thread: CPU %llums in last %lums (%s)%s\n",
+             capture.main_recent_cpu_ms, kCpuWindowMs,
+             capture.main_waiting ? "waiting" : "running",
+             InLoader(frames) ? ", in loader" : "");
+    report += main_line;
+  }
   startup_watchdog::AppendBuildIdentity(all_frames, &report);
   startup_watchdog::AppendStack(frames, &report);
   if (exception) {
@@ -259,7 +421,10 @@ void ReportHang(const std::vector<ULONG_PTR>& frames, bool with_threads,
     report += header;
     report += startup_watchdog::DescribeFrame(exception->address) + "\n";
   }
-  AppendOtherThreads(threads, &report);
+  AppendOtherThreads(
+      threads,
+      first_report ? kFirstReportThreadBytes : kLaterReportThreadBytes,
+      &report);
   startup_watchdog::AppendReport(report);
 }
 
@@ -271,6 +436,7 @@ void ReportSample(int index, ULONGLONG into_hang_ms,
            index, into_hang_ms);
   std::string report = header;
   startup_watchdog::AppendStack(frames, &report);
+  AppendBusyThreadSamples(&report);
   startup_watchdog::AppendReport(report);
 }
 
