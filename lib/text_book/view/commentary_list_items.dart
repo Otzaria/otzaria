@@ -265,7 +265,11 @@ class _CommentaryLinkItemState extends State<_CommentaryLinkItem> {
                       if (!showTitle) {
                         displayTitle = markerText!;
                       } else if (markerText != null) {
-                        displayTitle = '$markerText $displayTitle';
+                        displayTitle = anchoredLinkTitle(
+                          link,
+                          markerText,
+                          displayTitle,
+                        );
                       }
                       if (settingsState.replaceHolyNames) {
                         displayTitle = utils.replaceHolyNames(

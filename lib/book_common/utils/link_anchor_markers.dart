@@ -35,14 +35,36 @@ String? anchorMarkerText(Link link) {
   return wrapLinkAnchorLetter(letter, _stableStyleIndex(link.path2));
 }
 
+/// כותרת קישור מעוגן: הסמן ואחריו הכתובת.
+///
+/// כשהתווית המודפסת שונה ממספר הרשומה (הרכיב האחרון של heRef) והכתובת
+/// מסתיימת במספר הזה, הוא מושמט — אחרת הכותרת מציגה שני ציונים סותרים, למשל
+/// "[ג] באר הגולה …, תרסד, ד" (issue #1979). סמן שאינו אות (•) אינו משמיט.
+String anchoredLinkTitle(Link link, String marker, String reference) {
+  final printed = _ordinal(link.anchorLabel ?? '');
+  final ordinal = _ordinal(link.heRef.split(',').last);
+  final cut = reference.lastIndexOf(', ');
+  if (printed != null &&
+      ordinal != null &&
+      printed != ordinal &&
+      cut > 0 &&
+      _ordinal(reference.substring(cut + 2)) == ordinal) {
+    reference = reference.substring(0, cut);
+  }
+  return '$marker $reference';
+}
+
+/// מספר בגימטריה בלי גרשיים, או null כשהטקסט אינו מספר כזה.
+String? _ordinal(String text) {
+  final letters = text.trim().replaceAll(RegExp(r'["׳״]'), '');
+  return RegExp(r'^[א-ת]{1,4}$').hasMatch(letters) ? letters : null;
+}
+
 String? _letterFor(Link link, String? storedLabel) {
   final label = storedLabel?.trim();
   if (label != null && label.isNotEmpty) return _textPresentation(label);
   final tail = link.heRef.split(',').last.trim();
-  final letters = tail.replaceAll(RegExp(r'["׳״]'), '');
-  if (letters.isEmpty || letters.length > 4) return null;
-  if (!RegExp(r'^[א-ת]+$').hasMatch(letters)) return null;
-  return tail;
+  return _ordinal(tail) == null ? null : tail;
 }
 
 /// ♦ (U+2666) נתפס ע"י גופן האימוג'י ומוצג כיהלום אדום גדול (issue #1106);
