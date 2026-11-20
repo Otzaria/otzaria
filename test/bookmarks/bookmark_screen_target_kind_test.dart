@@ -193,5 +193,23 @@ void main() {
       expect(textTab.book.title, 'דברים');
       expect(textTab.index, 9);
     });
+
+    testWidgets(
+      'סימנייה על TextBook מדגישה את השורה שלה בפתיחה (issue #4455)',
+      (
+        tester,
+      ) async {
+        final bookmark = Bookmark(
+          ref: 'דברים ל',
+          book: TextBook(title: 'דברים', filePath: '/fake/דברים.txt'),
+          index: 9,
+        );
+
+        final event = await _tapBookmarkAndCapture(tester, bookmark: bookmark);
+
+        expect(event.navigateToPositionIfReused, isTrue);
+        expect((event.tab as TextBookTab).highlightLineOnOpen, 9);
+      },
+    );
   });
 }

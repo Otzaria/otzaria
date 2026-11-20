@@ -453,6 +453,42 @@ void main() {
       });
     }
 
+    for (final (name, line) in [('מדגיש', 12), ('בלי בקשה אינו מדגיש', null)]) {
+      test('ניווט מסימניה בטאב פתוח $name את השורה (issue #4455)', () async {
+        final bloc = _newBloc(_FakeTabsRepository());
+        final recorder = _RecordingTextBookBloc(loaded: true);
+        final existingTab = TextBookTab(
+          book: TextBook(title: 'ספר א', categoryId: 1),
+          index: 0,
+          blocOverride: recorder,
+        );
+
+        bloc.add(AddTab(existingTab));
+        bloc.add(AddTab(_createTextTab('ספר ב', index: 0, categoryId: 2)));
+        await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+        bloc.add(
+          OpenOrFocusTab(
+            TextBookTab(
+              book: TextBook(title: 'ספר א', categoryId: 1),
+              index: 12,
+            )..highlightLineOnOpen = line,
+            navigateToPositionIfReused: true,
+          ),
+        );
+        await bloc.stream.firstWhere(
+          (s) => s.tabs.length == 2 && s.currentTabIndex == 0,
+        );
+
+        expect(
+          recorder.received.whereType<HighlightLine>().map((e) => e.lineIndex),
+          [?line],
+        );
+
+        await _closeBlocAndAllowDeferredDispose(bloc);
+      });
+    }
+
     test('טאב טקסט שטרם נטען מקבל את החיפוש רק כשהוא מגיע ל-Loaded', () async {
       // טאב ששוחזר ולא נצפה עדיין נשאר ב-TextBookInitial, ושם UpdateSearchText
       // נזרק בשקט — כל התצורה הייתה נעלמת.

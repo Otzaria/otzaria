@@ -2091,6 +2091,30 @@ void main() {
         },
       );
 
+      test('הדגשת שורה שהתבקשה לפני הטעינה מוחלת כשהספר נטען '
+          '(issue #4455)', () async {
+        final bloc = _createBloc(
+          repository: _FakeTextBookRepository(),
+          showPageShapeView: false,
+        );
+
+        bloc.add(const HighlightLine(3));
+        bloc.add(
+          const LoadContent(
+            fontSize: 20,
+            showSplitView: false,
+            removeNikud: false,
+            loadCommentators: false,
+          ),
+        );
+        await _waitFor(() {
+          final state = bloc.state;
+          return state is TextBookLoaded && state.highlightedLine == 3;
+        }, description: 'הדגשת השורה אחרי הטעינה');
+
+        await bloc.close();
+      });
+
       test('ApplyMarkHighlight עם highlightText ריק', () async {
         final repository = _FakeTextBookRepository();
         final bloc = _createBloc(

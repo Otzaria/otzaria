@@ -954,6 +954,9 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         curve: Curves.easeInOut,
       );
       targetText.updateLinkSelection(incomingTab.linkSelectedLine);
+      if (incomingTab.highlightLineOnOpen case final line?) {
+        targetText.highlightLine(line);
+      }
       if (!PluginTextReaderRegistry.instance.usesPlugin(targetText)) {
         unawaited(navigation);
         return;

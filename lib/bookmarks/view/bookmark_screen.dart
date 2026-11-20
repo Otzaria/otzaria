@@ -22,6 +22,8 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/bookmarks/utils/bookmark_from_tab.dart';
+import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/bookmarks/utils/bookmark_search_aliases.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
@@ -133,9 +135,9 @@ class _BookmarkViewState extends State<BookmarkView> {
     Bookmark bookmark, {
     String? targetTitle,
   }) {
-    final tab = tabFromBookmark(
+    final tab = _tabHighlightingBookmark(
       bookmark,
-      screenWidth: readingLayoutWidthOf(context),
+      readingLayoutWidthOf(context),
     );
 
     context.read<TabsBloc>().add(
@@ -154,6 +156,16 @@ class _BookmarkViewState extends State<BookmarkView> {
     }
   }
 
+  /// הטאב של [bookmark], ובספר טקסט — עם הדגשה רגעית של השורה שלה.
+  static OpenedTab _tabHighlightingBookmark(
+    Bookmark bookmark,
+    double? screenWidth,
+  ) {
+    final tab = tabFromBookmark(bookmark, screenWidth: screenWidth);
+    if (tab is TextBookTab) tab.highlightLineOnOpen = bookmark.index;
+    return tab;
+  }
+
   /// פותח את כל ספרי הקבוצה במיקומם השמור, לצד הטאבים הקיימים.
   /// ספר שכבר פתוח מקבל מיקוד ונגלל למיקום הסימניה.
   void _openGroup(BuildContext context, BookmarkGroup group) {
@@ -162,7 +174,10 @@ class _BookmarkViewState extends State<BookmarkView> {
     for (final bookmark in group.items) {
       tabsBloc.add(
         OpenOrFocusTab(
-          tabFromBookmark(bookmark, screenWidth: screenWidth),
+          // רק הספר הראשי מודגש, כדי שלא יהבהבו כל ספרי הקבוצה.
+          identical(bookmark, group.items.first)
+              ? _tabHighlightingBookmark(bookmark, screenWidth)
+              : tabFromBookmark(bookmark, screenWidth: screenWidth),
           targetTitle: bookmark.ref,
           navigateToPositionIfReused: true,
         ),
