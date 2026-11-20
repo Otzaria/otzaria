@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
+import 'package:otzaria/core/windowing/device_chrome.dart';
 import 'package:otzaria/core/windowing/window_caption_hit_test.dart';
 
 /// כמו `DragToMoveArea` של window_manager, אבל גורר את החלון של ה-[AppWindowScope]
@@ -21,6 +22,8 @@ class AppDragToMoveArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // בנייד אין חלון: ל-window_manager אין שם מימוש, וכל קריאה זורקת חריגה.
+    if (!DeviceChrome.hasWindowCaption) return child;
     final area = GestureDetector(
       behavior: HitTestBehavior.translucent,
       onPanStart: (_) => AppWindowScope.controllerOf(context).startDragging(),

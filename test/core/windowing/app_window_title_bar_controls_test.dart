@@ -8,6 +8,7 @@ import 'package:otzaria/core/windowing/app_drag_to_move_area.dart';
 import 'package:otzaria/core/windowing/app_window_caption.dart';
 import 'package:otzaria/core/windowing/app_window_controller.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
+import 'package:otzaria/core/windowing/device_chrome.dart';
 import 'package:otzaria/core/windowing/snap_layouts.dart';
 import 'package:otzaria/core/windowing/window_manager_app_window_controller.dart';
 import 'package:window_manager/window_manager.dart';
@@ -43,6 +44,20 @@ void main() {
     await tester.pumpAndSettle(kDoubleTapTimeout);
 
     expect(window.calls, ['startDragging']);
+  });
+
+  testWidgets('בנייד AppDragToMoveArea לא פונה לחלון', (tester) async {
+    DeviceChrome.debugMobileOverride = true;
+    addTearDown(() => DeviceChrome.debugMobileOverride = null);
+    final window = await pump(tester, dragArea());
+
+    await tester.drag(find.byType(AppDragToMoveArea), const Offset(40, 0));
+    await tester.tap(find.byType(AppDragToMoveArea));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.byType(AppDragToMoveArea));
+    await tester.pumpAndSettle(kDoubleTapTimeout);
+
+    expect(window.calls, isEmpty);
   });
 
   testWidgets('לחיצה כפולה ב-AppDragToMoveArea מחליפה maximize', (

@@ -228,6 +228,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 
   /// maximize/restore בלחיצה כפולה על האזור הריק שבשורת הטאבים (כמו DragToMoveArea).
   Future<void> _onTabsAreaDoubleTap() async {
+    if (!DeviceChrome.hasWindowCaption) return;
     final window = AppWindowScope.controllerOf(context);
     final isMaximized = await window.isMaximized();
     if (isMaximized) {
@@ -740,6 +741,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         behavior: HitTestBehavior.translucent,
         // גרירה על טאב מסדרת אותו (reorder); רק גרירה על האזור הריק גוררת חלון.
         onPanStart: (details) {
+          if (!DeviceChrome.hasWindowCaption) return;
           if (_hitTestTab(context, details.globalPosition)) return;
           // ⚠️ ב-Windows זהו no-op במסך מלא — `window_manager.startDragging`
           // יוצא מוקדם כש-`isFullScreen()` מחזיר true. גרירת החלון מסרגל
@@ -787,6 +789,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         behavior: HitTestBehavior.translucent,
         dragStartBehavior: DragStartBehavior.down,
         onPanStart: (details) {
+          if (!DeviceChrome.hasWindowCaption) return;
           if (_isOverTabBehindDialog(details.globalPosition)) return;
           AppWindowScope.controllerOf(context).startDragging();
         },
